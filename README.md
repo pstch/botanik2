@@ -67,33 +67,34 @@ Arduino's `setup()` function, and that the runtime is never called from `loop()`
 in the background, probably using an Mbed Thread assigned to one of the two cores, but even that is an 
 assumption. Because of that, we'll use some defensive programming techniques to avoid interference, race 
 conditions and potential crashes caused by the interaction of the PLC runtime and our code :
- - On the C side, implementing the equivalent of PLC set-period tasks to avoid putting too much load
-   on the CPU and to leave some time for the PLC runtime. This might not be needed because our MCU has 
-   two independent cores, but since we have zero information about the PLC runtime, it can still help us
-   avoid significant problems.
- - On both sides, gating as much as we can of the control logic so that it only runs when the other side's
-   gated logic is not currently executing, and even making each side's gated logic run in "lock-step" 
-   with each other, by making the above-mentioned "gating" wait for the other side to send a new heartbeat
-   before running a new cycle of the control logic.
- - On the C side, enabling a hardware watchdog timer that is reset after each PLC heartbeat, so that the
-   whole system gets reset if either the C code or PLC runtime crashes/hangs for any reason
- - On the PLC side, entering a "safe state" if we don't receive heartbeats from the C code, to attempt to
-   prepare the system from the impending hardware reset.
- - Monitoring the proper execution of this synchronization scheme (overruns, 
-   lack of idle time, latency spikes, etc) and providing a robust logging systems that allows us to log
-   messages from both the C side and the PLC programming.
 
- - [Arduino OPTA datasheet](https://docs.arduino.cc/resources/datasheets/AFX00001-AFX00002-AFX00003-datasheet.pdf)
-   + The version we currently use is the **Arduino OPTA RS-485** (AFX00001)
- - [STM32H747XI datasheet](https://www.st.com/resource/en/datasheet/stm32h747ag.pdf)
- - [Arduino's framework implementation for Mbed-based devices](https://github.com/arduino/ArduinoCore-mbed)
-   + The Arduino PLC IDE currently uses version 4.1.6 of this code to compile the firmware
- - [Axel Software's LogicLab software](https://www.axelsoftware.it/en/logiclab/)
-   + Can be useful as it provides a standard library of PLC programming elements that is not
-     provided in the Arduino PLC IDE, but that can still be imported to the Arduino PLC IDE.
-     This is not documented anywhere, which is a shame.
- - [Mbed OS documentation, version 5.1.5](https://os.mbed.com/docs/mbed-os/v5.15/introduction/index.html)
+- On the C side, implementing the equivalent of PLC set-period tasks to avoid putting too much load
+  on the CPU and to leave some time for the PLC runtime. This might not be needed because our MCU has 
+  two independent cores, but since we have zero information about the PLC runtime, it can still help us
+  avoid significant problems.
+- On both sides, gating as much as we can of the control logic so that it only runs when the other side's
+  gated logic is not currently executing, and even making each side's gated logic run in "lock-step" 
+  with each other, by making the above-mentioned "gating" wait for the other side to send a new heartbeat
+  before running a new cycle of the control logic.
+- On the C side, enabling a hardware watchdog timer that is reset after each PLC heartbeat, so that the
+  whole system gets reset if either the C code or PLC runtime crashes/hangs for any reason
+- On the PLC side, entering a "safe state" if we don't receive heartbeats from the C code, to attempt to
+  prepare the system from the impending hardware reset.
+- Monitoring the proper execution of this synchronization scheme (overruns, 
+  lack of idle time, latency spikes, etc) and providing a robust logging systems that allows us to log
+  messages from both the C side and the PLC programming.
 
+
+- [Arduino OPTA datasheet](https://docs.arduino.cc/resources/datasheets/AFX00001-AFX00002-AFX00003-datasheet.pdf)
+  + The version we currently use is the **Arduino OPTA RS-485** (AFX00001)
+- [STM32H747XI datasheet](https://www.st.com/resource/en/datasheet/stm32h747ag.pdf)
+- [Arduino's framework implementation for Mbed-based devices](https://github.com/arduino/ArduinoCore-mbed)
+  + The Arduino PLC IDE currently uses version 4.1.6 of this code to compile the firmware
+- [Axel Software's LogicLab software](https://www.axelsoftware.it/en/logiclab/)
+  + Can be useful as it provides a standard library of PLC programming elements that is not
+    provided in the Arduino PLC IDE, but that can still be imported to the Arduino PLC IDE.
+    This is not documented anywhere, which is a shame.
+- [Mbed OS documentation, version 5.1.5](https://os.mbed.com/docs/mbed-os/v5.15/introduction/index.html)
 
 ## Associated devices
 
