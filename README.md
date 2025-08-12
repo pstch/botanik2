@@ -128,6 +128,3 @@ at the root of the repository.
  - 8* motorized ball valves (Tray valves, 2-wire, 24VDC, set-delay)
  - 2* motorized ball valves (Input/output, 2-wire, 24VDC, set-delay)
  - 1* solenoid valve (Humidifier, 2-wire, 24VDC)
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
