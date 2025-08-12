@@ -1,5 +1,7 @@
 # botanik // small-scale horticultural greenhouse control system
 
+![Botanik logo](images/logo.png "Botanik")
+
 This project is used to host the programming of a control system for a
 small-scale horticultural greenhouse. This control system is used for 
 irrigation (at fixed schedules) and ventilation (with air blowers, 
