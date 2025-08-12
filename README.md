@@ -84,6 +84,7 @@ conditions and potential crashes caused by the interaction of the PLC runtime an
   lack of idle time, latency spikes, etc) and providing a robust logging systems that allows us to log
   messages from both the C side and the PLC programming.
 
+Useful links :
 
 - [Arduino OPTA datasheet](https://docs.arduino.cc/resources/datasheets/AFX00001-AFX00002-AFX00003-datasheet.pdf)
   + The version we currently use is the **Arduino OPTA RS-485** (AFX00001)
