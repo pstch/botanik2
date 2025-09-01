@@ -102,22 +102,14 @@ constexpr void ORDERED_MOVE(T* dst, T src) {
 
 #pragma pack(push, 1)
 enum LogLevel : uint8_t {
-    DEBUG = 1,       // debugging messages, only printed when debugging mode is enabled
-    INFO = 2,        // informational messages, they don't need any particular attention
-    NOTICE = 4,      // important messages, but not indicating any kind of problem
-    WARNING = 8,     // important messages that indicate a potential problem
-    ERROR = 16,      // error messages, something is happenning that should never happen
-    CRITICAL = 32,   // critical message, something very bad is going to happen soon
+    LOG_DEBUG = 1,       // debugging messages, only printed when debugging mode is enabled
+    LOG_INFO = 2,        // informational messages, they don't need any particular attention
+    LOG_NOTICE = 4,      // important messages, but not indicating any kind of problem
+    LOG_WARNING = 8,     // important messages that indicate a potential problem
+    LOG_ERROR = 16,      // error messages, something is happenning that should never happen
+    LOG_CRITICAL = 32,   // critical message, something very bad is going to happen soon
 };
 
-const char* format_log_level(LogTopic topic) { switch (topic) {
-    case DEBUG:     return "[~]";
-    case INFO:      return "[-]";
-    case NOTICE:    return "[+]";
-    case WARNING:   return "[!]";
-    case ERROR:     return "[§]";
-    case CRITICAL:  return "[@]";
-}; }
 
 enum LogTopic : uint8_t {
     NONE = 0,
@@ -128,15 +120,6 @@ enum LogTopic : uint8_t {
     PLC_IO = 1,            // messages about the PLC shared memory
 
 };
-
-const char* format_log_topic(LogTopic topic) { switch (topic) {
-    case NONE:      return "";
-    case BOOT:      return "BOOT:";
-    case NETWORK:   return "NETWORK:";
-    case TIME:      return "TIME:";
-    case STATUS:    return "STATUS:";
-    case PLC_IO:    return "SHARED_IO";
-}; }
 
 struct LogEntry_t {
     uint32_t        timestamp;
@@ -223,6 +206,34 @@ inline void blink(uint8_t pin, uint32_t period_ms) {
     if (period_ms == 0) { digitalWrite(pin, LOW); return; }
     digitalWrite(pin, (millis() % (period_ms * 2) < period_ms) ? HIGH : LOW);
 }
+
+const char* _format_log_level(LogLevel level) { switch (level) {
+    case LOG_DEBUG:     return "[~]";
+    case LOG_INFO:      return "[-]";
+    case LOG_NOTICE:    return "[+]";
+    case LOG_WARNING:   return "[!]";
+    case LOG_ERROR:     return "[§]";
+    case LOG_CRITICAL:  return "[@]";
+}; }
+
+const char* _format_log_topic(LogTopic topic) { switch (topic) {
+    case NONE:      return "";
+    case BOOT:      return "BOOT:";
+    case NETWORK:   return "NETWORK:";
+    case TIME:      return "TIME:";
+    case STATUS:    return "STATUS:";
+    case PLC_IO:    return "SHARED_IO";
+}; }
+
+size_t _format_log_entry(const LogEntry_t* entry, char* buf, size_t len) {
+    const char* level = _format_log_level(entry->level);
+    const char* topic = _format_log_topic(entry->topic);
+    std::array<char, 22> time_buf; 
+    TimeUtils::format_ms_timestamp(TimeUtils::absolute_ms(entry->timestamp), &time_buf);
+    int written = snprintf(buf, len, "%s %s %s", time_buf.data(), level, topic, entry->message);
+    return POS(MIN((size_t)written, len));
+};
+
 
 // This namespace provides some standard utility functions to work with the 
 // different ways we use to represent time :
@@ -326,6 +337,389 @@ namespace TimeUtils {
     }
 };
 
+// ASCII Terminal implementation
+// ===========================================================================
+
+#define ASCII_TERM_MAX_COLS             40
+#define ASCII_TERM_MAX_LINES            25
+
+#define ASCII_TERM_INPUT_BUF_SIZE       256
+#define ASCII_TERM_OUTPUT_BUF_SIZE      4096
+
+enum AsciiTerminalState {
+    T_WRITE,
+    T_PARSE,
+    T_EXEC,
+    T_READ,
+};
+
+struct Cursor {
+    uint8_t row;
+    uint8_t col;
+};
+
+class AsciiTerminal2 {
+private:
+
+    char        _in[1024];      // User input buffer
+    uint16_t    _in_len;        // Current input length
+    uint16_t    _in_pos;        // Current input position
+    uint16_t    _in_lines;      // Current input line-count
+    uint16_t    _in_col;        // Cursor column
+    uint16_t    _in_row;        // Cursor row
+
+    char        _ps1[8];        // Prompt to print before the first input line 
+    uint8_t     _ps1_len;       // Length of PS1 prompt
+
+    char        _ps2[8];        // Prompt to print on subsequent input lines
+    uint8_t     _ps2_len;       // Length of PS2 prompt
+
+    uint8_t     _rows;          // Ouptut row count
+    uint8_t     _cols;          // Output column count
+
+    // Print bytes to the serial output
+    // XXX: not implemented yet, we'll add buffered output later
+    void _print(char* buf, uint16_t len);
+    void _blank(uint16_t len);
+
+    // Move the cursor to the given position
+    void _move_cursor(uint8_t row, uint8_t col) {
+        char   _buf[16]; 
+        int     len;
+        len = snprintf(_buf, sizeof(_buf), "\033[%d;%dH", row+1, col+1);
+        _print(_buf, len);
+    }
+    
+    // Move the cursor to the current position in the input buffer
+    void _reset_cursor() {
+        Cursor cursor = _cursor_pos(_in_pos);
+        _move_cursor(cursor.row, cursor.col);
+    }
+
+    // Trigger a hardware scroll event
+    void _scroll_up(uint8_t lines) {
+        for (uint8_t i = 1; i < lines; ++i) {
+            _move_cursor(_rows, _cols);
+            _print(" ", 1);
+        }
+    }
+
+    // Calculate cursor for the given position in the input buffer
+    Cursor _cursor_pos(uint16_t pos) {
+        Cursor cursor;
+        if (pos < _cols - _ps1_len) {
+            cursor.row = 0;
+            cursor.col = _ps1_len + pos;
+        } else {
+            pos -= _cols - _ps1_len;
+            cursor.row = 1 +        pos / (_cols - _ps2_len);
+            cursor.col = _ps2_len + pos % (_cols - _ps2_len);
+        }
+        return cursor;
+    }
+
+    // XXX: may not be needed
+    uint16_t _buffer_pos(uint8_t row, uint8_t col) {
+        if (row == 0) { return col - _ps1_len; }
+        uint16_t line1_len = _cols - _ps1_len;
+        uint16_t lineX_len = _cols - _ps2_len;
+        return line1_len + (row - 1) * lineX_len + (col -_ps2_len);
+    }
+
+    void _insert_char(char byte) {
+        // check that we can insert the given character
+        if (_in_len >= sizeof(_in)) return;
+        if (!isprint(byte)) return;
+        bool last = _in_len == _in_pos;
+        // if not at the last position, shift left the remaining input buffer
+        if (!last) memmove(&_in[_in_pos + 1], &_in[_in_pos], _in_len - _in_pos);
+        // store the given character and increment length/position counters
+        _in[_in_pos] = byte; _in_len++; _in_pos++;
+        // redraw the prompt from the given character
+        _print_prompt(_in_pos - 1, _in_len);
+        // reset the cursor to its new position
+        if (!last) _reset_cursor();
+    }
+
+    void _print_prompt_range(uint16_t begin, uint16_t end, bool blank) {
+        uint16_t pos = begin;
+        Cursor cursor = _cursor_pos(pos);
+
+        
+        while (pos < _in_len) {
+            // Compute cursor position
+            Cursor cursor = _cursor_pos(pos);
+            // Compute prompt length for the current row
+            uint8_t ps_len = cursor.row == 0 ? _ps1_len : _ps2_len;
+            char*   ps_buf = blank ? _blank_buf : (cursor.row == 0 ? _ps1 : _ps2);
+            // Write prompt if needed
+            if (cursor.col == ps_len) {
+                _move_cursor(_rows - _in_lines + cursor.row, 0);
+                _print(ps_buf, ps_len);
+            } else {
+                _move_cursor(_rows - _in_lines + cursor.row, cursor.col);
+            }
+            // Write current line contents
+            uint8_t len = MIN(_cols - cursor.col, _in_len - pos);
+            _print((blank ? _blank_buf : _in)[pos], len);
+            pos += len;
+        }
+    }
+
+    void _print_prompt(uint16_t begin, uint16_t end) {
+        _print_prompt_range(begin, _in_len, false);
+        _print_prompt_range(_in_len, end, true);
+        _reset_cursor();
+    }
+
+    // Redraw the logs
+    void _print_logs() {
+        uint8_t rows = _rows - _prompt_lines();
+        for (uint8_t line = rows; line > 0; --line) {
+            uint8_t row = 
+            uint8_t line = lines - row;
+            _move_cursor(row, 0);
+            _print(_log_buffer.get_line(line), _log_buffer.get_len(line));
+        };
+        _move_cursor(rows, 0);
+    }
+
+    void _read() {
+        for (;;) {
+            char byte = _serial.read();
+            //NOTE: some of these handlers need many steps to run, so we need to store the last character
+            //      outside of this function (along with the state required by the multi-step handlers)
+
+            //NOTE: but we could also handle that using a non-blocking output buffer that can contain a full screen
+
+            //QUESTION: how do we handle printing logs into that ?
+            switch (byte) {
+                case LOGS:
+                    _scroll_up(log_lines);
+                    _move_cursor(_max_lines - _in_lines() - log_lines, 0);
+                    for (uint8_t i = 0; i < log_lines; ++i) {
+                        _print(_log_buffer.get_line(i), _max_cols);
+                    }
+                    _print_prompt();
+                    _reset_cursor();
+                case -1: 
+                    return;
+                case EOT:
+                    // we received an interruption command, we want to stop the currently executing command
+                    break;
+                case RETURN:
+                    _in_pos = _max_cols - (_in_len % _max_cols);
+                    _print(" \b", 2);
+                    _in_pos = _in_len;
+                    // ASCII return
+
+                    // - move to last position of prompt (last line, last col)
+                    // - execute command (will print its output)
+                    //   (may take multiple steps)
+                    // - show new prompt
+                case CTRL_L:
+                    _clear();
+                    _print_logs();
+                    _print_prompt();
+                    _reset_cursor();
+                    break;
+                case CTRL_E:
+                    _in_pos = _in_len;
+                    _reset_cursor();
+                    break;
+                case CTRL_A:
+                    _in_pos = 0;
+                    _reset_cursor();
+                    break;
+                case CTRL_U:
+                    _clear_input();
+                    _redraw_prompt();
+                    break;
+                case CTRL_H:
+                case BACKSPACE:
+                    if (_in_pos == _in_len) {
+                        _in[_in_pos] = '\0';
+                        _print("\b \b", 3);
+                    } else {
+                        _shift_input(_in_pos - 1, -1);
+                        _redraw_prompt();
+                    };
+                    break;
+                case CTRL_D:
+                    _shift_input(_in_pos, -1);
+                    _redraw_prompt();
+                    break;
+                case CTRL_W:
+                    _shift_input(_in_pos, _in_pos-_find_word_begin());
+                    _redraw_prompt();
+                    break;
+                case UP:
+                    if (_hist_pos < _hist_len) {
+                        _load_history(_hist_pos++);
+                        _redraw_prompt();
+                    }
+                    break;
+                case DOWN:
+                    if (_hist_pos > 0) {
+                        _load_history(_hist_pos--);
+                        _redraw_prompt();
+                    }
+                    break;
+                case LEFT:
+                    if (_in_pos > 0) { _in_pos -= 1; _move_cursor(); }
+                    break;
+                case RIGHT:
+                    if (_in_pos < _in_len) { _in_pos -= 1; _move_cursor(); }
+                    break;
+                case ANYCHAR:
+                    if (!isprint(byte)) break;
+                    _in[_in_pos++] = byte;
+                    if (_in_len == _in_pos + 1) {
+                        _print(byte, 1);
+                    } else {
+                        _redraw_prompt();
+                    }
+            }
+        }
+    }
+}
+
+// This class provides support for reading      
+class AsciiTerminal {
+    arduino::UART       _serial;
+    AsciiTerminalState  _state;
+    char                _in[ASCII_TERM_INPUT_BUF_SIZE];
+    uint8_t             _in_len;
+    char                _out[ASCII_TERM_OUTPUT_BUF_SIZE];
+    uint16_t            _out_len;
+    uint16_t            _out_sent;
+
+private:
+    // Set the output buffer to the given string
+    void _set_output(char* buf, size_t len) { memcpy(_out, buf, len); _out_len = len; }
+    void _clear_output() { _out_sent = 0; _out_len = 0; memset(_out, 0, sizeof(_out)); }
+    // Read bytes from the serial port until the RX buffer is empty or we switch to another state
+    AsciiTerminalState _read() { for (;;) {
+        char byte = _serial.read();
+        switch (byte) {
+            case -1:                        // No character read :
+                return T_IDLE;
+            case 0x08:                      // Handle ASCII backspace :
+                if (_in_len == 0) continue;         // if nothing to erase, just skip the backspace
+                _in[--_in_len] = '\0';              // clear the last character in the input buffer
+                _set_output("\b \b", 3);            // set the output buffer to a character clearing sequence
+                return T_WRITE;                     // enter writing mode
+            case '\r':                      // Handle ASCII return :
+                return T_EXEC;                      // enter command execution mode
+            default:                        // Handle ASCII characters :
+                if (_in_len == sizeof(_in)) break;     // if no more space, ignore the character
+                if (!isprint(byte)) break;          // if not a printable character, ignore the character
+                _in[_in_len++] = byte;              // otherwise, store the character in the input buffer
+        };
+    }; }
+
+    // Attempt to drain the output buffer to the serial port
+    bool _write() { 
+        int avail = _serial.availableForWrite();
+        if (avail == 0) return false;
+        size_t len = (size_t)MAX(_out_len -_out_sent, avail);
+        _out_sent += _serial.write(&_out[_out_sent], len);
+        if (_out_sent < _out_len) return false;
+        _clear_output();
+        return true;
+    }
+
+    bool _dumpstats() {
+
+    }
+
+    bool _dumplogs() {
+        for (uint8_t )
+        while (!_log_buffer_notempty()) {
+            entry = _log_bu
+        }
+    }
+
+    bool _exec() {
+        // XXX: here we could have an inner state machine that handles command execution
+        //      because the command may not finish in a single step, or because it may
+        //      output more than the output buffer, etc
+        // XXX: for now, we just acknowledge the received command, 
+        //      the actual implementation of commands will come later
+        _out_len = snprintf(_out, ASCII_TERM_OUTPUT_BUF_SIZE, "received command : %s", _in);
+        _out_len = MAX(_out_len, (uint16_t)ASCII_TERM_OUTPUT_BUF_SIZE);
+        return T_WRITE;
+
+
+        do_some_stuff();
+        print_lines();
+        do_some_more_stuff();
+        print_more_lines();
+    }
+
+    bool _cmd1() {
+        switch (_cmd1_state) {
+            case C1_A:  
+                // do some stuff
+                //    
+            case C2_A: 
+        }
+    }
+
+    // 
+    void step() { switch (_state) {
+        case T_READ:   _state = _read();
+        case T_WRITE:  _state = _write() ? T_READ : T_WRITE;
+        case T_EXEC:   _state = _exec() ? T_READ : T_EXEC;
+        }; 
+    }
+
+    void log(LogEntry_t entry) {
+        // 
+    }
+
+
+
+    void print_prompt() {
+        _serial.print("\e[");
+        _serial.print(MINITEL_1B_LINES);
+        _serial.print(";1H");                
+        _serial.print("cmd> ");
+        _serial.print(_buffer);
+    }
+
+    bool readchar() {
+        int byte = _serial.read();
+        if (byte < 0) return false;
+        char chr = (char)chr;
+
+        switch (chr) {
+            case '\r': // ASCII return
+                process();
+                memset(_buffer, 0, sizeof(_buffer));
+                _buffer_idx = 0;
+
+                _serial.print("\e[");
+                _serial.print(PROMPT_LINE_INDEX + 1);
+                _serial.print(";1H");                
+
+                break;
+            case 0x08: // ASCII backspace
+                if (_buffer_idx == 0) break;
+                _buffer_idx--;
+                _buffer[_buffer_idx] = '\0';
+                _serial.print("\b \b");
+                break;
+            default:  // Regular character
+                if (_buffer_idx == MINITEL_1B_COLS) break;
+                _serial.write(chr);
+                _buffer[_buffer_idx] = chr;
+                break;
+        }
+
+    }
+}
+
 // Logging
 // ===========================================================================
 
@@ -407,8 +801,8 @@ private:
     arduino::UART* _serial;
 protected:
     size_t format(const LogEntry_t* entry, char* buf, size_t len) override {
-        const char* level = format_log_level(entry->level);
-        const char* topic = format_log_topic(entry->topic);
+        const char* level = _format_log_level(entry->level);
+        const char* topic = _format_log_topic(entry->topic);
         std::array<char, 22> time_buf; 
         TimeUtils::format_ms_timestamp(TimeUtils::absolute_ms(entry->timestamp), &time_buf);
         int written = snprintf(buf, len, "%s %s %s", time_buf.data(), level, topic, entry->message);
@@ -431,7 +825,7 @@ public:
 class MonitorLogWriter : public SerialLogWriter {
 protected:
     void push(const LogEntry_t* entry) override {
-        if (entry->level != LogLevel::DEBUG) SerialLogWriter::push(entry);
+        if (entry->level != LOG_DEBUG) SerialLogWriter::push(entry);
     }
 public:
     MonitorLogWriter(arduino::UART* serial): SerialLogWriter(serial) {}
@@ -638,7 +1032,6 @@ public:
 // Log reader
 // ---------------------------------------------------------------------------
 
-
 class PlcLogReader {
 private:
     // Parameters
@@ -687,7 +1080,6 @@ public:
 
 };
 
-
 // Event loop
 // ===========================================================================
 
@@ -701,8 +1093,8 @@ PlcLogReader        plcLogReader;
 // MqttManager         mqttManager;
 // NtpManager          ntpManager;
 // ProcessManager      processManager;
-SerialLogWriter     serial1LogWriter;
-SerialLogWriter     serial2LogWriter;
+DebugLogWriter     debugLogWriter;
+MonitorLogWriter     monitorLogWriter;
 // MqttLogWriter       mqttLogWriter;
 
 void setup() { 
@@ -721,17 +1113,14 @@ void setup() {
     // processManager = ProcessManager(this, &plcManager, &ntpManager);
 
     // Log writers (asynchronous output queues)
-    serial1LogWriter = SerialLogWriter(&Serial1);
-    serial2LogWriter = SerialLogWriter(&Serial2);
+    debugLogWriter = DebugLogWriter(&Serial1);
+    monitorLogWriter = MonitorLogWriter(&Serial2);
     // TODO: mqttLogWriter = MqttLogWriter(mqttManager);
 
     // Register writers in logger
-    logger.add_writer(&serial1LogWriter);
-    logger.add_writer(&serial2LogWriter);
+    logger.add_writer(&debugLogWriter);
+    logger.add_writer(&monitorLogWriter);
     // TODO: logger.add_writer(&mqttLogWriter);
-
-    LogEntry_t tt;
-    serial1LogWriter.push(&tt);
 }
 
 // Loop function
@@ -747,8 +1136,8 @@ void loop() {
     
     // processManager.step();
 
-    serial1LogWriter.drain();
-    serial2LogWriter.drain();
+    debugLogWriter.drain();
+    monitorLogWriter.drain();
     // mqttLogWriter.drain();
 
 }
