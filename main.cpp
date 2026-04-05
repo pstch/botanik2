@@ -1,16 +1,21 @@
-// Global definitoins
+// Global definitions
 // ==========================================================================
 
 // Includes
 // ---------------------------------------------------------------------------
 
+#include "stdio.h"
+
 #include <cstdint>
 #include <atomic>                       // For std::atomic
 #include <ctime>                        // For time_t, struct tm
 #include <cstring>                      // For memset
+#include <array>
+#include <chrono>
+#include <cmath>
 
 // PLC runtime
-#include <AlPlc_Opta.h>                 // For m_PLCShardVarsInputBuf and m_PLCSharedVarsOutputBuf
+// include <AlPlc_Opta.h>                 // For m_PLCShardVarsInputBuf and m_PLCSharedVarsOutputBuf
 
 // Generic utilities
 // ---------------------------------------------------------------------------
@@ -18,6 +23,21 @@
 #ifdef abs
 #undef abs
 #endif
+
+void ARM_MPU_OrderedMemcpy(uint32_t* dst, uint32_t* src, size_t len);
+void __DSB();
+uint32_t millis();
+uint32_t micros();
+void digitalWrite(int pin, bool val);
+void* m_PLCSharedVarsInputBuf;
+void *m_PLCSharedVarsOutputBuf;
+
+namespace arduino {
+    class UART;
+}
+
+#define HIGH 1
+#define LOW 0
 
 // Simple comparisons
 template <typename T>
@@ -30,8 +50,8 @@ template <typename T>
 constexpr const T& NEG(const T& a) { return MIN((T)0, a); }
 
 // Duration conversions
-#define TIMEPOINT_TO_MS(x) (std::chrono::duration_cast<std::chrono::milliseconds>(x.time_since_epoch())).count()
-#define TIMEPOINT_TO_US(x) (std::chrono::duration_cast<std::chrono::microseconds>(x.time_since_epoch())).count()
+#define TIMEPOINT_TO_MS(x) (0) // std::chrono::duration_cast<std::chrono::milliseconds>(x.time_since_epoch())).count()
+#define TIMEPOINT_TO_US(x) (0) // std::chrono::duration_cast<std::chrono::microseconds>(x.time_since_epoch())).count()
 
 
 // In-order memory copy
@@ -207,14 +227,6 @@ inline void blink(uint8_t pin, uint32_t period_ms) {
     digitalWrite(pin, (millis() % (period_ms * 2) < period_ms) ? HIGH : LOW);
 }
 
-const char* _format_log_level(LogLevel level) { switch (level) {
-    case LOG_DEBUG:     return "[~]";
-    case LOG_INFO:      return "[-]";
-    case LOG_NOTICE:    return "[+]";
-    case LOG_WARNING:   return "[!]";
-    case LOG_ERROR:     return "[§]";
-    case LOG_CRITICAL:  return "[@]";
-}; }
 
 const char* _format_log_topic(LogTopic topic) { switch (topic) {
     case NONE:      return "";
@@ -235,490 +247,6 @@ size_t _format_log_entry(const LogEntry_t* entry, char* buf, size_t len) {
 };
 
 
-// This namespace provides some standard utility functions to work with the 
-// different ways we use to represent time :
-//  - UNIX timestamps, stored as uint64_t on this platform
-//  - absolute millisecond/microsecond uptime counters, stored as uint64_t
-//  - rolling-over millisecond/microsecond uptime counters, stored as uint32_t
-//
-// Some components of our firmware record and transmit 32-bit rolling-over counters
-// without additional context, and we need to project them into the current rollover
-// window, assuming that they refer to events that occurred in a rollover window
-// centered on current time. This namespace provides functions to handle this projection
-// (absolute_ms() and absolute_us()), as well a some standard formatting/conversion functions.
-namespace TimeUtils {
-    // Calendar time struct, without the idiosyncracies from the
-    // standard tm struct and with some additional fields for total
-    // days and milliseconds
-    struct CalendarTime {
-        // standard calendar fields
-        uint16_t    year;               // years after BC
-        uint8_t     month;              // month of current year, 1-indexed
-        uint8_t     day;                // day of current month, 1-indexed
-        uint8_t     hour;               // hour of current day, 0-indexed
-        uint8_t     minute;             // minute of current hour, 0-indexed
-        uint8_t     second;             // second of current minute, 0-indexed
-        uint16_t    millisecond;        // millisecond of current second, 0-indexed
-        // monotonic counters
-        uint16_t    unixDays;           // days after UNIX epoch, 0-indexed
-        uint64_t    unixSeconds;        // seconds after UNIX epoch, 0-indexed
-    };
-    // Convert a 32-bit uptime timestamp to an absolute 64-bit timestamp,
-    // assuming the given timestamp occurs in the rollover window centered 
-    // on the given absolute timestamp (71 minutes for microseconds, 
-    // 49 days for milliseconds).
-    static uint64_t _absolute_timestamp(uint64_t uptime, uint32_t timestamp) {
-        uint32_t current = uptime % (1ULL << 32);
-        uptime -= current;
-        if (current - timestamp > (1ULL << 31)) uptime -= (1ULL << 32);
-        if (timestamp - current > (1ULL << 31)) uptime += (1ULL << 32);
-        return uptime + timestamp;
-    }
-    // Sawtooth millisecond uptime counter (rolls over every ~49 days), using the low-power clock
-    //   (equivalent to Arduino's millis() function)
-    static uint32_t current_ms()    { return millis(); }
-    // Sawtooth microsecond uptime counter (rolls over every ~71 minutes), using the regular clock
-    //   (equivalent to Arduino's micros() function)
-    //   WARNING: this counter does not run when the device is in SLEEP mode, 
-    //            it should only be used for short intervals during which the
-    //            device is guaranteed to stay in RUN mode
-    static uint32_t current_us()    { return micros(); }
-    // Monotonic millisecond uptime counter (no rollover), using the low-power clock
-    static uint64_t uptime_ms()     { return TIMEPOINT_TO_MS(mbed::LowPowerClock::now()); }
-    // Monotonic microsecond uptime counter (no rollover), using the low-power clock
-    //   WARNING: the low-power clock used for this counter will generally not
-    //            have enough precision for true microseconds. On an Arduino OPTA, 
-    //            this clock runs at 32.768 kHz, which means that the smallest interval
-    //            it can measure is around ~30 microseconds.
-    static uint64_t uptime_us()     { return TIMEPOINT_TO_US(mbed::LowPowerClock::now()); }
-    // Project a rolling-over millisecond uptime counter into the current rollover window
-    static uint64_t absolute_ms(uint32_t timestamp_ms) { 
-        return _absolute_timestamp(uptime_ms(), timestamp_ms);
-    }
-    // Project a rolling-over microsecond uptime counter into the current rollover window
-    //   WARNING: see warning in uptime_ms() about the microsecond 
-    //                precision of the low-power clock
-    static uint64_t absolute_us(uint32_t timestamp_us) {
-        return _absolute_timestamp(uptime_us(), timestamp_us);
-    }
-    // Convert a monotonic uptime millisecond counter to an UNIX integer timestamp
-    //  (and copy the fractional part to the pointer given in frac_ms)
-    static time_t unix_time_ms(uint64_t timestamp_ms, uint16_t* frac_ms) {
-        int64_t delta_ms = timestamp_ms - uptime_ms();
-        time_t delta_s = (time_t)(delta_ms / 1000);
-        if (frac_ms != nullptr) *frac_ms = (uint16_t)std::abs(delta_ms % 1000);
-        if (delta_ms < 0 && *frac_ms > 0) delta_s--;
-        return time(NULL) + delta_s;
-    }
-    // Convert an absolute millisecond uptime counter into a calendar datetime
-    static CalendarTime cal_time_ms(uint64_t timestamp_ms) {
-        uint16_t time_frac; tm time_info; CalendarTime result;
-        time_t time_unix = unix_time_ms(timestamp_ms, &time_frac);
-        localtime_r(&time_unix, &time_info);
-        result.year = (uint16_t)(time_info.tm_year + 1900);
-        result.month = (uint8_t)(time_info.tm_mon + 1);
-        result.day = (uint8_t)time_info.tm_mday;
-        result.hour = (uint8_t)time_info.tm_hour;
-        result.minute = (uint8_t)time_info.tm_min;
-        result.second = (uint8_t)time_info.tm_sec;
-        result.millisecond = time_frac;
-        result.unixSeconds = (uint64_t)time_unix;
-        result.unixDays = (uint16_t)(time_unix / (uint64_t)86400);
-        return result;
-    }
-    // Format an absolute millisecond uptime counter into an UTC timestamp 
-    void format_ms_timestamp(uint64_t timestamp_ms, std::array<char, 22>* buf) {
-        CalendarTime time_info = cal_time_ms(timestamp_ms);
-        snprintf(
-            buf->data(), 22, "%02u/%02u/%02u %02u:%02u:%02u.%03u", 
-            time_info.year % 100, time_info.month, time_info.day,
-            time_info.hour, time_info.minute, time_info.second, time_info.millisecond
-        );
-    }
-};
-
-// ASCII Terminal implementation
-// ===========================================================================
-
-#define ASCII_TERM_MAX_COLS             40
-#define ASCII_TERM_MAX_LINES            25
-
-#define ASCII_TERM_INPUT_BUF_SIZE       256
-#define ASCII_TERM_OUTPUT_BUF_SIZE      4096
-
-enum AsciiTerminalState {
-    T_WRITE,
-    T_PARSE,
-    T_EXEC,
-    T_READ,
-};
-
-struct Cursor {
-    uint8_t row;
-    uint8_t col;
-};
-
-class AsciiTerminal2 {
-private:
-
-    char        _in[1024];      // User input buffer
-    uint16_t    _in_len;        // Current input length
-    uint16_t    _in_pos;        // Current input position
-    uint16_t    _in_lines;      // Current input line-count
-    uint16_t    _in_col;        // Cursor column
-    uint16_t    _in_row;        // Cursor row
-
-    char        _ps1[8];        // Prompt to print before the first input line 
-    uint8_t     _ps1_len;       // Length of PS1 prompt
-
-    char        _ps2[8];        // Prompt to print on subsequent input lines
-    uint8_t     _ps2_len;       // Length of PS2 prompt
-
-    uint8_t     _rows;          // Ouptut row count
-    uint8_t     _cols;          // Output column count
-
-    // Print bytes to the serial output
-    // XXX: not implemented yet, we'll add buffered output later
-    void _print(char* buf, uint16_t len);
-    void _blank(uint16_t len);
-
-    // Move the cursor to the given position
-    void _move_cursor(uint8_t row, uint8_t col) {
-        char   _buf[16]; 
-        int     len;
-        len = snprintf(_buf, sizeof(_buf), "\033[%d;%dH", row+1, col+1);
-        _print(_buf, len);
-    }
-    
-    // Move the cursor to the current position in the input buffer
-    void _reset_cursor() {
-        Cursor cursor = _cursor_pos(_in_pos);
-        _move_cursor(cursor.row, cursor.col);
-    }
-
-    // Trigger a hardware scroll event
-    void _scroll_up(uint8_t lines) {
-        for (uint8_t i = 1; i < lines; ++i) {
-            _move_cursor(_rows, _cols);
-            _print(" ", 1);
-        }
-    }
-
-    // Calculate cursor for the given position in the input buffer
-    Cursor _cursor_pos(uint16_t pos) {
-        Cursor cursor;
-        if (pos < _cols - _ps1_len) {
-            cursor.row = 0;
-            cursor.col = _ps1_len + pos;
-        } else {
-            pos -= _cols - _ps1_len;
-            cursor.row = 1 +        pos / (_cols - _ps2_len);
-            cursor.col = _ps2_len + pos % (_cols - _ps2_len);
-        }
-        return cursor;
-    }
-
-    // XXX: may not be needed
-    uint16_t _buffer_pos(uint8_t row, uint8_t col) {
-        if (row == 0) { return col - _ps1_len; }
-        uint16_t line1_len = _cols - _ps1_len;
-        uint16_t lineX_len = _cols - _ps2_len;
-        return line1_len + (row - 1) * lineX_len + (col -_ps2_len);
-    }
-
-    void _insert_char(char byte) {
-        // check that we can insert the given character
-        if (_in_len >= sizeof(_in)) return;
-        if (!isprint(byte)) return;
-        bool last = _in_len == _in_pos;
-        // if not at the last position, shift left the remaining input buffer
-        if (!last) memmove(&_in[_in_pos + 1], &_in[_in_pos], _in_len - _in_pos);
-        // store the given character and increment length/position counters
-        _in[_in_pos] = byte; _in_len++; _in_pos++;
-        // redraw the prompt from the given character
-        _print_prompt(_in_pos - 1, _in_len);
-        // reset the cursor to its new position
-        if (!last) _reset_cursor();
-    }
-
-    void _print_prompt_range(uint16_t begin, uint16_t end, bool blank) {
-        uint16_t pos = begin;
-        Cursor cursor = _cursor_pos(pos);
-
-        
-        while (pos < _in_len) {
-            // Compute cursor position
-            Cursor cursor = _cursor_pos(pos);
-            // Compute prompt length for the current row
-            uint8_t ps_len = cursor.row == 0 ? _ps1_len : _ps2_len;
-            char*   ps_buf = blank ? _blank_buf : (cursor.row == 0 ? _ps1 : _ps2);
-            // Write prompt if needed
-            if (cursor.col == ps_len) {
-                _move_cursor(_rows - _in_lines + cursor.row, 0);
-                _print(ps_buf, ps_len);
-            } else {
-                _move_cursor(_rows - _in_lines + cursor.row, cursor.col);
-            }
-            // Write current line contents
-            uint8_t len = MIN(_cols - cursor.col, _in_len - pos);
-            _print((blank ? _blank_buf : _in)[pos], len);
-            pos += len;
-        }
-    }
-
-    void _print_prompt(uint16_t begin, uint16_t end) {
-        _print_prompt_range(begin, _in_len, false);
-        _print_prompt_range(_in_len, end, true);
-        _reset_cursor();
-    }
-
-    // Redraw the logs
-    void _print_logs() {
-        uint8_t rows = _rows - _prompt_lines();
-        for (uint8_t line = rows; line > 0; --line) {
-            uint8_t row = 
-            uint8_t line = lines - row;
-            _move_cursor(row, 0);
-            _print(_log_buffer.get_line(line), _log_buffer.get_len(line));
-        };
-        _move_cursor(rows, 0);
-    }
-
-    void _read() {
-        for (;;) {
-            char byte = _serial.read();
-            //NOTE: some of these handlers need many steps to run, so we need to store the last character
-            //      outside of this function (along with the state required by the multi-step handlers)
-
-            //NOTE: but we could also handle that using a non-blocking output buffer that can contain a full screen
-
-            //QUESTION: how do we handle printing logs into that ?
-            switch (byte) {
-                case LOGS:
-                    _scroll_up(log_lines);
-                    _move_cursor(_max_lines - _in_lines() - log_lines, 0);
-                    for (uint8_t i = 0; i < log_lines; ++i) {
-                        _print(_log_buffer.get_line(i), _max_cols);
-                    }
-                    _print_prompt();
-                    _reset_cursor();
-                case -1: 
-                    return;
-                case EOT:
-                    // we received an interruption command, we want to stop the currently executing command
-                    break;
-                case RETURN:
-                    _in_pos = _max_cols - (_in_len % _max_cols);
-                    _print(" \b", 2);
-                    _in_pos = _in_len;
-                    // ASCII return
-
-                    // - move to last position of prompt (last line, last col)
-                    // - execute command (will print its output)
-                    //   (may take multiple steps)
-                    // - show new prompt
-                case CTRL_L:
-                    _clear();
-                    _print_logs();
-                    _print_prompt();
-                    _reset_cursor();
-                    break;
-                case CTRL_E:
-                    _in_pos = _in_len;
-                    _reset_cursor();
-                    break;
-                case CTRL_A:
-                    _in_pos = 0;
-                    _reset_cursor();
-                    break;
-                case CTRL_U:
-                    _clear_input();
-                    _redraw_prompt();
-                    break;
-                case CTRL_H:
-                case BACKSPACE:
-                    if (_in_pos == _in_len) {
-                        _in[_in_pos] = '\0';
-                        _print("\b \b", 3);
-                    } else {
-                        _shift_input(_in_pos - 1, -1);
-                        _redraw_prompt();
-                    };
-                    break;
-                case CTRL_D:
-                    _shift_input(_in_pos, -1);
-                    _redraw_prompt();
-                    break;
-                case CTRL_W:
-                    _shift_input(_in_pos, _in_pos-_find_word_begin());
-                    _redraw_prompt();
-                    break;
-                case UP:
-                    if (_hist_pos < _hist_len) {
-                        _load_history(_hist_pos++);
-                        _redraw_prompt();
-                    }
-                    break;
-                case DOWN:
-                    if (_hist_pos > 0) {
-                        _load_history(_hist_pos--);
-                        _redraw_prompt();
-                    }
-                    break;
-                case LEFT:
-                    if (_in_pos > 0) { _in_pos -= 1; _move_cursor(); }
-                    break;
-                case RIGHT:
-                    if (_in_pos < _in_len) { _in_pos -= 1; _move_cursor(); }
-                    break;
-                case ANYCHAR:
-                    if (!isprint(byte)) break;
-                    _in[_in_pos++] = byte;
-                    if (_in_len == _in_pos + 1) {
-                        _print(byte, 1);
-                    } else {
-                        _redraw_prompt();
-                    }
-            }
-        }
-    }
-}
-
-// This class provides support for reading      
-class AsciiTerminal {
-    arduino::UART       _serial;
-    AsciiTerminalState  _state;
-    char                _in[ASCII_TERM_INPUT_BUF_SIZE];
-    uint8_t             _in_len;
-    char                _out[ASCII_TERM_OUTPUT_BUF_SIZE];
-    uint16_t            _out_len;
-    uint16_t            _out_sent;
-
-private:
-    // Set the output buffer to the given string
-    void _set_output(char* buf, size_t len) { memcpy(_out, buf, len); _out_len = len; }
-    void _clear_output() { _out_sent = 0; _out_len = 0; memset(_out, 0, sizeof(_out)); }
-    // Read bytes from the serial port until the RX buffer is empty or we switch to another state
-    AsciiTerminalState _read() { for (;;) {
-        char byte = _serial.read();
-        switch (byte) {
-            case -1:                        // No character read :
-                return T_IDLE;
-            case 0x08:                      // Handle ASCII backspace :
-                if (_in_len == 0) continue;         // if nothing to erase, just skip the backspace
-                _in[--_in_len] = '\0';              // clear the last character in the input buffer
-                _set_output("\b \b", 3);            // set the output buffer to a character clearing sequence
-                return T_WRITE;                     // enter writing mode
-            case '\r':                      // Handle ASCII return :
-                return T_EXEC;                      // enter command execution mode
-            default:                        // Handle ASCII characters :
-                if (_in_len == sizeof(_in)) break;     // if no more space, ignore the character
-                if (!isprint(byte)) break;          // if not a printable character, ignore the character
-                _in[_in_len++] = byte;              // otherwise, store the character in the input buffer
-        };
-    }; }
-
-    // Attempt to drain the output buffer to the serial port
-    bool _write() { 
-        int avail = _serial.availableForWrite();
-        if (avail == 0) return false;
-        size_t len = (size_t)MAX(_out_len -_out_sent, avail);
-        _out_sent += _serial.write(&_out[_out_sent], len);
-        if (_out_sent < _out_len) return false;
-        _clear_output();
-        return true;
-    }
-
-    bool _dumpstats() {
-
-    }
-
-    bool _dumplogs() {
-        for (uint8_t )
-        while (!_log_buffer_notempty()) {
-            entry = _log_bu
-        }
-    }
-
-    bool _exec() {
-        // XXX: here we could have an inner state machine that handles command execution
-        //      because the command may not finish in a single step, or because it may
-        //      output more than the output buffer, etc
-        // XXX: for now, we just acknowledge the received command, 
-        //      the actual implementation of commands will come later
-        _out_len = snprintf(_out, ASCII_TERM_OUTPUT_BUF_SIZE, "received command : %s", _in);
-        _out_len = MAX(_out_len, (uint16_t)ASCII_TERM_OUTPUT_BUF_SIZE);
-        return T_WRITE;
-
-
-        do_some_stuff();
-        print_lines();
-        do_some_more_stuff();
-        print_more_lines();
-    }
-
-    bool _cmd1() {
-        switch (_cmd1_state) {
-            case C1_A:  
-                // do some stuff
-                //    
-            case C2_A: 
-        }
-    }
-
-    // 
-    void step() { switch (_state) {
-        case T_READ:   _state = _read();
-        case T_WRITE:  _state = _write() ? T_READ : T_WRITE;
-        case T_EXEC:   _state = _exec() ? T_READ : T_EXEC;
-        }; 
-    }
-
-    void log(LogEntry_t entry) {
-        // 
-    }
-
-
-
-    void print_prompt() {
-        _serial.print("\e[");
-        _serial.print(MINITEL_1B_LINES);
-        _serial.print(";1H");                
-        _serial.print("cmd> ");
-        _serial.print(_buffer);
-    }
-
-    bool readchar() {
-        int byte = _serial.read();
-        if (byte < 0) return false;
-        char chr = (char)chr;
-
-        switch (chr) {
-            case '\r': // ASCII return
-                process();
-                memset(_buffer, 0, sizeof(_buffer));
-                _buffer_idx = 0;
-
-                _serial.print("\e[");
-                _serial.print(PROMPT_LINE_INDEX + 1);
-                _serial.print(";1H");                
-
-                break;
-            case 0x08: // ASCII backspace
-                if (_buffer_idx == 0) break;
-                _buffer_idx--;
-                _buffer[_buffer_idx] = '\0';
-                _serial.print("\b \b");
-                break;
-            default:  // Regular character
-                if (_buffer_idx == MINITEL_1B_COLS) break;
-                _serial.write(chr);
-                _buffer[_buffer_idx] = chr;
-                break;
-        }
-
-    }
-}
 
 // Logging
 // ===========================================================================
@@ -807,9 +335,9 @@ protected:
         TimeUtils::format_ms_timestamp(TimeUtils::absolute_ms(entry->timestamp), &time_buf);
         int written = snprintf(buf, len, "%s %s %s", time_buf.data(), level, topic, entry->message);
         return POS(MIN((size_t)written, len));
-    };        
+    };
     size_t write(const char* buf, size_t len) override {
-        int available = MAX((int)len, _serial->availableForWrite());
+        int available = max((int)len, _serial->availableForWrite());
         if (available == 0) return 0;
         return _serial->write(buf, available);
     }

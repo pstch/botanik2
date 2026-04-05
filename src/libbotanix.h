@@ -1,0 +1,4 @@
+#ifndef LIBBOTANIX_H
+#define LIBBOTANIX_H
+
+#endif // LIBBOTANIX_H
