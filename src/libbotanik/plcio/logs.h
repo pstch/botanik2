@@ -29,7 +29,7 @@ namespace Botanik { namespace PlcIO {
     public:
         // Constructor
         PlcLogReader(PlcSyncHandler* handler, Logger* logger, uint32_t* timestamp_ms);
-        // TODO
+        // drain the PLC log buffer
         void drain();
 
     };

@@ -3,13 +3,8 @@
 
 #include <cstdint>
 
-// These definitions should match the PLC log buffer's layout
-#define LOG_PLC_BUFFER_SIZE     32
-#define LOG_PLC_MESSAGE_LEN     128
-
-// Definitions injected by the Arduino PLC IDE
-void* m_PLCSharedVarsInputBuf;
-void *m_PLCSharedVarsOutputBuf;
+#include "libbotanik/hal/platform.h"
+#include "libbotanik_config.h"
 
 #pragma pack(push, 1)
 enum LogLevel : uint8_t {
@@ -73,11 +68,8 @@ struct PlcOutput_t {
 };
 #pragma pack(pop)
 
-#ifdef __INTELLISENSE__
-// In actual builds, these are automatically added by the build system.
-PlcInput_t& PLCIn = (PlcInput_t&)m_PLCSharedVarsInputBuf;
-PlcOutput_t& PLCOut = (PlcOutput_t&)m_PLCSharedVarsOutputBuf;
-#else
+#ifndef __INTELLISENSE__
+#ifdef TARGET_OPTA
 // In actual builds, we use our mocked definitions to check that their layout
 // matches the automatically included type definitions for the input/output structures.
 static_assert(sizeof(PLCSharedVarsInput_t) == sizeof(PlcInput_t));
@@ -86,6 +78,7 @@ static_assert(alignof(PLCSharedVarsOutput_t) == alignof(PlcOutput_t));
 //      require substantial maintenance, unless we can find some macros that
 //      handles that for us (or at least make it easier to write)
 //      
+#endif
 #endif
 
 #endif PLCIO_SHARED_VARS_H

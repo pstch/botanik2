@@ -3,8 +3,8 @@
 
 #include <cstdint>
 
-#include "libbotanik/plcio/vars.h"
 #include "libbotanik_config.h"
+#include "libbotanik/plcio/vars.h"
 
 namespace Botanik { namespace PlcIO {
 
@@ -60,7 +60,7 @@ namespace Botanik { namespace PlcIO {
         uint32_t        _timeout_ms         = PLC_TIMEOUT_MS;       // write acknowledgement timeout delay
         uint32_t*       _timestamp_ms       = 0;                    // pointer to the current cycle's timestamp
         // Shared PLC variables
-        PlcInput_t*     _plcin;                         // PLC input memory (read-write)
+        PlcInput_t*     _plcin;                         // PLC input memory (write-only)
         PlcOutput_t*    _plcout;                        // PLC output memory (read-only)
         // Local buffers
         PlcOutputData_t _rx_buffer;                     // local receive buffer for _plcout
@@ -70,16 +70,16 @@ namespace Botanik { namespace PlcIO {
         PlcTxState      _tx_state           = TX_WRITE; // writer state
         uint32_t        _tx_last_ms         = 0;        // last successful write
         bool            _tx_write           = false;    // schedule immediate write
-        // TODO
-        inline bool PlcSyncHandler::_rx_new_message();
-        inline bool PlcSyncHandler::_tx_acknowledged();
+        // Transition triggers
+        inline bool _rx_new_message();
+        inline bool _tx_acknowledged();
         inline bool _tx_heartbeat_elapsed();
         // Transition actions
         inline void _rx_memcpy();
         inline void _tx_memcpy();
         inline void _rx_acknowledge();
         inline void _tx_commit();
-        // Reader state machine (handle messages from the PLC's writer)
+        // Reader state machine (reads messages from the PLC's writer)
         PlcRxState _rx_step();
         // Writer state machine (send messages to the PLC's reader)
         PlcTxState _tx_step();
