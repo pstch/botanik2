@@ -4,6 +4,8 @@
 #include "libbotanix/panes/pane.h"
 #include "libbotanix/utils/serial.h"
 
+using namespace Botanix::Utils;
+
 namespace Botanix { namespace Panes {
     class LogsPane : public Pane {
     private:

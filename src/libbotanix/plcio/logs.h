@@ -1,8 +1,10 @@
 #ifndef PLCIO_LOGS_H
 #define PLCIO_LOGS_H
 
-#include "libbotanix/utils/logs.h"
+#include "libbotanix/logs/logger.h"
 #include "libbotanix/plcio/sync.h"
+
+using namespace Botanix::Logs;
 
 namespace Botanix { namespace PlcIO {
 

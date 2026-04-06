@@ -12,7 +12,7 @@ namespace Botanix { namespace PlcIO {
     // handle sequence number to detect dropped PLC log entries
     void PlcLogReader::_detect_dropped_entries(const LogEntry_t* entry) {
         uint32_t _next = _last_seq + 1;
-        if (entry->seqNum != _next) _dropped += max((unsigned long)0, entry->seqNum - _next);
+        if (entry->seqNum != _next) _dropped += max((unsigned int)0, entry->seqNum - _next);
         _last_seq = entry->seqNum;
     }
 

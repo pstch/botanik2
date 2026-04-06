@@ -8,20 +8,6 @@
 
 namespace Botanix { namespace PlcIO {
 
-    // In-order memory copy
-    template <typename T>
-    constexpr void ORDERED_COPY(T* dst, const T* src) {
-        ARM_MPU_OrderedMemcpy((uint32_t*)dst, (uint32_t*)src, sizeof(T)); 
-        __DSB();
-    }
-
-    // In-order memory move
-    template<typename T>
-    constexpr void ORDERED_MOVE(T* dst, T src) {
-        *dst = src; 
-        __DSB();
-    }
-
     // Reader state enumeration
     enum PlcRxState {
         RX_IDLE,                                    // wait for a new write message from the other side
