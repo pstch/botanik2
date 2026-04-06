@@ -8,7 +8,7 @@ using namespace Botanik::Utils;
 
 namespace Botanik { namespace Logs {
 
-    // TODO
+    // Attempt to drain a single message, return whether it was fully sent
     bool BufferedLogWriter::_drain_message() {
         _sent += write(&_message[_sent], _length - _sent);          // write remaining bytes, record actually written bytes
         if (_sent < _length) return false;                          // yield if not fully sent
@@ -25,7 +25,10 @@ namespace Botanik { namespace Logs {
     
     // Attempt to drain entries from the queue and print them
     void BufferedLogWriter::drain() {
-        if (_length > 0 && !_drain_message()) return;              // drain the current message, yield if not complete
+        if (_length > 0) {                                          // check if we are already sending a message
+            if (!_drain_message()) return;                          // drain the current message, yield if not complete
+            _readIndex = (_readIndex + 1) % LOG_QUEUE_SIZE;         // increment the read index
+        }
         while (_readIndex != _writeIndex) {                         // check for new entries in the queue,
             const LogEntry_t* entry = &_queue[_readIndex];          // get the next entry in the queue
             _length = format(entry, _message, LOG_FORMATTED_LEN);   // try to format the queue's next message
@@ -42,7 +45,7 @@ namespace Botanik { namespace Logs {
         const char* topic = format_log_topic(entry->topic);
         // format the timestamp
         std::array<char, 22> time_buf; 
-        TimeUtils::format_ms_timestamp(TimeUtils::absolute_ms(entry->timestamp), &time_buf);
+        format_ms_timestamp(absolute_ms(entry->timestamp), &time_buf);
         // format the log entry, and return the length of the message
         int written = snprintf(buf, len, "%s %s %s", time_buf.data(), level, topic, entry->message);
         return min((size_t)written, len);

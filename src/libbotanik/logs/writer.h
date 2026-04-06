@@ -4,11 +4,12 @@
 #include <cstdint>
 #include <cstring>
 
+#include "libbotanik_config.h"
+#include "libbotanik/utils/serial.h"
 #include "libbotanik/plcio/vars.h"
 
-// TODO: move to libbotanik_config
-#define LOG_QUEUE_SIZE 8
-#define LOG_FORMATTED_LEN 255
+using namespace Botanik::Utils;
+using namespace Botanik::Config;
 
 namespace Botanik { namespace Logs {
 
