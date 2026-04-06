@@ -47,6 +47,10 @@ namespace Botanik { namespace Config {
     constexpr uint16_t LOG_TOPIC_MAX = 255; 
     // Maximum number of pointers to registered log writers (Serial, SD, Ethernet, etc.)
     constexpr uint8_t LOG_WRITERS_MAX = 8;
+
+    // TODO
+    constexpr size_t LOG_QUEUE_SIZE = 64;
+    constexpr size_t LOG_FORMATTED_LEN = 255;
      
     // Check that the defined topic count can fit in the LogTopic enum
     static_assert(LOG_TOPIC_MAX < (1 << (sizeof(LogTopic)*8)));
