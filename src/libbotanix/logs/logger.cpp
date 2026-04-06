@@ -1,43 +1,40 @@
+#include "libbotanix/hal/platform.h"
 #include "libbotanix/logs/logger.h"
 #include "libbotanix/utils/time.h"
 
 using std::min;
 using std::max;
 
-using namespace Botanix::Utils::TimeUtils;
+using namespace Botanix::Utils;
+using namespace Botanix::HAL;
 
 namespace Botanix { namespace Logs {
 
-    // try to take a token from a bucket
     bool Logger::_try_bucket(LogBucket_t* bucket) {
         if (bucket->state <= 0) { bucket->suppressed++;             return false; }
         else                    { bucket->count++; bucket->state--; return true; }
     }
 
-    // try to fill a bucket with the given amount of tokens
     void Logger::_fill_bucket(LogBucket_t* bucket, uint16_t amount, uint16_t burst) {
         if (amount > 0 && bucket-> state < burst) {
             bucket->state = min((uint16_t)(bucket->state + amount), burst);
         }
     }
 
-    // Constructor
     Logger::Logger() {
-        _perTopic_fillTime_ms = millis();
-        _global_fillTime_ms = millis();
+        _perTopic_fillTime_ms = current_ms();
+        _global_fillTime_ms = current_ms();
         _global_bucket.state = _global_burst;
         for (uint8_t i = 0; i < LOG_TOPIC_MAX; ++i) {
             _perTopic_buckets[i].state = _perTopic_burst;
         }
     }
 
-    // Add a writer
     bool Logger::add_writer(LogWriter* writer) {
         if (writer == nullptr || _writerCount >= LOG_WRITERS_MAX) return false;    // bail out if given a nullpointer or if the writer list is full
         _writers[_writerCount++] = writer; return true;                            // store the pointer and increment writer count
     }
 
-    // Remove a writer
     bool Logger::remove_writer(LogWriter* writer) {
         // do some checks and find the writer's current index
         if (writer == nullptr || _writerCount == 0) return false;                   // bail out if given a nullpointer of if we have no writers
@@ -47,10 +44,9 @@ namespace Botanix { namespace Logs {
         _writers[--_writerCount] = nullptr; return true;                            // decrement the writer count, unset the last pointer
     }
 
-    // Fill rate-limiting buckets
     void Logger::fill_buckets() {
         // XXX: the choice of timer method here determines whether we want to buckets to fill in SLEEP/STOP or not.
-        uint32_t _time_ms = millis();
+        uint32_t _time_ms = current_ms();
         uint16_t _global_amount = (_time_ms - _global_fillTime_ms) / _global_period_ms;
         _global_fillTime_ms += _global_amount * _global_period_ms;
         _fill_bucket(&_global_bucket, _global_amount, _global_burst);
@@ -62,7 +58,6 @@ namespace Botanix { namespace Logs {
         // TODO: we should report suppressed messages when filling the buckets
     }
 
-    // Push a new log entry to the writers, after applying rate-limiting
     void Logger::push_entry(const LogEntry_t entry) {
         LogTopic topic = entry.topic >= LOG_TOPIC_MAX ? LogTopic::NONE : entry.topic;  // determine the topic to use for this entry
         LogBucket_t* topic_bucket = &_perTopic_buckets[topic];                         // get the bucket for this topic

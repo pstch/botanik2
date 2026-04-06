@@ -8,6 +8,7 @@
 using std::min;
 using std::max;
 
+using namespace Botanix::Utils;
 
 namespace Botanix { namespace Logs {
 
@@ -36,7 +37,7 @@ namespace Botanix { namespace Logs {
         const char* level = format_log_level(entry->level);
         const char* topic = format_log_topic(entry->topic);
         std::array<char, 22> time_buf; 
-        TimeUtils::format_ms_timestamp(TimeUtils::absolute_ms(entry->timestamp), &time_buf);
+        format_ms_timestamp(absolute_ms(entry->timestamp), &time_buf);
         int written = snprintf(buf, len, "%s %s %s", time_buf.data(), level, topic, entry->message);
         return min((size_t)written, len);
     };

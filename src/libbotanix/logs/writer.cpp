@@ -4,6 +4,8 @@
 #include "libbotanix/logs/writer.h"
 #include "libbotanix/logs/format.h"
 
+using namespace Botanix::Utils;
+
 namespace Botanix { namespace Logs {
 
     // TODO
