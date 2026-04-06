@@ -4,5 +4,6 @@
         "array": "cpp",
         "chrono": "cpp",
         "compare": "cpp"
-    }
+    },
+    "search.useIgnoreFiles": false
 }
