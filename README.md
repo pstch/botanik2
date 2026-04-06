@@ -56,6 +56,35 @@ This project has two distinct parts that run on the same microcontroller :
    used to control the hardware watchdog, to reset both the whole microcontroller if the C
    code crashes or if the PLC runtime stops responding
 
+## the `libbotanik` C++ library
+
+The `libbotanik` C++ library provides the following components to the C sketch in
+the Arduino PLC IDE :
+ - Generic utilities :
+   + `BufferedSerial` :: Software-buffered serial wrapper
+   + in `utils/time.h` :: A set of functions to handle calendar dates, timestamp projection and conversion
+   + in `hal/platform.h` :: A small HAL to allow running the library on real hardware, or in simulation mode in a general purpose OS
+ - Logging code (to provide structured log entries, to handle log bursts, log formatting, etc):
+   + `Logger`:: Log entry handler, pushes log entries to registered log writers
+   + `LogWriter` and `BufferedLogWriter`:: buffered log writers with their own output queues
+   + `SerialLogWriter`:: a log writer that dumps log on a serial port 
+ - PLC synchronization code (to synchronize I/O with the Axel PLC runtime) :
+   + `PlcSyncHandler` :: to synchronize I/O to/from the PLC, through the shared memory region
+   + `PlcLogReader`:: to read logs through the `PlcSyncHandler`
+ - PLC emulation code (to emulate the synchronization code on the PLC side):
+   + `PlcEmulator` :: to be able to emulate the PLC when running in simulation mode
+   + `PlcLogWriter` :: to be able to write logs from the PLC when running in simulation mode
+ - Terminal handling code (optimized for Minitel 1B)::
+   + `InputEditor` :: byte-efficient X3.64 multi-line editor, with custom PS1/PS2 prompts
+   + `InputParser` :: parser for input from X3.64 terminals
+   + `AnsiTerminal` :: X3.64 terminal multiplexer
+   + `BotanikTerminal` :: a custom terminal interface that uses the panes
+   + in `panes/*.h` :: 
+     + `HomePane` :: a home page for the terminal interface
+     + `ShellPane` :: a command shell for the terminal interface
+     + `LogsPane` :: a logs page for the terminal interface
+     + `StatusPane` :: a logs page for the terminal interface
+
 ## Hardware notes & useful links
 
 The Arduino OPTA uses the **STM32H747XI** microcontroller with ARM's **Mbed OS** platform, 
