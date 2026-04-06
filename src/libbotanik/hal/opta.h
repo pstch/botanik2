@@ -15,7 +15,23 @@
  */
 #include "mbed.h"
 
+struct PLCSharedVarsInput_t;
+struct PLCSharedVarsOutput_t;
+
+extern "C" void* m_PLCSharedVarsInputBuf;
+extern "C" void* m_PLCSharedVarsOutputBuf;    
+
 namespace Botanik { namespace HAL {
+
+    // Get the pointer to the PLC input memory region
+    inline PLCSharedVarsInput_t* get_plc_input() {
+        return m_PLCSharedVarsInputBuf;
+    }
+
+    // Get the pointer to the PLC output memory region
+    inline PLCSharedVarsOutput_t* get_plc_output() {
+        return m_PLCSharedVarsOutputBuf;
+    }
 
     inline uint32_t current_ms() { 
         return millis();
