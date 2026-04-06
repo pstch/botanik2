@@ -1,7 +1,15 @@
-#include <cstdint>
-#include "serial.cpp"
+#ifndef TERMINAL_ANSI_H
+#define TERMINAL_ANSI_H
 
+#include <cstdint>
+#include "libbotanik/utils/serial.h"
+
+using namespace Botanik::Utils;
+
+namespace Botanik { 
+namespace Terminal { 
 namespace Ansi {
+    
     // ---- X3.64 CSI prefix
     static const char* CSI  = "\x1B[";     // CSI
 
@@ -41,95 +49,44 @@ namespace Ansi {
     };
 
     // Write a 16-bit integer as its decimal representation
-    void write_uint16(BufferedSerial& _serial, uint16_t val) {
-        char buf[5];
-        int8_t i = 4;
-        if (val == 0) { _serial.write("0", 1); return; }
-        while (val > 0 && i >= 0) {
-            buf[i--] = (val % 10) + '0';
-            val /= 10;
-        }
-        _serial.write(&buf[i + 1], 4 - i);
-    }
+    void write_uint16(BufferedSerial& _serial, uint16_t val);
 
     // Move to the given absolute position
-    void goto_absolute(BufferedSerial& _serial, const CursorPos& cursor) {
-        _serial.write(CSI, 2);
-        write_uint16(_serial, cursor.row + 1);
-        _serial.write(";", 1);
-        write_uint16(_serial, cursor.col + 1);
-        _serial.write(MOVE, 1);
-    }
+    void goto_absolute(BufferedSerial& _serial, const CursorPos& cursor);
 
     // Move the cursor left, `count` times
-    void move_left(BufferedSerial& _serial, uint16_t count) {
-        if (count <= 3) {
-            for (uint16_t i = 0; i < count; ++i) _serial.write("\b", 1);
-        } else {
-            _serial.write(CSI, 2);
-            write_uint16(_serial, count);
-            _serial.write(CUB, 1);
-        }
-    }
+    void move_left(BufferedSerial& _serial, uint16_t count);
 
     // Move the cursor left, `count` times
-    void move_right(BufferedSerial& _serial, uint16_t count) {
-        _serial.write(CSI, 2);
-        if (count > 1) write_uint16(_serial, count);
-        _serial.write(CUF, 1);
-    }
+    void move_right(BufferedSerial& _serial, uint16_t count);
 
     // Move the cursor up, `count` times
-    void move_up(BufferedSerial& _serial, uint16_t count) {
-        _serial.write(CSI, 2);
-        if (count > 1) write_uint16(_serial, count);
-        _serial.write(CUU, 1);
-    }
+    void move_up(BufferedSerial& _serial, uint16_t count);
 
     // Move the cursor down, `count` times
-    void move_down(BufferedSerial& _serial, uint16_t count) {
-        _serial.write(CSI, 2);
-        if (count > 1) write_uint16(_serial, count);
-        _serial.write(CUD, 1);
-    }
+    void move_down(BufferedSerial& _serial, uint16_t count);
 
     // Move to the beginning of the line
-    void move_line_begin(BufferedSerial& _serial) {
-        _serial.write("\r", 1);
-    }
+    void move_line_begin(BufferedSerial& _serial);
 
     // Enable/disable insertion mode (shifts remaining cols right)
-    void set_insert_mode(BufferedSerial& _serial, bool active) {
-        _serial.write(CSI, 2);
-        if (active) _serial.write(SM4, 2);
-        else        _serial.write(RM4, 2);
-    }
+    void set_insert_mode(BufferedSerial& _serial, bool active);
 
     // Insert entire rows, shifting remaining rows down
     //  (when called at the last row, scrolls the entire screen upwards)
-    void insert_rows(BufferedSerial& _serial, uint16_t count) {
-        _serial.write(CSI, 2);
-        if (count > 1) write_uint16(_serial, count);
-        _serial.write(IL, 1);
-    }
+    void insert_rows(BufferedSerial& _serial, uint16_t count);
 
     // Delete rows, shifting remaining rows up
-    void delete_rows(BufferedSerial& _serial, uint16_t count) {
-        _serial.write(CSI, 2);
-        if (count > 1) write_uint16(_serial, count);
-        _serial.write(DL, 1);
-    }
+    void delete_rows(BufferedSerial& _serial, uint16_t count);
 
     // Delete characters, shifting remaining cols left
-    void delete_chars(BufferedSerial& _serial, uint16_t count) {
-        _serial.write(CSI, 2);
-        if (count > 1) write_uint16(_serial, count);
-        _serial.write(DCH, 1);
-    }
+    void delete_chars(BufferedSerial& _serial, uint16_t count);
 
     // Clear characters from the cursor to the end of line
-    void clear_to_eol(BufferedSerial& _serial) {
-        _serial.write(CSI, 2);
-        _serial.write(EL, 1);
-    }
+    void clear_to_eol(BufferedSerial& _serial);
+
 }
+}
+}
+
+#endif // TERMINAL_ANSI_H

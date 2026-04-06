@@ -1,44 +1,49 @@
+#ifndef TERMINAL_EDITOR_H
+#define TERMINAL_EDITOR_H
+
 #include <cstdint>
 
-#include "serial.h"
+#include "libbotanik/utils/serial.h"
 
-/** TODO
- * 
- */
-struct ChangeScript {
-    uint16_t    head_pos;
-    uint16_t    head_cols;
+using namespace Botanik::Utils;
 
-    uint16_t    body_pos;
-    uint16_t    body_rows;
+namespace Botanik { namespace Terminal {
 
-    uint16_t    tail_pos;
-    uint16_t    tail_cols;
+    struct ChangeScript {
+        uint16_t    head_pos;
+        uint16_t    head_cols;
 
-    int16_t     delta;
-    uint16_t    span;
-};
+        uint16_t    body_pos;
+        uint16_t    body_rows;
 
-/** TODO
- * 
- */
-class InputEditor {
+        uint16_t    tail_pos;
+        uint16_t    tail_cols;
 
-    InputEditor(BufferedSerial& serial, uint16_t cols, uint16_t rows);
+        int16_t     delta;
+        uint16_t    span;
+    };
 
-    uint16_t occupied_rows() const;
+    class InputEditor {
 
-    void set_ps1(char* buf, uint16_t len);
-    void set_ps2(char* buf, uint16_t len);
+        InputEditor(BufferedSerial& serial, uint16_t cols, uint16_t rows);
 
-    void set_origin(uint16_t row, int16_t shift = 0);
-    void set_contents(char* buf, uint16_t len);
+        uint16_t occupied_rows() const;
 
-    void reset();
-    void redraw(bool clear = true);
+        void set_ps1(char* buf, uint16_t len);
+        void set_ps2(char* buf, uint16_t len);
 
-    void remove_characters(uint16_t len);
-    void insert_characters(char* buf, uint16_t len);
-    void select_characters(uint16_t anchor, uint16_t len);
+        void set_origin(uint16_t row, int16_t shift = 0);
+        void set_contents(char* buf, uint16_t len);
 
-};
+        void reset();
+        void redraw(bool clear = true);
+
+        void remove_characters(uint16_t len);
+        void insert_characters(char* buf, uint16_t len);
+        void select_characters(uint16_t anchor, uint16_t len);
+
+    };
+
+}}
+
+#endif  // TERMINAL_EDITOR_H
