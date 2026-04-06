@@ -1,0 +1,4 @@
+#ifndef LIBBOTANIK_H
+#define LIBBOTANIK_H
+
+#endif // LIBBOTANIK_H
