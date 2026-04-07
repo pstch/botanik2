@@ -55,6 +55,14 @@ namespace Botanik { namespace Config {
     // Check that the defined topic count can fit in the LogTopic enum
     static_assert(LOG_TOPIC_MAX < (1 << (sizeof(LogTopic)*8)));
 
+
+    /**
+     * @subsection ANSI terminal parameters
+     */
+    
+    static constexpr size_t   ANSI_INPUT_BATCH_SIZE = 32;
+    static constexpr uint32_t ANSI_INPUT_BATCH_TIMEOUT_MS = 1000;
+
 } }
 
 #endif // LIBBOTANIK_CONFIG_H 
