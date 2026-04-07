@@ -4,30 +4,39 @@
 #include <cstdint>
 #include "libbotanik/utils/serial.h"
 
-using namespace Botanik::Utils;
 
 namespace Botanik { 
 namespace Terminal { 
 namespace Ansi {
+
+    namespace {
+        using Botanik::Utils::BufferedSerial;
+    }
+
+    // ESC
+    static const char* ESC = "\x1B";
     
-    // ---- X3.64 CSI prefix
+    // Minitel special keys prefix
+    static const char* SEP = "\x13";
+        
+    // X3.64 CSI prefix
     static const char* CSI  = "\x1B[";     // CSI
 
-    // --- Mode Settings ---
+    // Mode Settings
     static const char* SM4  = "4h"; // Set Mode 4: Insertion
     static const char* RM4  = "4l"; // Reset Mode 4: Replacement (Overwrite)
 
     static const char* ATTR_NEG  = "7m"; // Negative image SGR
     static const char* ATTR_NONE  = "m"; // Normal text SGR
 
-    // --- Movement ---
+    // Movement
     static const char* CUU  = "A";  // Cursor Up
     static const char* CUD  = "B";  // Cursor Down
     static const char* CUF  = "C";  // Cursor Forward (Right)
     static const char* CUB  = "D";  // Cursor Backward (Left)
     static const char* MOVE  = "H";  // Cursor Move
 
-    // --- Content Modification ---
+    // Content modification
     static const char* ED   = "J";  // Erase in Display
     static const char* IL   = "L";  // Insert Line
     static const char* DL   = "M";  // Delete Line
@@ -43,7 +52,7 @@ namespace Ansi {
     struct CursorPos {
         uint16_t row; uint16_t col;
 
-        bool operator==(const CursorPos& other) const {
+        inline bool CursorPos::operator==(const CursorPos& other) {
             return (row == other.row && col == other.col);
         }
     };
@@ -85,8 +94,8 @@ namespace Ansi {
     // Clear characters from the cursor to the end of line
     void clear_to_eol(BufferedSerial& _serial);
 
-}
-}
-}
+    // Determine if a character is a printable ASCII character
+    bool is_printable(char b);
+}}}
 
 #endif // TERMINAL_ANSI_H
