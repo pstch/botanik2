@@ -10,11 +10,12 @@
 
 #include "libbotanik/utils/serial.h"
 
-using namespace Botanik::Utils;
-using namespace Botanik::Panes;
-
-
 namespace Botanik { namespace Terminal {
+
+    namespace {
+        using namespace Botanik::Utils;
+        using namespace Botanik::Panes;
+    }
 
     class AnsiTerminal {
     private:
