@@ -1,39 +1,109 @@
+#ifndef TERMINAL_PARSER_H
+#define TERMINAL_PARSER_H
+
 #include <cstdint>
 
-struct InputEvent {
-    enum class Type {
-        NONE,           // No complete sequence yet
-        CONTENT,        // Standard printable text (char in 'value')
-        COMMAND,        // Single-byte control or CSI action (Ctrl+A, Arrows, etc.)
-        MODE            // Alt+1, Alt+2, etc. (Index in 'value')
+#include "libbotanik_config.h"
+#include "libbotanik/utils/serial.h"
+#include "libbotanik/terminal/ansi.h"
+
+namespace Botanik { namespace Terminal {
+
+    namespace {
+        using namespace Botanik::Config;
+        using namespace Botanik::Utils;
+    }
+
+    /* TODO */
+    struct InputEvent {
+        // Input event type
+        enum class Type {
+            NONE,       // No complete sequence yet
+            CONTENT,    // Standard printable text (uses batch_data/len)
+            COMMAND,    // Action/Sequence (uses command/params)
+            MODE        // Alt+1...8 (uses value)
+        };
+        // Command key type
+        enum class Command : uint16_t {
+            // Parser continuation
+            NONE = 0,
+
+            // Standard keys
+            ENTER, BACKSPACE, DELETE, TAB, ESC,
+            UP, DOWN, LEFT, RIGHT,
+            HOME, END, PAGE_UP, PAGE_DOWN,
+            
+            // Physical Control Combinations
+            CTRL_A, CTRL_B, CTRL_C, CTRL_D, CTRL_E, CTRL_F, CTRL_G,
+            CTRL_K, CTRL_L, CTRL_N, CTRL_P, CTRL_R, CTRL_U, CTRL_W, CTRL_Y,
+            CTRL_SPACE,
+            
+            // Meta/Alt Combinations
+            ALT_B, ALT_F, ALT_D, ALT_BACKSPACE
+        };
+        // Event fields
+        Type     type = Type::NONE;
+        Command  command = Command::NONE;
+        // For CONTENT batches
+        const char* batch_data = nullptr;
+        uint16_t    batch_len = 0;
+        // For CSI COMMAND
+        uint16_t params[8];
+        uint8_t  param_count = 0;
+        char     prefix = 0;     // e.g., '?' in ESC [ ? 25 l
+        // For MODE and CSI COMMANDS
+        uint8_t  value = 0;
     };
 
-    enum class Command : uint16_t {
-        NONE = 0,
-        ENTER,
-        BACKSPACE,
-        DELETE,
-        TAB,
-        ESC,
-        UP, DOWN, LEFT, RIGHT,
-        HOME, END, PAGE_UP, PAGE_DOWN,
-        
-        // Control Combinations (Physical)
-        CTRL_A, CTRL_B, CTRL_C, CTRL_D, CTRL_E, CTRL_F, CTRL_G,
-        CTRL_K, CTRL_L, CTRL_N, CTRL_P, CTRL_R, CTRL_U, CTRL_W, CTRL_Y,
-        CTRL_SPACE,
-        
-        // Meta/Alt Combinations (Physical)
-        ALT_B, ALT_F, ALT_D, ALT_BACKSPACE
+    /* TODO */
+    class InputParser {
+    private:
+        // State enumeration
+        enum class State {
+            IDLE,               // Idle state
+            TEXT,               // ASCII characters
+            IN_ESC,             // Decision between CSI or Alt+X
+            IN_CSI,             // Standard X3.64 CSI sequences
+            IN_SEP              // Minitel 0x13 sequences
+        };
+        // Serial device buffered wrapper
+        BufferedSerial& _serial;
+        uint32_t*       _timestamp_ms;
+        // Local state
+        InputEvent      _event;                             // current event being constructed
+        State           _state = State::IDLE;               // current state
+        uint8_t         _latched_byte = 0;                  // latched byte
+        bool            _latched = false;                   // presence of latched byte
+        // Text Batching
+        char            _text_buf[ANSI_INPUT_BATCH_SIZE];   // batched text
+        uint16_t        _text_len = 0;                      // batched text length
+        uint32_t        _last_byte_ms = 0;                  // safety timeout for
+        // Initialization
+        void _reset_event();
+        // Text handling helpers
+        void _flush_text();
+        void _store_text(uint8_t b);       
+        // Transition conditions
+        bool _is_safety_timeout_elapsed() const;
+        bool _should_flush_text() const;
+        // State handlers
+        State _handle_idle(uint8_t b);
+        State _handle_text(uint8_t b);
+        State _handle_esc(uint8_t b);
+        State _handle_csi(uint8_t b);
+        State _handle_sep(uint8_t b);
+        // Mapping Logic
+        InputEvent::Command _map_control_char(uint8_t b);
+        InputEvent::Command _map_esc_extension(uint8_t b);
+        InputEvent::Command _map_csi_to_command();
+        InputEvent::Command _map_sep_to_command(uint8_t b);
+    public:
+        // Constructor
+        InputParser(BufferedSerial& serial, uint32_t* timestamp_ms);
+        // Main entry point
+        InputEvent& parse();
     };
-    Type     type = Type::NONE;
-    Command  command = Command::NONE;
-    char     value = 0;
-};
 
+}}
 
-class InputParser {
-public:
-    InputEvent process(uint8_t byte);
-    void reset();
-};
+#endif // TERMINAL_PARSER_H
