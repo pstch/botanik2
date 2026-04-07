@@ -8,9 +8,16 @@
 
 #include "libbotanik/hal/platform.h"
 
-using namespace Botanik::HAL;
-
 namespace Botanik { namespace Utils {
+
+    namespace {
+        using namespace Botanik::HAL;
+
+        /* Const expression to determine if a number is a power of two */
+        static constexpr bool is_power_of_two(uint16_t n) {
+            return (n > 0) && ((n & (n - 1)) == 0);
+        }
+    }
 
     /**
      * Non-blocking buffered serial for Arduino UART.
@@ -38,22 +45,24 @@ namespace Botanik { namespace Utils {
     public:
         // Constructor
         BufferedSerial(RawSerial* serial);
-
+        // Get available space in RX buffer
+        uint16_t available() const;
         // Get available space in TX buffer
-        uint16_t available();
-
+        uint16_t availableForWrite() const;
+        // Determine whether the RX buffer is empty
+        bool rx_empty() const;
+        // Determine whether the TX buffer is empty
+        bool tx_empty() const;
         // Write to the serial TX buffer
         uint16_t write(const char* buf, uint16_t len);
-
         // Read bytes from the RX buffer
         uint16_t read(char* buf, uint16_t len);
-
+        // Peek the next byte in the character
+        bool peek(uint8_t* b) const;
         // Read bytes from the serial device into the RX buffer
         uint16_t receive();
-
         // Transmit bytes from the TX buffer to the serial device
         uint16_t transmit();
-
         // Step through the TX/RX handlers
         void step();
     };
