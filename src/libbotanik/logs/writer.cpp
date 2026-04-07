@@ -4,9 +4,12 @@
 #include "libbotanik/logs/writer.h"
 #include "libbotanik/logs/format.h"
 
-using namespace Botanik::Utils;
 
 namespace Botanik { namespace Logs {
+
+    namespace {
+        using namespace Botanik::Utils;
+    }
 
     // Attempt to drain a single message, return whether it was fully sent
     bool BufferedLogWriter::_drain_message() {

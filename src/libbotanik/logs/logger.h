@@ -7,9 +7,12 @@
 #include "libbotanik/logs/writer.h"
 #include "libbotanik_config.h"
 
-using namespace Botanik::Config;
-
 namespace Botanik { namespace Logs {
+
+    namespace {
+        using namespace Botanik::Config;
+        using namespace Botanik::PlcIO;
+    }
 
     struct LogBucket_t {
         uint16_t    state                   = 0;

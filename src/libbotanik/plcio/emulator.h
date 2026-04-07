@@ -8,9 +8,11 @@
 #include "libbotanik/plcio/sync.h"
 #include "libbotanik/plcio/vars.h"
 
-using namespace Botanik::Config;
-
 namespace Botanik { namespace PlcIO {
+
+    namespace {
+        using namespace Botanik::Config;
+    }
 
     class PlcEmulator {
     private:

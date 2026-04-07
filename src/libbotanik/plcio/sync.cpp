@@ -4,9 +4,12 @@
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/plcio/sync.h"
 
-using namespace Botanik::HAL;
 
 namespace Botanik { namespace PlcIO {
+
+    namespace {
+        using namespace Botanik::HAL;
+    }
 
     // Transition triggers
     inline bool PlcSyncHandler::_rx_new_message() {

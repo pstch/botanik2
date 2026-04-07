@@ -3,10 +3,12 @@
 
 #include "libbotanik/plcio/emulator.h"
 
-using std::min;
-using namespace Botanik::HAL;
-
 namespace Botanik { namespace PlcIO {
+
+    namespace {
+        using std::min;
+        using namespace Botanik::HAL;
+    }
 
     // Transition triggers
     inline bool PlcEmulator::_rx_new_message() {

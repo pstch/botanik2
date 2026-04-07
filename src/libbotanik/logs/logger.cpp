@@ -2,13 +2,15 @@
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/utils/time.h"
 
-using std::min;
-using std::max;
-
-using namespace Botanik::Utils;
-using namespace Botanik::HAL;
-
 namespace Botanik { namespace Logs {
+
+    namespace {
+        using namespace Botanik::PlcIO;
+        using namespace Botanik::Utils;
+        using namespace Botanik::HAL;
+        using std::min;
+        using std::max;
+    }
 
     bool Logger::_try_bucket(LogBucket_t* bucket) {
         if (bucket->state <= 0) { bucket->suppressed++;             return false; }

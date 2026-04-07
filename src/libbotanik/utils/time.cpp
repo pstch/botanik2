@@ -10,9 +10,11 @@
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/utils/time.h"
 
-using namespace Botanik::HAL;
-
 namespace Botanik { namespace Utils {
+
+    namespace {
+        using namespace Botanik::HAL;
+    }
 
     static uint64_t _project_rollover(uint64_t uptime, uint32_t timestamp) {
         uint32_t current = uptime % (1ULL << 32);

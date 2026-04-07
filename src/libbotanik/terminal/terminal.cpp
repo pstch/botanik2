@@ -8,9 +8,12 @@
 #include "libbotanik/panes/logs.h"
 #include "libbotanik/panes/status.h"
 
-using namespace Botanik::Utils;
-using namespace Botanik::Panes;
 
 namespace Botanik { namespace Terminal {
+
+    namespace {
+        using namespace Botanik::Utils;
+        using namespace Botanik::Panes;
+    }
 
 }}

@@ -5,12 +5,14 @@
 #include "libbotanik/plcio/vars.h"
 #include "libbotanik/utils/time.h"
 
-using std::min;
-using std::max;
-
-using namespace Botanik::Utils;
-
 namespace Botanik { namespace Logs {
+
+    namespace {
+        using namespace Botanik::PlcIO;
+        using namespace Botanik::Utils;
+        using std::min;
+        using std::max;
+    }
 
     // Format the log level
     const char* format_log_level(LogLevel level) { switch (level) {

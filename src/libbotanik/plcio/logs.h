@@ -4,9 +4,11 @@
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/plcio/sync.h"
 
-using namespace Botanik::Logs;
-
 namespace Botanik { namespace PlcIO {
+
+    namespace {
+        using namespace Botanik::Logs;
+    }
 
     class PlcLogReader {
     private:

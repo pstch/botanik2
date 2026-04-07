@@ -4,10 +4,12 @@
 
 #include "libbotanik/plcio/logs.h"
 
-using std::min;
-using std::max;
-
 namespace Botanik { namespace PlcIO {
+
+    namespace {
+        using std::min;
+        using std::max;
+    }
 
     void PlcLogReader::_detect_dropped_entries(const LogEntry_t* entry) {
         if (_last_seq == 0) { _last_seq = entry->seqNum; return; }

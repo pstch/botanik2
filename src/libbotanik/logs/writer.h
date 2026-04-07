@@ -8,10 +8,12 @@
 #include "libbotanik/utils/serial.h"
 #include "libbotanik/plcio/vars.h"
 
-using namespace Botanik::Utils;
-using namespace Botanik::Config;
-
 namespace Botanik { namespace Logs {
+
+    namespace {
+        using namespace Botanik::Utils;
+        using namespace Botanik::Config;
+    }
 
     // Base class for logging output channels. They are then typically
     // implemented through `BufferedLogWriter`
