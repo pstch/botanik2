@@ -7,10 +7,6 @@
 
 namespace Botanik { namespace PlcIO {
 
-    namespace {
-        using namespace Botanik::HAL;
-    }
-
     // Transition triggers
     inline bool PlcSyncHandler::_rx_new_message() {
         return _plcout->sync.txSeqNum != _plcin->sync.txAckNum;
@@ -25,18 +21,18 @@ namespace Botanik { namespace PlcIO {
     }
     // Transition actions
     inline void PlcSyncHandler::_rx_memcpy() {
-        ordered_copy(&_rx_buffer, &_plcout->data);
+        HAL::ordered_copy(&_rx_buffer, &_plcout->data);
     }
     inline void PlcSyncHandler::_tx_memcpy() {
-        ordered_copy(&_plcin->data, &_tx_buffer);
+        HAL::ordered_copy(&_plcin->data, &_tx_buffer);
         _tx_write = false;        
     }
     inline void PlcSyncHandler::_rx_acknowledge() {
-        ordered_copy(&_plcin->sync.txAckNum, &_plcout->sync.txSeqNum);
+        HAL::ordered_copy(&_plcin->sync.txAckNum, &_plcout->sync.txSeqNum);
     }
     inline void PlcSyncHandler::_tx_commit() {
         uint32_t src = _plcin->sync.rxSeqNum + 1;
-        ordered_copy(&_plcin->sync.rxSeqNum, &src);
+        HAL::ordered_copy(&_plcin->sync.rxSeqNum, &src);
     }
     // Reader state machine (handle messages from the PLC's writer)
     PlcRxState PlcSyncHandler::_rx_step() { 
@@ -60,8 +56,8 @@ namespace Botanik { namespace PlcIO {
     }
 
     PlcSyncHandler::PlcSyncHandler(uint32_t* timestamp_ms) : _timestamp_ms(timestamp_ms) {
-        _plcin  = static_cast<PlcInput_t*>(get_plc_input());
-        _plcout = static_cast<PlcOutput_t*>(get_plc_output());        
+        _plcin  = static_cast<PlcInput_t*>(HAL::get_plc_input());
+        _plcout = static_cast<PlcOutput_t*>(HAL::get_plc_output());        
         memset(&_tx_buffer, 0, sizeof(PlcInputData_t));
         memset(&_rx_buffer, 0, sizeof(PlcOutputData_t));
         _tx_last_ms = *timestamp_ms;

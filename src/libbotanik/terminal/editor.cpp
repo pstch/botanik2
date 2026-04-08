@@ -8,9 +8,6 @@
 #include "libbotanik/terminal/ansi.h"
 #include "libbotanik/terminal/editor.h"
 
-using std::min;
-using std::max;
-
 using Botanik::Terminal::Ansi::CursorPos;
 
 // Find the length of a string, up to a maximum number of characters.
@@ -115,7 +112,7 @@ namespace Botanik { namespace Terminal {
         // compute head slice
         uint16_t head_cols = _cols - cursor.col;
         script.head_pos = pos;
-        script.head_cols = min(len, head_cols);
+        script.head_cols = std::min(len, head_cols);
         len -= script.head_cols;
         
         // compute body slice
@@ -135,8 +132,8 @@ namespace Botanik { namespace Terminal {
     }
 
     void InputEditor::_write_text(uint16_t pos, uint16_t len) {
-        uint16_t sel_start = min(_sel_anchor, (uint16_t)(_sel_anchor + _sel_len));
-        uint16_t sel_end = max(_sel_anchor, (uint16_t)(_sel_anchor + _sel_len));
+        uint16_t sel_start = std::min(_sel_anchor, (uint16_t)(_sel_anchor + _sel_len));
+        uint16_t sel_end = std::max(_sel_anchor, (uint16_t)(_sel_anchor + _sel_len));
         if (_sel_len != 0) {
             for (uint16_t i = 0; i < len; ++i) {
                 uint16_t char_pos = pos + i;
@@ -232,19 +229,19 @@ namespace Botanik { namespace Terminal {
         }
 
     void InputEditor::set_ps1(char* buf, uint16_t len) {
-        len = min((uint16_t)(_cols - 1), len);
+        len = std::min((uint16_t)(_cols - 1), len);
         memcpy(_ps1_buf, buf, len);
         _ps1_len = len;
     };
 
     void InputEditor::set_ps2(char* buf, uint16_t len) {
-        len = min((uint16_t)(_cols - 1), len);
+        len = std::min((uint16_t)(_cols - 1), len);
         memcpy(_ps2_buf, buf, len);
         _ps2_len = len;
     };
 
     void InputEditor::set_origin(uint16_t row, int16_t shift = 0) {
-        row = min((uint16_t)(_rows - 1), row);
+        row = std::min((uint16_t)(_rows - 1), row);
         _origin = row;
         _hw_pos.row += shift;
     }
@@ -303,17 +300,17 @@ namespace Botanik { namespace Terminal {
 
     void InputEditor::select_characters(uint16_t anchor, uint16_t len) {
         // capture the pre-bounds
-        uint16_t old_min = min(_sel_anchor, (uint16_t)(_sel_anchor + _sel_len));
-        uint16_t old_max = max(_sel_anchor, (uint16_t)(_sel_anchor + _sel_len));
+        uint16_t old_min = std::min(_sel_anchor, (uint16_t)(_sel_anchor + _sel_len));
+        uint16_t old_max = std::max(_sel_anchor, (uint16_t)(_sel_anchor + _sel_len));
         // update selection state
         _sel_anchor = anchor;
         _sel_len = len;
         // capture the post-bounds
-        uint16_t new_min = min(_sel_anchor, (uint16_t)(_sel_anchor + _sel_len));
-        uint16_t new_max = max(_sel_anchor, (uint16_t)(_sel_anchor + _sel_len));
+        uint16_t new_min = std::min(_sel_anchor, (uint16_t)(_sel_anchor + _sel_len));
+        uint16_t new_max = std::max(_sel_anchor, (uint16_t)(_sel_anchor + _sel_len));
         // calculate the damaged range
-        uint16_t dmg_start = min(old_min, new_min);
-        uint16_t dmg_len   = max(old_max, new_max) - dmg_start;
+        uint16_t dmg_start = std::min(old_min, new_min);
+        uint16_t dmg_len   = std::max(old_max, new_max) - dmg_start;
         // update the damaged range using a zero-delta script over the damaged area
         if (dmg_len > 0) {
             _execute_script(_generate_script(dmg_start, 0, dmg_len), false);

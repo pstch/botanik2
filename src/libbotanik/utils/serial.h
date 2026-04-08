@@ -15,11 +15,6 @@ namespace Botanik { namespace Utils {
         return (n > 0) && ((n & (n - 1)) == 0);
     }
 
-
-    namespace {
-        using namespace Botanik::HAL;
-    }
-
     /**
      * Non-blocking buffered serial for Arduino UART.
      * Thread-safe on 32-bit platforms.
@@ -27,7 +22,7 @@ namespace Botanik { namespace Utils {
     class BufferedSerial {
     private:
         // Wrapped serial handler
-        RawSerial* _serial;
+        HAL::RawSerial* _serial;
 
         // RX/TX buffers
         static const uint16_t RX_BUF_SIZE = 256;
@@ -45,7 +40,7 @@ namespace Botanik { namespace Utils {
 
     public:
         // Constructor
-        BufferedSerial(RawSerial* serial);
+        BufferedSerial(HAL::RawSerial* serial);
         // Get available space in RX buffer
         uint16_t available() const;
         // Get available space in TX buffer

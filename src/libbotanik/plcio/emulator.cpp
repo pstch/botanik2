@@ -5,11 +5,6 @@
 
 namespace Botanik { namespace PlcIO {
 
-    namespace {
-        using std::min;
-        using namespace Botanik::HAL;
-    }
-
     // Transition triggers
     inline bool PlcEmulator::_rx_new_message() {
         return _plcin->sync.rxSeqNum != _plcout->sync.rxAckNum;
@@ -25,21 +20,21 @@ namespace Botanik { namespace PlcIO {
 
     // Transition actions
     inline void PlcEmulator::_rx_memcpy() {
-        ordered_copy(&_rx_buffer, &_plcin->data);
+        HAL::ordered_copy(&_rx_buffer, &_plcin->data);
     }
     inline void PlcEmulator::_tx_memcpy() {
-        ordered_copy(&_plcout->data, &_tx_buffer);
+        HAL::ordered_copy(&_plcout->data, &_tx_buffer);
         _tx_write = false;
     }
     inline void PlcEmulator::_rx_acknowledge() {
         // PLC acknowledges by matching Opta's sequence number
         uint32_t seq = _plcin->sync.rxSeqNum;
-        ordered_copy(&_plcout->sync.rxAckNum, &seq);
+        HAL::ordered_copy(&_plcout->sync.rxAckNum, &seq);
     }
     inline void PlcEmulator::_tx_commit() {
         // PLC commits by incrementing its own sequence number
         uint32_t next_seq = _plcout->sync.txSeqNum + 1;
-        ordered_copy(&_plcout->sync.txSeqNum, &next_seq);
+        HAL::ordered_copy(&_plcout->sync.txSeqNum, &next_seq);
     }
 
     // Reader state machine (handle messages from PlcSyncHandler)
@@ -64,8 +59,8 @@ namespace Botanik { namespace PlcIO {
     }
 
     PlcEmulator::PlcEmulator(uint32_t* timestamp_ms) : _timestamp_ms(timestamp_ms) {
-        _plcin  = static_cast<PlcInput_t*>(get_plc_input());
-        _plcout = static_cast<PlcOutput_t*>(get_plc_output());
+        _plcin  = static_cast<PlcInput_t*>(HAL::get_plc_input());
+        _plcout = static_cast<PlcOutput_t*>(HAL::get_plc_output());
         std::memset(&_rx_buffer, 0, sizeof(PlcInputData_t));
         std::memset(&_tx_buffer, 0, sizeof(PlcOutputData_t));
         _tx_last_ms = *timestamp_ms;
@@ -100,7 +95,7 @@ namespace Botanik { namespace PlcIO {
     }
 
     void PlcLogWriter::push_log(LogLevel level, LogTopic topic, const char* msg) {
-        uint32_t writeIndex = *_writeIndex % LOG_PLC_BUFFER_SIZE;
+        uint32_t writeIndex = *_writeIndex % Config::LOG_PLC_BUFFER_SIZE;
         LogEntry_t& entry = _logBuffer[writeIndex];
 
         entry.timestamp = *_timestamp_ms;
@@ -108,12 +103,13 @@ namespace Botanik { namespace PlcIO {
         entry.topic     = topic;
         entry.seqNum    = _next_seq++;
 
-        uint16_t len = (uint16_t)std::min(std::strlen(msg), (size_t)(LOG_PLC_MESSAGE_LEN - 1));
+        uint16_t len = (uint16_t)std::min(
+            std::strlen(msg), (size_t)(Config::LOG_PLC_MESSAGE_LEN - 1));
         std::memcpy(entry.message, msg, len);
         entry.message[len] = '\0';
         entry.length = len;
 
-        *_writeIndex = (*_writeIndex + 1) % LOG_PLC_BUFFER_SIZE;
+        *_writeIndex = (*_writeIndex + 1) % Config::LOG_PLC_BUFFER_SIZE;
         _emulator->write();
     }
 }}

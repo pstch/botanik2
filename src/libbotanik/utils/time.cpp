@@ -12,10 +12,6 @@
 
 namespace Botanik { namespace Utils {
 
-    namespace {
-        using namespace Botanik::HAL;
-    }
-
     static uint64_t _project_rollover(uint64_t uptime, uint32_t timestamp) {
         uint32_t current = uptime % (1ULL << 32);
         uptime -= current;
@@ -25,15 +21,15 @@ namespace Botanik { namespace Utils {
     }
 
     uint64_t absolute_ms(uint32_t timestamp_ms) { 
-        return _project_rollover(uptime_ms(), timestamp_ms);
+        return _project_rollover(HAL::uptime_ms(), timestamp_ms);
     }
 
     uint64_t absolute_us(uint32_t timestamp_us) {
-        return _project_rollover(uptime_us(), timestamp_us);
+        return _project_rollover(HAL::uptime_us(), timestamp_us);
     }
 
     time_t unix_time_ms(uint64_t timestamp_ms, uint16_t* frac_ms) {
-        int64_t delta_ms = timestamp_ms - uptime_ms();
+        int64_t delta_ms = timestamp_ms - HAL::uptime_ms();
         time_t delta_s = (time_t)(delta_ms / 1000);
         if (frac_ms != nullptr) *frac_ms = (uint16_t)abs(delta_ms % 1000);
         if (delta_ms < 0 && *frac_ms > 0) delta_s--;

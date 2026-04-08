@@ -3,10 +3,7 @@
 #include "libbotanik/terminal/ansi.h"
 
 namespace Botanik { namespace Terminal { namespace Ansi {
-
-    namespace {
-        using Botanik::Utils::BufferedSerial;
-    }
+    using BufferedSerial = Botanik::Utils::BufferedSerial;
     
     void write_uint16(BufferedSerial& _serial, uint16_t val) {
         char buf[5];

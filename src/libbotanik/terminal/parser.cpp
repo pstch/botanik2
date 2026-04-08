@@ -5,8 +5,6 @@
 namespace Botanik { namespace Terminal {
 
     namespace {
-        using Botanik::Utils::BufferedSerial;
-        using namespace Botanik::Config;
         using Command = InputEvent::Command;
         using EventType = InputEvent::EventType;
     }
@@ -42,7 +40,7 @@ namespace Botanik { namespace Terminal {
     // Transition conditions
 
     bool InputParser::_is_safety_timeout_elapsed() const { 
-        return (*_timestamp_ms - _last_byte_ms) >= ANSI_INPUT_BATCH_TIMEOUT_MS; 
+        return (*_timestamp_ms - _last_byte_ms) >= Config::ANSI_INPUT_BATCH_TIMEOUT_MS; 
     }
 
     bool InputParser::_should_flush_text() const {
@@ -73,7 +71,7 @@ namespace Botanik { namespace Terminal {
     InputParser::State InputParser::_handle_text(uint8_t b) {
         _store_text(b);
 
-        if (_text_len == ANSI_INPUT_BATCH_SIZE || _serial.tx_empty()) {
+        if (_text_len == Config::ANSI_INPUT_BATCH_SIZE || _serial.tx_empty()) {
             _flush_text();
             return State::IDLE;
         }
@@ -215,7 +213,7 @@ namespace Botanik { namespace Terminal {
 
     // Public interface
 
-    InputParser::InputParser(BufferedSerial& serial, uint32_t* timestamp_ms) 
+    InputParser::InputParser(Utils::BufferedSerial& serial, uint32_t* timestamp_ms) 
         : _serial(serial), _timestamp_ms(timestamp_ms) {
         _reset_event();
         _state = State::IDLE;
