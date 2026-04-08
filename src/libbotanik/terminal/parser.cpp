@@ -7,13 +7,15 @@ namespace Botanik { namespace Terminal {
     namespace {
         using Botanik::Utils::BufferedSerial;
         using namespace Botanik::Config;
+        using Command = InputEvent::Command;
+        using EventType = InputEvent::EventType;
     }
 
     // Initialization code
 
     void InputParser::_reset_event() {
-        _event.type = InputEvent::Type::NONE;
-        _event.command = InputEvent::Command::NONE;
+        _event.type = EventType::NONE;
+        _event.command = Command::NONE;
         _event.batch_data = nullptr;
         _event.batch_len = 0;
         _event.prefix = 0;
@@ -31,7 +33,7 @@ namespace Botanik { namespace Terminal {
     }
 
     void InputParser::_flush_text() {
-        _event.type = InputEvent::Type::CONTENT;
+        _event.type = EventType::CONTENT;
         _event.batch_data = _text_buf;
         _event.batch_len = _text_len;
         _text_len = 0;
@@ -62,8 +64,8 @@ namespace Botanik { namespace Terminal {
             return State::TEXT;
         }
         _event.command = _map_control_char(b);
-        if (_event.command != InputEvent::Command::NONE) {
-            _event.type = InputEvent::Type::COMMAND;
+        if (_event.command != Command::NONE) {
+            _event.type = EventType::COMMAND;
         }
         return State::IDLE;
     }
@@ -80,20 +82,18 @@ namespace Botanik { namespace Terminal {
 
     InputParser::State InputParser::_handle_sep(uint8_t b) {
         _event.command = _map_sep_to_command(b);
-        _event.type = InputEvent::Type::COMMAND;
+        _event.type = EventType::COMMAND;
         return State::IDLE;
     }    
 
     InputParser::State InputParser::_handle_esc(uint8_t b) {
         if (b == '[') return State::IN_CSI;
 
-        if (b >= '1' && b <= '8') {
-            _event.type = InputEvent::Type::MODE;
-            _event.value = b - '1';
-        } else {
-            _event.command = _map_esc_extension(b);
-            _event.type = InputEvent::Type::COMMAND;
+        _event.command = _map_esc_extension(b);
+        if (_event.command != Command::NONE) {
+            _event.type = EventType::COMMAND;
         }
+
         return State::IDLE;
     }
 
@@ -117,8 +117,8 @@ namespace Botanik { namespace Terminal {
         if (b >= 0x40 && b <= 0x7E) {
             _event.value = b;
             _event.param_count++;
-            _event.command = _map_csi_to_command();
-            _event.type = InputEvent::Type::COMMAND;
+            _event.command = _map_csi_to_command(b, _event.params[0]);
+            _event.type = EventType::COMMAND;
             return State::IDLE;
         }
 
@@ -127,8 +127,7 @@ namespace Botanik { namespace Terminal {
 
     // Escape code mappings
 
-    InputEvent::Command InputParser::_map_control_char(uint8_t b) {
-        using Command = InputEvent::Command;
+    Command InputParser::_map_control_char(const uint8_t b) {
         switch (b) {
             case 0x00: return Command::CTRL_SPACE;
             case 0x01: return Command::CTRL_A;
@@ -156,23 +155,26 @@ namespace Botanik { namespace Terminal {
         }   
     }
 
-    InputEvent::Command InputParser::_map_esc_extension(uint8_t b) {
-        using Command = InputEvent::Command;
-
+    Command InputParser::_map_esc_extension(const uint8_t b) {
         switch (b) {
-            case 'b':    return Command::ALT_B;         // Alt+B (Back word)
-            case 'f':    return Command::ALT_F;         // Alt+F (Forward word)
-            default:     return Command::NONE;
+            case '0':   return Command::ALT_0;
+            case '1':   return Command::ALT_1;
+            case '2':   return Command::ALT_2;
+            case '3':   return Command::ALT_3;
+            case '4':   return Command::ALT_4;
+            case '5':   return Command::ALT_5;
+            case '6':   return Command::ALT_6;
+            case '7':   return Command::ALT_7;
+            case '8':   return Command::ALT_8;
+            case '9':   return Command::ALT_9;
+            case 'b':   return Command::ALT_B;         // Alt+B (Back word)
+            case 'f':   return Command::ALT_F;         // Alt+F (Forward word)
+            default:    return Command::NONE;
         }
     }
 
-    InputEvent::Command InputParser::_map_csi_to_command() {
-        using Command = InputEvent::Command;
-        uint8_t final_byte = (uint8_t)_event.value;
-        uint16_t first_param = _event.params[0];
-
-        switch (final_byte) {
-            // 1. Standard Directions (VT100 / ANSI)
+    Command InputParser::_map_csi_to_command(const uint8_t b, const uint16_t param1) {
+        switch (b) {
             case 'A': return Command::UP;
             case 'B': return Command::DOWN;
             case 'C': return Command::RIGHT;
@@ -180,29 +182,35 @@ namespace Botanik { namespace Terminal {
             case 'H': return Command::HOME;
             case 'F': return Command::END;
 
-            // 2. Scancode-style sequences (e.g., ESC [ 3 ~)
             case '~':
-                switch (first_param) {
-                    case 1: return Command::HOME;      // Some terminals use 1~
-                    case 2: return Command::NONE;      // Insert (Not in your enum)
-                    case 3: return Command::DELETE;    // Forward Delete
-                    case 4: return Command::END;       // Some terminals use 4~
+                switch (param1) {
+                    case 1: return Command::HOME;
+                    case 2: return Command::NONE;
+                    case 3: return Command::DELETE;
+                    case 4: return Command::END;
                     case 5: return Command::PAGE_UP;
                     case 6: return Command::PAGE_DOWN;
-                    case 7: return Command::HOME;      // rxvt / urxvt
-                    case 8: return Command::END;       // rxvt / urxvt
+                    case 7: return Command::HOME;
+                    case 8: return Command::END;
                     default: return Command::NONE;
                 }
-
-            // 3. Alternative Home/End (often used by xterm/gnome-terminal)
-            case 'Z': return Command::TAB; // Back-tab (Shift+Tab) is often ESC [ Z
-
+            case 'Z': return Command::TAB;
             default: return Command::NONE;
         }
     }
 
-    InputEvent::Command InputParser::_map_sep_to_command(uint8_t b) {
-        // TODO
+    Command InputParser::_map_sep_to_command(const uint8_t b) {
+        switch (b) {
+            case 'a': case 'A': return Command::ENTER;
+            case 'b': case 'B': return Command::ENTER;
+            case 'c': case 'C': return Command::NONE;
+            case 'd': case 'D': return Command::ALT_1;
+            case 'e': case 'E': return Command::BACKSPACE;
+            case 'f': case 'F': return Command::CTRL_U;
+            case 'g': case 'G': return Command::ALT_1;
+            case 'h': case 'H': return Command::NONE;
+            default: return Command::NONE;
+        }
     }
 
     // Public interface
@@ -210,6 +218,8 @@ namespace Botanik { namespace Terminal {
     InputParser::InputParser(BufferedSerial& serial, uint32_t* timestamp_ms) 
         : _serial(serial), _timestamp_ms(timestamp_ms) {
         _reset_event();
+        _state = State::IDLE;
+        _last_byte_ms = *timestamp_ms;
     }
 
     InputEvent& InputParser::parse() {

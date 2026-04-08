@@ -9,19 +9,13 @@
 
 namespace Botanik { namespace Terminal {
 
-    namespace {
-        using namespace Botanik::Config;
-        using namespace Botanik::Utils;
-    }
-
     /* TODO */
     struct InputEvent {
         // Input event type
-        enum class Type {
+        enum class EventType {
             NONE,       // No complete sequence yet
             CONTENT,    // Standard printable text (uses batch_data/len)
             COMMAND,    // Action/Sequence (uses command/params)
-            MODE        // Alt+1...8 (uses value)
         };
         // Command key type
         enum class Command : uint16_t {
@@ -40,10 +34,14 @@ namespace Botanik { namespace Terminal {
             
             // Meta/Alt Combinations
             ALT_B, ALT_F,
+
+            // Alt+Number
+            ALT_1, ALT_2, ALT_3, ALT_4, ALT_5, 
+            ALT_6, ALT_7, ALT_8, ALT_9, ALT_0,
         };
         // Event fields
-        Type     type = Type::NONE;
-        Command  command = Command::NONE;
+        EventType   type = EventType::NONE;
+        Command     command = Command::NONE;
         // For CONTENT batches
         const char* batch_data = nullptr;
         uint16_t    batch_len = 0;
@@ -58,6 +56,7 @@ namespace Botanik { namespace Terminal {
     /* TODO */
     class InputParser {
     private:
+        using BufferedSerial = Utils::BufferedSerial;
         // State enumeration
         enum class State {
             IDLE,               // Idle state
@@ -70,14 +69,12 @@ namespace Botanik { namespace Terminal {
         BufferedSerial& _serial;
         uint32_t*       _timestamp_ms;
         // Local state
-        InputEvent      _event;                             // current event being constructed
-        State           _state = State::IDLE;               // current state
-        uint8_t         _latched_byte = 0;                  // latched byte
-        bool            _latched = false;                   // presence of latched byte
+        InputEvent      _event;                                     // current event being constructed
+        State           _state = State::IDLE;                       // current state
         // Text Batching
-        char            _text_buf[ANSI_INPUT_BATCH_SIZE];   // batched text
-        uint16_t        _text_len = 0;                      // batched text length
-        uint32_t        _last_byte_ms = 0;                  // safety timeout for
+        char            _text_buf[Config::ANSI_INPUT_BATCH_SIZE];   // batched text
+        uint16_t        _text_len = 0;                              // batched text length
+        uint32_t        _last_byte_ms = 0;                          // safety timeout for
         // Initialization
         void _reset_event();
         // Text handling helpers
@@ -93,10 +90,10 @@ namespace Botanik { namespace Terminal {
         State _handle_csi(uint8_t b);
         State _handle_sep(uint8_t b);
         // Mapping Logic
-        InputEvent::Command _map_control_char(uint8_t b);
-        InputEvent::Command _map_esc_extension(uint8_t b);
-        InputEvent::Command _map_csi_to_command();
-        InputEvent::Command _map_sep_to_command(uint8_t b);
+        static InputEvent::Command _map_control_char(const uint8_t b);
+        static InputEvent::Command _map_esc_extension(const uint8_t b);
+        static InputEvent::Command _map_csi_to_command(const uint8_t b, const uint16_t param1);
+        static InputEvent::Command _map_sep_to_command(const uint8_t b);
     public:
         // Constructor
         InputParser(BufferedSerial& serial, uint32_t* timestamp_ms);
