@@ -1,2 +1,11 @@
 includes/
 archive/
+
+CMakeFiles
+CMakeCache.txt
+CMake
+cmake_install.cmake
+
+Makefile
+
+build
