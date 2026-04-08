@@ -8,6 +8,10 @@
 
 namespace Botanik { namespace PlcIO {
 
+    namespace {
+        using namespace Botanik::Config;
+    }
+
     #pragma pack(push, 1)
     enum LogLevel : uint8_t {
         LOG_DEBUG = 1,       // debugging messages, only printed when debugging mode is enabled
