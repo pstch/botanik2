@@ -10,14 +10,11 @@
 
 namespace Botanik { namespace Logs {
 
-    namespace {
-        using namespace Botanik::Utils;
-        using namespace Botanik::Config;
-    }
-
     // Base class for logging output channels. They are then typically
     // implemented through `BufferedLogWriter`
     class LogWriter {
+    private:
+        using LogEntry_t = PlcIO::LogEntry_t;
     protected:
         // Byte output handler, implemented by derived classes
         virtual size_t  write(const char* buf, size_t len) = 0;
@@ -33,12 +30,13 @@ namespace Botanik { namespace Logs {
     // TODO
     class BufferedLogWriter : public LogWriter {
     private:
+        using LogEntry_t = PlcIO::LogEntry_t;
         // Internal queue for this specific output channel
-        LogEntry_t _queue[LOG_QUEUE_SIZE];
+        LogEntry_t _queue[Config::LOG_QUEUE_SIZE];
         uint8_t _readIndex = 0;
         uint8_t _writeIndex = 0;
         // Outgoing message
-        char _message[LOG_FORMATTED_LEN];
+        char _message[Config::LOG_FORMATTED_LEN];
         size_t _length = 0;
         size_t _sent = 0;
         // Counters
@@ -56,6 +54,8 @@ namespace Botanik { namespace Logs {
     // TODO
     class SerialLogWriter : public LogWriter {
     private:
+        using BufferedSerial = Utils::BufferedSerial;
+        using LogEntry_t = PlcIO::LogEntry_t;
         BufferedSerial& _serial;
         size_t format(const LogEntry_t* entry, char* buf, size_t len);
         size_t write(const char* buf, size_t len);
@@ -66,12 +66,17 @@ namespace Botanik { namespace Logs {
 
     // TODO
     class DebugLogWriter : public SerialLogWriter {
+    private:
+        using BufferedSerial = Utils::BufferedSerial;
     public:
         DebugLogWriter(BufferedSerial& serial);
     };
 
     // TODO
     class MonitorLogWriter : public SerialLogWriter {
+    private:
+        using BufferedSerial = Utils::BufferedSerial;
+        using LogEntry_t = PlcIO::LogEntry_t;
     protected:
         void push(const LogEntry_t* entry) override;
     public:

@@ -10,14 +10,10 @@
 
 namespace Botanik { namespace PlcIO {
 
-    namespace {
-        using namespace Botanik::Config;
-    }
-
     class PlcEmulator {
     private:
         // Parameters
-        uint32_t        _heartbeat_ms       = PLC_HEARTBEAT_MS;     // heartbeat commit interval
+        uint32_t        _heartbeat_ms       = Config::PLC_HEARTBEAT_MS; // heartbeat commit interval
         // Current timestamp
         uint32_t*       _timestamp_ms       = 0;         // pointer to the current cycle's timestamp
         // Shared PLC variables

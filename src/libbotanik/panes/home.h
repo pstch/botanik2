@@ -4,12 +4,11 @@
 #include "libbotanik/panes/pane.h"
 #include "libbotanik/utils/serial.h"
 
-using namespace Botanik::Utils;
-
 namespace Botanik { namespace Panes {
 
     class HomePane : public Pane {
     private:
+        using BufferedSerial = Utils::BufferedSerial;
         BufferedSerial& _serial;
         
         // Internal state for the home screen (e.g., cursor selection in a menu)

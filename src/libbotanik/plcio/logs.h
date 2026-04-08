@@ -6,12 +6,9 @@
 
 namespace Botanik { namespace PlcIO {
 
-    namespace {
-        using namespace Botanik::Logs;
-    }
-
     class PlcLogReader {
     private:
+        using Logger = Logs::Logger;
         // Parameters
                 Logger*         _logger;         // pointer to the output logger
                 PlcSyncHandler* _handler;        // pointer to the PLC synchronization handler

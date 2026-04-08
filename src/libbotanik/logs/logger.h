@@ -9,11 +9,6 @@
 
 namespace Botanik { namespace Logs {
 
-    namespace {
-        using namespace Botanik::Config;
-        using namespace Botanik::PlcIO;
-    }
-
     struct LogBucket_t {
         uint16_t    state                   = 0;
         uint16_t    suppressed              = 0;
@@ -22,18 +17,19 @@ namespace Botanik { namespace Logs {
 
     class Logger {
     private:
+        using LogEntry_t = PlcIO::LogEntry_t;
         // global rate-limiter
-        uint16_t        _global_burst           = LOG_GLOBAL_BUCKET_BURST;
-        uint16_t        _global_period_ms       = LOG_GLOBAL_BUCKET_PERIOD_MS;
+        uint16_t        _global_burst           = Config::LOG_GLOBAL_BUCKET_BURST;
+        uint16_t        _global_period_ms       = Config::LOG_GLOBAL_BUCKET_PERIOD_MS;
         uint32_t        _global_fillTime_ms     = 0;
         LogBucket_t     _global_bucket;
         // per-topic rate-limiter
-        uint16_t        _perTopic_burst         = LOG_PERTOPIC_BUCKET_BURST;
-        uint16_t        _perTopic_period_ms     = LOG_PERTOPIC_BUCKET_PERIOD_MS;
+        uint16_t        _perTopic_burst         = Config::LOG_PERTOPIC_BUCKET_BURST;
+        uint16_t        _perTopic_period_ms     = Config::LOG_PERTOPIC_BUCKET_PERIOD_MS;
         uint32_t        _perTopic_fillTime_ms   = 0;
-        LogBucket_t     _perTopic_buckets[LOG_TOPIC_MAX];
+        LogBucket_t     _perTopic_buckets[Config::LOG_TOPIC_MAX];
         // output writers list
-        LogWriter*      _writers[LOG_WRITERS_MAX];
+        LogWriter*      _writers[Config::LOG_WRITERS_MAX];
         uint8_t         _writerCount            = 0;
     protected:
         // try to take a token from a bucket

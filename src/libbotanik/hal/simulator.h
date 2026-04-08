@@ -12,21 +12,18 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 
+// PLC simulator I/O pointers
+extern void* _sim_ptr_in;
+extern void* _sim_ptr_out;    
+
+// internal helpers to simplify the timer functions
+template <typename T>
+inline uint64_t _now_as() {
+    std::chrono::nanoseconds ns = std::chrono::steady_clock::now().time_since_epoch();
+    return (uint64_t)std::chrono::duration_cast<T>(ns).count();
+}
+
 namespace Botanik { namespace HAL {
-
-    namespace {
-        // internal helpers to simplify the timer functions
-        template <typename T>
-        inline uint64_t _now_as() {
-            std::chrono::nanoseconds ns = std::chrono::steady_clock::now().time_since_epoch();
-            return (uint64_t)std::chrono::duration_cast<T>(ns).count();
-        }
-
-        // PLC simulator I/O pointers
-        extern void* _sim_ptr_in;
-        extern void* _sim_ptr_out;    
-
-    }
 
     inline void* get_plc_input() { 
         return _sim_ptr_in;

@@ -12,23 +12,20 @@
 
 namespace Botanik { namespace Terminal {
 
-    namespace {
-        using namespace Botanik::Utils;
-        using namespace Botanik::Panes;
-    }
 
     class AnsiTerminal {
+        using BufferedSerial = Utils::BufferedSerial;
     private:
-        BufferedSerial& _serial;
-        InputParser     _parser;
+        BufferedSerial&     _serial;
+        InputParser         _parser;
 
-        HomePane        _home;
-        ShellPane       _shell;
-        LogsPane        _logs;
-        StatusPane      _status;
+        //Panes::HomePane     _home;
+        //Panes::ShellPane    _shell;
+        //Panes::LogsPane     _logs;
+        //Panes::StatusPane   _status;
 
-        Pane*        _active_pane;
-        uint8_t      _current_index;
+        Panes::Pane*        _active_pane;
+        uint8_t             _current_index;
 
     public:
         // Constructor

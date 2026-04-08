@@ -5,13 +5,9 @@
 #include "libbotanik/utils/serial.h"
 
 
-namespace Botanik { 
-namespace Terminal { 
-namespace Ansi {
+namespace Botanik { namespace Terminal { namespace Ansi {
 
-    namespace {
-        using Botanik::Utils::BufferedSerial;
-    }
+    using BufferedSerial = Utils::BufferedSerial;
 
     // ESC
     static const char* ESC = "\x1B";

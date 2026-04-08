@@ -8,10 +8,6 @@
 
 namespace Botanik { namespace PlcIO {
 
-    namespace {
-        using namespace Botanik::Config;
-    }
-
     #pragma pack(push, 1)
     enum LogLevel : uint8_t {
         LOG_DEBUG = 1,       // debugging messages, only printed when debugging mode is enabled
@@ -38,7 +34,7 @@ namespace Botanik { namespace PlcIO {
         LogLevel        level;
         LogTopic        topic;
         uint16_t        length;        
-        char            message[LOG_PLC_MESSAGE_LEN];
+        char            message[Config::LOG_PLC_MESSAGE_LEN];
         uint16_t        seqNum;
     };
     
@@ -59,7 +55,7 @@ namespace Botanik { namespace PlcIO {
     };
     struct PlcOutputData_t {
         // Logs received from the PLC
-        LogEntry_t          logBuffer[LOG_PLC_BUFFER_SIZE];
+        LogEntry_t          logBuffer[Config::LOG_PLC_BUFFER_SIZE];
         uint32_t            writeIndex;
     };
 

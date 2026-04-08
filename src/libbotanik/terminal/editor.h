@@ -7,11 +7,6 @@
 
 namespace Botanik { namespace Terminal {
 
-    namespace {
-        using namespace Botanik::Utils;
-        using Botanik::Terminal::Ansi::CursorPos;
-    }
-
     struct ChangeScript {
         uint16_t    head_pos;
         uint16_t    head_cols;
@@ -28,6 +23,8 @@ namespace Botanik { namespace Terminal {
 
     class InputEditor {
     private:
+        using CursorPos = Ansi::CursorPos;
+        using BufferedSerial = Utils::BufferedSerial;
         // Serial device buffered wrapper
         BufferedSerial&     _serial;
 
