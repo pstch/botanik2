@@ -51,8 +51,8 @@ namespace Ansi {
      */
     struct CursorPos {
         uint16_t row; uint16_t col;
-
-        inline bool CursorPos::operator==(const CursorPos& other) {
+    public:
+        inline bool CursorPos::operator==(const CursorPos& other) const {
             return (row == other.row && col == other.col);
         }
     };
