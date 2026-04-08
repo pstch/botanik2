@@ -128,15 +128,77 @@ namespace Botanik { namespace Terminal {
     // Escape code mappings
 
     InputEvent::Command InputParser::_map_control_char(uint8_t b) {
-        // TODO
+        using Command = InputEvent::Command;
+        switch (b) {
+            case 0x00: return Command::CTRL_SPACE;
+            case 0x01: return Command::CTRL_A;
+            case 0x02: return Command::CTRL_B;
+            case 0x03: return Command::CTRL_C;
+            case 0x04: return Command::CTRL_D;
+            case 0x05: return Command::CTRL_E;
+            case 0x06: return Command::CTRL_F;
+            case 0x07: return Command::CTRL_G;
+            case 0x08: return Command::BACKSPACE;
+            case 0x09: return Command::TAB;
+            case 0x0A: return Command::ENTER;
+            case 0x0B: return Command::CTRL_K;
+            case 0x0C: return Command::CTRL_L;
+            case 0x0D: return Command::ENTER;
+            case 0x0E: return Command::CTRL_N;
+            case 0x10: return Command::CTRL_P;
+            case 0x12: return Command::CTRL_R;
+            case 0x15: return Command::CTRL_U;
+            case 0x17: return Command::CTRL_W;
+            case 0x19: return Command::CTRL_Y;
+            case 0x1B: return Command::ESC;
+            case 0x7F: return Command::BACKSPACE;
+            default:   return Command::NONE;
+        }   
     }
 
     InputEvent::Command InputParser::_map_esc_extension(uint8_t b) {
-        // TODO
+        using Command = InputEvent::Command;
+
+        switch (b) {
+            case 'b':    return Command::ALT_B;         // Alt+B (Back word)
+            case 'f':    return Command::ALT_F;         // Alt+F (Forward word)
+            default:     return Command::NONE;
+        }
     }
 
     InputEvent::Command InputParser::_map_csi_to_command() {
-        // TODO
+        using Command = InputEvent::Command;
+        uint8_t final_byte = (uint8_t)_event.value;
+        uint16_t first_param = _event.params[0];
+
+        switch (final_byte) {
+            // 1. Standard Directions (VT100 / ANSI)
+            case 'A': return Command::UP;
+            case 'B': return Command::DOWN;
+            case 'C': return Command::RIGHT;
+            case 'D': return Command::LEFT;
+            case 'H': return Command::HOME;
+            case 'F': return Command::END;
+
+            // 2. Scancode-style sequences (e.g., ESC [ 3 ~)
+            case '~':
+                switch (first_param) {
+                    case 1: return Command::HOME;      // Some terminals use 1~
+                    case 2: return Command::NONE;      // Insert (Not in your enum)
+                    case 3: return Command::DELETE;    // Forward Delete
+                    case 4: return Command::END;       // Some terminals use 4~
+                    case 5: return Command::PAGE_UP;
+                    case 6: return Command::PAGE_DOWN;
+                    case 7: return Command::HOME;      // rxvt / urxvt
+                    case 8: return Command::END;       // rxvt / urxvt
+                    default: return Command::NONE;
+                }
+
+            // 3. Alternative Home/End (often used by xterm/gnome-terminal)
+            case 'Z': return Command::TAB; // Back-tab (Shift+Tab) is often ESC [ Z
+
+            default: return Command::NONE;
+        }
     }
 
     InputEvent::Command InputParser::_map_sep_to_command(uint8_t b) {
