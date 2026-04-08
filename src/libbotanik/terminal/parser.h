@@ -39,7 +39,7 @@ namespace Botanik { namespace Terminal {
             CTRL_SPACE,
             
             // Meta/Alt Combinations
-            ALT_B, ALT_F, ALT_D, ALT_BACKSPACE
+            ALT_B, ALT_F,
         };
         // Event fields
         Type     type = Type::NONE;
