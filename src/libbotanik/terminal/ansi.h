@@ -9,6 +9,21 @@ namespace Botanik { namespace Terminal { namespace Ansi {
 
     using BufferedSerial = Utils::BufferedSerial;
 
+
+    /** Represents a physical coordinate on the display.
+     * 
+     * Note that this struct's members are still 0-indexed, the conversion
+     * to 1-indexing happens when sending commands to the remote device.
+     */
+    struct CursorPos {
+        uint16_t row; uint16_t col;
+    public:
+        inline bool operator==(const CursorPos& other) const {
+            return (row == other.row && col == other.col);
+        }
+    };
+
+
     // ESC
     static const char* ESC = "\x1B";
     
@@ -38,20 +53,6 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     static const char* DL   = "M";  // Delete Line
     static const char* DCH  = "P";  // Delete Character
     static const char* EL   = "K";  // Erase in Line (Cursor to EOL)
-
-
-    /** Represents a physical coordinate on the display.
-     * 
-     * Note that this struct's members are still 0-indexed, the conversion
-     * to 1-indexing happens when sending commands to the remote device.
-     */
-    struct CursorPos {
-        uint16_t row; uint16_t col;
-    public:
-        inline bool CursorPos::operator==(const CursorPos& other) const {
-            return (row == other.row && col == other.col);
-        }
-    };
 
     // Write a 16-bit integer as its decimal representation
     void write_uint16(BufferedSerial& _serial, uint16_t val);

@@ -53,35 +53,35 @@ namespace Botanik { namespace Logs {
 
     // TODO
     class SerialLogWriter : public LogWriter {
-    private:
+    protected:
         using BufferedSerial = Utils::BufferedSerial;
         using LogEntry_t = PlcIO::LogEntry_t;
+    private:
         BufferedSerial& _serial;
         size_t format(const LogEntry_t* entry, char* buf, size_t len);
         size_t write(const char* buf, size_t len);
-
     public:
         SerialLogWriter(BufferedSerial& serial);
     };
 
-    // TODO
-    class DebugLogWriter : public SerialLogWriter {
-    private:
-        using BufferedSerial = Utils::BufferedSerial;
-    public:
-        DebugLogWriter(BufferedSerial& serial);
-    };
+    // // TODO
+    // class DebugLogWriter : public SerialLogWriter {
+    // private:
+    //     using BufferedSerial = Utils::BufferedSerial;
+    // public:
+    //     DebugLogWriter(BufferedSerial& serial);
+    // };
 
-    // TODO
-    class MonitorLogWriter : public SerialLogWriter {
-    private:
-        using BufferedSerial = Utils::BufferedSerial;
-        using LogEntry_t = PlcIO::LogEntry_t;
-    protected:
-        void push(const LogEntry_t* entry) override;
-    public:
-        MonitorLogWriter(BufferedSerial& serial): SerialLogWriter(serial) {}
-    };
+    // // TODO
+    // class MonitorLogWriter : public SerialLogWriter {
+    // private:
+    //     using BufferedSerial = Utils::BufferedSerial;
+    //     using LogEntry_t = PlcIO::LogEntry_t;
+    // protected:
+    //     void push(const LogEntry_t* entry) override;
+    // public:
+    //     MonitorLogWriter(BufferedSerial& serial): SerialLogWriter(serial) {}
+    // };
 
 }}
 

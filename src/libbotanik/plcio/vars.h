@@ -29,6 +29,9 @@ namespace Botanik { namespace PlcIO {
 
     };
 
+    // Check that the defined topic count can fit in the LogTopic enum
+    static_assert(Config::LOG_TOPIC_MAX < (1 << (sizeof(LogTopic)*8)));
+
     struct LogEntry_t {
         uint32_t        timestamp;
         LogLevel        level;
@@ -85,4 +88,4 @@ namespace Botanik { namespace PlcIO {
 
 }}
 
-#endif PLCIO_SHARED_VARS_H
+#endif // PLCIO_SHARED_VARS_H

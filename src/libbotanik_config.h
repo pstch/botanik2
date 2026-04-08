@@ -51,10 +51,6 @@ namespace Botanik { namespace Config {
     // TODO
     constexpr size_t LOG_QUEUE_SIZE = 64;
     constexpr size_t LOG_FORMATTED_LEN = 255;
-     
-    // Check that the defined topic count can fit in the LogTopic enum
-    static_assert(LOG_TOPIC_MAX < (1 << (sizeof(LogTopic)*8)));
-
 
     /**
      * @subsection ANSI terminal parameters

@@ -25,12 +25,12 @@ namespace Botanik { namespace HAL {
 
     // Get the pointer to the PLC input memory region
     inline PLCSharedVarsInput_t* get_plc_input() {
-        return m_PLCSharedVarsInputBuf;
+        return static_cast<PLCSharedVarsInput_t*>(m_PLCSharedVarsInputBuf);
     }
 
     // Get the pointer to the PLC output memory region
     inline PLCSharedVarsOutput_t* get_plc_output() {
-        return m_PLCSharedVarsOutputBuf;
+        return static_cast<PLCSharedVarsOutput_t*>(m_PLCSharedVarsOutputBuf);
     }
 
     inline uint32_t current_ms() { 

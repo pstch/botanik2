@@ -96,7 +96,7 @@ namespace Botanik { namespace Terminal {
         // TODO
         void set_origin(uint16_t row, int16_t shift = 0);
         // TODO
-        void set_contents(char* buf, uint16_t len);
+        void set_contents(const char* buf, uint16_t len);
 
         // TODO
         void reset();

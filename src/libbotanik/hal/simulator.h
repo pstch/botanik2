@@ -74,6 +74,8 @@ namespace Botanik { namespace HAL {
     class RawSerial {
     public:
 
+        RawSerial() {};
+
         inline void begin(uint32_t baud) {
             (void)baud;
             if (_fd_in != -1) {

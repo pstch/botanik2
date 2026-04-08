@@ -65,9 +65,13 @@ namespace Botanik { namespace Terminal {
         //       multi-byte characters would need more work
         uint16_t l1_len = _cols - _ps1_len;
         uint16_t lN_len = _cols - _ps2_len;
-        if (pos < l1_len) return { _origin, _ps1_len + pos };
+        uint16_t new_pos = static_cast<uint16_t>(_ps1_len + pos);
+        if (pos < l1_len) return { _origin, new_pos };
         pos -= l1_len;
-        return { _origin + 1 + (pos / lN_len), _ps2_len + (pos % lN_len) };
+        return { 
+            static_cast<uint16_t>(_origin + (uint16_t)1 + (pos / lN_len)), 
+            static_cast<uint16_t>(_ps2_len + (pos % lN_len))
+        };
     }
     
     // Write the prompt for the given row
@@ -102,7 +106,7 @@ namespace Botanik { namespace Terminal {
     // Generate an edition script for the given
     // change size at the given position. This code is shared
     // between the character insertion and removal paths.
-    ChangeScript InputEditor::_generate_script(uint16_t pos, int16_t delta, uint16_t len = 0) {
+    ChangeScript InputEditor::_generate_script(uint16_t pos, int16_t delta, uint16_t len) {
         // this algorithm will split the length in abs(delta) into
         // three sections : head, body and tail
         CursorPos cursor = _map_cursor_pos(pos);
@@ -240,13 +244,13 @@ namespace Botanik { namespace Terminal {
         _ps2_len = len;
     };
 
-    void InputEditor::set_origin(uint16_t row, int16_t shift = 0) {
+    void InputEditor::set_origin(uint16_t row, int16_t shift) {
         row = std::min((uint16_t)(_rows - 1), row);
         _origin = row;
         _hw_pos.row += shift;
     }
 
-    void InputEditor::set_contents(char* buf, uint16_t len) {
+    void InputEditor::set_contents(const char* buf, uint16_t len) {
         bool clear = len < _len;
         memcpy(_buf, buf, len);
         _buf[len] = '\0';
@@ -318,7 +322,7 @@ namespace Botanik { namespace Terminal {
         }
     }
 
-    void InputEditor::redraw(bool clear = true) {
+    void InputEditor::redraw(bool clear) {
         _refresh(0, (int16_t)_len, clear, true);
     }
 

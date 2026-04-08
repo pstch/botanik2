@@ -13,10 +13,10 @@
 namespace Botanik { namespace HAL {
 
     // Get the pointer to the PLC input memory region
-    void* get_plc_input();
+    // void* get_plc_input();
 
     // Get the pointer to the PLC output memory region
-    void* get_plc_output();
+    // void* get_plc_output();
 
     // Sawtooth millisecond uptime counter (rolls over every ~49 days), using the low-power clock
     //   (equivalent to Arduino's millis() function)

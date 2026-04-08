@@ -1,3 +1,6 @@
+#ifndef UTILS_TIME_H
+#define UTILS_TIME_H
+
 #include <cstdint>
 #include <array>
 #include <ctime>
@@ -60,3 +63,5 @@ namespace Botanik { namespace Utils {
     void format_ms_timestamp(uint64_t timestamp_ms, std::array<char, 22>* buf);
 
 }}
+
+#endif // UTILS_TIME_H

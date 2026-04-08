@@ -52,4 +52,4 @@ namespace Botanik { namespace Logs {
 }}
 
 
-#endif LOGS_LOGGER_H
+#endif // LOGS_LOGGER_H

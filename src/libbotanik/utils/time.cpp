@@ -1,6 +1,3 @@
-#ifndef UTILS_TIME_H
-#define UTILS_TIME_H
-
 #include <cstdint>
 #include <array>
 #include <ctime>
@@ -12,7 +9,7 @@
 
 namespace Botanik { namespace Utils {
 
-    static uint64_t _project_rollover(uint64_t uptime, uint32_t timestamp) {
+    uint64_t _project_rollover(uint64_t uptime, uint32_t timestamp) {
         uint32_t current = uptime % (1ULL << 32);
         uptime -= current;
         if (current - timestamp > (1ULL << 31)) uptime -= (1ULL << 32);
@@ -62,5 +59,3 @@ namespace Botanik { namespace Utils {
     }
 
 }}
-
-#endif // UTILS_TIME_H

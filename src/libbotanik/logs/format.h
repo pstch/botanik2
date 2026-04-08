@@ -9,22 +9,24 @@ namespace Botanik { namespace Logs {
 
     // Format the log level
     const char* format_log_level(PlcIO::LogLevel level) { switch (level) {
-        case PlcIO::LOG_DEBUG:     return "[~]";
-        case PlcIO::LOG_INFO:      return "[-]";
-        case PlcIO::LOG_NOTICE:    return "[+]";
-        case PlcIO::LOG_WARNING:   return "[!]";
-        case PlcIO::LOG_ERROR:     return "[§]";
-        case PlcIO::LOG_CRITICAL:  return "[@]";
+        case PlcIO::LOG_DEBUG:      return "[~]";
+        case PlcIO::LOG_INFO:       return "[-]";
+        case PlcIO::LOG_NOTICE:     return "[+]";
+        case PlcIO::LOG_WARNING:    return "[!]";
+        case PlcIO::LOG_ERROR:      return "[§]";
+        case PlcIO::LOG_CRITICAL:   return "[@]";
+        default:                    return "";
     }; }
 
     // Format the log topic
     const char* format_log_topic(PlcIO::LogTopic topic) { switch (topic) {
-        case PlcIO::NONE:      return "";
-        case PlcIO::BOOT:      return "BOOT:";
-        case PlcIO::NETWORK:   return "NETWORK:";
-        case PlcIO::TIME:      return "TIME:";
-        case PlcIO::STATUS:    return "STATUS:";
-        case PlcIO::PLC_IO:    return "SHARED_IO";
+        case PlcIO::NONE:       return "";
+        case PlcIO::BOOT:       return "BOOT:";
+        case PlcIO::NETWORK:    return "NETWORK:";
+        case PlcIO::TIME:       return "TIME:";
+        case PlcIO::STATUS:     return "STATUS:";
+        case PlcIO::PLC_IO:     return "SHARED_IO";
+        default:                return "";
     }; }
 
     // Format a log entry

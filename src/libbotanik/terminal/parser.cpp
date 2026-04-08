@@ -51,8 +51,8 @@ namespace Botanik { namespace Terminal {
     // State handlers
 
     InputParser::State InputParser::_handle_idle(uint8_t b) {
-        if (b == (uint8_t)Ansi::ESC)                    return State::IN_ESC;
-        if (b == (uint8_t)Ansi::SEP)                    return State::IN_SEP;
+        if (b == (uint8_t)(*Ansi::ESC))                    return State::IN_ESC;
+        if (b == (uint8_t)(*Ansi::SEP))                    return State::IN_SEP;
         if (Ansi::is_printable(b)) { 
             _store_text(b);
             if (_serial.tx_empty()) {

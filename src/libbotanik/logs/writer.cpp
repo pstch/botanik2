@@ -61,17 +61,17 @@ namespace Botanik { namespace Logs {
     SerialLogWriter::SerialLogWriter(BufferedSerial& serial) : 
         _serial(serial) {}
 
-    // TODO
-    DebugLogWriter::DebugLogWriter(BufferedSerial& serial): 
-        SerialLogWriter(serial) {}
+    // // TODO
+    // DebugLogWriter::DebugLogWriter(BufferedSerial& serial): 
+    //     SerialLogWriter(serial) {}
 
-    // TODO
-    MonitorLogWriter::MonitorLogWriter(BufferedSerial& serial): 
-        SerialLogWriter(serial) {}
+    // // TODO
+    // MonitorLogWriter::MonitorLogWriter(BufferedSerial& serial): 
+    //     SerialLogWriter(serial) {}
 
-    // TODO
-    void MonitorLogWriter::push(const LogEntry_t* entry) {
-        if (entry->level != PlcIO::LOG_DEBUG) SerialLogWriter::push(entry);
-    }
+    // // TODO
+    // void MonitorLogWriter::push(const LogEntry_t* entry) {
+    //     if (entry->level != PlcIO::LOG_DEBUG) SerialLogWriter::push(entry);
+    // }
 
 }}

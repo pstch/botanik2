@@ -56,8 +56,8 @@ namespace Botanik { namespace PlcIO {
         // NOTE: the seq/ack numbers in PlcInput_t and PlcOutput_t are named from the point of view of the PLC :
         //         - TxSeqNum/TxAckNum is RX from our point of view, as it refers to the PLC output data
         //         - RxSeqNum/RxAckNum is TX from our point of view, as it refers to the PLC input data
-        uint32_t        _heartbeat_ms       = PLC_HEARTBEAT_MS;     // heartbeat commit interval
-        uint32_t        _timeout_ms         = PLC_TIMEOUT_MS;       // write acknowledgement timeout delay
+        uint32_t        _heartbeat_ms       = Config::PLC_HEARTBEAT_MS;     // heartbeat commit interval
+        uint32_t        _timeout_ms         = Config::PLC_TIMEOUT_MS;       // write acknowledgement timeout delay
         uint32_t*       _timestamp_ms       = 0;                    // pointer to the current cycle's timestamp
         // Shared PLC variables
         PlcInput_t*     _plcin;                         // PLC input memory (write-only)
