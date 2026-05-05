@@ -98,7 +98,9 @@ namespace Botanik { namespace Terminal {
     InputParser::State InputParser::_handle_csi(uint8_t b) {
         if (b >= '0' && b <= '9') {
             uint8_t idx = _event.param_count;
-            _event.params[idx] = (_event.params[idx] * 10) + (b - '0');
+            if (idx < 8) {
+                _event.params[idx] = (_event.params[idx] * 10) + (b - '0');
+            }
             return State::IN_CSI;
         } 
         
