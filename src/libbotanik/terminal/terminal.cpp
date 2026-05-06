@@ -8,8 +8,8 @@
 #include "libbotanik/terminal/ansi.h"
 
 #include "libbotanik/pages/home.h"
-#include "libbotanik/pages/shell.h"
 #include "libbotanik/pages/logs.h"
+#include "libbotanik/pages/shell.h"
 #include "libbotanik/pages/status.h"
 
 
@@ -188,6 +188,15 @@ namespace Botanik { namespace Terminal {
             _serial.write(Ansi::ATTR_NONE, strlen(Ansi::ATTR_NONE));
             _hw_inverted = false;
         }
+    }
+
+    void AnsiTerminal::clear_screen() {
+        Ansi::clear_screen(_serial);
+        _hw_pos = {0, 0};
+    }
+
+    uint16_t AnsiTerminal::tx_available() const {
+        return _serial.availableForWrite();
     }
 
     // Not requested, but if needed:

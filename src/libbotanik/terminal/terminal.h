@@ -6,10 +6,7 @@
 #include "libbotanik/utils/serial.h"
 #include "libbotanik/terminal/ansi.h"
 
-#include "libbotanik/pages/home.h"
-#include "libbotanik/pages/shell.h"
-#include "libbotanik/pages/logs.h"
-#include "libbotanik/pages/status.h"
+#include "libbotanik/pages/page.h"
 
 namespace Botanik { namespace Terminal {
 
@@ -97,6 +94,9 @@ namespace Botanik { namespace Terminal {
         /** @brief Erase an entire row */
         void clear_row(uint16_t row);
 
+        /** @brief Erase the entire display and home the cursor (ESC[2J + ESC[H) */
+        void clear_screen();
+
         /** @brief Emit a line feed, optionally with a carriage return */
         void line_feed(bool carriage_return = true);
 
@@ -113,6 +113,9 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Switch to the page at the given index */
         void switch_to(uint8_t index);
+
+        /** @brief Number of bytes that can still be written to the serial TX buffer */
+        uint16_t tx_available() const;
 
         /** @} */
 

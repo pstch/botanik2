@@ -85,6 +85,14 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         _serial.write(EL, 1);
     }
 
+    void clear_screen(BufferedSerial& _serial) {
+        _serial.write(CSI, 2);
+        _serial.write("2", 1);
+        _serial.write(ED, 1);       // ESC[2J: erase entire display
+        _serial.write(CSI, 2);
+        _serial.write(MOVE, 1);     // ESC[H: cursor to home (row 1, col 1)
+    }
+
     void set_auto_wrap(BufferedSerial& _serial, bool enable) {
         _serial.write(CSI, 2);
         if (enable) _serial.write(DECAWM_SET,   4);

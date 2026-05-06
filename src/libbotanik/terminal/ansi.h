@@ -98,6 +98,9 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     // Clear characters from the cursor to the end of line
     void clear_to_eol(BufferedSerial& _serial);
 
+    // Erase entire display and move cursor to home position
+    void clear_screen(BufferedSerial& _serial);
+
     // Enable or disable terminal auto-wrap (DECAWM)
     void set_auto_wrap(BufferedSerial& _serial, bool enable);
 
