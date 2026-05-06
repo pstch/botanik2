@@ -107,6 +107,7 @@ namespace Botanik { namespace Terminal {
         _len += len;
         _buf[_len] = '\0';
 
+        _pos += len;
         _do_insertion(edit_pos, old_geo, len);
         _occupied = _map_cursor_pos(_len).row - _origin + 1;
     }
@@ -121,13 +122,8 @@ namespace Botanik { namespace Terminal {
 
     void InputEditor::append_characters(char* buf, uint16_t len) {
         if (len == 0) return;
-        if ((_len + len) >= sizeof(_buf)) len = sizeof(_buf) - _len - 1;
-        if (len == 0) return;
-        memcpy(&_buf[_len], buf, len);
-        _len += len;
         _pos = _len;
-        _buf[_len] = '\0';
-        // TODO: reflect change on the screen.
+        insert_characters(buf, len);
     }
 
     void InputEditor::select_characters(uint16_t anchor, uint16_t len) {
@@ -136,8 +132,24 @@ namespace Botanik { namespace Terminal {
         //  - dummy replace_characters() on the damaged range
     }
 
+    void InputEditor::backspace() {
+        if (_pos == 0) return;
+        _pos--;
+        remove_characters(1);
+    }
+
     void InputEditor::redraw(bool clear) {
-        // TODO: implement manually
+        if (clear) {
+            for (uint16_t i = 0; i < _occupied; i++)
+                _terminal->clear_row(_origin + i);
+        }
+        _terminal->move_to({_origin, 0});
+        _write_ps1();
+        if (_len > 0) {
+            _do_insertion({_origin, _ps1_len}, TextView::empty(), _len);
+            _occupied = _map_cursor_pos(_len).row - _origin + 1;
+        }
+        _terminal->move_to(_map_cursor_pos(_pos));
     }
 
     uint16_t InputEditor::_shift_insert(uint16_t row, uint16_t pos,

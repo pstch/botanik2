@@ -28,6 +28,15 @@ namespace Botanik { namespace Terminal {
         RowView  rows[MAX_ROWS];
         uint16_t row_count = 0;
         uint16_t start_row = 0; /**< Prompt-relative row index of rows[0] (0 = PS1 line) */
+
+        /** @brief An empty single-row geometry representing a blank screen */
+        static TextView empty() {
+            TextView t;
+            t.row_count = 1;
+            t.start_row = 0;
+            t.rows[0]   = {0, 0, false};
+            return t;
+        }
     };
 
     /**
@@ -104,11 +113,19 @@ namespace Botanik { namespace Terminal {
         // TODO
         void select_characters(uint16_t anchor, uint16_t len);
 
+        /** @brief Delete the character before the cursor (backspace) */
+        void backspace();
+
         /** @brief Redraw the whole prompt */
         void redraw(bool clear = true);
 
         // TODO
         void set_contents(const char* buf, uint16_t len);
+
+        /** @brief Read-only view of the current buffer contents */
+        const char* buffer() const { return _buf; }
+        /** @brief Length of the current buffer contents */
+        uint16_t buffer_len() const { return _len; }
 
         /** @} */
 
