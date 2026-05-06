@@ -11,7 +11,7 @@
 namespace Botanik { namespace Utils {
 
     /* Const expression to determine if a number is a power of two */
-    constexpr bool _is_power_of_two(uint16_t n) {
+    constexpr bool is_power_of_two(uint16_t n) {
         return (n > 0) && ((n & (n - 1)) == 0);
     }
 
@@ -28,8 +28,8 @@ namespace Botanik { namespace Utils {
         static const uint16_t RX_BUF_SIZE = 256;
         static const uint16_t TX_BUF_SIZE = 1024;
         
-        static_assert(_is_power_of_two(RX_BUF_SIZE), "RX_BUF_SIZE must be a power of two");
-        static_assert(_is_power_of_two(TX_BUF_SIZE), "TX_BUF_SIZE must be a power of two");
+        static_assert(is_power_of_two(RX_BUF_SIZE), "RX_BUF_SIZE must be a power of two");
+        static_assert(is_power_of_two(TX_BUF_SIZE), "TX_BUF_SIZE must be a power of two");
 
         char        _rx_buf[RX_BUF_SIZE];
         char        _tx_buf[TX_BUF_SIZE];
