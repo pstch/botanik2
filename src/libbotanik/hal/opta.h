@@ -11,7 +11,7 @@
  *  - millis()
  *  - mbed::LowPowerClock
  *  - arduino::UART
- *  
+ *
  */
 #include "mbed.h"
 
@@ -21,7 +21,7 @@ struct PLCSharedVarsOutput_t;
 extern "C" char _estack;
 
 extern "C" void* m_PLCSharedVarsInputBuf;
-extern "C" void* m_PLCSharedVarsOutputBuf; 
+extern "C" void* m_PLCSharedVarsOutputBuf;
 
 
 
@@ -32,7 +32,7 @@ namespace Botanik { namespace HAL {
     }
 
     uint32_t get_stack_depth() {
-        volatile uint32_t anchor = 0; 
+        volatile uint32_t anchor = 0;
         uintptr_t stack_pointer = reinterpret_cast<uintptr_t>(&anchor);
         return static_cast<uint32_t>(get_stack_base() - stack_pointer);
     }
@@ -47,11 +47,11 @@ namespace Botanik { namespace HAL {
         return static_cast<PLCSharedVarsOutput_t*>(m_PLCSharedVarsOutputBuf);
     }
 
-    inline uint32_t current_ms() { 
+    inline uint32_t current_ms() {
         return millis();
     }
 
-    inline uint32_t current_us() { 
+    inline uint32_t current_us() {
         return micros();
     }
 
@@ -73,16 +73,16 @@ namespace Botanik { namespace HAL {
 
     template <typename T>
     inline void ordered_copy(T* dst, const T* src) {
-        ARM_MPU_OrderedMemcpy((void*)dst, (const void*)src, sizeof(T)); 
+        ARM_MPU_OrderedMemcpy((void*)dst, (const void*)src, sizeof(T));
         __DSB();
     }
 
     template<typename T>
     inline void ordered_move(T* dst, T src) {
-        *dst = src; 
+        *dst = src;
         __DSB();
     }
-    
+
     using RawSerial = arduino::UART;
 
     inline RawSerial* get_serial(SerialPort port) {

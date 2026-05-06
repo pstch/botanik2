@@ -62,7 +62,7 @@ namespace Botanik { namespace PlcIO {
                 PlcEmulator*    _emulator;      // pointer to the PLC emulator
         const   uint32_t*       _timestamp_ms;  // pointer to the current cycle's timestamp
         // Local state
-                uint32_t        _next_seq = 1;  // next log entry sequence number 
+                uint32_t        _next_seq = 1;  // next log entry sequence number
         // PLC I/O pointers
                 LogEntry_t*     _logBuffer;     // pointer to the PLC log buffer
                 uint32_t*       _writeIndex;    // pointer to the PLC's log entry write index

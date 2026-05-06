@@ -10,11 +10,11 @@ namespace Botanik { namespace Scheduler {
         using Config::CPU_LOAD_EMA_DECAY;
     }
 
-    LoopScheduler::LoopScheduler(uint32_t period_ms) 
+    LoopScheduler::LoopScheduler(uint32_t period_ms)
         : _period_ms(period_ms) {
             _stack_depth = HAL::get_stack_depth();
             _stack_base = HAL::get_stack_base();
-            reset(); 
+            reset();
         }
 
     void LoopScheduler::_measure_work(uint64_t now) {
@@ -32,11 +32,11 @@ namespace Botanik { namespace Scheduler {
                 if (_cpu_load > 1.0f) _cpu_load = 1.0f;
             }
             // apply asymmetric EMA filter to measured CPU usage
-            float alpha = (_cpu_load > _cpu_load_ema) ? 
+            float alpha = (_cpu_load > _cpu_load_ema) ?
                 CPU_LOAD_EMA_ATTACK : CPU_LOAD_EMA_DECAY;
-            _cpu_load_ema = (alpha * _cpu_load) + ((1.0f - alpha) * _cpu_load_ema);            
+            _cpu_load_ema = (alpha * _cpu_load) + ((1.0f - alpha) * _cpu_load_ema);
             _is_working = false;
-        }        
+        }
     }
 
     void LoopScheduler::_measure_stack_usage() {
@@ -53,17 +53,17 @@ namespace Botanik { namespace Scheduler {
         }
         // apply asymmetric EMA filter to measured stack usage
         _stack_usage = static_cast<float>(low) / _stack_depth;
-        float alpha = (_stack_usage_ema < _stack_usage) ? 
+        float alpha = (_stack_usage_ema < _stack_usage) ?
             Config::STACK_USAGE_EMA_ATTACK : Config::STACK_USAGE_EMA_DECAY;
         _stack_usage_ema = (alpha * _stack_usage) + ((1.0f - alpha) * _stack_usage_ema);
-    }    
- 
+    }
+
     void LoopScheduler::_skip_beats(uint64_t now) {
         if (now >= _next_tick_ms + _period_ms) {
             uint64_t delay = now - _next_tick_ms;
             uint64_t missed_beats = delay / _period_ms;
             _next_tick_ms += (missed_beats * _period_ms);
-        }        
+        }
     }
 
     void LoopScheduler::reset() {

@@ -22,7 +22,7 @@ namespace Botanik { namespace PlcIO {
         _logger->push_entry(entry);
     }
 
-    PlcLogReader::PlcLogReader(PlcSyncHandler* handler, Logger* logger, uint32_t* timestamp_ms) : 
+    PlcLogReader::PlcLogReader(PlcSyncHandler* handler, Logger* logger, uint32_t* timestamp_ms) :
     _logger(logger), _handler(handler), _timestamp_ms(timestamp_ms) {
         _logBuffer = handler->output()->logBuffer;
         _writeIndex = &handler->output()->writeIndex;

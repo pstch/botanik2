@@ -172,6 +172,11 @@ namespace Botanik { namespace Terminal {
         // Cursor position is typically not affected by DL, only content shifts.
     }
 
+    // Enable or disable terminal auto-wrap (DECAWM)
+    void AnsiTerminal::set_auto_wrap(bool enable) {
+        Ansi::set_auto_wrap(_serial, enable);
+    }
+
     // Set/clear reverse-video character attribute
     void AnsiTerminal::set_inverted(bool enable) {
         if (enable && !_hw_inverted) {

@@ -73,7 +73,7 @@ namespace Botanik { namespace PlcIO {
     const PlcInputData_t* PlcEmulator::input() {
         return &_rx_buffer;
     }
-    
+
     void PlcEmulator::write() {
         _tx_write = true;
     }
@@ -91,7 +91,7 @@ namespace Botanik { namespace PlcIO {
         _tx_state = _tx_step();
     }
 
-    PlcLogWriter::PlcLogWriter(PlcEmulator* emulator, uint32_t* timestamp_ms) : 
+    PlcLogWriter::PlcLogWriter(PlcEmulator* emulator, uint32_t* timestamp_ms) :
         _emulator(emulator), _timestamp_ms(timestamp_ms)
     {
         // For the Emulator side:

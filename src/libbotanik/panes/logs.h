@@ -10,7 +10,7 @@ namespace Botanik { namespace Panes {
     private:
         using BufferedSerial = Utils::BufferedSerial;
         BufferedSerial& _serial;
-        
+
         void _draw_header();
         void _draw_menu();
     };

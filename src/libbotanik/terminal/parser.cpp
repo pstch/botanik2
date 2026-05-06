@@ -39,8 +39,8 @@ namespace Botanik { namespace Terminal {
 
     // Transition conditions
 
-    bool InputParser::_is_safety_timeout_elapsed() const { 
-        return (*_timestamp_ms - _last_byte_ms) >= Config::ANSI_INPUT_BATCH_TIMEOUT_MS; 
+    bool InputParser::_is_safety_timeout_elapsed() const {
+        return (*_timestamp_ms - _last_byte_ms) >= Config::ANSI_INPUT_BATCH_TIMEOUT_MS;
     }
 
     bool InputParser::_should_flush_text() const {
@@ -53,7 +53,7 @@ namespace Botanik { namespace Terminal {
     InputParser::State InputParser::_handle_idle(uint8_t b) {
         if (b == (uint8_t)(*Ansi::ESC))                    return State::IN_ESC;
         if (b == (uint8_t)(*Ansi::SEP))                    return State::IN_SEP;
-        if (Ansi::is_printable(b)) { 
+        if (Ansi::is_printable(b)) {
             _store_text(b);
             if (_serial.tx_empty()) {
                 _flush_text();
@@ -82,7 +82,7 @@ namespace Botanik { namespace Terminal {
         _event.command = _map_sep_to_command(b);
         _event.type = EventType::COMMAND;
         return State::IDLE;
-    }    
+    }
 
     InputParser::State InputParser::_handle_esc(uint8_t b) {
         if (b == '[') return State::IN_CSI;
@@ -102,8 +102,8 @@ namespace Botanik { namespace Terminal {
                 _event.params[idx] = (_event.params[idx] * 10) + (b - '0');
             }
             return State::IN_CSI;
-        } 
-        
+        }
+
         if (b == ';' || b == ':') {
             if (_event.param_count < 7) _event.param_count++;
             return State::IN_CSI;
@@ -152,7 +152,7 @@ namespace Botanik { namespace Terminal {
             case 0x1B: return Command::ESC;
             case 0x7F: return Command::BACKSPACE;
             default:   return Command::NONE;
-        }   
+        }
     }
 
     Command InputParser::_map_esc_extension(const uint8_t b) {
@@ -215,7 +215,7 @@ namespace Botanik { namespace Terminal {
 
     // Public interface
 
-    InputParser::InputParser(Utils::BufferedSerial& serial, uint32_t* timestamp_ms) 
+    InputParser::InputParser(Utils::BufferedSerial& serial, uint32_t* timestamp_ms)
         : _serial(serial), _timestamp_ms(timestamp_ms) {
         _reset_event();
         _state = State::IDLE;
@@ -225,7 +225,7 @@ namespace Botanik { namespace Terminal {
     InputEvent& InputParser::parse() {
         _reset_event();
         uint8_t b;
-        // try to peek at the next character, if there is none 
+        // try to peek at the next character, if there is none
         // we check if it's time to flush the batched text
         if (!_serial.peek(&b)) {
             if (_should_flush_text()) {
@@ -234,7 +234,7 @@ namespace Botanik { namespace Terminal {
             }
             return _event;
         }
-        // if the character we peeked at was non-printable, 
+        // if the character we peeked at was non-printable,
         // flush the currently batched text
         if (_state == State::TEXT && !Ansi::is_printable(b)) {
             _flush_text();

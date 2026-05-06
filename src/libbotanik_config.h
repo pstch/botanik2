@@ -1,82 +1,114 @@
-#ifndef LIBBOTANIK_CONFIG_H 
+#ifndef LIBBOTANIK_CONFIG_H
 #define LIBBOTANIK_CONFIG_H
 
 #include <cstdint>
 #include <cstring>
 
+/**
+ * @file libbotanik_config.h
+ * @brief Global configuration parameters for the Botanik library.
+ */
+
 namespace Botanik { namespace Config {
 
     /**
-     * @section Performance monitoring
+     * @name Performance Monitoring
+     * @{
      */
 
-
+    /** @brief Main task execution period in milliseconds */
     static constexpr uint32_t TASK_PERIOD_MS = 10;
 
+    /** @brief Maximum address range to scan for stack usage monitoring */
     static constexpr uint32_t STACK_SCAN_LIMIT = 65536;
+
+    /** @brief Byte pattern used for stack "painting" to detect high-water mark */
     static constexpr uint8_t  STACK_PAINT_BYTE = 0xCD;
 
-    static constexpr float CPU_LOAD_EMA_ATTACK = 0.95f; // fast rise
-    static constexpr float CPU_LOAD_EMA_DECAY  = 0.05f; // slow fall
+    /** @brief Exponential Moving Average attack (rise) factor for CPU load */
+    static constexpr float CPU_LOAD_EMA_ATTACK = 0.95f;
 
-    static constexpr float STACK_USAGE_EMA_ATTACK = 0.95f; // fast rise
-    static constexpr float STACK_USAGE_EMA_DECAY  = 0.05f; // slow fall
+    /** @brief Exponential Moving Average decay (fall) factor for CPU load */
+    static constexpr float CPU_LOAD_EMA_DECAY  = 0.05f;
+
+    /** @brief EMA attack factor for stack usage monitoring */
+    static constexpr float STACK_USAGE_EMA_ATTACK = 0.95f;
+
+    /** @brief EMA decay factor for stack usage monitoring */
+    static constexpr float STACK_USAGE_EMA_DECAY  = 0.05f;
+
+    /** @} */
 
 
     /**
-     * @section PLC synchronization
+     * @name PLC Synchronization
+     * @{
      */
 
-    // These definitions should match the PLC log buffer's layout
+    /** @brief Number of entries in the circular PLC log buffer. Must match PLC-side code. */
     static constexpr size_t LOG_PLC_BUFFER_SIZE = 32;
+
+    /** @brief Maximum length of a single log message from the PLC. Must match PLC-side code. */
     static constexpr size_t LOG_PLC_MESSAGE_LEN = 255;
 
-    // Interval between unsolicited TX frames sent to keep the PLC link alive
+    /** @brief Interval between unsolicited TX frames sent to keep the PLC link alive */
     static constexpr uint32_t PLC_HEARTBEAT_MS = 1000;
-    // Time without a TX acknowledgement before the link is considered timed out
+
+    /** @brief Time without a TX acknowledgement before the link is considered timed out */
     static constexpr uint32_t PLC_TIMEOUT_MS = 5000;
-    // Time without any PLC activity before a watchdog fault is declared
+
+    /** @brief Time without any PLC activity before a hardware watchdog fault is declared */
     static constexpr uint32_t PLC_WATCHDOG_MS = 30000;
 
-    /**
-     * @section Logging parameters
-     */
+    /** @} */
+
 
     /**
-     * @subsection Global/per-topic rate-Limiting
+     * @name Logging Parameters
+     * @{
      */
-    
-    // Maximum burst size (number of logs allowed in a quick succession)
+
+    /** @brief Maximum burst size (number of logs allowed in a quick succession) */
     static constexpr uint16_t LOG_GLOBAL_BUCKET_BURST = 20;
-    // Refill period in milliseconds (determines the steady-state log rate)
+
+    /** @brief Refill period in milliseconds (determines the steady-state log rate) */
     static constexpr uint32_t LOG_GLOBAL_BUCKET_PERIOD_MS = 1000;
-    // Maximum burst size per individual topic
+
+    /** @brief Maximum burst size per individual topic */
     static constexpr uint16_t LOG_PERTOPIC_BUCKET_BURST = 20;
-    // Refill period in milliseconds for per-topic buckets
+
+    /** @brief Refill period in milliseconds for per-topic buckets */
     static constexpr uint32_t LOG_PERTOPIC_BUCKET_PERIOD_MS = 5000;
 
-    /**
-     * @subsection Logging structure sizes
-     */
-
-    // Maximum number of unique log topics.
-    // NOTE: each topic requires ~8 bytes of RAM (255 * 8 = 2040 bytes)
+    /** @brief Maximum number of unique log topics.
+     *  @note Each topic consumes memory for its rate-limiting bucket. */
     static constexpr uint16_t LOG_TOPIC_MAX = 255;
-    // Maximum number of pointers to registered log writers (Serial, SD, Ethernet, etc.)
+
+    /** @brief Maximum number of pointers to registered log writers (Serial, SD, Ethernet, etc.) */
     static constexpr uint8_t LOG_WRITERS_MAX = 8;
 
-    // Per-writer in-flight message queue depth
+    /** @brief Per-writer in-flight message queue depth */
     static constexpr size_t LOG_QUEUE_SIZE = 64;
-    // Maximum length of a single formatted log line (bytes)
+
+    /** @brief Maximum length of a single formatted log line including metadata (bytes) */
     static constexpr size_t LOG_FORMATTED_LEN = 255;
 
+    /** @} */
+
+
     /**
-     * @subsection ANSI terminal parameters
+     * @name ANSI Terminal Parameters
+     * @{
      */
-    
+
+    /** @brief Number of input characters to process in a single batch */
     static constexpr size_t   ANSI_INPUT_BATCH_SIZE = 32;
+
+    /** @brief Maximum time to wait for a full batch before processing partial input */
     static constexpr uint32_t ANSI_INPUT_BATCH_TIMEOUT_MS = 1000;
+
+    /** @} */
 
 } }
 
-#endif // LIBBOTANIK_CONFIG_H 
+#endif // LIBBOTANIK_CONFIG_H

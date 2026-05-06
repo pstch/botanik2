@@ -10,9 +10,10 @@
 
 namespace Botanik { namespace Utils {
 
-    /* Const expression to determine if a number is a power of two */
-    constexpr bool is_power_of_two(uint16_t n) {
-        return (n > 0) && ((n & (n - 1)) == 0);
+    namespace detail {
+        constexpr bool is_power_of_two(uint16_t n) {
+            return (n > 0) && ((n & (n - 1)) == 0);
+        }
     }
 
     /**
@@ -27,9 +28,9 @@ namespace Botanik { namespace Utils {
         // RX/TX buffers
         static const uint16_t RX_BUF_SIZE = 256;
         static const uint16_t TX_BUF_SIZE = 1024;
-        
-        static_assert(is_power_of_two(RX_BUF_SIZE), "RX_BUF_SIZE must be a power of two");
-        static_assert(is_power_of_two(TX_BUF_SIZE), "TX_BUF_SIZE must be a power of two");
+
+        static_assert(detail::is_power_of_two(RX_BUF_SIZE), "RX_BUF_SIZE must be a power of two");
+        static_assert(detail::is_power_of_two(TX_BUF_SIZE), "TX_BUF_SIZE must be a power of two");
 
         char        _rx_buf[RX_BUF_SIZE];
         char        _tx_buf[TX_BUF_SIZE];
@@ -39,27 +40,30 @@ namespace Botanik { namespace Utils {
         volatile uint16_t    _tx_head = 0, _tx_tail = 0;
 
     public:
-        // Constructor
+        /** @brief Bind to the given raw serial port */
         BufferedSerial(HAL::RawSerial* serial);
-        // Get available space in RX buffer
+        /** @brief Number of bytes available to read from the RX buffer */
         uint16_t available() const;
-        // Get available space in TX buffer
+        /** @brief Number of bytes that can still be written to the TX buffer */
         uint16_t availableForWrite() const;
-        // Determine whether the RX buffer is empty
+        /** @brief True if the RX buffer contains no data */
         bool rx_empty() const;
-        // Determine whether the TX buffer is empty
+        /** @brief True if the TX buffer contains no data */
         bool tx_empty() const;
-        // Write to the serial TX buffer
+        /** @brief Copy up to @p len bytes into the TX ring buffer.
+         *  @return Number of bytes actually written; may be less than @p len
+         *          if the buffer is full (never blocks). */
         uint16_t write(const char* buf, uint16_t len);
-        // Read bytes from the RX buffer
+        /** @brief Consume up to @p len bytes from the RX ring buffer */
         uint16_t read(char* buf, uint16_t len);
-        // Peek the next byte in the character
+        /** @brief Read the next RX byte without consuming it.
+         *  @return false if the RX buffer is empty */
         bool peek(uint8_t* b) const;
-        // Read bytes from the serial device into the RX buffer
+        /** @brief Drain the hardware UART FIFO into the RX ring buffer */
         uint16_t receive();
-        // Transmit bytes from the TX buffer to the serial device
+        /** @brief Flush the TX ring buffer to the hardware UART FIFO */
         uint16_t transmit();
-        // Step through the TX/RX handlers
+        /** @brief Run one receive + transmit cycle (called from the main loop) */
         void step();
     };
 

@@ -26,17 +26,17 @@ namespace Botanik { namespace Terminal {
             ENTER, BACKSPACE, DELETE, TAB, ESC,
             UP, DOWN, LEFT, RIGHT,
             HOME, END, PAGE_UP, PAGE_DOWN,
-            
+
             // Physical Control Combinations
             CTRL_A, CTRL_B, CTRL_C, CTRL_D, CTRL_E, CTRL_F, CTRL_G,
             CTRL_K, CTRL_L, CTRL_N, CTRL_P, CTRL_R, CTRL_U, CTRL_W, CTRL_Y,
             CTRL_SPACE,
-            
+
             // Meta/Alt Combinations
             ALT_B, ALT_F,
 
             // Alt+Number
-            ALT_1, ALT_2, ALT_3, ALT_4, ALT_5, 
+            ALT_1, ALT_2, ALT_3, ALT_4, ALT_5,
             ALT_6, ALT_7, ALT_8, ALT_9, ALT_0,
         };
         // Event fields
@@ -79,7 +79,7 @@ namespace Botanik { namespace Terminal {
         void _reset_event();
         // Text handling helpers
         void _flush_text();
-        void _store_text(uint8_t b);       
+        void _store_text(uint8_t b);
         // Transition conditions
         bool _is_safety_timeout_elapsed() const;
         bool _should_flush_text() const;

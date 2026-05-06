@@ -9,7 +9,7 @@
 
 namespace Botanik { namespace Utils {
 
-    // These utilities provides some standard utility functions to work with the 
+    // These utilities provides some standard utility functions to work with the
     // different ways we use to represent time :
     //  - UNIX timestamps, stored as uint64_t on this platform
     //  - absolute millisecond/microsecond uptime counters, stored as uint64_t
@@ -39,8 +39,8 @@ namespace Botanik { namespace Utils {
     };
 
     // Convert a 32-bit uptime timestamp to an absolute 64-bit timestamp,
-    // assuming the given timestamp occurs in the rollover window centered 
-    // on the given absolute timestamp (71 minutes for microseconds, 
+    // assuming the given timestamp occurs in the rollover window centered
+    // on the given absolute timestamp (71 minutes for microseconds,
     // 49 days for milliseconds).
     uint64_t _project_rollover(uint64_t uptime, uint32_t timestamp);
 
@@ -48,7 +48,7 @@ namespace Botanik { namespace Utils {
     uint64_t absolute_ms(uint32_t timestamp_ms);
 
     // Project a rolling-over microsecond uptime counter into the current rollover window
-    //   WARNING: see warning in uptime_ms() about the microsecond 
+    //   WARNING: see warning in uptime_ms() about the microsecond
     //                precision of the low-power clock
     uint64_t absolute_us(uint32_t timestamp_us);
 
@@ -58,8 +58,8 @@ namespace Botanik { namespace Utils {
 
     // Convert an absolute millisecond uptime counter into a calendar datetime
     CalendarTime cal_time_ms(uint64_t timestamp_ms);
-    
-    // Format an absolute millisecond uptime counter into an UTC timestamp 
+
+    // Format an absolute millisecond uptime counter into an UTC timestamp
     void format_ms_timestamp(uint64_t timestamp_ms, std::array<char, 22>* buf);
 
 }}

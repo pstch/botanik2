@@ -80,6 +80,9 @@ namespace Botanik { namespace Terminal {
         /** @brief Set or clear the reverse-video (inverted) attribute */
         void set_inverted(bool enable);
 
+        /** @brief Enable or disable terminal auto-wrap (DECAWM, CSI ? 7 h/l) */
+        void set_auto_wrap(bool enable);
+
         /** @} */
 
         /** @name Content Manipulation
@@ -121,7 +124,7 @@ namespace Botanik { namespace Terminal {
         BotanikTerminal();
     };
 
-    
+
 }}
 
 #endif // TERMINAL_TERMINAL_H

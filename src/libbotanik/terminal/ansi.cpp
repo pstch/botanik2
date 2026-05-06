@@ -4,7 +4,7 @@
 
 namespace Botanik { namespace Terminal { namespace Ansi {
     using BufferedSerial = Botanik::Utils::BufferedSerial;
-    
+
     void write_uint16(BufferedSerial& _serial, uint16_t val) {
         char buf[5];
         int8_t i = 4;
@@ -85,7 +85,13 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         _serial.write(EL, 1);
     }
 
-    bool is_printable(char chr) { 
+    void set_auto_wrap(BufferedSerial& _serial, bool enable) {
+        _serial.write(CSI, 2);
+        if (enable) _serial.write(DECAWM_SET,   4);
+        else        _serial.write(DECAWM_RESET,  4);
+    }
+
+    bool is_printable(char chr) {
         uint8_t b = (uint8_t)chr;
         return b >= 0x20 && b <= 0x7E;
     }

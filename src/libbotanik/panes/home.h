@@ -10,7 +10,7 @@ namespace Botanik { namespace Panes {
     private:
         using BufferedSerial = Utils::BufferedSerial;
         BufferedSerial& _serial;
-        
+
         // Internal state for the home screen (e.g., cursor selection in a menu)
         uint8_t _menu_selection = 0;
 

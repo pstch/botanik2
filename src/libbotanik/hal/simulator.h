@@ -15,7 +15,7 @@
 
 // PLC simulator I/O pointers
 extern void* _sim_ptr_in;
-extern void* _sim_ptr_out;    
+extern void* _sim_ptr_out;
 
 // internal helpers to simplify the timer functions
 template <typename T>
@@ -43,21 +43,21 @@ namespace Botanik { namespace HAL {
     uint32_t get_stack_depth() {
         volatile uint32_t anchor = 0;
         uintptr_t current_sp = reinterpret_cast<uintptr_t>(&anchor);
-        
+
         pthread_t self = pthread_self();
         pthread_attr_t attr;
         if (pthread_getattr_np(self, &attr) == 0) {
             void* addr; size_t size;
             pthread_attr_getstack(&attr, &addr, &size);
             pthread_attr_destroy(&attr);
-            
+
             uintptr_t base = reinterpret_cast<uintptr_t>(addr) + size;
             return (base > current_sp) ? static_cast<uint32_t>(base - current_sp) : 0;
         }
         return 0;
-    }    
+    }
 
-    inline void* get_plc_input() { 
+    inline void* get_plc_input() {
         return _sim_ptr_in;
     }
 
@@ -68,24 +68,24 @@ namespace Botanik { namespace HAL {
     inline void set_plcio_pointers(void* in, void* out) {
         _sim_ptr_in = in;
         _sim_ptr_out = out;
-    }    
-
-    inline uint32_t current_ms() { 
-        return (uint32_t)_now_as<std::chrono::milliseconds>(); 
     }
 
-    inline uint32_t current_us() { 
-        return (uint32_t)_now_as<std::chrono::microseconds>(); 
+    inline uint32_t current_ms() {
+        return (uint32_t)_now_as<std::chrono::milliseconds>();
     }
 
-    inline uint64_t uptime_ms() { 
-        return _now_as<std::chrono::milliseconds>(); 
+    inline uint32_t current_us() {
+        return (uint32_t)_now_as<std::chrono::microseconds>();
     }
 
-    inline uint64_t uptime_us() { 
-        return _now_as<std::chrono::microseconds>(); 
+    inline uint64_t uptime_ms() {
+        return _now_as<std::chrono::milliseconds>();
     }
-    
+
+    inline uint64_t uptime_us() {
+        return _now_as<std::chrono::microseconds>();
+    }
+
     inline void dsb() {
         // Mimic the ARM DSB for thread visibility
         std::atomic_thread_fence(std::memory_order_seq_cst);
@@ -112,7 +112,7 @@ namespace Botanik { namespace HAL {
             if (_fd_in != -1) {
                 int flags = fcntl(_fd_in, F_GETFL, 0);
                 fcntl(_fd_in, F_SETFL, flags | O_NONBLOCK);
-            }            
+            }
         }
 
         inline int read() {
@@ -149,7 +149,7 @@ namespace Botanik { namespace HAL {
             // simulate a small UART buffer
             int space = 64 - pending_bytes;
             return (space < 0) ? 0 : space;
-        }        
+        }
 
     private:
         int _fd_in = -1;

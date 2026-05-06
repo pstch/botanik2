@@ -25,7 +25,7 @@ namespace Botanik { namespace PlcIO {
     }
     inline void PlcSyncHandler::_tx_memcpy() {
         HAL::ordered_copy(&_plcin->data, &_tx_buffer);
-        _tx_write = false;        
+        _tx_write = false;
     }
     inline void PlcSyncHandler::_rx_acknowledge() {
         HAL::ordered_copy(&_plcin->sync.txAckNum, &_plcout->sync.txSeqNum);
@@ -35,7 +35,7 @@ namespace Botanik { namespace PlcIO {
         HAL::ordered_copy(&_plcin->sync.rxSeqNum, &src);
     }
     // Reader state machine (handle messages from the PLC's writer)
-    PlcRxState PlcSyncHandler::_rx_step() { 
+    PlcRxState PlcSyncHandler::_rx_step() {
         switch (_rx_state) {
             case RX_IDLE:   if (_rx_new_message())      return RX_READ; break;
             case RX_READ:   _rx_memcpy();               return RX_ACK; break;
@@ -57,13 +57,13 @@ namespace Botanik { namespace PlcIO {
 
     PlcSyncHandler::PlcSyncHandler(uint32_t* timestamp_ms) : _timestamp_ms(timestamp_ms) {
         _plcin  = static_cast<PlcInput_t*>(HAL::get_plc_input());
-        _plcout = static_cast<PlcOutput_t*>(HAL::get_plc_output());        
+        _plcout = static_cast<PlcOutput_t*>(HAL::get_plc_output());
         memset(&_tx_buffer, 0, sizeof(PlcInputData_t));
         memset(&_rx_buffer, 0, sizeof(PlcOutputData_t));
         _tx_last_ms = *timestamp_ms;
     };
 
-    const PlcOutputData_t* PlcSyncHandler::output() { 
+    const PlcOutputData_t* PlcSyncHandler::output() {
         return &_rx_buffer;
     }
 
@@ -71,7 +71,7 @@ namespace Botanik { namespace PlcIO {
         return &_tx_buffer;
     }
 
-    void PlcSyncHandler::write() { 
+    void PlcSyncHandler::write() {
         _tx_write = true;
     }
 
@@ -88,7 +88,7 @@ namespace Botanik { namespace PlcIO {
     }
 
     void PlcSyncHandler::step() {
-        _rx_state = _rx_step(); 
+        _rx_state = _rx_step();
         _tx_state = _tx_step();
     }
 

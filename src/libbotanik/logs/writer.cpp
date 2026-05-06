@@ -21,7 +21,7 @@ namespace Botanik { namespace Logs {
         memcpy(&_queue[_writeIndex], entry, sizeof(LogEntry_t));            // otherwise, store the log entry
         _writeIndex = nextIndex;                                            // and record the incremented write index
     }
-    
+
     // Attempt to drain entries from the queue and print them
     void BufferedLogWriter::drain() {
         if (_length > 0) {                                                  // check if we are already sending a message
@@ -43,7 +43,7 @@ namespace Botanik { namespace Logs {
         const char* level = format_log_level(entry->level);
         const char* topic = format_log_topic(entry->topic);
         // format the timestamp
-        std::array<char, 22> time_buf; 
+        std::array<char, 22> time_buf;
         Utils::format_ms_timestamp(Utils::absolute_ms(entry->timestamp), &time_buf);
         // format the log entry, and return the length of the message
         int written = snprintf(buf, len, "%s %s %s %s", time_buf.data(), level, topic, entry->message);

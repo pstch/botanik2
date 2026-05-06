@@ -37,18 +37,18 @@ namespace Botanik { namespace Logs {
         // try to fill a bucket with the given amount of tokens
         void _fill_bucket(LogBucket_t* bucket, uint16_t amount, uint16_t burst);
     public:
-        // Constructor
+        /** @brief Construct a Logger with empty writer list and full rate-limit buckets */
         Logger();
-        // Add a writer
+        /** @brief Register an output writer; returns false if the writer list is full */
         bool add_writer(LogWriter* writer);
-        // Remove a writer
+        /** @brief Unregister a previously added writer; returns false if not found */
         bool remove_writer(LogWriter* writer);
-        // Fill rate-limiting buckets
+        /** @brief Refill rate-limiting token buckets (call once per main-loop period) */
         void fill_buckets();
-        // Push a new log entry to the writers, after applying rate-limiting
+        /** @brief Forward @p entry to all registered writers after rate-limit checks */
         void push_entry(const LogEntry_t entry);
     };
-    
+
 }}
 
 

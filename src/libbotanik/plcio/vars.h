@@ -1,5 +1,5 @@
-#ifndef PLCIO_SHARED_VARS_H
-#define PLCIO_SHARED_VARS_H
+#ifndef PLCIO_VARS_H
+#define PLCIO_VARS_H
 
 #include <cstdint>
 
@@ -23,7 +23,7 @@ namespace Botanik { namespace PlcIO {
         NONE = 0,
         BOOT = 2,
         NETWORK = 3,
-        TIME = 4,               
+        TIME = 4,
         STATUS = 5,                   // State machine's state updates
         PLC_IO = 1,            // messages about the PLC shared memory
 
@@ -36,11 +36,11 @@ namespace Botanik { namespace PlcIO {
         uint32_t        timestamp;
         LogLevel        level;
         LogTopic        topic;
-        uint16_t        length;        
+        uint16_t        length;
         char            message[Config::LOG_PLC_MESSAGE_LEN];
         uint16_t        seqNum;
     };
-    
+
     // Input/output flags, used to synchronize the shared memory with the PLC
     struct PlcInputCounters_t {
         uint32_t            rxSeqNum; // Sequence number for data sent to the PLC
@@ -82,10 +82,10 @@ namespace Botanik { namespace PlcIO {
     // XXX: we could improve this by also checking field offsets, but it would
     //      require substantial maintenance, unless we can find some macros that
     //      handles that for us (or at least make it easier to write)
-    //      
+    //
     #endif
     #endif
 
 }}
 
-#endif // PLCIO_SHARED_VARS_H
+#endif // PLCIO_VARS_H

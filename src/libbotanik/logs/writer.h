@@ -10,26 +10,33 @@
 
 namespace Botanik { namespace Logs {
 
-    // Base class for logging output channels. They are then typically
-    // implemented through `BufferedLogWriter`
+    /**
+     * @brief Base class for logging output channels.
+     *
+     * Derived classes supply format() and write(); the standard implementation
+     * is @ref BufferedLogWriter.
+     */
     class LogWriter {
     private:
         using LogEntry_t = PlcIO::LogEntry_t;
     protected:
-        // Byte output handler, implemented by derived classes
+        /** @brief Serialize bytes to the output medium (never blocks) */
         virtual size_t  write(const char* buf, size_t len) = 0;
-        // Message formatting handler, implemented by derived classes.
+        /** @brief Format a log entry into @p buf; return the number of bytes written */
         virtual size_t  format(const LogEntry_t* entry, char* buf, size_t len) = 0;
     public:
-        // Push a new message to the writer's queue
+        /** @brief Enqueue a new log entry for deferred output */
         virtual void    push(const LogEntry_t* entry) = 0;
-        // Drain messages in the writer's queue
+        /** @brief Attempt to flush enqueued entries to the output medium */
         virtual void    drain() = 0;
     };
 
-    // LogWriter implementation with an in-memory FIFO queue and incremental drain.
-    // Derived classes supply format() and write(); this class handles queueing,
-    // drop counting, and partial-send resumption across multiple drain() calls.
+    /**
+     * @brief LogWriter with an in-memory FIFO queue and incremental drain.
+     *
+     * Derived classes supply format() and write(). This class handles queueing,
+     * drop counting, and partial-send resumption across multiple drain() calls.
+     */
     class BufferedLogWriter : public LogWriter {
     private:
         using LogEntry_t = PlcIO::LogEntry_t;
@@ -47,15 +54,18 @@ namespace Botanik { namespace Logs {
         // Drain bytes from the currently outgoing message
         bool _drain_message();
     public:
-        // Add a new entry to the writer's queue
+        /** @brief Enqueue @p entry; drops silently if the queue is full */
         void push(const LogEntry_t* entry) override;
-        // Attempt to drain entries from the queue and print them
+        /** @brief Flush queued entries to the output medium (call from the main loop) */
         void drain() override;
     };
 
-    // BufferedLogWriter bound to a BufferedSerial port.
-    // Formats entries as "[timestamp] [level] [topic] message\n" and writes them
-    // to the serial TX buffer, respecting its available capacity on each drain().
+    /**
+     * @brief BufferedLogWriter that writes formatted entries to a BufferedSerial port.
+     *
+     * Format: `[timestamp] [level] [topic] message\n`
+     * Respects the TX buffer's available capacity on each drain() call.
+     */
     class SerialLogWriter : public BufferedLogWriter {
     protected:
         using BufferedSerial = Utils::BufferedSerial;
@@ -65,6 +75,7 @@ namespace Botanik { namespace Logs {
         size_t format(const LogEntry_t* entry, char* buf, size_t len);
         size_t write(const char* buf, size_t len);
     public:
+        /** @brief Bind the writer to the given serial port */
         SerialLogWriter(BufferedSerial& serial);
     };
 

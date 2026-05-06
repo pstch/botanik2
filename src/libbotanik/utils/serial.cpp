@@ -26,7 +26,7 @@ namespace Botanik { namespace Utils {
 
     bool BufferedSerial::tx_empty() const {
         return _tx_head == _tx_tail;
-    }    
+    }
 
     uint16_t BufferedSerial::write(const char* buf, uint16_t len) {
         uint16_t pos = 0;
@@ -50,11 +50,11 @@ namespace Botanik { namespace Utils {
     bool BufferedSerial::peek(uint8_t* b) const {
         if (_rx_head == _rx_tail)           return false;
         HAL::dsb(); *b = _rx_buf[_rx_tail];      return true;
-    }    
+    }
 
     uint16_t BufferedSerial::receive() {
         int byte; uint16_t rcvd = 0;
-        if (!_serial) return rcvd; 
+        if (!_serial) return rcvd;
         while ((byte = _serial->read()) != -1) {
             uint16_t head = (_rx_head + 1) & (RX_BUF_SIZE - 1);
             if (head == _rx_tail) return rcvd;
@@ -75,10 +75,10 @@ namespace Botanik { namespace Utils {
         }
         return sent;
     }
-    
+
     void BufferedSerial::step() {
         receive();
         transmit();
     }
 
-}}  
+}}

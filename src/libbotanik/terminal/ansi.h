@@ -11,7 +11,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
 
 
     /** Represents a physical coordinate on the display.
-     * 
+     *
      * Note that this struct's members are still 0-indexed, the conversion
      * to 1-indexing happens when sending commands to the remote device.
      */
@@ -29,16 +29,20 @@ namespace Botanik { namespace Terminal { namespace Ansi {
 
     // ESC
     static const char* ESC = "\x1B";
-    
+
     // Minitel special keys prefix
     static const char* SEP = "\x13";
-        
+
     // X3.64 CSI prefix
     static const char* CSI  = "\x1B[";     // CSI
 
     // Mode Settings
     static const char* SM4  = "4h"; // Set Mode 4: Insertion
     static const char* RM4  = "4l"; // Reset Mode 4: Replacement (Overwrite)
+
+    // DEC private mode sequences (CSI ? ...)
+    static const char* DECAWM_SET   = "?7h"; // Enable auto-wrap (default)
+    static const char* DECAWM_RESET = "?7l"; // Disable auto-wrap
 
     static const char* ATTR_NEG  = "7m"; // Negative image SGR
     static const char* ATTR_NONE  = "m"; // Normal text SGR
@@ -93,6 +97,9 @@ namespace Botanik { namespace Terminal { namespace Ansi {
 
     // Clear characters from the cursor to the end of line
     void clear_to_eol(BufferedSerial& _serial);
+
+    // Enable or disable terminal auto-wrap (DECAWM)
+    void set_auto_wrap(BufferedSerial& _serial, bool enable);
 
     // Determine if a character is a printable ASCII character
     bool is_printable(char b);

@@ -164,7 +164,7 @@ namespace Botanik { namespace Terminal {
          * @{
          */
 
-        /** @brief Get hardware position from logical position 
+        /** @brief Get hardware position from logical position
          *  @note This operation may be O(N) where N is the input buffer length
         */
         CursorPos _map_cursor_pos(uint16_t pos) const;
@@ -230,4 +230,4 @@ namespace Botanik { namespace Terminal {
 
 }}
 
-#endif  // TERMINAL_EDITOR_H
+#endif // TERMINAL_EDITOR_H

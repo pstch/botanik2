@@ -38,7 +38,7 @@ namespace Botanik {
 
         void setup() {
             _logger = Logger();
-            
+
             _scheduler = LoopScheduler(_period_ms);
 
             _console_serial = BufferedSerial(HAL::get_serial(HAL::CONSOLE));

@@ -60,7 +60,7 @@ namespace Botanik { namespace Logs {
     }
 
     void Logger::push_entry(const PlcIO::LogEntry_t entry) {
-        PlcIO::LogTopic topic = entry.topic >= 
+        PlcIO::LogTopic topic = entry.topic >=
             Config::LOG_TOPIC_MAX ? LogTopic::NONE : entry.topic;                       // determine the topic to use for this entry
         LogBucket_t* topic_bucket = &_perTopic_buckets[topic];                          // get the bucket for this topic
         if (_try_bucket(&_global_bucket))                                               // apply the global filter

@@ -38,26 +38,26 @@ namespace Botanik { namespace PlcIO {
     //
     // If the PLC runtime is properly implemented, the shared memory ranges should
     // be configured to be non-cachable and to use in-order memory accesses. However,
-    // sometimes the PLC runtime does not document this explicitly, and so we need 
+    // sometimes the PLC runtime does not document this explicitly, and so we need
     // this wrapper to prevent torn reads and torn writes.
-    // 
+    //
     // The synchronization handler is implemented as two distinct states machines,
     // one handles reading data from the PLC's output range, and one handles
     // writing data to the PLC's input range. Both the reader and the writer use
     // explicit in-order operations and a transactional model implemented using
     // sequence/acknowledgment counters. Additionally, acknowledging/committing
-    // memory operations is done in a dedicated state, so that these operations are 
+    // memory operations is done in a dedicated state, so that these operations are
     // delayed by the local cycle's period (period between calls to step()).
     //
     // The reader continuously monitors the sequence number and starts reading when
-    // it becomes different from the associated acknowledgment number, while the 
+    // it becomes different from the associated acknowledgment number, while the
     // the writer waits for writes to be requested to send a new write message to the
     // other side by copying data then incrementing its sequence number and waiting
     // for the other side to acknowledge the write.
     //
     // The synchronization handler also provides a heartbeat mechanism : after a
-    // successful TX commit, when the heartbeat interval elapses, we do a 
-    // "dummy write" (incrementing the sequence number without doing an actual write), 
+    // successful TX commit, when the heartbeat interval elapses, we do a
+    // "dummy write" (incrementing the sequence number without doing an actual write),
     // so that timed_out() can return whether the other side stopped responding.
     class PlcSyncHandler {
     private:

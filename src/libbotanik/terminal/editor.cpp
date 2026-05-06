@@ -15,6 +15,7 @@ namespace Botanik { namespace Terminal {
 
     InputEditor::InputEditor(AnsiTerminal* terminal) : _terminal(terminal) {
         _buf[0] = '\0';
+        _terminal->set_auto_wrap(false);
     }
 
     CursorPos InputEditor::_map_cursor_pos(uint16_t pos) const {
@@ -43,7 +44,7 @@ namespace Botanik { namespace Terminal {
         while (len < cap && (pos + len) < _len && !_is_newline(pos + len)) len++;
         bool hard_break = (pos + len < _len) && _is_newline(pos + len);
         return RowView { 0, len, hard_break };
-    }    
+    }
 
     TextView InputEditor::_build_rows(uint16_t buf_pos) const {
         TextView res;

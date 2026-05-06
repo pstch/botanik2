@@ -3,9 +3,9 @@
 ![Botanik logo](images/logo.png "Botanik")
 
 This project is used to host the programming of a control system for a
-small-scale horticultural greenhouse. This control system is used for 
-irrigation (at fixed schedules) and ventilation (with air blowers, 
-intractors, window openers, thermal screens and an evapo-transpiration 
+small-scale horticultural greenhouse. This control system is used for
+irrigation (at fixed schedules) and ventilation (with air blowers,
+intractors, window openers, thermal screens and an evapo-transpiration
 cooling system). The system is used in combination with other autonomous
 systems : an emergency heat blower and a heatpump, both working with their
 own thermostats, independently of the main control system. The control
@@ -22,6 +22,28 @@ this repository is also intended to host the knowledge we acquired of this platf
 ## the `libbotanik` C++ library
 
 TODO
+
+## Building
+
+The default build target is the Linux simulator (`SIMULATOR`), which compiles to a
+native executable and is the only target that actually works end-to-end today:
+
+```bash
+cmake -B build -DBOTANIK_TARGET=SIMULATOR
+make -C build
+```
+
+### OPTA target
+
+The `OPTA` build target cross-compiles for the Arduino OPTA PLC (STM32H747,
+`arm-none-eabi-gcc`). **This target does not build out of the box from this
+repository.** It requires a large set of Arduino MBED / PLC IDE headers that live
+under `includes/` and are **not** distributed here. To obtain them, perform a
+successful build of the project in the Arduino PLC IDE; the required headers are
+then found in the IDE's build cache and must be copied into `includes/` by hand.
+
+IDE support (IntelliSense / clangd) for the OPTA target has the same requirement:
+`includes/` must be populated before the IDE can resolve Arduino and MBED symbols.
 
 ## Hardware notes & useful links
 

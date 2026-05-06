@@ -35,7 +35,7 @@ namespace Botanik { namespace HAL {
 
     // Sawtooth microsecond uptime counter (rolls over every ~71 minutes), using the regular clock
     //   (equivalent to Arduino's micros() function)
-    //   WARNING: this counter does not run when the device is in SLEEP mode, 
+    //   WARNING: this counter does not run when the device is in SLEEP mode,
     //            it should only be used for short intervals during which the
     //            device is guaranteed to stay in RUN mode
     inline uint32_t current_us();
@@ -45,7 +45,7 @@ namespace Botanik { namespace HAL {
 
     // Monotonic microsecond uptime counter (no rollover), using the low-power clock
     //   WARNING: the low-power clock used for this counter will generally not
-    //            have enough precision for true microseconds. On an Arduino OPTA, 
+    //            have enough precision for true microseconds. On an Arduino OPTA,
     //            this clock runs at 32.768 kHz, which means that the smallest interval
     //            it can measure is around ~30 microseconds.
     inline uint64_t uptime_us();

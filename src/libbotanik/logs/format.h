@@ -34,7 +34,7 @@ namespace Botanik { namespace Logs {
         using namespace Botanik::Utils;
         const char* level = format_log_level(entry->level);
         const char* topic = format_log_topic(entry->topic);
-        std::array<char, 22> time_buf; 
+        std::array<char, 22> time_buf;
         format_ms_timestamp(absolute_ms(entry->timestamp), &time_buf);
         int written = snprintf(buf, len, "%s %s %s", time_buf.data(), level, topic, entry->message);
         return std::min((size_t)written, len);

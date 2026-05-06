@@ -17,7 +17,7 @@ namespace Botanik { namespace Utils {
         return uptime + timestamp;
     }
 
-    uint64_t absolute_ms(uint32_t timestamp_ms) { 
+    uint64_t absolute_ms(uint32_t timestamp_ms) {
         return _project_rollover(HAL::uptime_ms(), timestamp_ms);
     }
 
