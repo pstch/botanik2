@@ -13,6 +13,8 @@
 
 namespace Botanik { namespace Terminal {
 
+    using Ansi::CursorPos;
+
     /** @brief Geometry of a single screen row, computed from the buffer */
     struct RowView {
         uint16_t buf_start;     /**< Offset in _buf where this row's content begins */
@@ -25,6 +27,7 @@ namespace Botanik { namespace Terminal {
         static const uint16_t MAX_ROWS = 32;
         RowView  rows[MAX_ROWS];
         uint16_t row_count = 0;
+        uint16_t start_row = 0; /**< Prompt-relative row index of rows[0] (0 = PS1 line) */
     };
 
     /**
@@ -48,14 +51,14 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Set the PS1 prompt text (first line prompt) */
         void set_ps1(const char* buf, uint16_t len) {
-            len = std::min((uint16_t)(_terminal->cols() - 1), len);
+            len = std::min(len, (uint16_t)(sizeof(_ps1_buf)));
             memcpy(_ps1_buf, buf, len);
             _ps1_len = len;
         }
 
         /** @brief Set the PS2 prompt text (continuation prompt) */
         void set_ps2(const char* buf, uint16_t len) {
-            len = std::min((uint16_t)(_terminal->cols() - 1), len);
+            len = std::min(len, (uint16_t)(sizeof(_ps2_buf)));
             memcpy(_ps2_buf, buf, len);
             _ps2_len = len;
         }
@@ -74,7 +77,7 @@ namespace Botanik { namespace Terminal {
             row = std::min((uint16_t)(_terminal->rows() - 1), row);
             _origin = row;
         }
-        
+
         /** @brief Get the amount of rows occupied by the input */
         uint16_t occupied_rows() const {
             return _occupied;
@@ -110,14 +113,18 @@ namespace Botanik { namespace Terminal {
         /** @} */
 
     private:
-        using enum Ansi::MoveDirection;
-        using MoveDirection = Ansi::MoveDirection;
+        using MoveDirection  = Ansi::MoveDirection;
+        using CursorPos      = Ansi::CursorPos;
+        static constexpr MoveDirection LEFT  = MoveDirection::LEFT;
+        static constexpr MoveDirection RIGHT = MoveDirection::RIGHT;
+        static constexpr MoveDirection UP    = MoveDirection::UP;
+        static constexpr MoveDirection DOWN  = MoveDirection::DOWN;
         using BufferedSerial = Utils::BufferedSerial;
 
         /**
          * @name State variables
          * @{
-         */        
+         */
 
         AnsiTerminal*       _terminal;          /**< Reference to the parent terminal */
 
@@ -141,7 +148,7 @@ namespace Botanik { namespace Terminal {
          * @}
          * @name Prompt handling
          * @{
-         */        
+         */
 
         /** @brief Write the PS1 prompt */
         inline void _write_ps1() { _terminal->write_chars(_ps1_buf, _ps1_len); }
@@ -174,27 +181,49 @@ namespace Botanik { namespace Terminal {
         inline uint16_t _is_newline(uint16_t pos) const {
             return _buf[pos] == '\n';
         }
-        
+
         /** @brief Scan a row to find the end of the line,
          *         and whether it's a soft or hard line-break.
          */
-        RowView InputEditor::_scan_row(uint16_t pos, uint16_t cap) const;
-        
+        RowView _scan_row(uint16_t pos, uint16_t cap) const;
+
         /**
          * @}
          * @name Ripple handling
          * @{
          */
 
-        /** @brief Execute the insertion ripple: pressure new chars were written
-         *         at edit_pos; text is the OLD row geometry from edit_row onward. */
-        void _insertion_ripple(CursorPos edit_pos, const TextView& text,
-                               uint16_t pressure);
+        /** @brief Shift one screen row by |pressure| chars using ICH/DCH (small
+         *         pressure) or IL/DL (large pressure).
+         *  @param row           Row index relative to _origin (0 = PS1 row).
+         *  @param pos           Offset in _buf where this row's new content begins.
+         *  @param pressure  > 0: chars pushed in from the previous row's right edge.
+         *                   < 0: chars pulled out into the previous row's vacuum.
+         *  @param geometry      Old row geometry snapshot.
+         *  @return Overflow (> 0) or remaining vacuum (< 0) to pass to the next row. */
+        int16_t _shift_row(uint16_t row, uint16_t pos, int16_t pressure, const TextView& geometry);
 
-        /** @brief Execute the removal ripple: pressure chars were removed at
-         *         edit_pos; text is the OLD row geometry from edit_row onward. */
-        void _removal_ripple(CursorPos edit_pos, const TextView& text,
-                             uint16_t pressure);
+        /** @brief Insertion half of _shift_row: open a gap of `pressure` chars at
+         *         the cursor using insert mode (small) or IL (large), fill it from _buf,
+         *         and return the overflow that must be propagated to the next row.
+         *  @param row  Index within the geometry snapshot (0 = first affected row).
+         *              Note: different coordinate space from _shift_row's `row`. */
+        uint16_t _shift_insert(uint16_t row, uint16_t pos, uint16_t pressure, const TextView& geometry);
+
+        /** @brief Removal half of _shift_row: close a gap of `vacuum` chars at the
+         *         cursor using DCH (small) or DL (large), fill the right-edge gap from
+         *         the next row's new content, and return the remaining vacuum.
+         *  @param row  Index within the geometry snapshot (0 = first affected row).
+         *              Note: different coordinate space from _shift_row's `row`. */
+        uint16_t _shift_remove(uint16_t row, uint16_t pos, uint16_t vacuum, const TextView& geometry);
+
+        /** @brief Perform the full hardware insertion at the edit point: shift rows
+         *         using _shift_row and write any overflow onto new screen lines. */
+        void _do_insertion(CursorPos pos, const TextView& geometry, uint16_t pressure);
+
+        /** @brief Perform the full hardware removal at the edit point: shift rows
+         *         using _shift_row and erase the tail when vacuum reaches the last row. */
+        void _do_removal(CursorPos pos, const TextView& old, uint16_t pressure);
 
         /** @} */
     };
