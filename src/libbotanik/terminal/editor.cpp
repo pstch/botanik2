@@ -66,6 +66,7 @@ namespace Botanik { namespace Terminal {
     }
 
     void InputEditor::set_contents(const char* buf, uint16_t len) {
+        if (len >= sizeof(_buf)) len = sizeof(_buf) - 1;
         bool clear = len < _len;
         memcpy(_buf, buf, len);
         _buf[len] = '\0';
