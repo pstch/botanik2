@@ -37,18 +37,9 @@ namespace Botanik { namespace Logs {
         }
     }
 
-    // Format a log entry as "[timestamp] [level] [topic] message"
     size_t SerialLogWriter::format(const LogEntry_t* entry, char* buf, size_t len) {
-        // format log level and topic
-        const char* level = format_log_level(entry->level);
-        const char* topic = format_log_topic(entry->topic);
-        // format the timestamp
-        std::array<char, 22> time_buf;
-        Utils::format_ms_timestamp(Utils::absolute_ms(entry->timestamp), &time_buf);
-        // format the log entry, and return the length of the message
-        int written = snprintf(buf, len, "%s %s %s %s", time_buf.data(), level, topic, entry->message);
-        return std::min((size_t)written, len);
-    };
+        return format_log_entry(entry, buf, len);
+    }
 
     // Write up to len bytes to the serial port, capped by available TX space
     size_t SerialLogWriter::write(const char* buf, size_t len) {
