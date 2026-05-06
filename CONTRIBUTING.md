@@ -116,20 +116,6 @@ returns immediately. Writers must have their `drain()` called from the main loop
 (e.g., via `SerialLogWriter`). If `drain()` is never called, the queue fills and
 new entries are silently dropped.
 
----
-
-## Loose coupling
-
-- Classes communicate through narrow interfaces (pointers or references to
-  abstract base classes or HAL types), never through global state.
-- The HAL (`hal/platform.h`) is the only platform-specific seam. All other code
-  calls `HAL::current_ms()`, `HAL::dsb()`, etc., and is otherwise portable
-  between SIMULATOR and OPTA builds.
-- Pages receive an `AnsiTerminal*` pointer; they do not hold a reference to the
-  serial port directly.
-
----
-
 ## Checking your work
 
 ```bash
@@ -140,6 +126,3 @@ make -C build
 # Static analysis (runs automatically as part of the build in SIMULATOR mode)
 make -C build cppcheck
 ```
-
-There are no automated tests yet. Manual verification against the simulator is
-the current acceptance criterion.
