@@ -12,11 +12,6 @@
 
 - `logger.cpp` `fill_buckets()`: when a bucket's `suppressed` counter is non-zero on refill, emit a synthetic log entry reporting the drop count, then reset the counter
 
-## Clang-tidy — expand checks
-
-- `.clang-tidy` currently enables only `bugprone-*`; add `modernize-*` and `readability-*` once the
-  existing violations are resolved and the CI baseline is stable
-
 ## BotanikApp
 
 - `libbotanik.h` / `libbotanik.cpp`: add class-level doc blocks for `BotanikLoop` and `BotanikApp`
