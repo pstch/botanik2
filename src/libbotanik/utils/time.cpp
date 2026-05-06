@@ -28,8 +28,10 @@ namespace Botanik { namespace Utils {
     time_t unix_time_ms(uint64_t timestamp_ms, uint16_t* frac_ms) {
         int64_t delta_ms = timestamp_ms - HAL::uptime_ms();
         time_t delta_s = (time_t)(delta_ms / 1000);
-        if (frac_ms != nullptr) *frac_ms = (uint16_t)abs(delta_ms % 1000);
-        if (delta_ms < 0 && *frac_ms > 0) delta_s--;
+        if (frac_ms != nullptr) {
+            *frac_ms = (uint16_t)abs(delta_ms % 1000);
+            if (delta_ms < 0 && *frac_ms > 0) delta_s--;
+        }
         return time(NULL) + delta_s;
     }
 
