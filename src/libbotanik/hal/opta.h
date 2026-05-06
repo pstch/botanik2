@@ -18,18 +18,32 @@
 struct PLCSharedVarsInput_t;
 struct PLCSharedVarsOutput_t;
 
+extern "C" char _estack;
+
 extern "C" void* m_PLCSharedVarsInputBuf;
-extern "C" void* m_PLCSharedVarsOutputBuf;    
+extern "C" void* m_PLCSharedVarsOutputBuf; 
+
+
 
 namespace Botanik { namespace HAL {
 
+    uint32_t get_stack_base() {
+        return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&_estack));
+    }
+
+    uint32_t get_stack_depth() {
+        volatile uint32_t anchor = 0; 
+        uintptr_t stack_pointer = reinterpret_cast<uintptr_t>(&anchor);
+        return static_cast<uint32_t>(get_stack_base() - stack_pointer);
+    }
+
     // Get the pointer to the PLC input memory region
-    inline PLCSharedVarsInput_t* get_plc_input() {
+    inline void* get_plc_input() {
         return static_cast<PLCSharedVarsInput_t*>(m_PLCSharedVarsInputBuf);
     }
 
     // Get the pointer to the PLC output memory region
-    inline PLCSharedVarsOutput_t* get_plc_output() {
+    inline void* get_plc_output() {
         return static_cast<PLCSharedVarsOutput_t*>(m_PLCSharedVarsOutputBuf);
     }
 
@@ -68,8 +82,14 @@ namespace Botanik { namespace HAL {
         *dst = src; 
         __DSB();
     }
-
+    
     using RawSerial = arduino::UART;
+
+    inline RawSerial* get_serial(SerialPort port) {
+        if (port == MONITOR) return &Serial1;
+        return &Serial;
+    }
+
 
 }}
 

@@ -4,6 +4,11 @@
 #include <cstdint>
 #include <cstring>
 
+namespace Botanik { namespace HAL {
+    // Declared before platform headers so get_serial() can use it inline
+    enum SerialPort { CONSOLE, MONITOR };
+}}
+
 #ifdef TARGET_OPTA
     #include "libbotanik/hal/opta.h"
 #else
@@ -12,11 +17,17 @@
 
 namespace Botanik { namespace HAL {
 
+    // Return the high address (base) of the current thread's stack region
+    uint32_t get_stack_base();
+
+    // Return the usable size (depth) of the current thread's stack region in bytes
+    uint32_t get_stack_depth();
+
     // Get the pointer to the PLC input memory region
-    // void* get_plc_input();
+    void* get_plc_input();
 
     // Get the pointer to the PLC output memory region
-    // void* get_plc_output();
+    void* get_plc_output();
 
     // Sawtooth millisecond uptime counter (rolls over every ~49 days), using the low-power clock
     //   (equivalent to Arduino's millis() function)
