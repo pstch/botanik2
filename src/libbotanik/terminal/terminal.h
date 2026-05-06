@@ -19,61 +19,108 @@ namespace Botanik { namespace Terminal {
         using CursorPos = Terminal::Ansi::CursorPos;
     private:
         // Owned objects
-        InputParser         _parser;            // Input parser used to read from the remote terminal
+        InputParser         _parser;                // Input parser used to read from the remote terminal
         // Multiplexed panes
-        Panes::Pane*        _panes[8];
-        uint8_t             _panes_len  = 0;
-        uint8_t             _pane_index = 0;
+        Panes::Pane*        _panes[8];              // Children panes
+        uint8_t             _panes_len  = 0;        // Pane count
+        uint8_t             _pane_index = 0;        // Active pane index
         // Referenced objects
-        BufferedSerial&     _serial;            // Reference to the buffered serial UART wrapper
+        BufferedSerial&     _serial;                // Reference to the buffered serial UART wrapper
         // Display size
-        uint16_t            _cols;
-        uint16_t            _rows;
+        uint16_t            _cols;                  // Columns
+        uint16_t            _rows;                  // Rows
         // Local state
-        CursorPos           _hw_pos = {0, 0};   // Hardware position tracking
-        bool                _hw_inverted;       // Character attribute tracking
+        CursorPos           _hw_pos = {0, 0};       // Hardware position tracking
+        bool                _hw_inverted = false;   // Character attribute tracking
     public:
-        // Constructor
-        AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows);
-        // Step through the terminal handling code
+        /** @name Lifecycle & State Management
+         *  @{ */
+
+        /** @brief Initialize the terminal with given dimensions */
+        AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows, uint32_t* timestamp_ms);
+
+        /** @brief Process input and update terminal state */
         void step();
 
-        // Moves the cursor position using the most efficient ANSI sequence
-        void move_to(const CursorPos& position, bool skip = false);
-        // Get the current cursor position
-        CursorPos cursor_pos();
-        uint16_t col() const;
-        uint16_t row() const;
+        /** @} */
 
-        // Relative moves
+        /** @name Cursor & Geometry Management
+         *  @{ */
+
+        /** @brief Move cursor to an absolute position
+         *  @param position Targeted coordinates
+         *  @param skip If true, only update internal state without sending ANSI sequence
+         */
+        void move_to(const CursorPos& position, bool skip = false);
+
+        /** @brief Move cursor relatively in the given direction */
         void move_cursor(Ansi::MoveDirection direction, uint16_t amount = 1);
 
-        // Insert characters
-        void write_chars(const char *s, uint16_t len, bool insert = false);
-        // Delete characters
-        void delete_chars(uint16_t len);
+        /** @brief Get the current logical cursor position */
+        inline CursorPos cursor_pos() const { return _hw_pos; }
 
-        // Switch to the next row (or scroll)
-        void line_feed(bool carriage_return = true);
-        // Clear the given row
-        void clear_row(uint16_t row);
-        // Insert rows (shifting subsequent rows)
-        void insert_rows(uint8_t rows);
-        // Delete rows (shifting subsequent rows)
-        void delete_rows(uint8_t rows);
+        /** @brief Get the total number of columns (width) */
+        inline uint16_t cols() const { return _cols; }
 
-        // Enter/leave inverted display attribute (SGR)
+        /** @brief Get the total number of rows (height) */
+        inline uint16_t rows() const { return _rows; }
+
+        /** @} */
+
+        /** @name Text Output & Character Attributes
+         *  @{ */
+
+        /** @brief Write characters at the current cursor position
+         *  @param buf Buffer to write
+         *  @param len Number of characters to write
+         *  @param insert If true, use insertion mode (shifts existing text right)
+         */
+        void write_chars(const char *buf, uint16_t len, bool insert = false);
+
+        /** @brief Set or clear the reverse-video (inverted) attribute */
         void set_inverted(bool enable);
 
-        // Switch to the given pane index
+        /** @} */
+
+        /** @name Content Manipulation
+         *  @{ */
+
+        /** @brief Delete characters at current position, shifting the line left */
+        void delete_chars(uint16_t len);
+
+        /** @brief Erase content from cursor to the end of the line */
+        void clear_to_eol();
+
+        /** @brief Erase an entire row */
+        void clear_row(uint16_t row);
+
+        /** @brief Emit a line feed, optionally with a carriage return */
+        void line_feed(bool carriage_return = true);
+
+        /** @brief Insert blank rows at cursor, pushing subsequent rows down */
+        void insert_rows(uint16_t count);
+
+        /** @brief Delete rows at cursor, pulling subsequent rows up */
+        void delete_rows(uint16_t count);
+
+        /** @} */
+
+        /** @name Viewport & Pane Management
+         *  @{ */
+
+        /** @brief Switch to the pane at the given index */
         void switch_to(uint8_t index);
 
-        // Get the display size
-        uint16_t cols() const;
-        uint16_t rows() const;
+        /** @} */
 
 
     };
+
+    class BotanikTerminal : AnsiTerminal {
+    public:
+        BotanikTerminal();
+    };
+
     
 }}
 

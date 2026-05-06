@@ -23,7 +23,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         }
     };
 
-    enum class MoveDirection {
+    enum MoveDirection {
         LEFT, RIGHT, UP, DOWN
     };
 
