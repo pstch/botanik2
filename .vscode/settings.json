@@ -5,5 +5,7 @@
         "chrono": "cpp",
         "compare": "cpp"
     },
-    "search.useIgnoreFiles": false
+    "search.useIgnoreFiles": false,
+    "C_Cpp.codeAnalysis.clangTidy.enabled": true,
+    "C_Cpp.codeAnalysis.runAutomatically": true
 }

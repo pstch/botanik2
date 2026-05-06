@@ -11,6 +11,7 @@ set(CMAKE_C_USE_RESPONSE_FILE_FOR_INCLUDES ON)
 set(BOTANIK_TARGET "SIMULATOR" CACHE STRING "Target platform: SIMULATOR or OPTA")
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 file(GLOB_RECURSE LIB_SOURCES
     "src/*.cpp"
@@ -27,13 +28,33 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     target_compile_definitions(botanik PUBLIC
         TARGET_SIMULATOR
         DEBUG
-        _GNU_SOURCEv
+        _GNU_SOURCE
     )
 
     target_include_directories(botanik PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
     add_executable(botanik_sim "src/botanik_sim/main.cpp")
     target_link_libraries(botanik_sim botanik)
+
+    # cppcheck static analysis target
+    find_program(CPPCHECK cppcheck)
+    if(CPPCHECK)
+        add_custom_target(cppcheck
+            COMMAND ${CPPCHECK}
+                --project=${CMAKE_BINARY_DIR}/compile_commands.json
+                --enable=warning,performance,portability
+                --std=c++11
+                --suppress=missingIncludeSystem
+                --suppress=unmatchedSuppression
+                --inline-suppr
+                --quiet
+                --error-exitcode=1
+            COMMENT "Running cppcheck (SIMULATOR)"
+            VERBATIM
+        )
+    else()
+        message(STATUS "cppcheck not found — skipping cppcheck target")
+    endif()
 
 elseif(BOTANIK_TARGET STREQUAL "OPTA")
     message(STATUS "Configuring for OPTA (Arduino/Mbed) sanity check")

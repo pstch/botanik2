@@ -5,8 +5,11 @@
 
 namespace Botanik { namespace Utils {
 
-    BufferedSerial::BufferedSerial(HAL::RawSerial* serial) : 
-        _serial(serial) {}
+    BufferedSerial::BufferedSerial(HAL::RawSerial* serial) :
+        _serial(serial) {
+        memset(_rx_buf, 0, sizeof(_rx_buf));
+        memset(_tx_buf, 0, sizeof(_tx_buf));
+    }
 
     uint16_t BufferedSerial::available() const {
         return (_rx_head - _rx_tail) & (RX_BUF_SIZE - 1);

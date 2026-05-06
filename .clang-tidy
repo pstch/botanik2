@@ -1,0 +1,11 @@
+---
+# Only bugprone checks for now; see TODO.md for the plan to expand.
+Checks: '-*,bugprone-*'
+
+# Restrict diagnostics to our own source tree — ignore Arduino/MbedOS headers.
+HeaderFilterRegex: '.*\/src\/.*'
+
+# Promote warnings to errors so CI can catch them.
+WarningsAsErrors: 'bugprone-*'
+
+FormatStyle: none
