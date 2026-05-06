@@ -85,6 +85,11 @@
 - **Complete `BotanikApp`** (`libbotanik.cpp`): Connect `setup()` / `step()` to a
   public entry point; instantiate `BotanikTerminal` once it is ready.
 
+- **Make `BotanikApp` subclassable**: Expose `setup()` and `step()` as public virtual
+  methods so an Arduino sketch can derive from `BotanikApp` and inject business logic
+  without touching the library. The derived class calls `super::setup()` /
+  `super::step()` and adds its own greenhouse-specific code alongside.
+
 ## Logging
 
 - **Emit suppressed-entry count** (`logs/logger.cpp`): In `fill_buckets()`, emit a
