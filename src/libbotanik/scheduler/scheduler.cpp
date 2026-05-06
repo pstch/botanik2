@@ -52,10 +52,11 @@ namespace Botanik { namespace Scheduler {
             else                                                    low = mid + 1;
         }
         // apply asymmetric EMA filter to measured stack usage
-        _stack_usage = static_cast<float>(low) / _stack_depth;
-        float alpha = (_stack_usage_ema < _stack_usage) ?
+        _stack_usage = low;
+        float ratio = (_stack_depth > 0) ? static_cast<float>(low) / _stack_depth : 0.0f;
+        float alpha = (_stack_usage_ema < ratio) ?
             Config::STACK_USAGE_EMA_ATTACK : Config::STACK_USAGE_EMA_DECAY;
-        _stack_usage_ema = (alpha * _stack_usage) + ((1.0f - alpha) * _stack_usage_ema);
+        _stack_usage_ema = (alpha * ratio) + ((1.0f - alpha) * _stack_usage_ema);
     }
 
     void LoopScheduler::_skip_beats(uint64_t now) {
