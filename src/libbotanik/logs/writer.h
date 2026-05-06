@@ -27,7 +27,9 @@ namespace Botanik { namespace Logs {
         virtual void    drain() = 0;
     };
 
-    // TODO
+    // LogWriter implementation with an in-memory FIFO queue and incremental drain.
+    // Derived classes supply format() and write(); this class handles queueing,
+    // drop counting, and partial-send resumption across multiple drain() calls.
     class BufferedLogWriter : public LogWriter {
     private:
         using LogEntry_t = PlcIO::LogEntry_t;
@@ -51,37 +53,20 @@ namespace Botanik { namespace Logs {
         void drain() override;
     };
 
-    // TODO
-    class SerialLogWriter : public LogWriter {
+    // BufferedLogWriter bound to a BufferedSerial port.
+    // Formats entries as "[timestamp] [level] [topic] message\n" and writes them
+    // to the serial TX buffer, respecting its available capacity on each drain().
+    class SerialLogWriter : public BufferedLogWriter {
     protected:
         using BufferedSerial = Utils::BufferedSerial;
         using LogEntry_t = PlcIO::LogEntry_t;
     private:
-        BufferedSerial& _serial;
+        BufferedSerial* _serial;
         size_t format(const LogEntry_t* entry, char* buf, size_t len);
         size_t write(const char* buf, size_t len);
     public:
         SerialLogWriter(BufferedSerial& serial);
     };
-
-    // // TODO
-    // class DebugLogWriter : public SerialLogWriter {
-    // private:
-    //     using BufferedSerial = Utils::BufferedSerial;
-    // public:
-    //     DebugLogWriter(BufferedSerial& serial);
-    // };
-
-    // // TODO
-    // class MonitorLogWriter : public SerialLogWriter {
-    // private:
-    //     using BufferedSerial = Utils::BufferedSerial;
-    //     using LogEntry_t = PlcIO::LogEntry_t;
-    // protected:
-    //     void push(const LogEntry_t* entry) override;
-    // public:
-    //     MonitorLogWriter(BufferedSerial& serial): SerialLogWriter(serial) {}
-    // };
 
 }}
 

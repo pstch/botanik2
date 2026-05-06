@@ -37,7 +37,7 @@ namespace Botanik { namespace Logs {
         }
     }
 
-    // TODO
+    // Format a log entry as "[timestamp] [level] [topic] message"
     size_t SerialLogWriter::format(const LogEntry_t* entry, char* buf, size_t len) {
         // format log level and topic
         const char* level = format_log_level(entry->level);
@@ -46,32 +46,18 @@ namespace Botanik { namespace Logs {
         std::array<char, 22> time_buf; 
         Utils::format_ms_timestamp(Utils::absolute_ms(entry->timestamp), &time_buf);
         // format the log entry, and return the length of the message
-        int written = snprintf(buf, len, "%s %s %s", time_buf.data(), level, topic, entry->message);
+        int written = snprintf(buf, len, "%s %s %s %s", time_buf.data(), level, topic, entry->message);
         return std::min((size_t)written, len);
     };
 
-    // TODO
+    // Write up to len bytes to the serial port, capped by available TX space
     size_t SerialLogWriter::write(const char* buf, size_t len) {
-        int available = std::max((uint16_t)len, _serial.available());
+        int available = std::min((uint16_t)len, _serial->available());
         if (available == 0) return 0;
-        return _serial.write(buf, available);
+        return _serial->write(buf, available);
     }
 
-    // TODO
-    SerialLogWriter::SerialLogWriter(BufferedSerial& serial) : 
-        _serial(serial) {}
-
-    // // TODO
-    // DebugLogWriter::DebugLogWriter(BufferedSerial& serial): 
-    //     SerialLogWriter(serial) {}
-
-    // // TODO
-    // MonitorLogWriter::MonitorLogWriter(BufferedSerial& serial): 
-    //     SerialLogWriter(serial) {}
-
-    // // TODO
-    // void MonitorLogWriter::push(const LogEntry_t* entry) {
-    //     if (entry->level != PlcIO::LOG_DEBUG) SerialLogWriter::push(entry);
-    // }
+    SerialLogWriter::SerialLogWriter(BufferedSerial& serial) :
+        _serial(&serial) {}
 
 }}
