@@ -199,13 +199,11 @@ namespace Botanik { namespace Terminal {
         return _serial.availableForWrite();
     }
 
-    // Not requested, but if needed:
-    // void AnsiTerminal::switch_to(uint8_t index) {
-    //     if (index < _pages_len && _pages[index] != nullptr) {
-    //         // Deactivate current page, activate new one.
-    //         // Clear screen, draw new page.
-    //         _page_index = index;
-    //     }
-    // }
+    void AnsiTerminal::switch_to(uint8_t index) {
+        if (index < _pages_len && _pages[index] != nullptr) {
+            _page_index = index;
+            // TODO: deactivate current page, clear screen, call focus() on new page
+        }
+    }
 
 }}
