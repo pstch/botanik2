@@ -13,7 +13,7 @@ namespace Botanik { namespace PlcIO {
     }
     inline bool PlcSyncHandler::_tx_acknowledged() {
         bool result = _plcout->sync.rxAckNum == _plcin->sync.rxSeqNum;
-        if (result) _tx_last_ms = *_timestamp_ms;
+        if (result) { _tx_last_ms = *_timestamp_ms; _ever_ackd = true; }
         return result;
     }
     inline bool PlcSyncHandler::_tx_heartbeat_elapsed() {
@@ -40,7 +40,7 @@ namespace Botanik { namespace PlcIO {
             case RX_IDLE:   if (_rx_new_message())      return RX_READ; break;
             case RX_READ:   _rx_memcpy();               return RX_ACK; break;
             case RX_ACK:    _rx_acknowledge();          return RX_IDLE; break;
-        };
+        }
         return _rx_state;
     }
     // Writer state machine (send messages to the PLC's reader)
@@ -51,7 +51,7 @@ namespace Botanik { namespace PlcIO {
             case TX_WAIT:   if (_tx_acknowledged())     return TX_IDLE; break;
             case TX_IDLE:   if (_tx_write)              return TX_WRITE;
                     else if (_tx_heartbeat_elapsed())   return TX_COMMIT; break;
-        }; 
+        }
         return _tx_state;
     }
 
@@ -77,6 +77,14 @@ namespace Botanik { namespace PlcIO {
 
     bool PlcSyncHandler::timed_out() {
         return *_timestamp_ms - _tx_last_ms > _timeout_ms;
+    }
+
+    PlcStatus PlcSyncHandler::status() {
+        uint32_t elapsed = *_timestamp_ms - _tx_last_ms;
+        if (!_ever_ackd)                return PLC_UNKNOWN;
+        if (elapsed > Config::PLC_WATCHDOG_MS)  return PLC_FAULT;
+        if (elapsed > _timeout_ms)              return PLC_TIMEOUT;
+                                                return PLC_RUNNING;
     }
 
     void PlcSyncHandler::step() {

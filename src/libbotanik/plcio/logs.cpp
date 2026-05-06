@@ -29,7 +29,7 @@ namespace Botanik { namespace PlcIO {
         _readIndex = &handler->input()->readIndex;
     }
 
-    void PlcLogReader::drain() {
+    void PlcLogReader::step() {
         while (*_writeIndex != *_readIndex) {
             uint32_t readIndex = *_readIndex % Config::LOG_PLC_BUFFER_SIZE;
             const LogEntry_t* entry = &_logBuffer[readIndex];
@@ -39,5 +39,5 @@ namespace Botanik { namespace PlcIO {
             _handler->write();
         }
 
-    };
+    }
 }}

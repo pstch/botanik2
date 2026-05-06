@@ -29,7 +29,7 @@ namespace Botanik { namespace PlcIO {
         // Constructor
         PlcLogReader(PlcSyncHandler* handler, Logger* logger, uint32_t* timestamp_ms);
         // drain the PLC log buffer
-        void drain();
+        void step();
 
     };
 

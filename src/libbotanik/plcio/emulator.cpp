@@ -11,7 +11,7 @@ namespace Botanik { namespace PlcIO {
     }
     inline bool PlcEmulator::_tx_acknowledged() {
         bool result = _plcin->sync.txAckNum == _plcout->sync.txSeqNum;
-        if (result) _tx_last_ms = *_timestamp_ms;
+        if (result) { _tx_last_ms = *_timestamp_ms; _ever_ackd = true; }
         return result;
     }
     inline bool PlcEmulator::_tx_heartbeat_elapsed() {
@@ -76,6 +76,14 @@ namespace Botanik { namespace PlcIO {
     
     void PlcEmulator::write() {
         _tx_write = true;
+    }
+
+    PlcStatus PlcEmulator::status() {
+        uint32_t elapsed = *_timestamp_ms - _tx_last_ms;
+        if (!_ever_ackd)                return PLC_UNKNOWN;
+        if (elapsed > Config::PLC_WATCHDOG_MS)  return PLC_FAULT;
+        if (elapsed > Config::PLC_TIMEOUT_MS)   return PLC_TIMEOUT;
+                                                return PLC_RUNNING;
     }
 
     void PlcEmulator::step() {

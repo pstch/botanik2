@@ -8,6 +8,14 @@
 
 namespace Botanik { namespace PlcIO {
 
+    // PLC connection status
+    enum PlcStatus {
+        PLC_UNKNOWN,                                // no successful acknowledgment yet
+        PLC_RUNNING,                                // communicating normally
+        PLC_TIMEOUT,                                // no acknowledgment within PLC_TIMEOUT_MS
+        PLC_FAULT                                   // no acknowledgment within PLC_WATCHDOG_MS
+    };
+
     // Reader state enumeration
     enum PlcRxState {
         RX_IDLE,                                    // wait for a new write message from the other side
@@ -70,6 +78,7 @@ namespace Botanik { namespace PlcIO {
         PlcTxState      _tx_state           = TX_WRITE; // writer state
         uint32_t        _tx_last_ms         = 0;        // last successful write
         bool            _tx_write           = false;    // schedule immediate write
+        bool            _ever_ackd          = false;    // true after first successful ack
         // Transition triggers
         inline bool _rx_new_message();
         inline bool _tx_acknowledged();
@@ -94,6 +103,8 @@ namespace Botanik { namespace PlcIO {
         void write();
         // Return whether we have timed out waiting the other side's receiver
         bool timed_out();
+        // Return the current PLC connection status
+        PlcStatus status();
         // Step through the input/output synchronization state machines
         void step();
     };

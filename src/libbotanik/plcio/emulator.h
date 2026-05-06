@@ -27,6 +27,7 @@ namespace Botanik { namespace PlcIO {
         PlcTxState      _tx_state           = TX_IDLE;  // writer state
         uint32_t        _tx_last_ms         = 0;        // last successful write
         bool            _tx_write           = false;    // schedule immediate write
+        bool            _ever_ackd          = false;    // true after first successful ack
         // Transition triggers
         inline bool _rx_new_message();
         inline bool _tx_acknowledged();
@@ -49,6 +50,8 @@ namespace Botanik { namespace PlcIO {
         const PlcInputData_t* input();
         // Schedule a write for the next time the handler is stepped through
         void write();
+        // Return the current PLC connection status
+        PlcStatus status();
         // Step through the input/output synchronization state machines
         void step();
     };
