@@ -1,12 +1,12 @@
-#ifndef PANES_HOME_H
-#define PANES_HOME_H
+#ifndef PAGES_HOME_H
+#define PAGES_HOME_H
 
-#include "libbotanik/panes/pane.h"
+#include "libbotanik/pages/page.h"
 #include "libbotanik/utils/serial.h"
 
-namespace Botanik { namespace Panes {
+namespace Botanik { namespace Pages {
 
-    class HomePane : public Pane {
+    class HomePage : public Page {
     private:
         using BufferedSerial = Utils::BufferedSerial;
         BufferedSerial& _serial;
@@ -20,4 +20,4 @@ namespace Botanik { namespace Panes {
 
 }}
 
-#endif // PANES_HOME_H
+#endif // PAGES_HOME_H

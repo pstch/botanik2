@@ -7,17 +7,17 @@
 #include "libbotanik/terminal/terminal.h"
 #include "libbotanik/terminal/ansi.h"
 
-#include "libbotanik/panes/home.h"
-#include "libbotanik/panes/shell.h"
-#include "libbotanik/panes/logs.h"
-#include "libbotanik/panes/status.h"
+#include "libbotanik/pages/home.h"
+#include "libbotanik/pages/shell.h"
+#include "libbotanik/pages/logs.h"
+#include "libbotanik/pages/status.h"
 
 
 namespace Botanik { namespace Terminal {
 
     namespace {
         using namespace Botanik::Utils;
-        using namespace Botanik::Panes;
+        using namespace Botanik::Pages;
     }
 
     // Constructor
@@ -32,7 +32,7 @@ namespace Botanik { namespace Terminal {
     // Step through the terminal handling code
     void AnsiTerminal::step() {
         _serial.step();
-        // TODO: call _parser.step() and route resulting InputEvents to the active pane
+        // TODO: call _parser.step() and route resulting InputEvents to the active page
     }
 
 
@@ -192,10 +192,10 @@ namespace Botanik { namespace Terminal {
 
     // Not requested, but if needed:
     // void AnsiTerminal::switch_to(uint8_t index) {
-    //     if (index < _panes_len && _panes[index] != nullptr) {
-    //         // Deactivate current pane, activate new one.
-    //         // Clear screen, draw new pane.
-    //         _pane_index = index;
+    //     if (index < _pages_len && _pages[index] != nullptr) {
+    //         // Deactivate current page, activate new one.
+    //         // Clear screen, draw new page.
+    //         _page_index = index;
     //     }
     // }
 

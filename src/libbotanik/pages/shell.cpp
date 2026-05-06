@@ -1,8 +1,8 @@
 #include "libbotanik/plcio/vars.h"
-#include "libbotanik/panes/shell.h"
+#include "libbotanik/pages/shell.h"
 #include "libbotanik/terminal/ansi.h"
 
-namespace Botanik { namespace Panes {
+namespace Botanik { namespace Pages {
 
     // TODO: implement flush_log_entry
     // Draft algorithm (members not yet wired up):
@@ -12,6 +12,6 @@ namespace Botanik { namespace Panes {
     //   4. move up (N + editor_rows - 1) and to line begin
     //   5. _terminal.insert_lines(N) and write the formatted log
     //   6. _terminal.move_cursor(initial_pos) to restore the editor cursor
-    void ShellPane::flush_log_entry(PlcIO::LogEntry_t* /* entry */) {}
+    void ShellPage::flush_log_entry(PlcIO::LogEntry_t* /* entry */) {}
 
 }}

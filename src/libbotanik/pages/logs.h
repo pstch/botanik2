@@ -1,22 +1,20 @@
-#ifndef PANES_STATUS_H
-#define PANES_STATUS_H
+#ifndef PAGES_LOGS_H
+#define PAGES_LOGS_H
 
-#include "libbotanik/panes/pane.h"
+#include "libbotanik/pages/page.h"
 #include "libbotanik/utils/serial.h"
 
-namespace Botanik { namespace Panes {
+namespace Botanik { namespace Pages {
 
-    class StatusPane : public Pane {
+    class LogsPage : public Page {
     private:
         using BufferedSerial = Utils::BufferedSerial;
         BufferedSerial& _serial;
 
         void _draw_header();
         void _draw_menu();
-
-        void draw();
     };
 
 }}
 
-#endif // PANES_STATUS_H
+#endif // PAGES_LOGS_H

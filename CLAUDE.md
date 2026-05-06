@@ -36,9 +36,9 @@ The system is split into six subsystems under `src/libbotanik/`:
 
 **HAL (`hal/`)** — `platform.h` defines the unified interface (`current_ms()`, `uptime_ms()`, `dsb()`, `ordered_copy/move`). `simulator.h` implements it with `std::chrono` and Linux serial I/O; `opta.h` implements it for Mbed OS. All other code uses HAL exclusively — never raw `<time.h>` or platform-specific calls.
 
-**Terminal UI (`terminal/`)** — `AnsiTerminal` owns the serial connection and drives a multiplexed pane display. `InputParser` decodes raw byte streams into `InputEvent`s (handles X3.64 CSI, Alt, and function-key escape sequences). `InputEditor` is a line-editing state machine that consumes `InputEvent`s. `Ansi` is a stateless helper that emits ANSI escape codes.
+**Terminal UI (`terminal/`)** — `AnsiTerminal` owns the serial connection and drives a multiplexed page display. `InputParser` decodes raw byte streams into `InputEvent`s (handles X3.64 CSI, Alt, and function-key escape sequences). `InputEditor` is a line-editing state machine that consumes `InputEvent`s. `Ansi` is a stateless helper that emits ANSI escape codes.
 
-**Panes (`panes/`)** — Each pane (`Home`, `Shell`, `Logs`, `Status`) implements the `Pane` interface. `AnsiTerminal` routes input events to the active pane and calls each pane's render method when the display needs updating.
+**Pages (`pages/`)** — Each page (`Home`, `Shell`, `Logs`, `Status`) implements the `Page` interface. `AnsiTerminal` routes input events to the active page and calls each page's render method when the display needs updating.
 
 **Logging (`logs/`)** — `Logger` uses a dual-bucket token-bucket rate limiter (one global bucket, one per topic) before forwarding to registered `LogWriter`s. Writers include `BufferedLogWriter` and `SerialLogWriter`. Log topics are defined in `format.h` (`BOOT`, `NETWORK`, `TIME`, `STATUS`, `PLC_IO`).
 

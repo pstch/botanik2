@@ -69,18 +69,6 @@ non-obvious invariants, hardware quirks, or algorithmic intent:
 _terminal->write_chars(&_buf[pos], pressure, /*insert=*/true);
 ```
 
-### Internal-only helpers
-
-Implementation details that must appear in a header (e.g., `constexpr` helpers
-needed by `static_assert`) go in a `detail` sub-namespace and are not part of
-the public API:
-
-```cpp
-namespace detail {
-    constexpr bool is_power_of_two(uint16_t n) { ... }
-}
-```
-
 ---
 
 ## Non-blocking design
@@ -137,7 +125,7 @@ new entries are silently dropped.
 - The HAL (`hal/platform.h`) is the only platform-specific seam. All other code
   calls `HAL::current_ms()`, `HAL::dsb()`, etc., and is otherwise portable
   between SIMULATOR and OPTA builds.
-- Panes receive an `AnsiTerminal*` pointer; they do not hold a reference to the
+- Pages receive an `AnsiTerminal*` pointer; they do not hold a reference to the
   serial port directly.
 
 ---

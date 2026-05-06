@@ -1,13 +1,13 @@
-#ifndef PANES_SHELL_H
-#define PANES_SHELL_H
+#ifndef PAGES_SHELL_H
+#define PAGES_SHELL_H
 
-#include "libbotanik/panes/pane.h"
+#include "libbotanik/pages/page.h"
 #include "libbotanik/utils/serial.h"
 #include "libbotanik/plcio/vars.h"
 
-namespace Botanik { namespace Panes {
+namespace Botanik { namespace Pages {
 
-    class ShellPane : public Pane {
+    class ShellPage : public Page {
     private:
         using BufferedSerial = Utils::BufferedSerial;
         BufferedSerial& _serial;
@@ -15,10 +15,10 @@ namespace Botanik { namespace Panes {
         void _draw_header();
         void _draw_menu();
     public:
-        // TODO: implement log-entry rendering into the shell pane
+        // TODO: implement log-entry rendering into the shell page
         void flush_log_entry(PlcIO::LogEntry_t* entry);
     };
 
 }}
 
-#endif // PANES_SHELL_H
+#endif // PAGES_SHELL_H

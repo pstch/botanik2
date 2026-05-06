@@ -6,10 +6,10 @@
 #include "libbotanik/utils/serial.h"
 #include "libbotanik/terminal/ansi.h"
 
-#include "libbotanik/panes/home.h"
-#include "libbotanik/panes/shell.h"
-#include "libbotanik/panes/logs.h"
-#include "libbotanik/panes/status.h"
+#include "libbotanik/pages/home.h"
+#include "libbotanik/pages/shell.h"
+#include "libbotanik/pages/logs.h"
+#include "libbotanik/pages/status.h"
 
 namespace Botanik { namespace Terminal {
 
@@ -20,10 +20,10 @@ namespace Botanik { namespace Terminal {
     private:
         // Owned objects
         InputParser         _parser;                // Input parser used to read from the remote terminal
-        // Multiplexed panes
-        Panes::Pane*        _panes[8];              // Children panes
-        uint8_t             _panes_len  = 0;        // Pane count
-        uint8_t             _pane_index = 0;        // Active pane index
+        // Multiplexed pages
+        Pages::Page*        _pages[8];              // Children pages
+        uint8_t             _pages_len  = 0;        // Page count
+        uint8_t             _page_index = 0;        // Active page index
         // Referenced objects
         BufferedSerial&     _serial;                // Reference to the buffered serial UART wrapper
         // Display size
@@ -108,10 +108,10 @@ namespace Botanik { namespace Terminal {
 
         /** @} */
 
-        /** @name Viewport & Pane Management
+        /** @name Viewport & Page Management
          *  @{ */
 
-        /** @brief Switch to the pane at the given index */
+        /** @brief Switch to the page at the given index */
         void switch_to(uint8_t index);
 
         /** @} */
