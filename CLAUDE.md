@@ -1,6 +1,7 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this 
+repository.
 
 ## Project overview
 
@@ -45,13 +46,6 @@ The system is split into six subsystems under `src/libbotanik/`:
 
 **Utils (`utils/`)** — `BufferedSerial` wraps UART with a 256-byte RX ring buffer and 1024-byte TX buffer. `time.h` provides uptime tracking on top of HAL.
 
-### Data flow (input path)
-
-```
-UART → BufferedSerial::receive() → InputParser::step() → InputEvent
-     → active Pane::handle_command() → application logic
-     → Logger::push_entry() → LogWriter → BufferedSerial::transmit() → UART
-```
 
 ### Key compile-time defines
 
@@ -60,5 +54,5 @@ UART → BufferedSerial::receive() → InputParser::step() → InputEvent
 | `TARGET_SIMULATOR` | SIMULATOR build |
 | `DEBUG` | SIMULATOR build |
 | `_GNU_SOURCE` | SIMULATOR build |
-| `TARGET_ARDUINO_OPTA` | OPTA build |
+| `TARGET_OPTA` | OPTA build |
 | `ARDUINO` / `MBED_*` | OPTA build |
