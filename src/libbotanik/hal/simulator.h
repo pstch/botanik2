@@ -22,15 +22,14 @@ inline uint64_t _now_as() {
 
 namespace Botanik { namespace HAL {
 
-    inline uint32_t get_stack_base() {
+    inline uintptr_t get_stack_base() {
         pthread_t self = pthread_self();
         pthread_attr_t attr;
         if (pthread_getattr_np(self, &attr) == 0) {
             void* addr; size_t size;
             pthread_attr_getstack(&attr, &addr, &size);
             pthread_attr_destroy(&attr);
-            uintptr_t base = reinterpret_cast<uintptr_t>(addr) + size;
-            return static_cast<uint32_t>(base);
+            return reinterpret_cast<uintptr_t>(addr) + size;
         }
         return 0;
     }

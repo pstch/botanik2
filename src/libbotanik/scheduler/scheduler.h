@@ -21,7 +21,7 @@ namespace Botanik { namespace Scheduler {
         float       _cpu_load_ema           = 0.0f;
         // Memory usage metrics
         uint32_t    _stack_depth       = 0;
-        uint32_t    _stack_base        = 0;
+        uintptr_t   _stack_base        = 0;
         uint32_t    _stack_usage       = 0;
         float       _stack_usage_ema   = 0;
 
@@ -29,6 +29,8 @@ namespace Botanik { namespace Scheduler {
         void _measure_work(uint64_t now);
         /** @brief Sample the current stack pointer and update stack usage metrics. */
         void _measure_stack_usage();
+        /** @brief Paint the free stack region (below current SP) with STACK_PAINT_BYTE. */
+        void _paint_free_stack();
         /** @brief Advance the next-tick anchor to skip missed beats when the loop falls behind. */
         void _skip_beats(uint64_t now);
 

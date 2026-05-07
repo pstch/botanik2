@@ -27,8 +27,8 @@ extern "C" void* m_PLCSharedVarsOutputBuf;
 
 namespace Botanik { namespace HAL {
 
-    inline uint32_t get_stack_base() {
-        return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&_estack));
+    inline uintptr_t get_stack_base() {
+        return reinterpret_cast<uintptr_t>(&_estack);
     }
 
     inline uint32_t get_stack_depth() {

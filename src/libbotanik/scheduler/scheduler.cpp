@@ -35,16 +35,16 @@ namespace Botanik { namespace Scheduler {
             float alpha = (_cpu_load > _cpu_load_ema) ?
                 CPU_LOAD_EMA_ATTACK : CPU_LOAD_EMA_DECAY;
             _cpu_load_ema = (alpha * _cpu_load) + ((1.0f - alpha) * _cpu_load_ema);
+            _measure_stack_usage();
             _is_working = false;
         }
     }
 
     void LoopScheduler::_measure_stack_usage() {
-        // Retrieve the start (top origin) of the stack from HAL
-        const uint8_t* stack_base = reinterpret_cast<const uint8_t*>(HAL::get_stack_base());
-        if (stack_base == nullptr) return;
+        if (_stack_base == 0) return;
+        const uint8_t* stack_base = reinterpret_cast<const uint8_t*>(_stack_base);
         uint32_t low = 0;
-        uint32_t high = Config::STACK_SCAN_LIMIT;
+        uint32_t high = (_stack_depth < Config::STACK_SCAN_LIMIT) ? _stack_depth : Config::STACK_SCAN_LIMIT;
         // perform binary search
         while (low < high) {
             uint32_t mid = low + (high - low) / 2;
@@ -57,6 +57,14 @@ namespace Botanik { namespace Scheduler {
         float alpha = (_stack_usage_ema < ratio) ?
             Config::STACK_USAGE_EMA_ATTACK : Config::STACK_USAGE_EMA_DECAY;
         _stack_usage_ema = (alpha * ratio) + ((1.0f - alpha) * _stack_usage_ema);
+    }
+
+    void LoopScheduler::_paint_free_stack() {
+        volatile uint8_t sp_marker = 0;
+        uint8_t* paint_top = reinterpret_cast<uint8_t*>(const_cast<uint8_t*>(&sp_marker));
+        uint8_t* paint_bot = reinterpret_cast<uint8_t*>(_stack_base - _stack_depth);
+        if (paint_top > paint_bot)
+            memset(paint_bot, Config::STACK_PAINT_BYTE, paint_top - paint_bot);
     }
 
     void LoopScheduler::_skip_beats(uint64_t now) {
@@ -83,6 +91,7 @@ namespace Botanik { namespace Scheduler {
         _next_tick_ms += _period_ms;            // advance time grid
         _is_working = true;                     // mark the caller code as running
         _work_start_ms = now;                   // store when the caller work started
+        _paint_free_stack();                    // paint free stack for HWM measurement
         return true;                            // return true so that work can start
     }
 

@@ -18,7 +18,7 @@ namespace Botanik { namespace HAL {
 namespace Botanik { namespace HAL {
 
     // Return the high address (base) of the current thread's stack region
-    uint32_t get_stack_base();
+    uintptr_t get_stack_base();
 
     // Return the usable size (depth) of the current thread's stack region in bytes
     uint32_t get_stack_depth();
