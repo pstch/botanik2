@@ -9,7 +9,8 @@ namespace Botanik { namespace Pages {
 
     ShellPage::ShellPage(Terminal::AnsiTerminal& terminal) :
         _terminal(terminal),
-        _editor(&terminal)
+        _editor(&terminal),
+        _shell(terminal, _editor, *this)
     {}
 
     void ShellPage::_draw_header() {
@@ -79,49 +80,49 @@ namespace Botanik { namespace Pages {
 
     void ShellPage::handle_command(Command cmd) {
         switch (cmd) {
-            case Command::ENTER:
-                _submit_command();
-                _editor.reset();
-                break;
-            case Command::BACKSPACE:
-                _editor.backspace();
-                break;
-            case Command::CTRL_SPACE:
-                _editor.set_mark_toggle();
-                break;
+            // Submit / cancel
+            case Command::ENTER:      _shell.submit();              break;
+            case Command::CTRL_C:
+            case Command::CTRL_U:     _editor.reset();              break;
+
+            // Deletion
+            case Command::BACKSPACE:  _editor.backspace();          break;
+            case Command::DELETE:
+            case Command::CTRL_D:     _editor.delete_forward();     break;
+
+            // Kill / yank — stubs (kill ring not yet implemented)
+            case Command::CTRL_K:     /* TODO: kill ring */          break;
+            case Command::CTRL_W:     /* TODO: kill ring */          break;
+            case Command::CTRL_Y:     /* TODO: kill ring */          break;
+
+            // Cursor movement
             case Command::LEFT:
-                _editor.move_left();
-                break;
+            case Command::CTRL_B:     _editor.move_left();          break;
             case Command::RIGHT:
-                _editor.move_right();
-                break;
-            default:
-                break;
+            case Command::CTRL_F:     _editor.move_right();         break;
+            case Command::CTRL_A:     _editor.move_to_line_start(); break;
+            case Command::END:
+            case Command::CTRL_E:     _editor.move_to_line_end();   break;
+            case Command::ALT_B:      _editor.move_word_left();     break;
+            case Command::ALT_F:      _editor.move_word_right();    break;
+
+            // History — stubs (not yet implemented)
+            case Command::UP:
+            case Command::CTRL_P:     _shell.history_prev();        break;
+            case Command::DOWN:
+            case Command::CTRL_N:     _shell.history_next();        break;
+
+            // Selection / mark
+            case Command::CTRL_SPACE: _editor.set_mark_toggle();    break;
+            case Command::ESC:
+            case Command::CTRL_G:     _editor.deselect();           break;
+
+            // Stubs
+            case Command::CTRL_R:     /* TODO: history search */     break;
+            case Command::TAB:        /* TODO: completion */          break;
+
+            default: break;
         }
-    }
-
-    void ShellPage::_submit_command() {
-        const char* cmd = _editor.buffer();
-        uint16_t    len = _editor.buffer_len();
-
-        if (len == 0) return;
-
-        char out[Config::LOG_FORMATTED_LEN];
-        int  n = 0;
-
-        if (len == 4 && strncmp(cmd, "help", 4) == 0) {
-            n = snprintf(out, sizeof(out), "Commands: help, clear");
-        } else if (len == 5 && strncmp(cmd, "clear", 5) == 0) {
-            // Clear the log area
-            for (uint16_t row = 1; row <= _terminal.rows() - 3; row++)
-                _terminal.clear_row(row);
-            return;
-        } else {
-            n = snprintf(out, sizeof(out), "Unknown command: %.*s", (int)len, cmd);
-        }
-
-        if (n > 0)
-            write(out, (size_t)n);
     }
 
 }}

@@ -4,6 +4,7 @@
 #include "libbotanik/pages/page.h"
 #include "libbotanik/logs/writer.h"
 #include "libbotanik/terminal/editor.h"
+#include "libbotanik/shell/shell.h"
 
 namespace Botanik { namespace Pages {
 
@@ -19,21 +20,23 @@ namespace Botanik { namespace Pages {
      * Incoming log entries are queued by BufferedLogWriter and flushed on each
      * tick(). Each entry scrolls the log area (DL at row 1), writes the new
      * line at row N-3, then redraws the editor in place.
+     *
+     * Implements ShellWriter to provide CommandShell with an output channel.
      */
-    class ShellPage : public Page, public Logs::BufferedLogWriter {
+    class ShellPage : public Page, public Logs::BufferedLogWriter, public Shell::ShellWriter {
     private:
         using AnsiTerminal = Terminal::AnsiTerminal;
         using InputEditor  = Terminal::InputEditor;
         using LogEntry_t   = PlcIO::LogEntry_t;
         using Command      = Terminal::InputEvent::Command;
 
-        AnsiTerminal& _terminal;
-        InputEditor   _editor;
+        AnsiTerminal&      _terminal;
+        InputEditor        _editor;
+        Shell::CommandShell _shell;
 
         void _draw_header();
-        void _submit_command();
 
-        // BufferedLogWriter interface
+        // BufferedLogWriter + ShellWriter interface (one impl serves both)
         size_t format(const LogEntry_t* entry, char* buf, size_t len) override;
         size_t write(const char* buf, size_t len) override;
 
