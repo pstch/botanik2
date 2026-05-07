@@ -86,6 +86,15 @@ namespace Botanik { namespace Pages {
             case Command::BACKSPACE:
                 _editor.backspace();
                 break;
+            case Command::CTRL_SPACE:
+                _editor.set_mark();
+                break;
+            case Command::LEFT:
+                _editor.move_left();
+                break;
+            case Command::RIGHT:
+                _editor.move_right();
+                break;
             default:
                 break;
         }
