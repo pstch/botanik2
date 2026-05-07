@@ -5,12 +5,13 @@
 
 namespace Botanik { namespace PlcIO {
 
-    PlcLogWriter::PlcLogWriter(PlcEmulatorBase* emulator, uint32_t* timestamp_ms)
-        : _emulator(emulator), _timestamp_ms(timestamp_ms)
+    PlcLogWriter::PlcLogWriter(PlcOutputLogs_t* output_logs, const PlcInputLogs_t* input_logs,
+                               bool* write_flag, uint32_t* timestamp_ms)
+        : _timestamp_ms(timestamp_ms), _write_flag(write_flag)
     {
-        _logBuffer  = emulator->output_logs()->logBuffer;
-        _writeIndex = &emulator->output_logs()->writeIndex;
-        _readIndex  = &emulator->input_logs()->readIndex;
+        _logBuffer  = output_logs->logBuffer;
+        _writeIndex = &output_logs->writeIndex;
+        _readIndex  = &input_logs->readIndex;
     }
 
     void PlcLogWriter::push_log(LogLevel level, LogTopic topic, const char* msg) {
@@ -29,7 +30,7 @@ namespace Botanik { namespace PlcIO {
         entry.length = len;
 
         *_writeIndex = (*_writeIndex + 1) % Config::LOG_PLC_BUFFER_SIZE;
-        _emulator->write();
+        *_write_flag = true;
     }
 
 }}

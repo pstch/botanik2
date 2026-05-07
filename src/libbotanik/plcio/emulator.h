@@ -11,26 +11,16 @@
 
 namespace Botanik { namespace PlcIO {
 
-    // Non-template base class (mirror of PlcSyncHandlerBase). Holds the fixed
-    // log-protocol buffers from the emulator's perspective. PlcLogWriter takes a
-    // PlcEmulatorBase* so it does not need to be a template itself.
-    class PlcEmulatorBase {
-    protected:
-        bool             _tx_write       = false;
-        PlcInputLogs_t   _rx_logs_buffer = {};  // emulator RX ← what host transmitted
-        PlcOutputLogs_t  _tx_logs_buffer = {};  // emulator TX → what host will receive
-    public:
-        void                  write()        { _tx_write = true; }
-        PlcOutputLogs_t*      output_logs()        { return &_tx_logs_buffer; }
-        const PlcInputLogs_t* input_logs()  const  { return &_rx_logs_buffer; }
-    };
-
     // Simulator-side mirror of PlcSyncHandler. Simulates the PLC coprocessor: reads
     // from the input range (what the host wrote) and writes to the output range (what
     // the host reads). InputData / OutputData must match those of the paired handler.
     template<typename InputData, typename OutputData>
-    class PlcEmulator : public PlcEmulatorBase {
+    class PlcEmulator {
     private:
+        // Log protocol buffers (local copies updated on each RX/TX cycle)
+        bool             _tx_write       = false;
+        PlcInputLogs_t   _rx_logs_buffer = {};  // emulator RX ← what host transmitted
+        PlcOutputLogs_t  _tx_logs_buffer = {};  // emulator TX → what host will receive
         uint32_t               _heartbeat_ms  = Config::PLC_HEARTBEAT_MS;
         uint32_t*              _timestamp_ms  = nullptr;
         PlcInput<InputData>*   _plcin;                  // PLC input memory  (read-only  for emulator)
@@ -99,8 +89,12 @@ namespace Botanik { namespace PlcIO {
             _tx_last_ms = *timestamp_ms;
         }
 
-        OutputData*        output_data()       { return &_tx_data_buffer; }
-        const InputData*   input_data()  const { return &_rx_data_buffer; }
+        void                  write()                  { _tx_write = true; }
+        bool*                 write_flag()             { return &_tx_write; }
+        PlcOutputLogs_t*      output_logs()            { return &_tx_logs_buffer; }
+        const PlcInputLogs_t* input_logs()  const      { return &_rx_logs_buffer; }
+        OutputData*           output_data()            { return &_tx_data_buffer; }
+        const InputData*      input_data()  const      { return &_rx_data_buffer; }
 
         PlcStatus status() const {
             uint32_t elapsed = *_timestamp_ms - _tx_last_ms;
@@ -117,18 +111,18 @@ namespace Botanik { namespace PlcIO {
     };
 
     // Pushes log entries into the emulator's output log buffer, simulating the PLC
-    // coprocessor sending logs to the host. Takes a PlcEmulatorBase* so it does not
-    // need to be a template.
+    // coprocessor sending logs to the host.
     class PlcLogWriter {
     private:
-                PlcEmulatorBase* _emulator;
-        const   uint32_t*        _timestamp_ms;
-                uint32_t         _next_seq    = 1;
-                LogEntry_t*      _logBuffer;
-                uint32_t*        _writeIndex;
-        const   uint32_t*        _readIndex;
+        const   uint32_t*    _timestamp_ms;
+                uint32_t     _next_seq    = 1;
+                LogEntry_t*  _logBuffer;
+                uint32_t*    _writeIndex;
+        const   uint32_t*    _readIndex;
+                bool*        _write_flag;
     public:
-        PlcLogWriter(PlcEmulatorBase* emulator, uint32_t* timestamp_ms);
+        PlcLogWriter(PlcOutputLogs_t* output_logs, const PlcInputLogs_t* input_logs,
+                     bool* write_flag, uint32_t* timestamp_ms);
         void push_log(LogLevel level, LogTopic topic, const char* msg);
     };
 

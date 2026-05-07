@@ -2,7 +2,7 @@
 #define PLCIO_LOGS_H
 
 #include "libbotanik/logs/logger.h"
-#include "libbotanik/plcio/sync.h"
+#include "libbotanik/plcio/vars.h"
 
 namespace Botanik { namespace PlcIO {
 
@@ -10,25 +10,22 @@ namespace Botanik { namespace PlcIO {
     private:
         using Logger = Logs::Logger;
         // Parameters
-                Logger*             _logger;         // pointer to the output logger
-                PlcSyncHandlerBase* _handler;        // pointer to the PLC synchronization handler
-        const   uint32_t*       _timestamp_ms;   // pointer to the current cycle's timestamp
+                Logger*         _logger;
+        const   uint32_t*       _timestamp_ms;
+                bool*           _write_flag;
         // Reader state
-                uint32_t _last_seq = 0;          // last sequence number (to detect dropped entries)
-                uint32_t _dropped = 0;           // dropped entry count
+                uint32_t _last_seq = 0;
+                uint32_t _dropped  = 0;
         // PLC I/O pointers
-        const   LogEntry_t*     _logBuffer;      // pointer to the PLC log buffer
-        const   uint32_t*       _writeIndex;     // pointer to the PLC's log entry write index
-                uint32_t*       _readIndex;      // pointer to the PLC's log entry read index
-        // handle sequence number to detect dropped PLC log entries
+        const   LogEntry_t*     _logBuffer;
+        const   uint32_t*       _writeIndex;
+                uint32_t*       _readIndex;
         void _detect_dropped_entries(const LogEntry_t* entry);
-        // build an actual log entry, and push it to the logger instance
         void _push_plc_entry(const LogEntry_t* plcEntry);
 
     public:
-        // Constructor
-        PlcLogReader(PlcSyncHandlerBase* handler, Logger* logger, uint32_t* timestamp_ms);
-        // drain the PLC log buffer
+        PlcLogReader(const PlcOutputLogs_t* output_logs, PlcInputLogs_t* input_logs,
+                     bool* write_flag, Logger* logger, uint32_t* timestamp_ms);
         void step();
 
     };

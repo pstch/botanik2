@@ -22,11 +22,13 @@ namespace Botanik { namespace PlcIO {
         _logger->push_entry(entry);
     }
 
-    PlcLogReader::PlcLogReader(PlcSyncHandlerBase* handler, Logger* logger, uint32_t* timestamp_ms) :
-    _logger(logger), _handler(handler), _timestamp_ms(timestamp_ms) {
-        _logBuffer  = handler->output_logs()->logBuffer;
-        _writeIndex = &handler->output_logs()->writeIndex;
-        _readIndex  = &handler->input_logs()->readIndex;
+    PlcLogReader::PlcLogReader(const PlcOutputLogs_t* output_logs, PlcInputLogs_t* input_logs,
+                               bool* write_flag, Logger* logger, uint32_t* timestamp_ms)
+        : _logger(logger), _timestamp_ms(timestamp_ms), _write_flag(write_flag)
+    {
+        _logBuffer  = output_logs->logBuffer;
+        _writeIndex = &output_logs->writeIndex;
+        _readIndex  = &input_logs->readIndex;
     }
 
     void PlcLogReader::step() {
@@ -36,8 +38,7 @@ namespace Botanik { namespace PlcIO {
             _detect_dropped_entries(entry);
             _push_plc_entry(entry);
             *_readIndex = (*_readIndex + 1) % Config::LOG_PLC_BUFFER_SIZE;
-            _handler->write();
+            *_write_flag = true;
         }
-
     }
 }}

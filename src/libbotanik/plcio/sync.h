@@ -34,20 +34,6 @@ namespace Botanik { namespace PlcIO {
                                                     //  (or for the heartbeat interval to elapse)
     };
 
-    // Non-template base class. Holds the fixed log-protocol buffers and exposes them
-    // through typed accessors. PlcLogReader takes a PlcSyncHandlerBase* so it does not
-    // need to be a template itself.
-    class PlcSyncHandlerBase {
-    protected:
-        bool             _tx_write       = false;
-        PlcOutputLogs_t  _rx_logs_buffer = {};
-        PlcInputLogs_t   _tx_logs_buffer = {};
-    public:
-        void                   write()       { _tx_write = true; }
-        const PlcOutputLogs_t* output_logs() const { return &_rx_logs_buffer; }
-        PlcInputLogs_t*        input_logs()        { return &_tx_logs_buffer; }
-    };
-
     // This class provides logic to safely interact with the PLC's shared memory,
     // even in the case where we cannot assume that the PLC runtime uses ordered
     // memory accesses to interact with the input/output shared memory ranges.
@@ -63,8 +49,12 @@ namespace Botanik { namespace PlcIO {
     // PlcOutput<OutputData> memory layout must match the PLC IDE's generated types
     // (verified on OPTA by a static_assert in the user's sketch).
     template<typename InputData, typename OutputData>
-    class PlcSyncHandler : public PlcSyncHandlerBase {
+    class PlcSyncHandler {
     private:
+        // Log protocol buffers (local copies updated on each RX/TX cycle)
+        bool             _tx_write       = false;
+        PlcOutputLogs_t  _rx_logs_buffer = {};
+        PlcInputLogs_t   _tx_logs_buffer = {};
         // NOTE: seq/ack naming is from the PLC's point of view:
         //   TxSeqNum/TxAckNum → our RX (PLC output data)
         //   RxSeqNum/RxAckNum → our TX (PLC input data)
@@ -137,8 +127,12 @@ namespace Botanik { namespace PlcIO {
             _tx_last_ms = *timestamp_ms;
         }
 
-        const OutputData* output_data() const { return &_rx_data_buffer; }
-        InputData*        input_data()        { return &_tx_data_buffer; }
+        void                   write()                  { _tx_write = true; }
+        bool*                  write_flag()             { return &_tx_write; }
+        const PlcOutputLogs_t* output_logs() const      { return &_rx_logs_buffer; }
+        PlcInputLogs_t*        input_logs()             { return &_tx_logs_buffer; }
+        const OutputData*      output_data() const      { return &_rx_data_buffer; }
+        InputData*             input_data()             { return &_tx_data_buffer; }
 
         bool timed_out() const { return *_timestamp_ms - _tx_last_ms > _timeout_ms; }
 
