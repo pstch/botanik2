@@ -1,5 +1,9 @@
 # TODO
 
+## Documentation
+
+Organize the Doxygen documentation. Maybe some of the things documented in markdown files will need to be moved to the Doxygen-based documentation.
+
 ## Small work items
 
  - The wiring code in main() is not complete yet. Also, we'll change the code so that we can get timestamp_ms from scheduler.tick(), and we'll make it look more like an Arduino sketch with separate setup() and loop() functions. 
@@ -10,14 +14,10 @@
 
 ## PLC I/O
 
-- **`EthernetHandler`**: State machine (stepped from the main loop) that configures
-  the board's Ethernet port using network parameters sourced from `PlcOutputData_t`.
-  Watches a version/serial number field in the config; when the serial number changes
-  it tears down and re-applies the network configuration.
+- **`NetworkHandler`**: State machine (stepped from the main loop) that configures
+  the board's Ethernet port using network parameters sourced from `PlcOutputConfig_t` (added to `PlcOutput_t`). Watches a version/serial number field in the config; when the serial number changes it tears down and re-applies the network configuration. Some more details are available in the comment preceding the declaration in network.h.
 
-- **NTP client**: State machine that periodically synchronises the RTC using a server
-  address sourced from `PlcOutputData_t`. Steps through DNS resolution, UDP exchange,
-  and clock adjustment. Re-syncs when the NTP server config serial number changes.
+- **TimeSyncHandler**: State machine that periodically synchronises the RTC using an NTP server address sourced from `PlcOutputConfig_t` (added to `PlcOutput_t`). Steps through DNS resolution, UDP exchange, and clock adjustment. Re-syncs when the NTP server config serial number changes. Some more details are available in the comment preceding the declaration in network.h
 
 - **Sunrise/sunset calculator**: Derives daily sunrise and sunset times from GPS
   coordinates and date sourced from `PlcOutputData_t`. Exposes the results for use
