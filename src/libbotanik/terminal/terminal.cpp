@@ -31,7 +31,7 @@ namespace Botanik { namespace Terminal {
 
     // Step through the terminal handling code
     void AnsiTerminal::step() {
-        using Command = InputParser::Command;
+        using Command = InputEvent::Command;
         _serial.step();
         while (true) {
             InputEvent& ev = _parser.parse();
