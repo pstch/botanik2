@@ -7,6 +7,8 @@
   - In main(), we should make the PlcEmulator run in a separate thread to emulate the PLC runtime running on the other core of the MCU
 
 
+  There are also some other related changes regarding that (the ability to extend terminal pages and the way we read the system configuration data from the PLC output). Note that site-specific configuration data should go in PlcInputData_t and PlcOutputData_t, while system-level configuration should go in PlcInput_t and PlcOutput_t. The layout of both these structures will need to match the layout used by the PLC runtime running on the other core of the MCU.
+
 ## PLC I/O
 
 - **`EthernetHandler`**: State machine (stepped from the main loop) that configures
@@ -54,15 +56,20 @@
 
 ## Pages
 
+NOTE: all screen interactions done by Page classes should always go through AnsiTerminal, so that cursor movement and hardware scroll events can be properly tracked. We can hardcode in pages code that row 0 is reserved for the terminal's status line. Note that row 0 here corresponds to row 1 on the terminal, since we target the Minitel 1B were the actual row 0 is not accessible. 
+
 - **`ShellPage`** (`pages/shell.h/cpp`): Implement a proper interactive shell —
   command history (up/down arrow), cursor movement within the input line, and
-  integrated log output that interleaves with command I/O.
+  integrated log output that interleaves with command I/O. Should be extensible by subclassing so that the user can add commands related
+  to their business logic. Scroll-back will be implemented later, after we are able to run the first simulations of the ANSI rendering code in a VT100 emulator, to ensure we have a working X3.64 terminal implementation before adding complex features such as scrollback.
 
 - **`LogsPage`** (`pages/logs.h/cpp`): The current implementation is a draft. Add
   scroll-back, filtering by level/topic, and a proper status line showing drop counts.
 
 - **`HomePage`** (`pages/home.h/cpp`): ASCII logo, current PLC status, and the key
   business-logic metrics (next irrigation event, ventilation state, etc.).
+
+  Should be extensible by subclassing : the base class will handle displaying a menu to reach other pages, the ASCII logo, system status information (like AC supply status, DC system voltage, UPS status, uptime, active fault count, etc) and will provide hooks so that derived classes can expose other information. The base class should also provide a small region at the bottom (last 4 rows) to show the last logs.
 
 - **`StatusPage`** (`pages/status.h/cpp`): Detailed runtime metrics — PLC link status,
   CPU load and stack usage graphs, Ethernet/NTP status, uptime.
@@ -74,16 +81,6 @@
 - **Emit suppressed-entry count** (`logs/logger.cpp`): In `fill_buckets()`, emit a
   synthetic log entry for each bucket whose `suppressed` counter is non-zero, then
   reset the counter so callers know messages were dropped.
-
-## Scheduler / Monitoring
-
-- **Paint the stack each tick**: `LoopScheduler::_measure_stack_usage()` searches for
-  `STACK_PAINT_BYTE` (`0xCD`) but the stack is never painted, and `_measure_stack_usage()`
-  itself is never called. To measure per-iteration usage: paint the stack region from
-  the current SP down to the stack base at the start of each tick (in `tick()`, just
-  before returning `true`), then call `_measure_stack_usage()` at the top of the next
-  tick (in `_measure_work()`) to capture the high-water mark left by the previous
-  iteration's work.
 
 ## Testing
 
