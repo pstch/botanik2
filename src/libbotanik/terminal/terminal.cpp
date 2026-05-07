@@ -211,10 +211,12 @@ namespace Botanik { namespace Terminal {
     }
 
     void AnsiTerminal::switch_to(uint8_t index) {
-        if (index < _pages_len && _pages[index] != nullptr) {
-            _page_index = index;
-            // TODO: deactivate current page, clear screen, call focus() on new page
-        }
+        if (index >= _pages_len || _pages[index] == nullptr) return;
+        if (_pages_len > 0 && _pages[_page_index] != nullptr)
+            _pages[_page_index]->deactivate();
+        _page_index = index;
+        clear_screen();
+        _pages[_page_index]->focus();
     }
 
 }}

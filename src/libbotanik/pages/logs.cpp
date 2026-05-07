@@ -52,6 +52,8 @@ namespace Botanik { namespace Pages {
         drain();
     }
 
+    void LogsPage::deactivate() {}
+
     void LogsPage::handle_text(char /* c */) {}
 
     void LogsPage::handle_command(Command /* cmd */) {}

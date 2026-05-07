@@ -36,6 +36,7 @@ namespace Botanik { namespace Pages {
         // Page interface
         void handle_text(char c) override;
         void handle_command(Command cmd) override;
+        void deactivate() override;
         void focus() override;
         void tick() override;
     };

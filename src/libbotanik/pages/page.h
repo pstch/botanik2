@@ -17,6 +17,8 @@ namespace Botanik { namespace Pages {
         /** @brief Handle a decoded control command from the user */
         virtual void handle_command(Command cmd) = 0;
 
+        /** @brief Called when this page is about to be replaced by another page */
+        virtual void deactivate() = 0;
         /** @brief Called when this page becomes active */
         virtual void focus() = 0;
         /** @brief Called every main-loop tick to update display and state */

@@ -71,6 +71,8 @@ namespace Botanik { namespace Pages {
         drain();
     }
 
+    void ShellPage::deactivate() {}
+
     void ShellPage::handle_text(char c) {
         _editor.insert_characters(&c, 1);
     }
