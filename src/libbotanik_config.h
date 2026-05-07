@@ -109,6 +109,23 @@ namespace Botanik { namespace Config {
 
     /** @} */
 
+
+    /**
+     * @name Shell Parameters
+     * @{
+     */
+
+    /** @brief Number of command history entries to retain */
+    static constexpr uint8_t  SHELL_HISTORY_SIZE  = 8;
+
+    /** @brief Maximum length of a single history entry (bytes) */
+    static constexpr uint16_t SHELL_HISTORY_ENTRY = 128;
+
+    /** @brief Size of the kill ring buffer (bytes) */
+    static constexpr uint16_t SHELL_KILL_SIZE     = 128;
+
+    /** @} */
+
 } }
 
 #endif // LIBBOTANIK_CONFIG_H
