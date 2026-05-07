@@ -1,3 +1,5 @@
+#include <cstdio>
+
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/utils/time.h"
@@ -55,8 +57,21 @@ namespace Botanik { namespace Logs {
         for (uint8_t i = 0; i < Config::LOG_TOPIC_MAX; ++i) {
             _fill_bucket(&_perTopic_buckets[i], _perTopic_amount, _perTopic_burst);
         }
-        // TODO: emit a synthetic log entry for each bucket that has suppressed > 0,
-        //       then reset its suppressed counter, so callers know messages were dropped
+        auto emit_suppressed = [&](LogBucket_t* bucket, PlcIO::LogTopic topic) {
+            if (bucket->suppressed == 0) return;
+            LogEntry_t entry = {};
+            entry.timestamp = _time_ms;
+            entry.level     = PlcIO::LOG_WARNING;
+            entry.topic     = topic;
+            entry.length    = (uint16_t)snprintf(
+                entry.message, sizeof(entry.message),
+                "%u msgs suppressed", (unsigned)bucket->suppressed);
+            for (uint8_t i = 0; i < _writerCount; i++) _writers[i]->push(&entry);
+            bucket->suppressed = 0;
+        };
+        emit_suppressed(&_global_bucket, LogTopic::NONE);
+        for (uint8_t i = 0; i < Config::LOG_TOPIC_MAX; ++i)
+            emit_suppressed(&_perTopic_buckets[i], (LogTopic)i);
     }
 
     void Logger::push_entry(const PlcIO::LogEntry_t entry) {
