@@ -10,8 +10,8 @@ namespace Botanik { namespace PlcIO {
     private:
         using Logger = Logs::Logger;
         // Parameters
-                Logger*         _logger;         // pointer to the output logger
-                PlcSyncHandler* _handler;        // pointer to the PLC synchronization handler
+                Logger*             _logger;         // pointer to the output logger
+                PlcSyncHandlerBase* _handler;        // pointer to the PLC synchronization handler
         const   uint32_t*       _timestamp_ms;   // pointer to the current cycle's timestamp
         // Reader state
                 uint32_t _last_seq = 0;          // last sequence number (to detect dropped entries)
@@ -27,7 +27,7 @@ namespace Botanik { namespace PlcIO {
 
     public:
         // Constructor
-        PlcLogReader(PlcSyncHandler* handler, Logger* logger, uint32_t* timestamp_ms);
+        PlcLogReader(PlcSyncHandlerBase* handler, Logger* logger, uint32_t* timestamp_ms);
         // drain the PLC log buffer
         void step();
 

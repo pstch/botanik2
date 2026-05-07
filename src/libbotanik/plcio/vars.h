@@ -18,15 +18,13 @@ namespace Botanik { namespace PlcIO {
         LOG_CRITICAL = 32,   // critical message, something very bad is going to happen soon
     };
 
-
     enum LogTopic : uint8_t {
         NONE = 0,
         BOOT = 2,
         NETWORK = 3,
         TIME = 4,
-        STATUS = 5,                   // State machine's state updates
-        PLC_IO = 1,            // messages about the PLC shared memory
-
+        STATUS = 5,
+        PLC_IO = 1,
     };
 
     // Check that the defined topic count can fit in the LogTopic enum
@@ -41,50 +39,48 @@ namespace Botanik { namespace PlcIO {
         uint16_t        seqNum;
     };
 
-    // Input/output flags, used to synchronize the shared memory with the PLC
+    // Sync counters (named from the PLC's point of view)
     struct PlcInputCounters_t {
-        uint32_t            rxSeqNum; // Sequence number for data sent to the PLC
-        uint32_t            txAckNum; // Acknowledgement number for data received from the PLC
+        uint32_t            rxSeqNum;
+        uint32_t            txAckNum;
     };
     struct PlcOutputCounters_t {
-        uint32_t            txSeqNum; // Sequence number for data received from the PLC
-        uint32_t            rxAckNum; // Acknowledgement number for data sent to the PLC
+        uint32_t            txSeqNum;
+        uint32_t            rxAckNum;
     };
 
-    // Input/output payload (should be kept in sync with the PLC's shared memory definitions)
-    struct PlcInputData_t {
-        // PLC log read position
-        uint32_t            readIndex;
+    // Fixed log-protocol fields, always present regardless of the user's payload type.
+    // These form the library's shared log protocol between host and PLC.
+    struct PlcInputLogs_t {
+        uint32_t            readIndex;      // host's current read position in the PLC log buffer
     };
-    struct PlcOutputData_t {
-        // Logs received from the PLC
+    struct PlcOutputLogs_t {
         LogEntry_t          logBuffer[Config::LOG_PLC_BUFFER_SIZE];
-        uint32_t            writeIndex;
-    };
-
-    // Input/output data (combined flags and payload)
-    struct PlcInput_t {
-        PlcInputCounters_t  sync;
-        PlcInputData_t      data;
-    };
-    struct PlcOutput_t {
-        PlcOutputCounters_t sync;
-        PlcOutputData_t     data;
+        uint32_t            writeIndex;     // PLC's current write position in the log buffer
     };
     #pragma pack(pop)
 
-    #ifndef __INTELLISENSE__
-    #ifdef TARGET_OPTA
-    // In actual builds, we use our mocked definitions to check that their layout
-    // matches the automatically included type definitions for the input/output structures.
-    static_assert(sizeof(PLCSharedVarsInput_t) == sizeof(PlcInput_t));
-    static_assert(alignof(PLCSharedVarsOutput_t) == alignof(PlcOutput_t));
-    // XXX: we could improve this by also checking field offsets, but it would
-    //      require substantial maintenance, unless we can find some macros that
-    //      handles that for us (or at least make it easier to write)
-    //
-    #endif
-    #endif
+    // Combined input/output structs. Data is the user-supplied site-specific payload.
+    // User-supplied Data types must be trivially copyable and have no internal padding
+    // to guarantee the combined layout matches the PLC IDE's generated types.
+    // Use __attribute__((packed)) rather than #pragma pack: #pragma pack is applied at
+    // the point of template instantiation, not definition, making it unreliable here.
+    template<typename Data>
+    struct __attribute__((packed)) PlcInput {
+        PlcInputCounters_t  sync;
+        PlcInputLogs_t      logs;
+        Data                data;
+    };
+    template<typename Data>
+    struct __attribute__((packed)) PlcOutput {
+        PlcOutputCounters_t sync;
+        PlcOutputLogs_t     logs;
+        Data                data;
+    };
+
+    // On OPTA, add to your sketch to verify layout matches the PLC IDE's generated types:
+    //   static_assert(sizeof(PLCSharedVarsInput_t)   == sizeof(PlcIO::PlcInput<YourInputData_t>));
+    //   static_assert(alignof(PLCSharedVarsOutput_t) == alignof(PlcIO::PlcOutput<YourOutputData_t>));
 
 }}
 

@@ -1,20 +1,13 @@
 # TODO
 
-## Architecture
+## Small work items
 
-- **Make `PlcSyncHandler` site-independent** *(requires its own detailed plan)*:
-  Currently `PlcInputData_t` and `PlcOutputData_t` contain botanik-specific fields
-  (log buffer, read/write indices), which prevents the library from being reused in
-  other projects. The refactor involves:
-  - Move `logBuffer`/`writeIndex` out of `PlcOutputData_t` and into a botanik-specific
-    data struct that is separate from the sync layer.
-  - Move `readIndex` out of `PlcInputData_t` similarly.
-  - Templatise `PlcSyncHandler<InputData, OutputData>` so the caller supplies the
-    payload types; the sync counters (`PlcInputCounters_t`, `PlcOutputCounters_t`)
-    stay fixed and are not part of the template.
-  - `PlcSyncHandler` still uses `HAL::get_plc_input()` / `HAL::get_plc_output()` for
-    the actual memory pointers; that does not change.
-  - Update `PlcLogReader`, `PlcLogWriter`, `PlcEmulator`, and `BotanikApp` accordingly.
+ - In the simulator's main.cpp, we should be able to include just "libbotanik.h" to have everything directly available.
+
+ - The wiring code in main() is not complete yet. Also, we'll change the code so that we can get timestamp_ms from scheduler.tick(), and we'll make it look more like an Arduino sketch with separate setup() and loop() functions. 
+
+  - In main(), we should make the PlcEmulator run in a separate thread to emulate the PLC runtime running on the other core of the MCU
+
 
 ## PLC I/O
 
@@ -76,19 +69,7 @@
 - **`StatusPage`** (`pages/status.h/cpp`): Detailed runtime metrics — PLC link status,
   CPU load and stack usage graphs, Ethernet/NTP status, uptime.
 
-## Application
-
-- **Write `main.cpp`** (`botanik_sim/main.cpp`): Replace the placeholder with a real
-  app loop — allocate shared PLC memory, call `HAL::set_plcio_pointers()`, construct
-  `BotanikApp`, then loop `step()`.
-
-- **Complete `BotanikApp`** (`libbotanik.cpp`): Connect `setup()` / `step()` to a
-  public entry point; instantiate `BotanikTerminal` once it is ready.
-
-- **Make `BotanikApp` subclassable**: Expose `setup()` and `step()` as public virtual
-  methods so an Arduino sketch can derive from `BotanikApp` and inject business logic
-  without touching the library. The derived class calls `super::setup()` /
-  `super::step()` and adds its own greenhouse-specific code alongside.
+  In practice, the StatusPage class itself should only provide the "scaffolding" for a status page. Some of the contents of a status page are static and should only be drawed when activating the page or redrawing it, while some contents need to be changed at periodic interval. 
 
 ## Logging
 

@@ -31,7 +31,7 @@ namespace Botanik { namespace HAL {
         return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&_estack));
     }
 
-    uint32_t get_stack_depth() {
+    inline uint32_t get_stack_depth() {
         volatile uint32_t anchor = 0;
         uintptr_t stack_pointer = reinterpret_cast<uintptr_t>(&anchor);
         return static_cast<uint32_t>(get_stack_base() - stack_pointer);

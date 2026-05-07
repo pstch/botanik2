@@ -13,10 +13,6 @@
 #include <termios.h>
 #include <pthread.h>
 
-// PLC simulator I/O pointers
-extern void* _sim_ptr_in;
-extern void* _sim_ptr_out;
-
 // internal helpers to simplify the timer functions
 template <typename T>
 inline uint64_t _now_as() {
@@ -40,7 +36,7 @@ namespace Botanik { namespace HAL {
     }
 
 
-    uint32_t get_stack_depth() {
+    inline uint32_t get_stack_depth() {
         volatile uint32_t anchor = 0;
         uintptr_t current_sp = reinterpret_cast<uintptr_t>(&anchor);
 
@@ -57,18 +53,8 @@ namespace Botanik { namespace HAL {
         return 0;
     }
 
-    inline void* get_plc_input() {
-        return _sim_ptr_in;
-    }
-
-    inline void* get_plc_output() {
-        return _sim_ptr_out;
-    }
-
-    inline void set_plcio_pointers(void* in, void* out) {
-        _sim_ptr_in = in;
-        _sim_ptr_out = out;
-    }
+    inline void* get_plc_input()  { return nullptr; }
+    inline void* get_plc_output() { return nullptr; }
 
     inline uint32_t current_ms() {
         return (uint32_t)_now_as<std::chrono::milliseconds>();
