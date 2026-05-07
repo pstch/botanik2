@@ -40,13 +40,26 @@ Organize the Doxygen documentation. Maybe some of the things documented in markd
 
 NOTE: all screen interactions done by Page classes should always go through AnsiTerminal, so that cursor movement and hardware scroll events can be properly tracked. We can hardcode in pages code that row 0 is reserved for the terminal's status line. Note that row 0 here corresponds to row 1 on the terminal, since we target the Minitel 1B were the actual row 0 is not accessible. 
 
-- **`ShellPage`** (`pages/shell.h/cpp`): Implement a proper interactive shell —
-  command history (up/down arrow), cursor movement within the input line, and
-  integrated log output that interleaves with command I/O. Should be extensible by subclassing so that the user can add commands related
-  to their business logic. Scroll-back will be implemented later, after we are able to run the first simulations of the ANSI rendering code in a VT100 emulator, to ensure we have a working X3.64 terminal implementation before adding complex features such as scrollback.
+- **Shell command history** (`shell/shell.h/cpp`, `pages/shell.cpp`): Implement
+  UP/DOWN (Ctrl+P/N) history navigation in `CommandShell`. On first press, save
+  the current editor contents to a draft buffer; load entries from the ring buffer;
+  restore the draft when navigating back to head. Buffer sizes are in
+  `Config::SHELL_HISTORY_SIZE` / `Config::SHELL_HISTORY_ENTRY`.
 
-- **`LogsPage`** (`pages/logs.h/cpp`): The current implementation is a draft. Add
-  scroll-back, filtering by level/topic, and a proper status line showing drop counts.
+- **Shell kill ring** (`shell/shell.h/cpp`, `terminal/editor.h/cpp`, `pages/shell.cpp`):
+  Implement Ctrl+K (`kill_to_end()`), Ctrl+W (`kill_word_backward()`), and Ctrl+Y
+  (`paste_kill()`) in `InputEditor` and `CommandShell`. A single-slot kill buffer of
+  `Config::SHELL_KILL_SIZE` bytes is sufficient for now.
+
+- **`ShellPage`** (`pages/shell.h/cpp`): Scroll-back will be implemented later, after
+  we are able to run the first simulations of the ANSI rendering code in a VT100
+  emulator, to ensure we have a working X3.64 terminal implementation before adding
+  complex features such as scrollback. The extensibility hook (`CommandShell::dispatch()`)
+  already allows subclasses to add application-specific commands.
+
+- **`LogsPage` scrollback** (`pages/logs.h/cpp`): Implement PAGE_UP / PAGE_DOWN
+  scrollback using `_scroll_offset`. Requires a backing log ring buffer to replay
+  entries. Add filtering by level/topic and a proper status line showing drop counts.
 
 - **`HomePage`** (`pages/home.h/cpp`): ASCII logo, current PLC status, and the key
   business-logic metrics (next irrigation event, ventilation state, etc.).
