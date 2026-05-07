@@ -124,6 +124,18 @@ namespace Botanik { namespace Terminal {
         /** @brief Move the cursor one position right; extends selection if mark is set */
         void move_right();
 
+        /** @brief Move the cursor to the start of the current logical line (Ctrl+A) */
+        void move_to_line_start();
+
+        /** @brief Move the cursor to the end of the current logical line (Ctrl+E) */
+        void move_to_line_end();
+
+        /** @brief Move the cursor one word to the left (Alt+B) */
+        void move_word_left();
+
+        /** @brief Move the cursor one word to the right (Alt+F) */
+        void move_word_right();
+
         /** @brief Delete the character before the cursor.
          *         If a selection is active, deletes the selection instead. */
         void backspace();

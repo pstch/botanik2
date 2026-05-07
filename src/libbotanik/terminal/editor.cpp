@@ -1,4 +1,5 @@
 
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -187,6 +188,52 @@ namespace Botanik { namespace Terminal {
     void InputEditor::move_right() {
         if (_pos >= _len) { _mark_active = false; _sel_anchor = 0; _sel_len = 0; return; }
         _pos++;
+        if (_mark_active) {
+            uint16_t start = std::min(_mark_pos, _pos);
+            select_characters(start, std::max(_mark_pos, _pos) - start);
+        } else {
+            _sel_anchor = 0; _sel_len = 0;
+        }
+        _terminal->move_to(_map_cursor_pos(_pos));
+    }
+
+    void InputEditor::move_to_line_start() {
+        while (_pos > 0 && !_is_newline(_pos - 1)) _pos--;
+        if (_mark_active) {
+            uint16_t start = std::min(_mark_pos, _pos);
+            select_characters(start, std::max(_mark_pos, _pos) - start);
+        } else {
+            _sel_anchor = 0; _sel_len = 0;
+        }
+        _terminal->move_to(_map_cursor_pos(_pos));
+    }
+
+    void InputEditor::move_to_line_end() {
+        while (_pos < _len && !_is_newline(_pos)) _pos++;
+        if (_mark_active) {
+            uint16_t start = std::min(_mark_pos, _pos);
+            select_characters(start, std::max(_mark_pos, _pos) - start);
+        } else {
+            _sel_anchor = 0; _sel_len = 0;
+        }
+        _terminal->move_to(_map_cursor_pos(_pos));
+    }
+
+    void InputEditor::move_word_left() {
+        while (_pos > 0 && !isalnum(_buf[_pos - 1]) && _buf[_pos - 1] != '_') _pos--;
+        while (_pos > 0 && (isalnum(_buf[_pos - 1]) || _buf[_pos - 1] == '_')) _pos--;
+        if (_mark_active) {
+            uint16_t start = std::min(_mark_pos, _pos);
+            select_characters(start, std::max(_mark_pos, _pos) - start);
+        } else {
+            _sel_anchor = 0; _sel_len = 0;
+        }
+        _terminal->move_to(_map_cursor_pos(_pos));
+    }
+
+    void InputEditor::move_word_right() {
+        while (_pos < _len && (isalnum(_buf[_pos]) || _buf[_pos] == '_')) _pos++;
+        while (_pos < _len && !isalnum(_buf[_pos]) && _buf[_pos] != '_') _pos++;
         if (_mark_active) {
             uint16_t start = std::min(_mark_pos, _pos);
             select_characters(start, std::max(_mark_pos, _pos) - start);
