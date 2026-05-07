@@ -22,8 +22,8 @@ namespace Botanik { namespace PlcIO {
         _logger->push_entry(entry);
     }
 
-    PlcLogReader::PlcLogReader(PlcSyncContext* ctx, Logger* logger, uint32_t* timestamp_ms)
-        : _logger(logger), _timestamp_ms(timestamp_ms), _ctx(ctx)
+    PlcLogReader::PlcLogReader(PlcSyncContext* ctx, Logger* logger)
+        : _logger(logger), _ctx(ctx)
     {
         _logBuffer  = ctx->output_logs()->logBuffer;
         _writeIndex = &ctx->output_logs()->writeIndex;

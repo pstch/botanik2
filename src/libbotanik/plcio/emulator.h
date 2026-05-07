@@ -7,20 +7,20 @@
 #include "libbotanik_config.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/plcio/sync.h"
-#include "libbotanik/plcio/vars.h"
 
 namespace Botanik { namespace PlcIO {
 
     // Non-template context object (mirror of PlcSyncContext) for the emulator side.
-    // Fields are public so PlcEmulator can update them directly.
     struct PlcEmulatorContext {
+        template<typename, typename> friend class PlcEmulator;
+    private:
         bool             _tx_write       = false;
         PlcInputLogs_t   _rx_logs_buffer = {};  // emulator RX ← what host transmitted
         PlcOutputLogs_t  _tx_logs_buffer = {};  // emulator TX → what host will receive
         uint32_t*        _timestamp_ms   = nullptr;
         uint32_t         _tx_last_ms     = 0;
         bool             _ever_ackd      = false;
-
+    public:
         void                  write()              { _tx_write = true; }
         PlcOutputLogs_t*      output_logs()        { return &_tx_logs_buffer; }
         const PlcInputLogs_t* input_logs() const   { return &_rx_logs_buffer; }
@@ -126,7 +126,6 @@ namespace Botanik { namespace PlcIO {
         uint32_t            _next_seq   = 1;
         LogEntry_t*         _logBuffer;
         uint32_t*           _writeIndex;
-        const uint32_t*     _readIndex;
     public:
         PlcLogWriter(PlcEmulatorContext* ctx, uint32_t* timestamp_ms);
         void push_log(LogLevel level, LogTopic topic, const char* msg);

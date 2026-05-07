@@ -10,7 +10,6 @@ namespace Botanik { namespace PlcIO {
     private:
         using Logger = Logs::Logger;
                 Logger*         _logger;
-        const   uint32_t*       _timestamp_ms;
                 PlcSyncContext* _ctx;
                 uint32_t _last_seq = 0;
                 uint32_t _dropped  = 0;
@@ -21,7 +20,7 @@ namespace Botanik { namespace PlcIO {
         void _push_plc_entry(const LogEntry_t* plcEntry);
 
     public:
-        PlcLogReader(PlcSyncContext* ctx, Logger* logger, uint32_t* timestamp_ms);
+        PlcLogReader(PlcSyncContext* ctx, Logger* logger);
         void step();
 
     };

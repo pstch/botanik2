@@ -22,7 +22,7 @@ inline uint64_t _now_as() {
 
 namespace Botanik { namespace HAL {
 
-    uint32_t get_stack_base() {
+    inline uint32_t get_stack_base() {
         pthread_t self = pthread_self();
         pthread_attr_t attr;
         if (pthread_getattr_np(self, &attr) == 0) {

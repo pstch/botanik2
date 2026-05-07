@@ -37,8 +37,9 @@ namespace Botanik { namespace PlcIO {
     // Non-template context object. Holds the parts of PlcSyncHandler that are
     // independent of the payload types: log buffers, TX-write flag, timing state,
     // and the stable public interface consumed by PlcLogReader and Page classes.
-    // Fields are public so PlcSyncHandler can update them directly.
     struct PlcSyncContext {
+        template<typename, typename> friend class PlcSyncHandler;
+    private:
         bool             _tx_write       = false;
         PlcOutputLogs_t  _rx_logs_buffer = {};
         PlcInputLogs_t   _tx_logs_buffer = {};
@@ -46,7 +47,7 @@ namespace Botanik { namespace PlcIO {
         uint32_t         _tx_last_ms     = 0;
         uint32_t         _timeout_ms     = Config::PLC_TIMEOUT_MS;
         bool             _ever_ackd      = false;
-
+    public:
         void                   write()             { _tx_write = true; }
         const PlcOutputLogs_t* output_logs() const { return &_rx_logs_buffer; }
         PlcInputLogs_t*        input_logs()        { return &_tx_logs_buffer; }

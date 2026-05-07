@@ -10,7 +10,6 @@ namespace Botanik { namespace PlcIO {
     {
         _logBuffer  = ctx->output_logs()->logBuffer;
         _writeIndex = &ctx->output_logs()->writeIndex;
-        _readIndex  = &ctx->input_logs()->readIndex;
     }
 
     void PlcLogWriter::push_log(LogLevel level, LogTopic topic, const char* msg) {
