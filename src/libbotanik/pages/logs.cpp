@@ -56,6 +56,13 @@ namespace Botanik { namespace Pages {
 
     void LogsPage::handle_text(char /* c */) {}
 
-    void LogsPage::handle_command(Command /* cmd */) {}
+    void LogsPage::handle_command(Command cmd) {
+        switch (cmd) {
+            case Command::ENTER:     focus();  break;   // redraw
+            case Command::PAGE_UP:   break;             // TODO: scrollback
+            case Command::PAGE_DOWN: break;             // TODO: scrollback
+            default: break;
+        }
+    }
 
 }}

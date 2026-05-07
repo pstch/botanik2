@@ -24,6 +24,8 @@ namespace Botanik { namespace Pages {
 
         AnsiTerminal& _terminal;
 
+        uint16_t _scroll_offset = 0;  // not yet used; placeholder for scrollback
+
         void _draw_header();
 
         // BufferedLogWriter interface
