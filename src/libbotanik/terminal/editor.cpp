@@ -96,7 +96,19 @@ namespace Botanik { namespace Terminal {
         _occupied = _map_cursor_pos(_len).row - _origin + 1;
     }
 
+    bool InputEditor::_remove_selection() {
+        if (_sel_len == 0) return false;
+        _pos = _sel_anchor;
+        remove_characters(_sel_len);
+        _sel_anchor = 0;
+        _sel_len    = 0;
+        _mark_active = false;
+        _terminal->move_to(_map_cursor_pos(_pos));
+        return true;
+    }
+
     void InputEditor::insert_characters(char* buf, uint16_t len) {
+        _remove_selection();
         if (len == 0) return;
         if ((_len + len) >= sizeof(_buf)) len = sizeof(_buf) - _len - 1;
 
@@ -153,7 +165,39 @@ namespace Botanik { namespace Terminal {
         }
     }
 
+    void InputEditor::set_mark() {
+        _mark_active = true;
+        _mark_pos    = _pos;
+        _sel_anchor  = _pos;
+        _sel_len     = 0;
+    }
+
+    void InputEditor::move_left() {
+        if (_pos == 0) { _mark_active = false; _sel_anchor = 0; _sel_len = 0; return; }
+        _pos--;
+        if (_mark_active) {
+            uint16_t start = std::min(_mark_pos, _pos);
+            select_characters(start, std::max(_mark_pos, _pos) - start);
+        } else {
+            _sel_anchor = 0; _sel_len = 0;
+        }
+        _terminal->move_to(_map_cursor_pos(_pos));
+    }
+
+    void InputEditor::move_right() {
+        if (_pos >= _len) { _mark_active = false; _sel_anchor = 0; _sel_len = 0; return; }
+        _pos++;
+        if (_mark_active) {
+            uint16_t start = std::min(_mark_pos, _pos);
+            select_characters(start, std::max(_mark_pos, _pos) - start);
+        } else {
+            _sel_anchor = 0; _sel_len = 0;
+        }
+        _terminal->move_to(_map_cursor_pos(_pos));
+    }
+
     void InputEditor::backspace() {
+        if (_remove_selection()) return;
         if (_pos == 0) return;
         _pos--;
         remove_characters(1);

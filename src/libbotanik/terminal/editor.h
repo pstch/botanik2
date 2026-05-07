@@ -101,7 +101,8 @@ namespace Botanik { namespace Terminal {
         /** @brief Remove the given amount of characters at the current position */
         void remove_characters(uint16_t len);
 
-        /** @brief Insert the given characters at the current position */
+        /** @brief Insert the given characters at the current position.
+         *         If a selection is active, it is replaced by the inserted text. */
         void insert_characters(char* buf, uint16_t len);
 
         /** @brief Append the given characters at the current position */
@@ -110,10 +111,21 @@ namespace Botanik { namespace Terminal {
         /** @brief Replace the given characters at the current position */
         void replace_characters(char* buf, uint16_t len);
 
-        // TODO
+        /** @brief Update the selection range and redraw the damaged region */
         void select_characters(uint16_t anchor, uint16_t len);
 
-        /** @brief Delete the character before the cursor (backspace) */
+        /** @brief Set the mark at the current cursor position (Emacs-style).
+         *         Subsequent cursor movement extends the selection from the mark. */
+        void set_mark();
+
+        /** @brief Move the cursor one position left; extends selection if mark is set */
+        void move_left();
+
+        /** @brief Move the cursor one position right; extends selection if mark is set */
+        void move_right();
+
+        /** @brief Delete the character before the cursor.
+         *         If a selection is active, deletes the selection instead. */
         void backspace();
 
         /** @brief Redraw the whole prompt */
@@ -151,6 +163,9 @@ namespace Botanik { namespace Terminal {
 
         uint16_t            _sel_anchor = 0;    /**< Start of selection */
         uint16_t            _sel_len = 0;       /**< Selection length */
+
+        bool                _mark_active = false; /**< True while a mark has been set */
+        uint16_t            _mark_pos = 0;      /**< Buffer position of the mark */
 
         uint16_t            _origin = 0;        /**< Origin row of the prompt */
         uint16_t            _occupied = 1;      /**< Amount of occupied rows */
@@ -198,6 +213,11 @@ namespace Botanik { namespace Terminal {
         inline uint16_t _is_newline(uint16_t pos) const {
             return _buf[pos] == '\n';
         }
+
+        /** @brief Remove the selected text, clear selection and mark state.
+         *         Leaves _pos at the former selection anchor.
+         *  @return true if a non-empty selection was removed, false otherwise. */
+        bool _remove_selection();
 
         /** @brief Scan a row to find the end of the line,
          *         and whether it's a soft or hard line-break.
