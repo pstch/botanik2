@@ -166,11 +166,25 @@ namespace Botanik { namespace Terminal {
         }
     }
 
-    void InputEditor::set_mark() {
-        _mark_active = true;
-        _mark_pos    = _pos;
-        _sel_anchor  = _pos;
-        _sel_len     = 0;
+    void InputEditor::delete_forward() {
+        if (_remove_selection()) return;
+        if (_pos < _len) remove_characters(1);
+    }
+
+    void InputEditor::deselect() {
+        _mark_active = false;
+        select_characters(0, 0);
+    }
+
+    void InputEditor::set_mark_toggle() {
+        if (_mark_active) {
+            deselect();
+        } else {
+            _mark_active = true;
+            _mark_pos    = _pos;
+            _sel_anchor  = _pos;
+            _sel_len     = 0;
+        }
     }
 
     void InputEditor::move_left() {

@@ -87,7 +87,7 @@ namespace Botanik { namespace Pages {
                 _editor.backspace();
                 break;
             case Command::CTRL_SPACE:
-                _editor.set_mark();
+                _editor.set_mark_toggle();
                 break;
             case Command::LEFT:
                 _editor.move_left();

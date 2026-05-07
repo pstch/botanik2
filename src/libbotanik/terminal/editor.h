@@ -114,10 +114,6 @@ namespace Botanik { namespace Terminal {
         /** @brief Update the selection range and redraw the damaged region */
         void select_characters(uint16_t anchor, uint16_t len);
 
-        /** @brief Set the mark at the current cursor position (Emacs-style).
-         *         Subsequent cursor movement extends the selection from the mark. */
-        void set_mark();
-
         /** @brief Move the cursor one position left; extends selection if mark is set */
         void move_left();
 
@@ -139,6 +135,16 @@ namespace Botanik { namespace Terminal {
         /** @brief Delete the character before the cursor.
          *         If a selection is active, deletes the selection instead. */
         void backspace();
+
+        /** @brief Delete the character at the cursor (Ctrl+D).
+         *         If a selection is active, deletes the selection instead. */
+        void delete_forward();
+
+        /** @brief Clear the active mark and selection (Ctrl+G / ESC) */
+        void deselect();
+
+        /** @brief Toggle the mark: set if inactive, deselect if active (Ctrl+Space) */
+        void set_mark_toggle();
 
         /** @brief Redraw the whole prompt */
         void redraw(bool clear = true);
