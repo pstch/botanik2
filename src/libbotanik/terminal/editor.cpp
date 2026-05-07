@@ -118,7 +118,9 @@ namespace Botanik { namespace Terminal {
         uint16_t replace_len = std::min(len, (uint16_t)(_len - _pos));
         memcpy(&_buf[_pos], buf, replace_len);
         _pos += replace_len;
-        // TODO: reflect change on the screen.
+        CursorPos start = _map_cursor_pos(_pos - replace_len);
+        _terminal->move_to(start);
+        _terminal->write_chars(&_buf[_pos - replace_len], replace_len);
     }
 
     void InputEditor::append_characters(char* buf, uint16_t len) {
