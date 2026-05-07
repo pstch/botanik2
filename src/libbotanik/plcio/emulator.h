@@ -11,45 +11,62 @@
 
 namespace Botanik { namespace PlcIO {
 
+    // Non-template context object (mirror of PlcSyncContext) for the emulator side.
+    // Fields are public so PlcEmulator can update them directly.
+    struct PlcEmulatorContext {
+        bool             _tx_write       = false;
+        PlcInputLogs_t   _rx_logs_buffer = {};  // emulator RX ← what host transmitted
+        PlcOutputLogs_t  _tx_logs_buffer = {};  // emulator TX → what host will receive
+        uint32_t*        _timestamp_ms   = nullptr;
+        uint32_t         _tx_last_ms     = 0;
+        bool             _ever_ackd      = false;
+
+        void                  write()              { _tx_write = true; }
+        PlcOutputLogs_t*      output_logs()        { return &_tx_logs_buffer; }
+        const PlcInputLogs_t* input_logs() const   { return &_rx_logs_buffer; }
+
+        PlcStatus status() const {
+            uint32_t elapsed = *_timestamp_ms - _tx_last_ms;
+            if (!_ever_ackd)                        return PLC_UNKNOWN;
+            if (elapsed > Config::PLC_WATCHDOG_MS)  return PLC_FAULT;
+            if (elapsed > Config::PLC_TIMEOUT_MS)   return PLC_TIMEOUT;
+                                                    return PLC_RUNNING;
+        }
+    };
+
     // Simulator-side mirror of PlcSyncHandler. Simulates the PLC coprocessor: reads
     // from the input range (what the host wrote) and writes to the output range (what
     // the host reads). InputData / OutputData must match those of the paired handler.
     template<typename InputData, typename OutputData>
     class PlcEmulator {
     private:
-        // Log protocol buffers (local copies updated on each RX/TX cycle)
-        bool             _tx_write       = false;
-        PlcInputLogs_t   _rx_logs_buffer = {};  // emulator RX ← what host transmitted
-        PlcOutputLogs_t  _tx_logs_buffer = {};  // emulator TX → what host will receive
+        PlcEmulatorContext     _ctx;
         uint32_t               _heartbeat_ms  = Config::PLC_HEARTBEAT_MS;
-        uint32_t*              _timestamp_ms  = nullptr;
         PlcInput<InputData>*   _plcin;                  // PLC input memory  (read-only  for emulator)
         PlcOutput<OutputData>* _plcout;                 // PLC output memory (write-only for emulator)
         InputData              _rx_data_buffer;         // local receive buffer for _plcin->data
         OutputData             _tx_data_buffer;         // local transmit buffer for _plcout->data
         PlcRxState             _rx_state      = RX_IDLE;
         PlcTxState             _tx_state      = TX_IDLE;
-        uint32_t               _tx_last_ms    = 0;
-        bool                   _ever_ackd     = false;
 
         // Transition triggers
         inline bool _rx_new_message()       { return _plcin->sync.rxSeqNum != _plcout->sync.rxAckNum; }
-        inline bool _tx_heartbeat_elapsed() { return *_timestamp_ms - _tx_last_ms > _heartbeat_ms; }
+        inline bool _tx_heartbeat_elapsed() { return *_ctx._timestamp_ms - _ctx._tx_last_ms > _heartbeat_ms; }
         inline bool _tx_acknowledged() {
             bool result = _plcin->sync.txAckNum == _plcout->sync.txSeqNum;
-            if (result) { _tx_last_ms = *_timestamp_ms; _ever_ackd = true; }
+            if (result) { _ctx._tx_last_ms = *_ctx._timestamp_ms; _ctx._ever_ackd = true; }
             return result;
         }
 
         // Transition actions
         inline void _rx_memcpy() {
-            HAL::ordered_copy(&_rx_logs_buffer, &_plcin->logs);
+            HAL::ordered_copy(&_ctx._rx_logs_buffer, &_plcin->logs);
             HAL::ordered_copy(&_rx_data_buffer, &_plcin->data);
         }
         inline void _tx_memcpy() {
-            HAL::ordered_copy(&_plcout->logs, &_tx_logs_buffer);
+            HAL::ordered_copy(&_plcout->logs, &_ctx._tx_logs_buffer);
             HAL::ordered_copy(&_plcout->data, &_tx_data_buffer);
-            _tx_write = false;
+            _ctx._tx_write = false;
         }
         inline void _rx_acknowledge() {
             uint32_t seq = _plcin->sync.rxSeqNum;
@@ -70,7 +87,7 @@ namespace Botanik { namespace PlcIO {
         }
         PlcTxState _tx_step() {
             switch (_tx_state) {
-                case TX_IDLE:   if (_tx_write)              return TX_WRITE;
+                case TX_IDLE:   if (_ctx._tx_write)         return TX_WRITE;
                         else if (_tx_heartbeat_elapsed())   return TX_COMMIT;   break;
                 case TX_WRITE:  _tx_memcpy();               return TX_COMMIT;   break;
                 case TX_COMMIT: _tx_commit();               return TX_WAIT;     break;
@@ -82,27 +99,17 @@ namespace Botanik { namespace PlcIO {
     public:
         PlcEmulator(PlcInput<InputData>* plcin, PlcOutput<OutputData>* plcout,
                     uint32_t* timestamp_ms)
-            : _timestamp_ms(timestamp_ms), _plcin(plcin), _plcout(plcout)
+            : _plcin(plcin), _plcout(plcout)
         {
+            _ctx._timestamp_ms = timestamp_ms;
+            _ctx._tx_last_ms   = *timestamp_ms;
             memset(&_rx_data_buffer, 0, sizeof(InputData));
             memset(&_tx_data_buffer, 0, sizeof(OutputData));
-            _tx_last_ms = *timestamp_ms;
         }
 
-        void                  write()                  { _tx_write = true; }
-        bool*                 write_flag()             { return &_tx_write; }
-        PlcOutputLogs_t*      output_logs()            { return &_tx_logs_buffer; }
-        const PlcInputLogs_t* input_logs()  const      { return &_rx_logs_buffer; }
-        OutputData*           output_data()            { return &_tx_data_buffer; }
-        const InputData*      input_data()  const      { return &_rx_data_buffer; }
-
-        PlcStatus status() const {
-            uint32_t elapsed = *_timestamp_ms - _tx_last_ms;
-            if (!_ever_ackd)                        return PLC_UNKNOWN;
-            if (elapsed > Config::PLC_WATCHDOG_MS)  return PLC_FAULT;
-            if (elapsed > Config::PLC_TIMEOUT_MS)   return PLC_TIMEOUT;
-                                                    return PLC_RUNNING;
-        }
+        PlcEmulatorContext*  context()           { return &_ctx; }
+        OutputData*          output_data()       { return &_tx_data_buffer; }
+        const InputData*     input_data() const  { return &_rx_data_buffer; }
 
         void step() {
             _rx_state = _rx_step();
@@ -114,15 +121,14 @@ namespace Botanik { namespace PlcIO {
     // coprocessor sending logs to the host.
     class PlcLogWriter {
     private:
-        const   uint32_t*    _timestamp_ms;
-                uint32_t     _next_seq    = 1;
-                LogEntry_t*  _logBuffer;
-                uint32_t*    _writeIndex;
-        const   uint32_t*    _readIndex;
-                bool*        _write_flag;
+        PlcEmulatorContext* _ctx;
+        const uint32_t*     _timestamp_ms;
+        uint32_t            _next_seq   = 1;
+        LogEntry_t*         _logBuffer;
+        uint32_t*           _writeIndex;
+        const uint32_t*     _readIndex;
     public:
-        PlcLogWriter(PlcOutputLogs_t* output_logs, const PlcInputLogs_t* input_logs,
-                     bool* write_flag, uint32_t* timestamp_ms);
+        PlcLogWriter(PlcEmulatorContext* ctx, uint32_t* timestamp_ms);
         void push_log(LogLevel level, LogTopic topic, const char* msg);
     };
 

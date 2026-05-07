@@ -53,10 +53,8 @@ int main() {
         &shared_in, &shared_out, &timestamp_ms);
     PlcIO::PlcEmulator<PlcInputData_t, PlcOutputData_t> plc_emulator(
         &shared_in, &shared_out, &timestamp_ms);
-    PlcIO::PlcLogWriter  plc_log_writer(plc_emulator.output_logs(), plc_emulator.input_logs(),
-                                        plc_emulator.write_flag(), &timestamp_ms);
-    PlcIO::PlcLogReader  plc_log_reader(plc_handler.output_logs(), plc_handler.input_logs(),
-                                        plc_handler.write_flag(), &logger, &timestamp_ms);
+    PlcIO::PlcLogWriter  plc_log_writer(plc_emulator.context(), &timestamp_ms);
+    PlcIO::PlcLogReader  plc_log_reader(plc_handler.context(), &logger, &timestamp_ms);
 
     Scheduler::LoopScheduler scheduler;
 
