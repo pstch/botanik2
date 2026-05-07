@@ -32,7 +32,18 @@ namespace Botanik { namespace Terminal {
     // Step through the terminal handling code
     void AnsiTerminal::step() {
         _serial.step();
-        // TODO: call _parser.step() and route resulting InputEvents to the active page
+        while (true) {
+            InputEvent& ev = _parser.parse();
+            if (ev.type == InputEvent::EventType::NONE) break;
+            if (_pages_len == 0 || _pages[_page_index] == nullptr) continue;
+            Pages::Page* page = _pages[_page_index];
+            if (ev.type == InputEvent::EventType::CONTENT) {
+                for (uint16_t i = 0; i < ev.batch_len; i++)
+                    page->handle_text(ev.batch_data[i]);
+            } else if (ev.type == InputEvent::EventType::COMMAND) {
+                page->handle_command(ev.command);
+            }
+        }
     }
 
 
