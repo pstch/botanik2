@@ -122,7 +122,7 @@ namespace Botanik { namespace PlcIO {
         }
 
         // State machines
-        PlcRxState _rx_step() {
+        inline PlcRxState _rx_step() {
             switch (_rx_state) {
                 case RX_IDLE:   if (_rx_new_message())      return RX_READ; break;
                 case RX_READ:   _rx_memcpy();               return RX_ACK;  break;
@@ -130,7 +130,7 @@ namespace Botanik { namespace PlcIO {
             }
             return _rx_state;
         }
-        PlcTxState _tx_step() {
+        inline PlcTxState _tx_step() {
             switch (_tx_state) {
                 case TX_WRITE:  _tx_memcpy();               return TX_COMMIT; break;
                 case TX_COMMIT: _tx_commit();               return TX_WAIT;   break;
@@ -156,7 +156,7 @@ namespace Botanik { namespace PlcIO {
         const OutputData* output_data() const { return &_rx_data_buffer; }
         InputData*        input_data()        { return &_tx_data_buffer; }
 
-        void step() {
+        inline void step() {
             _rx_state = _rx_step();
             _tx_state = _tx_step();
         }

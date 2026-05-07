@@ -77,7 +77,7 @@ namespace Botanik { namespace PlcIO {
             HAL::ordered_copy(&_plcout->sync.txSeqNum, &next_seq);
         }
 
-        PlcRxState _rx_step() {
+        inline PlcRxState _rx_step() {
             switch (_rx_state) {
                 case RX_IDLE: if (_rx_new_message())        return RX_READ; break;
                 case RX_READ: _rx_memcpy();                 return RX_ACK;  break;
@@ -85,7 +85,7 @@ namespace Botanik { namespace PlcIO {
             }
             return _rx_state;
         }
-        PlcTxState _tx_step() {
+        inline PlcTxState _tx_step() {
             switch (_tx_state) {
                 case TX_IDLE:   if (_ctx._tx_write)         return TX_WRITE;
                         else if (_tx_heartbeat_elapsed())   return TX_COMMIT;   break;
@@ -111,7 +111,7 @@ namespace Botanik { namespace PlcIO {
         OutputData*          output_data()       { return &_tx_data_buffer; }
         const InputData*     input_data() const  { return &_rx_data_buffer; }
 
-        void step() {
+        inline void step() {
             _rx_state = _rx_step();
             _tx_state = _tx_step();
         }
