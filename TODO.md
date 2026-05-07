@@ -2,8 +2,6 @@
 
 ## Small work items
 
- - In the simulator's main.cpp, we should be able to include just "libbotanik.h" to have everything directly available.
-
  - The wiring code in main() is not complete yet. Also, we'll change the code so that we can get timestamp_ms from scheduler.tick(), and we'll make it look more like an Arduino sketch with separate setup() and loop() functions. 
 
   - In main(), we should make the PlcEmulator run in a separate thread to emulate the PLC runtime running on the other core of the MCU

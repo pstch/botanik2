@@ -8,15 +8,7 @@
 // typed pointers are obtained via HAL::get_plc_input() / HAL::get_plc_output() and
 // validated against the PLC IDE's generated types with a static_assert.
 
-#include "libbotanik/hal/platform.h"
-#include "libbotanik/scheduler/scheduler.h"
-#include "libbotanik/logs/logger.h"
-#include "libbotanik/logs/writer.h"
-#include "libbotanik/plcio/vars.h"
-#include "libbotanik/plcio/sync.h"
-#include "libbotanik/plcio/emulator.h"
-#include "libbotanik/plcio/logs.h"
-#include "libbotanik/utils/serial.h"
+#include "libbotanik.h"
 
 // ---------------------------------------------------------------------------
 // Site-specific PLC payload types.
