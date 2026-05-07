@@ -130,9 +130,27 @@ namespace Botanik { namespace Terminal {
     }
 
     void InputEditor::select_characters(uint16_t anchor, uint16_t len) {
-        // TODO: implement with :
-        //  - a new utility function to calculate the selection damage
-        //  - dummy replace_characters() on the damaged range
+        bool has_damage = (_sel_len > 0 || len > 0);
+        uint16_t dmg_start, dmg_end;
+        if (_sel_len > 0 && len > 0) {
+            dmg_start = std::min(_sel_anchor, anchor);
+            dmg_end   = std::max((uint16_t)(_sel_anchor + _sel_len), (uint16_t)(anchor + len));
+        } else if (_sel_len > 0) {
+            dmg_start = _sel_anchor; dmg_end = _sel_anchor + _sel_len;
+        } else {
+            dmg_start = anchor; dmg_end = anchor + len;
+        }
+
+        _sel_anchor = anchor;
+        _sel_len    = len;
+
+        if (has_damage && dmg_start < _len) {
+            dmg_end = std::min(dmg_end, _len);
+            uint16_t saved_pos = _pos;
+            _pos = dmg_start;
+            replace_characters(&_buf[dmg_start], dmg_end - dmg_start);
+            _pos = saved_pos;
+        }
     }
 
     void InputEditor::backspace() {

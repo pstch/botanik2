@@ -6,7 +6,6 @@
 
   - In main(), we should make the PlcEmulator run in a separate thread to emulate the PLC runtime running on the other core of the MCU
 
-
   There are also some other related changes regarding that (the ability to extend terminal pages and the way we read the system configuration data from the PLC output). Note that site-specific configuration data should go in PlcInputData_t and PlcOutputData_t, while system-level configuration should go in PlcInput_t and PlcOutput_t. The layout of both these structures will need to match the layout used by the PLC runtime running on the other core of the MCU.
 
 ## PLC I/O
@@ -26,13 +25,6 @@
 
 ## Terminal UI
 
-- **Wire terminal input** (`terminal/terminal.cpp`): Implement `AnsiTerminal::step()` —
-  call `_parser.parse()` in a loop and dispatch `InputEvent`s to the active page via
-  `handle_text()` / `handle_command()`.
-
-- **Implement `switch_to()`** (`terminal/terminal.cpp`): Full page switching with
-  lifecycle — deactivate current page, clear screen, call `focus()` on the new page.
-
 - **Implement `BotanikTerminal`** (`terminal/terminal.h`): Define the constructor;
   create and register the four pages (Home, Logs, Shell, Status).
 
@@ -43,16 +35,6 @@
 - **Selection display in `write_chars()`** (`terminal/terminal.cpp`): Track the active
   selection range and apply reverse-video (or colour) to selected characters as they
   are written.
-
-## Editor
-
-- **`InputEditor::select_characters()`** (`terminal/editor.cpp`): Implement selection
-  with damage-range calculation and a dummy `replace_characters()` pass over the
-  damaged range.
-
-- **`InputEditor::replace_characters()` screen update** (`terminal/editor.cpp`):
-  Reflect in-place replacements on the screen (currently mutates the buffer but
-  does not redraw).
 
 ## Pages
 
@@ -75,12 +57,6 @@ NOTE: all screen interactions done by Page classes should always go through Ansi
   CPU load and stack usage graphs, Ethernet/NTP status, uptime.
 
   In practice, the StatusPage class itself should only provide the "scaffolding" for a status page. Some of the contents of a status page are static and should only be drawed when activating the page or redrawing it, while some contents need to be changed at periodic interval. 
-
-## Logging
-
-- **Emit suppressed-entry count** (`logs/logger.cpp`): In `fill_buckets()`, emit a
-  synthetic log entry for each bucket whose `suppressed` counter is non-zero, then
-  reset the counter so callers know messages were dropped.
 
 ## Testing
 
