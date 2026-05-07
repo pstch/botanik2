@@ -36,6 +36,8 @@ namespace Botanik { namespace Logs {
         bool _try_bucket(LogBucket_t* bucket);
         // try to fill a bucket with the given amount of tokens
         void _fill_bucket(LogBucket_t* bucket, uint16_t amount, uint16_t burst);
+        // emit a synthetic warning entry if the bucket has suppressed entries
+        void _report_suppressed(LogBucket_t* bucket, PlcIO::LogTopic topic, uint32_t timestamp_ms);
     public:
         /** @brief Construct a Logger with empty writer list and full rate-limit buckets */
         Logger();

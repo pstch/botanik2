@@ -46,6 +46,19 @@ namespace Botanik { namespace Logs {
         _writers[--_writerCount] = nullptr; return true;                            // clear the now-vacant last slot
     }
 
+    void Logger::_report_suppressed(LogBucket_t* bucket, PlcIO::LogTopic topic, uint32_t timestamp_ms) {
+        if (bucket->suppressed == 0) return;
+        LogEntry_t entry = {};
+        entry.timestamp = timestamp_ms;
+        entry.level     = PlcIO::LOG_WARNING;
+        entry.topic     = topic;
+        entry.length    = (uint16_t)snprintf(
+            entry.message, sizeof(entry.message),
+            "%u msgs suppressed", (unsigned)bucket->suppressed);
+        for (uint8_t i = 0; i < _writerCount; i++) _writers[i]->push(&entry);
+        bucket->suppressed = 0;
+    }
+
     void Logger::fill_buckets() {
         // XXX: the choice of timer method here determines whether we want to buckets to fill in SLEEP/STOP or not.
         uint32_t _time_ms = HAL::current_ms();
@@ -54,24 +67,11 @@ namespace Botanik { namespace Logs {
         _fill_bucket(&_global_bucket, _global_amount, _global_burst);
         uint32_t _perTopic_amount = (_time_ms - _perTopic_fillTime_ms) / _perTopic_period_ms;
         _perTopic_fillTime_ms += _perTopic_amount * _perTopic_period_ms;
-        for (uint8_t i = 0; i < Config::LOG_TOPIC_MAX; ++i) {
-            _fill_bucket(&_perTopic_buckets[i], _perTopic_amount, _perTopic_burst);
-        }
-        auto emit_suppressed = [&](LogBucket_t* bucket, PlcIO::LogTopic topic) {
-            if (bucket->suppressed == 0) return;
-            LogEntry_t entry = {};
-            entry.timestamp = _time_ms;
-            entry.level     = PlcIO::LOG_WARNING;
-            entry.topic     = topic;
-            entry.length    = (uint16_t)snprintf(
-                entry.message, sizeof(entry.message),
-                "%u msgs suppressed", (unsigned)bucket->suppressed);
-            for (uint8_t i = 0; i < _writerCount; i++) _writers[i]->push(&entry);
-            bucket->suppressed = 0;
-        };
-        emit_suppressed(&_global_bucket, LogTopic::NONE);
         for (uint8_t i = 0; i < Config::LOG_TOPIC_MAX; ++i)
-            emit_suppressed(&_perTopic_buckets[i], (LogTopic)i);
+            _fill_bucket(&_perTopic_buckets[i], _perTopic_amount, _perTopic_burst);
+        _report_suppressed(&_global_bucket, LogTopic::NONE, _time_ms);
+        for (uint8_t i = 0; i < Config::LOG_TOPIC_MAX; ++i)
+            _report_suppressed(&_perTopic_buckets[i], (LogTopic)i, _time_ms);
     }
 
     void Logger::push_entry(const PlcIO::LogEntry_t entry) {
