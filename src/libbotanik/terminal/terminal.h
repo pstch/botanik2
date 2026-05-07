@@ -111,6 +111,9 @@ namespace Botanik { namespace Terminal {
         /** @name Viewport & Page Management
          *  @{ */
 
+        /** @brief Register a page; returns its index, or -1 if the slot array is full */
+        int8_t add_page(Pages::Page* page);
+
         /** @brief Switch to the page at the given index */
         void switch_to(uint8_t index);
 

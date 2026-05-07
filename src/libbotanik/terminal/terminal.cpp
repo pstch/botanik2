@@ -31,6 +31,7 @@ namespace Botanik { namespace Terminal {
 
     // Step through the terminal handling code
     void AnsiTerminal::step() {
+        using Command = InputParser::Command;
         _serial.step();
         while (true) {
             InputEvent& ev = _parser.parse();
@@ -41,6 +42,14 @@ namespace Botanik { namespace Terminal {
                 for (uint16_t i = 0; i < ev.batch_len; i++)
                     page->handle_text(ev.batch_data[i]);
             } else if (ev.type == InputEvent::EventType::COMMAND) {
+                // Terminal-level intercepts — consumed before reaching the page
+                if (ev.command == Command::CTRL_L) { page->focus(); continue; }
+                if (ev.command == Command::HOME)   { switch_to(0);  continue; }
+                if (ev.command >= Command::ALT_1 && ev.command <= Command::ALT_9) {
+                    switch_to((uint8_t)((uint16_t)ev.command - (uint16_t)Command::ALT_1));
+                    continue;
+                }
+                if (ev.command == Command::ALT_0) { switch_to(9); continue; }
                 page->handle_command(ev.command);
             }
         }
@@ -208,6 +217,12 @@ namespace Botanik { namespace Terminal {
 
     uint16_t AnsiTerminal::tx_available() const {
         return _serial.availableForWrite();
+    }
+
+    int8_t AnsiTerminal::add_page(Pages::Page* page) {
+        if (page == nullptr || _pages_len >= 8) return -1;
+        _pages[_pages_len] = page;
+        return (int8_t)(_pages_len++);
     }
 
     void AnsiTerminal::switch_to(uint8_t index) {
