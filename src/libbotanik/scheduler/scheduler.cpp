@@ -1,7 +1,11 @@
+#include <cstdio>
+
 #include "libbotanik_config.h"
 
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/hal/platform.h"
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/plcio/vars.h"
 
 namespace Botanik { namespace Scheduler {
 
@@ -10,11 +14,21 @@ namespace Botanik { namespace Scheduler {
         using Config::CPU_LOAD_EMA_DECAY;
     }
 
-    LoopScheduler::LoopScheduler(uint32_t period_ms)
-        : _period_ms(period_ms) {
+    LoopScheduler::LoopScheduler(uint32_t period_ms, Logs::Logger* logger)
+        : _period_ms(period_ms), _logger(logger) {
             _stack_depth = HAL::get_stack_depth();
             _stack_base = HAL::get_stack_base();
             reset();
+            if (_logger != nullptr) {
+                using namespace PlcIO;
+                LogEntry_t entry = {};
+                entry.timestamp = HAL::current_ms();
+                entry.level     = LOG_INFO;
+                entry.topic     = BOOT;
+                entry.length    = (uint16_t)snprintf(entry.message, sizeof(entry.message),
+                    "scheduler started, period=%ums", (unsigned)_period_ms);
+                _logger->push_entry(entry);
+            }
         }
 
     void LoopScheduler::_measure_work(uint64_t now) {
@@ -92,6 +106,16 @@ namespace Botanik { namespace Scheduler {
         _is_working = true;                     // mark the caller code as running
         _work_start_ms = now;                   // store when the caller work started
         _paint_free_stack();                    // paint free stack for HWM measurement
+        if (_logger != nullptr && (++_tick_count % 1000) == 0) {
+            using namespace PlcIO;
+            LogEntry_t entry = {};
+            entry.timestamp = HAL::current_ms();
+            entry.level     = LOG_DEBUG;
+            entry.topic     = STATUS;
+            entry.length    = (uint16_t)snprintf(entry.message, sizeof(entry.message),
+                "cpu=%u%% stack=%uB", (unsigned)(_cpu_load_ema * 100.0f), (unsigned)_stack_usage);
+            _logger->push_entry(entry);
+        }
         return true;                            // return true so that work can start
     }
 
