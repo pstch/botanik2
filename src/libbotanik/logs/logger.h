@@ -46,7 +46,7 @@ namespace Botanik { namespace Logs {
         /** @brief Unregister a previously added writer; returns false if not found */
         bool remove_writer(LogWriter* writer);
         /** @brief Refill rate-limiting token buckets (call once per main-loop period) */
-        void fill_buckets();
+        void step();
         /** @brief Forward @p entry to all registered writers after rate-limit checks */
         void push_entry(const LogEntry_t entry);
     };

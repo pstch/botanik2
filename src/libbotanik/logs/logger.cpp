@@ -59,7 +59,7 @@ namespace Botanik { namespace Logs {
         bucket->suppressed = 0;
     }
 
-    void Logger::fill_buckets() {
+    void Logger::step() {
         // XXX: the choice of timer method here determines whether we want to buckets to fill in SLEEP/STOP or not.
         uint32_t _time_ms = HAL::current_ms();
         uint32_t _global_amount = (_time_ms - _global_fillTime_ms) / _global_period_ms;
