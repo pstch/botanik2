@@ -17,6 +17,7 @@ namespace Botanik { namespace Network {
         uint32_t                    _last_config_serial;
 
     public:
+        NetworkHandler();
         void step();
     };
 
@@ -28,6 +29,7 @@ namespace Botanik { namespace Network {
 
         uint32_t                    _last_config_serial;
     public:
+        TimeSyncHandler();
         void step();
     };
     // TODO: write TimeSyncHandler
