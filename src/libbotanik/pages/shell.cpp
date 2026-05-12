@@ -62,8 +62,10 @@ namespace Botanik { namespace Pages {
         uint16_t editor_row = (uint16_t)(_terminal.rows() - 2);
         _editor.set_origin(editor_row);
 
-        const char ps1[] = "> ";
+        const char ps1[] = "botanik> ";
         _editor.set_ps1(ps1, sizeof(ps1) - 1);
+        const char ps2[] = "...> ";
+        _editor.set_ps2(ps2, sizeof(ps2) - 1);
 
         _editor.reset();
     }
