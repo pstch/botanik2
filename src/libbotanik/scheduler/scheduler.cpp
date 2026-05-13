@@ -18,6 +18,7 @@ namespace Botanik { namespace Scheduler {
         : _period_ms(period_ms), _logger(logger) {
             _stack_depth = HAL::get_stack_depth();
             _stack_base = HAL::get_stack_base();
+            _context.stack_depth = _stack_depth;
             reset();
             if (_logger != nullptr) {
                 using namespace PlcIO;
@@ -49,6 +50,8 @@ namespace Botanik { namespace Scheduler {
             float alpha = (_cpu_load > _cpu_load_ema) ?
                 CPU_LOAD_EMA_ATTACK : CPU_LOAD_EMA_DECAY;
             _cpu_load_ema = (alpha * _cpu_load) + ((1.0f - alpha) * _cpu_load_ema);
+            _context.cpu_load     = _cpu_load;
+            _context.cpu_load_ema = _cpu_load_ema;
             _measure_stack_usage();
             _is_working = false;
         }
@@ -71,12 +74,25 @@ namespace Botanik { namespace Scheduler {
         float alpha = (_stack_usage_ema < ratio) ?
             Config::STACK_USAGE_EMA_ATTACK : Config::STACK_USAGE_EMA_DECAY;
         _stack_usage_ema = (alpha * ratio) + ((1.0f - alpha) * _stack_usage_ema);
+        _context.stack_usage     = _stack_usage;
+        _context.stack_usage_ema = _stack_usage_ema;
     }
 
     void LoopScheduler::_paint_free_stack() {
         volatile uint8_t sp_marker = 0;
         uint8_t* paint_top = reinterpret_cast<uint8_t*>(const_cast<uint8_t*>(&sp_marker));
-        uint8_t* paint_bot = reinterpret_cast<uint8_t*>(_stack_base - _stack_depth);
+        uint8_t* abs_bottom = reinterpret_cast<uint8_t*>(_stack_base - _stack_depth);
+        // Cap paint region to STACK_SCAN_LIMIT bytes to avoid memset-ing the entire
+        // (Linux: 8 MB) thread stack allocation on every tick.
+        uint8_t* paint_bot  = paint_top - Config::STACK_SCAN_LIMIT;
+        if (paint_bot < abs_bottom) paint_bot = abs_bottom;
+        // memset's own call frame (return address + saved YMM registers) sits between
+        // sp_marker and where memset starts writing. Subtracting 4096 ensures that
+        // frame is never inside [paint_bot, paint_top), so memset's return address
+        // is not overwritten by the paint itself. but :
+        // FIXME: this is not ideal, and we're not sure it will work on the OPTA
+        if (paint_top < abs_bottom + 4096) return;
+        paint_top -= 4096;
         if (paint_top > paint_bot)
             memset(paint_bot, Config::STACK_PAINT_BYTE, paint_top - paint_bot);
     }
@@ -103,20 +119,24 @@ namespace Botanik { namespace Scheduler {
         if (now < _next_tick_ms) return false;  // yield early if idle
         _skip_beats(now);                       // skip missed beats (catch-up)
         _next_tick_ms += _period_ms;            // advance time grid
-        _is_working = true;                     // mark the caller code as running
-        _work_start_ms = now;                   // store when the caller work started
+        _is_working = true;
+        _work_start_ms = now;
+        ++_tick_count;
+        _context.tick_count = _tick_count;
         _paint_free_stack();                    // paint free stack for HWM measurement
-        if (_logger != nullptr && (++_tick_count % 1000) == 0) {
-            using namespace PlcIO;
-            LogEntry_t entry = {};
-            entry.timestamp = HAL::current_ms();
-            entry.level     = LOG_DEBUG;
-            entry.topic     = STATUS;
-            entry.length    = (uint16_t)snprintf(entry.message, sizeof(entry.message),
-                "cpu=%u%% stack=%uB", (unsigned)(_cpu_load_ema * 100.0f), (unsigned)_stack_usage);
-            _logger->push_entry(entry);
-        }
+#ifdef TARGET_SIMULATOR
+        _simulate_busy(now);
+        _work_start_ms = HAL::uptime_ms();      // exclude simulate_busy from the work window
+#endif
         return true;                            // return true so that work can start
     }
+
+#ifdef TARGET_SIMULATOR
+    void LoopScheduler::_simulate_busy(uint64_t tick_start_ms) {
+        uint64_t deadline = tick_start_ms + Config::TASK_BUSY_MIN_MS;
+        while (HAL::uptime_ms() < deadline) {}
+    }
+#endif
+
 
 } }
