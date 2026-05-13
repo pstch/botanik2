@@ -131,7 +131,7 @@ namespace Botanik { namespace Terminal {
         return true;
     }
 
-    void InputEditor::insert_characters(char* buf, uint16_t len) {
+    void InputEditor::insert_characters(const char* buf, uint16_t len) {
         _remove_selection();
         if (len == 0) return;
         if ((_len + len) >= sizeof(_buf)) len = sizeof(_buf) - _len - 1;
@@ -176,7 +176,7 @@ namespace Botanik { namespace Terminal {
         _terminal->set_inverted(false);
     }
 
-    void InputEditor::append_characters(char* buf, uint16_t len) {
+    void InputEditor::append_characters(const char* buf, uint16_t len) {
         if (len == 0) return;
         _pos = _len;
         insert_characters(buf, len);
@@ -238,13 +238,13 @@ namespace Botanik { namespace Terminal {
     }
 
     void InputEditor::move_left() {
-        if (_pos == 0) { _mark_active = false; _sel_anchor = 0; _sel_len = 0; return; }
+        if (_pos == 0) { deselect(); return; }
         _pos--;
         _finalize_move();
     }
 
     void InputEditor::move_right() {
-        if (_pos >= _len) { _mark_active = false; _sel_anchor = 0; _sel_len = 0; return; }
+        if (_pos >= _len) { deselect(); return; }
         _pos++;
         _finalize_move();
     }
@@ -308,7 +308,14 @@ namespace Botanik { namespace Terminal {
         } else if (pressure < cap / 2) {
             // ICH via SM4: write 'pressure' chars in insert mode, opening a gap that
             // pushes the existing on-screen row content right; overflow falls off the edge.
-            uint16_t safe_len = std::min(pressure, (uint16_t)(_len > pos ? _len - pos : 0u));
+            // Cap to the remaining columns: write_chars clamps _hw_pos to _cols-1 when
+            // auto-wrap is off, so a second write at the same clamped column overwrites
+            // the char we just inserted instead of falling off the edge.
+            uint16_t cur_col  = _terminal->cursor_pos().col;
+            uint16_t fits     = (_terminal->cols() > cur_col)
+                                ? (uint16_t)(_terminal->cols() - cur_col) : (uint16_t)0;
+            uint16_t buf_avail = (_len > pos) ? (uint16_t)(_len - pos) : (uint16_t)0;
+            uint16_t safe_len = std::min(pressure, std::min(fits, buf_avail));
             _terminal->write_chars(&_buf[pos], safe_len, /*insert=*/true);
         } else {
             // IL: insert a blank line, pushing old row content down; rewrite the full row.
