@@ -1,4 +1,7 @@
 #include <cstdio>
+#ifdef TARGET_SIMULATOR
+#include <unistd.h>
+#endif
 
 #include "libbotanik_config.h"
 
@@ -34,22 +37,30 @@ namespace Botanik { namespace Scheduler {
 
     void LoopScheduler::_measure_work(uint64_t now) {
         if (_is_working) {
-            // calculate last work duration
-            if (now >= _work_start_ms) {
-                _last_busy_ms = static_cast<uint32_t>(now - _work_start_ms);
+            // calculate last work duration in microseconds for sub-ms precision
+            uint64_t now_us = HAL::uptime_us();
+            if (now_us >= _work_start_us) {
+                _last_busy_us = static_cast<uint32_t>(now_us - _work_start_us);
             } else {
-                // safeguard in case clock ends up not being monotonic
-                _last_busy_ms = 0;
+                _last_busy_us = 0;
             }
-            // measure CPU load
+            // compute instantaneous CPU load
+            float instant = 0.0f;
             if (_period_ms > 0) {
-                _cpu_load = static_cast<float>(_last_busy_ms)/_period_ms;
-                if (_cpu_load > 1.0f) _cpu_load = 1.0f;
+                instant = static_cast<float>(_last_busy_us) / (_period_ms * 1000u);
+                if (instant > 1.0f) instant = 1.0f;
             }
-            // apply asymmetric EMA filter to measured CPU usage
-            float alpha = (_cpu_load > _cpu_load_ema) ?
+            // store in circular window and compute peak
+            _cpu_load_window[_cpu_load_window_idx] = instant;
+            _cpu_load_window_idx = (_cpu_load_window_idx + 1) % Config::CPU_LOAD_WINDOW;
+            float peak = 0.0f;
+            for (uint32_t i = 0; i < Config::CPU_LOAD_WINDOW; ++i)
+                if (_cpu_load_window[i] > peak) peak = _cpu_load_window[i];
+            _cpu_load = peak;
+            // apply asymmetric EMA filter to instantaneous load
+            float alpha = (instant > _cpu_load_ema) ?
                 CPU_LOAD_EMA_ATTACK : CPU_LOAD_EMA_DECAY;
-            _cpu_load_ema = (alpha * _cpu_load) + ((1.0f - alpha) * _cpu_load_ema);
+            _cpu_load_ema = (alpha * instant) + ((1.0f - alpha) * _cpu_load_ema);
             _context.cpu_load     = _cpu_load;
             _context.cpu_load_ema = _cpu_load_ema;
             _measure_stack_usage();
@@ -68,9 +79,15 @@ namespace Botanik { namespace Scheduler {
             if (*(stack_base - mid) == Config::STACK_PAINT_BYTE)    high = mid;
             else                                                    low = mid + 1;
         }
-        // apply asymmetric EMA filter to measured stack usage
-        _stack_usage = low;
+        // store in circular window and compute peak
         float ratio = (_stack_depth > 0) ? static_cast<float>(low) / _stack_depth : 0.0f;
+        _stack_usage_window[_stack_usage_window_idx] = ratio;
+        _stack_usage_window_idx = (_stack_usage_window_idx + 1) % Config::CPU_LOAD_WINDOW;
+        float peak = 0.0f;
+        for (uint32_t i = 0; i < Config::CPU_LOAD_WINDOW; ++i)
+            if (_stack_usage_window[i] > peak) peak = _stack_usage_window[i];
+        _stack_usage = static_cast<uint32_t>(peak * _stack_depth);
+        // apply asymmetric EMA filter to instantaneous usage
         float alpha = (_stack_usage_ema < ratio) ?
             Config::STACK_USAGE_EMA_ATTACK : Config::STACK_USAGE_EMA_DECAY;
         _stack_usage_ema = (alpha * ratio) + ((1.0f - alpha) * _stack_usage_ema);
@@ -108,35 +125,34 @@ namespace Botanik { namespace Scheduler {
     void LoopScheduler::reset() {
         _next_tick_ms = HAL::uptime_ms() + _period_ms;
         _is_working = false;
-        _last_busy_ms = 0;
+        _last_busy_us = 0;
+        memset(_cpu_load_window, 0, sizeof(_cpu_load_window));
+        _cpu_load_window_idx = 0;
         _cpu_load = 0.0f;
         _cpu_load_ema = 0.0f;
+        memset(_stack_usage_window, 0, sizeof(_stack_usage_window));
+        _stack_usage_window_idx = 0;
+        _stack_usage = 0;
+        _stack_usage_ema = 0.0f;
     }
 
     bool LoopScheduler::tick() {
         uint64_t now = HAL::uptime_ms();        // measure current time
         _measure_work(now);                     // measure past work
-        if (now < _next_tick_ms) return false;  // yield early if idle
+        if (now < _next_tick_ms) {               // yield until next tick
+            #ifdef TARGET_SIMULATOR
+            usleep((useconds_t)((_next_tick_ms - now) * 1000));
+            #endif
+            return false;
+        }
         _skip_beats(now);                       // skip missed beats (catch-up)
         _next_tick_ms += _period_ms;            // advance time grid
         _is_working = true;
-        _work_start_ms = now;
         ++_tick_count;
         _context.tick_count = _tick_count;
-        _paint_free_stack();                    // paint free stack for HWM measurement
-#ifdef TARGET_SIMULATOR
-        _simulate_busy(now);
-        _work_start_ms = HAL::uptime_ms();      // exclude simulate_busy from the work window
-#endif
+        // Caller must invoke paint_stack() at user-code depth before starting work.
+        _work_start_us = HAL::uptime_us();
         return true;                            // return true so that work can start
     }
-
-#ifdef TARGET_SIMULATOR
-    void LoopScheduler::_simulate_busy(uint64_t tick_start_ms) {
-        uint64_t deadline = tick_start_ms + Config::TASK_BUSY_MIN_MS;
-        while (HAL::uptime_ms() < deadline) {}
-    }
-#endif
-
 
 } }

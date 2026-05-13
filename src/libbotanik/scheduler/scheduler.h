@@ -11,9 +11,9 @@ namespace Botanik { namespace Scheduler {
 
     /** @brief Stable metrics snapshot consumed by AnsiTerminal for the status bar. */
     struct SchedulerContext {
-        float    cpu_load        = 0.0f;   // instantaneous, fraction 0..1
+        float    cpu_load        = 0.0f;   // peak over CPU_LOAD_WINDOW ticks, fraction 0..1
         float    cpu_load_ema    = 0.0f;
-        uint32_t stack_usage     = 0;      // instantaneous, bytes
+        uint32_t stack_usage     = 0;      // peak over CPU_LOAD_WINDOW ticks, bytes
         float    stack_usage_ema = 0.0f;   // fraction 0..1
         uint32_t stack_depth     = 0;      // total thread stack allocation in bytes
         uint32_t tick_count      = 0;
@@ -26,16 +26,20 @@ namespace Botanik { namespace Scheduler {
         uint64_t    _next_tick_ms           = 0;
         // Timing state to measure the user's external code block
         bool        _is_working             = false;
-        uint64_t    _work_start_ms          = 0;
+        uint64_t    _work_start_us          = 0;
         // CPU usage metrics
-        uint32_t    _last_busy_ms           = 0;
-        float       _cpu_load               = 0.0f;
+        uint32_t    _last_busy_us           = 0;
+        float       _cpu_load_window[Config::CPU_LOAD_WINDOW] = {};
+        uint32_t    _cpu_load_window_idx    = 0;
+        float       _cpu_load               = 0.0f;  // peak over CPU_LOAD_WINDOW ticks
         float       _cpu_load_ema           = 0.0f;
         // Memory usage metrics
-        uint32_t    _stack_depth       = 0;
-        uintptr_t   _stack_base        = 0;
-        uint32_t    _stack_usage       = 0;
-        float       _stack_usage_ema   = 0;
+        uint32_t    _stack_depth            = 0;
+        uintptr_t   _stack_base             = 0;
+        float       _stack_usage_window[Config::CPU_LOAD_WINDOW] = {};
+        uint32_t    _stack_usage_window_idx = 0;
+        uint32_t    _stack_usage            = 0;   // peak over CPU_LOAD_WINDOW ticks, bytes
+        float       _stack_usage_ema        = 0;
         Logs::Logger*   _logger        = nullptr;
         uint32_t        _tick_count    = 0;
         SchedulerContext _context      = {};
@@ -48,10 +52,6 @@ namespace Botanik { namespace Scheduler {
         void _paint_free_stack();
         /** @brief Advance the next-tick anchor to skip missed beats when the loop falls behind. */
         void _skip_beats(uint64_t now);
-#ifdef TARGET_SIMULATOR
-        /** @brief Busy-wait to simulate the OPTA MCU's minimum per-cycle load. */
-        void _simulate_busy(uint64_t tick_start_ms);
-#endif
 
     public:
         /**
@@ -71,6 +71,16 @@ namespace Botanik { namespace Scheduler {
          * @return true exactly ONCE per period when it is time to execute.
          */
         bool tick();
+
+        /**
+         * @brief Paint the free stack below the current SP with STACK_PAINT_BYTE.
+         *
+         * Must be called at the same call-depth as the user work block (i.e. directly
+         * after tick() returns true in the main loop), not from inside a helper. If
+         * called from a deeper frame than the user work the painted boundary will be
+         * below where user work can reach and stack-usage measurement will be stuck.
+         */
+        void paint_stack() { _paint_free_stack(); }
 
         uint32_t get_period() const { return _period_ms; }
 
