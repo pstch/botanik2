@@ -2,11 +2,13 @@
 #define PLCIO_SYNC_H
 
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 
 #include "libbotanik_config.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/plcio/vars.h"
+#include "libbotanik/logs/logger.h"
 
 namespace Botanik { namespace PlcIO {
 
@@ -47,6 +49,8 @@ namespace Botanik { namespace PlcIO {
         uint32_t         _tx_last_ms     = 0;
         uint32_t         _timeout_ms     = Config::PLC_TIMEOUT_MS;
         bool             _ever_ackd      = false;
+        Logs::Logger*    _logger         = nullptr;
+        PlcStatus        _last_status    = PLC_UNKNOWN;
     public:
         void                   write()             { _tx_write = true; }
         const PlcOutputLogs_t* output_logs() const { return &_rx_logs_buffer; }
@@ -62,6 +66,32 @@ namespace Botanik { namespace PlcIO {
             if (elapsed > Config::PLC_WATCHDOG_MS)  return PLC_FAULT;
             if (elapsed > _timeout_ms)              return PLC_TIMEOUT;
                                                     return PLC_RUNNING;
+        }
+
+        void _log_status_change() {
+            if (_logger == nullptr) return;
+            PlcStatus current = status();
+            if (current == _last_status) return;
+            LogEntry_t entry = {};
+            entry.timestamp = *_timestamp_ms;
+            entry.topic     = PLC_IO;
+            if (current == PLC_RUNNING) {
+                entry.level  = (_last_status == PLC_UNKNOWN) ? LOG_INFO : LOG_NOTICE;
+                entry.length = (uint16_t)snprintf(entry.message, sizeof(entry.message),
+                    "PLC link %s", (_last_status == PLC_UNKNOWN) ? "established" : "recovered");
+            } else if (current == PLC_TIMEOUT) {
+                entry.level  = LOG_WARNING;
+                entry.length = (uint16_t)snprintf(entry.message, sizeof(entry.message),
+                    "PLC link timeout");
+            } else if (current == PLC_FAULT) {
+                entry.level  = LOG_ERROR;
+                entry.length = (uint16_t)snprintf(entry.message, sizeof(entry.message),
+                    "PLC watchdog fault");
+            } else {
+                _last_status = current; return;
+            }
+            _last_status = current;
+            _logger->push_entry(entry);
         }
     };
 
@@ -143,11 +173,12 @@ namespace Botanik { namespace PlcIO {
 
     public:
         PlcSyncHandler(PlcInput<InputData>* plcin, PlcOutput<OutputData>* plcout,
-                       uint32_t* timestamp_ms)
+                       uint32_t* timestamp_ms, Logs::Logger* logger = nullptr)
             : _plcin(plcin), _plcout(plcout)
         {
             _ctx._timestamp_ms = timestamp_ms;
             _ctx._tx_last_ms   = *timestamp_ms;
+            _ctx._logger       = logger;
             memset(&_tx_data_buffer, 0, sizeof(InputData));
             memset(&_rx_data_buffer, 0, sizeof(OutputData));
         }
@@ -159,6 +190,7 @@ namespace Botanik { namespace PlcIO {
         inline void step() {
             _rx_state = _rx_step();
             _tx_state = _tx_step();
+            _ctx._log_status_change();
         }
     };
 

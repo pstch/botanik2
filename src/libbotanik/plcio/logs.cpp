@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <algorithm>
 
@@ -9,9 +10,19 @@ namespace Botanik { namespace PlcIO {
     void PlcLogReader::_detect_dropped_entries(const LogEntry_t* entry) {
         if (_last_seq == 0) { _last_seq = entry->seqNum; return; }
         uint16_t expected = (uint16_t)(_last_seq + 1);
+        if (entry->seqNum != expected) {
+            uint16_t dropped = (uint16_t)(entry->seqNum - expected);
+            _dropped += dropped;
+            LogEntry_t warn = {};
+            warn.timestamp = entry->timestamp;
+            warn.level     = LOG_WARNING;
+            warn.topic     = PLC_IO;
+            warn.length    = (uint16_t)snprintf(warn.message, sizeof(warn.message),
+                "%u PLC log entries dropped (seq %u..%u)",
+                (unsigned)dropped, (unsigned)expected, (unsigned)(entry->seqNum - 1));
+            _logger->push_entry(warn);
+        }
         _last_seq = entry->seqNum;
-        if (entry->seqNum == expected) return;
-        _dropped += (uint16_t)(entry->seqNum - expected);
     }
 
     void PlcLogReader::_push_plc_entry(const LogEntry_t* plcEntry) {
