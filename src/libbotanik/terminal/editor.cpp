@@ -83,9 +83,14 @@ namespace Botanik { namespace Terminal {
     }
 
     void InputEditor::reset() {
-        _terminal->move_to({_origin, 0});
-        set_contents("", 0);
+        // Clear all occupied rows before snapping origin back to the last row.
+        // This is necessary when origin drifted up during multi-row editing:
+        // without it, subsequent write() calls use the wrong last_log_row.
+        for (uint16_t i = 0; i < _occupied; i++)
+            _terminal->clear_row(_origin + i);
+        _origin   = (uint16_t)(_terminal->rows() - 1);
         _occupied = 1;
+        set_contents("", 0);
     }
 
     void InputEditor::remove_characters(uint16_t len) {

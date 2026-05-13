@@ -7,6 +7,7 @@
 
 #include <cstdint>
 
+#include "libbotanik_config.h"
 #include "libbotanik/utils/serial.h"
 #include "libbotanik/terminal/terminal.h"
 
@@ -162,6 +163,11 @@ namespace Botanik { namespace Terminal {
         /** @brief Length of the PS1 prompt */
         uint16_t ps1_len() const { return _ps1_len; }
 
+        /** @brief Read-only view of the PS2 prompt */
+        const char* ps2() const { return _ps2_buf; }
+        /** @brief Length of the PS2 prompt */
+        uint16_t ps2_len() const { return _ps2_len; }
+
         /** @} */
 
     private:
@@ -180,7 +186,7 @@ namespace Botanik { namespace Terminal {
 
         AnsiTerminal*       _terminal;          /**< Reference to the parent terminal */
 
-        char                _buf[512];          /**< Input contents */
+        char                _buf[Config::SHELL_INPUT_LEN]; /**< Input contents */
         uint16_t            _len = 0;           /**< Input length */
         uint16_t            _pos = 0;           /**< Current position in input */
 

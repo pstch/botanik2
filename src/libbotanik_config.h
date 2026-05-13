@@ -121,6 +121,9 @@ namespace Botanik { namespace Config {
      * @{
      */
 
+    /** @brief Maximum length of the shell input buffer (bytes) */
+    static constexpr uint16_t SHELL_INPUT_LEN = 512;
+
     /** @brief Number of command history entries to retain */
     static constexpr uint8_t  SHELL_HISTORY_SIZE  = 8;
 
