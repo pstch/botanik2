@@ -9,7 +9,6 @@
 
 namespace Botanik { namespace Terminal {
 
-    /* TODO */
     struct InputEvent {
         // Input event type
         enum class EventType {
@@ -53,7 +52,6 @@ namespace Botanik { namespace Terminal {
         uint8_t  value = 0;
     };
 
-    /* TODO */
     class InputParser {
     private:
         using BufferedSerial = Utils::BufferedSerial;
