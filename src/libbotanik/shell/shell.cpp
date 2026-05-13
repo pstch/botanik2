@@ -1,6 +1,9 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#ifdef TARGET_SIMULATOR
+#include <csignal>
+#endif
 
 #include "libbotanik_config.h"
 #include "libbotanik/hal/platform.h"
@@ -38,11 +41,18 @@ namespace Botanik { namespace Shell {
         int  n = 0;
 
         if (len == 4 && strncmp(cmd, "help", 4) == 0) {
-            n = snprintf(out, sizeof(out), "Commands: help, clear, stats");
+            n = snprintf(out, sizeof(out), "Commands: help, clear, stats, breakpoint");
         } else if (len == 5 && strncmp(cmd, "clear", 5) == 0) {
             _output.clear();
             for (uint16_t row = 1; row <= _terminal.rows() - 2; row++)
                 _terminal.clear_row(row);
+            return;
+        } else if (len == 10 && strncmp(cmd, "breakpoint", 10) == 0) {
+#ifdef TARGET_SIMULATOR
+            raise(SIGTRAP);
+#else
+            __BKPT(0);
+#endif
             return;
         } else if (len == 5 && strncmp(cmd, "stats", 5) == 0) {
             Scheduler::SchedulerContext* ctx = _terminal.sched_ctx();
