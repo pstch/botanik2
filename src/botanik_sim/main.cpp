@@ -124,6 +124,7 @@ int main() {
         timestamp_ms = (uint32_t)HAL::uptime_ms();
 
         if (!scheduler.tick()) continue;
+        scheduler.paint_stack();
 
         console_serial.step();
         monitor_serial.step();
