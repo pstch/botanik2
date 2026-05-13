@@ -14,9 +14,14 @@
 #include <pthread.h>
 
 // internal helpers to simplify the timer functions
+inline std::chrono::steady_clock::time_point _process_start() {
+    static const auto t0 = std::chrono::steady_clock::now();
+    return t0;
+}
+
 template <typename T>
 inline uint64_t _now_as() {
-    std::chrono::nanoseconds duration = std::chrono::steady_clock::now().time_since_epoch();
+    auto duration = std::chrono::steady_clock::now() - _process_start();
     return (uint64_t)std::chrono::duration_cast<T>(duration).count();
 }
 
