@@ -239,7 +239,7 @@ namespace Botanik { namespace Terminal {
         uint16_t _get_row_cap(uint16_t row) const;
 
         /** @brief Look for a newline at the given position in the input buffer. */
-        inline uint16_t _is_newline(uint16_t pos) const {
+        inline bool _is_newline(uint16_t pos) const {
             return _buf[pos] == '\n';
         }
 
