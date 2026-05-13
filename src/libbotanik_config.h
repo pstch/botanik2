@@ -27,7 +27,7 @@ namespace Botanik { namespace Config {
 
     /** @brief Number of ticks over which the peak CPU load is tracked.
      *  Also controls how often the terminal status row is refreshed. */
-    static constexpr uint32_t CPU_LOAD_WINDOW = 100;
+    static constexpr uint32_t CPU_LOAD_WINDOW = 200;
 
     /** @brief Exponential Moving Average attack (rise) factor for CPU load */
     static constexpr float CPU_LOAD_EMA_ATTACK = 1.00f;
