@@ -104,10 +104,10 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Insert the given characters at the current position.
          *         If a selection is active, it is replaced by the inserted text. */
-        void insert_characters(char* buf, uint16_t len);
+        void insert_characters(const char* buf, uint16_t len);
 
         /** @brief Append the given characters at the current position */
-        void append_characters(char* buf, uint16_t len);
+        void append_characters(const char* buf, uint16_t len);
 
         /** @brief Replace the given characters at the current position */
         void replace_characters(char* buf, uint16_t len);
