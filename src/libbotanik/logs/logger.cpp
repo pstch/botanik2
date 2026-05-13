@@ -32,18 +32,20 @@ namespace Botanik { namespace Logs {
     }
 
     bool Logger::add_writer(LogWriter* writer) {
-        if (writer == nullptr || _writerCount >= Config::LOG_WRITERS_MAX) return false;    // bail out if given a nullpointer or if the writer list is full
-        for (uint8_t i = 0; i < _writerCount; i++) if (_writers[i] == writer) return true; // check for duplicates
-        _writers[_writerCount++] = writer; return true;                            // store the pointer and increment writer count
+        if (writer == nullptr || _writerCount >= Config::LOG_WRITERS_MAX) return false;
+        for (uint8_t i = 0; i < _writerCount; i++) if (_writers[i] == writer) return true;
+        _writers[_writerCount++] = writer;
+        return true;
     }
 
     bool Logger::remove_writer(LogWriter* writer) {
-        // do some checks and find the writer's current index
-        if (writer == nullptr || _writerCount == 0) return false;                   // bail out if given a nullpointer of if we have no writers
-        uint8_t i = 0; while (i < _writerCount && _writers[i] != writer) i++;       // find the index of the given writer
-        if (i == _writerCount) return false;                                        // bail out if no writer was found
-        for (uint8_t j = i; j < _writerCount - 1; ++j) _writers[j] = _writers[j+1]; // shift subsequent writers left to fill the gap
-        _writers[--_writerCount] = nullptr; return true;                            // clear the now-vacant last slot
+        if (writer == nullptr || _writerCount == 0) return false;
+        uint8_t i = 0;
+        while (i < _writerCount && _writers[i] != writer) i++;
+        if (i == _writerCount) return false;
+        for (uint8_t j = i; j < _writerCount - 1; ++j) _writers[j] = _writers[j + 1];
+        _writers[--_writerCount] = nullptr;
+        return true;
     }
 
     void Logger::_report_suppressed(LogBucket_t* bucket, PlcIO::LogTopic topic, uint32_t timestamp_ms) {
@@ -60,20 +62,19 @@ namespace Botanik { namespace Logs {
     }
 
     void Logger::step() {
-        // XXX: the choice of timer method here determines whether we want to buckets to fill in SLEEP/STOP or not.
-        uint32_t _time_ms = HAL::current_ms();
-        uint32_t _global_amount = (_time_ms - _global_fillTime_ms) / _global_period_ms;
-        _global_fillTime_ms += _global_amount * _global_period_ms;
-        _fill_bucket(&_global_bucket, _global_amount, _global_burst);
-        if (_global_amount > 0)
-            _report_suppressed(&_global_bucket, LogTopic::NONE, _time_ms);
-        uint32_t _perTopic_amount = (_time_ms - _perTopic_fillTime_ms) / _perTopic_period_ms;
-        _perTopic_fillTime_ms += _perTopic_amount * _perTopic_period_ms;
+        uint32_t now_ms         = HAL::current_ms();
+        uint32_t global_amount  = (now_ms - _global_fillTime_ms) / _global_period_ms;
+        _global_fillTime_ms    += global_amount * _global_period_ms;
+        _fill_bucket(&_global_bucket, global_amount, _global_burst);
+        if (global_amount > 0)
+            _report_suppressed(&_global_bucket, LogTopic::NONE, now_ms);
+        uint32_t topic_amount   = (now_ms - _perTopic_fillTime_ms) / _perTopic_period_ms;
+        _perTopic_fillTime_ms  += topic_amount * _perTopic_period_ms;
         for (uint8_t i = 0; i < Config::LOG_TOPIC_MAX; ++i)
-            _fill_bucket(&_perTopic_buckets[i], _perTopic_amount, _perTopic_burst);
-        if (_perTopic_amount > 0)
+            _fill_bucket(&_perTopic_buckets[i], topic_amount, _perTopic_burst);
+        if (topic_amount > 0)
             for (uint8_t i = 0; i < Config::LOG_TOPIC_MAX; ++i)
-                _report_suppressed(&_perTopic_buckets[i], (LogTopic)i, _time_ms);
+                _report_suppressed(&_perTopic_buckets[i], (LogTopic)i, now_ms);
     }
 
     void Logger::push_entry(const PlcIO::LogEntry_t& entry) {
