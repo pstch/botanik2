@@ -79,6 +79,7 @@ namespace Botanik { namespace Pages {
         // Page interface
         const char* name() const override { return "SHELL"; }
         void handle_text(char c) override;
+        void handle_text_batch(const char* buf, uint16_t len) override;
         void handle_command(Command cmd) override;
         void deactivate() override;
         void focus() override;

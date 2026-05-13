@@ -40,6 +40,8 @@ namespace Botanik { namespace Pages {
     }
 
     void ShellPage::_drain_redraw_row() {
+        // TODO: remove the partial redraw complexity, we rely on our TX buffer to be big enough 
+        //       to avoid the code completexity inherent to partial redraws
         if (_redraw_i == UINT16_MAX) return;
         if (_terminal.tx_available() < Config::SHELL_SCROLLBACK_LINE_LEN + 16) return;
         auto saved = _terminal.cursor_pos();
@@ -61,6 +63,8 @@ namespace Botanik { namespace Pages {
         }
     }
 
+    // TODO: we should be able to preserve the editor when doing this, without
+    //       needing to redraw() it
     size_t ShellPage::write(const char* buf, size_t len) {
         _store_line(buf, len);
 
@@ -126,7 +130,8 @@ namespace Botanik { namespace Pages {
         drain();
     }
 
-    // TODO: review code complexity
+    // TODO: is this required to echo the executed command ? can't we just rely on it 
+    //       being already present on the screen ?
     void ShellPage::_echo_command(const char* cmd, uint16_t cmd_len, uint16_t old_occ) {
         uint16_t cols    = (uint16_t)_terminal.cols();
         uint16_t rows    = (uint16_t)_terminal.rows();
@@ -175,6 +180,10 @@ namespace Botanik { namespace Pages {
 
     void ShellPage::handle_text(char c) {
         _editor.insert_characters(&c, 1);
+    }
+
+    void ShellPage::handle_text_batch(const char* buf, uint16_t len) {
+        _editor.insert_characters(buf, len);
     }
 
     void ShellPage::handle_command(Command cmd) {
