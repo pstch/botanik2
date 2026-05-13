@@ -44,6 +44,8 @@ namespace Botanik { namespace Terminal {
     }
 
     bool InputParser::_should_flush_text() const {
+        // Flush when TX is idle (no rendering in progress, i.e. no back-pressure)
+        // or when the safety timeout has elapsed (last resort against stale batches).
         return  (_state == State::TEXT && _text_len > 0) &&
                 (_serial.tx_empty() || _is_safety_timeout_elapsed());
     }
@@ -80,7 +82,8 @@ namespace Botanik { namespace Terminal {
 
     InputParser::State InputParser::_handle_sep(uint8_t b) {
         _event.command = _map_sep_to_command(b);
-        _event.type = EventType::COMMAND;
+        if (_event.command != Command::NONE)
+            _event.type = EventType::COMMAND;
         return State::IDLE;
     }
 

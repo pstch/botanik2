@@ -144,12 +144,6 @@ namespace Botanik { namespace Terminal {
 
     };
 
-    class BotanikTerminal : AnsiTerminal {
-    public:
-        BotanikTerminal();
-    };
-
-
 }}
 
 #endif // TERMINAL_TERMINAL_H

@@ -180,11 +180,11 @@ namespace Botanik { namespace Terminal {
 
     // Erase an entire row
     void AnsiTerminal::clear_row(uint16_t row_to_clear) {
-        CursorPos original_pos = _hw_pos; // Store original position
-        move_to({row_to_clear, 0});       // Move to the beginning of the target row
-        _serial.write(Ansi::CSI, strlen(Ansi::CSI));
-        _serial.write("2K", 2);           // Emit ESC[2K to clear the entire line
-        move_to(original_pos);            // Restore original cursor position
+        CursorPos original_pos = _hw_pos;
+        move_to({row_to_clear, 0});
+        _serial.write(Ansi::CSI, sizeof(Ansi::CSI) - 1);
+        _serial.write("2K", 2);
+        move_to(original_pos);
     }
 
     // Emit a line feed
@@ -226,12 +226,12 @@ namespace Botanik { namespace Terminal {
     // Set/clear reverse-video character attribute
     void AnsiTerminal::set_inverted(bool enable) {
         if (enable && !_hw_inverted) {
-            _serial.write(Ansi::CSI, strlen(Ansi::CSI));
-            _serial.write(Ansi::ATTR_NEG, strlen(Ansi::ATTR_NEG));
+            _serial.write(Ansi::CSI,      sizeof(Ansi::CSI)      - 1);
+            _serial.write(Ansi::ATTR_NEG, sizeof(Ansi::ATTR_NEG) - 1);
             _hw_inverted = true;
         } else if (!enable && _hw_inverted) {
-            _serial.write(Ansi::CSI, strlen(Ansi::CSI));
-            _serial.write(Ansi::ATTR_NONE, strlen(Ansi::ATTR_NONE));
+            _serial.write(Ansi::CSI,       sizeof(Ansi::CSI)       - 1);
+            _serial.write(Ansi::ATTR_NONE, sizeof(Ansi::ATTR_NONE) - 1);
             _hw_inverted = false;
         }
     }
@@ -274,21 +274,19 @@ namespace Botanik { namespace Terminal {
         // Left: page name
         const char* pg = (_pages_len > 0 && _pages[_page_index] != nullptr)
                          ? _pages[_page_index]->name() : "";
-        _serial.write(" ", 1);  _hw_pos.col++;
-        uint16_t pg_len = (uint16_t)strlen(pg);
-        _serial.write(pg, pg_len); _hw_pos.col += pg_len;
-        _serial.write(" ", 1);  _hw_pos.col++;
+        write_chars(" ", 1);
+        write_chars(pg, (uint16_t)strlen(pg));
+        write_chars(" ", 1);
 
         // Middle: spaces up to metrics start column
         uint16_t metrics_col = (_cols > (uint16_t)(mlen)) ? (uint16_t)(_cols - mlen) : 0;
-        while (_hw_pos.col < metrics_col) {
-            _serial.write(" ", 1); _hw_pos.col++;
-        }
+        while (_hw_pos.col < metrics_col)
+            write_chars(" ", 1);
 
         // Right: metrics (truncate if terminal is very narrow)
         uint16_t remaining = (_cols > _hw_pos.col) ? (_cols - _hw_pos.col) : 0;
         uint16_t write_len = (uint16_t)std::min((int)remaining, mlen);
-        if (write_len > 0) { _serial.write(metrics, write_len); _hw_pos.col += write_len; }
+        if (write_len > 0) write_chars(metrics, write_len);
 
         // Restore state
         set_inverted(saved_inv);

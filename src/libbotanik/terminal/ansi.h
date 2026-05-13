@@ -28,38 +28,38 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     };
 
     // ESC
-    static const char* ESC = "\x1B";
+    static constexpr char ESC[] = "\x1B";
 
     // Minitel special keys prefix
-    static const char* SEP = "\x13";
+    static constexpr char SEP[] = "\x13";
 
     // X3.64 CSI prefix
-    static const char* CSI  = "\x1B[";     // CSI
+    static constexpr char CSI[]  = "\x1B[";
 
     // Mode Settings
-    static const char* SM4  = "4h"; // Set Mode 4: Insertion
-    static const char* RM4  = "4l"; // Reset Mode 4: Replacement (Overwrite)
+    static constexpr char SM4[]  = "4h"; // Set Mode 4: Insertion
+    static constexpr char RM4[]  = "4l"; // Reset Mode 4: Replacement (Overwrite)
 
     // DEC private mode sequences (CSI ? ...)
-    static const char* DECAWM_SET   = "?7h"; // Enable auto-wrap (default)
-    static const char* DECAWM_RESET = "?7l"; // Disable auto-wrap
+    static constexpr char DECAWM_SET[]   = "?7h"; // Enable auto-wrap (default)
+    static constexpr char DECAWM_RESET[] = "?7l"; // Disable auto-wrap
 
-    static const char* ATTR_NEG  = "7m"; // Negative image SGR
-    static const char* ATTR_NONE  = "m"; // Normal text SGR
+    static constexpr char ATTR_NEG[]  = "7m"; // Negative image SGR
+    static constexpr char ATTR_NONE[] = "m";  // Normal text SGR
 
     // Movement
-    static const char* CUU  = "A";  // Cursor Up
-    static const char* CUD  = "B";  // Cursor Down
-    static const char* CUF  = "C";  // Cursor Forward (Right)
-    static const char* CUB  = "D";  // Cursor Backward (Left)
-    static const char* MOVE  = "H";  // Cursor Move
+    static constexpr char CUU[] = "A";  // Cursor Up
+    static constexpr char CUD[] = "B";  // Cursor Down
+    static constexpr char CUF[] = "C";  // Cursor Forward (Right)
+    static constexpr char CUB[] = "D";  // Cursor Backward (Left)
+    static constexpr char MOVE[] = "H"; // Cursor Move
 
     // Content modification
-    static const char* ED   = "J";  // Erase in Display
-    static const char* IL   = "L";  // Insert Line
-    static const char* DL   = "M";  // Delete Line
-    static const char* DCH  = "P";  // Delete Character
-    static const char* EL   = "K";  // Erase in Line (Cursor to EOL)
+    static constexpr char ED[]  = "J";  // Erase in Display
+    static constexpr char IL[]  = "L";  // Insert Line
+    static constexpr char DL[]  = "M";  // Delete Line
+    static constexpr char DCH[] = "P";  // Delete Character
+    static constexpr char EL[]  = "K";  // Erase in Line (Cursor to EOL)
 
     // Write a 16-bit integer as its decimal representation
     void write_uint16(BufferedSerial& _serial, uint16_t val);

@@ -94,9 +94,9 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     void set_auto_wrap(BufferedSerial& _serial, bool enable) {
-        _serial.write(CSI, 2);
-        if (enable) _serial.write(DECAWM_SET,   4);
-        else        _serial.write(DECAWM_RESET,  4);
+        _serial.write(CSI, sizeof(CSI) - 1);
+        if (enable) _serial.write(DECAWM_SET,   sizeof(DECAWM_SET)   - 1);
+        else        _serial.write(DECAWM_RESET,  sizeof(DECAWM_RESET) - 1);
     }
 
     bool is_printable(char chr) {
