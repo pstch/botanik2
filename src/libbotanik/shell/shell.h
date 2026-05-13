@@ -19,6 +19,7 @@ namespace Botanik { namespace Shell {
      */
     struct ShellWriter {
         virtual size_t write(const char* buf, size_t len) = 0;
+        virtual void   clear() {}
     };
 
     /**
@@ -39,6 +40,9 @@ namespace Botanik { namespace Shell {
 
         /** @brief Snapshot the editor buffer, reset the editor, dispatch the command */
         void submit();
+
+        /** @brief Dispatch a pre-snapshotted command (caller owns snapshot and reset) */
+        void run(const char* cmd, uint16_t len);
 
         /** @brief Load previous history entry — stub, not yet implemented */
         void history_prev() {}

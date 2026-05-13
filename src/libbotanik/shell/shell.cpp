@@ -16,13 +16,15 @@ namespace Botanik { namespace Shell {
     {}
 
     void CommandShell::submit() {
-        char     cmd[Config::SHELL_HISTORY_ENTRY];
+        char     cmd[Config::SHELL_INPUT_LEN];
         uint16_t len = std::min(_editor.buffer_len(), (uint16_t)(sizeof(cmd) - 1));
         memcpy(cmd, _editor.buffer(), len);
         cmd[len] = '\0';
-
         _editor.reset();
+        run(cmd, len);
+    }
 
+    void CommandShell::run(const char* cmd, uint16_t len) {
         if (len == 0) return;
         dispatch(cmd, len);
     }
@@ -38,6 +40,7 @@ namespace Botanik { namespace Shell {
         if (len == 4 && strncmp(cmd, "help", 4) == 0) {
             n = snprintf(out, sizeof(out), "Commands: help, clear, stats");
         } else if (len == 5 && strncmp(cmd, "clear", 5) == 0) {
+            _output.clear();
             for (uint16_t row = 1; row <= _terminal.rows() - 2; row++)
                 _terminal.clear_row(row);
             return;
