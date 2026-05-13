@@ -51,22 +51,6 @@ namespace Botanik { namespace PlcIO {
         bool             _ever_ackd      = false;
         Logs::Logger*    _logger         = nullptr;
         PlcStatus        _last_status    = PLC_UNKNOWN;
-    public:
-        void                   write()             { _tx_write = true; }
-        const PlcOutputLogs_t* output_logs() const { return &_rx_logs_buffer; }
-        PlcInputLogs_t*        input_logs()        { return &_tx_logs_buffer; }
-
-        bool timed_out() const {
-            return *_timestamp_ms - _tx_last_ms > _timeout_ms;
-        }
-
-        PlcStatus status() const {
-            uint32_t elapsed = *_timestamp_ms - _tx_last_ms;
-            if (!_ever_ackd)                        return PLC_UNKNOWN;
-            if (elapsed > Config::PLC_WATCHDOG_MS)  return PLC_FAULT;
-            if (elapsed > _timeout_ms)              return PLC_TIMEOUT;
-                                                    return PLC_RUNNING;
-        }
 
         void _log_status_change() {
             if (_logger == nullptr) return;
@@ -92,6 +76,23 @@ namespace Botanik { namespace PlcIO {
             }
             _last_status = current;
             _logger->push_entry(entry);
+        }
+
+    public:
+        void                   write()             { _tx_write = true; }
+        const PlcOutputLogs_t* output_logs() const { return &_rx_logs_buffer; }
+        PlcInputLogs_t*        input_logs()        { return &_tx_logs_buffer; }
+
+        bool timed_out() const {
+            return *_timestamp_ms - _tx_last_ms > _timeout_ms;
+        }
+
+        PlcStatus status() const {
+            uint32_t elapsed = *_timestamp_ms - _tx_last_ms;
+            if (!_ever_ackd)                        return PLC_UNKNOWN;
+            if (elapsed > Config::PLC_WATCHDOG_MS)  return PLC_FAULT;
+            if (elapsed > _timeout_ms)              return PLC_TIMEOUT;
+                                                    return PLC_RUNNING;
         }
     };
 
