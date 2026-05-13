@@ -132,8 +132,6 @@ int main() {
         logger.step();
         terminal.step();
 
-        terminal.step();
-
         plc_handler.step();
         plc_log_reader.step();
     }
