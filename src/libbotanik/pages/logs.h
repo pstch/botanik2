@@ -26,8 +26,6 @@ namespace Botanik { namespace Pages {
 
         uint16_t _scroll_offset = 0;  // not yet used; placeholder for scrollback
 
-        void _draw_header();
-
         // BufferedLogWriter interface
         size_t format(const LogEntry_t* entry, char* buf, size_t len) override;
         size_t write(const char* buf, size_t len) override;
@@ -36,6 +34,7 @@ namespace Botanik { namespace Pages {
         LogsPage(Terminal::AnsiTerminal& terminal);
 
         // Page interface
+        const char* name() const override { return "LOGS"; }
         void handle_text(char c) override;
         void handle_command(Command cmd) override;
         void deactivate() override;

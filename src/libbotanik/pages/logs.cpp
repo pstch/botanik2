@@ -10,15 +10,6 @@ namespace Botanik { namespace Pages {
         _terminal(terminal)
     {}
 
-    void LogsPage::_draw_header() {
-        _terminal.move_to({0, 0});
-        _terminal.set_inverted(true);
-        const char header[] = " LOGS ";
-        _terminal.write_chars(header, sizeof(header) - 1);
-        _terminal.clear_to_eol();
-        _terminal.set_inverted(false);
-    }
-
     size_t LogsPage::format(const LogEntry_t* entry, char* buf, size_t len) {
         return Logs::format_log_entry(entry, buf, len);
     }
@@ -44,8 +35,6 @@ namespace Botanik { namespace Pages {
 
     void LogsPage::focus() {
         _terminal.set_auto_wrap(true);
-        _terminal.clear_screen();
-        _draw_header();
     }
 
     void LogsPage::tick() {
@@ -58,7 +47,11 @@ namespace Botanik { namespace Pages {
 
     void LogsPage::handle_command(Command cmd) {
         switch (cmd) {
-            case Command::ENTER:     focus();  break;   // redraw
+            case Command::ENTER:
+                _terminal.clear_screen();
+                focus();
+                _terminal.draw_status_row();
+                break;
             case Command::PAGE_UP:   break;             // TODO: scrollback
             case Command::PAGE_DOWN: break;             // TODO: scrollback
             default: break;
