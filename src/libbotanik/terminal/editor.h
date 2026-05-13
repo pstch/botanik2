@@ -242,6 +242,10 @@ namespace Botanik { namespace Terminal {
          *  @return true if a non-empty selection was removed, false otherwise. */
         bool _remove_selection();
 
+        /** @brief Common tail for all move operations: update the selection or clear
+         *         it, then physically move the cursor to _pos. */
+        void _finalize_move();
+
         /** @brief Scan a row to find the end of the line,
          *         and whether it's a soft or hard line-break.
          */
