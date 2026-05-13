@@ -12,6 +12,9 @@ namespace Botanik { namespace Pages {
     public:
         virtual ~Page() {}
 
+        /** @brief Short name shown in the status bar (e.g. "SHELL") */
+        virtual const char* name() const = 0;
+
         /** @brief Handle a single printable character from the user */
         virtual void handle_text(char c) = 0;
         /** @brief Handle a decoded control command from the user */
@@ -19,8 +22,10 @@ namespace Botanik { namespace Pages {
 
         /** @brief Called when this page is about to be replaced by another page */
         virtual void deactivate() = 0;
-        /** @brief Called when this page becomes active */
+        /** @brief Called when this page becomes active (screen already cleared) */
         virtual void focus() = 0;
+        /** @brief Redraw the page in-place preserving input state (Ctrl+L). Default delegates to focus(). */
+        virtual void redraw() { focus(); }
         /** @brief Called every main-loop tick to update display and state */
         virtual void tick() = 0;
     };
