@@ -58,14 +58,17 @@ namespace Botanik { namespace Pages {
 
         _store_line(buf, len);
 
-        uint16_t last_log_row = (uint16_t)(_terminal.rows() - 2);
-        uint16_t editor_row   = (uint16_t)(_terminal.rows() - 1);
+        uint16_t rows     = (uint16_t)_terminal.rows();
+        uint16_t occupied = _editor.occupied_rows();
+        // The log area ends at the row just above the editor (which may be >1 row).
+        uint16_t last_log_row = (uint16_t)(rows - 1 - occupied);
 
-        // Clear the editor row so DL doesn't displace live content into it
-        _terminal.clear_row(editor_row);
+        // Clear all editor rows before DL so their content doesn't corrupt the log.
+        for (uint16_t r = (uint16_t)(rows - occupied); r < rows; r++)
+            _terminal.clear_row(r);
 
         // Scroll log area: DL at row 1 shifts rows [1..N-1] up by one.
-        // Row 0 (header) is unaffected; old editor rows (now blank) shift off.
+        // Row 0 (header) is unaffected; cleared editor rows pull blank rows in.
         _terminal.move_to({1, 0});
         _terminal.delete_rows(1);
 
@@ -91,8 +94,10 @@ namespace Botanik { namespace Pages {
         _editor.set_ps2(ps2, sizeof(ps2) - 1);
     }
 
-    void ShellPage::focus() {
+    void ShellPage::_full_redraw() {
         _setup_editor();
+        // Pull origin up so a multi-row prompt redraws without triggering a scroll
+        // that would push the freshly-drawn status bar (row 0) off screen.
         uint16_t occ = _editor.occupied_rows();
         if (occ > 1) {
             uint16_t rows   = (uint16_t)_terminal.rows();
@@ -103,19 +108,8 @@ namespace Botanik { namespace Pages {
         _editor.redraw(true);
     }
 
-    void ShellPage::redraw() {
-        _setup_editor();
-        // Pull origin up so a multi-row prompt redraws without triggering a scroll
-        // that would push the freshly-drawn status bar (row 0) off screen.
-        uint16_t occ = _editor.occupied_rows();
-        if (occ > 1) {
-            uint16_t rows = (uint16_t)_terminal.rows();
-            uint16_t origin = (uint16_t)(rows - occ);
-            _editor.set_origin(origin > 0 ? origin : 1);
-        }
-        _redraw_log();
-        _editor.redraw(true);
-    }
+    void ShellPage::focus()  { _full_redraw(); }
+    void ShellPage::redraw() { _full_redraw(); }
 
     void ShellPage::tick() {
         _drain_redraw_row();
@@ -124,6 +118,33 @@ namespace Botanik { namespace Pages {
         // and corrupt the display.
         if (_redraw_i != UINT16_MAX) return;
         drain();
+    }
+
+    void ShellPage::_echo_command(const char* cmd, uint16_t cmd_len) {
+        uint16_t cols = (uint16_t)_terminal.cols();
+        char     echo[Config::SHELL_SCROLLBACK_LINE_LEN];
+        uint16_t pos = 0;
+        for (uint16_t row = 0; ; row++) {
+            bool        first = (row == 0);
+            const char* pstr  = first ? _editor.ps1()     : _editor.ps2();
+            uint16_t    plen  = first ? _editor.ps1_len() : _editor.ps2_len();
+            uint16_t    cap   = cols - plen;
+            uint16_t    rlen  = 0;
+            while (rlen < cap && pos + rlen < cmd_len && cmd[pos + rlen] != '\n') rlen++;
+            uint16_t elen = std::min((uint16_t)(plen + rlen), (uint16_t)sizeof(echo));
+            memcpy(echo, pstr, std::min(plen, elen));
+            if (plen < elen) memcpy(echo + plen, cmd + pos, elen - plen);
+            write(echo, elen);
+            bool hard = (pos + rlen < cmd_len) && (cmd[pos + rlen] == '\n');
+            pos += rlen + (hard ? 1 : 0);
+            if (pos >= cmd_len) break;
+        }
+    }
+
+    void ShellPage::clear() {
+        _log_head  = 0;
+        _log_count = 0;
+        _redraw_i  = UINT16_MAX;
     }
 
     void ShellPage::deactivate() {}
@@ -136,16 +157,13 @@ namespace Botanik { namespace Pages {
         switch (cmd) {
             // Submit / cancel
             case Command::ENTER: {
-                // Echo "PS1 + command" to the log area before dispatching
-                char echo[Config::SHELL_SCROLLBACK_LINE_LEN];
-                uint16_t ps1_len = _editor.ps1_len();
-                uint16_t buf_len = _editor.buffer_len();
-                uint16_t total   = (uint16_t)std::min((size_t)(ps1_len + buf_len), sizeof(echo));
-                memcpy(echo, _editor.ps1(), ps1_len);
-                if (buf_len > 0)
-                    memcpy(echo + ps1_len, _editor.buffer(), total - ps1_len);
-                write(echo, total);
-                _shell.submit();
+                char cmd[Config::SHELL_INPUT_LEN];
+                uint16_t cmd_len = std::min(_editor.buffer_len(), (uint16_t)(sizeof(cmd) - 1));
+                memcpy(cmd, _editor.buffer(), cmd_len);
+                cmd[cmd_len] = '\0';
+                _editor.reset();
+                _echo_command(cmd, cmd_len);
+                if (cmd_len > 0) _shell.run(cmd, cmd_len);
                 break;
             }
             case Command::CTRL_C:

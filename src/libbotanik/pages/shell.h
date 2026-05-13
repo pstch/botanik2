@@ -50,6 +50,10 @@ namespace Botanik { namespace Pages {
         uint16_t _redraw_first_row = 0;
 
         void _setup_editor();
+        void _full_redraw();
+
+        /** @brief Echo each display row of a submitted command to the log area. */
+        void _echo_command(const char* cmd, uint16_t len);
 
         /** @brief Store a line in the circular buffer (does not display it). */
         void _store_line(const char* buf, size_t len);
@@ -63,6 +67,7 @@ namespace Botanik { namespace Pages {
         // BufferedLogWriter + ShellWriter interface (one impl serves both)
         size_t format(const LogEntry_t* entry, char* buf, size_t len) override;
         size_t write(const char* buf, size_t len) override;
+        void   clear() override;
 
     public:
         ShellPage(Terminal::AnsiTerminal& terminal);

@@ -16,8 +16,18 @@ Organize the Doxygen documentation. Maybe some of the things documented in markd
 
  - check that character batching is working properly : when we raise the TASK_PERIOD_MS to 500ms and paste multiple characters at once, they are not all handled instantly, which should be the case I think ?
 
- - simplify the entry point by movingsimulation-specific code to its own header
+ - simplify the entry point by moving simulation-specific code to its own header
    (this is required because that entry point will serve as the reference documentation for the Arduino sketch)
+
+ - make the scheduler report overruns, also in the case of overruns we want the CPU load calculation to report more than 100% CPU usage
+
+ - reduce the complexity of the command submission path, in :
+   + handle_command() (case Command::ENTER)
+   + run()
+
+## ANSI terminal
+
+ - this one is hard : add support for soft line-wraps (using Shift+Enter) in the command prompt, and make sure these soft line-wraps are properly handled. normally, we've wrote the code so that it properly handles both soft and hard linewraps, but we've never actually tested this code path, and I'm worried that the origin tracking code will misbehave in that particular case
 
 ## PLC I/O
 
