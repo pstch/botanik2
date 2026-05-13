@@ -25,9 +25,19 @@ Organize the Doxygen documentation. Maybe some of the things documented in markd
    + handle_command() (case Command::ENTER)
    + run()
 
+ - find places where we try to do partial writes to the buffered serial device. instead of having this complex code, we'll just rely on a buffer big enough to hold the entire screen contents
+
+  - the "unknown command" handler is too complex, it should do all of its writes through write_lines()
+
 ## ANSI terminal
 
+ - this one is probably hard, I hope it's not too bad : we're accidentally skipping a big  part of our removal/insertion ripple logic, because ShellPage always receives its input char-by-char. We want to make handle_text() receive whole chunks, so that it can pass them to insert_character()
+
+ - in the parsing code, we'd like the ability to batch character removals
+
  - this one is hard : add support for soft line-wraps (using Shift+Enter) in the command prompt, and make sure these soft line-wraps are properly handled. normally, we've wrote the code so that it properly handles both soft and hard linewraps, but we've never actually tested this code path, and I'm worried that the origin tracking code will misbehave in that particular case
+
+  - we want to have a scrollback buffer for LogsPage
 
 ## PLC I/O
 
