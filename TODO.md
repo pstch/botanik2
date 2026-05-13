@@ -6,11 +6,18 @@ Organize the Doxygen documentation. Maybe some of the things documented in markd
 
 ## Small work items
 
- - The wiring code in main() is not complete yet. Also, we'll change the code so that we can get timestamp_ms from scheduler.tick(), and we'll make it look more like an Arduino sketch with separate setup() and loop() functions. 
+ - when starting up, we want to show information about the hardware and current firmware
 
-  - In main(), we should make the PlcEmulator run in a separate thread to emulate the PLC runtime running on the other core of the MCU
+ - in the shell, "clear" is not clearing the scrollback buffer
 
-  There are also some other related changes regarding that (the ability to extend terminal pages and the way we read the system configuration data from the PLC output). Note that site-specific configuration data should go in PlcInputData_t and PlcOutputData_t, while system-level configuration should go in PlcInput_t and PlcOutput_t. The layout of both these structures will need to match the layout used by the PLC runtime running on the other core of the MCU.
+ - when starting up, we want the LoopScheduler to report its task period
+
+ - find a better way than a hardcoded bias to paint the free stack without writing over our own return address, the current 4096-byte bias is negligible on the SIMULATOR, but not on our OPTA target
+
+ - check that character batching is working properly : when we raise the TASK_PERIOD_MS to 500ms and paste multiple characters at once, they are not all handled instantly, which should be the case I think ?
+
+ - simplify the entry point by movingsimulation-specific code to its own header
+   (this is required because that entry point will serve as the reference documentation for the Arduino sketch)
 
 ## PLC I/O
 
@@ -22,19 +29,6 @@ Organize the Doxygen documentation. Maybe some of the things documented in markd
 - **Sunrise/sunset calculator**: Derives daily sunrise and sunset times from GPS
   coordinates and date sourced from `PlcOutputData_t`. Exposes the results for use
   by irrigation and lighting scheduling logic.
-
-## Terminal UI
-
-- **Implement `BotanikTerminal`** (`terminal/terminal.h`): Define the constructor;
-  create and register the four pages (Home, Logs, Shell, Status).
-
-- **Status bar** (`terminal/terminal.cpp`): `AnsiTerminal` should maintain an always-
-  visible top row showing the application name, current datetime, CPU load, and stack
-  usage. All pages must leave row 0 reserved for this bar.
-
-- **Selection display in `write_chars()`** (`terminal/terminal.cpp`): Track the active
-  selection range and apply reverse-video (or colour) to selected characters as they
-  are written.
 
 ## Pages
 
@@ -51,12 +45,6 @@ NOTE: all screen interactions done by Page classes should always go through Ansi
   (`paste_kill()`) in `InputEditor` and `CommandShell`. A single-slot kill buffer of
   `Config::SHELL_KILL_SIZE` bytes is sufficient for now.
 
-- **`ShellPage`** (`pages/shell.h/cpp`): Scroll-back will be implemented later, after
-  we are able to run the first simulations of the ANSI rendering code in a VT100
-  emulator, to ensure we have a working X3.64 terminal implementation before adding
-  complex features such as scrollback. The extensibility hook (`CommandShell::dispatch()`)
-  already allows subclasses to add application-specific commands.
-
 - **`LogsPage` scrollback** (`pages/logs.h/cpp`): Implement PAGE_UP / PAGE_DOWN
   scrollback using `_scroll_offset`. Requires a backing log ring buffer to replay
   entries. Add filtering by level/topic and a proper status line showing drop counts.
@@ -69,7 +57,7 @@ NOTE: all screen interactions done by Page classes should always go through Ansi
 - **`StatusPage`** (`pages/status.h/cpp`): Detailed runtime metrics — PLC link status,
   CPU load and stack usage graphs, Ethernet/NTP status, uptime.
 
-  In practice, the StatusPage class itself should only provide the "scaffolding" for a status page. Some of the contents of a status page are static and should only be drawed when activating the page or redrawing it, while some contents need to be changed at periodic interval. 
+  In practice, the StatusPage class itself should also be extensible and only provide the "scaffolding" for a status page. Some of the contents of a status page are static and should only be drawed when activating the page or redrawing it, while some contents need to be changed at periodic interval. 
 
 ## Testing
 
