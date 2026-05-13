@@ -20,12 +20,12 @@ namespace Botanik { namespace Logs {
         using LogEntry_t = PlcIO::LogEntry_t;
         // global rate-limiter
         uint16_t        _global_burst           = Config::LOG_GLOBAL_BUCKET_BURST;
-        uint16_t        _global_period_ms       = Config::LOG_GLOBAL_BUCKET_PERIOD_MS;
+        uint32_t        _global_period_ms       = Config::LOG_GLOBAL_BUCKET_PERIOD_MS;
         uint32_t        _global_fillTime_ms     = 0;
         LogBucket_t     _global_bucket;
         // per-topic rate-limiter
         uint16_t        _perTopic_burst         = Config::LOG_PERTOPIC_BUCKET_BURST;
-        uint16_t        _perTopic_period_ms     = Config::LOG_PERTOPIC_BUCKET_PERIOD_MS;
+        uint32_t        _perTopic_period_ms     = Config::LOG_PERTOPIC_BUCKET_PERIOD_MS;
         uint32_t        _perTopic_fillTime_ms   = 0;
         LogBucket_t     _perTopic_buckets[Config::LOG_TOPIC_MAX];
         // output writers list
@@ -48,7 +48,7 @@ namespace Botanik { namespace Logs {
         /** @brief Refill rate-limiting token buckets (call once per main-loop period) */
         void step();
         /** @brief Forward @p entry to all registered writers after rate-limit checks */
-        void push_entry(const LogEntry_t entry);
+        void push_entry(const LogEntry_t& entry);
     };
 
 }}
