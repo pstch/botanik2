@@ -8,7 +8,6 @@ Organize the Doxygen documentation. Maybe some of the things documented in markd
 
  - The performance monitoring code is a bit of a weak spot right now (and we're not terribly confident about our stack usage monitoring code, especially since we appear to always use the same amount of stack).
 
- - There's a also a bug in there : the average (EMA) CPU usage reported by the status bar is very different from the one reported by the stats command, normally the average value should be present in SchedulerContext and be the same for both.
 
 ## Small work items
 
@@ -38,8 +37,6 @@ Organize the Doxygen documentation. Maybe some of the things documented in markd
  - in the parsing code, we'd like the ability to batch character removals
 
  - this one is hard : add support for soft line-wraps (using Shift+Enter) in the command prompt, and make sure these soft line-wraps are properly handled. normally, we've wrote the code so that it properly handles both soft and hard linewraps, but we've never actually tested this code path, and I'm worried that the origin tracking code will misbehave in that particular case
-
-  - we want to have a scrollback buffer for LogsPage
 
 ## PLC I/O
 

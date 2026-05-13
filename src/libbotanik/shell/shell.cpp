@@ -61,16 +61,15 @@ namespace Botanik { namespace Shell {
                 char val[16], detail[48];
                 int w;
                 snprintf(val,    sizeof(val),    "%.1f%%",
-                    (double)(ctx->cpu_load * 100.0f));
-                snprintf(detail, sizeof(detail), "avg %.1f%%",
                     (double)(ctx->cpu_load_ema * 100.0f));
+                snprintf(detail, sizeof(detail), "peak %.1f%%",
+                    (double)(ctx->cpu_load * 100.0f));
                 w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
                     "CPU usage ...................", val, detail);
                 if (w > 0) _output.write(out, (size_t)w);
 
                 snprintf(val,    sizeof(val),    "%.1f%%",
-                    (double)(ctx->stack_depth > 0
-                        ? (float)ctx->stack_usage / ctx->stack_depth * 100.0f : 0.0f));
+                    (double)(ctx->stack_usage_ema * 100.0f));
                 snprintf(detail, sizeof(detail), "%lu of %lu bytes",
                     (unsigned long)ctx->stack_usage, (unsigned long)ctx->stack_depth);
                 w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
