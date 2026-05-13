@@ -27,7 +27,6 @@ namespace Botanik { namespace Terminal {
 
     void InputParser::_store_text(uint8_t b) {
         _text_buf[_text_len++] = (char)b;
-        _last_byte_ms = *_timestamp_ms;
     }
 
     void InputParser::_flush_text() {
@@ -234,6 +233,14 @@ namespace Botanik { namespace Terminal {
             if (_should_flush_text()) {
                 _flush_text();
                 _state = State::IDLE;
+            } else if (_state == State::IN_ESC &&
+                       (*_timestamp_ms - _last_byte_ms) >= Config::ANSI_ESC_TIMEOUT_MS) {
+                _event.command = Command::ESC;
+                _event.type    = EventType::COMMAND;
+                _state = State::IDLE;
+            } else if (_state == State::IN_CSI &&
+                       (*_timestamp_ms - _last_byte_ms) >= Config::ANSI_ESC_TIMEOUT_MS) {
+                _state = State::IDLE;
             }
             return _event;
         }
@@ -246,6 +253,7 @@ namespace Botanik { namespace Terminal {
         }
         // read the peeked byte, and process it through the state machine
         _serial.read((char*)&b, 1);
+        _last_byte_ms = *_timestamp_ms;
         State new_state = _state;
         switch (_state) {
             case State::IDLE:  new_state = _handle_idle(b); break;
