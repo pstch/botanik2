@@ -132,8 +132,6 @@ namespace Botanik { namespace Terminal {
     }
 
     // Write `len` chars at cursor, advancing it right.
-    // TODO: normally, we should only have to implement the fast path here,
-    //       callers should handle soft/hard linebreaks themselves
     void AnsiTerminal::write_chars(const char *s, uint16_t len, bool insert) {
         if (len == 0) return;
 
@@ -141,35 +139,15 @@ namespace Botanik { namespace Terminal {
             Ansi::set_insert_mode(_serial, true);
         }
 
-        // Fast path: <whole> string fits on the current row without wrapping
-        if (!insert && _hw_pos.col + len <= _cols) {
-            _serial.write(s, len);
-            _hw_pos.col += len;
-            if (_hw_pos.col >= _cols) {
-                if (_hw_auto_wrap) {
-                    _hw_pos.col = 0;
-                    _hw_pos.row++;
-                    if (_hw_pos.row >= _rows) _hw_pos.row = _rows - 1;
-                } else {
-                    _hw_pos.col = _cols - 1;
-                }
-            }
-            return;
-        }
-
-        // Slow path: write one character at a time to track wrap boundaries
-        for (uint16_t i = 0; i < len; ++i) {
-            char c = Ansi::is_printable(s[i]) ? s[i] : '?';
-            _serial.write(&c, 1);
-            _hw_pos.col++;
-            if (_hw_pos.col >= _cols) {
-                if (_hw_auto_wrap) {
-                    _hw_pos.col = 0;
-                    _hw_pos.row++;
-                    if (_hw_pos.row >= _rows) _hw_pos.row = _rows - 1;
-                } else {
-                    _hw_pos.col = _cols - 1;
-                }
+        _serial.write(s, len);
+        _hw_pos.col += len;
+        if (_hw_pos.col >= _cols) {
+            if (_hw_auto_wrap) {
+                _hw_pos.col = 0;
+                _hw_pos.row++;
+                if (_hw_pos.row >= _rows) _hw_pos.row = _rows - 1;
+            } else {
+                _hw_pos.col = _cols - 1;
             }
         }
 
