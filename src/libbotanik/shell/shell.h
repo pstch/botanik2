@@ -20,6 +20,8 @@ namespace Botanik { namespace Shell {
     struct ShellWriter {
         virtual size_t write(const char* buf, size_t len) = 0;
         virtual void   clear() {}
+        /** @brief Write @p buf split into terminal-width chunks, one write() per chunk. */
+        virtual void   write_lines(const char* buf, uint16_t len) { write(buf, len); }
     };
 
     /**

@@ -52,10 +52,16 @@ namespace Botanik { namespace Pages {
         if (++_redraw_i >= _redraw_count) _redraw_i = UINT16_MAX;
     }
 
-    size_t ShellPage::write(const char* buf, size_t len) {
-        // Throttle if the TX buffer is getting full
-        if (_terminal.tx_available() < 64) return 0;
+    void ShellPage::write_lines(const char* buf, uint16_t len) {
+        uint16_t cols = (uint16_t)_terminal.cols();
+        for (uint16_t off = 0; off < len; ) {
+            uint16_t chunk = (uint16_t)std::min((uint32_t)cols, (uint32_t)(len - off));
+            write(buf + off, chunk);
+            off += chunk;
+        }
+    }
 
+    size_t ShellPage::write(const char* buf, size_t len) {
         _store_line(buf, len);
 
         uint16_t rows     = (uint16_t)_terminal.rows();
@@ -120,6 +126,7 @@ namespace Botanik { namespace Pages {
         drain();
     }
 
+    // TODO: review code complexity
     void ShellPage::_echo_command(const char* cmd, uint16_t cmd_len, uint16_t old_occ) {
         uint16_t cols    = (uint16_t)_terminal.cols();
         uint16_t rows    = (uint16_t)_terminal.rows();
@@ -173,6 +180,8 @@ namespace Botanik { namespace Pages {
     void ShellPage::handle_command(Command cmd) {
         switch (cmd) {
             // Submit / cancel
+            // TODO: we want to move the contents of case Command::ENTER to its own helper,
+            //       to keep handle_command() a simple dispatcher
             case Command::ENTER: {
                 char cmd[Config::SHELL_INPUT_LEN];
                 uint16_t cmd_len = std::min(_editor.buffer_len(), (uint16_t)(sizeof(cmd) - 1));

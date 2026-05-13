@@ -78,16 +78,19 @@ namespace Botanik { namespace Shell {
                 n = snprintf(out, sizeof(out), "stats: no scheduler context");
             }
         } else {
-            n = snprintf(out, sizeof(out), "Unknown command: %.*s", (int)len, cmd);
-            if (n > 0) {
-                uint16_t cols = _terminal.cols();
-                size_t offset = 0, total = (size_t)n;
-                while (offset < total) {
-                    size_t chunk = std::min((size_t)cols, total - offset);
-                    _output.write(out + offset, chunk);
-                    offset += chunk;
-                }
-            }
+            // First line: "Unknown command: " + first cols-worth of cmd.
+            // Remaining content is streamed via write_lines() to avoid
+            // a large intermediate buffer.
+            static const char prefix[] = "Unknown command: ";
+            uint16_t plen    = (uint16_t)(sizeof(prefix) - 1);
+            uint16_t cols    = _terminal.cols();
+            uint16_t cap     = cols > plen ? (uint16_t)(cols - plen) : 0;
+            uint16_t first   = (uint16_t)std::min((uint32_t)cap, (uint32_t)len);
+            memcpy(out, prefix, plen);
+            if (first > 0) memcpy(out + plen, cmd, first);
+            _output.write(out, plen + first);
+            if (first < len)
+                _output.write_lines(cmd + first, len - first);
             n = 0;
         }
 
