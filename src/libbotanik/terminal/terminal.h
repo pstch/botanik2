@@ -5,8 +5,13 @@
 
 #include "libbotanik/utils/serial.h"
 #include "libbotanik/terminal/ansi.h"
+#include "libbotanik/logs/logger.h"
 
 #include "libbotanik/pages/page.h"
+
+// Forward declarations to avoid pulling in heavy headers
+namespace Botanik { namespace Scheduler { struct SchedulerContext; } }
+namespace Botanik { namespace PlcIO     { struct PlcSyncContext;   } }
 
 namespace Botanik { namespace Terminal {
 
@@ -29,12 +34,20 @@ namespace Botanik { namespace Terminal {
         // Local state
         CursorPos           _hw_pos = {0, 0};       // Hardware position tracking
         bool                _hw_inverted = false;   // Character attribute tracking
+        bool                _hw_auto_wrap = true;   // DECAWM state (default: on)
+        Logs::Logger*                _logger       = nullptr;
+        Scheduler::SchedulerContext* _sched_ctx    = nullptr;
+        PlcIO::PlcSyncContext*       _plc_ctx      = nullptr;
+        uint32_t                     _status_tick  = 0;
     public:
         /** @name Lifecycle & State Management
          *  @{ */
 
         /** @brief Initialize the terminal with given dimensions */
-        AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows, uint32_t* timestamp_ms);
+        AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
+                     uint32_t* timestamp_ms, Logs::Logger* logger = nullptr,
+                     Scheduler::SchedulerContext* sched_ctx = nullptr,
+                     PlcIO::PlcSyncContext* plc_ctx = nullptr);
 
         /** @brief Process input and update terminal state */
         void step();
@@ -119,6 +132,12 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Number of bytes that can still be written to the serial TX buffer */
         uint16_t tx_available() const;
+
+        /** @brief Redraw the always-visible status bar on row 0 */
+        void draw_status_row();
+
+        /** @brief Access the attached scheduler context (may be null) */
+        Scheduler::SchedulerContext* sched_ctx() { return _sched_ctx; }
 
         /** @} */
 

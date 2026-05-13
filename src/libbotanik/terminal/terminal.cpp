@@ -1,16 +1,20 @@
 #include <cstdint>
-#include <cstring> // For strlen, memcpy etc.
-#include <algorithm> // For std::min
+#include <cstring>
+#include <cstdio>
+#include <algorithm>
 
 #include "libbotanik/utils/serial.h"
 #include "libbotanik/terminal/parser.h"
 #include "libbotanik/terminal/terminal.h"
 #include "libbotanik/terminal/ansi.h"
+#include "libbotanik/logs/logger.h"
 
 #include "libbotanik/pages/home.h"
 #include "libbotanik/pages/logs.h"
 #include "libbotanik/pages/shell.h"
 #include "libbotanik/pages/status.h"
+#include "libbotanik/scheduler/scheduler.h"
+#include "libbotanik/plcio/sync.h"
 
 
 namespace Botanik { namespace Terminal {
@@ -21,18 +25,23 @@ namespace Botanik { namespace Terminal {
     }
 
     // Constructor
-    AnsiTerminal::AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows, uint32_t* timestamp_ms) :
+    AnsiTerminal::AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
+                               uint32_t* timestamp_ms, Logs::Logger* logger,
+                               Scheduler::SchedulerContext* sched_ctx,
+                               PlcIO::PlcSyncContext* plc_ctx) :
         _parser(serial, timestamp_ms),
         _serial(serial),
         _cols(cols),
-        _rows(rows)
+        _rows(rows),
+        _logger(logger),
+        _sched_ctx(sched_ctx),
+        _plc_ctx(plc_ctx)
     {
     }
 
     // Step through the terminal handling code
     void AnsiTerminal::step() {
         using Command = InputEvent::Command;
-        _serial.step();
         while (true) {
             InputEvent& ev = _parser.parse();
             if (ev.type == InputEvent::EventType::NONE) break;
@@ -43,7 +52,12 @@ namespace Botanik { namespace Terminal {
                     page->handle_text(ev.batch_data[i]);
             } else if (ev.type == InputEvent::EventType::COMMAND) {
                 // Terminal-level intercepts — consumed before reaching the page
-                if (ev.command == Command::CTRL_L) { page->focus(); continue; }
+                if (ev.command == Command::CTRL_L) {
+                    clear_screen();
+                    draw_status_row();
+                    page->redraw();
+                    continue;
+                }
                 if (ev.command == Command::HOME)   { switch_to(0);  continue; }
                 if (ev.command >= Command::ALT_1 && ev.command <= Command::ALT_9) {
                     switch_to((uint8_t)((uint16_t)ev.command - (uint16_t)Command::ALT_1));
@@ -53,6 +67,10 @@ namespace Botanik { namespace Terminal {
                 page->handle_command(ev.command);
             }
         }
+        if (_pages_len > 0 && _pages[_page_index] != nullptr)
+            _pages[_page_index]->tick();
+        if ((++_status_tick % 100) == 0)
+            draw_status_row();
     }
 
 
@@ -125,13 +143,18 @@ namespace Botanik { namespace Terminal {
         // Write characters
         // Need to handle line wrapping
         for (uint16_t i = 0; i < len; ++i) {
-            _serial.write(s + i, 1); // Write one char at a time
+            // FIXME: defend against non-printable bytes corrupting cursor tracking
+            char c = Ansi::is_printable(s[i]) ? s[i] : '?';
+            _serial.write(&c, 1);
             _hw_pos.col++;
-            if (_hw_pos.col >= _cols) { // Check for line wrap
-                _hw_pos.col = 0;
-                _hw_pos.row++;
-                if (_hw_pos.row >= _rows) { // Handle screen scroll (basic)
-                    _hw_pos.row = _rows - 1; // Stay on the last row
+            if (_hw_pos.col >= _cols) {
+                if (_hw_auto_wrap) {
+                    _hw_pos.col = 0;
+                    _hw_pos.row++;
+                    if (_hw_pos.row >= _rows) _hw_pos.row = _rows - 1;
+                } else {
+                    // DECAWM off: cursor stays at last column, doesn't wrap
+                    _hw_pos.col = _cols - 1;
                 }
             }
             }
@@ -166,6 +189,7 @@ namespace Botanik { namespace Terminal {
 
     // Emit a line feed
     void AnsiTerminal::line_feed(bool carriage_return) {
+        bool was_last_row = (_hw_pos.row >= _rows - 1);
         if (carriage_return) {
             _serial.write("\r\n", 2); // CR+LF
             _hw_pos.col = 0;
@@ -173,8 +197,9 @@ namespace Botanik { namespace Terminal {
             _serial.write("\n", 1); // LF only
         }
         _hw_pos.row++;
-        if (_hw_pos.row >= _rows) { // Handle screen scroll
+        if (_hw_pos.row >= _rows) {
             _hw_pos.row = _rows - 1;
+            if (was_last_row) draw_status_row(); // repaint row 0 after hardware scroll
         }
     }
 
@@ -195,6 +220,7 @@ namespace Botanik { namespace Terminal {
     // Enable or disable terminal auto-wrap (DECAWM)
     void AnsiTerminal::set_auto_wrap(bool enable) {
         Ansi::set_auto_wrap(_serial, enable);
+        _hw_auto_wrap = enable;
     }
 
     // Set/clear reverse-video character attribute
@@ -219,6 +245,56 @@ namespace Botanik { namespace Terminal {
         return _serial.availableForWrite();
     }
 
+    void AnsiTerminal::draw_status_row() {
+        // Build right-side metrics string (fixed 26-char field)
+        char metrics[28];
+        const char* plc_str = "---";
+        if (_plc_ctx) {
+            switch (_plc_ctx->status()) {
+                case PlcIO::PLC_UNKNOWN:  plc_str = "UNK"; break;
+                case PlcIO::PLC_RUNNING:  plc_str = "RUN"; break;
+                case PlcIO::PLC_TIMEOUT:  plc_str = "TMO"; break;
+                case PlcIO::PLC_FAULT:    plc_str = "FLT"; break;
+            }
+        }
+        unsigned cpu = _sched_ctx ? (unsigned)(_sched_ctx->cpu_load_ema    * 100.0f + 0.5f) : 0;
+        unsigned stk = _sched_ctx ? (unsigned)(_sched_ctx->stack_usage_ema * 100.0f + 0.5f) : 0;
+        int mlen = snprintf(metrics, sizeof(metrics),
+            "PLC:%s cpu:%3u%% stk:%3u%% ", plc_str, cpu, stk);
+        if (mlen < 0) mlen = 0;
+
+        // Save state
+        CursorPos saved_pos = _hw_pos;
+        bool      saved_inv = _hw_inverted;
+
+        // Draw full inverted row 0
+        move_to({0, 0});
+        set_inverted(true);
+
+        // Left: page name
+        const char* pg = (_pages_len > 0 && _pages[_page_index] != nullptr)
+                         ? _pages[_page_index]->name() : "";
+        _serial.write(" ", 1);  _hw_pos.col++;
+        uint16_t pg_len = (uint16_t)strlen(pg);
+        _serial.write(pg, pg_len); _hw_pos.col += pg_len;
+        _serial.write(" ", 1);  _hw_pos.col++;
+
+        // Middle: spaces up to metrics start column
+        uint16_t metrics_col = (_cols > (uint16_t)(mlen)) ? (uint16_t)(_cols - mlen) : 0;
+        while (_hw_pos.col < metrics_col) {
+            _serial.write(" ", 1); _hw_pos.col++;
+        }
+
+        // Right: metrics (truncate if terminal is very narrow)
+        uint16_t remaining = (_cols > _hw_pos.col) ? (_cols - _hw_pos.col) : 0;
+        uint16_t write_len = (uint16_t)std::min((int)remaining, mlen);
+        if (write_len > 0) { _serial.write(metrics, write_len); _hw_pos.col += write_len; }
+
+        // Restore state
+        set_inverted(saved_inv);
+        move_to(saved_pos);
+    }
+
     int8_t AnsiTerminal::add_page(Pages::Page* page) {
         if (page == nullptr || _pages_len >= 8) return -1;
         _pages[_pages_len] = page;
@@ -232,6 +308,17 @@ namespace Botanik { namespace Terminal {
         _page_index = index;
         clear_screen();
         _pages[_page_index]->focus();
+        draw_status_row();
+        if (_logger != nullptr) {
+            using namespace PlcIO;
+            LogEntry_t entry = {};
+            entry.timestamp = HAL::current_ms();
+            entry.level     = LOG_INFO;
+            entry.topic     = STATUS;
+            entry.length    = (uint16_t)snprintf(entry.message, sizeof(entry.message),
+                "page %u", (unsigned)index);
+            _logger->push_entry(entry);
+        }
     }
 
 }}
