@@ -7,10 +7,12 @@ Organize the Doxygen documentation. Maybe some of the things documented in markd
 ## Performance monitoring
 
  - The performance monitoring code is a bit of a weak spot right now (and we're not terribly confident about our stack usage monitoring code, especially since we appear to always use the same amount of stack).
- 
+
  - There's a also a bug in there : the average (EMA) CPU usage reported by the status bar is very different from the one reported by the stats command, normally the average value should be present in SchedulerContext and be the same for both.
 
 ## Small work items
+
+ - message suppression seems to misbehave, maybe the suppressed message reporting handler is running too frequently
 
  - when starting up, we want to show information about the hardware and current firmware
 
