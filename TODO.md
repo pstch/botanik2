@@ -4,17 +4,19 @@
 
 Organize the Doxygen documentation. Maybe some of the things documented in markdown files will need to be moved to the Doxygen-based documentation.
 
+## Performance monitoring
+
+ - The performance monitoring code is a bit of a weak spot right now (and we're not terribly confident about our stack usage monitoring code, especially since we appear to always use the same amount of stack).
+ 
+ - There's a also a bug in there : the average (EMA) CPU usage reported by the status bar is very different from the one reported by the stats command, normally the average value should be present in SchedulerContext and be the same for both.
+
 ## Small work items
 
  - when starting up, we want to show information about the hardware and current firmware
 
- - in the shell, "clear" is not clearing the scrollback buffer
-
  - when starting up, we want the LoopScheduler to report its task period
 
  - find a better way than a hardcoded bias to paint the free stack without writing over our own return address, the current 4096-byte bias is negligible on the SIMULATOR, but not on our OPTA target
-
- - check that character batching is working properly : when we raise the TASK_PERIOD_MS to 500ms and paste multiple characters at once, they are not all handled instantly, which should be the case I think ?
 
  - simplify the entry point by moving simulation-specific code to its own header
    (this is required because that entry point will serve as the reference documentation for the Arduino sketch)
@@ -30,8 +32,6 @@ Organize the Doxygen documentation. Maybe some of the things documented in markd
   - the "unknown command" handler is too complex, it should do all of its writes through write_lines()
 
 ## ANSI terminal
-
- - this one is probably hard, I hope it's not too bad : we're accidentally skipping a big  part of our removal/insertion ripple logic, because ShellPage always receives its input char-by-char. We want to make handle_text() receive whole chunks, so that it can pass them to insert_character()
 
  - in the parsing code, we'd like the ability to batch character removals
 
