@@ -19,20 +19,18 @@ namespace Botanik { namespace Config {
     /** @brief Main task execution period in milliseconds */
     static constexpr uint32_t TASK_PERIOD_MS = 10;
 
-#ifdef TARGET_SIMULATOR
-    /** @brief Minimum synthetic busy time per cycle in the simulator (ms).
-     *  Drives the CPU load EMA to a realistic non-zero value. */
-    static constexpr uint32_t TASK_BUSY_MIN_MS = 9;
-#endif
-
     /** @brief Maximum address range to scan for stack usage monitoring */
     static constexpr uint32_t STACK_SCAN_LIMIT = 1048576;
 
     /** @brief Byte pattern used for stack "painting" to detect high-water mark */
     static constexpr uint8_t  STACK_PAINT_BYTE = 0xCD;
 
+    /** @brief Number of ticks over which the peak CPU load is tracked.
+     *  Also controls how often the terminal status row is refreshed. */
+    static constexpr uint32_t CPU_LOAD_WINDOW = 100;
+
     /** @brief Exponential Moving Average attack (rise) factor for CPU load */
-    static constexpr float CPU_LOAD_EMA_ATTACK = 0.95f;
+    static constexpr float CPU_LOAD_EMA_ATTACK = 1.00f;
 
     /** @brief Exponential Moving Average decay (fall) factor for CPU load */
     static constexpr float CPU_LOAD_EMA_DECAY  = 0.01f;
