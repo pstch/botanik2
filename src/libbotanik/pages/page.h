@@ -17,6 +17,10 @@ namespace Botanik { namespace Pages {
 
         /** @brief Handle a single printable character from the user */
         virtual void handle_text(char c) = 0;
+        /** @brief Handle a batch of printable characters (default: iterate handle_text) */
+        virtual void handle_text_batch(const char* buf, uint16_t len) {
+            for (uint16_t i = 0; i < len; i++) handle_text(buf[i]);
+        }
         /** @brief Handle a decoded control command from the user */
         virtual void handle_command(Command cmd) = 0;
 
