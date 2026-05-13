@@ -113,6 +113,10 @@ namespace Botanik { namespace Config {
     /** @brief Maximum time to wait for a full batch before processing partial input */
     static constexpr uint32_t ANSI_INPUT_BATCH_TIMEOUT_MS = 1000;
 
+    /** @brief Time after the last byte before a stalled ESC or CSI sequence is resolved:
+     *         bare ESC → Command::ESC, partial CSI → discarded */
+    static constexpr uint32_t ANSI_ESC_TIMEOUT_MS = 100;
+
     /** @} */
 
 
