@@ -157,6 +157,11 @@ namespace Botanik { namespace Terminal {
         /** @brief Length of the current buffer contents */
         uint16_t buffer_len() const { return _len; }
 
+        /** @brief Read-only view of the PS1 prompt */
+        const char* ps1() const { return _ps1_buf; }
+        /** @brief Length of the PS1 prompt */
+        uint16_t ps1_len() const { return _ps1_len; }
+
         /** @} */
 
     private:
