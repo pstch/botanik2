@@ -27,7 +27,7 @@ namespace Botanik { namespace Utils {
 
         // RX/TX buffers
         static const uint16_t RX_BUF_SIZE = 256;
-        static const uint16_t TX_BUF_SIZE = 1024;
+        static const uint16_t TX_BUF_SIZE = 4096;
 
         static_assert(is_power_of_two(RX_BUF_SIZE), "RX_BUF_SIZE must be a power of two");
         static_assert(is_power_of_two(TX_BUF_SIZE), "TX_BUF_SIZE must be a power of two");
