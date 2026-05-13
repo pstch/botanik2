@@ -44,8 +44,8 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     add_executable(botanik_sim "src/botanik_sim/main.cpp")
     target_link_libraries(botanik_sim botanik)
 
-    target_compile_options(botanik     PUBLIC -g -Og)
-    target_compile_options(botanik_sim PUBLIC -g -Og)
+    target_compile_options(botanik     PUBLIC -g3 -O0 -fno-omit-frame-pointer)
+    target_compile_options(botanik_sim PUBLIC -g3 -O0 -fno-omit-frame-pointer)
 
     # cppcheck static analysis target
     find_program(CPPCHECK cppcheck)
