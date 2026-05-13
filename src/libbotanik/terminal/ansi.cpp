@@ -63,18 +63,21 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     void insert_rows(BufferedSerial& _serial, uint16_t count) {
+        if (count == 0) return;
         _serial.write(CSI, 2);
         if (count > 1) write_uint16(_serial, count);
         _serial.write(IL, 1);
     }
 
     void delete_rows(BufferedSerial& _serial, uint16_t count) {
+        if (count == 0) return;
         _serial.write(CSI, 2);
         if (count > 1) write_uint16(_serial, count);
         _serial.write(DL, 1);
     }
 
     void delete_chars(BufferedSerial& _serial, uint16_t count) {
+        if (count == 0) return;
         _serial.write(CSI, 2);
         if (count > 1) write_uint16(_serial, count);
         _serial.write(DCH, 1);

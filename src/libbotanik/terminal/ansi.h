@@ -70,7 +70,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     // Move the cursor left, `count` times
     void move_left(BufferedSerial& _serial, uint16_t count);
 
-    // Move the cursor left, `count` times
+    // Move the cursor right, `count` times
     void move_right(BufferedSerial& _serial, uint16_t count);
 
     // Move the cursor up, `count` times
