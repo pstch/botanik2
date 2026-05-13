@@ -272,8 +272,11 @@ namespace Botanik { namespace Terminal {
 
         // Middle: spaces up to metrics start column
         uint16_t metrics_col = (_cols > (uint16_t)(mlen)) ? (uint16_t)(_cols - mlen) : 0;
-        while (_hw_pos.col < metrics_col)
-            write_chars(" ", 1);
+        static const char spaces[32] = "                               ";
+        while (_hw_pos.col < metrics_col) {
+            uint16_t chunk = std::min((uint16_t)(metrics_col - _hw_pos.col), (uint16_t)sizeof(spaces));
+            write_chars(spaces, chunk);
+        }
 
         // Right: metrics (truncate if terminal is very narrow)
         uint16_t remaining = (_cols > _hw_pos.col) ? (_cols - _hw_pos.col) : 0;
