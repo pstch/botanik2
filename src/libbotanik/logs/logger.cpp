@@ -65,21 +65,23 @@ namespace Botanik { namespace Logs {
         uint32_t _global_amount = (_time_ms - _global_fillTime_ms) / _global_period_ms;
         _global_fillTime_ms += _global_amount * _global_period_ms;
         _fill_bucket(&_global_bucket, _global_amount, _global_burst);
+        if (_global_amount > 0)
+            _report_suppressed(&_global_bucket, LogTopic::NONE, _time_ms);
         uint32_t _perTopic_amount = (_time_ms - _perTopic_fillTime_ms) / _perTopic_period_ms;
         _perTopic_fillTime_ms += _perTopic_amount * _perTopic_period_ms;
         for (uint8_t i = 0; i < Config::LOG_TOPIC_MAX; ++i)
             _fill_bucket(&_perTopic_buckets[i], _perTopic_amount, _perTopic_burst);
-        _report_suppressed(&_global_bucket, LogTopic::NONE, _time_ms);
-        for (uint8_t i = 0; i < Config::LOG_TOPIC_MAX; ++i)
-            _report_suppressed(&_perTopic_buckets[i], (LogTopic)i, _time_ms);
+        if (_perTopic_amount > 0)
+            for (uint8_t i = 0; i < Config::LOG_TOPIC_MAX; ++i)
+                _report_suppressed(&_perTopic_buckets[i], (LogTopic)i, _time_ms);
     }
 
     void Logger::push_entry(const PlcIO::LogEntry_t entry) {
         PlcIO::LogTopic topic = entry.topic >=
             Config::LOG_TOPIC_MAX ? LogTopic::NONE : entry.topic;                       // determine the topic to use for this entry
         LogBucket_t* topic_bucket = &_perTopic_buckets[topic];                          // get the bucket for this topic
-        if (_try_bucket(&_global_bucket))                                               // apply the global filter
-            if (topic == LogTopic::NONE || _try_bucket(topic_bucket))                   // if the entry has a topic, apply the per-topic filter
+        if (topic == LogTopic::NONE || _try_bucket(topic_bucket))                         // apply the per-topic filter first so global isn't drained by per-topic-suppressed msgs
+            if (_try_bucket(&_global_bucket))                                           // then apply the global filter
                 for (uint8_t i = 0; i < _writerCount; i++)                              // then, for each registered writer
                     _writers[i]->push(&entry);                                          // push the entry to the writer's queue
     }
