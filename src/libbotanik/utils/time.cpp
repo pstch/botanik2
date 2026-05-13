@@ -10,11 +10,8 @@
 namespace Botanik { namespace Utils {
 
     uint64_t _project_rollover(uint64_t uptime, uint32_t timestamp) {
-        uint32_t current = uptime % (1ULL << 32);
-        uptime -= current;
-        if (current - timestamp > (1ULL << 31)) uptime -= (1ULL << 32);
-        if (timestamp - current > (1ULL << 31)) uptime += (1ULL << 32);
-        return uptime + timestamp;
+        int32_t diff = (int32_t)(timestamp - (uint32_t)(uptime & 0xFFFFFFFFULL));
+        return (uint64_t)((int64_t)uptime + diff);
     }
 
     uint64_t absolute_ms(uint32_t timestamp_ms) {
