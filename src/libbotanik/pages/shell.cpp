@@ -120,8 +120,13 @@ namespace Botanik { namespace Pages {
         drain();
     }
 
-    void ShellPage::_echo_command(const char* cmd, uint16_t cmd_len) {
-        uint16_t cols = (uint16_t)_terminal.cols();
+    void ShellPage::_echo_command(const char* cmd, uint16_t cmd_len, uint16_t old_occ) {
+        uint16_t cols    = (uint16_t)_terminal.cols();
+        uint16_t rows    = (uint16_t)_terminal.rows();
+        // Rows [rows-old_occ .. rows-2] are blank donated rows (cleared by reset()).
+        // Writing directly into them avoids the DL that write() would issue, which
+        // would otherwise scroll those blank rows up as ghost blank lines.
+        uint16_t donated = old_occ > 0 ? old_occ - 1 : 0;
         char     echo[Config::SHELL_SCROLLBACK_LINE_LEN];
         uint16_t pos = 0;
         for (uint16_t row = 0; ; row++) {
@@ -134,7 +139,19 @@ namespace Botanik { namespace Pages {
             uint16_t elen = std::min((uint16_t)(plen + rlen), (uint16_t)sizeof(echo));
             memcpy(echo, pstr, std::min(plen, elen));
             if (plen < elen) memcpy(echo + plen, cmd + pos, elen - plen);
-            write(echo, elen);
+            if (row < donated) {
+                // Direct write into donated blank row — no DL.
+                _store_line(echo, elen);
+                uint16_t target = (uint16_t)(rows - old_occ + row);
+                uint16_t wlen   = std::min(elen, (uint16_t)_terminal.cols());
+                auto saved = _terminal.cursor_pos();
+                _terminal.move_to({target, 0});
+                _terminal.write_chars(echo, wlen);
+                _terminal.clear_to_eol();
+                _terminal.move_to(saved);
+            } else {
+                write(echo, elen);
+            }
             bool hard = (pos + rlen < cmd_len) && (cmd[pos + rlen] == '\n');
             pos += rlen + (hard ? 1 : 0);
             if (pos >= cmd_len) break;
@@ -161,8 +178,9 @@ namespace Botanik { namespace Pages {
                 uint16_t cmd_len = std::min(_editor.buffer_len(), (uint16_t)(sizeof(cmd) - 1));
                 memcpy(cmd, _editor.buffer(), cmd_len);
                 cmd[cmd_len] = '\0';
+                uint16_t old_occ = _editor.occupied_rows();
                 _editor.reset();
-                _echo_command(cmd, cmd_len);
+                _echo_command(cmd, cmd_len, old_occ);
                 if (cmd_len > 0) _shell.run(cmd, cmd_len);
                 break;
             }

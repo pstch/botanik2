@@ -52,8 +52,11 @@ namespace Botanik { namespace Pages {
         void _setup_editor();
         void _full_redraw();
 
-        /** @brief Echo each display row of a submitted command to the log area. */
-        void _echo_command(const char* cmd, uint16_t len);
+        /** @brief Echo each display row of a submitted command to the log area.
+         *  @param old_occ  Number of editor rows before reset(); the first
+         *                  (old_occ-1) echo lines are written directly into the
+         *                  donated blank rows to avoid spurious DL scrolls. */
+        void _echo_command(const char* cmd, uint16_t len, uint16_t old_occ);
 
         /** @brief Store a line in the circular buffer (does not display it). */
         void _store_line(const char* buf, size_t len);
