@@ -41,9 +41,8 @@ repository.** It requires a large set of Arduino MBED / PLC IDE headers that liv
 under `includes/` and are **not** distributed here. To obtain them, perform a
 successful build of the project in the Arduino PLC IDE; the required headers are
 then found in the IDE's build cache and must be copied into `includes/` by hand.
-
-IDE support (IntelliSense / clangd) for the OPTA target has the same requirement:
-`includes/` must be populated before the IDE can resolve Arduino and MBED symbols.
+And right now, even with this large set of headers, we're still not able to build,
+but we can make IntelliSense work.
 
 ## Hardware notes & useful links
 
