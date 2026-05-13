@@ -43,7 +43,7 @@ namespace Botanik { namespace Logs {
 
     // Write up to len bytes to the serial port, capped by available TX space
     size_t SerialLogWriter::write(const char* buf, size_t len) {
-        int available = std::min((uint16_t)len, _serial->available());
+        int available = std::min((uint16_t)len, _serial->availableForWrite());
         if (available == 0) return 0;
         return _serial->write(buf, available);
     }
