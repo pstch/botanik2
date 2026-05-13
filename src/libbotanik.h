@@ -8,6 +8,11 @@
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/logs/writer.h"
 
+#include "libbotanik/pages/home.h"
+#include "libbotanik/pages/shell.h"
+#include "libbotanik/pages/logs.h"
+#include "libbotanik/pages/status.h"
+
 #include "libbotanik/terminal/terminal.h"
 #include "libbotanik/terminal/parser.h"
 #include "libbotanik/terminal/editor.h"

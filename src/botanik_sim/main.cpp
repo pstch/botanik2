@@ -94,13 +94,18 @@ int main() {
     Logs::SerialLogWriter monitor(monitor_serial);
     logger.add_writer(&monitor);
 
+    // Scheduler (constructed before terminal so we can pass its context)
+    Scheduler::LoopScheduler scheduler(Config::TASK_PERIOD_MS, &logger);
+
     // PLC sync layer (handler + log reader on main thread)
     PlcIO::PlcSyncHandler<PlcInputData_t, PlcOutputData_t> plc_handler(
         &shared_in, &shared_out, &timestamp_ms, &logger);
     PlcIO::PlcLogReader plc_log_reader(plc_handler.context(), &logger);
 
     // Terminal UI
-    Terminal::AnsiTerminal terminal(console_serial, 80, 24, &timestamp_ms, &logger);
+    Terminal::AnsiTerminal terminal(console_serial, 80, 24, &timestamp_ms, &logger,
+                                    scheduler.context(), plc_handler.context());
+
     Pages::ShellPage shell_page(terminal);
     Pages::LogsPage  logs_page(terminal);
     terminal.add_page(&shell_page);
@@ -115,8 +120,6 @@ int main() {
     pthread_create(&emu_thread, nullptr, emulator_thread, &emu_args);
     pthread_detach(emu_thread);
 
-    Scheduler::LoopScheduler scheduler(Config::TASK_PERIOD_MS, &logger);
-
     while (true) {
         timestamp_ms = (uint32_t)HAL::uptime_ms();
 
@@ -126,6 +129,8 @@ int main() {
         monitor_serial.step();
 
         logger.step();
+        terminal.step();
+
         terminal.step();
 
         plc_handler.step();
