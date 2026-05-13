@@ -34,20 +34,17 @@ namespace Botanik { namespace HAL {
         return 0;
     }
 
-
+    // Returns the total allocated stack size for the calling thread.
+    // Must NOT return base - current_sp (that is the used amount, not the depth).
     inline uint32_t get_stack_depth() {
-        volatile uint32_t anchor = 0;
-        uintptr_t current_sp = reinterpret_cast<uintptr_t>(&anchor);
-
         pthread_t self = pthread_self();
         pthread_attr_t attr;
         if (pthread_getattr_np(self, &attr) == 0) {
             void* addr; size_t size;
             pthread_attr_getstack(&attr, &addr, &size);
             pthread_attr_destroy(&attr);
-
-            uintptr_t base = reinterpret_cast<uintptr_t>(addr) + size;
-            return (base > current_sp) ? static_cast<uint32_t>(base - current_sp) : 0;
+            (void)addr;
+            return (size > UINT32_MAX) ? UINT32_MAX : static_cast<uint32_t>(size);
         }
         return 0;
     }
