@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <algorithm>
 
+#include "libbotanik_config.h"
+
 #include "libbotanik/utils/serial.h"
 #include "libbotanik/terminal/parser.h"
 #include "libbotanik/terminal/terminal.h"
@@ -48,8 +50,7 @@ namespace Botanik { namespace Terminal {
             if (_pages_len == 0 || _pages[_page_index] == nullptr) continue;
             Pages::Page* page = _pages[_page_index];
             if (ev.type == InputEvent::EventType::CONTENT) {
-                for (uint16_t i = 0; i < ev.batch_len; i++)
-                    page->handle_text(ev.batch_data[i]);
+                page->handle_text_batch(ev.batch_data, ev.batch_len);
             } else if (ev.type == InputEvent::EventType::COMMAND) {
                 // Terminal-level intercepts — consumed before reaching the page
                 if (ev.command == Command::CTRL_L) {
@@ -69,7 +70,7 @@ namespace Botanik { namespace Terminal {
         }
         if (_pages_len > 0 && _pages[_page_index] != nullptr)
             _pages[_page_index]->tick();
-        if ((++_status_tick % 100) == 0)
+        if ((++_status_tick % Config::CPU_LOAD_WINDOW) == 0)
             draw_status_row();
     }
 
@@ -131,19 +132,33 @@ namespace Botanik { namespace Terminal {
     }
 
     // Write `len` chars at cursor, advancing it right.
+    // TODO: normally, we should only have to implement the fast path here,
+    //       callers should handle soft/hard linebreaks themselves
     void AnsiTerminal::write_chars(const char *s, uint16_t len, bool insert) {
-        // TODO: assert all bytes in s are in [0x20, 0x7E] — non-printable bytes
-        //       would corrupt cursor tracking and must be rejected by the caller
         if (len == 0) return;
 
         if (insert) {
             Ansi::set_insert_mode(_serial, true);
         }
 
-        // Write characters
-        // Need to handle line wrapping
+        // Fast path: <whole> string fits on the current row without wrapping
+        if (!insert && _hw_pos.col + len <= _cols) {
+            _serial.write(s, len);
+            _hw_pos.col += len;
+            if (_hw_pos.col >= _cols) {
+                if (_hw_auto_wrap) {
+                    _hw_pos.col = 0;
+                    _hw_pos.row++;
+                    if (_hw_pos.row >= _rows) _hw_pos.row = _rows - 1;
+                } else {
+                    _hw_pos.col = _cols - 1;
+                }
+            }
+            return;
+        }
+
+        // Slow path: write one character at a time to track wrap boundaries
         for (uint16_t i = 0; i < len; ++i) {
-            // FIXME: defend against non-printable bytes corrupting cursor tracking
             char c = Ansi::is_printable(s[i]) ? s[i] : '?';
             _serial.write(&c, 1);
             _hw_pos.col++;
@@ -153,11 +168,10 @@ namespace Botanik { namespace Terminal {
                     _hw_pos.row++;
                     if (_hw_pos.row >= _rows) _hw_pos.row = _rows - 1;
                 } else {
-                    // DECAWM off: cursor stays at last column, doesn't wrap
                     _hw_pos.col = _cols - 1;
                 }
             }
-            }
+        }
 
         if (insert) {
             Ansi::set_insert_mode(_serial, false);
