@@ -2,15 +2,17 @@
 
 ## Documentation
 
-Organize the Doxygen documentation. Maybe some of the things documented in markdown files will need to be moved to the Doxygen-based documentation.
+ - Organize the Doxygen documentation. Maybe some of the things documented in markdown files will need to be moved to the Doxygen-based documentation.
+ - Maybe we need to formalize the way we comment and structure our CPP files
 
 ## Performance monitoring
 
  - The performance monitoring code is a bit of a weak spot right now (and we're not terribly confident about our stack usage monitoring code, especially since we appear to always use the same amount of stack).
 
-
 ## Small work items
 
+ - parser: reorganize and simplify chunking code, unify chunking for text and commands
+ 
  - message suppression seems to misbehave, maybe the suppressed message reporting handler is running too frequently
 
  - when starting up, we want to show information about the hardware and current firmware
