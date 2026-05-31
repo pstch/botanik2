@@ -2,6 +2,7 @@
 #define SCHEDULER_SCHEDULER_H
 
 #include <cstdint>
+#include <cstring>
 
 #include "libbotanik_config.h"
 
@@ -48,8 +49,8 @@ namespace Botanik { namespace Scheduler {
         void _measure_work(uint64_t now);
         /** @brief Sample the current stack pointer and update stack usage metrics. */
         void _measure_stack_usage();
-        /** @brief Paint the free stack region (below current SP) with STACK_PAINT_BYTE. */
-        void _paint_free_stack();
+        /** @brief Paint the free stack region (below caller_sp) with STACK_PAINT_BYTE. */
+        void _paint_below(uint8_t* caller_sp);
         /** @brief Advance the next-tick anchor to skip missed beats when the loop falls behind. */
         void _skip_beats(uint64_t now);
 
@@ -73,14 +74,17 @@ namespace Botanik { namespace Scheduler {
         bool tick();
 
         /**
-         * @brief Paint the free stack below the current SP with STACK_PAINT_BYTE.
+         * @brief Paint the free stack below the caller's SP with STACK_PAINT_BYTE.
          *
-         * Must be called at the same call-depth as the user work block (i.e. directly
-         * after tick() returns true in the main loop), not from inside a helper. If
-         * called from a deeper frame than the user work the painted boundary will be
-         * below where user work can reach and stack-usage measurement will be stuck.
+         * Must be inlined into the caller's frame so &sp_marker reflects the caller's
+         * SP, not this method's. Called once per tick from the main loop after tick()
+         * returns true; subsequent step() work then dirties the painted region in
+         * proportion to its actual depth.
          */
-        void paint_stack() { _paint_free_stack(); }
+        inline void paint_stack() {
+            volatile uint8_t sp_marker = 0;
+            _paint_below(const_cast<uint8_t*>(&sp_marker));
+        }
 
         uint32_t get_period() const { return _period_ms; }
 

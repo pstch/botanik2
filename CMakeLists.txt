@@ -13,6 +13,17 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Default to a Debug build so profiling/debugging works out of the box.
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
+endif()
+
+# Override CMake's default Debug flags ("-g") with profiler-friendly ones:
+# optimizations disabled, full DWARF-4 debug info, frame pointer preserved.
+set(CMAKE_C_FLAGS_DEBUG   "-O0 -g3 -gdwarf-4 -fno-omit-frame-pointer" CACHE STRING "" FORCE)
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3 -gdwarf-4 -fno-omit-frame-pointer" CACHE STRING "" FORCE)
+
+
 # Symlink compile_commands.json to the project root so clang-tidy/clangd
 # find it without extra configuration.
 execute_process(
@@ -43,9 +54,6 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
 
     add_executable(botanik_sim "src/botanik_sim/main.cpp")
     target_link_libraries(botanik_sim botanik)
-
-    target_compile_options(botanik     PUBLIC -g3 -O0 -fno-omit-frame-pointer)
-    target_compile_options(botanik_sim PUBLIC -g3 -O0 -fno-omit-frame-pointer)
 
     # cppcheck static analysis target
     find_program(CPPCHECK cppcheck)

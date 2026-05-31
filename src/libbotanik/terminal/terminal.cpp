@@ -65,21 +65,29 @@ namespace Botanik { namespace Terminal {
                     continue;
                 }
                 if (ev.command == Command::ALT_0) { switch_to(9); continue; }
-                page->handle_command(ev.command);
+                page->handle_command(ev.command, ev.count);
             }
         }
         if (_pages_len > 0 && _pages[_page_index] != nullptr)
             _pages[_page_index]->tick();
         if ((++_status_tick % Config::CPU_LOAD_WINDOW) == 0)
-            draw_status_row();
+            update_status_metrics();
     }
 
 
     // Move cursor to an absolute screen position
-    void AnsiTerminal::move_to(const CursorPos& target, bool skip) {
+    void AnsiTerminal::move_to(const CursorPos& target_in, bool skip) {
+        // The hardware caps the cursor at the last row/column when asked to
+        // move past either edge, so any out-of-range target must be clamped
+        // here to keep _hw_pos honest.
+        CursorPos target = {
+            (uint16_t)std::min((uint16_t)(_rows > 0 ? _rows - 1 : 0), target_in.row),
+            (uint16_t)std::min((uint16_t)(_cols > 0 ? _cols - 1 : 0), target_in.col),
+        };
         if (target == _hw_pos) {
             return;
         }
+        _hw_at_eol = false;
 
         if (!skip) {
             // Optimizations for short moves, otherwise goto_absolute
@@ -101,6 +109,15 @@ namespace Botanik { namespace Terminal {
                 } else {
                     Ansi::goto_absolute(_serial, target);
                 }
+            } else if (target.col == 0 && target.row > _hw_pos.row
+                       && (target.row - _hw_pos.row) < 4
+                       && target.row < (uint16_t)(_rows - 1)) {
+                // Common "spawn next row" target — CR + LF(s) costs delta+1
+                // bytes vs ~8 for goto_absolute. Bounded away from the last
+                // row so a stray LF can't scroll the screen.
+                _serial.write("\r", 1);
+                for (uint16_t i = _hw_pos.row; i < target.row; i++)
+                    _serial.write("\n", 1);
             } else { // Different row and column, use absolute move
                 Ansi::goto_absolute(_serial, target);
             }
@@ -111,6 +128,7 @@ namespace Botanik { namespace Terminal {
     // Move cursor relatively by `amount` steps
     void AnsiTerminal::move_cursor(Ansi::MoveDirection direction, uint16_t amount) {
         if (amount == 0) return;
+        _hw_at_eol = false;
         switch (direction) {
             case Ansi::MoveDirection::LEFT:
                 Ansi::move_left(_serial, amount);
@@ -135,24 +153,33 @@ namespace Botanik { namespace Terminal {
     void AnsiTerminal::write_chars(const char *s, uint16_t len, bool insert) {
         if (len == 0) return;
 
-        if (insert) {
-            Ansi::set_insert_mode(_serial, true);
+        // Lazy SM4/RM4 toggling — re-bracketing every call burns 8 bytes per
+        // single-char middle-of-line insert (SM4 + char + RM4 = 9 bytes,
+        // ~90 ms at 900 baud). Keep insert mode latched so consecutive
+        // inserts cost just the char byte, and only emit RM4 the first time
+        // a non-insert write happens.
+        if (insert != _hw_insert_mode) {
+            Ansi::set_insert_mode(_serial, insert);
+            _hw_insert_mode = insert;
         }
 
         _serial.write(s, len);
-        _hw_pos.col += len;
-        if (_hw_pos.col >= _cols) {
+        uint32_t new_col = (uint32_t)_hw_pos.col + len;
+        if (new_col >= _cols) {
             if (_hw_auto_wrap) {
                 _hw_pos.col = 0;
                 _hw_pos.row++;
                 if (_hw_pos.row >= _rows) _hw_pos.row = _rows - 1;
+                _hw_at_eol = false;
             } else {
                 _hw_pos.col = _cols - 1;
+                // Cursor is parked at the last cell. The cell holds a char we
+                // just wrote; a follow-up clear_to_eol would erase it.
+                _hw_at_eol = true;
             }
-        }
-
-        if (insert) {
-            Ansi::set_insert_mode(_serial, false);
+        } else {
+            _hw_pos.col = (uint16_t)new_col;
+            _hw_at_eol = false;
         }
     }
 
@@ -166,6 +193,10 @@ namespace Botanik { namespace Terminal {
 
     // Erase content from cursor to the end of the line
     void AnsiTerminal::clear_to_eol() {
+        // When the cursor is parked at the last cell because a write just filled
+        // the row, there is nothing past it to erase — and the parked cell holds
+        // valid content we'd otherwise destroy.
+        if (_hw_at_eol) return;
         Ansi::clear_to_eol(_serial);
         // Cursor position is typically not affected by EL
     }
@@ -173,25 +204,37 @@ namespace Botanik { namespace Terminal {
     // Erase an entire row
     void AnsiTerminal::clear_row(uint16_t row_to_clear) {
         CursorPos original_pos = _hw_pos;
+        bool      original_eol = _hw_at_eol;
         move_to({row_to_clear, 0});
         _serial.write(Ansi::CSI, sizeof(Ansi::CSI) - 1);
         _serial.write("2K", 2);
         move_to(original_pos);
+        // clear_row doesn't touch the caller's row, so the at-eol fill state
+        // (if any) on that row still holds.
+        _hw_at_eol = original_eol;
     }
 
     // Emit a line feed
     void AnsiTerminal::line_feed(bool carriage_return) {
-        bool was_last_row = (_hw_pos.row >= _rows - 1);
-        if (carriage_return) {
-            _serial.write("\r\n", 2); // CR+LF
-            _hw_pos.col = 0;
+        if (_hw_pos.row < _rows - 1) {
+            // Normal case: cursor moves into the next row
+            if (carriage_return) {
+                _serial.write("\r\n", 2);
+                _hw_pos.col = 0;
+            } else {
+                _serial.write("\n", 1);
+            }
+            _hw_pos.row++;
         } else {
-            _serial.write("\n", 1); // LF only
-        }
-        _hw_pos.row++;
-        if (_hw_pos.row >= _rows) {
-            _hw_pos.row = _rows - 1;
-            if (was_last_row) draw_status_row(); // repaint row 0 after hardware scroll
+            // At the last row: scroll only the content area (rows 1..N-1) so that
+            // row 0 (status bar) is never touched by a hardware scroll.
+            // DL 1 at row 1 pulls rows 1..N-1 upward and inserts a blank at row N-1.
+            uint16_t target_col = carriage_return ? 0 : _hw_pos.col;
+            move_to({1, 0});
+            Ansi::delete_rows(_serial, 1);
+            // Cursor stays at {1, 0} after DL; move to the new blank last row.
+            _hw_pos = {1, 0};
+            move_to({(uint16_t)(_rows - 1), target_col});
         }
     }
 
@@ -231,6 +274,7 @@ namespace Botanik { namespace Terminal {
     void AnsiTerminal::clear_screen() {
         Ansi::clear_screen(_serial);
         _hw_pos = {0, 0};
+        _hw_at_eol = false;
     }
 
     uint16_t AnsiTerminal::tx_available() const {
@@ -255,6 +299,9 @@ namespace Botanik { namespace Terminal {
             "PLC:%s cpu:%3u%% stk:%3u%% ", plc_str, cpu, stk);
         if (mlen < 0) mlen = 0;
 
+        // Keep the metrics cache in sync so update_status_metrics() won't re-draw immediately.
+        memcpy(_status_metrics_cache, metrics, (size_t)mlen);
+
         // Save state
         CursorPos saved_pos = _hw_pos;
         bool      saved_inv = _hw_inverted;
@@ -272,9 +319,13 @@ namespace Botanik { namespace Terminal {
 
         // Middle: spaces up to metrics start column
         uint16_t metrics_col = (_cols > (uint16_t)(mlen)) ? (uint16_t)(_cols - mlen) : 0;
+        // 31 spaces + trailing NUL. The NUL must never reach the wire: terminals
+        // drop it without advancing the cursor, but write_chars bumps _hw_pos by
+        // the full length anyway, desyncing cursor tracking by one column.
         static const char spaces[32] = "                               ";
+        constexpr uint16_t SPACES_LEN = sizeof(spaces) - 1;
         while (_hw_pos.col < metrics_col) {
-            uint16_t chunk = std::min((uint16_t)(metrics_col - _hw_pos.col), (uint16_t)sizeof(spaces));
+            uint16_t chunk = std::min((uint16_t)(metrics_col - _hw_pos.col), SPACES_LEN);
             write_chars(spaces, chunk);
         }
 
@@ -286,6 +337,51 @@ namespace Botanik { namespace Terminal {
         // Restore state
         set_inverted(saved_inv);
         move_to(saved_pos);
+    }
+
+    void AnsiTerminal::update_status_metrics() {
+        char metrics[28];
+        const char* plc_str = "---";
+        if (_plc_ctx) {
+            switch (_plc_ctx->status()) {
+                case PlcIO::PLC_UNKNOWN:  plc_str = "UNK"; break;
+                case PlcIO::PLC_RUNNING:  plc_str = "RUN"; break;
+                case PlcIO::PLC_TIMEOUT:  plc_str = "TMO"; break;
+                case PlcIO::PLC_FAULT:    plc_str = "FLT"; break;
+            }
+        }
+        unsigned cpu = _sched_ctx ? (unsigned)(_sched_ctx->cpu_load_ema    * 100.0f + 0.5f) : 0;
+        unsigned stk = _sched_ctx ? (unsigned)(_sched_ctx->stack_usage_ema * 100.0f + 0.5f) : 0;
+        int mlen = snprintf(metrics, sizeof(metrics),
+            "PLC:%s cpu:%3u%% stk:%3u%% ", plc_str, cpu, stk);
+        if (mlen < 0) mlen = 0;
+
+        // mlen is constant across calls (all fields are fixed-width), so a byte
+        // index in metrics maps to a fixed screen column.
+        uint16_t visible = (uint16_t)std::min((int)_cols, mlen);
+        if (visible == 0) return;
+        uint16_t metrics_col = (uint16_t)(_cols - visible);
+
+        CursorPos saved_pos = _hw_pos;
+        bool      saved_inv = _hw_inverted;
+        bool      touched   = false;
+
+        int i = 0;
+        while (i < visible) {
+            if (metrics[i] == _status_metrics_cache[i]) { ++i; continue; }
+            int j = i + 1;
+            while (j < visible && metrics[j] != _status_metrics_cache[j]) ++j;
+            if (!touched) { set_inverted(true); touched = true; }
+            move_to({0, (uint16_t)(metrics_col + i)});
+            write_chars(metrics + i, (uint16_t)(j - i));
+            memcpy(_status_metrics_cache + i, metrics + i, (size_t)(j - i));
+            i = j;
+        }
+
+        if (touched) {
+            set_inverted(saved_inv);
+            move_to(saved_pos);
+        }
     }
 
     int8_t AnsiTerminal::add_page(Pages::Page* page) {

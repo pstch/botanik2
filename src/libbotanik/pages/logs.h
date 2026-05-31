@@ -51,7 +51,7 @@ namespace Botanik { namespace Pages {
         // Page interface
         const char* name() const override { return "LOGS"; }
         void handle_text(char c) override;
-        void handle_command(Command cmd) override;
+        void handle_command(Command cmd, uint16_t count = 1) override;
         void deactivate() override;
         void focus() override;
         void tick() override;

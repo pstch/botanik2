@@ -75,7 +75,7 @@ int main() {
     raw.c_cc[VMIN]  = 0;
     raw.c_cc[VTIME] = 0;
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
-    HAL::get_serial(HAL::CONSOLE)->begin(0);   // set O_NONBLOCK on stdin
+    HAL::get_serial(HAL::CONSOLE)->begin(900);
 
     // Shared PLC memory — both handler and emulator point at the same region.
     // On OPTA: PlcIO::PlcInput<PlcInputData_t>* plcin =

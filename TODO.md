@@ -64,10 +64,6 @@ NOTE: all screen interactions done by Page classes should always go through Ansi
   (`paste_kill()`) in `InputEditor` and `CommandShell`. A single-slot kill buffer of
   `Config::SHELL_KILL_SIZE` bytes is sufficient for now.
 
-- **`LogsPage` scrollback** (`pages/logs.h/cpp`): Implement PAGE_UP / PAGE_DOWN
-  scrollback using `_scroll_offset`. Requires a backing log ring buffer to replay
-  entries. Add filtering by level/topic and a proper status line showing drop counts.
-
 - **`HomePage`** (`pages/home.h/cpp`): ASCII logo, current PLC status, and the key
   business-logic metrics (next irrigation event, ventilation state, etc.).
 

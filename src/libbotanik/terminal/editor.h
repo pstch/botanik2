@@ -1,14 +1,21 @@
 /**
  * @file editor.h
- * @brief Multi-line input editor with hardware-accelerated ripples.
+ * @brief Byte-efficient multi-row line editor for low-bandwidth serial
+ *        terminals.
+ *
+ * Three prompt classes start a row: PS1 (first row), PS2 (after a soft wrap),
+ * PS3 (after a hard `\\n`). Auto-wrap is off — the editor owns wrapping. Each
+ * edit mutates the buffer, rebuilds the row layout (`_layout`), and reconciles
+ * it against the pre-edit layout (`_pre`) so only the minimal terminal ops are
+ * emitted.
  */
 #ifndef TERMINAL_EDITOR_H
 #define TERMINAL_EDITOR_H
 
 #include <cstdint>
+#include <cstring>
 
 #include "libbotanik_config.h"
-#include "libbotanik/utils/serial.h"
 #include "libbotanik/terminal/terminal.h"
 
 
@@ -16,284 +23,331 @@ namespace Botanik { namespace Terminal {
 
     using Ansi::CursorPos;
 
-    /** @brief Geometry of a single screen row, computed from the buffer */
-    struct RowView {
-        uint16_t buf_start;     /**< Offset in _buf where this row's content begins */
-        uint16_t buf_len;       /**< Number of content chars (not counting \\n) */
-        bool hard_break;        /**< True if the row ends with \\n */
-    };
-
-    /** @brief A sequence of RowView entries describing a contiguous region of the buffer */
-    struct TextView {
-        static const uint16_t MAX_ROWS = 32;
-        RowView  rows[MAX_ROWS];
-        uint16_t row_count = 0;
-        uint16_t start_row = 0; /**< Prompt-relative row index of rows[0] (0 = PS1 line) */
-
-        /** @brief An empty single-row geometry representing a blank screen */
-        static TextView empty() {
-            TextView t;
-            t.row_count = 1;
-            t.start_row = 0;
-            t.rows[0]   = {0, 0, false};
-            return t;
-        }
+    /** @brief Class of prompt to draw at the start of a row */
+    enum class RowPrompt : uint8_t {
+        PS1, /**< First editor row */
+        PS2, /**< Row that continues a soft-wrapped row */
+        PS3, /**< Row that follows a hard `\\n` */
     };
 
     /**
-     * @class InputEditor
-     * @brief High-level logic for managing terminal-based text input
-     * * @section RippleAlgo The Ripple Algorithm
-     * The editor uses a row-by-row displacement logic to minimize serial bandwidth...
-     * * @section NewlineHandling Newline Support
-     * Note: In-stream \\n characters force a re-calculation of the row geometry...
+     * @brief Geometry of a contiguous slice of the editor buffer.
+     *
+     * Used for the row layout (`_layout`/`_pre`) and as the per-row target
+     * during reconcile.
      */
-    class InputEditor {
+    struct RowView {
+        uint16_t buf_start;  /**< Offset of the slice in the buffer */
+        uint16_t buf_len;    /**< Number of content bytes (no trailing \\n) */
+        bool     hard_break; /**< True iff the slice is closed by `\\n` */
+    };
+
+    /**
+     * @brief A laid-out view of the buffer: the row slices plus their count.
+     *
+     * Used for both the current/target layout (`_layout`) and the pre-edit
+     * layout (`_pre`) so reconcile diffs two same-typed views.
+     */
+    struct TextView {
+        RowView  rows[Config::EDITOR_MAX_ROWS];
+        uint16_t count;
+    };
+
+    /**
+     * @class TextEditor
+     * @brief Multi-row line editor.
+     *
+     * insert/remove mutate the buffer, rebuild the row layout, then reconcile
+     * the screen by diffing `_pre` against `_layout`: one IL/DL for the
+     * row-count change, then a forward per-row splice walk from the edit row.
+     */
+    class TextEditor {
     public:
 
+        /** @brief Construct a TextEditor bound to the given terminal */
+        explicit TextEditor(AnsiTerminal* terminal);
+
         /**
-         * @name Lifecycle & Configuration
+         * @name Prompts
          * @{
          */
 
-        /** @brief Construct an InputEditor object bound to the given terminal */
-        InputEditor(AnsiTerminal* terminal);
+        /** @brief Set the PS1 prompt (first editor row) */
+        void set_ps1(const char* buf, uint16_t len) { _set_ps(_ps1_buf, _ps1_len, buf, len); }
 
-        /** @brief Set the PS1 prompt text (first line prompt) */
-        void set_ps1(const char* buf, uint16_t len) {
-            len = std::min(len, (uint16_t)(sizeof(_ps1_buf)));
-            memcpy(_ps1_buf, buf, len);
-            _ps1_len = len;
-        }
+        /** @brief Set the PS2 prompt (continuation after soft wrap) */
+        void set_ps2(const char* buf, uint16_t len) { _set_ps(_ps2_buf, _ps2_len, buf, len); }
 
-        /** @brief Set the PS2 prompt text (continuation prompt) */
-        void set_ps2(const char* buf, uint16_t len) {
-            len = std::min(len, (uint16_t)(sizeof(_ps2_buf)));
-            memcpy(_ps2_buf, buf, len);
-            _ps2_len = len;
-        }
+        /** @brief Set the PS3 prompt (row after hard `\\n`) */
+        void set_ps3(const char* buf, uint16_t len) { _set_ps(_ps3_buf, _ps3_len, buf, len); }
 
-        /** @brief Initialize (or reset) the prompt */
+        const char* ps1() const { return _ps1_buf; }
+        uint16_t    ps1_len() const { return _ps1_len; }
+        const char* ps2() const { return _ps2_buf; }
+        uint16_t    ps2_len() const { return _ps2_len; }
+        const char* ps3() const { return _ps3_buf; }
+        uint16_t    ps3_len() const { return _ps3_len; }
+
+        /** @} */
+
+        /**
+         * @name Lifecycle
+         * @{
+         */
+
+        /** @brief Clear all state and redraw an empty prompt at the bottom row */
         void reset();
 
+        /** @brief Finalize a submitted line: reset state and draw a new PS1
+         *         at the current cursor row. The caller is expected to have
+         *         issued a `line_feed()` so the cursor sits at column 0 of
+         *         a blank row before calling commit(). */
+        void commit();
+
+        /** @brief Redraw the editor's rows from the buffer. Assumes the
+         *         destination rows are already blank (caller cleared them). */
+        void redraw();
+
+        /** @brief When set, automatic redraws triggered by origin shifts are
+         *         skipped — caller becomes responsible for one explicit redraw. */
+        void suppress_redraw(bool v) { _suppress_sync_redraw = v; }
+
+        /** @} */
+
         /**
-         * @}
-         * @name Layout handling
+         * @name Geometry
          * @{
          */
 
-        /** @brief Set the prompt's origin row */
-        void set_origin(uint16_t row) {
-            row = std::min((uint16_t)(_terminal->rows() - 1), row);
-            _origin = row;
-        }
+        /** @brief Hardware cursor position one past the last buffer character */
+        CursorPos end_pos() const { return _map_cursor_pos(_len); }
 
-        /** @brief Get the amount of rows occupied by the input */
-        uint16_t occupied_rows() const {
-            return _occupied;
-        }
+        /** @brief Hardware cursor position at the logical edit point (_pos) */
+        CursorPos cursor_screen_pos() const { return _map_cursor_pos(_pos); }
+
+        /** @brief Number of screen rows occupied by the editor right now */
+        uint16_t occupied_rows() const { return _layout.count; }
+
+        /** @brief Pin the prompt's top row to a specific screen row */
+        void set_origin(uint16_t row);
+
+        /** @} */
 
         /**
-         * @}
-         * @name Input Edition
+         * @name Editing
          * @{
          */
 
-        /** @brief Remove the given amount of characters at the current position */
-        void remove_characters(uint16_t len);
-
-        /** @brief Insert the given characters at the current position.
-         *         If a selection is active, it is replaced by the inserted text. */
+        /** @brief Insert `len` bytes at the current cursor position. */
         void insert_characters(const char* buf, uint16_t len);
 
-        /** @brief Append the given characters at the current position */
-        void append_characters(const char* buf, uint16_t len);
+        /** @brief Remove `len` bytes at the current cursor position. */
+        void remove_characters(uint16_t len);
 
-        /** @brief Replace the given characters at the current position */
-        void replace_characters(char* buf, uint16_t len);
-
-        /** @brief Update the selection range and redraw the damaged region */
-        void select_characters(uint16_t anchor, uint16_t len);
-
-        /** @brief Move the cursor one position left; extends selection if mark is set */
+        /** @brief Move the cursor one position left */
         void move_left();
 
-        /** @brief Move the cursor one position right; extends selection if mark is set */
+        /** @brief Move the cursor one position right */
         void move_right();
 
-        /** @brief Move the cursor to the start of the current logical line (Ctrl+A) */
+        /** @brief Move the cursor to the start of the current logical line */
         void move_to_line_start();
 
-        /** @brief Move the cursor to the end of the current logical line (Ctrl+E) */
+        /** @brief Move the cursor to the end of the current logical line */
         void move_to_line_end();
 
-        /** @brief Move the cursor one word to the left (Alt+B) */
+        /** @brief Delete `count` characters before the cursor in a single
+         *         reconcile pass. */
+        void backspace(uint16_t count = 1);
+
+        /** @brief Delete `count` characters at the cursor in a single
+         *         reconcile pass. */
+        void delete_forward(uint16_t count = 1);
+
+        /** @brief Move the cursor one word to the left */
         void move_word_left();
 
-        /** @brief Move the cursor one word to the right (Alt+F) */
+        /** @brief Move the cursor one word to the right */
         void move_word_right();
 
-        /** @brief Delete the character before the cursor.
-         *         If a selection is active, deletes the selection instead. */
-        void backspace();
+        /** @brief Toggle the mark — stub for parity with InputEditor (selection
+         *         features are deferred). */
+        void set_mark_toggle() {}
 
-        /** @brief Delete the character at the cursor (Ctrl+D).
-         *         If a selection is active, deletes the selection instead. */
-        void delete_forward();
+        /** @brief Clear the active mark/selection — stub for parity. */
+        void deselect() {}
 
-        /** @brief Clear the active mark and selection (Ctrl+G / ESC) */
-        void deselect();
+        /** @} */
 
-        /** @brief Toggle the mark: set if inactive, deselect if active (Ctrl+Space) */
-        void set_mark_toggle();
+        /**
+         * @name Buffer access
+         * @{
+         */
 
-        /** @brief Redraw the whole prompt */
-        void redraw(bool clear = true);
-
-        // TODO
-        void set_contents(const char* buf, uint16_t len);
-
-        /** @brief Read-only view of the current buffer contents */
-        const char* buffer() const { return _buf; }
-        /** @brief Length of the current buffer contents */
-        uint16_t buffer_len() const { return _len; }
-
-        /** @brief Read-only view of the PS1 prompt */
-        const char* ps1() const { return _ps1_buf; }
-        /** @brief Length of the PS1 prompt */
-        uint16_t ps1_len() const { return _ps1_len; }
-
-        /** @brief Read-only view of the PS2 prompt */
-        const char* ps2() const { return _ps2_buf; }
-        /** @brief Length of the PS2 prompt */
-        uint16_t ps2_len() const { return _ps2_len; }
+        const char* buffer() const     { return _buf; }
+        uint16_t    buffer_len() const { return _len; }
 
         /** @} */
 
     private:
-        using MoveDirection  = Ansi::MoveDirection;
-        using CursorPos      = Ansi::CursorPos;
-        static constexpr MoveDirection LEFT  = MoveDirection::LEFT;
-        static constexpr MoveDirection RIGHT = MoveDirection::RIGHT;
-        static constexpr MoveDirection UP    = MoveDirection::UP;
-        static constexpr MoveDirection DOWN  = MoveDirection::DOWN;
-        using BufferedSerial = Utils::BufferedSerial;
-
         /**
-         * @name State variables
+         * @name State
          * @{
          */
 
-        AnsiTerminal*       _terminal;          /**< Reference to the parent terminal */
+        AnsiTerminal* _terminal;
 
-        char                _buf[Config::SHELL_INPUT_LEN]; /**< Input contents */
-        uint16_t            _len = 0;           /**< Input length */
-        uint16_t            _pos = 0;           /**< Current position in input */
+        char     _buf[Config::SHELL_INPUT_LEN];     /**< Editor buffer */
+        uint16_t _len = 0;                          /**< Bytes in _buf */
+        uint16_t _pos = 0;                          /**< Cursor offset in _buf */
 
-        uint16_t            _sel_anchor = 0;    /**< Start of selection */
-        uint16_t            _sel_len = 0;       /**< Selection length */
+        uint16_t _origin = 0;                       /**< Prompt row on screen */
 
-        bool                _mark_active = false; /**< True while a mark has been set */
-        uint16_t            _mark_pos = 0;      /**< Buffer position of the mark */
+        TextView _layout{};                         /**< Current/target row layout */
+        TextView _pre{};                            /**< Pre-edit layout (copied before rebuild) */
 
-        uint16_t            _origin = 0;        /**< Origin row of the prompt */
-        uint16_t            _occupied = 1;      /**< Amount of occupied rows */
+        char     _ps1_buf[Config::EDITOR_PROMPT_MAX];
+        uint16_t _ps1_len = 0;
+        char     _ps2_buf[Config::EDITOR_PROMPT_MAX];
+        uint16_t _ps2_len = 0;
+        char     _ps3_buf[Config::EDITOR_PROMPT_MAX];
+        uint16_t _ps3_len = 0;
 
-        char                _ps1_buf[16];       /**< PS1 contents */
-        uint16_t            _ps1_len = 0;       /**< PS1 length */
+        bool     _suppress_sync_redraw = false;
 
-        char                _ps2_buf[16];       /**< PS2 contents */
-        uint16_t            _ps2_len = 0;       /**< PS2 length */
+        /** @} */
 
         /**
-         * @}
-         * @name Prompt handling
+         * @name Helpers
          * @{
          */
 
-        /** @brief Write the PS1 prompt */
-        inline void _write_ps1() { _terminal->write_chars(_ps1_buf, _ps1_len); }
-        inline void _skip_ps1()  { _terminal->move_cursor(RIGHT,    _ps1_len); }
-
-        /** @brief Write the PS2 prompt */
-        inline void _write_ps2() { _terminal->write_chars(_ps2_buf, _ps2_len); }
-        inline void _skip_ps2()  { _terminal->move_cursor(RIGHT,    _ps2_len); }
-
-        /**
-         * @}
-         * @name Cursor mapping and change planning/execution
-         * @{
-         */
-
-        /** @brief Get hardware position from logical position
-         *  @note This operation may be O(N) where N is the input buffer length
-        */
-        CursorPos _map_cursor_pos(uint16_t pos) const;
-
-        /** @brief Build row geometry from the current buffer, starting at the
-         *         row containing buf_pos. */
-        TextView _build_rows(uint16_t buf_pos) const;
-
-        /** @brief Get how many characters we can write to this line, taking
-         *         into account the prompt prefix length. */
-        uint16_t _get_row_cap(uint16_t row) const;
-
-        /** @brief Look for a newline at the given position in the input buffer. */
-        inline bool _is_newline(uint16_t pos) const {
-            return _buf[pos] == '\n';
+        static void _set_ps(char* dst, uint16_t& dst_len, const char* src, uint16_t len) {
+            if (len > Config::EDITOR_PROMPT_MAX) len = Config::EDITOR_PROMPT_MAX;
+            memcpy(dst, src, len);
+            dst_len = len;
         }
 
-        /** @brief Remove the selected text, clear selection and mark state.
-         *         Leaves _pos at the former selection anchor.
-         *  @return true if a non-empty selection was removed, false otherwise. */
-        bool _remove_selection();
+        /** @brief Look up the prompt class for prompt-relative row `row_idx`. */
+        RowPrompt _row_prompt(uint16_t row_idx) const;
 
-        /** @brief Common tail for all move operations: update the selection or clear
-         *         it, then physically move the cursor to _pos. */
-        void _finalize_move();
+        /** @brief Prompt class for row `idx` in layout `v` (PS1 first row, PS3
+         *         after a hard break, PS2 otherwise). */
+        static RowPrompt _row_prompt_in(const TextView& v, uint16_t idx) {
+            if (idx == 0) return RowPrompt::PS1;
+            return v.rows[idx - 1].hard_break ? RowPrompt::PS3 : RowPrompt::PS2;
+        }
 
-        /** @brief Scan a row to find the end of the line,
-         *         and whether it's a soft or hard line-break.
-         */
+        /** @brief Return the bytes of the prompt for the given class. */
+        const char* _prompt_buf(RowPrompt p) const;
+
+        /** @brief Return the length of the prompt for the given class. */
+        uint16_t _prompt_len(RowPrompt p) const;
+
+        /** @brief Available capacity (columns) for content on row `row_idx`. */
+        uint16_t _row_cap(uint16_t row_idx) const;
+
+        /** @brief Scan one row's content starting at `pos` with the given capacity. */
         RowView _scan_row(uint16_t pos, uint16_t cap) const;
 
-        /**
-         * @}
-         * @name Ripple handling
-         * @{
-         */
+        /** @brief Rebuild the whole row layout (`_rows[]`) from the buffer. */
+        void _rebuild_layout();
 
-        /** @brief Shift one screen row by |pressure| chars using ICH/DCH (small
-         *         pressure) or IL/DL (large pressure).
-         *  @param row           Row index relative to _origin (0 = PS1 row).
-         *  @param pos           Offset in _buf where this row's new content begins.
-         *  @param pressure  > 0: chars pushed in from the previous row's right edge.
-         *                   < 0: chars pulled out into the previous row's vacuum.
-         *  @param geometry      Old row geometry snapshot.
-         *  @return Overflow (> 0) or remaining vacuum (< 0) to pass to the next row. */
-        int16_t _shift_row(uint16_t row, uint16_t pos, int16_t pressure, const TextView& geometry);
+        /** @brief Clear the buffer/cursor and reset to a single empty row
+         *         pinned at the bottom of the screen. */
+        void _reset_state();
 
-        /** @brief Insertion half of _shift_row: open a gap of `pressure` chars at
-         *         the cursor using insert mode (small) or IL (large), fill it from _buf,
-         *         and return the overflow that must be propagated to the next row.
-         *  @param row  Index within the geometry snapshot (0 = first affected row).
-         *              Note: different coordinate space from _shift_row's `row`. */
-        uint16_t _shift_insert(uint16_t row, uint16_t pos, uint16_t pressure, const TextView& geometry);
+        /** @brief Canonical owner row for buffer position `pos` in a layout.
+         *
+         * Rule: `pos` belongs to row `i` iff
+         * `rows[i].buf_start <= pos < rows[i].buf_start + stride(i)`,
+         * where `stride = buf_len + (hard_break ? 1 : 0)` (the `\n` byte of a
+         * hard-broken row belongs to that row; the boundary byte of a soft
+         * wrap belongs to the continuation row). End-of-buffer falls through
+         * to the last row. */
+        static uint16_t _owner_row(uint16_t pos, const TextView& v) {
+            for (uint16_t i = 0; i < v.count; i++) {
+                uint16_t stride = (uint16_t)(v.rows[i].buf_len + (v.rows[i].hard_break ? 1 : 0));
+                if (pos < (uint16_t)(v.rows[i].buf_start + stride)) return i;
+            }
+            return v.count > 0 ? (uint16_t)(v.count - 1) : 0;
+        }
 
-        /** @brief Removal half of _shift_row: close a gap of `vacuum` chars at the
-         *         cursor using DCH (small) or DL (large), fill the right-edge gap from
-         *         the next row's new content, and return the remaining vacuum.
-         *  @param row  Index within the geometry snapshot (0 = first affected row).
-         *              Note: different coordinate space from _shift_row's `row`. */
-        uint16_t _shift_remove(uint16_t row, uint16_t pos, uint16_t vacuum, const TextView& geometry);
+        /** @brief Buffer-position-to-screen-position map. O(_layout.count). */
+        CursorPos _map_cursor_pos(uint16_t pos) const;
 
-        /** @brief Perform the full hardware insertion at the edit point: shift rows
-         *         using _shift_row and write any overflow onto new screen lines. */
-        void _do_insertion(CursorPos pos, const TextView& geometry, uint16_t pressure);
+        /** @brief Write the prompt for `row_idx` at the current cursor position. */
+        void _write_prompt(uint16_t row_idx);
 
-        /** @brief Perform the full hardware removal at the edit point: shift rows
-         *         using _shift_row and erase the tail when vacuum reaches the last row. */
-        void _do_removal(CursorPos pos, const TextView& old, uint16_t pressure);
+        /** @brief Where an edit lands in the forward walk.
+         *
+         * `edit_row` is the first affected row. `absorbed_post`/`absorbed_pre`
+         * are the post/pre indices of the absorbed-tail boundary: rows at or
+         * below `absorbed_post` are already correct (shifted by the IL/DL), so
+         * the per-row walk only needs to splice `[edit_row, absorbed_post)`. */
+        struct SpliceSpan {
+            uint16_t edit_row;      /**< R: first affected post row */
+            uint16_t absorbed_post; /**< A: post idx where the absorbed tail begins */
+            uint16_t absorbed_pre;  /**< P: matching pre idx of that boundary */
+        };
+
+        /** @brief Locate the edit row and the absorbed-tail boundary by diffing
+         *         `_pre` against `_layout` (longest shifted-identical suffix). */
+        SpliceSpan _find_splice_span(uint16_t span_start, uint16_t span_len,
+                                     bool is_insert, int32_t l_shift,
+                                     int32_t row_delta) const;
+
+        /** @brief Emit the single IL/DL that repositions the absorbed tail and
+         *         opens the blank rows inserted content paints into. */
+        void _reposition_tail(const SpliceSpan& span, int32_t row_delta,
+                              uint16_t scr_rows);
+
+        /** @brief Reconcile the screen to `_layout` after an edit of `span_len`
+         *         bytes at buffer offset `span_start`.
+         *
+         * Diffs the pre-edit layout (`_pre`) against the post-edit layout
+         * (`_layout`): places at most one IL/DL for the row-count change at the
+         * absorbed-suffix boundary, then walks forward from the edit row,
+         * splicing each affected row (cursor splice on the edit row, left
+         * displacement below) and repainting rows that reflowed elsewhere.
+         *
+         * @param span_start First buffer byte of the inserted/removed span.
+         * @param span_len   Number of bytes inserted or removed.
+         * @param is_insert  true for insert, false for remove. */
+        void _reconcile(uint16_t span_start, uint16_t span_len, bool is_insert);
+
+        /** @brief Bottom-pinned grow: compute the bottom-pinned origin for the
+         *         current row count, scroll the screen up so the editor's added
+         *         rows fit before any content op references `_origin`, and
+         *         return that origin (passed on to the later shrink). */
+        uint16_t _grow_editor();
+
+        /** @brief Bottom-pinned shrink: slide the editor down (freeing rows
+         *         above for logs) once its rows have collapsed. */
+        void _shrink_editor(uint16_t new_origin);
+
+        /** @brief Full-paint row `post_idx` (prompt + content + clear): a blank
+         *         row opened by an IL, or a row whose old glyphs are unrelated
+         *         to the wanted content (disjoint reflow). */
+        void _new_row(uint16_t post_idx);
+
+        /** @brief Reconcile one row: splice `amount` chars at column `col`
+         *         (insert if >0, delete if <0), then length-align the tail to
+         *         `want`. The edit row passes `col = cursor`; rows below pass
+         *         `col = prompt` and `amount = displacement`. `shown_len` /
+         *         `shown_prompt_l` describe what the row physically shows now. */
+        void _splice_row(uint16_t post_idx, uint16_t col, int32_t amount,
+                         uint16_t shown_len, uint16_t shown_prompt_l,
+                         const RowView& want);
+
+        /** @brief Signed count of content chars the edit splices onto its own
+         *         row: the edit span clipped to that row's content (0 when the
+         *         edit is the closing `\n`). Positive for insert, negative for
+         *         remove. Reads the row end from the post layout for an insert,
+         *         the pre layout for a remove. */
+        static int32_t _edit_row_amount(uint16_t span_start, uint16_t span_len,
+                                        bool is_insert, const RowView& post_row,
+                                        const RowView& pre_row);
 
         /** @} */
     };

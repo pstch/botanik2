@@ -35,10 +35,13 @@ namespace Botanik { namespace Terminal {
         CursorPos           _hw_pos = {0, 0};       // Hardware position tracking
         bool                _hw_inverted = false;   // Character attribute tracking
         bool                _hw_auto_wrap = true;   // DECAWM state (default: on)
+        bool                _hw_at_eol = false;     // Cursor parked at last col after a row-filling write
+        bool                _hw_insert_mode = false;// SM4/RM4 tracking — toggled lazily by write_chars
         Logs::Logger*                _logger       = nullptr;
         Scheduler::SchedulerContext* _sched_ctx    = nullptr;
         PlcIO::PlcSyncContext*       _plc_ctx      = nullptr;
         uint32_t                     _status_tick  = 0;
+        char                         _status_metrics_cache[27] = {}; // zero-init forces first draw
     public:
         /** @name Lifecycle & State Management
          *  @{ */
@@ -135,6 +138,9 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Redraw the always-visible status bar on row 0 */
         void draw_status_row();
+
+        /** @brief Refresh only the metrics portion of the status bar (skips if unchanged) */
+        void update_status_metrics();
 
         /** @brief Access the attached scheduler context (may be null) */
         Scheduler::SchedulerContext* sched_ctx() { return _sched_ctx; }

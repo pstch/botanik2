@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <cstdio>
 #ifdef TARGET_SIMULATOR
 #include <unistd.h>
@@ -71,7 +72,9 @@ namespace Botanik { namespace Scheduler {
     void LoopScheduler::_measure_stack_usage() {
         if (_stack_base == 0) return;
         const uint8_t* stack_base = reinterpret_cast<const uint8_t*>(_stack_base);
-        uint32_t low = 0;
+        // Offsets are 1-based so *(stack_base - mid) stays inside the allocated region
+        // (stack_base itself is one past the top of the stack).
+        uint32_t low = 1;
         uint32_t high = (_stack_depth < Config::STACK_SCAN_LIMIT) ? _stack_depth : Config::STACK_SCAN_LIMIT;
         // perform binary search
         while (low < high) {
@@ -95,21 +98,19 @@ namespace Botanik { namespace Scheduler {
         _context.stack_usage_ema = _stack_usage_ema;
     }
 
-    void LoopScheduler::_paint_free_stack() {
-        volatile uint8_t sp_marker = 0;
-        uint8_t* paint_top = reinterpret_cast<uint8_t*>(const_cast<uint8_t*>(&sp_marker));
+    void LoopScheduler::_paint_below(uint8_t* caller_sp) {
+        if (_stack_base == 0) return;
         uint8_t* abs_bottom = reinterpret_cast<uint8_t*>(_stack_base - _stack_depth);
+        // Margin must cover this function's frame + memset's frame so neither is
+        // clobbered mid-paint. 256 B is well above what either uses on x86_64 or
+        // ARM Cortex-M; the painted ceiling sits just below the caller's SP.
+        constexpr ptrdiff_t MARGIN = 256;
+        if (caller_sp < abs_bottom + MARGIN) return;
+        uint8_t* paint_top = caller_sp - MARGIN;
         // Cap paint region to STACK_SCAN_LIMIT bytes to avoid memset-ing the entire
         // (Linux: 8 MB) thread stack allocation on every tick.
-        uint8_t* paint_bot  = paint_top - Config::STACK_SCAN_LIMIT;
+        uint8_t* paint_bot = paint_top - Config::STACK_SCAN_LIMIT;
         if (paint_bot < abs_bottom) paint_bot = abs_bottom;
-        // memset's own call frame (return address + saved YMM registers) sits between
-        // sp_marker and where memset starts writing. Subtracting 4096 ensures that
-        // frame is never inside [paint_bot, paint_top), so memset's return address
-        // is not overwritten by the paint itself. but :
-        // FIXME: this is not ideal, and we're not sure it will work on the OPTA
-        if (paint_top < abs_bottom + 4096) return;
-        paint_top -= 4096;
         if (paint_top > paint_bot)
             memset(paint_bot, Config::STACK_PAINT_BYTE, paint_top - paint_bot);
     }

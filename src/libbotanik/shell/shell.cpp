@@ -13,7 +13,7 @@
 namespace Botanik { namespace Shell {
 
     CommandShell::CommandShell(Terminal::AnsiTerminal& terminal,
-                               Terminal::InputEditor&  editor,
+                               Terminal::TextEditor&   editor,
                                ShellWriter&            output)
         : _terminal(terminal), _editor(editor), _output(output)
     {}
@@ -94,7 +94,9 @@ namespace Botanik { namespace Shell {
             uint16_t plen    = (uint16_t)(sizeof(prefix) - 1);
             uint16_t cols    = _terminal.cols();
             uint16_t cap     = cols > plen ? (uint16_t)(cols - plen) : 0;
-            uint16_t first   = (uint16_t)std::min((uint32_t)cap, (uint32_t)len);
+            // Stop at the first newline so the raw \n byte never reaches write_chars.
+            uint16_t first = 0;
+            while (first < cap && first < len && cmd[first] != '\n') first++;
             memcpy(out, prefix, plen);
             if (first > 0) memcpy(out + plen, cmd, first);
             _output.write(out, plen + first);

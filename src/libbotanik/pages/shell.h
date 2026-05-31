@@ -29,7 +29,7 @@ namespace Botanik { namespace Pages {
     class ShellPage : public Page, public Logs::BufferedLogWriter, public Shell::ShellWriter {
     private:
         using AnsiTerminal = Terminal::AnsiTerminal;
-        using InputEditor  = Terminal::InputEditor;
+        using InputEditor  = Terminal::TextEditor;
         using LogEntry_t   = PlcIO::LogEntry_t;
         using Command      = Terminal::InputEvent::Command;
 
@@ -43,29 +43,26 @@ namespace Botanik { namespace Pages {
         uint16_t _log_head  = 0;   // next slot to write
         uint16_t _log_count = 0;   // number of stored lines
 
-        // Deferred log redraw state (driven by tick() to avoid TX buffer overflow)
-        uint16_t _redraw_i         = UINT16_MAX;  // UINT16_MAX = not pending
-        uint16_t _redraw_count     = 0;
-        uint16_t _redraw_start     = 0;
-        uint16_t _redraw_first_row = 0;
+        uint32_t _log_tick = 0;
 
         void _setup_editor();
         void _full_redraw();
 
-        /** @brief Echo each display row of a submitted command to the log area.
-         *  @param old_occ  Number of editor rows before reset(); the first
-         *                  (old_occ-1) echo lines are written directly into the
-         *                  donated blank rows to avoid spurious DL scrolls. */
-        void _echo_command(const char* cmd, uint16_t len, uint16_t old_occ);
+        /** @brief Store each display row of a submitted command in the scrollback buffer.
+         *         Does not touch the screen — the content is already visible. */
+        void _record_command(const char* cmd, uint16_t len);
+
+        /** @brief Scroll the log area down by delta rows via IL, then fill the newly
+         *         revealed top rows from the scrollback buffer.
+         *         Used when the editor shrinks, to avoid a full log redraw. */
+        void _reveal_log_rows(uint16_t delta);
 
         /** @brief Store a line in the circular buffer (does not display it). */
         void _store_line(const char* buf, size_t len);
 
-        /** @brief Start a deferred replay of stored log lines; drains one row per tick(). */
-        void _redraw_log();
-
-        /** @brief Drain one row of the pending log redraw (called from tick()). */
-        void _drain_redraw_row();
+        /** @brief Write all visible log rows top-to-bottom in a single sequential pass.
+         *         Assumes the log area is already blank (called after clear_screen). */
+        void _draw_log();
 
         // BufferedLogWriter + ShellWriter interface (one impl serves both)
         size_t format(const LogEntry_t* entry, char* buf, size_t len) override;
@@ -80,7 +77,7 @@ namespace Botanik { namespace Pages {
         const char* name() const override { return "SHELL"; }
         void handle_text(char c) override;
         void handle_text_batch(const char* buf, uint16_t len) override;
-        void handle_command(Command cmd) override;
+        void handle_command(Command cmd, uint16_t count = 1) override;
         void deactivate() override;
         void focus() override;
         void redraw() override;

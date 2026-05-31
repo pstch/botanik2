@@ -1,458 +1,472 @@
-
+/**
+ * @file editor.cpp
+ * @brief TextEditor — byte-efficient multi-row line editor. Each edit mutates
+ *        the buffer, rebuilds the row layout (`_layout`), and reconciles it
+ *        against the pre-edit layout (`_pre`): one IL/DL for the row-count
+ *        change, then a forward per-row splice walk from the edit row.
+ */
 #include <cctype>
 #include <cstdint>
-#include <cstdio>
 #include <cstring>
 
-#include "libbotanik/terminal/ansi.h"
 #include "libbotanik/terminal/editor.h"
 
 
 namespace Botanik { namespace Terminal {
 
-    namespace {
-        using Botanik::Terminal::Ansi::CursorPos;
-    }
-
-    InputEditor::InputEditor(AnsiTerminal* terminal) : _terminal(terminal) {
+    TextEditor::TextEditor(AnsiTerminal* terminal) : _terminal(terminal) {
         _buf[0] = '\0';
+        _layout.rows[0] = {0, 0, false};
+        _layout.count = 1;
         _terminal->set_auto_wrap(false);
     }
 
-    CursorPos InputEditor::_map_cursor_pos(uint16_t pos) const {
-        uint16_t row = _origin;
-        uint16_t col = _ps1_len;
-        uint16_t width = _terminal->cols();
+    // prompt helpers
+    // -----------------------------------------------------------------------
 
-        for (uint16_t i = 0; i < pos; i++) {
-            if (_buf[i] == '\n') {
-                row++; col = _ps2_len;
-            } else {
-                if (col >= width) { row++; col = _ps2_len; }
-                col++;
-            }
+    RowPrompt TextEditor::_row_prompt(uint16_t row_idx) const {
+        return _row_prompt_in(_layout, row_idx);
+    }
+
+    const char* TextEditor::_prompt_buf(RowPrompt p) const {
+        switch (p) {
+            case RowPrompt::PS1: return _ps1_buf;
+            case RowPrompt::PS2: return _ps2_buf;
+            case RowPrompt::PS3: return _ps3_buf;
         }
-        // Position falls exactly at a soft-wrap boundary: advance to the next row.
-        if (col >= width) { row++; col = _ps2_len; }
-        // FIXME: defend against cursor going off-screen on geometry mismatch
-        row = std::min(row, (uint16_t)(_terminal->rows() - 1));
-        return { row, col };
+        return _ps2_buf;
     }
 
-    uint16_t InputEditor::_get_row_cap(uint16_t row) const {
-        return (row == 0) ? _terminal->cols() - _ps1_len : _terminal->cols() - _ps2_len;
+    uint16_t TextEditor::_prompt_len(RowPrompt p) const {
+        switch (p) {
+            case RowPrompt::PS1: return _ps1_len;
+            case RowPrompt::PS2: return _ps2_len;
+            case RowPrompt::PS3: return _ps3_len;
+        }
+        return _ps2_len;
     }
 
-    RowView InputEditor::_scan_row(uint16_t pos, uint16_t cap) const {
-        // Returns buf_start = 0; caller (_build_rows) fills it in.
+    uint16_t TextEditor::_row_cap(uint16_t row_idx) const {
+        uint16_t cols   = _terminal->cols();
+        uint16_t prompt = _prompt_len(_row_prompt(row_idx));
+        return cols > prompt ? (uint16_t)(cols - prompt) : 1;
+    }
+
+    void TextEditor::_write_prompt(uint16_t row_idx) {
+        RowPrompt p = _row_prompt(row_idx);
+        _terminal->write_chars(_prompt_buf(p), _prompt_len(p));
+    }
+
+    // -- layout scanning --------------------------------------------------
+
+    RowView TextEditor::_scan_row(uint16_t pos, uint16_t cap) const {
         uint16_t len = 0;
-        while (len < cap && (pos + len) < _len && !_is_newline(pos + len)) len++;
-        bool hard_break = (pos + len < _len) && _is_newline(pos + len);
-        return RowView { 0, len, hard_break };
+        while (len < cap && (pos + len) < _len && _buf[pos + len] != '\n') len++;
+        bool hard_break = (pos + len < _len) && _buf[pos + len] == '\n';
+        return RowView { pos, len, hard_break };
     }
 
-    TextView InputEditor::_build_rows(uint16_t buf_pos) const {
-        TextView res;
+    void TextEditor::_rebuild_layout() {
         uint16_t pos = 0;
-        for (uint16_t i = 0; pos <= _len && res.row_count < TextView::MAX_ROWS; ++i) {
-            uint16_t cap = _get_row_cap(i);
-            RowView row = _scan_row(pos, cap);
+        _layout.count = 0;
+        while (_layout.count < Config::EDITOR_MAX_ROWS) {
+            uint16_t cap = _row_cap(_layout.count);
+            RowView  row = _scan_row(pos, cap);
+            _layout.rows[_layout.count++] = row;
             uint16_t stride = row.buf_len + (row.hard_break ? 1 : 0);
-            // A fully-wrapped row (at capacity, no hard break) that ends exactly at
-            // buf_pos does NOT contain buf_pos — that position belongs to the next row.
-            bool full_wrap = (row.buf_len == cap) && !row.hard_break;
-            if (pos + stride > buf_pos || (pos + stride == buf_pos && !full_wrap)) {
-                row.buf_start = pos;
-                if (res.row_count == 0) res.start_row = i;
-                res.rows[res.row_count++] = row;
-            }
-            // Advance to the start of the next row
+            if (stride == 0) break;
             pos += stride;
-            if (pos > _len || stride == 0) break;
+            if (pos >= _len && !row.hard_break) break;
+            if (pos > _len) break;
         }
-        return res;
     }
 
-    void InputEditor::set_contents(const char* buf, uint16_t len) {
-        if (len >= sizeof(_buf)) len = sizeof(_buf) - 1;
-        bool clear = len < _len;
-        memcpy(_buf, buf, len);
-        _buf[len] = '\0';
-        _len = _pos = len;
-        redraw(clear);
+    CursorPos TextEditor::_map_cursor_pos(uint16_t pos) const {
+        uint16_t i      = _owner_row(pos, _layout);
+        uint16_t prompt = _prompt_len(_row_prompt(i));
+        uint16_t col    = (uint16_t)(prompt + (pos - _layout.rows[i].buf_start));
+        return { (uint16_t)(_origin + i), col };
     }
 
-    void InputEditor::reset() {
-        // Clear all occupied rows before snapping origin back to the last row.
-        // This is necessary when origin drifted up during multi-row editing:
-        // without it, subsequent write() calls use the wrong last_log_row.
-        for (uint16_t i = 0; i < _occupied; i++)
+    // lifecycle
+    // -----------------------------------------------------------------------
+
+    void TextEditor::_reset_state() {
+        _len = _pos = 0;
+        _buf[0]    = '\0';
+        _origin    = (uint16_t)(_terminal->rows() - 1);
+        _layout.rows[0]   = {0, 0, false};
+        _layout.count = 1;
+    }
+
+    void TextEditor::reset() {
+        for (uint16_t i = 0; i < _layout.count; i++)
             _terminal->clear_row(_origin + i);
-        _origin   = (uint16_t)(_terminal->rows() - 1);
-        _occupied = 1;
-        set_contents("", 0);
+        uint16_t old_origin = _origin;
+        _reset_state();
+        uint16_t draw_row = _suppress_sync_redraw ? old_origin : _origin;
+        _terminal->move_to({draw_row, 0});
+        _write_prompt(0);
+        if (!_suppress_sync_redraw)
+            _terminal->move_to(_map_cursor_pos(0));
     }
 
-    void InputEditor::remove_characters(uint16_t len) {
-        if (len == 0 || _pos >= _len) return;
-        if (_pos + len > _len) len = _len - _pos;
+    void TextEditor::commit() {
+        _reset_state();
+        _terminal->move_to({_origin, 0});
+        _write_prompt(0);
+        _terminal->move_to(_map_cursor_pos(0));
+    }
 
-        TextView old_geo  = _build_rows(_pos);
-        CursorPos edit_pos = _map_cursor_pos(_pos);
+    void TextEditor::set_origin(uint16_t row) {
+        uint16_t max_row = (uint16_t)(_terminal->rows() - 1);
+        _origin = row > max_row ? max_row : row;
+    }
 
-        uint16_t tail_len = _len - (_pos + len);
-        if (tail_len > 0) memmove(&_buf[_pos], &_buf[_pos + len], tail_len);
-        _len -= len;
-        _buf[_len] = '\0';
+    // redraw
+    // -----------------------------------------------------------------------
 
-        _do_removal(edit_pos, old_geo, len);
-        _occupied = _map_cursor_pos(_len).row - _origin + 1;
-        // If cursor lands on a continuation row that now has no content (empty PS2
-        // line at a soft-wrap boundary), the row was cleared — redraw the PS2 prompt.
-        if (_len > 0) {
-            uint16_t last_content_row = _map_cursor_pos(_len - 1).row;
-            uint16_t cursor_row       = _map_cursor_pos(_len).row;
-            if (cursor_row > last_content_row) {
-                _terminal->move_to({cursor_row, 0});
-                _write_ps2();
-            }
+    void TextEditor::redraw() {
+        // The destination rows are assumed already blank (the caller cleared
+        // them), so this only writes each row's prompt + content.
+        for (uint16_t i = 0; i < _layout.count; i++) {
+            uint16_t hw_row = _origin + i;
+            if (hw_row >= _terminal->rows()) break;
+            _terminal->move_to({hw_row, 0});
+            _write_prompt(i);
+            if (_layout.rows[i].buf_len > 0)
+                _terminal->write_chars(&_buf[_layout.rows[i].buf_start], _layout.rows[i].buf_len);
         }
         _terminal->move_to(_map_cursor_pos(_pos));
     }
 
-    bool InputEditor::_remove_selection() {
-        if (_sel_len == 0) return false;
-        _pos = _sel_anchor;
-        remove_characters(_sel_len);
-        _sel_anchor = 0;
-        _sel_len    = 0;
-        _mark_active = false;
-        _terminal->move_to(_map_cursor_pos(_pos));
-        return true;
-    }
+    // editing
+    // -----------------------------------------------------------------------
 
-    void InputEditor::insert_characters(const char* buf, uint16_t len) {
-        _remove_selection();
+    void TextEditor::insert_characters(const char* buf, uint16_t len) {
+        if (len == 0 || _len + 1 >= sizeof(_buf)) return;
+        if ((uint32_t)_len + len >= sizeof(_buf)) len = (uint16_t)(sizeof(_buf) - _len - 1);
         if (len == 0) return;
-        if ((_len + len) >= sizeof(_buf)) len = sizeof(_buf) - _len - 1;
 
-        TextView old_geo   = _build_rows(_pos);
-        CursorPos edit_pos = _map_cursor_pos(_pos);
+        uint16_t pos = _pos;
 
         if (_pos < _len) memmove(&_buf[_pos + len], &_buf[_pos], _len - _pos);
         memcpy(&_buf[_pos], buf, len);
         _len += len;
         _buf[_len] = '\0';
-
         _pos += len;
-        _do_insertion(edit_pos, old_geo, len);
-        _occupied = _map_cursor_pos(_len).row - _origin + 1;
+
+        _pre = _layout;
+        _rebuild_layout();
+        _reconcile(pos, len, /*is_insert=*/true);
         _terminal->move_to(_map_cursor_pos(_pos));
     }
 
-    void InputEditor::replace_characters(char* buf, uint16_t len) {
+    void TextEditor::remove_characters(uint16_t len) {
         if (len == 0 || _pos >= _len) return;
-        uint16_t replace_len = std::min(len, (uint16_t)(_len - _pos));
-        uint16_t write_start = _pos;
-        memcpy(&_buf[_pos], buf, replace_len);
-        _pos += replace_len;
-        _terminal->move_to(_map_cursor_pos(write_start));
-        // Write in segments so selected chars get reverse-video highlighting.
-        uint16_t seg_start = write_start;
-        bool seg_sel = (_sel_len > 0 && write_start >= _sel_anchor &&
-                        write_start < _sel_anchor + _sel_len);
-        _terminal->set_inverted(seg_sel);
-        for (uint16_t i = write_start + 1; i <= write_start + replace_len; i++) {
-            bool sel = (_sel_len > 0 && i >= _sel_anchor && i < _sel_anchor + _sel_len);
-            if (sel != seg_sel || i == write_start + replace_len) {
-                _terminal->write_chars(&_buf[seg_start], i - seg_start);
-                if (i < write_start + replace_len) {
-                    _terminal->set_inverted(sel);
-                    seg_sel = sel;
-                }
-                seg_start = i;
+        if (_pos + len > _len) len = (uint16_t)(_len - _pos);
+
+        uint16_t pos = _pos;
+        uint16_t safe_len = (uint16_t)(_len - (_pos + len));
+
+        if (safe_len > 0) memmove(&_buf[_pos], &_buf[_pos + len], safe_len);
+        _len -= len;
+        _buf[_len] = '\0';
+
+        _pre = _layout;
+        _rebuild_layout();
+        _reconcile(pos, len, false);
+        _terminal->move_to(_map_cursor_pos(_pos));
+    }
+
+    // grow/shrink helpers
+    // -----------------------------------------------------------------------
+
+    uint16_t TextEditor::_grow_editor() {
+        // Bottom-pinned origin for the current row count: pull the top up by
+        // however many rows the editor grew, clamping at the screen top.
+        uint16_t scr_rows = _terminal->rows();
+        uint16_t new_origin;
+        if (scr_rows >= _layout.count) new_origin = (uint16_t)(scr_rows - _layout.count);
+        else                           new_origin = 0;
+
+        if (new_origin < _origin) {
+            for (uint16_t g = (uint16_t)(_origin - new_origin); g > 0; g--) {
+                _terminal->move_to({1, 0});
+                _terminal->delete_rows(1);
+            }
+            _origin = new_origin;
+        }
+        return new_origin;
+    }
+
+    void TextEditor::_shrink_editor(uint16_t new_origin) {
+        if (new_origin <= _origin) return;
+        // Under suppress the caller repaints, so only move the origin.
+        if (!_suppress_sync_redraw && _origin < _terminal->rows()) {
+            _terminal->move_to({_origin, 0});
+            _terminal->insert_rows((uint16_t)(new_origin - _origin));
+        }
+        _origin = new_origin;
+    }
+
+    // reconciliation helpers
+    // -----------------------------------------------------------------------
+
+    int32_t TextEditor::_edit_row_amount(uint16_t span_start, uint16_t span_len,
+                                         bool is_insert, const RowView& post_row,
+                                         const RowView& pre_row) {
+        const RowView& row = is_insert ? post_row : pre_row;
+        uint16_t row_end = (uint16_t)(row.buf_start + row.buf_len);
+        uint16_t avail   = (uint16_t)(row_end - span_start);
+        uint16_t head    = span_len < avail ? span_len : avail;
+        return is_insert ? (int32_t)head : -(int32_t)head;
+    }
+
+    void TextEditor::_splice_row(uint16_t post_idx, uint16_t col, int32_t amount,
+                                 uint16_t shown_len, uint16_t shown_prompt_l,
+                                 const RowView& want) {
+        uint16_t hw     = (uint16_t)(_origin + post_idx);
+        uint16_t prompt = _prompt_len(_row_prompt(post_idx));
+        uint16_t cap    = _row_cap(post_idx);
+
+        // Prompt-class flip (PS2<->PS3): rewrite the gutter. A longer prompt's
+        // push drops trailing content off the right edge, so shrink shown_len
+        // accordingly before the length-align below.
+        if (shown_prompt_l != prompt && hw < _terminal->rows()) {
+            RowPrompt p = _row_prompt(post_idx);
+            _terminal->move_to({hw, 0});
+            if (prompt <= shown_prompt_l) {
+                _terminal->write_chars(_prompt_buf(p), prompt);
+                _terminal->delete_chars((uint16_t)(shown_prompt_l - prompt));
+            } else {
+                _terminal->write_chars(_prompt_buf(p), prompt, /*insert=*/true);
+                _terminal->delete_chars(shown_prompt_l);
+                uint32_t total = (uint32_t)shown_prompt_l + prompt + shown_len;
+                uint16_t cols  = _terminal->cols();
+                if (total > cols) shown_len -= (uint16_t)(total - cols);
             }
         }
-        _terminal->set_inverted(false);
-    }
 
-    void InputEditor::append_characters(const char* buf, uint16_t len) {
-        if (len == 0) return;
-        _pos = _len;
-        insert_characters(buf, len);
-    }
-
-    void InputEditor::select_characters(uint16_t anchor, uint16_t len) {
-        bool has_damage = (_sel_len > 0 || len > 0);
-        uint16_t dmg_start, dmg_end;
-        if (_sel_len > 0 && len > 0) {
-            dmg_start = std::min(_sel_anchor, anchor);
-            dmg_end   = std::max((uint16_t)(_sel_anchor + _sel_len), (uint16_t)(anchor + len));
-        } else if (_sel_len > 0) {
-            dmg_start = _sel_anchor; dmg_end = _sel_anchor + _sel_len;
-        } else {
-            dmg_start = anchor; dmg_end = anchor + len;
+        // Splice `amount` content chars at `col` (cursor for the edit row, the
+        // prompt column for rows below). The chars pushed off the right edge
+        // reflow into the next row, which the next iteration prepends. Move only
+        // when there is a splice to make — an absorbed row (amount 0, no length
+        // or prompt change) must emit nothing.
+        if (amount > 0) {
+            _terminal->move_to({hw, col});
+            _terminal->write_chars(&_buf[want.buf_start + (col - prompt)],
+                                   (uint16_t)amount, /*insert=*/true);
+        } else if (amount < 0) {
+            _terminal->move_to({hw, col});
+            _terminal->delete_chars((uint16_t)(-amount));
         }
 
-        _sel_anchor = anchor;
-        _sel_len    = len;
-
-        if (has_damage && dmg_start < _len) {
-            dmg_end = std::min(dmg_end, _len);
-            uint16_t saved_pos = _pos;
-            _pos = dmg_start;
-            replace_characters(&_buf[dmg_start], dmg_end - dmg_start);
-            _pos = saved_pos;
+        // Length-align the tail. `after` is what the row shows post-splice; a
+        // shrink here is what clears a row that just gained a hard break.
+        int32_t  after_i = (int32_t)shown_len + amount;
+        uint16_t after   = after_i < 0 ? 0 : (after_i > (int32_t)cap ? cap : (uint16_t)after_i);
+        if (want.buf_len > after) {
+            _terminal->move_to({hw, (uint16_t)(prompt + after)});
+            _terminal->write_chars(&_buf[want.buf_start + after],
+                                   (uint16_t)(want.buf_len - after));
+        } else if (want.buf_len < after) {
+            _terminal->move_to({hw, (uint16_t)(prompt + want.buf_len)});
+            _terminal->clear_to_eol();
         }
     }
 
-    void InputEditor::delete_forward() {
-        if (_remove_selection()) return;
-        if (_pos < _len) remove_characters(1);
+    void TextEditor::_new_row(uint16_t post_idx) {
+        uint16_t hw = (uint16_t)(_origin + post_idx);
+        if (hw >= _terminal->rows()) return;
+        const RowView& want = _layout.rows[post_idx];
+        _terminal->move_to({hw, 0});
+        _write_prompt(post_idx);
+        if (want.buf_len > 0)
+            _terminal->write_chars(&_buf[want.buf_start], want.buf_len);
+        _terminal->clear_to_eol();
     }
 
-    void InputEditor::deselect() {
-        _mark_active = false;
-        select_characters(0, 0);
-    }
+    TextEditor::SpliceSpan
+    TextEditor::_find_splice_span(uint16_t span_start, uint16_t span_len,
+                                  bool is_insert, int32_t l_shift,
+                                  int32_t row_delta) const {
+        // First affected row. Insert: the post owner (where the new bytes land
+        // — a `\n` inserted at a soft-wrap boundary closes the row *above* the
+        // pre owner). Remove: the pre owner (the deleted bytes lived there).
+        uint16_t edit_row;
+        if (is_insert) edit_row = _owner_row(span_start, _layout);
+        else           edit_row = _owner_row(span_start, _pre);
 
-    void InputEditor::set_mark_toggle() {
-        if (_mark_active) {
-            deselect();
-        } else {
-            _mark_active = true;
-            _mark_pos    = _pos;
-            _sel_anchor  = _pos;
-            _sel_len     = 0;
+        // Absorption boundary: longest bottom suffix of shifted-identical rows
+        // (same buf_len + hard_break, buf_start displaced by exactly l_shift,
+        // lying strictly past the edit). `absorbed_post` is the post index where
+        // the tail is already correct; `absorbed_pre` the matching pre index.
+        uint16_t span_end_old;
+        if (is_insert) span_end_old = span_start;
+        else           span_end_old = (uint16_t)(span_start + span_len);
+
+        uint16_t t = 0;
+        while (t < _pre.count && t < _layout.count) {
+            const RowView& pre = _pre.rows[_pre.count - 1 - t];
+            const RowView& po  = _layout.rows[_layout.count - 1 - t];
+            if (po.buf_len != pre.buf_len || po.hard_break != pre.hard_break) break;
+            if ((int32_t)po.buf_start != (int32_t)pre.buf_start + l_shift) break;
+            if (pre.buf_start < span_end_old) break;
+            t++;
         }
+        uint16_t absorbed_post = (uint16_t)(_layout.count - t);
+        uint16_t absorbed_pre  = (uint16_t)((int32_t)absorbed_post - row_delta);
+        return { edit_row, absorbed_post, absorbed_pre };
     }
 
-    void InputEditor::_finalize_move() {
-        if (_mark_active) {
-            uint16_t start = std::min(_mark_pos, _pos);
-            select_characters(start, std::max(_mark_pos, _pos) - start);
-        } else {
-            _sel_anchor = 0; _sel_len = 0;
+    void TextEditor::_reposition_tail(const SpliceSpan& span, int32_t row_delta,
+                                      uint16_t scr_rows) {
+        // A single contiguous edit needs at most one IL/DL: it slides the
+        // absorbed tail (and opens the blank rows inserted content paints into).
+        // Nothing to do when there is no tail or no row-count change.
+        if (span.absorbed_post >= _layout.count || row_delta == 0) return;
+
+        uint16_t at;
+        if (row_delta > 0) at = span.absorbed_pre;
+        else               at = span.absorbed_post;
+        uint16_t n = (uint16_t)(row_delta > 0 ? row_delta : -row_delta);
+
+        if ((uint16_t)(_origin + at) >= scr_rows) return;
+        _terminal->move_to({(uint16_t)(_origin + at), 0});
+        if (row_delta > 0) _terminal->insert_rows(n);
+        else               _terminal->delete_rows(n);
+    }
+
+    void TextEditor::_reconcile(uint16_t span_start, uint16_t span_len, bool is_insert) {
+        int32_t l_shift;
+        if (is_insert) l_shift = (int32_t)span_len;
+        else           l_shift = -(int32_t)span_len;
+
+        int32_t  row_delta = (int32_t)_layout.count - (int32_t)_pre.count;
+        uint16_t scr_rows  = _terminal->rows();
+
+        // Scroll up if the editor grew, so the added rows fit.
+        uint16_t new_origin = _grow_editor();
+
+        // Find the edit row and the absorbed tail: the bottom run of rows that
+        // the edit only shifted, needing the IL/DL below but no per-row work.
+        SpliceSpan span = _find_splice_span(span_start, span_len, is_insert,
+                                            l_shift, row_delta);
+
+        // One IL/DL slides that tail to its new rows (and, on insert, opens the
+        // blank rows the forward walk paints the new content into).
+        _reposition_tail(span, row_delta, scr_rows);
+
+        // Edit-row splice geometry, computed once (the walk's first row is the
+        // edit row): the cursor column, and the signed count of content chars
+        // the edit adds/removes on that row.
+        const RowView& edit_post = _layout.rows[span.edit_row];
+        const RowView& edit_pre  = _pre.rows[span.edit_row];
+        uint16_t edit_col    = (uint16_t)(_prompt_len(_row_prompt(span.edit_row))
+                                          + (span_start - edit_post.buf_start));
+        int32_t  edit_amount = _edit_row_amount(span_start, span_len, is_insert,
+                                                edit_post, edit_pre);
+
+        // Forward walk from the edit row. Each row maps to the pre row now
+        // physically present (or is fresh: an IL-opened blank, or a row whose
+        // old glyphs are unrelated to the wanted content).
+        for (uint16_t i = span.edit_row; i < _layout.count; i++) {
+            const RowView& want  = _layout.rows[i];
+            uint16_t want_prompt = _prompt_len(_row_prompt(i));
+
+            // Map post row i to the pre row physically present after the IL/DL.
+            // Rows inside the IL-opened gap [absorbed_pre, absorbed_post) have no
+            // pre image (has_pre false): their splice branches are skipped and
+            // they drop through to the repaint below. (The gap is empty unless
+            // the edit grew the row count, so otherwise has_pre is always true.)
+            bool     has_pre = !(i >= span.absorbed_pre && i < span.absorbed_post);
+            uint16_t pre_idx = (i < span.absorbed_post)
+                ? i : (uint16_t)((int32_t)i - row_delta);
+            const RowView& shown  = _pre.rows[pre_idx];
+            uint16_t shown_prompt = _prompt_len(_row_prompt_in(_pre, pre_idx));
+
+            // How far the present pre row's content slid, and whether the
+            // displaced slice still overlaps the wanted one (only meaningful
+            // when has_pre — the conditions below gate on it).
+            int32_t ss = (int32_t)shown.buf_start + l_shift;
+            int32_t sl = (int32_t)shown.buf_len;
+            int32_t ws = (int32_t)want.buf_start;
+            int32_t wl = (int32_t)want.buf_len;
+
+            if (has_pre && i == span.edit_row)
+                // Edit row: splice the inserted/removed run at the cursor.
+                _splice_row(i, edit_col, edit_amount, shown.buf_len, shown_prompt, want);
+            else if (has_pre && sl == 0 && wl == 0)
+                // Both rows empty: nothing to write but a possible prompt flip.
+                _splice_row(i, want_prompt, 0, 0, shown_prompt, want);
+            else if (has_pre && (ws < ss + sl) && (ss < ws + wl))
+                // Overlap: cheap left splice by the displacement, cascading the
+                // pushed-off char into the next row (the next iteration prepends).
+                _splice_row(i, want_prompt, ss - ws, shown.buf_len, shown_prompt, want);
+            else
+                // Fresh blank (no pre image) or content reflowed to unrelated
+                // columns: a full repaint is byte-optimal either way.
+                _new_row(i);
         }
-        _terminal->move_to(_map_cursor_pos(_pos));
+
+        _shrink_editor(new_origin);
     }
 
-    void InputEditor::move_left() {
-        if (_pos == 0) { deselect(); return; }
-        _pos--;
-        _finalize_move();
-    }
+    // cursor motion
+    // -----------------------------------------------------------------------
 
-    void InputEditor::move_right() {
-        if (_pos >= _len) { deselect(); return; }
-        _pos++;
-        _finalize_move();
-    }
-
-    void InputEditor::move_to_line_start() {
-        while (_pos > 0 && !_is_newline(_pos - 1)) _pos--;
-        _finalize_move();
-    }
-
-    void InputEditor::move_to_line_end() {
-        while (_pos < _len && !_is_newline(_pos)) _pos++;
-        _finalize_move();
-    }
-
-    void InputEditor::move_word_left() {
-        while (_pos > 0 && !isalnum(_buf[_pos - 1]) && _buf[_pos - 1] != '_') _pos--;
-        while (_pos > 0 && (isalnum(_buf[_pos - 1]) || _buf[_pos - 1] == '_')) _pos--;
-        _finalize_move();
-    }
-
-    void InputEditor::move_word_right() {
-        while (_pos < _len && (isalnum(_buf[_pos]) || _buf[_pos] == '_')) _pos++;
-        while (_pos < _len && !isalnum(_buf[_pos]) && _buf[_pos] != '_') _pos++;
-        _finalize_move();
-    }
-
-    void InputEditor::backspace() {
-        if (_remove_selection()) return;
+    void TextEditor::move_left() {
         if (_pos == 0) return;
         _pos--;
-        remove_characters(1);
-    }
-
-    void InputEditor::redraw(bool clear) {
-        if (clear) {
-            for (uint16_t i = 0; i < _occupied; i++)
-                _terminal->clear_row(_origin + i);
-        }
-        _terminal->move_to({_origin, 0});
-        _write_ps1();
-        if (_len > 0) {
-            _do_insertion({_origin, _ps1_len}, TextView::empty(), _len);
-            _occupied = _map_cursor_pos(_len).row - _origin + 1;
-        }
         _terminal->move_to(_map_cursor_pos(_pos));
     }
 
-    uint16_t InputEditor::_shift_insert(uint16_t row, uint16_t pos,
-                                        uint16_t pressure, const TextView& geometry) {
-        uint16_t prompt_row = geometry.start_row + row;
-        uint16_t cap     = _get_row_cap(prompt_row);
-        uint16_t old_len = (row < geometry.row_count) ? geometry.rows[row].buf_len : 0;
-        uint16_t overflow = (old_len + pressure > cap) ? (old_len + pressure - cap) : 0;
-
-        if (old_len == 0) {
-            // Blank row — write directly. ICH/IL would push existing content (e.g. PS1)
-            // down even on an otherwise-empty row, corrupting the prompt layout.
-            uint16_t write_len = std::min(pressure, cap);
-            uint16_t safe_len  = std::min(write_len, (uint16_t)(_len > pos ? _len - pos : 0u));
-            _terminal->write_chars(&_buf[pos], safe_len);
-        } else if (pressure < cap / 2) {
-            // ICH via SM4: write 'pressure' chars in insert mode, opening a gap that
-            // pushes the existing on-screen row content right; overflow falls off the edge.
-            // Cap to the remaining columns: write_chars clamps _hw_pos to _cols-1 when
-            // auto-wrap is off, so a second write at the same clamped column overwrites
-            // the char we just inserted instead of falling off the edge.
-            uint16_t cur_col  = _terminal->cursor_pos().col;
-            uint16_t fits     = (_terminal->cols() > cur_col)
-                                ? (uint16_t)(_terminal->cols() - cur_col) : (uint16_t)0;
-            uint16_t buf_avail = (_len > pos) ? (uint16_t)(_len - pos) : (uint16_t)0;
-            uint16_t safe_len = std::min(pressure, std::min(fits, buf_avail));
-            _terminal->write_chars(&_buf[pos], safe_len, /*insert=*/true);
-        } else {
-            // IL: insert a blank line, pushing old row content down; rewrite the full row.
-            _terminal->insert_rows(1);
-            _terminal->write_chars(&_buf[pos], std::min((uint16_t)(old_len + pressure), cap));
-        }
-        return overflow;
+    void TextEditor::move_right() {
+        if (_pos >= _len) return;
+        _pos++;
+        _terminal->move_to(_map_cursor_pos(_pos));
     }
 
-    uint16_t InputEditor::_shift_remove(uint16_t row, uint16_t pos,
-                                        uint16_t vacuum, const TextView& geometry) {
-        uint16_t prompt_row   = geometry.start_row + row;
-        uint16_t cap          = _get_row_cap(prompt_row);
-        uint16_t next_buf_len = ((row + 1) < geometry.row_count) ? geometry.rows[row + 1].buf_len : 0;
-        uint16_t fill         = std::min(vacuum, next_buf_len);
-
-        if (vacuum < cap / 2) {
-            // DCH: delete 'vacuum' chars at cursor, shifting the rest of the line left.
-            // Use remaining capacity from the cursor position (not the full row cap) so
-            // _scan_row doesn't overshoot into the next row when the cursor is mid-row.
-            uint16_t prompt_col    = (prompt_row == 0) ? _ps1_len : _ps2_len;
-            uint16_t col_offset    = _terminal->cursor_pos().col - prompt_col;
-            uint16_t remaining_cap = cap - col_offset;
-            RowView  new_row       = _scan_row(pos, remaining_cap);
-            _terminal->delete_chars(vacuum);
-            if (fill > 0) {
-                // The new row content from cursor = (already-on-screen chars) + (fill chars to write).
-                // Skip the already-on-screen part, then overwrite the blank gap with fill chars.
-                uint16_t skip = (new_row.buf_len > fill) ? (new_row.buf_len - fill) : 0;
-                if (skip > 0) _terminal->move_cursor(RIGHT, skip);
-                _terminal->write_chars(&_buf[pos + skip], fill);
-            }
-        } else {
-            // DL: delete this line, pulling subsequent rows up; rewrite the row content.
-            RowView  new_row = _scan_row(pos, cap);
-            _terminal->delete_rows(1);
-            _terminal->write_chars(&_buf[pos], new_row.buf_len);
-            _terminal->clear_to_eol();
-            return vacuum - fill;
-        }
-        // Return the number of chars pulled from the next row — that becomes the
-        // next row's DCH vacuum so its stale leading chars are removed.
-        return fill;
+    void TextEditor::move_to_line_start() {
+        while (_pos > 0 && _buf[_pos - 1] != '\n') _pos--;
+        _terminal->move_to(_map_cursor_pos(_pos));
     }
 
-    int16_t InputEditor::_shift_row(uint16_t row, uint16_t pos,
-                                    int16_t pressure, const TextView& geometry) {
-        if (pressure > 0)
-            return (int16_t)_shift_insert(row - geometry.start_row, pos, (uint16_t)pressure, geometry);
-        if (pressure < 0)
-            return -(int16_t)_shift_remove(row - geometry.start_row, pos, (uint16_t)-pressure, geometry);
-        return 0;
+    void TextEditor::move_to_line_end() {
+        while (_pos < _len && _buf[_pos] != '\n') _pos++;
+        _terminal->move_to(_map_cursor_pos(_pos));
     }
 
-    void InputEditor::_do_insertion(CursorPos pos, const TextView& geometry,
-                                    uint16_t pressure) {
-        uint16_t new_buf_pos = geometry.rows[0].buf_start;
-        uint16_t i = 0;
-
-        for (; i < geometry.row_count; i++) {
-            uint16_t prompt_row = geometry.start_row + i;
-            // If this row is already off-screen, don't try to edit it in place;
-            // fall through to the overflow/scroll path below.
-            if (_origin + prompt_row >= _terminal->rows()) break;
-            uint16_t col        = (prompt_row == 0) ? _ps1_len : _ps2_len;
-            uint16_t cap        = _get_row_cap(prompt_row);
-            uint16_t shift_pos  = new_buf_pos;
-            CursorPos target    = { (uint16_t)(_origin + prompt_row), col };
-            if (i == 0 && pressure < cap / 2) {
-                shift_pos = new_buf_pos + (pos.col - col);
-                target    = pos;
-            }
-            _terminal->move_to(target);
-
-            pressure = (uint16_t)_shift_row(prompt_row, shift_pos, (int16_t)pressure, geometry);
-            RowView row = _scan_row(new_buf_pos, cap);
-            new_buf_pos += row.buf_len + (row.hard_break ? 1 : 0);
-            if (pressure == 0) break;
-        }
-
-        // Overflow past the last processed row: write remaining chars on new screen lines.
-        // If we hit the bottom of the terminal, emit a line feed to trigger a hardware
-        // scroll and adjust _origin so subsequent absolute moves remain valid.
-        for (uint16_t j = 0; pressure > 0; j++) {
-            if (new_buf_pos >= _len) break;
-            uint16_t prompt_row = geometry.start_row + i + j;
-            bool will_scroll = (_origin + prompt_row >= _terminal->rows());
-            _terminal->line_feed();
-            if (will_scroll && _origin > 0) _origin--;
-            _write_ps2();
-            RowView row = _scan_row(new_buf_pos, _get_row_cap(prompt_row));
-            _terminal->write_chars(&_buf[new_buf_pos], row.buf_len);
-            uint16_t stride = row.buf_len + (row.hard_break ? 1 : 0);
-            if (stride == 0) break;
-            pressure -= std::min(pressure, stride);
-            new_buf_pos += stride;
-        }
-
-        // If _len lands exactly at a row boundary the overflow loop had nothing to write
-        // but the cursor still belongs on the next row — draw PS2 there.
-        uint16_t end_row = _map_cursor_pos(_len).row;
-        while (_terminal->cursor_pos().row < end_row && end_row < _terminal->rows()) {
-            _terminal->line_feed();
-            _write_ps2();
-        }
+    void TextEditor::backspace(uint16_t count) {
+        if (count == 0 || _pos == 0) return;
+        if (count > _pos) count = _pos;
+        _pos -= count;
+        remove_characters(count);
     }
 
-    void InputEditor::_do_removal(CursorPos pos, const TextView& old,
-                                  uint16_t pressure) {
-        uint16_t new_buf_pos = old.rows[0].buf_start;
+    void TextEditor::delete_forward(uint16_t count) {
+        if (count == 0 || _pos >= _len) return;
+        uint16_t avail = (uint16_t)(_len - _pos);
+        if (count > avail) count = avail;
+        remove_characters(count);
+    }
 
-        for (uint16_t i = 0; i < old.row_count; i++) {
-            uint16_t prompt_row = old.start_row + i;
-            uint16_t col        = (prompt_row == 0) ? _ps1_len : _ps2_len;
-            uint16_t cap        = _get_row_cap(prompt_row);
-            uint16_t shift_pos  = new_buf_pos;
-            CursorPos target    = { (uint16_t)(_origin + prompt_row), col };
-            if (i == 0 && pressure < cap / 2) {
-                shift_pos = new_buf_pos + (pos.col - col);
-                target    = pos;
-            }
-            _terminal->move_to(target);
+    static inline bool _is_word_char(char c) {
+        unsigned char uc = (unsigned char)c;
+        return isalnum(uc) || c == '_';
+    }
 
-            int16_t remaining = _shift_row(prompt_row, shift_pos, -(int16_t)pressure, old);
-            pressure = (uint16_t)(-remaining);
-            RowView row = _scan_row(new_buf_pos, cap);
-            new_buf_pos += row.buf_len + (row.hard_break ? 1 : 0);
-            if (remaining == 0) break;
-        }
+    void TextEditor::move_word_left() {
+        while (_pos > 0 && !_is_word_char(_buf[_pos - 1])) _pos--;
+        while (_pos > 0 &&  _is_word_char(_buf[_pos - 1])) _pos--;
+        _terminal->move_to(_map_cursor_pos(_pos));
+    }
 
-        // Clear any screen rows that are no longer occupied after the deletion.
-        // Use _len-1 (last content char) not _len (cursor pos) to find the last
-        // occupied row: _map_cursor_pos(_len) lands on the PS2 row when _len is
-        // exactly at a soft-wrap boundary, even though that row has no content.
-        uint16_t new_last_row = (_len > 0) ? _map_cursor_pos(_len - 1).row : _origin;
-        for (uint16_t r = new_last_row + 1; r < _origin + _occupied; r++)
-            _terminal->clear_row(r);
+    void TextEditor::move_word_right() {
+        while (_pos < _len &&  _is_word_char(_buf[_pos])) _pos++;
+        while (_pos < _len && !_is_word_char(_buf[_pos])) _pos++;
+        _terminal->move_to(_map_cursor_pos(_pos));
     }
 
 }}

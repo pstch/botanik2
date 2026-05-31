@@ -83,7 +83,7 @@ namespace Botanik { namespace Pages {
 
     void LogsPage::handle_text(char /* c */) {}
 
-    void LogsPage::handle_command(Command cmd) {
+    void LogsPage::handle_command(Command cmd, uint16_t /*count*/) {
         switch (cmd) {
             case Command::ENTER:
                 _terminal.clear_screen();

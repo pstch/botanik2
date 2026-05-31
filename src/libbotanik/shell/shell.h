@@ -37,7 +37,7 @@ namespace Botanik { namespace Shell {
     class CommandShell {
     public:
         CommandShell(Terminal::AnsiTerminal& terminal,
-                     Terminal::InputEditor&  editor,
+                     Terminal::TextEditor&  editor,
                      ShellWriter&            output);
 
         /** @brief Snapshot the editor buffer, reset the editor, dispatch the command */
@@ -67,7 +67,7 @@ namespace Botanik { namespace Shell {
 
     private:
         Terminal::AnsiTerminal& _terminal;
-        Terminal::InputEditor&  _editor;
+        Terminal::TextEditor&  _editor;
         ShellWriter&            _output;
 
         void _builtin(const char* cmd, uint16_t len);

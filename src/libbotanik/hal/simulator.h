@@ -95,11 +95,13 @@ namespace Botanik { namespace HAL {
 
         RawSerial() = default;
 
-        inline void begin(uint32_t /* baud */) {
+        inline void begin(uint32_t baud) {
             if (_fd_in != -1) {
                 int flags = fcntl(_fd_in, F_GETFL, 0);
                 fcntl(_fd_in, F_SETFL, flags | O_NONBLOCK);
             }
+            _baud = baud;
+            _next_write_us = _now_as<std::chrono::microseconds>();
         }
 
         inline int read() {
@@ -112,6 +114,9 @@ namespace Botanik { namespace HAL {
         inline size_t write(uint8_t c) {
             if (_fd_out == -1) return 0;
             ssize_t n = ::write(_fd_out, &c, 1);
+            if (_baud > 0) {
+                _next_write_us = _now_as<std::chrono::microseconds>() + 10000000ULL / _baud;
+            }
             return (n > 0) ? (size_t)n : 0;
         }
 
@@ -129,6 +134,7 @@ namespace Botanik { namespace HAL {
 
         inline int availableForWrite() {
             if (_fd_out == -1) return 0;
+            if (_baud > 0 && _next_write_us > _now_as<std::chrono::microseconds>()) return 0;
             int pending_bytes = 0;
             // TIOCOUTQ gives us the number of bytes currently in the output buffer
             // NOTE: this should always return when bound to a PTY
@@ -141,6 +147,8 @@ namespace Botanik { namespace HAL {
     private:
         int _fd_in = -1;
         int _fd_out = -1;
+        uint32_t _baud = 0;
+        uint64_t _next_write_us = 0;
     };
 
     inline RawSerial* get_serial(SerialPort port) {

@@ -31,6 +31,9 @@ namespace Botanik { namespace Terminal {
             CTRL_K, CTRL_L, CTRL_N, CTRL_P, CTRL_R, CTRL_U, CTRL_W, CTRL_Y,
             CTRL_SPACE,
 
+            // Shift Combinations
+            SHIFT_ENTER,
+
             // Meta/Alt Combinations
             ALT_B, ALT_F,
 
@@ -41,6 +44,10 @@ namespace Botanik { namespace Terminal {
         // Event fields
         EventType   type = EventType::NONE;
         Command     command = Command::NONE;
+        // For COMMAND events that have been chunked (consecutive identical
+        // BACKSPACE / CTRL_D presses while output backpressure held the
+        // emit window). Default 1 = run the command once.
+        uint16_t    count = 1;
         // For CONTENT batches
         const char* batch_data = nullptr;
         uint16_t    batch_len = 0;
@@ -72,7 +79,14 @@ namespace Botanik { namespace Terminal {
         // Text Batching
         char            _text_buf[Config::ANSI_INPUT_BATCH_SIZE];   // batched text
         uint16_t        _text_len = 0;                              // batched text length
-        uint32_t        _last_byte_ms = 0;                          // safety timeout for
+        uint32_t        _last_byte_ms = 0;                          // timestamp of last byte read
+        uint32_t        _batch_start_ms = 0;                        // when the current text batch started accumulating
+        // Pending chunkable command (BACKSPACE / CTRL_D held down).
+        // Coalesced into one COMMAND event with `count` so a held key
+        // becomes one reconcile pass instead of N.
+        InputEvent::Command _pending_cmd = InputEvent::Command::NONE;
+        uint16_t            _pending_cmd_count = 0;
+        uint32_t            _pending_cmd_start_ms = 0;
         // Initialization
         void _reset_event();
         // Text handling helpers
@@ -81,6 +95,10 @@ namespace Botanik { namespace Terminal {
         // Transition conditions
         bool _is_safety_timeout_elapsed() const;
         bool _should_flush_text() const;
+        bool _should_flush_pending_command() const;
+        // Chunkable command helpers
+        static bool _is_chunkable_trigger(uint8_t b);
+        static InputEvent::Command _chunkable_command_for(uint8_t b);
         // State handlers
         State _handle_idle(uint8_t b);
         State _handle_text(uint8_t b);

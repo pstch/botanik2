@@ -108,7 +108,13 @@ namespace Botanik { namespace Config {
     /** @brief Number of input characters to process in a single batch */
     static constexpr size_t   ANSI_INPUT_BATCH_SIZE = 32;
 
-    /** @brief Maximum time to wait for a full batch before processing partial input */
+    /** @brief Inter-byte idle gap (ms) that marks the end of a text stream.
+     *         Bytes arriving within the same scheduler tick (idle_ms == 0) are always
+     *         accumulated; the batch is flushed on the first tick after input goes quiet.
+     *         2 ms ≈ 2 byte-times at 9600 baud. */
+    static constexpr uint32_t ANSI_STREAM_IDLE_MS = 2;
+
+    /** @brief Safety timeout: flush any stale batch regardless of stream activity */
     static constexpr uint32_t ANSI_INPUT_BATCH_TIMEOUT_MS = 1000;
 
     /** @brief Time after the last byte before a stalled ESC or CSI sequence is resolved:
@@ -140,6 +146,20 @@ namespace Botanik { namespace Config {
 
     /** @brief Maximum length of a single retained ShellPage scrollback line (bytes) */
     static constexpr uint16_t SHELL_SCROLLBACK_LINE_LEN        = 128;
+
+    /** @} */
+
+
+    /**
+     * @name TextEditor (editor2) Parameters
+     * @{
+     */
+
+    /** @brief Maximum number of screen rows the TextEditor can lay out */
+    static constexpr uint16_t EDITOR_MAX_ROWS = 32;
+
+    /** @brief Maximum length (bytes) of a prompt prefix (PS1/PS2/PS3) */
+    static constexpr uint16_t EDITOR_PROMPT_MAX = 16;
 
     /** @} */
 

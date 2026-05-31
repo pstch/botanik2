@@ -21,8 +21,14 @@ namespace Botanik { namespace Pages {
         virtual void handle_text_batch(const char* buf, uint16_t len) {
             for (uint16_t i = 0; i < len; i++) handle_text(buf[i]);
         }
-        /** @brief Handle a decoded control command from the user */
-        virtual void handle_command(Command cmd) = 0;
+        /** @brief Handle a decoded control command from the user.
+         *
+         * `count` is > 1 only for chunkable commands (BACKSPACE / CTRL_D)
+         * that the parser coalesced while output backpressure held the
+         * flush window. Implementations should apply the command N times
+         * in a single pass when possible (one reconcile, not N).
+         */
+        virtual void handle_command(Command cmd, uint16_t count = 1) = 0;
 
         /** @brief Called when this page is about to be replaced by another page */
         virtual void deactivate() = 0;
