@@ -18,6 +18,7 @@ namespace Botanik { namespace Scheduler {
         float    stack_usage_ema = 0.0f;   // fraction 0..1
         uint32_t stack_depth     = 0;      // total thread stack allocation in bytes
         uint32_t tick_count      = 0;
+        uint32_t overruns        = 0;      // cumulative beats skipped due to overruns
     };
 
     class LoopScheduler {
@@ -43,6 +44,8 @@ namespace Botanik { namespace Scheduler {
         float       _stack_usage_ema        = 0;
         Logs::Logger*   _logger        = nullptr;
         uint32_t        _tick_count    = 0;
+        uint32_t        _overrun_count = 0;
+        bool            _started       = false;  // startup message emitted on first tick()
         SchedulerContext _context      = {};
 
         /** @brief Record elapsed work time and update CPU load metrics. */
@@ -53,6 +56,8 @@ namespace Botanik { namespace Scheduler {
         void _paint_below(uint8_t* caller_sp);
         /** @brief Advance the next-tick anchor to skip missed beats when the loop falls behind. */
         void _skip_beats(uint64_t now);
+        /** @brief Emit the "scheduler started" log entry (called once, on the first tick()). */
+        void _log_startup();
 
     public:
         /**

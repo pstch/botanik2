@@ -1,5 +1,4 @@
 #include <cstddef>
-#include <cstdio>
 #ifdef TARGET_SIMULATOR
 #include <unistd.h>
 #endif
@@ -24,17 +23,12 @@ namespace Botanik { namespace Scheduler {
             _stack_base = HAL::get_stack_base();
             _context.stack_depth = _stack_depth;
             reset();
-            if (_logger != nullptr) {
-                using namespace PlcIO;
-                LogEntry_t entry = {};
-                entry.timestamp = HAL::current_ms();
-                entry.level     = LOG_INFO;
-                entry.topic     = BOOT;
-                entry.length    = (uint16_t)snprintf(entry.message, sizeof(entry.message),
-                    "scheduler started, period=%ums", (unsigned)_period_ms);
-                _logger->push_entry(entry);
-            }
         }
+
+    void LoopScheduler::_log_startup() {
+        if (_logger != nullptr)
+            _logger->info(PlcIO::BOOT, "scheduler started, period=%ums", (unsigned)_period_ms);
+    }
 
     void LoopScheduler::_measure_work(uint64_t now) {
         if (_is_working) {
@@ -45,11 +39,12 @@ namespace Botanik { namespace Scheduler {
             } else {
                 _last_busy_us = 0;
             }
-            // compute instantaneous CPU load
+            // compute instantaneous CPU load; left uncapped so a tick whose work
+            // exceeds the period reports >100% (an overrun), surfaced in the peak
+            // and EMA metrics rather than being clamped away.
             float instant = 0.0f;
             if (_period_ms > 0) {
                 instant = static_cast<float>(_last_busy_us) / (_period_ms * 1000u);
-                if (instant > 1.0f) instant = 1.0f;
             }
             // store in circular window and compute peak
             _cpu_load_window[_cpu_load_window_idx] = instant;
@@ -120,6 +115,11 @@ namespace Botanik { namespace Scheduler {
             uint64_t delay = now - _next_tick_ms;
             uint64_t missed_beats = delay / _period_ms;
             _next_tick_ms += (missed_beats * _period_ms);
+            _overrun_count += (uint32_t)missed_beats;
+            _context.overruns = _overrun_count;
+            if (_logger != nullptr)
+                _logger->warning(PlcIO::STATUS, "scheduler overrun: skipped %lu beat(s)",
+                    (unsigned long)missed_beats);
         }
     }
 
@@ -138,6 +138,7 @@ namespace Botanik { namespace Scheduler {
     }
 
     bool LoopScheduler::tick() {
+        if (!_started) { _started = true; _log_startup(); }  // announce on first tick
         uint64_t now = HAL::uptime_ms();        // measure current time
         _measure_work(now);                     // measure past work
         if (now < _next_tick_ms) {               // yield until next tick
