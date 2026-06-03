@@ -5,6 +5,10 @@
  - Organize the Doxygen documentation. Maybe some of the things documented in markdown files will need to be moved to the Doxygen-based documentation.
  - Maybe we need to formalize the way we comment and structure our CPP files
 
+##  Test harness
+
+ - Choose between Python and C++ for the test harness and write a basic test case for each of our main components
+
 ## Performance monitoring
 
  - The performance monitoring code is a bit of a weak spot right now (and we're not terribly confident about our stack usage monitoring code, especially since we appear to always use the same amount of stack).
@@ -12,27 +16,15 @@
 ## Small work items
 
  - parser: reorganize and simplify chunking code, unify chunking for text and commands
- 
- - message suppression seems to misbehave, maybe the suppressed message reporting handler is running too frequently
 
  - when starting up, we want to show information about the hardware and current firmware
-
- - when starting up, we want the LoopScheduler to report its task period
 
  - find a better way than a hardcoded bias to paint the free stack without writing over our own return address, the current 4096-byte bias is negligible on the SIMULATOR, but not on our OPTA target
 
  - simplify the entry point by moving simulation-specific code to its own header
    (this is required because that entry point will serve as the reference documentation for the Arduino sketch)
 
- - make the scheduler report overruns, also in the case of overruns we want the CPU load calculation to report more than 100% CPU usage
-
- - reduce the complexity of the command submission path, in :
-   + handle_command() (case Command::ENTER)
-   + run()
-
  - find places where we try to do partial writes to the buffered serial device. instead of having this complex code, we'll just rely on a buffer big enough to hold the entire screen contents
-
-  - the "unknown command" handler is too complex, it should do all of its writes through write_lines()
 
 ## ANSI terminal
 
