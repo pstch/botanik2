@@ -40,10 +40,8 @@ namespace Botanik { namespace Shell {
                      Terminal::TextEditor&  editor,
                      ShellWriter&            output);
 
-        /** @brief Snapshot the editor buffer, reset the editor, dispatch the command */
-        void submit();
-
-        /** @brief Dispatch a pre-snapshotted command (caller owns snapshot and reset) */
+        /** @brief Dispatch a pre-snapshotted command (caller owns snapshot and reset).
+         *         A zero-length command is ignored. */
         void run(const char* cmd, uint16_t len);
 
         /** @brief Load previous history entry — stub, not yet implemented */

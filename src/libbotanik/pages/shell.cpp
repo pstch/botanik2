@@ -180,6 +180,20 @@ namespace Botanik { namespace Pages {
         }
     }
 
+    void ShellPage::_submit_line() {
+        // Snapshot the line first: it must outlive commit(), which clears the editor.
+        char     line[Config::SHELL_INPUT_LEN];
+        uint16_t line_len = std::min(_editor.buffer_len(), (uint16_t)(sizeof(line) - 1));
+        memcpy(line, _editor.buffer(), line_len);
+        line[line_len] = '\0';
+        _record_command(line, line_len);
+        _terminal.move_to(_editor.end_pos());
+        _terminal.line_feed(true);
+        _editor.suppress_redraw(false);
+        _editor.commit();
+        _shell.run(line, line_len);  // run() ignores an empty line
+    }
+
     void ShellPage::clear() {
         _log_head  = 0;
         _log_count = 0;
@@ -199,20 +213,11 @@ namespace Botanik { namespace Pages {
         uint16_t occ_before = _editor.occupied_rows();
         _editor.suppress_redraw(true);
         switch (cmd) {
-            // Submit
-            case Command::ENTER: {
-                char cmd[Config::SHELL_INPUT_LEN];
-                uint16_t cmd_len = std::min(_editor.buffer_len(), (uint16_t)(sizeof(cmd) - 1));
-                memcpy(cmd, _editor.buffer(), cmd_len);
-                cmd[cmd_len] = '\0';
-                _record_command(cmd, cmd_len);
-                _terminal.move_to(_editor.end_pos());
-                _terminal.line_feed(true);
-                _editor.suppress_redraw(false);
-                _editor.commit();
-                if (cmd_len > 0) _shell.run(cmd, cmd_len);
-                return;  // screen is already correct; skip the shrink check below
-            }
+            // Submit. Screen is left correct by _submit_line(), so return early
+            // and skip the shrink check below.
+            case Command::ENTER:
+                _submit_line();
+                return;
             case Command::SHIFT_ENTER: {
                 _editor.insert_characters("\n", 1);
                 break;

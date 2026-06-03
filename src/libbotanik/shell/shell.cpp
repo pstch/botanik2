@@ -18,15 +18,6 @@ namespace Botanik { namespace Shell {
         : _terminal(terminal), _editor(editor), _output(output)
     {}
 
-    void CommandShell::submit() {
-        char     cmd[Config::SHELL_INPUT_LEN];
-        uint16_t len = std::min(_editor.buffer_len(), (uint16_t)(sizeof(cmd) - 1));
-        memcpy(cmd, _editor.buffer(), len);
-        cmd[len] = '\0';
-        _editor.reset();
-        run(cmd, len);
-    }
-
     void CommandShell::run(const char* cmd, uint16_t len) {
         if (len == 0) return;
         dispatch(cmd, len);
@@ -77,8 +68,8 @@ namespace Botanik { namespace Shell {
                 if (w > 0) _output.write(out, (size_t)w);
 
                 snprintf(val,    sizeof(val),    "%lus", (unsigned long)uptime_s);
-                snprintf(detail, sizeof(detail), "%lu ticks",
-                    (unsigned long)ctx->tick_count);
+                snprintf(detail, sizeof(detail), "%lu ticks, %lu overruns",
+                    (unsigned long)ctx->tick_count, (unsigned long)ctx->overruns);
                 w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
                     "Uptime ......................", val, detail);
                 if (w > 0) _output.write(out, (size_t)w);
@@ -87,22 +78,17 @@ namespace Botanik { namespace Shell {
                 n = snprintf(out, sizeof(out), "stats: no scheduler context");
             }
         } else {
-            // First line: "Unknown command: " + first cols-worth of cmd.
-            // Remaining content is streamed via write_lines() to avoid
-            // a large intermediate buffer.
+            // "Unknown command: " + the offending input, handed to write_lines()
+            // as a single blob: it wraps at the terminal width and splits on any
+            // embedded newline, so no \n reaches write_chars and no manual
+            // first-line/remainder bookkeeping is needed.
             static const char prefix[] = "Unknown command: ";
-            uint16_t plen    = (uint16_t)(sizeof(prefix) - 1);
-            uint16_t cols    = _terminal.cols();
-            uint16_t cap     = cols > plen ? (uint16_t)(cols - plen) : 0;
-            // Stop at the first newline so the raw \n byte never reaches write_chars.
-            uint16_t first = 0;
-            while (first < cap && first < len && cmd[first] != '\n') first++;
+            uint16_t plen = (uint16_t)(sizeof(prefix) - 1);
+            uint16_t clen = std::min(len, (uint16_t)(sizeof(out) - plen));
             memcpy(out, prefix, plen);
-            if (first > 0) memcpy(out + plen, cmd, first);
-            _output.write(out, plen + first);
-            if (first < len)
-                _output.write_lines(cmd + first, len - first);
-            n = 0;
+            memcpy(out + plen, cmd, clen);
+            _output.write_lines(out, (uint16_t)(plen + clen));
+            return;
         }
 
         if (n > 0)

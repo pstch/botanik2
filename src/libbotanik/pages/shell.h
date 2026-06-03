@@ -48,6 +48,11 @@ namespace Botanik { namespace Pages {
         void _setup_editor();
         void _full_redraw();
 
+        /** @brief Submit the current editor line: snapshot it, echo it into the
+         *         scrollback, advance to a fresh prompt, then dispatch to the shell.
+         *         Assumes the caller has set suppress_redraw(true); clears it here. */
+        void _submit_line();
+
         /** @brief Store each display row of a submitted command in the scrollback buffer.
          *         Does not touch the screen — the content is already visible. */
         void _record_command(const char* cmd, uint16_t len);
