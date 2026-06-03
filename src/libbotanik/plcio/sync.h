@@ -56,26 +56,16 @@ namespace Botanik { namespace PlcIO {
             if (_logger == nullptr) return;
             PlcStatus current = status();
             if (current == _last_status) return;
-            LogEntry_t entry = {};
-            entry.timestamp = *_timestamp_ms;
-            entry.topic     = PLC_IO;
-            if (current == PLC_RUNNING) {
-                entry.level  = (_last_status == PLC_UNKNOWN) ? LOG_INFO : LOG_NOTICE;
-                entry.length = (uint16_t)snprintf(entry.message, sizeof(entry.message),
-                    "PLC link %s", (_last_status == PLC_UNKNOWN) ? "established" : "recovered");
-            } else if (current == PLC_TIMEOUT) {
-                entry.level  = LOG_WARNING;
-                entry.length = (uint16_t)snprintf(entry.message, sizeof(entry.message),
-                    "PLC link timeout");
-            } else if (current == PLC_FAULT) {
-                entry.level  = LOG_ERROR;
-                entry.length = (uint16_t)snprintf(entry.message, sizeof(entry.message),
-                    "PLC watchdog fault");
-            } else {
-                _last_status = current; return;
+            switch (current) {
+                case PLC_RUNNING:
+                    if (_last_status == PLC_UNKNOWN) _logger->info  (PLC_IO, "PLC link established");
+                    else                             _logger->notice(PLC_IO, "PLC link recovered");
+                    break;
+                case PLC_TIMEOUT: _logger->warning(PLC_IO, "PLC link timeout");  break;
+                case PLC_FAULT:   _logger->error  (PLC_IO, "PLC watchdog fault"); break;
+                default:          _last_status = current; return;
             }
             _last_status = current;
-            _logger->push_entry(entry);
         }
 
     public:

@@ -398,16 +398,8 @@ namespace Botanik { namespace Terminal {
         clear_screen();
         _pages[_page_index]->focus();
         draw_status_row();
-        if (_logger != nullptr) {
-            using namespace PlcIO;
-            LogEntry_t entry = {};
-            entry.timestamp = HAL::current_ms();
-            entry.level     = LOG_INFO;
-            entry.topic     = STATUS;
-            entry.length    = (uint16_t)snprintf(entry.message, sizeof(entry.message),
-                "page %u", (unsigned)index);
-            _logger->push_entry(entry);
-        }
+        if (_logger != nullptr)
+            _logger->info(PlcIO::STATUS, "page %u", (unsigned)index);
     }
 
 }}
