@@ -12,8 +12,13 @@ namespace Botanik { namespace Logs {
     }
 
     bool Logger::_try_bucket(LogBucket_t* bucket) {
-        if (bucket->state <= 0) { bucket->suppressed++;             return false; }
-        else                    { bucket->count++; bucket->state--; return true; }
+        if (bucket->state <= 0) {
+            // Saturate rather than wrap: the suppressed count is now drained on a
+            // slower cadence, so a long storm could otherwise overflow a uint16_t.
+            if (bucket->suppressed != UINT16_MAX) bucket->suppressed++;
+            return false;
+        }
+        else { bucket->count++; bucket->state--; return true; }
     }
 
     void Logger::_fill_bucket(LogBucket_t* bucket, uint16_t amount, uint16_t burst) {
@@ -25,6 +30,7 @@ namespace Botanik { namespace Logs {
     Logger::Logger() {
         _perTopic_fillTime_ms = HAL::current_ms();
         _global_fillTime_ms = HAL::current_ms();
+        _suppress_reportTime_ms = HAL::current_ms();
         _global_bucket.state = _global_burst;
         for (uint8_t i = 0; i < Config::LOG_TOPIC_MAX; ++i) {
             _perTopic_buckets[i].state = _perTopic_burst;
@@ -63,18 +69,53 @@ namespace Botanik { namespace Logs {
 
     void Logger::step() {
         uint32_t now_ms         = HAL::current_ms();
+        // Refill the token buckets on their own (fast) cadences.
         uint32_t global_amount  = (now_ms - _global_fillTime_ms) / _global_period_ms;
         _global_fillTime_ms    += global_amount * _global_period_ms;
         _fill_bucket(&_global_bucket, global_amount, _global_burst);
-        if (global_amount > 0)
-            _report_suppressed(&_global_bucket, LogTopic::NONE, now_ms);
         uint32_t topic_amount   = (now_ms - _perTopic_fillTime_ms) / _perTopic_period_ms;
         _perTopic_fillTime_ms  += topic_amount * _perTopic_period_ms;
         for (uint8_t i = 0; i < Config::LOG_TOPIC_MAX; ++i)
             _fill_bucket(&_perTopic_buckets[i], topic_amount, _perTopic_burst);
-        if (topic_amount > 0)
+        // Drain suppressed-message counters on a separate, slower cadence so a
+        // sustained storm yields an occasional summary rather than one per refill.
+        uint32_t report_amount  = (now_ms - _suppress_reportTime_ms) / _suppress_period_ms;
+        if (report_amount > 0) {
+            _suppress_reportTime_ms += report_amount * _suppress_period_ms;
+            _report_suppressed(&_global_bucket, LogTopic::NONE, now_ms);
             for (uint8_t i = 0; i < Config::LOG_TOPIC_MAX; ++i)
                 _report_suppressed(&_perTopic_buckets[i], (LogTopic)i, now_ms);
+        }
+    }
+
+    void Logger::_emit(PlcIO::LogLevel level, PlcIO::LogTopic topic, const char* fmt, va_list ap) {
+        LogEntry_t entry = {};
+        entry.timestamp = HAL::current_ms();
+        entry.level     = level;
+        entry.topic     = topic;
+        int w = vsnprintf(entry.message, sizeof(entry.message), fmt, ap);
+        if (w < 0) w = 0;
+        entry.length = (uint16_t)std::min((size_t)w, sizeof(entry.message) - 1);
+        push_entry(entry);
+    }
+
+    void Logger::debug(PlcIO::LogTopic topic, const char* fmt, ...) {
+        va_list ap; va_start(ap, fmt); _emit(PlcIO::LOG_DEBUG, topic, fmt, ap); va_end(ap);
+    }
+    void Logger::info(PlcIO::LogTopic topic, const char* fmt, ...) {
+        va_list ap; va_start(ap, fmt); _emit(PlcIO::LOG_INFO, topic, fmt, ap); va_end(ap);
+    }
+    void Logger::notice(PlcIO::LogTopic topic, const char* fmt, ...) {
+        va_list ap; va_start(ap, fmt); _emit(PlcIO::LOG_NOTICE, topic, fmt, ap); va_end(ap);
+    }
+    void Logger::warning(PlcIO::LogTopic topic, const char* fmt, ...) {
+        va_list ap; va_start(ap, fmt); _emit(PlcIO::LOG_WARNING, topic, fmt, ap); va_end(ap);
+    }
+    void Logger::error(PlcIO::LogTopic topic, const char* fmt, ...) {
+        va_list ap; va_start(ap, fmt); _emit(PlcIO::LOG_ERROR, topic, fmt, ap); va_end(ap);
+    }
+    void Logger::critical(PlcIO::LogTopic topic, const char* fmt, ...) {
+        va_list ap; va_start(ap, fmt); _emit(PlcIO::LOG_CRITICAL, topic, fmt, ap); va_end(ap);
     }
 
     void Logger::push_entry(const PlcIO::LogEntry_t& entry) {

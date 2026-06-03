@@ -2,6 +2,7 @@
 #define LOGS_LOGGER_H
 
 #include <cstdint>
+#include <cstdarg>
 
 #include "libbotanik/plcio/vars.h"
 #include "libbotanik/logs/writer.h"
@@ -28,6 +29,9 @@ namespace Botanik { namespace Logs {
         uint32_t        _perTopic_period_ms     = Config::LOG_PERTOPIC_BUCKET_PERIOD_MS;
         uint32_t        _perTopic_fillTime_ms   = 0;
         LogBucket_t     _perTopic_buckets[Config::LOG_TOPIC_MAX];
+        // suppressed-message reporting cadence (decoupled from bucket refills)
+        uint32_t        _suppress_period_ms     = Config::LOG_SUPPRESS_REPORT_PERIOD_MS;
+        uint32_t        _suppress_reportTime_ms = 0;
         // output writers list
         LogWriter*      _writers[Config::LOG_WRITERS_MAX];
         uint8_t         _writerCount            = 0;
@@ -38,6 +42,8 @@ namespace Botanik { namespace Logs {
         void _fill_bucket(LogBucket_t* bucket, uint16_t amount, uint16_t burst);
         // emit a synthetic warning entry if the bucket has suppressed entries
         void _report_suppressed(LogBucket_t* bucket, PlcIO::LogTopic topic, uint32_t timestamp_ms);
+        // build a timestamped entry from a printf-style message and forward it to push_entry()
+        void _emit(PlcIO::LogLevel level, PlcIO::LogTopic topic, const char* fmt, va_list ap);
     public:
         /** @brief Construct a Logger with empty writer list and full rate-limit buckets */
         Logger();
@@ -49,6 +55,21 @@ namespace Botanik { namespace Logs {
         void step();
         /** @brief Forward @p entry to all registered writers after rate-limit checks */
         void push_entry(const LogEntry_t& entry);
+
+        /**
+         * @name Level helpers
+         * @brief Build a LogEntry_t (timestamped with HAL::current_ms()) at the
+         *        given @p topic from a printf-style message and forward it through
+         *        push_entry(). One helper per LogLevel.
+         * @{
+         */
+        void debug   (PlcIO::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
+        void info    (PlcIO::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
+        void notice  (PlcIO::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
+        void warning (PlcIO::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
+        void error   (PlcIO::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
+        void critical(PlcIO::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
+        /** @} */
     };
 
 }}

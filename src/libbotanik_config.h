@@ -84,6 +84,11 @@ namespace Botanik { namespace Config {
     /** @brief Refill period in milliseconds for per-topic buckets */
     static constexpr uint32_t LOG_PERTOPIC_BUCKET_PERIOD_MS = 5000;
 
+    /** @brief How often (ms) a "N msgs suppressed" summary may be emitted.
+     *  @note Decoupled from the bucket refill periods so a sustained log storm
+     *  produces an occasional summary instead of one per refill tick. */
+    static constexpr uint32_t LOG_SUPPRESS_REPORT_PERIOD_MS = 10000;
+
     /** @brief Maximum number of unique log topics.
      *  @note Each topic consumes memory for its rate-limiting bucket. */
     static constexpr uint16_t LOG_TOPIC_MAX = 255;
