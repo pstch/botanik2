@@ -5,13 +5,19 @@
  - Organize the Doxygen documentation. Maybe some of the things documented in markdown files will need to be moved to the Doxygen-based documentation.
  - Maybe we need to formalize the way we comment and structure our CPP files
 
+## Logging
+
+ - Make LogsPage only print logs when the TX buffer is empty, so that we avoid filling the whole TX buffer with log lines
+
+ - The status page shouldn't have to handle set_inverted(), it should only be handled by the AnsiTerminal itself (because the state tracking for insertion-mode should live in AnsiTerminal)
+
 ##  Test harness
 
  - Choose between Python and C++ for the test harness and write a basic test case for each of our main components
 
 ## Performance monitoring
 
- - The performance monitoring code is a bit of a weak spot right now (and we're not terribly confident about our stack usage monitoring code, especially since we appear to always use the same amount of stack).
+ - The performance monitoring code is a bit of a weak spot right now, we may need to refine the stack and CPU monitoring code.
 
 ## Small work items
 
@@ -23,14 +29,6 @@
 
  - simplify the entry point by moving simulation-specific code to its own header
    (this is required because that entry point will serve as the reference documentation for the Arduino sketch)
-
- - find places where we try to do partial writes to the buffered serial device. instead of having this complex code, we'll just rely on a buffer big enough to hold the entire screen contents
-
-## ANSI terminal
-
- - in the parsing code, we'd like the ability to batch character removals
-
- - this one is hard : add support for soft line-wraps (using Shift+Enter) in the command prompt, and make sure these soft line-wraps are properly handled. normally, we've wrote the code so that it properly handles both soft and hard linewraps, but we've never actually tested this code path, and I'm worried that the origin tracking code will misbehave in that particular case
 
 ## PLC I/O
 
