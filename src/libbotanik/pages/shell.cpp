@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <cstring>
-#include <cstdio>
 
 #include "libbotanik_config.h"
 #include "libbotanik/logs/format.h"
@@ -151,12 +150,6 @@ namespace Botanik { namespace Pages {
 
     void ShellPage::tick() {
         drain();
-        if ((++_log_tick % 500) == 0) {
-            char buf[40];
-            uint16_t len = (uint16_t)snprintf(buf, sizeof(buf),
-                "periodic log #%lu", (unsigned long)(_log_tick / 500));
-            write(buf, len);
-        }
     }
 
     void ShellPage::_record_command(const char* cmd, uint16_t cmd_len) {
@@ -180,7 +173,7 @@ namespace Botanik { namespace Pages {
         }
     }
 
-    void ShellPage::_submit_line() {
+    void ShellPage::_submit_command() {
         // Snapshot the line first: it must outlive commit(), which clears the editor.
         char     line[Config::SHELL_INPUT_LEN];
         uint16_t line_len = std::min(_editor.buffer_len(), (uint16_t)(sizeof(line) - 1));
@@ -213,10 +206,10 @@ namespace Botanik { namespace Pages {
         uint16_t occ_before = _editor.occupied_rows();
         _editor.suppress_redraw(true);
         switch (cmd) {
-            // Submit. Screen is left correct by _submit_line(), so return early
+            // Submit. Screen is left correct by _submit_command(), so return early
             // and skip the shrink check below.
             case Command::ENTER:
-                _submit_line();
+                _submit_command();
                 return;
             case Command::SHIFT_ENTER: {
                 _editor.insert_characters("\n", 1);

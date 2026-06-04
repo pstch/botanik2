@@ -46,9 +46,16 @@ static void* emulator_thread(void* arg) {
         args->shared_in, args->shared_out, &emu_timestamp_ms);
     PlcIO::PlcLogWriter plc_log_writer(plc_emulator.context(), &emu_timestamp_ms);
 
+    uint32_t emu_tick = 0;
     while (true) {
         emu_timestamp_ms = (uint32_t)HAL::uptime_ms();
         plc_emulator.step();
+        // Emit a periodic heartbeat log, simulating the PLC coprocessor.
+        if ((++emu_tick % 500) == 0) {
+            char buf[40];
+            snprintf(buf, sizeof(buf), "periodic log #%lu", (unsigned long)(emu_tick / 500));
+            plc_log_writer.push_log(PlcIO::LOG_INFO, PlcIO::PLC_IO, buf);
+        }
         usleep(Config::TASK_PERIOD_MS * 1000);
     }
     return nullptr;

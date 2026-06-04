@@ -43,15 +43,13 @@ namespace Botanik { namespace Pages {
         uint16_t _log_head  = 0;   // next slot to write
         uint16_t _log_count = 0;   // number of stored lines
 
-        uint32_t _log_tick = 0;
-
         void _setup_editor();
         void _full_redraw();
 
         /** @brief Submit the current editor line: snapshot it, echo it into the
          *         scrollback, advance to a fresh prompt, then dispatch to the shell.
          *         Assumes the caller has set suppress_redraw(true); clears it here. */
-        void _submit_line();
+        void _submit_command();
 
         /** @brief Store each display row of a submitted command in the scrollback buffer.
          *         Does not touch the screen — the content is already visible. */
