@@ -88,6 +88,11 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         _serial.write(EL, 1);
     }
 
+    void clear_to_eos(BufferedSerial& _serial) {
+        _serial.write(CSI, 2);
+        _serial.write(ED, 1);       // ESC[J: erase from cursor to end of display
+    }
+
     void clear_screen(BufferedSerial& _serial) {
         _serial.write(CSI, 2);
         _serial.write("2", 1);

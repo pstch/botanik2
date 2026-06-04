@@ -98,6 +98,9 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     // Clear characters from the cursor to the end of line
     void clear_to_eol(BufferedSerial& _serial);
 
+    // Erase from the cursor to the end of the display (rows below stay untouched above)
+    void clear_to_eos(BufferedSerial& _serial);
+
     // Erase entire display and move cursor to home position
     void clear_screen(BufferedSerial& _serial);
 

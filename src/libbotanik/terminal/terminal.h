@@ -37,6 +37,7 @@ namespace Botanik { namespace Terminal {
         bool                _hw_auto_wrap = true;   // DECAWM state (default: on)
         bool                _hw_at_eol = false;     // Cursor parked at last col after a row-filling write
         bool                _hw_insert_mode = false;// SM4/RM4 tracking — toggled lazily by write_chars
+        bool                _status_bar_drawn = false; // status row drawn at least once (initial draw)
         Logs::Logger*                _logger       = nullptr;
         Scheduler::SchedulerContext* _sched_ctx    = nullptr;
         PlcIO::PlcSyncContext*       _plc_ctx      = nullptr;
@@ -112,6 +113,9 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Erase the entire display and home the cursor (ESC[2J + ESC[H) */
         void clear_screen();
+
+        /** @brief Erase the page content area (rows 1..N-1), preserving the status bar */
+        void clear_content();
 
         /** @brief Emit a line feed, optionally with a carriage return */
         void line_feed(bool carriage_return = true);

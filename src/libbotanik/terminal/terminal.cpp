@@ -277,11 +277,21 @@ namespace Botanik { namespace Terminal {
         _hw_at_eol = false;
     }
 
+    void AnsiTerminal::clear_content() {
+        // Erase the page content area (rows 1..N-1), leaving the status bar on
+        // row 0 untouched. One erase-to-end-of-display from {1,0} is far cheaper
+        // than clearing each row in a loop.
+        move_to({1, 0});
+        Ansi::clear_to_eos(_serial);
+        _hw_at_eol = false;
+    }
+
     uint16_t AnsiTerminal::tx_available() const {
         return _serial.availableForWrite();
     }
 
     void AnsiTerminal::draw_status_row() {
+        _status_bar_drawn = true;
         // Build right-side metrics string (fixed 26-char field)
         char metrics[28];
         const char* plc_str = "---";
@@ -306,7 +316,8 @@ namespace Botanik { namespace Terminal {
         CursorPos saved_pos = _hw_pos;
         bool      saved_inv = _hw_inverted;
 
-        // Draw full inverted row 0
+        // Draw full inverted row 0. Insert/replace mode is owned by write_chars
+        // (insert defaults to false here), so the status row always overwrites.
         move_to({0, 0});
         set_inverted(true);
 
@@ -395,9 +406,16 @@ namespace Botanik { namespace Terminal {
         if (_pages_len > 0 && _pages[_page_index] != nullptr)
             _pages[_page_index]->deactivate();
         _page_index = index;
-        clear_screen();
+        if (!_status_bar_drawn) {
+            // Initial display: full clear + draw the status bar once.
+            clear_screen();
+            draw_status_row();
+        } else {
+            // Page change: keep the status bar (row 0); only the content area is
+            // cleared. The status bar is redrawn on a full redraw (^L), not here.
+            clear_content();
+        }
         _pages[_page_index]->focus();
-        draw_status_row();
         if (_logger != nullptr)
             _logger->info(PlcIO::STATUS, "page %u", (unsigned)index);
     }
