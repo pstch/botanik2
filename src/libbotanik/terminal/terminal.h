@@ -140,6 +140,9 @@ namespace Botanik { namespace Terminal {
         /** @brief Number of bytes that can still be written to the serial TX buffer */
         uint16_t tx_available() const;
 
+        /** @brief True when the serial TX buffer has been fully flushed to the wire */
+        bool tx_empty() const;
+
         /** @brief Redraw the always-visible status bar on row 0 */
         void draw_status_row();
 

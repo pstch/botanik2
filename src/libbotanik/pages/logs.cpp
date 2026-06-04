@@ -25,9 +25,9 @@ namespace Botanik { namespace Pages {
     }
 
     void LogsPage::_redraw_log() {
+        // The content area is cleared by AnsiTerminal before focus()/redraw(), so
+        // we only stage the rows to (re)draw here.
         uint16_t log_rows = (uint16_t)(_terminal.rows() - 1); // rows 1..rows-1
-        for (uint16_t r = 1; r <= log_rows; r++)
-            _terminal.clear_row(r);
         _redraw_i = UINT16_MAX; // cancel any pending drain
         if (_log_count == 0) return;
 
@@ -39,7 +39,9 @@ namespace Botanik { namespace Pages {
 
     void LogsPage::_drain_redraw_row() {
         if (_redraw_i == UINT16_MAX) return;
-        if (_terminal.tx_available() < Config::SHELL_SCROLLBACK_LINE_LEN + 16) return;
+        // Print one row at a time, only once the previous one has fully flushed,
+        // so the historical redraw can never overrun the serial TX buffer.
+        if (!_terminal.tx_empty()) return;
         auto saved = _terminal.cursor_pos();
         uint16_t idx = (uint16_t)((_redraw_start + _redraw_i) % Config::SHELL_SCROLLBACK_LINES);
         _terminal.move_to({(uint16_t)(_redraw_first_row + _redraw_i), 0});
@@ -51,6 +53,11 @@ namespace Botanik { namespace Pages {
     }
 
     size_t LogsPage::write(const char* buf, size_t len) {
+        // Back-pressure: only emit a line once the TX buffer has drained, so a
+        // burst of entries can't fill it. Reporting no progress makes the
+        // BufferedLogWriter hold the entry and retry on a later tick.
+        if (!_terminal.tx_empty()) return 0;
+
         _store_line(buf, len);
 
         uint16_t last_row  = (uint16_t)(_terminal.rows() - 1);

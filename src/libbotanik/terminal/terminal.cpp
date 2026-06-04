@@ -290,6 +290,10 @@ namespace Botanik { namespace Terminal {
         return _serial.availableForWrite();
     }
 
+    bool AnsiTerminal::tx_empty() const {
+        return _serial.tx_empty();
+    }
+
     void AnsiTerminal::draw_status_row() {
         _status_bar_drawn = true;
         // Build right-side metrics string (fixed 26-char field)
