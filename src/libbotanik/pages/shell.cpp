@@ -63,28 +63,36 @@ namespace Botanik { namespace Pages {
     }
 
     size_t ShellPage::write(const char* buf, size_t len) {
-        _scrollback.store(buf, len);
+        // Wrap into one or more stored rows ("> "-prefixed continuations).
+        uint16_t n = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols());
 
         uint16_t rows         = (uint16_t)_terminal.rows();
         uint16_t occupied     = _editor.occupied_rows();
         uint16_t last_log_row = (uint16_t)(rows - 1 - occupied);
 
         if (last_log_row < 1) return len;
+        if (n > last_log_row) n = last_log_row;  // taller than the log area: show newest rows
 
-        // DL 1 at row 1: delete the oldest visible log row, shifting the log area
-        // and the editor up by one row together.
+        // DL n at row 1: delete the n oldest visible log rows, shifting the log
+        // area and the editor up together.
         _terminal.move_to({1, 0});
-        _terminal.delete_rows(1);
+        _terminal.delete_rows(n);
 
-        // IL 1 at last_log_row: push the editor back down to its original rows,
-        // leaving a blank slot at last_log_row for the incoming entry.
-        _terminal.move_to({last_log_row, 0});
-        _terminal.insert_rows(1);
+        // IL n just above the editor: push it back down to its original rows,
+        // leaving n blank slots for the incoming (possibly wrapped) entry.
+        uint16_t first_slot = (uint16_t)(last_log_row - n + 1);
+        _terminal.move_to({first_slot, 0});
+        _terminal.insert_rows(n);
 
-        // Fill the blank slot with the new log entry.
-        uint16_t write_len = std::min((uint16_t)len, (uint16_t)_terminal.cols());
-        _terminal.write_chars(buf, write_len);
-        _terminal.clear_to_eol();
+        // Fill the slots with the n newest segments, top to bottom.
+        for (uint16_t i = 0; i < n; i++) {
+            uint16_t llen = 0;
+            const char* line = _scrollback.line((uint16_t)(n - i), llen);
+            if (line == nullptr) continue;
+            _terminal.move_to({(uint16_t)(first_slot + i), 0});
+            _terminal.write_chars(line, llen);
+            _terminal.clear_to_eol();
+        }
 
         // Editor is back at its correct screen rows — just reposition the cursor.
         _terminal.move_to(_editor.cursor_screen_pos());

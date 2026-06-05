@@ -14,6 +14,32 @@ namespace Botanik { namespace Pages {
         if (_count < Config::SHELL_SCROLLBACK_LINES) _count++;
     }
 
+    uint16_t Scrollback::store_wrapped(const char* buf, size_t len, uint16_t cols) {
+        // First line: up to `cols` bytes verbatim.
+        uint16_t first = (cols == 0) ? (uint16_t)len
+                                     : (uint16_t)std::min(len, (size_t)cols);
+        store(buf, first);
+        if (cols == 0 || len <= first) return 1;
+
+        // Continuation lines: "> " + up to (cols - 2) bytes of the remainder, so
+        // each wrapped row stays within the terminal width.
+        static const char PREFIX[] = "> ";
+        const uint16_t    plen     = (uint16_t)(sizeof(PREFIX) - 1);
+        const uint16_t    body     = (cols > plen) ? (uint16_t)(cols - plen) : 1;
+        char seg[Config::SHELL_SCROLLBACK_LINE_LEN];
+        memcpy(seg, PREFIX, plen);
+
+        uint16_t count = 1;
+        for (size_t off = first; off < len; ) {
+            uint16_t take = (uint16_t)std::min(len - off, (size_t)body);
+            memcpy(seg + plen, buf + off, take);
+            store(seg, (size_t)(plen + take));
+            off += take;
+            count++;
+        }
+        return count;
+    }
+
     void Scrollback::clear() {
         _head     = 0;
         _count    = 0;

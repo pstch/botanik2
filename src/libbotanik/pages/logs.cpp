@@ -27,16 +27,22 @@ namespace Botanik { namespace Pages {
     }
 
     void LogsPage::_emit_line(const char* buf, size_t len) {
-        _scrollback.store(buf, len);
-
-        uint16_t last_row  = (uint16_t)(_terminal.rows() - 1);
-        uint16_t write_len = (uint16_t)std::min(len, (size_t)_terminal.cols());
+        // Wrap into one or more stored rows ("> "-prefixed continuations), then
+        // scroll the tail up by that many rows and paint them at the bottom.
+        uint16_t n        = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols());
+        uint16_t last_row = (uint16_t)(_terminal.rows() - 1);  // log area is rows 1..rows-1
+        if (n > last_row) n = last_row;  // message taller than the area: show its newest rows
 
         _terminal.move_to({1, 0});
-        _terminal.delete_rows(1);
-        _terminal.move_to({last_row, 0});
-        _terminal.write_chars(buf, write_len);
-        _terminal.clear_to_eol();
+        _terminal.delete_rows(n);
+        for (uint16_t i = 0; i < n; i++) {
+            uint16_t llen = 0;
+            const char* line = _scrollback.line((uint16_t)(n - i), llen);
+            if (line == nullptr) continue;
+            _terminal.move_to({(uint16_t)(last_row - n + 1 + i), 0});
+            _terminal.write_chars(line, llen);
+            _terminal.clear_to_eol();
+        }
     }
 
     void LogsPage::focus() {

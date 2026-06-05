@@ -41,6 +41,12 @@ namespace Botanik { namespace Pages {
         /** @brief Store a line in the circular buffer (does not display it) */
         void store(const char* buf, size_t len);
 
+        /** @brief Store a message as one or more lines no wider than @p cols,
+         *  prefixing wrapped continuation lines with "> ". Each line becomes its
+         *  own scrollback entry (one entry per display row).
+         *  @return The number of lines stored (always >= 1). */
+        uint16_t store_wrapped(const char* buf, size_t len, uint16_t cols);
+
         /** @brief Forget all stored lines and cancel any pending redraw */
         void clear();
 
