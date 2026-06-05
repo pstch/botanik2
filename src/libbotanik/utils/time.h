@@ -4,8 +4,6 @@
 #include <cstdint>
 #include <array>
 #include <ctime>
-#include <string>
-#include <cmath>
 
 namespace Botanik { namespace Utils {
 
@@ -52,9 +50,10 @@ namespace Botanik { namespace Utils {
     //                precision of the low-power clock
     uint64_t absolute_us(uint32_t timestamp_us);
 
-    // Convert a monotonic uptime millisecond counter to an UNIX integer timestamp
-    //  (and copy the fractional part to the pointer given in frac_ms)
-    time_t unix_time_ms(uint64_t timestamp_ms, uint16_t* frac_ms);
+    // Convert a monotonic uptime millisecond counter to an UNIX integer (whole
+    // seconds) timestamp. The sub-second part is just timestamp_ms % 1000; see
+    // cal_time_ms().
+    time_t unix_time_ms(uint64_t timestamp_ms);
 
     // Convert an absolute millisecond uptime counter into a calendar datetime
     CalendarTime cal_time_ms(uint64_t timestamp_ms);

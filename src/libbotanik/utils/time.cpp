@@ -1,8 +1,7 @@
 #include <cstdint>
 #include <array>
+#include <cstdio>
 #include <ctime>
-#include <string>
-#include <cmath>
 
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/utils/time.h"
@@ -22,19 +21,20 @@ namespace Botanik { namespace Utils {
         return _project_rollover(HAL::uptime_us(), timestamp_us);
     }
 
-    time_t unix_time_ms(uint64_t timestamp_ms, uint16_t* frac_ms) {
-        int64_t delta_ms = timestamp_ms - HAL::uptime_ms();
-        time_t delta_s = (time_t)(delta_ms / 1000);
-        if (frac_ms != nullptr) {
-            *frac_ms = (uint16_t)abs(delta_ms % 1000);
-            if (delta_ms < 0 && *frac_ms > 0) delta_s--;
-        }
-        return time(NULL) + delta_s;
+    time_t unix_time_ms(uint64_t timestamp_ms) {
+        // Uptime ms -> UNIX seconds. No boot epoch is stored, so anchor off "now":
+        // shift the current wall second (time(NULL)) by the whole-second distance
+        // between the timestamp and the current uptime. The sub-second part of the
+        // wall clock is unavailable at this resolution and is carried separately
+        // (see cal_time_ms).
+        int64_t now_s   = (int64_t)(HAL::uptime_ms() / 1000);
+        int64_t stamp_s = (int64_t)(timestamp_ms     / 1000);
+        return time(NULL) + (time_t)(stamp_s - now_s);
     }
 
     CalendarTime cal_time_ms(uint64_t timestamp_ms) {
-        uint16_t time_frac; tm time_info; CalendarTime result;
-        time_t time_unix = unix_time_ms(timestamp_ms, &time_frac);
+        tm time_info; CalendarTime result;
+        time_t time_unix = unix_time_ms(timestamp_ms);
         localtime_r(&time_unix, &time_info);
         result.year = (uint16_t)(time_info.tm_year + 1900);
         result.month = (uint8_t)(time_info.tm_mon + 1);
@@ -42,7 +42,8 @@ namespace Botanik { namespace Utils {
         result.hour = (uint8_t)time_info.tm_hour;
         result.minute = (uint8_t)time_info.tm_min;
         result.second = (uint8_t)time_info.tm_sec;
-        result.millisecond = time_frac;
+        // Sub-second is simply the timestamp's own remainder — no conversion needed.
+        result.millisecond = (uint16_t)(timestamp_ms % 1000);
         result.unixSeconds = (uint64_t)time_unix;
         result.unixDays = (uint16_t)(time_unix / (uint64_t)86400);
         return result;
