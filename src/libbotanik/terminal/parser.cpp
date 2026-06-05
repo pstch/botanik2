@@ -34,6 +34,21 @@ namespace Botanik { namespace Terminal {
         return Command::BACKSPACE;
     }
 
+    void InputParser::_stage_pending_command(InputEvent::Command cmd) {
+        // Start coalescing a chunkable command; identical triggers bump count.
+        _pending_cmd          = cmd;
+        _pending_cmd_count    = 1;
+        _pending_cmd_start_ms = *_timestamp_ms;
+    }
+
+    void InputParser::_emit_pending_command() {
+        _event.type        = EventType::COMMAND;
+        _event.command     = _pending_cmd;
+        _event.count       = _pending_cmd_count;
+        _pending_cmd       = Command::NONE;
+        _pending_cmd_count = 0;
+    }
+
 
     // Text handling helpers
 
@@ -49,43 +64,25 @@ namespace Botanik { namespace Terminal {
         _text_len = 0;
     }
 
-    // Transition conditions
+    // Flush policy (shared by the text batch and the chunked command)
 
-    bool InputParser::_is_safety_timeout_elapsed() const {
-        // Measured from when the batch *started* accumulating, not from
-        // the last byte — otherwise continuous typing would reset the
-        // timer forever and the batch would never reach the safety flush.
-        return (*_timestamp_ms - _batch_start_ms) >= Config::ANSI_INPUT_BATCH_TIMEOUT_MS;
-    }
-
-    bool InputParser::_should_flush_pending_command() const {
-        if (_pending_cmd == Command::NONE) return false;
-        // Same backpressure as text: hold while previous output is still
-        // draining at baud rate, with a safety based on when the pending
-        // command first started accumulating.
-        uint32_t elapsed = *_timestamp_ms - _pending_cmd_start_ms;
-        if (!_serial.tx_empty() && elapsed < Config::ANSI_INPUT_BATCH_TIMEOUT_MS)
-            return false;
-        return true;
+    bool InputParser::_backpressure_holds(uint32_t start_ms) const {
+        // Hold a pending batch (text or a coalesced command) while the TX ring
+        // is still draining, so per-byte flushes collapse into one cheaper
+        // reconcile. The safety timeout — measured from when the batch started,
+        // not the last byte — breaks the deadlock if the TX never drains.
+        if (_serial.tx_empty()) return false;
+        return (*_timestamp_ms - start_ms) < Config::ANSI_INPUT_BATCH_TIMEOUT_MS;
     }
 
     bool InputParser::_should_flush_text() const {
         if (_state != State::TEXT || _text_len == 0) return false;
-        // Backpressure: while the TX ring still has bytes queued from a
-        // previous render, hold the batch so more input can accumulate.
-        // The reconcile that the next flush triggers may ripple chars
-        // through several rows — running it once per char while the
-        // previous output is still draining at baud rate just enqueues
-        // more bytes behind it. Letting input pile up during that window
-        // collapses many small per-key reconciles into one bigger one,
-        // which is dramatically cheaper when there is content past the
-        // insertion point.
-        //
-        // Safety timeout breaks deadlocks in case the TX never drains
-        // (continuous output for some other reason); the batch goes out
-        // even if backpressure says hold.
-        if (!_serial.tx_empty() && !_is_safety_timeout_elapsed()) return false;
-        return true;
+        return !_backpressure_holds(_batch_start_ms);
+    }
+
+    bool InputParser::_should_flush_pending_command() const {
+        if (_pending_cmd == Command::NONE) return false;
+        return !_backpressure_holds(_pending_cmd_start_ms);
     }
 
     // State handlers
@@ -275,11 +272,7 @@ namespace Botanik { namespace Terminal {
             // pending text batch on idle.
             if (!_serial.peek(&b)) {
                 if (_should_flush_pending_command()) {
-                    _event.type    = EventType::COMMAND;
-                    _event.command = _pending_cmd;
-                    _event.count   = _pending_cmd_count;
-                    _pending_cmd   = Command::NONE;
-                    _pending_cmd_count = 0;
+                    _emit_pending_command();
                 } else if (_should_flush_text()) {
                     _flush_text();
                     _state = State::IDLE;
@@ -306,11 +299,7 @@ namespace Botanik { namespace Terminal {
                     _pending_cmd_count++;
                     continue;
                 }
-                _event.type    = EventType::COMMAND;
-                _event.command = _pending_cmd;
-                _event.count   = _pending_cmd_count;
-                _pending_cmd   = Command::NONE;
-                _pending_cmd_count = 0;
+                _emit_pending_command();
                 return _event;
             }
             // Non-printable interrupts a TEXT batch: flush what's there now
@@ -327,9 +316,7 @@ namespace Botanik { namespace Terminal {
             if (_state == State::IDLE && _is_chunkable_trigger(b)) {
                 _serial.read((char*)&b, 1);
                 _last_byte_ms = *_timestamp_ms;
-                _pending_cmd  = _chunkable_command_for(b);
-                _pending_cmd_count = 1;
-                _pending_cmd_start_ms = *_timestamp_ms;
+                _stage_pending_command(_chunkable_command_for(b));
                 continue;
             }
             // Read the peeked byte and run it through the state machine.

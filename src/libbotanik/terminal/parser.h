@@ -92,13 +92,15 @@ namespace Botanik { namespace Terminal {
         // Text handling helpers
         void _flush_text();
         void _store_text(uint8_t b);
-        // Transition conditions
-        bool _is_safety_timeout_elapsed() const;
+        // Flush policy — shared by the text batch and the chunked command
+        bool _backpressure_holds(uint32_t start_ms) const;
         bool _should_flush_text() const;
         bool _should_flush_pending_command() const;
         // Chunkable command helpers
         static bool _is_chunkable_trigger(uint8_t b);
         static InputEvent::Command _chunkable_command_for(uint8_t b);
+        void _stage_pending_command(InputEvent::Command cmd);
+        void _emit_pending_command();
         // State handlers
         State _handle_idle(uint8_t b);
         State _handle_text(uint8_t b);
