@@ -27,6 +27,10 @@ extern "C" void* m_PLCSharedVarsOutputBuf;
 
 namespace Botanik { namespace HAL {
 
+    inline const char* hardware_description() {
+        return "Arduino OPTA (STM32H747 dual-core M7/M4)";
+    }
+
     inline uintptr_t get_stack_base() {
         return reinterpret_cast<uintptr_t>(&_estack);
     }

@@ -17,6 +17,10 @@ namespace Botanik { namespace HAL {
 
 namespace Botanik { namespace HAL {
 
+    // Human-readable description of the host hardware (board / MCU), for the
+    // boot banner. Platform-specific; returns a static string.
+    inline const char* hardware_description();
+
     // Return the high address (base) of the current thread's stack region
     uintptr_t get_stack_base();
 

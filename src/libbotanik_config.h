@@ -12,6 +12,19 @@
 namespace Botanik { namespace Config {
 
     /**
+     * @name Project Identity
+     * @{
+     */
+
+    /** @brief Firmware version string, surfaced in the boot banner.
+     *  Platform-independent; the hardware half of the banner comes from
+     *  HAL::hardware_description(). */
+    static constexpr const char* FIRMWARE_VERSION = "0.1.0-dev";
+
+    /** @} */
+
+
+    /**
      * @name Performance Monitoring
      * @{
      */

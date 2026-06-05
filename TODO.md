@@ -17,8 +17,6 @@
 
  - parser: reorganize and simplify chunking code, unify chunking for text and commands
 
- - when starting up, we want to show information about the hardware and current firmware
-
  - simplify the entry point by moving simulation-specific code to its own header
    (this is required because that entry point will serve as the reference documentation for the Arduino sketch)
 

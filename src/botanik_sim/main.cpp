@@ -122,6 +122,12 @@ int main() {
     logger.add_writer(&logs_page);
     terminal.switch_to(0);
 
+    // Boot banner: firmware version + platform hardware (the hardware half is
+    // HAL-provided since it's platform-specific). On OPTA the sketch emits the
+    // same line.
+    logger.info(PlcIO::BOOT, "Botanik v%s on %s",
+                Config::FIRMWARE_VERSION, HAL::hardware_description());
+
     // Emulator thread (PlcEmulator + PlcLogWriter, simulates independent PLC coprocessor)
     EmulatorArgs emu_args { &shared_in, &shared_out };
     pthread_t emu_thread;

@@ -27,6 +27,10 @@ inline uint64_t _now_as() {
 
 namespace Botanik { namespace HAL {
 
+    inline const char* hardware_description() {
+        return "Botanik Simulator (POSIX host)";
+    }
+
     inline uintptr_t get_stack_base() {
         pthread_t self = pthread_self();
         pthread_attr_t attr;
