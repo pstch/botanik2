@@ -54,6 +54,11 @@ namespace Botanik { namespace HAL {
     //            it can measure is around ~30 microseconds.
     inline uint64_t uptime_us();
 
+    // Best-effort wall-clock time as UNIX milliseconds. Carries sub-second
+    // resolution where the platform provides it (host clock on the simulator);
+    // whole seconds otherwise (OPTA, until the RTC sub-second register is wired).
+    inline uint64_t wall_clock_ms();
+
     // Ensure that all precedent explicit memory accesses are completed
     inline void dsb();
 

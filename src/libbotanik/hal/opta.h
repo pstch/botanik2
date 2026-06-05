@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <chrono>
+#include <ctime>
 
 /**
  * This include provides :
@@ -69,6 +70,12 @@ namespace Botanik { namespace HAL {
         return std::chrono::duration_cast<std::chrono::microseconds>(
             mbed::LowPowerClock::now().time_since_epoch()
         ).count();
+    }
+
+    inline uint64_t wall_clock_ms() {
+        // TODO: read the RTC sub-second register for true millisecond resolution;
+        // time() only resolves whole seconds.
+        return (uint64_t)time(NULL) * 1000;
     }
 
     inline void dsb() {

@@ -77,6 +77,11 @@ namespace Botanik { namespace HAL {
         return _now_as<std::chrono::microseconds>();
     }
 
+    inline uint64_t wall_clock_ms() {
+        return (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+    }
+
     inline void dsb() {
         // Mimic the ARM DSB for thread visibility
         std::atomic_thread_fence(std::memory_order_seq_cst);

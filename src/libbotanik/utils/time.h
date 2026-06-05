@@ -50,9 +50,9 @@ namespace Botanik { namespace Utils {
     //                precision of the low-power clock
     uint64_t absolute_us(uint32_t timestamp_us);
 
-    // Convert a monotonic uptime millisecond counter to an UNIX integer (whole
-    // seconds) timestamp. The sub-second part is just timestamp_ms % 1000; see
-    // cal_time_ms().
+    // Convert a monotonic uptime millisecond counter to a UNIX timestamp (whole
+    // seconds), using a cached wall-clock boot epoch. See cal_time_ms() for the
+    // sub-second part.
     time_t unix_time_ms(uint64_t timestamp_ms);
 
     // Convert an absolute millisecond uptime counter into a calendar datetime

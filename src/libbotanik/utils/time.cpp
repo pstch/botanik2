@@ -21,20 +21,28 @@ namespace Botanik { namespace Utils {
         return _project_rollover(HAL::uptime_us(), timestamp_us);
     }
 
+    // Wall-clock epoch as UNIX ms at uptime 0, captured once on first use. Since
+    // wall and uptime advance together, (wall_now - uptime_now) is invariant, so
+    // sampling it lazily is fine; caching pins every timestamp to one stable
+    // reference and avoids per-call drift between the two clocks.
+    static int64_t _boot_epoch_ms() {
+        static const int64_t epoch = (int64_t)HAL::wall_clock_ms() - (int64_t)HAL::uptime_ms();
+        return epoch;
+    }
+
+    // Map an uptime-domain ms timestamp onto wall-clock UNIX ms.
+    static uint64_t _wall_ms(uint64_t timestamp_ms) {
+        return (uint64_t)(_boot_epoch_ms() + (int64_t)timestamp_ms);
+    }
+
     time_t unix_time_ms(uint64_t timestamp_ms) {
-        // Uptime ms -> UNIX seconds. No boot epoch is stored, so anchor off "now":
-        // shift the current wall second (time(NULL)) by the whole-second distance
-        // between the timestamp and the current uptime. The sub-second part of the
-        // wall clock is unavailable at this resolution and is carried separately
-        // (see cal_time_ms).
-        int64_t now_s   = (int64_t)(HAL::uptime_ms() / 1000);
-        int64_t stamp_s = (int64_t)(timestamp_ms     / 1000);
-        return time(NULL) + (time_t)(stamp_s - now_s);
+        return (time_t)(_wall_ms(timestamp_ms) / 1000);
     }
 
     CalendarTime cal_time_ms(uint64_t timestamp_ms) {
+        uint64_t wall_ms = _wall_ms(timestamp_ms);
+        time_t   time_unix = (time_t)(wall_ms / 1000);
         tm time_info; CalendarTime result;
-        time_t time_unix = unix_time_ms(timestamp_ms);
         localtime_r(&time_unix, &time_info);
         result.year = (uint16_t)(time_info.tm_year + 1900);
         result.month = (uint8_t)(time_info.tm_mon + 1);
@@ -42,8 +50,9 @@ namespace Botanik { namespace Utils {
         result.hour = (uint8_t)time_info.tm_hour;
         result.minute = (uint8_t)time_info.tm_min;
         result.second = (uint8_t)time_info.tm_sec;
-        // Sub-second is simply the timestamp's own remainder — no conversion needed.
-        result.millisecond = (uint16_t)(timestamp_ms % 1000);
+        // Sub-second comes straight from the wall-clock ms now that we carry a
+        // real boot epoch — so even boot-time entries get their true fraction.
+        result.millisecond = (uint16_t)(wall_ms % 1000);
         result.unixSeconds = (uint64_t)time_unix;
         result.unixDays = (uint16_t)(time_unix / (uint64_t)86400);
         return result;
