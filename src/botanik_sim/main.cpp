@@ -50,10 +50,11 @@ static void* emulator_thread(void* arg) {
     while (true) {
         emu_timestamp_ms = (uint32_t)HAL::uptime_ms();
         plc_emulator.step();
-        // Emit a periodic heartbeat log, simulating the PLC coprocessor.
-        if ((++emu_tick % 500) == 0) {
+        // Emit a periodic heartbeat log every 30s, simulating the PLC coprocessor.
+        constexpr uint32_t HEARTBEAT_TICKS = 30000 / Config::TASK_PERIOD_MS;
+        if ((++emu_tick % HEARTBEAT_TICKS) == 0) {
             char buf[40];
-            snprintf(buf, sizeof(buf), "periodic log #%lu", (unsigned long)(emu_tick / 500));
+            snprintf(buf, sizeof(buf), "periodic log #%lu", (unsigned long)(emu_tick / HEARTBEAT_TICKS));
             plc_log_writer.push_log(PlcIO::LOG_INFO, PlcIO::PLC_IO, buf);
         }
         usleep(Config::TASK_PERIOD_MS * 1000);
