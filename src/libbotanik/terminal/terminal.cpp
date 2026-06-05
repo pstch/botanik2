@@ -5,6 +5,7 @@
 
 #include "libbotanik_config.h"
 
+#include "libbotanik/hal/platform.h"
 #include "libbotanik/utils/serial.h"
 #include "libbotanik/terminal/parser.h"
 #include "libbotanik/terminal/terminal.h"
@@ -44,6 +45,11 @@ namespace Botanik { namespace Terminal {
     // Step through the terminal handling code
     void AnsiTerminal::step() {
         using Command = InputEvent::Command;
+        uint64_t now = HAL::uptime_ms();
+        if (now - _status_last_ms >= Config::STATUS_REFRESH_MS) {
+            _status_last_ms = now;
+            update_status_metrics();
+        }
         while (true) {
             InputEvent& ev = _parser.parse();
             if (ev.type == InputEvent::EventType::NONE) break;
@@ -51,27 +57,27 @@ namespace Botanik { namespace Terminal {
             Pages::Page* page = _pages[_page_index];
             if (ev.type == InputEvent::EventType::CONTENT) {
                 page->handle_text_batch(ev.batch_data, ev.batch_len);
+                break;
             } else if (ev.type == InputEvent::EventType::COMMAND) {
                 // Terminal-level intercepts — consumed before reaching the page
                 if (ev.command == Command::CTRL_L) {
                     clear_screen();
                     draw_status_row();
                     page->redraw();
-                    continue;
+                    break;
                 }
                 if (ev.command == Command::HOME)   { switch_to(0);  continue; }
                 if (ev.command >= Command::ALT_1 && ev.command <= Command::ALT_9) {
                     switch_to((uint8_t)((uint16_t)ev.command - (uint16_t)Command::ALT_1));
-                    continue;
+                    break;
                 }
                 if (ev.command == Command::ALT_0) { switch_to(9); continue; }
                 page->handle_command(ev.command, ev.count);
+                break;
             }
         }
         if (_pages_len > 0 && _pages[_page_index] != nullptr)
             _pages[_page_index]->tick();
-        if ((++_status_tick % Config::CPU_LOAD_WINDOW) == 0)
-            update_status_metrics();
     }
 
 
@@ -309,8 +315,9 @@ namespace Botanik { namespace Terminal {
         }
         unsigned cpu = _sched_ctx ? (unsigned)(_sched_ctx->cpu_load_ema    * 100.0f + 0.5f) : 0;
         unsigned stk = _sched_ctx ? (unsigned)(_sched_ctx->stack_usage_ema * 100.0f + 0.5f) : 0;
+        if (cpu > 9999) cpu = 9999;  // cap so a runaway value can't widen the field and corrupt the bar
         int mlen = snprintf(metrics, sizeof(metrics),
-            "PLC:%s cpu:%3u%% stk:%3u%% ", plc_str, cpu, stk);
+            "PLC:%s cpu:%4u%% stk:%3u%% ", plc_str, cpu, stk);
         if (mlen < 0) mlen = 0;
 
         // Keep the metrics cache in sync so update_status_metrics() won't re-draw immediately.
@@ -367,8 +374,9 @@ namespace Botanik { namespace Terminal {
         }
         unsigned cpu = _sched_ctx ? (unsigned)(_sched_ctx->cpu_load_ema    * 100.0f + 0.5f) : 0;
         unsigned stk = _sched_ctx ? (unsigned)(_sched_ctx->stack_usage_ema * 100.0f + 0.5f) : 0;
+        if (cpu > 9999) cpu = 9999;  // cap so a runaway value can't widen the field and corrupt the bar
         int mlen = snprintf(metrics, sizeof(metrics),
-            "PLC:%s cpu:%3u%% stk:%3u%% ", plc_str, cpu, stk);
+            "PLC:%s cpu:%4u%% stk:%3u%% ", plc_str, cpu, stk);
         if (mlen < 0) mlen = 0;
 
         // mlen is constant across calls (all fields are fixed-width), so a byte

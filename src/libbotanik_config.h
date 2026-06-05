@@ -126,6 +126,10 @@ namespace Botanik { namespace Config {
      *         bare ESC → Command::ESC, partial CSI → discarded */
     static constexpr uint32_t ANSI_ESC_TIMEOUT_MS = 100;
 
+    /** @brief Interval (ms) between status-bar metric refreshes. Time-based so the
+     *         refresh rate is independent of the scheduler tick interval. */
+    static constexpr uint32_t STATUS_REFRESH_MS = 2000;
+
     /** @} */
 
 

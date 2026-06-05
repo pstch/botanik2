@@ -41,7 +41,7 @@ namespace Botanik { namespace Terminal {
         Logs::Logger*                _logger       = nullptr;
         Scheduler::SchedulerContext* _sched_ctx    = nullptr;
         PlcIO::PlcSyncContext*       _plc_ctx      = nullptr;
-        uint32_t                     _status_tick  = 0;
+        uint64_t                     _status_last_ms = 0;   // last status-metrics refresh (wall clock)
         char                         _status_metrics_cache[27] = {}; // zero-init forces first draw
     public:
         /** @name Lifecycle & State Management
