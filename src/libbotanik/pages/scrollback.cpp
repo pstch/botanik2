@@ -15,27 +15,35 @@ namespace Botanik { namespace Pages {
     }
 
     uint16_t Scrollback::store_wrapped(const char* buf, size_t len, uint16_t cols) {
-        // First line: up to `cols` bytes verbatim.
-        uint16_t first = (cols == 0) ? (uint16_t)len
-                                     : (uint16_t)std::min(len, (size_t)cols);
-        store(buf, first);
-        if (cols == 0 || len <= first) return 1;
-
-        // Continuation lines: "> " + up to (cols - 2) bytes of the remainder, so
-        // each wrapped row stays within the terminal width.
-        static const char PREFIX[] = "> ";
-        const uint16_t    plen     = (uint16_t)(sizeof(PREFIX) - 1);
-        const uint16_t    body     = (cols > plen) ? (uint16_t)(cols - plen) : 1;
+        // Continuation rows (whether forced by a '\n' or by overflowing the
+        // width) start with an indent + "> " marker so they align under the
+        // message body; only the very first row is emitted verbatim.
+        static const char PREFIX[]  = "                        > ";
+        const uint16_t    plen      = (uint16_t)(sizeof(PREFIX) - 1);
+        const uint16_t    seg_cap   = (uint16_t)Config::SHELL_SCROLLBACK_LINE_LEN;
         char seg[Config::SHELL_SCROLLBACK_LINE_LEN];
-        memcpy(seg, PREFIX, plen);
 
-        uint16_t count = 1;
-        for (size_t off = first; off < len; ) {
-            uint16_t take = (uint16_t)std::min(len - off, (size_t)body);
-            memcpy(seg + plen, buf + off, take);
-            store(seg, (size_t)(plen + take));
-            off += take;
+        uint16_t count = 0;
+        for (size_t off = 0; ; ) {
+            uint16_t prefix_len = (count == 0 || cols <= plen) ? 0 : plen;
+            // Per-row byte budget: fill to the width, or everything left when
+            // unbounded (cols == 0), but never overflow the segment buffer.
+            uint16_t budget = (cols == 0) ? (uint16_t)(len - off)
+                                          : (uint16_t)(cols - prefix_len);
+            if (budget > (uint16_t)(seg_cap - prefix_len)) budget = (uint16_t)(seg_cap - prefix_len);
+
+            // Take up to `budget` bytes, stopping early at a newline.
+            uint16_t take = 0;
+            while (take < budget && off + take < len && buf[off + take] != '\n') take++;
+
+            if (prefix_len) memcpy(seg, PREFIX, prefix_len);
+            memcpy(seg + prefix_len, buf + off, take);
+            store(seg, (size_t)(prefix_len + take));
             count++;
+
+            off += take;
+            if (off < len && buf[off] == '\n') off++;  // consume the break, don't print it
+            if (off >= len) break;
         }
         return count;
     }
