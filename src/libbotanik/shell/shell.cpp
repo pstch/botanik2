@@ -35,8 +35,6 @@ namespace Botanik { namespace Shell {
             n = snprintf(out, sizeof(out), "Commands: help, clear, stats, breakpoint");
         } else if (len == 5 && strncmp(cmd, "clear", 5) == 0) {
             _output.clear();
-            for (uint16_t row = 1; row <= _terminal.rows() - 2; row++)
-                _terminal.clear_row(row);
             return;
         } else if (len == 10 && strncmp(cmd, "breakpoint", 10) == 0) {
 #ifdef TARGET_SIMULATOR

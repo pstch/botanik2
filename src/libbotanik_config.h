@@ -91,7 +91,7 @@ namespace Botanik { namespace Config {
      *  @note Each topic consumes memory for its rate-limiting bucket. */
     static constexpr uint16_t LOG_TOPIC_MAX = 255;
 
-    /** @brief Maximum number of pointers to registered log writers (Serial, SD, Ethernet, etc.) */
+    /** @brief Maximum number of pointers to registered log writers */
     static constexpr uint8_t LOG_WRITERS_MAX = 8;
 
     /** @brief Per-writer in-flight message queue depth */
@@ -153,6 +153,9 @@ namespace Botanik { namespace Config {
 
     /** @brief Maximum length of a single retained ShellPage scrollback line (bytes) */
     static constexpr uint16_t SHELL_SCROLLBACK_LINE_LEN        = 128;
+
+    /** @brief Max scrollback rows redrawn per tick() during deferred replay */
+    static constexpr uint16_t SCROLLBACK_REDRAW_ROWS_PER_TICK  = 1;
 
     /** @} */
 

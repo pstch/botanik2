@@ -3,6 +3,7 @@
 
 #include "libbotanik_config.h"
 #include "libbotanik/pages/page.h"
+#include "libbotanik/pages/scrollback.h"
 #include "libbotanik/logs/writer.h"
 #include "libbotanik/terminal/editor.h"
 #include "libbotanik/shell/shell.h"
@@ -37,11 +38,8 @@ namespace Botanik { namespace Pages {
         InputEditor        _editor;
         Shell::CommandShell _shell;
 
-        // Circular log line buffer for redraw/page-switch replay
-        char     _log_buf[Config::SHELL_SCROLLBACK_LINES][Config::SHELL_SCROLLBACK_LINE_LEN];
-        uint16_t _log_lens[Config::SHELL_SCROLLBACK_LINES] = {};
-        uint16_t _log_head  = 0;   // next slot to write
-        uint16_t _log_count = 0;   // number of stored lines
+        // Circular log line buffer + throttled redraw for redraw/page-switch replay
+        Scrollback _scrollback;
 
         void _setup_editor();
         void _full_redraw();
@@ -59,13 +57,6 @@ namespace Botanik { namespace Pages {
          *         revealed top rows from the scrollback buffer.
          *         Used when the editor shrinks, to avoid a full log redraw. */
         void _reveal_log_rows(uint16_t delta);
-
-        /** @brief Store a line in the circular buffer (does not display it). */
-        void _store_line(const char* buf, size_t len);
-
-        /** @brief Write all visible log rows top-to-bottom in a single sequential pass.
-         *         Assumes the log area is already blank (called after clear_screen). */
-        void _draw_log();
 
         // BufferedLogWriter + ShellWriter interface (one impl serves both)
         size_t format(const LogEntry_t* entry, char* buf, size_t len) override;
