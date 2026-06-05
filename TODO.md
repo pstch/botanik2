@@ -5,12 +5,6 @@
  - Organize the Doxygen documentation. Maybe some of the things documented in markdown files will need to be moved to the Doxygen-based documentation.
  - Maybe we need to formalize the way we comment and structure our CPP files
 
-## Logging
-
- - Make LogsPage only print logs when the TX buffer is empty, so that we avoid filling the whole TX buffer with log lines
-
- - The status page shouldn't have to handle set_inverted(), it should only be handled by the AnsiTerminal itself (because the state tracking for insertion-mode should live in AnsiTerminal)
-
 ##  Test harness
 
  - Choose between Python and C++ for the test harness and write a basic test case for each of our main components
@@ -24,8 +18,6 @@
  - parser: reorganize and simplify chunking code, unify chunking for text and commands
 
  - when starting up, we want to show information about the hardware and current firmware
-
- - find a better way than a hardcoded bias to paint the free stack without writing over our own return address, the current 4096-byte bias is negligible on the SIMULATOR, but not on our OPTA target
 
  - simplify the entry point by moving simulation-specific code to its own header
    (this is required because that entry point will serve as the reference documentation for the Arduino sketch)
