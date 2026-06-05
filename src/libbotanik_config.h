@@ -19,27 +19,25 @@ namespace Botanik { namespace Config {
     /** @brief Main task execution period in milliseconds */
     static constexpr uint32_t TASK_PERIOD_MS = 10;
 
+    /** @brief Minimum interval between scheduler-overrun warnings (ms) */
+    static constexpr uint32_t SCHEDULER_OVERRUN_LOG_INTERVAL_MS = 5000;
+
     /** @brief Maximum address range to scan for stack usage monitoring */
     static constexpr uint32_t STACK_SCAN_LIMIT = 1048576;
 
     /** @brief Byte pattern used for stack "painting" to detect high-water mark */
     static constexpr uint8_t  STACK_PAINT_BYTE = 0xCD;
 
-    /** @brief Number of ticks over which the peak CPU load is tracked.
-     *  Also controls how often the terminal status row is refreshed. */
-    static constexpr uint32_t CPU_LOAD_WINDOW = 200;
+    /** @brief Wall-clock window for CPU/stack peak usage tracking */
+    static constexpr uint32_t CPU_LOAD_WINDOW_MS = 5000;
 
-    /** @brief Exponential Moving Average attack (rise) factor for CPU load */
-    static constexpr float CPU_LOAD_EMA_ATTACK = 1.00f;
+    /** @brief CPU-load EMA response time constants (ms) */
+    static constexpr uint32_t CPU_LOAD_EMA_ATTACK_MS = 0;
+    static constexpr uint32_t CPU_LOAD_EMA_DECAY_MS  = 5000;
 
-    /** @brief Exponential Moving Average decay (fall) factor for CPU load */
-    static constexpr float CPU_LOAD_EMA_DECAY  = 0.01f;
-
-    /** @brief EMA attack factor for stack usage monitoring */
-    static constexpr float STACK_USAGE_EMA_ATTACK = 0.95f;
-
-    /** @brief EMA decay factor for stack usage monitoring */
-    static constexpr float STACK_USAGE_EMA_DECAY  = 0.01f;
+    /** @brief Stack-usage EMA response time constants (ms) */
+    static constexpr uint32_t STACK_USAGE_EMA_ATTACK_MS = 0;
+    static constexpr uint32_t STACK_USAGE_EMA_DECAY_MS  = 1000;
 
     /** @} */
 

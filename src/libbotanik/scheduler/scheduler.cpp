@@ -12,11 +12,6 @@
 
 namespace Botanik { namespace Scheduler {
 
-    namespace {
-        using Config::CPU_LOAD_EMA_ATTACK;
-        using Config::CPU_LOAD_EMA_DECAY;
-    }
-
     LoopScheduler::LoopScheduler(uint32_t period_ms, Logs::Logger* logger)
         : _period_ms(period_ms), _logger(logger) {
             _stack_depth = HAL::get_stack_depth();
@@ -48,9 +43,9 @@ namespace Botanik { namespace Scheduler {
             }
             // store in circular window and compute peak
             _cpu_load_window[_cpu_load_window_idx] = instant;
-            _cpu_load_window_idx = (_cpu_load_window_idx + 1) % Config::CPU_LOAD_WINDOW;
+            _cpu_load_window_idx = (_cpu_load_window_idx + 1) % CPU_LOAD_WINDOW;
             float peak = 0.0f;
-            for (uint32_t i = 0; i < Config::CPU_LOAD_WINDOW; ++i)
+            for (uint32_t i = 0; i < CPU_LOAD_WINDOW; ++i)
                 if (_cpu_load_window[i] > peak) peak = _cpu_load_window[i];
             _cpu_load = peak;
             // apply asymmetric EMA filter to instantaneous load
@@ -80,14 +75,14 @@ namespace Botanik { namespace Scheduler {
         // store in circular window and compute peak
         float ratio = (_stack_depth > 0) ? static_cast<float>(low) / _stack_depth : 0.0f;
         _stack_usage_window[_stack_usage_window_idx] = ratio;
-        _stack_usage_window_idx = (_stack_usage_window_idx + 1) % Config::CPU_LOAD_WINDOW;
+        _stack_usage_window_idx = (_stack_usage_window_idx + 1) % CPU_LOAD_WINDOW;
         float peak = 0.0f;
-        for (uint32_t i = 0; i < Config::CPU_LOAD_WINDOW; ++i)
+        for (uint32_t i = 0; i < CPU_LOAD_WINDOW; ++i)
             if (_stack_usage_window[i] > peak) peak = _stack_usage_window[i];
         _stack_usage = static_cast<uint32_t>(peak * _stack_depth);
         // apply asymmetric EMA filter to instantaneous usage
         float alpha = (_stack_usage_ema < ratio) ?
-            Config::STACK_USAGE_EMA_ATTACK : Config::STACK_USAGE_EMA_DECAY;
+            STACK_USAGE_EMA_ATTACK : STACK_USAGE_EMA_DECAY;
         _stack_usage_ema = (alpha * ratio) + ((1.0f - alpha) * _stack_usage_ema);
         _context.stack_usage     = _stack_usage;
         _context.stack_usage_ema = _stack_usage_ema;
@@ -117,9 +112,17 @@ namespace Botanik { namespace Scheduler {
             _next_tick_ms += (missed_beats * _period_ms);
             _overrun_count += (uint32_t)missed_beats;
             _context.overruns = _overrun_count;
-            if (_logger != nullptr)
+            // Throttle the warning: accumulate skipped beats and emit at most once
+            // per SCHEDULER_OVERRUN_LOG_INTERVAL_MS, reporting the aggregate so a
+            // burst of overruns doesn't itself flood the log (and the TX path).
+            _overrun_pending += (uint32_t)missed_beats;
+            if (_logger != nullptr &&
+                now - _overrun_log_last_ms >= Config::SCHEDULER_OVERRUN_LOG_INTERVAL_MS) {
                 _logger->warning(PlcIO::STATUS, "scheduler overrun: skipped %lu beat(s)",
-                    (unsigned long)missed_beats);
+                    (unsigned long)_overrun_pending);
+                _overrun_log_last_ms = now;
+                _overrun_pending = 0;
+            }
         }
     }
 
@@ -135,6 +138,8 @@ namespace Botanik { namespace Scheduler {
         _stack_usage_window_idx = 0;
         _stack_usage = 0;
         _stack_usage_ema = 0.0f;
+        _overrun_log_last_ms = 0;  // log the first overrun after a reset immediately
+        _overrun_pending = 0;
     }
 
     bool LoopScheduler::tick() {

@@ -10,6 +10,27 @@ namespace Botanik { namespace Logs { class Logger; } }
 
 namespace Botanik { namespace Scheduler {
 
+    /** @brief Per-tick EMA smoothing factor for a given response time constant
+     *  (ms). Derived from the tick period so the filter's wall-clock response
+     *  stays fixed regardless of TASK_PERIOD_MS (forward-Euler: alpha = dt/tau).
+     *  A tau at or below one tick collapses to 1.0 (instant, since the filter
+     *  can't resolve anything faster than a single tick). */
+    constexpr float ema_alpha(uint32_t tau_ms) {
+        return tau_ms <= Config::TASK_PERIOD_MS
+            ? 1.0f
+            : (float)Config::TASK_PERIOD_MS / (float)tau_ms;
+    }
+
+    /** @brief Number of per-tick samples spanning CPU_LOAD_WINDOW_MS. The metric
+     *  ring buffers are sized from this; one sample is recorded per tick. */
+    static constexpr uint32_t CPU_LOAD_WINDOW = Config::CPU_LOAD_WINDOW_MS / Config::TASK_PERIOD_MS;
+
+    // Per-tick smoothing factors derived from the configured response time constants.
+    static constexpr float CPU_LOAD_EMA_ATTACK    = ema_alpha(Config::CPU_LOAD_EMA_ATTACK_MS);
+    static constexpr float CPU_LOAD_EMA_DECAY     = ema_alpha(Config::CPU_LOAD_EMA_DECAY_MS);
+    static constexpr float STACK_USAGE_EMA_ATTACK = ema_alpha(Config::STACK_USAGE_EMA_ATTACK_MS);
+    static constexpr float STACK_USAGE_EMA_DECAY  = ema_alpha(Config::STACK_USAGE_EMA_DECAY_MS);
+
     /** @brief Stable metrics snapshot consumed by AnsiTerminal for the status bar. */
     struct SchedulerContext {
         float    cpu_load        = 0.0f;   // peak over CPU_LOAD_WINDOW ticks, fraction 0..1
@@ -31,20 +52,22 @@ namespace Botanik { namespace Scheduler {
         uint64_t    _work_start_us          = 0;
         // CPU usage metrics
         uint32_t    _last_busy_us           = 0;
-        float       _cpu_load_window[Config::CPU_LOAD_WINDOW] = {};
+        float       _cpu_load_window[CPU_LOAD_WINDOW] = {};
         uint32_t    _cpu_load_window_idx    = 0;
         float       _cpu_load               = 0.0f;  // peak over CPU_LOAD_WINDOW ticks
         float       _cpu_load_ema           = 0.0f;
         // Memory usage metrics
         uint32_t    _stack_depth            = 0;
         uintptr_t   _stack_base             = 0;
-        float       _stack_usage_window[Config::CPU_LOAD_WINDOW] = {};
+        float       _stack_usage_window[CPU_LOAD_WINDOW] = {};
         uint32_t    _stack_usage_window_idx = 0;
         uint32_t    _stack_usage            = 0;   // peak over CPU_LOAD_WINDOW ticks, bytes
         float       _stack_usage_ema        = 0;
         Logs::Logger*   _logger        = nullptr;
         uint32_t        _tick_count    = 0;
         uint32_t        _overrun_count = 0;
+        uint64_t        _overrun_log_last_ms = 0;  // timestamp of the last overrun warning
+        uint32_t        _overrun_pending     = 0;  // beats skipped since that warning
         bool            _started       = false;  // startup message emitted on first tick()
         SchedulerContext _context      = {};
 
