@@ -96,10 +96,6 @@ namespace Botanik { namespace HAL {
         RawSerial() = default;
 
         inline void begin(uint32_t baud) {
-            if (_fd_in != -1) {
-                int flags = fcntl(_fd_in, F_GETFL, 0);
-                fcntl(_fd_in, F_SETFL, flags | O_NONBLOCK);
-            }
             _baud = baud;
             _next_write_us = _now_as<std::chrono::microseconds>();
         }
@@ -114,15 +110,29 @@ namespace Botanik { namespace HAL {
         inline size_t write(uint8_t c) {
             if (_fd_out == -1) return 0;
             ssize_t n = ::write(_fd_out, &c, 1);
+            // Non-blocking fd: a full kernel buffer returns EAGAIN (n < 0). Report
+            // no progress so the byte stays queued, and don't advance the baud
+            // throttle since nothing was actually sent.
+            if (n <= 0) return 0;
             if (_baud > 0) {
                 _next_write_us = _now_as<std::chrono::microseconds>() + 10000000ULL / _baud;
             }
-            return (n > 0) ? (size_t)n : 0;
+            return (size_t)n;
         }
 
         inline void set_fds(int in, int out) {
             _fd_in = in;
             _fd_out = out;
+            // Both ends non-blocking so neither a stalled reader nor a full output
+            // buffer can block the main loop (which would show up as overruns).
+            if (_fd_in != -1) {
+                int flags = fcntl(_fd_in, F_GETFL, 0);
+                fcntl(_fd_in, F_SETFL, flags | O_NONBLOCK);
+            }
+            if (_fd_out != -1) {
+                int flags = fcntl(_fd_out, F_GETFL, 0);
+                fcntl(_fd_out, F_SETFL, flags | O_NONBLOCK);
+            }
         }
 
         inline int available() {

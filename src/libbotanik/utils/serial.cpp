@@ -69,7 +69,11 @@ namespace Botanik { namespace Utils {
         uint16_t sent = 0;
         if (!_serial) return sent;
         while (_tx_head != _tx_tail && _serial->availableForWrite() > 0) {
-            HAL::dsb(); _serial->write(static_cast<uint8_t>(_tx_buf[_tx_tail]));
+            HAL::dsb();
+            // Stop if the byte couldn't be sent (non-blocking write hit a full
+            // buffer); leave it queued and retry on the next cycle rather than
+            // dropping it and tearing the output stream.
+            if (_serial->write(static_cast<uint8_t>(_tx_buf[_tx_tail])) == 0) break;
             _tx_tail = (_tx_tail + 1) & (TX_BUF_SIZE - 1);
             sent++;
         }
