@@ -15,6 +15,8 @@
 
 ## Small work items
 
+ - terminal: there are unnecessary cursor moves between printed log lines
+
  - parser: reorganize and simplify chunking code, unify chunking for text and commands
 
  - simplify the entry point by moving simulation-specific code to its own header
