@@ -77,10 +77,14 @@ namespace Botanik { namespace Pages {
 
     void Scrollback::drain_redraw(AnsiTerminal& terminal) {
         if (_redraw_i == UINT16_MAX) return;
+        // Capture the cursor's resting place once, at the start of the replay, so we
+        // can restore it when the replay finishes instead of bouncing back to it on
+        // every tick — each intermediate restore was a wasted absolute move (in
+        // LogsPage, straight back to {1,0}) only to leave it again next tick.
+        if (_redraw_i == 0) _redraw_saved = terminal.cursor_pos();
         // Emit a small batch per call, stopping early if the TX buffer can't fit a
         // worst-case row, so the historical redraw can never overrun the serial TX
         // buffer in a single tick.
-        auto saved = terminal.cursor_pos();
         for (uint16_t k = 0; k < Config::SCROLLBACK_REDRAW_ROWS_PER_TICK
                              && _redraw_i != UINT16_MAX; k++) {
             if (terminal.tx_available() < (uint16_t)(terminal.cols() + 32)) break;
@@ -91,7 +95,10 @@ namespace Botanik { namespace Pages {
             terminal.clear_to_eol();
             if (++_redraw_i >= _redraw_count) _redraw_i = UINT16_MAX;
         }
-        terminal.move_to(saved);
+        // Only put the cursor back once the whole replay has drained. While it's
+        // still pending the page holds off other output, so leaving the cursor in
+        // the log area between ticks is safe — the next batch repositions absolutely.
+        if (_redraw_i == UINT16_MAX) terminal.move_to(_redraw_saved);
     }
 
 }}

@@ -24,6 +24,7 @@ namespace Botanik { namespace Pages {
     class Scrollback {
     private:
         using AnsiTerminal = Terminal::AnsiTerminal;
+        using CursorPos    = Terminal::Ansi::CursorPos;
 
         // Circular line buffer (newest at _head-1)
         char     _buf[Config::SHELL_SCROLLBACK_LINES][Config::SHELL_SCROLLBACK_LINE_LEN];
@@ -36,6 +37,7 @@ namespace Botanik { namespace Pages {
         uint16_t _redraw_count     = 0;
         uint16_t _redraw_start     = 0;
         uint16_t _redraw_first_row = 0;
+        CursorPos _redraw_saved    = {0, 0};      // cursor to restore once the replay drains
 
     public:
         /** @brief Store a line in the circular buffer (does not display it) */
