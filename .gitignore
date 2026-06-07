@@ -12,3 +12,6 @@ compile_commands.json
 Makefile
 
 build
+
+# Generated API docs
+docs/doxygen/

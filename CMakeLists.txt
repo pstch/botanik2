@@ -229,3 +229,19 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     set_target_properties(botanik PROPERTIES LINKER_LANGUAGE CXX)
 
 endif()
+
+# Doxygen documentation
+# ============================================================================
+# Platform-independent: `make -C build docs` regenerates the HTML API docs
+# from the Doxyfile at the project root (output under docs/doxygen/html/).
+find_program(DOXYGEN doxygen)
+if(DOXYGEN)
+    add_custom_target(docs
+        COMMAND ${DOXYGEN} ${CMAKE_SOURCE_DIR}/Doxyfile
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Generating API documentation with Doxygen"
+        VERBATIM
+    )
+else()
+    message(STATUS "doxygen not found — skipping docs target")
+endif()

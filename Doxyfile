@@ -1,0 +1,112 @@
+# Doxyfile for Botanik — greenhouse control system (libbotanik)
+#
+# Generate docs with:    doxygen Doxyfile
+# Output lands in:       docs/doxygen/html/index.html
+#
+# Tuned for Doxygen 1.9.x. The source already uses JavaDoc-style comments
+# (/** ... */ with @brief, @param, @return, @name groups), so this config
+# mostly points Doxygen at src/ and turns on full extraction.
+
+#---------------------------------------------------------------------------
+# Project identity
+#---------------------------------------------------------------------------
+PROJECT_NAME           = "Botanik"
+PROJECT_NUMBER         = 0.1.0-dev
+PROJECT_BRIEF          = "Greenhouse control system for the Arduino OPTA PLC"
+PROJECT_LOGO           = images/logo-small.png
+OUTPUT_DIRECTORY       = docs/doxygen
+CREATE_SUBDIRS         = NO
+
+#---------------------------------------------------------------------------
+# Input
+#---------------------------------------------------------------------------
+INPUT                  = src \
+                         README.md \
+                         docs
+FILE_PATTERNS          = *.h *.cpp *.c *.md
+RECURSIVE              = YES
+IMAGE_PATH             = images
+USE_MDFILE_AS_MAINPAGE = README.md
+
+# Vendored toolchain/Mbed headers and build artifacts are not our code.
+EXCLUDE_PATTERNS       = */build/* \
+                         */includes/* \
+                         */archive/* \
+                         */CMakeFiles/*
+
+#---------------------------------------------------------------------------
+# What to extract
+#---------------------------------------------------------------------------
+# Many .cpp files carry no doc comments; EXTRACT_ALL still documents their
+# declarations so the API surface is complete.
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = YES
+EXTRACT_STATIC         = YES
+EXTRACT_LOCAL_CLASSES  = YES
+EXTRACT_ANON_NSPACES   = YES
+
+# The source explicitly writes @brief everywhere, so leave autobrief off.
+JAVADOC_AUTOBRIEF      = NO
+QT_AUTOBRIEF           = NO
+
+# It's C++ with STL usage (std::chrono, std::string, ...).
+OPTIMIZE_OUTPUT_FOR_C  = NO
+BUILTIN_STL_SUPPORT    = YES
+
+#---------------------------------------------------------------------------
+# Source browsing & layout
+#---------------------------------------------------------------------------
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+STRIP_CODE_COMMENTS    = YES
+REFERENCED_BY_RELATION = YES
+REFERENCES_RELATION    = YES
+ALPHABETICAL_INDEX     = YES
+SORT_MEMBER_DOCS       = NO
+STRIP_FROM_PATH        = .
+STRIP_FROM_INC_PATH    = src
+TAB_SIZE               = 4
+
+#---------------------------------------------------------------------------
+# Preprocessing
+#---------------------------------------------------------------------------
+# Parse #include directives but do NOT predefine TARGET_SIMULATOR/TARGET_OPTA:
+# leaving both undefined lets Doxygen document both HAL implementations
+# (hal/simulator.h and hal/opta.h) instead of just one platform's branch.
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = NO
+EXPAND_ONLY_PREDEF     = NO
+SEARCH_INCLUDES        = YES
+INCLUDE_PATH           = src
+
+#---------------------------------------------------------------------------
+# Diagrams (graphviz is available)
+#---------------------------------------------------------------------------
+HAVE_DOT               = YES
+DOT_IMAGE_FORMAT       = svg
+CLASS_GRAPH            = YES
+COLLABORATION_GRAPH    = YES
+INCLUDE_GRAPH          = YES
+INCLUDED_BY_GRAPH      = YES
+CALL_GRAPH             = NO
+CALLER_GRAPH           = NO
+DOT_MULTI_TARGETS      = YES
+
+#---------------------------------------------------------------------------
+# Output formats
+#---------------------------------------------------------------------------
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+GENERATE_TREEVIEW      = YES
+DISABLE_INDEX          = NO
+GENERATE_LATEX         = NO
+
+#---------------------------------------------------------------------------
+# Warnings / diagnostics
+#---------------------------------------------------------------------------
+QUIET                  = YES
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = NO
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = YES
+WARN_LOGFILE           = docs/doxygen/doxygen-warnings.log
