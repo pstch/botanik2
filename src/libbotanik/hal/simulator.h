@@ -28,7 +28,7 @@ inline uint64_t _now_as() {
 namespace Botanik { namespace HAL {
 
     inline const char* hardware_description() {
-        return "Botanik Simulator (POSIX host)";
+        return "Botanik x86-64 POSIX simulator";
     }
 
     inline uintptr_t get_stack_base() {
