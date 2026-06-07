@@ -29,6 +29,10 @@ namespace Botanik { namespace Pages {
         // Circular log line buffer + throttled redraw for page-switch replay
         Scrollback _scrollback;
 
+        // Mirrors the latest tick(active) argument so write() — reached indirectly
+        // via drain() — knows whether it may paint. False while in the background.
+        bool _active = false;
+
         // BufferedLogWriter interface
         size_t format(const LogEntry_t* entry, char* buf, size_t len) override;
         size_t write(const char* buf, size_t len) override;
@@ -51,7 +55,7 @@ namespace Botanik { namespace Pages {
         void handle_command(Command cmd, uint16_t count = 1) override;
         void deactivate() override;
         void focus() override;
-        void tick() override;
+        void tick(bool active) override;
     };
 
 }}

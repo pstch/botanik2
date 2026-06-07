@@ -17,6 +17,14 @@ namespace Botanik { namespace Pages {
     }
 
     size_t LogsPage::write(const char* buf, size_t len) {
+        // In the background: just keep the scrollback current so a later focus()
+        // replays an up-to-date tail. Nothing reaches the screen, so there's no TX
+        // back-pressure to honour — store the whole entry and report it consumed.
+        if (!_active) {
+            _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols());
+            return len;
+        }
+
         // Back-pressure: only emit a line once the TX buffer has drained, so a
         // burst of entries can't fill it. Reporting no progress makes the
         // BufferedLogWriter hold the entry and retry on a later tick.
@@ -49,12 +57,17 @@ namespace Botanik { namespace Pages {
         _scrollback.begin_redraw((uint16_t)(_terminal.rows() - 1)); // rows 1..rows-1
     }
 
-    void LogsPage::tick() {
-        _scrollback.drain_redraw(_terminal);
-        // Hold off processing incoming log entries until the historical redraw
-        // is complete — a DL scroll from write() would shift rows already drawn
-        // and corrupt the display.
-        if (_scrollback.redraw_pending()) return;
+    void LogsPage::tick(bool active) {
+        _active = active;
+        if (active) {
+            _scrollback.drain_redraw(_terminal);
+            // Hold off processing incoming log entries until the historical redraw
+            // is complete — a DL scroll from write() would shift rows already drawn
+            // and corrupt the display.
+            if (_scrollback.redraw_pending()) return;
+        }
+        // Drain the queue either way: active paints the new tail, background just
+        // banks the entries into the scrollback (see write()).
         drain();
     }
 

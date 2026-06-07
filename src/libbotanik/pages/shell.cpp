@@ -66,6 +66,10 @@ namespace Botanik { namespace Pages {
         // Wrap into one or more stored rows ("> "-prefixed continuations).
         uint16_t n = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols());
 
+        // In the background: the entry is banked in the scrollback for a later
+        // focus() replay; don't touch the screen the active page owns.
+        if (!_active) return len;
+
         uint16_t rows         = (uint16_t)_terminal.rows();
         uint16_t occupied     = _editor.occupied_rows();
         uint16_t last_log_row = (uint16_t)(rows - 1 - occupied);
@@ -130,11 +134,16 @@ namespace Botanik { namespace Pages {
     void ShellPage::focus()  { _full_redraw(); }
     void ShellPage::redraw() { _full_redraw(); }
 
-    void ShellPage::tick() {
-        _scrollback.drain_redraw(_terminal);
-        // Hold off live entries until the historical redraw is complete — a DL
-        // scroll from write() would shift rows already drawn and corrupt the log.
-        if (_scrollback.redraw_pending()) return;
+    void ShellPage::tick(bool active) {
+        _active = active;
+        if (active) {
+            _scrollback.drain_redraw(_terminal);
+            // Hold off live entries until the historical redraw is complete — a DL
+            // scroll from write() would shift rows already drawn and corrupt the log.
+            if (_scrollback.redraw_pending()) return;
+        }
+        // Drain the queue either way: active paints the new tail, background just
+        // banks the entries into the scrollback (see write()).
         drain();
     }
 

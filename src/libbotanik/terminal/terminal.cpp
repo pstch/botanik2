@@ -76,8 +76,13 @@ namespace Botanik { namespace Terminal {
                 break;
             }
         }
-        if (_pages_len > 0 && _pages[_page_index] != nullptr)
-            _pages[_page_index]->tick();
+        // Tick every page, not just the active one: each page is its own
+        // LogWriter and must drain its queue into its own scrollback on every
+        // step so a later focus() replays an up-to-date tail. Inactive pages keep
+        // their hands off the screen (gated internally on their active flag); only
+        // the active page renders.
+        for (uint8_t i = 0; i < _pages_len; i++)
+            if (_pages[i] != nullptr) _pages[i]->tick(i == _page_index);
     }
 
 

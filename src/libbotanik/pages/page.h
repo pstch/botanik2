@@ -36,8 +36,13 @@ namespace Botanik { namespace Pages {
         virtual void focus() = 0;
         /** @brief Redraw the page in-place preserving input state (Ctrl+L). Default delegates to focus(). */
         virtual void redraw() { focus(); }
-        /** @brief Called every main-loop tick to update display and state */
-        virtual void tick() = 0;
+        /** @brief Called every main-loop tick to update display and state.
+         *
+         * Invoked for *every* page on every step, not just the active one, so a
+         * page can drain its queued log entries into its own scrollback even while
+         * in the background. @p active is true only for the page that currently
+         * owns the screen; inactive pages must not emit any terminal output. */
+        virtual void tick(bool active) = 0;
     };
 
 }}

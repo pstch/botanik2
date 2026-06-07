@@ -41,6 +41,10 @@ namespace Botanik { namespace Pages {
         // Circular log line buffer + throttled redraw for redraw/page-switch replay
         Scrollback _scrollback;
 
+        // Mirrors the latest tick(active) argument so write() — reached indirectly
+        // via drain() — knows whether it may paint. False while in the background.
+        bool _active = false;
+
         void _setup_editor();
         void _full_redraw();
 
@@ -75,7 +79,7 @@ namespace Botanik { namespace Pages {
         void deactivate() override;
         void focus() override;
         void redraw() override;
-        void tick() override;
+        void tick(bool active) override;
     };
 
 }}
