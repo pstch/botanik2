@@ -12,8 +12,6 @@
  */
 
 #include "libbotanik.h"
-#include "libbotanik/pages/shell.h"
-#include "libbotanik/pages/logs.h"
 
 // ---------------------------------------------------------------------------
 // Site-specific PLC payload types.
