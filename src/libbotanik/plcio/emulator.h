@@ -1,12 +1,24 @@
 #ifndef PLCIO_EMULATOR_H
 #define PLCIO_EMULATOR_H
 
+/**
+ * @file emulator.h
+ * @brief PlcEmulator — simulator-side stand-in that drives the shared-memory
+ *        protocol from the PLC's side, mirroring PlcSyncHandler.
+ */
+
 #include <cstdint>
 #include <cstring>
 
 #include "libbotanik_config.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/plcio/sync.h"
+
+#ifdef TARGET_SIMULATOR
+#include <cstdio>
+#include <unistd.h>
+#include <pthread.h>
+#endif
 
 namespace Botanik { namespace PlcIO {
 
@@ -130,6 +142,60 @@ namespace Botanik { namespace PlcIO {
         PlcLogWriter(PlcEmulatorContext* ctx, uint32_t* timestamp_ms);
         void push_log(LogLevel level, LogTopic topic, const char* msg);
     };
+
+#ifdef TARGET_SIMULATOR
+
+    // Host-side driver that runs a PlcEmulator on its own POSIX thread, simulating
+    // the PLC coprocessor executing independently of the main loop. Simulator-only:
+    // on OPTA the real coprocessor plays this role, so this section is compiled out.
+
+    template<typename InputData, typename OutputData>
+    struct _EmulatorThreadArgs {
+        PlcInput<InputData>*   shared_in;
+        PlcOutput<OutputData>* shared_out;
+    };
+
+    /** @brief Thread entry point: owns the emulator's timestamp, PlcEmulator and
+     *  PlcLogWriter, steps them every TASK_PERIOD_MS, and emits a heartbeat log. */
+    template<typename InputData, typename OutputData>
+    inline void* _emulator_thread_main(void* arg) {
+        auto* args = static_cast<_EmulatorThreadArgs<InputData, OutputData>*>(arg);
+
+        uint32_t emu_timestamp_ms = 0;
+        PlcEmulator<InputData, OutputData> plc_emulator(
+            args->shared_in, args->shared_out, &emu_timestamp_ms);
+        PlcLogWriter plc_log_writer(plc_emulator.context(), &emu_timestamp_ms);
+
+        uint32_t emu_tick = 0;
+        while (true) {
+            emu_timestamp_ms = (uint32_t)HAL::uptime_ms();
+            plc_emulator.step();
+            // Emit a periodic heartbeat log every 30s, simulating the PLC coprocessor.
+            constexpr uint32_t HEARTBEAT_TICKS = 30000 / Config::TASK_PERIOD_MS;
+            if ((++emu_tick % HEARTBEAT_TICKS) == 0) {
+                char buf[40];
+                snprintf(buf, sizeof(buf), "periodic log #%lu",
+                         (unsigned long)(emu_tick / HEARTBEAT_TICKS));
+                plc_log_writer.push_log(LOG_INFO, PLC_IO, buf);
+            }
+            usleep(Config::TASK_PERIOD_MS * 1000);
+        }
+        return nullptr;
+    }
+
+    /** @brief Spawn the detached emulator thread against the shared PLC memory.
+     *  The argument block is a static with process lifetime, so it stays valid
+     *  for the detached thread without any heap allocation. */
+    template<typename InputData, typename OutputData>
+    inline void start_emulator_thread(PlcInput<InputData>* shared_in,
+                                      PlcOutput<OutputData>* shared_out) {
+        static _EmulatorThreadArgs<InputData, OutputData> args{ shared_in, shared_out };
+        pthread_t thread;
+        pthread_create(&thread, nullptr, &_emulator_thread_main<InputData, OutputData>, &args);
+        pthread_detach(thread);
+    }
+
+#endif // TARGET_SIMULATOR
 
 }}
 

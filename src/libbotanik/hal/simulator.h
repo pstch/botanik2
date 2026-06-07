@@ -2,9 +2,20 @@
 #ifdef TARGET_SIMULATOR
 #define HAL_SIMULATOR_H
 
+/**
+ * @file simulator.h
+ * @brief HAL backend for the Linux x86-64 host simulator.
+ *
+ * Implements the platform.h interface with std::chrono clocks, std::atomic
+ * fences, and POSIX serial I/O over file descriptors. Selected automatically
+ * when TARGET_SIMULATOR is defined; see platform.h.
+ */
+
 #include <cstdint>
 #include <chrono>
 #include <cstring>
+#include <cstdlib>
+#include <csignal>
 #include <atomic>
 #include <unistd.h>
 #include <fcntl.h>
@@ -13,12 +24,14 @@
 #include <termios.h>
 #include <pthread.h>
 
-// internal helpers to simplify the timer functions
+/** @brief Process-start reference point for the monotonic uptime clocks.
+ *  Captured once on first use. */
 inline std::chrono::steady_clock::time_point _process_start() {
     static const auto t0 = std::chrono::steady_clock::now();
     return t0;
 }
 
+/** @brief Elapsed time since process start, expressed in the duration type T. */
 template <typename T>
 inline uint64_t _now_as() {
     auto duration = std::chrono::steady_clock::now() - _process_start();
@@ -27,9 +40,17 @@ inline uint64_t _now_as() {
 
 namespace Botanik { namespace HAL {
 
+    /** @name Hardware identity
+     *  @{ */
+
     inline const char* hardware_description() {
         return "Botanik x86-64 POSIX simulator";
     }
+
+    /** @} */
+
+    /** @name Stack introspection
+     *  @{ */
 
     inline uintptr_t get_stack_base() {
         pthread_t self = pthread_self();
@@ -43,8 +64,9 @@ namespace Botanik { namespace HAL {
         return 0;
     }
 
-    // Returns the total allocated stack size for the calling thread.
-    // Must NOT return base - current_sp (that is the used amount, not the depth).
+    /** @brief Total allocated stack size for the calling thread.
+     *  @note Must NOT return base - current_sp (that is the used amount, not
+     *  the depth). */
     inline uint32_t get_stack_depth() {
         pthread_t self = pthread_self();
         pthread_attr_t attr;
@@ -58,8 +80,19 @@ namespace Botanik { namespace HAL {
         return 0;
     }
 
+    /** @} */
+
+    /** @name PLC shared memory
+     *  @{ */
+
+    /// No PLC coprocessor exists on the host; the regions are absent.
     inline void* get_plc_input()  { return nullptr; }
     inline void* get_plc_output() { return nullptr; }
+
+    /** @} */
+
+    /** @name Timing & clocks
+     *  @{ */
 
     inline uint32_t current_ms() {
         return (uint32_t)_now_as<std::chrono::milliseconds>();
@@ -82,6 +115,11 @@ namespace Botanik { namespace HAL {
             std::chrono::system_clock::now().time_since_epoch()).count();
     }
 
+    /** @} */
+
+    /** @name Memory ordering
+     *  @{ */
+
     inline void dsb() {
         // Mimic the ARM DSB for thread visibility
         std::atomic_thread_fence(std::memory_order_seq_cst);
@@ -99,16 +137,26 @@ namespace Botanik { namespace HAL {
         dsb();
     }
 
+    /** @} */
+
+    /** @name Serial I/O
+     *  @{ */
+
+    /** @brief Host stand-in for the Arduino UART, backed by a pair of file
+     *  descriptors with a baud-rate throttle and a simulated UART buffer. */
     class RawSerial {
     public:
 
         RawSerial() = default;
 
+        /** @brief Begin operation at the given baud rate (drives write throttling). */
         inline void begin(uint32_t baud) {
             _baud = baud;
             _next_write_us = _now_as<std::chrono::microseconds>();
         }
 
+        /** @brief Read a single byte.
+         *  @return The byte read, or -1 if none is available. */
         inline int read() {
             if (_fd_out == -1) return 0;
             uint8_t c;
@@ -116,6 +164,10 @@ namespace Botanik { namespace HAL {
             return -1;
         }
 
+        /** @brief Write a single byte.
+         *  @return 1 on success, or 0 if the byte could not be sent (the fd is
+         *  non-blocking, so a full kernel buffer returns EAGAIN; the byte stays
+         *  queued and the baud throttle is not advanced). */
         inline size_t write(uint8_t c) {
             if (_fd_out == -1) return 0;
             ssize_t n = ::write(_fd_out, &c, 1);
@@ -129,6 +181,9 @@ namespace Botanik { namespace HAL {
             return (size_t)n;
         }
 
+        /** @brief Bind the input/output file descriptors (use -1 to leave an
+         *  end unbound). Both ends are set non-blocking so neither a stalled
+         *  reader nor a full output buffer can block the main loop. */
         inline void set_fds(int in, int out) {
             _fd_in = in;
             _fd_out = out;
@@ -144,6 +199,7 @@ namespace Botanik { namespace HAL {
             }
         }
 
+        /** @brief Number of bytes currently available to read. */
         inline int available() {
             if (_fd_in == -1) return 0;
             int bytes_available = 0;
@@ -151,6 +207,8 @@ namespace Botanik { namespace HAL {
             return bytes_available;
         }
 
+        /** @brief Free space in the simulated UART buffer (0 while the baud
+         *  throttle is holding off the next write). */
         inline int availableForWrite() {
             if (_fd_out == -1) return 0;
             if (_baud > 0 && _next_write_us > _now_as<std::chrono::microseconds>()) return 0;
@@ -170,6 +228,9 @@ namespace Botanik { namespace HAL {
         uint64_t _next_write_us = 0;
     };
 
+    /** @brief Resolve a logical SerialPort to its backing RawSerial.
+     *  CONSOLE is wired to stdin/stdout, MONITOR to stderr (output only).
+     *  @param port CONSOLE or MONITOR. */
     inline RawSerial* get_serial(SerialPort port) {
         static RawSerial console, monitor;
         static bool initialized = false;
@@ -180,6 +241,49 @@ namespace Botanik { namespace HAL {
         }
         return (port == MONITOR) ? &monitor : &console;
     }
+
+    /** @} */
+
+    /** @name Console raw mode
+     *  @{ */
+
+    namespace _detail {
+        /** @brief Storage for the terminal settings captured before entering raw
+         *  mode, so they can be restored on exit. */
+        inline struct termios& _saved_console_termios() {
+            static struct termios saved;
+            return saved;
+        }
+        /** @brief Restore the terminal to its pre-raw-mode settings. */
+        inline void _restore_console() {
+            tcsetattr(STDIN_FILENO, TCSAFLUSH, &_saved_console_termios());
+        }
+        /** @brief Signal handler that restores the terminal before exiting, so a
+         *  Ctrl+C or crash doesn't leave the user's shell in raw mode. */
+        inline void _console_signal_handler(int) {
+            _restore_console();
+            exit(0);
+        }
+    }
+
+    /** @brief Put the controlling terminal into raw mode for interactive use:
+     *  disable canonical mode and echo, make reads non-blocking, and register
+     *  atexit/signal handlers that restore the original settings on exit. */
+    inline void setup_raw_console() {
+        struct termios& saved = _detail::_saved_console_termios();
+        tcgetattr(STDIN_FILENO, &saved);
+        atexit(_detail::_restore_console);
+        signal(SIGINT,  _detail::_console_signal_handler);
+        signal(SIGTERM, _detail::_console_signal_handler);
+        signal(SIGSEGV, _detail::_console_signal_handler);
+        struct termios raw = saved;
+        raw.c_lflag &= ~(ICANON | ECHO);
+        raw.c_cc[VMIN]  = 0;
+        raw.c_cc[VTIME] = 0;
+        tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+    }
+
+    /** @} */
 
 }}
 
