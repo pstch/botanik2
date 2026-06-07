@@ -33,40 +33,40 @@ to whichever page is currently active.
 ## Dispatch flow
 
 ```
-Hardware Serial port
-      │ raw bytes
-      ▼
-┌──────────────────────────────────────────────────┐
-│                  BufferedSerial                   │
-│         RX ring (256 B) / TX buffer (1 KB)        │
-└──────────────────────┬───────────────────────────┘
-                       │ raw bytes (drained in step())
-                       ▼
-┌──────────────────────────────────────────────────┐
-│                  AnsiTerminal                     │
-│                                                   │
-│  ┌────────────────────────────────────────────┐  │
-│  │  InputParser.parse()  →  InputEvent        │  │
-│  └──────────────────────┬─────────────────────┘  │
-│                         │                         │
-│            ┌────────────┴────────────┐            │
-│       CONTENT event           COMMAND event        │
-│            │                         │            │
-│            │        ┌────────────────┤            │
-│            │        │  Intercepted   │            │
-│            │        │  by terminal:  │            │
-│            │        │  CTRL_L        │            │
-│            │        │  HOME          │            │
-│            │        │  ALT_1…ALT_9   │            │
-│            │        │  ALT_0         │            │
-│            │        └────────────────┘            │
-│            │               │ (remaining)           │
-└────────────┼───────────────┼──────────────────────┘
-             │               │
-             ▼               ▼
-    page→handle_text(c)    page→handle_command(cmd)
-
-                  Active page (one of):
+ Hardware Serial port
+       │ raw bytes
+       ▼
+ ┌───────────────────────────────────────────────────┐
+ │                  BufferedSerial                   │
+ │         RX ring (256 B) / TX buffer (1 KB)        │
+ └──────────────────────┬────────────────────────────┘
+                        │ raw bytes (drained in step())
+                        ▼
+ ┌───────────────────────────────────────────────────┐
+ │                  AnsiTerminal                     │
+ │                                                   │
+ │  ┌────────────────────────────────────────────┐   │
+ │  │  InputParser.parse()  →  InputEvent        │   │
+ │  └──────────────────────┬─────────────────────┘   │
+ │                         │                         │
+ │            ┌────────────┴────────────┐            │
+ │       CONTENT event           COMMAND event       │
+ │            │                         │            │
+ │            │        ┌────────────────┤            │
+ │            │        │  Intercepted   │            │
+ │            │        │  by terminal:  │            │
+ │            │        │  CTRL_L        │            │
+ │            │        │  HOME          │            │
+ │            │        │  ALT_1…ALT_9   │            │
+ │            │        │  ALT_0         │            │
+ │            │        └────────────────┘            │
+ │            │               │ (remaining)          │
+ └────────────┼───────────────┼──────────────────────┘
+              │               │
+              ▼               ▼
+     page→handle_text(c)    page→handle_command(cmd)
+ 
+                   Active page (one of):
 
     ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
     │    ShellPage     │  │    LogsPage      │  │ HomePage /       │
@@ -82,11 +82,11 @@ Hardware Serial port
 The following commands are consumed by `AnsiTerminal::step()` and never reach
 the active page:
 
-| Command      | Effect                                       |
-|--------------|----------------------------------------------|
-| `CTRL_L`     | Call `page→focus()` — full screen redraw     |
-| `HOME`       | `switch_to(0)` — jump to the home page       |
-| `ALT_1…ALT_9`| `switch_to(n-1)` — switch to page n         |
-| `ALT_0`      | `switch_to(9)` — switch to page 10 if present|
+| Command      | Effect                                        |
+|--------------|-----------------------------------------------|
+| `CTRL_L`     | Call `page→focus()` — full screen redraw      |
+| `HOME`       | `switch_to(0)` — jump to the home page        |
+| `ALT_1…ALT_9`| `switch_to(n-1)` — switch to page n           |
+| `ALT_0`      | `switch_to(9)` — switch to page 10 if present |
 
 See [KEYBINDINGS.md](KEYBINDINGS.md) for the full per-page binding table.
