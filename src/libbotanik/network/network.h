@@ -1,6 +1,12 @@
 #ifndef NETWORK_NETWORK_H
 #define NETWORK_NETWORK_H
 
+/**
+ * @file network.h
+ * @brief Network and time-sync handlers — PLC-config-driven state machines for
+ *        bringing up the network device and running an NTP client (WIP).
+ */
+
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/plcio/sync.h"
 

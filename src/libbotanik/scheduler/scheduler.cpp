@@ -1,3 +1,8 @@
+/**
+ * @file scheduler.cpp
+ * @brief LoopScheduler implementation — tick timing, work/stack measurement,
+ *        metric EMAs, stack painting, and overrun reporting.
+ */
 #include <cstddef>
 #ifdef TARGET_SIMULATOR
 #include <unistd.h>

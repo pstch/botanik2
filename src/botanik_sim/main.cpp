@@ -1,12 +1,15 @@
-// Botanik simulator entry point.
-//
-// This file is the equivalent of an Arduino sketch: it defines the site-specific
-// PLC payload types and wires the library components together. On OPTA, this
-// plumbing lives in the .ino sketch; here it lives in main().
-//
-// The PLC shared memory is allocated as local statics (simulator owns it). On OPTA,
-// typed pointers are obtained via HAL::get_plc_input() / HAL::get_plc_output() and
-// validated against the PLC IDE's generated types with a static_assert.
+/**
+ * @file main.cpp
+ * @brief Botanik simulator entry point.
+ *
+ * This file is the equivalent of an Arduino sketch: it defines the site-specific
+ * PLC payload types and wires the library components together. On OPTA, this
+ * plumbing lives in the .ino sketch; here it lives in main().
+ *
+ * The PLC shared memory is allocated as local statics (simulator owns it). On OPTA,
+ * typed pointers are obtained via HAL::get_plc_input() / HAL::get_plc_output() and
+ * validated against the PLC IDE's generated types with a static_assert.
+ */
 
 #include "libbotanik.h"
 #include "libbotanik/pages/shell.h"

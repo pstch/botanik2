@@ -1,6 +1,12 @@
 #ifndef UTILS_SERIAL_H
 #define UTILS_SERIAL_H
 
+/**
+ * @file serial.h
+ * @brief BufferedSerial — non-blocking UART wrapper with RX/TX ring buffers
+ *        over HAL::RawSerial.
+ */
+
 #include <cstdint>
 #include <cstring>
 #include <algorithm>

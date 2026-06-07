@@ -1,3 +1,8 @@
+/**
+ * @file time.cpp
+ * @brief Time utility implementations — rollover projection, calendar/UNIX
+ *        conversion, and timestamp formatting.
+ */
 #include <cstdint>
 #include <array>
 #include <cstdio>

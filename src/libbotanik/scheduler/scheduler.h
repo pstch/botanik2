@@ -1,6 +1,12 @@
 #ifndef SCHEDULER_SCHEDULER_H
 #define SCHEDULER_SCHEDULER_H
 
+/**
+ * @file scheduler.h
+ * @brief LoopScheduler — non-blocking fixed-period loop driver with CPU-load and
+ *        stack-usage metrics (EMA-smoothed) and overrun handling.
+ */
+
 #include <cstdint>
 #include <cstring>
 

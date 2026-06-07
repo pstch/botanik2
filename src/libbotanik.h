@@ -1,6 +1,11 @@
 #ifndef LIBBOTANIK_H
 #define LIBBOTANIK_H
 
+/**
+ * @file libbotanik.h
+ * @brief Umbrella header — pulls in the full libbotanik public API in one include.
+ */
+
 #include "libbotanik/hal/platform.h"
 
 #include "libbotanik/scheduler/scheduler.h"

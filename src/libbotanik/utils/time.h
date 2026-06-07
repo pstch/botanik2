@@ -1,6 +1,12 @@
 #ifndef UTILS_TIME_H
 #define UTILS_TIME_H
 
+/**
+ * @file time.h
+ * @brief Time utilities — project rolling 32-bit uptime counters into absolute
+ *        64-bit time, convert to calendar/UNIX time, and format timestamps.
+ */
+
 #include <cstdint>
 #include <array>
 #include <ctime>

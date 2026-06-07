@@ -1,4 +1,8 @@
-
+/**
+ * @file serial.cpp
+ * @brief BufferedSerial implementation — pumps the RX/TX ring buffers to and
+ *        from the underlying HAL::RawSerial without blocking the main loop.
+ */
 #include <cstdint>
 
 #include "serial.h"
