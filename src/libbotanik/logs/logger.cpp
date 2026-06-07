@@ -1,3 +1,15 @@
+/**
+ * @file logger.cpp
+ * @brief Logger implementation — token-bucket refill and dispatch.
+ *
+ * step() refills the global and per-topic buckets on their own fast cadences
+ * (integer division of elapsed time by the bucket period, advancing the fill
+ * anchor by whole periods only), and drains the suppressed-message counters on
+ * a separate slower cadence so a sustained storm yields an occasional summary
+ * rather than one report per refill. push_entry() applies the per-topic filter
+ * before the global one, so per-topic-suppressed messages don't drain the
+ * global bucket.
+ */
 #include <cstdio>
 
 #include "libbotanik/hal/platform.h"

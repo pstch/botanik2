@@ -1,6 +1,13 @@
 #ifndef PLCIO_VARS_H
 #define PLCIO_VARS_H
 
+/**
+ * @file vars.h
+ * @brief PLC shared-memory layout — log protocol structs, sync counters, and
+ *        the packed PlcInput/PlcOutput templates exchanged with the PLC
+ *        coprocessor. Layout must match the PLC IDE's generated types.
+ */
+
 #include <cstdint>
 
 #include "libbotanik/hal/platform.h"

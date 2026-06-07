@@ -1,11 +1,26 @@
 #ifndef HAL_PLATFORM_H
 #define HAL_PLATFORM_H
 
+/**
+ * @file platform.h
+ * @brief Unified hardware abstraction layer (HAL) interface.
+ *
+ * Declares the platform-independent surface that the rest of the codebase
+ * builds on: hardware identity, stack introspection, PLC shared memory, timing
+ * clocks, memory-ordering primitives, and serial access. Exactly one backend
+ * implements it, selected at compile time below: opta.h for the Arduino OPTA
+ * hardware, simulator.h for the Linux host build.
+ *
+ * All other code must go through this interface; never reach for raw <time.h>
+ * or platform-specific calls directly.
+ */
+
 #include <cstdint>
 #include <cstring>
 
 namespace Botanik { namespace HAL {
-    // Declared before platform headers so get_serial() can use it inline
+    /// Logical serial endpoints. Declared before the platform headers so their
+    /// inline get_serial() can refer to it.
     enum SerialPort { CONSOLE, MONITOR };
 }}
 
@@ -17,58 +32,86 @@ namespace Botanik { namespace HAL {
 
 namespace Botanik { namespace HAL {
 
-    // Human-readable description of the host hardware (board / MCU), for the
-    // boot banner. Platform-specific; returns a static string.
+    /** @name Hardware identity
+     *  @{ */
+
+    /** @brief Human-readable description of the host hardware (board / MCU),
+     *  for the boot banner. Platform-specific; returns a static string. */
     inline const char* hardware_description();
 
-    // Return the high address (base) of the current thread's stack region
+    /** @} */
+
+    /** @name Stack introspection
+     *  @{ */
+
+    /** @brief Return the high address (base) of the current thread's stack region. */
     uintptr_t get_stack_base();
 
-    // Return the usable size (depth) of the current thread's stack region in bytes
+    /** @brief Return the usable size (depth) of the current thread's stack region in bytes. */
     uint32_t get_stack_depth();
 
-    // Get the pointer to the PLC input memory region
+    /** @} */
+
+    /** @name PLC shared memory
+     *  @{ */
+
+    /** @brief Get the pointer to the PLC input memory region. */
     void* get_plc_input();
 
-    // Get the pointer to the PLC output memory region
+    /** @brief Get the pointer to the PLC output memory region. */
     void* get_plc_output();
 
-    // Sawtooth millisecond uptime counter (rolls over every ~49 days), using the low-power clock
-    //   (equivalent to Arduino's millis() function)
+    /** @} */
+
+    /** @name Timing & clocks
+     *  @{ */
+
+    /** @brief Sawtooth millisecond uptime counter (rolls over every ~49 days),
+     *  using the low-power clock (equivalent to Arduino's millis()). */
     inline uint32_t current_ms();
 
-    // Sawtooth microsecond uptime counter (rolls over every ~71 minutes), using the regular clock
-    //   (equivalent to Arduino's micros() function)
-    //   WARNING: this counter does not run when the device is in SLEEP mode,
-    //            it should only be used for short intervals during which the
-    //            device is guaranteed to stay in RUN mode
+    /** @brief Sawtooth microsecond uptime counter (rolls over every ~71 minutes),
+     *  using the regular clock (equivalent to Arduino's micros()).
+     *  @warning This counter does not run when the device is in SLEEP mode; it
+     *  should only be used for short intervals during which the device is
+     *  guaranteed to stay in RUN mode. */
     inline uint32_t current_us();
 
-    // Monotonic millisecond uptime counter (no rollover), using the low-power clock
+    /** @brief Monotonic millisecond uptime counter (no rollover), using the
+     *  low-power clock. */
     inline uint64_t uptime_ms();
 
-    // Monotonic microsecond uptime counter (no rollover), using the low-power clock
-    //   WARNING: the low-power clock used for this counter will generally not
-    //            have enough precision for true microseconds. On an Arduino OPTA,
-    //            this clock runs at 32.768 kHz, which means that the smallest interval
-    //            it can measure is around ~30 microseconds.
+    /** @brief Monotonic microsecond uptime counter (no rollover), using the
+     *  low-power clock.
+     *  @warning The low-power clock used for this counter will generally not
+     *  have enough precision for true microseconds. On an Arduino OPTA, this
+     *  clock runs at 32.768 kHz, so the smallest interval it can measure is
+     *  around ~30 microseconds. */
     inline uint64_t uptime_us();
 
-    // Best-effort wall-clock time as UNIX milliseconds. Carries sub-second
-    // resolution where the platform provides it (host clock on the simulator);
-    // whole seconds otherwise (OPTA, until the RTC sub-second register is wired).
+    /** @brief Best-effort wall-clock time as UNIX milliseconds. Carries
+     *  sub-second resolution where the platform provides it (host clock on the
+     *  simulator); whole seconds otherwise (OPTA, until the RTC sub-second
+     *  register is wired). */
     inline uint64_t wall_clock_ms();
 
-    // Ensure that all precedent explicit memory accesses are completed
+    /** @} */
+
+    /** @name Memory ordering
+     *  @{ */
+
+    /** @brief Ensure that all precedent explicit memory accesses are completed. */
     inline void dsb();
 
-    // Copy a block of memory with hardware-enforced ordering.
+    /** @brief Copy a block of memory with hardware-enforced ordering. */
     template <typename T>
     inline void ordered_copy(T* dst, const T* src);
 
-    // Atomically push a value into a memory location.
+    /** @brief Atomically push a value into a memory location. */
     template<typename T>
     inline void ordered_move(T* dst, T src);
+
+    /** @} */
 
 }}
 

@@ -1,3 +1,13 @@
+/**
+ * @file writer.cpp
+ * @brief LogWriter implementations — queueing and incremental drain.
+ *
+ * BufferedLogWriter holds a fixed ring buffer of entries; push() drops (and
+ * counts) when full. drain() formats one queued entry at a time into _message
+ * and writes it out, tracking _sent so a partial write resumes on the next
+ * call without re-formatting. SerialLogWriter caps each write at the TX
+ * buffer's available space so it never blocks the main loop.
+ */
 #include "libbotanik/utils/time.h"
 #include "libbotanik/utils/serial.h"
 

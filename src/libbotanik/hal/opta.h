@@ -2,6 +2,14 @@
 #ifdef TARGET_OPTA
 #define HAL_OPTA_H
 
+/**
+ * @file opta.h
+ * @brief HAL backend for the Arduino OPTA (STM32H747 dual-core ARM).
+ *
+ * Implements the platform.h interface on top of Mbed OS and the Arduino core.
+ * Selected automatically when TARGET_OPTA is defined; see platform.h.
+ */
+
 #include <cstdint>
 #include <chrono>
 #include <ctime>
@@ -19,8 +27,10 @@
 struct PLCSharedVarsInput_t;
 struct PLCSharedVarsOutput_t;
 
+/// Linker-provided symbol marking the top of the main stack.
 extern "C" char _estack;
 
+/// Shared-memory buffers exchanged with the PLC coprocessor (M4 core).
 extern "C" void* m_PLCSharedVarsInputBuf;
 extern "C" void* m_PLCSharedVarsOutputBuf;
 
@@ -28,9 +38,17 @@ extern "C" void* m_PLCSharedVarsOutputBuf;
 
 namespace Botanik { namespace HAL {
 
+    /** @name Hardware identity
+     *  @{ */
+
     inline const char* hardware_description() {
         return "Arduino OPTA";
     }
+
+    /** @} */
+
+    /** @name Stack introspection
+     *  @{ */
 
     inline uintptr_t get_stack_base() {
         return reinterpret_cast<uintptr_t>(&_estack);
@@ -42,15 +60,23 @@ namespace Botanik { namespace HAL {
         return static_cast<uint32_t>(get_stack_base() - stack_pointer);
     }
 
-    // Get the pointer to the PLC input memory region
+    /** @} */
+
+    /** @name PLC shared memory
+     *  @{ */
+
     inline void* get_plc_input() {
         return static_cast<PLCSharedVarsInput_t*>(m_PLCSharedVarsInputBuf);
     }
 
-    // Get the pointer to the PLC output memory region
     inline void* get_plc_output() {
         return static_cast<PLCSharedVarsOutput_t*>(m_PLCSharedVarsOutputBuf);
     }
+
+    /** @} */
+
+    /** @name Timing & clocks
+     *  @{ */
 
     inline uint32_t current_ms() {
         return millis();
@@ -78,6 +104,11 @@ namespace Botanik { namespace HAL {
         return (uint64_t)time(NULL) * 1000;
     }
 
+    /** @} */
+
+    /** @name Memory ordering
+     *  @{ */
+
     inline void dsb() {
         __DSB();
     }
@@ -94,12 +125,22 @@ namespace Botanik { namespace HAL {
         __DSB();
     }
 
+    /** @} */
+
+    /** @name Serial I/O
+     *  @{ */
+
+    /// On the OPTA, the raw serial type is the Arduino UART driver itself.
     using RawSerial = arduino::UART;
 
+    /** @brief Resolve a logical SerialPort to its underlying UART.
+     *  @param port CONSOLE (Serial) or MONITOR (Serial1). */
     inline RawSerial* get_serial(SerialPort port) {
         if (port == MONITOR) return &Serial1;
         return &Serial;
     }
+
+    /** @} */
 
 
 }}

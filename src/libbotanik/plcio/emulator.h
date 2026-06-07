@@ -22,7 +22,7 @@
 
 namespace Botanik { namespace PlcIO {
 
-    // Non-template context object (mirror of PlcSyncContext) for the emulator side.
+    /** @brief Non-template context (mirror of PlcSyncContext) for the emulator side. */
     struct PlcEmulatorContext {
         template<typename, typename> friend class PlcEmulator;
     private:
@@ -46,9 +46,13 @@ namespace Botanik { namespace PlcIO {
         }
     };
 
-    // Simulator-side mirror of PlcSyncHandler. Simulates the PLC coprocessor: reads
-    // from the input range (what the host wrote) and writes to the output range (what
-    // the host reads). InputData / OutputData must match those of the paired handler.
+    /**
+     * @brief Simulator-side mirror of PlcSyncHandler.
+     *
+     * Simulates the PLC coprocessor: reads from the input range (what the host
+     * wrote) and writes to the output range (what the host reads). InputData /
+     * OutputData must match those of the paired handler.
+     */
     template<typename InputData, typename OutputData>
     class PlcEmulator {
     private:
@@ -129,8 +133,8 @@ namespace Botanik { namespace PlcIO {
         }
     };
 
-    // Pushes log entries into the emulator's output log buffer, simulating the PLC
-    // coprocessor sending logs to the host.
+    /** @brief Pushes log entries into the emulator's output buffer, simulating the
+     *  PLC coprocessor sending logs to the host. */
     class PlcLogWriter {
     private:
         PlcEmulatorContext* _ctx;

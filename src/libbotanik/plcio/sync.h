@@ -1,6 +1,13 @@
 #ifndef PLCIO_SYNC_H
 #define PLCIO_SYNC_H
 
+/**
+ * @file sync.h
+ * @brief PlcSyncHandler — independent RX and TX state machines for shared-memory
+ *        communication with the PLC coprocessor, with DSB-barriered transactional
+ *        reads/writes and heartbeat/timeout/watchdog tracking.
+ */
+
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
