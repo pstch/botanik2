@@ -46,7 +46,6 @@ namespace Botanik { namespace Pages {
     }
 
     void LogsPage::focus() {
-        _terminal.set_auto_wrap(true);
         _scrollback.begin_redraw((uint16_t)(_terminal.rows() - 1)); // rows 1..rows-1
     }
 

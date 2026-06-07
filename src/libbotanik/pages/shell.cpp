@@ -101,7 +101,6 @@ namespace Botanik { namespace Pages {
     }
 
     void ShellPage::_setup_editor() {
-        _terminal.set_auto_wrap(false);
         uint16_t editor_row = (uint16_t)(_terminal.rows() - 1);
         _editor.set_origin(editor_row);
         const char ps1[] = "botanik> ";

@@ -281,6 +281,13 @@ namespace Botanik { namespace Terminal {
         Ansi::clear_screen(_serial);
         _hw_pos = {0, 0};
         _hw_at_eol = false;
+        // Auto-wrap stays off for the whole UI: every page pre-wraps its own
+        // content to the width, so the terminal must never wrap on its own. A
+        // deferred wrap on a full-width line parks the cursor pending at the last
+        // cell — the next clear_to_eol then eats that glyph and the following row
+        // drops its first char. Assert it once, when the screen is (re)established;
+        // ED/clear doesn't reset DECAWM, so the mode persists until the next reset.
+        if (_hw_auto_wrap) set_auto_wrap(false);
     }
 
     void AnsiTerminal::clear_content() {
