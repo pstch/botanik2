@@ -1,3 +1,8 @@
+/**
+ * @file terminal.cpp
+ * @brief AnsiTerminal implementation — cursor/geometry tracking, text output,
+ *        content manipulation, page routing, and status-bar rendering.
+ */
 #include <cstdint>
 #include <cstring>
 #include <cstdio>

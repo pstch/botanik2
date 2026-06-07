@@ -1,6 +1,12 @@
 #ifndef TERMINAL_ANSI_H
 #define TERMINAL_ANSI_H
 
+/**
+ * @file ansi.h
+ * @brief Stateless ANSI escape-code helpers, plus the CursorPos and
+ *        MoveDirection types shared across the terminal layer.
+ */
+
 #include <cstdint>
 #include "libbotanik/utils/serial.h"
 

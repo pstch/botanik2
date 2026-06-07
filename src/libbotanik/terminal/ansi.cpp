@@ -1,3 +1,8 @@
+/**
+ * @file ansi.cpp
+ * @brief ANSI helper implementations — integer-to-decimal emission and the
+ *        escape-sequence writers that back the Ansi namespace.
+ */
 #include <cstdint>
 
 #include "libbotanik/terminal/ansi.h"

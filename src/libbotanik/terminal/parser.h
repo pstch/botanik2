@@ -1,6 +1,12 @@
 #ifndef TERMINAL_PARSER_H
 #define TERMINAL_PARSER_H
 
+/**
+ * @file parser.h
+ * @brief InputParser — decodes raw serial byte streams into InputEvents
+ *        (printable text plus X3.64 CSI, Alt, and function-key sequences).
+ */
+
 #include <cstdint>
 
 #include "libbotanik_config.h"

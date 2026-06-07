@@ -1,6 +1,13 @@
 #ifndef TERMINAL_TERMINAL_H
 #define TERMINAL_TERMINAL_H
 
+/**
+ * @file terminal.h
+ * @brief AnsiTerminal — owns the serial connection and drives the multiplexed
+ *        page display, routing input events to the active page and managing the
+ *        cursor, geometry, and status bar.
+ */
+
 #include <cstdint>
 
 #include "libbotanik/utils/serial.h"

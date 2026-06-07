@@ -1,6 +1,12 @@
 #ifndef PAGES_PAGE_H
 #define PAGES_PAGE_H
 
+/**
+ * @file page.h
+ * @brief Page interface — the abstract contract every full-screen terminal
+ *        page implements (input handling, focus lifecycle, per-tick update).
+ */
+
 #include <cstdint>
 #include "libbotanik/terminal/parser.h"
 

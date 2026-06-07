@@ -1,3 +1,8 @@
+/**
+ * @file scrollback.cpp
+ * @brief Scrollback implementation — line storage, soft-wrap splitting, and
+ *        throttled incremental redraw.
+ */
 #include <algorithm>
 #include <cstring>
 

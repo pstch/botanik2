@@ -1,6 +1,11 @@
 #ifndef PAGES_LOGS_H
 #define PAGES_LOGS_H
 
+/**
+ * @file logs.h
+ * @brief LogsPage — full-screen live log viewer backed by a circular scrollback.
+ */
+
 #include "libbotanik_config.h"
 #include "libbotanik/pages/page.h"
 #include "libbotanik/pages/scrollback.h"

@@ -1,3 +1,8 @@
+/**
+ * @file logs.cpp
+ * @brief LogsPage implementation — entry formatting, draining queued entries
+ *        into scrollback, and replay on focus.
+ */
 #include <algorithm>
 #include <cstring>
 #include <cstdio>

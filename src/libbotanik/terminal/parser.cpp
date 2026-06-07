@@ -1,3 +1,8 @@
+/**
+ * @file parser.cpp
+ * @brief InputParser implementation — the byte-stream decode state machine that
+ *        turns raw input into InputEvents.
+ */
 #include <cstdint>
 
 #include "libbotanik/terminal/parser.h"

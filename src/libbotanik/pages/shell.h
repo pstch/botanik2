@@ -1,6 +1,12 @@
 #ifndef PAGES_SHELL_H
 #define PAGES_SHELL_H
 
+/**
+ * @file shell.h
+ * @brief ShellPage — interactive shell page with a line editor and interleaved
+ *        live log output.
+ */
+
 #include "libbotanik_config.h"
 #include "libbotanik/pages/page.h"
 #include "libbotanik/pages/scrollback.h"

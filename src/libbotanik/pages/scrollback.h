@@ -1,6 +1,12 @@
 #ifndef PAGES_SCROLLBACK_H
 #define PAGES_SCROLLBACK_H
 
+/**
+ * @file scrollback.h
+ * @brief Scrollback — circular line buffer with throttled incremental redraw,
+ *        shared by the logs and shell pages.
+ */
+
 #include <cstddef>
 #include <cstdint>
 

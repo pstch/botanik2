@@ -1,3 +1,8 @@
+/**
+ * @file shell.cpp
+ * @brief ShellPage implementation — log-area layout, scrolling on new entries,
+ *        and in-place editor redraw.
+ */
 #include <algorithm>
 #include <cstring>
 
