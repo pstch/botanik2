@@ -51,8 +51,13 @@ namespace Botanik { namespace Terminal {
         using Command = InputEvent::Command;
         uint64_t now = HAL::uptime_ms();
         if (now - _status_last_ms >= Config::STATUS_REFRESH_MS) {
-            _status_last_ms = now;
-            update_status_metrics();
+            // Only refresh when the TX buffer can absorb the pass. When it can't,
+            // leave _status_last_ms untouched so the next step() retries rather than
+            // waiting out another full STATUS_REFRESH_MS interval.
+            if (tx_available() >= STATUS_METRICS_TX_BUDGET) {
+                _status_last_ms = now;
+                update_status_metrics();
+            }
         }
         while (true) {
             InputEvent& ev = _parser.parse();

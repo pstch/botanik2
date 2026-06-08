@@ -54,6 +54,12 @@ namespace Botanik { namespace Terminal {
         // are sized from this single constant so they can never drift apart.
         static constexpr uint16_t    STATUS_METRICS_LEN = 28;
         char                         _status_metrics_cache[STATUS_METRICS_LEN] = {}; // zero-init forces first draw
+        // Free TX bytes required before a metrics refresh runs. A typical pass only
+        // rewrites the handful of digits that changed (each a short run + cursor
+        // move), well under this. BufferedSerial::write() truncates silently when
+        // full, so the refresh is deferred unless this much room is free — a
+        // half-emitted escape sequence would corrupt the status bar.
+        static constexpr uint16_t    STATUS_METRICS_TX_BUDGET = 64;
 
         /** @brief Render the right-side status field into @p buf; returns its length
          *  (clamped to >= 0). The width is fixed, so a byte index maps to a fixed
