@@ -45,10 +45,10 @@ namespace Botanik { namespace HAL {
      *  @{ */
 
     /** @brief Return the high address (base) of the current thread's stack region. */
-    uintptr_t get_stack_base();
+    inline uintptr_t get_stack_base();
 
     /** @brief Return the usable size (depth) of the current thread's stack region in bytes. */
-    uint32_t get_stack_depth();
+    inline uint32_t get_stack_depth();
 
     /** @} */
 
@@ -56,10 +56,10 @@ namespace Botanik { namespace HAL {
      *  @{ */
 
     /** @brief Get the pointer to the PLC input memory region. */
-    void* get_plc_input();
+    inline void* get_plc_input();
 
     /** @brief Get the pointer to the PLC output memory region. */
-    void* get_plc_output();
+    inline void* get_plc_output();
 
     /** @} */
 
@@ -110,6 +110,17 @@ namespace Botanik { namespace HAL {
     /** @brief Atomically push a value into a memory location. */
     template<typename T>
     inline void ordered_move(T* dst, T src);
+
+    /** @} */
+
+    /** @name Serial I/O & console
+     *  @{ */
+
+    /** @brief Serial access is intentionally *not* re-declared here: the RawSerial
+     *  type and get_serial() are platform-specific (an Arduino UART on OPTA, a
+     *  file-descriptor stand-in on the simulator), and setup_raw_console() exists
+     *  only on the host. They are declared in the selected backend header above
+     *  (opta.h / simulator.h) rather than in this unified surface. */
 
     /** @} */
 
