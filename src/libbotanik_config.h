@@ -63,8 +63,9 @@ namespace Botanik { namespace Config {
     /** @brief Number of entries in the circular PLC log buffer. Must match PLC-side code. */
     static constexpr size_t LOG_PLC_BUFFER_SIZE = 32;
 
-    /** @brief Maximum length of a single log message from the PLC. Must match PLC-side code. */
-    static constexpr size_t LOG_PLC_MESSAGE_LEN = 255;
+    /** @brief Maximum length of a single log message from the PLC. Must match PLC-side
+     *  code. A multiple of 4 so LogEntry_t stays padding-free (see plcio/vars.h). */
+    static constexpr size_t LOG_PLC_MESSAGE_LEN = 256;
 
     /** @brief Interval between unsolicited TX frames sent to keep the PLC link alive */
     static constexpr uint32_t PLC_HEARTBEAT_MS = 1000;

@@ -4,18 +4,24 @@
 /**
  * @file vars.h
  * @brief PLC shared-memory layout — log protocol structs, sync counters, and
- *        the packed PlcInput/PlcOutput templates exchanged with the PLC
- *        coprocessor. Layout must match the PLC IDE's generated types.
+ *        the PlcInput/PlcOutput templates exchanged with the PLC coprocessor.
+ *        Layout must match the PLC IDE's generated types.
  */
 
 #include <cstdint>
+#include <cstddef>   // offsetof
 
 #include "libbotanik/hal/platform.h"
 #include "libbotanik_config.h"
 
 namespace Botanik { namespace PlcIO {
 
-    #pragma pack(push, 1)
+    // These shared-memory structs use explicit padding so their layout is identical
+    // whether packed or not — every field already sits at its natural offset, with no
+    // implicit padding. That keeps the uint32 cursors readable through plain pointers
+    // (no unaligned-access UB) and lets the PLC side mirror the layout byte-for-byte.
+    // The static_asserts below pin the expected sizes/offsets so a config change can't
+    // silently shift the layout.
     enum LogLevel : uint8_t {
         LOG_DEBUG = 1,       // debugging messages, only printed when debugging mode is enabled
         LOG_INFO = 2,        // informational messages, they don't need any particular attention
@@ -38,13 +44,20 @@ namespace Botanik { namespace PlcIO {
     static_assert(Config::LOG_TOPIC_MAX < (1 << (sizeof(LogTopic)*8)));
 
     struct LogEntry_t {
-        uint32_t        timestamp;
-        LogLevel        level;
-        LogTopic        topic;
-        uint16_t        length;
-        char            message[Config::LOG_PLC_MESSAGE_LEN];
-        uint16_t        seqNum;
+        uint32_t        timestamp;    // @0
+        LogLevel        level;        // @4  (uint8_t)
+        LogTopic        topic;        // @5  (uint8_t)
+        uint16_t        length;       // @6
+        uint16_t        seqNum;       // @8
+        uint8_t         _reserved[2]; // @10  explicit pad: aligns message[] to a word
+        char            message[Config::LOG_PLC_MESSAGE_LEN];  // @12 .. @267
     };
+
+    // Expected LogEntry_t size, spelled out: 12-byte header + the message buffer.
+    static constexpr size_t LOG_ENTRY_SIZE = 12 + Config::LOG_PLC_MESSAGE_LEN;  // 268
+    static_assert(sizeof(LogEntry_t)  == LOG_ENTRY_SIZE, "LogEntry_t layout drift");
+    static_assert(sizeof(LogEntry_t)  % 4 == 0,          "LogEntry_t must be a multiple of 4");
+    static_assert(alignof(LogEntry_t) == 4,              "LogEntry_t must be 4-byte aligned");
 
     // Sync counters (named from the PLC's point of view)
     struct PlcInputCounters_t {
@@ -62,24 +75,29 @@ namespace Botanik { namespace PlcIO {
         uint32_t            readIndex;      // host's current read position in the PLC log buffer
     };
     struct PlcOutputLogs_t {
+        uint32_t            writeIndex;     // kept first so its alignment is independent
+                                            // of the buffer size and entry size
         LogEntry_t          logBuffer[Config::LOG_PLC_BUFFER_SIZE];
-        uint32_t            writeIndex;     // PLC's current write position in the log buffer
     };
-    #pragma pack(pop)
+
+    // The cursors lead their structs, so the host polls them through plain uint32_t*
+    // at a word-aligned offset regardless of the log buffer/message sizes.
+    static_assert(offsetof(PlcOutputLogs_t, writeIndex) == 0, "writeIndex must lead PlcOutputLogs_t");
+    static_assert(offsetof(PlcInputLogs_t,  readIndex)  == 0, "readIndex must lead PlcInputLogs_t");
 
     // Combined input/output structs. Data is the user-supplied site-specific payload.
-    // User-supplied Data types must be trivially copyable and have no internal padding
-    // to guarantee the combined layout matches the PLC IDE's generated types.
-    // Use __attribute__((packed)) rather than #pragma pack: #pragma pack is applied at
-    // the point of template instantiation, not definition, making it unreliable here.
+    // No packing: the structs above are explicitly padded so natural alignment already
+    // yields the intended layout. Data must be trivially copyable and naturally aligned
+    // (and a multiple of 4 for a fully padding-free combined struct) so the PLC IDE's
+    // generated types match byte-for-byte; the sketch's static_assert verifies this.
     template<typename Data>
-    struct __attribute__((packed)) PlcInput {
+    struct PlcInput {
         PlcInputCounters_t  sync;
         PlcInputLogs_t      logs;
         Data                data;
     };
     template<typename Data>
-    struct __attribute__((packed)) PlcOutput {
+    struct PlcOutput {
         PlcOutputCounters_t sync;
         PlcOutputLogs_t     logs;
         Data                data;
