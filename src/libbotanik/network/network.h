@@ -31,7 +31,7 @@ namespace Botanik { namespace Network {
     class TimeSyncHandler {
     private:
         Logs::Logger*               _logger;
-        PlcIO::PlcSyncContext       _ctx;
+        PlcIO::PlcSyncContext*      _ctx;
 
         uint32_t                    _last_config_serial;
     public:
