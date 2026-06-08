@@ -18,12 +18,6 @@
 #include <cstdint>
 #include <cstring>
 
-namespace Botanik { namespace HAL {
-    /// Logical serial endpoints. Declared before the platform headers so their
-    /// inline get_serial() can refer to it.
-    enum SerialPort { CONSOLE, MONITOR };
-}}
-
 #ifdef TARGET_OPTA
     #include "libbotanik/hal/opta.h"
 #else

@@ -133,6 +133,9 @@ namespace Botanik { namespace HAL {
     /// On the OPTA, the raw serial type is the Arduino UART driver itself.
     using RawSerial = arduino::UART;
 
+    /** @brief TODO */
+    enum SerialPort { CONSOLE, MONITOR };
+
     /** @brief Resolve a logical SerialPort to its underlying UART.
      *  @param port CONSOLE (Serial) or MONITOR (Serial1). */
     inline RawSerial* get_serial(SerialPort port) {
