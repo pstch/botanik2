@@ -7,13 +7,23 @@
     },
     "search.useIgnoreFiles": false,
     "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "C_Cpp.default.cppStandard": "c++11",
+    "C_Cpp.default.cStandard": "c11",    
     "C_Cpp.codeAnalysis.clangTidy.enabled": true,
+    "C_Cpp.codeAnalysis.clangTidy.useBuildPath": true,
     "C_Cpp.codeAnalysis.runAutomatically": false,
     "C_Cpp.codeAnalysis.exclude": {
-        "**/includes/**": true,
-        "**/archive/**": true,
-        "**/build/**": true,
-        "**/build-opta/**": true,
+        "includes/**": true,
+        "archive/**": true,
+        "build/**": true,
+        "build-opta/**": true,
         "/usr/**": true
-    }
+    },
+    "C_Cpp.codeAnalysis.clangTidy.checks.enabled": [
+        "bugprone-*",
+    ],
+    "C_Cpp.codeAnalysis.clangTidy.checks.disabled": [
+        "bugprone-branch-clone",
+        "bugprone-easily-swappable-parameters"
+    ],
 }
