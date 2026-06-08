@@ -24,7 +24,7 @@ namespace Botanik { namespace Logs {
     }
 
     bool Logger::_try_bucket(LogBucket_t* bucket) {
-        if (bucket->state <= 0) {
+        if (bucket->state == 0) {
             // Saturate rather than wrap: the suppressed count is now drained on a
             // slower cadence, so a long storm could otherwise overflow a uint16_t.
             if (bucket->suppressed != UINT16_MAX) bucket->suppressed++;

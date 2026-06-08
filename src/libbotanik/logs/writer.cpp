@@ -41,7 +41,7 @@ namespace Botanik { namespace Logs {
         while (_readIndex != _writeIndex) {                                 // check for new entries in the queue,
             const LogEntry_t* entry = &_queue[_readIndex];                  // get the next entry in the queue
             _length = format(entry, _message, Config::LOG_FORMATTED_LEN);   // try to format the queue's next message
-            if (_length <= 0) { _failed++; _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE; continue; } // if failed, skip
+            if (_length == 0) { _failed++; _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE; continue; } // if failed, skip
             if (!_drain_message()) return;                                  // drain the formatted message, yield if not complete
             _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE;         // increment the read index
         }
