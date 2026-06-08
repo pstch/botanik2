@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstring>
 #include <cstdio>
+#include <cmath>
 #include <algorithm>
 
 #include "libbotanik_config.h"
@@ -292,20 +293,19 @@ namespace Botanik { namespace Terminal {
     }
 
     int AnsiTerminal::_build_metrics(char* buf, size_t cap) const {
+        if (_plc_ctx == nullptr) return 0;
         const char* plc_str = "---";
-        if (_plc_ctx) {
-            switch (_plc_ctx->status()) {
-                case PlcIO::PLC_UNKNOWN:  plc_str = "UNK"; break;
-                case PlcIO::PLC_RUNNING:  plc_str = "RUN"; break;
-                case PlcIO::PLC_TIMEOUT:  plc_str = "TMO"; break;
-                case PlcIO::PLC_FAULT:    plc_str = "FLT"; break;
-            }
+        switch (_plc_ctx->status()) {
+            case PlcIO::PLC_UNKNOWN:  plc_str = "UNK"; break;
+            case PlcIO::PLC_RUNNING:  plc_str = "RUN"; break;
+            case PlcIO::PLC_TIMEOUT:  plc_str = "TMO"; break;
+            case PlcIO::PLC_FAULT:    plc_str = "FLT"; break;
         }
-        unsigned cpu = _sched_ctx ? (unsigned)(_sched_ctx->cpu_load_ema    * 100.0f + 0.5f) : 0;
-        unsigned stk = _sched_ctx ? (unsigned)(_sched_ctx->stack_usage_ema * 100.0f + 0.5f) : 0;
-        if (cpu > 9999) cpu = 9999;  // cap so a runaway value can't widen the field and corrupt the bar
-        int mlen = snprintf(buf, cap, "PLC:%s cpu:%4u%% stk:%3u%% ", plc_str, cpu, stk);
-        return mlen < 0 ? 0 : mlen;
+        unsigned cpu = (unsigned)lroundf(_sched_ctx->cpu_load_ema    * 100.0f);
+        unsigned stk = (unsigned)lroundf(_sched_ctx->stack_usage_ema * 100.0f);
+        if (cpu > 9999) cpu = 9999;
+        if (stk > 999)  stk = 999;
+        return snprintf(buf, cap, "PLC:%s cpu:%4u%% stk:%3u%% ", plc_str, cpu, stk);
     }
 
     void AnsiTerminal::draw_status_row() {
