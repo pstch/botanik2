@@ -317,10 +317,7 @@ namespace Botanik { namespace Terminal {
         return _serial.tx_empty();
     }
 
-    void AnsiTerminal::draw_status_row() {
-        _status_bar_drawn = true;
-        // Build right-side metrics string (fixed 26-char field)
-        char metrics[28];
+    int AnsiTerminal::_build_metrics(char* buf, size_t cap) const {
         const char* plc_str = "---";
         if (_plc_ctx) {
             switch (_plc_ctx->status()) {
@@ -333,9 +330,15 @@ namespace Botanik { namespace Terminal {
         unsigned cpu = _sched_ctx ? (unsigned)(_sched_ctx->cpu_load_ema    * 100.0f + 0.5f) : 0;
         unsigned stk = _sched_ctx ? (unsigned)(_sched_ctx->stack_usage_ema * 100.0f + 0.5f) : 0;
         if (cpu > 9999) cpu = 9999;  // cap so a runaway value can't widen the field and corrupt the bar
-        int mlen = snprintf(metrics, sizeof(metrics),
-            "PLC:%s cpu:%4u%% stk:%3u%% ", plc_str, cpu, stk);
-        if (mlen < 0) mlen = 0;
+        int mlen = snprintf(buf, cap, "PLC:%s cpu:%4u%% stk:%3u%% ", plc_str, cpu, stk);
+        return mlen < 0 ? 0 : mlen;
+    }
+
+    void AnsiTerminal::draw_status_row() {
+        _status_bar_drawn = true;
+        // Build right-side metrics string (fixed-width field, see STATUS_METRICS_LEN)
+        char metrics[STATUS_METRICS_LEN];
+        int mlen = _build_metrics(metrics, sizeof(metrics));
 
         // Keep the metrics cache in sync so update_status_metrics() won't re-draw immediately.
         memcpy(_status_metrics_cache, metrics, (size_t)mlen);
@@ -379,22 +382,8 @@ namespace Botanik { namespace Terminal {
     }
 
     void AnsiTerminal::update_status_metrics() {
-        char metrics[28];
-        const char* plc_str = "---";
-        if (_plc_ctx) {
-            switch (_plc_ctx->status()) {
-                case PlcIO::PLC_UNKNOWN:  plc_str = "UNK"; break;
-                case PlcIO::PLC_RUNNING:  plc_str = "RUN"; break;
-                case PlcIO::PLC_TIMEOUT:  plc_str = "TMO"; break;
-                case PlcIO::PLC_FAULT:    plc_str = "FLT"; break;
-            }
-        }
-        unsigned cpu = _sched_ctx ? (unsigned)(_sched_ctx->cpu_load_ema    * 100.0f + 0.5f) : 0;
-        unsigned stk = _sched_ctx ? (unsigned)(_sched_ctx->stack_usage_ema * 100.0f + 0.5f) : 0;
-        if (cpu > 9999) cpu = 9999;  // cap so a runaway value can't widen the field and corrupt the bar
-        int mlen = snprintf(metrics, sizeof(metrics),
-            "PLC:%s cpu:%4u%% stk:%3u%% ", plc_str, cpu, stk);
-        if (mlen < 0) mlen = 0;
+        char metrics[STATUS_METRICS_LEN];
+        int mlen = _build_metrics(metrics, sizeof(metrics));
 
         // mlen is constant across calls (all fields are fixed-width), so a byte
         // index in metrics maps to a fixed screen column.

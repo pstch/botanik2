@@ -49,7 +49,16 @@ namespace Botanik { namespace Terminal {
         Scheduler::SchedulerContext* _sched_ctx    = nullptr;
         PlcIO::PlcSyncContext*       _plc_ctx      = nullptr;
         uint64_t                     _status_last_ms = 0;   // last status-metrics refresh (wall clock)
-        char                         _status_metrics_cache[27] = {}; // zero-init forces first draw
+        // Right-aligned status field "PLC:xxx cpu:nnnn% stk:nnn% ": a fixed-width
+        // layout (27 visible chars + NUL). Both the build buffer and the diff cache
+        // are sized from this single constant so they can never drift apart.
+        static constexpr uint16_t    STATUS_METRICS_LEN = 28;
+        char                         _status_metrics_cache[STATUS_METRICS_LEN] = {}; // zero-init forces first draw
+
+        /** @brief Render the right-side status field into @p buf; returns its length
+         *  (clamped to >= 0). The width is fixed, so a byte index maps to a fixed
+         *  screen column — relied on by update_status_metrics()'s per-cell diff. */
+        int _build_metrics(char* buf, size_t cap) const;
     public:
         /** @name Lifecycle & State Management
          *  @{ */
