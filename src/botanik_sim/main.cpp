@@ -13,6 +13,8 @@
 
 #include "libbotanik.h"
 
+#include <csignal>   // signal, sig_atomic_t
+
 // ---------------------------------------------------------------------------
 // Site-specific PLC payload types.
 // On OPTA: define these in the sketch to match the PLC IDE's struct layout,
@@ -23,6 +25,14 @@
 struct PlcInputData_t  {};   // no site-specific data beyond the library log fields
 struct PlcOutputData_t {};   // no site-specific data beyond the library log fields
 
+// Cleared by the shutdown signal handler so the main loop breaks and main()
+// returns — running atexit (terminal restore) and any sanitizer exit-time checks,
+// instead of the process being killed mid-loop. sig_atomic_t is the signal-safe
+// flag type.
+static volatile sig_atomic_t botanik_running = 1;
+
+extern "C" void botanik_sim_shutdown(int) { botanik_running = 0; }
+
 int main() {
     using namespace Botanik;
 
@@ -32,6 +42,12 @@ int main() {
     // Raw terminal + console serial.
     HAL::setup_raw_console();
     HAL::get_serial(HAL::CONSOLE)->begin(9800);
+
+    // Graceful shutdown on Ctrl+C / SIGTERM: flip the run flag so the main loop
+    // breaks and main() returns cleanly. Overrides the HAL handler for these two
+    // signals; SIGSEGV stays with the HAL handler to restore the terminal on a crash.
+    std::signal(SIGINT,  botanik_sim_shutdown);
+    std::signal(SIGTERM, botanik_sim_shutdown);
 
     // Shared PLC memory — both handler and emulator point at the same region.
     // On OPTA: PlcIO::PlcInput<PlcInputData_t>* plcin =
@@ -84,7 +100,7 @@ int main() {
     // Main loop code
     // -----------------------------------------------------------------------
 
-    while (true) {
+    while (botanik_running) {
         // TODO: move to SchedulerContext
         timestamp_ms = (uint32_t)HAL::uptime_ms();
 
@@ -100,4 +116,5 @@ int main() {
         plc_handler.step();
         plc_log_reader.step();
     }
+    return 0;
 }
