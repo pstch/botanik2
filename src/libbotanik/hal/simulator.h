@@ -158,9 +158,9 @@ namespace Botanik { namespace HAL {
         /** @brief Read a single byte.
          *  @return The byte read, or -1 if none is available. */
         inline int read() {
-            if (_fd_out == -1) return 0;
+            if (_fd_in == -1) return -1;
             uint8_t c;
-            if (_fd_in != -1 && ::read(_fd_in, &c, 1) > 0) return c;
+            if (::read(_fd_in, &c, 1) > 0) return c;
             return -1;
         }
 
