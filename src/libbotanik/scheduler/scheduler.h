@@ -12,6 +12,26 @@
 
 #include "libbotanik_config.h"
 
+// Stack-usage measurement (paint + scan) is fundamentally incompatible with
+// AddressSanitizer: with detect_stack_use_after_return, locals move to a
+// heap-backed "fake stack", so the paint and the scan touch different memory and
+// the binary search walks to its cap (STACK_SCAN_LIMIT). Tagging the functions
+// that paint/scan the raw stack with no_sanitize("address") keeps their allocas
+// (incl. paint_stack's sp_marker) on the real thread stack — so paint and scan
+// agree — and stops the downward scan from tripping a redzone false positive.
+// Expands to nothing in non-sanitized builds.
+
+#if defined(__has_feature)
+#  if __has_feature(address_sanitizer)
+#    define __BOTANIK_NO_ASAN__ __attribute__((no_sanitize("address")))
+#  endif
+#elif defined(__SANITIZE_ADDRESS__)
+#  define __BOTANIK_NO_ASAN__ __attribute__((no_sanitize("address")))
+#endif
+#ifndef __BOTANIK_NO_ASAN__
+#  define __BOTANIK_NO_ASAN__
+#endif
+
 namespace Botanik { namespace Logs { class Logger; } }
 
 namespace Botanik { namespace Scheduler {
@@ -80,9 +100,9 @@ namespace Botanik { namespace Scheduler {
         /** @brief Record elapsed work time and update CPU load metrics. */
         void _measure_work();
         /** @brief Sample the current stack pointer and update stack usage metrics. */
-        void _measure_stack_usage();
+        __BOTANIK_NO_ASAN__ void _measure_stack_usage();
         /** @brief Paint the free stack region (below caller_sp) with STACK_PAINT_BYTE. */
-        void _paint_below(uint8_t* caller_sp);
+        __BOTANIK_NO_ASAN__ void _paint_below(uint8_t* caller_sp);
         /** @brief Advance the next-tick anchor to skip missed beats when the loop falls behind. */
         void _skip_beats(uint64_t now);
         /** @brief Emit the "scheduler started" log entry (called once, on the first tick()). */
@@ -115,7 +135,7 @@ namespace Botanik { namespace Scheduler {
          * returns true; subsequent step() work then dirties the painted region in
          * proportion to its actual depth.
          */
-        inline void paint_stack() {
+        __BOTANIK_NO_ASAN__ inline void paint_stack() {
             volatile uint8_t sp_marker = 0;
             _paint_below(const_cast<uint8_t*>(&sp_marker));
         }
