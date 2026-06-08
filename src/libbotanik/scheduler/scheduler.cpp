@@ -48,9 +48,9 @@ namespace Botanik { namespace Scheduler {
             }
             // store in circular window and compute peak
             _cpu_load_window[_cpu_load_window_idx] = instant;
-            _cpu_load_window_idx = (_cpu_load_window_idx + 1) % CPU_LOAD_WINDOW;
+            _cpu_load_window_idx = (_cpu_load_window_idx + 1) % LOAD_METRIC_WINDOW;
             float peak = 0.0f;
-            for (uint32_t i = 0; i < CPU_LOAD_WINDOW; ++i)
+            for (uint32_t i = 0; i < LOAD_METRIC_WINDOW; ++i)
                 if (_cpu_load_window[i] > peak) peak = _cpu_load_window[i];
             _cpu_load = peak;
             // apply asymmetric EMA filter to instantaneous load
@@ -80,9 +80,9 @@ namespace Botanik { namespace Scheduler {
         // store in circular window and compute peak
         float ratio = (_stack_depth > 0) ? static_cast<float>(low) / _stack_depth : 0.0f;
         _stack_usage_window[_stack_usage_window_idx] = ratio;
-        _stack_usage_window_idx = (_stack_usage_window_idx + 1) % CPU_LOAD_WINDOW;
+        _stack_usage_window_idx = (_stack_usage_window_idx + 1) % LOAD_METRIC_WINDOW;
         float peak = 0.0f;
-        for (uint32_t i = 0; i < CPU_LOAD_WINDOW; ++i)
+        for (uint32_t i = 0; i < LOAD_METRIC_WINDOW; ++i)
             if (_stack_usage_window[i] > peak) peak = _stack_usage_window[i];
         _stack_usage = static_cast<uint32_t>(peak * _stack_depth);
         // apply asymmetric EMA filter to instantaneous usage

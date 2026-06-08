@@ -27,9 +27,9 @@ namespace Botanik { namespace Scheduler {
             : (float)Config::TASK_PERIOD_MS / (float)tau_ms;
     }
 
-    /** @brief Number of per-tick samples spanning CPU_LOAD_WINDOW_MS. The metric
+    /** @brief Number of per-tick samples spanning LOAD_METRIC_WINDOW_MS. The metric
      *  ring buffers are sized from this; one sample is recorded per tick. */
-    static constexpr uint32_t CPU_LOAD_WINDOW = Config::CPU_LOAD_WINDOW_MS / Config::TASK_PERIOD_MS;
+    static constexpr uint32_t LOAD_METRIC_WINDOW = Config::LOAD_METRIC_WINDOW_MS / Config::TASK_PERIOD_MS;
 
     // Per-tick smoothing factors derived from the configured response time constants.
     static constexpr float CPU_LOAD_EMA_ATTACK    = ema_alpha(Config::CPU_LOAD_EMA_ATTACK_MS);
@@ -39,9 +39,9 @@ namespace Botanik { namespace Scheduler {
 
     /** @brief Stable metrics snapshot consumed by AnsiTerminal for the status bar. */
     struct SchedulerContext {
-        float    cpu_load        = 0.0f;   // peak over CPU_LOAD_WINDOW ticks, fraction 0..1
+        float    cpu_load        = 0.0f;   // peak over LOAD_METRIC_WINDOW ticks, fraction 0..1
         float    cpu_load_ema    = 0.0f;
-        uint32_t stack_usage     = 0;      // peak over CPU_LOAD_WINDOW ticks, bytes
+        uint32_t stack_usage     = 0;      // peak over LOAD_METRIC_WINDOW ticks, bytes
         float    stack_usage_ema = 0.0f;   // fraction 0..1
         uint32_t stack_depth     = 0;      // total thread stack allocation in bytes
         uint32_t tick_count      = 0;
@@ -58,16 +58,16 @@ namespace Botanik { namespace Scheduler {
         uint64_t    _work_start_us          = 0;
         // CPU usage metrics
         uint32_t    _last_busy_us           = 0;
-        float       _cpu_load_window[CPU_LOAD_WINDOW] = {};
+        float       _cpu_load_window[LOAD_METRIC_WINDOW] = {};
         uint32_t    _cpu_load_window_idx    = 0;
-        float       _cpu_load               = 0.0f;  // peak over CPU_LOAD_WINDOW ticks
+        float       _cpu_load               = 0.0f;  // peak over LOAD_METRIC_WINDOW ticks
         float       _cpu_load_ema           = 0.0f;
         // Memory usage metrics
         uint32_t    _stack_depth            = 0;
         uintptr_t   _stack_base             = 0;
-        float       _stack_usage_window[CPU_LOAD_WINDOW] = {};
+        float       _stack_usage_window[LOAD_METRIC_WINDOW] = {};
         uint32_t    _stack_usage_window_idx = 0;
-        uint32_t    _stack_usage            = 0;   // peak over CPU_LOAD_WINDOW ticks, bytes
+        uint32_t    _stack_usage            = 0;   // peak over LOAD_METRIC_WINDOW ticks, bytes
         float       _stack_usage_ema        = 0;
         Logs::Logger*   _logger        = nullptr;
         uint32_t        _tick_count    = 0;

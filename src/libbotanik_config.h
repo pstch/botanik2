@@ -42,7 +42,7 @@ namespace Botanik { namespace Config {
     static constexpr uint8_t  STACK_PAINT_BYTE = 0xCD;
 
     /** @brief Wall-clock window for CPU/stack peak usage tracking */
-    static constexpr uint32_t CPU_LOAD_WINDOW_MS = 5000;
+    static constexpr uint32_t LOAD_METRIC_WINDOW_MS = 5000;
 
     /** @brief CPU-load EMA response time constants (ms) */
     static constexpr uint32_t CPU_LOAD_EMA_ATTACK_MS = 0;
