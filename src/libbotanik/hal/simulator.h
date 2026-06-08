@@ -27,8 +27,12 @@
 /** @name Signal handlers
  *  @{ */
 
+/** @brief Single-instance storage for the terminal settings captured before
+ *  entering raw mode. */
 extern "C" inline struct termios& botanik_saved_console_termios() {
-    static struct termios saved;
+    // Initialized once by setup_raw_console() at startup, never from signal
+    // context, so the C++ init guard is never exercised during a handler.
+    static struct termios saved;  // NOLINT(bugprone-signal-handler)
     return saved;
 }
 
@@ -253,6 +257,9 @@ namespace Botanik { namespace HAL {
         uint32_t _baud = 0;
         uint64_t _next_write_us = 0;
     };
+
+    /** @brief TODO */
+    enum SerialPort { CONSOLE, MONITOR };
 
     /** @brief Resolve a logical SerialPort to its backing RawSerial.
      *  CONSOLE is wired to stdin/stdout, MONITOR to stderr (output only).
