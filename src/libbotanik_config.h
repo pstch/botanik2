@@ -124,12 +124,6 @@ namespace Botanik { namespace Config {
     /** @brief Number of input characters to process in a single batch */
     static constexpr size_t   ANSI_INPUT_BATCH_SIZE = 32;
 
-    /** @brief Inter-byte idle gap (ms) that marks the end of a text stream.
-     *         Bytes arriving within the same scheduler tick (idle_ms == 0) are always
-     *         accumulated; the batch is flushed on the first tick after input goes quiet.
-     *         2 ms ≈ 2 byte-times at 9600 baud. */
-    static constexpr uint32_t ANSI_STREAM_IDLE_MS = 2;
-
     /** @brief Safety timeout: flush any stale batch regardless of stream activity */
     static constexpr uint32_t ANSI_INPUT_BATCH_TIMEOUT_MS = 1000;
 
