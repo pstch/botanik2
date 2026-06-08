@@ -38,32 +38,39 @@ namespace Botanik { namespace Utils {
             uint16_t next_head = (_tx_head + 1) & (TX_BUF_SIZE - 1);
             if (next_head == _tx_tail) return pos;
             _tx_buf[_tx_head] = buf[pos++];
-            HAL::dsb(); _tx_head = next_head;
+            HAL::dsb();
+            _tx_head = next_head;
         }
         return pos;
     }
 
     uint16_t BufferedSerial::read(char* buf, uint16_t len) {
-        uint16_t pos = 0; while (pos < len && _rx_head != _rx_tail) {
-            HAL::dsb(); buf[pos++] = _rx_buf[_rx_tail];
+        uint16_t pos = 0;
+        while (pos < len && _rx_head != _rx_tail) {
+            HAL::dsb();
+            buf[pos++] = _rx_buf[_rx_tail];
             _rx_tail = (_rx_tail + 1) & (RX_BUF_SIZE - 1);
         }
         return pos;
     }
 
     bool BufferedSerial::peek(uint8_t* b) const {
-        if (_rx_head == _rx_tail)           return false;
-        HAL::dsb(); *b = _rx_buf[_rx_tail];      return true;
+        if (_rx_head == _rx_tail) return false;
+        HAL::dsb();
+        *b = _rx_buf[_rx_tail];
+        return true;
     }
 
     uint16_t BufferedSerial::receive() {
-        int byte; uint16_t rcvd = 0;
+        uint16_t rcvd = 0;
         if (!_serial) return rcvd;
+        int byte;
         while ((byte = _serial->read()) != -1) {
             uint16_t head = (_rx_head + 1) & (RX_BUF_SIZE - 1);
             if (head == _rx_tail) return rcvd;
             _rx_buf[_rx_head] = static_cast<char>(byte);
-            HAL::dsb(); _rx_head = head;
+            HAL::dsb();
+            _rx_head = head;
             rcvd++;
         }
         return rcvd;
