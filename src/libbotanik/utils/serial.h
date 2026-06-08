@@ -24,7 +24,16 @@ namespace Botanik { namespace Utils {
 
     /**
      * Non-blocking buffered serial for Arduino UART.
-     * Thread-safe on 32-bit platforms.
+     *
+     * Each ring is single-producer/single-consumer: the RX ring is filled by
+     * receive() (consumer: read()/peek()), the TX ring is drained by transmit()
+     * (producer: write()). The two halves of each ring are touched by opposite
+     * sides, so the hardware-facing half — receive()/transmit() — may run from a
+     * UART ISR while the main loop runs read()/write(), without a lock. The
+     * volatile head/tail indices plus the HAL::dsb() barriers make that safe on
+     * 32-bit platforms (aligned index loads/stores are atomic). We currently poll
+     * receive()/transmit() from the main loop and take no interrupts, but the
+     * structure keeps the ISR option open.
      */
     class BufferedSerial {
     private:
