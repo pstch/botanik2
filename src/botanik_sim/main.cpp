@@ -100,7 +100,7 @@ int main() {
     // Main loop code
     // -----------------------------------------------------------------------
 
-    while (botanik_running) {
+    while (true) {
         // TODO: move to SchedulerContext
         timestamp_ms = (uint32_t)HAL::uptime_ms();
 
@@ -115,6 +115,8 @@ int main() {
 
         plc_handler.step();
         plc_log_reader.step();
+
+        if (!botanik_running) break;
     }
     return 0;
 }
