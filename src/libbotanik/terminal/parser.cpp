@@ -331,10 +331,10 @@ namespace Botanik { namespace Terminal {
             switch (_state) {
                 case State::IDLE:   new_state = _handle_idle(b); break;
                 case State::TEXT:   new_state = _handle_text(b); break;
-                case State::IN_SEP: new_state = _handle_sep(b); break;
-                case State::IN_ESC: new_state = _handle_esc(b); break;
-                case State::IN_CSI: new_state = _handle_csi(b); break;
-                default:            new_state = _state        ; break;
+                case State::IN_SEP: new_state = _handle_sep(b);  break;
+                case State::IN_ESC: new_state = _handle_esc(b);  break;
+                case State::IN_CSI: new_state = _handle_csi(b);  break;
+                default:            new_state = _state        ;  break;
             }
             _state = new_state;
             // A handler produced an event (command, full-batch flush, ...) —
