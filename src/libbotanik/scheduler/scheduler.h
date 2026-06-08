@@ -120,15 +120,6 @@ namespace Botanik { namespace Scheduler {
             _paint_below(const_cast<uint8_t*>(&sp_marker));
         }
 
-        uint32_t get_period() const { return _period_ms; }
-
-        float get_cpu_load() const { return _cpu_load; }
-        float get_cpu_load_ema() const { return _cpu_load_ema; }
-
-        uint32_t get_stack_depth() const { return _stack_depth; }
-        uint32_t get_stack_usage() const { return _stack_usage; }
-        float get_stack_usage_ema() const { return _stack_usage_ema; }
-
         /** @brief Stable metrics snapshot for external consumers (e.g. status bar). */
         SchedulerContext* context() { return &_context; }
 
