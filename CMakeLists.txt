@@ -9,6 +9,10 @@ set(CMAKE_C_USE_RESPONSE_FILE_FOR_INCLUDES ON)
 
 # Change with cmake -DBOTANIK_TARGET=SIMULATOR ..
 set(BOTANIK_TARGET "SIMULATOR" CACHE STRING "Target platform: SIMULATOR or OPTA")
+
+# Runtime sanitizers for the SIMULATOR build (ignored on OPTA, which we can't run).
+# OFF | address | undefined | address+undefined
+set(BOTANIK_SANITIZE "OFF" CACHE STRING "Sanitizers for the SIMULATOR build")
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -57,6 +61,21 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     # -Wno-misleading-indentation: the plcio state machines are deliberately
     # column-aligned for readability, which trips this heuristic.
     target_compile_options(botanik PUBLIC -Wall -Wextra -Wno-misleading-indentation)
+
+    # Sanitizers (PUBLIC so the library and the sketch are both instrumented, and
+    # propagated as link flags so the runtimes are linked in). Findings stay
+    # recoverable (UBSAN logs each and continues) so the interactive simulator
+    # remains usable; set UBSAN_OPTIONS=halt_on_error=1 at runtime for a strict
+    # one-shot/CI run. The frame pointer keeps stacks readable.
+    if(NOT BOTANIK_SANITIZE STREQUAL "OFF")
+        string(REPLACE "+" "," _san "${BOTANIK_SANITIZE}")
+        set(_san_flags -fsanitize=${_san} -fno-omit-frame-pointer)
+        target_compile_options(botanik PUBLIC ${_san_flags})
+        # Propagate as link flags too (via target_link_libraries for CMake 3.10
+        # compatibility — target_link_options is 3.13+) so the runtimes get linked.
+        target_link_libraries(botanik PUBLIC ${_san_flags})
+        message(STATUS "Sanitizers enabled: ${BOTANIK_SANITIZE}")
+    endif()
 
     add_executable(botanik_sim "src/botanik_sim/main.cpp")
     target_link_libraries(botanik_sim botanik)

@@ -136,3 +136,27 @@ Pin **LLVM 19** (`clang-tidy-19`) everywhere — editor, CLI, and CI; findings
 differ across major versions. The MS C/C++ extension defaults to its own bundled
 clang-tidy, so `.vscode/settings.json` pins it to the system binary
 (`clangTidy.path`) and defers all check selection to `.clang-tidy`.
+
+### Sanitizers (ASAN/UBSAN)
+
+SIMULATOR-only runtime sanitizers, via the `BOTANIK_SANITIZE` option
+(`address` | `undefined` | `address+undefined`). Use a separate build dir so the
+flags never mix with the normal build:
+
+```bash
+cmake -B build-asan -DBOTANIK_SANITIZE=address+undefined
+make -C build-asan botanik_sim
+
+# Interactive: run, exercise the UI, then Ctrl+C for a clean exit (so leak and
+# UB checks run at exit). Send sanitizer output to a file to keep the UI readable.
+UBSAN_OPTIONS=print_stacktrace=1 ./build-asan/botanik_sim 2>san.log
+```
+
+Findings are **recoverable** by default — UBSAN logs each one and execution
+continues, so the simulator stays usable. For a strict one-shot/CI run that exits
+non-zero on the first finding, add `halt_on_error=1`:
+
+```bash
+ASAN_OPTIONS=halt_on_error=1:detect_leaks=1 \
+UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 ./build-asan/botanik_sim 2>san.log
+```

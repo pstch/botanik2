@@ -11,7 +11,8 @@ compile_commands.json
 
 Makefile
 
-build
+build/
+build-asan/
 
 # Generated API docs
 docs/doxygen/
