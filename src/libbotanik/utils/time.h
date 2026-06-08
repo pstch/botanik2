@@ -30,7 +30,7 @@ namespace Botanik { namespace Utils {
     // days and milliseconds
     struct CalendarTime {
         // standard calendar fields
-        uint16_t    year;               // years after BC
+        uint16_t    year;               // full calendar year, e.g. 2026
         uint8_t     month;              // month of current year, 1-indexed
         uint8_t     day;                // day of current month, 1-indexed
         uint8_t     hour;               // hour of current day, 0-indexed
@@ -38,7 +38,7 @@ namespace Botanik { namespace Utils {
         uint8_t     second;             // second of current minute, 0-indexed
         uint16_t    millisecond;        // millisecond of current second, 0-indexed
         // monotonic counters
-        uint16_t    unixDays;           // days after UNIX epoch, 0-indexed
+        uint32_t    unixDays;           // days after UNIX epoch, 0-indexed
         uint64_t    unixSeconds;        // seconds after UNIX epoch, 0-indexed
     };
 

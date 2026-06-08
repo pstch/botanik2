@@ -59,7 +59,7 @@ namespace Botanik { namespace Utils {
         // real boot epoch — so even boot-time entries get their true fraction.
         result.millisecond = (uint16_t)(wall_ms % 1000);
         result.unixSeconds = (uint64_t)time_unix;
-        result.unixDays = (uint16_t)(time_unix / (uint64_t)86400);
+        result.unixDays = (uint32_t)(time_unix / (uint64_t)86400);
         return result;
     }
 
