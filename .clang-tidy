@@ -3,7 +3,8 @@
 Checks: '-*,bugprone-*'
 
 # Restrict diagnostics to our own source tree — ignore Arduino/MbedOS headers.
-HeaderFilterRegex: '.*\/src\/.*'
+# Anchored on the repo's own src/ so vendored trees (e.g. .../rpclib/src/) don't match.
+HeaderFilterRegex: '.*/botanik/src/.*'
 
 # Promote warnings to errors so CI can catch them.
 WarningsAsErrors: 'bugprone-*'
