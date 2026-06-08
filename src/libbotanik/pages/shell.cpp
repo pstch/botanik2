@@ -8,6 +8,7 @@
 
 #include "libbotanik_config.h"
 #include "libbotanik/logs/format.h"
+#include "libbotanik/utils/text.h"
 #include "libbotanik/pages/shell.h"
 
 namespace Botanik { namespace Pages {
@@ -59,8 +60,7 @@ namespace Botanik { namespace Pages {
     void ShellPage::write_lines(const char* buf, uint16_t len) {
         uint16_t cols = (uint16_t)_terminal.cols();
         for (uint16_t off = 0; off < len; ) {
-            uint16_t chunk = 0;
-            while (chunk < cols && off + chunk < len && buf[off + chunk] != '\n') chunk++;
+            uint16_t chunk = Utils::scan_line_segment(buf, off, len, cols);
             if (chunk > 0) write(buf + off, chunk);
             off += chunk;
             if (off < len && buf[off] == '\n') off++;
@@ -161,8 +161,7 @@ namespace Botanik { namespace Pages {
             const char* pstr  = first ? _editor.ps1()     : _editor.ps2();
             uint16_t    plen  = first ? _editor.ps1_len() : _editor.ps2_len();
             uint16_t    cap   = cols - plen;
-            uint16_t    rlen  = 0;
-            while (rlen < cap && pos + rlen < cmd_len && cmd[pos + rlen] != '\n') rlen++;
+            uint16_t    rlen  = Utils::scan_line_segment(cmd, pos, cmd_len, cap);
             uint16_t elen = std::min((uint16_t)(plen + rlen), (uint16_t)sizeof(echo));
             memcpy(echo, pstr, std::min(plen, elen));
             if (plen < elen) memcpy(echo + plen, cmd + pos, elen - plen);

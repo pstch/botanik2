@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include "libbotanik_config.h"
+#include "libbotanik/utils/text.h"
 #include "libbotanik/pages/scrollback.h"
 
 namespace Botanik { namespace Pages {
@@ -38,8 +39,7 @@ namespace Botanik { namespace Pages {
             if (budget > (uint16_t)(seg_cap - prefix_len)) budget = (uint16_t)(seg_cap - prefix_len);
 
             // Take up to `budget` bytes, stopping early at a newline.
-            uint16_t take = 0;
-            while (take < budget && off + take < len && buf[off + take] != '\n') take++;
+            uint16_t take = Utils::scan_line_segment(buf, off, len, budget);
 
             if (prefix_len) memcpy(seg, PREFIX, prefix_len);
             memcpy(seg + prefix_len, buf + off, take);
