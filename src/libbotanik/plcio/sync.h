@@ -80,10 +80,6 @@ namespace Botanik { namespace PlcIO {
         const PlcOutputLogs_t* output_logs() const { return &_rx_logs_buffer; }
         PlcInputLogs_t*        input_logs()        { return &_tx_logs_buffer; }
 
-        bool timed_out() const {
-            return *_timestamp_ms - _tx_last_ms > _timeout_ms;
-        }
-
         PlcStatus status() const {
             uint32_t elapsed = *_timestamp_ms - _tx_last_ms;
             if (!_ever_ackd)                        return PLC_UNKNOWN;
