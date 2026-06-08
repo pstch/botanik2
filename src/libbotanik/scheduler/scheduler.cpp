@@ -44,7 +44,8 @@ namespace Botanik { namespace Scheduler {
             // and EMA metrics rather than being clamped away.
             float instant = 0.0f;
             if (_period_ms > 0) {
-                instant = static_cast<float>(_last_busy_us) / (_period_ms * 1000u);
+                instant = static_cast<float>(_last_busy_us)
+                        / static_cast<float>(_period_ms * 1000u);
             }
             // store in circular window and compute peak
             _cpu_load_window[_cpu_load_window_idx] = instant;
@@ -78,13 +79,15 @@ namespace Botanik { namespace Scheduler {
             else                                                    low = mid + 1;
         }
         // store in circular window and compute peak
-        float ratio = (_stack_depth > 0) ? static_cast<float>(low) / _stack_depth : 0.0f;
+        float ratio = (_stack_depth > 0)
+                    ? static_cast<float>(low) / static_cast<float>(_stack_depth)
+                    : 0.0f;
         _stack_usage_window[_stack_usage_window_idx] = ratio;
         _stack_usage_window_idx = (_stack_usage_window_idx + 1) % LOAD_METRIC_WINDOW;
         float peak = 0.0f;
         for (uint32_t i = 0; i < LOAD_METRIC_WINDOW; ++i)
             if (_stack_usage_window[i] > peak) peak = _stack_usage_window[i];
-        _stack_usage = static_cast<uint32_t>(peak * _stack_depth);
+        _stack_usage = static_cast<uint32_t>(peak * static_cast<float>(_stack_depth));
         // apply asymmetric EMA filter to instantaneous usage
         float alpha = (_stack_usage_ema < ratio) ?
             STACK_USAGE_EMA_ATTACK : STACK_USAGE_EMA_DECAY;
