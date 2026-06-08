@@ -154,7 +154,7 @@ namespace Botanik { namespace PlcIO {
     // on OPTA the real coprocessor plays this role, so this section is compiled out.
 
     template<typename InputData, typename OutputData>
-    struct _EmulatorThreadArgs {
+    struct EmulatorThreadArgs {
         PlcInput<InputData>*   shared_in;
         PlcOutput<OutputData>* shared_out;
     };
@@ -163,7 +163,7 @@ namespace Botanik { namespace PlcIO {
      *  PlcLogWriter, steps them every TASK_PERIOD_MS, and emits a heartbeat log. */
     template<typename InputData, typename OutputData>
     inline void* _emulator_thread_main(void* arg) {
-        auto* args = static_cast<_EmulatorThreadArgs<InputData, OutputData>*>(arg);
+        auto* args = static_cast<EmulatorThreadArgs<InputData, OutputData>*>(arg);
 
         uint32_t emu_timestamp_ms = 0;
         PlcEmulator<InputData, OutputData> plc_emulator(
@@ -193,7 +193,7 @@ namespace Botanik { namespace PlcIO {
     template<typename InputData, typename OutputData>
     inline void start_emulator_thread(PlcInput<InputData>* shared_in,
                                       PlcOutput<OutputData>* shared_out) {
-        static _EmulatorThreadArgs<InputData, OutputData> args{ shared_in, shared_out };
+        static EmulatorThreadArgs<InputData, OutputData> args{ shared_in, shared_out };
         pthread_t thread;
         pthread_create(&thread, nullptr, &_emulator_thread_main<InputData, OutputData>, &args);
         pthread_detach(thread);
