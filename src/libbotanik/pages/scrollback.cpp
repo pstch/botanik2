@@ -24,6 +24,11 @@ namespace Botanik { namespace Pages {
         // Continuation rows (whether forced by a '\n' or by overflowing the
         // width) start with an indent + "> " marker so they align under the
         // message body; only the very first row is emitted verbatim.
+        //
+        // The 24-space indent is hand-tuned to the formatted log-line prefix from
+        // logs/format.h ("YY/MM/DD HH:MM:SS.mmm [x] TOPIC: ") so wrapped log rows
+        // line up under the message column. It's an approximation (the TOPIC label
+        // varies in width); if the log line layout changes, revisit this width.
         static const char PREFIX[]  = "                        > ";
         const uint16_t    plen      = (uint16_t)(sizeof(PREFIX) - 1);
         const uint16_t    seg_cap   = (uint16_t)Config::SHELL_SCROLLBACK_LINE_LEN;
