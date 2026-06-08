@@ -15,7 +15,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         int8_t i = 4;
         if (val == 0) { _serial.write("0", 1); return; }
         while (val > 0 && i >= 0) {
-            buf[i--] = (val % 10) + '0';
+            buf[i--] = (char)('0' + val % 10);
             val /= 10;
         }
         _serial.write(&buf[i + 1], 4 - i);
@@ -115,8 +115,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         else        _serial.write(DECAWM_RESET,  sizeof(DECAWM_RESET) - 1);
     }
 
-    bool is_printable(char chr) {
-        uint8_t b = (uint8_t)chr;
+    bool is_printable(uint8_t b) {
         return b >= 0x20 && b <= 0x7E;
     }
 }}}

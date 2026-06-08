@@ -148,7 +148,7 @@ namespace Botanik { namespace Terminal {
         }
 
         if (b == '?' || b == '>' || b == '<' || b == '=') {
-            _event.prefix = b;
+            _event.prefix = (char)b;
             return State::IN_CSI;
         }
 

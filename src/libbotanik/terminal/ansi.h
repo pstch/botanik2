@@ -110,7 +110,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     void set_auto_wrap(BufferedSerial& _serial, bool enable);
 
     // Determine if a character is a printable ASCII character
-    bool is_printable(char b);
+    bool is_printable(uint8_t b);
 }}}
 
 #endif // TERMINAL_ANSI_H
