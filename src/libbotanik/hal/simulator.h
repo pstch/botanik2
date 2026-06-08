@@ -24,21 +24,47 @@
 #include <termios.h>
 #include <pthread.h>
 
-/** @brief Process-start reference point for the monotonic uptime clocks.
- *  Captured once on first use. */
-inline std::chrono::steady_clock::time_point _process_start() {
-    static const auto t0 = std::chrono::steady_clock::now();
-    return t0;
+/** @name Signal handlers
+ *  @{ */
+
+extern "C" inline struct termios& botanik_saved_console_termios() {
+    static struct termios saved;
+    return saved;
 }
 
-/** @brief Elapsed time since process start, expressed in the duration type T. */
-template <typename T>
-inline uint64_t _now_as() {
-    auto duration = std::chrono::steady_clock::now() - _process_start();
-    return (uint64_t)std::chrono::duration_cast<T>(duration).count();
+/** @brief Restore the terminal to its pre-raw-mode settings. */
+extern "C" inline void botanik_restore_console() {
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &botanik_saved_console_termios());
+}
+
+/** @brief Signal handler that restores the terminal before exiting, so a
+ *  Ctrl+C or crash doesn't leave the user's shell in raw mode. Async-signal-safe:
+ *  tcsetattr (via botanik_restore_console) is on the POSIX safe list, and _exit
+ *  avoids the non-safe atexit/stdio flush that exit() would run. */
+extern "C" inline void botanik_console_signal_handler(int) {
+    botanik_restore_console();
+    _exit(0);
 }
 
 namespace Botanik { namespace HAL {
+
+    /** @name Internal helpers
+     *  @{ */
+
+    /** @brief Process-start reference point for the monotonic uptime clocks.
+     *  Captured once on first use. */
+    inline std::chrono::steady_clock::time_point _process_start() {
+        static const auto t0 = std::chrono::steady_clock::now();
+        return t0;
+    }
+
+    /** @brief Elapsed time since process start, expressed in the duration type T. */
+    template <typename T>
+    inline uint64_t _now_as() {
+        auto duration = std::chrono::steady_clock::now() - _process_start();
+        return (uint64_t)std::chrono::duration_cast<T>(duration).count();
+    }
+
 
     /** @name Hardware identity
      *  @{ */
@@ -148,7 +174,7 @@ namespace Botanik { namespace HAL {
     public:
 
         RawSerial() = default;
-
+ 
         /** @brief Begin operation at the given baud rate (drives write throttling). */
         inline void begin(uint32_t baud) {
             _baud = baud;
@@ -247,35 +273,16 @@ namespace Botanik { namespace HAL {
     /** @name Console raw mode
      *  @{ */
 
-    namespace _detail {
-        /** @brief Storage for the terminal settings captured before entering raw
-         *  mode, so they can be restored on exit. */
-        inline struct termios& _saved_console_termios() {
-            static struct termios saved;
-            return saved;
-        }
-        /** @brief Restore the terminal to its pre-raw-mode settings. */
-        inline void _restore_console() {
-            tcsetattr(STDIN_FILENO, TCSAFLUSH, &_saved_console_termios());
-        }
-        /** @brief Signal handler that restores the terminal before exiting, so a
-         *  Ctrl+C or crash doesn't leave the user's shell in raw mode. */
-        inline void _console_signal_handler(int) {
-            _restore_console();
-            exit(0);
-        }
-    }
-
     /** @brief Put the controlling terminal into raw mode for interactive use:
      *  disable canonical mode and echo, make reads non-blocking, and register
      *  atexit/signal handlers that restore the original settings on exit. */
     inline void setup_raw_console() {
-        struct termios& saved = _detail::_saved_console_termios();
+        struct termios& saved = botanik_saved_console_termios();
         tcgetattr(STDIN_FILENO, &saved);
-        atexit(_detail::_restore_console);
-        signal(SIGINT,  _detail::_console_signal_handler);
-        signal(SIGTERM, _detail::_console_signal_handler);
-        signal(SIGSEGV, _detail::_console_signal_handler);
+        atexit(botanik_restore_console);
+        signal(SIGINT,  botanik_console_signal_handler);
+        signal(SIGTERM, botanik_console_signal_handler);
+        signal(SIGSEGV, botanik_console_signal_handler);
         struct termios raw = saved;
         raw.c_lflag &= ~(ICANON | ECHO);
         raw.c_cc[VMIN]  = 0;
