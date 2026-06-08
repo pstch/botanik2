@@ -52,6 +52,10 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
 
     target_include_directories(botanik PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
+    # Enable the common warning set on the host build (no -Werror yet; the goal is
+    # visibility, not a hard gate). PUBLIC so it also covers the simulator sketch.
+    target_compile_options(botanik PUBLIC -Wall -Wextra)
+
     add_executable(botanik_sim "src/botanik_sim/main.cpp")
     target_link_libraries(botanik_sim botanik)
 
