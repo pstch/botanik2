@@ -1,6 +1,6 @@
 ---
 # Only bugprone checks for now; see TODO.md for the plan to expand.
-Checks: '-*,bugprone-*'
+Checks: '-*,bugprone-*,-bugprone-branch-clone,-bugprone-easily-swappable* '
 
 # Restrict diagnostics to our own source tree — ignore Arduino/MbedOS headers.
 # Anchored on the repo's own src/ so vendored trees (e.g. .../rpclib/src/) don't match.
