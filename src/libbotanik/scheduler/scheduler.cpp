@@ -30,7 +30,7 @@ namespace Botanik { namespace Scheduler {
             _logger->info(PlcIO::BOOT, "scheduler started, period=%ums", (unsigned)_period_ms);
     }
 
-    void LoopScheduler::_measure_work(uint64_t now) {
+    void LoopScheduler::_measure_work() {
         if (_is_working) {
             // calculate last work duration in microseconds for sub-ms precision
             uint64_t now_us = HAL::uptime_us();
@@ -150,7 +150,7 @@ namespace Botanik { namespace Scheduler {
     bool LoopScheduler::tick() {
         if (!_started) { _started = true; _log_startup(); }  // announce on first tick
         uint64_t now = HAL::uptime_ms();        // measure current time
-        _measure_work(now);                     // measure past work
+        _measure_work();                        // measure past work
         if (now < _next_tick_ms) {               // yield until next tick
             #ifdef TARGET_SIMULATOR
             usleep((useconds_t)((_next_tick_ms - now) * 1000));

@@ -78,7 +78,7 @@ namespace Botanik { namespace Scheduler {
         SchedulerContext _context      = {};
 
         /** @brief Record elapsed work time and update CPU load metrics. */
-        void _measure_work(uint64_t now);
+        void _measure_work();
         /** @brief Sample the current stack pointer and update stack usage metrics. */
         void _measure_stack_usage();
         /** @brief Paint the free stack region (below caller_sp) with STACK_PAINT_BYTE. */

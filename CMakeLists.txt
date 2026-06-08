@@ -54,7 +54,9 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
 
     # Enable the common warning set on the host build (no -Werror yet; the goal is
     # visibility, not a hard gate). PUBLIC so it also covers the simulator sketch.
-    target_compile_options(botanik PUBLIC -Wall -Wextra)
+    # -Wno-misleading-indentation: the plcio state machines are deliberately
+    # column-aligned for readability, which trips this heuristic.
+    target_compile_options(botanik PUBLIC -Wall -Wextra -Wno-misleading-indentation)
 
     add_executable(botanik_sim "src/botanik_sim/main.cpp")
     target_link_libraries(botanik_sim botanik)
