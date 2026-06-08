@@ -125,4 +125,14 @@ make -C build
 
 # Static analysis (runs automatically as part of the build in SIMULATOR mode)
 make -C build cppcheck
+
+# clang-tidy (uses .clang-tidy + build/compile_commands.json)
+run-clang-tidy -p build src/
 ```
+
+### clang-tidy version
+
+Pin **LLVM 19** (`clang-tidy-19`) everywhere — editor, CLI, and CI; findings
+differ across major versions. The MS C/C++ extension defaults to its own bundled
+clang-tidy, so `.vscode/settings.json` pins it to the system binary
+(`clangTidy.path`) and defers all check selection to `.clang-tidy`.

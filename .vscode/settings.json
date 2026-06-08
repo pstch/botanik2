@@ -12,6 +12,9 @@
     "C_Cpp.codeAnalysis.clangTidy.enabled": true,
     "C_Cpp.codeAnalysis.clangTidy.useBuildPath": true,
     "C_Cpp.codeAnalysis.runAutomatically": false,
+    // Use the same clang-tidy binary as the CLI/CI (the extension otherwise uses
+    // its own bundled build, whose version — and findings — can differ).
+    "C_Cpp.codeAnalysis.clangTidy.path": "/usr/bin/clang-tidy-19",
     "C_Cpp.codeAnalysis.exclude": {
         "includes/**": true,
         "archive/**": true,
@@ -19,11 +22,6 @@
         "build-opta/**": true,
         "/usr/**": true
     },
-    "C_Cpp.codeAnalysis.clangTidy.checks.enabled": [
-        "bugprone-*",
-    ],
-    "C_Cpp.codeAnalysis.clangTidy.checks.disabled": [
-        "bugprone-branch-clone",
-        "bugprone-easily-swappable-parameters"
-    ],
+    // Checks come solely from the .clang-tidy file (single source of truth shared
+    // with the CLI); no checks.enabled/disabled overrides here, to avoid drift.
 }
