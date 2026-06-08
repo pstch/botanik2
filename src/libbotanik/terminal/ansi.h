@@ -29,10 +29,6 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         }
     };
 
-    enum MoveDirection {
-        LEFT, RIGHT, UP, DOWN
-    };
-
     // ESC
     static constexpr char ESC[] = "\x1B";
 

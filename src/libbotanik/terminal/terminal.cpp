@@ -141,30 +141,6 @@ namespace Botanik { namespace Terminal {
         _hw_pos = target;
     }
 
-    // Move cursor relatively by `amount` steps
-    void AnsiTerminal::move_cursor(Ansi::MoveDirection direction, uint16_t amount) {
-        if (amount == 0) return;
-        _hw_at_eol = false;
-        switch (direction) {
-            case Ansi::MoveDirection::LEFT:
-                Ansi::move_left(_serial, amount);
-                _hw_pos.col = (_hw_pos.col >= amount) ? (_hw_pos.col - amount) : 0;
-                break;
-            case Ansi::MoveDirection::RIGHT:
-                Ansi::move_right(_serial, amount);
-                _hw_pos.col = std::min((uint16_t)(_hw_pos.col + amount), (uint16_t)(_cols - 1));
-                break;
-            case Ansi::MoveDirection::UP:
-                Ansi::move_up(_serial, amount);
-                _hw_pos.row = (_hw_pos.row >= amount) ? (_hw_pos.row - amount) : 0;
-                break;
-            case Ansi::MoveDirection::DOWN:
-                Ansi::move_down(_serial, amount);
-                _hw_pos.row = std::min((uint16_t)(_hw_pos.row + amount), (uint16_t)(_rows - 1));
-                break;
-        }
-    }
-
     // Write `len` chars at cursor, advancing it right.
     void AnsiTerminal::write_chars(const char *s, uint16_t len, bool insert) {
         if (len == 0) return;

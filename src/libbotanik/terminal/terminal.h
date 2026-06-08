@@ -83,9 +83,6 @@ namespace Botanik { namespace Terminal {
          */
         void move_to(const CursorPos& position, bool skip = false);
 
-        /** @brief Move cursor relatively in the given direction */
-        void move_cursor(Ansi::MoveDirection direction, uint16_t amount = 1);
-
         /** @brief Get the current logical cursor position */
         inline CursorPos cursor_pos() const { return _hw_pos; }
 
