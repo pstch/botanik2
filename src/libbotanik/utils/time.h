@@ -7,8 +7,8 @@
  *        64-bit time, convert to calendar/UNIX time, and format timestamps.
  */
 
+#include <cstddef>
 #include <cstdint>
-#include <array>
 #include <ctime>
 
 namespace Botanik { namespace Utils {
@@ -64,8 +64,13 @@ namespace Botanik { namespace Utils {
     // Convert an absolute millisecond uptime counter into a calendar datetime
     CalendarTime cal_time_ms(uint64_t timestamp_ms);
 
-    // Format an absolute millisecond uptime counter into an UTC timestamp
-    void format_ms_timestamp(uint64_t timestamp_ms, std::array<char, 22>* buf);
+    // Buffer length required by format_ms_timestamp, including the terminator.
+    // Output is "YY/MM/DD HH:MM:SS.mmm" (21 chars) + '\0'.
+    static constexpr size_t TIMESTAMP_LEN = 22;
+
+    // Format an absolute millisecond uptime counter into an UTC timestamp.
+    // Writes at most len bytes (use a buffer of TIMESTAMP_LEN).
+    void format_ms_timestamp(uint64_t timestamp_ms, char* buf, size_t len);
 
 }}
 

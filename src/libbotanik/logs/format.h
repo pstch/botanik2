@@ -9,6 +9,8 @@
  */
 
 #include <cstdint>
+#include <cstdio>
+#include <algorithm>
 #include "libbotanik/plcio/vars.h"
 #include "libbotanik/utils/time.h"
 
@@ -51,9 +53,9 @@ namespace Botanik { namespace Logs {
         using namespace Botanik::Utils;
         const char* level = format_log_level(entry->level);
         const char* topic = format_log_topic(entry->topic);
-        std::array<char, 22> time_buf;
-        format_ms_timestamp(absolute_ms(entry->timestamp), &time_buf);
-        int written = snprintf(buf, len, "%s %s %s %s", time_buf.data(), level, topic, entry->message);
+        char time_buf[TIMESTAMP_LEN];
+        format_ms_timestamp(absolute_ms(entry->timestamp), time_buf, sizeof(time_buf));
+        int written = snprintf(buf, len, "%s %s %s %s", time_buf, level, topic, entry->message);
         if (written < 0) return 0;
         return std::min((size_t)written, len);
     };

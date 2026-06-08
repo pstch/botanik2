@@ -3,8 +3,8 @@
  * @brief Time utility implementations — rollover projection, calendar/UNIX
  *        conversion, and timestamp formatting.
  */
+#include <cstddef>
 #include <cstdint>
-#include <array>
 #include <cstdio>
 #include <ctime>
 
@@ -63,10 +63,10 @@ namespace Botanik { namespace Utils {
         return result;
     }
 
-    void format_ms_timestamp(uint64_t timestamp_ms, std::array<char, 22>* buf) {
+    void format_ms_timestamp(uint64_t timestamp_ms, char* buf, size_t len) {
         CalendarTime time_info = cal_time_ms(timestamp_ms);
         snprintf(
-            buf->data(), 22, "%02u/%02u/%02u %02u:%02u:%02u.%03u",
+            buf, len, "%02u/%02u/%02u %02u:%02u:%02u.%03u",
             time_info.year % 100, // 2-digit year
             time_info.month, time_info.day,
             time_info.hour, time_info.minute, time_info.second, time_info.millisecond

@@ -84,10 +84,10 @@ namespace Botanik { namespace Pages {
         if (_scrollback.redraw_pending() || !_terminal.tx_empty()) return;
 
         // Stamp the marker with the current time using the same format as log lines.
-        std::array<char, 22> time_buf;
-        Utils::format_ms_timestamp(HAL::uptime_ms(), &time_buf);
+        char time_buf[Utils::TIMESTAMP_LEN];
+        Utils::format_ms_timestamp(HAL::uptime_ms(), time_buf, sizeof(time_buf));
         char mark[40];
-        int written = snprintf(mark, sizeof(mark), "%s --- MARK ---", time_buf.data());
+        int written = snprintf(mark, sizeof(mark), "%s --- MARK ---", time_buf);
         if (written < 0) return;
         _emit_line(mark, std::min((size_t)written, sizeof(mark) - 1));
     }
