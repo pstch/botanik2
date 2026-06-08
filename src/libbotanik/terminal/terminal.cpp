@@ -294,12 +294,13 @@ namespace Botanik { namespace Terminal {
 
     int AnsiTerminal::_build_metrics(char* buf, size_t cap) const {
         if (_plc_ctx == nullptr) return 0;
-        const char* plc_str = "---";
+        const char* plc_str;
         switch (_plc_ctx->status()) {
             case PlcIO::PLC_UNKNOWN:  plc_str = "UNK"; break;
             case PlcIO::PLC_RUNNING:  plc_str = "RUN"; break;
             case PlcIO::PLC_TIMEOUT:  plc_str = "TMO"; break;
             case PlcIO::PLC_FAULT:    plc_str = "FLT"; break;
+            default:                  plc_str = "---"; break;
         }
         unsigned cpu = (unsigned)lroundf(_sched_ctx->cpu_load_ema    * 100.0f);
         unsigned stk = (unsigned)lroundf(_sched_ctx->stack_usage_ema * 100.0f);

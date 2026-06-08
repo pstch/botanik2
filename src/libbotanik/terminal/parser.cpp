@@ -327,13 +327,14 @@ namespace Botanik { namespace Terminal {
             // Read the peeked byte and run it through the state machine.
             _serial.read((char*)&b, 1);
             _last_byte_ms = *_timestamp_ms;
-            State new_state = _state;
+            State new_state;
             switch (_state) {
-                case State::IDLE:  new_state = _handle_idle(b); break;
-                case State::TEXT:  new_state = _handle_text(b); break;
+                case State::IDLE:   new_state = _handle_idle(b); break;
+                case State::TEXT:   new_state = _handle_text(b); break;
                 case State::IN_SEP: new_state = _handle_sep(b); break;
                 case State::IN_ESC: new_state = _handle_esc(b); break;
                 case State::IN_CSI: new_state = _handle_csi(b); break;
+                default:            new_state = _state        ; break;
             }
             _state = new_state;
             // A handler produced an event (command, full-batch flush, ...) —
