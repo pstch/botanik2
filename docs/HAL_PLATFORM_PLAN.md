@@ -151,7 +151,8 @@ simulator: run the registered teardown hook, then
 simulator-only `HAL::set_reboot_args(argc, argv)` called at the top of `main()`
 (`main()` now takes `int, char**`); a static `{"/proc/self/exe", nullptr}`
 fallback covers the never-captured case. The emulator thread is now joinable
-(option (a)): a non-template `std::atomic<bool> _emu_running` flag + retained
+(option (a)): a non-template `volatile bool _emu_running` flag (+ `HAL::dsb()`,
+matching the serial ring-buffer idiom — no `std::atomic`) and a retained
 `pthread_t`, with `stop_emulator_thread()` clearing the flag and joining. Its
 loop now yields via `HAL::sleep_ms` (Workstream A) instead of raw `usleep`.
 
@@ -213,9 +214,11 @@ shared-memory FDs).
 **Implemented:** `watchdog_start/kick/stop` declared in `platform.h` and defined
 per backend. OPTA wraps `mbed::Watchdog::get_instance()` (clamping the timeout to
 `get_max_timeout()`); compile-reasoned only, needs cross-build confirmation. On
-the sim, HAL holds the state (`std::atomic<uint32_t> _wd_timeout_ms`,
-`std::atomic<uint64_t> _wd_last_kick_ms`) plus a `watchdog_poll()` that calls
-`reset()` once the timeout lapses.
+the sim, HAL holds the state (`volatile uint32_t _wd_timeout_ms`,
+`volatile uint64_t _wd_last_kick_ms`, ordered with `HAL::dsb()` — the codebase's
+lock-free idiom, no `std::atomic`; the 64-bit volatile is safe because this path
+is sim-only on x86-64) plus a `watchdog_poll()` that calls `reset()` once the
+timeout lapses.
 
 **Design change from the plan — no separate monitor thread.** Rather than spawn a
 second sim thread, the existing PlcIO emulator thread services the watchdog by

@@ -355,22 +355,30 @@ namespace Botanik { namespace HAL {
     /** @name Hardware watchdog
      *  @{ */
 
+    // The watchdog state is written by the caller (kick/start/stop on the main
+    // thread) and read by watchdog_poll() on the emulator thread. volatile keeps
+    // the poll from caching the values, HAL::dsb() orders the timeout/last-kick
+    // pair — the codebase's lock-free idiom, no std::atomic. Safe as 64-bit
+    // volatile here because this is simulator-only (x86-64, where aligned 64-bit
+    // loads/stores are atomic); on OPTA the watchdog is the hardware peripheral.
+
     /** @brief Watchdog timeout in ms; 0 means disabled/stopped. */
-    inline std::atomic<uint32_t>& _wd_timeout_ms()   { static std::atomic<uint32_t> t{0}; return t; }
+    inline volatile uint32_t& _wd_timeout_ms()   { static volatile uint32_t t = 0; return t; }
     /** @brief Uptime (ms) of the most recent kick. */
-    inline std::atomic<uint64_t>& _wd_last_kick_ms() { static std::atomic<uint64_t> k{0}; return k; }
+    inline volatile uint64_t& _wd_last_kick_ms() { static volatile uint64_t k = 0; return k; }
 
     inline void watchdog_start(uint32_t timeout_ms) {
-        _wd_last_kick_ms().store(uptime_ms());  // seed before enabling so the first poll can't see a stale kick
-        _wd_timeout_ms().store(timeout_ms);
+        _wd_last_kick_ms() = uptime_ms();  // seed the kick first...
+        dsb();                             // ...so a poll seeing the new timeout can't see a stale kick
+        _wd_timeout_ms() = timeout_ms;
     }
 
     inline void watchdog_kick() {
-        _wd_last_kick_ms().store(uptime_ms());
+        _wd_last_kick_ms() = uptime_ms();
     }
 
     inline void watchdog_stop() {
-        _wd_timeout_ms().store(0);
+        _wd_timeout_ms() = 0;
     }
 
     /** @brief Service the watchdog, calling reset() if the timeout has lapsed.
@@ -378,8 +386,10 @@ namespace Botanik { namespace HAL {
      *  independent of the main loop — that independence is what lets the watchdog
      *  fire even when the loop is wedged. */
     inline void watchdog_poll() {
-        uint32_t timeout = _wd_timeout_ms().load();
-        if (timeout != 0 && uptime_ms() - _wd_last_kick_ms().load() > timeout) reset();
+        uint32_t timeout = _wd_timeout_ms();
+        if (timeout == 0) return;
+        dsb();                             // observe the timeout, then read the kick it was paired with
+        if (uptime_ms() - _wd_last_kick_ms() > timeout) reset();
     }
 
     /** @} */

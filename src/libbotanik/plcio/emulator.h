@@ -15,7 +15,6 @@
 #include "libbotanik/plcio/sync.h"
 
 #ifdef TARGET_SIMULATOR
-#include <atomic>
 #include <cstdio>
 #include <unistd.h>
 #include <pthread.h>
@@ -162,15 +161,20 @@ namespace Botanik { namespace PlcIO {
 
     /** @brief Run flag and handle for the single emulator thread. Non-template
      *  (there is only ever one emulator), so stop_emulator_thread() can be a plain
-     *  function pointer registered with HAL::on_reset. */
-    inline std::atomic<bool>& _emu_running() { static std::atomic<bool> running{false}; return running; }
-    inline pthread_t&         _emu_thread()  { static pthread_t thread; return thread; }
+     *  function pointer registered with HAL::on_reset. The flag is single-writer
+     *  (the lifecycle controller) / single-reader (the thread loop): volatile keeps
+     *  the loop from caching it, HAL::dsb() orders the publish — the same lock-free
+     *  pattern as the serial ring buffers, no std::atomic needed. */
+    inline volatile bool& _emu_running() { static volatile bool running = false; return running; }
+    inline pthread_t&      _emu_thread()  { static pthread_t thread; return thread; }
 
     /** @brief Cooperatively stop the emulator thread and join it, releasing its
      *  hold on the shared PLC memory before the caller (HAL::reset) re-execs.
-     *  Idempotent: a no-op if the thread is not running. */
+     *  A no-op if the thread is not running. */
     inline void stop_emulator_thread() {
-        if (!_emu_running().exchange(false)) return;  // not running / already stopped
+        if (!_emu_running()) return;  // not running / already stopped
+        _emu_running() = false;
+        HAL::dsb();                   // publish the stop before joining / re-exec
         // When the watchdog trips, reset() runs *on* the emulator thread, so this
         // hook would be joining itself (EDEADLK). Skip the join in that case — the
         // following execve reaps the thread anyway, and we're synchronously inside
@@ -191,7 +195,7 @@ namespace Botanik { namespace PlcIO {
         PlcLogWriter plc_log_writer(plc_emulator.context(), &emu_timestamp_ms);
 
         uint32_t emu_tick = 0;
-        while (_emu_running().load(std::memory_order_relaxed)) {
+        while (_emu_running()) {
             emu_timestamp_ms = (uint32_t)HAL::uptime_ms();
             plc_emulator.step();
             HAL::watchdog_poll();  // serviced here so a wedged main loop still trips the watchdog
@@ -216,7 +220,8 @@ namespace Botanik { namespace PlcIO {
     inline void start_emulator_thread(PlcInput<InputData>* shared_in,
                                       PlcOutput<OutputData>* shared_out) {
         static EmulatorThreadArgs<InputData, OutputData> args{ shared_in, shared_out };
-        _emu_running().store(true);
+        _emu_running() = true;
+        HAL::dsb();  // publish the run flag before the thread starts reading it
         pthread_create(&_emu_thread(), nullptr, &_emulator_thread_main<InputData, OutputData>, &args);
         HAL::on_reset(&stop_emulator_thread);
     }
