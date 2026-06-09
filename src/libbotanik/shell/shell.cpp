@@ -66,10 +66,10 @@ namespace Botanik { namespace Shell {
                 if (w > 0) _output.write(out, (size_t)w);
 
                 snprintf(val,    sizeof(val),    "%.1f%%",
-                    (double)(ctx->perf.jitter_ema * 100.0f));
+                    (double)(ctx->perf.cpu_jitter_ema * 100.0f));
                 snprintf(detail, sizeof(detail), "recent %.2fms, peak %.2fms",
-                    (double)ctx->perf.jitter_us_recent / 1000.0,
-                    (double)ctx->perf.jitter_us_max / 1000.0);
+                    (double)ctx->perf.cpu_jitter_us_recent / 1000.0,
+                    (double)ctx->perf.cpu_jitter_us_max / 1000.0);
                 w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
                     "CPU jitter ..................", val, detail);
                 if (w > 0) _output.write(out, (size_t)w);

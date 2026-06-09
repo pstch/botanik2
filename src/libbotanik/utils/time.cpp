@@ -1,3 +1,4 @@
+// REVIEW_34: OK
 /**
  * @file time.cpp
  * @brief Time utility implementations — rollover projection, calendar/UNIX
@@ -12,23 +13,31 @@
 
 namespace Botanik { namespace Utils {
 
+    // Timestamp projection
+    // -----------------------------------------------------------------------
+
+    // Project a ms timestamp into the given window (uptime)
     uint64_t _project_rollover(uint64_t uptime, uint32_t timestamp) {
         int32_t diff = (int32_t)(timestamp - (uint32_t)(uptime & 0xFFFFFFFFULL));
         return (uint64_t)((int64_t)uptime + diff);
     }
 
+    // Project a ms timestamp into the current rollover window.
     uint64_t absolute_ms(uint32_t timestamp_ms) {
         return _project_rollover(HAL::uptime_ms(), timestamp_ms);
     }
 
+    // Project a µs timestamp into the current rollover window.
     uint64_t absolute_us(uint32_t timestamp_us) {
         return _project_rollover(HAL::uptime_us(), timestamp_us);
     }
 
-    // Wall-clock epoch as UNIX ms at uptime 0, captured once on first use. Since
-    // wall and uptime advance together, (wall_now - uptime_now) is invariant, so
-    // sampling it lazily is fine; caching pins every timestamp to one stable
-    // reference and avoids per-call drift between the two clocks.
+    // Calendar time conversion and formatting
+    // -----------------------------------------------------------------------
+
+    // Wall-clock epoch as UNIX ms at uptime 0, captured once on first use. 
+    // NOTE: `wall_now - uptime_now` is invariant, because wall and uptime
+    //       advance together, so sampling it lazily is fine.
     static int64_t _boot_epoch_ms() {
         static const int64_t epoch = (int64_t)HAL::wall_clock_ms() - (int64_t)HAL::uptime_ms();
         return epoch;
@@ -39,16 +48,15 @@ namespace Botanik { namespace Utils {
         return (uint64_t)(_boot_epoch_ms() + (int64_t)timestamp_ms);
     }
 
+    // Convert absolute timestamp to UTC calendar datetime.
     CalendarTime cal_time_ms(uint64_t timestamp_ms) {
+        // measure wall time and count days since UNIX epoch
         uint64_t wall_ms     = _wall_ms(timestamp_ms);
         uint64_t total_secs  = wall_ms / 1000;
         uint64_t secs_of_day = total_secs % 86400;
         int64_t  days        = (int64_t)(total_secs / 86400);  // days since 1970-01-01
 
-        // Howard Hinnant's civil_from_days: a pure-integer Gregorian breakdown,
-        // UTC by construction (no libc localtime_r, so no $TZ dependence — the
-        // old code silently honoured $TZ despite promising UTC). Shifts the epoch
-        // to 0000-03-01 so leap days land at the end of the 400-year era.
+        // pure-integer UTC construction through Howard Hinnant's algorithm
         int64_t  z   = days + 719468;
         int64_t  era = (z >= 0 ? z : z - 146096) / 146097;
         uint32_t doe = (uint32_t)(z - era * 146097);                     // [0, 146096]
@@ -59,6 +67,7 @@ namespace Botanik { namespace Utils {
         uint32_t m   = mp < 10 ? mp + 3 : mp - 9;                        // [1, 12]
         int64_t  y   = (int64_t)yoe + era * 400 + (m <= 2);
 
+        // build a normalized CalendarTime from the computed values
         CalendarTime result;
         result.year        = (uint16_t)y;
         result.month       = (uint8_t)m;
@@ -66,7 +75,8 @@ namespace Botanik { namespace Utils {
         result.hour        = (uint8_t)(secs_of_day / 3600);
         result.minute      = (uint8_t)((secs_of_day % 3600) / 60);
         result.second      = (uint8_t)(secs_of_day % 60);
-        // Sub-second comes straight from the wall-clock ms now that we carry a
+
+        // sub-second comes straight from the wall-clock ms now that we carry a
         // real boot epoch — so even boot-time entries get their true fraction.
         result.millisecond = (uint16_t)(wall_ms % 1000);
         result.unixSeconds = total_secs;
@@ -74,6 +84,7 @@ namespace Botanik { namespace Utils {
         return result;
     }
 
+    // Format a millisecond timestamp to a fixed-length string.
     void format_ms_timestamp(uint64_t timestamp_ms, char* buf, size_t len) {
         CalendarTime time_info = cal_time_ms(timestamp_ms);
         snprintf(

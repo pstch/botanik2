@@ -1,3 +1,4 @@
+// REVIEW_34: OK
 #ifndef UTILS_TEXT_H
 #define UTILS_TEXT_H
 
@@ -13,10 +14,8 @@
 namespace Botanik { namespace Utils {
 
     /** @brief Length of the next display segment of [buf+off, buf+len): up to
-     *  @p budget bytes, stopping before an embedded '\n' (which the caller
-     *  consumes). This is the inner scan shared by the scrollback / shell
-     *  line-wrapping loops; the callers keep their own outer loop because their
-     *  per-row budgets and empty-input handling differ. */
+     *  @p budget bytes, stopping before an embedded '\n' (which the caller consumes). 
+     *  @note This is the inner scan shared by the various line-wrapping loops. */
     inline uint16_t scan_line_segment(const char* buf, size_t off,
                                       size_t len, uint16_t budget) {
         uint16_t take = 0;

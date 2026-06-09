@@ -1,3 +1,4 @@
+// REVIEW_34: OK
 #ifndef UTILS_TIME_H
 #define UTILS_TIME_H
 
@@ -22,11 +23,11 @@ namespace Botanik { namespace Utils {
     // without additional context, and we need to project them into the current rollover
     // window, assuming that they refer to events that occurred in a rollover window
     // centered on current time. This namespace provides functions to handle this projection
-    // (absolute_ms() and absolute_us()), as well a some standard formatting/conversion functions.
+    // (absolute_ms() and absolute_us()), as well a some standard formatting/conversion
+    // functions.
 
-    // Calendar time struct, without the idiosyncracies from the
-    // standard tm struct and with some additional fields for total
-    // days and milliseconds
+    /** @brief Calendar time struct, without the idiosyncracies from the standard tm struct 
+     * and with some additional fields for total days and milliseconds */
     struct CalendarTime {
         // standard calendar fields
         uint16_t    year;               // full calendar year, e.g. 2026
@@ -43,31 +44,30 @@ namespace Botanik { namespace Utils {
 
     /** @brief Convert a 32-bit uptime timestamp to an absolute 64-bit timestamp,
      *  assuming the given timestamp occurs in the rollover window centered on the
-     *  given absolute timestamp (71 minutes for microseconds, 49 days for
-     *  milliseconds).
+     *  given absolute timestamp.
      *  @note Only correct for a timestamp within ±half a window of @p uptime
-     *  (±~24.8 days for ms, ±~35.7 min for us). A timestamp further away — or one
-     *  from before that half-window has elapsed since boot — projects into the
-     *  wrong window and yields a bogus absolute time. Intended for recent events. */
+     *  (±~24.8 days for ms, ±~35.7 min for µs). */
     uint64_t _project_rollover(uint64_t uptime, uint32_t timestamp);
 
-    // Project a rolling-over millisecond uptime counter into the current rollover window
+    /** @brief Project a rolling-over ms uptime counter into the current rollover window.
+     *  @note Only correct for a timestamp within ±half a window of @p uptime
+     *  (±~24.8 days for ms, ±~35.7 min for µs). */
     uint64_t absolute_ms(uint32_t timestamp_ms);
 
-    // Project a rolling-over microsecond uptime counter into the current rollover window
-    //   WARNING: see warning in uptime_ms() about the microsecond
-    //                precision of the low-power clock
+    /** @brief Project a rolling-over ms uptime counter into the current rollover window.
+     *  @note Only correct for a timestamp within ±half a window of @p uptime
+     *  (±~24.8 days for ms, ±~35.7 min for µs). 
+     *  @warning see warning in uptime_ms() about the µs precision of the low-power clock. */
     uint64_t absolute_us(uint32_t timestamp_us);
 
-    // Convert an absolute millisecond uptime counter into a calendar datetime (UTC)
+    /** @brief Convert an absolute ms uptime counter into a calendar datetime. */
     CalendarTime cal_time_ms(uint64_t timestamp_ms);
 
-    // Buffer length required by format_ms_timestamp, including the terminator.
-    // Output is "YY/MM/DD HH:MM:SS.mmm" (21 chars) + '\0'.
+    /** @brief Buffer length required by format_ms_timestamp, including the terminator.
+     *  @note Format is "YY/MM/DD HH:MM:SS.mmm" (21 chars) + '\0'. */
     static constexpr size_t TIMESTAMP_LEN = 22;
 
-    // Format an absolute millisecond uptime counter into an UTC timestamp.
-    // Writes at most len bytes (use a buffer of TIMESTAMP_LEN).
+    /** @brief Format an absolute millisecond uptime counter into an UTC timestamp. */
     void format_ms_timestamp(uint64_t timestamp_ms, char* buf, size_t len);
 
 }}
