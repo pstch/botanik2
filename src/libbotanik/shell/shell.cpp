@@ -5,9 +5,6 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
-#ifdef TARGET_SIMULATOR
-#include <csignal>
-#endif
 
 #include "libbotanik_config.h"
 #include "libbotanik/hal/platform.h"
@@ -41,11 +38,7 @@ namespace Botanik { namespace Shell {
             _output.clear();
             return;
         } else if (len == 10 && strncmp(cmd, "breakpoint", 10) == 0) {
-#ifdef TARGET_SIMULATOR
-            raise(SIGTRAP);
-#else
-            __BKPT(0);
-#endif
+            HAL::debug_break();
             return;
         } else if (len == 5 && strncmp(cmd, "stats", 5) == 0) {
             Scheduler::SchedulerContext* ctx = _terminal.sched_ctx();

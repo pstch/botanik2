@@ -145,6 +145,10 @@ namespace Botanik { namespace HAL {
             std::chrono::system_clock::now().time_since_epoch()).count();
     }
 
+    inline void sleep_ms(uint32_t ms) {
+        usleep(ms * 1000);  // usleep(0) returns ~immediately, so sub-ms callers busy-loop
+    }
+
     /** @} */
 
     /** @name Memory ordering
@@ -165,6 +169,15 @@ namespace Botanik { namespace HAL {
     inline void ordered_move(T* dst, T src) {
         *dst = src;
         dsb();
+    }
+
+    /** @} */
+
+    /** @name Debug
+     *  @{ */
+
+    inline void debug_break() {
+        raise(SIGTRAP);  // <csignal> is already included above for the console handlers
     }
 
     /** @} */

@@ -8,7 +8,6 @@
 #include <cstring>
 #include <sched.h>
 #include <sys/mman.h>
-#include <unistd.h>
 #endif
 
 #include "libbotanik_config.h"
@@ -64,12 +63,9 @@ namespace Botanik { namespace Scheduler {
         uint64_t now    = now_us / 1000;
         _perf.sample();                         // measure past work + stack usage
         if (now < _next_tick_ms) {               // yield until next tick
-            #ifdef TARGET_SIMULATOR
-            // TODO: add HAL::sleep() (takes milliseconds, uses sleep on POSIX and ThisThread::sleep_for())
-            //       and use sleep((_next_tick_ms - now) / 2) to better absorb eventual scheduling jitter
-            useconds_t delay = (useconds_t)((_next_tick_ms - now) * 500);
-            if (delay > 1000) usleep(delay);
-            #endif
+            // Sleep ~half the remaining gap to absorb scheduling jitter,
+            // (degrades to a busy loop under 2 ms)
+            HAL::sleep_ms((uint32_t)((_next_tick_ms - now) / 2));
             return false;
         }
         _context.perf = _perf.snapshot();

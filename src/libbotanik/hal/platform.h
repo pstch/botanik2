@@ -89,6 +89,11 @@ namespace Botanik { namespace HAL {
      *  register is wired). */
     inline uint64_t wall_clock_ms();
 
+    /** @brief Yield the CPU for at least @p ms milliseconds. Millisecond
+     *  granularity: a request of 0 is a no-op/yield, so sub-millisecond waits
+     *  fall through to a busy loop at the call site. */
+    inline void sleep_ms(uint32_t ms);
+
     /** @} */
 
     /** @name Memory ordering
@@ -104,6 +109,16 @@ namespace Botanik { namespace HAL {
     /** @brief Atomically push a value into a memory location. */
     template<typename T>
     inline void ordered_move(T* dst, T src);
+
+    /** @} */
+
+    /** @name Debug
+     *  @{ */
+
+    /** @brief Trap into an attached debugger (SIGTRAP on the host, a hardware
+     *  breakpoint instruction on the OPTA). A no-op-ish trap if nothing is
+     *  attached, depending on the platform's default signal/fault handling. */
+    inline void debug_break();
 
     /** @} */
 

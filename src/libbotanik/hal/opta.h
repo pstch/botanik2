@@ -104,6 +104,10 @@ namespace Botanik { namespace HAL {
         return (uint64_t)time(NULL) * 1000;
     }
 
+    inline void sleep_ms(uint32_t ms) {
+        rtos::ThisThread::sleep_for(std::chrono::milliseconds(ms));
+    }
+
     /** @} */
 
     /** @name Memory ordering
@@ -123,6 +127,15 @@ namespace Botanik { namespace HAL {
     inline void ordered_move(T* dst, T src) {
         *dst = src;
         __DSB();
+    }
+
+    /** @} */
+
+    /** @name Debug
+     *  @{ */
+
+    inline void debug_break() {
+        __BKPT(0);  // CMSIS breakpoint intrinsic, provided via mbed.h
     }
 
     /** @} */
