@@ -1,3 +1,4 @@
+// REVIEW_34: OK
 #ifndef LIBBOTANIK_CONFIG_H
 #define LIBBOTANIK_CONFIG_H
 
@@ -25,7 +26,7 @@ namespace Botanik { namespace Config {
 
 
     /**
-     * @name Performance Monitoring
+     * @name Scheduling & performance monitoring
      * @{
      */
 
@@ -36,7 +37,7 @@ namespace Botanik { namespace Config {
     static constexpr uint32_t HW_WATCHDOG_MS = 1000;
 
     /** @brief Minimum interval between scheduler-overrun warnings (ms) */
-    static constexpr uint32_t SCHEDULER_OVERRUN_LOG_INTERVAL_MS = 5000;
+    static constexpr uint32_t SCHEDULER_XRUN_LOG_MS = 5000;
 
     /** @brief Maximum address range to scan for stack usage monitoring */
     static constexpr uint32_t STACK_SCAN_LIMIT = 1048576;
@@ -44,9 +45,8 @@ namespace Botanik { namespace Config {
     /** @brief Byte pattern used for stack "painting" to detect high-water mark */
     static constexpr uint8_t  STACK_PAINT_BYTE = 0xCD;
 
-    /** @brief Sliding window for the "recent peak" CPU/stack metrics, and the number
-     *  of rotating buckets used to approximate it (O(1) update, O(buckets) read; the
-     *  effective window wobbles by up to one bucket width as buckets rotate). */
+    /** @brief Sliding window for the "recent peak" CPU/stack metrics, 
+     *  and the number of rotating buckets used to approximate it. */
     static constexpr uint32_t LOAD_METRIC_WINDOW_MS = 5000;
     static constexpr uint32_t LOAD_METRIC_BUCKETS   = 10;
 
@@ -70,11 +70,12 @@ namespace Botanik { namespace Config {
      * @{
      */
 
-    /** @brief Number of entries in the circular PLC log buffer. Must match PLC-side code. */
+    /** @brief Number of entries in the circular PLC log buffer.
+     *  @note Must match PLC-side code ! */
     static constexpr size_t LOG_PLC_BUFFER_SIZE = 32;
 
-    /** @brief Maximum length of a single log message from the PLC. Must match PLC-side
-     *  code. A multiple of 4 so LogEntry_t stays padding-free (see plcio/vars.h). */
+    /** @brief Maximum length of a single log message from the PLC.
+     *  @note Must match PLC-side code ! */
     static constexpr size_t LOG_PLC_MESSAGE_LEN = 256;
 
     /** @brief Interval between unsolicited TX frames sent to keep the PLC link alive */
@@ -88,9 +89,8 @@ namespace Botanik { namespace Config {
 
     /** @} */
 
-
     /**
-     * @name Logging Parameters
+     * @name Logging parameters
      * @{
      */
 
@@ -140,12 +140,12 @@ namespace Botanik { namespace Config {
     /** @brief Safety timeout: flush any stale batch regardless of stream activity */
     static constexpr uint32_t ANSI_INPUT_BATCH_TIMEOUT_MS = 1000;
 
-    /** @brief Time after the last byte before a stalled command sequence is resolved:
-     *         bare ESC → Command::ESC, partial CSI → discarded, lone SEP → discarded */
+    /** @brief Time after the last byte before a stalled command sequence is resolved.
+     *  bare ESC : Command::ESC, partial CSI or lone SEP : discarded */
     static constexpr uint32_t ANSI_CMD_TIMEOUT_MS = 100;
 
     /** @brief Interval (ms) between status-bar metric refreshes. Time-based so the
-     *         refresh rate is independent of the scheduler tick interval. */
+     *  refresh rate is independent of the scheduler tick interval. */
     static constexpr uint32_t STATUS_REFRESH_MS = 2000;
 
     /** @} */
@@ -168,11 +168,11 @@ namespace Botanik { namespace Config {
     /** @brief Size of the kill ring buffer (bytes) */
     static constexpr uint16_t SHELL_KILL_SIZE     = 128;
 
-    /** @brief Number of scrollback lines retained by ShellPage for redraw/page-switch replay */
+    /** @brief Scrollback lines retained by ShellPage for redraw/page-switch replay */
     static constexpr uint16_t SHELL_SCROLLBACK_LINES   = 128;
 
     /** @brief Maximum length of a single retained ShellPage scrollback line (bytes) */
-    static constexpr uint16_t SHELL_SCROLLBACK_LINE_LEN        = 128;
+    static constexpr uint16_t SHELL_SCROLLBACK_LINE_LEN        = 256;
 
     /** @brief Max scrollback rows redrawn per tick() during deferred replay */
     static constexpr uint16_t SCROLLBACK_REDRAW_ROWS_PER_TICK  = 1;
@@ -180,18 +180,15 @@ namespace Botanik { namespace Config {
     /** @brief Continuation prefix for wrapped command-output rows. */
     static constexpr const char* SHELL_CONT_PREFIX = "> ";
 
-    /** @brief Continuation prefix for wrapped log rows. The leading indent is
-     *  hand-tuned to the formatted log-line prefix from logs/format.h
-     *  ("YY/MM/DD HH:MM:SS.mmm [x] TOPIC: ") so wrapped log rows line up under
-     *  the message column. It's an approximation (the TOPIC label varies in
-     *  width); if the log line layout changes, revisit this width. */
+    /** @brief Continuation prefix for wrapped log rows. 
+     *  @note The leading indent is tuned to the formatted log-line prefix from 
+     *  logs/format.h, so wrapped log rows line up under the message's start. */
     static constexpr const char* SHELL_LOG_CONT_PREFIX = "                        > ";
 
     /** @} */
 
-
     /**
-     * @name TextEditor (editor2) Parameters
+     * @name TextEditor parameters
      * @{
      */
 
@@ -201,15 +198,12 @@ namespace Botanik { namespace Config {
     /** @brief Maximum length (bytes) of a prompt prefix (PS1/PS2/PS3) */
     static constexpr uint16_t EDITOR_PROMPT_MAX = 16;
 
-    /** @brief Narrowest terminal width the TextEditor is laid out to support.
-     *  Below this, a full buffer may need more than EDITOR_MAX_ROWS soft-wrapped
-     *  rows; the layout truncates and the cursor folds onto the last row (visual
-     *  only, no overflow — see TextEditor). */
+    /** @brief Narrowest terminal width the TextEditor can support.
+     *  @note We need to keep some additional margin because the actual width
+     *  is reduced by the row prefixes (PS1/PS2/PS3). */
     static constexpr uint16_t EDITOR_MIN_COLS = 32;
 
-    // At EDITOR_MIN_COLS, EDITOR_MAX_ROWS rows (worst-case prompt on every row)
-    // must hold the whole input buffer, so soft-wrapping alone never overflows the
-    // row layout. (Hard '\n' breaks are a separate, width-independent limit.)
+    // Ensure that the specified editor minimum size can hold the whole input buffer.
     static_assert(EDITOR_MAX_ROWS * (EDITOR_MIN_COLS - EDITOR_PROMPT_MAX) >= SHELL_INPUT_LEN,
                   "EDITOR_MAX_ROWS too small to lay out SHELL_INPUT_LEN at EDITOR_MIN_COLS");
 

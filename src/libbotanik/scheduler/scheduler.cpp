@@ -37,11 +37,11 @@ namespace Botanik { namespace Scheduler {
             _overrun_count += (uint32_t)missed_beats;
             _context.overruns = _overrun_count;
             // Throttle the warning: accumulate skipped beats and emit at most once
-            // per SCHEDULER_OVERRUN_LOG_INTERVAL_MS, reporting the aggregate so a
+            // per SCHEDULER_XRUN_LOG_MS, reporting the aggregate so a
             // burst of overruns doesn't itself flood the log (and the TX path).
             _overrun_pending += (uint32_t)missed_beats;
             if (_logger != nullptr &&
-                now - _overrun_log_last_ms >= Config::SCHEDULER_OVERRUN_LOG_INTERVAL_MS) {
+                now - _overrun_log_last_ms >= Config::SCHEDULER_XRUN_LOG_MS) {
                 _logger->warning(PlcIO::STATUS, "scheduler overrun: skipped %lu beat(s)",
                     (unsigned long)_overrun_pending);
                 _overrun_log_last_ms = now;
