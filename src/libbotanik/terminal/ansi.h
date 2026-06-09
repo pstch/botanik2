@@ -85,7 +85,10 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     void move_line_begin(BufferedSerial& _serial);
 
     // Enable/disable insertion mode (shifts remaining cols right)
-    void set_insert_mode(BufferedSerial& _serial, bool active);
+    // Toggle terminal insert/replace (IRM). Emits nothing and returns false when
+    // the TX buffer can't hold the whole escape, so the caller never commits a
+    // mode latch to a toggle that was torn or dropped on the wire.
+    bool set_insert_mode(BufferedSerial& _serial, bool active);
 
     // Insert entire rows, shifting remaining rows down
     //  (when called at the last row, scrolls the entire screen upwards)

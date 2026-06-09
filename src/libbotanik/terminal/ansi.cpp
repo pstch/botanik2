@@ -64,10 +64,16 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         _serial.write("\r", 1);
     }
 
-    void set_insert_mode(BufferedSerial& _serial, bool active) {
+    bool set_insert_mode(BufferedSerial& _serial, bool active) {
+        // All-or-nothing: a half-written escape (CSI in, mode byte dropped) would
+        // leave the terminal parsing the next payload bytes as the tail of an
+        // escape. Only emit when the whole sequence fits.
+        const char* mode = active ? SM4 : RM4;
+        uint16_t need = (uint16_t)(sizeof(CSI) - 1) + (uint16_t)(sizeof(SM4) - 1);
+        if (_serial.availableForWrite() < need) return false;
         _serial.write(CSI, sizeof(CSI) - 1);
-        if (active) _serial.write(SM4, sizeof(SM4) - 1);
-        else        _serial.write(RM4, sizeof(RM4) - 1);
+        _serial.write(mode, sizeof(SM4) - 1);
+        return true;
     }
 
     void insert_rows(BufferedSerial& _serial, uint16_t count) {

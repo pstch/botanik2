@@ -152,12 +152,21 @@ namespace Botanik { namespace Terminal {
         // inserts cost just the char byte, and only emit RM4 the first time
         // a non-insert write happens.
         if (insert != _hw_insert_mode) {
-            Ansi::set_insert_mode(_serial, insert);
+            // Commit the latch only if the toggle actually reached the wire.
+            // BufferedSerial drops bytes when full; latching past a dropped RM4
+            // would later let a replace-mode write (e.g. the status row) paint in
+            // insert mode and corrupt the line. Bail rather than emit the payload
+            // in the wrong mode — the caller (status refresh / page) redraws.
+            if (!Ansi::set_insert_mode(_serial, insert)) return;
             _hw_insert_mode = insert;
         }
 
-        _serial.write(s, len);
-        uint32_t new_col = (uint32_t)_hw_pos.col + len;
+        // Track only what reached the wire. write() drops the tail when the TX
+        // buffer fills; advancing _hw_pos by the full len would then desync cursor
+        // tracking from the real screen and smear every later move/write. The
+        // dropped glyphs are content loss a redraw fixes — a wrong cursor isn't.
+        uint16_t written = _serial.write(s, len);
+        uint32_t new_col = (uint32_t)_hw_pos.col + written;
         if (new_col >= _cols) {
             if (_hw_auto_wrap) {
                 _hw_pos.col = 0;
