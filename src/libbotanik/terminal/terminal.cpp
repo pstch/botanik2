@@ -17,9 +17,6 @@
 #include "libbotanik/terminal/terminal.h"
 #include "libbotanik/terminal/ansi.h"
 #include "libbotanik/logs/logger.h"
-
-#include "libbotanik/pages/logs.h"
-#include "libbotanik/pages/shell.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/plcio/sync.h"
 
