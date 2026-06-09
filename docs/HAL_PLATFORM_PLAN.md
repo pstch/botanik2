@@ -1,9 +1,12 @@
 # HAL Platform-Abstraction Plan
 
 Status: **done** — Workstreams A, B, C, D.1 & D.2 all landed (SIMULATOR-validated;
-OPTA backend edits remain compile-reasoned, pending a real cross-build). Caller
-wiring for the watchdog (boot-time start + per-tick kick in the main loop) is the
-noted follow-up and is not part of this plan.
+OPTA backend edits remain compile-reasoned, pending a real cross-build). Watchdog
+caller wiring is now also done: `main.cpp` arms it at boot with
+`Config::HW_WATCHDOG_MS` (1 s) and kicks every healthy tick unless the PLC link
+has faulted (`plc_handler.context()->status() == PLC_FAULT`), so the board reboots
+~1 s after entering PLC_FAULT. Before the link is ever established (PLC_UNKNOWN)
+the kicks continue, so a PLC that never comes up does not cause a boot loop.
 
 This plan closes three HAL-boundary leaks and adds two missing platform
 primitives (`reset()` and a hardware watchdog) to the HAL. The throughline is the

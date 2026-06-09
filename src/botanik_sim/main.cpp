@@ -104,6 +104,10 @@ int main(int argc, char** argv) {
     // Emulator thread
     PlcIO::start_emulator_thread(&shared_in, &shared_out);
 
+    // Arm the hardware watchdog. The main loop kicks it every healthy tick; once
+    // the PLC link faults we stop kicking so the board reboots HW_WATCHDOG_MS later.
+    HAL::watchdog_start(Config::HW_WATCHDOG_MS);
+
     // Main loop code
     // -----------------------------------------------------------------------
 
@@ -122,6 +126,11 @@ int main(int argc, char** argv) {
 
         plc_handler.step();
         plc_log_reader.step();
+
+        // Kick the hardware watchdog unless the PLC link has faulted (no activity
+        // for PLC_WATCHDOG_MS). Once it faults the kicks stop, and the board
+        // reboots HW_WATCHDOG_MS later.
+        if (plc_handler.context()->status() != PlcIO::PLC_FAULT) HAL::watchdog_kick();
 
         if (!botanik_running) break;
     }
