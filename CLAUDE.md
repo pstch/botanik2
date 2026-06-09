@@ -44,7 +44,7 @@ The system is split into six subsystems under `src/libbotanik/`:
 
 **PLC I/O (`plcio/`)** — `PlcSyncHandler` manages two independent state machines (RX and TX) for shared-memory communication with the PLC coprocessor. Uses explicit ARM DSB barriers (`HAL::dsb()`) and transactional read/write patterns to prevent torn operations. Timing constants: heartbeat 1 s, timeout 5 s, watchdog 30 s.
 
-**Utils (`utils/`)** — `BufferedSerial` wraps UART with a 256-byte RX ring buffer and 1024-byte TX buffer. `time.h` provides uptime tracking on top of HAL.
+**Utils (`utils/`)** — `BufferedSerial` wraps UART with a 256-byte RX ring buffer and 4096-byte TX buffer. `time.h` provides uptime tracking on top of HAL.
 
 
 ### Key compile-time defines

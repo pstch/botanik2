@@ -42,10 +42,14 @@ namespace Botanik { namespace Utils {
         uint64_t    unixSeconds;        // seconds after UNIX epoch, 0-indexed
     };
 
-    // Convert a 32-bit uptime timestamp to an absolute 64-bit timestamp,
-    // assuming the given timestamp occurs in the rollover window centered
-    // on the given absolute timestamp (71 minutes for microseconds,
-    // 49 days for milliseconds).
+    /** @brief Convert a 32-bit uptime timestamp to an absolute 64-bit timestamp,
+     *  assuming the given timestamp occurs in the rollover window centered on the
+     *  given absolute timestamp (71 minutes for microseconds, 49 days for
+     *  milliseconds).
+     *  @note Only correct for a timestamp within ±half a window of @p uptime
+     *  (±~24.8 days for ms, ±~35.7 min for us). A timestamp further away — or one
+     *  from before that half-window has elapsed since boot — projects into the
+     *  wrong window and yields a bogus absolute time. Intended for recent events. */
     uint64_t _project_rollover(uint64_t uptime, uint32_t timestamp);
 
     // Project a rolling-over millisecond uptime counter into the current rollover window

@@ -258,7 +258,8 @@ namespace Botanik { namespace HAL {
         uint64_t _next_write_us = 0;
     };
 
-    /** @brief TODO */
+    /** @brief Logical serial endpoints: CONSOLE drives the interactive terminal,
+     *  MONITOR the secondary diagnostic/log output. */
     enum SerialPort { CONSOLE, MONITOR };
 
     /** @brief Resolve a logical SerialPort to its backing RawSerial.
