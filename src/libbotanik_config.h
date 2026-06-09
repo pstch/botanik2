@@ -78,7 +78,7 @@ namespace Botanik { namespace Config {
     static constexpr size_t LOG_PLC_MESSAGE_LEN = 256;
 
     /** @brief Interval between unsolicited TX frames sent to keep the PLC link alive */
-    static constexpr uint32_t PLC_HEARTBEAT_MS = 1000;
+    static constexpr uint32_t PLC_HEARTBEAT_MS = 250;
 
     /** @brief Time without a TX acknowledgement before the link is considered timed out */
     static constexpr uint32_t PLC_TIMEOUT_MS = 1000;
