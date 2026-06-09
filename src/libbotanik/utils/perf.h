@@ -35,20 +35,31 @@
 
 namespace Botanik { namespace Utils {
 
-    /** @brief Per-tick EMA smoothing factor for a given response time constant
-     *  (ms). Derived from the tick period so the filter's wall-clock response
-     *  stays fixed regardless of TASK_PERIOD_MS (forward-Euler: alpha = dt/tau).
-     *  A tau at or below one tick collapses to 1.0 (instant, since the filter
-     *  can't resolve anything faster than a single tick). */
-    constexpr float ema_alpha(uint32_t tau_ms) {
-        return tau_ms <= Config::TASK_PERIOD_MS
+    /** @brief EMA smoothing factor for a response time constant @p tau_ms, given
+     *  the filter's sample period @p period_ms. Derived from the sample period so
+     *  the filter's wall-clock response stays fixed regardless of how often it is
+     *  fed (forward-Euler: alpha = dt/tau). A tau at or below one sample period
+     *  collapses to 1.0 (instant, since the filter can't resolve anything faster
+     *  than a single sample). Defaults to the tick period for per-tick metrics. */
+    constexpr float ema_alpha(uint32_t tau_ms, uint32_t period_ms = Config::TASK_PERIOD_MS) {
+        return tau_ms <= period_ms
             ? 1.0f
-            : (float)Config::TASK_PERIOD_MS / (float)tau_ms;
+            : (float)period_ms / (float)tau_ms;
     }
 
     /** @brief Number of per-tick samples spanning LOAD_METRIC_WINDOW_MS. */
     static constexpr uint32_t LOAD_METRIC_WINDOW =
         Config::LOAD_METRIC_WINDOW_MS / Config::TASK_PERIOD_MS;
+
+    /** @brief Stack high-water is sampled once per slice rather than every tick:
+     *  the painted region is left to accumulate the worst case across a slice, then
+     *  measured and repainted at the boundary. One slice per metric bucket spans the
+     *  whole LOAD_METRIC_WINDOW, so the rolling max keeps its ~LOAD_METRIC_WINDOW_MS
+     *  reach for a fraction of the per-tick paint/scan cost. */
+    static constexpr uint32_t STACK_SLICE_TICKS =
+        (LOAD_METRIC_WINDOW >= Config::LOAD_METRIC_BUCKETS)
+            ? LOAD_METRIC_WINDOW / Config::LOAD_METRIC_BUCKETS : 1;
+    static constexpr uint32_t STACK_SLICE_MS = STACK_SLICE_TICKS * Config::TASK_PERIOD_MS;
 
     /**
      * @brief Exponential moving average with asymmetric attack/decay: a sample
@@ -121,9 +132,12 @@ namespace Botanik { namespace Utils {
      *      *_recent    : worst case over sliding window */
     struct PerfSnapshot {
         float    cpu_load_ema       = 0.0f;  // fraction of the tick period, 0..1+
+        float    jitter_ema         = 0.0f;  // scheduling jitter as fraction of the tick period, 0..1+
         float    stack_usage_ema    = 0.0f;  // fraction of stack_depth, 0..1
         uint32_t cpu_loop_us_max    = 0;     // all-time peak work duration, microseconds
         uint32_t cpu_loop_us_recent = 0;     // windowed peak work duration, microseconds
+        uint32_t jitter_us_recent   = 0;     // windowed peak tick scheduling jitter, microseconds
+        uint32_t jitter_us_max      = 0;     // all-time peak tick scheduling jitter, microseconds
         uint32_t stack_bytes_max    = 0;     // all-time peak used stack, bytes
         uint32_t stack_bytes_recent = 0;     // windowed peak used stack, bytes
         uint32_t stack_depth        = 0;     // total thread stack allocation, bytes
@@ -144,18 +158,28 @@ namespace Botanik { namespace Utils {
         /** @brief Open the work window (loop work about to run). */
         void work_begin();
 
-        /** @brief Close the work window: record work duration + stack high-water
-         *  and update every metric. No-op if no window is open. */
+        /** @brief Close the work window: record the work duration, advance the stack
+         *  slice (measuring its high-water and arming a repaint at slice boundaries),
+         *  and update the metrics. No-op if no window is open. */
         void sample();
 
+        /** @brief Record one tick's scheduling jitter — its lateness against the
+         *  grid, in microseconds — into the rolling-max window. Fed by LoopScheduler. */
+        void record_jitter(uint32_t jitter_us);
+
         /**
-         * @brief Paint the free stack below the caller's SP with STACK_PAINT_BYTE.
+         * @brief Repaint the free stack below the caller's SP with STACK_PAINT_BYTE,
+         *  but only when a new slice is due (sample() arms _repaint_pending at slice
+         *  boundaries). Cheap no-op on every other tick.
          *
          * Must be inlined into the caller's frame so &sp_marker reflects the caller's
-         * SP, not this method's. Call once per iteration at user-code depth; the
-         * subsequent work then dirties the painted region in proportion to its depth.
+         * SP, not this method's. Call once per iteration at user-code depth; between
+         * repaints the running work keeps dirtying the painted region, so its
+         * high-water at the next boundary is the worst case across the whole slice.
          */
         BOTANIK_NO_ASAN inline void paint_stack() {
+            if (!_repaint_pending) return;
+            _repaint_pending = false;
             volatile uint8_t sp_marker = 0;
             _paint_below(const_cast<uint8_t*>(&sp_marker));
         }
@@ -175,12 +199,21 @@ namespace Botanik { namespace Utils {
         Ema       _cpu_load;
         uint32_t  _cpu_loop_us_max = 0;
         WindowedMax<Config::LOAD_METRIC_BUCKETS> _cpu_loop_us_window;
-        // Stack-usage metrics
+        // Scheduling-jitter metric (fed by the scheduler each tick).
+        Ema       _jitter;
+        WindowedMax<Config::LOAD_METRIC_BUCKETS> _jitter_window;
+        uint32_t  _jitter_us_max = 0;
+        // Stack-usage metrics. The free stack is painted once per slice and left to
+        // accumulate the high-water mark; _stack_slices holds the per-slice peaks
+        // (one per bucket) whose max is the rolling "recent" figure.
         uint32_t  _stack_depth = 0;
         uintptr_t _stack_base  = 0;
         Ema       _stack_usage;
         uint32_t  _stack_bytes_max = 0;
-        WindowedMax<Config::LOAD_METRIC_BUCKETS> _stack_bytes_window;
+        uint32_t  _stack_slices[Config::LOAD_METRIC_BUCKETS] = {};
+        uint32_t  _stack_head        = 0;     // next slice slot to overwrite
+        uint32_t  _stack_slice_tick  = 0;     // ticks accumulated into the current slice
+        bool      _repaint_pending   = true;  // repaint the stack on the next paint_stack()
         // Published snapshot
         PerfSnapshot _snap;
 

@@ -53,18 +53,34 @@ namespace Botanik { namespace Shell {
             if (ctx) {
                 char val[24], detail[64];
                 int w;
+                snprintf(val,    sizeof(val),    "%lus", (unsigned long)uptime_s);
+                snprintf(detail, sizeof(detail), "%lu ticks, %lu overruns",
+                    (unsigned long)ctx->tick_count, (unsigned long)ctx->overruns);
+                w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
+                    "Uptime ......................", val, detail);
+                if (w > 0) _output.write(out, (size_t)w);
+
                 snprintf(val,    sizeof(val),    "%.1f%%",
                     (double)(ctx->perf.cpu_load_ema * 100.0f));
-                snprintf(detail, sizeof(detail), "recent %.2fms, max %.2fms",
+                snprintf(detail, sizeof(detail), "recent %.2fms, peak %.2fms",
                     (double)ctx->perf.cpu_loop_us_recent / 1000.0,
                     (double)ctx->perf.cpu_loop_us_max / 1000.0);
                 w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
-                    "CPU usage ...................", val, detail);
+                    "CPU load ....................", val, detail);
+                if (w > 0) _output.write(out, (size_t)w);
+
+                snprintf(val,    sizeof(val),    "%.1f%%",
+                    (double)(ctx->perf.jitter_ema * 100.0f));
+                snprintf(detail, sizeof(detail), "recent %.2fms, peak %.2fms",
+                    (double)ctx->perf.jitter_us_recent / 1000.0,
+                    (double)ctx->perf.jitter_us_max / 1000.0);
+                w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
+                    "CPU jitter ..................", val, detail);
                 if (w > 0) _output.write(out, (size_t)w);
 
                 snprintf(val,    sizeof(val),    "%.1f%%",
                     (double)(ctx->perf.stack_usage_ema * 100.0f));
-                snprintf(detail, sizeof(detail), "recent %lu, max %lu bytes",
+                snprintf(detail, sizeof(detail), "recent %lu, peak %lu bytes",
                     (unsigned long)ctx->perf.stack_bytes_recent,
                     (unsigned long)ctx->perf.stack_bytes_max);
                 w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
@@ -75,13 +91,6 @@ namespace Botanik { namespace Shell {
                     (unsigned long)ctx->perf.stack_depth);
                 w = snprintf(out, sizeof(out), "%-29s : %s",
                     "Stack depth .................", val);
-                if (w > 0) _output.write(out, (size_t)w);
-
-                snprintf(val,    sizeof(val),    "%lus", (unsigned long)uptime_s);
-                snprintf(detail, sizeof(detail), "%lu ticks, %lu overruns",
-                    (unsigned long)ctx->tick_count, (unsigned long)ctx->overruns);
-                w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
-                    "Uptime ......................", val, detail);
                 if (w > 0) _output.write(out, (size_t)w);
                 return;
             } else {

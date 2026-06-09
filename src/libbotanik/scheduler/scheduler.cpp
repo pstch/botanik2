@@ -56,17 +56,23 @@ namespace Botanik { namespace Scheduler {
 
     bool LoopScheduler::tick() {
         if (!_started) { _started = true; _log_startup(); }  // announce on first tick
-        uint64_t now = HAL::uptime_ms();        // measure current time
+        uint64_t now_us = HAL::uptime_us();     // measure current time (us, for jitter)
+        uint64_t now    = now_us / 1000;
         _perf.sample();                         // measure past work + stack usage
         if (now < _next_tick_ms) {               // yield until next tick
             #ifdef TARGET_SIMULATOR
-            usleep((useconds_t)((_next_tick_ms - now) * 100));
+            // TODO: add HAL::sleep() (takes milliseconds, uses sleep on POSIX and ThisThread::sleep_for())
+            //       and use sleep((_next_tick_ms - now) / 2) to better absorb eventual scheduling jitter
+            usleep((useconds_t)((_next_tick_ms - now) * 250));
             #endif
             return false;
         }
         _context.perf = _perf.snapshot();
         _perf.work_begin();
         _skip_beats(now);                       // skip missed beats (catch-up)
+        // Sub-period lateness against the (post-catch-up) grid point this tick belongs
+        // to; whole skipped beats are accounted separately as overruns.
+        _perf.record_jitter((uint32_t)(now_us - _next_tick_ms * 1000));
         _next_tick_ms += _period_ms;            // advance time grid
         ++_tick_count;
         _context.tick_count = _tick_count;

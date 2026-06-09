@@ -51,6 +51,10 @@ namespace Botanik { namespace Config {
     static constexpr uint32_t CPU_LOAD_EMA_ATTACK_MS = 0;
     static constexpr uint32_t CPU_LOAD_EMA_DECAY_MS  = 5000;
 
+    /** @brief CPU-jitter EMA response time constants (ms) */
+    static constexpr uint32_t CPU_JITTER_EMA_ATTACK_MS = 0;
+    static constexpr uint32_t CPU_JITTER_EMA_DECAY_MS  = 5000;
+
     /** @brief Stack-usage EMA response time constants (ms) */
     static constexpr uint32_t STACK_USAGE_EMA_ATTACK_MS = 0;
     static constexpr uint32_t STACK_USAGE_EMA_DECAY_MS  = 1000;
