@@ -63,7 +63,8 @@ namespace Botanik { namespace Scheduler {
             #ifdef TARGET_SIMULATOR
             // TODO: add HAL::sleep() (takes milliseconds, uses sleep on POSIX and ThisThread::sleep_for())
             //       and use sleep((_next_tick_ms - now) / 2) to better absorb eventual scheduling jitter
-            usleep((useconds_t)((_next_tick_ms - now) * 250));
+            useconds_t delay = (useconds_t)((_next_tick_ms - now) * 500);
+            if (delay > 1000) usleep(delay);
             #endif
             return false;
         }
