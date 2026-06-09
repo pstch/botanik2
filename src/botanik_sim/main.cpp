@@ -130,7 +130,7 @@ int main(int argc, char** argv) {
         // Kick the hardware watchdog unless the PLC link has faulted (no activity
         // for PLC_WATCHDOG_MS). Once it faults the kicks stop, and the board
         // reboots HW_WATCHDOG_MS later.
-        if (plc_handler.context()->status() != PlcIO::PLC_FAULT) HAL::watchdog_kick();
+        if (!plc_handler.context()->faulted()) HAL::watchdog_kick();
 
         if (!botanik_running) break;
     }

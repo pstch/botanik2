@@ -87,6 +87,9 @@ namespace Botanik { namespace PlcIO {
             if (elapsed > _timeout_ms)              return PLC_TIMEOUT;
                                                     return PLC_RUNNING;
         }
+
+        /** @brief True once PLC activity has been silent for PLC_WATCHDOG_MS. */
+        bool faulted() const { return status() == PLC_FAULT; }
     };
 
     // This class provides logic to safely interact with the PLC's shared memory,
