@@ -98,6 +98,7 @@ namespace Botanik { namespace Terminal {
         // Text handling helpers
         void _flush_text();
         void _store_text(uint8_t b);
+        State _append_text(uint8_t b);  // store one byte, flushing if the batch is full
         // Flush policy — shared by the text batch and the chunked command
         bool _backpressure_holds(uint32_t start_ms) const;
         bool _should_flush_text() const;

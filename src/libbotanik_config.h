@@ -137,9 +137,9 @@ namespace Botanik { namespace Config {
     /** @brief Safety timeout: flush any stale batch regardless of stream activity */
     static constexpr uint32_t ANSI_INPUT_BATCH_TIMEOUT_MS = 1000;
 
-    /** @brief Time after the last byte before a stalled ESC or CSI sequence is resolved:
-     *         bare ESC → Command::ESC, partial CSI → discarded */
-    static constexpr uint32_t ANSI_ESC_TIMEOUT_MS = 100;
+    /** @brief Time after the last byte before a stalled command sequence is resolved:
+     *         bare ESC → Command::ESC, partial CSI → discarded, lone SEP → discarded */
+    static constexpr uint32_t ANSI_CMD_TIMEOUT_MS = 100;
 
     /** @brief Interval (ms) between status-bar metric refreshes. Time-based so the
      *         refresh rate is independent of the scheduler tick interval. */

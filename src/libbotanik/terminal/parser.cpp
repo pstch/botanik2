@@ -69,6 +69,19 @@ namespace Botanik { namespace Terminal {
         _text_len = 0;
     }
 
+    // Store one text byte, flushing immediately if it fills the batch. Returns the
+    // next state: IDLE on a flush (batch emitted), TEXT otherwise. Checking right
+    // after the store keeps a full batch from ever overflowing _text_buf, including
+    // the degenerate ANSI_INPUT_BATCH_SIZE == 1 case (a single byte fills it).
+    InputParser::State InputParser::_append_text(uint8_t b) {
+        _store_text(b);
+        if (_text_len == Config::ANSI_INPUT_BATCH_SIZE) {
+            _flush_text();
+            return State::IDLE;
+        }
+        return State::TEXT;
+    }
+
     // Flush policy (shared by the text batch and the chunked command)
 
     bool InputParser::_backpressure_holds(uint32_t start_ms) const {
@@ -96,8 +109,7 @@ namespace Botanik { namespace Terminal {
         if (b == (uint8_t)(*Ansi::ESC))  return State::IN_ESC;
         if (b == (uint8_t)(*Ansi::SEP))  return State::IN_SEP;
         if (Ansi::is_printable(b)) {
-            _store_text(b);
-            return State::TEXT;
+            return _append_text(b);
         }
         _event.command = _map_control_char(b);
         if (_event.command != Command::NONE) {
@@ -107,12 +119,7 @@ namespace Botanik { namespace Terminal {
     }
 
     InputParser::State InputParser::_handle_text(uint8_t b) {
-        _store_text(b);
-        if (_text_len == Config::ANSI_INPUT_BATCH_SIZE) {
-            _flush_text();
-            return State::IDLE;
-        }
-        return State::TEXT;
+        return _append_text(b);
     }
 
     InputParser::State InputParser::_handle_sep(uint8_t b) {
@@ -282,12 +289,17 @@ namespace Botanik { namespace Terminal {
                     _flush_text();
                     _state = State::IDLE;
                 } else if (_state == State::IN_ESC &&
-                           (*_timestamp_ms - _last_byte_ms) >= Config::ANSI_ESC_TIMEOUT_MS) {
+                           (*_timestamp_ms - _last_byte_ms) >= Config::ANSI_CMD_TIMEOUT_MS) {
                     _event.command = Command::ESC;
                     _event.type    = EventType::COMMAND;
                     _state = State::IDLE;
                 } else if (_state == State::IN_CSI &&
-                           (*_timestamp_ms - _last_byte_ms) >= Config::ANSI_ESC_TIMEOUT_MS) {
+                           (*_timestamp_ms - _last_byte_ms) >= Config::ANSI_CMD_TIMEOUT_MS) {
+                    _state = State::IDLE;
+                } else if (_state == State::IN_SEP &&
+                           (*_timestamp_ms - _last_byte_ms) >= Config::ANSI_CMD_TIMEOUT_MS) {
+                    // A lone SEP (0x13 / XOFF) never completes; drop it back to IDLE
+                    // so a stray flow-control byte can't swallow the next keystroke.
                     _state = State::IDLE;
                 }
                 return _event;
