@@ -1,6 +1,6 @@
 # HAL Platform-Abstraction Plan
 
-Status: **in progress** — Workstreams A & B done; C/D pending.
+Status: **in progress** — Workstreams A, B & C done; D pending.
 
 This plan closes three HAL-boundary leaks and adds two missing platform
 primitives (`reset()` and a hardware watchdog) to the HAL. The throughline is the
@@ -89,7 +89,17 @@ debugger, confirm it traps.
 
 ---
 
-## Workstream C — de-libc `utils/time` (calendar leak)
+## Workstream C — de-libc `utils/time` (calendar leak)  ✅ done
+
+**Implemented:** `cal_time_ms` now breaks the calendar down with Howard
+Hinnant's pure-integer `civil_from_days` (UTC by construction); `<ctime>`,
+`localtime_r`, and the dead `unix_time_ms` are gone from both `utils/time.h` and
+`utils/time.cpp`, so `time_t` no longer appears in the public surface. Validated:
+SIMULATOR builds clean; the shipped `format_ms_timestamp` matches `gmtime_r`
+across five epochs (incl. the 2020-02-29 leap day), and output is **identical
+under `TZ=UTC` and `TZ=America/New_York`** — confirming the latent `$TZ` bug
+(promised UTC, silently honoured local time) is fixed. `utils/time` is now pure,
+host-testable logic — the prime candidate for the first unit tests.
 
 **Leak:** `utils/time.h:12` and `utils/time.cpp:9` include `<ctime>`;
 `cal_time_ms` calls `localtime_r` and the header exposes a `time_t` return type

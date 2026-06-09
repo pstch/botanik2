@@ -6,7 +6,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <ctime>
 
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/utils/time.h"
@@ -40,26 +39,38 @@ namespace Botanik { namespace Utils {
         return (uint64_t)(_boot_epoch_ms() + (int64_t)timestamp_ms);
     }
 
-    time_t unix_time_ms(uint64_t timestamp_ms) {
-        return (time_t)(_wall_ms(timestamp_ms) / 1000);
-    }
-
     CalendarTime cal_time_ms(uint64_t timestamp_ms) {
-        uint64_t wall_ms = _wall_ms(timestamp_ms);
-        time_t   time_unix = (time_t)(wall_ms / 1000);
-        tm time_info; CalendarTime result;
-        localtime_r(&time_unix, &time_info);
-        result.year = (uint16_t)(time_info.tm_year + 1900);
-        result.month = (uint8_t)(time_info.tm_mon + 1);
-        result.day = (uint8_t)time_info.tm_mday;
-        result.hour = (uint8_t)time_info.tm_hour;
-        result.minute = (uint8_t)time_info.tm_min;
-        result.second = (uint8_t)time_info.tm_sec;
+        uint64_t wall_ms     = _wall_ms(timestamp_ms);
+        uint64_t total_secs  = wall_ms / 1000;
+        uint64_t secs_of_day = total_secs % 86400;
+        int64_t  days        = (int64_t)(total_secs / 86400);  // days since 1970-01-01
+
+        // Howard Hinnant's civil_from_days: a pure-integer Gregorian breakdown,
+        // UTC by construction (no libc localtime_r, so no $TZ dependence — the
+        // old code silently honoured $TZ despite promising UTC). Shifts the epoch
+        // to 0000-03-01 so leap days land at the end of the 400-year era.
+        int64_t  z   = days + 719468;
+        int64_t  era = (z >= 0 ? z : z - 146096) / 146097;
+        uint32_t doe = (uint32_t)(z - era * 146097);                     // [0, 146096]
+        uint32_t yoe = (doe - doe/1460 + doe/36524 - doe/146096) / 365;  // [0, 399]
+        uint32_t doy = doe - (365*yoe + yoe/4 - yoe/100);                // [0, 365]
+        uint32_t mp  = (5*doy + 2) / 153;                                // [0, 11]
+        uint32_t d   = doy - (153*mp + 2)/5 + 1;                         // [1, 31]
+        uint32_t m   = mp < 10 ? mp + 3 : mp - 9;                        // [1, 12]
+        int64_t  y   = (int64_t)yoe + era * 400 + (m <= 2);
+
+        CalendarTime result;
+        result.year        = (uint16_t)y;
+        result.month       = (uint8_t)m;
+        result.day         = (uint8_t)d;
+        result.hour        = (uint8_t)(secs_of_day / 3600);
+        result.minute      = (uint8_t)((secs_of_day % 3600) / 60);
+        result.second      = (uint8_t)(secs_of_day % 60);
         // Sub-second comes straight from the wall-clock ms now that we carry a
         // real boot epoch — so even boot-time entries get their true fraction.
         result.millisecond = (uint16_t)(wall_ms % 1000);
-        result.unixSeconds = (uint64_t)time_unix;
-        result.unixDays = (uint32_t)(time_unix / (uint64_t)86400);
+        result.unixSeconds = total_secs;
+        result.unixDays    = (uint32_t)days;
         return result;
     }
 
