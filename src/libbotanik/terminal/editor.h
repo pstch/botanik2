@@ -60,6 +60,11 @@ namespace Botanik { namespace Terminal {
      * insert/remove mutate the buffer, rebuild the row layout, then reconcile
      * the screen by diffing `_pre` against `_layout`: one IL/DL for the
      * row-count change, then a forward per-row splice walk from the edit row.
+     *
+     * @note Layout is capped at `Config::EDITOR_MAX_ROWS`. At >= `EDITOR_MIN_COLS`
+     * the buffer always fits by soft-wrap (static_assert in config), so the cap is
+     * only hit by hard `\n` breaks; excess rows truncate and the cursor folds onto
+     * the last row — a visual artifact only, never an overflow.
      */
     class TextEditor {
     public:

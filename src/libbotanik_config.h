@@ -198,6 +198,18 @@ namespace Botanik { namespace Config {
     /** @brief Maximum length (bytes) of a prompt prefix (PS1/PS2/PS3) */
     static constexpr uint16_t EDITOR_PROMPT_MAX = 16;
 
+    /** @brief Narrowest terminal width the TextEditor is laid out to support.
+     *  Below this, a full buffer may need more than EDITOR_MAX_ROWS soft-wrapped
+     *  rows; the layout truncates and the cursor folds onto the last row (visual
+     *  only, no overflow — see TextEditor). */
+    static constexpr uint16_t EDITOR_MIN_COLS = 32;
+
+    // At EDITOR_MIN_COLS, EDITOR_MAX_ROWS rows (worst-case prompt on every row)
+    // must hold the whole input buffer, so soft-wrapping alone never overflows the
+    // row layout. (Hard '\n' breaks are a separate, width-independent limit.)
+    static_assert(EDITOR_MAX_ROWS * (EDITOR_MIN_COLS - EDITOR_PROMPT_MAX) >= SHELL_INPUT_LEN,
+                  "EDITOR_MAX_ROWS too small to lay out SHELL_INPUT_LEN at EDITOR_MIN_COLS");
+
     /** @} */
 
 } }
