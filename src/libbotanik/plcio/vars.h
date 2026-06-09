@@ -48,8 +48,7 @@ namespace Botanik { namespace PlcIO {
         LogLevel        level;        // @4  (uint8_t)
         LogTopic        topic;        // @5  (uint8_t)
         uint16_t        length;       // @6
-        uint16_t        seqNum;       // @8
-        uint8_t         _reserved[2]; // @10  explicit pad: aligns message[] to a word
+        uint32_t        seqNum;       // @8  (4B fills @8..@11; keeps message[] word-aligned)
         char            message[Config::LOG_PLC_MESSAGE_LEN];  // @12 .. @267
     };
 

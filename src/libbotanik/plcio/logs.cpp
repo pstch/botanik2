@@ -14,9 +14,9 @@ namespace Botanik { namespace PlcIO {
 
     void PlcLogReader::_detect_dropped_entries(const LogEntry_t* entry) {
         if (_last_seq == 0) { _last_seq = entry->seqNum; return; }
-        uint16_t expected = (uint16_t)(_last_seq + 1);
+        uint32_t expected = _last_seq + 1;
         if (entry->seqNum != expected) {
-            uint16_t dropped = (uint16_t)(entry->seqNum - expected);
+            uint32_t dropped = entry->seqNum - expected;
             _dropped += dropped;
             LogEntry_t warn = {};
             warn.timestamp = entry->timestamp;

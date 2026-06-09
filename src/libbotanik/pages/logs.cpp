@@ -26,7 +26,9 @@ namespace Botanik { namespace Pages {
         // replays an up-to-date tail. Nothing reaches the screen, so there's no TX
         // back-pressure to honour — store the whole entry and report it consumed.
         if (!_active) {
-            _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols());
+            _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
+                Config::SHELL_LOG_CONT_PREFIX,
+                (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX));
             return len;
         }
 
@@ -40,9 +42,11 @@ namespace Botanik { namespace Pages {
     }
 
     void LogsPage::_emit_line(const char* buf, size_t len) {
-        // Wrap into one or more stored rows ("> "-prefixed continuations), then
-        // scroll the tail up by that many rows and paint them at the bottom.
-        uint16_t n        = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols());
+        // Wrap into one or more stored rows (indented log-prefixed continuations),
+        // then scroll the tail up by that many rows and paint them at the bottom.
+        uint16_t n        = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
+            Config::SHELL_LOG_CONT_PREFIX,
+            (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX));
         uint16_t last_row = (uint16_t)(_terminal.rows() - 1);  // log area is rows 1..rows-1
         if (n > last_row) n = last_row;  // message taller than the area: show its newest rows
 

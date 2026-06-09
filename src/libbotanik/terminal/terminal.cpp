@@ -307,8 +307,8 @@ namespace Botanik { namespace Terminal {
             case PlcIO::PLC_FAULT:    plc_str = "FLT"; break;
             default:                  plc_str = "---"; break;
         }
-        unsigned cpu = (unsigned)lroundf(_sched_ctx->cpu_load_ema    * 100.0f);
-        unsigned stk = (unsigned)lroundf(_sched_ctx->stack_usage_ema * 100.0f);
+        unsigned cpu = (unsigned)lroundf(_sched_ctx->perf.cpu_load_ema    * 100.0f);
+        unsigned stk = (unsigned)lroundf(_sched_ctx->perf.stack_usage_ema * 100.0f);
         if (cpu > 9999) cpu = 9999;
         if (stk > 999)  stk = 999;
         return snprintf(buf, cap, "PLC:%s cpu:%4u%% stk:%3u%% ", plc_str, cpu, stk);

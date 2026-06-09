@@ -41,8 +41,11 @@ namespace Botanik { namespace Config {
     /** @brief Byte pattern used for stack "painting" to detect high-water mark */
     static constexpr uint8_t  STACK_PAINT_BYTE = 0xCD;
 
-    /** @brief Wall-clock window for CPU/stack peak usage tracking */
+    /** @brief Sliding window for the "recent peak" CPU/stack metrics, and the number
+     *  of rotating buckets used to approximate it (O(1) update, O(buckets) read; the
+     *  effective window wobbles by up to one bucket width as buckets rotate). */
     static constexpr uint32_t LOAD_METRIC_WINDOW_MS = 5000;
+    static constexpr uint32_t LOAD_METRIC_BUCKETS   = 10;
 
     /** @brief CPU-load EMA response time constants (ms) */
     static constexpr uint32_t CPU_LOAD_EMA_ATTACK_MS = 0;
@@ -164,7 +167,16 @@ namespace Botanik { namespace Config {
 
     /** @brief Max scrollback rows redrawn per tick() during deferred replay */
     static constexpr uint16_t SCROLLBACK_REDRAW_ROWS_PER_TICK  = 1;
+
+    /** @brief Continuation prefix for wrapped command-output rows. */
+    static constexpr const char* SHELL_CONT_PREFIX = "> ";
+
+    /** @brief Continuation prefix for wrapped log rows. The leading indent is
      *  hand-tuned to the formatted log-line prefix from logs/format.h
+     *  ("YY/MM/DD HH:MM:SS.mmm [x] TOPIC: ") so wrapped log rows line up under
+     *  the message column. It's an approximation (the TOPIC label varies in
+     *  width); if the log line layout changes, revisit this width. */
+    static constexpr const char* SHELL_LOG_CONT_PREFIX = "                        > ";
 
     /** @} */
 

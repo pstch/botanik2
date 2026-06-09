@@ -51,22 +51,30 @@ namespace Botanik { namespace Shell {
             Scheduler::SchedulerContext* ctx = _terminal.sched_ctx();
             uint32_t uptime_s = (uint32_t)(HAL::uptime_ms() / 1000);
             if (ctx) {
-                char val[16], detail[48];
+                char val[24], detail[64];
                 int w;
                 snprintf(val,    sizeof(val),    "%.1f%%",
-                    (double)(ctx->cpu_load_ema * 100.0f));
-                snprintf(detail, sizeof(detail), "peak %.1f%%",
-                    (double)(ctx->cpu_load * 100.0f));
+                    (double)(ctx->perf.cpu_load_ema * 100.0f));
+                snprintf(detail, sizeof(detail), "recent %.2fms, max %.2fms",
+                    (double)ctx->perf.cpu_loop_us_recent / 1000.0,
+                    (double)ctx->perf.cpu_loop_us_max / 1000.0);
                 w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
                     "CPU usage ...................", val, detail);
                 if (w > 0) _output.write(out, (size_t)w);
 
                 snprintf(val,    sizeof(val),    "%.1f%%",
-                    (double)(ctx->stack_usage_ema * 100.0f));
-                snprintf(detail, sizeof(detail), "%lu of %lu bytes",
-                    (unsigned long)ctx->stack_usage, (unsigned long)ctx->stack_depth);
+                    (double)(ctx->perf.stack_usage_ema * 100.0f));
+                snprintf(detail, sizeof(detail), "recent %lu, max %lu bytes",
+                    (unsigned long)ctx->perf.stack_bytes_recent,
+                    (unsigned long)ctx->perf.stack_bytes_max);
                 w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
                     "Stack usage .................", val, detail);
+                if (w > 0) _output.write(out, (size_t)w);
+
+                snprintf(val, sizeof(val), "%lu bytes",
+                    (unsigned long)ctx->perf.stack_depth);
+                w = snprintf(out, sizeof(out), "%-29s : %s",
+                    "Stack depth .................", val);
                 if (w > 0) _output.write(out, (size_t)w);
 
                 snprintf(val,    sizeof(val),    "%lus", (unsigned long)uptime_s);
