@@ -129,6 +129,7 @@ namespace Botanik { namespace PlcIO {
 
         // Transition actions
         inline void _rx_memcpy() {
+            HAL::dsb();  // acquire: order payload reads after the txSeqNum read
             HAL::ordered_copy(&_ctx._rx_logs_buffer, &_plcout->logs);
             HAL::ordered_copy(&_rx_data_buffer, &_plcout->data);
         }
