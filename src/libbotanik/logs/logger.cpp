@@ -72,9 +72,11 @@ namespace Botanik { namespace Logs {
         entry.timestamp = timestamp_ms;
         entry.level     = PlcIO::LOG_WARNING;
         entry.topic     = topic;
-        entry.length    = (uint16_t)snprintf(
+        int w = snprintf(
             entry.message, sizeof(entry.message),
             "%u msgs suppressed", (unsigned)bucket->suppressed);
+        if (w < 0) w = 0;
+        entry.length = (uint16_t)std::min((size_t)w, sizeof(entry.message) - 1);
         for (uint8_t i = 0; i < _writerCount; i++) _writers[i]->push(&entry);
         bucket->suppressed = 0;
     }
