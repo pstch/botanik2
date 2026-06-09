@@ -58,19 +58,19 @@ namespace Botanik { namespace Scheduler {
         if (!_started) { _started = true; _log_startup(); }  // announce on first tick
         uint64_t now = HAL::uptime_ms();        // measure current time
         _perf.sample();                         // measure past work + stack usage
-        _context.perf = _perf.snapshot();
         if (now < _next_tick_ms) {               // yield until next tick
             #ifdef TARGET_SIMULATOR
-            usleep((useconds_t)((_next_tick_ms - now) * 1000));
+            usleep((useconds_t)((_next_tick_ms - now) * 100));
             #endif
             return false;
         }
+        _context.perf = _perf.snapshot();
+        _perf.work_begin();
         _skip_beats(now);                       // skip missed beats (catch-up)
         _next_tick_ms += _period_ms;            // advance time grid
         ++_tick_count;
         _context.tick_count = _tick_count;
         // Caller must invoke perf().paint_stack() at user-code depth before working.
-        _perf.work_begin();
         return true;                            // return true so that work can start
     }
 
