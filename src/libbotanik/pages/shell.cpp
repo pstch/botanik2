@@ -68,8 +68,14 @@ namespace Botanik { namespace Pages {
     }
 
     size_t ShellPage::write(const char* buf, size_t len) {
-        // Wrap into one or more stored rows ("> "-prefixed continuations).
-        uint16_t n = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols());
+        // Wrap into one or more stored rows. Log output (reached via drain())
+        // indents its continuations to align under the message column; command
+        // output uses the plain "> " continuation prefix.
+        const char* prefix = _draining_log ? Config::SHELL_LOG_CONT_PREFIX
+                                           : Config::SHELL_CONT_PREFIX;
+        uint16_t    plen   = (uint16_t)strlen(prefix);
+        uint16_t n = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
+                                               prefix, plen);
 
         // In the background: the entry is banked in the scrollback for a later
         // focus() replay; don't touch the screen the active page owns.
@@ -107,6 +113,14 @@ namespace Botanik { namespace Pages {
         _terminal.move_to(_editor.cursor_screen_pos());
 
         return len;
+    }
+
+    void ShellPage::drain() {
+        // Flag the log path so write() picks the indented continuation prefix;
+        // command output goes through write() outside drain() and stays plain.
+        _draining_log = true;
+        Logs::BufferedLogWriter::drain();
+        _draining_log = false;
     }
 
     void ShellPage::_setup_editor() {

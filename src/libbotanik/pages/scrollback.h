@@ -50,11 +50,12 @@ namespace Botanik { namespace Pages {
         void store(const char* buf, size_t len);
 
         /** @brief Store a message as one or more lines no wider than @p cols,
-         *  breaking on embedded newlines and on width. Continuation lines get a
-         *  "> " marker; each line becomes its own scrollback entry (one entry per
-         *  display row).
+         *  breaking on embedded newlines and on width. Continuation lines get the
+         *  @p prefix marker; each line becomes its own scrollback entry (one entry
+         *  per display row).
          *  @return The number of lines stored (always >= 1). */
-        uint16_t store_wrapped(const char* buf, size_t len, uint16_t cols);
+        uint16_t store_wrapped(const char* buf, size_t len, uint16_t cols,
+                               const char* prefix, uint16_t plen);
 
         /** @brief Forget all stored lines and cancel any pending redraw */
         void clear();

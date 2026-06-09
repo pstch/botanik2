@@ -164,6 +164,7 @@ namespace Botanik { namespace Config {
 
     /** @brief Max scrollback rows redrawn per tick() during deferred replay */
     static constexpr uint16_t SCROLLBACK_REDRAW_ROWS_PER_TICK  = 1;
+     *  hand-tuned to the formatted log-line prefix from logs/format.h
 
     /** @} */
 

@@ -20,17 +20,11 @@ namespace Botanik { namespace Pages {
         if (_count < Config::SHELL_SCROLLBACK_LINES) _count++;
     }
 
-    uint16_t Scrollback::store_wrapped(const char* buf, size_t len, uint16_t cols) {
+    uint16_t Scrollback::store_wrapped(const char* buf, size_t len, uint16_t cols,
+                                       const char* prefix, uint16_t plen) {
         // Continuation rows (whether forced by a '\n' or by overflowing the
-        // width) start with an indent + "> " marker so they align under the
-        // message body; only the very first row is emitted verbatim.
-        //
-        // The 24-space indent is hand-tuned to the formatted log-line prefix from
-        // logs/format.h ("YY/MM/DD HH:MM:SS.mmm [x] TOPIC: ") so wrapped log rows
-        // line up under the message column. It's an approximation (the TOPIC label
-        // varies in width); if the log line layout changes, revisit this width.
-        static const char PREFIX[]  = "                        > ";
-        const uint16_t    plen      = (uint16_t)(sizeof(PREFIX) - 1);
+        // width) start with the caller-supplied @p prefix marker so they align
+        // under the message body; only the very first row is emitted verbatim.
         const uint16_t    seg_cap   = (uint16_t)Config::SHELL_SCROLLBACK_LINE_LEN;
         char seg[Config::SHELL_SCROLLBACK_LINE_LEN];
 
@@ -46,7 +40,7 @@ namespace Botanik { namespace Pages {
             // Take up to `budget` bytes, stopping early at a newline.
             uint16_t take = Utils::scan_line_segment(buf, off, len, budget);
 
-            if (prefix_len) memcpy(seg, PREFIX, prefix_len);
+            if (prefix_len) memcpy(seg, prefix, prefix_len);
             memcpy(seg + prefix_len, buf + off, take);
             store(seg, (size_t)(prefix_len + take));
             count++;

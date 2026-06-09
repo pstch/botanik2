@@ -51,6 +51,11 @@ namespace Botanik { namespace Pages {
         // via drain() — knows whether it may paint. False while in the background.
         bool _active = false;
 
+        // True while inside drain(), so write() — shared by log and command output —
+        // knows to wrap continuations with the indented log prefix rather than the
+        // plain command-output prefix.
+        bool _draining_log = false;
+
         void _setup_editor();
         void _full_redraw();
 
@@ -72,6 +77,7 @@ namespace Botanik { namespace Pages {
         size_t format(const LogEntry_t* entry, char* buf, size_t len) override;
         size_t write(const char* buf, size_t len) override;
         void   write_lines(const char* buf, uint16_t len) override;
+        void   drain() override;
         void   clear() override;
 
     public:
