@@ -31,13 +31,15 @@ namespace Botanik { namespace PlcIO {
         LOG_CRITICAL = 32,   // critical message, something very bad is going to happen soon
     };
 
+    // Values are the wire protocol shared with the PLC, not a sequence; listed in
+    // ascending value order. Changing a value requires a matching PLC-side change.
     enum LogTopic : uint8_t {
         NONE = 0,
+        PLC_IO = 1,
         BOOT = 2,
         NETWORK = 3,
         TIME = 4,
         STATUS = 5,
-        PLC_IO = 1,
     };
 
     // Check that the defined topic count can fit in the LogTopic enum
