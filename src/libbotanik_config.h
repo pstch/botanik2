@@ -32,6 +32,9 @@ namespace Botanik { namespace Config {
     /** @brief Main task execution period in milliseconds */
     static constexpr uint32_t TASK_PERIOD_MS = 10;
 
+    /** @brief Hardware watchdog timeout */
+    static constexpr uint32_t HW_WATCHDOG_MS = 1000;
+
     /** @brief Minimum interval between scheduler-overrun warnings (ms) */
     static constexpr uint32_t SCHEDULER_OVERRUN_LOG_INTERVAL_MS = 5000;
 
@@ -78,10 +81,10 @@ namespace Botanik { namespace Config {
     static constexpr uint32_t PLC_HEARTBEAT_MS = 1000;
 
     /** @brief Time without a TX acknowledgement before the link is considered timed out */
-    static constexpr uint32_t PLC_TIMEOUT_MS = 5000;
+    static constexpr uint32_t PLC_TIMEOUT_MS = 1000;
 
-    /** @brief Time without any PLC activity before a hardware watchdog fault is declared */
-    static constexpr uint32_t PLC_WATCHDOG_MS = 30000;
+    /** @brief Time without any PLC activity before we stop kicking the hardware watchdog */
+    static constexpr uint32_t PLC_WATCHDOG_MS = 3000;
 
     /** @} */
 
