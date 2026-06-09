@@ -111,6 +111,7 @@ namespace Botanik { namespace PlcIO {
         //   TxSeqNum/TxAckNum → our RX (PLC output data)
         //   RxSeqNum/RxAckNum → our TX (PLC input data)
         uint32_t               _heartbeat_ms  = Config::PLC_HEARTBEAT_MS;
+        uint32_t               _tx_commit_ms  = 0;      // last commit/heartbeat pulse (for re-commit on stall)
         PlcInput<InputData>*   _plcin;                  // PLC input memory  (write-only)
         PlcOutput<OutputData>* _plcout;                 // PLC output memory (read-only)
         OutputData             _rx_data_buffer;         // local receive buffer for _plcout->data
@@ -121,6 +122,8 @@ namespace Botanik { namespace PlcIO {
         // Transition triggers
         inline bool _rx_new_message()      { return _plcout->sync.txSeqNum != _plcin->sync.txAckNum; }
         inline bool _tx_heartbeat_elapsed(){ return *_ctx._timestamp_ms - _ctx._tx_last_ms > _heartbeat_ms; }
+        // Re-pulse a commit left unacked for a whole heartbeat (TX_WAIT recovery).
+        inline bool _tx_recommit_elapsed() { return *_ctx._timestamp_ms - _tx_commit_ms > _heartbeat_ms; }
         inline bool _tx_acknowledged() {
             bool result = _plcout->sync.rxAckNum == _plcin->sync.rxSeqNum;
             if (result) { _ctx._tx_last_ms = *_ctx._timestamp_ms; _ctx._ever_ackd = true; }
@@ -144,6 +147,7 @@ namespace Botanik { namespace PlcIO {
         inline void _tx_commit() {
             uint32_t src = _plcin->sync.rxSeqNum + 1;
             HAL::ordered_copy(&_plcin->sync.rxSeqNum, &src);
+            _tx_commit_ms = *_ctx._timestamp_ms;
         }
 
         // State machines
@@ -159,7 +163,8 @@ namespace Botanik { namespace PlcIO {
             switch (_tx_state) {
                 case TX_WRITE:  _tx_memcpy();               return TX_COMMIT; break;
                 case TX_COMMIT: _tx_commit();               return TX_WAIT;   break;
-                case TX_WAIT:   if (_tx_acknowledged())     return TX_IDLE;   break;
+                case TX_WAIT:   if (_tx_acknowledged())     return TX_IDLE;
+                        else if (_tx_recommit_elapsed())    return TX_COMMIT; break;
                 case TX_IDLE:   if (_ctx._tx_write)         return TX_WRITE;
                         else if (_tx_heartbeat_elapsed())   return TX_COMMIT; break;
             }
@@ -173,6 +178,7 @@ namespace Botanik { namespace PlcIO {
         {
             _ctx._timestamp_ms = timestamp_ms;
             _ctx._tx_last_ms   = *timestamp_ms;
+            _tx_commit_ms      = *timestamp_ms;
             _ctx._logger       = logger;
             memset(&_tx_data_buffer, 0, sizeof(InputData));
             memset(&_rx_data_buffer, 0, sizeof(OutputData));
