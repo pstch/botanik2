@@ -1,6 +1,6 @@
 # HAL Platform-Abstraction Plan
 
-Status: **in progress** — Workstreams A, B & C done; D pending.
+Status: **in progress** — Workstreams A, B, C & D.1 done; D.2 (watchdog) pending.
 
 This plan closes three HAL-boundary leaks and adds two missing platform
 primitives (`reset()` and a hardware watchdog) to the HAL. The throughline is the
@@ -138,7 +138,35 @@ These are new HAL capabilities (not leak fixes). They are grouped because the
 simulator watchdog *depends on* `reset()`: when the simulated timer lapses it
 must reboot the process. **Implement `reset()` first, then the watchdog.**
 
-### D.1 — `HAL::reset()`
+### D.1 — `HAL::reset()`  ✅ done
+
+**Implemented:** `reset()` declared in `platform.h` and defined per backend —
+`NVIC_SystemReset()` on OPTA (chose the guaranteed CMSIS symbol over the
+unverifiable `mbed_reset`; still needs cross-build confirmation), and on the
+simulator: run the registered teardown hook, then
+`execve("/proc/self/exe", argv, environ)`. argv is captured via a new
+simulator-only `HAL::set_reboot_args(argc, argv)` called at the top of `main()`
+(`main()` now takes `int, char**`); a static `{"/proc/self/exe", nullptr}`
+fallback covers the never-captured case. The emulator thread is now joinable
+(option (a)): a non-template `std::atomic<bool> _emu_running` flag + retained
+`pthread_t`, with `stop_emulator_thread()` clearing the flag and joining. Its
+loop now yields via `HAL::sleep_ms` (Workstream A) instead of raw `usleep`.
+
+**Open question — resolved:** HAL exposes a single-slot reset-hook registry
+(`HAL::on_reset(ResetHook)`); `plcio` (which already depends on HAL) registers
+`stop_emulator_thread` from `start_emulator_thread`. The dependency arrow stays
+`plcio → HAL`; HAL never names plcio. The D.2 watchdog monitor lives inside HAL,
+so `reset()` will stop that one directly — no hook needed there.
+
+**Validation done:** SIMULATOR builds clean. A harness mirroring `main.cpp`'s
+emulator setup confirmed: the hook fires *before* `execve` (observable-hook test);
+`reset()` joins the emulator thread without deadlock; the process re-execs
+(**same PID**, proving exec not fork) with **fresh uptime (0 ms)** and preserved
+argv; `reset()` never returns. No leaked shared-memory FDs — moot on sim, where
+the PLC regions are static buffers (`get_plc_input/output` return `nullptr`), not
+FDs; the join still matters to stop the thread touching those buffers mid-exec.
+
+**Original plan (for reference):**
 
 - `hal/platform.h` — declare `inline void reset();` (no return; does not come
   back).

@@ -140,6 +140,18 @@ namespace Botanik { namespace HAL {
 
     /** @} */
 
+    /** @name System lifecycle
+     *  @{ */
+
+    inline void reset() {
+        // NVIC_SystemReset is the portable CMSIS reset (always available via
+        // mbed.h); mbed_reset() is an alternative if a softer Mbed-managed reset
+        // is wanted. Compile-reasoned only — confirm on a real arm-none-eabi build.
+        NVIC_SystemReset();
+    }
+
+    /** @} */
+
     /** @name Serial I/O
      *  @{ */
 

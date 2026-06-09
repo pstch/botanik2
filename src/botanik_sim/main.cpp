@@ -33,11 +33,14 @@ static volatile sig_atomic_t botanik_running = 1;
 
 extern "C" void botanik_sim_shutdown(int) { botanik_running = 0; }
 
-int main() {
+int main(int argc, char** argv) {
     using namespace Botanik;
 
     // Setup code
     // -----------------------------------------------------------------------
+
+    // Stash argv so HAL::reset() can re-exec the process with the same arguments.
+    HAL::set_reboot_args(argc, argv);
 
     // Raw terminal + console serial.
     HAL::setup_raw_console();

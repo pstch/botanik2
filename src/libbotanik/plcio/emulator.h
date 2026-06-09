@@ -15,6 +15,7 @@
 #include "libbotanik/plcio/sync.h"
 
 #ifdef TARGET_SIMULATOR
+#include <atomic>
 #include <cstdio>
 #include <unistd.h>
 #include <pthread.h>
@@ -159,6 +160,20 @@ namespace Botanik { namespace PlcIO {
         PlcOutput<OutputData>* shared_out;
     };
 
+    /** @brief Run flag and handle for the single emulator thread. Non-template
+     *  (there is only ever one emulator), so stop_emulator_thread() can be a plain
+     *  function pointer registered with HAL::on_reset. */
+    inline std::atomic<bool>& _emu_running() { static std::atomic<bool> running{false}; return running; }
+    inline pthread_t&         _emu_thread()  { static pthread_t thread; return thread; }
+
+    /** @brief Cooperatively stop the emulator thread and join it, releasing its
+     *  hold on the shared PLC memory before the caller (HAL::reset) re-execs.
+     *  Idempotent: a no-op if the thread is not running. */
+    inline void stop_emulator_thread() {
+        if (!_emu_running().exchange(false)) return;  // not running / already stopped
+        pthread_join(_emu_thread(), nullptr);
+    }
+
     /** @brief Thread entry point: owns the emulator's timestamp, PlcEmulator and
      *  PlcLogWriter, steps them every TASK_PERIOD_MS, and emits a heartbeat log. */
     template<typename InputData, typename OutputData>
@@ -171,7 +186,7 @@ namespace Botanik { namespace PlcIO {
         PlcLogWriter plc_log_writer(plc_emulator.context(), &emu_timestamp_ms);
 
         uint32_t emu_tick = 0;
-        while (true) {
+        while (_emu_running().load(std::memory_order_relaxed)) {
             emu_timestamp_ms = (uint32_t)HAL::uptime_ms();
             plc_emulator.step();
             // Emit a periodic heartbeat log every 30s, simulating the PLC coprocessor.
@@ -182,21 +197,22 @@ namespace Botanik { namespace PlcIO {
                          (unsigned long)(emu_tick / HEARTBEAT_TICKS));
                 plc_log_writer.push_log(LOG_INFO, PLC_IO, buf);
             }
-            usleep(Config::TASK_PERIOD_MS * 1000);
+            HAL::sleep_ms(Config::TASK_PERIOD_MS);
         }
         return nullptr;
     }
 
-    /** @brief Spawn the detached emulator thread against the shared PLC memory.
-     *  The argument block is a static with process lifetime, so it stays valid
-     *  for the detached thread without any heap allocation. */
+    /** @brief Spawn the emulator thread against the shared PLC memory and register
+     *  its teardown with HAL::reset(). The argument block is a static with process
+     *  lifetime, so it stays valid for the thread without any heap allocation. The
+     *  thread is kept joinable (not detached) so reset() can stop it cleanly. */
     template<typename InputData, typename OutputData>
     inline void start_emulator_thread(PlcInput<InputData>* shared_in,
                                       PlcOutput<OutputData>* shared_out) {
         static EmulatorThreadArgs<InputData, OutputData> args{ shared_in, shared_out };
-        pthread_t thread;
-        pthread_create(&thread, nullptr, &_emulator_thread_main<InputData, OutputData>, &args);
-        pthread_detach(thread);
+        _emu_running().store(true);
+        pthread_create(&_emu_thread(), nullptr, &_emulator_thread_main<InputData, OutputData>, &args);
+        HAL::on_reset(&stop_emulator_thread);
     }
 
 #endif // TARGET_SIMULATOR

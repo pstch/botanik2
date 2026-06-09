@@ -313,6 +313,45 @@ namespace Botanik { namespace HAL {
 
     /** @} */
 
+    /** @name System lifecycle
+     *  @{ */
+
+    /** @brief Slot holding the argv captured at startup, for re-exec on reset().
+     *  The C runtime keeps argv (and its strings) alive for the whole process, so
+     *  storing the pointer is enough — no copy needed. */
+    inline char*** _reboot_argv() { static char** argv = nullptr; return &argv; }
+
+    /** @brief Capture argv at the top of main() so reset() can re-exec with the
+     *  original arguments. Simulator-only (the OPTA reset takes no arguments). */
+    inline void set_reboot_args(int /*argc*/, char** argv) { *_reboot_argv() = argv; }
+
+    /** @brief A teardown hook run by reset() just before re-exec. */
+    using ResetHook = void(*)();
+
+    /** @brief Slot holding the optional reset hook (a single registrant today). */
+    inline ResetHook* _reset_hook() { static ResetHook hook = nullptr; return &hook; }
+
+    /** @brief Register a teardown hook invoked by reset() before re-exec. Lets a
+     *  subsystem (e.g. the PlcIO emulator thread) join/clean up first without HAL
+     *  taking a dependency on it — the subsystem reaches up into HAL, not vice
+     *  versa. Simulator-only. */
+    inline void on_reset(ResetHook hook) { *_reset_hook() = hook; }
+
+    inline void reset() {
+        // Run the registered teardown (cooperative thread join, etc.) while the
+        // image is still intact, then replace the whole process: execve drops all
+        // threads and FDs atomically and re-enters main() with the original argv,
+        // giving a clean "reboot" with a fresh uptime clock.
+        if (ResetHook hook = *_reset_hook()) hook();
+        char** argv = *_reboot_argv();
+        char*  fallback[] = { (char*)"/proc/self/exe", nullptr };  // if argv was never captured
+        execve("/proc/self/exe", argv ? argv : fallback, environ);
+        perror("reset: execve failed");  // only reached if the exec itself failed
+        _exit(127);
+    }
+
+    /** @} */
+
 }}
 
 #endif // TARGET_SIMULATOR

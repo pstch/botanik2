@@ -122,6 +122,17 @@ namespace Botanik { namespace HAL {
 
     /** @} */
 
+    /** @name System lifecycle
+     *  @{ */
+
+    /** @brief Reboot the firmware. Does not return. On OPTA this is a hardware
+     *  reset (NVIC_SystemReset); on the simulator it re-execs the process image
+     *  with the original argv (captured via the simulator-only set_reboot_args)
+     *  after running any teardown hook registered through on_reset. */
+    inline void reset();
+
+    /** @} */
+
     /** @name Serial I/O & console
      *  @{ */
 
