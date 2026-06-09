@@ -352,6 +352,38 @@ namespace Botanik { namespace HAL {
 
     /** @} */
 
+    /** @name Hardware watchdog
+     *  @{ */
+
+    /** @brief Watchdog timeout in ms; 0 means disabled/stopped. */
+    inline std::atomic<uint32_t>& _wd_timeout_ms()   { static std::atomic<uint32_t> t{0}; return t; }
+    /** @brief Uptime (ms) of the most recent kick. */
+    inline std::atomic<uint64_t>& _wd_last_kick_ms() { static std::atomic<uint64_t> k{0}; return k; }
+
+    inline void watchdog_start(uint32_t timeout_ms) {
+        _wd_last_kick_ms().store(uptime_ms());  // seed before enabling so the first poll can't see a stale kick
+        _wd_timeout_ms().store(timeout_ms);
+    }
+
+    inline void watchdog_kick() {
+        _wd_last_kick_ms().store(uptime_ms());
+    }
+
+    inline void watchdog_stop() {
+        _wd_timeout_ms().store(0);
+    }
+
+    /** @brief Service the watchdog, calling reset() if the timeout has lapsed.
+     *  Simulator-only; invoked from the emulator thread, whose cadence is
+     *  independent of the main loop — that independence is what lets the watchdog
+     *  fire even when the loop is wedged. */
+    inline void watchdog_poll() {
+        uint32_t timeout = _wd_timeout_ms().load();
+        if (timeout != 0 && uptime_ms() - _wd_last_kick_ms().load() > timeout) reset();
+    }
+
+    /** @} */
+
 }}
 
 #endif // TARGET_SIMULATOR

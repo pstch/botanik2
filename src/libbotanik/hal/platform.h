@@ -133,6 +133,26 @@ namespace Botanik { namespace HAL {
 
     /** @} */
 
+    /** @name Hardware watchdog
+     *  @{ */
+
+    /** @brief Start the hardware watchdog: if it is not kicked within
+     *  @p timeout_ms, the firmware resets. This is the *hardware* watchdog,
+     *  distinct from the PLC software watchdog in plcio/sync.h (which guards comms
+     *  liveness, not the whole firmware). On OPTA it drives the MCU's independent
+     *  watchdog peripheral; on the simulator it is serviced from the emulator
+     *  thread, which runs independently of the main loop so a wedged loop still
+     *  trips it. */
+    inline void watchdog_start(uint32_t timeout_ms);
+
+    /** @brief Reset the watchdog countdown; call once per healthy iteration. */
+    inline void watchdog_kick();
+
+    /** @brief Stop the watchdog (no-op if not started). */
+    inline void watchdog_stop();
+
+    /** @} */
+
     /** @name Serial I/O & console
      *  @{ */
 

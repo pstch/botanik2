@@ -152,6 +152,28 @@ namespace Botanik { namespace HAL {
 
     /** @} */
 
+    /** @name Hardware watchdog
+     *  @{ */
+
+    // Wrap the Mbed OS Watchdog singleton (the STM32H7 IWDG). Compile-reasoned
+    // only — confirm the API and timeout ceiling on a real arm-none-eabi build.
+
+    inline void watchdog_start(uint32_t timeout_ms) {
+        // Clamp to the peripheral's max window; the hardware rejects anything above it.
+        uint32_t max = mbed::Watchdog::get_instance().get_max_timeout();
+        mbed::Watchdog::get_instance().start(timeout_ms > max ? max : timeout_ms);
+    }
+
+    inline void watchdog_kick() {
+        mbed::Watchdog::get_instance().kick();
+    }
+
+    inline void watchdog_stop() {
+        mbed::Watchdog::get_instance().stop();
+    }
+
+    /** @} */
+
     /** @name Serial I/O
      *  @{ */
 

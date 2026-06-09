@@ -171,6 +171,11 @@ namespace Botanik { namespace PlcIO {
      *  Idempotent: a no-op if the thread is not running. */
     inline void stop_emulator_thread() {
         if (!_emu_running().exchange(false)) return;  // not running / already stopped
+        // When the watchdog trips, reset() runs *on* the emulator thread, so this
+        // hook would be joining itself (EDEADLK). Skip the join in that case — the
+        // following execve reaps the thread anyway, and we're synchronously inside
+        // reset() so the emulator isn't touching shared memory concurrently.
+        if (pthread_equal(pthread_self(), _emu_thread())) return;
         pthread_join(_emu_thread(), nullptr);
     }
 
@@ -189,6 +194,7 @@ namespace Botanik { namespace PlcIO {
         while (_emu_running().load(std::memory_order_relaxed)) {
             emu_timestamp_ms = (uint32_t)HAL::uptime_ms();
             plc_emulator.step();
+            HAL::watchdog_poll();  // serviced here so a wedged main loop still trips the watchdog
             // Emit a periodic heartbeat log every 30s, simulating the PLC coprocessor.
             constexpr uint32_t HEARTBEAT_TICKS = 30000 / Config::TASK_PERIOD_MS;
             if ((++emu_tick % HEARTBEAT_TICKS) == 0) {

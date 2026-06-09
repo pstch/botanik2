@@ -1,6 +1,9 @@
 # HAL Platform-Abstraction Plan
 
-Status: **in progress** — Workstreams A, B, C & D.1 done; D.2 (watchdog) pending.
+Status: **done** — Workstreams A, B, C, D.1 & D.2 all landed (SIMULATOR-validated;
+OPTA backend edits remain compile-reasoned, pending a real cross-build). Caller
+wiring for the watchdog (boot-time start + per-tick kick in the main loop) is the
+noted follow-up and is not part of this plan.
 
 This plan closes three HAL-boundary leaks and adds two missing platform
 primitives (`reset()` and a hardware watchdog) to the HAL. The throughline is the
@@ -205,7 +208,37 @@ during implementation.
 process re-execs (same args, fresh uptime, emulator thread restarted, no leaked
 shared-memory FDs).
 
-### D.2 — HAL hardware watchdog
+### D.2 — HAL hardware watchdog  ✅ done
+
+**Implemented:** `watchdog_start/kick/stop` declared in `platform.h` and defined
+per backend. OPTA wraps `mbed::Watchdog::get_instance()` (clamping the timeout to
+`get_max_timeout()`); compile-reasoned only, needs cross-build confirmation. On
+the sim, HAL holds the state (`std::atomic<uint32_t> _wd_timeout_ms`,
+`std::atomic<uint64_t> _wd_last_kick_ms`) plus a `watchdog_poll()` that calls
+`reset()` once the timeout lapses.
+
+**Design change from the plan — no separate monitor thread.** Rather than spawn a
+second sim thread, the existing PlcIO emulator thread services the watchdog by
+calling `HAL::watchdog_poll()` each iteration (every `TASK_PERIOD_MS` = 10 ms). It
+already runs independently of the main loop, which is the property the plan wanted
+the monitor thread for — so a wedged loop still trips the watchdog, at no extra
+thread cost. HAL still owns the watchdog state/policy; the emulator thread only
+provides the cadence (dependency stays `plcio → HAL`).
+
+**Consequence handled:** when the watchdog trips, `reset()` runs *on* the emulator
+thread, so the D.1 `on_reset` hook (`stop_emulator_thread`) would `pthread_join`
+itself → `EDEADLK`. `stop_emulator_thread` now guards with
+`pthread_equal(pthread_self(), _emu_thread())` and skips the join in that case;
+the subsequent `execve` reaps the thread, and we're synchronously inside `reset()`
+so the emulator isn't touching shared memory meanwhile. (This supersedes the
+plan's "reset() must stop the monitor thread before re-exec" note — there is no
+separate thread, and the hosting thread self-reaps via execve.)
+
+**Validated (SIMULATOR):** a harness starting the emulator + watchdog confirmed no
+reset across 600 ms of healthy kicks, then a reset (process re-exec, fresh uptime)
+within ~timeout after the kicks stop; ran the trip 5× with no self-join deadlock.
+
+**Original plan (for reference):**
 
 Interface (free functions, matching the existing `HAL` style):
 - `hal/platform.h` —
