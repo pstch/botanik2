@@ -17,9 +17,11 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Default to a Debug build so profiling/debugging works out of the box.
+# Default to a DEBUG build so profiling/debugging works out of the box. Build
+# types are spelled in upper case (DEBUG / RELEASE); CMake upper-cases the type
+# anyway when resolving the per-config CMAKE_*_FLAGS_<CONFIG> variables.
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
+    set(CMAKE_BUILD_TYPE DEBUG CACHE STRING "Build type" FORCE)
 endif()
 
 # Override CMake's default Debug flags ("-g") with profiler-friendly ones:
@@ -27,14 +29,28 @@ endif()
 set(CMAKE_C_FLAGS_DEBUG   "-O0 -g3 -gdwarf-4 -fno-omit-frame-pointer" CACHE STRING "" FORCE)
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3 -gdwarf-4 -fno-omit-frame-pointer" CACHE STRING "" FORCE)
 
+# Release: maximum optimization with assertions compiled out, and the final
+# executable stripped of its symbol table at link time (-s). We stop at -O3
+# rather than -Ofast on purpose: -Ofast pulls in -ffast-math, which would relax
+# the FP semantics the metric filters rely on. LTO is enabled separately below.
+set(CMAKE_C_FLAGS_RELEASE          "-O3 -DNDEBUG" CACHE STRING "" FORCE)
+set(CMAKE_CXX_FLAGS_RELEASE        "-O3 -DNDEBUG" CACHE STRING "" FORCE)
+set(CMAKE_EXE_LINKER_FLAGS_RELEASE "-s"           CACHE STRING "" FORCE)
 
-# Symlink compile_commands.json to the project root so clang-tidy/clangd
-# find it without extra configuration.
-execute_process(
-    COMMAND ${CMAKE_COMMAND} -E create_symlink
-        ${CMAKE_BINARY_DIR}/compile_commands.json
-        ${CMAKE_SOURCE_DIR}/compile_commands.json
-)
+
+# Symlink compile_commands.json to the project root so clang-tidy/clangd find it
+# without extra configuration. Only the DEBUG tree drives editor tooling, so a
+# parallel RELEASE (or other) configure won't repoint the symlink at the
+# optimized/NDEBUG compile flags. Compared case-insensitively so any spelling of
+# the build type still resolves correctly.
+string(TOUPPER "${CMAKE_BUILD_TYPE}" _build_type_upper)
+if(_build_type_upper STREQUAL "DEBUG")
+    execute_process(
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
+            ${CMAKE_BINARY_DIR}/compile_commands.json
+            ${CMAKE_SOURCE_DIR}/compile_commands.json
+    )
+endif()
 
 file(GLOB_RECURSE LIB_SOURCES
     "src/*.cpp"
@@ -79,6 +95,17 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
 
     add_executable(botanik_sim "src/botanik_sim/main.cpp")
     target_link_libraries(botanik_sim botanik)
+
+    # Link-time optimization for Release only (cross-TU inlining on top of -O3).
+    # Probed so a toolchain without LTO support degrades to a plain -O3 build.
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT _ipo_ok OUTPUT _ipo_msg)
+    if(_ipo_ok)
+        set_property(TARGET botanik botanik_sim
+                     PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+    else()
+        message(STATUS "IPO/LTO not supported, Release will use -O3 only: ${_ipo_msg}")
+    endif()
 
     # cppcheck static analysis target
     find_program(CPPCHECK cppcheck)
