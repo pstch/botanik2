@@ -2,25 +2,14 @@
 
 ## Documentation
 
- - Organize the Doxygen documentation. Maybe some of the things documented in markdown files will need to be moved to the Doxygen-based documentation.
- - Maybe we need to formalize the way we comment and structure our CPP files
+ - Formalize the way we comment and structure our CPP files
 
 ##  Test harness
 
  - Choose between Python and C++ for the test harness and write a basic test case for each of our main components
 
-## Performance monitoring
-
- - The performance monitoring code is a bit of a weak spot right now, we may need to refine the stack and CPU monitoring code.
-
 ## Small work items
 
- - terminal: there are unnecessary cursor moves between printed log lines
-
- - parser: reorganize and simplify chunking code, unify chunking for text and commands
-
- - simplify the entry point by moving simulation-specific code to its own header
-   (this is required because that entry point will serve as the reference documentation for the Arduino sketch)
 
 ## PLC I/O
 
@@ -57,10 +46,3 @@ NOTE: all screen interactions done by Page classes should always go through Ansi
   CPU load and stack usage graphs, Ethernet/NTP status, uptime.
 
   In practice, the StatusPage class itself should also be extensible and only provide the "scaffolding" for a status page. Some of the contents of a status page are static and should only be drawed when activating the page or redrawing it, while some contents need to be changed at periodic interval. 
-
-## Testing
-
-- **Unit tests**: No tests exist. The following components are self-contained enough
-  to test without hardware: `LoopScheduler` (tick/skip-beats), `Logger` token-bucket,
-  `_project_rollover` (rollover arithmetic), `InputParser` (state machine), and
-  `InputEditor` (geometry / ripple algorithm).
