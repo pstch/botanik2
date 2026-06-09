@@ -85,6 +85,10 @@ int main() {
     logger.add_writer(&shell_page);
     logger.add_writer(&logs_page);
 
+    // Tighten simulator scheduling (best-effort). Done after the sinks are
+    // registered so any failure warnings actually reach the log.
+    Scheduler::make_process_realtime(0, &logger);
+
     // Register terminal pages
     terminal.add_page(&shell_page);
     terminal.add_page(&logs_page);

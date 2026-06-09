@@ -81,6 +81,22 @@ namespace Botanik { namespace Scheduler {
 
     };
 
+#ifdef TARGET_SIMULATOR
+    /**
+     * @brief Best-effort: lock memory into RAM, switch to SCHED_FIFO, pin to a CPU core.
+     *
+     * Simulator-only (POSIX). Tightens the simulator's scheduling so its timing
+     * approximates the real PLC. Each step that fails (typically for lack of
+     * privileges) is logged as a warning and the process keeps running, instead
+     * of aborting. Call after the log sinks are registered so the warnings are
+     * not dropped.
+     *
+     * @param cpu_core_id Core to pin the process to.
+     * @param logger      Logger for failure warnings (optional).
+     */
+    void make_process_realtime(int cpu_core_id, Logs::Logger* logger = nullptr);
+#endif
+
 } }
 
 #endif // SCHEDULER_SCHEDULER_H

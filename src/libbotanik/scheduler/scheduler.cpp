@@ -4,6 +4,10 @@
  *        performance instrumentation lives in PerfMonitor (utils/perf).
  */
 #ifdef TARGET_SIMULATOR
+#include <cerrno>
+#include <cstring>
+#include <sched.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #endif
 
@@ -80,5 +84,26 @@ namespace Botanik { namespace Scheduler {
         // Caller must invoke perf().paint_stack() at user-code depth before working.
         return true;                            // return true so that work can start
     }
+
+#ifdef TARGET_SIMULATOR
+    void make_process_realtime(int cpu_core_id, Logs::Logger* logger) {
+        // 1. Lock memory pages into RAM to avoid page fault latency
+        if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1 && logger != nullptr)
+            logger->warning(PlcIO::BOOT, "mlockall failed: \n%s", strerror(errno));
+
+        // 2. Set the real-time scheduling policy (SCHED_FIFO) and priority
+        struct sched_param param;
+        param.sched_priority = 95; // Priorities range from 1 (low) to 99 (high)
+        if (sched_setscheduler(0, SCHED_FIFO, &param) == -1 && logger != nullptr)
+            logger->warning(PlcIO::BOOT, "sched_setscheduler failed: \n%s", strerror(errno));
+
+        // 3. Pin the process to a dedicated CPU core to prevent task migration
+        cpu_set_t mask;
+        CPU_ZERO(&mask);
+        CPU_SET(cpu_core_id, &mask);
+        if (sched_setaffinity(0, sizeof(cpu_set_t), &mask) == -1 && logger != nullptr)
+            logger->warning(PlcIO::BOOT, "sched_setaffinity failed: \n%s", strerror(errno));
+    }
+#endif
 
 } }
