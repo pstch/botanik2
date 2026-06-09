@@ -105,8 +105,10 @@ namespace Botanik { namespace Config {
     static constexpr uint32_t LOG_SUPPRESS_REPORT_PERIOD_MS = 10000;
 
     /** @brief Maximum number of unique log topics.
-     *  @note Each topic consumes memory for its rate-limiting bucket. */
-    static constexpr uint16_t LOG_TOPIC_MAX = 256;
+     *  @note Each topic consumes memory for its rate-limiting bucket. Bounded by
+     *  the uint8_t LogTopic type (and the uint8_t bucket-loop counters), so it must
+     *  stay <= 255 — see the static_assert in plcio/vars.h. */
+    static constexpr uint16_t LOG_TOPIC_MAX = 255;
 
     /** @brief Maximum number of pointers to registered log writers */
     static constexpr uint8_t LOG_WRITERS_MAX = 8;
