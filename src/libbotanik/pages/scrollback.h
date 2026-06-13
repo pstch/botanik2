@@ -32,20 +32,40 @@ namespace Botanik { namespace Pages {
         using AnsiTerminal = Terminal::AnsiTerminal;
         using CursorPos    = Terminal::Ansi::CursorPos;
 
-        // Circular line buffer (newest at _head-1)
-        char     _buf[Config::SHELL_SCROLLBACK_LINES][Config::SHELL_SCROLLBACK_LINE_LEN];
-        uint16_t _lens[Config::SHELL_SCROLLBACK_LINES] = {};
-        uint16_t _head  = 0;   // next slot to write
-        uint16_t _count = 0;   // number of stored lines
+        /** @name Circular line buffer
+         *  @{ */
 
-        // Deferred redraw state (driven by drain_redraw() to throttle TX output)
-        uint16_t _redraw_i         = UINT16_MAX;  // UINT16_MAX = not pending
+        /** @brief Stored line bytes (newest at _head-1). */
+        char     _buf[Config::SHELL_SCROLLBACK_LINES][Config::SHELL_SCROLLBACK_LINE_LEN];
+        /** @brief Per-line lengths, parallel to _buf. */
+        uint16_t _lens[Config::SHELL_SCROLLBACK_LINES] = {};
+        /** @brief Next slot to write. */
+        uint16_t _head  = 0;
+        /** @brief Number of stored lines. */
+        uint16_t _count = 0;
+
+        /** @} */
+
+        /** @name Deferred redraw state
+         *  @{ */
+
+        /** @brief Current redraw cursor; UINT16_MAX = no redraw pending. */
+        uint16_t _redraw_i         = UINT16_MAX;
+        /** @brief Number of rows the staged redraw still replays. */
         uint16_t _redraw_count     = 0;
+        /** @brief First line (from newest) of the staged window. */
         uint16_t _redraw_start     = 0;
+        /** @brief First screen row the staged window draws to. */
         uint16_t _redraw_first_row = 0;
-        CursorPos _redraw_saved    = {0, 0};      // cursor to restore once the replay drains
+        /** @brief Cursor to restore once the replay drains. */
+        CursorPos _redraw_saved    = {0, 0};
+
+        /** @} */
 
     public:
+        /** @name Line storage
+         *  @{ */
+
         /** @brief Store a line in the circular buffer (does not display it) */
         void store(const char* buf, size_t len);
 
@@ -69,6 +89,11 @@ namespace Botanik { namespace Pages {
          *  @return Pointer to the line bytes, or nullptr if @p from_end is out of range */
         const char* line(uint16_t from_end, uint16_t& len) const;
 
+        /** @} */
+
+        /** @name Redraw
+         *  @{ */
+
         /** @brief Stage a bottom-aligned incremental redraw within rows 1..log_rows */
         void begin_redraw(uint16_t log_rows);
 
@@ -81,6 +106,8 @@ namespace Botanik { namespace Pages {
         /** @brief Emit up to SCROLLBACK_REDRAW_ROWS_PER_TICK staged rows, stopping
          *         early if the TX buffer can't fit another row. No-op when idle. */
         void drain_redraw(AnsiTerminal& terminal);
+
+        /** @} */
     };
 
 }}

@@ -31,6 +31,9 @@
 
 namespace Botanik { namespace Utils {
 
+    /** @name Tuning constants & helpers
+     *  @{ */
+
     /** @brief EMA smoothing factor for a response time constant @p tau_ms, given
      *  the filter's sample period @p period_ms. Derived from the sample period so
      *  the filter's wall-clock response stays fixed regardless of how often it is
@@ -61,7 +64,11 @@ namespace Botanik { namespace Utils {
             ? LOAD_METRIC_WINDOW / Config::LOAD_METRIC_BUCKETS : 1;
     static constexpr uint32_t STACK_SLICE_MS = STACK_SLICE_TICKS * Config::TASK_PERIOD_MS;
 
-    
+    /** @} */
+
+    /** @name Metric filters
+     *  @{ */
+
     /** @brief Exponential moving average with asymmetric attack/decay: a sample
      *  above the current value is folded in with @c attack, one below it with
      *  @c decay, so the filter can rise fast and fall slow (or vice versa). */
@@ -141,6 +148,11 @@ namespace Botanik { namespace Utils {
     /** @brief Windowed-max sized to the load-metric bucket count. */
     typedef WindowedMax<Config::LOAD_METRIC_BUCKETS> MetricWindow;
 
+    /** @} */
+
+    /** @name Snapshot
+     *  @{ */
+
     /** @brief Stable performance snapshot published to external consumers */
     struct PerfSnapshot {
         /** @brief moving average of CPU load (fraction of tick interval) */
@@ -167,6 +179,11 @@ namespace Botanik { namespace Utils {
         uint32_t stack_depth        = 0;
     };
 
+    /** @} */
+
+    /** @name Monitor
+     *  @{ */
+
     /** @brief Measures CPU and stack metrics of the main loop iterations.
      *
      *  Usage per loop iteration: 
@@ -179,48 +196,17 @@ namespace Botanik { namespace Utils {
      *   - sample() at the top of the next tick to record metrics
      *   - snapshot() to expose the filtered metrics */
     class PerfMonitor {
-    public:
-        explicit PerfMonitor(uint32_t period_ms);
-
-        /** @brief Open the work window (loop work about to run). */
-        void work_begin();
-
-        /** @brief Close the work window: record the work duration, advance the
-         *  stack slice (repaint at slice boundaries) and update the metrics. */
-        void sample();
-
-        /** @brief Record a tick's scheduling jitter.
-         *  @note Fed by LoopScheduler. */
-        void record_jitter(uint32_t jitter_us);
-
-        /** @brief Repaint the free stack below the caller's SP with STACK_PAINT_BYTE,
-         *  but only when a new slice is due, cheap no-op on every other tick.
-         *
-         *  @warning Must be inlined into the caller's frame so &sp_marker reflects the caller's
-         *  SP, not this method's. 
-         * 
-         *  @note Call once per iteration at user-code depth; between repaints
-         *  the running work keeps dirtying the painted region, so its high-water 
-         *  at the next boundary is the worst case across the whole slice. */
-        BOTANIK_NO_ASAN inline void paint_stack() {
-            if (!_repaint_pending) return;
-            _repaint_pending = false;
-            volatile uint8_t sp_marker = 0;
-            _paint_below(const_cast<uint8_t*>(&sp_marker));
-        }
-
-        /** @brief Clear all metrics and filters and republish a cleared snapshot. */
-        void reset();
-
-        /** @brief Latest filtered metrics (refreshed by sample()). */
-        const PerfSnapshot& snapshot() const { return _snap; }
-
-    private:
+        /** @name Configuration
+         *  @{ */
 
         /** @brief Tick interval, microseconds, used to normalize busy/jitter into a load fraction. */
         uint32_t          _period_ms;
 
-        // Work-window timing
+        /** @} */
+
+        /** @name Work-window timing
+         *  @{ */
+
         /** @brief True between work_begin() and the matching sample(): a window is open. */
         bool              _measuring     = false;
         /** @brief uptime_us() captured at work_begin(), the open window's start. */
@@ -228,7 +214,11 @@ namespace Botanik { namespace Utils {
         /** @brief Duration of the last closed work window, microseconds. */
         uint32_t          _last_busy_us  = 0;
 
-        // CPU-load metrics
+        /** @} */
+
+        /** @name CPU-load metrics
+         *  @{ */
+
         /** @brief EMA of CPU load (busy time as a fraction of the tick interval). */
         ExpMovingAverage  _cpu_load;
         /** @brief All-time peak work duration, microseconds. */
@@ -236,7 +226,12 @@ namespace Botanik { namespace Utils {
         /** @brief Windowed peak work duration, microseconds. */
         MetricWindow      _cpu_loop_us_window;
 
-        // Scheduling-jitter metric (fed by the scheduler each tick).
+        /** @} */
+
+        /** @name Scheduling-jitter metrics
+         *  @brief Fed by the scheduler each tick.
+         *  @{ */
+
         /** @brief EMA of scheduling jitter (as a fraction of the tick interval). */
         ExpMovingAverage  _jitter;
         /** @brief Windowed peak scheduling jitter, microseconds. */
@@ -244,9 +239,14 @@ namespace Botanik { namespace Utils {
         /** @brief All-time peak scheduling jitter, microseconds. */
         uint32_t          _jitter_us_max = 0;
 
-        // Stack-usage metrics. The free stack is painted once per slice and left to
-        // accumulate the high-water mark; _stack_slices holds the per-slice peaks
-        // (one per bucket) whose max is the rolling "recent" figure.
+        /** @} */
+
+        /** @name Stack-usage metrics
+         *  @brief The free stack is painted once per slice and left to accumulate the
+         *  high-water mark; _stack_slices holds the per-slice peaks (one per bucket)
+         *  whose max is the rolling "recent" figure.
+         *  @{ */
+
         /** @brief Total thread stack allocation, bytes. */
         uint32_t          _stack_depth = 0;
         /** @brief Address one past the top of the stack; scans index downward from here. */
@@ -264,16 +264,81 @@ namespace Botanik { namespace Utils {
         /** @brief Repaint the stack on the next paint_stack(). */
         bool              _repaint_pending   = true;
 
-        // Published snapshot
+        /** @} */
+
+        /** @name Published snapshot
+         *  @{ */
+
         /** @brief Latest filtered metrics exposed via snapshot(). */
         PerfSnapshot      _snap;
+
+        /** @} */
+
+    public:
+        /** @name Lifecycle
+         *  @{ */
+
+        explicit PerfMonitor(uint32_t period_ms);
+
+        /** @brief Clear all metrics and filters and republish a cleared snapshot. */
+        void reset();
+
+        /** @} */
+
+        /** @name Per-loop measurement
+         *  @{ */
+
+        /** @brief Open the work window (loop work about to run). */
+        void work_begin();
+
+        /** @brief Close the work window: record the work duration, advance the
+         *  stack slice (repaint at slice boundaries) and update the metrics. */
+        void sample();
+
+        /** @brief Record a tick's scheduling jitter.
+         *  @note Fed by LoopScheduler. */
+        void record_jitter(uint32_t jitter_us);
+
+        /** @brief Repaint the free stack below the caller's SP with STACK_PAINT_BYTE,
+         *  but only when a new slice is due, cheap no-op on every other tick.
+         *
+         *  @warning Must be inlined into the caller's frame so &sp_marker reflects the caller's
+         *  SP, not this method's.
+         *
+         *  @note Call once per iteration at user-code depth; between repaints
+         *  the running work keeps dirtying the painted region, so its high-water
+         *  at the next boundary is the worst case across the whole slice. */
+        BOTANIK_NO_ASAN inline void paint_stack() {
+            if (!_repaint_pending) return;
+            _repaint_pending = false;
+            volatile uint8_t sp_marker = 0;
+            _paint_below(const_cast<uint8_t*>(&sp_marker));
+        }
+
+        /** @} */
+
+        /** @name Snapshot access
+         *  @{ */
+
+        /** @brief Latest filtered metrics (refreshed by sample()). */
+        const PerfSnapshot& snapshot() const { return _snap; }
+
+        /** @} */
+
+    private:
+        /** @name Internals
+         *  @{ */
 
         /** @brief Binary-search the painted stack for the high-water mark, update
          *  the stack metrics. */
         BOTANIK_NO_ASAN void _measure_stack_usage();
         /** @brief Paint the free stack region below @p caller_sp. */
         BOTANIK_NO_ASAN void _paint_below(uint8_t* caller_sp);
+
+        /** @} */
     };
+
+    /** @} */
 
 }}
 

@@ -13,8 +13,8 @@
 
 namespace Botanik { namespace Utils {
 
-    // Timestamp projection
-    // -----------------------------------------------------------------------
+    // Rollover projection
+    // ------------------------------------------------------------------------
 
     // Project a ms timestamp into the given window (uptime)
     uint64_t _project_rollover(uint64_t uptime, uint32_t timestamp) {
@@ -32,8 +32,8 @@ namespace Botanik { namespace Utils {
         return _project_rollover(HAL::uptime_us(), timestamp_us);
     }
 
-    // Calendar time conversion and formatting
-    // -----------------------------------------------------------------------
+    // Calendar conversion & formatting
+    // ------------------------------------------------------------------------
 
     // Wall-clock epoch as UNIX ms at uptime 0, captured once on first use. 
     // NOTE: `wall_now - uptime_now` is invariant, because wall and uptime

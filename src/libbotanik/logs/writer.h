@@ -62,31 +62,57 @@ namespace Botanik { namespace Logs {
 
         /** @name Entry queue
          *  @{ */
-        LogEntry_t _queue[Config::LOG_QUEUE_SIZE];  ///< ring buffer of pending entries
+
+        /** @brief Ring buffer of pending entries. */
+        LogEntry_t _queue[Config::LOG_QUEUE_SIZE];
+        /** @brief Read cursor into _queue. */
         uint8_t _readIndex = 0;
+        /** @brief Write cursor into _queue. */
         uint8_t _writeIndex = 0;
+
         /** @} */
 
         /** @name Outgoing message
          *  @{ */
-        char _message[Config::LOG_FORMATTED_LEN];   ///< the entry currently being sent
-        size_t _length = 0;                         ///< total bytes in _message
-        size_t _sent = 0;                           ///< bytes of _message already written
+
+        /** @brief The entry currently being sent. */
+        char _message[Config::LOG_FORMATTED_LEN];
+        /** @brief Total bytes in _message. */
+        size_t _length = 0;
+        /** @brief Bytes of _message already written. */
+        size_t _sent = 0;
+
         /** @} */
 
         /** @name Counters
          *  @{ */
-        uint32_t _dropped = 0;   ///< entries dropped because the queue was full
-        uint32_t _failed = 0;    ///< entries that failed to format
+
+        /** @brief Entries dropped because the queue was full. */
+        uint32_t _dropped = 0;
+        /** @brief Entries that failed to format. */
+        uint32_t _failed = 0;
+
         /** @} */
 
-        /** @brief Drain bytes from the currently outgoing message. */
-        bool _drain_message();
     public:
+        /** @name Queue interface
+         *  @{ */
+
         /** @brief Enqueue @p entry; drops silently if the queue is full */
         void push(const LogEntry_t* entry) override;
         /** @brief Flush queued entries to the output medium (call from the main loop) */
         void drain() override;
+
+        /** @} */
+
+    private:
+        /** @name Internals
+         *  @{ */
+
+        /** @brief Drain bytes from the currently outgoing message. */
+        bool _drain_message();
+
+        /** @} */
     };
 
     /**
@@ -99,13 +125,35 @@ namespace Botanik { namespace Logs {
     protected:
         using BufferedSerial = Utils::BufferedSerial;
         using LogEntry_t = PlcIO::LogEntry_t;
+
     private:
-        BufferedSerial* _serial;  ///< bound output port
-        size_t format(const LogEntry_t* entry, char* buf, size_t len);
-        size_t write(const char* buf, size_t len);
+        /** @name State
+         *  @{ */
+
+        /** @brief Bound output port. */
+        BufferedSerial* _serial;
+
+        /** @} */
+
     public:
+        /** @name Lifecycle
+         *  @{ */
+
         /** @brief Bind the writer to the given serial port */
         SerialLogWriter(BufferedSerial& serial);
+
+        /** @} */
+
+    private:
+        /** @name Channel implementation
+         *  @{ */
+
+        /** @brief Format a log entry into @p buf; returns the number of bytes written */
+        size_t format(const LogEntry_t* entry, char* buf, size_t len);
+        /** @brief Write @p len bytes to the bound serial port (never blocks) */
+        size_t write(const char* buf, size_t len);
+
+        /** @} */
     };
 
 }}

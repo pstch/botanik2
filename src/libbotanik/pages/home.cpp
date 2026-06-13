@@ -11,7 +11,13 @@
 
 namespace Botanik { namespace Pages {
 
+    // Lifecycle
+    // ------------------------------------------------------------------------
+
     HomePage::HomePage(AnsiTerminal& terminal) : _terminal(terminal) {}
+
+    // Draw hooks
+    // ------------------------------------------------------------------------
 
     void HomePage::draw_logo() {
         // Content starts at row 1; row 0 belongs to the terminal status bar.
@@ -52,23 +58,8 @@ namespace Botanik { namespace Pages {
         // Entries are supplied by subclasses via menu_count()/draw hooks.
     }
 
-    void HomePage::focus() {
-        _active = true;
-        draw_logo();
-        draw_status();
-        draw_menu();
-        draw_extra();
-    }
-
-    void HomePage::tick(bool active) {
-        _active = active;
-        if (!active) return;
-        uint64_t now = HAL::uptime_ms();
-        if (now - _status_last_ms >= Config::STATUS_REFRESH_MS) {
-            _status_last_ms = now;
-            refresh_status();
-        }
-    }
+    // Page interface
+    // ------------------------------------------------------------------------
 
     void HomePage::handle_text(char) {}
 
@@ -90,5 +81,23 @@ namespace Botanik { namespace Pages {
     }
 
     void HomePage::deactivate() { _active = false; }
+
+    void HomePage::focus() {
+        _active = true;
+        draw_logo();
+        draw_status();
+        draw_menu();
+        draw_extra();
+    }
+
+    void HomePage::tick(bool active) {
+        _active = active;
+        if (!active) return;
+        uint64_t now = HAL::uptime_ms();
+        if (now - _status_last_ms >= Config::STATUS_REFRESH_MS) {
+            _status_last_ms = now;
+            refresh_status();
+        }
+    }
 
 }}

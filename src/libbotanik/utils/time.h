@@ -26,7 +26,10 @@ namespace Botanik { namespace Utils {
     // (absolute_ms() and absolute_us()), as well a some standard formatting/conversion
     // functions.
 
-    /** @brief Calendar time struct, without the idiosyncracies from the standard tm struct 
+    /** @name Types
+     *  @{ */
+
+    /** @brief Calendar time struct, without the idiosyncracies from the standard tm struct
      * and with some additional fields for total days and milliseconds */
     struct CalendarTime {
         // standard calendar fields
@@ -41,6 +44,11 @@ namespace Botanik { namespace Utils {
         uint32_t    unixDays;           // days after UNIX epoch, 0-indexed
         uint64_t    unixSeconds;        // seconds after UNIX epoch, 0-indexed
     };
+
+    /** @} */
+
+    /** @name Rollover projection
+     *  @{ */
 
     /** @brief Convert a 32-bit uptime timestamp to an absolute 64-bit timestamp,
      *  assuming the given timestamp occurs in the rollover window centered on the
@@ -60,6 +68,11 @@ namespace Botanik { namespace Utils {
      *  @warning see warning in uptime_ms() about the µs precision of the low-power clock. */
     uint64_t absolute_us(uint32_t timestamp_us);
 
+    /** @} */
+
+    /** @name Calendar conversion & formatting
+     *  @{ */
+
     /** @brief Convert an absolute ms uptime counter into a calendar datetime. */
     CalendarTime cal_time_ms(uint64_t timestamp_ms);
 
@@ -69,6 +82,8 @@ namespace Botanik { namespace Utils {
 
     /** @brief Format an absolute millisecond uptime counter into an UTC timestamp. */
     void format_ms_timestamp(uint64_t timestamp_ms, char* buf, size_t len);
+
+    /** @} */
 
 }}
 

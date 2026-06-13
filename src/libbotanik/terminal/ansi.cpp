@@ -10,6 +10,13 @@
 namespace Botanik { namespace Terminal { namespace Ansi {
     using BufferedSerial = Botanik::Utils::BufferedSerial;
 
+    // Generic utilities
+    // ------------------------------------------------------------------------
+
+    bool is_printable(uint8_t b) {
+        return b >= 0x20 && b <= 0x7E;
+    }
+
     void write_uint16(BufferedSerial& _serial, uint16_t val) {
         char buf[5];
         int8_t i = 4;
@@ -20,6 +27,30 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         }
         _serial.write(&buf[i + 1], 4 - i);
     }
+
+    // State management
+    // ------------------------------------------------------------------------
+
+    bool set_insert_mode(BufferedSerial& _serial, bool active) {
+        // All-or-nothing: a half-written escape (CSI in, mode byte dropped) would
+        // leave the terminal parsing the next payload bytes as the tail of an
+        // escape. Only emit when the whole sequence fits.
+        const char* mode = active ? SM4 : RM4;
+        uint16_t need = (uint16_t)(sizeof(CSI) - 1) + (uint16_t)(sizeof(SM4) - 1);
+        if (_serial.availableForWrite() < need) return false;
+        _serial.write(CSI, sizeof(CSI) - 1);
+        _serial.write(mode, sizeof(SM4) - 1);
+        return true;
+    }
+
+    void set_auto_wrap(BufferedSerial& _serial, bool enable) {
+        _serial.write(CSI, sizeof(CSI) - 1);
+        if (enable) _serial.write(DECAWM_SET,   sizeof(DECAWM_SET)   - 1);
+        else        _serial.write(DECAWM_RESET,  sizeof(DECAWM_RESET) - 1);
+    }
+
+    // Cursor movement
+    // ------------------------------------------------------------------------
 
     void goto_absolute(BufferedSerial& _serial, const CursorPos& cursor) {
         _serial.write(CSI, sizeof(CSI) - 1);
@@ -60,21 +91,12 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         _serial.write(CUD, sizeof(CUD) - 1);
     }
 
-    void move_line_begin(BufferedSerial& _serial) {
+    void move_row_start(BufferedSerial& _serial) {
         _serial.write("\r", 1);
     }
 
-    bool set_insert_mode(BufferedSerial& _serial, bool active) {
-        // All-or-nothing: a half-written escape (CSI in, mode byte dropped) would
-        // leave the terminal parsing the next payload bytes as the tail of an
-        // escape. Only emit when the whole sequence fits.
-        const char* mode = active ? SM4 : RM4;
-        uint16_t need = (uint16_t)(sizeof(CSI) - 1) + (uint16_t)(sizeof(SM4) - 1);
-        if (_serial.availableForWrite() < need) return false;
-        _serial.write(CSI, sizeof(CSI) - 1);
-        _serial.write(mode, sizeof(SM4) - 1);
-        return true;
-    }
+    // Content edition
+    // ------------------------------------------------------------------------
 
     void insert_rows(BufferedSerial& _serial, uint16_t count) {
         if (count == 0) return;
@@ -97,6 +119,9 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         _serial.write(DCH, sizeof(DCH) - 1);
     }
 
+    // Content clearing
+    // ------------------------------------------------------------------------
+
     void clear_to_eol(BufferedSerial& _serial) {
         _serial.write(CSI, sizeof(CSI) - 1);
         _serial.write(EL, sizeof(EL) - 1);
@@ -115,13 +140,4 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         _serial.write(MOVE, sizeof(MOVE) - 1);     // ESC[H: cursor to home (row 1, col 1)
     }
 
-    void set_auto_wrap(BufferedSerial& _serial, bool enable) {
-        _serial.write(CSI, sizeof(CSI) - 1);
-        if (enable) _serial.write(DECAWM_SET,   sizeof(DECAWM_SET)   - 1);
-        else        _serial.write(DECAWM_RESET,  sizeof(DECAWM_RESET) - 1);
-    }
-
-    bool is_printable(uint8_t b) {
-        return b >= 0x20 && b <= 0x7E;
-    }
 }}}

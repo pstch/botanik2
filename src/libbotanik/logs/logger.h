@@ -22,9 +22,12 @@ namespace Botanik { namespace Logs {
 
     /** @brief State of a single token bucket in the rate limiter. */
     struct LogBucket_t {
-        uint16_t    state                   = 0;  ///< tokens currently available
-        uint16_t    suppressed              = 0;  ///< entries dropped since the last report
-        uint32_t    count                   = 0;  ///< total entries that passed the bucket
+        /** @brief Tokens currently available. */
+        uint16_t    state                   = 0;
+        /** @brief Entries dropped since the last report. */
+        uint16_t    suppressed              = 0;
+        /** @brief Total entries that passed the bucket. */
+        uint32_t    count                   = 0;
     };
 
     class Logger {
@@ -33,27 +36,53 @@ namespace Botanik { namespace Logs {
 
         /** @name Global rate-limiter
          *  @{ */
+
+        /** @brief Burst capacity (max tokens) of the global bucket. */
         uint16_t        _global_burst           = Config::LOG_GLOBAL_BUCKET_BURST;
+        /** @brief Refill period of the global bucket (ms). */
         uint32_t        _global_period_ms       = Config::LOG_GLOBAL_BUCKET_PERIOD_MS;
+        /** @brief Wall-clock time of the last global-bucket refill. */
         uint32_t        _global_fillTime_ms     = 0;
+        /** @brief The single global token bucket. */
         LogBucket_t     _global_bucket;
+
         /** @} */
 
         /** @name Per-topic rate-limiter
          *  @{ */
+
+        /** @brief Burst capacity (max tokens) of each per-topic bucket. */
         uint16_t        _perTopic_burst         = Config::LOG_PERTOPIC_BUCKET_BURST;
+        /** @brief Refill period of the per-topic buckets (ms). */
         uint32_t        _perTopic_period_ms     = Config::LOG_PERTOPIC_BUCKET_PERIOD_MS;
+        /** @brief Wall-clock time of the last per-topic refill. */
         uint32_t        _perTopic_fillTime_ms   = 0;
+        /** @brief One token bucket per log topic. */
         LogBucket_t     _perTopic_buckets[Config::LOG_TOPIC_MAX];
+
         /** @} */
 
-        /// Suppressed-message reporting cadence (decoupled from bucket refills).
+        /** @name Suppression reporting
+         *  @{ */
+
+        /** @brief Cadence for suppressed-message reports (ms), decoupled from
+         *  bucket refills. */
         uint32_t        _suppress_period_ms     = Config::LOG_SUPPRESS_REPORT_PERIOD_MS;
+        /** @brief Wall-clock time of the last suppression report. */
         uint32_t        _suppress_reportTime_ms = 0;
 
-        /// Registered output writers.
+        /** @} */
+
+        /** @name Writers
+         *  @{ */
+
+        /** @brief Registered output writers. */
         LogWriter*      _writers[Config::LOG_WRITERS_MAX];
+        /** @brief Number of registered writers. */
         uint8_t         _writerCount            = 0;
+
+        /** @} */
+
     protected:
         /** @name Rate-limiting internals
          *  @{ */

@@ -40,23 +40,70 @@ namespace Botanik { namespace Pages {
         using LogEntry_t   = PlcIO::LogEntry_t;
         using Command      = Terminal::InputEvent::Command;
 
+        /** @name State
+         *  @{ */
+
+        /** @brief Owning terminal. */
         AnsiTerminal&      _terminal;
+        /** @brief Bottom-row line editor. */
         InputEditor        _editor;
+        /** @brief Command interpreter fed by the editor. */
         Shell::CommandShell _shell;
-
-        // Circular log line buffer + throttled redraw for redraw/page-switch replay
+        /** @brief Circular log line buffer + throttled redraw for redraw/page-switch replay. */
         Scrollback _scrollback;
-
-        // Mirrors the latest tick(active) argument so write() — reached indirectly
-        // via drain() — knows whether it may paint. False while in the background.
+        /** @brief Mirrors the latest tick(active) argument so write() — reached
+         *  indirectly via drain() — knows whether it may paint. False while in the
+         *  background. */
         bool _active = false;
-
-        // True while inside drain(), so write() — shared by log and command output —
-        // knows to wrap continuations with the indented log prefix rather than the
-        // plain command-output prefix.
+        /** @brief True while inside drain(), so write() — shared by log and command
+         *  output — wraps continuations with the indented log prefix rather than the
+         *  plain command-output prefix. */
         bool _draining_log = false;
 
+        /** @} */
+
+    public:
+        /** @name Lifecycle
+         *  @{ */
+
+        /** @brief Construct a ShellPage bound to the given terminal. */
+        ShellPage(Terminal::AnsiTerminal& terminal);
+
+        /** @} */
+
+        /** @name Page interface
+         *  @{ */
+
+        const char* name() const override { return "SHELL"; }
+        void handle_text(char c) override;
+        void handle_text_batch(const char* buf, uint16_t len) override;
+        void handle_command(Command cmd, uint16_t count = 1) override;
+        void deactivate() override;
+        void focus() override;
+        void redraw() override;
+        void tick(bool active) override;
+
+        /** @} */
+
+    private:
+        /** @name BufferedLogWriter + ShellWriter interface
+         *  @{ */
+
+        // One implementation serves both base interfaces.
+        size_t format(const LogEntry_t* entry, char* buf, size_t len) override;
+        size_t write(const char* buf, size_t len) override;
+        void   write_lines(const char* buf, uint16_t len) override;
+        void   drain() override;
+        void   clear() override;
+
+        /** @} */
+
+        /** @name Internals
+         *  @{ */
+
+        /** @brief Configure the editor's prompts and geometry. */
         void _setup_editor();
+        /** @brief Repaint the whole page (header, log area, editor). */
         void _full_redraw();
 
         /** @brief Submit the current editor line: snapshot it, echo it into the
@@ -73,25 +120,7 @@ namespace Botanik { namespace Pages {
          *         Used when the editor shrinks, to avoid a full log redraw. */
         void _reveal_log_rows(uint16_t delta);
 
-        // BufferedLogWriter + ShellWriter interface (one impl serves both)
-        size_t format(const LogEntry_t* entry, char* buf, size_t len) override;
-        size_t write(const char* buf, size_t len) override;
-        void   write_lines(const char* buf, uint16_t len) override;
-        void   drain() override;
-        void   clear() override;
-
-    public:
-        ShellPage(Terminal::AnsiTerminal& terminal);
-
-        // Page interface
-        const char* name() const override { return "SHELL"; }
-        void handle_text(char c) override;
-        void handle_text_batch(const char* buf, uint16_t len) override;
-        void handle_command(Command cmd, uint16_t count = 1) override;
-        void deactivate() override;
-        void focus() override;
-        void redraw() override;
-        void tick(bool active) override;
+        /** @} */
     };
 
 }}

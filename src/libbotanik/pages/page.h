@@ -16,10 +16,18 @@ namespace Botanik { namespace Pages {
     private:
         using Command = Terminal::InputEvent::Command;
     public:
+        /** @name Lifecycle
+         *  @{ */
+
         virtual ~Page() {}
 
         /** @brief Short name shown in the status bar (e.g. "SHELL") */
         virtual const char* name() const = 0;
+
+        /** @} */
+
+        /** @name Input
+         *  @{ */
 
         /** @brief Handle a single printable character from the user */
         virtual void handle_text(char c) = 0;
@@ -36,6 +44,11 @@ namespace Botanik { namespace Pages {
          */
         virtual void handle_command(Command cmd, uint16_t count = 1) = 0;
 
+        /** @} */
+
+        /** @name Focus & update
+         *  @{ */
+
         /** @brief Called when this page is about to be replaced by another page */
         virtual void deactivate() = 0;
         /** @brief Called when this page becomes active (screen already cleared) */
@@ -49,6 +62,8 @@ namespace Botanik { namespace Pages {
          * in the background. @p active is true only for the page that currently
          * owns the screen; inactive pages must not emit any terminal output. */
         virtual void tick(bool active) = 0;
+
+        /** @} */
     };
 
 }}

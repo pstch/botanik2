@@ -26,17 +26,36 @@ namespace Botanik { namespace PlcIO {
     struct PlcEmulatorContext {
         template<typename, typename> friend class PlcEmulator;
     private:
+        /** @name State
+         *  @{ */
+
+        /** @brief A TX write has been requested. */
         bool             _tx_write       = false;
-        PlcInputLogs_t   _rx_logs_buffer = {};  // emulator RX ← what host transmitted
-        PlcOutputLogs_t  _tx_logs_buffer = {};  // emulator TX → what host will receive
+        /** @brief Emulator RX ← what the host transmitted. */
+        PlcInputLogs_t   _rx_logs_buffer = {};
+        /** @brief Emulator TX → what the host will receive. */
+        PlcOutputLogs_t  _tx_logs_buffer = {};
+        /** @brief Shared wall-clock timestamp (ms). */
         uint32_t*        _timestamp_ms   = nullptr;
+        /** @brief Time of the last acknowledged TX. */
         uint32_t         _tx_last_ms     = 0;
+        /** @brief True once any TX has ever been acknowledged. */
         bool             _ever_ackd      = false;
+
+        /** @} */
+
     public:
+        /** @name Interface
+         *  @{ */
+
+        /** @brief Request a TX write on the next emulator step. */
         void                  write()              { _tx_write = true; }
+        /** @brief Emulator output log buffer (host receives from here). */
         PlcOutputLogs_t*      output_logs()        { return &_tx_logs_buffer; }
+        /** @brief Emulator input log buffer (host wrote here). */
         const PlcInputLogs_t* input_logs() const   { return &_rx_logs_buffer; }
 
+        /** @brief Current PLC link status derived from the ack timing. */
         PlcStatus status() const {
             uint32_t elapsed = *_timestamp_ms - _tx_last_ms;
             if (!_ever_ackd)                        return PLC_UNKNOWN;
@@ -44,6 +63,8 @@ namespace Botanik { namespace PlcIO {
             if (elapsed > Config::PLC_TIMEOUT_MS)   return PLC_TIMEOUT;
                                                     return PLC_RUNNING;
         }
+
+        /** @} */
     };
 
     /**
@@ -56,16 +77,72 @@ namespace Botanik { namespace PlcIO {
     template<typename InputData, typename OutputData>
     class PlcEmulator {
     private:
+        /** @name State
+         *  @{ */
+
+        /** @brief Payload-independent emulator context (logs, timing). */
         PlcEmulatorContext     _ctx;
+        /** @brief Heartbeat/commit interval (ms). */
         uint32_t               _heartbeat_ms  = Config::PLC_HEARTBEAT_MS;
-        PlcInput<InputData>*   _plcin;                  // PLC input memory  (read-only  for emulator)
-        PlcOutput<OutputData>* _plcout;                 // PLC output memory (write-only for emulator)
-        InputData              _rx_data_buffer;         // local receive buffer for _plcin->data
-        OutputData             _tx_data_buffer;         // local transmit buffer for _plcout->data
+        /** @brief PLC input memory (read-only for the emulator). */
+        PlcInput<InputData>*   _plcin;
+        /** @brief PLC output memory (write-only for the emulator). */
+        PlcOutput<OutputData>* _plcout;
+        /** @brief Local receive buffer for _plcin->data. */
+        InputData              _rx_data_buffer;
+        /** @brief Local transmit buffer for _plcout->data. */
+        OutputData             _tx_data_buffer;
+        /** @brief RX state-machine state. */
         PlcRxState             _rx_state      = RX_IDLE;
+        /** @brief TX state-machine state. */
         PlcTxState             _tx_state      = TX_IDLE;
 
-        // Transition triggers
+        /** @} */
+
+    public:
+        /** @name Lifecycle
+         *  @{ */
+
+        /** @brief Bind the emulator to PLC shared memory and a timestamp. */
+        PlcEmulator(PlcInput<InputData>* plcin, PlcOutput<OutputData>* plcout,
+                    uint32_t* timestamp_ms)
+            : _plcin(plcin), _plcout(plcout)
+        {
+            _ctx._timestamp_ms = timestamp_ms;
+            _ctx._tx_last_ms   = *timestamp_ms;
+            memset(&_rx_data_buffer, 0, sizeof(InputData));
+            memset(&_tx_data_buffer, 0, sizeof(OutputData));
+        }
+
+        /** @} */
+
+        /** @name Data access
+         *  @{ */
+
+        /** @brief Payload-independent context for the log writer. */
+        PlcEmulatorContext*  context()           { return &_ctx; }
+        /** @brief Transmit buffer staged for the PLC output payload. */
+        OutputData*          output_data()       { return &_tx_data_buffer; }
+        /** @brief Most recently received PLC input payload. */
+        const InputData*     input_data() const  { return &_rx_data_buffer; }
+
+        /** @} */
+
+        /** @name Step
+         *  @{ */
+
+        /** @brief Advance both state machines once; call per tick. */
+        inline void step() {
+            _rx_state = _rx_step();
+            _tx_state = _tx_step();
+        }
+
+        /** @} */
+
+    private:
+        /** @name Transition triggers
+         *  @{ */
+
         inline bool _rx_new_message()       { return _plcin->sync.rxSeqNum != _plcout->sync.rxAckNum; }
         inline bool _tx_heartbeat_elapsed() { return *_ctx._timestamp_ms - _ctx._tx_last_ms > _heartbeat_ms; }
         inline bool _tx_acknowledged() {
@@ -74,7 +151,11 @@ namespace Botanik { namespace PlcIO {
             return result;
         }
 
-        // Transition actions
+        /** @} */
+
+        /** @name Transition actions
+         *  @{ */
+
         inline void _rx_memcpy() {
             HAL::ordered_copy(&_ctx._rx_logs_buffer, &_plcin->logs);
             HAL::ordered_copy(&_rx_data_buffer, &_plcin->data);
@@ -92,6 +173,11 @@ namespace Botanik { namespace PlcIO {
             uint32_t next_seq = _plcout->sync.txSeqNum + 1;
             HAL::ordered_copy(&_plcout->sync.txSeqNum, &next_seq);
         }
+
+        /** @} */
+
+        /** @name State machines
+         *  @{ */
 
         inline PlcRxState _rx_step() {
             switch (_rx_state) {
@@ -112,39 +198,39 @@ namespace Botanik { namespace PlcIO {
             return _tx_state;
         }
 
-    public:
-        PlcEmulator(PlcInput<InputData>* plcin, PlcOutput<OutputData>* plcout,
-                    uint32_t* timestamp_ms)
-            : _plcin(plcin), _plcout(plcout)
-        {
-            _ctx._timestamp_ms = timestamp_ms;
-            _ctx._tx_last_ms   = *timestamp_ms;
-            memset(&_rx_data_buffer, 0, sizeof(InputData));
-            memset(&_tx_data_buffer, 0, sizeof(OutputData));
-        }
-
-        PlcEmulatorContext*  context()           { return &_ctx; }
-        OutputData*          output_data()       { return &_tx_data_buffer; }
-        const InputData*     input_data() const  { return &_rx_data_buffer; }
-
-        inline void step() {
-            _rx_state = _rx_step();
-            _tx_state = _tx_step();
-        }
+        /** @} */
     };
 
     /** @brief Pushes log entries into the emulator's output buffer, simulating the
      *  PLC coprocessor sending logs to the host. */
     class PlcLogWriter {
     private:
+        /** @name State
+         *  @{ */
+
+        /** @brief Emulator context owning the output log buffer. */
         PlcEmulatorContext* _ctx;
+        /** @brief Shared wall-clock timestamp (ms). */
         const uint32_t*     _timestamp_ms;
+        /** @brief Next sequence number to stamp on an entry. */
         uint32_t            _next_seq   = 1;
+        /** @brief Shared output log ring buffer. */
         LogEntry_t*         _logBuffer;
+        /** @brief Emulator-owned write cursor. */
         uint32_t*           _writeIndex;
+
+        /** @} */
+
     public:
+        /** @name Lifecycle
+         *  @{ */
+
+        /** @brief Bind the writer to an emulator context and timestamp. */
         PlcLogWriter(PlcEmulatorContext* ctx, uint32_t* timestamp_ms);
+        /** @brief Push one log entry into the emulator's output buffer. */
         void push_log(LogLevel level, LogTopic topic, const char* msg);
+
+        /** @} */
     };
 
 #ifdef TARGET_SIMULATOR
@@ -221,8 +307,11 @@ namespace Botanik { namespace PlcIO {
                                       PlcOutput<OutputData>* shared_out) {
         static EmulatorThreadArgs<InputData, OutputData> args{ shared_in, shared_out };
         _emu_running() = true;
-        HAL::dsb();  // publish the run flag before the thread starts reading it
+        // memory barrier to make `_emu_running` visible before the thread reads it
+        HAL::dsb();
+        // start the thread
         pthread_create(&_emu_thread(), nullptr, &_emulator_thread_main<InputData, OutputData>, &args);
+        // register a way to stop the thread on system resets
         HAL::on_reset(&stop_emulator_thread);
     }
 

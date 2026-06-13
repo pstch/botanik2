@@ -17,12 +17,8 @@
 
 namespace Botanik { namespace Logs {
 
-    // Attempt to drain a single message, return whether it was fully sent
-    bool BufferedLogWriter::_drain_message() {
-        _sent += write(&_message[_sent], _length - _sent);                  // write remaining bytes, record actually written bytes
-        if (_sent < _length) return false;                                  // yield if not fully sent
-        _length = 0; _sent = 0; return true;                                // otherwise reset the writer state
-    }
+    // Queue interface
+    // ------------------------------------------------------------------------
 
     // Add a new entry to the writer's queue
     void BufferedLogWriter::push(const LogEntry_t* entry) {
@@ -47,6 +43,25 @@ namespace Botanik { namespace Logs {
         }
     }
 
+    // Internals
+    // ------------------------------------------------------------------------
+
+    // Attempt to drain a single message, return whether it was fully sent
+    bool BufferedLogWriter::_drain_message() {
+        _sent += write(&_message[_sent], _length - _sent);                  // write remaining bytes, record actually written bytes
+        if (_sent < _length) return false;                                  // yield if not fully sent
+        _length = 0; _sent = 0; return true;                                // otherwise reset the writer state
+    }
+
+    // Lifecycle
+    // ------------------------------------------------------------------------
+
+    SerialLogWriter::SerialLogWriter(BufferedSerial& serial) :
+        _serial(&serial) {}
+
+    // Channel implementation
+    // ------------------------------------------------------------------------
+
     size_t SerialLogWriter::format(const LogEntry_t* entry, char* buf, size_t len) {
         return format_log_entry(entry, buf, len);
     }
@@ -57,8 +72,5 @@ namespace Botanik { namespace Logs {
         if (available == 0) return 0;
         return _serial->write(buf, available);
     }
-
-    SerialLogWriter::SerialLogWriter(BufferedSerial& serial) :
-        _serial(&serial) {}
 
 }}

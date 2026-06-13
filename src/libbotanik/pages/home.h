@@ -26,14 +26,21 @@ namespace Botanik { namespace Pages {
         using AnsiTerminal = Terminal::AnsiTerminal;
         using Command      = Terminal::InputEvent::Command;
 
+        /** @name State
+         *  @{ */
+
+        /** @brief Owning terminal. */
         AnsiTerminal& _terminal;
-
-        uint8_t  _menu_selection = 0;   ///< highlighted menu entry
+        /** @brief Highlighted menu entry. */
+        uint8_t  _menu_selection = 0;
+        /** @brief True while this page owns the screen. */
         bool     _active         = false;
-        uint64_t _status_last_ms = 0;   ///< last periodic status refresh (uptime ms)
-
+        /** @brief Last periodic status refresh (uptime ms). */
+        uint64_t _status_last_ms = 0;
         /** @brief Rows reserved at the bottom of the screen for recent log lines. */
         static constexpr uint16_t LOG_REGION_ROWS = 4;
+
+        /** @} */
 
         /** @name Draw hooks — override to customize the page.
          *  @{ */
@@ -52,15 +59,25 @@ namespace Botanik { namespace Pages {
         /** @} */
 
     public:
+        /** @name Lifecycle
+         *  @{ */
+
+        /** @brief Construct a HomePage bound to the given terminal. */
         explicit HomePage(AnsiTerminal& terminal);
 
-        // Page interface
+        /** @} */
+
+        /** @name Page interface
+         *  @{ */
+
         const char* name() const override { return "HOME"; }
         void handle_text(char c) override;
         void handle_command(Command cmd, uint16_t count = 1) override;
         void deactivate() override;
         void focus() override;
         void tick(bool active) override;
+
+        /** @} */
     };
 
 }}

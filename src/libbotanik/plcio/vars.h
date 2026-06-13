@@ -22,6 +22,10 @@ namespace Botanik { namespace PlcIO {
     // (no unaligned-access UB) and lets the PLC side mirror the layout byte-for-byte.
     // The static_asserts below pin the expected sizes/offsets so a config change can't
     // silently shift the layout.
+
+    /** @name Log protocol
+     *  @{ */
+
     enum LogLevel : uint8_t {
         LOG_DEBUG = 1,       // debugging messages, only printed when debugging mode is enabled
         LOG_INFO = 2,        // informational messages, they don't need any particular attention
@@ -60,6 +64,11 @@ namespace Botanik { namespace PlcIO {
     static_assert(sizeof(LogEntry_t)  % 4 == 0,          "LogEntry_t must be a multiple of 4");
     static_assert(alignof(LogEntry_t) == 4,              "LogEntry_t must be 4-byte aligned");
 
+    /** @} */
+
+    /** @name Sync counters
+     *  @{ */
+
     // Sync counters (named from the PLC's point of view)
     struct PlcInputCounters_t {
         uint32_t            rxSeqNum;
@@ -69,6 +78,11 @@ namespace Botanik { namespace PlcIO {
         uint32_t            txSeqNum;
         uint32_t            rxAckNum;
     };
+
+    /** @} */
+
+    /** @name Log buffers
+     *  @{ */
 
     // Fixed log-protocol fields, always present regardless of the user's payload type.
     // These form the library's shared log protocol between host and PLC.
@@ -85,6 +99,11 @@ namespace Botanik { namespace PlcIO {
     // at a word-aligned offset regardless of the log buffer/message sizes.
     static_assert(offsetof(PlcOutputLogs_t, writeIndex) == 0, "writeIndex must lead PlcOutputLogs_t");
     static_assert(offsetof(PlcInputLogs_t,  readIndex)  == 0, "readIndex must lead PlcInputLogs_t");
+
+    /** @} */
+
+    /** @name Combined shared structs
+     *  @{ */
 
     // Combined input/output structs. Data is the user-supplied site-specific payload.
     // No packing: the structs above are explicitly padded so natural alignment already
@@ -107,6 +126,8 @@ namespace Botanik { namespace PlcIO {
     // On OPTA, add to your sketch to verify layout matches the PLC IDE's generated types:
     //   static_assert(sizeof(PLCSharedVarsInput_t)   == sizeof(PlcIO::PlcInput<YourInputData_t>));
     //   static_assert(alignof(PLCSharedVarsOutput_t) == alignof(PlcIO::PlcOutput<YourOutputData_t>));
+
+    /** @} */
 
 }}
 

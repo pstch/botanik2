@@ -77,9 +77,11 @@ int main(int argc, char** argv) {
     SyncHandler         plc_handler(&shared_in, &shared_out, &timestamp_ms, &logger);
     PlcIO::PlcLogReader plc_log_reader(plc_handler.context(), &logger);
 
-    // Terminal UI
-    Terminal::AnsiTerminal terminal(console_serial, 80, 24, &timestamp_ms, &logger,
-                                    scheduler.context(), plc_handler.context());
+    // Terminal UI — bundle the subsystem status contexts the terminal reads.
+    SystemContext sys_ctx;
+    sys_ctx.scheduler = scheduler.context();
+    sys_ctx.plc       = plc_handler.context();
+    Terminal::AnsiTerminal terminal(console_serial, 80, 24, &timestamp_ms, &logger, sys_ctx);
     Pages::ShellPage shell_page(terminal);
     Pages::LogsPage  logs_page(terminal);
 
@@ -116,7 +118,7 @@ int main(int argc, char** argv) {
         timestamp_ms = (uint32_t)HAL::uptime_ms();
 
         if (!scheduler.tick()) continue;
-        scheduler.perf().paint_stack();
+        scheduler.paint_stack();
 
         console_serial.step();
         monitor_serial.step();

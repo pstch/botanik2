@@ -67,6 +67,45 @@ namespace Botanik { namespace Terminal {
      * the last row — a visual artifact only, never an overflow.
      */
     class TextEditor {
+
+        /**
+         * @name State
+         * @{
+         */
+
+        /** @brief Owning terminal. */
+        AnsiTerminal* _terminal;
+
+        /** @brief Editor buffer. */
+        char     _buf[Config::SHELL_INPUT_LEN];
+        /** @brief Bytes in _buf. */
+        uint16_t _len = 0;
+        /** @brief Cursor offset in _buf. */
+        uint16_t _pos = 0;
+
+        /** @brief Prompt's top row on screen. */
+        uint16_t _origin = 0;
+
+        /** @brief Current/target row layout. */
+        TextView _layout{};
+        /** @brief Pre-edit layout (copied before rebuild). */
+        TextView _pre{};
+
+        /** @brief PS1 prompt buffer and its length. */
+        char     _ps1_buf[Config::EDITOR_PROMPT_MAX];
+        uint16_t _ps1_len = 0;
+        /** @brief PS2 prompt buffer and its length. */
+        char     _ps2_buf[Config::EDITOR_PROMPT_MAX];
+        uint16_t _ps2_len = 0;
+        /** @brief PS3 prompt buffer and its length. */
+        char     _ps3_buf[Config::EDITOR_PROMPT_MAX];
+        uint16_t _ps3_len = 0;
+
+        /** @brief When set, automatic redraws on origin shifts are suppressed. */
+        bool     _suppress_sync_redraw = false;
+
+        /** @} */
+
     public:
 
         /** @brief Construct a TextEditor bound to the given terminal */
@@ -86,11 +125,17 @@ namespace Botanik { namespace Terminal {
         /** @brief Set the PS3 prompt (row after hard `\\n`) */
         void set_ps3(const char* buf, uint16_t len) { _set_ps(_ps3_buf, _ps3_len, buf, len); }
 
+        /** @brief PS1 prompt bytes. */
         const char* ps1() const { return _ps1_buf; }
+        /** @brief PS1 prompt length. */
         uint16_t    ps1_len() const { return _ps1_len; }
+        /** @brief PS2 prompt bytes. */
         const char* ps2() const { return _ps2_buf; }
+        /** @brief PS2 prompt length. */
         uint16_t    ps2_len() const { return _ps2_len; }
+        /** @brief PS3 prompt bytes. */
         const char* ps3() const { return _ps3_buf; }
+        /** @brief PS3 prompt length. */
         uint16_t    ps3_len() const { return _ps3_len; }
 
         /** @} */
@@ -189,39 +234,14 @@ namespace Botanik { namespace Terminal {
          * @{
          */
 
+        /** @brief Editor buffer bytes. */
         const char* buffer() const     { return _buf; }
+        /** @brief Number of bytes in the editor buffer. */
         uint16_t    buffer_len() const { return _len; }
 
         /** @} */
 
     private:
-        /**
-         * @name State
-         * @{
-         */
-
-        AnsiTerminal* _terminal;
-
-        char     _buf[Config::SHELL_INPUT_LEN];     /**< Editor buffer */
-        uint16_t _len = 0;                          /**< Bytes in _buf */
-        uint16_t _pos = 0;                          /**< Cursor offset in _buf */
-
-        uint16_t _origin = 0;                       /**< Prompt row on screen */
-
-        TextView _layout{};                         /**< Current/target row layout */
-        TextView _pre{};                            /**< Pre-edit layout (copied before rebuild) */
-
-        char     _ps1_buf[Config::EDITOR_PROMPT_MAX];
-        uint16_t _ps1_len = 0;
-        char     _ps2_buf[Config::EDITOR_PROMPT_MAX];
-        uint16_t _ps2_len = 0;
-        char     _ps3_buf[Config::EDITOR_PROMPT_MAX];
-        uint16_t _ps3_len = 0;
-
-        bool     _suppress_sync_redraw = false;
-
-        /** @} */
-
         /**
          * @name Helpers
          * @{

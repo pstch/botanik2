@@ -12,28 +12,58 @@
 
 namespace Botanik { namespace PlcIO {
 
-    /** @brief Drains the PLC log ring buffer into the local Logger. */
+    /** @name PLC log reader
+     *  @{ */
+
+    /** @class PlcLogReader
+     *  @brief Drains the PLC log ring buffer into the local Logger. */
     class PlcLogReader {
-    private:
         using Logger = Logs::Logger;
-                Logger*         _logger;
-                PlcSyncContext* _ctx;
-                uint32_t _last_seq = 0;     /**< Last seen sequence number */
-                uint32_t _dropped  = 0;     /**< Count of detected dropped entries */
-        const   LogEntry_t*     _logBuffer; /**< Shared PLC log ring buffer */
-        const   uint32_t*       _writeIndex;/**< PLC-owned write cursor */
-                uint32_t*       _readIndex; /**< Host-owned read cursor */
+
+        /** @name State
+         *  @{ */
+
+        /** @brief Local logger that PLC entries are forwarded into. */
+        Logger*             _logger;
+        /** @brief Shared-memory sync context. */
+        PlcSyncContext*     _ctx;
+        /** @brief Last seen sequence number. */
+        uint32_t            _last_seq = 0;
+        /** @brief Count of detected dropped entries. */
+        uint32_t            _dropped  = 0;
+        /** @brief Shared PLC log ring buffer. */
+        const LogEntry_t*   _logBuffer;
+        /** @brief PLC-owned write cursor. */
+        const uint32_t*     _writeIndex;
+        /** @brief Host-owned read cursor. */
+        uint32_t*           _readIndex;
+
+        /** @} */
+
+    public:
+        /** @name Lifecycle
+         *  @{ */
+
+        /** @brief Bind the reader to a sync context and local logger. */
+        PlcLogReader(PlcSyncContext* ctx, Logger* logger);
+        /** @brief Drain all pending PLC log entries; call once per tick. */
+        void step();
+
+        /** @} */
+
+    private:
+        /** @name Internals
+         *  @{ */
+
         /** @brief Detect and report sequence-number gaps as dropped entries. */
         void _detect_dropped_entries(const LogEntry_t* entry);
         /** @brief Forward one PLC entry into the local Logger. */
         void _push_plc_entry(const LogEntry_t* plcEntry);
 
-    public:
-        PlcLogReader(PlcSyncContext* ctx, Logger* logger);
-        /** @brief Drain all pending PLC log entries; call once per tick. */
-        void step();
-
+        /** @} */
     };
+
+    /** @} */
 
 }}
 

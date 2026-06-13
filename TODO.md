@@ -8,8 +8,18 @@
 
  - Choose between Python and C++ for the test harness and write a basic test case for each of our main components
 
-## Small work items
+## Big work items
 
+- ~~Refactor around LoopScheduler/PerfMonitor, they are weirdly coupled.~~ Done:
+  PerfMonitor is now hidden behind LoopScheduler (only `paint_stack()` is exposed),
+  SchedulerContext is the single source of truth for the tick/overrun counters, and
+  it inherits PerfSnapshot so the perf metrics are stored on it directly.
+- ~~Decouple the terminal code (status bar & `stats` command) from the separate
+  SchedulerContext/PlcSyncContext pointers.~~ Done: `SystemContext` (context.h)
+  bundles both; AnsiTerminal takes one `SystemContext` and exposes it via
+  `context()`. Consumers still read the concrete sub-context fields through it —
+  a further step could hide those behind a status-provider interface, but the
+  terminal's constructor and members no longer depend on the two types directly.
 
 ## PLC I/O
 

@@ -28,18 +28,19 @@ namespace Botanik { namespace Terminal {
         using namespace Botanik::Pages;
     }
 
+    // Lifecycle
+    // ------------------------------------------------------------------------
+
     // Constructor
     AnsiTerminal::AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
                                uint32_t* timestamp_ms, Logs::Logger* logger,
-                               Scheduler::SchedulerContext* sched_ctx,
-                               PlcIO::PlcSyncContext* plc_ctx) :
+                               const SystemContext& ctx) :
         _parser(serial, timestamp_ms),
         _serial(serial),
-        _cols(cols),
-        _rows(rows),
         _logger(logger),
-        _sched_ctx(sched_ctx),
-        _plc_ctx(plc_ctx)
+        _ctx(ctx),
+        _cols(cols),
+        _rows(rows)
     {
     }
 
@@ -91,6 +92,8 @@ namespace Botanik { namespace Terminal {
             if (_pages[i] != nullptr) _pages[i]->tick(i == _page_index);
     }
 
+    // Cursor & geometry
+    // ------------------------------------------------------------------------
 
     // Move cursor to an absolute screen position
     void AnsiTerminal::move_to(const CursorPos& target_in, bool skip) {
@@ -110,7 +113,7 @@ namespace Botanik { namespace Terminal {
             // Optimizations for short moves, otherwise goto_absolute
             if (target.row == _hw_pos.row) { // Same row
                 if (target.col == 0) {
-                    Ansi::move_line_begin(_serial);
+                    Ansi::move_row_start(_serial);
                 } else if (target.col < _hw_pos.col && (_hw_pos.col - target.col) < 4) {
                     Ansi::move_left(_serial, _hw_pos.col - target.col);
                 } else if (target.col > _hw_pos.col && (target.col - _hw_pos.col) < 4) {
@@ -141,6 +144,9 @@ namespace Botanik { namespace Terminal {
         }
         _hw_pos = target;
     }
+
+    // Text output & character attributes
+    // ------------------------------------------------------------------------
 
     // Write `len` chars at cursor, advancing it right.
     void AnsiTerminal::write_chars(const char *s, uint16_t len, bool insert) {
@@ -185,6 +191,28 @@ namespace Botanik { namespace Terminal {
         }
     }
 
+    // Set/clear reverse-video character attribute
+    void AnsiTerminal::set_inverted(bool enable) {
+        if (enable && !_hw_inverted) {
+            _serial.write(Ansi::CSI,      sizeof(Ansi::CSI)      - 1);
+            _serial.write(Ansi::ATTR_NEG, sizeof(Ansi::ATTR_NEG) - 1);
+            _hw_inverted = true;
+        } else if (!enable && _hw_inverted) {
+            _serial.write(Ansi::CSI,       sizeof(Ansi::CSI)       - 1);
+            _serial.write(Ansi::ATTR_NONE, sizeof(Ansi::ATTR_NONE) - 1);
+            _hw_inverted = false;
+        }
+    }
+
+    // Enable or disable terminal auto-wrap (DECAWM)
+    void AnsiTerminal::set_auto_wrap(bool enable) {
+        Ansi::set_auto_wrap(_serial, enable);
+        _hw_auto_wrap = enable;
+    }
+
+    // Content manipulation
+    // ------------------------------------------------------------------------
+
     // Delete `len` chars at cursor, shifting the rest of the line left
     void AnsiTerminal::delete_chars(uint16_t len) {
         if (len == 0) return;
@@ -214,6 +242,28 @@ namespace Botanik { namespace Terminal {
         // clear_row doesn't touch the caller's row, so the at-eol fill state
         // (if any) on that row still holds.
         _hw_at_eol = original_eol;
+    }
+
+    void AnsiTerminal::clear_screen() {
+        Ansi::clear_screen(_serial);
+        _hw_pos = {0, 0};
+        _hw_at_eol = false;
+        // Auto-wrap stays off for the whole UI: every page pre-wraps its own
+        // content to the width, so the terminal must never wrap on its own. A
+        // deferred wrap on a full-width line parks the cursor pending at the last
+        // cell — the next clear_to_eol then eats that glyph and the following row
+        // drops its first char. Assert it once, when the screen is (re)established;
+        // ED/clear doesn't reset DECAWM, so the mode persists until the next reset.
+        if (_hw_auto_wrap) set_auto_wrap(false);
+    }
+
+    void AnsiTerminal::clear_content() {
+        // Erase the page content area (rows 1..N-1), leaving the status bar on
+        // row 0 untouched. One erase-to-end-of-display from {1,0} is far cheaper
+        // than clearing each row in a loop.
+        move_to({1, 0});
+        Ansi::clear_to_eos(_serial);
+        _hw_at_eol = false;
     }
 
     // Emit a line feed
@@ -254,71 +304,36 @@ namespace Botanik { namespace Terminal {
         // Cursor position is typically not affected by DL, only content shifts.
     }
 
-    // Enable or disable terminal auto-wrap (DECAWM)
-    void AnsiTerminal::set_auto_wrap(bool enable) {
-        Ansi::set_auto_wrap(_serial, enable);
-        _hw_auto_wrap = enable;
+    // Pages
+    // ------------------------------------------------------------------------
+
+    int8_t AnsiTerminal::add_page(Pages::Page* page) {
+        if (page == nullptr || _pages_len >= 8) return -1;
+        _pages[_pages_len] = page;
+        return (int8_t)(_pages_len++);
     }
 
-    // Set/clear reverse-video character attribute
-    void AnsiTerminal::set_inverted(bool enable) {
-        if (enable && !_hw_inverted) {
-            _serial.write(Ansi::CSI,      sizeof(Ansi::CSI)      - 1);
-            _serial.write(Ansi::ATTR_NEG, sizeof(Ansi::ATTR_NEG) - 1);
-            _hw_inverted = true;
-        } else if (!enable && _hw_inverted) {
-            _serial.write(Ansi::CSI,       sizeof(Ansi::CSI)       - 1);
-            _serial.write(Ansi::ATTR_NONE, sizeof(Ansi::ATTR_NONE) - 1);
-            _hw_inverted = false;
+    void AnsiTerminal::switch_to(uint8_t index) {
+        if (index >= _pages_len || _pages[index] == nullptr) return;
+        if (_pages_len > 0 && _pages[_page_index] != nullptr)
+            _pages[_page_index]->deactivate();
+        _page_index = index;
+        if (!_status_bar_drawn) {
+            // Initial display: full clear + draw the status bar once.
+            clear_screen();
+            draw_status_row();
+        } else {
+            // Page change: keep the status bar (row 0); only the content area is
+            // cleared. The status bar is redrawn on a full redraw (^L), not here.
+            clear_content();
         }
+        _pages[_page_index]->focus();
+        if (_logger != nullptr)
+            _logger->info(PlcIO::STATUS, "page %u", (unsigned)index);
     }
 
-    void AnsiTerminal::clear_screen() {
-        Ansi::clear_screen(_serial);
-        _hw_pos = {0, 0};
-        _hw_at_eol = false;
-        // Auto-wrap stays off for the whole UI: every page pre-wraps its own
-        // content to the width, so the terminal must never wrap on its own. A
-        // deferred wrap on a full-width line parks the cursor pending at the last
-        // cell — the next clear_to_eol then eats that glyph and the following row
-        // drops its first char. Assert it once, when the screen is (re)established;
-        // ED/clear doesn't reset DECAWM, so the mode persists until the next reset.
-        if (_hw_auto_wrap) set_auto_wrap(false);
-    }
-
-    void AnsiTerminal::clear_content() {
-        // Erase the page content area (rows 1..N-1), leaving the status bar on
-        // row 0 untouched. One erase-to-end-of-display from {1,0} is far cheaper
-        // than clearing each row in a loop.
-        move_to({1, 0});
-        Ansi::clear_to_eos(_serial);
-        _hw_at_eol = false;
-    }
-
-    uint16_t AnsiTerminal::tx_available() const {
-        return _serial.availableForWrite();
-    }
-
-    bool AnsiTerminal::tx_empty() const {
-        return _serial.tx_empty();
-    }
-
-    int AnsiTerminal::_build_metrics(char* buf, size_t cap) const {
-        if (_plc_ctx == nullptr) return 0;
-        const char* plc_str;
-        switch (_plc_ctx->status()) {
-            case PlcIO::PLC_UNKNOWN:  plc_str = "UNK"; break;
-            case PlcIO::PLC_RUNNING:  plc_str = "RUN"; break;
-            case PlcIO::PLC_TIMEOUT:  plc_str = "TMO"; break;
-            case PlcIO::PLC_FAULT:    plc_str = "FLT"; break;
-            default:                  plc_str = "---"; break;
-        }
-        unsigned cpu = (unsigned)lroundf(_sched_ctx->perf.cpu_load_ema    * 100.0f);
-        unsigned stk = (unsigned)lroundf(_sched_ctx->perf.stack_usage_ema * 100.0f);
-        if (cpu > 9999) cpu = 9999;
-        if (stk > 999)  stk = 999;
-        return snprintf(buf, cap, "PLC:%s cpu:%4u%% stk:%3u%% ", plc_str, cpu, stk);
-    }
+    // Status bar
+    // ------------------------------------------------------------------------
 
     void AnsiTerminal::draw_status_row() {
         _status_bar_drawn = true;
@@ -399,29 +414,35 @@ namespace Botanik { namespace Terminal {
         }
     }
 
-    int8_t AnsiTerminal::add_page(Pages::Page* page) {
-        if (page == nullptr || _pages_len >= 8) return -1;
-        _pages[_pages_len] = page;
-        return (int8_t)(_pages_len++);
+    // Serial / TX
+    // ------------------------------------------------------------------------
+
+    uint16_t AnsiTerminal::tx_available() const {
+        return _serial.availableForWrite();
     }
 
-    void AnsiTerminal::switch_to(uint8_t index) {
-        if (index >= _pages_len || _pages[index] == nullptr) return;
-        if (_pages_len > 0 && _pages[_page_index] != nullptr)
-            _pages[_page_index]->deactivate();
-        _page_index = index;
-        if (!_status_bar_drawn) {
-            // Initial display: full clear + draw the status bar once.
-            clear_screen();
-            draw_status_row();
-        } else {
-            // Page change: keep the status bar (row 0); only the content area is
-            // cleared. The status bar is redrawn on a full redraw (^L), not here.
-            clear_content();
+    bool AnsiTerminal::tx_empty() const {
+        return _serial.tx_empty();
+    }
+
+    // Internals
+    // ------------------------------------------------------------------------
+
+    int AnsiTerminal::_build_metrics(char* buf, size_t cap) const {
+        if (_ctx.plc == nullptr) return 0;
+        const char* plc_str;
+        switch (_ctx.plc->status()) {
+            case PlcIO::PLC_UNKNOWN:  plc_str = "UNK"; break;
+            case PlcIO::PLC_RUNNING:  plc_str = "RUN"; break;
+            case PlcIO::PLC_TIMEOUT:  plc_str = "TMO"; break;
+            case PlcIO::PLC_FAULT:    plc_str = "FLT"; break;
+            default:                  plc_str = "---"; break;
         }
-        _pages[_page_index]->focus();
-        if (_logger != nullptr)
-            _logger->info(PlcIO::STATUS, "page %u", (unsigned)index);
+        unsigned cpu = (unsigned)lroundf(_ctx.scheduler->cpu_load_ema    * 100.0f);
+        unsigned stk = (unsigned)lroundf(_ctx.scheduler->stack_usage_ema * 100.0f);
+        if (cpu > 9999) cpu = 9999;
+        if (stk > 999)  stk = 999;
+        return snprintf(buf, cap, "PLC:%s cpu:%4u%% stk:%3u%% ", plc_str, cpu, stk);
     }
 
 }}

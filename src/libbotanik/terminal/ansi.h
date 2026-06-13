@@ -13,8 +13,10 @@
 
 namespace Botanik { namespace Terminal { namespace Ansi {
 
-    using BufferedSerial = Utils::BufferedSerial;
+    /** @name Types and constants
+     *  @{ */
 
+    using BufferedSerial = Utils::BufferedSerial;
 
     /** Represents a physical coordinate on the display.
      *
@@ -50,6 +52,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     static constexpr char ATTR_NONE[] = "m";  // Normal text SGR
 
     // Movement
+
     static constexpr char CUU[] = "A";  // Cursor Up
     static constexpr char CUD[] = "B";  // Cursor Down
     static constexpr char CUF[] = "C";  // Cursor Forward (Right)
@@ -63,57 +66,85 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     static constexpr char DCH[] = "P";  // Delete Character
     static constexpr char EL[]  = "K";  // Erase in Line (Cursor to EOL)
 
-    // Write a 16-bit integer as its decimal representation
+    /** @} 
+     *  @name Generic utilities
+     *  @{ */
+
+    /** @brief Determine if a character is a printable ASCII character */
+    bool is_printable(uint8_t b);
+
+    /** @brief Write a 16-bit integer as its decimal representation */
     void write_uint16(BufferedSerial& _serial, uint16_t val);
 
-    // Move to the given absolute position
-    void goto_absolute(BufferedSerial& _serial, const CursorPos& cursor);
+    /** @}
+     *  @name State management
+     *  @{ */
 
-    // Move the cursor left, `count` times
-    void move_left(BufferedSerial& _serial, uint16_t count);
+    // FIXME: we should probably have a handler for the "inverted" mode here ?
 
-    // Move the cursor right, `count` times
-    void move_right(BufferedSerial& _serial, uint16_t count);
-
-    // Move the cursor up, `count` times
-    void move_up(BufferedSerial& _serial, uint16_t count);
-
-    // Move the cursor down, `count` times
-    void move_down(BufferedSerial& _serial, uint16_t count);
-
-    // Move to the beginning of the line
-    void move_line_begin(BufferedSerial& _serial);
-
-    // Enable/disable insertion mode (shifts remaining cols right)
-    // Toggle terminal insert/replace (IRM). Emits nothing and returns false when
-    // the TX buffer can't hold the whole escape, so the caller never commits a
-    // mode latch to a toggle that was torn or dropped on the wire.
+    /** @brief Set insertion mode (IRM) to @p active , using SM4/RM4.
+     *  @note When the TX buffer can't hold the command, emit nothing and return false. */
     bool set_insert_mode(BufferedSerial& _serial, bool active);
 
-    // Insert entire rows, shifting remaining rows down
-    //  (when called at the last row, scrolls the entire screen upwards)
-    void insert_rows(BufferedSerial& _serial, uint16_t count);
-
-    // Delete rows, shifting remaining rows up
-    void delete_rows(BufferedSerial& _serial, uint16_t count);
-
-    // Delete characters, shifting remaining cols left
-    void delete_chars(BufferedSerial& _serial, uint16_t count);
-
-    // Clear characters from the cursor to the end of line
-    void clear_to_eol(BufferedSerial& _serial);
-
-    // Erase from the cursor to the end of the display (rows below stay untouched above)
-    void clear_to_eos(BufferedSerial& _serial);
-
-    // Erase entire display and move cursor to home position
-    void clear_screen(BufferedSerial& _serial);
-
-    // Enable or disable terminal auto-wrap (DECAWM)
+    /** @brief Enable or disable terminal auto-wrap (DECAWM, CSI ? 7 h/l). */
     void set_auto_wrap(BufferedSerial& _serial, bool enable);
 
-    // Determine if a character is a printable ASCII character
-    bool is_printable(uint8_t b);
+    /** @}
+     *  @name Cursor movement
+     *  @{ */
+
+    /** @brief Move to the given absolute position. */
+    void goto_absolute(BufferedSerial& _serial, const CursorPos& cursor);
+
+    /** @brief Move the cursor left @p count times. */
+    void move_left(BufferedSerial& _serial, uint16_t count);
+
+    /** @brief Move the cursor right @p count times. */
+    void move_right(BufferedSerial& _serial, uint16_t count);
+
+    /** @brief Move the cursor up @p count times. */
+    void move_up(BufferedSerial& _serial, uint16_t count);
+
+    /** @brief Move the cursor down @p count times. */
+    void move_down(BufferedSerial& _serial, uint16_t count);
+
+    /** @brief Move to the beginning of the row. */
+    void move_row_start(BufferedSerial& _serial);
+
+    /** @}
+     *  @name Content edition
+     *  @{ */
+
+    /** @brief Insert entire rows
+     *  @note Shifts remaining rows down
+     *  @warning When called at the last row, scrolls the entire screen upwards */
+    void insert_rows(BufferedSerial& _serial, uint16_t count);
+
+    /** @brief Delete rows
+     *  @note Shifts remaining rows up */
+    void delete_rows(BufferedSerial& _serial, uint16_t count);
+
+    /** @brief Delete characters
+     *  @note Shifts remaining columns left */
+    void delete_chars(BufferedSerial& _serial, uint16_t count);
+
+    /** @}
+     *  @name Content clearing
+     *  @{ */
+
+    /** @brief Clear characters from the cursor to the end of line 
+     *  @note Columns before the cursor are untouched. */
+    void clear_to_eol(BufferedSerial& _serial);
+
+    /** @brief Erase from the cursor to the end of the display 
+     *  @note Rows above the cursor are untouched. */
+    void clear_to_eos(BufferedSerial& _serial);
+
+    /** @brief Erase entire display and move cursor to home position */
+    void clear_screen(BufferedSerial& _serial);
+
+    /** @} */
+
 }}}
 
 #endif // TERMINAL_ANSI_H

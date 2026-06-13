@@ -23,6 +23,9 @@ namespace Botanik { namespace Logs {
         using LogTopic = Botanik::PlcIO::LogTopic;
     }
 
+    // Rate-limiting internals
+    // ------------------------------------------------------------------------
+
     bool Logger::_try_bucket(LogBucket_t* bucket) {
         if (bucket->state == 0) {
             // Saturate rather than wrap: the suppressed count is now drained on a
@@ -39,6 +42,35 @@ namespace Botanik { namespace Logs {
         }
     }
 
+    void Logger::_report_suppressed(LogBucket_t* bucket, PlcIO::LogTopic topic, uint32_t timestamp_ms) {
+        if (bucket->suppressed == 0) return;
+        LogEntry_t entry = {};
+        entry.timestamp = timestamp_ms;
+        entry.level     = PlcIO::LOG_WARNING;
+        entry.topic     = topic;
+        int w = snprintf(
+            entry.message, sizeof(entry.message),
+            "%u msgs suppressed", (unsigned)bucket->suppressed);
+        if (w < 0) w = 0;
+        entry.length = (uint16_t)std::min((size_t)w, sizeof(entry.message) - 1);
+        for (uint8_t i = 0; i < _writerCount; i++) _writers[i]->push(&entry);
+        bucket->suppressed = 0;
+    }
+
+    void Logger::_emit(PlcIO::LogLevel level, PlcIO::LogTopic topic, const char* fmt, va_list ap) {
+        LogEntry_t entry = {};
+        entry.timestamp = HAL::current_ms();
+        entry.level     = level;
+        entry.topic     = topic;
+        int w = vsnprintf(entry.message, sizeof(entry.message), fmt, ap);
+        if (w < 0) w = 0;
+        entry.length = (uint16_t)std::min((size_t)w, sizeof(entry.message) - 1);
+        push_entry(entry);
+    }
+
+    // Lifecycle
+    // ------------------------------------------------------------------------
+
     Logger::Logger() {
         _perTopic_fillTime_ms = HAL::current_ms();
         _global_fillTime_ms = HAL::current_ms();
@@ -48,6 +80,9 @@ namespace Botanik { namespace Logs {
             _perTopic_buckets[i].state = _perTopic_burst;
         }
     }
+
+    // Writer management
+    // ------------------------------------------------------------------------
 
     bool Logger::add_writer(LogWriter* writer) {
         if (writer == nullptr || _writerCount >= Config::LOG_WRITERS_MAX) return false;
@@ -66,20 +101,8 @@ namespace Botanik { namespace Logs {
         return true;
     }
 
-    void Logger::_report_suppressed(LogBucket_t* bucket, PlcIO::LogTopic topic, uint32_t timestamp_ms) {
-        if (bucket->suppressed == 0) return;
-        LogEntry_t entry = {};
-        entry.timestamp = timestamp_ms;
-        entry.level     = PlcIO::LOG_WARNING;
-        entry.topic     = topic;
-        int w = snprintf(
-            entry.message, sizeof(entry.message),
-            "%u msgs suppressed", (unsigned)bucket->suppressed);
-        if (w < 0) w = 0;
-        entry.length = (uint16_t)std::min((size_t)w, sizeof(entry.message) - 1);
-        for (uint8_t i = 0; i < _writerCount; i++) _writers[i]->push(&entry);
-        bucket->suppressed = 0;
-    }
+    // Dispatch
+    // ------------------------------------------------------------------------
 
     void Logger::step() {
         uint32_t now_ms         = HAL::current_ms();
@@ -102,16 +125,18 @@ namespace Botanik { namespace Logs {
         }
     }
 
-    void Logger::_emit(PlcIO::LogLevel level, PlcIO::LogTopic topic, const char* fmt, va_list ap) {
-        LogEntry_t entry = {};
-        entry.timestamp = HAL::current_ms();
-        entry.level     = level;
-        entry.topic     = topic;
-        int w = vsnprintf(entry.message, sizeof(entry.message), fmt, ap);
-        if (w < 0) w = 0;
-        entry.length = (uint16_t)std::min((size_t)w, sizeof(entry.message) - 1);
-        push_entry(entry);
+    void Logger::push_entry(const PlcIO::LogEntry_t& entry) {
+        PlcIO::LogTopic topic = entry.topic >=
+            Config::LOG_TOPIC_MAX ? LogTopic::NONE : entry.topic;                       // determine the topic to use for this entry
+        LogBucket_t* topic_bucket = &_perTopic_buckets[topic];                          // get the bucket for this topic
+        if (topic == LogTopic::NONE || _try_bucket(topic_bucket))                         // apply the per-topic filter first so global isn't drained by per-topic-suppressed msgs
+            if (_try_bucket(&_global_bucket))                                           // then apply the global filter
+                for (uint8_t i = 0; i < _writerCount; i++)                              // then, for each registered writer
+                    _writers[i]->push(&entry);                                          // push the entry to the writer's queue
     }
+
+    // Level helpers
+    // ------------------------------------------------------------------------
 
     void Logger::debug(PlcIO::LogTopic topic, const char* fmt, ...) {
         va_list ap; va_start(ap, fmt); _emit(PlcIO::LOG_DEBUG, topic, fmt, ap); va_end(ap);
@@ -131,16 +156,5 @@ namespace Botanik { namespace Logs {
     void Logger::critical(PlcIO::LogTopic topic, const char* fmt, ...) {
         va_list ap; va_start(ap, fmt); _emit(PlcIO::LOG_CRITICAL, topic, fmt, ap); va_end(ap);
     }
-
-    void Logger::push_entry(const PlcIO::LogEntry_t& entry) {
-        PlcIO::LogTopic topic = entry.topic >=
-            Config::LOG_TOPIC_MAX ? LogTopic::NONE : entry.topic;                       // determine the topic to use for this entry
-        LogBucket_t* topic_bucket = &_perTopic_buckets[topic];                          // get the bucket for this topic
-        if (topic == LogTopic::NONE || _try_bucket(topic_bucket))                         // apply the per-topic filter first so global isn't drained by per-topic-suppressed msgs
-            if (_try_bucket(&_global_bucket))                                           // then apply the global filter
-                for (uint8_t i = 0; i < _writerCount; i++)                              // then, for each registered writer
-                    _writers[i]->push(&entry);                                          // push the entry to the writer's queue
-    }
-
 
 }}

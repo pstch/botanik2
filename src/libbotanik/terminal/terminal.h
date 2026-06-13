@@ -13,12 +13,9 @@
 #include "libbotanik/utils/serial.h"
 #include "libbotanik/terminal/ansi.h"
 #include "libbotanik/logs/logger.h"
+#include "libbotanik/context.h"
 
 #include "libbotanik/pages/page.h"
-
-// Forward declarations to avoid pulling in heavy headers
-namespace Botanik { namespace Scheduler { struct SchedulerContext; } }
-namespace Botanik { namespace PlcIO     { struct PlcSyncContext;   } }
 
 namespace Botanik { namespace Terminal {
 
@@ -26,61 +23,96 @@ namespace Botanik { namespace Terminal {
     class AnsiTerminal {
         using BufferedSerial = Utils::BufferedSerial;
         using CursorPos = Terminal::Ansi::CursorPos;
-    private:
-        // Owned objects
-        InputParser         _parser;                // Input parser used to read from the remote terminal
-        // Multiplexed pages
-        Pages::Page*        _pages[8];              // Children pages
-        uint8_t             _pages_len  = 0;        // Page count
-        uint8_t             _page_index = 0;        // Active page index
-        // Referenced objects
-        BufferedSerial&     _serial;                // Reference to the buffered serial UART wrapper
-        // Display size
-        uint16_t            _cols;                  // Columns
-        uint16_t            _rows;                  // Rows
-        // Local state
-        CursorPos           _hw_pos = {0, 0};       // Hardware position tracking
-        bool                _hw_inverted = false;   // Character attribute tracking
-        bool                _hw_auto_wrap = true;   // DECAWM state (default: on)
-        bool                _hw_at_eol = false;     // Cursor parked at last col after a row-filling write
-        bool                _hw_insert_mode = false;// SM4/RM4 tracking — toggled lazily by write_chars
-        bool                _status_bar_drawn = false; // status row drawn at least once (initial draw)
-        Logs::Logger*                _logger       = nullptr;
-        Scheduler::SchedulerContext* _sched_ctx    = nullptr;
-        PlcIO::PlcSyncContext*       _plc_ctx      = nullptr;
-        uint64_t                     _status_last_ms = 0;   // last status-metrics refresh (wall clock)
-        // Right-aligned status field "PLC:xxx cpu:nnnn% stk:nnn% ": a fixed-width
-        // layout (27 visible chars + NUL). Both the build buffer and the diff cache
-        // are sized from this single constant so they can never drift apart.
+
+        /** @name Input & pages
+         *  @{ */
+
+        /** @brief Input parser used to read from the remote terminal. */
+        InputParser         _parser;
+        /** @brief Child pages multiplexed onto the display. */
+        Pages::Page*        _pages[8];
+        /** @brief Number of registered pages. */
+        uint8_t             _pages_len  = 0;
+        /** @brief Active page index. */
+        uint8_t             _page_index = 0;
+
+        /** @} */
+
+        /** @name External references
+         *  @{ */
+
+        /** @brief Buffered serial UART wrapper. */
+        BufferedSerial&              _serial;
+        /** @brief Logger sink (may be null). */
+        Logs::Logger*                _logger    = nullptr;
+        /** @brief Aggregate of subsystem status contexts for the status bar and
+         *  the `stats` command (scheduler + PLC; members may be null). */
+        SystemContext                _ctx       = {};
+
+        /** @} */
+
+        /** @name Display geometry
+         *  @{ */
+
+        /** @brief Display width in columns. */
+        uint16_t            _cols;
+        /** @brief Display height in rows. */
+        uint16_t            _rows;
+
+        /** @} */
+
+        /** @name Hardware terminal state
+         *  @{ */
+
+        /** @brief Tracked hardware cursor position. */
+        CursorPos           _hw_pos = {0, 0};
+        /** @brief Reverse-video (inverted) attribute state. */
+        bool                _hw_inverted = false;
+        /** @brief DECAWM auto-wrap state (default: on). */
+        bool                _hw_auto_wrap = true;
+        /** @brief Cursor parked at last col after a row-filling write. */
+        bool                _hw_at_eol = false;
+        /** @brief SM4/RM4 insert mode — toggled lazily by write_chars. */
+        bool                _hw_insert_mode = false;
+
+        /** @} */
+
+        /** @name Status bar state
+         *  @{ */
+
+        /** @brief Status row drawn at least once (initial draw). */
+        bool                _status_bar_drawn = false;
+        /** @brief Last status-metrics refresh (wall clock). */
+        uint64_t            _status_last_ms = 0;
+        /** @brief Visible width (+NUL) of the right-aligned status field
+         *  "PLC:xxx cpu:nnnn% stk:nnn% ". Both the build buffer and the diff cache
+         *  are sized from this one constant so they can never drift apart. */
         static constexpr uint16_t    STATUS_METRICS_LEN = 28;
-        char                         _status_metrics_cache[STATUS_METRICS_LEN] = {}; // zero-init forces first draw
-        // Free TX bytes required before a metrics refresh runs. A typical pass only
-        // rewrites the handful of digits that changed (each a short run + cursor
-        // move), well under this. BufferedSerial::write() truncates silently when
-        // full, so the refresh is deferred unless this much room is free — a
-        // half-emitted escape sequence would corrupt the status bar.
+        /** @brief Diff cache of the last drawn metrics (zero-init forces first draw). */
+        char                         _status_metrics_cache[STATUS_METRICS_LEN] = {};
+        /** @brief Free TX bytes required before a metrics refresh runs. A typical pass
+         *  rewrites only the few changed digits (well under this); write() truncates
+         *  silently when full, so the refresh is deferred unless this much room is
+         *  free — a half-emitted escape sequence would corrupt the status bar. */
         static constexpr uint16_t    STATUS_METRICS_TX_BUDGET = 64;
 
-        /** @brief Render the right-side status field into @p buf; returns its length
-         *  (clamped to >= 0). The width is fixed, so a byte index maps to a fixed
-         *  screen column — relied on by update_status_metrics()'s per-cell diff. */
-        int _build_metrics(char* buf, size_t cap) const;
+        /** @} */
+
     public:
-        /** @name Lifecycle & State Management
+        /** @name Lifecycle
          *  @{ */
 
         /** @brief Initialize the terminal with given dimensions */
         AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
                      uint32_t* timestamp_ms, Logs::Logger* logger = nullptr,
-                     Scheduler::SchedulerContext* sched_ctx = nullptr,
-                     PlcIO::PlcSyncContext* plc_ctx = nullptr);
+                     const SystemContext& ctx = {});
 
         /** @brief Process input and update terminal state */
         void step();
 
         /** @} */
 
-        /** @name Cursor & Geometry Management
+        /** @name Cursor & geometry
          *  @{ */
 
         /** @brief Move cursor to an absolute position
@@ -100,7 +132,7 @@ namespace Botanik { namespace Terminal {
 
         /** @} */
 
-        /** @name Text Output & Character Attributes
+        /** @name Text output & character attributes
          *  @{ */
 
         /** @brief Write characters at the current cursor position
@@ -118,7 +150,7 @@ namespace Botanik { namespace Terminal {
 
         /** @} */
 
-        /** @name Content Manipulation
+        /** @name Content manipulation
          *  @{ */
 
         /** @brief Delete characters at current position, shifting the line left */
@@ -147,7 +179,7 @@ namespace Botanik { namespace Terminal {
 
         /** @} */
 
-        /** @name Viewport & Page Management
+        /** @name Pages
          *  @{ */
 
         /** @brief Register a page; returns its index, or -1 if the slot array is full */
@@ -156,11 +188,10 @@ namespace Botanik { namespace Terminal {
         /** @brief Switch to the page at the given index */
         void switch_to(uint8_t index);
 
-        /** @brief Number of bytes that can still be written to the serial TX buffer */
-        uint16_t tx_available() const;
+        /** @} */
 
-        /** @brief True when the serial TX buffer has been fully flushed to the wire */
-        bool tx_empty() const;
+        /** @name Status bar
+         *  @{ */
 
         /** @brief Redraw the always-visible status bar on row 0 */
         void draw_status_row();
@@ -168,12 +199,37 @@ namespace Botanik { namespace Terminal {
         /** @brief Refresh only the metrics portion of the status bar (skips if unchanged) */
         void update_status_metrics();
 
-        /** @brief Access the attached scheduler context (may be null) */
-        Scheduler::SchedulerContext* sched_ctx() { return _sched_ctx; }
+        /** @} */
+
+        /** @name Serial / TX
+         *  @{ */
+
+        /** @brief Number of bytes that can still be written to the serial TX buffer */
+        uint16_t tx_available() const;
+
+        /** @brief True when the serial TX buffer has been fully flushed to the wire */
+        bool tx_empty() const;
 
         /** @} */
 
+        /** @name Context access
+         *  @{ */
 
+        /** @brief Access the attached subsystem status contexts (members may be null) */
+        const SystemContext& context() const { return _ctx; }
+
+        /** @} */
+
+    private:
+        /** @name Internals
+         *  @{ */
+
+        /** @brief Render the right-side status field into @p buf; returns its length
+         *  (clamped to >= 0). The width is fixed, so a byte index maps to a fixed
+         *  screen column — relied on by update_status_metrics()'s per-cell diff. */
+        int _build_metrics(char* buf, size_t cap) const;
+
+        /** @} */
     };
 
 }}

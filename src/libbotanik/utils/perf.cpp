@@ -1,4 +1,3 @@
-// REVIEW_34: WIP
 /**
  * @file perf.cpp
  * @brief PerfMonitor implementation — work-duration timing, stack painting and
@@ -13,6 +12,9 @@
 #include "libbotanik/hal/platform.h"
 
 namespace Botanik { namespace Utils {
+
+    // Lifecycle
+    // ------------------------------------------------------------------------
 
     PerfMonitor::PerfMonitor(uint32_t period_ms) : _period_ms(period_ms) {
         // measure stack base and depth
@@ -35,6 +37,39 @@ namespace Botanik { namespace Utils {
         // reset monitoring state variables
         reset();
     }
+
+    void PerfMonitor::reset() {
+        _measuring    = false;
+
+        // reset CPU load monitoring state
+        _last_busy_us = 0;
+        _cpu_loop_us_max = 0;
+        _cpu_load.reset();
+        _cpu_loop_us_window.reset();
+
+        // reset CPU jitter monitoring state
+        _jitter.reset();
+        _jitter_window.reset();
+        _jitter_us_max = 0;
+
+        // reset stack monitoring state
+        _stack_bytes_max = 0;
+        _stack_usage.reset();
+        for (uint32_t i = 0; i < Config::LOAD_METRIC_BUCKETS; ++i) _stack_slices[i] = 0;
+        _stack_head       = 0;
+        _stack_slice_tick = 0;
+
+        // force a fresh paint before the next scan; the old paint is now stale
+        _repaint_pending  = true;
+
+        // clear current snapshot
+        uint32_t depth = _stack_depth;
+        _snap = PerfSnapshot{};
+        _snap.stack_depth = depth;
+    }
+
+    // Per-loop measurement
+    // ------------------------------------------------------------------------
 
     // open the monitoring window
     void PerfMonitor::work_begin() {
@@ -89,6 +124,9 @@ namespace Botanik { namespace Utils {
         _snap.cpu_jitter_us_recent = _jitter_window.value();
         _snap.cpu_jitter_us_max    = _jitter_us_max;
     }
+
+    // Internals
+    // ------------------------------------------------------------------------
 
     void PerfMonitor::_measure_stack_usage() {
         if (_stack_base == 0) return;
@@ -147,36 +185,6 @@ namespace Botanik { namespace Utils {
         // if we have a valid region, memset() it to STACK_PAINT_BYTE
         if (paint_top > paint_bot)
             memset(paint_bot, Config::STACK_PAINT_BYTE, paint_top - paint_bot);
-    }
-
-    void PerfMonitor::reset() {
-        _measuring    = false;
-
-        // reset CPU load monitoring state
-        _last_busy_us = 0;
-        _cpu_loop_us_max = 0;
-        _cpu_load.reset();
-        _cpu_loop_us_window.reset();
-
-        // reset CPU jitter monitoring state
-        _jitter.reset();
-        _jitter_window.reset();
-        _jitter_us_max = 0;
-
-        // reset stack monitoring state
-        _stack_bytes_max = 0;
-        _stack_usage.reset();
-        for (uint32_t i = 0; i < Config::LOAD_METRIC_BUCKETS; ++i) _stack_slices[i] = 0;
-        _stack_head       = 0;
-        _stack_slice_tick = 0;
-
-        // force a fresh paint before the next scan; the old paint is now stale
-        _repaint_pending  = true;
-
-        // clear current snapshot
-        uint32_t depth = _stack_depth;
-        _snap = PerfSnapshot{};
-        _snap.stack_depth = depth;
     }
 
 }}

@@ -22,7 +22,7 @@ namespace Botanik { namespace Terminal {
     }
 
     // prompt helpers
-    // -----------------------------------------------------------------------
+    // ------------------------------------------------------------------------
 
     RowPrompt TextEditor::_row_prompt(uint16_t row_idx) const {
         return _row_prompt_in(_layout, row_idx);
@@ -57,7 +57,8 @@ namespace Botanik { namespace Terminal {
         _terminal->write_chars(_prompt_buf(p), _prompt_len(p));
     }
 
-    // -- layout scanning --------------------------------------------------
+    // layout scanning
+    // ------------------------------------------------------------------------
 
     RowView TextEditor::_scan_row(uint16_t pos, uint16_t cap) const {
         uint16_t len = 0;
@@ -89,7 +90,7 @@ namespace Botanik { namespace Terminal {
     }
 
     // lifecycle
-    // -----------------------------------------------------------------------
+    // ------------------------------------------------------------------------
 
     void TextEditor::_reset_state() {
         _len = _pos = 0;
@@ -124,7 +125,7 @@ namespace Botanik { namespace Terminal {
     }
 
     // redraw
-    // -----------------------------------------------------------------------
+    // ------------------------------------------------------------------------
 
     void TextEditor::redraw() {
         // The destination rows are assumed already blank (the caller cleared
@@ -141,7 +142,7 @@ namespace Botanik { namespace Terminal {
     }
 
     // editing
-    // -----------------------------------------------------------------------
+    // ------------------------------------------------------------------------
 
     void TextEditor::insert_characters(const char* buf, uint16_t len) {
         if (len == 0 || (size_t)_len + 1 >= sizeof(_buf)) return;
@@ -180,7 +181,7 @@ namespace Botanik { namespace Terminal {
     }
 
     // grow/shrink helpers
-    // -----------------------------------------------------------------------
+    // ------------------------------------------------------------------------
 
     uint16_t TextEditor::_grow_editor() {
         // Bottom-pinned origin for the current row count: pull the top up by
@@ -211,7 +212,7 @@ namespace Botanik { namespace Terminal {
     }
 
     // reconciliation helpers
-    // -----------------------------------------------------------------------
+    // ------------------------------------------------------------------------
 
     int32_t TextEditor::_edit_row_amount(uint16_t span_start, uint16_t span_len,
                                          bool is_insert, const RowView& post_row,
@@ -414,7 +415,7 @@ namespace Botanik { namespace Terminal {
     }
 
     // cursor motion
-    // -----------------------------------------------------------------------
+    // ------------------------------------------------------------------------
 
     void TextEditor::move_left() {
         if (_pos == 0) return;

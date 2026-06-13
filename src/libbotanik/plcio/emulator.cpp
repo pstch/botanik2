@@ -10,6 +10,9 @@
 
 namespace Botanik { namespace PlcIO {
 
+    // Lifecycle
+    // ------------------------------------------------------------------------
+
     PlcLogWriter::PlcLogWriter(PlcEmulatorContext* ctx, uint32_t* timestamp_ms)
         : _ctx(ctx), _timestamp_ms(timestamp_ms)
     {

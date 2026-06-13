@@ -14,7 +14,8 @@ namespace Botanik { namespace Terminal {
         using EventType = InputEvent::EventType;
     }
 
-    // Initialization code
+    // Initialization
+    // ------------------------------------------------------------------------
 
     void InputParser::_reset_event() {
         _event.type = EventType::NONE;
@@ -27,6 +28,9 @@ namespace Botanik { namespace Terminal {
         _event.param_count = 0;
         for (int i = 0; i < 8; i++) _event.params[i] = 0;
     }
+
+    // Chunkable command helpers
+    // ------------------------------------------------------------------------
 
     bool InputParser::_is_chunkable_trigger(uint8_t b) {
         return b == 0x04   // CTRL_D
@@ -56,6 +60,7 @@ namespace Botanik { namespace Terminal {
 
 
     // Text handling helpers
+    // ------------------------------------------------------------------------
 
     void InputParser::_store_text(uint8_t b) {
         if (_text_len == 0) _batch_start_ms = *_timestamp_ms;
@@ -82,7 +87,8 @@ namespace Botanik { namespace Terminal {
         return State::TEXT;
     }
 
-    // Flush policy (shared by the text batch and the chunked command)
+    // Flush policy
+    // ------------------------------------------------------------------------
 
     bool InputParser::_backpressure_holds(uint32_t start_ms) const {
         // Hold a pending batch (text or a coalesced command) while the TX ring
@@ -104,6 +110,7 @@ namespace Botanik { namespace Terminal {
     }
 
     // State handlers
+    // ------------------------------------------------------------------------
 
     InputParser::State InputParser::_handle_idle(uint8_t b) {
         if (b == (uint8_t)(*Ansi::ESC))  return State::IN_ESC;
@@ -170,7 +177,8 @@ namespace Botanik { namespace Terminal {
         return State::IDLE; // Error fallback
     }
 
-    // Escape code mappings
+    // Mapping logic
+    // ------------------------------------------------------------------------
 
     Command InputParser::_map_control_char(const uint8_t b) {
         switch (b) {
@@ -261,7 +269,8 @@ namespace Botanik { namespace Terminal {
         }
     }
 
-    // Public interface
+    // Lifecycle
+    // ------------------------------------------------------------------------
 
     InputParser::InputParser(Utils::BufferedSerial& serial, uint32_t* timestamp_ms)
         : _serial(serial), _timestamp_ms(timestamp_ms) {
@@ -269,6 +278,9 @@ namespace Botanik { namespace Terminal {
         _state = State::IDLE;
         _last_byte_ms = *timestamp_ms;
     }
+
+    // Parsing
+    // ------------------------------------------------------------------------
 
     InputEvent& InputParser::parse() {
         _reset_event();

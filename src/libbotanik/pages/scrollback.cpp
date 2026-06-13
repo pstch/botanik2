@@ -12,6 +12,9 @@
 
 namespace Botanik { namespace Pages {
 
+    // Line storage
+    // ------------------------------------------------------------------------
+
     void Scrollback::store(const char* buf, size_t len) {
         uint16_t store_len = (uint16_t)std::min(len, (size_t)(Config::SHELL_SCROLLBACK_LINE_LEN));
         memcpy(_buf[_head], buf, store_len);
@@ -65,6 +68,9 @@ namespace Botanik { namespace Pages {
         len = _lens[idx];
         return _buf[idx];
     }
+
+    // Redraw
+    // ------------------------------------------------------------------------
 
     void Scrollback::begin_redraw(uint16_t log_rows) {
         // The content area is cleared by AnsiTerminal before focus()/redraw(), so

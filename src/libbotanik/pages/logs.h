@@ -29,18 +29,52 @@ namespace Botanik { namespace Pages {
         using LogEntry_t   = PlcIO::LogEntry_t;
         using Command      = Terminal::InputEvent::Command;
 
+        /** @name State
+         *  @{ */
+
+        /** @brief Owning terminal. */
         AnsiTerminal& _terminal;
-
-        // Circular log line buffer + throttled redraw for page-switch replay
+        /** @brief Circular log line buffer + throttled redraw for page-switch replay. */
         Scrollback _scrollback;
-
-        // Mirrors the latest tick(active) argument so write() — reached indirectly
-        // via drain() — knows whether it may paint. False while in the background.
+        /** @brief Mirrors the latest tick(active) argument so write() — reached
+         *  indirectly via drain() — knows whether it may paint. False while in the
+         *  background. */
         bool _active = false;
 
-        // BufferedLogWriter interface
+        /** @} */
+
+    public:
+        /** @name Lifecycle
+         *  @{ */
+
+        /** @brief Construct a LogsPage bound to the given terminal. */
+        LogsPage(Terminal::AnsiTerminal& terminal);
+
+        /** @} */
+
+        /** @name Page interface
+         *  @{ */
+
+        const char* name() const override { return "LOGS"; }
+        void handle_text(char c) override;
+        void handle_command(Command cmd, uint16_t count = 1) override;
+        void deactivate() override;
+        void focus() override;
+        void tick(bool active) override;
+
+        /** @} */
+
+    private:
+        /** @name BufferedLogWriter interface
+         *  @{ */
+
         size_t format(const LogEntry_t* entry, char* buf, size_t len) override;
         size_t write(const char* buf, size_t len) override;
+
+        /** @} */
+
+        /** @name Internals
+         *  @{ */
 
         /** @brief Scroll the tail up one row and write a line at the bottom,
          *         storing it in the scrollback. Shared by write() and the
@@ -51,16 +85,7 @@ namespace Botanik { namespace Pages {
          *         using the same format as log entries. Triggered by SPACE. */
         void _emit_mark();
 
-    public:
-        LogsPage(Terminal::AnsiTerminal& terminal);
-
-        // Page interface
-        const char* name() const override { return "LOGS"; }
-        void handle_text(char c) override;
-        void handle_command(Command cmd, uint16_t count = 1) override;
-        void deactivate() override;
-        void focus() override;
-        void tick(bool active) override;
+        /** @} */
     };
 
 }}

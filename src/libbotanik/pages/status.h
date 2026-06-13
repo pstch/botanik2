@@ -25,10 +25,20 @@ namespace Botanik { namespace Pages {
         using AnsiTerminal = Terminal::AnsiTerminal;
         using Command      = Terminal::InputEvent::Command;
 
-        AnsiTerminal& _terminal;
+        /** @name State
+         *  @{ */
 
+        /** @brief Owning terminal. */
+        AnsiTerminal& _terminal;
+        /** @brief True while this page owns the screen. */
         bool     _active          = false;
-        uint64_t _refresh_last_ms = 0;   ///< last dynamic refresh (uptime ms)
+        /** @brief Last dynamic refresh (uptime ms). */
+        uint64_t _refresh_last_ms = 0;
+
+        /** @} */
+
+        /** @name Draw hooks — override to customize the page.
+         *  @{ */
 
         /** @brief Draw the parts that only change on (re)entry/resize (labels,
          *  section headers). Override to extend. */
@@ -36,16 +46,28 @@ namespace Botanik { namespace Pages {
         /** @brief Refresh the periodically-updated metrics. Base: no-op. */
         virtual void draw_dynamic() {}
 
+        /** @} */
+
     public:
+        /** @name Lifecycle
+         *  @{ */
+
+        /** @brief Construct a StatusPage bound to the given terminal. */
         explicit StatusPage(AnsiTerminal& terminal);
 
-        // Page interface
+        /** @} */
+
+        /** @name Page interface
+         *  @{ */
+
         const char* name() const override { return "STATUS"; }
         void handle_text(char c) override;
         void handle_command(Command cmd, uint16_t count = 1) override;
         void deactivate() override;
         void focus() override;
         void tick(bool active) override;
+
+        /** @} */
     };
 
 }}

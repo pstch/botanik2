@@ -188,10 +188,31 @@ namespace Botanik { namespace HAL {
     /** @brief Host stand-in for the Arduino UART, backed by a pair of file
      *  descriptors with a baud-rate throttle and a simulated UART buffer. */
     class RawSerial {
+        /** @name State
+         *  @{ */
+
+        /** @brief Input file descriptor (-1 if unbound). */
+        int _fd_in = -1;
+        /** @brief Output file descriptor (-1 if unbound). */
+        int _fd_out = -1;
+        /** @brief Configured baud rate (drives the write throttle). */
+        uint32_t _baud = 0;
+        /** @brief Earliest time (us) the next write may proceed. */
+        uint64_t _next_write_us = 0;
+
+        /** @} */
+
     public:
+        /** @name Lifecycle
+         *  @{ */
 
         RawSerial() = default;
- 
+
+        /** @} */
+
+        /** @name I/O
+         *  @{ */
+
         /** @brief Begin operation at the given baud rate (drives write throttling). */
         inline void begin(uint32_t baud) {
             _baud = baud;
@@ -264,11 +285,7 @@ namespace Botanik { namespace HAL {
             return (space < 0) ? 0 : space;
         }
 
-    private:
-        int _fd_in = -1;
-        int _fd_out = -1;
-        uint32_t _baud = 0;
-        uint64_t _next_write_us = 0;
+        /** @} */
     };
 
     /** @brief Logical serial endpoints: CONSOLE drives the interactive terminal,

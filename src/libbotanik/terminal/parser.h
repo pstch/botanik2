@@ -15,6 +15,9 @@
 
 namespace Botanik { namespace Terminal {
 
+    /** @name Types
+     *  @{ */
+
     struct InputEvent {
         // Input event type
         enum class EventType {
@@ -65,10 +68,15 @@ namespace Botanik { namespace Terminal {
         uint8_t  value = 0;
     };
 
+    /** @} */
+
     class InputParser {
-    private:
         using BufferedSerial = Utils::BufferedSerial;
-        // State enumeration
+
+        /** @name Types
+         *  @{ */
+
+        // Parser state machine
         enum class State {
             IDLE,               // Idle state
             TEXT,               // ASCII characters
@@ -76,54 +84,150 @@ namespace Botanik { namespace Terminal {
             IN_CSI,             // Standard X3.64 CSI sequences
             IN_SEP              // Minitel 0x13 sequences
         };
-        // Serial device buffered wrapper
+
+        /** @} */
+
+        /** @name State
+         *  @{ */
+
+        /** @brief Serial device buffered wrapper. */
         BufferedSerial& _serial;
+        /** @brief Shared wall-clock timestamp (ms) updated by the owner. */
         uint32_t*       _timestamp_ms;
-        // Local state
-        InputEvent      _event;                                     // current event being constructed
-        State           _state = State::IDLE;                       // current state
-        // Text Batching
-        char            _text_buf[Config::ANSI_INPUT_BATCH_SIZE];   // batched text
-        uint16_t        _text_len = 0;                              // batched text length
-        uint32_t        _last_byte_ms = 0;                          // timestamp of last byte read
-        uint32_t        _batch_start_ms = 0;                        // when the current text batch started accumulating
-        // Pending chunkable command (BACKSPACE / CTRL_D held down).
-        // Coalesced into one COMMAND event with `count` so a held key
-        // becomes one reconcile pass instead of N.
+
+        /** @brief Event currently being constructed. */
+        InputEvent      _event;
+        /** @brief Current state-machine state. */
+        State           _state = State::IDLE;
+
+        /** @brief Accumulated printable text awaiting a flush. */
+        char            _text_buf[Config::ANSI_INPUT_BATCH_SIZE];
+        /** @brief Bytes held in _text_buf. */
+        uint16_t        _text_len = 0;
+        /** @brief Timestamp of the last byte read. */
+        uint32_t        _last_byte_ms = 0;
+        /** @brief When the current text batch started accumulating. */
+        uint32_t        _batch_start_ms = 0;
+
+        /** @brief Pending chunkable command (BACKSPACE / CTRL_D held down).
+         *  Coalesced into one COMMAND event with `count` so a held key
+         *  becomes one reconcile pass instead of N. */
         InputEvent::Command _pending_cmd = InputEvent::Command::NONE;
+        /** @brief Number of coalesced presses staged in _pending_cmd. */
         uint16_t            _pending_cmd_count = 0;
+        /** @brief When the pending command first started coalescing. */
         uint32_t            _pending_cmd_start_ms = 0;
-        // Initialization
-        void _reset_event();
-        // Text handling helpers
-        void _flush_text();
-        void _store_text(uint8_t b);
-        State _append_text(uint8_t b);  // store one byte, flushing if the batch is full
-        // Flush policy — shared by the text batch and the chunked command
-        bool _backpressure_holds(uint32_t start_ms) const;
-        bool _should_flush_text() const;
-        bool _should_flush_pending_command() const;
-        // Chunkable command helpers
-        static bool _is_chunkable_trigger(uint8_t b);
-        static InputEvent::Command _chunkable_command_for(uint8_t b);
-        void _stage_pending_command(InputEvent::Command cmd);
-        void _emit_pending_command();
-        // State handlers
-        State _handle_idle(uint8_t b);
-        State _handle_text(uint8_t b);
-        State _handle_esc(uint8_t b);
-        State _handle_csi(uint8_t b);
-        State _handle_sep(uint8_t b);
-        // Mapping Logic
-        static InputEvent::Command _map_control_char(const uint8_t b);
-        static InputEvent::Command _map_esc_extension(const uint8_t b);
-        static InputEvent::Command _map_csi_to_command(const uint8_t b, const uint16_t param1);
-        static InputEvent::Command _map_sep_to_command(const uint8_t b);
+
+        /** @} */
+
     public:
-        // Constructor
+        /** @name Lifecycle
+         *  @{ */
+
+        /** @brief Construct a parser bound to a serial wrapper and timestamp. */
         InputParser(BufferedSerial& serial, uint32_t* timestamp_ms);
-        // Main entry point
+
+        /** @} */
+
+        /** @name Parsing
+         *  @{ */
+
+        /** @brief Read available bytes and return the next decoded event. */
         InputEvent& parse();
+
+        /** @} */
+
+    private:
+        /** @name Initialization
+         *  @{ */
+
+        /** @brief Clear _event back to a NONE event. */
+        void _reset_event();
+
+        /** @} */
+
+        /** @name Text handling helpers
+         *  @{ */
+
+        /** @brief Emit the accumulated text batch as a CONTENT event. */
+        void _flush_text();
+
+        /** @brief Append one byte to the text batch. */
+        void _store_text(uint8_t b);
+
+        /** @brief Store one byte, flushing first if the batch is full. */
+        State _append_text(uint8_t b);
+
+        /** @} */
+
+        /** @name Flush policy
+         *  @{ */
+
+        /** @brief True while output backpressure should hold the emit window
+         *         open for a batch/command started at @p start_ms. */
+        bool _backpressure_holds(uint32_t start_ms) const;
+
+        /** @brief True when the pending text batch should be flushed now. */
+        bool _should_flush_text() const;
+
+        /** @brief True when the pending chunked command should be emitted now. */
+        bool _should_flush_pending_command() const;
+
+        /** @} */
+
+        /** @name Chunkable command helpers
+         *  @{ */
+
+        /** @brief True if byte @p b triggers a coalescable command. */
+        static bool _is_chunkable_trigger(uint8_t b);
+
+        /** @brief Map a chunkable trigger byte to its command. */
+        static InputEvent::Command _chunkable_command_for(uint8_t b);
+
+        /** @brief Stage (or extend) the pending coalesced command. */
+        void _stage_pending_command(InputEvent::Command cmd);
+
+        /** @brief Emit the staged command as a single COMMAND event. */
+        void _emit_pending_command();
+
+        /** @} */
+
+        /** @name State handlers
+         *  @{ */
+
+        /** @brief Handle one byte in the IDLE state. */
+        State _handle_idle(uint8_t b);
+
+        /** @brief Handle one byte in the TEXT state. */
+        State _handle_text(uint8_t b);
+
+        /** @brief Handle one byte in the IN_ESC state. */
+        State _handle_esc(uint8_t b);
+
+        /** @brief Handle one byte in the IN_CSI state. */
+        State _handle_csi(uint8_t b);
+
+        /** @brief Handle one byte in the IN_SEP state. */
+        State _handle_sep(uint8_t b);
+
+        /** @} */
+
+        /** @name Mapping logic
+         *  @{ */
+
+        /** @brief Map a C0 control byte to a command. */
+        static InputEvent::Command _map_control_char(const uint8_t b);
+
+        /** @brief Map an ESC-prefixed (Alt+X) byte to a command. */
+        static InputEvent::Command _map_esc_extension(const uint8_t b);
+
+        /** @brief Map a CSI final byte (with first param) to a command. */
+        static InputEvent::Command _map_csi_to_command(const uint8_t b, const uint16_t param1);
+
+        /** @brief Map a Minitel 0x13 separator byte to a command. */
+        static InputEvent::Command _map_sep_to_command(const uint8_t b);
+
+        /** @} */
     };
 
 }}

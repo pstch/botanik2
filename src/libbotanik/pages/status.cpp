@@ -11,7 +11,13 @@
 
 namespace Botanik { namespace Pages {
 
+    // Lifecycle
+    // ------------------------------------------------------------------------
+
     StatusPage::StatusPage(AnsiTerminal& terminal) : _terminal(terminal) {}
+
+    // Draw hooks
+    // ------------------------------------------------------------------------
 
     void StatusPage::draw_static() {
         // Content starts at row 1; row 0 belongs to the terminal status bar.
@@ -22,6 +28,13 @@ namespace Botanik { namespace Pages {
         _terminal.write_chars(hdr, (uint16_t)strlen(hdr));
         _terminal.clear_to_eol();
     }
+
+    // Page interface
+    // ------------------------------------------------------------------------
+
+    void StatusPage::handle_text(char) {}
+    void StatusPage::handle_command(Command, uint16_t) {}
+    void StatusPage::deactivate() { _active = false; }
 
     void StatusPage::focus() {
         _active = true;
@@ -38,9 +51,5 @@ namespace Botanik { namespace Pages {
             draw_dynamic();
         }
     }
-
-    void StatusPage::handle_text(char) {}
-    void StatusPage::handle_command(Command, uint16_t) {}
-    void StatusPage::deactivate() { _active = false; }
 
 }}

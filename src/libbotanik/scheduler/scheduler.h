@@ -20,35 +20,44 @@ namespace Botanik { namespace Logs { class Logger; } }
 namespace Botanik { namespace Scheduler {
 
     /** @brief Stable metrics snapshot consumed by AnsiTerminal for the status bar
-     *  and the `stats` command. Performance figures live in @c perf; the scheduler
-     *  adds only its own tick/overrun counters. */
-    struct SchedulerContext {
-        Utils::PerfSnapshot perf;          // CPU-load and stack-usage metrics
+     *  and the `stats` command. Inherits the PerfMonitor's PerfSnapshot fields
+     *  directly (cpu_load_ema, stack_bytes_recent, ...) and adds the scheduler's
+     *  own tick/overrun counters, so consumers read both through one struct. */
+    struct SchedulerContext : Utils::PerfSnapshot {
+        /** @brief Total ticks executed. */
         uint32_t tick_count      = 0;
-        uint32_t overruns        = 0;      // cumulative beats skipped due to overruns
+        /** @brief Cumulative beats skipped due to overruns. */
+        uint32_t overruns        = 0;
     };
 
     class LoopScheduler {
     private:
-        // Configuration & state
-        uint32_t    _period_ms              = Config::TASK_PERIOD_MS;
-        uint64_t    _next_tick_ms           = 0;
-        // Performance instrumentation (work timing + stack usage).
+        /** @name State
+         *  @{ */
+
+        /** @brief Target loop period (ms). */
+        uint32_t        _period_ms     = Config::TASK_PERIOD_MS;
+        /** @brief Uptime anchor of the next scheduled tick. */
+        uint64_t        _next_tick_ms  = 0;
+        /** @brief Performance instrumentation (work timing + stack usage). */
         Utils::PerfMonitor _perf;
+        /** @brief Logger for startup and periodic reports (may be null). */
         Logs::Logger*   _logger        = nullptr;
-        uint32_t        _tick_count    = 0;
-        uint32_t        _overrun_count = 0;
-        uint64_t        _overrun_log_last_ms = 0;  // timestamp of the last overrun warning
-        uint32_t        _overrun_pending     = 0;  // beats skipped since that warning
-        bool            _started       = false;  // startup message emitted on first tick()
+        /** @brief Timestamp of the last overrun warning. */
+        uint64_t        _overrun_log_last_ms = 0;
+        /** @brief Beats skipped since that warning. */
+        uint32_t        _overrun_pending     = 0;
+        /** @brief Startup message emitted on first tick(). */
+        bool            _started       = false;
+        /** @brief Published metrics snapshot. */
         SchedulerContext _context      = {};
 
-        /** @brief Advance the next-tick anchor to skip missed beats when the loop falls behind. */
-        void _skip_beats(uint64_t now);
-        /** @brief Emit the "scheduler started" log entry (called once, on the first tick()). */
-        void _log_startup();
+        /** @} */
 
     public:
+        /** @name Lifecycle
+         *  @{ */
+
         /**
          * @brief Construct a new non-blocking Loop Scheduler
          * @param period_ms The target period of the loop in milliseconds.
@@ -61,24 +70,47 @@ namespace Botanik { namespace Scheduler {
          */
         void reset();
 
+        /** @} */
+
+        /** @name Tick
+         *  @{ */
+
         /**
          * @brief Non-blocking check. Evaluates if it is time to run the task.
          * @return true exactly ONCE per period when it is time to execute.
          */
         bool tick();
 
+        /** @} */
+
+        /** @name Metrics access
+         *  @{ */
+
         /**
-         * @brief Performance monitor driving the CPU-load and stack-usage metrics.
+         * @brief Paint the free stack for the per-iteration stack-usage scan.
          *
-         * The main loop must call perf().paint_stack() at user-code depth right
-         * after tick() returns true, so the subsequent work dirties the painted
-         * stack region in proportion to its actual depth.
+         * The main loop must call this at user-code depth right after tick()
+         * returns true, so the subsequent work dirties the painted region in
+         * proportion to its actual depth. Forwards to the owned PerfMonitor;
+         * kept inline so the painted ceiling reflects the caller's stack pointer.
          */
-        Utils::PerfMonitor& perf() { return _perf; }
+        inline void paint_stack() { _perf.paint_stack(); }
 
         /** @brief Stable metrics snapshot for external consumers (e.g. status bar). */
         SchedulerContext* context() { return &_context; }
 
+        /** @} */
+
+    private:
+        /** @name Internals
+         *  @{ */
+
+        /** @brief Advance the next-tick anchor to skip missed beats when the loop falls behind. */
+        void _skip_beats(uint64_t now);
+        /** @brief Emit the "scheduler started" log entry (called once, on the first tick()). */
+        void _log_startup();
+
+        /** @} */
     };
 
 #ifdef TARGET_SIMULATOR

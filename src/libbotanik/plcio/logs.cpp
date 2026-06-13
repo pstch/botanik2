@@ -12,6 +12,31 @@
 
 namespace Botanik { namespace PlcIO {
 
+    // Lifecycle
+    // ------------------------------------------------------------------------
+
+    PlcLogReader::PlcLogReader(PlcSyncContext* ctx, Logger* logger)
+        : _logger(logger), _ctx(ctx)
+    {
+        _logBuffer  = ctx->output_logs()->logBuffer;
+        _writeIndex = &ctx->output_logs()->writeIndex;
+        _readIndex  = &ctx->input_logs()->readIndex;
+    }
+
+    void PlcLogReader::step() {
+        while (*_writeIndex != *_readIndex) {
+            uint32_t readIndex = *_readIndex % Config::LOG_PLC_BUFFER_SIZE;
+            const LogEntry_t* entry = &_logBuffer[readIndex];
+            _detect_dropped_entries(entry);
+            _push_plc_entry(entry);
+            *_readIndex = (*_readIndex + 1) % Config::LOG_PLC_BUFFER_SIZE;
+            _ctx->write();
+        }
+    }
+
+    // Internals
+    // ------------------------------------------------------------------------
+
     void PlcLogReader::_detect_dropped_entries(const LogEntry_t* entry) {
         if (_last_seq == 0) { _last_seq = entry->seqNum; return; }
         uint32_t expected = _last_seq + 1;
@@ -36,24 +61,5 @@ namespace Botanik { namespace PlcIO {
         entry.length = std::min(entry.length, (uint16_t)(Config::LOG_PLC_MESSAGE_LEN-1));
         entry.message[entry.length] = '\0';
         _logger->push_entry(entry);
-    }
-
-    PlcLogReader::PlcLogReader(PlcSyncContext* ctx, Logger* logger)
-        : _logger(logger), _ctx(ctx)
-    {
-        _logBuffer  = ctx->output_logs()->logBuffer;
-        _writeIndex = &ctx->output_logs()->writeIndex;
-        _readIndex  = &ctx->input_logs()->readIndex;
-    }
-
-    void PlcLogReader::step() {
-        while (*_writeIndex != *_readIndex) {
-            uint32_t readIndex = *_readIndex % Config::LOG_PLC_BUFFER_SIZE;
-            const LogEntry_t* entry = &_logBuffer[readIndex];
-            _detect_dropped_entries(entry);
-            _push_plc_entry(entry);
-            *_readIndex = (*_readIndex + 1) % Config::LOG_PLC_BUFFER_SIZE;
-            _ctx->write();
-        }
     }
 }}

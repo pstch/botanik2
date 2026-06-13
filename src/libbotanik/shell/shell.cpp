@@ -13,20 +13,32 @@
 
 namespace Botanik { namespace Shell {
 
+    // Lifecycle
+    // ------------------------------------------------------------------------
+
     CommandShell::CommandShell(Terminal::AnsiTerminal& terminal,
                                Terminal::TextEditor&   editor,
                                ShellWriter&            output)
         : _terminal(terminal), _editor(editor), _output(output)
     {}
 
+    // Command execution
+    // ------------------------------------------------------------------------
+
     void CommandShell::run(const char* cmd, uint16_t len) {
         if (len == 0) return;
         dispatch(cmd, len);
     }
 
+    // Extensibility
+    // ------------------------------------------------------------------------
+
     void CommandShell::dispatch(const char* cmd, uint16_t len) {
         _builtin(cmd, len);
     }
+
+    // Internals
+    // ------------------------------------------------------------------------
 
     void CommandShell::_builtin(const char* cmd, uint16_t len) {
         char out[Config::LOG_FORMATTED_LEN];
@@ -44,7 +56,7 @@ namespace Botanik { namespace Shell {
             HAL::reset();  // reboots the firmware; does not return
             return;
         } else if (len == 5 && strncmp(cmd, "stats", 5) == 0) {
-            Scheduler::SchedulerContext* ctx = _terminal.sched_ctx();
+            Scheduler::SchedulerContext* ctx = _terminal.context().scheduler;
             uint32_t uptime_s = (uint32_t)(HAL::uptime_ms() / 1000);
             if (ctx) {
                 char val[24], detail[64];
@@ -57,34 +69,34 @@ namespace Botanik { namespace Shell {
                 if (w > 0) _output.write(out, (size_t)w);
 
                 snprintf(val,    sizeof(val),    "%.1f%%",
-                    (double)(ctx->perf.cpu_load_ema * 100.0f));
+                    (double)(ctx->cpu_load_ema * 100.0f));
                 snprintf(detail, sizeof(detail), "recent %.2fms, peak %.2fms",
-                    (double)ctx->perf.cpu_loop_us_recent / 1000.0,
-                    (double)ctx->perf.cpu_loop_us_max / 1000.0);
+                    (double)ctx->cpu_loop_us_recent / 1000.0,
+                    (double)ctx->cpu_loop_us_max / 1000.0);
                 w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
                     "CPU load ....................", val, detail);
                 if (w > 0) _output.write(out, (size_t)w);
 
                 snprintf(val,    sizeof(val),    "%.1f%%",
-                    (double)(ctx->perf.cpu_jitter_ema * 100.0f));
+                    (double)(ctx->cpu_jitter_ema * 100.0f));
                 snprintf(detail, sizeof(detail), "recent %.2fms, peak %.2fms",
-                    (double)ctx->perf.cpu_jitter_us_recent / 1000.0,
-                    (double)ctx->perf.cpu_jitter_us_max / 1000.0);
+                    (double)ctx->cpu_jitter_us_recent / 1000.0,
+                    (double)ctx->cpu_jitter_us_max / 1000.0);
                 w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
                     "CPU jitter ..................", val, detail);
                 if (w > 0) _output.write(out, (size_t)w);
 
                 snprintf(val,    sizeof(val),    "%.1f%%",
-                    (double)(ctx->perf.stack_usage_ema * 100.0f));
+                    (double)(ctx->stack_usage_ema * 100.0f));
                 snprintf(detail, sizeof(detail), "recent %lu, peak %lu bytes",
-                    (unsigned long)ctx->perf.stack_bytes_recent,
-                    (unsigned long)ctx->perf.stack_bytes_max);
+                    (unsigned long)ctx->stack_bytes_recent,
+                    (unsigned long)ctx->stack_bytes_max);
                 w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
                     "Stack usage .................", val, detail);
                 if (w > 0) _output.write(out, (size_t)w);
 
                 snprintf(val, sizeof(val), "%lu bytes",
-                    (unsigned long)ctx->perf.stack_depth);
+                    (unsigned long)ctx->stack_depth);
                 w = snprintf(out, sizeof(out), "%-29s : %s",
                     "Stack depth .................", val);
                 if (w > 0) _output.write(out, (size_t)w);

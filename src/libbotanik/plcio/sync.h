@@ -19,6 +19,9 @@
 
 namespace Botanik { namespace PlcIO {
 
+    /** @name Status & state types
+     *  @{ */
+
     // PLC connection status
     enum PlcStatus {
         PLC_UNKNOWN,                                // no successful acknowledgment yet
@@ -43,22 +46,68 @@ namespace Botanik { namespace PlcIO {
                                                     //  (or for the heartbeat interval to elapse)
     };
 
+    /** @} */
+
     // Non-template context object. Holds the parts of PlcSyncHandler that are
     // independent of the payload types: log buffers, TX-write flag, timing state,
     // and the stable public interface consumed by PlcLogReader and Page classes.
     struct PlcSyncContext {
         template<typename, typename> friend class PlcSyncHandler;
     private:
+        /** @name State
+         *  @{ */
+
+        /** @brief A TX write has been requested by the application. */
         bool             _tx_write       = false;
+        /** @brief Local copy of the PLC output log buffer. */
         PlcOutputLogs_t  _rx_logs_buffer = {};
+        /** @brief Local copy of the PLC input log buffer. */
         PlcInputLogs_t   _tx_logs_buffer = {};
+        /** @brief Shared wall-clock timestamp (ms). */
         uint32_t*        _timestamp_ms   = nullptr;
+        /** @brief Time of the last acknowledged TX. */
         uint32_t         _tx_last_ms     = 0;
+        /** @brief Elapsed threshold (ms) before PLC_TIMEOUT is reported. */
         uint32_t         _timeout_ms     = Config::PLC_TIMEOUT_MS;
+        /** @brief True once any TX has ever been acknowledged. */
         bool             _ever_ackd      = false;
+        /** @brief Logger for link status changes (may be null). */
         Logs::Logger*    _logger         = nullptr;
+        /** @brief Last reported status, for change detection. */
         PlcStatus        _last_status    = PLC_UNKNOWN;
 
+        /** @} */
+
+    public:
+        /** @name Interface
+         *  @{ */
+
+        /** @brief Request a TX write on the next handler step. */
+        void                   write()             { _tx_write = true; }
+        /** @brief Local copy of the PLC's output log buffer. */
+        const PlcOutputLogs_t* output_logs() const { return &_rx_logs_buffer; }
+        /** @brief Local copy of the PLC's input log buffer. */
+        PlcInputLogs_t*        input_logs()        { return &_tx_logs_buffer; }
+
+        /** @brief Current PLC link status derived from the ack timing. */
+        PlcStatus status() const {
+            uint32_t elapsed = *_timestamp_ms - _tx_last_ms;
+            if (!_ever_ackd)                        return PLC_UNKNOWN;
+            if (elapsed > Config::PLC_WATCHDOG_MS)  return PLC_FAULT;
+            if (elapsed > _timeout_ms)              return PLC_TIMEOUT;
+                                                    return PLC_RUNNING;
+        }
+
+        /** @brief True once PLC activity has been silent for PLC_WATCHDOG_MS. */
+        bool faulted() const { return status() == PLC_FAULT; }
+
+        /** @} */
+
+    private:
+        /** @name Internals
+         *  @{ */
+
+        /** @brief Emit a log entry when the link status transitions. */
         void _log_status_change() {
             if (_logger == nullptr) return;
             PlcStatus current = status();
@@ -75,21 +124,7 @@ namespace Botanik { namespace PlcIO {
             _last_status = current;
         }
 
-    public:
-        void                   write()             { _tx_write = true; }
-        const PlcOutputLogs_t* output_logs() const { return &_rx_logs_buffer; }
-        PlcInputLogs_t*        input_logs()        { return &_tx_logs_buffer; }
-
-        PlcStatus status() const {
-            uint32_t elapsed = *_timestamp_ms - _tx_last_ms;
-            if (!_ever_ackd)                        return PLC_UNKNOWN;
-            if (elapsed > Config::PLC_WATCHDOG_MS)  return PLC_FAULT;
-            if (elapsed > _timeout_ms)              return PLC_TIMEOUT;
-                                                    return PLC_RUNNING;
-        }
-
-        /** @brief True once PLC activity has been silent for PLC_WATCHDOG_MS. */
-        bool faulted() const { return status() == PLC_FAULT; }
+        /** @} */
     };
 
     // This class provides logic to safely interact with the PLC's shared memory,
@@ -109,20 +144,81 @@ namespace Botanik { namespace PlcIO {
     template<typename InputData, typename OutputData>
     class PlcSyncHandler {
     private:
-        PlcSyncContext         _ctx;
+        /** @name State
+         *  @{ */
+
         // NOTE: seq/ack naming is from the PLC's point of view:
         //   TxSeqNum/TxAckNum → our RX (PLC output data)
         //   RxSeqNum/RxAckNum → our TX (PLC input data)
+
+        /** @brief Payload-independent context (logs, timing, status). */
+        PlcSyncContext         _ctx;
+        /** @brief Heartbeat/commit interval (ms). */
         uint32_t               _heartbeat_ms  = Config::PLC_HEARTBEAT_MS;
-        uint32_t               _tx_commit_ms  = 0;      // last commit/heartbeat pulse (for re-commit on stall)
-        PlcInput<InputData>*   _plcin;                  // PLC input memory  (write-only)
-        PlcOutput<OutputData>* _plcout;                 // PLC output memory (read-only)
-        OutputData             _rx_data_buffer;         // local receive buffer for _plcout->data
-        InputData              _tx_data_buffer;         // local transmit buffer for _plcin->data
+        /** @brief Last commit/heartbeat pulse (for re-commit on stall). */
+        uint32_t               _tx_commit_ms  = 0;
+        /** @brief PLC input memory (write-only). */
+        PlcInput<InputData>*   _plcin;
+        /** @brief PLC output memory (read-only). */
+        PlcOutput<OutputData>* _plcout;
+        /** @brief Local receive buffer for _plcout->data. */
+        OutputData             _rx_data_buffer;
+        /** @brief Local transmit buffer for _plcin->data. */
+        InputData              _tx_data_buffer;
+        /** @brief RX state-machine state. */
         PlcRxState             _rx_state      = RX_IDLE;
+        /** @brief TX state-machine state. */
         PlcTxState             _tx_state      = TX_WRITE;
 
-        // Transition triggers
+        /** @} */
+
+    public:
+        /** @name Lifecycle
+         *  @{ */
+
+        /** @brief Bind the handler to PLC shared memory and a timestamp. */
+        PlcSyncHandler(PlcInput<InputData>* plcin, PlcOutput<OutputData>* plcout,
+                       uint32_t* timestamp_ms, Logs::Logger* logger = nullptr)
+            : _plcin(plcin), _plcout(plcout)
+        {
+            _ctx._timestamp_ms = timestamp_ms;
+            _ctx._tx_last_ms   = *timestamp_ms;
+            _tx_commit_ms      = *timestamp_ms;
+            _ctx._logger       = logger;
+            memset(&_tx_data_buffer, 0, sizeof(InputData));
+            memset(&_rx_data_buffer, 0, sizeof(OutputData));
+        }
+
+        /** @} */
+
+        /** @name Data access
+         *  @{ */
+
+        /** @brief Payload-independent context for log readers and pages. */
+        PlcSyncContext*   context()           { return &_ctx; }
+        /** @brief Most recently received PLC output payload. */
+        const OutputData* output_data() const { return &_rx_data_buffer; }
+        /** @brief Transmit buffer staged for the PLC input payload. */
+        InputData*        input_data()        { return &_tx_data_buffer; }
+
+        /** @} */
+
+        /** @name Step
+         *  @{ */
+
+        /** @brief Advance both state machines once; call per tick. */
+        inline void step() {
+            _rx_state = _rx_step();
+            _tx_state = _tx_step();
+            _ctx._log_status_change();
+        }
+
+        /** @} */
+
+    private:
+        /** @name Transition triggers
+         *  @{ */
+
         inline bool _rx_new_message()      { return _plcout->sync.txSeqNum != _plcin->sync.txAckNum; }
         inline bool _tx_heartbeat_elapsed(){ return *_ctx._timestamp_ms - _ctx._tx_last_ms > _heartbeat_ms; }
         // Re-pulse a commit left unacked for a whole heartbeat (TX_WAIT recovery).
@@ -133,7 +229,11 @@ namespace Botanik { namespace PlcIO {
             return result;
         }
 
-        // Transition actions
+        /** @} */
+
+        /** @name Transition actions
+         *  @{ */
+
         inline void _rx_memcpy() {
             HAL::dsb();  // acquire: order payload reads after the txSeqNum read
             HAL::ordered_copy(&_ctx._rx_logs_buffer, &_plcout->logs);
@@ -153,7 +253,11 @@ namespace Botanik { namespace PlcIO {
             _tx_commit_ms = *_ctx._timestamp_ms;
         }
 
-        // State machines
+        /** @} */
+
+        /** @name State machines
+         *  @{ */
+
         inline PlcRxState _rx_step() {
             switch (_rx_state) {
                 case RX_IDLE:   if (_rx_new_message())      return RX_READ; break;
@@ -174,28 +278,7 @@ namespace Botanik { namespace PlcIO {
             return _tx_state;
         }
 
-    public:
-        PlcSyncHandler(PlcInput<InputData>* plcin, PlcOutput<OutputData>* plcout,
-                       uint32_t* timestamp_ms, Logs::Logger* logger = nullptr)
-            : _plcin(plcin), _plcout(plcout)
-        {
-            _ctx._timestamp_ms = timestamp_ms;
-            _ctx._tx_last_ms   = *timestamp_ms;
-            _tx_commit_ms      = *timestamp_ms;
-            _ctx._logger       = logger;
-            memset(&_tx_data_buffer, 0, sizeof(InputData));
-            memset(&_rx_data_buffer, 0, sizeof(OutputData));
-        }
-
-        PlcSyncContext*   context()           { return &_ctx; }
-        const OutputData* output_data() const { return &_rx_data_buffer; }
-        InputData*        input_data()        { return &_tx_data_buffer; }
-
-        inline void step() {
-            _rx_state = _rx_step();
-            _tx_state = _tx_step();
-            _ctx._log_status_change();
-        }
+        /** @} */
     };
 
 }}

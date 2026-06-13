@@ -10,8 +10,8 @@
 
 namespace Botanik { namespace Utils {
 
-    // Constructor
-    // -----------------------------------------------------------------------
+    // Lifecycle
+    // ------------------------------------------------------------------------
 
     BufferedSerial::BufferedSerial(HAL::RawSerial* serial) :
         _serial(serial) {
@@ -19,8 +19,8 @@ namespace Botanik { namespace Utils {
         memset(_tx_buf, 0, sizeof(_tx_buf));
     }
 
-    // Buffer status getters
-    // -----------------------------------------------------------------------
+    // Status & capacity
+    // ------------------------------------------------------------------------
 
     uint16_t BufferedSerial::available() const {
         return (_rx_head - _rx_tail) & (RX_BUF_SIZE - 1);
@@ -34,8 +34,8 @@ namespace Botanik { namespace Utils {
     bool BufferedSerial::rx_empty() const { return _rx_head == _rx_tail; }
     bool BufferedSerial::tx_empty() const { return _tx_head == _tx_tail; }
 
-    // Software-facing IO handlers
-    // -----------------------------------------------------------------------
+    // Application I/O
+    // ------------------------------------------------------------------------
 
     uint16_t BufferedSerial::write(const char* buf, uint16_t len) {
         uint16_t pos = 0;
@@ -78,8 +78,8 @@ namespace Botanik { namespace Utils {
         return true;
     }
 
-    // Hardware-facing IO handlers
-    // -----------------------------------------------------------------------
+    // Hardware I/O
+    // ------------------------------------------------------------------------
 
     uint16_t BufferedSerial::receive() {
         uint16_t rcvd = 0;
