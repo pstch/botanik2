@@ -17,9 +17,10 @@
 - ~~Decouple the terminal code (status bar & `stats` command) from the separate
   SchedulerContext/PlcSyncContext pointers.~~ Done: `SystemContext` (context.h)
   bundles both; AnsiTerminal takes one `SystemContext` and exposes it via
-  `context()`. Consumers still read the concrete sub-context fields through it —
-  a further step could hide those behind a status-provider interface, but the
-  terminal's constructor and members no longer depend on the two types directly.
+  `context()`. Consumers read the concrete sub-context fields through it.
+  Decided *not* to hide those fields behind a status-provider interface: single
+  producer/consumer, POD snapshots are idiomatic here, and the vtable indirection
+  isn't worth it on the OPTA. The wrapper already removed the coupling that mattered.
 
 ## PLC I/O
 

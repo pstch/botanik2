@@ -44,9 +44,12 @@ namespace Botanik { namespace Scheduler {
     bool LoopScheduler::tick() {
         // log startup message on first tick
         if (!_started) { _started = true; _log_startup(); }  
-        // measure current time (us, for jitter)
+        // measure current time (us, for jitter); derive ms from the same reading
+        // so the jitter math below can never underflow against the time grid
+        // (a separate uptime_ms() read can straddle the millisecond boundary and
+        // land just under _next_tick_ms*1000, wrapping the unsigned subtraction).
         uint64_t now_us = HAL::uptime_us();
-        uint64_t now_ms = HAL::uptime_ms();
+        uint64_t now_ms = now_us / 1000;
         int64_t remaining_ms = _next_tick_ms - now_ms;
         // measure past work + stack usage
         _perf.sample();
