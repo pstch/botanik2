@@ -14,6 +14,7 @@
 #include "libbotanik_config.h"
 
 #include "libbotanik/utils/perf.h"
+#include "libbotanik/hal/platform.h"
 
 namespace Botanik { namespace Logs { class Logger; } }
 
@@ -34,6 +35,8 @@ namespace Botanik { namespace Scheduler {
         uint32_t timestamp_ms    = 0;
     };
 
+    /** @class LoopScheduler
+     *  @brief TODO */     
     class LoopScheduler {
     private:
         /** @name State
@@ -87,9 +90,56 @@ namespace Botanik { namespace Scheduler {
          * dirties the painted region in proportion to its actual depth — the
          * caller no longer has to do this itself.
          *
+         * @warning always_inline: this must fold into the caller's frame so the
+         * paint_stack() it ends with captures the loop body's SP, not a separate
+         * tick() frame's. That is why the body lives here in the header and the
+         * cold helpers (_skip_beats / _log_startup) stay out of line — only the
+         * hot path that reaches the paint needs to be inlined into user code.
+         *
          * @return true exactly ONCE per period when it is time to execute.
          */
-        bool tick();
+        inline __attribute__((always_inline)) bool tick() {
+            // log startup message on first tick
+            if (!_started) { _started = true; _log_startup(); }
+            // measure current time (us, for jitter); derive ms from the same reading
+            // so the jitter math below can never underflow against the time grid
+            // (a separate uptime_ms() read can straddle the millisecond boundary and
+            // land just under _next_tick_ms*1000, wrapping the unsigned subtraction).
+            uint64_t now_us = HAL::uptime_us();
+            uint64_t now_ms = now_us / 1000;
+            int64_t remaining_ms = (int64_t)_next_tick_ms - (int64_t)now_ms;
+            // measure past work + stack usage
+            _perf.sample();
+            // yield/sleep until next tick
+            if (remaining_ms > 0) {
+                // sleep until grid point minus one millisecond
+                if (remaining_ms > 1) HAL::sleep_ms((uint32_t)(remaining_ms - 1));
+                // return false so that work can be deferred
+                // NOTE: this implements a busy loop started 1 ms before the grid point
+                return false;
+            }
+            // publish the perf snapshot into the context (PerfSnapshot base subobject)
+            static_cast<Utils::PerfSnapshot&>(_context) = _perf.snapshot();
+            // publish the loop "now" so consumers share a single timestamp per tick
+            _context.timestamp_ms = (uint32_t)now_ms;
+            // open work window
+            _perf.work_begin();
+            // skip missed beats (and log overruns)
+            _skip_beats(now_ms);
+            // measure lateness against time grid
+            _perf.record_jitter((uint32_t)(now_us - _next_tick_ms * 1000));
+            // advance time grid
+            _next_tick_ms += _period_ms;
+            // increment tick count
+            ++_context.tick_count;
+            // paint the free stack for the loop work's high-water scan. Kept last so
+            // the painted ceiling sits at the caller's SP, just above the work that
+            // runs once we return; both this and paint_stack() are always_inline so
+            // &sp_marker lands in the loop body's frame, not a PerfMonitor frame.
+            _perf.paint_stack();
+            // return true so that work can start
+            return true;
+        }
 
         /** @} */
 
