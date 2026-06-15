@@ -18,11 +18,9 @@ namespace Botanik { namespace Terminal { namespace Ansi {
 
     using BufferedSerial = Utils::BufferedSerial;
 
-    /** Represents a physical coordinate on the display.
-     *
-     * Note that this struct's members are still 0-indexed, the conversion
-     * to 1-indexing happens when sending commands to the remote device.
-     */
+    /** @brief Represents a physical coordinate on the display.
+     *  @note  this struct's members are still 0-indexed, the conversion
+     *  to 1-indexing happens when sending commands to the remote device. */
     struct CursorPos {
         uint16_t row; uint16_t col;
     public:

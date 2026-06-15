@@ -19,6 +19,9 @@
 namespace Botanik { namespace Terminal {
 
 
+    /** @class AnsiTerminal
+     *  @brief TODO
+     */
     class AnsiTerminal {
         using BufferedSerial = Utils::BufferedSerial;
         using CursorPos = Terminal::Ansi::CursorPos;

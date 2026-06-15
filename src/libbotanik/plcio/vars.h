@@ -26,6 +26,7 @@ namespace Botanik { namespace PlcIO {
     /** @name Log protocol
      *  @{ */
 
+    /** @brief TODO */     
     enum LogLevel : uint8_t {
         LOG_DEBUG = 1,       // debugging messages, only printed when debugging mode is enabled
         LOG_INFO = 2,        // informational messages, they don't need any particular attention
@@ -37,6 +38,7 @@ namespace Botanik { namespace PlcIO {
 
     // Values are the wire protocol shared with the PLC, not a sequence; listed in
     // ascending value order. Changing a value requires a matching PLC-side change.
+    /** @brief TODO */     
     enum LogTopic : uint8_t {
         NONE = 0,
         PLC_IO = 1,
@@ -50,6 +52,7 @@ namespace Botanik { namespace PlcIO {
     static_assert(Config::LOG_TOPIC_MAX < (1 << (sizeof(LogTopic)*8)),
                   "LOG_TOPIC_MAX exceeds the range of the LogTopic enum");
 
+    /** @brief TODO */     
     struct LogEntry_t {
         uint32_t        timestamp;    // @0
         LogLevel        level;        // @4  (uint8_t)
@@ -70,11 +73,13 @@ namespace Botanik { namespace PlcIO {
     /** @name Sync counters
      *  @{ */
 
-    // Sync counters (named from the PLC's point of view)
+    /** @brief Sync counters (named from the PLC's point of view) */     
     struct PlcInputCounters_t {
         uint32_t            rxSeqNum;
         uint32_t            txAckNum;
     };
+
+    /** @brief TODO */     
     struct PlcOutputCounters_t {
         uint32_t            txSeqNum;
         uint32_t            rxAckNum;
@@ -85,11 +90,14 @@ namespace Botanik { namespace PlcIO {
     /** @name Log buffers
      *  @{ */
 
-    // Fixed log-protocol fields, always present regardless of the user's payload type.
-    // These form the library's shared log protocol between host and PLC.
+    /** @brief Fixed log-protocol fields, always present regardless of the user's payload type.
+     *  @note These form the library's shared log protocol between host and PLC. */
     struct PlcInputLogs_t {
         uint32_t            readIndex;      // host's current read position in the PLC log buffer
     };
+
+    
+    /** @brief TODO */     
     struct PlcOutputLogs_t {
         uint32_t            writeIndex;     // kept first so its alignment is independent
                                             // of the buffer size and entry size
@@ -111,12 +119,15 @@ namespace Botanik { namespace PlcIO {
     // yields the intended layout. Data must be trivially copyable and naturally aligned
     // (and a multiple of 4 for a fully padding-free combined struct) so the PLC IDE's
     // generated types match byte-for-byte; the sketch's static_assert verifies this.
+    /** @brief TODO */     
     template<typename Data>
     struct PlcInput {
         PlcInputCounters_t  sync;
         PlcInputLogs_t      logs;
         Data                data;
     };
+
+    /** @brief TODO */     
     template<typename Data>
     struct PlcOutput {
         PlcOutputCounters_t sync;

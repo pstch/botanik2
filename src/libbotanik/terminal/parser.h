@@ -18,14 +18,19 @@ namespace Botanik { namespace Terminal {
     /** @name Types
      *  @{ */
 
+    /** @brief TODO */     
     struct InputEvent {
+        
         // Input event type
+        /** @brief TODO */     
         enum class EventType {
             NONE,       // No complete sequence yet
             CONTENT,    // Standard printable text (uses batch_data/len)
             COMMAND,    // Action/Sequence (uses command/params)
         };
+
         // Command key type
+        /** @brief TODO */     
         enum class Command : uint16_t {
             // Parser continuation
             NONE = 0,
@@ -71,6 +76,8 @@ namespace Botanik { namespace Terminal {
 
     /** @} */
 
+    /** @class InputParser
+     *  @brief TODO */     
     class InputParser {
         using BufferedSerial = Utils::BufferedSerial;
 

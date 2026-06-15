@@ -25,6 +25,9 @@ namespace Botanik {
     namespace Logs  { class Logger; }
 }
 
+/** @name PLC payload
+ *  @{ */
+
 struct PlcInputData_t {};   // no site-specific data beyond the library log fields
 
 /** @brief UPS operating state. */
@@ -97,6 +100,11 @@ struct PlcOutputData_t {
 };
 static_assert(sizeof(PlcOutputData_t) % 4 == 0, "PlcOutputData_t must be 4-byte aligned");
 
+/** @} */
+
+/** @name Emulator
+ *  @{ */
+
 /**
  * @brief Start the simulator's mock PLC coprocessor.
  *
@@ -112,6 +120,11 @@ void start_greenhouse_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   share
                                Botanik::PlcIO::PlcOutput<PlcOutputData_t>* shared_out,
                                Botanik::Logs::Logger*                      logger);
 
+/** @} */
+
+/** @name Process lifecycle
+ *  @{ */
+
 /** @brief Main-loop run flag: cleared by botanik_sim_shutdown() so the loop
  *  breaks and main() returns, running atexit (terminal restore) and any
  *  sanitizer exit-time checks instead of the process being killed mid-loop.
@@ -121,5 +134,7 @@ extern volatile sig_atomic_t botanik_running;
 /** @brief SIGINT/SIGTERM handler: requests a graceful shutdown by clearing
  *  botanik_running. extern "C" so it can be installed with std::signal. */
 extern "C" void botanik_sim_shutdown(int);
+
+/** @} */
 
 #endif // BOTANIK_SIM_SIMULATOR_H

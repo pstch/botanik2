@@ -30,10 +30,13 @@ namespace Botanik { namespace Logs {
         uint32_t    count                   = 0;
     };
 
+    /** @class Logger
+     *  @brief TODO
+     */
     class Logger {
     private:
         using LogEntry_t = PlcIO::LogEntry_t;
-
+ 
         /** @name Global rate-limiter
          *  @{ */
 

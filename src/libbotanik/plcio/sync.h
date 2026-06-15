@@ -22,7 +22,7 @@ namespace Botanik { namespace PlcIO {
     /** @name Status & state types
      *  @{ */
 
-    // PLC connection status
+    /** @brief PLC connection status */
     enum PlcStatus {
         PLC_UNKNOWN,                                // no successful acknowledgment yet
         PLC_RUNNING,                                // communicating normally
@@ -30,14 +30,14 @@ namespace Botanik { namespace PlcIO {
         PLC_FAULT                                   // no acknowledgment within PLC_WATCHDOG_MS
     };
 
-    // Reader state enumeration
+    /** @brief Reader state enumeration */
     enum PlcRxState {
         RX_IDLE,                                    // wait for a new write message from the other side
         RX_READ,                                    // read data from the PLC's output shared memory
         RX_ACK                                      // acknowledge the write message from the other side
     };
 
-    // Writer state enumeration
+    /** @brief Writer state enumeration */
     enum PlcTxState {
         TX_WRITE,                                   // write data to the PLC's input shared memory
         TX_COMMIT,                                  // commit a write (or send heartbeat pulse)
@@ -51,6 +51,7 @@ namespace Botanik { namespace PlcIO {
     // Non-template context object. Holds the parts of PlcSyncHandler that are
     // independent of the payload types: log buffers, TX-write flag, timing state,
     // and the stable public interface consumed by PlcLogReader and Page classes.
+    /** @brief TODO */
     struct PlcSyncContext {
         template<typename, typename> friend class PlcSyncHandler;
     private:
@@ -141,6 +142,7 @@ namespace Botanik { namespace PlcIO {
     // They must be trivially copyable. The combined PlcInput<InputData> /
     // PlcOutput<OutputData> memory layout must match the PLC IDE's generated types
     // (verified on OPTA by a static_assert in the user's sketch).
+    /** @brief TODO */
     template<typename InputData, typename OutputData>
     class PlcSyncHandler {
     private:
