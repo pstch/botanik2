@@ -1,0 +1,49 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            // Make sure build/ exists and is configured for the SIMULATOR target.
+            // Safe to re-run: cmake no-ops if the cache is already up to date.
+            "label": "cmake-configure-sim",
+            "type": "shell",
+            "command": "cmake -B build -DBOTANIK_TARGET=SIMULATOR",
+            "problemMatcher": []
+        },
+        {
+            // Build just the simulator binary (build/botanik_sim).
+            "label": "build-sim",
+            "type": "shell",
+            "command": "make -C build botanik_sim",
+            "dependsOn": "cmake-configure-sim",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": "$gcc"
+        },
+        {
+            // Build + run the doctest suite via CTest. --output-on-failure echoes
+            // a failing case's assertions inline. This builds botanik_tests first
+            // (ctest itself does not), so it's safe to run from a clean tree.
+            "label": "test",
+            "type": "shell",
+            "command": "make -C build botanik_tests && (cd build && ctest --output-on-failure)",
+            "dependsOn": "cmake-configure-sim",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "problemMatcher": "$gcc"
+        },
+        {
+            // The full pre-push gate: warning-clean build + clang-tidy + unit
+            // tests (the `check` custom target defined in tests/CMakeLists.txt).
+            "label": "check",
+            "type": "shell",
+            "command": "make -C build check",
+            "dependsOn": "cmake-configure-sim",
+            "group": "test",
+            "problemMatcher": "$gcc"
+        }
+    ]
+}

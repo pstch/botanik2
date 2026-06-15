@@ -1,4 +1,7 @@
 {
+    // The "Debug simulator (xterm)" launch config uses console: externalTerminal,
+    // which on Linux opens whatever terminal this points to. Pin it to xterm.
+    "terminal.external.linuxExec": "xterm",
     "files.associations": {
         "ctime": "cpp",
         "array": "cpp",
