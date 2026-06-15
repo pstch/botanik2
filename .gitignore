@@ -6,6 +6,9 @@ archive/
 CMakeFiles
 CMakeCache.txt
 CMake
+
+CTestfile.cmake
+
 cmake_install.cmake
 compile_commands.json
 
