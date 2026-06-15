@@ -59,11 +59,22 @@ namespace Botanik { namespace Logs {
     SerialLogWriter::SerialLogWriter(BufferedSerial& serial) :
         _serial(&serial) {}
 
+    // Drain queued entries into the serial's TX ring. The bound serial is
+    // stepped separately from the main loop, which flushes the ring to the sink.
+    void SerialLogWriter::step() {
+        drain();
+    }
+
     // Channel implementation
     // ------------------------------------------------------------------------
 
     size_t SerialLogWriter::format(const LogEntry_t* entry, char* buf, size_t len) {
-        return format_log_entry(entry, buf, len);
+        // The shared formatter emits no line terminator (the page writers wrap by
+        // width into stored rows). On a serial sink entries would otherwise run
+        // together, so terminate each one with a newline when there's room.
+        size_t written = format_log_entry(entry, buf, len);
+        if (written < len) buf[written++] = '\n';
+        return written;
     }
 
     // Write up to len bytes to the serial port, capped by available TX space
@@ -71,6 +82,23 @@ namespace Botanik { namespace Logs {
         int available = std::min((uint16_t)len, _serial->availableForWrite());
         if (available == 0) return 0;
         return _serial->write(buf, available);
+    }
+
+    // MonitorLogWriter
+    // ------------------------------------------------------------------------
+
+    // Decide suppression once: an interactive output shares the screen with the
+    // console UI, so its log entries would garble the display.
+    MonitorLogWriter::MonitorLogWriter(BufferedSerial& serial) :
+        SerialLogWriter(serial) {
+            _suppressed = serial.is_output_tty();
+        }
+
+    // Drop entries on a shared terminal before they reach the queue; otherwise
+    // behave exactly like SerialLogWriter.
+    void MonitorLogWriter::push(const LogEntry_t* entry) {
+        if (_suppressed) return;
+        SerialLogWriter::push(entry);
     }
 
 }}

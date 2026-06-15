@@ -83,20 +83,6 @@ namespace Botanik { namespace Logs {
 
         /** @} */
 
-    protected:
-        /** @name Rate-limiting internals
-         *  @{ */
-
-        /** @brief Try to take a token from @p bucket; returns false if empty. */
-        bool _try_bucket(LogBucket_t* bucket);
-        /** @brief Add @p amount tokens to @p bucket, clamped to @p burst. */
-        void _fill_bucket(LogBucket_t* bucket, uint16_t amount, uint16_t burst);
-        /** @brief Emit a synthetic warning entry if @p bucket has suppressed entries. */
-        void _report_suppressed(LogBucket_t* bucket, PlcIO::LogTopic topic, uint32_t timestamp_ms);
-        /** @brief Build a timestamped entry from a printf-style message and forward it to push_entry(). */
-        void _emit(PlcIO::LogLevel level, PlcIO::LogTopic topic, const char* fmt, va_list ap);
-
-        /** @} */
     public:
         /** @name Lifecycle
          *  @{ */
@@ -139,6 +125,21 @@ namespace Botanik { namespace Logs {
         void warning (PlcIO::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
         void error   (PlcIO::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
         void critical(PlcIO::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
+        /** @} */
+
+    protected:
+        /** @name Rate-limiting internals
+         *  @{ */
+
+        /** @brief Try to take a token from @p bucket; returns false if empty. */
+        bool _try_bucket(LogBucket_t* bucket);
+        /** @brief Add @p amount tokens to @p bucket, clamped to @p burst. */
+        void _fill_bucket(LogBucket_t* bucket, uint16_t amount, uint16_t burst);
+        /** @brief Emit a synthetic warning entry if @p bucket has suppressed entries. */
+        void _report_suppressed(LogBucket_t* bucket, PlcIO::LogTopic topic, uint32_t timestamp_ms);
+        /** @brief Build a timestamped entry from a printf-style message and forward it to push_entry(). */
+        void _emit(PlcIO::LogLevel level, PlcIO::LogTopic topic, const char* fmt, va_list ap);
+
         /** @} */
     };
 

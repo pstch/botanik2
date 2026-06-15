@@ -28,16 +28,6 @@ namespace Botanik { namespace Logs {
     class LogWriter {
     private:
         using LogEntry_t = PlcIO::LogEntry_t;
-    protected:
-        /** @name Channel implementation (provided by subclasses)
-         *  @{ */
-
-        /** @brief Serialize bytes to the output medium (never blocks) */
-        virtual size_t  write(const char* buf, size_t len) = 0;
-        /** @brief Format a log entry into @p buf; return the number of bytes written */
-        virtual size_t  format(const LogEntry_t* entry, char* buf, size_t len) = 0;
-
-        /** @} */
     public:
         /** @name Queue interface
          *  @{ */
@@ -46,6 +36,16 @@ namespace Botanik { namespace Logs {
         virtual void    push(const LogEntry_t* entry) = 0;
         /** @brief Attempt to flush enqueued entries to the output medium */
         virtual void    drain() = 0;
+
+        /** @} */
+    protected:
+        /** @name Channel implementation (provided by subclasses)
+         *  @{ */
+
+        /** @brief Serialize bytes to the output medium (never blocks) */
+        virtual size_t  write(const char* buf, size_t len) = 0;
+        /** @brief Format a log entry into @p buf; return the number of bytes written */
+        virtual size_t  format(const LogEntry_t* entry, char* buf, size_t len) = 0;
 
         /** @} */
     };
@@ -144,6 +144,17 @@ namespace Botanik { namespace Logs {
 
         /** @} */
 
+        /** @name Stepping
+         *  @{ */
+
+        /** @brief Drain queued entries into the bound serial's TX ring. Call once
+         *  per main-loop tick — unlike the page writers (drained from their render
+         *  path), this writer has no render and must be stepped here. The serial
+         *  itself is flushed separately by the main loop. */
+        void step();
+
+        /** @} */
+
     private:
         /** @name Channel implementation
          *  @{ */
@@ -152,6 +163,50 @@ namespace Botanik { namespace Logs {
         size_t format(const LogEntry_t* entry, char* buf, size_t len);
         /** @brief Write @p len bytes to the bound serial port (never blocks) */
         size_t write(const char* buf, size_t len);
+
+        /** @} */
+    };
+
+    /**
+     * @brief SerialLogWriter for a diagnostic monitor port that self-suppresses
+     * when its output is an interactive terminal.
+     *
+     * The console UI and this sink can share a terminal (on the simulator the UI
+     * renders to stdout while the monitor writes to stderr; run without
+     * redirecting stderr and both land on the same screen). Log lines would then
+     * garble the display, so when the bound port reports an interactive output
+     * (BufferedSerial::is_output_tty()) every entry is dropped at push() time —
+     * nothing is queued, formatted, or written. Redirect the port to a file or
+     * pipe to capture the log. On hardware the monitor UART is never a tty, so
+     * nothing is ever dropped (and the class is a hook for board-specific
+     * monitor behaviour).
+     */
+    class MonitorLogWriter : public SerialLogWriter {
+    private:
+        /** @name State
+         *  @{ */
+
+        /** @brief True when the output is an interactive terminal; entries are
+         *  dropped rather than written so they can't garble a shared display. */
+        bool _suppressed;
+
+        /** @} */
+
+    public:
+        /** @name Lifecycle
+         *  @{ */
+
+        /** @brief Bind to @p serial; suppression is decided once from whether the
+         *  port's output is an interactive terminal. */
+        MonitorLogWriter(BufferedSerial& serial);
+
+        /** @} */
+
+        /** @name Queue interface
+         *  @{ */
+
+        /** @brief Enqueue @p entry, or drop it when the output is a shared terminal. */
+        void push(const LogEntry_t* entry) override;
 
         /** @} */
     };

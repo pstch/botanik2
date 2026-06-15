@@ -23,51 +23,6 @@ namespace Botanik { namespace Logs {
         using LogTopic = Botanik::PlcIO::LogTopic;
     }
 
-    // Rate-limiting internals
-    // ------------------------------------------------------------------------
-
-    bool Logger::_try_bucket(LogBucket_t* bucket) {
-        if (bucket->state == 0) {
-            // Saturate rather than wrap: the suppressed count is now drained on a
-            // slower cadence, so a long storm could otherwise overflow a uint16_t.
-            if (bucket->suppressed != UINT16_MAX) bucket->suppressed++;
-            return false;
-        }
-        else { bucket->count++; bucket->state--; return true; }
-    }
-
-    void Logger::_fill_bucket(LogBucket_t* bucket, uint16_t amount, uint16_t burst) {
-        if (amount > 0 && bucket-> state < burst) {
-            bucket->state = std::min((uint16_t)(bucket->state + amount), burst);
-        }
-    }
-
-    void Logger::_report_suppressed(LogBucket_t* bucket, PlcIO::LogTopic topic, uint32_t timestamp_ms) {
-        if (bucket->suppressed == 0) return;
-        LogEntry_t entry = {};
-        entry.timestamp = timestamp_ms;
-        entry.level     = PlcIO::LOG_WARNING;
-        entry.topic     = topic;
-        int w = snprintf(
-            entry.message, sizeof(entry.message),
-            "%u msgs suppressed", (unsigned)bucket->suppressed);
-        if (w < 0) w = 0;
-        entry.length = (uint16_t)std::min((size_t)w, sizeof(entry.message) - 1);
-        for (uint8_t i = 0; i < _writerCount; i++) _writers[i]->push(&entry);
-        bucket->suppressed = 0;
-    }
-
-    void Logger::_emit(PlcIO::LogLevel level, PlcIO::LogTopic topic, const char* fmt, va_list ap) {
-        LogEntry_t entry = {};
-        entry.timestamp = HAL::current_ms();
-        entry.level     = level;
-        entry.topic     = topic;
-        int w = vsnprintf(entry.message, sizeof(entry.message), fmt, ap);
-        if (w < 0) w = 0;
-        entry.length = (uint16_t)std::min((size_t)w, sizeof(entry.message) - 1);
-        push_entry(entry);
-    }
-
     // Lifecycle
     // ------------------------------------------------------------------------
 
@@ -155,6 +110,51 @@ namespace Botanik { namespace Logs {
     }
     void Logger::critical(PlcIO::LogTopic topic, const char* fmt, ...) {
         va_list ap; va_start(ap, fmt); _emit(PlcIO::LOG_CRITICAL, topic, fmt, ap); va_end(ap);
+    }
+
+    // Rate-limiting internals
+    // ------------------------------------------------------------------------
+
+    bool Logger::_try_bucket(LogBucket_t* bucket) {
+        if (bucket->state == 0) {
+            // Saturate rather than wrap: the suppressed count is now drained on a
+            // slower cadence, so a long storm could otherwise overflow a uint16_t.
+            if (bucket->suppressed != UINT16_MAX) bucket->suppressed++;
+            return false;
+        }
+        else { bucket->count++; bucket->state--; return true; }
+    }
+
+    void Logger::_fill_bucket(LogBucket_t* bucket, uint16_t amount, uint16_t burst) {
+        if (amount > 0 && bucket-> state < burst) {
+            bucket->state = std::min((uint16_t)(bucket->state + amount), burst);
+        }
+    }
+
+    void Logger::_report_suppressed(LogBucket_t* bucket, PlcIO::LogTopic topic, uint32_t timestamp_ms) {
+        if (bucket->suppressed == 0) return;
+        LogEntry_t entry = {};
+        entry.timestamp = timestamp_ms;
+        entry.level     = PlcIO::LOG_WARNING;
+        entry.topic     = topic;
+        int w = snprintf(
+            entry.message, sizeof(entry.message),
+            "%u msgs suppressed", (unsigned)bucket->suppressed);
+        if (w < 0) w = 0;
+        entry.length = (uint16_t)std::min((size_t)w, sizeof(entry.message) - 1);
+        for (uint8_t i = 0; i < _writerCount; i++) _writers[i]->push(&entry);
+        bucket->suppressed = 0;
+    }
+
+    void Logger::_emit(PlcIO::LogLevel level, PlcIO::LogTopic topic, const char* fmt, va_list ap) {
+        LogEntry_t entry = {};
+        entry.timestamp = HAL::current_ms();
+        entry.level     = level;
+        entry.topic     = topic;
+        int w = vsnprintf(entry.message, sizeof(entry.message), fmt, ap);
+        if (w < 0) w = 0;
+        entry.length = (uint16_t)std::min((size_t)w, sizeof(entry.message) - 1);
+        push_entry(entry);
     }
 
 }}
