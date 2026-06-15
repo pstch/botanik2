@@ -20,19 +20,24 @@ CREATE_SUBDIRS         = NO
 #---------------------------------------------------------------------------
 # Input
 #---------------------------------------------------------------------------
+# The docs landing is the dedicated Library mainpage (docs/index.dox); README.md
+# is the GitHub front page and is intentionally left out of the API docs.
 INPUT                  = src \
-                         README.md \
+                         tests \
                          docs
-FILE_PATTERNS          = *.h *.cpp *.c *.md
+FILE_PATTERNS          = *.h *.cpp *.c *.md *.dox
 RECURSIVE              = YES
 IMAGE_PATH             = images
-USE_MDFILE_AS_MAINPAGE = README.md
 
-# Vendored toolchain/Mbed headers and build artifacts are not our code.
+# Vendored toolchain/Mbed headers and build artifacts are not our code. The
+# doctest single header under tests/vendor is third-party too. HAL_PLATFORM_PLAN
+# is an internal planning note, not API documentation.
 EXCLUDE_PATTERNS       = */build/* \
                          */includes/* \
                          */archive/* \
-                         */CMakeFiles/*
+                         */CMakeFiles/* \
+                         */tests/vendor/* \
+                         */docs/HAL_PLATFORM_PLAN.md
 
 #---------------------------------------------------------------------------
 # What to extract
