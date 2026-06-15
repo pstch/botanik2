@@ -93,23 +93,12 @@ namespace Botanik { namespace Pages {
 
     void LogsPage::_emit_line(const char* buf, size_t len) {
         // Wrap into one or more stored rows (indented log-prefixed continuations),
-        // then scroll the tail up by that many rows and paint them at the bottom.
-        uint16_t n        = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
+        // then let the scrollback scroll the tail up and paint them at the bottom.
+        // The log area is rows 1..rows-1 (the whole content area).
+        uint16_t n = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
             Config::SHELL_LOG_CONT_PREFIX,
             (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX));
-        uint16_t last_row = (uint16_t)(_terminal.rows() - 1);  // log area is rows 1..rows-1
-        if (n > last_row) n = last_row;  // message taller than the area: show its newest rows
-
-        _terminal.move_to({1, 0});
-        _terminal.delete_rows(n);
-        for (uint16_t i = 0; i < n; i++) {
-            uint16_t llen = 0;
-            const char* line = _scrollback.line((uint16_t)(n - i), llen);
-            if (line == nullptr) continue;
-            _terminal.move_to({(uint16_t)(last_row - n + 1 + i), 0});
-            _terminal.write_chars(line, llen);
-            _terminal.clear_to_eol();
-        }
+        _scrollback.emit_tail(_terminal, n, 1, (uint16_t)(_terminal.rows() - 1));
     }
 
     void LogsPage::_emit_mark() {

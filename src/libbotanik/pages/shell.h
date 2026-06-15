@@ -25,9 +25,10 @@ namespace Botanik { namespace Pages {
      *   Row  N-1    — InputEditor (PS1 + optional continuation row)
      *
      * Implements LogWriter so it can be registered with a Logger.
-     * Incoming log entries are queued by BufferedLogWriter and flushed on each
-     * tick(). Each entry scrolls the log area (DL at row 1), writes the new
-     * line at row N-2, then redraws the editor in place.
+     * Only entries received while the page is active are queued (push() drops
+     * background entries — the full log remains in LogsPage); queued entries are
+     * flushed on each tick(). Each entry scrolls the log area (DL at row 1),
+     * writes the new line at row N-2, then redraws the editor in place.
      *
      * Implements ShellWriter to provide CommandShell with an output channel.
      * All written lines are stored in a circular buffer for replay on redraw
@@ -50,7 +51,7 @@ namespace Botanik { namespace Pages {
         /** @brief Command interpreter fed by the editor. */
         Shell::CommandShell _shell;
         /** @brief Circular log line buffer + throttled redraw for redraw/page-switch replay. */
-        Scrollback _scrollback;
+        ShellScrollback _scrollback;
         /** @brief Mirrors the latest tick(active) argument so write() — reached
          *  indirectly via drain() — knows whether it may paint. False while in the
          *  background. */
@@ -90,6 +91,7 @@ namespace Botanik { namespace Pages {
          *  @{ */
 
         // One implementation serves both base interfaces.
+        void   push(const LogEntry_t* entry) override;
         size_t format(const LogEntry_t* entry, char* buf, size_t len) override;
         size_t write(const char* buf, size_t len) override;
         void   write_lines(const char* buf, uint16_t len) override;

@@ -113,13 +113,20 @@ namespace Botanik { namespace Pages {
             // scroll from write() would shift rows already drawn and corrupt the log.
             if (_scrollback.redraw_pending()) return;
         }
-        // Drain the queue either way: active paints the new tail, background just
-        // banks the entries into the scrollback (see write()).
+        // Only the active page queues log entries (see push()), so this paints the
+        // new tail; in the background the queue is empty and this is a no-op.
         drain();
     }
 
     // BufferedLogWriter + ShellWriter interface
     // ------------------------------------------------------------------------
+
+    void ShellPage::push(const LogEntry_t* entry) {
+        // The shell only shows logs received while it's the active page; drop
+        // anything that arrives in the background. The full log lives in LogsPage.
+        if (!_active) return;
+        Logs::BufferedLogWriter::push(entry);
+    }
 
     size_t ShellPage::format(const LogEntry_t* entry, char* buf, size_t len) {
         return Logs::format_log_entry(entry, buf, len);
@@ -139,33 +146,11 @@ namespace Botanik { namespace Pages {
         // focus() replay; don't touch the screen the active page owns.
         if (!_active) return len;
 
-        uint16_t rows         = (uint16_t)_terminal.rows();
-        uint16_t occupied     = _editor.occupied_rows();
-        uint16_t last_log_row = (uint16_t)(rows - 1 - occupied);
-
-        if (last_log_row < 1) return len;
-        if (n > last_log_row) n = last_log_row;  // taller than the log area: show newest rows
-
-        // DL n at row 1: delete the n oldest visible log rows, shifting the log
-        // area and the editor up together.
-        _terminal.move_to({1, 0});
-        _terminal.delete_rows(n);
-
-        // IL n just above the editor: push it back down to its original rows,
-        // leaving n blank slots for the incoming (possibly wrapped) entry.
-        uint16_t first_slot = (uint16_t)(last_log_row - n + 1);
-        _terminal.move_to({first_slot, 0});
-        _terminal.insert_rows(n);
-
-        // Fill the slots with the n newest segments, top to bottom.
-        for (uint16_t i = 0; i < n; i++) {
-            uint16_t llen = 0;
-            const char* line = _scrollback.line((uint16_t)(n - i), llen);
-            if (line == nullptr) continue;
-            _terminal.move_to({(uint16_t)(first_slot + i), 0});
-            _terminal.write_chars(line, llen);
-            _terminal.clear_to_eol();
-        }
+        // The log area is rows 1..(rows-1-occupied); the editor occupies the rows
+        // below it. emit_tail scrolls the log area up and paints the new lines at
+        // its bottom, shifting the editor up (DL) and back down (IL) in the process.
+        uint16_t log_rows = (uint16_t)(_terminal.rows() - 1 - _editor.occupied_rows());
+        _scrollback.emit_tail(_terminal, n, 1, log_rows);
 
         // Editor is back at its correct screen rows — just reposition the cursor.
         _terminal.move_to(_editor.cursor_screen_pos());
@@ -194,7 +179,7 @@ namespace Botanik { namespace Pages {
     void ShellPage::clear() {
         _scrollback.clear();
         // One ED from {1,0} wipes the whole content area (log rows + editor) in a
-        // single CSI, far cheaper than a clear_row per log row. The editor row goes
+        // single CSI, far cheaper than clearing each log row. The editor row goes
         // with it, so repaint the (now empty) prompt back in place at the bottom.
         _terminal.clear_content();
         _editor.redraw();
@@ -228,6 +213,9 @@ namespace Botanik { namespace Pages {
         // the editor in place at the bottom.
         _scrollback.begin_redraw((uint16_t)(_terminal.rows() - 1 - _editor.occupied_rows()));
         _editor.redraw();
+        // The editor owns a live text cursor — make it visible (and blinking). Every
+        // other page leaves it hidden; switch_to() resets it off before our focus().
+        _terminal.set_cursor_visible(true);
     }
 
     void ShellPage::_submit_command() {
@@ -246,7 +234,7 @@ namespace Botanik { namespace Pages {
 
     void ShellPage::_record_command(const char* cmd, uint16_t cmd_len) {
         uint16_t cols = (uint16_t)_terminal.cols();
-        char     echo[Config::SHELL_SCROLLBACK_LINE_LEN];
+        char     echo[Config::SCROLLBACK_LINE_LEN];
         uint16_t pos = 0;
         for (uint16_t row = 0; ; row++) {
             bool        first = (row == 0);

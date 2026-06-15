@@ -35,7 +35,7 @@ namespace Botanik { namespace Pages {
         /** @brief Owning terminal. */
         AnsiTerminal& _terminal;
         /** @brief Circular log line buffer + throttled redraw for page-switch replay. */
-        Scrollback _scrollback;
+        LogsScrollback _scrollback;
         /** @brief Mirrors the latest tick(active) argument so write() — reached
          *  indirectly via drain() — knows whether it may paint. False while in the
          *  background. */
