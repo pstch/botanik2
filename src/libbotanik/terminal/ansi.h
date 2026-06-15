@@ -48,8 +48,24 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     static constexpr char DECAWM_SET[]   = "?7h"; // Enable auto-wrap (default)
     static constexpr char DECAWM_RESET[] = "?7l"; // Disable auto-wrap
 
+    static constexpr char DECTCEM_SET[]   = "?25h"; // Show the (blinking) cursor
+    static constexpr char DECTCEM_RESET[] = "?25l"; // Hide the cursor
+
     static constexpr char ATTR_NEG[]  = "7m"; // Negative image SGR
     static constexpr char ATTR_NONE[] = "m";  // Normal text SGR
+
+    // Minitel PRO2 setup sequences (téléinformatique mode over the DIN serial
+    // port). A VT100/VT102 ignores them. PRO2 = ESC ':' (per STUM / PyMinitel /
+    // the eserandour Minitel1B library):
+    //   - 80-col téléinformatique mode       = PRO2 + 0x31 0x7D
+    //   - lowercase keyboard (not caps-locked) = PRO2 + START(0x69) + MINUSCULES(0x45)
+    //   - page mode (stop "rouleau" auto-scroll) = PRO2 + STOP(0x6A) + ROULEAU(0x43)
+    // VERIFY ON HARDWARE. Note: téléinformatique mode is documented to default to
+    // ASCII ("american") keycodes — the French set is the opt-in variant — and no
+    // plain programmable byte for the keyboard charset surfaced in those sources.
+    static constexpr char MINITEL_TELINFO[]   = "\x1B\x3A\x31\x7D";
+    static constexpr char MINITEL_LOWERCASE[] = "\x1B\x3A\x69\x45";
+    static constexpr char MINITEL_PAGE_MODE[] = "\x1B\x3A\x6A\x43";
 
     // Movement
 
@@ -73,43 +89,67 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     /** @brief Determine if a character is a printable ASCII character */
     bool is_printable(uint8_t b);
 
-    /** @brief Write a 16-bit integer as its decimal representation */
-    void write_uint16(BufferedSerial& _serial, uint16_t val);
-
     /** @}
      *  @name State management
      *  @{ */
 
     // FIXME: we should probably have a handler for the "inverted" mode here ?
 
+    // Every escape writer below is all-or-nothing and returns true only when the
+    // whole sequence reached the TX buffer (see file header in ansi.cpp). A false
+    // return means nothing was emitted; the caller must not advance its tracking.
+
     /** @brief Set insertion mode (IRM) to @p active , using SM4/RM4.
      *  @note When the TX buffer can't hold the command, emit nothing and return false. */
     bool set_insert_mode(BufferedSerial& _serial, bool active);
 
+    /** @brief Emit the one-time Minitel PRO2 handshake (80-col téléinformatique +
+     *  lowercase keyboard + page mode). These are no-op sequences on a VT100/VT102.
+     *  All-or-nothing: emits nothing and returns false if the TX buffer can't hold it. */
+    bool minitel_setup(BufferedSerial& _serial);
+
+    /** @brief One-time setup for a VT100/VT102 terminal. Currently a no-op (the
+     *  persistent DECAWM-off state is re-asserted on every screen establish), kept
+     *  as the symmetric counterpart to minitel_setup() and the home for any future
+     *  one-time VT102 setup (e.g. LNM reset, DECSTBM scrolling region). */
+    bool vt102_setup(BufferedSerial& _serial);
+
     /** @brief Enable or disable terminal auto-wrap (DECAWM, CSI ? 7 h/l). */
-    void set_auto_wrap(BufferedSerial& _serial, bool enable);
+    bool set_auto_wrap(BufferedSerial& _serial, bool enable);
+
+    /** @brief Show or hide the cursor (DECTCEM, CSI ? 25 h/l). The cursor, when
+     *  shown, blinks — there is no steady-cursor mode, so "stop blinking" means
+     *  hiding it. A Minitel driven in téléinformatique mode is expected to honour
+     *  DECTCEM like the rest of the VT100 subset we already emit; VERIFY ON
+     *  HARDWARE. All-or-nothing: emits nothing and returns false if the TX buffer
+     *  can't hold it. */
+    bool set_cursor_visible(BufferedSerial& _serial, bool show);
 
     /** @}
      *  @name Cursor movement
      *  @{ */
 
     /** @brief Move to the given absolute position. */
-    void goto_absolute(BufferedSerial& _serial, const CursorPos& cursor);
+    bool goto_absolute(BufferedSerial& _serial, const CursorPos& cursor);
 
     /** @brief Move the cursor left @p count times. */
-    void move_left(BufferedSerial& _serial, uint16_t count);
+    bool move_left(BufferedSerial& _serial, uint16_t count);
 
     /** @brief Move the cursor right @p count times. */
-    void move_right(BufferedSerial& _serial, uint16_t count);
+    bool move_right(BufferedSerial& _serial, uint16_t count);
 
     /** @brief Move the cursor up @p count times. */
-    void move_up(BufferedSerial& _serial, uint16_t count);
+    bool move_up(BufferedSerial& _serial, uint16_t count);
 
     /** @brief Move the cursor down @p count times. */
-    void move_down(BufferedSerial& _serial, uint16_t count);
+    bool move_down(BufferedSerial& _serial, uint16_t count);
 
     /** @brief Move to the beginning of the row. */
-    void move_row_start(BufferedSerial& _serial);
+    bool move_row_start(BufferedSerial& _serial);
+
+    /** @brief Drop to the start of the row @p count lines below (CR + line feeds).
+     *  @warning The caller must ensure the feeds won't scroll the screen. */
+    bool down_to_row_start(BufferedSerial& _serial, uint16_t count);
 
     /** @}
      *  @name Content edition
@@ -118,30 +158,30 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     /** @brief Insert entire rows
      *  @note Shifts remaining rows down
      *  @warning When called at the last row, scrolls the entire screen upwards */
-    void insert_rows(BufferedSerial& _serial, uint16_t count);
+    bool insert_rows(BufferedSerial& _serial, uint16_t count);
 
     /** @brief Delete rows
      *  @note Shifts remaining rows up */
-    void delete_rows(BufferedSerial& _serial, uint16_t count);
+    bool delete_rows(BufferedSerial& _serial, uint16_t count);
 
     /** @brief Delete characters
      *  @note Shifts remaining columns left */
-    void delete_chars(BufferedSerial& _serial, uint16_t count);
+    bool delete_chars(BufferedSerial& _serial, uint16_t count);
 
     /** @}
      *  @name Content clearing
      *  @{ */
 
-    /** @brief Clear characters from the cursor to the end of line 
+    /** @brief Clear characters from the cursor to the end of line
      *  @note Columns before the cursor are untouched. */
-    void clear_to_eol(BufferedSerial& _serial);
+    bool clear_to_eol(BufferedSerial& _serial);
 
-    /** @brief Erase from the cursor to the end of the display 
+    /** @brief Erase from the cursor to the end of the display
      *  @note Rows above the cursor are untouched. */
-    void clear_to_eos(BufferedSerial& _serial);
+    bool clear_to_eos(BufferedSerial& _serial);
 
     /** @brief Erase entire display and move cursor to home position */
-    void clear_screen(BufferedSerial& _serial);
+    bool clear_screen(BufferedSerial& _serial);
 
     /** @} */
 
