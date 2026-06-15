@@ -84,6 +84,13 @@ namespace Botanik { namespace Utils {
         bool rx_empty() const;
         /** @brief True if the TX buffer contains no data */
         bool tx_empty() const;
+        /** @brief True if the bound port's output is an interactive terminal
+         *  (always false on hardware UARTs). */
+        bool is_output_tty() const;
+        /** @brief RX ring buffer capacity, bytes */
+        static constexpr uint16_t rx_capacity() { return RX_BUF_SIZE; }
+        /** @brief TX ring buffer capacity, bytes */
+        static constexpr uint16_t tx_capacity() { return TX_BUF_SIZE; }
 
         /** @} */
 
@@ -94,6 +101,15 @@ namespace Botanik { namespace Utils {
          *  @return Number of bytes actually written; may be less than @p len
          *          if the buffer is full (never blocks). */
         uint16_t write(const char* buf, uint16_t len);
+        /** @brief Drop every byte queued in the TX ring, leaving it empty.
+         *  Used before a full-screen repaint: a clear_screen makes all pending TX
+         *  bytes moot (they'd paint onto a display about to be wiped), and emptying
+         *  the ring first guarantees the clear sequence fits.
+         *  @warning Single-producer reset — snaps the producer head back to the
+         *  consumer tail, so it must run in the same context as transmit() (today,
+         *  the main loop). Concurrent with an ISR-driven transmit() it could
+         *  underflow the ring. */
+        void tx_discard();
         /** @brief Consume up to @p len bytes from the RX ring buffer */
         uint16_t read(char* buf, uint16_t len);
         /** @brief Read the next RX byte without consuming it.

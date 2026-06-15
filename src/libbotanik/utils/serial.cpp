@@ -33,6 +33,7 @@ namespace Botanik { namespace Utils {
 
     bool BufferedSerial::rx_empty() const { return _rx_head == _rx_tail; }
     bool BufferedSerial::tx_empty() const { return _tx_head == _tx_tail; }
+    bool BufferedSerial::is_output_tty() const { return HAL::serial_is_output_tty(_serial); }
 
     // Application I/O
     // ------------------------------------------------------------------------
@@ -52,6 +53,15 @@ namespace Botanik { namespace Utils {
             _tx_head = next_head;
         }
         return pos;
+    }
+
+    void BufferedSerial::tx_discard() {
+        // Producer-side reset: snap our head back to the consumer's tail so the
+        // ring reads empty. dsb() so we observe the latest tail before the store
+        // and the store is visible before any follow-up write().
+        HAL::dsb();
+        _tx_head = _tx_tail;
+        HAL::dsb();
     }
 
     uint16_t BufferedSerial::read(char* buf, uint16_t len) {

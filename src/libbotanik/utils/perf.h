@@ -16,7 +16,7 @@
 #include "libbotanik_config.h"
 
 // Because the address sanitizer uses a fake stack for locals, stack-usage
-// measurement is fundamentally incompatible with ASAN, we defie the
+// measurement is fundamentally incompatible with ASAN, we define the
 // BOTANIK_NO_ASAN macro to annotate the stack measurement code.
 #if defined(__has_feature)
 #  if __has_feature(address_sanitizer)
@@ -303,12 +303,14 @@ namespace Botanik { namespace Utils {
          *  but only when a new slice is due, cheap no-op on every other tick.
          *
          *  @warning Must be inlined into the caller's frame so &sp_marker reflects the caller's
-         *  SP, not this method's.
+         *  SP, not this method's — hence always_inline. LoopScheduler::tick() calls this just
+         *  before it releases a tick, so the painted ceiling sits at the scheduler frame's SP,
+         *  one level above the loop work that then dirties the region.
          *
-         *  @note Call once per iteration at user-code depth; between repaints
-         *  the running work keeps dirtying the painted region, so its high-water
-         *  at the next boundary is the worst case across the whole slice. */
-        BOTANIK_NO_ASAN inline void paint_stack() {
+         *  @note Called once per released tick; between repaints the running work keeps
+         *  dirtying the painted region, so its high-water at the next boundary is the worst
+         *  case across the whole slice. */
+        BOTANIK_NO_ASAN inline __attribute__((always_inline)) void paint_stack() {
             if (!_repaint_pending) return;
             _repaint_pending = false;
             volatile uint8_t sp_marker = 0;
