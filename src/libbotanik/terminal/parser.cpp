@@ -169,7 +169,7 @@ namespace Botanik { namespace Terminal {
         if (b >= 0x40 && b <= 0x7E) {
             _event.value = b;
             _event.param_count++;
-            _event.command = _map_csi_to_command(b, _event.params[0]);
+            _event.command = _map_csi_to_command(b, _event.params[0], _event.params[1]);
             _event.type = EventType::COMMAND;
             return State::IDLE;
         }
@@ -228,7 +228,8 @@ namespace Botanik { namespace Terminal {
         }
     }
 
-    Command InputParser::_map_csi_to_command(const uint8_t b, const uint16_t param1) {
+    Command InputParser::_map_csi_to_command(const uint8_t b, const uint16_t param1,
+                                             const uint16_t modifier) {
         switch (b) {
             case 'A': return Command::UP;
             case 'B': return Command::DOWN;
@@ -237,19 +238,25 @@ namespace Botanik { namespace Terminal {
             case 'H': return Command::HOME;
             case 'F': return Command::END;
 
-            case '~':
+            case '~': {
+                // xterm encodes modifiers as a 1-based bitmask second param
+                // (Shift=1, Alt=2, Ctrl=4): e.g. Ctrl+PageUp is CSI 5;5~. The
+                // Ctrl bit is set when (modifier - 1) & 4; modifier is 0 when no
+                // second param was sent (plain PageUp/PageDown).
+                const bool ctrl = modifier > 1 && (((modifier - 1) & 0x4) != 0);
                 switch (param1) {
                     case 1: return Command::HOME;
                     case 2: return Command::NONE;
                     case 3: return Command::DELETE;
                     case 4: return Command::END;
-                    case 5: return Command::PAGE_UP;
-                    case 6: return Command::PAGE_DOWN;
+                    case 5: return ctrl ? Command::CTRL_PAGE_UP   : Command::PAGE_UP;
+                    case 6: return ctrl ? Command::CTRL_PAGE_DOWN : Command::PAGE_DOWN;
                     case 7: return Command::HOME;
                     case 8: return Command::END;
                     default: return Command::NONE;
                 }
-            case 'Z': return Command::TAB;
+            }
+            case 'Z': return Command::SHIFT_TAB;  // backtab (Shift+Tab)
             case 'u': return (param1 == 13) ? Command::SHIFT_ENTER : Command::NONE; // kitty: CSI 13;2u
             default: return Command::NONE;
         }

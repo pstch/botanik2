@@ -34,14 +34,15 @@ namespace Botanik { namespace Terminal {
             ENTER, BACKSPACE, DELETE, TAB, ESC,
             UP, DOWN, LEFT, RIGHT,
             HOME, END, PAGE_UP, PAGE_DOWN,
+            CTRL_PAGE_UP, CTRL_PAGE_DOWN,
 
             // Physical Control Combinations
             CTRL_A, CTRL_B, CTRL_C, CTRL_D, CTRL_E, CTRL_F, CTRL_G,
             CTRL_K, CTRL_L, CTRL_N, CTRL_P, CTRL_R, CTRL_U, CTRL_W, CTRL_Y,
-            CTRL_SPACE,
+            CTRL_SPACE, 
 
             // Shift Combinations
-            SHIFT_ENTER,
+            SHIFT_ENTER, SHIFT_TAB,
 
             // Meta/Alt Combinations
             ALT_B, ALT_F,
@@ -221,8 +222,9 @@ namespace Botanik { namespace Terminal {
         /** @brief Map an ESC-prefixed (Alt+X) byte to a command. */
         static InputEvent::Command _map_esc_extension(const uint8_t b);
 
-        /** @brief Map a CSI final byte (with first param) to a command. */
-        static InputEvent::Command _map_csi_to_command(const uint8_t b, const uint16_t param1);
+        /** @brief Map a CSI final byte (with first param + modifier param) to a command. */
+        static InputEvent::Command _map_csi_to_command(const uint8_t b, const uint16_t param1,
+                                                       const uint16_t modifier);
 
         /** @brief Map a Minitel 0x13 separator byte to a command. */
         static InputEvent::Command _map_sep_to_command(const uint8_t b);
