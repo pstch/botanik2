@@ -101,5 +101,5 @@ since the last acknowledged TX:
 Transitions are logged once (on change) to the `PLC_IO` topic. The PLC's own log
 ring is drained separately by `PlcLogReader` (`plcio/logs.h`), which detects
 dropped entries via sequence-number gaps and forwards the rest into the local
-`Logger` (see @ref md_docs_2LOGGING). Timing constants live in
+`Logger` (see @ref md_docs_2LOG__FLOW). Timing constants live in
 `libbotanik_config.h` (`PLC_HEARTBEAT_MS`, `PLC_TIMEOUT_MS`, `PLC_WATCHDOG_MS`).

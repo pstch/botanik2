@@ -54,4 +54,10 @@ covers driving the system over its terminal.
   full-screen view shares.
 - @subpage md_docs_2LOG__FLOW — how a log entry travels from a call site through
   rate limiting out to every sink.
+- @subpage md_docs_2EDITOR__RECONCILE — how the line editor repaints a multi-row
+  edit with the fewest bytes over the serial link.
+- @subpage md_docs_2SCHEDULER__PERF — the non-blocking fixed-period loop, overrun
+  handling, and the self-instrumented CPU/jitter/stack metrics.
+- @subpage md_docs_2PLC__SYNC — the shared-memory RX/TX state machines and the
+  transactional handshake with the PLC coprocessor.
 */
