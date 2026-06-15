@@ -121,7 +121,7 @@ namespace Botanik { namespace Config {
     static constexpr uint8_t LOG_WRITERS_MAX = 8;
 
     /** @brief Per-writer in-flight message queue depth */
-    static constexpr size_t LOG_QUEUE_SIZE = 64;
+    static constexpr size_t LOG_QUEUE_SIZE = 32;
 
     /** @brief Maximum length of a single formatted log line including metadata (bytes) */
     static constexpr size_t LOG_FORMATTED_LEN = 256;
@@ -148,6 +148,28 @@ namespace Botanik { namespace Config {
      *  refresh rate is independent of the scheduler tick interval. */
     static constexpr uint32_t STATUS_REFRESH_MS = 2000;
 
+    /** @brief Interval (ms) between full-page metric refreshes (Home/Status pages).
+     *  Deliberately slower than the status bar: pages redraw many more cells, so a
+     *  relaxed cadence (with per-value diffing) keeps the low-baud TX buffer from
+     *  saturating and starving the status bar. */
+    static constexpr uint32_t PAGE_REFRESH_MS = 10000;
+
+    /** @brief Cold-field refresh interval (ms) for the Home page. Faster than the
+     *  shared cadence but slower than its hot tick (see PAGE_HOT_MS). */
+    static constexpr uint32_t HOME_REFRESH_MS = 5000;
+
+    /** @brief Refresh interval (ms) for a metric page's hot fields (clocks/uptime),
+     *  so they tick every second between the slower cold refreshes. Each field is
+     *  diffed, so a tick usually emits just the changed digit; the tick is also
+     *  best-effort (skipped when the TX buffer is busy), see MetricPage::tick(). */
+    static constexpr uint32_t PAGE_HOT_MS = 1000;
+
+    /** @brief Log lines the Home page keeps in its bottom log tail. Small on
+     *  purpose: it is a live "last few entries" widget with no scroll-up history,
+     *  not a full scrollback like the Logs page. Line length is the shared
+     *  SCROLLBACK_LINE_LEN. */
+    static constexpr uint16_t HOME_SCROLLBACK_LINES = 6;
+
     /** @} */
 
 
@@ -169,10 +191,14 @@ namespace Botanik { namespace Config {
     static constexpr uint16_t SHELL_KILL_SIZE     = 128;
 
     /** @brief Scrollback lines retained by ShellPage for redraw/page-switch replay */
-    static constexpr uint16_t SHELL_SCROLLBACK_LINES   = 128;
+    static constexpr uint16_t SHELL_SCROLLBACK_LINES   = 32;
 
-    /** @brief Maximum length of a single retained ShellPage scrollback line (bytes) */
-    static constexpr uint16_t SHELL_SCROLLBACK_LINE_LEN        = 256;
+    /** @brief Scrollback lines retained by LogsPage for page-switch replay */
+    static constexpr uint16_t LOGS_SCROLLBACK_LINES    = 64;
+
+    /** @brief Maximum length of a single retained scrollback line (bytes). Shared
+     *  by every scrollback / log buffer (Shell, Logs, Home). */
+    static constexpr uint16_t SCROLLBACK_LINE_LEN      = 256;
 
     /** @brief Max scrollback rows redrawn per tick() during deferred replay */
     static constexpr uint16_t SCROLLBACK_REDRAW_ROWS_PER_TICK  = 1;

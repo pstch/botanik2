@@ -3,11 +3,8 @@
 
 /**
  * @file context.h
- * @brief SystemContext — a single aggregate of the per-subsystem published
- *        status contexts (scheduler metrics, PLC link status). UI code depends
- *        on this one object instead of reaching into each subsystem's concrete
- *        context type, so new status sources can be added here without touching
- *        every consumer's constructor.
+ * @brief SystemContext — one aggregate of the per-subsystem status contexts the
+ *        terminal UI reads.
  */
 
 // Only pointers are stored, so the pointee definitions are not needed here.
@@ -24,6 +21,12 @@ namespace Botanik {
         Scheduler::SchedulerContext* scheduler = nullptr;
         /** @brief PLC link status and log buffers. */
         PlcIO::PlcSyncContext*       plc       = nullptr;
+
+        /** @brief Bundle the subsystem contexts (either may be null when absent).
+         *  Defaulted args also serve as the empty default construction. */
+        SystemContext(Scheduler::SchedulerContext* sched = nullptr,
+                      PlcIO::PlcSyncContext*        plc_ctx = nullptr)
+            : scheduler(sched), plc(plc_ctx) {}
     };
 
 }
