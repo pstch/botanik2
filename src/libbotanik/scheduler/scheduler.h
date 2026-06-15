@@ -28,6 +28,10 @@ namespace Botanik { namespace Scheduler {
         uint32_t tick_count      = 0;
         /** @brief Cumulative beats skipped due to overruns. */
         uint32_t overruns        = 0;
+        /** @brief Loop "now" (uptime ms), republished by tick() each time the work
+         *  window opens. The single shared timestamp the PLC sync layer and the
+         *  terminal input timing read, so a sketch no longer carries its own. */
+        uint32_t timestamp_ms    = 0;
     };
 
     class LoopScheduler {
@@ -77,6 +81,12 @@ namespace Botanik { namespace Scheduler {
 
         /**
          * @brief Non-blocking check. Evaluates if it is time to run the task.
+         *
+         * When it releases a tick it also paints the free stack (via the owned
+         * PerfMonitor) just before returning, so the loop work that runs next
+         * dirties the painted region in proportion to its actual depth — the
+         * caller no longer has to do this itself.
+         *
          * @return true exactly ONCE per period when it is time to execute.
          */
         bool tick();
@@ -85,16 +95,6 @@ namespace Botanik { namespace Scheduler {
 
         /** @name Metrics access
          *  @{ */
-
-        /**
-         * @brief Paint the free stack for the per-iteration stack-usage scan.
-         *
-         * The main loop must call this at user-code depth right after tick()
-         * returns true, so the subsequent work dirties the painted region in
-         * proportion to its actual depth. Forwards to the owned PerfMonitor;
-         * kept inline so the painted ceiling reflects the caller's stack pointer.
-         */
-        inline void paint_stack() { _perf.paint_stack(); }
 
         /** @brief Stable metrics snapshot for external consumers (e.g. status bar). */
         SchedulerContext* context() { return &_context; }

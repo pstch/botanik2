@@ -50,7 +50,7 @@ namespace Botanik { namespace Scheduler {
         // land just under _next_tick_ms*1000, wrapping the unsigned subtraction).
         uint64_t now_us = HAL::uptime_us();
         uint64_t now_ms = now_us / 1000;
-        int64_t remaining_ms = _next_tick_ms - now_ms;
+        int64_t remaining_ms = (int64_t)_next_tick_ms - (int64_t)now_ms;
         // measure past work + stack usage
         _perf.sample();
         // yield/sleep until next tick
@@ -63,6 +63,8 @@ namespace Botanik { namespace Scheduler {
         }
         // publish the perf snapshot into the context (PerfSnapshot base subobject)
         static_cast<Utils::PerfSnapshot&>(_context) = _perf.snapshot();
+        // publish the loop "now" so consumers share a single timestamp per tick
+        _context.timestamp_ms = (uint32_t)now_ms;
         // open work window
         _perf.work_begin();
         // skip missed beats (and log overruns)
@@ -70,11 +72,16 @@ namespace Botanik { namespace Scheduler {
         // measure lateness against time grid
         _perf.record_jitter((uint32_t)(now_us - _next_tick_ms * 1000));
         // advance time grid
-        _next_tick_ms += _period_ms;            // advance time grid
+        _next_tick_ms += _period_ms;
         // increment tick count
         ++_context.tick_count;
+        // paint the free stack for the loop work's high-water scan. Kept last so
+        // the painted ceiling sits at this frame's SP, just above the work that
+        // runs once we return; paint_stack() is always_inline so &sp_marker lands
+        // in tick()'s frame rather than the PerfMonitor method's.
+        _perf.paint_stack();
         // return true so that work can start
-        return true;                            // return true so that work can start
+        return true;
     }
 
     // Internals
