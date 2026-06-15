@@ -194,8 +194,8 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     message(STATUS "Configuring for OPTA (Arduino/Mbed) sanity check")
 
     # Compiler + ar/ranlib come from cmake/opta-toolchain.cmake (selected before
-    # project()), so the ARM toolchain — including the LTO-aware gcc-ar/gcc-ranlib
-    # wrappers — is used consistently for compiling and archiving.
+    # project()), so the ARM toolchain is used consistently for compiling and
+    # archiving — see the LTO note below for why plain ar suffices here.
 
     # Cortex-M7 + double-precision FPU (STM32H747). These set the __ARM_ARCH_*
     # macros Mbed's headers gate on (atomics, CRC) — without them mbed_atomic.h
@@ -352,25 +352,21 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     set_target_properties(botanik PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
 
     # Firmware that must fit in the STM32H747's flash, so build it the way it ships:
-    # size-optimized, no debug info, dead code split out for the final --gc-sections.
+    # size-optimized, no debug info, dead code split out for the final --gc-sections,
+    # and LTO so the whole-program link in the sketch can inline and prune across TUs.
     # These override the inherited DEBUG flags (-O0 -g3) — GCC honors the last -O/-g
     # on the line, and target options come after the per-config ones.
+    #
+    # -flto carries the cross-TU optimization into the final link; -ffat-lto-objects
+    # makes each object *also* hold real -Os machine code, so the archive is usable
+    # without LTO and its code size is measurable here (arm-none-eabi-size) even
+    # though the final binary is linked elsewhere. CMake's own IPO support is not
+    # used: check_ipo_supported links a test executable, which can't succeed in this
+    # bare-metal build (no startup/linker script), so it always reports unsupported.
+    # Fat objects keep a normal symbol table, so the toolchain's plain ar/ranlib
+    # archive them correctly — the gcc-ar LTO wrappers are only needed for thin ones.
     target_compile_options(botanik PUBLIC
-        -Os -g0 -ffunction-sections -fdata-sections -ffat-lto-objects)
-
-    # Link-time optimization. For a static archive this matters at the final link in
-    # the sketch, but the objects must carry LTO bytecode and the archive must be
-    # built with the gcc-ar/gcc-ranlib wrappers — enabling the property makes CMake
-    # use arm-none-eabi-gcc-ar/-ranlib and add -flto, so cross-TU size wins survive
-    # into the .a. check_ipo_supported was already run above (host); re-probe here
-    # for the ARM toolchain so an LTO-less compiler degrades gracefully.
-    include(CheckIPOSupported)
-    check_ipo_supported(RESULT _opta_ipo_ok OUTPUT _opta_ipo_msg)
-    if(_opta_ipo_ok)
-        set_target_properties(botanik PROPERTIES INTERPROCEDURAL_OPTIMIZATION ON)
-    else()
-        message(STATUS "IPO/LTO not supported for OPTA, size build is -Os only: ${_opta_ipo_msg}")
-    endif()
+        -Os -g0 -flto -ffat-lto-objects -ffunction-sections -fdata-sections)
 
     # Because the PLC objects are not available in this build, we
     # tell CMake to compile the objects without trying to create a final binary
