@@ -7,7 +7,7 @@ CMakeFiles
 CMakeCache.txt
 CMake
 
-CTestfile.cmake
+CTestTestfile.cmake
 
 cmake_install.cmake
 compile_commands.json
@@ -16,6 +16,9 @@ Makefile
 
 build/
 build-*/
+
+nohup.out
+*.log
 
 # Generated API docs
 docs/doxygen/
