@@ -47,7 +47,8 @@ namespace Botanik { namespace PlcIO {
     };
 
     // Check that the defined topic count can fit in the LogTopic enum
-    static_assert(Config::LOG_TOPIC_MAX < (1 << (sizeof(LogTopic)*8)));
+    static_assert(Config::LOG_TOPIC_MAX < (1 << (sizeof(LogTopic)*8)),
+                  "LOG_TOPIC_MAX exceeds the range of the LogTopic enum");
 
     struct LogEntry_t {
         uint32_t        timestamp;    // @0

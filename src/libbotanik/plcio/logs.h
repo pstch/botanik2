@@ -46,7 +46,10 @@ namespace Botanik { namespace PlcIO {
 
         /** @brief Bind the reader to a sync context and local logger. */
         PlcLogReader(PlcSyncContext* ctx, Logger* logger);
-        /** @brief Drain all pending PLC log entries; call once per tick. */
+        /** @brief Drain all pending PLC log entries */
+        void drain();
+        /** @brief Drain all pending PLC log entries
+         *  @note call once per tick. */
         void step();
 
         /** @} */

@@ -243,6 +243,9 @@ namespace Botanik { namespace PlcIO {
     struct EmulatorThreadArgs {
         PlcInput<InputData>*   shared_in;
         PlcOutput<OutputData>* shared_out;
+        /** @brief Optional site hook that fills the output payload with mock
+         *  sensor/actuator values; null leaves the payload zeroed. */
+        void (*fill_output)(OutputData*, uint32_t now_ms);
     };
 
     /** @brief Run flag and handle for the single emulator thread. Non-template
@@ -285,6 +288,13 @@ namespace Botanik { namespace PlcIO {
             emu_timestamp_ms = (uint32_t)HAL::uptime_ms();
             plc_emulator.step();
             HAL::watchdog_poll();  // serviced here so a wedged main loop still trips the watchdog
+            // Refresh the mock payload roughly once a second and request a write so
+            // the new values are committed to shared memory for the host to pick up.
+            constexpr uint32_t DATA_TICKS = 1000 / Config::TASK_PERIOD_MS;
+            if (args->fill_output != nullptr && (emu_tick % DATA_TICKS) == 0) {
+                args->fill_output(plc_emulator.output_data(), emu_timestamp_ms);
+                plc_emulator.context()->write();
+            }
             // Emit a periodic heartbeat log every 30s, simulating the PLC coprocessor.
             constexpr uint32_t HEARTBEAT_TICKS = 30000 / Config::TASK_PERIOD_MS;
             if ((++emu_tick % HEARTBEAT_TICKS) == 0) {
@@ -304,13 +314,25 @@ namespace Botanik { namespace PlcIO {
      *  thread is kept joinable (not detached) so reset() can stop it cleanly. */
     template<typename InputData, typename OutputData>
     inline void start_emulator_thread(PlcInput<InputData>* shared_in,
-                                      PlcOutput<OutputData>* shared_out) {
-        static EmulatorThreadArgs<InputData, OutputData> args{ shared_in, shared_out };
+                                      PlcOutput<OutputData>* shared_out,
+                                      void (*fill_output)(OutputData*, uint32_t) = nullptr,
+                                      Logs::Logger* logger = nullptr) {
+        static EmulatorThreadArgs<InputData, OutputData> args{ shared_in, shared_out, fill_output };
         _emu_running() = true;
         // memory barrier to make `_emu_running` visible before the thread reads it
         HAL::dsb();
-        // start the thread
-        pthread_create(&_emu_thread(), nullptr, &_emulator_thread_main<InputData, OutputData>, &args);
+        // Start the thread. Never let this fail silently: without the emulator the
+        // PLC link never acks and the handler is stuck in UNK forever, with no hint
+        // why. EAGAIN here usually means the stack mmap couldn't be locked under
+        // RLIMIT_MEMLOCK — see the start-order note in the sketch's main().
+        int rc = pthread_create(&_emu_thread(), nullptr,
+                                &_emulator_thread_main<InputData, OutputData>, &args);
+        if (rc != 0) {
+            _emu_running() = false;
+            if (logger != nullptr)
+                logger->error(PLC_IO, "emulator thread failed to start: %s", strerror(rc));
+            return;
+        }
         // register a way to stop the thread on system resets
         HAL::on_reset(&stop_emulator_thread);
     }
