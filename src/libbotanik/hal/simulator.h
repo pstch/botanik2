@@ -28,17 +28,20 @@
  *  @{ */
 
 /** @brief Single-instance storage for the terminal settings captured before
- *  entering raw mode. */
-extern "C" inline struct termios& botanik_saved_console_termios() {
+ *  entering raw mode. Returns a pointer (not a reference): @c struct @c termios is
+ *  a C type, so a pointer return keeps the @c extern @c "C" linkage valid — which
+ *  the signal-handler call chain below requires (a non-C-linkage handler callee is
+ *  ill-formed before C++17). */
+extern "C" inline struct termios* botanik_saved_console_termios() {
     // Initialized once by setup_raw_console() at startup, never from signal
     // context, so the C++ init guard is never exercised during a handler.
     static struct termios saved;  // NOLINT(bugprone-signal-handler)
-    return saved;
+    return &saved;
 }
 
 /** @brief Restore the terminal to its pre-raw-mode settings. */
 extern "C" inline void botanik_restore_console() {
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &botanik_saved_console_termios());
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, botanik_saved_console_termios());
 }
 
 /** @brief Signal handler that restores the terminal before exiting, so a
@@ -49,6 +52,8 @@ extern "C" inline void botanik_console_signal_handler(int) {
     botanik_restore_console();
     _exit(0);
 }
+
+/** @} */
 
 namespace Botanik { namespace HAL {
 
@@ -69,12 +74,13 @@ namespace Botanik { namespace HAL {
         return (uint64_t)std::chrono::duration_cast<T>(duration).count();
     }
 
+    /** @} */
 
     /** @name Hardware identity
      *  @{ */
 
     inline const char* hardware_description() {
-        return "Botanik x86-64 POSIX simulator";
+        return "x86-64 POSIX simulator";
     }
 
     /** @} */
@@ -199,6 +205,10 @@ namespace Botanik { namespace HAL {
         uint32_t _baud = 0;
         /** @brief Earliest time (us) the next write may proceed. */
         uint64_t _next_write_us = 0;
+        /** @brief Whether _fd_out is a terminal. False for a file/pipe sink, in
+         *  which case the UART model (baud throttle + TIOCOUTQ) is bypassed so
+         *  redirected output (e.g. `botanik_sim > log.txt`) actually drains. */
+        bool _out_is_tty = false;
 
         /** @} */
 
@@ -251,6 +261,11 @@ namespace Botanik { namespace HAL {
         inline void set_fds(int in, int out) {
             _fd_in = in;
             _fd_out = out;
+            // Note whether the output end is an interactive terminal: a redirected
+            // file or pipe has no UART to model, so availableForWrite() skips the
+            // tty-only TIOCOUTQ (which would fail with ENOTTY and wedge TX) and the
+            // baud throttle.
+            _out_is_tty = (_fd_out != -1) && (::isatty(_fd_out) == 1);
             // Both ends non-blocking so neither a stalled reader nor a full output
             // buffer can block the main loop (which would show up as overruns).
             if (_fd_in != -1) {
@@ -258,10 +273,20 @@ namespace Botanik { namespace HAL {
                 fcntl(_fd_in, F_SETFL, flags | O_NONBLOCK);
             }
             if (_fd_out != -1) {
-                int flags = fcntl(_fd_out, F_GETFL, 0);
-                fcntl(_fd_out, F_SETFL, flags | O_NONBLOCK);
+                int flags = fcntl(_fd_out, F_GETFL, 0) | O_NONBLOCK;
+                // Redirected to a file/pipe: force append so every write lands at
+                // the end of the sink regardless of how it was redirected (2> vs
+                // 2>>) and concurrent writers can't clobber each other. A tty has
+                // no meaningful append, so leave it untouched.
+                if (!_out_is_tty) flags |= O_APPEND;
+                fcntl(_fd_out, F_SETFL, flags);
             }
         }
+
+        /** @brief Whether the output end is an interactive terminal (false for a
+         *  file/pipe sink, or while unbound). Lets callers suppress diagnostic
+         *  output that would otherwise garble a shared console terminal. */
+        inline bool is_output_tty() const { return _out_is_tty; }
 
         /** @brief Number of bytes currently available to read. */
         inline int available() {
@@ -275,10 +300,14 @@ namespace Botanik { namespace HAL {
          *  throttle is holding off the next write). */
         inline int availableForWrite() {
             if (_fd_out == -1) return 0;
+            // File/pipe sink: no UART to model. Report the full simulated buffer so
+            // the TX ring drains as fast as the sink accepts bytes — without this,
+            // TIOCOUTQ below fails with ENOTTY and TX never makes progress.
+            if (!_out_is_tty) return 64;
             if (_baud > 0 && _next_write_us > _now_as<std::chrono::microseconds>()) return 0;
             int pending_bytes = 0;
             // TIOCOUTQ gives us the number of bytes currently in the output buffer
-            // NOTE: this should always return when bound to a PTY
+            // (tty-only; non-tty sinks are handled above).
             if (::ioctl(_fd_out, TIOCOUTQ, &pending_bytes) < 0) return 0;
             // simulate a small UART buffer
             int space = 64 - pending_bytes;
@@ -306,6 +335,13 @@ namespace Botanik { namespace HAL {
         return (port == MONITOR) ? &monitor : &console;
     }
 
+    /** @brief Whether @p port's output end is an interactive terminal. Lets sinks
+     *  (e.g. MonitorLogWriter) suppress diagnostic output that would otherwise
+     *  garble a console terminal shared with the UI. False for a null port. */
+    inline bool serial_is_output_tty(const RawSerial* port) {
+        return (port != nullptr) && port->is_output_tty();
+    }
+
     /** @} */
 
     /** @name Console raw mode
@@ -315,7 +351,12 @@ namespace Botanik { namespace HAL {
      *  disable canonical mode and echo, make reads non-blocking, and register
      *  atexit/signal handlers that restore the original settings on exit. */
     inline void setup_raw_console() {
-        struct termios& saved = botanik_saved_console_termios();
+        // Only meaningful for an interactive terminal. When stdin is a file or
+        // pipe (sim driven from a script, or run headless for debugging) there is
+        // nothing to put into raw mode and tcgetattr/tcsetattr would just fail with
+        // ENOTTY — skip it. No restore handlers are needed since we change nothing.
+        if (::isatty(STDIN_FILENO) != 1) return;
+        struct termios& saved = *botanik_saved_console_termios();
         tcgetattr(STDIN_FILENO, &saved);
         atexit(botanik_restore_console);
         signal(SIGINT,  botanik_console_signal_handler);
@@ -353,6 +394,17 @@ namespace Botanik { namespace HAL {
      *  taking a dependency on it — the subsystem reaches up into HAL, not vice
      *  versa. Simulator-only. */
     inline void on_reset(ResetHook hook) { *_reset_hook() = hook; }
+
+    /** @brief Persist the active UI page index so a reset() re-exec lands back on
+     *  it rather than the default page. Stored in the environment, which execve
+     *  carries across the re-exec (see reset()). Simulator-only: an OPTA hardware
+     *  reset clears RAM, so the board legitimately comes back on the default page
+     *  (the OPTA backend makes this a no-op). */
+    inline void save_active_page(uint8_t index) {
+        char buf[4];
+        snprintf(buf, sizeof(buf), "%u", (unsigned)index);
+        setenv("BOTANIK_PAGE", buf, 1);
+    }
 
     inline void reset() {
         // Run the registered teardown (cooperative thread join, etc.) while the

@@ -131,6 +131,11 @@ namespace Botanik { namespace HAL {
      *  after running any teardown hook registered through on_reset. */
     inline void reset();
 
+    /** @brief Persist the active UI page index for restore after reset(). The
+     *  simulator re-exec carries it across the reboot; on OPTA a reset clears RAM,
+     *  so this is a no-op and the board returns on the default page. */
+    inline void save_active_page(uint8_t index);
+
     /** @} */
 
     /** @name Hardware watchdog

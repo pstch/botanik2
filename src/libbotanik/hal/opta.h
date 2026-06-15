@@ -119,7 +119,7 @@ namespace Botanik { namespace HAL {
 
     template <typename T>
     inline void ordered_copy(T* dst, const T* src) {
-        ARM_MPU_OrderedMemcpy((void*)dst, (const void*)src, sizeof(T));
+        ARM_MPU_OrderedMemcpy((volatile uint32_t*)dst, (const uint32_t*)src, sizeof(T));
         __DSB();
     }
 
@@ -142,6 +142,11 @@ namespace Botanik { namespace HAL {
 
     /** @name System lifecycle
      *  @{ */
+
+    /** @brief No-op on OPTA: a hardware reset clears RAM, so there is no saved
+     *  page to restore and the board comes back on the default page. Mirrors the
+     *  simulator helper so the terminal can call it unconditionally. */
+    inline void save_active_page(uint8_t /*index*/) {}
 
     inline void reset() {
         // NVIC_SystemReset is the portable CMSIS reset (always available via
@@ -190,6 +195,11 @@ namespace Botanik { namespace HAL {
         if (port == MONITOR) return &Serial1;
         return &Serial;
     }
+
+    /** @brief A hardware UART is never an interactive terminal, so diagnostic
+     *  output is never suppressed on OPTA. Mirrors the simulator query so sinks
+     *  (e.g. MonitorLogWriter) stay platform-independent. */
+    inline bool serial_is_output_tty(const RawSerial*) { return false; }
 
     /** @} */
 
