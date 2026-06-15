@@ -12,7 +12,6 @@
 
 #include "libbotanik/utils/serial.h"
 #include "libbotanik/terminal/ansi.h"
-#include "libbotanik/logs/logger.h"
 #include "libbotanik/context.h"
 
 #include "libbotanik/pages/page.h"
@@ -43,8 +42,6 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Buffered serial UART wrapper. */
         BufferedSerial&              _serial;
-        /** @brief Logger sink (may be null). */
-        Logs::Logger*                _logger    = nullptr;
         /** @brief Aggregate of subsystem status contexts for the status bar and
          *  the `stats` command (scheduler + PLC; members may be null). */
         SystemContext                _ctx       = {};
@@ -74,14 +71,20 @@ namespace Botanik { namespace Terminal {
         bool                _hw_at_eol = false;
         /** @brief SM4/RM4 insert mode — toggled lazily by write_chars. */
         bool                _hw_insert_mode = false;
+        /** @brief DECTCEM cursor visibility (default: hidden). Pages that want a
+         *  visible cursor (only the shell editor today) opt in via
+         *  set_cursor_visible() in focus(); switch_to() hides it for everyone else. */
+        bool                _hw_cursor_visible = false;
+        /** @brief Screen has been established (cleared) at least once — set by
+         *  setup_*() / clear_screen(). Lets the first switch_to() skip a redundant
+         *  clear that would tx_discard a setup_*()'s freshly-emitted handshake. */
+        bool                _screen_ready = false;
 
         /** @} */
 
         /** @name Status bar state
          *  @{ */
 
-        /** @brief Status row drawn at least once (initial draw). */
-        bool                _status_bar_drawn = false;
         /** @brief Last status-metrics refresh (wall clock). */
         uint64_t            _status_last_ms = 0;
         /** @brief Visible width (+NUL) of the right-aligned status field
@@ -104,11 +107,24 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Initialize the terminal with given dimensions */
         AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
-                     uint32_t* timestamp_ms, Logs::Logger* logger = nullptr,
-                     const SystemContext& ctx = {});
+                     uint32_t* timestamp_ms, const SystemContext& ctx = {});
 
         /** @brief Process input and update terminal state */
         void step();
+
+        /** @brief Select and initialize the target terminal type. Call once, before
+         *  the first switch_to()/render. Emits only the type's one-time handshake; the
+         *  screen clear is deferred to the first step() so it lands *after* this
+         *  handshake (a Minitel needs its PRO2 bytes while still in its native command
+         *  set), in the order clear -> "ACAB" marker -> contents.
+         *  - setup_minitel(): 80-col téléinformatique mode, lowercase keyboard, and
+         *    page mode over the DIN link (PRO2, sent before the ANSI clear while the
+         *    unit is still in its native command set). DECAWM ?7l is also sent (on the
+         *    first-step establish) as a harmless hedge in case the unit honors it.
+         *  - setup_vt102():   plain VT100/VT102; DECAWM (?7l) (re)asserted on every
+         *    screen establish. The default if neither is called. */
+        void setup_minitel();
+        void setup_vt102();
 
         /** @} */
 
@@ -148,6 +164,11 @@ namespace Botanik { namespace Terminal {
         /** @brief Enable or disable terminal auto-wrap (DECAWM, CSI ? 7 h/l) */
         void set_auto_wrap(bool enable);
 
+        /** @brief Show or hide the (blinking) cursor (DECTCEM). Lazy: emits only on
+         *  a state change. There is no steady cursor, so callers that want to stop
+         *  the blink simply hide it. */
+        void set_cursor_visible(bool show);
+
         /** @} */
 
         /** @name Content manipulation
@@ -159,8 +180,8 @@ namespace Botanik { namespace Terminal {
         /** @brief Erase content from cursor to the end of the line */
         void clear_to_eol();
 
-        /** @brief Erase an entire row */
-        void clear_row(uint16_t row);
+        /** @brief Erase from the cursor to the end of the display */
+        void clear_to_eos();
 
         /** @brief Erase the entire display and home the cursor (ESC[2J + ESC[H) */
         void clear_screen();
@@ -188,6 +209,10 @@ namespace Botanik { namespace Terminal {
         /** @brief Switch to the page at the given index */
         void switch_to(uint8_t index);
 
+        /** @brief Switch to the next (@p forward) or previous page, wrapping around
+         *  the ends. No-op when no pages are registered. */
+        void switch_relative(bool forward);
+
         /** @} */
 
         /** @name Status bar
@@ -210,6 +235,20 @@ namespace Botanik { namespace Terminal {
         /** @brief True when the serial TX buffer has been fully flushed to the wire */
         bool tx_empty() const;
 
+        /** @brief Bytes currently queued in the serial RX ring buffer */
+        uint16_t rx_used() const { return _serial.available(); }
+
+        /** @brief Bytes currently queued in the serial TX ring buffer */
+        uint16_t tx_used() const {
+            uint16_t cap = Utils::BufferedSerial::tx_capacity();
+            uint16_t freed = _serial.availableForWrite();
+            return (freed <= cap) ? (uint16_t)(cap - freed) : 0;
+        }
+
+        /** @brief Capacity of the serial RX / TX ring buffers, bytes */
+        static constexpr uint16_t rx_capacity() { return Utils::BufferedSerial::rx_capacity(); }
+        static constexpr uint16_t tx_capacity() { return Utils::BufferedSerial::tx_capacity(); }
+
         /** @} */
 
         /** @name Context access
@@ -223,6 +262,11 @@ namespace Botanik { namespace Terminal {
     private:
         /** @name Internals
          *  @{ */
+
+        /** @brief Clear+home the screen and reset cursor/wrap tracking, re-asserting
+         *  DECAWM off (?7l) on every call. Does not discard the TX buffer (the
+         *  caller does). Shared by clear_screen() and setup_*(). */
+        void _establish_screen();
 
         /** @brief Render the right-side status field into @p buf; returns its length
          *  (clamped to >= 0). The width is fixed, so a byte index maps to a fixed

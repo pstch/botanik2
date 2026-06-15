@@ -18,7 +18,8 @@ namespace Botanik { namespace Terminal {
         _buf[0] = '\0';
         _layout.rows[0] = {0, 0, false};
         _layout.count = 1;
-        _terminal->set_auto_wrap(false);
+        // Auto-wrap is owned by the terminal and asserted on every screen
+        // (re)establish in clear_screen(); the editor no longer toggles it here.
     }
 
     // prompt helpers
@@ -101,8 +102,10 @@ namespace Botanik { namespace Terminal {
     }
 
     void TextEditor::reset() {
-        for (uint16_t i = 0; i < _layout.count; i++)
-            _terminal->clear_row(_origin + i);
+        // The editor is bottom-anchored, so its rows run from _origin to the last
+        // row — one erase-to-end-of-display clears them all in a single sequence.
+        _terminal->move_to({_origin, 0});
+        _terminal->clear_to_eos();
         uint16_t old_origin = _origin;
         _reset_state();
         uint16_t draw_row = _suppress_sync_redraw ? old_origin : _origin;
@@ -226,7 +229,7 @@ namespace Botanik { namespace Terminal {
 
     void TextEditor::_splice_row(uint16_t post_idx, uint16_t col, int32_t amount,
                                  uint16_t shown_len, uint16_t shown_prompt_l,
-                                 const RowView& want) {
+                                  const RowView& want) {
         uint16_t hw     = (uint16_t)(_origin + post_idx);
         uint16_t prompt = _prompt_len(_row_prompt(post_idx));
         uint16_t cap    = _row_cap(post_idx);
