@@ -69,11 +69,12 @@ make -C build-debug
 ./build-debug/botanik_sim        # run the simulator
 ```
 
-For an optimized build, add `-DCMAKE_BUILD_TYPE=RELEASE` (enables `-O3`/LTO and
-compiles assertions out). To run under sanitizers, configure with e.g.
-`-DBOTANIK_SANITIZE=address+undefined`.
+DEBUG builds enable the AddressSanitizer + UndefinedBehaviorSanitizer by default
+(`BOTANIK_SANITIZE=address+undefined`); the interactive sim runs fine instrumented
+and it catches UB/memory bugs early. Turn them off with `-DBOTANIK_SANITIZE=OFF`.
 
-`cppcheck` static analysis runs as part of the simulator build.
+For an optimized build, add `-DCMAKE_BUILD_TYPE=RELEASE` (enables `-O3`/LTO,
+compiles assertions out, and defaults sanitizers off).
 
 ### OPTA target
 
@@ -91,13 +92,50 @@ obtain them from the Arduino PLC IDE's build cache after a successful build
 there and copy them in by hand. Even with those headers a full link is not yet
 working, but it is enough to make IntelliSense resolve correctly.
 
+### Tests
+
+Unit tests use [doctest](https://github.com/doctest/doctest) (vendored as a
+single header under `tests/vendor/`) and run only in the `SIMULATOR` build,
+linked against the host library. From a configured SIMULATOR tree:
+
+```bash
+make -C build-debug check          # the full pre-push gate (see below)
+```
+
+`check` is the one-shot pre-push gate. It runs three things and fails on the
+first problem:
+
+- a **warning-clean compile** — the `botanik_strict` target mirrors the library
+  with `-Werror`, so any compiler warning fails the build (plain `make` stays
+  warning-tolerant — visibility, not a hard gate);
+- **clang-tidy** — the `bugprone-*` checks from `.clang-tidy`, promoted to errors;
+- the **doctest unit suite** via `ctest`.
+
+The pieces, if you need them individually:
+
+```bash
+make -C build-debug clang-tidy     # just the static analysis
+make -C build-debug botanik_tests  # just build the test binary
+./build-debug/tests/botanik_tests  # run it directly (doctest CLI)
+./build-debug/tests/botanik_tests -s   # ...showing every passing check, incl. the struct-size table
+ctest --test-dir build-debug --output-on-failure
+```
+
+The suite covers the `format_float`/`format_age` text helpers, the time
+utilities (rollover projection + calendar conversion), and a `sizeof` test that
+documents the in-memory footprint of the big UI/PLC structures.
+
 ## Documentation & useful links
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) — code style, naming, and the non-blocking design rules.
 - [CLAUDE.md](CLAUDE.md) — architecture summary and build notes for AI coding agents.
 - [docs/EVENT_DISPATCH.md](docs/EVENT_DISPATCH.md) — terminal input event flow.
 - [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md) — terminal key bindings.
-- API reference — run `doxygen Doxyfile`, then open `docs/doxygen/html/index.html`.
+- API reference — `make -C build-debug docs` regenerates the HTML under
+  `docs/doxygen/html/` (or run `doxygen Doxyfile` directly). `make -C build-debug
+  docs-open` builds the tests + docs, runs the suite, and opens the result in a
+  browser. The generated [Testing](docs/doxygen/html/testing.html) page covers
+  the test suite and the struct-size table.
 
 ### External
 
