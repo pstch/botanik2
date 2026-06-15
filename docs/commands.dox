@@ -1,0 +1,37 @@
+/**
+@page commands Commands
+
+@brief Shell command reference — the built-in commands typed at the `botanik>`
+       prompt.
+
+@note **Draft.** This page covers the current built-in command set only. It will
+grow as site-specific commands are added; for now it tracks what
+@ref Botanik::Shell::CommandShell ships with.
+
+Commands are entered on the @ref Botanik::Pages::ShellPage "Shell" page. When a
+line is submitted (see @ref md_docs_2KEYBINDINGS), @ref Botanik::Pages::ShellPage
+hands it to @ref Botanik::Shell::CommandShell::run "CommandShell::run()", which
+dispatches through @ref Botanik::Shell::CommandShell::dispatch "dispatch()" and
+falls through to the built-in handler,
+@ref Botanik::Shell::CommandShell::_builtin "_builtin()". An empty line is
+ignored; an unrecognized one echoes `Unknown command: …`.
+
+@section commands_builtin Built-in commands
+
+| Command        | Action                                                                                                                       |
+|----------------|------------------------------------------------------------------------------------------------------------------------------|
+| `help`         | Print the one-line list of available commands.                                                                               |
+| `clear`        | @ref Botanik::Shell::ShellWriter::clear "clear()" — wipe the shell scrollback and redraw an empty prompt.                     |
+| `stats`        | Dump scheduler/runtime counters (uptime, CPU load, jitter, stack usage/depth) from @ref Botanik::Scheduler::SchedulerContext. |
+| `breakpoint`   | @ref Botanik::HAL::debug_break "HAL::debug_break()" — trap into an attached debugger.                                         |
+| `reset`        | @ref Botanik::HAL::reset "HAL::reset()" — reboot the firmware (does not return; the simulator re-execs to the current page).  |
+
+@section commands_extending Extending
+
+Application code adds its own commands by subclassing
+@ref Botanik::Shell::CommandShell and overriding
+@ref Botanik::Shell::CommandShell::dispatch "dispatch()": handle the
+site-specific verbs there, then call the base implementation so the built-ins
+above still resolve. History and kill-ring support are stubbed for now (see the
+`SHELL_HISTORY_*` / `SHELL_KILL_SIZE` constants in @c libbotanik_config.h).
+*/
