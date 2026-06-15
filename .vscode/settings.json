@@ -9,7 +9,7 @@
         "compare": "cpp"
     },
     "search.useIgnoreFiles": false,
-    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build-debug/compile_commands.json",
     "C_Cpp.default.cppStandard": "c++11",
     "C_Cpp.default.cStandard": "c11",    
     "C_Cpp.codeAnalysis.clangTidy.enabled": true,
@@ -21,8 +21,8 @@
     "C_Cpp.codeAnalysis.exclude": {
         "includes/**": true,
         "archive/**": true,
+        "build-*/**": true,
         "build/**": true,
-        "build-opta/**": true,
         "/usr/**": true
     },
     // Checks come solely from the .clang-tidy file (single source of truth shared

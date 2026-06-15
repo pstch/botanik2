@@ -13,7 +13,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "/usr/bin/xterm",
-            "args": ["-e", "${workspaceFolder}/build/botanik_sim"],
+            "args": ["-e", "${workspaceFolder}/build-debug/botanik_sim"],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
             // "console": "externalTerminal",
