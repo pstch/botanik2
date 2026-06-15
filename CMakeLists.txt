@@ -1,4 +1,13 @@
 cmake_minimum_required(VERSION 3.10)
+
+# A cross-compilation toolchain must be chosen before project() runs the compiler
+# detection. BOTANIK_TARGET arrives via -D (already in the cache at this point),
+# so we can select the OPTA toolchain here and keep the plain
+# `cmake -DBOTANIK_TARGET=OPTA` invocation.
+if("${BOTANIK_TARGET}" STREQUAL "OPTA")
+    set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/cmake/opta-toolchain.cmake")
+endif()
+
 project(Botanik CXX C)
 
 set(CMAKE_CXX_USE_RESPONSE_FILE_FOR_INCLUDES ON)
@@ -10,9 +19,6 @@ set(CMAKE_C_USE_RESPONSE_FILE_FOR_INCLUDES ON)
 # Change with cmake -DBOTANIK_TARGET=SIMULATOR ..
 set(BOTANIK_TARGET "SIMULATOR" CACHE STRING "Target platform: SIMULATOR or OPTA")
 
-# Runtime sanitizers for the SIMULATOR build (ignored on OPTA, which we can't run).
-# OFF | address | undefined | address+undefined
-set(BOTANIK_SANITIZE "OFF" CACHE STRING "Sanitizers for the SIMULATOR build")
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -23,6 +29,19 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE DEBUG CACHE STRING "Build type" FORCE)
 endif()
+
+# Runtime sanitizers for the SIMULATOR build (ignored on OPTA, which we can't run).
+# OFF | address | undefined | address+undefined. Default to address+undefined on
+# DEBUG builds — the interactive sim runs fine instrumented and it catches UB and
+# memory bugs early — and OFF otherwise. Override explicitly, e.g. with
+# -DBOTANIK_SANITIZE=OFF on a debug tree, or to opt in on a non-debug one.
+string(TOUPPER "${CMAKE_BUILD_TYPE}" _build_type_upper)
+if(_build_type_upper STREQUAL "DEBUG")
+    set(_san_default "address+undefined")
+else()
+    set(_san_default "OFF")
+endif()
+set(BOTANIK_SANITIZE "${_san_default}" CACHE STRING "Sanitizers for the SIMULATOR build")
 
 # Override CMake's default Debug flags ("-g") with profiler-friendly ones:
 # optimizations disabled, full DWARF-4 debug info, frame pointer preserved.
@@ -41,9 +60,8 @@ set(CMAKE_EXE_LINKER_FLAGS_RELEASE "-s"           CACHE STRING "" FORCE)
 # Symlink compile_commands.json to the project root so clang-tidy/clangd find it
 # without extra configuration. Only the DEBUG tree drives editor tooling, so a
 # parallel RELEASE (or other) configure won't repoint the symlink at the
-# optimized/NDEBUG compile flags. Compared case-insensitively so any spelling of
-# the build type still resolves correctly.
-string(TOUPPER "${CMAKE_BUILD_TYPE}" _build_type_upper)
+# optimized/NDEBUG compile flags. Compared case-insensitively (via the
+# _build_type_upper computed above) so any spelling of the build type resolves.
 if(_build_type_upper STREQUAL "DEBUG")
     execute_process(
         COMMAND ${CMAKE_COMMAND} -E create_symlink
@@ -52,9 +70,12 @@ if(_build_type_upper STREQUAL "DEBUG")
     )
 endif()
 
+# The library is just src/libbotanik/. The src/botanik_sim/ sketch (main + mock
+# PLC) is the host application, compiled into botanik_sim below — never into the
+# library, so it stays out of the OPTA build, which has no host entry point.
 file(GLOB_RECURSE LIB_SOURCES
-    "src/*.cpp"
-    "src/*.c"
+    "src/libbotanik/*.cpp"
+    "src/libbotanik/*.c"
 )
 
 add_library(botanik STATIC ${LIB_SOURCES})
@@ -93,7 +114,9 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         message(STATUS "Sanitizers enabled: ${BOTANIK_SANITIZE}")
     endif()
 
-    add_executable(botanik_sim "src/botanik_sim/main.cpp")
+    add_executable(botanik_sim
+        "src/botanik_sim/main.cpp"
+        "src/botanik_sim/simulator.cpp")
     target_link_libraries(botanik_sim botanik)
 
     # Link-time optimization for Release only (cross-TU inlining on top of -O3).
@@ -106,6 +129,22 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     else()
         message(STATUS "IPO/LTO not supported, Release will use -O3 only: ${_ipo_msg}")
     endif()
+
+    # Strict warning gate. A mirror of the library compiled with -Werror, built
+    # only on demand (EXCLUDE_FROM_ALL) so day-to-day `make` stays warning-tolerant
+    # — visibility, not a hard gate — while `make check` fails hard on any warning.
+    # Linking `botanik` re-uses its PUBLIC include dirs, defines, and warning (and
+    # sanitizer) flags, so the two stay in lockstep with no duplicated settings.
+    add_library(botanik_strict STATIC EXCLUDE_FROM_ALL ${LIB_SOURCES})
+    target_link_libraries(botanik_strict PRIVATE botanik)
+    target_compile_options(botanik_strict PRIVATE -Werror)
+    # Keep this mirror out of compile_commands.json. Otherwise every library TU
+    # gets a second, -Werror entry, and run-clang-tidy lints each file twice —
+    # the -Werror pass promoting ordinary -Wall warnings (e.g. unused-private-field
+    # on WIP stubs) into hard errors. clang-tidy is meant to gate on bugprone-*
+    # only (see .clang-tidy); the warning gate is botanik_strict's own GCC build.
+    # (Target property is honored on CMake >= 3.20; older versions ignore it.)
+    set_target_properties(botanik_strict PROPERTIES EXPORT_COMPILE_COMMANDS OFF)
 
     # cppcheck static analysis target
     find_program(CPPCHECK cppcheck)
@@ -127,11 +166,42 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         message(STATUS "cppcheck not found — skipping cppcheck target")
     endif()
 
+    # clang-tidy static analysis target. Drives run-clang-tidy over our own src/
+    # tree (the regex is matched against the paths in compile_commands.json); the
+    # check set and header filter live in .clang-tidy, with bugprone-* promoted to
+    # errors there so a finding makes the target — and `make check` — fail.
+    find_program(RUN_CLANG_TIDY NAMES run-clang-tidy run-clang-tidy.py)
+    if(RUN_CLANG_TIDY)
+        add_custom_target(clang-tidy
+            COMMAND ${RUN_CLANG_TIDY}
+                -p ${CMAKE_BINARY_DIR}
+                -quiet
+                "${CMAKE_SOURCE_DIR}/src/.*"
+            COMMENT "Running clang-tidy (SIMULATOR)"
+            VERBATIM
+        )
+    else()
+        message(STATUS "run-clang-tidy not found — skipping clang-tidy target")
+    endif()
+
+    # doctest unit tests (host-only, so SIMULATOR-only). enable_testing() here
+    # registers the CTest machinery for `ctest`/`make test`; the suite itself —
+    # and a `make check` that builds-then-runs it — is defined in tests/.
+    enable_testing()
+    add_subdirectory(tests)
+
 elseif(BOTANIK_TARGET STREQUAL "OPTA")
     message(STATUS "Configuring for OPTA (Arduino/Mbed) sanity check")
 
-    set(CMAKE_C_COMPILER arm-none-eabi-gcc)
-    set(CMAKE_CXX_COMPILER arm-none-eabi-g++)
+    # Compiler + ar/ranlib come from cmake/opta-toolchain.cmake (selected before
+    # project()), so the ARM toolchain — including the LTO-aware gcc-ar/gcc-ranlib
+    # wrappers — is used consistently for compiling and archiving.
+
+    # Cortex-M7 + double-precision FPU (STM32H747). These set the __ARM_ARCH_*
+    # macros Mbed's headers gate on (atomics, CRC) — without them mbed_atomic.h
+    # errors out with "Unknown ARM architecture for exclusive access".
+    target_compile_options(botanik PUBLIC
+        -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard)
 
     target_compile_definitions(botanik PUBLIC 
         ARM_MATH_CM7
@@ -235,8 +305,8 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     )
 
     set(MBED_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/includes/arduino_mbed_opta_4.1.6_6bd5cf0253f43b1d")
-    
-    target_include_directories(botanik SYSTEM PUBLIC 
+
+    target_include_directories(botanik SYSTEM PUBLIC
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
 
         "${CMAKE_CURRENT_SOURCE_DIR}/includes/arduino_arm-none-eabi-gcc_7-2017q4_7b7be9f526b2cb64/**"
@@ -276,6 +346,32 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
         "${MBED_ROOT}/libraries/Wire"
         "${MBED_ROOT}/libraries/Ethernet/src"
     )
+    # Mbed's headers (e.g. MbedCRC.h) use C++14 (std::enable_if_t), so this build
+    # needs C++14 even though our own code is C++11 — the layout/ABI is identical
+    # between the two, so the footprint asserts in libbotanik.h still hold.
+    set_target_properties(botanik PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
+
+    # Firmware that must fit in the STM32H747's flash, so build it the way it ships:
+    # size-optimized, no debug info, dead code split out for the final --gc-sections.
+    # These override the inherited DEBUG flags (-O0 -g3) — GCC honors the last -O/-g
+    # on the line, and target options come after the per-config ones.
+    target_compile_options(botanik PUBLIC
+        -Os -g0 -ffunction-sections -fdata-sections -ffat-lto-objects)
+
+    # Link-time optimization. For a static archive this matters at the final link in
+    # the sketch, but the objects must carry LTO bytecode and the archive must be
+    # built with the gcc-ar/gcc-ranlib wrappers — enabling the property makes CMake
+    # use arm-none-eabi-gcc-ar/-ranlib and add -flto, so cross-TU size wins survive
+    # into the .a. check_ipo_supported was already run above (host); re-probe here
+    # for the ARM toolchain so an LTO-less compiler degrades gracefully.
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT _opta_ipo_ok OUTPUT _opta_ipo_msg)
+    if(_opta_ipo_ok)
+        set_target_properties(botanik PROPERTIES INTERPROCEDURAL_OPTIMIZATION ON)
+    else()
+        message(STATUS "IPO/LTO not supported for OPTA, size build is -Os only: ${_opta_ipo_msg}")
+    endif()
+
     # Because the PLC objects are not available in this build, we
     # tell CMake to compile the objects without trying to create a final binary
     set_target_properties(botanik PROPERTIES LINKER_LANGUAGE CXX)
@@ -294,6 +390,28 @@ if(DOXYGEN)
         COMMENT "Generating API documentation with Doxygen"
         VERBATIM
     )
+
+    # Convenience target: build the tests + docs, run the suite, then open the
+    # generated HTML in a browser. Opt-in (not folded into `docs`) so a plain
+    # `make docs` stays safe in CI / over SSH. Uses xdg-open on Linux, open on
+    # macOS.
+    find_program(OPEN_CMD NAMES xdg-open open)
+    if(OPEN_CMD)
+        add_custom_target(docs-open
+            COMMAND ${OPEN_CMD} ${CMAKE_SOURCE_DIR}/docs/doxygen/html/index.html
+            DEPENDS docs
+            COMMENT "Opening API documentation in browser"
+            VERBATIM
+        )
+        # In a SIMULATOR tree the unit tests exist (`check` builds + runs them);
+        # chain them in so the docs open alongside a validated, green suite — the
+        # size table in the Testing page then reflects a passing run.
+        if(TARGET check)
+            add_dependencies(docs-open check)
+        endif()
+    else()
+        message(STATUS "no xdg-open/open found — skipping docs-open target")
+    endif()
 else()
     message(STATUS "doxygen not found — skipping docs target")
 endif()
