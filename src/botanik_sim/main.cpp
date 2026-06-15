@@ -63,8 +63,8 @@ protected:
     // Two-column body geometry. Rows 2..6 are the base system band; the four
     // greenhouse groups sit below, each header preceded by a blank separator
     // row. Left panel keeps to cols 2..36, right panel to cols 41..76, on an
-    // 80-column display. The right value column starts at col 54 so the longer
-    // actuator labels (e.g. "Humidifier:") clear it.
+    // 80-column display. The right value column starts at col 54 so the 9-wide
+    // labels (e.g. "Humidif.:") clear it.
     static constexpr uint16_t L_HDR = 2,  L_LBL = 3,  L_VAL = 13, L_W = 24;
     static constexpr uint16_t R_HDR = 41, R_LBL = 42, R_VAL = 54, R_W = 23;
     static constexpr uint16_t HDR_WL = 34, HDR_WR = 36;
@@ -91,8 +91,8 @@ protected:
         _header  (15, R_HDR, "ACTUATORS",  HDR_WR);
         _label_at(16, R_LBL, "Windows :");
         _label_at(17, R_LBL, "Blowers :");
-        _label_at(18, R_LBL, "Extractor:");
-        _label_at(19, R_LBL, "Humidifier:");
+        _label_at(18, R_LBL, "Extract.:");
+        _label_at(19, R_LBL, "Humidif.:");
         _label_at(20, R_LBL, "Screen  :");
     }
 
