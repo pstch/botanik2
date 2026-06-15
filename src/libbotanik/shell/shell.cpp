@@ -10,6 +10,7 @@
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/shell/shell.h"
+#include "libbotanik/utils/text.h"
 
 namespace Botanik { namespace Shell {
 
@@ -60,6 +61,7 @@ namespace Botanik { namespace Shell {
             uint32_t uptime_s = (uint32_t)(HAL::uptime_ms() / 1000);
             if (ctx) {
                 char val[24], detail[64];
+                char fa[12], fb[12];
                 int w;
                 snprintf(val,    sizeof(val),    "%lus", (unsigned long)uptime_s);
                 snprintf(detail, sizeof(detail), "%lu ticks, %lu overruns",
@@ -68,26 +70,26 @@ namespace Botanik { namespace Shell {
                     "Uptime ......................", val, detail);
                 if (w > 0) _output.write(out, (size_t)w);
 
-                snprintf(val,    sizeof(val),    "%.1f%%",
-                    (double)(ctx->cpu_load_ema * 100.0f));
-                snprintf(detail, sizeof(detail), "recent %.2fms, peak %.2fms",
-                    (double)ctx->cpu_loop_us_recent / 1000.0,
-                    (double)ctx->cpu_loop_us_max / 1000.0);
+                snprintf(val,    sizeof(val),    "%s%%",
+                    Utils::format_float(fa, sizeof(fa), ctx->cpu_load_ema * 100.0f, 1));
+                snprintf(detail, sizeof(detail), "recent %sms, peak %sms",
+                    Utils::format_float(fa, sizeof(fa), ctx->cpu_loop_us_recent / 1000.0, 2),
+                    Utils::format_float(fb, sizeof(fb), ctx->cpu_loop_us_max / 1000.0, 2));
                 w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
                     "CPU load ....................", val, detail);
                 if (w > 0) _output.write(out, (size_t)w);
 
-                snprintf(val,    sizeof(val),    "%.1f%%",
-                    (double)(ctx->cpu_jitter_ema * 100.0f));
-                snprintf(detail, sizeof(detail), "recent %.2fms, peak %.2fms",
-                    (double)ctx->cpu_jitter_us_recent / 1000.0,
-                    (double)ctx->cpu_jitter_us_max / 1000.0);
+                snprintf(val,    sizeof(val),    "%s%%",
+                    Utils::format_float(fa, sizeof(fa), ctx->cpu_jitter_ema * 100.0f, 1));
+                snprintf(detail, sizeof(detail), "recent %sms, peak %sms",
+                    Utils::format_float(fa, sizeof(fa), ctx->cpu_jitter_us_recent / 1000.0, 2),
+                    Utils::format_float(fb, sizeof(fb), ctx->cpu_jitter_us_max / 1000.0, 2));
                 w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
                     "CPU jitter ..................", val, detail);
                 if (w > 0) _output.write(out, (size_t)w);
 
-                snprintf(val,    sizeof(val),    "%.1f%%",
-                    (double)(ctx->stack_usage_ema * 100.0f));
+                snprintf(val,    sizeof(val),    "%s%%",
+                    Utils::format_float(fa, sizeof(fa), ctx->stack_usage_ema * 100.0f, 1));
                 snprintf(detail, sizeof(detail), "recent %lu, peak %lu bytes",
                     (unsigned long)ctx->stack_bytes_recent,
                     (unsigned long)ctx->stack_bytes_max);
