@@ -3,8 +3,7 @@
 A *page* is a full-screen view multiplexed by @ref Botanik::Terminal::AnsiTerminal.
 Every page implements the @ref Botanik::Pages::Page interface; the terminal holds
 up to 8 of them, routes input to the active one (see
-[EVENT_DISPATCH.md](EVENT_DISPATCH.md)), and ticks all of them each loop. This
-page covers the page hierarchy and the screen contract they share.
+[EVENT_DISPATCH.md](EVENT_DISPATCH.md)), and ticks all of them each loop.
 
 ## Screen contract
 
@@ -16,9 +15,9 @@ page covers the page hierarchy and the screen contract they share.
 ```
 
 Row 0 (the inverted status bar: page tabs on the left, live metrics on the
-right) belongs to the terminal. A page owns rows 1..N-1 and must only draw there,
-and only while it is the active page. The terminal clears the content area on
-every page switch, so `focus()` always paints onto a blank canvas.
+right) belongs to the terminal. A page owns rows 1..N-1 and draws only there, and
+only while active. The terminal clears the content area on every page switch, so
+`focus()` always paints onto a blank canvas.
 
 ## The Page interface
 
@@ -62,20 +61,20 @@ an inactive page banks queued entries without drawing (see
                                               (site payload, in main.cpp)
 ```
 
-- @ref Botanik::Pages::ShellPage — interactive shell. Owns a
+- @ref Botanik::Pages::ShellPage - interactive shell. Owns a
   @ref Botanik::Terminal::TextEditor on the bottom row and a
   @ref Botanik::Shell::CommandShell; the rows above show a live log tail
   interleaved with command output. Also a `LogWriter` and a `ShellWriter`.
-- @ref Botanik::Pages::LogsPage — the full scrolling log. A `LogWriter` that
+- @ref Botanik::Pages::LogsPage - the full scrolling log. A `LogWriter` that
   replays its @ref Botanik::Pages::LogsScrollback on focus.
-- @ref Botanik::Pages::MetricPage — base for read-only metric displays. Diffs
+- @ref Botanik::Pages::MetricPage - base for read-only metric displays. Diffs
   each value field against the last paint and re-emits only the bytes that
   changed (`watch -d`-style highlighting), so a refresh never saturates the
   low-baud link. Subclasses fill `draw_static()` (labels, once) and
   `draw_dynamic()` (values, periodically).
-  - @ref Botanik::Pages::HomePage "HomePage<T>" — landing page: logo, a compact
+  - @ref Botanik::Pages::HomePage "HomePage<T>" - landing page: logo, a compact
     summary, and a bottom live-log band (so it is also a `LogWriter`).
-  - @ref Botanik::Pages::StatusPage "StatusPage<T>" — full runtime/health
+  - @ref Botanik::Pages::StatusPage "StatusPage<T>" - full runtime/health
     display.
 
 Both metric pages are templated on the site PLC output payload; the concrete

@@ -3,7 +3,7 @@
 
 /**
  * @file metric_page.h
- * @brief MetricPage — shared base for read-only metric displays (Home/Status).
+ * @brief MetricPage - shared base for read-only metric displays (Home/Status).
  *
  * Centralises the bits the metric pages have in common: the terminal binding,
  * the focus/periodic-refresh lifecycle, small label/value drawing helpers, and a
@@ -14,7 +14,7 @@
  *
  * Values are diffed per field (_field()) and only the bytes that change are
  * re-emitted. A digit run that moved is drawn in reverse video and stays lit
- * until the next refresh, when it is rewritten normal once it stops changing —
+ * until the next refresh, when it is rewritten normal once it stops changing -
  * per-subfield watch(1) -d highlighting over a refresh window. Fields are fixed-
  * width and space-padded, so a shrinking value clears its own tail and each subfield keeps
  * a stable column.
@@ -60,7 +60,7 @@ namespace Botanik { namespace Pages {
         uint64_t      _hot_last_ms     = 0;
         /** @brief Hot-field refresh interval (ms); 0 disables. A subclass pairs this
          *  with a draw_hot() override holding the fields that change every second
-         *  (e.g. a clock). Each cycle a hot field is repainted at most once — by this
+         *  (e.g. a clock). Each cycle a hot field is repainted at most once - by this
          *  per-second tick when the TX buffer has drained, or by the global refresh,
          *  never both (see tick()). All other ("cold") fields live in draw_dynamic()
          *  and only move on the global refresh. */
@@ -108,7 +108,7 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Write a value at _value_col (single-column pages), keyed by row.
-         *  The field is fixed-width — from _value_col to the end of the line — so a
+         *  The field is fixed-width - from _value_col to the end of the line - so a
          *  shrinking value overwrites its own tail with spaces and no separate
          *  clear-to-eol is needed. Change highlighting is handled by _field(); pass
          *  @p highlight = false for fields that change every refresh (a clock), where
@@ -165,7 +165,7 @@ namespace Botanik { namespace Pages {
          *  The value is space-padded to @p width (longer values are truncated), so
          *  a shrinking value overwrites its own tail and an adjacent column is never
          *  touched. The field is diffed against the previous draw and only the bytes
-         *  that actually change are re-emitted — an unchanged field writes nothing,
+         *  that actually change are re-emitted - an unchanged field writes nothing,
          *  so a refresh never repaints the static padding.
          *
          *  Highlighting is per subfield: each maximal run of digits is one subfield,
@@ -207,7 +207,7 @@ namespace Botanik { namespace Pages {
                     if (cf[i] != prev[i]) chg |= (1u << i);
                 // Highlighting is opt-out: a field that changes every refresh (a clock)
                 // leaves it off, so a settled subfield is never re-emitted just to
-                // clear an inversion — only genuinely changed glyphs are written.
+                // clear an inversion - only genuinely changed glyphs are written.
                 if (highlight) {
                     for (uint16_t i = 0; i < width; ) {
                         if (cf[i] < '0' || cf[i] > '9') { ++i; continue; }
@@ -316,11 +316,11 @@ namespace Botanik { namespace Pages {
 
         /** @brief Draw labels/headers that only change on (re)entry/resize. */
         virtual void draw_static() = 0;
-        /** @brief Rewrite the cold values — everything refreshed on the global period
+        /** @brief Rewrite the cold values - everything refreshed on the global period
          *  only (via _value()). Must NOT touch hot fields, or they would be painted
          *  twice per cycle and the change highlight would flicker. */
         virtual void draw_dynamic() = 0;
-        /** @brief Rewrite the hot values — the per-second subset (e.g. a clock's
+        /** @brief Rewrite the hot values - the per-second subset (e.g. a clock's
          *  seconds). Default none; see _hot_ms. Kept disjoint from draw_dynamic(). */
         virtual void draw_hot() {}
 
@@ -375,7 +375,7 @@ namespace Botanik { namespace Pages {
                     _hot_last_ms = now;
                     draw_hot();
                 }
-                // else: TX congested and no refresh due — hold and retry next tick.
+                // else: TX congested and no refresh due - hold and retry next tick.
             }
 
             if (refresh_due) {

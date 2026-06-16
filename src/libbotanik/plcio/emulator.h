@@ -3,7 +3,7 @@
 
 /**
  * @file emulator.h
- * @brief PlcEmulator — simulator-side stand-in that drives the shared-memory
+ * @brief PlcEmulator - simulator-side stand-in that drives the shared-memory
  *        protocol from the PLC's side, mirroring PlcSyncHandler.
  */
 
@@ -31,9 +31,9 @@ namespace Botanik { namespace PlcIO {
 
         /** @brief A TX write has been requested. */
         bool             _tx_write       = false;
-        /** @brief Emulator RX ← what the host transmitted. */
+        /** @brief Emulator RX <- what the host transmitted. */
         PlcInputLogs_t   _rx_logs_buffer = {};
-        /** @brief Emulator TX → what the host will receive. */
+        /** @brief Emulator TX -> what the host will receive. */
         PlcOutputLogs_t  _tx_logs_buffer = {};
         /** @brief Shared wall-clock timestamp (ms). */
         uint32_t*        _timestamp_ms   = nullptr;
@@ -252,7 +252,7 @@ namespace Botanik { namespace PlcIO {
      *  (there is only ever one emulator), so stop_emulator_thread() can be a plain
      *  function pointer registered with HAL::on_reset. The flag is single-writer
      *  (the lifecycle controller) / single-reader (the thread loop): volatile keeps
-     *  the loop from caching it, HAL::dsb() orders the publish — the same lock-free
+     *  the loop from caching it, HAL::dsb() orders the publish - the same lock-free
      *  pattern as the serial ring buffers, no std::atomic needed. */
     inline volatile bool& _emu_running() { static volatile bool running = false; return running; }
     inline pthread_t&      _emu_thread()  { static pthread_t thread; return thread; }
@@ -265,7 +265,7 @@ namespace Botanik { namespace PlcIO {
         _emu_running() = false;
         HAL::dsb();                   // publish the stop before joining / re-exec
         // When the watchdog trips, reset() runs *on* the emulator thread, so this
-        // hook would be joining itself (EDEADLK). Skip the join in that case — the
+        // hook would be joining itself (EDEADLK). Skip the join in that case - the
         // following execve reaps the thread anyway, and we're synchronously inside
         // reset() so the emulator isn't touching shared memory concurrently.
         if (pthread_equal(pthread_self(), _emu_thread())) return;
@@ -324,7 +324,7 @@ namespace Botanik { namespace PlcIO {
         // Start the thread. Never let this fail silently: without the emulator the
         // PLC link never acks and the handler is stuck in UNK forever, with no hint
         // why. EAGAIN here usually means the stack mmap couldn't be locked under
-        // RLIMIT_MEMLOCK — see the start-order note in the sketch's main().
+        // RLIMIT_MEMLOCK - see the start-order note in the sketch's main().
         int rc = pthread_create(&_emu_thread(), nullptr,
                                 &_emulator_thread_main<InputData, OutputData>, &args);
         if (rc != 0) {

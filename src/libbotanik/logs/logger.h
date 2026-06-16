@@ -31,7 +31,8 @@ namespace Botanik { namespace Logs {
     };
 
     /** @class Logger
-     *  @brief TODO
+     *  @brief Rate-limited logging front-end: applies the dual token-bucket limiter,
+     *         then fans surviving entries out to the registered writers.
      */
     class Logger {
     private:

@@ -3,7 +3,7 @@
 
 /**
  * @file vars.h
- * @brief PLC shared-memory layout — log protocol structs, sync counters, and
+ * @brief PLC shared-memory layout - log protocol structs, sync counters, and
  *        the PlcInput/PlcOutput templates exchanged with the PLC coprocessor.
  *        Layout must match the PLC IDE's generated types.
  */
@@ -17,7 +17,7 @@
 namespace Botanik { namespace PlcIO {
 
     // These shared-memory structs use explicit padding so their layout is identical
-    // whether packed or not — every field already sits at its natural offset, with no
+    // whether packed or not - every field already sits at its natural offset, with no
     // implicit padding. That keeps the uint32 cursors readable through plain pointers
     // (no unaligned-access UB) and lets the PLC side mirror the layout byte-for-byte.
     // The static_asserts below pin the expected sizes/offsets so a config change can't
@@ -26,7 +26,7 @@ namespace Botanik { namespace PlcIO {
     /** @name Log protocol
      *  @{ */
 
-    /** @brief TODO */     
+    /** @brief Log severity level (wire value shared with the PLC). */
     enum LogLevel : uint8_t {
         LOG_DEBUG = 1,       // debugging messages, only printed when debugging mode is enabled
         LOG_INFO = 2,        // informational messages, they don't need any particular attention
@@ -38,7 +38,7 @@ namespace Botanik { namespace PlcIO {
 
     // Values are the wire protocol shared with the PLC, not a sequence; listed in
     // ascending value order. Changing a value requires a matching PLC-side change.
-    /** @brief TODO */     
+    /** @brief Log topic / category (wire value shared with the PLC). */
     enum LogTopic : uint8_t {
         NONE = 0,
         PLC_IO = 1,
@@ -52,7 +52,7 @@ namespace Botanik { namespace PlcIO {
     static_assert(Config::LOG_TOPIC_MAX < (1 << (sizeof(LogTopic)*8)),
                   "LOG_TOPIC_MAX exceeds the range of the LogTopic enum");
 
-    /** @brief TODO */     
+    /** @brief One log record in PLC shared memory: 12-byte header + fixed message buffer. */
     struct LogEntry_t {
         uint32_t        timestamp;    // @0
         LogLevel        level;        // @4  (uint8_t)
@@ -79,7 +79,7 @@ namespace Botanik { namespace PlcIO {
         uint32_t            txAckNum;
     };
 
-    /** @brief TODO */     
+    /** @brief PLC output-region sync counters (named from the PLC's point of view). */
     struct PlcOutputCounters_t {
         uint32_t            txSeqNum;
         uint32_t            rxAckNum;
@@ -97,7 +97,7 @@ namespace Botanik { namespace PlcIO {
     };
 
     
-    /** @brief TODO */     
+    /** @brief PLC output log ring: write cursor (kept first) + the fixed log buffer. */
     struct PlcOutputLogs_t {
         uint32_t            writeIndex;     // kept first so its alignment is independent
                                             // of the buffer size and entry size
@@ -119,7 +119,7 @@ namespace Botanik { namespace PlcIO {
     // yields the intended layout. Data must be trivially copyable and naturally aligned
     // (and a multiple of 4 for a fully padding-free combined struct) so the PLC IDE's
     // generated types match byte-for-byte; the sketch's static_assert verifies this.
-    /** @brief TODO */     
+    /** @brief Host->PLC shared region: sync counters, the log read cursor, and the site payload. */
     template<typename Data>
     struct PlcInput {
         PlcInputCounters_t  sync;
@@ -127,7 +127,7 @@ namespace Botanik { namespace PlcIO {
         Data                data;
     };
 
-    /** @brief TODO */     
+    /** @brief PLC->host shared region: sync counters, the log ring, and the site payload. */
     template<typename Data>
     struct PlcOutput {
         PlcOutputCounters_t sync;

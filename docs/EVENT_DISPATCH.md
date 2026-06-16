@@ -11,7 +11,7 @@ pages and serial sinks) see [LOG_FLOW.md](LOG_FLOW.md).
 
 The lowest layer. @ref Botanik::Utils::BufferedSerial wraps the hardware UART
 with a 256-byte RX ring buffer and a 4 KB TX ring buffer. All serial reads and
-writes go through this component; it never blocks — a full TX ring drops the
+writes go through this component; it never blocks - a full TX ring drops the
 tail rather than stalling the loop.
 
 ### AnsiTerminal
@@ -26,7 +26,7 @@ The central coordinator. @ref Botanik::Terminal::AnsiTerminal owns the
    has room.
 3. Pulls the next @ref Botanik::Terminal::InputEvent from the parser and
    dispatches it (one event per `step()`).
-4. **Ticks every page** — not just the active one — so each can drain its
+4. **Ticks every page** - not just the active one - so each can drain its
    queued log entries (see [LOG_FLOW.md](LOG_FLOW.md)).
 
 @ref Botanik::Terminal::InputParser decodes raw bytes into structured
@@ -97,27 +97,9 @@ active. See [PAGES.md](PAGES.md).
 
 ## Terminal-level intercepts
 
-The following commands are consumed by
+A handful of commands are consumed by
 @ref Botanik::Terminal::AnsiTerminal::step "AnsiTerminal::step()" and never reach
-the active page:
-
-| Command               | Effect                                                                                    |
-|-----------------------|-------------------------------------------------------------------------------------------|
-| `CTRL_L`              | Clear, redraw the status row, then `page→redraw()` — a full in-place repaint              |
-| `HOME`                | @ref Botanik::Terminal::AnsiTerminal::switch_to "switch_to(0)" — jump to the first page    |
-| `ALT_1`…`ALT_9`       | `switch_to(0…8)` — switch to page *n*                                                      |
-| `ALT_0`               | `switch_to(9)` — switch to the tenth page if registered                                   |
-| `TAB` / `CTRL_PAGE_DOWN` | @ref Botanik::Terminal::AnsiTerminal::switch_relative "switch_relative(true)" — next page, wraps |
-| `CTRL_PAGE_UP`        | `switch_relative(false)` — previous page, wraps                                            |
-
-Everything else is forwarded to the active page. See [KEYBINDINGS.md](KEYBINDINGS.md)
-for the full per-page binding table and the exact function each key dispatches to.
-
-## Per-tick fan-out
-
-After dispatching the event, `step()` calls `tick(active)` on **every**
-registered page, with `active == true` only for the page that owns the screen.
-This is what lets a background page keep its log scrollback current without
-drawing: an inactive page banks queued entries into its buffer and paints
-nothing, while the active page renders its tail. That output path is documented
-in [LOG_FLOW.md](LOG_FLOW.md).
+the active page - `Ctrl+L` (full redraw), `HOME` / `Alt+1`...`Alt+0` (jump to a
+page), and `TAB` / `Ctrl+PageUp`/`PageDown` (cycle pages). Everything else is
+forwarded to the active page. See [KEYBINDINGS.md](KEYBINDINGS.md) for the exact
+bindings, including their effects.

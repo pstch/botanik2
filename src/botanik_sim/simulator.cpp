@@ -24,7 +24,7 @@ float frand() {
  * @brief Random walk for a quantity that should mostly sit still.
  *
  * On most ticks @p v is returned untouched; with probability @p p it is nudged by
- * up to ±@p step and clamped to [@p lo, @p hi]. Called every tick, this yields a
+ * up to +/-@p step and clamped to [@p lo, @p hi]. Called every tick, this yields a
  * signal that holds a level for long stretches and only drifts on the odd tick.
  */
 float drift(float v, float step, float lo, float hi, float p) {
@@ -36,7 +36,7 @@ float drift(float v, float step, float lo, float hi, float p) {
     return v;
 }
 
-/// True with probability @p p — for rare discrete events (rain, bus dropouts).
+/// True with probability @p p - for rare discrete events (rain, bus dropouts).
 bool chance(float p) { return frand() < p; }
 
 }  // namespace
@@ -46,11 +46,11 @@ bool chance(float p) { return frand() < p; }
  *
  * Called from the emulator thread (~1 Hz). The signals are held in static state
  * that stays put from tick to tick and only takes the occasional random step, so
- * the pages show values that look settled and shift now and then — closer to a
+ * the pages show values that look settled and shift now and then - closer to a
  * real site than a constant oscillation. @p now_ms is the uptime in milliseconds.
  */
 static void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
-    const float t = (float)now_ms / 1000.0f;   // seconds — drives the irrigation walk
+    const float t = (float)now_ms / 1000.0f;   // seconds - drives the irrigation walk
 
     // Slow climate driver in [-1, 1]. Holds a level for long stretches and only
     // drifts on the rare tick, so the sensors and actuators below read steady and
@@ -58,7 +58,7 @@ static void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
     static float climate = 0.0f;
     climate = drift(climate, 0.25f, -1.0f, 1.0f, 0.03f);
 
-    // Climate sensors — three height zones share the level with a static offset
+    // Climate sensors - three height zones share the level with a static offset
     // (ceiling warmer/drier than the floor), so each reads a little differently.
     int temp_centi = 2200 + (int)(300.0f * climate);                 // ~19..25 degC
     o->ext_temp_c_centi   = (int16_t)(temp_centi - 150);
@@ -69,7 +69,7 @@ static void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
     o->floor_rh_centi_pct = (uint16_t)(rh_centi);
     o->ceil_rh_centi_pct  = (uint16_t)(rh_centi - 400);
 
-    // Weather — rain rarely sets in and later clears; wind sits around a light
+    // Weather - rain rarely sets in and later clears; wind sits around a light
     // breeze and gusts now and then.
     static bool     raining       = false;
     static uint32_t rain_since_ms = 0;
@@ -81,7 +81,7 @@ static void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
     wind = drift(wind, 5.0f, 5.0f, 40.0f, 0.05f);
     o->wind_peak_kmh = (uint16_t)wind;
 
-    // Power — all nominal, drifting within tight tolerances; the B bus very
+    // Power - all nominal, drifting within tight tolerances; the B bus very
     // occasionally drops out and recovers.
     static float grid_mv   = 230000.0f;
     static float grid_freq = 5000.0f;

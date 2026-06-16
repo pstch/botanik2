@@ -4,7 +4,7 @@
  *        terminals.
  *
  * Three prompt classes start a row: PS1 (first row), PS2 (after a soft wrap),
- * PS3 (after a hard `\\n`). Auto-wrap is off — the editor owns wrapping. Each
+ * PS3 (after a hard `\\n`). Auto-wrap is off - the editor owns wrapping. Each
  * edit mutates the buffer, rebuilds the row layout (`_layout`), and reconciles
  * it against the pre-edit layout (`_pre`) so only the minimal terminal ops are
  * emitted.
@@ -64,7 +64,7 @@ namespace Botanik { namespace Terminal {
      * @note Layout is capped at `Config::EDITOR_MAX_ROWS`. At >= `EDITOR_MIN_COLS`
      * the buffer always fits by soft-wrap (static_assert in config), so the cap is
      * only hit by hard `\n` breaks; excess rows truncate and the cursor folds onto
-     * the last row — a visual artifact only, never an overflow.
+     * the last row - a visual artifact only, never an overflow.
      */
     class TextEditor {
 
@@ -159,7 +159,7 @@ namespace Botanik { namespace Terminal {
         void redraw();
 
         /** @brief When set, automatic redraws triggered by origin shifts are
-         *         skipped — caller becomes responsible for one explicit redraw. */
+         *         skipped - caller becomes responsible for one explicit redraw. */
         void suppress_redraw(bool v) { _suppress_sync_redraw = v; }
 
         /** @} */
@@ -220,11 +220,11 @@ namespace Botanik { namespace Terminal {
         /** @brief Move the cursor one word to the right */
         void move_word_right();
 
-        /** @brief Toggle the mark — stub for parity with InputEditor (selection
+        /** @brief Toggle the mark - stub for parity with InputEditor (selection
          *         features are deferred). */
         void set_mark_toggle() {}
 
-        /** @brief Clear the active mark/selection — stub for parity. */
+        /** @brief Clear the active mark/selection - stub for parity. */
         void deselect() {}
 
         /** @} */

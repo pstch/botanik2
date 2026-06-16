@@ -4,7 +4,7 @@
 
 /**
  * @file format.h
- * @brief Log-entry formatting — render level/topic labels and assemble the
+ * @brief Log-entry formatting - render level/topic labels and assemble the
  *        `TIMESTAMP LEVEL TOPIC MESSAGE` line written by the log writers.
  */
 
@@ -24,7 +24,7 @@ namespace Botanik { namespace Logs {
         case PlcIO::LOG_INFO:       return "[-]";
         case PlcIO::LOG_NOTICE:     return "[+]";
         case PlcIO::LOG_WARNING:    return "[!]";
-        case PlcIO::LOG_ERROR:      return "[§]";
+        case PlcIO::LOG_ERROR:      return "[*]";
         case PlcIO::LOG_CRITICAL:   return "[@]";
         default:                    return "";
     }; }

@@ -43,7 +43,7 @@ The `#endif` comment uses exactly one space before `//`.
 
 ### Documentation
 
-**Headers** — all public members carry Doxygen-style doc comments:
+**Headers** - all public members carry Doxygen-style doc comments:
 
 ```cpp
 /**
@@ -59,7 +59,7 @@ Use `/** @brief ... */` for one-liners and `@param` / `@return` / `@note` when
 the signature alone is insufficient. Group related members with `@name` / `@{`
 / `@}` Doxygen groups.
 
-**Implementations** — inline comments explain *why*, not *what*. A comment that
+**Implementations** - inline comments explain *why*, not *what*. A comment that
 just restates the code adds no value and should be omitted. Reserve comments for
 non-obvious invariants, hardware quirks, or algorithmic intent:
 
@@ -85,7 +85,7 @@ void step();  // called every iteration of the main loop; returns quickly
 ```
 
 The main loop calls `step()` on every stateful object in a fixed order. Each
-`step()` must do a bounded, small amount of work and return promptly — never
+`step()` must do a bounded, small amount of work and return promptly - never
 wait for I/O, never spin.
 
 ### Bounded loops
@@ -93,9 +93,9 @@ wait for I/O, never spin.
 Loops inside `step()` are always bounded by a compile-time or known-worst-case
 count:
 
-- `BufferedSerial::receive()` / `transmit()` — bounded by UART FIFO depth.
-- `BufferedLogWriter::drain()` — bounded by `LOG_QUEUE_SIZE` (64 entries max).
-- `PlcLogReader::step()` — bounded by `LOG_PLC_BUFFER_SIZE` (32 entries max).
+- `BufferedSerial::receive()` / `transmit()` - bounded by UART FIFO depth.
+- `BufferedLogWriter::drain()` - bounded by `LOG_QUEUE_SIZE` (64 entries max).
+- `PlcLogReader::step()` - bounded by `LOG_PLC_BUFFER_SIZE` (32 entries max).
 
 If a loop could potentially run for longer than the task budget
 (`TASK_PERIOD_MS` = 10 ms), add a per-call limit and carry state across calls.
@@ -103,7 +103,7 @@ If a loop could potentially run for longer than the task budget
 ### Silent TX drops
 
 `BufferedSerial::write()` returns the number of bytes actually written. When the
-TX ring buffer is full it returns early — **it never blocks**. Callers in the
+TX ring buffer is full it returns early - **it never blocks**. Callers in the
 ANSI layer (`ansi.cpp`) do not check the return value by design; the consequence
 is that partial escape sequences can be lost, causing transient display
 corruption. This is an accepted trade-off. If the baud rate is too slow for the
@@ -132,7 +132,7 @@ run-clang-tidy -p build src/
 
 ### clang-tidy version
 
-Pin **LLVM 19** (`clang-tidy-19`) everywhere — editor, CLI, and CI; findings
+Pin **LLVM 19** (`clang-tidy-19`) everywhere - editor, CLI, and CI; findings
 differ across major versions. The MS C/C++ extension defaults to its own bundled
 clang-tidy, so `.vscode/settings.json` pins it to the system binary
 (`clangTidy.path`) and defers all check selection to `.clang-tidy`.
@@ -152,7 +152,7 @@ make -C build-asan botanik_sim
 UBSAN_OPTIONS=print_stacktrace=1 ./build-asan/botanik_sim 2>san.log
 ```
 
-Findings are **recoverable** by default — UBSAN logs each one and execution
+Findings are **recoverable** by default - UBSAN logs each one and execution
 continues, so the simulator stays usable. For a strict one-shot/CI run that exits
 non-zero on the first finding, add `halt_on_error=1`:
 

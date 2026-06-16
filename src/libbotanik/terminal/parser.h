@@ -3,7 +3,7 @@
 
 /**
  * @file parser.h
- * @brief InputParser — decodes raw serial byte streams into InputEvents
+ * @brief InputParser - decodes raw serial byte streams into InputEvents
  *        (printable text plus X3.64 CSI, Alt, and function-key sequences).
  */
 
@@ -18,11 +18,12 @@ namespace Botanik { namespace Terminal {
     /** @name Types
      *  @{ */
 
-    /** @brief TODO */     
+    /** @brief A decoded input event: a printable-text batch, or a control command
+     *  (with optional CSI parameters). */
     struct InputEvent {
         
         // Input event type
-        /** @brief TODO */     
+        /** @brief Which variant was decoded: none yet, printable content, or a command. */
         enum class EventType {
             NONE,       // No complete sequence yet
             CONTENT,    // Standard printable text (uses batch_data/len)
@@ -30,7 +31,7 @@ namespace Botanik { namespace Terminal {
         };
 
         // Command key type
-        /** @brief TODO */     
+        /** @brief A decoded control key or sequence - named keys, Ctrl/Alt combos, function keys. */
         enum class Command : uint16_t {
             // Parser continuation
             NONE = 0,
@@ -77,7 +78,8 @@ namespace Botanik { namespace Terminal {
     /** @} */
 
     /** @class InputParser
-     *  @brief TODO */     
+     *  @brief Decodes a raw serial byte stream into InputEvents (X3.64 CSI, Alt,
+     *         function-key, and Minitel SEP sequences). */
     class InputParser {
         using BufferedSerial = Utils::BufferedSerial;
 

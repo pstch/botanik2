@@ -3,7 +3,7 @@
 
 /**
  * @file context.h
- * @brief SystemContext — one aggregate of the per-subsystem status contexts the
+ * @brief SystemContext - one aggregate of the per-subsystem status contexts the
  *        terminal UI reads.
  */
 

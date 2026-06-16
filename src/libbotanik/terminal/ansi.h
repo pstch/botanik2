@@ -59,7 +59,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     //   - lowercase keyboard (not caps-locked) = PRO2 + START(0x69) + MINUSCULES(0x45)
     //   - page mode (stop "rouleau" auto-scroll) = PRO2 + STOP(0x6A) + ROULEAU(0x43)
     // VERIFY ON HARDWARE. Note: téléinformatique mode is documented to default to
-    // ASCII ("american") keycodes — the French set is the opt-in variant — and no
+    // ASCII ("american") keycodes - the French set is the opt-in variant - and no
     // plain programmable byte for the keyboard charset surfaced in those sources.
     static constexpr char MINITEL_TELINFO[]   = "\x1B\x3A\x31\x7D";
     static constexpr char MINITEL_LOWERCASE[] = "\x1B\x3A\x69\x45";
@@ -116,7 +116,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     bool set_auto_wrap(BufferedSerial& _serial, bool enable);
 
     /** @brief Show or hide the cursor (DECTCEM, CSI ? 25 h/l). The cursor, when
-     *  shown, blinks — there is no steady-cursor mode, so "stop blinking" means
+     *  shown, blinks - there is no steady-cursor mode, so "stop blinking" means
      *  hiding it. A Minitel driven in téléinformatique mode is expected to honour
      *  DECTCEM like the rest of the VT100 subset we already emit; VERIFY ON
      *  HARDWARE. All-or-nothing: emits nothing and returns false if the TX buffer

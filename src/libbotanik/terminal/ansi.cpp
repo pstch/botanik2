@@ -1,6 +1,6 @@
 /**
  * @file ansi.cpp
- * @brief ANSI helper implementations — decimal emission and the escape-sequence
+ * @brief ANSI helper implementations - decimal emission and the escape-sequence
  *        writers that back the Ansi namespace.
  *
  * Each writer reserves ANSI_MAX_SEQ bytes via availableForWrite() before

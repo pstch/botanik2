@@ -1,6 +1,6 @@
 /**
  * @file logger.cpp
- * @brief Logger implementation — token-bucket refill and dispatch.
+ * @brief Logger implementation - token-bucket refill and dispatch.
  *
  * step() refills the global and per-topic buckets on their own fast cadences
  * (integer division of elapsed time by the bucket period, advancing the fill

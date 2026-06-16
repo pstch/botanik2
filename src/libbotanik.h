@@ -4,7 +4,7 @@
 
 /**
  * @file libbotanik.h
- * @brief Umbrella header — pulls in the full libbotanik public API in one include.
+ * @brief Umbrella header - pulls in the full libbotanik public API in one include.
  */
 
 #include "libbotanik/hal/platform.h"

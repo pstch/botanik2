@@ -15,12 +15,12 @@
  */
 
 #include "libbotanik.h"
-#include "libbotanik/utils/text.h"   // format_float — snprintf has no %f on our Mbed
+#include "libbotanik/utils/text.h"   // format_float - snprintf has no %f on our Mbed
 #include "botanik_sim/simulator.h"
 
 #include <csignal>   // std::signal
-#include <cstdio>    // snprintf — page rendering
-#include <cstdlib>   // getenv/atoi — restore active page after reset
+#include <cstdio>    // snprintf - page rendering
+#include <cstdlib>   // getenv/atoi - restore active page after reset
 
 // Pulled into scope to keep the page render lines readable (it is otherwise
 // spelled out on every numeric field below). See utils/text.h for why %f is
@@ -135,7 +135,7 @@ protected:
         // Time since rain, in the largest sensible unit (s/m/h/d). Fixed width, so
         // it never reflows as the age grows ("  0 s ago" = raining now). Clamped to
         // a minute: it's a cold field (global refresh only), so past 60 s it would
-        // keep churning the diff for no real information — capped, it settles.
+        // keep churning the diff for no real information - capped, it settles.
         uint32_t rain_age = (d->rain_age_s < 60) ? d->rain_age_s : 60;
         _cell(17, 19, L_VAL, format_age(buf, sizeof(buf), rain_age), L_W);
         snprintf(buf, sizeof(buf), "%03u km/h", (unsigned)d->wind_peak_kmh);
@@ -238,13 +238,13 @@ int main(int argc, char** argv) {
     // Graceful shutdown on Ctrl+C / SIGTERM: flip the run flag so the main loop
     // breaks and main() returns cleanly. Overrides the HAL handler for these two
     // signals; SIGSEGV stays with the HAL handler to restore the terminal on a crash.
-    // NOLINT: botanik_sim_shutdown only assigns to a volatile sig_atomic_t — the
-    // canonical async-signal-safe pattern — but its body lives in simulator.cpp,
+    // NOLINT: botanik_sim_shutdown only assigns to a volatile sig_atomic_t - the
+    // canonical async-signal-safe pattern - but its body lives in simulator.cpp,
     // so clang-tidy can't see across the TU boundary to confirm that.
     std::signal(SIGINT,  botanik_sim_shutdown);   // NOLINT(bugprone-signal-handler)
     std::signal(SIGTERM, botanik_sim_shutdown);   // NOLINT(bugprone-signal-handler)
 
-    // Shared PLC memory — both handler and emulator point at the same region.
+    // Shared PLC memory - both handler and emulator point at the same region.
     // On OPTA: PlcIO::PlcInput<PlcInputData_t>* plcin =
     //              static_cast<PlcIO::PlcInput<PlcInputData_t>*>(HAL::get_plc_input());
     static PlcIO::PlcInput<PlcInputData_t>   shared_in  {};
@@ -271,7 +271,7 @@ int main(int argc, char** argv) {
     SyncHandler         plc_handler(&shared_in, &shared_out, timestamp_ms, &logger);
     PlcIO::PlcLogReader plc_log_reader(plc_handler.context(), &logger);
 
-    // Terminal UI — bundle the subsystem status contexts the terminal reads.
+    // Terminal UI - bundle the subsystem status contexts the terminal reads.
     SystemContext sys_ctx(scheduler.context(), plc_handler.context());
 
     // Initialize terminal and pages
@@ -290,7 +290,7 @@ int main(int argc, char** argv) {
     // Emulator thread (drives the mock greenhouse payload). Started *before*
     // make_process_realtime(): that call arms mlockall(MCL_FUTURE), after which a
     // new thread's stack mmap must be locked into RAM on allocation and overruns
-    // RLIMIT_MEMLOCK when not root — pthread_create then fails with EAGAIN and the
+    // RLIMIT_MEMLOCK when not root - pthread_create then fails with EAGAIN and the
     // PLC link stays UNK forever. Spawning the worker first is the standard
     // "create threads before locking memory" realtime pattern.
     start_greenhouse_emulator(&shared_in, &shared_out, &logger);

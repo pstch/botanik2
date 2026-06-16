@@ -3,7 +3,7 @@
 
 /**
  * @file scrollback.h
- * @brief Scrollback — a LineBuffer with throttled incremental redraw, used by
+ * @brief Scrollback - a LineBuffer with throttled incremental redraw, used by
  *        the logs and shell pages (via the ShellScrollback / LogsScrollback
  *        typedefs below).
  */
@@ -30,7 +30,7 @@ namespace Botanik { namespace Pages {
      * The visible window is bottom-aligned within rows 1..log_rows; the caller
      * supplies log_rows since pages differ (LogsPage uses rows-1, ShellPage
      * reserves rows for the editor). Line storage (store/store_wrapped/line/count)
-     * is inherited from LineBuffer. Templated only on the line count — name it
+     * is inherited from LineBuffer. Templated only on the line count - name it
      * through @ref ShellScrollback / @ref LogsScrollback rather than directly.
      */
     template<uint16_t L>
@@ -95,7 +95,7 @@ namespace Botanik { namespace Pages {
             if (_redraw_i == UINT16_MAX) return;
             // Capture the cursor's resting place once, at the start of the replay,
             // so we restore it when the replay finishes instead of bouncing back to
-            // it on every tick — each intermediate restore was a wasted absolute
+            // it on every tick - each intermediate restore was a wasted absolute
             // move (straight back to {1,0}) only to leave it again next tick.
             if (_redraw_i == 0) _redraw_saved = terminal.cursor_pos();
             // Emit a small batch per call, stopping early if the TX buffer can't fit
@@ -118,7 +118,7 @@ namespace Botanik { namespace Pages {
             }
             // Only put the cursor back once the whole replay has drained. While it's
             // still pending the page holds off other output, so leaving the cursor in
-            // the log area between ticks is safe — the next batch repositions absolutely.
+            // the log area between ticks is safe - the next batch repositions absolutely.
             if (_redraw_i == UINT16_MAX) terminal.move_to(_redraw_saved);
         }
 
@@ -180,7 +180,7 @@ namespace Botanik { namespace Pages {
     using ShellScrollback = Scrollback<Config::SHELL_SCROLLBACK_LINES>;
     /** @brief Logs page scrollback (live log tail replay). */
     using LogsScrollback  = Scrollback<Config::LOGS_SCROLLBACK_LINES>;
-    /** @brief Home page scrollback — the small bottom-band log tail. */
+    /** @brief Home page scrollback - the small bottom-band log tail. */
     using HomeScrollback  = Scrollback<Config::HOME_SCROLLBACK_LINES>;
 
 }}

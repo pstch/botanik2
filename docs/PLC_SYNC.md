@@ -47,7 +47,7 @@ the data. Equality means "in sync".
 All payload copies go through `HAL::ordered_copy` (memcpy + DSB) and the RX read
 issues a `HAL::dsb()` *acquire* before copying, so the payload reads can't be
 reordered ahead of the `SeqNum` check that gated them. This is what makes the
-exchange safe against an unordered PLC runtime — see @ref md_docs_2EVENT__DISPATCH
+exchange safe against an unordered PLC runtime - see @ref md_docs_2EVENT__DISPATCH
 for the unrelated terminal path.
 
 ## State machines

@@ -3,7 +3,7 @@
 
 /**
  * @file logs.h
- * @brief PlcLogReader — drains the PLC's log ring buffer into the local Logger,
+ * @brief PlcLogReader - drains the PLC's log ring buffer into the local Logger,
  *        detecting and reporting dropped entries via sequence numbers.
  */
 

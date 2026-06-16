@@ -17,10 +17,10 @@ Every edit runs the same three steps:
 ```
 
 A **layout** (`TextView`) is the buffer sliced into screen rows. Each `RowView`
-is `{buf_start, buf_len, hard_break}` — where a row begins in the buffer, how
+is `{buf_start, buf_len, hard_break}` - where a row begins in the buffer, how
 many content bytes it shows, and whether it is closed by a literal `\n`. Three
 prompt classes start a row: **PS1** (first row), **PS2** (after a soft wrap),
-**PS3** (after a hard `\n`). Auto-wrap is off — the editor owns all wrapping.
+**PS3** (after a hard `\n`). Auto-wrap is off - the editor owns all wrapping.
 
 ```
  buffer:  "the quick brown fox\njumps"     (cols 12, PS1="> ", PS2="· ")
@@ -47,9 +47,9 @@ contiguous edit changes the screen in a very constrained way, which it exploits:
         └──────────────┘       └──────────────┘
 ```
 
-1. **Find the edit row** — the first row the edit touches (`_find_splice_span`).
+1. **Find the edit row** - the first row the edit touches (`_find_splice_span`).
    Rows above it are correct and never touched.
-2. **Find the absorbed tail** — the longest bottom run of rows that are identical
+2. **Find the absorbed tail** - the longest bottom run of rows that are identical
    except for a constant buffer shift. They moved but their glyphs didn't change.
 3. **One IL/DL** (`_reposition_tail`) slides that tail to its new rows, and (on
    insert) opens the blank rows the new content paints into. At most one
@@ -60,13 +60,13 @@ contiguous edit changes the screen in a very constrained way, which it exploits:
    - **rows below** get a cheap left/right splice by the displacement, cascading
      the pushed-off character into the next row;
    - a row whose old glyphs are unrelated to the wanted content is full-painted
-     (`_new_row`) — byte-optimal when a cheap splice wouldn't be.
+     (`_new_row`) - byte-optimal when a cheap splice wouldn't be.
 
 ## Why it pays off
 
 Typing one character mid-line emits roughly *one insert char + one cursor move*,
 not a row (or screen) repaint. The byte cost scales with what actually changed,
-not with the size of the buffer — which is the whole point on a serial link
+not with the size of the buffer - which is the whole point on a serial link
 measured in hundreds of baud. See @ref md_docs_2EVENT__DISPATCH for how the bytes
 that *trigger* an edit arrive in the first place.
 

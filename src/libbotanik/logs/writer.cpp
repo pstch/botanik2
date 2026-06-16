@@ -1,6 +1,6 @@
 /**
  * @file writer.cpp
- * @brief LogWriter implementations — queueing and incremental drain.
+ * @brief LogWriter implementations - queueing and incremental drain.
  *
  * BufferedLogWriter holds a fixed ring buffer of entries; push() drops (and
  * counts) when full. drain() formats one queued entry at a time into _message

@@ -6,14 +6,14 @@ This project hosts the programming of a control system for a small-scale
 horticultural greenhouse. It handles irrigation (on fixed schedules) and
 ventilation (air blowers, intractors, window openers, thermal screens and an
 evapo-transpiration cooling system). It runs alongside other autonomous
-systems — an emergency heat blower and a heatpump, each on their own
-thermostat — and monitors their operation, the power supply, and the emergency
+systems - an emergency heat blower and a heatpump, each on their own
+thermostat - and monitors their operation, the power supply, and the emergency
 generator.
 
 The system runs on an Arduino OPTA PLC (STM32H747 dual-core ARM) with a few
 Modbus RTU I/O modules, which lets us run custom C++ alongside the PLC
 programming. That custom code exists to work around the many shortcomings of
-Arduino's PLC platform — which is frustrating, largely undocumented, and
+Arduino's PLC platform - which is frustrating, largely undocumented, and
 missing features standard elsewhere. This repository is therefore also a place
 to capture the knowledge we've gathered about that platform.
 
@@ -34,7 +34,7 @@ Abstraction Layer so the same code builds as a Linux simulator or for the OPTA.
 | **Utils** | `utils/` | `BufferedSerial` (ring-buffered UART), `PerfMonitor` (loop CPU-load / jitter / stack high-water instrumentation), and time/uptime helpers. |
 
 The application wires these together and runs them from a single non-blocking
-loop — see `src/botanik_sim/main.cpp` for the canonical setup (the OPTA `.ino`
+loop - see `src/botanik_sim/main.cpp` for the canonical setup (the OPTA `.ino`
 sketch does the equivalent).
 
 ## Key concepts
@@ -44,7 +44,7 @@ sketch does the equivalent).
   them in a fixed order. Blocking would stall the RTOS and trip the watchdog on
   the OPTA. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contract.
 - **HAL-only platform access.** Code never calls `<time.h>` or platform APIs
-  directly — only `HAL::current_ms()`, `HAL::dsb()`, `HAL::ordered_copy()`, etc.
+  directly - only `HAL::current_ms()`, `HAL::dsb()`, `HAL::ordered_copy()`, etc.
   This is what makes the simulator possible.
 - **PLC shared memory.** Host and PLC coprocessor communicate through shared
   memory using transactional read/write patterns and explicit ARM DSB barriers
@@ -105,10 +105,10 @@ make -C build-debug check          # the full pre-push gate (see below)
 `check` is the one-shot pre-push gate. It runs three things and fails on the
 first problem:
 
-- a **warning-clean compile** — the `botanik_strict` target mirrors the library
+- a **warning-clean compile** - the `botanik_strict` target mirrors the library
   with `-Werror`, so any compiler warning fails the build (plain `make` stays
-  warning-tolerant — visibility, not a hard gate);
-- **clang-tidy** — the `bugprone-*` checks from `.clang-tidy`, promoted to errors;
+  warning-tolerant - visibility, not a hard gate);
+- **clang-tidy** - the `bugprone-*` checks from `.clang-tidy`, promoted to errors;
 - the **doctest unit suite** via `ctest`.
 
 The pieces, if you need them individually:
@@ -127,11 +127,11 @@ documents the in-memory footprint of the big UI/PLC structures.
 
 ## Documentation & useful links
 
-- [CONTRIBUTING.md](CONTRIBUTING.md) — code style, naming, and the non-blocking design rules.
-- [CLAUDE.md](CLAUDE.md) — architecture summary and build notes for AI coding agents.
-- [docs/EVENT_DISPATCH.md](docs/EVENT_DISPATCH.md) — terminal input event flow.
-- [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md) — terminal key bindings.
-- API reference — `make -C build-debug docs` regenerates the HTML under
+- [CONTRIBUTING.md](CONTRIBUTING.md) - code style, naming, and the non-blocking design rules.
+- [CLAUDE.md](CLAUDE.md) - architecture summary and build notes for AI coding agents.
+- [docs/EVENT_DISPATCH.md](docs/EVENT_DISPATCH.md) - terminal input event flow.
+- [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md) - terminal key bindings.
+- API reference - `make -C build-debug docs` regenerates the HTML under
   `docs/doxygen/html/` (or run `doxygen Doxyfile` directly). `make -C build-debug
   docs-open` builds the tests + docs, runs the suite, and opens the result in a
   browser. The generated [Testing](docs/doxygen/html/testing.html) page covers

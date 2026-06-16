@@ -3,7 +3,7 @@
 
 /**
  * @file sync.h
- * @brief PlcSyncHandler — independent RX and TX state machines for shared-memory
+ * @brief PlcSyncHandler - independent RX and TX state machines for shared-memory
  *        communication with the PLC coprocessor, with DSB-barriered transactional
  *        reads/writes and heartbeat/timeout/watchdog tracking.
  */
@@ -51,7 +51,8 @@ namespace Botanik { namespace PlcIO {
     // Non-template context object. Holds the parts of PlcSyncHandler that are
     // independent of the payload types: log buffers, TX-write flag, timing state,
     // and the stable public interface consumed by PlcLogReader and Page classes.
-    /** @brief TODO */
+    /** @brief Payload-independent PLC sync state (log buffers, link timing, status),
+     *  shared with log readers and pages without exposing the templated handler. */
     struct PlcSyncContext {
         template<typename, typename> friend class PlcSyncHandler;
     private:
@@ -142,7 +143,8 @@ namespace Botanik { namespace PlcIO {
     // They must be trivially copyable. The combined PlcInput<InputData> /
     // PlcOutput<OutputData> memory layout must match the PLC IDE's generated types
     // (verified on OPTA by a static_assert in the user's sketch).
-    /** @brief TODO */
+    /** @brief Transactional RX/TX state machines over PLC shared memory, templated
+     *  on the site payloads. See @ref md_docs_2PLC__SYNC. */
     template<typename InputData, typename OutputData>
     class PlcSyncHandler {
     private:
@@ -150,8 +152,8 @@ namespace Botanik { namespace PlcIO {
          *  @{ */
 
         // NOTE: seq/ack naming is from the PLC's point of view:
-        //   TxSeqNum/TxAckNum → our RX (PLC output data)
-        //   RxSeqNum/RxAckNum → our TX (PLC input data)
+        //   TxSeqNum/TxAckNum -> our RX (PLC output data)
+        //   RxSeqNum/RxAckNum -> our TX (PLC input data)
 
         /** @brief Payload-independent context (logs, timing, status). */
         PlcSyncContext         _ctx;

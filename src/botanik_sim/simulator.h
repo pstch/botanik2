@@ -14,7 +14,7 @@
  * actuator levels in percent, and discrete states packed as enums / flags.
  */
 
-#include <csignal>   // sig_atomic_t — async-signal-safe shutdown flag
+#include <csignal>   // sig_atomic_t - async-signal-safe shutdown flag
 #include <cstdint>
 
 // start_greenhouse_emulator() only takes pointers to the library's PLC
@@ -113,7 +113,7 @@ static_assert(sizeof(PlcOutputData_t) % 4 == 0, "PlcOutputData_t must be 4-byte 
  * plausible, time-varying values (see simulator.cpp). On OPTA the real
  * coprocessor plays this role, so there is no equivalent in the sketch.
  *
- * Must be called before the process is locked into realtime — see the start-order
+ * Must be called before the process is locked into realtime - see the start-order
  * note at the call site in main().
  */
 void start_greenhouse_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,

@@ -4,7 +4,7 @@
 
 /**
  * @file libbotanik_sizes.h
- * @brief Memory-footprint contract — static_asserts pinning the sizes of the
+ * @brief Memory-footprint contract - static_asserts pinning the sizes of the
  *        long-lived "big" objects. Included at the end of libbotanik.h, once
  *        all the pinned types are visible.
  */
@@ -15,8 +15,8 @@
 // ----------------------------------------------------------------------------
 // Exact sizes of the long-lived "big" objects, pinned so an accidental layout
 // change trips at compile time (tests/test_sizes.cpp prints the table and the
-// rationale). Figures differ by word size — host x86-64 vs OPTA (ARM Cortex-M7,
-// 32-bit) — so each is spelled per target. The payload-templated types are
+// rationale). Figures differ by word size - host x86-64 vs OPTA (ARM Cortex-M7,
+// 32-bit) - so each is spelled per target. The payload-templated types are
 // pinned against a representative probe payload (empty input, 60-byte output,
 // mirroring the simulator site); a real site's combined PLC struct is checked
 // against the PLC IDE's generated types in its own sketch.

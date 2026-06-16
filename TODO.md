@@ -53,7 +53,7 @@ NOTE: all screen interactions done by Page classes should always go through Ansi
 
   Should be extensible by subclassing : the base class will handle displaying a menu to reach other pages, the ASCII logo, system status information (like AC supply status, DC system voltage, UPS status, uptime, active fault count, etc) and will provide hooks so that derived classes can expose other information. The base class should also provide a small region at the bottom (last 4 rows) to show the last logs.
 
-- **`StatusPage`** (`pages/status.h/cpp`): Detailed runtime metrics — PLC link status,
+- **`StatusPage`** (`pages/status.h/cpp`): Detailed runtime metrics - PLC link status,
   CPU load and stack usage graphs, Ethernet/NTP status, uptime.
 
   In practice, the StatusPage class itself should also be extensible and only provide the "scaffolding" for a status page. Some of the contents of a status page are static and should only be drawed when activating the page or redrawing it, while some contents need to be changed at periodic interval. 

@@ -29,7 +29,7 @@
 
 /** @brief Single-instance storage for the terminal settings captured before
  *  entering raw mode. Returns a pointer (not a reference): @c struct @c termios is
- *  a C type, so a pointer return keeps the @c extern @c "C" linkage valid — which
+ *  a C type, so a pointer return keeps the @c extern @c "C" linkage valid - which
  *  the signal-handler call chain below requires (a non-C-linkage handler callee is
  *  ill-formed before C++17). */
 extern "C" inline struct termios* botanik_saved_console_termios() {
@@ -301,7 +301,7 @@ namespace Botanik { namespace HAL {
         inline int availableForWrite() {
             if (_fd_out == -1) return 0;
             // File/pipe sink: no UART to model. Report the full simulated buffer so
-            // the TX ring drains as fast as the sink accepts bytes — without this,
+            // the TX ring drains as fast as the sink accepts bytes - without this,
             // TIOCOUTQ below fails with ENOTTY and TX never makes progress.
             if (!_out_is_tty) return 64;
             if (_baud > 0 && _next_write_us > _now_as<std::chrono::microseconds>()) return 0;
@@ -354,7 +354,7 @@ namespace Botanik { namespace HAL {
         // Only meaningful for an interactive terminal. When stdin is a file or
         // pipe (sim driven from a script, or run headless for debugging) there is
         // nothing to put into raw mode and tcgetattr/tcsetattr would just fail with
-        // ENOTTY — skip it. No restore handlers are needed since we change nothing.
+        // ENOTTY - skip it. No restore handlers are needed since we change nothing.
         if (::isatty(STDIN_FILENO) != 1) return;
         struct termios& saved = *botanik_saved_console_termios();
         tcgetattr(STDIN_FILENO, &saved);
@@ -376,7 +376,7 @@ namespace Botanik { namespace HAL {
 
     /** @brief Slot holding the argv captured at startup, for re-exec on reset().
      *  The C runtime keeps argv (and its strings) alive for the whole process, so
-     *  storing the pointer is enough — no copy needed. */
+     *  storing the pointer is enough - no copy needed. */
     inline char*** _reboot_argv() { static char** argv = nullptr; return &argv; }
 
     /** @brief Capture argv at the top of main() so reset() can re-exec with the
@@ -391,7 +391,7 @@ namespace Botanik { namespace HAL {
 
     /** @brief Register a teardown hook invoked by reset() before re-exec. Lets a
      *  subsystem (e.g. the PlcIO emulator thread) join/clean up first without HAL
-     *  taking a dependency on it — the subsystem reaches up into HAL, not vice
+     *  taking a dependency on it - the subsystem reaches up into HAL, not vice
      *  versa. Simulator-only. */
     inline void on_reset(ResetHook hook) { *_reset_hook() = hook; }
 
@@ -427,7 +427,7 @@ namespace Botanik { namespace HAL {
     // The watchdog state is written by the caller (kick/start/stop on the main
     // thread) and read by watchdog_poll() on the emulator thread. volatile keeps
     // the poll from caching the values, HAL::dsb() orders the timeout/last-kick
-    // pair — the codebase's lock-free idiom, no std::atomic. Safe as 64-bit
+    // pair - the codebase's lock-free idiom, no std::atomic. Safe as 64-bit
     // volatile here because this is simulator-only (x86-64, where aligned 64-bit
     // loads/stores are atomic); on OPTA the watchdog is the hardware peripheral.
 
@@ -452,7 +452,7 @@ namespace Botanik { namespace HAL {
 
     /** @brief Service the watchdog, calling reset() if the timeout has lapsed.
      *  Simulator-only; invoked from the emulator thread, whose cadence is
-     *  independent of the main loop — that independence is what lets the watchdog
+     *  independent of the main loop - that independence is what lets the watchdog
      *  fire even when the loop is wedged. */
     inline void watchdog_poll() {
         uint32_t timeout = _wd_timeout_ms();

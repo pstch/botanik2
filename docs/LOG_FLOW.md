@@ -1,16 +1,15 @@
 # Log Flow
 
-This document describes the output side of the system: how a log entry travels
-from a call site, through rate limiting, out to every registered sink. For the
-*input* side (key events reaching pages) see
-[EVENT_DISPATCH.md](EVENT_DISPATCH.md); for the pages that double as log sinks
-see [PAGES.md](PAGES.md).
+The output side: how a log entry travels from a call site through rate limiting
+to every registered sink. For the *input* side (key events reaching pages) see
+[EVENT_DISPATCH.md](EVENT_DISPATCH.md); for the pages that double as sinks, see
+[PAGES.md](PAGES.md).
 
 ## Sources
 
 An entry enters through @ref Botanik::Logs::Logger, either from:
 
-- **Firmware code** calling a level helper —
+- **Firmware code** calling a level helper -
   @ref Botanik::Logs::Logger::info "info()",
   @ref Botanik::Logs::Logger::warning "warning()",
   @ref Botanik::Logs::Logger::error "error()", etc. Each builds a timestamped
@@ -32,35 +31,22 @@ dropped and counted. @ref Botanik::Logs::Logger::step "step()" refills the
 buckets once per loop period, and on a slower, decoupled cadence the Logger emits
 a synthetic `WARNING` summarizing how many entries each bucket suppressed.
 
-## Fan-out
+## Sinks
 
-Entries that pass are pushed to every registered
-@ref Botanik::Logs::LogWriter (`add_writer()` in `main.cpp`). Two kinds of sink:
+Entries that pass fan out to every registered @ref Botanik::Logs::LogWriter
+(`add_writer()` in `main.cpp`), of two kinds:
 
-- **Serial sinks** — @ref Botanik::Logs::SerialLogWriter formats
-  `TIMESTAMP LEVEL TOPIC MESSAGE` and writes it to a `BufferedSerial` port.
-  @ref Botanik::Logs::MonitorLogWriter is the diagnostic monitor variant; it
-  self-suppresses (drops at `push()`) when its output is an interactive terminal,
-  so the log can't garble a shared console.
-- **Page sinks** — @ref Botanik::Pages::ShellPage,
-  @ref Botanik::Pages::LogsPage and @ref Botanik::Pages::HomePage are all
-  `LogWriter`s, so live entries appear in the UI.
+- **Serial** - @ref Botanik::Logs::SerialLogWriter writes the formatted line to a
+  `BufferedSerial` port. Its @ref Botanik::Logs::MonitorLogWriter variant
+  self-suppresses (drops at `push()`) when the output is an interactive terminal,
+  so it can't garble a shared console.
+- **Page** - @ref Botanik::Pages::ShellPage, @ref Botanik::Pages::LogsPage and
+  @ref Botanik::Pages::HomePage surface entries in the UI.
 
-## Queue + drain
-
-Every sink derives from @ref Botanik::Logs::BufferedLogWriter: `push()` enqueues
-into an in-memory FIFO (dropping + counting on overflow), and `drain()` flushes
-incrementally, resuming a partially-sent message across calls so nothing blocks.
-
-The two sink families are *drained* from different places:
-
-- The serial monitor has no render, so it is stepped explicitly from the main
-  loop (`monitor.drain()`).
-- Page writers drain from their own `tick()` render path. Because the terminal
-  ticks **every** page each loop (see [EVENT_DISPATCH.md](EVENT_DISPATCH.md)),
-  a background page still drains its queue — banking entries into its
-  @ref Botanik::Pages::Scrollback for a later `focus()` replay — while only the
-  **active** page actually paints to the screen.
+All derive from @ref Botanik::Logs::BufferedLogWriter, whose `push()` queues into a
+FIFO (dropping + counting on overflow) and `drain()` flushes incrementally,
+resuming a partial send across calls so nothing blocks. The pipeline below shows
+where each sink is drained.
 
 ## Pipeline
 
@@ -100,4 +86,4 @@ The two sink families are *drained* from different places:
 
 A formatted line is `TIMESTAMP LEVEL TOPIC MESSAGE` (see
 @ref Botanik::Logs::format_log_entry). Levels render as short glyphs (`[-]`
-info, `[!]` warning, `[§]` error, …) and `PLC_IO` prints as `SHARED_IO`.
+info, `[!]` warning, `[*]` error, ...) and `PLC_IO` prints as `SHARED_IO`.

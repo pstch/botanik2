@@ -9,7 +9,7 @@ namespace Botanik { namespace Network {
     // NetworkHandler
     // ------------------------------------------------------------------------
 
-    // Stub constructor — members are wired up when this handler is implemented
+    // Stub constructor - members are wired up when this handler is implemented
     // (see TODO.md and the design notes in network.h).
     NetworkHandler::NetworkHandler()
         : _logger(nullptr), _ctx(nullptr), _last_config_serial(0) {}
@@ -21,7 +21,7 @@ namespace Botanik { namespace Network {
     // TimeSyncHandler
     // ------------------------------------------------------------------------
 
-    // Stub constructor — members are wired up when this handler is implemented
+    // Stub constructor - members are wired up when this handler is implemented
     // (see TODO.md and the design notes in network.h).
     TimeSyncHandler::TimeSyncHandler()
         : _logger(nullptr), _ctx(nullptr), _last_config_serial(0) {}

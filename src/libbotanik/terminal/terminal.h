@@ -3,7 +3,7 @@
 
 /**
  * @file terminal.h
- * @brief AnsiTerminal — owns the serial connection and drives the multiplexed
+ * @brief AnsiTerminal - owns the serial connection and drives the multiplexed
  *        page display, routing input events to the active page and managing the
  *        cursor, geometry, and status bar.
  */
@@ -20,7 +20,9 @@ namespace Botanik { namespace Terminal {
 
 
     /** @class AnsiTerminal
-     *  @brief TODO
+     *  @brief Owns the serial link and drives the multiplexed page display: routes
+     *         input to the active page, tracks cursor/geometry/attribute state, and
+     *         renders the row-0 status bar.
      */
     class AnsiTerminal {
         using BufferedSerial = Utils::BufferedSerial;
@@ -72,13 +74,13 @@ namespace Botanik { namespace Terminal {
         bool                _hw_auto_wrap = true;
         /** @brief Cursor parked at last col after a row-filling write. */
         bool                _hw_at_eol = false;
-        /** @brief SM4/RM4 insert mode — toggled lazily by write_chars. */
+        /** @brief SM4/RM4 insert mode - toggled lazily by write_chars. */
         bool                _hw_insert_mode = false;
         /** @brief DECTCEM cursor visibility (default: hidden). Pages that want a
          *  visible cursor (only the shell editor today) opt in via
          *  set_cursor_visible() in focus(); switch_to() hides it for everyone else. */
         bool                _hw_cursor_visible = false;
-        /** @brief Screen has been established (cleared) at least once — set by
+        /** @brief Screen has been established (cleared) at least once - set by
          *  setup_*() / clear_screen(). Lets the first switch_to() skip a redundant
          *  clear that would tx_discard a setup_*()'s freshly-emitted handshake. */
         bool                _screen_ready = false;
@@ -99,7 +101,7 @@ namespace Botanik { namespace Terminal {
         /** @brief Free TX bytes required before a metrics refresh runs. A typical pass
          *  rewrites only the few changed digits (well under this); write() truncates
          *  silently when full, so the refresh is deferred unless this much room is
-         *  free — a half-emitted escape sequence would corrupt the status bar. */
+         *  free - a half-emitted escape sequence would corrupt the status bar. */
         static constexpr uint16_t    STATUS_METRICS_TX_BUDGET = 64;
 
         /** @} */
@@ -273,7 +275,7 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Render the right-side status field into @p buf; returns its length
          *  (clamped to >= 0). The width is fixed, so a byte index maps to a fixed
-         *  screen column — relied on by update_status_metrics()'s per-cell diff. */
+         *  screen column - relied on by update_status_metrics()'s per-cell diff. */
         int _build_metrics(char* buf, size_t cap) const;
 
         /** @} */

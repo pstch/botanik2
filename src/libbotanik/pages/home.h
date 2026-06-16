@@ -3,7 +3,7 @@
 
 /**
  * @file home.h
- * @brief HomePage — landing screen (template base): ASCII logo, a compact
+ * @brief HomePage - landing screen (template base): ASCII logo, a compact
  *        system summary, and a small live log tail along the bottom.
  *
  * Templated on the site PLC output payload so derived pages get type-safe access
@@ -15,7 +15,7 @@
  * It is also a LogWriter: the bottom @ref Botanik::Config::HOME_SCROLLBACK_LINES
  * rows show the most recent log lines, replayed from a small
  * @ref Botanik::Pages::HomeScrollback. There is
- * no scroll-up — it is a live tail, not the full Logs page. begin_redraw() over
+ * no scroll-up - it is a live tail, not the full Logs page. begin_redraw() over
  * the whole content area bottom-aligns the (few) lines against the screen bottom,
  * so the band needs no bespoke rendering.
  */
@@ -59,7 +59,7 @@ namespace Botanik { namespace Pages {
                        ? (uint16_t)(rows - Config::HOME_SCROLLBACK_LINES) : 1;
         }
 
-        /** @name Draw hooks — override to customize the page.
+        /** @name Draw hooks - override to customize the page.
          *  @{ */
 
         /** @brief Draw the ASCII logo / banner block. */
@@ -133,7 +133,7 @@ namespace Botanik { namespace Pages {
             draw_payload_dynamic();
         }
 
-        /** @brief Uptime counter — hot field, refreshed once per second. Drawn
+        /** @brief Uptime counter - hot field, refreshed once per second. Drawn
          *  un-highlighted: it ticks every second, so the change highlight would only
          *  re-emit settled subfields each tick (see _field()). */
         void draw_hot() override {
@@ -184,7 +184,7 @@ namespace Botanik { namespace Pages {
             _log_active = active;
             if (active) {
                 _scrollback.drain_redraw(_terminal);
-                // Hold off live entries until the staged replay finishes — they
+                // Hold off live entries until the staged replay finishes - they
                 // would otherwise restage it mid-draw.
                 if (_scrollback.redraw_pending()) return;
             }
@@ -206,7 +206,7 @@ namespace Botanik { namespace Pages {
         size_t write(const char* buf, size_t len) override {
             // In the background: just bank the entry so a later focus() replays an
             // up-to-date tail. Nothing reaches the screen, so there's no TX
-            // back-pressure to honour — store the whole entry and report it consumed.
+            // back-pressure to honour - store the whole entry and report it consumed.
             if (!_log_active) {
                 _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
                     Config::SHELL_LOG_CONT_PREFIX,
@@ -216,7 +216,7 @@ namespace Botanik { namespace Pages {
 
             // Active: back-pressure first so a burst can't flood the TX buffer.
             // Returning 0 makes BufferedLogWriter hold the entry and retry on a
-            // later tick — don't store it yet, or the retry would double-bank it.
+            // later tick - don't store it yet, or the retry would double-bank it.
             if (!_terminal.tx_empty()) return 0;
 
             uint16_t n = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),

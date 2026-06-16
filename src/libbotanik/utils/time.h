@@ -4,7 +4,7 @@
 
 /**
  * @file time.h
- * @brief Time utilities — project rolling 32-bit uptime counters into absolute
+ * @brief Time utilities - project rolling 32-bit uptime counters into absolute
  *        64-bit time, convert to calendar/UNIX time, and format timestamps.
  */
 
@@ -53,18 +53,18 @@ namespace Botanik { namespace Utils {
     /** @brief Convert a 32-bit uptime timestamp to an absolute 64-bit timestamp,
      *  assuming the given timestamp occurs in the rollover window centered on the
      *  given absolute timestamp.
-     *  @note Only correct for a timestamp within ±half a window of @p uptime
-     *  (±~24.8 days for ms, ±~35.7 min for µs). */
+     *  @note Only correct for a timestamp within +/-half a window of @p uptime
+     *  (+/-~24.8 days for ms, +/-~35.7 min for µs). */
     uint64_t _project_rollover(uint64_t uptime, uint32_t timestamp);
 
     /** @brief Project a rolling-over ms uptime counter into the current rollover window.
-     *  @note Only correct for a timestamp within ±half a window of @p uptime
-     *  (±~24.8 days for ms, ±~35.7 min for µs). */
+     *  @note Only correct for a timestamp within +/-half a window of @p uptime
+     *  (+/-~24.8 days for ms, +/-~35.7 min for µs). */
     uint64_t absolute_ms(uint32_t timestamp_ms);
 
     /** @brief Project a rolling-over ms uptime counter into the current rollover window.
-     *  @note Only correct for a timestamp within ±half a window of @p uptime
-     *  (±~24.8 days for ms, ±~35.7 min for µs). 
+     *  @note Only correct for a timestamp within +/-half a window of @p uptime
+     *  (+/-~24.8 days for ms, +/-~35.7 min for µs). 
      *  @warning see warning in uptime_ms() about the µs precision of the low-power clock. */
     uint64_t absolute_us(uint32_t timestamp_us);
 

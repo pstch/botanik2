@@ -3,12 +3,12 @@
 
 /**
  * @file line_buffer.h
- * @brief LineBuffer<L,N> — a fixed-capacity circular buffer of display lines.
+ * @brief LineBuffer<L,N> - a fixed-capacity circular buffer of display lines.
  *
  * The storage primitive under @ref Botanik::Pages::Scrollback (and so under every
  * page's log buffer): it holds the most recent @p L lines (each up to @p N bytes),
  * with soft-wrap splitting on store and newest-first access by distance. It owns no
- * rendering or redraw policy — @ref Botanik::Pages::Scrollback layers the throttled
+ * rendering or redraw policy - @ref Botanik::Pages::Scrollback layers the throttled
  * replay on top.
  *
  * Templated on its dimensions so each user picks its own footprint; instantiate

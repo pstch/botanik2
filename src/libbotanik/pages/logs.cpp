@@ -1,6 +1,6 @@
 /**
  * @file logs.cpp
- * @brief LogsPage implementation — entry formatting, draining queued entries
+ * @brief LogsPage implementation - entry formatting, draining queued entries
  *        into scrollback, and replay on focus.
  */
 #include <algorithm>
@@ -52,7 +52,7 @@ namespace Botanik { namespace Pages {
         if (active) {
             _scrollback.drain_redraw(_terminal);
             // Hold off processing incoming log entries until the historical redraw
-            // is complete — a DL scroll from write() would shift rows already drawn
+            // is complete - a DL scroll from write() would shift rows already drawn
             // and corrupt the display.
             if (_scrollback.redraw_pending()) return;
         }
@@ -71,7 +71,7 @@ namespace Botanik { namespace Pages {
     size_t LogsPage::write(const char* buf, size_t len) {
         // In the background: just keep the scrollback current so a later focus()
         // replays an up-to-date tail. Nothing reaches the screen, so there's no TX
-        // back-pressure to honour — store the whole entry and report it consumed.
+        // back-pressure to honour - store the whole entry and report it consumed.
         if (!_active) {
             _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
                 Config::SHELL_LOG_CONT_PREFIX,

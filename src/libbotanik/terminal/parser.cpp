@@ -1,6 +1,6 @@
 /**
  * @file parser.cpp
- * @brief InputParser implementation — the byte-stream decode state machine that
+ * @brief InputParser implementation - the byte-stream decode state machine that
  *        turns raw input into InputEvents.
  */
 #include <cstdint>
@@ -93,8 +93,8 @@ namespace Botanik { namespace Terminal {
     bool InputParser::_backpressure_holds(uint32_t start_ms) const {
         // Hold a pending batch (text or a coalesced command) while the TX ring
         // is still draining, so per-byte flushes collapse into one cheaper
-        // reconcile. The safety timeout — measured from when the batch started,
-        // not the last byte — breaks the deadlock if the TX never drains.
+        // reconcile. The safety timeout - measured from when the batch started,
+        // not the last byte - breaks the deadlock if the TX never drains.
         if (_serial.tx_empty()) return false;
         return (*_timestamp_ms - start_ms) < Config::ANSI_INPUT_BATCH_TIMEOUT_MS;
     }
@@ -294,7 +294,7 @@ namespace Botanik { namespace Terminal {
         uint8_t b;
         // Drain available bytes through the state machine until something
         // worth returning happens. Storing a TEXT byte produces no event on
-        // its own — looping here lets a burst accumulate into the batch
+        // its own - looping here lets a burst accumulate into the batch
         // before the caller sees a flush event, instead of leaving after
         // each stored byte and only flushing when the idle window elapses.
         while (true) {
@@ -346,7 +346,7 @@ namespace Botanik { namespace Terminal {
                 return _event;
             }
             // Chunkable command trigger in IDLE state: consume + stage.
-            // The byte never reaches the state machine — chunking happens
+            // The byte never reaches the state machine - chunking happens
             // entirely at this layer so the rest of the parser stays
             // single-byte-at-a-time.
             if (_state == State::IDLE && _is_chunkable_trigger(b)) {
@@ -368,7 +368,7 @@ namespace Botanik { namespace Terminal {
                 default:            new_state = _state        ;  break;
             }
             _state = new_state;
-            // A handler produced an event (command, full-batch flush, ...) —
+            // A handler produced an event (command, full-batch flush, ...) -
             // return it. Otherwise keep draining.
             if (_event.type != EventType::NONE) return _event;
         }

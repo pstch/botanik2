@@ -1,6 +1,6 @@
 /**
  * @file editor.cpp
- * @brief TextEditor — byte-efficient multi-row line editor. Each edit mutates
+ * @brief TextEditor - byte-efficient multi-row line editor. Each edit mutates
  *        the buffer, rebuilds the row layout (`_layout`), and reconciles it
  *        against the pre-edit layout (`_pre`): one IL/DL for the row-count
  *        change, then a forward per-row splice walk from the edit row.
@@ -103,7 +103,7 @@ namespace Botanik { namespace Terminal {
 
     void TextEditor::reset() {
         // The editor is bottom-anchored, so its rows run from _origin to the last
-        // row — one erase-to-end-of-display clears them all in a single sequence.
+        // row - one erase-to-end-of-display clears them all in a single sequence.
         _terminal->move_to({_origin, 0});
         _terminal->clear_to_eos();
         uint16_t old_origin = _origin;
@@ -255,7 +255,7 @@ namespace Botanik { namespace Terminal {
         // Splice `amount` content chars at `col` (cursor for the edit row, the
         // prompt column for rows below). The chars pushed off the right edge
         // reflow into the next row, which the next iteration prepends. Move only
-        // when there is a splice to make — an absorbed row (amount 0, no length
+        // when there is a splice to make - an absorbed row (amount 0, no length
         // or prompt change) must emit nothing.
         if (amount > 0) {
             _terminal->move_to({hw, col});
@@ -296,7 +296,7 @@ namespace Botanik { namespace Terminal {
                                   bool is_insert, int32_t l_shift,
                                   int32_t row_delta) const {
         // First affected row. Insert: the post owner (where the new bytes land
-        // — a `\n` inserted at a soft-wrap boundary closes the row *above* the
+        // - a `\n` inserted at a soft-wrap boundary closes the row *above* the
         // pre owner). Remove: the pre owner (the deleted bytes lived there).
         uint16_t edit_row;
         if (is_insert) edit_row = _owner_row(span_start, _layout);
@@ -392,7 +392,7 @@ namespace Botanik { namespace Terminal {
 
             // How far the present pre row's content slid, and whether the
             // displaced slice still overlaps the wanted one (only meaningful
-            // when has_pre — the conditions below gate on it).
+            // when has_pre - the conditions below gate on it).
             int32_t ss = (int32_t)shown.buf_start + l_shift;
             int32_t sl = (int32_t)shown.buf_len;
             int32_t ws = (int32_t)want.buf_start;

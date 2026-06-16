@@ -1,6 +1,6 @@
 /**
  * @file shell.cpp
- * @brief CommandShell implementation — command dispatch and built-in commands.
+ * @brief CommandShell implementation - command dispatch and built-in commands.
  */
 #include <algorithm>
 #include <cstdio>

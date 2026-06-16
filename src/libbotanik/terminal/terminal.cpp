@@ -1,6 +1,6 @@
 /**
  * @file terminal.cpp
- * @brief AnsiTerminal implementation — cursor/geometry tracking, text output,
+ * @brief AnsiTerminal implementation - cursor/geometry tracking, text output,
  *        content manipulation, page routing, and status-bar rendering.
  */
 #include <cstdint>
@@ -44,14 +44,14 @@ namespace Botanik { namespace Terminal {
     // Step through the terminal handling code
     void AnsiTerminal::step() {
         using Command = InputEvent::Command;
-        // The screen is established here, on the first step — not in setup_*() — so
+        // The screen is established here, on the first step - not in setup_*() - so
         // the clear lands *after* the terminal-type handshake setup_*() queued (a
         // Minitel needs its PRO2 bytes while still in its native command set) and in
         // the order the protocol wants: clear, then the "ACAB" boot marker, then the
         // contents (status row + active page). A re-exec on reset() comes back
         // through this same path. switch_to() before the loop only records the active
         // page; all first paint happens here. _establish_screen() (not clear_screen())
-        // so the queued handshake survives — clear_screen() would tx_discard it.
+        // so the queued handshake survives - clear_screen() would tx_discard it.
         if (!_screen_ready) {
             _establish_screen();
             draw_status_row();
@@ -77,7 +77,7 @@ namespace Botanik { namespace Terminal {
                 page->handle_text_batch(ev.batch_data, ev.batch_len);
                 break;
             } else if (ev.type == InputEvent::EventType::COMMAND) {
-                // Terminal-level intercepts — consumed before reaching the page
+                // Terminal-level intercepts - consumed before reaching the page
                 if (ev.command == Command::CTRL_L) {
                     clear_screen();
                     draw_status_row();
@@ -133,7 +133,7 @@ namespace Botanik { namespace Terminal {
 
         // Emit the move all-or-nothing. If the escape can't be fully written (TX
         // buffer full), leave _hw_pos untouched so cursor tracking stays truthful
-        // — a wrong _hw_pos would smear every later move/write. skip=true updates
+        // - a wrong _hw_pos would smear every later move/write. skip=true updates
         // tracking without emitting (caller already knows the hardware moved).
         bool ok = true;
         if (!skip) {
@@ -159,7 +159,7 @@ namespace Botanik { namespace Terminal {
             } else if (target.col == 0 && target.row > _hw_pos.row
                        && (target.row - _hw_pos.row) < 4
                        && target.row < (uint16_t)(_rows - 1)) {
-                // Common "spawn next row" target — CR + LF(s) costs delta+1
+                // Common "spawn next row" target - CR + LF(s) costs delta+1
                 // bytes vs ~8 for goto_absolute. Bounded away from the last row so
                 // a stray LF can't scroll the screen.
                 ok = Ansi::down_to_row_start(_serial, (uint16_t)(target.row - _hw_pos.row));
@@ -180,7 +180,7 @@ namespace Botanik { namespace Terminal {
     void AnsiTerminal::write_chars(const char *s, uint16_t len, bool insert) {
         if (len == 0) return;
 
-        // Lazy SM4/RM4 toggling — re-bracketing every call burns 8 bytes per
+        // Lazy SM4/RM4 toggling - re-bracketing every call burns 8 bytes per
         // single-char middle-of-line insert (SM4 + char + RM4 = 9 bytes,
         // ~90 ms at 900 baud). Keep insert mode latched so consecutive
         // inserts cost just the char byte, and only emit RM4 the first time
@@ -190,7 +190,7 @@ namespace Botanik { namespace Terminal {
             // BufferedSerial drops bytes when full; latching past a dropped RM4
             // would later let a replace-mode write (e.g. the status row) paint in
             // insert mode and corrupt the line. Bail rather than emit the payload
-            // in the wrong mode — the caller (status refresh / page) redraws.
+            // in the wrong mode - the caller (status refresh / page) redraws.
             if (!Ansi::set_insert_mode(_serial, insert)) return;
             _hw_insert_mode = insert;
         }
@@ -198,7 +198,7 @@ namespace Botanik { namespace Terminal {
         // Track only what reached the wire. write() drops the tail when the TX
         // buffer fills; advancing _hw_pos by the full len would then desync cursor
         // tracking from the real screen and smear every later move/write. The
-        // dropped glyphs are content loss a redraw fixes — a wrong cursor isn't.
+        // dropped glyphs are content loss a redraw fixes - a wrong cursor isn't.
         uint16_t written = _serial.write(s, len);
         uint32_t new_col = (uint32_t)_hw_pos.col + written;
         if (new_col >= _cols) {
@@ -262,7 +262,7 @@ namespace Botanik { namespace Terminal {
     // Erase content from cursor to the end of the line
     void AnsiTerminal::clear_to_eol() {
         // When the cursor is parked at the last cell because a write just filled
-        // the row, there is nothing past it to erase — and the parked cell holds
+        // the row, there is nothing past it to erase - and the parked cell holds
         // valid content we'd otherwise destroy.
         if (_hw_at_eol) return;
         Ansi::clear_to_eol(_serial);
@@ -277,7 +277,7 @@ namespace Botanik { namespace Terminal {
 
     void AnsiTerminal::clear_screen() {
         // Every byte still queued for TX is about to paint onto a display we're
-        // wiping — drop them first. That also empties the ring, so the (tiny)
+        // wiping - drop them first. That also empties the ring, so the (tiny)
         // clear sequence is guaranteed to fit and the _hw_pos reset below is
         // correct by construction, with no dropped-write path to handle.
         _serial.tx_discard();
@@ -286,7 +286,7 @@ namespace Botanik { namespace Terminal {
 
     void AnsiTerminal::_establish_screen() {
         // Clear+home first, then drop the boot marker and reset tracked cursor/wrap
-        // state. No TX discard here — the caller owns that (clear_screen drops stale
+        // state. No TX discard here - the caller owns that (clear_screen drops stale
         // paint; the first-step bootstrap must instead keep the setup_*() handshake it
         // queued).
         Ansi::clear_screen(_serial);
@@ -304,7 +304,7 @@ namespace Botanik { namespace Terminal {
         }
         // Auto-wrap stays off for the whole UI: every page pre-wraps its own content
         // to the width, so the terminal must never wrap on its own. A deferred wrap
-        // on a full-width line parks the cursor pending at the last cell — the next
+        // on a full-width line parks the cursor pending at the last cell - the next
         // clear_to_eol then eats that glyph and the following row drops its first
         // char. Re-assert it on every establish, and emit *unconditionally*: a prior
         // copy may have been discarded and _hw_auto_wrap may already read false, so
@@ -312,7 +312,7 @@ namespace Botanik { namespace Terminal {
         // terminal type: a VT102 honors it; a Minitel that ignores it loses nothing,
         // and one that honors it gets free right-margin protection.
         set_auto_wrap(false);
-        // Hide the cursor by default — only the shell editor wants it visible, and
+        // Hide the cursor by default - only the shell editor wants it visible, and
         // it opts back in from its focus(). A fresh clear leaves the real cursor
         // shown (VT100 default), so force the emit by flipping the shadow first;
         // the lazy guard would otherwise skip it and leave a stray blinking cursor.
@@ -320,7 +320,7 @@ namespace Botanik { namespace Terminal {
         set_cursor_visible(false);
         // Reset reverse-video and insert mode. Neither is cleared by ED, so after a
         // reset the unit may still hold them while our freshly-defaulted shadows read
-        // "normal" — which corrupts every later write. Force both emits to resync:
+        // "normal" - which corrupts every later write. Force both emits to resync:
         // flip the inverted shadow past the lazy guard, and assert RM4 directly
         // (write_chars only toggles IRM lazily off its shadow).
         _hw_inverted = true;
@@ -333,14 +333,14 @@ namespace Botanik { namespace Terminal {
     void AnsiTerminal::setup_vt102() {
         // Plain VT100/VT102 (the default). No special handshake; DECAWM (?7l) is
         // (re)asserted on every screen establish by _establish_screen(). The screen
-        // itself is not cleared here — that is deferred to the first step() so the
+        // itself is not cleared here - that is deferred to the first step() so the
         // clear lands after this setup and before any contents.
         Ansi::vt102_setup(_serial);
     }
 
     void AnsiTerminal::setup_minitel() {
-        // Drive a real Minitel (1B+/2) over the DIN link. The PRO2 handshake — sent
-        // before the ANSI clear, while the unit is still in its native command set —
+        // Drive a real Minitel (1B+/2) over the DIN link. The PRO2 handshake - sent
+        // before the ANSI clear, while the unit is still in its native command set -
         // selects 80-col téléinformatique mode, a lowercase keyboard, and page mode.
         // The clear is deferred to the first step() (which also sends DECAWM ?7l:
         // harmless if the unit ignores it, free right-margin protection if it honors
@@ -430,8 +430,8 @@ namespace Botanik { namespace Terminal {
             _pages[_page_index]->deactivate();
         _page_index = index;
         // Page change: keep row 0; only the content area is cleared. Drop the bytes
-        // still queued for the page we're leaving first — they'd paint onto the page
-        // we're switching to — exactly like Ctrl^L's full clear does. _hw_pos is stale
+        // still queued for the page we're leaving first - they'd paint onto the page
+        // we're switching to - exactly like Ctrl^L's full clear does. _hw_pos is stale
         // once the queue is dropped, so reposition with an absolute move (not the
         // relative-optimized move_to) before erasing.
         _serial.tx_discard();

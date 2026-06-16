@@ -3,7 +3,7 @@
 
 /**
  * @file logs.h
- * @brief LogsPage — full-screen live log viewer backed by a circular scrollback.
+ * @brief LogsPage - full-screen live log viewer backed by a circular scrollback.
  */
 
 #include "libbotanik_config.h"
@@ -36,8 +36,8 @@ namespace Botanik { namespace Pages {
         AnsiTerminal& _terminal;
         /** @brief Circular log line buffer + throttled redraw for page-switch replay. */
         LogsScrollback _scrollback;
-        /** @brief Mirrors the latest tick(active) argument so write() — reached
-         *  indirectly via drain() — knows whether it may paint. False while in the
+        /** @brief Mirrors the latest tick(active) argument so write() - reached
+         *  indirectly via drain() - knows whether it may paint. False while in the
          *  background. */
         bool _active = false;
 

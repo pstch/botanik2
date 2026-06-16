@@ -45,7 +45,7 @@ namespace Botanik { namespace Config {
     /** @brief Byte pattern used for stack "painting" to detect high-water mark */
     static constexpr uint8_t  STACK_PAINT_BYTE = 0xCD;
 
-    /** @brief Sliding window for the "recent peak" CPU/stack metrics, 
+    /** @brief Sliding window for the "recent peak" CPU/stack metrics,
      *  and the number of rotating buckets used to approximate it. */
     static constexpr uint32_t LOAD_METRIC_WINDOW_MS = 5000;
     static constexpr uint32_t LOAD_METRIC_BUCKETS   = 10;
@@ -114,7 +114,7 @@ namespace Botanik { namespace Config {
     /** @brief Maximum number of unique log topics.
      *  @note Each topic consumes memory for its rate-limiting bucket. Bounded by
      *  the uint8_t LogTopic type (and the uint8_t bucket-loop counters), so it must
-     *  stay <= 255 — see the static_assert in plcio/vars.h. */
+     *  stay <= 255 - see the static_assert in plcio/vars.h. */
     static constexpr uint16_t LOG_TOPIC_MAX = 255;
 
     /** @brief Maximum number of pointers to registered log writers */

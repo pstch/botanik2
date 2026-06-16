@@ -3,7 +3,7 @@
 
 /**
  * @file shell.h
- * @brief ShellPage — interactive shell page with a line editor and interleaved
+ * @brief ShellPage - interactive shell page with a line editor and interleaved
  *        live log output.
  */
 
@@ -20,13 +20,13 @@ namespace Botanik { namespace Pages {
      * @brief Interactive shell page with interleaved log output.
      *
      * Layout (N = terminal rows):
-     *   Row 0       — inverted header
-     *   Rows 1..N-2 — log area (live tail, scrolls on each incoming entry)
-     *   Row  N-1    — InputEditor (PS1 + optional continuation row)
+     *   Row 0       - inverted header
+     *   Rows 1..N-2 - log area (live tail, scrolls on each incoming entry)
+     *   Row  N-1    - InputEditor (PS1 + optional continuation row)
      *
      * Implements LogWriter so it can be registered with a Logger.
      * Only entries received while the page is active are queued (push() drops
-     * background entries — the full log remains in LogsPage); queued entries are
+     * background entries - the full log remains in LogsPage); queued entries are
      * flushed on each tick(). Each entry scrolls the log area (DL at row 1),
      * writes the new line at row N-2, then redraws the editor in place.
      *
@@ -52,12 +52,12 @@ namespace Botanik { namespace Pages {
         Shell::CommandShell _shell;
         /** @brief Circular log line buffer + throttled redraw for redraw/page-switch replay. */
         ShellScrollback _scrollback;
-        /** @brief Mirrors the latest tick(active) argument so write() — reached
-         *  indirectly via drain() — knows whether it may paint. False while in the
+        /** @brief Mirrors the latest tick(active) argument so write() - reached
+         *  indirectly via drain() - knows whether it may paint. False while in the
          *  background. */
         bool _active = false;
-        /** @brief True while inside drain(), so write() — shared by log and command
-         *  output — wraps continuations with the indented log prefix rather than the
+        /** @brief True while inside drain(), so write() - shared by log and command
+         *  output - wraps continuations with the indented log prefix rather than the
          *  plain command-output prefix. */
         bool _draining_log = false;
 
@@ -114,7 +114,7 @@ namespace Botanik { namespace Pages {
         void _submit_command();
 
         /** @brief Store each display row of a submitted command in the scrollback buffer.
-         *         Does not touch the screen — the content is already visible. */
+         *         Does not touch the screen - the content is already visible. */
         void _record_command(const char* cmd, uint16_t len);
 
         /** @brief Scroll the log area down by delta rows via IL, then fill the newly

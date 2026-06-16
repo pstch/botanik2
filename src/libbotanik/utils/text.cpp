@@ -1,13 +1,13 @@
 /**
  * @file text.cpp
- * @brief Text helper implementations — the fixed-point float formatter that
+ * @brief Text helper implementations - the fixed-point float formatter that
  *        stands in for the missing `%f` in our snprintf, plus the duration
  *        formatter for "N u ago" readouts.
  */
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>    // snprintf — integer/char conversions are intact on our Mbed nano
-#include <cmath>     // llround — round-half-away-from-zero without the +0.5 float trap
+#include <cstdio>    // snprintf - integer/char conversions are intact on our Mbed nano
+#include <cmath>     // llround - round-half-away-from-zero without the +0.5 float trap
 
 #include "libbotanik/utils/text.h"
 
@@ -48,7 +48,7 @@ namespace Botanik { namespace Utils {
         // Scale by 10^decimals, then round half away from zero into an integer so
         // the digits fall out with plain integer arithmetic (any rounding carry
         // into the integer part happens for free). This diverges from libc's %f
-        // only on exact .5 ties — it rounds them up where %f rounds to even —
+        // only on exact .5 ties - it rounds them up where %f rounds to even -
         // which costs at most 1 in the last shown digit. Matching %f's tie-break
         // would need an arbitrary-precision expansion of the double, and on the
         // OPTA core (long double == double) the usual precision trick wouldn't

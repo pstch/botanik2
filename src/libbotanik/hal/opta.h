@@ -151,7 +151,7 @@ namespace Botanik { namespace HAL {
     inline void reset() {
         // NVIC_SystemReset is the portable CMSIS reset (always available via
         // mbed.h); mbed_reset() is an alternative if a softer Mbed-managed reset
-        // is wanted. Compile-reasoned only — confirm on a real arm-none-eabi build.
+        // is wanted. Compile-reasoned only - confirm on a real arm-none-eabi build.
         NVIC_SystemReset();
     }
 
@@ -161,7 +161,7 @@ namespace Botanik { namespace HAL {
      *  @{ */
 
     // Wrap the Mbed OS Watchdog singleton (the STM32H7 IWDG). Compile-reasoned
-    // only — confirm the API and timeout ceiling on a real arm-none-eabi build.
+    // only - confirm the API and timeout ceiling on a real arm-none-eabi build.
 
     inline void watchdog_start(uint32_t timeout_ms) {
         // Clamp to the peripheral's max window; the hardware rejects anything above it.

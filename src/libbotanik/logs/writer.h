@@ -148,7 +148,7 @@ namespace Botanik { namespace Logs {
          *  @{ */
 
         /** @brief Drain queued entries into the bound serial's TX ring. Call once
-         *  per main-loop tick — unlike the page writers (drained from their render
+         *  per main-loop tick - unlike the page writers (drained from their render
          *  path), this writer has no render and must be stepped here. The serial
          *  itself is flushed separately by the main loop. */
         void step();
@@ -175,7 +175,7 @@ namespace Botanik { namespace Logs {
      * renders to stdout while the monitor writes to stderr; run without
      * redirecting stderr and both land on the same screen). Log lines would then
      * garble the display, so when the bound port reports an interactive output
-     * (BufferedSerial::is_output_tty()) every entry is dropped at push() time —
+     * (BufferedSerial::is_output_tty()) every entry is dropped at push() time -
      * nothing is queued, formatted, or written. Redirect the port to a file or
      * pipe to capture the log. On hardware the monitor UART is never a tty, so
      * nothing is ever dropped (and the class is a hook for board-specific

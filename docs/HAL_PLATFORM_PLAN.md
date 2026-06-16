@@ -1,6 +1,6 @@
 # HAL Platform-Abstraction Plan
 
-Status: **done** — Workstreams A, B, C, D.1 & D.2 all landed (SIMULATOR-validated;
+Status: **done** - Workstreams A, B, C, D.1 & D.2 all landed (SIMULATOR-validated;
 OPTA backend edits remain compile-reasoned, pending a real cross-build). Watchdog
 caller wiring is now also done: `main.cpp` arms it at boot with
 `Config::HW_WATCHDOG_MS` (1 s) and kicks every healthy tick unless the PLC link
@@ -19,7 +19,7 @@ Guiding split:
   *in* HAL, declared once in `platform.h` and implemented in each backend
   (`simulator.h`, `opta.h`).
 - **Deterministic algorithms that libc merely happens to provide** (calendar
-  breakdown) do **not** belong in HAL — they go in `utils/` implemented
+  breakdown) do **not** belong in HAL - they go in `utils/` implemented
   platform-free, so the dependency disappears entirely instead of being spread
   across both backends.
 
@@ -31,13 +31,13 @@ pinned Mbed OS headers under `includes/`.
 
 ---
 
-## Workstream A — `HAL::sleep_ms()` (scheduler leak)  ✅ done
+## Workstream A - `HAL::sleep_ms()` (scheduler leak)  [x] done
 
 **Implemented:** `HAL::sleep_ms(uint32_t)` declared in `platform.h` and defined in
 both backends (`usleep(ms*1000)` on sim, `rtos::ThisThread::sleep_for` on OPTA).
 The scheduler's `#ifdef TARGET_SIMULATOR` usleep block is gone, replaced by
 `HAL::sleep_ms((_next_tick_ms - now) / 2)`. **Note vs. plan:** the sim-only
-include block could *not* be dropped wholesale — `<sched.h>`, `<sys/mman.h>`,
+include block could *not* be dropped wholesale - `<sched.h>`, `<sys/mman.h>`,
 `<cerrno>`, `<cstring>` are still needed by `make_process_realtime`; only the now
 unused `<unistd.h>` was removed. Validated: SIMULATOR builds clean and a 3 s
 headless run sits at ~2 % CPU (yielding, not busy-spinning).
@@ -49,18 +49,18 @@ busy-spins the entire sub-tick gap. There is already a TODO at scheduler.cpp:64
 asking for exactly this.
 
 **Changes:**
-- `hal/platform.h` — declare `inline void sleep_ms(uint32_t ms);` under
+- `hal/platform.h` - declare `inline void sleep_ms(uint32_t ms);` under
   *Timing & clocks*.
-- `hal/simulator.h` — `usleep(ms * 1000);` (the `<unistd.h>` include is
+- `hal/simulator.h` - `usleep(ms * 1000);` (the `<unistd.h>` include is
   legitimate *here*).
-- `hal/opta.h` — `rtos::ThisThread::sleep_for(std::chrono::milliseconds(ms));`.
-- `scheduler/scheduler.cpp` — drop `#include <unistd.h>`, delete the `#ifdef`
+- `hal/opta.h` - `rtos::ThisThread::sleep_for(std::chrono::milliseconds(ms));`.
+- `scheduler/scheduler.cpp` - drop `#include <unistd.h>`, delete the `#ifdef`
   block, replace with `HAL::sleep_ms((_next_tick_ms - now) / 2);`. The existing
   `now < _next_tick_ms` guard already bounds the argument.
 
-**Decision — granularity:** the current sim sleeps in microseconds
-(`remaining_ms * 500` µs ≈ half the remaining ms). A ms-granularity `sleep_ms`
-collapses a 1 ms remainder to `0` — which the existing `if (delay > 500)` guard
+**Decision - granularity:** the current sim sleeps in microseconds
+(`remaining_ms * 500` µs ~= half the remaining ms). A ms-granularity `sleep_ms`
+collapses a 1 ms remainder to `0` - which the existing `if (delay > 500)` guard
 already does today, so behaviour is effectively preserved. **Chosen: ms
 granularity**, matching the TODO and keeping the HAL surface minimal. If sub-ms
 jitter absorption is later found to matter, promote to `sleep_us`.
@@ -70,7 +70,7 @@ ticks (CPU not pegged).
 
 ---
 
-## Workstream B — `HAL::debug_break()` (shell leak)  ✅ done
+## Workstream B - `HAL::debug_break()` (shell leak)  [x] done
 
 **Implemented:** `HAL::debug_break()` declared in `platform.h` (new *Debug*
 group) and defined per backend (`raise(SIGTRAP)` on sim, `__BKPT(0)` on OPTA).
@@ -84,10 +84,10 @@ breakpoint mechanism inline via `#ifdef` (shell.cpp:44-48: `raise(SIGTRAP)` on
 sim, `__BKPT(0)` on OPTA).
 
 **Changes:**
-- `hal/platform.h` — declare `inline void debug_break();`.
-- `hal/simulator.h` — `raise(SIGTRAP);` (move `<csignal>` here).
-- `hal/opta.h` — `__BKPT(0);`.
-- `shell/shell.cpp` — drop `#include <csignal>`, replace the `#ifdef` block with
+- `hal/platform.h` - declare `inline void debug_break();`.
+- `hal/simulator.h` - `raise(SIGTRAP);` (move `<csignal>` here).
+- `hal/opta.h` - `__BKPT(0);`.
+- `shell/shell.cpp` - drop `#include <csignal>`, replace the `#ifdef` block with
   a single `HAL::debug_break();`.
 
 **Validation:** build SIMULATOR, run the `breakpoint` shell command under a
@@ -95,7 +95,7 @@ debugger, confirm it traps.
 
 ---
 
-## Workstream C — de-libc `utils/time` (calendar leak)  ✅ done
+## Workstream C - de-libc `utils/time` (calendar leak)  [x] done
 
 **Implemented:** `cal_time_ms` now breaks the calendar down with Howard
 Hinnant's pure-integer `civil_from_days` (UTC by construction); `<ctime>`,
@@ -103,9 +103,9 @@ Hinnant's pure-integer `civil_from_days` (UTC by construction); `<ctime>`,
 `utils/time.cpp`, so `time_t` no longer appears in the public surface. Validated:
 SIMULATOR builds clean; the shipped `format_ms_timestamp` matches `gmtime_r`
 across five epochs (incl. the 2020-02-29 leap day), and output is **identical
-under `TZ=UTC` and `TZ=America/New_York`** — confirming the latent `$TZ` bug
+under `TZ=UTC` and `TZ=America/New_York`** - confirming the latent `$TZ` bug
 (promised UTC, silently honoured local time) is fixed. `utils/time` is now pure,
-host-testable logic — the prime candidate for the first unit tests.
+host-testable logic - the prime candidate for the first unit tests.
 
 **Leak:** `utils/time.h:12` and `utils/time.cpp:9` include `<ctime>`;
 `cal_time_ms` calls `localtime_r` and the header exposes a `time_t` return type
@@ -117,20 +117,20 @@ host-testable logic — the prime candidate for the first unit tests.
 - The only used entry points are `format_ms_timestamp` (from `logs/format.h:60`
   and `pages/logs.cpp:92`) and the `cal_time_ms` / `absolute_ms` it sits on.
 - `localtime_r` honours `$TZ`, but the header comment promises a **UTC**
-  timestamp — so today the simulator output is wrong in any non-UTC timezone.
+  timestamp - so today the simulator output is wrong in any non-UTC timezone.
   This is a latent bug the rewrite also fixes.
 
 **Changes:**
-- `utils/time.cpp` — replace the `localtime_r`/`struct tm` breakdown in
+- `utils/time.cpp` - replace the `localtime_r`/`struct tm` breakdown in
   `cal_time_ms` with a pure civil-from-days integer algorithm (the standard
-  Howard-Hinnant `civil_from_days`: days → Y/M/D, then `%` for H/M/S). UTC by
+  Howard-Hinnant `civil_from_days`: days -> Y/M/D, then `%` for H/M/S). UTC by
   construction. Drop `#include <ctime>`.
-- `utils/time.h` — drop `#include <ctime>`; **delete `unix_time_ms`** (dead, and
+- `utils/time.h` - drop `#include <ctime>`; **delete `unix_time_ms`** (dead, and
   the sole reason `time_t` is in the header). If symmetry is preferred over
   deletion, change its return type to `uint64_t` instead.
 
-**Test tie-in:** this turns `utils/time` into pure, host-testable logic — a prime
-candidate for the first C++ unit tests (a couple of known-epoch → expected-string
+**Test tie-in:** this turns `utils/time` into pure, host-testable logic - a prime
+candidate for the first C++ unit tests (a couple of known-epoch -> expected-string
 cases over `format_ms_timestamp`).
 
 **Validation:** build SIMULATOR; spot-check a rendered log timestamp against a
@@ -138,15 +138,15 @@ known epoch, including a deliberately non-UTC `$TZ` to confirm output stays UTC.
 
 ---
 
-## Workstream D — `HAL::reset()` and HAL hardware watchdog
+## Workstream D - `HAL::reset()` and HAL hardware watchdog
 
 These are new HAL capabilities (not leak fixes). They are grouped because the
 simulator watchdog *depends on* `reset()`: when the simulated timer lapses it
 must reboot the process. **Implement `reset()` first, then the watchdog.**
 
-### D.1 — `HAL::reset()`  ✅ done
+### D.1 - `HAL::reset()`  [x] done
 
-**Implemented:** `reset()` declared in `platform.h` and defined per backend —
+**Implemented:** `reset()` declared in `platform.h` and defined per backend -
 `NVIC_SystemReset()` on OPTA (chose the guaranteed CMSIS symbol over the
 unverifiable `mbed_reset`; still needs cross-build confirmation), and on the
 simulator: run the registered teardown hook, then
@@ -155,52 +155,52 @@ simulator-only `HAL::set_reboot_args(argc, argv)` called at the top of `main()`
 (`main()` now takes `int, char**`); a static `{"/proc/self/exe", nullptr}`
 fallback covers the never-captured case. The emulator thread is now joinable
 (option (a)): a non-template `volatile bool _emu_running` flag (+ `HAL::dsb()`,
-matching the serial ring-buffer idiom — no `std::atomic`) and a retained
+matching the serial ring-buffer idiom - no `std::atomic`) and a retained
 `pthread_t`, with `stop_emulator_thread()` clearing the flag and joining. Its
 loop now yields via `HAL::sleep_ms` (Workstream A) instead of raw `usleep`.
 
-**Open question — resolved:** HAL exposes a single-slot reset-hook registry
+**Open question - resolved:** HAL exposes a single-slot reset-hook registry
 (`HAL::on_reset(ResetHook)`); `plcio` (which already depends on HAL) registers
 `stop_emulator_thread` from `start_emulator_thread`. The dependency arrow stays
-`plcio → HAL`; HAL never names plcio. The D.2 watchdog monitor lives inside HAL,
-so `reset()` will stop that one directly — no hook needed there.
+`plcio -> HAL`; HAL never names plcio. The D.2 watchdog monitor lives inside HAL,
+so `reset()` will stop that one directly - no hook needed there.
 
 **Validation done:** SIMULATOR builds clean. A harness mirroring `main.cpp`'s
 emulator setup confirmed: the hook fires *before* `execve` (observable-hook test);
 `reset()` joins the emulator thread without deadlock; the process re-execs
 (**same PID**, proving exec not fork) with **fresh uptime (0 ms)** and preserved
-argv; `reset()` never returns. No leaked shared-memory FDs — moot on sim, where
+argv; `reset()` never returns. No leaked shared-memory FDs - moot on sim, where
 the PLC regions are static buffers (`get_plc_input/output` return `nullptr`), not
 FDs; the join still matters to stop the thread touching those buffers mid-exec.
 
 **Original plan (for reference):**
 
-- `hal/platform.h` — declare `inline void reset();` (no return; does not come
+- `hal/platform.h` - declare `inline void reset();` (no return; does not come
   back).
-- `hal/opta.h` — call `mbed_reset();` (verify the exact symbol against the
+- `hal/opta.h` - call `mbed_reset();` (verify the exact symbol against the
   pinned Mbed headers; `NVIC_SystemReset()` is the fallback if `mbed_reset` is
   not exposed).
-- `hal/simulator.h` — stop the emulator thread (and the watchdog monitor thread
+- `hal/simulator.h` - stop the emulator thread (and the watchdog monitor thread
   from D.2, if running), then re-exec the process image:
   `execve("/proc/self/exe", saved_argv, environ);`. `execve` replaces the whole
   process atomically, giving a clean "reboot" with the original arguments.
 
 **Required plumbing (sim):**
 1. **Capture `argv`.** `argv` is not stashed anywhere global today
-   (`src/botanik_sim/main.cpp`). Add a HAL init hook — e.g.
+   (`src/botanik_sim/main.cpp`). Add a HAL init hook - e.g.
    `HAL::set_reboot_args(int argc, char** argv)` called at the top of `main()`
-   — that stores the pointer for `reset()` to pass to `execve`. (`environ` from
+   - that stores the pointer for `reset()` to pass to `execve`. (`environ` from
    `<unistd.h>` covers the env array.)
 2. **Make the emulator thread stoppable.** It is currently `pthread_create` +
    `pthread_detach` with the `pthread_t` discarded (`plcio/emulator.h:197-199`),
    so it cannot be signalled. Options:
    - (a) Retain the `pthread_t` and add a cooperative `std::atomic<bool> _running`
      flag the thread loop checks, plus a `stop_emulator_thread()` that clears it
-     and `pthread_join`s. **Preferred** — clean shutdown, releases the PLC shared
+     and `pthread_join`s. **Preferred** - clean shutdown, releases the PLC shared
      memory before re-exec.
    - (b) Rely on `execve` destroying all threads implicitly and skip the explicit
      kill. Simpler, but leaves the detached thread touching shared memory until
-     the image is replaced — rejected per the requirement to kill it first.
+     the image is replaced - rejected per the requirement to kill it first.
 
 **Open question:** where should `reset()` live relative to the emulator? The
 emulator thread lifecycle is owned by `plcio/emulator.h`, but `reset()` is HAL.
@@ -212,55 +212,55 @@ during implementation.
 process re-execs (same args, fresh uptime, emulator thread restarted, no leaked
 shared-memory FDs).
 
-### D.2 — HAL hardware watchdog  ✅ done
+### D.2 - HAL hardware watchdog  [x] done
 
 **Implemented:** `watchdog_start/kick/stop` declared in `platform.h` and defined
 per backend. OPTA wraps `mbed::Watchdog::get_instance()` (clamping the timeout to
 `get_max_timeout()`); compile-reasoned only, needs cross-build confirmation. On
 the sim, HAL holds the state (`volatile uint32_t _wd_timeout_ms`,
-`volatile uint64_t _wd_last_kick_ms`, ordered with `HAL::dsb()` — the codebase's
+`volatile uint64_t _wd_last_kick_ms`, ordered with `HAL::dsb()` - the codebase's
 lock-free idiom, no `std::atomic`; the 64-bit volatile is safe because this path
 is sim-only on x86-64) plus a `watchdog_poll()` that calls `reset()` once the
 timeout lapses.
 
-**Design change from the plan — no separate monitor thread.** Rather than spawn a
+**Design change from the plan - no separate monitor thread.** Rather than spawn a
 second sim thread, the existing PlcIO emulator thread services the watchdog by
 calling `HAL::watchdog_poll()` each iteration (every `TASK_PERIOD_MS` = 10 ms). It
 already runs independently of the main loop, which is the property the plan wanted
-the monitor thread for — so a wedged loop still trips the watchdog, at no extra
+the monitor thread for - so a wedged loop still trips the watchdog, at no extra
 thread cost. HAL still owns the watchdog state/policy; the emulator thread only
-provides the cadence (dependency stays `plcio → HAL`).
+provides the cadence (dependency stays `plcio -> HAL`).
 
 **Consequence handled:** when the watchdog trips, `reset()` runs *on* the emulator
 thread, so the D.1 `on_reset` hook (`stop_emulator_thread`) would `pthread_join`
-itself → `EDEADLK`. `stop_emulator_thread` now guards with
+itself -> `EDEADLK`. `stop_emulator_thread` now guards with
 `pthread_equal(pthread_self(), _emu_thread())` and skips the join in that case;
 the subsequent `execve` reaps the thread, and we're synchronously inside `reset()`
 so the emulator isn't touching shared memory meanwhile. (This supersedes the
-plan's "reset() must stop the monitor thread before re-exec" note — there is no
+plan's "reset() must stop the monitor thread before re-exec" note - there is no
 separate thread, and the hosting thread self-reaps via execve.)
 
 **Validated (SIMULATOR):** a harness starting the emulator + watchdog confirmed no
 reset across 600 ms of healthy kicks, then a reset (process re-exec, fresh uptime)
-within ~timeout after the kicks stop; ran the trip 5× with no self-join deadlock.
+within ~timeout after the kicks stop; ran the trip 5x with no self-join deadlock.
 
 **Original plan (for reference):**
 
 Interface (free functions, matching the existing `HAL` style):
-- `hal/platform.h` —
+- `hal/platform.h` -
   - `inline void watchdog_start(uint32_t timeout_ms);`
   - `inline void watchdog_kick();`
   - (optional) `inline void watchdog_stop();`
 
-**Note:** this is the *hardware* watchdog — distinct from the existing 30 s PLC
+**Note:** this is the *hardware* watchdog - distinct from the existing 30 s PLC
 software watchdog in `plcio/sync.h`, which guards comms liveness, not the whole
 firmware. Keep the names unambiguous.
 
-- `hal/opta.h` — wrap the Mbed OS singleton:
-  - `watchdog_start` → `mbed::Watchdog::get_instance().start(timeout_ms);`
+- `hal/opta.h` - wrap the Mbed OS singleton:
+  - `watchdog_start` -> `mbed::Watchdog::get_instance().start(timeout_ms);`
     (respect the hardware max-timeout ceiling; clamp or assert).
-  - `watchdog_kick` → `mbed::Watchdog::get_instance().kick();`.
-- `hal/simulator.h` — simulate the hardware watchdog with an independent monitor
+  - `watchdog_kick` -> `mbed::Watchdog::get_instance().kick();`.
+- `hal/simulator.h` - simulate the hardware watchdog with an independent monitor
   thread (independence is the whole point: it must fire even if the main loop
   hangs):
   - `watchdog_start(timeout_ms)` records the timeout, sets
@@ -283,9 +283,9 @@ triggers `reset()` (process re-execs) after `timeout_ms`.
 
 ## Suggested order & overall validation
 
-1. **A** and **B** — independent, mechanical, ~15 min each. Build SIMULATOR after
+1. **A** and **B** - independent, mechanical, ~15 min each. Build SIMULATOR after
    each.
-2. **C** — the only one with real logic; build + timestamp spot-check (incl.
+2. **C** - the only one with real logic; build + timestamp spot-check (incl.
    non-UTC `$TZ`).
 3. **D.1** (`reset()` + argv/emulator plumbing), then **D.2** (watchdog atop it).
 

@@ -3,7 +3,7 @@
 
 /**
  * @file page.h
- * @brief Page interface — the abstract contract every full-screen terminal
+ * @brief Page interface - the abstract contract every full-screen terminal
  *        page implements (input handling, focus lifecycle, per-tick update).
  */
 

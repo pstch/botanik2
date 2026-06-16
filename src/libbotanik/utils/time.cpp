@@ -1,7 +1,7 @@
 // REVIEW_34: OK
 /**
  * @file time.cpp
- * @brief Time utility implementations — rollover projection, calendar/UNIX
+ * @brief Time utility implementations - rollover projection, calendar/UNIX
  *        conversion, and timestamp formatting.
  */
 #include <cstddef>
@@ -77,7 +77,7 @@ namespace Botanik { namespace Utils {
         result.second      = (uint8_t)(secs_of_day % 60);
 
         // sub-second comes straight from the wall-clock ms now that we carry a
-        // real boot epoch — so even boot-time entries get their true fraction.
+        // real boot epoch - so even boot-time entries get their true fraction.
         result.millisecond = (uint16_t)(wall_ms % 1000);
         result.unixSeconds = total_secs;
         result.unixDays    = (uint32_t)days;

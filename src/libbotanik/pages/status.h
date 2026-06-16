@@ -3,11 +3,11 @@
 
 /**
  * @file status.h
- * @brief StatusPage — full-screen runtime status display (template base).
+ * @brief StatusPage - full-screen runtime status display (template base).
  *
  * Templated on the site PLC output payload so derived pages get type-safe access
  * to it via data(). The base renders the generic, payload-independent system
- * health drawn from the terminal's SystemContext and serial state — a left column
+ * health drawn from the terminal's SystemContext and serial state - a left column
  * (PLC link, wall clock, CPU load, stack usage, serial buffers) and a right
  * runtime-stats column (uptime, overruns, scheduling jitter); derived classes
  * fill the rest by overriding the payload hooks.
@@ -54,7 +54,7 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t R_LBL = 42, R_VAL = 54, R_W = 23; // right: labels 42.., values 54..76
         static constexpr uint16_t R_SLOT0 = 28;                     // right-column slots: 28..31
 
-        /** @name Draw hooks — override to customize the page.
+        /** @name Draw hooks - override to customize the page.
          *  @{ */
 
         void draw_static() override {
@@ -113,7 +113,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief Hot fields: the wall clock and uptime both carry a seconds digit,
          *  so they tick once per second (see MetricPage::tick()). Drawn
-         *  un-highlighted — they change every tick, so the change highlight would only
+         *  un-highlighted - they change every tick, so the change highlight would only
          *  re-emit settled subfields each second (see _field()). */
         void draw_hot() override {
             char buf[40];

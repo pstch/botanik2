@@ -1,6 +1,6 @@
 /**
  * @file shell.h
- * @brief Command shell — dispatch, built-in commands, and extensibility hooks.
+ * @brief Command shell - dispatch, built-in commands, and extensibility hooks.
  */
 #ifndef SHELL_SHELL_H
 #define SHELL_SHELL_H
@@ -69,10 +69,10 @@ namespace Botanik { namespace Shell {
         /** @name History management
          *  @{ */
 
-        /** @brief Load previous history entry — stub, not yet implemented */
+        /** @brief Load previous history entry - stub, not yet implemented */
         void history_prev() {}
 
-        /** @brief Load next history entry — stub, not yet implemented */
+        /** @brief Load next history entry - stub, not yet implemented */
         void history_next() {}
 
         /** @} */
@@ -80,10 +80,10 @@ namespace Botanik { namespace Shell {
         /** @name Kill-ring (clipboard) management
          *  @{ */
 
-        /** @brief Push text onto the kill ring — stub, not yet implemented */
+        /** @brief Push text onto the kill ring - stub, not yet implemented */
         void push_kill(const char*, uint16_t) {}
 
-        /** @brief Insert kill ring contents into the editor — stub, not yet implemented */
+        /** @brief Insert kill ring contents into the editor - stub, not yet implemented */
         void paste_kill() {}
 
         /** @} */

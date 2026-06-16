@@ -4,7 +4,7 @@
 
 /**
  * @file serial.h
- * @brief BufferedSerial — non-blocking UART wrapper with RX/TX ring buffers
+ * @brief BufferedSerial - non-blocking UART wrapper with RX/TX ring buffers
  *        over HAL::RawSerial.
  */
 
@@ -105,7 +105,7 @@ namespace Botanik { namespace Utils {
          *  Used before a full-screen repaint: a clear_screen makes all pending TX
          *  bytes moot (they'd paint onto a display about to be wiped), and emptying
          *  the ring first guarantees the clear sequence fits.
-         *  @warning Single-producer reset — snaps the producer head back to the
+         *  @warning Single-producer reset - snaps the producer head back to the
          *  consumer tail, so it must run in the same context as transmit() (today,
          *  the main loop). Concurrent with an ISR-driven transmit() it could
          *  underflow the ring. */

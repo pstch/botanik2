@@ -1,6 +1,6 @@
 /**
  * @file shell.cpp
- * @brief ShellPage implementation — log-area layout, scrolling on new entries,
+ * @brief ShellPage implementation - log-area layout, scrolling on new entries,
  *        and in-place editor redraw.
  */
 #include <algorithm>
@@ -50,13 +50,13 @@ namespace Botanik { namespace Pages {
             case Command::CTRL_C:
             case Command::CTRL_U:     _editor.reset();              break;
 
-            // Deletion — `count` may be >1 when the parser coalesced a
+            // Deletion - `count` may be >1 when the parser coalesced a
             // held key; pass through so the editor does one reconcile.
             case Command::BACKSPACE:  _editor.backspace(count);     break;
             case Command::DELETE:
             case Command::CTRL_D:     _editor.delete_forward(count); break;
 
-            // Kill / yank — stubs (kill ring not yet implemented)
+            // Kill / yank - stubs (kill ring not yet implemented)
             case Command::CTRL_K:     /* TODO: kill ring */          break;
             case Command::CTRL_W:     /* TODO: kill ring */          break;
             case Command::CTRL_Y:     /* TODO: kill ring */          break;
@@ -72,7 +72,7 @@ namespace Botanik { namespace Pages {
             case Command::ALT_B:      _editor.move_word_left();     break;
             case Command::ALT_F:      _editor.move_word_right();    break;
 
-            // History — stubs (not yet implemented)
+            // History - stubs (not yet implemented)
             case Command::UP:
             case Command::CTRL_P:     _shell.history_prev();        break;
             case Command::DOWN:
@@ -109,7 +109,7 @@ namespace Botanik { namespace Pages {
         _active = active;
         if (active) {
             _scrollback.drain_redraw(_terminal);
-            // Hold off live entries until the historical redraw is complete — a DL
+            // Hold off live entries until the historical redraw is complete - a DL
             // scroll from write() would shift rows already drawn and corrupt the log.
             if (_scrollback.redraw_pending()) return;
         }
@@ -152,7 +152,7 @@ namespace Botanik { namespace Pages {
         uint16_t log_rows = (uint16_t)(_terminal.rows() - 1 - _editor.occupied_rows());
         _scrollback.emit_tail(_terminal, n, 1, log_rows);
 
-        // Editor is back at its correct screen rows — just reposition the cursor.
+        // Editor is back at its correct screen rows - just reposition the cursor.
         _terminal.move_to(_editor.cursor_screen_pos());
 
         return len;
@@ -213,7 +213,7 @@ namespace Botanik { namespace Pages {
         // the editor in place at the bottom.
         _scrollback.begin_redraw((uint16_t)(_terminal.rows() - 1 - _editor.occupied_rows()));
         _editor.redraw();
-        // The editor owns a live text cursor — make it visible (and blinking). Every
+        // The editor owns a live text cursor - make it visible (and blinking). Every
         // other page leaves it hidden; switch_to() resets it off before our focus().
         _terminal.set_cursor_visible(true);
     }
@@ -261,7 +261,7 @@ namespace Botanik { namespace Pages {
 
         // IL delta at row 1 (no scroll region) shifts rows 1..rows-1 down by delta.
         // The delta freed rows above the editor (already blank from _sync_origin/reset)
-        // plus the editor row itself fall off the bottom — the editor is redrawn after.
+        // plus the editor row itself fall off the bottom - the editor is redrawn after.
         _terminal.move_to({1, 0});
         _terminal.insert_rows(delta);
 
@@ -282,7 +282,7 @@ namespace Botanik { namespace Pages {
         }
 
         // After IL, the editor's content (drawn at old_origin before the suppress)
-        // has shifted into the correct new position — just reposition the cursor.
+        // has shifted into the correct new position - just reposition the cursor.
         _terminal.move_to(_editor.cursor_screen_pos());
     }
 
