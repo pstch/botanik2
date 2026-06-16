@@ -26,12 +26,12 @@ Abstraction Layer so the same code builds as a Linux simulator or for the OPTA.
 | Subsystem | Path | Responsibility |
 |---|---|---|
 | **HAL** | `hal/` | Unified platform interface (clocks, memory ordering, stack/PLC introspection, serial). `simulator.h` and `opta.h` implement it. |
-| **Scheduler** | `scheduler/` | Non-blocking fixed-period loop driver with overrun handling; delegates CPU-load, scheduling-jitter, and stack-usage metrics to `PerfMonitor`. |
+| **Scheduler** | `scheduler/` | Non-blocking fixed-period loop driver with overrun handling and built-in CPU-load, scheduling-jitter, work-duration, and stack-usage instrumentation. |
 | **Terminal UI** | `terminal/` | `AnsiTerminal` drives a multiplexed page display; `InputParser` decodes byte streams into events; `TextEditor` is a byte-efficient line editor. |
 | **Pages** | `pages/` | Full-screen views (`Shell`, `Logs`, `Home`, `Status`) behind a common `Page` interface. |
 | **Logging** | `logs/` | `Logger` rate-limits with a dual token-bucket, then fans entries out to `LogWriter`s. |
 | **PLC I/O** | `plcio/` | `PlcSyncHandler` runs RX/TX state machines over shared memory with the PLC coprocessor; an emulator stands in for it on the simulator. |
-| **Utils** | `utils/` | `BufferedSerial` (ring-buffered UART), `PerfMonitor` (loop CPU-load / jitter / stack high-water instrumentation), and time/uptime helpers. |
+| **Utils** | `utils/` | `BufferedSerial` (ring-buffered UART), `filters.h` (reusable EMA / windowed-max metric filters), and time/uptime helpers. |
 
 The application wires these together and runs them from a single non-blocking
 loop - see `src/botanik_sim/main.cpp` for the canonical setup (the OPTA `.ino`
@@ -53,9 +53,10 @@ sketch does the equivalent).
   volume; suppressed-message counts are reported on a slower cadence.
 - **Byte-efficient terminal.** The UI targets a low-bandwidth serial link, so
   the terminal/editor layer minimizes the escape sequences it emits.
-- **Self-instrumenting loop.** `PerfMonitor` samples per-tick CPU load,
-  scheduling jitter, and stack high-water usage (the last via stack painting),
-  surfaced live in the status bar and the `stats` shell command.
+- **Self-instrumenting loop.** `LoopScheduler` measures per-beat CPU load (the
+  duty cycle, `(period − slept)/period`), scheduling jitter, work duration, and
+  stack high-water usage (the last via stack painting), surfaced live in the
+  status bar and the `stats` shell command.
 
 ## Building
 

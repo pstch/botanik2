@@ -50,6 +50,19 @@ namespace Botanik { namespace Config {
     static constexpr uint32_t LOAD_METRIC_WINDOW_MS = 5000;
     static constexpr uint32_t LOAD_METRIC_BUCKETS   = 10;
 
+    /** @brief LOAD_METRIC_WINDOW_MS expressed in per-tick samples (window length the
+     *  rolling-max filters are configured with). */
+    static constexpr uint32_t LOAD_METRIC_WINDOW = LOAD_METRIC_WINDOW_MS / TASK_PERIOD_MS;
+
+    /** @brief Stack high-water mark is scanned (and the free stack re-painted) once
+     *  per slice rather than every tick. One slice per metric bucket spans the whole
+     *  LOAD_METRIC_WINDOW, so the rolling max keeps its reach for a fraction of the
+     *  per-tick paint/scan cost. */
+    static constexpr uint32_t STACK_SLICE_TICKS =
+        (LOAD_METRIC_WINDOW >= LOAD_METRIC_BUCKETS)
+            ? LOAD_METRIC_WINDOW / LOAD_METRIC_BUCKETS : 1;
+    static constexpr uint32_t STACK_SLICE_MS = STACK_SLICE_TICKS * TASK_PERIOD_MS;
+
     /** @brief CPU-load EMA response time constants (ms) */
     static constexpr uint32_t CPU_LOAD_EMA_ATTACK_MS = 0;
     static constexpr uint32_t CPU_LOAD_EMA_DECAY_MS  = 5000;

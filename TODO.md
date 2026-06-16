@@ -11,9 +11,13 @@
 ## Big work items
 
 - ~~Refactor around LoopScheduler/PerfMonitor, they are weirdly coupled.~~ Done:
-  PerfMonitor is now hidden behind LoopScheduler (only `paint_stack()` is exposed),
-  SchedulerContext is the single source of truth for the tick/overrun counters, and
-  it inherits PerfSnapshot so the perf metrics are stored on it directly.
+  `PerfMonitor` is gone — the per-beat metrics are all tied to the loop timing the
+  scheduler owns, so the measurement folded back into `LoopScheduler` (jitter, CPU
+  duty cycle `(period − slept)/period`, work duration, stack usage), all published
+  into `SchedulerContext`. The genuinely reusable bits — the EMA / windowed-max
+  filters and the `PerfContext` POD — were extracted to `utils/filters.h` as a slim,
+  unit-testable layer; `SchedulerContext : PerfContext` stays the single struct
+  consumers read.
 - ~~Decouple the terminal code (status bar & `stats` command) from the separate
   SchedulerContext/PlcSyncContext pointers.~~ Done: `SystemContext` (context.h)
   bundles both; AnsiTerminal takes one `SystemContext` and exposes it via

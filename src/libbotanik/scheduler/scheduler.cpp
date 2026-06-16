@@ -2,13 +2,15 @@
 // a future unified Context wrapper could decouple it from both. See TODO.md.
 /**
  * @file scheduler.cpp
- * @brief LoopScheduler implementation — tick timing and overrun reporting. All
- *        performance instrumentation lives in PerfMonitor (utils/perf), which the
- *        scheduler drives and whose snapshot it publishes into the SchedulerContext.
+ * @brief LoopScheduler implementation - tick timing, overrun reporting, and the
+ *        out-of-line performance instrumentation (work-duration sampling, CPU
+ *        duty cycle, jitter filtering, stack painting + high-water scan). The hot
+ *        tick() path and the stack paint live inline in the header.
  */
+#include <cstddef>
+#include <cstring>
 #ifdef TARGET_SIMULATOR
 #include <cerrno>
-#include <cstring>
 #include <sched.h>
 #include <sys/mman.h>
 #endif
@@ -26,13 +28,64 @@ namespace Botanik { namespace Scheduler {
     // ------------------------------------------------------------------------
 
     LoopScheduler::LoopScheduler(uint32_t period_ms, Logs::Logger* logger)
-        : _period_ms(period_ms), _perf(period_ms), _logger(logger) {
-            reset();
-        }
+        : _period_ms(period_ms), _logger(logger) {
+        // measure stack base and depth
+        _stack_base  = HAL::get_stack_base();
+        _stack_depth = HAL::get_stack_depth();
+
+        // configure EMA filters
+        _cpu_load.configure(Utils::ema_alpha(Config::CPU_LOAD_EMA_ATTACK_MS),
+                            Utils::ema_alpha(Config::CPU_LOAD_EMA_DECAY_MS));
+        _jitter.configure(Utils::ema_alpha(Config::CPU_JITTER_EMA_ATTACK_MS),
+                          Utils::ema_alpha(Config::CPU_JITTER_EMA_DECAY_MS));
+        _stack_usage.configure(Utils::ema_alpha(Config::STACK_USAGE_EMA_ATTACK_MS, Config::STACK_SLICE_MS),
+                               Utils::ema_alpha(Config::STACK_USAGE_EMA_DECAY_MS,  Config::STACK_SLICE_MS));
+
+        // configure rolling-max windows
+        _cpu_loop_us_window.configure(Config::LOAD_METRIC_WINDOW);
+        _jitter_window.configure(Config::LOAD_METRIC_WINDOW);
+
+        reset();
+    }
 
     void LoopScheduler::reset() {
         _next_tick_ms = HAL::uptime_ms() + _period_ms;
-        _perf.reset();
+
+        // reset CPU duty-cycle state
+        _cpu_load.reset();
+        _slept_us = 0;
+        _last_release_us = 0;
+
+        // reset work-duration state
+        _measuring       = false;
+        _cpu_loop_us_max = 0;
+        _cpu_loop_us_window.reset();
+
+        // reset jitter state
+        _jitter.reset();
+        _jitter_window.reset();
+        _jitter_us_max = 0;
+
+        // reset stack state
+        _stack_bytes_max = 0;
+        _stack_usage.reset();
+        for (uint32_t i = 0; i < Config::LOAD_METRIC_BUCKETS; ++i) _stack_slices[i] = 0;
+        _stack_head       = 0;
+        _stack_slice_tick = 0;
+        _repaint_pending  = true;
+
+        // clear the published metric fields (leave tick_count/overruns/timestamp)
+        _context.cpu_load_ema         = 0.0f;
+        _context.cpu_loop_us_recent   = 0;
+        _context.cpu_loop_us_max      = 0;
+        _context.cpu_jitter_ema       = 0.0f;
+        _context.cpu_jitter_us_recent = 0;
+        _context.cpu_jitter_us_max    = 0;
+        _context.stack_usage_ema      = 0.0f;
+        _context.stack_bytes_recent   = 0;
+        _context.stack_bytes_max      = 0;
+        _context.stack_depth          = _stack_depth;
+
         // log the first overrun after a reset immediately
         _overrun_log_last_ms = 0;
         _overrun_pending = 0;
@@ -40,9 +93,9 @@ namespace Botanik { namespace Scheduler {
 
     // Tick
     // ------------------------------------------------------------------------
-    // tick() is defined inline in the header (always_inline) so the paint_stack()
-    // it ends with folds into the caller's frame. Only the cold helpers below stay
-    // out of line.
+    // tick() is defined inline in the header (always_inline + BOTANIK_NO_ASAN) so its
+    // trailing stack paint folds into the caller's frame and captures the loop body's
+    // SP. The cold helpers below stay out of line.
 
     // Internals
     // ------------------------------------------------------------------------
@@ -66,9 +119,124 @@ namespace Botanik { namespace Scheduler {
         }
     }
 
+    void LoopScheduler::_record_jitter(uint32_t jitter_us) {
+        // measure instantaneous jitter as a fraction of the tick interval
+        float instant = (_period_ms > 0) ? static_cast<float>(jitter_us)
+                        / static_cast<float>(_period_ms * 1000u) : 0.0f;
+        // update peak jitter time value
+        if (jitter_us > _jitter_us_max) _jitter_us_max = jitter_us;
+        // push jitter time into the rolling-max window
+        _jitter_window.push(jitter_us);
+        // push jitter fraction into the EMA
+        _jitter.push(instant);
+
+        // update published context values
+        _context.cpu_jitter_ema       = _jitter.value();
+        _context.cpu_jitter_us_recent = _jitter_window.value();
+        _context.cpu_jitter_us_max    = _jitter_us_max;
+    }
+
+    void LoopScheduler::_record_load(uint64_t now_us) {
+        // duty cycle over the beat just completed: the active (non-slept) fraction of
+        // the wall time elapsed since the previous release. Active = work + loop and
+        // scheduler overhead + the busy-wait (the last ~1 ms is busy-waited, not
+        // slept). Normalizing by the measured elapsed time (rather than a fixed
+        // period) keeps it honest across sleep overruns and skipped beats.
+        if (_last_release_us != 0) {
+            uint64_t elapsed = now_us - _last_release_us;
+            uint64_t active  = (elapsed > _slept_us) ? (elapsed - _slept_us) : 0;
+            float instant    = (elapsed > 0) ? static_cast<float>(active)
+                             / static_cast<float>(elapsed) : 0.0f;
+            _cpu_load.push(instant);
+            _context.cpu_load_ema = _cpu_load.value();
+        }
+
+        // open the next duty-cycle window and start its idle total from scratch
+        _last_release_us = now_us;
+        _slept_us = 0;
+    }
+
+    void LoopScheduler::_sample_work(uint64_t now_us) {
+        // measure the work-window duration (peak single-beat work time)
+        uint32_t busy = (now_us >= _work_start_us)
+                      ? static_cast<uint32_t>(now_us - _work_start_us) : 0;
+        if (busy > _cpu_loop_us_max) _cpu_loop_us_max = busy;
+        _cpu_loop_us_window.push(busy);
+
+        // scan stack usage if we are at a stack slice boundary
+        if (++_stack_slice_tick >= Config::STACK_SLICE_TICKS) {
+            _stack_slice_tick = 0;
+            _measure_stack_usage();
+            _repaint_pending = true;
+        }
+
+        // update published work-duration values
+        _context.cpu_loop_us_max    = _cpu_loop_us_max;
+        _context.cpu_loop_us_recent = _cpu_loop_us_window.value();
+    }
+
     void LoopScheduler::_log_startup() {
         if (_logger != nullptr)
             _logger->info(PlcIO::BOOT, "scheduler started, period=%ums", (unsigned)_period_ms);
+    }
+
+    void LoopScheduler::_measure_stack_usage() {
+        if (_stack_base == 0) return;
+        const uint8_t* stack_base = reinterpret_cast<const uint8_t*>(_stack_base);
+
+        // offsets are 1-based so *(stack_base - mid) stays inside the allocated region
+        // (stack_base itself is one past the top of the stack)
+        uint32_t low  = 1;
+        uint32_t high = (_stack_depth < Config::STACK_SCAN_LIMIT)
+                      ? _stack_depth : Config::STACK_SCAN_LIMIT;
+
+        // binary search for the boundary between used and still-painted memory
+        while (low < high) {
+            uint32_t mid = low + (high - low) / 2;
+            if (*(stack_base - mid) == Config::STACK_PAINT_BYTE)    high = mid;
+            else                                                    low  = mid + 1;
+        }
+
+        // measure stack usage as a fraction of the stack depth
+        float ratio = (_stack_depth > 0) ? static_cast<float>(low)
+                      / static_cast<float>(_stack_depth) : 0.0f;
+        // push stack usage fraction into the EMA
+        _stack_usage.push(ratio);
+        // update the peak stack usage value
+        if (low > _stack_bytes_max) _stack_bytes_max = low;
+        // update current slice of stack usage
+        _stack_slices[_stack_head] = low;
+        _stack_head = (_stack_head + 1) % Config::LOAD_METRIC_BUCKETS;
+
+        // measure recent maximum of stack usage
+        uint32_t recent = 0;
+        for (uint32_t i = 0; i < Config::LOAD_METRIC_BUCKETS; ++i)
+            if (_stack_slices[i] > recent) recent = _stack_slices[i];
+
+        // update published context values
+        _context.stack_usage_ema    = _stack_usage.value();
+        _context.stack_bytes_max    = _stack_bytes_max;
+        _context.stack_bytes_recent = recent;
+    }
+
+    void LoopScheduler::_paint_below(uint8_t* caller_sp) {
+        if (_stack_base == 0) return;
+        uint8_t* abs_bottom = reinterpret_cast<uint8_t*>(_stack_base - _stack_depth);
+        // Margin must cover this function's frame + memset's frame so neither is
+        // clobbered mid-paint. 256 B is well above what either uses on x86_64 or
+        // ARM Cortex-M; the painted ceiling sits just below the caller's SP.
+        constexpr ptrdiff_t MARGIN = 256;
+        // bail out if the current stack pointer is below our margin
+        if (caller_sp < abs_bottom + MARGIN) return;
+        uint8_t* paint_top = caller_sp - MARGIN;
+        // Cap paint region to STACK_SCAN_LIMIT bytes to avoid doing memset() on
+        // the entire thread stack allocation on every tick.
+        uint8_t* paint_bot = paint_top - Config::STACK_SCAN_LIMIT;
+        // clamp paint bottom
+        if (paint_bot < abs_bottom) paint_bot = abs_bottom;
+        // if we have a valid region, memset() it to STACK_PAINT_BYTE
+        if (paint_top > paint_bot)
+            memset(paint_bot, Config::STACK_PAINT_BYTE, paint_top - paint_bot);
     }
 
 #ifdef TARGET_SIMULATOR
@@ -94,7 +262,7 @@ namespace Botanik { namespace Scheduler {
         if (sched_setaffinity(0, sizeof(cpu_set_t), &mask) == -1 && logger != nullptr)
             logger->warning(PlcIO::BOOT, "sched_setaffinity failed: \n%s", strerror(errno));
     }
-    
+
 #endif
 
 } }

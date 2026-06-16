@@ -262,7 +262,9 @@ int main(int argc, char** argv) {
 
     // Scheduler (constructed before the PLC layer and terminal so they can share
     // its published loop timestamp). The loop "now" is owned and republished by
-    // the scheduler each tick; everyone else reads it through this pointer.
+    // the scheduler each tick; everyone else reads it through this pointer. The
+    // scheduler also measures the loop's own performance (CPU load, jitter, work
+    // duration, stack usage) and publishes it through the same context.
     Scheduler::LoopScheduler scheduler(Config::TASK_PERIOD_MS, &logger);
     uint32_t* timestamp_ms = &scheduler.context()->timestamp_ms;
 
@@ -321,11 +323,10 @@ int main(int argc, char** argv) {
     // -----------------------------------------------------------------------
 
     while (true) {
-        // tick() republishes the loop timestamp (via the scheduler context) when
-        // it opens the work window, so the steps below share a single "now". It
-        // also paints the free stack before releasing the tick, so the work below
-        // dirties the painted region for the next stack-usage scan.
-
+        // tick() republishes the loop timestamp (via the scheduler context) when it
+        // releases a beat, so the steps below share a single "now". It also paints
+        // the free stack before releasing the tick, so the work below dirties the
+        // painted region for the next stack-usage scan.
         if (!scheduler.tick()) continue;
 
         console_serial.receive();
