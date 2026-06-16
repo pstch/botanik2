@@ -233,7 +233,7 @@ int main(int argc, char** argv) {
 
     // Raw terminal + console serial.
     HAL::setup_raw_console();
-    HAL::get_serial(HAL::CONSOLE)->begin(9800);
+    HAL::get_serial(HAL::CONSOLE)->begin(4800);
 
     // Graceful shutdown on Ctrl+C / SIGTERM: flip the run flag so the main loop
     // breaks and main() returns cleanly. Overrides the HAL handler for these two
@@ -289,16 +289,9 @@ int main(int argc, char** argv) {
     logger.add_writer(&logs_page);
     logger.add_writer(&home_page);
 
-    // Emulator thread (drives the mock greenhouse payload). Started *before*
-    // make_process_realtime(): that call arms mlockall(MCL_FUTURE), after which a
-    // new thread's stack mmap must be locked into RAM on allocation and overruns
-    // RLIMIT_MEMLOCK when not root - pthread_create then fails with EAGAIN and the
-    // PLC link stays UNK forever. Spawning the worker first is the standard
-    // "create threads before locking memory" realtime pattern.
+    // Emulator thread (drives the mock greenhouse payload).
+    // NOTE: should be started before make_process_realtime() is called
     start_greenhouse_emulator(&shared_in, &shared_out, &logger);
-
-    // Tighten simulator scheduling (best-effort)
-    Scheduler::make_process_realtime(0, &logger);
 
     // Register terminal pages
     terminal.add_page(&home_page);
