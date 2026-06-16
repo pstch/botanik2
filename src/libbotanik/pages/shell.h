@@ -113,6 +113,11 @@ namespace Botanik { namespace Pages {
          *         Assumes the caller has set suppress_redraw(true); clears it here. */
         void _submit_command();
 
+        /** @brief Cancel the current editor line (Ctrl-C): echo it into the scrollback
+         *         and advance to a fresh prompt exactly like a submit, but run nothing.
+         *         Assumes the caller has set suppress_redraw(true); clears it here. */
+        void _cancel_command();
+
         /** @brief Store each display row of a submitted command in the scrollback buffer.
          *         Does not touch the screen - the content is already visible. */
         void _record_command(const char* cmd, uint16_t len);

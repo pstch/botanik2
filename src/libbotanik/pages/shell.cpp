@@ -47,7 +47,12 @@ namespace Botanik { namespace Pages {
                 break;
             }
 
+            // Cancel. Like submit, the screen is left correct by _cancel_command(),
+            // so return early and skip the shrink check below.
             case Command::CTRL_C:
+                _cancel_command();
+                return;
+
             case Command::CTRL_U:     _editor.reset();              break;
 
             // Deletion - `count` may be >1 when the parser coalesced a
@@ -230,6 +235,21 @@ namespace Botanik { namespace Pages {
         _editor.suppress_redraw(false);
         _editor.commit();
         _shell.run(line, line_len);  // run() ignores an empty line
+    }
+
+    void ShellPage::_cancel_command() {
+        // Ctrl-C: commit the visible prompt without running anything. Echo the
+        // current line into the scrollback and drop down to a fresh prompt, same
+        // as a submit but with no dispatch to the shell.
+        char     line[Config::SHELL_INPUT_LEN];
+        uint16_t line_len = std::min(_editor.buffer_len(), (uint16_t)(sizeof(line) - 1));
+        memcpy(line, _editor.buffer(), line_len);
+        line[line_len] = '\0';
+        _record_command(line, line_len);
+        _terminal.move_to(_editor.end_pos());
+        _terminal.line_feed(true);
+        _editor.suppress_redraw(false);
+        _editor.commit();
     }
 
     void ShellPage::_record_command(const char* cmd, uint16_t cmd_len) {
