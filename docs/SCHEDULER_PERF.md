@@ -1,8 +1,7 @@
 # Scheduler & Performance Monitoring
 
 How the firmware runs everything from one non-blocking loop at a fixed period,
-and how it measures its own CPU load, scheduling jitter, and stack usage along
-the way.
+and how it measures its own CPU load, scheduling jitter, and stack usage.
 
 ## The loop
 
@@ -13,7 +12,6 @@ exactly once per period, when the work for that beat should run.
 ```
  while (true) {
      if (scheduler.tick()) {     // true once per TASK_PERIOD_MS
-         scheduler.paint_stack(); // at user-code depth, before the work
          ...do the work...        // serial, PLC sync, logging, terminal
      }
  }
@@ -40,43 +38,50 @@ N beat(s)"` warning at most once per `SCHEDULER_XRUN_LOG_MS`.
                             overruns += 2, anchor jumps to t4
 ```
 
-## Metrics — PerfMonitor
+## Metrics
 
-The scheduler owns a `PerfMonitor` (`utils/perf.h`) and drives it across each
-beat. `PerfMonitor` keeps three families of metric, each exposed raw, smoothed,
-and as a recent peak.
+`LoopScheduler` instruments itself across each beat - it's the only thing that
+knows the loop's timing - and keeps four metric families, each exposed raw,
+smoothed (EMA), and as a recent windowed peak.
 
 ```
- work_begin() ───▶ ...work runs... ───▶ sample()
-   (window open)                          (window closed)
+ tick (release) ───▶ ...work runs... ───▶ tick (next release)
         │                                     │
-        ├─ busy time ────────▶ CPU load  (EMA, all-time max, windowed max)
-        ├─ tick lateness ────▶ jitter    (EMA, all-time max, windowed max)
-        └─ stack high-water ─▶ stack use (EMA, all-time max, windowed max)
+        │ on release:                         │ at the next tick:
+        ├─ tick lateness ───▶ jitter          ├─ work duration ─▶ loop time
+        └─ period − slept ──▶ CPU load        └─ stack high-water ─▶ stack use
 ```
 
-- **CPU load** — busy time (work window duration) as a fraction of the period.
-- **Jitter** — how late a tick was released against the time grid.
-- **Stack usage** — measured by *painting* the free stack with `STACK_PAINT_BYTE`
+- **CPU load** - the *duty cycle*: the active fraction of each period,
+  `(period − slept)/period`. It counts the work, the loop/scheduler overhead, and
+  the ~1 ms busy-wait (everything but the real sleep), so it reflects total CPU
+  per beat, not just the explicit work.
+- **Loop time** - the work-window duration (release → next tick), i.e. the
+  worst-case single-beat work time.
+- **Jitter** - how late a tick was released against the time grid.
+- **Stack usage** - measured by *painting* the free stack with `STACK_PAINT_BYTE`
   and later binary-searching for the high-water boundary the work dirtied.
-  Painting/scanning happens once per slice (not every tick) to keep it cheap;
-  this is why `paint_stack()` must be called inline at user-code depth.
+  Painting/scanning happens once per slice (not every tick) to keep it cheap. The
+  paint runs at the end of `tick()`, which is `always_inline` so it folds into the
+  caller's frame and the painted ceiling sits just above the work that dirties it.
 
 Two filters back the "smoothed / recent" columns: `ExpMovingAverage` (asymmetric
 attack/decay EMA) and `WindowedMax<K>` (an O(1)-per-sample sliding-window maximum
-over K rotating buckets). Tuning constants live in `libbotanik_config.h`
-(`*_EMA_*_MS`, `LOAD_METRIC_*`, `STACK_*`).
+over K rotating buckets). Both live in `utils/filters.h` as a small reusable layer.
+All tuning constants - including the derived `LOAD_METRIC_WINDOW` and `STACK_SLICE_*`
+- live in `libbotanik_config.h` (`*_EMA_*_MS`, `LOAD_METRIC_*`, `STACK_*`).
 
 ## Publishing
 
-`PerfMonitor`'s `PerfSnapshot` is the metric payload; `SchedulerContext` *inherits*
-it and adds the scheduler's own `tick_count`, `overruns`, and the shared per-tick
-`timestamp_ms`. Consumers (the terminal status bar, the `stats` shell command, the
-PLC sync timing) all read this one struct via `LoopScheduler::context()`.
+`PerfContext` (`scheduler/scheduler.h`) holds the CPU-load / loop-time / stack
+fields; `SchedulerContext` *inherits* it and adds the jitter fields plus the
+scheduler's `tick_count`, `overruns`, and the shared per-tick `timestamp_ms`. The
+scheduler writes every field in place - there is no copy step. Consumers (the
+terminal status bar, the `stats` shell command, the PLC sync timing) all read this
+one struct via `LoopScheduler::context()`.
 
 ```
- PerfMonitor::snapshot()  ──published into──▶  SchedulerContext  ──▶ status bar
- (cpu/jitter/stack)                            + tick_count           `stats` cmd
-                                               + overruns             PLC timing
-                                               + timestamp_ms
+ LoopScheduler ──writes all metrics──▶  SchedulerContext  ──▶ status bar
+                + tick_count / overruns / timestamp_ms        `stats` cmd
+                (PerfContext base + scheduler fields)          PLC timing
 ```

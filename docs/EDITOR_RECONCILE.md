@@ -1,9 +1,9 @@
 # Editor Reconcile
 
 How `TextEditor` (`terminal/editor.h`) repaints a multi-row line after an edit
-while emitting the **fewest possible bytes** over the serial link. The whole
-design exists because the UI drives a low-bandwidth terminal, so a naive
-"clear and redraw everything" repaint is not acceptable.
+while emitting the **fewest possible bytes** over the serial link. Because the UI
+drives a low-bandwidth terminal, a naive "clear and redraw everything" repaint is
+not acceptable.
 
 ## Buffer, layout, reconcile
 

@@ -1,7 +1,7 @@
 /**
 @page commands Commands
 
-@brief Shell command reference — the built-in commands typed at the `botanik>`
+@brief Shell command reference - the built-in commands typed at the `botanik>`
        prompt.
 
 @note **Draft.** This page covers the current built-in command set only. It will
@@ -21,10 +21,10 @@ ignored; an unrecognized one echoes `Unknown command: …`.
 | Command        | Action                                                                                                                       |
 |----------------|------------------------------------------------------------------------------------------------------------------------------|
 | `help`         | Print the one-line list of available commands.                                                                               |
-| `clear`        | @ref Botanik::Shell::ShellWriter::clear "clear()" — wipe the shell scrollback and redraw an empty prompt.                     |
+| `clear`        | @ref Botanik::Shell::ShellWriter::clear "clear()" - wipe the shell scrollback and redraw an empty prompt.                     |
 | `stats`        | Dump scheduler/runtime counters (uptime, CPU load, jitter, stack usage/depth) from @ref Botanik::Scheduler::SchedulerContext. |
-| `breakpoint`   | @ref Botanik::HAL::debug_break "HAL::debug_break()" — trap into an attached debugger.                                         |
-| `reset`        | @ref Botanik::HAL::reset "HAL::reset()" — reboot the firmware (does not return; the simulator re-execs to the current page).  |
+| `breakpoint`   | @ref Botanik::HAL::debug_break "HAL::debug_break()" - trap into an attached debugger.                                         |
+| `reset`        | @ref Botanik::HAL::reset "HAL::reset()" - reboot the firmware (does not return; the simulator re-execs to the current page).  |
 
 @section commands_extending Extending
 

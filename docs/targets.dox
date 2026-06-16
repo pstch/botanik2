@@ -1,0 +1,13 @@
+/**
+@page targets Targets
+
+@brief Building and running each build target - the Linux simulator and the
+       Arduino OPTA firmware.
+
+`libbotanik` builds for two targets, each with its own build/run notes:
+
+- @subpage md_src_2botanik__sim_2README - the Linux simulator (`SIMULATOR`):
+  configure with CMake and run on the host.
+- @subpage md_src_2botanik__fw_2README - the Arduino OPTA firmware (`OPTA`):
+  cross-compile for the STM32H747.
+*/

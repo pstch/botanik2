@@ -1,14 +1,14 @@
 /**
 @mainpage Library
 
-@brief @c libbotanik — greenhouse-control firmware for the Arduino OPTA PLC
+@brief @c libbotanik - greenhouse-control firmware for the Arduino OPTA PLC
        (STM32H747 dual-core ARM).
 
 `libbotanik` is a C++11 library split into independent subsystems under
 `src/libbotanik/`. It is platform-agnostic: every platform touch goes through a
 Hardware Abstraction Layer, so the same code builds as a Linux simulator or for
 the OPTA hardware. The application wires the subsystems together and runs them
-from a single non-blocking loop — `src/botanik_sim/main.cpp` is the canonical
+from a single non-blocking loop - `src/botanik_sim/main.cpp` is the canonical
 setup, and the OPTA `.ino` sketch does the equivalent.
 
 This is the API reference. Browse the **Namespaces** and **Classes** tabs for the
@@ -17,15 +17,18 @@ covers driving the system over its terminal.
 
 @section main_subsystems Subsystems
 
-| Subsystem    | Path         | Responsibility |
-|--------------|--------------|----------------|
-| **HAL**      | `hal/`       | Unified platform interface (clocks, memory ordering, stack/PLC introspection, serial). `simulator.h` and `opta.h` implement it. |
-| **Scheduler**| `scheduler/` | Non-blocking fixed-period loop driver with overrun handling; delegates CPU-load, jitter, and stack-usage metrics to `PerfMonitor`. |
-| **Terminal** | `terminal/`  | @ref Botanik::Terminal::AnsiTerminal drives a multiplexed page display; @ref Botanik::Terminal::InputParser decodes byte streams into events; @ref Botanik::Terminal::TextEditor is a byte-efficient line editor. |
-| **Pages**    | `pages/`     | Full-screen views (`Shell`, `Logs`, `Home`, `Status`) behind a common @ref Botanik::Pages::Page interface. |
-| **Logging**  | `logs/`      | @ref Botanik::Logs::Logger rate-limits with a dual token-bucket, then fans entries out to @ref Botanik::Logs::LogWriter "LogWriter"s. |
-| **PLC I/O**  | `plcio/`     | @ref Botanik::PlcIO::PlcSyncHandler runs RX/TX state machines over shared memory with the PLC coprocessor; an emulator stands in for it on the simulator. |
-| **Utils**    | `utils/`     | `BufferedSerial` (ring-buffered UART), `PerfMonitor` (loop CPU-load / jitter / stack high-water instrumentation), and time/uptime helpers. |
+Each subsystem with an architecture deep-dive links to its @ref guides "Guide" in
+the last column.
+
+| Subsystem    | Path         | Responsibility | Guide |
+|--------------|--------------|----------------|-------|
+| **HAL**      | `hal/`       | Unified platform interface (clocks, memory ordering, stack/PLC introspection, serial). `simulator.h` and `opta.h` implement it. | - |
+| **Scheduler**| `scheduler/` | Non-blocking fixed-period loop driver with overrun handling; delegates CPU-load, jitter, and stack-usage metrics to `PerfMonitor`. | @ref md_docs_2SCHEDULER__PERF "Scheduler & Perf" |
+| **Terminal** | `terminal/`  | @ref Botanik::Terminal::AnsiTerminal drives a multiplexed page display; @ref Botanik::Terminal::InputParser decodes byte streams into events; @ref Botanik::Terminal::TextEditor is a byte-efficient line editor. | @ref md_docs_2EVENT__DISPATCH "Event Dispatch", @ref md_docs_2EDITOR__RECONCILE "Editor Reconcile" |
+| **Pages**    | `pages/`     | Full-screen views (`Shell`, `Logs`, `Home`, `Status`) behind a common @ref Botanik::Pages::Page interface. | @ref md_docs_2PAGES "Pages" |
+| **Logging**  | `logs/`      | @ref Botanik::Logs::Logger rate-limits with a dual token-bucket, then fans entries out to @ref Botanik::Logs::LogWriter "LogWriter"s. | @ref md_docs_2LOG__FLOW "Log Flow" |
+| **PLC I/O**  | `plcio/`     | @ref Botanik::PlcIO::PlcSyncHandler runs RX/TX state machines over shared memory with the PLC coprocessor; an emulator stands in for it on the simulator. | @ref md_docs_2PLC__SYNC "PLC Sync" |
+| **Utils**    | `utils/`     | `BufferedSerial` (ring-buffered UART), `PerfMonitor` (loop CPU-load / jitter / stack high-water instrumentation), and time/uptime helpers. | @ref md_docs_2SCHEDULER__PERF "Scheduler & Perf" |
 
 @section main_concepts Key concepts
 
@@ -33,7 +36,7 @@ covers driving the system over its terminal.
   bounded amount of work and returns immediately; the main loop calls them in a
   fixed order. Blocking would stall the RTOS and trip the watchdog on the OPTA.
 - **HAL-only platform access.** Code never calls `<time.h>` or platform APIs
-  directly — only `HAL::current_ms()`, `HAL::dsb()`, `HAL::ordered_copy()`, and
+  directly - only `HAL::current_ms()`, `HAL::dsb()`, `HAL::ordered_copy()`, and
   friends. This is what makes the simulator possible.
 - **PLC shared memory.** Host and PLC coprocessor communicate through shared
   memory using transactional read/write patterns and explicit ARM DSB barriers to
@@ -46,18 +49,15 @@ covers driving the system over its terminal.
   jitter, and stack high-water usage (the last via stack painting), surfaced live
   in the status bar and the `stats` shell command.
 
-@section main_architecture Architecture
+@section main_docs Documentation
 
-- @subpage md_docs_2EVENT__DISPATCH — how input events flow from the hardware
-  serial port to the active terminal page.
-- @subpage md_docs_2PAGES — the page hierarchy and the screen contract every
-  full-screen view shares.
-- @subpage md_docs_2LOG__FLOW — how a log entry travels from a call site through
-  rate limiting out to every sink.
-- @subpage md_docs_2EDITOR__RECONCILE — how the line editor repaints a multi-row
-  edit with the fewest bytes over the serial link.
-- @subpage md_docs_2SCHEDULER__PERF — the non-blocking fixed-period loop, overrun
-  handling, and the self-instrumented CPU/jitter/stack metrics.
-- @subpage md_docs_2PLC__SYNC — the shared-memory RX/TX state machines and the
-  transactional handshake with the PLC coprocessor.
+Beyond this API reference (the **Namespaces** and **Classes** tabs):
+
+- @subpage guides - architecture deep-dives, one per subsystem (also linked from
+  the Subsystems table above).
+- @subpage manual - operating the system over its serial terminal: key bindings
+  and the built-in shell commands.
+- @subpage targets - building and running each target (the Linux simulator and
+  the Arduino OPTA firmware).
+- @subpage testing - the unit test suite and the object-size budgets.
 */

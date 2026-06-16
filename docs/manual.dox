@@ -1,7 +1,7 @@
 /**
 @page manual Manual
 
-@brief Operating Botanik over its serial terminal — key bindings and usage.
+@brief Operating Botanik over its serial terminal - key bindings and usage.
 
 This is the user-facing manual for driving the system through its ANSI terminal:
 how to navigate pages, edit commands, and read the live displays. It grows as the
@@ -10,7 +10,7 @@ usage documentation to follow.
 
 @section manual_contents Contents
 
-- @subpage md_docs_2KEYBINDINGS — every key binding and the function it
+- @subpage md_docs_2KEYBINDINGS - every key binding and the function it
   dispatches to.
-- @subpage commands — the built-in shell commands (draft).
+- @subpage commands - the built-in shell commands (draft).
 */
