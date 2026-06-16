@@ -131,6 +131,14 @@ namespace Botanik { namespace HAL {
      *  after running any teardown hook registered through on_reset. */
     inline void reset();
 
+    /** @brief Shut the system down. Does not return. On the simulator this runs
+     *  any teardown hook registered through on_reset, then exits the process with
+     *  status @p code (default 0; atexit handlers run, so the console is restored).
+     *  Pass 128 + signo to report a signal-driven exit conventionally. On OPTA
+     *  there is no clean halt for firmware, so it falls back to reset() and @p code
+     *  is ignored. */
+    inline void shutdown(int code = 0);
+
     /** @brief Persist the active UI page index for restore after reset(). The
      *  simulator re-exec carries it across the reboot; on OPTA a reset clears RAM,
      *  so this is a no-op and the board returns on the default page. */

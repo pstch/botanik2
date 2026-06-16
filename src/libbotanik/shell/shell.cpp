@@ -46,7 +46,7 @@ namespace Botanik { namespace Shell {
         int  n = 0;
 
         if (len == 4 && strncmp(cmd, "help", 4) == 0) {
-            n = snprintf(out, sizeof(out), "Commands: help, clear, stats, breakpoint, reset");
+            n = snprintf(out, sizeof(out), "Commands: help, clear, stats, breakpoint, reset, exit");
         } else if (len == 5 && strncmp(cmd, "clear", 5) == 0) {
             _output.clear();
             return;
@@ -55,6 +55,9 @@ namespace Botanik { namespace Shell {
             return;
         } else if (len == 5 && strncmp(cmd, "reset", 5) == 0) {
             HAL::reset();  // reboots the firmware; does not return
+            return;
+        } else if (len == 4 && strncmp(cmd, "exit", 4) == 0) {
+            HAL::shutdown();  // simulator: clean exit(0); OPTA: reboots. Does not return
             return;
         } else if (len == 5 && strncmp(cmd, "stats", 5) == 0) {
             Scheduler::SchedulerContext* ctx = _terminal.context().scheduler;

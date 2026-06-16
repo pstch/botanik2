@@ -148,4 +148,8 @@ void start_greenhouse_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   share
 
 // Graceful-shutdown plumbing for the simulator process (see simulator.h).
 volatile sig_atomic_t botanik_running = 1;
-extern "C" void botanik_sim_shutdown(int) { botanik_running = 0; }
+volatile sig_atomic_t botanik_shutdown_signo = 0;
+extern "C" void botanik_sim_shutdown(int signo) {
+    botanik_shutdown_signo = signo;
+    botanik_running = 0;
+}

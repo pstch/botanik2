@@ -27,14 +27,9 @@
 /** @name Signal handlers
  *  @{ */
 
-/** @brief Single-instance storage for the terminal settings captured before
- *  entering raw mode. Returns a pointer (not a reference): @c struct @c termios is
- *  a C type, so a pointer return keeps the @c extern @c "C" linkage valid - which
- *  the signal-handler call chain below requires (a non-C-linkage handler callee is
- *  ill-formed before C++17). */
+/** @brief Pre-raw-mode terminal settings. Pointer return (not reference) keeps
+ *  the extern "C" linkage the signal-handler call chain needs. */
 extern "C" inline struct termios* botanik_saved_console_termios() {
-    // Initialized once by setup_raw_console() at startup, never from signal
-    // context, so the C++ init guard is never exercised during a handler.
     static struct termios saved;  // NOLINT(bugprone-signal-handler)
     return &saved;
 }
@@ -44,10 +39,8 @@ extern "C" inline void botanik_restore_console() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, botanik_saved_console_termios());
 }
 
-/** @brief Signal handler that restores the terminal before exiting, so a
- *  Ctrl+C or crash doesn't leave the user's shell in raw mode. Async-signal-safe:
- *  tcsetattr (via botanik_restore_console) is on the POSIX safe list, and _exit
- *  avoids the non-safe atexit/stdio flush that exit() would run. */
+/** @brief Restore the terminal before exiting so Ctrl+C or a crash doesn't leave
+ *  the shell in raw mode. Async-signal-safe (tcsetattr + _exit). */
 extern "C" inline void botanik_console_signal_handler(int) {
     botanik_restore_console();
     _exit(0);
@@ -100,9 +93,8 @@ namespace Botanik { namespace HAL {
         return 0;
     }
 
-    /** @brief Total allocated stack size for the calling thread.
-     *  @note Must NOT return base - current_sp (that is the used amount, not
-     *  the depth). */
+    /** @brief Total allocated stack size for the calling thread (not the used
+     *  amount). */
     inline uint32_t get_stack_depth() {
         pthread_t self = pthread_self();
         pthread_attr_t attr;
@@ -205,9 +197,9 @@ namespace Botanik { namespace HAL {
         uint32_t _baud = 0;
         /** @brief Earliest time (us) the next write may proceed. */
         uint64_t _next_write_us = 0;
-        /** @brief Whether _fd_out is a terminal. False for a file/pipe sink, in
-         *  which case the UART model (baud throttle + TIOCOUTQ) is bypassed so
-         *  redirected output (e.g. `botanik_sim > log.txt`) actually drains. */
+        /** @brief Whether _fd_out is a terminal. False for a file/pipe sink, where
+         *  the UART model (baud throttle + TIOCOUTQ) is bypassed so redirected
+         *  output actually drains. */
         bool _out_is_tty = false;
 
         /** @} */
@@ -239,15 +231,12 @@ namespace Botanik { namespace HAL {
         }
 
         /** @brief Write a single byte.
-         *  @return 1 on success, or 0 if the byte could not be sent (the fd is
-         *  non-blocking, so a full kernel buffer returns EAGAIN; the byte stays
-         *  queued and the baud throttle is not advanced). */
+         *  @return 1 on success, or 0 if it couldn't be sent (non-blocking fd: a
+         *  full kernel buffer returns EAGAIN, the byte stays queued and the baud
+         *  throttle isn't advanced). */
         inline size_t write(uint8_t c) {
             if (_fd_out == -1) return 0;
             ssize_t n = ::write(_fd_out, &c, 1);
-            // Non-blocking fd: a full kernel buffer returns EAGAIN (n < 0). Report
-            // no progress so the byte stays queued, and don't advance the baud
-            // throttle since nothing was actually sent.
             if (n <= 0) return 0;
             if (_baud > 0) {
                 _next_write_us = _now_as<std::chrono::microseconds>() + 10000000ULL / _baud;
@@ -261,23 +250,15 @@ namespace Botanik { namespace HAL {
         inline void set_fds(int in, int out) {
             _fd_in = in;
             _fd_out = out;
-            // Note whether the output end is an interactive terminal: a redirected
-            // file or pipe has no UART to model, so availableForWrite() skips the
-            // tty-only TIOCOUTQ (which would fail with ENOTTY and wedge TX) and the
-            // baud throttle.
             _out_is_tty = (_fd_out != -1) && (::isatty(_fd_out) == 1);
-            // Both ends non-blocking so neither a stalled reader nor a full output
-            // buffer can block the main loop (which would show up as overruns).
             if (_fd_in != -1) {
                 int flags = fcntl(_fd_in, F_GETFL, 0);
                 fcntl(_fd_in, F_SETFL, flags | O_NONBLOCK);
             }
             if (_fd_out != -1) {
                 int flags = fcntl(_fd_out, F_GETFL, 0) | O_NONBLOCK;
-                // Redirected to a file/pipe: force append so every write lands at
-                // the end of the sink regardless of how it was redirected (2> vs
-                // 2>>) and concurrent writers can't clobber each other. A tty has
-                // no meaningful append, so leave it untouched.
+                // File/pipe sink: append so writes always land at the end and
+                // concurrent writers can't clobber each other. No-op for a tty.
                 if (!_out_is_tty) flags |= O_APPEND;
                 fcntl(_fd_out, F_SETFL, flags);
             }
@@ -300,17 +281,13 @@ namespace Botanik { namespace HAL {
          *  throttle is holding off the next write). */
         inline int availableForWrite() {
             if (_fd_out == -1) return 0;
-            // File/pipe sink: no UART to model. Report the full simulated buffer so
-            // the TX ring drains as fast as the sink accepts bytes - without this,
-            // TIOCOUTQ below fails with ENOTTY and TX never makes progress.
+            // File/pipe sink: no UART to model, so report a full buffer (TIOCOUTQ
+            // would fail with ENOTTY and wedge TX).
             if (!_out_is_tty) return 64;
             if (_baud > 0 && _next_write_us > _now_as<std::chrono::microseconds>()) return 0;
             int pending_bytes = 0;
-            // TIOCOUTQ gives us the number of bytes currently in the output buffer
-            // (tty-only; non-tty sinks are handled above).
             if (::ioctl(_fd_out, TIOCOUTQ, &pending_bytes) < 0) return 0;
-            // simulate a small UART buffer
-            int space = 64 - pending_bytes;
+            int space = 64 - pending_bytes;  // small simulated UART buffer
             return (space < 0) ? 0 : space;
         }
 
@@ -351,10 +328,8 @@ namespace Botanik { namespace HAL {
      *  disable canonical mode and echo, make reads non-blocking, and register
      *  atexit/signal handlers that restore the original settings on exit. */
     inline void setup_raw_console() {
-        // Only meaningful for an interactive terminal. When stdin is a file or
-        // pipe (sim driven from a script, or run headless for debugging) there is
-        // nothing to put into raw mode and tcgetattr/tcsetattr would just fail with
-        // ENOTTY - skip it. No restore handlers are needed since we change nothing.
+        // Only meaningful for an interactive terminal; on a file/pipe stdin
+        // tcgetattr/tcsetattr fail with ENOTTY and there's nothing to restore.
         if (::isatty(STDIN_FILENO) != 1) return;
         struct termios& saved = *botanik_saved_console_termios();
         tcgetattr(STDIN_FILENO, &saved);
@@ -363,7 +338,9 @@ namespace Botanik { namespace HAL {
         signal(SIGTERM, botanik_console_signal_handler);
         signal(SIGSEGV, botanik_console_signal_handler);
         struct termios raw = saved;
-        raw.c_lflag &= ~(ICANON | ECHO);
+        // Clear ISIG so the app sees Ctrl-C/Z/\ as raw bytes (it decodes them as
+        // InputEvents) rather than as signals. Restore handlers still fire on exit.
+        raw.c_lflag &= ~(ICANON | ECHO | ISIG);
         raw.c_cc[VMIN]  = 0;
         raw.c_cc[VTIME] = 0;
         tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
@@ -374,9 +351,8 @@ namespace Botanik { namespace HAL {
     /** @name System lifecycle
      *  @{ */
 
-    /** @brief Slot holding the argv captured at startup, for re-exec on reset().
-     *  The C runtime keeps argv (and its strings) alive for the whole process, so
-     *  storing the pointer is enough - no copy needed. */
+    /** @brief argv captured at startup, for re-exec on reset(). The C runtime
+     *  keeps argv alive for the whole process, so storing the pointer is enough. */
     inline char*** _reboot_argv() { static char** argv = nullptr; return &argv; }
 
     /** @brief Capture argv at the top of main() so reset() can re-exec with the
@@ -389,17 +365,14 @@ namespace Botanik { namespace HAL {
     /** @brief Slot holding the optional reset hook (a single registrant today). */
     inline ResetHook* _reset_hook() { static ResetHook hook = nullptr; return &hook; }
 
-    /** @brief Register a teardown hook invoked by reset() before re-exec. Lets a
-     *  subsystem (e.g. the PlcIO emulator thread) join/clean up first without HAL
-     *  taking a dependency on it - the subsystem reaches up into HAL, not vice
-     *  versa. Simulator-only. */
+    /** @brief Register a teardown hook invoked by reset() before re-exec, letting a
+     *  subsystem (e.g. the PlcIO emulator thread) clean up first without HAL
+     *  depending on it. Simulator-only. */
     inline void on_reset(ResetHook hook) { *_reset_hook() = hook; }
 
-    /** @brief Persist the active UI page index so a reset() re-exec lands back on
-     *  it rather than the default page. Stored in the environment, which execve
-     *  carries across the re-exec (see reset()). Simulator-only: an OPTA hardware
-     *  reset clears RAM, so the board legitimately comes back on the default page
-     *  (the OPTA backend makes this a no-op). */
+    /** @brief Persist the active UI page index in the environment so a reset()
+     *  re-exec lands back on it (execve carries it across). Simulator-only; an OPTA
+     *  reset clears RAM, so the OPTA backend makes this a no-op. */
     inline void save_active_page(uint8_t index) {
         char buf[4];
         snprintf(buf, sizeof(buf), "%u", (unsigned)index);
@@ -407,16 +380,21 @@ namespace Botanik { namespace HAL {
     }
 
     inline void reset() {
-        // Run the registered teardown (cooperative thread join, etc.) while the
-        // image is still intact, then replace the whole process: execve drops all
-        // threads and FDs atomically and re-enters main() with the original argv,
-        // giving a clean "reboot" with a fresh uptime clock.
+        // Run teardown while the image is intact, then execve to replace the
+        // process: drops all threads/FDs and re-enters main() with a fresh uptime.
         if (ResetHook hook = *_reset_hook()) hook();
         char** argv = *_reboot_argv();
         char*  fallback[] = { (char*)"/proc/self/exe", nullptr };  // if argv was never captured
         execve("/proc/self/exe", argv ? argv : fallback, environ);
         perror("reset: execve failed");  // only reached if the exec itself failed
         _exit(127);
+    }
+
+    inline void shutdown(int code) {  // default (0) declared in platform.h
+        // Run teardown, then exit normally so atexit (botanik_restore_console) takes
+        // the terminal out of raw mode. @p code: 0 for "exit", 128+signo on a signal.
+        if (ResetHook hook = *_reset_hook()) hook();
+        exit(code);
     }
 
     /** @} */

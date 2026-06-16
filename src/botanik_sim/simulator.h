@@ -131,8 +131,14 @@ void start_greenhouse_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   share
  *  sig_atomic_t is the async-signal-safe flag type. */
 extern volatile sig_atomic_t botanik_running;
 
-/** @brief SIGINT/SIGTERM handler: requests a graceful shutdown by clearing
- *  botanik_running. extern "C" so it can be installed with std::signal. */
+/** @brief Signal number that triggered the shutdown (0 = none yet). Recorded by
+ *  botanik_sim_shutdown() so main() can report the conventional 128 + signo exit
+ *  status. sig_atomic_t is the async-signal-safe type. */
+extern volatile sig_atomic_t botanik_shutdown_signo;
+
+/** @brief SIGINT/SIGTERM handler: requests a graceful shutdown by recording the
+ *  signal number and clearing botanik_running. extern "C" so it can be installed
+ *  with std::signal. */
 extern "C" void botanik_sim_shutdown(int);
 
 /** @} */

@@ -155,6 +155,13 @@ namespace Botanik { namespace HAL {
         NVIC_SystemReset();
     }
 
+    inline void shutdown(int /*code*/) {  // default (0) declared in platform.h
+        // Firmware has no clean "halt and return to OS" - there is no OS. The
+        // closest sane behaviour is to reboot, so shutdown mirrors reset here.
+        // There is no process exit status to carry, so @p code is ignored.
+        reset();
+    }
+
     /** @} */
 
     /** @name Hardware watchdog

@@ -236,8 +236,10 @@ int main(int argc, char** argv) {
     HAL::get_serial(HAL::CONSOLE)->begin(4800);
 
     // Graceful shutdown on Ctrl+C / SIGTERM: flip the run flag so the main loop
-    // breaks and main() returns cleanly. Overrides the HAL handler for these two
-    // signals; SIGSEGV stays with the HAL handler to restore the terminal on a crash.
+    // breaks and falls into HAL::shutdown() - the same exit path as the "exit"
+    // shell command (reset hook joins the emulator thread, then a clean exit).
+    // Overrides the HAL handler for these two signals; SIGSEGV stays with the HAL
+    // handler to restore the terminal on a crash.
     // NOLINT: botanik_sim_shutdown only assigns to a volatile sig_atomic_t - the
     // canonical async-signal-safe pattern - but its body lives in simulator.cpp,
     // so clang-tidy can't see across the TU boundary to confirm that.
@@ -341,5 +343,13 @@ int main(int argc, char** argv) {
 
         if (!botanik_running) break;
     }
+
+    // Reached only via the run flag (SIGINT/SIGTERM). Take the same exit path as
+    // the "exit" shell command: HAL::shutdown() runs the reset hook (which stops
+    // and joins the emulator thread before statics tear down under it) and then
+    // exits through atexit, restoring the console. Report the conventional
+    // 128 + signo status so a supervisor sees the signal-driven exit. Does not
+    // return; the trailing return keeps the compiler happy.
+    HAL::shutdown(128 + (int)botanik_shutdown_signo);
     return 0;
 }
