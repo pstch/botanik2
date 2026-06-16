@@ -430,6 +430,7 @@ namespace Botanik { namespace Terminal {
         }
         if (_pages[_page_index] != nullptr)
             _pages[_page_index]->deactivate();
+        uint8_t prev = _page_index;
         _page_index = index;
         // Page change: keep row 0; only the content area is cleared. Drop the bytes
         // still queued for the page we're leaving first - they'd paint onto the page
@@ -441,8 +442,16 @@ namespace Botanik { namespace Terminal {
         _hw_pos = {1, 0};
         _hw_at_eol = false;
         clear_to_eos();
-        // Redraw the status row so its left-hand page name reflects the new page.
-        draw_status_row();
+        // Only the tabs' active/inactive video changes on a switch - the names,
+        // their columns, and the metrics are all unchanged. Repaint just the two
+        // tabs that flip rather than rebuilding the whole bar: the one we left
+        // (now inactive/reverse) and the one we entered (now active/normal).
+        draw_status_tab(prev);
+        if (prev != index) draw_status_tab(index);
+        // The tx_discard above may have dropped a metrics update queued this same
+        // step; invalidate the diff cache so the next refresh repaints them. No
+        // bytes go out here - the on-screen metrics on row 0 survived the clear.
+        memset(_status_metrics_cache, 0, sizeof(_status_metrics_cache));
         // Cursor is hidden by default for every page; the one that wants it (the
         // shell editor) shows it from its focus(). Lazy, so a no-op when already off.
         set_cursor_visible(false);
@@ -453,15 +462,14 @@ namespace Botanik { namespace Terminal {
     // ------------------------------------------------------------------------
 
     void AnsiTerminal::draw_status_row() {
-        // Build right-side metrics string (fixed-width field, see STATUS_METRICS_LEN)
-        char metrics[STATUS_METRICS_LEN];
-        int mlen = _build_metrics(metrics, sizeof(metrics));
+        // The metrics field is fixed-width; update_status_metrics() paints its
+        // bytes below, so here we only need its width to know where they start.
+        constexpr uint16_t mlen = STATUS_METRICS_LEN - 1;  // drop the trailing NUL
 
-        // Keep the metrics cache in sync so update_status_metrics() won't re-draw immediately.
-        memcpy(_status_metrics_cache, metrics, (size_t)mlen);
-
-        // Save state
-        CursorPos saved_pos = _hw_pos;
+        // Save the attribute state; the cursor is *not* saved. Every caller
+        // (first-step bootstrap, Ctrl-L) repositions absolutely via focus()/
+        // redraw() right after, so restoring the cursor here would be a wasted
+        // move - we leave it parked in the metrics field instead.
         bool      saved_inv = _hw_inverted;
 
         // Draw full inverted row 0. Insert/replace mode is owned by write_chars
@@ -504,17 +512,54 @@ namespace Botanik { namespace Terminal {
             write_chars(spaces, chunk);
         }
 
-        // Right: metrics (truncate if terminal is very narrow)
-        uint16_t remaining = (_cols > _hw_pos.col) ? (_cols - _hw_pos.col) : 0;
-        uint16_t write_len = (uint16_t)std::min((int)remaining, mlen);
-        if (write_len > 0) write_chars(metrics, write_len);
+        // Right: invalidate the diff cache, then let update_status_metrics() paint
+        // the metrics. It is the single place that knows which fields are normal
+        // vs reverse video, and it already truncates on a narrow terminal.
+        memset(_status_metrics_cache, 0, sizeof(_status_metrics_cache));
+        update_status_metrics(/*restore_cursor=*/false);
 
-        // Restore state
+        // Restore only the reverse-video attribute (so the page content that
+        // follows paints in normal video). The cursor is intentionally left where
+        // the metrics paint parked it - the caller repositions absolutely.
         set_inverted(saved_inv);
-        move_to(saved_pos);
     }
 
-    void AnsiTerminal::update_status_metrics() {
+    void AnsiTerminal::draw_status_tab(uint8_t index) {
+        if (index >= _pages_len || _pages[index] == nullptr) return;
+
+        // Tab columns mirror draw_status_row()'s layout: three leading blanks,
+        // then one " NAME " (name length + 2) per registered page in order.
+        uint16_t col = 3;
+        for (uint8_t i = 0; i < index; i++) {
+            if (_pages[i] == nullptr) continue;
+            col += (uint16_t)(strlen(_pages[i]->name()) + 2);
+        }
+        const char* nm = _pages[index]->name();
+
+        // Save the attribute state only; the cursor is not saved. switch_to() draws
+        // the two flipped tabs back to back and then lets the incoming page's focus()
+        // reposition absolutely, so a per-tab cursor restore would just be a move to
+        // {1,0} that the very next draw_status_tab()/focus() immediately overrides.
+        bool      saved_inv = _hw_inverted;
+
+        move_to({0, col});
+        // Active tab in normal video, every other tab reverse video. Force the SGR
+        // to actually emit: switch_to()'s preceding tx_discard() can leave the
+        // tracked _hw_inverted out of step with the terminal, which would turn
+        // set_inverted() into a wrong no-op (same hazard draw_status_row() guards).
+        bool inv = (index != _page_index);
+        _hw_inverted = !inv;
+        set_inverted(inv);
+        write_chars(" ", 1);
+        write_chars(nm, (uint16_t)strlen(nm));
+        write_chars(" ", 1);
+
+        // Restore only the reverse-video attribute; the cursor is left at the end of
+        // the tab for the caller to reposition (see the save note above).
+        set_inverted(saved_inv);
+    }
+
+    void AnsiTerminal::update_status_metrics(bool restore_cursor) {
         char metrics[STATUS_METRICS_LEN];
         int mlen = _build_metrics(metrics, sizeof(metrics));
 
@@ -528,17 +573,25 @@ namespace Botanik { namespace Terminal {
         bool      saved_inv = _hw_inverted;
         bool      touched   = false;
 
+        // The whole bar is reverse video except the live readings - the plc
+        // status (columns 4..6), cpu (12..15) and stk (21..24) of the fixed-width
+        // string - drawn in normal video so they stand out. Coalesce changed cells
+        // into runs, breaking at that boundary so each run is uniformly one or the
+        // other.
         int i = 0;
         while (i < visible) {
             if (metrics[i] == _status_metrics_cache[i]) { ++i; continue; }
+            bool value = (i >= 4 && i <= 6) || (i >= 12 && i <= 15) || (i >= 21 && i <= 24);
             int j = i + 1;
-            while (j < visible && metrics[j] != _status_metrics_cache[j]) ++j;
-            // Only emit a run if the whole of it (move + optional invert + chars)
-            // fits; otherwise stop and retry the rest next refresh, leaving the
-            // cache for the unwritten cells stale so they are picked up again.
+            while (j < visible && metrics[j] != _status_metrics_cache[j] &&
+                   ((j >= 4 && j <= 6) || (j >= 12 && j <= 15) || (j >= 21 && j <= 24)) == value) ++j;
+            // Only emit a run if the whole of it (move + invert + chars) fits;
+            // otherwise stop and retry the rest next refresh, leaving the cache
+            // for the unwritten cells stale so they are picked up again.
             uint16_t run = (uint16_t)(j - i);
             if (tx_available() < (uint16_t)(run + 16)) break;
-            if (!touched) { set_inverted(true); touched = true; }
+            set_inverted(!value);
+            touched = true;
             move_to({0, (uint16_t)(metrics_col + i)});
             write_chars(metrics + i, run);
             memcpy(_status_metrics_cache + i, metrics + i, (size_t)run);
@@ -547,7 +600,12 @@ namespace Botanik { namespace Terminal {
 
         if (touched) {
             set_inverted(saved_inv);
-            move_to(saved_pos);
+            // Standalone (periodic) refreshes must put the cursor back where the
+            // active page left it. When draw_status_row drives us it passes
+            // restore_cursor=false: it is mid-rebuild and its caller repositions
+            // absolutely right after, so a restore here would just be a move with
+            // no write before the next move.
+            if (restore_cursor) move_to(saved_pos);
         }
     }
 
@@ -577,9 +635,9 @@ namespace Botanik { namespace Terminal {
         }
         unsigned cpu = (unsigned)lroundf(_ctx.scheduler->cpu_load_ema    * 100.0f);
         unsigned stk = (unsigned)lroundf(_ctx.scheduler->stack_usage_ema * 100.0f);
-        if (cpu > 9999) cpu = 9999;
-        if (stk > 999)  stk = 999;
-        return snprintf(buf, cap, "PLC:%s cpu:%4u%% stk:%3u%% ", plc_str, cpu, stk);
+        if (cpu > 999) cpu = 999;
+        if (stk > 999) stk = 999;
+        return snprintf(buf, cap, "PLC:%s cpu:%3u%% stk:%3u%% ", plc_str, cpu, stk);
     }
 
 }}

@@ -93,9 +93,9 @@ namespace Botanik { namespace Terminal {
         /** @brief Last status-metrics refresh (wall clock). */
         uint64_t            _status_last_ms = 0;
         /** @brief Visible width (+NUL) of the right-aligned status field
-         *  "PLC:xxx cpu:nnnn% stk:nnn% ". Both the build buffer and the diff cache
+         *  "PLC:xxx cpu:nnn% stk:nnn% ". Both the build buffer and the diff cache
          *  are sized from this one constant so they can never drift apart. */
-        static constexpr uint16_t    STATUS_METRICS_LEN = 28;
+        static constexpr uint16_t    STATUS_METRICS_LEN = 27;
         /** @brief Diff cache of the last drawn metrics (zero-init forces first draw). */
         char                         _status_metrics_cache[STATUS_METRICS_LEN] = {};
         /** @brief Free TX bytes required before a metrics refresh runs. A typical pass
@@ -226,8 +226,19 @@ namespace Botanik { namespace Terminal {
         /** @brief Redraw the always-visible status bar on row 0 */
         void draw_status_row();
 
-        /** @brief Refresh only the metrics portion of the status bar (skips if unchanged) */
-        void update_status_metrics();
+        /** @brief Redraw a single page tab in its current active/inactive video.
+         *
+         *  Repaints only " NAME " for page @p index at its fixed column, picking
+         *  reverse or normal video from whether it is the active page. Used by
+         *  switch_to() to flip just the two tabs that change on a page switch
+         *  instead of rebuilding the whole bar. */
+        void draw_status_tab(uint8_t index);
+
+        /** @brief Refresh only the metrics portion of the status bar (skips if
+         *  unchanged). @p restore_cursor returns the cursor to where it started, for
+         *  standalone periodic refreshes; draw_status_row passes false since it is
+         *  mid-rebuild and its caller repositions absolutely. */
+        void update_status_metrics(bool restore_cursor = true);
 
         /** @} */
 
