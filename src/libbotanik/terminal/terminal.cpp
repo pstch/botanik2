@@ -137,24 +137,26 @@ namespace Botanik { namespace Terminal {
         // tracking without emitting (caller already knows the hardware moved).
         bool ok = true;
         if (!skip) {
-            // Optimizations for short moves, otherwise goto_absolute
+            // Prefer a relative move whenever the cursor shares the target's row or
+            // column; goto_absolute is reserved for true diagonals. A single-axis
+            // relative hop is never longer than an absolute goto - the goto always
+            // carries both coordinates plus the ';' separator (>= 6 bytes), while
+            // CSI<n>C/D/A/B is <= 6 for any count under 1000 - so there is no delta
+            // at which absolute wins. target == _hw_pos already returned above, so
+            // the differing axis below is guaranteed non-zero.
             if (target.row == _hw_pos.row) { // Same row
                 if (target.col == 0) {
-                    ok = Ansi::move_row_start(_serial);
-                } else if (target.col < _hw_pos.col && (_hw_pos.col - target.col) < 4) {
+                    ok = Ansi::move_row_start(_serial);   // 1-byte CR beats CUB
+                } else if (target.col < _hw_pos.col) {
                     ok = Ansi::move_left(_serial, _hw_pos.col - target.col);
-                } else if (target.col > _hw_pos.col && (target.col - _hw_pos.col) < 4) {
-                    ok = Ansi::move_right(_serial, target.col - _hw_pos.col);
                 } else {
-                    ok = Ansi::goto_absolute(_serial, target);
+                    ok = Ansi::move_right(_serial, target.col - _hw_pos.col);
                 }
             } else if (target.col == _hw_pos.col) { // Same column
-                if (target.row < _hw_pos.row && (_hw_pos.row - target.row) < 4) {
+                if (target.row < _hw_pos.row) {
                     ok = Ansi::move_up(_serial, _hw_pos.row - target.row);
-                } else if (target.row > _hw_pos.row && (target.row - _hw_pos.row) < 4) {
-                    ok = Ansi::move_down(_serial, target.row - _hw_pos.row);
                 } else {
-                    ok = Ansi::goto_absolute(_serial, target);
+                    ok = Ansi::move_down(_serial, target.row - _hw_pos.row);
                 }
             } else if (target.col == 0 && target.row > _hw_pos.row
                        && (target.row - _hw_pos.row) < 4
