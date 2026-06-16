@@ -44,6 +44,10 @@ namespace Botanik { namespace Pages {
     void LogsPage::deactivate() {}
 
     void LogsPage::focus() {
+        // Park the cursor at the top of the log area so it's ready for the next
+        // log line. The redraw replay captures this as its resting place and
+        // restores it once the historical tail has drained.
+        _terminal.move_to({1, 0});
         _scrollback.begin_redraw((uint16_t)(_terminal.rows() - 1)); // rows 1..rows-1
     }
 
