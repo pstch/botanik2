@@ -1,10 +1,9 @@
 /**
  * @file simulator.cpp
- * @brief Mock greenhouse data source + emulator wiring for the simulator (see simulator.h).
+ * @brief Mock greenhouse data source + emulator wiring (see simulator.h).
  *
- * The floats here only shape the mock signal; the payload itself stays in the
- * PLC integer conventions documented in simulator.h and never carries a float on
- * the wire.
+ * The floats here only shape the mock signal; the payload keeps the PLC integer
+ * conventions from simulator.h and never carries a float on the wire.
  */
 
 #include "botanik_sim/simulator.h"
@@ -21,11 +20,8 @@ float frand() {
 }
 
 /**
- * @brief Random walk for a quantity that should mostly sit still.
- *
- * On most ticks @p v is returned untouched; with probability @p p it is nudged by
- * up to +/-@p step and clamped to [@p lo, @p hi]. Called every tick, this yields a
- * signal that holds a level for long stretches and only drifts on the odd tick.
+ * @brief Random walk for a quantity that should mostly sit still: with
+ * probability @p p, nudge @p v by up to +/-@p step, clamped to [@p lo, @p hi].
  */
 float drift(float v, float step, float lo, float hi, float p) {
     if (frand() < p) {
@@ -44,10 +40,8 @@ bool chance(float p) { return frand() < p; }
 /**
  * @brief Animate the greenhouse payload with plausible, mostly-steady values.
  *
- * Called from the emulator thread (~1 Hz). The signals are held in static state
- * that stays put from tick to tick and only takes the occasional random step, so
- * the pages show values that look settled and shift now and then - closer to a
- * real site than a constant oscillation. @p now_ms is the uptime in milliseconds.
+ * Called from the emulator thread (~1 Hz). State is held static so values settle
+ * and only drift now and then. @p now_ms is the uptime in milliseconds.
  */
 static void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
     const float t = (float)now_ms / 1000.0f;   // seconds - drives the irrigation walk
@@ -136,8 +130,7 @@ static void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
 }
 
 // Spawn the emulator thread bound to the shared PLC memory, with the greenhouse
-// fill hook above as its site payload animator. Keeps the fill hook and the
-// PlcIO plumbing private to this translation unit (see simulator.h).
+// fill hook above as its payload animator (see simulator.h).
 void start_greenhouse_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,
                                Botanik::PlcIO::PlcOutput<PlcOutputData_t>* shared_out,
                                Botanik::Logs::Logger*                      logger) {

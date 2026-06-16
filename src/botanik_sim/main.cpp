@@ -2,16 +2,11 @@
  * @file main.cpp
  * @brief Botanik simulator entry point.
  *
- * This file is the equivalent of an Arduino sketch: it wires the library
- * components together around a site-specific PLC payload. On OPTA this plumbing
- * lives in the .ino sketch; here it lives in main().
- *
- * The site payload layout and the simulator's mock data source live alongside in
- * simulator.h / simulator.cpp (on OPTA the payload type mirrors the PLC IDE's
- * generated type instead). The PLC shared memory is allocated as local statics
- * here, since the simulator owns it; on OPTA typed pointers come from
- * HAL::get_plc_input() / HAL::get_plc_output() and are validated against the
- * generated types.
+ * The equivalent of an Arduino sketch: it wires the library components together
+ * around a site-specific PLC payload (which lives in simulator.h/.cpp). On OPTA
+ * this plumbing lives in the .ino sketch and the PLC shared memory comes from
+ * HAL::get_plc_input()/get_plc_output(); here the simulator owns it as local
+ * statics.
  */
 
 #include "libbotanik.h"
@@ -22,9 +17,8 @@
 #include <cstdio>    // snprintf - page rendering
 #include <cstdlib>   // getenv/atoi - restore active page after reset
 
-// Pulled into scope to keep the page render lines readable (it is otherwise
-// spelled out on every numeric field below). See utils/text.h for why %f is
-// unavailable on the Mbed build.
+// Pulled into scope to keep the page render lines readable. See utils/text.h for
+// why %f is unavailable on the Mbed build.
 using Botanik::Utils::format_float;
 using Botanik::Utils::format_age;
 
@@ -60,11 +54,9 @@ public:
         : Botanik::Pages::StatusPage<PlcOutputData_t>(terminal, data) {}
 
 protected:
-    // Two-column body geometry. Rows 2..6 are the base system band; the four
-    // greenhouse groups sit below, each header preceded by a blank separator
-    // row. Left panel keeps to cols 2..36, right panel to cols 41..76, on an
-    // 80-column display. The right value column starts at col 54 so the 9-wide
-    // labels (e.g. "Humidif.:") clear it.
+    // Two-column body geometry on an 80-col display: left panel cols 2..36, right
+    // panel 41..76. R_VAL starts at col 54 so the 9-wide labels ("Humidif.:") clear
+    // it. Values below are kept fixed-width so columns never shift as they update.
     static constexpr uint16_t L_HDR = 2,  L_LBL = 3,  L_VAL = 13, L_W = 24;
     static constexpr uint16_t R_HDR = 41, R_LBL = 42, R_VAL = 54, R_W = 23;
     static constexpr uint16_t HDR_WL = 34, HDR_WR = 36;
@@ -102,8 +94,7 @@ protected:
         char buf[48];
         char fa[12], fb[12];
 
-        // Power (slots 10..13). Every number is fixed-width so the text after it
-        // (units, second voltage) never shifts column.
+        // Power (slots 10..13).
         snprintf(buf, sizeof(buf), "%s V (%s Hz)",
                  format_float(fa, sizeof(fa), d->grid_ac_mv / 1000.0, 1, 5),
                  format_float(fb, sizeof(fb), d->grid_freq_centi_hz / 100.0, 1, 4));
@@ -118,8 +109,7 @@ protected:
         _cell(12, 12, L_VAL, buf, L_W);
         _cell(13, 13, L_VAL, ups_str(d->ups_status), L_W);
 
-        // Climate (slots 14..18). Temperature and RH are fixed at three digits
-        // plus a decimal ("22.5 C", "60.2%") so each keeps a stable column.
+        // Climate (slots 14..18).
         snprintf(buf, sizeof(buf), "%s C  RH %s%%",
                  format_float(fa, sizeof(fa), d->ext_temp_c_centi / 100.0, 1, 4),
                  format_float(fb, sizeof(fb), d->ext_rh_centi_pct / 100.0, 1, 4));
@@ -132,17 +122,14 @@ protected:
                  format_float(fa, sizeof(fa), d->ceil_temp_c_centi / 100.0, 1, 4),
                  format_float(fb, sizeof(fb), d->ceil_rh_centi_pct / 100.0, 1, 4));
         _cell(16, 18, L_VAL, buf, L_W);
-        // Time since rain, in the largest sensible unit (s/m/h/d). Fixed width, so
-        // it never reflows as the age grows ("  0 s ago" = raining now). Clamped to
-        // a minute: it's a cold field (global refresh only), so past 60 s it would
-        // keep churning the diff for no real information - capped, it settles.
+        // Time since rain. Clamped to a minute so this cold field settles instead
+        // of churning the diff once it's past a minute.
         uint32_t rain_age = (d->rain_age_s < 60) ? d->rain_age_s : 60;
         _cell(17, 19, L_VAL, format_age(buf, sizeof(buf), rain_age), L_W);
         snprintf(buf, sizeof(buf), "%03u km/h", (unsigned)d->wind_peak_kmh);
         _cell(18, 20, L_VAL, buf, L_W);
 
-        // Irrigation (slots 19..21). Input is six digits with a space thousands
-        // separator ("001 234"); output is two digits.
+        // Irrigation (slots 19..21).
         unsigned wi = d->water_in_l;
         snprintf(buf, sizeof(buf), "%03u %03u L / %02u Lpm",
                  wi / 1000, wi % 1000, (unsigned)d->water_out_lpm);
@@ -152,8 +139,7 @@ protected:
         _cell(20, 11, R_VAL, buf, R_W);
         _cell(21, 12, R_VAL, d->current_tray ? tray_status_str(d->tray_status) : "-", R_W);
 
-        // Actuators (slots 22..26). The four-channel percents are width-3 so each
-        // channel keeps a stable column; the screen is a single three-digit percent.
+        // Actuators (slots 22..26).
         snprintf(buf, sizeof(buf), "A%3u%% B%3u%% C%3u%% D%3u%%",
                  d->window_a, d->window_b, d->window_c, d->window_d);
         _cell(22, 16, R_VAL, buf, R_W);
@@ -236,13 +222,10 @@ int main(int argc, char** argv) {
     HAL::get_serial(HAL::CONSOLE)->begin(4800);
 
     // Graceful shutdown on Ctrl+C / SIGTERM: flip the run flag so the main loop
-    // breaks and falls into HAL::shutdown() - the same exit path as the "exit"
-    // shell command (reset hook joins the emulator thread, then a clean exit).
-    // Overrides the HAL handler for these two signals; SIGSEGV stays with the HAL
-    // handler to restore the terminal on a crash.
-    // NOLINT: botanik_sim_shutdown only assigns to a volatile sig_atomic_t - the
-    // canonical async-signal-safe pattern - but its body lives in simulator.cpp,
-    // so clang-tidy can't see across the TU boundary to confirm that.
+    // breaks into HAL::shutdown() (same exit path as the "exit" command). SIGSEGV
+    // stays with the HAL handler to restore the terminal on a crash.
+    // NOLINT: the handler is async-signal-safe (assigns a volatile sig_atomic_t)
+    // but lives in simulator.cpp, so clang-tidy can't confirm it across TUs.
     std::signal(SIGINT,  botanik_sim_shutdown);   // NOLINT(bugprone-signal-handler)
     std::signal(SIGTERM, botanik_sim_shutdown);   // NOLINT(bugprone-signal-handler)
 
@@ -256,17 +239,14 @@ int main(int argc, char** argv) {
     Utils::BufferedSerial console_serial(HAL::get_serial(HAL::CONSOLE));
     Utils::BufferedSerial monitor_serial(HAL::get_serial(HAL::MONITOR));
 
-    // Logging. The monitor sink drops its output when stderr is an interactive
-    // terminal (the sim run without redirecting stderr), so the diagnostic log
-    // can't garble the console UI on stdout; redirect stderr to capture it.
+    // Logging. The monitor sink drops output when stderr is a terminal, so the
+    // diagnostic log can't garble the console UI; redirect stderr to capture it.
     Logs::Logger           logger;
     Logs::MonitorLogWriter monitor(monitor_serial);
 
     // Scheduler (constructed before the PLC layer and terminal so they can share
-    // its published loop timestamp). The loop "now" is owned and republished by
-    // the scheduler each tick; everyone else reads it through this pointer. The
-    // scheduler also measures the loop's own performance (CPU load, jitter, work
-    // duration, stack usage) and publishes it through the same context.
+    // its published loop timestamp via the pointer below). It also measures and
+    // publishes loop performance (CPU load, jitter, stack usage) on its context.
     Scheduler::LoopScheduler scheduler(Config::TASK_PERIOD_MS, &logger);
     uint32_t* timestamp_ms = &scheduler.context()->timestamp_ms;
 
@@ -318,10 +298,8 @@ int main(int argc, char** argv) {
     // -----------------------------------------------------------------------
 
     while (true) {
-        // tick() republishes the loop timestamp (via the scheduler context) when it
-        // releases a beat, so the steps below share a single "now". It also paints
-        // the free stack before releasing the tick, so the work below dirties the
-        // painted region for the next stack-usage scan.
+        // tick() republishes the loop "now" when it releases a beat (so the steps
+        // below share one timestamp) and paints the free stack for the usage scan.
         if (!scheduler.tick()) continue;
 
         console_serial.receive();
@@ -344,12 +322,9 @@ int main(int argc, char** argv) {
         if (!botanik_running) break;
     }
 
-    // Reached only via the run flag (SIGINT/SIGTERM). Take the same exit path as
-    // the "exit" shell command: HAL::shutdown() runs the reset hook (which stops
-    // and joins the emulator thread before statics tear down under it) and then
-    // exits through atexit, restoring the console. Report the conventional
-    // 128 + signo status so a supervisor sees the signal-driven exit. Does not
-    // return; the trailing return keeps the compiler happy.
+    // Reached only via the run flag (SIGINT/SIGTERM). HAL::shutdown() runs the
+    // reset hook (joins the emulator thread) and exits through atexit, restoring
+    // the console. Report 128 + signo so a supervisor sees the signal-driven exit.
     HAL::shutdown(128 + (int)botanik_shutdown_signo);
     return 0;
 }

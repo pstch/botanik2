@@ -402,12 +402,10 @@ namespace Botanik { namespace HAL {
     /** @name Hardware watchdog
      *  @{ */
 
-    // The watchdog state is written by the caller (kick/start/stop on the main
-    // thread) and read by watchdog_poll() on the emulator thread. volatile keeps
-    // the poll from caching the values, HAL::dsb() orders the timeout/last-kick
-    // pair - the codebase's lock-free idiom, no std::atomic. Safe as 64-bit
-    // volatile here because this is simulator-only (x86-64, where aligned 64-bit
-    // loads/stores are atomic); on OPTA the watchdog is the hardware peripheral.
+    // State is written on the main thread (kick/start/stop) and read by
+    // watchdog_poll() on the emulator thread, shared via the codebase's volatile +
+    // dsb() idiom (no std::atomic). 64-bit volatile is fine: simulator-only on
+    // x86-64, where aligned 64-bit loads/stores are atomic.
 
     /** @brief Watchdog timeout in ms; 0 means disabled/stopped. */
     inline volatile uint32_t& _wd_timeout_ms()   { static volatile uint32_t t = 0; return t; }
@@ -415,8 +413,8 @@ namespace Botanik { namespace HAL {
     inline volatile uint64_t& _wd_last_kick_ms() { static volatile uint64_t k = 0; return k; }
 
     inline void watchdog_start(uint32_t timeout_ms) {
-        _wd_last_kick_ms() = uptime_ms();  // seed the kick first...
-        dsb();                             // ...so a poll seeing the new timeout can't see a stale kick
+        _wd_last_kick_ms() = uptime_ms();  // seed kick before timeout, so a poll
+        dsb();                             // seeing the new timeout can't see a stale kick
         _wd_timeout_ms() = timeout_ms;
     }
 
@@ -429,13 +427,12 @@ namespace Botanik { namespace HAL {
     }
 
     /** @brief Service the watchdog, calling reset() if the timeout has lapsed.
-     *  Simulator-only; invoked from the emulator thread, whose cadence is
-     *  independent of the main loop - that independence is what lets the watchdog
-     *  fire even when the loop is wedged. */
+     *  Simulator-only; runs on the emulator thread so it can fire even when the
+     *  main loop is wedged. */
     inline void watchdog_poll() {
         uint32_t timeout = _wd_timeout_ms();
         if (timeout == 0) return;
-        dsb();                             // observe the timeout, then read the kick it was paired with
+        dsb();                             // read the kick paired with this timeout
         if (uptime_ms() - _wd_last_kick_ms() > timeout) reset();
     }
 

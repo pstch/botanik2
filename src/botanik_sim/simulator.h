@@ -17,9 +17,8 @@
 #include <csignal>   // sig_atomic_t - async-signal-safe shutdown flag
 #include <cstdint>
 
-// start_greenhouse_emulator() only takes pointers to the library's PLC
-// shared-memory types and a logger, so forward declarations suffice here; the
-// full definitions are pulled in by simulator.cpp.
+// Forward declarations suffice here (start_greenhouse_emulator() only takes
+// pointers); full definitions come in via simulator.cpp.
 namespace Botanik {
     namespace PlcIO { template<typename> struct PlcInput; template<typename> struct PlcOutput; }
     namespace Logs  { class Logger; }
@@ -106,15 +105,11 @@ static_assert(sizeof(PlcOutputData_t) % 4 == 0, "PlcOutputData_t must be 4-byte 
  *  @{ */
 
 /**
- * @brief Start the simulator's mock PLC coprocessor.
+ * @brief Start the simulator's mock PLC coprocessor: spawn the emulator thread
+ * bound to the shared PLC memory, animating the greenhouse payload (see
+ * simulator.cpp). On OPTA the real coprocessor plays this role.
  *
- * Spawns the emulator thread (PlcIO::start_emulator_thread) bound to the shared
- * PLC memory, with the site fill hook that animates the greenhouse payload with
- * plausible, time-varying values (see simulator.cpp). On OPTA the real
- * coprocessor plays this role, so there is no equivalent in the sketch.
- *
- * Must be called before the process is locked into realtime - see the start-order
- * note at the call site in main().
+ * Must be called before the process is locked into realtime (see the call site).
  */
 void start_greenhouse_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,
                                Botanik::PlcIO::PlcOutput<PlcOutputData_t>* shared_out,
@@ -125,20 +120,17 @@ void start_greenhouse_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   share
 /** @name Process lifecycle
  *  @{ */
 
-/** @brief Main-loop run flag: cleared by botanik_sim_shutdown() so the loop
- *  breaks and main() returns, running atexit (terminal restore) and any
- *  sanitizer exit-time checks instead of the process being killed mid-loop.
- *  sig_atomic_t is the async-signal-safe flag type. */
+/** @brief Main-loop run flag: cleared by botanik_sim_shutdown() so the loop breaks
+ *  and main() returns through atexit (terminal restore) rather than being killed
+ *  mid-loop. sig_atomic_t is the async-signal-safe flag type. */
 extern volatile sig_atomic_t botanik_running;
 
-/** @brief Signal number that triggered the shutdown (0 = none yet). Recorded by
- *  botanik_sim_shutdown() so main() can report the conventional 128 + signo exit
- *  status. sig_atomic_t is the async-signal-safe type. */
+/** @brief Signal that triggered the shutdown (0 = none), so main() can report the
+ *  conventional 128 + signo exit status. */
 extern volatile sig_atomic_t botanik_shutdown_signo;
 
-/** @brief SIGINT/SIGTERM handler: requests a graceful shutdown by recording the
- *  signal number and clearing botanik_running. extern "C" so it can be installed
- *  with std::signal. */
+/** @brief SIGINT/SIGTERM handler: records the signal and clears botanik_running.
+ *  extern "C" so it can be installed with std::signal. */
 extern "C" void botanik_sim_shutdown(int);
 
 /** @} */
