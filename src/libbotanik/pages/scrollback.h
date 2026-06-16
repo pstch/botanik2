@@ -23,7 +23,7 @@ namespace Botanik { namespace Pages {
      *
      * Layers a deferred, throttled redraw over a @ref LineBuffer of @p L lines: it
      * stores recent display lines for replay on redraw/page-switch, emitting at most
-     * SCROLLBACK_REDRAW_ROWS_PER_TICK rows per drain_redraw() so a full replay can't
+     * SCROLLBACK_ROWS_PER_TICK rows per drain_redraw() so a full replay can't
      * flood TX in one tick.
      *
      * The window is bottom-aligned within rows 1..log_rows (caller-supplied, since
@@ -86,7 +86,7 @@ namespace Botanik { namespace Pages {
         /** @brief Cancel a staged redraw without emitting its remaining rows */
         void cancel_redraw() { _redraw_i = UINT16_MAX; }
 
-        /** @brief Emit up to SCROLLBACK_REDRAW_ROWS_PER_TICK staged rows, stopping
+        /** @brief Emit up to SCROLLBACK_ROWS_PER_TICK staged rows, stopping
          *         early if the TX buffer can't fit another row. No-op when idle. */
         void drain_redraw(AnsiTerminal& terminal) {
             if (_redraw_i == UINT16_MAX) return;
@@ -95,7 +95,7 @@ namespace Botanik { namespace Pages {
             if (_redraw_i == 0) _redraw_saved = terminal.cursor_pos();
             // Emit a small batch per call, stopping early if a worst-case row won't
             // fit, so the replay can't overrun TX in one tick.
-            for (uint16_t k = 0; k < Config::SCROLLBACK_REDRAW_ROWS_PER_TICK
+            for (uint16_t k = 0; k < Config::SCROLLBACK_ROWS_PER_TICK
                                  && _redraw_i != UINT16_MAX; k++) {
                 if (terminal.tx_available() < (uint16_t)(terminal.cols() + 32)) break;
                 // Window row _redraw_i (0 = oldest shown) maps that many steps up

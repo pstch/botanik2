@@ -187,6 +187,62 @@ namespace Botanik { namespace Config {
 
 
     /**
+     * @name TX output pacing (cooperative buffer sharing)
+     *
+     * The TX ring drains to the wire at the link baud (~1 byte per baud/10 us), far
+     * slower than the main loop ticks. Interactive output (key echo, cursor moves)
+     * shares that one FIFO and cannot jump ahead of queued bytes, so echo latency is
+     * roughly (ring occupancy / wire rate). Bulk producers therefore only make
+     * progress while the ring is shallow, which keeps the interactive path and the
+     * status bar responsive. Two depth classes gate that; per-tick caps bound the
+     * burst once a gate is open. See docs/ for the full model.
+     * @{
+     */
+
+    /** @brief Cold-class depth gate (bytes). Logs, command output, cold metric
+     *  readings, draw_static and the focus replay only emit while
+     *  tx_used() <= this. It directly bounds worst-case echo latency
+     *  (~ this / wire_rate). Too low: cold output trickles and the wire can
+     *  under-feed under light load. Too high: typing lags behind a deeper backlog.
+     *  Must stay >= one wrapped line (~cols + escape overhead) or a line could never
+     *  pass the gate. Console default; Phase 2 derives it from baud x latency. */
+    static constexpr uint16_t CONSOLE_TX_COLD_DEPTH = 256;
+
+    /** @brief Hot-class depth gate (bytes). The per-second fields (a clock) only
+     *  emit while tx_used() <= this, i.e. near-empty, so the value shown is current
+     *  rather than queued stale behind a backlog. Kept well below the cold depth so
+     *  "hot" means "near idle". Too low (towards 0 = tx_empty): the clock skips ticks
+     *  under any residual TX (it self-corrects on the next cold refresh). Too high:
+     *  stale times queue and the clock lags. Hot output is droppable: a skipped tick
+     *  is simply carried by the next one. */
+    static constexpr uint16_t CONSOLE_TX_HOT_DEPTH = 32;
+
+    /** @brief Max live log / command rows painted per tick per page, once the cold
+     *  gate is open. Too low: backlogs clear slowly after the gate opens. Too high:
+     *  one tick overshoots the cold depth (each row ~cols + overhead) and spends more
+     *  loop time painting. The effective ceiling is min(this, wire capacity). */
+    static constexpr uint16_t LOG_ROWS_PER_TICK = 2;
+
+    /** @brief Max metric value cells emitted per tick (cold readings + the paced
+     *  focus repaint / draw_static). Too low: a full repaint fills in over many ticks
+     *  and a busy page may never settle before the next refresh. Too high: a refresh
+     *  dumps much of the page at once (latency + loop-time spike). With per-cell
+     *  diffing, steady-state refreshes emit few cells, so this mostly bounds repaints
+     *  and large-change bursts. */
+    static constexpr uint16_t METRIC_FIELDS_PER_TICK = 4;
+
+    /** @brief Max decoded input events handled per tick. Too low: paste / fast typing
+     *  / held keys feel sluggish and the RX ring can back up. Too high: a big paste
+     *  echoes a large burst in one tick (fills the ring, competes with itself) plus
+     *  more loop time. Each event may emit direct echo, so this indirectly bounds
+     *  per-tick interactive TX; heavy intercepts (Ctrl-L / page switch) break the loop
+     *  regardless. */
+    static constexpr uint16_t INPUT_EVENTS_PER_TICK = 4;
+
+    /** @} */
+
+
+    /**
      * @name Shell Parameters
      * @{
      */
@@ -214,7 +270,7 @@ namespace Botanik { namespace Config {
     static constexpr uint16_t SCROLLBACK_LINE_LEN      = 256;
 
     /** @brief Max scrollback rows redrawn per tick() during deferred replay */
-    static constexpr uint16_t SCROLLBACK_REDRAW_ROWS_PER_TICK  = 1;
+    static constexpr uint16_t SCROLLBACK_ROWS_PER_TICK  = 1;
 
     /** @brief Continuation prefix for wrapped command-output rows. */
     static constexpr const char* SHELL_CONT_PREFIX = "> ";
