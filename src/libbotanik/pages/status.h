@@ -74,7 +74,6 @@ namespace Botanik { namespace Pages {
         }
 
         void draw_dynamic() override {
-            // Cold fields only: the wall clock and uptime are hot (see draw_hot()).
             const SystemContext& ctx = _terminal.context();
             char buf[40];
             char fa[12], fb[12];
@@ -88,11 +87,6 @@ namespace Botanik { namespace Pages {
                          Utils::format_float(fb, sizeof(fb), ctx.scheduler->cpu_loop_us_max / 1000.0, 2, 6));
                 _cell(5, 5, L_VAL, buf, L_W);
             }
-
-            snprintf(buf, sizeof(buf), "TX %4u/%u  RX %3u/%u",
-                     _terminal.tx_used(), AnsiTerminal::tx_capacity(),
-                     _terminal.rx_used(), AnsiTerminal::rx_capacity());
-            _cell(6, 6, L_VAL, buf, L_W);
 
             // Right column: runtime/scheduler stats ------------------------
             if (ctx.scheduler) {
@@ -125,6 +119,13 @@ namespace Botanik { namespace Pages {
 
             fmt_uptime(buf, sizeof(buf), HAL::uptime_ms());
             _cell(R_SLOT0, 3, R_VAL, buf, R_W, false);
+
+            // Serial buffer depths: change often enough to want the per-second
+            // refresh, but settle between bursts, so keep the change highlight.
+            snprintf(buf, sizeof(buf), "TX %4u/%u  RX %3u/%u",
+                     _terminal.tx_used(), AnsiTerminal::tx_capacity(),
+                     _terminal.rx_used(), AnsiTerminal::rx_capacity());
+            _cell(6, 6, L_VAL, buf, L_W);
         }
 
         /** @brief Site-specific labels/headers (drawn once). Base: no-op. */
