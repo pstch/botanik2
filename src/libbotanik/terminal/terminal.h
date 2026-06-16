@@ -241,6 +241,18 @@ namespace Botanik { namespace Terminal {
         /** @brief True when the serial TX buffer has been fully flushed to the wire */
         bool tx_empty() const;
 
+        /** @brief Fit check: true if @p need bytes can still be written right now.
+         *  For all-or-nothing reserves (the status bar, any reserve-then-emit). */
+        bool tx_ready(uint16_t need) const { return tx_available() >= need; }
+
+        /** @brief Depth gate: true while the TX ring holds at most @p depth bytes.
+         *  Cooperative bulk writers only make progress while the ring is this shallow,
+         *  so interactive output and the status bar stay responsive (echo latency is
+         *  ~ occupancy / wire_rate). Read live at each check, never snapshotted: the
+         *  gate is feedback control on the real ring depth, and a concurrent drain
+         *  only ever frees space, so a live read is at worst conservative. */
+        bool tx_below(uint16_t depth) const { return tx_used() <= depth; }
+
         /** @brief Bytes currently queued in the serial RX ring buffer */
         uint16_t rx_used() const { return _serial.available(); }
 
