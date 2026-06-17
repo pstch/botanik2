@@ -175,6 +175,8 @@ namespace Botanik { namespace PlcIO {
         PlcRxState             _rx_state      = RX_IDLE;
         /** @brief TX state-machine state. */
         PlcTxState             _tx_state      = TX_WRITE;
+        /** @brief Count of RX snapshots discarded as torn (PLC bumped seq mid-copy). */
+        uint32_t               _rx_torn       = 0;
 
         /** @} */
 
@@ -206,6 +208,8 @@ namespace Botanik { namespace PlcIO {
         const OutputData* output_data() const { return &_rx_data_buffer; }
         /** @brief Transmit buffer staged for the PLC input payload. */
         InputData*        input_data()        { return &_tx_data_buffer; }
+        /** @brief Count of RX snapshots discarded as torn (handshake violations). */
+        uint32_t          rx_torn_count() const { return _rx_torn; }
 
         /** @} */
 
@@ -214,9 +218,13 @@ namespace Botanik { namespace PlcIO {
 
         /** @brief Advance both state machines once; call per tick. */
         inline void step() {
+            // Coherency: drop any stale cached view of the PLC-written region before
+            // we poll/copy it, and flush our writes to the host-written region after.
+            HAL::cache_invalidate(_plcout, sizeof(*_plcout));
             _rx_state = _rx_step();
             _tx_state = _tx_step();
             _ctx._log_status_change();
+            HAL::cache_clean(_plcin, sizeof(*_plcin));
         }
 
         /** @} */
@@ -236,12 +244,12 @@ namespace Botanik { namespace PlcIO {
         /** @name Transition triggers
          *  @{ */
 
-        inline bool _rx_new_message()      { return _plcout->sync.txSeqNum != _plcin->sync.txAckNum; }
+        inline bool _rx_new_message()      { return HAL::ordered_read(&_plcout->sync.txSeqNum) != _plcin->sync.txAckNum; }
         inline bool _tx_heartbeat_elapsed(){ return *_ctx._timestamp_ms - _ctx._tx_last_ms > _heartbeat_ms; }
         // Re-pulse a commit left unacked for a whole heartbeat (TX_WAIT recovery).
         inline bool _tx_recommit_elapsed() { return *_ctx._timestamp_ms - _tx_commit_ms > _heartbeat_ms; }
         inline bool _tx_acknowledged() {
-            bool result = _plcout->sync.rxAckNum == _plcin->sync.rxSeqNum;
+            bool result = HAL::ordered_read(&_plcout->sync.rxAckNum) == _plcin->sync.rxSeqNum;
             if (result) { _ctx._tx_last_ms = *_ctx._timestamp_ms; _ctx._ever_ackd = true; }
             return result;
         }
@@ -251,10 +259,16 @@ namespace Botanik { namespace PlcIO {
         /** @name Transition actions
          *  @{ */
 
-        inline void _rx_memcpy() {
-            HAL::dsb();  // acquire: order payload reads after the txSeqNum read
+        // Copy the PLC payload into local buffers. Returns false if the PLC bumped
+        // its sequence during the copy (it overwrote the payload mid-read, so the
+        // snapshot may be torn). The seq_before read also acts as the acquire,
+        // ordering the payload copy after it.
+        inline bool _rx_memcpy() {
+            uint32_t seq_before = HAL::ordered_read(&_plcout->sync.txSeqNum);
             HAL::ordered_copy(&_ctx._rx_logs_buffer, &_plcout->logs);
             HAL::ordered_copy(&_rx_data_buffer, &_plcout->data);
+            HAL::cache_invalidate(&_plcout->sync, sizeof(_plcout->sync));  // re-read from SRAM
+            return HAL::ordered_read(&_plcout->sync.txSeqNum) == seq_before;
         }
         inline void _tx_memcpy() {
             HAL::ordered_copy(&_plcin->logs, &_ctx._tx_logs_buffer);
@@ -278,7 +292,11 @@ namespace Botanik { namespace PlcIO {
         inline PlcRxState _rx_step() {
             switch (_rx_state) {
                 case RX_IDLE:   if (_rx_new_message())      return RX_READ; break;
-                case RX_READ:   _rx_memcpy();               return RX_ACK;  break;
+                case RX_READ:
+                    if (_rx_memcpy()) return RX_ACK;
+                    _rx_torn++;       // torn snapshot: discard, do not ack, re-read next tick
+                    if (_ctx._logger) _ctx._logger->warning(PLC_IO, "PLC RX torn read discarded (seq changed mid-copy)");
+                    return RX_IDLE;
                 case RX_ACK:    _rx_acknowledge();          return RX_IDLE; break;
             }
             return _rx_state;

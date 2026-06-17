@@ -159,10 +159,10 @@ namespace Botanik { namespace PlcIO {
         /** @name Transition triggers
          *  @{ */
 
-        inline bool _rx_new_message()       { return _plcin->sync.rxSeqNum != _plcout->sync.rxAckNum; }
+        inline bool _rx_new_message()       { return HAL::ordered_read(&_plcin->sync.rxSeqNum) != _plcout->sync.rxAckNum; }
         inline bool _tx_heartbeat_elapsed() { return *_ctx._timestamp_ms - _ctx._tx_last_ms > _heartbeat_ms; }
         inline bool _tx_acknowledged() {
-            bool result = _plcin->sync.txAckNum == _plcout->sync.txSeqNum;
+            bool result = HAL::ordered_read(&_plcin->sync.txAckNum) == _plcout->sync.txSeqNum;
             if (result) { _ctx._tx_last_ms = *_ctx._timestamp_ms; _ctx._ever_ackd = true; }
             return result;
         }

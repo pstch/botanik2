@@ -13,29 +13,36 @@ screen, classes stay small, short client-readable comments.
 
 ## Block 0 - Cross-core correctness (hardware-critical, do first)
 
-- [ ] `[C1]` Fix `ordered_copy` word/byte count. `hal/opta.h:122` passes
+- [x] `[C1]` Fix `ordered_copy` word/byte count. `hal/opta.h` passed
   `sizeof(T)` (bytes) where `ARM_MPU_OrderedMemcpy` wants a **word** count, so
-  every PLC transfer copies 4x and runs off the end of both buffers on hardware.
-  - Change to `sizeof(T) / sizeof(uint32_t)`.
-  - Add `static_assert(sizeof(T) % sizeof(uint32_t) == 0)` inside `ordered_copy`
-    and `ordered_move` (catches this class at compile time).
-  - Invisible on the simulator (its path uses a correct `memcpy`), so verify by
-    reasoning / the OPTA stub test, not the sim.
+  every PLC transfer copied 4x and ran off the end of both buffers on hardware.
+  - DONE: now `sizeof(T) / sizeof(uint32_t)`.
+  - DONE: `static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t)
+    == 0)` in `ordered_copy` and `ordered_move`, in **both** backends so the
+    normally-compiled sim build enforces the contract too. The `is_empty`
+    exemption covers genuinely-empty payloads (copy 0 words).
+  - The assert immediately caught a real latent issue: the sim's empty
+    `PlcInputData_t {}` is `sizeof 1` (not word-multiple); harmless (no data) and
+    now exempted. Site payloads with real data must stay word-multiple.
+  - Verified: green on both `build` (SIM) and `build-opta` (OPTA lib).
 
-- [ ] `[C2-FIX]` Add an ordered read primitive and stop reading cross-core
+- [x] `[C2-FIX]` Add an ordered read primitive and stop reading cross-core
   counters through plain loads.
-  - Add `HAL::dmb()` (lighter than `dsb()`: ordering, not completion) to the HAL
-    surface (`platform.h`, `opta.h` = `__DMB()`, `simulator.h` = fence).
-  - Add `HAL::ordered_read<T>(const volatile T*)` = volatile load + `dmb()`,
+  - DONE: `HAL::dmb()` added (`platform.h`, `opta.h` = `__DMB()`, `simulator.h` =
+    fence).
+  - DONE: `HAL::ordered_read<T>(const volatile T*)` = volatile load + `dmb()`,
     symmetric to `ordered_move`.
-  - Use it for the four sync counters (`txSeqNum`, `txAckNum`, `rxSeqNum`,
-    `rxAckNum`) and the two log cursors (`writeIndex`, `readIndex`) in
-    `plcio/sync.h` and `plcio/emulator.h`. Keep the bulk `data`/`logs` payloads
-    non-volatile (copied via `ordered_copy`).
-  - Rationale: the hazard is the compiler caching a non-volatile load across the
-    poll; volatile states intent locally without making the whole region volatile.
+  - DONE: used for the four sync-counter polls (`txSeqNum`, `rxAckNum` in
+    `sync.h`; `rxSeqNum`, `txAckNum` in `emulator.h`) and the host's log
+    `writeIndex` read in `logs.cpp`. Bulk `data`/`logs` stay non-volatile via
+    `ordered_copy`.
+  - Note: only ONE cross-core log cursor exists - the emulator is the sole log
+    producer (writes its own `writeIndex`, never polls `readIndex`), so the
+    "two cursors" estimate was high.
+  - Verified: green on both targets, 22 unit tests pass, sim reaches
+    "PLC link established".
 
-- [ ] `[CACHE]` D-cache coherency for the PLC shared region. We run on the **M7**
+- [x] `[CACHE]` D-cache coherency for the PLC shared region. We run on the **M7**
   (`__DCACHE_PRESENT`), the region may be cacheable and we cannot rely on the
   proprietary image toolchain mapping it non-cacheable.
   - Add `HAL::cache_clean(addr, len)` and `HAL::cache_invalidate(addr, len)` to
@@ -53,29 +60,54 @@ screen, classes stay small, short client-readable comments.
       `_tx_commit`, `_rx_acknowledge`).
     - Never invalidate a region we write to; read-region and write-region are
       disjoint (`PlcOutput` vs `PlcInput`).
+  - DONE: `HAL::cache_clean`/`cache_invalidate` (OPTA `SCB_*DCache_by_Addr`
+    guarded on `__DCACHE_PRESENT`, CMSIS rounds to lines; no-op on sim).
+    `alignas(32)` on `PlcInput`/`PlcOutput` in `vars.h`. Applied coarsely at the
+    component `step()` boundaries: `PlcSyncHandler::step()` invalidates `_plcout`
+    first / cleans `_plcin` last; `PlcLogReader::drain()` does the same for the
+    log sub-regions with a cheap empty-exit. Updated the `PlcOutput` size pin
+    (8648 -> 8672) and `test_sizes.cpp`'s combined-struct invariant (now
+    sum-of-parts rounded up to 32).
+  - Verified: both targets build (OPTA now compiles `botanik_fw`, exercising the
+    SCB calls + handler), 22 tests pass, sim reaches "PLC link established".
 
-- [ ] `[C3-FIX]` Torn-read diagnostic (no seqlock, no double buffer). The PLC
+- [x] `[C3-FIX]` Torn-read diagnostic (no seqlock, no double buffer). The PLC
   upholds mutual exclusion via the handshake (MOV block, ENABLE low until it
-  observes our ACK). After `_rx_memcpy`, re-read `txSeqNum`; if it changed during
-  the copy the snapshot may be torn - **count it and log a `PLC_IO` warning**,
-  discard the snapshot, do not ack. Diagnostic only, no retry loop.
+  observes our ACK).
+  - DONE: `_rx_memcpy()` now reads `txSeqNum` before the copy (which also serves
+    as the acquire), copies, invalidates the sync line, and re-reads `txSeqNum`;
+    on a mismatch RX_READ increments `_rx_torn`, logs a `PLC_IO` warning
+    (rate-limited by the logger), and returns to RX_IDLE without acking. Exposed
+    via `rx_torn_count()`. Diagnostic only, no retry loop.
+  - Verified: both targets build, 22 tests pass, sim link establishes with **zero
+    torn-read false positives** (the emulator honors the handshake).
 
-- [ ] `[C4]` Resilience to corrupted log entries (DMA, no integrity field by
+- [x] `[C4]` Resilience to corrupted log entries (DMA, no integrity field by
   design). A bad `LogEntry_t` must never crash or wedge us:
-  - Clamp `length` to the buffer and force-terminate before any use
-    (`plcio/logs.cpp`).
-  - `[DRAIN-BOUND]` Bound the drain loop in `plcio/logs.cpp:26` to at most
-    `LOG_PLC_BUFFER_SIZE` entries per `step()` so a runaway/corrupt `writeIndex`
-    cannot burn the whole tick budget.
+  - DONE: `_push_plc_entry` already clamps `length` to the buffer and NUL-
+    terminates; the read index is masked `% LOG_PLC_BUFFER_SIZE`, so a corrupt
+    cursor can't index out of bounds. Added a clamp on the `snprintf` return in
+    `_detect_dropped_entries` so a truncation can't record a length past the
+    buffer.
+  - DONE `[DRAIN-BOUND]`: the drain loop is now capped at `LOG_PLC_BUFFER_SIZE`
+    entries per `step()` (one full ring = the max legitimate backlog), so a
+    runaway/corrupt `writeIndex` can't burn the tick budget; real backlog is
+    caught next tick.
+  - Verified: both targets build, 22 tests pass, sim drains PLC logs normally.
 
-- [ ] `[ARCH-CONCURRENCY]` / `[SERIAL-DOC]` Pin down and document the concurrency
+- [x] `[ARCH-CONCURRENCY]` / `[SERIAL-DOC]` Pin down and document the concurrency
   model. Our code is single-threaded except for the **one** async boundary: the
   PLC shared memory (the HW watchdog is fire-and-forget). We have **no serial
   ISRs** in our code - `receive`/`transmit`/`step` are main-loop only.
-  - Delete the incorrect "may be called from an ISR" claim in `utils/serial.h`
-    and mark `BufferedSerial` (and the logger queue) explicitly **ISR-unsafe**.
-  - `tx_discard()` underflow-resilience stays as belt-and-suspenders, not a
-    necessity.
+  - DONE: deleted the incorrect "may be called from an ISR" claims in
+    `utils/serial.h` (class doc, `tx_discard` `@warning`, `step` `@note`); marked
+    `BufferedSerial` and `BufferedLogWriter` explicitly main-loop-only / not
+    ISR-safe.
+  - `tx_discard()` is safe as-is (single-store reset, all access main-loop); no
+    code change needed once the ISR premise is gone.
+  - The repo-level concurrency-model writeup remains `[CONCURRENCY-DOC]` in
+    Block 5.
+  - Verified: both targets build (comment-only changes).
 
 ---
 

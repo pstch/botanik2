@@ -55,6 +55,9 @@ namespace Botanik { namespace Logs {
      *
      * Derived classes supply format() and write(). This class handles queueing,
      * drop counting, and partial-send resumption across multiple drain() calls.
+     *
+     * Main-loop only (not ISR-safe): push() and drain() share the plain queue
+     * cursors, so every log call and drain must run on the main loop.
      */
     class BufferedLogWriter : public LogWriter {
     private:

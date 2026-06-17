@@ -24,14 +24,27 @@ namespace Botanik { namespace PlcIO {
     }
 
     void PlcLogReader::drain() {
-        while (*_writeIndex != *_readIndex) {
+        // Coherency: refresh the PLC's write cursor before checking it; bail cheaply
+        // when there's nothing new so we don't invalidate the whole ring every tick.
+        HAL::cache_invalidate(_writeIndex, sizeof(*_writeIndex));
+        if (HAL::ordered_read(_writeIndex) == *_readIndex) return;
+
+        HAL::cache_invalidate(_ctx->output_logs(), sizeof(PlcOutputLogs_t));
+        // Bound the work per tick to one full ring: that is the most the host can
+        // legitimately be behind, so a runaway or corrupt writeIndex can't spin
+        // here and burn the tick budget. Any real backlog is caught next tick.
+        uint32_t processed = 0;
+        while (processed < Config::LOG_PLC_BUFFER_SIZE
+               && HAL::ordered_read(_writeIndex) != *_readIndex) {
             uint32_t readIndex = *_readIndex % Config::LOG_PLC_BUFFER_SIZE;
             const LogEntry_t* entry = &_logBuffer[readIndex];
             _detect_dropped_entries(entry);
             _push_plc_entry(entry);
             *_readIndex = (*_readIndex + 1) % Config::LOG_PLC_BUFFER_SIZE;
             _ctx->write();
+            processed++;
         }
+        HAL::cache_clean(_ctx->input_logs(), sizeof(PlcInputLogs_t));  // publish readIndex
     }
 
     void PlcLogReader::step() {
@@ -51,9 +64,13 @@ namespace Botanik { namespace PlcIO {
             warn.timestamp = entry->timestamp;
             warn.level     = LOG_WARNING;
             warn.topic     = PLC_IO;
-            warn.length    = (uint16_t)snprintf(warn.message, sizeof(warn.message),
+            int n = snprintf(warn.message, sizeof(warn.message),
                 "%u PLC log entries dropped (seq %u..%u)",
                 (unsigned)dropped, (unsigned)expected, (unsigned)(entry->seqNum - 1));
+            // snprintf returns the would-be length: clamp so a truncation never
+            // records a length past the buffer.
+            if (n < 0) n = 0;
+            warn.length = (uint16_t)std::min(n, (int)sizeof(warn.message) - 1);
             _logger->push_entry(warn);
         }
         _last_seq = entry->seqNum;

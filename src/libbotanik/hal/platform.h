@@ -102,6 +102,10 @@ namespace Botanik { namespace HAL {
     /** @brief Ensure that all precedent explicit memory accesses are completed. */
     inline void dsb();
 
+    /** @brief Lighter ordering barrier than dsb(): orders explicit memory
+     *  accesses without waiting for completion. Used for cross-core counter polls. */
+    inline void dmb();
+
     /** @brief Copy a block of memory with hardware-enforced ordering. */
     template <typename T>
     inline void ordered_copy(T* dst, const T* src);
@@ -109,6 +113,21 @@ namespace Botanik { namespace HAL {
     /** @brief Atomically push a value into a memory location. */
     template<typename T>
     inline void ordered_move(T* dst, T src);
+
+    /** @brief Read a value the other core may be writing: a volatile load (never
+     *  cached in a register) plus dmb() for acquire ordering. */
+    template <typename T>
+    inline T ordered_read(const volatile T* src);
+
+    /** @brief Clean (write back) the D-cache over [addr, addr+len) after writing a
+     *  shared region, so the other core sees the data in SRAM. No-op without a
+     *  D-cache (simulator, or a Cortex-M4). Rounds to whole cache lines. */
+    inline void cache_clean(const void* addr, size_t len);
+
+    /** @brief Invalidate the D-cache over [addr, addr+len) before reading a shared
+     *  region, so a stale cached copy can't hide the other core's writes. No-op
+     *  without a D-cache. Rounds to whole cache lines. */
+    inline void cache_invalidate(const void* addr, size_t len);
 
     /** @} */
 

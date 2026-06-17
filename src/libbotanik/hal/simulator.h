@@ -15,6 +15,7 @@
 #include <chrono>
 #include <cstring>
 #include <cstdlib>
+#include <type_traits>
 #include <csignal>
 #include <atomic>
 #include <unistd.h>
@@ -191,20 +192,38 @@ namespace Botanik { namespace HAL {
         std::atomic_thread_fence(std::memory_order_seq_cst);
     }
 
+    inline void dmb() {
+        // The sim has no distinct lighter barrier; a full fence is a safe superset.
+        std::atomic_thread_fence(std::memory_order_seq_cst);
+    }
+
     template <typename T>
     inline void ordered_copy(T* dst, const T* src) {
         // Match the OPTA backend's word-multiple contract so the sim build catches violations.
-        static_assert(sizeof(T) % sizeof(uint32_t) == 0, "ordered_copy needs a word-multiple T");
+        static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
+                      "ordered_copy needs a word-multiple T");
         std::memcpy((void*)dst, (const void*)src, sizeof(T));
         dsb();
     }
 
     template<typename T>
     inline void ordered_move(T* dst, T src) {
-        static_assert(sizeof(T) % sizeof(uint32_t) == 0, "ordered_move needs a word-multiple T");
+        static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
+                      "ordered_move needs a word-multiple T");
         *dst = src;
         dsb();
     }
+
+    template <typename T>
+    inline T ordered_read(const volatile T* src) {
+        T value = *src;
+        dmb();
+        return value;
+    }
+
+    /// No D-cache on the host; the PLC region is plain memory.
+    inline void cache_clean(const void* addr, size_t len)      { (void)addr; (void)len; }
+    inline void cache_invalidate(const void* addr, size_t len) { (void)addr; (void)len; }
 
     /** @} */
 

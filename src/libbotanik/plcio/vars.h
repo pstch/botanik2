@@ -119,9 +119,14 @@ namespace Botanik { namespace PlcIO {
     // yields the intended layout. Data must be trivially copyable and naturally aligned
     // (and a multiple of 4 for a fully padding-free combined struct) so the PLC IDE's
     // generated types match byte-for-byte; the sketch's static_assert verifies this.
+    //
+    // alignas(32): the host (Cortex-M7) does D-cache clean/invalidate by address over
+    // these regions, so each must own its cache lines end to end. alignas(32) gives a
+    // 32-byte-aligned base and rounds sizeof up to a multiple of 32, so no neighbour
+    // ever shares a boundary line. The PLC IDE's generated types must match this.
     /** @brief Host->PLC shared region: sync counters, the log read cursor, and the site payload. */
     template<typename Data>
-    struct PlcInput {
+    struct alignas(32) PlcInput {
         PlcInputCounters_t  sync;
         PlcInputLogs_t      logs;
         Data                data;
@@ -129,7 +134,7 @@ namespace Botanik { namespace PlcIO {
 
     /** @brief PLC->host shared region: sync counters, the log ring, and the site payload. */
     template<typename Data>
-    struct PlcOutput {
+    struct alignas(32) PlcOutput {
         PlcOutputCounters_t sync;
         PlcOutputLogs_t     logs;
         Data                data;
