@@ -232,13 +232,23 @@ namespace Botanik { namespace Config {
      *  feels slow. */
     static constexpr uint16_t LOG_ROWS_PER_TICK = 1;
 
-    /** @brief Max metric value cells emitted per tick (cold readings + the paced
-     *  focus repaint / draw_static). Too low: a full repaint fills in over many ticks
-     *  and a busy page may never settle before the next refresh. Too high: a refresh
-     *  dumps much of the page at once (latency + loop-time spike). With per-cell
-     *  diffing, steady-state refreshes emit few cells, so this mostly bounds repaints
-     *  and large-change bursts. */
+    /** @brief Max cold metric value cells emitted per tick. Too low: a full refresh
+     *  fills in over many ticks and a busy page may never settle before the next
+     *  refresh. Too high: a refresh dumps much of the page at once (latency +
+     *  loop-time spike). With per-cell diffing, steady-state refreshes emit few cells,
+     *  so this mostly bounds repaints and large-change bursts. */
     static constexpr uint16_t METRIC_FIELDS_PER_TICK = 4;
+
+    /** @brief Max static elements (labels/headers/logo) emitted per tick. Its own
+     *  budget, separate from the cold cap, so the paced draw_static() pass and the
+     *  hot timestamp progress in parallel each tick rather than competing for one
+     *  budget. Larger fills the static layout in fewer ticks. */
+    static constexpr uint16_t STATIC_FIELDS_PER_TICK = 4;
+
+    /** @brief Max hot value cells (clock / uptime / serial) emitted per tick. Its own
+     *  budget so the per-second hot fields all repaint together each tick they fire,
+     *  independent of how much static or cold work the tick also did. */
+    static constexpr uint16_t HOT_FIELDS_PER_TICK = 4;
 
     /** @brief Max decoded input events handled per tick. Too low: paste / fast typing
      *  / held keys feel sluggish and the RX ring can back up. Too high: a big paste
