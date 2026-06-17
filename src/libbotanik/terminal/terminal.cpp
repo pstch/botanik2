@@ -482,9 +482,9 @@ namespace Botanik { namespace Terminal {
         _hw_inverted = false;
         set_inverted(true);
 
-        // Three blank columns, then one " NAME " tab per page. The bar is reverse
+        // One blank column, then one " NAME " tab per page. The bar is reverse
         // video; the active tab is drawn normal so it stands out.
-        write_chars("   ", 3);
+        write_chars(" ", 1);
         for (uint8_t i = 0; i < _pages_len; i++) {
             if (_pages[i] == nullptr) continue;
             const char* nm = _pages[i]->name();
@@ -524,9 +524,9 @@ namespace Botanik { namespace Terminal {
     void AnsiTerminal::draw_status_tab(uint8_t index) {
         if (index >= _pages_len || _pages[index] == nullptr) return;
 
-        // Tab columns mirror draw_status_row(): three leading blanks, then one
+        // Tab columns mirror draw_status_row(): one leading blank, then one
         // " NAME " (name length + 2) per page in order.
-        uint16_t col = 3;
+        uint16_t col = 1;
         for (uint8_t i = 0; i < index; i++) {
             if (_pages[i] == nullptr) continue;
             col += (uint16_t)(strlen(_pages[i]->name()) + 2);
