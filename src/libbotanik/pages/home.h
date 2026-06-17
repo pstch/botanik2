@@ -71,9 +71,7 @@ namespace Botanik { namespace Pages {
             uint16_t row = 1;
             for (const char* line : LOGO) {
                 if (row >= _terminal.rows()) return;
-                _terminal.move_to({row, 2});
-                _terminal.write_chars(line, (uint16_t)strlen(line));
-                _terminal.clear_to_eol();
+                _label(row, line);   // col 2 + clear-to-eol; paced via _static_step
                 row++;
             }
         }
@@ -82,8 +80,8 @@ namespace Botanik { namespace Pages {
          *  with a normal-video " LOGS " tab near the left. Static (drawn once). */
         void draw_log_header(uint16_t row) {
             if (row >= _terminal.rows()) return;
+            if (!_static_step()) return;     // paced as one static element
             uint16_t cols = _terminal.cols();
-            if (_terminal.tx_available() < (uint16_t)(cols + 16)) return;
 
             // A run of spaces to paint the reverse-video background in one write.
             char spaces[96];

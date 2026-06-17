@@ -67,6 +67,22 @@ namespace Botanik { namespace Pages {
         /** @brief A cold draw_dynamic() pass was left unfinished; resume it on later
          *  ticks (the value cache makes already-drawn fields no-ops) until it drains. */
         bool          _dynamic_pending  = false;
+        /** @name Cooperative static draw (see _static_step())
+         *  draw_static() issues the same deterministic sequence of static-element
+         *  draws each pass (labels/headers/logo), so an ordinal cursor can pace it:
+         *  skip the elements already emitted, draw the next few, and stop when the
+         *  per-tick cap or the cold gate closes - resuming on later ticks. The cold
+         *  pass is held until the static pass fully completes.
+         *  @{ */
+        /** @brief Element index within the current draw_static() pass (reset each pass). */
+        uint16_t      _static_idx        = 0;
+        /** @brief Elements successfully emitted across passes (persists; reset on focus). */
+        uint16_t      _static_done       = 0;
+        /** @brief This pass stopped early (cap/gate); remaining elements are skipped. */
+        bool          _static_blocked    = false;
+        /** @brief draw_static() has not finished painting; keep resuming it. */
+        bool          _static_pending    = false;
+        /** @} */
 
         /** @brief Number of diff-cache slots and the per-slot value width.
          *  Single-column pages key a slot by its row; column layouts (see _cell())
@@ -100,10 +116,41 @@ namespace Botanik { namespace Pages {
             _vfresh = ~0u;
         }
 
+        /** @brief Ordinal gate for one static element (a label/header/logo line).
+         *  Returns true if the caller should draw it now: skips elements already
+         *  emitted in an earlier pass, and stops the pass (deferring the rest) when
+         *  the per-tick field cap is hit or the cold depth gate is closed. draw_static()
+         *  must issue the same sequence of these each pass for the ordinal to line up
+         *  (it is static layout, so it does). */
+        bool _static_step() {
+            uint16_t k = _static_idx++;
+            if (k < _static_done) return false;     // already drawn in an earlier pass
+            if (_static_blocked)  return false;     // pass already stopped this tick
+            if (_emit_count >= Config::METRIC_FIELDS_PER_TICK ||
+                !_terminal.tx_below(Config::CONSOLE_TX_COLD_DEPTH)) {
+                _emit_deferred = true;
+                _static_blocked = true;
+                return false;
+            }
+            _static_done = (uint16_t)(k + 1);
+            _emit_count++;
+            return true;
+        }
+
+        /** @brief Run one paced draw_static() pass; sets _static_pending if it could
+         *  not finish (resumed on later ticks until it drains). */
+        void _run_static() {
+            _static_idx     = 0;
+            _static_blocked = false;
+            draw_static();
+            _static_pending = _static_blocked;
+        }
+
         /** @brief Draw a label at column 2 and clear the rest of the row. Labels are
          *  static (drawn once on focus), so they are not cached. */
         void _label(uint16_t row, const char* s) {
             if (row >= _terminal.rows()) return;
+            if (!_static_step()) return;
             _terminal.move_to({row, 2});
             _terminal.write_chars(s, (uint16_t)strlen(s));
             _terminal.clear_to_eol();
@@ -125,6 +172,7 @@ namespace Botanik { namespace Pages {
          *  on focus, after the screen is cleared); not cached. */
         void _header(uint16_t row, uint16_t col, const char* title, uint16_t width) {
             if (row >= _terminal.rows()) return;
+            if (!_static_step()) return;
             char buf[96];
             if (width > (uint16_t)(sizeof(buf) - 1)) width = (uint16_t)(sizeof(buf) - 1);
             uint16_t n = 0;
@@ -133,7 +181,6 @@ namespace Botanik { namespace Pages {
             for (const char* p = title; *p && n < width; ++p) buf[n++] = *p;
             if (n < width) buf[n++] = ' ';
             while (n < width) buf[n++] = '=';
-            if (_terminal.tx_available() < (uint16_t)(width + 12)) return;
             _terminal.move_to({row, col});
             _terminal.write_chars(buf, n);
         }
@@ -143,10 +190,9 @@ namespace Botanik { namespace Pages {
          *  Drawn once on focus (after a clear); not cached. */
         void _label_at(uint16_t row, uint16_t col, const char* s) {
             if (row >= _terminal.rows()) return;
-            uint16_t len = (uint16_t)strlen(s);
-            if (_terminal.tx_available() < (uint16_t)(len + 12)) return;
+            if (!_static_step()) return;
             _terminal.move_to({row, col});
-            _terminal.write_chars(s, len);
+            _terminal.write_chars(s, (uint16_t)strlen(s));
         }
 
         /** @brief Diff-rendered value cell for column layouts: write @p s at
@@ -327,10 +373,12 @@ namespace Botanik { namespace Pages {
         void focus() override {
             _active = true;
             _invalidate();   // screen was cleared on switch: repaint everything
-            _emit_count    = 0;
-            draw_static();
-            // Hot fields before cold: a hot tick gates on a near-empty TX buffer, so it
-            // must get first claim on it before the cold refresh fills it up.
+            _emit_count  = 0;
+            _static_done = 0;        // repaint all static elements from scratch
+            // Static (labels/headers/logo) is paced and must finish before any value
+            // draws, or a value would paint into a row whose label isn't there yet.
+            _run_static();
+            if (_static_pending) return;   // static unfinished; tick() resumes it
             draw_hot();       // hot fields, so the clock isn't blank until the first tick
             // Cold fields are paced by the field cap, so a busy page may not finish in
             // one go; mark it pending so tick() resumes until it fully repaints.
@@ -343,7 +391,13 @@ namespace Botanik { namespace Pages {
             _active = active;
             if (!active) return;
             uint64_t now = HAL::uptime_ms();
-            _emit_count = 0;   // per-tick field budget shared by the hot and cold passes
+            _emit_count = 0;   // per-tick field budget shared by the static/hot/cold passes
+
+            // Finish the cooperative static pass before any value drawing.
+            if (_static_pending) {
+                _run_static();
+                if (_static_pending) return;   // still painting static this tick
+            }
 
             const bool refresh_due = (now - _refresh_last_ms >= _refresh_ms);
 
