@@ -20,7 +20,6 @@
 // Pulled into scope to keep the page render lines readable. See utils/text.h for
 // why %f is unavailable on the Mbed build.
 using Botanik::Utils::format_float;
-using Botanik::Utils::format_age;
 
 // Display formatting helpers (PLC integer units -> human strings; the floats
 // here are display-only and never touch shared memory) -----------------------
@@ -95,9 +94,8 @@ protected:
         _label_at(17, L_LBL, "Exterior  :");
         _label_at(18, L_LBL, "Floor     :");
         _label_at(19, L_LBL, "Ceiling   :");
-        _label_at(20, L_LBL, "Rain      :");
-        _label_at(21, L_LBL, "Wind pk   :");
-        _label_at(22, L_LBL, "Sun times :");
+        _label_at(20, L_LBL, "Last rain :");
+        _label_at(21, L_LBL, "Sun times :");
 
         // Right column: IRRIGATION + ACTUATORS.
         _header  (10, R_HDR, "IRRIGATION", HDR_WR);
@@ -158,17 +156,19 @@ protected:
                  format_float(fa, sizeof(fa), d->ceil_temp_c_centi / 100.0, 1, 4),
                  format_float(fb, sizeof(fb), d->ceil_rh_centi_pct / 100.0, 1, 4));
         _cell(16, 19, L_VAL, buf, L_W);
-        // Time since rain. Clamped to a minute so this cold field settles instead
-        // of churning the diff once it's past a minute.
-        uint32_t rain_age = (d->rain_age_s < 60) ? d->rain_age_s : 60;
-        _cell(17, 20, L_VAL, format_age(buf, sizeof(buf), rain_age), L_W);
-        snprintf(buf, sizeof(buf), "%03u km/h", (unsigned)d->wind_peak_kmh);
-        _cell(18, 21, L_VAL, buf, L_W);
+        // Last rain: minutes since rain merged with the peak wind. Both capped at
+        // 999 so the worst case ("999 min (wind 999km/h)") stays within L_W (22).
+        unsigned rain_min = d->rain_age_s / 60;
+        if (rain_min > 999) rain_min = 999;
+        unsigned wind = d->wind_peak_kmh;
+        if (wind > 999) wind = 999;
+        snprintf(buf, sizeof(buf), "%u min (wind %ukm/h)", rain_min, wind);
+        _cell(17, 20, L_VAL, buf, L_W);
         // Sun times (sunrise / sunset, slot 0).
         snprintf(buf, sizeof(buf), "%02u:%02u / %02u:%02u",
                  d->sunrise_min / 60, d->sunrise_min % 60,
                  d->sunset_min  / 60, d->sunset_min  % 60);
-        _cell(0, 22, L_VAL, buf, L_W);
+        _cell(0, 21, L_VAL, buf, L_W);
 
         // Irrigation (slots 19..21).
         unsigned wi = d->water_in_l;
