@@ -1,7 +1,8 @@
 # HAL Platform-Abstraction Plan
 
 Status: **done** - Workstreams A, B, C, D.1 & D.2 all landed (SIMULATOR-validated;
-OPTA backend edits remain compile-reasoned, pending a real cross-build). Watchdog
+the OPTA backend now compiles here too, via the `botanik_fw` cross-build, though
+it still can't be run or flashed in this environment). Watchdog
 caller wiring is now also done: `main.cpp` arms it at boot with
 `Config::HW_WATCHDOG_MS` (1 s) and kicks every healthy tick unless the PLC link
 has faulted (`plc_handler.context()->status() == PLC_FAULT`), so the board reboots
@@ -23,11 +24,12 @@ Guiding split:
   platform-free, so the dependency disappears entirely instead of being spread
   across both backends.
 
-**OPTA caveat (applies to every workstream):** the OPTA target cannot be built
-or run in the dev environment here. All `opta.h` edits are compile-reasoned only
-and must be confirmed on a real `arm-none-eabi` cross-build. Exact Mbed symbol
-names (`mbed_reset`, `mbed::Watchdog`, `__BKPT`) should be verified against the
-pinned Mbed OS headers under `includes/`.
+**OPTA caveat (applies to every workstream):** the OPTA target now *compiles*
+here (`cmake -B build-opta -DBOTANIK_TARGET=OPTA`, against the Mbed core
+`arduino-cli` installs under `~/.arduino15`), so `opta.h` is compile-verified; but
+it cannot be run or flashed in this environment, so the runtime behaviour still
+needs confirmation on real hardware. Exact Mbed symbol names (`mbed_reset`,
+`mbed::Watchdog`, `__BKPT`) resolve against that installed core.
 
 ---
 
