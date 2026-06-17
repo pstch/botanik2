@@ -170,17 +170,22 @@ namespace Botanik { namespace Pages {
         }
 
         void tick(bool active) override {
-            MetricPage::tick(active);            // periodic refresh of the readings
+            MetricPage::tick(active);            // logo/readings (paced) refresh
             _log_active = active;
             if (active) {
                 _scrollback.drain_redraw(_terminal);
-                // Hold off live entries until the staged replay finishes - they
-                // would otherwise restage it mid-draw.
+                // Hold off the live band until the staged replay finishes - a DL
+                // scroll would shift rows the replay already drew.
                 if (_scrollback.redraw_pending()) return;
             }
-            // Drain the queue either way: active repaints the band, background just
-            // banks entries into the scrollback for a later focus() replay.
+            // Bank queued entries into the scrollback (marks pending when active), then
+            // paint the pending lines, paced, into the bottom log band.
             drain();
+            if (active) {
+                uint16_t band_top = log_band_top();
+                _scrollback.drain_tail(_terminal, band_top,
+                                       (uint16_t)(_terminal.rows() - band_top));
+            }
         }
 
         /** @} */
@@ -194,28 +199,14 @@ namespace Botanik { namespace Pages {
         }
 
         size_t write(const char* buf, size_t len) override {
-            // Background: just bank the entry for a later focus() replay. Nothing
-            // hits the screen, so there's no TX back-pressure - store it all.
-            if (!_log_active) {
-                _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
-                    Config::SHELL_LOG_CONT_PREFIX,
-                    (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX));
-                return len;
-            }
-
-            // Active: back-pressure first so a burst can't flood TX. Returning 0
-            // makes BufferedLogWriter retry later; don't store yet, or the retry
-            // would double-bank it.
-            if (!_terminal.tx_empty()) return 0;
-
+            // Store-only: bank every entry into the scrollback and, when active, mark
+            // the new row(s) pending so tick()'s drain_tail paints them paced into the
+            // bottom band. In the background a later focus() replays the tail. Never
+            // blocks, never drops, so always report the whole entry consumed.
             uint16_t n = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
                 Config::SHELL_LOG_CONT_PREFIX,
                 (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX));
-            // Scroll the bottom log band up and paint the new line(s) at its bottom,
-            // leaving the logo and summary above the band untouched.
-            uint16_t band_top = log_band_top();
-            _scrollback.emit_tail(_terminal, n, band_top,
-                                  (uint16_t)(_terminal.rows() - band_top));
+            if (_log_active) _scrollback.note_pending(n);
             return len;
         }
 
