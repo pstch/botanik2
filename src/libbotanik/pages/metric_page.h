@@ -69,7 +69,7 @@ namespace Botanik { namespace Pages {
          *  ticks (the value cache makes already-drawn fields no-ops) until it drains. */
         bool          _dynamic_pending  = false;
         /** @brief A draw_hot() pass was left unfinished (cap hit or floor closed); resume
-         *  it every tick (the value cache makes drawn fields no-ops) until it completes,
+         *  it every tick (the hot ordinal below skips drawn fields) until it completes,
          *  so all hot fields get a first paint without waiting a full _hot_ms cadence -
          *  and without waiting for the slower cold pass to finish. */
         bool          _hot_pending       = false;
@@ -106,9 +106,24 @@ namespace Botanik { namespace Pages {
         /** @brief Fields handled so far this period (persists across resume ticks;
          *  reset to 0 when a new refresh period starts). */
         uint16_t      _cold_done         = 0;
-        /** @brief True while draw_dynamic() runs, so _field() applies the ordinal
-         *  (hot fields and other callers paint normally). */
+        /** @brief True while draw_dynamic() runs, so _field() applies the cold ordinal. */
         bool          _cold_active       = false;
+        /** @} */
+        /** @name Cooperative hot draw (see _field())
+         *  The cold pass's ordinal, applied to the per-second hot pass. The hot fields
+         *  (wall clock, CPU/jitter EMAs, serial depths) change every tick, so a pass
+         *  that resumes every tick (_hot_pending) would re-diff and re-emit them on
+         *  each resume - many updates per _hot_ms period, not the one intended. The
+         *  ordinal caps each hot field to one paint per period: _hot_done is reset only
+         *  on a fresh due tick (run_hot()), so a resume skips the fields already drawn.
+         *  @{ */
+        /** @brief Field index within the current draw_hot() pass (reset each pass). */
+        uint16_t      _hot_idx           = 0;
+        /** @brief Hot fields handled this period (persists across resume ticks; reset
+         *  to 0 when a new _hot_ms period starts). */
+        uint16_t      _hot_done          = 0;
+        /** @brief True while draw_hot() runs, so _field() applies the hot ordinal. */
+        bool          _hot_active        = false;
         /** @} */
 
         /** @brief Number of diff-cache slots and the per-slot value width.
@@ -249,15 +264,19 @@ namespace Botanik { namespace Pages {
         void _field(uint16_t slot, uint16_t row, uint16_t col, const char* s, uint16_t width,
                     bool highlight = true, bool invert = false) {
             if (row >= _terminal.rows() || width == 0) return;
-            // Cold pacing ordinal: handle each cold field at most once per refresh
-            // period. The cursor advances on every visited field, so a deferred pass
+            // Pacing ordinal (cold pass or hot pass): handle each field at most once per
+            // its period. The cursor advances on every visited field, so a deferred pass
             // resumes past the fields already done - a value that changes every tick
-            // can't re-emit on each resume and starve the fields after it.
-            const bool cold = _cold_active;
+            // can't re-emit on each resume and starve the fields after it. The two passes
+            // never run at once (run_hot/run_cold are sequential), so one ordinal pair is
+            // active at a time.
+            uint16_t* idx  = _cold_active ? &_cold_idx  : (_hot_active ? &_hot_idx  : nullptr);
+            uint16_t* done = _cold_active ? &_cold_done : (_hot_active ? &_hot_done : nullptr);
+            const bool paced = (idx != nullptr);
             uint16_t k = 0;
-            if (cold) {
-                k = _cold_idx++;
-                if (k < _cold_done || _emit_deferred) return;
+            if (paced) {
+                k = (*idx)++;
+                if (k < *done || _emit_deferred) return;
             }
             if (width > CACHE_COLS - 1) width = CACHE_COLS - 1;
 
@@ -302,7 +321,7 @@ namespace Botanik { namespace Pages {
 
             // Emit a byte when its glyph changed or its highlight state changed.
             uint32_t emit = chg | (newhi ^ oldhi);
-            if (emit == 0) { if (cold) _cold_done = (uint16_t)(k + 1); return; }  // unchanged: done
+            if (emit == 0) { if (paced) *done = (uint16_t)(k + 1); return; }  // unchanged: done
             if (!_paint(row, col, cf, width, emit, newhi)) return;  // capped/TX full: _emit_deferred set, resume
 
             if (cached) {
@@ -311,7 +330,7 @@ namespace Botanik { namespace Pages {
                 _vhi[slot]   = newhi;
                 _vfresh     &= ~(1u << slot);
             }
-            if (cold) _cold_done = (uint16_t)(k + 1);   // emitted: done this period
+            if (paced) *done = (uint16_t)(k + 1);   // emitted: done this period
         }
 
         /** @brief Emit the columns set in @p emit from field @p cf at (@p row,
@@ -433,6 +452,7 @@ namespace Botanik { namespace Pages {
             _invalidate();   // screen was cleared on switch: repaint everything
             _static_done = 0;        // repaint all static elements from scratch
             _cold_done   = 0;        // and the cold values from scratch
+            _hot_done    = 0;        // and the hot values from scratch
             // Ensure the cold pass runs as soon as static finishes, even when static is
             // paced over several ticks - tick() would otherwise wait a full _refresh_ms
             // before the first value paint.
@@ -444,9 +464,12 @@ namespace Botanik { namespace Pages {
             // with it. Once static drains, tick() paints hot then cold.
             _run_static();
             if (!_static_pending) {
+                _hot_idx = 0;
+                _hot_active = true;
                 _emit_count = 0;
                 _emit_deferred = false;
                 draw_hot();       // hot fields (paced)
+                _hot_active = false;
                 _hot_pending = _emit_deferred;
                 _hot_last_ms = HAL::uptime_ms();
                 _cold_idx = 0;
@@ -484,10 +507,16 @@ namespace Botanik { namespace Pages {
                 if (_static_pending || !_hot_ms) return;
                 const bool hot_due = (now - _hot_last_ms >= _hot_ms);
                 if (!(hot_due || _hot_pending)) return;
-                if (hot_due) _hot_last_ms = now;
+                // A fresh period revisits every hot field (reset the ordinal); a
+                // pending-only resume keeps _hot_done so it skips fields already drawn
+                // this period - each hot field paints at most once per _hot_ms.
+                if (hot_due) { _hot_last_ms = now; _hot_done = 0; }
+                _hot_idx = 0;
+                _hot_active = true;
                 _emit_count = 0;   // hot's own per-tick budget
                 _emit_deferred = false;
                 draw_hot();
+                _hot_active = false;
                 _hot_pending = _emit_deferred;
             };
 
