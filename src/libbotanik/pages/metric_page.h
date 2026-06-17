@@ -405,15 +405,19 @@ namespace Botanik { namespace Pages {
             _invalidate();   // screen was cleared on switch: repaint everything
             _emit_count  = 0;
             _static_done = 0;        // repaint all static elements from scratch
+            _cold_done   = 0;        // and the cold values from scratch
+            // Ensure the initial cold pass runs as soon as static finishes, even when
+            // static is paced over several ticks (focus returns early below) - tick()
+            // would otherwise wait a full _refresh_ms before the first value paint.
+            _dynamic_pending = true;
             // Static (labels/headers/logo) is paced and must finish before any value
             // draws, or a value would paint into a row whose label isn't there yet.
             _run_static();
-            if (_static_pending) return;   // static unfinished; tick() resumes it
+            if (_static_pending) return;   // static unfinished; tick() resumes it then cold
             draw_hot();       // hot fields, so the clock isn't blank until the first tick
             // Cold fields are paced (field cap + cold gate + per-period ordinal), so a
             // busy page may not finish in one go; mark it pending so tick() resumes
-            // until it fully repaints. _cold_done = 0 starts a fresh period.
-            _cold_done = 0;
+            // until it fully repaints.
             _cold_idx = 0;
             _cold_active = true;
             _emit_deferred = false;
