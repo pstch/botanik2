@@ -5,23 +5,17 @@
  * @file metric_page.h
  * @brief MetricPage - shared base for read-only metric displays (Home/Status).
  *
- * Centralises the bits the metric pages have in common: the terminal binding,
- * the focus/periodic-refresh lifecycle, small label/value drawing helpers, and a
- * per-slot value cache so a refresh only re-emits the bytes that actually changed
- * (the same "diff, don't repaint" approach the status bar uses). This matters on
- * the low-baud serial link: repainting every cell each cycle would saturate the
- * TX buffer and starve the status bar.
+ * Centralises what the metric pages share: the terminal binding, the
+ * focus/periodic-refresh lifecycle, label/value drawing helpers, and a per-slot
+ * value cache so a refresh re-emits only the bytes that changed ("diff, don't
+ * repaint"). On the low-baud link, repainting every cell would saturate TX.
  *
- * Values are diffed per field (_field()) and only the bytes that change are
- * re-emitted. A digit run that moved is drawn in reverse video and stays lit
- * until the next refresh, when it is rewritten normal once it stops changing -
- * per-subfield watch(1) -d highlighting over a refresh window. Fields are fixed-
- * width and space-padded, so a shrinking value clears its own tail and each subfield keeps
- * a stable column.
+ * A changed digit run is drawn reverse-video and stays lit until it settles, then
+ * is rewritten normal - watch(1) -d highlighting over a refresh window. Fields are
+ * fixed-width and space-padded, so each subfield keeps a stable column.
  *
- * Subclasses implement draw_static() (labels/headers, drawn once on focus) and
- * draw_dynamic() (values, rewritten on each refresh via _value()). Row 0 is the
- * terminal status bar; pages own rows 1..N-1.
+ * Subclasses implement draw_static() (labels/headers, once on focus) and
+ * draw_dynamic() (values, per refresh). Row 0 is the status bar; pages own 1..N-1.
  */
 
 #include <cstdint>
@@ -58,12 +52,10 @@ namespace Botanik { namespace Pages {
         uint32_t      _refresh_ms      = Config::PAGE_REFRESH_MS;
         /** @brief Last hot-field refresh (uptime ms). */
         uint64_t      _hot_last_ms     = 0;
-        /** @brief Hot-field refresh interval (ms); 0 disables. A subclass pairs this
-         *  with a draw_hot() override holding the fields that change every second
-         *  (e.g. a clock). Each cycle a hot field is repainted at most once - by this
-         *  per-second tick when the TX buffer has drained, or by the global refresh,
-         *  never both (see tick()). All other ("cold") fields live in draw_dynamic()
-         *  and only move on the global refresh. */
+        /** @brief Hot-field refresh interval (ms); 0 disables. Paired with a
+         *  draw_hot() override for fields that change every second (e.g. a clock).
+         *  A hot field repaints at most once per cycle - by this tick or the global
+         *  refresh, never both (see tick()). Cold fields live in draw_dynamic(). */
         uint32_t      _hot_ms          = 0;
 
         /** @brief Number of diff-cache slots and the per-slot value width.
@@ -108,11 +100,9 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Write a value at _value_col (single-column pages), keyed by row.
-         *  The field is fixed-width - from _value_col to the end of the line - so a
-         *  shrinking value overwrites its own tail with spaces and no separate
-         *  clear-to-eol is needed. Change highlighting is handled by _field(); pass
-         *  @p highlight = false for fields that change every refresh (a clock), where
-         *  the highlight would only churn a redundant clear-write each tick. */
+         *  The field runs from _value_col to end-of-line, so a shrinking value clears
+         *  its own tail. Pass @p highlight = false for fields that change every
+         *  refresh (a clock), where the highlight would just churn. */
         void _value(uint16_t row, const char* s, bool highlight = true) {
             if (row >= _terminal.rows()) return;
             uint16_t width = (_value_col < _terminal.cols())
@@ -150,35 +140,22 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Diff-rendered value cell for column layouts: write @p s at
-         *  (@p row, @p col), padded (or truncated) to exactly @p width chars. The
-         *  fixed width means a shrinking value overwrites its own old tail without a
-         *  clear-to-eol, so an adjacent column is never touched. Cached by @p slot
-         *  (so two cells can share a row). See _field() for the diff/highlight. */
+         *  (@p row, @p col), padded/truncated to @p width chars (so it never touches
+         *  an adjacent column). Cached by @p slot so two cells can share a row. */
         void _cell(uint16_t slot, uint16_t row, uint16_t col, const char* s, uint16_t width,
                    bool highlight = true) {
             _field(slot, row, col, s, width, highlight);
         }
 
-        /** @brief Render @p s as a fixed, @p width-column value field at (@p row,
-         *  @p col), cached under @p slot, with watch(1) -d change highlighting.
+        /** @brief Render @p s as a fixed @p width-column field at (@p row, @p col),
+         *  cached under @p slot, with watch(1) -d change highlighting.
          *
-         *  The value is space-padded to @p width (longer values are truncated), so
-         *  a shrinking value overwrites its own tail and an adjacent column is never
-         *  touched. The field is diffed against the previous draw and only the bytes
-         *  that actually change are re-emitted - an unchanged field writes nothing,
-         *  so a refresh never repaints the static padding.
-         *
-         *  Highlighting is per subfield: each maximal run of digits is one subfield,
-         *  and a run is drawn reverse-video when any digit in it changed (so the day,
-         *  hour, minute and second of a clock, or the two voltages in "X V (Y V)",
-         *  light up independently). Fixed-width formatting keeps each subfield at a
-         *  stable column, so the diff stays aligned. A highlight persists until the
-         *  next refresh, where the subfield is rewritten normal once it stops
-         *  changing; the first paint after a clear is never lit.
-         *
-         *  All-or-nothing, like the other writers: when the update can't fit in the
-         *  TX buffer nothing is emitted and the cache is left untouched, so the draw
-         *  retries on the next refresh. */
+         *  Space-padded to @p width (truncated if longer) and diffed against the
+         *  previous draw, so only changed bytes are re-emitted. Highlighting is per
+         *  subfield: each digit run lights reverse-video when any of its digits
+         *  changed, persisting until it settles (the first paint after a clear is
+         *  never lit). All-or-nothing: on a TX-full skip nothing is emitted and the
+         *  cache is left untouched, so the draw retries next refresh. */
         void _field(uint16_t slot, uint16_t row, uint16_t col, const char* s, uint16_t width,
                     bool highlight = true) {
             if (row >= _terminal.rows() || width == 0) return;
@@ -364,12 +341,10 @@ namespace Botanik { namespace Pages {
 
             const bool refresh_due = (now - _refresh_last_ms >= _refresh_ms);
 
-            // Hot fields (a clock's seconds) repaint at most once per cycle. Drawn
-            // before the cold refresh so a best-effort tick gets first claim on an
-            // empty TX buffer rather than fighting the cold pass for it. Prefer the
-            // per-second tick when the TX buffer has drained, so it can't pile up on
-            // the low-baud link; otherwise the global refresh below is the guaranteed
-            // fallback, so the clock never freezes for longer than one refresh window.
+            // Hot fields repaint at most once per cycle, before the cold refresh so
+            // they get first claim on an empty TX buffer. Prefer the per-second tick
+            // when TX has drained; the global refresh below is the guaranteed
+            // fallback, so the clock never freezes beyond one refresh window.
             if (_hot_ms && now - _hot_last_ms >= _hot_ms) {
                 if (refresh_due || _terminal.tx_empty()) {
                     _hot_last_ms = now;

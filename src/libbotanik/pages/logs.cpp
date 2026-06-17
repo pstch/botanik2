@@ -55,9 +55,8 @@ namespace Botanik { namespace Pages {
         _active = active;
         if (active) {
             _scrollback.drain_redraw(_terminal);
-            // Hold off processing incoming log entries until the historical redraw
-            // is complete - a DL scroll from write() would shift rows already drawn
-            // and corrupt the display.
+            // Hold off incoming entries until the historical redraw finishes - a DL
+            // scroll from write() would shift rows already drawn and corrupt it.
             if (_scrollback.redraw_pending()) return;
         }
         // Drain the queue either way: active paints the new tail, background just
@@ -73,9 +72,8 @@ namespace Botanik { namespace Pages {
     }
 
     size_t LogsPage::write(const char* buf, size_t len) {
-        // In the background: just keep the scrollback current so a later focus()
-        // replays an up-to-date tail. Nothing reaches the screen, so there's no TX
-        // back-pressure to honour - store the whole entry and report it consumed.
+        // Background: just keep the scrollback current for a later focus() replay.
+        // Nothing hits the screen, so there's no TX back-pressure - store it all.
         if (!_active) {
             _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
                 Config::SHELL_LOG_CONT_PREFIX,
@@ -83,9 +81,8 @@ namespace Botanik { namespace Pages {
             return len;
         }
 
-        // Back-pressure: only emit a line once the TX buffer has drained, so a
-        // burst of entries can't fill it. Reporting no progress makes the
-        // BufferedLogWriter hold the entry and retry on a later tick.
+        // Back-pressure: emit only once TX has drained, so a burst can't fill it.
+        // Returning 0 makes BufferedLogWriter hold the entry and retry later.
         if (!_terminal.tx_empty()) return 0;
 
         _emit_line(buf, len);
@@ -96,9 +93,8 @@ namespace Botanik { namespace Pages {
     // ------------------------------------------------------------------------
 
     void LogsPage::_emit_line(const char* buf, size_t len) {
-        // Wrap into one or more stored rows (indented log-prefixed continuations),
-        // then let the scrollback scroll the tail up and paint them at the bottom.
-        // The log area is rows 1..rows-1 (the whole content area).
+        // Wrap into stored rows, then scroll the tail up and paint them at the
+        // bottom. The log area is rows 1..rows-1.
         uint16_t n = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
             Config::SHELL_LOG_CONT_PREFIX,
             (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX));

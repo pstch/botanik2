@@ -97,8 +97,8 @@ namespace Botanik { namespace Pages {
         _editor.suppress_redraw(false);
         uint16_t occ_after = _editor.occupied_rows();
         if (occ_after != occ_before && _scrollback.redraw_pending()) {
-            // A staged replay is still draining; its geometry is now stale, so
-            // re-arm it against the new log area instead of revealing rows.
+            // A staged replay is draining with now-stale geometry; re-arm it against
+            // the new log area instead of revealing rows.
             _scrollback.begin_redraw((uint16_t)(_terminal.rows() - 1 - occ_after));
         } else if (occ_after < occ_before) {
             _reveal_log_rows(occ_before - occ_after);
@@ -138,9 +138,8 @@ namespace Botanik { namespace Pages {
     }
 
     size_t ShellPage::write(const char* buf, size_t len) {
-        // Wrap into one or more stored rows. Log output (reached via drain())
-        // indents its continuations to align under the message column; command
-        // output uses the plain "> " continuation prefix.
+        // Wrap into stored rows. Log output (via drain()) indents continuations to
+        // align under the message; command output uses the plain "> " prefix.
         const char* prefix = _draining_log ? Config::SHELL_LOG_CONT_PREFIX
                                            : Config::SHELL_CONT_PREFIX;
         uint16_t    plen   = (uint16_t)strlen(prefix);
@@ -151,9 +150,8 @@ namespace Botanik { namespace Pages {
         // focus() replay; don't touch the screen the active page owns.
         if (!_active) return len;
 
-        // The log area is rows 1..(rows-1-occupied); the editor occupies the rows
-        // below it. emit_tail scrolls the log area up and paints the new lines at
-        // its bottom, shifting the editor up (DL) and back down (IL) in the process.
+        // Log area is rows 1..(rows-1-occupied), editor below. emit_tail scrolls the
+        // log up and paints new lines, shifting the editor up (DL) and back (IL).
         uint16_t log_rows = (uint16_t)(_terminal.rows() - 1 - _editor.occupied_rows());
         _scrollback.emit_tail(_terminal, n, 1, log_rows);
 
@@ -218,8 +216,8 @@ namespace Botanik { namespace Pages {
         // the editor in place at the bottom.
         _scrollback.begin_redraw((uint16_t)(_terminal.rows() - 1 - _editor.occupied_rows()));
         _editor.redraw();
-        // The editor owns a live text cursor - make it visible (and blinking). Every
-        // other page leaves it hidden; switch_to() resets it off before our focus().
+        // The editor owns a live cursor - make it visible; switch_to() resets it off
+        // before focus(), and every other page leaves it hidden.
         _terminal.set_cursor_visible(true);
     }
 
@@ -279,9 +277,8 @@ namespace Botanik { namespace Pages {
         uint16_t log_rows = rows - 1 - occupied;  // new (larger) log area
         if (log_rows == 0) return;
 
-        // IL delta at row 1 (no scroll region) shifts rows 1..rows-1 down by delta.
-        // The delta freed rows above the editor (already blank from _sync_origin/reset)
-        // plus the editor row itself fall off the bottom - the editor is redrawn after.
+        // IL delta at row 1 shifts rows 1..rows-1 down by delta; the freed rows plus
+        // the editor row fall off the bottom (the editor is redrawn after).
         _terminal.move_to({1, 0});
         _terminal.insert_rows(delta);
 

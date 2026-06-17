@@ -282,14 +282,10 @@ namespace Botanik { namespace Terminal {
          *         pinned at the bottom of the screen. */
         void _reset_state();
 
-        /** @brief Canonical owner row for buffer position `pos` in a layout.
-         *
-         * Rule: `pos` belongs to row `i` iff
-         * `rows[i].buf_start <= pos < rows[i].buf_start + stride(i)`,
-         * where `stride = buf_len + (hard_break ? 1 : 0)` (the `\n` byte of a
-         * hard-broken row belongs to that row; the boundary byte of a soft
-         * wrap belongs to the continuation row). End-of-buffer falls through
-         * to the last row. */
+        /** @brief Owner row for buffer position `pos`: row `i` where
+         *  `buf_start <= pos < buf_start + stride`, stride = buf_len + (hard_break).
+         *  The `\n` belongs to its row; a soft-wrap boundary to the continuation row.
+         *  End-of-buffer falls through to the last row. */
         static uint16_t _owner_row(uint16_t pos, const TextView& v) {
             for (uint16_t i = 0; i < v.count; i++) {
                 uint16_t stride = (uint16_t)(v.rows[i].buf_len + (v.rows[i].hard_break ? 1 : 0));
@@ -328,23 +324,12 @@ namespace Botanik { namespace Terminal {
                               uint16_t scr_rows);
 
         /** @brief Reconcile the screen to `_layout` after an edit of `span_len`
-         *         bytes at buffer offset `span_start`.
-         *
-         * Diffs the pre-edit layout (`_pre`) against the post-edit layout
-         * (`_layout`): places at most one IL/DL for the row-count change at the
-         * absorbed-suffix boundary, then walks forward from the edit row,
-         * splicing each affected row (cursor splice on the edit row, left
-         * displacement below) and repainting rows that reflowed elsewhere.
-         *
-         * @param span_start First buffer byte of the inserted/removed span.
-         * @param span_len   Number of bytes inserted or removed.
-         * @param is_insert  true for insert, false for remove. */
+         *         bytes at offset `span_start` (@p is_insert true for insert). See
+         *         the class-level note for the IL/DL + forward-walk strategy. */
         void _reconcile(uint16_t span_start, uint16_t span_len, bool is_insert);
 
-        /** @brief Bottom-pinned grow: compute the bottom-pinned origin for the
-         *         current row count, scroll the screen up so the editor's added
-         *         rows fit before any content op references `_origin`, and
-         *         return that origin (passed on to the later shrink). */
+        /** @brief Bottom-pinned grow: scroll the screen up so the editor's added
+         *         rows fit, and return the new origin (for the later shrink). */
         uint16_t _grow_editor();
 
         /** @brief Bottom-pinned shrink: slide the editor down (freeing rows
@@ -365,11 +350,9 @@ namespace Botanik { namespace Terminal {
                          uint16_t shown_len, uint16_t shown_prompt_l,
                          const RowView& want);
 
-        /** @brief Signed count of content chars the edit splices onto its own
-         *         row: the edit span clipped to that row's content (0 when the
-         *         edit is the closing `\n`). Positive for insert, negative for
-         *         remove. Reads the row end from the post layout for an insert,
-         *         the pre layout for a remove. */
+        /** @brief Signed count of content chars the edit splices onto its own row:
+         *         the span clipped to that row's content (0 for a closing `\n`),
+         *         positive for insert, negative for remove. */
         static int32_t _edit_row_amount(uint16_t span_start, uint16_t span_len,
                                         bool is_insert, const RowView& post_row,
                                         const RowView& pre_row);

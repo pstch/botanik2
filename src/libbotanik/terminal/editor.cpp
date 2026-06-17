@@ -252,11 +252,9 @@ namespace Botanik { namespace Terminal {
             }
         }
 
-        // Splice `amount` content chars at `col` (cursor for the edit row, the
-        // prompt column for rows below). The chars pushed off the right edge
-        // reflow into the next row, which the next iteration prepends. Move only
-        // when there is a splice to make - an absorbed row (amount 0, no length
-        // or prompt change) must emit nothing.
+        // Splice `amount` content chars at `col`. Chars pushed off the right edge
+        // reflow into the next row (prepended next iteration). Move only when there
+        // is a splice - an absorbed row (amount 0, no length/prompt change) emits nothing.
         if (amount > 0) {
             _terminal->move_to({hw, col});
             _terminal->write_chars(&_buf[want.buf_start + (col - prompt)],
@@ -380,10 +378,9 @@ namespace Botanik { namespace Terminal {
             uint16_t want_prompt = _prompt_len(_row_prompt(i));
 
             // Map post row i to the pre row physically present after the IL/DL.
-            // Rows inside the IL-opened gap [absorbed_pre, absorbed_post) have no
-            // pre image (has_pre false): their splice branches are skipped and
-            // they drop through to the repaint below. (The gap is empty unless
-            // the edit grew the row count, so otherwise has_pre is always true.)
+            // Rows in the IL-opened gap [absorbed_pre, absorbed_post) have no pre
+            // image (has_pre false) and drop through to the repaint below. The gap
+            // is empty unless the edit grew the row count.
             bool     has_pre = !(i >= span.absorbed_pre && i < span.absorbed_post);
             uint16_t pre_idx = (i < span.absorbed_post)
                 ? i : (uint16_t)((int32_t)i - row_delta);

@@ -24,15 +24,10 @@ namespace Botanik { namespace Pages {
      *   Rows 1..N-2 - log area (live tail, scrolls on each incoming entry)
      *   Row  N-1    - InputEditor (PS1 + optional continuation row)
      *
-     * Implements LogWriter so it can be registered with a Logger.
-     * Only entries received while the page is active are queued (push() drops
-     * background entries - the full log remains in LogsPage); queued entries are
-     * flushed on each tick(). Each entry scrolls the log area (DL at row 1),
-     * writes the new line at row N-2, then redraws the editor in place.
-     *
-     * Implements ShellWriter to provide CommandShell with an output channel.
-     * All written lines are stored in a circular buffer for replay on redraw
-     * and page-switch (focus).
+     * As a LogWriter, only entries received while active are queued (push() drops
+     * background ones - the full log lives in LogsPage) and flushed on tick(). As a
+     * ShellWriter, it gives CommandShell an output channel. All written lines are
+     * stored in a circular buffer for replay on redraw / page-switch.
      */
     class ShellPage : public Page, public Logs::BufferedLogWriter, public Shell::ShellWriter {
     private:
@@ -52,13 +47,11 @@ namespace Botanik { namespace Pages {
         Shell::CommandShell _shell;
         /** @brief Circular log line buffer + throttled redraw for redraw/page-switch replay. */
         ShellScrollback _scrollback;
-        /** @brief Mirrors the latest tick(active) argument so write() - reached
-         *  indirectly via drain() - knows whether it may paint. False while in the
-         *  background. */
+        /** @brief Mirrors the latest tick(active) so write() (reached via drain())
+         *  knows whether it may paint. False in the background. */
         bool _active = false;
-        /** @brief True while inside drain(), so write() - shared by log and command
-         *  output - wraps continuations with the indented log prefix rather than the
-         *  plain command-output prefix. */
+        /** @brief True while inside drain(), so write() wraps continuations with the
+         *  indented log prefix rather than the plain command-output prefix. */
         bool _draining_log = false;
 
         /** @} */

@@ -5,9 +5,8 @@
  *
  * Each writer reserves ANSI_MAX_SEQ bytes via availableForWrite() before
  * emitting; if the whole sequence won't fit it writes nothing and returns false.
- * Once the guard passes every write() is guaranteed to complete (the TX ring is
- * single-producer, so free space only grows under us), so an escape can never be
- * split mid-sequence and corrupt the terminal. Callers retry on a later redraw.
+ * That guard (the TX ring is single-producer, so free space only grows) keeps an
+ * escape from ever being split mid-sequence. Callers retry on a later redraw.
  */
 #include <cstdint>
 
@@ -40,10 +39,8 @@ namespace Botanik { namespace Terminal { namespace Ansi {
             _serial.write(&buf[i + 1], 4 - i);
         }
 
-        // Emit "CSI [count] <final>": the CSI prefix, an optional numeric
-        // parameter (written only when > 1, since 1 is the implicit ECMA-48
-        // default), then the literal final byte(s). count defaults to 1 for the
-        // many sequences that take no parameter (erase, mode set, ...).
+        // Emit "CSI [count] <final>": CSI, the count (only when > 1, since 1 is the
+        // ECMA-48 default), then the final byte(s). count defaults to 1.
         bool _csi_count(BufferedSerial& _serial, const char* final_byte,
                         uint16_t fn, uint16_t count = 1) {
             if (count == 0) return true;
@@ -83,7 +80,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     bool minitel_setup(BufferedSerial& _serial) {
-        // One-time PRO2 handshake: 80-col téléinformatique + lowercase keyboard +
+        // One-time PRO2 handshake: 80-col teleinformatique + lowercase keyboard +
         // page mode. 12 bytes, within the can_emit() reserve, so it lands atomically.
         if (!can_emit(_serial)) return false;
         _serial.write(MINITEL_TELINFO,   sizeof(MINITEL_TELINFO) - 1);
@@ -93,9 +90,8 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     bool vt102_setup(BufferedSerial& _serial) {
-        // No one-time setup needed for a VT100/VT102: the persistent DECAWM-off
-        // state is (re)asserted on every screen establish in clear_screen(). See
-        // the declaration for where future VT102 one-time setup would live.
+        // No one-time setup for a VT100/VT102: DECAWM-off is re-asserted on every
+        // screen establish in clear_screen().
         (void)_serial;
         return true;
     }
@@ -114,10 +110,8 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     bool move_left(BufferedSerial& _serial, uint16_t count) {
-        // Always use the explicit CUB form. We deliberately avoid the BS (\b)
-        // shortcut for short hops: BS is non-destructive on a strict VT100/VT102,
-        // but the Minitel serial port can treat it as a destructive backspace,
-        // which would erase the glyph the cursor steps back over.
+        // Always the explicit CUB form, never the BS (\b) shortcut: BS is harmless
+        // on a VT100/VT102 but a Minitel can treat it as a destructive backspace.
         return _csi_count(_serial, CUB, sizeof(CUB) - 1, count);
     }
 

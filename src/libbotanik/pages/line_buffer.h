@@ -5,14 +5,10 @@
  * @file line_buffer.h
  * @brief LineBuffer<L,N> - a fixed-capacity circular buffer of display lines.
  *
- * The storage primitive under @ref Botanik::Pages::Scrollback (and so under every
- * page's log buffer): it holds the most recent @p L lines (each up to @p N bytes),
- * with soft-wrap splitting on store and newest-first access by distance. It owns no
- * rendering or redraw policy - @ref Botanik::Pages::Scrollback layers the throttled
- * replay on top.
- *
- * Templated on its dimensions so each user picks its own footprint; instantiate
- * it behind a typedef rather than naming the template at use sites.
+ * The storage primitive under @ref Botanik::Pages::Scrollback: holds the most
+ * recent @p L lines (each up to @p N bytes), with soft-wrap splitting on store and
+ * newest-first access by distance. It owns no rendering; Scrollback layers the
+ * throttled replay on top. Instantiate behind a typedef, not at use sites.
  */
 
 #include <algorithm>
@@ -62,9 +58,6 @@ namespace Botanik { namespace Pages {
          *  @return The number of lines stored (always >= 1). */
         uint16_t store_wrapped(const char* buf, size_t len, uint16_t cols,
                                const char* prefix, uint16_t plen) {
-            // Continuation rows (whether forced by a '\n' or by overflowing the
-            // width) start with the caller-supplied @p prefix marker so they align
-            // under the message body; only the very first row is emitted verbatim.
             const uint16_t seg_cap = N;
             char seg[N];
 

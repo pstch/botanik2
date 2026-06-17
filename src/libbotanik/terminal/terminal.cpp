@@ -44,14 +44,10 @@ namespace Botanik { namespace Terminal {
     // Step through the terminal handling code
     void AnsiTerminal::step() {
         using Command = InputEvent::Command;
-        // The screen is established here, on the first step - not in setup_*() - so
-        // the clear lands *after* the terminal-type handshake setup_*() queued (a
-        // Minitel needs its PRO2 bytes while still in its native command set) and in
-        // the order the protocol wants: clear, then the "ACAB" boot marker, then the
-        // contents (status row + active page). A re-exec on reset() comes back
-        // through this same path. switch_to() before the loop only records the active
-        // page; all first paint happens here. _establish_screen() (not clear_screen())
-        // so the queued handshake survives - clear_screen() would tx_discard it.
+        // Establish the screen on the first step (not in setup_*()) so the clear
+        // lands after the handshake setup_*() queued, in order: clear, "ACAB" boot
+        // marker, contents. _establish_screen() (not clear_screen) so the queued
+        // handshake survives the tx_discard clear_screen would do.
         if (!_screen_ready) {
             _establish_screen();
             draw_status_row();
@@ -60,9 +56,9 @@ namespace Botanik { namespace Terminal {
         }
         uint64_t now = HAL::uptime_ms();
         if (now - _status_last_ms >= Config::STATUS_REFRESH_MS) {
-            // Only refresh when the TX buffer can absorb the pass. When it can't,
-            // leave _status_last_ms untouched so the next step() retries rather than
-            // waiting out another full STATUS_REFRESH_MS interval.
+            // Only refresh when the TX buffer can absorb the pass; otherwise leave
+            // _status_last_ms so the next step() retries instead of waiting a full
+            // interval.
             if (tx_available() >= STATUS_METRICS_TX_BUDGET) {
                 _status_last_ms = now;
                 update_status_metrics();
@@ -94,9 +90,8 @@ namespace Botanik { namespace Terminal {
                     ev.command == Command::CTRL_PAGE_DOWN ||
                     ev.command == Command::TAB ||
                     ev.command == Command::SHIFT_TAB) {
-                    // TAB and Ctrl+PageDown advance to the next page; Shift+TAB
-                    // and Ctrl+PageUp step back. Both directions wrap around the
-                    // ends.
+                    // TAB / Ctrl+PageDown advance; Shift+TAB / Ctrl+PageUp step
+                    // back. Both wrap around the ends.
                     const bool back = ev.command == Command::CTRL_PAGE_UP ||
                                       ev.command == Command::SHIFT_TAB;
                     switch_relative(!back);
@@ -106,11 +101,9 @@ namespace Botanik { namespace Terminal {
                 break;
             }
         }
-        // Tick every page, not just the active one: each page is its own
-        // LogWriter and must drain its queue into its own scrollback on every
-        // step so a later focus() replays an up-to-date tail. Inactive pages keep
-        // their hands off the screen (gated internally on their active flag); only
-        // the active page renders.
+        // Tick every page, not just the active one: each is its own LogWriter and
+        // must drain into its scrollback every step so a later focus() replays an
+        // up-to-date tail. Inactive pages don't render (gated on their active flag).
         for (uint8_t i = 0; i < _pages_len; i++)
             if (_pages[i] != nullptr) _pages[i]->tick(i == _page_index);
     }
@@ -120,9 +113,8 @@ namespace Botanik { namespace Terminal {
 
     // Move cursor to an absolute screen position
     void AnsiTerminal::move_to(const CursorPos& target_in, bool skip) {
-        // The hardware caps the cursor at the last row/column when asked to
-        // move past either edge, so any out-of-range target must be clamped
-        // here to keep _hw_pos honest.
+        // The hardware caps the cursor at the last row/column, so clamp any
+        // out-of-range target here to keep _hw_pos honest.
         CursorPos target = {
             (uint16_t)std::min((uint16_t)(_rows > 0 ? _rows - 1 : 0), target_in.row),
             (uint16_t)std::min((uint16_t)(_cols > 0 ? _cols - 1 : 0), target_in.col),
@@ -131,19 +123,15 @@ namespace Botanik { namespace Terminal {
             return;
         }
 
-        // Emit the move all-or-nothing. If the escape can't be fully written (TX
-        // buffer full), leave _hw_pos untouched so cursor tracking stays truthful
-        // - a wrong _hw_pos would smear every later move/write. skip=true updates
-        // tracking without emitting (caller already knows the hardware moved).
+        // Emit the move all-or-nothing: on a TX-full failure leave _hw_pos untouched
+        // so tracking stays truthful (a wrong _hw_pos smears every later write).
+        // skip=true updates tracking without emitting (hardware already moved).
         bool ok = true;
         if (!skip) {
-            // Prefer a relative move whenever the cursor shares the target's row or
-            // column; goto_absolute is reserved for true diagonals. A single-axis
-            // relative hop is never longer than an absolute goto - the goto always
-            // carries both coordinates plus the ';' separator (>= 6 bytes), while
-            // CSI<n>C/D/A/B is <= 6 for any count under 1000 - so there is no delta
-            // at which absolute wins. target == _hw_pos already returned above, so
-            // the differing axis below is guaranteed non-zero.
+            // Prefer a relative move when the cursor shares the target's row or
+            // column; goto_absolute is for true diagonals only. A single-axis hop is
+            // never longer than an absolute goto, so there's no delta where absolute
+            // wins. target == _hw_pos returned above, so the differing axis is non-zero.
             if (target.row == _hw_pos.row) { // Same row
                 if (target.col == 0) {
                     ok = Ansi::move_row_start(_serial);   // 1-byte CR beats CUB
@@ -161,9 +149,8 @@ namespace Botanik { namespace Terminal {
             } else if (target.col == 0 && target.row > _hw_pos.row
                        && (target.row - _hw_pos.row) < 4
                        && target.row < (uint16_t)(_rows - 1)) {
-                // Common "spawn next row" target - CR + LF(s) costs delta+1
-                // bytes vs ~8 for goto_absolute. Bounded away from the last row so
-                // a stray LF can't scroll the screen.
+                // Common "spawn next row" target - CR + LF(s) is cheaper than
+                // goto_absolute. Bounded off the last row so a stray LF can't scroll.
                 ok = Ansi::down_to_row_start(_serial, (uint16_t)(target.row - _hw_pos.row));
             } else { // Different row and column, use absolute move
                 ok = Ansi::goto_absolute(_serial, target);
@@ -182,25 +169,19 @@ namespace Botanik { namespace Terminal {
     void AnsiTerminal::write_chars(const char *s, uint16_t len, bool insert) {
         if (len == 0) return;
 
-        // Lazy SM4/RM4 toggling - re-bracketing every call burns 8 bytes per
-        // single-char middle-of-line insert (SM4 + char + RM4 = 9 bytes,
-        // ~90 ms at 900 baud). Keep insert mode latched so consecutive
-        // inserts cost just the char byte, and only emit RM4 the first time
-        // a non-insert write happens.
+        // Lazy SM4/RM4 toggling: keep insert mode latched so consecutive inserts
+        // cost just the char byte, instead of re-bracketing each with SM4/RM4.
         if (insert != _hw_insert_mode) {
-            // Commit the latch only if the toggle actually reached the wire.
-            // BufferedSerial drops bytes when full; latching past a dropped RM4
-            // would later let a replace-mode write (e.g. the status row) paint in
-            // insert mode and corrupt the line. Bail rather than emit the payload
-            // in the wrong mode - the caller (status refresh / page) redraws.
+            // Commit the latch only if the toggle reached the wire. Latching past a
+            // dropped RM4 would let a later replace-mode write paint in insert mode
+            // and corrupt the line; bail and let the caller redraw.
             if (!Ansi::set_insert_mode(_serial, insert)) return;
             _hw_insert_mode = insert;
         }
 
-        // Track only what reached the wire. write() drops the tail when the TX
-        // buffer fills; advancing _hw_pos by the full len would then desync cursor
-        // tracking from the real screen and smear every later move/write. The
-        // dropped glyphs are content loss a redraw fixes - a wrong cursor isn't.
+        // Track only what reached the wire: write() drops the tail when TX fills, so
+        // advancing _hw_pos by the full len would desync tracking. Dropped glyphs are
+        // content loss a redraw fixes; a wrong cursor isn't.
         uint16_t written = _serial.write(s, len);
         uint32_t new_col = (uint32_t)_hw_pos.col + written;
         if (new_col >= _cols) {
@@ -211,8 +192,8 @@ namespace Botanik { namespace Terminal {
                 _hw_at_eol = false;
             } else {
                 _hw_pos.col = _cols - 1;
-                // Cursor is parked at the last cell. The cell holds a char we
-                // just wrote; a follow-up clear_to_eol would erase it.
+                // Parked at the last cell, which holds a char we just wrote; flag it
+                // so a follow-up clear_to_eol doesn't erase it.
                 _hw_at_eol = true;
             }
         } else {
@@ -225,7 +206,7 @@ namespace Botanik { namespace Terminal {
     void AnsiTerminal::set_inverted(bool enable) {
         if (enable == _hw_inverted) return;
         // Reserve the longest form (CSI + ATTR_NEG) up front so a split SGR can't
-        // swallow the following payload bytes; the reserve guarantees it all lands.
+        // swallow following payload bytes.
         constexpr uint16_t SGR_MAX = (sizeof(Ansi::CSI) - 1) + (sizeof(Ansi::ATTR_NEG) - 1);
         if (_serial.availableForWrite() < SGR_MAX) return;
 
@@ -257,18 +238,15 @@ namespace Botanik { namespace Terminal {
     void AnsiTerminal::delete_chars(uint16_t len) {
         if (len == 0) return;
         Ansi::delete_chars(_serial, len);
-        // Cursor position is typically not affected by DCH itself,
-        // but the content shifts left. The logical cursor position remains.
+        // DCH shifts content left; cursor position is unaffected.
     }
 
     // Erase content from cursor to the end of the line
     void AnsiTerminal::clear_to_eol() {
-        // When the cursor is parked at the last cell because a write just filled
-        // the row, there is nothing past it to erase - and the parked cell holds
-        // valid content we'd otherwise destroy.
+        // Cursor parked at the last cell after a row-filling write: nothing past it
+        // to erase, and the parked cell holds valid content.
         if (_hw_at_eol) return;
-        Ansi::clear_to_eol(_serial);
-        // Cursor position is typically not affected by EL
+        Ansi::clear_to_eol(_serial);  // EL leaves the cursor in place
     }
 
     // Erase from the cursor to the end of the display; the cursor does not move
@@ -278,53 +256,39 @@ namespace Botanik { namespace Terminal {
     }
 
     void AnsiTerminal::clear_screen() {
-        // Every byte still queued for TX is about to paint onto a display we're
-        // wiping - drop them first. That also empties the ring, so the (tiny)
-        // clear sequence is guaranteed to fit and the _hw_pos reset below is
-        // correct by construction, with no dropped-write path to handle.
+        // Drop bytes still queued for TX - they'd paint onto a display we're wiping.
+        // Emptying the ring also guarantees the clear sequence fits, so the _hw_pos
+        // reset below is correct with no dropped-write path.
         _serial.tx_discard();
         _establish_screen();
     }
 
     void AnsiTerminal::_establish_screen() {
-        // Clear+home first, then drop the boot marker and reset tracked cursor/wrap
-        // state. No TX discard here - the caller owns that (clear_screen drops stale
-        // paint; the first-step bootstrap must instead keep the setup_*() handshake it
-        // queued).
+        // Clear+home, then reset tracked cursor/wrap state. No TX discard here - the
+        // caller owns that (clear_screen drops stale paint; the first-step bootstrap
+        // keeps the setup_*() handshake it queued).
         Ansi::clear_screen(_serial);
         _hw_pos = {0, 0};
         _hw_at_eol = false;
-        // Boot marker: emit "ACAB" once per process, right after the clear and before
-        // any contents, so a fresh start (or a post-reset re-exec) is identifiable in
-        // the stream. Gated on the first establish so Ctrl-L redraws don't repeat it.
-        // The four glyphs print at the home cell and advance the cursor four columns;
-        // track that so the status-row redraw that overwrites them moves from the
-        // right place. (cols >= 5 always, so this can't wrap.)
+        // Boot marker: emit "ACAB" once per process (gated on the first establish, so
+        // Ctrl-L redraws don't repeat it) to mark a fresh start / re-exec in the
+        // stream. Track the four columns it advances. (cols >= 5, so it can't wrap.)
         if (!_screen_ready) {
             _serial.write("ACAB", 4);
             _hw_pos.col = 4;
         }
-        // Auto-wrap stays off for the whole UI: every page pre-wraps its own content
-        // to the width, so the terminal must never wrap on its own. A deferred wrap
-        // on a full-width line parks the cursor pending at the last cell - the next
-        // clear_to_eol then eats that glyph and the following row drops its first
-        // char. Re-assert it on every establish, and emit *unconditionally*: a prior
-        // copy may have been discarded and _hw_auto_wrap may already read false, so
-        // gating on it would skip this and leave the terminal wrapping. Sent on every
-        // terminal type: a VT102 honors it; a Minitel that ignores it loses nothing,
-        // and one that honors it gets free right-margin protection.
+        // Auto-wrap stays off UI-wide (every page pre-wraps its own content); a stray
+        // wrap parks the cursor and the next clear_to_eol eats a glyph. Emit
+        // unconditionally (a prior copy may have been discarded). Harmless on a
+        // Minitel that ignores it; free right-margin protection on one that honors it.
         set_auto_wrap(false);
-        // Hide the cursor by default - only the shell editor wants it visible, and
-        // it opts back in from its focus(). A fresh clear leaves the real cursor
-        // shown (VT100 default), so force the emit by flipping the shadow first;
-        // the lazy guard would otherwise skip it and leave a stray blinking cursor.
+        // Hide the cursor by default (only the shell editor opts back in via focus()).
+        // A fresh clear leaves it shown, so force the emit by flipping the shadow past
+        // the lazy guard.
         _hw_cursor_visible = true;
         set_cursor_visible(false);
-        // Reset reverse-video and insert mode. Neither is cleared by ED, so after a
-        // reset the unit may still hold them while our freshly-defaulted shadows read
-        // "normal" - which corrupts every later write. Force both emits to resync:
-        // flip the inverted shadow past the lazy guard, and assert RM4 directly
-        // (write_chars only toggles IRM lazily off its shadow).
+        // Reset reverse-video and insert mode: ED clears neither, so the unit may
+        // still hold them while our shadows read "normal". Force both emits to resync.
         _hw_inverted = true;
         set_inverted(false);                    // -> SGR normal (ESC[m)
         Ansi::set_insert_mode(_serial, false);  // -> replace mode (ESC[4l)
@@ -333,27 +297,21 @@ namespace Botanik { namespace Terminal {
     }
 
     void AnsiTerminal::setup_vt102() {
-        // Plain VT100/VT102 (the default). No special handshake; DECAWM (?7l) is
-        // (re)asserted on every screen establish by _establish_screen(). The screen
-        // itself is not cleared here - that is deferred to the first step() so the
-        // clear lands after this setup and before any contents.
+        // Plain VT100/VT102 (the default): no special handshake. DECAWM and the clear
+        // are handled later (_establish_screen / first step()).
         Ansi::vt102_setup(_serial);
     }
 
     void AnsiTerminal::setup_minitel() {
-        // Drive a real Minitel (1B+/2) over the DIN link. The PRO2 handshake - sent
-        // before the ANSI clear, while the unit is still in its native command set -
-        // selects 80-col téléinformatique mode, a lowercase keyboard, and page mode.
-        // The clear is deferred to the first step() (which also sends DECAWM ?7l:
-        // harmless if the unit ignores it, free right-margin protection if it honors
-        // it), so this handshake reaches the wire while the unit is still native.
+        // Drive a real Minitel (1B+/2) over the DIN link. The PRO2 handshake (sent
+        // before the ANSI clear, while the unit is still native) selects 80-col
+        // teleinformatique mode, a lowercase keyboard, and page mode.
         Ansi::minitel_setup(_serial);
     }
 
     void AnsiTerminal::clear_content() {
-        // Erase the page content area (rows 1..N-1), leaving the status bar on
-        // row 0 untouched. One erase-to-end-of-display from {1,0} is far cheaper
-        // than clearing each row in a loop.
+        // Erase the content area (rows 1..N-1), leaving the row-0 status bar. One
+        // erase-to-end-of-display from {1,0} beats clearing each row in a loop.
         move_to({1, 0});
         clear_to_eos();
     }
@@ -370,9 +328,8 @@ namespace Botanik { namespace Terminal {
             }
             _hw_pos.row++;
         } else {
-            // At the last row: scroll only the content area (rows 1..N-1) so that
-            // row 0 (status bar) is never touched by a hardware scroll.
-            // DL 1 at row 1 pulls rows 1..N-1 upward and inserts a blank at row N-1.
+            // At the last row: DL 1 at row 1 scrolls only the content area
+            // (rows 1..N-1) so the row-0 status bar is never touched.
             uint16_t target_col = carriage_return ? 0 : _hw_pos.col;
             move_to({1, 0});
             Ansi::delete_rows(_serial, 1);
@@ -385,15 +342,13 @@ namespace Botanik { namespace Terminal {
     // Insert blank rows
     void AnsiTerminal::insert_rows(uint16_t count) {
         if (count == 0) return;
-        Ansi::insert_rows(_serial, count);
-        // Cursor position is typically not affected by IL, only content shifts.
+        Ansi::insert_rows(_serial, count);  // IL shifts content; cursor unaffected
     }
 
     // Delete rows
     void AnsiTerminal::delete_rows(uint16_t count) {
         if (count == 0) return;
-        Ansi::delete_rows(_serial, count);
-        // Cursor position is typically not affected by DL, only content shifts.
+        Ansi::delete_rows(_serial, count);  // DL shifts content; cursor unaffected
     }
 
     // Pages
@@ -415,16 +370,12 @@ namespace Botanik { namespace Terminal {
 
     void AnsiTerminal::switch_to(uint8_t index) {
         if (index >= _pages_len || _pages[index] == nullptr) return;
-        // Remember the active page so a HAL::reset() re-exec returns to the page you
-        // were on rather than the default landing page (simulator only; a no-op on
-        // OPTA, where a hardware reset clears RAM and the board comes back default).
+        // Remember the active page so a HAL::reset() re-exec returns to it (simulator
+        // only; no-op on OPTA, where a reset clears RAM and comes back default).
         HAL::save_active_page(index);
         if (!_screen_ready) {
-            // Screen establish is deferred to the first step() (so the clear lands
-            // after the setup_*() handshake, in the order clear -> ACAB -> contents).
-            // Drawing onto an unestablished screen here would be wiped by that clear,
-            // so just record the target page; the bootstrap clears the screen, draws
-            // the status row, and focuses it.
+            // Establish is deferred to the first step(); drawing here would be wiped
+            // by that clear, so just record the target page for the bootstrap.
             _page_index = index;
             return;
         }
@@ -432,28 +383,23 @@ namespace Botanik { namespace Terminal {
             _pages[_page_index]->deactivate();
         uint8_t prev = _page_index;
         _page_index = index;
-        // Page change: keep row 0; only the content area is cleared. Drop the bytes
-        // still queued for the page we're leaving first - they'd paint onto the page
-        // we're switching to - exactly like Ctrl^L's full clear does. _hw_pos is stale
-        // once the queue is dropped, so reposition with an absolute move (not the
-        // relative-optimized move_to) before erasing.
+        // Page change: keep row 0, clear only the content area. Drop bytes queued for
+        // the page we're leaving first (they'd paint onto the new page). _hw_pos is
+        // stale after the drop, so reposition absolutely (not relative move_to).
         _serial.tx_discard();
         Ansi::goto_absolute(_serial, {1, 0});
         _hw_pos = {1, 0};
         _hw_at_eol = false;
         clear_to_eos();
-        // Only the tabs' active/inactive video changes on a switch - the names,
-        // their columns, and the metrics are all unchanged. Repaint just the two
-        // tabs that flip rather than rebuilding the whole bar: the one we left
-        // (now inactive/reverse) and the one we entered (now active/normal).
+        // Only the tabs' video flips on a switch, so repaint just the two affected
+        // tabs (the one we left, the one we entered) rather than the whole bar.
         draw_status_tab(prev);
         if (prev != index) draw_status_tab(index);
-        // The tx_discard above may have dropped a metrics update queued this same
-        // step; invalidate the diff cache so the next refresh repaints them. No
-        // bytes go out here - the on-screen metrics on row 0 survived the clear.
+        // The tx_discard above may have dropped a queued metrics update; invalidate
+        // the diff cache so the next refresh repaints them (no bytes go out here).
         memset(_status_metrics_cache, 0, sizeof(_status_metrics_cache));
-        // Cursor is hidden by default for every page; the one that wants it (the
-        // shell editor) shows it from its focus(). Lazy, so a no-op when already off.
+        // Hidden by default; the page that wants the cursor (shell editor) shows it
+        // from focus(). Lazy, so a no-op when already off.
         set_cursor_visible(false);
         _pages[_page_index]->focus();
     }
@@ -462,33 +408,24 @@ namespace Botanik { namespace Terminal {
     // ------------------------------------------------------------------------
 
     void AnsiTerminal::draw_status_row() {
-        // The metrics field is fixed-width; update_status_metrics() paints its
-        // bytes below, so here we only need its width to know where they start.
+        // The metrics field is fixed-width; we only need its width to know where it
+        // starts (update_status_metrics() paints its bytes below).
         constexpr uint16_t mlen = STATUS_METRICS_LEN - 1;  // drop the trailing NUL
 
-        // Save the attribute state; the cursor is *not* saved. Every caller
-        // (first-step bootstrap, Ctrl-L) repositions absolutely via focus()/
-        // redraw() right after, so restoring the cursor here would be a wasted
-        // move - we leave it parked in the metrics field instead.
+        // Save the attribute only, not the cursor: every caller repositions
+        // absolutely right after, so a cursor restore here would be wasted.
         bool      saved_inv = _hw_inverted;
 
-        // Draw full inverted row 0. Insert/replace mode is owned by write_chars
-        // (insert defaults to false here), so the status row always overwrites.
         move_to({0, 0});
 
-        // Establish the reverse-video background deterministically before the tabs.
-        // The cached attribute can be stale after switch_to()/clear_screen() dropped
-        // an un-sent SGR with tx_discard; without forcing the emit here, the active
-        // tab's set_inverted(false) below becomes a wrong no-op when the active page
-        // is the *first* tab (its reset is never sent, so its name inherits whatever
-        // attribute the terminal happens to hold). Force the emit by clearing the
-        // tracked state first.
+        // Force the reverse-video background to emit before the tabs: a prior
+        // tx_discard can leave _hw_inverted stale, which would make the first tab's
+        // set_inverted() a wrong no-op. Clear the tracked state to force it.
         _hw_inverted = false;
         set_inverted(true);
 
-        // Three blank leading columns, then one " NAME " tab per registered page.
-        // The whole bar is reverse-video; the active page's tab is drawn in normal
-        // video so it stands out from the others.
+        // Three blank columns, then one " NAME " tab per page. The bar is reverse
+        // video; the active tab is drawn normal so it stands out.
         write_chars("   ", 3);
         for (uint8_t i = 0; i < _pages_len; i++) {
             if (_pages[i] == nullptr) continue;
@@ -502,9 +439,8 @@ namespace Botanik { namespace Terminal {
 
         // Middle: spaces up to metrics start column
         uint16_t metrics_col = (_cols > (uint16_t)(mlen)) ? (uint16_t)(_cols - mlen) : 0;
-        // 31 spaces + trailing NUL. The NUL must never reach the wire: terminals
-        // drop it without advancing the cursor, but write_chars bumps _hw_pos by
-        // the full length anyway, desyncing cursor tracking by one column.
+        // 31 spaces + NUL. The NUL must never reach the wire: terminals drop it
+        // without moving, but write_chars would still bump _hw_pos by its length.
         static const char spaces[32] = "                               ";
         constexpr uint16_t SPACES_LEN = sizeof(spaces) - 1;
         while (_hw_pos.col < metrics_col) {
@@ -512,23 +448,21 @@ namespace Botanik { namespace Terminal {
             write_chars(spaces, chunk);
         }
 
-        // Right: invalidate the diff cache, then let update_status_metrics() paint
-        // the metrics. It is the single place that knows which fields are normal
-        // vs reverse video, and it already truncates on a narrow terminal.
+        // Right: invalidate the diff cache, then let update_status_metrics() paint -
+        // it's the single place that knows the per-field video and truncates narrow.
         memset(_status_metrics_cache, 0, sizeof(_status_metrics_cache));
         update_status_metrics(/*restore_cursor=*/false);
 
-        // Restore only the reverse-video attribute (so the page content that
-        // follows paints in normal video). The cursor is intentionally left where
-        // the metrics paint parked it - the caller repositions absolutely.
+        // Restore only the attribute; the cursor is left where the metrics parked it
+        // (the caller repositions absolutely).
         set_inverted(saved_inv);
     }
 
     void AnsiTerminal::draw_status_tab(uint8_t index) {
         if (index >= _pages_len || _pages[index] == nullptr) return;
 
-        // Tab columns mirror draw_status_row()'s layout: three leading blanks,
-        // then one " NAME " (name length + 2) per registered page in order.
+        // Tab columns mirror draw_status_row(): three leading blanks, then one
+        // " NAME " (name length + 2) per page in order.
         uint16_t col = 3;
         for (uint8_t i = 0; i < index; i++) {
             if (_pages[i] == nullptr) continue;
@@ -536,17 +470,14 @@ namespace Botanik { namespace Terminal {
         }
         const char* nm = _pages[index]->name();
 
-        // Save the attribute state only; the cursor is not saved. switch_to() draws
-        // the two flipped tabs back to back and then lets the incoming page's focus()
-        // reposition absolutely, so a per-tab cursor restore would just be a move to
-        // {1,0} that the very next draw_status_tab()/focus() immediately overrides.
+        // Save the attribute only, not the cursor: switch_to() draws both flipped
+        // tabs then lets the incoming focus() reposition, so a restore here is moot.
         bool      saved_inv = _hw_inverted;
 
         move_to({0, col});
-        // Active tab in normal video, every other tab reverse video. Force the SGR
-        // to actually emit: switch_to()'s preceding tx_discard() can leave the
-        // tracked _hw_inverted out of step with the terminal, which would turn
-        // set_inverted() into a wrong no-op (same hazard draw_status_row() guards).
+        // Active tab normal video, others reverse. Force the SGR to emit: a preceding
+        // tx_discard can leave _hw_inverted stale and make set_inverted() a wrong
+        // no-op (same hazard draw_status_row() guards).
         bool inv = (index != _page_index);
         _hw_inverted = !inv;
         set_inverted(inv);
@@ -554,8 +485,7 @@ namespace Botanik { namespace Terminal {
         write_chars(nm, (uint16_t)strlen(nm));
         write_chars(" ", 1);
 
-        // Restore only the reverse-video attribute; the cursor is left at the end of
-        // the tab for the caller to reposition (see the save note above).
+        // Restore only the attribute; the cursor is left for the caller (see above).
         set_inverted(saved_inv);
     }
 
@@ -563,8 +493,7 @@ namespace Botanik { namespace Terminal {
         char metrics[STATUS_METRICS_LEN];
         int mlen = _build_metrics(metrics, sizeof(metrics));
 
-        // mlen is constant across calls (all fields are fixed-width), so a byte
-        // index in metrics maps to a fixed screen column.
+        // mlen is constant (fixed-width fields), so a byte index maps to a fixed col.
         uint16_t visible = (uint16_t)std::min((int)_cols, mlen);
         if (visible == 0) return;
         uint16_t metrics_col = (uint16_t)(_cols - visible);
@@ -573,11 +502,9 @@ namespace Botanik { namespace Terminal {
         bool      saved_inv = _hw_inverted;
         bool      touched   = false;
 
-        // The whole bar is reverse video except the live readings - the plc
-        // status (columns 4..6), cpu (12..15) and stk (21..24) of the fixed-width
-        // string - drawn in normal video so they stand out. Coalesce changed cells
-        // into runs, breaking at that boundary so each run is uniformly one or the
-        // other.
+        // The bar is reverse video except the live readings - plc (cols 4..6), cpu
+        // (12..15), stk (21..24) - drawn normal. Coalesce changed cells into runs,
+        // breaking at that boundary so each run is uniformly one video or the other.
         int i = 0;
         while (i < visible) {
             if (metrics[i] == _status_metrics_cache[i]) { ++i; continue; }
@@ -585,9 +512,8 @@ namespace Botanik { namespace Terminal {
             int j = i + 1;
             while (j < visible && metrics[j] != _status_metrics_cache[j] &&
                    ((j >= 4 && j <= 6) || (j >= 12 && j <= 15) || (j >= 21 && j <= 24)) == value) ++j;
-            // Only emit a run if the whole of it (move + invert + chars) fits;
-            // otherwise stop and retry the rest next refresh, leaving the cache
-            // for the unwritten cells stale so they are picked up again.
+            // Only emit a run if it fully fits (move + invert + chars); otherwise
+            // stop and retry next refresh, leaving the unwritten cells' cache stale.
             uint16_t run = (uint16_t)(j - i);
             if (tx_available() < (uint16_t)(run + 16)) break;
             set_inverted(!value);
@@ -600,11 +526,9 @@ namespace Botanik { namespace Terminal {
 
         if (touched) {
             set_inverted(saved_inv);
-            // Standalone (periodic) refreshes must put the cursor back where the
-            // active page left it. When draw_status_row drives us it passes
-            // restore_cursor=false: it is mid-rebuild and its caller repositions
-            // absolutely right after, so a restore here would just be a move with
-            // no write before the next move.
+            // Periodic refreshes restore the cursor to where the page left it.
+            // draw_status_row passes restore_cursor=false (its caller repositions
+            // absolutely right after, so a restore would be a wasted move).
             if (restore_cursor) move_to(saved_pos);
         }
     }
