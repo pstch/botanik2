@@ -237,7 +237,7 @@ namespace Botanik { namespace HAL {
     /** @brief True if a debugger (or any ptrace tracer) is attached: Linux reports
      *  a non-zero TracerPid in /proc/self/status. Re-read on each call (cheap, and
      *  a debugger may attach late). */
-    inline bool _under_debugger() {
+    inline bool under_debugger() {
         int fd = open("/proc/self/status", O_RDONLY);
         if (fd < 0) return false;
         char buf[512];
@@ -521,7 +521,7 @@ namespace Botanik { namespace HAL {
         dsb();                             // read the kick paired with this timeout
         uint64_t uptime    = uptime_ms();
         if (uptime - last_kick > timeout) {
-            if (_under_debugger()) debug_break();  // freeze for the debugger
+            if (under_debugger()) debug_break();  // freeze for the debugger
             else                   reset();        // reboot the wedged process
         }
     }

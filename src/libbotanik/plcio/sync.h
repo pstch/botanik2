@@ -13,6 +13,7 @@
 #include <cstring>
 
 #include "libbotanik_config.h"
+#include "libbotanik_asserts.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/plcio/vars.h"
 #include "libbotanik/logs/logger.h"
@@ -191,6 +192,11 @@ namespace Botanik { namespace PlcIO {
                        uint32_t* timestamp_ms, Logs::Logger* logger = nullptr)
             : _plcin(plcin), _plcout(plcout)
         {
+            // The shared-memory pointers must be mapped: a null here means the PLC
+            // region wasn't wired (mis-linked image, or constructed before the M4 is up).
+            BOTANIK_ASSERT(plcin != nullptr);
+            BOTANIK_ASSERT(plcout != nullptr);
+            BOTANIK_ASSERT(timestamp_ms != nullptr);
             _ctx._timestamp_ms = timestamp_ms;
             _ctx._tx_last_ms   = *timestamp_ms;
             _tx_commit_ms      = *timestamp_ms;

@@ -10,6 +10,7 @@
  */
 
 #include "libbotanik.h"
+#include "libbotanik_asserts.h"      // BOTANIK_ASSERT + set_assert_logger
 #include "libbotanik/utils/text.h"   // format_float - snprintf has no %f on our Mbed
 #include "botanik_sim/simulator.h"
 
@@ -277,6 +278,7 @@ int main(int argc, char** argv) {
     // diagnostic log can't garble the console UI; redirect stderr to capture it.
     Logs::Logger           logger;
     Logs::MonitorLogWriter monitor(monitor_serial);
+    set_assert_logger(&logger);   // route BOTANIK_ASSERT failures to the log
 
     // Scheduler (constructed before the PLC layer and terminal so they can share
     // its published loop timestamp via the pointer below). It also measures and

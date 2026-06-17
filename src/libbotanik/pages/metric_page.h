@@ -117,6 +117,9 @@ namespace Botanik { namespace Pages {
          *  is 32 so a per-column byte mask fits in one uint32_t. */
         static constexpr uint16_t CACHE_SLOTS = 32;
         static constexpr uint16_t CACHE_COLS  = 32;
+        // The diff uses a uint32 bit per column and per slot, so both must fit 32.
+        static_assert(CACHE_COLS  <= 32, "CACHE_COLS must fit a uint32 per-column mask");
+        static_assert(CACHE_SLOTS <= 32, "CACHE_SLOTS must fit a uint32 per-slot mask");
         /** @brief Last value written per slot, for change detection. */
         char          _vcache[CACHE_SLOTS][CACHE_COLS];
         /** @brief Columns currently drawn reverse-video per slot (bit i = column i

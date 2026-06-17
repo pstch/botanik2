@@ -171,6 +171,11 @@ namespace Botanik { namespace HAL {
         __BKPT(0);  // CMSIS breakpoint intrinsic, provided via mbed.h
     }
 
+    inline bool under_debugger() {
+        // C_DEBUGEN is set while a halting debugger is attached to the core.
+        return (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) != 0;
+    }
+
     /** @} */
 
     /** @name System lifecycle

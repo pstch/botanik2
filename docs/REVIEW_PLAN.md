@@ -147,12 +147,14 @@ screen, classes stay small, short client-readable comments.
 
 ## Block 2 - Logging / flood protection
 
-- [x] `[ENUM-COUNT]` Bound the bucket array and scan loops by the real topic
-  count. DONE: added `LOG_TOPIC_COUNT = STATUS + 1` beside the `LogTopic` enum
-  (`vars.h`) with the `<= LOG_TOPIC_MAX` static_assert; `_perTopic_buckets[]` and
-  the three `step()`/ctor loops + the `push_entry` bound now use it. `Logger`
-  shrank 2152 -> 160 bytes (host) and the per-tick double scan went 255 -> 6.
-  Verified: both targets build, 22 tests pass.
+- [x] `[ENUM-COUNT]` Bound the per-tick scan loops by the real topic count.
+  DONE: added `LOG_TOPIC_COUNT` (`= ASSERT + 1` after `[ASSERT-TOPIC]`) beside the
+  `LogTopic` enum; the three `step()`/ctor loops and the `push_entry` bound use
+  it, so the per-tick double scan went 255 -> 7. Final decision (revised in Block
+  4): the bucket *array* stays sized by `LOG_TOPIC_MAX` so the `Logger` footprint
+  is fixed regardless of how many topics the enum defines (no size-pin churn when
+  a topic is added) - the CPU win is kept, the ~2 KB is traded for a stable
+  contract.
 
 - [x] `[REPORT-SLOT]` Make critical messages undroppable: never-drop
   `LOG_CRITICAL` at the writer, overwriting the oldest FIFO entry instead of
@@ -230,31 +232,29 @@ screen, classes stay small, short client-readable comments.
 
 ## Block 4 - Assertions, utils, cleanup
 
-- [ ] `[ASSERT-HW]` Add `src/libbotanik_asserts.h` with `BOTANIK_ASSERT`,
-  compiled out in release. In debug builds, gate the trap on a debugger being
-  attached - unified with the watchdog policy introduced in `f0dd653`
-  ("trap under a debugger, otherwise take the production action"):
-  `log(ASSERT, ...); if (HAL::under_debugger()) HAL::debug_break(); else <action>;`
-  - Hardware non-debugger action: **log + continue**.
-  - Simulator non-debugger action: **abort()** (loud failure in a headless/CI
-    run instead of a re-exec loop).
-  - `[UNDER-DBG]` Add `HAL::under_debugger()` to the HAL surface: lift the
-    existing `_under_debugger()` (`hal/simulator.h`, /proc/self/status TracerPid)
-    to the public interface; OPTA impl =
-    `(CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) != 0`.
-  - Log under a dedicated `ASSERT` topic.
-  - `[ASSERT-TOPIC]` Add `ASSERT` to the `LogTopic` enum (new value `6`,
-    C-side only; PLC never emits it) and bump `LOG_TOPIC_COUNT` to 7; update the
-    layout static_asserts together.
+- [x] `[ASSERT-HW]` DONE: `src/libbotanik_asserts.h` is header-only (avoids a
+  CMakeLists edit) - `BOTANIK_ASSERT` compiles out unless `DEBUG`; on failure it
+  logs `LOG_CRITICAL` under the `ASSERT` topic (via a `set_assert_logger`-
+  registered logger, function-local static keeps it header-only), then
+  `if (HAL::under_debugger()) debug_break()` else `abort()` on sim / log+continue
+  on hardware. Wired `set_assert_logger(&logger)` in `main.cpp`.
+  - DONE `[UNDER-DBG]`: `HAL::under_debugger()` added - sim renamed from
+    `_under_debugger` (/proc TracerPid), OPTA = `CoreDebug->DHCSR & C_DEBUGEN_Msk`
+    (validated by the OPTA build).
+  - DONE `[ASSERT-TOPIC]`: `ASSERT` (=6) added to `LogTopic`, `LOG_TOPIC_COUNT`
+    is `ASSERT + 1` (7), `format_log_topic` renders "ASSERT". Note: per the
+    user's call the bucket *array* stays sized by `LOG_TOPIC_MAX` (fixed
+    footprint) and only the *scan loops* use `LOG_TOPIC_COUNT`, so adding a topic
+    no longer churns the `Logger` size pin.
 
-- [ ] `[ASSERT-USE]` Sprinkle `BOTANIK_ASSERT` on the load-bearing invariants
-  surfaced by the review: `_hw_pos.row < _rows` / col bounds (terminal), PLC
-  shared pointers non-null at boot (`firmware.cpp:20-22`), `sizeof(T) % 4 == 0`
-  (already a static_assert via `[C1]`), `CACHE_COLS <= 32` (metric_page), page
-  slot-collision bounds.
-  - Safety note: `HAL::debug_break()` (`__BKPT`) is a HardFault on OPTA when no
-    debugger is attached, so any assert/trap path that reaches it on hardware
-    MUST be gated by `HAL::under_debugger()` (see `[ASSERT-HW]`/`[UNDER-DBG]`).
+- [x] `[ASSERT-USE]` DONE: PLC shared pointers + timestamp non-null in the
+  `PlcSyncHandler` ctor (catches a mis-linked/early PLC region; also gets the
+  asserts header OPTA-compiled); `static_assert(CACHE_COLS <= 32 && CACHE_SLOTS
+  <= 32)` in `metric_page.h` (the uint32 diff-mask invariant). `sizeof(T)%4==0`
+  already covered by `[C1]`; terminal cursor bounds are clamped in `move_to`
+  (an input assert would false-positive), and `add_page` already guards its bound.
+  - Safety note: `HAL::debug_break()` (`__BKPT`) HardFaults on OPTA with no
+    debugger, so the trap is gated on `HAL::under_debugger()`.
 
 - [ ] `[ARCH-CONTEXT]` Tighten coupling: hand consumers `const uint32_t*` for the
   shared loop timestamp (only the scheduler writes it), and add defensive

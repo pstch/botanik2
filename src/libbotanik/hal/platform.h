@@ -139,6 +139,11 @@ namespace Botanik { namespace HAL {
      *  attached, depending on the platform's default signal/fault handling. */
     inline void debug_break();
 
+    /** @brief True if a debugger is currently attached (host: a ptrace tracer via
+     *  /proc/self/status; OPTA: the Cortex-M halting-debug-enable bit). Gate
+     *  debug_break() on this: a bare BKPT with no debugger HardFaults on OPTA. */
+    inline bool under_debugger();
+
     /** @} */
 
     /** @name System lifecycle
