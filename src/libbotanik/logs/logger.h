@@ -72,8 +72,10 @@ namespace Botanik { namespace Logs {
         uint32_t        _perTopic_period_ms     = Config::LOG_PERTOPIC_BUCKET_PERIOD_MS;
         /** @brief Wall-clock time of the last per-topic refill. */
         uint32_t        _perTopic_fillTime_ms   = 0;
-        /** @brief One token bucket per log topic. */
-        LogBucket_t     _perTopic_buckets[PlcIO::LOG_TOPIC_COUNT];
+        /** @brief Per-topic token buckets. Sized by LOG_TOPIC_MAX (the full wire
+         *  range) so the footprint stays fixed as topics are added; only the first
+         *  LOG_TOPIC_COUNT entries (the defined topics) are ever filled or scanned. */
+        LogBucket_t     _perTopic_buckets[Config::LOG_TOPIC_MAX];
 
         /** @} */
 

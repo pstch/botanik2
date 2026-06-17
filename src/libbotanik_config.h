@@ -139,7 +139,9 @@ namespace Botanik { namespace Config {
      *  reports. First drop reports instantly; further reports wait this holdoff. */
     static constexpr uint32_t LOG_TX_DROP_REPORT_PERIOD_MS = 10000;
 
-    /** @brief Maximum number of unique log topics.
+    /** @brief Maximum number of unique log topics; sizes the logger's per-topic
+     *  bucket array, so the footprint stays fixed regardless of how many topics the
+     *  LogTopic enum currently defines.
      *  @note Each topic consumes memory for its rate-limiting bucket. Bounded by
      *  the uint8_t LogTopic type (and the uint8_t bucket-loop counters), so it must
      *  stay <= 255 - see the static_assert in plcio/vars.h. */
