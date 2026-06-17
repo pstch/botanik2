@@ -469,14 +469,21 @@ namespace Botanik { namespace HAL {
         _wd_timeout_ms() = 0;
     }
 
-    /** @brief Service the watchdog, calling reset() if the timeout has lapsed.
-     *  Simulator-only; runs on the emulator thread so it can fire even when the
-     *  main loop is wedged. */
+    /** @brief Service the watchdog when the timeout has lapsed. Simulator-only;
+     *  runs on the emulator thread so it can fire even when the main loop is
+     *  wedged. In DEBUG builds it traps (SIGTRAP) so a debugger breaks on the
+     *  wedged state instead of silently re-exec'ing; otherwise it reset()s. */
     inline void watchdog_poll() {
         uint32_t timeout = _wd_timeout_ms();
         if (timeout == 0) return;
         dsb();                             // read the kick paired with this timeout
-        if (uptime_ms() - _wd_last_kick_ms() > timeout) reset();
+        if (uptime_ms() - _wd_last_kick_ms() > timeout) {
+#ifdef DEBUG
+            raise(SIGTRAP);                // freeze for the debugger, don't reboot
+#else
+            reset();
+#endif
+        }
     }
 
     /** @} */
