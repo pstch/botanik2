@@ -212,6 +212,23 @@ namespace Botanik { namespace HAL {
         raise(SIGTRAP);  // <csignal> is already included above for the console handlers
     }
 
+    /** @brief True if a debugger (or any ptrace tracer) is attached: Linux reports
+     *  a non-zero TracerPid in /proc/self/status. Re-read on each call (cheap, and
+     *  a debugger may attach late). */
+    inline bool _under_debugger() {
+        int fd = open("/proc/self/status", O_RDONLY);
+        if (fd < 0) return false;
+        char buf[512];
+        ssize_t n = read(fd, buf, sizeof(buf) - 1);
+        close(fd);
+        if (n <= 0) return false;
+        buf[n] = '\0';
+        const char* p = strstr(buf, "TracerPid:");
+        if (p == nullptr) return false;
+        for (p += 10; *p == ' ' || *p == '\t'; ++p) {}  // skip "TracerPid:" + spaces
+        return *p != '0';
+    }
+
     /** @} */
 
     /** @name Serial I/O
@@ -478,8 +495,8 @@ namespace Botanik { namespace HAL {
 
     /** @brief Service the watchdog when the timeout has lapsed. Simulator-only;
      *  runs on the emulator thread so it can fire even when the main loop is
-     *  wedged. In DEBUG builds it traps (SIGTRAP) so a debugger breaks on the
-     *  wedged state instead of silently re-exec'ing; otherwise it reset()s. */
+     *  wedged. Traps (SIGTRAP) when a debugger is attached so it breaks on the
+     *  wedged state; otherwise resets the process. */
     inline void watchdog_poll() {
         uint32_t timeout = _wd_timeout_ms();
         uint32_t uptime = uptime_ms();
@@ -487,11 +504,8 @@ namespace Botanik { namespace HAL {
         if (timeout == 0) return;
         dsb();                             // read the kick paired with this timeout
         if (uptime > timeout && uptime - timeout > last_kick) {
-#ifdef DEBUG
-            raise(SIGTRAP);                // freeze for the debugger, don't reboot
-#else
-            reset();
-#endif
+            if (_under_debugger()) debug_break();  // freeze for the debugger
+            else                   reset();        // reboot the wedged process
         }
     }
 
