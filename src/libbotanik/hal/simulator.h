@@ -520,12 +520,15 @@ namespace Botanik { namespace HAL {
      *  wedged. Traps (SIGTRAP) when a debugger is attached so it breaks on the
      *  wedged state; otherwise resets the process. */
     inline void watchdog_poll() {
-        uint32_t timeout = _wd_timeout_ms();
-        uint32_t uptime = uptime_ms();
-        uint32_t last_kick = _wd_last_kick_ms();
+        // 64-bit throughout (no 49-day wrap) and read last_kick *before* now, so a
+        // concurrent watchdog_kick() can't leave last_kick newer than uptime and
+        // underflow the elapsed check into a spurious reset.
+        uint64_t timeout   = _wd_timeout_ms();
         if (timeout == 0) return;
+        uint64_t last_kick = _wd_last_kick_ms();
         dsb();                             // read the kick paired with this timeout
-        if (uptime > timeout && uptime - timeout > last_kick) {
+        uint64_t uptime    = uptime_ms();
+        if (uptime - last_kick > timeout) {
             if (_under_debugger()) debug_break();  // freeze for the debugger
             else                   reset();        // reboot the wedged process
         }

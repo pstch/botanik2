@@ -122,7 +122,9 @@ namespace Botanik { namespace PlcIO {
                     else                             _logger->notice(PLC_IO, "PLC link recovered");
                     break;
                 case PLC_TIMEOUT: _logger->warning(PLC_IO, "PLC link timeout");  break;
-                case PLC_FAULT:   _logger->error  (PLC_IO, "PLC watchdog fault"); break;
+                // faulted() == (status==PLC_FAULT), so this transition is exactly when
+                // the main loop stops kicking the HW watchdog: say so, loudly.
+                case PLC_FAULT:   _logger->critical(PLC_IO, "PLC watchdog fault: withholding kick, rebooting"); break;
                 default:          _last_status = current; return;
             }
             _last_status = current;

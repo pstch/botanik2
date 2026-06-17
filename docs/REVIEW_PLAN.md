@@ -113,31 +113,35 @@ screen, classes stay small, short client-readable comments.
 
 ## Block 1 - Scheduler / watchdog / timing
 
-- [ ] `[JITTER-CLAMP]` Defend the jitter sample against unsigned underflow.
-  `scheduler.h:246`: clamp `now_us - _next_tick_ms*1000` to 0 before recording
-  (can't happen with current code, but one bad sample sticks in an all-time max
-  for the whole multi-year uptime).
+- [x] `[JITTER-CLAMP]` Defend the jitter sample against unsigned underflow.
+  DONE: `scheduler.h` now computes `grid_us = _next_tick_ms*1000` and records
+  `now_us > grid_us ? now_us-grid_us : 0` (`_next_tick_ms` is `uint64_t`, so the
+  multiply is safe; only the subtraction could wrap). One bad sample can no
+  longer poison the all-time max.
 
-- [ ] `[BUSYWAIT]` Keep the 1 ms busy-wait tail hardcoded (1 ms is the minimum
-  sleep granule; the spin is bounded by a monotonic-clock comparison). Add
-  `static_assert(Config::TASK_PERIOD_MS >= 2)` so a future retune can't collapse
-  the sleep/spin split into a 100% spinner.
+- [x] `[BUSYWAIT]` Keep the 1 ms busy-wait tail hardcoded (1 ms is the minimum
+  sleep granule; the spin is bounded by a monotonic-clock comparison).
+  DONE: added class-scope `static_assert(Config::TASK_PERIOD_MS >= 2)` beside
+  `_period_ms` so a future retune can't collapse the sleep/spin split.
 
-- [ ] `[WATCHDOG-LOG]` When the kick is withheld because the PLC link faulted
-  (`firmware.cpp:77`, `main.cpp:357`), emit a prominent `LOG_CRITICAL` at the
-  point of withholding - today it is silent and the board just reboots.
+- [x] `[WATCHDOG-LOG]` When the kick is withheld because the PLC link faulted,
+  emit a prominent log instead of a silent reboot.
+  - DONE: `faulted()` is exactly `status() == PLC_FAULT`, and that transition is
+    already detected edge-triggered in the context's `_log_status_change`. So the
+    one clean spot is there: the `PLC_FAULT` case is now `LOG_CRITICAL`
+    ("PLC watchdog fault: withholding kick, rebooting"). Shared by both targets,
+    won't flood (fires once per transition), and needed no touch to the in-flight
+    `firmware.cpp` loop.
   - Open question to revisit later (not in this pass): should a *transient* PLC
     fault really reboot the whole HMI/logging firmware, or should the HMI stay up
-    and only surface the fault? Leave the current behaviour, just make it loud.
+    and only surface the fault? Left the current behaviour, just made it loud.
 
-- [ ] `[WD-SNAPSHOT]` Harden the simulator `watchdog_poll` (`hal/simulator.h`),
-  surfaced reviewing `f0dd653`: keep the clocks `uint64_t` (drop the gratuitous
-  `uint32_t` truncation that reintroduces a 49-day wrap into an otherwise
-  wrap-free monotonic clock) and read `last_kick` **before** `uptime`, so a
-  concurrent `watchdog_kick()` between the two reads can't make `last_kick` newer
-  than `uptime` and underflow into a spurious reset. Condition collapses to
-  `uptime - last_kick > timeout`. Simulator-only (x86-64 64-bit loads are atomic,
-  so no torn read), but it removes a spurious-reboot path and simplifies the test.
+- [x] `[WD-SNAPSHOT]` Harden the simulator `watchdog_poll` (`hal/simulator.h`),
+  surfaced reviewing `f0dd653`. DONE: clocks are `uint64_t` (no 49-day wrap),
+  `last_kick` is read **before** `uptime` (a concurrent `watchdog_kick()` can no
+  longer make `last_kick` newer than `uptime`), and the test collapsed to
+  `uptime - last_kick > timeout`. Verified: sim runs the full duration with no
+  spurious reset, link establishes.
 
 ---
 

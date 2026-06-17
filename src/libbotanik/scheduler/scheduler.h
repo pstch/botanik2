@@ -91,6 +91,10 @@ namespace Botanik { namespace Scheduler {
         /** @name State
          *  @{ */
 
+        // tick() sleeps until 1 ms before the grid point and busy-waits the last
+        // ms, so a period under 2 ms would be all spin.
+        static_assert(Config::TASK_PERIOD_MS >= 2, "TASK_PERIOD_MS must be >= 2 (sleep/spin split)");
+
         /** @brief Target loop period (ms). */
         uint32_t        _period_ms     = Config::TASK_PERIOD_MS;
         /** @brief Uptime anchor of the next scheduled tick. */
@@ -256,8 +260,12 @@ namespace Botanik { namespace Scheduler {
             _context.timestamp_ms = (uint32_t)now_ms;
             // skip missed beats (and log overruns)
             _skip_beats(now_ms);
-            // record this beat's scheduling jitter and CPU duty cycle
-            _record_jitter((uint32_t)(now_us - _next_tick_ms * 1000));
+            // record this beat's scheduling jitter and CPU duty cycle. Clamp the
+            // grid-relative lateness at 0: _skip_beats keeps now >= the grid point
+            // so it shouldn't underflow, but one wrapped sample would poison the
+            // all-time max for the whole uptime, so defend against it.
+            uint64_t grid_us = _next_tick_ms * 1000;
+            _record_jitter(now_us > grid_us ? (uint32_t)(now_us - grid_us) : 0);
             _record_load(now_us);
             // advance time grid
             _next_tick_ms += _period_ms;
