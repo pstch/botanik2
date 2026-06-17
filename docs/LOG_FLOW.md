@@ -60,15 +60,15 @@ where each sink is drained.
         └────────────────┬────────────────┘
                          ▼
                  ┌───────────────────────────────────────┐
-                 │              Logger                    │
+                 │              Logger                   │
                  │  ┌─────────────────────────────────┐  │
                  │  │  global bucket  ⨯  topic bucket │  │  ← dual token-bucket
                  │  └───────────────┬─────────────────┘  │     (drop + count on empty;
-                 │     push_entry() │                     │      periodic suppressed report)
-                 └──────────────────┼─────────────────────┘
+                 │     push_entry() │                    │      periodic suppressed report)
+                 └──────────────────┼────────────────────┘
                                     │ fan-out to every registered LogWriter
-        ┌───────────────────┬───────┴───────────┬───────────────────┐
-        ▼                   ▼                   ▼                   ▼
+        ┌──────────────────┬────────┴─────────┬──────────────────┐
+        ▼                  ▼                  ▼                  ▼
  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌──────────────┐
  │ Monitor     │    │ ShellPage   │    │ LogsPage    │    │ HomePage     │
  │ LogWriter   │    │ (writer)    │    │ (writer)    │    │ (writer)     │

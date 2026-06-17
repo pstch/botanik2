@@ -47,7 +47,7 @@ active. See [PAGES.md](PAGES.md).
 
 ```
                 Hardware Serial port
-                        |
+                        │
                         │ raw bytes
                         ▼
  ┌─────────────────────────────────────────────────────┐
