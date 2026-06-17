@@ -1,0 +1,255 @@
+# Expert review - action plan
+
+Outcome of the systematic firmware review and the follow-up design discussion.
+Each item carries the `[ANCHOR]` we used in the discussion so it stays
+referenceable. Ordered by priority: cross-core correctness first, then
+scheduling, logging, terminal/pages, then assertions/cleanup, then docs.
+
+Conventions for this plan: no heap, no blocking, no recursion, volatile +
+`HAL::dsb()`/`dmb()`/`ordered_*` instead of `std::atomic`, functions fit one
+screen, classes stay small, short client-readable comments.
+
+---
+
+## Block 0 - Cross-core correctness (hardware-critical, do first)
+
+- [ ] `[C1]` Fix `ordered_copy` word/byte count. `hal/opta.h:122` passes
+  `sizeof(T)` (bytes) where `ARM_MPU_OrderedMemcpy` wants a **word** count, so
+  every PLC transfer copies 4x and runs off the end of both buffers on hardware.
+  - Change to `sizeof(T) / sizeof(uint32_t)`.
+  - Add `static_assert(sizeof(T) % sizeof(uint32_t) == 0)` inside `ordered_copy`
+    and `ordered_move` (catches this class at compile time).
+  - Invisible on the simulator (its path uses a correct `memcpy`), so verify by
+    reasoning / the OPTA stub test, not the sim.
+
+- [ ] `[C2-FIX]` Add an ordered read primitive and stop reading cross-core
+  counters through plain loads.
+  - Add `HAL::dmb()` (lighter than `dsb()`: ordering, not completion) to the HAL
+    surface (`platform.h`, `opta.h` = `__DMB()`, `simulator.h` = fence).
+  - Add `HAL::ordered_read<T>(const volatile T*)` = volatile load + `dmb()`,
+    symmetric to `ordered_move`.
+  - Use it for the four sync counters (`txSeqNum`, `txAckNum`, `rxSeqNum`,
+    `rxAckNum`) and the two log cursors (`writeIndex`, `readIndex`) in
+    `plcio/sync.h` and `plcio/emulator.h`. Keep the bulk `data`/`logs` payloads
+    non-volatile (copied via `ordered_copy`).
+  - Rationale: the hazard is the compiler caching a non-volatile load across the
+    poll; volatile states intent locally without making the whole region volatile.
+
+- [ ] `[CACHE]` D-cache coherency for the PLC shared region. We run on the **M7**
+  (`__DCACHE_PRESENT`), the region may be cacheable and we cannot rely on the
+  proprietary image toolchain mapping it non-cacheable.
+  - Add `HAL::cache_clean(addr, len)` and `HAL::cache_invalidate(addr, len)` to
+    the HAL: `SCB_CleanDCache_by_Addr` / `SCB_InvalidateDCache_by_Addr` on OPTA,
+    **no-op on the simulator**. Guard on `__DCACHE_PRESENT` so a future M4 build
+    compiles them away.
+  - `[CACHE-ALIGN]` Do **both**: (a) `alignas(32)` + pad the shared structs to a
+    32-byte multiple in `plcio/vars.h` (C++ rounds `sizeof` up for free), and
+    (b) round the address span out to 32-byte lines **inside** the cache helper.
+    Belt-and-suspenders so a partial line can never clobber a neighbour.
+  - Discipline (the asymmetry that keeps it safe):
+    - **Invalidate the PLC-output region before reading it** (`_rx_memcpy`, and
+      the output-side counter polls).
+    - **Clean the PLC-input region after writing it** (`_tx_memcpy`,
+      `_tx_commit`, `_rx_acknowledge`).
+    - Never invalidate a region we write to; read-region and write-region are
+      disjoint (`PlcOutput` vs `PlcInput`).
+
+- [ ] `[C3-FIX]` Torn-read diagnostic (no seqlock, no double buffer). The PLC
+  upholds mutual exclusion via the handshake (MOV block, ENABLE low until it
+  observes our ACK). After `_rx_memcpy`, re-read `txSeqNum`; if it changed during
+  the copy the snapshot may be torn - **count it and log a `PLC_IO` warning**,
+  discard the snapshot, do not ack. Diagnostic only, no retry loop.
+
+- [ ] `[C4]` Resilience to corrupted log entries (DMA, no integrity field by
+  design). A bad `LogEntry_t` must never crash or wedge us:
+  - Clamp `length` to the buffer and force-terminate before any use
+    (`plcio/logs.cpp`).
+  - `[DRAIN-BOUND]` Bound the drain loop in `plcio/logs.cpp:26` to at most
+    `LOG_PLC_BUFFER_SIZE` entries per `step()` so a runaway/corrupt `writeIndex`
+    cannot burn the whole tick budget.
+
+- [ ] `[ARCH-CONCURRENCY]` / `[SERIAL-DOC]` Pin down and document the concurrency
+  model. Our code is single-threaded except for the **one** async boundary: the
+  PLC shared memory (the HW watchdog is fire-and-forget). We have **no serial
+  ISRs** in our code - `receive`/`transmit`/`step` are main-loop only.
+  - Delete the incorrect "may be called from an ISR" claim in `utils/serial.h`
+    and mark `BufferedSerial` (and the logger queue) explicitly **ISR-unsafe**.
+  - `tx_discard()` underflow-resilience stays as belt-and-suspenders, not a
+    necessity.
+
+---
+
+## Block 1 - Scheduler / watchdog / timing
+
+- [ ] `[JITTER-CLAMP]` Defend the jitter sample against unsigned underflow.
+  `scheduler.h:246`: clamp `now_us - _next_tick_ms*1000` to 0 before recording
+  (can't happen with current code, but one bad sample sticks in an all-time max
+  for the whole multi-year uptime).
+
+- [ ] `[BUSYWAIT]` Keep the 1 ms busy-wait tail hardcoded (1 ms is the minimum
+  sleep granule; the spin is bounded by a monotonic-clock comparison). Add
+  `static_assert(Config::TASK_PERIOD_MS >= 2)` so a future retune can't collapse
+  the sleep/spin split into a 100% spinner.
+
+- [ ] `[WATCHDOG-LOG]` When the kick is withheld because the PLC link faulted
+  (`firmware.cpp:77`, `main.cpp:357`), emit a prominent `LOG_CRITICAL` at the
+  point of withholding - today it is silent and the board just reboots.
+  - Open question to revisit later (not in this pass): should a *transient* PLC
+    fault really reboot the whole HMI/logging firmware, or should the HMI stay up
+    and only surface the fault? Leave the current behaviour, just make it loud.
+
+---
+
+## Block 2 - Logging / flood protection
+
+- [ ] `[ENUM-COUNT]` Bound the bucket array and scan loops by the real topic
+  count. Add `static constexpr uint8_t LOG_TOPIC_COUNT = STATUS + 1;` beside the
+  `LogTopic` enum (`plcio/vars.h`) with `static_assert(LOG_TOPIC_COUNT <=
+  Config::LOG_TOPIC_MAX)`. Size `_perTopic_buckets[]` and the `step()` loops by
+  it (drops ~2 KB SRAM + a 255-iteration double scan every tick; keep
+  `LOG_TOPIC_MAX` as the wire-range validator).
+
+- [ ] `[REPORT-SLOT]` Make critical messages undroppable: never-drop
+  `LOG_CRITICAL` at the writer, overwriting the oldest FIFO entry instead of
+  dropping the new one (`logs/writer.cpp`).
+
+- [ ] `[REPORT-EDGE]` Add edge-triggered, holdoff-throttled reporting for the
+  three silent-loss categories, each with its own minimum interval: **first
+  event reported instantly, subsequent ones only after the interval**.
+  - Sink-level drops (`BufferedLogWriter::_dropped`/`_failed`).
+  - TX-full truncation (`utils/serial.cpp` short writes - count and report).
+  - Rate-limiter suppressions (existing path, fold into the same model).
+  - Classify these meta-reports as `LOG_CRITICAL` so `[REPORT-SLOT]` guarantees
+    delivery (a dedicated topic alone only escapes the rate limiter, not a full
+    FIFO).
+  - Distinct interval constants in `libbotanik_config.h`.
+
+---
+
+## Block 3 - Terminal / pages
+
+- [ ] `[STATUS-CACHE]` Don't mark status-bar cells drawn on a truncated write.
+  `emit_field_run` should return cells actually written (from `write_chars`);
+  `update_status_metrics` (`terminal.cpp:600`) and `update_status_clock`
+  (`terminal.cpp:640`) cache only that many. Tighten the `run + 16` reserve to
+  the true worst case (`move + SGR + run`). (Latent today: TX gates mean full
+  writes except if the remote hangs - fix anyway.)
+
+- [ ] `[CSI-SAT]` Saturate CSI numeric param accumulation instead of wrapping
+  `uint16_t` (`parser.cpp:148`).
+
+- [ ] `[HEADER-96]` Add `Config::TERMINAL_MAX_COLS` (default 256) and chunk the
+  reverse-video fill so a terminal wider than the local buffer paints fully
+  (`home.h:104`). Keep the space-fill (not `ESC[K`) for Minitel safety.
+
+- [ ] `[CTRLC-RESET]` Route Ctrl+C through the page: `handle_cancel()` returns
+  `bool`. If a page handled it, stop; if not, `AnsiTerminal` applies the default.
+  Remove the direct `HAL::shutdown()` calls from the pages
+  (`metric_page.h`, `status.h`, `home.h`, `logs.cpp`). **Hardware default for an
+  unhandled Ctrl+C is a no-op**; on the simulator it stays the
+  SIGINT/quit-the-process path.
+
+- [ ] `[WRAP-GUARD]` Guard the narrow-terminal underflows: `store_wrapped`
+  segment budget when `cols <= plen` (`line_buffer.h:71`) and the echo
+  `cap = cols - plen` (`shell.cpp:263`). Clamp `prefix_len`/`cap` to 0 when the
+  terminal is narrower than the prefix.
+
+- [ ] `[FACTOR-INGEST]` Add `Scrollback::ingest(buf, len, cols, prefix,
+  prefix_len)` = `store_wrapped` + `note_pending`, and collapse the near-identical
+  `write()` bodies in `pages/logs.cpp`, `pages/home.h`, `pages/shell.cpp` to a
+  one-line delegation.
+
+- [ ] `[DROP-PAGE-RESTORE]` Remove the page-index-restore feature for target
+  parity (persistence is by design the PLC's Modbus params, not our flash):
+  drop `HAL::save_active_page`, the `BOTANIK_PAGE` env read (`main.cpp:324`), and
+  the simulator implementation.
+
+---
+
+## Block 4 - Assertions, utils, cleanup
+
+- [ ] `[ASSERT-HW]` Add `src/libbotanik_asserts.h` with `BOTANIK_ASSERT`:
+  - Compiled out in release.
+  - Debug: **trap on the simulator**, **log-and-continue on hardware**.
+  - Log under a dedicated `ASSERT` topic.
+  - `[ASSERT-TOPIC]` Add `ASSERT` to the `LogTopic` enum (new value `6`,
+    C-side only; PLC never emits it) and bump `LOG_TOPIC_COUNT` to 7; update the
+    layout static_asserts together.
+
+- [ ] `[ASSERT-USE]` Sprinkle `BOTANIK_ASSERT` on the load-bearing invariants
+  surfaced by the review: `_hw_pos.row < _rows` / col bounds (terminal), PLC
+  shared pointers non-null at boot (`firmware.cpp:20-22`), `sizeof(T) % 4 == 0`
+  (already a static_assert via `[C1]`), `CACHE_COLS <= 32` (metric_page), page
+  slot-collision bounds.
+
+- [ ] `[ARCH-CONTEXT]` Tighten coupling: hand consumers `const uint32_t*` for the
+  shared loop timestamp (only the scheduler writes it), and add defensive
+  null-guards where the terminal dereferences `SystemContext` members.
+
+- [ ] `[CLOCKS-STRONGTYPE]` Introduce a lightweight strong-typedef for the
+  wrap-prone 32-bit PLC timestamp whose only legal operation is wrap-safe
+  subtraction, so it can't be mixed with the monotonic 64-bit uptime. Forced by
+  the PLC interface (it only gives us 32-bit timestamps).
+
+- [ ] `[WALLCLOCK-SET]` Add `HAL::wall_clock_set()` now (no-op on the simulator)
+  so the future NTP `TimeSyncHandler` has a primitive to discipline the RTC.
+
+- [ ] `[FORMAT-AGE]` `format_age` (`utils/text.cpp:82`) must show years past
+  365 days so the field never grows past its fixed 9-char width over multi-year
+  uptime.
+
+- [ ] `[STACK-DIV0]` Ensure a zero stack-depth measurement (introspection
+  unavailable -> 0) never reaches a division - audit the load/usage math in
+  `scheduler.cpp`. A zero reading is acceptable; a divide-by-zero is not.
+
+- [ ] `[SNPRINTF-ACC]` Clamp the `n += snprintf(...)` alert accumulation in
+  `main.cpp:234-239` (and any sibling pattern) so a truncating `snprintf` can't
+  hand the next call a wrapped (huge) size. Unreachable today, but the unsafe
+  shape should go.
+
+- [ ] `[CMD-TABLE]` Replace the hand-rolled `if/else strncmp` shell dispatch
+  chain (`shell.cpp:48`) with a small `static const` command table (name + len +
+  handler) iterated in a loop - removes the magic length literals.
+
+- [ ] `[TS-DOC]` Document that `scheduler.h:77` publishes a 32-bit `timestamp_ms`
+  that wraps every ~49 days, and that all consumers must use wrap-safe
+  `(uint32_t)(now - then)` subtraction (the convention we already follow).
+
+---
+
+## Block 5 - Docs
+
+- [ ] `[ARCH-PIPELINE]` Add a **concise** per-tick cycle-order contract comment at
+  the (duplicated, by design) main loop: receive -> plc -> plc_logs -> logger ->
+  terminal -> monitor.drain -> transmit -> watchdog-kick, and why the order
+  matters. The two composition roots (`firmware.cpp`, `main.cpp`) stay separate.
+
+- [ ] `[CONCURRENCY-DOC]` Write the concurrency model into the docs: single main
+  loop, one async boundary (PLC shared memory), no serial ISRs in our code, the
+  volatile + barrier + cache-maintenance discipline and its scope.
+
+- [ ] `[PLC-CONTRACT-DOC]` Document the PLC sync contract in `docs/PLC_SYNC.md`:
+  single shared buffer + mutual exclusion by handshake (not hardware
+  double-buffering), the ENABLE-low-until-ACK rule the PLC side must uphold, and
+  the `[C3-FIX]` diagnostic that detects a violation.
+
+- [ ] `[TODO-LIBC]` Add to `TODO.md`: "audit libc usage and reduce dependency on
+  libc functions."
+
+- [ ] `[ARCH-HEALTH]` Add to `TODO.md`: future `HealthMonitor` - a fault-state
+  aggregator subsystems report into, read by the Status page and (future) the
+  TCP fault-alert sender; gives the watchdog a principled health input instead of
+  the single hardcoded `faulted()`.
+
+---
+
+## Explicitly out of scope / keep as-is
+
+- The 1 ms busy-wait is **bounded** (monotonic-clock comparison) - the original
+  "unbounded CPU" finding was wrong. Keep the loop.
+- Defensive constructor `memset`s of the serial ring buffers - keep.
+- `LogBucket_t::count` (unread today) - keep, may be used later.
+- Redundant `entry.length` on the emit path - keep, defensive.
+- No MPU reconfiguration (we don't own it / can't assume the core); cache
+  coherency is handled by `[CACHE]` instead.
+- No `std::atomic`, no double-buffering of the PLC payload, no seqlock.
