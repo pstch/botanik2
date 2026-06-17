@@ -12,6 +12,8 @@
 #include "libbotanik.h"
 #include "libbotanik_asserts.h"      // BOTANIK_ASSERT + set_assert_logger
 #include "libbotanik/utils/text.h"   // format_float - snprintf has no %f on our Mbed
+#include "libbotanik/alerts/alerts.h"
+#include "libbotanik/alerts/notifier.h"
 #include "botanik_sim/simulator.h"
 
 #include <csignal>   // std::signal
@@ -255,6 +257,43 @@ protected:
     }
 };
 
+// Site alert table: one entry per Alerts::AlertId, in bit-index order. The static
+// prefix is filled here (code, description, masked_by, ON/OFF dwell thresholds in
+// ms; -1 disables an action); the dynamic suffix is left zeroed for the model.
+// masked_by is 0 for now (no masking relationships defined yet); the mechanism is
+// in place for the site to fill. Thresholds are placeholders to be tuned per site.
+// The dynamic suffix of each entry is intentionally left zeroed (model-owned).
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+static Botanik::Alerts::AlertCondition g_alerts[Botanik::Alerts::ALERT_BITS] = {
+    // code        description                                      mask  logOn  logOff mqttOn mqttOff
+    {"AC_GRID",  "Grid AC out of spec or offline",                  0,    2000,  2000,  15000, 15000},
+    {"DC_PS1",   "DC PS1 volts too low",                            0,    2000,  2000,  15000, 15000},
+    {"GEN_FLT",  "Generator failed to start",                       0,    1000,  2000,  10000, 15000},
+    {"AC_LOCAL", "Local AC out of spec or offline",                 0,    2000,  2000,  15000, 15000},
+    {"DC_PS2",   "DC PS2 volts too low",                            0,    2000,  2000,  15000, 15000},
+    {"DC_UPS",   "DC UPS on battery",                               0,    1000,  2000,  10000, 15000},
+    {"DC_LOCAL", "Local DC volts too low",                          0,    2000,  2000,  15000, 15000},
+    {"GEN_BATT", "Generator start battery too low or offline",      0,    5000,  5000,  30000, 30000},
+    {"PLC_FLT",  "Failed to synchronize with PLC",                  0,    2000,  2000,  10000, 15000},
+    {"NET_FLT",  "Network should be set up but no TCP/IP I/O",      0,    5000,  5000,  30000, 30000},
+    {"NTP_TIM",  "Timeout while attempting NTP sync",               0,    5000,  5000,  -1,    -1},
+    {"ACT_FLT",  "An actioner faulted in the last hour",            0,    2000,  2000,  15000, 15000},
+    {"SNS_FLT",  "A sensor faulted in the last hour",               0,    2000,  2000,  15000, 15000},
+    {"TOO_HOT",  "Inside temperature too high",                     0,    3000,  3000,  20000, 20000},
+    {"TOO_COLD", "Inside temperature too low",                      0,    3000,  3000,  20000, 20000},
+    {"TOO_HUM",  "Relative humidity too high",                      0,    3000,  3000,  20000, 20000},
+    {"TMP_STR",  "Temperature stratification too high",             0,    5000,  5000,  -1,    -1},
+    {"SYS_RST",  "Reinitialized in the last five minutes",          0,    0,     -1,    -1,    -1},
+    {"WTR_LK",   "Leak in irrigation circuit",                      0,    1000,  2000,  10000, 15000},
+    {"WTR_BAR",  "Water pressure too low",                          0,    2000,  2000,  15000, 15000},
+    {"WTR_CLOG", "Failing to drain a tray",                         0,    3000,  3000,  20000, 20000},
+    {"IO_DROP",  "Logical I/O drops",                               0,    2000,  2000,  -1,    -1},
+    {"LOG_FLD",  "Logs flooding",                                   0,    2000,  2000,  -1,    -1},
+    {"WH_STORM", "Current storm conditions",                        0,    2000,  5000,  15000, 30000},
+};
+#pragma GCC diagnostic pop
+
 int main(int argc, char** argv) {
     using namespace Botanik;
 
@@ -308,6 +347,13 @@ int main(int argc, char** argv) {
     plc_handler.set_timeout_ms  (plc_dilated_timeout(Config::PLC_TIMEOUT_MS));
     plc_handler.set_watchdog_ms (plc_dilated_timeout(Config::PLC_WATCHDOG_MS));
     PlcIO::PlcLogReader plc_log_reader(plc_handler.context(), &logger);
+
+    // Alert model: merges the PLC alert bitset with local runtime alerts, raises
+    // ALERT-topic logs + (draft) MQTT notifications, and feeds the status ribbon /
+    // alerts page. The notifier is draft plumbing (no transport wired yet).
+    Alerts::MqttAlertNotifier alert_mqtt("botanik/greenhouse", &logger);
+    Alerts::AlertModel        alert_model(g_alerts, Alerts::ALERT_BITS, &logger, &alert_mqtt);
+    const PlcOutputData_t*    plc_out = plc_handler.output_data();
 
     // Terminal UI - bundle the subsystem status contexts the terminal reads.
     SystemContext sys_ctx(scheduler.context(), plc_handler.context());
@@ -372,6 +418,13 @@ int main(int argc, char** argv) {
 
         plc_handler.step();
         plc_log_reader.step();
+
+        // Merge + analyze alerts after the PLC payload is fresh and before the
+        // logger drains, so any alarm START/END lands this beat. SYS_RST is a
+        // local alert, asserted for the first five minutes after boot.
+        uint64_t now_ms = HAL::uptime_ms();
+        alert_model.set_local(Alerts::SYS_RST, now_ms < 300000);
+        alert_model.step(plc_out ? plc_out->alerts : 0, now_ms);
 
         logger.step();
 

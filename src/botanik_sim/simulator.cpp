@@ -8,6 +8,7 @@
 
 #include "botanik_sim/simulator.h"
 #include "libbotanik.h"   // PlcIO::start_emulator_thread, PlcInput/PlcOutput, Logs::Logger
+#include "libbotanik/alerts/alerts.h"   // AlertId bit positions for the mock bitset
 
 #include <cmath>    // pow - PLC timeout dilation
 #include <random>   // drives the rare perturbations that animate the mock data
@@ -157,6 +158,23 @@ static void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
     sunset  = drift(sunset,  1.0f, 19.0f * 60, 22.0f * 60, 0.02f);
     o->sunrise_min = (uint16_t)sunrise;
     o->sunset_min  = (uint16_t)sunset;
+
+    // Alerts: synthesize the PLC's raw bitset from the mock state above so the
+    // ribbon/table have live data. The PLC owns debouncing on real hardware; here
+    // the conditions just track the animated signals.
+    using namespace Botanik::Alerts;
+    uint64_t alerts = 0;
+    if (o->grid_ac_mv < 226000 || o->grid_ac_mv > 234000) alerts |= alert_bit(AC_GRID);
+    if (!o->dc_bus_b_ok)                                   alerts |= alert_bit(DC_PS2);
+    if (o->ups_status != UPS_ONLINE)                       alerts |= alert_bit(DC_UPS);
+    if (o->generator_running && o->generator_mv < 12000)   alerts |= alert_bit(GEN_FLT);
+    if (o->net_status == NET_DOWN)                         alerts |= alert_bit(NET_FLT);
+    if (!o->ntp_synced)                                    alerts |= alert_bit(NTP_TIM);
+    if (o->ceil_temp_c_centi > 2600)                       alerts |= alert_bit(TOO_HOT);
+    if (o->floor_temp_c_centi < 1500)                      alerts |= alert_bit(TOO_COLD);
+    if (o->ext_rh_centi_pct > 6800)                        alerts |= alert_bit(TOO_HUM);
+    if (o->wind_peak_kmh > 35 || raining)                  alerts |= alert_bit(WH_STORM);
+    o->alerts = alerts;
 }
 
 // Spawn the emulator thread bound to the shared PLC memory, with the greenhouse

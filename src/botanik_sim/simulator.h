@@ -61,6 +61,9 @@ enum NetStatus : uint8_t {
  * with no implicit gaps.
  */
 struct PlcOutputData_t {
+    // Alerts (64-bit bitset; one Alerts::AlertId per bit). Leads the struct as the
+    // widest member so the rest keeps natural alignment with no implicit padding.
+    uint64_t alerts;             ///< active alert conditions reported by the PLC
     // Power (voltages in millivolts)
     uint32_t grid_ac_mv;         ///< mains AC RMS voltage, millivolts
     uint32_t dc_bus_mv;          ///< DC system bus voltage, millivolts
