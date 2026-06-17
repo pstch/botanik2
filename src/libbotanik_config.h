@@ -210,18 +210,17 @@ namespace Botanik { namespace Config {
 
     /** @brief Cold-class target latency (ms): logs, command output, cold metric
      *  readings, draw_static and the focus replay only emit while the ring holds at
-     *  most this many ms of bytes. ~62 B at 4800 baud (~ the old hand-tuned 64),
-     *  scaling up with baud so the latency target stays constant. Too high: typing
-     *  lags behind a deeper backlog. Too low: approaches the hot gate, wire can
-     *  briefly under-feed. */
-    static constexpr uint32_t TX_COLD_TARGET_MS = 130;
+     *  most this many ms of bytes. ~187 B at 4800 baud, scaling up with baud so the
+     *  latency target stays constant. Too high: typing lags behind a deeper backlog.
+     *  Too low: approaches the hot gate, wire can briefly under-feed. */
+    static constexpr uint32_t TX_COLD_TARGET_MS = 390;
 
     /** @brief Hot-class target latency (ms): the per-second fields (a clock) only emit
      *  while the ring will drain within this, i.e. near caught-up, so the value shown
-     *  is current rather than queued stale. ~31 B at 4800 baud. Kept well below the
+     *  is current rather than queued stale. ~62 B at 4800 baud. Kept well below the
      *  cold target so "hot" means "near idle". Hot output is droppable: a skipped tick
      *  is carried by the next one. */
-    static constexpr uint32_t TX_HOT_TARGET_MS = 65;
+    static constexpr uint32_t TX_HOT_TARGET_MS = 130;
 
     /** @brief Max live log / command rows painted per tick per page, in one batched
      *  drain_tail emit once the cold gate is open. The effective ceiling is
