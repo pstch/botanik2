@@ -163,16 +163,27 @@ screen, classes stay small, short client-readable comments.
     `LOG_CRITICAL` (still counts the eviction as a drop); lower levels drop as
     before. Verified: both targets build, 22 tests pass, logs flow normally.
 
-- [ ] `[REPORT-EDGE]` Add edge-triggered, holdoff-throttled reporting for the
-  three silent-loss categories, each with its own minimum interval: **first
-  event reported instantly, subsequent ones only after the interval**.
-  - Sink-level drops (`BufferedLogWriter::_dropped`/`_failed`).
-  - TX-full truncation (`utils/serial.cpp` short writes - count and report).
-  - Rate-limiter suppressions (existing path, fold into the same model).
-  - Classify these meta-reports as `LOG_CRITICAL` so `[REPORT-SLOT]` guarantees
-    delivery (a dedicated topic alone only escapes the rate limiter, not a full
-    FIFO).
-  - Distinct interval constants in `libbotanik_config.h`.
+- [x] `[REPORT-EDGE]` Add edge-triggered, holdoff-throttled reporting for the
+  silent-loss categories, first event instant then per-category holdoff, all
+  classed `LOG_CRITICAL` so `[REPORT-SLOT]` guarantees delivery.
+  - DONE - sink-level drops: `LogWriter::loss_count()` (override returns
+    `_dropped + _failed`); `Logger::step()` sums it across writers and reports via
+    a `LossReporter_t` helper (first-instant + holdoff).
+  - DONE - TX-full truncation: `BufferedSerial` counts unwritten bytes
+    (`tx_dropped()`); `Logger::watch_tx()` registers the **console** serial (the
+    terminal reserves space, so only non-resuming callers actually drop), polled
+    in `step()`. Wired in `botanik_sim/main.cpp`; a one-line
+    `_logger.watch_tx(&_console_serial)` was also added to the in-flight
+    `botanik_fw/firmware.cpp` (left for that file's own commit).
+  - DONE - rate-limiter suppressions: kept the existing **per-topic** report
+    (more useful than an aggregate) but reclassified it `LOG_CRITICAL` so it
+    survives the storm it summarizes. (Granularity call `[Q-RL-GRANULARITY]`:
+    kept per-topic.)
+  - Distinct interval constants added to `libbotanik_config.h`
+    (`LOG_SINK_DROP_REPORT_PERIOD_MS` 5 s, `LOG_TX_DROP_REPORT_PERIOD_MS` 10 s).
+  - Verified: both targets build, **25** tests pass incl. 3 new
+    `tests/test_logger.cpp` cases (drain-in-order, critical eviction,
+    edge-triggered sink report); sim shows no false loss reports.
 
 ---
 

@@ -36,6 +36,8 @@ namespace Botanik { namespace Logs {
         virtual void    push(const LogEntry_t* entry) = 0;
         /** @brief Attempt to flush enqueued entries to the output medium */
         virtual void    drain() = 0;
+        /** @brief Cumulative entries lost at this sink, for loss reporting. */
+        virtual uint32_t loss_count() const { return 0; }
 
         /** @} */
     protected:
@@ -101,10 +103,13 @@ namespace Botanik { namespace Logs {
         /** @name Queue interface
          *  @{ */
 
-        /** @brief Enqueue @p entry; drops silently if the queue is full */
+        /** @brief Enqueue @p entry; drops (and counts) lower levels when the queue
+         *  is full, evicting the oldest to seat a LOG_CRITICAL. */
         void push(const LogEntry_t* entry) override;
         /** @brief Flush queued entries to the output medium (call from the main loop) */
         void drain() override;
+        /** @brief Entries dropped because the queue was full, plus format failures. */
+        uint32_t loss_count() const override { return _dropped + _failed; }
 
         /** @} */
 

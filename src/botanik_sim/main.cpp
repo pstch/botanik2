@@ -308,6 +308,8 @@ int main(int argc, char** argv) {
     logger.add_writer(&shell_page);
     logger.add_writer(&logs_page);
     logger.add_writer(&home_page);
+    // Report the console's TX-full drops (shell output that didn't fit the ring).
+    logger.watch_tx(&console_serial);
 
     // Emulator thread (drives the mock greenhouse payload). Also locks process
     // memory and makes the main loop + emulator realtime on separate cores; see

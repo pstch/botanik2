@@ -62,6 +62,12 @@ namespace Botanik { namespace Utils {
         /** @brief TX ring head/tail indices (head: producer, tail: consumer). */
         volatile uint16_t    _tx_head = 0, _tx_tail = 0;
 
+        /** @brief Cumulative bytes that didn't fit in the TX ring on write().
+         *  Meaningful for callers that don't retry (console command output drops
+         *  them); callers that resume a partial write (the log sink) inflate it,
+         *  so only watch this on a serial whose writers don't resume. */
+        uint32_t    _tx_dropped = 0;
+
         /** @} */
 
     public:
@@ -91,6 +97,8 @@ namespace Botanik { namespace Utils {
         static constexpr uint16_t rx_capacity() { return RX_BUF_SIZE; }
         /** @brief TX ring buffer capacity, bytes */
         static constexpr uint16_t tx_capacity() { return TX_BUF_SIZE; }
+        /** @brief Cumulative bytes dropped because the TX ring was full (see above). */
+        uint32_t tx_dropped() const { return _tx_dropped; }
 
         /** @} */
 

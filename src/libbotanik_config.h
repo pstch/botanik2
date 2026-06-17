@@ -131,6 +131,14 @@ namespace Botanik { namespace Config {
      *  produces an occasional summary instead of one per refill tick. */
     static constexpr uint32_t LOG_SUPPRESS_REPORT_PERIOD_MS = 10000;
 
+    /** @brief Minimum interval (ms) between "N entries dropped at sink" reports.
+     *  First drop reports instantly; further reports wait out this holdoff. */
+    static constexpr uint32_t LOG_SINK_DROP_REPORT_PERIOD_MS = 5000;
+
+    /** @brief Minimum interval (ms) between "N console bytes dropped (TX full)"
+     *  reports. First drop reports instantly; further reports wait this holdoff. */
+    static constexpr uint32_t LOG_TX_DROP_REPORT_PERIOD_MS = 10000;
+
     /** @brief Maximum number of unique log topics.
      *  @note Each topic consumes memory for its rate-limiting bucket. Bounded by
      *  the uint8_t LogTopic type (and the uint8_t bucket-loop counters), so it must
