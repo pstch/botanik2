@@ -228,15 +228,21 @@ protected:
             snprintf(buf, sizeof(buf), "idle");
         _value(14, buf, true, true);   // invert the whole tray value on change
 
-        // Compose a short list of active alert conditions.
+        // Compose a short list of active alert conditions. Clamp the running offset
+        // so a (theoretical) truncation can't hand the next snprintf a wrapped size.
         buf[0] = '\0';
         size_t n = 0;
         const char* sep = "";
-        if (d->rain_detected)            { n += snprintf(buf+n, sizeof(buf)-n, "%sRAIN", sep); sep = " "; }
-        if (d->ups_status != UPS_ONLINE) { n += snprintf(buf+n, sizeof(buf)-n, "%sUPS",  sep); sep = " "; }
-        if (d->generator_running)        { n += snprintf(buf+n, sizeof(buf)-n, "%sGEN",  sep); sep = " "; }
-        if (d->heat_blower_on || d->heatpump_on)
-                                         { n += snprintf(buf+n, sizeof(buf)-n, "%sHEAT", sep); sep = " "; }
+        auto add_alert = [&](bool on, const char* tok) {
+            if (!on || n >= sizeof(buf)) return;
+            int w = snprintf(buf + n, sizeof(buf) - n, "%s%s", sep, tok);
+            if (w > 0) n = (n + (size_t)w > sizeof(buf)) ? sizeof(buf) : n + (size_t)w;
+            sep = " ";
+        };
+        add_alert(d->rain_detected, "RAIN");
+        add_alert(d->ups_status != UPS_ONLINE, "UPS");
+        add_alert(d->generator_running, "GEN");
+        add_alert(d->heat_blower_on || d->heatpump_on, "HEAT");
         _value(15, (buf[0] == '\0') ? "none" : buf);
     }
 };

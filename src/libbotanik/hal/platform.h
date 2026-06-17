@@ -89,6 +89,11 @@ namespace Botanik { namespace HAL {
      *  register is wired). */
     inline uint64_t wall_clock_ms();
 
+    /** @brief Set the wall clock from UNIX milliseconds, for the (future) NTP
+     *  sync to discipline the RTC. No-op on the simulator (the host clock is the
+     *  source of truth); on OPTA it sets the RTC. */
+    inline void wall_clock_set(uint64_t unix_ms);
+
     /** @brief Yield the CPU for at least @p ms milliseconds. Millisecond
      *  granularity: a request of 0 is a no-op/yield, so sub-millisecond waits
      *  fall through to a busy loop at the call site. */

@@ -178,6 +178,9 @@ namespace Botanik { namespace HAL {
             std::chrono::system_clock::now().time_since_epoch()).count();
     }
 
+    /// No-op: the host system clock is the wall-clock source on the simulator.
+    inline void wall_clock_set(uint64_t /*unix_ms*/) {}
+
     inline void sleep_ms(uint32_t ms) {
         usleep((ms * 1000) / _time_scale());  // scaled to track the sped-up clock
     }

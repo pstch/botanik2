@@ -105,6 +105,12 @@ namespace Botanik { namespace HAL {
         return (uint64_t)time(NULL) * 1000;
     }
 
+    inline void wall_clock_set(uint64_t unix_ms) {
+        // TODO: program the STM32 RTC (set_time / RTC date+time registers) from
+        // unix_ms once NTP sync lands. Reasoned-only; no RTC write wired yet.
+        (void)unix_ms;
+    }
+
     inline void sleep_ms(uint32_t ms) {
         rtos::ThisThread::sleep_for(std::chrono::milliseconds(ms));
     }

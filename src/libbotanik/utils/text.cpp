@@ -82,9 +82,12 @@ namespace Botanik { namespace Utils {
     const char* format_age(char* buf, size_t cap, uint32_t secs) {
         unsigned v = secs;
         char     u = 's';
-        if      (secs >= 86400) { v = secs / 86400u; u = 'd'; }
-        else if (secs >= 3600)  { v = secs / 3600u;  u = 'h'; }
-        else if (secs >= 60)    { v = secs / 60u;    u = 'm'; }
+        // Roll up to years past 365 days so the value stays <= 3 digits (a uint32
+        // of seconds tops out at ~136 years), keeping the field a fixed 9 chars.
+        if      (secs >= 31536000) { v = secs / 31536000u; u = 'y'; }  // 365-day years
+        else if (secs >= 86400)    { v = secs / 86400u;    u = 'd'; }
+        else if (secs >= 3600)     { v = secs / 3600u;     u = 'h'; }
+        else if (secs >= 60)       { v = secs / 60u;       u = 'm'; }
         snprintf(buf, cap, "%3u %c ago", v, u);
         return buf;
     }

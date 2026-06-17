@@ -77,7 +77,10 @@ namespace Botanik { namespace Scheduler {
         uint32_t overruns        = 0;
         /** @brief Loop "now" (uptime ms), republished by tick() each time the work
          *  window opens. The single shared timestamp the PLC sync layer and the
-         *  terminal input timing read, so a sketch no longer carries its own. */
+         *  terminal input timing read, so a sketch no longer carries its own.
+         *  @warning 32-bit, so it wraps every ~49 days. Every consumer must compare
+         *  it with wrap-safe unsigned subtraction `(uint32_t)(now - then) > delta`,
+         *  never `now > then + delta` - which is the convention throughout. */
         uint32_t timestamp_ms    = 0;
     };
 

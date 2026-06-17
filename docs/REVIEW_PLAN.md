@@ -265,29 +265,29 @@ screen, classes stay small, short client-readable comments.
   subtraction, so it can't be mixed with the monotonic 64-bit uptime. Forced by
   the PLC interface (it only gives us 32-bit timestamps).
 
-- [ ] `[WALLCLOCK-SET]` Add `HAL::wall_clock_set()` now (no-op on the simulator)
-  so the future NTP `TimeSyncHandler` has a primitive to discipline the RTC.
+- [x] `[WALLCLOCK-SET]` DONE: `HAL::wall_clock_set(uint64_t unix_ms)` added -
+  no-op on the simulator, a TODO RTC-write stub on OPTA - so the future NTP
+  `TimeSyncHandler` has a primitive to discipline the RTC.
 
-- [ ] `[FORMAT-AGE]` `format_age` (`utils/text.cpp:82`) must show years past
-  365 days so the field never grows past its fixed 9-char width over multi-year
-  uptime.
+- [x] `[FORMAT-AGE]` DONE: `format_age` rolls up to years past 365 days; a uint32
+  of seconds tops out at ~136 years, so the value stays <= 3 digits and the field
+  keeps its fixed 9-char width.
 
-- [ ] `[STACK-DIV0]` Ensure a zero stack-depth measurement (introspection
-  unavailable -> 0) never reaches a division - audit the load/usage math in
-  `scheduler.cpp`. A zero reading is acceptable; a divide-by-zero is not.
+- [x] `[STACK-DIV0]` DONE (verified, no change needed): the only stack division
+  (`scheduler.cpp:239`) already guards `_stack_depth > 0 ? ... : 0.0f`; pages
+  display the pre-computed metrics and never divide. A zero reading is safe.
 
-- [ ] `[SNPRINTF-ACC]` Clamp the `n += snprintf(...)` alert accumulation in
-  `main.cpp:234-239` (and any sibling pattern) so a truncating `snprintf` can't
-  hand the next call a wrapped (huge) size. Unreachable today, but the unsafe
-  shape should go.
+- [x] `[SNPRINTF-ACC]` DONE: the alert composition in `main.cpp` now goes through
+  an `add_alert` lambda that clamps the running offset to `sizeof(buf)`, so a
+  truncating `snprintf` can't hand the next call a wrapped size.
 
 - [ ] `[CMD-TABLE]` Replace the hand-rolled `if/else strncmp` shell dispatch
   chain (`shell.cpp:48`) with a small `static const` command table (name + len +
   handler) iterated in a loop - removes the magic length literals.
 
-- [ ] `[TS-DOC]` Document that `scheduler.h:77` publishes a 32-bit `timestamp_ms`
-  that wraps every ~49 days, and that all consumers must use wrap-safe
-  `(uint32_t)(now - then)` subtraction (the convention we already follow).
+- [x] `[TS-DOC]` DONE: the `timestamp_ms` member doc now carries a `@warning`
+  that it's 32-bit (wraps ~49 days) and that consumers must use wrap-safe
+  `(uint32_t)(now - then) > delta` subtraction, never `now > then + delta`.
 
 ---
 
