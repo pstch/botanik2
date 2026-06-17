@@ -64,7 +64,7 @@ namespace Botanik { namespace Config {
 
     /** @brief CPU-load EMA response time constants (ms) */
     static constexpr uint32_t CPU_LOAD_EMA_ATTACK_MS = 0;
-    static constexpr uint32_t CPU_LOAD_EMA_DECAY_MS  = 5000;
+    static constexpr uint32_t CPU_LOAD_EMA_DECAY_MS  = 2000;
 
     /** @brief CPU-jitter EMA response time constants (ms) */
     static constexpr uint32_t CPU_JITTER_EMA_ATTACK_MS = 0;
@@ -72,7 +72,7 @@ namespace Botanik { namespace Config {
 
     /** @brief Stack-usage EMA response time constants (ms) */
     static constexpr uint32_t STACK_USAGE_EMA_ATTACK_MS = 0;
-    static constexpr uint32_t STACK_USAGE_EMA_DECAY_MS  = 1000;
+    static constexpr uint32_t STACK_USAGE_EMA_DECAY_MS  = 10000;
 
     /** @} */
 
@@ -94,10 +94,10 @@ namespace Botanik { namespace Config {
     static constexpr uint32_t PLC_HEARTBEAT_MS = 250;
 
     /** @brief Time without a TX acknowledgement before the link is considered timed out */
-    static constexpr uint32_t PLC_TIMEOUT_MS = 1000;
+    static constexpr uint32_t PLC_TIMEOUT_MS = 5000;
 
     /** @brief Time without any PLC activity before we stop kicking the hardware watchdog */
-    static constexpr uint32_t PLC_WATCHDOG_MS = 3000;
+    static constexpr uint32_t PLC_WATCHDOG_MS = 10000;
 
     /** @} */
 
