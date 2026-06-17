@@ -51,6 +51,17 @@ namespace Botanik { namespace Pages {
 
         /** @} */
 
+        /** @name Live tail state
+         *  @{ */
+
+        /** @brief Stored lines not yet painted to the live tail. Bumped by
+         *  note_pending() when a new line is banked while the page is active, drained
+         *  by drain_tail(). Reset to 0 by begin_redraw()/clear() since a focus replay
+         *  repaints the whole visible window. */
+        uint16_t _pending = 0;
+
+        /** @} */
+
     public:
         /** @name Line storage
          *  @{ */
@@ -60,6 +71,7 @@ namespace Botanik { namespace Pages {
         void clear() {
             Base::clear();          // drop the stored lines
             _redraw_i = UINT16_MAX; // and cancel any pending replay
+            _pending  = 0;          // nothing left to paint to the live tail
         }
 
         /** @} */
@@ -72,6 +84,7 @@ namespace Botanik { namespace Pages {
             // The content area is cleared by AnsiTerminal before focus()/redraw(),
             // so we only stage the rows to (re)draw here.
             _redraw_i = UINT16_MAX; // cancel any pending drain
+            _pending  = 0;          // the replay repaints the whole visible window
             uint16_t cnt = this->count();
             if (cnt == 0 || log_rows == 0) return;
 
@@ -97,9 +110,9 @@ namespace Botanik { namespace Pages {
             // fit, so the replay can't overrun TX in one tick.
             for (uint16_t k = 0; k < Config::SCROLLBACK_ROWS_PER_TICK
                                  && _redraw_i != UINT16_MAX; k++) {
-                if (terminal.tx_available() < (uint16_t)(terminal.cols() + 32)) break;
-                // Window row _redraw_i (0 = oldest shown) maps that many steps up
-                // from the newest line of the window.
+                if (!terminal.tx_below(Config::CONSOLE_TX_COLD_DEPTH)) break;
+                // Window row _redraw_i (0 = oldest shown) maps to the line that many
+                // steps up from the newest line of the window.
                 uint16_t llen = 0;
                 const char* ln = this->line((uint16_t)(_redraw_count - _redraw_i), llen);
                 terminal.move_to({(uint16_t)(_redraw_first_row + _redraw_i), 0});
@@ -129,7 +142,8 @@ namespace Botanik { namespace Pages {
          * keep static content above the window untouched; rows below it are shifted
          * up by the DL and back down by the IL, so they end up untouched too. */
         void emit_tail(AnsiTerminal& terminal, uint16_t n,
-                       uint16_t first_row, uint16_t log_rows) {
+                       uint16_t first_row, uint16_t log_rows,
+                       uint16_t newest_from_end = 1) {
             if (log_rows == 0 || n == 0) return;
             if (n > log_rows) n = log_rows;  // taller than the window: show newest rows
 
@@ -145,16 +159,50 @@ namespace Botanik { namespace Pages {
             terminal.move_to({first_slot, 0});
             terminal.insert_rows(n);
 
-            // Fill the slots with the n newest stored lines, top to bottom.
+            // Fill the slots top to bottom with this batch of n lines, oldest first.
+            // The batch's newest line is @p newest_from_end back from the ring's newest
+            // (default 1 = the live tail's most recent line), so slot i gets the line
+            // (newest_from_end + n - 1 - i) steps from newest.
             for (uint16_t i = 0; i < n; i++) {
                 uint16_t llen = 0;
-                const char* ln = this->line((uint16_t)(n - i), llen);
+                const char* ln = this->line((uint16_t)(newest_from_end + (n - 1) - i), llen);
                 if (ln == nullptr) continue;
                 terminal.move_to({(uint16_t)(first_slot + i), 0});
                 uint16_t wlen = (uint16_t)std::min((size_t)llen, (size_t)terminal.cols());
                 terminal.write_chars(ln, wlen);
                 terminal.clear_to_eol();
             }
+        }
+
+        /** @brief Mark @p n freshly-stored lines as awaiting paint to the live tail.
+         *  Clamped to the stored line count so the watermark never points past the
+         *  oldest retained line. Call only while the page is active (a background page
+         *  repaints from scratch via begin_redraw() on its next focus). */
+        void note_pending(uint16_t n) {
+            _pending = (uint16_t)(_pending + n);
+            uint16_t cnt = this->count();
+            if (_pending > cnt) _pending = cnt;
+        }
+
+        /** @brief Lines stored but not yet painted to the live tail. */
+        uint16_t pending() const { return _pending; }
+
+        /** @brief Paint up to SCROLLBACK_ROWS_PER_TICK of the pending lines into the
+         *  live-tail window (rows @p first_row .. first_row+log_rows-1), oldest first,
+         *  only while the ring is shallow (cold gate). Scrolls the window up and
+         *  appends the batch at the bottom via emit_tail(). The per-tick cap +
+         *  depth gate keep a burst from flooding the TX ring.
+         *  @return true if it painted (caller may then reposition its cursor). */
+        bool drain_tail(AnsiTerminal& terminal, uint16_t first_row, uint16_t log_rows) {
+            if (_pending == 0) return false;
+            if (!terminal.tx_below(Config::CONSOLE_TX_COLD_DEPTH)) return false;
+            uint16_t k = _pending;
+            if (k > Config::LOG_ROWS_PER_TICK) k = Config::LOG_ROWS_PER_TICK;
+            // The oldest unshown line is _pending back from newest; this batch's newest
+            // is k-1 nearer than that.
+            emit_tail(terminal, k, first_row, log_rows, (uint16_t)(_pending - k + 1));
+            _pending = (uint16_t)(_pending - k);
+            return true;
         }
 
         /** @} */

@@ -51,13 +51,13 @@ namespace Botanik { namespace detail {
 
     // Pages
     static_assert(sizeof(Pages::MetricPage)                                == BOTANIK_SIZE( 1224,  1216), "MetricPage footprint changed");
-    static_assert(sizeof(Pages::ShellPage)                                 == BOTANIK_SIZE(18176, 18124), "ShellPage footprint changed");
-    static_assert(sizeof(Pages::LogsPage)                                  == BOTANIK_SIZE(25416, 25392), "LogsPage footprint changed");
+    static_assert(sizeof(Pages::ShellPage)                                 == BOTANIK_SIZE(18184, 18128), "ShellPage footprint changed");
+    static_assert(sizeof(Pages::LogsPage)                                  == BOTANIK_SIZE(25424, 25396), "LogsPage footprint changed");
     static_assert(sizeof(Pages::HomePage<ProbePlcOut>)                     == BOTANIK_SIZE(11672, 11640), "HomePage footprint changed");
-    static_assert(sizeof(Pages::StatusPage<ProbePlcOut>)                   == BOTANIK_SIZE( 1232,  1224), "StatusPage footprint changed");
-    static_assert(sizeof(Pages::ShellScrollback)                           == BOTANIK_SIZE( 8270,  8270), "ShellScrollback footprint changed");
-    static_assert(sizeof(Pages::LogsScrollback)                            == BOTANIK_SIZE(16526, 16526), "LogsScrollback footprint changed");
-    static_assert(sizeof(Pages::HomeScrollback)                            == BOTANIK_SIZE( 1562,  1562), "HomeScrollback footprint changed");
+    static_assert(sizeof(Pages::StatusPage<ProbePlcOut>)                   == BOTANIK_SIZE( 1232,  1216), "StatusPage footprint changed");
+    static_assert(sizeof(Pages::ShellScrollback)                           == BOTANIK_SIZE( 8272,  8272), "ShellScrollback footprint changed");
+    static_assert(sizeof(Pages::LogsScrollback)                            == BOTANIK_SIZE(16528, 16528), "LogsScrollback footprint changed");
+    static_assert(sizeof(Pages::HomeScrollback)                            == BOTANIK_SIZE( 1564,  1564), "HomeScrollback footprint changed");
 
 #undef BOTANIK_SIZE
 
