@@ -9,6 +9,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <cmath>
 
 #include "libbotanik_config.h"
 #include "libbotanik/hal/platform.h"
@@ -22,6 +23,23 @@
 #endif
 
 namespace Botanik { namespace PlcIO {
+
+    /** @brief Grow a base PLC link timeout by the sim time-dilation factor S as
+     *  base * S^1.5, so jitter (which dilation amplifies ~linearly in S) can't
+     *  false-trip the link; the real-time budget then scales with sqrt(S). Clamped
+     *  below 2^31 to keep the 32-bit rollover-safe elapsed compares valid. No-op
+     *  off the simulator: S is 1, hardware never dilates. */
+    inline uint32_t plc_dilated_timeout(uint32_t base_ms) {
+#ifdef TARGET_SIMULATOR
+        uint32_t s = HAL::_time_scale();
+        if (s <= 1) return base_ms;
+        double scaled = (double)base_ms * (double)s * std::sqrt((double)s);
+        const double cap = 2147483647.0;  // < 2^31
+        return scaled >= cap ? (uint32_t)cap : (uint32_t)scaled;
+#else
+        return base_ms;
+#endif
+    }
 
     /** @brief Non-template context (mirror of PlcSyncContext) for the emulator side. */
     struct PlcEmulatorContext {
@@ -58,11 +76,13 @@ namespace Botanik { namespace PlcIO {
 
         /** @brief Current PLC link status derived from the ack timing. */
         PlcStatus status() const {
-            uint32_t elapsed = *_timestamp_ms - _tx_last_ms;
-            if (!_ever_ackd)                        return PLC_UNKNOWN;
-            if (elapsed > Config::PLC_WATCHDOG_MS)  return PLC_FAULT;
-            if (elapsed > Config::PLC_TIMEOUT_MS)   return PLC_TIMEOUT;
-                                                    return PLC_RUNNING;
+            uint32_t elapsed  = *_timestamp_ms - _tx_last_ms;
+            uint32_t watchdog = plc_dilated_timeout(Config::PLC_WATCHDOG_MS);
+            uint32_t timeout  = plc_dilated_timeout(Config::PLC_TIMEOUT_MS);
+            if (!_ever_ackd)         return PLC_UNKNOWN;
+            if (elapsed > watchdog)  return PLC_FAULT;
+            if (elapsed > timeout)   return PLC_TIMEOUT;
+                                     return PLC_RUNNING;
         }
 
         /** @} */
@@ -111,6 +131,7 @@ namespace Botanik { namespace PlcIO {
         {
             _ctx._timestamp_ms = timestamp_ms;
             _ctx._tx_last_ms   = *timestamp_ms;
+            _heartbeat_ms      = plc_dilated_timeout(Config::PLC_HEARTBEAT_MS);
             memset(&_rx_data_buffer, 0, sizeof(InputData));
             memset(&_tx_data_buffer, 0, sizeof(OutputData));
         }

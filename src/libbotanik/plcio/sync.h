@@ -71,6 +71,8 @@ namespace Botanik { namespace PlcIO {
         uint32_t         _tx_last_ms     = 0;
         /** @brief Elapsed threshold (ms) before PLC_TIMEOUT is reported. */
         uint32_t         _timeout_ms     = Config::PLC_TIMEOUT_MS;
+        /** @brief Elapsed threshold (ms) before PLC_FAULT is reported. */
+        uint32_t         _watchdog_ms    = Config::PLC_WATCHDOG_MS;
         /** @brief True once any TX has ever been acknowledged. */
         bool             _ever_ackd      = false;
         /** @brief Logger for link status changes (may be null). */
@@ -94,10 +96,10 @@ namespace Botanik { namespace PlcIO {
         /** @brief Current PLC link status derived from the ack timing. */
         PlcStatus status() const {
             uint32_t elapsed = *_timestamp_ms - _tx_last_ms;
-            if (!_ever_ackd)                        return PLC_UNKNOWN;
-            if (elapsed > Config::PLC_WATCHDOG_MS)  return PLC_FAULT;
-            if (elapsed > _timeout_ms)              return PLC_TIMEOUT;
-                                                    return PLC_RUNNING;
+            if (!_ever_ackd)             return PLC_UNKNOWN;
+            if (elapsed > _watchdog_ms)  return PLC_FAULT;
+            if (elapsed > _timeout_ms)   return PLC_TIMEOUT;
+                                         return PLC_RUNNING;
         }
 
         /** @brief True once PLC activity has been silent for PLC_WATCHDOG_MS. */
