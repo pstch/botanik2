@@ -4,6 +4,7 @@
  *        @c format_float() that stands in for the missing @c %f, and the
  *        "N u ago" duration formatter @c format_age().
  */
+#include <cstdlib>
 #include <cstring>
 #include <limits>
 
@@ -13,6 +14,7 @@
 
 using Botanik::Utils::format_float;
 using Botanik::Utils::format_age;
+using Botanik::Utils::env_u8;
 
 // format_float
 // ----------------------------------------------------------------------------
@@ -101,4 +103,29 @@ TEST_CASE("format_age: field is constant width (9 chars + NUL)") {
     CHECK(std::strlen(format_age(b, sizeof(b),     0)) == 9);
     CHECK(std::strlen(format_age(b, sizeof(b), 86400)) == 9);
     // Width holds up to 3 digits; >= 1000 d would widen it.
+}
+
+// env_u8
+// ----------------------------------------------------------------------------
+
+TEST_CASE("env_u8: parses valid values, clamps the rest to the fallback") {
+    setenv("BOTANIK_TEST_U8", "3", 1);
+    CHECK(env_u8("BOTANIK_TEST_U8", 9) == 3);
+    setenv("BOTANIK_TEST_U8", "0", 1);
+    CHECK(env_u8("BOTANIK_TEST_U8", 9) == 0);
+    setenv("BOTANIK_TEST_U8", "255", 1);
+    CHECK(env_u8("BOTANIK_TEST_U8", 9) == 255);
+
+    // Unset, empty, out of range, and non-numeric all fall back.
+    unsetenv("BOTANIK_TEST_U8");
+    CHECK(env_u8("BOTANIK_TEST_U8", 9) == 9);
+    setenv("BOTANIK_TEST_U8", "", 1);
+    CHECK(env_u8("BOTANIK_TEST_U8", 9) == 9);
+    setenv("BOTANIK_TEST_U8", "256", 1);
+    CHECK(env_u8("BOTANIK_TEST_U8", 9) == 9);
+    setenv("BOTANIK_TEST_U8", "-1", 1);
+    CHECK(env_u8("BOTANIK_TEST_U8", 9) == 9);
+    setenv("BOTANIK_TEST_U8", "4x", 1);
+    CHECK(env_u8("BOTANIK_TEST_U8", 9) == 9);
+    unsetenv("BOTANIK_TEST_U8");
 }

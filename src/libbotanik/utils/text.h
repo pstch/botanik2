@@ -73,6 +73,17 @@ namespace Botanik { namespace Utils {
 
     /** @} */
 
+    /** @name Environment
+     *  @{ */
+
+    /** @brief Read environment variable @p name as an unsigned 8-bit integer.
+     *  Returns @p fallback when it is unset, empty, non-numeric, or outside 0..255.
+     *  On targets without an environment (OPTA) getenv yields null, so this always
+     *  returns @p fallback. */
+    uint8_t env_u8(const char* name, uint8_t fallback = 0);
+
+    /** @} */
+
 }}
 
 #endif // UTILS_TEXT_H

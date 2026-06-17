@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>    // snprintf - integer/char conversions are intact on our Mbed nano
+#include <cstdlib>   // getenv/strtol - env_u8
 #include <cmath>     // llround - round-half-away-from-zero without the +0.5 float trap
 
 #include "libbotanik/utils/text.h"
@@ -86,6 +87,18 @@ namespace Botanik { namespace Utils {
         else if (secs >= 60)    { v = secs / 60u;    u = 'm'; }
         snprintf(buf, cap, "%3u %c ago", v, u);
         return buf;
+    }
+
+    // Environment
+    // ------------------------------------------------------------------------
+
+    uint8_t env_u8(const char* name, uint8_t fallback) {
+        const char* v = getenv(name);
+        if (v == nullptr || *v == '\0') return fallback;
+        char* end = nullptr;
+        long n = strtol(v, &end, 10);
+        if (*end != '\0' || n < 0 || n > 255) return fallback;
+        return (uint8_t)n;
     }
 
 }}

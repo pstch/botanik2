@@ -15,7 +15,6 @@
 
 #include <csignal>   // std::signal
 #include <cstdio>    // snprintf - page rendering
-#include <cstdlib>   // getenv/atoi - restore active page after reset
 
 // Pulled into scope to keep the page render lines readable. See utils/text.h for
 // why %f is unavailable on the Mbed build.
@@ -284,7 +283,10 @@ int main(int argc, char** argv) {
     // Select the terminal type before the first render. Swap to setup_minitel()
     // when driving a real Minitel 1B+/2 over the DIN serial port.
     terminal.setup_vt102();
-    terminal.switch_to(0);
+    // Restore the page persisted across a HAL::reset() re-exec (BOTANIK_PAGE, set by
+    // HAL::save_active_page), defaulting to the home page. switch_to ignores an
+    // out-of-range index, so a stale value just lands on the default.
+    terminal.switch_to(Utils::env_u8("BOTANIK_PAGE", 0));
 
     // Show boot banner
     logger.info(PlcIO::BOOT, "Botanik v%s on %s",
