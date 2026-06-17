@@ -66,6 +66,11 @@
   coordinates and date sourced from `PlcOutputData_t`. Exposes the results for use
   by irrigation and lighting scheduling logic.
 
+- **MQTT publisher**: Layered on top of `NetworkHandler` (and the other components),
+  a state machine (stepped from the main loop) that cyclically publishes all metrics
+  to subscribers. Broker/connection parameters sourced from `PlcOutputConfig_t`;
+  re-applies on config serial number change like the other network handlers.
+
 ## Pages
 
 NOTE: all screen interactions done by Page classes should always go through AnsiTerminal, so that cursor movement and hardware scroll events can be properly tracked. We can hardcode in pages code that row 0 is reserved for the terminal's status line. Note that row 0 here corresponds to row 1 on the terminal, since we target the Minitel 1B were the actual row 0 is not accessible. 
