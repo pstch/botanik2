@@ -18,6 +18,7 @@
 #include <cstdio>
 #include <unistd.h>
 #include <pthread.h>
+#include "libbotanik/scheduler/scheduler.h"  // make_thread_realtime for the emulator thread
 #endif
 
 namespace Botanik { namespace PlcIO {
@@ -277,6 +278,10 @@ namespace Botanik { namespace PlcIO {
     template<typename InputData, typename OutputData>
     inline void* _emulator_thread_main(void* arg) {
         auto* args = static_cast<EmulatorThreadArgs<InputData, OutputData>*>(arg);
+
+        // Run realtime on its own core, mirroring the OPTA coprocessor. Per-thread,
+        // so it must run here; null logger (the main thread reports any failure).
+        Scheduler::make_thread_realtime(Config::SIM_EMULATOR_CPU_CORE, nullptr);
 
         uint32_t emu_timestamp_ms = 0;
         PlcEmulator<InputData, OutputData> plc_emulator(

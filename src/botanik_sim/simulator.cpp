@@ -153,13 +153,17 @@ static void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
 void start_greenhouse_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,
                                Botanik::PlcIO::PlcOutput<PlcOutputData_t>* shared_out,
                                Botanik::Logs::Logger*                      logger) {
-    // Spawn the thread first, then arm realtime: make_process_realtime() calls
-    // mlockall(MCL_FUTURE), which locks every later mmap (including this thread's
-    // stack) into RAM. Doing it first makes pthread_create's stack lock trip
-    // RLIMIT_MEMLOCK and fail with EAGAIN (silently, only in lean RELEASE builds).
+    // Spawn the emulator thread (realtime on its own core, from its own entry)
+    // before locking memory: lock_process_memory() arms mlockall(MCL_FUTURE),
+    // which locks every later mmap including a new thread's stack, so spawning
+    // afterwards makes pthread_create's stack lock trip RLIMIT_MEMLOCK and fail
+    // with EAGAIN (silently, only in lean RELEASE builds).
     Botanik::PlcIO::start_emulator_thread(shared_in, shared_out,
                                           &fill_greenhouse_output, logger);
-    Botanik::Scheduler::make_process_realtime(0, logger);
+    // Lock the whole process's memory (once), then make the main loop realtime on
+    // its own core - separate from the emulator's, mirroring the OPTA's two cores.
+    Botanik::Scheduler::lock_process_memory(logger);
+    Botanik::Scheduler::make_thread_realtime(Botanik::Config::SIM_MAIN_CPU_CORE, logger);
 }
 
 // Graceful-shutdown plumbing for the simulator process (see simulator.h).

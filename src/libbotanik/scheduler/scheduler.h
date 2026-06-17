@@ -304,18 +304,36 @@ namespace Botanik { namespace Scheduler {
 
 #ifdef TARGET_SIMULATOR
     /**
-     * @brief Best-effort: lock memory into RAM, switch to SCHED_FIFO, pin to a CPU core.
+     * @brief Best-effort: lock all of the process's memory (current and future)
+     *        into RAM to avoid page-fault latency.
      *
-     * Simulator-only (POSIX). Tightens the simulator's scheduling so its timing
-     * approximates the real PLC. Each step that fails (typically for lack of
-     * privileges) is logged as a warning and the process keeps running, instead
-     * of aborting. Call after the log sinks are registered so the warnings are
-     * not dropped.
+     * Simulator-only (POSIX). Process-wide via mlockall(), so call it once - it
+     * also covers threads spawned afterwards. Spawn the emulator thread *before*
+     * this call, though: arming MCL_FUTURE first makes pthread_create lock the
+     * new thread's full stack and trip RLIMIT_MEMLOCK (EAGAIN). On failure
+     * (typically lack of privileges) a warning is logged and the process keeps
+     * running. Call after the log sinks are registered so the warning is not
+     * dropped.
      *
-     * @param cpu_core_id Core to pin the process to.
+     * @param logger Logger for failure warnings (optional).
+     */
+    void lock_process_memory(Logs::Logger* logger = nullptr);
+
+    /**
+     * @brief Best-effort: switch the *calling thread* to SCHED_FIFO and pin it to
+     *        a CPU core.
+     *
+     * Simulator-only (POSIX). On Linux scheduling policy and affinity are
+     * per-thread, so this only affects the thread that calls it - call it from
+     * each thread that needs realtime scheduling (the main loop on one core, the
+     * emulator on another, mirroring the OPTA's independent cores). Each step
+     * that fails (typically for lack of privileges) is logged as a warning and
+     * the thread keeps running.
+     *
+     * @param cpu_core_id Core to pin the calling thread to.
      * @param logger      Logger for failure warnings (optional).
      */
-    void make_process_realtime(int cpu_core_id, Logs::Logger* logger = nullptr);
+    void make_thread_realtime(int cpu_core_id, Logs::Logger* logger = nullptr);
 #endif
 
 } }

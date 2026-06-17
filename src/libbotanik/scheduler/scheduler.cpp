@@ -257,18 +257,22 @@ namespace Botanik { namespace Scheduler {
     // Simulator utilities (memlock, CPU-pinning and SCHED_FIFO)
     // ------------------------------------------------------------------------
 
-    void make_process_realtime(int cpu_core_id, Logs::Logger* logger) {
-        // lock memory pages into RAM to avoid page fault latency
+    void lock_process_memory(Logs::Logger* logger) {
+        // lock memory pages into RAM to avoid page fault latency. Process-wide
+        // and covers future mappings too, so this is a one-time call.
         if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1 && logger != nullptr)
             logger->warning(PlcIO::BOOT, "mlockall failed: \n%s", strerror(errno));
+    }
 
-        // set the real-time scheduling policy (SCHED_FIFO) and priority
+    void make_thread_realtime(int cpu_core_id, Logs::Logger* logger) {
+        // set the real-time scheduling policy (SCHED_FIFO) and priority. pid 0
+        // targets the calling thread, so this only affects this thread.
         struct sched_param param;
         param.sched_priority = 95; // Priorities range from 1 (low) to 99 (high)
         if (sched_setscheduler(0, SCHED_FIFO, &param) == -1 && logger != nullptr)
             logger->warning(PlcIO::BOOT, "sched_setscheduler failed: \n%s", strerror(errno));
 
-        // pin the process to a dedicated CPU core to prevent task migration
+        // pin the thread to a dedicated CPU core to prevent task migration
         cpu_set_t mask;
         CPU_ZERO(&mask);
         CPU_SET(cpu_core_id, &mask);

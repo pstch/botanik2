@@ -38,6 +38,14 @@ namespace Botanik { namespace Config {
     /** @brief Minimum interval between scheduler-overrun warnings (ms) */
     static constexpr uint32_t SCHEDULER_XRUN_LOG_MS = 5000;
 
+#ifdef TARGET_SIMULATOR
+    /** @brief CPU cores the simulator pins its two realtime threads to, mirroring
+     *  the OPTA's independent cores: the main loop on one, the PLC emulator on
+     *  another so they run concurrently instead of contending for a core. */
+    static constexpr int SIM_MAIN_CPU_CORE     = 0;
+    static constexpr int SIM_EMULATOR_CPU_CORE = 1;
+#endif
+
     /** @brief Maximum address range to scan for stack usage monitoring */
     static constexpr uint32_t STACK_SCAN_LIMIT = 1048576;
 

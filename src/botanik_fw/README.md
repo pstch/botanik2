@@ -15,8 +15,7 @@ bundled Mbed core under `includes/`).
 | `firmware.cpp` | Construction (the `setup()` work) and the per-tick `step()`. |
 
 The `setup()`/`loop()` wiring mirrors `botanik_sim/main.cpp`, minus the simulator-only
-plumbing (raw-console HAL, signal handlers, `make_process_realtime`, the emulator
-thread). The PLC shared memory is bound from `HAL::get_plc_input()/get_plc_output()`
+plumbing. The PLC shared memory is bound from `HAL::get_plc_input()/get_plc_output()`
 rather than allocated locally.
 
 ## Placeholders

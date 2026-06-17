@@ -305,8 +305,9 @@ int main(int argc, char** argv) {
     logger.add_writer(&logs_page);
     logger.add_writer(&home_page);
 
-    // Emulator thread (drives the mock greenhouse payload).
-    // NOTE: should be started before make_process_realtime() is called
+    // Emulator thread (drives the mock greenhouse payload). Also locks process
+    // memory and makes the main loop + emulator realtime on separate cores; see
+    // start_greenhouse_emulator for the start-order constraint.
     start_greenhouse_emulator(&shared_in, &shared_out, &logger);
 
     // Register terminal pages
