@@ -23,6 +23,8 @@ namespace Botanik { namespace Shell {
         virtual void   clear() {}
         /** @brief Enable/disable live log output in the terminal. Default: no-op. */
         virtual void   set_logs_enabled(bool) {}
+        /** @brief Whether live log output is currently enabled. Default: true. */
+        virtual bool   logs_enabled() const { return true; }
         /** @brief Write @p buf split into terminal-width chunks, one write() per chunk. */
         virtual void   write_lines(const char* buf, uint16_t len) { write(buf, len); }
     };
@@ -112,6 +114,7 @@ namespace Botanik { namespace Shell {
          *  @{ */
         void _cmd_help();
         void _cmd_clear();
+        void _cmd_logs();
         void _cmd_logs_on();
         void _cmd_logs_off();
         void _cmd_breakpoint();

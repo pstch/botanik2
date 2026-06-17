@@ -48,6 +48,7 @@ namespace Botanik { namespace Shell {
         static const Builtin BUILTINS[] = {
             { "help",       &CommandShell::_cmd_help       },
             { "clear",      &CommandShell::_cmd_clear      },
+            { "logs",       &CommandShell::_cmd_logs       },
             { "logs on",    &CommandShell::_cmd_logs_on    },
             { "logs off",   &CommandShell::_cmd_logs_off   },
             { "stats",      &CommandShell::_cmd_stats      },
@@ -67,19 +68,24 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_cmd_help() {
-        _println("Commands: help, clear, logs on/off, stats, breakpoint, reset, exit");
+        _println("Commands: help, clear, logs [on/off], stats, breakpoint, reset, exit");
     }
 
     void CommandShell::_cmd_clear() { _output.clear(); }
 
+    void CommandShell::_cmd_logs() {
+        _println(_output.logs_enabled() ? "logs: output enabled"
+                                        : "logs: output disabled");
+    }
+
     void CommandShell::_cmd_logs_on() {
         _output.set_logs_enabled(true);
-        _println("Log output enabled");
+        _println("logs: output enabled");
     }
 
     void CommandShell::_cmd_logs_off() {
         _output.set_logs_enabled(false);
-        _println("Log output disabled");
+        _println("logs: output disabled");
     }
 
     void CommandShell::_cmd_breakpoint() { HAL::debug_break(); }

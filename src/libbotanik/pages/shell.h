@@ -95,6 +95,7 @@ namespace Botanik { namespace Pages {
         void   drain() override;
         void   clear() override;
         void   set_logs_enabled(bool on) override { _logs_enabled = on; }
+        bool   logs_enabled() const override { return _logs_enabled; }
 
         /** @} */
 
