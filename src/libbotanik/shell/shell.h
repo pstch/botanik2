@@ -104,8 +104,25 @@ namespace Botanik { namespace Shell {
         /** @name Internals
          *  @{ */
 
-        /** @brief Built-in command handler (run when dispatch() falls through). */
+        /** @brief Built-in command handler (run when dispatch() falls through):
+         *  matches @p cmd against the static command table and invokes its handler. */
         void _builtin(const char* cmd, uint16_t len);
+
+        /** @name Built-in command handlers
+         *  @{ */
+        void _cmd_help();
+        void _cmd_clear();
+        void _cmd_logs_on();
+        void _cmd_logs_off();
+        void _cmd_breakpoint();
+        void _cmd_reset();
+        void _cmd_exit();
+        void _cmd_stats();
+        /** @brief Handle an unrecognised command (echoes "Unknown command: ..."). */
+        void _unknown(const char* cmd, uint16_t len);
+        /** @brief Write a NUL-terminated line of command output. */
+        void _println(const char* msg);
+        /** @} */
 
         /** @} */
     };

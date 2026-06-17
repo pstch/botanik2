@@ -281,9 +281,10 @@ screen, classes stay small, short client-readable comments.
   an `add_alert` lambda that clamps the running offset to `sizeof(buf)`, so a
   truncating `snprintf` can't hand the next call a wrapped size.
 
-- [ ] `[CMD-TABLE]` Replace the hand-rolled `if/else strncmp` shell dispatch
-  chain (`shell.cpp:48`) with a small `static const` command table (name + len +
-  handler) iterated in a loop - removes the magic length literals.
+- [x] `[CMD-TABLE]` DONE: `_builtin` is now a `static const {name, handler}` table
+  iterated in a loop (widths from `strlen`, no magic length literals); each
+  command is its own small `_cmd_*` method, with `_unknown`/`_println` helpers.
+  Verified in the sim: `stats` and dispatch work.
 
 - [x] `[TS-DOC]` DONE: the `timestamp_ms` member doc now carries a `@warning`
   that it's 32-bit (wraps ~49 days) and that consumers must use wrap-safe

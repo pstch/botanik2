@@ -42,95 +42,112 @@ namespace Botanik { namespace Shell {
     // ------------------------------------------------------------------------
 
     void CommandShell::_builtin(const char* cmd, uint16_t len) {
-        char out[Config::LOG_FORMATTED_LEN];
-        int  n = 0;
-
-        if (len == 4 && strncmp(cmd, "help", 4) == 0) {
-            n = snprintf(out, sizeof(out), "Commands: help, clear, logs on/off, stats, breakpoint, reset, exit");
-        } else if (len == 5 && strncmp(cmd, "clear", 5) == 0) {
-            _output.clear();
-            return;
-        } else if (len == 7 && strncmp(cmd, "logs on", 7) == 0) {
-            _output.set_logs_enabled(true);
-            n = snprintf(out, sizeof(out), "Log output enabled");
-        } else if (len == 8 && strncmp(cmd, "logs off", 8) == 0) {
-            _output.set_logs_enabled(false);
-            n = snprintf(out, sizeof(out), "Log output disabled");
-        } else if (len == 10 && strncmp(cmd, "breakpoint", 10) == 0) {
-            HAL::debug_break();
-            return;
-        } else if (len == 5 && strncmp(cmd, "reset", 5) == 0) {
-            HAL::reset();  // reboots the firmware; does not return
-            return;
-        } else if (len == 4 && strncmp(cmd, "exit", 4) == 0) {
-            HAL::shutdown();  // simulator: clean exit(0); OPTA: reboots. Does not return
-            return;
-        } else if (len == 5 && strncmp(cmd, "stats", 5) == 0) {
-            Scheduler::SchedulerContext* ctx = _terminal.context().scheduler;
-            uint32_t uptime_s = (uint32_t)(HAL::uptime_ms() / 1000);
-            if (ctx) {
-                char val[24], detail[64];
-                char fa[12], fb[12];
-                int w;
-                snprintf(val,    sizeof(val),    "%lus", (unsigned long)uptime_s);
-                snprintf(detail, sizeof(detail), "%lu ticks, %lu overruns",
-                    (unsigned long)ctx->tick_count, (unsigned long)ctx->overruns);
-                w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
-                    "Uptime ......................", val, detail);
-                if (w > 0) _output.write(out, (size_t)w);
-
-                snprintf(val,    sizeof(val),    "%s%%",
-                    Utils::format_float(fa, sizeof(fa), ctx->cpu_load_ema * 100.0f, 1));
-                snprintf(detail, sizeof(detail), "recent %sms, peak %sms",
-                    Utils::format_float(fa, sizeof(fa), ctx->cpu_loop_us_recent / 1000.0, 2),
-                    Utils::format_float(fb, sizeof(fb), ctx->cpu_loop_us_max / 1000.0, 2));
-                w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
-                    "CPU load ....................", val, detail);
-                if (w > 0) _output.write(out, (size_t)w);
-
-                snprintf(val,    sizeof(val),    "%s%%",
-                    Utils::format_float(fa, sizeof(fa), ctx->cpu_jitter_ema * 100.0f, 1));
-                snprintf(detail, sizeof(detail), "recent %sms, peak %sms",
-                    Utils::format_float(fa, sizeof(fa), ctx->cpu_jitter_us_recent / 1000.0, 2),
-                    Utils::format_float(fb, sizeof(fb), ctx->cpu_jitter_us_max / 1000.0, 2));
-                w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
-                    "CPU jitter ..................", val, detail);
-                if (w > 0) _output.write(out, (size_t)w);
-
-                snprintf(val,    sizeof(val),    "%s%%",
-                    Utils::format_float(fa, sizeof(fa), ctx->stack_usage_ema * 100.0f, 1));
-                snprintf(detail, sizeof(detail), "recent %lu, peak %lu bytes",
-                    (unsigned long)ctx->stack_bytes_recent,
-                    (unsigned long)ctx->stack_bytes_max);
-                w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
-                    "Stack usage .................", val, detail);
-                if (w > 0) _output.write(out, (size_t)w);
-
-                snprintf(val, sizeof(val), "%lu bytes",
-                    (unsigned long)ctx->stack_depth);
-                w = snprintf(out, sizeof(out), "%-29s : %s",
-                    "Stack depth .................", val);
-                if (w > 0) _output.write(out, (size_t)w);
-                return;
-            } else {
-                n = snprintf(out, sizeof(out), "stats: no scheduler context");
-            }
-        } else {
-            // "Unknown command: " + the offending input, handed to write_lines()
-            // as a single blob: it wraps at the terminal width and splits on any
-            // embedded newline, so no \n reaches write_chars and no manual
-            // first-line/remainder bookkeeping is needed.
-            static const char prefix[] = "Unknown command: ";
-            uint16_t plen = (uint16_t)(sizeof(prefix) - 1);
-            uint16_t clen = std::min(len, (uint16_t)(sizeof(out) - plen));
-            memcpy(out, prefix, plen);
-            memcpy(out + plen, cmd, clen);
-            _output.write_lines(out, (uint16_t)(plen + clen));
-            return;
+        // name -> handler table: keeps the command list (and its widths, via
+        // strlen) in one place, with no magic length literals to drift.
+        struct Builtin { const char* name; void (CommandShell::*fn)(); };
+        static const Builtin BUILTINS[] = {
+            { "help",       &CommandShell::_cmd_help       },
+            { "clear",      &CommandShell::_cmd_clear      },
+            { "logs on",    &CommandShell::_cmd_logs_on    },
+            { "logs off",   &CommandShell::_cmd_logs_off   },
+            { "stats",      &CommandShell::_cmd_stats      },
+            { "breakpoint", &CommandShell::_cmd_breakpoint },
+            { "reset",      &CommandShell::_cmd_reset      },
+            { "exit",       &CommandShell::_cmd_exit       },
+        };
+        for (const Builtin& b : BUILTINS) {
+            uint16_t blen = (uint16_t)strlen(b.name);
+            if (len == blen && strncmp(cmd, b.name, blen) == 0) { (this->*b.fn)(); return; }
         }
+        _unknown(cmd, len);
+    }
 
-        if (n > 0)
-            _output.write(out, (size_t)n);
+    void CommandShell::_println(const char* msg) {
+        _output.write(msg, strlen(msg));
+    }
+
+    void CommandShell::_cmd_help() {
+        _println("Commands: help, clear, logs on/off, stats, breakpoint, reset, exit");
+    }
+
+    void CommandShell::_cmd_clear() { _output.clear(); }
+
+    void CommandShell::_cmd_logs_on() {
+        _output.set_logs_enabled(true);
+        _println("Log output enabled");
+    }
+
+    void CommandShell::_cmd_logs_off() {
+        _output.set_logs_enabled(false);
+        _println("Log output disabled");
+    }
+
+    void CommandShell::_cmd_breakpoint() { HAL::debug_break(); }
+
+    void CommandShell::_cmd_reset() { HAL::reset(); }        // reboots; does not return
+
+    void CommandShell::_cmd_exit() { HAL::shutdown(); }      // sim: exit(0); OPTA: reboots
+
+    void CommandShell::_cmd_stats() {
+        Scheduler::SchedulerContext* ctx = _terminal.context().scheduler;
+        if (ctx == nullptr) { _println("stats: no scheduler context"); return; }
+
+        char out[Config::LOG_FORMATTED_LEN];
+        char val[24], detail[64];
+        char fa[12], fb[12];
+        int w;
+
+        snprintf(val,    sizeof(val),    "%lus", (unsigned long)(HAL::uptime_ms() / 1000));
+        snprintf(detail, sizeof(detail), "%lu ticks, %lu overruns",
+            (unsigned long)ctx->tick_count, (unsigned long)ctx->overruns);
+        w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
+            "Uptime ......................", val, detail);
+        if (w > 0) _output.write(out, (size_t)w);
+
+        snprintf(val,    sizeof(val),    "%s%%",
+            Utils::format_float(fa, sizeof(fa), ctx->cpu_load_ema * 100.0f, 1));
+        snprintf(detail, sizeof(detail), "recent %sms, peak %sms",
+            Utils::format_float(fa, sizeof(fa), ctx->cpu_loop_us_recent / 1000.0, 2),
+            Utils::format_float(fb, sizeof(fb), ctx->cpu_loop_us_max / 1000.0, 2));
+        w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
+            "CPU load ....................", val, detail);
+        if (w > 0) _output.write(out, (size_t)w);
+
+        snprintf(val,    sizeof(val),    "%s%%",
+            Utils::format_float(fa, sizeof(fa), ctx->cpu_jitter_ema * 100.0f, 1));
+        snprintf(detail, sizeof(detail), "recent %sms, peak %sms",
+            Utils::format_float(fa, sizeof(fa), ctx->cpu_jitter_us_recent / 1000.0, 2),
+            Utils::format_float(fb, sizeof(fb), ctx->cpu_jitter_us_max / 1000.0, 2));
+        w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
+            "CPU jitter ..................", val, detail);
+        if (w > 0) _output.write(out, (size_t)w);
+
+        snprintf(val,    sizeof(val),    "%s%%",
+            Utils::format_float(fa, sizeof(fa), ctx->stack_usage_ema * 100.0f, 1));
+        snprintf(detail, sizeof(detail), "recent %lu, peak %lu bytes",
+            (unsigned long)ctx->stack_bytes_recent,
+            (unsigned long)ctx->stack_bytes_max);
+        w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
+            "Stack usage .................", val, detail);
+        if (w > 0) _output.write(out, (size_t)w);
+
+        snprintf(val, sizeof(val), "%lu bytes", (unsigned long)ctx->stack_depth);
+        w = snprintf(out, sizeof(out), "%-29s : %s",
+            "Stack depth .................", val);
+        if (w > 0) _output.write(out, (size_t)w);
+    }
+
+    void CommandShell::_unknown(const char* cmd, uint16_t len) {
+        // "Unknown command: " + the offending input, handed to write_lines() as a
+        // single blob: it wraps at the terminal width and splits on any embedded
+        // newline, so no \n reaches write_chars and no manual bookkeeping is needed.
+        char out[Config::LOG_FORMATTED_LEN];
+        static const char prefix[] = "Unknown command: ";
+        uint16_t plen = (uint16_t)(sizeof(prefix) - 1);
+        uint16_t clen = std::min(len, (uint16_t)(sizeof(out) - plen));
+        memcpy(out, prefix, plen);
+        memcpy(out + plen, cmd, clen);
+        _output.write_lines(out, (uint16_t)(plen + clen));
     }
 
 }}
