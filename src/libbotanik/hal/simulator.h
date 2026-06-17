@@ -199,6 +199,9 @@ namespace Botanik { namespace HAL {
     /** @brief Host stand-in for the Arduino UART, backed by a pair of file
      *  descriptors with a baud-rate throttle and a simulated UART buffer. */
     class RawSerial {
+        /** @brief Simulated UART FIFO depth (bytes); also caps the token bucket's bank. */
+        static constexpr int FIFO_BYTES = 64;
+
         /** @name State
          *  @{ */
 
@@ -208,6 +211,9 @@ namespace Botanik { namespace HAL {
         int _fd_out = -1;
         /** @brief Configured baud rate (drives the write throttle). */
         uint32_t _baud = 0;
+        /** @brief 8N1 slot (us/byte) and its FIFO-deep bank, derived once in begin(). */
+        uint64_t _slot_us = 0;
+        uint64_t _max_bank_us = 0;
         /** @brief Earliest time (us) the next byte may leave the wire; advanced by one
          *  8N1 slot per byte sent (token bucket, see write()). */
         uint64_t _next_write_us = 0;
@@ -232,6 +238,8 @@ namespace Botanik { namespace HAL {
         /** @brief Begin operation at the given baud rate (drives write throttling). */
         inline void begin(uint32_t baud) {
             _baud = baud;
+            _slot_us = baud ? 10000000ULL / baud : 0;   // 8N1: 10 bit-times per byte
+            _max_bank_us = _slot_us * FIFO_BYTES;
             _next_write_us = _now_as<std::chrono::microseconds>();
         }
 
@@ -252,23 +260,13 @@ namespace Botanik { namespace HAL {
             if (_fd_out == -1) return 0;
             ssize_t n = ::write(_fd_out, &c, 1);
             if (n <= 0) return 0;
-            if (_baud > 0) {
-                // Token-bucket wire model. Each byte occupies one 8N1 slot
-                // (10 bit-times = 10e6/baud us). _next_write_us is the time the next
-                // byte may leave; we ACCUMULATE it (+= slot) rather than resetting it
-                // to now+slot, so a single transmit() call - run once per loop tick -
-                // can send every byte whose slot has already elapsed since the last
-                // one (~tick/slot bytes per tick), matching the real line rate. The
-                // old reset-to-now form let only one byte through per tick regardless
-                // of baud, throttling the simulated wire to ~1 byte / TASK_PERIOD.
-                const uint64_t now  = _now_as<std::chrono::microseconds>();
-                const uint64_t slot = 10000000ULL / _baud;
-                // Cap banked idle credit to one UART FIFO (64 B): a wire that has been
-                // idle fills the FIFO at once, then paces - it cannot instantly dump an
-                // unbounded backlog, which would break the echo-latency model.
-                const uint64_t max_bank = 64ULL * slot;
-                if (_next_write_us + max_bank < now) _next_write_us = now - max_bank;
-                _next_write_us += slot;
+            if (_slot_us > 0) {
+                // Token bucket: accumulate the next-slot time (not now+slot), so one
+                // per-tick transmit() drains every byte whose slot has elapsed (real
+                // line rate). Bank is capped to one FIFO so an idle wire can't burst.
+                const uint64_t now = _now_as<std::chrono::microseconds>();
+                if (_next_write_us + _max_bank_us < now) _next_write_us = now - _max_bank_us;
+                _next_write_us += _slot_us;
             }
             return (size_t)n;
         }
@@ -312,11 +310,11 @@ namespace Botanik { namespace HAL {
             if (_fd_out == -1) return 0;
             // File/pipe sink: no UART to model, so report a full buffer (TIOCOUTQ
             // would fail with ENOTTY and wedge TX).
-            if (!_out_is_tty) return 64;
-            if (_baud > 0 && _next_write_us > _now_as<std::chrono::microseconds>()) return 0;
+            if (!_out_is_tty) return FIFO_BYTES;
+            if (_slot_us > 0 && _next_write_us > _now_as<std::chrono::microseconds>()) return 0;
             int pending_bytes = 0;
             if (::ioctl(_fd_out, TIOCOUTQ, &pending_bytes) < 0) return 0;
-            int space = 64 - pending_bytes;  // small simulated UART buffer
+            int space = FIFO_BYTES - pending_bytes;  // small simulated UART buffer
             return (space < 0) ? 0 : space;
         }
 
