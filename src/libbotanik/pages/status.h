@@ -85,7 +85,7 @@ namespace Botanik { namespace Pages {
                 snprintf(buf, sizeof(buf), "%lu", (unsigned long)ctx.scheduler->overruns);
                 _cell(R_SLOT0 + 1, 4, R_VAL, buf, R_W);
                 snprintf(buf, sizeof(buf), "%s%% (%5lu B)",
-                         Utils::format_float(fa, sizeof(fa), ctx.scheduler->stack_usage_ema * 100.0f, 1, 4),
+                         Utils::format_float(fa, sizeof(fa), ctx.scheduler->stack_usage_ema * 100.0f, 1, 5),
                          (unsigned long)ctx.scheduler->stack_bytes_max);
                 _cell(R_SLOT0 + 3, 6, R_VAL, buf, R_W);
             }
@@ -113,7 +113,7 @@ namespace Botanik { namespace Pages {
             // CPU load (left) and Jitter (right): the EMA leads, peak in parens.
             if (ctx.scheduler) {
                 snprintf(buf, sizeof(buf), "%s%% (peak %sms)",
-                         Utils::format_float(fa, sizeof(fa), ctx.scheduler->cpu_load_ema * 100.0f, 1, 4),
+                         Utils::format_float(fa, sizeof(fa), ctx.scheduler->cpu_load_ema * 100.0f, 1, 5),
                          Utils::format_float(fb, sizeof(fb), ctx.scheduler->cpu_loop_us_max / 1000.0, 2, 6));
                 _cell(5, 5, L_VAL, buf, L_W, false);
                 snprintf(buf, sizeof(buf), "%sms (peak %sms)",
