@@ -63,7 +63,7 @@ namespace Botanik { namespace Pages {
             _label(5, "CPU load");
             // Right column: scheduler/runtime stats, with Serial on the last line.
             _label_at(3, R_LBL, "Uptime");
-            _label_at(4, R_LBL, "Overruns");
+            _label_at(4, R_LBL, "TPS // XRUNs");
             _label_at(5, R_LBL, "Jitter");
             _label_at(6, R_LBL, "Stack");
             _label_at(7, R_LBL, "Serial");
@@ -82,8 +82,6 @@ namespace Botanik { namespace Pages {
             // CPU load and Jitter are hot fields (their EMAs move every tick) - see
             // draw_hot(). Only the rarely-changing stats stay on the cold pass.
             if (ctx.scheduler) {
-                snprintf(buf, sizeof(buf), "%lu", (unsigned long)ctx.scheduler->overruns);
-                _cell(R_SLOT0 + 1, 4, R_VAL, buf, R_W);
                 snprintf(buf, sizeof(buf), "%5s%% (%5lu B)",
                          Utils::format_float(fa, sizeof(fa), ctx.scheduler->stack_usage_ema * 100.0f, 1),
                          (unsigned long)ctx.scheduler->stack_bytes_max);
@@ -120,6 +118,13 @@ namespace Botanik { namespace Pages {
                          Utils::format_float(fa, sizeof(fa), ctx.scheduler->cpu_jitter_ema * 100.0f, 1),
                          Utils::format_float(fb, sizeof(fb), ctx.scheduler->cpu_jitter_us_max / 1000.0, 2));
                 _cell(R_SLOT0 + 2, 5, R_VAL, buf, R_W, false);
+                // TPS // XRUNs: achieved loop rate and cumulative overruns as two
+                // fixed-width subfields. Highlight stays on (unlike the churning
+                // fields above) so a rate dip or overrun bump lights up.
+                snprintf(buf, sizeof(buf), "%4lu // %5lu",
+                         (unsigned long)ctx.scheduler->ticks_per_second,
+                         (unsigned long)ctx.scheduler->overruns);
+                _cell(R_SLOT0 + 1, 4, R_VAL, buf, R_W);
             }
 
             // Serial buffer depths (right column, last line): change often enough to

@@ -54,6 +54,10 @@ namespace Botanik { namespace Scheduler {
         uint32_t stack_bytes_max    = 0;
         /** @brief total thread stack allocation, bytes */
         uint32_t stack_depth        = 0;
+
+        /** @brief measured loop rate, ticks executed per second. Nominal is
+         *  1000/TASK_PERIOD_MS; dips below it when the loop falls behind. */
+        uint32_t ticks_per_second   = 0;
     };
 
     /** @brief Stable metrics snapshot consumed by AnsiTerminal for the status bar
@@ -172,6 +176,16 @@ namespace Botanik { namespace Scheduler {
 
         /** @} */
 
+        /** @name Tick-rate metric
+         *  @{ */
+
+        /** @brief Uptime anchor (ms) of the current one-second tick-rate window. */
+        uint64_t          _tps_anchor_ms     = 0;
+        /** @brief tick_count snapshot taken at the window anchor. */
+        uint32_t          _tps_anchor_count  = 0;
+
+        /** @} */
+
     public:
         /** @name Lifecycle
          *  @{ */
@@ -247,8 +261,9 @@ namespace Botanik { namespace Scheduler {
             _record_load(now_us);
             // advance time grid
             _next_tick_ms += _period_ms;
-            // increment tick count
+            // increment tick count and sample the achieved tick rate
             ++_context.tick_count;
+            _record_tps(now_ms);
             // open the work window for the beat about to run
             _work_start_us = now_us;
             _measuring     = true;
@@ -287,6 +302,8 @@ namespace Botanik { namespace Scheduler {
         /** @brief Compute the beat's CPU duty cycle (active fraction of the elapsed
          *  beat) from the actual slept time and publish it. */
         void _record_load(uint64_t now_us);
+        /** @brief Sample the achieved tick rate once per second and publish it. */
+        void _record_tps(uint64_t now_ms);
         /** @brief Close the work window: record work duration and, at slice boundaries,
          *  scan the stack high-water mark; publish both into the context. */
         BOTANIK_NO_ASAN void _sample_work(uint64_t now_us);

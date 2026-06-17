@@ -87,7 +87,12 @@ namespace Botanik { namespace Scheduler {
         _stack_slice_tick = 0;
         _repaint_pending  = true;
 
+        // reset tick-rate state
+        _tps_anchor_ms    = 0;
+        _tps_anchor_count = 0;
+
         // clear the published metric fields (leave tick_count/overruns/timestamp)
+        _context.ticks_per_second     = 0;
         _context.cpu_load_ema         = 0.0f;
         _context.cpu_loop_us_recent   = 0;
         _context.cpu_loop_us_max      = 0;
@@ -150,16 +155,13 @@ namespace Botanik { namespace Scheduler {
     }
 
     void LoopScheduler::_record_load(uint64_t now_us) {
-        // duty cycle over the beat just completed: the active (non-slept) fraction of
-        // the wall time elapsed since the previous release. Active = work + loop and
-        // scheduler overhead + the busy-wait (the last ~1 ms is busy-waited, not
-        // slept). Normalizing by the measured elapsed time (rather than a fixed
-        // period) keeps it honest across sleep overruns and skipped beats.
+        // duty cycle: active (non-slept) time over the nominal period. Normalizing by
+        // the period (not elapsed) lets an overrunning beat read past 100%.
         if (_last_release_us != 0) {
             uint64_t elapsed = now_us - _last_release_us;
             uint64_t active  = (elapsed > _slept_us) ? (elapsed - _slept_us) : 0;
-            float instant    = (elapsed > 0) ? static_cast<float>(active)
-                             / static_cast<float>(elapsed) : 0.0f;
+            float instant    = (_period_ms > 0) ? static_cast<float>(active)
+                             / static_cast<float>(_period_ms * 1000u) : 0.0f;
             _cpu_load.push(instant);
             _context.cpu_load_ema = _cpu_load.value();
         }
@@ -167,6 +169,23 @@ namespace Botanik { namespace Scheduler {
         // open the next duty-cycle window and start its idle total from scratch
         _last_release_us = now_us;
         _slept_us = 0;
+    }
+
+    void LoopScheduler::_record_tps(uint64_t now_ms) {
+        // achieved tick rate: ticks since the window anchor over the elapsed window,
+        // normalized to per-second and published once the window reaches a second.
+        if (_tps_anchor_ms == 0) {            // first beat: open the window
+            _tps_anchor_ms    = now_ms;
+            _tps_anchor_count = _context.tick_count;
+            return;
+        }
+        uint64_t elapsed = now_ms - _tps_anchor_ms;
+        if (elapsed >= 1000) {
+            uint32_t ticks = _context.tick_count - _tps_anchor_count;
+            _context.ticks_per_second = (uint32_t)((uint64_t)ticks * 1000 / elapsed);
+            _tps_anchor_ms    = now_ms;
+            _tps_anchor_count = _context.tick_count;
+        }
     }
 
     void LoopScheduler::_sample_work(uint64_t now_us) {
