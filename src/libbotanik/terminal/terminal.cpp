@@ -158,11 +158,18 @@ namespace Botanik { namespace Terminal {
         // skip=true updates tracking without emitting (hardware already moved).
         bool ok = true;
         if (!skip) {
+            // A row-filling write parks the cursor at the assumed last column, but a
+            // real terminal wider than _cols leaves it one (or more) columns further
+            // right - so the parked column is unknown and any move computed off it
+            // would land short. Reposition absolutely: the one width-independent move.
+            if (_hw_at_eol) {
+                ok = Ansi::goto_absolute(_serial, target);
+            }
             // Prefer a relative move when the cursor shares the target's row or
             // column; goto_absolute is for true diagonals only. A single-axis hop is
             // never longer than an absolute goto, so there's no delta where absolute
             // wins. target == _hw_pos returned above, so the differing axis is non-zero.
-            if (target.row == _hw_pos.row) { // Same row
+            else if (target.row == _hw_pos.row) { // Same row
                 if (target.col == 0) {
                     ok = Ansi::move_row_start(_serial);   // 1-byte CR beats CUB
                 } else if (target.col < _hw_pos.col) {
