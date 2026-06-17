@@ -223,7 +223,7 @@ protected:
             snprintf(buf, sizeof(buf), "Tray %u (%-8s)", d->current_tray, tray_status_str(d->tray_status));
         else
             snprintf(buf, sizeof(buf), "idle");
-        _value(14, buf);
+        _value(14, buf, true, true);   // invert the whole tray value on change
 
         // Compose a short list of active alert conditions.
         buf[0] = '\0';

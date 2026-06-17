@@ -182,12 +182,14 @@ namespace Botanik { namespace Pages {
         /** @brief Write a value at _value_col (single-column pages), keyed by row.
          *  The field runs from _value_col to end-of-line, so a shrinking value clears
          *  its own tail. Pass @p highlight = false for fields that change every
-         *  refresh (a clock), where the highlight would just churn. */
-        void _value(uint16_t row, const char* s, bool highlight = true) {
+         *  refresh (a clock), where the highlight would just churn. Pass @p invert to
+         *  light the whole value as one reverse-video block on change, instead of the
+         *  default per-digit-run highlight (for non-numeric values like a tray label). */
+        void _value(uint16_t row, const char* s, bool highlight = true, bool invert = false) {
             if (row >= _terminal.rows()) return;
             uint16_t width = (_value_col < _terminal.cols())
                                  ? (uint16_t)(_terminal.cols() - _value_col) : 0;
-            _field(row, row, _value_col, s, width, highlight);
+            _field(row, row, _value_col, s, width, highlight, invert);
         }
 
         /** @brief Draw a dash-ruled group header at (@p row, @p col), rendered as
@@ -233,10 +235,11 @@ namespace Botanik { namespace Pages {
          *  previous draw, so only changed bytes are re-emitted. Highlighting is per
          *  subfield: each digit run lights reverse-video when any of its digits
          *  changed, persisting until it settles (the first paint after a clear is
-         *  never lit). All-or-nothing: on a TX-full skip nothing is emitted and the
-         *  cache is left untouched, so the draw retries next refresh. */
+         *  never lit). Pass @p invert to instead light the whole value as a single
+         *  block whenever any byte changes. All-or-nothing: on a TX-full skip nothing
+         *  is emitted and the cache is left untouched, so the draw retries next refresh. */
         void _field(uint16_t slot, uint16_t row, uint16_t col, const char* s, uint16_t width,
-                    bool highlight = true) {
+                    bool highlight = true, bool invert = false) {
             if (row >= _terminal.rows() || width == 0) return;
             // Cold pacing ordinal: handle each cold field at most once per refresh
             // period. The cursor advances on every visited field, so a deferred pass
@@ -274,7 +277,11 @@ namespace Botanik { namespace Pages {
                 // Highlighting is opt-out: a field that changes every refresh (a clock)
                 // leaves it off, so a settled subfield is never re-emitted just to
                 // clear an inversion - only genuinely changed glyphs are written.
-                if (highlight) {
+                if (highlight && invert) {
+                    // Whole-value invert: any change lights the printed glyphs (cols
+                    // [0, vlen), not the trailing padding) as a single block.
+                    if (chg) newhi = (vlen >= 32) ? ~0u : ((1u << vlen) - 1u);
+                } else if (highlight) {
                     for (uint16_t i = 0; i < width; ) {
                         if (cf[i] < '0' || cf[i] > '9') { ++i; continue; }
                         uint16_t a = i;
