@@ -68,6 +68,11 @@ namespace Botanik { namespace Pages {
         /** @brief A cold draw_dynamic() pass was left unfinished; resume it on later
          *  ticks (the value cache makes already-drawn fields no-ops) until it drains. */
         bool          _dynamic_pending  = false;
+        /** @brief A draw_hot() pass was left unfinished (cap hit or floor closed); resume
+         *  it every tick (the value cache makes drawn fields no-ops) until it completes,
+         *  so all hot fields get a first paint without waiting a full _hot_ms cadence -
+         *  and without waiting for the slower cold pass to finish. */
+        bool          _hot_pending       = false;
         /** @name Cooperative static draw (see _static_step())
          *  draw_static() issues the same deterministic sequence of static-element
          *  draws each pass (labels/headers/logo), so an ordinal cursor can pace it:
@@ -422,7 +427,9 @@ namespace Botanik { namespace Pages {
             _run_static();
             if (!_static_pending) {
                 _emit_count = 0;
+                _emit_deferred = false;
                 draw_hot();       // hot fields (paced)
+                _hot_pending = _emit_deferred;
                 _hot_last_ms = HAL::uptime_ms();
                 _cold_idx = 0;
                 _cold_active = true;
@@ -451,13 +458,20 @@ namespace Botanik { namespace Pages {
             const bool refresh_due = (now - _refresh_last_ms >= _refresh_ms);
 
             // Hot fields (clock/uptime): once static is drawn, repaint on the per-second
-            // cadence. Each field is paced under the shared depth floor by _paint(); if the
-            // ring is momentarily too deep a field defers and the next cadence carries the
-            // (recomputed, current) value, so the clock never queues stale.
-            if (!_static_pending && _hot_ms && now - _hot_last_ms >= _hot_ms) {
-                _hot_last_ms = now;
-                _emit_count = 0;   // hot's own per-tick budget
-                draw_hot();
+            // cadence, or keep resuming a pass that could not finish (so every hot field
+            // gets a first paint without waiting for the slower cold pass). Each field is
+            // paced under the shared depth floor by _paint(); the cadence clock advances
+            // only on a fresh due tick, not on a pending-only resume. Hot runs before cold
+            // below, so it gets first claim on the floor each tick.
+            if (!_static_pending && _hot_ms) {
+                const bool hot_due = (now - _hot_last_ms >= _hot_ms);
+                if (hot_due || _hot_pending) {
+                    if (hot_due) _hot_last_ms = now;
+                    _emit_count = 0;   // hot's own per-tick budget
+                    _emit_deferred = false;
+                    draw_hot();
+                    _hot_pending = _emit_deferred;
+                }
             }
 
             // Cold fields: only once static is fully drawn (a value needs its label
