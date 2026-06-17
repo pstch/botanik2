@@ -17,6 +17,26 @@
    `-pg` / frame-pointer-friendly `-O2 -fno-omit-frame-pointer` for `perf`), so the
    simulator can be profiled without hand-editing flags.
 
+## Cooperative TX pacing (follow-ups)
+
+ - Render-before-diff waste: a paced cold/hot resume re-invokes the subclass
+   draw_dynamic()/draw_hot() every tick, re-running every field's snprintf/format_float
+   even for fields the per-field diff/ordinal then skips. Pacing bounds TX bytes per
+   tick but not the CPU render cost (it multiplies by the number of resume ticks).
+   Let the resume skip rendering already-drawn fields (e.g. expose the cold ordinal so
+   a subclass can guard its render, or restructure so a field renders once per period).
+   Ties into the Profiling item above.
+
+ - Three parallel resume state-machines: _static_pending, _dynamic_pending and
+   _hot_pending each carry their own ordinal/blocked/active/pending flags with subtly
+   different rules. Generalize into one paced-pass abstraction so a new field class or
+   cadence tweak can't desync one copy from the others.
+
+ - Two separate paced painters: AnsiTerminal::step()'s status bar has its own budget +
+   round-robin cursor + tx_below_cold() gate, duplicating MetricPage's per-pass
+   field-budget machinery. Unify so the cooperative-TX policy (floor, caps, all-or-
+   nothing) lives in one place instead of two that must be kept in sync by hand.
+
 ## Big work items
 
 - ~~Refactor around LoopScheduler/PerfMonitor, they are weirdly coupled.~~ Done:
