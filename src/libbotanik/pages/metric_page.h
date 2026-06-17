@@ -246,19 +246,8 @@ namespace Botanik { namespace Pages {
                 uint16_t a = i;
                 while (i < width && ((render >> i) & 1u)) i++;
                 uint16_t b = i;                              // run spans [a, b)
-                _terminal.move_to({row, (uint16_t)(col + a)});
-                uint16_t seg = a;
-                bool seg_inv = ((hi >> a) & 1u) != 0;
-                for (uint16_t k = a; k < b; ++k) {
-                    bool ki = ((hi >> k) & 1u) != 0;
-                    if (ki != seg_inv) {
-                        _terminal.set_inverted(seg_inv);
-                        _terminal.write_chars(&cf[seg], (uint16_t)(k - seg));
-                        seg = k; seg_inv = ki;
-                    }
-                }
-                _terminal.set_inverted(seg_inv);
-                _terminal.write_chars(&cf[seg], (uint16_t)(b - seg));
+                // Shared run-emit (cursor move + lazy SGR segmenting + write).
+                _terminal.emit_field_run(row, col, cf, a, b, hi);
             }
             _terminal.set_inverted(false);                   // leave the terminal normal
             return true;

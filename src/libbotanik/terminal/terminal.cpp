@@ -489,6 +489,23 @@ namespace Botanik { namespace Terminal {
         set_inverted(saved_inv);
     }
 
+    void AnsiTerminal::emit_field_run(uint16_t row, uint16_t col, const char* cf,
+                                      uint16_t a, uint16_t b, uint32_t hi) {
+        move_to({row, (uint16_t)(col + a)});
+        uint16_t seg = a;
+        bool seg_inv = ((hi >> a) & 1u) != 0;
+        for (uint16_t k = a; k < b; ++k) {
+            bool ki = ((hi >> k) & 1u) != 0;
+            if (ki != seg_inv) {
+                set_inverted(seg_inv);
+                write_chars(&cf[seg], (uint16_t)(k - seg));
+                seg = k; seg_inv = ki;
+            }
+        }
+        set_inverted(seg_inv);
+        write_chars(&cf[seg], (uint16_t)(b - seg));
+    }
+
     void AnsiTerminal::update_status_metrics(bool restore_cursor) {
         char metrics[STATUS_METRICS_LEN];
         int mlen = _build_metrics(metrics, sizeof(metrics));
@@ -516,10 +533,11 @@ namespace Botanik { namespace Terminal {
             // stop and retry next refresh, leaving the unwritten cells' cache stale.
             uint16_t run = (uint16_t)(j - i);
             if (tx_available() < (uint16_t)(run + 16)) break;
-            set_inverted(!value);
             touched = true;
-            move_to({0, (uint16_t)(metrics_col + i)});
-            write_chars(metrics + i, run);
+            // Whole run is uniformly value (normal) or not (inverted): pass an all-set
+            // or all-clear highlight mask so emit_field_run draws it in one segment.
+            emit_field_run(0, metrics_col, metrics, (uint16_t)i, (uint16_t)j,
+                           value ? 0u : ~0u);
             memcpy(_status_metrics_cache + i, metrics + i, (size_t)run);
             i = j;
         }

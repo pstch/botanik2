@@ -168,6 +168,15 @@ namespace Botanik { namespace Terminal {
          *  the blink simply hide it. */
         void set_cursor_visible(bool show);
 
+        /** @brief Emit columns [@p a, @p b) of the fixed-width field @p cf, positioned
+         *  at screen (@p row, @p col + a), split into reverse-video segments per @p hi
+         *  (bit k set = column k drawn inverted). The shared "cursor move + lazy SGR
+         *  segmenting + write" run-emit used by both the status bar and MetricPage; the
+         *  caller owns diffing, run-coalescing, budgeting, the value cache, and any
+         *  inverted-state restore afterwards. */
+        void emit_field_run(uint16_t row, uint16_t col, const char* cf,
+                            uint16_t a, uint16_t b, uint32_t hi);
+
         /** @} */
 
         /** @name Content manipulation
