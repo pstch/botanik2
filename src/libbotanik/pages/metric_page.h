@@ -83,6 +83,22 @@ namespace Botanik { namespace Pages {
         /** @brief draw_static() has not finished painting; keep resuming it. */
         bool          _static_pending    = false;
         /** @} */
+        /** @name Cooperative cold draw (see _field())
+         *  Same ordinal idea as the static pass, but for the periodic value pass:
+         *  each cold field is painted at most once per refresh period. Without it a
+         *  capped/deferred pass that resumes every tick would re-diff live values and
+         *  re-emit the fields that change every tick (cpu, serial counters), starving
+         *  the fields after them and never completing.
+         *  @{ */
+        /** @brief Field index within the current draw_dynamic() pass (reset each pass). */
+        uint16_t      _cold_idx          = 0;
+        /** @brief Fields handled so far this period (persists across resume ticks;
+         *  reset to 0 when a new refresh period starts). */
+        uint16_t      _cold_done         = 0;
+        /** @brief True while draw_dynamic() runs, so _field() applies the ordinal
+         *  (hot fields and other callers paint normally). */
+        bool          _cold_active       = false;
+        /** @} */
 
         /** @brief Number of diff-cache slots and the per-slot value width.
          *  Single-column pages key a slot by its row; column layouts (see _cell())
@@ -215,6 +231,16 @@ namespace Botanik { namespace Pages {
         void _field(uint16_t slot, uint16_t row, uint16_t col, const char* s, uint16_t width,
                     bool highlight = true) {
             if (row >= _terminal.rows() || width == 0) return;
+            // Cold pacing ordinal: handle each cold field at most once per refresh
+            // period. The cursor advances on every visited field, so a deferred pass
+            // resumes past the fields already done - a value that changes every tick
+            // can't re-emit on each resume and starve the fields after it.
+            const bool cold = _cold_active;
+            uint16_t k = 0;
+            if (cold) {
+                k = _cold_idx++;
+                if (k < _cold_done || _emit_deferred) return;
+            }
             if (width > CACHE_COLS - 1) width = CACHE_COLS - 1;
 
             // Render the value into the fixed-width, space-padded field.
@@ -254,8 +280,8 @@ namespace Botanik { namespace Pages {
 
             // Emit a byte when its glyph changed or its highlight state changed.
             uint32_t emit = chg | (newhi ^ oldhi);
-            if (emit == 0) return;
-            if (!_paint(row, col, cf, width, emit, newhi)) return;  // TX full: retry, cache untouched
+            if (emit == 0) { if (cold) _cold_done = (uint16_t)(k + 1); return; }  // unchanged: done
+            if (!_paint(row, col, cf, width, emit, newhi)) return;  // capped/TX full: _emit_deferred set, resume
 
             if (cached) {
                 memcpy(_vcache[slot], cf, width);
@@ -263,6 +289,7 @@ namespace Botanik { namespace Pages {
                 _vhi[slot]   = newhi;
                 _vfresh     &= ~(1u << slot);
             }
+            if (cold) _cold_done = (uint16_t)(k + 1);   // emitted: done this period
         }
 
         /** @brief Emit the columns set in @p emit from field @p cf at (@p row,
@@ -360,11 +387,14 @@ namespace Botanik { namespace Pages {
         void handle_text(char) override {}
 
         /** @brief ENTER forces an immediate value refresh; other keys are ignored.
-         *  (Periodic refresh is otherwise throttled to _refresh_ms.) */
+         *  (Periodic refresh is otherwise throttled to _refresh_ms.) Routes through
+         *  the paced cold pass on the next tick rather than painting inline, so it
+         *  obeys the same field cap / depth gate / per-period ordinal. */
         void handle_command(Command cmd, uint16_t = 1) override {
             if (cmd == Command::ENTER) {
                 _refresh_last_ms = HAL::uptime_ms();
-                draw_dynamic();
+                _cold_done       = 0;       // revisit every field
+                _dynamic_pending = true;    // tick() runs the paced refresh
             }
         }
 
@@ -380,10 +410,15 @@ namespace Botanik { namespace Pages {
             _run_static();
             if (_static_pending) return;   // static unfinished; tick() resumes it
             draw_hot();       // hot fields, so the clock isn't blank until the first tick
-            // Cold fields are paced by the field cap, so a busy page may not finish in
-            // one go; mark it pending so tick() resumes until it fully repaints.
+            // Cold fields are paced (field cap + cold gate + per-period ordinal), so a
+            // busy page may not finish in one go; mark it pending so tick() resumes
+            // until it fully repaints. _cold_done = 0 starts a fresh period.
+            _cold_done = 0;
+            _cold_idx = 0;
+            _cold_active = true;
             _emit_deferred = false;
-            draw_dynamic();   // cold fields (capped)
+            draw_dynamic();   // cold fields (paced)
+            _cold_active = false;
             _dynamic_pending = _emit_deferred;
         }
 
@@ -414,13 +449,18 @@ namespace Botanik { namespace Pages {
             }
 
             // Cold fields on the refresh period, or continued from a deferred pass.
-            // _paint paces them (field cap + cold gate); if it could not finish, resume
-            // next tick without disturbing the steady cadence (_refresh_last_ms is only
-            // advanced on a fresh refresh, never on a pending-only resume).
+            // Paced by the field cap + cold gate + per-period ordinal; if it could not
+            // finish, resume next tick without disturbing the steady cadence
+            // (_refresh_last_ms is only advanced on a fresh refresh). A fresh period
+            // resets the ordinal (_cold_done = 0) so every field is revisited (the value
+            // cache still skips the ones that did not change).
             if (refresh_due || _dynamic_pending) {
-                if (refresh_due) _refresh_last_ms = now;
+                if (refresh_due) { _refresh_last_ms = now; _cold_done = 0; }
+                _cold_idx = 0;
+                _cold_active = true;
                 _emit_deferred = false;
-                draw_dynamic();   // cold fields (capped)
+                draw_dynamic();   // cold fields (paced)
+                _cold_active = false;
                 _dynamic_pending = _emit_deferred;
             }
         }
