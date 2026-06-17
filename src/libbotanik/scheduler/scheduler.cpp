@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstring>
 #ifdef TARGET_SIMULATOR
+#include <cstdlib>   // getenv - BOTANIK_NO_XRUN_WARNING
 #include <cerrno>
 #include <sched.h>
 #include <sys/mman.h>
@@ -23,6 +24,18 @@
 #include "libbotanik/plcio/vars.h"
 
 namespace Botanik { namespace Scheduler {
+
+    // Simulator-only test hook: BOTANIK_NO_XRUN_WARNING silences the overrun
+    // warning, whose count/placement are load-dependent (dilated time provokes
+    // them) and would otherwise pollute screen snapshots. Read once.
+    static bool _xrun_warning_off() {
+#ifdef TARGET_SIMULATOR
+        static const bool off = getenv("BOTANIK_NO_XRUN_WARNING") != nullptr;
+        return off;
+#else
+        return false;
+#endif
+    }
 
     // Lifecycle
     // ------------------------------------------------------------------------
@@ -109,7 +122,7 @@ namespace Botanik { namespace Scheduler {
             _context.overruns += (uint32_t)missed_beats;
             // report the aggregate overrun count to avoid flooding the log
             _overrun_pending += (uint32_t)missed_beats;
-            if (_logger != nullptr &&
+            if (_logger != nullptr && !_xrun_warning_off() &&
                 now - _overrun_log_last_ms >= Config::SCHEDULER_XRUN_LOG_MS) {
                 _logger->warning(PlcIO::STATUS, "scheduler overrun: skipped %lu beat(s)",
                     (unsigned long)_overrun_pending);
