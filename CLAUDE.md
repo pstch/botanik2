@@ -35,7 +35,17 @@ Without direnv, either `export MAKEFLAGS=-j4` in your shell or pass `-j` per bui
 otherwise), so a clean rebuild after `rm -rf build` replays cached objects in a
 couple of seconds instead of recompiling.
 
-OPTA builds use `arm-none-eabi-gcc/g++` and require Arduino MBED headers under `includes/`.
+OPTA builds use `arm-none-eabi-gcc/g++` and the Arduino Mbed OPTA core, which
+arduino-cli installs under `~/.arduino15`:
+
+```bash
+arduino-cli core install arduino:mbed_opta
+```
+
+The CMake OPTA build auto-discovers the highest installed version there; override
+with `-DMBED_CORE_ROOT=/path/to/packages/arduino/hardware/mbed_opta/<version>` or
+the `ARDUINO_DATA_DIR` env var. (The build no longer uses the vendored `includes/`
+tree.)
 
 There are no tests yet.
 

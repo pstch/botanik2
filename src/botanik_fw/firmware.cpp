@@ -38,6 +38,8 @@ BotanikFirmware::BotanikFirmware()
     _logger.add_writer(&_shell_page);
     _logger.add_writer(&_logs_page);
     _logger.add_writer(&_home_page);
+    // Report the console's TX-full drops (shell output that didn't fit the ring).
+    _logger.watch_tx(&_console_serial);
 
     // Register pages, pick the terminal type, and show the first one.
     _terminal.add_page(&_home_page);
@@ -52,6 +54,12 @@ BotanikFirmware::BotanikFirmware()
     // Arm the hardware watchdog; the loop kicks it every healthy tick and stops
     // once the PLC link faults, so the board reboots HW_WATCHDOG_MS later.
     HAL::watchdog_start(Config::HW_WATCHDOG_MS);
+}
+
+void BotanikFirmware::run() {
+    // On the hardware the firmware never exits: unlike the simulator there is no
+    // shutdown signal, so the loop runs until the board resets or the watchdog fires.
+    for (;;) step();
 }
 
 void BotanikFirmware::step() {

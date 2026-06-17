@@ -1,30 +1,19 @@
 /**
- * botanik_fw.ino — Arduino OPTA sketch entry point.
+ * botanik_fw.ino — reference Arduino OPTA sketch entry point.
  *
- * Deliberately thin: the Mbed Arduino core's main() calls setup() once then loop()
- * forever, so all we do here is build the firmware and pump it. The real wiring is
- * in firmware.h / firmware.cpp.
- *
- * The firmware lives in a function-local static, first constructed when setup()
- * calls firmware(). That defers construction until *after* the core's
- * init()/initVariant() — only then are the UARTs and PLC shared-memory region
- * valid to bind to — while keeping it in static storage (no heap), for the whole
- * program lifetime.
+ * Mirrors what the Axel PLC IDE's "sketch" window holds: the core's main() calls
+ * setup() once then loop() forever, and both just defer to the botanik_setup()/
+ * botanik_step() hooks. Those hooks are defined in the project-root entry point
+ * (here: botanik_arduino.cpp, alongside the firmware wiring), NOT in libbotanik -
+ * the imported library only provides the building blocks via <libbotanik.h>.
  */
 
-#include "firmware.h"
-
-using Botanik::Firmware::BotanikFirmware;
-
-static BotanikFirmware& firmware() {
-    static BotanikFirmware fw;
-    return fw;
-}
+#include "botanik_arduino.h"
 
 void setup() {
-    firmware();   // force first-call construction now, inside setup()
+    botanik_setup();
 }
 
 void loop() {
-    firmware().step();
+    botanik_step();
 }

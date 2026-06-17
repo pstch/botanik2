@@ -3,7 +3,7 @@
 
 /**
  * @file firmware.h
- * @brief OPTA firmware: site payload + the library wiring driven by setup()/loop().
+ * @brief OPTA firmware: site payload + the library wiring driven by run().
  *
  * Hardware counterpart of botanik_sim/main.cpp. The simulator allocates the PLC
  * shared memory locally and animates it from a worker thread; on the OPTA the
@@ -78,14 +78,17 @@ protected:
  * can hand each one the contexts/pointers built before it (scheduler publishes the
  * loop timestamp the PLC layer and terminal read; the PLC handler exposes the
  * output buffer the home page renders). A single instance lives in a function-local
- * static, first constructed in setup() - see botanik_fw.ino - once the Arduino core
+ * static in main() - see botanik_fw/main.cpp - constructed once the Arduino core
  * has run its own init().
  */
 class BotanikFirmware {
 public:
     BotanikFirmware();
 
-    /** @brief One main-loop iteration (the body of loop()). */
+    /** @brief Drive step() forever; never returns. The firmware's main loop. */
+    void run();
+
+    /** @brief One main-loop iteration. */
     void step();
 
 private:
