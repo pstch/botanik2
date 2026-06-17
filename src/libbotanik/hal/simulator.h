@@ -60,10 +60,23 @@ namespace Botanik { namespace HAL {
         return t0;
     }
 
+    /** @brief BOTANIK_TIME_SCALE: run the sim clocks (and the baud throttle) N
+     *  times faster so tests finish sooner with unchanged byte/event ratios.
+     *  Default 1, clamped >= 1, read once. */
+    inline uint32_t _time_scale() {
+        static const uint32_t scale = []() -> uint32_t {
+            const char* s = getenv("BOTANIK_TIME_SCALE");
+            long v = s ? atol(s) : 1;
+            return v < 1 ? 1u : (uint32_t)v;
+        }();
+        return scale;
+    }
+
     /** @brief Elapsed time since process start, expressed in the duration type T. */
     template <typename T>
     inline uint64_t _now_as() {
-        auto duration = std::chrono::steady_clock::now() - _process_start();
+        auto duration = (std::chrono::steady_clock::now() - _process_start())
+                        * (int64_t)_time_scale();
         return (uint64_t)std::chrono::duration_cast<T>(duration).count();
     }
 
@@ -144,7 +157,7 @@ namespace Botanik { namespace HAL {
     }
 
     inline void sleep_ms(uint32_t ms) {
-        usleep(ms * 1000);  // usleep(0) returns ~immediately, so sub-ms callers busy-loop
+        usleep((ms * 1000) / _time_scale());  // scaled to track the sped-up clock
     }
 
     /** @} */
