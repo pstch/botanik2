@@ -1,0 +1,24 @@
+    HOME  SHELL  LOGS  STATUS                         PLC:<P> cpu:<C> stk:<S>
+    _           _              _ _
+   | |__   ___ | |_ __ _ _ __ (_) | __
+   | '_ \ / _ \| __/ _` | '_ \| | |/ /
+   | |_) | (_) | || (_| | | | | |   <
+   |_.__/ \___/ \__\__,_|_| |_|_|_|\_\  v0.13.12
+
+
+  PLC link <P>
+  Uptime      <UPTIME>
+
+  Temp        00.0 C
+  Humidity    00.0%
+  Ventilation Win 00.0%  Blow 00.0%
+  Irrigation  idle
+  Alerts      UPS
+
+    LOGS
+<TS> [!] BOOT: sched_setscheduler failed:
+                        > Operation not permitted
+<TS> [*] SHARED_IO: emulator thread failed to start: Resource t
+                        > emporarily unavailable
+<TS> [-] BOOT: Botanik v0.1.0-dev on x86-64 POSIX simulator
+<TS> [-] BOOT: scheduler started, period=10ms

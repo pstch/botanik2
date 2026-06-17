@@ -1,0 +1,24 @@
+    HOME  SHELL  LOGS  STATUS                         PLC:<P> cpu:<C> stk:<S>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<TS> [!] BOOT: sched_setscheduler failed:
+                        > Operation not permitted
+<TS> [*] SHARED_IO: emulator thread failed to start: Resource t
+                        > emporarily unavailable
+<TS> [-] BOOT: Botanik v0.1.0-dev on x86-64 POSIX simulator
+<TS> [-] BOOT: scheduler started, period=10ms
+<TS> --- MARK ---
+<TS> --- MARK ---
+<TS> --- MARK ---
