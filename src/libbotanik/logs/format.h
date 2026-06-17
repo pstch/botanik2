@@ -39,6 +39,7 @@ namespace Botanik { namespace Logs {
         case PlcIO::STATUS:     return "STATUS";
         case PlcIO::PLC_IO:     return "SHARED_IO";
         case PlcIO::ASSERT:     return "ASSERT";
+        case PlcIO::ALERT:      return "ALERT";
         default:                return "";
     }; }
 
