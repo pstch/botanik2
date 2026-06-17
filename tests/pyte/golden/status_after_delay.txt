@@ -1,24 +1,24 @@
-    HOME  SHELL  LOGS  STATUS                         PLC:<P> cpu:<C> stk:<S>
+    HOME  SHELL  LOGS  STATUS       <TIME>          PLC:<P> cpu:<C> stk:<S>
 
   ==== SYSTEM STATUS =========================================================
-  PLC link <P>                   Uptime      <UPTIME>
-  Wall Clock    <CLOCK>         Overruns <OVR>
-  CPU load <CPU>     Jitter <JIT>
-  Serial        <TXRX>  Stack <STK>
-
+  PLC link <P>  Wall clock        <CLOCK>
+  CPU load <CPU>  Uptime               <UPTIME>
+  CPU jitter <JIT>  Task period <TASK>
+  Stack <STK>  Console TX <TX>
+  Network <NET>  NTP sync <NTP>
+  Network IP                         N/A  MQTT                            N/A
 
   ==== POWER =======================     ==== IRRIGATION ====================
-   Grid AC : 000.0 V (00.0 Hz)            In/Out  :   000 000 L / 00 Lpm
-   DC bus  : 00.0 V (A !! B !!)           Tray    :   N/A
-   Battery : 00.0 V (gen 00.0V)           Status  :   -
-   UPS     : OFFLINE
+   Grid AC   : <PWR>          In/Out  :   <WATER>
+   DC bus    : <PWR>         Tray    :   <TRAY>
+   Battery   : <PWR>         Status  :   <TRAYST>
+   UPS       : <UPS>
 
   ==== CLIMATE =====================     ==== ACTUATORS =====================
-   Exterior: 00.0 C  RH 00.0%             Windows :   A  0% B  0% C  0% D  0%
-   Floor   : 00.0 C  RH 00.0%             Blowers :   A  0% B  0% C  0% D  0%
-   Ceiling : 00.0 C  RH 00.0%             Extract.:   A  0% B  0%
-   Rain    :   0 s ago                    Humidif.:   CLOSE
-   Wind pk : 000 km/h                     Screen  :   00.0%
-
-
+   Exterior  : <CLIMATE>           Windows :   <ACT4>
+   Floor     : <CLIMATE>           Blowers :   <ACT4>
+   Ceiling   : <CLIMATE>           Extract.:   <ACT2>
+   Rain      :  <RAIN>                  Humidif.:   <HUMID>
+   Wind pk   : <WIND>                   Screen  :   <SCREEN>
+   Sun times : <SUN>
 

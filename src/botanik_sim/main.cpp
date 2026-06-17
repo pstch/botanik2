@@ -72,120 +72,128 @@ protected:
     static constexpr uint16_t L_HDR = 2,  L_LBL = 3,  L_VAL = 15, L_W = 22;
     static constexpr uint16_t R_HDR = 41, R_LBL = 42, R_VAL = 54, R_W = 23;
     static constexpr uint16_t HDR_WL = 34, HDR_WR = 36;
-    // System-band extras align with the base system fields: label at col 2, value
-    // at col 16 (the base StatusPage L_VAL/L_W). Drawn with _label_at (no
-    // clear-to-eol) so the right column on those rows (Stack / Serial) is intact.
+    // System-band extras (rows 7, 8) align with the base system fields: left value
+    // col 16 (base L_VAL/L_W), right value col 54 (base R_VAL/R_W), both right-
+    // justified via rjust() to match the base. Labels use _label_at (no clear-to-
+    // eol) so the two columns on a row never clobber each other.
     static constexpr uint16_t SYS_VAL = 16, SYS_W = 24;
 
     void draw_payload_static() override {
-        // System band: two extra system fields in the left column (rows 6, 7).
-        _label_at(6, 2, "Network");
-        _label_at(7, 2, "NTP sync");
+        // System band (rows 7, 8): network + time/MQTT sync, two columns.
+        _label_at(7, 2, "Network");
+        _label_at(8, 2, "Network IP");
+        _label_at(7, R_LBL, "NTP sync");
+        _label_at(8, R_LBL, "MQTT");
 
-        // Left column: POWER + CLIMATE (blank rows 8 and 14 above the headers).
-        _header  ( 9, L_HDR, "POWER",   HDR_WL);
-        _label_at(10, L_LBL, "Grid AC   :");
-        _label_at(11, L_LBL, "DC bus    :");
-        _label_at(12, L_LBL, "Battery   :");
-        _label_at(13, L_LBL, "UPS       :");
-        _header  (15, L_HDR, "CLIMATE", HDR_WL);
-        _label_at(16, L_LBL, "Exterior  :");
-        _label_at(17, L_LBL, "Floor     :");
-        _label_at(18, L_LBL, "Ceiling   :");
-        _label_at(19, L_LBL, "Rain      :");
-        _label_at(20, L_LBL, "Wind pk   :");
-        _label_at(21, L_LBL, "Sun times :");
+        // Left column: POWER + CLIMATE (blank rows 9 and 15 above the headers).
+        _header  (10, L_HDR, "POWER",   HDR_WL);
+        _label_at(11, L_LBL, "Grid AC   :");
+        _label_at(12, L_LBL, "DC bus    :");
+        _label_at(13, L_LBL, "Battery   :");
+        _label_at(14, L_LBL, "UPS       :");
+        _header  (16, L_HDR, "CLIMATE", HDR_WL);
+        _label_at(17, L_LBL, "Exterior  :");
+        _label_at(18, L_LBL, "Floor     :");
+        _label_at(19, L_LBL, "Ceiling   :");
+        _label_at(20, L_LBL, "Rain      :");
+        _label_at(21, L_LBL, "Wind pk   :");
+        _label_at(22, L_LBL, "Sun times :");
 
         // Right column: IRRIGATION + ACTUATORS.
-        _header  ( 9, R_HDR, "IRRIGATION", HDR_WR);
-        _label_at(10, R_LBL, "In/Out  :");
-        _label_at(11, R_LBL, "Tray    :");
-        _label_at(12, R_LBL, "Status  :");
-        _header  (15, R_HDR, "ACTUATORS",  HDR_WR);
-        _label_at(16, R_LBL, "Windows :");
-        _label_at(17, R_LBL, "Blowers :");
-        _label_at(18, R_LBL, "Extract.:");
-        _label_at(19, R_LBL, "Humidif.:");
-        _label_at(20, R_LBL, "Screen  :");
+        _header  (10, R_HDR, "IRRIGATION", HDR_WR);
+        _label_at(11, R_LBL, "In/Out  :");
+        _label_at(12, R_LBL, "Tray    :");
+        _label_at(13, R_LBL, "Status  :");
+        _header  (16, R_HDR, "ACTUATORS",  HDR_WR);
+        _label_at(17, R_LBL, "Windows :");
+        _label_at(18, R_LBL, "Blowers :");
+        _label_at(19, R_LBL, "Extract.:");
+        _label_at(20, R_LBL, "Humidif.:");
+        _label_at(21, R_LBL, "Screen  :");
     }
 
     void draw_payload_dynamic() override {
         const PlcOutputData_t* d = data();
         if (d == nullptr) return;
-        char buf[48];
+        char buf[48], fld[40];
         char fa[12], fb[12];
 
-        // System band: Network (slot 6) + NTP sync (slot 7), value col 16.
-        _cell(6, 6, SYS_VAL, net_str(d->net_status), SYS_W);
-        char ntpbuf[32];
-        if (d->ntp_synced) snprintf(ntpbuf, sizeof(ntpbuf), "OK (%+d ms)", (int)d->ntp_offset_ms);
-        else               snprintf(ntpbuf, sizeof(ntpbuf), "no sync");
-        _cell(7, 7, SYS_VAL, ntpbuf, SYS_W);
+        // System band (rows 7, 8), right-justified to match the base system fields.
+        // Network status + average latency (slot 6); IP not yet wired (slot 9).
+        snprintf(buf, sizeof(buf), "%s (lat N/A)", net_str(d->net_status));
+        _cell(6, 7, SYS_VAL, rjust(fld, sizeof(fld), SYS_W, buf), SYS_W);
+        _cell(9, 8, SYS_VAL, rjust(fld, sizeof(fld), SYS_W, "N/A"), SYS_W);
+        // NTP sync + last offset in seconds (slot 7); MQTT not yet wired (slot 31).
+        if (d->ntp_synced) snprintf(buf, sizeof(buf), "OK (%s s)",
+                                    format_float(fa, sizeof(fa), d->ntp_offset_ms / 1000.0, 3));
+        else               snprintf(buf, sizeof(buf), "no sync");
+        _cell(7,  7, R_VAL, rjust(fld, sizeof(fld), R_W, buf), R_W);
+        _cell(31, 8, R_VAL, rjust(fld, sizeof(fld), R_W, "N/A"), R_W);
 
         // Power (slots 10..13).
         snprintf(buf, sizeof(buf), "%s V (%s Hz)",
                  format_float(fa, sizeof(fa), d->grid_ac_mv / 1000.0, 1, 5),
                  format_float(fb, sizeof(fb), d->grid_freq_centi_hz / 100.0, 1, 4));
-        _cell(10, 10, L_VAL, buf, L_W);
+        _cell(10, 11, L_VAL, buf, L_W);
         snprintf(buf, sizeof(buf), "%s V (A %s B %s)",
                  format_float(fa, sizeof(fa), d->dc_bus_mv / 1000.0, 1, 4),
                  d->dc_bus_a_ok ? "OK" : "!!", d->dc_bus_b_ok ? "OK" : "!!");
-        _cell(11, 11, L_VAL, buf, L_W);
+        _cell(11, 12, L_VAL, buf, L_W);
         snprintf(buf, sizeof(buf), "%s V (gen %sV)",
                  format_float(fa, sizeof(fa), d->battery_mv / 1000.0, 1, 4),
                  format_float(fb, sizeof(fb), d->generator_mv / 1000.0, 1, 4));
-        _cell(12, 12, L_VAL, buf, L_W);
-        _cell(13, 13, L_VAL, ups_str(d->ups_status), L_W);
+        _cell(12, 13, L_VAL, buf, L_W);
+        _cell(13, 14, L_VAL, ups_str(d->ups_status), L_W);
 
         // Climate (slots 14..18).
         snprintf(buf, sizeof(buf), "%s C  RH %s%%",
                  format_float(fa, sizeof(fa), d->ext_temp_c_centi / 100.0, 1, 4),
                  format_float(fb, sizeof(fb), d->ext_rh_centi_pct / 100.0, 1, 4));
-        _cell(14, 16, L_VAL, buf, L_W);
+        _cell(14, 17, L_VAL, buf, L_W);
         snprintf(buf, sizeof(buf), "%s C  RH %s%%",
                  format_float(fa, sizeof(fa), d->floor_temp_c_centi / 100.0, 1, 4),
                  format_float(fb, sizeof(fb), d->floor_rh_centi_pct / 100.0, 1, 4));
-        _cell(15, 17, L_VAL, buf, L_W);
+        _cell(15, 18, L_VAL, buf, L_W);
         snprintf(buf, sizeof(buf), "%s C  RH %s%%",
                  format_float(fa, sizeof(fa), d->ceil_temp_c_centi / 100.0, 1, 4),
                  format_float(fb, sizeof(fb), d->ceil_rh_centi_pct / 100.0, 1, 4));
-        _cell(16, 18, L_VAL, buf, L_W);
+        _cell(16, 19, L_VAL, buf, L_W);
         // Time since rain. Clamped to a minute so this cold field settles instead
         // of churning the diff once it's past a minute.
         uint32_t rain_age = (d->rain_age_s < 60) ? d->rain_age_s : 60;
-        _cell(17, 19, L_VAL, format_age(buf, sizeof(buf), rain_age), L_W);
+        _cell(17, 20, L_VAL, format_age(buf, sizeof(buf), rain_age), L_W);
         snprintf(buf, sizeof(buf), "%03u km/h", (unsigned)d->wind_peak_kmh);
-        _cell(18, 20, L_VAL, buf, L_W);
+        _cell(18, 21, L_VAL, buf, L_W);
         // Sun times (sunrise / sunset, slot 0).
         snprintf(buf, sizeof(buf), "%02u:%02u / %02u:%02u",
                  d->sunrise_min / 60, d->sunrise_min % 60,
                  d->sunset_min  / 60, d->sunset_min  % 60);
-        _cell(0, 21, L_VAL, buf, L_W);
+        _cell(0, 22, L_VAL, buf, L_W);
 
         // Irrigation (slots 19..21).
         unsigned wi = d->water_in_l;
         snprintf(buf, sizeof(buf), "%03u %03u L / %02u Lpm",
                  wi / 1000, wi % 1000, (unsigned)d->water_out_lpm);
-        _cell(19, 10, R_VAL, buf, R_W);
+        _cell(19, 11, R_VAL, buf, R_W);
         if (d->current_tray) snprintf(buf, sizeof(buf), "Tray %u", (unsigned)d->current_tray);
         else                 snprintf(buf, sizeof(buf), "N/A");
-        _cell(20, 11, R_VAL, buf, R_W);
-        _cell(21, 12, R_VAL, d->current_tray ? tray_status_str(d->tray_status) : "-", R_W);
+        _cell(20, 12, R_VAL, buf, R_W);
+        _cell(21, 13, R_VAL, d->current_tray ? tray_status_str(d->tray_status) : "-", R_W);
 
         // Actuators (slots 22..26).
         snprintf(buf, sizeof(buf), "A%3u%% B%3u%% C%3u%% D%3u%%",
                  d->window_a, d->window_b, d->window_c, d->window_d);
-        _cell(22, 16, R_VAL, buf, R_W);
+        _cell(22, 17, R_VAL, buf, R_W);
         snprintf(buf, sizeof(buf), "A%3u%% B%3u%% C%3u%% D%3u%%",
                  d->blower_a, d->blower_b, d->blower_c, d->blower_d);
-        _cell(23, 17, R_VAL, buf, R_W);
+        _cell(23, 18, R_VAL, buf, R_W);
         snprintf(buf, sizeof(buf), "A%3u%% B%3u%%",
                  d->extractor_a, d->extractor_b);
-        _cell(26, 18, R_VAL, buf, R_W);
-        _cell(24, 19, R_VAL, d->cooling_on ? "OPEN" : "CLOSE", R_W);
+        _cell(26, 19, R_VAL, buf, R_W);
+        _cell(24, 20, R_VAL, d->cooling_on ? "OPEN" : "CLOSE", R_W);
         snprintf(buf, sizeof(buf), "%s%%",
                  format_float(fa, sizeof(fa), (double)d->thermal_screen, 1, 4));
-        _cell(25, 20, R_VAL, buf, R_W);
+        _cell(25, 21, R_VAL, buf, R_W);
     }
 };
 
@@ -348,6 +356,12 @@ int main(int argc, char** argv) {
     // Main loop code
     // -----------------------------------------------------------------------
 
+    // Per-tick cycle contract (the OPTA firmware loop mirrors this order; see
+    // docs/CONCURRENCY.md). The order is load-bearing - inputs are ingested before
+    // processing, and the TX rings are flushed only after everything has queued its
+    // output for the beat:
+    //   tick -> receive -> plc_handler -> plc_log_reader -> logger -> terminal
+    //        -> monitor.drain -> transmit -> watchdog_kick
     while (true) {
         // tick() republishes the loop "now" when it releases a beat (so the steps
         // below share one timestamp) and paints the free stack for the usage scan.

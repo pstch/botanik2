@@ -330,6 +330,10 @@ namespace Botanik { namespace Terminal {
             return (freed <= cap) ? (uint16_t)(cap - freed) : 0;
         }
 
+        /** @brief Cumulative bytes dropped because the TX ring was full (console
+         *  output that didn't retry); surfaced by the status page. */
+        uint32_t tx_dropped() const { return _serial.tx_dropped(); }
+
         /** @brief Capacity of the serial RX / TX ring buffers, bytes */
         static constexpr uint16_t rx_capacity() { return Utils::BufferedSerial::rx_capacity(); }
         static constexpr uint16_t tx_capacity() { return Utils::BufferedSerial::tx_capacity(); }

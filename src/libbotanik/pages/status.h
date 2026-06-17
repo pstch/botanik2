@@ -6,10 +6,12 @@
  * @brief StatusPage - full-screen runtime status display (template base).
  *
  * Templated on the site PLC output payload so derived pages get type-safe access
- * via data(). The base renders payload-independent system health: a left column
- * (PLC link, wall clock, CPU, serial buffers) and a right runtime-stats column
- * (uptime, overruns, jitter, stack); derived classes fill the rest via the
- * payload hooks.
+ * via data(). The base renders payload-independent system health as a two-column
+ * grid (rows 3..6): left column PLC link / CPU load / CPU jitter / stack, right
+ * column wall clock / uptime / task period / console TX. Values are right-aligned
+ * within each column so the label and the value read as separate sub-columns.
+ * Rows 7..8 (network / NTP / MQTT) and everything below come from the payload
+ * hooks, since that data is site-specific.
  *
  * Drawing is diffed by MetricPage. Row 1 is a blank separator, rows 2..6 belong
  * to the base; derived content starts at PAYLOAD_ROW.
@@ -39,16 +41,29 @@ namespace Botanik { namespace Pages {
 
         /** @} */
 
-        /** @brief First content row available to derived payload rendering. */
-        static constexpr uint16_t PAYLOAD_ROW = 8;
+        /** @brief First row below the system band, for the derived page's own
+         *  content blocks (the band itself, rows 7..8, is also payload-drawn). */
+        static constexpr uint16_t PAYLOAD_ROW = 10;
 
         /** @brief System-band two-column geometry (80-col display). Left labels at
-         *  col 2 / values at L_VAL; right labels at R_LBL / values at R_VAL. Right
-         *  cache slots sit above the payload range so derived _cell() slots can't
-         *  collide. */
-        static constexpr uint16_t L_VAL = 16, L_W = 24;             // left values:  cols 16..39
+         *  col 2 / values right-aligned within L_VAL..L_VAL+L_W; right labels at
+         *  R_LBL / values right-aligned within R_VAL..R_VAL+R_W. */
+        static constexpr uint16_t L_LBL = 2, L_VAL = 16, L_W = 24;  // left values:  cols 16..39
         static constexpr uint16_t R_LBL = 42, R_VAL = 54, R_W = 23; // right: labels 42.., values 54..76
-        static constexpr uint16_t R_SLOT0 = 28;                     // right-column slots: 28..31
+
+        /** @brief Diff-cache slots for the base system cells. Kept disjoint from the
+         *  payload slots a derived page uses (see GreenhouseStatusPage); slots 1, 2,
+         *  6, 7, 9, 31 are left free for the derived network/NTP/MQTT band. */
+        static constexpr uint16_t SLOT_PLC = 3, SLOT_CPU = 4, SLOT_JITTER = 5, SLOT_STACK = 8;
+        static constexpr uint16_t SLOT_WALL = 27, SLOT_UPTIME = 28, SLOT_TASK = 29, SLOT_CONSOLE = 30;
+
+        /** @brief Right-justify @p s into a @p width-wide field (system-band values
+         *  sit flush right, separated from their left-hand label). Returns @p buf. */
+        static const char* rjust(char* buf, size_t cap, uint16_t width, const char* s) {
+            if (width >= cap) width = (uint16_t)(cap - 1);
+            snprintf(buf, cap, "%*s", (int)width, s);
+            return buf;
+        }
 
         /** @name Draw hooks - override to customize the page.
          *  @{ */
@@ -56,85 +71,86 @@ namespace Botanik { namespace Pages {
         void draw_static() override {
             // Row 1 left blank as a separator above the header.
             _header(2, 2, "SYSTEM STATUS", 76);
-            // Left column: PLC link + platform health. Rows 6 and 7 are left for the
-            // site page to add more system fields (e.g. Network / NTP sync).
-            _label(3, "PLC link");
-            _label(4, "Wall Clock");
-            _label(5, "CPU load");
-            // Right column: scheduler/runtime stats, with Serial on the last line.
-            _label_at(3, R_LBL, "Uptime");
-            _label_at(4, R_LBL, "TPS // XRUNs");
-            _label_at(5, R_LBL, "Jitter");
-            _label_at(6, R_LBL, "Stack");
-            _label_at(7, R_LBL, "Serial");
+            // Left column: PLC link + platform health (rows 3..6). _label_at (no
+            // clear-to-eol) so it never wipes the right column on the same row.
+            _label_at(3, L_LBL, "PLC link");
+            _label_at(4, L_LBL, "CPU load");
+            _label_at(5, L_LBL, "CPU jitter");
+            _label_at(6, L_LBL, "Stack");
+            // Right column: scheduler/runtime stats (rows 3..6).
+            _label_at(3, R_LBL, "Wall clock");
+            _label_at(4, R_LBL, "Uptime");
+            _label_at(5, R_LBL, "Task period");
+            _label_at(6, R_LBL, "Console TX");
+            // Rows 7..8 (network / NTP / MQTT) are site-specific; drawn by the payload.
             draw_payload_static();
         }
 
         void draw_dynamic() override {
             const SystemContext& ctx = _terminal.context();
-            char buf[40];
+            char val[40], fld[40];
             char fa[12];
 
-            // Left column --------------------------------------------------
-            _cell(3, 3, L_VAL, ctx.plc ? plc_str(ctx.plc->status()) : "n/a", L_W);
+            // Cold fields only - the EMAs and clocks are hot (see draw_hot()).
+            // PLC link (left).
+            _cell(SLOT_PLC, 3, L_VAL,
+                  rjust(fld, sizeof(fld), L_W, ctx.plc ? plc_str(ctx.plc->status()) : "n/a"), L_W);
 
-            // Right column: runtime/scheduler stats ------------------------
-            // CPU load and Jitter are hot fields (their EMAs move every tick) - see
-            // draw_hot(). Only the rarely-changing stats stay on the cold pass.
             if (ctx.scheduler) {
-                snprintf(buf, sizeof(buf), "%5s%% (%5lu B)",
+                // Stack usage (left): EMA leads, all-time peak bytes in parens.
+                snprintf(val, sizeof(val), "%5s%% (peak %5lu B)",
                          Utils::format_float(fa, sizeof(fa), ctx.scheduler->stack_usage_ema * 100.0f, 1),
                          (unsigned long)ctx.scheduler->stack_bytes_max);
-                _cell(R_SLOT0 + 3, 6, R_VAL, buf, R_W);
+                _cell(SLOT_STACK, 6, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W);
+                // Task period (right): nominal loop period + achieved tick rate.
+                snprintf(val, sizeof(val), "%lums (%lu tps)",
+                         (unsigned long)Config::TASK_PERIOD_MS,
+                         (unsigned long)ctx.scheduler->ticks_per_second);
+                _cell(SLOT_TASK, 5, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);
             }
 
             draw_payload_dynamic();
         }
 
         /** @brief Hot fields: wall clock and uptime tick once per second (see
-         *  MetricPage::tick()), and CPU load + Jitter ride along since their EMAs
+         *  MetricPage::tick()), and CPU load + jitter ride along since their EMAs
          *  move every tick. All drawn un-highlighted - the change highlight would
-         *  just churn on values that never settle. */
+         *  just churn on values that never settle - except console TX, which settles
+         *  between bursts. */
         void draw_hot() override {
             const SystemContext& ctx = _terminal.context();
-            char buf[40];
+            char val[40], fld[40];
             char fa[12], fb[12];
-            // Wall clock: current UTC time, down to the second.
+
+            // Wall clock (right): current time, down to the second.
             Utils::CalendarTime wc = Utils::cal_time_ms(HAL::uptime_ms());
-            snprintf(buf, sizeof(buf), "%02u/%02u/%02u %02u:%02u:%02u",
+            snprintf(val, sizeof(val), "%02u/%02u/%02u %02u:%02u:%02u",
                      wc.year % 100, wc.month, wc.day, wc.hour, wc.minute, wc.second);
-            _cell(4, 4, L_VAL, buf, L_W, false);
+            _cell(SLOT_WALL, 3, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W, false);
+            // Uptime (right).
+            fmt_uptime(val, sizeof(val), HAL::uptime_ms());
+            _cell(SLOT_UPTIME, 4, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W, false);
 
-            fmt_uptime(buf, sizeof(buf), HAL::uptime_ms());
-            _cell(R_SLOT0, 3, R_VAL, buf, R_W, false);
-
-            // CPU load (left) and Jitter (right): the EMA leads, peak in parens.
+            // CPU load + jitter (left): the EMA leads, peak ms in parens.
             if (ctx.scheduler) {
-                snprintf(buf, sizeof(buf), "%5s%% (peak %5sms)",
+                snprintf(val, sizeof(val), "%5s%% (peak %5sms)",
                          Utils::format_float(fa, sizeof(fa), ctx.scheduler->cpu_load_ema * 100.0f, 1),
                          Utils::format_float(fb, sizeof(fb), ctx.scheduler->cpu_loop_us_max / 1000.0, 2));
-                _cell(5, 5, L_VAL, buf, L_W, false);
-                snprintf(buf, sizeof(buf), "%5s%% (peak %5sms)",
+                _cell(SLOT_CPU, 4, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W, false);
+                snprintf(val, sizeof(val), "%5s%% (peak %5sms)",
                          Utils::format_float(fa, sizeof(fa), ctx.scheduler->cpu_jitter_ema * 100.0f, 1),
                          Utils::format_float(fb, sizeof(fb), ctx.scheduler->cpu_jitter_us_max / 1000.0, 2));
-                _cell(R_SLOT0 + 2, 5, R_VAL, buf, R_W, false);
-                // TPS // XRUNs: achieved loop rate and cumulative overruns as two
-                // fixed-width subfields. Highlight stays on (unlike the churning
-                // fields above) so a rate dip or overrun bump lights up.
-                snprintf(buf, sizeof(buf), "%4lu // %5lu",
-                         (unsigned long)ctx.scheduler->ticks_per_second,
-                         (unsigned long)ctx.scheduler->overruns);
-                _cell(R_SLOT0 + 1, 4, R_VAL, buf, R_W);
+                _cell(SLOT_JITTER, 5, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W, false);
             }
 
-            // Serial buffer depths (right column, last line): change often enough to
-            // want the per-second refresh, but settle between bursts, so keep the
-            // change highlight. Single-spaced so it fits the R_W-wide right column.
-            // Slot 27 sits just below the R_SLOT0..R_SLOT0+3 runtime-stats slots.
-            snprintf(buf, sizeof(buf), "TX %4u/%u RX %3u/%u",
-                     _terminal.tx_used(), AnsiTerminal::tx_capacity(),
-                     _terminal.rx_used(), AnsiTerminal::rx_capacity());
-            _cell(27, 7, R_VAL, buf, R_W);
+            // Console TX (right): ring depth / capacity + cumulative drops. Settles
+            // between bursts, so keep the change highlight. Drops are clamped so a
+            // pathological count can't overflow the fixed-width field.
+            uint32_t drops = _terminal.tx_dropped();
+            if (drops > 9999) drops = 9999;
+            snprintf(val, sizeof(val), "%u/%u (drops: %lu)",
+                     _terminal.tx_used(), AnsiTerminal::tx_capacity(), (unsigned long)drops);
+            _cell(SLOT_CONSOLE, 6, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);
         }
 
         /** @brief Site-specific labels/headers (drawn once). Base: no-op. */
