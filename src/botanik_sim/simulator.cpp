@@ -153,9 +153,13 @@ static void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
 void start_greenhouse_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,
                                Botanik::PlcIO::PlcOutput<PlcOutputData_t>* shared_out,
                                Botanik::Logs::Logger*                      logger) {
-    Botanik::Scheduler::make_process_realtime(0, logger);
+    // Spawn the thread first, then arm realtime: make_process_realtime() calls
+    // mlockall(MCL_FUTURE), which locks every later mmap (including this thread's
+    // stack) into RAM. Doing it first makes pthread_create's stack lock trip
+    // RLIMIT_MEMLOCK and fail with EAGAIN (silently, only in lean RELEASE builds).
     Botanik::PlcIO::start_emulator_thread(shared_in, shared_out,
                                           &fill_greenhouse_output, logger);
+    Botanik::Scheduler::make_process_realtime(0, logger);
 }
 
 // Graceful-shutdown plumbing for the simulator process (see simulator.h).
