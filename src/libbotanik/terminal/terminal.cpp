@@ -387,6 +387,10 @@ namespace Botanik { namespace Terminal {
         // the page we're leaving first (they'd paint onto the new page). _hw_pos is
         // stale after the drop, so reposition absolutely (not relative move_to).
         _serial.tx_discard();
+        // Hide the cursor before any repaint so it doesn't blink across the cleared
+        // content or the row-0 tabs. The page that wants it (shell editor) shows it
+        // again from focus(). Lazy, so a no-op when already off.
+        set_cursor_visible(false);
         Ansi::goto_absolute(_serial, {1, 0});
         _hw_pos = {1, 0};
         _hw_at_eol = false;
@@ -398,9 +402,6 @@ namespace Botanik { namespace Terminal {
         // The tx_discard above may have dropped a queued metrics update; invalidate
         // the diff cache so the next refresh repaints them (no bytes go out here).
         memset(_status_metrics_cache, 0, sizeof(_status_metrics_cache));
-        // Hidden by default; the page that wants the cursor (shell editor) shows it
-        // from focus(). Lazy, so a no-op when already off.
-        set_cursor_visible(false);
         _pages[_page_index]->focus();
     }
 
@@ -500,6 +501,7 @@ namespace Botanik { namespace Terminal {
 
         CursorPos saved_pos = _hw_pos;
         bool      saved_inv = _hw_inverted;
+        bool      saved_cur = _hw_cursor_visible;
         bool      touched   = false;
 
         // The bar is reverse video except the live readings - plc (cols 4..6), cpu
@@ -516,6 +518,10 @@ namespace Botanik { namespace Terminal {
             // stop and retry next refresh, leaving the unwritten cells' cache stale.
             uint16_t run = (uint16_t)(j - i);
             if (tx_available() < (uint16_t)(run + 16)) break;
+            // Hide the cursor before the first status-bar write so it doesn't blink
+            // across row 0 while the metrics paint; restored below (no-op if already
+            // hidden, e.g. on a non-shell page).
+            if (!touched) set_cursor_visible(false);
             set_inverted(!value);
             touched = true;
             move_to({0, (uint16_t)(metrics_col + i)});
@@ -530,6 +536,9 @@ namespace Botanik { namespace Terminal {
             // draw_status_row passes restore_cursor=false (its caller repositions
             // absolutely right after, so a restore would be a wasted move).
             if (restore_cursor) move_to(saved_pos);
+            // Re-show the cursor only after it's back at the page position, so it
+            // never reappears on row 0. No-op when it was already hidden.
+            set_cursor_visible(saved_cur);
         }
     }
 
