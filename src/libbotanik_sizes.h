@@ -1,4 +1,3 @@
-// REVIEW_34: OK
 #ifndef LIBBOTANIK_SIZES_H
 #define LIBBOTANIK_SIZES_H
 
