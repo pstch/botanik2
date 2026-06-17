@@ -52,6 +52,12 @@ namespace Botanik { namespace PlcIO {
     static_assert(Config::LOG_TOPIC_MAX < (1 << (sizeof(LogTopic)*8)),
                   "LOG_TOPIC_MAX exceeds the range of the LogTopic enum");
 
+    /** @brief Number of defined topics (the enum is dense 0..STATUS). Sizes the
+     *  logger's per-topic bucket array and bounds its per-tick scan loops, so they
+     *  cover the real topics instead of the full wire range (LOG_TOPIC_MAX). */
+    static constexpr uint8_t LOG_TOPIC_COUNT = STATUS + 1;
+    static_assert(LOG_TOPIC_COUNT <= Config::LOG_TOPIC_MAX, "LOG_TOPIC_COUNT exceeds LOG_TOPIC_MAX");
+
     /** @brief One log record in PLC shared memory: 12-byte header + fixed message buffer. */
     struct LogEntry_t {
         uint32_t        timestamp;    // @0

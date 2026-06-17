@@ -23,23 +23,28 @@ namespace Botanik { namespace Logs {
     // Add a new entry to the writer's queue
     void BufferedLogWriter::push(const LogEntry_t* entry) {
         uint8_t nextIndex = (_writeIndex + 1) % Config::LOG_QUEUE_SIZE;     // determine next write index
-        if (nextIndex == _readIndex) { _dropped += 1; return; }             // drop message if queue is full
-        memcpy(&_queue[_writeIndex], entry, sizeof(LogEntry_t));            // otherwise, store the log entry
+        if (nextIndex == _readIndex) {                                      // queue full
+            // Never drop a critical: evict the oldest queued entry to make room.
+            // The outgoing _message is a copy (drain() consumes _readIndex at
+            // format time), so advancing _readIndex can't corrupt an in-flight
+            // send. Lower levels drop as before.
+            if (entry->level < PlcIO::LOG_CRITICAL) { _dropped += 1; return; }
+            _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE;         // drop oldest
+            _dropped += 1;
+        }
+        memcpy(&_queue[_writeIndex], entry, sizeof(LogEntry_t));            // store the log entry
         _writeIndex = nextIndex;                                            // and record the incremented write index
     }
 
     // Attempt to drain entries from the queue and print them
     void BufferedLogWriter::drain() {
-        if (_length > 0) {                                                  // check if we are already sending a message
-            if (!_drain_message()) return;                                  // drain the current message, yield if not complete
-            _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE;         // increment the read index
-        }
+        if (_length > 0 && !_drain_message()) return;                       // resume an in-flight message; yield if still partial
         while (_readIndex != _writeIndex) {                                 // check for new entries in the queue,
             const LogEntry_t* entry = &_queue[_readIndex];                  // get the next entry in the queue
-            _length = format(entry, _message, Config::LOG_FORMATTED_LEN);   // try to format the queue's next message
-            if (_length == 0) { _failed++; _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE; continue; } // if failed, skip
+            _length = format(entry, _message, Config::LOG_FORMATTED_LEN);   // format it into _message (a copy)
+            _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE;         // consume now: _message is decoupled from the queue
+            if (_length == 0) { _failed++; continue; }                      // unformattable: skip
             if (!_drain_message()) return;                                  // drain the formatted message, yield if not complete
-            _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE;         // increment the read index
         }
     }
 

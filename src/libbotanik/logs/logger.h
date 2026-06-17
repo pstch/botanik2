@@ -62,7 +62,7 @@ namespace Botanik { namespace Logs {
         /** @brief Wall-clock time of the last per-topic refill. */
         uint32_t        _perTopic_fillTime_ms   = 0;
         /** @brief One token bucket per log topic. */
-        LogBucket_t     _perTopic_buckets[Config::LOG_TOPIC_MAX];
+        LogBucket_t     _perTopic_buckets[PlcIO::LOG_TOPIC_COUNT];
 
         /** @} */
 

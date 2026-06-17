@@ -31,7 +31,7 @@ namespace Botanik { namespace Logs {
         _global_fillTime_ms = HAL::current_ms();
         _suppress_reportTime_ms = HAL::current_ms();
         _global_bucket.state = _global_burst;
-        for (uint8_t i = 0; i < Config::LOG_TOPIC_MAX; ++i) {
+        for (uint8_t i = 0; i < PlcIO::LOG_TOPIC_COUNT; ++i) {
             _perTopic_buckets[i].state = _perTopic_burst;
         }
     }
@@ -67,7 +67,7 @@ namespace Botanik { namespace Logs {
         _fill_bucket(&_global_bucket, global_amount, _global_burst);
         uint32_t topic_amount   = (now_ms - _perTopic_fillTime_ms) / _perTopic_period_ms;
         _perTopic_fillTime_ms  += topic_amount * _perTopic_period_ms;
-        for (uint8_t i = 0; i < Config::LOG_TOPIC_MAX; ++i)
+        for (uint8_t i = 0; i < PlcIO::LOG_TOPIC_COUNT; ++i)
             _fill_bucket(&_perTopic_buckets[i], topic_amount, _perTopic_burst);
         // Drain suppressed-message counters on a separate, slower cadence so a
         // sustained storm yields an occasional summary rather than one per refill.
@@ -75,14 +75,14 @@ namespace Botanik { namespace Logs {
         if (report_amount > 0) {
             _suppress_reportTime_ms += report_amount * _suppress_period_ms;
             _report_suppressed(&_global_bucket, LogTopic::NONE, now_ms);
-            for (uint8_t i = 0; i < Config::LOG_TOPIC_MAX; ++i)
+            for (uint8_t i = 0; i < PlcIO::LOG_TOPIC_COUNT; ++i)
                 _report_suppressed(&_perTopic_buckets[i], (LogTopic)i, now_ms);
         }
     }
 
     void Logger::push_entry(const PlcIO::LogEntry_t& entry) {
         PlcIO::LogTopic topic = entry.topic >=
-            Config::LOG_TOPIC_MAX ? LogTopic::NONE : entry.topic;                       // determine the topic to use for this entry
+            PlcIO::LOG_TOPIC_COUNT ? LogTopic::NONE : entry.topic;                       // determine the topic to use for this entry
         LogBucket_t* topic_bucket = &_perTopic_buckets[topic];                          // get the bucket for this topic
         if (topic == LogTopic::NONE || _try_bucket(topic_bucket))                         // apply the per-topic filter first so global isn't drained by per-topic-suppressed msgs
             if (_try_bucket(&_global_bucket))                                           // then apply the global filter

@@ -147,16 +147,21 @@ screen, classes stay small, short client-readable comments.
 
 ## Block 2 - Logging / flood protection
 
-- [ ] `[ENUM-COUNT]` Bound the bucket array and scan loops by the real topic
-  count. Add `static constexpr uint8_t LOG_TOPIC_COUNT = STATUS + 1;` beside the
-  `LogTopic` enum (`plcio/vars.h`) with `static_assert(LOG_TOPIC_COUNT <=
-  Config::LOG_TOPIC_MAX)`. Size `_perTopic_buckets[]` and the `step()` loops by
-  it (drops ~2 KB SRAM + a 255-iteration double scan every tick; keep
-  `LOG_TOPIC_MAX` as the wire-range validator).
+- [x] `[ENUM-COUNT]` Bound the bucket array and scan loops by the real topic
+  count. DONE: added `LOG_TOPIC_COUNT = STATUS + 1` beside the `LogTopic` enum
+  (`vars.h`) with the `<= LOG_TOPIC_MAX` static_assert; `_perTopic_buckets[]` and
+  the three `step()`/ctor loops + the `push_entry` bound now use it. `Logger`
+  shrank 2152 -> 160 bytes (host) and the per-tick double scan went 255 -> 6.
+  Verified: both targets build, 22 tests pass.
 
-- [ ] `[REPORT-SLOT]` Make critical messages undroppable: never-drop
+- [x] `[REPORT-SLOT]` Make critical messages undroppable: never-drop
   `LOG_CRITICAL` at the writer, overwriting the oldest FIFO entry instead of
   dropping the new one (`logs/writer.cpp`).
+  - DONE: refactored `drain()` to consume `_readIndex` at format time, so the
+    outgoing `_message` is fully decoupled from the queue; that makes eviction
+    safe. `push()` now, on a full queue, evicts the oldest entry to seat a
+    `LOG_CRITICAL` (still counts the eviction as a drop); lower levels drop as
+    before. Verified: both targets build, 22 tests pass, logs flow normally.
 
 - [ ] `[REPORT-EDGE]` Add edge-triggered, holdoff-throttled reporting for the
   three silent-loss categories, each with its own minimum interval: **first
