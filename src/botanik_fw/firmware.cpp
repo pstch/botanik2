@@ -22,7 +22,8 @@ BotanikFirmware::BotanikFirmware()
       _plc_handler(_shared_in, _shared_out, &_scheduler.context()->timestamp_ms, &_logger),
       _plc_log_reader(_plc_handler.context(), &_logger),
       _sys_ctx(_scheduler.context(), _plc_handler.context()),
-      _terminal(_console_serial, 80, 24, &_scheduler.context()->timestamp_ms, _sys_ctx),
+      _terminal(_console_serial, 80, 24, &_scheduler.context()->timestamp_ms,
+                (uint32_t)CONSOLE_BAUD, _sys_ctx),
       _shell_page(_terminal),
       _logs_page(_terminal),
       _home_page(_terminal, _plc_handler.output_data())

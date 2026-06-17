@@ -110,7 +110,7 @@ namespace Botanik { namespace Pages {
             // fit, so the replay can't overrun TX in one tick.
             for (uint16_t k = 0; k < Config::SCROLLBACK_ROWS_PER_TICK
                                  && _redraw_i != UINT16_MAX; k++) {
-                if (!terminal.tx_below(Config::CONSOLE_TX_COLD_DEPTH)) break;
+                if (!terminal.tx_below_cold()) break;
                 // Window row _redraw_i (0 = oldest shown) maps to the line that many
                 // steps up from the newest line of the window.
                 uint16_t llen = 0;
@@ -195,7 +195,7 @@ namespace Botanik { namespace Pages {
          *  @return true if it painted (caller may then reposition its cursor). */
         bool drain_tail(AnsiTerminal& terminal, uint16_t first_row, uint16_t log_rows) {
             if (_pending == 0) return false;
-            if (!terminal.tx_below(Config::CONSOLE_TX_COLD_DEPTH)) return false;
+            if (!terminal.tx_below_cold()) return false;
             uint16_t k = _pending;
             if (k > Config::LOG_ROWS_PER_TICK) k = Config::LOG_ROWS_PER_TICK;
             // The oldest unshown line is _pending back from newest; this batch's newest

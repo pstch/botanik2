@@ -247,9 +247,11 @@ int main(int argc, char** argv) {
     // Stash argv so HAL::reset() can re-exec the process with the same arguments.
     HAL::set_reboot_args(argc, argv);
 
-    // Raw terminal + console serial.
+    // Raw terminal + console serial. One baud, used for the UART and to size the
+    // terminal's cooperative-TX depth gates (see AnsiTerminal).
+    static const uint32_t CONSOLE_BAUD = 4800;
     HAL::setup_raw_console();
-    HAL::get_serial(HAL::CONSOLE)->begin(4800);
+    HAL::get_serial(HAL::CONSOLE)->begin(CONSOLE_BAUD);
 
     // Graceful shutdown on Ctrl+C / SIGTERM: flip the run flag so the main loop
     // breaks into HAL::shutdown() (same exit path as the "exit" command). SIGSEGV
@@ -289,7 +291,7 @@ int main(int argc, char** argv) {
     SystemContext sys_ctx(scheduler.context(), plc_handler.context());
 
     // Initialize terminal and pages
-    Terminal::AnsiTerminal terminal(console_serial, 80, 24, timestamp_ms, sys_ctx);
+    Terminal::AnsiTerminal terminal(console_serial, 80, 24, timestamp_ms, CONSOLE_BAUD, sys_ctx);
     Pages::ShellPage shell_page(terminal);
     Pages::LogsPage  logs_page(terminal);
     GreenhouseHomePage   home_page(terminal, plc_handler.output_data());

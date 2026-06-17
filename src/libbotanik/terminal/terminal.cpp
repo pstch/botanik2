@@ -33,13 +33,17 @@ namespace Botanik { namespace Terminal {
 
     // Constructor
     AnsiTerminal::AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
-                               uint32_t* timestamp_ms, const SystemContext& ctx) :
+                               uint32_t* timestamp_ms, uint32_t baud, const SystemContext& ctx) :
         _parser(serial, timestamp_ms),
         _serial(serial),
         _ctx(ctx),
         _cols(cols),
         _rows(rows)
     {
+        // Size the cooperative-TX depth gates from the link baud so the felt echo
+        // latency targets (Config::TX_COLD/HOT_TARGET_MS) hold across links.
+        _tx_cold_depth = depth_for_baud(baud, Config::TX_COLD_TARGET_MS);
+        _tx_hot_depth  = depth_for_baud(baud, Config::TX_HOT_TARGET_MS);
     }
 
     // Step through the terminal handling code
@@ -67,8 +71,7 @@ namespace Botanik { namespace Terminal {
         // when the ring is near-empty (hot gate) so the time shown is current rather
         // than queued stale; if congested, hold _status_clock_last_ms and retry next
         // tick so it catches up the moment the ring drains.
-        if (now - _status_clock_last_ms >= Config::PAGE_HOT_MS &&
-            tx_below(Config::CONSOLE_TX_HOT_DEPTH)) {
+        if (now - _status_clock_last_ms >= Config::PAGE_HOT_MS && tx_below_hot()) {
             _status_clock_last_ms = now;
             update_status_clock();
         }

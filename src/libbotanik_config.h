@@ -199,26 +199,29 @@ namespace Botanik { namespace Config {
      * @{
      */
 
-    /** @brief Cold-class depth gate (bytes). Logs, command output, cold metric
-     *  readings, draw_static and the focus replay only emit while tx_used() <= this.
-     *  Worst-case echo latency is ~ (this + one emitted unit) / wire_rate, because the
-     *  gate is checked before a unit and the unit overshoots it. At 4800 baud
-     *  (480 B/s) 64 + a ~100 B log line ~= 160 B ~= 330 ms, about the floor while a
-     *  line is in flight; the wire still stays fed (the ring oscillates ~64..160,
-     *  never idle). Too high: typing lags behind a deeper backlog (256 gave ~900 ms).
-     *  Too low: approaches the hot gate and the wire can briefly under-feed. Tuned for
-     *  the low-baud console (Minitel/4800); harmless at 115200; Phase 2 derives it
-     *  from baud x target-latency. */
-    static constexpr uint16_t CONSOLE_TX_COLD_DEPTH = 64;
+    /** @brief The cold/hot depth gates are sized in BYTES from the link baud at
+     *  construction (AnsiTerminal), as a target echo latency: depth = baud/10 *
+     *  target_ms/1000 = the bytes that drain in target_ms at the link rate (8N1).
+     *  Expressing the target in time keeps the felt latency constant across links and
+     *  is dilation-invariant (a byte count, independent of any sim time scale): the
+     *  throttle handles wall-clock pacing, these handle how deep the FIFO is allowed
+     *  to get. AnsiTerminal clamps the derived depth to a small floor and below the
+     *  ring capacity. See AnsiTerminal::tx_below_cold()/tx_below_hot(). */
 
-    /** @brief Hot-class depth gate (bytes). The per-second fields (a clock) only
-     *  emit while tx_used() <= this, i.e. near-empty, so the value shown is current
-     *  rather than queued stale behind a backlog. Kept well below the cold depth so
-     *  "hot" means "near idle". Too low (towards 0 = tx_empty): the clock skips ticks
-     *  under any residual TX (it self-corrects on the next cold refresh). Too high:
-     *  stale times queue and the clock lags. Hot output is droppable: a skipped tick
-     *  is simply carried by the next one. */
-    static constexpr uint16_t CONSOLE_TX_HOT_DEPTH = 32;
+    /** @brief Cold-class target latency (ms): logs, command output, cold metric
+     *  readings, draw_static and the focus replay only emit while the ring holds at
+     *  most this many ms of bytes. ~62 B at 4800 baud (~ the old hand-tuned 64),
+     *  scaling up with baud so the latency target stays constant. Too high: typing
+     *  lags behind a deeper backlog. Too low: approaches the hot gate, wire can
+     *  briefly under-feed. */
+    static constexpr uint32_t TX_COLD_TARGET_MS = 130;
+
+    /** @brief Hot-class target latency (ms): the per-second fields (a clock) only emit
+     *  while the ring will drain within this, i.e. near caught-up, so the value shown
+     *  is current rather than queued stale. ~31 B at 4800 baud. Kept well below the
+     *  cold target so "hot" means "near idle". Hot output is droppable: a skipped tick
+     *  is carried by the next one. */
+    static constexpr uint32_t TX_HOT_TARGET_MS = 65;
 
     /** @brief Max live log / command rows painted per tick per page, in one batched
      *  drain_tail emit once the cold gate is open. The effective ceiling is

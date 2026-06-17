@@ -143,7 +143,7 @@ namespace Botanik { namespace Pages {
             if (k < _static_done) return false;     // already drawn in an earlier pass
             if (_static_blocked)  return false;     // pass already stopped this tick
             if (_emit_count >= Config::METRIC_FIELDS_PER_TICK ||
-                !_terminal.tx_below(Config::CONSOLE_TX_COLD_DEPTH)) {
+                !_terminal.tx_below_cold()) {
                 _emit_deferred = true;
                 _static_blocked = true;
                 return false;
@@ -315,10 +315,10 @@ namespace Botanik { namespace Pages {
 
             // Cooperative pacing: emit only while the ring is shallow (cold gate) and
             // we are under the per-tick field cap; otherwise defer (cache untouched, so
-            // a later tick repaints this field). A shallow CONSOLE_TX_COLD_DEPTH leaves
-            // ample room for one field, so no separate fit check is needed.
+            // a later tick repaints this field). The shallow cold gate leaves ample
+            // room for one field, so no separate fit check is needed.
             if (_emit_count >= Config::METRIC_FIELDS_PER_TICK ||
-                !_terminal.tx_below(Config::CONSOLE_TX_COLD_DEPTH)) {
+                !_terminal.tx_below_cold()) {
                 _emit_deferred = true;
                 return false;
             }
@@ -445,7 +445,7 @@ namespace Botanik { namespace Pages {
             // ring is near-empty (hot depth); the global refresh below is the guaranteed
             // fallback, so the clock never freezes beyond one refresh window.
             if (_hot_ms && now - _hot_last_ms >= _hot_ms) {
-                if (refresh_due || _terminal.tx_below(Config::CONSOLE_TX_HOT_DEPTH)) {
+                if (refresh_due || _terminal.tx_below_hot()) {
                     _hot_last_ms = now;
                     draw_hot();
                 }

@@ -107,13 +107,36 @@ namespace Botanik { namespace Terminal {
 
         /** @} */
 
+        /** @name Cooperative-TX depth gates
+         *  @{ */
+
+        /** @brief Cold/hot depth gates in bytes, derived from the link baud at
+         *  construction via depth_for_baud(). See tx_below_cold()/tx_below_hot(). */
+        uint16_t            _tx_cold_depth = 0;
+        uint16_t            _tx_hot_depth  = 0;
+
+        /** @brief Bytes that drain in @p target_ms at @p baud (8N1: baud/10 B/s),
+         *  clamped to a small floor and below the ring capacity. The byte depth is
+         *  the latency target turned into a FIFO depth; it is dilation-invariant. */
+        static uint16_t depth_for_baud(uint32_t baud, uint32_t target_ms) {
+            uint32_t d = (uint32_t)(((uint64_t)baud * target_ms) / 10000u);
+            if (d < 8) d = 8;
+            uint16_t cap = (uint16_t)(tx_capacity() - 64);   // leave ring headroom
+            if (d > cap) d = cap;
+            return (uint16_t)d;
+        }
+
+        /** @} */
+
     public:
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief Initialize the terminal with given dimensions */
+        /** @brief Initialize the terminal. @p baud is the link bit rate; it sizes the
+         *  cooperative-TX depth gates (see tx_below_cold()/tx_below_hot()) so the felt
+         *  echo latency stays constant across links. */
         AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
-                     uint32_t* timestamp_ms, const SystemContext& ctx = {});
+                     uint32_t* timestamp_ms, uint32_t baud, const SystemContext& ctx = {});
 
         /** @brief Process input and update terminal state */
         void step();
@@ -272,6 +295,15 @@ namespace Botanik { namespace Terminal {
          *  gate is feedback control on the real ring depth, and a concurrent drain
          *  only ever frees space, so a live read is at worst conservative. */
         bool tx_below(uint16_t depth) const { return tx_used() <= depth; }
+
+        /** @brief Cold-class depth gate: ring shallow enough to preserve the cold
+         *  latency target (Config::TX_COLD_TARGET_MS) at the link baud. Used by all
+         *  cold bulk paths (logs, cold metric fields, draw_static, focus replay). */
+        bool tx_below_cold() const { return tx_used() <= _tx_cold_depth; }
+
+        /** @brief Hot-class depth gate: ring near caught-up (Config::TX_HOT_TARGET_MS),
+         *  so a clock/uptime field shows the current value rather than queued stale. */
+        bool tx_below_hot() const { return tx_used() <= _tx_hot_depth; }
 
         /** @brief Bytes currently queued in the serial RX ring buffer */
         uint16_t rx_used() const { return _serial.available(); }
