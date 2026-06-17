@@ -410,9 +410,11 @@ namespace Botanik { namespace Terminal {
         // tabs (the one we left, the one we entered) rather than the whole bar.
         draw_status_tab(prev);
         if (prev != index) draw_status_tab(index);
-        // The tx_discard above may have dropped a queued metrics update; invalidate
-        // the diff cache so the next refresh repaints them (no bytes go out here).
+        // The tx_discard above may have dropped a queued metrics or clock update;
+        // invalidate both diff caches so the next refresh repaints them in full (no
+        // bytes go out here - the on-screen row 0 survived the content clear).
         memset(_status_metrics_cache, 0, sizeof(_status_metrics_cache));
+        memset(_status_clock_cache,   0, sizeof(_status_clock_cache));
         // Hidden by default; the page that wants the cursor (shell editor) shows it
         // from focus(). Lazy, so a no-op when already off.
         set_cursor_visible(false);
