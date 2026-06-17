@@ -18,6 +18,7 @@
 #include "libbotanik/terminal/ansi.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/plcio/sync.h"
+#include "libbotanik/utils/time.h"
 
 
 namespace Botanik { namespace Terminal {
@@ -573,13 +574,13 @@ namespace Botanik { namespace Terminal {
     }
 
     void AnsiTerminal::update_status_clock(bool restore_cursor) {
-        // Time-of-day HH:MM:SS from the loop clock (uptime is the sim wall clock).
-        uint64_t s  = HAL::uptime_ms() / 1000;
-        unsigned hh = (unsigned)((s / 3600) % 24);
-        unsigned mm = (unsigned)((s / 60) % 60);
-        unsigned ss = (unsigned)(s % 60);
-        char clk[STATUS_CLOCK_LEN + 1];
-        snprintf(clk, sizeof(clk), "%02u:%02u:%02u", hh, mm, ss);
+        // Wall-clock HH:MM:SS (same source as the STATUS page's "Wall Clock" field).
+        Utils::CalendarTime wc = Utils::cal_time_ms(HAL::uptime_ms());
+        // Oversized scratch so snprintf can't truncation-warn; only the first
+        // STATUS_CLOCK_LEN cells ("HH:MM:SS") are diffed/emitted below.
+        char clk[16];
+        snprintf(clk, sizeof(clk), "%02u:%02u:%02u",
+                 (unsigned)wc.hour, (unsigned)wc.minute, (unsigned)wc.second);
 
         // Centre the field; skip on a terminal too narrow to fit it clear of the
         // right-aligned metrics.
