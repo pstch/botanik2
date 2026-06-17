@@ -296,6 +296,30 @@ static Botanik::Alerts::AlertCondition g_alerts[Botanik::Alerts::ALERT_BITS] = {
 };
 #pragma GCC diagnostic pop
 
+// Site shell commands (data-driven, registered on the shell page below). Each is a
+// plain callback taking the output channel, the argument tail, and the opaque ctx
+// passed to set_commands() - here the alert model.
+static void cmd_version(Botanik::Shell::ShellWriter& out, const char*, uint16_t, void*) {
+    char buf[80];
+    int n = snprintf(buf, sizeof(buf), "Botanik %s on %s",
+                     Botanik::Config::FIRMWARE_VERSION, Botanik::HAL::hardware_description());
+    if (n > 0) out.write(buf, (size_t)n);
+}
+
+static void cmd_alerts(Botanik::Shell::ShellWriter& out, const char*, uint16_t, void* ctx) {
+    const Botanik::Alerts::AlertModel* m =
+        static_cast<const Botanik::Alerts::AlertModel*>(ctx);
+    char buf[64];
+    int n = snprintf(buf, sizeof(buf), "alerts: %u active, %u unmasked",
+                     m ? m->active_count() : 0, m ? m->unmasked_count() : 0);
+    if (n > 0) out.write(buf, (size_t)n);
+}
+
+static const Botanik::Shell::ShellCommand SITE_COMMANDS[] = {
+    { "version", "show firmware version and platform", cmd_version },
+    { "alerts",  "show active / unmasked alert counts", cmd_alerts  },
+};
+
 int main(int argc, char** argv) {
     using namespace Botanik;
 
@@ -368,6 +392,10 @@ int main(int argc, char** argv) {
     GreenhouseHomePage   home_page(terminal, plc_handler.output_data());
     GreenhouseStatusPage status_page(terminal, plc_handler.output_data(), &alert_model);
     Pages::AlertsPage    alerts_page(terminal, &alert_model);
+
+    // Register the site shell commands (ctx = alert model, for the "alerts" cmd).
+    shell_page.set_commands(SITE_COMMANDS,
+                            sizeof(SITE_COMMANDS) / sizeof(SITE_COMMANDS[0]), &alert_model);
 
     // Register logging sinks
     logger.add_writer(&monitor);

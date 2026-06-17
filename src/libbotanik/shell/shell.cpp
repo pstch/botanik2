@@ -60,6 +60,23 @@ namespace Botanik { namespace Shell {
             uint16_t blen = (uint16_t)strlen(b.name);
             if (len == blen && strncmp(cmd, b.name, blen) == 0) { (this->*b.fn)(); return; }
         }
+
+        // Site commands (registered via set_commands), tried after the built-ins so
+        // a site can't shadow exit/reset. Match the leading word; the rest of the
+        // line (leading spaces trimmed) is passed to the callback as the argument.
+        for (size_t i = 0; i < _command_count; i++) {
+            const ShellCommand& c = _commands[i];
+            if (c.name == nullptr || c.fn == nullptr) continue;
+            uint16_t nlen = (uint16_t)strlen(c.name);
+            if (len < nlen || strncmp(cmd, c.name, nlen) != 0) continue;
+            if (len != nlen && cmd[nlen] != ' ') continue;   // must match the whole word
+            const char* args = cmd + nlen;
+            uint16_t    alen = (uint16_t)(len - nlen);
+            while (alen > 0 && *args == ' ') { args++; alen--; }
+            c.fn(_output, args, alen, _command_ctx);
+            return;
+        }
+
         _unknown(cmd, len);
     }
 
@@ -68,7 +85,19 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_cmd_help() {
-        _println("Commands: help, clear, logs [on/off], stats, breakpoint, reset, exit");
+        _println("Built-in: help, clear, logs [on/off], stats, breakpoint, reset, exit");
+        if (_command_count == 0) return;
+        // One line per site command, name left-aligned with its help text, so the
+        // table doubles as the command's own documentation.
+        _println("Site commands:");
+        char out[Config::LOG_FORMATTED_LEN];
+        for (size_t i = 0; i < _command_count; i++) {
+            const ShellCommand& c = _commands[i];
+            if (c.name == nullptr) continue;
+            int w = snprintf(out, sizeof(out), "  %-12s %s",
+                             c.name, c.help ? c.help : "");
+            if (w > 0) _output.write(out, std::min((size_t)w, sizeof(out) - 1));
+        }
     }
 
     void CommandShell::_cmd_clear() { _output.clear(); }

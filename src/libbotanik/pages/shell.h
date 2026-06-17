@@ -66,6 +66,12 @@ namespace Botanik { namespace Pages {
         /** @brief Construct a ShellPage bound to the given terminal. */
         ShellPage(Terminal::AnsiTerminal& terminal);
 
+        /** @brief Register a site command table on the underlying shell (tried after
+         *  the built-ins). See Shell::CommandShell::set_commands(). */
+        void set_commands(const Shell::ShellCommand* table, size_t count, void* ctx = nullptr) {
+            _shell.set_commands(table, count, ctx);
+        }
+
         /** @} */
 
         /** @name Page interface
