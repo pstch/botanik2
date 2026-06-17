@@ -1,0 +1,24 @@
+    HOME  SHELL  LOGS  STATUS                         PLC:<P> cpu:<C> stk:<S>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+botanik> abcdef

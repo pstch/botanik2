@@ -48,3 +48,72 @@ add_custom_target(check
 if(TARGET clang-tidy)
     add_dependencies(check clang-tidy)
 endif()
+
+# pyte screen-assertion tests (Python) — host-only, joined to the same CTest
+# ============================================================================
+# These drive botanik_sim over a PTY and assert its rendered screen (see
+# pyte/README.md). Their deps (pytest + pyte) are a MANUAL developer step — the
+# build never installs anything. We register the suite only when the interpreter
+# can already import them, so a tree without the venv still gets a green
+# `make check`. Point CMake at the venv with -DPython3_EXECUTABLE=... .
+#
+# The suite always runs against a dedicated RELEASE, no-sanitizer sim built in a
+# sub-tree: dilated time leaves a ~1ms wall budget per tick, which a debug+ASAN
+# build can't meet (the overrun warning is silenced via BOTANIK_NO_XRUN_WARNING,
+# but the sluggishness and other timing skew remain). BOTANIK_PYTE_TESTS=OFF in
+# that sub-build keeps this block from recursing.
+option(BOTANIK_PYTE_TESTS "Register the pyte screen-assertion tests" ON)
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} -c "import pytest, pyte"
+        RESULT_VARIABLE _pyte_import_rc OUTPUT_QUIET ERROR_QUIET)
+    if(_pyte_import_rc EQUAL 0)
+        set(_pyte_dir ${CMAKE_CURRENT_SOURCE_DIR}/pyte)
+        set(_pyte_sim_dir ${CMAKE_BINARY_DIR}/pyte-sim)
+        set(_pyte_sim_bin ${_pyte_sim_dir}/botanik_sim)
+
+        # Build the release sim the tests run against (rebuilt incrementally when
+        # sources change, via the dependency on the OUTPUT below).
+        file(GLOB_RECURSE _pyte_sim_srcs CONFIGURE_DEPENDS
+             ${CMAKE_SOURCE_DIR}/src/*.cpp ${CMAKE_SOURCE_DIR}/src/*.c
+             ${CMAKE_SOURCE_DIR}/src/*.h)
+        add_custom_command(
+            OUTPUT ${_pyte_sim_bin}
+            COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${CMAKE_SOURCE_DIR}
+                    -B ${_pyte_sim_dir} -DBOTANIK_TARGET=SIMULATOR
+                    -DCMAKE_BUILD_TYPE=RELEASE -DBOTANIK_SANITIZE=OFF
+                    -DBOTANIK_PYTE_TESTS=OFF
+            COMMAND ${CMAKE_COMMAND} --build ${_pyte_sim_dir} --target botanik_sim
+            DEPENDS ${_pyte_sim_srcs}
+            COMMENT "Building release botanik_sim for the pyte tests"
+            VERBATIM)
+        add_custom_target(pyte-sim DEPENDS ${_pyte_sim_bin})
+
+        # One CTest entry running the whole pytest suite. The test dir is passed
+        # explicitly so pytest loads its conftest (and thus the --sim/--update
+        # options) regardless of the invocation's CWD.
+        add_test(NAME pyte
+            COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider
+                    ${_pyte_dir} --sim ${_pyte_sim_bin}
+            WORKING_DIRECTORY ${_pyte_dir})
+        # ctest/make test don't build; `check` does — make it build the sim too.
+        add_dependencies(check pyte-sim)
+
+        # Opt-in golden regeneration (NOT part of check/test, so the gate never
+        # rewrites expectations). Review the diff before committing.
+        add_custom_target(pytest-update
+            COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider
+                    ${_pyte_dir} --sim ${_pyte_sim_bin} --update
+            WORKING_DIRECTORY ${_pyte_dir}
+            DEPENDS pyte-sim
+            USES_TERMINAL
+            COMMENT "Regenerating pyte golden screens — review the diff before committing")
+    else()
+        message(STATUS "pyte/pytest not importable — skipping Python screen tests")
+    endif()
+elseif(NOT BOTANIK_PYTE_TESTS)
+    # quietly disabled (e.g. the release sub-build above)
+elseif(NOT Python3_Interpreter_FOUND)
+    message(STATUS "Python3 interpreter not found — skipping Python screen tests")
+endif()

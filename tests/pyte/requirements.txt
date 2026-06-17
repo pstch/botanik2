@@ -1,0 +1,4 @@
+# Python dependencies for the pyte screen-assertion tests.
+# Installed manually into a venv of your choice (NOT by the build) - see README.md.
+pyte>=0.8.2
+pytest>=7.0
