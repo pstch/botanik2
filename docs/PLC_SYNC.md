@@ -44,10 +44,28 @@ the data. Equality means "in sync".
    sees SeqNum == AckNum  ◀─────────── AckNum = SeqNum
 ```
 
-All payload copies go through `HAL::ordered_copy` (memcpy + DSB) and the RX read
-issues a `HAL::dsb()` *acquire* before copying, so the payload reads can't be
-reordered ahead of the `SeqNum` check that gated them. This is what makes the
-exchange safe against an unordered PLC runtime.
+Payload copies go through `HAL::ordered_copy` (memcpy + DSB); the cross-core
+counters (`SeqNum` / `AckNum`) are polled with `HAL::ordered_read` (volatile load
++ DMB), so a counter read can't be reordered against the payload copy it gates.
+This is what makes the exchange safe against an unordered PLC runtime.
+
+On the M7 the shared region may be cacheable, and we can't assume the proprietary
+image toolchain maps it non-cacheable, so the handler also maintains the D-cache
+at the `step()` boundaries (`HAL::cache_invalidate` / `cache_clean` - no-ops on
+the simulator and on cores without a D-cache): it **invalidates** the PLC-output
+region before reading it and **cleans** the PLC-input region after writing it.
+Read and write regions are disjoint, and both structs are `alignas(32)` so a
+cache line never straddles the two.
+
+## Torn-read diagnostic
+
+The handshake alone provides mutual exclusion - the PLC holds its payload steady
+until it observes our ACK (ENABLE stays low until then) - so there is no seqlock
+and no double buffer. As a cheap check that the contract holds, `RX_READ` reads
+`txSeqNum` before the copy, copies, invalidates the sync line, then re-reads
+`txSeqNum`: a mismatch means the PLC moved underneath us. It increments `_rx_torn`
+(exposed via `rx_torn_count()`), logs a rate-limited `PLC_IO` warning, and returns
+to `RX_IDLE` without acking. Diagnostic only - no retry loop.
 
 ## State machines
 

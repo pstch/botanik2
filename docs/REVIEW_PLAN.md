@@ -312,10 +312,13 @@ screen, classes stay small, short client-readable comments.
   loop, one async boundary (PLC shared memory), no serial ISRs in our code, the
   volatile + barrier + cache-maintenance discipline and its scope.
 
-- [ ] `[PLC-CONTRACT-DOC]` Document the PLC sync contract in `docs/PLC_SYNC.md`:
+- [x] `[PLC-CONTRACT-DOC]` Document the PLC sync contract in `docs/PLC_SYNC.md`:
   single shared buffer + mutual exclusion by handshake (not hardware
   double-buffering), the ENABLE-low-until-ACK rule the PLC side must uphold, and
   the `[C3-FIX]` diagnostic that detects a violation.
+  - DONE: added a "Torn-read diagnostic" section plus the memory-ordering
+    (`ordered_read`) and D-cache discipline (invalidate-output / clean-input,
+    `alignas(32)`) paragraphs to `docs/PLC_SYNC.md`.
 
 - [ ] `[TODO-LIBC]` Add to `TODO.md`: "audit libc usage and reduce dependency on
   libc functions."

@@ -20,16 +20,21 @@ An entry enters through @ref Botanik::Logs::Logger, either from:
   `Logger`.
 
 Every entry carries a **level** (`DEBUG`, `INFO`, `NOTICE`, `WARNING`, `ERROR`,
-`CRITICAL`) and a **topic** (`BOOT`, `NETWORK`, `TIME`, `STATUS`, `PLC_IO`).
+`CRITICAL`) and a **topic** (`PLC_IO`, `BOOT`, `NETWORK`, `TIME`, `STATUS`, and the
+firmware-only `ASSERT`; the `LogTopic` enum in `plcio/vars.h`).
 
 ## Rate limiting
 
 @ref Botanik::Logs::Logger applies a **dual token-bucket** limiter before
 fan-out: one global bucket plus one bucket per topic. An entry must take a token
 from *both* its topic bucket and the global bucket to pass; otherwise it is
-dropped and counted. @ref Botanik::Logs::Logger::step "step()" refills the
-buckets once per loop period, and on a slower, decoupled cadence the Logger emits
-a synthetic `WARNING` summarizing how many entries each bucket suppressed.
+dropped and counted. The bucket array is bounded by the real topic count
+(`LOG_TOPIC_COUNT`), so the per-tick refill scan stays cheap.
+@ref Botanik::Logs::Logger::step "step()" refills the buckets once per loop
+period, and on a slower, decoupled cadence the Logger emits a per-topic
+`CRITICAL` summary of how many entries each bucket suppressed - classed
+`CRITICAL` so the report survives the storm it describes (see
+[Silent-loss reporting](#silent-loss-reporting)).
 
 ## Sinks
 
@@ -44,9 +49,27 @@ Entries that pass fan out to every registered @ref Botanik::Logs::LogWriter
   @ref Botanik::Pages::HomePage surface entries in the UI.
 
 All derive from @ref Botanik::Logs::BufferedLogWriter, whose `push()` queues into a
-FIFO (dropping + counting on overflow) and `drain()` flushes incrementally,
-resuming a partial send across calls so nothing blocks. The pipeline below shows
-where each sink is drained.
+FIFO and `drain()` flushes incrementally, resuming a partial send across calls so
+nothing blocks. On overflow a normal entry is dropped and counted, but a
+`LOG_CRITICAL` entry is **undroppable**: it evicts the oldest queued entry to seat
+itself (still counting the eviction as a drop). `drain()` consumes the read index
+at format time, which decouples the outgoing line from the queue and makes that
+eviction safe. The pipeline below shows where each sink is drained.
+
+## Silent-loss reporting
+
+Three ways an entry can vanish without trace are made loud, each reported
+edge-triggered (first event instant, then a per-category holdoff) and classed
+`LOG_CRITICAL` so the undroppable path above guarantees delivery:
+
+- **Sink drops** - entries dropped at a writer's full queue.
+  @ref Botanik::Logs::LogWriter::loss_count "loss_count()" is summed across writers
+  in `step()` (holdoff `LOG_SINK_DROP_REPORT_PERIOD_MS`, 5 s).
+- **TX-full truncation** - bytes a `BufferedSerial` couldn't fit
+  (`tx_dropped()`); the **console** port is registered via
+  @ref Botanik::Logs::Logger::watch_tx "watch_tx()" and polled in `step()`
+  (holdoff `LOG_TX_DROP_REPORT_PERIOD_MS`, 10 s).
+- **Rate-limiter suppressions** - the per-topic bucket summary described above.
 
 ## Pipeline
 
@@ -86,4 +109,5 @@ where each sink is drained.
 
 A formatted line is `TIMESTAMP LEVEL TOPIC MESSAGE` (see
 @ref Botanik::Logs::format_log_entry). Levels render as short glyphs (`[-]`
-info, `[!]` warning, `[*]` error, ...) and `PLC_IO` prints as `SHARED_IO`.
+info, `[!]` warning, `[*]` error, `[@]` critical, ...) and `PLC_IO` prints as
+`SHARED_IO`.

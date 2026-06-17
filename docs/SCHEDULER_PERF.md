@@ -1,7 +1,8 @@
 # Scheduler & Performance Monitoring
 
 How the firmware runs everything from one non-blocking loop at a fixed period,
-and how it measures its own CPU load, scheduling jitter, and stack usage.
+and how it measures its own CPU load, scheduling jitter, stack usage, and
+achieved tick rate.
 
 ## The loop
 
@@ -18,9 +19,10 @@ exactly once per period, when the work for that beat should run.
 ```
 
 Between grid points `tick()` sleeps until ~1 ms before the next one, then
-busy-waits the last millisecond so it releases the beat with low jitter. Nothing
-in the work path blocks, so a stalled subsystem can't wedge the loop (and on the
-OPTA, trip the hardware watchdog).
+busy-waits the last millisecond so it releases the beat with low jitter (a
+class-scope `static_assert(TASK_PERIOD_MS >= 2)` keeps that sleep/spin split
+valid against a future retune). Nothing in the work path blocks, so a stalled
+subsystem can't wedge the loop (and on the OPTA, trip the hardware watchdog).
 
 ## Overrun handling
 
@@ -41,8 +43,9 @@ N beat(s)"` warning at most once per `SCHEDULER_XRUN_LOG_MS`.
 ## Metrics
 
 `LoopScheduler` instruments itself across each beat - it's the only thing that
-knows the loop's timing - and keeps four metric families, each exposed raw,
-smoothed (EMA), and as a recent windowed peak.
+knows the loop's timing - and keeps four metric families (CPU load, loop time,
+jitter, stack usage), each exposed raw, smoothed (EMA), and as a recent windowed
+peak. It also counts a plain **ticks-per-second** rate (see below).
 
 ```
  tick (release) ───▶ ...work runs... ───▶ tick (next release)
@@ -58,12 +61,18 @@ smoothed (EMA), and as a recent windowed peak.
   per beat, not just the explicit work.
 - **Loop time** - the work-window duration (release → next tick), i.e. the
   worst-case single-beat work time.
-- **Jitter** - how late a tick was released against the time grid.
+- **Jitter** - how late a tick was released against the time grid. The sample is
+  clamped to zero if a tick ever releases ahead of grid, so an underflow can't
+  poison the all-time/windowed max.
 - **Stack usage** - measured by *painting* the free stack with `STACK_PAINT_BYTE`
   and later binary-searching for the high-water boundary the work dirtied.
   Painting/scanning happens once per slice (not every tick) to keep it cheap. The
   paint runs at the end of `tick()`, which is `always_inline` so it folds into the
   caller's frame and the painted ceiling sits just above the work that dirties it.
+- **Ticks per second** - the achieved loop rate, counted over each elapsed
+  *real* second (`HAL::real_uptime_ms()`), so on the simulator it stays truthful
+  even when `BOTANIK_TIME_SCALE` dilates time. A single value (no EMA/peak),
+  shown on the status bar.
 
 Two filters back the "smoothed / recent" columns: `ExpMovingAverage` (asymmetric
 attack/decay EMA) and `WindowedMax<K>` (an O(1)-per-sample sliding-window maximum
@@ -75,13 +84,14 @@ All tuning constants - including the derived `LOAD_METRIC_WINDOW` and `STACK_SLI
 
 `PerfContext` (`scheduler/scheduler.h`) holds the CPU-load / loop-time / stack
 fields; `SchedulerContext` *inherits* it and adds the jitter fields plus the
-scheduler's `tick_count`, `overruns`, and the shared per-tick `timestamp_ms`. The
+scheduler's `tick_count`, `overruns`, `ticks_per_second`, and the shared per-tick
+`timestamp_ms`. The
 scheduler writes every field in place - there is no copy step. Consumers (the
 terminal status bar, the `stats` shell command, the PLC sync timing) all read this
 one struct via `LoopScheduler::context()`.
 
 ```
  LoopScheduler ──writes all metrics──▶  SchedulerContext  ──▶ status bar
-                + tick_count / overruns / timestamp_ms        `stats` cmd
+                + tick_count / overruns / tps / timestamp_ms   `stats` cmd
                 (PerfContext base + scheduler fields)          PLC timing
 ```
