@@ -290,6 +290,9 @@ namespace Botanik { namespace Terminal {
         // Emptying the ring also guarantees the clear sequence fits, so the _hw_pos
         // reset below is correct with no dropped-write path.
         _serial.tx_discard();
+        // Resync the terminal: the discard may have torn a half-sent sequence on the
+        // wire, which would otherwise swallow the leading bytes of the clear below.
+        Ansi::cancel_sequence(_serial);
         _establish_screen();
     }
 
@@ -417,6 +420,11 @@ namespace Botanik { namespace Terminal {
         // the page we're leaving first (they'd paint onto the new page). _hw_pos is
         // stale after the drop, so reposition absolutely (not relative move_to).
         _serial.tx_discard();
+        // The discard can strand a half-sent sequence on the wire (transmit() stops
+        // mid-sequence under the baud throttle); cancel_sequence() resyncs the terminal
+        // to ground state so the tab repaint below isn't swallowed by a stuck parser -
+        // that swallow is what leaves some page-name chars un-inverted under TX load.
+        Ansi::cancel_sequence(_serial);
         Ansi::goto_absolute(_serial, {1, 0});
         _hw_pos = {1, 0};
         _hw_at_eol = false;
