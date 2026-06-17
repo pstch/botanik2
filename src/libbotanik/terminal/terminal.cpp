@@ -49,6 +49,9 @@ namespace Botanik { namespace Terminal {
     // Step through the terminal handling code
     void AnsiTerminal::step() {
         using Command = InputEvent::Command;
+        // Snapshot the RX depth before the parse loop below drains it, so the serial
+        // gauge reports what was actually waiting this cycle rather than ~0 post-drain.
+        _rx_cycle_used = _serial.available();
         // Establish the screen on the first step (not in setup_*()) so the clear
         // lands after the handshake setup_*() queued, in order: clear, "ACAB" boot
         // marker, contents. _establish_screen() (not clear_screen) so the queued

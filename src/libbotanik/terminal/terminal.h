@@ -115,6 +115,10 @@ namespace Botanik { namespace Terminal {
         uint16_t            _tx_cold_depth = 0;
         uint16_t            _tx_hot_depth  = 0;
 
+        /** @brief RX ring depth snapshotted at the top of step() (pre-parse), surfaced
+         *  by rx_used() for the serial gauge. */
+        uint16_t            _rx_cycle_used = 0;
+
         /** @brief Bytes that drain in @p target_ms at @p baud (8N1: baud/10 B/s),
          *  clamped to a small floor and below the ring capacity. The byte depth is
          *  the latency target turned into a FIFO depth; it is dilation-invariant. */
@@ -305,8 +309,11 @@ namespace Botanik { namespace Terminal {
          *  so a clock/uptime field shows the current value rather than queued stale. */
         bool tx_below_hot() const { return tx_used() <= _tx_hot_depth; }
 
-        /** @brief Bytes currently queued in the serial RX ring buffer */
-        uint16_t rx_used() const { return _serial.available(); }
+        /** @brief RX ring depth captured at the start of this step(), before the input
+         *  parser drained it. The live depth would read ~0 by the time a page paints
+         *  its serial gauge (the parse loop runs first), so this snapshot shows the
+         *  bytes that were actually waiting this cycle. */
+        uint16_t rx_used() const { return _rx_cycle_used; }
 
         /** @brief Bytes currently queued in the serial TX ring buffer */
         uint16_t tx_used() const {
