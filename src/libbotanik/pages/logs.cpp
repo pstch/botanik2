@@ -33,10 +33,23 @@ namespace Botanik { namespace Pages {
     void LogsPage::handle_command(Command cmd, uint16_t /*count*/) {
         // Ctrl+C is routed to handle_cancel() by the terminal; the logs page has
         // nothing to cancel, so it leaves it to the terminal's default.
+        // Scroll the log history: UP/DOWN and Ctrl+P/Ctrl+N move a line at a time
+        // (the live tail freezes while scrolled back); ENTER clears and returns to
+        // the live bottom.
+        const uint16_t first_row = 1;
+        const uint16_t log_rows  = (uint16_t)(_terminal.rows() - 1);
         switch (cmd) {
             case Command::ENTER:
                 _terminal.clear_content();
                 focus();
+                break;
+            case Command::UP:
+            case Command::CTRL_P:
+                _scrollback.scroll(_terminal, /*up=*/true, 1, first_row, log_rows);
+                break;
+            case Command::DOWN:
+            case Command::CTRL_N:
+                _scrollback.scroll(_terminal, /*up=*/false, 1, first_row, log_rows);
                 break;
             case Command::PAGE_UP:   break;
             case Command::PAGE_DOWN: break;
