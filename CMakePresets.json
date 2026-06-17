@@ -1,0 +1,22 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "sim",
+      "displayName": "Simulator (host)",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": { "BOTANIK_TARGET": "SIMULATOR" }
+    },
+    {
+      "name": "opta",
+      "displayName": "OPTA (Arduino/Mbed) sanity build",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": { "BOTANIK_TARGET": "OPTA" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "sim",  "configurePreset": "sim",  "jobs": 4 },
+    { "name": "opta", "configurePreset": "opta", "jobs": 4 }
+  ]
+}
