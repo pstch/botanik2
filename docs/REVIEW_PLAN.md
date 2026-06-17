@@ -303,14 +303,16 @@ screen, classes stay small, short client-readable comments.
 
 ## Block 5 - Docs
 
-- [ ] `[ARCH-PIPELINE]` Add a **concise** per-tick cycle-order contract comment at
-  the (duplicated, by design) main loop: receive -> plc -> plc_logs -> logger ->
-  terminal -> monitor.drain -> transmit -> watchdog-kick, and why the order
-  matters. The two composition roots (`firmware.cpp`, `main.cpp`) stay separate.
+- [x] `[ARCH-PIPELINE]` DONE: added the concise per-tick cycle-order contract
+  comment above the sim main loop (`tick -> receive -> plc_handler ->
+  plc_log_reader -> logger -> terminal -> monitor.drain -> transmit ->
+  watchdog_kick`, why the order matters), pointing at `docs/CONCURRENCY.md`. The
+  two composition roots stay separate, sharing this one written order.
 
-- [ ] `[CONCURRENCY-DOC]` Write the concurrency model into the docs: single main
-  loop, one async boundary (PLC shared memory), no serial ISRs in our code, the
-  volatile + barrier + cache-maintenance discipline and its scope.
+- [x] `[CONCURRENCY-DOC]` DONE: `docs/CONCURRENCY.md` - single cooperative loop +
+  cycle contract, the only async boundaries (PLC shared memory; the fire-and-forget
+  watchdog), explicitly no serial ISRs in our code (BufferedSerial/log queue are
+  main-loop only), and the volatile/barrier/cache + `Millis32` discipline.
 
 - [x] `[PLC-CONTRACT-DOC]` Document the PLC sync contract in `docs/PLC_SYNC.md`:
   single shared buffer + mutual exclusion by handshake (not hardware
@@ -320,13 +322,10 @@ screen, classes stay small, short client-readable comments.
     (`ordered_read`) and D-cache discipline (invalidate-output / clean-input,
     `alignas(32)`) paragraphs to `docs/PLC_SYNC.md`.
 
-- [ ] `[TODO-LIBC]` Add to `TODO.md`: "audit libc usage and reduce dependency on
-  libc functions."
+- [x] `[TODO-LIBC]` DONE: added the "Reduce libc dependency" item to `TODO.md`.
 
-- [ ] `[ARCH-HEALTH]` Add to `TODO.md`: future `HealthMonitor` - a fault-state
-  aggregator subsystems report into, read by the Status page and (future) the
-  TCP fault-alert sender; gives the watchdog a principled health input instead of
-  the single hardcoded `faulted()`.
+- [x] `[ARCH-HEALTH]` DONE: added the future `HealthMonitor` / fault-aggregation
+  item to `TODO.md`.
 
 ---
 
