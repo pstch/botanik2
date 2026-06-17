@@ -65,7 +65,10 @@ protected:
     // Two-column body geometry on an 80-col display: left panel cols 2..36, right
     // panel 41..76. R_VAL starts at col 54 so the 9-wide labels ("Humidif.:") clear
     // it. Values below are kept fixed-width so columns never shift as they update.
-    static constexpr uint16_t L_HDR = 2,  L_LBL = 3,  L_VAL = 13, L_W = 24;
+    // Left labels are padded to 10 chars + colon (the widest is "Sun times :"), so
+    // L_VAL=15 keeps a single space after every colon while the field still ends at
+    // col 36 (L_W=22).
+    static constexpr uint16_t L_HDR = 2,  L_LBL = 3,  L_VAL = 15, L_W = 22;
     static constexpr uint16_t R_HDR = 41, R_LBL = 42, R_VAL = 54, R_W = 23;
     static constexpr uint16_t HDR_WL = 34, HDR_WR = 36;
     // System-band extras align with the base system fields: label at col 2, value
@@ -80,17 +83,17 @@ protected:
 
         // Left column: POWER + CLIMATE (blank rows 8 and 14 above the headers).
         _header  ( 9, L_HDR, "POWER",   HDR_WL);
-        _label_at(10, L_LBL, "Grid AC :");
-        _label_at(11, L_LBL, "DC bus  :");
-        _label_at(12, L_LBL, "Battery :");
-        _label_at(13, L_LBL, "UPS     :");
+        _label_at(10, L_LBL, "Grid AC   :");
+        _label_at(11, L_LBL, "DC bus    :");
+        _label_at(12, L_LBL, "Battery   :");
+        _label_at(13, L_LBL, "UPS       :");
         _header  (15, L_HDR, "CLIMATE", HDR_WL);
-        _label_at(16, L_LBL, "Exterior:");
-        _label_at(17, L_LBL, "Floor   :");
-        _label_at(18, L_LBL, "Ceiling :");
-        _label_at(19, L_LBL, "Rain    :");
-        _label_at(20, L_LBL, "Wind pk :");
-        _label_at(21, L_LBL, "Sun times:");
+        _label_at(16, L_LBL, "Exterior  :");
+        _label_at(17, L_LBL, "Floor     :");
+        _label_at(18, L_LBL, "Ceiling   :");
+        _label_at(19, L_LBL, "Rain      :");
+        _label_at(20, L_LBL, "Wind pk   :");
+        _label_at(21, L_LBL, "Sun times :");
 
         // Right column: IRRIGATION + ACTUATORS.
         _header  ( 9, R_HDR, "IRRIGATION", HDR_WR);
