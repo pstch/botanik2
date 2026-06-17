@@ -34,9 +34,23 @@ extern "C" inline struct termios* botanik_saved_console_termios() {
     return &saved;
 }
 
-/** @brief Restore the terminal to its pre-raw-mode settings. */
+/** @brief Restore the terminal to its pre-raw-mode settings. Async-signal-safe:
+ *  TCSAFLUSH drops queued output, so a final transmission must already have
+ *  drained (see botanik_restore_console_clean) before this runs. */
 extern "C" inline void botanik_restore_console() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, botanik_saved_console_termios());
+}
+
+/** @brief Clean-exit console teardown (not signal-safe). Pages leave the cursor
+ *  hidden and parked mid-row, so hand the shell back a sane terminal: show the
+ *  cursor, reset attributes, and a fresh line, written straight to the wire (the
+ *  final transmission). Then leave raw mode with TCSADRAIN - not TCSAFLUSH - so
+ *  those bytes drain instead of being discarded. */
+inline void botanik_restore_console_clean() {
+    if (::isatty(STDIN_FILENO) != 1) return;
+    static const char tail[] = "\033[?25h\033[0m\r\n";  // DECTCEM show, SGR reset, CR LF
+    (void)::write(STDOUT_FILENO, tail, sizeof(tail) - 1);
+    tcsetattr(STDIN_FILENO, TCSADRAIN, botanik_saved_console_termios());
 }
 
 /** @brief Restore the terminal before exiting so Ctrl+C or a crash doesn't leave
@@ -418,9 +432,11 @@ namespace Botanik { namespace HAL {
     }
 
     inline void shutdown(int code) {  // default (0) declared in platform.h
-        // Run teardown, then exit normally so atexit (botanik_restore_console) takes
-        // the terminal out of raw mode. @p code: 0 for "exit", 128+signo on a signal.
+        // Run teardown, hand the console back cleanly (fresh line + cooked echo,
+        // drained before termios is restored), then exit. atexit re-runs the
+        // restore harmlessly. @p code: 0 for "exit", 128+signo on a signal.
         if (ResetHook hook = *_reset_hook()) hook();
+        botanik_restore_console_clean();
         exit(code);
     }
 
