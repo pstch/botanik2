@@ -98,10 +98,12 @@ namespace Botanik { namespace Terminal {
         static constexpr uint16_t    STATUS_METRICS_LEN = 27;
         /** @brief Diff cache of the last drawn metrics (zero-init forces first draw). */
         char                         _status_metrics_cache[STATUS_METRICS_LEN] = {};
-        /** @brief Free TX bytes required before a metrics refresh runs. write()
-         *  truncates silently when full, so the refresh defers unless this much is
-         *  free - a half-emitted escape would corrupt the status bar. */
-        static constexpr uint16_t    STATUS_METRICS_TX_BUDGET = 64;
+        /** @brief Last status-bar clock refresh (uptime ms). */
+        uint64_t            _status_clock_last_ms = 0;
+        /** @brief Visible width of the HH:MM:SS clock field (no NUL). */
+        static constexpr uint16_t    STATUS_CLOCK_LEN = 8;
+        /** @brief Diff cache of the last drawn clock (zero-init forces first draw). */
+        char                         _status_clock_cache[STATUS_CLOCK_LEN] = {};
 
         /** @} */
 
@@ -235,9 +237,18 @@ namespace Botanik { namespace Terminal {
         void draw_status_tab(uint8_t index);
 
         /** @brief Refresh only the metrics portion of the status bar (skips if
-         *  unchanged). @p restore_cursor returns the cursor where it started, for
-         *  periodic refreshes; draw_status_row passes false (it repositions itself). */
-        void update_status_metrics(bool restore_cursor = true);
+         *  unchanged). @p restore_cursor returns the cursor to where it started, for
+         *  standalone periodic refreshes; draw_status_row passes false since it is
+         *  mid-rebuild and its caller repositions absolutely.
+         *  @return true if the pass fully synced the on-screen metrics (or there was
+         *  nothing to draw); false if it stopped early because a run would not fit -
+         *  the caller then leaves the refresh timestamp unadvanced and retries. */
+        bool update_status_metrics(bool restore_cursor = true);
+
+        /** @brief Refresh the centred HH:MM:SS clock (hot field, normal video on the
+         *  reverse-video bar; diffed so only changed digits emit). Skipped on a very
+         *  narrow terminal. @p restore_cursor as for update_status_metrics(). */
+        void update_status_clock(bool restore_cursor = true);
 
         /** @} */
 

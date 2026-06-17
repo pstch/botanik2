@@ -56,13 +56,20 @@ namespace Botanik { namespace Terminal {
         }
         uint64_t now = HAL::uptime_ms();
         if (now - _status_last_ms >= Config::STATUS_REFRESH_MS) {
-            // Only refresh when the TX buffer can absorb the pass; otherwise leave
-            // _status_last_ms so the next step() retries instead of waiting a full
-            // interval.
-            if (tx_ready(STATUS_METRICS_TX_BUDGET)) {
-                _status_last_ms = now;
-                update_status_metrics();
-            }
+            // Advance the refresh clock only once the pass fully synced the on-screen
+            // metrics. If a run could not fit it returns false, leaving _status_last_ms
+            // untouched so the next step() retries rather than waiting out another full
+            // STATUS_REFRESH_MS interval.
+            if (update_status_metrics()) _status_last_ms = now;
+        }
+        // Hot HH:MM:SS clock: a per-second field on the always-visible bar. Only emit
+        // when the ring is near-empty (hot gate) so the time shown is current rather
+        // than queued stale; if congested, hold _status_clock_last_ms and retry next
+        // tick so it catches up the moment the ring drains.
+        if (now - _status_clock_last_ms >= Config::PAGE_HOT_MS &&
+            tx_below(Config::CONSOLE_TX_HOT_DEPTH)) {
+            _status_clock_last_ms = now;
+            update_status_clock();
         }
         // Handle up to INPUT_EVENTS_PER_TICK events this tick so a paste or fast
         // typing stays responsive without letting a flood monopolise the loop. Light
@@ -460,6 +467,11 @@ namespace Botanik { namespace Terminal {
         memset(_status_metrics_cache, 0, sizeof(_status_metrics_cache));
         update_status_metrics(/*restore_cursor=*/false);
 
+        // Centred HH:MM:SS clock: invalidate its cache and paint the initial value so
+        // it is not blank until the first per-second hot tick.
+        memset(_status_clock_cache, 0, sizeof(_status_clock_cache));
+        update_status_clock(/*restore_cursor=*/false);
+
         // Restore only the attribute; the cursor is left where the metrics parked it
         // (the caller repositions absolutely).
         set_inverted(saved_inv);
@@ -513,18 +525,19 @@ namespace Botanik { namespace Terminal {
         write_chars(&cf[seg], (uint16_t)(b - seg));
     }
 
-    void AnsiTerminal::update_status_metrics(bool restore_cursor) {
+    bool AnsiTerminal::update_status_metrics(bool restore_cursor) {
         char metrics[STATUS_METRICS_LEN];
         int mlen = _build_metrics(metrics, sizeof(metrics));
 
         // mlen is constant (fixed-width fields), so a byte index maps to a fixed col.
         uint16_t visible = (uint16_t)std::min((int)_cols, mlen);
-        if (visible == 0) return;
+        if (visible == 0) return true;  // nothing to draw == nothing left to sync
         uint16_t metrics_col = (uint16_t)(_cols - visible);
 
         CursorPos saved_pos = _hw_pos;
         bool      saved_inv = _hw_inverted;
         bool      touched   = false;
+        bool      complete  = true;
 
         // The bar is reverse video except the live readings - plc (cols 4..6), cpu
         // (12..15), stk (21..24) - drawn normal. Coalesce changed cells into runs,
@@ -539,7 +552,7 @@ namespace Botanik { namespace Terminal {
             // Only emit a run if it fully fits (move + invert + chars); otherwise
             // stop and retry next refresh, leaving the unwritten cells' cache stale.
             uint16_t run = (uint16_t)(j - i);
-            if (tx_available() < (uint16_t)(run + 16)) break;
+            if (tx_available() < (uint16_t)(run + 16)) { complete = false; break; }
             touched = true;
             // Whole run is uniformly value (normal) or not (inverted): pass an all-set
             // or all-clear highlight mask so emit_field_run draws it in one segment.
@@ -554,6 +567,48 @@ namespace Botanik { namespace Terminal {
             // Periodic refreshes restore the cursor to where the page left it.
             // draw_status_row passes restore_cursor=false (its caller repositions
             // absolutely right after, so a restore would be a wasted move).
+            if (restore_cursor) move_to(saved_pos);
+        }
+        return complete;
+    }
+
+    void AnsiTerminal::update_status_clock(bool restore_cursor) {
+        // Time-of-day HH:MM:SS from the loop clock (uptime is the sim wall clock).
+        uint64_t s  = HAL::uptime_ms() / 1000;
+        unsigned hh = (unsigned)((s / 3600) % 24);
+        unsigned mm = (unsigned)((s / 60) % 60);
+        unsigned ss = (unsigned)(s % 60);
+        char clk[STATUS_CLOCK_LEN + 1];
+        snprintf(clk, sizeof(clk), "%02u:%02u:%02u", hh, mm, ss);
+
+        // Centre the field; skip on a terminal too narrow to fit it clear of the
+        // right-aligned metrics.
+        if (_cols < STATUS_CLOCK_LEN) return;
+        uint16_t clock_col   = (uint16_t)((_cols - STATUS_CLOCK_LEN) / 2);
+        uint16_t metrics_col = (_cols > (uint16_t)(STATUS_METRICS_LEN - 1))
+                                   ? (uint16_t)(_cols - (STATUS_METRICS_LEN - 1)) : 0;
+        if ((uint16_t)(clock_col + STATUS_CLOCK_LEN) > metrics_col) return;
+
+        CursorPos saved_pos = _hw_pos;
+        bool      saved_inv = _hw_inverted;
+        bool      touched   = false;
+
+        // Diff vs the cache and emit changed runs in normal video (hi = 0) so the
+        // digits stand out against the reverse-video bar. Hot-gated by the caller, so
+        // the (tiny) field is guaranteed to fit; no per-run budget check needed.
+        uint16_t i = 0;
+        while (i < STATUS_CLOCK_LEN) {
+            if (clk[i] == _status_clock_cache[i]) { ++i; continue; }
+            uint16_t j = (uint16_t)(i + 1);
+            while (j < STATUS_CLOCK_LEN && clk[j] != _status_clock_cache[j]) ++j;
+            touched = true;
+            emit_field_run(0, clock_col, clk, i, j, 0u);   // hi = 0 -> normal video
+            memcpy(_status_clock_cache + i, clk + i, (size_t)(j - i));
+            i = j;
+        }
+
+        if (touched) {
+            set_inverted(saved_inv);
             if (restore_cursor) move_to(saved_pos);
         }
     }
