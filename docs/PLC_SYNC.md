@@ -13,14 +13,14 @@ input region and *reads* the output region.
 ```
  PlcInput<InputData>            PlcOutput<OutputData>
  (host → PLC)                   (PLC → host)
- ┌────────────────────────┐     ┌────────────────────────┐
+ ┌─────────────────────────┐     ┌─────────────────────────┐
  │ sync   rxSeqNum txAckNum│     │ sync   txSeqNum rxAckNum│
- ├────────────────────────┤     ├────────────────────────┤
+ ├─────────────────────────┤     ├─────────────────────────┤
  │ logs   readIndex        │     │ logs   writeIndex       │
  │                         │     │        logBuffer[N]     │
- ├────────────────────────┤     ├────────────────────────┤
+ ├─────────────────────────┤     ├─────────────────────────┤
  │ data   <site payload>   │     │ data   <site payload>   │
- └────────────────────────┘     └────────────────────────┘
+ └─────────────────────────┘     └─────────────────────────┘
 ```
 
 Every struct is explicitly padded so its layout is identical packed or not, and
@@ -58,17 +58,17 @@ simulator's `PlcEmulator` (`plcio/emulator.h`) mirrors them from the PLC side.
  RX (read PLC output)            TX (write PLC input)
  ┌─────────┐                     ┌─────────┐  write requested
  │ RX_IDLE │◀──┐                 │ TX_IDLE │◀──┐ or heartbeat elapsed
- └────┬────┘   │                 └────┬────┘   │
+ └────┬────┘   │                 └─────┬───┘   │
  SeqNum≠Ack    │                  write│ │heartbeat
       ▼        │                       ▼ ▼
  ┌─────────┐   │                 ┌──────────┐
  │ RX_READ │   │ack              │ TX_WRITE │
- └────┬────┘   │                 └────┬─────┘
+ └────┬────┘   │                 └─────┬────┘
    copy        │                   copy│
       ▼        │                       ▼
  ┌─────────┐   │                 ┌──────────┐
  │ RX_ACK  │───┘                 │ TX_COMMIT│ SeqNum += 1
- └─────────┘                     └────┬─────┘
+ └─────────┘                     └─────┬────┘
                                       ▼
                                  ┌──────────┐ ack'd → TX_IDLE
                                  │ TX_WAIT  │ stalled a heartbeat → re-commit

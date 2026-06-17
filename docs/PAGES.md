@@ -41,21 +41,21 @@ an inactive page banks queued entries without drawing (see
 
 ```
                        ┌──────────────────────┐
-                       │   Pages::Page         │  (abstract interface)
+                       │   Pages::Page        │  (abstract interface)
                        └───────────┬──────────┘
             ┌──────────────────────┼─────────────────────┐
             ▼                      ▼                     ▼
-   ┌────────────────┐    ┌────────────────┐    ┌──────────────────────┐
+   ┌────────────────┐    ┌────────────────┐    ┌───────────────────────┐
    │   ShellPage    │    │   LogsPage     │    │   MetricPage          │
    │                │    │                │    │   (diff-rendered base)│
-   │ + ShellWriter  │    │ + Buffered     │    └──────────┬───────────┘
+   │ + ShellWriter  │    │ + Buffered     │    └───────────┬───────────┘
    │ + Buffered     │    │   LogWriter    │         ┌──────┴───────┐
    │   LogWriter    │    └────────────────┘         ▼              ▼
-   │                │                       ┌──────────────┐ ┌────────────┐
+   │                │                       ┌──────────────┐ ┌─────────────┐
    │  TextEditor    │                       │ HomePage<T>  │ │StatusPage<T>│
-   │  CommandShell  │                       │ + Buffered   │ │            │
-   └────────────────┘                       │   LogWriter  │ │            │
-                                            └──────┬───────┘ └─────┬──────┘
+   │  CommandShell  │                       │ + Buffered   │ │             │
+   └────────────────┘                       │   LogWriter  │ │             │
+                                            └──────┬───────┘ └─────┬───────┘
                                                    ▼               ▼
                                           GreenhouseHomePage  GreenhouseStatusPage
                                               (site payload, in main.cpp)
