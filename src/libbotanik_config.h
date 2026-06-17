@@ -200,13 +200,16 @@ namespace Botanik { namespace Config {
      */
 
     /** @brief Cold-class depth gate (bytes). Logs, command output, cold metric
-     *  readings, draw_static and the focus replay only emit while
-     *  tx_used() <= this. It directly bounds worst-case echo latency
-     *  (~ this / wire_rate). Too low: cold output trickles and the wire can
-     *  under-feed under light load. Too high: typing lags behind a deeper backlog.
-     *  Must stay >= one wrapped line (~cols + escape overhead) or a line could never
-     *  pass the gate. Console default; Phase 2 derives it from baud x latency. */
-    static constexpr uint16_t CONSOLE_TX_COLD_DEPTH = 256;
+     *  readings, draw_static and the focus replay only emit while tx_used() <= this.
+     *  Worst-case echo latency is ~ (this + one emitted unit) / wire_rate, because the
+     *  gate is checked before a unit and the unit overshoots it. At 4800 baud
+     *  (480 B/s) 64 + a ~100 B log line ~= 160 B ~= 330 ms, about the floor while a
+     *  line is in flight; the wire still stays fed (the ring oscillates ~64..160,
+     *  never idle). Too high: typing lags behind a deeper backlog (256 gave ~900 ms).
+     *  Too low: approaches the hot gate and the wire can briefly under-feed. Tuned for
+     *  the low-baud console (Minitel/4800); harmless at 115200; Phase 2 derives it
+     *  from baud x target-latency. */
+    static constexpr uint16_t CONSOLE_TX_COLD_DEPTH = 64;
 
     /** @brief Hot-class depth gate (bytes). The per-second fields (a clock) only
      *  emit while tx_used() <= this, i.e. near-empty, so the value shown is current
@@ -217,11 +220,14 @@ namespace Botanik { namespace Config {
      *  is simply carried by the next one. */
     static constexpr uint16_t CONSOLE_TX_HOT_DEPTH = 32;
 
-    /** @brief Max live log / command rows painted per tick per page, once the cold
-     *  gate is open. Too low: backlogs clear slowly after the gate opens. Too high:
-     *  one tick overshoots the cold depth (each row ~cols + overhead) and spends more
-     *  loop time painting. The effective ceiling is min(this, wire capacity). */
-    static constexpr uint16_t LOG_ROWS_PER_TICK = 2;
+    /** @brief Max live log / command rows painted per tick per page, in one batched
+     *  drain_tail emit once the cold gate is open. The effective ceiling is
+     *  min(this, wire capacity), and at low baud the wire is far below this (4800 baud
+     *  ~= 4.4 lines/s), so a larger value buys no throughput - it only deepens the
+     *  per-batch overshoot of the cold gate and worsens echo latency. Keep it at 1 so a
+     *  batch overshoots by a single line; raise only on a fast link if log catch-up
+     *  feels slow. */
+    static constexpr uint16_t LOG_ROWS_PER_TICK = 1;
 
     /** @brief Max metric value cells emitted per tick (cold readings + the paced
      *  focus repaint / draw_static). Too low: a full repaint fills in over many ticks
