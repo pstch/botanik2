@@ -208,7 +208,8 @@ namespace Botanik { namespace HAL {
         int _fd_out = -1;
         /** @brief Configured baud rate (drives the write throttle). */
         uint32_t _baud = 0;
-        /** @brief Earliest time (us) the next write may proceed. */
+        /** @brief Earliest time (us) the next byte may leave the wire; advanced by one
+         *  8N1 slot per byte sent (token bucket, see write()). */
         uint64_t _next_write_us = 0;
         /** @brief Whether _fd_out is a terminal. False for a file/pipe sink, where
          *  the UART model (baud throttle + TIOCOUTQ) is bypassed so redirected
@@ -252,7 +253,22 @@ namespace Botanik { namespace HAL {
             ssize_t n = ::write(_fd_out, &c, 1);
             if (n <= 0) return 0;
             if (_baud > 0) {
-                _next_write_us = _now_as<std::chrono::microseconds>() + 10000000ULL / _baud;
+                // Token-bucket wire model. Each byte occupies one 8N1 slot
+                // (10 bit-times = 10e6/baud us). _next_write_us is the time the next
+                // byte may leave; we ACCUMULATE it (+= slot) rather than resetting it
+                // to now+slot, so a single transmit() call - run once per loop tick -
+                // can send every byte whose slot has already elapsed since the last
+                // one (~tick/slot bytes per tick), matching the real line rate. The
+                // old reset-to-now form let only one byte through per tick regardless
+                // of baud, throttling the simulated wire to ~1 byte / TASK_PERIOD.
+                const uint64_t now  = _now_as<std::chrono::microseconds>();
+                const uint64_t slot = 10000000ULL / _baud;
+                // Cap banked idle credit to one UART FIFO (64 B): a wire that has been
+                // idle fills the FIFO at once, then paces - it cannot instantly dump an
+                // unbounded backlog, which would break the echo-latency model.
+                const uint64_t max_bank = 64ULL * slot;
+                if (_next_write_us + max_bank < now) _next_write_us = now - max_bank;
+                _next_write_us += slot;
             }
             return (size_t)n;
         }
