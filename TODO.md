@@ -95,3 +95,23 @@ NOTE: all screen interactions done by Page classes should always go through Ansi
   CPU load and stack usage graphs, Ethernet/NTP status, uptime.
 
   In practice, the StatusPage class itself should also be extensible and only provide the "scaffolding" for a status page. Some of the contents of a status page are static and should only be drawed when activating the page or redrawing it, while some contents need to be changed at periodic interval. 
+
+## Documentation
+
+- **Refresh `docs/KEYBINDINGS.md` Shell page table** once the `[CMD-TABLE]` shell
+  command-table refactor lands (`shell/shell.cpp`, `pages/shell.cpp`). The table
+  still describes the old `handle_command` if/else dispatch; re-check the key ->
+  handler mapping against the new command table.
+
+- **HealthMonitor / fault aggregation** (review `[ARCH-HEALTH]`): today the only
+  health signal is `PlcSyncContext::faulted()`, consumed at one place (the watchdog
+  kick). Add a small fault-state aggregator that subsystems report named faults
+  into (set/clear bits), read by the Status page and (future) the TCP fault-alert
+  sender, so the watchdog has a principled "are we healthy" input instead of a
+  single hardcoded `faulted()`.
+
+- **Reduce libc dependency** (review `[TODO-LIBC]`): audit our use of libc
+  (`snprintf`/`vsnprintf`, `strncmp`, `strlen`, `memcpy`, `strstr`, `strtol`) and
+  shrink the surface where practical - prefer the in-house `utils/text` helpers and
+  bounded equivalents, so the firmware leans on as little of the C library as
+  possible. (No known bugs; the hand-rolled parsing is already bounds-checked.)
