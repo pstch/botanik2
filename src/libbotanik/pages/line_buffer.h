@@ -64,6 +64,7 @@ namespace Botanik { namespace Pages {
             uint16_t count = 0;
             for (size_t off = 0; ; ) {
                 uint16_t prefix_len = (count == 0 || cols <= plen) ? 0 : plen;
+                if (prefix_len >= seg_cap) prefix_len = 0;  // a prefix too big for the segment is dropped, not underflowed
                 // Per-row byte budget: fill to the width, or everything left when
                 // unbounded (cols == 0), but never overflow the segment buffer.
                 uint16_t budget = (cols == 0) ? (uint16_t)(len - off)

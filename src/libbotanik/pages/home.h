@@ -102,8 +102,14 @@ namespace Botanik { namespace Pages {
             _terminal.set_inverted(true);
             uint16_t used = (uint16_t)(lead + tablen);
             uint16_t rest = (cols > used) ? (uint16_t)(cols - used) : 0;
-            if (rest > fill) rest = fill;
-            _terminal.write_chars(spaces, rest);
+            if (rest > Config::TERMINAL_MAX_COLS) rest = Config::TERMINAL_MAX_COLS;  // sanity bound
+            // Chunk the fill so a terminal wider than the local buffer still paints
+            // to the end of the line (the buffer is just the per-write chunk).
+            while (rest) {
+                uint16_t n = (rest > fill) ? fill : rest;
+                _terminal.write_chars(spaces, n);
+                rest -= n;
+            }
             _terminal.set_inverted(false);
         }
 

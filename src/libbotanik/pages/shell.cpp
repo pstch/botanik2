@@ -259,7 +259,9 @@ namespace Botanik { namespace Pages {
             bool        first = (row == 0);
             const char* pstr  = first ? _editor.ps1()     : _editor.ps2();
             uint16_t    plen  = first ? _editor.ps1_len() : _editor.ps2_len();
-            uint16_t    cap   = cols - plen;
+            // At least 1 char/row so a terminal narrower than the prompt can't
+            // underflow the cap (and the loop always makes progress).
+            uint16_t    cap   = (cols > plen) ? (uint16_t)(cols - plen) : 1;
             uint16_t    rlen  = Utils::scan_line_segment(cmd, pos, cmd_len, cap);
             uint16_t elen = std::min((uint16_t)(plen + rlen), (uint16_t)sizeof(echo));
             memcpy(echo, pstr, std::min(plen, elen));

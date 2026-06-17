@@ -310,6 +310,11 @@ namespace Botanik { namespace Config {
      *  is reduced by the row prefixes (PS1/PS2/PS3). */
     static constexpr uint16_t EDITOR_MIN_COLS = 32;
 
+    /** @brief Widest terminal width the UI supports, a sanity bound on full-width
+     *  fills (e.g. the Home log-header bar) so a bogus column count can't drive an
+     *  unbounded paint. */
+    static constexpr uint16_t TERMINAL_MAX_COLS = 256;
+
     // Ensure that the specified editor minimum size can hold the whole input buffer.
     static_assert(EDITOR_MAX_ROWS * (EDITOR_MIN_COLS - EDITOR_PROMPT_MAX) >= SHELL_INPUT_LEN,
                   "EDITOR_MAX_ROWS too small to lay out SHELL_INPUT_LEN at EDITOR_MIN_COLS");

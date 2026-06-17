@@ -203,8 +203,8 @@ namespace Botanik { namespace Terminal {
     // ------------------------------------------------------------------------
 
     // Write `len` chars at cursor, advancing it right.
-    void AnsiTerminal::write_chars(const char *s, uint16_t len, bool insert) {
-        if (len == 0) return;
+    uint16_t AnsiTerminal::write_chars(const char *s, uint16_t len, bool insert) {
+        if (len == 0) return 0;
 
         // Lazy SM4/RM4 toggling: keep insert mode latched so consecutive inserts
         // cost just the char byte, instead of re-bracketing each with SM4/RM4.
@@ -212,7 +212,7 @@ namespace Botanik { namespace Terminal {
             // Commit the latch only if the toggle reached the wire. Latching past a
             // dropped RM4 would let a later replace-mode write paint in insert mode
             // and corrupt the line; bail and let the caller redraw.
-            if (!Ansi::set_insert_mode(_serial, insert)) return;
+            if (!Ansi::set_insert_mode(_serial, insert)) return 0;
             _hw_insert_mode = insert;
         }
 
@@ -237,6 +237,7 @@ namespace Botanik { namespace Terminal {
             _hw_pos.col = (uint16_t)new_col;
             _hw_at_eol = false;
         }
+        return written;
     }
 
     // Set/clear reverse-video character attribute
@@ -542,21 +543,23 @@ namespace Botanik { namespace Terminal {
         set_inverted(saved_inv);
     }
 
-    void AnsiTerminal::emit_field_run(uint16_t row, uint16_t col, const char* cf,
-                                      uint16_t a, uint16_t b, uint32_t hi) {
+    uint16_t AnsiTerminal::emit_field_run(uint16_t row, uint16_t col, const char* cf,
+                                          uint16_t a, uint16_t b, uint32_t hi) {
         move_to({row, (uint16_t)(col + a)});
         uint16_t seg = a;
         bool seg_inv = ((hi >> a) & 1u) != 0;
+        uint16_t written = 0;
         for (uint16_t k = a; k < b; ++k) {
             bool ki = ((hi >> k) & 1u) != 0;
             if (ki != seg_inv) {
                 set_inverted(seg_inv);
-                write_chars(&cf[seg], (uint16_t)(k - seg));
+                written += write_chars(&cf[seg], (uint16_t)(k - seg));
                 seg = k; seg_inv = ki;
             }
         }
         set_inverted(seg_inv);
-        write_chars(&cf[seg], (uint16_t)(b - seg));
+        written += write_chars(&cf[seg], (uint16_t)(b - seg));
+        return written;   // contiguous leading cells that reached the wire
     }
 
     bool AnsiTerminal::update_status_metrics(bool restore_cursor) {
@@ -586,8 +589,11 @@ namespace Botanik { namespace Terminal {
                    ((j >= 4 && j <= 6) || (j >= 12 && j <= 15) || (j >= 21 && j <= 24)) == value) ++j;
             // Only emit a run if it fully fits (move + invert + chars); otherwise
             // stop and retry next refresh, leaving the unwritten cells' cache stale.
+            // Reserve the true worst case: cursor move (~9) + up to two SGR flips
+            // (~4 each) + the run. The return-written check below is the real safety
+            // net, but a tight reserve avoids starting a doomed emit.
             uint16_t run = (uint16_t)(j - i);
-            if (tx_available() < (uint16_t)(run + 16)) { complete = false; break; }
+            if (tx_available() < (uint16_t)(run + 18)) { complete = false; break; }
             // Hide the cursor before the first status-bar write so it doesn't blink
             // across row 0 while the metrics paint; restored below (no-op if already
             // hidden, e.g. on a non-shell page).
@@ -595,9 +601,12 @@ namespace Botanik { namespace Terminal {
             touched = true;
             // Whole run is uniformly value (normal) or not (inverted): pass an all-set
             // or all-clear highlight mask so emit_field_run draws it in one segment.
-            emit_field_run(0, metrics_col, metrics, (uint16_t)i, (uint16_t)j,
-                           value ? 0u : ~0u);
-            memcpy(_status_metrics_cache + i, metrics + i, (size_t)run);
+            uint16_t wrote = emit_field_run(0, metrics_col, metrics, (uint16_t)i, (uint16_t)j,
+                                            value ? 0u : ~0u);
+            // Cache only the cells that reached the wire; if the run truncated, stop
+            // and leave the rest stale so the next refresh repaints them.
+            memcpy(_status_metrics_cache + i, metrics + i, (size_t)wrote);
+            if (wrote < run) { complete = false; break; }
             i = j;
         }
 
@@ -644,8 +653,9 @@ namespace Botanik { namespace Terminal {
             uint16_t j = (uint16_t)(i + 1);
             while (j < STATUS_CLOCK_LEN && clk[j] != _status_clock_cache[j]) ++j;
             touched = true;
-            emit_field_run(0, clock_col, clk, i, j, 0u);   // hi = 0 -> normal video
-            memcpy(_status_clock_cache + i, clk + i, (size_t)(j - i));
+            uint16_t wrote = emit_field_run(0, clock_col, clk, i, j, 0u);   // hi = 0 -> normal video
+            memcpy(_status_clock_cache + i, clk + i, (size_t)wrote);        // cache only what was drawn
+            if (wrote < (uint16_t)(j - i)) break;                           // truncated: retry next refresh
             i = j;
         }
 

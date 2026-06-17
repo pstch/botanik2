@@ -187,8 +187,9 @@ namespace Botanik { namespace Terminal {
          *  @param buf Buffer to write
          *  @param len Number of characters to write
          *  @param insert If true, use insertion mode (shifts existing text right)
-         */
-        void write_chars(const char *buf, uint16_t len, bool insert = false);
+         *  @return Number of characters that actually reached the wire (< len when
+         *          the TX ring filled), so callers can cache only what was drawn. */
+        uint16_t write_chars(const char *buf, uint16_t len, bool insert = false);
 
         /** @brief Set or clear the reverse-video (inverted) attribute */
         void set_inverted(bool enable);
@@ -206,9 +207,12 @@ namespace Botanik { namespace Terminal {
          *  (bit k set = column k drawn inverted). The shared "cursor move + lazy SGR
          *  segmenting + write" run-emit used by both the status bar and MetricPage; the
          *  caller owns diffing, run-coalescing, budgeting, the value cache, and any
-         *  inverted-state restore afterwards. */
-        void emit_field_run(uint16_t row, uint16_t col, const char* cf,
-                            uint16_t a, uint16_t b, uint32_t hi);
+         *  inverted-state restore afterwards.
+         *  @return Number of leading cells of the run that actually reached the wire
+         *          (< b-a if the TX ring filled mid-run), so the caller caches only
+         *          what was drawn. */
+        uint16_t emit_field_run(uint16_t row, uint16_t col, const char* cf,
+                                uint16_t a, uint16_t b, uint32_t hi);
 
         /** @} */
 

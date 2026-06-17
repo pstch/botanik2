@@ -189,19 +189,19 @@ screen, classes stay small, short client-readable comments.
 
 ## Block 3 - Terminal / pages
 
-- [ ] `[STATUS-CACHE]` Don't mark status-bar cells drawn on a truncated write.
-  `emit_field_run` should return cells actually written (from `write_chars`);
-  `update_status_metrics` (`terminal.cpp:600`) and `update_status_clock`
-  (`terminal.cpp:640`) cache only that many. Tighten the `run + 16` reserve to
-  the true worst case (`move + SGR + run`). (Latent today: TX gates mean full
-  writes except if the remote hangs - fix anyway.)
+- [x] `[STATUS-CACHE]` Don't mark status-bar cells drawn on a truncated write.
+  DONE: `write_chars` now returns bytes-on-wire and `emit_field_run` returns the
+  contiguous cells written; `update_status_metrics` and `update_status_clock`
+  cache only that many and stop (leaving the rest stale to repaint next refresh)
+  on a short write. Reserve tightened `run + 16` -> `run + 18`. Verified: status
+  bar (clock + metrics) renders/updates correctly in the sim.
 
-- [ ] `[CSI-SAT]` Saturate CSI numeric param accumulation instead of wrapping
-  `uint16_t` (`parser.cpp:148`).
+- [x] `[CSI-SAT]` Saturate CSI numeric param accumulation instead of wrapping
+  `uint16_t`. DONE: accumulate in a `uint32_t` and clamp to `0xFFFF` (`parser.cpp`).
 
-- [ ] `[HEADER-96]` Add `Config::TERMINAL_MAX_COLS` (default 256) and chunk the
-  reverse-video fill so a terminal wider than the local buffer paints fully
-  (`home.h:104`). Keep the space-fill (not `ESC[K`) for Minitel safety.
+- [x] `[HEADER-96]` DONE: added `Config::TERMINAL_MAX_COLS` (256) as a sanity
+  bound and chunked the reverse-video fill in `draw_log_header` so a terminal
+  wider than the local buffer paints fully. Kept the space-fill (Minitel-safe).
 
 - [ ] `[CTRLC-RESET]` Route Ctrl+C through the page: `handle_cancel()` returns
   `bool`. If a page handled it, stop; if not, `AnsiTerminal` applies the default.
@@ -210,10 +210,10 @@ screen, classes stay small, short client-readable comments.
   unhandled Ctrl+C is a no-op**; on the simulator it stays the
   SIGINT/quit-the-process path.
 
-- [ ] `[WRAP-GUARD]` Guard the narrow-terminal underflows: `store_wrapped`
-  segment budget when `cols <= plen` (`line_buffer.h:71`) and the echo
-  `cap = cols - plen` (`shell.cpp:263`). Clamp `prefix_len`/`cap` to 0 when the
-  terminal is narrower than the prefix.
+- [x] `[WRAP-GUARD]` Guard the narrow-terminal underflows. DONE: `store_wrapped`
+  drops a prefix that can't fit the segment (`prefix_len >= seg_cap -> 0`,
+  `line_buffer.h`); the shell echo clamps `cap` to >= 1 when `cols <= plen`
+  (`shell.cpp`) so it can't underflow and the loop always makes progress.
 
 - [ ] `[FACTOR-INGEST]` Add `Scrollback::ingest(buf, len, cols, prefix,
   prefix_len)` = `store_wrapped` + `note_pending`, and collapse the near-identical
