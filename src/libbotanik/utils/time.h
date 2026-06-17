@@ -28,6 +28,21 @@ namespace Botanik { namespace Utils {
     /** @name Types
      *  @{ */
 
+    /** @brief A 32-bit millisecond timestamp that wraps every ~49 days (e.g. the
+     *  PLC loop clock). Deliberately a distinct type with only wrap-safe elapsed
+     *  subtraction: you can't compare it with a bare `>`, mix it with the
+     *  monotonic 64-bit HAL::uptime_ms(), or do non-wrap-safe `now > then + d`.
+     *  Construct explicitly from the raw counter; read `.ms` for the raw value. */
+    struct Millis32 {
+        uint32_t ms = 0;
+        Millis32() = default;
+        explicit Millis32(uint32_t v) : ms(v) {}
+        /** @brief Wrap-safe elapsed time since the @p earlier stamp (this - earlier). */
+        uint32_t operator-(Millis32 earlier) const { return ms - earlier.ms; }
+        bool operator==(Millis32 o) const { return ms == o.ms; }
+        bool operator!=(Millis32 o) const { return ms != o.ms; }
+    };
+
     /** @brief Calendar time struct, without the idiosyncracies from the standard tm struct
      * and with some additional fields for total days and milliseconds */
     struct CalendarTime {

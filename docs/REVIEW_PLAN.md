@@ -263,10 +263,16 @@ screen, classes stay small, short client-readable comments.
   read `_ctx.scheduler->...` (it already guarded `_ctx.plc`). Sim-validated;
   OPTA-clean (the const edits compiled).
 
-- [ ] `[CLOCKS-STRONGTYPE]` Introduce a lightweight strong-typedef for the
-  wrap-prone 32-bit PLC timestamp whose only legal operation is wrap-safe
-  subtraction, so it can't be mixed with the monotonic 64-bit uptime. Forced by
-  the PLC interface (it only gives us 32-bit timestamps).
+- [x] `[CLOCKS-STRONGTYPE]` DONE: added `Utils::Millis32` (`utils/time.h`) - a
+  32-bit ms stamp whose only operation is wrap-safe `operator-` (elapsed) plus
+  `==`/`!=`, with an explicit ctor and `.ms` accessor, so it can't be compared
+  with a bare `>`, mixed with the monotonic 64-bit `uptime_ms()`, or subtracted
+  non-wrap-safely. Scoped to the PLC-sync timing (`PlcSyncContext._tx_last_ms`,
+  handler `_tx_commit_ms`), reading the shared `uint32_t` clock via a `_now()`
+  helper at the boundary - the most timing-critical code, kept contained (the
+  sim-only emulator and the parser keep raw `uint32_t`, documented by
+  `[TS-DOC]`). Verified: sim builds, 25 tests pass, link establishes with no
+  spurious timeout/fault; OPTA-clean.
 
 - [x] `[WALLCLOCK-SET]` DONE: `HAL::wall_clock_set(uint64_t unix_ms)` added -
   no-op on the simulator, a TODO RTC-write stub on OPTA - so the future NTP

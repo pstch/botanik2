@@ -17,6 +17,7 @@
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/plcio/vars.h"
 #include "libbotanik/logs/logger.h"
+#include "libbotanik/utils/time.h"
 
 namespace Botanik { namespace PlcIO {
 
@@ -68,8 +69,8 @@ namespace Botanik { namespace PlcIO {
         PlcInputLogs_t   _tx_logs_buffer = {};
         /** @brief Shared loop timestamp (ms), published by the scheduler; read-only. */
         const uint32_t*  _timestamp_ms   = nullptr;
-        /** @brief Time of the last acknowledged TX. */
-        uint32_t         _tx_last_ms     = 0;
+        /** @brief Time of the last acknowledged TX (wrap-safe loop-clock stamp). */
+        Utils::Millis32  _tx_last_ms;
         /** @brief Elapsed threshold (ms) before PLC_TIMEOUT is reported. */
         uint32_t         _timeout_ms     = Config::PLC_TIMEOUT_MS;
         /** @brief Elapsed threshold (ms) before PLC_FAULT is reported. */
@@ -80,6 +81,9 @@ namespace Botanik { namespace PlcIO {
         Logs::Logger*    _logger         = nullptr;
         /** @brief Last reported status, for change detection. */
         PlcStatus        _last_status    = PLC_UNKNOWN;
+
+        /** @brief The shared loop clock as a wrap-safe Millis32 stamp. */
+        Utils::Millis32  _now() const { return Utils::Millis32(*_timestamp_ms); }
 
         /** @} */
 
@@ -96,7 +100,7 @@ namespace Botanik { namespace PlcIO {
 
         /** @brief Current PLC link status derived from the ack timing. */
         PlcStatus status() const {
-            uint32_t elapsed = *_timestamp_ms - _tx_last_ms;
+            uint32_t elapsed = _now() - _tx_last_ms;
             if (!_ever_ackd)             return PLC_UNKNOWN;
             if (elapsed > _watchdog_ms)  return PLC_FAULT;
             if (elapsed > _timeout_ms)   return PLC_TIMEOUT;
@@ -165,7 +169,7 @@ namespace Botanik { namespace PlcIO {
         /** @brief Heartbeat/commit interval (ms). */
         uint32_t               _heartbeat_ms  = Config::PLC_HEARTBEAT_MS;
         /** @brief Last commit/heartbeat pulse (for re-commit on stall). */
-        uint32_t               _tx_commit_ms  = 0;
+        Utils::Millis32        _tx_commit_ms;
         /** @brief PLC input memory (write-only). */
         PlcInput<InputData>*   _plcin;
         /** @brief PLC output memory (read-only). */
@@ -198,8 +202,8 @@ namespace Botanik { namespace PlcIO {
             BOTANIK_ASSERT(plcout != nullptr);
             BOTANIK_ASSERT(timestamp_ms != nullptr);
             _ctx._timestamp_ms = timestamp_ms;
-            _ctx._tx_last_ms   = *timestamp_ms;
-            _tx_commit_ms      = *timestamp_ms;
+            _ctx._tx_last_ms   = Utils::Millis32(*timestamp_ms);
+            _tx_commit_ms      = Utils::Millis32(*timestamp_ms);
             _ctx._logger       = logger;
             memset(&_tx_data_buffer, 0, sizeof(InputData));
             memset(&_rx_data_buffer, 0, sizeof(OutputData));
@@ -253,12 +257,12 @@ namespace Botanik { namespace PlcIO {
          *  @{ */
 
         inline bool _rx_new_message()      { return HAL::ordered_read(&_plcout->sync.txSeqNum) != _plcin->sync.txAckNum; }
-        inline bool _tx_heartbeat_elapsed(){ return *_ctx._timestamp_ms - _ctx._tx_last_ms > _heartbeat_ms; }
+        inline bool _tx_heartbeat_elapsed(){ return _ctx._now() - _ctx._tx_last_ms > _heartbeat_ms; }
         // Re-pulse a commit left unacked for a whole heartbeat (TX_WAIT recovery).
-        inline bool _tx_recommit_elapsed() { return *_ctx._timestamp_ms - _tx_commit_ms > _heartbeat_ms; }
+        inline bool _tx_recommit_elapsed() { return _ctx._now() - _tx_commit_ms > _heartbeat_ms; }
         inline bool _tx_acknowledged() {
             bool result = HAL::ordered_read(&_plcout->sync.rxAckNum) == _plcin->sync.rxSeqNum;
-            if (result) { _ctx._tx_last_ms = *_ctx._timestamp_ms; _ctx._ever_ackd = true; }
+            if (result) { _ctx._tx_last_ms = _ctx._now(); _ctx._ever_ackd = true; }
             return result;
         }
 
@@ -289,7 +293,7 @@ namespace Botanik { namespace PlcIO {
         inline void _tx_commit() {
             uint32_t src = _plcin->sync.rxSeqNum + 1;
             HAL::ordered_copy(&_plcin->sync.rxSeqNum, &src);
-            _tx_commit_ms = *_ctx._timestamp_ms;
+            _tx_commit_ms = _ctx._now();
         }
 
         /** @} */
