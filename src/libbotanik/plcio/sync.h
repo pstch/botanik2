@@ -221,6 +221,17 @@ namespace Botanik { namespace PlcIO {
 
         /** @} */
 
+#ifdef TARGET_SIMULATOR
+        /** @name Simulator timeout overrides
+         *  The simulator entry point swaps in time-dilated link timeouts; hardware
+         *  keeps the Config defaults.
+         *  @{ */
+        void set_heartbeat_ms(uint32_t ms) { _heartbeat_ms     = ms; }
+        void set_timeout_ms  (uint32_t ms) { _ctx._timeout_ms  = ms; }
+        void set_watchdog_ms (uint32_t ms) { _ctx._watchdog_ms = ms; }
+        /** @} */
+#endif
+
     private:
         /** @name Transition triggers
          *  @{ */

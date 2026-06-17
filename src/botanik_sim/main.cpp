@@ -287,6 +287,10 @@ int main(int argc, char** argv) {
     // PLC sync layer (handler + log reader on main thread)
     using SyncHandler = PlcIO::PlcSyncHandler<PlcInputData_t, PlcOutputData_t>;
     SyncHandler         plc_handler(&shared_in, &shared_out, timestamp_ms, &logger);
+    // Dilate the link timeouts, mirrored by the emulator side in its thread.
+    plc_handler.set_heartbeat_ms(plc_dilated_timeout(Config::PLC_HEARTBEAT_MS));
+    plc_handler.set_timeout_ms  (plc_dilated_timeout(Config::PLC_TIMEOUT_MS));
+    plc_handler.set_watchdog_ms (plc_dilated_timeout(Config::PLC_WATCHDOG_MS));
     PlcIO::PlcLogReader plc_log_reader(plc_handler.context(), &logger);
 
     // Terminal UI - bundle the subsystem status contexts the terminal reads.

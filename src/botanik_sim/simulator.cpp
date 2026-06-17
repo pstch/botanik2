@@ -9,7 +9,18 @@
 #include "botanik_sim/simulator.h"
 #include "libbotanik.h"   // PlcIO::start_emulator_thread, PlcInput/PlcOutput, Logs::Logger
 
+#include <cmath>    // pow - PLC timeout dilation
 #include <random>   // drives the rare perturbations that animate the mock data
+
+// base * S^1.5 by the time-dilation factor S; see simulator.h. Cap keeps the
+// link's 32-bit elapsed compares rollover-safe.
+uint32_t plc_dilated_timeout(uint32_t base_ms) {
+    uint32_t s = Botanik::HAL::_time_scale();
+    if (s <= 1) return base_ms;
+    double scaled = (double)base_ms * std::pow((double)s, 1.5);
+    const double cap = 2147483647.0;  // < 2^31
+    return scaled >= cap ? (uint32_t)cap : (uint32_t)scaled;
+}
 
 namespace {
 

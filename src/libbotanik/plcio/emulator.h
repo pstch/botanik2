@@ -9,7 +9,6 @@
 
 #include <cstdint>
 #include <cstring>
-#include <cmath>
 
 #include "libbotanik_config.h"
 #include "libbotanik/hal/platform.h"
@@ -20,26 +19,12 @@
 #include <unistd.h>
 #include <pthread.h>
 #include "libbotanik/scheduler/scheduler.h"  // make_thread_realtime for the emulator thread
+
+/// Time-dilates a PLC link timeout; defined in botanik_sim (simulator.cpp).
+uint32_t plc_dilated_timeout(uint32_t base_ms);
 #endif
 
 namespace Botanik { namespace PlcIO {
-
-    /** @brief Grow a base PLC link timeout by the sim time-dilation factor S as
-     *  base * S^1.5, so jitter (which dilation amplifies ~linearly in S) can't
-     *  false-trip the link; the real-time budget then scales with sqrt(S). Clamped
-     *  below 2^31 to keep the 32-bit rollover-safe elapsed compares valid. No-op
-     *  off the simulator: S is 1, hardware never dilates. */
-    inline uint32_t plc_dilated_timeout(uint32_t base_ms) {
-#ifdef TARGET_SIMULATOR
-        uint32_t s = HAL::_time_scale();
-        if (s <= 1) return base_ms;
-        double scaled = (double)base_ms * (double)s * std::sqrt((double)s);
-        const double cap = 2147483647.0;  // < 2^31
-        return scaled >= cap ? (uint32_t)cap : (uint32_t)scaled;
-#else
-        return base_ms;
-#endif
-    }
 
     /** @brief Non-template context (mirror of PlcSyncContext) for the emulator side. */
     struct PlcEmulatorContext {
@@ -58,6 +43,10 @@ namespace Botanik { namespace PlcIO {
         uint32_t*        _timestamp_ms   = nullptr;
         /** @brief Time of the last acknowledged TX. */
         uint32_t         _tx_last_ms     = 0;
+        /** @brief Elapsed threshold (ms) before PLC_TIMEOUT is reported. */
+        uint32_t         _timeout_ms     = Config::PLC_TIMEOUT_MS;
+        /** @brief Elapsed threshold (ms) before PLC_FAULT is reported. */
+        uint32_t         _watchdog_ms    = Config::PLC_WATCHDOG_MS;
         /** @brief True once any TX has ever been acknowledged. */
         bool             _ever_ackd      = false;
 
@@ -76,13 +65,11 @@ namespace Botanik { namespace PlcIO {
 
         /** @brief Current PLC link status derived from the ack timing. */
         PlcStatus status() const {
-            uint32_t elapsed  = *_timestamp_ms - _tx_last_ms;
-            uint32_t watchdog = plc_dilated_timeout(Config::PLC_WATCHDOG_MS);
-            uint32_t timeout  = plc_dilated_timeout(Config::PLC_TIMEOUT_MS);
-            if (!_ever_ackd)         return PLC_UNKNOWN;
-            if (elapsed > watchdog)  return PLC_FAULT;
-            if (elapsed > timeout)   return PLC_TIMEOUT;
-                                     return PLC_RUNNING;
+            uint32_t elapsed = *_timestamp_ms - _tx_last_ms;
+            if (!_ever_ackd)             return PLC_UNKNOWN;
+            if (elapsed > _watchdog_ms)  return PLC_FAULT;
+            if (elapsed > _timeout_ms)   return PLC_TIMEOUT;
+                                         return PLC_RUNNING;
         }
 
         /** @} */
@@ -131,7 +118,6 @@ namespace Botanik { namespace PlcIO {
         {
             _ctx._timestamp_ms = timestamp_ms;
             _ctx._tx_last_ms   = *timestamp_ms;
-            _heartbeat_ms      = plc_dilated_timeout(Config::PLC_HEARTBEAT_MS);
             memset(&_rx_data_buffer, 0, sizeof(InputData));
             memset(&_tx_data_buffer, 0, sizeof(OutputData));
         }
@@ -159,6 +145,14 @@ namespace Botanik { namespace PlcIO {
             _tx_state = _tx_step();
         }
 
+        /** @} */
+
+        /** @name Simulator timeout overrides
+         *  Set by the emulator thread to the time-dilated link timeouts.
+         *  @{ */
+        void set_heartbeat_ms(uint32_t ms) { _heartbeat_ms     = ms; }
+        void set_timeout_ms  (uint32_t ms) { _ctx._timeout_ms  = ms; }
+        void set_watchdog_ms (uint32_t ms) { _ctx._watchdog_ms = ms; }
         /** @} */
 
     private:
@@ -307,6 +301,10 @@ namespace Botanik { namespace PlcIO {
         uint32_t emu_timestamp_ms = 0;
         PlcEmulator<InputData, OutputData> plc_emulator(
             args->shared_in, args->shared_out, &emu_timestamp_ms);
+        // Dilate the link timeouts, mirroring the host handler (main.cpp).
+        plc_emulator.set_heartbeat_ms(plc_dilated_timeout(Config::PLC_HEARTBEAT_MS));
+        plc_emulator.set_timeout_ms  (plc_dilated_timeout(Config::PLC_TIMEOUT_MS));
+        plc_emulator.set_watchdog_ms (plc_dilated_timeout(Config::PLC_WATCHDOG_MS));
         PlcLogWriter plc_log_writer(plc_emulator.context(), &emu_timestamp_ms);
 
         uint32_t emu_tick = 0;
