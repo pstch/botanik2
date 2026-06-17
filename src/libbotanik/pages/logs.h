@@ -17,11 +17,10 @@ namespace Botanik { namespace Pages {
     /**
      * @brief Full-screen log viewer page.
      *
-     * Implements LogWriter so it can be registered with a Logger.
-     * Header occupies row 0; rows 1..rows-1 scroll as a live log tail.
-     * Incoming entries are queued by BufferedLogWriter and drained on each
-     * tick().  Historical entries are replayed from a circular scrollback
-     * buffer whenever the page is (re)focused.
+     * Implements LogWriter so it can be registered with a Logger. Row 0 is the
+     * status bar; rows 1..rows-1 scroll as a live log tail. Incoming entries are
+     * queued by BufferedLogWriter and drained on tick(); history is replayed from a
+     * circular scrollback on (re)focus.
      */
     class LogsPage : public Page, public Logs::BufferedLogWriter {
     private:
@@ -36,9 +35,8 @@ namespace Botanik { namespace Pages {
         AnsiTerminal& _terminal;
         /** @brief Circular log line buffer + throttled redraw for page-switch replay. */
         LogsScrollback _scrollback;
-        /** @brief Mirrors the latest tick(active) argument so write() - reached
-         *  indirectly via drain() - knows whether it may paint. False while in the
-         *  background. */
+        /** @brief Mirrors the latest tick(active) so write() (reached via drain())
+         *  knows whether it may paint. False in the background. */
         bool _active = false;
 
         /** @} */

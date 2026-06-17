@@ -60,9 +60,8 @@ namespace Botanik { namespace Terminal {
         // Event fields
         EventType   type = EventType::NONE;
         Command     command = Command::NONE;
-        // For COMMAND events that have been chunked (consecutive identical
-        // BACKSPACE / CTRL_D presses while output backpressure held the
-        // emit window). Default 1 = run the command once.
+        // Repeat count for chunked COMMAND events (held BACKSPACE / CTRL_D
+        // coalesced under backpressure). Default 1 = run once.
         uint16_t    count = 1;
         // For CONTENT batches
         const char* batch_data = nullptr;
@@ -119,9 +118,8 @@ namespace Botanik { namespace Terminal {
         /** @brief When the current text batch started accumulating. */
         uint32_t        _batch_start_ms = 0;
 
-        /** @brief Pending chunkable command (BACKSPACE / CTRL_D held down).
-         *  Coalesced into one COMMAND event with `count` so a held key
-         *  becomes one reconcile pass instead of N. */
+        /** @brief Pending chunkable command (held BACKSPACE / CTRL_D), coalesced
+         *  into one COMMAND event with `count` instead of N reconcile passes. */
         InputEvent::Command _pending_cmd = InputEvent::Command::NONE;
         /** @brief Number of coalesced presses staged in _pending_cmd. */
         uint16_t            _pending_cmd_count = 0;

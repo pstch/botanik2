@@ -6,16 +6,13 @@
  * @brief StatusPage - full-screen runtime status display (template base).
  *
  * Templated on the site PLC output payload so derived pages get type-safe access
- * to it via data(). The base renders the generic, payload-independent system
- * health drawn from the terminal's SystemContext and serial state - a left column
- * (PLC link, wall clock, CPU load, stack usage, serial buffers) and a right
- * runtime-stats column (uptime, overruns, scheduling jitter); derived classes
- * fill the rest by overriding the payload hooks.
+ * via data(). The base renders payload-independent system health: a left column
+ * (PLC link, wall clock, CPU, serial buffers) and a right runtime-stats column
+ * (uptime, overruns, jitter, stack); derived classes fill the rest via the
+ * payload hooks.
  *
- * Drawing is split (and diffed) by MetricPage: labels/headers in draw_static()
- * (once on focus), values in draw_dynamic() (periodically, only changed cells).
- * Row 1 is left blank (separator), rows 2..6 belong to the base; derived payload
- * content starts at PAYLOAD_ROW.
+ * Drawing is diffed by MetricPage. Row 1 is a blank separator, rows 2..6 belong
+ * to the base; derived content starts at PAYLOAD_ROW.
  */
 
 #include <cstdint>
@@ -45,11 +42,10 @@ namespace Botanik { namespace Pages {
         /** @brief First content row available to derived payload rendering. */
         static constexpr uint16_t PAYLOAD_ROW = 8;
 
-        /** @brief System-band two-column geometry (80-col display) under the single
-         *  full-width header. Left column: labels at col 2, values at L_VAL. Right
-         *  column: scheduler/runtime stats, labels at R_LBL and values at R_VAL.
-         *  Right-column cache slots sit above the payload range (PAYLOAD_ROW..) so a
-         *  derived page's _cell() slots never collide with them. */
+        /** @brief System-band two-column geometry (80-col display). Left labels at
+         *  col 2 / values at L_VAL; right labels at R_LBL / values at R_VAL. Right
+         *  cache slots sit above the payload range so derived _cell() slots can't
+         *  collide. */
         static constexpr uint16_t L_VAL = 16, L_W = 24;             // left values:  cols 16..39
         static constexpr uint16_t R_LBL = 42, R_VAL = 54, R_W = 23; // right: labels 42.., values 54..76
         static constexpr uint16_t R_SLOT0 = 28;                     // right-column slots: 28..31
@@ -105,10 +101,8 @@ namespace Botanik { namespace Pages {
             draw_payload_dynamic();
         }
 
-        /** @brief Hot fields: the wall clock and uptime both carry a seconds digit,
-         *  so they tick once per second (see MetricPage::tick()). Drawn
-         *  un-highlighted - they change every tick, so the change highlight would only
-         *  re-emit settled subfields each second (see _field()). */
+        /** @brief Hot fields: wall clock and uptime both tick once per second (see
+         *  MetricPage::tick()). Drawn un-highlighted since they change every tick. */
         void draw_hot() override {
             char buf[40];
             // Wall clock: current UTC time, down to the second.

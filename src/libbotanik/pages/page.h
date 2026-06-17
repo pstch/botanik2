@@ -37,11 +37,8 @@ namespace Botanik { namespace Pages {
         }
         /** @brief Handle a decoded control command from the user.
          *
-         * `count` is > 1 only for chunkable commands (BACKSPACE / CTRL_D)
-         * that the parser coalesced while output backpressure held the
-         * flush window. Implementations should apply the command N times
-         * in a single pass when possible (one reconcile, not N).
-         */
+         * `count` is > 1 only for chunkable commands (BACKSPACE / CTRL_D) the parser
+         * coalesced under backpressure; apply them in one pass when possible. */
         virtual void handle_command(Command cmd, uint16_t count = 1) = 0;
 
         /** @} */
@@ -57,10 +54,9 @@ namespace Botanik { namespace Pages {
         virtual void redraw() { focus(); }
         /** @brief Called every main-loop tick to update display and state.
          *
-         * Invoked for *every* page on every step, not just the active one, so a
-         * page can drain its queued log entries into its own scrollback even while
-         * in the background. @p active is true only for the page that currently
-         * owns the screen; inactive pages must not emit any terminal output. */
+         * Invoked for *every* page each step (not just the active one) so a page can
+         * drain queued logs into its scrollback in the background. @p active is true
+         * only for the page that owns the screen; inactive pages emit no output. */
         virtual void tick(bool active) = 0;
 
         /** @} */

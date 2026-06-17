@@ -74,10 +74,9 @@ namespace Botanik { namespace Terminal {
         _text_len = 0;
     }
 
-    // Store one text byte, flushing immediately if it fills the batch. Returns the
-    // next state: IDLE on a flush (batch emitted), TEXT otherwise. Checking right
-    // after the store keeps a full batch from ever overflowing _text_buf, including
-    // the degenerate ANSI_INPUT_BATCH_SIZE == 1 case (a single byte fills it).
+    // Store one text byte, flushing if it fills the batch. Returns IDLE on a flush,
+    // TEXT otherwise. Checking after the store keeps the batch from overflowing
+    // _text_buf, including the degenerate ANSI_INPUT_BATCH_SIZE == 1 case.
     InputParser::State InputParser::_append_text(uint8_t b) {
         _store_text(b);
         if (_text_len == Config::ANSI_INPUT_BATCH_SIZE) {
@@ -91,10 +90,9 @@ namespace Botanik { namespace Terminal {
     // ------------------------------------------------------------------------
 
     bool InputParser::_backpressure_holds(uint32_t start_ms) const {
-        // Hold a pending batch (text or a coalesced command) while the TX ring
-        // is still draining, so per-byte flushes collapse into one cheaper
-        // reconcile. The safety timeout - measured from when the batch started,
-        // not the last byte - breaks the deadlock if the TX never drains.
+        // Hold a pending batch while the TX ring drains, so per-byte flushes
+        // collapse into one reconcile. The timeout (from batch start, not last byte)
+        // breaks the deadlock if TX never drains.
         if (_serial.tx_empty()) return false;
         return (*_timestamp_ms - start_ms) < Config::ANSI_INPUT_BATCH_TIMEOUT_MS;
     }
@@ -292,15 +290,12 @@ namespace Botanik { namespace Terminal {
     InputEvent& InputParser::parse() {
         _reset_event();
         uint8_t b;
-        // Drain available bytes through the state machine until something
-        // worth returning happens. Storing a TEXT byte produces no event on
-        // its own - looping here lets a burst accumulate into the batch
-        // before the caller sees a flush event, instead of leaving after
-        // each stored byte and only flushing when the idle window elapses.
+        // Drain available bytes through the state machine until something worth
+        // returning happens. A stored TEXT byte produces no event on its own, so
+        // looping lets a burst accumulate into one batch before the caller sees it.
         while (true) {
-            // No byte available: decide whether to time out an in-flight
-            // sequence, flush a pending chunked command, or flush the
-            // pending text batch on idle.
+            // No byte available: time out an in-flight sequence, or flush a pending
+            // command / text batch on idle.
             if (!_serial.peek(&b)) {
                 if (_should_flush_pending_command()) {
                     _emit_pending_command();
@@ -323,10 +318,9 @@ namespace Botanik { namespace Terminal {
                 }
                 return _event;
             }
-            // Pending chunkable command: only consume the byte if it's the
-            // same trigger (in which case we coalesce). Anything else
-            // forces an immediate emit of the pending event; the byte
-            // stays in the serial buffer for the next parse() call.
+            // Pending chunkable command: consume the byte only if it's the same
+            // trigger (coalesce). Anything else emits the pending event now and
+            // leaves the byte for the next parse().
             if (_pending_cmd != Command::NONE) {
                 if (_state == State::IDLE && _is_chunkable_trigger(b) &&
                     _chunkable_command_for(b) == _pending_cmd) {
@@ -345,10 +339,8 @@ namespace Botanik { namespace Terminal {
                 _state = State::IDLE;
                 return _event;
             }
-            // Chunkable command trigger in IDLE state: consume + stage.
-            // The byte never reaches the state machine - chunking happens
-            // entirely at this layer so the rest of the parser stays
-            // single-byte-at-a-time.
+            // Chunkable trigger in IDLE: consume + stage. The byte never reaches the
+            // state machine - chunking lives here so the parser stays single-byte.
             if (_state == State::IDLE && _is_chunkable_trigger(b)) {
                 _serial.read((char*)&b, 1);
                 _last_byte_ms = *_timestamp_ms;

@@ -98,10 +98,9 @@ namespace Botanik { namespace Terminal {
         static constexpr uint16_t    STATUS_METRICS_LEN = 27;
         /** @brief Diff cache of the last drawn metrics (zero-init forces first draw). */
         char                         _status_metrics_cache[STATUS_METRICS_LEN] = {};
-        /** @brief Free TX bytes required before a metrics refresh runs. A typical pass
-         *  rewrites only the few changed digits (well under this); write() truncates
-         *  silently when full, so the refresh is deferred unless this much room is
-         *  free - a half-emitted escape sequence would corrupt the status bar. */
+        /** @brief Free TX bytes required before a metrics refresh runs. write()
+         *  truncates silently when full, so the refresh defers unless this much is
+         *  free - a half-emitted escape would corrupt the status bar. */
         static constexpr uint16_t    STATUS_METRICS_TX_BUDGET = 64;
 
         /** @} */
@@ -118,16 +117,11 @@ namespace Botanik { namespace Terminal {
         void step();
 
         /** @brief Select and initialize the target terminal type. Call once, before
-         *  the first switch_to()/render. Emits only the type's one-time handshake; the
-         *  screen clear is deferred to the first step() so it lands *after* this
-         *  handshake (a Minitel needs its PRO2 bytes while still in its native command
-         *  set), in the order clear -> "ACAB" marker -> contents.
-         *  - setup_minitel(): 80-col téléinformatique mode, lowercase keyboard, and
-         *    page mode over the DIN link (PRO2, sent before the ANSI clear while the
-         *    unit is still in its native command set). DECAWM ?7l is also sent (on the
-         *    first-step establish) as a harmless hedge in case the unit honors it.
-         *  - setup_vt102():   plain VT100/VT102; DECAWM (?7l) (re)asserted on every
-         *    screen establish. The default if neither is called. */
+         *  the first render. Emits only the type's one-time handshake; the screen
+         *  clear is deferred to the first step() so it lands after this handshake.
+         *  - setup_minitel(): 80-col teleinformatique mode, lowercase keyboard, page
+         *    mode over the DIN link (PRO2, sent while the unit is still native).
+         *  - setup_vt102(): plain VT100/VT102. The default if neither is called. */
         void setup_minitel();
         void setup_vt102();
 
@@ -227,17 +221,13 @@ namespace Botanik { namespace Terminal {
         void draw_status_row();
 
         /** @brief Redraw a single page tab in its current active/inactive video.
-         *
-         *  Repaints only " NAME " for page @p index at its fixed column, picking
-         *  reverse or normal video from whether it is the active page. Used by
-         *  switch_to() to flip just the two tabs that change on a page switch
+         *  Used by switch_to() to flip just the two tabs that change on a switch
          *  instead of rebuilding the whole bar. */
         void draw_status_tab(uint8_t index);
 
         /** @brief Refresh only the metrics portion of the status bar (skips if
-         *  unchanged). @p restore_cursor returns the cursor to where it started, for
-         *  standalone periodic refreshes; draw_status_row passes false since it is
-         *  mid-rebuild and its caller repositions absolutely. */
+         *  unchanged). @p restore_cursor returns the cursor where it started, for
+         *  periodic refreshes; draw_status_row passes false (it repositions itself). */
         void update_status_metrics(bool restore_cursor = true);
 
         /** @} */
@@ -284,9 +274,9 @@ namespace Botanik { namespace Terminal {
          *  caller does). Shared by clear_screen() and setup_*(). */
         void _establish_screen();
 
-        /** @brief Render the right-side status field into @p buf; returns its length
-         *  (clamped to >= 0). The width is fixed, so a byte index maps to a fixed
-         *  screen column - relied on by update_status_metrics()'s per-cell diff. */
+        /** @brief Render the right-side status field into @p buf; returns its length.
+         *  The width is fixed, so a byte index maps to a fixed column (relied on by
+         *  update_status_metrics()'s per-cell diff). */
         int _build_metrics(char* buf, size_t cap) const;
 
         /** @} */

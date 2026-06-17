@@ -7,17 +7,13 @@
  *        system summary, and a small live log tail along the bottom.
  *
  * Templated on the site PLC output payload so derived pages get type-safe access
- * to it via data(). The base lays out the logo and the payload-independent
- * summary (PLC link, uptime) from the terminal's SystemContext; derived classes
- * add site-specific readings by overriding the payload hooks. Drawing is split
- * and diffed by MetricPage. Row 0 is the terminal status bar.
+ * via data(). The base lays out the logo and the payload-independent summary (PLC
+ * link, uptime); derived classes add site readings via the payload hooks. Drawing
+ * is diffed by MetricPage; row 0 is the status bar.
  *
- * It is also a LogWriter: the bottom @ref Botanik::Config::HOME_SCROLLBACK_LINES
- * rows show the most recent log lines, replayed from a small
- * @ref Botanik::Pages::HomeScrollback. There is
- * no scroll-up - it is a live tail, not the full Logs page. begin_redraw() over
- * the whole content area bottom-aligns the (few) lines against the screen bottom,
- * so the band needs no bespoke rendering.
+ * It is also a LogWriter: the bottom HOME_SCROLLBACK_LINES rows show a live tail
+ * (no scroll-up), replayed from a small HomeScrollback. begin_redraw() over the
+ * whole content area bottom-aligns the lines, so the band needs no bespoke render.
  */
 
 #include <cstdint>
@@ -82,10 +78,8 @@ namespace Botanik { namespace Pages {
             }
         }
 
-        /** @brief Draw the divider above the bottom log band: a full-width
-         *  reverse-video bar, three blank columns then a normal-video " LOGS " tab,
-         *  with the rest of the line filled in reverse video. Static (drawn once on
-         *  focus, after the screen is cleared). */
+        /** @brief Draw the divider above the bottom log band: a reverse-video bar
+         *  with a normal-video " LOGS " tab near the left. Static (drawn once). */
         void draw_log_header(uint16_t row) {
             if (row >= _terminal.rows()) return;
             uint16_t cols = _terminal.cols();
@@ -134,8 +128,7 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Uptime counter - hot field, refreshed once per second. Drawn
-         *  un-highlighted: it ticks every second, so the change highlight would only
-         *  re-emit settled subfields each tick (see _field()). */
+         *  un-highlighted since it changes every tick (see _field()). */
         void draw_hot() override {
             char buf[40];
             fmt_uptime(buf, sizeof(buf), HAL::uptime_ms());
@@ -168,9 +161,8 @@ namespace Botanik { namespace Pages {
         void focus() override {
             MetricPage::focus();                 // logo, readings, divider
             _log_active = true;
-            // Stage the bottom band; drained incrementally by tick(). Spanning the
-            // whole content area bottom-aligns the (<= HOME_SCROLLBACK_LINES) lines
-            // against the last row.
+            // Stage the bottom band (drained by tick()); spanning the whole content
+            // area bottom-aligns the lines against the last row.
             _scrollback.begin_redraw((uint16_t)(_terminal.rows() - 1));
         }
 
@@ -204,9 +196,8 @@ namespace Botanik { namespace Pages {
         }
 
         size_t write(const char* buf, size_t len) override {
-            // In the background: just bank the entry so a later focus() replays an
-            // up-to-date tail. Nothing reaches the screen, so there's no TX
-            // back-pressure to honour - store the whole entry and report it consumed.
+            // Background: just bank the entry for a later focus() replay. Nothing
+            // hits the screen, so there's no TX back-pressure - store it all.
             if (!_log_active) {
                 _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
                     Config::SHELL_LOG_CONT_PREFIX,
@@ -214,9 +205,9 @@ namespace Botanik { namespace Pages {
                 return len;
             }
 
-            // Active: back-pressure first so a burst can't flood the TX buffer.
-            // Returning 0 makes BufferedLogWriter hold the entry and retry on a
-            // later tick - don't store it yet, or the retry would double-bank it.
+            // Active: back-pressure first so a burst can't flood TX. Returning 0
+            // makes BufferedLogWriter retry later; don't store yet, or the retry
+            // would double-bank it.
             if (!_terminal.tx_empty()) return 0;
 
             uint16_t n = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),

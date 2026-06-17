@@ -21,17 +21,14 @@ namespace Botanik { namespace Pages {
     /**
      * @brief Circular scrollback buffer with throttled, incremental redraw.
      *
-     * Layers a deferred, throttled full-screen redraw over a @ref LineBuffer of
-     * @p L lines: it stores the most recent display lines for replay on
-     * redraw/page-switch, and drives a deferred redraw that emits at most
-     * @ref Config::SCROLLBACK_REDRAW_ROWS_PER_TICK rows per drain_redraw() call so
-     * a full replay can never flood the serial TX buffer in one tick.
+     * Layers a deferred, throttled redraw over a @ref LineBuffer of @p L lines: it
+     * stores recent display lines for replay on redraw/page-switch, emitting at most
+     * SCROLLBACK_REDRAW_ROWS_PER_TICK rows per drain_redraw() so a full replay can't
+     * flood TX in one tick.
      *
-     * The visible window is bottom-aligned within rows 1..log_rows; the caller
-     * supplies log_rows since pages differ (LogsPage uses rows-1, ShellPage
-     * reserves rows for the editor). Line storage (store/store_wrapped/line/count)
-     * is inherited from LineBuffer. Templated only on the line count - name it
-     * through @ref ShellScrollback / @ref LogsScrollback rather than directly.
+     * The window is bottom-aligned within rows 1..log_rows (caller-supplied, since
+     * pages differ). Line storage is inherited from LineBuffer. Name it through
+     * @ref ShellScrollback / @ref LogsScrollback rather than directly.
      */
     template<uint16_t L>
     class Scrollback : public LineBuffer<L, Config::SCROLLBACK_LINE_LEN> {
@@ -93,19 +90,16 @@ namespace Botanik { namespace Pages {
          *         early if the TX buffer can't fit another row. No-op when idle. */
         void drain_redraw(AnsiTerminal& terminal) {
             if (_redraw_i == UINT16_MAX) return;
-            // Capture the cursor's resting place once, at the start of the replay,
-            // so we restore it when the replay finishes instead of bouncing back to
-            // it on every tick - each intermediate restore was a wasted absolute
-            // move (straight back to {1,0}) only to leave it again next tick.
+            // Capture the cursor once at the start of the replay, to restore when it
+            // finishes rather than bouncing back every tick.
             if (_redraw_i == 0) _redraw_saved = terminal.cursor_pos();
-            // Emit a small batch per call, stopping early if the TX buffer can't fit
-            // a worst-case row, so the historical redraw can never overrun the serial
-            // TX buffer in a single tick.
+            // Emit a small batch per call, stopping early if a worst-case row won't
+            // fit, so the replay can't overrun TX in one tick.
             for (uint16_t k = 0; k < Config::SCROLLBACK_REDRAW_ROWS_PER_TICK
                                  && _redraw_i != UINT16_MAX; k++) {
                 if (terminal.tx_available() < (uint16_t)(terminal.cols() + 32)) break;
-                // Window row _redraw_i (0 = oldest shown) maps to the line that many
-                // steps up from the newest line of the window.
+                // Window row _redraw_i (0 = oldest shown) maps that many steps up
+                // from the newest line of the window.
                 uint16_t llen = 0;
                 const char* ln = this->line((uint16_t)(_redraw_count - _redraw_i), llen);
                 terminal.move_to({(uint16_t)(_redraw_first_row + _redraw_i), 0});
@@ -116,9 +110,8 @@ namespace Botanik { namespace Pages {
                 terminal.clear_to_eol();
                 if (++_redraw_i >= _redraw_count) _redraw_i = UINT16_MAX;
             }
-            // Only put the cursor back once the whole replay has drained. While it's
-            // still pending the page holds off other output, so leaving the cursor in
-            // the log area between ticks is safe - the next batch repositions absolutely.
+            // Restore the cursor only once the whole replay drained; the page holds
+            // off other output while it's pending, and the next batch repositions absolutely.
             if (_redraw_i == UINT16_MAX) terminal.move_to(_redraw_saved);
         }
 
@@ -128,22 +121,13 @@ namespace Botanik { namespace Pages {
          *  @{ */
 
         /** @brief Scroll the log window (rows @p first_row .. first_row+log_rows-1)
-         *         up by @p n rows and paint the @p n newest stored lines at its
-         *         bottom.
+         *         up by @p n rows and paint the @p n newest stored lines at its bottom.
          *
-         * The shared "delete the oldest rows at the top, insert the new ones at the
-         * bottom" step for every live-tail page. The caller has already banked the
-         * lines (store/store_wrapped) and is responsible for any TX back-pressure
-         * check and for repositioning the cursor afterwards (e.g. ShellPage puts it
-         * back on the editor).
-         *
-         * The window starts at @p first_row, so a page can keep static content above
-         * it untouched: LogsPage/ShellPage anchor it at row 1, while HomePage anchors
-         * it at the top of its bottom log band, leaving the logo and summary above
-         * intact. @p log_rows is the height of the window; rows below it (an editor,
-         * say) are shifted up by the DL and pushed back down by the IL, so they end
-         * up untouched. When the window reaches the bottom margin (nothing below it)
-         * the IL simply re-blanks the slots the DL already cleared. */
+         * The shared "DL the oldest rows at the top, IL the new ones at the bottom"
+         * step for every live-tail page. The caller has already banked the lines and
+         * handles TX back-pressure and cursor repositioning. @p first_row lets a page
+         * keep static content above the window untouched; rows below it are shifted
+         * up by the DL and back down by the IL, so they end up untouched too. */
         void emit_tail(AnsiTerminal& terminal, uint16_t n,
                        uint16_t first_row, uint16_t log_rows) {
             if (log_rows == 0 || n == 0) return;
