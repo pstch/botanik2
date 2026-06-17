@@ -40,10 +40,9 @@ namespace Botanik { namespace Terminal {
         _cols(cols),
         _rows(rows)
     {
-        // Size the cooperative-TX depth gates from the link baud so the felt echo
-        // latency targets (Config::TX_COLD/HOT_TARGET_MS) hold across links.
+        // Size the shared cooperative-TX depth floor from the link baud so the felt echo
+        // latency target (Config::TX_COLD_TARGET_MS) holds across links.
         _tx_cold_depth = depth_for_baud(baud, Config::TX_COLD_TARGET_MS);
-        _tx_hot_depth  = depth_for_baud(baud, Config::TX_HOT_TARGET_MS);
     }
 
     // Step through the terminal handling code
@@ -63,20 +62,30 @@ namespace Botanik { namespace Terminal {
                 _pages[_page_index]->focus();
         }
         uint64_t now = HAL::uptime_ms();
-        if (now - _status_last_ms >= Config::STATUS_REFRESH_MS) {
-            // Advance the refresh clock only once the pass fully synced the on-screen
-            // metrics. If a run could not fit it returns false, leaving _status_last_ms
-            // untouched so the next step() retries rather than waiting out another full
-            // STATUS_REFRESH_MS interval.
-            if (update_status_metrics()) _status_last_ms = now;
-        }
-        // Hot HH:MM:SS clock: a per-second field on the always-visible bar. Only emit
-        // when the ring is near-empty (hot gate) so the time shown is current rather
-        // than queued stale; if congested, hold _status_clock_last_ms and retry next
-        // tick so it catches up the moment the ring drains.
-        if (now - _status_clock_last_ms >= Config::PAGE_HOT_MS && tx_below_hot()) {
-            _status_clock_last_ms = now;
-            update_status_clock();
+        // Status bar paints first each tick (it is self-contained - no page labels to
+        // wait on), so it interleaves with whatever the active page is drawing, including
+        // its static phase. Its two fields (the centred HH:MM:SS clock and the right-
+        // aligned metrics block) share TX_STATUS_FIELDS_PER_TICK and the shared depth
+        // floor; the round-robin cursor rotates which one repaints first so a tight budget
+        // never always favours the clock. A field repaints only on its own cadence, and an
+        // unchanged field emits nothing and spends no budget.
+        uint16_t status_budget = Config::TX_STATUS_FIELDS_PER_TICK;
+        for (uint8_t v = 0; v < 2 && status_budget > 0 && tx_below_cold(); v++) {
+            if (_status_field == 0) {
+                if (now - _status_clock_last_ms >= Config::PAGE_HOT_MS) {
+                    _status_clock_last_ms = now;
+                    if (update_status_clock()) status_budget--;
+                }
+            } else {
+                if (now - _status_last_ms >= Config::STATUS_REFRESH_MS) {
+                    // Advance the refresh clock only once the pass fully synced the
+                    // on-screen metrics; a partial run leaves it for the next tick instead
+                    // of waiting out another full STATUS_REFRESH_MS.
+                    if (update_status_metrics()) _status_last_ms = now;
+                    status_budget--;
+                }
+            }
+            _status_field ^= 1;
         }
         // Handle up to INPUT_EVENTS_PER_TICK events this tick so a paste or fast
         // typing stays responsive without letting a flood monopolise the loop. Light
@@ -581,7 +590,7 @@ namespace Botanik { namespace Terminal {
         return complete;
     }
 
-    void AnsiTerminal::update_status_clock(bool restore_cursor) {
+    bool AnsiTerminal::update_status_clock(bool restore_cursor) {
         // Wall-clock HH:MM:SS (same source as the STATUS page's "Wall Clock" field).
         Utils::CalendarTime wc = Utils::cal_time_ms(HAL::uptime_ms());
         // Oversized scratch so snprintf can't truncation-warn; only the first
@@ -592,18 +601,18 @@ namespace Botanik { namespace Terminal {
 
         // Centre the field; skip on a terminal too narrow to fit it clear of the
         // right-aligned metrics.
-        if (_cols < STATUS_CLOCK_LEN) return;
+        if (_cols < STATUS_CLOCK_LEN) return false;
         uint16_t clock_col   = (uint16_t)((_cols - STATUS_CLOCK_LEN) / 2);
         uint16_t metrics_col = (_cols > (uint16_t)(STATUS_METRICS_LEN - 1))
                                    ? (uint16_t)(_cols - (STATUS_METRICS_LEN - 1)) : 0;
-        if ((uint16_t)(clock_col + STATUS_CLOCK_LEN) > metrics_col) return;
+        if ((uint16_t)(clock_col + STATUS_CLOCK_LEN) > metrics_col) return false;
 
         CursorPos saved_pos = _hw_pos;
         bool      saved_inv = _hw_inverted;
         bool      touched   = false;
 
         // Diff vs the cache and emit changed runs in normal video (hi = 0) so the
-        // digits stand out against the reverse-video bar. Hot-gated by the caller, so
+        // digits stand out against the reverse-video bar. Floor-gated by the caller, so
         // the (tiny) field is guaranteed to fit; no per-run budget check needed.
         uint16_t i = 0;
         while (i < STATUS_CLOCK_LEN) {
@@ -620,6 +629,7 @@ namespace Botanik { namespace Terminal {
             set_inverted(saved_inv);
             if (restore_cursor) move_to(saved_pos);
         }
+        return touched;
     }
 
     // Serial / TX

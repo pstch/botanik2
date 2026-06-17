@@ -199,55 +199,34 @@ namespace Botanik { namespace Config {
      * @{
      */
 
-    /** @brief The cold/hot depth gates are sized in BYTES from the link baud at
-     *  construction (AnsiTerminal), as a target echo latency: depth = baud/10 *
-     *  target_ms/1000 = the bytes that drain in target_ms at the link rate (8N1).
-     *  Expressing the target in time keeps the felt latency constant across links and
-     *  is dilation-invariant (a byte count, independent of any sim time scale): the
-     *  throttle handles wall-clock pacing, these handle how deep the FIFO is allowed
-     *  to get. AnsiTerminal clamps the derived depth to a small floor and below the
-     *  ring capacity. See AnsiTerminal::tx_below_cold()/tx_below_hot(). */
-
-    /** @brief Cold-class target latency (ms): logs, command output, cold metric
-     *  readings, draw_static and the focus replay only emit while the ring holds at
-     *  most this many ms of bytes. ~187 B at 4800 baud, scaling up with baud so the
-     *  latency target stays constant. Too high: typing lags behind a deeper backlog.
-     *  Too low: approaches the hot gate, wire can briefly under-feed. */
-    static constexpr uint32_t TX_COLD_TARGET_MS = 390;
-
-    /** @brief Hot-class target latency (ms): the per-second fields (a clock) only emit
-     *  while the ring will drain within this, i.e. near caught-up, so the value shown
-     *  is current rather than queued stale. ~62 B at 4800 baud. Kept well below the
-     *  cold target so "hot" means "near idle". Hot output is droppable: a skipped tick
-     *  is carried by the next one. */
-    static constexpr uint32_t TX_HOT_TARGET_MS = 130;
+    /** @brief Single paint depth floor, sized in BYTES from the link baud at
+     *  construction (AnsiTerminal): depth = baud/10 * target_ms/1000 = the bytes that
+     *  drain in target_ms at the link rate (8N1). A time target keeps the felt echo
+     *  latency constant across links and is dilation-invariant (a byte count). EVERY
+     *  cooperative paint path (status bar, page hot, page cold, draw_static, replays)
+     *  shares this one floor; fairness between the classes comes from the per-class
+     *  field budgets below and the paint order, not from separate depth gates.
+     *  ~61 B at 4800 baud. See AnsiTerminal::tx_below_cold(). */
+    static constexpr uint32_t TX_COLD_TARGET_MS = 128;
 
     /** @brief Max live log / command rows painted per tick per page, in one batched
-     *  drain_tail emit once the cold gate is open. The effective ceiling is
-     *  min(this, wire capacity), and at low baud the wire is far below this (4800 baud
-     *  ~= 4.4 lines/s), so a larger value buys no throughput - it only deepens the
-     *  per-batch overshoot of the cold gate and worsens echo latency. Keep it at 1 so a
-     *  batch overshoots by a single line; raise only on a fast link if log catch-up
-     *  feels slow. */
+     *  drain_tail emit once the floor is open. The effective ceiling is min(this, wire
+     *  capacity), and at low baud the wire is far below this (4800 baud ~= 4.4 lines/s),
+     *  so a larger value buys no throughput - it only deepens the per-batch overshoot
+     *  of the floor and worsens echo latency. Keep it at 1 so a batch overshoots by a
+     *  single line; raise only on a fast link if log catch-up feels slow. */
     static constexpr uint16_t LOG_ROWS_PER_TICK = 1;
 
-    /** @brief Max cold metric value cells emitted per tick. Too low: a full refresh
-     *  fills in over many ticks and a busy page may never settle before the next
-     *  refresh. Too high: a refresh dumps much of the page at once (latency +
-     *  loop-time spike). With per-cell diffing, steady-state refreshes emit few cells,
-     *  so this mostly bounds repaints and large-change bursts. */
-    static constexpr uint16_t METRIC_FIELDS_PER_TICK = 4;
-
-    /** @brief Max static elements (labels/headers/logo) emitted per tick. Its own
-     *  budget, separate from the cold cap, so the paced draw_static() pass and the
-     *  hot timestamp progress in parallel each tick rather than competing for one
-     *  budget. Larger fills the static layout in fewer ticks. */
-    static constexpr uint16_t STATIC_FIELDS_PER_TICK = 4;
-
-    /** @brief Max hot value cells (clock / uptime / serial) emitted per tick. Its own
-     *  budget so the per-second hot fields all repaint together each tick they fire,
-     *  independent of how much static or cold work the tick also did. */
-    static constexpr uint16_t HOT_FIELDS_PER_TICK = 4;
+    /** @brief Per-tick field budgets for the three cooperative paint classes. Each
+     *  class has its own counter (reset each tick), so they progress in parallel at
+     *  independent rates and one never starves another; they share the depth floor and
+     *  a fixed paint order (status bar, then page hot, then page cold). draw_static()
+     *  uses the cold budget (same slow page-content class; it runs before the cold
+     *  values and a value needs its label first, so they never compete in a tick).
+     *  Unchanged fields are free (the diff emits nothing and spends no budget). */
+    static constexpr uint16_t TX_STATUS_FIELDS_PER_TICK = 2;   // status bar (clock, metrics)
+    static constexpr uint16_t TX_HOT_FIELDS_PER_TICK    = 4;   // page hot (clock/uptime/serial)
+    static constexpr uint16_t TX_COLD_FIELDS_PER_TICK   = 4;   // page cold values + draw_static
 
     /** @brief Max decoded input events handled per tick. Too low: paste / fast typing
      *  / held keys feel sluggish and the RX ring can back up. Too high: a big paste

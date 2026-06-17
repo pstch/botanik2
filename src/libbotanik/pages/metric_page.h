@@ -57,9 +57,10 @@ namespace Botanik { namespace Pages {
          *  A hot field repaints at most once per cycle - by this tick or the global
          *  refresh, never both (see tick()). Cold fields live in draw_dynamic(). */
         uint32_t      _hot_ms          = 0;
-        /** @brief Value cells emitted this tick (reset at the top of tick()). Bounds
-         *  the per-tick paint burst to METRIC_FIELDS_PER_TICK so a full refresh or
-         *  repaint spreads over several ticks instead of flooding the TX ring. */
+        /** @brief Fields emitted in the current pass (reset at the start of each pass).
+         *  Bounds the per-tick paint burst to the pass's budget (TX_HOT/COLD_FIELDS_PER_TICK)
+         *  so a full refresh or repaint spreads over several ticks instead of flooding
+         *  the TX ring. */
         uint16_t      _emit_count       = 0;
         /** @brief Set by _paint() when it skips a field (per-tick cap hit or the cold
          *  depth gate closed), so tick()/focus() know the pass did not fully drain. */
@@ -142,7 +143,7 @@ namespace Botanik { namespace Pages {
             uint16_t k = _static_idx++;
             if (k < _static_done) return false;     // already drawn in an earlier pass
             if (_static_blocked)  return false;     // pass already stopped this tick
-            if (_emit_count >= Config::STATIC_FIELDS_PER_TICK ||
+            if (_emit_count >= Config::TX_COLD_FIELDS_PER_TICK ||
                 !_terminal.tx_below_cold()) {
                 _emit_deferred = true;
                 _static_blocked = true;
@@ -158,7 +159,7 @@ namespace Botanik { namespace Pages {
         void _run_static() {
             _static_idx     = 0;
             _static_blocked = false;
-            _emit_count     = 0;        // static's own per-tick budget (STATIC_FIELDS_PER_TICK)
+            _emit_count     = 0;        // static draws on the cold budget (TX_COLD_FIELDS_PER_TICK)
             draw_static();
             _static_pending = _static_blocked;
         }
@@ -314,14 +315,14 @@ namespace Botanik { namespace Pages {
                 last = (int)i;
             }
 
-            // Cooperative pacing: emit only while the ring is shallow (cold gate) and
-            // we are under the per-tick field cap; otherwise defer (cache untouched, so
-            // a later tick repaints this field). The cap is per-pass - the cold pass and
-            // the hot pass each reset _emit_count and use their own budget, so they
-            // progress in parallel at independent rates. The shallow cold gate leaves
+            // Cooperative pacing: emit only while the ring is shallow (the shared depth
+            // floor) and we are under the per-tick field cap; otherwise defer (cache
+            // untouched, so a later tick repaints this field). The cap is per-pass - the
+            // cold pass and the hot pass each reset _emit_count and use their own budget,
+            // so they progress in parallel at independent rates. The shallow floor leaves
             // ample room for one field, so no separate fit check is needed.
-            const uint16_t cap = _cold_active ? Config::METRIC_FIELDS_PER_TICK
-                                              : Config::HOT_FIELDS_PER_TICK;
+            const uint16_t cap = _cold_active ? Config::TX_COLD_FIELDS_PER_TICK
+                                              : Config::TX_HOT_FIELDS_PER_TICK;
             if (_emit_count >= cap || !_terminal.tx_below_cold()) {
                 _emit_deferred = true;
                 return false;
@@ -413,14 +414,16 @@ namespace Botanik { namespace Pages {
             // paced over several ticks - tick() would otherwise wait a full _refresh_ms
             // before the first value paint.
             _dynamic_pending = true;
-            // Static (labels/headers/logo) is paced on its own per-tick budget; the hot
-            // pass runs in parallel (its own budget) so the clock paints right away even
-            // while static is still filling in. The cold value pass waits for static to
-            // finish (a value needs its label first).
+            _hot_last_ms     = 0;   // fire hot the moment static drains (here or a later tick)
+            // Static (labels/headers/logo) is paced first. The page hot AND cold passes
+            // both wait for static to finish - their values need their labels in place -
+            // so during the static phase only the (self-contained) status bar interleaves
+            // with it. Once static drains, tick() paints hot then cold.
             _run_static();
-            _emit_count = 0;
-            draw_hot();
             if (!_static_pending) {
+                _emit_count = 0;
+                draw_hot();       // hot fields (paced)
+                _hot_last_ms = HAL::uptime_ms();
                 _cold_idx = 0;
                 _cold_active = true;
                 _emit_count = 0;
@@ -436,26 +439,25 @@ namespace Botanik { namespace Pages {
             if (!active) return;
             uint64_t now = HAL::uptime_ms();
 
-            // The static, hot and cold passes each get their own per-tick field budget
-            // (each resets _emit_count and caps on its own constant), so they make
-            // progress in parallel at independent rates rather than competing for one.
+            // The hot and cold passes each get their own per-tick field budget (each
+            // resets _emit_count and caps on its own constant), so they make progress in
+            // parallel at independent rates rather than competing for one. Both wait for
+            // static to drain - their values need their labels first - so during the
+            // static phase only the status bar interleaves with it.
 
-            // Static: paced on its own budget, runs every tick until it completes.
+            // Static: paced on the cold budget, runs every tick until it completes.
             if (_static_pending) _run_static();
 
             const bool refresh_due = (now - _refresh_last_ms >= _refresh_ms);
 
-            // Hot fields (clock/uptime): in parallel with static, so the timestamp keeps
-            // ticking while the labels still fill in. Repaints at most once per cycle -
-            // the per-second tick when the ring is near-empty, else the global refresh
-            // is the fallback, so the clock never freezes beyond one refresh window.
-            if (_hot_ms && now - _hot_last_ms >= _hot_ms) {
-                if (refresh_due || _terminal.tx_below_hot()) {
-                    _hot_last_ms = now;
-                    _emit_count = 0;   // hot's own per-tick budget
-                    draw_hot();
-                }
-                // else: TX congested and no refresh due - hold and retry next tick.
+            // Hot fields (clock/uptime): once static is drawn, repaint on the per-second
+            // cadence. Each field is paced under the shared depth floor by _paint(); if the
+            // ring is momentarily too deep a field defers and the next cadence carries the
+            // (recomputed, current) value, so the clock never queues stale.
+            if (!_static_pending && _hot_ms && now - _hot_last_ms >= _hot_ms) {
+                _hot_last_ms = now;
+                _emit_count = 0;   // hot's own per-tick budget
+                draw_hot();
             }
 
             // Cold fields: only once static is fully drawn (a value needs its label

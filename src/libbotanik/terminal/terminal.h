@@ -104,16 +104,20 @@ namespace Botanik { namespace Terminal {
         static constexpr uint16_t    STATUS_CLOCK_LEN = 8;
         /** @brief Diff cache of the last drawn clock (zero-init forces first draw). */
         char                         _status_clock_cache[STATUS_CLOCK_LEN] = {};
+        /** @brief Round-robin cursor over the status-bar fields (0 = clock, 1 = metrics),
+         *  so a tight TX_STATUS_FIELDS_PER_TICK budget rotates which one repaints first
+         *  rather than always favouring the clock. */
+        uint8_t                      _status_field = 0;
 
         /** @} */
 
         /** @name Cooperative-TX depth gates
          *  @{ */
 
-        /** @brief Cold/hot depth gates in bytes, derived from the link baud at
-         *  construction via depth_for_baud(). See tx_below_cold()/tx_below_hot(). */
+        /** @brief Single paint depth floor in bytes, derived from the link baud at
+         *  construction via depth_for_baud(). Shared by every cooperative paint path
+         *  (status bar, page hot, page cold, draw_static, replays). See tx_below_cold(). */
         uint16_t            _tx_cold_depth = 0;
-        uint16_t            _tx_hot_depth  = 0;
 
         /** @brief RX ring depth snapshotted at the top of step() (pre-parse), surfaced
          *  by rx_used() for the serial gauge. */
@@ -137,8 +141,8 @@ namespace Botanik { namespace Terminal {
          *  @{ */
 
         /** @brief Initialize the terminal. @p baud is the link bit rate; it sizes the
-         *  cooperative-TX depth gates (see tx_below_cold()/tx_below_hot()) so the felt
-         *  echo latency stays constant across links. */
+         *  cooperative-TX depth floor (see tx_below_cold()) so the felt echo latency
+         *  stays constant across links. */
         AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
                      uint32_t* timestamp_ms, uint32_t baud, const SystemContext& ctx = {});
 
@@ -274,8 +278,10 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Refresh the centred HH:MM:SS clock (hot field, normal video on the
          *  reverse-video bar; diffed so only changed digits emit). Skipped on a very
-         *  narrow terminal. @p restore_cursor as for update_status_metrics(). */
-        void update_status_clock(bool restore_cursor = true);
+         *  narrow terminal. @p restore_cursor as for update_status_metrics().
+         *  @return true if it emitted any bytes (a digit changed), so the caller can
+         *  charge it against the status-bar field budget. */
+        bool update_status_clock(bool restore_cursor = true);
 
         /** @} */
 
@@ -300,14 +306,12 @@ namespace Botanik { namespace Terminal {
          *  only ever frees space, so a live read is at worst conservative. */
         bool tx_below(uint16_t depth) const { return tx_used() <= depth; }
 
-        /** @brief Cold-class depth gate: ring shallow enough to preserve the cold
-         *  latency target (Config::TX_COLD_TARGET_MS) at the link baud. Used by all
-         *  cold bulk paths (logs, cold metric fields, draw_static, focus replay). */
+        /** @brief The shared paint depth floor: ring shallow enough to preserve the
+         *  latency target (Config::TX_COLD_TARGET_MS) at the link baud. Every cooperative
+         *  paint path gates on this one floor (status bar, page hot, page cold,
+         *  draw_static, focus replay); fairness between them comes from the per-class
+         *  field budgets and the paint order, not from separate depth gates. */
         bool tx_below_cold() const { return tx_used() <= _tx_cold_depth; }
-
-        /** @brief Hot-class depth gate: ring near caught-up (Config::TX_HOT_TARGET_MS),
-         *  so a clock/uptime field shows the current value rather than queued stale. */
-        bool tx_below_hot() const { return tx_used() <= _tx_hot_depth; }
 
         /** @brief RX ring depth captured at the start of this step(), before the input
          *  parser drained it. The live depth would read ~0 by the time a page paints
