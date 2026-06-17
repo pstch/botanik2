@@ -159,7 +159,7 @@ namespace Botanik { namespace Config {
 
     /** @brief Interval (ms) between status-bar metric refreshes. Time-based so the
      *  refresh rate is independent of the scheduler tick interval. */
-    static constexpr uint32_t STATUS_REFRESH_MS = 2000;
+    static constexpr uint32_t STATUS_REFRESH_MS = 2500;
 
     /** @brief Interval (ms) between full-page metric refreshes (Home/Status pages).
      *  Deliberately slower than the status bar: pages redraw many more cells, so a
