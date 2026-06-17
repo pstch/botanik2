@@ -23,6 +23,22 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Use ccache as the compiler launcher when it's installed. Auto-detected, so it's
+# a no-op when absent; an existing CMAKE_CXX_COMPILER_LAUNCHER (e.g. passed on the
+# command line) is left untouched. Pays off on the frequent clean rebuilds this
+# project does ('rm -rf build', config/branch switches): cached objects replay in
+# ~2s instead of a full recompile.
+if(NOT CMAKE_CXX_COMPILER_LAUNCHER)
+    find_program(CCACHE_PROGRAM ccache)
+    if(CCACHE_PROGRAM)
+        set(CMAKE_C_COMPILER_LAUNCHER   "${CCACHE_PROGRAM}")
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+        message(STATUS "ccache enabled as compiler launcher: ${CCACHE_PROGRAM}")
+    else()
+        message(STATUS "ccache not found - building without a compiler cache")
+    endif()
+endif()
+
 # Default to a DEBUG build so profiling/debugging works out of the box. Build
 # types are spelled in upper case (DEBUG / RELEASE); CMake upper-cases the type
 # anyway when resolving the per-config CMAKE_*_FLAGS_<CONFIG> variables.

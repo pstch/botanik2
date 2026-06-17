@@ -15,16 +15,20 @@ Requires CMake 3.10+ and a C++11-capable compiler. The default target is `SIMULA
 # Configure (first time or after CMakeLists changes)
 cmake -B build -DBOTANIK_TARGET=SIMULATOR
 
-# Build
-make -C build
+# Build (pass -j to use all cores; the build is single-threaded without it)
+make -C build -j$(nproc)
 
 # Build specific target
-make -C build botanik_sim
+make -C build -j$(nproc) botanik_sim
 
 # Cross-compile for OPTA hardware
 cmake -B build -DBOTANIK_TARGET=OPTA
-make -C build
+make -C build -j$(nproc)
 ```
+
+`ccache` is used automatically as a compiler cache when it's installed (a no-op
+otherwise), so a clean rebuild after `rm -rf build` replays cached objects in a
+couple of seconds instead of recompiling.
 
 OPTA builds use `arm-none-eabi-gcc/g++` and require Arduino MBED headers under `includes/`.
 
