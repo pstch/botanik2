@@ -475,9 +475,11 @@ namespace Botanik { namespace HAL {
      *  wedged state instead of silently re-exec'ing; otherwise it reset()s. */
     inline void watchdog_poll() {
         uint32_t timeout = _wd_timeout_ms();
+        uint32_t uptime = uptime_ms();
+        uint32_t last_kick = _wd_last_kick_ms();
         if (timeout == 0) return;
         dsb();                             // read the kick paired with this timeout
-        if (uptime_ms() - _wd_last_kick_ms() > timeout) {
+        if (uptime > timeout && uptime - timeout > last_kick) {
 #ifdef DEBUG
             raise(SIGTRAP);                // freeze for the debugger, don't reboot
 #else
