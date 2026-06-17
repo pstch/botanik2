@@ -73,26 +73,17 @@ namespace Botanik { namespace Pages {
         void draw_dynamic() override {
             const SystemContext& ctx = _terminal.context();
             char buf[40];
-            char fa[12], fb[12];
+            char fa[12];
 
             // Left column --------------------------------------------------
             _cell(3, 3, L_VAL, ctx.plc ? plc_str(ctx.plc->status()) : "n/a", L_W);
 
-            if (ctx.scheduler) {
-                snprintf(buf, sizeof(buf), "%s%% (peak %sms)",
-                         Utils::format_float(fa, sizeof(fa), ctx.scheduler->cpu_load_ema * 100.0f, 1, 4),
-                         Utils::format_float(fb, sizeof(fb), ctx.scheduler->cpu_loop_us_max / 1000.0, 2, 6));
-                _cell(5, 5, L_VAL, buf, L_W);
-            }
-
             // Right column: runtime/scheduler stats ------------------------
+            // CPU load and Jitter are hot fields (their EMAs move every tick) - see
+            // draw_hot(). Only the rarely-changing stats stay on the cold pass.
             if (ctx.scheduler) {
                 snprintf(buf, sizeof(buf), "%lu", (unsigned long)ctx.scheduler->overruns);
                 _cell(R_SLOT0 + 1, 4, R_VAL, buf, R_W);
-                snprintf(buf, sizeof(buf), "%sms (peak %sms)",
-                         Utils::format_float(fa, sizeof(fa), ctx.scheduler->cpu_jitter_us_recent / 1000.0, 2, 4),
-                         Utils::format_float(fb, sizeof(fb), ctx.scheduler->cpu_jitter_us_max / 1000.0, 2, 5));
-                _cell(R_SLOT0 + 2, 5, R_VAL, buf, R_W);
                 snprintf(buf, sizeof(buf), "%s%% (%5lu B)",
                          Utils::format_float(fa, sizeof(fa), ctx.scheduler->stack_usage_ema * 100.0f, 1, 4),
                          (unsigned long)ctx.scheduler->stack_bytes_max);
@@ -102,10 +93,14 @@ namespace Botanik { namespace Pages {
             draw_payload_dynamic();
         }
 
-        /** @brief Hot fields: wall clock and uptime both tick once per second (see
-         *  MetricPage::tick()). Drawn un-highlighted since they change every tick. */
+        /** @brief Hot fields: wall clock and uptime tick once per second (see
+         *  MetricPage::tick()), and CPU load + Jitter ride along since their EMAs
+         *  move every tick. All drawn un-highlighted - the change highlight would
+         *  just churn on values that never settle. */
         void draw_hot() override {
+            const SystemContext& ctx = _terminal.context();
             char buf[40];
+            char fa[12], fb[12];
             // Wall clock: current UTC time, down to the second.
             Utils::CalendarTime wc = Utils::cal_time_ms(HAL::uptime_ms());
             snprintf(buf, sizeof(buf), "%02u/%02u/%02u %02u:%02u:%02u",
@@ -114,6 +109,18 @@ namespace Botanik { namespace Pages {
 
             fmt_uptime(buf, sizeof(buf), HAL::uptime_ms());
             _cell(R_SLOT0, 3, R_VAL, buf, R_W, false);
+
+            // CPU load (left) and Jitter (right): the EMA leads, peak in parens.
+            if (ctx.scheduler) {
+                snprintf(buf, sizeof(buf), "%s%% (peak %sms)",
+                         Utils::format_float(fa, sizeof(fa), ctx.scheduler->cpu_load_ema * 100.0f, 1, 4),
+                         Utils::format_float(fb, sizeof(fb), ctx.scheduler->cpu_loop_us_max / 1000.0, 2, 6));
+                _cell(5, 5, L_VAL, buf, L_W, false);
+                snprintf(buf, sizeof(buf), "%sms (peak %sms)",
+                         Utils::format_float(fa, sizeof(fa), ctx.scheduler->cpu_jitter_us_recent / 1000.0, 2, 4),
+                         Utils::format_float(fb, sizeof(fb), ctx.scheduler->cpu_jitter_us_max / 1000.0, 2, 5));
+                _cell(R_SLOT0 + 2, 5, R_VAL, buf, R_W, false);
+            }
 
             // Serial buffer depths (right column, last line): change often enough to
             // want the per-second refresh, but settle between bursts, so keep the
