@@ -31,10 +31,9 @@ namespace Botanik { namespace Pages {
     }
 
     void LogsPage::handle_command(Command cmd, uint16_t /*count*/) {
+        // Ctrl+C is routed to handle_cancel() by the terminal; the logs page has
+        // nothing to cancel, so it leaves it to the terminal's default.
         switch (cmd) {
-            case Command::CTRL_C:
-                HAL::shutdown();  // our exit path (same as the shell "exit"); no return
-                break;
             case Command::ENTER:
                 _terminal.clear_content();
                 focus();
@@ -83,10 +82,9 @@ namespace Botanik { namespace Pages {
         // paced. In the background nothing reaches the screen; a later focus() replays
         // the tail. Never blocks and never drops, so always report the whole entry
         // consumed (this is also why command/log output can't be truncated).
-        uint16_t n = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
+        _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(),
             Config::SHELL_LOG_CONT_PREFIX,
-            (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX));
-        if (_active) _scrollback.note_pending(n);
+            (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX), _active);
         return len;
     }
 

@@ -457,14 +457,6 @@ namespace Botanik { namespace HAL {
      *  depending on it. Simulator-only. */
     inline void on_reset(ResetHook hook) { *_reset_hook() = hook; }
 
-    /** @brief Persist the active UI page index in the environment so a reset()
-     *  re-exec lands back on it (execve carries it across). Simulator-only; an OPTA
-     *  reset clears RAM, so the OPTA backend makes this a no-op. */
-    inline void save_active_page(uint8_t index) {
-        char buf[4];
-        snprintf(buf, sizeof(buf), "%u", (unsigned)index);
-        setenv("BOTANIK_PAGE", buf, 1);
-    }
 
     inline void reset() {
         // Run teardown while the image is intact, then execve to replace the

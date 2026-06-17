@@ -75,6 +75,7 @@ namespace Botanik { namespace Pages {
         void handle_text(char c) override;
         void handle_text_batch(const char* buf, uint16_t len) override;
         void handle_command(Command cmd, uint16_t count = 1) override;
+        bool handle_cancel() override;
         void deactivate() override;
         void focus() override;
         void redraw() override;

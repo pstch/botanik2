@@ -184,6 +184,16 @@ namespace Botanik { namespace Pages {
             if (_pending > cnt) _pending = cnt;
         }
 
+        /** @brief Bank a (possibly wrapping) line and, when @p active, mark the
+         *  produced rows pending for the paced tail drain. The one-stop entry the
+         *  page log writers share. @return number of rows stored. */
+        uint16_t ingest(const char* buf, size_t len, uint16_t cols,
+                        const char* prefix, uint16_t plen, bool active) {
+            uint16_t n = this->store_wrapped(buf, len, cols, prefix, plen);
+            if (active) note_pending(n);
+            return n;
+        }
+
         /** @brief Lines stored but not yet painted to the live tail. */
         uint16_t pending() const { return _pending; }
 

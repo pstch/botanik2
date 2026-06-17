@@ -176,11 +176,6 @@ namespace Botanik { namespace HAL {
     /** @name System lifecycle
      *  @{ */
 
-    /** @brief No-op on OPTA: a hardware reset clears RAM, so there is no saved
-     *  page to restore and the board comes back on the default page. Mirrors the
-     *  simulator helper so the terminal can call it unconditionally. */
-    inline void save_active_page(uint8_t /*index*/) {}
-
     inline void reset() {
         // NVIC_SystemReset is the portable CMSIS reset (always available via
         // mbed.h); mbed_reset() is an alternative if a softer Mbed-managed reset

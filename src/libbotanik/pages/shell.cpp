@@ -33,6 +33,11 @@ namespace Botanik { namespace Pages {
         _editor.insert_characters(buf, len);
     }
 
+    bool ShellPage::handle_cancel() {
+        _cancel_command();   // discard the current input line; screen left correct
+        return true;
+    }
+
     void ShellPage::handle_command(Command cmd, uint16_t count) {
         uint16_t occ_before = _editor.occupied_rows();
         _editor.suppress_redraw(true);
@@ -47,11 +52,6 @@ namespace Botanik { namespace Pages {
                 break;
             }
 
-            // Cancel. Like submit, the screen is left correct by _cancel_command(),
-            // so return early and skip the shrink check below.
-            case Command::CTRL_C:
-                _cancel_command();
-                return;
 
             case Command::CTRL_U:     _editor.reset();              break;
 
@@ -156,9 +156,7 @@ namespace Botanik { namespace Pages {
         const char* prefix = _draining_log ? Config::SHELL_LOG_CONT_PREFIX
                                            : Config::SHELL_CONT_PREFIX;
         uint16_t    plen   = (uint16_t)strlen(prefix);
-        uint16_t n = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
-                                               prefix, plen);
-        if (_active) _scrollback.note_pending(n);
+        _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(), prefix, plen, _active);
         return len;
     }
 

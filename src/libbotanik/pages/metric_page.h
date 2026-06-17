@@ -414,7 +414,8 @@ namespace Botanik { namespace Pages {
          *  tick rather than painting inline, so it obeys the same field cap / depth gate /
          *  per-period ordinal. */
         void handle_command(Command cmd, uint16_t = 1) override {
-            if (cmd == Command::CTRL_C) HAL::shutdown();  // does not return
+            // Ctrl+C is routed to handle_cancel() by the terminal; metric pages have
+            // no input line to cancel, so they leave it to the terminal's default.
             if (cmd == Command::ENTER) {
                 _refresh_last_ms = HAL::uptime_ms();
                 _cold_done       = 0;       // revisit every field

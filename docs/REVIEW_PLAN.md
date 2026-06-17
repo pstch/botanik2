@@ -203,27 +203,28 @@ screen, classes stay small, short client-readable comments.
   bound and chunked the reverse-video fill in `draw_log_header` so a terminal
   wider than the local buffer paints fully. Kept the space-fill (Minitel-safe).
 
-- [ ] `[CTRLC-RESET]` Route Ctrl+C through the page: `handle_cancel()` returns
-  `bool`. If a page handled it, stop; if not, `AnsiTerminal` applies the default.
-  Remove the direct `HAL::shutdown()` calls from the pages
-  (`metric_page.h`, `status.h`, `home.h`, `logs.cpp`). **Hardware default for an
-  unhandled Ctrl+C is a no-op**; on the simulator it stays the
-  SIGINT/quit-the-process path.
+- [x] `[CTRLC-RESET]` Route Ctrl+C through the page. DONE: added
+  `Page::handle_cancel()` (returns bool, default false). The terminal intercepts
+  `CTRL_C`, calls `handle_cancel()`, and on false applies the default: quit under
+  `#ifdef TARGET_SIMULATOR`, a **no-op on hardware** (a stray Ctrl+C can't reboot
+  the controller). `ShellPage::handle_cancel` cancels the input line (true);
+  removed the direct `HAL::shutdown()` from `metric_page.h` and `logs.cpp`.
+  Verified: Ctrl+C on the home page cleanly quits the sim (exit 0).
 
 - [x] `[WRAP-GUARD]` Guard the narrow-terminal underflows. DONE: `store_wrapped`
   drops a prefix that can't fit the segment (`prefix_len >= seg_cap -> 0`,
   `line_buffer.h`); the shell echo clamps `cap` to >= 1 when `cols <= plen`
   (`shell.cpp`) so it can't underflow and the loop always makes progress.
 
-- [ ] `[FACTOR-INGEST]` Add `Scrollback::ingest(buf, len, cols, prefix,
-  prefix_len)` = `store_wrapped` + `note_pending`, and collapse the near-identical
-  `write()` bodies in `pages/logs.cpp`, `pages/home.h`, `pages/shell.cpp` to a
-  one-line delegation.
+- [x] `[FACTOR-INGEST]` DONE: added `Scrollback::ingest(buf, len, cols, prefix,
+  plen, active)` (= `store_wrapped` + conditional `note_pending`); the three page
+  `write()` bodies in `logs.cpp`, `home.h`, `shell.cpp` collapsed to a one-line
+  delegation.
 
-- [ ] `[DROP-PAGE-RESTORE]` Remove the page-index-restore feature for target
-  parity (persistence is by design the PLC's Modbus params, not our flash):
-  drop `HAL::save_active_page`, the `BOTANIK_PAGE` env read (`main.cpp:324`), and
-  the simulator implementation.
+- [x] `[DROP-PAGE-RESTORE]` DONE: removed `HAL::save_active_page` (decl +
+  both backends), its call in `switch_to`, and the `BOTANIK_PAGE` env read; both
+  targets now boot on the home page after a reset. (env_u8 left as a generic
+  util.)
 
 ---
 

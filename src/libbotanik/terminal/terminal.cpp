@@ -128,6 +128,18 @@ namespace Botanik { namespace Terminal {
                 switch_relative(!back);
                 break;
             }
+            // Ctrl+C: let the page consume it (e.g. cancel an input line); if it
+            // doesn't, apply the default - quit on the simulator (Ctrl+C arrives as a
+            // byte in raw mode), a no-op on hardware so a stray Ctrl+C can't reboot
+            // the controller.
+            if (ev.command == Command::CTRL_C) {
+                if (!page->handle_cancel()) {
+#ifdef TARGET_SIMULATOR
+                    HAL::shutdown();
+#endif
+                }
+                break;
+            }
             // Light page command (edit/cursor/etc.): keep handling more this tick.
             page->handle_command(ev.command, ev.count);
         }
@@ -411,9 +423,6 @@ namespace Botanik { namespace Terminal {
 
     void AnsiTerminal::switch_to(uint8_t index) {
         if (index >= _pages_len || _pages[index] == nullptr) return;
-        // Remember the active page so a HAL::reset() re-exec returns to it (simulator
-        // only; no-op on OPTA, where a reset clears RAM and comes back default).
-        HAL::save_active_page(index);
         if (!_screen_ready) {
             // Establish is deferred to the first step(); drawing here would be wiped
             // by that clear, so just record the target page for the bootstrap.

@@ -325,10 +325,9 @@ int main(int argc, char** argv) {
     // Select the terminal type before the first render. Swap to setup_minitel()
     // when driving a real Minitel 1B+/2 over the DIN serial port.
     terminal.setup_vt102();
-    // Restore the page persisted across a HAL::reset() re-exec (BOTANIK_PAGE, set by
-    // HAL::save_active_page), defaulting to the home page. switch_to ignores an
-    // out-of-range index, so a stale value just lands on the default.
-    terminal.switch_to(Utils::env_u8("BOTANIK_PAGE", 0));
+    // Both targets boot on the home page (no page-index persistence: a reset comes
+    // back default, matching hardware where RAM is cleared).
+    terminal.switch_to(0);
 
     // Show boot banner
     logger.info(PlcIO::BOOT, "Botanik v%s on %s",
