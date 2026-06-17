@@ -8,6 +8,7 @@
 #include <cstdio>
 
 #include "libbotanik_config.h"
+#include "libbotanik/hal/platform.h"
 #include "libbotanik/logs/format.h"
 #include "libbotanik/pages/logs.h"
 
@@ -31,6 +32,9 @@ namespace Botanik { namespace Pages {
 
     void LogsPage::handle_command(Command cmd, uint16_t /*count*/) {
         switch (cmd) {
+            case Command::CTRL_C:
+                HAL::shutdown();  // our exit path (same as the shell "exit"); no return
+                break;
             case Command::ENTER:
                 _terminal.clear_content();
                 focus();

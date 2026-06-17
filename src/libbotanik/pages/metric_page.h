@@ -313,9 +313,11 @@ namespace Botanik { namespace Pages {
 
         void handle_text(char) override {}
 
-        /** @brief ENTER forces an immediate value refresh; other keys are ignored.
-         *  (Periodic refresh is otherwise throttled to _refresh_ms.) */
+        /** @brief Ctrl+C exits (same path as the shell "exit" command); ENTER forces
+         *  an immediate value refresh; other keys are ignored. (Periodic refresh is
+         *  otherwise throttled to _refresh_ms.) */
         void handle_command(Command cmd, uint16_t = 1) override {
+            if (cmd == Command::CTRL_C) HAL::shutdown();  // does not return
             if (cmd == Command::ENTER) {
                 _refresh_last_ms = HAL::uptime_ms();
                 draw_dynamic();
