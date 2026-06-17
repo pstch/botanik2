@@ -56,16 +56,17 @@ namespace Botanik { namespace Pages {
         void draw_static() override {
             // Row 1 left blank as a separator above the header.
             _header(2, 2, "SYSTEM STATUS", 76);
-            // Left column: PLC link + platform health.
+            // Left column: PLC link + platform health. Rows 6 and 7 are left for the
+            // site page to add more system fields (e.g. Network / NTP sync).
             _label(3, "PLC link");
             _label(4, "Wall Clock");
             _label(5, "CPU load");
-            _label(6, "Serial");
-            // Right column: scheduler/runtime stats.
+            // Right column: scheduler/runtime stats, with Serial on the last line.
             _label_at(3, R_LBL, "Uptime");
             _label_at(4, R_LBL, "Overruns");
             _label_at(5, R_LBL, "Jitter");
             _label_at(6, R_LBL, "Stack");
+            _label_at(7, R_LBL, "Serial");
             draw_payload_static();
         }
 
@@ -114,12 +115,14 @@ namespace Botanik { namespace Pages {
             fmt_uptime(buf, sizeof(buf), HAL::uptime_ms());
             _cell(R_SLOT0, 3, R_VAL, buf, R_W, false);
 
-            // Serial buffer depths: change often enough to want the per-second
-            // refresh, but settle between bursts, so keep the change highlight.
-            snprintf(buf, sizeof(buf), "TX %4u/%u  RX %3u/%u",
+            // Serial buffer depths (right column, last line): change often enough to
+            // want the per-second refresh, but settle between bursts, so keep the
+            // change highlight. Single-spaced so it fits the R_W-wide right column.
+            // Slot 27 sits just below the R_SLOT0..R_SLOT0+3 runtime-stats slots.
+            snprintf(buf, sizeof(buf), "TX %4u/%u RX %3u/%u",
                      _terminal.tx_used(), AnsiTerminal::tx_capacity(),
                      _terminal.rx_used(), AnsiTerminal::rx_capacity());
-            _cell(6, 6, L_VAL, buf, L_W);
+            _cell(27, 7, R_VAL, buf, R_W);
         }
 
         /** @brief Site-specific labels/headers (drawn once). Base: no-op. */

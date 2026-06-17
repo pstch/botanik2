@@ -45,6 +45,13 @@ enum TrayStatus : uint8_t {
     TRAY_DRAINING = 3,
 };
 
+/** @brief Network link state. */
+enum NetStatus : uint8_t {
+    NET_DOWN   = 0,   ///< no link
+    NET_LINK   = 1,   ///< L2 up, no address yet
+    NET_ONLINE = 2,   ///< up with an address
+};
+
 /**
  * @brief Greenhouse PLC output payload (sensors + actuator feedback).
  *
@@ -72,6 +79,10 @@ struct PlcOutputData_t {
     // Irrigation
     uint16_t water_in_l;         ///< cumulative water input, liters
     uint16_t water_out_lpm;      ///< current drain flow, liters/minute
+    // System / environment extras
+    uint16_t sunrise_min;        ///< sunrise, minutes since local midnight
+    uint16_t sunset_min;         ///< sunset, minutes since local midnight
+    int16_t  ntp_offset_ms;      ///< NTP clock offset, milliseconds (signed)
     uint8_t  current_tray;       ///< active tray (1..N), 0 = none
     uint8_t  tray_status;        ///< TrayStatus
     // Actuators (levels in percent)
@@ -95,6 +106,8 @@ struct PlcOutputData_t {
     uint8_t  generator_running;  ///< emergency generator, boolean (monitored)
     uint8_t  heat_blower_on;     ///< emergency heat blower, boolean (monitored)
     uint8_t  heatpump_on;        ///< heatpump, boolean (monitored)
+    uint8_t  net_status;         ///< NetStatus (down / link / online)
+    uint8_t  ntp_synced;         ///< NTP disciplined the RTC, boolean
     uint8_t  _reserved[1];       ///< pad to a 4-byte multiple
 };
 static_assert(sizeof(PlcOutputData_t) % 4 == 0, "PlcOutputData_t must be 4-byte aligned");
