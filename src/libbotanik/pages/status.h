@@ -116,8 +116,8 @@ namespace Botanik { namespace Pages {
                          Utils::format_float(fa, sizeof(fa), ctx.scheduler->cpu_load_ema * 100.0f, 1, 5),
                          Utils::format_float(fb, sizeof(fb), ctx.scheduler->cpu_loop_us_max / 1000.0, 2, 6));
                 _cell(5, 5, L_VAL, buf, L_W, false);
-                snprintf(buf, sizeof(buf), "%sms (peak %sms)",
-                         Utils::format_float(fa, sizeof(fa), ctx.scheduler->cpu_jitter_us_recent / 1000.0, 2, 4),
+                snprintf(buf, sizeof(buf), "%s%% (peak %sms)",
+                         Utils::format_float(fa, sizeof(fa), ctx.scheduler->cpu_jitter_ema * 100.0f, 1, 5),
                          Utils::format_float(fb, sizeof(fb), ctx.scheduler->cpu_jitter_us_max / 1000.0, 2, 5));
                 _cell(R_SLOT0 + 2, 5, R_VAL, buf, R_W, false);
             }
