@@ -14,6 +14,7 @@
 #include "libbotanik/utils/text.h"   // format_float - snprintf has no %f on our Mbed
 #include "libbotanik/alerts/alerts.h"
 #include "libbotanik/alerts/notifier.h"
+#include "libbotanik/alerts/reader.h"
 #include "botanik_sim/simulator.h"
 
 #include <csignal>   // std::signal
@@ -355,6 +356,7 @@ int main(int argc, char** argv) {
     Alerts::MqttAlertNotifier alert_mqtt("botanik/greenhouse", &logger);
     Alerts::AlertModel        alert_model(g_alerts, Alerts::ALERT_BITS, &logger, &alert_mqtt);
     const PlcOutputData_t*    plc_out = plc_handler.output_data();
+    Alerts::AlertReader<PlcOutputData_t> alert_reader(&alert_model, plc_out);
 
     // Terminal UI - bundle the subsystem status contexts the terminal reads.
     SystemContext sys_ctx(scheduler.context(), plc_handler.context());
@@ -422,12 +424,12 @@ int main(int argc, char** argv) {
         plc_handler.step();
         plc_log_reader.step();
 
-        // Merge + analyze alerts after the PLC payload is fresh and before the
+        // Read + analyze alerts after the PLC payload is fresh and before the
         // logger drains, so any alarm START/END lands this beat. SYS_RST is a
         // local alert, asserted for the first five minutes after boot.
         uint64_t now_ms = HAL::uptime_ms();
         alert_model.set_local(Alerts::SYS_RST, now_ms < 300000);
-        alert_model.step(plc_out ? plc_out->alerts : 0, now_ms);
+        alert_reader.step(now_ms);
 
         logger.step();
 
