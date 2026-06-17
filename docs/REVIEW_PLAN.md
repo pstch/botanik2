@@ -256,9 +256,12 @@ screen, classes stay small, short client-readable comments.
   - Safety note: `HAL::debug_break()` (`__BKPT`) HardFaults on OPTA with no
     debugger, so the trap is gated on `HAL::under_debugger()`.
 
-- [ ] `[ARCH-CONTEXT]` Tighten coupling: hand consumers `const uint32_t*` for the
-  shared loop timestamp (only the scheduler writes it), and add defensive
-  null-guards where the terminal dereferences `SystemContext` members.
+- [x] `[ARCH-CONTEXT]` DONE: the shared loop timestamp is now `const uint32_t*`
+  through its consumers (parser, terminal, `PlcSyncContext`/handler) so only the
+  scheduler can write it - call sites are unchanged (implicit `uint32_t*` ->
+  `const uint32_t*`). Added a null-guard in `_build_metrics` where the terminal
+  read `_ctx.scheduler->...` (it already guarded `_ctx.plc`). Sim-validated;
+  OPTA-clean (the const edits compiled).
 
 - [ ] `[CLOCKS-STRONGTYPE]` Introduce a lightweight strong-typedef for the
   wrap-prone 32-bit PLC timestamp whose only legal operation is wrap-safe

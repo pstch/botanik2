@@ -66,8 +66,8 @@ namespace Botanik { namespace PlcIO {
         PlcOutputLogs_t  _rx_logs_buffer = {};
         /** @brief Local copy of the PLC input log buffer. */
         PlcInputLogs_t   _tx_logs_buffer = {};
-        /** @brief Shared wall-clock timestamp (ms). */
-        uint32_t*        _timestamp_ms   = nullptr;
+        /** @brief Shared loop timestamp (ms), published by the scheduler; read-only. */
+        const uint32_t*  _timestamp_ms   = nullptr;
         /** @brief Time of the last acknowledged TX. */
         uint32_t         _tx_last_ms     = 0;
         /** @brief Elapsed threshold (ms) before PLC_TIMEOUT is reported. */
@@ -189,7 +189,7 @@ namespace Botanik { namespace PlcIO {
 
         /** @brief Bind the handler to PLC shared memory and a timestamp. */
         PlcSyncHandler(PlcInput<InputData>* plcin, PlcOutput<OutputData>* plcout,
-                       uint32_t* timestamp_ms, Logs::Logger* logger = nullptr)
+                       const uint32_t* timestamp_ms, Logs::Logger* logger = nullptr)
             : _plcin(plcin), _plcout(plcout)
         {
             // The shared-memory pointers must be mapped: a null here means the PLC

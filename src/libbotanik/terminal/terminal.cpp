@@ -33,7 +33,7 @@ namespace Botanik { namespace Terminal {
 
     // Constructor
     AnsiTerminal::AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
-                               uint32_t* timestamp_ms, uint32_t baud, const SystemContext& ctx) :
+                               const uint32_t* timestamp_ms, uint32_t baud, const SystemContext& ctx) :
         _parser(serial, timestamp_ms),
         _serial(serial),
         _ctx(ctx),
@@ -699,8 +699,13 @@ namespace Botanik { namespace Terminal {
             case PlcIO::PLC_FAULT:    plc_str = "FLT"; break;
             default:                  plc_str = "---"; break;
         }
-        unsigned cpu = (unsigned)lroundf(_ctx.scheduler->cpu_load_ema    * 100.0f);
-        unsigned stk = (unsigned)lroundf(_ctx.scheduler->stack_usage_ema * 100.0f);
+        // The scheduler context may be absent (a site can wire a terminal without
+        // one); show 0% rather than dereferencing null.
+        unsigned cpu = 0, stk = 0;
+        if (_ctx.scheduler != nullptr) {
+            cpu = (unsigned)lroundf(_ctx.scheduler->cpu_load_ema    * 100.0f);
+            stk = (unsigned)lroundf(_ctx.scheduler->stack_usage_ema * 100.0f);
+        }
         if (cpu > 999) cpu = 999;
         if (stk > 999) stk = 999;
         return snprintf(buf, cap, "PLC:%s cpu:%3u%% stk:%3u%% ", plc_str, cpu, stk);

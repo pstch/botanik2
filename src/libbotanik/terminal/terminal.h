@@ -144,7 +144,7 @@ namespace Botanik { namespace Terminal {
          *  cooperative-TX depth floor (see tx_below_cold()) so the felt echo latency
          *  stays constant across links. */
         AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
-                     uint32_t* timestamp_ms, uint32_t baud, const SystemContext& ctx = {});
+                     const uint32_t* timestamp_ms, uint32_t baud, const SystemContext& ctx = {});
 
         /** @brief Process input and update terminal state */
         void step();
