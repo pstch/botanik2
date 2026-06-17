@@ -21,6 +21,8 @@ namespace Botanik { namespace Shell {
         virtual size_t write(const char* buf, size_t len) = 0;
         /** @brief Clear all previously written output. Default: no-op. */
         virtual void   clear() {}
+        /** @brief Enable/disable live log output in the terminal. Default: no-op. */
+        virtual void   set_logs_enabled(bool) {}
         /** @brief Write @p buf split into terminal-width chunks, one write() per chunk. */
         virtual void   write_lines(const char* buf, uint16_t len) { write(buf, len); }
     };

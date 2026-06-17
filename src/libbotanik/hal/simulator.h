@@ -193,12 +193,15 @@ namespace Botanik { namespace HAL {
 
     template <typename T>
     inline void ordered_copy(T* dst, const T* src) {
+        // Match the OPTA backend's word-multiple contract so the sim build catches violations.
+        static_assert(sizeof(T) % sizeof(uint32_t) == 0, "ordered_copy needs a word-multiple T");
         std::memcpy((void*)dst, (const void*)src, sizeof(T));
         dsb();
     }
 
     template<typename T>
     inline void ordered_move(T* dst, T src) {
+        static_assert(sizeof(T) % sizeof(uint32_t) == 0, "ordered_move needs a word-multiple T");
         *dst = src;
         dsb();
     }

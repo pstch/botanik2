@@ -98,6 +98,15 @@ screen, classes stay small, short client-readable comments.
     fault really reboot the whole HMI/logging firmware, or should the HMI stay up
     and only surface the fault? Leave the current behaviour, just make it loud.
 
+- [ ] `[WD-SNAPSHOT]` Harden the simulator `watchdog_poll` (`hal/simulator.h`),
+  surfaced reviewing `f0dd653`: keep the clocks `uint64_t` (drop the gratuitous
+  `uint32_t` truncation that reintroduces a 49-day wrap into an otherwise
+  wrap-free monotonic clock) and read `last_kick` **before** `uptime`, so a
+  concurrent `watchdog_kick()` between the two reads can't make `last_kick` newer
+  than `uptime` and underflow into a spurious reset. Condition collapses to
+  `uptime - last_kick > timeout`. Simulator-only (x86-64 64-bit loads are atomic,
+  so no torn read), but it removes a spurious-reboot path and simplifies the test.
+
 ---
 
 ## Block 2 - Logging / flood protection
@@ -168,9 +177,18 @@ screen, classes stay small, short client-readable comments.
 
 ## Block 4 - Assertions, utils, cleanup
 
-- [ ] `[ASSERT-HW]` Add `src/libbotanik_asserts.h` with `BOTANIK_ASSERT`:
-  - Compiled out in release.
-  - Debug: **trap on the simulator**, **log-and-continue on hardware**.
+- [ ] `[ASSERT-HW]` Add `src/libbotanik_asserts.h` with `BOTANIK_ASSERT`,
+  compiled out in release. In debug builds, gate the trap on a debugger being
+  attached - unified with the watchdog policy introduced in `f0dd653`
+  ("trap under a debugger, otherwise take the production action"):
+  `log(ASSERT, ...); if (HAL::under_debugger()) HAL::debug_break(); else <action>;`
+  - Hardware non-debugger action: **log + continue**.
+  - Simulator non-debugger action: **abort()** (loud failure in a headless/CI
+    run instead of a re-exec loop).
+  - `[UNDER-DBG]` Add `HAL::under_debugger()` to the HAL surface: lift the
+    existing `_under_debugger()` (`hal/simulator.h`, /proc/self/status TracerPid)
+    to the public interface; OPTA impl =
+    `(CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) != 0`.
   - Log under a dedicated `ASSERT` topic.
   - `[ASSERT-TOPIC]` Add `ASSERT` to the `LogTopic` enum (new value `6`,
     C-side only; PLC never emits it) and bump `LOG_TOPIC_COUNT` to 7; update the
@@ -181,6 +199,9 @@ screen, classes stay small, short client-readable comments.
   shared pointers non-null at boot (`firmware.cpp:20-22`), `sizeof(T) % 4 == 0`
   (already a static_assert via `[C1]`), `CACHE_COLS <= 32` (metric_page), page
   slot-collision bounds.
+  - Safety note: `HAL::debug_break()` (`__BKPT`) is a HardFault on OPTA when no
+    debugger is attached, so any assert/trap path that reaches it on hardware
+    MUST be gated by `HAL::under_debugger()` (see `[ASSERT-HW]`/`[UNDER-DBG]`).
 
 - [ ] `[ARCH-CONTEXT]` Tighten coupling: hand consumers `const uint32_t*` for the
   shared loop timestamp (only the scheduler writes it), and add defensive

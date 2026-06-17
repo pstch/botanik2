@@ -119,12 +119,15 @@ namespace Botanik { namespace HAL {
 
     template <typename T>
     inline void ordered_copy(T* dst, const T* src) {
-        ARM_MPU_OrderedMemcpy((volatile uint32_t*)dst, (const uint32_t*)src, sizeof(T));
+        // ARM_MPU_OrderedMemcpy counts 32-bit words, not bytes.
+        static_assert(sizeof(T) % sizeof(uint32_t) == 0, "ordered_copy needs a word-multiple T");
+        ARM_MPU_OrderedMemcpy((volatile uint32_t*)dst, (const uint32_t*)src, sizeof(T) / sizeof(uint32_t));
         __DSB();
     }
 
     template<typename T>
     inline void ordered_move(T* dst, T src) {
+        static_assert(sizeof(T) % sizeof(uint32_t) == 0, "ordered_move needs a word-multiple T");
         *dst = src;
         __DSB();
     }

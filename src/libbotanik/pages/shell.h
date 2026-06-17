@@ -53,6 +53,9 @@ namespace Botanik { namespace Pages {
         /** @brief True while inside drain(), so write() wraps continuations with the
          *  indented log prefix rather than the plain command-output prefix. */
         bool _draining_log = false;
+        /** @brief When false ("logs off"), incoming log entries are dropped instead
+         *  of queued, inhibiting the live tail. Command output is unaffected. */
+        bool _logs_enabled = true;
 
         /** @} */
 
@@ -90,6 +93,7 @@ namespace Botanik { namespace Pages {
         void   write_lines(const char* buf, uint16_t len) override;
         void   drain() override;
         void   clear() override;
+        void   set_logs_enabled(bool on) override { _logs_enabled = on; }
 
         /** @} */
 

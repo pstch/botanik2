@@ -138,7 +138,8 @@ namespace Botanik { namespace Pages {
     void ShellPage::push(const LogEntry_t* entry) {
         // The shell only shows logs received while it's the active page; drop
         // anything that arrives in the background. The full log lives in LogsPage.
-        if (!_active) return;
+        // "logs off" drops them too, inhibiting the live tail.
+        if (!_active || !_logs_enabled) return;
         Logs::BufferedLogWriter::push(entry);
     }
 

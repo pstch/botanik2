@@ -46,10 +46,16 @@ namespace Botanik { namespace Shell {
         int  n = 0;
 
         if (len == 4 && strncmp(cmd, "help", 4) == 0) {
-            n = snprintf(out, sizeof(out), "Commands: help, clear, stats, breakpoint, reset, exit");
+            n = snprintf(out, sizeof(out), "Commands: help, clear, logs on/off, stats, breakpoint, reset, exit");
         } else if (len == 5 && strncmp(cmd, "clear", 5) == 0) {
             _output.clear();
             return;
+        } else if (len == 7 && strncmp(cmd, "logs on", 7) == 0) {
+            _output.set_logs_enabled(true);
+            n = snprintf(out, sizeof(out), "Log output enabled");
+        } else if (len == 8 && strncmp(cmd, "logs off", 8) == 0) {
+            _output.set_logs_enabled(false);
+            n = snprintf(out, sizeof(out), "Log output disabled");
         } else if (len == 10 && strncmp(cmd, "breakpoint", 10) == 0) {
             HAL::debug_break();
             return;
