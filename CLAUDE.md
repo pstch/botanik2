@@ -11,26 +11,25 @@ Botanik is a greenhouse control system for an Arduino OPTA PLC (STM32H747 dual-c
 
 Requires CMake 3.10+ and a C++11-capable compiler. The default target is `SIMULATOR`.
 
-The presets (CMake 3.21+) bake in the build directory, the target, and a parallel
-`jobs: 4`, so `cmake --build` is parallel by default:
-
 ```bash
-# Simulator (host)
-cmake --preset sim          # configure into build/
-cmake --build --preset sim  # parallel build (jobs: 4)
-
-# OPTA hardware sanity build
-cmake --preset opta
-cmake --build --preset opta
-```
-
-Without presets, parallelism is a flag you pass to `make` yourself (a bare
-`make -C build` is single-threaded):
-
-```bash
+# Configure (first time or after CMakeLists changes)
 cmake -B build -DBOTANIK_TARGET=SIMULATOR
-make -C build -j$(nproc)            # or a specific target: ... botanik_sim
+
+# Build
+make -C build
+
+# Build specific target
+make -C build botanik_sim
+
+# Cross-compile for OPTA hardware
+cmake -B build -DBOTANIK_TARGET=OPTA
+make -C build
 ```
+
+The repo ships a `.envrc` that exports `MAKEFLAGS=-j4`, so `make` builds in
+parallel by default once [direnv](https://direnv.net) loads it (`direnv allow`).
+Without direnv, either `export MAKEFLAGS=-j4` in your shell or pass `-j` per build
+(`make -C build -j$(nproc)`); a bare `make` is otherwise single-threaded.
 
 `ccache` is used automatically as a compiler cache when it's installed (a no-op
 otherwise), so a clean rebuild after `rm -rf build` replays cached objects in a
