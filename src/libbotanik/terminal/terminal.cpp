@@ -641,10 +641,10 @@ namespace Botanik { namespace Terminal {
         snprintf(clk, sizeof(clk), "%02u:%02u:%02u",
                  (unsigned)wc.hour, (unsigned)wc.minute, (unsigned)wc.second);
 
-        // Centre the field; skip on a terminal too narrow to fit it clear of the
-        // right-aligned metrics.
+        // Centre the field, nudged 4 columns right; skip on a terminal too narrow to
+        // fit it clear of the right-aligned metrics.
         if (_cols < STATUS_CLOCK_LEN) return false;
-        uint16_t clock_col   = (uint16_t)((_cols - STATUS_CLOCK_LEN) / 2);
+        uint16_t clock_col   = (uint16_t)((_cols - STATUS_CLOCK_LEN) / 2 + 4);
         uint16_t metrics_col = (_cols > (uint16_t)(STATUS_METRICS_LEN - 1))
                                    ? (uint16_t)(_cols - (STATUS_METRICS_LEN - 1)) : 0;
         if ((uint16_t)(clock_col + STATUS_CLOCK_LEN) > metrics_col) return false;
