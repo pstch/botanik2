@@ -334,7 +334,7 @@ int main(int argc, char** argv) {
 
     // Arm the hardware watchdog. The main loop kicks it every healthy tick; once
     // the PLC link faults we stop kicking so the board reboots HW_WATCHDOG_MS later.
-    HAL::watchdog_start(Config::HW_WATCHDOG_MS);
+    HAL::watchdog_start(plc_dilated_timeout(Config::HW_WATCHDOG_MS));
 
     // Main loop code
     // -----------------------------------------------------------------------

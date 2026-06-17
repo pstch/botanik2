@@ -73,6 +73,11 @@ namespace Botanik { namespace Pages {
          *  so all hot fields get a first paint without waiting a full _hot_ms cadence -
          *  and without waiting for the slower cold pass to finish. */
         bool          _hot_pending       = false;
+        /** @brief Alternates the hot/cold first-claim on the shared TX floor each
+         *  tick. With a fixed hot-before-cold order, a hot field that changes every
+         *  tick takes every drain opening and starves cold under congestion (heavy
+         *  time dilation, slow link); flipping who goes first shares the openings. */
+        bool          _paint_cold_first  = false;
         /** @name Cooperative static draw (see _static_step())
          *  draw_static() issues the same deterministic sequence of static-element
          *  draws each pass (labels/headers/logo), so an ordinal cursor can pace it:
@@ -470,18 +475,17 @@ namespace Botanik { namespace Pages {
             // cadence, or keep resuming a pass that could not finish (so every hot field
             // gets a first paint without waiting for the slower cold pass). Each field is
             // paced under the shared depth floor by _paint(); the cadence clock advances
-            // only on a fresh due tick, not on a pending-only resume. Hot runs before cold
-            // below, so it gets first claim on the floor each tick.
-            if (!_static_pending && _hot_ms) {
+            // only on a fresh due tick, not on a pending-only resume.
+            auto run_hot = [&]() {
+                if (_static_pending || !_hot_ms) return;
                 const bool hot_due = (now - _hot_last_ms >= _hot_ms);
-                if (hot_due || _hot_pending) {
-                    if (hot_due) _hot_last_ms = now;
-                    _emit_count = 0;   // hot's own per-tick budget
-                    _emit_deferred = false;
-                    draw_hot();
-                    _hot_pending = _emit_deferred;
-                }
-            }
+                if (!(hot_due || _hot_pending)) return;
+                if (hot_due) _hot_last_ms = now;
+                _emit_count = 0;   // hot's own per-tick budget
+                _emit_deferred = false;
+                draw_hot();
+                _hot_pending = _emit_deferred;
+            };
 
             // Cold fields: only once static is fully drawn (a value needs its label
             // first). On the refresh period or continued from a deferred pass; if it
@@ -489,7 +493,8 @@ namespace Botanik { namespace Pages {
             // (_refresh_last_ms is only advanced on a fresh refresh). A fresh period
             // resets the ordinal (_cold_done = 0) so every field is revisited (the value
             // cache still skips the ones that did not change).
-            if (!_static_pending && (refresh_due || _dynamic_pending)) {
+            auto run_cold = [&]() {
+                if (_static_pending || !(refresh_due || _dynamic_pending)) return;
                 if (refresh_due) { _refresh_last_ms = now; _cold_done = 0; }
                 _cold_idx = 0;
                 _cold_active = true;
@@ -498,7 +503,16 @@ namespace Botanik { namespace Pages {
                 draw_dynamic();   // cold fields (paced)
                 _cold_active = false;
                 _dynamic_pending = _emit_deferred;
-            }
+            };
+
+            // Alternate which pass gets first claim on the shared TX floor: a fixed
+            // hot-first order lets a hot field that changes every tick take every drain
+            // opening and starve cold under congestion. Flipping each tick splits the
+            // openings fairly. Order is irrelevant when the link keeps up (the floor
+            // never binds, so both passes fully drain regardless).
+            if (_paint_cold_first) { run_cold(); run_hot(); }
+            else                   { run_hot();  run_cold(); }
+            _paint_cold_first = !_paint_cold_first;
         }
 
         /** @} */

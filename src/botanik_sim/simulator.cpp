@@ -17,7 +17,7 @@
 uint32_t plc_dilated_timeout(uint32_t base_ms) {
     uint32_t s = Botanik::HAL::_time_scale();
     if (s <= 1) return base_ms;
-    double scaled = (double)base_ms * std::pow((double)s, 1.5);
+    double scaled = (double)base_ms * std::pow((double)s, 3);
     const double cap = 2147483647.0;  // < 2^31
     return scaled >= cap ? (uint32_t)cap : (uint32_t)scaled;
 }
