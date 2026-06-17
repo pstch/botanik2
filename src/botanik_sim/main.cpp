@@ -364,6 +364,7 @@ int main(int argc, char** argv) {
     Pages::LogsPage  logs_page(terminal);
     GreenhouseHomePage   home_page(terminal, plc_handler.output_data());
     GreenhouseStatusPage status_page(terminal, plc_handler.output_data());
+    Pages::AlertsPage    alerts_page(terminal, &alert_model);
 
     // Register logging sinks
     logger.add_writer(&monitor);
@@ -383,6 +384,7 @@ int main(int argc, char** argv) {
     terminal.add_page(&shell_page);
     terminal.add_page(&logs_page);
     terminal.add_page(&status_page);
+    terminal.add_page(&alerts_page);
 
     // Select the terminal type before the first render. Swap to setup_minitel()
     // when driving a real Minitel 1B+/2 over the DIN serial port.

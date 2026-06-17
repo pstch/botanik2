@@ -19,6 +19,7 @@
 #include "libbotanik/pages/shell.h"
 #include "libbotanik/pages/logs.h"
 #include "libbotanik/pages/status.h"
+#include "libbotanik/pages/alerts.h"
 
 #include "libbotanik/terminal/terminal.h"
 #include "libbotanik/terminal/parser.h"
