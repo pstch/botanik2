@@ -279,9 +279,6 @@ namespace Botanik { namespace Config {
     /** @brief Scrollback lines retained by LogsPage for page-switch replay */
     static constexpr uint16_t LOGS_SCROLLBACK_LINES    = 64;
 
-    /** @brief Scrollback lines for the AlertsPage table (one per alert bit). */
-    static constexpr uint16_t ALERTS_SCROLLBACK_LINES  = 64;
-
     /** @brief Maximum length of a single retained scrollback line (bytes). Shared
      *  by every scrollback / log buffer (Shell, Logs, Home). */
     static constexpr uint16_t SCROLLBACK_LINE_LEN      = 256;

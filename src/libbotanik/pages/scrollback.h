@@ -91,10 +91,8 @@ namespace Botanik { namespace Pages {
         /** @name Redraw
          *  @{ */
 
-        /** @brief Stage a bottom-aligned incremental redraw within the window
-         *  rows @p first_row .. first_row+log_rows-1 (default first_row 1, the whole
-         *  content area, reproduces the original rows 1..log_rows). */
-        void begin_redraw(uint16_t log_rows, uint16_t first_row = 1) {
+        /** @brief Stage a bottom-aligned incremental redraw within rows 1..log_rows */
+        void begin_redraw(uint16_t log_rows) {
             // The content area is cleared by AnsiTerminal before focus()/redraw(),
             // so we only stage the rows to (re)draw here.
             _redraw_i    = UINT16_MAX; // cancel any pending drain
@@ -104,7 +102,7 @@ namespace Botanik { namespace Pages {
             if (cnt == 0 || log_rows == 0) return;
 
             _redraw_count     = (cnt < log_rows) ? cnt : log_rows;
-            _redraw_first_row = (uint16_t)(first_row + (log_rows - _redraw_count));
+            _redraw_first_row = (uint16_t)(log_rows - _redraw_count + 1);
             _redraw_i         = 0;
         }
 
@@ -316,8 +314,6 @@ namespace Botanik { namespace Pages {
     using LogsScrollback  = Scrollback<Config::LOGS_SCROLLBACK_LINES>;
     /** @brief Home page scrollback - the small bottom-band log tail. */
     using HomeScrollback  = Scrollback<Config::HOME_SCROLLBACK_LINES>;
-    /** @brief Alerts page scrollback - the scrollable alert table. */
-    using AlertsScrollback = Scrollback<Config::ALERTS_SCROLLBACK_LINES>;
 
 }}
 
