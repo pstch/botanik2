@@ -8,6 +8,15 @@
 
  - Choose between Python and C++ for the test harness and write a basic test case for each of our main components
 
+## Profiling
+
+ - CPU usage is high, especially on the STATUS page (many diffed fields refreshed
+   each period). Profile the main loop / per-page render cost and find the hot spots
+   (likely the metric diff/_paint and the per-tick redraw passes).
+ - Add a profiling build target to CMake (e.g. a `PROFILE` target or option wiring
+   `-pg` / frame-pointer-friendly `-O2 -fno-omit-frame-pointer` for `perf`), so the
+   simulator can be profiled without hand-editing flags.
+
 ## Big work items
 
 - ~~Refactor around LoopScheduler/PerfMonitor, they are weirdly coupled.~~ Done:
