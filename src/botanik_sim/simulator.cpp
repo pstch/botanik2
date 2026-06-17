@@ -127,6 +127,25 @@ static void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
     o->generator_mv      = o->generator_running ? 13800 : 0;
     o->heat_blower_on    = (climate < -0.7f) ? 1 : 0;
     o->heatpump_on       = (climate < -0.4f) ? 1 : 0;
+
+    // Network: mostly online, the rare brief outage that recovers to LINK then up.
+    static bool net_up = true;
+    net_up = net_up ? !chance(0.003f) : chance(0.2f);
+    o->net_status = net_up ? NET_ONLINE : (chance(0.5f) ? NET_LINK : NET_DOWN);
+
+    // NTP: disciplined while online, with a small offset that wanders a few ms.
+    static float ntp_off = 2.0f;
+    ntp_off = drift(ntp_off, 3.0f, -25.0f, 25.0f, 0.1f);
+    o->ntp_synced     = net_up ? 1 : 0;
+    o->ntp_offset_ms  = (int16_t)ntp_off;
+
+    // Sun times: fixed for the mock site (drift seasonally only a touch).
+    static float sunrise = 6.0f * 60 + 12;   // 06:12
+    static float sunset  = 21.0f * 60 + 34;  // 21:34
+    sunrise = drift(sunrise, 1.0f, 5.0f * 60, 8.0f * 60, 0.02f);
+    sunset  = drift(sunset,  1.0f, 19.0f * 60, 22.0f * 60, 0.02f);
+    o->sunrise_min = (uint16_t)sunrise;
+    o->sunset_min  = (uint16_t)sunset;
 }
 
 // Spawn the emulator thread bound to the shared PLC memory, with the greenhouse

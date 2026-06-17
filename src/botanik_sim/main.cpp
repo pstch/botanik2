@@ -44,6 +44,15 @@ static const char* tray_status_str(uint8_t s) {
     }
 }
 
+/** @brief Map a NetStatus value to a short display string. */
+static const char* net_str(uint8_t s) {
+    switch (s) {
+        case NET_ONLINE: return "ONLINE";
+        case NET_LINK:   return "LINK";
+        default:         return "DOWN";
+    }
+}
+
 // Concrete site pages --------------------------------------------------------
 
 /** @brief Greenhouse status page: renders the full sensor/actuator set. */
@@ -59,8 +68,16 @@ protected:
     static constexpr uint16_t L_HDR = 2,  L_LBL = 3,  L_VAL = 13, L_W = 24;
     static constexpr uint16_t R_HDR = 41, R_LBL = 42, R_VAL = 54, R_W = 23;
     static constexpr uint16_t HDR_WL = 34, HDR_WR = 36;
+    // System-band extras align with the base system fields: label at col 2, value
+    // at col 16 (the base StatusPage L_VAL/L_W). Drawn with _label_at (no
+    // clear-to-eol) so the right column on those rows (Stack / Serial) is intact.
+    static constexpr uint16_t SYS_VAL = 16, SYS_W = 24;
 
     void draw_payload_static() override {
+        // System band: two extra system fields in the left column (rows 6, 7).
+        _label_at(6, 2, "Network");
+        _label_at(7, 2, "NTP sync");
+
         // Left column: POWER + CLIMATE (blank rows 8 and 14 above the headers).
         _header  ( 9, L_HDR, "POWER",   HDR_WL);
         _label_at(10, L_LBL, "Grid AC :");
@@ -73,6 +90,7 @@ protected:
         _label_at(18, L_LBL, "Ceiling :");
         _label_at(19, L_LBL, "Rain    :");
         _label_at(20, L_LBL, "Wind pk :");
+        _label_at(21, L_LBL, "Sun times:");
 
         // Right column: IRRIGATION + ACTUATORS.
         _header  ( 9, R_HDR, "IRRIGATION", HDR_WR);
@@ -92,6 +110,13 @@ protected:
         if (d == nullptr) return;
         char buf[48];
         char fa[12], fb[12];
+
+        // System band: Network (slot 6) + NTP sync (slot 7), value col 16.
+        _cell(6, 6, SYS_VAL, net_str(d->net_status), SYS_W);
+        char ntpbuf[32];
+        if (d->ntp_synced) snprintf(ntpbuf, sizeof(ntpbuf), "OK (%+d ms)", (int)d->ntp_offset_ms);
+        else               snprintf(ntpbuf, sizeof(ntpbuf), "no sync");
+        _cell(7, 7, SYS_VAL, ntpbuf, SYS_W);
 
         // Power (slots 10..13).
         snprintf(buf, sizeof(buf), "%s V (%s Hz)",
@@ -127,6 +152,11 @@ protected:
         _cell(17, 19, L_VAL, format_age(buf, sizeof(buf), rain_age), L_W);
         snprintf(buf, sizeof(buf), "%03u km/h", (unsigned)d->wind_peak_kmh);
         _cell(18, 20, L_VAL, buf, L_W);
+        // Sun times (sunrise / sunset, slot 0).
+        snprintf(buf, sizeof(buf), "%02u:%02u / %02u:%02u",
+                 d->sunrise_min / 60, d->sunrise_min % 60,
+                 d->sunset_min  / 60, d->sunset_min  % 60);
+        _cell(0, 21, L_VAL, buf, L_W);
 
         // Irrigation (slots 19..21).
         unsigned wi = d->water_in_l;
@@ -192,7 +222,7 @@ protected:
             snprintf(buf, sizeof(buf), "Tray %u (%-8s)", d->current_tray, tray_status_str(d->tray_status));
         else
             snprintf(buf, sizeof(buf), "idle");
-        _value(14, buf);
+        _value(14, buf, true, true);   // invert the whole tray value on change
 
         // Compose a short list of active alert conditions.
         buf[0] = '\0';
@@ -216,9 +246,11 @@ int main(int argc, char** argv) {
     // Stash argv so HAL::reset() can re-exec the process with the same arguments.
     HAL::set_reboot_args(argc, argv);
 
-    // Raw terminal + console serial.
+    // Raw terminal + console serial. One baud, used for the UART and to size the
+    // terminal's cooperative-TX depth gates (see AnsiTerminal).
+    static const uint32_t CONSOLE_BAUD = 4800;
     HAL::setup_raw_console();
-    HAL::get_serial(HAL::CONSOLE)->begin(4800);
+    HAL::get_serial(HAL::CONSOLE)->begin(CONSOLE_BAUD);
 
     // Graceful shutdown on Ctrl+C / SIGTERM: flip the run flag so the main loop
     // breaks into HAL::shutdown() (same exit path as the "exit" command). SIGSEGV
@@ -258,7 +290,7 @@ int main(int argc, char** argv) {
     SystemContext sys_ctx(scheduler.context(), plc_handler.context());
 
     // Initialize terminal and pages
-    Terminal::AnsiTerminal terminal(console_serial, 80, 24, timestamp_ms, sys_ctx);
+    Terminal::AnsiTerminal terminal(console_serial, 80, 24, timestamp_ms, CONSOLE_BAUD, sys_ctx);
     Pages::ShellPage shell_page(terminal);
     Pages::LogsPage  logs_page(terminal);
     GreenhouseHomePage   home_page(terminal, plc_handler.output_data());

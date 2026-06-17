@@ -114,13 +114,22 @@ namespace Botanik { namespace Pages {
         _active = active;
         if (active) {
             _scrollback.drain_redraw(_terminal);
-            // Hold off live entries until the historical redraw is complete - a DL
-            // scroll from write() would shift rows already drawn and corrupt the log.
+            // Hold off the live tail until the historical replay is complete - a DL
+            // scroll from drain_tail() would shift rows the replay already drew.
             if (_scrollback.redraw_pending()) return;
         }
-        // Only the active page queues log entries (see push()), so this paints the
-        // new tail; in the background the queue is empty and this is a no-op.
+        // Bank queued log entries into the scrollback (marks them pending when active;
+        // only the active page queues - see push()). Command output is banked the same
+        // way, by write_lines() during _submit_command().
         drain();
+        // Paint the pending lines, paced, into the log area above the editor; emit_tail
+        // shifts the editor up (DL) and back down (IL), so reposition the cursor onto
+        // it afterwards.
+        if (active) {
+            uint16_t log_rows = (uint16_t)(_terminal.rows() - 1 - _editor.occupied_rows());
+            if (_scrollback.drain_tail(_terminal, 1, log_rows))
+                _terminal.move_to(_editor.cursor_screen_pos());
+        }
     }
 
     // BufferedLogWriter + ShellWriter interface
@@ -138,26 +147,17 @@ namespace Botanik { namespace Pages {
     }
 
     size_t ShellPage::write(const char* buf, size_t len) {
-        // Wrap into stored rows. Log output (via drain()) indents continuations to
-        // align under the message; command output uses the plain "> " prefix.
+        // Store-only, for BOTH log output (reached via drain(), indented continuation
+        // prefix) and command output (via write_lines(), plain "> " prefix). Bank into
+        // the scrollback and, when active, mark the new row(s) pending so tick()'s
+        // drain_tail paints them paced. Never blocks and never returns short, so
+        // write_lines() can't drop command output.
         const char* prefix = _draining_log ? Config::SHELL_LOG_CONT_PREFIX
                                            : Config::SHELL_CONT_PREFIX;
         uint16_t    plen   = (uint16_t)strlen(prefix);
         uint16_t n = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
                                                prefix, plen);
-
-        // In the background: the entry is banked in the scrollback for a later
-        // focus() replay; don't touch the screen the active page owns.
-        if (!_active) return len;
-
-        // Log area is rows 1..(rows-1-occupied), editor below. emit_tail scrolls the
-        // log up and paints new lines, shifting the editor up (DL) and back (IL).
-        uint16_t log_rows = (uint16_t)(_terminal.rows() - 1 - _editor.occupied_rows());
-        _scrollback.emit_tail(_terminal, n, 1, log_rows);
-
-        // Editor is back at its correct screen rows - just reposition the cursor.
-        _terminal.move_to(_editor.cursor_screen_pos());
-
+        if (_active) _scrollback.note_pending(n);
         return len;
     }
 

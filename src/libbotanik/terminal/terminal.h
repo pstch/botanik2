@@ -98,10 +98,41 @@ namespace Botanik { namespace Terminal {
         static constexpr uint16_t    STATUS_METRICS_LEN = 27;
         /** @brief Diff cache of the last drawn metrics (zero-init forces first draw). */
         char                         _status_metrics_cache[STATUS_METRICS_LEN] = {};
-        /** @brief Free TX bytes required before a metrics refresh runs. write()
-         *  truncates silently when full, so the refresh defers unless this much is
-         *  free - a half-emitted escape would corrupt the status bar. */
-        static constexpr uint16_t    STATUS_METRICS_TX_BUDGET = 64;
+        /** @brief Last status-bar clock refresh (uptime ms). */
+        uint64_t            _status_clock_last_ms = 0;
+        /** @brief Visible width of the HH:MM:SS clock field (no NUL). */
+        static constexpr uint16_t    STATUS_CLOCK_LEN = 8;
+        /** @brief Diff cache of the last drawn clock (zero-init forces first draw). */
+        char                         _status_clock_cache[STATUS_CLOCK_LEN] = {};
+        /** @brief Round-robin cursor over the status-bar fields (0 = clock, 1 = metrics),
+         *  so a tight TX_STATUS_FIELDS_PER_TICK budget rotates which one repaints first
+         *  rather than always favouring the clock. */
+        uint8_t                      _status_field = 0;
+
+        /** @} */
+
+        /** @name Cooperative-TX depth gates
+         *  @{ */
+
+        /** @brief Single paint depth floor in bytes, derived from the link baud at
+         *  construction via depth_for_baud(). Shared by every cooperative paint path
+         *  (status bar, page hot, page cold, draw_static, replays). See tx_below_cold(). */
+        uint16_t            _tx_cold_depth = 0;
+
+        /** @brief RX ring depth snapshotted at the top of step() (pre-parse), surfaced
+         *  by rx_used() for the serial gauge. */
+        uint16_t            _rx_cycle_used = 0;
+
+        /** @brief Bytes that drain in @p target_ms at @p baud (8N1: baud/10 B/s),
+         *  clamped to a small floor and below the ring capacity. The byte depth is
+         *  the latency target turned into a FIFO depth; it is dilation-invariant. */
+        static uint16_t depth_for_baud(uint32_t baud, uint32_t target_ms) {
+            uint32_t d = (uint32_t)(((uint64_t)baud * target_ms) / 10000u);
+            if (d < 8) d = 8;
+            uint16_t cap = (uint16_t)(tx_capacity() - 64);   // leave ring headroom
+            if (d > cap) d = cap;
+            return (uint16_t)d;
+        }
 
         /** @} */
 
@@ -109,9 +140,11 @@ namespace Botanik { namespace Terminal {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief Initialize the terminal with given dimensions */
+        /** @brief Initialize the terminal. @p baud is the link bit rate; it sizes the
+         *  cooperative-TX depth floor (see tx_below_cold()) so the felt echo latency
+         *  stays constant across links. */
         AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
-                     uint32_t* timestamp_ms, const SystemContext& ctx = {});
+                     uint32_t* timestamp_ms, uint32_t baud, const SystemContext& ctx = {});
 
         /** @brief Process input and update terminal state */
         void step();
@@ -167,6 +200,15 @@ namespace Botanik { namespace Terminal {
          *  a state change. There is no steady cursor, so callers that want to stop
          *  the blink simply hide it. */
         void set_cursor_visible(bool show);
+
+        /** @brief Emit columns [@p a, @p b) of the fixed-width field @p cf, positioned
+         *  at screen (@p row, @p col + a), split into reverse-video segments per @p hi
+         *  (bit k set = column k drawn inverted). The shared "cursor move + lazy SGR
+         *  segmenting + write" run-emit used by both the status bar and MetricPage; the
+         *  caller owns diffing, run-coalescing, budgeting, the value cache, and any
+         *  inverted-state restore afterwards. */
+        void emit_field_run(uint16_t row, uint16_t col, const char* cf,
+                            uint16_t a, uint16_t b, uint32_t hi);
 
         /** @} */
 
@@ -226,9 +268,20 @@ namespace Botanik { namespace Terminal {
         void draw_status_tab(uint8_t index);
 
         /** @brief Refresh only the metrics portion of the status bar (skips if
-         *  unchanged). @p restore_cursor returns the cursor where it started, for
-         *  periodic refreshes; draw_status_row passes false (it repositions itself). */
-        void update_status_metrics(bool restore_cursor = true);
+         *  unchanged). @p restore_cursor returns the cursor to where it started, for
+         *  standalone periodic refreshes; draw_status_row passes false since it is
+         *  mid-rebuild and its caller repositions absolutely.
+         *  @return true if the pass fully synced the on-screen metrics (or there was
+         *  nothing to draw); false if it stopped early because a run would not fit -
+         *  the caller then leaves the refresh timestamp unadvanced and retries. */
+        bool update_status_metrics(bool restore_cursor = true);
+
+        /** @brief Refresh the centred HH:MM:SS clock (hot field, normal video on the
+         *  reverse-video bar; diffed so only changed digits emit). Skipped on a very
+         *  narrow terminal. @p restore_cursor as for update_status_metrics().
+         *  @return true if it emitted any bytes (a digit changed), so the caller can
+         *  charge it against the status-bar field budget. */
+        bool update_status_clock(bool restore_cursor = true);
 
         /** @} */
 
@@ -241,8 +294,30 @@ namespace Botanik { namespace Terminal {
         /** @brief True when the serial TX buffer has been fully flushed to the wire */
         bool tx_empty() const;
 
-        /** @brief Bytes currently queued in the serial RX ring buffer */
-        uint16_t rx_used() const { return _serial.available(); }
+        /** @brief Fit check: true if @p need bytes can still be written right now.
+         *  For all-or-nothing reserves (the status bar, any reserve-then-emit). */
+        bool tx_ready(uint16_t need) const { return tx_available() >= need; }
+
+        /** @brief Depth gate: true while the TX ring holds at most @p depth bytes.
+         *  Cooperative bulk writers only make progress while the ring is this shallow,
+         *  so interactive output and the status bar stay responsive (echo latency is
+         *  ~ occupancy / wire_rate). Read live at each check, never snapshotted: the
+         *  gate is feedback control on the real ring depth, and a concurrent drain
+         *  only ever frees space, so a live read is at worst conservative. */
+        bool tx_below(uint16_t depth) const { return tx_used() <= depth; }
+
+        /** @brief The shared paint depth floor: ring shallow enough to preserve the
+         *  latency target (Config::TX_COLD_TARGET_MS) at the link baud. Every cooperative
+         *  paint path gates on this one floor (status bar, page hot, page cold,
+         *  draw_static, focus replay); fairness between them comes from the per-class
+         *  field budgets and the paint order, not from separate depth gates. */
+        bool tx_below_cold() const { return tx_used() <= _tx_cold_depth; }
+
+        /** @brief RX ring depth captured at the start of this step(), before the input
+         *  parser drained it. The live depth would read ~0 by the time a page paints
+         *  its serial gauge (the parse loop runs first), so this snapshot shows the
+         *  bytes that were actually waiting this cycle. */
+        uint16_t rx_used() const { return _rx_cycle_used; }
 
         /** @brief Bytes currently queued in the serial TX ring buffer */
         uint16_t tx_used() const {

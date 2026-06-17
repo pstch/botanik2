@@ -1,4 +1,3 @@
-// REVIEW_34: OK
 #ifndef LIBBOTANIK_CONFIG_H
 #define LIBBOTANIK_CONFIG_H
 
@@ -187,6 +186,59 @@ namespace Botanik { namespace Config {
 
 
     /**
+     * @name TX output pacing (cooperative buffer sharing)
+     *
+     * The TX ring drains to the wire at the link baud (~1 byte per baud/10 us), far
+     * slower than the main loop ticks. Interactive output (key echo, cursor moves)
+     * shares that one FIFO and cannot jump ahead of queued bytes, so echo latency is
+     * roughly (ring occupancy / wire rate). Bulk producers therefore only make
+     * progress while the ring is shallow, which keeps the interactive path and the
+     * status bar responsive. Two depth classes gate that; per-tick caps bound the
+     * burst once a gate is open. See docs/ for the full model.
+     * @{
+     */
+
+    /** @brief Single paint depth floor, sized in BYTES from the link baud at
+     *  construction (AnsiTerminal): depth = baud/10 * target_ms/1000 = the bytes that
+     *  drain in target_ms at the link rate (8N1). A time target keeps the felt echo
+     *  latency constant across links and is dilation-invariant (a byte count). EVERY
+     *  cooperative paint path (status bar, page hot, page cold, draw_static, replays)
+     *  shares this one floor; fairness between the classes comes from the per-class
+     *  field budgets below and the paint order, not from separate depth gates.
+     *  ~61 B at 4800 baud. See AnsiTerminal::tx_below_cold(). */
+    static constexpr uint32_t TX_COLD_TARGET_MS = 128;
+
+    /** @brief Max live log / command rows painted per tick per page, in one batched
+     *  drain_tail emit once the floor is open. The effective ceiling is min(this, wire
+     *  capacity), and at low baud the wire is far below this (4800 baud ~= 4.4 lines/s),
+     *  so a larger value buys no throughput - it only deepens the per-batch overshoot
+     *  of the floor and worsens echo latency. Keep it at 1 so a batch overshoots by a
+     *  single line; raise only on a fast link if log catch-up feels slow. */
+    static constexpr uint16_t LOG_ROWS_PER_TICK = 1;
+
+    /** @brief Per-tick field budgets for the three cooperative paint classes. Each
+     *  class has its own counter (reset each tick), so they progress in parallel at
+     *  independent rates and one never starves another; they share the depth floor and
+     *  a fixed paint order (status bar, then page hot, then page cold). draw_static()
+     *  uses the cold budget (same slow page-content class; it runs before the cold
+     *  values and a value needs its label first, so they never compete in a tick).
+     *  Unchanged fields are free (the diff emits nothing and spends no budget). */
+    static constexpr uint16_t TX_STATUS_FIELDS_PER_TICK = 2;   // status bar (clock, metrics)
+    static constexpr uint16_t TX_HOT_FIELDS_PER_TICK    = 4;   // page hot (clock/uptime/serial)
+    static constexpr uint16_t TX_COLD_FIELDS_PER_TICK   = 4;   // page cold values + draw_static
+
+    /** @brief Max decoded input events handled per tick. Too low: paste / fast typing
+     *  / held keys feel sluggish and the RX ring can back up. Too high: a big paste
+     *  echoes a large burst in one tick (fills the ring, competes with itself) plus
+     *  more loop time. Each event may emit direct echo, so this indirectly bounds
+     *  per-tick interactive TX; heavy intercepts (Ctrl-L / page switch) break the loop
+     *  regardless. */
+    static constexpr uint16_t INPUT_EVENTS_PER_TICK = 4;
+
+    /** @} */
+
+
+    /**
      * @name Shell Parameters
      * @{
      */
@@ -214,7 +266,7 @@ namespace Botanik { namespace Config {
     static constexpr uint16_t SCROLLBACK_LINE_LEN      = 256;
 
     /** @brief Max scrollback rows redrawn per tick() during deferred replay */
-    static constexpr uint16_t SCROLLBACK_REDRAW_ROWS_PER_TICK  = 1;
+    static constexpr uint16_t SCROLLBACK_ROWS_PER_TICK  = 1;
 
     /** @brief Continuation prefix for wrapped command-output rows. */
     static constexpr const char* SHELL_CONT_PREFIX = "> ";

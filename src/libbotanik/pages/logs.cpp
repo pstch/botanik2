@@ -59,13 +59,15 @@ namespace Botanik { namespace Pages {
         _active = active;
         if (active) {
             _scrollback.drain_redraw(_terminal);
-            // Hold off incoming entries until the historical redraw finishes - a DL
-            // scroll from write() would shift rows already drawn and corrupt it.
+            // Hold off the live tail until the historical replay is complete - a DL
+            // scroll from drain_tail() would shift rows the replay already drew.
             if (_scrollback.redraw_pending()) return;
         }
-        // Drain the queue either way: active paints the new tail, background just
-        // banks the entries into the scrollback (see write()).
+        // Move queued entries into the scrollback (banks them, and marks them pending
+        // when active). Then paint the pending lines, paced, into the whole content
+        // area (rows 1..rows-1). In the background drain_tail is skipped.
         drain();
+        if (active) _scrollback.drain_tail(_terminal, 1, (uint16_t)(_terminal.rows() - 1));
     }
 
     // BufferedLogWriter interface
@@ -76,47 +78,33 @@ namespace Botanik { namespace Pages {
     }
 
     size_t LogsPage::write(const char* buf, size_t len) {
-        // Background: just keep the scrollback current for a later focus() replay.
-        // Nothing hits the screen, so there's no TX back-pressure - store it all.
-        if (!_active) {
-            _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
-                Config::SHELL_LOG_CONT_PREFIX,
-                (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX));
-            return len;
-        }
-
-        // Back-pressure: emit only once TX has drained, so a burst can't fill it.
-        // Returning 0 makes BufferedLogWriter hold the entry and retry later.
-        if (!_terminal.tx_empty()) return 0;
-
-        _emit_line(buf, len);
+        // Store-only: bank every entry into the scrollback (the live-tail buffer) and,
+        // when active, mark the new row(s) pending so tick()'s drain_tail paints them
+        // paced. In the background nothing reaches the screen; a later focus() replays
+        // the tail. Never blocks and never drops, so always report the whole entry
+        // consumed (this is also why command/log output can't be truncated).
+        uint16_t n = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
+            Config::SHELL_LOG_CONT_PREFIX,
+            (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX));
+        if (_active) _scrollback.note_pending(n);
         return len;
     }
 
     // Internals
     // ------------------------------------------------------------------------
 
-    void LogsPage::_emit_line(const char* buf, size_t len) {
-        // Wrap into stored rows, then scroll the tail up and paint them at the
-        // bottom. The log area is rows 1..rows-1.
-        uint16_t n = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
-            Config::SHELL_LOG_CONT_PREFIX,
-            (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX));
-        _scrollback.emit_tail(_terminal, n, 1, (uint16_t)(_terminal.rows() - 1));
-    }
-
     void LogsPage::_emit_mark() {
-        // Don't disturb the tail while a page-switch redraw is still filling it,
-        // and respect the same TX back-pressure as incoming log entries.
-        if (_scrollback.redraw_pending() || !_terminal.tx_empty()) return;
+        // Don't disturb the tail while a page-switch replay is still filling it.
+        if (_scrollback.redraw_pending()) return;
 
-        // Stamp the marker with the current time using the same format as log lines.
+        // Stamp the marker with the current time using the same format as log lines,
+        // then store it like any entry; tick()'s drain_tail paints it on a later tick.
         char time_buf[Utils::TIMESTAMP_LEN];
         Utils::format_ms_timestamp(HAL::uptime_ms(), time_buf, sizeof(time_buf));
         char mark[40];
         int written = snprintf(mark, sizeof(mark), "%s --- MARK ---", time_buf);
         if (written < 0) return;
-        _emit_line(mark, std::min((size_t)written, sizeof(mark) - 1));
+        write(mark, std::min((size_t)written, sizeof(mark) - 1));
     }
 
 }}

@@ -67,6 +67,13 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         return _csi_count(_serial, active ? SM4 : RM4, sizeof(SM4) - 1);
     }
 
+    bool cancel_sequence(BufferedSerial& _serial) {
+        // Lone C0 control, no CSI: reserve its single byte so it lands all-or-nothing.
+        if (_serial.availableForWrite() < (uint16_t)(sizeof(CAN) - 1)) return false;
+        _serial.write(CAN, sizeof(CAN) - 1);
+        return true;
+    }
+
     bool set_auto_wrap(BufferedSerial& _serial, bool enable) {
         // DECAWM_SET/RESET are the same length.
         return _csi_count(_serial, enable ? DECAWM_SET : DECAWM_RESET,

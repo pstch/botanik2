@@ -38,6 +38,11 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     // X3.64 CSI prefix
     static constexpr char CSI[]  = "\x1B[";
 
+    // Cancel: aborts a control sequence in progress, returning the parser to ground
+    // state (non-printing in VT / teleinformatique mode). Emitted after a tx_discard,
+    // which can strand a half-sent sequence on the wire, to resync the terminal.
+    static constexpr char CAN[]  = "\x18";
+
     // Mode Settings
     static constexpr char SM4[]  = "4h"; // Set Mode 4: Insertion
     static constexpr char RM4[]  = "4l"; // Reset Mode 4: Replacement (Overwrite)
@@ -97,6 +102,12 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     /** @brief Set insertion mode (IRM) to @p active , using SM4/RM4.
      *  @note When the TX buffer can't hold the command, emit nothing and return false. */
     bool set_insert_mode(BufferedSerial& _serial, bool active);
+
+    /** @brief Emit CAN, aborting any control sequence the terminal is mid-parsing and
+     *  returning it to ground state. Use after a tx_discard, which can leave a half-
+     *  sent sequence stranded on the wire that would otherwise swallow the next emit.
+     *  All-or-nothing. */
+    bool cancel_sequence(BufferedSerial& _serial);
 
     /** @brief Emit the one-time Minitel PRO2 handshake (80-col teleinformatique +
      *  lowercase keyboard + page mode); no-op sequences on a VT100/VT102.

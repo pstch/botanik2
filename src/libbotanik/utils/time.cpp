@@ -1,4 +1,3 @@
-// REVIEW_34: OK
 /**
  * @file time.cpp
  * @brief Time utility implementations - rollover projection, calendar/UNIX

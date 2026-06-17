@@ -71,9 +71,7 @@ namespace Botanik { namespace Pages {
             uint16_t row = 1;
             for (const char* line : LOGO) {
                 if (row >= _terminal.rows()) return;
-                _terminal.move_to({row, 2});
-                _terminal.write_chars(line, (uint16_t)strlen(line));
-                _terminal.clear_to_eol();
+                _label(row, line);   // col 2 + clear-to-eol; paced via _static_step
                 row++;
             }
         }
@@ -82,8 +80,8 @@ namespace Botanik { namespace Pages {
          *  with a normal-video " LOGS " tab near the left. Static (drawn once). */
         void draw_log_header(uint16_t row) {
             if (row >= _terminal.rows()) return;
+            if (!_static_step()) return;     // paced as one static element
             uint16_t cols = _terminal.cols();
-            if (_terminal.tx_available() < (uint16_t)(cols + 16)) return;
 
             // A run of spaces to paint the reverse-video background in one write.
             char spaces[96];
@@ -172,17 +170,22 @@ namespace Botanik { namespace Pages {
         }
 
         void tick(bool active) override {
-            MetricPage::tick(active);            // periodic refresh of the readings
+            MetricPage::tick(active);            // logo/readings (paced) refresh
             _log_active = active;
             if (active) {
                 _scrollback.drain_redraw(_terminal);
-                // Hold off live entries until the staged replay finishes - they
-                // would otherwise restage it mid-draw.
+                // Hold off the live band until the staged replay finishes - a DL
+                // scroll would shift rows the replay already drew.
                 if (_scrollback.redraw_pending()) return;
             }
-            // Drain the queue either way: active repaints the band, background just
-            // banks entries into the scrollback for a later focus() replay.
+            // Bank queued entries into the scrollback (marks pending when active), then
+            // paint the pending lines, paced, into the bottom log band.
             drain();
+            if (active) {
+                uint16_t band_top = log_band_top();
+                _scrollback.drain_tail(_terminal, band_top,
+                                       (uint16_t)(_terminal.rows() - band_top));
+            }
         }
 
         /** @} */
@@ -196,28 +199,14 @@ namespace Botanik { namespace Pages {
         }
 
         size_t write(const char* buf, size_t len) override {
-            // Background: just bank the entry for a later focus() replay. Nothing
-            // hits the screen, so there's no TX back-pressure - store it all.
-            if (!_log_active) {
-                _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
-                    Config::SHELL_LOG_CONT_PREFIX,
-                    (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX));
-                return len;
-            }
-
-            // Active: back-pressure first so a burst can't flood TX. Returning 0
-            // makes BufferedLogWriter retry later; don't store yet, or the retry
-            // would double-bank it.
-            if (!_terminal.tx_empty()) return 0;
-
+            // Store-only: bank every entry into the scrollback and, when active, mark
+            // the new row(s) pending so tick()'s drain_tail paints them paced into the
+            // bottom band. In the background a later focus() replays the tail. Never
+            // blocks, never drops, so always report the whole entry consumed.
             uint16_t n = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
                 Config::SHELL_LOG_CONT_PREFIX,
                 (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX));
-            // Scroll the bottom log band up and paint the new line(s) at its bottom,
-            // leaving the logo and summary above the band untouched.
-            uint16_t band_top = log_band_top();
-            _scrollback.emit_tail(_terminal, n, band_top,
-                                  (uint16_t)(_terminal.rows() - band_top));
+            if (_log_active) _scrollback.note_pending(n);
             return len;
         }
 

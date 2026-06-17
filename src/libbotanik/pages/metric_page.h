@@ -57,6 +57,54 @@ namespace Botanik { namespace Pages {
          *  A hot field repaints at most once per cycle - by this tick or the global
          *  refresh, never both (see tick()). Cold fields live in draw_dynamic(). */
         uint32_t      _hot_ms          = 0;
+        /** @brief Fields emitted in the current pass (reset at the start of each pass).
+         *  Bounds the per-tick paint burst to the pass's budget (TX_HOT/COLD_FIELDS_PER_TICK)
+         *  so a full refresh or repaint spreads over several ticks instead of flooding
+         *  the TX ring. */
+        uint16_t      _emit_count       = 0;
+        /** @brief Set by _paint() when it skips a field (per-tick cap hit or the cold
+         *  depth gate closed), so tick()/focus() know the pass did not fully drain. */
+        bool          _emit_deferred    = false;
+        /** @brief A cold draw_dynamic() pass was left unfinished; resume it on later
+         *  ticks (the value cache makes already-drawn fields no-ops) until it drains. */
+        bool          _dynamic_pending  = false;
+        /** @brief A draw_hot() pass was left unfinished (cap hit or floor closed); resume
+         *  it every tick (the value cache makes drawn fields no-ops) until it completes,
+         *  so all hot fields get a first paint without waiting a full _hot_ms cadence -
+         *  and without waiting for the slower cold pass to finish. */
+        bool          _hot_pending       = false;
+        /** @name Cooperative static draw (see _static_step())
+         *  draw_static() issues the same deterministic sequence of static-element
+         *  draws each pass (labels/headers/logo), so an ordinal cursor can pace it:
+         *  skip the elements already emitted, draw the next few, and stop when the
+         *  per-tick cap or the cold gate closes - resuming on later ticks. The cold
+         *  pass is held until the static pass fully completes.
+         *  @{ */
+        /** @brief Element index within the current draw_static() pass (reset each pass). */
+        uint16_t      _static_idx        = 0;
+        /** @brief Elements successfully emitted across passes (persists; reset on focus). */
+        uint16_t      _static_done       = 0;
+        /** @brief This pass stopped early (cap/gate); remaining elements are skipped. */
+        bool          _static_blocked    = false;
+        /** @brief draw_static() has not finished painting; keep resuming it. */
+        bool          _static_pending    = false;
+        /** @} */
+        /** @name Cooperative cold draw (see _field())
+         *  Same ordinal idea as the static pass, but for the periodic value pass:
+         *  each cold field is painted at most once per refresh period. Without it a
+         *  capped/deferred pass that resumes every tick would re-diff live values and
+         *  re-emit the fields that change every tick (cpu, serial counters), starving
+         *  the fields after them and never completing.
+         *  @{ */
+        /** @brief Field index within the current draw_dynamic() pass (reset each pass). */
+        uint16_t      _cold_idx          = 0;
+        /** @brief Fields handled so far this period (persists across resume ticks;
+         *  reset to 0 when a new refresh period starts). */
+        uint16_t      _cold_done         = 0;
+        /** @brief True while draw_dynamic() runs, so _field() applies the ordinal
+         *  (hot fields and other callers paint normally). */
+        bool          _cold_active       = false;
+        /** @} */
 
         /** @brief Number of diff-cache slots and the per-slot value width.
          *  Single-column pages key a slot by its row; column layouts (see _cell())
@@ -90,10 +138,42 @@ namespace Botanik { namespace Pages {
             _vfresh = ~0u;
         }
 
+        /** @brief Ordinal gate for one static element (a label/header/logo line).
+         *  Returns true if the caller should draw it now: skips elements already
+         *  emitted in an earlier pass, and stops the pass (deferring the rest) when
+         *  the per-tick field cap is hit or the cold depth gate is closed. draw_static()
+         *  must issue the same sequence of these each pass for the ordinal to line up
+         *  (it is static layout, so it does). */
+        bool _static_step() {
+            uint16_t k = _static_idx++;
+            if (k < _static_done) return false;     // already drawn in an earlier pass
+            if (_static_blocked)  return false;     // pass already stopped this tick
+            if (_emit_count >= Config::TX_COLD_FIELDS_PER_TICK ||
+                !_terminal.tx_below_cold()) {
+                _emit_deferred = true;
+                _static_blocked = true;
+                return false;
+            }
+            _static_done = (uint16_t)(k + 1);
+            _emit_count++;
+            return true;
+        }
+
+        /** @brief Run one paced draw_static() pass; sets _static_pending if it could
+         *  not finish (resumed on later ticks until it drains). */
+        void _run_static() {
+            _static_idx     = 0;
+            _static_blocked = false;
+            _emit_count     = 0;        // static draws on the cold budget (TX_COLD_FIELDS_PER_TICK)
+            draw_static();
+            _static_pending = _static_blocked;
+        }
+
         /** @brief Draw a label at column 2 and clear the rest of the row. Labels are
          *  static (drawn once on focus), so they are not cached. */
         void _label(uint16_t row, const char* s) {
             if (row >= _terminal.rows()) return;
+            if (!_static_step()) return;
             _terminal.move_to({row, 2});
             _terminal.write_chars(s, (uint16_t)strlen(s));
             _terminal.clear_to_eol();
@@ -102,12 +182,14 @@ namespace Botanik { namespace Pages {
         /** @brief Write a value at _value_col (single-column pages), keyed by row.
          *  The field runs from _value_col to end-of-line, so a shrinking value clears
          *  its own tail. Pass @p highlight = false for fields that change every
-         *  refresh (a clock), where the highlight would just churn. */
-        void _value(uint16_t row, const char* s, bool highlight = true) {
+         *  refresh (a clock), where the highlight would just churn. Pass @p invert to
+         *  light the whole value as one reverse-video block on change, instead of the
+         *  default per-digit-run highlight (for non-numeric values like a tray label). */
+        void _value(uint16_t row, const char* s, bool highlight = true, bool invert = false) {
             if (row >= _terminal.rows()) return;
             uint16_t width = (_value_col < _terminal.cols())
                                  ? (uint16_t)(_terminal.cols() - _value_col) : 0;
-            _field(row, row, _value_col, s, width, highlight);
+            _field(row, row, _value_col, s, width, highlight, invert);
         }
 
         /** @brief Draw a dash-ruled group header at (@p row, @p col), rendered as
@@ -115,6 +197,7 @@ namespace Botanik { namespace Pages {
          *  on focus, after the screen is cleared); not cached. */
         void _header(uint16_t row, uint16_t col, const char* title, uint16_t width) {
             if (row >= _terminal.rows()) return;
+            if (!_static_step()) return;
             char buf[96];
             if (width > (uint16_t)(sizeof(buf) - 1)) width = (uint16_t)(sizeof(buf) - 1);
             uint16_t n = 0;
@@ -123,7 +206,6 @@ namespace Botanik { namespace Pages {
             for (const char* p = title; *p && n < width; ++p) buf[n++] = *p;
             if (n < width) buf[n++] = ' ';
             while (n < width) buf[n++] = '=';
-            if (_terminal.tx_available() < (uint16_t)(width + 12)) return;
             _terminal.move_to({row, col});
             _terminal.write_chars(buf, n);
         }
@@ -133,10 +215,9 @@ namespace Botanik { namespace Pages {
          *  Drawn once on focus (after a clear); not cached. */
         void _label_at(uint16_t row, uint16_t col, const char* s) {
             if (row >= _terminal.rows()) return;
-            uint16_t len = (uint16_t)strlen(s);
-            if (_terminal.tx_available() < (uint16_t)(len + 12)) return;
+            if (!_static_step()) return;
             _terminal.move_to({row, col});
-            _terminal.write_chars(s, len);
+            _terminal.write_chars(s, (uint16_t)strlen(s));
         }
 
         /** @brief Diff-rendered value cell for column layouts: write @p s at
@@ -154,11 +235,22 @@ namespace Botanik { namespace Pages {
          *  previous draw, so only changed bytes are re-emitted. Highlighting is per
          *  subfield: each digit run lights reverse-video when any of its digits
          *  changed, persisting until it settles (the first paint after a clear is
-         *  never lit). All-or-nothing: on a TX-full skip nothing is emitted and the
-         *  cache is left untouched, so the draw retries next refresh. */
+         *  never lit). Pass @p invert to instead light the whole value as a single
+         *  block whenever any byte changes. All-or-nothing: on a TX-full skip nothing
+         *  is emitted and the cache is left untouched, so the draw retries next refresh. */
         void _field(uint16_t slot, uint16_t row, uint16_t col, const char* s, uint16_t width,
-                    bool highlight = true) {
+                    bool highlight = true, bool invert = false) {
             if (row >= _terminal.rows() || width == 0) return;
+            // Cold pacing ordinal: handle each cold field at most once per refresh
+            // period. The cursor advances on every visited field, so a deferred pass
+            // resumes past the fields already done - a value that changes every tick
+            // can't re-emit on each resume and starve the fields after it.
+            const bool cold = _cold_active;
+            uint16_t k = 0;
+            if (cold) {
+                k = _cold_idx++;
+                if (k < _cold_done || _emit_deferred) return;
+            }
             if (width > CACHE_COLS - 1) width = CACHE_COLS - 1;
 
             // Render the value into the fixed-width, space-padded field.
@@ -185,7 +277,11 @@ namespace Botanik { namespace Pages {
                 // Highlighting is opt-out: a field that changes every refresh (a clock)
                 // leaves it off, so a settled subfield is never re-emitted just to
                 // clear an inversion - only genuinely changed glyphs are written.
-                if (highlight) {
+                if (highlight && invert) {
+                    // Whole-value invert: any change lights the printed glyphs (cols
+                    // [0, vlen), not the trailing padding) as a single block.
+                    if (chg) newhi = (vlen >= 32) ? ~0u : ((1u << vlen) - 1u);
+                } else if (highlight) {
                     for (uint16_t i = 0; i < width; ) {
                         if (cf[i] < '0' || cf[i] > '9') { ++i; continue; }
                         uint16_t a = i;
@@ -198,8 +294,8 @@ namespace Botanik { namespace Pages {
 
             // Emit a byte when its glyph changed or its highlight state changed.
             uint32_t emit = chg | (newhi ^ oldhi);
-            if (emit == 0) return;
-            if (!_paint(row, col, cf, width, emit, newhi)) return;  // TX full: retry, cache untouched
+            if (emit == 0) { if (cold) _cold_done = (uint16_t)(k + 1); return; }  // unchanged: done
+            if (!_paint(row, col, cf, width, emit, newhi)) return;  // capped/TX full: _emit_deferred set, resume
 
             if (cached) {
                 memcpy(_vcache[slot], cf, width);
@@ -207,6 +303,7 @@ namespace Botanik { namespace Pages {
                 _vhi[slot]   = newhi;
                 _vfresh     &= ~(1u << slot);
             }
+            if (cold) _cold_done = (uint16_t)(k + 1);   // emitted: done this period
         }
 
         /** @brief Emit the columns set in @p emit from field @p cf at (@p row,
@@ -230,15 +327,18 @@ namespace Botanik { namespace Pages {
                 last = (int)i;
             }
 
-            // Budget the whole update up front: one move + a couple of SGR toggles
-            // per run, plus the emitted bytes.
-            uint16_t runs = 0, count = 0;
-            for (uint16_t i = 0; i < width; ++i) {
-                if (!((render >> i) & 1u)) continue;
-                count++;
-                if (i == 0 || !((render >> (i - 1)) & 1u)) runs++;
+            // Cooperative pacing: emit only while the ring is shallow (the shared depth
+            // floor) and we are under the per-tick field cap; otherwise defer (cache
+            // untouched, so a later tick repaints this field). The cap is per-pass - the
+            // cold pass and the hot pass each reset _emit_count and use their own budget,
+            // so they progress in parallel at independent rates. The shallow floor leaves
+            // ample room for one field, so no separate fit check is needed.
+            const uint16_t cap = _cold_active ? Config::TX_COLD_FIELDS_PER_TICK
+                                              : Config::TX_HOT_FIELDS_PER_TICK;
+            if (_emit_count >= cap || !_terminal.tx_below_cold()) {
+                _emit_deferred = true;
+                return false;
             }
-            if (_terminal.tx_available() < (uint16_t)(runs * 12 + count * 5 + 8)) return false;
 
             uint16_t i = 0;
             while (i < width) {
@@ -246,21 +346,11 @@ namespace Botanik { namespace Pages {
                 uint16_t a = i;
                 while (i < width && ((render >> i) & 1u)) i++;
                 uint16_t b = i;                              // run spans [a, b)
-                _terminal.move_to({row, (uint16_t)(col + a)});
-                uint16_t seg = a;
-                bool seg_inv = ((hi >> a) & 1u) != 0;
-                for (uint16_t k = a; k < b; ++k) {
-                    bool ki = ((hi >> k) & 1u) != 0;
-                    if (ki != seg_inv) {
-                        _terminal.set_inverted(seg_inv);
-                        _terminal.write_chars(&cf[seg], (uint16_t)(k - seg));
-                        seg = k; seg_inv = ki;
-                    }
-                }
-                _terminal.set_inverted(seg_inv);
-                _terminal.write_chars(&cf[seg], (uint16_t)(b - seg));
+                // Shared run-emit (cursor move + lazy SGR segmenting + write).
+                _terminal.emit_field_run(row, col, cf, a, b, hi);
             }
             _terminal.set_inverted(false);                   // leave the terminal normal
+            _emit_count++;                                    // one field spent this tick
             return true;
         }
 
@@ -313,14 +403,17 @@ namespace Botanik { namespace Pages {
 
         void handle_text(char) override {}
 
-        /** @brief Ctrl+C exits (same path as the shell "exit" command); ENTER forces
-         *  an immediate value refresh; other keys are ignored. (Periodic refresh is
-         *  otherwise throttled to _refresh_ms.) */
+        /** @brief Ctrl+C exits (same path as the shell "exit" command); ENTER forces an
+         *  immediate value refresh; other keys are ignored (periodic refresh is otherwise
+         *  throttled to _refresh_ms). ENTER routes through the paced cold pass on the next
+         *  tick rather than painting inline, so it obeys the same field cap / depth gate /
+         *  per-period ordinal. */
         void handle_command(Command cmd, uint16_t = 1) override {
             if (cmd == Command::CTRL_C) HAL::shutdown();  // does not return
             if (cmd == Command::ENTER) {
                 _refresh_last_ms = HAL::uptime_ms();
-                draw_dynamic();
+                _cold_done       = 0;       // revisit every field
+                _dynamic_pending = true;    // tick() runs the paced refresh
             }
         }
 
@@ -329,11 +422,32 @@ namespace Botanik { namespace Pages {
         void focus() override {
             _active = true;
             _invalidate();   // screen was cleared on switch: repaint everything
-            draw_static();
-            // Hot fields before cold: a hot tick gates on an empty TX buffer, so it
-            // must get first claim on it before the cold refresh fills it up.
-            draw_hot();       // hot fields, so the clock isn't blank until the first tick
-            draw_dynamic();   // cold fields
+            _static_done = 0;        // repaint all static elements from scratch
+            _cold_done   = 0;        // and the cold values from scratch
+            // Ensure the cold pass runs as soon as static finishes, even when static is
+            // paced over several ticks - tick() would otherwise wait a full _refresh_ms
+            // before the first value paint.
+            _dynamic_pending = true;
+            _hot_last_ms     = 0;   // fire hot the moment static drains (here or a later tick)
+            // Static (labels/headers/logo) is paced first. The page hot AND cold passes
+            // both wait for static to finish - their values need their labels in place -
+            // so during the static phase only the (self-contained) status bar interleaves
+            // with it. Once static drains, tick() paints hot then cold.
+            _run_static();
+            if (!_static_pending) {
+                _emit_count = 0;
+                _emit_deferred = false;
+                draw_hot();       // hot fields (paced)
+                _hot_pending = _emit_deferred;
+                _hot_last_ms = HAL::uptime_ms();
+                _cold_idx = 0;
+                _cold_active = true;
+                _emit_count = 0;
+                _emit_deferred = false;
+                draw_dynamic();   // cold fields (paced)
+                _cold_active = false;
+                _dynamic_pending = _emit_deferred;
+            }
         }
 
         void tick(bool active) override {
@@ -341,23 +455,49 @@ namespace Botanik { namespace Pages {
             if (!active) return;
             uint64_t now = HAL::uptime_ms();
 
+            // The hot and cold passes each get their own per-tick field budget (each
+            // resets _emit_count and caps on its own constant), so they make progress in
+            // parallel at independent rates rather than competing for one. Both wait for
+            // static to drain - their values need their labels first - so during the
+            // static phase only the status bar interleaves with it.
+
+            // Static: paced on the cold budget, runs every tick until it completes.
+            if (_static_pending) _run_static();
+
             const bool refresh_due = (now - _refresh_last_ms >= _refresh_ms);
 
-            // Hot fields repaint at most once per cycle, before the cold refresh so
-            // they get first claim on an empty TX buffer. Prefer the per-second tick
-            // when TX has drained; the global refresh below is the guaranteed
-            // fallback, so the clock never freezes beyond one refresh window.
-            if (_hot_ms && now - _hot_last_ms >= _hot_ms) {
-                if (refresh_due || _terminal.tx_empty()) {
-                    _hot_last_ms = now;
+            // Hot fields (clock/uptime): once static is drawn, repaint on the per-second
+            // cadence, or keep resuming a pass that could not finish (so every hot field
+            // gets a first paint without waiting for the slower cold pass). Each field is
+            // paced under the shared depth floor by _paint(); the cadence clock advances
+            // only on a fresh due tick, not on a pending-only resume. Hot runs before cold
+            // below, so it gets first claim on the floor each tick.
+            if (!_static_pending && _hot_ms) {
+                const bool hot_due = (now - _hot_last_ms >= _hot_ms);
+                if (hot_due || _hot_pending) {
+                    if (hot_due) _hot_last_ms = now;
+                    _emit_count = 0;   // hot's own per-tick budget
+                    _emit_deferred = false;
                     draw_hot();
+                    _hot_pending = _emit_deferred;
                 }
-                // else: TX congested and no refresh due - hold and retry next tick.
             }
 
-            if (refresh_due) {
-                _refresh_last_ms = now;
-                draw_dynamic();   // cold fields
+            // Cold fields: only once static is fully drawn (a value needs its label
+            // first). On the refresh period or continued from a deferred pass; if it
+            // could not finish, resume next tick without disturbing the steady cadence
+            // (_refresh_last_ms is only advanced on a fresh refresh). A fresh period
+            // resets the ordinal (_cold_done = 0) so every field is revisited (the value
+            // cache still skips the ones that did not change).
+            if (!_static_pending && (refresh_due || _dynamic_pending)) {
+                if (refresh_due) { _refresh_last_ms = now; _cold_done = 0; }
+                _cold_idx = 0;
+                _cold_active = true;
+                _emit_count = 0;       // cold's own per-tick budget
+                _emit_deferred = false;
+                draw_dynamic();   // cold fields (paced)
+                _cold_active = false;
+                _dynamic_pending = _emit_deferred;
             }
         }
 

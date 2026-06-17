@@ -74,13 +74,9 @@ namespace Botanik { namespace Pages {
         /** @name Internals
          *  @{ */
 
-        /** @brief Scroll the tail up one row and write a line at the bottom,
-         *         storing it in the scrollback. Shared by write() and the
-         *         manual SPACE marker. */
-        void _emit_line(const char* buf, size_t len);
-
-        /** @brief Emit a timestamped "--- MARK ---" line into the log tail,
-         *         using the same format as log entries. Triggered by SPACE. */
+        /** @brief Store a timestamped "--- MARK ---" line into the scrollback (painted
+         *         by the next drain_tail), using the same format as log entries.
+         *         Triggered by SPACE. */
         void _emit_mark();
 
         /** @} */

@@ -1,4 +1,3 @@
-// REVIEW_34: OK
 #ifndef UTILS_TEXT_H
 #define UTILS_TEXT_H
 

@@ -18,6 +18,7 @@
 #include "libbotanik/terminal/ansi.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/plcio/sync.h"
+#include "libbotanik/utils/time.h"
 
 
 namespace Botanik { namespace Terminal {
@@ -32,18 +33,24 @@ namespace Botanik { namespace Terminal {
 
     // Constructor
     AnsiTerminal::AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
-                               uint32_t* timestamp_ms, const SystemContext& ctx) :
+                               uint32_t* timestamp_ms, uint32_t baud, const SystemContext& ctx) :
         _parser(serial, timestamp_ms),
         _serial(serial),
         _ctx(ctx),
         _cols(cols),
         _rows(rows)
     {
+        // Size the shared cooperative-TX depth floor from the link baud so the felt echo
+        // latency target (Config::TX_COLD_TARGET_MS) holds across links.
+        _tx_cold_depth = depth_for_baud(baud, Config::TX_COLD_TARGET_MS);
     }
 
     // Step through the terminal handling code
     void AnsiTerminal::step() {
         using Command = InputEvent::Command;
+        // Snapshot the RX depth before the parse loop below drains it, so the serial
+        // gauge reports what was actually waiting this cycle rather than ~0 post-drain.
+        _rx_cycle_used = _serial.available();
         // Establish the screen on the first step (not in setup_*()) so the clear
         // lands after the handshake setup_*() queued, in order: clear, "ACAB" boot
         // marker, contents. _establish_screen() (not clear_screen) so the queued
@@ -55,51 +62,74 @@ namespace Botanik { namespace Terminal {
                 _pages[_page_index]->focus();
         }
         uint64_t now = HAL::uptime_ms();
-        if (now - _status_last_ms >= Config::STATUS_REFRESH_MS) {
-            // Only refresh when the TX buffer can absorb the pass; otherwise leave
-            // _status_last_ms so the next step() retries instead of waiting a full
-            // interval.
-            if (tx_available() >= STATUS_METRICS_TX_BUDGET) {
-                _status_last_ms = now;
-                update_status_metrics();
+        // Status bar paints first each tick (it is self-contained - no page labels to
+        // wait on), so it interleaves with whatever the active page is drawing, including
+        // its static phase. Its two fields (the centred HH:MM:SS clock and the right-
+        // aligned metrics block) share TX_STATUS_FIELDS_PER_TICK and the shared depth
+        // floor; the round-robin cursor rotates which one repaints first so a tight budget
+        // never always favours the clock. A field repaints only on its own cadence, and an
+        // unchanged field emits nothing and spends no budget.
+        uint16_t status_budget = Config::TX_STATUS_FIELDS_PER_TICK;
+        for (uint8_t v = 0; v < 2 && status_budget > 0 && tx_below_cold(); v++) {
+            if (_status_field == 0) {
+                if (now - _status_clock_last_ms >= Config::PAGE_HOT_MS) {
+                    _status_clock_last_ms = now;
+                    if (update_status_clock()) status_budget--;
+                }
+            } else {
+                if (now - _status_last_ms >= Config::STATUS_REFRESH_MS) {
+                    // Advance the refresh clock only once the pass fully synced the
+                    // on-screen metrics; a partial run leaves it for the next tick instead
+                    // of waiting out another full STATUS_REFRESH_MS.
+                    if (update_status_metrics()) _status_last_ms = now;
+                    status_budget--;
+                }
             }
+            _status_field ^= 1;
         }
-        while (true) {
+        // Handle up to INPUT_EVENTS_PER_TICK events this tick so a paste or fast
+        // typing stays responsive without letting a flood monopolise the loop. Light
+        // events (text echo, cursor/edit commands) keep iterating; a heavy terminal
+        // intercept (full clear/redraw or a page switch) does its one repaint and
+        // yields the rest of the tick so two full repaints can never stack.
+        for (uint16_t n = 0; n < Config::INPUT_EVENTS_PER_TICK; n++) {
             InputEvent& ev = _parser.parse();
             if (ev.type == InputEvent::EventType::NONE) break;
             if (_pages_len == 0 || _pages[_page_index] == nullptr) continue;
             Pages::Page* page = _pages[_page_index];
             if (ev.type == InputEvent::EventType::CONTENT) {
                 page->handle_text_batch(ev.batch_data, ev.batch_len);
-                break;
-            } else if (ev.type == InputEvent::EventType::COMMAND) {
-                // Terminal-level intercepts - consumed before reaching the page
-                if (ev.command == Command::CTRL_L) {
-                    clear_screen();
-                    draw_status_row();
-                    page->redraw();
-                    break;
-                }
-                if (ev.command == Command::HOME)   { switch_to(0);  break; }
-                if (ev.command >= Command::ALT_1 && ev.command <= Command::ALT_9) {
-                    switch_to((uint8_t)((uint16_t)ev.command - (uint16_t)Command::ALT_1));
-                    break;
-                }
-                if (ev.command == Command::ALT_0) { switch_to(9); break; }
-                if (ev.command == Command::CTRL_PAGE_UP ||
-                    ev.command == Command::CTRL_PAGE_DOWN ||
-                    ev.command == Command::TAB ||
-                    ev.command == Command::SHIFT_TAB) {
-                    // TAB / Ctrl+PageDown advance; Shift+TAB / Ctrl+PageUp step
-                    // back. Both wrap around the ends.
-                    const bool back = ev.command == Command::CTRL_PAGE_UP ||
-                                      ev.command == Command::SHIFT_TAB;
-                    switch_relative(!back);
-                    break;
-                }
-                page->handle_command(ev.command, ev.count);
+                continue;
+            }
+            if (ev.type != InputEvent::EventType::COMMAND) continue;
+            // Terminal-level intercepts - consumed before reaching the page. These
+            // repaint the whole screen, so each breaks (takes the rest of the tick).
+            if (ev.command == Command::CTRL_L) {
+                clear_screen();
+                draw_status_row();
+                page->redraw();
                 break;
             }
+            if (ev.command == Command::HOME)   { switch_to(0);  break; }
+            if (ev.command >= Command::ALT_1 && ev.command <= Command::ALT_9) {
+                switch_to((uint8_t)((uint16_t)ev.command - (uint16_t)Command::ALT_1));
+                break;
+            }
+            if (ev.command == Command::ALT_0) { switch_to(9); break; }
+            if (ev.command == Command::CTRL_PAGE_UP ||
+                ev.command == Command::CTRL_PAGE_DOWN ||
+                ev.command == Command::TAB ||
+                ev.command == Command::SHIFT_TAB) {
+                // TAB and Ctrl+PageDown advance to the next page; Shift+TAB
+                // and Ctrl+PageUp step back. Both directions wrap around the
+                // ends.
+                const bool back = ev.command == Command::CTRL_PAGE_UP ||
+                                  ev.command == Command::SHIFT_TAB;
+                switch_relative(!back);
+                break;
+            }
+            // Light page command (edit/cursor/etc.): keep handling more this tick.
+            page->handle_command(ev.command, ev.count);
         }
         // Tick every page, not just the active one: each is its own LogWriter and
         // must drain into its scrollback every step so a later focus() replays an
@@ -260,6 +290,9 @@ namespace Botanik { namespace Terminal {
         // Emptying the ring also guarantees the clear sequence fits, so the _hw_pos
         // reset below is correct with no dropped-write path.
         _serial.tx_discard();
+        // Resync the terminal: the discard may have torn a half-sent sequence on the
+        // wire, which would otherwise swallow the leading bytes of the clear below.
+        Ansi::cancel_sequence(_serial);
         _establish_screen();
     }
 
@@ -387,6 +420,11 @@ namespace Botanik { namespace Terminal {
         // the page we're leaving first (they'd paint onto the new page). _hw_pos is
         // stale after the drop, so reposition absolutely (not relative move_to).
         _serial.tx_discard();
+        // The discard can strand a half-sent sequence on the wire (transmit() stops
+        // mid-sequence under the baud throttle); cancel_sequence() resyncs the terminal
+        // to ground state so the tab repaint below isn't swallowed by a stuck parser -
+        // that swallow is what leaves some page-name chars un-inverted under TX load.
+        Ansi::cancel_sequence(_serial);
         // Hide the cursor before any repaint so it doesn't blink across the cleared
         // content or the row-0 tabs. The page that wants it (shell editor) shows it
         // again from focus(). Lazy, so a no-op when already off.
@@ -399,9 +437,11 @@ namespace Botanik { namespace Terminal {
         // tabs (the one we left, the one we entered) rather than the whole bar.
         draw_status_tab(prev);
         if (prev != index) draw_status_tab(index);
-        // The tx_discard above may have dropped a queued metrics update; invalidate
-        // the diff cache so the next refresh repaints them (no bytes go out here).
+        // The tx_discard above may have dropped a queued metrics or clock update;
+        // invalidate both diff caches so the next refresh repaints them in full (no
+        // bytes go out here - the on-screen row 0 survived the content clear).
         memset(_status_metrics_cache, 0, sizeof(_status_metrics_cache));
+        memset(_status_clock_cache,   0, sizeof(_status_clock_cache));
         _pages[_page_index]->focus();
     }
 
@@ -454,6 +494,11 @@ namespace Botanik { namespace Terminal {
         memset(_status_metrics_cache, 0, sizeof(_status_metrics_cache));
         update_status_metrics(/*restore_cursor=*/false);
 
+        // Centred HH:MM:SS clock: invalidate its cache and paint the initial value so
+        // it is not blank until the first per-second hot tick.
+        memset(_status_clock_cache, 0, sizeof(_status_clock_cache));
+        update_status_clock(/*restore_cursor=*/false);
+
         // Restore only the attribute; the cursor is left where the metrics parked it
         // (the caller repositions absolutely).
         set_inverted(saved_inv);
@@ -490,19 +535,37 @@ namespace Botanik { namespace Terminal {
         set_inverted(saved_inv);
     }
 
-    void AnsiTerminal::update_status_metrics(bool restore_cursor) {
+    void AnsiTerminal::emit_field_run(uint16_t row, uint16_t col, const char* cf,
+                                      uint16_t a, uint16_t b, uint32_t hi) {
+        move_to({row, (uint16_t)(col + a)});
+        uint16_t seg = a;
+        bool seg_inv = ((hi >> a) & 1u) != 0;
+        for (uint16_t k = a; k < b; ++k) {
+            bool ki = ((hi >> k) & 1u) != 0;
+            if (ki != seg_inv) {
+                set_inverted(seg_inv);
+                write_chars(&cf[seg], (uint16_t)(k - seg));
+                seg = k; seg_inv = ki;
+            }
+        }
+        set_inverted(seg_inv);
+        write_chars(&cf[seg], (uint16_t)(b - seg));
+    }
+
+    bool AnsiTerminal::update_status_metrics(bool restore_cursor) {
         char metrics[STATUS_METRICS_LEN];
         int mlen = _build_metrics(metrics, sizeof(metrics));
 
         // mlen is constant (fixed-width fields), so a byte index maps to a fixed col.
         uint16_t visible = (uint16_t)std::min((int)_cols, mlen);
-        if (visible == 0) return;
+        if (visible == 0) return true;  // nothing to draw == nothing left to sync
         uint16_t metrics_col = (uint16_t)(_cols - visible);
 
         CursorPos saved_pos = _hw_pos;
         bool      saved_inv = _hw_inverted;
         bool      saved_cur = _hw_cursor_visible;
         bool      touched   = false;
+        bool      complete  = true;
 
         // The bar is reverse video except the live readings - plc (cols 4..6), cpu
         // (12..15), stk (21..24) - drawn normal. Coalesce changed cells into runs,
@@ -517,15 +580,16 @@ namespace Botanik { namespace Terminal {
             // Only emit a run if it fully fits (move + invert + chars); otherwise
             // stop and retry next refresh, leaving the unwritten cells' cache stale.
             uint16_t run = (uint16_t)(j - i);
-            if (tx_available() < (uint16_t)(run + 16)) break;
+            if (tx_available() < (uint16_t)(run + 16)) { complete = false; break; }
             // Hide the cursor before the first status-bar write so it doesn't blink
             // across row 0 while the metrics paint; restored below (no-op if already
             // hidden, e.g. on a non-shell page).
             if (!touched) set_cursor_visible(false);
-            set_inverted(!value);
             touched = true;
-            move_to({0, (uint16_t)(metrics_col + i)});
-            write_chars(metrics + i, run);
+            // Whole run is uniformly value (normal) or not (inverted): pass an all-set
+            // or all-clear highlight mask so emit_field_run draws it in one segment.
+            emit_field_run(0, metrics_col, metrics, (uint16_t)i, (uint16_t)j,
+                           value ? 0u : ~0u);
             memcpy(_status_metrics_cache + i, metrics + i, (size_t)run);
             i = j;
         }
@@ -540,6 +604,49 @@ namespace Botanik { namespace Terminal {
             // never reappears on row 0. No-op when it was already hidden.
             set_cursor_visible(saved_cur);
         }
+        return complete;
+    }
+
+    bool AnsiTerminal::update_status_clock(bool restore_cursor) {
+        // Wall-clock HH:MM:SS (same source as the STATUS page's "Wall Clock" field).
+        Utils::CalendarTime wc = Utils::cal_time_ms(HAL::uptime_ms());
+        // Oversized scratch so snprintf can't truncation-warn; only the first
+        // STATUS_CLOCK_LEN cells ("HH:MM:SS") are diffed/emitted below.
+        char clk[16];
+        snprintf(clk, sizeof(clk), "%02u:%02u:%02u",
+                 (unsigned)wc.hour, (unsigned)wc.minute, (unsigned)wc.second);
+
+        // Centre the field; skip on a terminal too narrow to fit it clear of the
+        // right-aligned metrics.
+        if (_cols < STATUS_CLOCK_LEN) return false;
+        uint16_t clock_col   = (uint16_t)((_cols - STATUS_CLOCK_LEN) / 2);
+        uint16_t metrics_col = (_cols > (uint16_t)(STATUS_METRICS_LEN - 1))
+                                   ? (uint16_t)(_cols - (STATUS_METRICS_LEN - 1)) : 0;
+        if ((uint16_t)(clock_col + STATUS_CLOCK_LEN) > metrics_col) return false;
+
+        CursorPos saved_pos = _hw_pos;
+        bool      saved_inv = _hw_inverted;
+        bool      touched   = false;
+
+        // Diff vs the cache and emit changed runs in normal video (hi = 0) so the
+        // digits stand out against the reverse-video bar. Floor-gated by the caller, so
+        // the (tiny) field is guaranteed to fit; no per-run budget check needed.
+        uint16_t i = 0;
+        while (i < STATUS_CLOCK_LEN) {
+            if (clk[i] == _status_clock_cache[i]) { ++i; continue; }
+            uint16_t j = (uint16_t)(i + 1);
+            while (j < STATUS_CLOCK_LEN && clk[j] != _status_clock_cache[j]) ++j;
+            touched = true;
+            emit_field_run(0, clock_col, clk, i, j, 0u);   // hi = 0 -> normal video
+            memcpy(_status_clock_cache + i, clk + i, (size_t)(j - i));
+            i = j;
+        }
+
+        if (touched) {
+            set_inverted(saved_inv);
+            if (restore_cursor) move_to(saved_pos);
+        }
+        return touched;
     }
 
     // Serial / TX
