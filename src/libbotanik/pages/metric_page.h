@@ -57,6 +57,16 @@ namespace Botanik { namespace Pages {
          *  A hot field repaints at most once per cycle - by this tick or the global
          *  refresh, never both (see tick()). Cold fields live in draw_dynamic(). */
         uint32_t      _hot_ms          = 0;
+        /** @brief Value cells emitted this tick (reset at the top of tick()). Bounds
+         *  the per-tick paint burst to METRIC_FIELDS_PER_TICK so a full refresh or
+         *  repaint spreads over several ticks instead of flooding the TX ring. */
+        uint16_t      _emit_count       = 0;
+        /** @brief Set by _paint() when it skips a field (per-tick cap hit or the cold
+         *  depth gate closed), so tick()/focus() know the pass did not fully drain. */
+        bool          _emit_deferred    = false;
+        /** @brief A cold draw_dynamic() pass was left unfinished; resume it on later
+         *  ticks (the value cache makes already-drawn fields no-ops) until it drains. */
+        bool          _dynamic_pending  = false;
 
         /** @brief Number of diff-cache slots and the per-slot value width.
          *  Single-column pages key a slot by its row; column layouts (see _cell())
@@ -230,15 +240,15 @@ namespace Botanik { namespace Pages {
                 last = (int)i;
             }
 
-            // Budget the whole update up front: one move + a couple of SGR toggles
-            // per run, plus the emitted bytes.
-            uint16_t runs = 0, count = 0;
-            for (uint16_t i = 0; i < width; ++i) {
-                if (!((render >> i) & 1u)) continue;
-                count++;
-                if (i == 0 || !((render >> (i - 1)) & 1u)) runs++;
+            // Cooperative pacing: emit only while the ring is shallow (cold gate) and
+            // we are under the per-tick field cap; otherwise defer (cache untouched, so
+            // a later tick repaints this field). A shallow CONSOLE_TX_COLD_DEPTH leaves
+            // ample room for one field, so no separate fit check is needed.
+            if (_emit_count >= Config::METRIC_FIELDS_PER_TICK ||
+                !_terminal.tx_below(Config::CONSOLE_TX_COLD_DEPTH)) {
+                _emit_deferred = true;
+                return false;
             }
-            if (_terminal.tx_available() < (uint16_t)(runs * 12 + count * 5 + 8)) return false;
 
             uint16_t i = 0;
             while (i < width) {
@@ -250,6 +260,7 @@ namespace Botanik { namespace Pages {
                 _terminal.emit_field_run(row, col, cf, a, b, hi);
             }
             _terminal.set_inverted(false);                   // leave the terminal normal
+            _emit_count++;                                    // one field spent this tick
             return true;
         }
 
@@ -316,35 +327,47 @@ namespace Botanik { namespace Pages {
         void focus() override {
             _active = true;
             _invalidate();   // screen was cleared on switch: repaint everything
+            _emit_count    = 0;
             draw_static();
-            // Hot fields before cold: a hot tick gates on an empty TX buffer, so it
+            // Hot fields before cold: a hot tick gates on a near-empty TX buffer, so it
             // must get first claim on it before the cold refresh fills it up.
             draw_hot();       // hot fields, so the clock isn't blank until the first tick
-            draw_dynamic();   // cold fields
+            // Cold fields are paced by the field cap, so a busy page may not finish in
+            // one go; mark it pending so tick() resumes until it fully repaints.
+            _emit_deferred = false;
+            draw_dynamic();   // cold fields (capped)
+            _dynamic_pending = _emit_deferred;
         }
 
         void tick(bool active) override {
             _active = active;
             if (!active) return;
             uint64_t now = HAL::uptime_ms();
+            _emit_count = 0;   // per-tick field budget shared by the hot and cold passes
 
             const bool refresh_due = (now - _refresh_last_ms >= _refresh_ms);
 
-            // Hot fields repaint at most once per cycle, before the cold refresh so
-            // they get first claim on an empty TX buffer. Prefer the per-second tick
-            // when TX has drained; the global refresh below is the guaranteed
+            // Hot fields repaint at most once per cycle, before the cold pass so they
+            // get first claim on a near-empty ring. Prefer the per-second tick when the
+            // ring is near-empty (hot depth); the global refresh below is the guaranteed
             // fallback, so the clock never freezes beyond one refresh window.
             if (_hot_ms && now - _hot_last_ms >= _hot_ms) {
-                if (refresh_due || _terminal.tx_empty()) {
+                if (refresh_due || _terminal.tx_below(Config::CONSOLE_TX_HOT_DEPTH)) {
                     _hot_last_ms = now;
                     draw_hot();
                 }
                 // else: TX congested and no refresh due - hold and retry next tick.
             }
 
-            if (refresh_due) {
-                _refresh_last_ms = now;
-                draw_dynamic();   // cold fields
+            // Cold fields on the refresh period, or continued from a deferred pass.
+            // _paint paces them (field cap + cold gate); if it could not finish, resume
+            // next tick without disturbing the steady cadence (_refresh_last_ms is only
+            // advanced on a fresh refresh, never on a pending-only resume).
+            if (refresh_due || _dynamic_pending) {
+                if (refresh_due) _refresh_last_ms = now;
+                _emit_deferred = false;
+                draw_dynamic();   // cold fields (capped)
+                _dynamic_pending = _emit_deferred;
             }
         }
 
