@@ -75,3 +75,24 @@ The system is split into six subsystems under `src/libbotanik/`:
 | `_GNU_SOURCE` | SIMULATOR build |
 | `TARGET_OPTA` | OPTA build |
 | `ARDUINO` / `MBED_*` | OPTA build |
+
+## Site-specific code (greenhouse targets)
+
+`libbotanik` is generic and site-independent. Code specific to one physical greenhouse and its PLC program (the shared-memory payload layout, its pages, its alert table, and the mock data that animates it) is a **site**, code-named per greenhouse. The reference site is `gh_mlb41`.
+
+Three layers, generic to specific:
+
+| Layer | Holds | Examples |
+|---|---|---|
+| `libbotanik` | generic, site- and target-independent machinery, plus the `BotanikFirmware` base that wires every long-lived object and owns the per-tick `step()` order | `PlcSyncHandler`, `AnsiTerminal`, `AlertModel`, `BotanikFirmware` |
+| site (`gh_mlb41`) | single source of truth for one greenhouse: the `PlcInput/OutputData_t` layout, site pages (Home/Status), the `g_alerts[]` table, the `fill_output()` data simulation, and a `GreenhouseMLB41` class deriving from `BotanikFirmware` | `gh_mlb41` |
+| target / entry point | thin: selects one site and runs it | `botanik_sim` harness, generated OPTA `.ino` |
+
+Rules:
+
+- **One data layout per site, shared by simulator and hardware.** A site's `PlcOutputData_t` / `PlcInputData_t` is used verbatim by both the OPTA firmware and the simulator's mock PLC. Never fork the layout per target; evolve the layout and its `fill_output()` animator together, in the site.
+- **The simulator is a generic harness.** It allocates the shared region locally and drives a `PlcEmulator` with the selected site's `fill_output()`. On OPTA the real coprocessor plays that role and the region comes from `HAL::get_plc_input()/get_plc_output()`; the site code is identical either way.
+- **The site stays portable.** Site code must cross-compile as an Arduino library (no POSIX / threading / `<random>` outside `TARGET_SIMULATOR`): the deploy step zips the site dir into an Arduino library and generates a `.ino` that statically allocates a `GreenhouseMLB41` and calls its `setup()` / `loop()`. Keep simulator-only helpers (the data animator) in a file the zip excludes.
+- New site-level work goes in the site, not in `libbotanik` and not in a target's `main`.
+
+**Current state (migration pending):** the `gh_mlb41` site is not yet extracted. Its definition still lives inside `botanik_sim/` (`simulator.h`/`.cpp`, `main.cpp`), and `botanik_fw/firmware.h` carries a diverging placeholder payload. Until the unification lands, treat the `botanik_sim` payload / pages / alert table as the canonical `gh_mlb41` definition, and `BotanikFirmware` as the base to be promoted into `libbotanik`.

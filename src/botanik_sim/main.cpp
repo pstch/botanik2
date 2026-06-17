@@ -60,8 +60,9 @@ static const char* net_str(uint8_t s) {
 /** @brief Greenhouse status page: renders the full sensor/actuator set. */
 class GreenhouseStatusPage : public Botanik::Pages::StatusPage<PlcOutputData_t> {
 public:
-    GreenhouseStatusPage(Botanik::Terminal::AnsiTerminal& terminal, const PlcOutputData_t* data)
-        : Botanik::Pages::StatusPage<PlcOutputData_t>(terminal, data) {}
+    GreenhouseStatusPage(Botanik::Terminal::AnsiTerminal& terminal, const PlcOutputData_t* data,
+                         const Botanik::Alerts::AlertModel* alerts)
+        : Botanik::Pages::StatusPage<PlcOutputData_t>(terminal, data, alerts) {}
 
 protected:
     // Two-column body geometry on an 80-col display: left panel cols 2..36, right
@@ -363,7 +364,7 @@ int main(int argc, char** argv) {
     Pages::ShellPage shell_page(terminal);
     Pages::LogsPage  logs_page(terminal);
     GreenhouseHomePage   home_page(terminal, plc_handler.output_data());
-    GreenhouseStatusPage status_page(terminal, plc_handler.output_data());
+    GreenhouseStatusPage status_page(terminal, plc_handler.output_data(), &alert_model);
     Pages::AlertsPage    alerts_page(terminal, &alert_model);
 
     // Register logging sinks

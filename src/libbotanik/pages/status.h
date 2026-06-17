@@ -20,7 +20,10 @@
 #include <cstdint>
 #include <cstdio>
 
+#include <cstring>
+
 #include "libbotanik_config.h"
+#include "libbotanik/alerts/alerts.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/pages/metric_page.h"
 #include "libbotanik/scheduler/scheduler.h"
@@ -38,7 +41,25 @@ namespace Botanik { namespace Pages {
 
         /** @brief Typed PLC output payload (may be null). */
         const OutputData* _data;
+        /** @brief Alert source for the bottom ribbon (may be null). */
+        const Alerts::AlertModel* _alerts;
 
+        /** @name Alert ribbon (bottom row)
+         *  The ribbon is a self-contained hot field, repainted only when the
+         *  unmasked alert set or the active count changes, and only while the TX
+         *  ring is shallow (the shared cold floor) so it interleaves cooperatively
+         *  like the top status bar. No change-highlighting (the set is visible as a
+         *  whole). _ribbon_dirty survives a deferred paint (floor closed) so a
+         *  later tick retries.
+         *  @{ */
+        /** @brief Unmasked set last painted (bit i = AlertId i shown). */
+        uint64_t _ribbon_sig   = 0;
+        /** @brief Active count last painted (the header's "(XX)"). */
+        uint8_t  _ribbon_count = 0;
+        /** @brief A repaint is due (set on change/focus, cleared once painted). */
+        bool     _ribbon_dirty = true;
+
+        /** @} */
         /** @} */
 
         /** @brief First row below the system band, for the derived page's own
@@ -163,14 +184,101 @@ namespace Botanik { namespace Pages {
 
         /** @} */
 
+        /** @name Alert ribbon
+         *  @{ */
+
+        /** @brief Bitset of currently-unmasked alerts (the ribbon's listed set). */
+        uint64_t _unmasked_set() const {
+            uint64_t m = 0;
+            if (_alerts)
+                for (uint8_t i = 0; i < _alerts->count(); i++)
+                    if (_alerts->condition(i).unmasked) m |= Alerts::alert_bit(i);
+            return m;
+        }
+
+        /** @brief Paint the bottom alert ribbon: a reverse-video bar with a header
+         *  " /!\ ALERTS (XX) : " (XX = active count) then the unmasked alert codes
+         *  in normal video, each followed by an inverted space (so codes read as a
+         *  set against the bar, like the active tab). Filled to the row end. */
+        void _draw_ribbon() {
+            uint16_t rows = _terminal.rows();
+            uint16_t cols = _terminal.cols();
+            if (rows == 0 || cols == 0) return;
+            uint16_t row = (uint16_t)(rows - 1);
+
+            char hdr[40];
+            unsigned active = _alerts ? _alerts->active_count() : 0;
+            snprintf(hdr, sizeof(hdr), " /!\\ ALERTS (%u) : ", active);
+            uint16_t used = (uint16_t)strlen(hdr);
+
+            _terminal.move_to({row, 0});
+            _terminal.set_inverted(true);
+            _terminal.write_chars(hdr, used);
+
+            if (_alerts) {
+                for (uint8_t i = 0; i < _alerts->count(); i++) {
+                    const Alerts::AlertCondition& c = _alerts->condition(i);
+                    if (!c.unmasked || c.code == nullptr) continue;
+                    uint16_t clen = (uint16_t)strlen(c.code);
+                    if ((uint16_t)(used + clen + 1) > cols) break;   // out of room on the row
+                    _terminal.set_inverted(false);
+                    _terminal.write_chars(c.code, clen);
+                    _terminal.set_inverted(true);
+                    _terminal.write_chars(" ", 1);                   // inverted separator
+                    used = (uint16_t)(used + clen + 1);
+                }
+            }
+
+            // Reverse-video fill to the end of the row, chunked.
+            char sp[32];
+            memset(sp, ' ', sizeof(sp));
+            while (used < cols) {
+                uint16_t n = (uint16_t)((cols - used) > (uint16_t)sizeof(sp)
+                                            ? sizeof(sp) : (cols - used));
+                _terminal.write_chars(sp, n);
+                used = (uint16_t)(used + n);
+            }
+            _terminal.set_inverted(false);
+        }
+
+        /** @brief Cooperative ribbon pass: repaint when the unmasked set or active
+         *  count changed, but only while the TX ring is shallow; otherwise stay dirty
+         *  and retry next tick. */
+        void _run_ribbon() {
+            if (_alerts == nullptr) return;
+            uint64_t sig = _unmasked_set();
+            uint8_t  cnt = _alerts->active_count();
+            if (sig != _ribbon_sig || cnt != _ribbon_count) _ribbon_dirty = true;
+            if (!_ribbon_dirty) return;
+            if (!_terminal.tx_below_cold()) return;   // wait for a shallow ring
+            _draw_ribbon();
+            _ribbon_sig   = sig;
+            _ribbon_count = cnt;
+            _ribbon_dirty = false;
+        }
+
+        /** @} */
+
     public:
-        /** @brief Construct a StatusPage bound to a terminal and PLC payload. */
-        StatusPage(AnsiTerminal& terminal, const OutputData* data)
-            : MetricPage(terminal, 16), _data(data) {
+        /** @brief Construct a StatusPage bound to a terminal, PLC payload, and the
+         *  alert model that feeds the bottom ribbon (may be null). */
+        StatusPage(AnsiTerminal& terminal, const OutputData* data,
+                   const Alerts::AlertModel* alerts = nullptr)
+            : MetricPage(terminal, 16), _data(data), _alerts(alerts) {
             _hot_ms = Config::PAGE_HOT_MS;   // wall clock + uptime tick every second
         }
 
         const char* name() const override { return "STATUS"; }
+
+        void focus() override {
+            MetricPage::focus();
+            _ribbon_dirty = true;   // screen was cleared: repaint the ribbon
+        }
+
+        void tick(bool active) override {
+            MetricPage::tick(active);
+            if (active) _run_ribbon();
+        }
     };
 
 }}
