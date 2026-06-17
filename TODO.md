@@ -1,6 +1,6 @@
 # TODO
 
-## Documentation
+ - the exit command should print a newline before actually existing
 
  - Formalize the way we comment and structure our CPP files
 

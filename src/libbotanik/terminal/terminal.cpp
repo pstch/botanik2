@@ -59,47 +59,54 @@ namespace Botanik { namespace Terminal {
             // Only refresh when the TX buffer can absorb the pass; otherwise leave
             // _status_last_ms so the next step() retries instead of waiting a full
             // interval.
-            if (tx_available() >= STATUS_METRICS_TX_BUDGET) {
+            if (tx_ready(STATUS_METRICS_TX_BUDGET)) {
                 _status_last_ms = now;
                 update_status_metrics();
             }
         }
-        while (true) {
+        // Handle up to INPUT_EVENTS_PER_TICK events this tick so a paste or fast
+        // typing stays responsive without letting a flood monopolise the loop. Light
+        // events (text echo, cursor/edit commands) keep iterating; a heavy terminal
+        // intercept (full clear/redraw or a page switch) does its one repaint and
+        // yields the rest of the tick so two full repaints can never stack.
+        for (uint16_t n = 0; n < Config::INPUT_EVENTS_PER_TICK; n++) {
             InputEvent& ev = _parser.parse();
             if (ev.type == InputEvent::EventType::NONE) break;
             if (_pages_len == 0 || _pages[_page_index] == nullptr) continue;
             Pages::Page* page = _pages[_page_index];
             if (ev.type == InputEvent::EventType::CONTENT) {
                 page->handle_text_batch(ev.batch_data, ev.batch_len);
-                break;
-            } else if (ev.type == InputEvent::EventType::COMMAND) {
-                // Terminal-level intercepts - consumed before reaching the page
-                if (ev.command == Command::CTRL_L) {
-                    clear_screen();
-                    draw_status_row();
-                    page->redraw();
-                    break;
-                }
-                if (ev.command == Command::HOME)   { switch_to(0);  break; }
-                if (ev.command >= Command::ALT_1 && ev.command <= Command::ALT_9) {
-                    switch_to((uint8_t)((uint16_t)ev.command - (uint16_t)Command::ALT_1));
-                    break;
-                }
-                if (ev.command == Command::ALT_0) { switch_to(9); break; }
-                if (ev.command == Command::CTRL_PAGE_UP ||
-                    ev.command == Command::CTRL_PAGE_DOWN ||
-                    ev.command == Command::TAB ||
-                    ev.command == Command::SHIFT_TAB) {
-                    // TAB / Ctrl+PageDown advance; Shift+TAB / Ctrl+PageUp step
-                    // back. Both wrap around the ends.
-                    const bool back = ev.command == Command::CTRL_PAGE_UP ||
-                                      ev.command == Command::SHIFT_TAB;
-                    switch_relative(!back);
-                    break;
-                }
-                page->handle_command(ev.command, ev.count);
+                continue;
+            }
+            if (ev.type != InputEvent::EventType::COMMAND) continue;
+            // Terminal-level intercepts - consumed before reaching the page. These
+            // repaint the whole screen, so each breaks (takes the rest of the tick).
+            if (ev.command == Command::CTRL_L) {
+                clear_screen();
+                draw_status_row();
+                page->redraw();
                 break;
             }
+            if (ev.command == Command::HOME)   { switch_to(0);  break; }
+            if (ev.command >= Command::ALT_1 && ev.command <= Command::ALT_9) {
+                switch_to((uint8_t)((uint16_t)ev.command - (uint16_t)Command::ALT_1));
+                break;
+            }
+            if (ev.command == Command::ALT_0) { switch_to(9); break; }
+            if (ev.command == Command::CTRL_PAGE_UP ||
+                ev.command == Command::CTRL_PAGE_DOWN ||
+                ev.command == Command::TAB ||
+                ev.command == Command::SHIFT_TAB) {
+                // TAB and Ctrl+PageDown advance to the next page; Shift+TAB
+                // and Ctrl+PageUp step back. Both directions wrap around the
+                // ends.
+                const bool back = ev.command == Command::CTRL_PAGE_UP ||
+                                  ev.command == Command::SHIFT_TAB;
+                switch_relative(!back);
+                break;
+            }
+            // Light page command (edit/cursor/etc.): keep handling more this tick.
+            page->handle_command(ev.command, ev.count);
         }
         // Tick every page, not just the active one: each is its own LogWriter and
         // must drain into its scrollback every step so a later focus() replays an
