@@ -165,6 +165,13 @@ namespace Botanik { namespace HAL {
         return _now_as<std::chrono::microseconds>();
     }
 
+    inline uint64_t real_uptime_ms() {
+        // deliberately skips the _time_scale() factor _now_as() applies, so it
+        // tracks real wall-clock time even under BOTANIK_TIME_SCALE dilation
+        auto elapsed = std::chrono::steady_clock::now() - _process_start();
+        return (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+    }
+
     inline uint64_t wall_clock_ms() {
         return (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();

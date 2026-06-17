@@ -302,7 +302,10 @@ namespace Botanik { namespace Scheduler {
         /** @brief Compute the beat's CPU duty cycle (active fraction of the elapsed
          *  beat) from the actual slept time and publish it. */
         void _record_load(uint64_t now_us);
-        /** @brief Sample the achieved tick rate once per second and publish it. */
+        /** @brief Sample the achieved tick rate once per second and publish it.
+         *  @p now_ms is the loop's (dilated) uptime; on the simulator the window
+         *  is measured in real time instead, so the rate stays meaningful under
+         *  BOTANIK_TIME_SCALE. */
         void _record_tps(uint64_t now_ms);
         /** @brief Close the work window: record work duration and, at slice boundaries,
          *  scan the stack high-water mark; publish both into the context. */

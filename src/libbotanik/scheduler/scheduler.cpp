@@ -172,6 +172,12 @@ namespace Botanik { namespace Scheduler {
     }
 
     void LoopScheduler::_record_tps(uint64_t now_ms) {
+#ifdef TARGET_SIMULATOR
+        // TPS is the one metric expressed per *real* second: under BOTANIK_TIME_SCALE
+        // the loop runs faster, so ticks/real-second shows whether the host sustains
+        // the sped-up rate. Hardware has no dilation, so its uptime is already real.
+        now_ms = HAL::real_uptime_ms();
+#endif
         // achieved tick rate: ticks since the window anchor over the elapsed window,
         // normalized to per-second and published once the window reaches a second.
         if (_tps_anchor_ms == 0) {            // first beat: open the window
