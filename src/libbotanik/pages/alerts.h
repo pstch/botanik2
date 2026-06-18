@@ -7,8 +7,8 @@
  *
  * Layout (row 0 is the terminal status bar):
  *   row 1            blank top margin
- *   row 2            table header  (| CODE | ON | OFF | DESCRIPTION |)
- *   row 3            header rule   (+------+----+----+ ... +)
+ *   row 2            table header  (| CODE | ON | LAST EVENT | DESCRIPTION |)
+ *   row 3            header rule   (+------+----+------------+ ... +)
  *   rows 4..N-3      data rows (scrolled a line at a time via scroll_region)
  *   row N-2          blank line below the table
  *   row N-1          footer (mode, counts, key hints)
@@ -27,9 +27,12 @@
 #include <cstdint>
 #include <cstdio>
 
+#include "libbotanik_config.h"
 #include "libbotanik/alerts/alerts.h"
+#include "libbotanik/hal/platform.h"
 #include "libbotanik/pages/page.h"
 #include "libbotanik/terminal/terminal.h"
+#include "libbotanik/utils/time.h"
 
 namespace Botanik { namespace Pages {
 
@@ -55,12 +58,12 @@ namespace Botanik { namespace Pages {
         uint16_t                  _top      = 0;
         /** @brief A repaint is due (set on focus/scroll/toggle, cleared by _repaint). */
         bool                      _dirty    = true;
-        /** @name Change signature (repaint only when the set / its flags move)
-         *  @{ */
+        /** @brief Uptime of the last once-a-second alert-set re-check (see tick()). */
+        uint64_t                  _last_refresh_ms = 0;
+        /** @brief Merged raw bitset at the last repaint. Every displayed field (active
+         *  state, last-event time, onset order) changes only on a transition, i.e. when
+         *  raw moves, so this one signature gates the repaint. */
         uint64_t                  _last_raw = 0;
-        uint64_t                  _last_on  = 0;
-        uint64_t                  _last_off = 0;
-        /** @} */
         /** @brief Visible alert indices (table index order), filled by _collect(). */
         uint8_t                   _vis[Alerts::ALERT_BITS];
         /** @brief Number of visible entries in _vis. */
@@ -86,20 +89,26 @@ namespace Botanik { namespace Pages {
         /** @} */
 
         /** @name Layout
+         *  Columns: CODE | ON (reverse-video badge when active) | LAST EVENT
+         *  ("ON @ HH:MM" / "OFF @ HH:MM") | DESCRIPTION.
          *  @{ */
         static constexpr uint16_t MARGIN     = 2;   // blank columns each side
         static constexpr uint16_t CODE_W     = 11;  // cell inner widths (incl. 1 pad)
-        static constexpr uint16_t ON_W       = 5;
-        static constexpr uint16_t OFF_W      = 5;
+        static constexpr uint16_t STATE_W    = 4;   // " ON" badge / "ON" header
+        static constexpr uint16_t EVENT_W    = 12;  // " OFF @ HH:MM"
         static constexpr uint16_t HEADER_ROW = 2;
         static constexpr uint16_t RULE_ROW   = 3;
         static constexpr uint16_t DATA_TOP   = 4;
+        /** @brief Screen column where the state cell's text starts, tracking the
+         *  layout _draw_grid_row() emits: margin + "| " + CODE(inner) + "| ". The
+         *  reverse-video "ON" badge is overdrawn here on the otherwise-normal row. */
+        static constexpr uint16_t STATE_TEXT_COL = MARGIN + 2 + (CODE_W - 1) + 2;
         /** @} */
 
         /** @brief Description-column width: the row remainder, clamped. */
         uint16_t _desc_w() const {
             uint16_t cols  = _terminal.cols();
-            uint16_t fixed = (uint16_t)(5 + CODE_W + ON_W + OFF_W);   // 5 rules + fixed cells
+            uint16_t fixed = (uint16_t)(5 + CODE_W + STATE_W + EVENT_W);  // 5 rules + fixed cells
             uint16_t avail = (cols > (uint16_t)(2 * MARGIN + fixed))
                                  ? (uint16_t)(cols - 2 * MARGIN - fixed) : 8;
             if (avail < 8)  avail = 8;
@@ -107,12 +116,22 @@ namespace Botanik { namespace Pages {
             return avail;
         }
 
+        /** @brief Format the last-event cell for @p c: "ON @ HH:MM" while active,
+         *  "OFF @ HH:MM" after it cleared, or empty if it has never fired. The time is
+         *  the wall clock at the last transition (edge_ms). */
+        static void _fmt_event(char* buf, size_t cap, const Alerts::AlertCondition& c) {
+            if (!c.active && c.edge_ms == 0) { if (cap) buf[0] = '\0'; return; }
+            Utils::CalendarTime t = Utils::cal_time_ms(c.edge_ms);
+            snprintf(buf, cap, "%s @ %02u:%02u", c.active ? "ON" : "OFF",
+                     (unsigned)t.hour, (unsigned)t.minute);
+        }
+
         /** @brief Draw one '|'-ruled grid row: margin, then each cell wrapped in '|'
          *  rules, cell text padded to its column width. */
         void _draw_grid_row(uint16_t row, const char* c0, const char* c1,
                             const char* c2, const char* c3) {
             const char* cell[4] = { c0, c1, c2, c3 };
-            uint16_t    w[4]    = { CODE_W, ON_W, OFF_W, _desc_w() };
+            uint16_t    w[4]    = { CODE_W, STATE_W, EVENT_W, _desc_w() };
             char     line[160];
             uint16_t n = 0;
             line[n++] = ' '; line[n++] = ' ';                // left margin
@@ -134,7 +153,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief Draw the header rule: "+----+--+...+" matching the column widths. */
         void _draw_rule(uint16_t row) {
-            uint16_t w[4] = { CODE_W, ON_W, OFF_W, _desc_w() };
+            uint16_t w[4] = { CODE_W, STATE_W, EVENT_W, _desc_w() };
             char     line[160];
             uint16_t n = 0;
             line[n++] = ' '; line[n++] = ' ';                // left margin
@@ -200,31 +219,12 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Snapshot the change signature after a repaint. */
-        void _snapshot() {
-            _last_raw = _model ? _model->raw() : 0;
-            _last_on  = 0;
-            _last_off = 0;
-            if (_model)
-                for (uint8_t i = 0; i < _model->count(); i++) {
-                    const Alerts::AlertCondition& c = _model->condition(i);
-                    if (!c.active) continue;
-                    if (c.on_notified)  _last_on  |= Alerts::alert_bit(i);
-                    if (c.off_notified) _last_off |= Alerts::alert_bit(i);
-                }
-        }
+        void _snapshot() { _last_raw = _model ? _model->raw() : 0; }
 
-        /** @brief True if the active set or any ON/OFF flag changed since the last
-         *  repaint (so a steady, scrolled view is left untouched). */
+        /** @brief True if the alert set moved since the last repaint (so a steady,
+         *  scrolled view is left untouched). */
         bool _changed() const {
-            if (_model == nullptr) return false;
-            uint64_t on = 0, off = 0;
-            for (uint8_t i = 0; i < _model->count(); i++) {
-                const Alerts::AlertCondition& c = _model->condition(i);
-                if (!c.active) continue;
-                if (c.on_notified)  on  |= Alerts::alert_bit(i);
-                if (c.off_notified) off |= Alerts::alert_bit(i);
-            }
-            return _model->raw() != _last_raw || on != _last_on || off != _last_off;
+            return _model != nullptr && _model->raw() != _last_raw;
         }
 
         /** @name Window geometry
@@ -241,15 +241,21 @@ namespace Botanik { namespace Pages {
         /** @} */
 
         /** @brief Draw data row at screen @p row for visible entry @p vi (index into
-         *  _vis), or clear the row when @p vi is past the end of the set. */
+         *  _vis), or clear the row when @p vi is past the end of the set. The state
+         *  cell shows a reverse-video "ON" badge while active (blank otherwise): the
+         *  row is drawn normal, then the badge overdrawn inverted in place. */
         void _draw_data_row(uint16_t row, uint16_t vi) {
-            if (vi < _nvis) {
-                const Alerts::AlertCondition& c = _model->condition(_vis[vi]);
-                char on[2]  = { (char)(c.on_notified  ? 'Y' : '-'), '\0' };
-                char off[2] = { (char)(c.off_notified ? 'Y' : '-'), '\0' };
-                _draw_grid_row(row, c.code ? c.code : "?", on, off, c.desc ? c.desc : "");
-            } else {
-                _clear_row(row);
+            if (vi >= _nvis) { _clear_row(row); return; }
+            const Alerts::AlertCondition& c = _model->condition(_vis[vi]);
+            char ev[16];
+            _fmt_event(ev, sizeof(ev), c);
+            _draw_grid_row(row, c.code ? c.code : "?", c.active ? "ON" : "",
+                           ev, c.desc ? c.desc : "");
+            if (c.active) {
+                _terminal.move_to({row, STATE_TEXT_COL});
+                _terminal.set_inverted(true);
+                _terminal.write_chars("ON", 2);
+                _terminal.set_inverted(false);
             }
         }
 
@@ -264,7 +270,7 @@ namespace Botanik { namespace Pages {
             if (_top > maxtop) _top = maxtop;
 
             _clear_row(1);                                              // blank top margin
-            _draw_grid_row(HEADER_ROW, "CODE", "ON", "OFF", "DESCRIPTION");
+            _draw_grid_row(HEADER_ROW, "CODE", "ON", "LAST EVENT", "DESCRIPTION");
             _draw_rule(RULE_ROW);
             for (uint16_t r = 0; r < window; r++)
                 _draw_data_row((uint16_t)(DATA_TOP + r), (uint16_t)(_top + r));
@@ -276,9 +282,11 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Scroll the view by one line, painting only the newly exposed data
-         *  row via scroll_region() instead of repainting the table. Falls back to a
-         *  full repaint (sets _dirty) when one is already due, the set moved, or the
-         *  TX ring is busy - any of which would tear a one-row incremental paint. */
+         *  row via scroll_region() instead of repainting the table. Defers to a full
+         *  repaint only when one is already due (the set moved, or focus/mode cleared
+         *  the screen) - scrolling a stale screen would be wrong. The single-line emit
+         *  is tiny and the ring is shallow at a keystroke, so it is not gated on TX
+         *  depth (a full repaint would be more work, not less). */
         void _scroll(bool down) {
             uint16_t window = _window();
             if (window == 0) return;
@@ -291,7 +299,7 @@ namespace Botanik { namespace Pages {
             else      { if (_top > 0)      _top--; }
             if (_top == old_top) return;                   // already at that end
 
-            if (_dirty || _changed() || !_terminal.tx_below_cold()) { _dirty = true; return; }
+            if (_dirty || _changed()) { _dirty = true; return; }
 
             if (down) {
                 // View moved down: shift the band up, paint the new bottom row.
@@ -349,9 +357,19 @@ namespace Botanik { namespace Pages {
         void tick(bool active) override {
             _active = active;
             if (!active) return;
-            if (!_dirty && !_changed()) return;
+            // Focus / mode set _dirty directly (immediate); a scroll paints itself in
+            // handle_command. Otherwise re-check the alert set once a second - alerts
+            // move slowly, so polling every tick would just burn cycles - and mark a
+            // repaint due only when it actually moved (usually a no-op).
+            if (!_dirty) {
+                uint64_t now = HAL::uptime_ms();
+                if (now - _last_refresh_ms < Config::PAGE_HOT_MS) return;
+                _last_refresh_ms = now;
+                if (_changed()) _dirty = true;
+            }
+            if (!_dirty) return;
             if (!_terminal.tx_below_cold()) return;   // cooperative: wait for a shallow ring
-            _repaint();
+            _repaint();                               // clears _dirty
         }
 
         /** @} */
