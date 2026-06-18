@@ -278,10 +278,11 @@ namespace Botanik { namespace Pages {
         uint16_t log_rows = rows - 1 - occupied;  // new (larger) log area
         if (log_rows == 0) return;
 
-        // IL delta at row 1 shifts rows 1..rows-1 down by delta; the freed rows plus
-        // the editor row fall off the bottom (the editor is redrawn after).
-        _terminal.move_to({1, 0});
-        _terminal.insert_rows(delta);
+        // Scroll the content band down by delta: opens delta freed rows at the top
+        // (row 1) for older scrollback; the editor rows below fall off the band's
+        // bottom (the editor is redrawn after). Bounded so row 0 and any reserved
+        // bottom row stay put.
+        _terminal.scroll_region(1, (uint16_t)(rows - 1), /*up=*/false, delta);
 
         // Fill newly blank rows 1..delta with older scrollback entries.
         // Before the shrink the log area had (log_rows - delta) rows visible.

@@ -243,6 +243,21 @@ namespace Botanik { namespace Terminal {
         /** @brief Delete rows at cursor, pulling subsequent rows up */
         void delete_rows(uint16_t count);
 
+        /** @brief Scroll the inclusive screen-row band [@p top .. @p bottom] by @p n
+         *  rows, leaving every row outside the band untouched. @p up scrolls toward
+         *  the top (the n freed rows open at the band bottom, the top n are dropped);
+         *  otherwise toward the bottom (freed rows open at the top). The caller fills
+         *  the freed rows.
+         *
+         *  There is no DECSTBM scrolling region (a Minitel in teleinformatique mode
+         *  does not honour it), so this is built from plain DL/IL: a DL/IL pair, one at
+         *  each end of the band, where the second op pushes the rows the first op
+         *  displaced past the band back to where they were (the pattern the scrollback
+         *  live-tail already used inline). When the band runs to the physical last row
+         *  there is nothing below to restore, so the compensating op is skipped and a
+         *  single DL/IL is emitted - identical to a bare insert_rows()/delete_rows(). */
+        void scroll_region(uint16_t top, uint16_t bottom, bool up, uint16_t n = 1);
+
         /** @} */
 
         /** @name Pages
@@ -356,6 +371,13 @@ namespace Botanik { namespace Terminal {
          *  DECAWM off (?7l) on every call. Does not discard the TX buffer (the
          *  caller does). Shared by clear_screen() and setup_*(). */
         void _establish_screen();
+
+        /** @brief Last screen row a page may scroll/draw content into (0-indexed).
+         *  Row 0 is the status bar; the rows below it down to this one are the page
+         *  content area that scroll_region() and line_feed() confine scrolling to.
+         *  Today this is the physical last row; Phase 2 reserves the bottom row for
+         *  the always-visible alert bar by subtracting it here. */
+        uint16_t _content_bottom() const { return (uint16_t)(_rows > 0 ? _rows - 1 : 0); }
 
         /** @brief Render the right-side status field into @p buf; returns its length.
          *  The width is fixed, so a byte index maps to a fixed column (relied on by

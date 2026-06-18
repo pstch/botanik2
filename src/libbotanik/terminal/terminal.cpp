@@ -371,7 +371,8 @@ namespace Botanik { namespace Terminal {
 
     // Emit a line feed
     void AnsiTerminal::line_feed(bool carriage_return) {
-        if (_hw_pos.row < _rows - 1) {
+        uint16_t content_bottom = _content_bottom();
+        if (_hw_pos.row < content_bottom) {
             // Normal case: cursor moves into the next row
             if (carriage_return) {
                 _serial.write("\r\n", 2);
@@ -381,14 +382,49 @@ namespace Botanik { namespace Terminal {
             }
             _hw_pos.row++;
         } else {
-            // At the last row: DL 1 at row 1 scrolls only the content area
-            // (rows 1..N-1) so the row-0 status bar is never touched.
+            // At the bottom of the content area: scroll the content band (rows
+            // 1..content_bottom) up one so the row-0 status bar - and the reserved
+            // bottom row, once there is one - are never touched, then drop onto the
+            // freed bottom row.
             uint16_t target_col = carriage_return ? 0 : _hw_pos.col;
-            move_to({1, 0});
-            Ansi::delete_rows(_serial, 1);
-            // Cursor stays at {1, 0} after DL; move to the new blank last row.
-            _hw_pos = {1, 0};
-            move_to({(uint16_t)(_rows - 1), target_col});
+            scroll_region(1, content_bottom, /*up=*/true, 1);
+            move_to({content_bottom, target_col});
+        }
+    }
+
+    // Scroll the inclusive band [top..bottom] by n rows, restoring rows outside it.
+    void AnsiTerminal::scroll_region(uint16_t top, uint16_t bottom, bool up, uint16_t n) {
+        if (n == 0 || top > bottom) return;
+        uint16_t phys_last = (uint16_t)(_rows > 0 ? _rows - 1 : 0);
+        if (bottom > phys_last) bottom = phys_last;
+        uint16_t height = (uint16_t)(bottom - top + 1);
+        if (n > height) n = height;   // scrolling the whole band just clears it
+
+        if (up) {
+            // Drop the top n rows: DL n at the band top slides rows top+n..bottom up
+            // to top..bottom-n (and pulls everything below the band up with them).
+            move_to({top, 0});
+            delete_rows(n);
+            // IL n at the band's new bottom pushes the displaced below-band rows back
+            // down and leaves the n freed rows blank. Skipped when the band runs to
+            // the screen bottom: the DL already left those rows blank and there is
+            // nothing below to restore.
+            if (bottom < phys_last) {
+                move_to({(uint16_t)(bottom - n + 1), 0});
+                insert_rows(n);
+            }
+        } else {
+            // Drop the bottom n rows first (when the band stops short of the screen
+            // bottom) so the IL below cannot shove band content onto rows it must
+            // leave alone; when the band runs to the bottom those rows just fall off.
+            if (bottom < phys_last) {
+                move_to({(uint16_t)(bottom - n + 1), 0});
+                delete_rows(n);
+            }
+            // IL n at the band top slides rows top..bottom-n down to top+n..bottom and
+            // opens the n freed rows at the top.
+            move_to({top, 0});
+            insert_rows(n);
         }
     }
 

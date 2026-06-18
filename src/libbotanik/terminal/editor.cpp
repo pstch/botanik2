@@ -195,10 +195,11 @@ namespace Botanik { namespace Terminal {
         else                           new_origin = 0;
 
         if (new_origin < _origin) {
-            for (uint16_t g = (uint16_t)(_origin - new_origin); g > 0; g--) {
-                _terminal->move_to({1, 0});
-                _terminal->delete_rows(1);
-            }
+            // Scroll the content band (rows 1..bottom) up by the grown row count so
+            // the editor's added rows fit; bounded so the status bar (row 0) - and
+            // any reserved bottom row - stay put.
+            _terminal->scroll_region(1, (uint16_t)(scr_rows - 1), /*up=*/true,
+                                     (uint16_t)(_origin - new_origin));
             _origin = new_origin;
         }
         return new_origin;
@@ -208,8 +209,10 @@ namespace Botanik { namespace Terminal {
         if (new_origin <= _origin) return;
         // Under suppress the caller repaints, so only move the origin.
         if (!_suppress_sync_redraw && _origin < _terminal->rows()) {
-            _terminal->move_to({_origin, 0});
-            _terminal->insert_rows((uint16_t)(new_origin - _origin));
+            // Open blank rows at the old origin to push the editor back down to the
+            // bottom; bounded to [_origin..content bottom] so it never spills below.
+            _terminal->scroll_region(_origin, (uint16_t)(_terminal->rows() - 1),
+                                     /*up=*/false, (uint16_t)(new_origin - _origin));
         }
         _origin = new_origin;
     }
@@ -334,10 +337,13 @@ namespace Botanik { namespace Terminal {
         else               at = span.absorbed_post;
         uint16_t n = (uint16_t)(row_delta > 0 ? row_delta : -row_delta);
 
-        if ((uint16_t)(_origin + at) >= scr_rows) return;
-        _terminal->move_to({(uint16_t)(_origin + at), 0});
-        if (row_delta > 0) _terminal->insert_rows(n);
-        else               _terminal->delete_rows(n);
+        uint16_t row = (uint16_t)(_origin + at);
+        if (row >= scr_rows) return;
+        // Slide the absorbed tail to its new rows (insert also opens the blank rows
+        // the forward walk paints inserted content into). Bounded to [row..content
+        // bottom] so rows below the editor are left untouched. Grow (row_delta > 0)
+        // scrolls the tail down; shrink scrolls it up.
+        _terminal->scroll_region(row, (uint16_t)(scr_rows - 1), /*up=*/row_delta < 0, n);
     }
 
     void TextEditor::_reconcile(uint16_t span_start, uint16_t span_len, bool is_insert) {

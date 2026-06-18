@@ -162,17 +162,12 @@ namespace Botanik { namespace Pages {
             if (log_rows == 0 || n == 0) return;
             if (n > log_rows) n = log_rows;  // taller than the window: show newest rows
 
-            // DL n at the window top: drop the n oldest visible rows, shifting the
-            // window (and anything below it) up by n. Rows above first_row are left
-            // untouched by the DL.
-            terminal.move_to({first_row, 0});
-            terminal.delete_rows(n);
-
-            // IL n at the window's bottom: push whatever sits below back down,
-            // leaving n blank slots for the incoming lines.
+            // Scroll the window band up by n: drops the n oldest visible rows and
+            // opens n blank slots at the bottom for the incoming lines, leaving rows
+            // above first_row and below the window untouched.
+            terminal.scroll_region(first_row, (uint16_t)(first_row + log_rows - 1),
+                                   /*up=*/true, n);
             uint16_t first_slot = (uint16_t)(first_row + log_rows - n);
-            terminal.move_to({first_slot, 0});
-            terminal.insert_rows(n);
 
             // Fill the slots top to bottom with this batch of n lines, oldest first.
             // The batch's newest line is @p newest_from_end back from the ring's newest
@@ -279,18 +274,16 @@ namespace Botanik { namespace Pages {
 
     private:
         /** @brief Shift the window down by @p n (older lines toward the top) and paint
-         *  the n newly exposed top rows. DL n at the window bottom then IL n at its top
-         *  so rows above first_row and below the window net untouched (the mirror of
-         *  emit_tail's scroll-up). @p _view_offset must already hold the new offset. */
+         *  the n newly exposed top rows. Scrolls the window band down (the mirror of
+         *  emit_tail's scroll-up) so rows above first_row and below the window are left
+         *  untouched. @p _view_offset must already hold the new offset. */
         void _emit_scroll_up(AnsiTerminal& terminal, uint16_t n,
                              uint16_t first_row, uint16_t log_rows) {
             if (log_rows == 0 || n == 0) return;
             if (n > log_rows) n = log_rows;
 
-            terminal.move_to({(uint16_t)(first_row + log_rows - n), 0});
-            terminal.delete_rows(n);
-            terminal.move_to({first_row, 0});
-            terminal.insert_rows(n);
+            terminal.scroll_region(first_row, (uint16_t)(first_row + log_rows - 1),
+                                   /*up=*/false, n);
 
             // Top row is the oldest shown: line(log_rows + _view_offset) back from
             // newest; each row down is one nearer. The window is full here (maxoff > 0
