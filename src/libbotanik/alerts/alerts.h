@@ -20,6 +20,7 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <cstring>
 
 #include "libbotanik/logs/logger.h"
 
@@ -183,7 +184,11 @@ namespace Botanik { namespace Alerts {
                 if (on) {
                     if (!c.log_on_sent && c.log_on_ms >= 0 &&
                         dwell >= (uint64_t)c.log_on_ms) {
-                        if (_logger) _logger->warning(PlcIO::ALERT, "alarm START :\n%s", c.desc);
+                        // Keep a short description on the same line; wrap a long one to
+                        // the next line so it does not crowd the timestamp/topic prefix.
+                        const char* d = c.desc ? c.desc : "";
+                        if (_logger) _logger->warning(PlcIO::ALERT,
+                            strlen(d) < 32 ? "alarm START : %s" : "alarm START :\n%s", d);
                         c.log_on_sent = true;
                     }
                     if (!c.on_notified && c.mqtt_on_ms >= 0 &&
@@ -194,7 +199,9 @@ namespace Botanik { namespace Alerts {
                 } else {
                     if (!c.log_off_sent && c.log_off_ms >= 0 &&
                         dwell >= (uint64_t)c.log_off_ms) {
-                        if (_logger) _logger->info(PlcIO::ALERT, "alarm END :\n%s", c.desc);
+                        const char* d = c.desc ? c.desc : "";
+                        if (_logger) _logger->info(PlcIO::ALERT,
+                            strlen(d) < 32 ? "alarm END : %s" : "alarm END :\n%s", d);
                         c.log_off_sent = true;
                     }
                     if (!c.off_notified && c.mqtt_off_ms >= 0 &&
