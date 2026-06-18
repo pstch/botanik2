@@ -9,7 +9,8 @@
  *   row 1            blank top margin
  *   row 2            table header  (| CODE | ON | OFF | DESCRIPTION |)
  *   row 3            header rule   (+------+----+----+ ... +)
- *   rows 4..N-2      data rows, scrolled by a view offset
+ *   rows 4..N-3      data rows (scrolled a line at a time via scroll_region)
+ *   row N-2          blank line below the table
  *   row N-1          footer (mode, counts, key hints)
  *
  * Rows are ordered by most-recent onset (started_ms), so the alert that fired most
@@ -226,12 +227,37 @@ namespace Botanik { namespace Pages {
             return _model->raw() != _last_raw || on != _last_on || off != _last_off;
         }
 
+        /** @name Window geometry
+         *  Data rows occupy [DATA_TOP .. _data_bottom()]; one blank line sits below
+         *  the table, then the footer on the last content row.
+         *  @{ */
+        uint16_t _footer_row()  const { return (uint16_t)(_terminal.rows() - 1); }
+        uint16_t _data_bottom() const { return (uint16_t)(_footer_row() - 2); }  // blank line above footer
+        /** @brief Number of data rows that fit, or 0 if the screen is too short. */
+        uint16_t _window() const {
+            uint16_t fr = _footer_row();
+            return (fr > (uint16_t)(DATA_TOP + 1)) ? (uint16_t)(fr - 1 - DATA_TOP) : 0;
+        }
+        /** @} */
+
+        /** @brief Draw data row at screen @p row for visible entry @p vi (index into
+         *  _vis), or clear the row when @p vi is past the end of the set. */
+        void _draw_data_row(uint16_t row, uint16_t vi) {
+            if (vi < _nvis) {
+                const Alerts::AlertCondition& c = _model->condition(_vis[vi]);
+                char on[2]  = { (char)(c.on_notified  ? 'Y' : '-'), '\0' };
+                char off[2] = { (char)(c.off_notified ? 'Y' : '-'), '\0' };
+                _draw_grid_row(row, c.code ? c.code : "?", on, off, c.desc ? c.desc : "");
+            } else {
+                _clear_row(row);
+            }
+        }
+
         /** @brief Repaint the whole table (header, rule, data window, footer). */
         void _repaint() {
-            uint16_t rows = _terminal.rows();
-            if (rows < (uint16_t)(DATA_TOP + 2)) return;   // header+rule+>=1 data+footer
-            uint16_t footer_row = (uint16_t)(rows - 1);
-            uint16_t window     = (uint16_t)(footer_row - DATA_TOP);
+            uint16_t window = _window();
+            if (window == 0) return;                       // screen too short for a row
+            uint16_t footer_row = _footer_row();
 
             _collect();
             uint16_t maxtop = (_nvis > window) ? (uint16_t)(_nvis - window) : 0;
@@ -240,23 +266,42 @@ namespace Botanik { namespace Pages {
             _clear_row(1);                                              // blank top margin
             _draw_grid_row(HEADER_ROW, "CODE", "ON", "OFF", "DESCRIPTION");
             _draw_rule(RULE_ROW);
-            for (uint16_t r = 0; r < window; r++) {
-                uint16_t row = (uint16_t)(DATA_TOP + r);
-                uint16_t vi  = (uint16_t)(_top + r);
-                if (vi < _nvis) {
-                    const Alerts::AlertCondition& c = _model->condition(_vis[vi]);
-                    char on[2]  = { (char)(c.on_notified  ? 'Y' : '-'), '\0' };
-                    char off[2] = { (char)(c.off_notified ? 'Y' : '-'), '\0' };
-                    _draw_grid_row(row, c.code ? c.code : "?", on, off,
-                                   c.desc ? c.desc : "");
-                } else {
-                    _clear_row(row);
-                }
-            }
+            for (uint16_t r = 0; r < window; r++)
+                _draw_data_row((uint16_t)(DATA_TOP + r), (uint16_t)(_top + r));
+            _clear_row((uint16_t)(footer_row - 1));                     // blank line below the table
             _draw_footer(footer_row, _nvis, _model ? _model->active_count() : 0);
 
             _snapshot();
             _dirty = false;
+        }
+
+        /** @brief Scroll the view by one line, painting only the newly exposed data
+         *  row via scroll_region() instead of repainting the table. Falls back to a
+         *  full repaint (sets _dirty) when one is already due, the set moved, or the
+         *  TX ring is busy - any of which would tear a one-row incremental paint. */
+        void _scroll(bool down) {
+            uint16_t window = _window();
+            if (window == 0) return;
+            uint16_t data_bottom = _data_bottom();
+
+            _collect();   // current set: clamps _top and supplies the exposed row
+            uint16_t maxtop  = (_nvis > window) ? (uint16_t)(_nvis - window) : 0;
+            uint16_t old_top = _top;
+            if (down) { if (_top < maxtop) _top++; }
+            else      { if (_top > 0)      _top--; }
+            if (_top == old_top) return;                   // already at that end
+
+            if (_dirty || _changed() || !_terminal.tx_below_cold()) { _dirty = true; return; }
+
+            if (down) {
+                // View moved down: shift the band up, paint the new bottom row.
+                _terminal.scroll_region(DATA_TOP, data_bottom, /*up=*/true, 1);
+                _draw_data_row(data_bottom, (uint16_t)(_top + window - 1));
+            } else {
+                // View moved up: shift the band down, paint the new top row.
+                _terminal.scroll_region(DATA_TOP, data_bottom, /*up=*/false, 1);
+                _draw_data_row(DATA_TOP, _top);
+            }
         }
 
     public:
@@ -280,15 +325,15 @@ namespace Botanik { namespace Pages {
         void handle_command(Command cmd, uint16_t = 1) override {
             switch (cmd) {
                 case Command::ENTER:
-                    _top = 0; _dirty = true;            // jump to the top
+                    _top = 0; _dirty = true;            // jump to the top (full repaint)
                     break;
                 case Command::UP:
                 case Command::CTRL_P:
-                    if (_top > 0) { _top--; _dirty = true; }
+                    _scroll(/*down=*/false);            // incremental scroll_region
                     break;
                 case Command::DOWN:
                 case Command::CTRL_N:
-                    _top++; _dirty = true;              // clamped in _repaint
+                    _scroll(/*down=*/true);
                     break;
                 default: break;
             }
