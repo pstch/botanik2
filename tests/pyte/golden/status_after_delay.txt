@@ -1,4 +1,4 @@
-    HOME  SHELL  LOGS  STATUS       <TIME>          PLC:<P> cpu:<C> stk:<S>
+  HOME  SHELL  LOGS  STATUS  ALERTS      <TIME>     PLC:<P> cpu:<C> stk:<S>
 
   ==== SYSTEM STATUS =========================================================
   PLC link <P>  Wall clock        <CLOCK>
@@ -18,7 +18,7 @@
    Exterior  : <CLIMATE>           Windows :   <ACT4>
    Floor     : <CLIMATE>           Blowers :   <ACT4>
    Ceiling   : <CLIMATE>           Extract.:   <ACT2>
-   Rain      :  <RAIN>                  Humidif.:   <HUMID>
-   Wind pk   : <WIND>                   Screen  :   <SCREEN>
-   Sun times : <SUN>
+   Last rain : 0 min (wind 9km/h)         Humidif.:   <HUMID>
+   Sun times : <SUN>              Screen  :   <SCREEN>
 
+ ALERTS : SYS_RST

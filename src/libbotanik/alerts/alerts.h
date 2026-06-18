@@ -6,7 +6,7 @@
  * @brief Alert model - merges the remote (PLC) and local alert bitsets, tracks
  *        each condition's dwell, raises ALERT-topic log lines and MQTT
  *        notifications on the configured ON/OFF thresholds, and exposes the set
- *        for display (the StatusPage ribbon and the AlertsPage table).
+ *        for display (the terminal's bottom alert bar and the AlertsPage table).
  *
  * Each bit of a 64-bit raw field is one alert condition. The PLC owns the
  * debouncing/low-pass filtering and reports the bitset; some bits are instead
@@ -212,7 +212,7 @@ namespace Botanik { namespace Alerts {
         uint8_t  count() const { return _count; }
         /** @brief Active conditions (masked or not). */
         uint8_t  active_count() const { return _active_count; }
-        /** @brief Active and unmasked conditions (the compact ribbon set). */
+        /** @brief Active and unmasked conditions (the compact alert-bar set). */
         uint8_t  unmasked_count() const { return _unmasked_count; }
         /** @brief Condition @p i (0 <= i < count()). */
         const AlertCondition& condition(uint8_t i) const { return _conditions[i]; }

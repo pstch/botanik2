@@ -102,10 +102,10 @@ namespace Botanik { namespace Terminal {
     }
 
     void TextEditor::reset() {
-        // The editor is bottom-anchored, so its rows run from _origin to the last
-        // row - one erase-to-end-of-display clears them all in a single sequence.
-        _terminal->move_to({_origin, 0});
-        _terminal->clear_to_eos();
+        // The editor is bottom-anchored, so its rows run from _origin to the bottom of
+        // the content area. Clear exactly that band (clear_rows leaves the terminal's
+        // alert bar, just below the content, untouched).
+        _terminal->clear_rows(_origin, (uint16_t)(_terminal->rows() - 1));
         uint16_t old_origin = _origin;
         _reset_state();
         uint16_t draw_row = _suppress_sync_redraw ? old_origin : _origin;

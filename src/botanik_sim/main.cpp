@@ -61,9 +61,8 @@ static const char* net_str(uint8_t s) {
 /** @brief Greenhouse status page: renders the full sensor/actuator set. */
 class GreenhouseStatusPage : public Botanik::Pages::StatusPage<PlcOutputData_t> {
 public:
-    GreenhouseStatusPage(Botanik::Terminal::AnsiTerminal& terminal, const PlcOutputData_t* data,
-                         const Botanik::Alerts::AlertModel* alerts)
-        : Botanik::Pages::StatusPage<PlcOutputData_t>(terminal, data, alerts) {}
+    GreenhouseStatusPage(Botanik::Terminal::AnsiTerminal& terminal, const PlcOutputData_t* data)
+        : Botanik::Pages::StatusPage<PlcOutputData_t>(terminal, data) {}
 
 protected:
     // Two-column body geometry on an 80-col display: left panel cols 2..36, right
@@ -375,8 +374,8 @@ int main(int argc, char** argv) {
     PlcIO::PlcLogReader plc_log_reader(plc_handler.context(), &logger);
 
     // Alert model: merges the PLC alert bitset with local runtime alerts, raises
-    // ALERT-topic logs + (draft) MQTT notifications, and feeds the status ribbon /
-    // alerts page. The notifier is draft plumbing (no transport wired yet).
+    // ALERT-topic logs + (draft) MQTT notifications, and feeds the terminal alert
+    // bar / alerts page. The notifier is draft plumbing (no transport wired yet).
     Alerts::MqttAlertNotifier alert_mqtt("botanik/greenhouse", &logger);
     Alerts::AlertModel        alert_model(g_alerts, Alerts::ALERT_BITS, &logger, &alert_mqtt);
     const PlcOutputData_t*    plc_out = plc_handler.output_data();
@@ -385,12 +384,14 @@ int main(int argc, char** argv) {
     // Terminal UI - bundle the subsystem status contexts the terminal reads.
     SystemContext sys_ctx(scheduler.context(), plc_handler.context());
 
-    // Initialize terminal and pages
-    Terminal::AnsiTerminal terminal(console_serial, 80, 24, timestamp_ms, CONSOLE_BAUD, sys_ctx);
+    // Initialize terminal and pages. The terminal takes the alert model so it can
+    // render the always-visible bottom alert bar (and reserve its row) on every page.
+    Terminal::AnsiTerminal terminal(console_serial, 80, 24, timestamp_ms, CONSOLE_BAUD,
+                                    sys_ctx, &alert_model);
     Pages::ShellPage shell_page(terminal);
     Pages::LogsPage  logs_page(terminal);
     GreenhouseHomePage   home_page(terminal, plc_handler.output_data());
-    GreenhouseStatusPage status_page(terminal, plc_handler.output_data(), &alert_model);
+    GreenhouseStatusPage status_page(terminal, plc_handler.output_data());
     Pages::AlertsPage    alerts_page(terminal, &alert_model);
 
     // Register the site shell commands (ctx = alert model, for the "alerts" cmd).

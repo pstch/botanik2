@@ -14,8 +14,8 @@
  *
  * The grid is plain ASCII: '|' column rules and a '+'/'-' header rule, with a
  * two-column side margin. SPACE toggles between the pre-masked set (active and
- * unmasked, the StatusPage
- * ribbon's set) and all active alerts. UP/DOWN and Ctrl+P/Ctrl+N scroll a line at
+ * unmasked, the terminal alert bar's set) and all active alerts. UP/DOWN and
+ * Ctrl+P/Ctrl+N scroll a line at
  * a time. The page repaints only when the alert set / its notify flags change, the
  * mode toggles, or the view scrolls, and only while the TX ring is shallow.
  */

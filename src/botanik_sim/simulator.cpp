@@ -160,7 +160,7 @@ static void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
     o->sunset_min  = (uint16_t)sunset;
 
     // Alerts: synthesize the PLC's raw bitset from the mock state above so the
-    // ribbon/table have live data. The PLC owns debouncing on real hardware; here
+    // alert bar/table have live data. The PLC owns debouncing on real hardware; here
     // the conditions just track the animated signals.
     using namespace Botanik::Alerts;
     uint64_t alerts = 0;
