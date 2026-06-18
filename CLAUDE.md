@@ -84,15 +84,24 @@ Three layers, generic to specific:
 
 | Layer | Holds | Examples |
 |---|---|---|
-| `libbotanik` | generic, site- and target-independent machinery, plus the `BotanikFirmware` base that wires every long-lived object and owns the per-tick `step()` order | `PlcSyncHandler`, `AnsiTerminal`, `AlertModel`, `BotanikFirmware` |
+| `libbotanik` | generic, site- and target-independent machinery, plus the `BotanikFirmware<In, Out>` base that owns the generic components, exposes a reference to each on the instance, and drives the per-tick `loop()` | `PlcSyncHandler`, `AnsiTerminal`, `AlertModel`, `BotanikFirmware` |
 | site (`gh_mlb41`) | single source of truth for one greenhouse: the `PlcInput/OutputData_t` layout, site pages (Home/Status), the `g_alerts[]` table, the `fill_output()` data simulation, and a `GreenhouseMLB41` class deriving from `BotanikFirmware` | `gh_mlb41` |
 | target / entry point | thin: selects one site and runs it | `botanik_sim` harness, generated OPTA `.ino` |
+
+**Composition.** Components are split by layer and chained by inheritance (not an ideal composition model, but a structured start):
+
+- `BotanikFirmware<In, Out>` constructs the generic components (logger, scheduler, terminal, PLC handler, log reader, alert reader, alert model, core pages) and exposes a reference to each on the instance.
+- `GreenhouseMLB41 : BotanikFirmware<In, Out>` declares its site components (site pages, the alert table, the shell-command table, any site logic) as members, built from the base's exposed component references.
+- A site component is often a static site-defined table plus an opaque ctx, registered on a base-owned generic component: the `g_alerts[]` table feeds `AlertModel`, a `ShellCommand[]` table registers on the shell page via `set_commands()`.
+- Lifecycle chains up the hierarchy: `GreenhouseMLB41::setup()` calls `BotanikFirmware::setup()` first, then wires its own; same for `loop()`.
+- The Arduino sketch may add one more slim subclass for last-mile customization, chaining `setup()` / `loop()` the same way.
 
 Rules:
 
 - **One data layout per site, shared by simulator and hardware.** A site's `PlcOutputData_t` / `PlcInputData_t` is used verbatim by both the OPTA firmware and the simulator's mock PLC. Never fork the layout per target; evolve the layout and its `fill_output()` animator together, in the site.
 - **The simulator is a generic harness.** It allocates the shared region locally and drives a `PlcEmulator` with the selected site's `fill_output()`. On OPTA the real coprocessor plays that role and the region comes from `HAL::get_plc_input()/get_plc_output()`; the site code is identical either way.
-- **The site stays portable.** Site code must cross-compile as an Arduino library (no POSIX / threading / `<random>` outside `TARGET_SIMULATOR`): the deploy step zips the site dir into an Arduino library and generates a `.ino` that statically allocates a `GreenhouseMLB41` and calls its `setup()` / `loop()`. Keep simulator-only helpers (the data animator) in a file the zip excludes.
+- **The site stays portable.** Site code must cross-compile as an Arduino library: the deploy step zips the site dir and generates a `.ino` that statically allocates a `GreenhouseMLB41` and calls its `setup()` / `loop()`. The zip build does not define `TARGET_SIMULATOR`, so simulator-only code (the `fill_output()` animator, the emulator thread) drops out through its `#ifdef TARGET_SIMULATOR` guard. Keep such code guarded rather than in the portable path.
+- **Generic components constrain the site payload.** Templated generics require fields on the site `PlcOutputData_t` (e.g. `AlertReader` / `StatusPage` need a 64-bit `alerts` bitset). The site defines its layout to satisfy those contracts.
 - New site-level work goes in the site, not in `libbotanik` and not in a target's `main`.
 
-**Current state (migration pending):** the `gh_mlb41` site is not yet extracted. Its definition still lives inside `botanik_sim/` (`simulator.h`/`.cpp`, `main.cpp`), and `botanik_fw/firmware.h` carries a diverging placeholder payload. Until the unification lands, treat the `botanik_sim` payload / pages / alert table as the canonical `gh_mlb41` definition, and `BotanikFirmware` as the base to be promoted into `libbotanik`.
+**Current state (migration pending):** the `gh_mlb41` site is not yet extracted. Its definition still lives inside `botanik_sim/` (`simulator.h`/`.cpp`, `main.cpp`), and `botanik_fw/firmware.h` carries a diverging placeholder payload. Until the unification lands, treat the `botanik_sim` payload / pages / alert table / shell commands as the canonical `gh_mlb41` definition, and `BotanikFirmware` as the base to be promoted into `libbotanik`.

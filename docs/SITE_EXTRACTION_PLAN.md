@@ -1,0 +1,196 @@
+# Site Extraction Plan
+
+Status: **not started** - planning. This plan stages the migration described in
+the *Site-specific code* section of `CLAUDE.md`: promote `BotanikFirmware` into
+`libbotanik` as a generic base, extract the `gh_mlb41` site out of `botanik_sim`
+into its own unit, and converge the `botanik_fw` stub onto the same site. The
+throughline is the CLAUDE.md rule: *generic, target-independent machinery lives in
+`libbotanik`; one greenhouse's payload / pages / alert table / shell commands /
+data animator live in a site; targets are thin.*
+
+This is a **pure refactor** - no behaviour change. The simulator is the canonical
+`gh_mlb41` definition today, so it must keep building and rendering identically at
+every checkpoint. The pyte goldens are the safety net: a byte change in a golden
+during stages 1-2 means the move introduced a bug, not that the golden is stale.
+
+**Sandbox caveat (applies to every checkpoint):** the pyte goldens are
+environment-divergent in this sandbox (timing/locale). "Goldens unchanged" means
+unchanged *relative to a baseline captured the same way on the same machine*
+immediately before the stage - not necessarily matching the committed fixtures.
+Capture a baseline run before starting, and diff against it after each stage.
+
+---
+
+## Open decisions (resolve before stage 2)
+
+These are called out rather than guessed; stages 0-1 don't depend on them, but
+stage 2 hard-codes them.
+
+1. **Shared-memory injection.** The base binds the PLC region; its source differs
+   per target (sim owns local statics, OPTA gets `HAL::get_plc_input()/output()`).
+   **Proposed:** `BotanikFirmware` ctor takes `PlcInput<In>*` / `PlcOutput<Out>*`,
+   the derived/harness passes the right source. (Alternative: a virtual getter -
+   rejected, it complicates construction order for no gain.)
+2. **Base location + name.** **Proposed:** `src/libbotanik/firmware.h`,
+   `template<class In, class Out> class Botanik::BotanikFirmware`. Header-only
+   (it's a template); site pages stay in their own `.cpp`.
+3. **Site directory + selection.** **Proposed:** `src/sites/gh_mlb41/`, selected
+   at configure time with `-DBOTANIK_SITE=gh_mlb41` (default `gh_mlb41`). The
+   selection mechanism can land in stage 4; stages 1-3 can hard-code the path.
+4. **Injection seam.** Base owns generic components + core pages and exposes a
+   reference to each; `setup()` / `loop()` are virtual, the derived overrides and
+   calls the base first (per CLAUDE.md composition rules). Settled - listed for
+   completeness.
+
+---
+
+## Build wiring constraint (read first)
+
+`CMakeLists.txt` globs `src/libbotanik/*.cpp` into the generic `botanik` static
+lib (this feeds *both* targets, incl. the OPTA `botanik` archive). Site code must
+**not** land in that glob. The site is compiled into the *application* target
+instead:
+
+- SIMULATOR: `botanik_sim` executable (currently `main.cpp` + `simulator.cpp`).
+- OPTA: `botanik_fw` static lib (`firmware.cpp` + `main.cpp` + `botanik_arduino.cpp`).
+
+So the site gets its own glob - `file(GLOB src/sites/${BOTANIK_SITE}/*.cpp)` -
+added to whichever application target is being built. Sim-only site files
+(`sim.cpp`) compile out on OPTA via their `#ifdef TARGET_SIMULATOR` guard, so the
+same glob is safe for both. The base (`firmware.h`) is header-only and rides into
+`libbotanik` with no source-list change; the `-Werror` `botanik_strict` mirror
+only exercises it once a TU instantiates it (stage 2).
+
+---
+
+## Stage 0 - baseline  [ ]
+
+Capture the pre-refactor invariant so later stages have something to diff against.
+
+- `cmake -B build -DBOTANIK_TARGET=SIMULATOR && make -C build` - clean.
+- Run the pyte suite, save the rendered screens as the local baseline.
+- `cmake -B build-opta -DBOTANIK_TARGET=OPTA && make -C build-opta` - confirm the
+  stub OPTA build compiles *before* we touch it (so a later break is attributable).
+
+No code change.
+
+---
+
+## Stage 1 - extract the site (move only, old `main()` still drives it)  [ ]
+
+Create `src/sites/gh_mlb41/` and move the site definitions out of `botanik_sim`
+verbatim. The inline `main()` keeps wiring everything; only the `#include`s and
+file locations change. This alone closes "the site is trapped in `botanik_sim`".
+
+Moves (no logic edits):
+- `gh_mlb41/payload.h` <- `PlcInput/OutputData_t` + the `UpsStatus` / `TrayStatus`
+  / `NetStatus` enums (from `botanik_sim/simulator.h`).
+- `gh_mlb41/pages.h` (+ `.cpp` if needed) <- `GreenhouseHomePage`,
+  `GreenhouseStatusPage`, and the display helpers (`ups_str`, `tray_status_str`,
+  `net_str`) currently file-static in `main.cpp`.
+- `gh_mlb41/alerts.cpp` <- the `g_alerts[]` table.
+- `gh_mlb41/commands.cpp` <- `SITE_COMMANDS[]` + the `cmd_*` callbacks.
+- `gh_mlb41/sim.cpp` (whole body under `#ifdef TARGET_SIMULATOR`) <-
+  `fill_greenhouse_output` + `start_greenhouse_emulator` + `plc_dilated_timeout`
+  (from `botanik_sim/simulator.cpp`). This is the file the eventual zip excludes
+  by simply not defining `TARGET_SIMULATOR`.
+
+Wiring:
+- CMake: add `file(GLOB GH_SOURCES src/sites/gh_mlb41/*.cpp)` to the `botanik_sim`
+  target's sources (replacing `simulator.cpp`).
+- `botanik_sim/main.cpp`: include `sites/gh_mlb41/...` instead of
+  `botanik_sim/simulator.h`. Everything else unchanged.
+- Delete `botanik_sim/simulator.h` / `.cpp` once empty.
+
+**Checkpoint:** SIMULATOR builds clean; pyte goldens unchanged vs the stage-0
+baseline (pure move). OPTA untouched.
+
+---
+
+## Stage 2 - promote `BotanikFirmware` + introduce `GreenhouseMLB41`  [ ]
+
+The load-bearing stage. Extract the generic wiring from `main()` into the base,
+and the site wiring into a derived class. Behaviour is preserved by construction -
+both halves come straight out of the working `main()`, and the per-tick order must
+match exactly (the goldens enforce it).
+
+- `src/libbotanik/firmware.h` - `template<class In, class Out> class
+  BotanikFirmware`:
+  - Owns the generic components currently built inline: logger, monitor, scheduler,
+    terminal, `PlcSyncHandler`, `PlcLogReader`, `AlertReader`, `AlertModel`,
+    notifier, and the core pages (`ShellPage`, `LogsPage`). Exposes a reference
+    accessor for each.
+  - Ctor takes the shared-mem pointers (decision 1) + the alert table
+    (`AlertCondition*`, count) the site supplies.
+  - `virtual void setup()` - registers core pages + log sinks, selects the
+    terminal type, shows the boot banner, arms the watchdog (the boot half of
+    `main()`).
+  - `virtual void loop()` - the exact per-tick order from the current loop:
+    `tick -> receive -> plc_handler -> plc_log_reader -> alert_reader/model ->
+    logger -> terminal -> monitor.drain -> transmit -> watchdog_kick`.
+- `src/sites/gh_mlb41/greenhouse.h` (+ `.cpp`) - `class GreenhouseMLB41 : public
+  BotanikFirmware<PlcInputData_t, PlcOutputData_t>`:
+  - Declares the site pages (`GreenhouseHomePage`, `GreenhouseStatusPage`,
+    `AlertsPage`) as members, built from the base's exposed refs (terminal, PLC
+    `output_data()`, alert model).
+  - `setup()` override: `BotanikFirmware::setup()` first, then register the site
+    pages, `set_commands(SITE_COMMANDS, ...)`, and any site log sinks.
+  - `loop()` override: `BotanikFirmware::loop()` first, then site-local steps if
+    any (today none beyond what the base covers; SYS_RST local-alert set can move
+    into the base or stay site - keep where it reads cleanest).
+- `botanik_sim/main.cpp` shrinks to a harness: HAL/console setup, signal handlers,
+  allocate the `shared_in/out` statics, construct `GreenhouseMLB41` against them,
+  `start_greenhouse_emulator(...)` (sim-only), `gh.setup()`, then
+  `while (botanik_running) gh.loop();`, then `HAL::shutdown(...)`.
+
+**Checkpoint:** SIMULATOR builds clean; `make check` (the `-Werror`
+`botanik_strict` mirror) clean now that the template is instantiated; pyte goldens
+unchanged vs baseline. If a golden moves here, the per-tick order or a page
+registration diverged - fix the move, don't re-bless the golden.
+
+---
+
+## Stage 3 - converge `botanik_fw` onto the site  [ ]
+
+Replace the OPTA stub with the real site. The `botanik_fw/firmware.h` placeholder
+payload + stub `HomePage` + concrete `BotanikFirmware` all disappear.
+
+- OPTA entry (`botanik_fw/firmware.cpp` / `main.cpp`): construct a
+  `GreenhouseMLB41` bound to `HAL::get_plc_input()/get_plc_output()`, call
+  `setup()` then `loop()` forever. Drop the placeholder `PlcOutputData_t` and the
+  stub page.
+- CMake (OPTA branch): add the same `src/sites/gh_mlb41/*.cpp` glob to
+  `botanik_fw`. `sim.cpp` compiles out (no `TARGET_SIMULATOR`).
+- Add the layout-match `static_assert`s noted in `plcio/vars.h` / the old
+  `simulator.h` header against the PLC IDE's generated types (or leave a marked
+  TODO until the generated types land).
+
+**Checkpoint:** OPTA cross-build compiles (`make -C build-opta`). Runtime/flash
+verification is out of scope in this environment - note it as hardware-pending,
+matching the `HAL_PLATFORM_PLAN.md` OPTA caveat. Refresh `libbotanik_sizes.h` if
+the footprint record shifts.
+
+---
+
+## Stage 4 (optional) - site selection + sketch generation  [ ]
+
+- CMake: `set(BOTANIK_SITE gh_mlb41 CACHE STRING ...)`, glob
+  `src/sites/${BOTANIK_SITE}/*.cpp` so one target template serves any site.
+- The Arduino `.zip` + generated `.ino` (static `GreenhouseMLB41`, `setup()` /
+  `loop()`) is a separate build-project concern; capture it here as the deploy
+  follow-up, not part of the in-tree refactor.
+
+---
+
+## Suggested order & overall validation
+
+1. **Stage 0** - baseline (build both targets, snapshot goldens).
+2. **Stage 1** - pure move; the cheapest win, fully golden-guarded.
+3. **Stage 2** - base + derived; the real work. Build + `make check` + goldens.
+4. **Stage 3** - OPTA convergence; cross-build only here.
+5. **Stage 4** - selection/deploy, when a second site or the deploy step is needed.
+
+After every stage: `make -C build` (SIMULATOR) and diff the pyte render against
+the stage-0 baseline. Stages 1-2 must be byte-identical; a difference is a
+regression in the move. OPTA edits (stage 3) are compile-reasoned only here and
+need real-hardware confirmation before they ship.
