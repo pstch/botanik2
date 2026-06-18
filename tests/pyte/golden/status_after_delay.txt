@@ -4,7 +4,7 @@
   PLC link <P>  Wall clock        <CLOCK>
   CPU load <CPU>  Uptime               <UPTIME>
   CPU jitter <JIT>  Task period <TASK>
-  Stack <STK>  Console TX <TX>
+  Stack <STK>  Console TX     1/4096 (drops:    0)
   Network <NET>  NTP sync <NTP>
   Network IP                         N/A  MQTT                            N/A
 
@@ -18,7 +18,7 @@
    Exterior  : <CLIMATE>           Windows :   <ACT4>
    Floor     : <CLIMATE>           Blowers :   <ACT4>
    Ceiling   : <CLIMATE>           Extract.:   <ACT2>
-   Last rain : 0 min (wind 9km/h)         Humidif.:   <HUMID>
+   Last rain :   0 min (wind   9km/h)     Humidif.:   <HUMID>
    Sun times : <SUN>              Screen  :   <SCREEN>
 
  ALERTS : SYS_RST

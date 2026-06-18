@@ -89,6 +89,8 @@ namespace Botanik { namespace Alerts {
         bool        log_on_sent;  // "alarm START" logged this episode
         bool        log_off_sent; // "alarm END" logged this episode
         uint64_t    edge_ms;      // uptime of the last active/inactive transition
+        uint64_t    started_ms;   // uptime of the last ON transition (onset); 0 if
+                                  // never active. Drives the AlertsPage start-time sort
         /** @} */
     };
 
@@ -166,7 +168,8 @@ namespace Botanik { namespace Alerts {
                 bool on  = ((_raw >> i) & 1u) != 0;
                 if (on != was) {
                     c.edge_ms = now;
-                    if (on) { c.off_notified = false; c.log_off_sent = false; }
+                    if (on) { c.off_notified = false; c.log_off_sent = false;
+                              c.started_ms = now; }   // onset, for start-time ordering
                     else    { c.on_notified  = false; c.log_on_sent  = false; }
                 }
                 c.active   = on;

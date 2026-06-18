@@ -165,7 +165,7 @@ protected:
         if (rain_min > 999) rain_min = 999;
         unsigned wind = d->wind_peak_kmh;
         if (wind > 999) wind = 999;
-        snprintf(buf, sizeof(buf), "%u min (wind %ukm/h)", rain_min, wind);
+        snprintf(buf, sizeof(buf), "%3u min (wind %3ukm/h)", rain_min, wind);
         _cell(17, 20, L_VAL, buf, L_W);
         // Sun times (sunrise / sunset, slot 0).
         snprintf(buf, sizeof(buf), "%02u:%02u / %02u:%02u",
@@ -285,7 +285,7 @@ static Botanik::Alerts::AlertCondition g_alerts[Botanik::Alerts::ALERT_BITS] = {
     {"TOO_COLD", "Inside temperature too low",                      0,    3000,  3000,  20000, 20000},
     {"TOO_HUM",  "Relative humidity too high",                      0,    3000,  3000,  20000, 20000},
     {"TMP_STR",  "Temperature stratification too high",             0,    5000,  5000,  -1,    -1},
-    {"SYS_RST",  "Reinitialized in the last five minutes",          0,    0,     -1,    -1,    -1},
+    {"SYS_RST",  "Reinitialized in the last five minutes",          0,    -1,    -1,    -1,    -1},
     {"WTR_LK",   "Leak in irrigation circuit",                      0,    1000,  2000,  10000, 15000},
     {"WTR_BAR",  "Water pressure too low",                          0,    2000,  2000,  15000, 15000},
     {"WTR_CLOG", "Failing to drain a tray",                         0,    3000,  3000,  20000, 20000},

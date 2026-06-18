@@ -3,7 +3,7 @@
 
 /**
  * @file alerts.h
- * @brief AlertsPage - scrollable bordered table of active alert conditions.
+ * @brief AlertsPage - scrollable bordered table of alert conditions.
  *
  * Layout (row 0 is the terminal status bar):
  *   row 1            blank top margin
@@ -12,12 +12,14 @@
  *   rows 4..N-2      data rows, scrolled by a view offset
  *   row N-1          footer (mode, counts, key hints)
  *
- * The grid is plain ASCII: '|' column rules and a '+'/'-' header rule, with a
- * two-column side margin. SPACE toggles between the pre-masked set (active and
- * unmasked, the terminal alert bar's set) and all active alerts. UP/DOWN and
- * Ctrl+P/Ctrl+N scroll a line at
- * a time. The page repaints only when the alert set / its notify flags change, the
- * mode toggles, or the view scrolls, and only while the TX ring is shallow.
+ * Rows are ordered by most-recent onset (started_ms), so the alert that fired most
+ * recently is at the top and never-active alerts sit at the bottom. SPACE cycles
+ * the filter: all defined alerts -> active only -> active and not masked (the
+ * terminal alert bar's set). The grid is plain ASCII: '|' column rules and a
+ * '+'/'-' header rule, with a two-column side margin. UP/DOWN and Ctrl+P/Ctrl+N
+ * scroll a line at a time. The page repaints only when the alert set / its notify
+ * flags change, the mode cycles, or the view scrolls, and only while the TX ring
+ * is shallow.
  */
 
 #include <algorithm>
@@ -45,8 +47,9 @@ namespace Botanik { namespace Pages {
         const Alerts::AlertModel* _model;
         /** @brief Mirrors the latest tick(active). */
         bool                      _active   = false;
-        /** @brief Mode: false = unmasked only, true = all active. */
-        bool                      _show_all = false;
+        /** @brief Filter mode, cycled by SPACE: 0 = every defined alert, 1 = active
+         *  only, 2 = active and not masked. See MODE_* and _mode_label(). */
+        uint8_t                   _mode     = MODE_ALL;
         /** @brief First visible data row (scroll offset from the top of the set). */
         uint16_t                  _top      = 0;
         /** @brief A repaint is due (set on focus/scroll/toggle, cleared by _repaint). */
@@ -62,6 +65,23 @@ namespace Botanik { namespace Pages {
         /** @brief Number of visible entries in _vis. */
         uint8_t                   _nvis     = 0;
 
+        /** @} */
+
+        /** @name Filter modes (SPACE cycles MODE_ALL -> MODE_ACTIVE -> MODE_UNMASKED)
+         *  @{ */
+        static constexpr uint8_t MODE_ALL      = 0;  // every defined alert
+        static constexpr uint8_t MODE_ACTIVE   = 1;  // active (masked or not)
+        static constexpr uint8_t MODE_UNMASKED = 2;  // active and not masked
+        static constexpr uint8_t MODE_COUNT    = 3;
+
+        /** @brief Short label for the current filter mode. */
+        static const char* _mode_label(uint8_t mode) {
+            switch (mode) {
+                case MODE_ACTIVE:   return "active";
+                case MODE_UNMASKED: return "unmasked";
+                default:            return "all";
+            }
+        }
         /** @} */
 
         /** @name Layout
@@ -138,10 +158,11 @@ namespace Botanik { namespace Pages {
         /** @brief Draw the footer line: mode, counts, and key hints. */
         void _draw_footer(uint16_t row, uint8_t nvis, uint8_t active) {
             char buf[96];
+            uint8_t next = (uint8_t)((_mode + 1) % MODE_COUNT);
             int n = snprintf(buf, sizeof(buf),
-                             "  [%s]  %u shown / %u active   SPACE: show %s   UP/DN: scroll",
-                             _show_all ? "all" : "unmasked", (unsigned)nvis, (unsigned)active,
-                             _show_all ? "unmasked" : "all");
+                             "  [%s]  %u shown / %u active   SPACE: %s   UP/DN: scroll",
+                             _mode_label(_mode), (unsigned)nvis, (unsigned)active,
+                             _mode_label(next));
             if (n < 0) n = 0;
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
@@ -149,15 +170,31 @@ namespace Botanik { namespace Pages {
             _terminal.clear_to_eol();
         }
 
-        /** @brief Fill _vis/_nvis with the indices shown in the current mode. */
+        /** @brief Fill _vis/_nvis with the indices shown in the current mode, ordered
+         *  by most-recent onset (started_ms descending; never-active alerts, which
+         *  keep started_ms == 0, sort to the bottom). */
         void _collect() {
             _nvis = 0;
             if (_model == nullptr) return;
             for (uint8_t i = 0; i < _model->count() && _nvis < Alerts::ALERT_BITS; i++) {
                 const Alerts::AlertCondition& c = _model->condition(i);
-                if (!c.active) continue;
-                if (!_show_all && !c.unmasked) continue;   // masked: hidden in this mode
+                if (c.code == nullptr) continue;                 // undefined table slot
+                if (_mode >= MODE_ACTIVE   && !c.active)   continue;
+                if (_mode >= MODE_UNMASKED && !c.unmasked) continue;
                 _vis[_nvis++] = i;
+            }
+            // Insertion sort by onset, most recent first. The set is small (<= the
+            // defined-alert count) and nearly always tiny, so this is cheaper than
+            // pulling in a general sort, and it is stable in table order on ties.
+            for (uint8_t a = 1; a < _nvis; a++) {
+                uint8_t  v  = _vis[a];
+                uint64_t sa = _model->condition(v).started_ms;
+                int16_t  b  = (int16_t)a - 1;
+                while (b >= 0 && _model->condition(_vis[b]).started_ms < sa) {
+                    _vis[b + 1] = _vis[b];
+                    b--;
+                }
+                _vis[b + 1] = v;
             }
         }
 
@@ -233,10 +270,10 @@ namespace Botanik { namespace Pages {
         const char* name() const override { return "ALERTS"; }
 
         void handle_text(char c) override {
-            if (c == ' ') {                 // toggle masked-only / all-active
-                _show_all = !_show_all;
-                _top      = 0;
-                _dirty    = true;
+            if (c == ' ') {                 // cycle all -> active -> unmasked
+                _mode  = (uint8_t)((_mode + 1) % MODE_COUNT);
+                _top   = 0;
+                _dirty = true;
             }
         }
 
