@@ -7,15 +7,14 @@
  *
  * Layout (row 0 is the terminal status bar):
  *   row 1            blank top margin
- *   row 2            table header  (CODE | ON | OFF | DESCRIPTION)
- *   row 3            header rule   (a solid reverse-video bar)
+ *   row 2            table header  (| CODE | ON | OFF | DESCRIPTION |)
+ *   row 3            header rule   (+------+----+----+ ... +)
  *   rows 4..N-2      data rows, scrolled by a view offset
  *   row N-1          footer (mode, counts, key hints)
  *
- * The grid is drawn with reverse-video cells rather than | + - : each column
- * boundary is a one-column inverted rule and the header rule is a full inverted
- * bar, with the cell text in normal video. The table has a two-column side margin.
- * SPACE toggles between the pre-masked set (active and unmasked, the StatusPage
+ * The grid is plain ASCII: '|' column rules and a '+'/'-' header rule, with a
+ * two-column side margin. SPACE toggles between the pre-masked set (active and
+ * unmasked, the StatusPage
  * ribbon's set) and all active alerts. UP/DOWN and Ctrl+P/Ctrl+N scroll a line at
  * a time. The page repaints only when the alert set / its notify flags change, the
  * mode toggles, or the view scrolls, and only while the TX ring is shallow.
@@ -24,7 +23,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
-#include <cstring>
 
 #include "libbotanik/alerts/alerts.h"
 #include "libbotanik/pages/page.h"
@@ -88,52 +86,45 @@ namespace Botanik { namespace Pages {
             return avail;
         }
 
-        /** @brief Total table width (rules + cells). */
-        uint16_t _table_w() const {
-            return (uint16_t)(5 + CODE_W + ON_W + OFF_W + _desc_w());
-        }
-
-        /** @brief Draw one reverse-video grid row: margin, then each cell preceded by
-         *  an inverted rule and a closing rule, cell text in normal video. */
+        /** @brief Draw one '|'-ruled grid row: margin, then each cell wrapped in '|'
+         *  rules, cell text padded to its column width. */
         void _draw_grid_row(uint16_t row, const char* c0, const char* c1,
                             const char* c2, const char* c3) {
             const char* cell[4] = { c0, c1, c2, c3 };
             uint16_t    w[4]    = { CODE_W, ON_W, OFF_W, _desc_w() };
+            char     line[160];
+            uint16_t n = 0;
+            line[n++] = ' '; line[n++] = ' ';                // left margin
+            for (uint8_t i = 0; i < 4; i++) {
+                if (n < sizeof(line) - 1) line[n++] = '|';
+                int cw = (int)w[i] - 1;
+                int m  = snprintf(line + n, sizeof(line) - n, " %-*.*s",
+                                  cw, cw, cell[i] ? cell[i] : "");
+                if (m < 0) m = 0;
+                n = (uint16_t)(n + m);
+                if (n > sizeof(line) - 1) { n = (uint16_t)(sizeof(line) - 1); break; }
+            }
+            if (n < sizeof(line) - 1) line[n++] = '|';        // closing rule
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
-            _terminal.write_chars("  ", MARGIN);
-            for (uint8_t i = 0; i < 4; i++) {
-                _terminal.set_inverted(true);
-                _terminal.write_chars(" ", 1);              // inverted column rule
-                _terminal.set_inverted(false);
-                char buf[96];
-                int cw = (int)w[i] - 1;
-                int n  = snprintf(buf, sizeof(buf), " %-*.*s", cw, cw, cell[i] ? cell[i] : "");
-                if (n < 0) n = 0;
-                if ((size_t)n > sizeof(buf)) n = (int)sizeof(buf);
-                _terminal.write_chars(buf, (uint16_t)n);     // cell text (normal video)
-            }
-            _terminal.set_inverted(true);
-            _terminal.write_chars(" ", 1);                   // closing rule
-            _terminal.set_inverted(false);
+            _terminal.write_chars(line, n);
             _terminal.clear_to_eol();
         }
 
-        /** @brief Draw the header rule: a solid reverse-video bar across the table. */
+        /** @brief Draw the header rule: "+----+--+...+" matching the column widths. */
         void _draw_rule(uint16_t row) {
+            uint16_t w[4] = { CODE_W, ON_W, OFF_W, _desc_w() };
+            char     line[160];
+            uint16_t n = 0;
+            line[n++] = ' '; line[n++] = ' ';                // left margin
+            if (n < sizeof(line) - 1) line[n++] = '+';
+            for (uint8_t i = 0; i < 4; i++) {
+                for (uint16_t k = 0; k < w[i] && n < sizeof(line) - 1; k++) line[n++] = '-';
+                if (n < sizeof(line) - 1) line[n++] = '+';
+            }
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
-            _terminal.write_chars("  ", MARGIN);
-            _terminal.set_inverted(true);
-            char sp[96];
-            memset(sp, ' ', sizeof(sp));
-            uint16_t rem = _table_w();
-            while (rem) {
-                uint16_t n = (rem > (uint16_t)sizeof(sp)) ? (uint16_t)sizeof(sp) : rem;
-                _terminal.write_chars(sp, n);
-                rem = (uint16_t)(rem - n);
-            }
-            _terminal.set_inverted(false);
+            _terminal.write_chars(line, n);
             _terminal.clear_to_eol();
         }
 
