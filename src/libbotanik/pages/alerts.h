@@ -90,12 +90,12 @@ namespace Botanik { namespace Pages {
 
         /** @name Layout
          *  Columns: CODE | ON (reverse-video badge when active) | LAST EVENT
-         *  ("ON @ HH:MM" / "OFF @ HH:MM") | DESCRIPTION.
+         *  ("ON:  HH:MM" / "OFF: HH:MM") | DESCRIPTION.
          *  @{ */
         static constexpr uint16_t MARGIN     = 2;   // blank columns each side
         static constexpr uint16_t CODE_W     = 11;  // cell inner widths (incl. 1 pad)
         static constexpr uint16_t STATE_W    = 4;   // " ON" badge / "ON" header
-        static constexpr uint16_t EVENT_W    = 12;  // " OFF @ HH:MM"
+        static constexpr uint16_t EVENT_W    = 12;  // " OFF: HH:MM"
         static constexpr uint16_t HEADER_ROW = 2;
         static constexpr uint16_t RULE_ROW   = 3;
         static constexpr uint16_t DATA_TOP   = 4;
@@ -116,13 +116,15 @@ namespace Botanik { namespace Pages {
             return avail;
         }
 
-        /** @brief Format the last-event cell for @p c: "ON @ HH:MM" while active,
-         *  "OFF @ HH:MM" after it cleared, or empty if it has never fired. The time is
+        /** @brief Format the last-event cell for @p c: "ON:  HH:MM" while active,
+         *  "OFF: HH:MM" after it cleared, or empty if it has never fired. The time is
          *  the wall clock at the last transition (edge_ms). */
         static void _fmt_event(char* buf, size_t cap, const Alerts::AlertCondition& c) {
             if (!c.active && c.edge_ms == 0) { if (cap) buf[0] = '\0'; return; }
             Utils::CalendarTime t = Utils::cal_time_ms(c.edge_ms);
-            snprintf(buf, cap, "%s @ %02u:%02u", c.active ? "ON" : "OFF",
+            // "%-5s" pads "ON:"/"OFF:" to a fixed 5 cols so the times line up:
+            // "ON:  HH:MM" / "OFF: HH:MM".
+            snprintf(buf, cap, "%-5s%02u:%02u", c.active ? "ON:" : "OFF:",
                      (unsigned)t.hour, (unsigned)t.minute);
         }
 
