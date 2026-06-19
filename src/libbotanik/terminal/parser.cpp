@@ -149,7 +149,10 @@ namespace Botanik { namespace Terminal {
         if (b >= '0' && b <= '9') {
             uint8_t idx = _event.param_count;
             if (idx < 8) {
-                _event.params[idx] = (_event.params[idx] * 10) + (b - '0');
+                // Saturate rather than wrap: a long digit run on a noisy line must
+                // not roll over into a small value that spuriously matches a command.
+                uint32_t v = (uint32_t)_event.params[idx] * 10 + (uint32_t)(b - '0');
+                _event.params[idx] = (v > 0xFFFF) ? (uint16_t)0xFFFF : (uint16_t)v;
             }
             return State::IN_CSI;
         }
@@ -277,7 +280,7 @@ namespace Botanik { namespace Terminal {
     // Lifecycle
     // ------------------------------------------------------------------------
 
-    InputParser::InputParser(Utils::BufferedSerial& serial, uint32_t* timestamp_ms)
+    InputParser::InputParser(Utils::BufferedSerial& serial, const uint32_t* timestamp_ms)
         : _serial(serial), _timestamp_ms(timestamp_ms) {
         _reset_event();
         _state = State::IDLE;

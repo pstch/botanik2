@@ -101,8 +101,8 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Serial device buffered wrapper. */
         BufferedSerial& _serial;
-        /** @brief Shared wall-clock timestamp (ms) updated by the owner. */
-        uint32_t*       _timestamp_ms;
+        /** @brief Shared loop timestamp (ms), published by the scheduler; read-only. */
+        const uint32_t* _timestamp_ms;
 
         /** @brief Event currently being constructed. */
         InputEvent      _event;
@@ -133,7 +133,7 @@ namespace Botanik { namespace Terminal {
          *  @{ */
 
         /** @brief Construct a parser bound to a serial wrapper and timestamp. */
-        InputParser(BufferedSerial& serial, uint32_t* timestamp_ms);
+        InputParser(BufferedSerial& serial, const uint32_t* timestamp_ms);
 
         /** @} */
 

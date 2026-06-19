@@ -31,13 +31,25 @@ namespace Botanik { namespace Pages {
     }
 
     void LogsPage::handle_command(Command cmd, uint16_t /*count*/) {
+        // Ctrl+C is routed to handle_cancel() by the terminal; the logs page has
+        // nothing to cancel, so it leaves it to the terminal's default.
+        // Scroll the log history: UP/DOWN and Ctrl+P/Ctrl+N move a line at a time
+        // (the live tail freezes while scrolled back); ENTER clears and returns to
+        // the live bottom.
+        const uint16_t first_row = 1;
+        const uint16_t log_rows  = (uint16_t)(_terminal.rows() - 1);
         switch (cmd) {
-            case Command::CTRL_C:
-                HAL::shutdown();  // our exit path (same as the shell "exit"); no return
-                break;
             case Command::ENTER:
                 _terminal.clear_content();
                 focus();
+                break;
+            case Command::UP:
+            case Command::CTRL_P:
+                _scrollback.scroll(_terminal, /*up=*/true, 1, first_row, log_rows);
+                break;
+            case Command::DOWN:
+            case Command::CTRL_N:
+                _scrollback.scroll(_terminal, /*up=*/false, 1, first_row, log_rows);
                 break;
             case Command::PAGE_UP:   break;
             case Command::PAGE_DOWN: break;
@@ -83,10 +95,9 @@ namespace Botanik { namespace Pages {
         // paced. In the background nothing reaches the screen; a later focus() replays
         // the tail. Never blocks and never drops, so always report the whole entry
         // consumed (this is also why command/log output can't be truncated).
-        uint16_t n = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
+        _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(),
             Config::SHELL_LOG_CONT_PREFIX,
-            (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX));
-        if (_active) _scrollback.note_pending(n);
+            (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX), _active);
         return len;
     }
 

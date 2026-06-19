@@ -16,6 +16,8 @@
 
 #include "libbotanik/pages/page.h"
 
+namespace Botanik { namespace Alarms { class AlarmModel; } }
+
 namespace Botanik { namespace Terminal {
 
 
@@ -111,6 +113,28 @@ namespace Botanik { namespace Terminal {
 
         /** @} */
 
+        /** @name Alarm bar state
+         *  The bottom alarm bar is a terminal-owned hot field, drawn on every page so
+         *  alarms stay visible. Like the row-0 status bar it repaints cooperatively in
+         *  step() - only when the unmasked alarm set changes, and only while the TX
+         *  ring is shallow (the shared cold floor). No change-highlighting (the set is
+         *  visible as a whole). _alarm_dirty survives a deferred paint (floor closed,
+         *  or the row was wiped by a clear) so a later tick retries.
+         *  @{ */
+
+        /** @brief Alarm source feeding the bar (may be null). When null there is no
+         *  bar, _reserved_bottom stays 0, and the bottom row belongs to pages. */
+        const Alarms::AlarmModel*    _alarms = nullptr;
+        /** @brief Rows reserved at the screen bottom for the bar: 1 when _alarms is
+         *  set, else 0. Subtracted by rows() / _content_bottom(). */
+        uint16_t                     _reserved_bottom = 0;
+        /** @brief Unmasked alarm set last painted (bit i = table row i). */
+        uint64_t                     _alarm_sig = 0;
+        /** @brief A bar repaint is due (set on change / screen wipe, cleared once painted). */
+        bool                         _alarm_dirty = true;
+
+        /** @} */
+
         /** @name Cooperative-TX depth gates
          *  @{ */
 
@@ -142,9 +166,12 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Initialize the terminal. @p baud is the link bit rate; it sizes the
          *  cooperative-TX depth floor (see tx_below_cold()) so the felt echo latency
-         *  stays constant across links. */
+         *  stays constant across links. @p alarms, when non-null, feeds the always-
+         *  visible bottom alarm bar and reserves the bottom screen row for it (the
+         *  page content area shrinks by one row); null leaves the full screen to pages. */
         AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
-                     uint32_t* timestamp_ms, uint32_t baud, const SystemContext& ctx = {});
+                     const uint32_t* timestamp_ms, uint32_t baud, const SystemContext& ctx = {},
+                     const Alarms::AlarmModel* alarms = nullptr);
 
         /** @brief Process input and update terminal state */
         void step();
@@ -175,8 +202,12 @@ namespace Botanik { namespace Terminal {
         /** @brief Get the total number of columns (width) */
         inline uint16_t cols() const { return _cols; }
 
-        /** @brief Get the total number of rows (height) */
-        inline uint16_t rows() const { return _rows; }
+        /** @brief Rows available to pages (height minus the reserved bottom alarm
+         *  bar, if any). Row 0 is the status bar and this count includes it, so the
+         *  page content area is rows 1 .. rows()-1, mirroring how row 0 is handled.
+         *  Pages and the editor size their layout and scroll bands off this, so
+         *  reserving the alarm bar's row shrinks them by one with no other change. */
+        inline uint16_t rows() const { return (uint16_t)(_rows - _reserved_bottom); }
 
         /** @} */
 
@@ -187,8 +218,9 @@ namespace Botanik { namespace Terminal {
          *  @param buf Buffer to write
          *  @param len Number of characters to write
          *  @param insert If true, use insertion mode (shifts existing text right)
-         */
-        void write_chars(const char *buf, uint16_t len, bool insert = false);
+         *  @return Number of characters that actually reached the wire (< len when
+         *          the TX ring filled), so callers can cache only what was drawn. */
+        uint16_t write_chars(const char *buf, uint16_t len, bool insert = false);
 
         /** @brief Set or clear the reverse-video (inverted) attribute */
         void set_inverted(bool enable);
@@ -206,9 +238,12 @@ namespace Botanik { namespace Terminal {
          *  (bit k set = column k drawn inverted). The shared "cursor move + lazy SGR
          *  segmenting + write" run-emit used by both the status bar and MetricPage; the
          *  caller owns diffing, run-coalescing, budgeting, the value cache, and any
-         *  inverted-state restore afterwards. */
-        void emit_field_run(uint16_t row, uint16_t col, const char* cf,
-                            uint16_t a, uint16_t b, uint32_t hi);
+         *  inverted-state restore afterwards.
+         *  @return Number of leading cells of the run that actually reached the wire
+         *          (< b-a if the TX ring filled mid-run), so the caller caches only
+         *          what was drawn. */
+        uint16_t emit_field_run(uint16_t row, uint16_t col, const char* cf,
+                                uint16_t a, uint16_t b, uint32_t hi);
 
         /** @} */
 
@@ -239,6 +274,31 @@ namespace Botanik { namespace Terminal {
         /** @brief Delete rows at cursor, pulling subsequent rows up */
         void delete_rows(uint16_t count);
 
+        /** @brief Scroll the inclusive screen-row band [@p top .. @p bottom] by @p n
+         *  rows, leaving every row outside the band untouched. @p up scrolls toward
+         *  the top (the n freed rows open at the band bottom, the top n are dropped);
+         *  otherwise toward the bottom (freed rows open at the top). The caller fills
+         *  the freed rows.
+         *
+         *  There is no DECSTBM scrolling region (a Minitel in teleinformatique mode
+         *  does not honour it), so this is built from plain DL/IL: a DL/IL pair, one at
+         *  each end of the band, where the second op pushes the rows the first op
+         *  displaced past the band back to where they were (the pattern the scrollback
+         *  live-tail already used inline). When the band runs to the physical last row
+         *  there is nothing below to restore, so the compensating op is skipped and a
+         *  single DL/IL is emitted - identical to a bare insert_rows()/delete_rows(). */
+        void scroll_region(uint16_t top, uint16_t bottom, bool up, uint16_t n = 1);
+
+        /** @brief Clear screen rows [@p top .. @p bottom] inclusive, leaving every row
+         *  outside the range untouched (the status bar above, the alarm bar below, any
+         *  content above @p top). X3.64 has no bounded-range erase, so this scrolls the
+         *  band off by its full height (a DL/IL pair) - the way to blank a row range
+         *  without an erase-to-end-of-display that would also wipe the alarm bar. */
+        void clear_rows(uint16_t top, uint16_t bottom) {
+            if (top > bottom) return;
+            scroll_region(top, bottom, /*up=*/true, (uint16_t)(bottom - top + 1));
+        }
+
         /** @} */
 
         /** @name Pages
@@ -246,6 +306,12 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Register a page; returns its index, or -1 if the slot array is full */
         int8_t add_page(Pages::Page* page);
+
+        /** @brief Insert a page at @p index, shifting later pages right; returns the
+         *  index, or -1 if the array is full or @p index is past the end. Lets a site
+         *  splice its pages into the core set (e.g. its home page at index 0) without
+         *  re-listing them. Intended for setup() before the first render. */
+        int8_t add_page(Pages::Page* page, uint8_t index);
 
         /** @brief Switch to the page at the given index */
         void switch_to(uint8_t index);
@@ -282,6 +348,19 @@ namespace Botanik { namespace Terminal {
          *  @return true if it emitted any bytes (a digit changed), so the caller can
          *  charge it against the status-bar field budget. */
         bool update_status_clock(bool restore_cursor = true);
+
+        /** @} */
+
+        /** @name Alarm bar
+         *  @{ */
+
+        /** @brief Redraw the always-visible bottom alarm bar: a reverse-video bar with
+         *  a " ALARMS : " header, then the unmasked alarm codes drawn normal-video
+         *  (each followed by an inverted space, so they read as a set against the bar),
+         *  filled to the row end. No-op without an alarm source. Repaints
+         *  unconditionally; the cooperative gate and cursor save/restore live in
+         *  step()'s alarm-bar pass. */
+        void draw_alarm_bar();
 
         /** @} */
 
@@ -326,6 +405,10 @@ namespace Botanik { namespace Terminal {
             return (freed <= cap) ? (uint16_t)(cap - freed) : 0;
         }
 
+        /** @brief Cumulative bytes dropped because the TX ring was full (console
+         *  output that didn't retry); surfaced by the status page. */
+        uint32_t tx_dropped() const { return _serial.tx_dropped(); }
+
         /** @brief Capacity of the serial RX / TX ring buffers, bytes */
         static constexpr uint16_t rx_capacity() { return Utils::BufferedSerial::rx_capacity(); }
         static constexpr uint16_t tx_capacity() { return Utils::BufferedSerial::tx_capacity(); }
@@ -338,6 +421,10 @@ namespace Botanik { namespace Terminal {
         /** @brief Access the attached subsystem status contexts (members may be null) */
         const SystemContext& context() const { return _ctx; }
 
+        /** @brief The attached alarm model, or null when none was supplied (drives
+         *  the bottom alarm bar; also read by the shell's "alarms" command). */
+        const Alarms::AlarmModel* alarms() const { return _alarms; }
+
         /** @} */
 
     private:
@@ -349,10 +436,29 @@ namespace Botanik { namespace Terminal {
          *  caller does). Shared by clear_screen() and setup_*(). */
         void _establish_screen();
 
+        /** @brief Last screen row a page may scroll/draw content into (0-indexed).
+         *  Row 0 is the status bar; the rows below it down to this one are the page
+         *  content area that scroll_region() and line_feed() confine scrolling to.
+         *  The reserved bottom row (the alarm bar, when present) is excluded. */
+        uint16_t _content_bottom() const {
+            uint16_t below = (uint16_t)(_reserved_bottom + 1);
+            return (uint16_t)(_rows > below ? _rows - below : 0);
+        }
+
         /** @brief Render the right-side status field into @p buf; returns its length.
          *  The width is fixed, so a byte index maps to a fixed column (relied on by
          *  update_status_metrics()'s per-cell diff). */
         int _build_metrics(char* buf, size_t cap) const;
+
+        /** @brief Bitset of currently-unmasked alarms (the bar's listed set), used as
+         *  the change signature gating a repaint. Zero when there is no alarm source. */
+        uint64_t _unmasked_set() const;
+
+        /** @brief Cooperative alarm-bar pass (called once per step): repaint when the
+         *  unmasked set changed or the row was wiped, but only while the TX ring is
+         *  shallow; saves and restores the page cursor and its visibility so the bar
+         *  never steals a visible cursor (e.g. the shell editor's) to the bottom row. */
+        void _run_alarm_bar();
 
         /** @} */
     };

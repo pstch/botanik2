@@ -53,6 +53,9 @@ namespace Botanik { namespace Pages {
         /** @brief True while inside drain(), so write() wraps continuations with the
          *  indented log prefix rather than the plain command-output prefix. */
         bool _draining_log = false;
+        /** @brief When false ("logs off"), incoming log entries are dropped instead
+         *  of queued, inhibiting the live tail. Command output is unaffected. */
+        bool _logs_enabled = true;
 
         /** @} */
 
@@ -63,6 +66,12 @@ namespace Botanik { namespace Pages {
         /** @brief Construct a ShellPage bound to the given terminal. */
         ShellPage(Terminal::AnsiTerminal& terminal);
 
+        /** @brief Register a site command table on the underlying shell (tried after
+         *  the built-ins). See Shell::CommandShell::set_commands(). */
+        void set_commands(const Shell::ShellCommand* table, size_t count, void* ctx = nullptr) {
+            _shell.set_commands(table, count, ctx);
+        }
+
         /** @} */
 
         /** @name Page interface
@@ -72,6 +81,7 @@ namespace Botanik { namespace Pages {
         void handle_text(char c) override;
         void handle_text_batch(const char* buf, uint16_t len) override;
         void handle_command(Command cmd, uint16_t count = 1) override;
+        bool handle_cancel() override;
         void deactivate() override;
         void focus() override;
         void redraw() override;
@@ -90,6 +100,8 @@ namespace Botanik { namespace Pages {
         void   write_lines(const char* buf, uint16_t len) override;
         void   drain() override;
         void   clear() override;
+        void   set_logs_enabled(bool on) override { _logs_enabled = on; }
+        bool   logs_enabled() const override { return _logs_enabled; }
 
         /** @} */
 

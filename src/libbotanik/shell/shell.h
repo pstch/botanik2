@@ -21,15 +21,32 @@ namespace Botanik { namespace Shell {
         virtual size_t write(const char* buf, size_t len) = 0;
         /** @brief Clear all previously written output. Default: no-op. */
         virtual void   clear() {}
+        /** @brief Enable/disable live log output in the terminal. Default: no-op. */
+        virtual void   set_logs_enabled(bool) {}
+        /** @brief Whether live log output is currently enabled. Default: true. */
+        virtual bool   logs_enabled() const { return true; }
         /** @brief Write @p buf split into terminal-width chunks, one write() per chunk. */
         virtual void   write_lines(const char* buf, uint16_t len) { write(buf, len); }
+    };
+
+    /** @brief Site-defined shell command: a name, one-line help text, and a
+     *  callback. Registered as a table via CommandShell::set_commands() and tried
+     *  after the built-ins (so a site can't shadow exit/reset). The name may be
+     *  followed by arguments: the remainder of the line after the name (leading
+     *  spaces trimmed) is handed to the callback as @p args / @p arglen, and @p ctx
+     *  is the opaque pointer passed to set_commands(). */
+    struct ShellCommand {
+        const char* name;
+        const char* help;
+        void (*fn)(ShellWriter& out, const char* args, uint16_t arglen, void* ctx);
     };
 
     /** @class CommandShell
      *  @brief Handles command submission, built-in dispatch, and extensibility.
      *
-     *  Subclass and override dispatch() to add application-specific commands
-     *  that are tried before the built-in handler.
+     *  Site commands are added data-driven via set_commands() (a table of
+     *  ShellCommand); alternatively, subclass and override dispatch() for commands
+     *  that need richer control. Both are tried after the built-ins.
      *
      *  History and kill-ring features are stubbed out; see TODO.md and the
      *  SHELL_HISTORY_* / SHELL_KILL_SIZE constants in libbotanik_config.h. */
@@ -44,6 +61,12 @@ namespace Botanik { namespace Shell {
         Terminal::TextEditor&  _editor;
         /** @brief Output channel for command results. */
         ShellWriter&            _output;
+        /** @brief Optional site command table (see set_commands()). */
+        const ShellCommand*     _commands      = nullptr;
+        /** @brief Number of entries in _commands. */
+        size_t                  _command_count = 0;
+        /** @brief Opaque context handed to each site command callback. */
+        void*                   _command_ctx   = nullptr;
 
         /** @} */
 
@@ -63,6 +86,15 @@ namespace Botanik { namespace Shell {
         /** @brief Dispatch a pre-snapshotted command (caller owns snapshot and reset).
          *         A zero-length command is ignored. */
         void run(const char* cmd, uint16_t len);
+
+        /** @brief Register a site command table, tried after the built-ins. @p table
+         *  must outlive the shell (typically a static at the site). @p ctx is passed
+         *  to each callback. Pass count 0 (or a null table) to clear. */
+        void set_commands(const ShellCommand* table, size_t count, void* ctx = nullptr) {
+            _commands      = table;
+            _command_count = (table != nullptr) ? count : 0;
+            _command_ctx   = ctx;
+        }
 
         /** @} */
 
@@ -102,8 +134,28 @@ namespace Botanik { namespace Shell {
         /** @name Internals
          *  @{ */
 
-        /** @brief Built-in command handler (run when dispatch() falls through). */
+        /** @brief Built-in command handler (run when dispatch() falls through):
+         *  matches @p cmd against the static command table and invokes its handler. */
         void _builtin(const char* cmd, uint16_t len);
+
+        /** @name Built-in command handlers
+         *  @{ */
+        void _cmd_help();
+        void _cmd_clear();
+        void _cmd_logs();
+        void _cmd_logs_on();
+        void _cmd_logs_off();
+        void _cmd_breakpoint();
+        void _cmd_reset();
+        void _cmd_exit();
+        void _cmd_stats();
+        void _cmd_version();
+        void _cmd_alarms();
+        /** @brief Handle an unrecognised command (echoes "Unknown command: ..."). */
+        void _unknown(const char* cmd, uint16_t len);
+        /** @brief Write a NUL-terminated line of command output. */
+        void _println(const char* msg);
+        /** @} */
 
         /** @} */
     };

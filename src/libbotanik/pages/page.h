@@ -40,6 +40,10 @@ namespace Botanik { namespace Pages {
          * `count` is > 1 only for chunkable commands (BACKSPACE / CTRL_D) the parser
          * coalesced under backpressure; apply them in one pass when possible. */
         virtual void handle_command(Command cmd, uint16_t count = 1) = 0;
+        /** @brief Handle Ctrl+C. Return true if the page consumed it (e.g. cancelled
+         *  an input line); return false to let the terminal apply the default (quit
+         *  on the simulator, a no-op on hardware). Default: not handled. */
+        virtual bool handle_cancel() { return false; }
 
         /** @} */
 
