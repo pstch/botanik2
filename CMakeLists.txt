@@ -102,6 +102,17 @@ file(GLOB_RECURSE LIB_SOURCES
 
 add_library(botanik STATIC ${LIB_SOURCES})
 
+# Site config overrides (optional): if the selected site ships a config.h, make it
+# build-wide by defining BOTANIK_SITE_CONFIG PUBLIC on the library - so libbotanik's
+# own TUs and every consumer compile against the same overridden Config values
+# (anything narrower is an ABI mismatch). libbotanik_config.h #includes it before
+# its #ifndef defaults. No-op when the site has no overrides.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/sites/${BOTANIK_SITE}/config.h")
+    target_compile_definitions(botanik PUBLIC
+        BOTANIK_SITE_CONFIG="sites/${BOTANIK_SITE}/config.h")
+    message(STATUS "Site config overrides: src/sites/${BOTANIK_SITE}/config.h")
+endif()
+
 # Simulator mode
 # ============================================================================
 
