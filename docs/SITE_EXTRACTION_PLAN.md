@@ -1,10 +1,11 @@
 # Site Extraction Plan
 
-Status: **stage 3 done** - the gh_mlb41 site is extracted (`070f55f`), the
-`BotanikFirmware<In, Out>` base + `GreenhouseMLB41` subclass are in place (`049d01e`),
-and the OPTA firmware is converged onto the same site (`8a99ec9`, cross-built clean).
-The structural migration is complete; only the optional stage 4 (site selection +
-sketch generation) remains. This plan stages the migration described in
+Status: **done** (bar the deploy follow-up) - the gh_mlb41 site is extracted
+(`070f55f`), the `BotanikFirmware<In, Out>` base + `GreenhouseMLB41` subclass are in
+place (`049d01e`), the OPTA firmware is converged onto the same site (`8a99ec9`,
+cross-built clean), and site selection via `-DBOTANIK_SITE` is wired (`d075ece`).
+Remaining: the Arduino `.zip`/`.ino` deploy packaging (stage 4b below). This plan
+stages the migration described in
 the *Site-specific code* section of `CLAUDE.md`: promote `BotanikFirmware` into
 `libbotanik` as a generic base, extract the `gh_mlb41` site out of `botanik_sim`
 into its own unit, and converge the `botanik_fw` stub onto the same site. The
@@ -252,13 +253,27 @@ the footprint record shifts.
 
 ---
 
-## Stage 4 (optional) - site selection + sketch generation  [ ]
+## Stage 4a - site selection  [x] done
 
-- CMake: `set(BOTANIK_SITE gh_mlb41 CACHE STRING ...)`, glob
-  `src/sites/${BOTANIK_SITE}/*.cpp` so one target template serves any site.
-- The Arduino `.zip` + generated `.ino` (static `GreenhouseMLB41`, `setup()` /
-  `loop()`) is a separate build-project concern; capture it here as the deploy
-  follow-up, not part of the in-tree refactor.
+**Implemented (commit `d075ece`):** `set(BOTANIK_SITE gh_mlb41 CACHE STRING ...)`
+drives `file(GLOB src/sites/${BOTANIK_SITE}/*.cpp)` for both the simulator and OPTA
+targets, and `BOTANIK_SITE_HEADER` (= `sites/${BOTANIK_SITE}/site.h`) is passed to
+the harness / firmware / `test_sizes` as a compile define so they `#include
+BOTANIK_SITE_HEADER` instead of naming the site. Each site exposes a uniform surface
+through `site.h`: `BotanikSite` (the firmware type), the payload, and the sim-only
+mock-PLC entry (`start_greenhouse_emulator` -> `start_site_emulator`). Defaults to
+`gh_mlb41`; both targets build clean.
+
+## Stage 4b - Arduino deploy packaging  [ ] (deferred)
+
+The deliverable for the OPTA path: the Arduino `.zip` (currently `libbotanik` only)
+should also carry the selected `src/sites/${BOTANIK_SITE}/`, and the integrator's
+entry file (`#include <libbotanik.h>` + the site, defining the `botanik_setup()`/
+`botanik_step()` the IDE calls) needs generating. `src/botanik_fw/` is the working
+reference for that entry. Pending: confirmation of the Axel IDE's exact hook names
+(see the note in `botanik_fw/botanik_arduino.h`) and the PLC IDE's generated
+`PLCSharedVars*_t` types (for the layout `static_assert`s). A build-project concern,
+not an in-tree refactor.
 
 ---
 
