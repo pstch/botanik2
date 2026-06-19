@@ -79,10 +79,15 @@ namespace Botanik { namespace Pages {
         uint16_t                  _painted_data = 0;
         /** @brief Uptime of the last once-a-second alert-set re-check (see tick()). */
         uint64_t                  _last_refresh_ms = 0;
-        /** @brief Merged raw bitset at the last repaint. Every displayed field (active
-         *  state, last-event time, onset order) changes only on a transition, i.e. when
-         *  raw moves, so this one signature gates the repaint. */
+        /** @brief Merged raw bitset at the last repaint. Active state, last-event time
+         *  and onset order all change only on a transition (raw moving), so this gates
+         *  the repaint - except RECENT membership, which also expires on time; that is
+         *  caught by _last_recent_sig below. */
         uint64_t                  _last_raw = 0;
+        /** @brief Set of conditions in their RECENT window at the last repaint. In
+         *  RECENT mode an alert can age out of the window with no raw transition, so a
+         *  change here (and not in raw) is the only signal that the list must refresh. */
+        uint64_t                  _last_recent_sig = 0;
         /** @brief Visible alert indices (table index order), filled by _collect(). */
         uint8_t                   _vis[Alerts::ALERT_BITS];
         /** @brief Number of visible entries in _vis. */
@@ -292,12 +297,31 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Snapshot the change signature after a repaint. */
-        void _snapshot() { _last_raw = _model ? _model->raw() : 0; }
+        /** @brief Bitmask of conditions currently within their RECENT window, used to
+         *  detect the time-based expiry that leaves raw() unchanged. */
+        uint64_t _recent_sig() const {
+            if (_model == nullptr) return 0;
+            uint64_t now = HAL::uptime_ms(), m = 0;
+            for (uint8_t i = 0; i < _model->count(); i++) {
+                const Alerts::AlertCondition& c = _model->condition(i);
+                if (c.code != nullptr && _is_recent(c, now)) m |= Alerts::alert_bit(i);
+            }
+            return m;
+        }
 
-        /** @brief True if the alert set moved since the last repaint (so a steady,
-         *  scrolled view is left untouched). */
+        void _snapshot() {
+            _last_raw = _model ? _model->raw() : 0;
+            _last_recent_sig = _recent_sig();
+        }
+
+        /** @brief True if the displayed set moved since the last repaint (so a steady,
+         *  scrolled view is left untouched). raw() covers active/last-event changes; in
+         *  RECENT mode a row can also expire purely on time, with no raw move, so the
+         *  recent membership is compared too. */
         bool _changed() const {
-            return _model != nullptr && _model->raw() != _last_raw;
+            if (_model == nullptr) return false;
+            if (_model->raw() != _last_raw) return true;
+            return _mode == MODE_RECENT && _recent_sig() != _last_recent_sig;
         }
 
         /** @name Window geometry
@@ -414,28 +438,22 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Scroll the view by one line, painting only the newly exposed data
-         *  row via scroll_region() instead of repainting the table. Defers to a full
-         *  repaint only when one is already due (the set moved, or focus/mode cleared
-         *  the screen) - scrolling a stale screen would be wrong. The single-line emit
-         *  is tiny and the ring is shallow at a keystroke, so it is not gated on TX
-         *  depth (a full repaint would be more work, not less). */
+         *  row via scroll_region(). Scrolling does not change the visible set, so it
+         *  reuses _vis/_nvis from the last paint (no re-_collect()); if a repaint is
+         *  already due (staged, or the set moved/expired), it folds the new offset into
+         *  that repaint rather than scroll a stale screen. */
         void _scroll(bool down) {
             uint16_t window = _window();
             if (window == 0) return;
-            uint16_t data_bottom = _data_bottom();
-
-            _collect();   // current set: clamps _top and supplies the exposed row
             uint16_t maxtop  = (_nvis > window) ? (uint16_t)(_nvis - window) : 0;
             uint16_t old_top = _top;
             if (down) { if (_top < maxtop) _top++; }
             else      { if (_top > 0)      _top--; }
             if (_top == old_top) return;                   // already at that end
 
-            // A staged repaint in progress, or a moved set, means the on-screen table
-            // is stale or about to be redrawn - fold the new offset into a full repaint
-            // rather than scroll a stale screen.
             if (_painting() || _changed()) { _request_repaint(); return; }
 
+            uint16_t data_bottom = _data_bottom();
             if (down) {
                 // View moved down: shift the band up, paint the new bottom row.
                 _terminal.scroll_region(DATA_TOP, data_bottom, /*up=*/true, 1);
@@ -445,18 +463,20 @@ namespace Botanik { namespace Pages {
                 _terminal.scroll_region(DATA_TOP, data_bottom, /*up=*/false, 1);
                 _draw_data_row(DATA_TOP, _top);
             }
-            // The hidden-above/below state may have flipped, so refresh the rules'
-            // scroll arrows (they sit outside the scrolled band, untouched by scroll_region).
-            _draw_rules(window);
+            // Only repaint a rule when its scroll arrow actually flips (top arrow at the
+            // 0 boundary, bottom arrow at the maxtop boundary), not on every keystroke.
+            if ((old_top == 0) != (_top == 0))
+                _draw_rule(RULE_ROW, _top ? '^' : '+');
+            if ((old_top < maxtop) != (_top < maxtop))
+                _draw_rule(_brule_row(), (_top < maxtop) ? 'v' : '+');
         }
 
         /** @brief Jump the view by a full page (window height) and repaint. A page is a
-         *  large move, so it goes through the paced full repaint rather than a burst of
-         *  one-row scroll_region() shifts. */
+         *  large move, so it goes through the paced full repaint (which re-collects and
+         *  re-clamps _top) rather than a burst of one-row scroll_region() shifts. */
         void _page_scroll(bool down) {
             uint16_t window = _window();
             if (window == 0) return;
-            _collect();
             uint16_t maxtop = (_nvis > window) ? (uint16_t)(_nvis - window) : 0;
             uint16_t old_top = _top;
             if (down) _top = (uint16_t)((_top + window < maxtop) ? (_top + window) : maxtop);

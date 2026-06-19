@@ -418,6 +418,15 @@ namespace Botanik { namespace Terminal {
         uint16_t height = (uint16_t)(bottom - top + 1);
         if (n > height) n = height;   // scrolling the whole band just clears it
 
+        // The scroll is a DL/IL pair: the first op displaces every row below the band
+        // (including the reserved bottom alert bar), the compensating op puts it back.
+        // A band that runs to the physical bottom needs no restore (those rows just
+        // fall off / were already blanked). Emit best-effort: the sub-ops are all-or-
+        // nothing on a full ring, so a tight ring drops the scroll rather than tearing
+        // the layout (callers that advance state assume it landed, so do not silently
+        // skip here - that desyncs them; let the ops fail individually instead).
+        bool restore = (bottom < phys_last);
+
         if (up) {
             // Drop the top n rows: DL n at the band top slides rows top+n..bottom up
             // to top..bottom-n (and pulls everything below the band up with them).
@@ -427,7 +436,7 @@ namespace Botanik { namespace Terminal {
             // down and leaves the n freed rows blank. Skipped when the band runs to
             // the screen bottom: the DL already left those rows blank and there is
             // nothing below to restore.
-            if (bottom < phys_last) {
+            if (restore) {
                 move_to({(uint16_t)(bottom - n + 1), 0});
                 insert_rows(n);
             }
@@ -435,7 +444,7 @@ namespace Botanik { namespace Terminal {
             // Drop the bottom n rows first (when the band stops short of the screen
             // bottom) so the IL below cannot shove band content onto rows it must
             // leave alone; when the band runs to the bottom those rows just fall off.
-            if (bottom < phys_last) {
+            if (restore) {
                 move_to({(uint16_t)(bottom - n + 1), 0});
                 delete_rows(n);
             }
