@@ -19,7 +19,7 @@ namespace Botanik { namespace Config {
     /** @brief Firmware version string, surfaced in the boot banner.
      *  Platform-independent; the hardware half of the banner comes from
      *  HAL::hardware_description(). */
-    static constexpr const char* FIRMWARE_VERSION = "0.1.0-dev";
+    static constexpr const char* FIRMWARE_VERSION = "0.13.12-dev";
 
     /** @} */
 
@@ -60,6 +60,14 @@ namespace Botanik { namespace Config {
     /** @brief LOAD_METRIC_WINDOW_MS expressed in per-tick samples (window length the
      *  rolling-max filters are configured with). */
     static constexpr uint32_t LOAD_METRIC_WINDOW = LOAD_METRIC_WINDOW_MS / TASK_PERIOD_MS;
+
+    /** @brief Local platform-health alert thresholds (see BotanikFirmware::loop()):
+     *  CPU_LOAD / CPU_JITT fire when the rolling-peak load / jitter exceeds this
+     *  percent of the task period; STACK fires above this percent stack usage. How
+     *  long each stays latched after it clears is per-alert in the site table (latch_s). */
+    static constexpr uint8_t  ALERT_CPU_LOAD_PCT   = 50;
+    static constexpr uint8_t  ALERT_CPU_JITTER_PCT = 50;
+    static constexpr uint8_t  ALERT_STACK_PCT      = 80;
 
     /** @brief Stack high-water mark is scanned (and the free stack re-painted) once
      *  per slice rather than every tick. One slice per metric bucket spans the whole

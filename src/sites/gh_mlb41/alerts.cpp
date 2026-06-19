@@ -6,37 +6,45 @@
 #include "sites/gh_mlb41/alerts.h"
 
 // One entry per Alerts::AlertId, in bit-index order. The static prefix is filled
-// here (code, description, masked_by, ON/OFF dwell thresholds in ms; -1 disables
-// an action); the dynamic suffix is left zeroed for the model. masked_by is 0 for
-// now (no masking relationships defined yet); the mechanism is in place for the
-// site to fill. Thresholds are placeholders to be tuned per site.
+// here (code, description, masked_by, ON/OFF dwell thresholds in seconds; -1
+// disables an action); the dynamic suffix is left zeroed for the model. Two trailing
+// fields follow the dwell thresholds: recent_s (RECENT-mode window; 0 = one-week
+// default) and latch_s (hold active this long after the raw bit clears; 0 = no latch).
+// Both are omitted on most rows (so they default to 0). masked_by is 0 for now.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 Botanik::Alerts::AlertCondition g_alerts[Botanik::Alerts::ALERT_BITS] = {
-    // code        description                                      mask  logOn  logOff mqttOn mqttOff
-    {"AC_GRID",  "Grid AC out of spec or offline",                  0,    2000,  2000,  15000, 15000},
-    {"DC_PS1",   "DC PS1 volts too low",                            0,    2000,  2000,  15000, 15000},
-    {"GEN_FLT",  "Generator failed to start",                       0,    1000,  2000,  10000, 15000},
-    {"AC_LOCAL", "Local AC out of spec or offline",                 0,    2000,  2000,  15000, 15000},
-    {"DC_PS2",   "DC PS2 volts too low",                            0,    2000,  2000,  15000, 15000},
-    {"DC_UPS",   "DC UPS on battery",                               0,    1000,  2000,  10000, 15000},
-    {"DC_LOCAL", "Local DC volts too low",                          0,    2000,  2000,  15000, 15000},
-    {"GEN_BATT", "Generator start battery too low or offline",      0,    5000,  5000,  30000, 30000},
-    {"PLC_FLT",  "Failed to synchronize with PLC",                  0,    2000,  2000,  10000, 15000},
-    {"NET_FLT",  "Network should be set up but no TCP/IP I/O",      0,    5000,  5000,  30000, 30000},
-    {"NTP_TIM",  "Timeout while attempting NTP sync",               0,    5000,  5000,  -1,    -1},
-    {"ACT_FLT",  "An actioner faulted in the last hour",            0,    2000,  2000,  15000, 15000},
-    {"SNS_FLT",  "A sensor faulted in the last hour",               0,    2000,  2000,  15000, 15000},
-    {"TOO_HOT",  "Inside temperature too high",                     0,    3000,  3000,  20000, 20000},
-    {"TOO_COLD", "Inside temperature too low",                      0,    3000,  3000,  20000, 20000},
-    {"TOO_HUM",  "Relative humidity too high",                      0,    3000,  3000,  20000, 20000},
-    {"TMP_STR",  "Temperature stratification too high",             0,    5000,  5000,  -1,    -1},
-    {"SYS_RST",  "Reinitialized in the last five minutes",          0,    0,     -1,    -1,    -1},
-    {"WTR_LK",   "Leak in irrigation circuit",                      0,    1000,  2000,  10000, 15000},
-    {"WTR_BAR",  "Water pressure too low",                          0,    2000,  2000,  15000, 15000},
-    {"WTR_CLOG", "Failing to drain a tray",                         0,    3000,  3000,  20000, 20000},
-    {"IO_DROP",  "Logical I/O drops",                               0,    2000,  2000,  -1,    -1},
-    {"LOG_FLD",  "Logs flooding",                                   0,    2000,  2000,  -1,    -1},
-    {"WH_STORM", "Current storm conditions",                        0,    2000,  5000,  15000, 30000},
+    // code        description                                      mask  logOn logOff mqttOn mqttOff
+    {"AC_GRID",  "Grid AC out-of-spec/offline",                     0,    2,    2,     15,    15},
+    {"DC_PS1",   "DC PS1 volts too low",                            0,    2,    2,     15,    15},
+    {"GEN_FLT",  "Generator failed to start",                       0,    1,    2,     10,    15},
+    {"AC_LOCAL", "Local AC out of spec or offline",                 0,    2,    2,     15,    15},
+    {"DC_PS2",   "DC PS2 volts too low",                            0,    2,    2,     15,    15},
+    {"DC_UPS",   "DC UPS on battery",                               0,    1,    2,     10,    15},
+    {"DC_LOCAL", "Local DC volts too low",                          0,    2,    2,     15,    15},
+    {"GEN_BATT", "Gen. start battery low",                          0,    5,    5,     30,    30},
+    {"PLC_FLT",  "Failed to synchronize with PLC",                  0,    2,    2,     10,    15},
+    {"NET_FLT",  "Network error",                                   0,    5,    5,     30,    30},
+    {"NTP_TIM",  "NTP sync timeout",                                0,    5,    5,     -1,    -1},
+    {"ACT_FLT",  "Actioner failure",                                0,    2,    2,     15,    15},
+    {"SNS_FLT",  "Sensor fault",                                    0,    2,    2,     15,    15},
+    {"TOO_HOT",  "Inside temperature too high",                     0,    3,    3,     20,    20},
+    {"TOO_COLD", "Inside temperature too low",                      0,    3,    3,     20,    20},
+    {"TOO_HUM",  "Relative humidity too high",                      0,    3,    3,     20,    20},
+    {"TMP_STR",  "Temp. stratification too high",                   0,    5,    5,     -1,    -1},
+    {"SYS_RST",  "Reset in the last five minutes",                  0,    -1,   0,     -1,    -1},
+    {"WTR_LK",   "Leak in irrigation circuit",                      0,    1,    2,     10,    15},
+    {"WTR_BAR",  "Water pressure too low",                          0,    2,    2,     15,    15},
+    {"WTR_CLOG", "Failing to drain a tray",                         0,    3,    3,     20,    20},
+    {"IO_DROP",  "Logical I/O drops",                               0,    2,    2,     -1,    -1},
+    {"LOG_FLD",  "Logs flooding",                                   0,    2,    2,     -1,    -1},
+    {"WH_STORM", "Current storm conditions",                        0,    2,    5,     15,    30},
+    // Generic platform-health alerts, asserted from the scheduler metrics (firmware).
+    // They latch active for 5 min (300 s) after they clear; the 8th field is recent_s
+    // (0 = default), the 9th is latch_s.
+    {"CPU_XRUN", "Scheduler overrun (skipped beat)",                0,    0,    -1,    -1,    -1,   0,  300},
+    {"CPU_LOAD", "CPU load over threshold",                         0,    5,    5,     -1,    -1,   0,  300},
+    {"STACK",    "Stack usage over threshold",                      0,    5,    5,     -1,    -1,   0,  300},
+    {"CPU_JITT", "CPU jitter over threshold",                       0,    5,    5,     -1,    -1,   0,  300},
 };
 #pragma GCC diagnostic pop

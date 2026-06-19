@@ -56,6 +56,11 @@ namespace Botanik { namespace Alerts {
         IO_DROP,      // Logical I/O drops
         LOG_FLD,      // Logs flooding
         WH_STORM,     // Current storm conditions
+        // Generic platform-health alerts, asserted locally from the scheduler metrics.
+        CPU_XRUN,     // Scheduler overrun (a beat was skipped)
+        CPU_LOAD,     // Rolling-peak CPU load over threshold
+        STACK,        // Stack usage over threshold
+        CPU_JITT,     // Rolling-peak scheduling jitter over threshold
         ALERT_DEFINED // count of defined alerts (not an alert)
     };
 
@@ -85,11 +90,12 @@ namespace Botanik { namespace Alerts {
         int32_t     mqtt_on_s;   // min ON dwell (s) before an MQTT notification (-1 off)
         int32_t     mqtt_off_s;  // min OFF dwell (s) before an MQTT notification (-1 off)
         int32_t     recent_s;    // RECENT-mode window (s): 0 = DEFAULT_RECENT_S, <0 = never expires
+        int32_t     latch_s;     // hold active this long (s) after the raw bit clears (0 = no latch)
         /** @} */
 
         /** @name Dynamic state (model-owned; leave zeroed in a site table)
          *  @{ */
-        bool        active;       // merged raw bit is set
+        bool        active;       // effective active (raw bit set, or still latched)
         bool        unmasked;     // active and no alert in masked_by is active
         bool        on_notified;  // MQTT ON notification sent (cleared when OFF)
         bool        off_notified; // MQTT OFF notification sent (cleared when ON)
@@ -98,6 +104,7 @@ namespace Botanik { namespace Alerts {
         uint64_t    edge_ms;      // uptime of the last active/inactive transition
         uint64_t    started_ms;   // uptime of the last ON transition (onset); 0 if
                                   // never active. Drives the AlertsPage start-time sort
+        uint64_t    latch_until_ms; // uptime the latch holds active until (0 = not latched)
         /** @} */
     };
 
@@ -172,7 +179,13 @@ namespace Botanik { namespace Alerts {
             for (uint8_t i = 0; i < _count; i++) {
                 AlertCondition& c = _conditions[i];
                 bool was = c.active;
-                bool on  = ((_raw >> i) & 1u) != 0;
+                // Latch: a condition with latch_s holds "active" for latch_s after its
+                // raw bit clears. Refresh the deadline every beat the raw bit is set, so
+                // the effective state stays on until latch_s past the last raw-on beat.
+                bool raw_on = ((_raw >> i) & 1u) != 0;
+                if (raw_on && c.latch_s > 0)
+                    c.latch_until_ms = now + (uint64_t)c.latch_s * 1000u;
+                bool on = raw_on || (c.latch_s > 0 && now < c.latch_until_ms);
                 if (on != was) {
                     c.edge_ms = now;
                     if (on) { c.off_notified = false; c.log_off_sent = false;
