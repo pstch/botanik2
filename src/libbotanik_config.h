@@ -21,6 +21,12 @@
 #  include BOTANIK_SITE_CONFIG   // site overrides: #define BOTANIK_* before the defaults
 #endif
 
+// Declare a Config value from its #ifndef-guarded BOTANIK_<NAME> default. The guard
+// triplet above each call can't be folded in - the preprocessor never re-reads a
+// macro's output as a directive, so a macro can't emit #ifndef - this only keeps the
+// declaration DRY and the name impossible to mistype. #undef'd at end of file.
+#define BOTANIK_CFG(type, name) static constexpr type name = BOTANIK_##name
+
 namespace Botanik { namespace Config {
 
     /**
@@ -34,7 +40,14 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_FIRMWARE_VERSION
 #  define BOTANIK_FIRMWARE_VERSION "0.13.12-dev"
 #endif
-    static constexpr const char* FIRMWARE_VERSION = BOTANIK_FIRMWARE_VERSION;
+    BOTANIK_CFG(const char*, FIRMWARE_VERSION);
+
+    /** @brief MQTT topic prefix for alarm notifications. Site identity - the default
+     *  is generic; a site pins its own in sites/<name>/config.h. */
+#ifndef BOTANIK_MQTT_TOPIC_PREFIX
+#  define BOTANIK_MQTT_TOPIC_PREFIX "botanik"
+#endif
+    BOTANIK_CFG(const char*, MQTT_TOPIC_PREFIX);
 
     /** @} */
 
@@ -48,19 +61,19 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_TASK_PERIOD_MS
 #  define BOTANIK_TASK_PERIOD_MS 10
 #endif
-    static constexpr uint32_t TASK_PERIOD_MS = BOTANIK_TASK_PERIOD_MS;
+    BOTANIK_CFG(uint32_t, TASK_PERIOD_MS);
 
     /** @brief Hardware watchdog timeout */
 #ifndef BOTANIK_HW_WATCHDOG_MS
 #  define BOTANIK_HW_WATCHDOG_MS 10000
 #endif
-    static constexpr uint32_t HW_WATCHDOG_MS = BOTANIK_HW_WATCHDOG_MS;
+    BOTANIK_CFG(uint32_t, HW_WATCHDOG_MS);
 
     /** @brief Minimum interval between scheduler-overrun warnings (ms) */
 #ifndef BOTANIK_SCHEDULER_XRUN_LOG_MS
 #  define BOTANIK_SCHEDULER_XRUN_LOG_MS 5000
 #endif
-    static constexpr uint32_t SCHEDULER_XRUN_LOG_MS = BOTANIK_SCHEDULER_XRUN_LOG_MS;
+    BOTANIK_CFG(uint32_t, SCHEDULER_XRUN_LOG_MS);
 
 #ifdef TARGET_SIMULATOR
     /** @brief CPU cores the simulator pins its two realtime threads to, mirroring
@@ -69,42 +82,42 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_SIM_MAIN_CPU_CORE
 #  define BOTANIK_SIM_MAIN_CPU_CORE 0
 #endif
-    static constexpr int SIM_MAIN_CPU_CORE = BOTANIK_SIM_MAIN_CPU_CORE;
+    BOTANIK_CFG(int, SIM_MAIN_CPU_CORE);
 #ifndef BOTANIK_SIM_EMULATOR_CPU_CORE
 #  define BOTANIK_SIM_EMULATOR_CPU_CORE 1
 #endif
-    static constexpr int SIM_EMULATOR_CPU_CORE = BOTANIK_SIM_EMULATOR_CPU_CORE;
+    BOTANIK_CFG(int, SIM_EMULATOR_CPU_CORE);
 #endif
 
     /** @brief Maximum address range to scan for stack usage monitoring */
 #ifndef BOTANIK_STACK_SCAN_LIMIT
 #  define BOTANIK_STACK_SCAN_LIMIT 1048576
 #endif
-    static constexpr uint32_t STACK_SCAN_LIMIT = BOTANIK_STACK_SCAN_LIMIT;
+    BOTANIK_CFG(uint32_t, STACK_SCAN_LIMIT);
 
     /** @brief Byte pattern used for stack "painting" to detect high-water mark */
 #ifndef BOTANIK_STACK_PAINT_BYTE
 #  define BOTANIK_STACK_PAINT_BYTE 0xCD
 #endif
-    static constexpr uint8_t  STACK_PAINT_BYTE = BOTANIK_STACK_PAINT_BYTE;
+    BOTANIK_CFG(uint8_t, STACK_PAINT_BYTE);
 
     /** @brief Sliding window for the "recent peak" CPU/stack metrics,
      *  and the number of rotating buckets used to approximate it. */
 #ifndef BOTANIK_LOAD_METRIC_WINDOW_MS
 #  define BOTANIK_LOAD_METRIC_WINDOW_MS 5000
 #endif
-    static constexpr uint32_t LOAD_METRIC_WINDOW_MS = BOTANIK_LOAD_METRIC_WINDOW_MS;
+    BOTANIK_CFG(uint32_t, LOAD_METRIC_WINDOW_MS);
 #ifndef BOTANIK_LOAD_METRIC_BUCKETS
 #  define BOTANIK_LOAD_METRIC_BUCKETS 10
 #endif
-    static constexpr uint32_t LOAD_METRIC_BUCKETS = BOTANIK_LOAD_METRIC_BUCKETS;
+    BOTANIK_CFG(uint32_t, LOAD_METRIC_BUCKETS);
 
     /** @brief LOAD_METRIC_WINDOW_MS expressed in per-tick samples (window length the
      *  rolling-max filters are configured with). */
 #ifndef BOTANIK_LOAD_METRIC_WINDOW
 #  define BOTANIK_LOAD_METRIC_WINDOW (BOTANIK_LOAD_METRIC_WINDOW_MS / BOTANIK_TASK_PERIOD_MS)
 #endif
-    static constexpr uint32_t LOAD_METRIC_WINDOW = BOTANIK_LOAD_METRIC_WINDOW;
+    BOTANIK_CFG(uint32_t, LOAD_METRIC_WINDOW);
 
     /** @brief Local platform-health alarm thresholds (see BotanikFirmware::loop()):
      *  CPU_LOAD / CPU_JITT fire when the rolling-peak load / jitter exceeds this
@@ -113,15 +126,15 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_ALARM_CPU_LOAD_PCT
 #  define BOTANIK_ALARM_CPU_LOAD_PCT 50
 #endif
-    static constexpr uint8_t  ALARM_CPU_LOAD_PCT   = BOTANIK_ALARM_CPU_LOAD_PCT;
+    BOTANIK_CFG(uint8_t, ALARM_CPU_LOAD_PCT);
 #ifndef BOTANIK_ALARM_CPU_JITTER_PCT
 #  define BOTANIK_ALARM_CPU_JITTER_PCT 50
 #endif
-    static constexpr uint8_t  ALARM_CPU_JITTER_PCT = BOTANIK_ALARM_CPU_JITTER_PCT;
+    BOTANIK_CFG(uint8_t, ALARM_CPU_JITTER_PCT);
 #ifndef BOTANIK_ALARM_STACK_PCT
 #  define BOTANIK_ALARM_STACK_PCT 80
 #endif
-    static constexpr uint8_t  ALARM_STACK_PCT      = BOTANIK_ALARM_STACK_PCT;
+    BOTANIK_CFG(uint8_t, ALARM_STACK_PCT);
 
     /** @brief Stack high-water mark is scanned (and the free stack re-painted) once
      *  per slice rather than every tick. One slice per metric bucket spans the whole
@@ -132,41 +145,41 @@ namespace Botanik { namespace Config {
        ((BOTANIK_LOAD_METRIC_WINDOW >= BOTANIK_LOAD_METRIC_BUCKETS) \
             ? (BOTANIK_LOAD_METRIC_WINDOW / BOTANIK_LOAD_METRIC_BUCKETS) : 1u)
 #endif
-    static constexpr uint32_t STACK_SLICE_TICKS = BOTANIK_STACK_SLICE_TICKS;
+    BOTANIK_CFG(uint32_t, STACK_SLICE_TICKS);
 #ifndef BOTANIK_STACK_SLICE_MS
 #  define BOTANIK_STACK_SLICE_MS (BOTANIK_STACK_SLICE_TICKS * BOTANIK_TASK_PERIOD_MS)
 #endif
-    static constexpr uint32_t STACK_SLICE_MS = BOTANIK_STACK_SLICE_MS;
+    BOTANIK_CFG(uint32_t, STACK_SLICE_MS);
 
     /** @brief CPU-load EMA response time constants (ms) */
 #ifndef BOTANIK_CPU_LOAD_EMA_ATTACK_MS
 #  define BOTANIK_CPU_LOAD_EMA_ATTACK_MS 0
 #endif
-    static constexpr uint32_t CPU_LOAD_EMA_ATTACK_MS = BOTANIK_CPU_LOAD_EMA_ATTACK_MS;
+    BOTANIK_CFG(uint32_t, CPU_LOAD_EMA_ATTACK_MS);
 #ifndef BOTANIK_CPU_LOAD_EMA_DECAY_MS
 #  define BOTANIK_CPU_LOAD_EMA_DECAY_MS 2000
 #endif
-    static constexpr uint32_t CPU_LOAD_EMA_DECAY_MS = BOTANIK_CPU_LOAD_EMA_DECAY_MS;
+    BOTANIK_CFG(uint32_t, CPU_LOAD_EMA_DECAY_MS);
 
     /** @brief CPU-jitter EMA response time constants (ms) */
 #ifndef BOTANIK_CPU_JITTER_EMA_ATTACK_MS
 #  define BOTANIK_CPU_JITTER_EMA_ATTACK_MS 0
 #endif
-    static constexpr uint32_t CPU_JITTER_EMA_ATTACK_MS = BOTANIK_CPU_JITTER_EMA_ATTACK_MS;
+    BOTANIK_CFG(uint32_t, CPU_JITTER_EMA_ATTACK_MS);
 #ifndef BOTANIK_CPU_JITTER_EMA_DECAY_MS
 #  define BOTANIK_CPU_JITTER_EMA_DECAY_MS 5000
 #endif
-    static constexpr uint32_t CPU_JITTER_EMA_DECAY_MS = BOTANIK_CPU_JITTER_EMA_DECAY_MS;
+    BOTANIK_CFG(uint32_t, CPU_JITTER_EMA_DECAY_MS);
 
     /** @brief Stack-usage EMA response time constants (ms) */
 #ifndef BOTANIK_STACK_USAGE_EMA_ATTACK_MS
 #  define BOTANIK_STACK_USAGE_EMA_ATTACK_MS 0
 #endif
-    static constexpr uint32_t STACK_USAGE_EMA_ATTACK_MS = BOTANIK_STACK_USAGE_EMA_ATTACK_MS;
+    BOTANIK_CFG(uint32_t, STACK_USAGE_EMA_ATTACK_MS);
 #ifndef BOTANIK_STACK_USAGE_EMA_DECAY_MS
 #  define BOTANIK_STACK_USAGE_EMA_DECAY_MS 10000
 #endif
-    static constexpr uint32_t STACK_USAGE_EMA_DECAY_MS = BOTANIK_STACK_USAGE_EMA_DECAY_MS;
+    BOTANIK_CFG(uint32_t, STACK_USAGE_EMA_DECAY_MS);
 
     /** @} */
 
@@ -181,32 +194,32 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_LOG_PLC_BUFFER_SIZE
 #  define BOTANIK_LOG_PLC_BUFFER_SIZE 32
 #endif
-    static constexpr size_t LOG_PLC_BUFFER_SIZE = BOTANIK_LOG_PLC_BUFFER_SIZE;
+    BOTANIK_CFG(size_t, LOG_PLC_BUFFER_SIZE);
 
     /** @brief Maximum length of a single log message from the PLC.
      *  @note Must match PLC-side code ! Site-tunable: per the PLC program's layout. */
 #ifndef BOTANIK_LOG_PLC_MESSAGE_LEN
 #  define BOTANIK_LOG_PLC_MESSAGE_LEN 256
 #endif
-    static constexpr size_t LOG_PLC_MESSAGE_LEN = BOTANIK_LOG_PLC_MESSAGE_LEN;
+    BOTANIK_CFG(size_t, LOG_PLC_MESSAGE_LEN);
 
     /** @brief Interval between unsolicited TX frames sent to keep the PLC link alive */
 #ifndef BOTANIK_PLC_HEARTBEAT_MS
 #  define BOTANIK_PLC_HEARTBEAT_MS 250
 #endif
-    static constexpr uint32_t PLC_HEARTBEAT_MS = BOTANIK_PLC_HEARTBEAT_MS;
+    BOTANIK_CFG(uint32_t, PLC_HEARTBEAT_MS);
 
     /** @brief Time without a TX acknowledgement before the link is considered timed out */
 #ifndef BOTANIK_PLC_TIMEOUT_MS
 #  define BOTANIK_PLC_TIMEOUT_MS 2500
 #endif
-    static constexpr uint32_t PLC_TIMEOUT_MS = BOTANIK_PLC_TIMEOUT_MS;
+    BOTANIK_CFG(uint32_t, PLC_TIMEOUT_MS);
 
     /** @brief Time without any PLC activity before we stop kicking the hardware watchdog */
 #ifndef BOTANIK_PLC_WATCHDOG_MS
 #  define BOTANIK_PLC_WATCHDOG_MS 5000
 #endif
-    static constexpr uint32_t PLC_WATCHDOG_MS = BOTANIK_PLC_WATCHDOG_MS;
+    BOTANIK_CFG(uint32_t, PLC_WATCHDOG_MS);
 
     /** @} */
 
@@ -219,25 +232,25 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_LOG_GLOBAL_BUCKET_BURST
 #  define BOTANIK_LOG_GLOBAL_BUCKET_BURST 20
 #endif
-    static constexpr uint16_t LOG_GLOBAL_BUCKET_BURST = BOTANIK_LOG_GLOBAL_BUCKET_BURST;
+    BOTANIK_CFG(uint16_t, LOG_GLOBAL_BUCKET_BURST);
 
     /** @brief Refill period in milliseconds (determines the steady-state log rate) */
 #ifndef BOTANIK_LOG_GLOBAL_BUCKET_PERIOD_MS
 #  define BOTANIK_LOG_GLOBAL_BUCKET_PERIOD_MS 1000
 #endif
-    static constexpr uint32_t LOG_GLOBAL_BUCKET_PERIOD_MS = BOTANIK_LOG_GLOBAL_BUCKET_PERIOD_MS;
+    BOTANIK_CFG(uint32_t, LOG_GLOBAL_BUCKET_PERIOD_MS);
 
     /** @brief Maximum burst size per individual topic */
 #ifndef BOTANIK_LOG_PERTOPIC_BUCKET_BURST
 #  define BOTANIK_LOG_PERTOPIC_BUCKET_BURST 20
 #endif
-    static constexpr uint16_t LOG_PERTOPIC_BUCKET_BURST = BOTANIK_LOG_PERTOPIC_BUCKET_BURST;
+    BOTANIK_CFG(uint16_t, LOG_PERTOPIC_BUCKET_BURST);
 
     /** @brief Refill period in milliseconds for per-topic buckets */
 #ifndef BOTANIK_LOG_PERTOPIC_BUCKET_PERIOD_MS
 #  define BOTANIK_LOG_PERTOPIC_BUCKET_PERIOD_MS 5000
 #endif
-    static constexpr uint32_t LOG_PERTOPIC_BUCKET_PERIOD_MS = BOTANIK_LOG_PERTOPIC_BUCKET_PERIOD_MS;
+    BOTANIK_CFG(uint32_t, LOG_PERTOPIC_BUCKET_PERIOD_MS);
 
     /** @brief How often (ms) a "N msgs suppressed" summary may be emitted.
      *  @note Decoupled from the bucket refill periods so a sustained log storm
@@ -245,21 +258,21 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_LOG_SUPPRESS_REPORT_PERIOD_MS
 #  define BOTANIK_LOG_SUPPRESS_REPORT_PERIOD_MS 10000
 #endif
-    static constexpr uint32_t LOG_SUPPRESS_REPORT_PERIOD_MS = BOTANIK_LOG_SUPPRESS_REPORT_PERIOD_MS;
+    BOTANIK_CFG(uint32_t, LOG_SUPPRESS_REPORT_PERIOD_MS);
 
     /** @brief Minimum interval (ms) between "N entries dropped at sink" reports.
      *  First drop reports instantly; further reports wait out this holdoff. */
 #ifndef BOTANIK_LOG_SINK_DROP_REPORT_PERIOD_MS
 #  define BOTANIK_LOG_SINK_DROP_REPORT_PERIOD_MS 5000
 #endif
-    static constexpr uint32_t LOG_SINK_DROP_REPORT_PERIOD_MS = BOTANIK_LOG_SINK_DROP_REPORT_PERIOD_MS;
+    BOTANIK_CFG(uint32_t, LOG_SINK_DROP_REPORT_PERIOD_MS);
 
     /** @brief Minimum interval (ms) between "N console bytes dropped (TX full)"
      *  reports. First drop reports instantly; further reports wait this holdoff. */
 #ifndef BOTANIK_LOG_TX_DROP_REPORT_PERIOD_MS
 #  define BOTANIK_LOG_TX_DROP_REPORT_PERIOD_MS 10000
 #endif
-    static constexpr uint32_t LOG_TX_DROP_REPORT_PERIOD_MS = BOTANIK_LOG_TX_DROP_REPORT_PERIOD_MS;
+    BOTANIK_CFG(uint32_t, LOG_TX_DROP_REPORT_PERIOD_MS);
 
     /** @brief Maximum number of unique log topics; sizes the logger's per-topic
      *  bucket array, so the footprint stays fixed regardless of how many topics the
@@ -270,25 +283,25 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_LOG_TOPIC_MAX
 #  define BOTANIK_LOG_TOPIC_MAX 255
 #endif
-    static constexpr uint16_t LOG_TOPIC_MAX = BOTANIK_LOG_TOPIC_MAX;
+    BOTANIK_CFG(uint16_t, LOG_TOPIC_MAX);
 
     /** @brief Maximum number of pointers to registered log writers */
 #ifndef BOTANIK_LOG_WRITERS_MAX
 #  define BOTANIK_LOG_WRITERS_MAX 8
 #endif
-    static constexpr uint8_t LOG_WRITERS_MAX = BOTANIK_LOG_WRITERS_MAX;
+    BOTANIK_CFG(uint8_t, LOG_WRITERS_MAX);
 
     /** @brief Per-writer in-flight message queue depth */
 #ifndef BOTANIK_LOG_QUEUE_SIZE
 #  define BOTANIK_LOG_QUEUE_SIZE 32
 #endif
-    static constexpr size_t LOG_QUEUE_SIZE = BOTANIK_LOG_QUEUE_SIZE;
+    BOTANIK_CFG(size_t, LOG_QUEUE_SIZE);
 
     /** @brief Maximum length of a single formatted log line including metadata (bytes) */
 #ifndef BOTANIK_LOG_FORMATTED_LEN
 #  define BOTANIK_LOG_FORMATTED_LEN 256
 #endif
-    static constexpr size_t LOG_FORMATTED_LEN = BOTANIK_LOG_FORMATTED_LEN;
+    BOTANIK_CFG(size_t, LOG_FORMATTED_LEN);
 
     /** @} */
 
@@ -302,27 +315,27 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_ANSI_INPUT_BATCH_SIZE
 #  define BOTANIK_ANSI_INPUT_BATCH_SIZE 32
 #endif
-    static constexpr size_t   ANSI_INPUT_BATCH_SIZE = BOTANIK_ANSI_INPUT_BATCH_SIZE;
+    BOTANIK_CFG(size_t, ANSI_INPUT_BATCH_SIZE);
 
     /** @brief Safety timeout: flush any stale batch regardless of stream activity */
 #ifndef BOTANIK_ANSI_INPUT_BATCH_TIMEOUT_MS
 #  define BOTANIK_ANSI_INPUT_BATCH_TIMEOUT_MS 1000
 #endif
-    static constexpr uint32_t ANSI_INPUT_BATCH_TIMEOUT_MS = BOTANIK_ANSI_INPUT_BATCH_TIMEOUT_MS;
+    BOTANIK_CFG(uint32_t, ANSI_INPUT_BATCH_TIMEOUT_MS);
 
     /** @brief Time after the last byte before a stalled command sequence is resolved.
      *  bare ESC : Command::ESC, partial CSI or lone SEP : discarded */
 #ifndef BOTANIK_ANSI_CMD_TIMEOUT_MS
 #  define BOTANIK_ANSI_CMD_TIMEOUT_MS 100
 #endif
-    static constexpr uint32_t ANSI_CMD_TIMEOUT_MS = BOTANIK_ANSI_CMD_TIMEOUT_MS;
+    BOTANIK_CFG(uint32_t, ANSI_CMD_TIMEOUT_MS);
 
     /** @brief Interval (ms) between status-bar metric refreshes. Time-based so the
      *  refresh rate is independent of the scheduler tick interval. */
 #ifndef BOTANIK_STATUS_REFRESH_MS
 #  define BOTANIK_STATUS_REFRESH_MS 1000
 #endif
-    static constexpr uint32_t STATUS_REFRESH_MS = BOTANIK_STATUS_REFRESH_MS;
+    BOTANIK_CFG(uint32_t, STATUS_REFRESH_MS);
 
     /** @brief Interval (ms) between full-page metric refreshes (Home/Status pages).
      *  Deliberately slower than the status bar: pages redraw many more cells, so a
@@ -331,14 +344,14 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_PAGE_REFRESH_MS
 #  define BOTANIK_PAGE_REFRESH_MS 10000
 #endif
-    static constexpr uint32_t PAGE_REFRESH_MS = BOTANIK_PAGE_REFRESH_MS;
+    BOTANIK_CFG(uint32_t, PAGE_REFRESH_MS);
 
     /** @brief Cold-field refresh interval (ms) for the Home page. Faster than the
      *  shared cadence but slower than its hot tick (see PAGE_HOT_MS). */
 #ifndef BOTANIK_HOME_REFRESH_MS
 #  define BOTANIK_HOME_REFRESH_MS 5000
 #endif
-    static constexpr uint32_t HOME_REFRESH_MS = BOTANIK_HOME_REFRESH_MS;
+    BOTANIK_CFG(uint32_t, HOME_REFRESH_MS);
 
     /** @brief Refresh interval (ms) for a metric page's hot fields (clocks/uptime),
      *  so they tick every second between the slower cold refreshes. Each field is
@@ -347,7 +360,7 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_PAGE_HOT_MS
 #  define BOTANIK_PAGE_HOT_MS 1000
 #endif
-    static constexpr uint32_t PAGE_HOT_MS = BOTANIK_PAGE_HOT_MS;
+    BOTANIK_CFG(uint32_t, PAGE_HOT_MS);
 
     /** @brief Log lines the Home page keeps in its bottom log tail. Small on
      *  purpose: it is a live "last few entries" widget with no scroll-up history,
@@ -356,7 +369,7 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_HOME_SCROLLBACK_LINES
 #  define BOTANIK_HOME_SCROLLBACK_LINES 6
 #endif
-    static constexpr uint16_t HOME_SCROLLBACK_LINES = BOTANIK_HOME_SCROLLBACK_LINES;
+    BOTANIK_CFG(uint16_t, HOME_SCROLLBACK_LINES);
 
     /** @} */
 
@@ -385,7 +398,7 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_TX_COLD_TARGET_MS
 #  define BOTANIK_TX_COLD_TARGET_MS 128
 #endif
-    static constexpr uint32_t TX_COLD_TARGET_MS = BOTANIK_TX_COLD_TARGET_MS;
+    BOTANIK_CFG(uint32_t, TX_COLD_TARGET_MS);
 
     /** @brief Max live log / command rows painted per tick per page, in one batched
      *  drain_tail emit once the floor is open. The effective ceiling is min(this, wire
@@ -396,7 +409,7 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_LOG_ROWS_PER_TICK
 #  define BOTANIK_LOG_ROWS_PER_TICK 1
 #endif
-    static constexpr uint16_t LOG_ROWS_PER_TICK = BOTANIK_LOG_ROWS_PER_TICK;
+    BOTANIK_CFG(uint16_t, LOG_ROWS_PER_TICK);
 
     /** @brief Per-tick field budgets for the three cooperative paint classes. Each
      *  class has its own counter (reset each tick), so they progress in parallel at
@@ -408,15 +421,15 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_TX_STATUS_FIELDS_PER_TICK
 #  define BOTANIK_TX_STATUS_FIELDS_PER_TICK 2
 #endif
-    static constexpr uint16_t TX_STATUS_FIELDS_PER_TICK = BOTANIK_TX_STATUS_FIELDS_PER_TICK;   // status bar (clock, metrics)
+    BOTANIK_CFG(uint16_t, TX_STATUS_FIELDS_PER_TICK);   // status bar (clock, metrics)
 #ifndef BOTANIK_TX_HOT_FIELDS_PER_TICK
 #  define BOTANIK_TX_HOT_FIELDS_PER_TICK 4
 #endif
-    static constexpr uint16_t TX_HOT_FIELDS_PER_TICK    = BOTANIK_TX_HOT_FIELDS_PER_TICK;       // page hot (clock/uptime/serial)
+    BOTANIK_CFG(uint16_t, TX_HOT_FIELDS_PER_TICK);       // page hot (clock/uptime/serial)
 #ifndef BOTANIK_TX_COLD_FIELDS_PER_TICK
 #  define BOTANIK_TX_COLD_FIELDS_PER_TICK 4
 #endif
-    static constexpr uint16_t TX_COLD_FIELDS_PER_TICK   = BOTANIK_TX_COLD_FIELDS_PER_TICK;       // page cold values + draw_static
+    BOTANIK_CFG(uint16_t, TX_COLD_FIELDS_PER_TICK);       // page cold values + draw_static
 
     /** @brief Max decoded input events handled per tick. Too low: paste / fast typing
      *  / held keys feel sluggish and the RX ring can back up. Too high: a big paste
@@ -427,7 +440,7 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_INPUT_EVENTS_PER_TICK
 #  define BOTANIK_INPUT_EVENTS_PER_TICK 4
 #endif
-    static constexpr uint16_t INPUT_EVENTS_PER_TICK = BOTANIK_INPUT_EVENTS_PER_TICK;
+    BOTANIK_CFG(uint16_t, INPUT_EVENTS_PER_TICK);
 
     /** @} */
 
@@ -441,56 +454,56 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_SHELL_INPUT_LEN
 #  define BOTANIK_SHELL_INPUT_LEN 512
 #endif
-    static constexpr uint16_t SHELL_INPUT_LEN = BOTANIK_SHELL_INPUT_LEN;
+    BOTANIK_CFG(uint16_t, SHELL_INPUT_LEN);
 
     /** @brief Number of command history entries to retain */
 #ifndef BOTANIK_SHELL_HISTORY_SIZE
 #  define BOTANIK_SHELL_HISTORY_SIZE 8
 #endif
-    static constexpr uint8_t  SHELL_HISTORY_SIZE  = BOTANIK_SHELL_HISTORY_SIZE;
+    BOTANIK_CFG(uint8_t, SHELL_HISTORY_SIZE);
 
     /** @brief Maximum length of a single history entry (bytes) */
 #ifndef BOTANIK_SHELL_HISTORY_ENTRY
 #  define BOTANIK_SHELL_HISTORY_ENTRY 128
 #endif
-    static constexpr uint16_t SHELL_HISTORY_ENTRY = BOTANIK_SHELL_HISTORY_ENTRY;
+    BOTANIK_CFG(uint16_t, SHELL_HISTORY_ENTRY);
 
     /** @brief Size of the kill ring buffer (bytes) */
 #ifndef BOTANIK_SHELL_KILL_SIZE
 #  define BOTANIK_SHELL_KILL_SIZE 128
 #endif
-    static constexpr uint16_t SHELL_KILL_SIZE     = BOTANIK_SHELL_KILL_SIZE;
+    BOTANIK_CFG(uint16_t, SHELL_KILL_SIZE);
 
     /** @brief Scrollback lines retained by ShellPage for redraw/page-switch replay */
 #ifndef BOTANIK_SHELL_SCROLLBACK_LINES
 #  define BOTANIK_SHELL_SCROLLBACK_LINES 32
 #endif
-    static constexpr uint16_t SHELL_SCROLLBACK_LINES   = BOTANIK_SHELL_SCROLLBACK_LINES;
+    BOTANIK_CFG(uint16_t, SHELL_SCROLLBACK_LINES);
 
     /** @brief Scrollback lines retained by LogsPage for page-switch replay */
 #ifndef BOTANIK_LOGS_SCROLLBACK_LINES
 #  define BOTANIK_LOGS_SCROLLBACK_LINES 64
 #endif
-    static constexpr uint16_t LOGS_SCROLLBACK_LINES    = BOTANIK_LOGS_SCROLLBACK_LINES;
+    BOTANIK_CFG(uint16_t, LOGS_SCROLLBACK_LINES);
 
     /** @brief Maximum length of a single retained scrollback line (bytes). Shared
      *  by every scrollback / log buffer (Shell, Logs, Home). */
 #ifndef BOTANIK_SCROLLBACK_LINE_LEN
 #  define BOTANIK_SCROLLBACK_LINE_LEN 256
 #endif
-    static constexpr uint16_t SCROLLBACK_LINE_LEN      = BOTANIK_SCROLLBACK_LINE_LEN;
+    BOTANIK_CFG(uint16_t, SCROLLBACK_LINE_LEN);
 
     /** @brief Max scrollback rows redrawn per tick() during deferred replay */
 #ifndef BOTANIK_SCROLLBACK_ROWS_PER_TICK
 #  define BOTANIK_SCROLLBACK_ROWS_PER_TICK 1
 #endif
-    static constexpr uint16_t SCROLLBACK_ROWS_PER_TICK  = BOTANIK_SCROLLBACK_ROWS_PER_TICK;
+    BOTANIK_CFG(uint16_t, SCROLLBACK_ROWS_PER_TICK);
 
     /** @brief Continuation prefix for wrapped command-output rows. */
 #ifndef BOTANIK_SHELL_CONT_PREFIX
 #  define BOTANIK_SHELL_CONT_PREFIX "> "
 #endif
-    static constexpr const char* SHELL_CONT_PREFIX = BOTANIK_SHELL_CONT_PREFIX;
+    BOTANIK_CFG(const char*, SHELL_CONT_PREFIX);
 
     /** @brief Continuation prefix for wrapped log rows.
      *  @note The leading indent is tuned to the formatted log-line prefix from
@@ -498,7 +511,7 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_SHELL_LOG_CONT_PREFIX
 #  define BOTANIK_SHELL_LOG_CONT_PREFIX "                        > "
 #endif
-    static constexpr const char* SHELL_LOG_CONT_PREFIX = BOTANIK_SHELL_LOG_CONT_PREFIX;
+    BOTANIK_CFG(const char*, SHELL_LOG_CONT_PREFIX);
 
     /** @} */
 
@@ -511,13 +524,13 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_EDITOR_MAX_ROWS
 #  define BOTANIK_EDITOR_MAX_ROWS 32
 #endif
-    static constexpr uint16_t EDITOR_MAX_ROWS = BOTANIK_EDITOR_MAX_ROWS;
+    BOTANIK_CFG(uint16_t, EDITOR_MAX_ROWS);
 
     /** @brief Maximum length (bytes) of a prompt prefix (PS1/PS2/PS3) */
 #ifndef BOTANIK_EDITOR_PROMPT_MAX
 #  define BOTANIK_EDITOR_PROMPT_MAX 16
 #endif
-    static constexpr uint16_t EDITOR_PROMPT_MAX = BOTANIK_EDITOR_PROMPT_MAX;
+    BOTANIK_CFG(uint16_t, EDITOR_PROMPT_MAX);
 
     /** @brief Narrowest terminal width the TextEditor can support.
      *  @note We need to keep some additional margin because the actual width
@@ -525,7 +538,7 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_EDITOR_MIN_COLS
 #  define BOTANIK_EDITOR_MIN_COLS 32
 #endif
-    static constexpr uint16_t EDITOR_MIN_COLS = BOTANIK_EDITOR_MIN_COLS;
+    BOTANIK_CFG(uint16_t, EDITOR_MIN_COLS);
 
     /** @brief Widest terminal width the UI supports, a sanity bound on full-width
      *  fills (e.g. the Home log-header bar) so a bogus column count can't drive an
@@ -533,7 +546,7 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_TERMINAL_MAX_COLS
 #  define BOTANIK_TERMINAL_MAX_COLS 256
 #endif
-    static constexpr uint16_t TERMINAL_MAX_COLS = BOTANIK_TERMINAL_MAX_COLS;
+    BOTANIK_CFG(uint16_t, TERMINAL_MAX_COLS);
 
     // Ensure that the specified editor minimum size can hold the whole input buffer.
     static_assert(EDITOR_MAX_ROWS * (EDITOR_MIN_COLS - EDITOR_PROMPT_MAX) >= SHELL_INPUT_LEN,
@@ -542,5 +555,7 @@ namespace Botanik { namespace Config {
     /** @} */
 
 } }
+
+#undef BOTANIK_CFG   // internal helper; don't leak it to includers
 
 #endif // LIBBOTANIK_CONFIG_H

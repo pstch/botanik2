@@ -207,7 +207,7 @@ namespace Botanik { namespace Pages {
          *  its own tail. Pass @p highlight = false for fields that change every
          *  refresh (a clock), where the highlight would just churn. Pass @p invert to
          *  light the whole value as one reverse-video block on change, instead of the
-         *  default per-digit-run highlight (for non-numeric values like a tray label). */
+         *  default per-digit-run highlight (for non-numeric values like a status label). */
         void _value(uint16_t row, const char* s, bool highlight = true, bool invert = false) {
             if (row >= _terminal.rows()) return;
             uint16_t width = (_value_col < _terminal.cols())

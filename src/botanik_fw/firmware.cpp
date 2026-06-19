@@ -24,7 +24,7 @@ static const unsigned long CONSOLE_BAUD = 115200;
     static ::BotanikSite fw(
         static_cast<PlcIO::PlcInput<PlcInputData_t>*  >(HAL::get_plc_input()),
         static_cast<PlcIO::PlcOutput<PlcOutputData_t>*>(HAL::get_plc_output()),
-        (uint32_t)CONSOLE_BAUD);
+        (uint32_t)CONSOLE_BAUD, /*cols=*/80, /*rows=*/24);
     return fw;
 }
 

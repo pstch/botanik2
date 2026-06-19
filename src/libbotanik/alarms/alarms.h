@@ -47,7 +47,7 @@ namespace Botanik { namespace Alarms {
     struct AlarmCondition {
         /** @name Static metadata (site-defined)
          *  @{ */
-        const char* code;        // short code, e.g. "AC_GRID" (null = undefined slot)
+        const char* code;        // short code, e.g. "CPU_LOAD" (null = undefined slot)
         const char* desc;        // human-readable description
         uint64_t    masked_by;   // set of alarms that suppress this one while active
         int32_t     log_on_s;    // min ON dwell (s) before a WARNING "alarm START" log (-1 off)

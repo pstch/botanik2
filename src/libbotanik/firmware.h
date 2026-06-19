@@ -79,11 +79,12 @@ namespace Botanik {
 
         /** @brief Wire up the generic components. @p shared_in / @p shared_out are
          *  the PLC region (caller-owned); @p alarm_table / @p alarm_count is the
-         *  site alarm table; @p console_baud is the console UART baud. */
+         *  site alarm table; @p console_baud is the console UART baud; @p cols /
+         *  @p rows is the terminal geometry (entry-point-supplied, like the baud). */
         BotanikFirmware(PlcIO::PlcInput<In>*  shared_in,
                         PlcIO::PlcOutput<Out>* shared_out,
                         Alarms::AlarmCondition* alarm_table, size_t alarm_count,
-                        uint32_t console_baud)
+                        uint32_t console_baud, uint16_t cols = 80, uint16_t rows = 24)
             : _baud(console_baud),
               _alarm_table(alarm_table),
               _alarm_count(alarm_count),
@@ -94,11 +95,11 @@ namespace Botanik {
               _scheduler(Config::TASK_PERIOD_MS, &_logger),
               _plc_handler(shared_in, shared_out, &_scheduler.context()->timestamp_ms, &_logger),
               _plc_log_reader(_plc_handler.context(), &_logger),
-              _alarm_mqtt("botanik/greenhouse"),
+              _alarm_mqtt(Config::MQTT_TOPIC_PREFIX),
               _alarm_model(_alarm_table, _alarm_count, &_logger, &_alarm_mqtt),
               _alarm_reader(&_alarm_model, _plc_handler.output_data()),
               _sys_ctx(_scheduler.context(), _plc_handler.context()),
-              _terminal(_console_serial, 80, 24, &_scheduler.context()->timestamp_ms,
+              _terminal(_console_serial, cols, rows, &_scheduler.context()->timestamp_ms,
                         _baud, _sys_ctx, &_alarm_model),
               _shell_page(_terminal),
               _logs_page(_terminal),

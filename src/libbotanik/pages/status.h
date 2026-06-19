@@ -55,7 +55,7 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t R_LBL = 42, R_VAL = 54, R_W = 23; // right: labels 42.., values 54..76
 
         /** @brief Diff-cache slots for the base system cells. Kept disjoint from the
-         *  payload slots a derived page uses (see GreenhouseStatusPage); slots 1, 2,
+         *  payload slots a derived page uses (its draw_payload_* override); slots 1, 2,
          *  6, 7, 9, 31 are left free for the derived network/NTP/MQTT band. */
         static constexpr uint16_t SLOT_PLC = 3, SLOT_CPU = 4, SLOT_JITTER = 5, SLOT_STACK = 8;
         static constexpr uint16_t SLOT_WALL = 27, SLOT_UPTIME = 28, SLOT_TASK = 29, SLOT_CONSOLE = 30;

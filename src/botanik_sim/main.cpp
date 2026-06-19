@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
     static PlcIO::PlcOutput<PlcOutputData_t> shared_out {};
 
     // The selected site firmware: wires the library around its payload/pages/alarms.
-    BotanikSite greenhouse(&shared_in, &shared_out, CONSOLE_BAUD);
+    BotanikSite greenhouse(&shared_in, &shared_out, CONSOLE_BAUD, /*cols=*/80, /*rows=*/24);
 
     // Simulator-only timing dilation: grow the PLC link + HW-watchdog timeouts by
     // the time-scale factor so jitter under a high BOTANIK_TIME_SCALE can't false-

@@ -30,9 +30,10 @@ public:
      *  from the base's terminal + PLC output payload. */
     GreenhouseMLB41(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,
                     Botanik::PlcIO::PlcOutput<PlcOutputData_t>* shared_out,
-                    uint32_t console_baud)
+                    uint32_t console_baud, uint16_t cols = 80, uint16_t rows = 24)
         : Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t>(
-              shared_in, shared_out, g_alarms, Botanik::Alarms::ALARM_BITS, console_baud),
+              shared_in, shared_out, g_alarms, Botanik::Alarms::ALARM_BITS,
+              console_baud, cols, rows),
           _home_page(terminal(), plc_output_data()),
           _status_page(terminal(), plc_output_data())
     {}
