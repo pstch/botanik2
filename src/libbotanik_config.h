@@ -61,13 +61,13 @@ namespace Botanik { namespace Config {
      *  rolling-max filters are configured with). */
     static constexpr uint32_t LOAD_METRIC_WINDOW = LOAD_METRIC_WINDOW_MS / TASK_PERIOD_MS;
 
-    /** @brief Local platform-health alert thresholds (see BotanikFirmware::loop()):
+    /** @brief Local platform-health alarm thresholds (see BotanikFirmware::loop()):
      *  CPU_LOAD / CPU_JITT fire when the rolling-peak load / jitter exceeds this
      *  percent of the task period; STACK fires above this percent stack usage. How
-     *  long each stays latched after it clears is per-alert in the site table (latch_s). */
-    static constexpr uint8_t  ALERT_CPU_LOAD_PCT   = 50;
-    static constexpr uint8_t  ALERT_CPU_JITTER_PCT = 50;
-    static constexpr uint8_t  ALERT_STACK_PCT      = 80;
+     *  long each stays latched after it clears is per-alarm in the site table (latch_s). */
+    static constexpr uint8_t  ALARM_CPU_LOAD_PCT   = 50;
+    static constexpr uint8_t  ALARM_CPU_JITTER_PCT = 50;
+    static constexpr uint8_t  ALARM_STACK_PCT      = 80;
 
     /** @brief Stack high-water mark is scanned (and the free stack re-painted) once
      *  per slice rather than every tick. One slice per metric bucket spans the whole

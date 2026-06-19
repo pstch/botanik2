@@ -1,15 +1,15 @@
-#ifndef SITES_GH_MLB41_ALERTS_H
-#define SITES_GH_MLB41_ALERTS_H
+#ifndef SITES_GH_MLB41_ALARMS_H
+#define SITES_GH_MLB41_ALARMS_H
 
 /**
- * @file alerts.h
- * @brief gh_mlb41 site alert table (fed to the generic AlertModel).
+ * @file alarms.h
+ * @brief gh_mlb41 site alarm table (fed to the generic AlarmModel).
  */
 
-#include "libbotanik/alerts/alerts.h"
+#include "libbotanik/alarms/alarms.h"
 
-/** @brief Site alert table: one entry per Alerts::AlertId, in bit-index order.
- *  Defined in alerts.cpp; passed to AlertModel by the firmware. */
-extern Botanik::Alerts::AlertCondition g_alerts[Botanik::Alerts::ALERT_BITS];
+/** @brief Site alarm table: one entry per alarm, in table (= bit) order.
+ *  Defined in alarms.cpp; passed to AlarmModel by the firmware. */
+extern Botanik::Alarms::AlarmCondition g_alarms[Botanik::Alarms::ALARM_BITS];
 
-#endif // SITES_GH_MLB41_ALERTS_H
+#endif // SITES_GH_MLB41_ALARMS_H

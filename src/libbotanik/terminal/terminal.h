@@ -16,7 +16,7 @@
 
 #include "libbotanik/pages/page.h"
 
-namespace Botanik { namespace Alerts { class AlertModel; } }
+namespace Botanik { namespace Alarms { class AlarmModel; } }
 
 namespace Botanik { namespace Terminal {
 
@@ -113,25 +113,25 @@ namespace Botanik { namespace Terminal {
 
         /** @} */
 
-        /** @name Alert bar state
-         *  The bottom alert bar is a terminal-owned hot field, drawn on every page so
-         *  alerts stay visible. Like the row-0 status bar it repaints cooperatively in
-         *  step() - only when the unmasked alert set changes, and only while the TX
+        /** @name Alarm bar state
+         *  The bottom alarm bar is a terminal-owned hot field, drawn on every page so
+         *  alarms stay visible. Like the row-0 status bar it repaints cooperatively in
+         *  step() - only when the unmasked alarm set changes, and only while the TX
          *  ring is shallow (the shared cold floor). No change-highlighting (the set is
-         *  visible as a whole). _alert_dirty survives a deferred paint (floor closed,
+         *  visible as a whole). _alarm_dirty survives a deferred paint (floor closed,
          *  or the row was wiped by a clear) so a later tick retries.
          *  @{ */
 
-        /** @brief Alert source feeding the bar (may be null). When null there is no
+        /** @brief Alarm source feeding the bar (may be null). When null there is no
          *  bar, _reserved_bottom stays 0, and the bottom row belongs to pages. */
-        const Alerts::AlertModel*    _alerts = nullptr;
-        /** @brief Rows reserved at the screen bottom for the bar: 1 when _alerts is
+        const Alarms::AlarmModel*    _alarms = nullptr;
+        /** @brief Rows reserved at the screen bottom for the bar: 1 when _alarms is
          *  set, else 0. Subtracted by rows() / _content_bottom(). */
         uint16_t                     _reserved_bottom = 0;
-        /** @brief Unmasked alert set last painted (bit i = AlertId i shown). */
-        uint64_t                     _alert_sig = 0;
+        /** @brief Unmasked alarm set last painted (bit i = table row i). */
+        uint64_t                     _alarm_sig = 0;
         /** @brief A bar repaint is due (set on change / screen wipe, cleared once painted). */
-        bool                         _alert_dirty = true;
+        bool                         _alarm_dirty = true;
 
         /** @} */
 
@@ -166,12 +166,12 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Initialize the terminal. @p baud is the link bit rate; it sizes the
          *  cooperative-TX depth floor (see tx_below_cold()) so the felt echo latency
-         *  stays constant across links. @p alerts, when non-null, feeds the always-
-         *  visible bottom alert bar and reserves the bottom screen row for it (the
+         *  stays constant across links. @p alarms, when non-null, feeds the always-
+         *  visible bottom alarm bar and reserves the bottom screen row for it (the
          *  page content area shrinks by one row); null leaves the full screen to pages. */
         AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
                      const uint32_t* timestamp_ms, uint32_t baud, const SystemContext& ctx = {},
-                     const Alerts::AlertModel* alerts = nullptr);
+                     const Alarms::AlarmModel* alarms = nullptr);
 
         /** @brief Process input and update terminal state */
         void step();
@@ -202,11 +202,11 @@ namespace Botanik { namespace Terminal {
         /** @brief Get the total number of columns (width) */
         inline uint16_t cols() const { return _cols; }
 
-        /** @brief Rows available to pages (height minus the reserved bottom alert
+        /** @brief Rows available to pages (height minus the reserved bottom alarm
          *  bar, if any). Row 0 is the status bar and this count includes it, so the
          *  page content area is rows 1 .. rows()-1, mirroring how row 0 is handled.
          *  Pages and the editor size their layout and scroll bands off this, so
-         *  reserving the alert bar's row shrinks them by one with no other change. */
+         *  reserving the alarm bar's row shrinks them by one with no other change. */
         inline uint16_t rows() const { return (uint16_t)(_rows - _reserved_bottom); }
 
         /** @} */
@@ -290,10 +290,10 @@ namespace Botanik { namespace Terminal {
         void scroll_region(uint16_t top, uint16_t bottom, bool up, uint16_t n = 1);
 
         /** @brief Clear screen rows [@p top .. @p bottom] inclusive, leaving every row
-         *  outside the range untouched (the status bar above, the alert bar below, any
+         *  outside the range untouched (the status bar above, the alarm bar below, any
          *  content above @p top). X3.64 has no bounded-range erase, so this scrolls the
          *  band off by its full height (a DL/IL pair) - the way to blank a row range
-         *  without an erase-to-end-of-display that would also wipe the alert bar. */
+         *  without an erase-to-end-of-display that would also wipe the alarm bar. */
         void clear_rows(uint16_t top, uint16_t bottom) {
             if (top > bottom) return;
             scroll_region(top, bottom, /*up=*/true, (uint16_t)(bottom - top + 1));
@@ -351,16 +351,16 @@ namespace Botanik { namespace Terminal {
 
         /** @} */
 
-        /** @name Alert bar
+        /** @name Alarm bar
          *  @{ */
 
-        /** @brief Redraw the always-visible bottom alert bar: a reverse-video bar with
-         *  a " ALERTS : " header, then the unmasked alert codes drawn normal-video
+        /** @brief Redraw the always-visible bottom alarm bar: a reverse-video bar with
+         *  a " ALARMS : " header, then the unmasked alarm codes drawn normal-video
          *  (each followed by an inverted space, so they read as a set against the bar),
-         *  filled to the row end. No-op without an alert source. Repaints
+         *  filled to the row end. No-op without an alarm source. Repaints
          *  unconditionally; the cooperative gate and cursor save/restore live in
-         *  step()'s alert-bar pass. */
-        void draw_alert_bar();
+         *  step()'s alarm-bar pass. */
+        void draw_alarm_bar();
 
         /** @} */
 
@@ -421,9 +421,9 @@ namespace Botanik { namespace Terminal {
         /** @brief Access the attached subsystem status contexts (members may be null) */
         const SystemContext& context() const { return _ctx; }
 
-        /** @brief The attached alert model, or null when none was supplied (drives
-         *  the bottom alert bar; also read by the shell's "alerts" command). */
-        const Alerts::AlertModel* alerts() const { return _alerts; }
+        /** @brief The attached alarm model, or null when none was supplied (drives
+         *  the bottom alarm bar; also read by the shell's "alarms" command). */
+        const Alarms::AlarmModel* alarms() const { return _alarms; }
 
         /** @} */
 
@@ -439,7 +439,7 @@ namespace Botanik { namespace Terminal {
         /** @brief Last screen row a page may scroll/draw content into (0-indexed).
          *  Row 0 is the status bar; the rows below it down to this one are the page
          *  content area that scroll_region() and line_feed() confine scrolling to.
-         *  The reserved bottom row (the alert bar, when present) is excluded. */
+         *  The reserved bottom row (the alarm bar, when present) is excluded. */
         uint16_t _content_bottom() const {
             uint16_t below = (uint16_t)(_reserved_bottom + 1);
             return (uint16_t)(_rows > below ? _rows - below : 0);
@@ -450,15 +450,15 @@ namespace Botanik { namespace Terminal {
          *  update_status_metrics()'s per-cell diff). */
         int _build_metrics(char* buf, size_t cap) const;
 
-        /** @brief Bitset of currently-unmasked alerts (the bar's listed set), used as
-         *  the change signature gating a repaint. Zero when there is no alert source. */
+        /** @brief Bitset of currently-unmasked alarms (the bar's listed set), used as
+         *  the change signature gating a repaint. Zero when there is no alarm source. */
         uint64_t _unmasked_set() const;
 
-        /** @brief Cooperative alert-bar pass (called once per step): repaint when the
+        /** @brief Cooperative alarm-bar pass (called once per step): repaint when the
          *  unmasked set changed or the row was wiped, but only while the TX ring is
          *  shallow; saves and restores the page cursor and its visibility so the bar
          *  never steals a visible cursor (e.g. the shell editor's) to the bottom row. */
-        void _run_alert_bar();
+        void _run_alarm_bar();
 
         /** @} */
     };

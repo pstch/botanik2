@@ -1,58 +1,71 @@
-#ifndef ALERTS_NOTIFIER_H
-#define ALERTS_NOTIFIER_H
+#ifndef ALARMS_NOTIFIER_H
+#define ALARMS_NOTIFIER_H
 
 /**
  * @file notifier.h
- * @brief MqttAlertNotifier - draft MQTT plumbing for alert notifications.
+ * @brief MqttAlarmNotifier - draft MQTT plumbing for alarm notifications.
  *
- * Formats a retained-style topic + payload per alert transition and hands it to
+ * Formats a retained-style topic + payload per alarm transition and hands it to
  * publish(). The transport is not wired yet (MQTT still reads N/A on the status
- * page): publish() is a stub that traces the message to the log so the path is
- * observable. Swap its body for a real client once MQTT lands.
+ * page): publish() forwards to stub transport methods that do nothing for now,
+ * so the path is exercised without touching the log. Swap their bodies for a
+ * real client once MQTT lands.
  */
 
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 
-#include "libbotanik/alerts/alerts.h"
-#include "libbotanik/logs/logger.h"
+#include "libbotanik/alarms/alarms.h"
 
-namespace Botanik { namespace Alerts {
+namespace Botanik { namespace Alarms {
 
-    /** @brief Draft MQTT notifier: builds topic/payload, traces via publish(). */
-    class MqttAlertNotifier : public AlertNotifier {
+    /** @brief Draft MQTT notifier: builds topic/payload, hands it to publish(). */
+    class MqttAlarmNotifier : public AlarmNotifier {
     private:
         /** @name State
          *  @{ */
-        const char*   _prefix;   // topic prefix, e.g. "botanik/site1"
-        Logs::Logger* _logger;   // trace sink for the draft (may be null)
+        const char* _prefix;   // topic prefix, e.g. "botanik/site1"
         /** @} */
 
     public:
-        /** @brief @p prefix is the MQTT topic root; @p logger traces unsent drafts. */
-        MqttAlertNotifier(const char* prefix, Logs::Logger* logger = nullptr)
-            : _prefix(prefix ? prefix : "botanik"), _logger(logger) {}
+        /** @brief @p prefix is the MQTT topic root. */
+        MqttAlarmNotifier(const char* prefix)
+            : _prefix(prefix ? prefix : "botanik") {}
 
-        void notify_on(const AlertCondition& a)  override { _emit(a, true); }
-        void notify_off(const AlertCondition& a) override { _emit(a, false); }
+        void notify_on(const AlarmCondition& a)  override { _emit(a, true); }
+        void notify_off(const AlarmCondition& a) override { _emit(a, false); }
 
     private:
-        /** @brief Build "<prefix>/alerts/<CODE>" + an ON/OFF payload and publish. */
-        void _emit(const AlertCondition& a, bool on) {
+        /** @brief Build "<prefix>/alarms/<CODE>" + an ON/OFF payload and publish. */
+        void _emit(const AlarmCondition& a, bool on) {
             char topic[64];
-            snprintf(topic, sizeof(topic), "%s/alerts/%s", _prefix,
+            snprintf(topic, sizeof(topic), "%s/alarms/%s", _prefix,
                      a.code ? a.code : "?");
             publish(topic, on ? "ON" : "OFF");
         }
 
-        /** @brief TODO: hand off to the MQTT client. For now, trace only so the
-         *  notification path is exercised end to end without a transport. */
+        /** @brief TODO: hand off to the MQTT client. For now, route through the
+         *  stub transport so the notification path runs end to end. */
         virtual void publish(const char* topic, const char* payload) {
-            if (_logger) _logger->debug(PlcIO::NETWORK, "mqtt (draft) %s = %s", topic, payload);
+            if (!_connect()) return;
+            _send(topic, payload);
         }
+
+        /** @name Stub transport
+         *  No-op placeholders standing in for a real MQTT client.
+         *  @{ */
+        /** @brief Ensure a session exists. Stub: always "connected". */
+        virtual bool _connect() { return true; }
+
+        /** @brief Hand a retained-style message to the broker. Stub: drops it. */
+        virtual void _send(const char* topic, const char* payload) {
+            (void)topic;
+            (void)payload;
+        }
+        /** @} */
     };
 
 }}
 
-#endif // ALERTS_NOTIFIER_H
+#endif // ALARMS_NOTIFIER_H

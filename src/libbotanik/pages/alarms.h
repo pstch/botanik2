@@ -1,9 +1,9 @@
-#ifndef PAGES_ALERTS_H
-#define PAGES_ALERTS_H
+#ifndef PAGES_ALARMS_H
+#define PAGES_ALARMS_H
 
 /**
- * @file alerts.h
- * @brief AlertsPage - scrollable bordered table of alert conditions.
+ * @file alarms.h
+ * @brief AlarmsPage - scrollable bordered table of alarm conditions.
  *
  * Layout (row 0 is the terminal status bar):
  *   row 1            blank top margin
@@ -15,19 +15,19 @@
  *   row N-2          footer legend: reverse-video mode badge + counts, SPACE hint
  *   row N-1          blank row below the legend
  *
- * Rows are ordered active-first (currently-ON alerts head the list) then by most-
- * recent onset (started_ms); never-active alerts sit at the bottom. The scroll
+ * Rows are ordered active-first (currently-ON alarms head the list) then by most-
+ * recent onset (started_ms); never-active alarms sit at the bottom. The scroll
  * position is shown in the table itself: the top / bottom rules cap their column
- * marks with '^' / 'v' when alerts are hidden above / below the window. SPACE cycles
+ * marks with '^' / 'v' when alarms are hidden above / below the window. SPACE cycles
  * the filter: recent (default - has a last event within its window) -> all defined ->
- * active only -> active and not masked (the terminal alert bar's set). A condition's
- * recent window defaults to one week, overridable via AlertCondition::recent_s. The
+ * active only -> active and not masked (the terminal alarm bar's set). A condition's
+ * recent window defaults to one week, overridable via AlarmCondition::recent_s. The
  * grid is plain ASCII, two-column side margin. UP/DOWN
  * (and Ctrl+P/Ctrl+N) scroll a line at a time (one scroll_region() shift + one painted
  * row); PAGE_UP / PAGE_DOWN jump a window and ENTER returns to the top, both via a full
- * repaint. The page re-checks the alert set once a second and repaints only when it
+ * repaint. The page re-checks the alarm set once a second and repaints only when it
  * moved, the mode cycles, or on focus; a full repaint is paced a few rows per tick
- * under the shared TX floor, so it interleaves with the status/alert bars.
+ * under the shared TX floor, so it interleaves with the status/alarm bars.
  */
 
 #include <algorithm>
@@ -36,7 +36,7 @@
 #include <cstring>
 
 #include "libbotanik_config.h"
-#include "libbotanik/alerts/alerts.h"
+#include "libbotanik/alarms/alarms.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/pages/page.h"
 #include "libbotanik/terminal/terminal.h"
@@ -44,8 +44,8 @@
 
 namespace Botanik { namespace Pages {
 
-    /** @brief Full-screen scrollable alert table (see file header). */
-    class AlertsPage : public Page {
+    /** @brief Full-screen scrollable alarm table (see file header). */
+    class AlarmsPage : public Page {
     private:
         using AnsiTerminal = Terminal::AnsiTerminal;
         using Command      = Terminal::InputEvent::Command;
@@ -55,12 +55,12 @@ namespace Botanik { namespace Pages {
 
         /** @brief Owning terminal. */
         AnsiTerminal&             _terminal;
-        /** @brief Alert source (may be null). */
-        const Alerts::AlertModel* _model;
+        /** @brief Alarm source (may be null). */
+        const Alarms::AlarmModel* _model;
         /** @brief Mirrors the latest tick(active). */
         bool                      _active   = false;
         /** @brief Filter mode, cycled by SPACE (see MODE_* / _mode_label()). Defaults
-         *  to RECENT: alerts with a recent last event. */
+         *  to RECENT: alarms with a recent last event. */
         uint8_t                   _mode     = MODE_RECENT;
         /** @brief First visible data row currently on screen (scroll offset from the
          *  top of the set). _scroll_pending below holds the not-yet-applied delta. */
@@ -74,7 +74,7 @@ namespace Botanik { namespace Pages {
          *  margin, then header, rule, the data rows, the blank line, the footer), or
          *  PAINT_IDLE when the table is fully drawn. A full repaint is paced a few rows
          *  per tick under the shared TX floor (see _paint_step()) so it never floods
-         *  the ring and starves the status / alert bars; _request_repaint() restarts
+         *  the ring and starves the status / alarm bars; _request_repaint() restarts
          *  it from the top. */
         static constexpr uint16_t PAINT_IDLE = 0xFFFF;
         uint16_t                  _paint_i  = 0;
@@ -83,19 +83,18 @@ namespace Botanik { namespace Pages {
          *  the stale rows don't linger through the paced repaint. Reset on focus (the
          *  screen was cleared on switch). */
         uint16_t                  _painted_data = 0;
-        /** @brief Uptime of the last once-a-second alert-set re-check (see tick()). */
+        /** @brief Uptime of the last once-a-second alarm-set re-check (see tick()). */
         uint64_t                  _last_refresh_ms = 0;
-        /** @brief Merged raw bitset at the last repaint. Active state, last-event time
-         *  and onset order all change only on a transition (raw moving), so this gates
-         *  the repaint - except RECENT membership, which also expires on time; that is
-         *  caught by _last_recent_sig below. */
-        uint64_t                  _last_raw = 0;
+        /** @brief Effective-active set at the last repaint. The badge / last-event /
+         *  order all change only on an effective transition, so this gates the repaint -
+         *  except RECENT membership, which also expires on time (see _last_recent_sig). */
+        uint64_t                  _last_active_sig = 0;
         /** @brief Set of conditions in their RECENT window at the last repaint. In
-         *  RECENT mode an alert can age out of the window with no raw transition, so a
+         *  RECENT mode an alarm can age out of the window with no raw transition, so a
          *  change here (and not in raw) is the only signal that the list must refresh. */
         uint64_t                  _last_recent_sig = 0;
-        /** @brief Visible alert indices (table index order), filled by _collect(). */
-        uint8_t                   _vis[Alerts::ALERT_BITS];
+        /** @brief Visible alarm indices (table index order), filled by _collect(). */
+        uint8_t                   _vis[Alarms::ALARM_BITS];
         /** @brief Number of visible entries in _vis. */
         uint8_t                   _nvis     = 0;
 
@@ -104,7 +103,7 @@ namespace Botanik { namespace Pages {
         /** @name Filter modes (SPACE cycles recent -> all -> active -> unmasked)
          *  @{ */
         static constexpr uint8_t MODE_RECENT   = 0;  // has a last event, within its window
-        static constexpr uint8_t MODE_ALL      = 1;  // every defined alert
+        static constexpr uint8_t MODE_ALL      = 1;  // every defined alarm
         static constexpr uint8_t MODE_ACTIVE   = 2;  // active (masked or not)
         static constexpr uint8_t MODE_UNMASKED = 3;  // active and not masked
         static constexpr uint8_t MODE_COUNT    = 4;
@@ -151,7 +150,7 @@ namespace Botanik { namespace Pages {
         /** @brief Format the last-event cell for @p c: the wall-clock timestamp of the
          *  last transition (edge_ms) as "YY/MM/DD HH:MM", or empty if it never fired.
          *  Whether that event was an ON or OFF transition is shown by the ON column. */
-        static void _fmt_event(char* buf, size_t cap, const Alerts::AlertCondition& c) {
+        static void _fmt_event(char* buf, size_t cap, const Alarms::AlarmCondition& c) {
             if (!c.active && c.edge_ms == 0) { if (cap) buf[0] = '\0'; return; }
             Utils::CalendarTime t = Utils::cal_time_ms(c.edge_ms);
             snprintf(buf, cap, "%02u/%02u/%02u %02u:%02u",
@@ -161,23 +160,30 @@ namespace Botanik { namespace Pages {
 
         /** @brief Draw one '|'-ruled grid row: margin, then each cell wrapped in '|'
          *  rules, cell text padded to its column width. */
-        void _draw_grid_row(uint16_t row, const char* c0, const char* c1,
-                            const char* c2, const char* c3) {
+        /** @brief Build a '|'-ruled grid row into @p line, returning its length. */
+        uint16_t _build_grid_row(char* line, size_t cap, const char* c0, const char* c1,
+                                 const char* c2, const char* c3) {
             const char* cell[4] = { c0, c1, c2, c3 };
             uint16_t    w[4]    = { CODE_W, STATE_W, EVENT_W, _desc_w() };
-            char     line[160];
             uint16_t n = 0;
             line[n++] = ' '; line[n++] = ' ';                // left margin
             for (uint8_t i = 0; i < 4; i++) {
-                if (n < sizeof(line) - 1) line[n++] = '|';
+                if (n < cap - 1) line[n++] = '|';
                 int cw = (int)w[i] - 1;
-                int m  = snprintf(line + n, sizeof(line) - n, " %-*.*s",
-                                  cw, cw, cell[i] ? cell[i] : "");
+                int m  = snprintf(line + n, cap - n, " %-*.*s", cw, cw, cell[i] ? cell[i] : "");
                 if (m < 0) m = 0;
                 n = (uint16_t)(n + m);
-                if (n > sizeof(line) - 1) { n = (uint16_t)(sizeof(line) - 1); break; }
+                if (n > cap - 1) { n = (uint16_t)(cap - 1); break; }
             }
-            if (n < sizeof(line) - 1) line[n++] = '|';        // closing rule
+            if (n < cap - 1) line[n++] = '|';                 // closing rule
+            return n;
+        }
+
+        /** @brief Draw a '|'-ruled grid row (all normal video). */
+        void _draw_grid_row(uint16_t row, const char* c0, const char* c1,
+                            const char* c2, const char* c3) {
+            char     line[160];
+            uint16_t n = _build_grid_row(line, sizeof(line), c0, c1, c2, c3);
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
             _terminal.write_chars(line, n);
@@ -187,7 +193,7 @@ namespace Botanik { namespace Pages {
         /** @brief Draw a horizontal rule "+----+--+...+" matching the column widths.
          *  @p sep is the character at the column-rule positions (the corners and
          *  separators): '+' for a plain rule, or '^'/'v' to cap the table edge with
-         *  scroll arrows when alerts are hidden above / below. */
+         *  scroll arrows when alarms are hidden above / below. */
         void _draw_rule(uint16_t row, char sep = '+') {
             uint16_t w[4] = { CODE_W, STATE_W, EVENT_W, _desc_w() };
             char     line[160];
@@ -225,9 +231,18 @@ namespace Botanik { namespace Pages {
             if (ln < 0) ln = 0;
             uint16_t llen = (uint16_t)std::min((size_t)ln, sizeof(left) - 1);
 
+            // Write the left string in one pass with the mode label (between the brackets
+            // at col 3) reverse-video, so the active filter reads as a badge like the
+            // table's "ON" cell - without a normal-then-inverted overdraw that flickers.
+            uint16_t ml = (uint16_t)strlen(mode);
+            if ((uint16_t)(3 + ml) > llen) ml = (llen > 3) ? (uint16_t)(llen - 3) : 0;
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
-            _terminal.write_chars(left, llen);
+            _terminal.write_chars(left, 3);                       // "  ["
+            _terminal.set_inverted(true);
+            _terminal.write_chars(left + 3, ml);                  // mode badge
+            _terminal.set_inverted(false);
+            _terminal.write_chars(left + 3 + ml, (uint16_t)(llen - 3 - ml));  // "]  ... active"
             _terminal.clear_to_eol();
 
             // Right-aligned "SPACE: <next mode>" hint, when it clears the left text.
@@ -240,43 +255,36 @@ namespace Botanik { namespace Pages {
                 _terminal.move_to({row, rcol});
                 _terminal.write_chars(right, (uint16_t)rn);
             }
-
-            // Overdraw the mode label (between the brackets at col 3) reverse-video, so
-            // the active filter reads as a badge like the table's "ON" cell.
-            _terminal.move_to({row, 3});
-            _terminal.set_inverted(true);
-            _terminal.write_chars(mode, (uint16_t)strlen(mode));
-            _terminal.set_inverted(false);
         }
 
         /** @brief True if @p c belongs in RECENT mode: it has a last event (edge_ms set)
-         *  that is still within its window. An active alert is always recent; an inactive
+         *  that is still within its window. An active alarm is always recent; an inactive
          *  one expires recent_s seconds after it cleared (0 = DEFAULT_RECENT_S, <0 = never). */
-        bool _is_recent(const Alerts::AlertCondition& c, uint64_t now) const {
+        bool _is_recent(const Alarms::AlarmCondition& c, uint64_t now) const {
             if (c.edge_ms == 0) return false;     // never fired -> no last event
             if (c.active)       return true;      // currently on -> always recent
             if (c.recent_s < 0) return true;      // never expires
-            uint64_t window_ms = (uint64_t)(c.recent_s == 0 ? Alerts::DEFAULT_RECENT_S
+            uint64_t window_ms = (uint64_t)(c.recent_s == 0 ? Alarms::DEFAULT_RECENT_S
                                                             : c.recent_s) * 1000u;
             return (now - c.edge_ms) <= window_ms;
         }
 
-        /** @brief Order two visible entries: currently-active first (so ON alerts head
+        /** @brief Order two visible entries: currently-active first (so ON alarms head
          *  the list in the all / recent views), then by most-recent onset. */
-        bool _before(const Alerts::AlertCondition& x, const Alerts::AlertCondition& y) const {
-            if (x.active != y.active) return x.active;     // active alerts first
+        bool _before(const Alarms::AlarmCondition& x, const Alarms::AlarmCondition& y) const {
+            if (x.active != y.active) return x.active;     // active alarms first
             return x.started_ms > y.started_ms;           // then most-recent onset
         }
 
         /** @brief Fill _vis/_nvis with the indices shown in the current mode, ordered
-         *  active-first then by most-recent onset (never-active alerts, started_ms == 0,
+         *  active-first then by most-recent onset (never-active alarms, started_ms == 0,
          *  sort to the bottom). */
         void _collect() {
             _nvis = 0;
             if (_model == nullptr) return;
             uint64_t now = HAL::uptime_ms();
-            for (uint8_t i = 0; i < _model->count() && _nvis < Alerts::ALERT_BITS; i++) {
-                const Alerts::AlertCondition& c = _model->condition(i);
+            for (uint8_t i = 0; i < _model->count() && _nvis < Alarms::ALARM_BITS; i++) {
+                const Alarms::AlarmCondition& c = _model->condition(i);
                 if (c.code == nullptr) continue;                 // undefined table slot
                 bool include;
                 switch (_mode) {
@@ -287,12 +295,12 @@ namespace Botanik { namespace Pages {
                 }
                 if (include) _vis[_nvis++] = i;
             }
-            // Insertion sort by _before(). The set is small (<= the defined-alert count)
+            // Insertion sort by _before(). The set is small (<= the defined-alarm count)
             // and nearly always tiny, so this beats pulling in a general sort, and it is
             // stable in table order on ties.
             for (uint8_t a = 1; a < _nvis; a++) {
                 uint8_t v = _vis[a];
-                const Alerts::AlertCondition& cv = _model->condition(v);
+                const Alarms::AlarmCondition& cv = _model->condition(v);
                 int16_t b = (int16_t)a - 1;
                 while (b >= 0 && _before(cv, _model->condition(_vis[b]))) {
                     _vis[b + 1] = _vis[b];
@@ -302,37 +310,50 @@ namespace Botanik { namespace Pages {
             }
         }
 
-        /** @brief Snapshot the change signature after a repaint. */
-        /** @brief Bitmask of conditions currently within their RECENT window, used to
-         *  detect the time-based expiry that leaves raw() unchanged. */
+        /** @brief Bitmask of conditions whose effective (latched) state is active. This
+         *  is what the table shows, so it - not raw() - gates the repaint: a latched
+         *  alarm whose raw bit pulses (e.g. CPU_XRUN re-asserting each overrun) keeps a
+         *  steady effective state, so the page does not repaint and the badges do not
+         *  flicker. With no masking yet, the unmasked set equals the active set. */
+        uint64_t _active_sig() const {
+            if (_model == nullptr) return 0;
+            uint64_t m = 0;
+            for (uint8_t i = 0; i < _model->count(); i++)
+                if (_model->condition(i).active) m |= Alarms::alarm_bit(i);
+            return m;
+        }
+
+        /** @brief Bitmask of conditions within their RECENT window, used to detect the
+         *  time-based expiry that leaves the active set unchanged. */
         uint64_t _recent_sig() const {
             if (_model == nullptr) return 0;
             uint64_t now = HAL::uptime_ms(), m = 0;
             for (uint8_t i = 0; i < _model->count(); i++) {
-                const Alerts::AlertCondition& c = _model->condition(i);
-                if (c.code != nullptr && _is_recent(c, now)) m |= Alerts::alert_bit(i);
+                const Alarms::AlarmCondition& c = _model->condition(i);
+                if (c.code != nullptr && _is_recent(c, now)) m |= Alarms::alarm_bit(i);
             }
             return m;
         }
 
+        /** @brief Snapshot the change signature after a repaint. */
         void _snapshot() {
-            _last_raw = _model ? _model->raw() : 0;
+            _last_active_sig = _active_sig();
             _last_recent_sig = _recent_sig();
         }
 
         /** @brief True if the displayed set moved since the last repaint (so a steady,
-         *  scrolled view is left untouched). raw() covers active/last-event changes; in
-         *  RECENT mode a row can also expire purely on time, with no raw move, so the
-         *  recent membership is compared too. */
+         *  scrolled view is left untouched). The active set covers the badge / last-event
+         *  / order changes (those move only on an effective transition); in RECENT mode a
+         *  row can also expire purely on time, so the recent membership is compared too. */
         bool _changed() const {
             if (_model == nullptr) return false;
-            if (_model->raw() != _last_raw) return true;
+            if (_active_sig() != _last_active_sig) return true;
             return _mode == MODE_RECENT && _recent_sig() != _last_recent_sig;
         }
 
         /** @name Window geometry
          *  Bottom-anchored on the content area (rows 1..rows()-1, above the terminal
-         *  alert bar). From the bottom up: free row, legend, free row, bottom rule,
+         *  alarm bar). From the bottom up: free row, legend, free row, bottom rule,
          *  then the data band up to the top rule. The two free rows give the legend
          *  breathing room; the rules carry the scroll arrows (see _paint_element()).
          *  @{ */
@@ -351,7 +372,7 @@ namespace Botanik { namespace Pages {
             return (_nvis > end) ? (uint16_t)(_nvis - end) : 0;
         }
         /** @brief Redraw the top/bottom rules, capping them with '^'/'v' scroll arrows
-         *  when alerts are hidden above / below the window (plain '+' otherwise). */
+         *  when alarms are hidden above / below the window (plain '+' otherwise). */
         void _draw_rules(uint16_t window) {
             _draw_rule(RULE_ROW,     _hidden_above()       ? '^' : '+');
             _draw_rule(_brule_row(), _hidden_below(window) ? 'v' : '+');
@@ -359,22 +380,31 @@ namespace Botanik { namespace Pages {
         /** @} */
 
         /** @brief Draw data row at screen @p row for visible entry @p vi (index into
-         *  _vis), or clear the row when @p vi is past the end of the set. The state
-         *  cell shows a reverse-video "ON" badge while active (blank otherwise): the
-         *  row is drawn normal, then the badge overdrawn inverted in place. */
+         *  _vis), or clear the row when @p vi is past the end of the set. The state cell
+         *  shows a reverse-video "ON" badge while active (blank otherwise), written
+         *  inline in one pass (no normal-then-inverted overdraw, which flickers). */
         void _draw_data_row(uint16_t row, uint16_t vi) {
             if (vi >= _nvis) { _clear_row(row); return; }
-            const Alerts::AlertCondition& c = _model->condition(_vis[vi]);
+            const Alarms::AlarmCondition& c = _model->condition(_vis[vi]);
             char ev[16];
             _fmt_event(ev, sizeof(ev), c);
-            _draw_grid_row(row, c.code ? c.code : "?", c.active ? "ON" : "",
-                           ev, c.desc ? c.desc : "");
-            if (c.active) {
-                _terminal.move_to({row, STATE_TEXT_COL});
+            char line[160];
+            uint16_t n = _build_grid_row(line, sizeof(line), c.code ? c.code : "?",
+                                         c.active ? "ON" : "", ev, c.desc ? c.desc : "");
+            _terminal.move_to({row, 0});
+            _terminal.set_inverted(false);
+            if (c.active && n > (uint16_t)(STATE_TEXT_COL + 2)) {
+                // "ON" sits at STATE_TEXT_COL: split the write so only it is reverse-video.
+                _terminal.write_chars(line, STATE_TEXT_COL);
                 _terminal.set_inverted(true);
-                _terminal.write_chars("ON", 2);
+                _terminal.write_chars(line + STATE_TEXT_COL, 2);
                 _terminal.set_inverted(false);
+                _terminal.write_chars(line + STATE_TEXT_COL + 2,
+                                      (uint16_t)(n - STATE_TEXT_COL - 2));
+            } else {
+                _terminal.write_chars(line, n);
             }
+            _terminal.clear_to_eol();
         }
 
         /** @brief Request a full (paced) table repaint from the top. */
@@ -523,14 +553,14 @@ namespace Botanik { namespace Pages {
         }
 
     public:
-        /** @brief Bind to a terminal and alert model. */
-        AlertsPage(AnsiTerminal& terminal, const Alerts::AlertModel* model)
+        /** @brief Bind to a terminal and alarm model. */
+        AlarmsPage(AnsiTerminal& terminal, const Alarms::AlarmModel* model)
             : _terminal(terminal), _model(model) {}
 
         /** @name Page interface
          *  @{ */
 
-        const char* name() const override { return "ALERTS"; }
+        const char* name() const override { return "ALARMS"; }
 
         void handle_text(char c) override {
             if (c == ' ') {                 // cycle recent -> all -> active -> unmasked
@@ -584,7 +614,7 @@ namespace Botanik { namespace Pages {
                 else            _drain_scroll();
                 return;
             }
-            // Idle: re-check the alert set once a second - alerts move slowly, so
+            // Idle: re-check the alarm set once a second - alarms move slowly, so
             // polling every tick would just burn cycles - and start a repaint only when
             // it actually moved (usually a no-op).
             uint64_t now = HAL::uptime_ms();
@@ -598,4 +628,4 @@ namespace Botanik { namespace Pages {
 
 }}
 
-#endif // PAGES_ALERTS_H
+#endif // PAGES_ALARMS_H

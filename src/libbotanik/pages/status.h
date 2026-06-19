@@ -14,7 +14,7 @@
  * hooks, since that data is site-specific.
  *
  * Drawing is diffed by MetricPage. Row 1 is a blank separator, rows 2..6 belong
- * to the base; derived content starts at PAYLOAD_ROW. The alert set is shown on
+ * to the base; derived content starts at PAYLOAD_ROW. The alarm set is shown on
  * the terminal-owned bottom bar (AnsiTerminal), not here.
  */
 
@@ -106,7 +106,8 @@ namespace Botanik { namespace Pages {
                          (unsigned long)ctx.scheduler->stack_bytes_max);
                 _cell(SLOT_STACK, 6, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W);
                 // Task period (right): nominal loop period + achieved tick rate.
-                snprintf(val, sizeof(val), "%lums (%lu tps)",
+                // tps is width-padded so the trailing " tps)" never shifts.
+                snprintf(val, sizeof(val), "%lums (%3lu tps)",
                          (unsigned long)Config::TASK_PERIOD_MS,
                          (unsigned long)ctx.scheduler->ticks_per_second);
                 _cell(SLOT_TASK, 5, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);
@@ -151,7 +152,9 @@ namespace Botanik { namespace Pages {
             // pathological count can't overflow the fixed-width field.
             uint32_t drops = _terminal.tx_dropped();
             if (drops > 9999) drops = 9999;
-            snprintf(val, sizeof(val), "%u/%u (drops: %lu)",
+            // Used depth and drop count are width-padded (capacity is constant) so
+            // the '/', ' (drops:' and ')' separators hold a fixed column.
+            snprintf(val, sizeof(val), "%4u/%u (drops: %4lu)",
                      _terminal.tx_used(), AnsiTerminal::tx_capacity(), (unsigned long)drops);
             _cell(SLOT_CONSOLE, 6, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);
         }
@@ -168,7 +171,7 @@ namespace Botanik { namespace Pages {
 
     public:
         /** @brief Construct a StatusPage bound to a terminal and PLC payload. The
-         *  alert set is rendered by the terminal-owned bottom bar, not this page. */
+         *  alarm set is rendered by the terminal-owned bottom bar, not this page. */
         StatusPage(AnsiTerminal& terminal, const OutputData* data)
             : MetricPage(terminal, 16), _data(data) {
             _hot_ms = Config::PAGE_HOT_MS;   // wall clock + uptime tick every second

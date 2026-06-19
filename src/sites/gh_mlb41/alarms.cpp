@@ -1,11 +1,11 @@
 /**
- * @file alerts.cpp
- * @brief gh_mlb41 site alert table definition (see alerts.h).
+ * @file alarms.cpp
+ * @brief gh_mlb41 site alarm table definition (see alarms.h).
  */
 
-#include "sites/gh_mlb41/alerts.h"
+#include "sites/gh_mlb41/alarms.h"
 
-// One entry per Alerts::AlertId, in bit-index order. The static prefix is filled
+// One entry per alarm, in table (= bit) order. The static prefix is filled
 // here (code, description, masked_by, ON/OFF dwell thresholds in seconds; -1
 // disables an action); the dynamic suffix is left zeroed for the model. Two trailing
 // fields follow the dwell thresholds: recent_s (RECENT-mode window; 0 = one-week
@@ -13,7 +13,7 @@
 // Both are omitted on most rows (so they default to 0). masked_by is 0 for now.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-Botanik::Alerts::AlertCondition g_alerts[Botanik::Alerts::ALERT_BITS] = {
+Botanik::Alarms::AlarmCondition g_alarms[Botanik::Alarms::ALARM_BITS] = {
     // code        description                                      mask  logOn logOff mqttOn mqttOff
     {"AC_GRID",  "Grid AC out-of-spec/offline",                     0,    2,    2,     15,    15},
     {"DC_PS1",   "DC PS1 volts too low",                            0,    2,    2,     15,    15},
@@ -39,7 +39,7 @@ Botanik::Alerts::AlertCondition g_alerts[Botanik::Alerts::ALERT_BITS] = {
     {"IO_DROP",  "Logical I/O drops",                               0,    2,    2,     -1,    -1},
     {"LOG_FLD",  "Logs flooding",                                   0,    2,    2,     -1,    -1},
     {"WH_STORM", "Current storm conditions",                        0,    2,    5,     15,    30},
-    // Generic platform-health alerts, asserted from the scheduler metrics (firmware).
+    // Generic platform-health alarms, asserted from the scheduler metrics (firmware).
     // They latch active for 5 min (300 s) after they clear; the 8th field is recent_s
     // (0 = default), the 9th is latch_s.
     {"CPU_XRUN", "Scheduler overrun (skipped beat)",                0,    0,    -1,    -1,    -1,   0,  300},

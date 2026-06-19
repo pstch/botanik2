@@ -15,7 +15,8 @@
 #ifdef TARGET_SIMULATOR
 
 #include "libbotanik.h"   // PlcIO::start_emulator_thread, PlcInput/PlcOutput, Logs::Logger
-#include "libbotanik/alerts/alerts.h"   // AlertId bit positions for the mock bitset
+#include "libbotanik/alarms/alarms.h"   // alarm_bit / alarm_index
+#include "sites/gh_mlb41/alarms.h"      // g_alarms - the one alarm definition (codes + bit order)
 
 #include <cmath>    // pow - PLC timeout dilation
 #include <random>   // drives the rare perturbations that animate the mock data
@@ -55,6 +56,13 @@ float drift(float v, float step, float lo, float hi, float p) {
 bool chance(float p) { return frand() < p; }
 
 }  // namespace
+
+/** @brief Mock-PLC alarm bit for a table code, or 0 if the code is undefined. Resolves
+ *  through g_alarms so the mock bitset uses the same bit layout as the firmware. */
+static uint64_t abit(const char* code) {
+    int i = Botanik::Alarms::alarm_index(g_alarms, Botanik::Alarms::ALARM_BITS, code);
+    return i >= 0 ? Botanik::Alarms::alarm_bit((uint8_t)i) : 0;
+}
 
 /**
  * @brief Animate the greenhouse payload with plausible, mostly-steady values.
@@ -166,22 +174,23 @@ static void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
     o->sunrise_min = (uint16_t)sunrise;
     o->sunset_min  = (uint16_t)sunset;
 
-    // Alerts: synthesize the PLC's raw bitset from the mock state above so the
+    // Alarms: synthesize the PLC's raw bitset from the mock state above so the
     // ribbon/table have live data. The PLC owns debouncing on real hardware; here
-    // the conditions just track the animated signals.
-    using namespace Botanik::Alerts;
-    uint64_t alerts = 0;
-    if (o->grid_ac_mv < 226000 || o->grid_ac_mv > 234000) alerts |= alert_bit(AC_GRID);
-    if (!o->dc_bus_b_ok)                                   alerts |= alert_bit(DC_PS2);
-    if (o->ups_status != UPS_ONLINE)                       alerts |= alert_bit(DC_UPS);
-    if (o->generator_running && o->generator_mv < 12000)   alerts |= alert_bit(GEN_FLT);
-    if (o->net_status == NET_DOWN)                         alerts |= alert_bit(NET_FLT);
-    if (!o->ntp_synced)                                    alerts |= alert_bit(NTP_TIM);
-    if (o->ceil_temp_c_centi > 2600)                       alerts |= alert_bit(TOO_HOT);
-    if (o->floor_temp_c_centi < 1500)                      alerts |= alert_bit(TOO_COLD);
-    if (o->ext_rh_centi_pct > 6800)                        alerts |= alert_bit(TOO_HUM);
-    if (o->wind_peak_kmh > 35 || raining)                  alerts |= alert_bit(WH_STORM);
-    o->alerts = alerts;
+    // the conditions just track the animated signals. Bits are addressed by table
+    // code (abit) so the mock PLC and the firmware share the one alarm definition
+    // (g_alarms), with no parallel id enum.
+    uint64_t alarms = 0;
+    if (o->grid_ac_mv < 226000 || o->grid_ac_mv > 234000) alarms |= abit("AC_GRID");
+    if (!o->dc_bus_b_ok)                                   alarms |= abit("DC_PS2");
+    if (o->ups_status != UPS_ONLINE)                       alarms |= abit("DC_UPS");
+    if (o->generator_running && o->generator_mv < 12000)   alarms |= abit("GEN_FLT");
+    if (o->net_status == NET_DOWN)                         alarms |= abit("NET_FLT");
+    if (!o->ntp_synced)                                    alarms |= abit("NTP_TIM");
+    if (o->ceil_temp_c_centi > 2600)                       alarms |= abit("TOO_HOT");
+    if (o->floor_temp_c_centi < 1500)                      alarms |= abit("TOO_COLD");
+    if (o->ext_rh_centi_pct > 6800)                        alarms |= abit("TOO_HUM");
+    if (o->wind_peak_kmh > 35 || raining)                  alarms |= abit("WH_STORM");
+    o->alarms = alarms;
 }
 
 // Spawn the emulator thread bound to the shared PLC memory, with the greenhouse

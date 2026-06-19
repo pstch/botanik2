@@ -106,6 +106,7 @@ protected:
     }
 
     void draw_payload_dynamic() override {
+        using Botanik::Utils::format_age;
         using Botanik::Utils::format_float;
         const PlcOutputData_t* d = data();
         if (d == nullptr) return;
@@ -152,13 +153,14 @@ protected:
                  format_float(fa, sizeof(fa), d->ceil_temp_c_centi / 100.0, 1, 4),
                  format_float(fb, sizeof(fb), d->ceil_rh_centi_pct / 100.0, 1, 4));
         _cell(16, 19, L_VAL, buf, L_W);
-        // Last rain: minutes since rain merged with the peak wind. Both capped at
-        // 999 so the worst case ("999 min (wind 999km/h)") stays within L_W (22).
-        unsigned rain_min = d->rain_age_s / 60;
-        if (rain_min > 999) rain_min = 999;
+        // Last rain: fixed-width age (format_age, no " ago", floored at minutes)
+        // merged with the peak wind (capped at 999). Worst case
+        // "999 y (wind 999km/h)" is 20 < L_W.
+        char rb[10];
         unsigned wind = d->wind_peak_kmh;
         if (wind > 999) wind = 999;
-        snprintf(buf, sizeof(buf), "%u min (wind %ukm/h)", rain_min, wind);
+        snprintf(buf, sizeof(buf), "%s (wind %ukm/h)",
+                 format_age(rb, sizeof(rb), d->rain_age_s, false, true), wind);
         _cell(17, 20, L_VAL, buf, L_W);
         // Sun times (sunrise / sunset, slot 0).
         snprintf(buf, sizeof(buf), "%02u:%02u / %02u:%02u",
@@ -205,7 +207,7 @@ protected:
         _label(12, "Humidity");
         _label(13, "Ventilation");
         _label(14, "Irrigation");
-        _label(15, "Alerts");
+        _label(15, "Alarms");
     }
 
     void draw_payload_dynamic() override {
@@ -233,21 +235,21 @@ protected:
             snprintf(buf, sizeof(buf), "idle");
         _value(14, buf, true, true);   // invert the whole tray value on change
 
-        // Compose a short list of active alert conditions. Clamp the running offset
+        // Compose a short list of active alarm conditions. Clamp the running offset
         // so a (theoretical) truncation can't hand the next snprintf a wrapped size.
         buf[0] = '\0';
         size_t n = 0;
         const char* sep = "";
-        auto add_alert = [&](bool on, const char* tok) {
+        auto add_alarm = [&](bool on, const char* tok) {
             if (!on || n >= sizeof(buf)) return;
             int w = snprintf(buf + n, sizeof(buf) - n, "%s%s", sep, tok);
             if (w > 0) n = (n + (size_t)w > sizeof(buf)) ? sizeof(buf) : n + (size_t)w;
             sep = " ";
         };
-        add_alert(d->rain_detected, "RAIN");
-        add_alert(d->ups_status != UPS_ONLINE, "UPS");
-        add_alert(d->generator_running, "GEN");
-        add_alert(d->heat_blower_on || d->heatpump_on, "HEAT");
+        add_alarm(d->rain_detected, "RAIN");
+        add_alarm(d->ups_status != UPS_ONLINE, "UPS");
+        add_alarm(d->generator_running, "GEN");
+        add_alarm(d->heat_blower_on || d->heatpump_on, "HEAT");
         _value(15, (buf[0] == '\0') ? "none" : buf);
     }
 };

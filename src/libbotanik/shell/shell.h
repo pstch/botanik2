@@ -150,7 +150,7 @@ namespace Botanik { namespace Shell {
         void _cmd_exit();
         void _cmd_stats();
         void _cmd_version();
-        void _cmd_alerts();
+        void _cmd_alarms();
         /** @brief Handle an unrecognised command (echoes "Unknown command: ..."). */
         void _unknown(const char* cmd, uint16_t len);
         /** @brief Write a NUL-terminated line of command output. */

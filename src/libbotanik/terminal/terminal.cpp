@@ -19,7 +19,7 @@
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/plcio/sync.h"
 #include "libbotanik/utils/time.h"
-#include "libbotanik/alerts/alerts.h"
+#include "libbotanik/alarms/alarms.h"
 
 
 namespace Botanik { namespace Terminal {
@@ -35,19 +35,19 @@ namespace Botanik { namespace Terminal {
     // Constructor
     AnsiTerminal::AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
                                const uint32_t* timestamp_ms, uint32_t baud, const SystemContext& ctx,
-                               const Alerts::AlertModel* alerts) :
+                               const Alarms::AlarmModel* alarms) :
         _parser(serial, timestamp_ms),
         _serial(serial),
         _ctx(ctx),
         _cols(cols),
         _rows(rows),
-        _alerts(alerts)
+        _alarms(alarms)
     {
         // Size the shared cooperative-TX depth floor from the link baud so the felt echo
         // latency target (Config::TX_COLD_TARGET_MS) holds across links.
         _tx_cold_depth = depth_for_baud(baud, Config::TX_COLD_TARGET_MS);
-        // Reserve the bottom row for the alert bar only when an alert source is wired.
-        _reserved_bottom = (_alerts != nullptr) ? 1 : 0;
+        // Reserve the bottom row for the alarm bar only when an alarm source is wired.
+        _reserved_bottom = (_alarms != nullptr) ? 1 : 0;
     }
 
     // Step through the terminal handling code
@@ -153,10 +153,10 @@ namespace Botanik { namespace Terminal {
         // up-to-date tail. Inactive pages don't render (gated on their active flag).
         for (uint8_t i = 0; i < _pages_len; i++)
             if (_pages[i] != nullptr) _pages[i]->tick(i == _page_index);
-        // Last: top up the bottom alert bar over whatever the active page just drew.
+        // Last: top up the bottom alarm bar over whatever the active page just drew.
         // Self-gated (no-op unless the set changed or the row was wiped) and saves/
         // restores the page cursor, so it never disturbs a settled page.
-        _run_alert_bar();
+        _run_alarm_bar();
     }
 
     // Cursor & geometry
@@ -356,8 +356,8 @@ namespace Botanik { namespace Terminal {
         Ansi::set_insert_mode(_serial, false);  // -> replace mode (ESC[4l)
         _hw_insert_mode = false;
         _screen_ready = true;
-        // The clear wiped the alert bar's row; flag it for the next step's bar pass.
-        _alert_dirty = true;
+        // The clear wiped the alarm bar's row; flag it for the next step's bar pass.
+        _alarm_dirty = true;
     }
 
     void AnsiTerminal::setup_vt102() {
@@ -381,7 +381,7 @@ namespace Botanik { namespace Terminal {
             clear_to_eos();
             return;
         }
-        // A reserved alert bar sits below the content, so erase-to-end-of-display would
+        // A reserved alarm bar sits below the content, so erase-to-end-of-display would
         // wipe it. Clear just the content rows instead (clear_rows scrolls the band off
         // by its full height, leaving the bar in place).
         clear_rows(1, _content_bottom());
@@ -419,7 +419,7 @@ namespace Botanik { namespace Terminal {
         if (n > height) n = height;   // scrolling the whole band just clears it
 
         // The scroll is a DL/IL pair: the first op displaces every row below the band
-        // (including the reserved bottom alert bar), the compensating op puts it back.
+        // (including the reserved bottom alarm bar), the compensating op puts it back.
         // A band that runs to the physical bottom needs no restore (those rows just
         // fall off / were already blanked). Emit best-effort: the sub-ops are all-or-
         // nothing on a full ring, so a tight ring drops the scroll rather than tearing
@@ -524,7 +524,7 @@ namespace Botanik { namespace Terminal {
         _hw_pos = {1, 0};
         _hw_at_eol = false;
         // Clear only the content band: clear_content() preserves both the row-0 status
-        // bar and the bottom alert bar (no wipe-and-repaint flicker on a page switch).
+        // bar and the bottom alarm bar (no wipe-and-repaint flicker on a page switch).
         clear_content();
         // Only the tabs' video flips on a switch, so repaint just the two affected
         // tabs (the one we left, the one we entered) rather than the whole bar.
@@ -751,22 +751,22 @@ namespace Botanik { namespace Terminal {
         return touched;
     }
 
-    // Alert bar
+    // Alarm bar
     // ------------------------------------------------------------------------
 
     uint64_t AnsiTerminal::_unmasked_set() const {
         uint64_t m = 0;
-        if (_alerts)
-            for (uint8_t i = 0; i < _alerts->count(); i++)
-                if (_alerts->condition(i).unmasked) m |= Alerts::alert_bit(i);
+        if (_alarms)
+            for (uint8_t i = 0; i < _alarms->count(); i++)
+                if (_alarms->condition(i).unmasked) m |= Alarms::alarm_bit(i);
         return m;
     }
 
-    void AnsiTerminal::draw_alert_bar() {
-        if (_alerts == nullptr || _rows == 0 || _cols == 0) return;
+    void AnsiTerminal::draw_alarm_bar() {
+        if (_alarms == nullptr || _rows == 0 || _cols == 0) return;
         uint16_t row = (uint16_t)(_rows - 1);   // physical last row (reserved for us)
 
-        static const char hdr[] = " ALERTS : ";
+        static const char hdr[] = " ALARMS : ";
         uint16_t used = (uint16_t)(sizeof(hdr) - 1);
 
         move_to({row, 0});
@@ -775,8 +775,8 @@ namespace Botanik { namespace Terminal {
 
         // Unmasked codes in normal video, each followed by an inverted space, so they
         // read as a set against the reverse-video bar (like the active status tab).
-        for (uint8_t i = 0; i < _alerts->count(); i++) {
-            const Alerts::AlertCondition& c = _alerts->condition(i);
+        for (uint8_t i = 0; i < _alarms->count(); i++) {
+            const Alarms::AlarmCondition& c = _alarms->condition(i);
             if (!c.unmasked || c.code == nullptr) continue;
             uint16_t clen = (uint16_t)strlen(c.code);
             if ((uint16_t)(used + clen + 1) > _cols) break;   // out of room on the row
@@ -799,11 +799,11 @@ namespace Botanik { namespace Terminal {
         set_inverted(false);
     }
 
-    void AnsiTerminal::_run_alert_bar() {
-        if (_alerts == nullptr) return;
+    void AnsiTerminal::_run_alarm_bar() {
+        if (_alarms == nullptr) return;
         uint64_t sig = _unmasked_set();
-        if (sig != _alert_sig) _alert_dirty = true;
-        if (!_alert_dirty) return;
+        if (sig != _alarm_sig) _alarm_dirty = true;
+        if (!_alarm_dirty) return;
         if (!tx_below_cold()) return;            // cooperative: wait for a shallow ring
 
         // Save the page cursor and its visibility: the bar paints on the bottom row
@@ -814,13 +814,13 @@ namespace Botanik { namespace Terminal {
         bool      saved_cur = _hw_cursor_visible;
         set_cursor_visible(false);
 
-        draw_alert_bar();
+        draw_alarm_bar();
 
         set_inverted(saved_inv);
         move_to(saved_pos);
         set_cursor_visible(saved_cur);
-        _alert_sig   = sig;
-        _alert_dirty = false;
+        _alarm_sig   = sig;
+        _alarm_dirty = false;
     }
 
     // Serial / TX

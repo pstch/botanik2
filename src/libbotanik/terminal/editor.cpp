@@ -104,7 +104,7 @@ namespace Botanik { namespace Terminal {
     void TextEditor::reset() {
         // The editor is bottom-anchored, so its rows run from _origin to the bottom of
         // the content area. Clear exactly that band (clear_rows leaves the terminal's
-        // alert bar, just below the content, untouched).
+        // alarm bar, just below the content, untouched).
         _terminal->clear_rows(_origin, (uint16_t)(_terminal->rows() - 1));
         uint16_t old_origin = _origin;
         _reset_state();

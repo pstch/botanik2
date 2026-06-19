@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
     static PlcIO::PlcInput<PlcInputData_t>   shared_in  {};
     static PlcIO::PlcOutput<PlcOutputData_t> shared_out {};
 
-    // The site firmware: wires the library around the gh_mlb41 payload/pages/alerts.
+    // The site firmware: wires the library around the gh_mlb41 payload/pages/alarms.
     GreenhouseMLB41 greenhouse(&shared_in, &shared_out, CONSOLE_BAUD);
 
     // Simulator-only timing dilation: grow the PLC link + HW-watchdog timeouts by
