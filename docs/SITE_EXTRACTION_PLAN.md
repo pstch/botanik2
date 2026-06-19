@@ -1,9 +1,8 @@
 # Site Extraction Plan
 
-Status: **stage 1 done** - the gh_mlb41 site is extracted into `src/sites/gh_mlb41/`
-and `botanik_sim` is now a generic harness (commit `070f55f`). Stages 2-4 pending;
-stage 2 (the `BotanikFirmware` base) still needs the open decisions below resolved.
-This plan stages the migration described in
+Status: **stage 2 done** - the gh_mlb41 site is extracted (`070f55f`) and the
+`BotanikFirmware<In, Out>` base + `GreenhouseMLB41` subclass are in place (`049d01e`).
+Stages 3-4 pending. This plan stages the migration described in
 the *Site-specific code* section of `CLAUDE.md`: promote `BotanikFirmware` into
 `libbotanik` as a generic base, extract the `gh_mlb41` site out of `botanik_sim`
 into its own unit, and converge the `botanik_fw` stub onto the same site. The
@@ -136,7 +135,35 @@ baseline (pure move). OPTA untouched.
 
 ---
 
-## Stage 2 - promote `BotanikFirmware` + introduce `GreenhouseMLB41`  [ ]
+## Stage 2 - promote `BotanikFirmware` + introduce `GreenhouseMLB41`  [x] done
+
+**Implemented (commit `049d01e`):** `libbotanik/firmware.h` holds the generic
+`BotanikFirmware<In, Out>` base (components + accessors + the per-tick `loop()`);
+`GreenhouseMLB41` derives it and overrides `setup()` to chain the base then splice
+its pages in. `botanik_sim/main.cpp` is a thin harness. Builds clean (sim +
+`-Werror` strict gate); size tests pass.
+
+**Decisions resolved:** shared-mem is ctor-injected; the base lives at
+`libbotanik/firmware.h` (`Botanik::BotanikFirmware`); per-target timing (sim
+dilation, HW-watchdog period) is applied by the harness via accessors +
+`set_hw_watchdog_ms()` before `setup()`.
+
+**Deviation from plan - page registration:** instead of the originally-sketched
+`register_pages()`/`register_sinks()` hooks, the site overrides `setup()` (chains
+the base) and splices its pages with a new `AnsiTerminal::add_page(page, index)`
+(insert + shift). Because `switch_to(0)` only *records* the boot index until the
+first render, inserting the home page at index 0 in the site's `setup()` makes it
+the boot page - so the site owns page order without re-listing the core pages.
+
+**Note - release pyte not yet re-verified clean.** Verified via standalone render
+(boot screen, correct tab order) + the debug build; a trustworthy lean-release
+pyte pass is still owed once the concurrent terminal/alerts work settles (the
+sub-build was polluted by another agent's stray stdout debug prints during this
+work). The base `loop()` also carries coordinated CPU-health local alerts added
+by that concurrent work.
+
+Original plan for reference:
+
 
 The load-bearing stage. Extract the generic wiring from `main()` into the base,
 and the site wiring into a derived class. Behaviour is preserved by construction -
