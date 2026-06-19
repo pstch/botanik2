@@ -22,6 +22,19 @@
 
 #include <csignal>   // std::signal
 
+// The scheduler's stack-usage scan paints the free stack and binary-searches it
+// for the high-water mark, which only works if locals live on the real stack.
+// ASAN's use-after-return check (default on) relocates locals to a heap "fake
+// stack", so the painted sp_marker lands off the real stack and the scan reports
+// a constant STACK_SCAN_LIMIT. Turn that one sub-check off for the sim process
+// (the rest of ASAN + UBSAN stay on); OPTA runs uninstrumented and is unaffected.
+#if defined(__SANITIZE_ADDRESS__) || \
+    (defined(__has_feature) && __has_feature(address_sanitizer))
+extern "C" const char* __asan_default_options() {
+    return "detect_stack_use_after_return=0";
+}
+#endif
+
 // Graceful-shutdown plumbing for the simulator process. Lives in the entry point
 // (process lifecycle is the harness's job, never the site's): the run flag is
 // cleared by the handler so the main loop breaks into HAL::shutdown() rather than
