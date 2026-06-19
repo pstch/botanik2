@@ -1,5 +1,4 @@
-    HOME  SHELL  LOGS  STATUS                         PLC:<P> cpu:<C> stk:<S>
-
+  HOME  SHELL  LOGS  STATUS  ALARMS      <TIME>     PLC:<P> cpu:<C> stk:<S>
 
 
 
@@ -22,3 +21,4 @@
 
 
 botanik> aXc
+ ALARMS : SYS_RST

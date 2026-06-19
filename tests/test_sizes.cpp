@@ -18,7 +18,7 @@
 #include "doctest.h"
 
 #include "libbotanik.h"            // all library types (pages, terminal, editor, plcio)
-#include "botanik_sim/simulator.h" // site payloads: PlcInputData_t / PlcOutputData_t
+#include BOTANIK_SITE_HEADER       // selected site: PlcInputData_t / PlcOutputData_t
 
 // Concrete instantiations of the templated pages/PLC structs, matching what the
 // simulator actually builds (see botanik_sim/main.cpp).
@@ -57,16 +57,18 @@ TEST_CASE("sizeof: pages") {
 TEST_CASE("sizeof: PLC shared-memory payloads") {
     REPORT_SIZE(PlcInput_t,    256);
     REPORT_SIZE(PlcOutput_t, 16384);
-    // With a payload sized to a 4-byte multiple, the combined struct is
-    // padding-free — the whole is exactly its parts (see plcio/vars.h). The
-    // simulator's PlcOutputData_t satisfies that (static_assert in simulator.h);
-    // the empty PlcInputData_t does not, so it may carry trailing padding.
-    CHECK(sizeof(PlcOutput_t)
-          == sizeof(Botanik::PlcIO::PlcOutputCounters_t)
-           + sizeof(Botanik::PlcIO::PlcOutputLogs_t)
-           + sizeof(PlcOutputData_t));
-    CHECK(sizeof(PlcInput_t)
-          >= sizeof(Botanik::PlcIO::PlcInputCounters_t)
-           + sizeof(Botanik::PlcIO::PlcInputLogs_t)
-           + sizeof(PlcInputData_t));
+    // The combined structs are alignas(32) so the host can clean/invalidate the
+    // D-cache per region (see plcio/vars.h): each is 32-byte aligned and its size
+    // is the sum of its parts rounded up to a 32-byte multiple (the members are
+    // all 4-aligned and consecutive, so the only padding is that rounding).
+    CHECK(alignof(PlcOutput_t) == 32);
+    CHECK(alignof(PlcInput_t)  == 32);
+    const size_t out_parts = sizeof(Botanik::PlcIO::PlcOutputCounters_t)
+                           + sizeof(Botanik::PlcIO::PlcOutputLogs_t)
+                           + sizeof(PlcOutputData_t);
+    const size_t in_parts  = sizeof(Botanik::PlcIO::PlcInputCounters_t)
+                           + sizeof(Botanik::PlcIO::PlcInputLogs_t)
+                           + sizeof(PlcInputData_t);
+    CHECK(sizeof(PlcOutput_t) == ((out_parts + 31) / 32) * 32);
+    CHECK(sizeof(PlcInput_t)  == ((in_parts  + 31) / 32) * 32);
 }

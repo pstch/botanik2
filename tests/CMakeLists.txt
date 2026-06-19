@@ -10,6 +10,12 @@ add_executable(botanik_tests
     test_text.cpp
     test_time.cpp
     test_sizes.cpp
+    test_logger.cpp
+    test_filters.cpp
+    test_line_buffer.cpp
+    test_parser.cpp
+    test_serial.cpp
+    test_writer.cpp
 )
 
 # vendor/ for doctest.h; src/ for the library and the simulator's site payloads.
@@ -19,6 +25,8 @@ target_include_directories(botanik_tests PRIVATE
 )
 
 target_link_libraries(botanik_tests botanik)
+# test_sizes.cpp pins the selected site's payload via the same header the harness uses.
+target_compile_definitions(botanik_tests PRIVATE BOTANIK_SITE_HEADER="${BOTANIK_SITE_HEADER}")
 
 # Register with CTest, one entry per TEST_CASE. doctest_discover_tests runs the
 # binary at build time with --list-test-cases and emits an add_test() per case,
@@ -101,9 +109,15 @@ if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
         add_dependencies(check pyte-sim)
 
         # Opt-in golden regeneration (NOT part of check/test, so the gate never
-        # rewrites expectations). Review the diff before committing.
+        # rewrites expectations). Review the diff before committing. PYTE_TIME_SCALE
+        # (read by conftest.py) runs the sim clock faster than the assert suite's
+        # default so a regen finishes sooner; override it on the command line if a
+        # capture races (see tests/pyte/README.md on time dilation).
+        set(BOTANIK_PYTE_UPDATE_SCALE 6 CACHE STRING
+            "Sim time-scale used when regenerating pyte goldens (pytest-update)")
         add_custom_target(pytest-update
-            COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider
+            COMMAND ${CMAKE_COMMAND} -E env PYTE_TIME_SCALE=${BOTANIK_PYTE_UPDATE_SCALE}
+                    ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider
                     ${_pyte_dir} --sim ${_pyte_sim_bin} --update
             WORKING_DIRECTORY ${_pyte_dir}
             DEPENDS pyte-sim

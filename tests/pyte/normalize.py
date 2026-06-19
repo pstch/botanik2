@@ -5,7 +5,7 @@ the wall clock, uptime, serial-buffer depths, CPU/stack load, PLC link state,
 and log/MARK timestamps. We rewrite each to a fixed token so a golden captures
 the *layout and stable text* without pinning a moment in time. Formats mirror:
   - status bar metrics : terminal.cpp _build_metrics  "PLC:%s cpu:%3u%% stk:%3u%% "
-  - status hot fields  : pages/status.h draw_hot       clock / uptime / "TX .. RX .."
+  - status hot fields  : pages/status.h draw_hot       clock / uptime / console TX
   - log + MARK stamps  : utils/time.cpp format_ms_timestamp  "DD/MM/YY HH:MM:SS.mmm"
 """
 
@@ -17,19 +17,44 @@ _SUBS = [
     (re.compile(r"\d{2}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}\.\d{3}"), "<TS>"),       # log / MARK stamp
     (re.compile(r"\d{2}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}"), "<CLOCK>"),           # status wall clock
     (re.compile(r"\d{4,}d \d{2}:\d{2}:\d{2}"), "<UPTIME>"),                    # uptime DDDDd HH:MM:SS
-    (re.compile(r"TX\s+\d+/\d+\s+RX\s+\d+/\d+"), "<TXRX>"),                    # serial buffer depths
+    (re.compile(r"\b\d{2}:\d{2}:\d{2}\b"), "<TIME>"),                          # status-bar clock HH:MM:SS
     (re.compile(r"cpu:\s*\d+%"), "cpu:<C>"),                                   # CPU load
     (re.compile(r"stk:\s*\d+%"), "stk:<S>"),                                   # stack high-water
     (re.compile(r"PLC:\S+"), "PLC:<P>"),                                       # status-bar PLC state
     (re.compile(r"skipped \d+ beat\(s\)"), "skipped <N> beat(s)"),             # overrun beat count
-    # Status page (pages/status.h) volatile fields: the PLC link state settles on
-    # a timing-dependent tick, and the scheduler perf metrics are inherently
-    # variable (and dilated-time skews them further).
+    # Status page (pages/status.h) volatile fields. Values are right-justified, so
+    # each label's \s+ absorbs the variable leading padding; the perf metrics are
+    # inherently variable (and dilated-time skews them further), and the network /
+    # NTP state settles on a timing-dependent tick.
     (re.compile(r"PLC link\s+\w+"), "PLC link <P>"),                           # UNKNOWN/RUNNING/...
-    (re.compile(r"Overruns\s+\d+"), "Overruns <OVR>"),                         # overrun counter
-    (re.compile(r"CPU load\s+[\d.]+% \(peak [\d.]+ms\)"), "CPU load <CPU>"),
-    (re.compile(r"Jitter\s+[\d.]+ms \(peak [\d.]+ms\)"), "Jitter <JIT>"),
-    (re.compile(r"Stack\s+[\d.]+% \(\d+ B\)"), "Stack <STK>"),
+    (re.compile(r"CPU load\s+[\d.]+%\s*\(peak\s+[\d.]+ms\)"), "CPU load <CPU>"),
+    (re.compile(r"CPU jitter\s+[\d.]+%\s*\(peak\s+[\d.]+ms\)"), "CPU jitter <JIT>"),
+    (re.compile(r"Stack\s+[\d.]+%\s*\(peak\s+\d+ B\)"), "Stack <STK>"),
+    (re.compile(r"Task period\s+\d+ms \(\d+ tps\)"), "Task period <TASK>"),
+    (re.compile(r"Console TX\s+\d+/\d+ \(drops: \d+\)"), "Console TX <TX>"),
+    (re.compile(r"Network\s+\w+ \(lat [^)]*\)"), "Network <NET>"),             # net status + latency
+    (re.compile(r"NTP sync\s+(?:OK \([-\d.]+ s\)|no sync)"), "NTP sync <NTP>"),
+    # Site payload values (botanik_sim GreenhouseStatusPage). The mock PLC emulator
+    # animates these, and it only spawns where the host permits a realtime thread:
+    # on a constrained gate it never starts, so the payload reads all-zero instead.
+    # Normalizing the values (not the labels/units) makes the golden match either
+    # way - the screen test asserts layout, not the mock's data. 4-field actuators
+    # before the 2-field one so the latter can't bite into a Windows/Blowers row.
+    (re.compile(r"[\d.]+ V \([\d.]+ Hz\)"), "<PWR>"),                          # Grid AC
+    (re.compile(r"[\d.]+ V \(A \S+ B \S+\)"), "<PWR>"),                        # DC bus
+    (re.compile(r"[\d.]+ V \(gen [\d.]+V\)"), "<PWR>"),                        # Battery
+    (re.compile(r"(UPS\s+:\s+)\w+"), r"\g<1><UPS>"),
+    (re.compile(r"[\d.]+ C  RH [\d.]+%"), "<CLIMATE>"),                        # temp/RH zones
+    (re.compile(r"\d+ s ago"), "<RAIN>"),
+    (re.compile(r"\d+ km/h"), "<WIND>"),
+    (re.compile(r"\d{2}:\d{2} / \d{2}:\d{2}"), "<SUN>"),
+    (re.compile(r"\d+ \d+ L / \d+ Lpm"), "<WATER>"),
+    (re.compile(r"(Tray\s+:\s+)(?:Tray \d+|N/A)"), r"\g<1><TRAY>"),
+    (re.compile(r"(Status\s+:\s+)\S+"), r"\g<1><TRAYST>"),
+    (re.compile(r"A\s*\d+% B\s*\d+% C\s*\d+% D\s*\d+%"), "<ACT4>"),            # windows / blowers
+    (re.compile(r"A\s*\d+% B\s*\d+%"), "<ACT2>"),                             # extractors
+    (re.compile(r"(Humidif\.\s*:\s+)\w+"), r"\g<1><HUMID>"),
+    (re.compile(r"(Screen\s+:\s+)[\d.]+%"), r"\g<1><SCREEN>"),
 ]
 
 # Timing-noise log lines: the scheduler logs an overrun whenever a tick misses
