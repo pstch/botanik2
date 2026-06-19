@@ -21,7 +21,8 @@
 
 #include "libbotanik.h"
 #include "libbotanik_asserts.h"          // set_assert_logger
-#include "libbotanik/alarms/alarms.h"    // AlarmModel, AlarmCondition, SYS_RST
+#include "libbotanik/alarms/alarms.h"    // AlarmModel, AlarmCondition
+#include "libbotanik/alarms/platform.h"  // PLATFORM_ALARMS (generic platform-health)
 #include "libbotanik/alarms/notifier.h"  // MqttAlarmNotifier
 #include "libbotanik/alarms/reader.h"    // AlarmReader
 
@@ -96,7 +97,8 @@ namespace Botanik {
               _plc_handler(shared_in, shared_out, &_scheduler.context()->timestamp_ms, &_logger),
               _plc_log_reader(_plc_handler.context(), &_logger),
               _alarm_mqtt(Config::MQTT_TOPIC_PREFIX),
-              _alarm_model(_alarm_table, _alarm_count, &_logger, &_alarm_mqtt),
+              _alarm_model(_alarm_table, _alarm_count, &_logger, &_alarm_mqtt,
+                           Alarms::PLATFORM_ALARMS, Alarms::PLATFORM_ALARM_COUNT),
               _alarm_reader(&_alarm_model, _plc_handler.output_data()),
               _sys_ctx(_scheduler.context(), _plc_handler.context()),
               _terminal(_console_serial, cols, rows, &_scheduler.context()->timestamp_ms,

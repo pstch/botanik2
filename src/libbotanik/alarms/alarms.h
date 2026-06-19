@@ -119,15 +119,26 @@ namespace Botanik { namespace Alarms {
         /** @} */
 
     public:
-        /** @brief Bind to a site condition table. @p count entries are scanned
-         *  (clamped to ALARM_BITS). A never-active alarm starts "settled OFF" so it
-         *  never announces an END it never started. */
+        /** @brief Bind to a site condition table (@p count entries scanned, clamped to
+         *  ALARM_BITS). @p platform, when given, is the generic platform-health table
+         *  (platform.h); its @p platform_count entries are spliced into the *top* of the
+         *  bitset, away from the site/PLC alarms that fill from bit 0. A never-active
+         *  alarm starts "settled OFF" so it never announces an END it never started. */
         AlarmModel(AlarmCondition* conditions, uint8_t count,
-                   Logs::Logger* logger, AlarmNotifier* notifier = nullptr)
+                   Logs::Logger* logger, AlarmNotifier* notifier = nullptr,
+                   const AlarmCondition* platform = nullptr, uint8_t platform_count = 0)
             : _conditions(conditions),
               _count(count > ALARM_BITS ? ALARM_BITS : count),
               _logger(logger), _notifier(notifier),
               _local(0), _raw(0), _active_count(0), _unmasked_count(0) {
+            // Place the platform-health alarms at the high end of the table, so their
+            // locally-set bits never collide with the PLC-reported site bits below.
+            if (platform != nullptr && platform_count > 0) {
+                if (platform_count > ALARM_BITS) platform_count = ALARM_BITS;
+                for (uint8_t j = 0; j < platform_count; j++)
+                    _conditions[ALARM_BITS - platform_count + j] = platform[j];
+                if (_count < ALARM_BITS) _count = ALARM_BITS;   // scan the high slots too
+            }
             for (uint8_t i = 0; i < _count; i++) {
                 _conditions[i].off_notified = true;   // boot state: already cleared
                 _conditions[i].log_off_sent = true;

@@ -32,19 +32,14 @@ Botanik::Alarms::AlarmCondition g_alarms[Botanik::Alarms::ALARM_BITS] = {
     {"TOO_COLD", "Inside temperature too low",                      0,    3,    3,     20,    20},
     {"TOO_HUM",  "Relative humidity too high",                      0,    3,    3,     20,    20},
     {"TMP_STR",  "Temp. stratification too high",                   0,    5,    5,     -1,    -1},
-    {"SYS_RST",  "Reset in the last five minutes",                  0,    -1,   0,     -1,    -1},
     {"WTR_LK",   "Leak in irrigation circuit",                      0,    1,    2,     10,    15},
     {"WTR_BAR",  "Water pressure too low",                          0,    2,    2,     15,    15},
     {"WTR_CLOG", "Failing to drain a tray",                         0,    3,    3,     20,    20},
     {"IO_DROP",  "Logical I/O drops",                               0,    2,    2,     -1,    -1},
     {"LOG_FLD",  "Logs flooding",                                   0,    2,    2,     -1,    -1},
     {"WH_STORM", "Current storm conditions",                        0,    2,    5,     15,    30},
-    // Generic platform-health alarms, asserted from the scheduler metrics (firmware).
-    // They latch active for 5 min (300 s) after they clear; the 8th field is recent_s
-    // (0 = default), the 9th is latch_s.
-    {"CPU_XRUN", "Scheduler overrun (skipped beat)",                0,    0,    -1,    -1,    -1,   0,  300},
-    {"CPU_LOAD", "CPU load over threshold",                         0,    5,    5,     -1,    -1,   0,  300},
-    {"STACK",    "Stack usage over threshold",                      0,    5,    5,     -1,    -1,   0,  300},
-    {"CPU_JITT", "CPU jitter over threshold",                       0,    5,    5,     -1,    -1,   0,  300},
+    // Generic platform-health alarms (SYS_RST, CPU_*, STACK) are NOT here: they live
+    // in the base table (libbotanik/alarms/platform.h) and AlarmModel splices them
+    // into the top of the bitset. This table is site alarms only.
 };
 #pragma GCC diagnostic pop
