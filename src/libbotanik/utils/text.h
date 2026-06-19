@@ -57,18 +57,22 @@ namespace Botanik { namespace Utils {
     /** @name Duration formatting
      *  @{ */
 
-    /** @brief Format @p secs as a fixed-width "N u ago" string into @p buf and
-     *  return @p buf for inline use.
+    /** @brief Format @p secs as a fixed-width age string into @p buf and return
+     *  @p buf for inline use.
      *
      *  Picks the largest sensible unit so an age reads naturally instead of piling
-     *  up seconds: seconds, then minutes ('m'), hours ('h'), days ('d'). The field
-     *  is constant-width ("%3u %c ago", 9 chars), so a cell showing it never
-     *  reflows as the age grows.
+     *  up seconds: seconds, then minutes ('m'), hours ('h'), days ('d'), years
+     *  ('y'). The field is constant-width ("%3u %c ago", 9 chars; "%3u %c", 5 chars
+     *  without the suffix), so a cell showing it never reflows as the age grows.
      *
-     *  @param buf   Destination buffer (NUL-terminated when @p cap > 0); needs >= 10 bytes.
-     *  @param cap   Size of @p buf in bytes.
-     *  @param secs  Age in seconds. */
-    const char* format_age(char* buf, size_t cap, uint32_t secs);
+     *  @param buf        Destination buffer (NUL-terminated when @p cap > 0); needs >= 10 bytes.
+     *  @param cap        Size of @p buf in bytes.
+     *  @param secs       Age in seconds.
+     *  @param ago        Append " ago" (true, default) or just the value+unit (false).
+     *  @param floor_min  Floor the unit at minutes (a sub-minute age reads "0 m")
+     *                    instead of showing seconds. */
+    const char* format_age(char* buf, size_t cap, uint32_t secs,
+                           bool ago = true, bool floor_min = false);
 
     /** @} */
 

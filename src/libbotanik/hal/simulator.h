@@ -15,6 +15,7 @@
 #include <chrono>
 #include <cstring>
 #include <cstdlib>
+#include <type_traits>
 #include <csignal>
 #include <atomic>
 #include <unistd.h>
@@ -177,6 +178,9 @@ namespace Botanik { namespace HAL {
             std::chrono::system_clock::now().time_since_epoch()).count();
     }
 
+    /// No-op: the host system clock is the wall-clock source on the simulator.
+    inline void wall_clock_set(uint64_t /*unix_ms*/) {}
+
     inline void sleep_ms(uint32_t ms) {
         usleep((ms * 1000) / _time_scale());  // scaled to track the sped-up clock
     }
@@ -191,17 +195,38 @@ namespace Botanik { namespace HAL {
         std::atomic_thread_fence(std::memory_order_seq_cst);
     }
 
+    inline void dmb() {
+        // The sim has no distinct lighter barrier; a full fence is a safe superset.
+        std::atomic_thread_fence(std::memory_order_seq_cst);
+    }
+
     template <typename T>
     inline void ordered_copy(T* dst, const T* src) {
+        // Match the OPTA backend's word-multiple contract so the sim build catches violations.
+        static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
+                      "ordered_copy needs a word-multiple T");
         std::memcpy((void*)dst, (const void*)src, sizeof(T));
         dsb();
     }
 
     template<typename T>
     inline void ordered_move(T* dst, T src) {
+        static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
+                      "ordered_move needs a word-multiple T");
         *dst = src;
         dsb();
     }
+
+    template <typename T>
+    inline T ordered_read(const volatile T* src) {
+        T value = *src;
+        dmb();
+        return value;
+    }
+
+    /// No D-cache on the host; the PLC region is plain memory.
+    inline void cache_clean(const void* addr, size_t len)      { (void)addr; (void)len; }
+    inline void cache_invalidate(const void* addr, size_t len) { (void)addr; (void)len; }
 
     /** @} */
 
@@ -215,7 +240,7 @@ namespace Botanik { namespace HAL {
     /** @brief True if a debugger (or any ptrace tracer) is attached: Linux reports
      *  a non-zero TracerPid in /proc/self/status. Re-read on each call (cheap, and
      *  a debugger may attach late). */
-    inline bool _under_debugger() {
+    inline bool under_debugger() {
         int fd = open("/proc/self/status", O_RDONLY);
         if (fd < 0) return false;
         char buf[512];
@@ -435,14 +460,6 @@ namespace Botanik { namespace HAL {
      *  depending on it. Simulator-only. */
     inline void on_reset(ResetHook hook) { *_reset_hook() = hook; }
 
-    /** @brief Persist the active UI page index in the environment so a reset()
-     *  re-exec lands back on it (execve carries it across). Simulator-only; an OPTA
-     *  reset clears RAM, so the OPTA backend makes this a no-op. */
-    inline void save_active_page(uint8_t index) {
-        char buf[4];
-        snprintf(buf, sizeof(buf), "%u", (unsigned)index);
-        setenv("BOTANIK_PAGE", buf, 1);
-    }
 
     inline void reset() {
         // Run teardown while the image is intact, then execve to replace the
@@ -498,13 +515,16 @@ namespace Botanik { namespace HAL {
      *  wedged. Traps (SIGTRAP) when a debugger is attached so it breaks on the
      *  wedged state; otherwise resets the process. */
     inline void watchdog_poll() {
-        uint32_t timeout = _wd_timeout_ms();
-        uint32_t uptime = uptime_ms();
-        uint32_t last_kick = _wd_last_kick_ms();
+        // 64-bit throughout (no 49-day wrap) and read last_kick *before* now, so a
+        // concurrent watchdog_kick() can't leave last_kick newer than uptime and
+        // underflow the elapsed check into a spurious reset.
+        uint64_t timeout   = _wd_timeout_ms();
         if (timeout == 0) return;
+        uint64_t last_kick = _wd_last_kick_ms();
         dsb();                             // read the kick paired with this timeout
-        if (uptime > timeout && uptime - timeout > last_kick) {
-            if (_under_debugger()) debug_break();  // freeze for the debugger
+        uint64_t uptime    = uptime_ms();
+        if (uptime - last_kick > timeout) {
+            if (under_debugger()) debug_break();  // freeze for the debugger
             else                   reset();        // reboot the wedged process
         }
     }

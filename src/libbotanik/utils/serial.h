@@ -28,11 +28,12 @@ namespace Botanik { namespace Utils {
      *  Both the TX and RX rings are single-producer/single-consumer :
      *   + RX is filled by receive(), drained by read()
      *   + TX is drained by transmit(), filled by write()
-     * 
-     *  The implementation is lockless : the hardware-facing side 
-     *  (receive()/transmit()) may run from an UART ISR while the 
-     *  main loop runs read()/write(), using volatile head/tail 
-     *  indices and HAL::dsb() barriers to make them safe. */
+     *
+     *  In THIS firmware every method runs on the main loop : we have no serial
+     *  ISRs (the Arduino UART driver keeps its own ISR below the HAL). The ring is
+     *  therefore NOT ISR-safe as wired - never call a method from interrupt
+     *  context. The volatile head/tail + HAL::dsb() keep the SPSC split honest;
+     *  the only async boundary in this firmware is the PLC shared memory. */
     class BufferedSerial {
     private:
 
@@ -60,6 +61,12 @@ namespace Botanik { namespace Utils {
         volatile uint16_t    _rx_head = 0, _rx_tail = 0;
         /** @brief TX ring head/tail indices (head: producer, tail: consumer). */
         volatile uint16_t    _tx_head = 0, _tx_tail = 0;
+
+        /** @brief Cumulative bytes that didn't fit in the TX ring on write().
+         *  Meaningful for callers that don't retry (console command output drops
+         *  them); callers that resume a partial write (the log sink) inflate it,
+         *  so only watch this on a serial whose writers don't resume. */
+        uint32_t    _tx_dropped = 0;
 
         /** @} */
 
@@ -90,6 +97,8 @@ namespace Botanik { namespace Utils {
         static constexpr uint16_t rx_capacity() { return RX_BUF_SIZE; }
         /** @brief TX ring buffer capacity, bytes */
         static constexpr uint16_t tx_capacity() { return TX_BUF_SIZE; }
+        /** @brief Cumulative bytes dropped because the TX ring was full (see above). */
+        uint32_t tx_dropped() const { return _tx_dropped; }
 
         /** @} */
 
@@ -105,9 +114,8 @@ namespace Botanik { namespace Utils {
          *  bytes moot (they'd paint onto a display about to be wiped), and emptying
          *  the ring first guarantees the clear sequence fits.
          *  @warning Single-producer reset - snaps the producer head back to the
-         *  consumer tail, so it must run in the same context as transmit() (today,
-         *  the main loop). Concurrent with an ISR-driven transmit() it could
-         *  underflow the ring. */
+         *  consumer tail, so it must run in the same context as transmit() (the
+         *  main loop). Safe here because all access is main-loop only. */
         void tx_discard();
         /** @brief Consume up to @p len bytes from the RX ring buffer */
         uint16_t read(char* buf, uint16_t len);
@@ -124,9 +132,7 @@ namespace Botanik { namespace Utils {
         uint16_t receive();
         /** @brief Flush the TX ring buffer to the hardware UART FIFO */
         uint16_t transmit();
-        /** @brief Run one receive + transmit cycle (called from the main loop) 
-         *  @note May be called from an ISR
-        */
+        /** @brief Run one receive + transmit cycle. Main-loop only (not ISR-safe). */
         void step();
 
         /** @} */

@@ -43,8 +43,8 @@ namespace Botanik { namespace Utils {
         while (pos < len) {
             // get next head position, wrapping at TX_BUF_SIZE - 1
             uint16_t next_head = (_tx_head + 1) & (TX_BUF_SIZE - 1);
-            // if the buffer is full, yield to the caller
-            if (next_head == _tx_tail) return pos;
+            // if the buffer is full, count the unwritten bytes and yield
+            if (next_head == _tx_tail) { _tx_dropped += (uint32_t)(len - pos); return pos; }
             // otherwise, store the byte and increment pos
             _tx_buf[_tx_head] = buf[pos++];
             HAL::dsb();

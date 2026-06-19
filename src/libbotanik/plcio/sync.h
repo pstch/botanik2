@@ -13,9 +13,11 @@
 #include <cstring>
 
 #include "libbotanik_config.h"
+#include "libbotanik_asserts.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/plcio/vars.h"
 #include "libbotanik/logs/logger.h"
+#include "libbotanik/utils/time.h"
 
 namespace Botanik { namespace PlcIO {
 
@@ -65,10 +67,10 @@ namespace Botanik { namespace PlcIO {
         PlcOutputLogs_t  _rx_logs_buffer = {};
         /** @brief Local copy of the PLC input log buffer. */
         PlcInputLogs_t   _tx_logs_buffer = {};
-        /** @brief Shared wall-clock timestamp (ms). */
-        uint32_t*        _timestamp_ms   = nullptr;
-        /** @brief Time of the last acknowledged TX. */
-        uint32_t         _tx_last_ms     = 0;
+        /** @brief Shared loop timestamp (ms), published by the scheduler; read-only. */
+        const uint32_t*  _timestamp_ms   = nullptr;
+        /** @brief Time of the last acknowledged TX (wrap-safe loop-clock stamp). */
+        Utils::Millis32  _tx_last_ms;
         /** @brief Elapsed threshold (ms) before PLC_TIMEOUT is reported. */
         uint32_t         _timeout_ms     = Config::PLC_TIMEOUT_MS;
         /** @brief Elapsed threshold (ms) before PLC_FAULT is reported. */
@@ -79,6 +81,9 @@ namespace Botanik { namespace PlcIO {
         Logs::Logger*    _logger         = nullptr;
         /** @brief Last reported status, for change detection. */
         PlcStatus        _last_status    = PLC_UNKNOWN;
+
+        /** @brief The shared loop clock as a wrap-safe Millis32 stamp. */
+        Utils::Millis32  _now() const { return Utils::Millis32(*_timestamp_ms); }
 
         /** @} */
 
@@ -95,7 +100,7 @@ namespace Botanik { namespace PlcIO {
 
         /** @brief Current PLC link status derived from the ack timing. */
         PlcStatus status() const {
-            uint32_t elapsed = *_timestamp_ms - _tx_last_ms;
+            uint32_t elapsed = _now() - _tx_last_ms;
             if (!_ever_ackd)             return PLC_UNKNOWN;
             if (elapsed > _watchdog_ms)  return PLC_FAULT;
             if (elapsed > _timeout_ms)   return PLC_TIMEOUT;
@@ -122,7 +127,9 @@ namespace Botanik { namespace PlcIO {
                     else                             _logger->notice(PLC_IO, "PLC link recovered");
                     break;
                 case PLC_TIMEOUT: _logger->warning(PLC_IO, "PLC link timeout");  break;
-                case PLC_FAULT:   _logger->error  (PLC_IO, "PLC watchdog fault"); break;
+                // faulted() == (status==PLC_FAULT), so this transition is exactly when
+                // the main loop stops kicking the HW watchdog: say so, loudly.
+                case PLC_FAULT:   _logger->critical(PLC_IO, "PLC watchdog fault: withholding kick, rebooting"); break;
                 default:          _last_status = current; return;
             }
             _last_status = current;
@@ -162,7 +169,7 @@ namespace Botanik { namespace PlcIO {
         /** @brief Heartbeat/commit interval (ms). */
         uint32_t               _heartbeat_ms  = Config::PLC_HEARTBEAT_MS;
         /** @brief Last commit/heartbeat pulse (for re-commit on stall). */
-        uint32_t               _tx_commit_ms  = 0;
+        Utils::Millis32        _tx_commit_ms;
         /** @brief PLC input memory (write-only). */
         PlcInput<InputData>*   _plcin;
         /** @brief PLC output memory (read-only). */
@@ -175,6 +182,8 @@ namespace Botanik { namespace PlcIO {
         PlcRxState             _rx_state      = RX_IDLE;
         /** @brief TX state-machine state. */
         PlcTxState             _tx_state      = TX_WRITE;
+        /** @brief Count of RX snapshots discarded as torn (PLC bumped seq mid-copy). */
+        uint32_t               _rx_torn       = 0;
 
         /** @} */
 
@@ -184,12 +193,17 @@ namespace Botanik { namespace PlcIO {
 
         /** @brief Bind the handler to PLC shared memory and a timestamp. */
         PlcSyncHandler(PlcInput<InputData>* plcin, PlcOutput<OutputData>* plcout,
-                       uint32_t* timestamp_ms, Logs::Logger* logger = nullptr)
+                       const uint32_t* timestamp_ms, Logs::Logger* logger = nullptr)
             : _plcin(plcin), _plcout(plcout)
         {
+            // The shared-memory pointers must be mapped: a null here means the PLC
+            // region wasn't wired (mis-linked image, or constructed before the M4 is up).
+            BOTANIK_ASSERT(plcin != nullptr);
+            BOTANIK_ASSERT(plcout != nullptr);
+            BOTANIK_ASSERT(timestamp_ms != nullptr);
             _ctx._timestamp_ms = timestamp_ms;
-            _ctx._tx_last_ms   = *timestamp_ms;
-            _tx_commit_ms      = *timestamp_ms;
+            _ctx._tx_last_ms   = Utils::Millis32(*timestamp_ms);
+            _tx_commit_ms      = Utils::Millis32(*timestamp_ms);
             _ctx._logger       = logger;
             memset(&_tx_data_buffer, 0, sizeof(InputData));
             memset(&_rx_data_buffer, 0, sizeof(OutputData));
@@ -206,6 +220,8 @@ namespace Botanik { namespace PlcIO {
         const OutputData* output_data() const { return &_rx_data_buffer; }
         /** @brief Transmit buffer staged for the PLC input payload. */
         InputData*        input_data()        { return &_tx_data_buffer; }
+        /** @brief Count of RX snapshots discarded as torn (handshake violations). */
+        uint32_t          rx_torn_count() const { return _rx_torn; }
 
         /** @} */
 
@@ -214,9 +230,13 @@ namespace Botanik { namespace PlcIO {
 
         /** @brief Advance both state machines once; call per tick. */
         inline void step() {
+            // Coherency: drop any stale cached view of the PLC-written region before
+            // we poll/copy it, and flush our writes to the host-written region after.
+            HAL::cache_invalidate(_plcout, sizeof(*_plcout));
             _rx_state = _rx_step();
             _tx_state = _tx_step();
             _ctx._log_status_change();
+            HAL::cache_clean(_plcin, sizeof(*_plcin));
         }
 
         /** @} */
@@ -236,13 +256,13 @@ namespace Botanik { namespace PlcIO {
         /** @name Transition triggers
          *  @{ */
 
-        inline bool _rx_new_message()      { return _plcout->sync.txSeqNum != _plcin->sync.txAckNum; }
-        inline bool _tx_heartbeat_elapsed(){ return *_ctx._timestamp_ms - _ctx._tx_last_ms > _heartbeat_ms; }
+        inline bool _rx_new_message()      { return HAL::ordered_read(&_plcout->sync.txSeqNum) != _plcin->sync.txAckNum; }
+        inline bool _tx_heartbeat_elapsed(){ return _ctx._now() - _ctx._tx_last_ms > _heartbeat_ms; }
         // Re-pulse a commit left unacked for a whole heartbeat (TX_WAIT recovery).
-        inline bool _tx_recommit_elapsed() { return *_ctx._timestamp_ms - _tx_commit_ms > _heartbeat_ms; }
+        inline bool _tx_recommit_elapsed() { return _ctx._now() - _tx_commit_ms > _heartbeat_ms; }
         inline bool _tx_acknowledged() {
-            bool result = _plcout->sync.rxAckNum == _plcin->sync.rxSeqNum;
-            if (result) { _ctx._tx_last_ms = *_ctx._timestamp_ms; _ctx._ever_ackd = true; }
+            bool result = HAL::ordered_read(&_plcout->sync.rxAckNum) == _plcin->sync.rxSeqNum;
+            if (result) { _ctx._tx_last_ms = _ctx._now(); _ctx._ever_ackd = true; }
             return result;
         }
 
@@ -251,10 +271,16 @@ namespace Botanik { namespace PlcIO {
         /** @name Transition actions
          *  @{ */
 
-        inline void _rx_memcpy() {
-            HAL::dsb();  // acquire: order payload reads after the txSeqNum read
+        // Copy the PLC payload into local buffers. Returns false if the PLC bumped
+        // its sequence during the copy (it overwrote the payload mid-read, so the
+        // snapshot may be torn). The seq_before read also acts as the acquire,
+        // ordering the payload copy after it.
+        inline bool _rx_memcpy() {
+            uint32_t seq_before = HAL::ordered_read(&_plcout->sync.txSeqNum);
             HAL::ordered_copy(&_ctx._rx_logs_buffer, &_plcout->logs);
             HAL::ordered_copy(&_rx_data_buffer, &_plcout->data);
+            HAL::cache_invalidate(&_plcout->sync, sizeof(_plcout->sync));  // re-read from SRAM
+            return HAL::ordered_read(&_plcout->sync.txSeqNum) == seq_before;
         }
         inline void _tx_memcpy() {
             HAL::ordered_copy(&_plcin->logs, &_ctx._tx_logs_buffer);
@@ -267,7 +293,7 @@ namespace Botanik { namespace PlcIO {
         inline void _tx_commit() {
             uint32_t src = _plcin->sync.rxSeqNum + 1;
             HAL::ordered_copy(&_plcin->sync.rxSeqNum, &src);
-            _tx_commit_ms = *_ctx._timestamp_ms;
+            _tx_commit_ms = _ctx._now();
         }
 
         /** @} */
@@ -278,7 +304,11 @@ namespace Botanik { namespace PlcIO {
         inline PlcRxState _rx_step() {
             switch (_rx_state) {
                 case RX_IDLE:   if (_rx_new_message())      return RX_READ; break;
-                case RX_READ:   _rx_memcpy();               return RX_ACK;  break;
+                case RX_READ:
+                    if (_rx_memcpy()) return RX_ACK;
+                    _rx_torn++;       // torn snapshot: discard, do not ack, re-read next tick
+                    if (_ctx._logger) _ctx._logger->warning(PLC_IO, "PLC RX torn read discarded (seq changed mid-copy)");
+                    return RX_IDLE;
                 case RX_ACK:    _rx_acknowledge();          return RX_IDLE; break;
             }
             return _rx_state;

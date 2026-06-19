@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <chrono>
 #include <ctime>
+#include <type_traits>
 
 /**
  * This include provides :
@@ -104,6 +105,12 @@ namespace Botanik { namespace HAL {
         return (uint64_t)time(NULL) * 1000;
     }
 
+    inline void wall_clock_set(uint64_t unix_ms) {
+        // TODO: program the STM32 RTC (set_time / RTC date+time registers) from
+        // unix_ms once NTP sync lands. Reasoned-only; no RTC write wired yet.
+        (void)unix_ms;
+    }
+
     inline void sleep_ms(uint32_t ms) {
         rtos::ThisThread::sleep_for(std::chrono::milliseconds(ms));
     }
@@ -117,16 +124,48 @@ namespace Botanik { namespace HAL {
         __DSB();
     }
 
+    inline void dmb() {
+        __DMB();
+    }
+
     template <typename T>
     inline void ordered_copy(T* dst, const T* src) {
-        ARM_MPU_OrderedMemcpy((volatile uint32_t*)dst, (const uint32_t*)src, sizeof(T));
+        // ARM_MPU_OrderedMemcpy counts 32-bit words, not bytes. Empty payloads copy nothing.
+        static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
+                      "ordered_copy needs a word-multiple T");
+        ARM_MPU_OrderedMemcpy((volatile uint32_t*)dst, (const uint32_t*)src, sizeof(T) / sizeof(uint32_t));
         __DSB();
     }
 
     template<typename T>
     inline void ordered_move(T* dst, T src) {
+        static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
+                      "ordered_move needs a word-multiple T");
         *dst = src;
         __DSB();
+    }
+
+    template <typename T>
+    inline T ordered_read(const volatile T* src) {
+        T value = *src;   // volatile load: the compiler must re-read it
+        __DMB();          // acquire: order later accesses after this read
+        return value;
+    }
+
+    inline void cache_clean(const void* addr, size_t len) {
+    #if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
+        SCB_CleanDCache_by_Addr((void*)addr, (int32_t)len);  // CMSIS rounds to lines
+    #else
+        (void)addr; (void)len;
+    #endif
+    }
+
+    inline void cache_invalidate(const void* addr, size_t len) {
+    #if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
+        SCB_InvalidateDCache_by_Addr((void*)addr, (int32_t)len);
+    #else
+        (void)addr; (void)len;
+    #endif
     }
 
     /** @} */
@@ -138,15 +177,15 @@ namespace Botanik { namespace HAL {
         __BKPT(0);  // CMSIS breakpoint intrinsic, provided via mbed.h
     }
 
+    inline bool under_debugger() {
+        // C_DEBUGEN is set while a halting debugger is attached to the core.
+        return (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) != 0;
+    }
+
     /** @} */
 
     /** @name System lifecycle
      *  @{ */
-
-    /** @brief No-op on OPTA: a hardware reset clears RAM, so there is no saved
-     *  page to restore and the board comes back on the default page. Mirrors the
-     *  simulator helper so the terminal can call it unconditionally. */
-    inline void save_active_page(uint8_t /*index*/) {}
 
     inline void reset() {
         // NVIC_SystemReset is the portable CMSIS reset (always available via

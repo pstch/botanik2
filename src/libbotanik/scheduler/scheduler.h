@@ -77,7 +77,10 @@ namespace Botanik { namespace Scheduler {
         uint32_t overruns        = 0;
         /** @brief Loop "now" (uptime ms), republished by tick() each time the work
          *  window opens. The single shared timestamp the PLC sync layer and the
-         *  terminal input timing read, so a sketch no longer carries its own. */
+         *  terminal input timing read, so a sketch no longer carries its own.
+         *  @warning 32-bit, so it wraps every ~49 days. Every consumer must compare
+         *  it with wrap-safe unsigned subtraction `(uint32_t)(now - then) > delta`,
+         *  never `now > then + delta` - which is the convention throughout. */
         uint32_t timestamp_ms    = 0;
     };
 
@@ -90,6 +93,10 @@ namespace Botanik { namespace Scheduler {
     private:
         /** @name State
          *  @{ */
+
+        // tick() sleeps until 1 ms before the grid point and busy-waits the last
+        // ms, so a period under 2 ms would be all spin.
+        static_assert(Config::TASK_PERIOD_MS >= 2, "TASK_PERIOD_MS must be >= 2 (sleep/spin split)");
 
         /** @brief Target loop period (ms). */
         uint32_t        _period_ms     = Config::TASK_PERIOD_MS;
@@ -256,8 +263,12 @@ namespace Botanik { namespace Scheduler {
             _context.timestamp_ms = (uint32_t)now_ms;
             // skip missed beats (and log overruns)
             _skip_beats(now_ms);
-            // record this beat's scheduling jitter and CPU duty cycle
-            _record_jitter((uint32_t)(now_us - _next_tick_ms * 1000));
+            // record this beat's scheduling jitter and CPU duty cycle. Clamp the
+            // grid-relative lateness at 0: _skip_beats keeps now >= the grid point
+            // so it shouldn't underflow, but one wrapped sample would poison the
+            // all-time max for the whole uptime, so defend against it.
+            uint64_t grid_us = _next_tick_ms * 1000;
+            _record_jitter(now_us > grid_us ? (uint32_t)(now_us - grid_us) : 0);
             _record_load(now_us);
             // advance time grid
             _next_tick_ms += _period_ms;

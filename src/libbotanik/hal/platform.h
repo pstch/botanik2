@@ -89,6 +89,11 @@ namespace Botanik { namespace HAL {
      *  register is wired). */
     inline uint64_t wall_clock_ms();
 
+    /** @brief Set the wall clock from UNIX milliseconds, for the (future) NTP
+     *  sync to discipline the RTC. No-op on the simulator (the host clock is the
+     *  source of truth); on OPTA it sets the RTC. */
+    inline void wall_clock_set(uint64_t unix_ms);
+
     /** @brief Yield the CPU for at least @p ms milliseconds. Millisecond
      *  granularity: a request of 0 is a no-op/yield, so sub-millisecond waits
      *  fall through to a busy loop at the call site. */
@@ -102,6 +107,10 @@ namespace Botanik { namespace HAL {
     /** @brief Ensure that all precedent explicit memory accesses are completed. */
     inline void dsb();
 
+    /** @brief Lighter ordering barrier than dsb(): orders explicit memory
+     *  accesses without waiting for completion. Used for cross-core counter polls. */
+    inline void dmb();
+
     /** @brief Copy a block of memory with hardware-enforced ordering. */
     template <typename T>
     inline void ordered_copy(T* dst, const T* src);
@@ -109,6 +118,21 @@ namespace Botanik { namespace HAL {
     /** @brief Atomically push a value into a memory location. */
     template<typename T>
     inline void ordered_move(T* dst, T src);
+
+    /** @brief Read a value the other core may be writing: a volatile load (never
+     *  cached in a register) plus dmb() for acquire ordering. */
+    template <typename T>
+    inline T ordered_read(const volatile T* src);
+
+    /** @brief Clean (write back) the D-cache over [addr, addr+len) after writing a
+     *  shared region, so the other core sees the data in SRAM. No-op without a
+     *  D-cache (simulator, or a Cortex-M4). Rounds to whole cache lines. */
+    inline void cache_clean(const void* addr, size_t len);
+
+    /** @brief Invalidate the D-cache over [addr, addr+len) before reading a shared
+     *  region, so a stale cached copy can't hide the other core's writes. No-op
+     *  without a D-cache. Rounds to whole cache lines. */
+    inline void cache_invalidate(const void* addr, size_t len);
 
     /** @} */
 
@@ -119,6 +143,11 @@ namespace Botanik { namespace HAL {
      *  breakpoint instruction on the OPTA). A no-op-ish trap if nothing is
      *  attached, depending on the platform's default signal/fault handling. */
     inline void debug_break();
+
+    /** @brief True if a debugger is currently attached (host: a ptrace tracer via
+     *  /proc/self/status; OPTA: the Cortex-M halting-debug-enable bit). Gate
+     *  debug_break() on this: a bare BKPT with no debugger HardFaults on OPTA. */
+    inline bool under_debugger();
 
     /** @} */
 
@@ -138,11 +167,6 @@ namespace Botanik { namespace HAL {
      *  there is no clean halt for firmware, so it falls back to reset() and @p code
      *  is ignored. */
     inline void shutdown(int code = 0);
-
-    /** @brief Persist the active UI page index for restore after reset(). The
-     *  simulator re-exec carries it across the reboot; on OPTA a reset clears RAM,
-     *  so this is a no-op and the board returns on the default page. */
-    inline void save_active_page(uint8_t index);
 
     /** @} */
 
