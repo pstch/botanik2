@@ -1,18 +1,17 @@
 /**
  * @file main.cpp
- * @brief OPTA firmware entry point.
+ * @brief OPTA firmware entry point (standalone build).
  *
- * Hardware counterpart of botanik_sim/main.cpp. The simulator owns the PLC shared
- * memory locally and wires everything up in main(); here BotanikFirmware does that
- * wiring in its constructor (the setup() work) against the coprocessor's memory,
- * and run() drives the main loop. The instance is a function-local static so it is
- * constructed after the Arduino core has run its own init().
+ * Hardware counterpart of botanik_sim/main.cpp. The instance is a function-local
+ * static (see firmware.h), constructed after the Arduino core has run its own
+ * init(); setup() does the boot wiring and run() drives the loop forever. The Axel
+ * PLC IDE uses the botanik_setup()/botanik_step() hooks instead of this main().
  */
 
 #include "botanik_fw/firmware.h"
 
 int main() {
-    static Botanik::Firmware::BotanikFirmware firmware;
-    firmware.run();   // never returns
+    Botanik::Firmware::instance().setup();   // first access constructs, then boots
+    Botanik::Firmware::instance().run();     // never returns
     return 0;
 }

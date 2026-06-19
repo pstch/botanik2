@@ -422,10 +422,15 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     # botanik PUBLIC inherits its include dirs, defines, and -Os/-flto options;
     # LINKER_LANGUAGE skips the final link (no entry point in this build) and the
     # C++14 standard matches botanik (Mbed headers need it).
+    # The selected site (payload + pages + alert table) compiles into the firmware
+    # alongside the entry wiring; sim.cpp drops out here via its TARGET_SIMULATOR
+    # guard (this build never defines it), so only alerts.cpp carries through.
+    file(GLOB BOTANIK_SITE_SOURCES "src/sites/gh_mlb41/*.cpp")
     add_library(botanik_fw STATIC
         "src/botanik_fw/firmware.cpp"
         "src/botanik_fw/main.cpp"
-        "src/botanik_fw/botanik_arduino.cpp")
+        "src/botanik_fw/botanik_arduino.cpp"
+        ${BOTANIK_SITE_SOURCES})
     target_link_libraries(botanik_fw PUBLIC botanik)
     set_target_properties(botanik_fw PROPERTIES
         LINKER_LANGUAGE CXX
