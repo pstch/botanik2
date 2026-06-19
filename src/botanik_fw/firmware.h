@@ -14,16 +14,18 @@
  * BotanikFirmware machinery.
  */
 
-#include "sites/gh_mlb41/greenhouse.h"
+// The site is selected at configure time (-DBOTANIK_SITE); CMake points
+// BOTANIK_SITE_HEADER at its site.h, which exposes BotanikSite + the payload.
+#include BOTANIK_SITE_HEADER
 
 namespace Botanik { namespace Firmware {
 
-/** @brief The OPTA firmware singleton: a GreenhouseMLB41 bound to the PLC shared
- *  region from HAL::get_plc_input()/get_plc_output(). A function-local static,
- *  first constructed on the first call - deferred until after the Arduino core's
- *  init() has validated the UARTs and the shared-memory region, while staying in
- *  static storage (no heap) for the whole run. */
-::GreenhouseMLB41& instance();
+/** @brief The OPTA firmware singleton: the selected site (BotanikSite) bound to the
+ *  PLC shared region from HAL::get_plc_input()/get_plc_output(). A function-local
+ *  static, first constructed on the first call - deferred until after the Arduino
+ *  core's init() has validated the UARTs and the shared-memory region, while staying
+ *  in static storage (no heap) for the whole run. */
+::BotanikSite& instance();
 
 }}  // namespace Botanik::Firmware
 

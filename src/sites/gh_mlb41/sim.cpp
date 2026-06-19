@@ -195,7 +195,7 @@ static void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
 
 // Spawn the emulator thread bound to the shared PLC memory, with the greenhouse
 // fill hook above as its payload animator (see sim.h).
-void start_greenhouse_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,
+void start_site_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,
                                Botanik::PlcIO::PlcOutput<PlcOutputData_t>* shared_out,
                                Botanik::Logs::Logger*                      logger) {
     // Spawn the emulator thread (realtime on its own core, from its own entry)

@@ -19,9 +19,9 @@ namespace Botanik { namespace Firmware {
 // rate. Plain constant for now; promote to libbotanik_config.h if a site needs it.
 static const unsigned long CONSOLE_BAUD = 115200;
 
-::GreenhouseMLB41& instance() {
+::BotanikSite& instance() {
     // The PLC shared region is owned by the M4 coprocessor; we only bind to it.
-    static ::GreenhouseMLB41 fw(
+    static ::BotanikSite fw(
         static_cast<PlcIO::PlcInput<PlcInputData_t>*  >(HAL::get_plc_input()),
         static_cast<PlcIO::PlcOutput<PlcOutputData_t>*>(HAL::get_plc_output()),
         (uint32_t)CONSOLE_BAUD);

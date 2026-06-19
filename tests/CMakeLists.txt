@@ -25,6 +25,8 @@ target_include_directories(botanik_tests PRIVATE
 )
 
 target_link_libraries(botanik_tests botanik)
+# test_sizes.cpp pins the selected site's payload via the same header the harness uses.
+target_compile_definitions(botanik_tests PRIVATE BOTANIK_SITE_HEADER="${BOTANIK_SITE_HEADER}")
 
 # Register with CTest, one entry per TEST_CASE. doctest_discover_tests runs the
 # binary at build time with --list-test-cases and emits an add_test() per case,

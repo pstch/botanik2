@@ -19,6 +19,12 @@ set(CMAKE_C_USE_RESPONSE_FILE_FOR_INCLUDES ON)
 # Change with cmake -DBOTANIK_TARGET=SIMULATOR ..
 set(BOTANIK_TARGET "SIMULATOR" CACHE STRING "Target platform: SIMULATOR or OPTA")
 
+# Greenhouse site to build: selects src/sites/<name>/ (its payload, pages, alert
+# table, mock PLC) and the site.h header the harness/firmware include via
+# BOTANIK_SITE_HEADER. One site per build; both targets run the same one.
+set(BOTANIK_SITE "gh_mlb41" CACHE STRING "Greenhouse site under src/sites/")
+set(BOTANIK_SITE_HEADER "sites/${BOTANIK_SITE}/site.h")
+
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -133,11 +139,12 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     # The selected site (payload + pages + alarm table + mock PLC) compiles into
     # the host application, not the library: it stays out of the OPTA `botanik`
     # archive. sim.cpp drops out on non-SIMULATOR builds via its own guard.
-    file(GLOB BOTANIK_SITE_SOURCES "src/sites/gh_mlb41/*.cpp")
+    file(GLOB BOTANIK_SITE_SOURCES "src/sites/${BOTANIK_SITE}/*.cpp")
     add_executable(botanik_sim
         "src/botanik_sim/main.cpp"
         ${BOTANIK_SITE_SOURCES})
     target_link_libraries(botanik_sim botanik)
+    target_compile_definitions(botanik_sim PRIVATE BOTANIK_SITE_HEADER="${BOTANIK_SITE_HEADER}")
 
     # Link-time optimization for Release only (cross-TU inlining on top of -O3).
     # Probed so a toolchain without LTO support degrades to a plain -O3 build.
@@ -425,13 +432,14 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     # The selected site (payload + pages + alert table) compiles into the firmware
     # alongside the entry wiring; sim.cpp drops out here via its TARGET_SIMULATOR
     # guard (this build never defines it), so only alerts.cpp carries through.
-    file(GLOB BOTANIK_SITE_SOURCES "src/sites/gh_mlb41/*.cpp")
+    file(GLOB BOTANIK_SITE_SOURCES "src/sites/${BOTANIK_SITE}/*.cpp")
     add_library(botanik_fw STATIC
         "src/botanik_fw/firmware.cpp"
         "src/botanik_fw/main.cpp"
         "src/botanik_fw/botanik_arduino.cpp"
         ${BOTANIK_SITE_SOURCES})
     target_link_libraries(botanik_fw PUBLIC botanik)
+    target_compile_definitions(botanik_fw PRIVATE BOTANIK_SITE_HEADER="${BOTANIK_SITE_HEADER}")
     set_target_properties(botanik_fw PROPERTIES
         LINKER_LANGUAGE CXX
         CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)

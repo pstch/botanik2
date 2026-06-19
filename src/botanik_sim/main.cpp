@@ -11,8 +11,10 @@
 
 #include "libbotanik.h"
 
-#include "sites/gh_mlb41/greenhouse.h"   // GreenhouseMLB41 (pulls in the payload)
-#include "sites/gh_mlb41/sim.h"          // plc_dilated_timeout, start_greenhouse_emulator
+// The site is selected at configure time (-DBOTANIK_SITE); CMake points
+// BOTANIK_SITE_HEADER at its site.h, which exposes BotanikSite + the payload +
+// the sim-only mock-PLC entry (start_site_emulator / plc_dilated_timeout).
+#include BOTANIK_SITE_HEADER
 
 #include <csignal>   // std::signal
 
@@ -65,8 +67,8 @@ int main(int argc, char** argv) {
     static PlcIO::PlcInput<PlcInputData_t>   shared_in  {};
     static PlcIO::PlcOutput<PlcOutputData_t> shared_out {};
 
-    // The site firmware: wires the library around the gh_mlb41 payload/pages/alarms.
-    GreenhouseMLB41 greenhouse(&shared_in, &shared_out, CONSOLE_BAUD);
+    // The selected site firmware: wires the library around its payload/pages/alarms.
+    BotanikSite greenhouse(&shared_in, &shared_out, CONSOLE_BAUD);
 
     // Simulator-only timing dilation: grow the PLC link + HW-watchdog timeouts by
     // the time-scale factor so jitter under a high BOTANIK_TIME_SCALE can't false-
@@ -80,8 +82,8 @@ int main(int argc, char** argv) {
 
     // Mock PLC coprocessor: spawns the emulator thread, then locks process memory
     // and makes the main loop realtime - so it must run after setup()'s allocations
-    // (see start_greenhouse_emulator for the start-order constraint).
-    start_greenhouse_emulator(&shared_in, &shared_out, &greenhouse.logger());
+    // (see start_site_emulator for the start-order constraint).
+    start_site_emulator(&shared_in, &shared_out, &greenhouse.logger());
 
     // Main loop: drive the firmware until a shutdown signal flips the run flag.
     while (botanik_running) greenhouse.loop();

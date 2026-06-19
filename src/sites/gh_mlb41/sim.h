@@ -14,7 +14,7 @@
 
 #include "sites/gh_mlb41/payload.h"
 
-// Forward declarations suffice here (start_greenhouse_emulator() only takes
+// Forward declarations suffice here (start_site_emulator() only takes
 // pointers); full definitions come in via sim.cpp.
 namespace Botanik {
     namespace PlcIO { template<typename> struct PlcInput; template<typename> struct PlcOutput; }
@@ -39,7 +39,7 @@ uint32_t plc_dilated_timeout(uint32_t base_ms);
  *
  * Must be called before the process is locked into realtime (see the call site).
  */
-void start_greenhouse_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,
+void start_site_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,
                                Botanik::PlcIO::PlcOutput<PlcOutputData_t>* shared_out,
                                Botanik::Logs::Logger*                      logger);
 
