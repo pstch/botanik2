@@ -44,10 +44,28 @@ the data. Equality means "in sync".
    sees SeqNum == AckNum  ◀─────────── AckNum = SeqNum
 ```
 
-All payload copies go through `HAL::ordered_copy` (memcpy + DSB) and the RX read
-issues a `HAL::dsb()` *acquire* before copying, so the payload reads can't be
-reordered ahead of the `SeqNum` check that gated them. This is what makes the
-exchange safe against an unordered PLC runtime.
+Payload copies go through `HAL::ordered_copy` (memcpy + DSB); the cross-core
+counters (`SeqNum` / `AckNum`) are polled with `HAL::ordered_read` (volatile load
++ DMB), so a counter read can't be reordered against the payload copy it gates.
+This is what makes the exchange safe against an unordered PLC runtime.
+
+On the M7 the shared region may be cacheable, and we can't assume the proprietary
+image toolchain maps it non-cacheable, so the handler also maintains the D-cache
+at the `step()` boundaries (`HAL::cache_invalidate` / `cache_clean` - no-ops on
+the simulator and on cores without a D-cache): it **invalidates** the PLC-output
+region before reading it and **cleans** the PLC-input region after writing it.
+Read and write regions are disjoint, and both structs are `alignas(32)` so a
+cache line never straddles the two.
+
+## Torn-read diagnostic
+
+The handshake alone provides mutual exclusion - the PLC holds its payload steady
+until it observes our ACK (ENABLE stays low until then) - so there is no seqlock
+and no double buffer. As a cheap check that the contract holds, `RX_READ` reads
+`txSeqNum` before the copy, copies, invalidates the sync line, then re-reads
+`txSeqNum`: a mismatch means the PLC moved underneath us. It increments `_rx_torn`
+(exposed via `rx_torn_count()`), logs a rate-limited `PLC_IO` warning, and returns
+to `RX_IDLE` without acking. Diagnostic only - no retry loop.
 
 ## State machines
 
@@ -102,3 +120,47 @@ ring is drained separately by `PlcLogReader` (`plcio/logs.h`), which detects
 dropped entries via sequence-number gaps and forwards the rest into the local
 `Logger` (see @ref md_docs_2LOG__FLOW). Timing constants live in
 `libbotanik_config.h` (`PLC_HEARTBEAT_MS`, `PLC_TIMEOUT_MS`, `PLC_WATCHDOG_MS`).
+
+## Cross-core memory safety
+
+The host (M7, with an L1 D-cache) and the PLC (M4, no D-cache) share this memory
+with **no hardware coherency** and no assumption that the PLC uses ordered
+accesses. Three layered guarantees keep it sound; see `plcio/sync.h`, `hal/`.
+
+### Mutual exclusion: the handshake contract (not double buffering)
+
+There is **one** shared `data` buffer per direction, not a double buffer. Torn
+reads are prevented by the seqnum/ack ping-pong, which the PLC side must honour:
+
+- The PLC writes the payload, then bumps `txSeqNum`. The host sees
+  `txSeqNum != txAckNum`, copies the payload into a *local* buffer, then sets
+  `txAckNum = txSeqNum`.
+- **Contract:** the PLC must not touch the payload again until it observes the
+  host's ack. In the PLC program this is a `MOV` block with its `ENABLE` input
+  held low until the ack is seen, then raised for the next update.
+
+So the host always works on a private snapshot, and the buffer is never written
+while it is being read - *as long as the PLC upholds the contract*.
+
+### Torn-read diagnostic (defence in depth)
+
+Because the contract lives on the PLC side, the host verifies it cheaply: after
+copying the payload, `_rx_memcpy()` re-reads `txSeqNum`; if it changed during the
+copy, the snapshot may be torn, so the host **discards it, counts it
+(`rx_torn_count()`), logs a `PLC_IO` warning, and does not ack** (it re-reads next
+tick). This is a diagnostic, not a retry loop - it surfaces a contract violation
+instead of silently consuming bad data.
+
+### Memory ordering and cache coherency
+
+- **Compiler ordering / visibility:** the cross-core sync counters are polled via
+  `HAL::ordered_read` (a `volatile` load + `dmb()`), so the compiler can't cache a
+  stale value and the read is ordered. Payloads are moved with `HAL::ordered_copy`
+  (word-granular on the device, `dsb()`-fenced).
+- **D-cache coherency (M7 only):** the shared regions are `alignas(32)` so each
+  owns its cache lines. The host **invalidates** the PLC-output region before
+  reading it and **cleans** the PLC-input region after writing it
+  (`HAL::cache_invalidate`/`cache_clean`, no-ops where there is no D-cache). Read
+  and write regions are disjoint, so a clean never races an invalidate. If the
+  shared region turns out to be mapped non-cacheable, these are cheap no-effect
+  ops; if cacheable, they are required for the M4 to see the host's writes.

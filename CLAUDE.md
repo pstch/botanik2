@@ -35,7 +35,17 @@ Without direnv, either `export MAKEFLAGS=-j4` in your shell or pass `-j` per bui
 otherwise), so a clean rebuild after `rm -rf build` replays cached objects in a
 couple of seconds instead of recompiling.
 
-OPTA builds use `arm-none-eabi-gcc/g++` and require Arduino MBED headers under `includes/`.
+OPTA builds use `arm-none-eabi-gcc/g++` and the Arduino Mbed OPTA core, which
+arduino-cli installs under `~/.arduino15`:
+
+```bash
+arduino-cli core install arduino:mbed_opta
+```
+
+The CMake OPTA build auto-discovers the highest installed version there; override
+with `-DMBED_CORE_ROOT=/path/to/packages/arduino/hardware/mbed_opta/<version>` or
+the `ARDUINO_DATA_DIR` env var. (The build no longer uses the vendored `includes/`
+tree.)
 
 There are no tests yet.
 
@@ -49,9 +59,9 @@ The system is split into six subsystems under `src/libbotanik/`:
 
 **Pages (`pages/`)** - Each page (`Home`, `Shell`, `Logs`, `Status`) implements the `Page` interface. `AnsiTerminal` routes input events to the active page and calls each page's render method when the display needs updating.
 
-**Logging (`logs/`)** - `Logger` uses a dual-bucket token-bucket rate limiter (one global bucket, one per topic) before forwarding to registered `LogWriter`s. Writers include `BufferedLogWriter` and `SerialLogWriter`. Log topics are defined in `format.h` (`BOOT`, `NETWORK`, `TIME`, `STATUS`, `PLC_IO`).
+**Logging (`logs/`)** - `Logger` uses a dual-bucket token-bucket rate limiter (one global bucket, one per topic) before forwarding to registered `LogWriter`s. `LOG_CRITICAL` entries are undroppable (they evict the oldest queued entry instead of being dropped), and silent-loss categories (sink drops, TX-full truncation, rate-limiter suppressions) are reported edge-triggered as criticals. Writers include `BufferedLogWriter` and `SerialLogWriter`. Log topics are the `LogTopic` enum in `plcio/vars.h` (`PLC_IO`, `BOOT`, `NETWORK`, `TIME`, `STATUS`, and the firmware-only `ASSERT`).
 
-**PLC I/O (`plcio/`)** - `PlcSyncHandler` manages two independent state machines (RX and TX) for shared-memory communication with the PLC coprocessor. Uses explicit ARM DSB barriers (`HAL::dsb()`) and transactional read/write patterns to prevent torn operations. Timing constants: heartbeat 1 s, timeout 5 s, watchdog 30 s.
+**PLC I/O (`plcio/`)** - `PlcSyncHandler` manages two independent state machines (RX and TX) for shared-memory communication with the PLC coprocessor. Uses explicit ARM barriers (`HAL::dsb()`, plus `HAL::ordered_read()` for cross-core counters), D-cache maintenance at the `step()` boundaries (`HAL::cache_invalidate`/`cache_clean`, no-ops on the simulator), and transactional read/write patterns to prevent torn operations; a torn-read diagnostic (`rx_torn_count()`) flags any handshake violation. Timing constants: heartbeat 1 s, timeout 5 s, watchdog 30 s.
 
 **Utils (`utils/`)** - `BufferedSerial` wraps UART with a 256-byte RX ring buffer and 4096-byte TX buffer. `time.h` provides uptime tracking on top of HAL.
 
@@ -65,3 +75,34 @@ The system is split into six subsystems under `src/libbotanik/`:
 | `_GNU_SOURCE` | SIMULATOR build |
 | `TARGET_OPTA` | OPTA build |
 | `ARDUINO` / `MBED_*` | OPTA build |
+
+## Site-specific code (greenhouse targets)
+
+`libbotanik` is generic and site-independent. Code specific to one physical greenhouse and its PLC program (the shared-memory payload layout, its pages, its alarm table, and the mock data that animates it) is a **site**, code-named per greenhouse. The reference site is `gh_mlb41`.
+
+Three layers, generic to specific:
+
+| Layer | Holds | Examples |
+|---|---|---|
+| `libbotanik` | generic, site- and target-independent machinery, plus the `BotanikFirmware<In, Out>` base that owns the generic components, exposes a reference to each on the instance, and drives the per-tick `loop()` | `PlcSyncHandler`, `AnsiTerminal`, `AlarmModel`, `BotanikFirmware` |
+| site (`gh_mlb41`) | single source of truth for one greenhouse: the `PlcInput/OutputData_t` layout, site pages (Home/Status), the `g_alarms[]` table, the `fill_output()` data simulation, and a `GreenhouseMLB41` class deriving from `BotanikFirmware` | `gh_mlb41` |
+| target / entry point | thin: selects one site and runs it | `botanik_sim` harness, generated OPTA `.ino` |
+
+**Composition.** Components are split by layer and chained by inheritance (not an ideal composition model, but a structured start):
+
+- `BotanikFirmware<In, Out>` constructs the generic components (logger, scheduler, terminal, PLC handler, log reader, alarm reader, alarm model, core pages) and exposes a reference to each on the instance.
+- `GreenhouseMLB41 : BotanikFirmware<In, Out>` declares its site components (site pages, the alarm table, the shell-command table, any site logic) as members, built from the base's exposed component references.
+- A site component is often a static site-defined table plus an opaque ctx, registered on a base-owned generic component: the site `g_alarms[]` table feeds `AlarmModel` (which splices the generic platform-health alarms from `libbotanik/alarms/platform.h` into the top of the bitset, so site/PLC alarms fill from bit 0 and platform alarms sit at the high end), a `ShellCommand[]` table registers on the shell page via `set_commands()`.
+- Lifecycle chains up the hierarchy: `GreenhouseMLB41::setup()` calls `BotanikFirmware::setup()` first, then wires its own; same for `loop()`.
+- The Arduino sketch may add one more slim subclass for last-mile customization, chaining `setup()` / `loop()` the same way.
+
+Rules:
+
+- **One data layout per site, shared by simulator and hardware.** A site's `PlcOutputData_t` / `PlcInputData_t` is used verbatim by both the OPTA firmware and the simulator's mock PLC. Never fork the layout per target; evolve the layout and its `fill_output()` animator together, in the site.
+- **The simulator is a generic harness.** It allocates the shared region locally and drives a `PlcEmulator` with the selected site's `fill_output()`. On OPTA the real coprocessor plays that role and the region comes from `HAL::get_plc_input()/get_plc_output()`; the site code is identical either way.
+- **The site stays portable.** Site code must cross-compile as an Arduino library: the deploy step zips the site dir and generates a `.ino` that statically allocates a `GreenhouseMLB41` and calls its `setup()` / `loop()`. The zip build does not define `TARGET_SIMULATOR`, so simulator-only code (the `fill_output()` animator, the emulator thread) drops out through its `#ifdef TARGET_SIMULATOR` guard. Keep such code guarded rather than in the portable path.
+- **Generic components constrain the site payload.** Templated generics require fields on the site `PlcOutputData_t` (e.g. `AlarmReader` / `StatusPage` need a 64-bit `alarms` bitset). The site defines its layout to satisfy those contracts.
+- **Config is site-overridable.** Every `libbotanik_config.h` value defaults from an `#ifndef`-guarded `BOTANIK_<NAME>` macro. A site may ship `sites/<name>/config.h` that `#define`s any of them; CMake includes it via `BOTANIK_SITE_CONFIG`, defined PUBLIC on the `botanik` library so the override is build-wide (libbotanik's own TUs and every consumer see the same value - anything narrower is an ABI mismatch). The `LOG_PLC_*` sizes are the canonical case (they must match the site's PLC program).
+- New site-level work goes in the site, not in `libbotanik` and not in a target's `main`.
+
+**Current state (structural migration done, see `docs/SITE_EXTRACTION_PLAN.md`):** the `gh_mlb41` site lives in `src/sites/gh_mlb41/` (payload, pages, alarm table, mock PLC), the `BotanikFirmware<In, Out>` base in `src/libbotanik/firmware.h`, and `GreenhouseMLB41` (`sites/gh_mlb41/greenhouse.h`) derives it. Both targets run the same site: `botanik_sim/main.cpp` is a thin harness owning local PLC statics, and `botanik_fw` (OPTA) binds `GreenhouseMLB41` to `HAL::get_plc_input()/get_plc_output()` (cross-built clean). A site overrides `setup()`, chains the base, then splices its pages by index via `AnsiTerminal::add_page(page, index)` (home leads as page 0). The site is chosen at configure time with `-DBOTANIK_SITE=<name>` (default `gh_mlb41`): CMake globs `src/sites/<name>/` and points `BOTANIK_SITE_HEADER` at its `site.h`, which exposes `BotanikSite` + the payload, so the harnesses never name the site. Only the Arduino `.zip`/`.ino` deploy packaging remains (carry the site dir in the zip, generate the integrator entry once the Axel hooks are confirmed). Treat `src/sites/gh_mlb41/` + `BotanikFirmware` as canonical.

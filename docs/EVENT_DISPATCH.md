@@ -73,6 +73,7 @@ active. See [PAGES.md](PAGES.md).
  │            │            │   HOME   → switch_to(0)│  │
  │            │            │   ALT_1…ALT_9 / ALT_0  │  │
  │            │            │   TAB / Ctrl+PgUp/PgDn │  │
+ │            │            │   Ctrl+C → cancel      │  │
  │            │            └────────────┬───────────┘  │
  │            │                         │ (remaining)  │
  └────────────┼─────────────────────────┼──────────────┘
@@ -100,6 +101,10 @@ active. See [PAGES.md](PAGES.md).
 A handful of commands are consumed by
 @ref Botanik::Terminal::AnsiTerminal::step "AnsiTerminal::step()" and never reach
 the active page - `Ctrl+L` (full redraw), `HOME` / `Alt+1`...`Alt+0` (jump to a
-page), and `TAB` / `Ctrl+PageUp`/`PageDown` (cycle pages). Everything else is
+page), and `TAB` / `Ctrl+PageUp`/`PageDown` (cycle pages). `Ctrl+C` is a hybrid:
+the terminal offers it to the active page first via
+@ref Botanik::Pages::Page::handle_cancel "handle_cancel()", and only if the page
+declines does it apply the default - quit on the simulator, a **no-op on
+hardware** (a stray Ctrl+C must never reboot the controller). Everything else is
 forwarded to the active page. See [KEYBINDINGS.md](KEYBINDINGS.md) for the exact
 bindings, including their effects.

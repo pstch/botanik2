@@ -61,7 +61,8 @@ sketch does the equivalent).
 ## Building
 
 The default target is the Linux simulator (`SIMULATOR`), which compiles to a
-native executable and is the only target that builds end-to-end today. Builds
+native executable and is the only target that *runs* end-to-end today (the OPTA
+target compiles but isn't linked into a flashable image yet - see below). Builds
 default to a profiler-friendly `DEBUG` type:
 
 ```bash
@@ -79,19 +80,23 @@ compiles assertions out, and defaults sanitizers off).
 
 ### OPTA target
 
-The `OPTA` target cross-compiles for the Arduino OPTA PLC with
-`arm-none-eabi-gcc`:
+The `OPTA` target cross-compiles the library and firmware for the Arduino OPTA
+PLC with `arm-none-eabi-gcc`:
 
 ```bash
+arduino-cli core install arduino:mbed_opta   # one-time: the Mbed OPTA core
 cmake -B build-opta -DBOTANIK_TARGET=OPTA
 make -C build-opta
 ```
 
-**This does not build out of the box.** It needs a large set of Arduino
-MBED / PLC IDE headers under `includes/` that are **not** distributed here; you
-obtain them from the Arduino PLC IDE's build cache after a successful build
-there and copy them in by hand. Even with those headers a full link is not yet
-working, but it is enough to make IntelliSense resolve correctly.
+This builds `libbotanik` plus the `botanik_fw` reference firmware into static
+archives - an ABI / size / LTO sanity check for the target, **not** a flashable
+image. The final link (with the startup code and the PLC IDE's generated types)
+happens in the Arduino / Axel PLC IDE; see
+[src/botanik_fw](src/botanik_fw/README.md) for how the pieces map. The Mbed
+headers and ARM toolchain come from the core that `arduino-cli` installs under
+`~/.arduino15`; the build auto-discovers the highest installed version (override
+with `-DMBED_CORE_ROOT=...` or the `ARDUINO_DATA_DIR` env var).
 
 ### Tests
 

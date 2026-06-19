@@ -21,6 +21,7 @@ before they can reach the active page.
 | Alt+0               | @ref Botanik::Terminal::AnsiTerminal::switch_to "switch_to(9)" (if registered)                           |
 | TAB / Ctrl+PageDown | @ref Botanik::Terminal::AnsiTerminal::switch_relative "switch_relative(true)" - next page, wraps         |
 | Ctrl+PageUp         | @ref Botanik::Terminal::AnsiTerminal::switch_relative "switch_relative(false)" - previous page, wraps    |
+| Ctrl+C              | @ref Botanik::Pages::Page::handle_cancel "page->handle_cancel()" first; if declined, default: quit (simulator) / no-op (hardware) |
 
 ## Shell page
 
@@ -46,7 +47,8 @@ Every editing action drives the @ref Botanik::Terminal::TextEditor line editor.
 | Alt+ENTER             | @ref Botanik::Terminal::TextEditor::insert_characters "editor.insert_characters()" - insert a newline   |
 | BACKSPACE             | @ref Botanik::Terminal::TextEditor::backspace "editor.backspace(count)" (Ctrl+H or DEL)                 |
 | Ctrl+D / DELETE       | @ref Botanik::Terminal::TextEditor::delete_forward "editor.delete_forward(count)"                       |
-| Ctrl+U / Ctrl+C       | @ref Botanik::Terminal::TextEditor::reset "editor.reset()" - clear / cancel the line                    |
+| Ctrl+U                | @ref Botanik::Terminal::TextEditor::reset "editor.reset()" - clear the line                              |
+| Ctrl+C                | @ref Botanik::Pages::ShellPage::handle_cancel "handle_cancel()" - echo + discard the line (terminal intercept) |
 | Ctrl+K / Ctrl+W / Ctrl+Y | kill ring - TODO, no-op                                                                              |
 | Ctrl+R                | history search - TODO, no-op                                                                            |
 | **Selection / Mark**  |                                                                                                        |
