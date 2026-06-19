@@ -1,19 +1,28 @@
 /**
- * @file simulator.cpp
- * @brief Mock greenhouse data source + emulator wiring (see simulator.h).
+ * @file sim.cpp
+ * @brief gh_mlb41 mock greenhouse data source + emulator wiring (see sim.h).
+ *
+ * Simulator-only: the whole body is guarded by TARGET_SIMULATOR, so this file
+ * compiles to nothing in the OPTA / Arduino-library build (no TARGET_SIMULATOR),
+ * where the real coprocessor animates the payload instead.
  *
  * The floats here only shape the mock signal; the payload keeps the PLC integer
- * conventions from simulator.h and never carries a float on the wire.
+ * conventions from payload.h and never carries a float on the wire.
  */
 
-#include "botanik_sim/simulator.h"
+#include "sites/gh_mlb41/sim.h"
+
+#ifdef TARGET_SIMULATOR
+
 #include "libbotanik.h"   // PlcIO::start_emulator_thread, PlcInput/PlcOutput, Logs::Logger
+#include "libbotanik/alarms/alarms.h"   // alarm_bit / alarm_index
+#include "sites/gh_mlb41/alarms.h"      // g_alarms - the one alarm definition (codes + bit order)
 
 #include <cmath>    // pow - PLC timeout dilation
 #include <random>   // drives the rare perturbations that animate the mock data
 
-// base * S^1.5 by the time-dilation factor S; see simulator.h. Cap keeps the
-// link's 32-bit elapsed compares rollover-safe.
+// base * S^1.5 by the time-dilation factor S; see sim.h. Cap keeps the link's
+// 32-bit elapsed compares rollover-safe.
 uint32_t plc_dilated_timeout(uint32_t base_ms) {
     uint32_t s = Botanik::HAL::_time_scale();
     if (s <= 1) return base_ms;
@@ -47,6 +56,13 @@ float drift(float v, float step, float lo, float hi, float p) {
 bool chance(float p) { return frand() < p; }
 
 }  // namespace
+
+/** @brief Mock-PLC alarm bit for a table code, or 0 if the code is undefined. Resolves
+ *  through g_alarms so the mock bitset uses the same bit layout as the firmware. */
+static uint64_t abit(const char* code) {
+    int i = Botanik::Alarms::alarm_index(g_alarms, Botanik::Alarms::ALARM_BITS, code);
+    return i >= 0 ? Botanik::Alarms::alarm_bit((uint8_t)i) : 0;
+}
 
 /**
  * @brief Animate the greenhouse payload with plausible, mostly-steady values.
@@ -157,11 +173,29 @@ static void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
     sunset  = drift(sunset,  1.0f, 19.0f * 60, 22.0f * 60, 0.02f);
     o->sunrise_min = (uint16_t)sunrise;
     o->sunset_min  = (uint16_t)sunset;
+
+    // Alarms: synthesize the PLC's raw bitset from the mock state above so the
+    // ribbon/table have live data. The PLC owns debouncing on real hardware; here
+    // the conditions just track the animated signals. Bits are addressed by table
+    // code (abit) so the mock PLC and the firmware share the one alarm definition
+    // (g_alarms), with no parallel id enum.
+    uint64_t alarms = 0;
+    if (o->grid_ac_mv < 226000 || o->grid_ac_mv > 234000) alarms |= abit("AC_GRID");
+    if (!o->dc_bus_b_ok)                                   alarms |= abit("DC_PS2");
+    if (o->ups_status != UPS_ONLINE)                       alarms |= abit("DC_UPS");
+    if (o->generator_running && o->generator_mv < 12000)   alarms |= abit("GEN_FLT");
+    if (o->net_status == NET_DOWN)                         alarms |= abit("NET_FLT");
+    if (!o->ntp_synced)                                    alarms |= abit("NTP_TIM");
+    if (o->ceil_temp_c_centi > 2600)                       alarms |= abit("TOO_HOT");
+    if (o->floor_temp_c_centi < 1500)                      alarms |= abit("TOO_COLD");
+    if (o->ext_rh_centi_pct > 6800)                        alarms |= abit("TOO_HUM");
+    if (o->wind_peak_kmh > 35 || raining)                  alarms |= abit("WH_STORM");
+    o->alarms = alarms;
 }
 
 // Spawn the emulator thread bound to the shared PLC memory, with the greenhouse
-// fill hook above as its payload animator (see simulator.h).
-void start_greenhouse_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,
+// fill hook above as its payload animator (see sim.h).
+void start_site_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,
                                Botanik::PlcIO::PlcOutput<PlcOutputData_t>* shared_out,
                                Botanik::Logs::Logger*                      logger) {
     // Spawn the emulator thread (realtime on its own core, from its own entry)
@@ -177,10 +211,4 @@ void start_greenhouse_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   share
     Botanik::Scheduler::make_thread_realtime(Botanik::Config::SIM_MAIN_CPU_CORE, logger);
 }
 
-// Graceful-shutdown plumbing for the simulator process (see simulator.h).
-volatile sig_atomic_t botanik_running = 1;
-volatile sig_atomic_t botanik_shutdown_signo = 0;
-extern "C" void botanik_sim_shutdown(int signo) {
-    botanik_shutdown_signo = signo;
-    botanik_running = 0;
-}
+#endif // TARGET_SIMULATOR

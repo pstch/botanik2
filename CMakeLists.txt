@@ -19,6 +19,12 @@ set(CMAKE_C_USE_RESPONSE_FILE_FOR_INCLUDES ON)
 # Change with cmake -DBOTANIK_TARGET=SIMULATOR ..
 set(BOTANIK_TARGET "SIMULATOR" CACHE STRING "Target platform: SIMULATOR or OPTA")
 
+# Greenhouse site to build: selects src/sites/<name>/ (its payload, pages, alert
+# table, mock PLC) and the site.h header the harness/firmware include via
+# BOTANIK_SITE_HEADER. One site per build; both targets run the same one.
+set(BOTANIK_SITE "gh_mlb41" CACHE STRING "Greenhouse site under src/sites/")
+set(BOTANIK_SITE_HEADER "sites/${BOTANIK_SITE}/site.h")
+
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -96,6 +102,17 @@ file(GLOB_RECURSE LIB_SOURCES
 
 add_library(botanik STATIC ${LIB_SOURCES})
 
+# Site config overrides (optional): if the selected site ships a config.h, make it
+# build-wide by defining BOTANIK_SITE_CONFIG PUBLIC on the library - so libbotanik's
+# own TUs and every consumer compile against the same overridden Config values
+# (anything narrower is an ABI mismatch). libbotanik_config.h #includes it before
+# its #ifndef defaults. No-op when the site has no overrides.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/sites/${BOTANIK_SITE}/config.h")
+    target_compile_definitions(botanik PUBLIC
+        BOTANIK_SITE_CONFIG="sites/${BOTANIK_SITE}/config.h")
+    message(STATUS "Site config overrides: src/sites/${BOTANIK_SITE}/config.h")
+endif()
+
 # Simulator mode
 # ============================================================================
 
@@ -130,10 +147,15 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         message(STATUS "Sanitizers enabled: ${BOTANIK_SANITIZE}")
     endif()
 
+    # The selected site (payload + pages + alarm table + mock PLC) compiles into
+    # the host application, not the library: it stays out of the OPTA `botanik`
+    # archive. sim.cpp drops out on non-SIMULATOR builds via its own guard.
+    file(GLOB BOTANIK_SITE_SOURCES "src/sites/${BOTANIK_SITE}/*.cpp")
     add_executable(botanik_sim
         "src/botanik_sim/main.cpp"
-        "src/botanik_sim/simulator.cpp")
+        ${BOTANIK_SITE_SOURCES})
     target_link_libraries(botanik_sim botanik)
+    target_compile_definitions(botanik_sim PRIVATE BOTANIK_SITE_HEADER="${BOTANIK_SITE_HEADER}")
 
     # Link-time optimization for Release only (cross-TU inlining on top of -O3).
     # Probed so a toolchain without LTO support degrades to a plain -O3 build.
@@ -320,12 +342,35 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
         EXTRA_IDLE_STACK_REQUIRED
     )
 
-    set(MBED_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/includes/arduino_mbed_opta_4.1.6_6bd5cf0253f43b1d")
+    # Locate the Arduino Mbed OPTA core. Default to the one arduino-cli installs
+    # under ~/.arduino15 (override with -DMBED_CORE_ROOT=... or ARDUINO_DATA_DIR);
+    # the highest installed version wins. The include layout below has been stable
+    # across the 4.x cores, so we don't pin a version. This replaces the old
+    # vendored includes/ tree - the ARM compiler ships its own libstdc++/newlib
+    # headers, so no separate toolchain include path is needed here.
+    if(NOT MBED_CORE_ROOT)
+        if(DEFINED ENV{ARDUINO_DATA_DIR})
+            set(_ard_data "$ENV{ARDUINO_DATA_DIR}")
+        else()
+            set(_ard_data "$ENV{HOME}/.arduino15")
+        endif()
+        file(GLOB _mbed_versions "${_ard_data}/packages/arduino/hardware/mbed_opta/*")
+        if(_mbed_versions)
+            list(SORT _mbed_versions)
+            list(GET _mbed_versions -1 MBED_CORE_ROOT)
+        endif()
+    endif()
+    if(NOT MBED_CORE_ROOT OR NOT EXISTS "${MBED_CORE_ROOT}/cores/arduino/mbed")
+        message(FATAL_ERROR
+            "Arduino Mbed OPTA core not found. Install it with:\n"
+            "  arduino-cli core install arduino:mbed_opta\n"
+            "or pass -DMBED_CORE_ROOT=/path/to/packages/arduino/hardware/mbed_opta/<version>")
+    endif()
+    message(STATUS "Using Mbed OPTA core: ${MBED_CORE_ROOT}")
+    set(MBED_ROOT "${MBED_CORE_ROOT}")
 
     target_include_directories(botanik SYSTEM PUBLIC
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
-
-        "${CMAKE_CURRENT_SOURCE_DIR}/includes/arduino_arm-none-eabi-gcc_7-2017q4_7b7be9f526b2cb64/**"
 
         "${MBED_ROOT}/cores/arduino/mbed/platform/include/"
         "${MBED_ROOT}/cores/arduino/mbed/platform/include/platform"
@@ -388,7 +433,73 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     # tell CMake to compile the objects without trying to create a final binary
     set_target_properties(botanik PROPERTIES LINKER_LANGUAGE CXX)
 
+    # Firmware application: the BotanikFirmware wiring plus its main() entry. The
+    # OPTA counterpart of botanik_sim, but archived as a static lib rather than
+    # linked into an executable - the startup code, linker script, and PLC objects
+    # that produce the flashable image live in the Arduino build, not here. Linking
+    # botanik PUBLIC inherits its include dirs, defines, and -Os/-flto options;
+    # LINKER_LANGUAGE skips the final link (no entry point in this build) and the
+    # C++14 standard matches botanik (Mbed headers need it).
+    # The selected site (payload + pages + alert table) compiles into the firmware
+    # alongside the entry wiring; sim.cpp drops out here via its TARGET_SIMULATOR
+    # guard (this build never defines it), so only alerts.cpp carries through.
+    file(GLOB BOTANIK_SITE_SOURCES "src/sites/${BOTANIK_SITE}/*.cpp")
+    add_library(botanik_fw STATIC
+        "src/botanik_fw/firmware.cpp"
+        "src/botanik_fw/main.cpp"
+        "src/botanik_fw/botanik_arduino.cpp"
+        ${BOTANIK_SITE_SOURCES})
+    target_link_libraries(botanik_fw PUBLIC botanik)
+    target_compile_definitions(botanik_fw PRIVATE BOTANIK_SITE_HEADER="${BOTANIK_SITE_HEADER}")
+    set_target_properties(botanik_fw PROPERTIES
+        LINKER_LANGUAGE CXX
+        CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
+
 endif()
+
+# Arduino library package
+# ============================================================================
+# The Axel PLC IDE owns the sketch and only accepts *imported Arduino libraries* -
+# it can't take an arbitrary file tree or a sketch folder. So this is the delivery
+# artifact: a zip whose top folder holds library.properties + src/, importable via
+# the IDE's "Add .ZIP Library". It's NOT a compile step - the OPTA build flags come
+# from the board when the IDE compiles the library, which is exactly why we don't
+# replay the DEVICE_*/TARGET_* define wall here. Platform-independent (just copies +
+# zips text), so `make arduino-lib` works from the default SIMULATOR tree.
+#
+# The package is libbotanik ONLY (the umbrella headers + the libbotanik/ tree). The
+# entry-point wiring - #include <libbotanik.h>, construct the components, define the
+# botanik_setup()/botanik_step() the sketch window calls - is written by the
+# integrator in a C++ file at the *project* root, NOT shipped here. src/botanik_fw/
+# is our reference for that file (and drives the OPTA ABI check); it stays out of the
+# imported library so it can't collide with the integrator's own entry point.
+set(ARDUINO_PKG "${CMAKE_BINARY_DIR}/arduino")
+set(ARDUINO_LIB "${ARDUINO_PKG}/libbotanik")        # top folder name == library name
+
+add_custom_target(arduino-lib
+    # Clean stage so a removed source never lingers in the package.
+    COMMAND ${CMAKE_COMMAND} -E rm -rf "${ARDUINO_LIB}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${ARDUINO_LIB}/src"
+    # The metadata marker that makes the folder a (recursive-layout) library.
+    COMMAND ${CMAKE_COMMAND} -E copy
+            "${CMAKE_SOURCE_DIR}/cmake/library.properties.in"
+            "${ARDUINO_LIB}/library.properties"
+    # Library content: the umbrella headers + the libbotanik tree, nothing else.
+    # copy_directory follows the real tree (not a symlink), so the zip stays
+    # self-contained once unpacked on the IDE host.
+    COMMAND ${CMAKE_COMMAND} -E copy
+            "${CMAKE_SOURCE_DIR}/src/libbotanik.h"
+            "${CMAKE_SOURCE_DIR}/src/libbotanik_config.h"
+            "${CMAKE_SOURCE_DIR}/src/libbotanik_sizes.h"
+            "${ARDUINO_LIB}/src/"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/src/libbotanik" "${ARDUINO_LIB}/src/libbotanik"
+    # Zip it: cmake -E tar can emit a zip with --format=zip.
+    COMMAND ${CMAKE_COMMAND} -E chdir "${ARDUINO_PKG}"
+            ${CMAKE_COMMAND} -E tar cf "libbotanik.zip" --format=zip "libbotanik"
+    COMMENT "Packaging importable Arduino library: ${ARDUINO_PKG}/libbotanik.zip"
+    VERBATIM
+)
 
 # Doxygen documentation
 # ============================================================================
