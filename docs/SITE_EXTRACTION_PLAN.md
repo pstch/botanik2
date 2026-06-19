@@ -1,8 +1,10 @@
 # Site Extraction Plan
 
-Status: **stage 2 done** - the gh_mlb41 site is extracted (`070f55f`) and the
-`BotanikFirmware<In, Out>` base + `GreenhouseMLB41` subclass are in place (`049d01e`).
-Stages 3-4 pending. This plan stages the migration described in
+Status: **stage 3 done** - the gh_mlb41 site is extracted (`070f55f`), the
+`BotanikFirmware<In, Out>` base + `GreenhouseMLB41` subclass are in place (`049d01e`),
+and the OPTA firmware is converged onto the same site (`8a99ec9`, cross-built clean).
+The structural migration is complete; only the optional stage 4 (site selection +
+sketch generation) remains. This plan stages the migration described in
 the *Site-specific code* section of `CLAUDE.md`: promote `BotanikFirmware` into
 `libbotanik` as a generic base, extract the `gh_mlb41` site out of `botanik_sim`
 into its own unit, and converge the `botanik_fw` stub onto the same site. The
@@ -206,7 +208,29 @@ registration diverged - fix the move, don't re-bless the golden.
 
 ---
 
-## Stage 3 - converge `botanik_fw` onto the site  [ ]
+## Stage 3 - converge `botanik_fw` onto the site  [x] done
+
+**Implemented (commit `8a99ec9`):** dropped the `botanik_fw` stub (its concrete
+`BotanikFirmware`, 2-field payload, stub HomePage). The OPTA firmware is now
+`GreenhouseMLB41` bound to `HAL::get_plc_input()/get_plc_output()`, exposed as a
+function-local-static `Botanik::Firmware::instance()`; `main()` and the
+`botanik_setup()`/`botanik_step()` Axel hooks drive `setup()`/`loop()`/`run()`.
+CMake globs `src/sites/gh_mlb41/*.cpp` into `botanik_fw`; `sim.cpp` drops out via
+its `TARGET_SIMULATOR` guard, so only `alerts.cpp` carries through.
+
+**Cross-build verified** with `arm-none-eabi` + the installed `mbed_opta` core
+(`cmake -B build-opta -DBOTANIK_TARGET=OPTA && make botanik_fw`) - compiles clean.
+The one OPTA `ShellPage` footprint that had drifted (others' layout work; never
+caught because OPTA isn't built in the sim workflow) was refreshed 18140 -> 18144.
+Runtime/flash still needs real hardware (can't run here), per the OPTA caveat.
+
+**Layout `static_assert`s:** the per-site `sizeof/alignof` check against the PLC
+IDE's generated `PLCSharedVars*_t` is noted in `botanik_fw/firmware.cpp` as the
+integrator's step once those generated types are in hand; not added here (the types
+aren't available in this tree).
+
+Original plan for reference:
+
 
 Replace the OPTA stub with the real site. The `botanik_fw/firmware.h` placeholder
 payload + stub `HomePage` + concrete `BotanikFirmware` all disappear.
