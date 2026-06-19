@@ -18,9 +18,10 @@
  * the filter: all defined alerts -> active only -> active and not masked (the
  * terminal alert bar's set). The grid is plain ASCII: '|' column rules and a
  * '+'/'-' header rule, with a two-column side margin. UP/DOWN and Ctrl+P/Ctrl+N
- * scroll a line at a time. The page repaints only when the alert set / its notify
- * flags change, the mode cycles, or the view scrolls, and only while the TX ring
- * is shallow.
+ * scroll a line at a time (one scroll_region() shift + one painted row). The page
+ * re-checks the alert set once a second and repaints only when it moved, the mode
+ * cycles, or on focus; a full repaint is paced a few rows per tick under the shared
+ * TX floor, so it interleaves with the status/alert bars instead of flooding TX.
  */
 
 #include <algorithm>
@@ -56,8 +57,14 @@ namespace Botanik { namespace Pages {
         uint8_t                   _mode     = MODE_ALL;
         /** @brief First visible data row (scroll offset from the top of the set). */
         uint16_t                  _top      = 0;
-        /** @brief A repaint is due (set on focus/scroll/toggle, cleared by _repaint). */
-        bool                      _dirty    = true;
+        /** @brief Staged-repaint cursor: the next table element to paint (0 = top
+         *  margin, then header, rule, the data rows, the blank line, the footer), or
+         *  PAINT_IDLE when the table is fully drawn. A full repaint is paced a few rows
+         *  per tick under the shared TX floor (see _paint_step()) so it never floods
+         *  the ring and starves the status / alert bars; _request_repaint() restarts
+         *  it from the top. */
+        static constexpr uint16_t PAINT_IDLE = 0xFFFF;
+        uint16_t                  _paint_i  = 0;
         /** @brief Uptime of the last once-a-second alert-set re-check (see tick()). */
         uint64_t                  _last_refresh_ms = 0;
         /** @brief Merged raw bitset at the last repaint. Every displayed field (active
@@ -260,26 +267,57 @@ namespace Botanik { namespace Pages {
             }
         }
 
-        /** @brief Repaint the whole table (header, rule, data window, footer). */
-        void _repaint() {
+        /** @brief Request a full (paced) table repaint from the top. */
+        void _request_repaint() { _paint_i = 0; }
+
+        /** @brief True while a staged repaint is in progress (or pending its first tick). */
+        bool _painting() const { return _paint_i != PAINT_IDLE; }
+
+        /** @brief Paint one table element by its index in the staged sequence: 0 = top
+         *  margin, 1 = header, 2 = rule, [3, 3+window) = data rows, then the blank line
+         *  and the footer. Element order/count must match _paint_step()'s total. */
+        void _paint_element(uint16_t e, uint16_t window, uint16_t footer_row) {
+            if      (e == 0)               _clear_row(1);                       // top margin
+            else if (e == 1)               _draw_grid_row(HEADER_ROW, "CODE", "ON",
+                                                          "LAST EVENT", "DESCRIPTION");
+            else if (e == 2)               _draw_rule(RULE_ROW);
+            else if (e < (uint16_t)(3 + window))
+                _draw_data_row((uint16_t)(DATA_TOP + (e - 3)), (uint16_t)(_top + (e - 3)));
+            else if (e == (uint16_t)(3 + window))
+                _clear_row((uint16_t)(footer_row - 1));                         // blank line below table
+            else
+                _draw_footer(footer_row, _nvis, _model ? _model->active_count() : 0);
+        }
+
+        /** @brief Advance the staged repaint: draw at most TX_COLD_FIELDS_PER_TICK
+         *  table rows this tick, and only while the TX ring is shallow, so a full
+         *  repaint spreads over several ticks instead of flooding the ring (the same
+         *  cooperative scheme the status-page fields use). The view set is collected
+         *  and the offset clamped once, on the first element, so the staged frame stays
+         *  self-consistent; a mid-paint set change is caught by the next 1 s re-check. */
+        void _paint_step() {
             uint16_t window = _window();
-            if (window == 0) return;                       // screen too short for a row
+            if (window == 0) { _snapshot(); _paint_i = PAINT_IDLE; return; }
             uint16_t footer_row = _footer_row();
+            uint16_t total      = (uint16_t)(window + 5);   // margin+header+rule+data+blank+footer
 
-            _collect();
-            uint16_t maxtop = (_nvis > window) ? (uint16_t)(_nvis - window) : 0;
-            if (_top > maxtop) _top = maxtop;
+            if (_paint_i == 0) {
+                _collect();
+                uint16_t maxtop = (_nvis > window) ? (uint16_t)(_nvis - window) : 0;
+                if (_top > maxtop) _top = maxtop;
+                // Snapshot the signature of the set being painted up front: a change
+                // during or after staging then reads as _changed() and re-triggers,
+                // rather than being masked by a completion-time snapshot of a newer set.
+                _snapshot();
+            }
 
-            _clear_row(1);                                              // blank top margin
-            _draw_grid_row(HEADER_ROW, "CODE", "ON", "LAST EVENT", "DESCRIPTION");
-            _draw_rule(RULE_ROW);
-            for (uint16_t r = 0; r < window; r++)
-                _draw_data_row((uint16_t)(DATA_TOP + r), (uint16_t)(_top + r));
-            _clear_row((uint16_t)(footer_row - 1));                     // blank line below the table
-            _draw_footer(footer_row, _nvis, _model ? _model->active_count() : 0);
-
-            _snapshot();
-            _dirty = false;
+            uint16_t budget = Config::TX_COLD_FIELDS_PER_TICK;
+            while (_paint_i < total && budget > 0 && _terminal.tx_below_cold()) {
+                _paint_element(_paint_i, window, footer_row);
+                _paint_i++;
+                budget--;
+            }
+            if (_paint_i >= total) _paint_i = PAINT_IDLE;   // frame complete
         }
 
         /** @brief Scroll the view by one line, painting only the newly exposed data
@@ -300,7 +338,10 @@ namespace Botanik { namespace Pages {
             else      { if (_top > 0)      _top--; }
             if (_top == old_top) return;                   // already at that end
 
-            if (_dirty || _changed()) { _dirty = true; return; }
+            // A staged repaint in progress, or a moved set, means the on-screen table
+            // is stale or about to be redrawn - fold the new offset into a full repaint
+            // rather than scroll a stale screen.
+            if (_painting() || _changed()) { _request_repaint(); return; }
 
             if (down) {
                 // View moved down: shift the band up, paint the new bottom row.
@@ -325,16 +366,16 @@ namespace Botanik { namespace Pages {
 
         void handle_text(char c) override {
             if (c == ' ') {                 // cycle all -> active -> unmasked
-                _mode  = (uint8_t)((_mode + 1) % MODE_COUNT);
-                _top   = 0;
-                _dirty = true;
+                _mode = (uint8_t)((_mode + 1) % MODE_COUNT);
+                _top  = 0;
+                _request_repaint();
             }
         }
 
         void handle_command(Command cmd, uint16_t = 1) override {
             switch (cmd) {
                 case Command::ENTER:
-                    _top = 0; _dirty = true;            // jump to the top (full repaint)
+                    _top = 0; _request_repaint();       // jump to the top (full repaint)
                     break;
                 case Command::UP:
                 case Command::CTRL_P:
@@ -352,25 +393,22 @@ namespace Botanik { namespace Pages {
 
         void focus() override {
             _active = true;
-            _dirty  = true;   // screen was cleared on switch: repaint from scratch
+            _request_repaint();   // screen was cleared on switch: repaint from scratch
         }
 
         void tick(bool active) override {
             _active = active;
             if (!active) return;
-            // Focus / mode set _dirty directly (immediate); a scroll paints itself in
-            // handle_command. Otherwise re-check the alert set once a second - alerts
-            // move slowly, so polling every tick would just burn cycles - and mark a
-            // repaint due only when it actually moved (usually a no-op).
-            if (!_dirty) {
-                uint64_t now = HAL::uptime_ms();
-                if (now - _last_refresh_ms < Config::PAGE_HOT_MS) return;
-                _last_refresh_ms = now;
-                if (_changed()) _dirty = true;
-            }
-            if (!_dirty) return;
-            if (!_terminal.tx_below_cold()) return;   // cooperative: wait for a shallow ring
-            _repaint();                               // clears _dirty
+            // A staged repaint (from focus / mode / a moved set) advances a few rows
+            // per tick under the TX floor; a scroll paints itself in handle_command.
+            if (_painting()) { _paint_step(); return; }
+            // Idle: re-check the alert set once a second - alerts move slowly, so
+            // polling every tick would just burn cycles - and start a repaint only when
+            // it actually moved (usually a no-op).
+            uint64_t now = HAL::uptime_ms();
+            if (now - _last_refresh_ms < Config::PAGE_HOT_MS) return;
+            _last_refresh_ms = now;
+            if (_changed()) _request_repaint();
         }
 
         /** @} */
