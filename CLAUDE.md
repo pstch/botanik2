@@ -92,7 +92,7 @@ Three layers, generic to specific:
 
 - `BotanikFirmware<In, Out>` constructs the generic components (logger, scheduler, terminal, PLC handler, log reader, alert reader, alert model, core pages) and exposes a reference to each on the instance.
 - `GreenhouseMLB41 : BotanikFirmware<In, Out>` declares its site components (site pages, the alert table, the shell-command table, any site logic) as members, built from the base's exposed component references.
-- A site component is often a static site-defined table plus an opaque ctx, registered on a base-owned generic component: the `g_alerts[]` table feeds `AlertModel`, a `ShellCommand[]` table registers on the shell page via `set_commands()`.
+- A site component is often a static site-defined table plus an opaque ctx, registered on a base-owned generic component: the site `g_alarms[]` table feeds `AlarmModel` (which splices the generic platform-health alarms from `libbotanik/alarms/platform.h` into the top of the bitset, so site/PLC alarms fill from bit 0 and platform alarms sit at the high end), a `ShellCommand[]` table registers on the shell page via `set_commands()`.
 - Lifecycle chains up the hierarchy: `GreenhouseMLB41::setup()` calls `BotanikFirmware::setup()` first, then wires its own; same for `loop()`.
 - The Arduino sketch may add one more slim subclass for last-mile customization, chaining `setup()` / `loop()` the same way.
 
@@ -101,7 +101,7 @@ Rules:
 - **One data layout per site, shared by simulator and hardware.** A site's `PlcOutputData_t` / `PlcInputData_t` is used verbatim by both the OPTA firmware and the simulator's mock PLC. Never fork the layout per target; evolve the layout and its `fill_output()` animator together, in the site.
 - **The simulator is a generic harness.** It allocates the shared region locally and drives a `PlcEmulator` with the selected site's `fill_output()`. On OPTA the real coprocessor plays that role and the region comes from `HAL::get_plc_input()/get_plc_output()`; the site code is identical either way.
 - **The site stays portable.** Site code must cross-compile as an Arduino library: the deploy step zips the site dir and generates a `.ino` that statically allocates a `GreenhouseMLB41` and calls its `setup()` / `loop()`. The zip build does not define `TARGET_SIMULATOR`, so simulator-only code (the `fill_output()` animator, the emulator thread) drops out through its `#ifdef TARGET_SIMULATOR` guard. Keep such code guarded rather than in the portable path.
-- **Generic components constrain the site payload.** Templated generics require fields on the site `PlcOutputData_t` (e.g. `AlertReader` / `StatusPage` need a 64-bit `alerts` bitset). The site defines its layout to satisfy those contracts.
+- **Generic components constrain the site payload.** Templated generics require fields on the site `PlcOutputData_t` (e.g. `AlarmReader` / `StatusPage` need a 64-bit `alarms` bitset). The site defines its layout to satisfy those contracts.
 - **Config is site-overridable.** Every `libbotanik_config.h` value defaults from an `#ifndef`-guarded `BOTANIK_<NAME>` macro. A site may ship `sites/<name>/config.h` that `#define`s any of them; CMake includes it via `BOTANIK_SITE_CONFIG`, defined PUBLIC on the `botanik` library so the override is build-wide (libbotanik's own TUs and every consumer see the same value - anything narrower is an ABI mismatch). The `LOG_PLC_*` sizes are the canonical case (they must match the site's PLC program).
 - New site-level work goes in the site, not in `libbotanik` and not in a target's `main`.
 
