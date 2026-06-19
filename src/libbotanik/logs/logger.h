@@ -30,6 +30,17 @@ namespace Botanik { namespace Logs {
         uint32_t    count                   = 0;
     };
 
+    /** @brief Tracks a monotonic loss counter for edge-triggered reporting: the
+     *  first loss reports instantly, later ones only after a per-category holdoff. */
+    struct LossReporter_t {
+        /** @brief Loss total already reported. */
+        uint32_t    reported_count          = 0;
+        /** @brief Time of the last report (ms). */
+        uint32_t    last_report_ms          = 0;
+        /** @brief Whether a first report has been emitted (gates the instant report). */
+        bool        reported                = false;
+    };
+
     /** @class Logger
      *  @brief Rate-limited logging front-end: applies the dual token-bucket limiter,
      *         then fans surviving entries out to the registered writers.
@@ -61,7 +72,9 @@ namespace Botanik { namespace Logs {
         uint32_t        _perTopic_period_ms     = Config::LOG_PERTOPIC_BUCKET_PERIOD_MS;
         /** @brief Wall-clock time of the last per-topic refill. */
         uint32_t        _perTopic_fillTime_ms   = 0;
-        /** @brief One token bucket per log topic. */
+        /** @brief Per-topic token buckets. Sized by LOG_TOPIC_MAX (the full wire
+         *  range) so the footprint stays fixed as topics are added; only the first
+         *  LOG_TOPIC_COUNT entries (the defined topics) are ever filled or scanned. */
         LogBucket_t     _perTopic_buckets[Config::LOG_TOPIC_MAX];
 
         /** @} */
@@ -87,6 +100,18 @@ namespace Botanik { namespace Logs {
 
         /** @} */
 
+        /** @name Loss reporting
+         *  @{ */
+
+        /** @brief Edge-triggered report state for entries dropped at the sinks. */
+        LossReporter_t  _sink_loss;
+        /** @brief Edge-triggered report state for watched console TX-full drops. */
+        LossReporter_t  _tx_loss;
+        /** @brief Optional console serial whose TX-full drops we report (may be null). */
+        Utils::BufferedSerial* _watched_tx     = nullptr;
+
+        /** @} */
+
     public:
         /** @name Lifecycle
          *  @{ */
@@ -103,6 +128,9 @@ namespace Botanik { namespace Logs {
         bool add_writer(LogWriter* writer);
         /** @brief Unregister a previously added writer; returns false if not found */
         bool remove_writer(LogWriter* writer);
+        /** @brief Watch a console serial so its TX-full drops are reported (the
+         *  terminal reserves space, so only non-resuming callers actually drop). */
+        void watch_tx(Utils::BufferedSerial* serial) { _watched_tx = serial; }
 
         /** @} */
 
@@ -141,6 +169,12 @@ namespace Botanik { namespace Logs {
         void _fill_bucket(LogBucket_t* bucket, uint16_t amount, uint16_t burst);
         /** @brief Emit a synthetic warning entry if @p bucket has suppressed entries. */
         void _report_suppressed(LogBucket_t* bucket, PlcIO::LogTopic topic, uint32_t timestamp_ms);
+        /** @brief Edge-triggered loss report: emit a critical "<delta> <what>" entry
+         *  when @p total has grown and the holdoff elapsed (or on the first loss).
+         *  Pushed straight to the writers (bypassing the rate limiter), as
+         *  LOG_CRITICAL so the writers never drop it. */
+        void _report_loss(LossReporter_t& rep, uint32_t total, uint32_t interval_ms,
+                          uint32_t now_ms, const char* what);
         /** @brief Build a timestamped entry from a printf-style message and forward it to push_entry(). */
         void _emit(PlcIO::LogLevel level, PlcIO::LogTopic topic, const char* fmt, va_list ap);
 
