@@ -415,6 +415,10 @@ namespace Botanik { namespace Terminal {
         /** @brief Access the attached subsystem status contexts (members may be null) */
         const SystemContext& context() const { return _ctx; }
 
+        /** @brief The attached alert model, or null when none was supplied (drives
+         *  the bottom alert bar; also read by the shell's "alerts" command). */
+        const Alerts::AlertModel* alerts() const { return _alerts; }
+
         /** @} */
 
     private:

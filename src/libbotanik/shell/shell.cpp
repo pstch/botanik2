@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include "libbotanik_config.h"
+#include "libbotanik/alerts/alerts.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/shell/shell.h"
@@ -52,6 +53,8 @@ namespace Botanik { namespace Shell {
             { "logs on",    &CommandShell::_cmd_logs_on    },
             { "logs off",   &CommandShell::_cmd_logs_off   },
             { "stats",      &CommandShell::_cmd_stats      },
+            { "version",    &CommandShell::_cmd_version    },
+            { "alerts",     &CommandShell::_cmd_alerts     },
             { "breakpoint", &CommandShell::_cmd_breakpoint },
             { "reset",      &CommandShell::_cmd_reset      },
             { "exit",       &CommandShell::_cmd_exit       },
@@ -85,7 +88,7 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_cmd_help() {
-        _println("Built-in: help, clear, logs [on/off], stats, breakpoint, reset, exit");
+        _println("Built-in: help, clear, logs [on/off], stats, version, alerts, breakpoint, reset, exit");
         if (_command_count == 0) return;
         // One line per site command, name left-aligned with its help text, so the
         // table doubles as the command's own documentation.
@@ -170,6 +173,21 @@ namespace Botanik { namespace Shell {
         w = snprintf(out, sizeof(out), "%-29s : %s",
             "Stack depth .................", val);
         if (w > 0) _output.write(out, (size_t)w);
+    }
+
+    void CommandShell::_cmd_version() {
+        char out[80];
+        int n = snprintf(out, sizeof(out), "Botanik %s on %s",
+                         Config::FIRMWARE_VERSION, HAL::hardware_description());
+        if (n > 0) _output.write(out, (size_t)n);
+    }
+
+    void CommandShell::_cmd_alerts() {
+        const Alerts::AlertModel* m = _terminal.alerts();
+        char out[64];
+        int n = snprintf(out, sizeof(out), "alerts: %u active, %u unmasked",
+                         m ? m->active_count() : 0, m ? m->unmasked_count() : 0);
+        if (n > 0) _output.write(out, (size_t)n);
     }
 
     void CommandShell::_unknown(const char* cmd, uint16_t len) {

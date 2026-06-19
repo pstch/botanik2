@@ -1,20 +1,27 @@
 /**
- * @file simulator.cpp
- * @brief Mock greenhouse data source + emulator wiring (see simulator.h).
+ * @file sim.cpp
+ * @brief gh_mlb41 mock greenhouse data source + emulator wiring (see sim.h).
+ *
+ * Simulator-only: the whole body is guarded by TARGET_SIMULATOR, so this file
+ * compiles to nothing in the OPTA / Arduino-library build (no TARGET_SIMULATOR),
+ * where the real coprocessor animates the payload instead.
  *
  * The floats here only shape the mock signal; the payload keeps the PLC integer
- * conventions from simulator.h and never carries a float on the wire.
+ * conventions from payload.h and never carries a float on the wire.
  */
 
-#include "botanik_sim/simulator.h"
+#include "sites/gh_mlb41/sim.h"
+
+#ifdef TARGET_SIMULATOR
+
 #include "libbotanik.h"   // PlcIO::start_emulator_thread, PlcInput/PlcOutput, Logs::Logger
 #include "libbotanik/alerts/alerts.h"   // AlertId bit positions for the mock bitset
 
 #include <cmath>    // pow - PLC timeout dilation
 #include <random>   // drives the rare perturbations that animate the mock data
 
-// base * S^1.5 by the time-dilation factor S; see simulator.h. Cap keeps the
-// link's 32-bit elapsed compares rollover-safe.
+// base * S^1.5 by the time-dilation factor S; see sim.h. Cap keeps the link's
+// 32-bit elapsed compares rollover-safe.
 uint32_t plc_dilated_timeout(uint32_t base_ms) {
     uint32_t s = Botanik::HAL::_time_scale();
     if (s <= 1) return base_ms;
@@ -160,7 +167,7 @@ static void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
     o->sunset_min  = (uint16_t)sunset;
 
     // Alerts: synthesize the PLC's raw bitset from the mock state above so the
-    // alert bar/table have live data. The PLC owns debouncing on real hardware; here
+    // ribbon/table have live data. The PLC owns debouncing on real hardware; here
     // the conditions just track the animated signals.
     using namespace Botanik::Alerts;
     uint64_t alerts = 0;
@@ -178,7 +185,7 @@ static void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
 }
 
 // Spawn the emulator thread bound to the shared PLC memory, with the greenhouse
-// fill hook above as its payload animator (see simulator.h).
+// fill hook above as its payload animator (see sim.h).
 void start_greenhouse_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,
                                Botanik::PlcIO::PlcOutput<PlcOutputData_t>* shared_out,
                                Botanik::Logs::Logger*                      logger) {
@@ -195,10 +202,4 @@ void start_greenhouse_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   share
     Botanik::Scheduler::make_thread_realtime(Botanik::Config::SIM_MAIN_CPU_CORE, logger);
 }
 
-// Graceful-shutdown plumbing for the simulator process (see simulator.h).
-volatile sig_atomic_t botanik_running = 1;
-volatile sig_atomic_t botanik_shutdown_signo = 0;
-extern "C" void botanik_sim_shutdown(int signo) {
-    botanik_shutdown_signo = signo;
-    botanik_running = 0;
-}
+#endif // TARGET_SIMULATOR

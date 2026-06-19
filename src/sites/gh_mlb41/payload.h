@@ -1,12 +1,12 @@
-#ifndef BOTANIK_SIM_SIMULATOR_H
-#define BOTANIK_SIM_SIMULATOR_H
+#ifndef SITES_GH_MLB41_PAYLOAD_H
+#define SITES_GH_MLB41_PAYLOAD_H
 
 /**
- * @file simulator.h
- * @brief Site-specific PLC payload layout and the simulator's mock PLC coprocessor.
+ * @file payload.h
+ * @brief gh_mlb41 site PLC payload layout, shared verbatim by the simulator's mock
+ *        PLC and the OPTA firmware.
  *
- * On OPTA this plumbing lives in the .ino sketch and PlcOutputData_t would mirror
- * the PLC IDE's generated type, verified with:
+ * On OPTA PlcOutputData_t mirrors the PLC IDE's generated type, verified with:
  *   static_assert(sizeof(PLCSharedVarsInput_t)   == sizeof(PlcIO::PlcInput<PlcInputData_t>));
  *   static_assert(alignof(PLCSharedVarsOutput_t) == alignof(PlcIO::PlcOutput<PlcOutputData_t>));
  * Values follow PLC-style integer conventions (no floats on the wire): voltages
@@ -14,15 +14,7 @@
  * actuator levels in percent, and discrete states packed as enums / flags.
  */
 
-#include <csignal>   // sig_atomic_t - async-signal-safe shutdown flag
 #include <cstdint>
-
-// Forward declarations suffice here (start_greenhouse_emulator() only takes
-// pointers); full definitions come in via simulator.cpp.
-namespace Botanik {
-    namespace PlcIO { template<typename> struct PlcInput; template<typename> struct PlcOutput; }
-    namespace Logs  { class Logger; }
-}
 
 /** @name PLC payload
  *  @{ */
@@ -117,49 +109,4 @@ static_assert(sizeof(PlcOutputData_t) % 4 == 0, "PlcOutputData_t must be 4-byte 
 
 /** @} */
 
-/** @name Emulator
- *  @{ */
-
-/**
- * @brief Grow a base PLC link timeout (ms) by time-dilation factor S as base *
- * S^1.5, so jitter (amplified ~linearly in S by a high BOTANIK_TIME_SCALE) can't
- * false-trip the link; real-time budget then scales with sqrt(S). Clamped below
- * 2^31 to keep the 32-bit elapsed compares rollover-safe. No-op when S == 1.
- *
- * Called from the host handler (main.cpp) and the emulator thread (the forward
- * declaration in plcio/emulator.h resolves here).
- */
-uint32_t plc_dilated_timeout(uint32_t base_ms);
-
-/**
- * @brief Start the simulator's mock PLC coprocessor: spawn the emulator thread
- * bound to the shared PLC memory, animating the greenhouse payload (see
- * simulator.cpp). On OPTA the real coprocessor plays this role.
- *
- * Must be called before the process is locked into realtime (see the call site).
- */
-void start_greenhouse_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,
-                               Botanik::PlcIO::PlcOutput<PlcOutputData_t>* shared_out,
-                               Botanik::Logs::Logger*                      logger);
-
-/** @} */
-
-/** @name Process lifecycle
- *  @{ */
-
-/** @brief Main-loop run flag: cleared by botanik_sim_shutdown() so the loop breaks
- *  and main() returns through atexit (terminal restore) rather than being killed
- *  mid-loop. sig_atomic_t is the async-signal-safe flag type. */
-extern volatile sig_atomic_t botanik_running;
-
-/** @brief Signal that triggered the shutdown (0 = none), so main() can report the
- *  conventional 128 + signo exit status. */
-extern volatile sig_atomic_t botanik_shutdown_signo;
-
-/** @brief SIGINT/SIGTERM handler: records the signal and clears botanik_running.
- *  extern "C" so it can be installed with std::signal. */
-extern "C" void botanik_sim_shutdown(int);
-
-/** @} */
-
-#endif // BOTANIK_SIM_SIMULATOR_H
+#endif // SITES_GH_MLB41_PAYLOAD_H

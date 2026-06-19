@@ -18,7 +18,7 @@
 #include "doctest.h"
 
 #include "libbotanik.h"            // all library types (pages, terminal, editor, plcio)
-#include "botanik_sim/simulator.h" // site payloads: PlcInputData_t / PlcOutputData_t
+#include "sites/gh_mlb41/payload.h" // site payloads: PlcInputData_t / PlcOutputData_t
 
 // Concrete instantiations of the templated pages/PLC structs, matching what the
 // simulator actually builds (see botanik_sim/main.cpp).

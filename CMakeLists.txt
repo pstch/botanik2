@@ -130,9 +130,13 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         message(STATUS "Sanitizers enabled: ${BOTANIK_SANITIZE}")
     endif()
 
+    # The selected site (payload + pages + alert table + mock PLC) compiles into
+    # the host application, not the library: it stays out of the OPTA `botanik`
+    # archive. sim.cpp drops out on non-SIMULATOR builds via its own guard.
+    file(GLOB BOTANIK_SITE_SOURCES "src/sites/gh_mlb41/*.cpp")
     add_executable(botanik_sim
         "src/botanik_sim/main.cpp"
-        "src/botanik_sim/simulator.cpp")
+        ${BOTANIK_SITE_SOURCES})
     target_link_libraries(botanik_sim botanik)
 
     # Link-time optimization for Release only (cross-TU inlining on top of -O3).
