@@ -18,7 +18,7 @@ using Botanik::Utils::BufferedSerial;
 namespace {
     struct Pipe {
         int fds[2];
-        Pipe()  { ::pipe(fds); }
+        Pipe()  { REQUIRE(::pipe(fds) == 0); }
         ~Pipe() { ::close(fds[0]); ::close(fds[1]); }
         int r() const { return fds[0]; }
         int w() const { return fds[1]; }

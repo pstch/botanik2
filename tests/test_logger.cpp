@@ -196,7 +196,7 @@ TEST_CASE("rate limit: the global bucket caps total throughput across topics") {
     Logs::Logger lg;
     RecordingWriter w;
     lg.add_writer(&w);
-    const int burst = Config::LOG_GLOBAL_BUCKET_BURST;   // 20
+    const int burst = Config::LOG_GLOBAL_BUCKET_BURST;
     LogEntry_t a = info_on(PlcIO::PLC_IO);
     LogEntry_t b = info_on(PlcIO::BOOT);
     for (int i = 0; i < 15; ++i) lg.push_entry(a);       // global 20->5
@@ -220,7 +220,7 @@ TEST_CASE("rate limit: an out-of-range topic is treated as NONE (no OOB bucket a
     RecordingWriter w;
     lg.add_writer(&w);
     const int burst = Config::LOG_GLOBAL_BUCKET_BURST;
-    LogEntry_t e = info_on((PlcIO::LogTopic)200);        // >= LOG_TOPIC_COUNT
+    LogEntry_t e = info_on((PlcIO::LogTopic)Config::LOG_TOPIC_MAX); // past every defined topic
     for (int i = 0; i < burst + 5; ++i) lg.push_entry(e);
     CHECK(w.pushes == burst);
 }
