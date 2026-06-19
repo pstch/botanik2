@@ -70,6 +70,11 @@ namespace Botanik { namespace Pages {
          *  it from the top. */
         static constexpr uint16_t PAINT_IDLE = 0xFFFF;
         uint16_t                  _paint_i  = 0;
+        /** @brief Data rows that held content in the last frame. When a repaint finds
+         *  fewer, the now-vacated rows (and the bottom rule) are cleared up front so
+         *  the stale rows don't linger through the paced repaint. Reset on focus (the
+         *  screen was cleared on switch). */
+        uint16_t                  _painted_data = 0;
         /** @brief Uptime of the last once-a-second alert-set re-check (see tick()). */
         uint64_t                  _last_refresh_ms = 0;
         /** @brief Merged raw bitset at the last repaint. Every displayed field (active
@@ -361,6 +366,13 @@ namespace Botanik { namespace Pages {
                 // during or after staging then reads as _changed() and re-triggers,
                 // rather than being masked by a completion-time snapshot of a newer set.
                 _snapshot();
+                // If the set shrank, clear the rows that held data and are now empty
+                // (and the bottom rule) before the paced repaint, so they do not linger
+                // as stale content while the redraw walks down to them.
+                uint16_t content = (_nvis < window) ? _nvis : window;
+                if (content < _painted_data)
+                    _terminal.clear_rows((uint16_t)(DATA_TOP + content), _brule_row());
+                _painted_data = content;
             }
 
             uint16_t budget = Config::TX_COLD_FIELDS_PER_TICK;
@@ -468,7 +480,8 @@ namespace Botanik { namespace Pages {
 
         void focus() override {
             _active = true;
-            _request_repaint();   // screen was cleared on switch: repaint from scratch
+            _painted_data = 0;    // switch_to cleared the screen; nothing painted yet
+            _request_repaint();   // repaint from scratch
         }
 
         void tick(bool active) override {
