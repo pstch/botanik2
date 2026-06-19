@@ -1,6 +1,9 @@
 # Site Extraction Plan
 
-Status: **not started** - planning. This plan stages the migration described in
+Status: **stage 1 done** - the gh_mlb41 site is extracted into `src/sites/gh_mlb41/`
+and `botanik_sim` is now a generic harness (commit `070f55f`). Stages 2-4 pending;
+stage 2 (the `BotanikFirmware` base) still needs the open decisions below resolved.
+This plan stages the migration described in
 the *Site-specific code* section of `CLAUDE.md`: promote `BotanikFirmware` into
 `libbotanik` as a generic base, extract the `gh_mlb41` site out of `botanik_sim`
 into its own unit, and converge the `botanik_fw` stub onto the same site. The
@@ -63,7 +66,12 @@ only exercises it once a TU instantiates it (stage 2).
 
 ---
 
-## Stage 0 - baseline  [ ]
+## Stage 0 - baseline  [x] done
+
+Captured: SIMULATOR builds clean; the pyte suite fails 5 screens (home boot/delay/
+reset, logs_marks, status_after_delay) and passes 12, purely from sandbox
+divergence (`sched_setscheduler`/`mlockall` denied, volatile mock values drift).
+That exact pass/fail split is the baseline stages 1-2 must preserve.
 
 Capture the pre-refactor invariant so later stages have something to diff against.
 
@@ -76,7 +84,28 @@ No code change.
 
 ---
 
-## Stage 1 - extract the site (move only, old `main()` still drives it)  [ ]
+## Stage 1 - extract the site (move only, old `main()` still drives it)  [x] done
+
+**Implemented (commit `070f55f`):** created `src/sites/gh_mlb41/` with `payload.h`
+(was `simulator.h`), `pages.h` (the two Greenhouse pages + display helpers, moved
+out of `main.cpp`), `alerts.{h,cpp}` (the `g_alerts[]` table, now extern), and
+`sim.{h,cpp}` (was `simulator.cpp`, body guarded by `TARGET_SIMULATOR`).
+`botanik_sim/main.cpp` is now a harness: it includes the site, owns the
+process-lifecycle flags/handler, and drives the loop. CMake globs
+`src/sites/gh_mlb41/*.cpp` into `botanik_sim`; `test_sizes.cpp` repoints to
+`payload.h`. Builds clean incl. the `-Werror` strict gate; size tests pass; the
+pyte render matches the stage-0 baseline (same 5 env-divergent failures, same 12
+pass), confirming the move is render-neutral.
+
+**Deviation from plan:** `version` and `alerts` were *not* moved into a site
+`commands.cpp`. They're site-independent (Config/HAL and the generic AlertModel),
+so they became shell **built-ins** (`_cmd_version` / `_cmd_alerts`); `alerts` reads
+the model via a new `AnsiTerminal::alerts()` accessor. This frees the single
+`set_commands()` table slot for genuinely site-specific commands later. The site
+has no commands of its own yet, so `commands.{h,cpp}` were dropped.
+
+Original plan for reference:
+
 
 Create `src/sites/gh_mlb41/` and move the site definitions out of `botanik_sim`
 verbatim. The inline `main()` keeps wiring everything; only the `#include`s and
