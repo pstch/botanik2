@@ -131,8 +131,9 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t RULE_ROW   = 3;
         static constexpr uint16_t DATA_TOP   = 4;
         /** @brief Screen column where the state cell's text starts, tracking the
-         *  layout _draw_grid_row() emits: margin + "| " + CODE(inner) + "| ". The
-         *  reverse-video "ON" badge is overdrawn here on the otherwise-normal row. */
+         *  layout _draw_grid_row() emits: margin + "| " + CODE(inner) + "| ". The "ON"
+         *  badge starts here; _draw_data_row() splits the row write at this column so
+         *  only those two chars are reverse-video (no flicker-prone overdraw). */
         static constexpr uint16_t STATE_TEXT_COL = MARGIN + 2 + (CODE_W - 1) + 2;
         /** @} */
 
@@ -365,6 +366,10 @@ namespace Botanik { namespace Pages {
             uint16_t r = _terminal.rows();
             return (r >= (uint16_t)(DATA_TOP + 5)) ? (uint16_t)(r - DATA_TOP - 4) : 0;
         }
+        /** @brief Largest scroll offset that still fills the window (0 if all fit). */
+        uint16_t _max_top(uint16_t window) const {
+            return (_nvis > window) ? (uint16_t)(_nvis - window) : 0;
+        }
         /** @brief Entries scrolled off the top / bottom of the visible window. */
         uint16_t _hidden_above() const { return _top; }
         uint16_t _hidden_below(uint16_t window) const {
@@ -417,7 +422,7 @@ namespace Botanik { namespace Pages {
          *  would be wrong. */
         void _fold_pending_and_repaint() {
             uint16_t window = _window();
-            uint16_t maxtop = (_nvis > window) ? (uint16_t)(_nvis - window) : 0;
+            uint16_t maxtop = _max_top(window);
             int32_t  d = (int32_t)_top + _scroll_pending;
             _top = (uint16_t)(d < 0 ? 0 : (d > (int32_t)maxtop ? (int32_t)maxtop : d));
             _request_repaint();   // clears _scroll_pending
@@ -432,7 +437,7 @@ namespace Botanik { namespace Pages {
             uint16_t window = _window();
             if (window == 0) { _scroll_pending = 0; return; }
             uint16_t data_bottom = _data_bottom();
-            uint16_t maxtop = (_nvis > window) ? (uint16_t)(_nvis - window) : 0;
+            uint16_t maxtop = _max_top(window);
             while (_scroll_pending != 0 && _terminal.tx_below_cold()) {
                 bool     down    = _scroll_pending > 0;
                 uint16_t old_top = _top;
@@ -490,7 +495,7 @@ namespace Botanik { namespace Pages {
 
             if (_paint_i == 0) {
                 _collect();
-                uint16_t maxtop = (_nvis > window) ? (uint16_t)(_nvis - window) : 0;
+                uint16_t maxtop = _max_top(window);
                 if (_top > maxtop) _top = maxtop;
                 // Snapshot the signature of the set being painted up front: a change
                 // during or after staging then reads as _changed() and re-triggers,
@@ -523,7 +528,7 @@ namespace Botanik { namespace Pages {
         void _scroll(bool down) {
             uint16_t window = _window();
             if (window == 0) return;
-            uint16_t maxtop = (_nvis > window) ? (uint16_t)(_nvis - window) : 0;
+            uint16_t maxtop = _max_top(window);
             // Where the view will sit after this key: on-screen top + already-pending
             // + this step, clamped to the set.
             int32_t desired = (int32_t)_top + _scroll_pending + (down ? 1 : -1);
@@ -543,7 +548,7 @@ namespace Botanik { namespace Pages {
         void _page_scroll(bool down) {
             uint16_t window = _window();
             if (window == 0) return;
-            uint16_t maxtop = (_nvis > window) ? (uint16_t)(_nvis - window) : 0;
+            uint16_t maxtop = _max_top(window);
             int32_t  cur = (int32_t)_top + _scroll_pending;   // where the user has keyed to
             int32_t  nt  = down ? (cur + window) : (cur - window);
             if (nt < 0) nt = 0; else if (nt > (int32_t)maxtop) nt = (int32_t)maxtop;
