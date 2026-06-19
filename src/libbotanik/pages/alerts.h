@@ -8,25 +8,30 @@
  * Layout (row 0 is the terminal status bar):
  *   row 1            blank top margin
  *   row 2            table header  (| CODE | ON | LAST EVENT | DESCRIPTION |)
- *   row 3            header rule   (+------+----+------------+ ... +)
- *   rows 4..N-3      data rows (scrolled a line at a time via scroll_region)
- *   row N-2          blank line below the table
- *   row N-1          footer (mode, counts, key hints)
+ *   row 3            top rule (+----+...+); its corners cap to '^' when more above
+ *   rows 4..N-5      data rows
+ *   row N-4          bottom rule; corners cap to 'v' when more below
+ *   row N-3          blank row above the legend
+ *   row N-2          footer legend: reverse-video mode badge + counts, SPACE hint
+ *   row N-1          blank row below the legend
  *
  * Rows are ordered by most-recent onset (started_ms), so the alert that fired most
- * recently is at the top and never-active alerts sit at the bottom. SPACE cycles
+ * recently is at the top and never-active alerts sit at the bottom. The scroll
+ * position is shown in the table itself: the top / bottom rules cap their column
+ * marks with '^' / 'v' when alerts are hidden above / below the window. SPACE cycles
  * the filter: all defined alerts -> active only -> active and not masked (the
- * terminal alert bar's set). The grid is plain ASCII: '|' column rules and a
- * '+'/'-' header rule, with a two-column side margin. UP/DOWN and Ctrl+P/Ctrl+N
- * scroll a line at a time (one scroll_region() shift + one painted row). The page
- * re-checks the alert set once a second and repaints only when it moved, the mode
- * cycles, or on focus; a full repaint is paced a few rows per tick under the shared
- * TX floor, so it interleaves with the status/alert bars instead of flooding TX.
+ * terminal alert bar's set). The grid is plain ASCII, two-column side margin. UP/DOWN
+ * (and Ctrl+P/Ctrl+N) scroll a line at a time (one scroll_region() shift + one painted
+ * row); PAGE_UP / PAGE_DOWN jump a window and ENTER returns to the top, both via a full
+ * repaint. The page re-checks the alert set once a second and repaints only when it
+ * moved, the mode cycles, or on focus; a full repaint is paced a few rows per tick
+ * under the shared TX floor, so it interleaves with the status/alert bars.
  */
 
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 
 #include "libbotanik_config.h"
 #include "libbotanik/alerts/alerts.h"
@@ -159,16 +164,19 @@ namespace Botanik { namespace Pages {
             _terminal.clear_to_eol();
         }
 
-        /** @brief Draw the header rule: "+----+--+...+" matching the column widths. */
-        void _draw_rule(uint16_t row) {
+        /** @brief Draw a horizontal rule "+----+--+...+" matching the column widths.
+         *  @p sep is the character at the column-rule positions (the corners and
+         *  separators): '+' for a plain rule, or '^'/'v' to cap the table edge with
+         *  scroll arrows when alerts are hidden above / below. */
+        void _draw_rule(uint16_t row, char sep = '+') {
             uint16_t w[4] = { CODE_W, STATE_W, EVENT_W, _desc_w() };
             char     line[160];
             uint16_t n = 0;
             line[n++] = ' '; line[n++] = ' ';                // left margin
-            if (n < sizeof(line) - 1) line[n++] = '+';
+            if (n < sizeof(line) - 1) line[n++] = sep;
             for (uint8_t i = 0; i < 4; i++) {
                 for (uint16_t k = 0; k < w[i] && n < sizeof(line) - 1; k++) line[n++] = '-';
-                if (n < sizeof(line) - 1) line[n++] = '+';
+                if (n < sizeof(line) - 1) line[n++] = sep;
             }
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
@@ -183,19 +191,42 @@ namespace Botanik { namespace Pages {
             _terminal.clear_to_eol();
         }
 
-        /** @brief Draw the footer line: mode, counts, and key hints. */
+        /** @brief Draw the footer legend: a reverse-video mode badge and counts on the
+         *  left, the SPACE-cycles-mode hint on the right. Scrolling is intuitive (UP/DN)
+         *  so it is not spelled out; the off-screen counts live in the flanking overflow
+         *  hints instead. */
         void _draw_footer(uint16_t row, uint8_t nvis, uint8_t active) {
-            char buf[96];
-            uint8_t next = (uint8_t)((_mode + 1) % MODE_COUNT);
-            int n = snprintf(buf, sizeof(buf),
-                             "  [%s]  %u shown / %u active   SPACE: %s   UP/DN: scroll",
-                             _mode_label(_mode), (unsigned)nvis, (unsigned)active,
-                             _mode_label(next));
-            if (n < 0) n = 0;
+            const char* mode = _mode_label(_mode);
+            const char* next = _mode_label((uint8_t)((_mode + 1) % MODE_COUNT));
+
+            char left[64];
+            int ln = snprintf(left, sizeof(left), "  [%s]   %u listed   %u active",
+                              mode, (unsigned)nvis, (unsigned)active);
+            if (ln < 0) ln = 0;
+            uint16_t llen = (uint16_t)std::min((size_t)ln, sizeof(left) - 1);
+
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
-            _terminal.write_chars(buf, (uint16_t)std::min((size_t)n, sizeof(buf) - 1));
+            _terminal.write_chars(left, llen);
             _terminal.clear_to_eol();
+
+            // Right-aligned "SPACE: <next mode>" hint, when it clears the left text.
+            char right[24];
+            int rn = snprintf(right, sizeof(right), "SPACE: %s", next);
+            if (rn < 0) rn = 0;
+            uint16_t cols = _terminal.cols();
+            uint16_t rcol = (cols > (uint16_t)(rn + 2)) ? (uint16_t)(cols - rn - 2) : 0;
+            if (rcol > llen + 2) {
+                _terminal.move_to({row, rcol});
+                _terminal.write_chars(right, (uint16_t)rn);
+            }
+
+            // Overdraw the mode label (between the brackets at col 3) reverse-video, so
+            // the active filter reads as a badge like the table's "ON" cell.
+            _terminal.move_to({row, 3});
+            _terminal.set_inverted(true);
+            _terminal.write_chars(mode, (uint16_t)strlen(mode));
+            _terminal.set_inverted(false);
         }
 
         /** @brief Fill _vis/_nvis with the indices shown in the current mode, ordered
@@ -236,15 +267,30 @@ namespace Botanik { namespace Pages {
         }
 
         /** @name Window geometry
-         *  Data rows occupy [DATA_TOP .. _data_bottom()]; one blank line sits below
-         *  the table, then the footer on the last content row.
+         *  Bottom-anchored on the content area (rows 1..rows()-1, above the terminal
+         *  alert bar). From the bottom up: free row, legend, free row, bottom rule,
+         *  then the data band up to the top rule. The two free rows give the legend
+         *  breathing room; the rules carry the scroll arrows (see _paint_element()).
          *  @{ */
-        uint16_t _footer_row()  const { return (uint16_t)(_terminal.rows() - 1); }
-        uint16_t _data_bottom() const { return (uint16_t)(_footer_row() - 2); }  // blank line above footer
+        uint16_t _legend_row()  const { return (uint16_t)(_terminal.rows() - 2); }  // free row below at rows()-1
+        uint16_t _brule_row()   const { return (uint16_t)(_terminal.rows() - 4); }  // bottom rule (free row above legend at rows()-3)
+        uint16_t _data_bottom() const { return (uint16_t)(_terminal.rows() - 5); }
         /** @brief Number of data rows that fit, or 0 if the screen is too short. */
         uint16_t _window() const {
-            uint16_t fr = _footer_row();
-            return (fr > (uint16_t)(DATA_TOP + 1)) ? (uint16_t)(fr - 1 - DATA_TOP) : 0;
+            uint16_t r = _terminal.rows();
+            return (r >= (uint16_t)(DATA_TOP + 5)) ? (uint16_t)(r - DATA_TOP - 4) : 0;
+        }
+        /** @brief Entries scrolled off the top / bottom of the visible window. */
+        uint16_t _hidden_above() const { return _top; }
+        uint16_t _hidden_below(uint16_t window) const {
+            uint16_t end = (uint16_t)(_top + window);
+            return (_nvis > end) ? (uint16_t)(_nvis - end) : 0;
+        }
+        /** @brief Redraw the top/bottom rules, capping them with '^'/'v' scroll arrows
+         *  when alerts are hidden above / below the window (plain '+' otherwise). */
+        void _draw_rules(uint16_t window) {
+            _draw_rule(RULE_ROW,     _hidden_above()       ? '^' : '+');
+            _draw_rule(_brule_row(), _hidden_below(window) ? 'v' : '+');
         }
         /** @} */
 
@@ -274,19 +320,25 @@ namespace Botanik { namespace Pages {
         bool _painting() const { return _paint_i != PAINT_IDLE; }
 
         /** @brief Paint one table element by its index in the staged sequence: 0 = top
-         *  margin, 1 = header, 2 = rule, [3, 3+window) = data rows, then the blank line
-         *  and the footer. Element order/count must match _paint_step()'s total. */
-        void _paint_element(uint16_t e, uint16_t window, uint16_t footer_row) {
+         *  margin, 1 = header, 2 = top rule, [3, 3+window) = data rows, then the bottom
+         *  rule, the blank row above the legend, the legend, and the blank row below it.
+         *  Element order/count must match _paint_step()'s total (window + 7). */
+        void _paint_element(uint16_t e, uint16_t window) {
+            uint16_t legend = _legend_row();
             if      (e == 0)               _clear_row(1);                       // top margin
             else if (e == 1)               _draw_grid_row(HEADER_ROW, "CODE", "ON",
                                                           "LAST EVENT", "DESCRIPTION");
-            else if (e == 2)               _draw_rule(RULE_ROW);
+            else if (e == 2)               _draw_rule(RULE_ROW, _hidden_above() ? '^' : '+');
             else if (e < (uint16_t)(3 + window))
                 _draw_data_row((uint16_t)(DATA_TOP + (e - 3)), (uint16_t)(_top + (e - 3)));
             else if (e == (uint16_t)(3 + window))
-                _clear_row((uint16_t)(footer_row - 1));                         // blank line below table
+                _draw_rule(_brule_row(), _hidden_below(window) ? 'v' : '+');     // bottom rule
+            else if (e == (uint16_t)(4 + window))
+                _clear_row((uint16_t)(legend - 1));                             // free row above legend
+            else if (e == (uint16_t)(5 + window))
+                _draw_footer(legend, _nvis, _model ? _model->active_count() : 0);
             else
-                _draw_footer(footer_row, _nvis, _model ? _model->active_count() : 0);
+                _clear_row((uint16_t)(legend + 1));                             // free row below legend
         }
 
         /** @brief Advance the staged repaint: draw at most TX_COLD_FIELDS_PER_TICK
@@ -298,8 +350,8 @@ namespace Botanik { namespace Pages {
         void _paint_step() {
             uint16_t window = _window();
             if (window == 0) { _snapshot(); _paint_i = PAINT_IDLE; return; }
-            uint16_t footer_row = _footer_row();
-            uint16_t total      = (uint16_t)(window + 5);   // margin+header+rule+data+blank+footer
+            // margin + header + top rule + data + bottom rule + free + legend + free
+            uint16_t total = (uint16_t)(window + 7);
 
             if (_paint_i == 0) {
                 _collect();
@@ -313,7 +365,7 @@ namespace Botanik { namespace Pages {
 
             uint16_t budget = Config::TX_COLD_FIELDS_PER_TICK;
             while (_paint_i < total && budget > 0 && _terminal.tx_below_cold()) {
-                _paint_element(_paint_i, window, footer_row);
+                _paint_element(_paint_i, window);
                 _paint_i++;
                 budget--;
             }
@@ -352,6 +404,23 @@ namespace Botanik { namespace Pages {
                 _terminal.scroll_region(DATA_TOP, data_bottom, /*up=*/false, 1);
                 _draw_data_row(DATA_TOP, _top);
             }
+            // The hidden-above/below state may have flipped, so refresh the rules'
+            // scroll arrows (they sit outside the scrolled band, untouched by scroll_region).
+            _draw_rules(window);
+        }
+
+        /** @brief Jump the view by a full page (window height) and repaint. A page is a
+         *  large move, so it goes through the paced full repaint rather than a burst of
+         *  one-row scroll_region() shifts. */
+        void _page_scroll(bool down) {
+            uint16_t window = _window();
+            if (window == 0) return;
+            _collect();
+            uint16_t maxtop = (_nvis > window) ? (uint16_t)(_nvis - window) : 0;
+            uint16_t old_top = _top;
+            if (down) _top = (uint16_t)((_top + window < maxtop) ? (_top + window) : maxtop);
+            else      _top = (_top > window) ? (uint16_t)(_top - window) : 0;
+            if (_top != old_top) _request_repaint();
         }
 
     public:
@@ -384,6 +453,12 @@ namespace Botanik { namespace Pages {
                 case Command::DOWN:
                 case Command::CTRL_N:
                     _scroll(/*down=*/true);
+                    break;
+                case Command::PAGE_UP:
+                    _page_scroll(/*down=*/false);
+                    break;
+                case Command::PAGE_DOWN:
+                    _page_scroll(/*down=*/true);
                     break;
                 default: break;
             }
