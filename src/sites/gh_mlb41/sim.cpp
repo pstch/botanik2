@@ -60,7 +60,7 @@ bool chance(float p) { return frand() < p; }
 /** @brief Mock-PLC alarm bit for a table code, or 0 if the code is undefined. Resolves
  *  through g_alarms so the mock bitset uses the same bit layout as the firmware. */
 static uint64_t abit(const char* code) {
-    int i = Botanik::Alarms::alarm_index(g_alarms, Botanik::Alarms::ALARM_BITS, code);
+    int i = Botanik::Alarms::alarm_index(g_alarms, g_alarm_count, code);
     return i >= 0 ? Botanik::Alarms::alarm_bit((uint8_t)i) : 0;
 }
 

@@ -7,16 +7,16 @@
  *        raises from the scheduler metrics (reset, CPU load/jitter, stack, overrun).
  *
  * Site-independent, so they live here rather than in each site's table. AlarmModel
- * splices them into the *top* of the 64-bit bitset, away from the site/PLC alarms
- * that fill from bit 0, so the locally-set platform bits and the PLC-reported site
- * bits can never collide.
+ * appends them at [N..N+M) (after the site's N PLC alarms), in a namespace disjoint
+ * from the PLC-reported site bits, so locally-set platform bits and PLC site bits
+ * can never collide.
  */
 
 #include "libbotanik/alarms/alarms.h"
 
 namespace Botanik { namespace Alarms {
 
-    /** @brief The generic platform-health alarms, by code, in high-bit order. */
+    /** @brief The generic platform-health alarms, by code (appended after site alarms). */
     extern const AlarmCondition PLATFORM_ALARMS[];
     /** @brief Number of entries in PLATFORM_ALARMS. */
     extern const uint8_t        PLATFORM_ALARM_COUNT;

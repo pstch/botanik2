@@ -128,6 +128,8 @@ namespace Botanik { namespace Logs {
         bool add_writer(LogWriter* writer);
         /** @brief Unregister a previously added writer; returns false if not found */
         bool remove_writer(LogWriter* writer);
+        /** @brief True if at least one output writer is registered (POST check). */
+        bool has_writers() const { return _writerCount > 0; }
         /** @brief Watch a console serial so its TX-full drops are reported (the
          *  terminal reserves space, so only non-resuming callers actually drop). */
         void watch_tx(Utils::BufferedSerial* serial) { _watched_tx = serial; }

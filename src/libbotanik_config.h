@@ -135,6 +135,14 @@ namespace Botanik { namespace Config {
 #  define BOTANIK_ALARM_STACK_PCT 80
 #endif
     BOTANIK_CFG(uint8_t, ALARM_STACK_PCT);
+    /** @brief How long a momentary-event alarm (CPU_XRUN, RX_TORN) stays held active
+     *  after its counter ticks. HealthMonitor latches this window in the source (a
+     *  proper held state, not a one-beat pulse), so the alarm stays visible without
+     *  depending on the table's latch_s. */
+#ifndef BOTANIK_ALARM_EVENT_HOLD_MS
+#  define BOTANIK_ALARM_EVENT_HOLD_MS 300000
+#endif
+    BOTANIK_CFG(uint32_t, ALARM_EVENT_HOLD_MS);
 
     /** @brief Stack high-water mark is scanned (and the free stack re-painted) once
      *  per slice rather than every tick. One slice per metric bucket spans the whole
@@ -215,11 +223,20 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, PLC_TIMEOUT_MS);
 
-    /** @brief Time without any PLC activity before we stop kicking the hardware watchdog */
+    /** @brief Time without any PLC activity before the link is considered faulted */
 #ifndef BOTANIK_PLC_WATCHDOG_MS
 #  define BOTANIK_PLC_WATCHDOG_MS 5000
 #endif
     BOTANIK_CFG(uint32_t, PLC_WATCHDOG_MS);
+
+    /** @brief Grace period after a PLC fault during which the HW watchdog is still
+     *  kicked: a transient fault rides through (logged + alarmed), but a fault that
+     *  persists this long stops the kick, resetting both cores (the deliberate
+     *  recovery that gives the PLC image a fresh start). Owned by HealthMonitor. */
+#ifndef BOTANIK_PLC_FAULT_GRACE_MS
+#  define BOTANIK_PLC_FAULT_GRACE_MS 15000
+#endif
+    BOTANIK_CFG(uint32_t, PLC_FAULT_GRACE_MS);
 
     /** @} */
 

@@ -13,7 +13,7 @@
 // Both are omitted on most rows (so they default to 0). masked_by is 0 for now.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-Botanik::Alarms::AlarmCondition g_alarms[Botanik::Alarms::ALARM_BITS] = {
+const Botanik::Alarms::AlarmCondition g_alarms[] = {
     // code        description                                      mask  logOn logOff mqttOn mqttOff
     {"AC_GRID",  "Grid AC out-of-spec/offline",                     0,    2,    2,     15,    15},
     {"DC_PS1",   "DC PS1 volts too low",                            0,    2,    2,     15,    15},
@@ -39,7 +39,8 @@ Botanik::Alarms::AlarmCondition g_alarms[Botanik::Alarms::ALARM_BITS] = {
     {"LOG_FLD",  "Logs flooding",                                   0,    2,    2,     -1,    -1},
     {"WH_STORM", "Current storm conditions",                        0,    2,    5,     15,    30},
     // Generic platform-health alarms (SYS_RST, CPU_*, STACK) are NOT here: they live
-    // in the base table (libbotanik/alarms/platform.h) and AlarmModel splices them
-    // into the top of the bitset. This table is site alarms only.
+    // in the base table (libbotanik/alarms/platform.h) and AlarmModel appends them
+    // after these site alarms. This table is site/PLC alarms only.
 };
+const uint8_t g_alarm_count = (uint8_t)(sizeof(g_alarms) / sizeof(g_alarms[0]));
 #pragma GCC diagnostic pop

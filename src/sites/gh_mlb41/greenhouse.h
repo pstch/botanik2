@@ -32,7 +32,7 @@ public:
                     Botanik::PlcIO::PlcOutput<PlcOutputData_t>* shared_out,
                     uint32_t console_baud, uint16_t cols = 80, uint16_t rows = 24)
         : Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t>(
-              shared_in, shared_out, g_alarms, Botanik::Alarms::ALARM_BITS,
+              shared_in, shared_out, g_alarms, g_alarm_count,
               console_baud, cols, rows),
           _home_page(terminal(), plc_output_data()),
           _status_page(terminal(), plc_output_data())
