@@ -62,12 +62,17 @@ namespace Botanik { namespace Alerts {
     /** @brief 1 << id as a 64-bit mask, for building masked_by sets. */
     inline uint64_t alert_bit(uint8_t id) { return (uint64_t)1u << id; }
 
+    /** @brief Default "recent" window in seconds: a condition whose last event is
+     *  newer than this shows in the AlertsPage RECENT mode. Per-condition override
+     *  via AlertCondition::recent_s (0 = use this default, < 0 = never expires). */
+    static constexpr int32_t DEFAULT_RECENT_S = 7 * 24 * 3600;   // one week
+
     /**
      * @brief One alert condition: static metadata + model-owned dynamic state.
      *
      * The static prefix is site-defined (aggregate-initialised, in AlertId order).
      * The dynamic suffix is left zeroed by the site and owned by AlertModel; a
-     * threshold of -1 disables that action.
+     * threshold of -1 disables that action. Dwell thresholds are in seconds.
      */
     struct AlertCondition {
         /** @name Static metadata (site-defined)
@@ -75,10 +80,11 @@ namespace Botanik { namespace Alerts {
         const char* code;        // short code, e.g. "AC_GRID" (null = undefined slot)
         const char* desc;        // human-readable description
         uint64_t    masked_by;   // set of alerts that suppress this one while active
-        int32_t     log_on_ms;   // min ON dwell before a WARNING "alarm START" log (-1 off)
-        int32_t     log_off_ms;  // min OFF dwell before an INFO "alarm END" log (-1 off)
-        int32_t     mqtt_on_ms;  // min ON dwell before an MQTT notification (-1 off)
-        int32_t     mqtt_off_ms; // min OFF dwell before an MQTT notification (-1 off)
+        int32_t     log_on_s;    // min ON dwell (s) before a WARNING "alarm START" log (-1 off)
+        int32_t     log_off_s;   // min OFF dwell (s) before an INFO "alarm END" log (-1 off)
+        int32_t     mqtt_on_s;   // min ON dwell (s) before an MQTT notification (-1 off)
+        int32_t     mqtt_off_s;  // min OFF dwell (s) before an MQTT notification (-1 off)
+        int32_t     recent_s;    // RECENT-mode window (s): 0 = DEFAULT_RECENT_S, <0 = never expires
         /** @} */
 
         /** @name Dynamic state (model-owned; leave zeroed in a site table)
@@ -182,8 +188,8 @@ namespace Botanik { namespace Alerts {
 
                 uint64_t dwell = now - c.edge_ms;
                 if (on) {
-                    if (!c.log_on_sent && c.log_on_ms >= 0 &&
-                        dwell >= (uint64_t)c.log_on_ms) {
+                    if (!c.log_on_sent && c.log_on_s >= 0 &&
+                        dwell >= (uint64_t)c.log_on_s * 1000) {
                         // Keep a short description on the same line; wrap a long one to
                         // the next line so it does not crowd the timestamp/topic prefix.
                         const char* d = c.desc ? c.desc : "";
@@ -191,21 +197,21 @@ namespace Botanik { namespace Alerts {
                             strlen(d) < 32 ? "alarm START : %s" : "alarm START :\n%s", d);
                         c.log_on_sent = true;
                     }
-                    if (!c.on_notified && c.mqtt_on_ms >= 0 &&
-                        dwell >= (uint64_t)c.mqtt_on_ms) {
+                    if (!c.on_notified && c.mqtt_on_s >= 0 &&
+                        dwell >= (uint64_t)c.mqtt_on_s * 1000) {
                         if (_notifier) _notifier->notify_on(c);
                         c.on_notified = true;
                     }
                 } else {
-                    if (!c.log_off_sent && c.log_off_ms >= 0 &&
-                        dwell >= (uint64_t)c.log_off_ms) {
+                    if (!c.log_off_sent && c.log_off_s >= 0 &&
+                        dwell >= (uint64_t)c.log_off_s * 1000) {
                         const char* d = c.desc ? c.desc : "";
                         if (_logger) _logger->info(PlcIO::ALERT,
                             strlen(d) < 32 ? "alarm END : %s" : "alarm END :\n%s", d);
                         c.log_off_sent = true;
                     }
-                    if (!c.off_notified && c.mqtt_off_ms >= 0 &&
-                        dwell >= (uint64_t)c.mqtt_off_ms) {
+                    if (!c.off_notified && c.mqtt_off_s >= 0 &&
+                        dwell >= (uint64_t)c.mqtt_off_s * 1000) {
                         if (_notifier) _notifier->notify_off(c);
                         c.off_notified = true;
                     }

@@ -15,12 +15,14 @@
  *   row N-2          footer legend: reverse-video mode badge + counts, SPACE hint
  *   row N-1          blank row below the legend
  *
- * Rows are ordered by most-recent onset (started_ms), so the alert that fired most
- * recently is at the top and never-active alerts sit at the bottom. The scroll
+ * Rows are ordered active-first (currently-ON alerts head the list) then by most-
+ * recent onset (started_ms); never-active alerts sit at the bottom. The scroll
  * position is shown in the table itself: the top / bottom rules cap their column
  * marks with '^' / 'v' when alerts are hidden above / below the window. SPACE cycles
- * the filter: all defined alerts -> active only -> active and not masked (the
- * terminal alert bar's set). The grid is plain ASCII, two-column side margin. UP/DOWN
+ * the filter: recent (default - has a last event within its window) -> all defined ->
+ * active only -> active and not masked (the terminal alert bar's set). A condition's
+ * recent window defaults to one week, overridable via AlertCondition::recent_s. The
+ * grid is plain ASCII, two-column side margin. UP/DOWN
  * (and Ctrl+P/Ctrl+N) scroll a line at a time (one scroll_region() shift + one painted
  * row); PAGE_UP / PAGE_DOWN jump a window and ENTER returns to the top, both via a full
  * repaint. The page re-checks the alert set once a second and repaints only when it
@@ -57,9 +59,9 @@ namespace Botanik { namespace Pages {
         const Alerts::AlertModel* _model;
         /** @brief Mirrors the latest tick(active). */
         bool                      _active   = false;
-        /** @brief Filter mode, cycled by SPACE: 0 = every defined alert, 1 = active
-         *  only, 2 = active and not masked. See MODE_* and _mode_label(). */
-        uint8_t                   _mode     = MODE_ALL;
+        /** @brief Filter mode, cycled by SPACE (see MODE_* / _mode_label()). Defaults
+         *  to RECENT: alerts with a recent last event. */
+        uint8_t                   _mode     = MODE_RECENT;
         /** @brief First visible data row (scroll offset from the top of the set). */
         uint16_t                  _top      = 0;
         /** @brief Staged-repaint cursor: the next table element to paint (0 = top
@@ -88,16 +90,18 @@ namespace Botanik { namespace Pages {
 
         /** @} */
 
-        /** @name Filter modes (SPACE cycles MODE_ALL -> MODE_ACTIVE -> MODE_UNMASKED)
+        /** @name Filter modes (SPACE cycles recent -> all -> active -> unmasked)
          *  @{ */
-        static constexpr uint8_t MODE_ALL      = 0;  // every defined alert
-        static constexpr uint8_t MODE_ACTIVE   = 1;  // active (masked or not)
-        static constexpr uint8_t MODE_UNMASKED = 2;  // active and not masked
-        static constexpr uint8_t MODE_COUNT    = 3;
+        static constexpr uint8_t MODE_RECENT   = 0;  // has a last event, within its window
+        static constexpr uint8_t MODE_ALL      = 1;  // every defined alert
+        static constexpr uint8_t MODE_ACTIVE   = 2;  // active (masked or not)
+        static constexpr uint8_t MODE_UNMASKED = 3;  // active and not masked
+        static constexpr uint8_t MODE_COUNT    = 4;
 
         /** @brief Short label for the current filter mode. */
         static const char* _mode_label(uint8_t mode) {
             switch (mode) {
+                case MODE_RECENT:   return "recent";
                 case MODE_ACTIVE:   return "active";
                 case MODE_UNMASKED: return "unmasked";
                 default:            return "all";
@@ -234,27 +238,52 @@ namespace Botanik { namespace Pages {
             _terminal.set_inverted(false);
         }
 
+        /** @brief True if @p c belongs in RECENT mode: it has a last event (edge_ms set)
+         *  that is still within its window. An active alert is always recent; an inactive
+         *  one expires recent_s seconds after it cleared (0 = DEFAULT_RECENT_S, <0 = never). */
+        bool _is_recent(const Alerts::AlertCondition& c, uint64_t now) const {
+            if (c.edge_ms == 0) return false;     // never fired -> no last event
+            if (c.active)       return true;      // currently on -> always recent
+            if (c.recent_s < 0) return true;      // never expires
+            uint64_t window_ms = (uint64_t)(c.recent_s == 0 ? Alerts::DEFAULT_RECENT_S
+                                                            : c.recent_s) * 1000u;
+            return (now - c.edge_ms) <= window_ms;
+        }
+
+        /** @brief Order two visible entries: currently-active first (so ON alerts head
+         *  the list in the all / recent views), then by most-recent onset. */
+        bool _before(const Alerts::AlertCondition& x, const Alerts::AlertCondition& y) const {
+            if (x.active != y.active) return x.active;     // active alerts first
+            return x.started_ms > y.started_ms;           // then most-recent onset
+        }
+
         /** @brief Fill _vis/_nvis with the indices shown in the current mode, ordered
-         *  by most-recent onset (started_ms descending; never-active alerts, which
-         *  keep started_ms == 0, sort to the bottom). */
+         *  active-first then by most-recent onset (never-active alerts, started_ms == 0,
+         *  sort to the bottom). */
         void _collect() {
             _nvis = 0;
             if (_model == nullptr) return;
+            uint64_t now = HAL::uptime_ms();
             for (uint8_t i = 0; i < _model->count() && _nvis < Alerts::ALERT_BITS; i++) {
                 const Alerts::AlertCondition& c = _model->condition(i);
                 if (c.code == nullptr) continue;                 // undefined table slot
-                if (_mode >= MODE_ACTIVE   && !c.active)   continue;
-                if (_mode >= MODE_UNMASKED && !c.unmasked) continue;
-                _vis[_nvis++] = i;
+                bool include;
+                switch (_mode) {
+                    case MODE_RECENT:   include = _is_recent(c, now);     break;
+                    case MODE_ACTIVE:   include = c.active;               break;
+                    case MODE_UNMASKED: include = c.active && c.unmasked; break;
+                    default:            include = true;                   break;  // MODE_ALL
+                }
+                if (include) _vis[_nvis++] = i;
             }
-            // Insertion sort by onset, most recent first. The set is small (<= the
-            // defined-alert count) and nearly always tiny, so this is cheaper than
-            // pulling in a general sort, and it is stable in table order on ties.
+            // Insertion sort by _before(). The set is small (<= the defined-alert count)
+            // and nearly always tiny, so this beats pulling in a general sort, and it is
+            // stable in table order on ties.
             for (uint8_t a = 1; a < _nvis; a++) {
-                uint8_t  v  = _vis[a];
-                uint64_t sa = _model->condition(v).started_ms;
-                int16_t  b  = (int16_t)a - 1;
-                while (b >= 0 && _model->condition(_vis[b]).started_ms < sa) {
+                uint8_t v = _vis[a];
+                const Alerts::AlertCondition& cv = _model->condition(v);
+                int16_t b = (int16_t)a - 1;
+                while (b >= 0 && _before(cv, _model->condition(_vis[b]))) {
                     _vis[b + 1] = _vis[b];
                     b--;
                 }
