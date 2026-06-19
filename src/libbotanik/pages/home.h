@@ -102,8 +102,14 @@ namespace Botanik { namespace Pages {
             _terminal.set_inverted(true);
             uint16_t used = (uint16_t)(lead + tablen);
             uint16_t rest = (cols > used) ? (uint16_t)(cols - used) : 0;
-            if (rest > fill) rest = fill;
-            _terminal.write_chars(spaces, rest);
+            if (rest > Config::TERMINAL_MAX_COLS) rest = Config::TERMINAL_MAX_COLS;  // sanity bound
+            // Chunk the fill so a terminal wider than the local buffer still paints
+            // to the end of the line (the buffer is just the per-write chunk).
+            while (rest) {
+                uint16_t n = (rest > fill) ? fill : rest;
+                _terminal.write_chars(spaces, n);
+                rest -= n;
+            }
             _terminal.set_inverted(false);
         }
 
@@ -203,10 +209,9 @@ namespace Botanik { namespace Pages {
             // the new row(s) pending so tick()'s drain_tail paints them paced into the
             // bottom band. In the background a later focus() replays the tail. Never
             // blocks, never drops, so always report the whole entry consumed.
-            uint16_t n = _scrollback.store_wrapped(buf, len, (uint16_t)_terminal.cols(),
+            _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(),
                 Config::SHELL_LOG_CONT_PREFIX,
-                (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX));
-            if (_log_active) _scrollback.note_pending(n);
+                (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX), _log_active);
             return len;
         }
 
