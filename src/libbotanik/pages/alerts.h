@@ -62,8 +62,14 @@ namespace Botanik { namespace Pages {
         /** @brief Filter mode, cycled by SPACE (see MODE_* / _mode_label()). Defaults
          *  to RECENT: alerts with a recent last event. */
         uint8_t                   _mode     = MODE_RECENT;
-        /** @brief First visible data row (scroll offset from the top of the set). */
+        /** @brief First visible data row currently on screen (scroll offset from the
+         *  top of the set). _scroll_pending below holds the not-yet-applied delta. */
         uint16_t                  _top      = 0;
+        /** @brief Rows the view still has to scroll to reach where the user keyed (+ =
+         *  down, - = up). A keystroke accumulates here; the actual scroll_region() is
+         *  applied a row at a time only while the TX ring is shallow (see _drain_scroll),
+         *  so a scroll never floods the buffer and never falls back to a full redraw. */
+        int16_t                   _scroll_pending = 0;
         /** @brief Staged-repaint cursor: the next table element to paint (0 = top
          *  margin, then header, rule, the data rows, the blank line, the footer), or
          *  PAINT_IDLE when the table is fully drawn. A full repaint is paced a few rows
@@ -372,29 +378,70 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Request a full (paced) table repaint from the top. */
-        void _request_repaint() { _paint_i = 0; }
+        /** @brief Request a full (paced) table repaint from the top. A repaint draws the
+         *  whole table at _top, so any deferred scroll is superseded - drop it. */
+        void _request_repaint() { _scroll_pending = 0; _paint_i = 0; }
+
+        /** @brief Fold a deferred scroll into _top (clamped) and repaint - used when the
+         *  set moved or a paint is mid-flight, so the screen is stale and a one-row scroll
+         *  would be wrong. */
+        void _fold_pending_and_repaint() {
+            uint16_t window = _window();
+            uint16_t maxtop = (_nvis > window) ? (uint16_t)(_nvis - window) : 0;
+            int32_t  d = (int32_t)_top + _scroll_pending;
+            _top = (uint16_t)(d < 0 ? 0 : (d > (int32_t)maxtop ? (int32_t)maxtop : d));
+            _request_repaint();   // clears _scroll_pending
+        }
+
+        /** @brief Apply the deferred scroll a row at a time, but only while the TX ring
+         *  is shallow (the shared cold floor): one scroll_region() shift + the newly
+         *  exposed row fit easily under that floor, so the buffer never fills and the
+         *  scroll never has to fall back to a full repaint. Stops (deferring the rest)
+         *  the moment the ring is no longer shallow; tick() resumes it as TX drains. */
+        void _drain_scroll() {
+            uint16_t window = _window();
+            if (window == 0) { _scroll_pending = 0; return; }
+            uint16_t data_bottom = _data_bottom();
+            uint16_t maxtop = (_nvis > window) ? (uint16_t)(_nvis - window) : 0;
+            while (_scroll_pending != 0 && _terminal.tx_below_cold()) {
+                bool     down    = _scroll_pending > 0;
+                uint16_t old_top = _top;
+                _terminal.scroll_region(DATA_TOP, data_bottom, /*up=*/down, 1);
+                _top = down ? (uint16_t)(_top + 1) : (uint16_t)(_top - 1);
+                if (down) _draw_data_row(data_bottom, (uint16_t)(_top + window - 1));
+                else      _draw_data_row(DATA_TOP, _top);
+                _scroll_pending = (int16_t)(_scroll_pending + (down ? -1 : 1));
+                // Repaint a rule only when its scroll arrow actually flips (top arrow at
+                // the 0 boundary, bottom arrow at maxtop).
+                if ((old_top == 0) != (_top == 0))
+                    _draw_rule(RULE_ROW, _top ? '^' : '+');
+                if ((old_top < maxtop) != (_top < maxtop))
+                    _draw_rule(_brule_row(), (_top < maxtop) ? 'v' : '+');
+            }
+        }
 
         /** @brief True while a staged repaint is in progress (or pending its first tick). */
         bool _painting() const { return _paint_i != PAINT_IDLE; }
 
-        /** @brief Paint one table element by its index in the staged sequence: 0 = top
-         *  margin, 1 = header, 2 = top rule, [3, 3+window) = data rows, then the bottom
-         *  rule, the blank row above the legend, the legend, and the blank row below it.
-         *  Element order/count must match _paint_step()'s total (window + 7). */
+        /** @brief Paint one table element by its index in the staged sequence: 0 = the
+         *  legend (painted first so a mode change reads instantly, and only once - no
+         *  flash), then top margin, header, top rule, [4, 4+window) data rows, the bottom
+         *  rule, the blank row above the legend, the blank row below it. Element
+         *  order/count must match _paint_step()'s total (window + 7). */
         void _paint_element(uint16_t e, uint16_t window) {
             uint16_t legend = _legend_row();
-            if      (e == 0)               _clear_row(1);                       // top margin
-            else if (e == 1)               _draw_grid_row(HEADER_ROW, "CODE", "ON",
+            if      (e == 0)               _draw_footer(legend, _nvis,          // legend first
+                                                        _model ? _model->active_count() : 0);
+            else if (e == 1)               _clear_row(1);                       // top margin
+            else if (e == 2)               _draw_grid_row(HEADER_ROW, "CODE", "ON",
                                                           "LAST EVENT", "DESCRIPTION");
-            else if (e == 2)               _draw_rule(RULE_ROW, _hidden_above() ? '^' : '+');
-            else if (e < (uint16_t)(3 + window))
-                _draw_data_row((uint16_t)(DATA_TOP + (e - 3)), (uint16_t)(_top + (e - 3)));
-            else if (e == (uint16_t)(3 + window))
-                _draw_rule(_brule_row(), _hidden_below(window) ? 'v' : '+');     // bottom rule
+            else if (e == 3)               _draw_rule(RULE_ROW, _hidden_above() ? '^' : '+');
+            else if (e < (uint16_t)(4 + window))
+                _draw_data_row((uint16_t)(DATA_TOP + (e - 4)), (uint16_t)(_top + (e - 4)));
             else if (e == (uint16_t)(4 + window))
-                _clear_row((uint16_t)(legend - 1));                             // free row above legend
+                _draw_rule(_brule_row(), _hidden_below(window) ? 'v' : '+');     // bottom rule
             else if (e == (uint16_t)(5 + window))
-                _draw_footer(legend, _nvis, _model ? _model->active_count() : 0);
+                _clear_row((uint16_t)(legend - 1));                             // free row above legend
             else
                 _clear_row((uint16_t)(legend + 1));                             // free row below legend
         }
@@ -437,38 +484,27 @@ namespace Botanik { namespace Pages {
             if (_paint_i >= total) _paint_i = PAINT_IDLE;   // frame complete
         }
 
-        /** @brief Scroll the view by one line, painting only the newly exposed data
-         *  row via scroll_region(). Scrolling does not change the visible set, so it
-         *  reuses _vis/_nvis from the last paint (no re-_collect()); if a repaint is
-         *  already due (staged, or the set moved/expired), it folds the new offset into
-         *  that repaint rather than scroll a stale screen. */
+        /** @brief Queue a one-line scroll. Scrolling does not change the visible set, so
+         *  it reuses _vis/_nvis from the last paint: it just accumulates the move into
+         *  _scroll_pending (clamped to the set) and lets _drain_scroll() apply it under
+         *  the TX floor. If a repaint is already due (staged, or the set moved/expired),
+         *  the pending move is folded into a full repaint instead of scrolling a stale
+         *  screen. */
         void _scroll(bool down) {
             uint16_t window = _window();
             if (window == 0) return;
-            uint16_t maxtop  = (_nvis > window) ? (uint16_t)(_nvis - window) : 0;
-            uint16_t old_top = _top;
-            if (down) { if (_top < maxtop) _top++; }
-            else      { if (_top > 0)      _top--; }
-            if (_top == old_top) return;                   // already at that end
+            uint16_t maxtop = (_nvis > window) ? (uint16_t)(_nvis - window) : 0;
+            // Where the view will sit after this key: on-screen top + already-pending
+            // + this step, clamped to the set.
+            int32_t desired = (int32_t)_top + _scroll_pending + (down ? 1 : -1);
+            if (desired < 0) desired = 0;
+            else if (desired > (int32_t)maxtop) desired = (int32_t)maxtop;
+            int16_t pending = (int16_t)(desired - (int32_t)_top);
+            if (pending == _scroll_pending) return;        // already at that end
+            _scroll_pending = pending;
 
-            if (_painting() || _changed()) { _request_repaint(); return; }
-
-            uint16_t data_bottom = _data_bottom();
-            if (down) {
-                // View moved down: shift the band up, paint the new bottom row.
-                _terminal.scroll_region(DATA_TOP, data_bottom, /*up=*/true, 1);
-                _draw_data_row(data_bottom, (uint16_t)(_top + window - 1));
-            } else {
-                // View moved up: shift the band down, paint the new top row.
-                _terminal.scroll_region(DATA_TOP, data_bottom, /*up=*/false, 1);
-                _draw_data_row(DATA_TOP, _top);
-            }
-            // Only repaint a rule when its scroll arrow actually flips (top arrow at the
-            // 0 boundary, bottom arrow at the maxtop boundary), not on every keystroke.
-            if ((old_top == 0) != (_top == 0))
-                _draw_rule(RULE_ROW, _top ? '^' : '+');
-            if ((old_top < maxtop) != (_top < maxtop))
-                _draw_rule(_brule_row(), (_top < maxtop) ? 'v' : '+');
+            if (_painting() || _changed()) { _fold_pending_and_repaint(); return; }
+            _drain_scroll();   // apply now if the ring is shallow; tick() finishes the rest
         }
 
         /** @brief Jump the view by a full page (window height) and repaint. A page is a
@@ -478,10 +514,12 @@ namespace Botanik { namespace Pages {
             uint16_t window = _window();
             if (window == 0) return;
             uint16_t maxtop = (_nvis > window) ? (uint16_t)(_nvis - window) : 0;
-            uint16_t old_top = _top;
-            if (down) _top = (uint16_t)((_top + window < maxtop) ? (_top + window) : maxtop);
-            else      _top = (_top > window) ? (uint16_t)(_top - window) : 0;
-            if (_top != old_top) _request_repaint();
+            int32_t  cur = (int32_t)_top + _scroll_pending;   // where the user has keyed to
+            int32_t  nt  = down ? (cur + window) : (cur - window);
+            if (nt < 0) nt = 0; else if (nt > (int32_t)maxtop) nt = (int32_t)maxtop;
+            if (nt == cur) return;                            // already at that end
+            _top = (uint16_t)nt;
+            _request_repaint();                               // clears _scroll_pending
         }
 
     public:
@@ -495,10 +533,10 @@ namespace Botanik { namespace Pages {
         const char* name() const override { return "ALERTS"; }
 
         void handle_text(char c) override {
-            if (c == ' ') {                 // cycle all -> active -> unmasked
+            if (c == ' ') {                 // cycle recent -> all -> active -> unmasked
                 _mode = (uint8_t)((_mode + 1) % MODE_COUNT);
                 _top  = 0;
-                _request_repaint();
+                _request_repaint();         // legend is the first element painted (reactive)
             }
         }
 
@@ -536,9 +574,16 @@ namespace Botanik { namespace Pages {
         void tick(bool active) override {
             _active = active;
             if (!active) return;
-            // A staged repaint (from focus / mode / a moved set) advances a few rows
-            // per tick under the TX floor; a scroll paints itself in handle_command.
+            // A staged repaint (from focus / mode / a moved set) advances a few rows per
+            // tick under the TX floor.
             if (_painting()) { _paint_step(); return; }
+            // Finish any deferred scroll as TX drains; if the set moved while it waited,
+            // fold the remaining move into a full repaint instead of scrolling stale rows.
+            if (_scroll_pending != 0) {
+                if (_changed()) _fold_pending_and_repaint();
+                else            _drain_scroll();
+                return;
+            }
             // Idle: re-check the alert set once a second - alerts move slowly, so
             // polling every tick would just burn cycles - and start a repaint only when
             // it actually moved (usually a no-op).
