@@ -262,6 +262,10 @@ into `step()` by the already-templated firmware).
 - [ ] **`[DUP-PACED-PAINTER]`** extract one paced-field painter (reserve -> emit ->
   cache-what-wrote -> budget) shared by the status bar and MetricPage. Target a net
   LoC reduction; subsumes `[STATIC-ORDINAL-ROWGUARD]` / `[EMIT-DEFERRED-NORESET]`.
+  **DEFERRED**: this is a maintainability refactor (the `PAINT-SHORTWRITE` correctness
+  fix already landed via the guaranteed floor in 4A), and it reworks two delicate
+  rendering paths whose regression net is the pyte golden suite - which is env-divergent
+  in this sandbox. Best done as a dedicated pass where pyte is runnable.
 - [x] **`[EOL-FLAG-LOST]`** `_hw_at_eol` is now saved/restored alongside the other three
   shadows in all three passes (metrics/clock/alarm), so an interleaved bar repaint can't
   eat a page's last-column glyph.
