@@ -154,8 +154,9 @@ protected:
                  format_float(fb, sizeof(fb), d->ceil_rh_centi_pct / 100.0, 1, 4));
         _cell(16, 19, L_VAL, buf, L_W);
         // Last rain: fixed-width age (format_age, no " ago", floored at minutes)
-        // merged with the peak wind (capped at 999). Worst case
-        // "999 y (wind 999km/h)" is 20 < L_W.
+        // merged with the peak wind (capped at 999). rain_age_s is uint32, so the year
+        // rollup is reachable; format_age stays <= 3 digits ("136 y" max), worst case
+        // "136 y (wind 999km/h)" < L_W.
         char rb[10];
         unsigned wind = d->wind_peak_kmh;
         if (wind > 999) wind = 999;
@@ -223,9 +224,19 @@ protected:
         snprintf(buf, sizeof(buf), "%s%%",
                  format_float(fa, sizeof(fa), d->ext_rh_centi_pct / 100.0, 1, 4));
         _value(12, buf);
+        // Aggregate the four window / blower zones (the most-open window, the highest
+        // blower) rather than only zone A, so the summary can't read "0%" while B-D run.
+        uint8_t win_max  = d->window_a;
+        if (d->window_b > win_max) win_max = d->window_b;
+        if (d->window_c > win_max) win_max = d->window_c;
+        if (d->window_d > win_max) win_max = d->window_d;
+        uint8_t blow_max = d->blower_a;
+        if (d->blower_b > blow_max) blow_max = d->blower_b;
+        if (d->blower_c > blow_max) blow_max = d->blower_c;
+        if (d->blower_d > blow_max) blow_max = d->blower_d;
         snprintf(buf, sizeof(buf), "Win %s%%  Blow %s%%",
-                 format_float(fa, sizeof(fa), (double)d->window_a, 1, 4),
-                 format_float(fb, sizeof(fb), (double)d->blower_a, 1, 4));
+                 format_float(fa, sizeof(fa), (double)win_max, 1, 4),
+                 format_float(fb, sizeof(fb), (double)blow_max, 1, 4));
         _value(13, buf);
         // Tray status padded to its widest value ("DRAINING") so the closing
         // paren never moves.

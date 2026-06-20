@@ -207,7 +207,7 @@ namespace Botanik { namespace Pages {
         /** @brief Lines stored but not yet painted to the live tail. */
         uint16_t pending() const { return _pending; }
 
-        /** @brief Paint up to SCROLLBACK_ROWS_PER_TICK of the pending lines into the
+        /** @brief Paint up to LOG_ROWS_PER_TICK of the pending lines into the
          *  live-tail window (rows @p first_row .. first_row+log_rows-1), oldest first,
          *  only while the ring is shallow (cold gate). Scrolls the window up and
          *  appends the batch at the bottom via emit_tail(). The per-tick cap +

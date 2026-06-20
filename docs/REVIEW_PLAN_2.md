@@ -271,17 +271,24 @@ into `step()` by the already-templated firmware).
   returning 0 (blank field) when `_ctx.plc` is null.
 - [x] **`[SGR-PCT-VIDEO]`** the duplicated magic column ranges collapsed into one
   `metric_value_col()` helper tied to the `_build_metrics` format.
-- [ ] **`[ALARMS-FIXED-80]`** derive the AlarmsPage/Status layout from `cols()`.
-- [ ] **`[ALARMS-SORT-COST]`** cache the sorted index list; recompute only on a set-change
-  (dirty flag from the model). Shrinks further with `[ALARM-NAMESPACE]` (real count, not 64).
-- [ ] **`[HOME-VENT-PARTIAL]`** aggregate windows/blowers A-D. **`[HOME-BG-BACKLOG]`**
-  drain the Home log-tail into scrollback even when backgrounded. **`[HOME-TINY-SCREEN]`**
-  clamp the band height.
-- [ ] **`[WRAP-MULTIBYTE]` / `[NARROW-WRAP-FANOUT]`** floor the continuation budget;
-  break on a lead-byte boundary if multibyte ever in scope.
-- [ ] **`[STATUS-RAIN-AGE]`** widen site `rain_age_s` to `uint32` (payload/ABI change -
-  coordinate with the PLC program, keep word-alignment); fix the comment.
-- [ ] **`[DRAINTAIL-DOC]`** fix the `LOG_ROWS_PER_TICK` comment.
+- [~] **`[ALARMS-FIXED-80]`** AlarmsPage already derives its description width from
+  `cols()` (`_desc_w()`). The fixed-80 **Status grid** column origins are **deferred** -
+  reworking them to `cols()`-relative is a layout change with pyte-golden impact, better
+  done with the status-page rework (construction hard-codes 80, so it's safe today).
+- [x] **`[ALARMS-SORT-COST]`** documented: the sort runs once per repaint (gated on a set
+  change = effectively recompute-on-change), and `[ALARM-NAMESPACE]` bounds `nvis` to the
+  real count, so the O(n^2) pass is well within budget - no cache restructure needed.
+- [x]/[~] **`[HOME-VENT-PARTIAL]`** done - the Home summary now aggregates the four
+  window/blower zones (most-open / highest), not just zone A. **`[HOME-BG-BACKLOG]`** /
+  **`[HOME-TINY-SCREEN]`** **deferred** to the Home-page rework (the background-drain and
+  tiny-screen-band changes touch the live-tail render path; low severity, defer with it).
+- [x] **`[WRAP-MULTIBYTE]` / `[NARROW-WRAP-FANOUT]`** a continuation row drops its prefix
+  when it'd leave < CONT_MIN (4) for content (no one-char-per-row fanout); documented the
+  ASCII-only byte == column assumption.
+- [x] **`[STATUS-RAIN-AGE]`** `rain_age_s` widened to `uint32` (moved after `wind_peak_kmh`,
+  absorbed existing padding - no PlcOutput size-pin change, stays word-multiple). Sim cast +
+  the misleading "999 y" comment fixed.
+- [x] **`[DRAINTAIL-DOC]`** corrected the `drain_tail` comment to `LOG_ROWS_PER_TICK`.
 - [x] Parser/editor: **`[ALT0-ENUM-ORDER-COUPLING]`** static_assert on ALT_1..ALT_9
   contiguity; **`[COUNT-SATURATION]`** saturating `_pending_cmd_count`; **`[UTF8-COLWIDTH]`**
   documented ASCII-only (byte == column); **`[BATCH-TIMEOUT-DRAIN-DEP]`** a held command now

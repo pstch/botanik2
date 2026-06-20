@@ -61,12 +61,19 @@ namespace Botanik { namespace Pages {
             const uint16_t seg_cap = N;
             char seg[N];
 
+            const uint16_t CONT_MIN = 4;   // min content width on a continuation row
             uint16_t count = 0;
             for (size_t off = 0; ; ) {
                 uint16_t prefix_len = (count == 0 || cols <= plen) ? 0 : plen;
                 if (prefix_len >= seg_cap) prefix_len = 0;  // a prefix too big for the segment is dropped, not underflowed
+                // If the continuation prefix would leave less than CONT_MIN for content,
+                // drop it on this row rather than fan the line out one char at a time.
+                if (cols != 0 && prefix_len != 0 && (uint16_t)(cols - prefix_len) < CONT_MIN)
+                    prefix_len = 0;
                 // Per-row byte budget: fill to the width, or everything left when
-                // unbounded (cols == 0), but never overflow the segment buffer.
+                // unbounded (cols == 0), but never overflow the segment buffer. (Input is
+                // ASCII-only, so a byte budget == a column budget; a multibyte glyph would
+                // need breaking on a lead-byte boundary.)
                 uint16_t budget = (cols == 0) ? (uint16_t)(len - off)
                                               : (uint16_t)(cols - prefix_len);
                 if (budget > (uint16_t)(seg_cap - prefix_len)) budget = (uint16_t)(seg_cap - prefix_len);

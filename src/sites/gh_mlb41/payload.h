@@ -69,8 +69,9 @@ struct PlcOutputData_t {
     uint16_t ext_rh_centi_pct;   ///< exterior relative humidity, 0.01 %
     uint16_t floor_rh_centi_pct; ///< floor relative humidity, 0.01 %
     uint16_t ceil_rh_centi_pct;  ///< ceiling relative humidity, 0.01 %
-    uint16_t rain_age_s;         ///< seconds since rain was last detected
     uint16_t wind_peak_kmh;      ///< 15-minute peak wind speed, km/h
+    uint32_t rain_age_s;         ///< seconds since rain was last detected (uint32: well
+                                 ///< past the uint16 ~18h ceiling, up to ~136 years)
     // Irrigation
     uint16_t water_in_l;         ///< cumulative water input, liters
     uint16_t water_out_lpm;      ///< current drain flow, liters/minute

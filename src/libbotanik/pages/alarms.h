@@ -296,9 +296,11 @@ namespace Botanik { namespace Pages {
                 }
                 if (include) _vis[_nvis++] = i;
             }
-            // Insertion sort by _before(). The set is small (<= the defined-alarm count)
-            // and nearly always tiny, so this beats pulling in a general sort, and it is
-            // stable in table order on ties.
+            // Insertion sort by _before(). _collect() runs once per repaint (and repaints
+            // are gated on _changed() - a set move - so this is effectively recompute-on-
+            // change, not per tick). _nvis is bounded by the real alarm count (the
+            // namespace split sizes the model to N+M, not a fixed 64), nearly always tiny,
+            // so this beats a general sort and is stable in table order on ties.
             for (uint8_t a = 1; a < _nvis; a++) {
                 uint8_t v = _vis[a];
                 const Alarms::AlarmCondition& cv = _model->condition(v);

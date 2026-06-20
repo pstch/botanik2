@@ -97,7 +97,7 @@ static void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
     raining = raining ? !chance(0.01f) : chance(0.002f);
     if (raining) rain_since_ms = now_ms;
     o->rain_detected = raining ? 1 : 0;
-    o->rain_age_s    = raining ? 0 : (uint16_t)((now_ms - rain_since_ms) / 1000);
+    o->rain_age_s    = raining ? 0 : (uint32_t)((now_ms - rain_since_ms) / 1000);
     static float wind = 12.0f;
     wind = drift(wind, 5.0f, 5.0f, 40.0f, 0.05f);
     o->wind_peak_kmh = (uint16_t)wind;
