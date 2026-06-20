@@ -11,6 +11,7 @@
  * when TARGET_SIMULATOR is defined; see platform.h.
  */
 
+#include <cassert>   // assert() - HAL sits below the logger, so it can't use BOTANIK_ASSERT
 #include <cstdint>
 #include <chrono>
 #include <cstring>
@@ -87,12 +88,18 @@ namespace Botanik { namespace HAL {
         return scale;
     }
 
-    /** @brief Elapsed time since process start, expressed in the duration type T. */
+    /** @brief Elapsed time since process start, expressed in the duration type T.
+     *  The time-scale multiply is done in __int128 over nanoseconds (sim is x86-64
+     *  only), so it keeps full precision yet can't overflow at the far timepoints
+     *  dilation exists to reach - multiplying the raw ns int64 by the scale first
+     *  overflowed in ~days at scale 1000. */
     template <typename T>
     inline uint64_t _now_as() {
-        auto duration = (std::chrono::steady_clock::now() - _process_start())
-                        * (int64_t)_time_scale();
-        return (uint64_t)std::chrono::duration_cast<T>(duration).count();
+        const int64_t ns_per_unit =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(T(1)).count();
+        __int128 ns = (__int128)std::chrono::duration_cast<std::chrono::nanoseconds>(
+                          std::chrono::steady_clock::now() - _process_start()).count();
+        return (uint64_t)(ns * _time_scale() / ns_per_unit);
     }
 
     /** @} */
@@ -182,7 +189,8 @@ namespace Botanik { namespace HAL {
     inline void wall_clock_set(uint64_t /*unix_ms*/) {}
 
     inline void sleep_ms(uint32_t ms) {
-        usleep((ms * 1000) / _time_scale());  // scaled to track the sped-up clock
+        // uint64 product: ms*1000 overflows uint32 for ms > ~71 min.
+        usleep((useconds_t)((uint64_t)ms * 1000u / _time_scale()));  // scaled to the sped-up clock
     }
 
     /** @} */
@@ -202,9 +210,14 @@ namespace Botanik { namespace HAL {
 
     template <typename T>
     inline void ordered_copy(T* dst, const T* src) {
-        // Match the OPTA backend's word-multiple contract so the sim build catches violations.
+        // Match the OPTA backend's word-multiple + no-alias contract so the sim build
+        // (where DEBUG + tests run) catches violations the hardware can't surface.
         static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
                       "ordered_copy needs a word-multiple T");
+        if (std::is_empty<T>::value) return;   // empty payload carries no data
+#if defined(DEBUG)
+        assert((const void*)dst != (const void*)src);   // no aliasing (ARM_MPU __RESTRICT)
+#endif
         std::memcpy((void*)dst, (const void*)src, sizeof(T));
         dsb();
     }
@@ -213,6 +226,7 @@ namespace Botanik { namespace HAL {
     inline void ordered_move(T* dst, T src) {
         static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
                       "ordered_move needs a word-multiple T");
+        if (std::is_empty<T>::value) return;   // empty payload carries no data
         *dst = src;
         dsb();
     }
@@ -224,7 +238,8 @@ namespace Botanik { namespace HAL {
         return value;
     }
 
-    /// No D-cache on the host; the PLC region is plain memory.
+    /// No D-cache on the host; the PLC region is plain memory (see opta.h for the
+    /// clean/invalidate discipline these mirror).
     inline void cache_clean(const void* addr, size_t len)      { (void)addr; (void)len; }
     inline void cache_invalidate(const void* addr, size_t len) { (void)addr; (void)len; }
 

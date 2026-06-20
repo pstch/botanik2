@@ -133,25 +133,31 @@ into `step()` by the already-templated firmware).
   first-contact baseline: don't trust uninitialized/stale PLC counters; require an
   observed seq transition (or a handshake reset) before declaring the link RUNNING
   and feeding the HW watchdog.
-- [ ] **`[SIM-DILATION-OVERFLOW]`** cast the steady_clock duration down to ms/us
-  *before* multiplying by the time scale (`simulator.h`).
-- [ ] **`[CACHE-INVALIDATE-EVICT]`** `@warning` + assert at the typed cache call
-  sites that the region is 32-byte aligned and line-multiple sized.
-- [ ] **`[WALLCLOCK-WRAP-2038]`** source wall time from the RTC (64-bit-capable path,
-  ties into `wall_clock_set`/TimeSyncHandler), not libc `time()` - it *will* wrap in 2038.
-- [ ] **`[STACK-DEPTH-SIGN]`** guard `sp <= base` in `get_stack_depth` (return 0 otherwise).
-- [ ] **`[ALIGNAS-PLC-CONTRACT]`** `static_assert(sizeof(PlcOutput<Data>) % 32 == 0)`
-  inside the template so every site is checked at compile time.
-- [ ] **`[RESTRICT-ALIAS]`** document the no-alias precondition of `ordered_copy`
-  **and** assert `dst != src` (debug).
-- [ ] **`[EMPTY-STRUCT-SIZEOF1]`** make the empty-payload path a genuine no-op
-  (`if (is_empty<T>) return;`) in `ordered_move`/`ordered_copy` so behaviour matches
-  the "word-multiple" assert message.
+- [x] **`[SIM-DILATION-OVERFLOW]`** `_now_as()` now does the scale multiply in `__int128`
+  over nanoseconds (sim is x86-64 only), keeping full precision and overflow-safe to
+  astronomical timepoints. Verified at `TIME_SCALE=1000`.
+- [x] **`[CACHE-INVALIDATE-EVICT]`** `@warning` documents the real invariant (invalidate
+  only the read-only PLC-output region, clean the input region; sub-region calls round to
+  that region's own lines). NOTE: a blanket "32-byte aligned" *assert* proved too strict -
+  `logs.cpp` legitimately invalidates the log ring at offset 8 of the read-only `_plcout`
+  (safe, nothing dirty to lose), so I dropped the runtime assert and kept the doc. Open Q:
+  switch the discipline to whole-region invalidates so an assert *could* stand? (see report)
+- [~] **`[WALLCLOCK-WRAP-2038]`** flagged precisely in `opta.h` (the `time_t` 2038 wrap
+  before the widening cast). The real fix needs a 64-bit RTC read, which is coupled to the
+  future TimeSyncHandler/RTC path - **deferred** there, comment left as the marker.
+- [x] **`[STACK-DEPTH-SIGN]`** `get_stack_depth` guards `sp <= base` (returns 0 otherwise).
+- [x] **`[ALIGNAS-PLC-CONTRACT]`** `static_assert(is_empty<Data> || sizeof(Data) % 4 == 0)`
+  inside both `PlcInput`/`PlcOutput` templates (alignas(32) already guarantees the 32-byte
+  region multiple, so the per-site check that matters is the payload word-multiple).
+- [x] **`[RESTRICT-ALIAS]`** `@warning` on `ordered_copy` + a DEBUG `assert(dst != src)`
+  (both backends).
+- [x] **`[EMPTY-STRUCT-SIZEOF1]`** `if (is_empty<T>) return;` no-op in `ordered_copy`/
+  `ordered_move` (both backends).
 - [ ] **`[HEARTBEAT-FROM-ACK]`** gate the idle heartbeat off last *commit*, not last *ack*.
 - [ ] **`[EMU-CLOCK-RAW32]` / `[DILATED-CLOCK-WRAP]`** adopt `Millis32` in the emulator.
 - [ ] **`[JOIN-RACE-ON-RESET]`** add an `emu_stopped` ack flag the joiner waits on
   (sim-only, cheap) to drop the "third caller" assumption.
-- [ ] **`[SLEEP-MS-OVERFLOW]`** compute `ms*1000` in `uint64` in the sim `sleep_ms`.
+- [x] **`[SLEEP-MS-OVERFLOW]`** sim `sleep_ms` computes `ms*1000` in `uint64`.
 - [ ] **`[SEQ-WRAP-SENTINEL]`** 64-bit PLC log seqnums (removes the wrap-at-2^32 case).
 - [ ] **`[DROP-COUNT-CAP]`** clamp the reported/accumulated drop gap (> buffer size => "lap").
 - [ ] Docs/notes (no code): `[ORDERED-READ-ACQUIRE-LATE]`, `[SIM-DSB-OVERKILL]`,

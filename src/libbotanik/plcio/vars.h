@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <cstddef>   // offsetof
+#include <type_traits>
 
 #include "libbotanik/hal/platform.h"
 #include "libbotanik_config.h"
@@ -136,6 +137,11 @@ namespace Botanik { namespace PlcIO {
     /** @brief Host->PLC shared region: sync counters, the log read cursor, and the site payload. */
     template<typename Data>
     struct alignas(32) PlcInput {
+        // alignas(32) already rounds sizeof to a 32-byte multiple; the contract worth
+        // pinning per-site is that the payload is word-aligned, so the combined struct
+        // is padding-free and ordered_copy's word-multiple requirement holds.
+        static_assert(std::is_empty<Data>::value || sizeof(Data) % sizeof(uint32_t) == 0,
+                      "site Data must be a 4-byte multiple (or empty)");
         PlcInputCounters_t  sync;
         PlcInputLogs_t      logs;
         Data                data;
@@ -144,6 +150,8 @@ namespace Botanik { namespace PlcIO {
     /** @brief PLC->host shared region: sync counters, the log ring, and the site payload. */
     template<typename Data>
     struct alignas(32) PlcOutput {
+        static_assert(std::is_empty<Data>::value || sizeof(Data) % sizeof(uint32_t) == 0,
+                      "site Data must be a 4-byte multiple (or empty)");
         PlcOutputCounters_t sync;
         PlcOutputLogs_t     logs;
         Data                data;

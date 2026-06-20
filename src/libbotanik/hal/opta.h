@@ -10,6 +10,7 @@
  * Selected automatically when TARGET_OPTA is defined; see platform.h.
  */
 
+#include <cassert>   // assert() - HAL sits below the logger, so it can't use BOTANIK_ASSERT
 #include <cstdint>
 #include <chrono>
 #include <ctime>
@@ -58,7 +59,10 @@ namespace Botanik { namespace HAL {
     inline uint32_t get_stack_depth() {
         volatile uint32_t anchor = 0;
         uintptr_t stack_pointer = reinterpret_cast<uintptr_t>(&anchor);
-        return static_cast<uint32_t>(get_stack_base() - stack_pointer);
+        uintptr_t base = get_stack_base();
+        // _estack is the MAIN stack top; on a non-main RTOS thread the SP can be above
+        // it, so guard the subtraction against unsigned underflow (~4 GB bogus depth).
+        return (stack_pointer <= base) ? static_cast<uint32_t>(base - stack_pointer) : 0;
     }
 
     /** @} */
@@ -100,8 +104,10 @@ namespace Botanik { namespace HAL {
     }
 
     inline uint64_t wall_clock_ms() {
-        // TODO: read the RTC sub-second register for true millisecond resolution;
-        // time() only resolves whole seconds.
+        // TODO [WALLCLOCK-WRAP-2038]: time() returns time_t, which is 32-bit on this
+        // newlib and WRAPS in Jan 2038 before the widening cast - this must be sourced
+        // from a 64-bit RTC read once the TimeSyncHandler/RTC path lands (it also only
+        // resolves whole seconds today; read the RTC sub-second register for ms).
         return (uint64_t)time(NULL) * 1000;
     }
 
@@ -128,11 +134,18 @@ namespace Botanik { namespace HAL {
         __DMB();
     }
 
+    // @warning dst and src must not alias: ARM_MPU_OrderedMemcpy declares src __RESTRICT,
+    // so an in-place/overlapping copy is UB on the optimized path. Our PLC regions are
+    // always disjoint (PlcInput vs PlcOutput, or a local buffer vs the shared region).
     template <typename T>
     inline void ordered_copy(T* dst, const T* src) {
-        // ARM_MPU_OrderedMemcpy counts 32-bit words, not bytes. Empty payloads copy nothing.
+        // ARM_MPU_OrderedMemcpy counts 32-bit words, not bytes.
         static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
                       "ordered_copy needs a word-multiple T");
+        if (std::is_empty<T>::value) return;   // empty payload carries no data
+#if defined(DEBUG)
+        assert((const void*)dst != (const void*)src);   // no aliasing (see @warning)
+#endif
         ARM_MPU_OrderedMemcpy((volatile uint32_t*)dst, (const uint32_t*)src, sizeof(T) / sizeof(uint32_t));
         __DSB();
     }
@@ -141,6 +154,7 @@ namespace Botanik { namespace HAL {
     inline void ordered_move(T* dst, T src) {
         static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
                       "ordered_move needs a word-multiple T");
+        if (std::is_empty<T>::value) return;   // empty payload carries no data
         *dst = src;
         __DSB();
     }
@@ -152,6 +166,13 @@ namespace Botanik { namespace HAL {
         return value;
     }
 
+    // Cache discipline for the two PLC regions (each alignas(32), so they never share
+    // a line). clean (write-back) is always safe - it rounds to whole lines and only
+    // ever writes back, losing nothing. invalidate DISCARDS whole lines, so it is safe
+    // ONLY on a region we treat as read-only: invalidate the PLC-OUTPUT region (we never
+    // write it) and clean the PLC-INPUT region (we write it). Sub-region calls within one
+    // region are fine - they round to that region's own lines. @warning never invalidate
+    // a line that holds data we wrote, or that write is silently dropped.
     inline void cache_clean(const void* addr, size_t len) {
     #if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
         SCB_CleanDCache_by_Addr((void*)addr, (int32_t)len);  // CMSIS rounds to lines
