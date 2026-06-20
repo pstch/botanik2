@@ -119,10 +119,12 @@ namespace Botanik { namespace Scheduler {
     // ------------------------------------------------------------------------
 
     void LoopScheduler::_skip_beats(uint64_t now) {
+        _missed_this_beat = 0;
         if (now >= _next_tick_ms + _period_ms) {
             // count overruns
             uint64_t delay = now - _next_tick_ms;
             uint64_t missed_beats = delay / _period_ms;
+            _missed_this_beat = (uint32_t)missed_beats;   // weight this tick's metric samples
             _next_tick_ms += (missed_beats * _period_ms);
             _context.overruns += (uint32_t)missed_beats;
             // report the aggregate overrun count to avoid flooding the log
@@ -146,7 +148,7 @@ namespace Botanik { namespace Scheduler {
         // update peak jitter time value
         if (jitter_us > _jitter_us_max) _jitter_us_max = jitter_us;
         // push jitter time into the rolling-max window
-        _jitter_window.push(jitter_us);
+        _jitter_window.push(jitter_us, 1 + _missed_this_beat);   // age by elapsed beats
         // push jitter fraction into the EMA
         _jitter.push(instant);
 
@@ -202,7 +204,7 @@ namespace Botanik { namespace Scheduler {
         uint32_t busy = (now_us >= _work_start_us)
                       ? static_cast<uint32_t>(now_us - _work_start_us) : 0;
         if (busy > _cpu_loop_us_max) _cpu_loop_us_max = busy;
-        _cpu_loop_us_window.push(busy);
+        _cpu_loop_us_window.push(busy, 1 + _missed_this_beat);   // age by elapsed beats
 
         // scan stack usage if we are at a stack slice boundary
         if (++_stack_slice_tick >= Config::STACK_SLICE_TICKS) {

@@ -197,10 +197,11 @@ into `step()` by the already-templated firmware).
   clobber on hardware. Sim painting keeps a small margin below `&local` (clears this frame
   + memset) - a magic-margin-but-sim-only-test-code tradeoff; an inline fill clobbered its
   own spilled locals at -O0, so `memset` (bounds captured once) is the correct primitive.
-- [ ] **`[WINDOWEDMAX-NO-DECAY-IDLE]`** rotate the recent-peak windows by wall-time,
-  not by released-tick count, so a stale peak can't linger past the window during an overrun.
-  **PENDING DISCUSSION**: `WindowedMax::push()` is a unit-tested generic filter; a wall-time
-  rotation changes its API + the `test_filters` goldens. Bring the approach first.
+- [x] **`[WINDOWEDMAX-NO-DECAY-IDLE]`** `WindowedMax::push(v, weight=1)` extended: a
+  skipped-beat catch-up passes `weight = 1 + missed_beats`, so the window ages by elapsed
+  beats (wall-time) instead of by released-tick count - a stale peak can't linger past the
+  window during an overrun. Rotation bounded to K (huge weight clamps, no runaway). The
+  `weight=1` default keeps every existing caller/test valid; added a weighted-push unit test.
 - [x] **`[EMA-FLOAT-OK-DOUBLE-LEAK]`** `-Wdouble-promotion` **scoped to `scheduler.cpp`** (the
   hot-path TU) via a source COMPILE_FLAGS property - global would flag the benign
   float->double promotions in display formatting (`format_float` takes a double) and break

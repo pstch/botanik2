@@ -104,6 +104,18 @@ TEST_CASE("WindowedMax: a peak ages out as the window fills past it") {
     CHECK(w.value() == 1);       // peak has aged out
 }
 
+TEST_CASE("WindowedMax: a weighted push ages the window by that many samples") {
+    WindowedMax<3> w;
+    w.configure(3);              // window == K, one sample per bucket
+    w.push(9);
+    CHECK(w.value() == 9);
+    w.push(1, 3);                // weight 3: ages by a full window, so the peak drops out
+    CHECK(w.value() == 1);
+    // A weight beyond the whole window is clamped - no runaway rotation, peak stays gone.
+    w.push(2, 100);
+    CHECK(w.value() == 2);
+}
+
 TEST_CASE("WindowedMax: a later, higher peak supersedes immediately") {
     WindowedMax<3> w;
     w.configure(3);

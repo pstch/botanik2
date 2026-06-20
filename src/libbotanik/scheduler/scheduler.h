@@ -108,6 +108,9 @@ namespace Botanik { namespace Scheduler {
         uint64_t        _overrun_log_last_ms = 0;
         /** @brief Beats skipped since that warning. */
         uint32_t        _overrun_pending     = 0;
+        /** @brief Beats skipped on THIS released tick (0 normally); weights the metric
+         *  windows so a skipped-beat catch-up ages them by wall-time, not by one sample. */
+        uint32_t        _missed_this_beat    = 0;
         /** @brief Startup message emitted on first tick(). */
         bool            _started       = false;
         /** @brief Published metrics snapshot. */

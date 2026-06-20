@@ -90,13 +90,18 @@ namespace Botanik { namespace Utils {
             reset();
         }
 
-        /** @brief Fold one sample into the window. */
-        void push(uint32_t v) {
-            if (++_fill > _bucket_span) {       // slice elapsed: rotate, drop oldest
-                _fill = 1;
+        /** @brief Fold one sample into the window. @p weight is how many sample slots it
+         *  represents (1 normally; the count of elapsed beats on a scheduler overrun, so
+         *  the window ages by wall-time rather than by released-tick count - otherwise a
+         *  stale peak lingers past the window while ticks are being skipped). */
+        void push(uint32_t v, uint32_t weight = 1) {
+            _fill += weight;
+            for (uint32_t r = 0; _fill > _bucket_span && r < K; ++r) {  // rotate per elapsed slice
+                _fill -= _bucket_span;
                 _head = (_head + 1) % K;
                 _bucket[_head] = 0;
             }
+            if (_fill > _bucket_span) _fill = _bucket_span;   // weight spanned the whole window
             if (v > _bucket[_head]) _bucket[_head] = v;
         }
 
