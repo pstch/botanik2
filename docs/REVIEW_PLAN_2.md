@@ -254,18 +254,23 @@ into `step()` by the already-templated firmware).
 
 ## Block 4 - Terminal / pages
 
-- [ ] **`[PAINT-SHORTWRITE]` / `[STATIC-SHORTWRITE]` / `[CLOCK-FLOOR-COUPLING]`** make
-  the cold floor a guarantee: size the reserve to `MAX_FIELD_TX_BYTES` + `static_assert`
-  against capacity, so a paced field/label/clock can never truncate.
+- [x] **`[PAINT-SHORTWRITE]` / `[STATIC-SHORTWRITE]` / `[CLOCK-FLOOR-COUPLING]`** the cold
+  floor now reserves `MAX_FIELD_TX_BYTES` (256, a worst-case 32-col field) +
+  `static_assert(tx_capacity() > MAX_FIELD_TX_BYTES + 8)`, so `tx_below_cold()` true
+  guarantees a paced field/label/clock fits - it can never truncate. The ignored
+  per-run return is now safe.
 - [ ] **`[DUP-PACED-PAINTER]`** extract one paced-field painter (reserve -> emit ->
   cache-what-wrote -> budget) shared by the status bar and MetricPage. Target a net
   LoC reduction; subsumes `[STATIC-ORDINAL-ROWGUARD]` / `[EMIT-DEFERRED-NORESET]`.
-- [ ] **`[EOL-FLAG-LOST]`** save/restore `_hw_at_eol` alongside the other three shadows
-  in the status/clock/alarm passes.
-- [ ] **`[SLOT-RANGE-UNGUARDED]`** DEBUG `BOTANIK_ASSERT(slot < CACHE_SLOTS)` in `_field`.
-- [ ] **`[FIELD-WIDTH-TRUNCATE]`** document the hard 31-col cell limit.
-- [ ] **`[METRICS-NO-PLC-GAP]`** draw a `PLC:---` placeholder when `_ctx.plc` is null.
-- [ ] **`[SGR-PCT-VIDEO]`** derive the highlight columns from named offsets shared with `_build_metrics`.
+- [x] **`[EOL-FLAG-LOST]`** `_hw_at_eol` is now saved/restored alongside the other three
+  shadows in all three passes (metrics/clock/alarm), so an interleaved bar repaint can't
+  eat a page's last-column glyph.
+- [x] **`[SLOT-RANGE-UNGUARDED]`** DEBUG `BOTANIK_ASSERT(slot < CACHE_SLOTS)` in `_field`.
+- [x] **`[FIELD-WIDTH-TRUNCATE]`** documented the hard 31-col (CACHE_COLS-1) cell limit.
+- [x] **`[METRICS-NO-PLC-GAP]`** `_build_metrics` shows a `PLC:---` placeholder instead of
+  returning 0 (blank field) when `_ctx.plc` is null.
+- [x] **`[SGR-PCT-VIDEO]`** the duplicated magic column ranges collapsed into one
+  `metric_value_col()` helper tied to the `_build_metrics` format.
 - [ ] **`[ALARMS-FIXED-80]`** derive the AlarmsPage/Status layout from `cols()`.
 - [ ] **`[ALARMS-SORT-COST]`** cache the sorted index list; recompute only on a set-change
   (dirty flag from the model). Shrinks further with `[ALARM-NAMESPACE]` (real count, not 64).

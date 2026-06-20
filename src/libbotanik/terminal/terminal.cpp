@@ -636,6 +636,15 @@ namespace Botanik { namespace Terminal {
         return written;   // contiguous leading cells that reached the wire
     }
 
+    // Value-cell columns in the metrics string "PLC:xxx cpu:nnn% stk:nnn% " - drawn
+    // normal-video against the reverse-video bar. One place tied to the _build_metrics
+    // format so the layout and the highlight can't drift apart.
+    static bool metric_value_col(int c) {
+        return (c >= 4 && c <= 6)      // PLC status
+            || (c >= 12 && c <= 15)    // cpu value + '%'
+            || (c >= 21 && c <= 24);   // stk value + '%'
+    }
+
     bool AnsiTerminal::update_status_metrics(bool restore_cursor) {
         char metrics[STATUS_METRICS_LEN];
         int mlen = _build_metrics(metrics, sizeof(metrics));
@@ -648,6 +657,7 @@ namespace Botanik { namespace Terminal {
         CursorPos saved_pos = _hw_pos;
         bool      saved_inv = _hw_inverted;
         bool      saved_cur = _hw_cursor_visible;
+        bool      saved_eol = _hw_at_eol;   // move_to() below clears it; restore it too
         bool      touched   = false;
         bool      complete  = true;
 
@@ -657,10 +667,10 @@ namespace Botanik { namespace Terminal {
         int i = 0;
         while (i < visible) {
             if (metrics[i] == _status_metrics_cache[i]) { ++i; continue; }
-            bool value = (i >= 4 && i <= 6) || (i >= 12 && i <= 15) || (i >= 21 && i <= 24);
+            bool value = metric_value_col(i);
             int j = i + 1;
             while (j < visible && metrics[j] != _status_metrics_cache[j] &&
-                   ((j >= 4 && j <= 6) || (j >= 12 && j <= 15) || (j >= 21 && j <= 24)) == value) ++j;
+                   metric_value_col(j) == value) ++j;
             // Only emit a run if it fully fits (move + invert + chars); otherwise
             // stop and retry next refresh, leaving the unwritten cells' cache stale.
             // Reserve the true worst case: cursor move (~9) + up to two SGR flips
@@ -689,7 +699,7 @@ namespace Botanik { namespace Terminal {
             // Periodic refreshes restore the cursor to where the page left it.
             // draw_status_row passes restore_cursor=false (its caller repositions
             // absolutely right after, so a restore would be a wasted move).
-            if (restore_cursor) move_to(saved_pos);
+            if (restore_cursor) { move_to(saved_pos); _hw_at_eol = saved_eol; }
             // Re-show the cursor only after it's back at the page position, so it
             // never reappears on row 0. No-op when it was already hidden.
             set_cursor_visible(saved_cur);
@@ -716,6 +726,7 @@ namespace Botanik { namespace Terminal {
 
         CursorPos saved_pos = _hw_pos;
         bool      saved_inv = _hw_inverted;
+        bool      saved_eol = _hw_at_eol;
         bool      touched   = false;
 
         // Diff vs the cache and emit changed runs in normal video (hi = 0) so the
@@ -735,7 +746,7 @@ namespace Botanik { namespace Terminal {
 
         if (touched) {
             set_inverted(saved_inv);
-            if (restore_cursor) move_to(saved_pos);
+            if (restore_cursor) { move_to(saved_pos); _hw_at_eol = saved_eol; }
         }
         return touched;
     }
@@ -801,12 +812,14 @@ namespace Botanik { namespace Terminal {
         CursorPos saved_pos = _hw_pos;
         bool      saved_inv = _hw_inverted;
         bool      saved_cur = _hw_cursor_visible;
+        bool      saved_eol = _hw_at_eol;
         set_cursor_visible(false);
 
         draw_alarm_bar();
 
         set_inverted(saved_inv);
         move_to(saved_pos);
+        _hw_at_eol = saved_eol;   // move_to cleared it; the page may have parked at EOL
         set_cursor_visible(saved_cur);
         _alarm_sig   = sig;
         _alarm_dirty = false;
@@ -827,9 +840,9 @@ namespace Botanik { namespace Terminal {
     // ------------------------------------------------------------------------
 
     int AnsiTerminal::_build_metrics(char* buf, size_t cap) const {
-        if (_ctx.plc == nullptr) return 0;
-        const char* plc_str;
-        switch (_ctx.plc->status()) {
+        // No PLC context wired: show a "---" placeholder rather than a blank field.
+        const char* plc_str = "---";
+        if (_ctx.plc != nullptr) switch (_ctx.plc->status()) {
             case PlcIO::PLC_UNKNOWN:  plc_str = "UNK"; break;
             case PlcIO::PLC_RUNNING:  plc_str = "RUN"; break;
             case PlcIO::PLC_TIMEOUT:  plc_str = "TMO"; break;

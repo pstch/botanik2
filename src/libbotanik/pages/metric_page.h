@@ -23,6 +23,7 @@
 #include <cstring>
 
 #include "libbotanik_config.h"
+#include "libbotanik_asserts.h"            // BOTANIK_ASSERT (DEBUG slot-range guard)
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/pages/page.h"
 #include "libbotanik/terminal/terminal.h"
@@ -278,6 +279,11 @@ namespace Botanik { namespace Pages {
                 k = (*idx)++;
                 if (k < *done || _emit_deferred) return;
             }
+            // A slot past the cache renders uncached (repaints every tick, no highlight):
+            // assert so a site catches the overflow at bring-up, not as a silent CPU/TX
+            // leak in the field. The hard cell limit is CACHE_COLS-1 (31) columns; a wider
+            // cell is silently clamped.
+            BOTANIK_ASSERT(slot < CACHE_SLOTS);
             if (width > CACHE_COLS - 1) width = CACHE_COLS - 1;
 
             // Render the value into the fixed-width, space-padded field.

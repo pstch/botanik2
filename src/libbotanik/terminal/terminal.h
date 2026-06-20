@@ -147,13 +147,26 @@ namespace Botanik { namespace Terminal {
          *  by rx_used() for the serial gauge. */
         uint16_t            _rx_cycle_used = 0;
 
+        /** @brief Worst-case bytes one paced field/label/clock can emit: a full
+         *  CACHE_COLS-wide cell is a cursor move (~8) + per-column glyph/SGR toggles
+         *  (~5 each). The cold floor reserves at least this much above it, so a paced
+         *  write taken while tx_below_cold() can never truncate (PAINT-SHORTWRITE). */
+        static constexpr uint16_t MAX_FIELD_TX_BYTES = 256;
+
         /** @brief Bytes that drain in @p target_ms at @p baud (8N1: baud/10 B/s),
-         *  clamped to a small floor and below the ring capacity. The byte depth is
-         *  the latency target turned into a FIFO depth; it is dilation-invariant. */
+         *  clamped to a small floor and to leave a whole worst-case field of ring
+         *  headroom above it. The byte depth is the latency target turned into a FIFO
+         *  depth; it is dilation-invariant. */
         static uint16_t depth_for_baud(uint32_t baud, uint32_t target_ms) {
+            // tx_below_cold() (used <= floor) then guarantees >= MAX_FIELD_TX_BYTES free,
+            // so a single paced field always fits - no per-write short-write check needed.
+            // Reference the complete BufferedSerial type: the enclosing class's
+            // tx_capacity() isn't defined yet at this point in the class body.
+            static_assert(Utils::BufferedSerial::tx_capacity() > MAX_FIELD_TX_BYTES + 8,
+                          "TX ring too small to guarantee a paced field above the floor");
             uint32_t d = (uint32_t)(((uint64_t)baud * target_ms) / 10000u);
             if (d < 8) d = 8;
-            uint16_t cap = (uint16_t)(tx_capacity() - 64);   // leave ring headroom
+            uint16_t cap = (uint16_t)(tx_capacity() - MAX_FIELD_TX_BYTES);   // reserve a field
             if (d > cap) d = cap;
             return (uint16_t)d;
         }
