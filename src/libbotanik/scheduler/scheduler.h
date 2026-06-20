@@ -180,6 +180,10 @@ namespace Botanik { namespace Scheduler {
         uint32_t          _stack_slice_tick  = 0;
         /** @brief Repaint the stack on the next released tick. */
         bool              _repaint_pending   = true;
+        /** @brief Bounds of the region _paint_below() last painted (simulator only),
+         *  read back by _measure_stack_usage(). Null until the first paint. */
+        uint8_t*          _paint_top         = nullptr;
+        uint8_t*          _paint_bot         = nullptr;
 
         /** @} */
 
@@ -281,15 +285,14 @@ namespace Botanik { namespace Scheduler {
             // open the work window for the beat about to run
             _work_start_us = now_us;
             _measuring     = true;
-            // paint the free stack for the loop work's high-water scan. Kept last so
-            // the painted ceiling sits at the caller's SP, just above the work that
-            // runs once we return; tick() is always_inline + BOTANIK_NO_ASAN so
-            // &sp_marker lands in the loop body's (real) frame, not a tick() frame.
-            // No-op except at slice boundaries (when _repaint_pending is set).
+            // Repaint the free stack for the high-water scan, at slice boundaries only.
+            // Simulator only: on hardware the RTOS watermarks the thread stack itself,
+            // and repainting it would clobber that watermark (see _measure_stack_usage).
             if (_repaint_pending) {
                 _repaint_pending = false;
-                volatile uint8_t sp_marker = 0;
-                _paint_below(const_cast<uint8_t*>(&sp_marker));
+#ifdef TARGET_SIMULATOR
+                _paint_below();
+#endif
             }
             // return true so that work can start
             return true;
@@ -327,11 +330,11 @@ namespace Botanik { namespace Scheduler {
         /** @brief Emit the "scheduler started" log entry (called once, on the first tick()). */
         void _log_startup();
 
-        /** @brief Binary-search the painted stack for the high-water mark, update
-         *  the stack metrics. */
+        /** @brief Determine the stack high-water (RTOS watermark on OPTA, a top-down
+         *  sentinel-run scan of the painted region on the sim) and update the metrics. */
         BOTANIK_NO_ASAN void _measure_stack_usage();
-        /** @brief Paint the free stack region below @p caller_sp. */
-        BOTANIK_NO_ASAN void _paint_below(uint8_t* caller_sp);
+        /** @brief Paint the free stack below this frame with the sentinel (simulator only). */
+        BOTANIK_NO_ASAN void _paint_below();
 
         /** @} */
     };

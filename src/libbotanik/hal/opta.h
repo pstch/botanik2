@@ -29,7 +29,8 @@
 struct PLCSharedVarsInput_t;
 struct PLCSharedVarsOutput_t;
 
-/// Linker-provided symbol marking the top of the main stack.
+/// Linker symbol for the top of the MSP/ISR stack (the ~1KB exception stack, NOT
+/// the RTOS thread stack the firmware runs on - kept only to satisfy the interface).
 extern "C" char _estack;
 
 /// Shared-memory buffers exchanged with the PLC coprocessor (M4 core).
@@ -57,12 +58,21 @@ namespace Botanik { namespace HAL {
     }
 
     inline uint32_t get_stack_depth() {
-        volatile uint32_t anchor = 0;
-        uintptr_t stack_pointer = reinterpret_cast<uintptr_t>(&anchor);
-        uintptr_t base = get_stack_base();
-        // _estack is the MAIN stack top; on a non-main RTOS thread the SP can be above
-        // it, so guard the subtraction against unsigned underflow (~4 GB bogus depth).
-        return (stack_pointer <= base) ? static_cast<uint32_t>(base - stack_pointer) : 0;
+        // Total size of the CURRENT RTOS thread's stack. setup()/loop() run in the
+        // Arduino Mbed main thread, not on the ~1KB MSP stack that _estack bounds, so
+        // we ask the RTOS for the thread's stack region (CMSIS-RTOS2, via mbed.h).
+        return static_cast<uint32_t>(osThreadGetStackSize(osThreadGetId()));
+    }
+
+    /** @brief High-water stack usage (bytes) of the current RTOS thread, read from
+     *  RTX's own stack watermark - the RTOS paints each thread's stack at creation, so
+     *  no manual painting is needed on hardware. Returns 0 if the watermark is
+     *  unavailable (RTX stack-usage tracking disabled in the build config). */
+    inline uint32_t stack_high_water_bytes() {
+        osThreadId_t id = osThreadGetId();
+        uint32_t size  = static_cast<uint32_t>(osThreadGetStackSize(id));
+        uint32_t space = static_cast<uint32_t>(osThreadGetStackSpace(id));  // min free ever
+        return (space > 0 && space <= size) ? (size - space) : 0;
     }
 
     /** @} */

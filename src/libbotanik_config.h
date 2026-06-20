@@ -89,9 +89,11 @@ namespace Botanik { namespace Config {
     BOTANIK_CFG(int, SIM_EMULATOR_CPU_CORE);
 #endif
 
-    /** @brief Maximum address range to scan for stack usage monitoring */
+    /** @brief Max bytes the simulator paints/scans below the loop frame for the stack
+     *  high-water (OPTA reads the RTOS watermark instead, so this is sim-only). 64 KiB
+     *  comfortably covers any real firmware stack while bounding the per-slice paint. */
 #ifndef BOTANIK_STACK_SCAN_LIMIT
-#  define BOTANIK_STACK_SCAN_LIMIT 1048576
+#  define BOTANIK_STACK_SCAN_LIMIT 65536
 #endif
     BOTANIK_CFG(uint32_t, STACK_SCAN_LIMIT);
 

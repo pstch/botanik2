@@ -182,14 +182,21 @@ into `step()` by the already-templated firmware).
 
 ## Block 2 - Scheduler / stack / timing
 
-- [ ] **`[STACK-BISECT-MONOTONE]` (+ `[STACK-SCAN-LIMIT-1MB]` / `[PAINT-GAP-UNINIT]`)**
-  replace the bisection with a multibyte-sentinel, linear top-down scan over a search
-  range that exactly matches the painted range. Stays cheap (gated to slice boundaries;
-  scans only used depth, word-at-a-time; paint cost unchanged).
-- [ ] **`[REPAINT-MARGIN-FIXED]` (high - stack-safety, not a nit)** remove the
-  hand-tuned `MARGIN=256` and paint strictly below a `&local` captured *inside*
-  `_paint_below`, so the painted ceiling can never overrun a live frame regardless of
-  how inlining grows the frame. A wrong margin silently clobbers live stack.
+- [x] **`[STACK-BISECT-MONOTONE]` (+ `[STACK-SCAN-LIMIT-1MB]` / `[PAINT-GAP-UNINIT]`)**
+  bisection replaced. **OPTA now reads the RTOS stack watermark** (`osThreadGetStackSpace`)
+  - the old `_estack`/`__StackLimit` is a ~1KB MSP stack, NOT the RTOS thread the firmware
+  runs on, and `get_stack_depth()` was returning used-at-setup, not the region size. The
+  **sim** keeps painting but scans the painted region top-down for the first run of intact
+  sentinel words (sound, vs the non-monotone bisection); scan range == paint range
+  (`PAINT-GAP` fixed); `STACK_SCAN_LIMIT` 1 MiB -> 64 KiB (`SCAN-LIMIT`). New
+  `HAL::stack_high_water_bytes()`. NOTE: OPTA's watermark is all-time (monotonic), so the
+  per-slice "recent" window degenerates to the all-time peak there (documented in code).
+- [x] **`[REPAINT-MARGIN-FIXED]`** ceiling now captured from a `&local` *inside*
+  `_paint_below` (no caller-frame dependency). NOTE: the high-severity *production* concern
+  is **moot** - OPTA no longer paints at all (RTOS watermark), so there's no live frame to
+  clobber on hardware. Sim painting keeps a small margin below `&local` (clears this frame
+  + memset) - a magic-margin-but-sim-only-test-code tradeoff; an inline fill clobbered its
+  own spilled locals at -O0, so `memset` (bounds captured once) is the correct primitive.
 - [ ] **`[WINDOWEDMAX-NO-DECAY-IDLE]`** rotate the recent-peak windows by wall-time,
   not by released-tick count, so a stale peak can't linger past the window during an overrun.
   **PENDING DISCUSSION**: `WindowedMax::push()` is a unit-tested generic filter; a wall-time

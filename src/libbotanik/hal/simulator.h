@@ -143,6 +143,10 @@ namespace Botanik { namespace HAL {
         return 0;
     }
 
+    /** @brief 0: the host has no RTOS thread watermark, so the scheduler measures the
+     *  high-water itself by painting + scanning the stack (see _measure_stack_usage). */
+    inline uint32_t stack_high_water_bytes() { return 0; }
+
     /** @} */
 
     /** @name PLC shared memory

@@ -222,25 +222,40 @@ namespace Botanik { namespace Scheduler {
     }
 
     void LoopScheduler::_measure_stack_usage() {
-        if (_stack_base == 0) return;
-        const uint8_t* stack_base = reinterpret_cast<const uint8_t*>(_stack_base);
-
-        // offsets are 1-based so *(stack_base - mid) stays inside the allocated region
-        // (stack_base itself is one past the top of the stack)
-        uint32_t low  = 1;
-        uint32_t high = (_stack_depth < Config::STACK_SCAN_LIMIT)
-                      ? _stack_depth : Config::STACK_SCAN_LIMIT;
-
-        // binary search for the boundary between used and still-painted memory
-        while (low < high) {
-            uint32_t mid = low + (high - low) / 2;
-            if (*(stack_base - mid) == Config::STACK_PAINT_BYTE)    high = mid;
-            else                                                    low  = mid + 1;
+        // High-water used bytes. On hardware the RTOS already watermarks each thread's
+        // stack (painted once at thread creation), so we just read it - no manual paint
+        // of the wrong (MSP) stack. NOTE: that watermark is ALL-TIME (monotonic, can't
+        // reset), so on OPTA the all-time peak (stack_bytes_max) is exact, but the
+        // per-slice "recent" window/EMA degenerate to that same all-time figure. The
+        // sim repaints each slice, so there it's a true recent high-water that can fall.
+        uint32_t low = HAL::stack_high_water_bytes();
+#ifdef TARGET_SIMULATOR
+        // The host has no RTOS watermark: read back the sentinel painted below the loop
+        // frame. Scan the painted region top-down for the first RUN-long run of intact
+        // sentinel words - the start of untouched stack. A multi-word run makes a
+        // coincidental match in used data (~1/2^32 per word) impossible, so this is the
+        // true high-water without the old (non-monotone, unsound) bisection.
+        if (_paint_top != nullptr) {
+            const uint32_t PAT = (uint32_t)0x01010101u * Config::STACK_PAINT_BYTE;
+            const int RUN = 4;   // 16 bytes of intact pattern == untouched
+            const uint32_t* top = reinterpret_cast<const uint32_t*>(
+                reinterpret_cast<uintptr_t>(_paint_top) & ~(uintptr_t)3u);   // word-align down
+            const uint32_t* bot = reinterpret_cast<const uint32_t*>(
+                (reinterpret_cast<uintptr_t>(_paint_bot) + 3u) & ~(uintptr_t)3u);
+            const uint32_t* hw = bot;   // default: the whole painted region was used
+            int run = 0;
+            for (const uint32_t* p = top; p > bot; ) {
+                --p;
+                if (*p == PAT) { if (++run >= RUN) { hw = p + RUN; break; } }  // first used word above the run
+                else           { run = 0; }
+            }
+            low = (uint32_t)(_stack_base - reinterpret_cast<uintptr_t>(hw));
         }
+#endif
+        if (low == 0 || _stack_depth == 0) return;   // nothing measurable yet
 
         // measure stack usage as a fraction of the stack depth
-        float ratio = (_stack_depth > 0) ? static_cast<float>(low)
-                      / static_cast<float>(_stack_depth) : 0.0f;
+        float ratio = static_cast<float>(low) / static_cast<float>(_stack_depth);
         // push stack usage fraction into the EMA
         _stack_usage.push(ratio);
         // update the peak stack usage value
@@ -260,24 +275,28 @@ namespace Botanik { namespace Scheduler {
         _context.stack_bytes_recent = recent;
     }
 
-    void LoopScheduler::_paint_below(uint8_t* caller_sp) {
+    // Simulator only: hardware uses the RTOS stack watermark instead (see
+    // _measure_stack_usage), and manually repainting an RTOS thread's stack would
+    // clobber the RTOS's own watermark fill.
+    void LoopScheduler::_paint_below() {
         if (_stack_base == 0) return;
+        // Ceiling = our own frame (a local), so the region is below the CALLER regardless
+        // of how inlining grows its frame - no dependency on the caller's size. Back off a
+        // margin that clears this function's own locals + memset's frame (the only thing
+        // below us); painting below &marker without it would clobber our spilled locals.
+        // The margin need only cover memset (a known leaf), not an unknown caller frame.
+        // memset (bounds captured once) is correct even at -O0, unlike an inline loop that
+        // re-reads now-clobbered local bounds each iteration.
+        volatile uint8_t marker = 0;
+        const ptrdiff_t MARGIN = 512;
+        uint8_t* paint_top  = const_cast<uint8_t*>(&marker) - MARGIN;
         uint8_t* abs_bottom = reinterpret_cast<uint8_t*>(_stack_base - _stack_depth);
-        // Margin must cover this function's frame + memset's frame so neither is
-        // clobbered mid-paint. 256 B is well above what either uses on x86_64 or
-        // ARM Cortex-M; the painted ceiling sits just below the caller's SP.
-        constexpr ptrdiff_t MARGIN = 256;
-        // bail out if the current stack pointer is below our margin
-        if (caller_sp < abs_bottom + MARGIN) return;
-        uint8_t* paint_top = caller_sp - MARGIN;
-        // Cap paint region to STACK_SCAN_LIMIT bytes to avoid doing memset() on
-        // the entire thread stack allocation on every tick.
+        if (paint_top <= abs_bottom) return;
         uint8_t* paint_bot = paint_top - Config::STACK_SCAN_LIMIT;
-        // clamp paint bottom
         if (paint_bot < abs_bottom) paint_bot = abs_bottom;
-        // if we have a valid region, memset() it to STACK_PAINT_BYTE
-        if (paint_top > paint_bot)
-            memset(paint_bot, Config::STACK_PAINT_BYTE, paint_top - paint_bot);
+        memset(paint_bot, Config::STACK_PAINT_BYTE, (size_t)(paint_top - paint_bot));
+        _paint_top = paint_top;
+        _paint_bot = paint_bot;
     }
 
 #ifdef TARGET_SIMULATOR
