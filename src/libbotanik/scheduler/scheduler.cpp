@@ -51,8 +51,6 @@ namespace Botanik { namespace Scheduler {
                             Utils::ema_alpha(Config::CPU_LOAD_EMA_DECAY_MS));
         _jitter.configure(Utils::ema_alpha(Config::CPU_JITTER_EMA_ATTACK_MS),
                           Utils::ema_alpha(Config::CPU_JITTER_EMA_DECAY_MS));
-        _stack_usage.configure(Utils::ema_alpha(Config::STACK_USAGE_EMA_ATTACK_MS, Config::STACK_SLICE_MS),
-                               Utils::ema_alpha(Config::STACK_USAGE_EMA_DECAY_MS,  Config::STACK_SLICE_MS));
 
         // configure rolling-max windows
         _cpu_loop_us_window.configure(Config::LOAD_METRIC_WINDOW);
@@ -80,10 +78,7 @@ namespace Botanik { namespace Scheduler {
         _jitter_us_max = 0;
 
         // reset stack state
-        _stack_bytes_max = 0;
-        _stack_usage.reset();
-        for (uint32_t i = 0; i < Config::LOAD_METRIC_BUCKETS; ++i) _stack_slices[i] = 0;
-        _stack_head       = 0;
+        _stack_bytes_max  = 0;
         _stack_slice_tick = 0;
         _repaint_pending  = true;
 
@@ -99,8 +94,7 @@ namespace Botanik { namespace Scheduler {
         _context.cpu_jitter_ema       = 0.0f;
         _context.cpu_jitter_us_recent = 0;
         _context.cpu_jitter_us_max    = 0;
-        _context.stack_usage_ema      = 0.0f;
-        _context.stack_bytes_recent   = 0;
+        _context.stack_usage          = 0.0f;
         _context.stack_bytes_max      = 0;
         _context.stack_depth          = _stack_depth;
 
@@ -256,25 +250,12 @@ namespace Botanik { namespace Scheduler {
 #endif
         if (low == 0 || _stack_depth == 0) return;   // nothing measurable yet
 
-        // measure stack usage as a fraction of the stack depth
-        float ratio = static_cast<float>(low) / static_cast<float>(_stack_depth);
-        // push stack usage fraction into the EMA
-        _stack_usage.push(ratio);
-        // update the peak stack usage value
+        // The high-water is already a max; just track the all-time peak and publish it
+        // (both as bytes and as a fraction of the stack depth) - no EMA / rolling window.
         if (low > _stack_bytes_max) _stack_bytes_max = low;
-        // update current slice of stack usage
-        _stack_slices[_stack_head] = low;
-        _stack_head = (_stack_head + 1) % Config::LOAD_METRIC_BUCKETS;
-
-        // measure recent maximum of stack usage
-        uint32_t recent = 0;
-        for (uint32_t i = 0; i < Config::LOAD_METRIC_BUCKETS; ++i)
-            if (_stack_slices[i] > recent) recent = _stack_slices[i];
-
-        // update published context values
-        _context.stack_usage_ema    = _stack_usage.value();
-        _context.stack_bytes_max    = _stack_bytes_max;
-        _context.stack_bytes_recent = recent;
+        _context.stack_bytes_max = _stack_bytes_max;
+        _context.stack_usage     = static_cast<float>(_stack_bytes_max)
+                                 / static_cast<float>(_stack_depth);
     }
 
     // Simulator only: hardware uses the RTOS stack watermark instead (see

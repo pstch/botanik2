@@ -146,20 +146,14 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, ALARM_EVENT_HOLD_MS);
 
-    /** @brief Stack high-water mark is scanned (and the free stack re-painted) once
-     *  per slice rather than every tick. One slice per metric bucket spans the whole
-     *  LOAD_METRIC_WINDOW, so the rolling max keeps its reach for a fraction of the
-     *  per-tick paint/scan cost. */
+    /** @brief Stack high-water is measured (and, on the sim, the free stack re-painted)
+     *  once per slice rather than every tick, to amortise the paint/scan cost. */
 #ifndef BOTANIK_STACK_SLICE_TICKS
 #  define BOTANIK_STACK_SLICE_TICKS \
        ((BOTANIK_LOAD_METRIC_WINDOW >= BOTANIK_LOAD_METRIC_BUCKETS) \
             ? (BOTANIK_LOAD_METRIC_WINDOW / BOTANIK_LOAD_METRIC_BUCKETS) : 1u)
 #endif
     BOTANIK_CFG(uint32_t, STACK_SLICE_TICKS);
-#ifndef BOTANIK_STACK_SLICE_MS
-#  define BOTANIK_STACK_SLICE_MS (BOTANIK_STACK_SLICE_TICKS * BOTANIK_TASK_PERIOD_MS)
-#endif
-    BOTANIK_CFG(uint32_t, STACK_SLICE_MS);
 
     /** @brief CPU-load EMA response time constants (ms) */
 #ifndef BOTANIK_CPU_LOAD_EMA_ATTACK_MS
@@ -181,15 +175,6 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, CPU_JITTER_EMA_DECAY_MS);
 
-    /** @brief Stack-usage EMA response time constants (ms) */
-#ifndef BOTANIK_STACK_USAGE_EMA_ATTACK_MS
-#  define BOTANIK_STACK_USAGE_EMA_ATTACK_MS 0
-#endif
-    BOTANIK_CFG(uint32_t, STACK_USAGE_EMA_ATTACK_MS);
-#ifndef BOTANIK_STACK_USAGE_EMA_DECAY_MS
-#  define BOTANIK_STACK_USAGE_EMA_DECAY_MS 10000
-#endif
-    BOTANIK_CFG(uint32_t, STACK_USAGE_EMA_DECAY_MS);
 
     /** @} */
 

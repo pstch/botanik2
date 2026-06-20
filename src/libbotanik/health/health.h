@@ -135,7 +135,7 @@ namespace Botanik { namespace Health {
                 (uint64_t)_sched->cpu_jitter_us_recent * 100u
                     > (uint64_t)period_us * Config::ALARM_CPU_JITTER_PCT);
             _model.set_local("STACK",
-                _sched->stack_usage_ema * 100.0f > (float)Config::ALARM_STACK_PCT);
+                _sched->stack_usage * 100.0f > (float)Config::ALARM_STACK_PCT);
             _held_event("CPU_XRUN", _sched->overruns, _xrun_last, _xrun_until_ms, now);
         }
 

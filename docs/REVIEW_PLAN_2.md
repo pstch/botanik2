@@ -191,6 +191,10 @@ into `step()` by the already-templated firmware).
   (`PAINT-GAP` fixed); `STACK_SCAN_LIMIT` 1 MiB -> 64 KiB (`SCAN-LIMIT`). New
   `HAL::stack_high_water_bytes()`. NOTE: OPTA's watermark is all-time (monotonic), so the
   per-slice "recent" window degenerates to the all-time peak there (documented in code).
+  **Block 2.5 follow-up:** since the high-water IS a max, dropped the EMA + rolling-max
+  window for the stack entirely - now just the all-time peak (bytes + % of depth). Removed
+  `stack_usage_ema`/`stack_bytes_recent` (now `stack_usage`), the `_stack_usage` EMA,
+  `_stack_slices`, and the dead EMA config; consumers (health/status/terminal/shell) updated.
 - [x] **`[REPAINT-MARGIN-FIXED]`** ceiling now captured from a `&local` *inside*
   `_paint_below` (no caller-frame dependency). NOTE: the high-severity *production* concern
   is **moot** - OPTA no longer paints at all (RTOS watermark), so there's no live frame to

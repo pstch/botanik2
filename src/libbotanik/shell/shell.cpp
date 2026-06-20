@@ -161,9 +161,8 @@ namespace Botanik { namespace Shell {
         if (w > 0) _output.write(out, (size_t)w);
 
         snprintf(val,    sizeof(val),    "%s%%",
-            Utils::format_float(fa, sizeof(fa), ctx->stack_usage_ema * 100.0f, 1));
-        snprintf(detail, sizeof(detail), "recent %lu, peak %lu bytes",
-            (unsigned long)ctx->stack_bytes_recent,
+            Utils::format_float(fa, sizeof(fa), ctx->stack_usage * 100.0f, 1));
+        snprintf(detail, sizeof(detail), "peak %lu bytes",
             (unsigned long)ctx->stack_bytes_max);
         w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
             "Stack usage .................", val, detail);

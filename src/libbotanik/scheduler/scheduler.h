@@ -46,10 +46,9 @@ namespace Botanik { namespace Scheduler {
         /** @brief all-time peak work duration, microseconds */
         uint32_t cpu_loop_us_max    = 0;
 
-        /** @brief moving average of stack usage (fraction of stack depth) */
-        float    stack_usage_ema    = 0.0f;
-        /** @brief windowed peak used stack, bytes */
-        uint32_t stack_bytes_recent = 0;
+        /** @brief peak stack usage as a fraction of stack depth (worst-ever). The
+         *  high-water is itself a max, so there's no EMA/rolling window on top of it. */
+        float    stack_usage        = 0.0f;
         /** @brief all-time peak used stack, bytes */
         uint32_t stack_bytes_max    = 0;
         /** @brief total thread stack allocation, bytes */
@@ -162,23 +161,17 @@ namespace Botanik { namespace Scheduler {
         /** @} */
 
         /** @name Stack-usage metrics
-         *  @brief The free stack is painted once per slice and left to accumulate the
-         *  high-water mark; _stack_slices holds the per-slice peaks (one per bucket)
-         *  whose max is the rolling "recent" figure.
+         *  @brief The high-water mark is itself a max (the RTOS thread watermark on OPTA,
+         *  a per-slice painted high-water on the sim), so we just track the all-time peak
+         *  - no EMA or rolling-max window layered on top of a max.
          *  @{ */
 
         /** @brief Total thread stack allocation, bytes. */
         uint32_t          _stack_depth = 0;
         /** @brief Address one past the top of the stack; scans index downward from here. */
         uintptr_t         _stack_base  = 0;
-        /** @brief EMA of stack usage (used bytes as a fraction of stack depth). */
-        Utils::ExpMovingAverage _stack_usage;
         /** @brief All-time peak used stack, bytes. */
         uint32_t          _stack_bytes_max = 0;
-        /** @brief Per-slice stack high-water peaks; their max is the "recent" figure. */
-        uint32_t          _stack_slices[Config::LOAD_METRIC_BUCKETS] = {};
-        /** @brief Next _stack_slices slot to overwrite. */
-        uint32_t          _stack_head        = 0;
         /** @brief Ticks accumulated into the current slice. */
         uint32_t          _stack_slice_tick  = 0;
         /** @brief Repaint the stack on the next released tick. */

@@ -841,7 +841,7 @@ namespace Botanik { namespace Terminal {
         unsigned cpu = 0, stk = 0;
         if (_ctx.scheduler != nullptr) {
             cpu = (unsigned)lroundf(_ctx.scheduler->cpu_load_ema    * 100.0f);
-            stk = (unsigned)lroundf(_ctx.scheduler->stack_usage_ema * 100.0f);
+            stk = (unsigned)lroundf(_ctx.scheduler->stack_usage * 100.0f);
         }
         if (cpu > 999) cpu = 999;
         if (stk > 999) stk = 999;
