@@ -41,14 +41,17 @@ namespace Botanik { namespace PlcIO {
         PlcOutputLogs_t  _tx_logs_buffer = {};
         /** @brief Shared wall-clock timestamp (ms). */
         uint32_t*        _timestamp_ms   = nullptr;
-        /** @brief Time of the last acknowledged TX. */
-        uint32_t         _tx_last_ms     = 0;
+        /** @brief Time of the last acknowledged TX (wrap-safe stamp, like the handler). */
+        Utils::Millis32  _tx_last_ms;
         /** @brief Elapsed threshold (ms) before PLC_TIMEOUT is reported. */
         uint32_t         _timeout_ms     = Config::PLC_TIMEOUT_MS;
         /** @brief Elapsed threshold (ms) before PLC_FAULT is reported. */
         uint32_t         _watchdog_ms    = Config::PLC_WATCHDOG_MS;
         /** @brief True once any TX has ever been acknowledged. */
         bool             _ever_ackd      = false;
+
+        /** @brief The shared timestamp as a wrap-safe Millis32 stamp. */
+        Utils::Millis32  _now() const { return Utils::Millis32(*_timestamp_ms); }
 
         /** @} */
 
@@ -65,7 +68,7 @@ namespace Botanik { namespace PlcIO {
 
         /** @brief Current PLC link status derived from the ack timing. */
         PlcStatus status() const {
-            uint32_t elapsed = *_timestamp_ms - _tx_last_ms;
+            uint32_t elapsed = _now() - _tx_last_ms;
             if (!_ever_ackd)             return PLC_UNKNOWN;
             if (elapsed > _watchdog_ms)  return PLC_FAULT;
             if (elapsed > _timeout_ms)   return PLC_TIMEOUT;
@@ -117,7 +120,7 @@ namespace Botanik { namespace PlcIO {
             : _plcin(plcin), _plcout(plcout)
         {
             _ctx._timestamp_ms = timestamp_ms;
-            _ctx._tx_last_ms   = *timestamp_ms;
+            _ctx._tx_last_ms   = Utils::Millis32(*timestamp_ms);
             memset(&_rx_data_buffer, 0, sizeof(InputData));
             memset(&_tx_data_buffer, 0, sizeof(OutputData));
         }
@@ -160,10 +163,10 @@ namespace Botanik { namespace PlcIO {
          *  @{ */
 
         inline bool _rx_new_message()       { return HAL::ordered_read(&_plcin->sync.rxSeqNum) != _plcout->sync.rxAckNum; }
-        inline bool _tx_heartbeat_elapsed() { return *_ctx._timestamp_ms - _ctx._tx_last_ms > _heartbeat_ms; }
+        inline bool _tx_heartbeat_elapsed() { return _ctx._now() - _ctx._tx_last_ms > _heartbeat_ms; }
         inline bool _tx_acknowledged() {
             bool result = HAL::ordered_read(&_plcin->sync.txAckNum) == _plcout->sync.txSeqNum;
-            if (result) { _ctx._tx_last_ms = *_ctx._timestamp_ms; _ctx._ever_ackd = true; }
+            if (result) { _ctx._tx_last_ms = _ctx._now(); _ctx._ever_ackd = true; }
             return result;
         }
 
@@ -272,6 +275,10 @@ namespace Botanik { namespace PlcIO {
      *  pattern as the serial ring buffers, no std::atomic needed. */
     inline volatile bool& _emu_running() { static volatile bool running = false; return running; }
     inline pthread_t&      _emu_thread()  { static pthread_t thread; return thread; }
+    /** @brief Set true by the thread as its final act (after its last shared-memory
+     *  access), so a stopping caller can confirm the region is released without relying
+     *  solely on pthread_join's internal synchronization. */
+    inline volatile bool& _emu_stopped() { static volatile bool stopped = false; return stopped; }
 
     /** @brief Cooperatively stop the emulator thread and join it, releasing its
      *  hold on the shared PLC memory before the caller (HAL::reset) re-execs.
@@ -285,6 +292,11 @@ namespace Botanik { namespace PlcIO {
         // following execve reaps the thread anyway, and we're synchronously inside
         // reset() so the emulator isn't touching shared memory concurrently.
         if (pthread_equal(pthread_self(), _emu_thread())) return;
+        // Wait for the thread to release the shared region (it sets _emu_stopped as its
+        // last act) before joining - an explicit handoff that doesn't assume the caller
+        // is the main loop. Bounded by one emulator iteration.
+        while (!_emu_stopped()) { /* spin */ }
+        HAL::dsb();
         pthread_join(_emu_thread(), nullptr);
     }
 
@@ -308,6 +320,7 @@ namespace Botanik { namespace PlcIO {
         PlcLogWriter plc_log_writer(plc_emulator.context(), &emu_timestamp_ms);
 
         uint32_t emu_tick = 0;
+        _emu_stopped() = false;
         while (_emu_running()) {
             emu_timestamp_ms = (uint32_t)HAL::uptime_ms();
             plc_emulator.step();
@@ -329,6 +342,9 @@ namespace Botanik { namespace PlcIO {
             }
             HAL::sleep_ms(Config::TASK_PERIOD_MS);
         }
+        // Released the shared region: signal the stopping caller (see stop_emulator_thread).
+        HAL::dsb();
+        _emu_stopped() = true;
         return nullptr;
     }
 

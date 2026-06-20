@@ -55,18 +55,25 @@ namespace Botanik { namespace PlcIO {
     // ------------------------------------------------------------------------
 
     void PlcLogReader::_detect_dropped_entries(const LogEntry_t* entry) {
-        if (_last_seq == 0) { _last_seq = entry->seqNum; return; }
-        uint32_t expected = _last_seq + 1;
+        // First entry seen this session: anchor, don't treat as a gap. (A bool flag, not
+        // _last_seq==0, so a legitimate seq 0 at the 2^32 wrap isn't misread as "first".)
+        if (!_have_seq) { _have_seq = true; _last_seq = entry->seqNum; return; }
+        uint32_t expected = _last_seq + 1;             // modular: wraps with seqNum
         if (entry->seqNum != expected) {
-            uint32_t dropped = entry->seqNum - expected;
+            // A gap larger than the ring means the producer lapped us; the true count is
+            // unknowable, so clamp it - one corrupt/lapped seqNum can't poison the stat.
+            uint32_t gap     = entry->seqNum - expected;
+            bool     lapped  = gap > Config::LOG_PLC_BUFFER_SIZE;
+            uint32_t dropped = lapped ? Config::LOG_PLC_BUFFER_SIZE : gap;
             _dropped += dropped;
             LogEntry_t warn = {};
             warn.timestamp = entry->timestamp;
             warn.level     = LOG_WARNING;
             warn.topic     = PLC_IO;
             int n = snprintf(warn.message, sizeof(warn.message),
-                "%u PLC log entries dropped (seq %u..%u)",
-                (unsigned)dropped, (unsigned)expected, (unsigned)(entry->seqNum - 1));
+                "%s%u PLC log entries dropped (seq %u..%u)",
+                lapped ? ">=" : "", (unsigned)dropped,
+                (unsigned)expected, (unsigned)(entry->seqNum - 1));
             // snprintf returns the would-be length: clamp so a truncation never
             // records a length past the buffer.
             if (n < 0) n = 0;

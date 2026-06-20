@@ -157,12 +157,20 @@ into `step()` by the already-templated firmware).
   `ordered_move` (both backends).
 - [x] **`[HEARTBEAT-FROM-ACK]`** `_tx_heartbeat_elapsed()` now measures from `_tx_commit_ms`
   (last commit), not `_tx_last_ms` (last ack), so the cadence stays steady when unacked.
-- [ ] **`[EMU-CLOCK-RAW32]` / `[DILATED-CLOCK-WRAP]`** adopt `Millis32` in the emulator.
-- [ ] **`[JOIN-RACE-ON-RESET]`** add an `emu_stopped` ack flag the joiner waits on
-  (sim-only, cheap) to drop the "third caller" assumption.
+- [x] **`[EMU-CLOCK-RAW32]` / `[DILATED-CLOCK-WRAP]`** the emulator context now uses
+  `Utils::Millis32` + a `_now()` helper (wrap-safe subtraction), mirroring the handler.
+- [x] **`[JOIN-RACE-ON-RESET]`** added an `_emu_stopped()` ack flag: the thread sets it as
+  its last act; `stop_emulator_thread()` waits on it before joining, so the handoff doesn't
+  assume the caller is the main loop.
 - [x] **`[SLEEP-MS-OVERFLOW]`** sim `sleep_ms` computes `ms*1000` in `uint64`.
-- [ ] **`[SEQ-WRAP-SENTINEL]`** 64-bit PLC log seqnums (removes the wrap-at-2^32 case).
-- [ ] **`[DROP-COUNT-CAP]`** clamp the reported/accumulated drop gap (> buffer size => "lap").
+- [x] **`[SEQ-WRAP-SENTINEL]`** fixed with a reader-side `bool _have_seq` flag instead of
+  `_last_seq == 0` - the uint32 gap math is ALREADY modular-wrap-correct, only the sentinel
+  was the bug. NOTE: chose this over **64-bit seqnums** deliberately - 64-bit would change
+  `LogEntry_t` (uint64 forces 8-byte alignment -> a 16-byte header the PLC must mirror), a
+  wire ABI change for no extra correctness. Open Q: want 64-bit anyway for absolute log
+  correlation? (see report)
+- [x] **`[DROP-COUNT-CAP]`** a gap > ring size is clamped to the ring size and reported as
+  ">=N" (a lap; true count unknowable), so one corrupt/lapped seqNum can't poison `_dropped`.
 - [ ] Docs/notes (no code): `[ORDERED-READ-ACQUIRE-LATE]`, `[SIM-DSB-OVERKILL]`,
   `[RX-TX-INTRA-STEP-COUPLING]`, `[TX-NO-TORN-DIAG]` (keep single-buffer + handshake;
   a seqlock, not double-buffering, if detection is ever wanted), `[CTX-RAW-CLOCK-DEREF]`,

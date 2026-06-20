@@ -27,8 +27,11 @@ namespace Botanik { namespace PlcIO {
         Logger*             _logger;
         /** @brief Shared-memory sync context. */
         PlcSyncContext*     _ctx;
-        /** @brief Last seen sequence number. */
+        /** @brief Last seen sequence number (only meaningful once _have_seq). */
         uint32_t            _last_seq = 0;
+        /** @brief True once a first entry has been seen (so seq 0 is a real value, not a
+         *  "first entry" sentinel - keeps gap detection correct across the 2^32 wrap). */
+        bool                _have_seq = false;
         /** @brief Count of detected dropped entries. */
         uint32_t            _dropped  = 0;
         /** @brief Shared PLC log ring buffer. */
