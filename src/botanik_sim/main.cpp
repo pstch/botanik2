@@ -50,6 +50,8 @@ int main(int argc, char** argv) {
     using namespace Botanik;
 
     // Console baud: drives the UART and sizes the terminal's cooperative-TX gates.
+    // Deliberately low (not Config::CONSOLE_BAUD) so the sim exercises the TX pacing at
+    // a slow, Minitel-like rate; the OPTA firmware uses the config default.
     static const uint32_t CONSOLE_BAUD = 4800;
 
     // Stash argv so HAL::reset() can re-exec the process with the same arguments.

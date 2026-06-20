@@ -49,6 +49,14 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(const char*, MQTT_TOPIC_PREFIX);
 
+    /** @brief Console UART baud (also sizes the terminal's cooperative-TX gates). The
+     *  default is the OPTA hardware rate; the simulator deliberately overrides it low (see
+     *  botanik_sim/main.cpp) to exercise the TX pacing. A site may pin its own. */
+#ifndef BOTANIK_CONSOLE_BAUD
+#  define BOTANIK_CONSOLE_BAUD 115200
+#endif
+    BOTANIK_CFG(uint32_t, CONSOLE_BAUD);
+
     /** @} */
 
 

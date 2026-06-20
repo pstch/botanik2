@@ -28,7 +28,9 @@ namespace Botanik {
         return logger;
     }
 
-    /** @brief Register the logger assertion failures are recorded through. */
+    /** @brief Register the logger assertion failures are recorded through. @note the
+     *  logger is a single process-global (function-local static), so with multiple
+     *  firmware instances the last setup() wins - fine for the single-instance model. */
     inline void set_assert_logger(Logs::Logger* logger) { _assert_logger() = logger; }
 
     /** @brief Assertion-failure handler (see BOTANIK_ASSERT). */

@@ -233,7 +233,9 @@ namespace Botanik { namespace PlcIO {
 
         /** @brief Payload-independent context for log readers and pages. */
         PlcSyncContext*   context()           { return &_ctx; }
-        /** @brief Most recently received PLC output payload. */
+        /** @brief Most recently received PLC output payload. @warning this is a stable
+         *  interior pointer into the handler's local RX buffer; readers/pages cache it at
+         *  construction, so the buffer must never relocate (no double-buffering/swap). */
         const OutputData* output_data() const { return &_rx_data_buffer; }
         /** @brief Transmit buffer staged for the PLC input payload. */
         InputData*        input_data()        { return &_tx_data_buffer; }

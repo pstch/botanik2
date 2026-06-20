@@ -329,13 +329,18 @@ into `step()` by the already-templated firmware).
 
 ## Block 6 - Composition / build / config (beyond `[CHAINUP]`)
 
-- [ ] **`[OUTPUT-DATA-PTR-CAPTURE]`** document that `output_data()` is a stable interior
-  pointer that must never relocate.
-- [ ] **`[CMAKE-SITE-GLOB-NONDETERMINISTIC]`** add `CONFIGURE_DEPENDS` to the site/lib globs.
-- [ ] **`[CMAKE-CONFIG-ABI-GUARD-MISSING]`** note that any TU including
-  `libbotanik_config.h` must link `botanik` (transitive PUBLIC define).
-- [ ] **`[BAUD-CONST-DUPLICATED]`** promote console baud to `BOTANIK_CONSOLE_BAUD`.
-- [ ] **`[ASSERT-LOGGER-GLOBAL-SINGLETON]`** note the single-instance assumption.
+- [x] **`[OUTPUT-DATA-PTR-CAPTURE]`** `output_data()` documented as a stable interior
+  pointer (readers cache it; the RX buffer must never relocate).
+- [x] **`[CMAKE-SITE-GLOB-NONDETERMINISTIC]`** `CONFIGURE_DEPENDS` added to the lib and
+  both site globs (a new source now triggers a reconfigure).
+- [x] **`[CMAKE-CONFIG-ABI-GUARD-MISSING]`** commented: a TU including
+  `libbotanik_config.h` must link `botanik` to pick up the PUBLIC define transitively
+  (else it silently compiles against un-overridden defaults).
+- [x] **`[BAUD-CONST-DUPLICATED]`** added `BOTANIK_CONSOLE_BAUD` (default 115200); the OPTA
+  entry uses `Config::CONSOLE_BAUD`, the sim keeps 4800 with a comment on the deliberate
+  slow-baud override (exercises the TX pacing).
+- [x] **`[ASSERT-LOGGER-GLOBAL-SINGLETON]`** noted the assert logger is a single
+  process-global (last setup() wins) - fine for the single-instance model.
 - [ ] `[NETWORK-STUB-UNWIRED-NULL-CTX]` / `[NETWORK-CONFIG-FIELD-MISSING]` - **deferred**;
   fix the ctor injection contract and design the `PlcOutputConfig_t` field with the PLC
   program before the handlers are implemented.

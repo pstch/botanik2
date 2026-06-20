@@ -15,9 +15,9 @@
 
 namespace Botanik { namespace Firmware {
 
-// USB-CDC / UART console baud. The diagnostic monitor (Serial1) runs at the same
-// rate. Plain constant for now; promote to libbotanik_config.h if a site needs it.
-static const unsigned long CONSOLE_BAUD = 115200;
+// USB-CDC / UART console baud (the diagnostic monitor Serial1 runs at the same rate).
+// From libbotanik_config.h so a site can pin it (BOTANIK_CONSOLE_BAUD).
+static const unsigned long CONSOLE_BAUD = Config::CONSOLE_BAUD;
 
 ::BotanikSite& instance() {
     // The PLC shared region is owned by the M4 coprocessor; we only bind to it.

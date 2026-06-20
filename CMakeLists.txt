@@ -95,7 +95,7 @@ endif()
 # The library is just src/libbotanik/. The src/botanik_sim/ sketch (main + mock
 # PLC) is the host application, compiled into botanik_sim below — never into the
 # library, so it stays out of the OPTA build, which has no host entry point.
-file(GLOB_RECURSE LIB_SOURCES
+file(GLOB_RECURSE LIB_SOURCES CONFIGURE_DEPENDS
     "src/libbotanik/*.cpp"
     "src/libbotanik/*.c"
 )
@@ -116,6 +116,10 @@ set_source_files_properties(
 # own TUs and every consumer compile against the same overridden Config values
 # (anything narrower is an ABI mismatch). libbotanik_config.h #includes it before
 # its #ifndef defaults. No-op when the site has no overrides.
+# ABI guard: any TU that includes libbotanik_config.h MUST link `botanik` so it picks
+# up this PUBLIC define transitively; a TU that includes the header without linking the
+# library would silently compile against the un-overridden defaults (e.g. mis-sized
+# LOG_PLC_* buffers) and mismatch the rest of the build.
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/sites/${BOTANIK_SITE}/config.h")
     target_compile_definitions(botanik PUBLIC
         BOTANIK_SITE_CONFIG="sites/${BOTANIK_SITE}/config.h")
@@ -159,7 +163,7 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     # The selected site (payload + pages + alarm table + mock PLC) compiles into
     # the host application, not the library: it stays out of the OPTA `botanik`
     # archive. sim.cpp drops out on non-SIMULATOR builds via its own guard.
-    file(GLOB BOTANIK_SITE_SOURCES "src/sites/${BOTANIK_SITE}/*.cpp")
+    file(GLOB BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS "src/sites/${BOTANIK_SITE}/*.cpp")
     add_executable(botanik_sim
         "src/botanik_sim/main.cpp"
         ${BOTANIK_SITE_SOURCES})
@@ -452,7 +456,7 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     # The selected site (payload + pages + alert table) compiles into the firmware
     # alongside the entry wiring; sim.cpp drops out here via its TARGET_SIMULATOR
     # guard (this build never defines it), so only alerts.cpp carries through.
-    file(GLOB BOTANIK_SITE_SOURCES "src/sites/${BOTANIK_SITE}/*.cpp")
+    file(GLOB BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS "src/sites/${BOTANIK_SITE}/*.cpp")
     add_library(botanik_fw STATIC
         "src/botanik_fw/firmware.cpp"
         "src/botanik_fw/main.cpp"
