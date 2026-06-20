@@ -636,6 +636,32 @@ namespace Botanik { namespace Terminal {
         return written;   // contiguous leading cells that reached the wire
     }
 
+    void AnsiTerminal::paint_field_runs(uint16_t row, uint16_t col, const char* cf,
+                                        uint16_t width, uint32_t emit, uint32_t hi) {
+        if (emit == 0) return;
+
+        // Bridge clean gaps up to MERGE wide: a ~7-byte cursor move costs more than
+        // overwriting a couple of unchanged characters in place.
+        const uint16_t MERGE = 4;
+        uint32_t render = emit;
+        int last = -1;
+        for (uint16_t i = 0; i < width; ++i) {
+            if (!((emit >> i) & 1u)) continue;
+            if (last >= 0 && (int)i - last - 1 <= (int)MERGE)
+                for (int g = last + 1; g < (int)i; ++g) render |= (1u << g);
+            last = (int)i;
+        }
+
+        uint16_t i = 0;
+        while (i < width) {
+            if (!((render >> i) & 1u)) { i++; continue; }
+            uint16_t a = i;
+            while (i < width && ((render >> i) & 1u)) i++;
+            emit_field_run(row, col, cf, a, i, hi);   // [a, i); SGR segmented per hi
+        }
+        set_inverted(false);                          // leave the terminal normal
+    }
+
     // Value-cell columns in the metrics string "PLC:xxx cpu:nnn% stk:nnn% " - drawn
     // normal-video against the reverse-video bar. One place tied to the _build_metrics
     // format so the layout and the highlight can't drift apart.
@@ -654,57 +680,35 @@ namespace Botanik { namespace Terminal {
         if (visible == 0) return true;  // nothing to draw == nothing left to sync
         uint16_t metrics_col = (uint16_t)(_cols - visible);
 
+        // The bar is reverse video except the live readings - plc (cols 4..6), cpu
+        // (12..15), stk (21..24) - drawn normal. Build the changed-column mask and the
+        // highlight mask (inverted everywhere but the value cols) over the visible field.
+        uint32_t emit = 0, hi = 0;
+        for (uint16_t i = 0; i < (uint16_t)visible; ++i) {
+            if (metrics[i] != _status_metrics_cache[i]) emit |= (1u << i);
+            if (!metric_value_col(i)) hi |= (1u << i);
+        }
+        if (emit == 0) return true;   // already in sync, nothing to paint
+
         CursorPos saved_pos = _hw_pos;
         bool      saved_inv = _hw_inverted;
         bool      saved_cur = _hw_cursor_visible;
         bool      saved_eol = _hw_at_eol;   // move_to() below clears it; restore it too
-        bool      touched   = false;
-        bool      complete  = true;
 
-        // The bar is reverse video except the live readings - plc (cols 4..6), cpu
-        // (12..15), stk (21..24) - drawn normal. Coalesce changed cells into runs,
-        // breaking at that boundary so each run is uniformly one video or the other.
-        int i = 0;
-        while (i < visible) {
-            if (metrics[i] == _status_metrics_cache[i]) { ++i; continue; }
-            bool value = metric_value_col(i);
-            int j = i + 1;
-            while (j < visible && metrics[j] != _status_metrics_cache[j] &&
-                   metric_value_col(j) == value) ++j;
-            // Only emit a run if it fully fits (move + invert + chars); otherwise
-            // stop and retry next refresh, leaving the unwritten cells' cache stale.
-            // Reserve the true worst case: cursor move (~9) + up to two SGR flips
-            // (~4 each) + the run. The return-written check below is the real safety
-            // net, but a tight reserve avoids starting a doomed emit.
-            uint16_t run = (uint16_t)(j - i);
-            if (tx_available() < (uint16_t)(run + 18)) { complete = false; break; }
-            // Hide the cursor before the first status-bar write so it doesn't blink
-            // across row 0 while the metrics paint; restored below (no-op if already
-            // hidden, e.g. on a non-shell page).
-            if (!touched) set_cursor_visible(false);
-            touched = true;
-            // Whole run is uniformly value (normal) or not (inverted): pass an all-set
-            // or all-clear highlight mask so emit_field_run draws it in one segment.
-            uint16_t wrote = emit_field_run(0, metrics_col, metrics, (uint16_t)i, (uint16_t)j,
-                                            value ? 0u : ~0u);
-            // Cache only the cells that reached the wire; if the run truncated, stop
-            // and leave the rest stale so the next refresh repaints them.
-            memcpy(_status_metrics_cache + i, metrics + i, (size_t)wrote);
-            if (wrote < run) { complete = false; break; }
-            i = j;
-        }
+        // Hide the cursor before painting so it can't blink across row 0 while the bar
+        // updates (no-op if already hidden, e.g. on a non-shell page). The caller floor-
+        // gates this call and the guaranteed floor fits a whole field, so paint and cache
+        // it in one pass - paint_field_runs segments the SGR per hi at the value boundary.
+        set_cursor_visible(false);
+        paint_field_runs(0, metrics_col, metrics, (uint16_t)visible, emit, hi);
+        memcpy(_status_metrics_cache, metrics, (size_t)visible);
 
-        if (touched) {
-            set_inverted(saved_inv);
-            // Periodic refreshes restore the cursor to where the page left it.
-            // draw_status_row passes restore_cursor=false (its caller repositions
-            // absolutely right after, so a restore would be a wasted move).
-            if (restore_cursor) { move_to(saved_pos); _hw_at_eol = saved_eol; }
-            // Re-show the cursor only after it's back at the page position, so it
-            // never reappears on row 0. No-op when it was already hidden.
-            set_cursor_visible(saved_cur);
-        }
-        return complete;
+        set_inverted(saved_inv);
+        // Periodic refreshes restore the cursor to where the page left it; draw_status_row
+        // passes restore_cursor=false (its caller repositions absolutely right after).
+        if (restore_cursor) { move_to(saved_pos); _hw_at_eol = saved_eol; }
+        set_cursor_visible(saved_cur);   // back at the page position, never on row 0
+        return true;
     }
 
     bool AnsiTerminal::update_status_clock(bool restore_cursor) {
@@ -727,28 +731,22 @@ namespace Botanik { namespace Terminal {
         CursorPos saved_pos = _hw_pos;
         bool      saved_inv = _hw_inverted;
         bool      saved_eol = _hw_at_eol;
-        bool      touched   = false;
 
-        // Diff vs the cache and emit changed runs in normal video (hi = 0) so the
-        // digits stand out against the reverse-video bar. Floor-gated by the caller, so
-        // the (tiny) field is guaranteed to fit; no per-run budget check needed.
-        uint16_t i = 0;
-        while (i < STATUS_CLOCK_LEN) {
-            if (clk[i] == _status_clock_cache[i]) { ++i; continue; }
-            uint16_t j = (uint16_t)(i + 1);
-            while (j < STATUS_CLOCK_LEN && clk[j] != _status_clock_cache[j]) ++j;
-            touched = true;
-            uint16_t wrote = emit_field_run(0, clock_col, clk, i, j, 0u);   // hi = 0 -> normal video
-            memcpy(_status_clock_cache + i, clk + i, (size_t)wrote);        // cache only what was drawn
-            if (wrote < (uint16_t)(j - i)) break;                           // truncated: retry next refresh
-            i = j;
-        }
+        // Diff vs the cache into a changed-column mask, then paint the whole field in one
+        // pass via the shared painter (hi = 0: normal video, so the digits stand out
+        // against the reverse-video bar). Floor-gated by the caller, so the tiny field is
+        // guaranteed to fit - cache it whole.
+        uint32_t emit = 0;
+        for (uint16_t i = 0; i < STATUS_CLOCK_LEN; ++i)
+            if (clk[i] != _status_clock_cache[i]) emit |= (1u << i);
+        if (emit == 0) return false;
 
-        if (touched) {
-            set_inverted(saved_inv);
-            if (restore_cursor) { move_to(saved_pos); _hw_at_eol = saved_eol; }
-        }
-        return touched;
+        paint_field_runs(0, clock_col, clk, STATUS_CLOCK_LEN, emit, 0u);
+        memcpy(_status_clock_cache, clk, STATUS_CLOCK_LEN);
+
+        set_inverted(saved_inv);
+        if (restore_cursor) { move_to(saved_pos); _hw_at_eol = saved_eol; }
+        return true;
     }
 
     // Alarm bar

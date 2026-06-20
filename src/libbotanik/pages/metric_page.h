@@ -339,51 +339,29 @@ namespace Botanik { namespace Pages {
             if (paced) *done = (uint16_t)(k + 1);   // emitted: done this period
         }
 
-        /** @brief Emit the columns set in @p emit from field @p cf at (@p row,
-         *  @p col), drawing the columns set in @p hi reverse-video. Dirty columns
-         *  are coalesced into runs (short clean gaps are overwritten in place rather
-         *  than paid for with a cursor move). All-or-nothing: returns false without
-         *  emitting anything when the whole update can't fit in the TX buffer. */
+        /** @brief Pace and paint a changed field: apply the cold-floor + per-tick field-cap
+         *  gate (deferring if either is exceeded), then hand the columns set in @p emit of
+         *  field @p cf (highlighted per @p hi) to the terminal's shared paint_field_runs().
+         *  All-or-nothing: returns false without emitting when gated; the guaranteed floor
+         *  means a field taken past the gate always fits. */
         bool _paint(uint16_t row, uint16_t col, const char* cf, uint16_t width,
                     uint32_t emit, uint32_t hi) {
             if (emit == 0) return true;
-
-            // Bridge clean gaps up to MERGE wide: a ~7-byte cursor move costs more
-            // than overwriting a couple of unchanged characters.
-            const uint16_t MERGE = 4;
-            uint32_t render = emit;
-            int last = -1;
-            for (uint16_t i = 0; i < width; ++i) {
-                if (!((emit >> i) & 1u)) continue;
-                if (last >= 0 && (int)i - last - 1 <= (int)MERGE)
-                    for (int g = last + 1; g < (int)i; ++g) render |= (1u << g);
-                last = (int)i;
-            }
 
             // Cooperative pacing: emit only while the ring is shallow (the shared depth
             // floor) and we are under the per-tick field cap; otherwise defer (cache
             // untouched, so a later tick repaints this field). The cap is per-pass - the
             // cold pass and the hot pass each reset _emit_count and use their own budget,
-            // so they progress in parallel at independent rates. The shallow floor leaves
-            // ample room for one field, so no separate fit check is needed.
+            // so they progress in parallel at independent rates. The guaranteed cold floor
+            // leaves room for one whole field, so the shared painter can't truncate.
             const uint16_t cap = _cold_active ? Config::TX_COLD_FIELDS_PER_TICK
                                               : Config::TX_HOT_FIELDS_PER_TICK;
             if (_emit_count >= cap || !_terminal.tx_below_cold()) {
                 _emit_deferred = true;
                 return false;
             }
-
-            uint16_t i = 0;
-            while (i < width) {
-                if (!((render >> i) & 1u)) { i++; continue; }
-                uint16_t a = i;
-                while (i < width && ((render >> i) & 1u)) i++;
-                uint16_t b = i;                              // run spans [a, b)
-                // Shared run-emit (cursor move + lazy SGR segmenting + write).
-                _terminal.emit_field_run(row, col, cf, a, b, hi);
-            }
-            _terminal.set_inverted(false);                   // leave the terminal normal
-            _emit_count++;                                    // one field spent this tick
+            _terminal.paint_field_runs(row, col, cf, width, emit, hi);  // coalesce + emit
+            _emit_count++;                                              // one field spent this tick
             return true;
         }
 

@@ -259,13 +259,15 @@ into `step()` by the already-templated firmware).
   `static_assert(tx_capacity() > MAX_FIELD_TX_BYTES + 8)`, so `tx_below_cold()` true
   guarantees a paced field/label/clock fits - it can never truncate. The ignored
   per-run return is now safe.
-- [ ] **`[DUP-PACED-PAINTER]`** extract one paced-field painter (reserve -> emit ->
-  cache-what-wrote -> budget) shared by the status bar and MetricPage. Target a net
-  LoC reduction; subsumes `[STATIC-ORDINAL-ROWGUARD]` / `[EMIT-DEFERRED-NORESET]`.
-  **DEFERRED**: this is a maintainability refactor (the `PAINT-SHORTWRITE` correctness
-  fix already landed via the guaranteed floor in 4A), and it reworks two delicate
-  rendering paths whose regression net is the pyte golden suite - which is env-divergent
-  in this sandbox. Best done as a dedicated pass where pyte is runnable.
+- [x] **`[DUP-PACED-PAINTER]`** extracted `AnsiTerminal::paint_field_runs(row,col,cf,
+  width,emit,hi)` (MERGE-coalesce changed columns -> emit_field_run per run, SGR-segmented
+  per `hi`) as the one shared paced painter. All three call sites use it now: MetricPage
+  `_paint` (gate -> delegate), the status clock (`hi=0`), and the status metrics (per-column
+  `hi` = inverted-except-value-cols, so its hand-rolled boundary-breaking + per-run TX check
+  are gone - the guaranteed 4A floor makes each gated field fit, so they cache the whole
+  field). Verified at the byte level: the metrics bar still renders labels inverse / values
+  (`UNK`/`0%`/`0%`) normal, exactly as before. (pyte not runnable here, but the rendered
+  SGR structure was inspected directly.)
 - [x] **`[EOL-FLAG-LOST]`** `_hw_at_eol` is now saved/restored alongside the other three
   shadows in all three passes (metrics/clock/alarm), so an interleaved bar repaint can't
   eat a page's last-column glyph.

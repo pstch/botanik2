@@ -258,6 +258,17 @@ namespace Botanik { namespace Terminal {
         uint16_t emit_field_run(uint16_t row, uint16_t col, const char* cf,
                                 uint16_t a, uint16_t b, uint32_t hi);
 
+        /** @brief Paint the columns set in @p emit of field @p cf at (@p row, @p col),
+         *  drawing the columns set in @p hi reverse-video. Dirty columns are coalesced
+         *  into runs (clean gaps up to a few wide are overwritten in place rather than
+         *  paid for with a cursor move) and emitted via emit_field_run, which segments the
+         *  SGR per @p hi. Leaves the terminal non-inverted. The shared paced-field painter
+         *  for the status bar and MetricPage; the caller owns the floor/budget gate, the
+         *  value cache, and the cursor-shadow save/restore. Relies on the guaranteed cold
+         *  floor (MAX_FIELD_TX_BYTES) so a gated field can't truncate. */
+        void paint_field_runs(uint16_t row, uint16_t col, const char* cf,
+                              uint16_t width, uint32_t emit, uint32_t hi);
+
         /** @} */
 
         /** @name Content manipulation
