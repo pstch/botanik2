@@ -755,8 +755,13 @@ namespace Botanik { namespace Terminal {
     uint64_t AnsiTerminal::_unmasked_set() const {
         uint64_t m = 0;
         if (_alarms)
-            for (uint8_t i = 0; i < _alarms->count(); i++)
-                if (_alarms->condition(i).unmasked) m |= Alarms::alarm_bit(i);
+            for (uint8_t i = 0; i < _alarms->count(); i++) {
+                const Alarms::AlarmCondition& c = _alarms->condition(i);
+                // An acknowledged alarm drops off the bar (still active, just no longer
+                // nagging); it re-appears if the condition clears and fires again, which
+                // resets the ack. The set is the bar's dirty signal, so an ack repaints it.
+                if (c.unmasked && !c.acknowledged) m |= Alarms::alarm_bit(i);
+            }
         return m;
     }
 
@@ -775,7 +780,9 @@ namespace Botanik { namespace Terminal {
         // read as a set against the reverse-video bar (like the active status tab).
         for (uint8_t i = 0; i < _alarms->count(); i++) {
             const Alarms::AlarmCondition& c = _alarms->condition(i);
-            if (!c.unmasked || c.code == nullptr) continue;
+            // Skip ack'd alarms - same filter as _unmasked_set() (the dirty signal), so the
+            // drawn codes match what triggered the repaint.
+            if (!c.unmasked || c.acknowledged || c.code == nullptr) continue;
             uint16_t clen = (uint16_t)strlen(c.code);
             if ((uint16_t)(used + clen + 1) > _cols) break;   // out of room on the row
             set_inverted(false);

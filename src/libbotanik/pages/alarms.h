@@ -93,6 +93,9 @@ namespace Botanik { namespace Pages {
          *  RECENT mode an alarm can age out of the window with no raw transition, so a
          *  change here (and not in raw) is the only signal that the list must refresh. */
         uint64_t                  _last_recent_sig = 0;
+        /** @brief Acknowledged set at the last repaint. An ack changes the sort position
+         *  and the badge video without moving the active set, so it gates the repaint too. */
+        uint64_t                  _last_acked_sig = 0;
         /** @brief Visible alarm indices (table index order), filled by _collect(). */
         uint8_t                   _vis[Alarms::ALARM_BITS];
         /** @brief Number of visible entries in _vis. */
@@ -270,10 +273,14 @@ namespace Botanik { namespace Pages {
             return (now - c.edge_ms) <= window_ms;
         }
 
-        /** @brief Order two visible entries: currently-active first (so ON alarms head
-         *  the list in the all / recent views), then by most-recent onset. */
+        /** @brief Order two visible entries: unacknowledged-active first (the nagging
+         *  alarms head the list), then acknowledged-active, then inactive; each by
+         *  most-recent onset. An ack thus demotes an alarm without removing it. */
         bool _before(const Alarms::AlarmCondition& x, const Alarms::AlarmCondition& y) const {
-            if (x.active != y.active) return x.active;     // active alarms first
+            bool xn = x.active && !x.acknowledged;         // "nagging": active and unack'd
+            bool yn = y.active && !y.acknowledged;
+            if (xn != yn) return xn;                       // unack'd-active heads the list
+            if (x.active != y.active) return x.active;     // then ack'd-active before inactive
             return x.started_ms > y.started_ms;           // then most-recent onset
         }
 
@@ -291,7 +298,9 @@ namespace Botanik { namespace Pages {
                 switch (_mode) {
                     case MODE_RECENT:   include = _is_recent(c, now);     break;
                     case MODE_ACTIVE:   include = c.active;               break;
-                    case MODE_UNMASKED: include = c.active && c.unmasked; break;
+                    // UNMASKED mirrors the alarm bar, so an ack'd alarm drops out of it too
+                    // (the ALL / ACTIVE / RECENT views keep it, demoted by _before()).
+                    case MODE_UNMASKED: include = c.active && c.unmasked && !c.acknowledged; break;
                     default:            include = true;                   break;  // MODE_ALL
                 }
                 if (include) _vis[_nvis++] = i;
@@ -338,10 +347,21 @@ namespace Botanik { namespace Pages {
             return m;
         }
 
+        /** @brief Bitmask of acknowledged conditions, used to detect an ack that changes
+         *  the sort/badge without moving the active set. */
+        uint64_t _acked_sig() const {
+            if (_model == nullptr) return 0;
+            uint64_t m = 0;
+            for (uint8_t i = 0; i < _model->count(); i++)
+                if (_model->condition(i).acknowledged) m |= Alarms::alarm_bit(i);
+            return m;
+        }
+
         /** @brief Snapshot the change signature after a repaint. */
         void _snapshot() {
             _last_active_sig = _active_sig();
             _last_recent_sig = _recent_sig();
+            _last_acked_sig  = _acked_sig();
         }
 
         /** @brief True if the displayed set moved since the last repaint (so a steady,
@@ -351,6 +371,7 @@ namespace Botanik { namespace Pages {
         bool _changed() const {
             if (_model == nullptr) return false;
             if (_active_sig() != _last_active_sig) return true;
+            if (_acked_sig()  != _last_acked_sig)  return true;
             return _mode == MODE_RECENT && _recent_sig() != _last_recent_sig;
         }
 
@@ -400,7 +421,10 @@ namespace Botanik { namespace Pages {
                                          c.active ? "ON" : "", ev, c.desc ? c.desc : "");
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
-            if (c.active && n > (uint16_t)(STATE_TEXT_COL + 2)) {
+            // Reverse-video "ON" badge only while active AND unacknowledged; an ack'd alarm
+            // still reads "ON" but in normal video (seen, no longer nagging), so it falls
+            // through to the plain one-pass write below.
+            if (c.active && !c.acknowledged && n > (uint16_t)(STATE_TEXT_COL + 2)) {
                 // "ON" sits at STATE_TEXT_COL: split the write so only it is reverse-video.
                 _terminal.write_chars(line, STATE_TEXT_COL);
                 _terminal.set_inverted(true);
