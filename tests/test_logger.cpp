@@ -75,22 +75,28 @@ TEST_CASE("writer: drain delivers queued entries in order") {
     CHECK(w.loss_count() == 0);
 }
 
-TEST_CASE("writer: a critical evicts the oldest entry on a full queue") {
+TEST_CASE("writer: criticals seat into the reserve without evicting normals") {
     TestBuffered w;
+    const uint32_t NORMAL_CAP = Config::LOG_QUEUE_SIZE - 1 - Config::LOG_QUEUE_CRITICAL_RESERVE;
     LogEntry_t e = {}; e.level = PlcIO::LOG_INFO;
-    // Fill the ring (usable capacity is LOG_QUEUE_SIZE - 1).
-    for (uint32_t i = 1; i <= Config::LOG_QUEUE_SIZE - 1; ++i) { e.timestamp = i; w.push(&e); }
+    // Normals fill only up to NORMAL_CAP; the last K slots are reserved for criticals.
+    for (uint32_t i = 1; i <= NORMAL_CAP; ++i) { e.timestamp = i; w.push(&e); }
     CHECK(w.loss_count() == 0);
-    e.timestamp = 100; w.push(&e);              // full: a non-critical is dropped
+    e.timestamp = 1000; w.push(&e);                 // would intrude on the reserve: dropped
     CHECK(w.loss_count() == 1);
-    e.level = PlcIO::LOG_CRITICAL; e.timestamp = 200; w.push(&e);  // evicts oldest, seats critical
+    // Criticals fill the reserve WITHOUT evicting any normal - the key fix that stops the
+    // sink-loss report from manufacturing the drop it reports.
+    e.level = PlcIO::LOG_CRITICAL;
+    for (uint32_t i = 0; i < Config::LOG_QUEUE_CRITICAL_RESERVE; ++i) { e.timestamp = 200 + i; w.push(&e); }
+    CHECK(w.loss_count() == 1);                     // no eviction occurred
+    // Only now (completely full) does a further critical evict the oldest as a last resort.
+    e.timestamp = 999; w.push(&e);
     CHECK(w.loss_count() == 2);
     w.drain();
     CHECK(w.sent.size() == Config::LOG_QUEUE_SIZE - 1);
-    CHECK(w.sent.front() == 2);                 // ts=1 was evicted
-    CHECK(w.sent.back() == 200);                // the critical survived
-    // the dropped non-critical (ts=100) never made it into the queue
-    CHECK(std::find(w.sent.begin(), w.sent.end(), 100u) == w.sent.end());
+    CHECK(w.sent.front() == 2);                     // ts=1 evicted by the last-resort critical
+    CHECK(w.sent.back() == 999);                    // that critical seated last
+    CHECK(std::find(w.sent.begin(), w.sent.end(), 1000u) == w.sent.end());  // the dropped normal
 }
 
 TEST_CASE("logger: sink-drop report is edge-triggered, critical, held off") {

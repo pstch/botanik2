@@ -103,8 +103,10 @@ namespace Botanik { namespace Logs {
         /** @name Queue interface
          *  @{ */
 
-        /** @brief Enqueue @p entry; drops (and counts) lower levels when the queue
-         *  is full, evicting the oldest to seat a LOG_CRITICAL. */
+        /** @brief Enqueue @p entry. The last LOG_QUEUE_CRITICAL_RESERVE slots are kept
+         *  for LOG_CRITICAL, so a normal that would intrude on them is dropped (counted);
+         *  a critical seats into the reserve without evicting (or, only if the whole
+         *  queue is full, evicts the oldest as a last resort). */
         void push(const LogEntry_t* entry) override;
         /** @brief Flush queued entries to the output medium (call from the main loop) */
         void drain() override;

@@ -122,6 +122,7 @@ namespace Botanik {
             _logger.add_writer(&_shell_page);
             _logger.add_writer(&_logs_page);
             _logger.watch_tx(&_console_serial);
+            _logger.watch_tx(&_monitor_serial);
 
             // Pages, in tab order: the hook decides the set/order (page 0 is the boot
             // page). The default registers the built-ins; a site overrides the hook to

@@ -301,6 +301,15 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(size_t, LOG_QUEUE_SIZE);
 
+    /** @brief Slots at the tail of the writer FIFO reserved for LOG_CRITICAL: a normal
+     *  entry that would intrude on them is dropped, so a critical (e.g. the sink-loss
+     *  report itself) can always seat without evicting - which stops that report from
+     *  manufacturing the very drop it reports. A few suffice (criticals are rare). */
+#ifndef BOTANIK_LOG_QUEUE_CRITICAL_RESERVE
+#  define BOTANIK_LOG_QUEUE_CRITICAL_RESERVE 4
+#endif
+    BOTANIK_CFG(size_t, LOG_QUEUE_CRITICAL_RESERVE);
+
     /** @brief Maximum length of a single formatted log line including metadata (bytes) */
 #ifndef BOTANIK_LOG_FORMATTED_LEN
 #  define BOTANIK_LOG_FORMATTED_LEN 256

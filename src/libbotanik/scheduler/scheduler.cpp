@@ -95,7 +95,7 @@ namespace Botanik { namespace Scheduler {
         _context.cpu_jitter_us_recent = 0;
         _context.cpu_jitter_us_max    = 0;
         _context.stack_usage          = 0.0f;
-        _context.stack_bytes_max      = 0;
+        _context.stack_bytes_free     = _stack_depth;   // nothing used yet: all free
         _context.stack_depth          = _stack_depth;
 
         // log the first overrun after a reset immediately
@@ -250,12 +250,13 @@ namespace Botanik { namespace Scheduler {
 #endif
         if (low == 0 || _stack_depth == 0) return;   // nothing measurable yet
 
-        // The high-water is already a max; just track the all-time peak and publish it
-        // (both as bytes and as a fraction of the stack depth) - no EMA / rolling window.
+        // The high-water is already a max; just track the all-time peak - no EMA /
+        // rolling window. Publish the usage fraction and the absolute worst-case
+        // headroom (least free stack ever = depth - peak used), the safety-relevant value.
         if (low > _stack_bytes_max) _stack_bytes_max = low;
-        _context.stack_bytes_max = _stack_bytes_max;
-        _context.stack_usage     = static_cast<float>(_stack_bytes_max)
-                                 / static_cast<float>(_stack_depth);
+        _context.stack_usage      = static_cast<float>(_stack_bytes_max)
+                                  / static_cast<float>(_stack_depth);
+        _context.stack_bytes_free = _stack_depth - _stack_bytes_max;
     }
 
     // Simulator only: hardware uses the RTOS stack watermark instead (see

@@ -49,8 +49,9 @@ namespace Botanik { namespace Scheduler {
         /** @brief peak stack usage as a fraction of stack depth (worst-ever). The
          *  high-water is itself a max, so there's no EMA/rolling window on top of it. */
         float    stack_usage        = 0.0f;
-        /** @brief all-time peak used stack, bytes */
-        uint32_t stack_bytes_max    = 0;
+        /** @brief minimum free stack ever, bytes - the worst-case remaining headroom
+         *  (= depth - peak used). The directly safety-relevant absolute number. */
+        uint32_t stack_bytes_free   = 0;
         /** @brief total thread stack allocation, bytes */
         uint32_t stack_depth        = 0;
 

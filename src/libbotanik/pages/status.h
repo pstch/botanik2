@@ -101,9 +101,9 @@ namespace Botanik { namespace Pages {
 
             if (ctx.scheduler) {
                 // Stack usage (left): EMA leads, all-time peak bytes in parens.
-                snprintf(val, sizeof(val), "%5s%% (peak %5lu B)",
+                snprintf(val, sizeof(val), "%5s%% (%5lu B free)",
                          Utils::format_float(fa, sizeof(fa), ctx.scheduler->stack_usage * 100.0f, 1),
-                         (unsigned long)ctx.scheduler->stack_bytes_max);
+                         (unsigned long)ctx.scheduler->stack_bytes_free);
                 _cell(SLOT_STACK, 6, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W);
                 // Task period (right): nominal loop period + achieved real tick rate
                 // (RTPS = ticks per *real* second; under sim dilation it shows sustain).

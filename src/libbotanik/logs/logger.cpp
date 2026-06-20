@@ -27,9 +27,10 @@ namespace Botanik { namespace Logs {
     // ------------------------------------------------------------------------
 
     Logger::Logger() {
-        _perTopic_fillTime_ms = HAL::current_ms();
-        _global_fillTime_ms = HAL::current_ms();
-        _suppress_reportTime_ms = HAL::current_ms();
+        uint32_t now = HAL::current_ms();   // one sample: all three anchors share it
+        _perTopic_fillTime_ms   = now;
+        _global_fillTime_ms     = now;
+        _suppress_reportTime_ms = now;
         _global_bucket.state = _global_burst;
         for (uint8_t i = 0; i < PlcIO::LOG_TOPIC_COUNT; ++i) {
             _perTopic_buckets[i].state = _perTopic_burst;
@@ -61,36 +62,50 @@ namespace Botanik { namespace Logs {
 
     void Logger::step() {
         uint32_t now_ms         = HAL::current_ms();
-        // Refill the token buckets on their own (fast) cadences.
+        // Refill the token buckets on their own (fast) cadences. The anchor advances by
+        // the FULL elapsed periods (bounded by the wrap-safe gap, so no overflow), but
+        // the bucket is refilled by min(amount, burst): the bucket saturates at burst
+        // anyway, and this keeps the uint16 _fill_bucket arg from truncating a long gap.
         uint32_t global_amount  = (now_ms - _global_fillTime_ms) / _global_period_ms;
         _global_fillTime_ms    += global_amount * _global_period_ms;
-        _fill_bucket(&_global_bucket, global_amount, _global_burst);
+        _fill_bucket(&_global_bucket,
+                     (uint16_t)std::min(global_amount, (uint32_t)_global_burst), _global_burst);
         uint32_t topic_amount   = (now_ms - _perTopic_fillTime_ms) / _perTopic_period_ms;
         _perTopic_fillTime_ms  += topic_amount * _perTopic_period_ms;
-        for (uint8_t i = 0; i < PlcIO::LOG_TOPIC_COUNT; ++i)
-            _fill_bucket(&_perTopic_buckets[i], topic_amount, _perTopic_burst);
+        uint16_t topic_fill     = (uint16_t)std::min(topic_amount, (uint32_t)_perTopic_burst);
+        // Start at 1: slot 0 (NONE) is never consumed (push_entry short-circuits NONE).
+        for (uint8_t i = 1; i < PlcIO::LOG_TOPIC_COUNT; ++i)
+            _fill_bucket(&_perTopic_buckets[i], topic_fill, _perTopic_burst);
         // Drain suppressed-message counters on a separate, slower cadence so a
         // sustained storm yields an occasional summary rather than one per refill.
         uint32_t report_amount  = (now_ms - _suppress_reportTime_ms) / _suppress_period_ms;
         if (report_amount > 0) {
             _suppress_reportTime_ms += report_amount * _suppress_period_ms;
-            _report_suppressed(&_global_bucket, LogTopic::NONE, now_ms);
-            for (uint8_t i = 0; i < PlcIO::LOG_TOPIC_COUNT; ++i)
+            _report_suppressed(&_global_bucket, LogTopic::NONE, now_ms);   // global bucket
+            for (uint8_t i = 1; i < PlcIO::LOG_TOPIC_COUNT; ++i)            // per-topic, skip NONE
                 _report_suppressed(&_perTopic_buckets[i], (LogTopic)i, now_ms);
         }
         // Report data actually lost (not just rate-limited): entries dropped at the
-        // sinks (summed across writers) and, if a console serial is watched, its
-        // TX-full drops. Edge-triggered with a per-category holdoff, emitted as
-        // criticals so the writers never drop the report itself.
+        // sinks (summed across writers) and, across the watched serials, their TX-full
+        // drops. Edge-triggered with a per-category holdoff, emitted as criticals so
+        // the writers never drop the report itself.
         uint32_t sink_total = 0;
         for (uint8_t i = 0; i < _writerCount; i++) sink_total += _writers[i]->loss_count();
         _report_loss(_sink_loss, sink_total, Config::LOG_SINK_DROP_REPORT_PERIOD_MS,
                      now_ms, "log entries dropped at sink");
-        if (_watched_tx != nullptr)
-            _report_loss(_tx_loss, _watched_tx->tx_dropped(), Config::LOG_TX_DROP_REPORT_PERIOD_MS,
-                         now_ms, "console bytes dropped (TX full)");
+        uint32_t tx_total = 0;
+        for (uint8_t i = 0; i < _watched_tx_count; i++) tx_total += _watched_tx[i]->tx_dropped();
+        if (_watched_tx_count > 0)
+            _report_loss(_tx_loss, tx_total, Config::LOG_TX_DROP_REPORT_PERIOD_MS,
+                         now_ms, "serial bytes dropped (TX full)");
     }
 
+    // Two-stage drop policy: the token-bucket rate limiter below applies to EVERY level,
+    // criticals included - it is a flood backstop (a critical should be rare and never hit
+    // the limiter, but if a storm of them does, we must not flood the TX chain). Whatever
+    // survives is then undroppable at the WRITER FIFO (it reserves slots for criticals, so
+    // they're never dropped there). So "critical is undroppable" means at the sink queue,
+    // not the rate limiter; a limiter-dropped critical is still counted + summary-reported.
     void Logger::push_entry(const PlcIO::LogEntry_t& entry) {
         PlcIO::LogTopic topic = entry.topic >=
             PlcIO::LOG_TOPIC_COUNT ? LogTopic::NONE : entry.topic;                       // determine the topic to use for this entry

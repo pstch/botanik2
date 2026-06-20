@@ -105,10 +105,12 @@ namespace Botanik { namespace Logs {
 
         /** @brief Edge-triggered report state for entries dropped at the sinks. */
         LossReporter_t  _sink_loss;
-        /** @brief Edge-triggered report state for watched console TX-full drops. */
+        /** @brief Edge-triggered report state for watched serial TX-full drops. */
         LossReporter_t  _tx_loss;
-        /** @brief Optional console serial whose TX-full drops we report (may be null). */
-        Utils::BufferedSerial* _watched_tx     = nullptr;
+        /** @brief Serials whose TX-full drops we report (console + monitor). */
+        Utils::BufferedSerial* _watched_tx[2]  = { nullptr, nullptr };
+        /** @brief Number of registered TX watches. */
+        uint8_t         _watched_tx_count       = 0;
 
         /** @} */
 
@@ -130,9 +132,11 @@ namespace Botanik { namespace Logs {
         bool remove_writer(LogWriter* writer);
         /** @brief True if at least one output writer is registered (POST check). */
         bool has_writers() const { return _writerCount > 0; }
-        /** @brief Watch a console serial so its TX-full drops are reported (the
-         *  terminal reserves space, so only non-resuming callers actually drop). */
-        void watch_tx(Utils::BufferedSerial* serial) { _watched_tx = serial; }
+        /** @brief Watch a serial so its TX-full drops are reported (the terminal reserves
+         *  space, so only non-resuming callers actually drop). Up to two (console + monitor). */
+        void watch_tx(Utils::BufferedSerial* serial) {
+            if (serial != nullptr && _watched_tx_count < 2) _watched_tx[_watched_tx_count++] = serial;
+        }
 
         /** @} */
 

@@ -226,18 +226,29 @@ into `step()` by the already-templated firmware).
 
 ## Block 3 - Logging
 
-- [ ] **`[SUPPRESS-REPORT-FANOUT-LOSS]`** reserve K writer-FIFO slots for `LOG_CRITICAL`
-  (normals fill to `SIZE-K` then drop; criticals seat into the reserve without eviction,
-  so the sink-loss report stops manufacturing the drop it reports). K ~ 2-4.
-- [ ] **`[CRITICAL-RATELIMITED]`** docs only: state the two-stage policy (rate limiter
-  may drop a critical as a flood backstop; the writer FIFO never drops one).
-- [ ] **`[FILL-AMOUNT-TRUNC]` (+ `[REFILL-MULTIPLY-OVERFLOW]`)** clamp refill `amount`
-  to `burst` before `_fill_bucket` (also bounds the anchor-advance multiply).
-- [ ] **`[SUPPRESS-NONE-NODRAIN]`** start the per-topic fill/scan at index 1 (slot 0 = NONE, inert).
-- [ ] **`[FORMATTED-VS-MESSAGE-LEN]` / `[FORMAT-RETURN-EQ-LEN]`** reserve one byte for
-  the trailing newline so an exact-fill truncation can't merge two log lines.
-- [ ] **`[TX-WATCH-SINGLE]`** watch both serials' `tx_dropped` (not just the console).
-- [ ] **`[FILLTIME-INIT-RACE]`** sample `current_ms()` once in the ctor.
+- [x] **`[SUPPRESS-REPORT-FANOUT-LOSS]`** the writer FIFO reserves the last
+  `LOG_QUEUE_CRITICAL_RESERVE` (4) slots for `LOG_CRITICAL`: normals drop once they'd
+  intrude, criticals seat into the reserve WITHOUT evicting, so the sink-loss report
+  (itself a critical) no longer manufactures the drop it reports. Last-resort eviction
+  only on a completely full queue. Updated the round-1 eviction unit test to the new semantics.
+- [x] **`[CRITICAL-RATELIMITED]`** code comment in `push_entry` states the two-stage policy
+  (rate limiter may drop a critical as a flood backstop + count/report it; the writer FIFO
+  never drops one). No behaviour change.
+- [x] **`[FILL-AMOUNT-TRUNC]` (+ `[REFILL-MULTIPLY-OVERFLOW]`)** refill the bucket by
+  `min(amount, burst)` (the bucket saturates at burst anyway) so the uint16 `_fill_bucket`
+  arg can't truncate a long gap; the anchor still advances by the full elapsed periods
+  (bounded by the wrap-safe gap, so no multiply overflow).
+- [x] **`[SUPPRESS-NONE-NODRAIN]`** the per-topic fill + report loops start at index 1
+  (slot 0 = NONE, never consumed).
+- [x] **`[FORMATTED-VS-MESSAGE-LEN]` / `[FORMAT-RETURN-EQ-LEN]`** `SerialLogWriter::format`
+  formats into `len-1` so there is ALWAYS room for the trailing newline (no exact-fill merge).
+- [x] **`[TX-WATCH-SINGLE]`** `watch_tx` now takes up to two serials (console + monitor);
+  `step()` sums their `tx_dropped`. Firmware watches both.
+- [x] **`[FILLTIME-INIT-RACE]`** the ctor samples `current_ms()` once into all three anchors.
+- [x] **(folded in) stack-usage display:** the absolute value is now the *minimum free
+  bytes ever* (worst-case headroom = depth - peak used), the directly safety-relevant
+  number, not peak-used. `stack_bytes_max` -> `stack_bytes_free`; status/shell labels +
+  pyte regex updated.
 
 ---
 

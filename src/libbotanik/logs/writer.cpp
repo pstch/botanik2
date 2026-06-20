@@ -23,14 +23,24 @@ namespace Botanik { namespace Logs {
     // Add a new entry to the writer's queue
     void BufferedLogWriter::push(const LogEntry_t* entry) {
         uint8_t nextIndex = (_writeIndex + 1) % Config::LOG_QUEUE_SIZE;     // determine next write index
-        if (nextIndex == _readIndex) {                                      // queue full
-            // Never drop a critical: evict the oldest queued entry to make room.
-            // The outgoing _message is a copy (drain() consumes _readIndex at
-            // format time), so advancing _readIndex can't corrupt an in-flight
-            // send. Lower levels drop as before.
-            if (entry->level < PlcIO::LOG_CRITICAL) { _dropped += 1; return; }
+        bool    crit      = entry->level >= PlcIO::LOG_CRITICAL;
+        if (nextIndex == _readIndex) {                                      // completely full
+            // Even the critical reserve is exhausted. A normal drops; a critical evicts
+            // the oldest as a last resort (rare). drain() consumes _readIndex at format
+            // time, so advancing it can't corrupt an in-flight send.
+            if (!crit) { _dropped += 1; return; }
             _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE;         // drop oldest
             _dropped += 1;
+        } else if (!crit) {
+            // Reserve the last K usable slots for criticals: drop a normal that would
+            // intrude on them, so a critical (e.g. the sink-loss report itself) can
+            // always seat WITHOUT evicting - which stops that report from manufacturing
+            // the very drop it then reports.
+            uint8_t used = (uint8_t)((_writeIndex - _readIndex + Config::LOG_QUEUE_SIZE)
+                                     % Config::LOG_QUEUE_SIZE);
+            if (used >= (uint8_t)(Config::LOG_QUEUE_SIZE - 1 - Config::LOG_QUEUE_CRITICAL_RESERVE)) {
+                _dropped += 1; return;
+            }
         }
         memcpy(&_queue[_writeIndex], entry, sizeof(LogEntry_t));            // store the log entry
         _writeIndex = nextIndex;                                            // and record the incremented write index
@@ -77,8 +87,11 @@ namespace Botanik { namespace Logs {
         // The shared formatter emits no line terminator (the page writers wrap by
         // width into stored rows). On a serial sink entries would otherwise run
         // together, so terminate each one with a newline when there's room.
-        size_t written = format_log_entry(entry, buf, len);
-        if (written < len) buf[written++] = '\n';
+        if (len == 0) return 0;
+        // Format into len-1 so there is ALWAYS room for the newline: an exact-fill
+        // line would otherwise run into the next one on the serial sink.
+        size_t written = format_log_entry(entry, buf, len - 1);
+        buf[written++] = '\n';
         return written;
     }
 

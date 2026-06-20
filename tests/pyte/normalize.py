@@ -29,7 +29,7 @@ _SUBS = [
     (re.compile(r"PLC link\s+\w+"), "PLC link <P>"),                           # UNKNOWN/RUNNING/...
     (re.compile(r"CPU load\s+[\d.]+%\s*\(peak\s+[\d.]+ms\)"), "CPU load <CPU>"),
     (re.compile(r"CPU jitter\s+[\d.]+%\s*\(peak\s+[\d.]+ms\)"), "CPU jitter <JIT>"),
-    (re.compile(r"Stack\s+[\d.]+%\s*\(peak\s+\d+ B\)"), "Stack <STK>"),
+    (re.compile(r"Stack\s+[\d.]+%\s*\(\d+ B free\)"), "Stack <STK>"),
     (re.compile(r"Task period\s+\d+ms \(\d+ RTPS\)"), "Task period <TASK>"),
     (re.compile(r"Console TX\s+\d+/\d+ \(drops: \d+\)"), "Console TX <TX>"),
     (re.compile(r"Network\s+\w+ \(lat [^)]*\)"), "Network <NET>"),             # net status + latency
