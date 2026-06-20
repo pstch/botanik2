@@ -32,8 +32,12 @@ namespace Botanik { namespace Utils {
      *  In THIS firmware every method runs on the main loop : we have no serial
      *  ISRs (the Arduino UART driver keeps its own ISR below the HAL). The ring is
      *  therefore NOT ISR-safe as wired - never call a method from interrupt
-     *  context. The volatile head/tail + HAL::dsb() keep the SPSC split honest;
-     *  the only async boundary in this firmware is the PLC shared memory. */
+     *  context. Because producer and consumer are the same (single) thread, no
+     *  memory barrier is needed: program order alone keeps the head/tail and the
+     *  byte stores consistent. The head/tail stay `volatile` as an intent marker
+     *  (and so a future ISR/second-thread rewiring is a localized change, which
+     *  would then have to add the barriers back). The only genuine async boundary
+     *  in this firmware is the PLC shared memory, which carries its own barriers. */
     class BufferedSerial {
     private:
 
@@ -65,8 +69,13 @@ namespace Botanik { namespace Utils {
         /** @brief Cumulative bytes that didn't fit in the TX ring on write().
          *  Meaningful for callers that don't retry (console command output drops
          *  them); callers that resume a partial write (the log sink) inflate it,
-         *  so only watch this on a serial whose writers don't resume. */
+         *  so only watch this on a serial whose writers don't resume. Saturating. */
         uint32_t    _tx_dropped = 0;
+
+        /** @brief Count of receive() cycles that aborted with the RX ring full: the
+         *  main loop fell behind the device, so bytes may have been lost in the device
+         *  FIFO (the hardware overrun is otherwise invisible). Saturating. */
+        uint32_t    _rx_overrun = 0;
 
         /** @} */
 
@@ -93,12 +102,16 @@ namespace Botanik { namespace Utils {
         /** @brief True if the bound port's output is an interactive terminal
          *  (always false on hardware UARTs). */
         bool is_output_tty() const;
-        /** @brief RX ring buffer capacity, bytes */
+        /** @brief RX ring buffer size, bytes (usable depth is rx_capacity() - 1, i.e.
+         *  255: one slot is reserved to tell a full ring from an empty one). */
         static constexpr uint16_t rx_capacity() { return RX_BUF_SIZE; }
-        /** @brief TX ring buffer capacity, bytes */
+        /** @brief TX ring buffer size, bytes (usable depth is tx_capacity() - 1, i.e.
+         *  4095: one slot is reserved to tell a full ring from an empty one). */
         static constexpr uint16_t tx_capacity() { return TX_BUF_SIZE; }
         /** @brief Cumulative bytes dropped because the TX ring was full (see above). */
         uint32_t tx_dropped() const { return _tx_dropped; }
+        /** @brief Count of receive() cycles aborted with a full RX ring (see above). */
+        uint32_t rx_overrun() const { return _rx_overrun; }
 
         /** @} */
 

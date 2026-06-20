@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>    // snprintf - integer/char conversions are intact on our Mbed nano
-#include <cstdlib>   // getenv/strtol - env_u8
+#include <cstdlib>   // getenv - env_u8 (parsing is in-house via parse_uint)
 #include <cmath>     // llround - round-half-away-from-zero without the +0.5 float trap
 
 #include "libbotanik/utils/text.h"
@@ -68,7 +68,9 @@ namespace Botanik { namespace Utils {
         do { rev[r++] = (char)('0' + ipart % 10); ipart /= 10; } while (ipart && r < sizeof(rev) - 2);
 
         // Zero-pad (after the sign) up to `width`, then prepend the sign last so
-        // it lands at the front of the final, un-reversed string.
+        // it lands at the front of the final, un-reversed string. `width` is a uint8 but
+        // the effective cap is sizeof(rev)-1 (~39): the `r < sizeof(rev)-1` guard clamps a
+        // larger request rather than overrun, so the build buffer bounds the field.
         size_t sign_w = negative ? 1 : 0;
         while (r + sign_w < width && r < sizeof(rev) - 1) rev[r++] = '0';
         if (negative) rev[r++] = '-';
@@ -100,9 +102,10 @@ namespace Botanik { namespace Utils {
     uint8_t env_u8(const char* name, uint8_t fallback) {
         const char* v = getenv(name);
         if (v == nullptr || *v == '\0') return fallback;
-        char* end = nullptr;
-        long n = strtol(v, &end, 10);
-        if (*end != '\0' || n < 0 || n > 255) return fallback;
+        uint16_t len = 0;
+        while (v[len] != '\0') len++;                       // bounded by the env string
+        uint32_t n;
+        if (!parse_uint(v, len, &n) || n > 255) return fallback;   // in-house, no strtol
         return (uint8_t)n;
     }
 

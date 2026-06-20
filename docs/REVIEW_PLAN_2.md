@@ -349,15 +349,22 @@ into `step()` by the already-templated firmware).
 
 ## Block 7 - Serial / text / libc reduction
 
-- [ ] **`[TX-DROPPED-WRAP]`** make `_tx_dropped` saturating (monotone, never rolls back).
-- [ ] **`[RX-OVERRUN-SILENT]`** add an `rx_overrun` counter (device FIFO loss) and
-  surface it on the status page.
-- [ ] **`[TRANSMIT-DSB-PLACEMENT]`** hoist the per-byte `dsb()` out of the read/transmit
-  loops (or drop it - main-loop-only SPSC).
-- [ ] **`[ENV-STRTOL-LIBC]` / `[FORMAT-AGE-SNPRINTF]`** replace with in-house bounded
-  helpers (libc reduction, `[TODO-LIBC]`).
-- [ ] **`[FORMAT-FLOAT-WIDTH-U8]`** document + assert the effective width cap.
-- [ ] **`[RX-CAPACITY-255]`** correct the docs (255/4095 usable, not 256/4096).
+- [x] **`[TX-DROPPED-WRAP]`** `_tx_dropped` is now saturating (clamps at UINT32_MAX).
+- [x] **`[RX-OVERRUN-SILENT]`** added a saturating `rx_overrun` counter (receive() cycles
+  aborted with a full RX ring = possible device-FIFO loss), forwarded through the terminal
+  and shown on a new `stats` "Console serial" line (TX dropped / RX overruns).
+- [x] **`[TRANSMIT-DSB-PLACEMENT]`** dropped the per-byte `dsb()` from all the ring loops:
+  the ring is single-thread (main-loop-only, documented as not-ISR-safe), so program order
+  alone keeps it consistent - no barrier needed. `volatile` head/tail stay as an intent
+  marker, and the class doc now spells out the rationale (a future ISR rewiring re-adds them).
+- [x]/[~] **`[ENV-STRTOL-LIBC]`** `env_u8` now parses via the in-house `parse_uint` (drops
+  `strtol`, its only user - real libc reduction). **`[FORMAT-AGE-SNPRINTF]` deferred**:
+  `snprintf` stays linked everywhere else, so replacing one call isn't a binary reduction
+  yet - do it when `snprintf` is eliminated wholesale (`[TODO-LIBC]`).
+- [x] **`[FORMAT-FLOAT-WIDTH-U8]`** documented: the effective width cap is the build
+  buffer (`sizeof(rev)-1`, ~39); the existing guard clamps a larger request, no overrun.
+- [x] **`[RX-CAPACITY-255]`** capacity docs corrected (usable depth is size-1: 255 / 4095,
+  one slot reserved to distinguish full from empty).
 
 ---
 

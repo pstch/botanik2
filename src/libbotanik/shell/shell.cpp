@@ -171,6 +171,12 @@ namespace Botanik { namespace Shell {
         w = snprintf(out, sizeof(out), "%-29s : %s",
             "Stack depth .................", val);
         if (w > 0) _output.write(out, (size_t)w);
+
+        snprintf(detail, sizeof(detail), "%lu TX dropped, %lu RX overruns",
+            (unsigned long)_terminal.tx_dropped(), (unsigned long)_terminal.rx_overrun());
+        w = snprintf(out, sizeof(out), "%-29s : %s",
+            "Console serial ..............", detail);
+        if (w > 0) _output.write(out, (size_t)w);
     }
 
     void CommandShell::_cmd_version(const char*, uint16_t) {

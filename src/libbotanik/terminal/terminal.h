@@ -418,6 +418,10 @@ namespace Botanik { namespace Terminal {
          *  output that didn't retry); surfaced by the status page. */
         uint32_t tx_dropped() const { return _serial.tx_dropped(); }
 
+        /** @brief Count of receive() cycles aborted with a full RX ring (the main loop
+         *  fell behind the device; possible device-FIFO loss). */
+        uint32_t rx_overrun() const { return _serial.rx_overrun(); }
+
         /** @brief Capacity of the serial RX / TX ring buffers, bytes */
         static constexpr uint16_t rx_capacity() { return Utils::BufferedSerial::rx_capacity(); }
         static constexpr uint16_t tx_capacity() { return Utils::BufferedSerial::tx_capacity(); }
