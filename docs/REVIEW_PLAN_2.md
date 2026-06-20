@@ -310,10 +310,13 @@ into `step()` by the already-templated firmware).
   to `utils/text.h` (`arg_next` / `arg_eq` / `parse_uint`, no libc `strtol`). Dispatch now
   matches the first word and passes the argument slice; `logs` parses its own `on`/`off`
   (the `logs on`/`logs off` exact-match entries are gone).
-- [~] **`[MISSING-COMMANDS]`** added `uptime` and `plc` (link status from the context).
-  **Deferred** (need new APIs first): `alarm ack`/`alarm list` (an AlarmModel ack mutation),
-  `loglevel` (a Logger level control), `net`/`ntp` (the network subsystem), guarded
-  `reboot` (a confirm flow; `reset` exists), `mem` (no heap / free-RAM HAL primitive).
+- [x] **`[MISSING-COMMANDS]`** `uptime`, `plc`, plus (post-deferral) `alarms list` /
+  `alarms ack <code|all>` (new `AlarmModel::ack`/`ack_all` + an `acknowledged` flag, reset
+  on the ON edge, informational - never touches the safety bar), `loglevel [level]` (new
+  `Logger` min-level gate, criticals always pass), and guarded `reboot` (needs `reboot
+  confirm`). Wired to the live logger + alarm model via `ShellPage::set_diagnostics`.
+  Unit-tested (test_alarms.cpp + a logger level test). Still **deferred** (truly blocked):
+  `net`/`ntp` (network subsystem), `mem` (no heap / free-RAM HAL primitive).
 - [x] **`[LEADING-WS-NOMATCH]`** `arg_next` skips leading whitespace, so a leading-space
   command line now matches.
 - [x] **`[HELP-DRIFT]` (+ `[HELP-NAME-TRUNC]` / `[VERSION-BUF-80]`)** `help` is generated

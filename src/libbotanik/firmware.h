@@ -124,6 +124,9 @@ namespace Botanik {
             _logger.watch_tx(&_console_serial);
             _logger.watch_tx(&_monitor_serial);
 
+            // Let the shell's loglevel / alarm-ack commands reach the live logger + model.
+            _shell_page.set_diagnostics(&_logger, &_health.model());
+
             // Pages, in tab order: the hook decides the set/order (page 0 is the boot
             // page). The default registers the built-ins; a site overrides the hook to
             // interleave its own (or drop a built-in). switch_to(0) records the boot page.

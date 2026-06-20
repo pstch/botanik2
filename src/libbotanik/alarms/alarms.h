@@ -69,6 +69,8 @@ namespace Botanik { namespace Alarms {
         bool        off_notified; // MQTT OFF notification sent (cleared when ON)
         bool        log_on_sent;  // "alarm START" logged this episode
         bool        log_off_sent; // "alarm END" logged this episode
+        bool        acknowledged; // operator ack'd this episode (cleared on the next ON
+                                  // edge); informational - does not change active/unmasked
         uint64_t    edge_ms;      // uptime of the last active/inactive transition
         uint64_t    started_ms;   // uptime of the last ON transition (onset); 0 if
                                   // never active. Drives the AlarmsPage start-time sort
@@ -179,6 +181,24 @@ namespace Botanik { namespace Alarms {
             if (i >= 0) set_local((uint8_t)i, on);
         }
 
+        /** @brief Mark an active condition acknowledged by table code; returns false if
+         *  the code is unknown or the alarm isn't active. Informational only (cleared on
+         *  the next ON edge); never alters the active/unmasked state or the safety bar. */
+        bool ack(const char* code) {
+            int i = alarm_index(_conditions, _count, code);
+            if (i < 0 || !_conditions[i].active) return false;
+            _conditions[i].acknowledged = true;
+            return true;
+        }
+
+        /** @brief Acknowledge every currently-active condition; returns the count ack'd. */
+        uint8_t ack_all() {
+            uint8_t n = 0;
+            for (uint8_t i = 0; i < _count; i++)
+                if (_conditions[i].active) { _conditions[i].acknowledged = true; n++; }
+            return n;
+        }
+
         /** @} */
 
         /** @brief Merge the PLC raw bitset with the local one, advance each
@@ -208,6 +228,7 @@ namespace Botanik { namespace Alarms {
                 if (on != was) {
                     c.edge_ms = now;
                     if (on) { c.off_notified = false; c.log_off_sent = false;
+                              c.acknowledged = false;  // a fresh episode is unacknowledged
                               c.started_ms = now; }   // onset, for start-time ordering
                     else    { c.on_notified  = false; c.log_on_sent  = false; }
                 }

@@ -112,6 +112,11 @@ namespace Botanik { namespace Logs {
         /** @brief Number of registered TX watches. */
         uint8_t         _watched_tx_count       = 0;
 
+        /** @brief Minimum level a non-critical entry must reach to be forwarded (set at
+         *  runtime by the `loglevel` shell command). LOG_DEBUG (the floor) passes all;
+         *  LOG_CRITICAL is the max value so a critical is never filtered. */
+        PlcIO::LogLevel _min_level              = PlcIO::LOG_DEBUG;
+
         /** @} */
 
     public:
@@ -132,6 +137,11 @@ namespace Botanik { namespace Logs {
         bool remove_writer(LogWriter* writer);
         /** @brief True if at least one output writer is registered (POST check). */
         bool has_writers() const { return _writerCount > 0; }
+
+        /** @brief Set the minimum forwarded level (criticals always pass); see @c _min_level. */
+        void set_min_level(PlcIO::LogLevel lvl) { _min_level = lvl; }
+        /** @brief Current minimum forwarded level. */
+        PlcIO::LogLevel min_level() const { return _min_level; }
         /** @brief Watch a serial so its TX-full drops are reported (the terminal reserves
          *  space, so only non-resuming callers actually drop). Up to two (console + monitor). */
         void watch_tx(Utils::BufferedSerial* serial) {

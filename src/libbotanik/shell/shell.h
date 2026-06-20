@@ -11,6 +11,11 @@
 #include "libbotanik/terminal/terminal.h"
 #include "libbotanik/terminal/editor.h"
 
+namespace Botanik {
+    namespace Logs   { class Logger;     }   // loglevel command (set_diagnostics)
+    namespace Alarms { class AlarmModel; }   // alarm list/ack command (set_diagnostics)
+}
+
 namespace Botanik { namespace Shell {
 
     /** @class ShellWriter
@@ -67,6 +72,10 @@ namespace Botanik { namespace Shell {
         size_t                  _command_count = 0;
         /** @brief Opaque context handed to each site command callback. */
         void*                   _command_ctx   = nullptr;
+        /** @brief Mutable diagnostics targets for the loglevel / alarm commands; null
+         *  until set_diagnostics() wires them (the commands then report "unavailable"). */
+        Logs::Logger*           _logger        = nullptr;
+        Alarms::AlarmModel*     _alarm_model   = nullptr;
 
         /** @} */
 
@@ -90,6 +99,12 @@ namespace Botanik { namespace Shell {
         /** @brief Register a site command table, tried after the built-ins. @p table
          *  must outlive the shell (typically a static at the site). @p ctx is passed
          *  to each callback. Pass count 0 (or a null table) to clear. */
+        /** @brief Wire the mutable diagnostics targets the loglevel / alarm-ack commands
+         *  act on (the owning firmware passes its logger and alarm model). */
+        void set_diagnostics(Logs::Logger* logger, Alarms::AlarmModel* alarms) {
+            _logger = logger; _alarm_model = alarms;
+        }
+
         void set_commands(const ShellCommand* table, size_t count, void* ctx = nullptr) {
             // Cap defensively so a bogus count can't walk off the table. A site name that
             // collides with a built-in is silently dead (built-ins match first, by design,
@@ -165,6 +180,8 @@ namespace Botanik { namespace Shell {
         void _cmd_alarms(const char* args, uint16_t alen);
         void _cmd_uptime(const char* args, uint16_t alen);
         void _cmd_plc(const char* args, uint16_t alen);
+        void _cmd_loglevel(const char* args, uint16_t alen);
+        void _cmd_reboot(const char* args, uint16_t alen);
         /** @brief Handle an unrecognised command (echoes "Unknown command: ..."). */
         void _unknown(const char* cmd, uint16_t len);
         /** @brief Write a NUL-terminated line of command output. */

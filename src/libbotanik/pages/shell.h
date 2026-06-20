@@ -72,6 +72,12 @@ namespace Botanik { namespace Pages {
             _shell.set_commands(table, count, ctx);
         }
 
+        /** @brief Wire diagnostics targets (logger, alarm model) onto the shell for the
+         *  loglevel / alarm-ack commands. See Shell::CommandShell::set_diagnostics(). */
+        void set_diagnostics(Logs::Logger* logger, Alarms::AlarmModel* alarms) {
+            _shell.set_diagnostics(logger, alarms);
+        }
+
         /** @} */
 
         /** @name Page interface

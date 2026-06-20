@@ -9,6 +9,7 @@
 #include "libbotanik_config.h"
 #include "libbotanik/alarms/alarms.h"
 #include "libbotanik/hal/platform.h"
+#include "libbotanik/logs/logger.h"
 #include "libbotanik/plcio/sync.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/shell/shell.h"
@@ -52,10 +53,12 @@ namespace Botanik { namespace Shell {
             { "stats",      "scheduler / system metrics",     &CommandShell::_cmd_stats      },
             { "uptime",     "time since boot",                &CommandShell::_cmd_uptime     },
             { "plc",        "PLC link status",                &CommandShell::_cmd_plc        },
-            { "alarms",     "active alarm counts",            &CommandShell::_cmd_alarms     },
+            { "alarms",     "[list|ack <code|all>] alarms",   &CommandShell::_cmd_alarms     },
+            { "loglevel",   "[debug|info|..|critical] filter",&CommandShell::_cmd_loglevel   },
             { "version",    "firmware version",               &CommandShell::_cmd_version    },
             { "breakpoint", "trap into an attached debugger", &CommandShell::_cmd_breakpoint },
-            { "reset",      "reboot the controller",          &CommandShell::_cmd_reset      },
+            { "reboot",     "reboot (needs 'reboot confirm')",&CommandShell::_cmd_reboot     },
+            { "reset",      "reboot the controller now",      &CommandShell::_cmd_reset      },
             { "exit",       "quit (sim) / reboot (hw)",       &CommandShell::_cmd_exit       },
         };
         count = (uint8_t)(sizeof(TABLE) / sizeof(TABLE[0]));
@@ -186,12 +189,87 @@ namespace Botanik { namespace Shell {
         if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
     }
 
-    void CommandShell::_cmd_alarms(const char*, uint16_t) {
+    void CommandShell::_cmd_alarms(const char* args, uint16_t alen) {
+        uint16_t wlen; const char* sub = Utils::arg_next(args, alen, wlen);
+        char out[80];
+
+        // "alarms ack <code|all>" - mutates, so it needs the model wired via set_diagnostics.
+        if (sub && Utils::arg_eq(sub, wlen, "ack")) {
+            if (_alarm_model == nullptr) { _println("alarms: model unavailable"); return; }
+            uint16_t tlen; const char* tgt = Utils::arg_next(args, alen, tlen);
+            if (tgt == nullptr) { _println("usage: alarms ack <code|all>"); return; }
+            int n;
+            if (Utils::arg_eq(tgt, tlen, "all")) {
+                n = snprintf(out, sizeof(out), "acknowledged %u active alarm(s)", _alarm_model->ack_all());
+            } else {
+                char code[24]; uint16_t cl = std::min(tlen, (uint16_t)(sizeof(code) - 1));
+                memcpy(code, tgt, cl); code[cl] = '\0';
+                n = snprintf(out, sizeof(out), _alarm_model->ack(code)
+                             ? "acknowledged %s" : "no active alarm '%s'", code);
+            }
+            if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+            return;
+        }
+
         const Alarms::AlarmModel* m = _terminal.alarms();
-        char out[64];
+        if (m == nullptr) { _println("alarms: model unavailable"); return; }
+
+        // "alarms list" - one paced line per active condition: code, age, masked/ack flags.
+        if (sub && Utils::arg_eq(sub, wlen, "list")) {
+            if (m->active_count() == 0) { _println("no active alarms"); return; }
+            char age[16];
+            uint64_t now = HAL::uptime_ms();
+            for (uint8_t i = 0; i < m->count(); i++) {
+                const Alarms::AlarmCondition& c = m->condition(i);
+                if (!c.active) continue;
+                uint32_t secs = (uint32_t)((now - c.started_ms) / 1000);
+                int n = snprintf(out, sizeof(out), "  %-10s %s%s%s", c.code ? c.code : "?",
+                    Utils::format_age(age, sizeof(age), secs, false),
+                    c.unmasked ? "" : " [masked]", c.acknowledged ? " [ack]" : "");
+                if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+            }
+            return;
+        }
+
+        // Default: the count summary.
         int n = snprintf(out, sizeof(out), "alarms: %u active, %u unmasked",
-                         m ? m->active_count() : 0, m ? m->unmasked_count() : 0);
-        if (n > 0) _output.write(out, (size_t)n);
+                         m->active_count(), m->unmasked_count());
+        if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+    }
+
+    void CommandShell::_cmd_loglevel(const char* args, uint16_t alen) {
+        if (_logger == nullptr) { _println("loglevel: logger unavailable"); return; }
+        static const struct { const char* name; PlcIO::LogLevel lvl; } LEVELS[] = {
+            { "debug",  PlcIO::LOG_DEBUG   }, { "info",    PlcIO::LOG_INFO    },
+            { "notice", PlcIO::LOG_NOTICE  }, { "warning", PlcIO::LOG_WARNING },
+            { "error",  PlcIO::LOG_ERROR   }, { "critical",PlcIO::LOG_CRITICAL},
+        };
+        char out[48];
+        uint16_t wlen; const char* w = Utils::arg_next(args, alen, wlen);
+        if (w == nullptr) {                                   // report the current threshold
+            const char* cur = "?";
+            for (const auto& L : LEVELS) if (L.lvl == _logger->min_level()) cur = L.name;
+            int n = snprintf(out, sizeof(out), "loglevel: %s", cur);
+            if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+            return;
+        }
+        for (const auto& L : LEVELS)
+            if (Utils::arg_eq(w, wlen, L.name)) {
+                _logger->set_min_level(L.lvl);
+                int n = snprintf(out, sizeof(out), "loglevel: %s", L.name);
+                if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+                return;
+            }
+        _println("usage: loglevel [debug|info|notice|warning|error|critical]");
+    }
+
+    void CommandShell::_cmd_reboot(const char* args, uint16_t alen) {
+        uint16_t wlen; const char* w = Utils::arg_next(args, alen, wlen);
+        if (w != nullptr && Utils::arg_eq(w, wlen, "confirm")) {
+            _println("rebooting...");
+            HAL::reset();                                     // does not return
+        }
+        _println("this reboots the controller; run 'reboot confirm' to proceed");
     }
 
     void CommandShell::_cmd_uptime(const char*, uint16_t) {

@@ -107,6 +107,10 @@ namespace Botanik { namespace Logs {
     // they're never dropped there). So "critical is undroppable" means at the sink queue,
     // not the rate limiter; a limiter-dropped critical is still counted + summary-reported.
     void Logger::push_entry(const PlcIO::LogEntry_t& entry) {
+        // Level gate (before the rate limiter so a filtered entry costs no token): drop a
+        // sub-threshold entry. The LogLevel values are monotonic and LOG_CRITICAL is the
+        // max, so a critical never falls below _min_level - criticals always pass.
+        if (entry.level < _min_level) return;
         PlcIO::LogTopic topic = entry.topic >=
             PlcIO::LOG_TOPIC_COUNT ? LogTopic::NONE : entry.topic;                       // determine the topic to use for this entry
         LogBucket_t* topic_bucket = &_perTopic_buckets[topic];                          // get the bucket for this topic

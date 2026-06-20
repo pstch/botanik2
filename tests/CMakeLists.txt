@@ -11,6 +11,7 @@ add_executable(botanik_tests
     test_time.cpp
     test_sizes.cpp
     test_logger.cpp
+    test_alarms.cpp
     test_filters.cpp
     test_line_buffer.cpp
     test_parser.cpp

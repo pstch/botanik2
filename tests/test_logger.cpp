@@ -99,6 +99,25 @@ TEST_CASE("writer: criticals seat into the reserve without evicting normals") {
     CHECK(std::find(w.sent.begin(), w.sent.end(), 1000u) == w.sent.end());  // the dropped normal
 }
 
+TEST_CASE("logger: min_level drops sub-threshold entries, criticals always pass") {
+    Logs::Logger lg;
+    RecordingWriter w;
+    lg.add_writer(&w);
+    lg.set_min_level(PlcIO::LOG_WARNING);
+    CHECK(lg.min_level() == PlcIO::LOG_WARNING);
+
+    lg.push_entry(info_on(PlcIO::PLC_IO));          // LOG_INFO < WARNING -> dropped
+    CHECK(w.pushes == 0);
+
+    LogEntry_t warn = info_on(PlcIO::PLC_IO); warn.level = PlcIO::LOG_WARNING;
+    lg.push_entry(warn);                            // == threshold -> passes
+    CHECK(w.pushes == 1);
+
+    LogEntry_t crit = info_on(PlcIO::PLC_IO); crit.level = PlcIO::LOG_CRITICAL;
+    lg.push_entry(crit);                            // critical (max level) always passes
+    CHECK(w.pushes == 2);
+}
+
 TEST_CASE("logger: sink-drop report is edge-triggered, critical, held off") {
     Logs::Logger logger;
     RecordingWriter w;
