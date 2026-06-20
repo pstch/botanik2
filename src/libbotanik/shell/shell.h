@@ -91,6 +91,10 @@ namespace Botanik { namespace Shell {
          *  must outlive the shell (typically a static at the site). @p ctx is passed
          *  to each callback. Pass count 0 (or a null table) to clear. */
         void set_commands(const ShellCommand* table, size_t count, void* ctx = nullptr) {
+            // Cap defensively so a bogus count can't walk off the table. A site name that
+            // collides with a built-in is silently dead (built-ins match first, by design,
+            // so a site can't shadow exit/reset).
+            if (count > Config::SHELL_COMMANDS_MAX) count = Config::SHELL_COMMANDS_MAX;
             _commands      = table;
             _command_count = (table != nullptr) ? count : 0;
             _command_ctx   = ctx;
@@ -135,22 +139,32 @@ namespace Botanik { namespace Shell {
          *  @{ */
 
         /** @brief Built-in command handler (run when dispatch() falls through):
-         *  matches @p cmd against the static command table and invokes its handler. */
+         *  matches @p cmd's first word against the built-in table and invokes its handler
+         *  with the argument slice. */
         void _builtin(const char* cmd, uint16_t len);
 
+        /** @brief One built-in: name, one-line help, handler taking the argument slice. */
+        struct Builtin { const char* name; const char* help;
+                         void (CommandShell::*fn)(const char* args, uint16_t alen); };
+        /** @brief The built-in table - the single source for both dispatch and `help`,
+         *  so the help text can never drift from the command set. */
+        static const Builtin* _builtins(uint8_t& count);
+
         /** @name Built-in command handlers
+         *  Each takes the (already leading-space-trimmed) argument slice after the
+         *  command word; handlers that take no args ignore it.
          *  @{ */
-        void _cmd_help();
-        void _cmd_clear();
-        void _cmd_logs();
-        void _cmd_logs_on();
-        void _cmd_logs_off();
-        void _cmd_breakpoint();
-        void _cmd_reset();
-        void _cmd_exit();
-        void _cmd_stats();
-        void _cmd_version();
-        void _cmd_alarms();
+        void _cmd_help(const char* args, uint16_t alen);
+        void _cmd_clear(const char* args, uint16_t alen);
+        void _cmd_logs(const char* args, uint16_t alen);
+        void _cmd_breakpoint(const char* args, uint16_t alen);
+        void _cmd_reset(const char* args, uint16_t alen);
+        void _cmd_exit(const char* args, uint16_t alen);
+        void _cmd_stats(const char* args, uint16_t alen);
+        void _cmd_version(const char* args, uint16_t alen);
+        void _cmd_alarms(const char* args, uint16_t alen);
+        void _cmd_uptime(const char* args, uint16_t alen);
+        void _cmd_plc(const char* args, uint16_t alen);
         /** @brief Handle an unrecognised command (echoes "Unknown command: ..."). */
         void _unknown(const char* cmd, uint16_t len);
         /** @brief Write a NUL-terminated line of command output. */

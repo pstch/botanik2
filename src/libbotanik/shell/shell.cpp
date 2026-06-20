@@ -9,6 +9,7 @@
 #include "libbotanik_config.h"
 #include "libbotanik/alarms/alarms.h"
 #include "libbotanik/hal/platform.h"
+#include "libbotanik/plcio/sync.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/shell/shell.h"
 #include "libbotanik/utils/text.h"
@@ -42,44 +43,44 @@ namespace Botanik { namespace Shell {
     // Internals
     // ------------------------------------------------------------------------
 
-    void CommandShell::_builtin(const char* cmd, uint16_t len) {
-        // name -> handler table: keeps the command list (and its widths, via
-        // strlen) in one place, with no magic length literals to drift.
-        struct Builtin { const char* name; void (CommandShell::*fn)(); };
-        static const Builtin BUILTINS[] = {
-            { "help",       &CommandShell::_cmd_help       },
-            { "clear",      &CommandShell::_cmd_clear      },
-            { "logs",       &CommandShell::_cmd_logs       },
-            { "logs on",    &CommandShell::_cmd_logs_on    },
-            { "logs off",   &CommandShell::_cmd_logs_off   },
-            { "stats",      &CommandShell::_cmd_stats      },
-            { "version",    &CommandShell::_cmd_version    },
-            { "alarms",     &CommandShell::_cmd_alarms     },
-            { "breakpoint", &CommandShell::_cmd_breakpoint },
-            { "reset",      &CommandShell::_cmd_reset      },
-            { "exit",       &CommandShell::_cmd_exit       },
+    const CommandShell::Builtin* CommandShell::_builtins(uint8_t& count) {
+        // Single source for dispatch AND `help`: name, one-line help, handler.
+        static const Builtin TABLE[] = {
+            { "help",       "list commands",                  &CommandShell::_cmd_help       },
+            { "clear",      "clear the screen",               &CommandShell::_cmd_clear      },
+            { "logs",       "[on|off]  live log output",      &CommandShell::_cmd_logs       },
+            { "stats",      "scheduler / system metrics",     &CommandShell::_cmd_stats      },
+            { "uptime",     "time since boot",                &CommandShell::_cmd_uptime     },
+            { "plc",        "PLC link status",                &CommandShell::_cmd_plc        },
+            { "alarms",     "active alarm counts",            &CommandShell::_cmd_alarms     },
+            { "version",    "firmware version",               &CommandShell::_cmd_version    },
+            { "breakpoint", "trap into an attached debugger", &CommandShell::_cmd_breakpoint },
+            { "reset",      "reboot the controller",          &CommandShell::_cmd_reset      },
+            { "exit",       "quit (sim) / reboot (hw)",       &CommandShell::_cmd_exit       },
         };
-        for (const Builtin& b : BUILTINS) {
-            uint16_t blen = (uint16_t)strlen(b.name);
-            if (len == blen && strncmp(cmd, b.name, blen) == 0) { (this->*b.fn)(); return; }
-        }
+        count = (uint8_t)(sizeof(TABLE) / sizeof(TABLE[0]));
+        return TABLE;
+    }
 
-        // Site commands (registered via set_commands), tried after the built-ins so
-        // a site can't shadow exit/reset. Match the leading word; the rest of the
-        // line (leading spaces trimmed) is passed to the callback as the argument.
+    void CommandShell::_builtin(const char* cmd, uint16_t len) {
+        // First word = command name (leading spaces skipped); the rest = the arguments.
+        const char* args = cmd; uint16_t alen = len, wlen;
+        const char* name = Utils::arg_next(args, alen, wlen);
+        if (name == nullptr) return;                            // blank / all-spaces line
+        while (alen > 0 && *args == ' ') { args++; alen--; }    // trim to the argument slice
+
+        uint8_t bcount; const Builtin* B = _builtins(bcount);
+        for (uint8_t i = 0; i < bcount; i++)
+            if (Utils::arg_eq(name, wlen, B[i].name)) { (this->*B[i].fn)(args, alen); return; }
+
+        // Site commands, tried after the built-ins so a site can't shadow exit/reset.
         for (size_t i = 0; i < _command_count; i++) {
             const ShellCommand& c = _commands[i];
-            if (c.name == nullptr || c.fn == nullptr) continue;
-            uint16_t nlen = (uint16_t)strlen(c.name);
-            if (len < nlen || strncmp(cmd, c.name, nlen) != 0) continue;
-            if (len != nlen && cmd[nlen] != ' ') continue;   // must match the whole word
-            const char* args = cmd + nlen;
-            uint16_t    alen = (uint16_t)(len - nlen);
-            while (alen > 0 && *args == ' ') { args++; alen--; }
-            c.fn(_output, args, alen, _command_ctx);
-            return;
+            if (c.name != nullptr && c.fn != nullptr && Utils::arg_eq(name, wlen, c.name)) {
+                c.fn(_output, args, alen, _command_ctx);
+                return;
+            }
         }
-
         _unknown(cmd, len);
     }
 
@@ -87,46 +88,44 @@ namespace Botanik { namespace Shell {
         _output.write(msg, strlen(msg));
     }
 
-    void CommandShell::_cmd_help() {
-        _println("Built-in: help, clear, logs [on/off], stats, version, alarms, breakpoint, reset, exit");
-        if (_command_count == 0) return;
-        // One line per site command, name left-aligned with its help text, so the
-        // table doubles as the command's own documentation.
-        _println("Site commands:");
+    void CommandShell::_cmd_help(const char*, uint16_t) {
+        // One line per command (name + help), generated from the tables so the help can't
+        // drift from the command set and a long name just pushes its help right (no
+        // fixed-column truncation). %-10s is a minimum width, not a cap.
         char out[Config::LOG_FORMATTED_LEN];
+        uint8_t bcount; const Builtin* B = _builtins(bcount);
+        for (uint8_t i = 0; i < bcount; i++) {
+            int w = snprintf(out, sizeof(out), "  %-10s %s", B[i].name, B[i].help);
+            if (w > 0) _output.write(out, std::min((size_t)w, sizeof(out) - 1));
+        }
         for (size_t i = 0; i < _command_count; i++) {
             const ShellCommand& c = _commands[i];
             if (c.name == nullptr) continue;
-            int w = snprintf(out, sizeof(out), "  %-12s %s",
-                             c.name, c.help ? c.help : "");
+            int w = snprintf(out, sizeof(out), "  %-10s %s", c.name, c.help ? c.help : "");
             if (w > 0) _output.write(out, std::min((size_t)w, sizeof(out) - 1));
         }
     }
 
-    void CommandShell::_cmd_clear() { _output.clear(); }
+    void CommandShell::_cmd_clear(const char*, uint16_t) { _output.clear(); }
 
-    void CommandShell::_cmd_logs() {
-        _println(_output.logs_enabled() ? "logs: output enabled"
-                                        : "logs: output disabled");
+    void CommandShell::_cmd_logs(const char* args, uint16_t alen) {
+        uint16_t wlen; const char* w = Utils::arg_next(args, alen, wlen);
+        if (w == nullptr)
+            _println(_output.logs_enabled() ? "logs: output enabled" : "logs: output disabled");
+        else if (Utils::arg_eq(w, wlen, "on"))  { _output.set_logs_enabled(true);  _println("logs: output enabled"); }
+        else if (Utils::arg_eq(w, wlen, "off")) { _output.set_logs_enabled(false); _println("logs: output disabled"); }
+        else _println("usage: logs [on|off]");
     }
 
-    void CommandShell::_cmd_logs_on() {
-        _output.set_logs_enabled(true);
-        _println("logs: output enabled");
-    }
+    void CommandShell::_cmd_breakpoint(const char*, uint16_t) { HAL::debug_break(); }
 
-    void CommandShell::_cmd_logs_off() {
-        _output.set_logs_enabled(false);
-        _println("logs: output disabled");
-    }
+    void CommandShell::_cmd_reset(const char*, uint16_t) { HAL::reset(); }    // reboots; does not return
 
-    void CommandShell::_cmd_breakpoint() { HAL::debug_break(); }
+    void CommandShell::_cmd_exit(const char*, uint16_t) { HAL::shutdown(); }  // sim: exit(0); OPTA: reboots
 
-    void CommandShell::_cmd_reset() { HAL::reset(); }        // reboots; does not return
-
-    void CommandShell::_cmd_exit() { HAL::shutdown(); }      // sim: exit(0); OPTA: reboots
-
-    void CommandShell::_cmd_stats() {
+    void CommandShell::_cmd_stats(const char*, uint16_t) {
+        // Emits several lines; each is banked and drained at LOG_ROWS_PER_TICK by the
+        // scrollback, so the full block appears over a few ticks (bounded, never a flood).
         Scheduler::SchedulerContext* ctx = _terminal.context().scheduler;
         if (ctx == nullptr) { _println("stats: no scheduler context"); return; }
 
@@ -174,19 +173,43 @@ namespace Botanik { namespace Shell {
         if (w > 0) _output.write(out, (size_t)w);
     }
 
-    void CommandShell::_cmd_version() {
-        char out[80];
+    void CommandShell::_cmd_version(const char*, uint16_t) {
+        char out[Config::LOG_FORMATTED_LEN];
         int n = snprintf(out, sizeof(out), "Botanik %s on %s",
                          Config::FIRMWARE_VERSION, HAL::hardware_description());
-        if (n > 0) _output.write(out, (size_t)n);
+        if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
     }
 
-    void CommandShell::_cmd_alarms() {
+    void CommandShell::_cmd_alarms(const char*, uint16_t) {
         const Alarms::AlarmModel* m = _terminal.alarms();
         char out[64];
         int n = snprintf(out, sizeof(out), "alarms: %u active, %u unmasked",
                          m ? m->active_count() : 0, m ? m->unmasked_count() : 0);
         if (n > 0) _output.write(out, (size_t)n);
+    }
+
+    void CommandShell::_cmd_uptime(const char*, uint16_t) {
+        char buf[16], out[48];
+        uint32_t secs = (uint32_t)(HAL::uptime_ms() / 1000);
+        int n = snprintf(out, sizeof(out), "uptime: %s",
+                         Utils::format_age(buf, sizeof(buf), secs, false));
+        if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+    }
+
+    void CommandShell::_cmd_plc(const char*, uint16_t) {
+        const PlcIO::PlcSyncContext* p = _terminal.context().plc;
+        if (p == nullptr) { _println("plc: no PLC context"); return; }
+        const char* s;
+        switch (p->status()) {
+            case PlcIO::PLC_UNKNOWN: s = "no contact yet"; break;
+            case PlcIO::PLC_RUNNING: s = "running";        break;
+            case PlcIO::PLC_TIMEOUT: s = "TIMEOUT";        break;
+            case PlcIO::PLC_FAULT:   s = "FAULT";          break;
+            default:                 s = "?";              break;
+        }
+        char out[64];
+        int n = snprintf(out, sizeof(out), "plc link: %s%s", s, p->faulted() ? " (faulted)" : "");
+        if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
     }
 
     void CommandShell::_unknown(const char* cmd, uint16_t len) {

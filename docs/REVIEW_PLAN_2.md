@@ -306,19 +306,22 @@ into `step()` by the already-templated firmware).
 
 ## Block 5 - Shell / argparse
 
-- [ ] **`[NO-ARG-PARSE]` (+ `[TWOWORD-EXACT]`)** add a bounded shared tokenizer
-  (`split_args` + a checked `parse_int` wrapping `strtol`); make `logs` parse its own
-  `on`/`off` arg through it.
-- [ ] **`[MISSING-COMMANDS]`** add the operator command set: `uptime`, `plc`/`link`
-  (status, torn count, last-ack age), `alarm list` / `alarm ack [id|all]`, `loglevel`,
-  `net`/`ntp` (placeholder until the network subsystem lands), `reboot` (guarded), `mem`.
-  All paced through the scrollback drain, bounded output.
-- [ ] **`[LEADING-WS-NOMATCH]`** trim leading whitespace before dispatch.
-- [ ] **`[HELP-DRIFT]` (+ `[HELP-NAME-TRUNC]` / `[VERSION-BUF-80]`)** replace the
-  columnar help with a line-by-line help generated from the command table.
-- [ ] **`[SETCMD-NO-CAP]`** assert a max command count; warn on a site name colliding
-  with a built-in.
-- [ ] **`[STATS-UNPACED-BURST]`** comment the per-tick drain cadence.
+- [x] **`[NO-ARG-PARSE]` (+ `[TWOWORD-EXACT]`)** added bounded NUL-free argparse helpers
+  to `utils/text.h` (`arg_next` / `arg_eq` / `parse_uint`, no libc `strtol`). Dispatch now
+  matches the first word and passes the argument slice; `logs` parses its own `on`/`off`
+  (the `logs on`/`logs off` exact-match entries are gone).
+- [~] **`[MISSING-COMMANDS]`** added `uptime` and `plc` (link status from the context).
+  **Deferred** (need new APIs first): `alarm ack`/`alarm list` (an AlarmModel ack mutation),
+  `loglevel` (a Logger level control), `net`/`ntp` (the network subsystem), guarded
+  `reboot` (a confirm flow; `reset` exists), `mem` (no heap / free-RAM HAL primitive).
+- [x] **`[LEADING-WS-NOMATCH]`** `arg_next` skips leading whitespace, so a leading-space
+  command line now matches.
+- [x] **`[HELP-DRIFT]` (+ `[HELP-NAME-TRUNC]` / `[VERSION-BUF-80]`)** `help` is generated
+  line-by-line from the (now help-bearing) built-in + site tables (`%-10s` is a minimum,
+  not a cap, so a long name isn't truncated); `version` buffer sized from LOG_FORMATTED_LEN.
+- [x] **`[SETCMD-NO-CAP]`** `set_commands` clamps to `SHELL_COMMANDS_MAX`; documented that a
+  site name colliding with a built-in is silently dead (built-ins match first, by design).
+- [x] **`[STATS-UNPACED-BURST]`** commented the per-tick (LOG_ROWS_PER_TICK) drain cadence.
 - [ ] `[HISTORY-KILLRING-READY]` - **deferred**; add the editor mutators + draft/ring
   storage when the TODO is taken up.
 

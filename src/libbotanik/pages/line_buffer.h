@@ -61,7 +61,7 @@ namespace Botanik { namespace Pages {
             const uint16_t seg_cap = N;
             char seg[N];
 
-            const uint16_t CONT_MIN = 4;   // min content width on a continuation row
+            const uint16_t CONT_MIN = 2;   // min content width on a continuation row (avoid 1-char fanout)
             uint16_t count = 0;
             for (size_t off = 0; ; ) {
                 uint16_t prefix_len = (count == 0 || cols <= plen) ? 0 : plen;

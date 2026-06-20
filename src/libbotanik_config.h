@@ -495,6 +495,13 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, SHELL_KILL_SIZE);
 
+    /** @brief Max site shell commands accepted by set_commands() (a sanity cap; a
+     *  bogus count can't walk off the table). */
+#ifndef BOTANIK_SHELL_COMMANDS_MAX
+#  define BOTANIK_SHELL_COMMANDS_MAX 64
+#endif
+    BOTANIK_CFG(size_t, SHELL_COMMANDS_MAX);
+
     /** @brief Scrollback lines retained by ShellPage for redraw/page-switch replay */
 #ifndef BOTANIK_SHELL_SCROLLBACK_LINES
 #  define BOTANIK_SHELL_SCROLLBACK_LINES 32

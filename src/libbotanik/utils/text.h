@@ -27,6 +27,46 @@ namespace Botanik { namespace Utils {
 
     /** @} */
 
+    /** @name Argument parsing (shell)
+     *  Bounded, NUL-free helpers over a slice of the command line (no libc strtol).
+     *  @{ */
+
+    /** @brief Extract the next whitespace-delimited word from [@p args, @p args+alen).
+     *  Returns the word start (nullptr if none) and sets @p wlen to its length,
+     *  advancing @p args / @p alen past the word (leading spaces are skipped first). */
+    inline const char* arg_next(const char*& args, uint16_t& alen, uint16_t& wlen) {
+        while (alen > 0 && *args == ' ') { args++; alen--; }
+        if (alen == 0) { wlen = 0; return nullptr; }
+        const char* w = args;
+        wlen = 0;
+        while (alen > 0 && *args != ' ') { args++; alen--; wlen++; }
+        return w;
+    }
+
+    /** @brief True if word [@p w, @p w+wlen) equals the NUL-terminated literal @p lit. */
+    inline bool arg_eq(const char* w, uint16_t wlen, const char* lit) {
+        for (uint16_t i = 0; i < wlen; i++)
+            if (lit[i] == '\0' || w[i] != lit[i]) return false;
+        return lit[wlen] == '\0';
+    }
+
+    /** @brief Parse [@p s, @p s+len) as a decimal uint32 into @p out. Returns false on
+     *  an empty string, a non-digit, or overflow. */
+    inline bool parse_uint(const char* s, uint16_t len, uint32_t* out) {
+        if (len == 0) return false;
+        uint32_t v = 0;
+        for (uint16_t i = 0; i < len; i++) {
+            if (s[i] < '0' || s[i] > '9') return false;
+            uint32_t d = (uint32_t)(s[i] - '0');
+            if (v > (0xFFFFFFFFu - d) / 10u) return false;   // overflow
+            v = v * 10u + d;
+        }
+        *out = v;
+        return true;
+    }
+
+    /** @} */
+
     /** @name Number formatting
      *  @{ */
 
