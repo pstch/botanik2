@@ -370,12 +370,21 @@ into `step()` by the already-templated firmware).
 
 ## Block 8 - Docs
 
-- [ ] **`[DOC-TIMING-MISMATCH]`** reconcile the heartbeat/timeout/watchdog prose
-  (1 s/5 s/30 s) with the real config (250 ms/2500 ms/5000 ms); cite the config symbols.
-- [ ] **`[CYCLE-CONTRACT-DRIFT]` / `[LOOP-TIME-BASE-SPLIT]`** add the alarms/health step
-  to the `CONCURRENCY.md` cycle contract; the alarm/health step reads the beat's shared
-  `timestamp_ms` (projected wrap-safe), not a fresh `uptime_ms()`.
-- [ ] Fold the Block-1 doc notes into `CONCURRENCY.md` / `PLC_SYNC.md`.
+- [x] **`[DOC-TIMING-MISMATCH]`** CLAUDE.md now cites the real symbols/values: heartbeat
+  `PLC_HEARTBEAT_MS` 250 ms, timeout `PLC_TIMEOUT_MS` 2.5 s, sw watchdog `PLC_WATCHDOG_MS`
+  5 s, then the `PLC_FAULT_GRACE_MS` 15 s grace before the `HW_WATCHDOG_MS` 10 s HW
+  watchdog resets both cores. Added a `health/` subsystem blurb + the serial barrier note.
+- [x] **`[CYCLE-CONTRACT-DRIFT]`** CONCURRENCY.md's cycle contract now includes the
+  `health -> on_loop` steps (matching `BotanikFirmware::loop()`), with where/why they sit.
+  **`[LOOP-TIME-BASE-SPLIT]`** resolved as a **doc fix, not a code change**: the entire
+  health/alarm/on_loop path is uint64 `uptime_ms` throughout (`_fault_since_ms`,
+  `_model.step`, `on_loop`); switching it to the 32-bit `timestamp_ms` would push 32-bit
+  wrap handling into timers that are deliberately wrap-free, i.e. *worse*. Documented the
+  two-bases-one-clock split (32-bit display vs 64-bit health timers) in CONCURRENCY.md and
+  the `loop()` comment instead.
+- [x] Folded the Block-1 confirmed-design notes into `PLC_SYNC.md` (a new "Confirmed
+  design decisions" section: ack baseline, 32-bit-not-64-bit seqnums, no-TX-torn-diag /
+  seqlock-not-double-buffer, reader-snapshot correctness, sim conservative no-op barriers).
 
 ---
 

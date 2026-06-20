@@ -12,16 +12,24 @@ All of our code runs in a single fixed-period main loop (`LoopScheduler`, period
 called once per beat in a fixed order - the **per-tick cycle contract**:
 
 ```
-tick -> receive -> plc_handler -> plc_log_reader -> logger -> terminal
-     -> monitor.drain -> transmit -> watchdog_kick
+tick -> receive -> plc_handler -> plc_log_reader -> health -> on_loop
+     -> logger -> terminal -> monitor.drain -> transmit -> watchdog_kick
 ```
 
-The order is load-bearing: inputs are ingested before processing, and the serial
-TX rings are flushed only after every subsystem has queued its output for the beat.
-`tick()` republishes a single shared "now" (`SchedulerContext::timestamp_ms`) so all
-steps in a beat share one timestamp. This loop is duplicated by design in the two
-composition roots (`botanik_sim/main.cpp`, `botanik_fw/firmware.cpp`); they must
-keep the same order.
+The order is load-bearing: inputs are ingested before processing; `health` runs once
+the PLC payload is fresh (so it asserts the platform-health alarms and advances the
+alarm model this beat) and before the logger drains (so an alarm START/END is logged
+this beat); the serial TX rings are flushed only after every subsystem has queued its
+output. This loop lives in `BotanikFirmware::loop()` (one definition, shared by both
+composition roots), so the order can't drift between targets.
+
+**Two time bases, one clock.** `tick()` republishes the 32-bit
+`SchedulerContext::timestamp_ms` (= low 32 bits of `HAL::uptime_ms()`), the shared
+"now" for the **render path** (terminal, pages) where ages are wrap-projected for
+display. The **health / alarm / on_loop** steps instead take a fresh 64-bit
+`HAL::uptime_ms()`: their fault-grace and alarm-latch timers want a wrap-free
+monotonic clock, and the few microseconds between `tick()` and that read are
+immaterial at their second scale. Both are the same underlying monotonic clock.
 
 ## The only async boundaries
 

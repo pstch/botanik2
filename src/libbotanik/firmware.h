@@ -143,10 +143,15 @@ namespace Botanik {
         }
 
         /** @brief One main-loop iteration. tick() gates a beat (returns early until
-         *  the next period boundary) and republishes the loop timestamp; the steps
-         *  below then share one "now". The order is load-bearing - see CONCURRENCY.md.
+         *  the next period boundary) and republishes the 32-bit display "now"
+         *  (`SchedulerContext::timestamp_ms`) that the render path (terminal, pages)
+         *  shares. The order is load-bearing - see CONCURRENCY.md.
          *    tick -> receive -> plc -> health -> on_loop -> logger -> terminal
          *         -> drain -> transmit -> watchdog_kick
+         *  Time base: the health / alarm / on_loop steps take a fresh 64-bit
+         *  HAL::uptime_ms() (below), NOT the 32-bit timestamp_ms - their fault-grace
+         *  and alarm-latch timers want a wrap-free monotonic clock; the few microseconds
+         *  between tick() and this read are immaterial at their second scale.
          *  Non-virtual so the order can't be reordered; a site adds per-beat work
          *  through the on_loop() hook (run with the freshly-read PLC data). */
         void loop() {

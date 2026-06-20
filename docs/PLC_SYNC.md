@@ -164,3 +164,31 @@ instead of silently consuming bad data.
   and write regions are disjoint, so a clean never races an invalidate. If the
   shared region turns out to be mapped non-cacheable, these are cheap no-effect
   ops; if cacheable, they are required for the M4 to see the host's writes.
+
+### Confirmed design decisions (round-2 review)
+
+These were examined and deliberately left as-is; the rationale is recorded so a
+future change doesn't "fix" a non-bug:
+
+- **First contact uses a bind-time ack baseline.** The handler snapshots the PLC's
+  seq/ack at construction and seeds our input region to a known start (rxSeqNum 0;
+  txAckNum = the PLC's current txSeqNum). The first ack is accepted only once
+  `ack != _ack_baseline`, so a *stale* rxAckNum left in shared memory can't declare
+  the link RUNNING (and feed the watchdog) before the PLC has actually replied.
+- **32-bit seqnums, not 64-bit.** The seqnum gap math is unsigned-modular and so is
+  already wrap-correct; first contact is handled by a `_have_seq` flag, not a zero
+  sentinel. 64-bit counters were rejected: they would force an 8-byte-aligned, larger
+  `LogEntry_t` the PLC must mirror - a wire-ABI change for no correctness gain. If
+  absolute log identity is ever needed (e.g. MQTT log export), settle it as one
+  coordinated PLC-contract change alongside a 64-bit timestamp.
+- **TX has no torn-read diagnostic, by design.** Only RX carries `rx_torn_count()`.
+  The handshake already makes a torn TX commit impossible to *act on*; if TX
+  torn-*detection* is ever wanted, the fit is a seqlock over the single region, NOT
+  double-buffering (which the handshake deliberately avoids - see above).
+- **The log reader consumes a local snapshot of the write index.** A writeIndex that
+  advances mid-read is not a torn read: the reader just picks up the new entries on
+  the next `step()`. Delivery is intentionally batched per beat, bounded by the ring.
+- **The simulator's barriers/cache ops are conservative no-ops.** The sim has no
+  D-cache and one address space; `dsb()`/`cache_*` there only mirror the device code
+  path so the two targets stay structurally identical. The device ordering is the
+  one that carries correctness.
