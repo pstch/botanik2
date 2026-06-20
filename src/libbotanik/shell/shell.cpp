@@ -31,6 +31,7 @@ namespace Botanik { namespace Shell {
 
     void CommandShell::run(const char* cmd, uint16_t len) {
         if (len == 0) return;
+        _history_add(cmd, len);
         dispatch(cmd, len);
     }
 
@@ -307,6 +308,79 @@ namespace Botanik { namespace Shell {
         memcpy(out, prefix, plen);
         memcpy(out + plen, cmd, clen);
         _output.write_lines(out, (uint16_t)(plen + clen));
+    }
+
+    // History & kill ring
+    // ------------------------------------------------------------------------
+
+    void CommandShell::_history_add(const char* cmd, uint16_t len) {
+        if (len > Config::SHELL_HISTORY_ENTRY) len = Config::SHELL_HISTORY_ENTRY;
+        // Skip a consecutive duplicate of the most-recent entry.
+        if (_hist_count > 0) {
+            uint8_t last = (uint8_t)((_hist_head + Config::SHELL_HISTORY_SIZE - 1)
+                                     % Config::SHELL_HISTORY_SIZE);
+            if (_hist_len[last] == len && memcmp(_history[last], cmd, len) == 0) {
+                _hist_browse = -1; return;
+            }
+        }
+        memcpy(_history[_hist_head], cmd, len);
+        _hist_len[_hist_head] = len;
+        _hist_head = (uint8_t)((_hist_head + 1) % Config::SHELL_HISTORY_SIZE);
+        if (_hist_count < Config::SHELL_HISTORY_SIZE) _hist_count++;
+        _hist_browse = -1;   // a submit ends browsing
+    }
+
+    void CommandShell::_load_browse() {
+        const char* text; uint16_t len;
+        if (_hist_browse < 0) { text = _draft; len = _draft_len; }
+        else {
+            // browse 0 = newest (head-1); browse k = head-1-k, modulo the ring.
+            uint8_t slot = (uint8_t)((_hist_head + Config::SHELL_HISTORY_SIZE - 1
+                                      - (uint8_t)_hist_browse) % Config::SHELL_HISTORY_SIZE);
+            text = _history[slot]; len = _hist_len[slot];
+        }
+        // Replace the editor line: go to the end, delete it all, insert the recalled text.
+        _editor.move_to_line_end();
+        _editor.backspace(_editor.buffer_len());
+        _editor.insert_characters(text, len);
+    }
+
+    void CommandShell::history_prev() {
+        if (_hist_count == 0) return;
+        if (_hist_browse < 0) {
+            // Starting to browse: stash the in-progress line as the draft.
+            _draft_len = std::min(_editor.buffer_len(), (uint16_t)sizeof(_draft));
+            memcpy(_draft, _editor.buffer(), _draft_len);
+            _hist_browse = 0;
+        } else if (_hist_browse < (int16_t)(_hist_count - 1)) {
+            _hist_browse++;
+        } else {
+            return;   // already at the oldest entry
+        }
+        _load_browse();
+    }
+
+    void CommandShell::history_next() {
+        if (_hist_browse < 0) return;   // not browsing
+        _hist_browse--;                 // 0 -> -1 restores the draft
+        _load_browse();
+    }
+
+    void CommandShell::push_kill(const char* buf, uint16_t len) {
+        _kill_len = std::min(len, (uint16_t)Config::SHELL_KILL_SIZE);
+        memcpy(_kill, buf, _kill_len);
+    }
+
+    void CommandShell::kill_to_line_end() {
+        uint16_t off  = _editor.cursor_offset();
+        uint16_t rest = (uint16_t)(_editor.buffer_len() - off);
+        if (rest == 0) return;
+        push_kill(_editor.buffer() + off, rest);   // stores up to SHELL_KILL_SIZE
+        _editor.delete_forward(rest);              // remove the whole tail
+    }
+
+    void CommandShell::paste_kill() {
+        if (_kill_len > 0) _editor.insert_characters(_kill, _kill_len);
     }
 
 }}

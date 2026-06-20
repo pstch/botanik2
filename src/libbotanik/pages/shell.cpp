@@ -61,10 +61,10 @@ namespace Botanik { namespace Pages {
             case Command::DELETE:
             case Command::CTRL_D:     _editor.delete_forward(count); break;
 
-            // Kill / yank - stubs (kill ring not yet implemented)
-            case Command::CTRL_K:     /* TODO: kill ring */          break;
-            case Command::CTRL_W:     /* TODO: kill ring */          break;
-            case Command::CTRL_Y:     /* TODO: kill ring */          break;
+            // Kill / yank
+            case Command::CTRL_K:     _shell.kill_to_line_end();    break;
+            case Command::CTRL_W:     /* TODO: kill word back */     break;
+            case Command::CTRL_Y:     _shell.paste_kill();          break;
 
             // Cursor movement
             case Command::LEFT:

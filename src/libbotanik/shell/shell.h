@@ -53,8 +53,9 @@ namespace Botanik { namespace Shell {
      *  ShellCommand); alternatively, subclass and override dispatch() for commands
      *  that need richer control. Both are tried after the built-ins.
      *
-     *  History and kill-ring features are stubbed out; see TODO.md and the
-     *  SHELL_HISTORY_* / SHELL_KILL_SIZE constants in libbotanik_config.h. */
+     *  Command history (up/down recall with a saved draft) and a single-entry kill
+     *  ring (Ctrl-K cut to EOL / Ctrl-Y yank) are backed by the SHELL_HISTORY_* /
+     *  SHELL_KILL_SIZE buffers in libbotanik_config.h. */
     class CommandShell {
     private:
         /** @name State
@@ -76,6 +77,19 @@ namespace Botanik { namespace Shell {
          *  until set_diagnostics() wires them (the commands then report "unavailable"). */
         Logs::Logger*           _logger        = nullptr;
         Alarms::AlarmModel*     _alarm_model   = nullptr;
+
+        /** @brief Command-history ring: the most-recent submitted lines. */
+        char     _history[Config::SHELL_HISTORY_SIZE][Config::SHELL_HISTORY_ENTRY];
+        uint16_t _hist_len[Config::SHELL_HISTORY_SIZE] = {};  // bytes stored per slot
+        uint8_t  _hist_count  = 0;     // entries stored (<= SHELL_HISTORY_SIZE)
+        uint8_t  _hist_head   = 0;     // next write slot (ring index)
+        int16_t  _hist_browse = -1;    // browse position: -1 = draft, 0 = newest, up
+        /** @brief In-progress line saved when browsing starts, restored at the bottom. */
+        char     _draft[Config::SHELL_INPUT_LEN];
+        uint16_t _draft_len   = 0;
+        /** @brief Single-entry kill buffer (Ctrl-K cut / Ctrl-Y yank). */
+        char     _kill[Config::SHELL_KILL_SIZE];
+        uint16_t _kill_len    = 0;
 
         /** @} */
 
@@ -120,22 +134,26 @@ namespace Botanik { namespace Shell {
         /** @name History management
          *  @{ */
 
-        /** @brief Load previous history entry - stub, not yet implemented */
-        void history_prev() {}
+        /** @brief Recall the previous (older) history entry into the editor. The first
+         *  call saves the in-progress line as the draft, restored by paging back down. */
+        void history_prev();
 
-        /** @brief Load next history entry - stub, not yet implemented */
-        void history_next() {}
+        /** @brief Recall the next (newer) entry; at the newest, restore the draft. */
+        void history_next();
 
         /** @} */
 
         /** @name Kill-ring (clipboard) management
          *  @{ */
 
-        /** @brief Push text onto the kill ring - stub, not yet implemented */
-        void push_kill(const char*, uint16_t) {}
+        /** @brief Cut from the cursor to the end of the line into the kill buffer (Ctrl-K). */
+        void kill_to_line_end();
 
-        /** @brief Insert kill ring contents into the editor - stub, not yet implemented */
-        void paste_kill() {}
+        /** @brief Store @p len bytes as the kill buffer (clamped to SHELL_KILL_SIZE). */
+        void push_kill(const char* buf, uint16_t len);
+
+        /** @brief Insert the kill buffer at the cursor (Ctrl-Y). */
+        void paste_kill();
 
         /** @} */
 
@@ -164,6 +182,13 @@ namespace Botanik { namespace Shell {
         /** @brief The built-in table - the single source for both dispatch and `help`,
          *  so the help text can never drift from the command set. */
         static const Builtin* _builtins(uint8_t& count);
+
+        /** @brief Append a submitted line to the history ring (skips a consecutive
+         *  duplicate) and ends any in-progress browsing. */
+        void _history_add(const char* cmd, uint16_t len);
+        /** @brief Replace the editor line with history slot @c _hist_browse (or the draft
+         *  when _hist_browse < 0). */
+        void _load_browse();
 
         /** @name Built-in command handlers
          *  Each takes the (already leading-space-trimmed) argument slice after the

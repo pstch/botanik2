@@ -238,6 +238,8 @@ namespace Botanik { namespace Terminal {
         const char* buffer() const     { return _buf; }
         /** @brief Number of bytes in the editor buffer. */
         uint16_t    buffer_len() const { return _len; }
+        /** @brief Cursor byte offset in the buffer (0..buffer_len()); for kill-to-EOL. */
+        uint16_t    cursor_offset() const { return _pos; }
 
         /** @} */
 

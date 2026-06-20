@@ -15,6 +15,7 @@ add_executable(botanik_tests
     test_filters.cpp
     test_line_buffer.cpp
     test_parser.cpp
+    test_shell.cpp
     test_serial.cpp
     test_writer.cpp
 )

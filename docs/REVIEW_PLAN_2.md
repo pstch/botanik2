@@ -331,8 +331,11 @@ into `step()` by the already-templated firmware).
 - [x] **`[SETCMD-NO-CAP]`** `set_commands` clamps to `SHELL_COMMANDS_MAX`; documented that a
   site name colliding with a built-in is silently dead (built-ins match first, by design).
 - [x] **`[STATS-UNPACED-BURST]`** commented the per-tick (LOG_ROWS_PER_TICK) drain cadence.
-- [ ] `[HISTORY-KILLRING-READY]` - **deferred**; add the editor mutators + draft/ring
-  storage when the TODO is taken up.
+- [x] `[HISTORY-KILLRING-READY]` **implemented**: command history (up/down / Ctrl-P/N
+  recall, the in-progress line saved as a draft and restored at the bottom, consecutive
+  duplicates skipped) on a SHELL_HISTORY_SIZE ring, plus a single-entry kill ring
+  (Ctrl-K cut to EOL / Ctrl-Y yank) via a new editor `cursor_offset()` getter. Wired into
+  ShellPage's key handling. Unit-tested in test_shell.cpp (recall/draft/dup-skip + kill/yank).
 
 ---
 
