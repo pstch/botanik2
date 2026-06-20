@@ -476,17 +476,6 @@ namespace Botanik { namespace Terminal {
         return (int8_t)(_pages_len++);
     }
 
-    int8_t AnsiTerminal::add_page(Pages::Page* page, uint8_t index) {
-        if (page == nullptr || _pages_len >= 8 || index > _pages_len) return -1;
-        for (uint8_t i = _pages_len; i > index; i--) _pages[i] = _pages[i - 1];
-        _pages[index] = page;
-        _pages_len++;
-        // _page_index is left as-is: insertion happens during setup() (screen not yet
-        // ready), where switch_to() has only recorded the boot index. Inserting the
-        // boot page there makes it the page that index now names, which is the intent.
-        return (int8_t)index;
-    }
-
     void AnsiTerminal::switch_relative(bool forward) {
         if (_pages_len == 0) return;
         uint8_t next = forward

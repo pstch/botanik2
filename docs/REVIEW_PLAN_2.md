@@ -36,7 +36,8 @@ logging, terminal/pages, shell, build, serial, docs.
   non-virtual in `BotanikFirmware` (they own the fixed bring-up order) and call
   protected virtual hooks. Page registration is one such hook: the default
   registers the built-in pages; a site overrides it to add or disable pages. Magic
-  `add_page(&p, 3)` indices replaced by named slots. The concrete site is `final`.
+  `add_page(&p, 3)` indices removed - append order in the hook is the tab order. The
+  concrete site is `final`.
 - **Criticals: rate-limited (flood backstop) AND reserve-protected at the writer.**
   The rate limiter may drop a critical as a last-ditch flood guard (`CRITICAL-RATELIMITED`
   = docs only); the writer FIFO never drops one because K slots are reserved for
@@ -113,14 +114,16 @@ into `step()` by the already-templated firmware).
 
 ### `[CHAINUP-SILENT-FAILURE]` - Template-Method composition
 
-- [ ] `BotanikFirmware::setup()`/`loop()` non-virtual; they call protected virtual
-  hooks (`on_setup()`, `on_loop()`) at defined points. A site cannot skip/misorder
-  base bring-up.
-- [ ] Page registration hook: default registers the built-in pages (Home/Shell/Logs/
-  Alarms/Status); a site overrides to add or disable pages. Replace magic page
-  indices with a named `PageSlot` enum.
-- [ ] **`[VIRTUAL-IN-HOT-LOOP]`** mark the concrete site `final` so the hook
-  devirtualizes under LTO.
+- [x] `BotanikFirmware::setup()`/`loop()` non-virtual; they call protected virtual
+  hooks (`register_pages()`, `on_setup()`, `on_loop(now_ms)`) at defined points. A site
+  cannot skip/misorder base bring-up - it overrides hooks, never setup()/loop().
+- [x] Page registration hook: the default registers the built-ins via `add_page`
+  (append); a site overrides `register_pages()` to list its pages in tab order (or drop
+  a built-in). **The magic indices are gone** - `add_page(p, index)` was removed, so the
+  order of `add_page()` calls IS the tab order (no `PageSlot` enum needed). Verified: the
+  sim boots on Home (page 0) with tab order Home/Shell/Logs/Status/Alarms.
+- [x] **`[VIRTUAL-IN-HOT-LOOP]`** the concrete site is `final` (devirtualizes the hooks);
+  `loop()`/`setup()` are non-virtual so there's no vtable lookup to enter them.
 
 ---
 

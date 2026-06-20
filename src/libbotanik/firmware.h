@@ -105,36 +105,35 @@ namespace Botanik {
 
         virtual ~BotanikFirmware() {}
 
-        /** @brief Bring the firmware up: begin the UARTs, register the core sinks and
-         *  pages, select the terminal type, show the boot page + banner, and arm the
-         *  hardware watchdog. A site overrides this, calls the base first, then adds
-         *  its own sink pages and splices its pages in via terminal().add_page(p, i). */
-        virtual void setup() {
+        /** @brief Bring the firmware up in a fixed, non-overridable order (so a site
+         *  can't skip or misorder the bring-up): begin the UARTs, register the core
+         *  sinks, register the pages via register_pages(), select the terminal type,
+         *  show the boot banner, run the boot self-test, and arm the hardware watchdog.
+         *  A site customizes through the protected register_pages() / on_setup() hooks,
+         *  never by overriding setup(). */
+        void setup() {
             set_assert_logger(&_logger);   // route BOTANIK_ASSERT failures to the log
             HAL::get_serial(HAL::CONSOLE)->begin(_baud);
             HAL::get_serial(HAL::MONITOR)->begin(_baud);
 
             // Core log sinks: diagnostic monitor + the shell/logs pages, plus the
-            // console TX-drop watch. A site adds its own sink pages in its override.
+            // console TX-drop watch. A site adds its own sink(s) in on_setup().
             _logger.add_writer(&_monitor);
             _logger.add_writer(&_shell_page);
             _logger.add_writer(&_logs_page);
             _logger.watch_tx(&_console_serial);
 
-            // Core pages, appended in tab order. A site splices its own in by index
-            // (add_page(p, i)) from its setup() override - e.g. its home page at 0.
-            _terminal.add_page(&_shell_page);
-            _terminal.add_page(&_logs_page);
-            _terminal.add_page(&_alarms_page);
-
+            // Pages, in tab order: the hook decides the set/order (page 0 is the boot
+            // page). The default registers the built-ins; a site overrides the hook to
+            // interleave its own (or drop a built-in). switch_to(0) records the boot page.
+            register_pages();
             _terminal.setup_vt102();
-            // Records the boot page (deferred: the screen isn't ready until the first
-            // step()), so a site inserting its home page at index 0 afterwards makes
-            // that the boot page.
             _terminal.switch_to(0);
 
             _logger.info(PlcIO::BOOT, "Botanik v%s on %s",
                          Config::FIRMWARE_VERSION, HAL::hardware_description());
+
+            on_setup();   // site post-wiring (extra sinks / components), before POST
 
             // Boot self-test (after the sinks register, so its result is logged).
             _health.post(_shared_in, _shared_out);
@@ -145,9 +144,11 @@ namespace Botanik {
         /** @brief One main-loop iteration. tick() gates a beat (returns early until
          *  the next period boundary) and republishes the loop timestamp; the steps
          *  below then share one "now". The order is load-bearing - see CONCURRENCY.md.
-         *    tick -> receive -> plc -> health -> logger -> terminal -> drain
-         *         -> transmit -> watchdog_kick */
-        virtual void loop() {
+         *    tick -> receive -> plc -> health -> on_loop -> logger -> terminal
+         *         -> drain -> transmit -> watchdog_kick
+         *  Non-virtual so the order can't be reordered; a site adds per-beat work
+         *  through the on_loop() hook (run with the freshly-read PLC data). */
+        void loop() {
             if (!_scheduler.tick()) return;
 
             _console_serial.receive();
@@ -162,6 +163,8 @@ namespace Botanik {
             // alarm model with the freshly-read remote bitset.
             uint64_t now_ms = HAL::uptime_ms();
             _health.step(plc_output_data()->alarms, _plc_handler.rx_torn_count(), now_ms);
+
+            on_loop(now_ms);   // site per-beat state machines (default no-op)
 
             _logger.step();
 
@@ -203,6 +206,31 @@ namespace Botanik {
         Pages::ShellPage&               shell_page()      { return _shell_page; }
         Pages::LogsPage&                logs_page()       { return _logs_page; }
         Pages::AlarmsPage&              alarms_page()     { return _alarms_page; }
+
+        /** @} */
+
+    protected:
+        /** @name Site customization hooks (Template Method)
+         *  Overridden by a site instead of setup()/loop(), so the fixed bring-up and
+         *  cycle order can never be skipped or misordered.
+         *  @{ */
+
+        /** @brief Register the pages in tab order (page 0 is the boot page). The default
+         *  registers the built-ins; a site overrides this to interleave its own pages or
+         *  drop a built-in - the order of add_page() calls IS the tab order. */
+        virtual void register_pages() {
+            _terminal.add_page(&_shell_page);
+            _terminal.add_page(&_logs_page);
+            _terminal.add_page(&_alarms_page);
+        }
+
+        /** @brief Site post-wiring, run once near the end of setup() (after the core
+         *  sinks/pages, before the boot self-test). Default: nothing. */
+        virtual void on_setup() {}
+
+        /** @brief Site per-beat work, run each loop() with the freshly-read PLC data
+         *  (after the health step, before the logger drains). Default: nothing. */
+        virtual void on_loop(uint64_t now_ms) { (void)now_ms; }
 
         /** @} */
     };

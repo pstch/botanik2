@@ -304,14 +304,10 @@ namespace Botanik { namespace Terminal {
         /** @name Pages
          *  @{ */
 
-        /** @brief Register a page; returns its index, or -1 if the slot array is full */
+        /** @brief Register a page, appended in tab order; returns its index, or -1 if the
+         *  slot array is full. Order of registration IS the tab order (a site controls it
+         *  through its register_pages() hook); there is no insert-by-index. */
         int8_t add_page(Pages::Page* page);
-
-        /** @brief Insert a page at @p index, shifting later pages right; returns the
-         *  index, or -1 if the array is full or @p index is past the end. Lets a site
-         *  splice its pages into the core set (e.g. its home page at index 0) without
-         *  re-listing them. Intended for setup() before the first render. */
-        int8_t add_page(Pages::Page* page, uint8_t index);
 
         /** @brief Switch to the page at the given index */
         void switch_to(uint8_t index);

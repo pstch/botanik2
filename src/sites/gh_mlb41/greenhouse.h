@@ -17,8 +17,8 @@
 #include "sites/gh_mlb41/pages.h"
 #include "sites/gh_mlb41/alarms.h"
 
-/** @brief The gh_mlb41 greenhouse firmware. */
-class GreenhouseMLB41 : public Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t> {
+/** @brief The gh_mlb41 greenhouse firmware. `final` so the per-beat hook devirtualizes. */
+class GreenhouseMLB41 final : public Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t> {
     /** @name Site pages
      *  @{ */
     GreenhouseHomePage   _home_page;
@@ -38,15 +38,20 @@ public:
           _status_page(terminal(), plc_output_data())
     {}
 
-    /** @brief Bring up the base, then wire the site on top: the home page sinks the
-     *  log stream, leads the tab order (index 0, the boot page), and the status page
-     *  slots between logs and alarms. The base registered shell/logs/alarms as
-     *  0/1/2; inserting home at 0 and status at 3 yields home/shell/logs/status/alarms. */
-    void setup() override {
-        Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t>::setup();
+protected:
+    /** @brief Tab order (add_page order = tab order): the home page leads as the boot
+     *  page, the status page slots between logs and alarms -> home/shell/logs/status/alarms. */
+    void register_pages() override {
+        terminal().add_page(&_home_page);     // page 0 (the boot page)
+        terminal().add_page(&shell_page());
+        terminal().add_page(&logs_page());
+        terminal().add_page(&_status_page);
+        terminal().add_page(&alarms_page());
+    }
+
+    /** @brief The home page also sinks the log stream (its bottom log-tail band). */
+    void on_setup() override {
         logger().add_writer(&_home_page);
-        terminal().add_page(&_home_page, 0);
-        terminal().add_page(&_status_page, 3);
     }
 };
 
