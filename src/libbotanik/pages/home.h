@@ -48,11 +48,16 @@ namespace Botanik { namespace Pages {
         /** @brief First content row available to derived payload rendering. */
         static constexpr uint16_t PAYLOAD_ROW = 11;
 
-        /** @brief First screen row of the bottom log band. */
+        /** @brief First screen row of the bottom log band. Clamped so the band never
+         *  starts above the fixed content (logo + readings, then payload at PAYLOAD_ROW):
+         *  on a screen too short for both, the band collapses to empty (band_top == rows)
+         *  rather than painting the log over the readings. */
         uint16_t log_band_top() const {
             uint16_t rows = _terminal.rows();
-            return (rows > Config::HOME_SCROLLBACK_LINES)
+            uint16_t top  = (rows > Config::HOME_SCROLLBACK_LINES)
                        ? (uint16_t)(rows - Config::HOME_SCROLLBACK_LINES) : 1;
+            if (top < PAYLOAD_ROW) top = (rows > PAYLOAD_ROW) ? PAYLOAD_ROW : rows;
+            return top;
         }
 
         /** @name Draw hooks - override to customize the page.

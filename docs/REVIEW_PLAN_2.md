@@ -284,10 +284,14 @@ into `step()` by the already-templated firmware).
 - [x] **`[ALARMS-SORT-COST]`** documented: the sort runs once per repaint (gated on a set
   change = effectively recompute-on-change), and `[ALARM-NAMESPACE]` bounds `nvis` to the
   real count, so the O(n^2) pass is well within budget - no cache restructure needed.
-- [x]/[~] **`[HOME-VENT-PARTIAL]`** done - the Home summary now aggregates the four
-  window/blower zones (most-open / highest), not just zone A. **`[HOME-BG-BACKLOG]`** /
-  **`[HOME-TINY-SCREEN]`** **deferred** to the Home-page rework (the background-drain and
-  tiny-screen-band changes touch the live-tail render path; low severity, defer with it).
+- [x] **`[HOME-VENT-PARTIAL]`** the Home summary aggregates the four window/blower zones
+  (most-open / highest), not just zone A. **`[HOME-TINY-SCREEN]`** fixed: `log_band_top()`
+  is clamped so the band never starts above the fixed content (>= PAYLOAD_ROW), collapsing
+  to empty on a screen too short for both rather than painting the log over the readings.
+  **`[HOME-BG-BACKLOG]`** was already satisfied - `HomePage::write()` banks every entry
+  into the scrollback foreground OR background ("never drops"; a later focus() replays),
+  so the tail is current on return (it doesn't override BufferedLogWriter::push to drop,
+  unlike ShellPage). Verified Home renders normally after the clamp.
 - [x] **`[WRAP-MULTIBYTE]` / `[NARROW-WRAP-FANOUT]`** a continuation row drops its prefix
   when it'd leave < CONT_MIN (4) for content (no one-char-per-row fanout); documented the
   ASCII-only byte == column assumption.
