@@ -102,6 +102,15 @@ file(GLOB_RECURSE LIB_SOURCES
 
 add_library(botanik STATIC ${LIB_SOURCES})
 
+# Keep the per-beat metric math single-precision on the M4 (no double FPU): the
+# scheduler/filters hot path must stay float-clean. Scoped to that one TU so it
+# enforces the hot path without flagging the benign float->double promotions in
+# display formatting (format_float takes a double). COMPILE_FLAGS (string) for the
+# CMake 3.10 floor; applies in every target that compiles this source.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/libbotanik/scheduler/scheduler.cpp"
+    PROPERTIES COMPILE_FLAGS "-Wdouble-promotion")
+
 # Site config overrides (optional): if the selected site ships a config.h, make it
 # build-wide by defining BOTANIK_SITE_CONFIG PUBLIC on the library - so libbotanik's
 # own TUs and every consumer compile against the same overridden Config values

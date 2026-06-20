@@ -190,6 +190,9 @@ namespace Botanik { namespace Scheduler {
         uint64_t          _tps_anchor_ms     = 0;
         /** @brief tick_count snapshot taken at the window anchor. */
         uint32_t          _tps_anchor_count  = 0;
+        /** @brief Whether the tick-rate window is open (a flag, not an anchor==0 sentinel:
+         *  the clock is legitimately 0 for the first ~1 ms). */
+        bool              _tps_open          = false;
 
         /** @} */
 

@@ -192,11 +192,17 @@ into `step()` by the already-templated firmware).
   how inlining grows the frame. A wrong margin silently clobbers live stack.
 - [ ] **`[WINDOWEDMAX-NO-DECAY-IDLE]`** rotate the recent-peak windows by wall-time,
   not by released-tick count, so a stale peak can't linger past the window during an overrun.
-- [ ] **`[EMA-FLOAT-OK-DOUBLE-LEAK]`** add `-Wdouble-promotion` to keep the M4 path float-clean.
-- [ ] **`[TPS-SIM-SAMPLED-DILATED]`** label the metric `RTPS` (achieved real ticks/s).
-- [ ] **`[TPS-ANCHOR-ZERO-SENTINEL]`** use a bool flag, not `anchor==0`.
-- [ ] **`[REPAINT-MARGIN-FIXED]`** capture `&local` inside `_paint_below` instead of a
-  fixed 256 margin; **`[OVERRUN-LOG-WRAPSAFE]`** comment that the compare is 64-bit.
+  **PENDING DISCUSSION**: `WindowedMax::push()` is a unit-tested generic filter; a wall-time
+  rotation changes its API + the `test_filters` goldens. Bring the approach first.
+- [x] **`[EMA-FLOAT-OK-DOUBLE-LEAK]`** `-Wdouble-promotion` **scoped to `scheduler.cpp`** (the
+  hot-path TU) via a source COMPILE_FLAGS property - global would flag the benign
+  float->double promotions in display formatting (`format_float` takes a double) and break
+  the `-Werror` strict build. Verified scheduler.cpp is clean under it on sim + OPTA.
+- [x] **`[TPS-SIM-SAMPLED-DILATED]`** the metric label is now `RTPS` (achieved real ticks/s);
+  pyte `normalize.py` regex updated to match.
+- [x] **`[TPS-ANCHOR-ZERO-SENTINEL]`** uses a `bool _tps_open` flag, not `anchor==0`.
+- [x] **`[OVERRUN-LOG-WRAPSAFE]`** commented that the overrun-log throttle compares 64-bit
+  uptime (not the 32-bit timestamp_ms), so it's not the wrap-safe-32 idiom.
 - [ ] `[LOAD-WINDOW-SPANS-SKIP]` - keep (skipped beats were genuinely busy; consistent
   with accepting >100% duty).
 

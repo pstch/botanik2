@@ -30,7 +30,7 @@ _SUBS = [
     (re.compile(r"CPU load\s+[\d.]+%\s*\(peak\s+[\d.]+ms\)"), "CPU load <CPU>"),
     (re.compile(r"CPU jitter\s+[\d.]+%\s*\(peak\s+[\d.]+ms\)"), "CPU jitter <JIT>"),
     (re.compile(r"Stack\s+[\d.]+%\s*\(peak\s+\d+ B\)"), "Stack <STK>"),
-    (re.compile(r"Task period\s+\d+ms \(\d+ tps\)"), "Task period <TASK>"),
+    (re.compile(r"Task period\s+\d+ms \(\d+ RTPS\)"), "Task period <TASK>"),
     (re.compile(r"Console TX\s+\d+/\d+ \(drops: \d+\)"), "Console TX <TX>"),
     (re.compile(r"Network\s+\w+ \(lat [^)]*\)"), "Network <NET>"),             # net status + latency
     (re.compile(r"NTP sync\s+(?:OK \([-\d.]+ s\)|no sync)"), "NTP sync <NTP>"),

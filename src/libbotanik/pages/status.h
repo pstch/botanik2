@@ -105,9 +105,10 @@ namespace Botanik { namespace Pages {
                          Utils::format_float(fa, sizeof(fa), ctx.scheduler->stack_usage_ema * 100.0f, 1),
                          (unsigned long)ctx.scheduler->stack_bytes_max);
                 _cell(SLOT_STACK, 6, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W);
-                // Task period (right): nominal loop period + achieved tick rate.
-                // tps is width-padded so the trailing " tps)" never shifts.
-                snprintf(val, sizeof(val), "%lums (%3lu tps)",
+                // Task period (right): nominal loop period + achieved real tick rate
+                // (RTPS = ticks per *real* second; under sim dilation it shows sustain).
+                // The count is width-padded so the trailing " RTPS)" never shifts.
+                snprintf(val, sizeof(val), "%lums (%3lu RTPS)",
                          (unsigned long)Config::TASK_PERIOD_MS,
                          (unsigned long)ctx.scheduler->ticks_per_second);
                 _cell(SLOT_TASK, 5, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);

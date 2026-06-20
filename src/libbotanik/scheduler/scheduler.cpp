@@ -127,6 +127,8 @@ namespace Botanik { namespace Scheduler {
             _context.overruns += (uint32_t)missed_beats;
             // report the aggregate overrun count to avoid flooding the log
             _overrun_pending += (uint32_t)missed_beats;
+            // now / _overrun_log_last_ms are 64-bit uptime (not the 32-bit timestamp_ms),
+            // so this subtraction never wraps - it is not the wrap-safe-32 idiom.
             if (_logger != nullptr && !_xrun_warning_off() &&
                 now - _overrun_log_last_ms >= Config::SCHEDULER_XRUN_LOG_MS) {
                 _logger->warning(PlcIO::STATUS, "scheduler overrun: skipped %lu beat(s)",
@@ -180,7 +182,8 @@ namespace Botanik { namespace Scheduler {
 #endif
         // achieved tick rate: ticks since the window anchor over the elapsed window,
         // normalized to per-second and published once the window reaches a second.
-        if (_tps_anchor_ms == 0) {            // first beat: open the window
+        if (!_tps_open) {                     // first beat: open the window
+            _tps_open         = true;
             _tps_anchor_ms    = now_ms;
             _tps_anchor_count = _context.tick_count;
             return;
