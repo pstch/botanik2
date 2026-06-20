@@ -185,6 +185,9 @@ namespace Botanik { namespace PlcIO {
         PlcTxState             _tx_state      = TX_WRITE;
         /** @brief Count of RX snapshots discarded as torn (PLC bumped seq mid-copy). */
         uint32_t               _rx_torn       = 0;
+        /** @brief PLC's stale rxAckNum read at bind, used to reject a stale-coincidence
+         *  ack at first contact (before any real ack is observed). */
+        uint32_t               _ack_baseline  = 0;
 
         /** @} */
 
@@ -208,6 +211,19 @@ namespace Botanik { namespace PlcIO {
             _ctx._logger       = logger;
             memset(&_tx_data_buffer, 0, sizeof(InputData));
             memset(&_rx_data_buffer, 0, sizeof(OutputData));
+
+            // First-contact baseline: the PLC sync counters may be uninitialized or
+            // stale at boot, so don't trust them. Snapshot the PLC's current output seq
+            // and ack, then seed our own input region to a known start: rxSeqNum = 0 (our
+            // TX seq), and txAckNum = the PLC's current txSeqNum so a stale value isn't
+            // mistaken for a fresh RX message. _ack_baseline gates the first TX ack so a
+            // stale rxAckNum can't be read as a live PLC (see _tx_acknowledged()).
+            HAL::cache_invalidate(_plcout, sizeof(*_plcout));
+            uint32_t plc_seq = HAL::ordered_read(&_plcout->sync.txSeqNum);
+            _ack_baseline    = HAL::ordered_read(&_plcout->sync.rxAckNum);
+            PlcInputCounters_t baseline = { 0u, plc_seq };   // rxSeqNum=0, txAckNum=plc_seq
+            HAL::ordered_copy(&_plcin->sync, &baseline);
+            HAL::cache_clean(_plcin, sizeof(*_plcin));
         }
 
         /** @} */
@@ -258,13 +274,22 @@ namespace Botanik { namespace PlcIO {
          *  @{ */
 
         inline bool _rx_new_message()      { return HAL::ordered_read(&_plcout->sync.txSeqNum) != _plcin->sync.txAckNum; }
-        inline bool _tx_heartbeat_elapsed(){ return _ctx._now() - _ctx._tx_last_ms > _heartbeat_ms; }
+        // Pulse at heartbeat cadence from the last commit (not the last ack), so an
+        // unacked link keeps a steady cadence instead of re-firing every step.
+        inline bool _tx_heartbeat_elapsed(){ return _ctx._now() - _tx_commit_ms > _heartbeat_ms; }
         // Re-pulse a commit left unacked for a whole heartbeat (TX_WAIT recovery).
         inline bool _tx_recommit_elapsed() { return _ctx._now() - _tx_commit_ms > _heartbeat_ms; }
         inline bool _tx_acknowledged() {
-            bool result = HAL::ordered_read(&_plcout->sync.rxAckNum) == _plcin->sync.rxSeqNum;
-            if (result) { _ctx._tx_last_ms = _ctx._now(); _ctx._ever_ackd = true; }
-            return result;
+            uint32_t ack = HAL::ordered_read(&_plcout->sync.rxAckNum);
+            if (ack != _plcin->sync.rxSeqNum) return false;
+            // First-contact gate: a stale rxAckNum that coincidentally equals our first
+            // seq must not be read as a live PLC. Until the link is up, require the ack to
+            // differ from the bind-time stale value (proof the PLC actually wrote it). A
+            // real PLC catches up within a commit or two; after _ever_ackd it's normal.
+            if (!_ctx._ever_ackd && ack == _ack_baseline) return false;
+            _ctx._tx_last_ms = _ctx._now();
+            _ctx._ever_ackd  = true;
+            return true;
         }
 
         /** @} */

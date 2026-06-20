@@ -129,10 +129,12 @@ into `step()` by the already-templated firmware).
 
 ## Block 1 - Cross-core / hardware correctness (least testable on the sim)
 
-- [ ] **`[TX-WAIT-STALE-ACK]` / `[FIRST-CONTACT-RXSEQ]`** define an explicit
-  first-contact baseline: don't trust uninitialized/stale PLC counters; require an
-  observed seq transition (or a handshake reset) before declaring the link RUNNING
-  and feeding the HW watchdog.
+- [x] **`[TX-WAIT-STALE-ACK]` / `[FIRST-CONTACT-RXSEQ]`** explicit first-contact baseline
+  in the handler ctor: snapshot the PLC's output seq/ack, then seed our input region to a
+  known start (rxSeqNum=0; txAckNum=the PLC's current txSeqNum so a stale value isn't a
+  phantom RX message). `_tx_acknowledged()` gates the first ack on `ack != _ack_baseline`
+  (the bind-time stale value), so a stale rxAckNum can't declare the link RUNNING + feed
+  the watchdog. A real PLC catches up within a commit or two. Verified: sim still links.
 - [x] **`[SIM-DILATION-OVERFLOW]`** `_now_as()` now does the scale multiply in `__int128`
   over nanoseconds (sim is x86-64 only), keeping full precision and overflow-safe to
   astronomical timepoints. Verified at `TIME_SCALE=1000`.
@@ -153,7 +155,8 @@ into `step()` by the already-templated firmware).
   (both backends).
 - [x] **`[EMPTY-STRUCT-SIZEOF1]`** `if (is_empty<T>) return;` no-op in `ordered_copy`/
   `ordered_move` (both backends).
-- [ ] **`[HEARTBEAT-FROM-ACK]`** gate the idle heartbeat off last *commit*, not last *ack*.
+- [x] **`[HEARTBEAT-FROM-ACK]`** `_tx_heartbeat_elapsed()` now measures from `_tx_commit_ms`
+  (last commit), not `_tx_last_ms` (last ack), so the cadence stays steady when unacked.
 - [ ] **`[EMU-CLOCK-RAW32]` / `[DILATED-CLOCK-WRAP]`** adopt `Millis32` in the emulator.
 - [ ] **`[JOIN-RACE-ON-RESET]`** add an `emu_stopped` ack flag the joiner waits on
   (sim-only, cheap) to drop the "third caller" assumption.

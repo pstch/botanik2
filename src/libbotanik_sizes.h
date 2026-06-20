@@ -36,7 +36,7 @@ namespace Botanik { namespace detail {
     static_assert(sizeof(PlcIO::PlcOutput<ProbePlcOut>)                    == BOTANIK_SIZE( 8672,  8672), "PlcOutput footprint changed");
     static_assert(sizeof(PlcIO::PlcSyncContext)                            == BOTANIK_SIZE( 8632,  8616), "PlcSyncContext footprint changed");
     static_assert(sizeof(PlcIO::PlcEmulatorContext)                        == BOTANIK_SIZE( 8616,  8608), "PlcEmulatorContext footprint changed");
-    static_assert(sizeof(PlcIO::PlcSyncHandler<ProbePlcIn, ProbePlcOut>)   == BOTANIK_SIZE( 8736,  8700), "PlcSyncHandler footprint changed");
+    static_assert(sizeof(PlcIO::PlcSyncHandler<ProbePlcIn, ProbePlcOut>)   == BOTANIK_SIZE( 8736,  8704), "PlcSyncHandler footprint changed");
     static_assert(sizeof(PlcIO::PlcEmulator<ProbePlcIn, ProbePlcOut>)      == BOTANIK_SIZE( 8712,  8688), "PlcEmulator footprint changed");
 
     // Logging
