@@ -142,8 +142,10 @@ into `step()` by the already-templated firmware).
   only the read-only PLC-output region, clean the input region; sub-region calls round to
   that region's own lines). NOTE: a blanket "32-byte aligned" *assert* proved too strict -
   `logs.cpp` legitimately invalidates the log ring at offset 8 of the read-only `_plcout`
-  (safe, nothing dirty to lose), so I dropped the runtime assert and kept the doc. Open Q:
-  switch the discipline to whole-region invalidates so an assert *could* stand? (see report)
+  (safe, nothing dirty to lose), so I dropped the runtime assert and kept the doc. DECIDED:
+  leave as-is - an alignment assert wouldn't catch the real hazard (invalidating a dirty
+  line, not an alignment property), and forcing whole-region invalidates to enable one
+  would flush ~8 KB to re-read 8 bytes on the torn path. `@warning` is the right protection.
 - [~] **`[WALLCLOCK-WRAP-2038]`** flagged precisely in `opta.h` (the `time_t` 2038 wrap
   before the widening cast). The real fix needs a 64-bit RTC read, which is coupled to the
   future TimeSyncHandler/RTC path - **deferred** there, comment left as the marker.
@@ -167,8 +169,10 @@ into `step()` by the already-templated firmware).
   `_last_seq == 0` - the uint32 gap math is ALREADY modular-wrap-correct, only the sentinel
   was the bug. NOTE: chose this over **64-bit seqnums** deliberately - 64-bit would change
   `LogEntry_t` (uint64 forces 8-byte alignment -> a 16-byte header the PLC must mirror), a
-  wire ABI change for no extra correctness. Open Q: want 64-bit anyway for absolute log
-  correlation? (see report)
+  wire ABI change for no extra correctness. DECIDED: keep `_have_seq` - 64-bit only buys an
+  absolute counter (no near-term need), and absolute log identity (which would also need a
+  64-bit timestamp) is better settled as one coordinated PLC-contract change if/when MQTT
+  log export is built.
 - [x] **`[DROP-COUNT-CAP]`** a gap > ring size is clamped to the ring size and reported as
   ">=N" (a lap; true count unknowable), so one corrupt/lapped seqNum can't poison `_dropped`.
 - [ ] Docs/notes (no code): `[ORDERED-READ-ACQUIRE-LATE]`, `[SIM-DSB-OVERKILL]`,
