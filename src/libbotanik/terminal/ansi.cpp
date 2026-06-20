@@ -55,6 +55,9 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     // Generic utilities
     // ------------------------------------------------------------------------
 
+    // Input is ASCII-only (printable 0x20-0x7E): the editor counts one byte == one
+    // column, so a high byte (UTF-8 / Latin-1) is treated as non-printable and dropped
+    // rather than corrupt the byte-counted reconcile cursor.
     bool is_printable(uint8_t b) {
         return b >= 0x20 && b <= 0x7E;
     }

@@ -104,7 +104,10 @@ namespace Botanik { namespace Terminal {
 
     bool InputParser::_should_flush_pending_command() const {
         if (_pending_cmd == Command::NONE) return false;
-        return !_backpressure_holds(_pending_cmd_start_ms);
+        // A held command (coalesced backspace) wants lower latency than a paste batch, so
+        // it uses a shorter flush timeout than _backpressure_holds()'s text-batch one.
+        if (_serial.tx_empty()) return true;
+        return (*_timestamp_ms - _pending_cmd_start_ms) >= Config::ANSI_CMD_FLUSH_TIMEOUT_MS;
     }
 
     // State handlers
@@ -175,7 +178,9 @@ namespace Botanik { namespace Terminal {
             return State::IDLE;
         }
 
-        return State::IDLE; // Error fallback
+        // Any other byte (e.g. a 0x20-0x2F intermediate) aborts to IDLE: intermediate
+        // bytes are unsupported - none of the sequences we map use them.
+        return State::IDLE;
     }
 
     // Mapping logic
@@ -203,7 +208,7 @@ namespace Botanik { namespace Terminal {
             case 0x15: return Command::CTRL_U;
             case 0x17: return Command::CTRL_W;
             case 0x19: return Command::CTRL_Y;
-            case 0x1B: return Command::ESC;
+            case 0x1B: return Command::ESC;   // unreachable: ESC is intercepted in _handle_idle
             case 0x7F: return Command::BACKSPACE;
             default:   return Command::NONE;
         }
@@ -263,6 +268,9 @@ namespace Botanik { namespace Terminal {
         }
     }
 
+    // Minitel SEP (function-key) codes. Some map to the same command on purpose:
+    // a/A (ENVOI) and b/B (RETOUR) both act as ENTER; d/D (SOMMAIRE) and g/G (GUIDE)
+    // both jump to page 1.
     Command InputParser::_map_sep_to_command(const uint8_t b) {
         switch (b) {
             case 'a': case 'A': return Command::ENTER;
@@ -329,9 +337,14 @@ namespace Botanik { namespace Terminal {
                     _chunkable_command_for(b) == _pending_cmd) {
                     _serial.read((char*)&b, 1);
                     _last_byte_ms = *_timestamp_ms;
-                    _pending_cmd_count++;
+                    if (_pending_cmd_count < UINT16_MAX) _pending_cmd_count++;  // saturate, never wrap
                     continue;
                 }
+                // Coalescing is IDLE-only: a chunkable byte (DEL/Ctrl+D) that arrives while
+                // an escape sequence is still in flight (rare - escapes come atomically, and
+                // ANSI_CMD_TIMEOUT_MS bounds a split one) is emitted-and-left here, then runs
+                // through the FSM next parse(). That keeps the parser single-byte; restructuring
+                // it to fold such a byte back into the coalescer isn't worth the FSM risk.
                 _emit_pending_command();
                 return _event;
             }

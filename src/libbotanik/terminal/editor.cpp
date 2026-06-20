@@ -148,6 +148,8 @@ namespace Botanik { namespace Terminal {
     // ------------------------------------------------------------------------
 
     void TextEditor::insert_characters(const char* buf, uint16_t len) {
+        // One byte is reserved for the NUL, so usable content is sizeof(_buf)-1: the
+        // layout asserts size rows against the full SHELL_INPUT_LEN, one byte of slack.
         if (len == 0 || (size_t)_len + 1 >= sizeof(_buf)) return;
         if ((uint32_t)_len + len >= sizeof(_buf)) len = (uint16_t)(sizeof(_buf) - _len - 1);
         if (len == 0) return;

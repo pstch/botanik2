@@ -282,11 +282,14 @@ into `step()` by the already-templated firmware).
 - [ ] **`[STATUS-RAIN-AGE]`** widen site `rain_age_s` to `uint32` (payload/ABI change -
   coordinate with the PLC program, keep word-alignment); fix the comment.
 - [ ] **`[DRAINTAIL-DOC]`** fix the `LOG_ROWS_PER_TICK` comment.
-- [ ] Parser/editor: **`[PENDING-CMD-STATE-GATE]`** (coalesce DEL consistently when
-  re-entering IDLE), **`[ALT0-ENUM-ORDER-COUPLING]`** static_assert, **`[COUNT-SATURATION]`**
-  guard, **`[UTF8-COLWIDTH]`** document ASCII-only, **`[BATCH-TIMEOUT-DRAIN-DEP]`** shorter
-  command-flush timeout, **`[ESC-TIMEOUT-LATENCY]` / `[CSI-INTERMEDIATE-ABORT]`** doc,
-  **`[DEAD-ESC-MAP]` / `[SEP-DUP-MAP]` / `[INSERT-CAP-OFFBYONE-OK]`** fix (cosmetic but do it).
+- [x] Parser/editor: **`[ALT0-ENUM-ORDER-COUPLING]`** static_assert on ALT_1..ALT_9
+  contiguity; **`[COUNT-SATURATION]`** saturating `_pending_cmd_count`; **`[UTF8-COLWIDTH]`**
+  documented ASCII-only (byte == column); **`[BATCH-TIMEOUT-DRAIN-DEP]`** a held command now
+  flushes at the shorter `ANSI_CMD_FLUSH_TIMEOUT_MS` (250 ms), not the 1 s text-batch
+  timeout; **`[CSI-INTERMEDIATE-ABORT]` / `[ESC-TIMEOUT-LATENCY]`** documented; **`[DEAD-ESC-MAP]`
+  / `[SEP-DUP-MAP]` / `[INSERT-CAP-OFFBYONE-OK]`** commented. **`[PENDING-CMD-STATE-GATE]`**:
+  documented the rare split-escape interleave rather than restructuring delicate parser FSM
+  state for a low-likelihood case (escapes arrive atomically; the 100 ms timeout bounds it).
 
 ---
 

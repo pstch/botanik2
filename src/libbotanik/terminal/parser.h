@@ -57,6 +57,11 @@ namespace Botanik { namespace Terminal {
             ALT_1, ALT_2, ALT_3, ALT_4, ALT_5,
             ALT_6, ALT_7, ALT_8, ALT_9, ALT_0,
         };
+        // The terminal's page-switch dispatch relies on ALT_1..ALT_9 being contiguous
+        // (and ALT_0 just after); a reorder of the enum would silently break it.
+        static_assert((int)Command::ALT_9 - (int)Command::ALT_1 == 8 &&
+                      (int)Command::ALT_0 == (int)Command::ALT_9 + 1,
+                      "ALT_1..ALT_9 must stay contiguous with ALT_0 last");
         // Event fields
         EventType   type = EventType::NONE;
         Command     command = Command::NONE;

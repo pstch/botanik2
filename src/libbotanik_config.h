@@ -343,6 +343,14 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, ANSI_CMD_TIMEOUT_MS);
 
+    /** @brief Max time a coalesced command (held backspace / Ctrl+D) is held under TX
+     *  backpressure before it flushes. Shorter than the text-batch timeout: an edit wants
+     *  lower latency than a paste batch. */
+#ifndef BOTANIK_ANSI_CMD_FLUSH_TIMEOUT_MS
+#  define BOTANIK_ANSI_CMD_FLUSH_TIMEOUT_MS 250
+#endif
+    BOTANIK_CFG(uint32_t, ANSI_CMD_FLUSH_TIMEOUT_MS);
+
     /** @brief Interval (ms) between status-bar metric refreshes. Time-based so the
      *  refresh rate is independent of the scheduler tick interval. */
 #ifndef BOTANIK_STATUS_REFRESH_MS
