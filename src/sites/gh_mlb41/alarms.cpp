@@ -38,9 +38,6 @@ const Botanik::Alarms::AlarmCondition g_alarms[] = {
     {"IO_DROP",  "Logical I/O drops",                               0,    2,    2,     -1,    -1},
     {"LOG_FLD",  "Logs flooding",                                   0,    2,    2,     -1,    -1},
     {"WH_STORM", "Current storm conditions",                        0,    2,    5,     15,    30},
-    // Generic platform-health alarms (SYS_RST, CPU_*, STACK) are NOT here: they live
-    // in the base table (libbotanik/alarms/platform.h) and AlarmModel appends them
-    // after these site alarms. This table is site/PLC alarms only.
 };
 const uint8_t g_alarm_count = (uint8_t)(sizeof(g_alarms) / sizeof(g_alarms[0]));
 #pragma GCC diagnostic pop
