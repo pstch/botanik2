@@ -21,22 +21,30 @@ a site payload. Every site and target gets the identical layout, so the network 
 The config block is a library-fixed section of `PlcOutput<Data>`, spliced in between
 the log ring and the site payload (`plcio/vars.h`):
 
-```
- PlcOutput<OutputData>  (PLC -> host)
- ┌─────────────────────────────┐
- │ sync    txSeqNum  rxAckNum   │
- ├─────────────────────────────┤
- │ logs    writeIndex           │
- │         logBuffer[N]         │
- ├─────────────────────────────┤
- │ config  net   (network)      │   <- generic, library-fixed (this doc)
- │         ntp   (NTP client)   │
- │         mqtt  (MQTT client)  │
- │         geo   (location)     │
- ├─────────────────────────────┤
- │ data    <site payload>       │
- └─────────────────────────────┘
-```
+\dot "PlcOutput<OutputData>: the config block sits between the log ring and the site payload"
+digraph plc_output {
+  bgcolor="transparent";
+  rankdir=LR; nodesep=0.5;
+  node [shape=plaintext, fontname="Helvetica", fontsize=10];
+
+  layout [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="6" color="#9e9e9e">
+      <tr><td colspan="2" bgcolor="#37474f"><font color="#ffffff"><b>PlcOutput&lt;OutputData&gt;</b> &#160; (PLC &#8594; host)</font></td></tr>
+      <tr><td bgcolor="#d6e4f0"><b>sync</b></td><td bgcolor="#d6e4f0" align="left">txSeqNum &#160; rxAckNum</td></tr>
+      <tr><td bgcolor="#fdebcf"><b>logs</b></td><td bgcolor="#fdebcf" align="left">writeIndex<br align="left"/>logBuffer[N]</td></tr>
+      <tr><td bgcolor="#d7ecd9" rowspan="4" port="cfg"><b>config</b></td><td bgcolor="#d7ecd9" align="left">net &#160; <font color="#666666">(network)</font></td></tr>
+      <tr><td bgcolor="#d7ecd9" align="left">ntp &#160; <font color="#666666">(NTP client)</font></td></tr>
+      <tr><td bgcolor="#d7ecd9" align="left">mqtt &#160; <font color="#666666">(MQTT client)</font></td></tr>
+      <tr><td bgcolor="#d7ecd9" align="left">geo &#160; <font color="#666666">(location)</font></td></tr>
+      <tr><td bgcolor="#eeeeee"><b>data</b></td><td bgcolor="#eeeeee" align="left"><font color="#666666">&lt;site payload&gt;</font></td></tr>
+    </table>
+  >];
+
+  note [shape=note, style=filled, fillcolor="#eafaef", color="#4caf50", fontsize=9,
+        fontname="Helvetica", label="generic,\nlibrary-fixed\n(this doc)"];
+  note -> layout:cfg [color="#4caf50", arrowsize=0.6];
+}
+\enddot
 
 It is snapshotted in the *same* RX transaction as the payload: `PlcSyncHandler`'s
 `_rx_memcpy()` copies `config` into a local buffer right beside `data`, under the same
@@ -52,7 +60,7 @@ status it already reports (link state, NTP-synced flag, and so on).
 Each block leads with a 32-bit `serial` (see "Change detection" below). Addresses are
 text, not packed integers (see "Addresses").
 
-### `net` - network interface
+### net - network interface
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -64,7 +72,7 @@ text, not packed integers (see "Addresses").
 | `dns1`    | `HostStr_t` | primary DNS server (the resolver's upstream) |
 | `dns2`    | `HostStr_t` | secondary DNS server, empty = none |
 
-### `ntp` - NTP client
+### ntp - NTP client
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -74,7 +82,7 @@ text, not packed integers (see "Addresses").
 | `server1` | `HostStr_t` | hostname or IPv4 literal |
 | `server2` | `HostStr_t` | empty = none |
 
-### `mqtt` - MQTT client
+### mqtt - MQTT client
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -89,7 +97,7 @@ compile time. There are no credential or TLS fields - the brokers in scope are
 unauthenticated and plaintext; adding either is a coordinated layout change here plus
 on the PLC side.
 
-### `geo` - site location
+### geo - site location
 
 The site's geographical position, used by the base library to compute sunrise and
 sunset (e.g. for window / thermal-screen scheduling). Integer-scaled - no floats on

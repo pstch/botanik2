@@ -58,7 +58,7 @@ UART driver keeps its own ISR *below* the HAL, filling its own buffer). The
 ISR-safe** and must only be touched from the main loop - they are marked as such in
 their headers.
 
-## The discipline (no `std::atomic`)
+## The discipline (no std::atomic)
 
 Because the async surface is just the PLC shared memory, cross-core access uses:
 

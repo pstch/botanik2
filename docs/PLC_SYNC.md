@@ -10,18 +10,35 @@ Two regions, each a `PlcInput<Data>` / `PlcOutput<Data>` (`plcio/vars.h`). "Inpu
 and "Output" are named from the **PLC's** point of view: the host *writes* the
 input region and *reads* the output region.
 
-```
- PlcInput<InputData>            PlcOutput<OutputData>
- (host → PLC)                   (PLC → host)
- ┌─────────────────────────┐     ┌─────────────────────────┐
- │ sync   rxSeqNum txAckNum│     │ sync   txSeqNum rxAckNum│
- ├─────────────────────────┤     ├─────────────────────────┤
- │ logs   readIndex        │     │ logs   writeIndex       │
- │                         │     │        logBuffer[N]     │
- ├─────────────────────────┤     ├─────────────────────────┤
- │ data   <site payload>   │     │ data   <site payload>   │
- └─────────────────────────┘     └─────────────────────────┘
-```
+\dot "The two shared regions: the host writes Input and reads Output"
+digraph plc_regions {
+  bgcolor="transparent";
+  node [shape=plaintext, fontname="Helvetica", fontsize=10];
+
+  in [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="6" color="#9e9e9e">
+      <tr><td colspan="2" bgcolor="#37474f"><font color="#ffffff"><b>PlcInput&lt;InputData&gt;</b></font></td></tr>
+      <tr><td colspan="2" bgcolor="#455a64"><font color="#cfd8dc">host &#8594; PLC</font></td></tr>
+      <tr><td bgcolor="#d6e4f0"><b>sync</b></td><td bgcolor="#d6e4f0" align="left">rxSeqNum &#160; txAckNum</td></tr>
+      <tr><td bgcolor="#fdebcf"><b>logs</b></td><td bgcolor="#fdebcf" align="left">readIndex</td></tr>
+      <tr><td bgcolor="#eeeeee"><b>data</b></td><td bgcolor="#eeeeee" align="left"><font color="#666666">&lt;site payload&gt;</font></td></tr>
+    </table>
+  >];
+
+  out [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="6" color="#9e9e9e">
+      <tr><td colspan="2" bgcolor="#37474f"><font color="#ffffff"><b>PlcOutput&lt;OutputData&gt;</b></font></td></tr>
+      <tr><td colspan="2" bgcolor="#455a64"><font color="#cfd8dc">PLC &#8594; host</font></td></tr>
+      <tr><td bgcolor="#d6e4f0"><b>sync</b></td><td bgcolor="#d6e4f0" align="left">txSeqNum &#160; rxAckNum</td></tr>
+      <tr><td bgcolor="#fdebcf"><b>logs</b></td><td bgcolor="#fdebcf" align="left">writeIndex<br align="left"/>logBuffer[N]</td></tr>
+      <tr><td bgcolor="#eeeeee"><b>data</b></td><td bgcolor="#eeeeee" align="left"><font color="#666666">&lt;site payload&gt;</font></td></tr>
+    </table>
+  >];
+
+  {rank=same; in; out;}
+  in -> out [style=invis];
+}
+\enddot
 
 Every struct is explicitly padded so its layout is identical packed or not, and
 the cursors (`writeIndex` / `readIndex`) lead their structs so the host can poll

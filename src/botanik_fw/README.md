@@ -44,7 +44,7 @@ them with the generated types and verify with the `static_assert`s noted in
 `botanik_sim/simulator.h`. Until then the firmware links and the home page renders a
 minimal temperature/humidity readout.
 
-## CMake `build-opta` is still the fast path for ABI/size checks
+## CMake build-opta is still the fast path for ABI/size checks
 
 `cmake -B build-opta -DBOTANIK_TARGET=OPTA` compiles `libbotanik` (plus this reference
 wiring, as the `botanik_fw` static lib) for ARM - size, LTO, and the footprint
