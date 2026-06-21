@@ -10,7 +10,6 @@
 #include <cstddef>
 #include <cstring>
 #ifdef TARGET_SIMULATOR
-#include <cstdlib>   // getenv - BOTANIK_NO_XRUN_WARNING
 #include <cerrno>
 #include <sched.h>
 #include <sys/mman.h>
@@ -24,18 +23,6 @@
 #include "libbotanik/plcio/vars.h"
 
 namespace Botanik { namespace Scheduler {
-
-    // Simulator-only test hook: BOTANIK_NO_XRUN_WARNING silences the overrun
-    // warning, whose count/placement are load-dependent (dilated time provokes
-    // them) and would otherwise pollute screen snapshots. Read once.
-    static bool _xrun_warning_off() {
-#ifdef TARGET_SIMULATOR
-        static const bool off = getenv("BOTANIK_NO_XRUN_WARNING") != nullptr;
-        return off;
-#else
-        return false;
-#endif
-    }
 
     // Lifecycle
     // ------------------------------------------------------------------------
@@ -97,10 +84,6 @@ namespace Botanik { namespace Scheduler {
         _context.stack_usage          = 0.0f;
         _context.stack_bytes_free     = _stack_depth;   // nothing used yet: all free
         _context.stack_depth          = _stack_depth;
-
-        // log the first overrun after a reset immediately
-        _overrun_log_last_ms = 0;
-        _overrun_pending = 0;
     }
 
     // Tick
@@ -115,23 +98,13 @@ namespace Botanik { namespace Scheduler {
     void LoopScheduler::_skip_beats(uint64_t now) {
         _missed_this_beat = 0;
         if (now >= _next_tick_ms + _period_ms) {
-            // count overruns
             uint64_t delay = now - _next_tick_ms;
             uint64_t missed_beats = delay / _period_ms;
             _missed_this_beat = (uint32_t)missed_beats;   // weight this tick's metric samples
             _next_tick_ms += (missed_beats * _period_ms);
+            // Count overruns - surfaced by the CPU_XRUN alarm and the `stats` overrun
+            // count. No log line: it would flood, especially under sim time dilation.
             _context.overruns += (uint32_t)missed_beats;
-            // report the aggregate overrun count to avoid flooding the log
-            _overrun_pending += (uint32_t)missed_beats;
-            // now / _overrun_log_last_ms are 64-bit uptime (not the 32-bit timestamp_ms),
-            // so this subtraction never wraps - it is not the wrap-safe-32 idiom.
-            if (_logger != nullptr && !_xrun_warning_off() &&
-                now - _overrun_log_last_ms >= Config::SCHEDULER_XRUN_LOG_MS) {
-                _logger->warning(PlcIO::STATUS, "scheduler overrun: skipped %lu beat(s)",
-                    (unsigned long)_overrun_pending);
-                _overrun_log_last_ms = now;
-                _overrun_pending = 0;
-            }
         }
     }
 

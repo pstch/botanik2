@@ -143,6 +143,9 @@ namespace Botanik {
             _health.post(_shared_in, _shared_out);
 
             HAL::watchdog_start(_hw_watchdog_ms);
+            // Details on a second line (the renderer splits on '\n') so the entry wraps cleanly.
+            _logger.debug(PlcIO::BOOT, "boot complete\nconsole %lu baud, HW watchdog %lu ms",
+                          (unsigned long)_baud, (unsigned long)_hw_watchdog_ms);
         }
 
         /** @brief One main-loop iteration. tick() gates a beat (returns early until

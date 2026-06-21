@@ -77,12 +77,6 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, HW_WATCHDOG_MS);
 
-    /** @brief Minimum interval between scheduler-overrun warnings (ms) */
-#ifndef BOTANIK_SCHEDULER_XRUN_LOG_MS
-#  define BOTANIK_SCHEDULER_XRUN_LOG_MS 5000
-#endif
-    BOTANIK_CFG(uint32_t, SCHEDULER_XRUN_LOG_MS);
-
 #ifdef TARGET_SIMULATOR
     /** @brief CPU cores the simulator pins its two realtime threads to, mirroring
      *  the OPTA's independent cores: the main loop on one, the PLC emulator on

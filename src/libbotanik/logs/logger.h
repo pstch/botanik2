@@ -113,9 +113,15 @@ namespace Botanik { namespace Logs {
         uint8_t         _watched_tx_count       = 0;
 
         /** @brief Minimum level a non-critical entry must reach to be forwarded (set at
-         *  runtime by the `loglevel` shell command). LOG_DEBUG (the floor) passes all;
-         *  LOG_CRITICAL is the max value so a critical is never filtered. */
-        PlcIO::LogLevel _min_level              = PlcIO::LOG_DEBUG;
+         *  runtime by the `loglevel` shell command). Defaults to LOG_DEBUG (pass all) in
+         *  DEBUG builds and LOG_INFO in release, so debug spew is filtered on hardware by
+         *  default; LOG_CRITICAL is the max value so a critical is never filtered. */
+        PlcIO::LogLevel _min_level =
+#ifdef DEBUG
+            PlcIO::LOG_DEBUG;
+#else
+            PlcIO::LOG_INFO;
+#endif
 
         /** @} */
 

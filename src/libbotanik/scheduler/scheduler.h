@@ -102,12 +102,8 @@ namespace Botanik { namespace Scheduler {
         uint32_t        _period_ms     = Config::TASK_PERIOD_MS;
         /** @brief Uptime anchor of the next scheduled tick. */
         uint64_t        _next_tick_ms  = 0;
-        /** @brief Logger for startup and periodic reports (may be null). */
+        /** @brief Logger for the one-shot startup message (may be null). */
         Logs::Logger*   _logger        = nullptr;
-        /** @brief Timestamp of the last overrun warning. */
-        uint64_t        _overrun_log_last_ms = 0;
-        /** @brief Beats skipped since that warning. */
-        uint32_t        _overrun_pending     = 0;
         /** @brief Beats skipped on THIS released tick (0 normally); weights the metric
          *  windows so a skipped-beat catch-up ages them by wall-time, not by one sample. */
         uint32_t        _missed_this_beat    = 0;
@@ -265,7 +261,7 @@ namespace Botanik { namespace Scheduler {
             }
             // publish the loop "now" so consumers share a single timestamp per tick
             _context.timestamp_ms = (uint32_t)now_ms;
-            // skip missed beats (and log overruns)
+            // skip and count missed beats (no log; surfaced via CPU_XRUN + stats)
             _skip_beats(now_ms);
             // record this beat's scheduling jitter and CPU duty cycle. Clamp the
             // grid-relative lateness at 0: _skip_beats keeps now >= the grid point
