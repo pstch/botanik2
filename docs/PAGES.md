@@ -93,5 +93,34 @@ the site-specific readings.
 
 Pages that show log lines keep them in a fixed-size circular
 @ref Botanik::Pages::Scrollback (aliased per page: `ShellScrollback`,
-`LogsScrollback`, `HomeScrollback`). It stores pre-wrapped rows and drives the
-throttled, non-blocking redraw used on focus and page-switch replay.
+`LogsScrollback`, `HomeScrollback`, each sized by a `Config::*_SCROLLBACK_LINES`
+knob). It is the piece that makes the log UI both **bounded in RAM** and **safe on a
+low-baud serial link**: every paint path is incremental, paced per tick, and
+back-pressure-aware, so a burst of log lines can never block the main loop or flood
+the TX ring.
+
+**Storage.** `Scrollback` extends a @ref Botanik::Pages::LineBuffer "LineBuffer" - a
+ring of `L` rows, each up to `Config::SCROLLBACK_LINE_LEN` bytes. Lines are stored
+*pre-wrapped* (`store_wrapped` splits a long line into screen-width rows at insert
+time), so replay is a straight row-by-row blit with no re-wrapping, and access is
+newest-first by distance. Oldest rows fall off the ring as new ones arrive.
+
+It serves three jobs, each gated against the TX ring (`tx_below_cold()`) and capped
+per tick so no single beat can overrun the serial output:
+
+- **Live tail** (`ingest` / `note_pending` -> `drain_tail`). While the page is
+  active, a new line is banked and marked *pending*; `drain_tail()` paints up to
+  `Config::LOG_ROWS_PER_TICK` pending rows per beat, scrolling the window band up
+  (`emit_tail`: one IL/DL region scroll) and writing the new rows at the bottom. A
+  *background* page skips this - it just banks lines and repaints from scratch on its
+  next `focus()`.
+- **Focus / page-switch replay** (`begin_redraw` -> `drain_redraw`). On `focus()`,
+  `redraw()` (Ctrl+L), or returning to the live bottom, it stages a bottom-aligned
+  redraw of the visible window and emits at most `Config::SCROLLBACK_ROWS_PER_TICK`
+  rows per beat, stopping early if the next row won't fit TX - so a full-screen
+  replay is spread across several ticks instead of flooding the link at once.
+- **Scrollback navigation** (`scroll` / `scroll_to_bottom`). The view can move back
+  through retained history a key at a time, painting only the newly exposed rows.
+  While scrolled up the live tail is **frozen** (`drain_tail` no-ops) so incoming
+  lines don't yank the view; `scroll_to_bottom()` releases it with a staged replay of
+  the newest window.

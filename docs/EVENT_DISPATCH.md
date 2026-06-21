@@ -45,56 +45,35 @@ active. See [PAGES.md](PAGES.md).
 
 ## Dispatch flow
 
-```
-                Hardware Serial port
-                        │
-                        │ raw bytes
-                        ▼
- ┌─────────────────────────────────────────────────────┐
- │                  BufferedSerial                     │
- │        RX ring (256 B) / TX ring (4 KB)             │
- └──────────────────────┬──────────────────────────────┘
-                        │ raw bytes (drained in step())
-                        ▼
- ┌─────────────────────────────────────────────────────┐
- │                  AnsiTerminal::step()               │
- │                                                     │
- │  ┌────────────────────────────────────────────┐     │
- │  │  InputParser.parse()  →  InputEvent        │     │
- │  └──────────────────────┬─────────────────────┘     │
- │                         │                           │
- │            ┌────────────┴────────────┐              │
- │       CONTENT event           COMMAND event         │
- │            │                         │              │
- │            │            ┌────────────┴───────────┐  │
- │            │            │  Terminal intercepts   │  │
- │            │            │  (consumed here):      │  │
- │            │            │   CTRL_L → redraw      │  │
- │            │            │   HOME   → switch_to(0)│  │
- │            │            │   ALT_1…ALT_9 / ALT_0  │  │
- │            │            │   TAB / Ctrl+PgUp/PgDn │  │
- │            │            │   Ctrl+C → cancel      │  │
- │            │            └────────────┬───────────┘  │
- │            │                         │ (remaining)  │
- └────────────┼─────────────────────────┼──────────────┘
-              │                         │
-              ▼                         ▼
-   page→handle_text_batch(…)    page→handle_command(cmd, count)
-              │                         │
-              └────────────┬────────────┘
-                           ▼
-                  Active page (one of):
+\dot "input: serial bytes -> parser -> terminal dispatch -> the active page"
+digraph dispatch {
+  bgcolor="transparent"; rankdir=TB; nodesep=0.4; ranksep=0.45;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9, margin="0.12,0.06"];
+  edge [arrowsize=0.7, fontname="Helvetica", fontsize=8];
 
-  ┌──────────────┐ ┌──────────────┐ ┌───────────────────────────┐
-  │  ShellPage   │ │  LogsPage    │ │ HomePage / StatusPage     │
-  │              │ │              │ │   (MetricPage subclasses) │
-  │ TextEditor   │ │ ENTER →      │ │                           │
-  │ CommandShell │ │   focus()    │ │ ENTER → draw_dynamic()    │
-  │              │ │ SPACE → mark │ │ other keys ignored        │
-  └──────────────┘ └──────────────┘ └───────────────────────────┘
+  serial    [label="hardware serial port", shape=oval, fillcolor="#eceff1"];
+  bs        [label="BufferedSerial\nRX ring 256 B / TX ring 4 KB", fillcolor="#d6e4f0"];
+  parse     [label="InputParser.parse()  ->  InputEvent", fillcolor="#fdebcf"];
+  content   [label="CONTENT event", fillcolor="#fff3cd"];
+  command   [label="COMMAND event", fillcolor="#fff3cd"];
+  intercept [label="Terminal intercepts (consumed):\nCtrl+L, HOME, Alt+1..0,\nTAB / Ctrl+PgUp/PgDn, Ctrl+C", fillcolor="#f6c6c2"];
+  htext     [label="page->handle_text_batch()", fillcolor="#e6dcf0"];
+  hcmd      [label="page->handle_command(cmd, count)", fillcolor="#e6dcf0"];
+  active    [label="active page\nShellPage / LogsPage / HomePage / StatusPage", fillcolor="#d7ecd9"];
+  tickall   [label="tick(active) on every page (active + background)", fillcolor="#eceff1"];
 
-  Then: every page (active + background) gets tick(active)
-```
+  serial -> bs [label="raw bytes"];
+  bs -> parse  [label="drained in step()"];
+  parse -> content;
+  parse -> command;
+  command -> intercept;
+  intercept -> hcmd [label="remaining"];
+  content -> htext;
+  htext -> active;
+  hcmd  -> active;
+  active -> tickall;
+}
+\enddot
 
 ## Terminal-level intercepts
 
