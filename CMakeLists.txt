@@ -140,6 +140,22 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/sites/${BOTANIK_SITE}/config.h")
     message(STATUS "Site config overrides: src/sites/${BOTANIK_SITE}/config.h")
 endif()
 
+# Optional-subsystem feature flags (libbotanik_features.h). Each defaults ON in
+# the header; pass -DBOTANIK_FEATURE_<X>=ON/OFF to override. We forward only the
+# flags explicitly set on the command line, as a PUBLIC define on `botanik` so
+# the whole build agrees (same ABI discipline as BOTANIK_SITE_CONFIG above).
+foreach(_feat PLC NETWORK NTP MQTT TERMINAL)
+    if(DEFINED BOTANIK_FEATURE_${_feat})
+        if(BOTANIK_FEATURE_${_feat})
+            set(_feat_val 1)
+        else()
+            set(_feat_val 0)
+        endif()
+        target_compile_definitions(botanik PUBLIC BOTANIK_FEATURE_${_feat}=${_feat_val})
+        message(STATUS "Feature ${_feat}: ${_feat_val}")
+    endif()
+endforeach()
+
 # Simulator mode
 # ============================================================================
 

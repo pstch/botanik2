@@ -18,6 +18,14 @@
  * dilation on the sim, the HW watchdog period) is applied by the harness through
  * the accessors / set_hw_watchdog_ms() before setup().
  *
+ * PLC-optional: the PLC sync handler, log reader, shared-memory payload, and the
+ * PLC-fault watchdog escalation are compiled in only when BOTANIK_FEATURE_PLC is
+ * set (the default); see libbotanik_features.h. A firmware with no coprocessor
+ * builds with -DBOTANIK_FEATURE_PLC=OFF and derives BotanikFirmware<> - the
+ * payload template parameters default to a zero-size Empty type, and the loop
+ * feeds the health step a zeroed remote bitset, so only the local platform-health
+ * alarms fire and HealthMonitor runs with a null link context.
+ *
  * @section firmware_extend Extending the base for a site
  *
  * A site is a thin subclass that contributes data (its PLC payload, alarm table,
@@ -80,9 +88,16 @@
 
 namespace Botanik {
 
+    /** @brief Zero-size default PLC payload. A firmware built without PLC
+     *  (BOTANIK_FEATURE_PLC=0) never names a real payload type, so the template
+     *  parameters default to this and a PLC-less site derives BotanikFirmware<>. */
+    struct Empty {};
+
     /** @brief Generic firmware base: owns the generic components + the loop order,
-     *  and exposes each component for a site subclass to build on. */
-    template<typename In, typename Out>
+     *  and exposes each component for a site subclass to build on. The PLC pieces
+     *  (handler, log reader, payload threading) are compiled in only when
+     *  BOTANIK_FEATURE_PLC is set; see libbotanik_features.h. */
+    template<typename In = Empty, typename Out = Empty>
     class BotanikFirmware {
         /** @name Configuration
          *  @{ */
@@ -106,8 +121,10 @@ namespace Botanik {
         Logs::Logger              _logger;
         Logs::MonitorLogWriter    _monitor;
         Scheduler::LoopScheduler  _scheduler;
+#if BOTANIK_FEATURE_PLC
         PlcIO::PlcSyncHandler<In, Out> _plc_handler;
         PlcIO::PlcLogReader       _plc_log_reader;
+#endif
         Health::HealthMonitor     _health;
         SystemContext             _sys_ctx;
         Terminal::AnsiTerminal    _terminal;
@@ -137,18 +154,41 @@ namespace Botanik {
               _logger(),
               _monitor(_monitor_serial),
               _scheduler(Config::TASK_PERIOD_MS, &_logger),
+#if BOTANIK_FEATURE_PLC
               _plc_handler(shared_in, shared_out, &_scheduler.context()->timestamp_ms, &_logger),
               _plc_log_reader(_plc_handler.context(), &_logger),
               _health(_alarm_table, (uint8_t)_alarm_count, &_logger,
                       _scheduler.context(), _plc_handler.context(),
                       shared_in, shared_out),
               _sys_ctx(_scheduler.context(), _plc_handler.context()),
+#else
+              // No PLC: the health monitor takes a null link context + null regions
+              // (it already degrades the watchdog verdict to "kick while alive"), and
+              // the system context carries no PLC status (SystemContext.plc stays null).
+              _health(_alarm_table, (uint8_t)_alarm_count, &_logger,
+                      _scheduler.context(), nullptr, nullptr, nullptr),
+              _sys_ctx(_scheduler.context()),
+#endif
               _terminal(_console_serial, cols, rows, &_scheduler.context()->timestamp_ms,
                         _baud, _sys_ctx, &_health.model()),
               _shell_page(_terminal),
               _logs_page(_terminal),
               _alarms_page(_terminal, &_health.model())
-        {}
+        {
+#if !BOTANIK_FEATURE_PLC
+            (void)shared_in; (void)shared_out;   // unused without the PLC link
+#endif
+        }
+
+#if !BOTANIK_FEATURE_PLC
+        /** @brief PLC-less convenience ctor: a single-core firmware has no shared
+         *  region, so it omits the region pointers entirely. Delegates to the main
+         *  ctor with null regions (the only place they'd be used is gated out). */
+        BotanikFirmware(const Alarms::AlarmCondition* alarm_table, size_t alarm_count,
+                        uint32_t console_baud, uint16_t cols = 80, uint16_t rows = 24)
+            : BotanikFirmware(nullptr, nullptr, alarm_table, alarm_count,
+                              console_baud, cols, rows) {}
+#endif
 
         virtual ~BotanikFirmware() {}
 
@@ -219,15 +259,22 @@ namespace Botanik {
             _console_serial.receive();
             _monitor_serial.receive();
 
+#if BOTANIK_FEATURE_PLC
             _plc_handler.step();
             _plc_log_reader.step();
+#endif
 
             // Health step after the PLC payload is fresh and before the logger drains,
             // so any alarm START/END lands this beat. HealthMonitor asserts the
             // platform-health alarms, updates the watchdog verdict, and advances the
-            // alarm model with the freshly-read remote bitset.
+            // alarm model with the freshly-read remote bitset (zeroed without a PLC,
+            // so only the local platform-health alarms fire).
             uint64_t now_ms = HAL::uptime_ms();
+#if BOTANIK_FEATURE_PLC
             _health.step(plc_output_data()->alarms, _plc_handler.rx_torn_count(), now_ms);
+#else
+            _health.step(0, 0, now_ms);
+#endif
 
             on_loop(now_ms);   // site per-beat state machines (default no-op)
 
@@ -258,6 +305,7 @@ namespace Botanik {
 
         /** @} */
 
+#if BOTANIK_FEATURE_PLC
         /** @name HAL region binding (hardware targets)
          *  @{ */
 
@@ -270,14 +318,21 @@ namespace Botanik {
         static PlcIO::PlcOutput<Out>* hal_output() { return static_cast<PlcIO::PlcOutput<Out>*>(HAL::get_plc_output()); }
 
         /** @} */
+#endif
 
         /** @name Component access (for the site subclass / harness)
          *  @{ */
 
         Logs::Logger&                   logger()          { return _logger; }
         Scheduler::LoopScheduler&       scheduler()       { return _scheduler; }
+#if BOTANIK_FEATURE_PLC
         PlcIO::PlcSyncHandler<In, Out>& plc_handler()     { return _plc_handler; }
         const Out*                      plc_output_data() { return _plc_handler.output_data(); }
+#else
+        /** @brief No PLC link: there is no shared payload, so this is null. Site
+         *  pages/commands that read it already null-check (Home/Status show "n/a"). */
+        const Out*                      plc_output_data() { return nullptr; }
+#endif
         Health::HealthMonitor&          health()          { return _health; }
         Alarms::AlarmModel&             alarm_model()     { return _health.model(); }
         Terminal::AnsiTerminal&         terminal()        { return _terminal; }

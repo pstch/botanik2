@@ -88,10 +88,15 @@ namespace Botanik { namespace Health {
             announce_step(_logger, "HealthMonitor");
             if (!_posted) { _posted = true; _post(); }
             _assert_platform_alarms(now);
+#if BOTANIK_FEATURE_PLC
             // Runtime self-test: a rising cross-core torn-read count raises RX_TORN.
             // Should never fire - the PLC handshake upholds mutual exclusion - so it is
-            // a loud latched diagnostic if the contract is ever violated.
+            // a loud latched diagnostic if the contract is ever violated. (Without the
+            // PLC feature rx_torn is always 0, so this is gated out entirely.)
             _held_event("RX_TORN", rx_torn, _rx_torn_last, _rx_torn_until_ms, now);
+#else
+            (void)rx_torn;
+#endif
             _update_watchdog(now);
             _model.step(remote_raw, now);
         }
@@ -109,12 +114,15 @@ namespace Botanik { namespace Health {
                 { "SYS_RST", "CPU_LOAD", "CPU_JITT", "STACK", "CPU_XRUN", "RX_TORN" };
             for (const char* code : codes)
                 if (_model.index_of(code) < 0) { ok = false; _post_fail("alarm code missing", code); }
+#if BOTANIK_FEATURE_PLC
             // The PLC shared region must be present and 32-byte aligned (cache/DMA).
+            // (Without the PLC feature there is no region - the firmware passes null.)
             if (_in_region == nullptr || _out_region == nullptr) {
                 ok = false; _post_fail("PLC region null", "");
             } else if (((uintptr_t)_in_region % 32u) != 0 || ((uintptr_t)_out_region % 32u) != 0) {
                 ok = false; _post_fail("PLC region misaligned", "");
             }
+#endif
             // A logger with no writers would silently swallow everything.
             if (_logger == nullptr || !_logger->has_writers()) ok = false;
             _post_ok = ok;

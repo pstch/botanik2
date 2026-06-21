@@ -78,6 +78,18 @@ The system is split into six subsystems under `src/libbotanik/`:
 | `TARGET_OPTA` | OPTA build |
 | `ARDUINO` / `MBED_*` | OPTA build |
 
+### Optional features (`BOTANIK_FEATURE_*`)
+
+`libbotanik` is usable without a PLC. Optional subsystems are gated at compile time by `BOTANIK_FEATURE_*` flags in `src/libbotanik_features.h`, which mirrors the `BOTANIK_*` config-override pattern: each defaults from an `#ifndef`-guarded macro, a site can `#define` it in `sites/<name>/config.h`, and the build can set `-DBOTANIK_FEATURE_<X>=ON/OFF` (forwarded PUBLIC on the `botanik` library, same ABI discipline as `BOTANIK_SITE_CONFIG`).
+
+| Flag | Default | Gates |
+|---|---|---|
+| `BOTANIK_FEATURE_PLC` | on | `PlcSyncHandler`, `PlcLogReader`, the `<In, Out>` payload threaded through `BotanikFirmware`, and the PLC-fault watchdog escalation |
+| `BOTANIK_FEATURE_NETWORK` / `_NTP` / `_MQTT` | off | the `network/` stack - reserved (declared but not yet instantiated); `NTP`/`MQTT` require `NETWORK`, `NETWORK` requires `PLC` (enforced by `#error`) |
+| `BOTANIK_FEATURE_TERMINAL` | on | the ANSI UI - reserved for parity, not yet gated |
+
+Gate with the preprocessor `#if BOTANIK_FEATURE_PLC` (must drop member decls / ctor-init entries; C++11 has no `if constexpr`); a `Botanik::Features::PLC` `constexpr bool` mirror exists for expression context. To build PLC-less: `-DBOTANIK_FEATURE_PLC=OFF` and derive from `BotanikFirmware<>` (the payload params default to a zero-size `Empty`). `HealthMonitor` already tolerates a null PLC link (POST skips the region check, the watchdog keeps kicking while the loop is alive). See the "Optional features" section of the docs Library page (`docs/library.dox`).
+
 ## Site-specific code (greenhouse targets)
 
 `libbotanik` is generic and site-independent. Code specific to one physical greenhouse and its PLC program (the shared-memory payload layout, its pages, its alarm table, and the mock data that animates it) is a **site**, code-named per greenhouse. The reference site is `gh_mlb41`.

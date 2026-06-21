@@ -45,6 +45,40 @@ Each subsystem with an architecture deep-dive links to its guide in the last col
 | **Network**  | `network/`   | @ref Botanik::Network::NameResolver (non-blocking DNS), @ref Botanik::Network::NetworkHandler (device bring-up), @ref Botanik::Network::TimeSyncHandler (SNTP), and @ref Botanik::Network::MqttClient (MQTT publish) - PLC-config-driven via @ref Botanik::ConfigHandler. | @ref md_docs_2PLC__CONFIG "PLC config" |
 | **Utils**    | `utils/`     | `BufferedSerial` (ring-buffered UART), `PerfMonitor` (loop CPU-load / jitter / stack high-water instrumentation), the `sun.h` solar-position math, and time/uptime helpers. | @ref md_docs_2SCHEDULER__PERF "Scheduler & Perf" |
 
+@section main_features Optional features
+
+Not every firmware wants every subsystem. `libbotanik` is useful to embedded
+projects that have no PLC coprocessor at all - the terminal, logger, scheduler,
+health/alarm model, and pages all stand on their own. Optional subsystems are
+gated at compile time by `BOTANIK_FEATURE_*` flags in `src/libbotanik_features.h`,
+which mirrors the `BOTANIK_*` config-override mechanism in `libbotanik_config.h`:
+each flag defaults from an `#ifndef`-guarded macro, so a site pins it in
+`sites/<name>/config.h` or the build sets it with `-DBOTANIK_FEATURE_<X>=ON/OFF`
+(forwarded as a PUBLIC define on the `botanik` library, so the whole build agrees).
+
+| Flag | Default | Gates | State |
+|------|---------|-------|-------|
+| `BOTANIK_FEATURE_PLC`     | **on**  | @ref Botanik::PlcIO::PlcSyncHandler, `PlcLogReader`, the shared-memory payload threaded through `BotanikFirmware<In, Out>`, and the PLC-fault watchdog escalation. | active |
+| `BOTANIK_FEATURE_NETWORK` | off     | The `network/` stack (`NetworkHandler` / `NameResolver`). | reserved (not yet wired) |
+| `BOTANIK_FEATURE_NTP`     | off     | `TimeSyncHandler` (SNTP). Requires `NETWORK`. | reserved |
+| `BOTANIK_FEATURE_MQTT`    | off     | `MqttClient` + the alarm notifier. Requires `NETWORK`. | reserved |
+| `BOTANIK_FEATURE_TERMINAL`| **on**  | The ANSI terminal UI. Reserved for parity; not yet gated. | always built |
+
+Gate code with the preprocessor `#if BOTANIK_FEATURE_PLC` (it must drop member
+declarations and ctor-init entries, which a `constexpr` cannot, and C++11 has no
+`if constexpr`); a `Botanik::Features::PLC` `constexpr bool` mirror is available for
+expression context. Dependency rules (`NTP`/`MQTT` need `NETWORK`; `NETWORK`
+currently needs `PLC`, since its config comes from the PLC block) are enforced by
+`#error` guards in the header.
+
+**Building without a PLC.** Configure with `-DBOTANIK_FEATURE_PLC=OFF` and derive
+the firmware from `BotanikFirmware<>` (the payload template parameters default to a
+zero-size `Empty` type, so a PLC-less site never names a payload). The PLC sync
+handler, log reader, and shared region drop out; @ref Botanik::Health::HealthMonitor
+runs with a null link context (its POST skips the region check and the watchdog
+simply keeps kicking while the loop is alive, so the hardware watchdog still catches
+a hang); the Home/Status pages render "n/a" for the absent PLC status.
+
 @section main_concepts Key concepts
 
 - **Nothing blocks.** Every stateful object exposes a `step()` that does a small,

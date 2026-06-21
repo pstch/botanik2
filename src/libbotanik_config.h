@@ -21,6 +21,11 @@
 #  include BOTANIK_SITE_CONFIG   // site overrides: #define BOTANIK_* before the defaults
 #endif
 
+// Feature flags (BOTANIK_FEATURE_*). Included after the site config (so a site
+// may pin a flag) and before the value defaults below, so any TU that sees
+// Config also sees Features.
+#include "libbotanik_features.h"
+
 // Declare a Config value from its #ifndef-guarded BOTANIK_<NAME> default. The guard
 // triplet above each call can't be folded in - the preprocessor never re-reads a
 // macro's output as a directive, so a macro can't emit #ifndef - this only keeps the

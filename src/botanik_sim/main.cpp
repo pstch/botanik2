@@ -56,6 +56,7 @@ extern "C" void botanik_sim_reexec(int) {   // NOLINT(bugprone-signal-handler)
     botanik_reexec = 1;
 }
 
+#if BOTANIK_FEATURE_PLC
 // Copy a hostname / dotted-IPv4 literal into a PLC config address buffer (sim only:
 // the mock PLC stands in for the coprocessor that publishes these). Always NUL-
 // terminates within Config::PLC_HOST_STR_LEN.
@@ -63,6 +64,7 @@ static void sim_set_host(Botanik::PlcIO::HostStr_t dst, const char* s) {
     std::strncpy(dst, s, Botanik::Config::PLC_HOST_STR_LEN - 1);
     dst[Botanik::Config::PLC_HOST_STR_LEN - 1] = '\0';
 }
+#endif
 
 int main(int argc, char** argv) {
     using namespace Botanik;
@@ -83,6 +85,7 @@ int main(int argc, char** argv) {
     std::signal(SIGTERM, botanik_sim_shutdown);   // NOLINT(bugprone-signal-handler)
     std::signal(SIGUSR1, botanik_sim_reexec);     // NOLINT: hot-restart from a rebuilt binary
 
+#if BOTANIK_FEATURE_PLC
     // Shared PLC memory - both the firmware's handler and the emulator point at the
     // same region. On OPTA this comes from HAL::get_plc_input()/get_plc_output().
     static PlcIO::PlcInput<PlcInputData_t>   shared_in  {};
@@ -116,13 +119,20 @@ int main(int argc, char** argv) {
     greenhouse.plc_handler().set_timeout_ms  (plc_dilated_timeout(Config::PLC_TIMEOUT_MS));
     greenhouse.plc_handler().set_watchdog_ms (plc_dilated_timeout(Config::PLC_WATCHDOG_MS));
     greenhouse.set_hw_watchdog_ms(plc_dilated_timeout(Config::HW_WATCHDOG_MS));
+#else
+    // No PLC: a single-core firmware with no shared region or mock coprocessor.
+    BotanikSite greenhouse(CONSOLE_BAUD, /*cols=*/80, /*rows=*/24);
+    greenhouse.set_hw_watchdog_ms(plc_dilated_timeout(Config::HW_WATCHDOG_MS));
+#endif
 
     greenhouse.setup();
 
+#if BOTANIK_FEATURE_PLC
     // Mock PLC coprocessor: spawns the emulator thread, then locks process memory
     // and makes the main loop realtime - so it must run after setup()'s allocations
     // (see start_site_emulator for the start-order constraint).
     start_site_emulator(&shared_in, &shared_out, &greenhouse.logger());
+#endif
 
     // Main loop: drive the firmware until a shutdown signal flips the run flag. A
     // SIGUSR1 (sent by a build after relinking) re-execs the rebuilt binary here, at
