@@ -69,7 +69,7 @@ unmistakable in the log rather than leaving a subtly broken unit running silentl
 ## Assertions (BOTANIK_ASSERT)
 
 Where POST is a one-shot boot check, `BOTANIK_ASSERT(expr)` (in
-`libbotanik_asserts.h`) guards invariants at the point they must hold. It is a
+`utils/assert.h`) guards invariants at the point they must hold. It is a
 development aid: in **release** builds (DEBUG undefined) it compiles out entirely,
 so it costs nothing on a shipped unit.
 

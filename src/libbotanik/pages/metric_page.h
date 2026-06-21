@@ -23,7 +23,7 @@
 #include <cstring>
 
 #include "libbotanik_config.h"
-#include "libbotanik_asserts.h"            // BOTANIK_ASSERT (DEBUG slot-range guard)
+#include "libbotanik/utils/assert.h"       // BOTANIK_ASSERT (DEBUG slot-range guard)
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/pages/page.h"
 #include "libbotanik/terminal/terminal.h"

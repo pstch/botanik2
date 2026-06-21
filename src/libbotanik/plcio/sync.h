@@ -13,7 +13,7 @@
 #include <cstring>
 
 #include "libbotanik_config.h"
-#include "libbotanik_asserts.h"
+#include "libbotanik/utils/assert.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/plcio/vars.h"
 #include "libbotanik/logs/logger.h"

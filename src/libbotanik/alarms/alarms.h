@@ -24,7 +24,7 @@
 #include <cstddef>
 #include <cstring>
 
-#include "libbotanik_asserts.h"        // BOTANIK_ASSERT
+#include "libbotanik/utils/assert.h"   // BOTANIK_ASSERT
 #include "libbotanik/logs/logger.h"
 
 namespace Botanik { namespace Alarms {

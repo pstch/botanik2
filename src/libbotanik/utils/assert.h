@@ -1,8 +1,8 @@
-#ifndef LIBBOTANIK_ASSERTS_H
-#define LIBBOTANIK_ASSERTS_H
+#ifndef UTILS_ASSERT_H
+#define UTILS_ASSERT_H
 
 /**
- * @file libbotanik_asserts.h
+ * @file assert.h
  * @brief BOTANIK_ASSERT - debug-only assertions that log, then trap or continue.
  *
  * In release builds (DEBUG undefined) the macro compiles out entirely. In debug
@@ -21,9 +21,10 @@
 
 namespace Botanik {
 
-    /** @brief Logger that assertions report through. Function-local static keeps
-     *  this header-only; set once at startup via set_assert_logger (may stay null). */
-    inline Logs::Logger*& _assert_logger() {
+    /** @brief Accessor for the logger assertions report through. Returns a reference
+     *  to a function-local static, which keeps this header-only; set once at startup
+     *  via set_assert_logger (may stay null). */
+    inline Logs::Logger*& get_assert_logger() {
         static Logs::Logger* logger = nullptr;
         return logger;
     }
@@ -31,11 +32,11 @@ namespace Botanik {
     /** @brief Register the logger assertion failures are recorded through. @note the
      *  logger is a single process-global (function-local static), so with multiple
      *  firmware instances the last setup() wins - fine for the single-instance model. */
-    inline void set_assert_logger(Logs::Logger* logger) { _assert_logger() = logger; }
+    inline void set_assert_logger(Logs::Logger* logger) { get_assert_logger() = logger; }
 
     /** @brief Assertion-failure handler (see BOTANIK_ASSERT). */
     inline void assert_fail(const char* expr, const char* file, int line) {
-        Logs::Logger* logger = _assert_logger();
+        Logs::Logger* logger = get_assert_logger();
         if (logger != nullptr)
             logger->critical(PlcIO::ASSERT, "assertion failed: %s (%s:%d)", expr, file, line);
         if (HAL::under_debugger()) { HAL::debug_break(); return; }  // break for the debugger
@@ -54,4 +55,4 @@ namespace Botanik {
     #define BOTANIK_ASSERT(cond) ((void)0)
 #endif
 
-#endif // LIBBOTANIK_ASSERTS_H
+#endif // UTILS_ASSERT_H

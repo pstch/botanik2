@@ -71,7 +71,7 @@
  */
 
 #include "libbotanik.h"
-#include "libbotanik_asserts.h"          // set_assert_logger
+#include "libbotanik/utils/assert.h"     // set_assert_logger
 #include "libbotanik/alarms/alarms.h"    // AlarmCondition (site table type)
 #include "libbotanik/health/health.h"    // HealthMonitor (owns the alarm model + notifier)
 
