@@ -286,6 +286,11 @@ namespace Botanik { namespace Terminal {
         /** @brief Erase the entire display and home the cursor (ESC[2J + ESC[H) */
         void clear_screen();
 
+        /** @brief Clear the screen and flush it straight to the wire, for a clean
+         *  exit or reset: the main loop won't tick again to drain the TX ring, so the
+         *  bytes must be pushed out here. Best-effort, bounded spin on the TX flush. */
+        void clear_screen_now();
+
         /** @brief Erase the page content area (rows 1..N-1), preserving the status bar */
         void clear_content();
 

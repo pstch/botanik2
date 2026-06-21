@@ -131,9 +131,17 @@ namespace Botanik { namespace Shell {
 
     void CommandShell::_cmd_breakpoint(const char*, uint16_t) { HAL::debug_break(); }
 
-    void CommandShell::_cmd_reset(const char*, uint16_t) { HAL::reset(); }    // reboots; does not return
+    // Wipe the screen (flushed straight to the wire) before leaving: the main loop
+    // won't run again to drain the TX ring, and neither reset() nor shutdown() returns.
+    void CommandShell::_cmd_reset(const char*, uint16_t) {
+        _terminal.clear_screen_now();
+        HAL::reset();      // reboots; does not return
+    }
 
-    void CommandShell::_cmd_exit(const char*, uint16_t) { HAL::shutdown(); }  // sim: exit(0); OPTA: reboots
+    void CommandShell::_cmd_exit(const char*, uint16_t) {
+        _terminal.clear_screen_now();
+        HAL::shutdown();   // sim: exit(0); OPTA: reboots
+    }
 
     void CommandShell::_cmd_stats(const char*, uint16_t) {
         // Emits several lines; each is banked and drained at LOG_ROWS_PER_TICK by the
@@ -193,8 +201,9 @@ namespace Botanik { namespace Shell {
 
     void CommandShell::_cmd_version(const char*, uint16_t) {
         char out[Config::LOG_FORMATTED_LEN];
-        int n = snprintf(out, sizeof(out), "Botanik %s (%s) on %s",
-                         Config::FIRMWARE_VERSION, BOTANIK_GIT_HASH, HAL::hardware_description());
+        int n = snprintf(out, sizeof(out), "Botanik %s (%s) site %s on %s",
+                         Config::FIRMWARE_VERSION, BOTANIK_GIT_HASH,
+                         Config::SITE_NAME, HAL::hardware_description());
         if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
     }
 

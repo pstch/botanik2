@@ -325,6 +325,15 @@ namespace Botanik { namespace Terminal {
         _establish_screen();
     }
 
+    void AnsiTerminal::clear_screen_now() {
+        clear_screen();
+        // Push the clear out now: the loop won't run again to drain the ring. transmit()
+        // never blocks (it flushes what the wire accepts), so spin until the ring empties.
+        // Bounded so a stuck/full wire can't hang the exit path (a clear is ~10 bytes).
+        for (uint16_t i = 0; i < tx_capacity() && !_serial.tx_empty(); i++)
+            _serial.transmit();
+    }
+
     void AnsiTerminal::_establish_screen() {
         // Clear+home, then reset tracked cursor/wrap state. No TX discard here - the
         // caller owns that (clear_screen drops stale paint; the first-step bootstrap
