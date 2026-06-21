@@ -117,7 +117,8 @@ GENERATE_LATEX         = NO
 # SVGs come from scripts/code_charts.py (run by the `docs` target); on a build
 # where they weren't generated, Doxygen just warns they're missing.
 HTML_EXTRA_STYLESHEET  = docs/charts.css
-HTML_EXTRA_FILES       = docs/generated/code_loc.svg \
+HTML_EXTRA_FILES       = docs/graphs.css \
+                         docs/generated/code_loc.svg \
                          docs/generated/code_churn.svg \
                          docs/generated/code_asserts.svg \
                          docs/generated/code_tests.svg

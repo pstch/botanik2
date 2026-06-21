@@ -108,25 +108,26 @@ simulator's `PlcEmulator` (`plcio/emulator.h`) mirrors them from the PLC side.
 
 \dot "the two independent RX and TX state machines, stepped once per beat"
 digraph state_machines {
+  stylesheet="graphs.css";
   bgcolor="transparent"; rankdir=TB; fontname="Helvetica";
   node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9, margin="0.13,0.06"];
   edge [fontname="Helvetica", fontsize=8, arrowsize=0.7];
 
   subgraph cluster_rx {
     label="RX  -  read PLC output"; labeljust="l"; fontsize=10; style="rounded"; color="#b0bec5"; bgcolor="#fafafa";
-    rx_idle [label="RX_IDLE", fillcolor="#eceff1"];
-    rx_read [label="RX_READ", fillcolor="#d6e4f0"];
-    rx_ack  [label="RX_ACK",  fillcolor="#d7ecd9"];
+    rx_idle [label="RX_IDLE", class="neutral"];
+    rx_read [label="RX_READ", class="serial"];
+    rx_ack  [label="RX_ACK",  class="plc"];
     rx_idle -> rx_read [label="txSeqNum != txAckNum"];
     rx_read -> rx_ack  [label="copy payload (DSB)"];
     rx_ack  -> rx_idle [label="txAckNum = txSeqNum"];
   }
   subgraph cluster_tx {
     label="TX  -  write PLC input"; labeljust="l"; fontsize=10; style="rounded"; color="#b0bec5"; bgcolor="#fafafa";
-    tx_idle   [label="TX_IDLE",   fillcolor="#eceff1"];
-    tx_write  [label="TX_WRITE",  fillcolor="#d6e4f0"];
-    tx_commit [label="TX_COMMIT", fillcolor="#d7ecd9"];
-    tx_wait   [label="TX_WAIT",   fillcolor="#fdebcf"];
+    tx_idle   [label="TX_IDLE",   class="neutral"];
+    tx_write  [label="TX_WRITE",  class="serial"];
+    tx_commit [label="TX_COMMIT", class="plc"];
+    tx_wait   [label="TX_WAIT",   class="logic"];
     tx_idle   -> tx_write  [label="write requested\nor heartbeat"];
     tx_write  -> tx_commit [label="copy payload (DSB)"];
     tx_commit -> tx_wait   [label="rxSeqNum += 1"];
@@ -147,14 +148,15 @@ since the last acknowledged TX:
 
 \dot "link state by elapsed time since the last acknowledged TX (any ack returns to RUNNING)"
 digraph link_status {
+  stylesheet="graphs.css";
   bgcolor="transparent"; rankdir=TB; nodesep=0.4; ranksep=0.45;
   node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10, margin="0.16,0.07"];
   edge [arrowsize=0.7, fontname="Helvetica", fontsize=9];
 
-  unknown [label="PLC_UNKNOWN", fillcolor="#eceff1"];
-  running [label="PLC_RUNNING", fillcolor="#cde6d3"];
-  timeout [label="PLC_TIMEOUT", fillcolor="#fde6c0"];
-  fault   [label="PLC_FAULT",   fillcolor="#f6c6c2"];
+  unknown [label="PLC_UNKNOWN", class="neutral"];
+  running [label="PLC_RUNNING", class="accent"];
+  timeout [label="PLC_TIMEOUT", class="logic"];
+  fault   [label="PLC_FAULT",   class="intercept"];
 
   unknown -> running [label="first ack"];
   running -> timeout [label="silent &#8805; PLC_TIMEOUT_MS"];

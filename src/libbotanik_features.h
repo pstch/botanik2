@@ -23,7 +23,7 @@
  * (static_assert, a ternary whose arms both compile).
  *
  * @section feature_deps Dependency rules
- * Some features build on others; the #error guards below fail the build loudly
+ * Some features build on others; the `#error` guards below fail the build loudly
  * rather than silently miscompiling:
  *  - NTP and MQTT need NETWORK (they run over the network stack).
  *  - NETWORK currently sources its config (broker, NTP servers, DHCP/static)

@@ -1,0 +1,66 @@
+/*
+ * graphs.css - shared palette + node styling for the docs' Graphviz (\dot) diagrams.
+ *
+ * Doxygen embeds each \dot graph as an <iframe> SVG, and Graphviz writes a node's
+ * `class="..."` straight through to the SVG (<g class="node serial">). Each \dot
+ * graph references THIS file with the graph attribute:
+ *
+ *     digraph g { stylesheet="graphs.css"; ... }
+ *
+ * so a node is coloured by giving it a semantic class instead of a hard-coded
+ * fillcolor:  n [class="serial"];   (NOT  fillcolor="#d6e4f0").  Define a colour
+ * once here; every graph reuses it.  (This file must be listed in HTML_EXTRA_FILES
+ * so it is copied next to the SVGs; it is not a page stylesheet like charts.css.)
+ *
+ * `!important` is needed because Graphviz also writes an inline `fill` (from
+ * style=filled), which would otherwise win over the stylesheet.
+ *
+ * ----------------------------------------------------------------------------
+ * Semantic node classes (use these instead of inline fillcolor):
+ *   scheduler  - the loop driver / watchdog / control
+ *   serial     - serial I/O (BufferedSerial)
+ *   plc        - PLC sync / coprocessor
+ *   logic      - processing: health, site on_loop, rate limiting
+ *   ui         - terminal / pages / logger fan-out
+ *   event      - a decoded input event
+ *   intercept  - consumed-by-terminal / control keys
+ *   accent     - the highlighted node of a graph (a hub, the subject)
+ *   neutral    - sources / sinks / endpoints with no subsystem
+ *
+ * ----------------------------------------------------------------------------
+ * "Object card" layout (for drawing a concrete object / struct):
+ *
+ * A `shape=plaintext` node whose label is an HTML table - a dark title row with
+ * the type name, then one row per field/section tinted by its kind. Cell colours
+ * are applied INLINE (CSS can't reach Graphviz HTML-table <td>s); use the
+ * matching hex from the palette below so cards stay consistent across diagrams:
+ *
+ *   --card-title #37474f (text #ffffff)   sync/serial #d6e4f0   logs/logic #fdebcf
+ *   plc/conf #d7ecd9   data/neutral #eeeeee   muted text #666666   border #9e9e9e
+ *
+ * Canonical example: the PlcOutput<OutputData> card in PLC_CONFIG.md.
+ */
+
+:root {
+  --scheduler: #e0e0e0;
+  --serial:    #d6e4f0;
+  --plc:       #d7ecd9;
+  --logic:     #fdebcf;
+  --ui:        #e6dcf0;
+  --event:     #fff3cd;
+  --intercept: #f6c6c2;
+  --accent:    #cde6d3;
+  --neutral:   #eceff1;
+}
+
+/* Graphviz draws a rounded box as <path>, a plain box as <polygon>, an
+   ellipse/oval as <ellipse>; cover all three for each class. */
+g.node.scheduler > polygon, g.node.scheduler > path, g.node.scheduler > ellipse { fill: var(--scheduler) !important; }
+g.node.serial    > polygon, g.node.serial    > path, g.node.serial    > ellipse { fill: var(--serial)    !important; }
+g.node.plc       > polygon, g.node.plc       > path, g.node.plc       > ellipse { fill: var(--plc)       !important; }
+g.node.logic     > polygon, g.node.logic     > path, g.node.logic     > ellipse { fill: var(--logic)     !important; }
+g.node.ui        > polygon, g.node.ui        > path, g.node.ui        > ellipse { fill: var(--ui)        !important; }
+g.node.event     > polygon, g.node.event     > path, g.node.event     > ellipse { fill: var(--event)     !important; }
+g.node.intercept > polygon, g.node.intercept > path, g.node.intercept > ellipse { fill: var(--intercept) !important; }
+g.node.accent    > polygon, g.node.accent    > path, g.node.accent    > ellipse { fill: var(--accent)    !important; }
+g.node.neutral   > polygon, g.node.neutral   > path, g.node.neutral   > ellipse { fill: var(--neutral)   !important; }
