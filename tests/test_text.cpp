@@ -14,7 +14,18 @@
 
 using Botanik::Utils::format_float;
 using Botanik::Utils::format_age;
+using Botanik::Utils::format_size;
 using Botanik::Utils::env_u8;
+
+TEST_CASE("format_size: bytes below 32 KiB, KB at/above (rounded)") {
+    char b[16];
+    CHECK(std::strcmp(format_size(b, sizeof(b), 0)     , "0 B")     == 0);
+    CHECK(std::strcmp(format_size(b, sizeof(b), 1024)  , "1024 B")  == 0);
+    CHECK(std::strcmp(format_size(b, sizeof(b), 32767) , "32767 B") == 0);
+    CHECK(std::strcmp(format_size(b, sizeof(b), 32768) , "32 KB")   == 0);  // threshold
+    CHECK(std::strcmp(format_size(b, sizeof(b), 49152) , "48 KB")   == 0);
+    CHECK(std::strcmp(format_size(b, sizeof(b), 65536) , "64 KB")   == 0);
+}
 
 // format_float
 // ----------------------------------------------------------------------------

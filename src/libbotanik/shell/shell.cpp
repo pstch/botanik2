@@ -15,6 +15,15 @@
 #include "libbotanik/shell/shell.h"
 #include "libbotanik/utils/text.h"
 
+// Build-time git short hash: a generated header on the CMake builds (see CMakeLists),
+// "unknown" on the Arduino .ino deploy (no CMake, so the header isn't generated).
+#if defined(__has_include) && __has_include("botanik_gitversion.h")
+#  include "botanik_gitversion.h"
+#endif
+#ifndef BOTANIK_GIT_HASH
+#  define BOTANIK_GIT_HASH "unknown"
+#endif
+
 namespace Botanik { namespace Shell {
 
     // Lifecycle
@@ -58,8 +67,7 @@ namespace Botanik { namespace Shell {
             { "loglevel",   "[debug|info|..|critical] filter",&CommandShell::_cmd_loglevel   },
             { "version",    "firmware version",               &CommandShell::_cmd_version    },
             { "breakpoint", "trap into an attached debugger", &CommandShell::_cmd_breakpoint },
-            { "reboot",     "reboot (needs 'reboot confirm')",&CommandShell::_cmd_reboot     },
-            { "reset",      "reboot the controller now",      &CommandShell::_cmd_reset      },
+            { "reset",      "reboot the controller",          &CommandShell::_cmd_reset      },
             { "exit",       "quit (sim) / reboot (hw)",       &CommandShell::_cmd_exit       },
         };
         count = (uint8_t)(sizeof(TABLE) / sizeof(TABLE[0]));
@@ -165,13 +173,13 @@ namespace Botanik { namespace Shell {
 
         snprintf(val,    sizeof(val),    "%s%%",
             Utils::format_float(fa, sizeof(fa), ctx->stack_usage * 100.0f, 1));
-        snprintf(detail, sizeof(detail), "%lu bytes free",
-            (unsigned long)ctx->stack_bytes_free);
+        snprintf(detail, sizeof(detail), "%s free",
+            Utils::format_size(fa, sizeof(fa), ctx->stack_bytes_free));
         w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
             "Stack usage .................", val, detail);
         if (w > 0) _output.write(out, (size_t)w);
 
-        snprintf(val, sizeof(val), "%lu bytes", (unsigned long)ctx->stack_depth);
+        Utils::format_size(val, sizeof(val), ctx->stack_depth);
         w = snprintf(out, sizeof(out), "%-29s : %s",
             "Stack depth .................", val);
         if (w > 0) _output.write(out, (size_t)w);
@@ -185,8 +193,8 @@ namespace Botanik { namespace Shell {
 
     void CommandShell::_cmd_version(const char*, uint16_t) {
         char out[Config::LOG_FORMATTED_LEN];
-        int n = snprintf(out, sizeof(out), "Botanik %s on %s",
-                         Config::FIRMWARE_VERSION, HAL::hardware_description());
+        int n = snprintf(out, sizeof(out), "Botanik %s (%s) on %s",
+                         Config::FIRMWARE_VERSION, BOTANIK_GIT_HASH, HAL::hardware_description());
         if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
     }
 
@@ -264,15 +272,6 @@ namespace Botanik { namespace Shell {
         _println("usage: loglevel [debug|info|notice|warning|error|critical]");
     }
 
-    void CommandShell::_cmd_reboot(const char* args, uint16_t alen) {
-        uint16_t wlen; const char* w = Utils::arg_next(args, alen, wlen);
-        if (w != nullptr && Utils::arg_eq(w, wlen, "confirm")) {
-            _println("rebooting...");
-            HAL::reset();                                     // does not return
-        }
-        _println("this reboots the controller; run 'reboot confirm' to proceed");
-    }
-
     void CommandShell::_cmd_uptime(const char*, uint16_t) {
         char buf[16], out[48];
         uint32_t secs = (uint32_t)(HAL::uptime_ms() / 1000);
@@ -286,14 +285,32 @@ namespace Botanik { namespace Shell {
         if (p == nullptr) { _println("plc: no PLC context"); return; }
         const char* s;
         switch (p->status()) {
-            case PlcIO::PLC_UNKNOWN: s = "no contact yet"; break;
             case PlcIO::PLC_RUNNING: s = "running";        break;
             case PlcIO::PLC_TIMEOUT: s = "TIMEOUT";        break;
             case PlcIO::PLC_FAULT:   s = "FAULT";          break;
-            default:                 s = "?";              break;
+            default:                 s = "no contact yet"; break;
         }
-        char out[64];
-        int n = snprintf(out, sizeof(out), "plc link: %s%s", s, p->faulted() ? " (faulted)" : "");
+        char out[96];
+        int n;
+        // Sync status: link state, last-ack age, torn-read count.
+        if (p->ever_acked())
+            n = snprintf(out, sizeof(out), "plc link: %s  (ack %lums ago, %lu torn)",
+                         s, (unsigned long)p->last_ack_age_ms(), (unsigned long)p->torn_count());
+        else
+            n = snprintf(out, sizeof(out), "plc link: %s  (%lu torn)", s,
+                         (unsigned long)p->torn_count());
+        if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+        // Shared-memory regions: address + size.
+        n = snprintf(out, sizeof(out), "  IN  %p  %lu B  (we write, PLC reads)",
+                     p->in_region(), (unsigned long)p->in_size());
+        if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+        n = snprintf(out, sizeof(out), "  OUT %p  %lu B  (PLC writes, we read)",
+                     p->out_region(), (unsigned long)p->out_size());
+        if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+        // Log protocol: the PLC's write position vs our read position.
+        n = snprintf(out, sizeof(out), "  logs: PLC wrote %lu, host read %lu",
+                     (unsigned long)p->output_logs()->writeIndex,
+                     (unsigned long)p->input_logs()->readIndex);
         if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
     }
 

@@ -11,10 +11,15 @@ using namespace Botanik;
 
 namespace {
     // Two unmasked, unlatched conditions (logging/notify disabled) at bits 0 and 1.
+    // Like a site g_alarms[] table: only the static prefix is set, the dynamic suffix
+    // is left zero-initialized (the pragma silences the pedantic field-init warning).
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
     const Alarms::AlarmCondition TABLE[] = {
         { "AAA", "alarm A", 0, -1, -1, -1, -1, 0, 0 },
         { "BBB", "alarm B", 0, -1, -1, -1, -1, 0, 0 },
     };
+#pragma GCC diagnostic pop
 }
 
 TEST_CASE("alarm: ack marks an active condition, ignores inactive / unknown") {

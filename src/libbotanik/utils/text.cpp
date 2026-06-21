@@ -78,6 +78,15 @@ namespace Botanik { namespace Utils {
         return _emit_reversed(buf, cap, rev, r);
     }
 
+    const char* format_size(char* buf, size_t cap, uint32_t bytes) {
+        if (cap == 0) return buf;
+        if (bytes >= 32768u)                                 // >= 32 KiB: switch to KB
+            snprintf(buf, cap, "%lu KB", (unsigned long)((bytes + 512u) / 1024u));  // round to nearest
+        else
+            snprintf(buf, cap, "%lu B", (unsigned long)bytes);
+        return buf;
+    }
+
     // Duration formatting
     // ------------------------------------------------------------------------
 

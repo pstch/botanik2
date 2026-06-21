@@ -92,6 +92,10 @@ namespace Botanik { namespace Utils {
     const char* format_float(char* buf, size_t cap, double value,
                              uint8_t decimals = 1, uint8_t width = 0);
 
+    /** @brief Format @p bytes into @p buf as "<n> B" below 32 KiB, or "<n> KB" (rounded
+     *  to the nearest KiB) at or above it. Returns @p buf for inline use. */
+    const char* format_size(char* buf, size_t cap, uint32_t bytes);
+
     /** @} */
 
     /** @name Duration formatting

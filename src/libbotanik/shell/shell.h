@@ -206,7 +206,6 @@ namespace Botanik { namespace Shell {
         void _cmd_uptime(const char* args, uint16_t alen);
         void _cmd_plc(const char* args, uint16_t alen);
         void _cmd_loglevel(const char* args, uint16_t alen);
-        void _cmd_reboot(const char* args, uint16_t alen);
         /** @brief Handle an unrecognised command (echoes "Unknown command: ..."). */
         void _unknown(const char* cmd, uint16_t len);
         /** @brief Write a NUL-terminated line of command output. */

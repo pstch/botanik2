@@ -102,6 +102,20 @@ file(GLOB_RECURSE LIB_SOURCES CONFIGURE_DEPENDS
 
 add_library(botanik STATIC ${LIB_SOURCES})
 
+# Build-time git short hash, stamped into a generated header (BOTANIK_GIT_HASH) and
+# refreshed every build (written only when it changes, so it doesn't churn rebuilds).
+# The Arduino .ino deploy doesn't run CMake, so version.h falls back to "unknown" there.
+set(BOTANIK_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
+add_custom_target(botanik_gitversion
+    BYPRODUCTS "${BOTANIK_GENERATED_DIR}/botanik_gitversion.h"
+    COMMAND ${CMAKE_COMMAND}
+            "-DSRC=${CMAKE_CURRENT_SOURCE_DIR}"
+            "-DOUT=${BOTANIK_GENERATED_DIR}/botanik_gitversion.h"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/gitversion.cmake"
+    COMMENT "Stamping git hash")
+add_dependencies(botanik botanik_gitversion)
+target_include_directories(botanik PUBLIC "${BOTANIK_GENERATED_DIR}")
+
 # Keep the per-beat metric math single-precision on the M4 (no double FPU): the
 # scheduler/filters hot path must stay float-clean. Scoped to that one TU so it
 # enforces the hot path without flagging the benign float->double promotions in

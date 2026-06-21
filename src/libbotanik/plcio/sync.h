@@ -82,6 +82,15 @@ namespace Botanik { namespace PlcIO {
         /** @brief Last reported status, for change detection. */
         PlcStatus        _last_status    = PLC_UNKNOWN;
 
+        /** @name Diagnostics (set by the handler ctor; surfaced by the `plc` command)
+         *  @{ */
+        const void*      _in_region      = nullptr;  // PLC input region (we write, PLC reads)
+        const void*      _out_region     = nullptr;  // PLC output region (PLC writes, we read)
+        uint32_t         _in_size        = 0;        // sizeof the input region
+        uint32_t         _out_size       = 0;        // sizeof the output region
+        const uint32_t*  _torn_ptr       = nullptr;  // -> handler's live torn-read counter
+        /** @} */
+
         /** @brief The shared loop clock as a wrap-safe Millis32 stamp. */
         Utils::Millis32  _now() const { return Utils::Millis32(*_timestamp_ms); }
 
@@ -97,6 +106,7 @@ namespace Botanik { namespace PlcIO {
         const PlcOutputLogs_t* output_logs() const { return &_rx_logs_buffer; }
         /** @brief Local copy of the PLC's input log buffer. */
         PlcInputLogs_t*        input_logs()        { return &_tx_logs_buffer; }
+        const PlcInputLogs_t*  input_logs() const  { return &_tx_logs_buffer; }
 
         /** @brief Current PLC link status derived from the ack timing. */
         PlcStatus status() const {
@@ -109,6 +119,20 @@ namespace Botanik { namespace PlcIO {
 
         /** @brief True once PLC activity has been silent for PLC_WATCHDOG_MS. */
         bool faulted() const { return status() == PLC_FAULT; }
+
+        /** @name Diagnostics (the `plc` shell command)
+         *  @{ */
+        const void* in_region()  const { return _in_region; }
+        const void* out_region() const { return _out_region; }
+        uint32_t    in_size()    const { return _in_size; }
+        uint32_t    out_size()   const { return _out_size; }
+        /** @brief True once any TX was acknowledged by the PLC. */
+        bool        ever_acked()      const { return _ever_ackd; }
+        /** @brief Milliseconds since the last acknowledged TX (0 if never acked). */
+        uint32_t    last_ack_age_ms() const { return _ever_ackd ? (uint32_t)(_now() - _tx_last_ms) : 0; }
+        /** @brief Live count of torn RX snapshots discarded (PLC bumped seq mid-copy). */
+        uint32_t    torn_count()      const { return _torn_ptr ? *_torn_ptr : 0; }
+        /** @} */
 
         /** @} */
 
@@ -209,6 +233,10 @@ namespace Botanik { namespace PlcIO {
             _ctx._tx_last_ms   = Utils::Millis32(*timestamp_ms);
             _tx_commit_ms      = Utils::Millis32(*timestamp_ms);
             _ctx._logger       = logger;
+            // Region + torn-counter introspection for the `plc` diagnostic command.
+            _ctx._in_region    = plcin;   _ctx._in_size  = (uint32_t)sizeof(*plcin);
+            _ctx._out_region   = plcout;  _ctx._out_size = (uint32_t)sizeof(*plcout);
+            _ctx._torn_ptr     = &_rx_torn;
             memset(&_tx_data_buffer, 0, sizeof(InputData));
             memset(&_rx_data_buffer, 0, sizeof(OutputData));
 
