@@ -3,21 +3,17 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
+<TS> [-] BOOT: Botanik v0.13.12-dev
+                        > Running on : x86-64 POSIX simulator
+<TS> [~] BOOT: boot complete
+                        > console 4800 baud, HW watchdog 270000 ms
 <TS> [!] BOOT: sched_setscheduler failed:
                         > Operation not permitted
-<TS> [-] BOOT: Botanik v0.1.0-dev
-                        > Running on : x86-64 POSIX simulator
-<TS> [-] BOOT: scheduler started, period=10ms
+<TS> [~] BOOT: LoopScheduler initialized
+<TS> [~] BOOT: PlcSyncHandler initialized
+<TS> [~] BOOT: PlcLogReader initialized
+<TS> [~] BOOT: HealthMonitor initialized
+<TS> [-] HEALTH: POST ok (site gh_mlb41)
 <TS> [-] SHARED_IO: PLC link <P>
 <TS> --- MARK ---
 <TS> --- MARK ---

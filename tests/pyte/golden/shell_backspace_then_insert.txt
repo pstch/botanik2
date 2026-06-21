@@ -18,7 +18,5 @@
 
 
 
-
-
 botanik> aXc
  ALARMS : SYS_RST

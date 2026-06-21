@@ -1,7 +1,7 @@
   HOME  SHELL  LOGS  STATUS  ALARMS      <TIME>     PLC:<P> cpu:<C> stk:<S>
     _           _              _ _
    | |__   ___ | |_ __ _ _ __ (_) | __
-   | '_ \ / _ \| __/ _` | '_ \| | |/ /
+   | '_ \ / _ \| __/ _` | '_ \| | |/ /  gh_mlb41
    | |_) | (_) | || (_| | | | | |   <
    |_.__/ \___/ \__\__,_|_| |_|_|_|\_\  v0.13.12
 
@@ -9,17 +9,13 @@
   PLC link <P>
   Uptime      <UPTIME>
 
-  Temp        20.5 C
-  Humidity    62.0%
-  Ventilation Win 50.0%  Blow 50.0%
+  Temp        <CLIMATE>
+  Humidity    <CLIMATE>
+  Ventilation Win <VENT> Blow <VENT>
   Irrigation  Tray 1 (FILLING )
   Alarms      none
     LOGS
-
-<TS> [!] BOOT: sched_setscheduler failed:
-                        > Operation not permitted
-<TS> [-] BOOT: Botanik v0.1.0-dev
-                        > Running on : x86-64 POSIX simulator
-<TS> [-] BOOT: scheduler started, period=10ms
+<TS> [~] BOOT: HealthMonitor initialized
+<TS> [-] HEALTH: POST ok (site gh_mlb41)
 <TS> [-] SHARED_IO: PLC link <P>
  ALARMS : SYS_RST

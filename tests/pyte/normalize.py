@@ -29,7 +29,7 @@ _SUBS = [
     (re.compile(r"PLC link\s+\w+"), "PLC link <P>"),                           # UNKNOWN/RUNNING/...
     (re.compile(r"CPU load\s+[\d.]+%\s*\(peak\s+[\d.]+ms\)"), "CPU load <CPU>"),
     (re.compile(r"CPU jitter\s+[\d.]+%\s*\(peak\s+[\d.]+ms\)"), "CPU jitter <JIT>"),
-    (re.compile(r"Stack\s+[\d.]+%\s*\(\d+ B free\)"), "Stack <STK>"),
+    (re.compile(r"Stack\s+[\d.]+%\s*\(\d+ [KMG]?B free\)"), "Stack <STK>"),
     (re.compile(r"Task period\s+\d+ms \(\d+ RTPS\)"), "Task period <TASK>"),
     (re.compile(r"Console TX\s+\d+/\d+ \(drops: \d+\)"), "Console TX <TX>"),
     (re.compile(r"Network\s+\w+ \(lat [^)]*\)"), "Network <NET>"),             # net status + latency
@@ -45,8 +45,7 @@ _SUBS = [
     (re.compile(r"[\d.]+ V \(gen [\d.]+V\)"), "<PWR>"),                        # Battery
     (re.compile(r"(UPS\s+:\s+)\w+"), r"\g<1><UPS>"),
     (re.compile(r"[\d.]+ C  RH [\d.]+%"), "<CLIMATE>"),                        # temp/RH zones
-    (re.compile(r"\d+ s ago"), "<RAIN>"),
-    (re.compile(r"\d+ km/h"), "<WIND>"),
+    (re.compile(r"(Last rain\s*:\s*)\d+ \w+ \(wind \d+km/h\)"), r"\g<1><RAIN>"),
     (re.compile(r"\d{2}:\d{2} / \d{2}:\d{2}"), "<SUN>"),
     (re.compile(r"\d+ \d+ L / \d+ Lpm"), "<WATER>"),
     (re.compile(r"(Tray\s+:\s+)(?:Tray \d+|N/A)"), r"\g<1><TRAY>"),
@@ -55,14 +54,24 @@ _SUBS = [
     (re.compile(r"A\s*\d+% B\s*\d+%"), "<ACT2>"),                             # extractors
     (re.compile(r"(Humidif\.\s*:\s+)\w+"), r"\g<1><HUMID>"),
     (re.compile(r"(Screen\s+:\s+)[\d.]+%"), r"\g<1><SCREEN>"),
+    # Home page (site Home) live fields: the mock animates temp / humidity / vents.
+    (re.compile(r"(Temp\s+)[\d.]+ C"), r"\g<1><CLIMATE>"),
+    (re.compile(r"(Humidity\s+)[\d.]+%"), r"\g<1><CLIMATE>"),
+    (re.compile(r"Win [\d.]+%\s+Blow [\d.]+%"), "Win <VENT> Blow <VENT>"),
+    # Load-dependent CPU alarms in the ALARMS status bar: a constrained host that
+    # can't hold the realtime deadline raises CPU_XRUN/CPU_LOAD/CPU_JITT, which
+    # canonical hardware does not. Strip the codes so the bar reads the same either
+    # way (their START/END log lines are dropped as noise below).
+    (re.compile(r" CPU_\w+"), ""),
 ]
 
 # Timing-noise log lines: the scheduler logs an overrun whenever a tick misses
-# its period, which under time dilation happens at load-dependent moments. Their
-# count and placement vary run to run and scroll the log-writer pages, so they
-# are dropped entirely (see meaningful_lines) rather than asserted on - the tests
-# stay resilient to overruns instead of pretending they never happen.
-_NOISE = re.compile(r"scheduler overrun")
+# its period, which under time dilation happens at load-dependent moments. The
+# same load also trips the CPU_XRUN/LOAD/JITT health alarms, whose START/END
+# lines come and go with the host. Their count and placement vary run to run and
+# scroll the log-writer pages, so they are dropped entirely (see meaningful_lines)
+# rather than asserted on - the tests stay resilient to load instead of pinning it.
+_NOISE = re.compile(r"scheduler overrun|ALARM_(?:START|END): (?:CPU |Scheduler overrun)")
 
 
 def normalize_lines(lines):
