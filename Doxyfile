@@ -27,7 +27,10 @@ INPUT                  = src \
                          docs
 FILE_PATTERNS          = *.h *.cpp *.c *.md *.dox
 RECURSIVE              = YES
-IMAGE_PATH             = images
+# images/ is committed art; docs/generated/ holds the build-time code charts
+# (scripts/code_charts.py, run by the CMake `docs` target). Both feed \image.
+IMAGE_PATH             = images \
+                         docs/generated
 
 # Vendored toolchain/Mbed headers and build artifacts are not our code. The
 # doctest single header under tests/vendor is third-party too.

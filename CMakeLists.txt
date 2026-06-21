@@ -533,8 +533,23 @@ add_custom_target(arduino-lib
 # Platform-independent: `make -C build docs` regenerates the HTML API docs
 # from the Doxyfile at the project root (output under docs/doxygen/html/).
 find_program(DOXYGEN doxygen)
+find_program(PYTHON3 NAMES python3 python)
 if(DOXYGEN)
+    # Code charts (LoC + churn by area) shown atop the Library page. Generated into
+    # docs/generated/ (gitignored) just before doxygen runs, so they always reflect
+    # the current tree. The script falls back to a placeholder SVG if git/cloc are
+    # missing; the whole step is skipped when there is no Python interpreter.
+    set(DOCS_CHART_CMD "")
+    if(PYTHON3)
+        set(DOCS_CHART_CMD COMMAND ${PYTHON3}
+            ${CMAKE_SOURCE_DIR}/scripts/code_charts.py
+            --out ${CMAKE_SOURCE_DIR}/docs/generated
+            --since "12 months ago")
+    else()
+        message(STATUS "python3 not found — Library code charts will be skipped")
+    endif()
     add_custom_target(docs
+        ${DOCS_CHART_CMD}
         COMMAND ${DOXYGEN} ${CMAKE_SOURCE_DIR}/Doxyfile
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMENT "Generating API documentation with Doxygen"

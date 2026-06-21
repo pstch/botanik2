@@ -9,6 +9,15 @@ together by the `BotanikFirmware<In, Out>` base and run from a single non-blocki
 loop. This page is the map; the **Namespaces** and **Classes** tabs hold the full
 API surface.
 
+@section library_metrics At a glance
+
+These two charts are regenerated on every docs build (by `scripts/code_charts.py`),
+broken down by code area (the folder under `src/`). The first sizes each area; the
+second shows where recent work has gone.
+
+@image html code_loc.svg "Lines of code by area (code lines only, via cloc)"
+@image html code_churn.svg "Churn by area over the last 12 months: lines changed and commits touched"
+
 @section main_subsystems Subsystems
 
 Each subsystem with an architecture deep-dive links to its guide in the last column
