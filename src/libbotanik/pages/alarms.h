@@ -409,16 +409,21 @@ namespace Botanik { namespace Pages {
 
         /** @brief Draw data row at screen @p row for visible entry @p vi (index into
          *  _vis), or clear the row when @p vi is past the end of the set. The state cell
-         *  shows a reverse-video "ON" badge while active (blank otherwise), written
-         *  inline in one pass (no normal-then-inverted overdraw, which flickers). */
+         *  shows a reverse-video "ON" badge while active; once it has cleared (but has a
+         *  last event) it reads "OFF" in normal video; a never-fired alarm leaves it
+         *  blank. Written inline in one pass (no normal-then-inverted overdraw, which
+         *  flickers). */
         void _draw_data_row(uint16_t row, uint16_t vi) {
             if (vi >= _nvis) { _clear_row(row); return; }
             const Alarms::AlarmCondition& c = _model->condition(_vis[vi]);
             char ev[16];
             _fmt_event(ev, sizeof(ev), c);
+            // State cell: "ON" while active, "OFF" once it has cleared but still carries a
+            // last event (edge_ms set), blank for a never-fired alarm.
+            const char* state = c.active ? "ON" : (c.edge_ms != 0 ? "OFF" : "");
             char line[160];
             uint16_t n = _build_grid_row(line, sizeof(line), c.code ? c.code : "?",
-                                         c.active ? "ON" : "", ev, c.desc ? c.desc : "");
+                                         state, ev, c.desc ? c.desc : "");
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
             // Reverse-video "ON" badge only while active AND unacknowledged; an ack'd alarm

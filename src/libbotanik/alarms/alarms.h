@@ -59,6 +59,10 @@ namespace Botanik { namespace Alarms {
         int32_t     mqtt_off_s;  // min OFF dwell (s) before an MQTT notification (-1 off)
         int32_t     recent_s;    // RECENT-mode window (s): 0 = DEFAULT_RECENT_S, <0 = never expires
         int32_t     latch_s;     // hold active this long (s) after the raw bit clears (0 = no latch)
+        int32_t     min_on_s;    // minimum ON time (s): once active, stay active at least this
+                                 // long from onset even if the raw bit clears (0 = no minimum).
+                                 // Anti-flicker debounce; the PLC normally debounces, this is a
+                                 // local safety net so a rapidly-toggling bit can't strobe.
         /** @} */
 
         /** @name Dynamic state (model-owned; leave zeroed in a site table)
@@ -77,6 +81,10 @@ namespace Botanik { namespace Alarms {
         uint32_t    latch_remaining_ms; // latch countdown: ms still held active after the
                                   // raw bit cleared (0 = not latched). Wrap-immune (no
                                   // absolute deadline); decremented by the step elapsed.
+        uint32_t    min_on_remaining_ms; // minimum-ON countdown: ms the alarm is still held
+                                  // active since onset regardless of the raw bit (0 = elapsed).
+                                  // Seeded to min_on_s on the ON edge; drained by the step
+                                  // elapsed. Wrap-immune, same as latch_remaining_ms.
         /** @} */
     };
 
@@ -217,20 +225,32 @@ namespace Botanik { namespace Alarms {
                 AlarmCondition& c = _conditions[i];
                 bool was = c.active;
                 bool raw_on = ((_raw >> i) & 1u) != 0;
-                // Latch as a countdown: drain it by the elapsed time, refresh to latch_s
-                // while the raw bit is set. No absolute deadline, so it can't wrap.
+                // Two countdowns, both drained by the elapsed time (wrap-immune, no
+                // absolute deadline): the latch holds active for latch_s after the raw
+                // bit clears (refreshed while it's set); the minimum-ON hold keeps the
+                // alarm active for at least min_on_s from onset, debouncing a bit that
+                // toggles too fast (the local anti-flicker net behind the PLC's own).
                 if (c.latch_remaining_ms > 0)
                     c.latch_remaining_ms = (c.latch_remaining_ms > dt)
                                          ? (uint32_t)(c.latch_remaining_ms - dt) : 0;
+                if (c.min_on_remaining_ms > 0)
+                    c.min_on_remaining_ms = (c.min_on_remaining_ms > dt)
+                                          ? (uint32_t)(c.min_on_remaining_ms - dt) : 0;
                 if (raw_on && c.latch_s > 0)
                     c.latch_remaining_ms = (uint32_t)c.latch_s * 1000u;
-                bool on = raw_on || (c.latch_remaining_ms > 0);
+                bool on = raw_on || (c.latch_remaining_ms > 0) || (c.min_on_remaining_ms > 0);
                 if (on != was) {
                     c.edge_ms = now;
+                    // On the ON edge, reset log_on_sent here (not on the OFF edge) so the
+                    // flag survives the OFF episode and tells END from FLAP below; seed the
+                    // minimum-ON hold for this fresh episode.
                     if (on) { c.off_notified = false; c.log_off_sent = false;
+                              c.log_on_sent  = false;
                               c.acknowledged = false;  // a fresh episode is unacknowledged
-                              c.started_ms = now; }   // onset, for start-time ordering
-                    else    { c.on_notified  = false; c.log_on_sent  = false; }
+                              c.started_ms = now;      // onset, for start-time ordering
+                              if (c.min_on_s > 0)
+                                  c.min_on_remaining_ms = (uint32_t)c.min_on_s * 1000u; }
+                    else    { c.on_notified  = false; }
                 }
                 c.active   = on;
                 c.unmasked = on && ((_raw & c.masked_by) == 0);
@@ -256,7 +276,13 @@ namespace Botanik { namespace Alarms {
                 } else {
                     if (!c.log_off_sent && c.log_off_s >= 0 &&
                         dwell >= (uint64_t)c.log_off_s * 1000) {
-                        if (_logger) _logger->info(PlcIO::ALARM_END, "%s", label);
+                        // An END with no matching START this episode means the alarm
+                        // toggled too fast to dwell past log_on_s: report it as a FLAP
+                        // (distinct topic) rather than a misleading bare END.
+                        if (_logger) {
+                            if (c.log_on_sent) _logger->info(PlcIO::ALARM_END, "%s", label);
+                            else               _logger->notice(PlcIO::ALARM_FLAP, "%s", label);
+                        }
                         c.log_off_sent = true;
                     }
                     if (!c.off_notified && c.mqtt_off_s >= 0 &&
