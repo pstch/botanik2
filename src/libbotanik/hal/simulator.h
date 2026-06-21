@@ -21,6 +21,7 @@
 #include <atomic>
 #include <unistd.h>
 #include <fcntl.h>
+#include <limits.h>   // PATH_MAX - reset() re-execs the resolved exe path
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <termios.h>
@@ -464,9 +465,23 @@ namespace Botanik { namespace HAL {
      *  keeps argv alive for the whole process, so storing the pointer is enough. */
     inline char*** _reboot_argv() { static char** argv = nullptr; return &argv; }
 
-    /** @brief Capture argv at the top of main() so reset() can re-exec with the
-     *  original arguments. Simulator-only (the OPTA reset takes no arguments). */
-    inline void set_reboot_args(int /*argc*/, char** argv) { *_reboot_argv() = argv; }
+    /** @brief Resolved on-disk path of this executable, captured at startup. reset()
+     *  re-execs this path rather than the /proc/self/exe magic symlink: the symlink
+     *  pins the running inode, so after a relink (a new inode at the same path) it
+     *  would re-run the old, now-deleted image. Re-resolving the path picks up a
+     *  rebuilt binary - this is what lets a SIGUSR1 after a build hot-restart the sim. */
+    inline char* _reboot_path() { static char path[PATH_MAX] = { 0 }; return path; }
+
+    /** @brief Capture argv and the resolved exe path at the top of main() so reset()
+     *  can re-exec. Resolving the path now, while /proc/self/exe still points at the
+     *  running (not-yet-replaced) file, records the directory entry for later re-exec.
+     *  Simulator-only (the OPTA reset takes no arguments). */
+    inline void set_reboot_args(int /*argc*/, char** argv) {
+        *_reboot_argv() = argv;
+        char*   path = _reboot_path();
+        ssize_t n    = readlink("/proc/self/exe", path, PATH_MAX - 1);
+        path[n > 0 ? n : 0] = '\0';   // readlink does not NUL-terminate; empty on failure
+    }
 
     /** @brief A teardown hook run by reset() just before re-exec. */
     using ResetHook = void(*)();
@@ -484,10 +499,20 @@ namespace Botanik { namespace HAL {
         // Run teardown while the image is intact, then execve to replace the
         // process: drops all threads/FDs and re-enters main() with a fresh uptime.
         if (ResetHook hook = *_reset_hook()) hook();
+        // Hand the tty back to its pre-raw state before re-exec: the child's
+        // setup_raw_console() snapshots the *current* termios as "original", so an
+        // un-restored raw tty here would leave the terminal raw after a later exit.
+        botanik_restore_console_clean();
         char** argv = *_reboot_argv();
         char*  fallback[] = { (char*)"/proc/self/exe", nullptr };  // if argv was never captured
-        execve("/proc/self/exe", argv ? argv : fallback, environ);
-        perror("reset: execve failed");  // only reached if the exec itself failed
+        char** av    = argv ? argv : fallback;
+        // Prefer the resolved path (re-resolves to a rebuilt binary), then the
+        // /proc/self/exe symlink (robust if the path moved), then argv[0].
+        const char* path = _reboot_path();
+        if (path[0] != '\0') execve(path, av, environ);
+        execve("/proc/self/exe", av, environ);
+        if (av[0] != nullptr) execve(av[0], av, environ);
+        perror("reset: execve failed");  // only reached if every exec failed
         _exit(127);
     }
 

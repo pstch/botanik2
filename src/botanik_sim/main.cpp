@@ -47,6 +47,15 @@ extern "C" void botanik_sim_shutdown(int signo) {   // NOLINT(bugprone-signal-ha
     botanik_running = 0;
 }
 
+// SIGUSR1 handler: request a hot-restart (re-exec the on-disk binary, which a build
+// signals after relinking). Only sets a flag; the actual HAL::reset() runs from the
+// main loop so teardown happens in normal context, not the async handler.
+// NOLINT: async-signal-safe (assigns only volatile sig_atomic_t).
+static volatile sig_atomic_t botanik_reexec = 0;
+extern "C" void botanik_sim_reexec(int) {   // NOLINT(bugprone-signal-handler)
+    botanik_reexec = 1;
+}
+
 // Copy a hostname / dotted-IPv4 literal into a PLC config address buffer (sim only:
 // the mock PLC stands in for the coprocessor that publishes these). Always NUL-
 // terminates within Config::PLC_HOST_STR_LEN.
@@ -72,6 +81,7 @@ int main(int argc, char** argv) {
     HAL::setup_raw_console();
     std::signal(SIGINT,  botanik_sim_shutdown);   // NOLINT(bugprone-signal-handler)
     std::signal(SIGTERM, botanik_sim_shutdown);   // NOLINT(bugprone-signal-handler)
+    std::signal(SIGUSR1, botanik_sim_reexec);     // NOLINT: hot-restart from a rebuilt binary
 
     // Shared PLC memory - both the firmware's handler and the emulator point at the
     // same region. On OPTA this comes from HAL::get_plc_input()/get_plc_output().
@@ -114,8 +124,13 @@ int main(int argc, char** argv) {
     // (see start_site_emulator for the start-order constraint).
     start_site_emulator(&shared_in, &shared_out, &greenhouse.logger());
 
-    // Main loop: drive the firmware until a shutdown signal flips the run flag.
-    while (botanik_running) greenhouse.loop();
+    // Main loop: drive the firmware until a shutdown signal flips the run flag. A
+    // SIGUSR1 (sent by a build after relinking) re-execs the rebuilt binary here, at
+    // a safe point between iterations; HAL::reset() tears down and does not return.
+    while (botanik_running) {
+        greenhouse.loop();
+        if (botanik_reexec) HAL::reset();
+    }
 
     // HAL::shutdown() runs the reset hook (joins the emulator thread) and exits
     // through atexit, restoring the console. Report 128 + signo for the supervisor.
