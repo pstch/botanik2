@@ -10,12 +10,10 @@ These dive into one mechanism each, past the orientation @ref overviews.
   CPU / jitter / stack metrics.
 - @subpage md_docs_2PLC__SYNC - **PLC shared-memory sync.** The RX/TX state
   machines and the transactional handshake with the PLC coprocessor.
-- @subpage md_docs_2PLC__CONFIG - **PLC configuration variables.** The generic
-  network / NTP / MQTT config the PLC publishes to the host, and how to set up the
-  matching PLC-side structure.
-- @subpage md_docs_2COMPONENTS - **Config-driven components.** The Component /
-  ConfigHandler base classes and the network stack (resolver, network, NTP, MQTT) and
-  sun tracker built on them.
+- @subpage md_docs_2PLC__CONFIG - **PLC configuration variables and components.** The
+  generic network / NTP / MQTT / geo config the PLC publishes, how to set up the
+  matching PLC-side structure, and the Component / ConfigHandler-based network stack
+  and sun tracker that consume it.
 - @subpage md_docs_2EDITOR__RECONCILE - **Editor reconciliation.** How the line
   editor repaints a multi-row edit with the fewest bytes over the serial link.
 */
