@@ -47,6 +47,14 @@ namespace Botanik { namespace Utils {
         return (uint64_t)(_boot_epoch_ms() + (int64_t)timestamp_ms);
     }
 
+    // Public domain-crossing helpers (uptime ms <-> UNIX ms), inverse of each other.
+    uint64_t unix_ms_from_uptime_ms(uint64_t uptime_ms) {
+        return _wall_ms(uptime_ms);
+    }
+    uint64_t uptime_ms_from_unix_ms(uint64_t unix_ms) {
+        return (uint64_t)((int64_t)unix_ms - _boot_epoch_ms());
+    }
+
     // Convert absolute timestamp to UTC calendar datetime.
     CalendarTime cal_time_ms(uint64_t timestamp_ms) {
         // measure wall time and count days since UNIX epoch

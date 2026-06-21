@@ -9,6 +9,7 @@ add_executable(botanik_tests
     doctest_main.cpp
     test_text.cpp
     test_time.cpp
+    test_sun.cpp
     test_sizes.cpp
     test_logger.cpp
     test_alarms.cpp

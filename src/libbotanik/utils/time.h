@@ -87,6 +87,13 @@ namespace Botanik { namespace Utils {
     /** @name Calendar conversion & formatting
      *  @{ */
 
+    /** @brief Map an uptime-domain ms instant onto wall-clock UNIX ms, and back.
+     *  These are the boot-epoch projection cal_time_ms() uses, exposed for callers
+     *  that need to cross between the two domains (e.g. turning a computed sun-event
+     *  UNIX instant back into an uptime timestamp comparable to HAL::uptime_ms()). */
+    uint64_t unix_ms_from_uptime_ms(uint64_t uptime_ms);
+    uint64_t uptime_ms_from_unix_ms(uint64_t unix_ms);
+
     /** @brief Convert an absolute ms uptime counter into a calendar datetime. */
     CalendarTime cal_time_ms(uint64_t timestamp_ms);
 
