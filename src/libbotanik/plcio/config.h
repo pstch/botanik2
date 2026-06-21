@@ -13,9 +13,11 @@
  * config type byte-for-byte (see the PLC-side setup in @ref md_docs_2PLC__CONFIG).
  *
  * Like the other shared structs it is explicitly padded so its layout is identical
- * packed or not, and each block's `serial` leads it (word-aligned). A consumer (e.g.
- * Network::NetworkHandler) latches the last serial it applied and re-applies only
- * when the PLC bumps it, so it never re-resolves / re-binds every tick.
+ * packed or not, and each block's `serial` leads it (word-aligned). A consumer latches
+ * the last serial it applied and re-applies only when the PLC bumps it, so it never
+ * re-resolves / re-binds every tick. The shared base Botanik::ConfigHandler
+ * (config_handler.h) implements that watch-and-reset for the handlers
+ * (Network::NetworkHandler, Network::TimeSyncHandler, the sun-position tracker).
  *
  * Addresses are text (HostStr_t): a hostname or a dotted-decimal IPv4 literal,
  * resolved-or-parsed by the host (a hostname needs the DNS resolver; a literal is

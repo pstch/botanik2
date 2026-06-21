@@ -261,6 +261,36 @@ namespace Botanik { namespace Config {
     /** @} */
 
     /**
+     * @name Name resolution
+     * @{
+     */
+
+    /** @brief Rows in the NameResolver table (network/resolver.h). One table backs
+     *  both jobs, so this bounds the DNS lookups that can be in flight at once AND the
+     *  number of resolved results cached (a completed row stays as a cache entry). Each
+     *  row is a hostname buffer plus a few fields; size it to the count of distinct
+     *  hostnames the components resolve (NTP servers + MQTT broker + a little slack). */
+#ifndef BOTANIK_DNS_CACHE_SIZE
+#  define BOTANIK_DNS_CACHE_SIZE 8
+#endif
+    BOTANIK_CFG(size_t, DNS_CACHE_SIZE);
+
+    /** @brief Max time NetworkHandler waits in SETUP for the link to come up with an
+     *  address before declaring an error and backing off. Generous: covers DHCP. */
+#ifndef BOTANIK_NET_SETUP_TIMEOUT_MS
+#  define BOTANIK_NET_SETUP_TIMEOUT_MS 30000
+#endif
+    BOTANIK_CFG(uint32_t, NET_SETUP_TIMEOUT_MS);
+
+    /** @brief Backoff after a failed (or lost) bring-up before NetworkHandler retries. */
+#ifndef BOTANIK_NET_RETRY_MS
+#  define BOTANIK_NET_RETRY_MS 10000
+#endif
+    BOTANIK_CFG(uint32_t, NET_RETRY_MS);
+
+    /** @} */
+
+    /**
      * @name Logging parameters
      * @{
      */

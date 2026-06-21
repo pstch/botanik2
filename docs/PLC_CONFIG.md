@@ -126,6 +126,12 @@ increments it after editing the block, and the host needs no handshake to clear 
 The serial leads its struct so a consumer could poll it through a word-aligned
 `uint32_t*`, mirroring the log cursors.
 
+The watch-and-reset is shared, not re-implemented per consumer: `Botanik::ConfigHandler`
+(`config_handler.h`) is the base class for these handlers. Its `step()` reads the
+block's serial, and on a change resets the derived state machine (`on_config_changed()`)
+before advancing it (`on_step()`). `NetworkHandler` (the `net` block), `TimeSyncHandler`
+(`ntp`), and the sun-position tracker (`geo`) all derive it.
+
 ## Addresses
 
 Every address is a `HostStr_t` - a fixed `char` buffer holding either a hostname
@@ -136,9 +142,10 @@ an empty string (`[0] == 0`) means "unset". The buffer length is
 Text was chosen over packed octets so the operator can enter a broker / NTP server by
 name. The cost is that a name has to be resolved: the host first tries to parse the
 buffer as a literal (instant), and otherwise runs a DNS lookup. That lookup must not
-block the main loop, so it is the job of a dedicated non-blocking resolver component
-(WIP; see the design note in `network/network.h`). Pure-literal fields (the static
-`ip` / `netmask` / `gateway`) always parse and never touch DNS.
+block the main loop, so it is the job of a dedicated non-blocking resolver,
+`Botanik::Network::NameResolver` (`network/resolver.h`): a poll-style `resolve()` over
+Mbed's async DNS, backed by a fixed table that doubles as the DNS cache. Pure-literal
+fields (the static `ip` / `netmask` / `gateway`) always parse and never touch DNS.
 
 ## PLC-side setup
 

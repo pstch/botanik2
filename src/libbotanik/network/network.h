@@ -3,45 +3,48 @@
 
 /**
  * @file network.h
- * @brief Network and time-sync handlers - PLC-config-driven state machines for
- *        bringing up the network device and running an NTP client (WIP).
+ * @brief NetworkHandler and TimeSyncHandler - PLC-config-driven state machines that
+ *        bring up the network device and run an NTP client.
+ *
+ * Both derive ConfigHandler (config_handler.h), so each restarts its state machine
+ * whenever the operator changes its config block (the PLC bumps that block's serial).
+ * NetworkHandler owns the network interface and hands it to the shared NameResolver
+ * (resolver.h) once the link is up; TimeSyncHandler resolves its NTP servers through
+ * that same resolver.
  */
 
-#include "libbotanik/logs/logger.h"
-#include "libbotanik/plcio/sync.h"
+#include <cstdint>
+
+#include "libbotanik/config_handler.h"
+#include "libbotanik/network/resolver.h"
+
+// Mbed network device (global namespace); used only in network.cpp, forward-declared
+// so this header stays clear of the Mbed headers.
+class NetworkInterface;
 
 namespace Botanik { namespace Network {
 
-    // TODO: write NetworkHandler
-    //
-    // - This class should be a state machine, implemented in a way similar to the
-    //   other state machines in the codebase. It should have at least a RUNNING state,
-    //   for when the network is operational, a SETUP state when we are still setting up
-    //   the network (maybe waiting for DHCP, or for the L2 device to be available),
-    //   probably even an ERROR state when no network can be setup (in that state, we'd
-    //   retry after a timeout).
-    // - The configuration now lives in the shared region: PlcSyncContext::config()
-    //   returns the generic PlcOutputConfig_t (plcio/config.h), so the handler reaches
-    //   its block as `_ctx->config()->net`. Watch `net.serial`: latch it in
-    //   _last_config_serial and, when it increases, transition to SETUP and (re)bring
-    //   the device up from net.dhcp / net.ip / net.netmask / net.gateway / net.dns1/2.
-    // - Addresses are text (HostStr_t): a hostname or a dotted-decimal IPv4 literal.
-    //   A literal is parsed directly; a hostname needs the DNS resolver (see below),
-    //   which must not block - so SETUP drives it asynchronously across ticks.
-
-    /** @brief Brings the network device up from PLC-published configuration,
-     *  as a state machine mirroring the PLC sync handlers. WIP - see the TODO above. */
-    class NetworkHandler {
-    private:
+    /** @brief Brings the network device up from the PLC `net` config block, as a state
+     *  machine that restarts on a config change. Owns the interface and hands it to the
+     *  NameResolver while the link is up. */
+    class NetworkHandler : public ConfigHandler {
         /** @name State
          *  @{ */
 
-        /** @brief Logger for network events (may be null). */
-        Logs::Logger*               _logger;
-        /** @brief PLC sync context exposing the network configuration. */
-        PlcIO::PlcSyncContext*      _ctx;
-        /** @brief Last seen network-configuration serial number. */
-        uint32_t                    _last_config_serial;
+        /** @brief Bring-up state. on_config_changed() resets to SETUP (or IDLE if there
+         *  is no usable config); on_step() drives SETUP -> RUNNING, and ERROR backs off
+         *  before retrying. */
+        enum State : uint8_t {
+            NET_IDLE = 0,   ///< no usable config (serial 0); nothing to bring up
+            NET_SETUP,      ///< device configured; waiting for the link + an address
+            NET_RUNNING,    ///< link up with an address; interface handed to the resolver
+            NET_ERROR,      ///< bring-up failed / link lost; waiting out the retry backoff
+        };
+
+        State             _state;
+        uint64_t          _since_ms;   ///< when the current state was entered (for timeouts)
+        NameResolver*     _resolver;   ///< wired with the live interface while up (may be null)
+        NetworkInterface* _net;        ///< the network device (null until first bring-up)
 
         /** @} */
 
@@ -49,66 +52,67 @@ namespace Botanik { namespace Network {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief Construct the network handler. */
-        NetworkHandler();
-        /** @brief Advance the network state machine; call once per tick. */
-        void step();
+        /** @brief @p resolver (optional) is handed the live interface once the link is
+         *  up, and cleared on a reconfiguration / link loss. */
+        NetworkHandler(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger = nullptr,
+                       NameResolver* resolver = nullptr);
 
+        /** @brief True once the link is up with an address. */
+        bool is_up() const { return _state == NET_RUNNING; }
+        /** @brief The live network interface, or null until the link is up. */
+        NetworkInterface* interface() const { return _state == NET_RUNNING ? _net : nullptr; }
+
+        /** @} */
+
+    protected:
+        /** @name ConfigHandler hooks
+         *  @{ */
+        uint32_t config_serial() const override;
+        void on_config_changed(uint64_t now_ms) override;
+        void on_step(uint64_t now_ms) override;
+        /** @} */
+
+    private:
+        /** @name Internals
+         *  @{ */
+        /** @brief Enter a state and stamp the entry time. */
+        void _enter(State s, uint64_t now_ms);
+        /** @brief Configure the device from the `net` block and start a non-blocking
+         *  connect; moves to SETUP (on the sim, straight to RUNNING). */
+        void _begin_setup(uint64_t now_ms);
+        /** @brief Unwire the resolver (clear its interface + cache). */
+        void _unwire_resolver();
         /** @} */
     };
 
-    // - This class should be a state machine, very similar to NetworkHandler, except
-    //   that it is used as an NTP client (and should update the system's RTC). It reads
-    //   its block via `_ctx->config()->ntp` (plcio/config.h) and watches `ntp.serial`:
-    //   on a bump it re-applies ntp.enabled / ntp.server1/2 / ntp.poll_s. The servers
-    //   are HostStr_t (hostname or IPv4 literal), so a hostname goes through the DNS
-    //   resolver below before the NTP exchange.
-
-    /** @brief NTP client that disciplines the system RTC from PLC-published
-     *  configuration, as a state machine like NetworkHandler. WIP - see the TODO below. */
-    class TimeSyncHandler {
-    private:
+    /** @brief NTP client driven by the PLC `ntp` config block: resolves the servers via
+     *  the NameResolver and disciplines the RTC. Restarts on a config change.
+     *  @note WIP - the config-watch and structure are in place; the NTP exchange itself
+     *  (TIME_RESOLVE -> TIME_QUERY -> set RTC) is still to be written. */
+    class TimeSyncHandler : public ConfigHandler {
         /** @name State
          *  @{ */
-
-        /** @brief Logger for time-sync events (may be null). */
-        Logs::Logger*               _logger;
-        /** @brief PLC sync context exposing the NTP configuration. */
-        PlcIO::PlcSyncContext*      _ctx;
-        /** @brief Last seen NTP-configuration serial number. */
-        uint32_t                    _last_config_serial;
-
+        enum State : uint8_t {
+            TIME_IDLE = 0,   ///< disabled / no config
+            TIME_RESOLVE,    ///< resolving a server name through the resolver
+            TIME_QUERY,      ///< NTP exchange in flight
+            TIME_SYNCED,     ///< RTC disciplined; idle until the next poll
+            TIME_ERROR,      ///< failed; backing off before a retry
+        };
+        State         _state;
+        uint64_t      _since_ms;
+        NameResolver* _resolver;
         /** @} */
 
     public:
-        /** @name Lifecycle
-         *  @{ */
+        TimeSyncHandler(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger = nullptr,
+                        NameResolver* resolver = nullptr);
 
-        /** @brief Construct the time-sync handler. */
-        TimeSyncHandler();
-        /** @brief Advance the time-sync state machine; call once per tick. */
-        void step();
-
-        /** @} */
+    protected:
+        uint32_t config_serial() const override;
+        void on_config_changed(uint64_t now_ms) override;
+        void on_step(uint64_t now_ms) override;
     };
-    // TODO: write TimeSyncHandler
-    //         (handles NTP configuration)
-
-    // TODO: write Resolver (parallel non-blocking DNS)
-    //
-    // The PLC config carries addresses as text (HostStr_t): a hostname or a dotted-
-    // decimal IPv4 literal. Several consumers need to turn one into an IP without
-    // blocking the main loop: NetworkHandler (gateway/DNS are literals, but consistency
-    // is nice), TimeSyncHandler (NTP servers), and the future MQTT client (broker). So
-    // a shared, non-blocking resolver belongs here rather than duplicated per consumer.
-    //
-    // Shape (to design): a step()-driven component that owns a small fixed table of
-    // in-flight lookups. A consumer submits a HostStr_t and gets a handle/slot; the
-    // resolver first tries a literal parse (instant success), else drives an async DNS
-    // query and reports DONE(ip) / FAILED / PENDING per tick. Several lookups proceed
-    // in parallel (one slot each) so two NTP servers + the broker don't serialize. No
-    // call ever blocks; everything advances one bounded step at a time like the rest of
-    // the codebase. Upstream DNS comes from the net block's dns1/dns2.
 
 }}
 
