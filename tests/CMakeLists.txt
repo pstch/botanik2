@@ -19,6 +19,8 @@ add_executable(botanik_tests
     test_shell.cpp
     test_serial.cpp
     test_writer.cpp
+    test_config_handler.cpp
+    test_resolver.cpp
 )
 
 # vendor/ for doctest.h; src/ for the library and the simulator's site payloads.
