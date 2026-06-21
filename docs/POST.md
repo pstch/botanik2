@@ -22,7 +22,7 @@ fixed schedule that cannot be reordered:
 \dot "setup() bring-up order"
 digraph post_order {
     bgcolor="transparent";
-    rankdir=LR;
+    rankdir=TB;
     node [shape=box, style=rounded, fontname="Helvetica", fontsize=10, margin="0.08,0.04"];
     edge [arrowsize=0.7];
 

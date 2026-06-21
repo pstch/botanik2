@@ -15,8 +15,18 @@ These two charts are regenerated on every docs build (by `scripts/code_charts.py
 broken down by code area (the folder under `src/`). The first sizes each area; the
 second shows where recent work has gone.
 
-@image html code_loc.svg "Lines of code by area (code lines only, via cloc)"
-@image html code_churn.svg "Churn by area over the last 12 months: lines changed and commits touched"
+@htmlonly
+<div class="code-charts">
+  <figure>
+    <img src="code_loc.svg" alt="Lines of code by area"/>
+    <figcaption>Lines of code by area (code lines only, via cloc)</figcaption>
+  </figure>
+  <figure>
+    <img src="code_churn.svg" alt="Churn by area"/>
+    <figcaption>Churn by area over the last 12 months: lines changed and commits touched</figcaption>
+  </figure>
+</div>
+@endhtmlonly
 
 @section main_subsystems Subsystems
 

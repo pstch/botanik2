@@ -27,10 +27,7 @@ INPUT                  = src \
                          docs
 FILE_PATTERNS          = *.h *.cpp *.c *.md *.dox
 RECURSIVE              = YES
-# images/ is committed art; docs/generated/ holds the build-time code charts
-# (scripts/code_charts.py, run by the CMake `docs` target). Both feed \image.
-IMAGE_PATH             = images \
-                         docs/generated
+IMAGE_PATH             = images
 
 # Vendored toolchain/Mbed headers and build artifacts are not our code. The
 # doctest single header under tests/vendor is third-party too.
@@ -113,6 +110,15 @@ HTML_OUTPUT            = html
 GENERATE_TREEVIEW      = YES
 DISABLE_INDEX          = NO
 GENERATE_LATEX         = NO
+
+# Scoped layout for the Library page's code charts: a small stylesheet (the
+# .code-charts flex wrapper, side-by-side when wide, stacked when narrow) plus the
+# generated SVGs copied into the HTML output so the raw <img> tags resolve. The
+# SVGs come from scripts/code_charts.py (run by the `docs` target); on a build
+# where they weren't generated, Doxygen just warns they're missing.
+HTML_EXTRA_STYLESHEET  = docs/charts.css
+HTML_EXTRA_FILES       = docs/generated/code_loc.svg \
+                         docs/generated/code_churn.svg
 
 #---------------------------------------------------------------------------
 # Warnings / diagnostics

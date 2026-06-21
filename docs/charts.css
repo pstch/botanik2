@@ -1,0 +1,31 @@
+/* Layout for the code charts at the top of the Library page (docs/library.dox).
+   Two figures that sit side by side when the content column is wide enough and
+   wrap to a stack when it is not. flex-basis sets the side-by-side threshold:
+   both fit only when the column can hold two ~340px columns plus the gap. */
+
+.code-charts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5em;
+    align-items: flex-start;
+    margin: 1em 0;
+}
+
+.code-charts figure {
+    flex: 1 1 340px;       /* grow to share the row, but wrap below ~340px each */
+    max-width: 560px;      /* never blow the SVG up past its natural size */
+    margin: 0;
+    text-align: center;
+}
+
+.code-charts figure img {
+    width: 100%;
+    height: auto;
+}
+
+.code-charts figcaption {
+    margin-top: 0.4em;
+    font-size: 90%;
+    font-style: italic;
+    color: var(--page-foreground-color, #555);
+}
