@@ -23,6 +23,20 @@ programs on separate cores.
 The firmware is built in three layers, from generic to specific. Each is a thin
 shell over the one below.
 
+```
+        more specific
+             ▲
+   ┌───────────────────────────────────────────┐
+   │  Sketch / entry point      (per project)  │  thin: selects a site, runs it
+   ├───────────────────────────────────────────┤
+   │  Site - gh_mlb41        (per greenhouse)  │  payload, pages, alarms, mock PLC
+   ├───────────────────────────────────────────┤
+   │  Base library - libbotanik  (shipped)     │  generic machinery + the per-tick loop
+   └───────────────────────────────────────────┘
+             ▼
+        more generic
+```
+
 | Layer | What it is | Who writes it |
 |-------|------------|---------------|
 | **Base library** (`libbotanik`) | The generic, site- and target-independent machinery: the terminal, logger, scheduler, PLC sync, health monitor, alarm model, and the `BotanikFirmware<In, Out>` base that owns them and drives the per-tick loop. | shipped, reused as-is |

@@ -8,6 +8,26 @@ pages, its alarm table, and its config overrides. Starting a new deployment mean
 creating a site directory and pointing the build at it. The reference site
 @ref reference "gh_mlb41" is the template to copy from.
 
+@section setup_clone Getting the code
+
+Clone the repository:
+
+@code{.sh}
+git clone git@framagit.org:pstch2/botanik.git
+cd botanik
+@endcode
+
+The Linux simulator builds with just CMake and a C++11 compiler (see @ref targets).
+The hardware build additionally needs the Arduino Mbed OPTA core, which the CMake
+OPTA build auto-discovers; install it once with arduino-cli:
+
+@code{.sh}
+arduino-cli core install arduino:mbed_opta   # one-time: the cross-toolchain for OPTA
+@endcode
+
+This is only required for the @ref md_src_2botanik__fw_2README "OPTA firmware" build;
+the simulator does not need it.
+
 @section setup_dir The site directory
 
 Create `src/sites/<name>/` (the `<name>` is the code-name you select with
