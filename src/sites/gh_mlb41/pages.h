@@ -5,7 +5,7 @@
  * @file pages.h
  * @brief gh_mlb41 site pages (Home + Status) and their display helpers.
  *
- * Site-specific, target-independent: they render the site payload (payload.h) and
+ * Site-specific, target-independent: they render the site payload (from site.h) and
  * are used verbatim by the simulator and the OPTA firmware. The floats here are
  * display-only (PLC integer units -> human strings) and never touch shared memory.
  */
@@ -15,38 +15,10 @@
 
 #include <cstdio>   // snprintf - page rendering
 
-#include "sites/gh_mlb41/payload.h"
-
-// Display formatting helpers (PLC integer units -> human strings) -------------
-
-/** @brief Map a UpsStatus value to a short display string. */
-inline const char* ups_str(uint8_t s) {
-    switch (s) {
-        case UPS_ONLINE:     return "ONLINE";
-        case UPS_ON_BATTERY: return "BATTERY";
-        case UPS_FAULT:      return "FAULT";
-        default:             return "OFFLINE";
-    }
-}
-
-/** @brief Map a TrayStatus value to a short display string. */
-inline const char* tray_status_str(uint8_t s) {
-    switch (s) {
-        case TRAY_FILLING:  return "FILLING";
-        case TRAY_SOAKING:  return "SOAKING";
-        case TRAY_DRAINING: return "DRAINING";
-        default:            return "IDLE";
-    }
-}
-
-/** @brief Map a NetStatus value to a short display string. */
-inline const char* net_str(uint8_t s) {
-    switch (s) {
-        case NET_ONLINE: return "ONLINE";
-        case NET_LINK:   return "LINK";
-        default:         return "DOWN";
-    }
-}
+// The PLC payload (PlcOutputData_t and the status structs UpsStatus / TrayStatus /
+// NetStatus, each carrying its values and a str() converter) is defined in site.h,
+// which includes this header after it. This file is only ever included via site.h, so
+// those types are always in scope here (keeping both files free of a circular include).
 
 // Concrete site pages --------------------------------------------------------
 
@@ -115,7 +87,7 @@ protected:
 
         // System band (rows 7, 8), right-justified to match the base system fields.
         // Network status + average latency (slot 6); IP not yet wired (slot 9).
-        snprintf(buf, sizeof(buf), "%s (lat N/A)", net_str(d->net_status));
+        snprintf(buf, sizeof(buf), "%s (lat N/A)", NetStatus::str(d->net_status));
         _cell(6, 7, SYS_VAL, rjust(fld, sizeof(fld), SYS_W, buf), SYS_W);
         _cell(9, 8, SYS_VAL, rjust(fld, sizeof(fld), SYS_W, "N/A"), SYS_W);
         // NTP sync + last offset in seconds (slot 7); MQTT not yet wired (slot 31).
@@ -138,7 +110,7 @@ protected:
                  format_float(fa, sizeof(fa), d->battery_mv / 1000.0, 1, 4),
                  format_float(fb, sizeof(fb), d->generator_mv / 1000.0, 1, 4));
         _cell(12, 13, L_VAL, buf, L_W);
-        _cell(13, 14, L_VAL, ups_str(d->ups_status), L_W);
+        _cell(13, 14, L_VAL, UpsStatus::str(d->ups_status), L_W);
 
         // Climate (slots 14..18).
         snprintf(buf, sizeof(buf), "%s C  RH %s%%",
@@ -177,7 +149,7 @@ protected:
         if (d->current_tray) snprintf(buf, sizeof(buf), "Tray %u", (unsigned)d->current_tray);
         else                 snprintf(buf, sizeof(buf), "N/A");
         _cell(20, 12, R_VAL, buf, R_W);
-        _cell(21, 13, R_VAL, d->current_tray ? tray_status_str(d->tray_status) : "-", R_W);
+        _cell(21, 13, R_VAL, d->current_tray ? TrayStatus::str(d->tray_status) : "-", R_W);
 
         // Actuators (slots 22..26).
         snprintf(buf, sizeof(buf), "A%3u%% B%3u%% C%3u%% D%3u%%",
@@ -204,6 +176,9 @@ public:
 
 protected:
     void draw_payload_static() override {
+        // Site name beside the logo (the base draws the logo at rows 1..5, col 2),
+        // so an operator can tell which greenhouse this terminal is wired to.
+        _label_at(3, 40, Botanik::Config::SITE_NAME);
         _label(11, "Temp");
         _label(12, "Humidity");
         _label(13, "Ventilation");
@@ -241,7 +216,7 @@ protected:
         // Tray status padded to its widest value ("DRAINING") so the closing
         // paren never moves.
         if (d->current_tray)
-            snprintf(buf, sizeof(buf), "Tray %u (%-8s)", d->current_tray, tray_status_str(d->tray_status));
+            snprintf(buf, sizeof(buf), "Tray %u (%-8s)", d->current_tray, TrayStatus::str(d->tray_status));
         else
             snprintf(buf, sizeof(buf), "idle");
         _value(14, buf, true, true);   // invert the whole tray value on change
@@ -258,7 +233,7 @@ protected:
             sep = " ";
         };
         add_alarm(d->rain_detected, "RAIN");
-        add_alarm(d->ups_status != UPS_ONLINE, "UPS");
+        add_alarm(d->ups_status != UpsStatus::ONLINE, "UPS");
         add_alarm(d->generator_running, "GEN");
         add_alarm(d->heat_blower_on || d->heatpump_on, "HEAT");
         _value(15, (buf[0] == '\0') ? "none" : buf);

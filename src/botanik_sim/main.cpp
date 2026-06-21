@@ -5,7 +5,7 @@
  * Selects the gh_mlb41 site, owns the PLC shared region as local statics (on OPTA
  * it comes from HAL::get_plc_input()/get_plc_output()), applies the simulator-only
  * timing dilation, and drives the firmware's loop(). The mock PLC coprocessor is
- * the site's emulator (sites/gh_mlb41/sim.cpp); everything else lives in the
+ * the site's emulator (sites/gh_mlb41/sim.h); everything else lives in the
  * BotanikFirmware base and the GreenhouseMLB41 subclass.
  */
 
@@ -17,6 +17,7 @@
 #include BOTANIK_SITE_HEADER
 
 #include <csignal>   // std::signal
+#include <cstring>   // std::strncpy - seeding the mock PLC config block
 
 // The scheduler's stack-usage scan paints the free stack and binary-searches it
 // for the high-water mark, which only works if locals live on the real stack.
@@ -46,6 +47,14 @@ extern "C" void botanik_sim_shutdown(int signo) {   // NOLINT(bugprone-signal-ha
     botanik_running = 0;
 }
 
+// Copy a hostname / dotted-IPv4 literal into a PLC config address buffer (sim only:
+// the mock PLC stands in for the coprocessor that publishes these). Always NUL-
+// terminates within Config::PLC_HOST_STR_LEN.
+static void sim_set_host(Botanik::PlcIO::HostStr_t dst, const char* s) {
+    std::strncpy(dst, s, Botanik::Config::PLC_HOST_STR_LEN - 1);
+    dst[Botanik::Config::PLC_HOST_STR_LEN - 1] = '\0';
+}
+
 int main(int argc, char** argv) {
     using namespace Botanik;
 
@@ -68,6 +77,24 @@ int main(int argc, char** argv) {
     // same region. On OPTA this comes from HAL::get_plc_input()/get_plc_output().
     static PlcIO::PlcInput<PlcInputData_t>   shared_in  {};
     static PlcIO::PlcOutput<PlcOutputData_t> shared_out {};
+
+    // Mock PLC config block: on hardware the coprocessor publishes the network / NTP /
+    // MQTT settings; in the sim we seed the shared region once so the future
+    // components have realistic config to act on. Per-block serials start at 1 so a
+    // consumer latched at 0 applies them once. See plcio/config.h.
+    {
+        PlcIO::PlcOutputConfig_t& cfg = shared_out.config;
+        cfg.net.serial  = 1; cfg.net.dhcp = 1;            // DHCP; static fields stay empty
+        sim_set_host(cfg.net.dns1, "192.168.1.1");
+        cfg.ntp.serial  = 1; cfg.ntp.enabled = 1; cfg.ntp.poll_s = 64;
+        sim_set_host(cfg.ntp.server1, "pool.ntp.org");
+        cfg.mqtt.serial = 1; cfg.mqtt.enabled = 1; cfg.mqtt.port = 1883; cfg.mqtt.keepalive_s = 60;
+        sim_set_host(cfg.mqtt.broker, "test.mosquitto.org");
+        cfg.geo.serial = 1;                               // example site: Paris, UTC+1
+        cfg.geo.latitude_e7  =  488566000;                //  48.8566 N
+        cfg.geo.longitude_e7 =   23522000;                //   2.3522 E
+        cfg.geo.tz_offset_min = 60;
+    }
 
     // The selected site firmware: wires the library around its payload/pages/alarms.
     BotanikSite greenhouse(&shared_in, &shared_out, CONSOLE_BAUD, /*cols=*/80, /*rows=*/24);
