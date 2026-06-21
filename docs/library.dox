@@ -42,13 +42,20 @@ Each subsystem with an architecture deep-dive links to its guide in the last col
 | **Logging**  | `logs/`      | @ref Botanik::Logs::Logger rate-limits with a dual token-bucket, then fans entries out to @ref Botanik::Logs::LogWriter "LogWriter"s. | @ref md_docs_2LOG__FLOW "Log Flow" |
 | **PLC I/O**  | `plcio/`     | @ref Botanik::PlcIO::PlcSyncHandler runs RX/TX state machines over shared memory with the PLC coprocessor; an emulator stands in for it on the simulator. | @ref md_docs_2PLC__SYNC "PLC Sync" |
 | **Health**   | `health/`    | @ref Botanik::Health::HealthMonitor owns the alarm model and notifier, runs the power-on self-test, and gates the watchdog escalation. | @ref md_docs_2POST "Self-tests" |
-| **Utils**    | `utils/`     | `BufferedSerial` (ring-buffered UART), `PerfMonitor` (loop CPU-load / jitter / stack high-water instrumentation), and time/uptime helpers. | @ref md_docs_2SCHEDULER__PERF "Scheduler & Perf" |
+| **Network**  | `network/`   | @ref Botanik::Network::NameResolver (non-blocking DNS), @ref Botanik::Network::NetworkHandler (device bring-up), @ref Botanik::Network::TimeSyncHandler (SNTP), and @ref Botanik::Network::MqttClient (MQTT publish) - PLC-config-driven via @ref Botanik::ConfigHandler. | @ref md_docs_2COMPONENTS "Components" |
+| **Utils**    | `utils/`     | `BufferedSerial` (ring-buffered UART), `PerfMonitor` (loop CPU-load / jitter / stack high-water instrumentation), the `sun.h` solar-position math, and time/uptime helpers. | @ref md_docs_2SCHEDULER__PERF "Scheduler & Perf" |
 
 @section main_concepts Key concepts
 
 - **Nothing blocks.** Every stateful object exposes a `step()` that does a small,
   bounded amount of work and returns immediately; the main loop calls them in a
   fixed order. Blocking would stall the RTOS and trip the watchdog on the OPTA.
+- **Config-driven components.** Components that consume operator config (network,
+  NTP, MQTT, sun position) derive @ref Botanik::ConfigHandler: it watches their PLC
+  config block's serial and restarts their state machine when it changes. They are
+  also @ref Botanik::Component "Component"s, which log one DEBUG / BOOT line on their
+  first `step()` so a component missing from the loop is obvious. See
+  @ref md_docs_2COMPONENTS "Components".
 - **HAL-only platform access.** Code never calls `<time.h>` or platform APIs
   directly - only `HAL::current_ms()`, `HAL::dsb()`, `HAL::ordered_copy()`, and
   friends. This is what makes the simulator possible.

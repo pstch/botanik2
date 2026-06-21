@@ -22,13 +22,15 @@
 
 #include <cstdint>
 
+#include "libbotanik/component.h"     // Component (first-step BOOT announce)
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/plcio/sync.h"   // PlcSyncContext (+ config())
 
 namespace Botanik {
 
-    /** @brief Base for a PLC-config-driven state machine: resets on a config-serial bump. */
-    class ConfigHandler {
+    /** @brief Base for a PLC-config-driven state machine: resets on a config-serial bump.
+     *  Also a Component, so it announces its first step() into the log. */
+    class ConfigHandler : public Component {
         /** @name State
          *  @{ */
 
@@ -46,6 +48,8 @@ namespace Botanik {
         PlcIO::PlcSyncContext* _ctx;
         /** @brief Logger for handler events (may be null). */
         Logs::Logger*          _logger;
+        /** @brief Short component label for the first-step announce. */
+        const char*            _name;
 
         /** @} */
 
@@ -53,15 +57,17 @@ namespace Botanik {
         /** @name Lifecycle
          *  @{ */
 
-        ConfigHandler(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger = nullptr)
-            : _applied_serial(0), _ctx(ctx), _logger(logger) {}
+        ConfigHandler(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger, const char* name)
+            : _applied_serial(0), _ctx(ctx), _logger(logger), _name(name) {}
         virtual ~ConfigHandler() {}
 
-        /** @brief Advance the handler one tick: if the watched config serial changed,
-         *  reset the derived machine (on_config_changed) before stepping it (on_step).
-         *  Non-virtual so the read/reset/step order can't be skipped or reordered. The
-         *  serial lives in the main-loop RX snapshot, so it is read without a barrier. */
+        /** @brief Advance the handler one tick: announce the first step, then if the
+         *  watched config serial changed reset the derived machine (on_config_changed)
+         *  before stepping it (on_step). Non-virtual so the read/reset/step order can't
+         *  be skipped or reordered. The serial lives in the main-loop RX snapshot, so it
+         *  is read without a barrier. */
         void step(uint64_t now_ms) {
+            announce_step(_logger, _name);
             uint32_t serial = config_serial();
             if (serial != _applied_serial) {
                 _applied_serial = serial;

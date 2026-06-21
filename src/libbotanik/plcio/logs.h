@@ -17,7 +17,7 @@ namespace Botanik { namespace PlcIO {
 
     /** @class PlcLogReader
      *  @brief Drains the PLC log ring buffer into the local Logger. */
-    class PlcLogReader {
+    class PlcLogReader : public Component {
         using Logger = Logs::Logger;
 
         /** @name State

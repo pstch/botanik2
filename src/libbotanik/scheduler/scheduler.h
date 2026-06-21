@@ -14,6 +14,7 @@
 
 #include "libbotanik_config.h"
 
+#include "libbotanik/component.h"
 #include "libbotanik/utils/filters.h"
 #include "libbotanik/hal/platform.h"
 
@@ -89,7 +90,7 @@ namespace Botanik { namespace Scheduler {
      *         absorbs overruns, and measures its own per-beat performance (jitter,
      *         CPU duty cycle, work duration, stack usage), publishing everything
      *         into the SchedulerContext. */
-    class LoopScheduler {
+    class LoopScheduler : public Component {
     private:
         /** @name State
          *  @{ */
@@ -107,8 +108,6 @@ namespace Botanik { namespace Scheduler {
         /** @brief Beats skipped on THIS released tick (0 normally); weights the metric
          *  windows so a skipped-beat catch-up ages them by wall-time, not by one sample. */
         uint32_t        _missed_this_beat    = 0;
-        /** @brief Startup message emitted on first tick(). */
-        bool            _started       = false;
         /** @brief Published metrics snapshot. */
         SchedulerContext _context      = {};
 
@@ -233,8 +232,8 @@ namespace Botanik { namespace Scheduler {
          * @return true exactly ONCE per period when it is time to execute.
          */
         BOTANIK_NO_ASAN inline __attribute__((always_inline)) bool tick() {
-            // log startup message on first tick
-            if (!_started) { _started = true; _log_startup(); }
+            // First tick: announce loop inclusion (DEBUG/BOOT, via Component).
+            announce_step(_logger, "scheduler");
             // measure current time (us, for jitter); derive ms from the same reading
             // so the jitter math below can never underflow against the time grid
             // (a separate uptime_ms() read can straddle the millisecond boundary and
@@ -320,8 +319,6 @@ namespace Botanik { namespace Scheduler {
         /** @brief Close the work window: record work duration and, at slice boundaries,
          *  scan the stack high-water mark; publish both into the context. */
         BOTANIK_NO_ASAN void _sample_work(uint64_t now_us);
-        /** @brief Emit the "scheduler started" log entry (called once, on the first tick()). */
-        void _log_startup();
 
         /** @brief Determine the stack high-water (RTOS watermark on OPTA, a top-down
          *  sentinel-run scan of the painted region on the sim) and update the metrics. */

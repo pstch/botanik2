@@ -48,6 +48,7 @@ namespace Botanik { namespace PlcIO {
     }
 
     void PlcLogReader::step() {
+        announce_step(_logger, "plclog");
         drain();
     }
 

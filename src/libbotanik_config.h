@@ -317,6 +317,44 @@ namespace Botanik { namespace Config {
     /** @} */
 
     /**
+     * @name MQTT client
+     * @{
+     */
+
+    /** @brief Broker TCP port used when the PLC `mqtt` block leaves port at 0. */
+#ifndef BOTANIK_MQTT_PORT_DEFAULT
+#  define BOTANIK_MQTT_PORT_DEFAULT 1883
+#endif
+    BOTANIK_CFG(uint16_t, MQTT_PORT_DEFAULT);
+
+    /** @brief Keepalive used when the PLC `mqtt` block leaves keepalive_s at 0. */
+#ifndef BOTANIK_MQTT_KEEPALIVE_DEFAULT_S
+#  define BOTANIK_MQTT_KEEPALIVE_DEFAULT_S 60
+#endif
+    BOTANIK_CFG(uint16_t, MQTT_KEEPALIVE_DEFAULT_S);
+
+    /** @brief Max time to establish the TCP + MQTT session before failing / backing off. */
+#ifndef BOTANIK_MQTT_CONNECT_TIMEOUT_MS
+#  define BOTANIK_MQTT_CONNECT_TIMEOUT_MS 10000
+#endif
+    BOTANIK_CFG(uint32_t, MQTT_CONNECT_TIMEOUT_MS);
+
+    /** @brief Backoff after a failed / dropped connection before MqttClient retries. */
+#ifndef BOTANIK_MQTT_RETRY_MS
+#  define BOTANIK_MQTT_RETRY_MS 30000
+#endif
+    BOTANIK_CFG(uint32_t, MQTT_RETRY_MS);
+
+    /** @brief Scratch buffer (bytes) MqttClient builds an outgoing packet in; bounds the
+     *  topic + payload of a single publish. */
+#ifndef BOTANIK_MQTT_TX_BUF
+#  define BOTANIK_MQTT_TX_BUF 256
+#endif
+    BOTANIK_CFG(size_t, MQTT_TX_BUF);
+
+    /** @} */
+
+    /**
      * @name Logging parameters
      * @{
      */
