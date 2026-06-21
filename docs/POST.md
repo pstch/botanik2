@@ -22,7 +22,7 @@ fixed schedule that cannot be reordered:
 \dot "setup() bring-up order"
 digraph post_order {
     bgcolor="transparent";
-    rankdir=TB;
+    rankdir=TB; nodesep=0.35; ranksep=0.5;
     node [shape=box, style=rounded, fontname="Helvetica", fontsize=10, margin="0.08,0.04"];
     edge [arrowsize=0.7];
 
@@ -35,7 +35,15 @@ digraph post_order {
     n7 [label="POST", style="rounded,filled", fillcolor="#e8f0fe"];
     n8 [label="arm HW\nwatchdog"];
 
-    n1 -> n2 -> n3 -> n4 -> n5 -> n6 -> n7 -> n8;
+    // Wrap the 8-step chain into two rows (boustrophedon) so it fits the column
+    // without running too wide or too tall: row 1 left-to-right, drop down on the
+    // right, row 2 right-to-left.
+    { rank=same; n1 -> n2 -> n3 -> n4 [weight=10]; }
+    { rank=same; n8 -> n7 -> n6 -> n5 [style=invis, weight=10]; }
+    n5 -> n6 [constraint=false];
+    n6 -> n7 [constraint=false];
+    n7 -> n8 [constraint=false];
+    n4 -> n5;
 }
 \enddot
 
