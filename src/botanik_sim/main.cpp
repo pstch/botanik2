@@ -83,7 +83,7 @@ int main(int argc, char** argv) {
     // components have realistic config to act on. Per-block serials start at 1 so a
     // consumer latched at 0 applies them once. See plcio/config.h.
     {
-        PlcIO::PlcOutputConfig_t& cfg = shared_out.config;
+        PlcIO::PlcOutputConfig_t& cfg = shared_out.conf;
         cfg.net.serial  = 1; cfg.net.dhcp = 1;            // DHCP; static fields stay empty
         sim_set_host(cfg.net.dns1, "192.168.1.1");
         cfg.ntp.serial  = 1; cfg.ntp.enabled = 1; cfg.ntp.poll_s = 64;

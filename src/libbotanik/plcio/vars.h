@@ -152,7 +152,7 @@ namespace Botanik { namespace PlcIO {
 
     /** @brief PLC->host shared region: sync counters, the log ring, the generic
      *  config block, and the site payload.
-     *  @note The library-fixed `config` block (network/NTP/MQTT, plcio/config.h) sits
+     *  @note The library-fixed `conf` block (network/NTP/MQTT, plcio/config.h) sits
      *  between the logs and the site `data`. Adding/resizing it shifts the `data`
      *  offset, so it is a coordinated wire-ABI change: the PLC IDE's generated type
      *  must be updated to match (see @ref md_docs_2PLC__CONFIG). */
@@ -162,7 +162,7 @@ namespace Botanik { namespace PlcIO {
                       "site Data must be a 4-byte multiple (or empty)");
         PlcOutputCounters_t sync;
         PlcOutputLogs_t     logs;
-        PlcOutputConfig_t   config;
+        PlcOutputConfig_t   conf;
         Data                data;
     };
 

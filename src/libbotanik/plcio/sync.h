@@ -13,6 +13,7 @@
 #include <cstring>
 
 #include "libbotanik_config.h"
+#include "libbotanik/component.h"
 #include "libbotanik/utils/assert.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/plcio/vars.h"
@@ -207,7 +208,7 @@ namespace Botanik { namespace PlcIO {
     /** @brief Transactional RX/TX state machines over PLC shared memory, templated
      *  on the site payloads. See @ref md_docs_2PLC__SYNC. */
     template<typename InputData, typename OutputData>
-    class PlcSyncHandler {
+    class PlcSyncHandler : public Component {
     private:
         /** @name State
          *  @{ */
@@ -312,6 +313,7 @@ namespace Botanik { namespace PlcIO {
 
         /** @brief Advance both state machines once; call per tick. */
         inline void step() {
+            announce_step(_ctx._logger, "plcsync");
             // Coherency: drop any stale cached view of the PLC-written region before
             // we poll/copy it, and flush our writes to the host-written region after.
             HAL::cache_invalidate(_plcout, sizeof(*_plcout));
@@ -369,7 +371,7 @@ namespace Botanik { namespace PlcIO {
         inline bool _rx_memcpy() {
             uint32_t seq_before = HAL::ordered_read(&_plcout->sync.txSeqNum);
             HAL::ordered_copy(&_ctx._rx_logs_buffer, &_plcout->logs);
-            HAL::ordered_copy(&_ctx._rx_config_buffer, &_plcout->config);
+            HAL::ordered_copy(&_ctx._rx_config_buffer, &_plcout->conf);
             HAL::ordered_copy(&_rx_data_buffer, &_plcout->data);
             HAL::cache_invalidate(&_plcout->sync, sizeof(_plcout->sync));  // re-read from SRAM
             return HAL::ordered_read(&_plcout->sync.txSeqNum) == seq_before;
