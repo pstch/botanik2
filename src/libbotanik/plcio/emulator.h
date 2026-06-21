@@ -324,21 +324,14 @@ namespace Botanik { namespace PlcIO {
         while (_emu_running()) {
             emu_timestamp_ms = (uint32_t)HAL::uptime_ms();
             plc_emulator.step();
-            HAL::watchdog_poll();  // serviced here so a wedged main loop still trips the watchdog
+            // serviced here so a wedged main loop still trips the watchdog
+            HAL::watchdog_poll();
             // Refresh the mock payload roughly once a second and request a write so
             // the new values are committed to shared memory for the host to pick up.
             constexpr uint32_t DATA_TICKS = 1000 / Config::TASK_PERIOD_MS;
             if (args->fill_output != nullptr && (emu_tick % DATA_TICKS) == 0) {
                 args->fill_output(plc_emulator.output_data(), emu_timestamp_ms);
                 plc_emulator.context()->write();
-            }
-            // Emit a periodic heartbeat log every 30s, simulating the PLC coprocessor.
-            constexpr uint32_t HEARTBEAT_TICKS = 30000 / Config::TASK_PERIOD_MS;
-            if ((++emu_tick % HEARTBEAT_TICKS) == 0) {
-                char buf[40];
-                snprintf(buf, sizeof(buf), "periodic log #%lu",
-                         (unsigned long)(emu_tick / HEARTBEAT_TICKS));
-                plc_log_writer.push_log(LOG_INFO, PLC_IO, buf);
             }
             HAL::sleep_ms(Config::TASK_PERIOD_MS);
         }
