@@ -118,7 +118,9 @@ GENERATE_LATEX         = NO
 # where they weren't generated, Doxygen just warns they're missing.
 HTML_EXTRA_STYLESHEET  = docs/charts.css
 HTML_EXTRA_FILES       = docs/generated/code_loc.svg \
-                         docs/generated/code_churn.svg
+                         docs/generated/code_churn.svg \
+                         docs/generated/code_asserts.svg \
+                         docs/generated/code_tests.svg
 
 #---------------------------------------------------------------------------
 # Warnings / diagnostics

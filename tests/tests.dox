@@ -16,4 +16,22 @@
  * - @subpage termtests - **Terminal emulation tests.** A pyte-based suite that
  *   drives the real `botanik_sim` over a PTY and asserts the reconstructed screen
  *   against golden fixtures.
+ *
+ * @section testing_coverage Coverage at a glance
+ *
+ * Regenerated on every docs build (`scripts/code_charts.py`), broken down by code
+ * area - a companion to the LoC / churn charts on the @ref library page.
+ *
+ * @htmlonly
+ * <div class="code-charts">
+ *   <figure>
+ *     <img src="code_asserts.svg" alt="Assertions by area"/>
+ *     <figcaption>BOTANIK_ASSERT call sites by area</figcaption>
+ *   </figure>
+ *   <figure>
+ *     <img src="code_tests.svg" alt="Tests by area"/>
+ *     <figcaption>Unit-test cases and pyte screen-tests by area</figcaption>
+ *   </figure>
+ * </div>
+ * @endhtmlonly
  */

@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Generate the LoC and churn SVG charts shown at the top of the docs Library page.
+"""Generate the code charts shown in the docs (Library + Testing pages).
 
-Two charts, both bucketed by "code area" (the folder under src/):
-  - code_loc.svg   : code lines per area (cloc, code only - no comments/blanks).
-  - code_churn.svg : per area, lines changed (git add+del) AND commits touched,
-                     over a trailing window (default 12 months).
+Four charts, all bucketed by "code area" (the folder under src/):
+  - code_loc.svg     : code lines per area (cloc, code only - no comments/blanks).
+  - code_churn.svg   : per area, lines changed (git add+del) AND commits touched,
+                       over a trailing window (default 12 months).
+  - code_asserts.svg : BOTANIK_ASSERT() call sites per area.
+  - code_tests.svg   : per area, unit-test cases (doctest TEST_CASE) AND pyte
+                       screen-test functions.
 
 Stdlib only; shells out to `cloc` (LoC) and `git` (churn). If either is missing
 (or there is no git history), the affected chart is written as a placeholder so the
@@ -15,13 +18,50 @@ gitignored; the CMake `docs` target runs this before doxygen.
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 
 # --------------------------------------------------------------------------
-# Area mapping - one definition shared by both charts
+# Area mapping - one definition shared by every chart
 # --------------------------------------------------------------------------
+
+def area_for(path):
+    """Map a repo path to its code area, or None to ignore (non-src)."""
+    parts = path.split("/")
+    if len(parts) < 2 or parts[0] != "src":
+        return None
+    if parts[1] == "libbotanik":
+        # src/libbotanik/<dir>/<file...> -> the subsystem dir; loose files -> core
+        return parts[2] if len(parts) >= 4 else "core"
+    # top-level umbrella headers (src/libbotanik.h, _config.h, _sizes.h) -> core
+    if parts[1].endswith((".h", ".cpp")):
+        return "core"
+    # src/<dir>/... -> sites, botanik_sim, botanik_fw
+    return parts[1]
+
+
+# Each test file maps to the code area it exercises (the test name rarely matches
+# the area verbatim, e.g. test_serial -> utils). Add a row when a test file is
+# added; unmapped files fall into "other" so they stay visible.
+TEST_AREA = {
+    "test_alarms":         "alarms",
+    "test_config_handler": "core",
+    "test_filters":        "logs",
+    "test_line_buffer":    "pages",
+    "test_logger":         "logs",
+    "test_parser":         "terminal",
+    "test_resolver":       "network",
+    "test_serial":         "utils",
+    "test_shell":          "shell",
+    "test_sizes":          "core",
+    "test_sun":            "utils",
+    "test_text":           "utils",
+    "test_time":           "utils",
+    "test_writer":         "logs",
+}
+
 
 # Historical path renames, applied (in order) before area-mapping so churn from a
 # file's pre-rename life attributes to its current area. `-M` only rewrites the path
@@ -45,21 +85,6 @@ def canonical(path):
         elif path == old:
             path = new
     return path
-
-
-def area_for(path):
-    """Map a repo path to its code area, or None to ignore (non-src)."""
-    parts = path.split("/")
-    if len(parts) < 2 or parts[0] != "src":
-        return None
-    if parts[1] == "libbotanik":
-        # src/libbotanik/<dir>/<file...> -> the subsystem dir; loose files -> core
-        return parts[2] if len(parts) >= 4 else "core"
-    # top-level umbrella headers (src/libbotanik.h, _config.h, _sizes.h) -> core
-    if parts[1].endswith((".h", ".cpp")):
-        return "core"
-    # src/<dir>/... -> sites, botanik_sim, botanik_fw
-    return parts[1]
 
 
 def resolve_rename(path):
@@ -142,6 +167,69 @@ def collect_churn(src, since):
     return lines, commits
 
 
+def collect_asserts(src):
+    """{area: BOTANIK_ASSERT call sites}. Macro-definition lines are skipped, so the
+    macro's own header doesn't count as a usage."""
+    counts = {}
+    for root, _dirs, files in os.walk(src):
+        for fn in files:
+            if not fn.endswith((".h", ".cpp", ".c")):
+                continue
+            path = os.path.join(root, fn).replace(os.sep, "/")
+            area = area_for(path)
+            if area is None:
+                continue
+            try:
+                with open(path, encoding="utf-8", errors="replace") as f:
+                    n = sum(1 for line in f
+                            if "BOTANIK_ASSERT(" in line and "define" not in line)
+            except OSError:
+                continue
+            if n:
+                counts[area] = counts.get(area, 0) + n
+    return counts
+
+
+def collect_tests(tests_dir):
+    """({area: unit cases}, {area: pyte tests}). Unit = doctest TEST_CASE in
+    tests/test_*.cpp (mapped via TEST_AREA); pyte = def test_* in tests/pyte/, all
+    attributed to `pages` (the pyte suite drives the page screens)."""
+    unit = {}
+    case_re = re.compile(r"\bTEST_CASE\b")
+    try:
+        names = os.listdir(tests_dir)
+    except OSError:
+        names = []
+    for fn in names:
+        if not (fn.startswith("test_") and fn.endswith(".cpp")):
+            continue
+        area = TEST_AREA.get(fn[:-4], "other")
+        try:
+            with open(os.path.join(tests_dir, fn), encoding="utf-8", errors="replace") as f:
+                n = sum(1 for line in f if case_re.search(line))
+        except OSError:
+            continue
+        unit[area] = unit.get(area, 0) + n
+
+    pyte = {}
+    pyte_dir = os.path.join(tests_dir, "pyte")
+    pyte_re = re.compile(r"^\s*def\s+test_")
+    try:
+        pnames = os.listdir(pyte_dir)
+    except OSError:
+        pnames = []
+    for fn in pnames:
+        if not (fn.startswith("test_") and fn.endswith(".py")):
+            continue
+        try:
+            with open(os.path.join(pyte_dir, fn), encoding="utf-8", errors="replace") as f:
+                n = sum(1 for line in f if pyte_re.match(line))
+        except OSError:
+            continue
+        pyte["pages"] = pyte.get("pages", 0) + n
+    return unit, pyte
+
+
 # --------------------------------------------------------------------------
 # SVG rendering (hand-rolled - no charting dep)
 # --------------------------------------------------------------------------
@@ -178,11 +266,12 @@ def _write(path, parts):
         f.write("\n".join(parts) + "\n")
 
 
-def render_loc(path, loc):
-    if not loc:
-        _placeholder(path, "LoC chart unavailable (cloc not found)")
+def render_bars(path, items, missing_msg):
+    """Single-series horizontal bar chart, sorted descending."""
+    if not items:
+        _placeholder(path, missing_msg)
         return
-    rows = sorted(loc.items(), key=lambda kv: kv[1], reverse=True)
+    rows = sorted(items.items(), key=lambda kv: kv[1], reverse=True)
     top = 14
     rh = 24
     h = top + len(rows) * rh + 10
@@ -204,44 +293,45 @@ def render_loc(path, loc):
     _write(path, s)
 
 
-def render_churn(path, lines, commits):
-    if lines is None:
-        _placeholder(path, "Churn chart unavailable (no git history)")
+def render_grouped(path, a, b, legend_a, legend_b, missing_msg):
+    """Two-series grouped horizontal bar chart; each series scaled to its own max so
+    both stay visible even at very different magnitudes. Sorted by series `a`."""
+    if a is None:
+        _placeholder(path, missing_msg)
         return
-    areas = set(lines) | set(commits)
+    areas = set(a) | set(b)
     if not areas:
-        _placeholder(path, "Churn chart: no changes in window")
+        _placeholder(path, missing_msg)
         return
-    rows = sorted(areas, key=lambda a: lines.get(a, 0), reverse=True)
+    rows = sorted(areas, key=lambda k: a.get(k, 0), reverse=True)
     top = 30           # room for the legend
     rh = 30            # two sub-bars per area
     bh = 10
     h = top + len(rows) * rh + 10
-    lmax = max((lines.get(a, 0) for a in rows), default=1) or 1
-    cmax = max((commits.get(a, 0) for a in rows), default=1) or 1
+    amax = max((a.get(k, 0) for k in rows), default=1) or 1
+    bmax = max((b.get(k, 0) for k in rows), default=1) or 1
     s = _svg_open(WIDTH, h)
     # legend
     s.append('<rect x="%d" y="8" width="11" height="11" rx="2" fill="#4c78a8"/>' % LABEL_W)
-    s.append('<text x="%d" y="17" font-size="11" fill="#555">lines changed</text>' % (LABEL_W + 16))
+    s.append('<text x="%d" y="17" font-size="11" fill="#555">%s</text>' % (LABEL_W + 16, _esc(legend_a)))
     s.append('<rect x="%d" y="8" width="11" height="11" rx="2" fill="#f58518"/>' % (LABEL_W + 120))
-    s.append('<text x="%d" y="17" font-size="11" fill="#555">commits</text>' % (LABEL_W + 136))
+    s.append('<text x="%d" y="17" font-size="11" fill="#555">%s</text>' % (LABEL_W + 136, _esc(legend_b)))
     y = top
     for name in rows:
-        lv = lines.get(name, 0)
-        cv = commits.get(name, 0)
-        lw = max(1, int(BAR_W * lv / lmax))
-        cw = max(1, int(BAR_W * cv / cmax))
+        av = a.get(name, 0)
+        bv = b.get(name, 0)
+        aw = max(1, int(BAR_W * av / amax))
+        bw = max(1, int(BAR_W * bv / bmax))
         s.append('<text x="%d" y="%d" font-size="12" fill="#333" text-anchor="end" '
                  'dominant-baseline="middle">%s</text>' % (LABEL_W - 8, y + rh // 2, _esc(name)))
-        # lines-changed bar (top), commits bar (bottom), each scaled to its own max
         s.append('<rect x="%d" y="%d" width="%d" height="%d" rx="2" fill="#4c78a8"/>'
-                 % (LABEL_W, y + 3, lw, bh))
+                 % (LABEL_W, y + 3, aw, bh))
         s.append('<text x="%d" y="%d" font-size="10" fill="#555" dominant-baseline="middle">%s</text>'
-                 % (LABEL_W + lw + 5, y + 3 + bh // 2, _esc("{:,}".format(lv))))
+                 % (LABEL_W + aw + 5, y + 3 + bh // 2, _esc("{:,}".format(av))))
         s.append('<rect x="%d" y="%d" width="%d" height="%d" rx="2" fill="#f58518"/>'
-                 % (LABEL_W, y + 3 + bh + 2, cw, bh))
+                 % (LABEL_W, y + 3 + bh + 2, bw, bh))
         s.append('<text x="%d" y="%d" font-size="10" fill="#555" dominant-baseline="middle">%s</text>'
-                 % (LABEL_W + cw + 5, y + 3 + bh + 2 + bh // 2, _esc(cv)))
+                 % (LABEL_W + bw + 5, y + 3 + bh + 2 + bh // 2, _esc("{:,}".format(bv))))
         y += rh
     s.append("</svg>")
     _write(path, s)
@@ -253,6 +343,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", required=True, help="output directory for the SVGs")
     ap.add_argument("--src", default="src", help="source tree to scan (default: src)")
+    ap.add_argument("--tests", default="tests", help="tests tree to scan (default: tests)")
     ap.add_argument("--since", default="12 months ago",
                     help="git --since window for churn (default: '12 months ago')")
     args = ap.parse_args()
@@ -260,12 +351,22 @@ def main():
     os.makedirs(args.out, exist_ok=True)
 
     loc = collect_loc(args.src)
-    render_loc(os.path.join(args.out, "code_loc.svg"), loc)
+    render_bars(os.path.join(args.out, "code_loc.svg"), loc,
+                "LoC chart unavailable (cloc not found)")
 
     lines, commits = collect_churn(args.src, args.since)
-    render_churn(os.path.join(args.out, "code_churn.svg"), lines, commits)
+    render_grouped(os.path.join(args.out, "code_churn.svg"), lines, commits,
+                   "lines changed", "commits", "Churn chart unavailable (no git history)")
 
-    print("code_charts: wrote code_loc.svg + code_churn.svg to %s" % args.out)
+    asserts = collect_asserts(args.src)
+    render_bars(os.path.join(args.out, "code_asserts.svg"), asserts,
+                "no BOTANIK_ASSERT call sites found")
+
+    unit, pyte = collect_tests(args.tests)
+    render_grouped(os.path.join(args.out, "code_tests.svg"), unit, pyte,
+                   "unit tests", "pyte tests", "no tests found")
+
+    print("code_charts: wrote code_loc / code_churn / code_asserts / code_tests to %s" % args.out)
     return 0
 
 
