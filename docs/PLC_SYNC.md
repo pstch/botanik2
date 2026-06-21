@@ -31,6 +31,7 @@ digraph plc_regions {
       <tr><td colspan="2" bgcolor="#455a64"><font color="#cfd8dc">PLC &#8594; host</font></td></tr>
       <tr><td bgcolor="#d6e4f0"><b>sync</b></td><td bgcolor="#d6e4f0" align="left">txSeqNum &#160; rxAckNum</td></tr>
       <tr><td bgcolor="#fdebcf"><b>logs</b></td><td bgcolor="#fdebcf" align="left">writeIndex<br align="left"/>logBuffer[N]</td></tr>
+      <tr><td bgcolor="#d7ecd9"><b>conf</b></td><td bgcolor="#d7ecd9" align="left">net / ntp / mqtt / geo</td></tr>
       <tr><td bgcolor="#eeeeee"><b>data</b></td><td bgcolor="#eeeeee" align="left"><font color="#666666">&lt;site payload&gt;</font></td></tr>
     </table>
   >];

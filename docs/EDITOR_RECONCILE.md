@@ -35,17 +35,34 @@ prompt classes start a row: **PS1** (first row), **PS2** (after a soft wrap),
 `_reconcile()` diffs the two same-typed layouts instead of repainting. A single
 contiguous edit changes the screen in a very constrained way, which it exploits:
 
-```
-        _pre (before)          _layout (after inserting one char on row 0)
-        ┌──────────────┐       ┌──────────────┐
- row0   │ unchanged    │       │ unchanged    │  rows above the edit: untouched
-        ├──────────────┤       ├──────────────┤
- edit ▶ │ ...........  │       │ ..X........  │  edit row: splice at the cursor
-        ├──────────────┤       ├──────────────┤
- row2   │ shifted      │  ───▶ │ shifted      │  absorbed tail: only displaced,
- row3   │ shifted      │       │ shifted      │  shifted by one IL/DL, no rewrite
-        └──────────────┘       └──────────────┘
-```
+\dot "a single contiguous edit: unchanged head, one spliced row, a shifted tail"
+digraph reconcile {
+  bgcolor="transparent"; rankdir=LR; nodesep=0.6;
+  node [shape=plaintext, fontname="Helvetica", fontsize=10];
+
+  pre [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="6" color="#9e9e9e">
+      <tr><td colspan="2" bgcolor="#37474f"><font color="#ffffff"><b>_pre</b> (before)</font></td></tr>
+      <tr><td bgcolor="#eeeeee"><font color="#888888">row0</font></td><td bgcolor="#eeeeee" align="left">unchanged</td></tr>
+      <tr><td bgcolor="#fff3cd"><font color="#888888">edit</font></td><td bgcolor="#fff3cd" align="left">...........</td></tr>
+      <tr><td bgcolor="#d6e4f0"><font color="#888888">row2</font></td><td bgcolor="#d6e4f0" align="left">shifted</td></tr>
+      <tr><td bgcolor="#d6e4f0"><font color="#888888">row3</font></td><td bgcolor="#d6e4f0" align="left">shifted</td></tr>
+    </table>
+  >];
+
+  post [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="6" color="#9e9e9e">
+      <tr><td colspan="3" bgcolor="#37474f"><font color="#ffffff"><b>_layout</b> (after inserting one char)</font></td></tr>
+      <tr><td bgcolor="#eeeeee"><font color="#888888">row0</font></td><td bgcolor="#eeeeee" align="left">unchanged</td><td align="left"><font color="#666666">above the edit: untouched</font></td></tr>
+      <tr><td bgcolor="#fff3cd"><font color="#888888">edit</font></td><td bgcolor="#fff3cd" align="left">..X........</td><td align="left"><font color="#666666">splice at the cursor</font></td></tr>
+      <tr><td bgcolor="#d6e4f0"><font color="#888888">row2</font></td><td bgcolor="#d6e4f0" align="left">shifted</td><td align="left"><font color="#666666">absorbed tail: displaced,</font></td></tr>
+      <tr><td bgcolor="#d6e4f0"><font color="#888888">row3</font></td><td bgcolor="#d6e4f0" align="left">shifted</td><td align="left"><font color="#666666">one IL/DL, no rewrite</font></td></tr>
+    </table>
+  >];
+
+  pre -> post [label="reconcile", fontname="Helvetica", fontsize=9];
+}
+\enddot
 
 1. **Find the edit row** - the first row the edit touches (`_find_splice_span`).
    Rows above it are correct and never touched.
