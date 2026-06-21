@@ -47,7 +47,7 @@ namespace Botanik { namespace HAL {
     /** @brief High-water stack usage (bytes), or 0 if the platform can't provide it and
      *  the caller must measure it itself (the simulator paints/scans; OPTA reads the RTOS
      *  thread watermark). */
-    inline uint32_t stack_high_water_bytes();
+    inline uint32_t get_stack_high();
 
     /** @} */
 

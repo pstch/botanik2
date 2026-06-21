@@ -39,7 +39,7 @@ The interface groups into a handful of concerns:
 | **Cache maintenance** | `cache_clean`, `cache_invalidate` | Required if the PLC shared region is cacheable; cheap no-ops otherwise. |
 | **PLC shared memory** | `get_plc_input`, `get_plc_output` | Return the base of each shared region. On a target with a real coprocessor these point at the shared SRAM; a simulator-style target allocates them locally. |
 | **Watchdog** | `watchdog_start`, `watchdog_kick`, `watchdog_stop` | The hardware watchdog @ref Botanik::Health::HealthMonitor escalates to. |
-| **Stack introspection** | `get_stack_base`, `get_stack_depth`, `stack_high_water_bytes` | Feeds the perf monitor; the high-water figure may return 0 if unavailable. |
+| **Stack introspection** | `get_stack_base`, `get_stack_depth`, `get_stack_high` | Feeds the perf monitor; the high-water figure may return 0 if unavailable. |
 | **Debug / lifecycle** | `debug_break`, `under_debugger`, `reset`, `hardware_description` | `under_debugger` gates `debug_break` so a bare trap never faults a debugger-less unit. |
 
 @section porting_check Validating a port

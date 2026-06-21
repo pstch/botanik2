@@ -68,7 +68,7 @@ namespace Botanik { namespace HAL {
      *  RTX's own stack watermark - the RTOS paints each thread's stack at creation, so
      *  no manual painting is needed on hardware. Returns 0 if the watermark is
      *  unavailable (RTX stack-usage tracking disabled in the build config). */
-    inline uint32_t stack_high_water_bytes() {
+    inline uint32_t get_stack_high() {
         osThreadId_t id = osThreadGetId();
         uint32_t size  = static_cast<uint32_t>(osThreadGetStackSize(id));
         uint32_t space = static_cast<uint32_t>(osThreadGetStackSpace(id));  // min free ever

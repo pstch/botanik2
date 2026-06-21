@@ -185,11 +185,6 @@ namespace Botanik { namespace Scheduler {
         _context.cpu_loop_us_recent = _cpu_loop_us_window.value();
     }
 
-    void LoopScheduler::_log_startup() {
-        if (_logger != nullptr)
-            _logger->info(PlcIO::BOOT, "scheduler started, period=%ums", (unsigned)_period_ms);
-    }
-
     void LoopScheduler::_measure_stack_usage() {
         // High-water used bytes. On hardware the RTOS already watermarks each thread's
         // stack (painted once at thread creation), so we just read it - no manual paint
@@ -197,7 +192,7 @@ namespace Botanik { namespace Scheduler {
         // reset), so on OPTA the all-time peak (stack_bytes_max) is exact, but the
         // per-slice "recent" window/EMA degenerate to that same all-time figure. The
         // sim repaints each slice, so there it's a true recent high-water that can fall.
-        uint32_t low = HAL::stack_high_water_bytes();
+        uint32_t low = HAL::get_stack_high();
 #ifdef TARGET_SIMULATOR
         // The host has no RTOS watermark: read back the sentinel painted below the loop
         // frame. Scan the painted region top-down for the first RUN-long run of intact
