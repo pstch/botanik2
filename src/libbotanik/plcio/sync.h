@@ -67,6 +67,8 @@ namespace Botanik { namespace PlcIO {
         PlcOutputLogs_t  _rx_logs_buffer = {};
         /** @brief Local copy of the PLC input log buffer. */
         PlcInputLogs_t   _tx_logs_buffer = {};
+        /** @brief Local copy of the PLC's generic config block (network/NTP/MQTT). */
+        PlcOutputConfig_t _rx_config_buffer = {};
         /** @brief Shared loop timestamp (ms), published by the scheduler; read-only. */
         const uint32_t*  _timestamp_ms   = nullptr;
         /** @brief Time of the last acknowledged TX (wrap-safe loop-clock stamp). */
@@ -104,6 +106,11 @@ namespace Botanik { namespace PlcIO {
         void                   write()             { _tx_write = true; }
         /** @brief Local copy of the PLC's output log buffer. */
         const PlcOutputLogs_t* output_logs() const { return &_rx_logs_buffer; }
+        /** @brief Local copy of the PLC's generic configuration (network/NTP/MQTT).
+         *  Snapshotted in the same RX transaction as the payload. Each block's
+         *  `serial` increments when the PLC changes it; a consumer latches the serial
+         *  and re-applies only on change (see Network::NetworkHandler). */
+        const PlcOutputConfig_t* config() const { return &_rx_config_buffer; }
         /** @brief Local copy of the PLC's input log buffer. */
         PlcInputLogs_t*        input_logs()        { return &_tx_logs_buffer; }
         const PlcInputLogs_t*  input_logs() const  { return &_tx_logs_buffer; }
@@ -334,6 +341,7 @@ namespace Botanik { namespace PlcIO {
         inline bool _rx_memcpy() {
             uint32_t seq_before = HAL::ordered_read(&_plcout->sync.txSeqNum);
             HAL::ordered_copy(&_ctx._rx_logs_buffer, &_plcout->logs);
+            HAL::ordered_copy(&_ctx._rx_config_buffer, &_plcout->config);
             HAL::ordered_copy(&_rx_data_buffer, &_plcout->data);
             HAL::cache_invalidate(&_plcout->sync, sizeof(_plcout->sync));  // re-read from SRAM
             return HAL::ordered_read(&_plcout->sync.txSeqNum) == seq_before;

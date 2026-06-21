@@ -20,8 +20,8 @@
 #include <pthread.h>
 #include "libbotanik/scheduler/scheduler.h"  // make_thread_realtime for the emulator thread
 
-/// Time-dilates a PLC link timeout; defined in botanik_sim (simulator.cpp).
-uint32_t plc_dilated_timeout(uint32_t base_ms);
+/// Time-dilates a PLC link timeout; defined header-only in the site's sim.h.
+inline uint32_t plc_dilated_timeout(uint32_t base_ms);
 #endif
 
 namespace Botanik { namespace PlcIO {
@@ -328,11 +328,15 @@ namespace Botanik { namespace PlcIO {
             HAL::watchdog_poll();
             // Refresh the mock payload roughly once a second and request a write so
             // the new values are committed to shared memory for the host to pick up.
+            // emu_tick counts loop iterations (one per TASK_PERIOD_MS), so the modulo
+            // gates the fill to one in every DATA_TICKS - i.e. ~1 Hz, the rate the site
+            // animator is tuned for. (Without the increment it fired every iteration.)
             constexpr uint32_t DATA_TICKS = 1000 / Config::TASK_PERIOD_MS;
             if (args->fill_output != nullptr && (emu_tick % DATA_TICKS) == 0) {
                 args->fill_output(plc_emulator.output_data(), emu_timestamp_ms);
                 plc_emulator.context()->write();
             }
+            emu_tick++;
             HAL::sleep_ms(Config::TASK_PERIOD_MS);
         }
         // Released the shared region: signal the stopping caller (see stop_emulator_thread).

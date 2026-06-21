@@ -13,6 +13,7 @@
 #include <type_traits>
 
 #include "libbotanik/hal/platform.h"
+#include "libbotanik/plcio/config.h"   // PlcOutputConfig_t - the generic config block
 #include "libbotanik_config.h"
 
 namespace Botanik { namespace PlcIO {
@@ -50,16 +51,18 @@ namespace Botanik { namespace PlcIO {
         ASSERT = 6,        // C-side only (firmware assertions); the PLC never emits it
         ALARM_START = 7,   // C-side only (an alarm went active); the PLC never emits it
         ALARM_END = 8,     // C-side only (an alarm cleared); the PLC never emits it
+        ALARM_FLAP = 9,    // C-side only (an alarm cleared without ever logging a START,
+                           // i.e. it toggled too fast to dwell); the PLC never emits it
     };
 
     // Check that the defined topic count can fit in the LogTopic enum
     static_assert(Config::LOG_TOPIC_MAX < (1 << (sizeof(LogTopic)*8)),
                   "LOG_TOPIC_MAX exceeds the range of the LogTopic enum");
 
-    /** @brief Number of defined topics (the enum is dense 0..ALARM_END). Bounds the
+    /** @brief Number of defined topics (the enum is dense 0..ALARM_FLAP). Bounds the
      *  logger's per-tick scan loops so they cover the real topics instead of the
      *  full wire range; the bucket array itself is sized by LOG_TOPIC_MAX. */
-    static constexpr uint8_t LOG_TOPIC_COUNT = ALARM_END + 1;
+    static constexpr uint8_t LOG_TOPIC_COUNT = ALARM_FLAP + 1;
     static_assert(LOG_TOPIC_COUNT <= Config::LOG_TOPIC_MAX, "LOG_TOPIC_COUNT exceeds LOG_TOPIC_MAX");
 
     /** @brief One log record in PLC shared memory: 12-byte header + fixed message buffer. */
@@ -147,13 +150,19 @@ namespace Botanik { namespace PlcIO {
         Data                data;
     };
 
-    /** @brief PLC->host shared region: sync counters, the log ring, and the site payload. */
+    /** @brief PLC->host shared region: sync counters, the log ring, the generic
+     *  config block, and the site payload.
+     *  @note The library-fixed `config` block (network/NTP/MQTT, plcio/config.h) sits
+     *  between the logs and the site `data`. Adding/resizing it shifts the `data`
+     *  offset, so it is a coordinated wire-ABI change: the PLC IDE's generated type
+     *  must be updated to match (see @ref md_docs_2PLC__CONFIG). */
     template<typename Data>
     struct alignas(32) PlcOutput {
         static_assert(std::is_empty<Data>::value || sizeof(Data) % sizeof(uint32_t) == 0,
                       "site Data must be a 4-byte multiple (or empty)");
         PlcOutputCounters_t sync;
         PlcOutputLogs_t     logs;
+        PlcOutputConfig_t   config;
         Data                data;
     };
 
