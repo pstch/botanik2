@@ -11,7 +11,7 @@
  * Run `ctest --output-on-failure` or `./botanik_tests -s` to see the table; the
  * reported sizes are the host-build figures.
  *
- * @see @ref testing
+ * @see @ref cpptests
  */
 #include <cstddef>
 
@@ -65,6 +65,7 @@ TEST_CASE("sizeof: PLC shared-memory payloads") {
     CHECK(alignof(PlcInput_t)  == 32);
     const size_t out_parts = sizeof(Botanik::PlcIO::PlcOutputCounters_t)
                            + sizeof(Botanik::PlcIO::PlcOutputLogs_t)
+                           + sizeof(Botanik::PlcIO::PlcOutputConfig_t)
                            + sizeof(PlcOutputData_t);
     const size_t in_parts  = sizeof(Botanik::PlcIO::PlcInputCounters_t)
                            + sizeof(Botanik::PlcIO::PlcInputLogs_t)

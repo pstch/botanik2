@@ -7,7 +7,7 @@
  * it free of test cases so a change to a suite never forces a recompile of the
  * (large) framework implementation.
  *
- * @see @ref testing for the suite overview and how to run it.
+ * @see @ref cpptests for the suite overview and how to run it.
  */
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"

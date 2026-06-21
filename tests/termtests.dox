@@ -1,0 +1,22 @@
+/**
+ * @page termtests Terminal emulation tests
+ *
+ * @brief Screen-level regression tests that drive the real `botanik_sim` over a
+ *        PTY and assert its reconstructed terminal against golden fixtures.
+ *
+ * The unit suite (@ref cpptests) checks logic in isolation; this suite checks what
+ * the operator actually sees. It runs the real `botanik_sim` firmware over a
+ * **PTY**, replays its ANSI output through [pyte](https://github.com/selectel/pyte)
+ * to reconstruct the 80x24 screen, and asserts that screen against committed golden
+ * fixtures. It catches terminal-rendering regressions - cursor moves, insert/delete,
+ * IL/DL, the line editor's reconciliation - that a source diff cannot.
+ *
+ * Two design choices make it deterministic: a PTY (not a pipe) so the baud throttle
+ * and TX back-pressure path are real, and time dilation via `BOTANIK_TIME_SCALE` so
+ * a run is fast while every byte/event ratio matches a real 4800-baud session. The
+ * suite is opt-in: CMake skips it unless pyte/pytest are importable.
+ *
+ * - @subpage md_tests_2pyte_2README - the full how-and-why: dependencies, the PTY
+ *   and time-dilation rationale, the golden-fixture workflow, and how screens are
+ *   normalised before comparison.
+ */
