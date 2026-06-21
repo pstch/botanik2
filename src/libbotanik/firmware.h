@@ -260,6 +260,19 @@ namespace Botanik {
 
         /** @} */
 
+        /** @name HAL region binding (hardware targets)
+         *  @{ */
+
+        /** @brief The coprocessor's PLC input/output region from HAL, cast to the
+         *  typed PlcInput/PlcOutput<> this firmware expects. This is the one place the
+         *  cast from HAL's opaque void* lives, so a site convenience constructor (and
+         *  any integrator sketch) never spells it out. On the simulator HAL returns
+         *  null - the sim binds its own mock region through the explicit constructor. */
+        static PlcIO::PlcInput<In>*   hal_input()  { return static_cast<PlcIO::PlcInput<In>*>(HAL::get_plc_input()); }
+        static PlcIO::PlcOutput<Out>* hal_output() { return static_cast<PlcIO::PlcOutput<Out>*>(HAL::get_plc_output()); }
+
+        /** @} */
+
         /** @name Component access (for the site subclass / harness)
          *  @{ */
 

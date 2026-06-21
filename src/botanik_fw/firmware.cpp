@@ -11,20 +11,12 @@
 
 #include "botanik_fw/firmware.h"
 
-#include "libbotanik.h"   // HAL, PlcIO
-
 namespace Botanik { namespace Firmware {
 
-// USB-CDC / UART console baud (the diagnostic monitor Serial1 runs at the same rate).
-// From libbotanik_config.h so a site can pin it (BOTANIK_CONSOLE_BAUD).
-static const unsigned long CONSOLE_BAUD = Config::CONSOLE_BAUD;
-
 ::BotanikSite& instance() {
-    // The PLC shared region is owned by the M4 coprocessor; we only bind to it.
-    static ::BotanikSite fw(
-        static_cast<PlcIO::PlcInput<PlcInputData_t>*  >(HAL::get_plc_input()),
-        static_cast<PlcIO::PlcOutput<PlcOutputData_t>*>(HAL::get_plc_output()),
-        (uint32_t)CONSOLE_BAUD, /*cols=*/80, /*rows=*/24);
+    // The site's HAL constructor binds to the M4 coprocessor's PLC region and uses
+    // the config-default console baud, so there are no region casts to spell out here.
+    static ::BotanikSite fw;
     return fw;
 }
 

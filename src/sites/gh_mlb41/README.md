@@ -30,15 +30,14 @@ A minimal sketch:
 
 ```cpp
 #include <Arduino.h>
-#include "sites/gh_mlb41/site.h"   // BotanikSite = GreenhouseMLB41, + the payload
+#include "sites/gh_mlb41/site.h"   // BotanikSite = GreenhouseMLB41
 
 // Constructed on first call - after the core's init(), so the UARTs and the PLC
 // shared region are valid to bind to - and kept in static storage for the whole run.
+// The default constructor binds to the coprocessor's PLC region (via HAL) at the
+// config-default console baud; pass (cols, rows) to override the 80x24 geometry.
 static BotanikSite& firmware() {
-    static BotanikSite fw(
-        static_cast<Botanik::PlcIO::PlcInput<PlcInputData_t>*  >(Botanik::HAL::get_plc_input()),
-        static_cast<Botanik::PlcIO::PlcOutput<PlcOutputData_t>*>(Botanik::HAL::get_plc_output()),
-        Botanik::Config::CONSOLE_BAUD, /*cols=*/80, /*rows=*/24);
+    static BotanikSite fw;
     return fw;
 }
 
@@ -59,8 +58,10 @@ Notes:
   static_assert(sizeof(PLCSharedVarsInput_t)   == sizeof(Botanik::PlcIO::PlcInput<PlcInputData_t>));
   static_assert(alignof(PLCSharedVarsOutput_t) == alignof(Botanik::PlcIO::PlcOutput<PlcOutputData_t>));
   ```
-- **Console baud / geometry** are passed in (the simulator runs slower on purpose);
-  a site can pin its own default in `config.h` (`BOTANIK_CONSOLE_BAUD`).
+- **Console baud / geometry.** The HAL constructor uses `BOTANIK_CONSOLE_BAUD`
+  (pin it in `config.h`) and 80x24; pass `BotanikSite fw(cols, rows)` to change the
+  geometry. The simulator runs slower on purpose, so its harness passes an explicit
+  low baud through the region constructor instead.
 - **No mock PLC on hardware.** `sim.h` compiles to nothing without
   `TARGET_SIMULATOR`; the real M4 coprocessor animates the payload instead.
 - The standalone `botanik_fw` target and the C-callable `botanik_setup()` /

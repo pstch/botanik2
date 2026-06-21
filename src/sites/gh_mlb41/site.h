@@ -244,6 +244,15 @@ public:
           _status_page(terminal(), plc_output_data())
     {}
 
+    /** @brief Hardware convenience: bind to the coprocessor's PLC region (via HAL)
+     *  at the config-default console baud, so the OPTA sketch constructs the firmware
+     *  with no region casts - just `BotanikSite fw;` (override the geometry if needed).
+     *  The simulator uses the explicit region constructor above (it owns its mock
+     *  region as local statics). */
+    explicit GreenhouseMLB41(uint16_t cols = 80, uint16_t rows = 24)
+        : GreenhouseMLB41(hal_input(), hal_output(), Botanik::Config::CONSOLE_BAUD, cols, rows)
+    {}
+
 protected:
     /** @brief Tab order (add_page order = tab order): the home page leads as the boot
      *  page, the status page slots between logs and alarms -> home/shell/logs/status/alarms. */
