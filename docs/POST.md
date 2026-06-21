@@ -37,12 +37,10 @@ digraph post_order {
 
     // Wrap the 8-step chain into two rows (boustrophedon) so it fits the column
     // without running too wide or too tall: row 1 left-to-right, drop down on the
-    // right, row 2 right-to-left.
+    // right, row 2 right-to-left. Row 2 is laid out n8..n5 with dir=back so the
+    // arrows follow the real flow (n5 -> n6 -> n7 -> n8) as straight segments.
     { rank=same; n1 -> n2 -> n3 -> n4 [weight=10]; }
-    { rank=same; n8 -> n7 -> n6 -> n5 [style=invis, weight=10]; }
-    n5 -> n6 [constraint=false];
-    n6 -> n7 [constraint=false];
-    n7 -> n8 [constraint=false];
+    { rank=same; n8 -> n7 -> n6 -> n5 [dir=back, weight=10]; }
     n4 -> n5;
 }
 \enddot
