@@ -56,7 +56,7 @@ itself (still counting the eviction as a drop). `drain()` consumes the read inde
 at format time, which decouples the outgoing line from the queue and makes that
 eviction safe. The pipeline below shows where each sink is drained.
 
-## Silent-loss reporting
+## Silent-loss reporting {#silent-loss-reporting}
 
 Three ways an entry can vanish without trace are made loud, each reported
 edge-triggered (first event instant, then a per-category holdoff) and classed

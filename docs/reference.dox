@@ -1,0 +1,15 @@
+/**
+@page reference Reference implementation
+
+@brief The `gh_mlb41` greenhouse - the reference site every example here is drawn
+       from.
+
+`gh_mlb41` is the reference @ref setup "site": a complete, working implementation of
+one physical greenhouse and its PLC program. `libbotanik` stays generic; this site
+is the single source of truth for that one greenhouse, and the concrete thing the
+simulator animates and the OPTA firmware flashes. When the guides say "the site",
+this is what they mean - copy it to start a new deployment.
+
+- @subpage md_src_2sites_2gh__mlb41_2README - the site directory: its files, the
+  payload, the firmware subclass, the alarm table, and the mock PLC.
+*/

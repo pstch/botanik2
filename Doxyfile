@@ -20,7 +20,7 @@ CREATE_SUBDIRS         = NO
 #---------------------------------------------------------------------------
 # Input
 #---------------------------------------------------------------------------
-# The docs landing is the dedicated Library mainpage (docs/index.dox); README.md
+# The docs landing is the dedicated Botanik mainpage (docs/index.dox); README.md
 # is the GitHub front page and is intentionally left out of the API docs.
 INPUT                  = src \
                          tests \
@@ -30,14 +30,19 @@ RECURSIVE              = YES
 IMAGE_PATH             = images
 
 # Vendored toolchain/Mbed headers and build artifacts are not our code. The
-# doctest single header under tests/vendor is third-party too. HAL_PLATFORM_PLAN
-# is an internal planning note, not API documentation.
+# doctest single header under tests/vendor is third-party too.
 EXCLUDE_PATTERNS       = */build/* \
                          */includes/* \
                          */archive/* \
                          */CMakeFiles/* \
                          */tests/vendor/* \
-                         */docs/HAL_PLATFORM_PLAN.md
+                         */.pytest_cache/* \
+                         */__pycache__/*
+
+# Implementation-detail namespaces are not API. Anonymous namespaces are dropped
+# via EXTRACT_ANON_NSPACES below; named `detail` namespaces are excluded by symbol.
+EXCLUDE_SYMBOLS        = *::detail \
+                         *::detail::*
 
 #---------------------------------------------------------------------------
 # What to extract
@@ -48,7 +53,7 @@ EXTRACT_ALL            = YES
 EXTRACT_PRIVATE        = YES
 EXTRACT_STATIC         = YES
 EXTRACT_LOCAL_CLASSES  = YES
-EXTRACT_ANON_NSPACES   = YES
+EXTRACT_ANON_NSPACES   = NO
 
 # The source explicitly writes @brief everywhere, so leave autobrief off.
 JAVADOC_AUTOBRIEF      = NO

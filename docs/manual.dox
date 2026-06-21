@@ -1,16 +1,56 @@
 /**
 @page manual Manual
 
-@brief Operating Botanik over its serial terminal - key bindings and usage.
+@brief Operating a running unit over its serial terminal.
 
-This is the user-facing manual for driving the system through its ANSI terminal:
-how to navigate pages, edit commands, and read the live displays. It grows as the
-UI does; for now it collects the keyboard and command references, with general
-usage documentation to follow.
+This is the user-facing manual for driving a deployed Botanik unit through its ANSI
+terminal: navigating the pages, using the shell, and reading the live displays. It
+grows as the UI does.
 
-@section manual_contents Contents
+@section manual_pages Navigating the pages
 
-- @subpage md_docs_2KEYBINDINGS - every key binding and the function it
-  dispatches to.
-- @subpage commands - the built-in shell commands (draft).
+The terminal shows one full-screen **page** at a time, with a tab bar on the top
+row. The built-in pages are:
+
+- **Home** - the at-a-glance dashboard (site name, key readings, link and alarm
+  status).
+- **Status** - the detailed state view, including the live alarm list.
+- **Logs** - the scrolling log, newest at the bottom.
+- **Shell** - the command prompt (see below).
+
+Switch pages with the function/navigation keys; every binding and the action it
+dispatches to is listed on the @subpage md_docs_2KEYBINDINGS page.
+
+@section manual_shell Using the shell
+
+The **Shell** page exposes a `botanik>` prompt for inspecting and poking the running
+firmware. A submitted line is dispatched to the built-in command set - `help`,
+`stats`, `clear`, and friends. The full list, what each does, and how a site adds
+its own commands are on the @subpage commands page.
+
+@section manual_boot Reading the boot
+
+Every boot ends with a single self-test verdict on the log, so a start is never
+ambiguous: `POST ok (site <name>)` on success, or a `POST failed` critical (with one
+line per failed check) otherwise. A failure is loud but not fatal - the unit keeps
+running so the diagnostics are readable over the terminal. The checks themselves are
+documented under @ref md_docs_2POST "Built-in self-tests and asserts".
+
+@section manual_plc_setup PLC-side setup
+
+Some firmware settings are not compiled in - they are configured on the PLC and
+published to the host over shared memory: the network interface, the NTP client, and
+the MQTT client. The installer sets them in the PLC program (where retained variables
+survive a reboot), and the host applies them as the PLC bumps each block's serial.
+
+For the wire layout, the field-by-field meaning, and the step-by-step PLC IDE setup
+(matching struct sizes, ordering, and bumping the serials), see
+@ref md_docs_2PLC__CONFIG "PLC configuration variables".
+
+@section manual_todo Coming later
+
+One operator topic will land here as the hardware contract settles:
+
+- **Wiring.** The typical hardware hook-up - the serial console and the serial
+  monitor links.
 */

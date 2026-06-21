@@ -1,0 +1,55 @@
+/**
+@page library Library
+
+@brief The engineering reference for @c libbotanik - subsystems, concepts,
+       architecture deep-dives, build targets, and tests.
+
+`libbotanik` is split into independent subsystems under `src/libbotanik/`, wired
+together by the `BotanikFirmware<In, Out>` base and run from a single non-blocking
+loop. This page is the map; the **Namespaces** and **Classes** tabs hold the full
+API surface.
+
+@section main_subsystems Subsystems
+
+Each subsystem with an architecture deep-dive links to its guide in the last column
+(see @ref overviews and @ref deepdives).
+
+| Subsystem    | Path         | Responsibility | Guide |
+|--------------|--------------|----------------|-------|
+| **HAL**      | `hal/`       | Unified platform interface (clocks, memory ordering, stack/PLC introspection, serial). `simulator.h` and `opta.h` implement it. | - |
+| **Scheduler**| `scheduler/` | Non-blocking fixed-period loop driver with overrun handling; delegates CPU-load, jitter, and stack-usage metrics to `PerfMonitor`. | @ref md_docs_2SCHEDULER__PERF "Scheduler & Perf" |
+| **Terminal** | `terminal/`  | @ref Botanik::Terminal::AnsiTerminal drives a multiplexed page display; @ref Botanik::Terminal::InputParser decodes byte streams into events; @ref Botanik::Terminal::TextEditor is a byte-efficient line editor. | @ref md_docs_2EVENT__DISPATCH "Event Dispatch", @ref md_docs_2EDITOR__RECONCILE "Editor Reconcile" |
+| **Pages**    | `pages/`     | Full-screen views (`Shell`, `Logs`, `Home`, `Status`) behind a common @ref Botanik::Pages::Page interface. | @ref md_docs_2PAGES "Pages" |
+| **Logging**  | `logs/`      | @ref Botanik::Logs::Logger rate-limits with a dual token-bucket, then fans entries out to @ref Botanik::Logs::LogWriter "LogWriter"s. | @ref md_docs_2LOG__FLOW "Log Flow" |
+| **PLC I/O**  | `plcio/`     | @ref Botanik::PlcIO::PlcSyncHandler runs RX/TX state machines over shared memory with the PLC coprocessor; an emulator stands in for it on the simulator. | @ref md_docs_2PLC__SYNC "PLC Sync" |
+| **Health**   | `health/`    | @ref Botanik::Health::HealthMonitor owns the alarm model and notifier, runs the power-on self-test, and gates the watchdog escalation. | @ref md_docs_2POST "Self-tests" |
+| **Utils**    | `utils/`     | `BufferedSerial` (ring-buffered UART), `PerfMonitor` (loop CPU-load / jitter / stack high-water instrumentation), and time/uptime helpers. | @ref md_docs_2SCHEDULER__PERF "Scheduler & Perf" |
+
+@section main_concepts Key concepts
+
+- **Nothing blocks.** Every stateful object exposes a `step()` that does a small,
+  bounded amount of work and returns immediately; the main loop calls them in a
+  fixed order. Blocking would stall the RTOS and trip the watchdog on the OPTA.
+- **HAL-only platform access.** Code never calls `<time.h>` or platform APIs
+  directly - only `HAL::current_ms()`, `HAL::dsb()`, `HAL::ordered_copy()`, and
+  friends. This is what makes the simulator possible.
+- **PLC shared memory.** Host and PLC coprocessor communicate through shared
+  memory using transactional read/write patterns and explicit ARM DSB barriers to
+  avoid torn reads, with heartbeat / timeout / watchdog tracking.
+- **Rate-limited logging.** A global bucket plus a per-topic bucket throttle log
+  volume; suppressed-message counts are reported on a slower cadence.
+- **Byte-efficient terminal.** The UI targets a low-bandwidth serial link, so the
+  terminal/editor layer minimizes the escape sequences it emits.
+- **Self-instrumenting loop.** `PerfMonitor` samples per-tick CPU load, scheduling
+  jitter, and stack high-water usage (the last via stack painting), surfaced live
+  in the status bar and the `stats` shell command.
+
+The rest of this section:
+
+- @subpage overviews - orientation guides: the concurrency model and the data
+  flows through the pages, terminal, and logger.
+- @subpage deepdives - mechanism guides: the scheduler/perf instrumentation, the
+  PLC shared-memory handshake, and the editor's minimal-byte reconciliation.
+- @subpage targets - building and running each target, and porting to new hardware.
+- @subpage testing - the test suites and the in-firmware self-tests.
+*/

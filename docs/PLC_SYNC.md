@@ -102,11 +102,21 @@ whole heartbeat in `TX_WAIT` is re-pulsed.
 `PlcSyncContext::status()` derives the link state purely from how long it has been
 since the last acknowledged TX:
 
-```
- last ack ──────────────────────────────────────────────▶ time since
- │            │ PLC_TIMEOUT_MS        │ PLC_WATCHDOG_MS
- │ PLC_RUNNING│ PLC_TIMEOUT           │ PLC_FAULT
-```
+\dot "link state by elapsed time since the last acknowledged TX"
+digraph link_status {
+    bgcolor="transparent";
+    rankdir=LR;
+    node [shape=box, style=rounded, fontname="Courier", fontsize=10, margin="0.08,0.04"];
+    edge [arrowsize=0.7, fontname="Helvetica", fontsize=9];
+
+    PLC_RUNNING [style="rounded,filled", fillcolor="#e6f4ea"];
+    PLC_TIMEOUT [style="rounded,filled", fillcolor="#fef7e0"];
+    PLC_FAULT   [style="rounded,filled", fillcolor="#fce8e6"];
+
+    PLC_RUNNING -> PLC_TIMEOUT [label="≥ PLC_TIMEOUT_MS"];
+    PLC_TIMEOUT -> PLC_FAULT   [label="≥ PLC_WATCHDOG_MS"];
+}
+\enddot
 
 | Status        | Condition                                   |
 |---------------|---------------------------------------------|
@@ -146,8 +156,8 @@ while it is being read - *as long as the PLC upholds the contract*.
 
 Because the contract lives on the PLC side, the host verifies it cheaply: after
 copying the payload, `_rx_memcpy()` re-reads `txSeqNum`; if it changed during the
-copy, the snapshot may be torn, so the host **discards it, counts it
-(`rx_torn_count()`), logs a `PLC_IO` warning, and does not ack** (it re-reads next
+copy, the snapshot may be torn, so the host **discards** it, counts it
+(`rx_torn_count()`), logs a `PLC_IO` warning, and **does not ack** (it re-reads next
 tick). This is a diagnostic, not a retry loop - it surfaces a contract violation
 instead of silently consuming bad data.
 

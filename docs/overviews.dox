@@ -1,0 +1,18 @@
+/**
+@page overviews Overviews
+
+@brief Orientation guides - the model and the data flows, before the per-class API.
+
+Start here for the shape of the system. Each guide walks one slice with ASCII
+diagrams; the @ref deepdives cover specific mechanisms in more detail.
+
+- @subpage md_docs_2CONCURRENCY - **Concurrency model.** The single cooperative
+  loop, the per-tick cycle contract, and why plain `volatile` + barriers replace
+  locks and `std::atomic`.
+- @subpage md_docs_2PAGES - **Pages.** The page hierarchy and the screen contract
+  every full-screen view shares.
+- @subpage md_docs_2EVENT__DISPATCH - **Event dispatch.** How input events flow
+  from the serial port through the parser to the active page.
+- @subpage md_docs_2LOG__FLOW - **Log flow.** How a log entry travels from a call
+  site through rate limiting out to every sink.
+*/

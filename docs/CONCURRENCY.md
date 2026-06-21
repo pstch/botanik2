@@ -11,10 +11,18 @@ All of our code runs in a single fixed-period main loop (`LoopScheduler`, period
 `Config::TASK_PERIOD_MS`). Every subsystem exposes a non-blocking `step()` and is
 called once per beat in a fixed order - the **per-tick cycle contract**:
 
-```
-tick -> receive -> plc_handler -> plc_log_reader -> health -> on_loop
-     -> logger -> terminal -> monitor.drain -> transmit -> watchdog_kick
-```
+\dot "the per-tick cycle contract"
+digraph per_tick {
+    bgcolor="transparent";
+    rankdir=LR;
+    node [shape=box, style=rounded, fontname="Courier", fontsize=10, margin="0.06,0.04"];
+    edge [arrowsize=0.7];
+
+    tick -> receive -> plc_handler -> plc_log_reader -> health -> on_loop;
+    on_loop -> logger -> terminal -> "monitor.drain" -> transmit -> watchdog_kick;
+    watchdog_kick -> tick [label="next beat", style=dashed, constraint=false, fontname="Helvetica", fontsize=9];
+}
+\enddot
 
 The order is load-bearing: inputs are ingested before processing; `health` runs once
 the PLC payload is fresh (so it asserts the platform-health alarms and advances the

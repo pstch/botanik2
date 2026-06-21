@@ -1,0 +1,18 @@
+/**
+@page deepdives Deep dives
+
+@brief Mechanism guides - how a specific part actually works, in detail.
+
+These dive into one mechanism each, past the orientation @ref overviews.
+
+- @subpage md_docs_2SCHEDULER__PERF - **Scheduler & perf monitoring.** The
+  non-blocking fixed-period loop, overrun handling, and the self-instrumented
+  CPU / jitter / stack metrics.
+- @subpage md_docs_2PLC__SYNC - **PLC shared-memory sync.** The RX/TX state
+  machines and the transactional handshake with the PLC coprocessor.
+- @subpage md_docs_2PLC__CONFIG - **PLC configuration variables.** The generic
+  network / NTP / MQTT config the PLC publishes to the host, and how to set up the
+  matching PLC-side structure.
+- @subpage md_docs_2EDITOR__RECONCILE - **Editor reconciliation.** How the line
+  editor repaints a multi-row edit with the fewest bytes over the serial link.
+*/

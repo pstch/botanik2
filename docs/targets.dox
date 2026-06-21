@@ -1,13 +1,18 @@
 /**
 @page targets Targets
 
-@brief Building and running each build target - the Linux simulator and the
-       Arduino OPTA firmware.
+@brief Building and running each build target, and porting to new hardware.
 
-`libbotanik` builds for two targets, each with its own build/run notes:
+`libbotanik` builds for two targets from one codebase. The simulator runs it as a
+Linux process; the firmware cross-compiles it for the OPTA. Both run the same site
+verbatim - the only difference is who owns the PLC shared memory.
 
 - @subpage md_src_2botanik__sim_2README - the Linux simulator (`SIMULATOR`):
-  configure with CMake and run on the host.
+  configure with CMake and run on the host. The harness allocates the shared region
+  locally and drives a mock PLC.
 - @subpage md_src_2botanik__fw_2README - the Arduino OPTA firmware (`OPTA`):
-  cross-compile for the STM32H747.
+  cross-compile for the STM32H747 and deliver as an Arduino library zip. The real
+  M4 coprocessor owns the shared region.
+- @subpage porting - what a third target needs: a new HAL implementation behind the
+  same interface.
 */
