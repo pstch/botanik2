@@ -103,10 +103,9 @@ int main(int argc, char** argv) {
         sim_set_host(cfg.ntp.server1, "pool.ntp.org");
         cfg.mqtt.serial = 1; cfg.mqtt.enabled = 1; cfg.mqtt.port = 1883; cfg.mqtt.keepalive_s = 60;
         sim_set_host(cfg.mqtt.broker, "test.mosquitto.org");
-        cfg.geo.serial = 1;                               // example site: Paris, UTC+1
+        cfg.geo.serial = 1;                               // example site: Paris
         cfg.geo.latitude_e7  =  488566000;                //  48.8566 N
         cfg.geo.longitude_e7 =   23522000;                //   2.3522 E
-        cfg.geo.tz_offset_min = 60;
     }
 
     // The selected site firmware: wires the library around its payload/pages/alarms.

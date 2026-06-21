@@ -76,14 +76,14 @@ namespace Botanik { namespace PlcIO {
     };
 
     /** @brief Site geographical location (PLC -> host). Feeds the base library's
-     *  sunrise/sunset computation. Integer-scaled - no floats on the wire. */
+     *  sunrise/sunset computation. Integer-scaled - no floats on the wire.
+     *  @note No timezone field: the device works in UTC throughout (the RTC is UTC from
+     *  NTP, the solar math is timezone-independent). Any local-time presentation belongs
+     *  off-device, where a real tz database is available. */
     struct PlcGeoConfig_t {
         uint32_t serial;        ///< bumped by the PLC on any change to this block
         int32_t  latitude_e7;   ///< latitude, degrees * 1e7 (north +, south -); -90e7..90e7
         int32_t  longitude_e7;  ///< longitude, degrees * 1e7 (east +, west -); -180e7..180e7
-        int16_t  tz_offset_min; ///< local time offset from UTC, minutes (e.g. +60 = CET).
-                                ///< DST, if any, is folded in by the PLC (a future refinement).
-        uint8_t  _pad[2];       ///< pad the block up to a 4-byte multiple
     };
 
     /** @brief All generic PLC->host configuration, spliced into PlcOutput ahead of

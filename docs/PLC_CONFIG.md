@@ -109,12 +109,13 @@ the wire - so latitude and longitude use the common "E7" encoding (degrees * 1e7
 | `serial`        | `uint32_t` | bumped by the PLC on any change to this block |
 | `latitude_e7`   | `int32_t`  | latitude, degrees * 1e7 (north +, south -); -90e7..90e7 |
 | `longitude_e7`  | `int32_t`  | longitude, degrees * 1e7 (east +, west -); -180e7..180e7 |
-| `tz_offset_min` | `int16_t`  | local time offset from UTC, minutes (e.g. +60 = CET) |
 
-The offset converts the computed UTC sunrise/sunset into the local "minutes since
-midnight" the displays expect. Daylight-saving is folded into `tz_offset_min` by the
-PLC for now (a proper DST refinement is future work). Elevation is not carried - its
-effect on sunrise/sunset is negligible here.
+There is no timezone field: the device runs in UTC throughout (the RTC is UTC from
+NTP, and the solar math is timezone-independent - longitude alone fixes solar noon).
+Local-time presentation belongs off-device, where a real tz database is available;
+putting a hand-maintained UTC offset on the device would only invite the
+daylight-saving rules that don't belong here. Elevation is not carried either - its
+effect on sunrise/sunset is negligible.
 
 > Note: where a site currently has the PLC compute `sunrise_min` / `sunset_min` in its
 > own payload (e.g. `gh_mlb41`), moving the calculation into the base library from this
@@ -169,7 +170,7 @@ already does for the log protocol and the site payload. Steps for the PLC IDE:
    the PLC's output structure, placed **after the log ring and before the site
    payload**, matching the diagram above. Keep the field order and the explicit
    padding bytes (`_pad*`) so every member lands on its natural offset; the blocks are
-   `net` 328 B, `ntp` 136 B, `mqtt` 76 B, `geo` 16 B (556 B total) at the default
+   `net` 328 B, `ntp` 136 B, `mqtt` 76 B, `geo` 12 B (552 B total) at the default
    string length.
 3. **Lead each block with its `DWORD serial`.**
 4. **Write strings as NUL-terminated ASCII**, dotted-decimal for IPv4 literals
