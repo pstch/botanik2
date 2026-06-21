@@ -85,23 +85,25 @@ namespace Botanik { namespace Network {
         /** @} */
     };
 
-    /** @brief NTP client driven by the PLC `ntp` config block: resolves the servers via
-     *  the NameResolver and disciplines the RTC. Restarts on a config change.
-     *  @note WIP - the config-watch and structure are in place; the NTP exchange itself
-     *  (TIME_RESOLVE -> TIME_QUERY -> set RTC) is still to be written. */
+    /** @brief NTP client driven by the PLC `ntp` config block: resolves a server via the
+     *  NameResolver, runs a non-blocking SNTP exchange over UDP on the live interface
+     *  (reached through the resolver), and disciplines the RTC. Restarts on a config
+     *  change; falls back to the second server and backs off on failure. */
     class TimeSyncHandler : public ConfigHandler {
         /** @name State
          *  @{ */
         enum State : uint8_t {
             TIME_IDLE = 0,   ///< disabled / no config
-            TIME_RESOLVE,    ///< resolving a server name through the resolver
-            TIME_QUERY,      ///< NTP exchange in flight
+            TIME_RESOLVE,    ///< resolving the current server's name through the resolver
+            TIME_QUERY,      ///< SNTP request sent; polling for the reply
             TIME_SYNCED,     ///< RTC disciplined; idle until the next poll
             TIME_ERROR,      ///< failed; backing off before a retry
         };
         State         _state;
-        uint64_t      _since_ms;
-        NameResolver* _resolver;
+        uint64_t      _since_ms;       ///< when the current state was entered (for timeouts)
+        NameResolver* _resolver;       ///< DNS + the live interface (set by NetworkHandler)
+        ResolvedAddr  _server_addr;    ///< resolved address of the server being queried
+        uint8_t       _server_idx;     ///< which configured server we are on (0 = server1)
         /** @} */
 
     public:
@@ -112,6 +114,19 @@ namespace Botanik { namespace Network {
         uint32_t config_serial() const override;
         void on_config_changed(uint64_t now_ms) override;
         void on_step(uint64_t now_ms) override;
+
+    private:
+        /** @name Internals
+         *  @{ */
+        /** @brief Advance to the second server if there is one, else go to ERROR. */
+        void _next_server_or_error(uint64_t now_ms);
+        /** @brief Open the UDP socket and send an SNTP request to _server_addr.
+         *  OPTA only; returns false on any socket error. */
+        bool _send_query();
+        /** @brief Poll the UDP socket for the reply. OPTA only; returns 1 = synced (RTC
+         *  set), 0 = still waiting, -1 = failed/timed out. */
+        int _poll_query(uint64_t now_ms);
+        /** @} */
     };
 
 }}

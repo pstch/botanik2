@@ -80,8 +80,12 @@ namespace Botanik { namespace Network {
          *  @{ */
 
         NameResolver(Logs::Logger* logger = nullptr);
-        /** @brief Wire the network device once it is up (before any resolve()). */
+        /** @brief Wire the network device once it is up (before any resolve()).
+         *  NetworkHandler calls this when the link comes up, and with null on loss. */
         void set_interface(NetworkInterface* net) { _net = net; }
+        /** @brief The live network interface, or null when the link is down. Lets other
+         *  components (e.g. TimeSyncHandler's NTP socket) reach the device set here. */
+        NetworkInterface* interface() const { return _net; }
         /** @brief Drop every row (cache + in-flight), cancelling pending lookups. Call
          *  on a network reconfiguration so stale cached addresses don't linger. */
         void clear();

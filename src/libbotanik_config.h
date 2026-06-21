@@ -291,6 +291,32 @@ namespace Botanik { namespace Config {
     /** @} */
 
     /**
+     * @name Time sync (NTP)
+     * @{
+     */
+
+    /** @brief How long TimeSyncHandler waits for an NTP reply before giving up on a
+     *  server (then it tries the next one / backs off). */
+#ifndef BOTANIK_NTP_QUERY_TIMEOUT_MS
+#  define BOTANIK_NTP_QUERY_TIMEOUT_MS 5000
+#endif
+    BOTANIK_CFG(uint32_t, NTP_QUERY_TIMEOUT_MS);
+
+    /** @brief Backoff after a failed NTP sync before retrying from the first server. */
+#ifndef BOTANIK_NTP_RETRY_MS
+#  define BOTANIK_NTP_RETRY_MS 60000
+#endif
+    BOTANIK_CFG(uint32_t, NTP_RETRY_MS);
+
+    /** @brief Poll interval used when the PLC `ntp` block leaves poll_s at 0. */
+#ifndef BOTANIK_NTP_POLL_DEFAULT_S
+#  define BOTANIK_NTP_POLL_DEFAULT_S 3600
+#endif
+    BOTANIK_CFG(uint32_t, NTP_POLL_DEFAULT_S);
+
+    /** @} */
+
+    /**
      * @name Logging parameters
      * @{
      */
