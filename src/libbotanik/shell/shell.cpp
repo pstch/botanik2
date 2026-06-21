@@ -299,27 +299,47 @@ namespace Botanik { namespace Shell {
             case PlcIO::PLC_FAULT:   s = "FAULT";          break;
             default:                 s = "no contact yet"; break;
         }
-        char out[96];
+        // One aligned "label .... : value" line per field, dotted-leader style shared
+        // with `stats` (the 29-char labels below are exact, so %-29s never space-pads).
+        char out[128], val[80], sz[16];
         int n;
-        // Sync status: link state, last-ack age, torn-read count.
+
+        // Link state + last-ack age.
         if (p->ever_acked())
-            n = snprintf(out, sizeof(out), "plc link: %s  (ack %lums ago, %lu torn)",
-                         s, (unsigned long)p->last_ack_age_ms(), (unsigned long)p->torn_count());
+            snprintf(val, sizeof(val), "%s  (ack %lums ago)", s, (unsigned long)p->last_ack_age_ms());
         else
-            n = snprintf(out, sizeof(out), "plc link: %s  (%lu torn)", s,
-                         (unsigned long)p->torn_count());
+            snprintf(val, sizeof(val), "%s", s);
+        n = snprintf(out, sizeof(out), "%-29s : %s", "PLC link ....................", val);
         if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+
         // Shared-memory regions: address + size.
-        n = snprintf(out, sizeof(out), "  IN  %p  %lu B  (we write, PLC reads)",
-                     p->in_region(), (unsigned long)p->in_size());
+        snprintf(val, sizeof(val), "%p  %s  (we write, PLC reads)",
+                 p->in_region(), Utils::format_size(sz, sizeof(sz), p->in_size()));
+        n = snprintf(out, sizeof(out), "%-29s : %s", "Shared mem IN ...............", val);
         if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
-        n = snprintf(out, sizeof(out), "  OUT %p  %lu B  (PLC writes, we read)",
-                     p->out_region(), (unsigned long)p->out_size());
+        snprintf(val, sizeof(val), "%p  %s  (PLC writes, we read)",
+                 p->out_region(), Utils::format_size(sz, sizeof(sz), p->out_size()));
+        n = snprintf(out, sizeof(out), "%-29s : %s", "Shared mem OUT ..............", val);
         if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
-        // Log protocol: the PLC's write position vs our read position.
-        n = snprintf(out, sizeof(out), "  logs: PLC wrote %lu, host read %lu",
-                     (unsigned long)p->output_logs()->writeIndex,
-                     (unsigned long)p->input_logs()->readIndex);
+
+        // Sync handshake counters, grouped by direction (host point of view): the live
+        // seq/ack pair plus that direction's transaction count (RX also shows torn reads).
+        snprintf(val, sizeof(val), "seq %lu/ack %lu  (%lu read, %lu torn)",
+                 (unsigned long)p->rx_seq(), (unsigned long)p->rx_ack(),
+                 (unsigned long)p->rx_count(), (unsigned long)p->torn_count());
+        n = snprintf(out, sizeof(out), "%-29s : %s", "RX (PLC->host) ..............", val);
+        if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+        snprintf(val, sizeof(val), "seq %lu/ack %lu  (%lu written)",
+                 (unsigned long)p->tx_seq(), (unsigned long)p->tx_ack(),
+                 (unsigned long)p->tx_count());
+        n = snprintf(out, sizeof(out), "%-29s : %s", "TX (host->PLC) ..............", val);
+        if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+
+        // Log ring cursors: the PLC's write position vs our read position.
+        snprintf(val, sizeof(val), "PLC wrote %lu, host read %lu",
+                 (unsigned long)p->output_logs()->writeIndex,
+                 (unsigned long)p->input_logs()->readIndex);
+        n = snprintf(out, sizeof(out), "%-29s : %s", "Log cursors .................", val);
         if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
     }
 

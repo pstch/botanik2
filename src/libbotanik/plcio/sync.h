@@ -91,6 +91,10 @@ namespace Botanik { namespace PlcIO {
         uint32_t         _in_size        = 0;        // sizeof the input region
         uint32_t         _out_size       = 0;        // sizeof the output region
         const uint32_t*  _torn_ptr       = nullptr;  // -> handler's live torn-read counter
+        const uint32_t*  _rx_count_ptr   = nullptr;  // -> handler's committed-RX transaction count
+        const uint32_t*  _tx_count_ptr   = nullptr;  // -> handler's TX-write transaction count
+        const PlcInputCounters_t*  _in_sync  = nullptr;  // host-written handshake counters (live)
+        const PlcOutputCounters_t* _out_sync = nullptr;  // PLC-written handshake counters (live)
         /** @} */
 
         /** @brief The shared loop clock as a wrap-safe Millis32 stamp. */
@@ -139,6 +143,22 @@ namespace Botanik { namespace PlcIO {
         uint32_t    last_ack_age_ms() const { return _ever_ackd ? (uint32_t)(_now() - _tx_last_ms) : 0; }
         /** @brief Live count of torn RX snapshots discarded (PLC bumped seq mid-copy). */
         uint32_t    torn_count()      const { return _torn_ptr ? *_torn_ptr : 0; }
+        /** @brief Committed RX transactions (PLC output snapshots accepted; torn excluded). */
+        uint32_t    rx_count()        const { return _rx_count_ptr ? *_rx_count_ptr : 0; }
+        /** @brief TX transactions (payload writes pushed to the PLC input region). */
+        uint32_t    tx_count()        const { return _tx_count_ptr ? *_tx_count_ptr : 0; }
+
+        /** @name Live sync handshake counters (named from the host's point of view)
+         *  @{ */
+        /** @brief Our TX sequence: bumped on each commit into the PLC input region. */
+        uint32_t    tx_seq() const { return _in_sync  ? HAL::ordered_read(&_in_sync->rxSeqNum)  : 0; }
+        /** @brief The PLC's acknowledgment of our TX sequence. */
+        uint32_t    tx_ack() const { return _out_sync ? HAL::ordered_read(&_out_sync->rxAckNum) : 0; }
+        /** @brief The PLC's TX sequence: bumped each time it publishes new output. */
+        uint32_t    rx_seq() const { return _out_sync ? HAL::ordered_read(&_out_sync->txSeqNum) : 0; }
+        /** @brief Our acknowledgment of the PLC's TX sequence. */
+        uint32_t    rx_ack() const { return _in_sync  ? HAL::ordered_read(&_in_sync->txAckNum)  : 0; }
+        /** @} */
         /** @} */
 
         /** @} */
@@ -219,6 +239,10 @@ namespace Botanik { namespace PlcIO {
         /** @brief PLC's stale rxAckNum read at bind, used to reject a stale-coincidence
          *  ack at first contact (before any real ack is observed). */
         uint32_t               _ack_baseline  = 0;
+        /** @brief Committed RX transactions (snapshots accepted; torn reads not counted). */
+        uint32_t               _rx_count      = 0;
+        /** @brief TX transactions (payload writes to the PLC input region). */
+        uint32_t               _tx_count      = 0;
 
         /** @} */
 
@@ -244,6 +268,10 @@ namespace Botanik { namespace PlcIO {
             _ctx._in_region    = plcin;   _ctx._in_size  = (uint32_t)sizeof(*plcin);
             _ctx._out_region   = plcout;  _ctx._out_size = (uint32_t)sizeof(*plcout);
             _ctx._torn_ptr     = &_rx_torn;
+            _ctx._rx_count_ptr = &_rx_count;
+            _ctx._tx_count_ptr = &_tx_count;
+            _ctx._in_sync      = &plcin->sync;
+            _ctx._out_sync     = &plcout->sync;
             memset(&_tx_data_buffer, 0, sizeof(InputData));
             memset(&_rx_data_buffer, 0, sizeof(OutputData));
 
@@ -349,6 +377,7 @@ namespace Botanik { namespace PlcIO {
         inline void _tx_memcpy() {
             HAL::ordered_copy(&_plcin->logs, &_ctx._tx_logs_buffer);
             HAL::ordered_copy(&_plcin->data, &_tx_data_buffer);
+            _tx_count++;
             _ctx._tx_write = false;
         }
         inline void _rx_acknowledge() {
@@ -369,7 +398,7 @@ namespace Botanik { namespace PlcIO {
             switch (_rx_state) {
                 case RX_IDLE:   if (_rx_new_message())      return RX_READ; break;
                 case RX_READ:
-                    if (_rx_memcpy()) return RX_ACK;
+                    if (_rx_memcpy()) { _rx_count++; return RX_ACK; }
                     _rx_torn++;       // torn snapshot: discard, do not ack, re-read next tick
                     if (_ctx._logger) _ctx._logger->warning(PLC_IO, "PLC RX torn read discarded (seq changed mid-copy)");
                     return RX_IDLE;
