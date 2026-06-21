@@ -9,45 +9,39 @@ are documented under [C++ tests](@ref cpptests) and
 
 ## Power-on self-test (POST)
 
-The **POST** is a small, fast self-test run once during boot by
-`Health::HealthMonitor::post()`. It validates the cheap structural invariants the
-rest of the firmware silently assumes, and logs a single verdict line so a boot is
-never ambiguous. It is wiring/sanity validation, not a hardware diagnostic.
+The **POST** is a small, fast self-test run once on the firmware's first beat by
+`Health::HealthMonitor`. It validates the cheap structural invariants the rest of
+the firmware silently assumes, and logs a single verdict line so a boot is never
+ambiguous. It is wiring/sanity validation, not a hardware diagnostic.
 
 ### When it runs
 
-`BotanikFirmware::setup()` calls `_health.post()` near the end of bring-up, on a
-fixed schedule that cannot be reordered:
+The HealthMonitor runs POST itself, on the **first** `step()` it is given - the
+first `loop()` beat, right after `setup()` finishes. The shared-region pointers it
+checks are handed to the monitor at construction; `setup()` no longer calls it:
 
-\dot "setup() bring-up order"
+\dot "POST on the first health step"
 digraph post_order {
     bgcolor="transparent";
     rankdir=TB; nodesep=0.35; ranksep=0.5;
     node [shape=box, style=rounded, fontname="Helvetica", fontsize=10, margin="0.08,0.04"];
     edge [arrowsize=0.7];
 
-    n1 [label="begin UARTs"];
-    n2 [label="register\ncore sinks"];
-    n3 [label="register_pages()"];
-    n4 [label="setup terminal"];
-    n5 [label="boot banner"];
-    n6 [label="on_setup()\n(site post-wiring)"];
-    n7 [label="POST", style="rounded,filled", fillcolor="#e8f0fe"];
-    n8 [label="arm HW\nwatchdog"];
+    n1 [label="setup():\nUARTs, core sinks,\nregister_pages()"];
+    n2 [label="setup():\nterminal, boot banner,\non_setup()"];
+    n3 [label="setup():\narm HW watchdog"];
+    n4 [label="loop() beat 1:\nhealth.step()"];
+    n5 [label="POST", style="rounded,filled", fillcolor="#e8f0fe"];
 
-    // Wrap the 8-step chain into two rows (boustrophedon) so it fits the column
-    // without running too wide or too tall: row 1 left-to-right, drop down on the
-    // right, row 2 right-to-left. Row 2 is laid out n8..n5 with dir=back so the
-    // arrows follow the real flow (n5 -> n6 -> n7 -> n8) as straight segments.
-    { rank=same; n1 -> n2 -> n3 -> n4 [weight=10]; }
-    { rank=same; n8 -> n7 -> n6 -> n5 [dir=back, weight=10]; }
-    n4 -> n5;
+    n1 -> n2 -> n3 -> n4 -> n5;
 }
 \enddot
 
-It runs **after** the log sinks (monitor, shell, logs pages) and the site's
-`on_setup()` are registered, so its result is actually logged and reaches every
-sink, and **before** the hardware watchdog is armed.
+By the first beat every log sink (monitor, shell, logs pages) and the site's
+`on_setup()` sinks are already registered, so the verdict is actually logged and
+reaches every sink. Deferring it out of `setup()` keeps the monitor in charge of
+its own boot check (no caller has to remember to run it) and runs it once the loop
+is actually turning.
 
 ### What it checks
 

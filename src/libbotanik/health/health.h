@@ -34,7 +34,7 @@ namespace Botanik { namespace Health {
 
     /** @brief Owns the alarm model + notifier, asserts platform-health alarms, runs
      *  the self-test, and gates the watchdog kick (see file header). */
-    class HealthMonitor {
+    class HealthMonitor : public Component {
     private:
         /** @name State
          *  @{ */
@@ -43,6 +43,8 @@ namespace Botanik { namespace Health {
         Logs::Logger*                      _logger;   // log sink (may be null)
         const Scheduler::SchedulerContext* _sched;    // perf metrics (may be null)
         PlcIO::PlcSyncContext*             _plc;       // PLC link status (may be null)
+        const void*                        _in_region; // PLC shared region (for POST)
+        const void*                        _out_region;
 
         uint32_t _xrun_last      = 0;   // last overrun count seen (edge detect)
         uint64_t _xrun_until_ms  = 0;   // CPU_XRUN held active until this uptime
@@ -51,6 +53,7 @@ namespace Botanik { namespace Health {
         uint64_t _fault_since_ms = 0;   // uptime the PLC fault began (0 = not faulted)
         bool     _watchdog_ok    = true; // cached verdict (see watchdog_ok())
         bool     _post_ok        = false;
+        bool     _posted         = false; // POST has run (fires on the first step())
         /** @} */
 
     public:
@@ -59,26 +62,46 @@ namespace Botanik { namespace Health {
         HealthMonitor(const Alarms::AlarmCondition* table, uint8_t count,
                       Logs::Logger* logger,
                       const Scheduler::SchedulerContext* sched,
-                      PlcIO::PlcSyncContext* plc)
+                      PlcIO::PlcSyncContext* plc,
+                      const void* in_region, const void* out_region)
             : _mqtt(Config::MQTT_TOPIC_PREFIX),
               _model(table, count, logger, &_mqtt,
                      Alarms::PLATFORM_ALARMS, Alarms::PLATFORM_ALARM_COUNT),
-              _logger(logger), _sched(sched), _plc(plc) {}
+              _logger(logger), _sched(sched), _plc(plc),
+              _in_region(in_region), _out_region(out_region) {}
 
         /** @name Queries
          *  @{ */
         /** @brief The alarm model (the terminal / AlarmsPage / shell bind to this). */
         Alarms::AlarmModel& model()      { return _model; }
-        /** @brief Result of the last post(). */
+        /** @brief Result of the boot POST (run on the first step()). */
         bool                post_ok()  const { return _post_ok; }
         /** @brief Whether the HW watchdog should be kicked this beat (see file header). */
         bool                watchdog_ok() const { return _watchdog_ok; }
         /** @} */
 
-        /** @brief Power-on self-test, run once from setup() after the sinks register.
-         *  Validates cheap structural invariants and logs the result. A failure is
-         *  loud (CRITICAL) but does NOT withhold the watchdog. */
-        void post(const void* in_region, const void* out_region) {
+        /** @brief Per beat: on the first beat run POST (now that the sinks are
+         *  registered), then assert the platform-health alarms, update the watchdog
+         *  verdict, and advance the model with the (already-fresh) remote bitset.
+         *  @p now is the current uptime in ms. */
+        void step(uint64_t remote_raw, uint32_t rx_torn, uint64_t now) {
+            announce_step(_logger, "health");
+            if (!_posted) { _posted = true; _post(); }
+            _assert_platform_alarms(now);
+            // Runtime self-test: a rising cross-core torn-read count raises RX_TORN.
+            // Should never fire - the PLC handshake upholds mutual exclusion - so it is
+            // a loud latched diagnostic if the contract is ever violated.
+            _held_event("RX_TORN", rx_torn, _rx_torn_last, _rx_torn_until_ms, now);
+            _update_watchdog(now);
+            _model.step(remote_raw, now);
+        }
+
+    private:
+        /** @brief Power-on self-test, run once on the first step() (by which point the
+         *  sinks are registered, so its verdict is actually logged). Validates cheap
+         *  structural invariants over the stored PLC regions and logs the result. A
+         *  failure is loud (CRITICAL) but does NOT withhold the watchdog. */
+        void _post() {
             bool ok = true;
             // The platform codes the firmware asserts must resolve in the merged table,
             // or set_local() would silently no-op (guards the alarm-namespace wiring).
@@ -87,9 +110,9 @@ namespace Botanik { namespace Health {
             for (const char* code : codes)
                 if (_model.index_of(code) < 0) { ok = false; _post_fail("alarm code missing", code); }
             // The PLC shared region must be present and 32-byte aligned (cache/DMA).
-            if (in_region == nullptr || out_region == nullptr) {
+            if (_in_region == nullptr || _out_region == nullptr) {
                 ok = false; _post_fail("PLC region null", "");
-            } else if (((uintptr_t)in_region % 32u) != 0 || ((uintptr_t)out_region % 32u) != 0) {
+            } else if (((uintptr_t)_in_region % 32u) != 0 || ((uintptr_t)_out_region % 32u) != 0) {
                 ok = false; _post_fail("PLC region misaligned", "");
             }
             // A logger with no writers would silently swallow everything.
@@ -101,20 +124,6 @@ namespace Botanik { namespace Health {
             }
         }
 
-        /** @brief Per beat: assert the platform-health alarms, update the watchdog
-         *  verdict, then advance the model with the (already-fresh) remote bitset.
-         *  @p now is the current uptime in ms. */
-        void step(uint64_t remote_raw, uint32_t rx_torn, uint64_t now) {
-            _assert_platform_alarms(now);
-            // Runtime self-test: a rising cross-core torn-read count raises RX_TORN.
-            // Should never fire - the PLC handshake upholds mutual exclusion - so it is
-            // a loud latched diagnostic if the contract is ever violated.
-            _held_event("RX_TORN", rx_torn, _rx_torn_last, _rx_torn_until_ms, now);
-            _update_watchdog(now);
-            _model.step(remote_raw, now);
-        }
-
-    private:
         /** @brief Log a POST failure line (CRITICAL, BOOT topic). */
         void _post_fail(const char* what, const char* detail) {
             if (_logger) _logger->critical(PlcIO::BOOT, "POST: %s %s", what, detail);

@@ -92,9 +92,6 @@ namespace Botanik {
         /** @brief Site PLC alarm table + length, handed to the alarm model (copied in). */
         const Alarms::AlarmCondition* _alarm_table;
         size_t                    _alarm_count;
-        /** @brief PLC shared region pointers, kept for the boot self-test (POST). */
-        const void*               _shared_in;
-        const void*               _shared_out;
         /** @brief Hardware-watchdog period armed in setup(); the harness overrides
          *  it (the simulator dilates it) via set_hw_watchdog_ms() before setup(). */
         uint32_t                  _hw_watchdog_ms = Config::HW_WATCHDOG_MS;
@@ -135,8 +132,6 @@ namespace Botanik {
             : _baud(console_baud),
               _alarm_table(alarm_table),
               _alarm_count(alarm_count),
-              _shared_in(shared_in),
-              _shared_out(shared_out),
               _console_serial(HAL::get_serial(HAL::CONSOLE)),
               _monitor_serial(HAL::get_serial(HAL::MONITOR)),
               _logger(),
@@ -145,7 +140,8 @@ namespace Botanik {
               _plc_handler(shared_in, shared_out, &_scheduler.context()->timestamp_ms, &_logger),
               _plc_log_reader(_plc_handler.context(), &_logger),
               _health(_alarm_table, (uint8_t)_alarm_count, &_logger,
-                      _scheduler.context(), _plc_handler.context()),
+                      _scheduler.context(), _plc_handler.context(),
+                      shared_in, shared_out),
               _sys_ctx(_scheduler.context(), _plc_handler.context()),
               _terminal(_console_serial, cols, rows, &_scheduler.context()->timestamp_ms,
                         _baud, _sys_ctx, &_health.model()),
@@ -159,7 +155,8 @@ namespace Botanik {
         /** @brief Bring the firmware up in a fixed, non-overridable order (so a site
          *  can't skip or misorder the bring-up): begin the UARTs, register the core
          *  sinks, register the pages via register_pages(), select the terminal type,
-         *  show the boot banner, run the boot self-test, and arm the hardware watchdog.
+         *  show the boot banner, and arm the hardware watchdog. (The boot self-test,
+         *  POST, runs itself on HealthMonitor's first step() once loop() starts.)
          *  A site customizes through the protected register_pages() / on_setup() hooks,
          *  never by overriding setup(). */
         void setup() {
@@ -192,10 +189,10 @@ namespace Botanik {
             _logger.info(PlcIO::BOOT, "Botanik v%s on %s",
                          Config::FIRMWARE_VERSION, HAL::hardware_description());
 
-            on_setup();   // site post-wiring (extra sinks / components), before POST
+            on_setup();   // site post-wiring (extra sinks / components)
 
-            // Boot self-test (after the sinks register, so its result is logged).
-            _health.post(_shared_in, _shared_out);
+            // The boot self-test (POST) now runs itself on HealthMonitor's first step()
+            // in loop(), by which point every sink is registered so its verdict is logged.
 
             HAL::watchdog_start(_hw_watchdog_ms);
             // Details on a second line (the renderer splits on '\n') so the entry wraps cleanly.
@@ -311,7 +308,7 @@ namespace Botanik {
         virtual void register_commands() {}
 
         /** @brief Site post-wiring, run once near the end of setup() (after the core
-         *  sinks/pages, before the boot self-test). Default: nothing. */
+         *  sinks/pages are registered). Default: nothing. */
         virtual void on_setup() {}
 
         /** @brief Site per-beat work, run each loop() with the freshly-read PLC data
