@@ -556,6 +556,14 @@ if(DOXYGEN)
         VERBATIM
     )
 
+    # `make clean` wipes the whole generated docs output (CMake 3.15+; ignored on
+    # older). Doxygen never deletes stale pages on its own, so without this a removed
+    # page lingers in docs/doxygen/html until a manual rm - clean now purges it, along
+    # with the generated code charts.
+    set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_CLEAN_FILES
+        "${CMAKE_SOURCE_DIR}/docs/doxygen"
+        "${CMAKE_SOURCE_DIR}/docs/generated")
+
     # Convenience target: build the tests + docs, run the suite, then open the
     # generated HTML in a browser. Opt-in (not folded into `docs`) so a plain
     # `make docs` stays safe in CI / over SSH. Uses xdg-open on Linux, open on
