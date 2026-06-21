@@ -233,7 +233,7 @@ namespace Botanik { namespace Scheduler {
          */
         BOTANIK_NO_ASAN inline __attribute__((always_inline)) bool tick() {
             // First tick: announce loop inclusion (DEBUG/BOOT, via Component).
-            announce_step(_logger, "scheduler");
+            announce_step(_logger, "LoopScheduler");
             // measure current time (us, for jitter); derive ms from the same reading
             // so the jitter math below can never underflow against the time grid
             // (a separate uptime_ms() read can straddle the millisecond boundary and

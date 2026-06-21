@@ -53,14 +53,30 @@ Each direction is a sequence/acknowledgement pair. The sender bumps its `SeqNum`
 after committing a payload; the receiver copies it into its `AckNum` once it has
 the data. Equality means "in sync".
 
-```
-   sender                              receiver
-   ──────                              ────────
-   write payload to shared memory
-   SeqNum += 1            ───────────▶ sees SeqNum != AckNum
-                                       copy payload out (DSB acquire)
-   sees SeqNum == AckNum  ◀─────────── AckNum = SeqNum
-```
+\dot "one direction's sequence/ack handshake across the two cores"
+digraph handshake {
+  bgcolor="transparent"; rankdir=TB; fontname="Helvetica";
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9, margin="0.12,0.06"];
+  edge [arrowsize=0.7, fontname="Helvetica", fontsize=8];
+
+  subgraph cluster_s {
+    label="sender"; labeljust="l"; fontsize=10; style="rounded"; color="#b0bec5"; bgcolor="#fafafa";
+    s1 [label="write payload\nto shared memory", fillcolor="#d6e4f0"];
+    s2 [label="SeqNum += 1", fillcolor="#d6e4f0"];
+    s3 [label="sees SeqNum == AckNum\n(in sync)", fillcolor="#d6e4f0"];
+    s1 -> s2 -> s3;
+  }
+  subgraph cluster_r {
+    label="receiver"; labeljust="l"; fontsize=10; style="rounded"; color="#b0bec5"; bgcolor="#fafafa";
+    r1 [label="sees SeqNum != AckNum", fillcolor="#d7ecd9"];
+    r2 [label="copy payload out\n(DSB acquire)", fillcolor="#d7ecd9"];
+    r3 [label="AckNum = SeqNum", fillcolor="#d7ecd9"];
+    r1 -> r2 -> r3;
+  }
+  s2 -> r1 [constraint=false, style=dashed, label="SeqNum", color="#1565c0", fontcolor="#1565c0"];
+  r3 -> s3 [constraint=false, style=dashed, label="AckNum", color="#2e7d32", fontcolor="#2e7d32"];
+}
+\enddot
 
 Payload copies go through `HAL::ordered_copy` (memcpy + DSB); the cross-core
 counters (`SeqNum` / `AckNum`) are polled with `HAL::ordered_read` (volatile load
@@ -90,26 +106,35 @@ to `RX_IDLE` without acking. Diagnostic only - no retry loop.
 `PlcSyncHandler` (`plcio/sync.h`) runs two independent machines per `step()`. The
 simulator's `PlcEmulator` (`plcio/emulator.h`) mirrors them from the PLC side.
 
-```
- RX (read PLC output)            TX (write PLC input)
- ┌─────────┐                     ┌─────────┐  write requested
- │ RX_IDLE │◀──┐                 │ TX_IDLE │◀──┐ or heartbeat elapsed
- └────┬────┘   │                 └─────┬───┘   │
- SeqNum≠Ack    │                  write│ │heartbeat
-      ▼        │                       ▼ ▼
- ┌─────────┐   │                 ┌──────────┐
- │ RX_READ │   │ack              │ TX_WRITE │
- └────┬────┘   │                 └─────┬────┘
-   copy        │                   copy│
-      ▼        │                       ▼
- ┌─────────┐   │                 ┌──────────┐
- │ RX_ACK  │───┘                 │ TX_COMMIT│ SeqNum += 1
- └─────────┘                     └─────┬────┘
-                                      ▼
-                                 ┌──────────┐ ack'd → TX_IDLE
-                                 │ TX_WAIT  │ stalled a heartbeat → re-commit
-                                 └──────────┘
-```
+\dot "the two independent RX and TX state machines, stepped once per beat"
+digraph state_machines {
+  bgcolor="transparent"; rankdir=TB; fontname="Helvetica";
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9, margin="0.13,0.06"];
+  edge [fontname="Helvetica", fontsize=8, arrowsize=0.7];
+
+  subgraph cluster_rx {
+    label="RX  -  read PLC output"; labeljust="l"; fontsize=10; style="rounded"; color="#b0bec5"; bgcolor="#fafafa";
+    rx_idle [label="RX_IDLE", fillcolor="#eceff1"];
+    rx_read [label="RX_READ", fillcolor="#d6e4f0"];
+    rx_ack  [label="RX_ACK",  fillcolor="#d7ecd9"];
+    rx_idle -> rx_read [label="txSeqNum != txAckNum"];
+    rx_read -> rx_ack  [label="copy payload (DSB)"];
+    rx_ack  -> rx_idle [label="txAckNum = txSeqNum"];
+  }
+  subgraph cluster_tx {
+    label="TX  -  write PLC input"; labeljust="l"; fontsize=10; style="rounded"; color="#b0bec5"; bgcolor="#fafafa";
+    tx_idle   [label="TX_IDLE",   fillcolor="#eceff1"];
+    tx_write  [label="TX_WRITE",  fillcolor="#d6e4f0"];
+    tx_commit [label="TX_COMMIT", fillcolor="#d7ecd9"];
+    tx_wait   [label="TX_WAIT",   fillcolor="#fdebcf"];
+    tx_idle   -> tx_write  [label="write requested\nor heartbeat"];
+    tx_write  -> tx_commit [label="copy payload (DSB)"];
+    tx_commit -> tx_wait   [label="rxSeqNum += 1"];
+    tx_wait   -> tx_idle   [label="ack'd"];
+    tx_wait   -> tx_commit [label="stalled a heartbeat", constraint=false, style=dashed];
+  }
+}
+\enddot
 
 The TX machine doubles as the link's keepalive: when idle it re-commits every
 `PLC_HEARTBEAT_MS` (an unsolicited pulse), and a commit left unacknowledged for a
@@ -120,19 +145,22 @@ whole heartbeat in `TX_WAIT` is re-pulsed.
 `PlcSyncContext::status()` derives the link state purely from how long it has been
 since the last acknowledged TX:
 
-\dot "link state by elapsed time since the last acknowledged TX"
+\dot "link state by elapsed time since the last acknowledged TX (any ack returns to RUNNING)"
 digraph link_status {
-    bgcolor="transparent";
-    rankdir=LR;
-    node [shape=box, style=rounded, fontname="Courier", fontsize=10, margin="0.08,0.04"];
-    edge [arrowsize=0.7, fontname="Helvetica", fontsize=9];
+  bgcolor="transparent"; rankdir=TB; nodesep=0.4; ranksep=0.45;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10, margin="0.16,0.07"];
+  edge [arrowsize=0.7, fontname="Helvetica", fontsize=9];
 
-    PLC_RUNNING [style="rounded,filled", fillcolor="#e6f4ea"];
-    PLC_TIMEOUT [style="rounded,filled", fillcolor="#fef7e0"];
-    PLC_FAULT   [style="rounded,filled", fillcolor="#fce8e6"];
+  unknown [label="PLC_UNKNOWN", fillcolor="#eceff1"];
+  running [label="PLC_RUNNING", fillcolor="#cde6d3"];
+  timeout [label="PLC_TIMEOUT", fillcolor="#fde6c0"];
+  fault   [label="PLC_FAULT",   fillcolor="#f6c6c2"];
 
-    PLC_RUNNING -> PLC_TIMEOUT [label="≥ PLC_TIMEOUT_MS"];
-    PLC_TIMEOUT -> PLC_FAULT   [label="≥ PLC_WATCHDOG_MS"];
+  unknown -> running [label="first ack"];
+  running -> timeout [label="silent &#8805; PLC_TIMEOUT_MS"];
+  timeout -> fault   [label="silent &#8805; PLC_WATCHDOG_MS"];
+  timeout -> running [label="ack", style=dashed, color="#2e7d32", fontcolor="#2e7d32", constraint=false];
+  fault   -> running [label="ack", style=dashed, color="#2e7d32", fontcolor="#2e7d32", constraint=false];
 }
 \enddot
 

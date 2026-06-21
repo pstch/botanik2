@@ -42,6 +42,7 @@ namespace Botanik { namespace Logs {
         case PlcIO::ALARM_START: return "ALARM_START";
         case PlcIO::ALARM_END:   return "ALARM_END";
         case PlcIO::ALARM_FLAP:  return "ALARM_FLAP";
+        case PlcIO::HEALTH:      return "HEALTH";
         default:                return "";
     }; }
 

@@ -85,7 +85,7 @@ namespace Botanik { namespace Health {
          *  verdict, and advance the model with the (already-fresh) remote bitset.
          *  @p now is the current uptime in ms. */
         void step(uint64_t remote_raw, uint32_t rx_torn, uint64_t now) {
-            announce_step(_logger, "health");
+            announce_step(_logger, "HealthMonitor");
             if (!_posted) { _posted = true; _post(); }
             _assert_platform_alarms(now);
             // Runtime self-test: a rising cross-core torn-read count raises RX_TORN.
@@ -119,14 +119,14 @@ namespace Botanik { namespace Health {
             if (_logger == nullptr || !_logger->has_writers()) ok = false;
             _post_ok = ok;
             if (_logger) {
-                if (ok) _logger->info(PlcIO::BOOT, "POST ok (site %s)", Config::SITE_NAME);
-                else    _logger->critical(PlcIO::BOOT, "POST failed (site %s)", Config::SITE_NAME);
+                if (ok) _logger->info(PlcIO::HEALTH, "POST ok (site %s)", Config::SITE_NAME);
+                else    _logger->critical(PlcIO::HEALTH, "POST failed (site %s)", Config::SITE_NAME);
             }
         }
 
-        /** @brief Log a POST failure line (CRITICAL, BOOT topic). */
+        /** @brief Log a POST failure line (CRITICAL, HEALTH topic). */
         void _post_fail(const char* what, const char* detail) {
-            if (_logger) _logger->critical(PlcIO::BOOT, "POST: %s %s", what, detail);
+            if (_logger) _logger->critical(PlcIO::HEALTH, "POST: %s %s", what, detail);
         }
 
         /** @brief Raise/clear the generic platform-health alarms from the scheduler

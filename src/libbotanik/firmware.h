@@ -186,7 +186,8 @@ namespace Botanik {
             _terminal.setup_vt102();
             _terminal.switch_to(0);
 
-            _logger.info(PlcIO::BOOT, "Botanik v%s on %s",
+            // Details on a second line (the renderer splits on '\n') so it wraps cleanly.
+            _logger.info(PlcIO::BOOT, "Botanik v%s\nRunning on : %s",
                          Config::FIRMWARE_VERSION, HAL::hardware_description());
 
             on_setup();   // site post-wiring (extra sinks / components)

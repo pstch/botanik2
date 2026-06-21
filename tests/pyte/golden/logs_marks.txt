@@ -15,7 +15,8 @@
 
 <TS> [!] BOOT: sched_setscheduler failed:
                         > Operation not permitted
-<TS> [-] BOOT: Botanik v0.1.0-dev on x86-64 POSIX simulator
+<TS> [-] BOOT: Botanik v0.1.0-dev
+                        > Running on : x86-64 POSIX simulator
 <TS> [-] BOOT: scheduler started, period=10ms
 <TS> [-] SHARED_IO: PLC link <P>
 <TS> --- MARK ---

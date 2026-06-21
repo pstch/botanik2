@@ -64,7 +64,7 @@ namespace Botanik { namespace Network {
 
     NetworkHandler::NetworkHandler(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger,
                                    NameResolver* resolver)
-        : ConfigHandler(ctx, logger, "network"),
+        : ConfigHandler(ctx, logger, "NetworkHandler"),
           _state(NET_IDLE), _since_ms(0), _resolver(resolver), _net(nullptr) {}
 
     uint32_t NetworkHandler::config_serial() const {
@@ -185,7 +185,7 @@ namespace Botanik { namespace Network {
 
     TimeSyncHandler::TimeSyncHandler(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger,
                                      NameResolver* resolver)
-        : ConfigHandler(ctx, logger, "timesync"),
+        : ConfigHandler(ctx, logger, "TimeSyncHandler"),
           _state(TIME_IDLE), _since_ms(0), _resolver(resolver), _server_idx(0) {
         _server_addr.bytes[0] = _server_addr.bytes[1] = 0;
         _server_addr.bytes[2] = _server_addr.bytes[3] = 0;

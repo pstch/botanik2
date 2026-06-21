@@ -45,7 +45,7 @@ namespace Botanik { namespace Network {
 
     MqttClient::MqttClient(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger,
                            NameResolver* resolver)
-        : ConfigHandler(ctx, logger, "mqtt"),
+        : ConfigHandler(ctx, logger, "MqttClient"),
           _state(MQTT_IDLE), _since_ms(0), _last_ping_ms(0), _resolver(resolver) {
         _broker_addr.bytes[0] = _broker_addr.bytes[1] = 0;
         _broker_addr.bytes[2] = _broker_addr.bytes[3] = 0;

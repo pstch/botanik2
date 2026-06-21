@@ -73,37 +73,37 @@ edge-triggered (first event instant, then a per-category holdoff) and classed
 
 ## Pipeline
 
-```
-  firmware code                     PLC coprocessor
-  info()/warning()/…                  (log ring)
-        │                                 │
-        │                                 ▼
-        │                          PlcLogReader::step()
-        │                                 │
-        └────────────────┬────────────────┘
-                         ▼
-                 ┌───────────────────────────────────────┐
-                 │              Logger                   │
-                 │  ┌─────────────────────────────────┐  │
-                 │  │  global bucket  ⨯  topic bucket │  │  ← dual token-bucket
-                 │  └───────────────┬─────────────────┘  │     (drop + count on empty;
-                 │     push_entry() │                    │      periodic suppressed report)
-                 └──────────────────┼────────────────────┘
-                                    │ fan-out to every registered LogWriter
-        ┌──────────────────┬────────┴─────────┬──────────────────┐
-        ▼                  ▼                  ▼                  ▼
- ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌──────────────┐
- │ Monitor     │    │ ShellPage   │    │ LogsPage    │    │ HomePage     │
- │ LogWriter   │    │ (writer)    │    │ (writer)    │    │ (writer)     │
- └──────┬──────┘    └──────┬──────┘    └──────┬──────┘    └──────┬───────┘
-        │                  │                  │                  │
- BufferedLogWriter: push() → FIFO queue → drain() (incremental, non-blocking)
-        │                  │                  │                  │
-        ▼                  └──────────────────┴──────────────────┘
-  monitor serial                  drained from tick():
-  (drain() in main loop)   active page paints; background pages
-                           bank into Scrollback for focus() replay
-```
+\dot "a log entry: sources -> Logger (rate limiting) -> every registered writer -> its sink"
+digraph logflow {
+  bgcolor="transparent"; rankdir=TB; nodesep=0.35; ranksep=0.5;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9, margin="0.12,0.06"];
+  edge [arrowsize=0.7, fontname="Helvetica", fontsize=8];
+
+  fw  [label="firmware code\ninfo() / warning() / ...", fillcolor="#eceff1"];
+  plc [label="PlcLogReader::step()\n(PLC coprocessor ring)", fillcolor="#d7ecd9"];
+  logger [label="Logger\nglobal bucket  x  topic bucket\n(drop + count on empty;\nperiodic suppressed report)", fillcolor="#fdebcf"];
+
+  mon   [label="Monitor\nLogWriter", fillcolor="#e6dcf0"];
+  shell [label="ShellPage", fillcolor="#e6dcf0"];
+  logs  [label="LogsPage", fillcolor="#e6dcf0"];
+  home  [label="HomePage", fillcolor="#e6dcf0"];
+
+  monser  [label="monitor serial\n(drain() in main loop)", fillcolor="#d6e4f0"];
+  pageout [label="active page paints; background\npages bank into Scrollback\nfor focus() replay", fillcolor="#d6e4f0"];
+
+  fw  -> logger;
+  plc -> logger;
+  logger -> mon [label="fan-out (push_entry)"];
+  logger -> shell;
+  logger -> logs;
+  logger -> home;
+  { rank=same; mon; shell; logs; home; }
+  mon   -> monser  [label="BufferedLogWriter:\npush -> FIFO -> drain()", fontsize=7];
+  shell -> pageout;
+  logs  -> pageout;
+  home  -> pageout;
+}
+\enddot
 
 ## Format
 

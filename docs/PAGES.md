@@ -8,16 +8,21 @@ up to 8 of them, routes input to the active one (see
 ## Screen contract
 
 ```
- Row 0        ████ status bar ████   ← owned by AnsiTerminal, never by a page
+ Row 0        ████ status bar ████   ← AnsiTerminal: page tabs + live metrics
  Row 1                                ┐
- …            page content area       ├ rows 1..N-1 owned by the active page
- Row N-1                              ┘
+ …            page content area       ├ rows owned by the active page
+ Row N-2                              ┘
+ Row N-1      ████ alarm bar ████     ← AnsiTerminal: shown only while alarms are active
 ```
 
-Row 0 (the inverted status bar: page tabs on the left, live metrics on the
-right) belongs to the terminal. A page owns rows 1..N-1 and draws only there, and
-only while active. The terminal clears the content area on every page switch, so
-`focus()` always paints onto a blank canvas.
+Both the inverted **status bar** on row 0 (page tabs on the left, live metrics on
+the right) and the **alarm bar** on the bottom row belong to the terminal, which
+repaints them cooperatively over every page. A page owns the rows between them and
+draws only there, and only while active. The alarm bar's row is reserved only while
+at least one alarm is active (`_reserved_bottom` = 1); with no alarms the bottom row
+reverts to the page, so a page reads its usable row count from the terminal rather
+than assuming a fixed height. The terminal clears the content area on every page
+switch, so `focus()` always paints onto a blank canvas.
 
 ## The Page interface
 
@@ -39,27 +44,30 @@ an inactive page banks queued entries without drawing (see
 
 ## Hierarchy
 
-```
-                       ┌──────────────────────┐
-                       │   Pages::Page        │  (abstract interface)
-                       └───────────┬──────────┘
-            ┌──────────────────────┼─────────────────────┐
-            ▼                      ▼                     ▼
-   ┌────────────────┐    ┌────────────────┐    ┌───────────────────────┐
-   │   ShellPage    │    │   LogsPage     │    │   MetricPage          │
-   │                │    │                │    │   (diff-rendered base)│
-   │ + ShellWriter  │    │ + Buffered     │    └───────────┬───────────┘
-   │ + Buffered     │    │   LogWriter    │         ┌──────┴───────┐
-   │   LogWriter    │    └────────────────┘         ▼              ▼
-   │                │                       ┌──────────────┐ ┌─────────────┐
-   │  TextEditor    │                       │ HomePage<T>  │ │StatusPage<T>│
-   │  CommandShell  │                       │ + Buffered   │ │             │
-   └────────────────┘                       │   LogWriter  │ │             │
-                                            └──────┬───────┘ └─────┬───────┘
-                                                   ▼               ▼
-                                          GreenhouseHomePage  GreenhouseStatusPage
-                                              (site payload, in main.cpp)
-```
+\dot "the page class hierarchy (library pages in blue, site pages in green)"
+digraph pages {
+  bgcolor="transparent"; rankdir=TB; nodesep=0.35; ranksep=0.5;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9, margin="0.12,0.06"];
+  edge [arrowsize=0.7, arrowhead=empty];
+
+  page    [label="Pages::Page\n(abstract interface)", fillcolor="#eceff1"];
+  shell   [label="ShellPage\n+ TextEditor, CommandShell\n+ ShellWriter / LogWriter", fillcolor="#d6e4f0"];
+  logs    [label="LogsPage\n+ LogWriter", fillcolor="#d6e4f0"];
+  metric  [label="MetricPage\n(diff-rendered base)", fillcolor="#d6e4f0"];
+  home    [label="HomePage<T>\n+ LogWriter", fillcolor="#d6e4f0"];
+  status  [label="StatusPage<T>", fillcolor="#d6e4f0"];
+  ghome   [label="GreenhouseHomePage", fillcolor="#d7ecd9"];
+  gstatus [label="GreenhouseStatusPage", fillcolor="#d7ecd9"];
+
+  page -> shell;
+  page -> logs;
+  page -> metric;
+  metric -> home;
+  metric -> status;
+  home   -> ghome;
+  status -> gstatus;
+}
+\enddot
 
 - @ref Botanik::Pages::ShellPage - interactive shell. Owns a
   @ref Botanik::Terminal::TextEditor on the bottom row and a

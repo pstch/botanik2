@@ -54,12 +54,12 @@ is actually turning.
 
 ### Result
 
-POST records its verdict in `post_ok()` and logs one line on the `BOOT` topic,
+POST records its verdict in `post_ok()` and logs one line on the `HEALTH` topic,
 tagged with the site name (`Config::SITE_NAME`):
 
-- success -> `INFO  BOOT: POST ok (site <name>)`
-- failure -> `CRITICAL BOOT: POST failed (site <name>)`, preceded by one
-  `CRITICAL BOOT: POST: <what> <detail>` line per failed check.
+- success -> `INFO  HEALTH: POST ok (site <name>)`
+- failure -> `CRITICAL HEALTH: POST failed (site <name>)`, preceded by one
+  `CRITICAL HEALTH: POST: <what> <detail>` line per failed check.
 
 A failure is **loud but not fatal**: POST does *not* withhold the watchdog or halt
 the boot. The firmware continues to run so the operator can read the diagnostics

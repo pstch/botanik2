@@ -30,12 +30,12 @@ namespace Botanik {
         /** @brief Log a one-time DEBUG / BOOT line the first time the component is
          *  stepped, to show it reached the main loop. Call at the top of step(): a no-op
          *  after the first call, and (bar setting the flag) compiled out when DEBUG is
-         *  undefined. @p name is a short component label, @p logger may be null. */
+         *  undefined. @p name is the component's class name, @p logger may be null. */
         void announce_step(Logs::Logger* logger, const char* name) {
             if (_announced) return;
             _announced = true;
 #ifdef DEBUG
-            if (logger != nullptr) logger->debug(PlcIO::BOOT, "%s in loop", name);
+            if (logger != nullptr) logger->debug(PlcIO::BOOT, "%s initialized", name);
 #else
             (void)logger; (void)name;
 #endif

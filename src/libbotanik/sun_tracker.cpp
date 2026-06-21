@@ -13,7 +13,7 @@ namespace Botanik {
     static const uint64_t WALL_CLOCK_VALID_MS = 1600000000000ull;
 
     SunPositionTracker::SunPositionTracker(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger)
-        : ConfigHandler(ctx, logger, "sun"), _is_day(false), _computed(false) {
+        : ConfigHandler(ctx, logger, "SunPositionTracker"), _is_day(false), _computed(false) {
         _times.sunrise.valid = false;
         _times.sunset.valid  = false;
     }
