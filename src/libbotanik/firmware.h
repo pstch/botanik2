@@ -17,6 +17,57 @@
  * HAL::get_plc_input()/get_plc_output()). Per-target timing (link-timeout
  * dilation on the sim, the HW watchdog period) is applied by the harness through
  * the accessors / set_hw_watchdog_ms() before setup().
+ *
+ * @section firmware_extend Extending the base for a site
+ *
+ * A site is a thin subclass that contributes data (its PLC payload, alarm table,
+ * pages, shell commands) and wires it through the base. The base owns the generic
+ * machinery and the bring-up/loop order; the site never overrides setup()/loop(),
+ * only the protected Template-Method hooks, so the order can't be skipped or
+ * misordered. The extension surface is:
+ *
+ *  - **Alarm table** - passed to the constructor (`alarm_table`, `alarm_count`).
+ *    The base hands it to the AlarmModel, which splices in the generic
+ *    platform-health alarms (alarms/platform.h). Site/PLC alarms fill bit 0 up;
+ *    platform alarms sit at the high end. Pure data; no hook needed.
+ *  - **Pages** - override register_pages() to set the tab order (page 0 is the
+ *    boot page); call terminal().add_page(...) for each. The default registers the
+ *    built-ins (shell/logs/alarms).
+ *  - **Shell commands** - override register_commands() and call
+ *    shell_page().set_commands(table, count, ctx) with a site-static ShellCommand
+ *    table. Tried after the built-ins, so a site can't shadow exit/reset.
+ *  - **Post-wiring / per-beat work** - on_setup() runs once near the end of setup()
+ *    (e.g. to add a log sink); on_loop(now_ms) runs each beat with fresh PLC data.
+ *
+ * Worked example (a site with one extra page and one extra command):
+ * @code
+ * // --- site-static tables (single source of truth for this greenhouse) ---
+ * extern const Alarms::AlarmCondition g_alarms[];   // alarms/<site>.cpp
+ * extern const uint8_t                g_alarm_count;
+ *
+ * static void cmd_grow(Shell::ShellWriter& out, const char*, uint16_t, void*) {
+ *     static const char msg[] = "growth program nominal";
+ *     out.write(msg, sizeof(msg) - 1);
+ * }
+ * static const Shell::ShellCommand g_commands[] = {
+ *     { "grow", "growth program status", &cmd_grow },
+ * };
+ *
+ * class GreenhouseXXX final : public BotanikFirmware<PlcInputData_t, PlcOutputData_t> {
+ *     SiteHomePage _home;   // built from the base's components (see ctor)
+ * public:
+ *     GreenhouseXXX(PlcIO::PlcInput<PlcInputData_t>* in,
+ *                   PlcIO::PlcOutput<PlcOutputData_t>* out, uint32_t baud)
+ *         : BotanikFirmware(in, out, g_alarms, g_alarm_count, baud),
+ *           _home(terminal(), plc_output_data()) {}
+ * protected:
+ *     void register_pages()    override { terminal().add_page(&_home);            // page 0
+ *                                         terminal().add_page(&shell_page()); }   // ...
+ *     void register_commands() override { shell_page().set_commands(
+ *                                             g_commands, 1, this); }
+ *     void on_setup()          override { logger().add_writer(&_home); }
+ * };
+ * @endcode
  */
 
 #include "libbotanik.h"
@@ -127,6 +178,10 @@ namespace Botanik {
             // Let the shell's loglevel / alarm-ack commands reach the live logger + model.
             _shell_page.set_diagnostics(&_logger, &_health.model());
 
+            // Site shell commands (tried after the built-ins, so a site can't shadow
+            // exit/reset). The default hook registers none.
+            register_commands();
+
             // Pages, in tab order: the hook decides the set/order (page 0 is the boot
             // page). The default registers the built-ins; a site overrides the hook to
             // interleave its own (or drop a built-in). switch_to(0) records the boot page.
@@ -235,6 +290,12 @@ namespace Botanik {
             _terminal.add_page(&_logs_page);
             _terminal.add_page(&_alarms_page);
         }
+
+        /** @brief Register the site's shell command table on the shell page, tried
+         *  after the built-ins (so a site can't shadow exit/reset). Default: none.
+         *  Override and call shell_page().set_commands(table, count, ctx) with a
+         *  site-static ShellCommand table; see the extension example in the file header. */
+        virtual void register_commands() {}
 
         /** @brief Site post-wiring, run once near the end of setup() (after the core
          *  sinks/pages, before the boot self-test). Default: nothing. */

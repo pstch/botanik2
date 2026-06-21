@@ -9,9 +9,9 @@
  * @brief Global configuration parameters for the Botanik library.
  *
  * Every parameter below is overridable per site. Each value defaults from a
- * BOTANIK_<NAME> macro guarded by #ifndef, so a site can pin a different value by
- * #defining that macro before the default is seen. The selected site may ship
- * src/sites/<name>/config.h doing exactly that; CMake passes its path as
+ * `BOTANIK_<NAME>` macro guarded by `#ifndef`, so a site can pin a different value
+ * by `#define`-ing that macro before the default is seen. The selected site may ship
+ * `src/sites/<name>/config.h` doing exactly that; CMake passes its path as
  * BOTANIK_SITE_CONFIG and includes it below, *PUBLIC on the botanik library* so the
  * override is build-wide - libbotanik's own TUs and every consumer compile against
  * the same values (anything else is an ABI mismatch, e.g. a torn PLC log layout).
@@ -43,11 +43,20 @@ namespace Botanik { namespace Config {
     BOTANIK_CFG(const char*, FIRMWARE_VERSION);
 
     /** @brief MQTT topic prefix for alarm notifications. Site identity - the default
-     *  is generic; a site pins its own in sites/<name>/config.h. */
+     *  is generic; a site pins its own in `sites/<name>/config.h`. */
 #ifndef BOTANIK_MQTT_TOPIC_PREFIX
 #  define BOTANIK_MQTT_TOPIC_PREFIX "botanik"
 #endif
     BOTANIK_CFG(const char*, MQTT_TOPIC_PREFIX);
+
+    /** @brief Human-readable site (greenhouse) name. Surfaced in the version command,
+     *  the home screen (beside the logo), and the boot self-test (POST) line. The
+     *  default is generic; a site pins its own in `sites/<name>/config.h` (matching
+     *  the `-DBOTANIK_SITE` directory name, e.g. "gh_mlb41"). */
+#ifndef BOTANIK_SITE_NAME
+#  define BOTANIK_SITE_NAME "generic"
+#endif
+    BOTANIK_CFG(const char*, SITE_NAME);
 
     /** @brief Console UART baud (also sizes the terminal's cooperative-TX gates). The
      *  default is the OPTA hardware rate; the simulator deliberately overrides it low (see
@@ -226,6 +235,28 @@ namespace Botanik { namespace Config {
 #  define BOTANIK_PLC_FAULT_GRACE_MS 15000
 #endif
     BOTANIK_CFG(uint32_t, PLC_FAULT_GRACE_MS);
+
+    /** @} */
+
+    /**
+     * @name PLC configuration variables
+     *
+     * Sizes for the generic PLC->host configuration block (plcio/config.h): the
+     * network / NTP / MQTT settings the PLC publishes for the host's network stack,
+     * NTP client, and MQTT client. Library-fixed and site-independent, but tunable
+     * here because the value MUST match the PLC program's generated config type.
+     * @{
+     */
+
+    /** @brief Char-buffer length for a network address in the PLC config block: a
+     *  hostname or a dotted-decimal IPv4 literal (e.g. "pool.ntp.org" or
+     *  "192.168.1.10"), NUL-terminated; empty ([0]==0) means "unset". Must be a
+     *  4-byte multiple so the config structs stay padding-free.
+     *  @note Must match PLC-side code ! See the PLC-side setup in docs. */
+#ifndef BOTANIK_PLC_HOST_STR_LEN
+#  define BOTANIK_PLC_HOST_STR_LEN 64
+#endif
+    BOTANIK_CFG(size_t, PLC_HOST_STR_LEN);
 
     /** @} */
 

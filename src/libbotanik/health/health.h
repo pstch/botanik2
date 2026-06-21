@@ -96,8 +96,8 @@ namespace Botanik { namespace Health {
             if (_logger == nullptr || !_logger->has_writers()) ok = false;
             _post_ok = ok;
             if (_logger) {
-                if (ok) _logger->info(PlcIO::BOOT, "POST ok");
-                else    _logger->critical(PlcIO::BOOT, "POST failed");
+                if (ok) _logger->info(PlcIO::BOOT, "POST ok (site %s)", Config::SITE_NAME);
+                else    _logger->critical(PlcIO::BOOT, "POST failed (site %s)", Config::SITE_NAME);
             }
         }
 
