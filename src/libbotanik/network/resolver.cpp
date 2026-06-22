@@ -1,22 +1,18 @@
 /**
  * @file resolver.cpp
- * @brief NameResolver - non-blocking hostname -> IPv4 over Mbed async DNS.
+ * @brief NameResolver - non-blocking hostname -> IPv4 via HAL::Net DNS poll API.
  *
- * The Mbed-specific bits (gethostbyname_async, the SocketAddress result, cancel) are
- * guarded for the OPTA build; the simulator has no Mbed stack, so it resolves only
- * dotted-decimal IPv4 literals and reports hostnames as failed.
+ * Literal dotted-decimal IPv4 addresses are parsed locally (no DNS, no table slot).
+ * Hostnames go through HAL::Net::dns_begin / dns_poll; on the simulator the backend
+ * uses getaddrinfo synchronously.
  */
 
 #include "libbotanik/network/resolver.h"
 
 #include <cstring>   // strncmp / strncpy
 
-#include "libbotanik/hal/platform.h"   // HAL::dsb / HAL::ordered_read
-
-#ifdef TARGET_OPTA
-#include "netsocket/NetworkInterface.h"   // gethostbyname_async, hostbyname_cb_t
-#include "netsocket/SocketAddress.h"      // SocketAddress, nsapi_addr_t
-#endif
+#include "libbotanik/hal/net.h"
+#include "libbotanik/hal/platform.h"   // HAL::ordered_read
 
 namespace Botanik { namespace Network {
 
@@ -60,11 +56,8 @@ namespace Botanik { namespace Network {
 
     void NameResolver::clear() {
         for (size_t i = 0; i < Config::DNS_CACHE_SIZE; ++i) {
-#ifdef TARGET_OPTA
-            // Cancel an in-flight lookup so its callback can't write a recycled row.
-            if (_net != nullptr && _table[i].state == SLOT_PENDING && _table[i].handle != 0)
-                _net->gethostbyname_async_cancel(_table[i].handle);
-#endif
+            if (_table[i].state == SLOT_PENDING && _table[i].handle != 0)
+                HAL::Net::dns_cancel(_table[i].handle);
             _table[i].state   = SLOT_FREE;
             _table[i].handle  = 0;
             _table[i].host[0] = '\0';
@@ -101,70 +94,48 @@ namespace Botanik { namespace Network {
         Entry* e = _find(host);
         if (e != nullptr) {
             uint8_t st = HAL::ordered_read(&e->state);
-            if (st == SLOT_READY)   { *out = e->addr; return RESOLVE_OK; }
-            if (st == SLOT_PENDING) return RESOLVE_PENDING;
-            // SLOT_ERROR: a past failure. Free it so the caller's next poll starts a
-            // fresh lookup rather than caching the failure forever.
-            e->state = SLOT_FREE;
+            if (st == SLOT_READY)  { *out = e->addr; return RESOLVE_OK; }
+            if (st == SLOT_PENDING) {
+                HAL::Net::Ip4 ip;
+                HAL::Net::DnsResult r = HAL::Net::dns_poll(e->handle, &ip);
+                if (r == HAL::Net::DNS_OK) {
+                    e->addr.bytes[0]=ip.b[0]; e->addr.bytes[1]=ip.b[1];
+                    e->addr.bytes[2]=ip.b[2]; e->addr.bytes[3]=ip.b[3];
+                    e->state = SLOT_READY; *out = e->addr; return RESOLVE_OK;
+                }
+                if (r == HAL::Net::DNS_FAILED) { e->state = SLOT_FREE; return RESOLVE_FAILED; }
+                return RESOLVE_PENDING;
+            }
+            e->state = SLOT_FREE;   // SLOT_ERROR: free so the next poll retries
             return RESOLVE_FAILED;
         }
 
-#ifdef TARGET_OPTA
-        if (_net == nullptr) return RESOLVE_FAILED;   // network device not up yet
-
+        // Start (or poll) a HAL DNS lookup. A row stores its DnsHandle while pending.
         e = _alloc();
         if (e == nullptr) return RESOLVE_FAILED;       // every row is an in-flight lookup
 
-        // Claim the row PENDING before the call: gethostbyname_async may invoke the
-        // callback synchronously (a stack DNS-cache hit) and it must find a live row.
-        strncpy(e->host, host, Config::PLC_HOST_STR_LEN - 1);
-        e->host[Config::PLC_HOST_STR_LEN - 1] = '\0';
-        e->handle = 0;
-        e->state  = SLOT_PENDING;
-
-        nsapi_value_or_error_t r = _net->gethostbyname_async(
-            host, mbed::Callback<void(int, SocketAddress*)>(&NameResolver::_on_dns, e),
-            NSAPI_IPv4);
-
-        if (r == NSAPI_ERROR_OK) {
-            // Resolved synchronously: the callback already published the result.
-            uint8_t st = HAL::ordered_read(&e->state);
-            if (st == SLOT_READY) { *out = e->addr; return RESOLVE_OK; }
-            e->state = SLOT_FREE;
-            return RESOLVE_FAILED;
-        }
-        if (r < 0) {                       // immediate failure; the callback won't fire
-            e->state = SLOT_FREE;
+        HAL::Net::DnsHandle h = HAL::Net::dns_begin(host);
+        if (h == 0) {                                  // could not start
             if (_logger != nullptr) _logger->warning(PlcIO::NETWORK, "DNS lookup failed to start");
             return RESOLVE_FAILED;
         }
-        e->handle = (int)r;                // positive unique id; the callback fires later
-        return RESOLVE_PENDING;
-#else
-        // Simulator: no Mbed stack. Literals were handled above; a real hostname can't
-        // be resolved here (the sim's network components are mocked), so report failure.
-        return RESOLVE_FAILED;
-#endif
-    }
+        strncpy(e->host, host, Config::PLC_HOST_STR_LEN - 1);
+        e->host[Config::PLC_HOST_STR_LEN - 1] = '\0';
+        e->handle = h;
+        e->state  = SLOT_PENDING;
 
-#ifdef TARGET_OPTA
-    void NameResolver::_on_dns(Entry* e, int result, SocketAddress* address) {
-        // Runs in the network-stack context. Keep it short (Mbed asks for < 10ms and no
-        // socket/blocking ops). Write addr first, then publish state with a release
-        // barrier so the main loop never reads addr ahead of a READY state.
-        if (result > 0 && address != nullptr) {
-            nsapi_addr_t a = address->get_addr();
-            e->addr.bytes[0] = a.bytes[0];
-            e->addr.bytes[1] = a.bytes[1];
-            e->addr.bytes[2] = a.bytes[2];
-            e->addr.bytes[3] = a.bytes[3];
-            HAL::dsb();
+        // Poll immediately: the sim resolves synchronously, and OPTA may hit a stack cache.
+        HAL::Net::Ip4 ip;
+        HAL::Net::DnsResult r = HAL::Net::dns_poll(h, &ip);
+        if (r == HAL::Net::DNS_OK) {
+            e->addr.bytes[0]=ip.b[0]; e->addr.bytes[1]=ip.b[1];
+            e->addr.bytes[2]=ip.b[2]; e->addr.bytes[3]=ip.b[3];
             e->state = SLOT_READY;
-        } else {
-            HAL::dsb();
-            e->state = SLOT_ERROR;
+            *out = e->addr;
+            return RESOLVE_OK;
         }
+        if (r == HAL::Net::DNS_FAILED) { e->state = SLOT_FREE; return RESOLVE_FAILED; }
+        return RESOLVE_PENDING;
     }
-#endif
 
 }}

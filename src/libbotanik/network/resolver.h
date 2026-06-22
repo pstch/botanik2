@@ -6,30 +6,26 @@
  * @brief NameResolver - non-blocking hostname -> IPv4 resolution shared by the
  *        network-using components (NTP, MQTT, ...).
  *
- * Wraps Mbed's asynchronous DNS (NetworkInterface::gethostbyname_async) behind a
- * poll-style API: a caller asks resolve() for a name every tick and gets back either
- * a resolved address now, "pending" (a lookup is in flight, ask again later), or
+ * Poll-style API via the HAL::Net DNS poll API; the simulator backend uses the host
+ * resolver. A caller asks resolve() for a name every tick and gets back either a
+ * resolved address now, "pending" (a lookup is in flight, ask again later), or
  * "failed" (back off and retry on a later tick). Nothing blocks the main loop.
  *
  * One fixed-size table backs both jobs (size Config::DNS_CACHE_SIZE): each row holds an
- * in-flight request's handle and the slot the DNS callback writes its result into, and
- * a completed row stays as a cache entry that serves later resolve() calls without a
+ * in-flight request's handle and the slot dns_poll writes its result into, and a
+ * completed row stays as a cache entry that serves later resolve() calls without a
  * fresh lookup.
- *
- * Target-neutral header: the Mbed types stay in resolver.cpp (only forward-declared
- * here). On the simulator there is no Mbed stack, so resolve() handles dotted-decimal
- * IPv4 literals directly and reports hostnames as failed.
  */
 
 #include <cstdint>
 
+#include "libbotanik/hal/net.h"
 #include "libbotanik/logs/logger.h"
 #include "libbotanik_config.h"
 
-// Mbed types (global namespace), used only by the OPTA path in resolver.cpp; forward-
-// declared so this header stays clear of the Mbed headers.
+// Forward declaration kept for the transitional set_interface/interface shim.
+// Removed with those methods once the network components no longer call them (Task 6).
 class NetworkInterface;
-class SocketAddress;
 
 namespace Botanik { namespace Network {
 
@@ -46,31 +42,30 @@ namespace Botanik { namespace Network {
         RESOLVE_FAILED,    ///< lookup failed or no free slot; back off and retry later
     };
 
-    /** @brief Non-blocking hostname -> IPv4 resolver over Mbed async DNS. */
+    /** @brief Non-blocking hostname -> IPv4 resolver via HAL::Net DNS. */
     class NameResolver {
         /** @name Table
          *  @{ */
 
-        /** @brief Per-row lifecycle. The DNS callback advances PENDING -> READY/ERROR
-         *  (it runs in the network-stack context); resolve() (main loop) owns every
-         *  other transition, and never reuses a PENDING row. */
+        /** @brief Per-row lifecycle. dns_poll advances PENDING -> READY or frees the row
+         *  on failure; resolve() (main loop) owns every other transition. */
         enum SlotState : uint8_t {
             SLOT_FREE = 0,   ///< empty, reusable
-            SLOT_PENDING,    ///< gethostbyname_async in flight; the callback owns addr/state
+            SLOT_PENDING,    ///< dns_begin in flight; dns_poll drives state
             SLOT_READY,      ///< resolved; addr valid (also a cache entry)
             SLOT_ERROR,      ///< lookup failed; transient (freed on the next resolve())
         };
 
         /** @brief One table row: an in-flight request and/or a cached result. */
         struct Entry {
-            char             host[Config::PLC_HOST_STR_LEN]; ///< requested name (cache key)
-            ResolvedAddr     addr;     ///< result, valid when state == SLOT_READY
-            int              handle;   ///< gethostbyname_async id while PENDING (0 = none)
-            volatile uint8_t state;    ///< SlotState; the DNS callback publishes it (other thread)
+            char                  host[Config::PLC_HOST_STR_LEN]; ///< name (cache key)
+            ResolvedAddr          addr;     ///< result, valid when state == SLOT_READY
+            HAL::Net::DnsHandle   handle;   ///< dns_begin handle while PENDING (0 = none)
+            volatile uint8_t      state;    ///< SlotState
         };
 
         Entry             _table[Config::DNS_CACHE_SIZE];
-        NetworkInterface* _net;        ///< network device, set once it is up (null = no resolver)
+        void*             _net;    ///< transitional holder; typed accessors below
         Logs::Logger*     _logger;
 
         /** @} */
@@ -80,12 +75,10 @@ namespace Botanik { namespace Network {
          *  @{ */
 
         NameResolver(Logs::Logger* logger = nullptr);
-        /** @brief Wire the network device once it is up (before any resolve()).
-         *  NetworkHandler calls this when the link comes up, and with null on loss. */
-        void set_interface(NetworkInterface* net) { _net = net; }
-        /** @brief The live network interface, or null when the link is down. Lets other
-         *  components (e.g. TimeSyncHandler's NTP socket) reach the device set here. */
-        NetworkInterface* interface() const { return _net; }
+        // Transitional (removed in the NetworkHandler task once no consumer remains):
+        // the resolver no longer uses the interface for DNS; HAL::Net owns the device.
+        void               set_interface(NetworkInterface* net) { _net = (void*)net; }
+        NetworkInterface*  interface() const { return (NetworkInterface*)_net; }
         /** @brief Drop every row (cache + in-flight), cancelling pending lookups. Call
          *  on a network reconfiguration so stale cached addresses don't linger. */
         void clear();
@@ -113,10 +106,6 @@ namespace Botanik { namespace Network {
         /** @brief Reserve a row for a new lookup: a FREE row, else an evictable
          *  READY/ERROR row, else null (every row is PENDING). Never evicts PENDING. */
         Entry* _alloc();
-        /** @brief DNS completion callback (Mbed async), bound per row via the entry
-         *  pointer. Runs in the network-stack context, so it only writes addr then
-         *  publishes state with a barrier. Defined in the OPTA path only. */
-        static void _on_dns(Entry* e, int result, SocketAddress* address);
 
         /** @} */
     };
