@@ -13,30 +13,33 @@ called once per beat in a fixed order - the **per-tick cycle contract**:
 
 \dot "the per-tick cycle contract (one beat, repeating every TASK_PERIOD_MS)"
 digraph per_tick {
-  bgcolor="transparent"; rankdir=TB; nodesep=0.3; ranksep=0.5;
+  stylesheet="graphs.css";
+  bgcolor="transparent"; rankdir=TB; nodesep=0.3; ranksep=0.5; splines=ortho;
   node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9, margin="0.09,0.05"];
   edge [arrowsize=0.7];
 
-  tick   [label="LoopScheduler\ntick()",      fillcolor="#e0e0e0"];
-  recv   [label="BufferedSerial\nreceive()",  fillcolor="#d6e4f0"];
-  plc    [label="PlcSyncHandler\nstep()",     fillcolor="#d7ecd9"];
-  plcr   [label="PlcLogReader\nstep()",       fillcolor="#d7ecd9"];
-  health [label="HealthMonitor\nstep()",      fillcolor="#fdebcf"];
-  onloop [label="site\non_loop()",            fillcolor="#fdebcf"];
-  logger [label="Logger\nstep()",             fillcolor="#e6dcf0"];
-  term   [label="AnsiTerminal\nstep()",       fillcolor="#e6dcf0"];
-  mon    [label="PerfMonitor\ndrain()",       fillcolor="#e6dcf0"];
-  tx     [label="BufferedSerial\ntransmit()", fillcolor="#d6e4f0"];
-  wd     [label="HAL\nwatchdog_kick()",       fillcolor="#e0e0e0"];
+  tick   [label="LoopScheduler\ntick()",      class="scheduler"];
+  recv   [label="BufferedSerial\nreceive()",  class="serial"];
+  plc    [label="PlcSyncHandler\nstep()",     class="plc"];
+  plcr   [label="PlcLogReader\nstep()",       class="plc"];
+  health [label="HealthMonitor\nstep()",      class="logic"];
+  onloop [label="site\non_loop()",            class="logic"];
+  logger [label="Logger\nstep()",             class="ui"];
+  term   [label="AnsiTerminal\nstep()",       class="ui"];
+  mon    [label="PerfMonitor\ndrain()",       class="ui"];
+  tx     [label="BufferedSerial\ntransmit()", class="serial"];
+  wd     [label="HAL\nwatchdog_kick()",       class="scheduler"];
 
   // Three rows, snaking, so the 11 steps fit the column. Row 2 uses dir=back so its
-  // arrows follow the real flow (right to left) without curved edges.
+  // arrows follow the real flow (right to left) without curved edges. splines=ortho
+  // keeps every edge - including the "next beat" loop-back - to straight segments;
+  // routing that loop-back on the west margin keeps it clear of the node arrows.
   { rank=same; tick -> recv -> plc -> plcr [weight=10]; }
   { rank=same; term -> logger -> onloop -> health [dir=back, weight=10]; }
   { rank=same; mon -> tx -> wd [weight=10]; }
   plcr -> health;   // drop on the right
   term -> mon;      // drop on the left
-  wd -> tick [label="next beat", style=dashed, constraint=false, fontname="Helvetica", fontsize=8];
+  wd:w -> tick:w [label="next beat", style=dashed, constraint=false, fontname="Helvetica", fontsize=8];
 
   legend [shape=plaintext, label=<
     <table border="0" cellborder="0" cellspacing="2">

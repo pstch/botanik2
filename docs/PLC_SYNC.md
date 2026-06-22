@@ -55,26 +55,29 @@ the data. Equality means "in sync".
 
 \dot "one direction's sequence/ack handshake across the two cores"
 digraph handshake {
-  bgcolor="transparent"; rankdir=TB; fontname="Helvetica";
+  stylesheet="graphs.css";
+  bgcolor="transparent"; rankdir=TB; fontname="Helvetica"; nodesep=0.5; ranksep=0.45;
   node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9, margin="0.12,0.06"];
   edge [arrowsize=0.7, fontname="Helvetica", fontsize=8];
 
-  subgraph cluster_s {
-    label="sender"; labeljust="l"; fontsize=10; style="rounded"; color="#b0bec5"; bgcolor="#fafafa";
-    s1 [label="write payload\nto shared memory", fillcolor="#d6e4f0"];
-    s2 [label="SeqNum += 1", fillcolor="#d6e4f0"];
-    s3 [label="sees SeqNum == AckNum\n(in sync)", fillcolor="#d6e4f0"];
-    s1 -> s2 -> s3;
-  }
-  subgraph cluster_r {
-    label="receiver"; labeljust="l"; fontsize=10; style="rounded"; color="#b0bec5"; bgcolor="#fafafa";
-    r1 [label="sees SeqNum != AckNum", fillcolor="#d7ecd9"];
-    r2 [label="copy payload out\n(DSB acquire)", fillcolor="#d7ecd9"];
-    r3 [label="AckNum = SeqNum", fillcolor="#d7ecd9"];
-    r1 -> r2 -> r3;
-  }
-  s2 -> r1 [constraint=false, style=dashed, label="SeqNum", color="#1565c0", fontcolor="#1565c0"];
-  r3 -> s3 [constraint=false, style=dashed, label="AckNum", color="#2e7d32", fontcolor="#2e7d32"];
+  wlbl [shape=plaintext, style="none", fillcolor="none", label=<<b>writer</b><br/><font color="#666666" point-size="8">RX: PLC&#160;&#160;|&#160;&#160;TX: host</font>>];
+  rlbl [shape=plaintext, style="none", fillcolor="none", label=<<b>reader</b><br/><font color="#666666" point-size="8">RX: host&#160;&#160;|&#160;&#160;TX: PLC</font>>];
+
+  w1 [class="serial", label="write payload\nto shared memory"];
+  w2 [class="serial", label="SeqNum += 1"];
+  w3 [class="serial", label="sees SeqNum == AckNum\n(in sync)"];
+  r1 [class="plc", label="sees SeqNum != AckNum"];
+  r2 [class="plc", label="copy payload out\n(DSB acquire)"];
+  r3 [class="plc", label="AckNum = SeqNum"];
+
+  wlbl -> w1 [style=invis]; w1 -> w2 -> w3;
+  rlbl -> r1 [style=invis]; r1 -> r2 -> r3;
+
+  { rank=same; wlbl; rlbl; }
+  { rank=same; w2; r1; }
+  { rank=same; w3; r3; }
+  w2:e -> r1:w [constraint=false, style=dashed, color="#1565c0", fontcolor="#1565c0", label="SeqNum"];
+  r3:w -> w3:e [constraint=false, style=dashed, color="#2e7d32", fontcolor="#2e7d32", label="AckNum"];
 }
 \enddot
 

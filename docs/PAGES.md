@@ -7,13 +7,29 @@ up to 8 of them, routes input to the active one (see
 
 ## Screen contract
 
-```
- Row 0        ████ status bar ████   ← AnsiTerminal: page tabs + live metrics
- Row 1                                ┐
- …            page content area       ├ rows owned by the active page
- Row N-2                              ┘
- Row N-1      ████ alarm bar ████     ← AnsiTerminal: shown only while alarms are active
-```
+\dot "the 80x24 screen: the terminal owns row 0 and the bottom alarm bar; the active page owns the rows between"
+digraph screen {
+  stylesheet="graphs.css";
+  bgcolor="transparent"; rankdir=LR; nodesep=0.4;
+  node [fontname="Helvetica", fontsize=9];
+
+  scr [shape=plaintext, label=<
+    <table border="1" cellborder="0" cellspacing="0" cellpadding="7" color="#37474f">
+      <tr><td port="r0" bgcolor="#37474f"><font color="#ffffff"><b>Row 0</b> &#8212; status bar &#160; <font color="#cfd8dc">page tabs + live metrics</font></font></td></tr>
+      <tr><td port="mid" bgcolor="#e6dcf0" align="center"> <br/><i>page content area</i> &#160; (rows 1 .. N-2)<br/> </td></tr>
+      <tr><td port="rn" bgcolor="#f6c6c2"><b>Row N-1</b> &#8212; alarm bar &#160; <font color="#7a4f4f">shown only while alarms active</font></td></tr>
+    </table>
+  >];
+
+  term [shape=box, style="rounded,filled", class="scheduler", label="AnsiTerminal\nowns top + bottom"];
+  page [shape=box, style="rounded,filled", class="plc",       label="active page\nowns the middle"];
+
+  term -> scr:r0 [arrowsize=0.7];
+  term -> scr:rn [arrowsize=0.7];
+  page -> scr:mid [arrowsize=0.7];
+  { rank=same; term; page; }
+}
+\enddot
 
 Both the inverted **status bar** on row 0 (page tabs on the left, live metrics on
 the right) and the **alarm bar** on the bottom row belong to the terminal, which
