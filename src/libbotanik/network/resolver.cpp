@@ -46,7 +46,7 @@ namespace Botanik { namespace Network {
     }  // namespace
 
     NameResolver::NameResolver(Logs::Logger* logger)
-        : _net(nullptr), _logger(logger) {
+        : _logger(logger) {
         for (size_t i = 0; i < Config::DNS_CACHE_SIZE; ++i) {
             _table[i].state   = SLOT_FREE;
             _table[i].handle  = 0;

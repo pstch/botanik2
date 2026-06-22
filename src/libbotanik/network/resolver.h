@@ -23,10 +23,6 @@
 #include "libbotanik/logs/logger.h"
 #include "libbotanik_config.h"
 
-// Forward declaration kept for the transitional set_interface/interface shim.
-// Removed with those methods once the network components no longer call them (Task 6).
-class NetworkInterface;
-
 namespace Botanik { namespace Network {
 
     /** @brief A resolved IPv4 address as four octets (a.b.c.d). */
@@ -65,7 +61,6 @@ namespace Botanik { namespace Network {
         };
 
         Entry             _table[Config::DNS_CACHE_SIZE];
-        void*             _net;    ///< transitional holder; typed accessors below
         Logs::Logger*     _logger;
 
         /** @} */
@@ -75,10 +70,6 @@ namespace Botanik { namespace Network {
          *  @{ */
 
         NameResolver(Logs::Logger* logger = nullptr);
-        // Transitional (removed in the NetworkHandler task once no consumer remains):
-        // the resolver no longer uses the interface for DNS; HAL::Net owns the device.
-        void               set_interface(NetworkInterface* net) { _net = (void*)net; }
-        NetworkInterface*  interface() const { return (NetworkInterface*)_net; }
         /** @brief Drop every row (cache + in-flight), cancelling pending lookups. Call
          *  on a network reconfiguration so stale cached addresses don't linger. */
         void clear();
