@@ -47,7 +47,12 @@ namespace Botanik { namespace HAL { namespace Net {
     typedef uint32_t DnsHandle;        ///< 0 == invalid / could-not-start
     enum DnsResult { DNS_PENDING, DNS_OK, DNS_FAILED };
 
-    /** @brief Start resolving @p host. Returns 0 if a lookup could not be started. */
+    /** @brief Start resolving @p host. Returns 0 if a lookup could not be started.
+     *
+     *  Caller contract: poll the returned handle with dns_poll until it reports
+     *  a terminal result (DNS_OK or DNS_FAILED), or release it with dns_cancel.
+     *  Otherwise the lookup slot is never freed - leaked handles eventually exhaust
+     *  the small fixed-size slot table on the OPTA backend. */
     DnsHandle dns_begin(const char* host);
     /** @brief Poll @p h. On DNS_OK fills @p out; DNS_OK/DNS_FAILED consume the handle. */
     DnsResult dns_poll(DnsHandle h, Ip4* out);

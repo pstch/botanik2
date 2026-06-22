@@ -88,6 +88,7 @@ namespace Botanik { namespace HAL { namespace Net {
         for (int i = 0; i < MAX_DNS; ++i) if (g_dns[i].st == 0) { slot = &g_dns[i]; break; }
         if (slot == 0) return 0;
         slot->id = ++g_dns_next; slot->mbed_handle = 0; slot->st = 1;   // pending before the call
+        // Callback binds slot as a0, then result (a1) and SocketAddress* (a2) from gethostbyname_async.
         nsapi_value_or_error_t r = eth()->gethostbyname_async(
             host, mbed::Callback<void(int, SocketAddress*)>(&on_dns, slot), NSAPI_IPv4);
         if (r == NSAPI_ERROR_OK) return slot->id;        // resolved synchronously; st published
