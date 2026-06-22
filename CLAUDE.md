@@ -95,7 +95,7 @@ reaches the platform only through HAL, never raw `<time.h>` or platform APIs.
 
 The library subsystems under `src/libbotanik/`:
 
-**HAL (`hal/`)** - `platform.h` defines the unified interface (`current_ms()`, `uptime_ms()`, `dsb()`, `ordered_copy/move`). `simulator.h` implements it with `std::chrono` and Linux serial I/O; `opta.h` implements it for Mbed OS. All other code uses HAL exclusively - never raw `<time.h>` or platform-specific calls.
+**HAL (`hal/`)** - `platform.h` defines the unified interface (`current_ms()`, `uptime_ms()`, `dsb()`, `ordered_copy/move`). `simulator.h` implements it with `std::chrono` and Linux serial I/O; `opta.h` implements it for Mbed OS. All other code uses HAL exclusively - never raw `<time.h>` or platform-specific calls. The HAL also owns the network transport (`hal/net.{h,cpp}`: link, DNS, UDP, TCP); the simulator backend uses real BSD sockets. `TARGET_OPTA` appears only under `hal/`; shared code never branches on it (`TARGET_SIMULATOR` may, for dev-only scaffolding).
 
 **Scheduler (`scheduler/`)** - `LoopScheduler` is the non-blocking fixed-period loop driver: it releases one tick per period, handles overruns, and self-instruments per-beat (CPU duty cycle `(period - slept)/period`, scheduling jitter, work duration, and stack high-water via stack painting), publishing the metrics into a `SchedulerContext` surfaced in the status bar and the `stats` shell command.
 

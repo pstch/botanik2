@@ -24,7 +24,9 @@ namespace Botanik { namespace detail {
     struct ProbePlcIn  {};                   // empty payload (library log fields only)
     struct ProbePlcOut { uint32_t _w[15]; }; // 60 B, 4-aligned
 
-#if defined(TARGET_OPTA)
+// Pick the per-target footprint. Keyed off TARGET_SIMULATOR (the hardware macro is
+// confined to the HAL, so we invert: absent simulator = OPTA-class/ARM build).
+#if !defined(TARGET_SIMULATOR)
 #  define BOTANIK_SIZE(host_, opta_) (opta_)
 #else
 #  define BOTANIK_SIZE(host_, opta_) (host_)

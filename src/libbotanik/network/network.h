@@ -4,29 +4,26 @@
 /**
  * @file network.h
  * @brief NetworkHandler and TimeSyncHandler - PLC-config-driven state machines that
- *        bring up the network device and run an NTP client.
+ *        bring up the network link and run an NTP client.
  *
  * Both derive ConfigHandler (config_handler.h), so each restarts its state machine
  * whenever the operator changes its config block (the PLC bumps that block's serial).
- * NetworkHandler owns the network interface and hands it to the shared NameResolver
- * (resolver.h) once the link is up; TimeSyncHandler resolves its NTP servers through
- * that same resolver.
+ * NetworkHandler owns the link (via HAL::Net) and is_up() is authoritative;
+ * TimeSyncHandler resolves its NTP servers through the shared NameResolver and gates
+ * on NetworkHandler::is_up().
  */
 
 #include <cstdint>
 
 #include "libbotanik/config_handler.h"
+#include "libbotanik/hal/net.h"
 #include "libbotanik/network/resolver.h"
-
-// Mbed network device (global namespace); used only in network.cpp, forward-declared
-// so this header stays clear of the Mbed headers.
-class NetworkInterface;
 
 namespace Botanik { namespace Network {
 
-    /** @brief Brings the network device up from the PLC `net` config block, as a state
-     *  machine that restarts on a config change. Owns the interface and hands it to the
-     *  NameResolver while the link is up. */
+    /** @brief Owns the link (via HAL::Net bring-up); is_up() is authoritative.
+     *  Drives the link state machine from the PLC `net` config block, restarting on
+     *  a config change. Clears the NameResolver cache on reconfiguration / link loss. */
     class NetworkHandler : public ConfigHandler {
         /** @name State
          *  @{ */
@@ -36,15 +33,14 @@ namespace Botanik { namespace Network {
          *  before retrying. */
         enum State : uint8_t {
             NET_IDLE = 0,   ///< no usable config (serial 0); nothing to bring up
-            NET_SETUP,      ///< device configured; waiting for the link + an address
-            NET_RUNNING,    ///< link up with an address; interface handed to the resolver
+            NET_SETUP,      ///< link_configure called; waiting for LINK_UP
+            NET_RUNNING,    ///< link up with an address; resolver cache valid
             NET_ERROR,      ///< bring-up failed / link lost; waiting out the retry backoff
         };
 
         State             _state;
         uint64_t          _since_ms;   ///< when the current state was entered (for timeouts)
-        NameResolver*     _resolver;   ///< wired with the live interface while up (may be null)
-        NetworkInterface* _net;        ///< the network device (null until first bring-up)
+        NameResolver*     _resolver;   ///< cleared on reconfiguration / link loss (may be null)
 
         /** @} */
 
@@ -52,15 +48,12 @@ namespace Botanik { namespace Network {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief @p resolver (optional) is handed the live interface once the link is
-         *  up, and cleared on a reconfiguration / link loss. */
+        /** @brief @p resolver (optional) cache is cleared on reconfiguration / link loss. */
         NetworkHandler(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger = nullptr,
                        NameResolver* resolver = nullptr);
 
         /** @brief True once the link is up with an address. */
         bool is_up() const { return _state == NET_RUNNING; }
-        /** @brief The live network interface, or null until the link is up. */
-        NetworkInterface* interface() const { return _state == NET_RUNNING ? _net : nullptr; }
 
         /** @} */
 
@@ -77,18 +70,18 @@ namespace Botanik { namespace Network {
          *  @{ */
         /** @brief Enter a state and stamp the entry time. */
         void _enter(State s, uint64_t now_ms);
-        /** @brief Configure the device from the `net` block and start a non-blocking
-         *  connect; moves to SETUP (on the sim, straight to RUNNING). */
+        /** @brief Build a LinkConfig from the PLC net block and call HAL::Net::link_configure;
+         *  moves to NET_SETUP (link_status polls to LINK_UP on the next step). */
         void _begin_setup(uint64_t now_ms);
-        /** @brief Unwire the resolver (clear its interface + cache). */
+        /** @brief Clear the resolver's cache on reconfiguration / link loss. */
         void _unwire_resolver();
         /** @} */
     };
 
     /** @brief NTP client driven by the PLC `ntp` config block: resolves a server via the
-     *  NameResolver, runs a non-blocking SNTP exchange over UDP on the live interface
-     *  (reached through the resolver), and disciplines the RTC. Restarts on a config
-     *  change; falls back to the second server and backs off on failure. */
+     *  NameResolver, runs a non-blocking SNTP exchange over HAL::Net UDP, and disciplines
+     *  the RTC. Gated on NetworkHandler::is_up(). Restarts on a config change; falls back
+     *  to the second server and backs off on failure. */
     class TimeSyncHandler : public ConfigHandler {
         /** @name State
          *  @{ */
@@ -99,16 +92,18 @@ namespace Botanik { namespace Network {
             TIME_SYNCED,     ///< RTC disciplined; idle until the next poll
             TIME_ERROR,      ///< failed; backing off before a retry
         };
-        State         _state;
-        uint64_t      _since_ms;       ///< when the current state was entered (for timeouts)
-        NameResolver* _resolver;       ///< DNS + the live interface (set by NetworkHandler)
-        ResolvedAddr  _server_addr;    ///< resolved address of the server being queried
-        uint8_t       _server_idx;     ///< which configured server we are on (0 = server1)
+        State                   _state;
+        uint64_t                _since_ms;       ///< when the current state was entered (for timeouts)
+        NameResolver*           _resolver;       ///< DNS resolver (set by NetworkHandler)
+        const NetworkHandler*   _net;            ///< link gate (null = always blocked)
+        ResolvedAddr            _server_addr;    ///< resolved address of the server being queried
+        uint8_t                 _server_idx;     ///< which configured server we are on (0 = server1)
+        HAL::Net::UdpSocket     _udp;            ///< open UDP socket handle (-1 = none)
         /** @} */
 
     public:
         TimeSyncHandler(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger = nullptr,
-                        NameResolver* resolver = nullptr);
+                        NameResolver* resolver = nullptr, const NetworkHandler* net = nullptr);
 
     protected:
         uint32_t config_serial() const override;
@@ -121,9 +116,9 @@ namespace Botanik { namespace Network {
         /** @brief Advance to the second server if there is one, else go to ERROR. */
         void _next_server_or_error(uint64_t now_ms);
         /** @brief Open the UDP socket and send an SNTP request to _server_addr.
-         *  OPTA only; returns false on any socket error. */
+         *  Returns false on any socket error. */
         bool _send_query();
-        /** @brief Poll the UDP socket for the reply. OPTA only; returns 1 = synced (RTC
+        /** @brief Poll the UDP socket for the reply. Returns 1 = synced (RTC
          *  set), 0 = still waiting, -1 = failed/timed out. */
         int _poll_query(uint64_t now_ms);
         /** @} */

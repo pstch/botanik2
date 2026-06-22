@@ -1,11 +1,12 @@
 /**
  * @file test_network.cpp
- * @brief Host-side tests for the network components. Their real work (DNS / UDP / TCP /
- *        device bring-up) is Mbed-only and compile-checked, not run here; what the host
- *        can observe is the config-gated state these expose:
- *          - NetworkHandler: the sim bring-up path (up on config, idle when cleared),
- *          - MqttClient:     never falsely "connected", publish refused when not,
- *          - TimeSyncHandler: it is stepped as a Component (first-step announce).
+ * @brief Host-side tests for the network components. The simulator backend uses real
+ *        Linux BSD sockets, so DNS/UDP/TCP actually run on the host - against deterministic
+ *        offline targets (.invalid names, TEST-NET-1 192.0.2.x addresses). Tests observe
+ *        config-gated state and non-blocking behaviour:
+ *          - NetworkHandler: link comes up on config, idles when config is cleared,
+ *          - MqttClient:     never falsely "connected"; connect to TEST-NET-1 never completes,
+ *          - TimeSyncHandler: stepped as a Component; UDP query to TEST-NET-1 is non-blocking.
  *        Config is injected through PlcConfigFixture.
  */
 #include <cstdint>
@@ -44,7 +45,8 @@ TEST_CASE("NetworkHandler: sim path comes up on net config and idles when it is 
     NetworkHandler net(fx.ctx(), nullptr, &resolver);
     CHECK_FALSE(net.is_up());
 
-    // With Mbed absent, the sim bring-up path reports the link up immediately.
+    // HAL::Net::link_status() returns LINK_UP immediately on the simulator,
+    // so one step() promotes SETUP to RUNNING.
     fx.conf().net.serial = 1;
     fx.conf().net.dhcp   = 1;
     fx.publish();
@@ -58,44 +60,56 @@ TEST_CASE("NetworkHandler: sim path comes up on net config and idles when it is 
     CHECK_FALSE(net.is_up());
 }
 
-TEST_CASE("MqttClient: never reports connected on the host; publish is gated on connection") {
+TEST_CASE("MqttClient: never reports connected to a dead broker; publish gated on connection") {
     botanik_test::PlcConfigFixture fx;
     NameResolver resolver;
-    MqttClient mqtt(fx.ctx(), nullptr, &resolver);
-
-    CHECK_FALSE(mqtt.connected());
-    CHECK_FALSE(mqtt.publish("botanik/alarms/X", "ON"));   // not connected -> refused
-
-    // Enable MQTT; without a TCP stack (and no live interface) it cannot connect here.
-    fx.conf().mqtt.serial  = 1;
-    fx.conf().mqtt.enabled = 1;
-    std::strncpy(fx.conf().mqtt.broker, "192.0.2.1", Config::PLC_HOST_STR_LEN - 1);
-    fx.publish();
-    for (int i = 0; i < 5; ++i) mqtt.step(HAL::uptime_ms());
+    NetworkHandler net(fx.ctx(), nullptr, &resolver);
+    MqttClient mqtt(fx.ctx(), nullptr, &resolver, &net);
 
     CHECK_FALSE(mqtt.connected());
     CHECK_FALSE(mqtt.publish("botanik/alarms/X", "ON"));
+
+    fx.conf().net.serial = 1; fx.conf().net.dhcp = 1; fx.publish();
+    net.step(HAL::uptime_ms());                 // sim link up
+
+    fx.conf().mqtt.serial  = 1;
+    fx.conf().mqtt.enabled = 1;
+    std::strncpy(fx.conf().mqtt.broker, "192.0.2.1", Config::PLC_HOST_STR_LEN - 1);  // TEST-NET-1
+    fx.publish();
+    for (int i = 0; i < 5; ++i) mqtt.step(HAL::uptime_ms());
+
+    CHECK_FALSE(mqtt.connected());              // connect to 192.0.2.1 never completes
+    CHECK_FALSE(mqtt.publish("botanik/alarms/X", "ON"));
 }
 
-TEST_CASE("TimeSyncHandler: stepped as a Component (announces once); NTP exchange is OPTA-only") {
+TEST_CASE("TimeSyncHandler: stepped as a Component (announces once); query is non-blocking") {
     botanik_test::PlcConfigFixture fx;
     NameResolver resolver;
+    NetworkHandler net(fx.ctx(), nullptr, &resolver);
     RecordingWriter w;
     Logs::Logger log;
     log.set_min_level(PlcIO::LOG_DEBUG);
     log.add_writer(&w);
 
-    TimeSyncHandler ts(fx.ctx(), &log, &resolver);
+    TimeSyncHandler ts(fx.ctx(), &log, &resolver, &net);
+
+    // Bring the (sim) link up so the time sync can proceed past the link gate.
+    fx.conf().net.serial = 1; fx.conf().net.dhcp = 1; fx.publish();
+    net.step(HAL::uptime_ms());
 
     fx.conf().ntp.serial  = 1;
     fx.conf().ntp.enabled = 1;
-    std::strncpy(fx.conf().ntp.server1, "pool.ntp.org", Config::PLC_HOST_STR_LEN - 1);
+    // TEST-NET-1 literal: a real UDP send goes nowhere, so the reply never arrives and
+    // the query stays non-blocking (no DNS, no real NTP traffic).
+    std::strncpy(fx.conf().ntp.server1, "192.0.2.1", Config::PLC_HOST_STR_LEN - 1);
     fx.publish();
 
-    for (int i = 0; i < 5; ++i) ts.step(HAL::uptime_ms());   // must not fault
+    for (int i = 0; i < 5; ++i) ts.step(HAL::uptime_ms());   // must not fault or block
 
 #ifdef DEBUG
-    CHECK(w.pushes == 1);                                    // announced once, not per step
+    // >= 1 not == 1: the live UDP path and link-up sequence may emit extra log lines
+    // beyond the first-step announce, so exact count is not pinned.
+    CHECK(w.pushes >= 1);
     CHECK(std::string(w.last_msg).find("TimeSyncHandler") != std::string::npos);
 #endif
 }

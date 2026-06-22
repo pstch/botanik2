@@ -1,10 +1,8 @@
 /**
  * @file test_resolver.cpp
- * @brief Tests for NameResolver's host-side behaviour. A dotted-decimal IPv4 literal
- *        resolves immediately (and uses no DNS / table slot); anything else needs the
- *        Mbed async-DNS path, which is absent on the host build, so it reports FAILED.
- *        The async resolution + cache/table logic is OPTA-only and compile-checked,
- *        not exercised here.
+ * @brief Tests for NameResolver. A dotted-decimal IPv4 literal resolves immediately
+ *        (no DNS / table slot); a hostname goes through HAL::Net DNS (getaddrinfo on
+ *        the simulator). Uses .invalid names so the suite is deterministic offline.
  */
 #include <cstdint>
 
@@ -36,9 +34,11 @@ TEST_CASE("NameResolver: a dotted-decimal IPv4 literal resolves to its octets") 
 TEST_CASE("NameResolver: malformed literals are not mis-parsed as addresses") {
     NameResolver r;
     ResolvedAddr a;
-    // None are valid literals; with no interface set, the host has no DNS to fall back
-    // on, so each must come back FAILED (never a bogus RESOLVE_OK).
-    CHECK(r.resolve("1.2.3", &a)     == RESOLVE_FAILED);   // too few octets
+    // None are valid 4-octet dotted-decimal literals, and DNS rejects them as names,
+    // so each must come back FAILED (never a bogus RESOLVE_OK).
+    CHECK(r.resolve("1.2.3", &a)     == RESOLVE_FAILED);   // too few octets; not a valid literal,
+                                                            // and the sim DNS layer rejects all-numeric
+                                                            // malformed forms to match hardware behaviour
     CHECK(r.resolve("1.2.3.4.5", &a) == RESOLVE_FAILED);   // too many octets
     CHECK(r.resolve("256.1.1.1", &a) == RESOLVE_FAILED);   // octet out of range
     CHECK(r.resolve("1.2.3.x", &a)   == RESOLVE_FAILED);   // non-digit
@@ -46,10 +46,11 @@ TEST_CASE("NameResolver: malformed literals are not mis-parsed as addresses") {
     CHECK(r.resolve("10.0.0.1 ", &a) == RESOLVE_FAILED);   // trailing junk
 }
 
-TEST_CASE("NameResolver: a hostname needs DNS, absent on the host -> FAILED") {
+TEST_CASE("NameResolver: a guaranteed-bad hostname resolves to FAILED") {
     NameResolver r;
     ResolvedAddr a;
-    CHECK(r.resolve("pool.ntp.org", &a) == RESOLVE_FAILED);
+    // .invalid (RFC 6761) never resolves, online or off - deterministic FAILED.
+    CHECK(r.resolve("nonexistent.invalid", &a) == RESOLVE_FAILED);
 }
 
 TEST_CASE("NameResolver: empty / null inputs fail cleanly") {
