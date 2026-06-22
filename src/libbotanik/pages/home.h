@@ -27,6 +27,15 @@
 #include "libbotanik/pages/metric_page.h"
 #include "libbotanik/pages/scrollback.h"
 
+// Build-stamped git short hash (generated header). Falls back to "unknown" when the
+// header is absent - e.g. the Arduino .ino deploy, which doesn't run CMake.
+#if defined(__has_include) && __has_include("botanik_gitversion.h")
+#  include "botanik_gitversion.h"
+#endif
+#ifndef BOTANIK_GIT_HASH
+#  define BOTANIK_GIT_HASH "unknown"
+#endif
+
 namespace Botanik { namespace Pages {
 
     /** @brief Landing page base (see file header). */
@@ -71,7 +80,7 @@ namespace Botanik { namespace Pages {
                 " | |__   ___ | |_ __ _ _ __ (_) | __",
                 " | '_ \\ / _ \\| __/ _` | '_ \\| | |/ /",
                 " | |_) | (_) | || (_| | | | | |   < ",
-                " |_.__/ \\___/ \\__\\__,_|_| |_|_|_|\\_\\  v0.13.12",
+                " |_.__/ \\___/ \\__\\__,_|_| |_|_|_|\\_\\",
             };
             uint16_t row = 1;
             for (const char* line : LOGO) {
@@ -79,6 +88,41 @@ namespace Botanik { namespace Pages {
                 _label(row, line);   // col 2 + clear-to-eol; paced via _static_step
                 row++;
             }
+        }
+
+        /** @brief Firmware identity block: site name, version, and build commit,
+         *  right-aligned at the top-right of the content area (rows 3-5) so it sits
+         *  clear of the logo. Dot leaders give a fixed pre-colon field, so the colons
+         *  (and values) line up vertically. Static: the values are compile-time, so
+         *  it is drawn once on focus and never refreshed. Drawn after the logo, whose
+         *  clear-to-eol on these rows would otherwise wipe it. */
+        virtual void draw_id_block() {
+            char vbuf[48];
+            snprintf(vbuf, sizeof(vbuf), "v%s", Config::FIRMWARE_VERSION);
+            const char* const labels[3] = { "Site name", "Version", "Commit" };
+            const char* const values[3] = { Config::SITE_NAME, vbuf, BOTANIK_GIT_HASH };
+
+            // Column of the space before " : ", measured from each line's start. The
+            // longest label is "Site name" (9), so the leader is always >= a few dots.
+            static const uint16_t COLON_AT = 16;
+            char lines[3][64];
+            uint16_t maxlen = 0;
+            for (int i = 0; i < 3; ++i) {
+                char* p = lines[i];
+                uint16_t n = (uint16_t)snprintf(p, sizeof(lines[i]), "%s ", labels[i]);
+                while (n < COLON_AT && n < (uint16_t)(sizeof(lines[i]) - 1)) p[n++] = '.';
+                int more = snprintf(p + n, sizeof(lines[i]) - n, " : %s", values[i]);
+                n = (uint16_t)(n + (more > 0 ? more : 0));
+                if (n >= (uint16_t)sizeof(lines[i])) n = (uint16_t)(sizeof(lines[i]) - 1);
+                if (n > maxlen) maxlen = n;
+            }
+            // Right-align the block with a one-column margin. The same left column for
+            // all three rows keeps the colons aligned (the pre-colon field is fixed),
+            // while the longest row reaches the margin.
+            uint16_t cols = _terminal.cols();
+            uint16_t left = (cols > (uint16_t)(maxlen + 1)) ? (uint16_t)(cols - maxlen - 1) : 0;
+            for (int i = 0; i < 3; ++i)
+                _label_at((uint16_t)(3 + i), left, lines[i]);
         }
 
         /** @brief Draw the divider above the bottom log band: a reverse-video bar
@@ -120,6 +164,7 @@ namespace Botanik { namespace Pages {
 
         void draw_static() override {
             draw_logo();
+            draw_id_block();
             _label(8, "PLC link");
             _label(9, "Uptime");
             draw_payload_static();

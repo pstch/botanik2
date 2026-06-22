@@ -54,6 +54,12 @@ _SUBS = [
     (re.compile(r"A\s*\d+% B\s*\d+%"), "<ACT2>"),                             # extractors
     (re.compile(r"(Humidif\.\s*:\s+)\w+"), r"\g<1><HUMID>"),
     (re.compile(r"(Screen\s+:\s+)[\d.]+%"), r"\g<1><SCREEN>"),
+    # Home page firmware-identity block (top-right): version and build commit change
+    # with the build (the commit hash every commit), so mask the values and keep the
+    # labels/leaders - the test asserts the block's layout, not the build it ran. The
+    # site name is deterministic per site, so it stays.
+    (re.compile(r"(Version \.+ : )\S+"), r"\g<1><VERSION>"),
+    (re.compile(r"(Commit \.+ : )\S+"), r"\g<1><COMMIT>"),
     # Home page (site Home) live fields: the mock animates temp / humidity / vents.
     (re.compile(r"(Temp\s+)[\d.]+ C"), r"\g<1><CLIMATE>"),
     (re.compile(r"(Humidity\s+)[\d.]+%"), r"\g<1><CLIMATE>"),

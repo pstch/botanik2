@@ -176,9 +176,8 @@ public:
 
 protected:
     void draw_payload_static() override {
-        // Site name beside the logo (the base draws the logo at rows 1..5, col 2),
-        // so an operator can tell which greenhouse this terminal is wired to.
-        _label_at(3, 40, Botanik::Config::SITE_NAME);
+        // Site name / version / commit are drawn by the base HomePage identity block
+        // (top-right, rows 3-5); the site only adds its readings labels here.
         _label(11, "Temp");
         _label(12, "Humidity");
         _label(13, "Ventilation");
