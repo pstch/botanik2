@@ -29,6 +29,7 @@
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/scheduler/scheduler.h"  // SchedulerContext
 #include "libbotanik/plcio/sync.h"           // PlcSyncContext
+#include "libbotanik/utils/text.h"           // env_u8 (BOTANIK_NO_LOAD_ALARMS)
 
 namespace Botanik { namespace Health {
 
@@ -54,6 +55,9 @@ namespace Botanik { namespace Health {
         bool     _watchdog_ok    = true; // cached verdict (see watchdog_ok())
         bool     _post_ok        = false;
         bool     _posted         = false; // POST has run (fires on the first step())
+        // BOTANIK_NO_LOAD_ALARMS: hold the CPU_* load alarms cleared (sim/test only,
+        // for deterministic screen goldens). env_u8 reads 0 on OPTA, so it is off there.
+        bool     _no_load_alarms = Utils::env_u8("BOTANIK_NO_LOAD_ALARMS", 0) != 0;
         /** @} */
 
     public:
@@ -137,15 +141,20 @@ namespace Botanik { namespace Health {
             _model.set_local("SYS_RST", now < 300000);
             if (_sched == nullptr) return;
             const uint32_t period_us = Config::TASK_PERIOD_MS * 1000u;
-            _model.set_local("CPU_LOAD",
+            // The CPU_* load alarms fire at host-timing-dependent moments; under
+            // BOTANIK_NO_LOAD_ALARMS hold them cleared so the active set is stable
+            // for screen goldens. SYS_RST and STACK are unaffected.
+            const bool load = !_no_load_alarms;
+            _model.set_local("CPU_LOAD", load &&
                 (uint64_t)_sched->cpu_loop_us_recent * 100u
                     > (uint64_t)period_us * Config::ALARM_CPU_LOAD_PCT);
-            _model.set_local("CPU_JITT",
+            _model.set_local("CPU_JITT", load &&
                 (uint64_t)_sched->cpu_jitter_us_recent * 100u
                     > (uint64_t)period_us * Config::ALARM_CPU_JITTER_PCT);
             _model.set_local("STACK",
                 _sched->stack_usage * 100.0f > (float)Config::ALARM_STACK_PCT);
-            _held_event("CPU_XRUN", _sched->overruns, _xrun_last, _xrun_until_ms, now);
+            if (load) _held_event("CPU_XRUN", _sched->overruns, _xrun_last, _xrun_until_ms, now);
+            else      _model.set_local("CPU_XRUN", false);
         }
 
         /** @brief Hold a momentary "event" alarm active for ALARM_EVENT_HOLD_MS after

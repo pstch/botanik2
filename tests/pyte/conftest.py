@@ -49,6 +49,10 @@ class Term:
         env = dict(os.environ)
         env["BOTANIK_TIME_SCALE"] = str(time_scale)
         env["BOTANIK_NO_XRUN_WARNING"] = "1"   # silence load-dependent overrun logs
+        # Hold the CPU_* load alarms cleared: they fire at host-timing-dependent
+        # moments, so without this the alarm set (and thus the alarms-page screen and
+        # the persistent alarm bar) varies run to run. See health.h.
+        env["BOTANIK_NO_LOAD_ALARMS"] = "1"
         # main.cpp always boots to Home (switch_to(0)) and ignores BOTANIK_PAGE,
         # but clear it so a stale value from the parent env can never matter.
         env.pop("BOTANIK_PAGE", None)
