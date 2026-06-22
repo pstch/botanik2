@@ -64,10 +64,13 @@ _SUBS = [
     # site name is deterministic per site, so it stays.
     (re.compile(r"(Version \.+ : )\S+"), r"\g<1><VERSION>"),
     (re.compile(r"(Commit \.+ : )\S+"), r"\g<1><COMMIT>"),
-    # Home page (site Home) live fields: the mock animates temp / humidity / vents.
+    # Home page (site Home) live fields: the mock animates temp / humidity / vents
+    # and the irrigation tray/stage (which advances on a timing-dependent tick, so
+    # the stage shown depends on how far the mock has run by capture time).
     (re.compile(r"(Temp\s+)[\d.]+ C"), r"\g<1><CLIMATE>"),
     (re.compile(r"(Humidity\s+)[\d.]+%"), r"\g<1><CLIMATE>"),
     (re.compile(r"Win [\d.]+%\s+Blow [\d.]+%"), "Win <VENT> Blow <VENT>"),
+    (re.compile(r"(Irrigation\s+)(?:Tray \d+ \([A-Z ]+\)|idle)"), r"\g<1><IRR>"),
     # Load-dependent CPU alarms in the ALARMS status bar: a constrained host that
     # can't hold the realtime deadline raises CPU_XRUN/CPU_LOAD/CPU_JITT, which
     # canonical hardware does not. Strip the codes so the bar reads the same either
@@ -81,7 +84,27 @@ _SUBS = [
 # lines come and go with the host. Their count and placement vary run to run and
 # scroll the log-writer pages, so they are dropped entirely (see meaningful_lines)
 # rather than asserted on - the tests stay resilient to load instead of pinning it.
-_NOISE = re.compile(r"scheduler overrun|ALARM_(?:START|END): (?:CPU |Scheduler overrun)")
+#
+# The simulator's boot also tries three host privileges (mlockall, SCHED_FIFO,
+# CPU affinity) and warns if any is denied. Which are granted varies by host (a
+# CI container may allow memlock but not realtime sched, a sandbox neither), so
+# the warning line and its errno detail are host-dependent boot noise - dropped
+# here so the golden matches regardless of which privileges the runner holds.
+# Because each denied privilege adds two log rows, it also shifts how far the
+# logs page has scrolled by capture time: the version banner ("Botanik v..." and
+# its "Running on" platform line) is pushed off the top on a host that denies
+# more privileges. Drop the banner too so the comparison rests on the always-
+# visible component-init + MARK tail, not on the host-variable boot preamble.
+_NOISE = re.compile(
+    r"scheduler overrun|ALARM_(?:START|END): (?:CPU |Scheduler overrun)"
+    r"|BOOT: (?:mlockall|sched_setscheduler|sched_setaffinity) failed"
+    r"|> (?:Cannot allocate memory|Operation not permitted)"
+    r"|BOOT: Botanik v|> Running on :"
+    # The PLC-link-up log (driven by the sim's PLC emulator thread) and the
+    # network bring-up block are logged in a non-deterministic order at boot, so
+    # the SHARED_IO line lands on either side of the NETWORK lines run to run.
+    # Drop it - the link state is still asserted via the status bar / home widget.
+    r"|SHARED_IO: PLC link")
 
 
 def normalize_lines(lines):

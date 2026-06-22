@@ -21,4 +21,4 @@
 ...> line20
 ...> line21
 ...> line22
- ALARline29line28line27line26line25line24line23MS : SYS_RST CP
+ ALARline29line28line27line26line25line24line23MS : SYS_RST
