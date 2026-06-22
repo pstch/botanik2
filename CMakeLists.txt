@@ -203,9 +203,13 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     # Hot-restart: after every relink, signal any running simulators to re-exec the
     # rebuilt binary (SIGUSR1 -> botanik_sim_reexec -> HAL::reset, which re-execs the
     # resolved exe path). pkill exits non-zero when none are running, so `|| true`
-    # keeps the build green. Runs only when the target is actually relinked.
+    # keeps the build green. Runs only when the target is actually relinked. VERBATIM
+    # so the whole `sh -c` script reaches the shell as one argument - without it CMake
+    # escapes only the spaces, not the `||`, and make's shell splits the fallback into
+    # a bogus ` true` command ("true: not found") whenever no sim is running.
     add_custom_command(TARGET botanik_sim POST_BUILD
         COMMAND sh -c "pkill -USR1 -x botanik_sim || true"
+        VERBATIM
         COMMENT "Signaling running botanik_sim instances to hot-restart (SIGUSR1)")
 
     # Link-time optimization for Release only (cross-TU inlining on top of -O3).
