@@ -55,8 +55,11 @@
 #  define BOTANIK_FEATURE_MQTT 0
 #endif
 
-/** @brief ANSI terminal UI (AnsiTerminal + pages). Reserved: the flag exists for
- *  parity but the UI is not yet gated, so it is always built. */
+/** @brief ANSI terminal UI: AnsiTerminal, the built-in shell/logs/alarms pages, the
+ *  console UART they drive, and the BotanikFirmware register_pages()/
+ *  register_commands() hooks. Off -> a headless firmware; the logger, scheduler,
+ *  health/alarm model, and PLC link remain, and diagnostics still reach the MONITOR
+ *  UART via MonitorLogWriter. */
 #ifndef BOTANIK_FEATURE_TERMINAL
 #  define BOTANIK_FEATURE_TERMINAL 1
 #endif

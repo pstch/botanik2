@@ -26,6 +26,14 @@
  * feeds the health step a zeroed remote bitset, so only the local platform-health
  * alarms fire and HealthMonitor runs with a null link context.
  *
+ * Terminal-optional: the ANSI terminal UI (AnsiTerminal, the built-in shell/logs/
+ * alarms pages, the console UART they drive, and the register_pages()/
+ * register_commands() hooks) is compiled in only when BOTANIK_FEATURE_TERMINAL is
+ * set (the default). A headless firmware builds with -DBOTANIK_FEATURE_TERMINAL=OFF
+ * and keeps the logger, scheduler, health/alarm model, and PLC link; diagnostics
+ * still reach the MONITOR UART through MonitorLogWriter. The site extension below
+ * (pages, register_pages()) assumes the UI is present; a headless site omits it.
+ *
  * @section firmware_extend Extending the base for a site
  *
  * A site is a thin subclass that contributes data (its PLC payload, alarm table,
@@ -123,7 +131,11 @@ namespace Botanik {
         /** @name Generic components (declared in construction order)
          *  @{ */
 
+#if BOTANIK_FEATURE_TERMINAL
+        /** @brief Console UART, driven by the terminal UI. Dropped when TERMINAL is
+         *  off (a headless firmware has no UI, so nothing writes to the console). */
         Utils::BufferedSerial     _console_serial;
+#endif
         Utils::BufferedSerial     _monitor_serial;
         Logs::Logger              _logger;
         Logs::MonitorLogWriter    _monitor;
@@ -144,10 +156,12 @@ namespace Botanik {
 #if BOTANIK_FEATURE_MQTT
         Network::MqttClient       _mqtt;
 #endif
+#if BOTANIK_FEATURE_TERMINAL
         Terminal::AnsiTerminal    _terminal;
         Pages::ShellPage          _shell_page;
         Pages::LogsPage           _logs_page;
         Pages::AlarmsPage         _alarms_page;
+#endif
 
         /** @} */
 
@@ -166,7 +180,9 @@ namespace Botanik {
             : _baud(console_baud),
               _alarm_table(alarm_table),
               _alarm_count(alarm_count),
+#if BOTANIK_FEATURE_TERMINAL
               _console_serial(HAL::get_serial(HAL::CONSOLE)),
+#endif
               _monitor_serial(HAL::get_serial(HAL::MONITOR)),
               _logger(),
               _monitor(_monitor_serial),
@@ -177,35 +193,42 @@ namespace Botanik {
               _health(_alarm_table, (uint8_t)_alarm_count, &_logger,
                       _scheduler.context(), _plc_handler.context(),
                       shared_in, shared_out),
-              _sys_ctx(_scheduler.context(), _plc_handler.context()),
+              _sys_ctx(_scheduler.context(), _plc_handler.context())
 #else
               // No PLC: the health monitor takes a null link context + null regions
               // (it already degrades the watchdog verdict to "kick while alive"), and
               // the system context carries no PLC status (SystemContext.plc stays null).
               _health(_alarm_table, (uint8_t)_alarm_count, &_logger,
                       _scheduler.context(), nullptr, nullptr, nullptr),
-              _sys_ctx(_scheduler.context()),
+              _sys_ctx(_scheduler.context())
 #endif
+              // Everything past _sys_ctx is optional; leading commas let any feature
+              // (network services, the terminal UI) drop out without dangling a comma.
 #if BOTANIK_FEATURE_NETWORK
               // Network services read their config from the PLC config block (so
               // NETWORK requires PLC); the resolver is shared by every consumer.
-              _resolver(&_logger),
-              _network(_plc_handler.context(), &_logger, &_resolver),
+              , _resolver(&_logger)
+              , _network(_plc_handler.context(), &_logger, &_resolver)
 #endif
 #if BOTANIK_FEATURE_NTP
-              _time_sync(_plc_handler.context(), &_logger, &_resolver),
+              , _time_sync(_plc_handler.context(), &_logger, &_resolver)
 #endif
 #if BOTANIK_FEATURE_MQTT
-              _mqtt(_plc_handler.context(), &_logger, &_resolver),
+              , _mqtt(_plc_handler.context(), &_logger, &_resolver)
 #endif
-              _terminal(_console_serial, cols, rows, &_scheduler.context()->timestamp_ms,
-                        _baud, _sys_ctx, &_health.model()),
-              _shell_page(_terminal),
-              _logs_page(_terminal),
-              _alarms_page(_terminal, &_health.model())
+#if BOTANIK_FEATURE_TERMINAL
+              , _terminal(_console_serial, cols, rows, &_scheduler.context()->timestamp_ms,
+                          _baud, _sys_ctx, &_health.model())
+              , _shell_page(_terminal)
+              , _logs_page(_terminal)
+              , _alarms_page(_terminal, &_health.model())
+#endif
         {
 #if !BOTANIK_FEATURE_PLC
             (void)shared_in; (void)shared_out;   // unused without the PLC link
+#endif
+#if !BOTANIK_FEATURE_TERMINAL
+            (void)cols; (void)rows;   // terminal geometry unused without the UI
 #endif
         }
 
@@ -230,17 +253,23 @@ namespace Botanik {
          *  never by overriding setup(). */
         void setup() {
             set_assert_logger(&_logger);   // route BOTANIK_ASSERT failures to the log
+#if BOTANIK_FEATURE_TERMINAL
             HAL::get_serial(HAL::CONSOLE)->begin(_baud);
+#endif
             HAL::get_serial(HAL::MONITOR)->begin(_baud);
 
-            // Core log sinks: diagnostic monitor + the shell/logs pages, plus the
-            // console TX-drop watch. A site adds its own sink(s) in on_setup().
+            // Core log sinks: diagnostic monitor + (with the UI) the shell/logs pages,
+            // plus a TX-drop watch on each live UART. A site adds its own sink(s) in
+            // on_setup().
             _logger.add_writer(&_monitor);
+#if BOTANIK_FEATURE_TERMINAL
             _logger.add_writer(&_shell_page);
             _logger.add_writer(&_logs_page);
             _logger.watch_tx(&_console_serial);
+#endif
             _logger.watch_tx(&_monitor_serial);
 
+#if BOTANIK_FEATURE_TERMINAL
             // Let the shell's loglevel / alarm-ack commands reach the live logger + model.
             _shell_page.set_diagnostics(&_logger, &_health.model());
 
@@ -254,6 +283,7 @@ namespace Botanik {
             register_pages();
             _terminal.setup_vt102();
             _terminal.switch_to(0);
+#endif
 
             // Details on a second line (the renderer splits on '\n') so it wraps cleanly.
             _logger.info(PlcIO::BOOT, "Botanik v%s\nRunning on : %s",
@@ -285,7 +315,9 @@ namespace Botanik {
         void loop() {
             if (!_scheduler.tick()) return;
 
+#if BOTANIK_FEATURE_TERMINAL
             _console_serial.receive();
+#endif
             _monitor_serial.receive();
 
 #if BOTANIK_FEATURE_PLC
@@ -322,10 +354,14 @@ namespace Botanik {
 
             _logger.step();
 
+#if BOTANIK_FEATURE_TERMINAL
             _terminal.step();
+#endif
             _monitor.drain();
 
+#if BOTANIK_FEATURE_TERMINAL
             _console_serial.transmit();
+#endif
             _monitor_serial.transmit();
 
             // Kick the watchdog while we're healthy; HealthMonitor withholds it only
@@ -387,10 +423,12 @@ namespace Botanik {
 #endif
         Health::HealthMonitor&          health()          { return _health; }
         Alarms::AlarmModel&             alarm_model()     { return _health.model(); }
+#if BOTANIK_FEATURE_TERMINAL
         Terminal::AnsiTerminal&         terminal()        { return _terminal; }
         Pages::ShellPage&               shell_page()      { return _shell_page; }
         Pages::LogsPage&                logs_page()       { return _logs_page; }
         Pages::AlarmsPage&              alarms_page()     { return _alarms_page; }
+#endif
 
         /** @} */
 
@@ -400,9 +438,11 @@ namespace Botanik {
          *  cycle order can never be skipped or misordered.
          *  @{ */
 
+#if BOTANIK_FEATURE_TERMINAL
         /** @brief Register the pages in tab order (page 0 is the boot page). The default
          *  registers the built-ins; a site overrides this to interleave its own pages or
-         *  drop a built-in - the order of add_page() calls IS the tab order. */
+         *  drop a built-in - the order of add_page() calls IS the tab order. Gated out
+         *  with the terminal: a headless firmware has no pages to register. */
         virtual void register_pages() {
             _terminal.add_page(&_shell_page);
             _terminal.add_page(&_logs_page);
@@ -414,6 +454,7 @@ namespace Botanik {
          *  Override and call shell_page().set_commands(table, count, ctx) with a
          *  site-static ShellCommand table; see the extension example in the file header. */
         virtual void register_commands() {}
+#endif
 
         /** @brief Site post-wiring, run once near the end of setup() (after the core
          *  sinks/pages are registered). Default: nothing. */
