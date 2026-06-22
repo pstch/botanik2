@@ -58,22 +58,25 @@ TEST_CASE("NetworkHandler: sim path comes up on net config and idles when it is 
     CHECK_FALSE(net.is_up());
 }
 
-TEST_CASE("MqttClient: never reports connected on the host; publish is gated on connection") {
+TEST_CASE("MqttClient: never reports connected to a dead broker; publish gated on connection") {
     botanik_test::PlcConfigFixture fx;
     NameResolver resolver;
-    MqttClient mqtt(fx.ctx(), nullptr, &resolver);
+    NetworkHandler net(fx.ctx(), nullptr, &resolver);
+    MqttClient mqtt(fx.ctx(), nullptr, &resolver, &net);
 
     CHECK_FALSE(mqtt.connected());
-    CHECK_FALSE(mqtt.publish("botanik/alarms/X", "ON"));   // not connected -> refused
+    CHECK_FALSE(mqtt.publish("botanik/alarms/X", "ON"));
 
-    // Enable MQTT; without a TCP stack (and no live interface) it cannot connect here.
+    fx.conf().net.serial = 1; fx.conf().net.dhcp = 1; fx.publish();
+    net.step(HAL::uptime_ms());                 // sim link up
+
     fx.conf().mqtt.serial  = 1;
     fx.conf().mqtt.enabled = 1;
-    std::strncpy(fx.conf().mqtt.broker, "192.0.2.1", Config::PLC_HOST_STR_LEN - 1);
+    std::strncpy(fx.conf().mqtt.broker, "192.0.2.1", Config::PLC_HOST_STR_LEN - 1);  // TEST-NET-1
     fx.publish();
     for (int i = 0; i < 5; ++i) mqtt.step(HAL::uptime_ms());
 
-    CHECK_FALSE(mqtt.connected());
+    CHECK_FALSE(mqtt.connected());              // connect to 192.0.2.1 never completes
     CHECK_FALSE(mqtt.publish("botanik/alarms/X", "ON"));
 }
 

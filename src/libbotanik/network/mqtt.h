@@ -8,18 +8,18 @@
  * Config-driven (ConfigHandler, the `mqtt` block): it connects to the broker, keeps the
  * session alive with PINGREQ, and publishes QoS-0 messages. It restarts on a config
  * change and backs off / reconnects on failure. The broker name is resolved through the
- * shared NameResolver (which also holds the live interface set by NetworkHandler).
+ * shared NameResolver; the link must be up (NetworkHandler::is_up()) before a connect
+ * attempt is made.
  *
  * Publish-only - no subscribe; it carries notifications outward (e.g. alarm transitions
  * from MqttAlarmNotifier). The client id is derived from Config::SITE_NAME.
- *
- * Mbed TCPSocket lives in mqtt.cpp (OPTA only); on the simulator there is no broker, so
- * the client stays idle and publish() reports not-connected.
  */
 
 #include <cstdint>
 
 #include "libbotanik/config_handler.h"
+#include "libbotanik/hal/net.h"
+#include "libbotanik/network/network.h"
 #include "libbotanik/network/resolver.h"
 
 namespace Botanik { namespace Network {
@@ -36,16 +36,18 @@ namespace Botanik { namespace Network {
             MQTT_READY,       ///< connected; keepalive + publishes
             MQTT_ERROR,       ///< failed; backing off before a retry
         };
-        State        _state;
-        uint64_t     _since_ms;       ///< when the current state was entered (timeouts)
-        uint64_t     _last_ping_ms;   ///< last keepalive PINGREQ
-        NameResolver* _resolver;      ///< DNS + the live interface (set by NetworkHandler)
-        ResolvedAddr _broker_addr;    ///< resolved broker address
+        State                   _state;
+        uint64_t                _since_ms;       ///< when the current state was entered (timeouts)
+        uint64_t                _last_ping_ms;   ///< last keepalive PINGREQ
+        NameResolver*           _resolver;       ///< DNS resolver
+        ResolvedAddr            _broker_addr;    ///< resolved broker address
+        const NetworkHandler*   _net;            ///< link gate (null = always blocked)
+        HAL::Net::TcpSocket     _sock;           ///< open TCP socket (-1 = none)
         /** @} */
 
     public:
         MqttClient(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger = nullptr,
-                   NameResolver* resolver = nullptr);
+                   NameResolver* resolver = nullptr, const NetworkHandler* net = nullptr);
 
         /** @brief True when connected and ready to publish. */
         bool connected() const { return _state == MQTT_READY; }
@@ -59,7 +61,7 @@ namespace Botanik { namespace Network {
         void on_step(uint64_t now_ms) override;
 
     private:
-        /** @name Internals (the Mbed-touching ones are OPTA-only)
+        /** @name Internals
          *  @{ */
         void _enter(State s, uint64_t now_ms);
         void _fail(uint64_t now_ms);     ///< close the socket and back off (-> ERROR)
