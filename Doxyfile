@@ -37,8 +37,7 @@ EXCLUDE_PATTERNS       = */build/* \
                          */CMakeFiles/* \
                          */tests/vendor/* \
                          */.pytest_cache/* \
-                         */__pycache__/* \
-                         */superpowers/*
+                         */__pycache__/*
 
 # Implementation-detail namespaces are not API. Anonymous namespaces are dropped
 # via EXTRACT_ANON_NSPACES below; named `detail` namespaces are excluded by symbol.
