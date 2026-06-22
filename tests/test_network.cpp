@@ -1,11 +1,12 @@
 /**
  * @file test_network.cpp
- * @brief Host-side tests for the network components. Their real work (DNS / UDP / TCP /
- *        device bring-up) is Mbed-only and compile-checked, not run here; what the host
- *        can observe is the config-gated state these expose:
- *          - NetworkHandler: the sim bring-up path (up on config, idle when cleared),
- *          - MqttClient:     never falsely "connected", publish refused when not,
- *          - TimeSyncHandler: it is stepped as a Component (first-step announce).
+ * @brief Host-side tests for the network components. The simulator backend uses real
+ *        Linux BSD sockets, so DNS/UDP/TCP actually run on the host - against deterministic
+ *        offline targets (.invalid names, TEST-NET-1 192.0.2.x addresses). Tests observe
+ *        config-gated state and non-blocking behaviour:
+ *          - NetworkHandler: link comes up on config, idles when config is cleared,
+ *          - MqttClient:     never falsely "connected"; connect to TEST-NET-1 never completes,
+ *          - TimeSyncHandler: stepped as a Component; UDP query to TEST-NET-1 is non-blocking.
  *        Config is injected through PlcConfigFixture.
  */
 #include <cstdint>
@@ -44,7 +45,8 @@ TEST_CASE("NetworkHandler: sim path comes up on net config and idles when it is 
     NetworkHandler net(fx.ctx(), nullptr, &resolver);
     CHECK_FALSE(net.is_up());
 
-    // With Mbed absent, the sim bring-up path reports the link up immediately.
+    // HAL::Net::link_status() returns LINK_UP immediately on the simulator,
+    // so one step() promotes SETUP to RUNNING.
     fx.conf().net.serial = 1;
     fx.conf().net.dhcp   = 1;
     fx.publish();
@@ -105,6 +107,8 @@ TEST_CASE("TimeSyncHandler: stepped as a Component (announces once); query is no
     for (int i = 0; i < 5; ++i) ts.step(HAL::uptime_ms());   // must not fault or block
 
 #ifdef DEBUG
+    // >= 1 not == 1: the live UDP path and link-up sequence may emit extra log lines
+    // beyond the first-step announce, so exact count is not pinned.
     CHECK(w.pushes >= 1);
     CHECK(std::string(w.last_msg).find("TimeSyncHandler") != std::string::npos);
 #endif

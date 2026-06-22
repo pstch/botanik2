@@ -208,13 +208,14 @@ namespace Botanik { namespace HAL { namespace Net {
     LinkState link_status() { return LINK_UP; }
     bool      link_ip(Ip4* out) {
         if (out == 0) return false;
-        out->b[0] = 127; out->b[1] = 0; out->b[2] = 0; out->b[3] = 1;   // loopback is enough
+        out->b[0] = 127; out->b[1] = 0; out->b[2] = 0; out->b[3] = 1;   // loopback: sufficient (callers only log / check non-null)
         return true;
     }
 
     // DNS: synchronous getaddrinfo, surfaced through the poll API. The handle encodes the
     // terminal result directly (no in-flight state on the host): 2 == OK, 3 == FAILED.
-    // The resolved address is stashed in a one-slot cache keyed by the handle.
+    // Resolved address in a single global slot - safe only because the caller polls
+    // immediately after dns_begin (no interleaved concurrent lookups).
     namespace {
         Ip4      g_dns_addr;
         DnsHandle g_dns_next = 1;
