@@ -25,8 +25,8 @@
  * @htmlonly
  * <div class="code-charts">
  *   <figure>
- *     <img src="code_asserts.svg" alt="Assertions by area"/>
- *     <figcaption>BOTANIK_ASSERT call sites by area</figcaption>
+ *     <img src="code_asserts.svg" alt="Self-checks by area"/>
+ *     <figcaption>Self-checks by area: BOTANIK_ASSERT call sites and POST structural checks</figcaption>
  *   </figure>
  *   <figure>
  *     <img src="code_tests.svg" alt="Tests by area"/>

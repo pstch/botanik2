@@ -5,7 +5,7 @@ Four charts, all bucketed by "code area" (the folder under src/):
   - code_loc.svg     : code lines per area (cloc, code only - no comments/blanks).
   - code_churn.svg   : per area, lines changed (git add+del) AND commits touched,
                        over a trailing window (default 12 months).
-  - code_asserts.svg : BOTANIK_ASSERT() call sites per area.
+  - code_asserts.svg : per area, BOTANIK_ASSERT() call sites AND POST structural checks.
   - code_tests.svg   : per area, unit-test cases (doctest TEST_CASE) AND pyte
                        screen-test functions.
 
@@ -61,6 +61,13 @@ TEST_AREA = {
     "test_time":           "utils",
     "test_writer":         "logs",
 }
+
+
+# POST structural checks (HealthMonitor::_post in health/health.h), counted by the
+# area each one guards. A fixed handful, so it's a small hand-maintained map - update
+# it if a POST check is added or removed: alarm-code resolution -> alarms; PLC region
+# non-null + 32-byte aligned -> plcio (2); logger-has-writers -> logs.
+POST_CHECKS = {"alarms": 1, "plcio": 2, "logs": 1}
 
 
 # Historical path renames, applied (in order) before area-mapping so churn from a
@@ -359,8 +366,8 @@ def main():
                    "lines changed", "commits", "Churn chart unavailable (no git history)")
 
     asserts = collect_asserts(args.src)
-    render_bars(os.path.join(args.out, "code_asserts.svg"), asserts,
-                "no BOTANIK_ASSERT call sites found")
+    render_grouped(os.path.join(args.out, "code_asserts.svg"), asserts, POST_CHECKS,
+                   "BOTANIK_ASSERT", "POST checks", "no self-checks found")
 
     unit, pyte = collect_tests(args.tests)
     render_grouped(os.path.join(args.out, "code_tests.svg"), unit, pyte,
