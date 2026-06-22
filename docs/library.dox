@@ -59,10 +59,10 @@ each flag defaults from an `#ifndef`-guarded macro, so a site pins it in
 | Flag | Default | Gates | State |
 |------|---------|-------|-------|
 | `BOTANIK_FEATURE_PLC`     | **on**  | @ref Botanik::PlcIO::PlcSyncHandler, `PlcLogReader`, the shared-memory payload threaded through `BotanikFirmware<In, Out>`, and the PLC-fault watchdog escalation. | active |
-| `BOTANIK_FEATURE_NETWORK` | off     | The `network/` stack (`NetworkHandler` / `NameResolver`). | reserved (not yet wired) |
-| `BOTANIK_FEATURE_NTP`     | off     | `TimeSyncHandler` (SNTP). Requires `NETWORK`. | reserved |
-| `BOTANIK_FEATURE_MQTT`    | off     | `MqttClient` + the alarm notifier. Requires `NETWORK`. | reserved |
-| `BOTANIK_FEATURE_TERMINAL`| **on**  | The ANSI terminal UI. Reserved for parity; not yet gated. | always built |
+| `BOTANIK_FEATURE_NETWORK` | off     | The `network/` stack: @ref Botanik::Network::NetworkHandler + @ref Botanik::Network::NameResolver, instantiated and stepped by `BotanikFirmware`. Requires `PLC` (config comes from the PLC block). | wired; default off (on for `gh_mlb41`) |
+| `BOTANIK_FEATURE_NTP`     | off     | @ref Botanik::Network::TimeSyncHandler (SNTP). Requires `NETWORK`. | wired; default off |
+| `BOTANIK_FEATURE_MQTT`    | off     | @ref Botanik::Network::MqttClient + the alarm notifier. Requires `NETWORK`. | wired; default off |
+| `BOTANIK_FEATURE_TERMINAL`| **on**  | @ref Botanik::Terminal::AnsiTerminal, the built-in shell/logs/alarms pages, the console UART they drive, and the `register_pages()` / `register_commands()` hooks. Off -> a headless firmware. | active |
 
 Gate code with the preprocessor `#if BOTANIK_FEATURE_PLC` (it must drop member
 declarations and ctor-init entries, which a `constexpr` cannot, and C++11 has no
@@ -78,6 +78,15 @@ handler, log reader, and shared region drop out; @ref Botanik::Health::HealthMon
 runs with a null link context (its POST skips the region check and the watchdog
 simply keeps kicking while the loop is alive, so the hardware watchdog still catches
 a hang); the Home/Status pages render "n/a" for the absent PLC status.
+
+**Building without the terminal.** Configure with `-DBOTANIK_FEATURE_TERMINAL=OFF`
+for a headless firmware. The terminal, the built-in shell/logs/alarms pages, the
+console UART they drive, and the `register_pages()` / `register_commands()` hooks all
+drop out; the logger, scheduler, health/alarm model, and (if enabled) the PLC link
+and network services remain, and diagnostics still reach the MONITOR UART through
+@ref Botanik::Logs::MonitorLogWriter. A headless site is a thinner subclass that
+contributes no pages and overrides only `on_setup()` / `on_loop()`. The built-in
+terminal sites (e.g. `gh_mlb41`) keep `TERMINAL` on, since their pages assume the UI.
 
 @section main_concepts Key concepts
 

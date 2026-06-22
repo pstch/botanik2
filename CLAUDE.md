@@ -119,7 +119,7 @@ The library subsystems under `src/libbotanik/`:
 
 **Health (`health/`)** - `HealthMonitor` owns the `AlarmModel` and an `MqttAlarmNotifier`, asserts the platform-health alarms (`alarms/platform.h`) from the PLC status and the loop's own liveness, runs a power-on self-test, and gates the watchdog kick via the timed escalation above. It reads the PLC's raw alarm bitset plus the live `rx_torn_count()` each beat. Tolerates a null PLC link (POST skips the region check, watchdog keeps kicking while the loop is alive).
 
-**Network (`network/`)** - Gated off by default and reserved (declared, not yet instantiated by the firmware). `NetworkHandler` brings up the network device and hands it to `NameResolver` (non-blocking DNS over Mbed's async resolver, poll-style API + cache); `TimeSyncHandler` runs NTP through the resolver; `MqttClient` is a minimal non-blocking MQTT 3.1.1 publisher.
+**Network (`network/`)** - Wired into `BotanikFirmware` behind `BOTANIK_FEATURE_NETWORK` / `_NTP` / `_MQTT` (default off; on for `gh_mlb41`). Functional on OPTA; on the simulator the handlers run but the TCP/IP stack is inert. `NetworkHandler` brings up the network device and hands it to `NameResolver` (non-blocking DNS over Mbed's async resolver, poll-style API + cache); `TimeSyncHandler` runs NTP through the resolver; `MqttClient` is a minimal non-blocking MQTT 3.1.1 publisher.
 
 **Sun tracking (`sun_tracker.h`, `utils/sun.h`)** - `SunPositionTracker` is a config-driven `Component` tracking next sunrise/sunset and day/night state for the site location; `utils/sun.h` is the solar-position math (NOAA equations, declination, event times in the uptime-ms domain).
 
@@ -143,8 +143,8 @@ The library subsystems under `src/libbotanik/`:
 | Flag | Default | Gates |
 |---|---|---|
 | `BOTANIK_FEATURE_PLC` | on | `PlcSyncHandler`, `PlcLogReader`, the `<In, Out>` payload threaded through `BotanikFirmware`, and the PLC-fault watchdog escalation |
-| `BOTANIK_FEATURE_NETWORK` / `_NTP` / `_MQTT` | off | the `network/` stack - reserved (declared but not yet instantiated); `NTP`/`MQTT` require `NETWORK`, `NETWORK` requires `PLC` (enforced by `#error`) |
-| `BOTANIK_FEATURE_TERMINAL` | on | the ANSI UI - reserved for parity, not yet gated |
+| `BOTANIK_FEATURE_NETWORK` / `_NTP` / `_MQTT` | off | the `network/` stack (`NetworkHandler`/`NameResolver`/`TimeSyncHandler`/`MqttClient`), instantiated + stepped by `BotanikFirmware`; on for `gh_mlb41`. `NTP`/`MQTT` require `NETWORK`, `NETWORK` requires `PLC` (enforced by `#error`) |
+| `BOTANIK_FEATURE_TERMINAL` | on | the ANSI UI: `AnsiTerminal`, the built-in shell/logs/alarms pages, the console UART, and the `register_pages()` / `register_commands()` hooks. Off -> a headless firmware (logs reach the MONITOR UART via `MonitorLogWriter`) |
 
 Gate with the preprocessor `#if BOTANIK_FEATURE_PLC` (must drop member decls / ctor-init entries; C++11 has no `if constexpr`); a `Botanik::Features::PLC` `constexpr bool` mirror exists for expression context. To build PLC-less: `-DBOTANIK_FEATURE_PLC=OFF` and derive from `BotanikFirmware<>` (the payload params default to a zero-size `Empty`). `HealthMonitor` already tolerates a null PLC link (POST skips the region check, the watchdog keeps kicking while the loop is alive). See the "Optional features" section of the docs Library page (`docs/library.dox`).
 
