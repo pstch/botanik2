@@ -47,25 +47,83 @@ with `-DMBED_CORE_ROOT=/path/to/packages/arduino/hardware/mbed_opta/<version>` o
 the `ARDUINO_DATA_DIR` env var. (The build no longer uses the vendored `includes/`
 tree.)
 
-There are no tests yet.
+**Build type & sanitizers.** Builds default to `DEBUG` (`-O0 -g3`, profiler-friendly).
+DEBUG SIMULATOR builds also default `BOTANIK_SANITIZE=address+undefined` (ASan+UBSan,
+recoverable so the interactive sim stays usable); turn off with `-DBOTANIK_SANITIZE=OFF`.
+For an optimized build pass `-DCMAKE_BUILD_TYPE=RELEASE` (`-O3` + LTO, `NDEBUG`,
+stripped, sanitizers off). The `scheduler.cpp` hot path is compiled with
+`-Wdouble-promotion` to keep the per-beat metric math single-precision (no double FPU
+on the M4).
+
+## Tests & checks
+
+Host-only, SIMULATOR build. There are two suites, both wired into CTest:
+
+- **doctest** C++ unit tests in `tests/` (vendored single header `tests/vendor/doctest.h`),
+  one CTest entry per `TEST_CASE` via `doctest_discover_tests`.
+- **pyte** Python screen-assertion tests in `tests/pyte/` that drive `botanik_sim` over a
+  PTY and assert its rendered ANSI screen against golden captures. Registered only when
+  `pytest`+`pyte` are importable; they run against a dedicated RELEASE no-sanitizer sim
+  (timing budget). Regenerate goldens with `make -C build pytest-update` (review the diff;
+  never part of the gate).
+
+```bash
+make -C build check                  # the one-shot pre-push gate (see below)
+make -C build botanik_tests          # just build the doctest binary
+./build/tests/botanik_tests          # run it directly (doctest CLI)
+./build/tests/botanik_tests -s       # ...show every passing check + the struct-size table
+./build/tests/botanik_tests -tc=<name>   # run a single test case
+ctest --test-dir build --output-on-failure          # all CTest entries
+ctest --test-dir build -R pyte --output-on-failure  # just the pyte suite
+```
+
+`make check` is the pre-push gate; it fails on the first problem:
+- **`botanik_strict`** - a `-Werror` mirror of the library (plain `make` stays
+  warning-tolerant; this gate fails on any warning).
+- **clang-tidy** - the `bugprone-*` checks from `.clang-tidy`, promoted to errors
+  (only present when `run-clang-tidy` was found at configure time).
+- the **doctest + pyte** suites via `ctest`.
+
+A separate `make -C build cppcheck` target runs cppcheck when installed.
 
 ## Architecture
 
-The system is split into six subsystems under `src/libbotanik/`:
+Everything is non-blocking: every stateful object exposes a `step()`/`loop()` doing a
+small bounded amount of work and returning immediately; the main loop calls them in a
+fixed order (blocking would stall the RTOS and trip the watchdog on the OPTA). Code
+reaches the platform only through HAL, never raw `<time.h>` or platform APIs.
+
+The library subsystems under `src/libbotanik/`:
 
 **HAL (`hal/`)** - `platform.h` defines the unified interface (`current_ms()`, `uptime_ms()`, `dsb()`, `ordered_copy/move`). `simulator.h` implements it with `std::chrono` and Linux serial I/O; `opta.h` implements it for Mbed OS. All other code uses HAL exclusively - never raw `<time.h>` or platform-specific calls.
 
-**Terminal UI (`terminal/`)** - `AnsiTerminal` owns the serial connection and drives a multiplexed page display. `InputParser` decodes raw byte streams into `InputEvent`s (handles X3.64 CSI, Alt, and function-key escape sequences). `InputEditor` is a line-editing state machine that consumes `InputEvent`s. `Ansi` is a stateless helper that emits ANSI escape codes.
+**Scheduler (`scheduler/`)** - `LoopScheduler` is the non-blocking fixed-period loop driver: it releases one tick per period, handles overruns, and self-instruments per-beat (CPU duty cycle `(period - slept)/period`, scheduling jitter, work duration, and stack high-water via stack painting), publishing the metrics into a `SchedulerContext` surfaced in the status bar and the `stats` shell command.
 
-**Pages (`pages/`)** - Each page (`Home`, `Shell`, `Logs`, `Status`) implements the `Page` interface. `AnsiTerminal` routes input events to the active page and calls each page's render method when the display needs updating.
+**Firmware base (`firmware.h`)** - `BotanikFirmware<In, Out>` is the Template-Method base that constructs and owns every generic component, fixes the non-overridable per-tick `loop()` order (`tick -> receive -> plc -> health -> on_loop -> logger -> terminal`), and exposes a reference to each component. Sites customize only through protected hooks: `register_pages()`, `register_commands()`, `on_setup()`, `on_loop()` (see the Site section).
 
-**Logging (`logs/`)** - `Logger` uses a dual-bucket token-bucket rate limiter (one global bucket, one per topic) before forwarding to registered `LogWriter`s. `LOG_CRITICAL` entries are undroppable (they evict the oldest queued entry instead of being dropped), and silent-loss categories (sink drops, TX-full truncation, rate-limiter suppressions) are reported edge-triggered as criticals. Writers include `BufferedLogWriter` and `SerialLogWriter`. Log topics are the `LogTopic` enum in `plcio/vars.h` (`PLC_IO`, `BOOT`, `NETWORK`, `TIME`, `STATUS`, and the firmware-only `ASSERT`).
+**Component / context (`component.h`, `context.h`)** - `Component` is a mixin base giving each subsystem a one-shot first-step BOOT/DEBUG announce. `SystemContext` is a borrowed-pointer aggregate of per-subsystem status contexts (scheduler, PLC, ...) the terminal UI reads to render.
 
-**PLC I/O (`plcio/`)** - `PlcSyncHandler` manages two independent state machines (RX and TX) for shared-memory communication with the PLC coprocessor. Uses explicit ARM barriers (`HAL::dsb()`, plus `HAL::ordered_read()` for cross-core counters), D-cache maintenance at the `step()` boundaries (`HAL::cache_invalidate`/`cache_clean`, no-ops on the simulator), and transactional read/write patterns to prevent torn operations; a torn-read diagnostic (`rx_torn_count()`) flags any handshake violation. Timing (all in `libbotanik_config.h`): heartbeat `PLC_HEARTBEAT_MS` (250 ms), link timeout `PLC_TIMEOUT_MS` (2.5 s), software watchdog `PLC_WATCHDOG_MS` (5 s). On a sustained fault, `HealthMonitor` keeps kicking the hardware watchdog through a `PLC_FAULT_GRACE_MS` (15 s) grace, then withholds the kick so the `HW_WATCHDOG_MS` (10 s) hardware watchdog resets both cores.
+**Config handler (`config_handler.h`)** - `ConfigHandler` is a base for PLC-config-driven state machines that reset and restart whenever the operator bumps their config block's serial (template-method order: read serial -> reset on change -> advance). `SunPositionTracker` and the network handlers build on it.
 
-**Health (`health/`)** - `HealthMonitor` owns the `AlarmModel` and an `MqttAlarmNotifier`, asserts the platform-health alarms (`alarms/platform.h`) from the PLC status and the loop's own liveness, runs a power-on self-test, and gates the watchdog kick via the timed escalation above. It reads the PLC's raw alarm bitset plus the live `rx_torn_count()` each beat.
+**Terminal UI (`terminal/`)** - `AnsiTerminal` owns the serial connection and drives a multiplexed page display. `InputParser` decodes raw byte streams into `InputEvent`s (handles X3.64 CSI, Alt, and function-key escape sequences). `TextEditor`/`InputEditor` is a byte-efficient line-editing state machine that consumes `InputEvent`s. `Ansi` is a stateless helper that emits ANSI escape codes. The layer minimizes escape bytes emitted (low-bandwidth serial link).
 
-**Utils (`utils/`)** - `BufferedSerial` wraps UART with a 256-byte RX ring buffer and 4096-byte TX buffer (usable depth size-1: 255 / 4095). The ring is single-producer/single-consumer but main-loop-only (no serial ISR), so it carries no memory barriers. `time.h` provides uptime tracking on top of HAL.
+**Pages (`pages/`)** - Full-screen views behind a common `Page` interface; `AnsiTerminal` routes input to the active page and calls its render method on demand. Core pages: `Home`, `Shell`, `Logs`, `Status`, `AlarmsPage` (scrollable alarm-condition table, filter modes recent/all/active/unmasked). Building blocks: `MetricPage` (diff-rendered metric display base with value cache + watch-style highlighting), `Scrollback<L>` (throttled incremental-redraw circular buffer) over `LineBuffer<L,N>` (fixed-capacity circular storage with soft-wrap).
+
+**Shell (`shell/`)** - `CommandShell` handles command submission, built-in dispatch (`help`, `clear`, `logs`, `stats`, `version`, ...), command history (up/down recall), and a kill-ring (Ctrl-K/Ctrl-Y). Sites extend it with a registered `ShellCommand[]` table.
+
+**Logging (`logs/`)** - `Logger` uses a dual-bucket token-bucket rate limiter (one global bucket, one per topic) before forwarding to registered `LogWriter`s. `LOG_CRITICAL` entries are undroppable (they evict the oldest queued entry instead of being dropped), and silent-loss categories (sink drops, TX-full truncation, rate-limiter suppressions) are reported edge-triggered as criticals. Writers include `BufferedLogWriter` and `SerialLogWriter`. Log topics are the `LogTopic` enum in `plcio/vars.h`: the wire-shared `PLC_IO`/`BOOT`/`NETWORK`/`TIME`/`STATUS`, plus C-side-only topics the PLC never emits (`ASSERT`, the alarm transitions `ALARM_START`/`ALARM_END`/`ALARM_FLAP`, and `HEALTH`).
+
+**PLC I/O (`plcio/`)** - `PlcSyncHandler` manages two independent state machines (RX and TX) for shared-memory communication with the PLC coprocessor. Uses explicit ARM barriers (`HAL::dsb()`, plus `HAL::ordered_read()` for cross-core counters), D-cache maintenance at the `step()` boundaries (`HAL::cache_invalidate`/`cache_clean`, no-ops on the simulator), and transactional read/write patterns to prevent torn operations; a torn-read diagnostic (`rx_torn_count()`) flags any handshake violation. The PLC->host region carries a generic `PlcOutputConfig_t` config block (`plcio/config.h`: network/NTP/MQTT) between the log ring and the site payload - resizing it is a coordinated wire-ABI change. Timing (all in `libbotanik_config.h`): heartbeat `PLC_HEARTBEAT_MS` (250 ms), link timeout `PLC_TIMEOUT_MS` (2.5 s), software watchdog `PLC_WATCHDOG_MS` (5 s). On a sustained fault, `HealthMonitor` keeps kicking the hardware watchdog through a `PLC_FAULT_GRACE_MS` (15 s) grace, then withholds the kick so the `HW_WATCHDOG_MS` (10 s) hardware watchdog resets both cores.
+
+**Alarms (`alarms/`)** - `AlarmModel` merges the remote (PLC) and local alarm bitsets, tracks dwell, and raises ALARM-topic log lines and MQTT notifications on thresholds. `AlarmReader<OutputData>` reads the PLC alarm field each loop and drives the model. `MqttAlarmNotifier` formats alarm transitions as MQTT topics/payloads. `platform.h` defines the generic platform-health alarms (CPU load, jitter, stack, overrun), spliced into the high end of the bitset so site/PLC alarms keep bit 0 upward.
+
+**Health (`health/`)** - `HealthMonitor` owns the `AlarmModel` and an `MqttAlarmNotifier`, asserts the platform-health alarms (`alarms/platform.h`) from the PLC status and the loop's own liveness, runs a power-on self-test, and gates the watchdog kick via the timed escalation above. It reads the PLC's raw alarm bitset plus the live `rx_torn_count()` each beat. Tolerates a null PLC link (POST skips the region check, watchdog keeps kicking while the loop is alive).
+
+**Network (`network/`)** - Gated off by default and reserved (declared, not yet instantiated by the firmware). `NetworkHandler` brings up the network device and hands it to `NameResolver` (non-blocking DNS over Mbed's async resolver, poll-style API + cache); `TimeSyncHandler` runs NTP through the resolver; `MqttClient` is a minimal non-blocking MQTT 3.1.1 publisher.
+
+**Sun tracking (`sun_tracker.h`, `utils/sun.h`)** - `SunPositionTracker` is a config-driven `Component` tracking next sunrise/sunset and day/night state for the site location; `utils/sun.h` is the solar-position math (NOAA equations, declination, event times in the uptime-ms domain).
+
+**Utils (`utils/`)** - `BufferedSerial` wraps UART with a 256-byte RX ring buffer and 4096-byte TX buffer (usable depth size-1: 255 / 4095). The ring is single-producer/single-consumer but main-loop-only (no serial ISR), so it carries no memory barriers. `filters.h` holds reusable EMA / windowed-max metric filters; `time.h` provides uptime tracking on top of HAL; `text.h` the `format_float`/`format_age` helpers; `assert.h` the firmware-only assert.
 
 
 ### Key compile-time defines
