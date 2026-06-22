@@ -82,6 +82,13 @@
 #include "libbotanik/utils/assert.h"     // set_assert_logger
 #include "libbotanik/alarms/alarms.h"    // AlarmCondition (site table type)
 #include "libbotanik/health/health.h"    // HealthMonitor (owns the alarm model + notifier)
+#if BOTANIK_FEATURE_NETWORK
+#include "libbotanik/network/resolver.h" // NameResolver
+#include "libbotanik/network/network.h"  // NetworkHandler, TimeSyncHandler
+#endif
+#if BOTANIK_FEATURE_MQTT
+#include "libbotanik/network/mqtt.h"     // MqttClient
+#endif
 
 #include <cstddef>
 #include <cstdint>
@@ -127,6 +134,16 @@ namespace Botanik {
 #endif
         Health::HealthMonitor     _health;
         SystemContext             _sys_ctx;
+#if BOTANIK_FEATURE_NETWORK
+        Network::NameResolver     _resolver;
+        Network::NetworkHandler   _network;
+#endif
+#if BOTANIK_FEATURE_NTP
+        Network::TimeSyncHandler  _time_sync;
+#endif
+#if BOTANIK_FEATURE_MQTT
+        Network::MqttClient       _mqtt;
+#endif
         Terminal::AnsiTerminal    _terminal;
         Pages::ShellPage          _shell_page;
         Pages::LogsPage           _logs_page;
@@ -168,6 +185,18 @@ namespace Botanik {
               _health(_alarm_table, (uint8_t)_alarm_count, &_logger,
                       _scheduler.context(), nullptr, nullptr, nullptr),
               _sys_ctx(_scheduler.context()),
+#endif
+#if BOTANIK_FEATURE_NETWORK
+              // Network services read their config from the PLC config block (so
+              // NETWORK requires PLC); the resolver is shared by every consumer.
+              _resolver(&_logger),
+              _network(_plc_handler.context(), &_logger, &_resolver),
+#endif
+#if BOTANIK_FEATURE_NTP
+              _time_sync(_plc_handler.context(), &_logger, &_resolver),
+#endif
+#if BOTANIK_FEATURE_MQTT
+              _mqtt(_plc_handler.context(), &_logger, &_resolver),
 #endif
               _terminal(_console_serial, cols, rows, &_scheduler.context()->timestamp_ms,
                         _baud, _sys_ctx, &_health.model()),
@@ -276,6 +305,19 @@ namespace Botanik {
             _health.step(0, 0, now_ms);
 #endif
 
+#if BOTANIK_FEATURE_NETWORK
+            // Config-driven network services: each watches its PLC config block's
+            // serial and (re)starts its state machine. On the simulator the link
+            // reports up but the stack is inert (no sockets), so these idle.
+            _network.step(now_ms);
+#endif
+#if BOTANIK_FEATURE_NTP
+            _time_sync.step(now_ms);
+#endif
+#if BOTANIK_FEATURE_MQTT
+            _mqtt.step(now_ms);
+#endif
+
             on_loop(now_ms);   // site per-beat state machines (default no-op)
 
             _logger.step();
@@ -332,6 +374,16 @@ namespace Botanik {
         /** @brief No PLC link: there is no shared payload, so this is null. Site
          *  pages/commands that read it already null-check (Home/Status show "n/a"). */
         const Out*                      plc_output_data() { return nullptr; }
+#endif
+#if BOTANIK_FEATURE_NETWORK
+        Network::NetworkHandler&        network()         { return _network; }
+        Network::NameResolver&          resolver()        { return _resolver; }
+#endif
+#if BOTANIK_FEATURE_NTP
+        Network::TimeSyncHandler&       time_sync()       { return _time_sync; }
+#endif
+#if BOTANIK_FEATURE_MQTT
+        Network::MqttClient&            mqtt()            { return _mqtt; }
 #endif
         Health::HealthMonitor&          health()          { return _health; }
         Alarms::AlarmModel&             alarm_model()     { return _health.model(); }

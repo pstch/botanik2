@@ -16,4 +16,12 @@
 // Site name, shown in the version command, on the home screen, and in the POST line.
 #define BOTANIK_SITE_NAME "gh_mlb41"
 
+// Networking: this greenhouse's PLC coprocessor publishes the net / NTP / MQTT
+// config blocks, so enable the network stack, SNTP time sync, and the MQTT alarm
+// notifier. Functional on the OPTA hardware build; on the simulator the handlers
+// run but the TCP/IP stack is inert (no sockets), so they stay idle.
+#define BOTANIK_FEATURE_NETWORK 1
+#define BOTANIK_FEATURE_NTP     1
+#define BOTANIK_FEATURE_MQTT    1
+
 #endif // SITES_GH_MLB41_CONFIG_H
