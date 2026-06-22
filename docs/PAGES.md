@@ -72,17 +72,14 @@ digraph pages {
     <tr><td bgcolor="#eceff1"><font color="#555555">abstract interface</font></td></tr></table>>];
   shell [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e">
     <tr><td bgcolor="#37474f"><font color="#ffffff"><b>ShellPage</b></font></td></tr>
-    <tr><td bgcolor="#d6e4f0" align="left">+ TextEditor, CommandShell</td></tr>
-    <tr><td bgcolor="#d6e4f0" align="left">+ ShellWriter / LogWriter</td></tr></table>>];
+    <tr><td bgcolor="#d6e4f0" align="left">+ TextEditor, CommandShell</td></tr></table>>];
   logs [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e">
-    <tr><td bgcolor="#37474f"><font color="#ffffff"><b>LogsPage</b></font></td></tr>
-    <tr><td bgcolor="#d6e4f0" align="left">+ LogWriter</td></tr></table>>];
+    <tr><td bgcolor="#37474f"><font color="#ffffff"><b>LogsPage</b></font></td></tr></table>>];
   metric [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e">
     <tr><td bgcolor="#37474f"><font color="#ffffff"><b>MetricPage</b></font></td></tr>
     <tr><td bgcolor="#d6e4f0"><font color="#555555">diff-rendered base</font></td></tr></table>>];
   home [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e">
-    <tr><td bgcolor="#37474f"><font color="#ffffff"><b>HomePage&lt;T&gt;</b></font></td></tr>
-    <tr><td bgcolor="#d6e4f0" align="left">+ LogWriter</td></tr></table>>];
+    <tr><td bgcolor="#37474f"><font color="#ffffff"><b>HomePage&lt;T&gt;</b></font></td></tr></table>>];
   status [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e">
     <tr><td bgcolor="#37474f"><font color="#ffffff"><b>StatusPage&lt;T&gt;</b></font></td></tr>
     <tr><td bgcolor="#d6e4f0"><font color="#555555">runtime / health</font></td></tr></table>>];
@@ -93,6 +90,14 @@ digraph pages {
     <tr><td bgcolor="#2e7d32"><font color="#ffffff"><b>GreenhouseStatusPage</b></font></td></tr>
     <tr><td bgcolor="#d7ecd9"><font color="#555555">site readings</font></td></tr></table>>];
 
+  // writer base classes, drawn as their own nodes (dashed = "also derives")
+  logwriter [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e">
+    <tr><td bgcolor="#6a7b86"><font color="#ffffff"><b>LogWriter</b></font></td></tr>
+    <tr><td bgcolor="#eceff1"><font color="#555555">«base» receives log entries</font></td></tr></table>>];
+  shellwriter [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e">
+    <tr><td bgcolor="#6a7b86"><font color="#ffffff"><b>ShellWriter</b></font></td></tr>
+    <tr><td bgcolor="#eceff1"><font color="#555555">«base» command output</font></td></tr></table>>];
+
   page -> shell;
   page -> logs;
   page -> metric;
@@ -100,6 +105,13 @@ digraph pages {
   metric -> status;
   home   -> ghome;
   status -> gstatus;
+
+  edge [style=dashed, color="#777777"];
+  shell -> shellwriter;
+  shell -> logwriter;
+  logs  -> logwriter;
+  home  -> logwriter;
+  { rank=same; shellwriter; logwriter; }
 }
 \enddot
 

@@ -89,20 +89,18 @@ digraph dispatch {
     </table>
   >];
 
-  tickall [class="neutral", label="tick(active) on every page (active + background)"];
-
   serial -> bs [label="raw bytes"];
   bs -> parse [label="drained in step()"];
   parse -> content;
   parse -> command;
+  { rank=same; content; command; }
+  content -> htext;
   command -> intercept;
   intercept -> hcmd [label="remaining"];
-  content -> htext;
   { rank=same; htext; hcmd; }
   htext -> active;
   hcmd  -> active;
   active -> editor [label="ShellPage", style=dashed];
-  active -> tickall;
 }
 \enddot
 

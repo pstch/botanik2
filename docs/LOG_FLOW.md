@@ -123,7 +123,6 @@ digraph logflow {
   logs  [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e"><tr><td bgcolor="#37474f"><font color="#ffffff"><b>LogsPage</b></font></td></tr><tr><td bgcolor="#e6dcf0"><font color="#555555">writer</font></td></tr></table>>];
   home  [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e"><tr><td bgcolor="#37474f"><font color="#ffffff"><b>HomePage</b></font></td></tr><tr><td bgcolor="#e6dcf0"><font color="#555555">writer</font></td></tr></table>>];
 
-  monser  [shape=box, style="rounded,filled", class="serial", margin="0.12,0.06", label="monitor serial\n(drain() in main loop)"];
   pagedrain [label=<
     <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#9e9e9e">
       <tr><td bgcolor="#37474f"><font color="#ffffff"><b>page LogWriter drain</b> (per tick)</font></td></tr>
@@ -132,6 +131,9 @@ digraph logflow {
     </table>
   >];
 
+  consbs [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e"><tr><td bgcolor="#37474f"><font color="#ffffff"><b>BufferedSerial</b></font></td></tr><tr><td bgcolor="#d6e4f0">console UART</td></tr></table>>];
+  monbs  [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e"><tr><td bgcolor="#37474f"><font color="#ffffff"><b>BufferedSerial</b></font></td></tr><tr><td bgcolor="#d6e4f0">monitor UART</td></tr></table>>];
+
   fw  -> logger;
   plc -> logger;
   logger -> mon [label="fan-out (push_entry)"];
@@ -139,10 +141,12 @@ digraph logflow {
   logger -> logs;
   logger -> home;
   { rank=same; mon; shell; logs; home; }
-  mon   -> monser  [label="BufferedLogWriter:\npush -> FIFO -> drain()", fontsize=7];
   shell -> pagedrain;
   logs  -> pagedrain;
   home  -> pagedrain;
+  mon   -> monbs   [label="BufferedLogWriter:\npush -> FIFO -> drain()", fontsize=7];
+  pagedrain -> consbs [label="active page\npaints", fontsize=7];
+  { rank=same; consbs; monbs; }
 }
 \enddot
 
