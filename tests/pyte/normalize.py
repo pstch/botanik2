@@ -16,6 +16,10 @@ import re
 _SUBS = [
     (re.compile(r"\d{2}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}\.\d{3}"), "<TS>"),       # log / MARK stamp
     (re.compile(r"\d{2}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}"), "<CLOCK>"),           # status wall clock
+    # Alarm LAST EVENT stamp "YY/MM/DD HH:MM" (no seconds). Must follow the two
+    # with-seconds patterns above: its minute prefix would otherwise bite the head
+    # off a full HH:MM:SS stamp before they match.
+    (re.compile(r"\d{2}/\d{2}/\d{2} \d{2}:\d{2}\b"), "<ALARM_TS>"),            # alarm LAST EVENT
     (re.compile(r"\d{4,}d \d{2}:\d{2}:\d{2}"), "<UPTIME>"),                    # uptime DDDDd HH:MM:SS
     (re.compile(r"\b\d{2}:\d{2}:\d{2}\b"), "<TIME>"),                          # status-bar clock HH:MM:SS
     (re.compile(r"cpu:\s*\d+%"), "cpu:<C>"),                                   # CPU load

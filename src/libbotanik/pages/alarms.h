@@ -103,6 +103,20 @@ namespace Botanik { namespace Pages {
 
         /** @} */
 
+        /** @name Paint shadow
+         *  One entry per screen row: what that row last showed, so a repaint emits
+         *  only what changed. idx tags the row kind; sig is its change signature.
+         *  @{ */
+        static constexpr uint16_t MAX_ROWS    = 64;          // rows beyond this always redraw
+        static constexpr uint8_t  ROW_STRUCT  = 0xFE;        // header / rule / margin / blank
+        static constexpr uint8_t  ROW_BLANK   = 0xFF;        // empty data row / unknown
+        static constexpr uint32_t EVENT_EMPTY = 0x3FFFFFFF;  // LAST EVENT cell empty
+        /** @brief idx: alarm table index, or ROW_STRUCT, or ROW_BLANK. sig: data row
+         *  = packed (ON state | event minute); structural row = FNV(line bytes). */
+        struct RowShadow { uint8_t idx; uint32_t sig; };
+        RowShadow                 _row[MAX_ROWS];
+        /** @} */
+
         /** @name Filter modes (SPACE cycles recent -> all -> active -> unmasked)
          *  @{ */
         static constexpr uint8_t MODE_RECENT   = 0;  // has a last event, within its window
@@ -138,6 +152,12 @@ namespace Botanik { namespace Pages {
          *  badge starts here; _draw_data_row() splits the row write at this column so
          *  only those two chars are reverse-video (no flicker-prone overdraw). */
         static constexpr uint16_t STATE_TEXT_COL = MARGIN + 2 + (CODE_W - 1) + 2;
+        /** @brief ON-cell inner width and the LAST EVENT cell's text column / inner
+         *  width, tracking the same layout _build_grid_row() emits. Used by the
+         *  per-cell patch path (_patch_cells). */
+        static constexpr uint16_t STATE_INNER    = STATE_W - 1;                      // 3
+        static constexpr uint16_t EVENT_TEXT_COL = STATE_TEXT_COL + STATE_INNER + 2; // 20
+        static constexpr uint16_t EVENT_INNER    = EVENT_W - 1;                      // 15
         /** @} */
 
         /** @brief Description-column width: the row remainder, clamped. */
@@ -183,15 +203,39 @@ namespace Botanik { namespace Pages {
             return n;
         }
 
+        /** @brief Reset the whole paint shadow to "unknown" (forces a full redraw).
+         *  Called from the ctor and on focus (the screen was cleared on switch). */
+        void _invalidate_shadow() {
+            for (RowShadow& r : _row) { r.idx = ROW_BLANK; r.sig = 0; }
+        }
+
+        /** @brief FNV-1a over s[0..n), masked to 31 bits: a structural row's
+         *  fingerprint. Computed only for the ~6 structural rows. */
+        static uint32_t _hash(const char* s, uint16_t n) {
+            uint32_t h = 2166136261u;
+            for (uint16_t i = 0; i < n; i++) { h ^= (uint8_t)s[i]; h *= 16777619u; }
+            return h & 0x7FFFFFFFu;
+        }
+
+        /** @brief Draw a structural row through the shadow: skip it when its bytes are
+         *  unchanged on screen, else emit the line and record the fingerprint. */
+        void _emit(uint16_t row, const char* line, uint16_t n) {
+            uint32_t sig = _hash(line, n);
+            if (row < MAX_ROWS && _row[row].idx == ROW_STRUCT && _row[row].sig == sig)
+                return;
+            _terminal.move_to({row, 0});
+            _terminal.set_inverted(false);
+            _terminal.write_chars(line, n);
+            _terminal.clear_to_eol();
+            if (row < MAX_ROWS) { _row[row].idx = ROW_STRUCT; _row[row].sig = sig; }
+        }
+
         /** @brief Draw a '|'-ruled grid row (all normal video). */
         void _draw_grid_row(uint16_t row, const char* c0, const char* c1,
                             const char* c2, const char* c3) {
             char     line[160];
             uint16_t n = _build_grid_row(line, sizeof(line), c0, c1, c2, c3);
-            _terminal.move_to({row, 0});
-            _terminal.set_inverted(false);
-            _terminal.write_chars(line, n);
-            _terminal.clear_to_eol();
+            _emit(row, line, n);
         }
 
         /** @brief Draw a horizontal rule "+----+--+...+" matching the column widths.
@@ -208,18 +252,11 @@ namespace Botanik { namespace Pages {
                 for (uint16_t k = 0; k < w[i] && n < sizeof(line) - 1; k++) line[n++] = '-';
                 if (n < sizeof(line) - 1) line[n++] = sep;
             }
-            _terminal.move_to({row, 0});
-            _terminal.set_inverted(false);
-            _terminal.write_chars(line, n);
-            _terminal.clear_to_eol();
+            _emit(row, line, n);
         }
 
-        /** @brief Blank a row. */
-        void _clear_row(uint16_t row) {
-            _terminal.move_to({row, 0});
-            _terminal.set_inverted(false);
-            _terminal.clear_to_eol();
-        }
+        /** @brief Blank a structural row (through the paint shadow). */
+        void _clear_row(uint16_t row) { _emit(row, "", 0); }
 
         /** @brief Draw the footer legend: a reverse-video mode badge and counts on the
          *  left, the SPACE-cycles-mode hint on the right. Scrolling is intuitive (UP/DN)
@@ -407,28 +444,72 @@ namespace Botanik { namespace Pages {
         }
         /** @} */
 
-        /** @brief Draw data row at screen @p row for visible entry @p vi (index into
-         *  _vis), or clear the row when @p vi is past the end of the set. The state cell
-         *  shows a reverse-video "ON" badge while active; once it has cleared (but has a
-         *  last event) it reads "OFF" in normal video; a never-fired alarm leaves it
-         *  blank. Written inline in one pass (no normal-then-inverted overdraw, which
-         *  flickers). */
-        void _draw_data_row(uint16_t row, uint16_t vi) {
-            if (vi >= _nvis) { _clear_row(row); return; }
-            const Alarms::AlarmCondition& c = _model->condition(_vis[vi]);
+        /** @brief ON-cell render state: 0 blank, 1 "OFF", 2 "ON" normal, 3 "ON"
+         *  reverse-video (active and unacknowledged). */
+        static uint8_t _on_state(const Alarms::AlarmCondition& c) {
+            if (c.active) return c.acknowledged ? 2 : 3;
+            return c.edge_ms != 0 ? 1 : 0;
+        }
+
+        /** @brief Exact pack of a data row's two mutable cells: ON state in the top
+         *  2 bits, the LAST EVENT minute (edge_ms/60000, == the render resolution)
+         *  in the low 30 bits, or EVENT_EMPTY when the cell is blank. */
+        static uint32_t _pack(const Alarms::AlarmCondition& c) {
+            uint32_t ev = (!c.active && c.edge_ms == 0)
+                              ? EVENT_EMPTY
+                              : (uint32_t)((c.edge_ms / 60000u) & 0x3FFFFFFFu);
+            return ((uint32_t)_on_state(c) << 30) | ev;
+        }
+
+        /** @brief True when the fixed CODE/ON/EVENT columns fit, so cell patching is
+         *  safe; on a narrower screen the row falls back to a clamped full redraw. */
+        bool _cells_fit() const {
+            return _terminal.cols() >= (uint16_t)(EVENT_TEXT_COL + EVENT_INNER + 2);
+        }
+
+        /** @brief Blank a data row without touching the structural shadow path. */
+        void _clear_raw(uint16_t row) {
+            _terminal.move_to({row, 0});
+            _terminal.set_inverted(false);
+            _terminal.clear_to_eol();
+        }
+
+        /** @brief Rewrite only the ON and LAST EVENT cells (CODE/DESCRIPTION stay).
+         *  Both fixed-width cells are fully overwritten, so no clear_to_eol. */
+        void _patch_cells(uint16_t row, const Alarms::AlarmCondition& c) {
+            uint8_t on = _on_state(c);
+            _terminal.move_to({row, STATE_TEXT_COL});
+            if (on == 3) {                                   // "ON" reverse + pad
+                _terminal.set_inverted(true);  _terminal.write_chars("ON", 2);
+                _terminal.set_inverted(false); _terminal.write_chars(" ", 1);
+            } else {
+                _terminal.set_inverted(false);
+                _terminal.write_chars(on == 2 ? "ON " : (on == 1 ? "OFF" : "   "), 3);
+            }
             char ev[16];
             _fmt_event(ev, sizeof(ev), c);
-            // State cell: "ON" while active, "OFF" once it has cleared but still carries a
-            // last event (edge_ms set), blank for a never-fired alarm.
+            char cell[24];
+            int m = snprintf(cell, sizeof(cell), "%-*.*s",
+                             (int)EVENT_INNER, (int)EVENT_INNER, ev);
+            if (m < 0) m = 0;
+            _terminal.move_to({row, EVENT_TEXT_COL});
+            _terminal.write_chars(cell, (uint16_t)std::min((size_t)m, sizeof(cell) - 1));
+        }
+
+        /** @brief Draw a full data row for @p c (CODE/ON/EVENT/DESCRIPTION). The
+         *  state cell shows a reverse-video "ON" badge while active and unacked; once
+         *  it has cleared (but has a last event) it reads "OFF" in normal video; a
+         *  never-fired alarm leaves it blank. Written inline in one pass (no
+         *  normal-then-inverted overdraw, which flickers). */
+        void _draw_full_row(uint16_t row, const Alarms::AlarmCondition& c) {
+            char ev[16];
+            _fmt_event(ev, sizeof(ev), c);
             const char* state = c.active ? "ON" : (c.edge_ms != 0 ? "OFF" : "");
-            char line[160];
+            char     line[160];
             uint16_t n = _build_grid_row(line, sizeof(line), c.code ? c.code : "?",
                                          state, ev, c.desc ? c.desc : "");
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
-            // Reverse-video "ON" badge only while active AND unacknowledged; an ack'd alarm
-            // still reads "ON" but in normal video (seen, no longer nagging), so it falls
-            // through to the plain one-pass write below.
             if (c.active && !c.acknowledged && n > (uint16_t)(STATE_TEXT_COL + 2)) {
                 // "ON" sits at STATE_TEXT_COL: split the write so only it is reverse-video.
                 _terminal.write_chars(line, STATE_TEXT_COL);
@@ -441,6 +522,35 @@ namespace Botanik { namespace Pages {
                 _terminal.write_chars(line, n);
             }
             _terminal.clear_to_eol();
+        }
+
+        /** @brief Paint data row at screen @p row for visible entry @p vi: skip it
+         *  when unchanged, patch only ON/EVENT when the alarm is the same, redraw
+         *  the whole row when the alarm identity changed (CODE/DESC differ) or vi is
+         *  past the set (blank). Rows beyond MAX_ROWS bypass the shadow and always
+         *  draw. */
+        void _draw_data_row(uint16_t row, uint16_t vi) {
+            bool    shadowed = row < MAX_ROWS;
+            uint8_t new_idx  = (vi < _nvis) ? _vis[vi] : ROW_BLANK;
+            if (new_idx == ROW_BLANK) {                       // past the set -> blank
+                if (!shadowed || _row[row].idx != ROW_BLANK) {
+                    _clear_raw(row);
+                    if (shadowed) { _row[row].idx = ROW_BLANK; _row[row].sig = 0; }
+                }
+                return;
+            }
+            const Alarms::AlarmCondition& c = _model->condition(_vis[vi]);
+            uint32_t sig = _pack(c);
+            if (shadowed && _row[row].idx == new_idx) {       // same alarm
+                if (_row[row].sig != sig) {
+                    if (_cells_fit()) _patch_cells(row, c);
+                    else              _draw_full_row(row, c);
+                    _row[row].sig = sig;
+                }
+                return;                                       // sig equal -> skip
+            }
+            _draw_full_row(row, c);                           // identity changed
+            if (shadowed) { _row[row].idx = new_idx; _row[row].sig = sig; }
         }
 
         /** @brief Request a full (paced) table repaint from the top. */
@@ -473,6 +583,16 @@ namespace Botanik { namespace Pages {
                 bool     down    = _scroll_pending > 0;
                 uint16_t old_top = _top;
                 _terminal.scroll_region(DATA_TOP, data_bottom, /*up=*/down, 1);
+                // The scroll shifted the data band on screen without redrawing it;
+                // shift the shadow in lockstep so the next repaint diffs the right
+                // rows. The newly exposed row is repainted just below (sets its slot).
+                if (down) {
+                    for (uint16_t i = DATA_TOP; i < data_bottom && (uint16_t)(i + 1) < MAX_ROWS; i++)
+                        _row[i] = _row[i + 1];
+                } else {
+                    for (uint16_t i = data_bottom; i > DATA_TOP && i < MAX_ROWS; i--)
+                        _row[i] = _row[i - 1];
+                }
                 _top = down ? (uint16_t)(_top + 1) : (uint16_t)(_top - 1);
                 if (down) _draw_data_row(data_bottom, (uint16_t)(_top + window - 1));
                 else      _draw_data_row(DATA_TOP, _top);
@@ -536,8 +656,16 @@ namespace Botanik { namespace Pages {
                 // (and the bottom rule) before the paced repaint, so they do not linger
                 // as stale content while the redraw walks down to them.
                 uint16_t content = (_nvis < window) ? _nvis : window;
-                if (content < _painted_data)
+                if (content < _painted_data) {
                     _terminal.clear_rows((uint16_t)(DATA_TOP + content), _brule_row());
+                    // Those rows (and the bottom rule) were blanked on screen without
+                    // _draw_data_row; invalidate their shadow so the staged repaint
+                    // redraws them rather than skipping the now-empty content.
+                    for (uint16_t r = (uint16_t)(DATA_TOP + content);
+                         r <= _brule_row() && r < MAX_ROWS; r++) {
+                        _row[r].idx = ROW_BLANK; _row[r].sig = 0;
+                    }
+                }
                 _painted_data = content;
             }
 
@@ -591,7 +719,7 @@ namespace Botanik { namespace Pages {
     public:
         /** @brief Bind to a terminal and alarm model. */
         AlarmsPage(AnsiTerminal& terminal, const Alarms::AlarmModel* model)
-            : _terminal(terminal), _model(model) {}
+            : _terminal(terminal), _model(model) { _invalidate_shadow(); }
 
         /** @name Page interface
          *  @{ */
@@ -634,6 +762,7 @@ namespace Botanik { namespace Pages {
         void focus() override {
             _active = true;
             _painted_data = 0;    // switch_to cleared the screen; nothing painted yet
+            _invalidate_shadow(); // shadow no longer matches the cleared screen
             _request_repaint();   // repaint from scratch
         }
 

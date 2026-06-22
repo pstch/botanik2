@@ -1,0 +1,24 @@
+  HOME  SHELL  LOGS  STATUS  ALARMS      <TIME>     PLC:<P> cpu:<C> stk:<S>
+
+  | CODE     | ON | LAST EVENT     | DESCRIPTION                             |
+  +----------+----+----------------+-----------------------------------------+
+  | SYS_RST  | ON | <ALARM_TS> | Reset in the last five minutes          |
+  | AC_GRID  |    |                | Grid AC out-of-spec/offline             |
+  | DC_PS1   |    |                | DC PS1 volts too low                    |
+  | GEN_FLT  |    |                | Generator failed to start               |
+  | AC_LOCAL |    |                | Local AC out of spec or offline         |
+  | DC_PS2   |    |                | DC PS2 volts too low                    |
+  | DC_UPS   |    |                | DC UPS on battery                       |
+  | DC_LOCAL |    |                | Local DC volts too low                  |
+  | GEN_BATT |    |                | Gen. start battery low                  |
+  | PLC_FLT  |    |                | Failed to synchronize with PLC          |
+  | NET_FLT  |    |                | Network error                           |
+  | NTP_TIM  |    |                | NTP sync timeout                        |
+  | ACT_FLT  |    |                | Actioner failure                        |
+  | SNS_FLT  |    |                | Sensor fault                            |
+  | TOO_HOT  |    |                | Inside temperature too high             |
+  v----------v----v----------------v-----------------------------------------v
+
+  [all]   29 listed   1 active                                   SPACE: active
+
+ ALARMS : SYS_RST

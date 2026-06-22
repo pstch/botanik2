@@ -1,0 +1,24 @@
+  HOME  SHELL  LOGS  STATUS  ALARMS      <TIME>     PLC:<P> cpu:<C> stk:<S>
+
+  | CODE     | ON | LAST EVENT     | DESCRIPTION                             |
+  +----------+----+----------------+-----------------------------------------+
+  | SYS_RST  | ON | <ALARM_TS> | Reset in the last five minutes          |
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  +----------+----+----------------+-----------------------------------------+
+
+  [recent]   1 listed   1 active                                    SPACE: all
+
+ ALARMS : SYS_RST

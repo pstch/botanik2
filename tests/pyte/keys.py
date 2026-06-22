@@ -12,11 +12,12 @@ ENTER = b"\r"
 SHIFT_ENTER = ESC + b"\n"
 
 # Page switch: Alt+digit. ALT_1 -> page 0 (HOME), ALT_2 -> SHELL, ALT_3 -> LOGS,
-# ALT_4 -> STATUS (terminal.cpp routes ALT_n to switch_to(n-1)).
+# ALT_4 -> STATUS, ALT_5 -> ALARMS (terminal.cpp routes ALT_n to switch_to(n-1)).
 ALT_1 = ESC + b"1"
 ALT_2 = ESC + b"2"
 ALT_3 = ESC + b"3"
 ALT_4 = ESC + b"4"
+ALT_5 = ESC + b"5"
 HOME_PAGE = ALT_1            # also reachable via the Home key (CSI H)
 
 # Cursor / editing keys (CSI forms).

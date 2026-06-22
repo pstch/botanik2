@@ -45,6 +45,7 @@ simulator-only and read once at startup.
 |---|---|
 | `BOTANIK_TIME_SCALE` | Runs the sim clocks (and the baud throttle) N times faster. Default 1, clamped to >= 1. See `hal/simulator.h`. |
 | `BOTANIK_NO_XRUN_WARNING` | Silences the scheduler's overrun (xrun) warning, whose count/placement are load-dependent. Set it to any value (presence is what matters). See `scheduler/scheduler.cpp`. |
+| `BOTANIK_NO_LOAD_ALARMS` | Holds the CPU_* load alarms (CPU_LOAD / CPU_JITT / CPU_XRUN) cleared, so the active-alarm set is deterministic for screen goldens. Set it to a non-zero value. No effect on OPTA (no environment). See `health/health.h`. |
 
 `BOTANIK_TIME_SCALE=N` dilates time uniformly: every byte/event ratio is
 identical to a normal run, only wall time is divided by N. A 10 ms tick at scale
