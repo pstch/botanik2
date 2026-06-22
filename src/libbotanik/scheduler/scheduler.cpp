@@ -29,17 +29,13 @@ namespace Botanik { namespace Scheduler {
 
     LoopScheduler::LoopScheduler(uint32_t period_ms, Logs::Logger* logger)
         : _period_ms(period_ms), _logger(logger) {
-        // measure stack base and depth
         _stack_base  = HAL::get_stack_base();
         _stack_depth = HAL::get_stack_depth();
 
-        // configure EMA filters
         _cpu_load.configure(Utils::ema_alpha(Config::CPU_LOAD_EMA_ATTACK_MS),
                             Utils::ema_alpha(Config::CPU_LOAD_EMA_DECAY_MS));
         _jitter.configure(Utils::ema_alpha(Config::CPU_JITTER_EMA_ATTACK_MS),
                           Utils::ema_alpha(Config::CPU_JITTER_EMA_DECAY_MS));
-
-        // configure rolling-max windows
         _cpu_loop_us_window.configure(Config::LOAD_METRIC_WINDOW);
         _jitter_window.configure(Config::LOAD_METRIC_WINDOW);
 
@@ -49,27 +45,22 @@ namespace Botanik { namespace Scheduler {
     void LoopScheduler::reset() {
         _next_tick_ms = HAL::uptime_ms() + _period_ms;
 
-        // reset CPU duty-cycle state
         _cpu_load.reset();
         _slept_us = 0;
         _last_release_us = 0;
 
-        // reset work-duration state
         _measuring       = false;
         _cpu_loop_us_max = 0;
         _cpu_loop_us_window.reset();
 
-        // reset jitter state
         _jitter.reset();
         _jitter_window.reset();
         _jitter_us_max = 0;
 
-        // reset stack state
         _stack_bytes_max  = 0;
         _stack_slice_tick = 0;
         _repaint_pending  = true;
 
-        // reset tick-rate state
         _tps_anchor_ms    = 0;
         _tps_anchor_count = 0;
 
@@ -109,17 +100,13 @@ namespace Botanik { namespace Scheduler {
     }
 
     void LoopScheduler::_record_jitter(uint32_t jitter_us) {
-        // measure instantaneous jitter as a fraction of the tick interval
+        // instantaneous jitter as a fraction of the tick interval
         float instant = (_period_ms > 0) ? static_cast<float>(jitter_us)
                         / static_cast<float>(_period_ms * 1000u) : 0.0f;
-        // update peak jitter time value
         if (jitter_us > _jitter_us_max) _jitter_us_max = jitter_us;
-        // push jitter time into the rolling-max window
         _jitter_window.push(jitter_us, 1 + _missed_this_beat);   // age by elapsed beats
-        // push jitter fraction into the EMA
         _jitter.push(instant);
 
-        // update published context values
         _context.cpu_jitter_ema       = _jitter.value();
         _context.cpu_jitter_us_recent = _jitter_window.value();
         _context.cpu_jitter_us_max    = _jitter_us_max;
@@ -137,7 +124,7 @@ namespace Botanik { namespace Scheduler {
             _context.cpu_load_ema = _cpu_load.value();
         }
 
-        // open the next duty-cycle window and start its idle total from scratch
+        // open the next duty-cycle window, idle total from scratch
         _last_release_us = now_us;
         _slept_us = 0;
     }
@@ -167,20 +154,18 @@ namespace Botanik { namespace Scheduler {
     }
 
     void LoopScheduler::_sample_work(uint64_t now_us) {
-        // measure the work-window duration (peak single-beat work time)
         uint32_t busy = (now_us >= _work_start_us)
                       ? static_cast<uint32_t>(now_us - _work_start_us) : 0;
         if (busy > _cpu_loop_us_max) _cpu_loop_us_max = busy;
         _cpu_loop_us_window.push(busy, 1 + _missed_this_beat);   // age by elapsed beats
 
-        // scan stack usage if we are at a stack slice boundary
+        // scan the stack high-water at slice boundaries only
         if (++_stack_slice_tick >= Config::STACK_SLICE_TICKS) {
             _stack_slice_tick = 0;
             _measure_stack_usage();
             _repaint_pending = true;
         }
 
-        // update published work-duration values
         _context.cpu_loop_us_max    = _cpu_loop_us_max;
         _context.cpu_loop_us_recent = _cpu_loop_us_window.value();
     }
@@ -257,21 +242,20 @@ namespace Botanik { namespace Scheduler {
     // ------------------------------------------------------------------------
 
     void lock_process_memory(Logs::Logger* logger) {
-        // lock memory pages into RAM to avoid page fault latency. Process-wide
-        // and covers future mappings too, so this is a one-time call.
+        // Lock pages into RAM (avoid page-fault latency). Process-wide incl. future
+        // mappings, so it's a one-time call.
         if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1 && logger != nullptr)
             logger->warning(PlcIO::BOOT, "mlockall failed: \n%s", strerror(errno));
     }
 
     void make_thread_realtime(int cpu_core_id, Logs::Logger* logger) {
-        // set the real-time scheduling policy (SCHED_FIFO) and priority. pid 0
-        // targets the calling thread, so this only affects this thread.
+        // SCHED_FIFO + priority; pid 0 = the calling thread.
         struct sched_param param;
-        param.sched_priority = 95; // Priorities range from 1 (low) to 99 (high)
+        param.sched_priority = 95; // 1 (low) .. 99 (high)
         if (sched_setscheduler(0, SCHED_FIFO, &param) == -1 && logger != nullptr)
             logger->warning(PlcIO::BOOT, "sched_setscheduler failed: \n%s", strerror(errno));
 
-        // pin the thread to a dedicated CPU core to prevent task migration
+        // pin to a core to prevent migration
         cpu_set_t mask;
         CPU_ZERO(&mask);
         CPU_SET(cpu_core_id, &mask);

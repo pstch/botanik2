@@ -27,7 +27,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
             return _serial.availableForWrite() >= ANSI_MAX_SEQ;
         }
 
-        // Append @p val as decimal (no leading zeros) to the TX ring.
+        // Append @p val as decimal (no leading zeros).
         void write_uint16(BufferedSerial& _serial, uint16_t val) {
             char buf[5];
             int8_t i = 4;
@@ -55,9 +55,9 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     // Generic utilities
     // ------------------------------------------------------------------------
 
-    // Input is ASCII-only (printable 0x20-0x7E): the editor counts one byte == one
-    // column, so a high byte (UTF-8 / Latin-1) is treated as non-printable and dropped
-    // rather than corrupt the byte-counted reconcile cursor.
+    // ASCII-only (0x20-0x7E): the editor counts one byte == one column, so a high
+    // byte (UTF-8 / Latin-1) is dropped as non-printable rather than corrupt the
+    // byte-counted reconcile cursor.
     bool is_printable(uint8_t b) {
         return b >= 0x20 && b <= 0x7E;
     }
@@ -66,8 +66,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     // ------------------------------------------------------------------------
 
     bool set_insert_mode(BufferedSerial& _serial, bool active) {
-        // SM4/RM4 are the same length.
-        return _csi_count(_serial, active ? SM4 : RM4, sizeof(SM4) - 1);
+        return _csi_count(_serial, active ? SM4 : RM4, sizeof(SM4) - 1);  // SM4/RM4 same length
     }
 
     bool cancel_sequence(BufferedSerial& _serial) {
@@ -78,20 +77,17 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     bool set_auto_wrap(BufferedSerial& _serial, bool enable) {
-        // DECAWM_SET/RESET are the same length.
         return _csi_count(_serial, enable ? DECAWM_SET : DECAWM_RESET,
-                          sizeof(DECAWM_SET) - 1);
+                          sizeof(DECAWM_SET) - 1);   // SET/RESET same length
     }
 
     bool set_cursor_visible(BufferedSerial& _serial, bool show) {
-        // DECTCEM_SET/RESET are the same length.
         return _csi_count(_serial, show ? DECTCEM_SET : DECTCEM_RESET,
-                          sizeof(DECTCEM_SET) - 1);
+                          sizeof(DECTCEM_SET) - 1);  // SET/RESET same length
     }
 
     bool minitel_setup(BufferedSerial& _serial) {
-        // One-time PRO2 handshake: 80-col teleinformatique + lowercase keyboard +
-        // page mode. 12 bytes, within the can_emit() reserve, so it lands atomically.
+        // One-time PRO2 handshake: 12 bytes, within the can_emit() reserve, so atomic.
         if (!can_emit(_serial)) return false;
         _serial.write(MINITEL_TELINFO,   sizeof(MINITEL_TELINFO) - 1);
         _serial.write(MINITEL_LOWERCASE, sizeof(MINITEL_LOWERCASE) - 1);
@@ -100,8 +96,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     bool vt102_setup(BufferedSerial& _serial) {
-        // No one-time setup for a VT100/VT102: DECAWM-off is re-asserted on every
-        // screen establish in clear_screen().
+        // No one-time setup: DECAWM-off is re-asserted on every screen establish.
         (void)_serial;
         return true;
     }

@@ -30,29 +30,27 @@ namespace Botanik { namespace Terminal {
     }
 
     // Lifecycle
-    // ------------------------------------------------------------------------
 
-    // Constructor
     AnsiTerminal::AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
                                const uint32_t* timestamp_ms, uint32_t baud, const SystemContext& ctx,
-                               const Alarms::AlarmModel* alarms) :
+                               const Alarms::AlarmModel* alarms, Logs::Logger* logger) :
         _parser(serial, timestamp_ms),
         _serial(serial),
         _ctx(ctx),
         _cols(cols),
         _rows(rows),
-        _alarms(alarms)
+        _alarms(alarms),
+        _logger(logger)
     {
         // Size the shared cooperative-TX depth floor from the link baud so the felt echo
         // latency target (Config::TX_COLD_TARGET_MS) holds across links.
         _tx_cold_depth = depth_for_baud(baud, Config::TX_COLD_TARGET_MS);
-        // Reserve the bottom row for the alarm bar only when an alarm source is wired.
-        _reserved_bottom = (_alarms != nullptr) ? 1 : 0;
+        _reserved_bottom = (_alarms != nullptr) ? 1 : 0;   // bottom row only when alarms wired
     }
 
-    // Step through the terminal handling code
     void AnsiTerminal::step() {
         using Command = InputEvent::Command;
+        announce_step(_logger, "AnsiTerminal");
         // Snapshot the RX depth before the parse loop below drains it, so the serial
         // gauge reports what was actually waiting this cycle rather than ~0 post-drain.
         _rx_cycle_used = _serial.available();
@@ -67,13 +65,11 @@ namespace Botanik { namespace Terminal {
                 _pages[_page_index]->focus();
         }
         uint64_t now = HAL::uptime_ms();
-        // Status bar paints first each tick (it is self-contained - no page labels to
-        // wait on), so it interleaves with whatever the active page is drawing, including
-        // its static phase. Its two fields (the centred HH:MM:SS clock and the right-
-        // aligned metrics block) share TX_STATUS_FIELDS_PER_TICK and the shared depth
-        // floor; the round-robin cursor rotates which one repaints first so a tight budget
-        // never always favours the clock. A field repaints only on its own cadence, and an
-        // unchanged field emits nothing and spends no budget.
+        // Status bar paints first each tick (self-contained), interleaving with the
+        // active page's draw. Its two fields (centred HH:MM:SS clock, right-aligned
+        // metrics) share TX_STATUS_FIELDS_PER_TICK and the depth floor; the round-robin
+        // cursor rotates which repaints first so a tight budget never favours the clock.
+        // A field repaints only on its own cadence; an unchanged field spends no budget.
         uint16_t status_budget = Config::TX_STATUS_FIELDS_PER_TICK;
         for (uint8_t v = 0; v < 2 && status_budget > 0 && tx_below_cold(); v++) {
             if (_status_field == 0) {
@@ -125,9 +121,7 @@ namespace Botanik { namespace Terminal {
                 ev.command == Command::CTRL_PAGE_DOWN ||
                 ev.command == Command::TAB ||
                 ev.command == Command::SHIFT_TAB) {
-                // TAB and Ctrl+PageDown advance to the next page; Shift+TAB
-                // and Ctrl+PageUp step back. Both directions wrap around the
-                // ends.
+                // TAB / Ctrl+PageDown advance; Shift+TAB / Ctrl+PageUp step back. Both wrap.
                 const bool back = ev.command == Command::CTRL_PAGE_UP ||
                                   ev.command == Command::SHIFT_TAB;
                 switch_relative(!back);
@@ -160,9 +154,7 @@ namespace Botanik { namespace Terminal {
     }
 
     // Cursor & geometry
-    // ------------------------------------------------------------------------
 
-    // Move cursor to an absolute screen position
     void AnsiTerminal::move_to(const CursorPos& target_in, bool skip) {
         // The hardware caps the cursor at the last row/column, so clamp any
         // out-of-range target here to keep _hw_pos honest.
@@ -221,9 +213,7 @@ namespace Botanik { namespace Terminal {
     }
 
     // Text output & character attributes
-    // ------------------------------------------------------------------------
 
-    // Write `len` chars at cursor, advancing it right.
     uint16_t AnsiTerminal::write_chars(const char *s, uint16_t len, bool insert) {
         if (len == 0) return 0;
 
@@ -261,7 +251,6 @@ namespace Botanik { namespace Terminal {
         return written;
     }
 
-    // Set/clear reverse-video character attribute
     void AnsiTerminal::set_inverted(bool enable) {
         if (enable == _hw_inverted) return;
         // Reserve the longest form (CSI + ATTR_NEG) up front so a split SGR can't
@@ -275,13 +264,11 @@ namespace Botanik { namespace Terminal {
         _hw_inverted = enable;
     }
 
-    // Enable or disable terminal auto-wrap (DECAWM)
     void AnsiTerminal::set_auto_wrap(bool enable) {
         Ansi::set_auto_wrap(_serial, enable);
         _hw_auto_wrap = enable;
     }
 
-    // Show or hide the (blinking) cursor (DECTCEM)
     void AnsiTerminal::set_cursor_visible(bool show) {
         if (show == _hw_cursor_visible) return;
         // Only commit the tracked state if the sequence actually reached the wire,
@@ -291,16 +278,12 @@ namespace Botanik { namespace Terminal {
     }
 
     // Content manipulation
-    // ------------------------------------------------------------------------
 
-    // Delete `len` chars at cursor, shifting the rest of the line left
     void AnsiTerminal::delete_chars(uint16_t len) {
         if (len == 0) return;
-        Ansi::delete_chars(_serial, len);
-        // DCH shifts content left; cursor position is unaffected.
+        Ansi::delete_chars(_serial, len);   // DCH shifts content left; cursor unaffected
     }
 
-    // Erase content from cursor to the end of the line
     void AnsiTerminal::clear_to_eol() {
         // Cursor parked at the last cell after a row-filling write: nothing past it
         // to erase, and the parked cell holds valid content.
@@ -308,7 +291,6 @@ namespace Botanik { namespace Terminal {
         Ansi::clear_to_eol(_serial);  // EL leaves the cursor in place
     }
 
-    // Erase from the cursor to the end of the display; the cursor does not move
     void AnsiTerminal::clear_to_eos() {
         Ansi::clear_to_eos(_serial);
         _hw_at_eol = false;
@@ -396,7 +378,6 @@ namespace Botanik { namespace Terminal {
         clear_rows(1, _content_bottom());
     }
 
-    // Emit a line feed
     void AnsiTerminal::line_feed(bool carriage_return) {
         uint16_t content_bottom = _content_bottom();
         if (_hw_pos.row < content_bottom) {
@@ -419,7 +400,6 @@ namespace Botanik { namespace Terminal {
         }
     }
 
-    // Scroll the inclusive band [top..bottom] by n rows, restoring rows outside it.
     void AnsiTerminal::scroll_region(uint16_t top, uint16_t bottom, bool up, uint16_t n) {
         if (n == 0 || top > bottom) return;
         uint16_t phys_last = (uint16_t)(_rows > 0 ? _rows - 1 : 0);
@@ -464,20 +444,17 @@ namespace Botanik { namespace Terminal {
         }
     }
 
-    // Insert blank rows
     void AnsiTerminal::insert_rows(uint16_t count) {
         if (count == 0) return;
         Ansi::insert_rows(_serial, count);  // IL shifts content; cursor unaffected
     }
 
-    // Delete rows
     void AnsiTerminal::delete_rows(uint16_t count) {
         if (count == 0) return;
         Ansi::delete_rows(_serial, count);  // DL shifts content; cursor unaffected
     }
 
     // Pages
-    // ------------------------------------------------------------------------
 
     int8_t AnsiTerminal::add_page(Pages::Page* page) {
         if (page == nullptr || _pages_len >= 8) return -1;
@@ -537,12 +514,9 @@ namespace Botanik { namespace Terminal {
     }
 
     // Status bar
-    // ------------------------------------------------------------------------
 
     void AnsiTerminal::draw_status_row() {
-        // The metrics field is fixed-width; we only need its width to know where it
-        // starts (update_status_metrics() paints its bytes below).
-        constexpr uint16_t mlen = STATUS_METRICS_LEN - 1;  // drop the trailing NUL
+        constexpr uint16_t mlen = STATUS_METRICS_LEN - 1;  // field width (drop NUL)
 
         // Save the attribute only, not the cursor: every caller repositions
         // absolutely right after, so a cursor restore here would be wasted.
@@ -759,7 +733,6 @@ namespace Botanik { namespace Terminal {
     }
 
     // Alarm bar
-    // ------------------------------------------------------------------------
 
     uint64_t AnsiTerminal::_unmasked_set() const {
         uint64_t m = 0;
@@ -840,7 +813,6 @@ namespace Botanik { namespace Terminal {
     }
 
     // Serial / TX
-    // ------------------------------------------------------------------------
 
     uint16_t AnsiTerminal::tx_available() const {
         return _serial.availableForWrite();
@@ -851,7 +823,6 @@ namespace Botanik { namespace Terminal {
     }
 
     // Internals
-    // ------------------------------------------------------------------------
 
     int AnsiTerminal::_build_metrics(char* buf, size_t cap) const {
         // No PLC context wired: show a "---" placeholder rather than a blank field.

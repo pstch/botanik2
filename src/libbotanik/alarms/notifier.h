@@ -6,10 +6,8 @@
  * @brief MqttAlarmNotifier - draft MQTT plumbing for alarm notifications.
  *
  * Formats a retained-style topic + payload per alarm transition and hands it to
- * publish(). The transport is not wired yet (MQTT still reads N/A on the status
- * page): publish() forwards to stub transport methods that do nothing for now,
- * so the path is exercised without touching the log. Swap their bodies for a
- * real client once MQTT lands.
+ * publish(). Transport not wired yet: publish() forwards to no-op stubs, so the path
+ * runs without touching the log. Swap the stub bodies for a real client once MQTT lands.
  */
 
 #include <cstdint>
@@ -23,10 +21,7 @@ namespace Botanik { namespace Alarms {
     /** @brief Draft MQTT notifier: builds topic/payload, hands it to publish(). */
     class MqttAlarmNotifier : public AlarmNotifier {
     private:
-        /** @name State
-         *  @{ */
         const char* _prefix;   // topic prefix, e.g. "botanik/site1"
-        /** @} */
 
     public:
         /** @brief @p prefix is the MQTT topic root. */
@@ -45,21 +40,17 @@ namespace Botanik { namespace Alarms {
             publish(topic, on ? "ON" : "OFF");
         }
 
-        /** @brief TODO: hand off to the MQTT client. For now, route through the
-         *  stub transport so the notification path runs end to end. */
+        /** @brief TODO: hand off to the MQTT client. For now routes through the stubs. */
         virtual void publish(const char* topic, const char* payload) {
             if (!_connect()) return;
             _send(topic, payload);
         }
 
-        /** @name Stub transport
-         *  No-op placeholders standing in for a real MQTT client.
+        /** @name Stub transport (no-op placeholders for a real MQTT client)
          *  @{ */
-        /** @brief Ensure a session exists. Stub: always "connected". */
-        virtual bool _connect() { return true; }
+        virtual bool _connect() { return true; }   // stub: always "connected"
 
-        /** @brief Hand a retained-style message to the broker. Stub: drops it. */
-        virtual void _send(const char* topic, const char* payload) {
+        virtual void _send(const char* topic, const char* payload) {   // stub: drops it
             (void)topic;
             (void)payload;
         }

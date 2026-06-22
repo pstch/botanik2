@@ -39,33 +39,28 @@ namespace Botanik { namespace Config {
      * @{
      */
 
-    /** @brief Firmware version string, surfaced in the boot banner.
-     *  Platform-independent; the hardware half of the banner comes from
-     *  HAL::hardware_description(). */
+    /** @brief Firmware version string, surfaced in the boot banner (hardware half
+     *  comes from HAL::hardware_description()). */
 #ifndef BOTANIK_FIRMWARE_VERSION
 #  define BOTANIK_FIRMWARE_VERSION "0.13.12-dev"
 #endif
     BOTANIK_CFG(const char*, FIRMWARE_VERSION);
 
-    /** @brief MQTT topic prefix for alarm notifications. Site identity - the default
-     *  is generic; a site pins its own in `sites/<name>/config.h`. */
+    /** @brief MQTT topic prefix for alarm notifications. Site identity; pinned per site. */
 #ifndef BOTANIK_MQTT_TOPIC_PREFIX
 #  define BOTANIK_MQTT_TOPIC_PREFIX "botanik"
 #endif
     BOTANIK_CFG(const char*, MQTT_TOPIC_PREFIX);
 
-    /** @brief Human-readable site (greenhouse) name. Surfaced in the version command,
-     *  the home screen (beside the logo), and the boot self-test (POST) line. The
-     *  default is generic; a site pins its own in `sites/<name>/config.h` (matching
-     *  the `-DBOTANIK_SITE` directory name, e.g. "gh_mlb41"). */
+    /** @brief Human-readable site (greenhouse) name, surfaced in the version command,
+     *  home screen, and POST line. Pinned per site (matches the -DBOTANIK_SITE dir). */
 #ifndef BOTANIK_SITE_NAME
 #  define BOTANIK_SITE_NAME "generic"
 #endif
     BOTANIK_CFG(const char*, SITE_NAME);
 
-    /** @brief Console UART baud (also sizes the terminal's cooperative-TX gates). The
-     *  default is the OPTA hardware rate; the simulator deliberately overrides it low (see
-     *  botanik_sim/main.cpp) to exercise the TX pacing. A site may pin its own. */
+    /** @brief Console UART baud (also sizes the cooperative-TX gates). Default is the
+     *  OPTA rate; the sim overrides it low to exercise TX pacing. */
 #ifndef BOTANIK_CONSOLE_BAUD
 #  define BOTANIK_CONSOLE_BAUD 115200
 #endif
@@ -79,7 +74,7 @@ namespace Botanik { namespace Config {
      * @{
      */
 
-    /** @brief Main task execution period in milliseconds */
+    /** @brief Main task execution period (ms) */
 #ifndef BOTANIK_TASK_PERIOD_MS
 #  define BOTANIK_TASK_PERIOD_MS 10
 #endif
@@ -113,14 +108,14 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, STACK_SCAN_LIMIT);
 
-    /** @brief Byte pattern used for stack "painting" to detect high-water mark */
+    /** @brief Byte pattern for stack "painting" (high-water detection) */
 #ifndef BOTANIK_STACK_PAINT_BYTE
 #  define BOTANIK_STACK_PAINT_BYTE 0xCD
 #endif
     BOTANIK_CFG(uint8_t, STACK_PAINT_BYTE);
 
-    /** @brief Sliding window for the "recent peak" CPU/stack metrics,
-     *  and the number of rotating buckets used to approximate it. */
+    /** @brief Sliding window for the "recent peak" CPU/stack metrics, and the number
+     *  of rotating buckets approximating it. */
 #ifndef BOTANIK_LOAD_METRIC_WINDOW_MS
 #  define BOTANIK_LOAD_METRIC_WINDOW_MS 5000
 #endif
@@ -137,10 +132,9 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, LOAD_METRIC_WINDOW);
 
-    /** @brief Local platform-health alarm thresholds (see BotanikFirmware::loop()):
-     *  CPU_LOAD / CPU_JITT fire when the rolling-peak load / jitter exceeds this
-     *  percent of the task period; STACK fires above this percent stack usage. How
-     *  long each stays latched after it clears is per-alarm in the site table (latch_s). */
+    /** @brief Platform-health alarm thresholds: CPU_LOAD / CPU_JITT fire when the
+     *  rolling-peak load / jitter exceeds this percent of the task period; STACK fires
+     *  above this percent stack usage. Per-alarm latch is in the site table (latch_s). */
 #ifndef BOTANIK_ALARM_CPU_LOAD_PCT
 #  define BOTANIK_ALARM_CPU_LOAD_PCT 50
 #endif
@@ -154,9 +148,8 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint8_t, ALARM_STACK_PCT);
     /** @brief How long a momentary-event alarm (CPU_XRUN, RX_TORN) stays held active
-     *  after its counter ticks. HealthMonitor latches this window in the source (a
-     *  proper held state, not a one-beat pulse), so the alarm stays visible without
-     *  depending on the table's latch_s. */
+     *  after its counter ticks. HealthMonitor latches this in source (a proper held
+     *  state, not a one-beat pulse), independent of the table's latch_s. */
 #ifndef BOTANIK_ALARM_EVENT_HOLD_MS
 #  define BOTANIK_ALARM_EVENT_HOLD_MS 300000
 #endif
@@ -253,10 +246,9 @@ namespace Botanik { namespace Config {
      * @{
      */
 
-    /** @brief Char-buffer length for a network address in the PLC config block: a
-     *  hostname or a dotted-decimal IPv4 literal (e.g. "pool.ntp.org" or
-     *  "192.168.1.10"), NUL-terminated; empty ([0]==0) means "unset". Must be a
-     *  4-byte multiple so the config structs stay padding-free.
+    /** @brief Char-buffer length for a network address (hostname or IPv4 literal,
+     *  NUL-terminated; empty [0]==0 means "unset"). Must be a 4-byte multiple so the
+     *  config structs stay padding-free.
      *  @note Must match PLC-side code ! See the PLC-side setup in docs. */
 #ifndef BOTANIK_PLC_HOST_STR_LEN
 #  define BOTANIK_PLC_HOST_STR_LEN 64
@@ -270,11 +262,9 @@ namespace Botanik { namespace Config {
      * @{
      */
 
-    /** @brief Rows in the NameResolver table (network/resolver.h). One table backs
-     *  both jobs, so this bounds the DNS lookups that can be in flight at once AND the
-     *  number of resolved results cached (a completed row stays as a cache entry). Each
-     *  row is a hostname buffer plus a few fields; size it to the count of distinct
-     *  hostnames the components resolve (NTP servers + MQTT broker + a little slack). */
+    /** @brief Rows in the NameResolver table; bounds both in-flight DNS lookups and
+     *  cached results (a completed row stays as a cache entry). Size to the distinct
+     *  hostnames the components resolve (NTP servers + MQTT broker + slack). */
 #ifndef BOTANIK_DNS_CACHE_SIZE
 #  define BOTANIK_DNS_CACHE_SIZE 8
 #endif
@@ -410,11 +400,8 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, LOG_TX_DROP_REPORT_PERIOD_MS);
 
-    /** @brief Maximum number of unique log topics; sizes the logger's per-topic
-     *  bucket array, so the footprint stays fixed regardless of how many topics the
-     *  LogTopic enum currently defines.
-     *  @note Each topic consumes memory for its rate-limiting bucket. Bounded by
-     *  the uint8_t LogTopic type (and the uint8_t bucket-loop counters), so it must
+    /** @brief Max unique log topics; sizes the per-topic bucket array (fixed footprint).
+     *  @note Bounded by the uint8_t LogTopic type and bucket-loop counters, so must
      *  stay <= 255 - see the static_assert in plcio/vars.h. */
 #ifndef BOTANIK_LOG_TOPIC_MAX
 #  define BOTANIK_LOG_TOPIC_MAX 255
@@ -433,10 +420,9 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(size_t, LOG_QUEUE_SIZE);
 
-    /** @brief Slots at the tail of the writer FIFO reserved for LOG_CRITICAL: a normal
-     *  entry that would intrude on them is dropped, so a critical (e.g. the sink-loss
-     *  report itself) can always seat without evicting - which stops that report from
-     *  manufacturing the very drop it reports. A few suffice (criticals are rare). */
+    /** @brief Writer-FIFO tail slots reserved for LOG_CRITICAL: a normal entry that
+     *  would intrude is dropped, so a critical (e.g. the sink-loss report) can always
+     *  seat without evicting - else that report would manufacture the drop it reports. */
 #ifndef BOTANIK_LOG_QUEUE_CRITICAL_RESERVE
 #  define BOTANIK_LOG_QUEUE_CRITICAL_RESERVE 4
 #endif
@@ -490,10 +476,9 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, STATUS_REFRESH_MS);
 
-    /** @brief Interval (ms) between full-page metric refreshes (Home/Status pages).
-     *  Deliberately slower than the status bar: pages redraw many more cells, so a
-     *  relaxed cadence (with per-value diffing) keeps the low-baud TX buffer from
-     *  saturating and starving the status bar. */
+    /** @brief Interval (ms) between full-page metric refreshes (Home/Status). Slower
+     *  than the status bar on purpose: pages redraw far more cells, so a relaxed cadence
+     *  (with per-value diffing) keeps the low-baud TX buffer from starving the status bar. */
 #ifndef BOTANIK_PAGE_REFRESH_MS
 #  define BOTANIK_PAGE_REFRESH_MS 10000
 #endif
@@ -507,18 +492,15 @@ namespace Botanik { namespace Config {
     BOTANIK_CFG(uint32_t, HOME_REFRESH_MS);
 
     /** @brief Refresh interval (ms) for a metric page's hot fields (clocks/uptime),
-     *  so they tick every second between the slower cold refreshes. Each field is
-     *  diffed, so a tick usually emits just the changed digit; the tick is also
-     *  best-effort (skipped when the TX buffer is busy), see MetricPage::tick(). */
+     *  ticking between the slower cold refreshes. Each field is diffed (usually emits
+     *  just the changed digit) and best-effort (skipped when TX is busy). */
 #ifndef BOTANIK_PAGE_HOT_MS
 #  define BOTANIK_PAGE_HOT_MS 1000
 #endif
     BOTANIK_CFG(uint32_t, PAGE_HOT_MS);
 
-    /** @brief Log lines the Home page keeps in its bottom log tail. Small on
-     *  purpose: it is a live "last few entries" widget with no scroll-up history,
-     *  not a full scrollback like the Logs page. Line length is the shared
-     *  SCROLLBACK_LINE_LEN. */
+    /** @brief Log lines the Home page keeps in its bottom log tail. Small on purpose:
+     *  a live "last few entries" widget, not a full scrollback like the Logs page. */
 #ifndef BOTANIK_HOME_SCROLLBACK_LINES
 #  define BOTANIK_HOME_SCROLLBACK_LINES 6
 #endif
@@ -530,47 +512,37 @@ namespace Botanik { namespace Config {
     /**
      * @name TX output pacing (cooperative buffer sharing)
      *
-     * The TX ring drains to the wire at the link baud (~1 byte per baud/10 us), far
-     * slower than the main loop ticks. Interactive output (key echo, cursor moves)
-     * shares that one FIFO and cannot jump ahead of queued bytes, so echo latency is
-     * roughly (ring occupancy / wire rate). Bulk producers therefore only make
-     * progress while the ring is shallow, which keeps the interactive path and the
-     * status bar responsive. Two depth classes gate that; per-tick caps bound the
-     * burst once a gate is open. See docs/ for the full model.
+     * The TX ring drains at the link baud, far slower than the loop ticks. Interactive
+     * output shares that one FIFO and cannot jump ahead, so echo latency is roughly
+     * (ring occupancy / wire rate). Bulk producers therefore only progress while the
+     * ring is shallow, keeping the interactive path responsive. A depth floor gates
+     * that; per-tick caps bound the burst once open. See docs/ for the full model.
      * @{
      */
 
     /** @brief Single paint depth floor, sized in BYTES from the link baud at
-     *  construction (AnsiTerminal): depth = baud/10 * target_ms/1000 = the bytes that
-     *  drain in target_ms at the link rate (8N1). A time target keeps the felt echo
-     *  latency constant across links and is dilation-invariant (a byte count). EVERY
-     *  cooperative paint path (status bar, page hot, page cold, draw_static, replays)
-     *  shares this one floor; fairness between the classes comes from the per-class
-     *  field budgets below and the paint order, not from separate depth gates.
-     *  ~61 B at 4800 baud. See AnsiTerminal::tx_below_cold(). */
+     *  construction: depth = baud/10 * target_ms/1000 = bytes draining in target_ms
+     *  (8N1). A time target keeps felt echo latency constant across links. Every
+     *  cooperative paint path shares this one floor; class fairness comes from the
+     *  per-class field budgets and paint order. ~61 B at 4800 baud. */
 #ifndef BOTANIK_TX_COLD_TARGET_MS
 #  define BOTANIK_TX_COLD_TARGET_MS 128
 #endif
     BOTANIK_CFG(uint32_t, TX_COLD_TARGET_MS);
 
-    /** @brief Max live log / command rows painted per tick per page, in one batched
-     *  drain_tail emit once the floor is open. The effective ceiling is min(this, wire
-     *  capacity), and at low baud the wire is far below this (4800 baud ~= 4.4 lines/s),
-     *  so a larger value buys no throughput - it only deepens the per-batch overshoot
-     *  of the floor and worsens echo latency. Keep it at 1 so a batch overshoots by a
-     *  single line; raise only on a fast link if log catch-up feels slow. */
+    /** @brief Max live log / command rows painted per tick per page. At low baud the
+     *  wire is the real ceiling (4800 baud ~= 4.4 lines/s), so a larger value only
+     *  deepens floor overshoot and worsens echo latency. Keep at 1; raise only on a
+     *  fast link if log catch-up feels slow. */
 #ifndef BOTANIK_LOG_ROWS_PER_TICK
 #  define BOTANIK_LOG_ROWS_PER_TICK 1
 #endif
     BOTANIK_CFG(uint16_t, LOG_ROWS_PER_TICK);
 
-    /** @brief Per-tick field budgets for the three cooperative paint classes. Each
-     *  class has its own counter (reset each tick), so they progress in parallel at
-     *  independent rates and one never starves another; they share the depth floor and
-     *  a fixed paint order (status bar, then page hot, then page cold). draw_static()
-     *  uses the cold budget (same slow page-content class; it runs before the cold
-     *  values and a value needs its label first, so they never compete in a tick).
-     *  Unchanged fields are free (the diff emits nothing and spends no budget). */
+    /** @brief Per-tick field budgets for the three cooperative paint classes. Each has
+     *  its own counter (reset each tick), so they progress in parallel and none starves
+     *  another; they share the depth floor and a fixed paint order (status, hot, cold).
+     *  draw_static() uses the cold budget. Unchanged fields are free (diff emits nothing). */
 #ifndef BOTANIK_TX_STATUS_FIELDS_PER_TICK
 #  define BOTANIK_TX_STATUS_FIELDS_PER_TICK 2
 #endif
@@ -584,12 +556,9 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, TX_COLD_FIELDS_PER_TICK);       // page cold values + draw_static
 
-    /** @brief Max decoded input events handled per tick. Too low: paste / fast typing
-     *  / held keys feel sluggish and the RX ring can back up. Too high: a big paste
-     *  echoes a large burst in one tick (fills the ring, competes with itself) plus
-     *  more loop time. Each event may emit direct echo, so this indirectly bounds
-     *  per-tick interactive TX; heavy intercepts (Ctrl-L / page switch) break the loop
-     *  regardless. */
+    /** @brief Max decoded input events handled per tick. Too low: typing/paste feels
+     *  sluggish and the RX ring backs up. Too high: a big paste echoes a large burst in
+     *  one tick. Each event may emit echo, so this indirectly bounds per-tick interactive TX. */
 #ifndef BOTANIK_INPUT_EVENTS_PER_TICK
 #  define BOTANIK_INPUT_EVENTS_PER_TICK 4
 #endif

@@ -21,16 +21,14 @@ namespace Botanik { namespace Terminal {
     /** @brief A decoded input event: a printable-text batch, or a control command
      *  (with optional CSI parameters). */
     struct InputEvent {
-        
-        // Input event type
-        /** @brief Which variant was decoded: none yet, printable content, or a command. */
+
+        /** @brief Which variant was decoded. */
         enum class EventType {
             NONE,       // No complete sequence yet
-            CONTENT,    // Standard printable text (uses batch_data/len)
-            COMMAND,    // Action/Sequence (uses command/params)
+            CONTENT,    // Printable text (uses batch_data/len)
+            COMMAND,    // Action/sequence (uses command/params)
         };
 
-        // Command key type
         /** @brief A decoded control key or sequence - named keys, Ctrl/Alt combos, function keys. */
         enum class Command : uint16_t {
             // Parser continuation
@@ -62,20 +60,16 @@ namespace Botanik { namespace Terminal {
         static_assert((int)Command::ALT_9 - (int)Command::ALT_1 == 8 &&
                       (int)Command::ALT_0 == (int)Command::ALT_9 + 1,
                       "ALT_1..ALT_9 must stay contiguous with ALT_0 last");
-        // Event fields
         EventType   type = EventType::NONE;
         Command     command = Command::NONE;
-        // Repeat count for chunked COMMAND events (held BACKSPACE / CTRL_D
-        // coalesced under backpressure). Default 1 = run once.
+        // Repeat count for chunked COMMAND events (held BACKSPACE / CTRL_D coalesced
+        // under backpressure). Default 1 = run once.
         uint16_t    count = 1;
-        // For CONTENT batches
-        const char* batch_data = nullptr;
+        const char* batch_data = nullptr;   // CONTENT batch
         uint16_t    batch_len = 0;
-        // For CSI COMMAND
-        uint16_t params[8];
+        uint16_t params[8];                 // CSI params
         uint8_t  param_count = 0;
-        char     prefix = 0;     // e.g., '?' in ESC [ ? 25 l
-        // For MODE and CSI COMMANDS
+        char     prefix = 0;     // e.g. '?' in ESC [ ? 25 l
         uint8_t  value = 0;
     };
 
@@ -90,9 +84,8 @@ namespace Botanik { namespace Terminal {
         /** @name Types
          *  @{ */
 
-        // Parser state machine
         enum class State {
-            IDLE,               // Idle state
+            IDLE,
             TEXT,               // ASCII characters
             IN_ESC,             // Decision between CSI or Alt+X
             IN_CSI,             // Standard X3.64 CSI sequences
@@ -104,31 +97,22 @@ namespace Botanik { namespace Terminal {
         /** @name State
          *  @{ */
 
-        /** @brief Serial device buffered wrapper. */
         BufferedSerial& _serial;
         /** @brief Shared loop timestamp (ms), published by the scheduler; read-only. */
         const uint32_t* _timestamp_ms;
 
-        /** @brief Event currently being constructed. */
-        InputEvent      _event;
-        /** @brief Current state-machine state. */
+        InputEvent      _event;        /**< Event currently being constructed. */
         State           _state = State::IDLE;
 
-        /** @brief Accumulated printable text awaiting a flush. */
-        char            _text_buf[Config::ANSI_INPUT_BATCH_SIZE];
-        /** @brief Bytes held in _text_buf. */
+        char            _text_buf[Config::ANSI_INPUT_BATCH_SIZE];  /**< Text awaiting flush. */
         uint16_t        _text_len = 0;
-        /** @brief Timestamp of the last byte read. */
-        uint32_t        _last_byte_ms = 0;
-        /** @brief When the current text batch started accumulating. */
-        uint32_t        _batch_start_ms = 0;
+        uint32_t        _last_byte_ms = 0;     /**< Timestamp of the last byte read. */
+        uint32_t        _batch_start_ms = 0;   /**< When the current text batch started. */
 
-        /** @brief Pending chunkable command (held BACKSPACE / CTRL_D), coalesced
-         *  into one COMMAND event with `count` instead of N reconcile passes. */
+        /** @brief Pending chunkable command (held BACKSPACE / CTRL_D), coalesced into
+         *  one COMMAND event with `count` instead of N reconcile passes. */
         InputEvent::Command _pending_cmd = InputEvent::Command::NONE;
-        /** @brief Number of coalesced presses staged in _pending_cmd. */
         uint16_t            _pending_cmd_count = 0;
-        /** @brief When the pending command first started coalescing. */
         uint32_t            _pending_cmd_start_ms = 0;
 
         /** @} */

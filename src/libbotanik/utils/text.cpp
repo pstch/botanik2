@@ -17,8 +17,8 @@ namespace Botanik { namespace Utils {
     // Number formatting
     // ------------------------------------------------------------------------
 
-    // Emit a reversed body (digits/sign/padding low-to-high) into `out`, honoring
-    // `cap`. `rev` holds `r` characters in reverse order; out is NUL-terminated.
+    // Emit the `r` chars of `rev` (held low-to-high) into `out` un-reversed, honoring
+    // `cap`; out is NUL-terminated.
     static const char* _emit_reversed(char* out, size_t cap, const char* rev, size_t r) {
         size_t w = 0;
         while (r > 0 && w + 1 < cap) out[w++] = rev[--r];
@@ -30,9 +30,8 @@ namespace Botanik { namespace Utils {
                              uint8_t decimals, uint8_t width) {
         if (cap == 0) return buf;
 
-        // Non-finite values: emit a tag rather than numeric garbage. (value !=
-        // value is the standard NaN test; comparing against a huge bound catches
-        // infinities without pulling in <cmath>.)
+        // Non-finite: emit a tag, not garbage. (value != value is the NaN test; the
+        // huge-bound compare catches infinities without <cmath>.)
         if (value != value) return _emit_reversed(buf, cap, "nan", 3);
         if (value > 1e308 || value < -1e308) {
             char rev[4] = { 'f', 'n', 'i', 0 };          // "inf" reversed
@@ -46,31 +45,26 @@ namespace Botanik { namespace Utils {
         bool negative = value < 0.0;
         if (negative) value = -value;
 
-        // Scale by 10^decimals, then round half away from zero into an integer so
-        // the digits fall out with plain integer arithmetic (any rounding carry
-        // into the integer part happens for free). This diverges from libc's %f
-        // only on exact .5 ties - it rounds them up where %f rounds to even -
-        // which costs at most 1 in the last shown digit. Matching %f's tie-break
-        // would need an arbitrary-precision expansion of the double, and on the
-        // OPTA core (long double == double) the usual precision trick wouldn't
-        // even be portable, so it isn't worth it for a sensor readout.
+        // Scale by 10^decimals, round half away from zero into an integer, then peel
+        // digits with integer arithmetic (the rounding carry into the integer part is
+        // free). Diverges from %f only on exact .5 ties (rounds up vs round-to-even);
+        // matching %f's tie-break isn't worth it for a sensor readout.
         uint64_t scale = 1;
         for (uint8_t i = 0; i < decimals; i++) scale *= 10;
         uint64_t scaled = (uint64_t)llround(value * (double)scale);
         uint64_t ipart  = scaled / scale;
         uint64_t fpart  = scaled % scale;
 
-        // Build the body low-digit-first, so it ends up reversed.
+        // Build the body low-digit-first (reversed).
         char rev[40];
         size_t r = 0;
         for (uint8_t i = 0; i < decimals; i++) { rev[r++] = (char)('0' + fpart % 10); fpart /= 10; }
         if (decimals > 0) rev[r++] = '.';
         do { rev[r++] = (char)('0' + ipart % 10); ipart /= 10; } while (ipart && r < sizeof(rev) - 2);
 
-        // Zero-pad (after the sign) up to `width`, then prepend the sign last so
-        // it lands at the front of the final, un-reversed string. `width` is a uint8 but
-        // the effective cap is sizeof(rev)-1 (~39): the `r < sizeof(rev)-1` guard clamps a
-        // larger request rather than overrun, so the build buffer bounds the field.
+        // Zero-pad (after the sign) up to `width`, then prepend the sign last (lands at
+        // the front once un-reversed). The `r < sizeof(rev)-1` guard clamps an oversized
+        // width rather than overrun, so the build buffer (~39) bounds the field.
         size_t sign_w = negative ? 1 : 0;
         while (r + sign_w < width && r < sizeof(rev) - 1) rev[r++] = '0';
         if (negative) rev[r++] = '-';

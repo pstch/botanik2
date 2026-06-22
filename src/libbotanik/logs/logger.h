@@ -22,29 +22,22 @@ namespace Botanik { namespace Logs {
 
     /** @brief State of a single token bucket in the rate limiter. */
     struct LogBucket_t {
-        /** @brief Tokens currently available. */
-        uint16_t    state                   = 0;
-        /** @brief Entries dropped since the last report. */
-        uint16_t    suppressed              = 0;
-        /** @brief Total entries that passed the bucket. */
-        uint32_t    count                   = 0;
+        uint16_t    state                   = 0;   ///< tokens available
+        uint16_t    suppressed              = 0;   ///< dropped since last report
+        uint32_t    count                   = 0;   ///< total entries passed
     };
 
-    /** @brief Tracks a monotonic loss counter for edge-triggered reporting: the
-     *  first loss reports instantly, later ones only after a per-category holdoff. */
+    /** @brief Monotonic loss counter for edge-triggered reporting: first loss
+     *  reports instantly, later ones only after a per-category holdoff. */
     struct LossReporter_t {
-        /** @brief Loss total already reported. */
-        uint32_t    reported_count          = 0;
-        /** @brief Time of the last report (ms). */
+        uint32_t    reported_count          = 0;   ///< total already reported
         uint32_t    last_report_ms          = 0;
-        /** @brief Whether a first report has been emitted (gates the instant report). */
-        bool        reported                = false;
+        bool        reported                = false;   ///< gates the instant first report
     };
 
     /** @class Logger
      *  @brief Rate-limited logging front-end: applies the dual token-bucket limiter,
-     *         then fans surviving entries out to the registered writers.
-     */
+     *         then fans surviving entries out to the registered writers. */
     class Logger {
     private:
         using LogEntry_t = PlcIO::LogEntry_t;
@@ -52,13 +45,9 @@ namespace Botanik { namespace Logs {
         /** @name Global rate-limiter
          *  @{ */
 
-        /** @brief Burst capacity (max tokens) of the global bucket. */
-        uint16_t        _global_burst           = Config::LOG_GLOBAL_BUCKET_BURST;
-        /** @brief Refill period of the global bucket (ms). */
-        uint32_t        _global_period_ms       = Config::LOG_GLOBAL_BUCKET_PERIOD_MS;
-        /** @brief Wall-clock time of the last global-bucket refill. */
-        uint32_t        _global_fillTime_ms     = 0;
-        /** @brief The single global token bucket. */
+        uint16_t        _global_burst           = Config::LOG_GLOBAL_BUCKET_BURST;       ///< max tokens
+        uint32_t        _global_period_ms       = Config::LOG_GLOBAL_BUCKET_PERIOD_MS;   ///< refill period
+        uint32_t        _global_fillTime_ms     = 0;   ///< last refill time
         LogBucket_t     _global_bucket;
 
         /** @} */
@@ -66,15 +55,11 @@ namespace Botanik { namespace Logs {
         /** @name Per-topic rate-limiter
          *  @{ */
 
-        /** @brief Burst capacity (max tokens) of each per-topic bucket. */
         uint16_t        _perTopic_burst         = Config::LOG_PERTOPIC_BUCKET_BURST;
-        /** @brief Refill period of the per-topic buckets (ms). */
         uint32_t        _perTopic_period_ms     = Config::LOG_PERTOPIC_BUCKET_PERIOD_MS;
-        /** @brief Wall-clock time of the last per-topic refill. */
         uint32_t        _perTopic_fillTime_ms   = 0;
-        /** @brief Per-topic token buckets. Sized by LOG_TOPIC_MAX (the full wire
-         *  range) so the footprint stays fixed as topics are added; only the first
-         *  LOG_TOPIC_COUNT entries (the defined topics) are ever filled or scanned. */
+        /** @brief Per-topic buckets. Sized by LOG_TOPIC_MAX (full wire range) so the
+         *  footprint is fixed as topics are added; only the first LOG_TOPIC_COUNT are used. */
         LogBucket_t     _perTopic_buckets[Config::LOG_TOPIC_MAX];
 
         /** @} */
@@ -82,10 +67,8 @@ namespace Botanik { namespace Logs {
         /** @name Suppression reporting
          *  @{ */
 
-        /** @brief Cadence for suppressed-message reports (ms), decoupled from
-         *  bucket refills. */
+        /** @brief Suppressed-report cadence (ms), decoupled from bucket refills. */
         uint32_t        _suppress_period_ms     = Config::LOG_SUPPRESS_REPORT_PERIOD_MS;
-        /** @brief Wall-clock time of the last suppression report. */
         uint32_t        _suppress_reportTime_ms = 0;
 
         /** @} */
@@ -93,9 +76,7 @@ namespace Botanik { namespace Logs {
         /** @name Writers
          *  @{ */
 
-        /** @brief Registered output writers. */
         LogWriter*      _writers[Config::LOG_WRITERS_MAX];
-        /** @brief Number of registered writers. */
         uint8_t         _writerCount            = 0;
 
         /** @} */
@@ -103,19 +84,15 @@ namespace Botanik { namespace Logs {
         /** @name Loss reporting
          *  @{ */
 
-        /** @brief Edge-triggered report state for entries dropped at the sinks. */
-        LossReporter_t  _sink_loss;
-        /** @brief Edge-triggered report state for watched serial TX-full drops. */
-        LossReporter_t  _tx_loss;
+        LossReporter_t  _sink_loss;   ///< entries dropped at the sinks
+        LossReporter_t  _tx_loss;     ///< watched serial TX-full drops
         /** @brief Serials whose TX-full drops we report (console + monitor). */
         Utils::BufferedSerial* _watched_tx[2]  = { nullptr, nullptr };
-        /** @brief Number of registered TX watches. */
         uint8_t         _watched_tx_count       = 0;
 
-        /** @brief Minimum level a non-critical entry must reach to be forwarded (set at
-         *  runtime by the `loglevel` shell command). Defaults to LOG_DEBUG (pass all) in
-         *  DEBUG builds and LOG_INFO in release, so debug spew is filtered on hardware by
-         *  default; LOG_CRITICAL is the max value so a critical is never filtered. */
+        /** @brief Minimum level a non-critical entry must reach to be forwarded (set by the
+         *  `loglevel` command). Defaults to LOG_DEBUG in DEBUG builds, LOG_INFO in release
+         *  (so debug spew is off on hardware); LOG_CRITICAL is the max, so it never filters. */
         PlcIO::LogLevel _min_level =
 #ifdef DEBUG
             PlcIO::LOG_DEBUG;

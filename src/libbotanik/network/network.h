@@ -4,13 +4,11 @@
 /**
  * @file network.h
  * @brief NetworkHandler and TimeSyncHandler - PLC-config-driven state machines that
- *        bring up the network link and run an NTP client.
+ *        bring up the link and run an NTP client.
  *
- * Both derive ConfigHandler (config_handler.h), so each restarts its state machine
- * whenever the operator changes its config block (the PLC bumps that block's serial).
+ * Both derive ConfigHandler, so each restarts when its config block's serial bumps.
  * NetworkHandler owns the link (via HAL::Net) and is_up() is authoritative;
- * TimeSyncHandler resolves its NTP servers through the shared NameResolver and gates
- * on NetworkHandler::is_up().
+ * TimeSyncHandler resolves through the shared NameResolver and gates on is_up().
  */
 
 #include <cstdint>
@@ -28,9 +26,8 @@ namespace Botanik { namespace Network {
         /** @name State
          *  @{ */
 
-        /** @brief Bring-up state. on_config_changed() resets to SETUP (or IDLE if there
-         *  is no usable config); on_step() drives SETUP -> RUNNING, and ERROR backs off
-         *  before retrying. */
+        /** @brief Bring-up state. on_config_changed() resets to SETUP (or IDLE if no
+         *  usable config); on_step() drives SETUP -> RUNNING; ERROR backs off. */
         enum State : uint8_t {
             NET_IDLE = 0,   ///< no usable config (serial 0); nothing to bring up
             NET_SETUP,      ///< link_configure called; waiting for LINK_UP
@@ -70,8 +67,7 @@ namespace Botanik { namespace Network {
          *  @{ */
         /** @brief Enter a state and stamp the entry time. */
         void _enter(State s, uint64_t now_ms);
-        /** @brief Build a LinkConfig from the PLC net block and call HAL::Net::link_configure;
-         *  moves to NET_SETUP (link_status polls to LINK_UP on the next step). */
+        /** @brief Configure the link from the PLC net block and move to NET_SETUP. */
         void _begin_setup(uint64_t now_ms);
         /** @brief Clear the resolver's cache on reconfiguration / link loss. */
         void _unwire_resolver();

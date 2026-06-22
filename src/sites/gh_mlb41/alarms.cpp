@@ -1,19 +1,13 @@
-/**
- * @file alarms.cpp
- * @brief gh_mlb41 site alarm table definition (see alarms.h).
- */
+/** @file alarms.cpp @brief gh_mlb41 site alarm table (see alarms.h). */
 
 #include "sites/gh_mlb41/alarms.h"
 
-// One entry per alarm, in table (= bit) order. The static prefix is filled
-// here (code, description, masked_by, ON/OFF dwell thresholds in seconds; -1
-// disables an action); the dynamic suffix is left zeroed for the model. Three trailing
-// fields follow the dwell thresholds: recent_s (RECENT-mode window; 0 = one-week
-// default), latch_s (hold active this long after the raw bit clears; 0 = no latch),
-// and min_on_s (minimum ON time from onset; 0 = none) - a local anti-flicker debounce
-// behind the PLC's own. The trailing fields are omitted on rows that don't need them
-// (so they default to 0). The conditions the mock PLC animates carry a min_on_s so a
-// signal hovering at its threshold can't strobe the ribbon. masked_by is 0 for now.
+// One entry per alarm, in table (= bit) order. Static prefix filled here (code,
+// description, masked_by, ON/OFF log+mqtt dwell thresholds in seconds; -1 disables an
+// action); dynamic suffix left zeroed for the model. Trailing recent_s/latch_s/min_on_s
+// (RECENT-mode window; latch hold after the raw bit clears; minimum ON time) default to
+// 0 when omitted. min_on_s on the mock-animated rows is a local anti-flicker debounce
+// behind the PLC's own. masked_by is 0 for now.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 const Botanik::Alarms::AlarmCondition g_alarms[] = {

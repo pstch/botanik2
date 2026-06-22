@@ -3,14 +3,12 @@
 
 /**
  * @file sun_tracker.h
- * @brief SunPositionTracker - tracks the next sunrise / sunset and the day-or-night
- *        state for the site location from the PLC `geo` config block.
+ * @brief SunPositionTracker - tracks the next sunrise / sunset and day/night state
+ *        for the site location from the PLC `geo` config block.
  *
- * Config-driven (ConfigHandler): restarts when the operator changes the `geo` block
- * (latitude / longitude). The solar math lives in utils/sun.h; this component drives it
- * on a schedule - it (re)computes the next sunrise and sunset whenever one passes, and
- * only once the wall clock is valid (the math needs a real date, so it waits for an NTP
- * sync). Other code reads is_daytime() / the event times to drive light-dependent logic.
+ * Config-driven (ConfigHandler): restarts on a `geo` change. The solar math is in
+ * utils/sun.h; this recomputes whenever an event passes, and only once the wall clock
+ * is valid (the math needs a real date, so it waits for an NTP sync).
  */
 
 #include "libbotanik/config_handler.h"

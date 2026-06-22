@@ -5,14 +5,11 @@
  * @file botanik_arduino.h
  * @brief C-callable entry points for the Axel PLC IDE.
  *
- * The Axel PLC IDE owns the sketch (setup()/loop()) and only accepts imported
- * Arduino libraries, so botanik can't ship its own .ino. Instead it exposes these
- * two hooks: the PLC-generated program calls botanik_setup() once, then
- * botanik_step() every cycle. extern "C" keeps the symbols stable and reachable
- * from C and from the runtime's generated code.
+ * The Axel IDE owns the sketch and only accepts imported Arduino libraries, so botanik
+ * can't ship its own .ino. It exposes two hooks instead: botanik_setup() once, then
+ * botanik_step() every cycle. extern "C" keeps the symbols reachable from generated code.
  *
- * NOTE: botanik_setup / botanik_step are placeholder names, pending confirmation of
- * the exact hook the Axel runtime calls into. Adjust to match.
+ * NOTE: the hook names are placeholders, pending confirmation of the exact Axel hook.
  */
 
 #ifdef __cplusplus

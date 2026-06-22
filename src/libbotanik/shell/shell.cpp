@@ -55,7 +55,6 @@ namespace Botanik { namespace Shell {
     // ------------------------------------------------------------------------
 
     const CommandShell::Builtin* CommandShell::_builtins(uint8_t& count) {
-        // Single source for dispatch AND `help`: name, one-line help, handler.
         static const Builtin TABLE[] = {
             { "help",       "list commands",                  &CommandShell::_cmd_help       },
             { "clear",      "clear the screen",               &CommandShell::_cmd_clear      },
@@ -101,9 +100,8 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_cmd_help(const char*, uint16_t) {
-        // One line per command (name + help), generated from the tables so the help can't
-        // drift from the command set and a long name just pushes its help right (no
-        // fixed-column truncation). %-10s is a minimum width, not a cap.
+        // One line per command, generated from the tables so help can't drift from the
+        // command set. %-10s is a minimum width, not a cap (a long name pushes help right).
         char out[Config::LOG_FORMATTED_LEN];
         uint8_t bcount; const Builtin* B = _builtins(bcount);
         for (uint8_t i = 0; i < bcount; i++) {
@@ -144,8 +142,7 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_cmd_stats(const char*, uint16_t) {
-        // Emits several lines; each is banked and drained at LOG_ROWS_PER_TICK by the
-        // scrollback, so the full block appears over a few ticks (bounded, never a flood).
+        // Emits several lines; the scrollback drains them at LOG_ROWS_PER_TICK (bounded).
         Scheduler::SchedulerContext* ctx = _terminal.context().scheduler;
         if (ctx == nullptr) { _println("stats: no scheduler context"); return; }
 
@@ -299,9 +296,8 @@ namespace Botanik { namespace Shell {
             case PlcIO::PLC_FAULT:   s = "FAULT";          break;
             default:                 s = "no contact yet"; break;
         }
-        // One aligned "label .... : value" line per field, dotted-leader style. The
-        // 22-char labels below are exact (so %-22s never space-pads); kept narrower than
-        // `stats` so each region line (address + size + handshake) still fits 80 cols.
+        // Dotted-leader "label .... : value" lines. The 22-char labels are exact (no
+        // %-22s pad); narrower than `stats` so each region line fits 80 cols.
         char out[128], val[80], sz[16];
         int n;
 
@@ -314,9 +310,8 @@ namespace Botanik { namespace Shell {
         n = snprintf(out, sizeof(out), "%-22s : %s", "PLC link .............", val);
         if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
 
-        // Shared-memory regions: address, size, and that region's own handshake counters
-        // (each line shows the two sync fields physically resident in that region, by
-        // their PLC-POV names). Numbers use fixed-width fields so columns never shift.
+        // Shared-memory regions: address, size, and the two sync fields resident in that
+        // region (by their PLC-POV names). Fixed-width numbers so columns never shift.
         snprintf(val, sizeof(val), "%p  %6s  (RX seq %5lu, TX ack %5lu)",
                  p->in_region(), Utils::format_size(sz, sizeof(sz), p->in_size()),
                  (unsigned long)p->in_rx_seq(), (unsigned long)p->in_tx_ack());
@@ -337,9 +332,8 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_unknown(const char* cmd, uint16_t len) {
-        // "Unknown command: " + the offending input, handed to write_lines() as a
-        // single blob: it wraps at the terminal width and splits on any embedded
-        // newline, so no \n reaches write_chars and no manual bookkeeping is needed.
+        // Handed to write_lines() as one blob: it wraps at terminal width and splits on
+        // any embedded newline, so no manual bookkeeping is needed.
         char out[Config::LOG_FORMATTED_LEN];
         static const char prefix[] = "Unknown command: ";
         uint16_t plen = (uint16_t)(sizeof(prefix) - 1);

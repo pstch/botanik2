@@ -6,14 +6,13 @@
  * @brief HomePage - landing screen (template base): ASCII logo, a compact
  *        system summary, and a small live log tail along the bottom.
  *
- * Templated on the site PLC output payload so derived pages get type-safe access
- * via data(). The base lays out the logo and the payload-independent summary (PLC
- * link, uptime); derived classes add site readings via the payload hooks. Drawing
- * is diffed by MetricPage; row 0 is the status bar.
+ * Templated on the site PLC output payload for type-safe data() access. The base
+ * lays out the logo and the payload-independent summary (PLC link, uptime); derived
+ * classes add site readings via the payload hooks. Drawing is diffed by MetricPage.
  *
- * It is also a LogWriter: the bottom HOME_SCROLLBACK_LINES rows show a live tail
- * (no scroll-up), replayed from a small HomeScrollback. begin_redraw() over the
- * whole content area bottom-aligns the lines, so the band needs no bespoke render.
+ * Also a LogWriter: the bottom HOME_SCROLLBACK_LINES rows show a live tail (no
+ * scroll-up), replayed from a small HomeScrollback. begin_redraw() over the whole
+ * content area bottom-aligns the lines, so the band needs no bespoke render.
  */
 
 #include <cstdint>
@@ -27,8 +26,8 @@
 #include "libbotanik/pages/metric_page.h"
 #include "libbotanik/pages/scrollback.h"
 
-// Build-stamped git short hash (generated header). Falls back to "unknown" when the
-// header is absent - e.g. the Arduino .ino deploy, which doesn't run CMake.
+// Build-stamped git short hash (generated header); "unknown" when absent (Arduino
+// .ino deploy doesn't run CMake).
 #if defined(__has_include) && __has_include("botanik_gitversion.h")
 #  include "botanik_gitversion.h"
 #endif
@@ -49,7 +48,7 @@ namespace Botanik { namespace Pages {
         const OutputData* _data;
         /** @brief Bottom log tail: most recent lines, bottom-aligned on the screen. */
         HomeScrollback _scrollback;
-        /** @brief Mirrors the latest tick(active); gates band repaints in write(). */
+        /** @brief Mirrors tick(active); gates band repaints in write(). */
         bool _log_active = false;
 
         /** @} */
@@ -57,10 +56,9 @@ namespace Botanik { namespace Pages {
         /** @brief First content row available to derived payload rendering. */
         static constexpr uint16_t PAYLOAD_ROW = 11;
 
-        /** @brief First screen row of the bottom log band. Clamped so the band never
-         *  starts above the fixed content (logo + readings, then payload at PAYLOAD_ROW):
-         *  on a screen too short for both, the band collapses to empty (band_top == rows)
-         *  rather than painting the log over the readings. */
+        /** @brief First screen row of the bottom log band. Clamped so it never starts
+         *  above the fixed content (logo + readings, payload at PAYLOAD_ROW); on a too-
+         *  short screen the band collapses to empty (band_top == rows). */
         uint16_t log_band_top() const {
             uint16_t rows = _terminal.rows();
             uint16_t top  = (rows > Config::HOME_SCROLLBACK_LINES)
@@ -74,7 +72,6 @@ namespace Botanik { namespace Pages {
 
         /** @brief Draw the ASCII logo / banner block. */
         virtual void draw_logo() {
-            // Content starts at row 1; row 0 belongs to the terminal status bar.
             static const char* const LOGO[] = {
                 "  _           _              _ _   ",
                 " | |__   ___ | |_ __ _ _ __ (_) | __",
@@ -90,37 +87,50 @@ namespace Botanik { namespace Pages {
             }
         }
 
-        /** @brief Firmware identity block: site name, version, and build commit,
-         *  right-aligned at the top-right of the content area (rows 3-5) so it sits
-         *  clear of the logo. Dot leaders give a fixed pre-colon field, so the colons
-         *  (and values) line up vertically. Static: the values are compile-time, so
-         *  it is drawn once on focus and never refreshed. Drawn after the logo, whose
-         *  clear-to-eol on these rows would otherwise wipe it. */
+        /** @brief Firmware identity block (site name, version, commit), right-aligned
+         *  top-right (rows 3-5), clear of the logo. Dot leaders align the colons. Static
+         *  (compile-time values). Drawn after the logo, whose clear-to-eol would wipe it. */
         virtual void draw_id_block() {
             char vbuf[48];
             snprintf(vbuf, sizeof(vbuf), "v%s", Config::FIRMWARE_VERSION);
             const char* const labels[3] = { "Site name", "Version", "Commit" };
             const char* const values[3] = { Config::SITE_NAME, vbuf, BOTANIK_GIT_HASH };
 
-            // Column of the space before " : ", measured from each line's start. The
-            // longest label is "Site name" (9), so the leader is always >= a few dots.
-            static const uint16_t COLON_AT = 16;
+            static const uint16_t COLON_AT = 16;   // column of the space before " : "
+            static const uint16_t SEP = 3;         // " : " separator width
+
+            // Fixed value-field width = widest value, commit reserving "-dirty". Padding
+            // to this gives a flush right edge identical for clean and dirty builds.
+            static const char DIRTY[] = "-dirty";
+            uint16_t vwidth = 0;
+            for (int i = 0; i < 3; ++i) {
+                uint16_t l = (uint16_t)strlen(values[i]);
+                if (i == 2) {                                   // commit: reserve "-dirty"
+                    uint16_t dl = (uint16_t)(sizeof(DIRTY) - 1);
+                    if (l < dl || strcmp(values[i] + (l - dl), DIRTY) != 0) l = (uint16_t)(l + dl);
+                }
+                if (l > vwidth) vwidth = l;
+            }
+
             char lines[3][64];
-            uint16_t maxlen = 0;
+            const uint16_t cap = (uint16_t)(sizeof(lines[0]) - 1);
+            static const uint16_t PAD = 1;                          // trailing pad past the value
+            uint16_t target = (uint16_t)(COLON_AT + SEP + vwidth + PAD);  // full (padded) row length
+            if (target > cap) target = cap;
             for (int i = 0; i < 3; ++i) {
                 char* p = lines[i];
                 uint16_t n = (uint16_t)snprintf(p, sizeof(lines[i]), "%s ", labels[i]);
-                while (n < COLON_AT && n < (uint16_t)(sizeof(lines[i]) - 1)) p[n++] = '.';
+                while (n < COLON_AT && n < cap) p[n++] = '.';
                 int more = snprintf(p + n, sizeof(lines[i]) - n, " : %s", values[i]);
                 n = (uint16_t)(n + (more > 0 ? more : 0));
-                if (n >= (uint16_t)sizeof(lines[i])) n = (uint16_t)(sizeof(lines[i]) - 1);
-                if (n > maxlen) maxlen = n;
+                if (n > cap) n = cap;
+                while (n < target) p[n++] = ' ';                // right-pad to the fixed field
+                p[n] = '\0';
             }
-            // Right-align the block with a one-column margin. The same left column for
-            // all three rows keeps the colons aligned (the pre-colon field is fixed),
-            // while the longest row reaches the margin.
+            // Right-align with a one-column margin; same left column for all three rows
+            // keeps the colons aligned.
             uint16_t cols = _terminal.cols();
-            uint16_t left = (cols > (uint16_t)(maxlen + 1)) ? (uint16_t)(cols - maxlen - 1) : 0;
+            uint16_t left = (cols > (uint16_t)(target + 1)) ? (uint16_t)(cols - target - 1) : 0;
             for (int i = 0; i < 3; ++i)
                 _label_at((uint16_t)(3 + i), left, lines[i]);
         }
@@ -132,7 +142,7 @@ namespace Botanik { namespace Pages {
             if (!_static_step()) return;     // paced as one static element
             uint16_t cols = _terminal.cols();
 
-            // A run of spaces to paint the reverse-video background in one write.
+            // Spaces to paint the reverse-video background in one write.
             char spaces[96];
             uint16_t fill = (cols > (uint16_t)sizeof(spaces)) ? (uint16_t)sizeof(spaces) : cols;
             memset(spaces, ' ', fill);
@@ -142,18 +152,16 @@ namespace Botanik { namespace Pages {
             const uint16_t    tablen = (uint16_t)(sizeof(TAB) - 1);
 
             _terminal.move_to({row, 0});
-            // Leading reverse-video pad, then the normal-video tab.
+            // Reverse-video pad, normal-video tab, then reverse-video fill to EOL.
             _terminal.set_inverted(true);
             _terminal.write_chars(spaces, lead);
             _terminal.set_inverted(false);
             _terminal.write_chars(TAB, tablen);
-            // Reverse-video fill to the end of the line.
             _terminal.set_inverted(true);
             uint16_t used = (uint16_t)(lead + tablen);
             uint16_t rest = (cols > used) ? (uint16_t)(cols - used) : 0;
             if (rest > Config::TERMINAL_MAX_COLS) rest = Config::TERMINAL_MAX_COLS;  // sanity bound
-            // Chunk the fill so a terminal wider than the local buffer still paints
-            // to the end of the line (the buffer is just the per-write chunk).
+            // Chunk so a terminal wider than the local buffer still fills to EOL.
             while (rest) {
                 uint16_t n = (rest > fill) ? fill : rest;
                 _terminal.write_chars(spaces, n);
@@ -168,8 +176,8 @@ namespace Botanik { namespace Pages {
             _label(8, "PLC link");
             _label(9, "Uptime");
             draw_payload_static();
-            // Divider above the bottom log band (the band rows themselves are
-            // painted from the scrollback, see focus()/tick()).
+            // Divider above the bottom log band (band rows are painted from the
+            // scrollback, see focus()/tick()).
             uint16_t band_top = log_band_top();
             if (band_top >= 2) draw_log_header((uint16_t)(band_top - 1));
         }
@@ -181,8 +189,8 @@ namespace Botanik { namespace Pages {
             draw_payload_dynamic();
         }
 
-        /** @brief Uptime counter - hot field, refreshed once per second. Drawn
-         *  un-highlighted since it changes every tick (see _field()). */
+        /** @brief Uptime counter - hot field, refreshed every second, un-highlighted
+         *  (it changes every tick). */
         void draw_hot() override {
             char buf[40];
             fmt_uptime(buf, sizeof(buf), HAL::uptime_ms());
@@ -200,7 +208,6 @@ namespace Botanik { namespace Pages {
         /** @} */
 
     public:
-        /** @brief Construct a HomePage bound to a terminal and PLC payload. */
         HomePage(AnsiTerminal& terminal, const OutputData* data)
             : MetricPage(terminal, 14), _data(data) {
             _refresh_ms = Config::HOME_REFRESH_MS;   // cold-field redraw cadence
@@ -215,8 +222,8 @@ namespace Botanik { namespace Pages {
         void focus() override {
             MetricPage::focus();                 // logo, readings, divider
             _log_active = true;
-            // Stage the bottom band (drained by tick()); spanning the whole content
-            // area bottom-aligns the lines against the last row.
+            // Stage the bottom band (drained by tick()); spanning the content area
+            // bottom-aligns the lines against the last row.
             _scrollback.begin_redraw((uint16_t)(_terminal.rows() - 1));
         }
 
@@ -230,12 +237,12 @@ namespace Botanik { namespace Pages {
             _log_active = active;
             if (active) {
                 _scrollback.drain_redraw(_terminal);
-                // Hold off the live band until the staged replay finishes - a DL
-                // scroll would shift rows the replay already drew.
+                // Hold off the live band until the replay finishes - a DL scroll would
+                // shift rows the replay already drew.
                 if (_scrollback.redraw_pending()) return;
             }
-            // Bank queued entries into the scrollback (marks pending when active), then
-            // paint the pending lines, paced, into the bottom log band.
+            // Bank queued entries (pending when active), then paint them paced into the
+            // bottom log band.
             drain();
             if (active) {
                 uint16_t band_top = log_band_top();
@@ -255,10 +262,8 @@ namespace Botanik { namespace Pages {
         }
 
         size_t write(const char* buf, size_t len) override {
-            // Store-only: bank every entry into the scrollback and, when active, mark
-            // the new row(s) pending so tick()'s drain_tail paints them paced into the
-            // bottom band. In the background a later focus() replays the tail. Never
-            // blocks, never drops, so always report the whole entry consumed.
+            // Store-only: bank the entry, mark pending when active for the paced
+            // drain_tail. Never blocks/drops, so report the whole entry consumed.
             _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(),
                 Config::SHELL_LOG_CONT_PREFIX,
                 (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX), _log_active);

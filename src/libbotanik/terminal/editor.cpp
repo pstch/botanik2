@@ -18,33 +18,13 @@ namespace Botanik { namespace Terminal {
         _buf[0] = '\0';
         _layout.rows[0] = {0, 0, false};
         _layout.count = 1;
-        // Auto-wrap is owned by the terminal and asserted on every screen
-        // (re)establish in clear_screen(); the editor no longer toggles it here.
+        // Auto-wrap is owned by the terminal (asserted on every screen establish).
     }
 
     // prompt helpers
-    // ------------------------------------------------------------------------
 
     RowPrompt TextEditor::_row_prompt(uint16_t row_idx) const {
         return _row_prompt_in(_layout, row_idx);
-    }
-
-    const char* TextEditor::_prompt_buf(RowPrompt p) const {
-        switch (p) {
-            case RowPrompt::PS1: return _ps1_buf;
-            case RowPrompt::PS2: return _ps2_buf;
-            case RowPrompt::PS3: return _ps3_buf;
-        }
-        return _ps2_buf;
-    }
-
-    uint16_t TextEditor::_prompt_len(RowPrompt p) const {
-        switch (p) {
-            case RowPrompt::PS1: return _ps1_len;
-            case RowPrompt::PS2: return _ps2_len;
-            case RowPrompt::PS3: return _ps3_len;
-        }
-        return _ps2_len;
     }
 
     uint16_t TextEditor::_row_cap(uint16_t row_idx) const {
@@ -102,9 +82,8 @@ namespace Botanik { namespace Terminal {
     }
 
     void TextEditor::reset() {
-        // The editor is bottom-anchored, so its rows run from _origin to the bottom of
-        // the content area. Clear exactly that band (clear_rows leaves the terminal's
-        // alarm bar, just below the content, untouched).
+        // Bottom-anchored: rows run from _origin to the content bottom. Clear exactly
+        // that band (clear_rows leaves the alarm bar below it untouched).
         _terminal->clear_rows(_origin, (uint16_t)(_terminal->rows() - 1));
         uint16_t old_origin = _origin;
         _reset_state();
@@ -131,8 +110,7 @@ namespace Botanik { namespace Terminal {
     // ------------------------------------------------------------------------
 
     void TextEditor::redraw() {
-        // The destination rows are assumed already blank (the caller cleared
-        // them), so this only writes each row's prompt + content.
+        // Destination rows assumed already blank; only write prompt + content.
         for (uint16_t i = 0; i < _layout.count; i++) {
             uint16_t hw_row = _origin + i;
             if (hw_row >= _terminal->rows()) break;
@@ -189,8 +167,8 @@ namespace Botanik { namespace Terminal {
     // ------------------------------------------------------------------------
 
     uint16_t TextEditor::_grow_editor() {
-        // Bottom-pinned origin for the current row count: pull the top up by
-        // however many rows the editor grew, clamping at the screen top.
+        // Bottom-pinned origin: pull the top up by the rows the editor grew, clamped
+        // at the screen top.
         uint16_t scr_rows = _terminal->rows();
         uint16_t new_origin;
         if (scr_rows >= _layout.count) new_origin = (uint16_t)(scr_rows - _layout.count);

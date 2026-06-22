@@ -67,7 +67,7 @@ namespace Botanik { namespace Utils {
     // Convert a Julian date to an absolute uptime-domain ms timestamp.
     static uint64_t _jd_to_uptime_ms(double jd) {
         double unix_ms = (jd - JD_UNIX) * MS_PER_DAY;
-        return uptime_ms_from_unix_ms((uint64_t)(unix_ms + 0.5));
+        return uptime_ms_from_unix_ms((uint64_t)std::llround(unix_ms));
     }
 
     // One day's sunrise/sunset as Julian dates. @p n is the integer day count

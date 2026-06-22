@@ -24,8 +24,8 @@ namespace Botanik { namespace HAL { namespace Net {
 
     /** @name Link (the single network interface) */
     /** @{ */
-    /** @brief Bring-up parameters. Dotted-decimal strings; an empty string means unset.
-     *  When dhcp is true the static fields are ignored. */
+    /** @brief Bring-up parameters. Dotted-decimal strings; empty = unset. When dhcp is
+     *  true the static fields are ignored. */
     struct LinkConfig {
         bool dhcp;
         char ip[16], netmask[16], gateway[16], dns1[16], dns2[16];
@@ -36,7 +36,6 @@ namespace Botanik { namespace HAL { namespace Net {
     void      link_configure(const LinkConfig& cfg);
     /** @brief Tear the link down (idempotent). */
     void      link_disconnect();
-    /** @brief Current link state. */
     LinkState link_status();
     /** @brief Current address into @p out; false if the link is not up. */
     bool      link_ip(Ip4* out);
@@ -47,12 +46,9 @@ namespace Botanik { namespace HAL { namespace Net {
     typedef uint32_t DnsHandle;        ///< 0 == invalid / could-not-start
     enum DnsResult { DNS_PENDING, DNS_OK, DNS_FAILED };
 
-    /** @brief Start resolving @p host. Returns 0 if a lookup could not be started.
-     *
-     *  Caller contract: poll the returned handle with dns_poll until it reports
-     *  a terminal result (DNS_OK or DNS_FAILED), or release it with dns_cancel.
-     *  Otherwise the lookup slot is never freed - leaked handles eventually exhaust
-     *  the small fixed-size slot table on the OPTA backend. */
+    /** @brief Start resolving @p host; returns 0 if a lookup could not be started.
+     *  Caller contract: poll the handle with dns_poll until a terminal result, or release
+     *  it with dns_cancel. Leaked handles exhaust the small fixed slot table (OPTA). */
     DnsHandle dns_begin(const char* host);
     /** @brief Poll @p h. On DNS_OK fills @p out; DNS_OK/DNS_FAILED consume the handle. */
     DnsResult dns_poll(DnsHandle h, Ip4* out);

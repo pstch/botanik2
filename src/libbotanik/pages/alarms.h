@@ -15,19 +15,14 @@
  *   row N-2          footer legend: reverse-video mode badge + counts, SPACE hint
  *   row N-1          blank row below the legend
  *
- * Rows are ordered active-first (currently-ON alarms head the list) then by most-
- * recent onset (started_ms); never-active alarms sit at the bottom. The scroll
- * position is shown in the table itself: the top / bottom rules cap their column
- * marks with '^' / 'v' when alarms are hidden above / below the window. SPACE cycles
- * the filter: recent (default - has a last event within its window) -> all defined ->
- * active only -> active and not masked (the terminal alarm bar's set). A condition's
- * recent window defaults to one week, overridable via AlarmCondition::recent_s. The
- * grid is plain ASCII, two-column side margin. UP/DOWN
- * (and Ctrl+P/Ctrl+N) scroll a line at a time (one scroll_region() shift + one painted
- * row); PAGE_UP / PAGE_DOWN jump a window and ENTER returns to the top, both via a full
- * repaint. The page re-checks the alarm set once a second and repaints only when it
- * moved, the mode cycles, or on focus; a full repaint is paced a few rows per tick
- * under the shared TX floor, so it interleaves with the status/alarm bars.
+ * Rows are ordered active-first then by most-recent onset (started_ms); never-active
+ * alarms sit at the bottom. The top / bottom rules cap their column marks with '^' /
+ * 'v' when alarms are hidden above / below the window. SPACE cycles the filter: recent
+ * (default) -> all -> active -> active and not masked. A condition's recent window
+ * defaults to one week (AlarmCondition::recent_s). UP/DOWN scroll a line at a time (one
+ * scroll_region() shift + one painted row); PAGE_UP/DOWN jump a window and ENTER returns
+ * to the top, both via a full repaint. The set is re-checked once a second; a repaint is
+ * paced a few rows per tick under the shared TX floor, so it interleaves with the bars.
  */
 
 #include <algorithm>
@@ -57,44 +52,39 @@ namespace Botanik { namespace Pages {
         AnsiTerminal&             _terminal;
         /** @brief Alarm source (may be null). */
         const Alarms::AlarmModel* _model;
-        /** @brief Mirrors the latest tick(active). */
+        /** @brief Mirrors tick(active). */
         bool                      _active   = false;
-        /** @brief Filter mode, cycled by SPACE (see MODE_* / _mode_label()). Defaults
-         *  to RECENT: alarms with a recent last event. */
+        /** @brief Filter mode, cycled by SPACE (see MODE_*). Defaults to RECENT. */
         uint8_t                   _mode     = MODE_RECENT;
-        /** @brief First visible data row currently on screen (scroll offset from the
-         *  top of the set). _scroll_pending below holds the not-yet-applied delta. */
+        /** @brief First visible data row on screen (scroll offset from the top of the
+         *  set); _scroll_pending holds the not-yet-applied delta. */
         uint16_t                  _top      = 0;
-        /** @brief Rows the view still has to scroll to reach where the user keyed (+ =
-         *  down, - = up). A keystroke accumulates here; the actual scroll_region() is
-         *  applied a row at a time only while the TX ring is shallow (see _drain_scroll),
-         *  so a scroll never floods the buffer and never falls back to a full redraw. */
+        /** @brief Rows still to scroll to reach where the user keyed (+ down, - up).
+         *  Applied a row at a time only while the TX ring is shallow (see _drain_scroll),
+         *  so a scroll never floods the buffer or falls back to a full redraw. */
         int16_t                   _scroll_pending = 0;
-        /** @brief Staged-repaint cursor: the next table element to paint (0 = top
-         *  margin, then header, rule, the data rows, the blank line, the footer), or
-         *  PAINT_IDLE when the table is fully drawn. A full repaint is paced a few rows
-         *  per tick under the shared TX floor (see _paint_step()) so it never floods
-         *  the ring and starves the status / alarm bars; _request_repaint() restarts
-         *  it from the top. */
+        /** @brief Staged-repaint cursor: the next table element to paint, or PAINT_IDLE
+         *  when fully drawn. A repaint is paced a few rows per tick under the TX floor
+         *  (see _paint_step()) so it never starves the status / alarm bars;
+         *  _request_repaint() restarts it from the top. */
         static constexpr uint16_t PAINT_IDLE = 0xFFFF;
         uint16_t                  _paint_i  = 0;
-        /** @brief Data rows that held content in the last frame. When a repaint finds
-         *  fewer, the now-vacated rows (and the bottom rule) are cleared up front so
-         *  the stale rows don't linger through the paced repaint. Reset on focus (the
-         *  screen was cleared on switch). */
+        /** @brief Data rows that held content last frame. When a repaint finds fewer, the
+         *  vacated rows (and the bottom rule) are cleared up front so stale rows don't
+         *  linger through the paced repaint. Reset on focus. */
         uint16_t                  _painted_data = 0;
         /** @brief Uptime of the last once-a-second alarm-set re-check (see tick()). */
         uint64_t                  _last_refresh_ms = 0;
-        /** @brief Effective-active set at the last repaint. The badge / last-event /
-         *  order all change only on an effective transition, so this gates the repaint -
-         *  except RECENT membership, which also expires on time (see _last_recent_sig). */
+        /** @brief Effective-active set at the last repaint. Badge / last-event / order
+         *  change only on an effective transition, so this gates the repaint - except
+         *  RECENT membership, which also expires on time (see _last_recent_sig). */
         uint64_t                  _last_active_sig = 0;
-        /** @brief Set of conditions in their RECENT window at the last repaint. In
-         *  RECENT mode an alarm can age out of the window with no raw transition, so a
-         *  change here (and not in raw) is the only signal that the list must refresh. */
+        /** @brief Conditions in their RECENT window at the last repaint. In RECENT mode an
+         *  alarm can age out with no raw transition, so a change here is the only signal
+         *  the list must refresh. */
         uint64_t                  _last_recent_sig = 0;
-        /** @brief Acknowledged set at the last repaint. An ack changes the sort position
-         *  and the badge video without moving the active set, so it gates the repaint too. */
+        /** @brief Acknowledged set at the last repaint. An ack changes the sort/badge
+         *  without moving the active set, so it gates the repaint too. */
         uint64_t                  _last_acked_sig = 0;
         /** @brief Visible alarm indices (table index order), filled by _collect(). */
         uint8_t                   _vis[Alarms::ALARM_BITS];
@@ -111,8 +101,8 @@ namespace Botanik { namespace Pages {
         static constexpr uint8_t  ROW_STRUCT  = 0xFE;        // header / rule / margin / blank
         static constexpr uint8_t  ROW_BLANK   = 0xFF;        // empty data row / unknown
         static constexpr uint32_t EVENT_EMPTY = 0x3FFFFFFF;  // LAST EVENT cell empty
-        /** @brief idx: alarm table index, or ROW_STRUCT, or ROW_BLANK. sig: data row
-         *  = packed (ON state | event minute); structural row = FNV(line bytes). */
+        /** @brief idx: alarm table index, ROW_STRUCT, or ROW_BLANK. sig: data row = packed
+         *  (ON state | event minute); structural row = FNV(line bytes). */
         struct RowShadow { uint8_t idx; uint32_t sig; };
         RowShadow                 _row[MAX_ROWS];
         /** @} */
@@ -127,12 +117,8 @@ namespace Botanik { namespace Pages {
 
         /** @brief Short label for the current filter mode. */
         static const char* _mode_label(uint8_t mode) {
-            switch (mode) {
-                case MODE_RECENT:   return "recent";
-                case MODE_ACTIVE:   return "active";
-                case MODE_UNMASKED: return "unmasked";
-                default:            return "all";
-            }
+            static const char* const labels[MODE_COUNT] = {"recent", "all", "active", "unmasked"};
+            return mode < MODE_COUNT ? labels[mode] : "all";
         }
         /** @} */
 
@@ -171,9 +157,8 @@ namespace Botanik { namespace Pages {
             return avail;
         }
 
-        /** @brief Format the last-event cell for @p c: the wall-clock timestamp of the
-         *  last transition (edge_ms) as "YY/MM/DD HH:MM", or empty if it never fired.
-         *  Whether that event was an ON or OFF transition is shown by the ON column. */
+        /** @brief Format the last-event cell: edge_ms as "YY/MM/DD HH:MM", or empty if it
+         *  never fired (ON vs OFF is shown by the ON column). */
         static void _fmt_event(char* buf, size_t cap, const Alarms::AlarmCondition& c) {
             if (!c.active && c.edge_ms == 0) { if (cap) buf[0] = '\0'; return; }
             Utils::CalendarTime t = Utils::cal_time_ms(c.edge_ms);
@@ -182,8 +167,6 @@ namespace Botanik { namespace Pages {
                      (unsigned)t.hour, (unsigned)t.minute);
         }
 
-        /** @brief Draw one '|'-ruled grid row: margin, then each cell wrapped in '|'
-         *  rules, cell text padded to its column width. */
         /** @brief Build a '|'-ruled grid row into @p line, returning its length. */
         uint16_t _build_grid_row(char* line, size_t cap, const char* c0, const char* c1,
                                  const char* c2, const char* c3) {
@@ -203,22 +186,20 @@ namespace Botanik { namespace Pages {
             return n;
         }
 
-        /** @brief Reset the whole paint shadow to "unknown" (forces a full redraw).
-         *  Called from the ctor and on focus (the screen was cleared on switch). */
+        /** @brief Reset the whole paint shadow to "unknown" (forces a full redraw). */
         void _invalidate_shadow() {
             for (RowShadow& r : _row) { r.idx = ROW_BLANK; r.sig = 0; }
         }
 
-        /** @brief FNV-1a over s[0..n), masked to 31 bits: a structural row's
-         *  fingerprint. Computed only for the ~6 structural rows. */
+        /** @brief FNV-1a over s[0..n), masked to 31 bits: a structural row's fingerprint. */
         static uint32_t _hash(const char* s, uint16_t n) {
             uint32_t h = 2166136261u;
             for (uint16_t i = 0; i < n; i++) { h ^= (uint8_t)s[i]; h *= 16777619u; }
             return h & 0x7FFFFFFFu;
         }
 
-        /** @brief Draw a structural row through the shadow: skip it when its bytes are
-         *  unchanged on screen, else emit the line and record the fingerprint. */
+        /** @brief Draw a structural row through the shadow: skip when its bytes are
+         *  unchanged on screen, else emit and record the fingerprint. */
         void _emit(uint16_t row, const char* line, uint16_t n) {
             uint32_t sig = _hash(line, n);
             if (row < MAX_ROWS && _row[row].idx == ROW_STRUCT && _row[row].sig == sig)
@@ -238,10 +219,9 @@ namespace Botanik { namespace Pages {
             _emit(row, line, n);
         }
 
-        /** @brief Draw a horizontal rule "+----+--+...+" matching the column widths.
-         *  @p sep is the character at the column-rule positions (the corners and
-         *  separators): '+' for a plain rule, or '^'/'v' to cap the table edge with
-         *  scroll arrows when alarms are hidden above / below. */
+        /** @brief Draw a horizontal rule "+----+--+...+". @p sep is the corner/separator
+         *  char: '+' plain, or '^'/'v' to cap the edge with scroll arrows when alarms are
+         *  hidden above / below. */
         void _draw_rule(uint16_t row, char sep = '+') {
             uint16_t w[4] = { CODE_W, STATE_W, EVENT_W, _desc_w() };
             char     line[160];
@@ -258,10 +238,8 @@ namespace Botanik { namespace Pages {
         /** @brief Blank a structural row (through the paint shadow). */
         void _clear_row(uint16_t row) { _emit(row, "", 0); }
 
-        /** @brief Draw the footer legend: a reverse-video mode badge and counts on the
-         *  left, the SPACE-cycles-mode hint on the right. Scrolling is intuitive (UP/DN)
-         *  so it is not spelled out; the off-screen counts live in the flanking overflow
-         *  hints instead. */
+        /** @brief Draw the footer legend: reverse-video mode badge + counts on the left,
+         *  SPACE-cycles-mode hint on the right. */
         void _draw_footer(uint16_t row, uint8_t nvis, uint8_t active) {
             const char* mode = _mode_label(_mode);
             const char* next = _mode_label((uint8_t)((_mode + 1) % MODE_COUNT));
@@ -272,9 +250,8 @@ namespace Botanik { namespace Pages {
             if (ln < 0) ln = 0;
             uint16_t llen = (uint16_t)std::min((size_t)ln, sizeof(left) - 1);
 
-            // Write the left string in one pass with the mode label (between the brackets
-            // at col 3) reverse-video, so the active filter reads as a badge like the
-            // table's "ON" cell - without a normal-then-inverted overdraw that flickers.
+            // One pass with the mode label (col 3, inside the brackets) reverse-video, so
+            // it reads as a badge without a flicker-prone normal-then-inverted overdraw.
             uint16_t ml = (uint16_t)strlen(mode);
             if ((uint16_t)(3 + ml) > llen) ml = (llen > 3) ? (uint16_t)(llen - 3) : 0;
             _terminal.move_to({row, 0});
@@ -298,9 +275,9 @@ namespace Botanik { namespace Pages {
             }
         }
 
-        /** @brief True if @p c belongs in RECENT mode: it has a last event (edge_ms set)
-         *  that is still within its window. An active alarm is always recent; an inactive
-         *  one expires recent_s seconds after it cleared (0 = DEFAULT_RECENT_S, <0 = never). */
+        /** @brief True if @p c belongs in RECENT mode: a last event still within its
+         *  window. Active = always recent; inactive expires recent_s after it cleared
+         *  (0 = DEFAULT_RECENT_S, <0 = never). */
         bool _is_recent(const Alarms::AlarmCondition& c, uint64_t now) const {
             if (c.edge_ms == 0) return false;     // never fired -> no last event
             if (c.active)       return true;      // currently on -> always recent
@@ -310,11 +287,10 @@ namespace Botanik { namespace Pages {
             return (now - c.edge_ms) <= window_ms;
         }
 
-        /** @brief Order two visible entries: unacknowledged-active first (the nagging
-         *  alarms head the list), then acknowledged-active, then inactive; each by
-         *  most-recent onset. An ack thus demotes an alarm without removing it. */
+        /** @brief Order two visible entries: unack'd-active first, then ack'd-active, then
+         *  inactive; each by most-recent onset. An ack demotes without removing. */
         bool _before(const Alarms::AlarmCondition& x, const Alarms::AlarmCondition& y) const {
-            bool xn = x.active && !x.acknowledged;         // "nagging": active and unack'd
+            bool xn = x.active && !x.acknowledged;         // active and unack'd
             bool yn = y.active && !y.acknowledged;
             if (xn != yn) return xn;                       // unack'd-active heads the list
             if (x.active != y.active) return x.active;     // then ack'd-active before inactive
@@ -322,8 +298,7 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Fill _vis/_nvis with the indices shown in the current mode, ordered
-         *  active-first then by most-recent onset (never-active alarms, started_ms == 0,
-         *  sort to the bottom). */
+         *  active-first then by most-recent onset. */
         void _collect() {
             _nvis = 0;
             if (_model == nullptr) return;
@@ -342,15 +317,12 @@ namespace Botanik { namespace Pages {
                 }
                 if (include) _vis[_nvis++] = i;
             }
-            // Insertion sort by _before(). _collect() runs once per repaint (and repaints
-            // are gated on _changed() - a set move - so this is effectively recompute-on-
-            // change, not per tick). _nvis is bounded by the real alarm count (the
-            // namespace split sizes the model to N+M, not a fixed 64), nearly always tiny,
-            // so this beats a general sort and is stable in table order on ties.
+            // Insertion sort by _before(): runs once per (gated) repaint, _nvis is nearly
+            // always tiny, so it beats a general sort and is stable in table order on ties.
             for (uint8_t a = 1; a < _nvis; a++) {
                 uint8_t v = _vis[a];
                 const Alarms::AlarmCondition& cv = _model->condition(v);
-                int16_t b = (int16_t)a - 1;
+                int b = (int)a - 1;
                 while (b >= 0 && _before(cv, _model->condition(_vis[b]))) {
                     _vis[b + 1] = _vis[b];
                     b--;
@@ -359,11 +331,9 @@ namespace Botanik { namespace Pages {
             }
         }
 
-        /** @brief Bitmask of conditions whose effective (latched) state is active. This
-         *  is what the table shows, so it - not raw() - gates the repaint: a latched
-         *  alarm whose raw bit pulses (e.g. CPU_XRUN re-asserting each overrun) keeps a
-         *  steady effective state, so the page does not repaint and the badges do not
-         *  flicker. With no masking yet, the unmasked set equals the active set. */
+        /** @brief Bitmask of conditions whose effective (latched) state is active - what
+         *  the table shows, so it (not raw()) gates the repaint: a latched alarm whose raw
+         *  bit pulses keeps a steady effective state, so the badges don't flicker. */
         uint64_t _active_sig() const {
             if (_model == nullptr) return 0;
             uint64_t m = 0;
@@ -372,8 +342,8 @@ namespace Botanik { namespace Pages {
             return m;
         }
 
-        /** @brief Bitmask of conditions within their RECENT window, used to detect the
-         *  time-based expiry that leaves the active set unchanged. */
+        /** @brief Bitmask of conditions within their RECENT window, to detect a time-based
+         *  expiry that leaves the active set unchanged. */
         uint64_t _recent_sig() const {
             if (_model == nullptr) return 0;
             uint64_t now = HAL::uptime_ms(), m = 0;
@@ -384,8 +354,8 @@ namespace Botanik { namespace Pages {
             return m;
         }
 
-        /** @brief Bitmask of acknowledged conditions, used to detect an ack that changes
-         *  the sort/badge without moving the active set. */
+        /** @brief Bitmask of acknowledged conditions, to detect an ack that changes the
+         *  sort/badge without moving the active set. */
         uint64_t _acked_sig() const {
             if (_model == nullptr) return 0;
             uint64_t m = 0;
@@ -402,9 +372,8 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief True if the displayed set moved since the last repaint (so a steady,
-         *  scrolled view is left untouched). The active set covers the badge / last-event
-         *  / order changes (those move only on an effective transition); in RECENT mode a
-         *  row can also expire purely on time, so the recent membership is compared too. */
+         *  scrolled view is left untouched). The active set covers badge/last-event/order;
+         *  in RECENT mode a row can also expire on time, so recent membership is compared. */
         bool _changed() const {
             if (_model == nullptr) return false;
             if (_active_sig() != _last_active_sig) return true;
@@ -413,10 +382,9 @@ namespace Botanik { namespace Pages {
         }
 
         /** @name Window geometry
-         *  Bottom-anchored on the content area (rows 1..rows()-1, above the terminal
-         *  alarm bar). From the bottom up: free row, legend, free row, bottom rule,
-         *  then the data band up to the top rule. The two free rows give the legend
-         *  breathing room; the rules carry the scroll arrows (see _paint_element()).
+         *  Bottom-anchored on the content area. From the bottom up: free row, legend,
+         *  free row, bottom rule, then the data band up to the top rule. The rules carry
+         *  the scroll arrows (see _paint_element()).
          *  @{ */
         uint16_t _legend_row()  const { return (uint16_t)(_terminal.rows() - 2); }  // free row below at rows()-1
         uint16_t _brule_row()   const { return (uint16_t)(_terminal.rows() - 4); }  // bottom rule (free row above legend at rows()-3)
@@ -436,8 +404,8 @@ namespace Botanik { namespace Pages {
             uint16_t end = (uint16_t)(_top + window);
             return (_nvis > end) ? (uint16_t)(_nvis - end) : 0;
         }
-        /** @brief Redraw the top/bottom rules, capping them with '^'/'v' scroll arrows
-         *  when alarms are hidden above / below the window (plain '+' otherwise). */
+        /** @brief Redraw the top/bottom rules, capping with '^'/'v' when alarms are hidden
+         *  above / below the window. */
         void _draw_rules(uint16_t window) {
             _draw_rule(RULE_ROW,     _hidden_above()       ? '^' : '+');
             _draw_rule(_brule_row(), _hidden_below(window) ? 'v' : '+');
@@ -451,9 +419,9 @@ namespace Botanik { namespace Pages {
             return c.edge_ms != 0 ? 1 : 0;
         }
 
-        /** @brief Exact pack of a data row's two mutable cells: ON state in the top
-         *  2 bits, the LAST EVENT minute (edge_ms/60000, == the render resolution)
-         *  in the low 30 bits, or EVENT_EMPTY when the cell is blank. */
+        /** @brief Pack a data row's two mutable cells: ON state in the top 2 bits, the
+         *  LAST EVENT minute (edge_ms/60000, the render resolution) in the low 30, or
+         *  EVENT_EMPTY when blank. */
         static uint32_t _pack(const Alarms::AlarmCondition& c) {
             uint32_t ev = (!c.active && c.edge_ms == 0)
                               ? EVENT_EMPTY
@@ -474,8 +442,8 @@ namespace Botanik { namespace Pages {
             _terminal.clear_to_eol();
         }
 
-        /** @brief Rewrite only the ON and LAST EVENT cells (CODE/DESCRIPTION stay).
-         *  Both fixed-width cells are fully overwritten, so no clear_to_eol. */
+        /** @brief Rewrite only the ON and LAST EVENT cells (CODE/DESCRIPTION stay). Both
+         *  are fully overwritten, so no clear_to_eol. */
         void _patch_cells(uint16_t row, const Alarms::AlarmCondition& c) {
             uint8_t on = _on_state(c);
             _terminal.move_to({row, STATE_TEXT_COL});
@@ -496,11 +464,9 @@ namespace Botanik { namespace Pages {
             _terminal.write_chars(cell, (uint16_t)std::min((size_t)m, sizeof(cell) - 1));
         }
 
-        /** @brief Draw a full data row for @p c (CODE/ON/EVENT/DESCRIPTION). The
-         *  state cell shows a reverse-video "ON" badge while active and unacked; once
-         *  it has cleared (but has a last event) it reads "OFF" in normal video; a
-         *  never-fired alarm leaves it blank. Written inline in one pass (no
-         *  normal-then-inverted overdraw, which flickers). */
+        /** @brief Draw a full data row (CODE/ON/EVENT/DESCRIPTION). The state cell shows a
+         *  reverse-video "ON" badge while active and unacked, "OFF" once cleared, blank if
+         *  never fired. One inline pass (no flicker-prone normal-then-inverted overdraw). */
         void _draw_full_row(uint16_t row, const Alarms::AlarmCondition& c) {
             char ev[16];
             _fmt_event(ev, sizeof(ev), c);
@@ -524,11 +490,9 @@ namespace Botanik { namespace Pages {
             _terminal.clear_to_eol();
         }
 
-        /** @brief Paint data row at screen @p row for visible entry @p vi: skip it
-         *  when unchanged, patch only ON/EVENT when the alarm is the same, redraw
-         *  the whole row when the alarm identity changed (CODE/DESC differ) or vi is
-         *  past the set (blank). Rows beyond MAX_ROWS bypass the shadow and always
-         *  draw. */
+        /** @brief Paint data row at screen @p row for visible entry @p vi: skip when
+         *  unchanged, patch only ON/EVENT when the alarm is the same, full redraw when the
+         *  identity changed or vi is past the set (blank). Rows beyond MAX_ROWS always draw. */
         void _draw_data_row(uint16_t row, uint16_t vi) {
             bool    shadowed = row < MAX_ROWS;
             uint8_t new_idx  = (vi < _nvis) ? _vis[vi] : ROW_BLANK;
@@ -553,14 +517,12 @@ namespace Botanik { namespace Pages {
             if (shadowed) { _row[row].idx = new_idx; _row[row].sig = sig; }
         }
 
-        /** @brief Request a full (paced) table repaint from the top. */
-        /** @brief Request a full (paced) table repaint from the top. A repaint draws the
-         *  whole table at _top, so any deferred scroll is superseded - drop it. */
+        /** @brief Request a full (paced) repaint from the top. The repaint supersedes any
+         *  deferred scroll - drop it. */
         void _request_repaint() { _scroll_pending = 0; _paint_i = 0; }
 
         /** @brief Fold a deferred scroll into _top (clamped) and repaint - used when the
-         *  set moved or a paint is mid-flight, so the screen is stale and a one-row scroll
-         *  would be wrong. */
+         *  screen is stale (set moved or a paint mid-flight) so a one-row scroll is wrong. */
         void _fold_pending_and_repaint() {
             uint16_t window = _window();
             uint16_t maxtop = _max_top(window);
@@ -569,11 +531,10 @@ namespace Botanik { namespace Pages {
             _request_repaint();   // clears _scroll_pending
         }
 
-        /** @brief Apply the deferred scroll a row at a time, but only while the TX ring
-         *  is shallow (the shared cold floor): one scroll_region() shift + the newly
-         *  exposed row fit easily under that floor, so the buffer never fills and the
-         *  scroll never has to fall back to a full repaint. Stops (deferring the rest)
-         *  the moment the ring is no longer shallow; tick() resumes it as TX drains. */
+        /** @brief Apply the deferred scroll a row at a time, only while the TX ring is
+         *  shallow (cold floor): one scroll_region() shift + the exposed row fit under the
+         *  floor, so the buffer never fills and the scroll never falls back to a full
+         *  repaint. Stops the moment the ring is no longer shallow; tick() resumes it. */
         void _drain_scroll() {
             uint16_t window = _window();
             if (window == 0) { _scroll_pending = 0; return; }
@@ -583,9 +544,9 @@ namespace Botanik { namespace Pages {
                 bool     down    = _scroll_pending > 0;
                 uint16_t old_top = _top;
                 _terminal.scroll_region(DATA_TOP, data_bottom, /*up=*/down, 1);
-                // The scroll shifted the data band on screen without redrawing it;
-                // shift the shadow in lockstep so the next repaint diffs the right
-                // rows. The newly exposed row is repainted just below (sets its slot).
+                // The scroll shifted the band without redrawing; shift the shadow in
+                // lockstep so the next repaint diffs the right rows (the exposed row is
+                // repainted just below).
                 if (down) {
                     for (uint16_t i = DATA_TOP; i < data_bottom && (uint16_t)(i + 1) < MAX_ROWS; i++)
                         _row[i] = _row[i + 1];
@@ -597,8 +558,7 @@ namespace Botanik { namespace Pages {
                 if (down) _draw_data_row(data_bottom, (uint16_t)(_top + window - 1));
                 else      _draw_data_row(DATA_TOP, _top);
                 _scroll_pending = (int16_t)(_scroll_pending + (down ? -1 : 1));
-                // Repaint a rule only when its scroll arrow actually flips (top arrow at
-                // the 0 boundary, bottom arrow at maxtop).
+                // Repaint a rule only when its arrow actually flips (top at 0, bottom at maxtop).
                 if ((old_top == 0) != (_top == 0))
                     _draw_rule(RULE_ROW, _top ? '^' : '+');
                 if ((old_top < maxtop) != (_top < maxtop))
@@ -609,11 +569,10 @@ namespace Botanik { namespace Pages {
         /** @brief True while a staged repaint is in progress (or pending its first tick). */
         bool _painting() const { return _paint_i != PAINT_IDLE; }
 
-        /** @brief Paint one table element by its index in the staged sequence: 0 = the
-         *  legend (painted first so a mode change reads instantly, and only once - no
-         *  flash), then top margin, header, top rule, [4, 4+window) data rows, the bottom
-         *  rule, the blank row above the legend, the blank row below it. Element
-         *  order/count must match _paint_step()'s total (window + 7). */
+        /** @brief Paint one staged element by index: 0 = legend (first so a mode change
+         *  reads instantly, and only once), then top margin, header, top rule, data rows,
+         *  bottom rule, blank above the legend, blank below. Order/count must match
+         *  _paint_step()'s total (window + 7). */
         void _paint_element(uint16_t e, uint16_t window) {
             uint16_t legend = _legend_row();
             if      (e == 0)               _draw_footer(legend, _nvis,          // legend first
@@ -632,12 +591,11 @@ namespace Botanik { namespace Pages {
                 _clear_row((uint16_t)(legend + 1));                             // free row below legend
         }
 
-        /** @brief Advance the staged repaint: draw at most TX_COLD_FIELDS_PER_TICK
-         *  table rows this tick, and only while the TX ring is shallow, so a full
-         *  repaint spreads over several ticks instead of flooding the ring (the same
-         *  cooperative scheme the status-page fields use). The view set is collected
-         *  and the offset clamped once, on the first element, so the staged frame stays
-         *  self-consistent; a mid-paint set change is caught by the next 1 s re-check. */
+        /** @brief Advance the staged repaint: draw at most TX_COLD_FIELDS_PER_TICK rows
+         *  this tick, only while the ring is shallow, so a full repaint spreads over ticks
+         *  instead of flooding. The view set is collected and clamped once, on the first
+         *  element, so the frame stays self-consistent; a mid-paint change is caught by the
+         *  next 1 s re-check. */
         void _paint_step() {
             uint16_t window = _window();
             if (window == 0) { _snapshot(); _paint_i = PAINT_IDLE; return; }
@@ -648,19 +606,17 @@ namespace Botanik { namespace Pages {
                 _collect();
                 uint16_t maxtop = _max_top(window);
                 if (_top > maxtop) _top = maxtop;
-                // Snapshot the signature of the set being painted up front: a change
-                // during or after staging then reads as _changed() and re-triggers,
-                // rather than being masked by a completion-time snapshot of a newer set.
+                // Snapshot the painted set up front, so a change during/after staging reads
+                // as _changed() and re-triggers rather than being masked by a completion-
+                // time snapshot of a newer set.
                 _snapshot();
-                // If the set shrank, clear the rows that held data and are now empty
-                // (and the bottom rule) before the paced repaint, so they do not linger
-                // as stale content while the redraw walks down to them.
+                // If the set shrank, clear the now-empty rows (and bottom rule) up front so
+                // they don't linger as stale content while the redraw walks down.
                 uint16_t content = (_nvis < window) ? _nvis : window;
                 if (content < _painted_data) {
                     _terminal.clear_rows((uint16_t)(DATA_TOP + content), _brule_row());
-                    // Those rows (and the bottom rule) were blanked on screen without
-                    // _draw_data_row; invalidate their shadow so the staged repaint
-                    // redraws them rather than skipping the now-empty content.
+                    // Those rows were blanked without _draw_data_row; invalidate their
+                    // shadow so the staged repaint redraws rather than skips them.
                     for (uint16_t r = (uint16_t)(DATA_TOP + content);
                          r <= _brule_row() && r < MAX_ROWS; r++) {
                         _row[r].idx = ROW_BLANK; _row[r].sig = 0;
@@ -678,18 +634,15 @@ namespace Botanik { namespace Pages {
             if (_paint_i >= total) _paint_i = PAINT_IDLE;   // frame complete
         }
 
-        /** @brief Queue a one-line scroll. Scrolling does not change the visible set, so
-         *  it reuses _vis/_nvis from the last paint: it just accumulates the move into
-         *  _scroll_pending (clamped to the set) and lets _drain_scroll() apply it under
-         *  the TX floor. If a repaint is already due (staged, or the set moved/expired),
-         *  the pending move is folded into a full repaint instead of scrolling a stale
-         *  screen. */
+        /** @brief Queue a one-line scroll. Scrolling does not change the visible set, so it
+         *  reuses _vis/_nvis from the last paint: accumulate the move into _scroll_pending
+         *  (clamped) and let _drain_scroll() apply it under the TX floor. If a repaint is
+         *  already due, fold the move into a full repaint instead of scrolling stale rows. */
         void _scroll(bool down) {
             uint16_t window = _window();
             if (window == 0) return;
             uint16_t maxtop = _max_top(window);
-            // Where the view will sit after this key: on-screen top + already-pending
-            // + this step, clamped to the set.
+            // Where the view sits after this key: top + pending + step, clamped to the set.
             int32_t desired = (int32_t)_top + _scroll_pending + (down ? 1 : -1);
             if (desired < 0) desired = 0;
             else if (desired > (int32_t)maxtop) desired = (int32_t)maxtop;
@@ -701,9 +654,8 @@ namespace Botanik { namespace Pages {
             _drain_scroll();   // apply now if the ring is shallow; tick() finishes the rest
         }
 
-        /** @brief Jump the view by a full page (window height) and repaint. A page is a
-         *  large move, so it goes through the paced full repaint (which re-collects and
-         *  re-clamps _top) rather than a burst of one-row scroll_region() shifts. */
+        /** @brief Jump the view by a full page and repaint. A large move goes through the
+         *  paced full repaint (re-collects/re-clamps _top), not a burst of one-row shifts. */
         void _page_scroll(bool down) {
             uint16_t window = _window();
             if (window == 0) return;
@@ -727,17 +679,17 @@ namespace Botanik { namespace Pages {
         const char* name() const override { return "ALARMS"; }
 
         void handle_text(char c) override {
-            if (c == ' ') {                 // cycle recent -> all -> active -> unmasked
+            if (c == ' ') {                 // cycle filter mode
                 _mode = (uint8_t)((_mode + 1) % MODE_COUNT);
                 _top  = 0;
-                _request_repaint();         // legend is the first element painted (reactive)
+                _request_repaint();         // legend is painted first (reactive)
             }
         }
 
         void handle_command(Command cmd, uint16_t = 1) override {
             switch (cmd) {
                 case Command::ENTER:
-                    _top = 0; _request_repaint();       // jump to the top (full repaint)
+                    _top = 0; _request_repaint();       // jump to top
                     break;
                 case Command::UP:
                 case Command::CTRL_P:
@@ -769,19 +721,17 @@ namespace Botanik { namespace Pages {
         void tick(bool active) override {
             _active = active;
             if (!active) return;
-            // A staged repaint (from focus / mode / a moved set) advances a few rows per
-            // tick under the TX floor.
+            // A staged repaint advances a few rows per tick under the TX floor.
             if (_painting()) { _paint_step(); return; }
-            // Finish any deferred scroll as TX drains; if the set moved while it waited,
-            // fold the remaining move into a full repaint instead of scrolling stale rows.
+            // Finish a deferred scroll as TX drains; if the set moved while it waited, fold
+            // the rest into a full repaint instead of scrolling stale rows.
             if (_scroll_pending != 0) {
                 if (_changed()) _fold_pending_and_repaint();
                 else            _drain_scroll();
                 return;
             }
-            // Idle: re-check the alarm set once a second - alarms move slowly, so
-            // polling every tick would just burn cycles - and start a repaint only when
-            // it actually moved (usually a no-op).
+            // Idle: re-check the set once a second (alarms move slowly) and repaint only
+            // when it actually moved.
             uint64_t now = HAL::uptime_ms();
             if (now - _last_refresh_ms < Config::PAGE_HOT_MS) return;
             _last_refresh_ms = now;

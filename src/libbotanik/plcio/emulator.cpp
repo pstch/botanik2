@@ -1,7 +1,6 @@
 /**
  * @file emulator.cpp
- * @brief PLC emulator implementation - the PLC-side log writer and the
- *        shared-memory protocol stepping that mirrors the host handler.
+ * @brief PLC emulator implementation - the PLC-side log writer.
  */
 #include <cstring>
 #include <algorithm>

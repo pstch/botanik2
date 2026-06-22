@@ -29,8 +29,7 @@ namespace Botanik { namespace HAL {
     /** @name Hardware identity
      *  @{ */
 
-    /** @brief Human-readable description of the host hardware (board / MCU),
-     *  for the boot banner. Platform-specific; returns a static string. */
+    /** @brief Host hardware description (board / MCU) for the boot banner; static string. */
     inline const char* hardware_description();
 
     /** @} */
@@ -38,15 +37,14 @@ namespace Botanik { namespace HAL {
     /** @name Stack introspection
      *  @{ */
 
-    /** @brief Return the high address (base) of the current thread's stack region. */
+    /** @brief High address (base) of the current thread's stack region. */
     inline uintptr_t get_stack_base();
 
-    /** @brief Return the usable size (depth) of the current thread's stack region in bytes. */
+    /** @brief Usable size (depth) of the current thread's stack region, bytes. */
     inline uint32_t get_stack_depth();
 
     /** @brief High-water stack usage (bytes), or 0 if the platform can't provide it and
-     *  the caller must measure it itself (the simulator paints/scans; OPTA reads the RTOS
-     *  thread watermark). */
+     *  the caller must measure it (sim paints/scans; OPTA reads the RTOS watermark). */
     inline uint32_t get_stack_high();
 
     /** @} */
@@ -54,10 +52,7 @@ namespace Botanik { namespace HAL {
     /** @name PLC shared memory
      *  @{ */
 
-    /** @brief Get the pointer to the PLC input memory region. */
     inline void* get_plc_input();
-
-    /** @brief Get the pointer to the PLC output memory region. */
     inline void* get_plc_output();
 
     /** @} */
@@ -65,43 +60,31 @@ namespace Botanik { namespace HAL {
     /** @name Timing & clocks
      *  @{ */
 
-    /** @brief Sawtooth millisecond uptime counter (rolls over every ~49 days),
-     *  using the low-power clock (equivalent to Arduino's millis()). */
+    /** @brief Sawtooth ms uptime (rolls over ~49 days), low-power clock (Arduino millis()). */
     inline uint32_t current_ms();
 
-    /** @brief Sawtooth microsecond uptime counter (rolls over every ~71 minutes),
-     *  using the regular clock (equivalent to Arduino's micros()).
-     *  @warning This counter does not run when the device is in SLEEP mode; it
-     *  should only be used for short intervals during which the device is
-     *  guaranteed to stay in RUN mode. */
+    /** @brief Sawtooth us uptime (rolls over ~71 min), regular clock (Arduino micros()).
+     *  @warning Does not run in SLEEP mode; use only for short RUN-mode intervals. */
     inline uint32_t current_us();
 
-    /** @brief Monotonic millisecond uptime counter (no rollover), using the
-     *  low-power clock. */
+    /** @brief Monotonic ms uptime (no rollover), low-power clock. */
     inline uint64_t uptime_ms();
 
-    /** @brief Monotonic microsecond uptime counter (no rollover), using the
-     *  low-power clock.
-     *  @warning The low-power clock used for this counter will generally not
-     *  have enough precision for true microseconds. On an Arduino OPTA, this
-     *  clock runs at 32.768 kHz, so the smallest interval it can measure is
-     *  around ~30 microseconds. */
+    /** @brief Monotonic us uptime (no rollover), low-power clock.
+     *  @warning The low-power clock lacks true-us precision: on OPTA it runs at
+     *  32.768 kHz, so the smallest measurable interval is ~30 us. */
     inline uint64_t uptime_us();
 
-    /** @brief Best-effort wall-clock time as UNIX milliseconds. Carries
-     *  sub-second resolution where the platform provides it (host clock on the
-     *  simulator); whole seconds otherwise (OPTA, until the RTC sub-second
-     *  register is wired). */
+    /** @brief Best-effort wall clock as UNIX ms. Sub-second where the platform provides
+     *  it (sim host clock); whole seconds otherwise (OPTA, until the RTC sub-second reg). */
     inline uint64_t wall_clock_ms();
 
-    /** @brief Set the wall clock from UNIX milliseconds, for the (future) NTP
-     *  sync to discipline the RTC. No-op on the simulator (the host clock is the
-     *  source of truth); on OPTA it sets the RTC. */
+    /** @brief Set the wall clock from UNIX ms (future NTP -> RTC). No-op on the sim (host
+     *  clock is the source of truth); on OPTA it sets the RTC. */
     inline void wall_clock_set(uint64_t unix_ms);
 
-    /** @brief Yield the CPU for at least @p ms milliseconds. Millisecond
-     *  granularity: a request of 0 is a no-op/yield, so sub-millisecond waits
-     *  fall through to a busy loop at the call site. */
+    /** @brief Yield the CPU for at least @p ms. Ms granularity: 0 is a no-op/yield, so
+     *  sub-ms waits fall through to a busy loop at the call site. */
     inline void sleep_ms(uint32_t ms);
 
     /** @} */
@@ -109,11 +92,11 @@ namespace Botanik { namespace HAL {
     /** @name Memory ordering
      *  @{ */
 
-    /** @brief Ensure that all precedent explicit memory accesses are completed. */
+    /** @brief Ensure all precedent explicit memory accesses are completed. */
     inline void dsb();
 
-    /** @brief Lighter ordering barrier than dsb(): orders explicit memory
-     *  accesses without waiting for completion. Used for cross-core counter polls. */
+    /** @brief Lighter barrier than dsb(): orders explicit accesses without waiting for
+     *  completion. Used for cross-core counter polls. */
     inline void dmb();
 
     /** @brief Copy a block of memory with hardware-enforced ordering. */
@@ -144,14 +127,12 @@ namespace Botanik { namespace HAL {
     /** @name Debug
      *  @{ */
 
-    /** @brief Trap into an attached debugger (SIGTRAP on the host, a hardware
-     *  breakpoint instruction on the OPTA). A no-op-ish trap if nothing is
-     *  attached, depending on the platform's default signal/fault handling. */
+    /** @brief Trap into an attached debugger (host SIGTRAP, OPTA BKPT). */
     inline void debug_break();
 
-    /** @brief True if a debugger is currently attached (host: a ptrace tracer via
-     *  /proc/self/status; OPTA: the Cortex-M halting-debug-enable bit). Gate
-     *  debug_break() on this: a bare BKPT with no debugger HardFaults on OPTA. */
+    /** @brief True if a debugger is attached (host: ptrace tracer; OPTA: Cortex-M
+     *  halting-debug-enable bit). Gate debug_break() on this: a bare BKPT with no
+     *  debugger HardFaults on OPTA. */
     inline bool under_debugger();
 
     /** @} */
@@ -159,18 +140,14 @@ namespace Botanik { namespace HAL {
     /** @name System lifecycle
      *  @{ */
 
-    /** @brief Reboot the firmware. Does not return. On OPTA this is a hardware
-     *  reset (NVIC_SystemReset); on the simulator it re-execs the process image
-     *  with the original argv (captured via the simulator-only set_reboot_args)
-     *  after running any teardown hook registered through on_reset. */
+    /** @brief Reboot the firmware; does not return. OPTA: hardware reset
+     *  (NVIC_SystemReset). Sim: re-execs the process image with the original argv
+     *  after running any on_reset teardown hook. */
     inline void reset();
 
-    /** @brief Shut the system down. Does not return. On the simulator this runs
-     *  any teardown hook registered through on_reset, then exits the process with
-     *  status @p code (default 0; atexit handlers run, so the console is restored).
-     *  Pass 128 + signo to report a signal-driven exit conventionally. On OPTA
-     *  there is no clean halt for firmware, so it falls back to reset() and @p code
-     *  is ignored. */
+    /** @brief Shut down; does not return. Sim: runs the on_reset hook, then exits with
+     *  status @p code (default 0; atexit restores the console; pass 128+signo for a
+     *  signal exit). OPTA: no clean halt, so falls back to reset() and @p code is ignored. */
     inline void shutdown(int code = 0);
 
     /** @} */
@@ -178,13 +155,11 @@ namespace Botanik { namespace HAL {
     /** @name Hardware watchdog
      *  @{ */
 
-    /** @brief Start the hardware watchdog: if it is not kicked within
-     *  @p timeout_ms, the firmware resets. This is the *hardware* watchdog,
-     *  distinct from the PLC software watchdog in plcio/sync.h (which guards comms
-     *  liveness, not the whole firmware). On OPTA it drives the MCU's independent
-     *  watchdog peripheral; on the simulator it is serviced from the emulator
-     *  thread, which runs independently of the main loop so a wedged loop still
-     *  trips it. */
+    /** @brief Start the hardware watchdog: not kicked within @p timeout_ms -> the firmware
+     *  resets. Distinct from the PLC software watchdog (plcio/sync.h), which guards comms
+     *  liveness, not the whole firmware. OPTA: the MCU's independent watchdog peripheral.
+     *  Sim: serviced from the emulator thread (independent of the main loop, so a wedged
+     *  loop still trips it). */
     inline void watchdog_start(uint32_t timeout_ms);
 
     /** @brief Reset the watchdog countdown; call once per healthy iteration. */
@@ -198,11 +173,9 @@ namespace Botanik { namespace HAL {
     /** @name Serial I/O & console
      *  @{ */
 
-    /** @brief Serial access is intentionally *not* re-declared here: the RawSerial
-     *  type and get_serial() are platform-specific (an Arduino UART on OPTA, a
-     *  file-descriptor stand-in on the simulator), and setup_raw_console() exists
-     *  only on the host. They are declared in the selected backend header above
-     *  (opta.h / simulator.h) rather than in this unified surface. */
+    /** @brief Serial access is intentionally *not* re-declared here: RawSerial,
+     *  get_serial() and (host-only) setup_raw_console() are platform-specific and live
+     *  in the selected backend header (opta.h / simulator.h). */
 
     /** @} */
 

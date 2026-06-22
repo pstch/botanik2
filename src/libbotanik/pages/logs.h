@@ -17,8 +17,7 @@ namespace Botanik { namespace Pages {
     /**
      * @brief Full-screen log viewer page.
      *
-     * Implements LogWriter so it can be registered with a Logger. Row 0 is the
-     * status bar; rows 1..rows-1 scroll as a live log tail. Incoming entries are
+     * A LogWriter: rows 1..rows-1 scroll as a live log tail. Incoming entries are
      * queued by BufferedLogWriter and drained on tick(); history is replayed from a
      * circular scrollback on (re)focus.
      */
@@ -35,8 +34,7 @@ namespace Botanik { namespace Pages {
         AnsiTerminal& _terminal;
         /** @brief Circular log line buffer + throttled redraw for page-switch replay. */
         LogsScrollback _scrollback;
-        /** @brief Mirrors the latest tick(active) so write() (reached via drain())
-         *  knows whether it may paint. False in the background. */
+        /** @brief Mirrors tick(active) so write() knows whether it may paint. */
         bool _active = false;
 
         /** @} */
@@ -45,7 +43,6 @@ namespace Botanik { namespace Pages {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief Construct a LogsPage bound to the given terminal. */
         LogsPage(Terminal::AnsiTerminal& terminal);
 
         /** @} */
@@ -74,9 +71,8 @@ namespace Botanik { namespace Pages {
         /** @name Internals
          *  @{ */
 
-        /** @brief Store a timestamped "--- MARK ---" line into the scrollback (painted
-         *         by the next drain_tail), using the same format as log entries.
-         *         Triggered by SPACE. */
+        /** @brief Store a timestamped "--- MARK ---" line (SPACE), painted by the next
+         *         drain_tail. */
         void _emit_mark();
 
         /** @} */

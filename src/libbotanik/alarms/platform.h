@@ -6,10 +6,8 @@
  * @brief Generic platform-health alarm table - the alarms BotanikFirmware::loop()
  *        raises from the scheduler metrics (reset, CPU load/jitter, stack, overrun).
  *
- * Site-independent, so they live here rather than in each site's table. AlarmModel
- * appends them at [N..N+M) (after the site's N PLC alarms), in a namespace disjoint
- * from the PLC-reported site bits, so locally-set platform bits and PLC site bits
- * can never collide.
+ * Site-independent. AlarmModel appends them at [N..N+M) (after the site's N PLC
+ * alarms), in a disjoint namespace, so local platform bits and PLC bits never collide.
  */
 
 #include "libbotanik/alarms/alarms.h"

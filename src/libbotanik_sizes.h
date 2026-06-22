@@ -3,29 +3,25 @@
 
 /**
  * @file libbotanik_sizes.h
- * @brief Memory-footprint contract - static_asserts pinning the sizes of the
- *        long-lived "big" objects. Included at the end of libbotanik.h, once
- *        all the pinned types are visible.
+ * @brief Memory-footprint contract - static_asserts pinning the sizes of the long-lived
+ *        "big" objects, so an accidental layout change trips at compile time
+ *        (tests/test_sizes.cpp prints the table). Included at the end of libbotanik.h.
+ *
+ * Figures differ by word size (host x86-64 vs OPTA ARM Cortex-M7, 32-bit), so each is
+ * spelled per target. Payload-templated types are pinned against a probe payload (empty
+ * input, 60-byte output, mirroring the sim site); a real site's PLC struct is checked
+ * against the PLC IDE's generated types in its own sketch.
  */
 
 #include "libbotanik.h"
 
-// Memory-footprint contract
-// ----------------------------------------------------------------------------
-// Exact sizes of the long-lived "big" objects, pinned so an accidental layout
-// change trips at compile time (tests/test_sizes.cpp prints the table and the
-// rationale). Figures differ by word size - host x86-64 vs OPTA (ARM Cortex-M7,
-// 32-bit) - so each is spelled per target. The payload-templated types are
-// pinned against a representative probe payload (empty input, 60-byte output,
-// mirroring the simulator site); a real site's combined PLC struct is checked
-// against the PLC IDE's generated types in its own sketch.
 namespace Botanik { namespace detail {
 
     struct ProbePlcIn  {};                   // empty payload (library log fields only)
     struct ProbePlcOut { uint32_t _w[15]; }; // 60 B, 4-aligned
 
-// Pick the per-target footprint. Keyed off TARGET_SIMULATOR (the hardware macro is
-// confined to the HAL, so we invert: absent simulator = OPTA-class/ARM build).
+// Per-target footprint, keyed off TARGET_SIMULATOR (the hardware macro is confined to
+// the HAL, so invert: absent simulator = OPTA-class/ARM build).
 #if !defined(TARGET_SIMULATOR)
 #  define BOTANIK_SIZE(host_, opta_) (opta_)
 #else

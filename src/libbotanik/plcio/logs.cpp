@@ -1,7 +1,6 @@
 /**
  * @file logs.cpp
- * @brief PlcLogReader implementation - sequence-gap (dropped-entry) detection
- *        and forwarding of PLC log entries into the local Logger.
+ * @brief PlcLogReader implementation - sequence-gap detection and forwarding.
  */
 #include <cstdint>
 #include <cstdio>

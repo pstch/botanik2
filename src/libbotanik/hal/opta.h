@@ -16,14 +16,7 @@
 #include <ctime>
 #include <type_traits>
 
-/**
- * This include provides :
- *  - micros()
- *  - millis()
- *  - mbed::LowPowerClock
- *  - arduino::UART
- *
- */
+// mbed.h: micros(), millis(), mbed::LowPowerClock, arduino::UART
 #include "mbed.h"
 
 struct PLCSharedVarsInput_t;
@@ -58,16 +51,14 @@ namespace Botanik { namespace HAL {
     }
 
     inline uint32_t get_stack_depth() {
-        // Total size of the CURRENT RTOS thread's stack. setup()/loop() run in the
-        // Arduino Mbed main thread, not on the ~1KB MSP stack that _estack bounds, so
-        // we ask the RTOS for the thread's stack region (CMSIS-RTOS2, via mbed.h).
+        // Size of the CURRENT RTOS thread's stack: setup()/loop() run in the Arduino Mbed
+        // main thread, NOT on the ~1KB MSP stack _estack bounds, so ask the RTOS.
         return static_cast<uint32_t>(osThreadGetStackSize(osThreadGetId()));
     }
 
-    /** @brief High-water stack usage (bytes) of the current RTOS thread, read from
-     *  RTX's own stack watermark - the RTOS paints each thread's stack at creation, so
-     *  no manual painting is needed on hardware. Returns 0 if the watermark is
-     *  unavailable (RTX stack-usage tracking disabled in the build config). */
+    /** @brief High-water stack usage (bytes) of the current RTOS thread, from RTX's own
+     *  watermark (RTX paints each thread's stack at creation, so no manual painting on
+     *  hardware). Returns 0 if the watermark is unavailable (RTX tracking disabled). */
     inline uint32_t get_stack_high() {
         osThreadId_t id = osThreadGetId();
         uint32_t size  = static_cast<uint32_t>(osThreadGetStackSize(id));

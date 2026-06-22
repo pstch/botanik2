@@ -19,12 +19,8 @@
 
 namespace Botanik { namespace Logs {
 
-    /**
-     * @brief Base class for logging output channels.
-     *
-     * Derived classes supply format() and write(); the standard implementation
-     * is @ref BufferedLogWriter.
-     */
+    /** @brief Base class for logging output channels. Derived classes supply
+     *  format() and write(); the standard implementation is @ref BufferedLogWriter. */
     class LogWriter {
     private:
         using LogEntry_t = PlcIO::LogEntry_t;
@@ -53,13 +49,10 @@ namespace Botanik { namespace Logs {
     };
 
     /**
-     * @brief LogWriter with an in-memory FIFO queue and incremental drain.
+     * @brief LogWriter with an in-memory FIFO queue and incremental drain. Handles
+     * queueing, drop counting, and partial-send resumption across drain() calls.
      *
-     * Derived classes supply format() and write(). This class handles queueing,
-     * drop counting, and partial-send resumption across multiple drain() calls.
-     *
-     * Main-loop only (not ISR-safe): push() and drain() share the plain queue
-     * cursors, so every log call and drain must run on the main loop.
+     * Main-loop only (not ISR-safe): push() and drain() share the plain queue cursors.
      */
     class BufferedLogWriter : public LogWriter {
     private:
@@ -68,11 +61,8 @@ namespace Botanik { namespace Logs {
         /** @name Entry queue
          *  @{ */
 
-        /** @brief Ring buffer of pending entries. */
-        LogEntry_t _queue[Config::LOG_QUEUE_SIZE];
-        /** @brief Read cursor into _queue. */
+        LogEntry_t _queue[Config::LOG_QUEUE_SIZE];   ///< ring of pending entries
         uint8_t _readIndex = 0;
-        /** @brief Write cursor into _queue. */
         uint8_t _writeIndex = 0;
 
         /** @} */
@@ -80,22 +70,17 @@ namespace Botanik { namespace Logs {
         /** @name Outgoing message
          *  @{ */
 
-        /** @brief The entry currently being sent. */
-        char _message[Config::LOG_FORMATTED_LEN];
-        /** @brief Total bytes in _message. */
-        size_t _length = 0;
-        /** @brief Bytes of _message already written. */
-        size_t _sent = 0;
+        char _message[Config::LOG_FORMATTED_LEN];   ///< entry currently being sent
+        size_t _length = 0;   ///< total bytes in _message
+        size_t _sent = 0;     ///< bytes already written
 
         /** @} */
 
         /** @name Counters
          *  @{ */
 
-        /** @brief Entries dropped because the queue was full. */
-        uint32_t _dropped = 0;
-        /** @brief Entries that failed to format. */
-        uint32_t _failed = 0;
+        uint32_t _dropped = 0;   ///< dropped (queue full)
+        uint32_t _failed = 0;    ///< failed to format
 
         /** @} */
 
@@ -104,9 +89,8 @@ namespace Botanik { namespace Logs {
          *  @{ */
 
         /** @brief Enqueue @p entry. The last LOG_QUEUE_CRITICAL_RESERVE slots are kept
-         *  for LOG_CRITICAL, so a normal that would intrude on them is dropped (counted);
-         *  a critical seats into the reserve without evicting (or, only if the whole
-         *  queue is full, evicts the oldest as a last resort). */
+         *  for LOG_CRITICAL: a normal that would intrude is dropped (counted); a critical
+         *  seats into the reserve, or evicts the oldest only if the queue is wholly full. */
         void push(const LogEntry_t* entry) override;
         /** @brief Flush queued entries to the output medium (call from the main loop) */
         void drain() override;
@@ -125,12 +109,8 @@ namespace Botanik { namespace Logs {
         /** @} */
     };
 
-    /**
-     * @brief BufferedLogWriter that writes formatted entries to a BufferedSerial port.
-     *
-     * Format: `[timestamp] [level] [topic] message\n`
-     * Respects the TX buffer's available capacity on each drain() call.
-     */
+    /** @brief BufferedLogWriter writing formatted entries (`...message\n`) to a
+     *  BufferedSerial port, respecting the TX buffer's available capacity per drain(). */
     class SerialLogWriter : public BufferedLogWriter {
     protected:
         using BufferedSerial = Utils::BufferedSerial;
@@ -140,8 +120,7 @@ namespace Botanik { namespace Logs {
         /** @name State
          *  @{ */
 
-        /** @brief Bound output port. */
-        BufferedSerial* _serial;
+        BufferedSerial* _serial;   ///< bound output port
 
         /** @} */
 
@@ -157,10 +136,9 @@ namespace Botanik { namespace Logs {
         /** @name Stepping
          *  @{ */
 
-        /** @brief Drain queued entries into the bound serial's TX ring. Call once
-         *  per main-loop tick - unlike the page writers (drained from their render
-         *  path), this writer has no render and must be stepped here. The serial
-         *  itself is flushed separately by the main loop. */
+        /** @brief Drain queued entries into the bound serial's TX ring. Call once per
+         *  tick - this writer has no render path (unlike the page writers), so it must be
+         *  stepped here. The serial itself is flushed separately by the main loop. */
         void step();
 
         /** @} */
@@ -181,24 +159,18 @@ namespace Botanik { namespace Logs {
      * @brief SerialLogWriter for a diagnostic monitor port that self-suppresses
      * when its output is an interactive terminal.
      *
-     * The console UI and this sink can share a terminal (on the simulator the UI
-     * renders to stdout while the monitor writes to stderr; run without
-     * redirecting stderr and both land on the same screen). Log lines would then
-     * garble the display, so when the bound port reports an interactive output
-     * (BufferedSerial::is_output_tty()) every entry is dropped at push() time -
-     * nothing is queued, formatted, or written. Redirect the port to a file or
-     * pipe to capture the log. On hardware the monitor UART is never a tty, so
-     * nothing is ever dropped (and the class is a hook for board-specific
-     * monitor behaviour).
+     * The console UI and this sink can share a terminal (sim: UI on stdout, monitor
+     * on stderr; both land on the same screen unless stderr is redirected). Log lines
+     * would garble the display, so when the bound port is a tty
+     * (BufferedSerial::is_output_tty()) every entry is dropped at push() - redirect to
+     * a file/pipe to capture the log. The monitor UART is never a tty on hardware.
      */
     class MonitorLogWriter : public SerialLogWriter {
     private:
         /** @name State
          *  @{ */
 
-        /** @brief True when the output is an interactive terminal; entries are
-         *  dropped rather than written so they can't garble a shared display. */
-        bool _suppressed;
+        bool _suppressed;   ///< output is a tty: drop so it can't garble a shared display
 
         /** @} */
 
@@ -206,8 +178,7 @@ namespace Botanik { namespace Logs {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief Bind to @p serial; suppression is decided once from whether the
-         *  port's output is an interactive terminal. */
+        /** @brief Bind to @p serial; suppression decided once from is_output_tty(). */
         MonitorLogWriter(BufferedSerial& serial);
 
         /** @} */

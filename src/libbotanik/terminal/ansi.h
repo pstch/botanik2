@@ -18,9 +18,8 @@ namespace Botanik { namespace Terminal { namespace Ansi {
 
     using BufferedSerial = Utils::BufferedSerial;
 
-    /** @brief Represents a physical coordinate on the display.
-     *  @note  this struct's members are still 0-indexed, the conversion
-     *  to 1-indexing happens when sending commands to the remote device. */
+    /** @brief Physical display coordinate. 0-indexed; the conversion to
+     *  1-indexing happens when commands are sent to the remote device. */
     struct CursorPos {
         uint16_t row; uint16_t col;
     public:
@@ -29,25 +28,18 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         }
     };
 
-    // ESC
     static constexpr char ESC[] = "\x1B";
-
-    // Minitel special keys prefix
-    static constexpr char SEP[] = "\x13";
-
-    // X3.64 CSI prefix
-    static constexpr char CSI[]  = "\x1B[";
+    static constexpr char SEP[] = "\x13";   // Minitel special-keys prefix
+    static constexpr char CSI[]  = "\x1B[";  // X3.64 CSI prefix
 
     // Cancel: aborts a control sequence in progress, returning the parser to ground
-    // state (non-printing in VT / teleinformatique mode). Emitted after a tx_discard,
-    // which can strand a half-sent sequence on the wire, to resync the terminal.
+    // state. Emitted after a tx_discard (which can strand a half-sent sequence on the
+    // wire) to resync the terminal.
     static constexpr char CAN[]  = "\x18";
 
-    // Mode Settings
     static constexpr char SM4[]  = "4h"; // Set Mode 4: Insertion
     static constexpr char RM4[]  = "4l"; // Reset Mode 4: Replacement (Overwrite)
 
-    // DEC private mode sequences (CSI ? ...)
     static constexpr char DECAWM_SET[]   = "?7h"; // Enable auto-wrap (default)
     static constexpr char DECAWM_RESET[] = "?7l"; // Disable auto-wrap
 
@@ -67,15 +59,12 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     static constexpr char MINITEL_LOWERCASE[] = "\x1B\x3A\x69\x45";
     static constexpr char MINITEL_PAGE_MODE[] = "\x1B\x3A\x6A\x43";
 
-    // Movement
-
     static constexpr char CUU[] = "A";  // Cursor Up
     static constexpr char CUD[] = "B";  // Cursor Down
     static constexpr char CUF[] = "C";  // Cursor Forward (Right)
     static constexpr char CUB[] = "D";  // Cursor Backward (Left)
     static constexpr char MOVE[] = "H"; // Cursor Move
 
-    // Content modification
     static constexpr char ED[]  = "J";  // Erase in Display
     static constexpr char IL[]  = "L";  // Insert Line
     static constexpr char DL[]  = "M";  // Delete Line
@@ -93,38 +82,32 @@ namespace Botanik { namespace Terminal { namespace Ansi {
      *  @name State management
      *  @{ */
 
-    // FIXME: we should probably have a handler for the "inverted" mode here ?
+    // Every escape writer below is all-or-nothing: returns true only when the whole
+    // sequence reached the TX buffer (see file header in ansi.cpp). A false return
+    // means nothing was emitted; the caller must not advance its tracking.
 
-    // Every escape writer below is all-or-nothing and returns true only when the
-    // whole sequence reached the TX buffer (see file header in ansi.cpp). A false
-    // return means nothing was emitted; the caller must not advance its tracking.
-
-    /** @brief Set insertion mode (IRM) to @p active , using SM4/RM4.
-     *  @note When the TX buffer can't hold the command, emit nothing and return false. */
+    /** @brief Set insertion mode (IRM) to @p active, using SM4/RM4. */
     bool set_insert_mode(BufferedSerial& _serial, bool active);
 
-    /** @brief Emit CAN, aborting any control sequence the terminal is mid-parsing and
-     *  returning it to ground state. Use after a tx_discard, which can leave a half-
-     *  sent sequence stranded on the wire that would otherwise swallow the next emit.
-     *  All-or-nothing. */
+    /** @brief Emit CAN to abort any control sequence the terminal is mid-parsing.
+     *  Use after a tx_discard, which can strand a half-sent sequence on the wire
+     *  that would otherwise swallow the next emit. */
     bool cancel_sequence(BufferedSerial& _serial);
 
     /** @brief Emit the one-time Minitel PRO2 handshake (80-col teleinformatique +
-     *  lowercase keyboard + page mode); no-op sequences on a VT100/VT102.
-     *  All-or-nothing: emits nothing and returns false if it won't fit. */
+     *  lowercase keyboard + page mode); no-op sequences on a VT100/VT102. */
     bool minitel_setup(BufferedSerial& _serial);
 
-    /** @brief One-time setup for a VT100/VT102. Currently a no-op (DECAWM-off is
-     *  re-asserted on every screen establish); the symmetric counterpart to
-     *  minitel_setup() and the home for any future VT102 setup. */
+    /** @brief One-time VT100/VT102 setup. Currently a no-op (DECAWM-off is re-asserted
+     *  on every screen establish); the symmetric counterpart to minitel_setup(). */
     bool vt102_setup(BufferedSerial& _serial);
 
     /** @brief Enable or disable terminal auto-wrap (DECAWM, CSI ? 7 h/l). */
     bool set_auto_wrap(BufferedSerial& _serial, bool enable);
 
-    /** @brief Show or hide the cursor (DECTCEM, CSI ? 25 h/l). A shown cursor
-     *  blinks (no steady mode), so "stop blinking" means hiding it. Minitel honoring
-     *  of DECTCEM is unverified - VERIFY ON HARDWARE. All-or-nothing. */
+    /** @brief Show or hide the cursor (DECTCEM, CSI ? 25 h/l). A shown cursor blinks
+     *  (no steady mode), so "stop blinking" means hiding it. Minitel honoring of
+     *  DECTCEM is unverified - VERIFY ON HARDWARE. */
     bool set_cursor_visible(BufferedSerial& _serial, bool show);
 
     /** @}
@@ -157,29 +140,24 @@ namespace Botanik { namespace Terminal { namespace Ansi {
      *  @name Content edition
      *  @{ */
 
-    /** @brief Insert entire rows
-     *  @note Shifts remaining rows down
-     *  @warning When called at the last row, scrolls the entire screen upwards */
+    /** @brief Insert rows (shifts remaining rows down).
+     *  @warning At the last row, scrolls the entire screen upwards. */
     bool insert_rows(BufferedSerial& _serial, uint16_t count);
 
-    /** @brief Delete rows
-     *  @note Shifts remaining rows up */
+    /** @brief Delete rows (shifts remaining rows up). */
     bool delete_rows(BufferedSerial& _serial, uint16_t count);
 
-    /** @brief Delete characters
-     *  @note Shifts remaining columns left */
+    /** @brief Delete characters (shifts remaining columns left). */
     bool delete_chars(BufferedSerial& _serial, uint16_t count);
 
     /** @}
      *  @name Content clearing
      *  @{ */
 
-    /** @brief Clear characters from the cursor to the end of line
-     *  @note Columns before the cursor are untouched. */
+    /** @brief Clear from the cursor to end of line (columns before it untouched). */
     bool clear_to_eol(BufferedSerial& _serial);
 
-    /** @brief Erase from the cursor to the end of the display
-     *  @note Rows above the cursor are untouched. */
+    /** @brief Erase from the cursor to end of display (rows above it untouched). */
     bool clear_to_eos(BufferedSerial& _serial);
 
     /** @brief Erase entire display and move cursor to home position */

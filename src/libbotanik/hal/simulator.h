@@ -70,16 +70,14 @@ namespace Botanik { namespace HAL {
     /** @name Internal helpers
      *  @{ */
 
-    /** @brief Process-start reference point for the monotonic uptime clocks.
-     *  Captured once on first use. */
+    /** @brief Process-start reference for the monotonic uptime clocks; captured once. */
     inline std::chrono::steady_clock::time_point _process_start() {
         static const auto t0 = std::chrono::steady_clock::now();
         return t0;
     }
 
-    /** @brief BOTANIK_TIME_SCALE: run the sim clocks (and the baud throttle) N
-     *  times faster so tests finish sooner with unchanged byte/event ratios.
-     *  Default 1, clamped >= 1, read once. */
+    /** @brief BOTANIK_TIME_SCALE: run the sim clocks (and baud throttle) N times faster
+     *  so tests finish sooner with unchanged byte/event ratios. Default 1, clamped >= 1. */
     inline uint32_t _time_scale() {
         static const uint32_t scale = []() -> uint32_t {
             const char* s = getenv("BOTANIK_TIME_SCALE");
@@ -129,8 +127,7 @@ namespace Botanik { namespace HAL {
         return 0;
     }
 
-    /** @brief Total allocated stack size for the calling thread (not the used
-     *  amount). */
+    /** @brief Total allocated stack size for the calling thread (not the used amount). */
     inline uint32_t get_stack_depth() {
         pthread_t self = pthread_self();
         pthread_attr_t attr;
@@ -288,21 +285,17 @@ namespace Botanik { namespace HAL {
         /** @name State
          *  @{ */
 
-        /** @brief Input file descriptor (-1 if unbound). */
-        int _fd_in = -1;
-        /** @brief Output file descriptor (-1 if unbound). */
-        int _fd_out = -1;
-        /** @brief Configured baud rate (drives the write throttle). */
-        uint32_t _baud = 0;
+        int _fd_in = -1;             ///< -1 if unbound
+        int _fd_out = -1;            ///< -1 if unbound
+        uint32_t _baud = 0;          ///< drives the write throttle
         /** @brief 8N1 slot (us/byte) and its FIFO-deep bank, derived once in begin(). */
         uint64_t _slot_us = 0;
         uint64_t _max_bank_us = 0;
         /** @brief Earliest time (us) the next byte may leave the wire; advanced by one
          *  8N1 slot per byte sent (token bucket, see write()). */
         uint64_t _next_write_us = 0;
-        /** @brief Whether _fd_out is a terminal. False for a file/pipe sink, where
-         *  the UART model (baud throttle + TIOCOUTQ) is bypassed so redirected
-         *  output actually drains. */
+        /** @brief Whether _fd_out is a terminal. False for a file/pipe sink, where the
+         *  UART model (baud throttle + TIOCOUTQ) is bypassed so redirected output drains. */
         bool _out_is_tty = false;
 
         /** @} */
@@ -326,8 +319,7 @@ namespace Botanik { namespace HAL {
             _next_write_us = _now_as<std::chrono::microseconds>();
         }
 
-        /** @brief Read a single byte.
-         *  @return The byte read, or -1 if none is available. */
+        /** @brief Read a single byte; -1 if none available. */
         inline int read() {
             if (_fd_in == -1) return -1;
             uint8_t c;
@@ -335,10 +327,8 @@ namespace Botanik { namespace HAL {
             return -1;
         }
 
-        /** @brief Write a single byte.
-         *  @return 1 on success, or 0 if it couldn't be sent (non-blocking fd: a
-         *  full kernel buffer returns EAGAIN, the byte stays queued and the baud
-         *  throttle isn't advanced). */
+        /** @brief Write a single byte; 1 on success, 0 if it couldn't be sent (non-blocking
+         *  fd: a full kernel buffer EAGAINs, the byte stays queued, throttle not advanced). */
         inline size_t write(uint8_t c) {
             if (_fd_out == -1) return 0;
             ssize_t n = ::write(_fd_out, &c, 1);
@@ -374,9 +364,8 @@ namespace Botanik { namespace HAL {
             }
         }
 
-        /** @brief Whether the output end is an interactive terminal (false for a
-         *  file/pipe sink, or while unbound). Lets callers suppress diagnostic
-         *  output that would otherwise garble a shared console terminal. */
+        /** @brief Whether the output end is an interactive terminal (false for a file/pipe
+         *  sink, or while unbound). Lets callers suppress output that would garble a console. */
         inline bool is_output_tty() const { return _out_is_tty; }
 
         /** @brief Number of bytes currently available to read. */
@@ -422,9 +411,8 @@ namespace Botanik { namespace HAL {
         return (port == MONITOR) ? &monitor : &console;
     }
 
-    /** @brief Whether @p port's output end is an interactive terminal. Lets sinks
-     *  (e.g. MonitorLogWriter) suppress diagnostic output that would otherwise
-     *  garble a console terminal shared with the UI. False for a null port. */
+    /** @brief Whether @p port's output end is an interactive terminal (false for a null
+     *  port). Lets sinks (e.g. MonitorLogWriter) suppress output that would garble the UI. */
     inline bool serial_is_output_tty(const RawSerial* port) {
         return (port != nullptr) && port->is_output_tty();
     }
@@ -489,9 +477,8 @@ namespace Botanik { namespace HAL {
     /** @brief Slot holding the optional reset hook (a single registrant today). */
     inline ResetHook* _reset_hook() { static ResetHook hook = nullptr; return &hook; }
 
-    /** @brief Register a teardown hook invoked by reset() before re-exec, letting a
-     *  subsystem (e.g. the PlcIO emulator thread) clean up first without HAL
-     *  depending on it. Simulator-only. */
+    /** @brief Register a teardown hook invoked by reset() before re-exec, so a subsystem
+     *  (e.g. the emulator thread) cleans up first without HAL depending on it. Sim-only. */
     inline void on_reset(ResetHook hook) { *_reset_hook() = hook; }
 
 

@@ -17,13 +17,10 @@ namespace Botanik {
      *  the terminal UI (status bar + `stats` command). The owning subsystems
      *  outlive it; any member may be null when its subsystem is absent. */
     struct SystemContext {
-        /** @brief Scheduler metrics: tick/overrun counters plus the perf snapshot. */
-        Scheduler::SchedulerContext* scheduler = nullptr;
-        /** @brief PLC link status and log buffers. */
-        PlcIO::PlcSyncContext*       plc       = nullptr;
+        Scheduler::SchedulerContext* scheduler = nullptr;  // tick/overrun + perf snapshot
+        PlcIO::PlcSyncContext*       plc       = nullptr;  // link status + log buffers
 
-        /** @brief Bundle the subsystem contexts (either may be null when absent).
-         *  Defaulted args also serve as the empty default construction. */
+        /** @brief Bundle the subsystem contexts (either may be null when absent). */
         SystemContext(Scheduler::SchedulerContext* sched = nullptr,
                       PlcIO::PlcSyncContext*        plc_ctx = nullptr)
             : scheduler(sched), plc(plc_ctx) {}

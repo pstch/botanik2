@@ -33,7 +33,6 @@
 #include "libbotanik/utils/serial.h"
 #include "libbotanik/utils/time.h"
 
-// Memory-footprint contract (static_asserts pinning the "big" object sizes).
-#include "libbotanik_sizes.h"
+#include "libbotanik_sizes.h"   // static_asserts pinning the "big" object sizes
 
 #endif // LIBBOTANIK_H

@@ -3,8 +3,7 @@
 
 /**
  * @file page.h
- * @brief Page interface - the abstract contract every full-screen terminal
- *        page implements (input handling, focus lifecycle, per-tick update).
+ * @brief Page interface - the contract every full-screen terminal page implements.
  */
 
 #include <cstdint>
@@ -29,20 +28,15 @@ namespace Botanik { namespace Pages {
         /** @name Input
          *  @{ */
 
-        /** @brief Handle a single printable character from the user */
         virtual void handle_text(char c) = 0;
-        /** @brief Handle a batch of printable characters (default: iterate handle_text) */
         virtual void handle_text_batch(const char* buf, uint16_t len) {
             for (uint16_t i = 0; i < len; i++) handle_text(buf[i]);
         }
-        /** @brief Handle a decoded control command from the user.
-         *
-         * `count` is > 1 only for chunkable commands (BACKSPACE / CTRL_D) the parser
-         * coalesced under backpressure; apply them in one pass when possible. */
+        /** @brief Handle a decoded control command. @p count is > 1 only for chunkable
+         *  commands (BACKSPACE / CTRL_D) the parser coalesced under backpressure. */
         virtual void handle_command(Command cmd, uint16_t count = 1) = 0;
-        /** @brief Handle Ctrl+C. Return true if the page consumed it (e.g. cancelled
-         *  an input line); return false to let the terminal apply the default (quit
-         *  on the simulator, a no-op on hardware). Default: not handled. */
+        /** @brief Handle Ctrl+C. Return true if consumed; false lets the terminal apply
+         *  its default (quit on the simulator, no-op on hardware). */
         virtual bool handle_cancel() { return false; }
 
         /** @} */
@@ -50,17 +44,14 @@ namespace Botanik { namespace Pages {
         /** @name Focus & update
          *  @{ */
 
-        /** @brief Called when this page is about to be replaced by another page */
         virtual void deactivate() = 0;
-        /** @brief Called when this page becomes active (screen already cleared) */
+        /** @brief Called when this page becomes active (screen already cleared). */
         virtual void focus() = 0;
-        /** @brief Redraw the page in-place preserving input state (Ctrl+L). Default delegates to focus(). */
+        /** @brief Redraw in-place preserving input state (Ctrl+L). */
         virtual void redraw() { focus(); }
-        /** @brief Called every main-loop tick to update display and state.
-         *
-         * Invoked for *every* page each step (not just the active one) so a page can
-         * drain queued logs into its scrollback in the background. @p active is true
-         * only for the page that owns the screen; inactive pages emit no output. */
+        /** @brief Per-tick update. Invoked for *every* page (not just the active one) so
+         *  a page can drain queued logs in the background. @p active is true only for the
+         *  page owning the screen; inactive pages emit no output. */
         virtual void tick(bool active) = 0;
 
         /** @} */

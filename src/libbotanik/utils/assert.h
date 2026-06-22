@@ -21,17 +21,15 @@
 
 namespace Botanik {
 
-    /** @brief Accessor for the logger assertions report through. Returns a reference
-     *  to a function-local static, which keeps this header-only; set once at startup
-     *  via set_assert_logger (may stay null). */
+    /** @brief Accessor for the assert logger (function-local static keeps this
+     *  header-only; set once via set_assert_logger, may stay null). */
     inline Logs::Logger*& get_assert_logger() {
         static Logs::Logger* logger = nullptr;
         return logger;
     }
 
-    /** @brief Register the logger assertion failures are recorded through. @note the
-     *  logger is a single process-global (function-local static), so with multiple
-     *  firmware instances the last setup() wins - fine for the single-instance model. */
+    /** @brief Register the assert logger. @note a single process-global, so with
+     *  multiple firmware instances the last setup() wins (fine here). */
     inline void set_assert_logger(Logs::Logger* logger) { get_assert_logger() = logger; }
 
     /** @brief Assertion-failure handler (see BOTANIK_ASSERT). */

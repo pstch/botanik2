@@ -31,11 +31,11 @@ namespace Botanik { namespace HAL { namespace Net {
         TCPSocket g_tcp[MAX_TCP]; bool g_tcp_used[MAX_TCP] = {false, false};
 
         // DNS slot table: handle -> {state, addr}. Async callback publishes state.
+        // st: 0 free, 1 pending, 2 ok, 3 failed
         const int MAX_DNS = 4;
         struct DnsSlot { volatile uint8_t st; Ip4 addr; int mbed_handle; DnsHandle id; };
         DnsSlot g_dns[MAX_DNS];
         DnsHandle g_dns_next = 1;
-        // st: 0 free, 1 pending, 2 ok, 3 failed
         void on_dns(DnsSlot* slot, int result, SocketAddress* a) {
             if (result > 0 && a != 0) {
                 nsapi_addr_t na = a->get_addr();
@@ -88,7 +88,6 @@ namespace Botanik { namespace HAL { namespace Net {
         for (int i = 0; i < MAX_DNS; ++i) if (g_dns[i].st == 0) { slot = &g_dns[i]; break; }
         if (slot == 0) return 0;
         slot->id = ++g_dns_next; slot->mbed_handle = 0; slot->st = 1;   // pending before the call
-        // Callback binds slot as a0, then result (a1) and SocketAddress* (a2) from gethostbyname_async.
         nsapi_value_or_error_t r = eth()->gethostbyname_async(
             host, mbed::Callback<void(int, SocketAddress*)>(&on_dns, slot), NSAPI_IPv4);
         if (r == NSAPI_ERROR_OK) return slot->id;        // resolved synchronously; st published
@@ -212,10 +211,10 @@ namespace Botanik { namespace HAL { namespace Net {
         return true;
     }
 
-    // DNS: synchronous getaddrinfo, surfaced through the poll API. The handle encodes the
-    // terminal result directly (no in-flight state on the host): 2 == OK, 3 == FAILED.
-    // Resolved address in a single global slot - safe only because the caller polls
-    // immediately after dns_begin (no interleaved concurrent lookups).
+    // DNS: synchronous getaddrinfo surfaced through the poll API. The handle encodes the
+    // terminal result directly (no in-flight state): 2 == OK, 3 == FAILED. Resolved address
+    // in a single global slot - safe only because the caller polls immediately after
+    // dns_begin (no interleaved concurrent lookups).
     namespace {
         Ip4      g_dns_addr;
         DnsHandle g_dns_next = 1;

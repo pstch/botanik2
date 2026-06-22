@@ -5,14 +5,10 @@
  * @file reader.h
  * @brief AlarmReader - reads the PLC alarm field and drives the model each loop.
  *
- * The loop-facing coordinator for alarms (the counterpart of PlcLogReader for the
- * log ring): each step() reads the raw alarm bitset from the site PLC output
- * payload, hands it to the AlarmModel, and the model dispatches the due ALARM-topic
- * log lines and MQTT notifications. Runtime-sourced (local) alarms are set on the
- * model directly via set_local(); the reader only carries the remote field.
- *
- * Templated on the site payload, which must expose a 64-bit `alarms` bitset member
- * (same contract the StatusPage payload hooks rely on).
+ * Loop-facing coordinator (the PlcLogReader counterpart for alarms): each step() reads
+ * the raw bitset from the site PLC payload and hands it to the AlarmModel. Local alarms
+ * go to the model directly via set_local(); the reader carries only the remote field.
+ * Templated on the site payload, which must expose a 64-bit `alarms` bitset member.
  */
 
 #include <cstdint>

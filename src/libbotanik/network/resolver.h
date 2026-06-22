@@ -6,15 +6,10 @@
  * @brief NameResolver - non-blocking hostname -> IPv4 resolution shared by the
  *        network-using components (NTP, MQTT, ...).
  *
- * Poll-style API via the HAL::Net DNS poll API; the simulator backend uses the host
- * resolver. A caller asks resolve() for a name every tick and gets back either a
- * resolved address now, "pending" (a lookup is in flight, ask again later), or
- * "failed" (back off and retry on a later tick). Nothing blocks the main loop.
- *
- * One fixed-size table backs both jobs (size Config::DNS_CACHE_SIZE): each row holds an
- * in-flight request's handle and the slot dns_poll writes its result into, and a
- * completed row stays as a cache entry that serves later resolve() calls without a
- * fresh lookup.
+ * Poll-style: resolve() returns an address now, PENDING (lookup in flight, ask again),
+ * or FAILED (back off, retry later); nothing blocks the main loop. A fixed-size table
+ * (Config::DNS_CACHE_SIZE) backs it: a row holds an in-flight handle + result slot, and
+ * a completed row stays as a cache entry for later resolve() calls.
  */
 
 #include <cstdint>
@@ -79,11 +74,9 @@ namespace Botanik { namespace Network {
         /** @name Resolution
          *  @{ */
 
-        /** @brief Resolve @p host (a hostname or dotted-decimal IPv4 literal) to an
-         *  IPv4 address without blocking. Returns RESOLVE_OK with @p out filled on a
-         *  literal / cache hit / immediate stack hit; RESOLVE_PENDING if a lookup is
-         *  (now or already) in flight; RESOLVE_FAILED on error or no free slot. The
-         *  caller polls again on later ticks until it gets RESOLVE_OK. */
+        /** @brief Resolve @p host (hostname or IPv4 literal) without blocking. OK with
+         *  @p out filled on a literal / cache / immediate stack hit; PENDING if a lookup
+         *  is in flight; FAILED on error or no free slot. Poll again until OK. */
         ResolveStatus resolve(const char* host, ResolvedAddr* out);
 
         /** @} */

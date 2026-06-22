@@ -5,21 +5,16 @@
  * @file config.h
  * @brief gh_mlb41 overrides for libbotanik_config.h.
  *
- * `#define` any `BOTANIK_<NAME>` here; CMake includes this (build-wide, PUBLIC on the
- * botanik library) before libbotanik_config.h's `#ifndef` defaults, so the value wins
- * for libbotanik and every consumer alike. Only override what this site needs.
+ * CMake includes this (build-wide, PUBLIC on the botanik library) before
+ * libbotanik_config.h's `#ifndef` defaults, so a `#define BOTANIK_<NAME>` here wins
+ * for libbotanik and every consumer alike.
  */
 
-// MQTT topic namespace for this greenhouse's alarm notifications.
 #define BOTANIK_MQTT_TOPIC_PREFIX "botanik/greenhouse"
-
-// Site name, shown in the version command, on the home screen, and in the POST line.
 #define BOTANIK_SITE_NAME "gh_mlb41"
 
-// Networking: this greenhouse's PLC coprocessor publishes the net / NTP / MQTT
-// config blocks, so enable the network stack, SNTP time sync, and the MQTT alarm
-// notifier. Functional on the OPTA hardware build; on the simulator the handlers
-// run but the TCP/IP stack is inert (no sockets), so they stay idle.
+// This greenhouse's PLC publishes the net/NTP/MQTT config blocks, so enable the stack.
+// Functional on OPTA; on the simulator the handlers run but the TCP/IP stack is inert.
 #define BOTANIK_FEATURE_NETWORK 1
 #define BOTANIK_FEATURE_NTP     1
 #define BOTANIK_FEATURE_MQTT    1

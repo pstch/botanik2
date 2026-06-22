@@ -44,7 +44,6 @@ namespace Botanik { namespace Terminal {
     }
 
     void InputParser::_stage_pending_command(InputEvent::Command cmd) {
-        // Start coalescing a chunkable command; identical triggers bump count.
         _pending_cmd          = cmd;
         _pending_cmd_count    = 1;
         _pending_cmd_start_ms = *_timestamp_ms;
@@ -340,11 +339,10 @@ namespace Botanik { namespace Terminal {
                     if (_pending_cmd_count < UINT16_MAX) _pending_cmd_count++;  // saturate, never wrap
                     continue;
                 }
-                // Coalescing is IDLE-only: a chunkable byte (DEL/Ctrl+D) that arrives while
-                // an escape sequence is still in flight (rare - escapes come atomically, and
-                // ANSI_CMD_TIMEOUT_MS bounds a split one) is emitted-and-left here, then runs
-                // through the FSM next parse(). That keeps the parser single-byte; restructuring
-                // it to fold such a byte back into the coalescer isn't worth the FSM risk.
+                // Coalescing is IDLE-only: a chunkable byte arriving mid-escape (rare;
+                // escapes come atomically, ANSI_CMD_TIMEOUT_MS bounds a split one) is
+                // emitted-and-left, then runs through the FSM next parse(). Keeps the
+                // parser single-byte.
                 _emit_pending_command();
                 return _event;
             }

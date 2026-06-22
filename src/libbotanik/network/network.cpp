@@ -2,9 +2,8 @@
  * @file network.cpp
  * @brief NetworkHandler / TimeSyncHandler implementations.
  *
- * Bring-up goes through HAL::Net::link_configure/link_status/link_ip; the HAL
- * backend handles Mbed vs. BSD sockets. On the sim link_status() returns LINK_UP
- * immediately, so NET_SETUP -> NET_RUNNING on the next step.
+ * Bring-up goes through HAL::Net (Mbed vs. BSD handled by the backend). On the sim
+ * link_status() returns LINK_UP immediately, so NET_SETUP -> NET_RUNNING next step.
  */
 
 #include <cstring>
@@ -56,7 +55,7 @@ namespace Botanik { namespace Network {
     }
 
     void NetworkHandler::on_config_changed(uint64_t now_ms) {
-        // Config changed: clear the resolver cache, disconnect, then re-bring-up (or idle).
+        // Clear the resolver cache, then re-bring-up (or idle).
         _unwire_resolver();
         const PlcIO::PlcOutputConfig_t* c = config();
         if (c == nullptr || c->net.serial == 0) {

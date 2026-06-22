@@ -55,14 +55,14 @@ namespace Botanik { namespace Health {
         bool     _watchdog_ok    = true; // cached verdict (see watchdog_ok())
         bool     _post_ok        = false;
         bool     _posted         = false; // POST has run (fires on the first step())
-        // BOTANIK_NO_LOAD_ALARMS: hold the CPU_* load alarms cleared (sim/test only,
-        // for deterministic screen goldens). env_u8 reads 0 on OPTA, so it is off there.
+        // BOTANIK_NO_LOAD_ALARMS: hold the CPU_* load alarms cleared for deterministic
+        // screen goldens (sim/test only; env_u8 reads 0 on OPTA).
         bool     _no_load_alarms = Utils::env_u8("BOTANIK_NO_LOAD_ALARMS", 0) != 0;
         /** @} */
 
     public:
-        /** @brief Build the notifier + model around the site PLC alarm table (the
-         *  generic platform-health alarms are appended by the model). */
+        /** @brief Build the notifier + model around the site PLC alarm table (the model
+         *  appends the platform-health alarms). */
         HealthMonitor(const Alarms::AlarmCondition* table, uint8_t count,
                       Logs::Logger* logger,
                       const Scheduler::SchedulerContext* sched,
@@ -84,19 +84,16 @@ namespace Botanik { namespace Health {
         bool                watchdog_ok() const { return _watchdog_ok; }
         /** @} */
 
-        /** @brief Per beat: on the first beat run POST (now that the sinks are
-         *  registered), then assert the platform-health alarms, update the watchdog
-         *  verdict, and advance the model with the (already-fresh) remote bitset.
-         *  @p now is the current uptime in ms. */
+        /** @brief Per beat: on the first beat run POST (sinks now registered), then assert
+         *  the platform alarms, update the watchdog verdict, advance the model with the
+         *  remote bitset. @p now is the current uptime in ms. */
         void step(uint64_t remote_raw, uint32_t rx_torn, uint64_t now) {
             announce_step(_logger, "HealthMonitor");
             if (!_posted) { _posted = true; _post(); }
             _assert_platform_alarms(now);
 #if BOTANIK_FEATURE_PLC
-            // Runtime self-test: a rising cross-core torn-read count raises RX_TORN.
-            // Should never fire - the PLC handshake upholds mutual exclusion - so it is
-            // a loud latched diagnostic if the contract is ever violated. (Without the
-            // PLC feature rx_torn is always 0, so this is gated out entirely.)
+            // A rising cross-core torn-read count raises RX_TORN: should never fire (the
+            // handshake upholds mutual exclusion), so it is a loud latched diagnostic.
             _held_event("RX_TORN", rx_torn, _rx_torn_last, _rx_torn_until_ms, now);
 #else
             (void)rx_torn;
@@ -106,10 +103,9 @@ namespace Botanik { namespace Health {
         }
 
     private:
-        /** @brief Power-on self-test, run once on the first step() (by which point the
-         *  sinks are registered, so its verdict is actually logged). Validates cheap
-         *  structural invariants over the stored PLC regions and logs the result. A
-         *  failure is loud (CRITICAL) but does NOT withhold the watchdog. */
+        /** @brief Power-on self-test, run once on the first step() (sinks registered, so
+         *  the verdict is logged). Validates cheap structural invariants over the PLC
+         *  regions. A failure is loud (CRITICAL) but does NOT withhold the watchdog. */
         void _post() {
             bool ok = true;
             // The platform codes the firmware asserts must resolve in the merged table,
@@ -120,7 +116,6 @@ namespace Botanik { namespace Health {
                 if (_model.index_of(code) < 0) { ok = false; _post_fail("alarm code missing", code); }
 #if BOTANIK_FEATURE_PLC
             // The PLC shared region must be present and 32-byte aligned (cache/DMA).
-            // (Without the PLC feature there is no region - the firmware passes null.)
             if (_in_region == nullptr || _out_region == nullptr) {
                 ok = false; _post_fail("PLC region null", "");
             } else if (((uintptr_t)_in_region % 32u) != 0 || ((uintptr_t)_out_region % 32u) != 0) {
@@ -141,17 +136,15 @@ namespace Botanik { namespace Health {
             if (_logger) _logger->critical(PlcIO::HEALTH, "POST: %s %s", what, detail);
         }
 
-        /** @brief Raise/clear the generic platform-health alarms from the scheduler
-         *  metrics. SYS_RST holds for the first five minutes after boot; CPU_LOAD /
-         *  CPU_JITT / STACK are level-driven; CPU_XRUN is held for a window after each
-         *  overrun (a proper latched state set in the source, not a one-beat pulse). */
+        /** @brief Raise/clear the platform alarms from the scheduler metrics. SYS_RST
+         *  holds for the first five minutes; CPU_LOAD / CPU_JITT / STACK are level-driven;
+         *  CPU_XRUN is held for a window after each overrun. */
         void _assert_platform_alarms(uint64_t now) {
             _model.set_local("SYS_RST", now < 300000);
             if (_sched == nullptr) return;
             const uint32_t period_us = Config::TASK_PERIOD_MS * 1000u;
-            // The CPU_* load alarms fire at host-timing-dependent moments; under
-            // BOTANIK_NO_LOAD_ALARMS hold them cleared so the active set is stable
-            // for screen goldens. SYS_RST and STACK are unaffected.
+            // Under BOTANIK_NO_LOAD_ALARMS hold the CPU_* load alarms cleared so the
+            // active set is stable for screen goldens (SYS_RST / STACK unaffected).
             const bool load = !_no_load_alarms;
             _model.set_local("CPU_LOAD", load &&
                 (uint64_t)_sched->cpu_loop_us_recent * 100u
@@ -166,8 +159,7 @@ namespace Botanik { namespace Health {
         }
 
         /** @brief Hold a momentary "event" alarm active for ALARM_EVENT_HOLD_MS after
-         *  its @p counter ticks (a proper latched state in the source, not a one-beat
-         *  pulse that would depend on the table's latch_s). */
+         *  its @p counter ticks (latched in the source, not via the table's latch_s). */
         void _held_event(const char* code, uint32_t counter, uint32_t& last,
                          uint64_t& until_ms, uint64_t now) {
             if (counter != last) { last = counter; until_ms = now + Config::ALARM_EVENT_HOLD_MS; }
@@ -175,8 +167,8 @@ namespace Botanik { namespace Health {
         }
 
         /** @brief Timed-escalation watchdog verdict: keep kicking while healthy and
-         *  through a transient PLC fault; withhold (and log the reboot, once) only once
-         *  a fault persists past PLC_FAULT_GRACE_MS. */
+         *  through a transient PLC fault; withhold (log the reboot once) only once a
+         *  fault persists past PLC_FAULT_GRACE_MS. */
         void _update_watchdog(uint64_t now) {
             if (_plc == nullptr || !_plc->faulted()) {
                 _fault_since_ms = 0;

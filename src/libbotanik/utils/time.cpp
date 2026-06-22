@@ -15,18 +15,15 @@ namespace Botanik { namespace Utils {
     // Rollover projection
     // ------------------------------------------------------------------------
 
-    // Project a ms timestamp into the given window (uptime)
     uint64_t _project_rollover(uint64_t uptime, uint32_t timestamp) {
         int32_t diff = (int32_t)(timestamp - (uint32_t)(uptime & 0xFFFFFFFFULL));
         return (uint64_t)((int64_t)uptime + diff);
     }
 
-    // Project a ms timestamp into the current rollover window.
     uint64_t absolute_ms(uint32_t timestamp_ms) {
         return _project_rollover(HAL::uptime_ms(), timestamp_ms);
     }
 
-    // Project a µs timestamp into the current rollover window.
     uint64_t absolute_us(uint32_t timestamp_us) {
         return _project_rollover(HAL::uptime_us(), timestamp_us);
     }
@@ -34,20 +31,18 @@ namespace Botanik { namespace Utils {
     // Calendar conversion & formatting
     // ------------------------------------------------------------------------
 
-    // Wall-clock epoch as UNIX ms at uptime 0, captured once on first use. 
-    // NOTE: `wall_now - uptime_now` is invariant, because wall and uptime
-    //       advance together, so sampling it lazily is fine.
+    // Wall-clock epoch as UNIX ms at uptime 0, captured once. `wall_now - uptime_now` is
+    // invariant (both advance together), so sampling it lazily is fine.
     static int64_t _boot_epoch_ms() {
         static const int64_t epoch = (int64_t)HAL::wall_clock_ms() - (int64_t)HAL::uptime_ms();
         return epoch;
     }
 
-    // Map an uptime-domain ms timestamp onto wall-clock UNIX ms.
     static uint64_t _wall_ms(uint64_t timestamp_ms) {
         return (uint64_t)(_boot_epoch_ms() + (int64_t)timestamp_ms);
     }
 
-    // Public domain-crossing helpers (uptime ms <-> UNIX ms), inverse of each other.
+    // Domain-crossing helpers (uptime ms <-> UNIX ms), inverse of each other.
     uint64_t unix_ms_from_uptime_ms(uint64_t uptime_ms) {
         return _wall_ms(uptime_ms);
     }
@@ -57,7 +52,6 @@ namespace Botanik { namespace Utils {
 
     // Convert absolute timestamp to UTC calendar datetime.
     CalendarTime cal_time_ms(uint64_t timestamp_ms) {
-        // measure wall time and count days since UNIX epoch
         uint64_t wall_ms     = _wall_ms(timestamp_ms);
         uint64_t total_secs  = wall_ms / 1000;
         uint64_t secs_of_day = total_secs % 86400;
@@ -74,7 +68,6 @@ namespace Botanik { namespace Utils {
         uint32_t m   = mp < 10 ? mp + 3 : mp - 9;                        // [1, 12]
         int64_t  y   = (int64_t)yoe + era * 400 + (m <= 2);
 
-        // build a normalized CalendarTime from the computed values
         CalendarTime result;
         result.year        = (uint16_t)y;
         result.month       = (uint8_t)m;
@@ -83,8 +76,8 @@ namespace Botanik { namespace Utils {
         result.minute      = (uint8_t)((secs_of_day % 3600) / 60);
         result.second      = (uint8_t)(secs_of_day % 60);
 
-        // sub-second comes straight from the wall-clock ms now that we carry a
-        // real boot epoch - so even boot-time entries get their true fraction.
+        // sub-second straight from the wall-clock ms (a real boot epoch, so even
+        // boot-time entries get their true fraction).
         result.millisecond = (uint16_t)(wall_ms % 1000);
         result.unixSeconds = total_secs;
         result.unixDays    = (uint32_t)days;
@@ -96,7 +89,7 @@ namespace Botanik { namespace Utils {
         CalendarTime time_info = cal_time_ms(timestamp_ms);
         snprintf(
             buf, len, "%02u/%02u/%02u %02u:%02u:%02u.%03u",
-            time_info.year % 100, // 2-digit year
+            time_info.year % 100,
             time_info.month, time_info.day,
             time_info.hour, time_info.minute, time_info.second, time_info.millisecond
         );

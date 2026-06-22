@@ -12,27 +12,18 @@
 
 namespace Botanik { namespace Utils {
 
-    // These utilities provides some standard utility functions to work with the
-    // different ways we use to represent time :
-    //  - UNIX timestamps, stored as uint64_t on this platform
-    //  - absolute millisecond/microsecond uptime counters, stored as uint64_t
-    //  - rolling-over millisecond/microsecond uptime counters, stored as uint32_t
-    //
-    // Some components of our firmware record and transmit 32-bit rolling-over counters
-    // without additional context, and we need to project them into the current rollover
-    // window, assuming that they refer to events that occurred in a rollover window
-    // centered on current time. This namespace provides functions to handle this projection
-    // (absolute_ms() and absolute_us()), as well a some standard formatting/conversion
-    // functions.
+    // Three time representations: UNIX timestamps (uint64), absolute ms/us uptime
+    // (uint64), and rolling-over 32-bit ms/us uptime. Some components record bare 32-bit
+    // counters; absolute_ms()/absolute_us() project them into the rollover window
+    // centered on now. Plus the usual conversion/formatting helpers.
 
     /** @name Types
      *  @{ */
 
-    /** @brief A 32-bit millisecond timestamp that wraps every ~49 days (e.g. the
-     *  PLC loop clock). Deliberately a distinct type with only wrap-safe elapsed
-     *  subtraction: you can't compare it with a bare `>`, mix it with the
-     *  monotonic 64-bit HAL::uptime_ms(), or do non-wrap-safe `now > then + d`.
-     *  Construct explicitly from the raw counter; read `.ms` for the raw value. */
+    /** @brief A 32-bit ms timestamp that wraps every ~49 days (e.g. the PLC loop clock).
+     *  A distinct type offering only wrap-safe elapsed subtraction: no bare `>`, no
+     *  mixing with the monotonic 64-bit HAL::uptime_ms(). Construct from the raw counter;
+     *  read `.ms` for the raw value. */
     struct Millis32 {
         uint32_t ms = 0;
         Millis32() = default;
@@ -43,20 +34,18 @@ namespace Botanik { namespace Utils {
         bool operator!=(Millis32 o) const { return ms != o.ms; }
     };
 
-    /** @brief Calendar time struct, without the idiosyncracies from the standard tm struct
-     * and with some additional fields for total days and milliseconds */
+    /** @brief Calendar time, without the tm struct's idiosyncrasies and with extra
+     *  total-days / -seconds fields. */
     struct CalendarTime {
-        // standard calendar fields
-        uint16_t    year;               // full calendar year, e.g. 2026
-        uint8_t     month;              // month of current year, 1-indexed
-        uint8_t     day;                // day of current month, 1-indexed
-        uint8_t     hour;               // hour of current day, 0-indexed
-        uint8_t     minute;             // minute of current hour, 0-indexed
-        uint8_t     second;             // second of current minute, 0-indexed
-        uint16_t    millisecond;        // millisecond of current second, 0-indexed
-        // monotonic counters
-        uint32_t    unixDays;           // days after UNIX epoch, 0-indexed
-        uint64_t    unixSeconds;        // seconds after UNIX epoch, 0-indexed
+        uint16_t    year;               // full year, e.g. 2026
+        uint8_t     month;              // 1-indexed
+        uint8_t     day;                // 1-indexed
+        uint8_t     hour;               // 0-indexed
+        uint8_t     minute;             // 0-indexed
+        uint8_t     second;             // 0-indexed
+        uint16_t    millisecond;        // 0-indexed
+        uint32_t    unixDays;           // days since the UNIX epoch
+        uint64_t    unixSeconds;        // seconds since the UNIX epoch
     };
 
     /** @} */
@@ -64,22 +53,15 @@ namespace Botanik { namespace Utils {
     /** @name Rollover projection
      *  @{ */
 
-    /** @brief Convert a 32-bit uptime timestamp to an absolute 64-bit timestamp,
-     *  assuming the given timestamp occurs in the rollover window centered on the
-     *  given absolute timestamp.
-     *  @note Only correct for a timestamp within +/-half a window of @p uptime
-     *  (+/-~24.8 days for ms, +/-~35.7 min for µs). */
+    /** @brief Project a 32-bit @p timestamp into the rollover window centered on @p uptime.
+     *  @note Only correct within +/-half a window (+/-~24.8 days for ms, +/-~35.7 min for µs). */
     uint64_t _project_rollover(uint64_t uptime, uint32_t timestamp);
 
-    /** @brief Project a rolling-over ms uptime counter into the current rollover window.
-     *  @note Only correct for a timestamp within +/-half a window of @p uptime
-     *  (+/-~24.8 days for ms, +/-~35.7 min for µs). */
+    /** @brief Project a rolling-over ms uptime counter into the current window (see _project_rollover). */
     uint64_t absolute_ms(uint32_t timestamp_ms);
 
-    /** @brief Project a rolling-over ms uptime counter into the current rollover window.
-     *  @note Only correct for a timestamp within +/-half a window of @p uptime
-     *  (+/-~24.8 days for ms, +/-~35.7 min for µs). 
-     *  @warning see warning in uptime_ms() about the µs precision of the low-power clock. */
+    /** @brief Project a rolling-over µs uptime counter into the current window.
+     *  @warning see uptime_ms() about the µs precision of the low-power clock. */
     uint64_t absolute_us(uint32_t timestamp_us);
 
     /** @} */
@@ -87,10 +69,9 @@ namespace Botanik { namespace Utils {
     /** @name Calendar conversion & formatting
      *  @{ */
 
-    /** @brief Map an uptime-domain ms instant onto wall-clock UNIX ms, and back.
-     *  These are the boot-epoch projection cal_time_ms() uses, exposed for callers
-     *  that need to cross between the two domains (e.g. turning a computed sun-event
-     *  UNIX instant back into an uptime timestamp comparable to HAL::uptime_ms()). */
+    /** @brief Map an uptime-domain ms instant onto wall-clock UNIX ms, and back (the
+     *  boot-epoch projection cal_time_ms() uses, for callers crossing the two domains -
+     *  e.g. a sun-event UNIX instant back into an uptime timestamp). */
     uint64_t unix_ms_from_uptime_ms(uint64_t uptime_ms);
     uint64_t uptime_ms_from_unix_ms(uint64_t unix_ms);
 

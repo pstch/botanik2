@@ -5,19 +5,13 @@
  * @file config_handler.h
  * @brief ConfigHandler - base for PLC-config-driven step handlers.
  *
- * Several components share one shape: each owns a small state machine that must restart
- * whenever the operator changes its slice of the PLC config. The config blocks each
- * carry a `serial` the PLC bumps on any edit (plcio/config.h), so this base watches that
- * serial and, on a change, resets the derived machine before stepping it. That
- * reset-on-serial-change logic then lives here once instead of in every handler.
- *
- * Consumers: Network::NetworkHandler (the `net` block), Network::TimeSyncHandler (`ntp`),
- * and the future sun-position tracker (`geo`).
+ * Each config block carries a `serial` the PLC bumps on any edit (plcio/config.h);
+ * this base watches it and resets the derived state machine before stepping it on a
+ * change. Consumers: NetworkHandler (`net`), TimeSyncHandler (`ntp`), SunPositionTracker (`geo`).
  *
  * Template Method: step() is non-virtual and fixes the order (read serial -> reset on
- * change -> advance), so a handler can't skip or reorder it. A handler implements three
- * hooks: config_serial() (which block's serial), on_config_changed() (reset + latch the
- * new config), and on_step() (advance the state machine).
+ * change -> advance). Hooks: config_serial(), on_config_changed() (reset + latch new
+ * config), on_step() (advance).
  */
 
 #include <cstdint>
@@ -28,13 +22,12 @@
 
 namespace Botanik {
 
-    /** @brief Base for a PLC-config-driven state machine: resets on a config-serial bump.
-     *  Also a Component, so it announces its first step() into the log. */
+    /** @brief Base for a PLC-config-driven state machine: resets on a config-serial bump. */
     class ConfigHandler : public Component {
         /** @name State
          *  @{ */
 
-        /** @brief Last config serial acted on (0 = none yet; matches the unset block,
+        /** @brief Last config serial acted on (0 = none yet, matches the unset block,
          *  so a never-configured block never triggers a reset). */
         uint32_t _applied_serial;
 
@@ -44,12 +37,9 @@ namespace Botanik {
         /** @name Wiring (for the derived handler)
          *  @{ */
 
-        /** @brief PLC sync context exposing the config blocks (may be null in tests). */
-        PlcIO::PlcSyncContext* _ctx;
-        /** @brief Logger for handler events (may be null). */
-        Logs::Logger*          _logger;
-        /** @brief Short component label for the first-step announce. */
-        const char*            _name;
+        PlcIO::PlcSyncContext* _ctx;     // config blocks (may be null in tests)
+        Logs::Logger*          _logger;  // may be null
+        const char*            _name;    // first-step announce label
 
         /** @} */
 
@@ -61,11 +51,10 @@ namespace Botanik {
             : _applied_serial(0), _ctx(ctx), _logger(logger), _name(name) {}
         virtual ~ConfigHandler() {}
 
-        /** @brief Advance the handler one tick: announce the first step, then if the
-         *  watched config serial changed reset the derived machine (on_config_changed)
-         *  before stepping it (on_step). Non-virtual so the read/reset/step order can't
-         *  be skipped or reordered. The serial lives in the main-loop RX snapshot, so it
-         *  is read without a barrier. */
+        /** @brief Advance one tick: announce, then on a config-serial change reset
+         *  (on_config_changed) before stepping (on_step). Non-virtual so the
+         *  read/reset/step order can't be reordered. The serial is in the main-loop RX
+         *  snapshot, so read without a barrier. */
         void step(uint64_t now_ms) {
             announce_step(_logger, _name);
             uint32_t serial = config_serial();
@@ -90,13 +79,11 @@ namespace Botanik {
         /** @name Hooks (implemented by the handler)
          *  @{ */
 
-        /** @brief Return the serial of the config block this handler watches
-         *  (e.g. config()->net.serial). 0 means "no config yet". */
+        /** @brief Serial of the watched config block (e.g. config()->net.serial; 0 = none). */
         virtual uint32_t config_serial() const = 0;
-        /** @brief Reset the state machine and latch the new config. Called when the
-         *  watched serial changes (including the first non-zero value). */
+        /** @brief Reset and latch the new config (on a watched-serial change). */
         virtual void on_config_changed(uint64_t now_ms) = 0;
-        /** @brief Advance the state machine one tick (called every step). */
+        /** @brief Advance the state machine one tick. */
         virtual void on_step(uint64_t now_ms) = 0;
 
         /** @} */

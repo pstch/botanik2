@@ -3,9 +3,7 @@
  * @brief The generic platform-health alarm table (see platform.h).
  *
  * Codes match those BotanikFirmware::loop() asserts via AlarmModel::set_local().
- * They latch active for 5 min (300 s) after they clear; the static suffix is the
- * dwell thresholds (seconds; -1 disables), then recent_s (0 = default) and latch_s.
- * The dynamic suffix is left zeroed (model-owned).
+ * Suffix: dwell thresholds (s; -1 disables), recent_s (0 = default), latch_s.
  */
 
 #include "libbotanik/alarms/platform.h"
@@ -18,9 +16,8 @@ namespace Botanik { namespace Alarms {
         // code        description                       mask logOn logOff mqttOn mqttOff recent latch
         {"SYS_RST",  "Reset in the last five minutes",   0,   -1,   0,     -1,    -1},
         // CPU_XRUN / RX_TORN: HealthMonitor holds these momentary events active for
-        // ALARM_EVENT_HOLD_MS in the source (a proper latched state), so their table
-        // latch_s is 0 - no double-latching. RX_TORN logs a START at once (it should
-        // never fire: a cross-core torn read is a handshake violation).
+        // ALARM_EVENT_HOLD_MS in the source, so their table latch_s is 0 (no
+        // double-latching). RX_TORN logs a START at once (a torn read should never fire).
         {"CPU_XRUN", "Scheduler overrun (skipped beat)", 0,   0,    -1,    -1,    -1,     0,     0},
         {"CPU_LOAD", "CPU load over threshold",          0,   5,    5,     -1,    -1,     0,     300},
         {"STACK",    "Stack usage over threshold",       0,   5,    5,     -1,    -1,     0,     300},

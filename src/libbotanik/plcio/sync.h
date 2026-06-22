@@ -35,25 +35,21 @@ namespace Botanik { namespace PlcIO {
 
     /** @brief Reader state enumeration */
     enum PlcRxState {
-        RX_IDLE,                                    // wait for a new write message from the other side
-        RX_READ,                                    // read data from the PLC's output shared memory
-        RX_ACK                                      // acknowledge the write message from the other side
+        RX_IDLE,
+        RX_READ,
+        RX_ACK
     };
 
     /** @brief Writer state enumeration */
     enum PlcTxState {
-        TX_WRITE,                                   // write data to the PLC's input shared memory
+        TX_WRITE,
         TX_COMMIT,                                  // commit a write (or send heartbeat pulse)
-        TX_WAIT,                                    // wait for the last commit to be acknowledged
-        TX_IDLE                                     // wait for a new write to be requested
-                                                    //  (or for the heartbeat interval to elapse)
+        TX_WAIT,
+        TX_IDLE                                     // wait for a write request (or heartbeat interval)
     };
 
     /** @} */
 
-    // Non-template context object. Holds the parts of PlcSyncHandler that are
-    // independent of the payload types: log buffers, TX-write flag, timing state,
-    // and the stable public interface consumed by PlcLogReader and Page classes.
     /** @brief Payload-independent PLC sync state (log buffers, link timing, status),
      *  shared with log readers and pages without exposing the templated handler. */
     struct PlcSyncContext {
@@ -62,41 +58,30 @@ namespace Botanik { namespace PlcIO {
         /** @name State
          *  @{ */
 
-        /** @brief A TX write has been requested by the application. */
         bool             _tx_write       = false;
-        /** @brief Local copy of the PLC output log buffer. */
         PlcOutputLogs_t  _rx_logs_buffer = {};
-        /** @brief Local copy of the PLC input log buffer. */
         PlcInputLogs_t   _tx_logs_buffer = {};
-        /** @brief Local copy of the PLC's generic config block (network/NTP/MQTT). */
-        PlcOutputConfig_t _rx_config_buffer = {};
-        /** @brief Shared loop timestamp (ms), published by the scheduler; read-only. */
-        const uint32_t*  _timestamp_ms   = nullptr;
+        PlcOutputConfig_t _rx_config_buffer = {};  ///< PLC's generic config (network/NTP/MQTT)
+        const uint32_t*  _timestamp_ms   = nullptr;  ///< shared loop clock (ms), read-only
         /** @brief Time of the last acknowledged TX (wrap-safe loop-clock stamp). */
         Utils::Millis32  _tx_last_ms;
-        /** @brief Elapsed threshold (ms) before PLC_TIMEOUT is reported. */
-        uint32_t         _timeout_ms     = Config::PLC_TIMEOUT_MS;
-        /** @brief Elapsed threshold (ms) before PLC_FAULT is reported. */
-        uint32_t         _watchdog_ms    = Config::PLC_WATCHDOG_MS;
-        /** @brief True once any TX has ever been acknowledged. */
+        uint32_t         _timeout_ms     = Config::PLC_TIMEOUT_MS;  ///< elapsed before PLC_TIMEOUT
+        uint32_t         _watchdog_ms    = Config::PLC_WATCHDOG_MS; ///< elapsed before PLC_FAULT
         bool             _ever_ackd      = false;
-        /** @brief Logger for link status changes (may be null). */
-        Logs::Logger*    _logger         = nullptr;
-        /** @brief Last reported status, for change detection. */
-        PlcStatus        _last_status    = PLC_UNKNOWN;
+        Logs::Logger*    _logger         = nullptr;  ///< link status changes (may be null)
+        PlcStatus        _last_status    = PLC_UNKNOWN;  ///< for change detection
 
         /** @name Diagnostics (set by the handler ctor; surfaced by the `plc` command)
          *  @{ */
         const void*      _in_region      = nullptr;  // PLC input region (we write, PLC reads)
         const void*      _out_region     = nullptr;  // PLC output region (PLC writes, we read)
-        uint32_t         _in_size        = 0;        // sizeof the input region
-        uint32_t         _out_size       = 0;        // sizeof the output region
+        uint32_t         _in_size        = 0;
+        uint32_t         _out_size       = 0;
         const uint32_t*  _torn_ptr       = nullptr;  // -> handler's live torn-read counter
         const PlcInputCounters_t*  _in_sync  = nullptr;  // host-written handshake counters (live)
         const PlcOutputCounters_t* _out_sync = nullptr;  // PLC-written handshake counters (live)
         /** @} */
 
-        /** @brief The shared loop clock as a wrap-safe Millis32 stamp. */
         Utils::Millis32  _now() const { return Utils::Millis32(*_timestamp_ms); }
 
         /** @} */
@@ -186,20 +171,13 @@ namespace Botanik { namespace PlcIO {
         /** @} */
     };
 
-    // This class provides logic to safely interact with the PLC's shared memory,
-    // even in the case where we cannot assume that the PLC runtime uses ordered
-    // memory accesses to interact with the input/output shared memory ranges.
+    // Two state machines (RX from the PLC output range, TX to its input range) using
+    // explicit in-order ops and a transactional seq/ack model, so it is safe even when
+    // the PLC runtime doesn't order its accesses to the shared ranges.
     //
-    // The synchronization handler is implemented as two distinct state machines,
-    // one handles reading data from the PLC's output range, and one handles
-    // writing data to the PLC's input range. Both the reader and the writer use
-    // explicit in-order operations and a transactional model implemented using
-    // sequence/acknowledgment counters.
-    //
-    // InputData and OutputData are the user-supplied site-specific payload types.
-    // They must be trivially copyable. The combined PlcInput<InputData> /
-    // PlcOutput<OutputData> memory layout must match the PLC IDE's generated types
-    // (verified on OPTA by a static_assert in the user's sketch).
+    // InputData/OutputData are the site payloads, trivially copyable. The combined
+    // PlcInput/PlcOutput layout must match the PLC IDE's generated types (verified on
+    // OPTA by a static_assert in the user's sketch).
     /** @brief Transactional RX/TX state machines over PLC shared memory, templated
      *  on the site payloads. See @ref md_docs_2PLC__SYNC. */
     template<typename InputData, typename OutputData>
@@ -212,26 +190,16 @@ namespace Botanik { namespace PlcIO {
         //   TxSeqNum/TxAckNum -> our RX (PLC output data)
         //   RxSeqNum/RxAckNum -> our TX (PLC input data)
 
-        /** @brief Payload-independent context (logs, timing, status). */
         PlcSyncContext         _ctx;
-        /** @brief Heartbeat/commit interval (ms). */
         uint32_t               _heartbeat_ms  = Config::PLC_HEARTBEAT_MS;
-        /** @brief Last commit/heartbeat pulse (for re-commit on stall). */
-        Utils::Millis32        _tx_commit_ms;
-        /** @brief PLC input memory (write-only). */
-        PlcInput<InputData>*   _plcin;
-        /** @brief PLC output memory (read-only). */
-        PlcOutput<OutputData>* _plcout;
-        /** @brief Local receive buffer for _plcout->data. */
+        Utils::Millis32        _tx_commit_ms;  ///< last commit/heartbeat pulse (re-commit on stall)
+        PlcInput<InputData>*   _plcin;         ///< PLC input memory (write-only)
+        PlcOutput<OutputData>* _plcout;        ///< PLC output memory (read-only)
         OutputData             _rx_data_buffer;
-        /** @brief Local transmit buffer for _plcin->data. */
         InputData              _tx_data_buffer;
-        /** @brief RX state-machine state. */
         PlcRxState             _rx_state      = RX_IDLE;
-        /** @brief TX state-machine state. */
         PlcTxState             _tx_state      = TX_WRITE;
-        /** @brief Count of RX snapshots discarded as torn (PLC bumped seq mid-copy). */
-        uint32_t               _rx_torn       = 0;
+        uint32_t               _rx_torn       = 0;  ///< RX snapshots discarded as torn (seq bumped mid-copy)
         /** @brief PLC's stale rxAckNum read at bind, used to reject a stale-coincidence
          *  ack at first contact (before any real ack is observed). */
         uint32_t               _ack_baseline  = 0;

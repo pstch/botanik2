@@ -13,6 +13,8 @@
 #include "libbotanik/utils/serial.h"
 #include "libbotanik/terminal/ansi.h"
 #include "libbotanik/context.h"
+#include "libbotanik/component.h"      // Component (first-step announce)
+#include "libbotanik/logs/logger.h"   // Logs::Logger
 
 #include "libbotanik/pages/page.h"
 
@@ -26,20 +28,16 @@ namespace Botanik { namespace Terminal {
      *         input to the active page, tracks cursor/geometry/attribute state, and
      *         renders the row-0 status bar.
      */
-    class AnsiTerminal {
+    class AnsiTerminal : public Botanik::Component {
         using BufferedSerial = Utils::BufferedSerial;
         using CursorPos = Terminal::Ansi::CursorPos;
 
         /** @name Input & pages
          *  @{ */
 
-        /** @brief Input parser used to read from the remote terminal. */
         InputParser         _parser;
-        /** @brief Child pages multiplexed onto the display. */
-        Pages::Page*        _pages[8];
-        /** @brief Number of registered pages. */
+        Pages::Page*        _pages[8];     /**< Child pages multiplexed onto the display. */
         uint8_t             _pages_len  = 0;
-        /** @brief Active page index. */
         uint8_t             _page_index = 0;
 
         /** @} */
@@ -47,10 +45,9 @@ namespace Botanik { namespace Terminal {
         /** @name External references
          *  @{ */
 
-        /** @brief Buffered serial UART wrapper. */
         BufferedSerial&              _serial;
-        /** @brief Aggregate of subsystem status contexts for the status bar and
-         *  the `stats` command (scheduler + PLC; members may be null). */
+        /** @brief Subsystem status contexts for the status bar and `stats`
+         *  (scheduler + PLC; members may be null). */
         SystemContext                _ctx       = {};
 
         /** @} */
@@ -58,26 +55,19 @@ namespace Botanik { namespace Terminal {
         /** @name Display geometry
          *  @{ */
 
-        /** @brief Display width in columns. */
-        uint16_t            _cols;
-        /** @brief Display height in rows. */
-        uint16_t            _rows;
+        uint16_t            _cols;          /**< Display width in columns. */
+        uint16_t            _rows;          /**< Display height in rows. */
 
         /** @} */
 
         /** @name Hardware terminal state
          *  @{ */
 
-        /** @brief Tracked hardware cursor position. */
-        CursorPos           _hw_pos = {0, 0};
-        /** @brief Reverse-video (inverted) attribute state. */
-        bool                _hw_inverted = false;
-        /** @brief DECAWM auto-wrap state (default: on). */
-        bool                _hw_auto_wrap = true;
-        /** @brief Cursor parked at last col after a row-filling write. */
-        bool                _hw_at_eol = false;
-        /** @brief SM4/RM4 insert mode - toggled lazily by write_chars. */
-        bool                _hw_insert_mode = false;
+        CursorPos           _hw_pos = {0, 0};       /**< Tracked hardware cursor position. */
+        bool                _hw_inverted = false;   /**< Reverse-video attribute state. */
+        bool                _hw_auto_wrap = true;   /**< DECAWM auto-wrap (default: on). */
+        bool                _hw_at_eol = false;     /**< Cursor parked at last col after a row-filling write. */
+        bool                _hw_insert_mode = false; /**< SM4/RM4 insert mode (toggled lazily by write_chars). */
         /** @brief DECTCEM cursor visibility (default: hidden). Pages that want a
          *  visible cursor (only the shell editor today) opt in via
          *  set_cursor_visible() in focus(); switch_to() hides it for everyone else. */
@@ -92,18 +82,15 @@ namespace Botanik { namespace Terminal {
         /** @name Status bar state
          *  @{ */
 
-        /** @brief Last status-metrics refresh (wall clock). */
-        uint64_t            _status_last_ms = 0;
-        /** @brief Visible width (+NUL) of the right-aligned status field
-         *  "PLC:xxx cpu:nnn% stk:nnn% ". Both the build buffer and the diff cache
-         *  are sized from this one constant so they can never drift apart. */
+        uint64_t            _status_last_ms = 0;   /**< Last status-metrics refresh (wall clock). */
+        /** @brief Visible width (+NUL) of the right-aligned field "PLC:xxx cpu:nnn%
+         *  stk:nnn% ". Build buffer and diff cache are sized from this one constant
+         *  so they can never drift apart. */
         static constexpr uint16_t    STATUS_METRICS_LEN = 27;
         /** @brief Diff cache of the last drawn metrics (zero-init forces first draw). */
         char                         _status_metrics_cache[STATUS_METRICS_LEN] = {};
-        /** @brief Last status-bar clock refresh (uptime ms). */
-        uint64_t            _status_clock_last_ms = 0;
-        /** @brief Visible width of the HH:MM:SS clock field (no NUL). */
-        static constexpr uint16_t    STATUS_CLOCK_LEN = 8;
+        uint64_t            _status_clock_last_ms = 0;  /**< Last clock refresh (uptime ms). */
+        static constexpr uint16_t    STATUS_CLOCK_LEN = 8;   /**< HH:MM:SS field width (no NUL). */
         /** @brief Diff cache of the last drawn clock (zero-init forces first draw). */
         char                         _status_clock_cache[STATUS_CLOCK_LEN] = {};
         /** @brief Round-robin cursor over the status-bar fields (0 = clock, 1 = metrics),
@@ -125,6 +112,7 @@ namespace Botanik { namespace Terminal {
         /** @brief Alarm source feeding the bar (may be null). When null there is no
          *  bar, _reserved_bottom stays 0, and the bottom row belongs to pages. */
         const Alarms::AlarmModel*    _alarms = nullptr;
+        Logs::Logger*                _logger = nullptr;  /**< First-step BOOT announce sink (may be null). */
         /** @brief Rows reserved at the screen bottom for the bar: 1 when _alarms is
          *  set, else 0. Subtracted by rows() / _content_bottom(). */
         uint16_t                     _reserved_bottom = 0;
@@ -184,9 +172,9 @@ namespace Botanik { namespace Terminal {
          *  page content area shrinks by one row); null leaves the full screen to pages. */
         AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
                      const uint32_t* timestamp_ms, uint32_t baud, const SystemContext& ctx = {},
-                     const Alarms::AlarmModel* alarms = nullptr);
+                     const Alarms::AlarmModel* alarms = nullptr, Logs::Logger* logger = nullptr);
 
-        /** @brief Process input and update terminal state */
+        /** @brief Process input and update terminal state. */
         void step();
 
         /** @brief Select and initialize the target terminal type. Call once, before
@@ -203,10 +191,8 @@ namespace Botanik { namespace Terminal {
         /** @name Cursor & geometry
          *  @{ */
 
-        /** @brief Move cursor to an absolute position
-         *  @param position Targeted coordinates
-         *  @param skip If true, only update internal state without sending ANSI sequence
-         */
+        /** @brief Move cursor to an absolute position. @p skip updates the internal
+         *  state only, without emitting an ANSI sequence. */
         void move_to(const CursorPos& position, bool skip = false);
 
         /** @brief Get the current logical cursor position */
@@ -227,12 +213,10 @@ namespace Botanik { namespace Terminal {
         /** @name Text output & character attributes
          *  @{ */
 
-        /** @brief Write characters at the current cursor position
-         *  @param buf Buffer to write
-         *  @param len Number of characters to write
-         *  @param insert If true, use insertion mode (shifts existing text right)
-         *  @return Number of characters that actually reached the wire (< len when
-         *          the TX ring filled), so callers can cache only what was drawn. */
+        /** @brief Write characters at the cursor; @p insert uses insertion mode
+         *  (shifts existing text right).
+         *  @return Characters that actually reached the wire (< len when the TX ring
+         *          filled), so callers can cache only what was drawn. */
         uint16_t write_chars(const char *buf, uint16_t len, bool insert = false);
 
         /** @brief Set or clear the reverse-video (inverted) attribute */

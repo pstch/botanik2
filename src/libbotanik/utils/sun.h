@@ -26,10 +26,9 @@ namespace Botanik { namespace Utils {
     /** @name Types
      *  @{ */
 
-    /** @brief A solar event as an absolute uptime-domain ms timestamp, comparable
-     *  to HAL::uptime_ms(). @p valid is false when the event does not occur on the
-     *  day in question (polar day / polar night, at high latitudes); @p time_ms is
-     *  then unspecified. */
+    /** @brief A solar event as an absolute uptime-domain ms timestamp (comparable to
+     *  HAL::uptime_ms()). @p valid is false at polar day/night (no event); @p time_ms
+     *  is then unspecified. */
     struct SunEvent {
         uint64_t time_ms;
         bool     valid;

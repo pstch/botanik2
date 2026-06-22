@@ -21,14 +21,10 @@ namespace Botanik { namespace Pages {
     /**
      * @brief Circular scrollback buffer with throttled, incremental redraw.
      *
-     * Layers a deferred, throttled redraw over a @ref LineBuffer of @p L lines: it
-     * stores recent display lines for replay on redraw/page-switch, emitting at most
-     * SCROLLBACK_ROWS_PER_TICK rows per drain_redraw() so a full replay can't
-     * flood TX in one tick.
-     *
-     * The window is bottom-aligned within rows 1..log_rows (caller-supplied, since
-     * pages differ). Line storage is inherited from LineBuffer. Name it through
-     * @ref ShellScrollback / @ref LogsScrollback rather than directly.
+     * Layers a deferred redraw over a @ref LineBuffer of @p L lines: emits at most
+     * SCROLLBACK_ROWS_PER_TICK rows per drain_redraw() so a full replay can't flood TX
+     * in one tick. The window is bottom-aligned within rows 1..log_rows (caller-
+     * supplied). Name it through @ref ShellScrollback / @ref LogsScrollback.
      */
     template<uint16_t L>
     class Scrollback : public LineBuffer<L, Config::SCROLLBACK_LINE_LEN> {
@@ -54,10 +50,9 @@ namespace Botanik { namespace Pages {
         /** @name Live tail state
          *  @{ */
 
-        /** @brief Stored lines not yet painted to the live tail. Bumped by
-         *  note_pending() when a new line is banked while the page is active, drained
-         *  by drain_tail(). Reset to 0 by begin_redraw()/clear() since a focus replay
-         *  repaints the whole visible window. */
+        /** @brief Stored lines not yet painted to the live tail. Bumped by note_pending()
+         *  while active, drained by drain_tail(). Reset by begin_redraw()/clear() (a focus
+         *  replay repaints the whole window). */
         uint16_t _pending = 0;
 
         /** @} */
@@ -77,8 +72,7 @@ namespace Botanik { namespace Pages {
         /** @name Line storage
          *  @{ */
 
-        /** @brief Forget all stored lines and cancel any pending redraw. Storage
-         *  (store/store_wrapped/line/count) is inherited from LineBuffer. */
+        /** @brief Forget all stored lines and cancel any pending redraw. */
         void clear() {
             Base::clear();          // drop the stored lines
             _redraw_i = UINT16_MAX; // and cancel any pending replay
@@ -93,8 +87,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief Stage a bottom-aligned incremental redraw within rows 1..log_rows */
         void begin_redraw(uint16_t log_rows) {
-            // The content area is cleared by AnsiTerminal before focus()/redraw(),
-            // so we only stage the rows to (re)draw here.
+            // The content area is cleared before focus()/redraw(); we only stage the rows.
             _redraw_i    = UINT16_MAX; // cancel any pending drain
             _pending     = 0;          // the replay repaints the whole visible window
             _view_offset = 0;          // a focus/redraw replay shows the newest lines
@@ -116,17 +109,16 @@ namespace Botanik { namespace Pages {
          *         early if the TX buffer can't fit another row. No-op when idle. */
         void drain_redraw(AnsiTerminal& terminal) {
             if (_redraw_i == UINT16_MAX) return;
-            // Capture the cursor once at the start of the replay, to restore when it
-            // finishes rather than bouncing back every tick.
+            // Capture the cursor once at the start, restored when the replay finishes
+            // (not bounced back every tick).
             if (_redraw_i == 0) _redraw_saved = terminal.cursor_pos();
-            // Emit a small batch per call, stopping early if a worst-case row won't
-            // fit, so the replay can't overrun TX in one tick.
+            // A small batch per call, stopping early if a worst-case row won't fit, so the
+            // replay can't overrun TX in one tick.
             for (uint16_t k = 0; k < Config::SCROLLBACK_ROWS_PER_TICK
                                  && _redraw_i != UINT16_MAX; k++) {
                 if (!terminal.tx_below_cold()) break;
-                // Window row _redraw_i (0 = oldest shown) maps to the line that many
-                // steps up from the newest line of the window, plus the scroll offset
-                // (0 for a focus replay, > 0 when staged scrolled back).
+                // Window row _redraw_i (0 = oldest shown) maps that many steps up from the
+                // window's newest line, plus the scroll offset (0 for a focus replay).
                 uint16_t llen = 0;
                 const char* ln = this->line(
                     (uint16_t)(_redraw_count - _redraw_i + _view_offset), llen);
@@ -138,8 +130,8 @@ namespace Botanik { namespace Pages {
                 terminal.clear_to_eol();
                 if (++_redraw_i >= _redraw_count) _redraw_i = UINT16_MAX;
             }
-            // Restore the cursor only once the whole replay drained; the page holds
-            // off other output while it's pending, and the next batch repositions absolutely.
+            // Restore the cursor only once the whole replay drained (each batch
+            // repositions absolutely, and the page holds off other output meanwhile).
             if (_redraw_i == UINT16_MAX) terminal.move_to(_redraw_saved);
         }
 
@@ -148,31 +140,26 @@ namespace Botanik { namespace Pages {
         /** @name Live tail
          *  @{ */
 
-        /** @brief Scroll the log window (rows @p first_row .. first_row+log_rows-1)
-         *         up by @p n rows and paint the @p n newest stored lines at its bottom.
-         *
-         * The shared "DL the oldest rows at the top, IL the new ones at the bottom"
-         * step for every live-tail page. The caller has already banked the lines and
-         * handles TX back-pressure and cursor repositioning. @p first_row lets a page
-         * keep static content above the window untouched; rows below it are shifted
-         * up by the DL and back down by the IL, so they end up untouched too. */
+        /** @brief Scroll the log window up by @p n rows and paint the @p n newest stored
+         *  lines at its bottom - the shared "DL the oldest rows at the top, IL the new
+         *  ones at the bottom" step. The caller has banked the lines and handles TX
+         *  back-pressure / cursor. @p first_row keeps static content above the window
+         *  untouched (rows below shift up by DL and back down by IL). */
         void emit_tail(AnsiTerminal& terminal, uint16_t n,
                        uint16_t first_row, uint16_t log_rows,
                        uint16_t newest_from_end = 1) {
             if (log_rows == 0 || n == 0) return;
             if (n > log_rows) n = log_rows;  // taller than the window: show newest rows
 
-            // Scroll the window band up by n: drops the n oldest visible rows and
-            // opens n blank slots at the bottom for the incoming lines, leaving rows
-            // above first_row and below the window untouched.
+            // Scroll up by n: drops the n oldest visible rows, opens n blank slots at the
+            // bottom, leaving rows above first_row and below the window untouched.
             terminal.scroll_region(first_row, (uint16_t)(first_row + log_rows - 1),
                                    /*up=*/true, n);
             uint16_t first_slot = (uint16_t)(first_row + log_rows - n);
 
-            // Fill the slots top to bottom with this batch of n lines, oldest first.
-            // The batch's newest line is @p newest_from_end back from the ring's newest
-            // (default 1 = the live tail's most recent line), so slot i gets the line
-            // (newest_from_end + n - 1 - i) steps from newest.
+            // Fill the slots top to bottom, oldest first. The batch's newest line is
+            // @p newest_from_end back from the ring's newest (default 1), so slot i gets
+            // the line (newest_from_end + n - 1 - i) steps from newest.
             for (uint16_t i = 0; i < n; i++) {
                 uint16_t llen = 0;
                 const char* ln = this->line((uint16_t)(newest_from_end + (n - 1) - i), llen);
@@ -185,18 +172,16 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Mark @p n freshly-stored lines as awaiting paint to the live tail.
-         *  Clamped to the stored line count so the watermark never points past the
-         *  oldest retained line. Call only while the page is active (a background page
-         *  repaints from scratch via begin_redraw() on its next focus). */
+         *  Clamped to the stored count so the watermark never points past the oldest line.
+         *  Call only while active (a background page repaints via begin_redraw() on focus). */
         void note_pending(uint16_t n) {
             _pending = (uint16_t)(_pending + n);
             uint16_t cnt = this->count();
             if (_pending > cnt) _pending = cnt;
         }
 
-        /** @brief Bank a (possibly wrapping) line and, when @p active, mark the
-         *  produced rows pending for the paced tail drain. The one-stop entry the
-         *  page log writers share. @return number of rows stored. */
+        /** @brief Bank a (possibly wrapping) line and, when @p active, mark the rows
+         *  pending for the paced tail drain. @return rows stored. */
         uint16_t ingest(const char* buf, size_t len, uint16_t cols,
                         const char* prefix, uint16_t plen, bool active) {
             uint16_t n = this->store_wrapped(buf, len, cols, prefix, plen);
@@ -207,20 +192,17 @@ namespace Botanik { namespace Pages {
         /** @brief Lines stored but not yet painted to the live tail. */
         uint16_t pending() const { return _pending; }
 
-        /** @brief Paint up to LOG_ROWS_PER_TICK of the pending lines into the
-         *  live-tail window (rows @p first_row .. first_row+log_rows-1), oldest first,
-         *  only while the ring is shallow (cold gate). Scrolls the window up and
-         *  appends the batch at the bottom via emit_tail(). The per-tick cap +
-         *  depth gate keep a burst from flooding the TX ring.
-         *  @return true if it painted (caller may then reposition its cursor). */
+        /** @brief Paint up to LOG_ROWS_PER_TICK pending lines into the live-tail window,
+         *  oldest first, only while the ring is shallow (cold gate). The per-tick cap +
+         *  depth gate keep a burst from flooding TX. @return true if it painted. */
         bool drain_tail(AnsiTerminal& terminal, uint16_t first_row, uint16_t log_rows) {
             if (_view_offset != 0) return false;   // frozen while scrolled back
             if (_pending == 0) return false;
             if (!terminal.tx_below_cold()) return false;
             uint16_t k = _pending;
             if (k > Config::LOG_ROWS_PER_TICK) k = Config::LOG_ROWS_PER_TICK;
-            // The oldest unshown line is _pending back from newest; this batch's newest
-            // is k-1 nearer than that.
+            // The oldest unshown line is _pending back from newest; this batch's newest is
+            // k-1 nearer.
             emit_tail(terminal, k, first_row, log_rows, (uint16_t)(_pending - k + 1));
             _pending = (uint16_t)(_pending - k);
             return true;
@@ -231,12 +213,10 @@ namespace Botanik { namespace Pages {
         /** @name Scrolling
          *  @{ */
 
-        /** @brief Scroll the view by @p n lines within the window (rows @p first_row
-         *  .. first_row+log_rows-1). @p up moves toward older lines; down toward the
-         *  live bottom. Shifts the window in place and paints only the newly exposed
-         *  rows (cheap, for a key-at-a-time scroll), clamped to the stored history.
-         *  No-op (returns false) when everything already fits, a replay is pending, or
-         *  the view can't move further. While scrolled up the live tail is frozen.
+        /** @brief Scroll the view by @p n lines (@p up = older, down = toward the live
+         *  bottom), painting only the newly exposed rows (cheap, for a key-at-a-time
+         *  scroll), clamped to history. No-op when everything fits, a replay is pending,
+         *  or the view can't move. The live tail is frozen while scrolled up.
          *  @return true if the view moved. */
         bool scroll(AnsiTerminal& terminal, bool up, uint16_t n,
                     uint16_t first_row, uint16_t log_rows) {
@@ -252,10 +232,10 @@ namespace Botanik { namespace Pages {
                                 : (uint16_t)(_view_offset - want);
             if (moved > log_rows) moved = log_rows;    // can't reveal more than a screenful
             _view_offset = want;
-            _pending = 0;                              // tail stays frozen until back at bottom
+            _pending = 0;                              // tail frozen until back at bottom
             if (up) _emit_scroll_up(terminal, moved, first_row, log_rows);
-            // Scrolling down toward newer is the same motion as the live tail: drop the
-            // top, append the newly exposed lines at the bottom (offset+1 back from newest).
+            // Down toward newer is the live-tail motion: drop the top, append the exposed
+            // lines at the bottom (offset+1 back from newest).
             else    emit_tail(terminal, moved, first_row, log_rows, (uint16_t)(_view_offset + 1));
             return true;
         }
@@ -273,10 +253,9 @@ namespace Botanik { namespace Pages {
         /** @} */
 
     private:
-        /** @brief Shift the window down by @p n (older lines toward the top) and paint
-         *  the n newly exposed top rows. Scrolls the window band down (the mirror of
-         *  emit_tail's scroll-up) so rows above first_row and below the window are left
-         *  untouched. @p _view_offset must already hold the new offset. */
+        /** @brief Shift the window down by @p n (older lines toward the top) and paint the
+         *  n exposed top rows - the mirror of emit_tail's scroll-up. @p _view_offset must
+         *  already hold the new offset. */
         void _emit_scroll_up(AnsiTerminal& terminal, uint16_t n,
                              uint16_t first_row, uint16_t log_rows) {
             if (log_rows == 0 || n == 0) return;
@@ -285,9 +264,8 @@ namespace Botanik { namespace Pages {
             terminal.scroll_region(first_row, (uint16_t)(first_row + log_rows - 1),
                                    /*up=*/false, n);
 
-            // Top row is the oldest shown: line(log_rows + _view_offset) back from
-            // newest; each row down is one nearer. The window is full here (maxoff > 0
-            // implies count > log_rows), so these indices always resolve.
+            // Top row is the oldest shown: line(log_rows + _view_offset) back from newest,
+            // each row down one nearer. The window is full here, so the indices resolve.
             for (uint16_t i = 0; i < n; i++) {
                 uint16_t llen = 0;
                 const char* ln = this->line((uint16_t)(log_rows + _view_offset - i), llen);

@@ -2,9 +2,8 @@
  * @file resolver.cpp
  * @brief NameResolver - non-blocking hostname -> IPv4 via HAL::Net DNS poll API.
  *
- * Literal dotted-decimal IPv4 addresses are parsed locally (no DNS, no table slot).
- * Hostnames go through HAL::Net::dns_begin / dns_poll; on the simulator the backend
- * uses getaddrinfo synchronously.
+ * IPv4 literals are parsed locally (no DNS, no table slot); hostnames go through
+ * dns_begin/dns_poll (sim backend uses getaddrinfo synchronously).
  */
 
 #include "libbotanik/network/resolver.h"

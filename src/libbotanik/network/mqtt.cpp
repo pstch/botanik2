@@ -1,10 +1,9 @@
 /**
  * @file mqtt.cpp
- * @brief MqttClient implementation - non-blocking MQTT 3.1.1 publish over HAL::Net TCP.
+ * @brief MqttClient - non-blocking MQTT 3.1.1 publish over HAL::Net TCP.
  *
- * Hand-rolled wire protocol (CONNECT / CONNACK / PUBLISH QoS-0 / PINGREQ) over the
- * portable HAL::Net TCP layer. Gated on NetworkHandler::is_up() before attempting a
- * connect.
+ * Hand-rolled wire protocol (CONNECT / CONNACK / PUBLISH QoS-0 / PINGREQ), gated on
+ * NetworkHandler::is_up() before a connect.
  */
 
 #include "libbotanik/network/mqtt.h"
@@ -128,7 +127,9 @@ namespace Botanik { namespace Network {
         buf[i++] = (uint8_t)(tlen >> 8);
         buf[i++] = (uint8_t)(tlen & 0xFF);
         if ((size_t)i + tlen + plen > sizeof(buf)) return false;
+        // NOLINTNEXTLINE(bugprone-not-null-terminated-result): binary MQTT packet, not a C string
         memcpy(&buf[i], topic, tlen);    i += tlen;
+        // NOLINTNEXTLINE(bugprone-not-null-terminated-result): binary MQTT packet, not a C string
         memcpy(&buf[i], payload, plen);  i += (int)plen;
         if (HAL::Net::tcp_send(_sock, buf, i) != i) { _fail(HAL::uptime_ms()); return false; }
         return true;

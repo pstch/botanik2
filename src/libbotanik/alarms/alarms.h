@@ -4,20 +4,17 @@
 /**
  * @file alarms.h
  * @brief Alarm model - merges the remote (PLC) and local alarm bitsets, tracks
- *        each condition's dwell, raises ALARM-topic log lines and MQTT
- *        notifications on the configured ON/OFF thresholds, and exposes the set
- *        for display (the terminal's bottom alarm bar and the AlarmsPage table).
+ *        each condition's dwell, raises ALARM-topic log lines / MQTT notifications
+ *        on the ON/OFF thresholds, and exposes the set for display.
  *
- * The condition list is split into two disjoint namespaces: the PLC/site alarms
- * fill indices [0..N) and map one-to-one to the low N bits of the PLC's 64-bit
- * `alarms` word; the generic platform-health alarms (platform.h) follow at
- * [N..N+M) and are driven only locally (set_local()). step() masks the remote word
- * to the low N bits before merging the local bits, so a stray PLC bit can never
- * drive a platform condition (no overlap by construction). N + M must be <= 64.
+ * The condition list is two disjoint namespaces: PLC/site alarms fill [0..N), mapping
+ * to the low N bits of the PLC's 64-bit `alarms` word; the generic platform-health
+ * alarms (platform.h) follow at [N..N+M), driven only locally (set_local()). step()
+ * masks the remote word to the low N bits before merging local bits, so a stray PLC
+ * bit can never drive a platform condition. N + M must be <= 64.
  *
- * The model owns its working AlarmCondition array (RAM): it copies the site's
- * const PLC table and the const platform table in at construction, then owns the
- * dynamic state from then on. The site table stays read-only.
+ * The model owns its working AlarmCondition array: it copies both const tables in at
+ * construction, then owns the dynamic state. The site table stays read-only.
  */
 
 #include <cstdint>
@@ -26,6 +23,7 @@
 
 #include "libbotanik/utils/assert.h"   // BOTANIK_ASSERT
 #include "libbotanik/logs/logger.h"
+#include "libbotanik/component.h"      // Component (first-step announce)
 
 namespace Botanik { namespace Alarms {
 
@@ -35,17 +33,15 @@ namespace Botanik { namespace Alarms {
     /** @brief 1 << id as a 64-bit mask, for building masked_by sets. */
     inline uint64_t alarm_bit(uint8_t id) { return (uint64_t)1u << id; }
 
-    /** @brief Default "recent" window in seconds: a condition whose last event is
-     *  newer than this shows in the AlarmsPage RECENT mode. Per-condition override
-     *  via AlarmCondition::recent_s (0 = use this default, < 0 = never expires). */
+    /** @brief Default RECENT-mode window (s): AlarmCondition::recent_s overrides
+     *  per-condition (0 = this default, < 0 = never expires). */
     static constexpr int32_t DEFAULT_RECENT_S = 7 * 24 * 3600;   // one week
 
     /**
      * @brief One alarm condition: static metadata + model-owned dynamic state.
      *
-     * The static prefix is site-defined (aggregate-initialised; row index is the bit index).
-     * The dynamic suffix is left zeroed by the site and owned by AlarmModel; a
-     * threshold of -1 disables that action. Dwell thresholds are in seconds.
+     * Static prefix site-defined (aggregate-init; row index = bit index). Dynamic suffix
+     * left zeroed, model-owned. A threshold of -1 disables that action; dwell in seconds.
      */
     struct AlarmCondition {
         /** @name Static metadata (site-defined)
@@ -59,10 +55,8 @@ namespace Botanik { namespace Alarms {
         int32_t     mqtt_off_s;  // min OFF dwell (s) before an MQTT notification (-1 off)
         int32_t     recent_s;    // RECENT-mode window (s): 0 = DEFAULT_RECENT_S, <0 = never expires
         int32_t     latch_s;     // hold active this long (s) after the raw bit clears (0 = no latch)
-        int32_t     min_on_s;    // minimum ON time (s): once active, stay active at least this
-                                 // long from onset even if the raw bit clears (0 = no minimum).
-                                 // Anti-flicker debounce; the PLC normally debounces, this is a
-                                 // local safety net so a rapidly-toggling bit can't strobe.
+        int32_t     min_on_s;    // min ON time (s) from onset, even if the raw bit clears
+                                 // (0 = none). Local anti-flicker net behind the PLC's debounce.
         /** @} */
 
         /** @name Dynamic state (model-owned; leave zeroed in a site table)
@@ -74,24 +68,20 @@ namespace Botanik { namespace Alarms {
         bool        log_on_sent;  // "alarm START" logged this episode
         bool        log_off_sent; // "alarm END" logged this episode
         bool        acknowledged; // operator ack'd this episode (cleared on the next ON
-                                  // edge); informational - does not change active/unmasked
+                                  // edge); informational, never alters active/unmasked
         uint64_t    edge_ms;      // uptime of the last active/inactive transition
-        uint64_t    started_ms;   // uptime of the last ON transition (onset); 0 if
-                                  // never active. Drives the AlarmsPage start-time sort
-        uint32_t    latch_remaining_ms; // latch countdown: ms still held active after the
-                                  // raw bit cleared (0 = not latched). Wrap-immune (no
-                                  // absolute deadline); decremented by the step elapsed.
-        uint32_t    min_on_remaining_ms; // minimum-ON countdown: ms the alarm is still held
-                                  // active since onset regardless of the raw bit (0 = elapsed).
-                                  // Seeded to min_on_s on the ON edge; drained by the step
-                                  // elapsed. Wrap-immune, same as latch_remaining_ms.
+        uint64_t    started_ms;   // uptime of the last ON transition (onset, 0 if never);
+                                  // drives the AlarmsPage start-time sort
+        uint32_t    latch_remaining_ms;  // latch countdown after the raw bit cleared (0 =
+                                  // not latched). Wrap-immune; drained by the step elapsed.
+        uint32_t    min_on_remaining_ms; // minimum-ON countdown from onset (0 = elapsed),
+                                  // seeded to min_on_s on the ON edge. Wrap-immune.
         /** @} */
     };
 
     /** @brief Bit index of the condition whose code equals @p code, or -1 if none.
-     *  The table is the single source of truth for the alarm set (there is no parallel
-     *  id enum); code lookups are how generic firmware and the site mock-PLC name the
-     *  few alarms they assert directly. */
+     *  The table is the single source of truth (no parallel id enum); code lookups are
+     *  how generic firmware and the site mock-PLC name the alarms they assert. */
     inline int alarm_index(const AlarmCondition* table, uint8_t count, const char* code) {
         if (table == nullptr || code == nullptr) return -1;
         for (uint8_t i = 0; i < count; i++)
@@ -101,9 +91,8 @@ namespace Botanik { namespace Alarms {
     }
 
     /**
-     * @brief Draft MQTT notification sink. The model calls notify_on/off when an
-     * alarm crosses its MQTT ON/OFF dwell threshold. Concrete plumbing lives in
-     * notifier.h; a null notifier disables MQTT notifications.
+     * @brief Draft MQTT notification sink. The model calls notify_on/off when an alarm
+     * crosses its MQTT ON/OFF dwell threshold. Plumbing in notifier.h; null disables it.
      */
     class AlarmNotifier {
     public:
@@ -113,13 +102,11 @@ namespace Botanik { namespace Alarms {
     };
 
     /**
-     * @brief Owns the dynamic alarm state over a site-supplied condition table.
-     *
-     * step() is called once per loop with the remote (PLC) raw bitset and the
-     * current uptime; it merges in the local bits, advances each condition's
-     * dwell, raises log lines / notifications, and recomputes the masked view.
+     * @brief Owns the dynamic alarm state over a site-supplied condition table. step()
+     * runs once per loop with the remote raw bitset + uptime: merges local bits, advances
+     * dwell, raises log lines / notifications, recomputes the masked view.
      */
-    class AlarmModel {
+    class AlarmModel : public Botanik::Component {
     private:
         /** @name State
          *  @{ */
@@ -138,11 +125,10 @@ namespace Botanik { namespace Alarms {
         /** @} */
 
     public:
-        /** @brief Bind to the site's PLC alarm table (@p site_count entries at [0..N))
-         *  and, when given, the generic platform-health table (platform.h, @p platform_count
-         *  entries appended at [N..N+M)). Both are const inputs, copied into the model's
-         *  own array; N + M must be <= ALARM_BITS. A never-active alarm starts "settled
-         *  OFF" so it never announces an END it never started. */
+        /** @brief Bind to the site PLC table (@p site_count at [0..N)) and the optional
+         *  platform-health table (@p platform_count appended at [N..N+M)). Both const,
+         *  copied in; N + M <= ALARM_BITS. Alarms start "settled OFF" so a never-active
+         *  one never announces an END it never started. */
         AlarmModel(const AlarmCondition* site_table, uint8_t site_count,
                    Logs::Logger* logger, AlarmNotifier* notifier = nullptr,
                    const AlarmCondition* platform = nullptr, uint8_t platform_count = 0)
@@ -156,16 +142,15 @@ namespace Botanik { namespace Alarms {
             if (platform_count > (uint8_t)(ALARM_BITS - site_count))
                 platform_count = (uint8_t)(ALARM_BITS - site_count);
             std::memset(_conditions, 0, sizeof(_conditions));
-            // PLC/site alarms fill [0..N); platform-health alarms follow at [N..N+M).
-            // The ranges are disjoint, so a PLC bit can never drive a platform condition.
+            // Site alarms [0..N), platform alarms [N..N+M): disjoint ranges.
             for (uint8_t i = 0; i < site_count; i++)     _conditions[i] = site_table[i];
             for (uint8_t j = 0; j < platform_count; j++) _conditions[site_count + j] = platform[j];
             _plc_count = site_count;
             _count     = (uint8_t)(site_count + platform_count);
             _site_mask = (site_count >= 64) ? ~(uint64_t)0
                                             : (((uint64_t)1 << site_count) - 1);
-            for (uint8_t i = 0; i < _count; i++) {
-                _conditions[i].off_notified = true;   // boot state: already cleared
+            for (uint8_t i = 0; i < _count; i++) {   // boot state: settled OFF
+                _conditions[i].off_notified = true;
                 _conditions[i].log_off_sent = true;
             }
         }
@@ -173,25 +158,22 @@ namespace Botanik { namespace Alarms {
         /** @name Local alarms
          *  @{ */
 
-        /** @brief Set or clear a runtime-sourced alarm bit (merged with the PLC's
-         *  on the next step()). */
+        /** @brief Set/clear a runtime-sourced alarm bit (merged on the next step()). */
         void set_local(uint8_t id, bool on) {
             if (id >= ALARM_BITS) return;
             if (on) _local |=  alarm_bit(id);
             else    _local &= ~alarm_bit(id);
         }
 
-        /** @brief Set/clear a local alarm by its table code (e.g. "CPU_LOAD"). A no-op
-         *  if the site table has no such code, so generic firmware can assert platform
-         *  alarms without depending on a site defining them. */
+        /** @brief Set/clear a local alarm by table code (e.g. "CPU_LOAD"); no-op if the
+         *  code is absent, so generic firmware needn't depend on the site defining it. */
         void set_local(const char* code, bool on) {
             int i = alarm_index(_conditions, _count, code);
             if (i >= 0) set_local((uint8_t)i, on);
         }
 
-        /** @brief Mark an active condition acknowledged by table code; returns false if
-         *  the code is unknown or the alarm isn't active. Informational only (cleared on
-         *  the next ON edge); never alters the active/unmasked state or the safety bar. */
+        /** @brief Mark an active condition acknowledged by table code; false if unknown
+         *  or inactive. Informational only (cleared on the next ON edge). */
         bool ack(const char* code) {
             int i = alarm_index(_conditions, _count, code);
             if (i < 0 || !_conditions[i].active) return false;
@@ -209,14 +191,14 @@ namespace Botanik { namespace Alarms {
 
         /** @} */
 
-        /** @brief Merge the PLC raw bitset with the local one, advance each
-         *  condition, and raise any due log lines / notifications. */
+        /** @brief Merge the PLC + local bitsets, advance each condition, raise due log
+         *  lines / notifications. */
         void step(uint64_t remote_raw, uint64_t now) {
-            // Mask the remote word to the PLC range so a stray high bit can't drive a
-            // platform-health condition; merge the locally-set bits (platform range) on top.
+            announce_step(_logger, "AlarmModel");
+            // Mask the remote word to the PLC range (a stray high bit can't drive a
+            // platform condition), then merge the local bits on top.
             _raw = (remote_raw & _site_mask) | _local;
-            // Elapsed since the last step, for the latch countdown (0 on the first step).
-            uint32_t dt = _first_step ? 0 : (uint32_t)(now - _last_now);
+            uint32_t dt = _first_step ? 0 : (uint32_t)(now - _last_now);   // 0 on first step
             _first_step = false;
             _last_now   = now;
             _active_count = 0;
@@ -225,11 +207,9 @@ namespace Botanik { namespace Alarms {
                 AlarmCondition& c = _conditions[i];
                 bool was = c.active;
                 bool raw_on = ((_raw >> i) & 1u) != 0;
-                // Two countdowns, both drained by the elapsed time (wrap-immune, no
-                // absolute deadline): the latch holds active for latch_s after the raw
-                // bit clears (refreshed while it's set); the minimum-ON hold keeps the
-                // alarm active for at least min_on_s from onset, debouncing a bit that
-                // toggles too fast (the local anti-flicker net behind the PLC's own).
+                // Two wrap-immune countdowns drained by the elapsed time: the latch
+                // holds active for latch_s after the raw bit clears (refreshed while set);
+                // the minimum-ON hold keeps it active >= min_on_s from onset (anti-flicker).
                 if (c.latch_remaining_ms > 0)
                     c.latch_remaining_ms = (c.latch_remaining_ms > dt)
                                          ? (uint32_t)(c.latch_remaining_ms - dt) : 0;
@@ -241,9 +221,8 @@ namespace Botanik { namespace Alarms {
                 bool on = raw_on || (c.latch_remaining_ms > 0) || (c.min_on_remaining_ms > 0);
                 if (on != was) {
                     c.edge_ms = now;
-                    // On the ON edge, reset log_on_sent here (not on the OFF edge) so the
-                    // flag survives the OFF episode and tells END from FLAP below; seed the
-                    // minimum-ON hold for this fresh episode.
+                    // Reset log_on_sent on the ON edge (not OFF) so it survives the OFF
+                    // episode and tells END from FLAP below; seed the minimum-ON hold.
                     if (on) { c.off_notified = false; c.log_off_sent = false;
                               c.log_on_sent  = false;
                               c.acknowledged = false;  // a fresh episode is unacknowledged
@@ -259,7 +238,6 @@ namespace Botanik { namespace Alarms {
                     if (c.unmasked) _unmasked_count++;
                 }
 
-                // Log/notify messages carry the description, falling back to the code.
                 uint64_t dwell = now - c.edge_ms;
                 const char* label = c.desc ? c.desc : (c.code ? c.code : "");
                 if (on) {
@@ -276,9 +254,8 @@ namespace Botanik { namespace Alarms {
                 } else {
                     if (!c.log_off_sent && c.log_off_s >= 0 &&
                         dwell >= (uint64_t)c.log_off_s * 1000) {
-                        // An END with no matching START this episode means the alarm
-                        // toggled too fast to dwell past log_on_s: report it as a FLAP
-                        // (distinct topic) rather than a misleading bare END.
+                        // END with no matching START this episode = toggled too fast to
+                        // dwell past log_on_s: report a FLAP, not a misleading bare END.
                         if (_logger) {
                             if (c.log_on_sent) _logger->info(PlcIO::ALARM_END, "%s", label);
                             else               _logger->notice(PlcIO::ALARM_FLAP, "%s", label);
@@ -307,8 +284,7 @@ namespace Botanik { namespace Alarms {
         uint8_t  unmasked_count() const { return _unmasked_count; }
         /** @brief Condition @p i (0 <= i < count()). */
         const AlarmCondition& condition(uint8_t i) const { return _conditions[i]; }
-        /** @brief Index of the condition whose code equals @p code, or -1 (POST check:
-         *  verifies a set_local(code) call will actually resolve rather than no-op). */
+        /** @brief Index of @p code, or -1 (POST uses it to verify set_local resolves). */
         int index_of(const char* code) const { return alarm_index(_conditions, _count, code); }
 
         /** @} */

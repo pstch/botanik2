@@ -3,8 +3,7 @@
 
 /**
  * @file format.h
- * @brief Log-entry formatting - render level/topic labels and assemble the
- *        `TIMESTAMP LEVEL TOPIC MESSAGE` line written by the log writers.
+ * @brief Log-entry formatting: assemble the `TIMESTAMP LEVEL TOPIC MESSAGE` line.
  */
 
 #include <cstdint>
@@ -15,9 +14,6 @@
 
 namespace Botanik { namespace Logs {
 
-    /**
-     * @brief Render a log level as a short bracketed indicator.
-     */
     inline const char* format_log_level(PlcIO::LogLevel level) { switch (level) {
         case PlcIO::LOG_DEBUG:      return "[~]";
         case PlcIO::LOG_INFO:       return "[-]";
@@ -28,9 +24,6 @@ namespace Botanik { namespace Logs {
         default:                    return "";
     }; }
 
-    /**
-     * @brief Render a log topic as a printable label.
-     */
     inline const char* format_log_topic(PlcIO::LogTopic topic) { switch (topic) {
         case PlcIO::NONE:       return "";
         case PlcIO::BOOT:       return "BOOT";
@@ -46,19 +39,13 @@ namespace Botanik { namespace Logs {
         default:                return "";
     }; }
 
-    /**
-     * @brief Format a complete log entry as `TIMESTAMP LEVEL TOPIC MESSAGE`.
-     * @param entry Entry to format.
-     * @param buf   Destination buffer.
-     * @param len   Capacity of @p buf in bytes.
-     * @return Number of bytes written, clamped to @p len; 0 on encoding error.
-     */
+    /** @brief Format a complete log entry as `TIMESTAMP LEVEL TOPIC MESSAGE`.
+     *  @return Number of bytes written, clamped to @p len; 0 on encoding error. */
     inline size_t format_log_entry(const PlcIO::LogEntry_t* entry, char* buf, size_t len) {
         using namespace Botanik::Utils;
         const char* level = format_log_level(entry->level);
         const char* topic = format_log_topic(entry->topic);
-        // Colon belongs to the line layout, not the label; skip it for the empty
-        // (NONE) topic so the line doesn't carry a dangling " : ".
+        // Skip the colon for the empty (NONE) topic, no dangling " : ".
         const char* topic_sep = (topic[0] != '\0') ? ":" : "";
         char time_buf[TIMESTAMP_LEN];
         format_ms_timestamp(absolute_ms(entry->timestamp), time_buf, sizeof(time_buf));

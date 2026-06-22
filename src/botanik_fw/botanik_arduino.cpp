@@ -2,11 +2,9 @@
  * @file botanik_arduino.cpp
  * @brief Implements the C-callable hooks the Axel PLC runtime drives.
  *
- * The firmware lives in a function-local static (see firmware.h), first constructed
- * when botanik_setup() is called - deferred until after the Arduino core's
- * init()/initVariant() (only then are the UARTs and PLC shared-memory region valid
- * to bind to), while staying in static storage (no heap) for the whole run. This
- * mirrors the old botanik_fw.ino, which can't ship inside a library.
+ * The firmware is a function-local static (firmware.h), first constructed on
+ * botanik_setup() - deferred until after the Arduino core's init()/initVariant(), when
+ * the UARTs and PLC shared-memory region are valid to bind to.
  */
 
 #include "botanik_fw/botanik_arduino.h"

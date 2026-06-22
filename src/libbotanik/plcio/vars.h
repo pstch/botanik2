@@ -30,12 +30,12 @@ namespace Botanik { namespace PlcIO {
 
     /** @brief Log severity level (wire value shared with the PLC). */
     enum LogLevel : uint8_t {
-        LOG_DEBUG = 1,       // debugging messages, only printed when debugging mode is enabled
-        LOG_INFO = 2,        // informational messages, they don't need any particular attention
-        LOG_NOTICE = 4,      // important messages, but not indicating any kind of problem
-        LOG_WARNING = 8,     // important messages that indicate a potential problem
-        LOG_ERROR = 16,      // error messages, something is happenning that should never happen
-        LOG_CRITICAL = 32,   // critical message, something very bad is going to happen soon
+        LOG_DEBUG = 1,
+        LOG_INFO = 2,
+        LOG_NOTICE = 4,
+        LOG_WARNING = 8,
+        LOG_ERROR = 16,
+        LOG_CRITICAL = 32,
     };
 
     // Values are the wire protocol shared with the PLC, not a sequence; listed in
@@ -48,12 +48,11 @@ namespace Botanik { namespace PlcIO {
         NETWORK = 3,
         TIME = 4,
         STATUS = 5,
-        ASSERT = 6,        // C-side only (firmware assertions); the PLC never emits it
-        ALARM_START = 7,   // C-side only (an alarm went active); the PLC never emits it
-        ALARM_END = 8,     // C-side only (an alarm cleared); the PLC never emits it
-        ALARM_FLAP = 9,    // C-side only (an alarm cleared without ever logging a START,
-                           // i.e. it toggled too fast to dwell); the PLC never emits it
-        HEALTH = 10,       // C-side only (HealthMonitor: POST verdict, etc.); never from the PLC
+        ASSERT = 6,        // C-side only (PLC never emits these): firmware assertions
+        ALARM_START = 7,   // alarm went active
+        ALARM_END = 8,     // alarm cleared
+        ALARM_FLAP = 9,    // alarm cleared without ever logging a START (toggled too fast to dwell)
+        HEALTH = 10,       // HealthMonitor (POST verdict, etc.)
     };
 
     // Check that the defined topic count can fit in the LogTopic enum
@@ -87,7 +86,7 @@ namespace Botanik { namespace PlcIO {
     /** @name Sync counters
      *  @{ */
 
-    /** @brief Sync counters (named from the PLC's point of view) */     
+    /** @brief PLC input-region sync counters (named from the PLC's point of view). */
     struct PlcInputCounters_t {
         uint32_t            rxSeqNum;
         uint32_t            txAckNum;
@@ -104,13 +103,11 @@ namespace Botanik { namespace PlcIO {
     /** @name Log buffers
      *  @{ */
 
-    /** @brief Fixed log-protocol fields, always present regardless of the user's payload type.
-     *  @note These form the library's shared log protocol between host and PLC. */
+    /** @brief Host->PLC log-protocol fields (the read cursor). */
     struct PlcInputLogs_t {
-        uint32_t            readIndex;      // host's current read position in the PLC log buffer
+        uint32_t            readIndex;      // host's read position in the PLC log buffer
     };
 
-    
     /** @brief PLC output log ring: write cursor (kept first) + the fixed log buffer. */
     struct PlcOutputLogs_t {
         uint32_t            writeIndex;     // kept first so its alignment is independent

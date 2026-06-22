@@ -5,14 +5,13 @@
  * @file mqtt.h
  * @brief MqttClient - minimal non-blocking MQTT 3.1.1 publisher over TCP.
  *
- * Config-driven (ConfigHandler, the `mqtt` block): it connects to the broker, keeps the
- * session alive with PINGREQ, and publishes QoS-0 messages. It restarts on a config
- * change and backs off / reconnects on failure. The broker name is resolved through the
- * shared NameResolver; the link must be up (NetworkHandler::is_up()) before a connect
- * attempt is made.
+ * Config-driven (ConfigHandler, the `mqtt` block): connects, keeps alive with PINGREQ,
+ * publishes QoS-0; restarts on a config change, backs off / reconnects on failure. The
+ * broker name resolves through the shared NameResolver; the link must be up
+ * (NetworkHandler::is_up()) before a connect.
  *
- * Publish-only - no subscribe; it carries notifications outward (e.g. alarm transitions
- * from MqttAlarmNotifier). The client id is derived from Config::SITE_NAME.
+ * Publish-only (carries notifications outward, e.g. alarm transitions). Client id is
+ * Config::SITE_NAME.
  */
 
 #include <cstdint>

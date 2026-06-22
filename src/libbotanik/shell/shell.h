@@ -19,8 +19,7 @@ namespace Botanik {
 namespace Botanik { namespace Shell {
 
     /** @class ShellWriter
-     *  @brief Minimal write-only interface so CommandShell can emit output
-     *         without depending on the Pages layer. */
+     *  @brief Minimal write-only interface so CommandShell needn't depend on Pages. */
     struct ShellWriter {
         /** @brief Write @p len bytes of output; returns the number consumed. */
         virtual size_t write(const char* buf, size_t len) = 0;
@@ -61,20 +60,14 @@ namespace Botanik { namespace Shell {
         /** @name State
          *  @{ */
 
-        /** @brief Terminal the shell renders through. */
-        Terminal::AnsiTerminal& _terminal;
-        /** @brief Editor supplying the input line. */
-        Terminal::TextEditor&  _editor;
-        /** @brief Output channel for command results. */
-        ShellWriter&            _output;
-        /** @brief Optional site command table (see set_commands()). */
-        const ShellCommand*     _commands      = nullptr;
-        /** @brief Number of entries in _commands. */
+        Terminal::AnsiTerminal& _terminal;   ///< terminal the shell renders through
+        Terminal::TextEditor&  _editor;      ///< editor supplying the input line
+        ShellWriter&            _output;     ///< output channel for command results
+        const ShellCommand*     _commands      = nullptr;   ///< site command table (set_commands())
         size_t                  _command_count = 0;
-        /** @brief Opaque context handed to each site command callback. */
-        void*                   _command_ctx   = nullptr;
+        void*                   _command_ctx   = nullptr;   ///< opaque ctx for each site callback
         /** @brief Mutable diagnostics targets for the loglevel / alarm commands; null
-         *  until set_diagnostics() wires them (the commands then report "unavailable"). */
+         *  until set_diagnostics() wires them (commands then report "unavailable"). */
         Logs::Logger*           _logger        = nullptr;
         Alarms::AlarmModel*     _alarm_model   = nullptr;
 
@@ -110,19 +103,18 @@ namespace Botanik { namespace Shell {
          *         A zero-length command is ignored. */
         void run(const char* cmd, uint16_t len);
 
-        /** @brief Register a site command table, tried after the built-ins. @p table
-         *  must outlive the shell (typically a static at the site). @p ctx is passed
-         *  to each callback. Pass count 0 (or a null table) to clear. */
         /** @brief Wire the mutable diagnostics targets the loglevel / alarm-ack commands
          *  act on (the owning firmware passes its logger and alarm model). */
         void set_diagnostics(Logs::Logger* logger, Alarms::AlarmModel* alarms) {
             _logger = logger; _alarm_model = alarms;
         }
 
+        /** @brief Register a site command table, tried after the built-ins. @p table
+         *  must outlive the shell (typically a static at the site). @p ctx is passed
+         *  to each callback. Pass count 0 (or a null table) to clear. */
         void set_commands(const ShellCommand* table, size_t count, void* ctx = nullptr) {
             // Cap defensively so a bogus count can't walk off the table. A site name that
-            // collides with a built-in is silently dead (built-ins match first, by design,
-            // so a site can't shadow exit/reset).
+            // collides with a built-in is silently dead (built-ins match first by design).
             if (count > Config::SHELL_COMMANDS_MAX) count = Config::SHELL_COMMANDS_MAX;
             _commands      = table;
             _command_count = (table != nullptr) ? count : 0;
@@ -171,16 +163,15 @@ namespace Botanik { namespace Shell {
         /** @name Internals
          *  @{ */
 
-        /** @brief Built-in command handler (run when dispatch() falls through):
-         *  matches @p cmd's first word against the built-in table and invokes its handler
-         *  with the argument slice. */
+        /** @brief Built-in handler (run when dispatch() falls through): matches the first
+         *  word against the built-in table and invokes its handler with the arg slice. */
         void _builtin(const char* cmd, uint16_t len);
 
         /** @brief One built-in: name, one-line help, handler taking the argument slice. */
         struct Builtin { const char* name; const char* help;
                          void (CommandShell::*fn)(const char* args, uint16_t alen); };
-        /** @brief The built-in table - the single source for both dispatch and `help`,
-         *  so the help text can never drift from the command set. */
+        /** @brief The built-in table - single source for both dispatch and `help`, so
+         *  help text can't drift from the command set. */
         static const Builtin* _builtins(uint8_t& count);
 
         /** @brief Append a submitted line to the history ring (skips a consecutive

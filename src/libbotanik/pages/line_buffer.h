@@ -6,9 +6,9 @@
  * @brief LineBuffer<L,N> - a fixed-capacity circular buffer of display lines.
  *
  * The storage primitive under @ref Botanik::Pages::Scrollback "Scrollback": holds
- * the most recent @p L lines (each up to @p N bytes), with soft-wrap splitting on store and
- * newest-first access by distance. It owns no rendering; Scrollback layers the
- * throttled replay on top. Instantiate behind a typedef, not at use sites.
+ * the most recent @p L lines (each up to @p N bytes), with soft-wrap splitting on
+ * store and newest-first access by distance. Owns no rendering. Instantiate behind
+ * a typedef.
  */
 
 #include <algorithm>
@@ -42,7 +42,7 @@ namespace Botanik { namespace Pages {
         /** @name Line storage
          *  @{ */
 
-        /** @brief Store a line in the circular buffer (does not display it). */
+        /** @brief Store a line (does not display it). */
         void store(const char* buf, size_t len) {
             uint16_t store_len = (uint16_t)std::min(len, (size_t)N);
             memcpy(_buf[_head], buf, store_len);
@@ -51,11 +51,9 @@ namespace Botanik { namespace Pages {
             if (_count < L) _count++;
         }
 
-        /** @brief Store a message as one or more lines no wider than @p cols,
-         *  breaking on embedded newlines and on width. Continuation lines get the
-         *  @p prefix marker; each line becomes its own entry (one entry per display
-         *  row).
-         *  @return The number of lines stored (always >= 1). */
+        /** @brief Store a message as one or more lines no wider than @p cols, breaking
+         *  on embedded newlines and on width. Continuation lines get the @p prefix
+         *  marker; one entry per display row. @return lines stored (always >= 1). */
         uint16_t store_wrapped(const char* buf, size_t len, uint16_t cols,
                                const char* prefix, uint16_t plen) {
             const uint16_t seg_cap = N;
@@ -103,9 +101,8 @@ namespace Botanik { namespace Pages {
         uint16_t count() const { return _count; }
 
         /** @brief Access a stored line by distance from newest (1 = most recent).
-         *  @param from_end Steps back from the newest line (1-based)
-         *  @param len Set to the line's length on success
-         *  @return Pointer to the line bytes, or nullptr if @p from_end is out of range */
+         *  @param from_end steps back from newest (1-based); @param len set on success.
+         *  @return line bytes, or nullptr if @p from_end is out of range. */
         const char* line(uint16_t from_end, uint16_t& len) const {
             if (from_end == 0 || from_end > _count) return nullptr;
             uint16_t idx = (uint16_t)((_head + L - from_end) % L);

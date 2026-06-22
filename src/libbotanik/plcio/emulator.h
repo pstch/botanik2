@@ -33,24 +33,18 @@ namespace Botanik { namespace PlcIO {
         /** @name State
          *  @{ */
 
-        /** @brief A TX write has been requested. */
         bool             _tx_write       = false;
         /** @brief Emulator RX <- what the host transmitted. */
         PlcInputLogs_t   _rx_logs_buffer = {};
         /** @brief Emulator TX -> what the host will receive. */
         PlcOutputLogs_t  _tx_logs_buffer = {};
-        /** @brief Shared wall-clock timestamp (ms). */
         uint32_t*        _timestamp_ms   = nullptr;
         /** @brief Time of the last acknowledged TX (wrap-safe stamp, like the handler). */
         Utils::Millis32  _tx_last_ms;
-        /** @brief Elapsed threshold (ms) before PLC_TIMEOUT is reported. */
-        uint32_t         _timeout_ms     = Config::PLC_TIMEOUT_MS;
-        /** @brief Elapsed threshold (ms) before PLC_FAULT is reported. */
-        uint32_t         _watchdog_ms    = Config::PLC_WATCHDOG_MS;
-        /** @brief True once any TX has ever been acknowledged. */
+        uint32_t         _timeout_ms     = Config::PLC_TIMEOUT_MS;  ///< elapsed before PLC_TIMEOUT
+        uint32_t         _watchdog_ms    = Config::PLC_WATCHDOG_MS; ///< elapsed before PLC_FAULT
         bool             _ever_ackd      = false;
 
-        /** @brief The shared timestamp as a wrap-safe Millis32 stamp. */
         Utils::Millis32  _now() const { return Utils::Millis32(*_timestamp_ms); }
 
         /** @} */
@@ -59,7 +53,6 @@ namespace Botanik { namespace PlcIO {
         /** @name Interface
          *  @{ */
 
-        /** @brief Request a TX write on the next emulator step. */
         void                  write()              { _tx_write = true; }
         /** @brief Emulator output log buffer (host receives from here). */
         PlcOutputLogs_t*      output_logs()        { return &_tx_logs_buffer; }
@@ -91,21 +84,13 @@ namespace Botanik { namespace PlcIO {
         /** @name State
          *  @{ */
 
-        /** @brief Payload-independent emulator context (logs, timing). */
         PlcEmulatorContext     _ctx;
-        /** @brief Heartbeat/commit interval (ms). */
         uint32_t               _heartbeat_ms  = Config::PLC_HEARTBEAT_MS;
-        /** @brief PLC input memory (read-only for the emulator). */
-        PlcInput<InputData>*   _plcin;
-        /** @brief PLC output memory (write-only for the emulator). */
-        PlcOutput<OutputData>* _plcout;
-        /** @brief Local receive buffer for _plcin->data. */
+        PlcInput<InputData>*   _plcin;        ///< PLC input memory (read-only for the emulator)
+        PlcOutput<OutputData>* _plcout;       ///< PLC output memory (write-only for the emulator)
         InputData              _rx_data_buffer;
-        /** @brief Local transmit buffer for _plcout->data. */
         OutputData             _tx_data_buffer;
-        /** @brief RX state-machine state. */
         PlcRxState             _rx_state      = RX_IDLE;
-        /** @brief TX state-machine state. */
         PlcTxState             _tx_state      = TX_IDLE;
 
         /** @} */
@@ -227,15 +212,10 @@ namespace Botanik { namespace PlcIO {
         /** @name State
          *  @{ */
 
-        /** @brief Emulator context owning the output log buffer. */
         PlcEmulatorContext* _ctx;
-        /** @brief Shared wall-clock timestamp (ms). */
         const uint32_t*     _timestamp_ms;
-        /** @brief Next sequence number to stamp on an entry. */
         uint32_t            _next_seq   = 1;
-        /** @brief Shared output log ring buffer. */
         LogEntry_t*         _logBuffer;
-        /** @brief Emulator-owned write cursor. */
         uint32_t*           _writeIndex;
 
         /** @} */
@@ -262,17 +242,14 @@ namespace Botanik { namespace PlcIO {
     struct EmulatorThreadArgs {
         PlcInput<InputData>*   shared_in;
         PlcOutput<OutputData>* shared_out;
-        /** @brief Optional site hook that fills the output payload with mock
-         *  sensor/actuator values; null leaves the payload zeroed. */
+        /** @brief Optional site hook filling the output payload with mock values;
+         *  null leaves the payload zeroed. */
         void (*fill_output)(OutputData*, uint32_t now_ms);
     };
 
-    /** @brief Run flag and handle for the single emulator thread. Non-template
-     *  (there is only ever one emulator), so stop_emulator_thread() can be a plain
-     *  function pointer registered with HAL::on_reset. The flag is single-writer
-     *  (the lifecycle controller) / single-reader (the thread loop): volatile keeps
-     *  the loop from caching it, HAL::dsb() orders the publish - the same lock-free
-     *  pattern as the serial ring buffers, no std::atomic needed. */
+    /** @brief Run flag/handle for the single emulator thread. Single-writer (lifecycle
+     *  controller) / single-reader (thread loop): volatile + HAL::dsb() to publish - the
+     *  same lock-free pattern as the serial ring buffers, no std::atomic needed. */
     inline volatile bool& _emu_running() { static volatile bool running = false; return running; }
     inline pthread_t&      _emu_thread()  { static pthread_t thread; return thread; }
     /** @brief Set true by the thread as its final act (after its last shared-memory
@@ -326,11 +303,8 @@ namespace Botanik { namespace PlcIO {
             plc_emulator.step();
             // serviced here so a wedged main loop still trips the watchdog
             HAL::watchdog_poll();
-            // Refresh the mock payload roughly once a second and request a write so
-            // the new values are committed to shared memory for the host to pick up.
-            // emu_tick counts loop iterations (one per TASK_PERIOD_MS), so the modulo
-            // gates the fill to one in every DATA_TICKS - i.e. ~1 Hz, the rate the site
-            // animator is tuned for. (Without the increment it fired every iteration.)
+            // Refresh the mock payload + request a write at ~1 Hz (DATA_TICKS loop
+            // iterations, the rate the site animator is tuned for).
             constexpr uint32_t DATA_TICKS = 1000 / Config::TASK_PERIOD_MS;
             if (args->fill_output != nullptr && (emu_tick % DATA_TICKS) == 0) {
                 args->fill_output(plc_emulator.output_data(), emu_timestamp_ms);
@@ -345,10 +319,9 @@ namespace Botanik { namespace PlcIO {
         return nullptr;
     }
 
-    /** @brief Spawn the emulator thread against the shared PLC memory and register
-     *  its teardown with HAL::reset(). The argument block is a static with process
-     *  lifetime, so it stays valid for the thread without any heap allocation. The
-     *  thread is kept joinable (not detached) so reset() can stop it cleanly. */
+    /** @brief Spawn the emulator thread against shared PLC memory and register its
+     *  teardown with HAL::reset(). The argument block is a static (process lifetime),
+     *  so no heap. Kept joinable (not detached) so reset() can stop it cleanly. */
     template<typename InputData, typename OutputData>
     inline void start_emulator_thread(PlcInput<InputData>* shared_in,
                                       PlcOutput<OutputData>* shared_out,

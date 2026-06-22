@@ -2,13 +2,10 @@
  * @file logger.cpp
  * @brief Logger implementation - token-bucket refill and dispatch.
  *
- * step() refills the global and per-topic buckets on their own fast cadences
- * (integer division of elapsed time by the bucket period, advancing the fill
- * anchor by whole periods only), and drains the suppressed-message counters on
- * a separate slower cadence so a sustained storm yields an occasional summary
- * rather than one report per refill. push_entry() applies the per-topic filter
- * before the global one, so per-topic-suppressed messages don't drain the
- * global bucket.
+ * Suppressed-message counters drain on a slower cadence than the bucket refills,
+ * so a sustained storm yields an occasional summary, not one report per refill.
+ * push_entry() applies the per-topic filter before the global one, so
+ * per-topic-suppressed messages don't drain the global bucket.
  */
 #include <cstdio>
 
@@ -62,10 +59,9 @@ namespace Botanik { namespace Logs {
 
     void Logger::step() {
         uint32_t now_ms         = HAL::current_ms();
-        // Refill the token buckets on their own (fast) cadences. The anchor advances by
-        // the FULL elapsed periods (bounded by the wrap-safe gap, so no overflow), but
-        // the bucket is refilled by min(amount, burst): the bucket saturates at burst
-        // anyway, and this keeps the uint16 _fill_bucket arg from truncating a long gap.
+        // Refill the buckets on their (fast) cadences. The anchor advances by whole
+        // elapsed periods, but the fill is min(amount, burst): the bucket saturates at
+        // burst anyway, and this keeps a long gap from truncating the uint16 fill arg.
         uint32_t global_amount  = (now_ms - _global_fillTime_ms) / _global_period_ms;
         _global_fillTime_ms    += global_amount * _global_period_ms;
         _fill_bucket(&_global_bucket,
@@ -76,8 +72,7 @@ namespace Botanik { namespace Logs {
         // Start at 1: slot 0 (NONE) is never consumed (push_entry short-circuits NONE).
         for (uint8_t i = 1; i < PlcIO::LOG_TOPIC_COUNT; ++i)
             _fill_bucket(&_perTopic_buckets[i], topic_fill, _perTopic_burst);
-        // Drain suppressed-message counters on a separate, slower cadence so a
-        // sustained storm yields an occasional summary rather than one per refill.
+        // Drain suppressed-message counters on a slower cadence (occasional summary).
         uint32_t report_amount  = (now_ms - _suppress_reportTime_ms) / _suppress_period_ms;
         if (report_amount > 0) {
             _suppress_reportTime_ms += report_amount * _suppress_period_ms;
@@ -100,24 +95,23 @@ namespace Botanik { namespace Logs {
                          now_ms, "serial bytes dropped (TX full)");
     }
 
-    // Two-stage drop policy: the token-bucket rate limiter below applies to EVERY level,
-    // criticals included - it is a flood backstop (a critical should be rare and never hit
-    // the limiter, but if a storm of them does, we must not flood the TX chain). Whatever
-    // survives is then undroppable at the WRITER FIFO (it reserves slots for criticals, so
-    // they're never dropped there). So "critical is undroppable" means at the sink queue,
-    // not the rate limiter; a limiter-dropped critical is still counted + summary-reported.
+    // Two-stage drop policy: the rate limiter applies to EVERY level (a flood backstop;
+    // even a critical storm must not flood the TX chain). Whatever survives is undroppable
+    // at the WRITER FIFO, which reserves slots for criticals. So "critical is undroppable"
+    // means at the sink queue, not the limiter; a limiter-dropped critical is still
+    // counted + summary-reported.
     void Logger::push_entry(const PlcIO::LogEntry_t& entry) {
-        // Level gate (before the rate limiter so a filtered entry costs no token): drop a
-        // sub-threshold entry. The LogLevel values are monotonic and LOG_CRITICAL is the
-        // max, so a critical never falls below _min_level - criticals always pass.
+        // Level gate before the limiter so a filtered entry costs no token. LogLevel is
+        // monotonic and LOG_CRITICAL is the max, so a critical never falls below _min_level.
         if (entry.level < _min_level) return;
         PlcIO::LogTopic topic = entry.topic >=
-            PlcIO::LOG_TOPIC_COUNT ? LogTopic::NONE : entry.topic;                       // determine the topic to use for this entry
-        LogBucket_t* topic_bucket = &_perTopic_buckets[topic];                          // get the bucket for this topic
-        if (topic == LogTopic::NONE || _try_bucket(topic_bucket))                         // apply the per-topic filter first so global isn't drained by per-topic-suppressed msgs
-            if (_try_bucket(&_global_bucket))                                           // then apply the global filter
-                for (uint8_t i = 0; i < _writerCount; i++)                              // then, for each registered writer
-                    _writers[i]->push(&entry);                                          // push the entry to the writer's queue
+            PlcIO::LOG_TOPIC_COUNT ? LogTopic::NONE : entry.topic;
+        LogBucket_t* topic_bucket = &_perTopic_buckets[topic];
+        // Per-topic filter first so a per-topic-suppressed msg doesn't drain global.
+        if (topic == LogTopic::NONE || _try_bucket(topic_bucket))
+            if (_try_bucket(&_global_bucket))
+                for (uint8_t i = 0; i < _writerCount; i++)
+                    _writers[i]->push(&entry);
     }
 
     // Level helpers
@@ -147,8 +141,8 @@ namespace Botanik { namespace Logs {
 
     bool Logger::_try_bucket(LogBucket_t* bucket) {
         if (bucket->state == 0) {
-            // Saturate rather than wrap: the suppressed count is now drained on a
-            // slower cadence, so a long storm could otherwise overflow a uint16_t.
+            // Saturate rather than wrap: the slow drain cadence lets a long storm
+            // otherwise overflow the uint16_t suppressed count.
             if (bucket->suppressed != UINT16_MAX) bucket->suppressed++;
             return false;
         }

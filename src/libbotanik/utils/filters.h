@@ -3,10 +3,9 @@
 
 /**
  * @file filters.h
- * @brief Small, dependency-free metric filter primitives: the asymmetric EMA, the
- *        sliding-window maximum, and the alpha helper that configures the EMA. A
- *        slim, unit-testable layer that LoopScheduler builds its per-beat
- *        instrumentation on (CPU load, jitter, work duration, stack usage).
+ * @brief Dependency-free metric filter primitives - the asymmetric EMA, the
+ *        sliding-window maximum, and the EMA alpha helper. LoopScheduler builds its
+ *        per-beat instrumentation on these (CPU load, jitter, work duration, stack).
  */
 
 #include <cstdint>
@@ -42,26 +41,21 @@ namespace Botanik { namespace Utils {
      *  above the current value is folded in with @c attack, one below it with
      *  @c decay, so the filter can rise fast and fall slow (or vice versa). */
     class ExpMovingAverage {
-        /** @brief Current filtered value. */
-        float _value  = 0.0f;
-        /** @brief Blend factor applied to samples above the current value. */
-        float _attack = 1.0f;
-        /** @brief Blend factor applied to samples below the current value. */
-        float _decay  = 1.0f;
+        float _value  = 0.0f;   // current filtered value
+        float _attack = 1.0f;   // blend factor for samples above the value
+        float _decay  = 1.0f;   // blend factor for samples below the value
     public:
         /** @brief Set the attack and decay blend factors (see ema_alpha()). */
         void  configure(float attack, float decay) {
             _attack = attack;
             _decay = decay;
         }
-        /** @brief Fold one sample in, using attack if it rises and decay if it falls. */
+        /** @brief Fold one sample in (attack if it rises, decay if it falls). */
         void  push(float x) {
             const float a = (x > _value) ? _attack : _decay;
             _value = a * x + (1.0f - a) * _value;
         }
-        /** @brief Current filtered value. */
         float value() const { return _value; }
-        /** @brief Clear the filter back to zero. */
         void  reset()       { _value = 0.0f; }
     };
 
@@ -112,7 +106,6 @@ namespace Botanik { namespace Utils {
             return m;
         }
 
-        /** @brief Clear all buckets and the rotation state. */
         void reset() {
             for (uint32_t i = 0; i < K; ++i) _bucket[i] = 0;
             _head = 0; _fill = 0;

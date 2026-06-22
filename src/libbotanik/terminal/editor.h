@@ -30,24 +30,15 @@ namespace Botanik { namespace Terminal {
         PS3, /**< Row that follows a hard `\\n` */
     };
 
-    /**
-     * @brief Geometry of a contiguous slice of the editor buffer.
-     *
-     * Used for the row layout (`_layout`/`_pre`) and as the per-row target
-     * during reconcile.
-     */
+    /** @brief Geometry of a contiguous slice of the editor buffer (a row). */
     struct RowView {
         uint16_t buf_start;  /**< Offset of the slice in the buffer */
         uint16_t buf_len;    /**< Number of content bytes (no trailing \\n) */
         bool     hard_break; /**< True iff the slice is closed by `\\n` */
     };
 
-    /**
-     * @brief A laid-out view of the buffer: the row slices plus their count.
-     *
-     * Used for both the current/target layout (`_layout`) and the pre-edit
-     * layout (`_pre`) so reconcile diffs two same-typed views.
-     */
+    /** @brief A laid-out view of the buffer: the row slices plus their count.
+     *  Used for both `_layout` (current/target) and `_pre` (pre-edit). */
     struct TextView {
         RowView  rows[Config::EDITOR_MAX_ROWS];
         uint16_t count;
@@ -73,33 +64,19 @@ namespace Botanik { namespace Terminal {
          * @{
          */
 
-        /** @brief Owning terminal. */
-        AnsiTerminal* _terminal;
+        AnsiTerminal* _terminal;       /**< Owning terminal. */
 
-        /** @brief Editor buffer. */
-        char     _buf[Config::SHELL_INPUT_LEN];
-        /** @brief Bytes in _buf. */
-        uint16_t _len = 0;
-        /** @brief Cursor offset in _buf. */
-        uint16_t _pos = 0;
+        char     _buf[Config::SHELL_INPUT_LEN];  /**< Editor buffer. */
+        uint16_t _len = 0;             /**< Bytes in _buf. */
+        uint16_t _pos = 0;             /**< Cursor offset in _buf. */
+        uint16_t _origin = 0;          /**< Prompt's top row on screen. */
 
-        /** @brief Prompt's top row on screen. */
-        uint16_t _origin = 0;
+        TextView _layout{};            /**< Current/target row layout. */
+        TextView _pre{};               /**< Pre-edit layout (copied before rebuild). */
 
-        /** @brief Current/target row layout. */
-        TextView _layout{};
-        /** @brief Pre-edit layout (copied before rebuild). */
-        TextView _pre{};
-
-        /** @brief PS1 prompt buffer and its length. */
-        char     _ps1_buf[Config::EDITOR_PROMPT_MAX];
-        uint16_t _ps1_len = 0;
-        /** @brief PS2 prompt buffer and its length. */
-        char     _ps2_buf[Config::EDITOR_PROMPT_MAX];
-        uint16_t _ps2_len = 0;
-        /** @brief PS3 prompt buffer and its length. */
-        char     _ps3_buf[Config::EDITOR_PROMPT_MAX];
-        uint16_t _ps3_len = 0;
+        /** @brief Prompt buffers and lengths, indexed by RowPrompt (PS1/PS2/PS3). */
+        char     _ps_buf[3][Config::EDITOR_PROMPT_MAX];
+        uint16_t _ps_len[3] = {0, 0, 0};
 
         /** @brief When set, automatic redraws on origin shifts are suppressed. */
         bool     _suppress_sync_redraw = false;
@@ -116,27 +93,16 @@ namespace Botanik { namespace Terminal {
          * @{
          */
 
-        /** @brief Set the PS1 prompt (first editor row) */
-        void set_ps1(const char* buf, uint16_t len) { _set_ps(_ps1_buf, _ps1_len, buf, len); }
+        /** @brief Set the PS1/PS2/PS3 prompt (first row / soft-wrap / after a hard `\\n`). */
+        void set_ps1(const char* buf, uint16_t len) { _set_ps(RowPrompt::PS1, buf, len); }
+        void set_ps2(const char* buf, uint16_t len) { _set_ps(RowPrompt::PS2, buf, len); }
+        void set_ps3(const char* buf, uint16_t len) { _set_ps(RowPrompt::PS3, buf, len); }
 
-        /** @brief Set the PS2 prompt (continuation after soft wrap) */
-        void set_ps2(const char* buf, uint16_t len) { _set_ps(_ps2_buf, _ps2_len, buf, len); }
-
-        /** @brief Set the PS3 prompt (row after hard `\\n`) */
-        void set_ps3(const char* buf, uint16_t len) { _set_ps(_ps3_buf, _ps3_len, buf, len); }
-
-        /** @brief PS1 prompt bytes. */
-        const char* ps1() const { return _ps1_buf; }
-        /** @brief PS1 prompt length. */
-        uint16_t    ps1_len() const { return _ps1_len; }
-        /** @brief PS2 prompt bytes. */
-        const char* ps2() const { return _ps2_buf; }
-        /** @brief PS2 prompt length. */
-        uint16_t    ps2_len() const { return _ps2_len; }
-        /** @brief PS3 prompt bytes. */
-        const char* ps3() const { return _ps3_buf; }
-        /** @brief PS3 prompt length. */
-        uint16_t    ps3_len() const { return _ps3_len; }
+        /** @brief PS1 / PS2 prompt bytes and lengths. */
+        const char* ps1() const { return _ps_buf[0]; }
+        uint16_t    ps1_len() const { return _ps_len[0]; }
+        const char* ps2() const { return _ps_buf[1]; }
+        uint16_t    ps2_len() const { return _ps_len[1]; }
 
         /** @} */
 
@@ -148,18 +114,17 @@ namespace Botanik { namespace Terminal {
         /** @brief Clear all state and redraw an empty prompt at the bottom row */
         void reset();
 
-        /** @brief Finalize a submitted line: reset state and draw a new PS1
-         *         at the current cursor row. The caller is expected to have
-         *         issued a `line_feed()` so the cursor sits at column 0 of
-         *         a blank row before calling commit(). */
+        /** @brief Finalize a submitted line: reset state and draw a new PS1 at the
+         *  current cursor row. Caller must have issued a `line_feed()` first, so the
+         *  cursor sits at column 0 of a blank row. */
         void commit();
 
-        /** @brief Redraw the editor's rows from the buffer. Assumes the
-         *         destination rows are already blank (caller cleared them). */
+        /** @brief Redraw the editor's rows from the buffer. Assumes the destination
+         *  rows are already blank (caller cleared them). */
         void redraw();
 
-        /** @brief When set, automatic redraws triggered by origin shifts are
-         *         skipped - caller becomes responsible for one explicit redraw. */
+        /** @brief When set, redraws on origin shifts are skipped - caller becomes
+         *  responsible for one explicit redraw. */
         void suppress_redraw(bool v) { _suppress_sync_redraw = v; }
 
         /** @} */
@@ -206,12 +171,10 @@ namespace Botanik { namespace Terminal {
         /** @brief Move the cursor to the end of the current logical line */
         void move_to_line_end();
 
-        /** @brief Delete `count` characters before the cursor in a single
-         *         reconcile pass. */
+        /** @brief Delete `count` chars before the cursor in one reconcile pass. */
         void backspace(uint16_t count = 1);
 
-        /** @brief Delete `count` characters at the cursor in a single
-         *         reconcile pass. */
+        /** @brief Delete `count` chars at the cursor in one reconcile pass. */
         void delete_forward(uint16_t count = 1);
 
         /** @brief Move the cursor one word to the left */
@@ -249,27 +212,26 @@ namespace Botanik { namespace Terminal {
          * @{
          */
 
-        static void _set_ps(char* dst, uint16_t& dst_len, const char* src, uint16_t len) {
+        /** @brief Store one prompt class's bytes, clamped to the buffer. */
+        void _set_ps(RowPrompt p, const char* buf, uint16_t len) {
             if (len > Config::EDITOR_PROMPT_MAX) len = Config::EDITOR_PROMPT_MAX;
-            memcpy(dst, src, len);
-            dst_len = len;
+            memcpy(_ps_buf[(uint8_t)p], buf, len);
+            _ps_len[(uint8_t)p] = len;
         }
 
         /** @brief Look up the prompt class for prompt-relative row `row_idx`. */
         RowPrompt _row_prompt(uint16_t row_idx) const;
 
-        /** @brief Prompt class for row `idx` in layout `v` (PS1 first row, PS3
-         *         after a hard break, PS2 otherwise). */
+        /** @brief Prompt class for row `idx` in layout `v` (PS1 first, PS3 after a
+         *  hard break, PS2 otherwise). */
         static RowPrompt _row_prompt_in(const TextView& v, uint16_t idx) {
             if (idx == 0) return RowPrompt::PS1;
             return v.rows[idx - 1].hard_break ? RowPrompt::PS3 : RowPrompt::PS2;
         }
 
-        /** @brief Return the bytes of the prompt for the given class. */
-        const char* _prompt_buf(RowPrompt p) const;
-
-        /** @brief Return the length of the prompt for the given class. */
-        uint16_t _prompt_len(RowPrompt p) const;
+        /** @brief Prompt bytes / length for the given row class. */
+        const char* _prompt_buf(RowPrompt p) const { return _ps_buf[(uint8_t)p]; }
+        uint16_t    _prompt_len(RowPrompt p) const { return _ps_len[(uint8_t)p]; }
 
         /** @brief Available capacity (columns) for content on row `row_idx`. */
         uint16_t _row_cap(uint16_t row_idx) const;
@@ -277,11 +239,11 @@ namespace Botanik { namespace Terminal {
         /** @brief Scan one row's content starting at `pos` with the given capacity. */
         RowView _scan_row(uint16_t pos, uint16_t cap) const;
 
-        /** @brief Rebuild the whole row layout (`_rows[]`) from the buffer. */
+        /** @brief Rebuild the whole row layout from the buffer. */
         void _rebuild_layout();
 
-        /** @brief Clear the buffer/cursor and reset to a single empty row
-         *         pinned at the bottom of the screen. */
+        /** @brief Clear the buffer/cursor; reset to one empty row pinned at the
+         *  bottom of the screen. */
         void _reset_state();
 
         /** @brief Owner row for buffer position `pos`: row `i` where
@@ -302,12 +264,9 @@ namespace Botanik { namespace Terminal {
         /** @brief Write the prompt for `row_idx` at the current cursor position. */
         void _write_prompt(uint16_t row_idx);
 
-        /** @brief Where an edit lands in the forward walk.
-         *
-         * `edit_row` is the first affected row. `absorbed_post`/`absorbed_pre`
-         * are the post/pre indices of the absorbed-tail boundary: rows at or
-         * below `absorbed_post` are already correct (shifted by the IL/DL), so
-         * the per-row walk only needs to splice `[edit_row, absorbed_post)`. */
+        /** @brief Where an edit lands in the forward walk. `edit_row` is the first
+         *  affected row. Rows at or below `absorbed_post` are already correct (shifted
+         *  by the IL/DL), so the per-row walk only splices `[edit_row, absorbed_post)`. */
         struct SpliceSpan {
             uint16_t edit_row;      /**< R: first affected post row */
             uint16_t absorbed_post; /**< A: post idx where the absorbed tail begins */
@@ -321,40 +280,36 @@ namespace Botanik { namespace Terminal {
                                      int32_t row_delta) const;
 
         /** @brief Emit the single IL/DL that repositions the absorbed tail and
-         *         opens the blank rows inserted content paints into. */
+         *  opens the blank rows inserted content paints into. */
         void _reposition_tail(const SpliceSpan& span, int32_t row_delta,
                               uint16_t scr_rows);
 
-        /** @brief Reconcile the screen to `_layout` after an edit of `span_len`
-         *         bytes at offset `span_start` (@p is_insert true for insert). See
-         *         the class-level note for the IL/DL + forward-walk strategy. */
+        /** @brief Reconcile the screen to `_layout` after an edit of `span_len` bytes
+         *  at offset `span_start`. See the class-level note for the strategy. */
         void _reconcile(uint16_t span_start, uint16_t span_len, bool is_insert);
 
-        /** @brief Bottom-pinned grow: scroll the screen up so the editor's added
-         *         rows fit, and return the new origin (for the later shrink). */
+        /** @brief Bottom-pinned grow: scroll the screen up so the editor's added rows
+         *  fit; return the new origin (for the later shrink). */
         uint16_t _grow_editor();
 
-        /** @brief Bottom-pinned shrink: slide the editor down (freeing rows
-         *         above for logs) once its rows have collapsed. */
+        /** @brief Bottom-pinned shrink: slide the editor down once its rows collapsed. */
         void _shrink_editor(uint16_t new_origin);
 
-        /** @brief Full-paint row `post_idx` (prompt + content + clear): a blank
-         *         row opened by an IL, or a row whose old glyphs are unrelated
-         *         to the wanted content (disjoint reflow). */
+        /** @brief Full-paint row `post_idx` (prompt + content + clear): an IL-opened
+         *  blank, or a row whose old glyphs are unrelated to the wanted content. */
         void _new_row(uint16_t post_idx);
 
-        /** @brief Reconcile one row: splice `amount` chars at column `col`
-         *         (insert if >0, delete if <0), then length-align the tail to
-         *         `want`. The edit row passes `col = cursor`; rows below pass
-         *         `col = prompt` and `amount = displacement`. `shown_len` /
-         *         `shown_prompt_l` describe what the row physically shows now. */
+        /** @brief Reconcile one row: splice `amount` chars at column `col` (insert if
+         *  >0, delete if <0), then length-align the tail to `want`. The edit row passes
+         *  `col = cursor`; rows below pass `col = prompt`, `amount = displacement`.
+         *  `shown_len`/`shown_prompt_l` describe what the row physically shows now. */
         void _splice_row(uint16_t post_idx, uint16_t col, int32_t amount,
                          uint16_t shown_len, uint16_t shown_prompt_l,
                          const RowView& want);
 
         /** @brief Signed count of content chars the edit splices onto its own row:
-         *         the span clipped to that row's content (0 for a closing `\n`),
-         *         positive for insert, negative for remove. */
+         *  the span clipped to that row's content (0 for a closing `\n`), positive
+         *  for insert, negative for remove. */
         static int32_t _edit_row_amount(uint16_t span_start, uint16_t span_len,
                                         bool is_insert, const RowView& post_row,
                                         const RowView& pre_row);

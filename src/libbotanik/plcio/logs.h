@@ -23,23 +23,16 @@ namespace Botanik { namespace PlcIO {
         /** @name State
          *  @{ */
 
-        /** @brief Local logger that PLC entries are forwarded into. */
         Logger*             _logger;
-        /** @brief Shared-memory sync context. */
         PlcSyncContext*     _ctx;
-        /** @brief Last seen sequence number (only meaningful once _have_seq). */
-        uint32_t            _last_seq = 0;
+        uint32_t            _last_seq = 0;  ///< only meaningful once _have_seq
         /** @brief True once a first entry has been seen (so seq 0 is a real value, not a
          *  "first entry" sentinel - keeps gap detection correct across the 2^32 wrap). */
         bool                _have_seq = false;
-        /** @brief Count of detected dropped entries. */
         uint32_t            _dropped  = 0;
-        /** @brief Shared PLC log ring buffer. */
         const LogEntry_t*   _logBuffer;
-        /** @brief PLC-owned write cursor. */
-        const uint32_t*     _writeIndex;
-        /** @brief Host-owned read cursor. */
-        uint32_t*           _readIndex;
+        const uint32_t*     _writeIndex;    ///< PLC-owned write cursor
+        uint32_t*           _readIndex;     ///< host-owned read cursor
 
         /** @} */
 
@@ -49,10 +42,9 @@ namespace Botanik { namespace PlcIO {
 
         /** @brief Bind the reader to a sync context and local logger. */
         PlcLogReader(PlcSyncContext* ctx, Logger* logger);
-        /** @brief Drain all pending PLC log entries */
+        /** @brief Drain all pending PLC log entries. */
         void drain();
-        /** @brief Drain all pending PLC log entries
-         *  @note call once per tick. */
+        /** @brief Drain all pending PLC log entries; call once per tick. */
         void step();
 
         /** @} */

@@ -1,7 +1,6 @@
 /**
  * @file logs.cpp
- * @brief LogsPage implementation - entry formatting, draining queued entries
- *        into scrollback, and replay on focus.
+ * @brief LogsPage implementation.
  */
 #include <algorithm>
 #include <cstring>
@@ -25,17 +24,12 @@ namespace Botanik { namespace Pages {
     // ------------------------------------------------------------------------
 
     void LogsPage::handle_text(char c) {
-        // SPACE inserts a manual marker into the log tail, handy for annotating
-        // the stream before triggering an action.
-        if (c == ' ') _emit_mark();
+        if (c == ' ') _emit_mark();   // SPACE: annotate the stream with a marker
     }
 
     void LogsPage::handle_command(Command cmd, uint16_t /*count*/) {
-        // Ctrl+C is routed to handle_cancel() by the terminal; the logs page has
-        // nothing to cancel, so it leaves it to the terminal's default.
-        // Scroll the log history: UP/DOWN and Ctrl+P/Ctrl+N move a line at a time
-        // (the live tail freezes while scrolled back); ENTER clears and returns to
-        // the live bottom.
+        // Scroll history a line at a time (live tail freezes while scrolled back);
+        // ENTER clears and returns to the live bottom.
         const uint16_t first_row = 1;
         const uint16_t log_rows  = (uint16_t)(_terminal.rows() - 1);
         switch (cmd) {
@@ -60,9 +54,8 @@ namespace Botanik { namespace Pages {
     void LogsPage::deactivate() {}
 
     void LogsPage::focus() {
-        // Park the cursor at the top of the log area so it's ready for the next
-        // log line. The redraw replay captures this as its resting place and
-        // restores it once the historical tail has drained.
+        // Park the cursor at the top of the log area; the redraw replay captures it as
+        // its resting place and restores it once the historical tail has drained.
         _terminal.move_to({1, 0});
         _scrollback.begin_redraw((uint16_t)(_terminal.rows() - 1)); // rows 1..rows-1
     }
@@ -71,13 +64,12 @@ namespace Botanik { namespace Pages {
         _active = active;
         if (active) {
             _scrollback.drain_redraw(_terminal);
-            // Hold off the live tail until the historical replay is complete - a DL
-            // scroll from drain_tail() would shift rows the replay already drew.
+            // Hold off the live tail until the replay completes - drain_tail's DL scroll
+            // would shift rows the replay already drew.
             if (_scrollback.redraw_pending()) return;
         }
-        // Move queued entries into the scrollback (banks them, and marks them pending
-        // when active). Then paint the pending lines, paced, into the whole content
-        // area (rows 1..rows-1). In the background drain_tail is skipped.
+        // Bank queued entries (pending when active), then paint them paced into the
+        // content area (rows 1..rows-1).
         drain();
         if (active) _scrollback.drain_tail(_terminal, 1, (uint16_t)(_terminal.rows() - 1));
     }
@@ -90,11 +82,8 @@ namespace Botanik { namespace Pages {
     }
 
     size_t LogsPage::write(const char* buf, size_t len) {
-        // Store-only: bank every entry into the scrollback (the live-tail buffer) and,
-        // when active, mark the new row(s) pending so tick()'s drain_tail paints them
-        // paced. In the background nothing reaches the screen; a later focus() replays
-        // the tail. Never blocks and never drops, so always report the whole entry
-        // consumed (this is also why command/log output can't be truncated).
+        // Store-only: bank the entry, mark pending when active for the paced drain_tail.
+        // Never blocks/drops, so always report the whole entry consumed.
         _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(),
             Config::SHELL_LOG_CONT_PREFIX,
             (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX), _active);
@@ -108,8 +97,7 @@ namespace Botanik { namespace Pages {
         // Don't disturb the tail while a page-switch replay is still filling it.
         if (_scrollback.redraw_pending()) return;
 
-        // Stamp the marker with the current time using the same format as log lines,
-        // then store it like any entry; tick()'s drain_tail paints it on a later tick.
+        // Stamp the marker like a log line, then store it as any entry.
         char time_buf[Utils::TIMESTAMP_LEN];
         Utils::format_ms_timestamp(HAL::uptime_ms(), time_buf, sizeof(time_buf));
         char mark[40];
