@@ -16,34 +16,22 @@
 #include "netsocket/EthernetInterface.h"
 #include "netsocket/SocketAddress.h"
 #include "netsocket/NetworkInterface.h"
-#include "netsocket/UDPSocket.h"
 #endif
 
 namespace Botanik { namespace Network {
 
-#ifdef TARGET_OPTA
     namespace {
-        // The single wired-Ethernet device, constructed lazily on first bring-up (so it
-        // is not built during static init, before the Mbed stack is ready).
+#ifdef TARGET_OPTA
+        // The single wired-Ethernet device, constructed lazily on first bring-up.
         NetworkInterface* default_eth() {
             static EthernetInterface eth;
             return &eth;
         }
-
-        // The UDP socket used for the SNTP exchange (single instance; one TimeSyncHandler).
-        UDPSocket& ntp_socket() {
-            static UDPSocket sock;
-            return sock;
-        }
-
-        // NTP port and the 48-byte SNTP packet shape.
-        const uint16_t NTP_PORT = 123;
-        const size_t   NTP_PACKET_LEN = 48;
+#endif
 
         // Convert an SNTP reply's transmit timestamp (bytes 40..47, big-endian: 32-bit
         // seconds since 1900 + 32-bit fraction) to UNIX milliseconds. Returns 0 if the
-        // timestamp is unset or pre-1970. Uses the server transmit time directly (no
-        // round-trip correction) - fine for disciplining a second-scale RTC.
+        // timestamp is unset or pre-1970.
         uint64_t ntp_to_unix_ms(const uint8_t* pkt) {
             uint32_t secs = ((uint32_t)pkt[40] << 24) | ((uint32_t)pkt[41] << 16) |
                             ((uint32_t)pkt[42] << 8)  |  (uint32_t)pkt[43];
@@ -56,7 +44,6 @@ namespace Botanik { namespace Network {
             return unix_s * 1000ull + ms;
         }
     }  // namespace
-#endif
 
     // ------------------------------------------------------------------------
     // NetworkHandler
@@ -184,9 +171,10 @@ namespace Botanik { namespace Network {
     // ------------------------------------------------------------------------
 
     TimeSyncHandler::TimeSyncHandler(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger,
-                                     NameResolver* resolver)
+                                     NameResolver* resolver, const NetworkHandler* net)
         : ConfigHandler(ctx, logger, "TimeSyncHandler"),
-          _state(TIME_IDLE), _since_ms(0), _resolver(resolver), _server_idx(0) {
+          _state(TIME_IDLE), _since_ms(0), _resolver(resolver), _net(net), _server_idx(0),
+          _udp(-1) {
         _server_addr.bytes[0] = _server_addr.bytes[1] = 0;
         _server_addr.bytes[2] = _server_addr.bytes[3] = 0;
     }
@@ -224,28 +212,23 @@ namespace Botanik { namespace Network {
 
             case TIME_RESOLVE: {
                 if (c == nullptr || !c->ntp.enabled) { _state = TIME_IDLE; break; }
-                // The query needs a live interface for its socket; the resolver holds it
-                // (NetworkHandler set it on link-up). Until then, just wait.
-                if (_resolver == nullptr || _resolver->interface() == nullptr) break;
+                // Needs a live link before sending; the NetworkHandler owns that state.
+                if (_net == nullptr || !_net->is_up()) break;
 
                 const char* server = (_server_idx == 0) ? c->ntp.server1 : c->ntp.server2;
                 if (server[0] == '\0') { _next_server_or_error(now_ms); break; }
 
+                if (_resolver == nullptr) { _next_server_or_error(now_ms); break; }
                 ResolveStatus rs = _resolver->resolve(server, &_server_addr);
                 if (rs == RESOLVE_PENDING) break;                       // DNS in flight
                 if (rs == RESOLVE_FAILED)  { _next_server_or_error(now_ms); break; }
-#ifdef TARGET_OPTA
+
                 if (_send_query()) { _state = TIME_QUERY; _since_ms = now_ms; }
                 else               { _next_server_or_error(now_ms); }
-#else
-                _next_server_or_error(now_ms);   // no UDP socket on the sim
-#endif
                 break;
             }
 
-            case TIME_QUERY:
-#ifdef TARGET_OPTA
-            {
+            case TIME_QUERY: {
                 int r = _poll_query(now_ms);
                 if (r > 0) {
                     if (_logger) _logger->notice(PlcIO::TIME, "NTP synced");
@@ -254,9 +237,8 @@ namespace Botanik { namespace Network {
                     if (_logger) _logger->warning(PlcIO::TIME, "NTP query failed");
                     _next_server_or_error(now_ms);
                 }
-            }
-#endif
                 break;
+            }
 
             case TIME_SYNCED: {
                 uint32_t poll_s = (c != nullptr && c->ntp.poll_s) ? c->ntp.poll_s
@@ -277,40 +259,33 @@ namespace Botanik { namespace Network {
         }
     }
 
-#ifdef TARGET_OPTA
     bool TimeSyncHandler::_send_query() {
-        UDPSocket& sock = ntp_socket();
-        sock.close();                    // idempotent: drop any previous open
-        if (sock.open(_resolver->interface()) != NSAPI_ERROR_OK) return false;
-        sock.set_blocking(false);
-
-        SocketAddress server;
-        server.set_ip_bytes(_server_addr.bytes, NSAPI_IPv4);
-        server.set_port(NTP_PORT);
-
-        uint8_t pkt[NTP_PACKET_LEN] = {0};
-        pkt[0] = 0x23;                   // LI = 0, VN = 4, Mode = 3 (client)
-        if (sock.sendto(server, pkt, sizeof(pkt)) < 0) { sock.close(); return false; }
+        HAL::Net::UdpSocket s = HAL::Net::udp_open();
+        if (s < 0) return false;
+        _udp = s;                                  // store the handle for the poll/close
+        HAL::Net::Ip4 srv;
+        srv.b[0]=_server_addr.bytes[0]; srv.b[1]=_server_addr.bytes[1];
+        srv.b[2]=_server_addr.bytes[2]; srv.b[3]=_server_addr.bytes[3];
+        uint8_t pkt[48] = {0};
+        pkt[0] = 0x23;                             // LI=0, VN=4, Mode=3 (client)
+        if (!HAL::Net::udp_sendto(s, srv, 123, pkt, sizeof(pkt))) { HAL::Net::udp_close(s); _udp = -1; return false; }
         return true;
     }
 
     int TimeSyncHandler::_poll_query(uint64_t now_ms) {
-        UDPSocket& sock = ntp_socket();
-        uint8_t pkt[NTP_PACKET_LEN];
-        SocketAddress from;
-        nsapi_size_or_error_t r = sock.recvfrom(&from, pkt, sizeof(pkt));
-        if (r == NSAPI_ERROR_WOULD_BLOCK) {
-            if (now_ms - _since_ms > Config::NTP_QUERY_TIMEOUT_MS) { sock.close(); return -1; }
-            return 0;                    // no reply yet
+        uint8_t pkt[48];
+        HAL::Net::Ip4 from; uint16_t port = 0;
+        int r = HAL::Net::udp_recvfrom(_udp, pkt, sizeof(pkt), &from, &port);
+        if (r == 0) {
+            if (now_ms - _since_ms > Config::NTP_QUERY_TIMEOUT_MS) { HAL::Net::udp_close(_udp); _udp = -1; return -1; }
+            return 0;
         }
-        if (r < (nsapi_size_or_error_t)NTP_PACKET_LEN) { sock.close(); return -1; }
-
+        if (r < (int)sizeof(pkt)) { HAL::Net::udp_close(_udp); _udp = -1; return -1; }
         uint64_t unix_ms = ntp_to_unix_ms(pkt);
-        sock.close();
+        HAL::Net::udp_close(_udp); _udp = -1;
         if (unix_ms == 0) return -1;
         HAL::wall_clock_set(unix_ms);
         return 1;
     }
-#endif
 
 }}

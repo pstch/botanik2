@@ -10,12 +10,13 @@
  * whenever the operator changes its config block (the PLC bumps that block's serial).
  * NetworkHandler owns the network interface and hands it to the shared NameResolver
  * (resolver.h) once the link is up; TimeSyncHandler resolves its NTP servers through
- * that same resolver.
+ * that same resolver and gates on NetworkHandler::is_up().
  */
 
 #include <cstdint>
 
 #include "libbotanik/config_handler.h"
+#include "libbotanik/hal/net.h"
 #include "libbotanik/network/resolver.h"
 
 // Mbed network device (global namespace); used only in network.cpp, forward-declared
@@ -86,9 +87,9 @@ namespace Botanik { namespace Network {
     };
 
     /** @brief NTP client driven by the PLC `ntp` config block: resolves a server via the
-     *  NameResolver, runs a non-blocking SNTP exchange over UDP on the live interface
-     *  (reached through the resolver), and disciplines the RTC. Restarts on a config
-     *  change; falls back to the second server and backs off on failure. */
+     *  NameResolver, runs a non-blocking SNTP exchange over HAL::Net UDP, and disciplines
+     *  the RTC. Gated on NetworkHandler::is_up(). Restarts on a config change; falls back
+     *  to the second server and backs off on failure. */
     class TimeSyncHandler : public ConfigHandler {
         /** @name State
          *  @{ */
@@ -99,16 +100,18 @@ namespace Botanik { namespace Network {
             TIME_SYNCED,     ///< RTC disciplined; idle until the next poll
             TIME_ERROR,      ///< failed; backing off before a retry
         };
-        State         _state;
-        uint64_t      _since_ms;       ///< when the current state was entered (for timeouts)
-        NameResolver* _resolver;       ///< DNS + the live interface (set by NetworkHandler)
-        ResolvedAddr  _server_addr;    ///< resolved address of the server being queried
-        uint8_t       _server_idx;     ///< which configured server we are on (0 = server1)
+        State                   _state;
+        uint64_t                _since_ms;       ///< when the current state was entered (for timeouts)
+        NameResolver*           _resolver;       ///< DNS resolver (set by NetworkHandler)
+        const NetworkHandler*   _net;            ///< link gate (null = always blocked)
+        ResolvedAddr            _server_addr;    ///< resolved address of the server being queried
+        uint8_t                 _server_idx;     ///< which configured server we are on (0 = server1)
+        HAL::Net::UdpSocket     _udp;            ///< open UDP socket handle (-1 = none)
         /** @} */
 
     public:
         TimeSyncHandler(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger = nullptr,
-                        NameResolver* resolver = nullptr);
+                        NameResolver* resolver = nullptr, const NetworkHandler* net = nullptr);
 
     protected:
         uint32_t config_serial() const override;
@@ -121,9 +124,9 @@ namespace Botanik { namespace Network {
         /** @brief Advance to the second server if there is one, else go to ERROR. */
         void _next_server_or_error(uint64_t now_ms);
         /** @brief Open the UDP socket and send an SNTP request to _server_addr.
-         *  OPTA only; returns false on any socket error. */
+         *  Returns false on any socket error. */
         bool _send_query();
-        /** @brief Poll the UDP socket for the reply. OPTA only; returns 1 = synced (RTC
+        /** @brief Poll the UDP socket for the reply. Returns 1 = synced (RTC
          *  set), 0 = still waiting, -1 = failed/timed out. */
         int _poll_query(uint64_t now_ms);
         /** @} */

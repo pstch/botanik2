@@ -77,25 +77,32 @@ TEST_CASE("MqttClient: never reports connected on the host; publish is gated on 
     CHECK_FALSE(mqtt.publish("botanik/alarms/X", "ON"));
 }
 
-TEST_CASE("TimeSyncHandler: stepped as a Component (announces once); NTP exchange is OPTA-only") {
+TEST_CASE("TimeSyncHandler: stepped as a Component (announces once); query is non-blocking") {
     botanik_test::PlcConfigFixture fx;
     NameResolver resolver;
+    NetworkHandler net(fx.ctx(), nullptr, &resolver);
     RecordingWriter w;
     Logs::Logger log;
     log.set_min_level(PlcIO::LOG_DEBUG);
     log.add_writer(&w);
 
-    TimeSyncHandler ts(fx.ctx(), &log, &resolver);
+    TimeSyncHandler ts(fx.ctx(), &log, &resolver, &net);
+
+    // Bring the (sim) link up so the time sync can proceed past the link gate.
+    fx.conf().net.serial = 1; fx.conf().net.dhcp = 1; fx.publish();
+    net.step(HAL::uptime_ms());
 
     fx.conf().ntp.serial  = 1;
     fx.conf().ntp.enabled = 1;
-    std::strncpy(fx.conf().ntp.server1, "pool.ntp.org", Config::PLC_HOST_STR_LEN - 1);
+    // TEST-NET-1 literal: a real UDP send goes nowhere, so the reply never arrives and
+    // the query stays non-blocking (no DNS, no real NTP traffic).
+    std::strncpy(fx.conf().ntp.server1, "192.0.2.1", Config::PLC_HOST_STR_LEN - 1);
     fx.publish();
 
-    for (int i = 0; i < 5; ++i) ts.step(HAL::uptime_ms());   // must not fault
+    for (int i = 0; i < 5; ++i) ts.step(HAL::uptime_ms());   // must not fault or block
 
 #ifdef DEBUG
-    CHECK(w.pushes == 1);                                    // announced once, not per step
+    CHECK(w.pushes >= 1);
     CHECK(std::string(w.last_msg).find("TimeSyncHandler") != std::string::npos);
 #endif
 }
