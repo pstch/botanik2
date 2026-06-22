@@ -25,3 +25,8 @@ docs/doxygen/
 
 # Build-time code charts (scripts/code_charts.py, run by the `docs` target)
 docs/generated/
+
+# Planning artifacts must not live under docs/ (they'd be published as API pages).
+# The superpowers skill writes plans/specs here by default; keep them out of the
+# tree. Tracked plans/specs live in the top-level superpowers/ directory instead.
+docs/superpowers/
