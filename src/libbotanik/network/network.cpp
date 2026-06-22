@@ -185,6 +185,7 @@ namespace Botanik { namespace Network {
     }
 
     void TimeSyncHandler::on_config_changed(uint64_t now_ms) {
+        if (_udp >= 0) { HAL::Net::udp_close(_udp); _udp = -1; }
         const PlcIO::PlcOutputConfig_t* c = config();
         // Restart the client with the new servers / poll interval, from the first server.
         _server_idx = 0;
