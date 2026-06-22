@@ -148,29 +148,28 @@ the TX ring.
 \dot "the ring feeds three paced paths into the visible window, all gated on the TX ring"
 digraph scrollback {
   stylesheet="graphs.css";
-  bgcolor="transparent"; rankdir=TB; nodesep=0.3; ranksep=0.5;
-  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9, margin="0.1,0.06"];
+  bgcolor="transparent"; rankdir=TB; nodesep=0.3; ranksep=0.45;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9, margin="0.12,0.06"];
   edge [arrowsize=0.7, fontname="Helvetica", fontsize=8];
 
   ingest [class="neutral", label="new log line\ningest() / store_wrapped()"];
   ring [shape=plaintext, label=<
     <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#9e9e9e">
       <tr><td bgcolor="#37474f"><font color="#ffffff"><b>Scrollback&lt;L&gt;</b> : LineBuffer</font></td></tr>
-      <tr><td bgcolor="#d6e4f0" align="left">L pre-wrapped rows (ring)</td></tr>
-      <tr><td bgcolor="#d6e4f0" align="left"><font color="#555555">newest-first; oldest evicted</font></td></tr>
+      <tr><td bgcolor="#d6e4f0">L pre-wrapped rows (ring), newest-first</td></tr>
     </table>
   >];
-  lt [class="ui", label="live tail\ndrain_tail()\n&#8804; LOG_ROWS_PER_TICK"];
-  rp [class="ui", label="focus / switch replay\ndrain_redraw()\n&#8804; SCROLLBACK_ROWS_PER_TICK"];
-  sc [class="ui", label="scroll / scroll_to_bottom\n(live tail frozen\nwhile scrolled back)"];
-  gate [shape=diamond, style=filled, class="event", label="tx_below_cold()?\n(paced per tick)"];
-  scr [class="serial", label="visible window\nrows first_row .. +log_rows\n(bottom-aligned)"];
+  drains [shape=plaintext, label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#9e9e9e">
+      <tr><td bgcolor="#37474f"><font color="#ffffff"><b>paint paths</b> &#160;<font color="#cfd8dc">(each paced per tick, gated on tx_below_cold)</font></font></td></tr>
+      <tr><td bgcolor="#e6dcf0" align="left">live tail &#8212; drain_tail()</td></tr>
+      <tr><td bgcolor="#e6dcf0" align="left">focus / switch replay &#8212; drain_redraw()</td></tr>
+      <tr><td bgcolor="#e6dcf0" align="left">scroll / scroll_to_bottom</td></tr>
+    </table>
+  >];
+  window [class="serial", label="visible window\n(bottom-aligned, log_rows)"];
 
-  ingest -> ring;
-  ring -> lt; ring -> rp; ring -> sc;
-  { rank=same; lt; rp; sc; }
-  lt -> gate; rp -> gate; sc -> gate;
-  gate -> scr [label="emit a\nbounded batch"];
+  ingest -> ring -> drains -> window;
 }
 \enddot
 
