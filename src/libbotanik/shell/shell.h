@@ -49,8 +49,7 @@ namespace Botanik { namespace Shell {
      *  @brief Handles command submission, built-in dispatch, and extensibility.
      *
      *  Site commands are added data-driven via set_commands() (a table of
-     *  ShellCommand); alternatively, subclass and override dispatch() for commands
-     *  that need richer control. Both are tried after the built-ins.
+     *  ShellCommand), tried before the built-ins so the table can override one.
      *
      *  Command history (up/down recall with a saved draft) and a single-entry kill
      *  ring (Ctrl-K cut to EOL / Ctrl-Y yank) are backed by the SHELL_HISTORY_* /
@@ -149,23 +148,13 @@ namespace Botanik { namespace Shell {
 
         /** @} */
 
-    protected:
-        /** @name Extensibility
-         *  @{ */
-
-        /** @brief Override to handle application-specific commands.
-         *        Default implementation calls _builtin(). */
-        virtual void dispatch(const char* cmd, uint16_t len);
-
-        /** @} */
-
     private:
         /** @name Internals
          *  @{ */
 
-        /** @brief Built-in handler (run when dispatch() falls through): matches the first
-         *  word against the built-in table and invokes its handler with the arg slice. */
-        void _builtin(const char* cmd, uint16_t len);
+        /** @brief Match the first word against the site command table (which may
+         *  override a built-in) then the built-in table, and run the handler. */
+        void _dispatch(const char* cmd, uint16_t len);
 
         /** @brief One built-in: name, one-line help, handler taking the argument slice. */
         struct Builtin { const char* name; const char* help;

@@ -298,11 +298,10 @@ namespace Botanik { namespace PlcIO {
          *  @{ */
 
         inline bool _rx_new_message()      { return HAL::ordered_read(&_plcout->sync.txSeqNum) != _plcin->sync.txAckNum; }
-        // Pulse at heartbeat cadence from the last commit (not the last ack), so an
+        // Pulse at heartbeat cadence from the last commit (not the last ack): both the
+        // TX_IDLE keepalive and the TX_WAIT re-pulse of an unacked commit use this, so an
         // unacked link keeps a steady cadence instead of re-firing every step.
         inline bool _tx_heartbeat_elapsed(){ return _ctx._now() - _tx_commit_ms > _heartbeat_ms; }
-        // Re-pulse a commit left unacked for a whole heartbeat (TX_WAIT recovery).
-        inline bool _tx_recommit_elapsed() { return _ctx._now() - _tx_commit_ms > _heartbeat_ms; }
         inline bool _tx_acknowledged() {
             uint32_t ack = HAL::ordered_read(&_plcout->sync.rxAckNum);
             if (ack != _plcin->sync.rxSeqNum) return false;
@@ -369,7 +368,7 @@ namespace Botanik { namespace PlcIO {
                 case TX_WRITE:  _tx_memcpy();               return TX_COMMIT; break;
                 case TX_COMMIT: _tx_commit();               return TX_WAIT;   break;
                 case TX_WAIT:   if (_tx_acknowledged())     return TX_IDLE;
-                        else if (_tx_recommit_elapsed())    return TX_COMMIT; break;
+                        else if (_tx_heartbeat_elapsed())   return TX_COMMIT; break;
                 case TX_IDLE:   if (_ctx._tx_write)         return TX_WRITE;
                         else if (_tx_heartbeat_elapsed())   return TX_COMMIT; break;
             }

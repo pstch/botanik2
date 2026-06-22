@@ -166,6 +166,9 @@ namespace Botanik { namespace Logs {
         bool _try_bucket(LogBucket_t* bucket);
         /** @brief Add @p amount tokens to @p bucket, clamped to @p burst. */
         void _fill_bucket(LogBucket_t* bucket, uint16_t amount, uint16_t burst);
+        /** @brief Push a CRITICAL entry straight to the writers (bypassing the rate
+         *  limiter) so loss/suppression reports survive the storm they describe. */
+        void _emit_critical(PlcIO::LogTopic topic, uint32_t timestamp_ms, const char* fmt, ...);
         /** @brief Emit a synthetic warning entry if @p bucket has suppressed entries. */
         void _report_suppressed(LogBucket_t* bucket, PlcIO::LogTopic topic, uint32_t timestamp_ms);
         /** @brief Edge-triggered loss report: emit a critical "<delta> <what>" entry

@@ -41,14 +41,7 @@ namespace Botanik { namespace Shell {
     void CommandShell::run(const char* cmd, uint16_t len) {
         if (len == 0) return;
         _history_add(cmd, len);
-        dispatch(cmd, len);
-    }
-
-    // Extensibility
-    // ------------------------------------------------------------------------
-
-    void CommandShell::dispatch(const char* cmd, uint16_t len) {
-        _builtin(cmd, len);
+        _dispatch(cmd, len);
     }
 
     // Internals
@@ -73,18 +66,15 @@ namespace Botanik { namespace Shell {
         return TABLE;
     }
 
-    void CommandShell::_builtin(const char* cmd, uint16_t len) {
+    void CommandShell::_dispatch(const char* cmd, uint16_t len) {
         // First word = command name (leading spaces skipped); the rest = the arguments.
         const char* args = cmd; uint16_t alen = len, wlen;
         const char* name = Utils::arg_next(args, alen, wlen);
         if (name == nullptr) return;                            // blank / all-spaces line
         while (alen > 0 && *args == ' ') { args++; alen--; }    // trim to the argument slice
 
-        uint8_t bcount; const Builtin* B = _builtins(bcount);
-        for (uint8_t i = 0; i < bcount; i++)
-            if (Utils::arg_eq(name, wlen, B[i].name)) { (this->*B[i].fn)(args, alen); return; }
-
-        // Site commands, tried after the built-ins so a site can't shadow exit/reset.
+        // Site commands first, so the table can override a built-in (e.g. a site
+        // that wants its own `stats`); unmatched names fall through to the built-ins.
         for (size_t i = 0; i < _command_count; i++) {
             const ShellCommand& c = _commands[i];
             if (c.name != nullptr && c.fn != nullptr && Utils::arg_eq(name, wlen, c.name)) {
@@ -92,6 +82,10 @@ namespace Botanik { namespace Shell {
                 return;
             }
         }
+        uint8_t bcount; const Builtin* B = _builtins(bcount);
+        for (uint8_t i = 0; i < bcount; i++)
+            if (Utils::arg_eq(name, wlen, B[i].name)) { (this->*B[i].fn)(args, alen); return; }
+
         _unknown(cmd, len);
     }
 

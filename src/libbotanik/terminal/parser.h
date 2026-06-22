@@ -195,9 +195,6 @@ namespace Botanik { namespace Terminal {
         /** @brief Handle one byte in the IDLE state. */
         State _handle_idle(uint8_t b);
 
-        /** @brief Handle one byte in the TEXT state. */
-        State _handle_text(uint8_t b);
-
         /** @brief Handle one byte in the IN_ESC state. */
         State _handle_esc(uint8_t b);
 

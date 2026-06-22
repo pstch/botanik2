@@ -155,20 +155,25 @@ namespace Botanik { namespace Logs {
         }
     }
 
-    void Logger::_report_suppressed(LogBucket_t* bucket, PlcIO::LogTopic topic, uint32_t timestamp_ms) {
-        if (bucket->suppressed == 0) return;
+    void Logger::_emit_critical(PlcIO::LogTopic topic, uint32_t timestamp_ms, const char* fmt, ...) {
+        // Push a CRITICAL entry straight to every writer, bypassing the rate limiter:
+        // these loss/suppression reports must survive the very storm they summarize
+        // (REPORT-SLOT keeps criticals when the writer FIFO is full).
         LogEntry_t entry = {};
         entry.timestamp = timestamp_ms;
-        // Critical so REPORT-SLOT keeps it: during the very storm it summarizes the
-        // writer FIFO is full, and a lower level would be the first thing dropped.
         entry.level     = PlcIO::LOG_CRITICAL;
         entry.topic     = topic;
-        int w = snprintf(
-            entry.message, sizeof(entry.message),
-            "%u msgs suppressed", (unsigned)bucket->suppressed);
+        va_list ap; va_start(ap, fmt);
+        int w = vsnprintf(entry.message, sizeof(entry.message), fmt, ap);
+        va_end(ap);
         if (w < 0) w = 0;
         entry.length = (uint16_t)std::min((size_t)w, sizeof(entry.message) - 1);
         for (uint8_t i = 0; i < _writerCount; i++) _writers[i]->push(&entry);
+    }
+
+    void Logger::_report_suppressed(LogBucket_t* bucket, PlcIO::LogTopic topic, uint32_t timestamp_ms) {
+        if (bucket->suppressed == 0) return;
+        _emit_critical(topic, timestamp_ms, "%u msgs suppressed", (unsigned)bucket->suppressed);
         bucket->suppressed = 0;
     }
 
@@ -176,15 +181,7 @@ namespace Botanik { namespace Logs {
                               uint32_t now_ms, const char* what) {
         if (total <= rep.reported_count) return;                                  // nothing new
         if (rep.reported && (now_ms - rep.last_report_ms) < interval_ms) return;  // holdoff
-        uint32_t delta = total - rep.reported_count;
-        LogEntry_t entry = {};
-        entry.timestamp = now_ms;
-        entry.level     = PlcIO::LOG_CRITICAL;
-        entry.topic     = LogTopic::NONE;
-        int w = snprintf(entry.message, sizeof(entry.message), "%u %s", (unsigned)delta, what);
-        if (w < 0) w = 0;
-        entry.length = (uint16_t)std::min((size_t)w, sizeof(entry.message) - 1);
-        for (uint8_t i = 0; i < _writerCount; i++) _writers[i]->push(&entry);
+        _emit_critical(LogTopic::NONE, now_ms, "%u %s", (unsigned)(total - rep.reported_count), what);
         rep.reported_count = total;
         rep.last_report_ms = now_ms;
         rep.reported       = true;

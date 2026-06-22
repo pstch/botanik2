@@ -125,10 +125,6 @@ namespace Botanik { namespace Terminal {
         return State::IDLE;
     }
 
-    InputParser::State InputParser::_handle_text(uint8_t b) {
-        return _append_text(b);
-    }
-
     InputParser::State InputParser::_handle_sep(uint8_t b) {
         _event.command = _map_sep_to_command(b);
         if (_event.command != Command::NONE)
@@ -312,18 +308,16 @@ namespace Botanik { namespace Terminal {
                 } else if (_should_flush_text()) {
                     _flush_text();
                     _state = State::IDLE;
-                } else if (_state == State::IN_ESC &&
+                } else if ((_state == State::IN_ESC || _state == State::IN_CSI ||
+                            _state == State::IN_SEP) &&
                            (*_timestamp_ms - _last_byte_ms) >= Config::ANSI_CMD_TIMEOUT_MS) {
-                    _event.command = Command::ESC;
-                    _event.type    = EventType::COMMAND;
-                    _state = State::IDLE;
-                } else if (_state == State::IN_CSI &&
-                           (*_timestamp_ms - _last_byte_ms) >= Config::ANSI_CMD_TIMEOUT_MS) {
-                    _state = State::IDLE;
-                } else if (_state == State::IN_SEP &&
-                           (*_timestamp_ms - _last_byte_ms) >= Config::ANSI_CMD_TIMEOUT_MS) {
-                    // A lone SEP (0x13 / XOFF) never completes; drop it back to IDLE
-                    // so a stray flow-control byte can't swallow the next keystroke.
+                    // An incomplete escape timed out: a lone ESC emits the ESC command; a
+                    // partial CSI or a stray SEP (0x13/XOFF) just drops to IDLE so it can't
+                    // swallow the next keystroke.
+                    if (_state == State::IN_ESC) {
+                        _event.command = Command::ESC;
+                        _event.type    = EventType::COMMAND;
+                    }
                     _state = State::IDLE;
                 }
                 return _event;
@@ -367,7 +361,7 @@ namespace Botanik { namespace Terminal {
             State new_state;
             switch (_state) {
                 case State::IDLE:   new_state = _handle_idle(b); break;
-                case State::TEXT:   new_state = _handle_text(b); break;
+                case State::TEXT:   new_state = _append_text(b); break;
                 case State::IN_SEP: new_state = _handle_sep(b);  break;
                 case State::IN_ESC: new_state = _handle_esc(b);  break;
                 case State::IN_CSI: new_state = _handle_csi(b);  break;

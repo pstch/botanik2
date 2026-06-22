@@ -6,8 +6,8 @@
  * @brief LoopScheduler - non-blocking fixed-period loop driver with overrun
  *        handling and built-in performance instrumentation: scheduling jitter,
  *        CPU duty cycle, per-beat work duration, and stack high-water usage. The
- *        reusable metric filters and the published PerfContext live in
- *        utils/filters.h; everything is published through the SchedulerContext.
+ *        reusable metric filters live in utils/filters.h; the PerfContext /
+ *        SchedulerContext they feed are defined here.
  */
 
 #include <cstdint>
