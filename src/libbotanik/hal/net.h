@@ -1,0 +1,79 @@
+#ifndef HAL_NET_H
+#define HAL_NET_H
+
+/**
+ * @file net.h
+ * @brief Minimal HAL socket layer: a single network link, non-blocking DNS, UDP and TCP.
+ *
+ * Portable surface used by the network components (resolver / NTP / MQTT). The two
+ * backends live in net.cpp: Mbed sockets on OPTA, Linux BSD sockets on the simulator.
+ * No Mbed or POSIX socket headers leak through this header. The link is implicit: a
+ * socket is opened on the active interface, so callers never hold an interface handle.
+ */
+
+#include <cstddef>
+#include <cstdint>
+
+namespace Botanik { namespace HAL { namespace Net {
+
+    /** @name Address */
+    /** @{ */
+    /** @brief IPv4 address as four octets (network order). */
+    struct Ip4 { uint8_t b[4]; };
+    /** @} */
+
+    /** @name Link (the single network interface) */
+    /** @{ */
+    /** @brief Bring-up parameters. Dotted-decimal strings; an empty string means unset.
+     *  When dhcp is true the static fields are ignored. */
+    struct LinkConfig {
+        bool dhcp;
+        char ip[16], netmask[16], gateway[16], dns1[16], dns2[16];
+    };
+    enum LinkState { LINK_DOWN, LINK_CONNECTING, LINK_UP };
+
+    /** @brief Start a non-blocking (re)bring-up from @p cfg. */
+    void      link_configure(const LinkConfig& cfg);
+    /** @brief Tear the link down (idempotent). */
+    void      link_disconnect();
+    /** @brief Current link state. */
+    LinkState link_status();
+    /** @brief Current address into @p out; false if the link is not up. */
+    bool      link_ip(Ip4* out);
+    /** @} */
+
+    /** @name DNS (non-blocking, poll model) */
+    /** @{ */
+    typedef uint32_t DnsHandle;        ///< 0 == invalid / could-not-start
+    enum DnsResult { DNS_PENDING, DNS_OK, DNS_FAILED };
+
+    /** @brief Start resolving @p host. Returns 0 if a lookup could not be started. */
+    DnsHandle dns_begin(const char* host);
+    /** @brief Poll @p h. On DNS_OK fills @p out; DNS_OK/DNS_FAILED consume the handle. */
+    DnsResult dns_poll(DnsHandle h, Ip4* out);
+    /** @brief Cancel an in-flight lookup (idempotent). */
+    void      dns_cancel(DnsHandle h);
+    /** @} */
+
+    /** @name UDP / TCP
+     *  recv returns >0 bytes, 0 would-block, <0 closed/error. A socket id < 0 is invalid. */
+    /** @{ */
+    typedef int32_t UdpSocket;
+    typedef int32_t TcpSocket;
+
+    UdpSocket udp_open();
+    bool      udp_sendto(UdpSocket s, const Ip4& addr, uint16_t port, const void* buf, size_t len);
+    int       udp_recvfrom(UdpSocket s, void* buf, size_t len, Ip4* from, uint16_t* port);
+    void      udp_close(UdpSocket s);
+
+    TcpSocket tcp_open();
+    /** @brief Non-blocking connect: 1 connected, 0 in-progress (poll again), <0 error. */
+    int       tcp_connect(TcpSocket s, const Ip4& addr, uint16_t port);
+    int       tcp_send(TcpSocket s, const void* buf, size_t len);   ///< bytes, <0 error
+    int       tcp_recv(TcpSocket s, void* buf, size_t len);         ///< >0 / 0 wouldblock / <0 closed
+    void      tcp_close(TcpSocket s);
+    /** @} */
+
+}}}
+
+#endif // HAL_NET_H
