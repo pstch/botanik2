@@ -83,8 +83,18 @@ PATH_ALIASES = (
 )
 
 
-def canonical(path):
-    """Apply the known historical renames so old paths fold into current areas."""
+def normalize_path(path):
+    """Resolve a git-numstat path to its current canonical location: strip any
+    rename syntax ('old => new' and the brace form 'pre/{old => new}/post'), then
+    fold the known historical renames so old paths land in current areas.
+    """
+    if "=>" in path:
+        if "{" in path and "}" in path:
+            pre, rest = path.split("{", 1)
+            mid, post = rest.split("}", 1)
+            path = pre + mid.split("=>", 1)[1].strip() + post
+        else:
+            path = path.split("=>", 1)[1].strip()
     for old, new in PATH_ALIASES:
         if old.endswith("/"):
             if path.startswith(old):
@@ -92,21 +102,6 @@ def canonical(path):
         elif path == old:
             path = new
     return path
-
-
-def resolve_rename(path):
-    """Resolve a git numstat rename path to its current location.
-
-    Handles both 'old => new' and the brace form 'pre/{old => new}/post'.
-    """
-    if "=>" not in path:
-        return path
-    if "{" in path and "}" in path:
-        pre, rest = path.split("{", 1)
-        mid, post = rest.split("}", 1)
-        new = mid.split("=>", 1)[1].strip()
-        return pre + new + post
-    return path.split("=>", 1)[1].strip()
 
 
 # --------------------------------------------------------------------------
@@ -164,7 +159,7 @@ def collect_churn(src, since):
         add, dele, path = cols
         if add == "-":  # binary file
             continue
-        area = area_for(canonical(resolve_rename(path)))
+        area = area_for(normalize_path(path))
         if area is None:
             continue
         lines[area] = lines.get(area, 0) + int(add) + int(dele)
