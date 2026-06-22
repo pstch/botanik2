@@ -240,17 +240,42 @@ it through the resolver, which is both the DNS cache and the holder of the inter
 
 \dot "NetworkHandler hands the live interface to the shared NameResolver"
 digraph components {
-  bgcolor="transparent"; rankdir=TB; nodesep=0.4; ranksep=0.5;
-  node [shape=box, style=rounded, fontname="Helvetica", fontsize=10, margin="0.1,0.05"];
-  edge [arrowsize=0.7];
+  stylesheet="graphs.css";
+  bgcolor="transparent"; rankdir=TB; nodesep=0.45; ranksep=0.55;
+  node [shape=plaintext, fontname="Helvetica", fontsize=9];
+  edge [arrowsize=0.7, fontname="Helvetica", fontsize=8];
 
-  nh [label="NetworkHandler\n(device bring-up)"];
-  nr [label="NameResolver\n(interface + DNS)", style="rounded,filled", fillcolor="#d6e4f0"];
-  ts [label="TimeSyncHandler\n(UDP / NTP)"];
-  mq [label="MqttClient\n(TCP / MQTT)"];
-  ot [label="(other users)", style="rounded,dashed", fontcolor="#777777", color="#bbbbbb"];
+  nh [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#9e9e9e">
+      <tr><td bgcolor="#37474f"><font color="#ffffff"><b>NetworkHandler</b></font></td></tr>
+      <tr><td bgcolor="#d6e4f0" align="left">watches: <b>net</b></td></tr>
+      <tr><td bgcolor="#d6e4f0" align="left"><font color="#555555">device bring-up (DHCP/static)</font></td></tr>
+    </table>
+  >];
+  nr [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#9e9e9e">
+      <tr><td bgcolor="#2e7d32"><font color="#ffffff"><b>NameResolver</b></font></td></tr>
+      <tr><td bgcolor="#cde6d3" align="left">holds the live interface</td></tr>
+      <tr><td bgcolor="#cde6d3" align="left"><font color="#555555">resolve(): non-blocking DNS + cache</font></td></tr>
+    </table>
+  >];
+  ts [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#9e9e9e">
+      <tr><td bgcolor="#37474f"><font color="#ffffff"><b>TimeSyncHandler</b></font></td></tr>
+      <tr><td bgcolor="#d6e4f0" align="left">watches: <b>ntp</b></td></tr>
+      <tr><td bgcolor="#d6e4f0" align="left"><font color="#555555">UDP / SNTP</font></td></tr>
+    </table>
+  >];
+  mq [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#9e9e9e">
+      <tr><td bgcolor="#37474f"><font color="#ffffff"><b>MqttClient</b></font></td></tr>
+      <tr><td bgcolor="#d6e4f0" align="left">watches: <b>mqtt</b></td></tr>
+      <tr><td bgcolor="#d6e4f0" align="left"><font color="#555555">TCP / MQTT publish</font></td></tr>
+    </table>
+  >];
+  ot [shape=box, style="rounded,dashed", fontname="Helvetica", fontsize=9, fontcolor="#777777", color="#bbbbbb", label="(other users)"];
 
-  nh -> nr [label="set_interface\n(on link up)", fontsize=8];
+  nh -> nr [label="set_interface\n(on link up)"];
   nr -> ts;
   nr -> mq;
   nr -> ot;

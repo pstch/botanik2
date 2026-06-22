@@ -75,21 +75,35 @@ edge-triggered (first event instant, then a per-category holdoff) and classed
 
 \dot "a log entry: sources -> Logger (rate limiting) -> every registered writer -> its sink"
 digraph logflow {
+  stylesheet="graphs.css";
   bgcolor="transparent"; rankdir=TB; nodesep=0.35; ranksep=0.5;
-  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9, margin="0.12,0.06"];
+  node [shape=plaintext, fontname="Helvetica", fontsize=9];
   edge [arrowsize=0.7, fontname="Helvetica", fontsize=8];
 
-  fw  [label="firmware code\ninfo() / warning() / ...", fillcolor="#eceff1"];
-  plc [label="PlcLogReader::step()\n(PLC coprocessor ring)", fillcolor="#d7ecd9"];
-  logger [label="Logger\nglobal bucket  x  topic bucket\n(drop + count on empty;\nperiodic suppressed report)", fillcolor="#fdebcf"];
+  fw  [shape=box, style="rounded,filled", class="neutral", margin="0.12,0.06", label="firmware code\ninfo() / warning() / ..."];
+  plc [shape=box, style="rounded,filled", class="plc",     margin="0.12,0.06", label="PlcLogReader::step()\n(PLC coprocessor ring)"];
 
-  mon   [label="Monitor\nLogWriter", fillcolor="#e6dcf0"];
-  shell [label="ShellPage", fillcolor="#e6dcf0"];
-  logs  [label="LogsPage", fillcolor="#e6dcf0"];
-  home  [label="HomePage", fillcolor="#e6dcf0"];
+  logger [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#9e9e9e">
+      <tr><td colspan="2" bgcolor="#37474f"><font color="#ffffff"><b>Logger</b></font></td></tr>
+      <tr><td bgcolor="#fdebcf">global<br/>bucket</td><td bgcolor="#fdebcf">per-topic<br/>bucket</td></tr>
+      <tr><td colspan="2" bgcolor="#fff3cd" align="left"><font color="#555555">pass &#8594; push_entry; empty &#8594; drop + count</font></td></tr>
+    </table>
+  >];
 
-  monser  [label="monitor serial\n(drain() in main loop)", fillcolor="#d6e4f0"];
-  pageout [label="active page paints; background\npages bank into Scrollback\nfor focus() replay", fillcolor="#d6e4f0"];
+  mon   [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e"><tr><td bgcolor="#37474f"><font color="#ffffff"><b>Monitor</b></font></td></tr><tr><td bgcolor="#e6dcf0"><font color="#555555">LogWriter</font></td></tr></table>>];
+  shell [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e"><tr><td bgcolor="#37474f"><font color="#ffffff"><b>ShellPage</b></font></td></tr><tr><td bgcolor="#e6dcf0"><font color="#555555">writer</font></td></tr></table>>];
+  logs  [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e"><tr><td bgcolor="#37474f"><font color="#ffffff"><b>LogsPage</b></font></td></tr><tr><td bgcolor="#e6dcf0"><font color="#555555">writer</font></td></tr></table>>];
+  home  [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e"><tr><td bgcolor="#37474f"><font color="#ffffff"><b>HomePage</b></font></td></tr><tr><td bgcolor="#e6dcf0"><font color="#555555">writer</font></td></tr></table>>];
+
+  monser  [shape=box, style="rounded,filled", class="serial", margin="0.12,0.06", label="monitor serial\n(drain() in main loop)"];
+  pagedrain [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#9e9e9e">
+      <tr><td bgcolor="#37474f"><font color="#ffffff"><b>page LogWriter drain</b> (per tick)</font></td></tr>
+      <tr><td bgcolor="#e6dcf0" align="left"><b>active</b> page &#8594; paints to screen</td></tr>
+      <tr><td bgcolor="#eeeeee" align="left"><b>background</b> page &#8594; banks into Scrollback</td></tr>
+    </table>
+  >];
 
   fw  -> logger;
   plc -> logger;
@@ -99,9 +113,9 @@ digraph logflow {
   logger -> home;
   { rank=same; mon; shell; logs; home; }
   mon   -> monser  [label="BufferedLogWriter:\npush -> FIFO -> drain()", fontsize=7];
-  shell -> pageout;
-  logs  -> pageout;
-  home  -> pageout;
+  shell -> pagedrain;
+  logs  -> pagedrain;
+  home  -> pagedrain;
 }
 \enddot
 
