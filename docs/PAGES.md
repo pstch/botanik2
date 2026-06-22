@@ -46,18 +46,36 @@ an inactive page banks queued entries without drawing (see
 
 \dot "the page class hierarchy (library pages in blue, site pages in green)"
 digraph pages {
-  bgcolor="transparent"; rankdir=TB; nodesep=0.35; ranksep=0.5;
-  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9, margin="0.12,0.06"];
-  edge [arrowsize=0.7, arrowhead=empty];
+  stylesheet="graphs.css";
+  bgcolor="transparent"; rankdir=TB; nodesep=0.35; ranksep=0.55;
+  node [shape=plaintext, fontname="Helvetica", fontsize=9];
+  edge [arrowsize=0.8, arrowhead=empty];
 
-  page    [label="Pages::Page\n(abstract interface)", fillcolor="#eceff1"];
-  shell   [label="ShellPage\n+ TextEditor, CommandShell\n+ ShellWriter / LogWriter", fillcolor="#d6e4f0"];
-  logs    [label="LogsPage\n+ LogWriter", fillcolor="#d6e4f0"];
-  metric  [label="MetricPage\n(diff-rendered base)", fillcolor="#d6e4f0"];
-  home    [label="HomePage<T>\n+ LogWriter", fillcolor="#d6e4f0"];
-  status  [label="StatusPage<T>", fillcolor="#d6e4f0"];
-  ghome   [label="GreenhouseHomePage", fillcolor="#d7ecd9"];
-  gstatus [label="GreenhouseStatusPage", fillcolor="#d7ecd9"];
+  page [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e">
+    <tr><td bgcolor="#37474f"><font color="#ffffff"><b>Pages::Page</b></font></td></tr>
+    <tr><td bgcolor="#eceff1"><font color="#555555">abstract interface</font></td></tr></table>>];
+  shell [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e">
+    <tr><td bgcolor="#37474f"><font color="#ffffff"><b>ShellPage</b></font></td></tr>
+    <tr><td bgcolor="#d6e4f0" align="left">+ TextEditor, CommandShell</td></tr>
+    <tr><td bgcolor="#d6e4f0" align="left">+ ShellWriter / LogWriter</td></tr></table>>];
+  logs [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e">
+    <tr><td bgcolor="#37474f"><font color="#ffffff"><b>LogsPage</b></font></td></tr>
+    <tr><td bgcolor="#d6e4f0" align="left">+ LogWriter</td></tr></table>>];
+  metric [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e">
+    <tr><td bgcolor="#37474f"><font color="#ffffff"><b>MetricPage</b></font></td></tr>
+    <tr><td bgcolor="#d6e4f0"><font color="#555555">diff-rendered base</font></td></tr></table>>];
+  home [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e">
+    <tr><td bgcolor="#37474f"><font color="#ffffff"><b>HomePage&lt;T&gt;</b></font></td></tr>
+    <tr><td bgcolor="#d6e4f0" align="left">+ LogWriter</td></tr></table>>];
+  status [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e">
+    <tr><td bgcolor="#37474f"><font color="#ffffff"><b>StatusPage&lt;T&gt;</b></font></td></tr>
+    <tr><td bgcolor="#d6e4f0"><font color="#555555">runtime / health</font></td></tr></table>>];
+  ghome [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e">
+    <tr><td bgcolor="#2e7d32"><font color="#ffffff"><b>GreenhouseHomePage</b></font></td></tr>
+    <tr><td bgcolor="#d7ecd9"><font color="#555555">site readings</font></td></tr></table>>];
+  gstatus [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e">
+    <tr><td bgcolor="#2e7d32"><font color="#ffffff"><b>GreenhouseStatusPage</b></font></td></tr>
+    <tr><td bgcolor="#d7ecd9"><font color="#555555">site readings</font></td></tr></table>>];
 
   page -> shell;
   page -> logs;

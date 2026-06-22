@@ -47,30 +47,61 @@ active. See [PAGES.md](PAGES.md).
 
 \dot "input: serial bytes -> parser -> terminal dispatch -> the active page"
 digraph dispatch {
+  stylesheet="graphs.css";
   bgcolor="transparent"; rankdir=TB; nodesep=0.4; ranksep=0.45;
   node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9, margin="0.12,0.06"];
   edge [arrowsize=0.7, fontname="Helvetica", fontsize=8];
 
-  serial    [label="hardware serial port", shape=oval, fillcolor="#eceff1"];
-  bs        [label="BufferedSerial\nRX ring 256 B / TX ring 4 KB", fillcolor="#d6e4f0"];
-  parse     [label="InputParser.parse()  ->  InputEvent", fillcolor="#fdebcf"];
-  content   [label="CONTENT event", fillcolor="#fff3cd"];
-  command   [label="COMMAND event", fillcolor="#fff3cd"];
-  intercept [label="Terminal intercepts (consumed):\nCtrl+L, HOME, Alt+1..0,\nTAB / Ctrl+PgUp/PgDn, Ctrl+C", fillcolor="#f6c6c2"];
-  htext     [label="page->handle_text_batch()", fillcolor="#e6dcf0"];
-  hcmd      [label="page->handle_command(cmd, count)", fillcolor="#e6dcf0"];
-  active    [label="active page\nShellPage / LogsPage / HomePage / StatusPage", fillcolor="#d7ecd9"];
-  tickall   [label="tick(active) on every page (active + background)", fillcolor="#eceff1"];
+  serial [shape=oval, class="neutral", label="hardware serial port"];
+
+  bs [shape=plaintext, label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#9e9e9e">
+      <tr><td colspan="2" bgcolor="#37474f"><font color="#ffffff"><b>BufferedSerial</b></font></td></tr>
+      <tr><td bgcolor="#d6e4f0">RX ring<br/>256 B</td><td bgcolor="#d6e4f0">TX ring<br/>4 KB</td></tr>
+    </table>
+  >];
+
+  parse [class="logic", label="InputParser.parse()\n-> InputEvent"];
+
+  content [shape=plaintext, label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e">
+      <tr><td bgcolor="#37474f"><font color="#ffffff"><b>CONTENT event</b></font></td></tr>
+      <tr><td bgcolor="#fff3cd"><font color="#555555">printable run</font></td></tr>
+    </table>
+  >];
+  command [shape=plaintext, label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="4" color="#9e9e9e">
+      <tr><td bgcolor="#37474f"><font color="#ffffff"><b>COMMAND event</b></font></td></tr>
+      <tr><td bgcolor="#fff3cd"><font color="#555555">key + repeat count</font></td></tr>
+    </table>
+  >];
+
+  intercept [class="intercept", label="Terminal intercepts (consumed):\nCtrl+L, HOME, Alt+1..0,\nTAB / Ctrl+PgUp/PgDn, Ctrl+C"];
+  htext [class="ui", label="page->handle_text_batch()"];
+  hcmd  [class="ui", label="page->handle_command(cmd, count)"];
+  active [class="plc", label="active page\nShellPage / LogsPage / HomePage / StatusPage"];
+
+  editor [shape=plaintext, label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#9e9e9e">
+      <tr><td bgcolor="#37474f"><font color="#ffffff"><b>InputEditor</b> (TextEditor)</font></td></tr>
+      <tr><td bgcolor="#e6dcf0" align="left">ShellPage's line editor</td></tr>
+      <tr><td bgcolor="#e6dcf0" align="left"><font color="#555555">CONTENT &#8594; insert; COMMAND &#8594; move/delete</font></td></tr>
+    </table>
+  >];
+
+  tickall [class="neutral", label="tick(active) on every page (active + background)"];
 
   serial -> bs [label="raw bytes"];
-  bs -> parse  [label="drained in step()"];
+  bs -> parse [label="drained in step()"];
   parse -> content;
   parse -> command;
   command -> intercept;
   intercept -> hcmd [label="remaining"];
   content -> htext;
+  { rank=same; htext; hcmd; }
   htext -> active;
   hcmd  -> active;
+  active -> editor [label="ShellPage", style=dashed];
   active -> tickall;
 }
 \enddot
