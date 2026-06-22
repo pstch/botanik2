@@ -3,10 +3,10 @@
 
 @brief Initialise a project for a new site.
 
-A **site** is the single source of truth for one greenhouse: its PLC payload, its
-pages, its alarm table, and its config overrides. Starting a new deployment means
-creating a site directory and pointing the build at it. The reference site
-@ref reference "gh_mlb41" is the template to copy from.
+A **site** is the single source of truth for one greenhouse: its PLC payload,
+pages, alarm table, and config overrides. Starting a new deployment means creating
+a site directory and pointing the build at it, copying the reference site
+@ref reference "gh_mlb41" as a template.
 
 @section setup_clone Getting the code
 
@@ -18,15 +18,14 @@ cd botanik
 @endcode
 
 The Linux simulator builds with just CMake and a C++11 compiler (see @ref targets).
-The hardware build additionally needs the Arduino Mbed OPTA core, which the CMake
-OPTA build auto-discovers; install it once with arduino-cli:
+The hardware build also needs the Arduino Mbed OPTA core (auto-discovered by the CMake
+OPTA build); install it once with arduino-cli:
 
 @code{.sh}
 arduino-cli core install arduino:mbed_opta   # one-time: the cross-toolchain for OPTA
 @endcode
 
-This is only required for the @ref md_src_2botanik__fw_2README "OPTA firmware" build;
-the simulator does not need it.
+Only the @ref md_src_2botanik__fw_2README "OPTA firmware" build needs it.
 
 @section setup_dir The site directory
 
@@ -43,26 +42,19 @@ Create `src/sites/<name>/` (the `<name>` is the code-name you select with
 
 @section setup_payload The payload contract
 
-The site's `PlcInputData_t` / `PlcOutputData_t` is the byte-for-byte layout shared
-with the M4 coprocessor; the PLC IDE generates the matching type on its side. It is
-used verbatim by both the simulator's mock PLC and the OPTA firmware - never fork it
-per target. Generic components constrain it (for example the alarm and status
-machinery needs a 64-bit `alarms` bitset on the output struct); the site defines its
-layout to satisfy those contracts and verifies the size with the `static_assert`s
-noted in the simulator.
+The site's `PlcInputData_t` / `PlcOutputData_t` is the byte-for-byte layout shared with
+the M4 coprocessor (the PLC IDE generates the matching type on its side). Both the
+simulator's mock PLC and the OPTA firmware use it verbatim - never fork it per target.
+Generic components constrain it (e.g. the alarm/status machinery needs a 64-bit
+`alarms` bitset on the output struct); the site defines its layout to satisfy those
+contracts and verifies the size with `static_assert`s.
 
 @section setup_firmware The firmware subclass
 
-The subclass derives `BotanikFirmware<PlcInputData_t, PlcOutputData_t>` and
-customises through the protected hooks rather than overriding `setup()`/`loop()`:
-
-- `register_pages()` - the tab order (page 0 is the boot page);
-- `register_commands()` - the site's shell command table;
-- `on_setup()` - post-wiring done after the base is up;
-- `on_loop()` - per-beat site logic.
-
-The alarm table is passed to the base constructor. See the worked extension example
-in `firmware.h`.
+The subclass derives `BotanikFirmware<PlcInputData_t, PlcOutputData_t>` and customises
+through the protected hooks (`register_pages()`, `register_commands()`, `on_setup()`,
+`on_loop()`) rather than overriding `setup()`/`loop()`; the alarm table is passed to
+the base constructor. See the worked extension example in `firmware.h`.
 
 @section setup_build Selecting the site
 

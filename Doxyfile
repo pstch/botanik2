@@ -102,6 +102,11 @@ CALL_GRAPH             = NO
 CALLER_GRAPH           = NO
 DOT_MULTI_TARGETS      = YES
 
+# PlantUML (\startuml blocks) - sequence/state/class diagrams. Externally
+# provided, not vendored: point this at the system jar (Debian/Ubuntu:
+# `apt install plantuml`). Override the path here for other locations.
+PLANTUML_JAR_PATH      = /usr/share/plantuml/plantuml.jar
+
 #---------------------------------------------------------------------------
 # Output formats
 #---------------------------------------------------------------------------
@@ -117,8 +122,7 @@ GENERATE_LATEX         = NO
 # SVGs come from scripts/code_charts.py (run by the `docs` target); on a build
 # where they weren't generated, Doxygen just warns they're missing.
 HTML_EXTRA_STYLESHEET  = docs/charts.css
-HTML_EXTRA_FILES       = docs/graphs.css \
-                         docs/generated/code_loc.svg \
+HTML_EXTRA_FILES       = docs/generated/code_loc.svg \
                          docs/generated/code_churn.svg \
                          docs/generated/code_asserts.svg \
                          docs/generated/code_tests.svg

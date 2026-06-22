@@ -14,10 +14,8 @@ into a flashable OPTA image.
 | `simulator.cpp` | The mock PLC: a worker thread that animates the greenhouse payload with plausible, time-varying values. |
 
 Unlike the OPTA, the simulator owns the PLC shared memory: `main()` allocates it as
-local statics and the emulator thread writes to it, standing in for the M4
-coprocessor. The payload here is a fully populated greenhouse model; on hardware the
-[botanik_fw](../botanik_fw/README.md) payload mirrors the PLC IDE's generated type
-instead.
+local statics and the emulator thread writes to it, standing in for the M4 coprocessor.
+On hardware the payload instead mirrors the PLC IDE's generated type.
 
 ## Building & running
 
@@ -30,16 +28,16 @@ make -C build-debug botanik_sim
 ./build-debug/botanik_sim
 ```
 
-The simulator puts stdin into raw mode and bails unless it is attached to a real
-terminal (`isatty()`), so run it in an actual TTY, not a piped/redirected context.
-The diagnostic log is written to stderr; redirect it (`2> sim.log`) to keep it from
-sharing the console UI's screen.
+The simulator puts stdin into raw mode and bails unless attached to a real terminal
+(`isatty()`), so run it in an actual TTY, not a piped/redirected context. The
+diagnostic log goes to stderr; redirect it (`2> sim.log`) to keep it off the console
+UI's screen.
 
 ## Fast / high-iteration testing
 
 Two environment variables compress the wall-clock cost of a run so the simulator
-can churn through a very large number of scheduler ticks quickly. Both are
-simulator-only and read once at startup.
+can churn through many scheduler ticks quickly. Both are simulator-only and read
+once at startup.
 
 | Variable | Effect |
 |---|---|
@@ -47,16 +45,11 @@ simulator-only and read once at startup.
 | `BOTANIK_NO_XRUN_WARNING` | Silences the scheduler's overrun (xrun) warning, whose count/placement are load-dependent. Set it to any value (presence is what matters). See `scheduler/scheduler.cpp`. |
 | `BOTANIK_NO_LOAD_ALARMS` | Holds the CPU_* load alarms (CPU_LOAD / CPU_JITT / CPU_XRUN) cleared, so the active-alarm set is deterministic for screen goldens. Set it to a non-zero value. No effect on OPTA (no environment). See `health/health.h`. |
 
-`BOTANIK_TIME_SCALE=N` dilates time uniformly: every byte/event ratio is
-identical to a normal run, only wall time is divided by N. A 10 ms tick at scale
-10 costs ~1 ms of wall-clock, so you reach a given iteration count ~N times
-sooner without changing what the run actually exercises. Pushing the scale very
-high eventually starves the per-tick budget (input/render start racing at the
-~1 ms floor around scale >= 5), so raise it until ticks begin to overrun, then
-back off.
-
-Dilated time provokes the load-dependent xrun warning, which floods the log
-pages and is just noise in a soak run. Pair the two to run hot and quiet:
+`BOTANIK_TIME_SCALE=N` dilates time uniformly: every byte/event ratio matches a normal
+run, only wall time is divided by N, so you reach a given iteration count ~N times
+sooner. Pushing it very high starves the per-tick budget (input/render race at the
+~1 ms floor around scale >= 5), so raise it until ticks overrun, then back off. Dilated
+time also provokes the load-dependent xrun warning; pair the two to run hot and quiet:
 
 ```bash
 # Hammer the scheduler ~10x faster, without overrun-warning spam.

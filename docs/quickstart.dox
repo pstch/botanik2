@@ -9,17 +9,15 @@ assumes you already have a site building under the simulator (see @ref setup).
 
 @section qs_package Package the library
 
-The library ships as an Arduino zip. The packaging step just copies and zips text,
-so it runs from any configured tree - no OPTA toolchain needed to produce the
-deliverable:
+The library ships as an Arduino zip. Packaging just copies and zips text, so it runs
+from any configured tree - no OPTA toolchain needed:
 
 @code{.sh}
 make -C build arduino-lib      # -> build/arduino/libbotanik.zip
 @endcode
 
-The zip holds `libbotanik` only (the umbrella headers plus the `libbotanik/` tree);
-it carries no entry point of its own. The IDE compiles it with the OPTA board's own
-flags.
+The zip holds `libbotanik` only (umbrella headers plus the `libbotanik/` tree), no
+entry point; the IDE compiles it with the OPTA board's own flags.
 
 @section qs_import Import it
 
@@ -28,9 +26,8 @@ In the IDE, use *Sketch -> Include Library -> Add .ZIP Library* and point it at
 
 @section qs_pieces How the pieces map to the IDE
 
-The Axel PLC IDE owns the sketch and only accepts imported Arduino libraries - you
-cannot add a sketch folder or an arbitrary file tree. So the project is split three
-ways:
+The Axel PLC IDE owns the sketch and only accepts imported Arduino libraries - no
+sketch folder or arbitrary file tree. So the project is split three ways:
 
 | IDE side | Reference here | Role |
 |----------|----------------|------|
@@ -39,13 +36,12 @@ ways:
 | Imported library | `libbotanik` (the zip) | The building blocks. |
 
 `botanik_setup()` / `botanik_step()` are **not** library API - they are declared in
-`botanik_arduino.h`, defined by your project-root file, and called by the sketch.
-This indirection exists because the imported library cannot ship its own `.ino`.
+`botanik_arduino.h`, defined by your project-root file, and called by the sketch. This
+indirection exists because the imported library cannot ship its own `.ino`.
 
 @section qs_sketch The sketch
 
-The sketch window is deliberately trivial - it mirrors what the IDE's generated
-program calls into:
+The sketch window is deliberately trivial:
 
 @code{.cpp}
 #include "botanik_arduino.h"
@@ -59,20 +55,19 @@ void loop() {
 }
 @endcode
 
-The project-root C++ file does the real work: it includes `<libbotanik.h>`,
-statically allocates your site's firmware (a `GreenhouseMLB41` or equivalent),
-binds the PLC shared memory from `HAL::get_plc_input()` / `HAL::get_plc_output()`
-rather than allocating it locally, and defines the two hooks - `botanik_setup()`
-doing the construction/`setup()` work and `botanik_step()` running one main-loop
-iteration. See `src/botanik_fw/` for the reference wiring.
+The project-root C++ file does the real work: it includes `<libbotanik.h>`, statically
+allocates your site's firmware (a `GreenhouseMLB41` or equivalent), binds the PLC
+shared memory from `HAL::get_plc_input()` / `HAL::get_plc_output()` rather than
+allocating it locally, and defines the two hooks. See `src/botanik_fw/` for the
+reference wiring.
 
-@note The exact hook names (`botanik_setup` / `botanik_step`) are placeholders
-pending confirmation of the symbol the Axel runtime calls into; adjust them to match.
+@note The exact hook names (`botanik_setup` / `botanik_step`) are placeholders pending
+confirmation of the symbol the Axel runtime calls into; adjust them to match.
 
 @section qs_abi Checking the ARM build without the IDE
 
-For a fast "does it still build and fit for the target" check without the full
-Arduino link, compile the library (plus the reference wiring) for ARM directly:
+For a fast "does it still build and fit the target" check without the full Arduino
+link, compile the library (plus the reference wiring) for ARM directly:
 
 @code{.sh}
 cmake -B build-opta -DBOTANIK_TARGET=OPTA

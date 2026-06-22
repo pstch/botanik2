@@ -1,12 +1,12 @@
 # Keyboard Bindings
 
-This page lists every key binding and the function it ultimately dispatches to.
-A binding is resolved in two stages: @ref Botanik::Terminal::InputParser decodes
-the raw byte stream into an `InputEvent::Command`, then
+This page lists every key binding and the function it dispatches to. A binding
+resolves in two stages: @ref Botanik::Terminal::InputParser decodes the raw byte
+stream into an `InputEvent::Command`, then
 @ref Botanik::Terminal::AnsiTerminal::step "AnsiTerminal::step()" routes it - a
-handful of commands are intercepted by the terminal itself, the rest are handed
-to the active page's `handle_command()`. See
-[EVENT_DISPATCH.md](EVENT_DISPATCH.md) for the full dispatch architecture.
+handful of commands are intercepted by the terminal, the rest handed to the active
+page's `handle_command()`. See [EVENT_DISPATCH.md](EVENT_DISPATCH.md) for the full
+dispatch architecture.
 
 ## Terminal intercepts
 
@@ -78,13 +78,9 @@ Read-only metric displays, handled by the shared
 
 ## Notes
 
-- **TAB no longer reaches a page.** It is a terminal intercept that cycles to the
-  next page (with Shift+Tab decoded as the same command); shell auto-completion is
-  not wired up.
-- **Held keys are coalesced.** The parser batches repeated BACKSPACE / Ctrl+D
-  presses into a single command with a `count`, so the editor does one reconcile
-  pass instead of N - hence the `count` argument on
-  @ref Botanik::Terminal::TextEditor::backspace "backspace()" and
-  @ref Botanik::Terminal::TextEditor::delete_forward "delete_forward()".
-- **Mark / selection are stubs.** `set_mark_toggle()` and `deselect()` exist on
-  @ref Botanik::Terminal::TextEditor for parity but currently do nothing.
+- **TAB is a terminal intercept** cycling to the next page (Shift+Tab decodes to the
+  same command); shell auto-completion is not wired up.
+- **Held keys are coalesced.** The parser batches repeated BACKSPACE / Ctrl+D into a
+  single command with a `count`, so the editor does one reconcile pass instead of N -
+  hence the `count` argument on `backspace()` / `delete_forward()`.
+- **Mark / selection are stubs** (`set_mark_toggle()` / `deselect()` exist for parity).

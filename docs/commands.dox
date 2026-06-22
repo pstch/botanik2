@@ -8,13 +8,11 @@
 grow as site-specific commands are added; for now it tracks what
 @ref Botanik::Shell::CommandShell ships with.
 
-Commands are entered on the @ref Botanik::Pages::ShellPage "Shell" page. When a
-line is submitted (see @ref md_docs_2KEYBINDINGS), @ref Botanik::Pages::ShellPage
-hands it to @ref Botanik::Shell::CommandShell::run "CommandShell::run()", which
-dispatches through @ref Botanik::Shell::CommandShell::dispatch "dispatch()" and
-falls through to the built-in handler,
-@ref Botanik::Shell::CommandShell::_builtin "_builtin()". An empty line is
-ignored; an unrecognized one echoes `Unknown command: …`.
+Commands are entered on the @ref Botanik::Pages::ShellPage "Shell" page. A submitted
+line (see @ref md_docs_2KEYBINDINGS) is dispatched through
+@ref Botanik::Shell::CommandShell::dispatch "dispatch()", falling through to the
+built-in handler. An empty line is ignored; an unrecognized one echoes
+`Unknown command: …`.
 
 @section commands_builtin Built-in commands
 
@@ -28,10 +26,8 @@ ignored; an unrecognized one echoes `Unknown command: …`.
 
 @section commands_extending Extending
 
-Application code adds its own commands by subclassing
-@ref Botanik::Shell::CommandShell and overriding
-@ref Botanik::Shell::CommandShell::dispatch "dispatch()": handle the
-site-specific verbs there, then call the base implementation so the built-ins
-above still resolve. History and kill-ring support are stubbed for now (see the
-`SHELL_HISTORY_*` / `SHELL_KILL_SIZE` constants in @c libbotanik_config.h).
+Application code adds commands by subclassing @ref Botanik::Shell::CommandShell and
+overriding @ref Botanik::Shell::CommandShell::dispatch "dispatch()": handle the
+site-specific verbs there, then call the base so the built-ins still resolve. History
+and kill-ring support are stubbed for now.
 */

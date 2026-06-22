@@ -7,9 +7,9 @@ wires the components, and exposes the hooks the sketch calls.
 
 ## How the pieces map to the Axel PLC IDE
 
-The IDE owns the project and only accepts **imported Arduino libraries** - you can't
-add a sketch folder or an arbitrary file tree. So two things live on the IDE side and
-one is delivered as a library:
+The IDE owns the project and only accepts **imported Arduino libraries** - no sketch
+folder or arbitrary file tree. So two things live on the IDE side and one is
+delivered as a library:
 
 | Axel side | Reference here | Role |
 |---|---|---|
@@ -18,10 +18,8 @@ one is delivered as a library:
 | Imported library | `libbotanik` (delivered as a zip) | The building blocks. Carries no entry point of its own. |
 
 `botanik_setup()`/`botanik_step()` (see `botanik_arduino.h`) are **not** library API -
-they are defined by the project-root file and called by the sketch. `firmware.cpp`
-does the construction (the `setup()` work); `step()` is one main-loop iteration. The
-PLC shared memory is bound from `HAL::get_plc_input()/get_plc_output()` rather than
-allocated locally.
+defined by the project-root file, called by the sketch. The PLC shared memory is bound
+from `HAL::get_plc_input()/get_plc_output()` rather than allocated locally.
 
 ## Memory map
 
@@ -29,34 +27,21 @@ The OPTA is a dual-core STM32H747: the **M7** runs Botanik (with Mbed OS), the *
 runs the Axel PLC runtime, and the two communicate only through a shared RAM region.
 Botanik names exactly one address - the shared PLC vars, via the
 `m_PLCSharedVarsInputBuf` / `m_PLCSharedVarsOutputBuf` symbols (`hal/opta.h`); every
-other placement (the FLASH split, which SRAM bank the shared region lands in) is
-decided by the Axel PLC IDE's linker config, not this repo. The map below is the
-**typical** STM32H747 + Axel arrangement for orientation, not a guarantee:
+other placement is the Axel PLC IDE's linker config, not this repo. The map below is
+the **typical** STM32H747 + Axel arrangement for orientation, not a guarantee:
 
-\dot "typical OPTA dual-core memory map; Botanik only references the shared PLC region"
-digraph mmap {
-  bgcolor="transparent"; rankdir=LR; nodesep=0.4;
-  node [shape=plaintext, fontname="Helvetica", fontsize=9];
-  edge [arrowsize=0.6, fontname="Helvetica", fontsize=8, color="#2e7d32"];
+| Address | Region | Use |
+|---|---|---|
+| `0x0800_0000` | FLASH bank 1 (1 MB) | M7 - Botanik app + Mbed OS |
+| `0x0810_0000` | FLASH bank 2 (1 MB) | M4 - Axel PLC runtime + program |
+| `0x2000_0000` | DTCM (128 KB) | M7 stack / hot data |
+| `0x2400_0000` | AXI SRAM, D1 (512 KB) | M7 heap / general |
+| `0x3000_0000` | SRAM1-3, D2 (288 KB) | **M4 data + shared PLC vars** |
+| `0x3800_0000` | SRAM4, D3 (64 KB) | low-power / cross-core |
+| `0x3880_0000` | Backup SRAM (4 KB) | retained |
 
-  mm [label=<
-    <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#9e9e9e">
-      <tr><td colspan="3" bgcolor="#37474f"><font color="#ffffff"><b>STM32H747 memory</b> &#160;<font color="#cfd8dc">(typical OPTA + Axel layout)</font></font></td></tr>
-      <tr><td bgcolor="#eceff1"><font face="Courier">0x0800_0000</font></td><td bgcolor="#fde6c0">FLASH bank 1 (1 MB)</td><td bgcolor="#d6e4f0" align="left">M7 &#8212; Botanik app + Mbed OS</td></tr>
-      <tr><td bgcolor="#eceff1"><font face="Courier">0x0810_0000</font></td><td bgcolor="#fde6c0">FLASH bank 2 (1 MB)</td><td bgcolor="#fdebcf" align="left">M4 &#8212; Axel PLC runtime + program</td></tr>
-      <tr><td bgcolor="#eceff1"><font face="Courier">0x2000_0000</font></td><td bgcolor="#eaf1f8">DTCM (128 KB)</td><td bgcolor="#d6e4f0" align="left">M7 stack / hot data</td></tr>
-      <tr><td bgcolor="#eceff1"><font face="Courier">0x2400_0000</font></td><td bgcolor="#eaf1f8">AXI SRAM, D1 (512 KB)</td><td bgcolor="#d6e4f0" align="left">M7 heap / general</td></tr>
-      <tr><td bgcolor="#eceff1"><font face="Courier">0x3000_0000</font></td><td bgcolor="#eaf1f8">SRAM1-3, D2 (288 KB)</td><td port="sh" bgcolor="#cde6d3" align="left"><b>M4 data + shared PLC vars</b></td></tr>
-      <tr><td bgcolor="#eceff1"><font face="Courier">0x3800_0000</font></td><td bgcolor="#eaf1f8">SRAM4, D3 (64 KB)</td><td bgcolor="#eceff1" align="left">low-power / cross-core</td></tr>
-      <tr><td bgcolor="#eceff1"><font face="Courier">0x3880_0000</font></td><td bgcolor="#eaf1f8">Backup SRAM (4 KB)</td><td bgcolor="#eceff1" align="left">retained</td></tr>
-    </table>
-  >];
-
-  note [shape=note, style=filled, fillcolor="#eafaef", color="#4caf50", fontsize=8, fontname="Helvetica",
-        label="m_PLCSharedVarsInputBuf /\nOutputBuf  (PlcInput&lt;&gt; /\nPlcOutput&lt;&gt;) - the only\naddress Botanik names;\nplaced by the Axel linker"];
-  note -> mm:sh;
-}
-\enddot
+The shared PLC vars (i.e. `PlcInput<>` / `PlcOutput<>`) sit in the D2 SRAM row above;
+the Axel linker decides where they land.
 
 ## Delivering the library
 
@@ -64,25 +49,20 @@ digraph mmap {
 make -C build arduino-lib      # -> build/arduino/libbotanik.zip
 ```
 
-Import it via the IDE's *Sketch -> Include Library -> Add .ZIP Library*. The target is
-platform-independent (it just copies + zips text), so it runs from the default
-SIMULATOR tree - no OPTA toolchain needed to produce the deliverable. The zip holds
-`libbotanik` only (the umbrella headers + the `libbotanik/` tree); the IDE compiles it
-with the OPTA board's own flags, which is why we don't replay the `DEVICE_*`/`TARGET_*`
-define wall when packaging.
+Import it via the IDE's *Sketch -> Include Library -> Add .ZIP Library*. Packaging just
+copies + zips text, so it runs from the default SIMULATOR tree - no OPTA toolchain
+needed; the IDE compiles the zip with the OPTA board's own flags.
 
 ## Placeholders
 
 `PlcInputData_t` / `PlcOutputData_t` in `firmware.h` are **stubs**. The real layout is
-generated by the PLC IDE and shared byte-for-byte with the M4 coprocessor; replace
-them with the generated types and verify with the `static_assert`s noted in
+generated by the PLC IDE and shared byte-for-byte with the M4 coprocessor; replace them
+with the generated types and verify with the `static_assert`s noted in
 `botanik_sim/simulator.h`. Until then the firmware links and the home page renders a
-minimal temperature/humidity readout.
+minimal readout.
 
-## CMake build-opta is still the fast path for ABI/size checks
+## ARM build for ABI/size checks
 
 `cmake -B build-opta -DBOTANIK_TARGET=OPTA` compiles `libbotanik` (plus this reference
-wiring, as the `botanik_fw` static lib) for ARM - size, LTO, and the footprint
-`static_assert`s - without the full Arduino link. Keep using it for quick "does it
-still build for the target" checks; use `arduino-lib` + the IDE to produce a flashable
-image.
+wiring) for ARM - size, LTO, and the footprint `static_assert`s - without the full
+Arduino link. Use `arduino-lib` + the IDE to produce a flashable image.

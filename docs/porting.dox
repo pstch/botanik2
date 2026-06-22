@@ -24,9 +24,9 @@ time:
 
 A new target adds `hal/<target>.h` implementing every declared function, a
 `TARGET_<NAME>` define, and a branch here (plus a CMake toolchain entry). Use
-`simulator.h` and `opta.h` as the two worked references - the simulator shows the
-"no real hardware" answers (barriers and cache ops as no-ops, time from
-`std::chrono`), the OPTA shows the device answers.
+`simulator.h` and `opta.h` as worked references: the simulator gives the "no real
+hardware" answers (barriers/cache ops as no-ops, time from `std::chrono`), the OPTA the
+device answers.
 
 @section porting_surface What to implement
 
@@ -48,5 +48,5 @@ The simulator and the `OPTA` ARM build already exercise the two ends of the
 spectrum; a new HAL is correct when the existing subsystems run unchanged on top of
 it. Bring it up against the @ref reference "reference site" and watch the boot:
 @ref md_docs_2POST "POST" validates the shared-region pointers and alignment, so a
-mis-wired `get_plc_*` shows up immediately as a critical on the `BOOT` topic.
+mis-wired `get_plc_*` shows up at once as a critical on the `BOOT` topic.
 */

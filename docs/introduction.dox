@@ -15,32 +15,15 @@ Botanik is not the controller - the PLC is. Botanik is the layer the PLC program
 cannot easily provide itself: a serial terminal UI, rate-limited logging, health
 and watchdog supervision, and alarm notification. It reads the PLC's live state and
 raised alarms over a shared-memory mailbox and presents them; it never drives the
-process directly. Keeping that boundary clean is why the two halves stay separate
-programs on separate cores.
+process directly. That clean boundary is why the two halves stay separate programs
+on separate cores.
 
 @section intro_layers Three layers
 
-The firmware is built in three layers, from generic to specific. Each is a thin
-shell over the one below.
+The firmware is built in three layers, generic to specific, each a thin shell over the
+one below.
 
-\dot "the three layers, generic (bottom) to specific (top); each a thin shell over the one below"
-digraph layers {
-  bgcolor="transparent"; rankdir=TB; nodesep=0.2; ranksep=0.28;
-  node [fontname="Helvetica", fontsize=9];
-  top [shape=plaintext, label=<<font color="#888888">&#9650; more specific</font>>];
-  bot [shape=plaintext, label=<<font color="#888888">&#9660; more generic</font>>];
-  stack [shape=plaintext, label=<
-    <table border="0" cellborder="1" cellspacing="0" cellpadding="7" color="#9e9e9e">
-      <tr><td bgcolor="#e0e0e0" align="left"><b>Sketch / entry point</b> &#160;<font color="#666666">(per project)</font><br align="left"/><font color="#555555">selects a site, runs it (sketch setup()/loop(), or sim harness)</font></td></tr>
-      <tr><td bgcolor="#d7ecd9" align="left"><b>Site</b> &#8212; e.g. gh_mlb41 &#160;<font color="#666666">(per greenhouse)</font><br align="left"/><font color="#555555">payload, pages, alarm table, mock PLC; GreenhouseMLB41</font></td></tr>
-      <tr><td bgcolor="#d6e4f0" align="left"><b>Base library</b> &#8212; libbotanik &#160;<font color="#666666">(shipped)</font><br align="left"/><font color="#555555">generic machinery + BotanikFirmware&lt;In,Out&gt; per-tick loop</font></td></tr>
-    </table>
-  >];
-  top -> stack [style=invis]; stack -> bot [style=invis];
-}
-\enddot
-
-| Layer | What it is | Who writes it |
+| Layer (generic &rarr; specific) | What it is | Who writes it |
 |-------|------------|---------------|
 | **Base library** (`libbotanik`) | The generic, site- and target-independent machinery: the terminal, logger, scheduler, PLC sync, health monitor, alarm model, and the `BotanikFirmware<In, Out>` base that owns them and drives the per-tick loop. | shipped, reused as-is |
 | **Site** (e.g. `gh_mlb41`) | Everything specific to one physical greenhouse and its PLC program: the shared-memory payload layout, the site pages, the alarm table, and a `GreenhouseMLB41` class deriving `BotanikFirmware`. One site, used verbatim by both the simulator and the hardware. | per greenhouse |
@@ -51,24 +34,21 @@ digraph layers {
 A site author starts from a working firmware, not a blank `loop()`. `libbotanik`
 already provides:
 
-- **A non-blocking main loop.** Every subsystem exposes a bounded `step()`; the
-  base calls them in a fixed, load-bearing order each tick. Nothing blocks, so the
-  RTOS and the watchdog stay happy. See @ref md_docs_2CONCURRENCY "the concurrency
-  model".
-- **A multiplexed terminal UI.** A page-based ANSI terminal with a line editor
-  tuned for low-bandwidth serial links, plus ready-made Home, Status, Logs, and
-  Shell pages.
-- **Rate-limited logging.** A dual token-bucket limiter feeding pluggable sinks,
-  with undroppable criticals and edge-triggered silent-loss reporting.
-- **The PLC link.** Transactional, barrier-correct shared-memory RX/TX with
-  heartbeat, timeout, and torn-read detection - the cross-core plumbing done once.
-- **Health and supervision.** A power-on self-test, the platform-health alarm set,
+- **A non-blocking main loop** - bounded `step()`s called in a fixed, load-bearing
+  order each tick (see @ref md_docs_2CONCURRENCY "the concurrency model").
+- **A multiplexed terminal UI** - a page-based ANSI terminal with a low-bandwidth line
+  editor, plus ready-made Home, Status, Logs, and Shell pages.
+- **Rate-limited logging** - a dual token-bucket limiter feeding pluggable sinks, with
+  undroppable criticals and edge-triggered silent-loss reporting.
+- **The PLC link** - transactional, barrier-correct shared-memory RX/TX with heartbeat,
+  timeout, and torn-read detection.
+- **Health and supervision** - a power-on self-test, the platform-health alarm set,
   alarm notification, and a staged hardware-watchdog escalation.
 
 A site customises this through a handful of Template-Method hooks
-(`register_pages()`, `register_commands()`, `on_setup()`, `on_loop()`) and its own
-payload and alarm table - it never re-implements the loop. The two pages that
-follow walk that path end to end:
+(`register_pages()`, `register_commands()`, `on_setup()`, `on_loop()`) plus its own
+payload and alarm table; it never re-implements the loop. The next pages walk that path
+end to end:
 
 - @subpage setup - initialise a project for a new site.
 - @subpage quickstart - integrate the library into an Arduino PLC IDE project.
