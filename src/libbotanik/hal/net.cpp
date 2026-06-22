@@ -221,6 +221,14 @@ namespace Botanik { namespace HAL { namespace Net {
     }
     DnsHandle dns_begin(const char* host) {
         if (host == 0 || host[0] == '\0') return 0;
+        // A valid dotted-quad literal is handled by the caller before reaching here.
+        // Any remaining all-numeric string (digits and '.') is a malformed literal;
+        // hardware Mbed DNS treats it as a hostname and fails, so reject it here too
+        // rather than letting getaddrinfo coerce classful notation (e.g. "1.2.3" -> 1.2.0.3).
+        for (const char* p = host; *p; ++p)
+            if ((*p < '0' || *p > '9') && *p != '.') goto not_numeric;
+        return (++g_dns_next << 2) | 3;   // all-numeric malformed literal - FAILED
+        not_numeric:
         addrinfo hints; memset(&hints, 0, sizeof(hints));
         hints.ai_family = AF_INET;
         addrinfo* res = 0;

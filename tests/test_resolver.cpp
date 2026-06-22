@@ -36,8 +36,9 @@ TEST_CASE("NameResolver: malformed literals are not mis-parsed as addresses") {
     ResolvedAddr a;
     // None are valid 4-octet dotted-decimal literals, and DNS rejects them as names,
     // so each must come back FAILED (never a bogus RESOLVE_OK).
-    // Note: "1.2.3" is intentionally omitted: Linux getaddrinfo treats 3-part notation
-    // as a valid address (1.2.0.3), so it resolves rather than failing.
+    CHECK(r.resolve("1.2.3", &a)     == RESOLVE_FAILED);   // too few octets; not a valid literal,
+                                                            // and the sim DNS layer rejects all-numeric
+                                                            // malformed forms to match hardware behaviour
     CHECK(r.resolve("1.2.3.4.5", &a) == RESOLVE_FAILED);   // too many octets
     CHECK(r.resolve("256.1.1.1", &a) == RESOLVE_FAILED);   // octet out of range
     CHECK(r.resolve("1.2.3.x", &a)   == RESOLVE_FAILED);   // non-digit
