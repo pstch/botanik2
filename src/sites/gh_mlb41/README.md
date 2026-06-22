@@ -18,6 +18,42 @@ its pages, its alarm table, and one example shell command (`gh`). It never overr
 `register_commands()`, `on_setup()`). See `src/libbotanik/firmware.h` for the full
 extension model and a worked example.
 
+## Data model
+
+`PlcInputData_t` is empty (the host writes only the library log/sync fields back to
+the PLC). `PlcOutputData_t` is the greenhouse the PLC publishes each cycle - sensors
+and actuator feedback, grouped below. Three `uint8_t` fields carry enumerated states
+with a `str()` companion (`UpsStatus`, `TrayStatus`, `NetStatus`):
+
+\dot "gh_mlb41 PlcOutputData_t: the greenhouse state the PLC publishes to the host"
+digraph datamodel {
+  bgcolor="transparent"; rankdir=LR; nodesep=0.3; ranksep=0.6;
+  node [shape=plaintext, fontname="Helvetica", fontsize=9];
+  edge [arrowsize=0.6, fontname="Helvetica", fontsize=8, color="#888888"];
+
+  payload [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#9e9e9e">
+      <tr><td colspan="2" bgcolor="#37474f"><font color="#ffffff"><b>PlcOutputData_t</b> &#160; (gh_mlb41, PLC &#8594; host)</font></td></tr>
+      <tr><td bgcolor="#f6c6c2"><b>alarms</b></td><td align="left">uint64 bitset (one condition per bit)</td></tr>
+      <tr><td bgcolor="#fde6c0"><b>power</b></td><td align="left">grid_ac / dc_bus / battery / generator (mV), grid_freq</td></tr>
+      <tr><td bgcolor="#d6e4f0"><b>climate</b></td><td align="left">ext/floor/ceil temp + RH, wind_peak, rain_age</td></tr>
+      <tr><td bgcolor="#cfe7d8"><b>irrigation</b></td><td port="tray" align="left">water_in / water_out, current_tray, tray_status*</td></tr>
+      <tr><td bgcolor="#eceff1"><b>system</b></td><td align="left">sunrise_min, sunset_min, ntp_offset_ms</td></tr>
+      <tr><td bgcolor="#e6dcf0"><b>actuators</b></td><td align="left">window a-d, blower a-d, extractor a/b, thermal_screen (%)</td></tr>
+      <tr><td bgcolor="#d7ecd9"><b>status</b></td><td port="stat" align="left">ups_status*, dc_bus_a/b_ok, rain, cooling, generator,<br align="left"/>heat_blower, heatpump, net_status*, ntp_synced</td></tr>
+    </table>
+  >];
+
+  ups [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="3" color="#9e9e9e"><tr><td bgcolor="#455a64"><font color="#ffffff"><b>UpsStatus</b></font></td></tr><tr><td bgcolor="#eceff1" align="left">OFFLINE / ONLINE / ON_BATTERY / FAULT</td></tr></table>>];
+  tray [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="3" color="#9e9e9e"><tr><td bgcolor="#455a64"><font color="#ffffff"><b>TrayStatus</b></font></td></tr><tr><td bgcolor="#eceff1" align="left">IDLE / FILLING / SOAKING / DRAINING</td></tr></table>>];
+  net [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="3" color="#9e9e9e"><tr><td bgcolor="#455a64"><font color="#ffffff"><b>NetStatus</b></font></td></tr><tr><td bgcolor="#eceff1" align="left">DOWN / LINK / ONLINE</td></tr></table>>];
+
+  payload:tray -> tray [label="tray_status"];
+  payload:stat -> ups  [label="ups_status"];
+  payload:stat -> net  [label="net_status"];
+}
+\enddot
+
 ## Integrating into an Arduino sketch
 
 The site cross-compiles as an Arduino library. The firmware is one object,

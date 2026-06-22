@@ -23,6 +23,41 @@ does the construction (the `setup()` work); `step()` is one main-loop iteration.
 PLC shared memory is bound from `HAL::get_plc_input()/get_plc_output()` rather than
 allocated locally.
 
+## Memory map
+
+The OPTA is a dual-core STM32H747: the **M7** runs Botanik (with Mbed OS), the **M4**
+runs the Axel PLC runtime, and the two communicate only through a shared RAM region.
+Botanik names exactly one address - the shared PLC vars, via the
+`m_PLCSharedVarsInputBuf` / `m_PLCSharedVarsOutputBuf` symbols (`hal/opta.h`); every
+other placement (the FLASH split, which SRAM bank the shared region lands in) is
+decided by the Axel PLC IDE's linker config, not this repo. The map below is the
+**typical** STM32H747 + Axel arrangement for orientation, not a guarantee:
+
+\dot "typical OPTA dual-core memory map; Botanik only references the shared PLC region"
+digraph mmap {
+  bgcolor="transparent"; rankdir=LR; nodesep=0.4;
+  node [shape=plaintext, fontname="Helvetica", fontsize=9];
+  edge [arrowsize=0.6, fontname="Helvetica", fontsize=8, color="#2e7d32"];
+
+  mm [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5" color="#9e9e9e">
+      <tr><td colspan="3" bgcolor="#37474f"><font color="#ffffff"><b>STM32H747 memory</b> &#160;<font color="#cfd8dc">(typical OPTA + Axel layout)</font></font></td></tr>
+      <tr><td bgcolor="#eceff1"><font face="Courier">0x0800_0000</font></td><td bgcolor="#fde6c0">FLASH bank 1 (1 MB)</td><td bgcolor="#d6e4f0" align="left">M7 &#8212; Botanik app + Mbed OS</td></tr>
+      <tr><td bgcolor="#eceff1"><font face="Courier">0x0810_0000</font></td><td bgcolor="#fde6c0">FLASH bank 2 (1 MB)</td><td bgcolor="#fdebcf" align="left">M4 &#8212; Axel PLC runtime + program</td></tr>
+      <tr><td bgcolor="#eceff1"><font face="Courier">0x2000_0000</font></td><td bgcolor="#eaf1f8">DTCM (128 KB)</td><td bgcolor="#d6e4f0" align="left">M7 stack / hot data</td></tr>
+      <tr><td bgcolor="#eceff1"><font face="Courier">0x2400_0000</font></td><td bgcolor="#eaf1f8">AXI SRAM, D1 (512 KB)</td><td bgcolor="#d6e4f0" align="left">M7 heap / general</td></tr>
+      <tr><td bgcolor="#eceff1"><font face="Courier">0x3000_0000</font></td><td bgcolor="#eaf1f8">SRAM1-3, D2 (288 KB)</td><td port="sh" bgcolor="#cde6d3" align="left"><b>M4 data + shared PLC vars</b></td></tr>
+      <tr><td bgcolor="#eceff1"><font face="Courier">0x3800_0000</font></td><td bgcolor="#eaf1f8">SRAM4, D3 (64 KB)</td><td bgcolor="#eceff1" align="left">low-power / cross-core</td></tr>
+      <tr><td bgcolor="#eceff1"><font face="Courier">0x3880_0000</font></td><td bgcolor="#eaf1f8">Backup SRAM (4 KB)</td><td bgcolor="#eceff1" align="left">retained</td></tr>
+    </table>
+  >];
+
+  note [shape=note, style=filled, fillcolor="#eafaef", color="#4caf50", fontsize=8, fontname="Helvetica",
+        label="m_PLCSharedVarsInputBuf /\nOutputBuf  (PlcInput&lt;&gt; /\nPlcOutput&lt;&gt;) - the only\naddress Botanik names;\nplaced by the Axel linker"];
+  note -> mm:sh;
+}
+\enddot
+
 ## Delivering the library
 
 ```bash

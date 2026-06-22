@@ -36,6 +36,33 @@ period, and on a slower, decoupled cadence the Logger emits a per-topic
 `CRITICAL` so the report survives the storm it describes (see
 [Silent-loss reporting](#silent-loss-reporting)).
 
+\dot "the dual token-bucket: an entry must take a token from both its topic bucket and the global bucket"
+digraph rate_limit {
+  stylesheet="graphs.css";
+  bgcolor="transparent"; rankdir=LR; nodesep=0.35; ranksep=0.5;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9, margin="0.1,0.06"];
+  edge [arrowsize=0.7, fontname="Helvetica", fontsize=8];
+
+  entry [class="neutral", label="log entry\n(topic T)"];
+  gb [class="logic", label="global bucket"];
+  tb [class="logic", label="topic[T] bucket"];
+  gate [shape=diamond, style=filled, class="event", label="token in\nBOTH?"];
+  pass [class="ui", label="push_entry()\nfan-out to writers"];
+  drop [class="intercept", label="drop + count\n(periodic CRITICAL\nsuppressed report)"];
+
+  refill [shape=plaintext, style="none", fillcolor="none", label=<<font color="#888888" point-size="8">step() refills<br/>both per period</font>>];
+
+  entry -> gate;
+  gb -> gate [style=dashed, label="take 1"];
+  tb -> gate [style=dashed, label="take 1"];
+  gate -> pass [label="yes"];
+  gate -> drop [label="no (either empty)"];
+  refill -> gb [style=dotted, arrowsize=0.5, color="#aaaaaa"];
+  refill -> tb [style=dotted, arrowsize=0.5, color="#aaaaaa"];
+  { rank=same; gb; tb; }
+}
+\enddot
+
 ## Sinks
 
 Entries that pass fan out to every registered @ref Botanik::Logs::LogWriter
