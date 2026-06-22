@@ -56,7 +56,7 @@ the data. Equality means "in sync".
 \dot "one direction's sequence/ack handshake across the two cores"
 digraph handshake {
   stylesheet="graphs.css";
-  bgcolor="transparent"; rankdir=TB; fontname="Helvetica"; nodesep=0.5; ranksep=0.45;
+  bgcolor="transparent"; rankdir=TB; fontname="Helvetica"; nodesep=0.5; ranksep=0.45; splines=line;
   node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9, margin="0.12,0.06"];
   edge [arrowsize=0.7, fontname="Helvetica", fontsize=8];
 
@@ -152,7 +152,7 @@ since the last acknowledged TX:
 \dot "link state by elapsed time since the last acknowledged TX (any ack returns to RUNNING)"
 digraph link_status {
   stylesheet="graphs.css";
-  bgcolor="transparent"; rankdir=TB; nodesep=0.4; ranksep=0.45;
+  bgcolor="transparent"; rankdir=TB; nodesep=0.4; ranksep=0.45; splines=polyline;
   node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10, margin="0.16,0.07"];
   edge [arrowsize=0.7, fontname="Helvetica", fontsize=9];
 
@@ -164,8 +164,9 @@ digraph link_status {
   unknown -> running [label="first ack"];
   running -> timeout [label="silent &#8805; PLC_TIMEOUT_MS"];
   timeout -> fault   [label="silent &#8805; PLC_WATCHDOG_MS"];
-  timeout -> running [label="ack", style=dashed, color="#2e7d32", fontcolor="#2e7d32", constraint=false];
-  fault   -> running [label="ack", style=dashed, color="#2e7d32", fontcolor="#2e7d32", constraint=false];
+  // recovery edges routed on the east margin (straight segments, no S-curves)
+  timeout:e -> running:e [label="ack", style=dashed, color="#2e7d32", fontcolor="#2e7d32", constraint=false];
+  fault:e   -> running:e [label="ack", style=dashed, color="#2e7d32", fontcolor="#2e7d32", constraint=false];
 }
 \enddot
 

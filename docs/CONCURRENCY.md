@@ -14,8 +14,8 @@ called once per beat in a fixed order - the **per-tick cycle contract**:
 \dot "the per-tick cycle contract (one beat, repeating every TASK_PERIOD_MS)"
 digraph per_tick {
   stylesheet="graphs.css";
-  bgcolor="transparent"; rankdir=TB; nodesep=0.3; ranksep=0.5; splines=ortho;
-  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9, margin="0.09,0.05"];
+  bgcolor="transparent"; rankdir=TB; nodesep=0.28; ranksep=0.6;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9, margin="0.08,0.05"];
   edge [arrowsize=0.7];
 
   tick   [label="LoopScheduler\ntick()",      class="scheduler"];
@@ -30,16 +30,14 @@ digraph per_tick {
   tx     [label="BufferedSerial\ntransmit()", class="serial"];
   wd     [label="HAL\nwatchdog_kick()",       class="scheduler"];
 
-  // Three rows, snaking, so the 11 steps fit the column. Row 2 uses dir=back so its
-  // arrows follow the real flow (right to left) without curved edges. splines=ortho
-  // keeps every edge - including the "next beat" loop-back - to straight segments;
-  // routing that loop-back on the west margin keeps it clear of the node arrows.
-  { rank=same; tick -> recv -> plc -> plcr [weight=10]; }
-  { rank=same; term -> logger -> onloop -> health [dir=back, weight=10]; }
-  { rank=same; mon -> tx -> wd [weight=10]; }
-  plcr -> health;   // drop on the right
-  term -> mon;      // drop on the left
-  wd:w -> tick:w [label="next beat", style=dashed, constraint=false, fontname="Helvetica", fontsize=8];
+  // Two rows, snaking: row 1 left-to-right, row 2 right-to-left (dir=back so its
+  // arrows follow the real flow). watchdog_kick lands bottom-left directly under
+  // tick, so the "next beat" loop-back is a short straight edge up the left margin
+  // that crosses nothing.
+  { rank=same; tick -> recv -> plc -> plcr -> health -> onloop [weight=10]; }
+  { rank=same; wd -> tx -> mon -> term -> logger [dir=back, weight=10]; }
+  onloop -> logger;   // drop on the right
+  wd -> tick [label="next beat", style=dashed, constraint=false, fontname="Helvetica", fontsize=8];
 
   legend [shape=plaintext, label=<
     <table border="0" cellborder="0" cellspacing="2">
