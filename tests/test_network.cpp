@@ -16,6 +16,7 @@
 #include "doctest.h"
 
 #include "plc_config_fixture.h"
+#include "recording_writer.h"
 #include "libbotanik/network/network.h"
 #include "libbotanik/network/mqtt.h"
 #include "libbotanik/network/resolver.h"
@@ -26,17 +27,6 @@ using namespace Botanik;
 using namespace Botanik::Network;
 
 namespace {
-    // Records what the logger forwards, to observe a component's first-step announce.
-    struct RecordingWriter : Logs::LogWriter {
-        int  pushes = 0;
-        char last_msg[Config::LOG_PLC_MESSAGE_LEN] = {0};
-        void push(const PlcIO::LogEntry_t* e) override {
-            pushes++; memcpy(last_msg, e->message, sizeof(last_msg));
-        }
-        void drain() override {}
-        size_t format(const PlcIO::LogEntry_t*, char*, size_t) override { return 0; }
-        size_t write(const char*, size_t) override { return 0; }
-    };
 }
 
 TEST_CASE("NetworkHandler: sim path comes up on net config and idles when it is cleared") {

@@ -13,25 +13,11 @@
 
 #include "libbotanik/config_handler.h"
 #include "libbotanik/logs/logger.h"
+#include "recording_writer.h"
 
 using namespace Botanik;
 
 namespace {
-
-    // Records what the logger forwards, so the announce can be observed.
-    struct RecordingWriter : Logs::LogWriter {
-        int             pushes     = 0;
-        PlcIO::LogLevel last_level = PlcIO::LOG_DEBUG;
-        PlcIO::LogTopic last_topic = PlcIO::NONE;
-        char            last_msg[Config::LOG_PLC_MESSAGE_LEN] = {0};
-        void push(const PlcIO::LogEntry_t* e) override {
-            pushes++; last_level = e->level; last_topic = e->topic;
-            memcpy(last_msg, e->message, sizeof(last_msg));
-        }
-        void drain() override {}
-        size_t format(const PlcIO::LogEntry_t*, char*, size_t) override { return 0; }
-        size_t write(const char*, size_t) override { return 0; }
-    };
 
     // A ConfigHandler with a controllable serial and call counters: lets us drive the
     // base's watch / reset / step ordering directly, no PLC context needed.

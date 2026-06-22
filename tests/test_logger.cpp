@@ -13,28 +13,12 @@
 #include "doctest.h"
 
 #include "libbotanik/logs/logger.h"
+#include "recording_writer.h"
 
 using namespace Botanik;
 using LogEntry_t = PlcIO::LogEntry_t;
 
 namespace {
-
-    // A writer that records what it is handed, with a settable loss counter so we
-    // can drive the Logger's sink-drop reporting.
-    struct RecordingWriter : Logs::LogWriter {
-        int             pushes     = 0;
-        PlcIO::LogLevel last_level  = PlcIO::LOG_DEBUG;
-        char            last_msg[Config::LOG_PLC_MESSAGE_LEN] = {0};
-        uint32_t        loss        = 0;
-        void push(const PlcIO::LogEntry_t* e) override {
-            pushes++; last_level = e->level;
-            memcpy(last_msg, e->message, sizeof(last_msg));
-        }
-        void drain() override {}
-        uint32_t loss_count() const override { return loss; }
-        size_t format(const PlcIO::LogEntry_t*, char*, size_t) override { return 0; }
-        size_t write(const char*, size_t) override { return 0; }
-    };
 
     // A BufferedLogWriter whose sink always accepts, recording the timestamps it
     // drains so we can see which entries survived the queue.
@@ -230,22 +214,16 @@ TEST_CASE("rate limit: the global bucket caps total throughput across topics") {
     CHECK(w.pushes == burst);                            // 15 + 5: global is the cap
 }
 
-TEST_CASE("rate limit: topic NONE skips the per-topic bucket but still hits global") {
+TEST_CASE("rate limit: topics with no per-topic bucket are gated by the global bucket alone") {
     Logs::Logger lg;
     RecordingWriter w;
     lg.add_writer(&w);
     const int burst = Config::LOG_GLOBAL_BUCKET_BURST;
-    LogEntry_t e = info_on(PlcIO::NONE);
+    PlcIO::LogTopic topic = PlcIO::NONE;
+    SUBCASE("NONE skips the per-topic bucket")           { topic = PlcIO::NONE; }
+    // Out of range is the no-OOB-bucket-access regression: it must be clamped to NONE.
+    SUBCASE("an out-of-range topic is treated as NONE")  { topic = (PlcIO::LogTopic)Config::LOG_TOPIC_MAX; }
+    LogEntry_t e = info_on(topic);
     for (int i = 0; i < burst + 5; ++i) lg.push_entry(e);
     CHECK(w.pushes == burst);                            // limited by the global bucket alone
-}
-
-TEST_CASE("rate limit: an out-of-range topic is treated as NONE (no OOB bucket access)") {
-    Logs::Logger lg;
-    RecordingWriter w;
-    lg.add_writer(&w);
-    const int burst = Config::LOG_GLOBAL_BUCKET_BURST;
-    LogEntry_t e = info_on((PlcIO::LogTopic)Config::LOG_TOPIC_MAX); // past every defined topic
-    for (int i = 0; i < burst + 5; ++i) lg.push_entry(e);
-    CHECK(w.pushes == burst);
 }
