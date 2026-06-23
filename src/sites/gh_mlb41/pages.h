@@ -13,7 +13,8 @@
 #include "libbotanik.h"
 #include "libbotanik/utils/text.h"   // format_float - snprintf has no %f on Mbed
 
-#include <cstdio>   // snprintf
+#include <algorithm>   // std::max
+#include <cstdio>      // snprintf
 
 /** @brief Greenhouse status page: renders the full sensor/actuator set. */
 class GreenhouseStatusPage : public Botanik::Pages::StatusPage<PlcOutputData_t> {
@@ -185,14 +186,8 @@ protected:
         _value(12, buf);
         // Aggregate the four zones (most-open window, highest blower) so the summary
         // can't read "0%" while B-D run.
-        uint8_t win_max  = d->window_a;
-        if (d->window_b > win_max) win_max = d->window_b;
-        if (d->window_c > win_max) win_max = d->window_c;
-        if (d->window_d > win_max) win_max = d->window_d;
-        uint8_t blow_max = d->blower_a;
-        if (d->blower_b > blow_max) blow_max = d->blower_b;
-        if (d->blower_c > blow_max) blow_max = d->blower_c;
-        if (d->blower_d > blow_max) blow_max = d->blower_d;
+        uint8_t win_max  = std::max(std::max(d->window_a, d->window_b), std::max(d->window_c, d->window_d));
+        uint8_t blow_max = std::max(std::max(d->blower_a, d->blower_b), std::max(d->blower_c, d->blower_d));
         snprintf(buf, sizeof(buf), "Win %s%%  Blow %s%%",
                  format_float(fa, sizeof(fa), (double)win_max, 1, 4),
                  format_float(fb, sizeof(fb), (double)blow_max, 1, 4));
