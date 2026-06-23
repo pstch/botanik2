@@ -34,7 +34,7 @@
 #  define BOTANIK_FEATURE_NETWORK 0
 #endif
 
-/** @brief NTP time sync (TimeSyncHandler). Reserved, default OFF; requires NETWORK. */
+/** @brief NTP time sync (NtpClient). Reserved, default OFF; requires NETWORK. */
 #ifndef BOTANIK_FEATURE_NTP
 #  define BOTANIK_FEATURE_NTP 0
 #endif

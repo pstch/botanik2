@@ -3,12 +3,12 @@
 
 /**
  * @file network.h
- * @brief NetworkHandler and TimeSyncHandler - PLC-config-driven state machines that
+ * @brief NetworkHandler and NtpClient - PLC-config-driven state machines that
  *        bring up the link and run an NTP client.
  *
  * Both derive ConfigHandler, so each restarts when its config block's serial bumps.
  * NetworkHandler owns the link (via HAL::Net) and is_up() is authoritative;
- * TimeSyncHandler resolves through the shared NameResolver and gates on is_up().
+ * NtpClient resolves through the shared NameResolver and gates on is_up().
  */
 
 #include <cstdint>
@@ -78,7 +78,7 @@ namespace Botanik { namespace Network {
      *  NameResolver, runs a non-blocking SNTP exchange over HAL::Net UDP, and disciplines
      *  the RTC. Gated on NetworkHandler::is_up(). Restarts on a config change; falls back
      *  to the second server and backs off on failure. */
-    class TimeSyncHandler : public ConfigHandler {
+    class NtpClient : public ConfigHandler {
         /** @name State
          *  @{ */
         enum State : uint8_t {
@@ -98,7 +98,7 @@ namespace Botanik { namespace Network {
         /** @} */
 
     public:
-        TimeSyncHandler(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger = nullptr,
+        NtpClient(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger = nullptr,
                         NameResolver* resolver = nullptr, const NetworkHandler* net = nullptr);
 
     protected:

@@ -6,7 +6,7 @@
  *        config-gated state and non-blocking behaviour:
  *          - NetworkHandler: link comes up on config, idles when config is cleared,
  *          - MqttClient:     never falsely "connected"; connect to TEST-NET-1 never completes,
- *          - TimeSyncHandler: stepped as a Component; UDP query to TEST-NET-1 is non-blocking.
+ *          - NtpClient: stepped as a Component; UDP query to TEST-NET-1 is non-blocking.
  *        Config is injected through PlcConfigFixture.
  */
 #include <cstdint>
@@ -72,7 +72,7 @@ TEST_CASE("MqttClient: never reports connected to a dead broker; publish gated o
     CHECK_FALSE(mqtt.publish("botanik/alarms/X", "ON"));
 }
 
-TEST_CASE("TimeSyncHandler: stepped as a Component (announces once); query is non-blocking") {
+TEST_CASE("NtpClient: stepped as a Component (announces once); query is non-blocking") {
     botanik_test::PlcConfigFixture fx;
     NameResolver resolver;
     NetworkHandler net(fx.ctx(), nullptr, &resolver);
@@ -81,7 +81,7 @@ TEST_CASE("TimeSyncHandler: stepped as a Component (announces once); query is no
     log.set_min_level(PlcIO::LOG_DEBUG);
     log.add_writer(&w);
 
-    TimeSyncHandler ts(fx.ctx(), &log, &resolver, &net);
+    NtpClient ts(fx.ctx(), &log, &resolver, &net);
 
     // Bring the (sim) link up so the time sync can proceed past the link gate.
     fx.conf().net.serial = 1; fx.conf().net.dhcp = 1; fx.publish();
@@ -100,6 +100,6 @@ TEST_CASE("TimeSyncHandler: stepped as a Component (announces once); query is no
     // >= 1 not == 1: the live UDP path and link-up sequence may emit extra log lines
     // beyond the first-step announce, so exact count is not pinned.
     CHECK(w.pushes >= 1);
-    CHECK(std::string(w.last_msg).find("TimeSyncHandler") != std::string::npos);
+    CHECK(std::string(w.last_msg).find("NtpClient") != std::string::npos);
 #endif
 }

@@ -107,7 +107,7 @@ namespace Botanik { namespace HAL {
     inline uint64_t wall_clock_ms() {
         // TODO [WALLCLOCK-WRAP-2038]: time() returns time_t, which is 32-bit on this
         // newlib and WRAPS in Jan 2038 before the widening cast - this must be sourced
-        // from a 64-bit RTC read once the TimeSyncHandler/RTC path lands (it also only
+        // from a 64-bit RTC read once the NtpClient/RTC path lands (it also only
         // resolves whole seconds today; read the RTC sub-second register for ms).
         return (uint64_t)time(NULL) * 1000;
     }

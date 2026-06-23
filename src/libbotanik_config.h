@@ -290,7 +290,7 @@ namespace Botanik { namespace Config {
      * @{
      */
 
-    /** @brief How long TimeSyncHandler waits for an NTP reply before giving up on a
+    /** @brief How long NtpClient waits for an NTP reply before giving up on a
      *  server (then it tries the next one / backs off). */
 #ifndef BOTANIK_NTP_QUERY_TIMEOUT_MS
 #  define BOTANIK_NTP_QUERY_TIMEOUT_MS 5000

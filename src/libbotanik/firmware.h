@@ -80,7 +80,7 @@
 #include "libbotanik/health/health.h"    // HealthMonitor (owns the alarm model + notifier)
 #if BOTANIK_FEATURE_NETWORK
 #include "libbotanik/network/resolver.h" // NameResolver
-#include "libbotanik/network/network.h"  // NetworkHandler, TimeSyncHandler
+#include "libbotanik/network/network.h"  // NetworkHandler, NtpClient
 #endif
 #if BOTANIK_FEATURE_MQTT
 #include "libbotanik/network/mqtt.h"     // MqttClient
@@ -133,7 +133,7 @@ namespace Botanik {
         Network::NetworkHandler   _network;
 #endif
 #if BOTANIK_FEATURE_NTP
-        Network::TimeSyncHandler  _time_sync;
+        Network::NtpClient  _ntp;
 #endif
 #if BOTANIK_FEATURE_MQTT
         Network::MqttClient       _mqtt;
@@ -190,7 +190,7 @@ namespace Botanik {
               , _network(_plc_handler.context(), &_logger, &_resolver)
 #endif
 #if BOTANIK_FEATURE_NTP
-              , _time_sync(_plc_handler.context(), &_logger, &_resolver)
+              , _ntp(_plc_handler.context(), &_logger, &_resolver)
 #endif
 #if BOTANIK_FEATURE_MQTT
               , _mqtt(_plc_handler.context(), &_logger, &_resolver)
@@ -302,7 +302,7 @@ namespace Botanik {
             _network.step(now_ms);
 #endif
 #if BOTANIK_FEATURE_NTP
-            _time_sync.step(now_ms);
+            _ntp.step(now_ms);
 #endif
 #if BOTANIK_FEATURE_MQTT
             _mqtt.step(now_ms);
@@ -371,7 +371,7 @@ namespace Botanik {
         Network::NameResolver&          resolver()        { return _resolver; }
 #endif
 #if BOTANIK_FEATURE_NTP
-        Network::TimeSyncHandler&       time_sync()       { return _time_sync; }
+        Network::NtpClient&       ntp()       { return _ntp; }
 #endif
 #if BOTANIK_FEATURE_MQTT
         Network::MqttClient&            mqtt()            { return _mqtt; }

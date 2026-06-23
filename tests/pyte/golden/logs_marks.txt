@@ -8,7 +8,7 @@
 <TS> [-] HEALTH: POST ok (site gh_mlb41)
 <TS> [~] BOOT: AlarmModel initialized
 <TS> [~] BOOT: NetworkHandler initialized
-<TS> [~] BOOT: TimeSyncHandler initialized
+<TS> [~] BOOT: NtpClient initialized
 <TS> [~] BOOT: MqttClient initialized
 <TS> [~] BOOT: AnsiTerminal initialized
 <TS> [-] NETWORK: network bring-up (DHCP)

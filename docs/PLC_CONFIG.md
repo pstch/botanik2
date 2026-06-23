@@ -172,7 +172,7 @@ machine plus a few hooks.
 |---|---|---|
 | @ref Botanik::Network::NameResolver | (none) | Non-blocking hostname -> IPv4 over Mbed async DNS; a fixed table doubles as the DNS cache. Not config-driven itself - it is shared and holds the live interface. |
 | @ref Botanik::Network::NetworkHandler | `net` | Brings the network device up (DHCP / static), owns the interface, and hands it to the resolver while the link is up. |
-| @ref Botanik::Network::TimeSyncHandler | `ntp` | SNTP client: resolves a server, runs a UDP exchange, disciplines the RTC. |
+| @ref Botanik::Network::NtpClient | `ntp` | SNTP client: resolves a server, runs a UDP exchange, disciplines the RTC. |
 | @ref Botanik::Network::MqttClient | `mqtt` | MQTT 3.1.1 publisher: connects to the broker over TCP, keepalive, QoS-0 publish. |
 | @ref Botanik::SunPositionTracker | `geo` | Tracks the next sunrise / sunset and the day/night state from the site location (`utils/sun.h`); waits for a valid wall clock. |
 
@@ -190,14 +190,14 @@ machine plus a few hooks.
 │ resolve(): non-blocking DNS + cache       │
 └──────────────────────────────────────────┘
      │
-     ├──▶ TimeSyncHandler  (watches: ntp)   UDP / SNTP
+     ├──▶ NtpClient  (watches: ntp)   UDP / SNTP
      └──▶ MqttClient       (watches: mqtt)  TCP / MQTT publish
 ```
 
-`TimeSyncHandler` and `MqttClient` each resolve their server / broker name through the
+`NtpClient` and `MqttClient` each resolve their server / broker name through the
 resolver and open their own socket on its interface; they back off on failure and
 restart when their config block changes. `SunPositionTracker` needs no network, only a
-valid wall clock, so it follows a `TimeSyncHandler` sync.
+valid wall clock, so it follows a `NtpClient` sync.
 
 Targets: the Mbed socket work (DNS, UDP, TCP, device bring-up) is OPTA-only and
 guarded; on the simulator there is no stack, so the resolver serves IPv4 literals only

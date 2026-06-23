@@ -42,7 +42,7 @@ Each subsystem with an architecture deep-dive links to its guide in the last col
 | **Logging**  | `logs/`      | @ref Botanik::Logs::Logger rate-limits with a dual token-bucket, then fans entries out to @ref Botanik::Logs::LogWriter "LogWriter"s. | @ref md_docs_2LOG__FLOW "Log Flow" |
 | **PLC I/O**  | `plcio/`     | @ref Botanik::PlcIO::PlcSyncHandler runs RX/TX state machines over shared memory with the PLC coprocessor; an emulator stands in for it on the simulator. | @ref md_docs_2PLC__SYNC "PLC Sync" |
 | **Health**   | `health/`    | @ref Botanik::Health::HealthMonitor owns the alarm model and notifier, runs the power-on self-test, and gates the watchdog escalation. | @ref md_docs_2POST "Self-tests" |
-| **Network**  | `network/`   | @ref Botanik::Network::NameResolver (non-blocking DNS), @ref Botanik::Network::NetworkHandler (device bring-up), @ref Botanik::Network::TimeSyncHandler (SNTP), and @ref Botanik::Network::MqttClient (MQTT publish) - PLC-config-driven via @ref Botanik::ConfigHandler. | @ref md_docs_2PLC__CONFIG "PLC config" |
+| **Network**  | `network/`   | @ref Botanik::Network::NameResolver (non-blocking DNS), @ref Botanik::Network::NetworkHandler (device bring-up), @ref Botanik::Network::NtpClient (SNTP), and @ref Botanik::Network::MqttClient (MQTT publish) - PLC-config-driven via @ref Botanik::ConfigHandler. | @ref md_docs_2PLC__CONFIG "PLC config" |
 | **Utils**    | `utils/`     | `BufferedSerial` (ring-buffered UART), `PerfMonitor` (loop CPU-load / jitter / stack high-water instrumentation), the `sun.h` solar-position math, and time/uptime helpers. | @ref md_docs_2SCHEDULER__PERF "Scheduler & Perf" |
 
 @section main_features Optional features
@@ -60,7 +60,7 @@ each flag defaults from an `#ifndef`-guarded macro, so a site pins it in
 |------|---------|-------|-------|
 | `BOTANIK_FEATURE_PLC`     | **on**  | @ref Botanik::PlcIO::PlcSyncHandler, `PlcLogReader`, the shared-memory payload threaded through `BotanikFirmware<In, Out>`, and the PLC-fault watchdog escalation. | active |
 | `BOTANIK_FEATURE_NETWORK` | off     | The `network/` stack: @ref Botanik::Network::NetworkHandler + @ref Botanik::Network::NameResolver, instantiated and stepped by `BotanikFirmware`. Requires `PLC` (config comes from the PLC block). | wired; default off (on for `gh_mlb41`) |
-| `BOTANIK_FEATURE_NTP`     | off     | @ref Botanik::Network::TimeSyncHandler (SNTP). Requires `NETWORK`. | wired; default off |
+| `BOTANIK_FEATURE_NTP`     | off     | @ref Botanik::Network::NtpClient (SNTP). Requires `NETWORK`. | wired; default off |
 | `BOTANIK_FEATURE_MQTT`    | off     | @ref Botanik::Network::MqttClient + the alarm notifier. Requires `NETWORK`. | wired; default off |
 | `BOTANIK_FEATURE_TERMINAL`| **on**  | @ref Botanik::Terminal::AnsiTerminal, the built-in shell/logs/alarms pages, the console UART they drive, and the `register_pages()` / `register_commands()` hooks. Off -> a headless firmware. | active |
 

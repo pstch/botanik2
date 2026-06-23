@@ -1,6 +1,6 @@
 /**
  * @file network.cpp
- * @brief NetworkHandler / TimeSyncHandler implementations.
+ * @brief NetworkHandler / NtpClient implementations.
  *
  * Bring-up goes through HAL::Net (Mbed vs. BSD handled by the backend). On the sim
  * link_status() returns LINK_UP immediately, so NET_SETUP -> NET_RUNNING next step.
@@ -121,24 +121,24 @@ namespace Botanik { namespace Network {
     }
 
     // ------------------------------------------------------------------------
-    // TimeSyncHandler - non-blocking SNTP client
+    // NtpClient - non-blocking SNTP client
     // ------------------------------------------------------------------------
 
-    TimeSyncHandler::TimeSyncHandler(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger,
+    NtpClient::NtpClient(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger,
                                      NameResolver* resolver, const NetworkHandler* net)
-        : ConfigHandler(ctx, logger, "TimeSyncHandler"),
+        : ConfigHandler(ctx, logger, "NtpClient"),
           _state(TIME_IDLE), _since_ms(0), _resolver(resolver), _net(net), _server_idx(0),
           _udp(-1) {
         _server_addr.bytes[0] = _server_addr.bytes[1] = 0;
         _server_addr.bytes[2] = _server_addr.bytes[3] = 0;
     }
 
-    uint32_t TimeSyncHandler::config_serial() const {
+    uint32_t NtpClient::config_serial() const {
         const PlcIO::PlcOutputConfig_t* c = config();
         return c ? c->ntp.serial : 0;
     }
 
-    void TimeSyncHandler::on_config_changed(uint64_t now_ms) {
+    void NtpClient::on_config_changed(uint64_t now_ms) {
         if (_udp >= 0) { HAL::Net::udp_close(_udp); _udp = -1; }
         const PlcIO::PlcOutputConfig_t* c = config();
         // Restart the client with the new servers / poll interval, from the first server.
@@ -147,7 +147,7 @@ namespace Botanik { namespace Network {
         _since_ms = now_ms;
     }
 
-    void TimeSyncHandler::_next_server_or_error(uint64_t now_ms) {
+    void NtpClient::_next_server_or_error(uint64_t now_ms) {
         const PlcIO::PlcOutputConfig_t* c = config();
         if (_server_idx == 0 && c != nullptr && c->ntp.server2[0] != '\0') {
             _server_idx = 1;              // try the secondary server
@@ -159,7 +159,7 @@ namespace Botanik { namespace Network {
         }
     }
 
-    void TimeSyncHandler::on_step(uint64_t now_ms) {
+    void NtpClient::on_step(uint64_t now_ms) {
         const PlcIO::PlcOutputConfig_t* c = config();
         switch (_state) {
             case TIME_IDLE:
@@ -214,7 +214,7 @@ namespace Botanik { namespace Network {
         }
     }
 
-    bool TimeSyncHandler::_send_query() {
+    bool NtpClient::_send_query() {
         HAL::Net::UdpSocket s = HAL::Net::udp_open();
         if (s < 0) return false;
         _udp = s;                                  // store the handle for the poll/close
@@ -227,7 +227,7 @@ namespace Botanik { namespace Network {
         return true;
     }
 
-    int TimeSyncHandler::_poll_query(uint64_t now_ms) {
+    int NtpClient::_poll_query(uint64_t now_ms) {
         uint8_t pkt[48];
         HAL::Net::Ip4 from; uint16_t port = 0;
         int r = HAL::Net::udp_recvfrom(_udp, pkt, sizeof(pkt), &from, &port);
