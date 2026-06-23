@@ -11,9 +11,8 @@
  *    (build-wide, an ABI contract, exactly like BOTANIK_SITE_CONFIG).
  *  - Site `#define BOTANIK_FEATURE_PLC 0` in `sites/<name>/config.h` (included first).
  *
- * Gate code two ways: the preprocessor `#if` to drop member decls / ctor-init / loop
- * steps (a `constexpr bool` can't remove a member, and C++11 has no `if constexpr`),
- * and the `Botanik::Features::PLC` constexpr mirror in expression context.
+ * Gate code with the preprocessor `#if` to drop member decls / ctor-init / loop steps
+ * (C++11 has no `if constexpr`, so a `constexpr bool` can't remove a member).
  *
  * @section feature_deps Dependency rules
  * The `#error` guards below fail the build loudly rather than silently miscompiling:
@@ -46,7 +45,7 @@
 
 /** @brief ANSI terminal UI: AnsiTerminal, the built-in pages, the console UART, and the
  *  register_pages()/register_commands() hooks. Off -> headless; the logger, scheduler,
- *  health/alarm model and PLC link remain, diagnostics reach MONITOR via MonitorLogWriter. */
+ *  health/alarm model and PLC link remain, diagnostics reach MONITOR via the SerialLogWriter. */
 #ifndef BOTANIK_FEATURE_TERMINAL
 #  define BOTANIK_FEATURE_TERMINAL 1
 #endif
@@ -61,16 +60,5 @@
 #if BOTANIK_FEATURE_NETWORK && !BOTANIK_FEATURE_PLC
 #  error "BOTANIK_FEATURE_NETWORK requires BOTANIK_FEATURE_PLC (network config comes from the PLC block; no config.h fallback yet)"
 #endif
-
-namespace Botanik { namespace Features {
-
-    /** @brief constexpr mirrors of the macros, for expression context. */
-    static constexpr bool PLC      = BOTANIK_FEATURE_PLC;
-    static constexpr bool NETWORK  = BOTANIK_FEATURE_NETWORK;
-    static constexpr bool NTP      = BOTANIK_FEATURE_NTP;
-    static constexpr bool MQTT     = BOTANIK_FEATURE_MQTT;
-    static constexpr bool TERMINAL = BOTANIK_FEATURE_TERMINAL;
-
-} }
 
 #endif // LIBBOTANIK_FEATURES_H
