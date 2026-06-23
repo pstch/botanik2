@@ -99,6 +99,17 @@ namespace Botanik { namespace Pages {
             _redraw_i         = 0;
         }
 
+        /** @brief Shared head of a log page's tick(): when @p active, drain a batch of any
+         *  staged focus replay and report whether it is still going. The page returns early
+         *  on true so the live-tail drain (a DL scroll) can't shift rows the replay already
+         *  drew. No-op (returns false) on a background page. Same call sequence the pages
+         *  open their tick() with - centralised here so the gate can't drift between them. */
+        bool tick_redraw_gate(AnsiTerminal& terminal, bool active) {
+            if (!active) return false;
+            drain_redraw(terminal);
+            return redraw_pending();
+        }
+
         /** @brief True while a staged redraw still has rows left to emit */
         bool redraw_pending() const { return _redraw_i != UINT16_MAX; }
 

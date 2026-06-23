@@ -235,12 +235,9 @@ namespace Botanik { namespace Pages {
         void tick(bool active) override {
             MetricPage::tick(active);            // logo/readings (paced) refresh
             _log_active = active;
-            if (active) {
-                _scrollback.drain_redraw(_terminal);
-                // Hold off the live band until the replay finishes - a DL scroll would
-                // shift rows the replay already drew.
-                if (_scrollback.redraw_pending()) return;
-            }
+            // Drain any staged focus replay first; bail until it finishes so the live
+            // band's DL scroll can't shift rows the replay already drew.
+            if (_scrollback.tick_redraw_gate(_terminal, active)) return;
             // Bank queued entries (pending when active), then paint them paced into the
             // bottom log band.
             drain();

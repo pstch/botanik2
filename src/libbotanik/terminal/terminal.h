@@ -451,6 +451,16 @@ namespace Botanik { namespace Terminal {
          *  update_status_metrics()'s per-cell diff). */
         int _build_metrics(char* buf, size_t cap) const;
 
+        /** @brief Paint @p len cells of @p field at (row 0, @p col) whose @p emit mask
+         *  marks changed columns, with @p hi as the inverted-video mask, then snapshot
+         *  @p field into @p cache. Saves and restores the bar's video state; with
+         *  @p restore_cursor it also returns the cursor to where it started. Shared by
+         *  update_status_metrics() and update_status_clock() (same byte sequence);
+         *  cursor-hide bracketing for the metrics field stays in its caller. */
+        void _paint_status_field(uint16_t col, const char* field, uint16_t len,
+                                 uint32_t emit, uint32_t hi, char* cache,
+                                 bool restore_cursor);
+
         /** @brief Bitset of currently-unmasked alarms (the bar's listed set), used as
          *  the change signature gating a repaint. Zero when there is no alarm source. */
         uint64_t _unmasked_set() const;

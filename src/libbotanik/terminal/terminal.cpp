@@ -654,6 +654,25 @@ namespace Botanik { namespace Terminal {
             || (c >= 21 && c <= 24);   // stk value + '%'
     }
 
+    // Shared status-field paint: save the bar's video state, paint the changed runs,
+    // snapshot the cache, restore. The metrics caller brackets this with the cursor-
+    // visibility hide it alone needs; the byte sequence is otherwise identical.
+    void AnsiTerminal::_paint_status_field(uint16_t col, const char* field, uint16_t len,
+                                           uint32_t emit, uint32_t hi, char* cache,
+                                           bool restore_cursor) {
+        CursorPos saved_pos = _hw_pos;
+        bool      saved_inv = _hw_inverted;
+        bool      saved_eol = _hw_at_eol;   // move_to() below clears it; restore it too
+
+        paint_field_runs(0, col, field, len, emit, hi);
+        memcpy(cache, field, (size_t)len);
+
+        set_inverted(saved_inv);
+        // Periodic refreshes restore the cursor to where the page left it; draw_status_row
+        // passes restore_cursor=false (its caller repositions absolutely right after).
+        if (restore_cursor) { move_to(saved_pos); _hw_at_eol = saved_eol; }
+    }
+
     bool AnsiTerminal::update_status_metrics(bool restore_cursor) {
         char metrics[STATUS_METRICS_LEN];
         int mlen = _build_metrics(metrics, sizeof(metrics));
@@ -673,23 +692,14 @@ namespace Botanik { namespace Terminal {
         }
         if (emit == 0) return true;   // already in sync, nothing to paint
 
-        CursorPos saved_pos = _hw_pos;
-        bool      saved_inv = _hw_inverted;
-        bool      saved_cur = _hw_cursor_visible;
-        bool      saved_eol = _hw_at_eol;   // move_to() below clears it; restore it too
-
+        bool saved_cur = _hw_cursor_visible;
         // Hide the cursor before painting so it can't blink across row 0 while the bar
         // updates (no-op if already hidden, e.g. on a non-shell page). The caller floor-
         // gates this call and the guaranteed floor fits a whole field, so paint and cache
         // it in one pass - paint_field_runs segments the SGR per hi at the value boundary.
         set_cursor_visible(false);
-        paint_field_runs(0, metrics_col, metrics, (uint16_t)visible, emit, hi);
-        memcpy(_status_metrics_cache, metrics, (size_t)visible);
-
-        set_inverted(saved_inv);
-        // Periodic refreshes restore the cursor to where the page left it; draw_status_row
-        // passes restore_cursor=false (its caller repositions absolutely right after).
-        if (restore_cursor) { move_to(saved_pos); _hw_at_eol = saved_eol; }
+        _paint_status_field(metrics_col, metrics, (uint16_t)visible, emit, hi,
+                            _status_metrics_cache, restore_cursor);
         set_cursor_visible(saved_cur);   // back at the page position, never on row 0
         return true;
     }
@@ -711,10 +721,6 @@ namespace Botanik { namespace Terminal {
                                    ? (uint16_t)(_cols - (STATUS_METRICS_LEN - 1)) : 0;
         if ((uint16_t)(clock_col + STATUS_CLOCK_LEN) > metrics_col) return false;
 
-        CursorPos saved_pos = _hw_pos;
-        bool      saved_inv = _hw_inverted;
-        bool      saved_eol = _hw_at_eol;
-
         // Diff vs the cache into a changed-column mask, then paint the whole field in one
         // pass via the shared painter (hi = 0: normal video, so the digits stand out
         // against the reverse-video bar). Floor-gated by the caller, so the tiny field is
@@ -724,11 +730,8 @@ namespace Botanik { namespace Terminal {
             if (clk[i] != _status_clock_cache[i]) emit |= (1u << i);
         if (emit == 0) return false;
 
-        paint_field_runs(0, clock_col, clk, STATUS_CLOCK_LEN, emit, 0u);
-        memcpy(_status_clock_cache, clk, STATUS_CLOCK_LEN);
-
-        set_inverted(saved_inv);
-        if (restore_cursor) { move_to(saved_pos); _hw_at_eol = saved_eol; }
+        _paint_status_field(clock_col, clk, STATUS_CLOCK_LEN, emit, 0u,
+                            _status_clock_cache, restore_cursor);
         return true;
     }
 
