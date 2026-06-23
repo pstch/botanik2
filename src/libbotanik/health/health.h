@@ -23,9 +23,9 @@
 #include <cstdint>
 
 #include "libbotanik_config.h"
-#include "libbotanik/alarms/alarms.h"        // AlarmModel, AlarmCondition
+#include "libbotanik/alarms/alarms.h"        // AlarmModel, AlarmCondition, AlarmNotifier
 #include "libbotanik/alarms/platform.h"      // PLATFORM_ALARMS
-#include "libbotanik/alarms/notifier.h"      // MqttAlarmNotifier
+#include "libbotanik/alarms/publisher.h"     // Publisher (alarm transport seam)
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/scheduler/scheduler.h"  // SchedulerContext
 #include "libbotanik/plcio/sync.h"           // PlcSyncContext
@@ -39,7 +39,7 @@ namespace Botanik { namespace Health {
     private:
         /** @name State
          *  @{ */
-        Alarms::MqttAlarmNotifier          _mqtt;
+        Alarms::AlarmNotifier              _notifier;
         Alarms::AlarmModel                 _model;
         Logs::Logger*                      _logger;   // log sink (may be null)
         const Scheduler::SchedulerContext* _sched;    // perf metrics (may be null)
@@ -68,8 +68,8 @@ namespace Botanik { namespace Health {
                       const Scheduler::SchedulerContext* sched,
                       PlcIO::PlcSyncContext* plc,
                       const void* in_region, const void* out_region)
-            : _mqtt(Config::MQTT_TOPIC_PREFIX),
-              _model(table, count, logger, &_mqtt,
+            : _notifier(Config::MQTT_TOPIC_PREFIX),
+              _model(table, count, logger, &_notifier,
                      Alarms::PLATFORM_ALARMS, Alarms::PLATFORM_ALARM_COUNT),
               _logger(logger), _sched(sched), _plc(plc),
               _in_region(in_region), _out_region(out_region) {}
@@ -78,6 +78,9 @@ namespace Botanik { namespace Health {
          *  @{ */
         /** @brief The alarm model (the terminal / AlarmsPage / shell bind to this). */
         Alarms::AlarmModel& model()      { return _model; }
+        /** @brief Wire the alarm notifier's transport (the firmware passes the MQTT
+         *  client once it exists). Until then the notifier is a no-op. */
+        void set_alarm_publisher(Alarms::Publisher* pub) { _notifier.set_publisher(pub); }
         /** @brief Result of the boot POST (run on the first step()). */
         bool                post_ok()  const { return _post_ok; }
         /** @brief Whether the HW watchdog should be kicked this beat (see file header). */

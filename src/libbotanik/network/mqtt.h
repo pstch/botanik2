@@ -20,11 +20,13 @@
 #include "libbotanik/hal/net.h"
 #include "libbotanik/network/network.h"
 #include "libbotanik/network/resolver.h"
+#include "libbotanik/alarms/publisher.h"   // Alarms::Publisher (alarm transport)
 
 namespace Botanik { namespace Network {
 
-    /** @brief Non-blocking MQTT 3.1.1 publisher. */
-    class MqttClient : public ConfigHandler {
+    /** @brief Non-blocking MQTT 3.1.1 publisher. Also serves as the alarm transport
+     *  (Alarms::Publisher), so HealthMonitor's notifier publishes through it. */
+    class MqttClient : public ConfigHandler, public Alarms::Publisher {
         /** @name State
          *  @{ */
         enum State : uint8_t {
@@ -52,7 +54,11 @@ namespace Botanik { namespace Network {
         bool connected() const { return _state == MQTT_READY; }
         /** @brief Publish a QoS-0 message now if connected; returns false otherwise (the
          *  caller may drop or retry later). @p retain sets the MQTT retain flag. */
-        bool publish(const char* topic, const char* payload, bool retain = false);
+        bool publish(const char* topic, const char* payload, bool retain);
+        /** @brief Alarms::Publisher: publish non-retained (QoS 0). */
+        bool publish(const char* topic, const char* payload) override {
+            return publish(topic, payload, false);
+        }
 
     protected:
         uint32_t config_serial() const override;

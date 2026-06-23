@@ -20,10 +20,12 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
+#include <cstdio>                      // snprintf (AlarmNotifier::_emit)
 
 #include "libbotanik/utils/assert.h"   // BOTANIK_ASSERT
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/component.h"      // Component (first-step announce)
+#include "libbotanik/alarms/publisher.h" // Publisher (the notifier's transport seam)
 
 namespace Botanik { namespace Alarms {
 
@@ -91,14 +93,38 @@ namespace Botanik { namespace Alarms {
     }
 
     /**
-     * @brief Draft MQTT notification sink. The model calls notify_on/off when an alarm
-     * crosses its MQTT ON/OFF dwell threshold. Plumbing in notifier.h; null disables it.
+     * @brief Formats an alarm transition into "<prefix>/alarms/<CODE>" + "ON"/"OFF"
+     * and forwards it to a Publisher. The model calls notify_on/off when an alarm
+     * crosses its MQTT ON/OFF dwell threshold; the transport is wired later via
+     * set_publisher(), so it is a no-op until then (null publisher disables it).
      */
     class AlarmNotifier {
+    private:
+        /** @name State
+         *  @{ */
+        const char* _prefix;   // topic root, e.g. "botanik/greenhouse"
+        Publisher*  _pub;       // transport (null = no-op)
+        /** @} */
+
     public:
-        virtual ~AlarmNotifier() {}
-        virtual void notify_on(const AlarmCondition& a)  = 0;
-        virtual void notify_off(const AlarmCondition& a) = 0;
+        /** @brief @p prefix is the MQTT topic root. */
+        explicit AlarmNotifier(const char* prefix)
+            : _prefix(prefix && prefix[0] ? prefix : "botanik"), _pub(nullptr) {}
+
+        /** @brief Wire the transport (called once at firmware setup). */
+        void set_publisher(Publisher* pub) { _pub = pub; }
+
+        void notify_on(const AlarmCondition& a)  { _emit(a, true); }
+        void notify_off(const AlarmCondition& a) { _emit(a, false); }
+
+    private:
+        /** @brief Build "<prefix>/alarms/<CODE>" + ON/OFF and publish (no-op if unwired). */
+        void _emit(const AlarmCondition& a, bool on) {
+            if (_pub == nullptr) return;
+            char topic[64];
+            snprintf(topic, sizeof(topic), "%s/alarms/%s", _prefix, a.code ? a.code : "?");
+            _pub->publish(topic, on ? "ON" : "OFF");
+        }
     };
 
     /**
