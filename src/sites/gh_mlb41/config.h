@@ -14,7 +14,8 @@
 #define BOTANIK_SITE_NAME "gh_mlb41"
 
 // This greenhouse's PLC publishes the net/NTP/MQTT config blocks, so enable the stack.
-// Functional on OPTA; on the simulator the handlers run but the TCP/IP stack is inert.
+// Functional on both targets: OPTA over Mbed sockets, the simulator over real host BSD
+// sockets (HAL::Net), so the sim genuinely brings up the link, syncs time, and connects.
 #define BOTANIK_FEATURE_NETWORK 1
 #define BOTANIK_FEATURE_NTP     1
 #define BOTANIK_FEATURE_MQTT    1

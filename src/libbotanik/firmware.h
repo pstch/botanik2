@@ -190,10 +190,10 @@ namespace Botanik {
               , _network(_plc_handler.context(), &_logger, &_resolver)
 #endif
 #if BOTANIK_FEATURE_NTP
-              , _ntp(_plc_handler.context(), &_logger, &_resolver)
+              , _ntp(_plc_handler.context(), &_logger, &_resolver, &_network)
 #endif
 #if BOTANIK_FEATURE_MQTT
-              , _mqtt(_plc_handler.context(), &_logger, &_resolver)
+              , _mqtt(_plc_handler.context(), &_logger, &_resolver, &_network)
 #endif
 #if BOTANIK_FEATURE_TERMINAL
               , _terminal(_console_serial, cols, rows, &_scheduler.context()->timestamp_ms,
@@ -256,6 +256,12 @@ namespace Botanik {
             // Details on a second line (the renderer splits on '\n') so it wraps cleanly.
             _logger.info(PlcIO::BOOT, "Botanik v%s\nRunning on : %s",
                          Config::FIRMWARE_VERSION, HAL::hardware_description());
+
+#if BOTANIK_FEATURE_MQTT
+            // Route alarm transitions out through the MQTT client (it is an
+            // Alarms::Publisher). Until now the notifier was a no-op.
+            _health.set_alarm_publisher(&_mqtt);
+#endif
 
             on_setup();   // site post-wiring (extra sinks / components)
 
