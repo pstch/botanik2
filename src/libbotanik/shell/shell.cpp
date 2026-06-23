@@ -15,8 +15,9 @@
 #include "libbotanik/shell/shell.h"
 #include "libbotanik/utils/text.h"
 
-// Build-time git short hash: a generated header on the CMake builds (see CMakeLists),
-// "unknown" on the Arduino .ino deploy (no CMake, so the header isn't generated).
+// Build-time git short hash: a generated header on the CMake builds (see
+// CMakeLists), "unknown" on the Arduino .ino deploy (no CMake, so the header
+// isn't generated).
 #if defined(__has_include) && __has_include("botanik_gitversion.h")
 #  include "botanik_gitversion.h"
 #endif
@@ -70,11 +71,13 @@ namespace Botanik { namespace Shell {
         // First word = command name (leading spaces skipped); the rest = args.
         const char* args = cmd; uint16_t alen = len, wlen;
         const char* name = Utils::arg_next(args, alen, wlen);
-        if (name == nullptr) return;                       // blank / all-spaces line
-        while (alen > 0 && *args == ' ') { args++; alen--; }   // trim to arg slice
+        if (name == nullptr) return;   // blank / all-spaces line
+        // trim to arg slice
+        while (alen > 0 && *args == ' ') { args++; alen--; }
 
-        // Site commands first, so the table can override a built-in (e.g. a site
-        // that wants its own `stats`); unmatched names fall through to the built-ins.
+        // Site commands first, so the table can override a built-in (e.g. a
+        // site that wants its own `stats`); unmatched names fall through to the
+        // built-ins.
         for (size_t i = 0; i < _command_count; i++) {
             const ShellCommand& c = _commands[i];
             if (c.name != nullptr && c.fn != nullptr &&
@@ -98,8 +101,8 @@ namespace Botanik { namespace Shell {
 
     void CommandShell::_cmd_help(const char*, uint16_t) {
         // One line per command, generated from the tables so help can't drift
-        // from the command set. %-10s is a minimum width, not a cap (a long name
-        // pushes help right).
+        // from the command set. %-10s is a minimum width, not a cap (a long
+        // name pushes help right).
         char out[Config::LOG_FORMATTED_LEN];
         uint8_t bcount; const Builtin* B = _builtins(bcount);
         for (uint8_t i = 0; i < bcount; i++) {
@@ -243,7 +246,8 @@ namespace Botanik { namespace Shell {
         const Alarms::AlarmModel* m = _terminal.alarms();
         if (m == nullptr) { _println("alarms: model unavailable"); return; }
 
-        // "alarms list" - one paced line per active condition: code, age, flags.
+        // "alarms list" - one paced line per active condition: code, age,
+        // flags.
         if (sub && Utils::arg_eq(sub, wlen, "list")) {
             if (m->active_count() == 0) { _println("no active alarms"); return; }
             char age[16];
@@ -278,7 +282,7 @@ namespace Botanik { namespace Shell {
         };
         char out[48];
         uint16_t wlen; const char* w = Utils::arg_next(args, alen, wlen);
-        if (w == nullptr) {                            // report current threshold
+        if (w == nullptr) {   // report current threshold
             const char* cur = "?";
             for (const auto& L : LEVELS)
                 if (L.lvl == _logger->min_level()) cur = L.name;
@@ -314,8 +318,9 @@ namespace Botanik { namespace Shell {
             case PlcIO::PLC_FAULT:   s = "FAULT";          break;
             default:                 s = "no contact yet"; break;
         }
-        // Dotted-leader "label .... : value" lines. The 22-char labels are exact
-        // (no %-22s pad); narrower than `stats` so each region line fits 80 cols.
+        // Dotted-leader "label .... : value" lines. The 22-char labels are
+        // exact (no %-22s pad); narrower than `stats` so each region line fits
+        // 80 cols.
         char out[128], val[80], sz[16];
         int n;
 
@@ -329,9 +334,9 @@ namespace Botanik { namespace Shell {
         n = snprintf(out, sizeof(out), "%-22s : %s", "PLC link .............", val);
         if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
 
-        // Shared-memory regions: address, size, and the two sync fields resident
-        // in that region (by their PLC-POV names). Fixed-width numbers so columns
-        // never shift.
+        // Shared-memory regions: address, size, and the two sync fields
+        // resident in that region (by their PLC-POV names). Fixed-width numbers
+        // so columns never shift.
         snprintf(val, sizeof(val), "%p  %6s  (RX seq %5lu, TX ack %5lu)",
                  p->in_region(), Utils::format_size(sz, sizeof(sz), p->in_size()),
                  (unsigned long)p->in_rx_seq(), (unsigned long)p->in_tx_ack());
@@ -393,7 +398,8 @@ namespace Botanik { namespace Shell {
                                      % Config::SHELL_HISTORY_SIZE);
             text = _history[slot]; len = _hist_len[slot];
         }
-        // Replace the editor line: go to the end, delete it, insert recalled text.
+        // Replace the editor line: go to the end, delete it, insert recalled
+        // text.
         _editor.move_to_line_end();
         _editor.backspace(_editor.buffer_len());
         _editor.insert_characters(text, len);
@@ -429,7 +435,8 @@ namespace Botanik { namespace Shell {
         uint16_t off  = _editor.cursor_offset();
         uint16_t rest = (uint16_t)(_editor.buffer_len() - off);
         if (rest == 0) return;
-        push_kill(_editor.buffer() + off, rest);   // stores up to SHELL_KILL_SIZE
+        // stores up to SHELL_KILL_SIZE
+        push_kill(_editor.buffer() + off, rest);
         _editor.delete_forward(rest);              // remove the whole tail
     }
 

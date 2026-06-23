@@ -15,8 +15,8 @@ namespace Botanik { namespace Alarms {
     /** @brief Abstract publish sink (e.g. an MQTT client). */
     struct Publisher {
         virtual ~Publisher() {}
-        /** @brief Publish @p payload under @p topic. Returns false if it could not
-         *  be sent (e.g. not connected); the caller may drop or retry. */
+        /** @brief Publish @p payload under @p topic. Returns false if it could
+         *  not be sent (e.g. not connected); the caller may drop or retry. */
         virtual bool publish(const char* topic, const char* payload) = 0;
     };
 

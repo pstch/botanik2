@@ -3,7 +3,8 @@
 
 /**
  * @file format.h
- * @brief Log-entry formatting: assemble the `TIMESTAMP LEVEL TOPIC MESSAGE` line.
+ * @brief Log-entry formatting: assemble the `TIMESTAMP LEVEL TOPIC MESSAGE`
+ *        line.
  */
 
 #include <cstdint>
@@ -40,7 +41,8 @@ namespace Botanik { namespace Logs {
     }; }
 
     /** @brief Format a complete log entry as `TIMESTAMP LEVEL TOPIC MESSAGE`.
-     *  @return Number of bytes written, clamped to @p len; 0 on encoding error. */
+     *  @return Number of bytes written, clamped to @p len; 0 on encoding
+     *  error. */
     inline size_t format_log_entry(const PlcIO::LogEntry_t* entry, char* buf, size_t len) {
         using namespace Botanik::Utils;
         const char* level = format_log_level(entry->level);

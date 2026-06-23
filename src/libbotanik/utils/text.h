@@ -16,7 +16,8 @@ namespace Botanik { namespace Utils {
      *  @{ */
 
     /** @brief Length of the next display segment of [buf+off, buf+len): up to
-     *  @p budget bytes, stopping before an embedded '\n' (the caller consumes it). */
+     *  @p budget bytes, stopping before an embedded '\n' (the caller consumes
+     *  it). */
     inline uint16_t scan_line_segment(const char* buf, size_t off,
                                       size_t len, uint16_t budget) {
         uint16_t take = 0;
@@ -26,13 +27,13 @@ namespace Botanik { namespace Utils {
 
     /** @} */
 
-    /** @name Argument parsing (shell)
-     *  Bounded, NUL-free helpers over a slice of the command line (no libc strtol).
-     *  @{ */
+    /** @name Argument parsing (shell) Bounded, NUL-free helpers over a slice of
+     *  the command line (no libc strtol). @{ */
 
-    /** @brief Extract the next whitespace-delimited word from [@p args, @p args+alen).
-     *  Returns the word start (nullptr if none) and sets @p wlen to its length,
-     *  advancing @p args / @p alen past the word (leading spaces are skipped first). */
+    /** @brief Extract the next whitespace-delimited word from [@p args, @p
+     *  args+alen). Returns the word start (nullptr if none) and sets @p wlen to
+     *  its length, advancing @p args / @p alen past the word (leading spaces
+     *  are skipped first). */
     inline const char* arg_next(const char*& args, uint16_t& alen, uint16_t& wlen) {
         while (alen > 0 && *args == ' ') { args++; alen--; }
         if (alen == 0) { wlen = 0; return nullptr; }
@@ -42,15 +43,16 @@ namespace Botanik { namespace Utils {
         return w;
     }
 
-    /** @brief True if word [@p w, @p w+wlen) equals the NUL-terminated literal @p lit. */
+    /** @brief True if word [@p w, @p w+wlen) equals the NUL-terminated literal
+     *  @p lit. */
     inline bool arg_eq(const char* w, uint16_t wlen, const char* lit) {
         for (uint16_t i = 0; i < wlen; i++)
             if (lit[i] == '\0' || w[i] != lit[i]) return false;
         return lit[wlen] == '\0';
     }
 
-    /** @brief Parse [@p s, @p s+len) as a decimal uint32 into @p out. Returns false on
-     *  an empty string, a non-digit, or overflow. */
+    /** @brief Parse [@p s, @p s+len) as a decimal uint32 into @p out. Returns
+     *  false on an empty string, a non-digit, or overflow. */
     inline bool parse_uint(const char* s, uint16_t len, uint32_t* out) {
         if (len == 0) return false;
         uint32_t v = 0;
@@ -69,18 +71,18 @@ namespace Botanik { namespace Utils {
     /** @name Number formatting
      *  @{ */
 
-    /** @brief Format @p value as a fixed-point decimal into @p buf, mirroring printf's
-     *  `%0<width>.<decimals>f`, and return @p buf for inline use.
+    /** @brief Format @p value as a fixed-point decimal into @p buf, mirroring
+     *  printf's `%0<width>.<decimals>f`, and return @p buf for inline use.
      *
-     *  Our Mbed newlib-nano @c snprintf stubs out @c %f, so format with this first and
-     *  feed the result via @c %s:
+     *  Our Mbed newlib-nano @c snprintf stubs out @c %f, so format with this
+     *  first and feed the result via @c %s:
      *  @code
      *      char fb[12];
      *      snprintf(buf, sizeof(buf), "%s C", format_float(fb, sizeof(fb), t, 1));
      *  @endcode
      *
-     *  @param value     Rounded half away from zero to @p decimals places (diverges
-     *                   from %f only on exact .5 ties).
+     *  @param value     Rounded half away from zero to @p decimals places
+     *                   (diverges from %f only on exact .5 ties).
      *  @param decimals  Digits after the point (0 omits it). Capped at 9.
      *  @param width     Min field width, zero-padded after the sign (0 = none).
      *  @note Non-finite inputs render "nan" / "inf" / "-inf"; NUL-terminated
@@ -88,8 +90,9 @@ namespace Botanik { namespace Utils {
     const char* format_float(char* buf, size_t cap, double value,
                              uint8_t decimals = 1, uint8_t width = 0);
 
-    /** @brief Format @p bytes into @p buf as "<n> B" below 32 KiB, or "<n> KB" (rounded
-     *  to the nearest KiB) at or above it. Returns @p buf for inline use. */
+    /** @brief Format @p bytes into @p buf as "<n> B" below 32 KiB, or "<n> KB"
+     *  (rounded to the nearest KiB) at or above it. Returns @p buf for inline
+     *  use. */
     const char* format_size(char* buf, size_t cap, uint32_t bytes);
 
     /** @} */
@@ -97,13 +100,12 @@ namespace Botanik { namespace Utils {
     /** @name Duration formatting
      *  @{ */
 
-    /** @brief Format @p secs as a fixed-width age string into @p buf (returned for
-     *  inline use). Picks the largest sensible unit (s/m/h/d/y). Constant-width
-     *  ("%3u %c ago" / "%3u %c"), so a cell never reflows as the age grows.
-     *
-     *  @param buf        NUL-terminated when @p cap > 0; needs >= 10 bytes.
-     *  @param ago        Append " ago" (default) or just value+unit.
-     *  @param floor_min  Floor the unit at minutes (sub-minute reads "0 m"). */
+    /** @brief Format @p secs as a fixed-width age string into @p buf (returned
+     *  for inline use). Picks the largest sensible unit (s/m/h/d/y).
+     *  Constant-width ("%3u %c ago" / "%3u %c"), so a cell never reflows as the
+     *  age grows. @param buf NUL-terminated when @p cap > 0; needs >= 10 bytes.
+     *  @param ago Append " ago" (default) or just value+unit. @param floor_min
+     *  Floor the unit at minutes (sub-minute reads "0 m"). */
     const char* format_age(char* buf, size_t cap, uint32_t secs,
                            bool ago = true, bool floor_min = false);
 
@@ -113,9 +115,9 @@ namespace Botanik { namespace Utils {
      *  @{ */
 
     /** @brief Read environment variable @p name as an unsigned 8-bit integer.
-     *  Returns @p fallback when it is unset, empty, non-numeric, or outside 0..255.
-     *  On targets without an environment (OPTA) getenv yields null, so this always
-     *  returns @p fallback. */
+     *  Returns @p fallback when it is unset, empty, non-numeric, or outside
+     *  0..255. On targets without an environment (OPTA) getenv yields null, so
+     *  this always returns @p fallback. */
     uint8_t env_u8(const char* name, uint8_t fallback = 0);
 
     /** @} */

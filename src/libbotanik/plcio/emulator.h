@@ -27,7 +27,8 @@ inline uint32_t plc_dilated_timeout(uint32_t base_ms);
 
 namespace Botanik { namespace PlcIO {
 
-    /** @brief Non-template context (mirror of PlcSyncContext) for the emulator side. */
+    /** @brief Non-template context (mirror of PlcSyncContext) for the emulator
+     *  side. */
     struct PlcEmulatorContext {
         template<typename, typename> friend class PlcEmulator;
     private:
@@ -217,8 +218,8 @@ namespace Botanik { namespace PlcIO {
         /** @} */
     };
 
-    /** @brief Pushes log entries into the emulator's output buffer, simulating the
-     *  PLC coprocessor sending logs to the host. */
+    /** @brief Pushes log entries into the emulator's output buffer, simulating
+     *  the PLC coprocessor sending logs to the host. */
     class PlcLogWriter {
     private:
         /** @name State
@@ -246,16 +247,17 @@ namespace Botanik { namespace PlcIO {
 
 #ifdef TARGET_SIMULATOR
 
-    // Host-side driver that runs a PlcEmulator on its own POSIX thread, simulating
-    // the PLC coprocessor executing independently of the main loop. Simulator-only:
-    // on OPTA the real coprocessor plays this role, so this section is compiled out.
+    // Host-side driver that runs a PlcEmulator on its own POSIX thread,
+    // simulating the PLC coprocessor executing independently of the main loop.
+    // Simulator-only: on OPTA the real coprocessor plays this role, so this
+    // section is compiled out.
 
     template<typename InputData, typename OutputData>
     struct EmulatorThreadArgs {
         PlcInput<InputData>*   shared_in;
         PlcOutput<OutputData>* shared_out;
-        /** @brief Optional site hook filling the output payload with mock values;
-         *  null leaves the payload zeroed. */
+        /** @brief Optional site hook filling the output payload with mock
+         *  values; null leaves the payload zeroed. */
         void (*fill_output)(OutputData*, uint32_t now_ms);
     };
 
@@ -266,9 +268,10 @@ namespace Botanik { namespace PlcIO {
      *  serial ring buffers, no std::atomic needed. */
     inline volatile bool& _emu_running() { static volatile bool running = false; return running; }
     inline pthread_t&      _emu_thread()  { static pthread_t thread; return thread; }
-    /** @brief Set true by the thread as its final act (after its last shared-memory
-     *  access), so a stopping caller can confirm the region is released without relying
-     *  solely on pthread_join's internal synchronization. */
+    /** @brief Set true by the thread as its final act (after its last
+     *  shared-memory access), so a stopping caller can confirm the region is
+     *  released without relying solely on pthread_join's internal
+     *  synchronization. */
     inline volatile bool& _emu_stopped() { static volatile bool stopped = false; return stopped; }
 
     /** @brief Cooperatively stop the emulator thread and join it, releasing its
@@ -277,28 +280,33 @@ namespace Botanik { namespace PlcIO {
     inline void stop_emulator_thread() {
         if (!_emu_running()) return;  // not running / already stopped
         _emu_running() = false;
-        HAL::dsb();                   // publish the stop before joining / re-exec
-        // When the watchdog trips, reset() runs *on* the emulator thread, so this
-        // hook would be joining itself (EDEADLK). Skip the join in that case - the
-        // following execve reaps the thread anyway, and we're synchronously inside
-        // reset() so the emulator isn't touching shared memory concurrently.
+        // publish the stop before joining / re-exec
+        HAL::dsb();
+        // When the watchdog trips, reset() runs *on* the emulator thread, so
+        // this hook would be joining itself (EDEADLK). Skip the join in that
+        // case - the following execve reaps the thread anyway, and we're
+        // synchronously inside reset() so the emulator isn't touching shared
+        // memory concurrently.
         if (pthread_equal(pthread_self(), _emu_thread())) return;
-        // Wait for the thread to release the shared region (it sets _emu_stopped as its
-        // last act) before joining - an explicit handoff that doesn't assume the caller
-        // is the main loop. Bounded by one emulator iteration.
+        // Wait for the thread to release the shared region (it sets
+        // _emu_stopped as its last act) before joining - an explicit handoff
+        // that doesn't assume the caller is the main loop. Bounded by one
+        // emulator iteration.
         while (!_emu_stopped()) { /* spin */ }
         HAL::dsb();
         pthread_join(_emu_thread(), nullptr);
     }
 
-    /** @brief Thread entry point: owns the emulator's timestamp, PlcEmulator and
-     *  PlcLogWriter, steps them every TASK_PERIOD_MS, and emits a heartbeat log. */
+    /** @brief Thread entry point: owns the emulator's timestamp, PlcEmulator
+     *  and PlcLogWriter, steps them every TASK_PERIOD_MS, and emits a heartbeat
+     *  log. */
     template<typename InputData, typename OutputData>
     inline void* _emulator_thread_main(void* arg) {
         auto* args = static_cast<EmulatorThreadArgs<InputData, OutputData>*>(arg);
 
-        // Run realtime on its own core, mirroring the OPTA coprocessor. Per-thread,
-        // so it must run here; null logger (the main thread reports any failure).
+        // Run realtime on its own core, mirroring the OPTA coprocessor.
+        // Per-thread, so it must run here; null logger (the main thread reports
+        // any failure).
         Scheduler::make_thread_realtime(Config::SIM_EMULATOR_CPU_CORE, nullptr);
 
         uint32_t emu_timestamp_ms = 0;
@@ -317,8 +325,8 @@ namespace Botanik { namespace PlcIO {
             plc_emulator.step();
             // serviced here so a wedged main loop still trips the watchdog
             HAL::watchdog_poll();
-            // Refresh the mock payload + request a write at ~1 Hz (DATA_TICKS loop
-            // iterations, the rate the site animator is tuned for).
+            // Refresh the mock payload + request a write at ~1 Hz (DATA_TICKS
+            // loop iterations, the rate the site animator is tuned for).
             constexpr uint32_t DATA_TICKS = 1000 / Config::TASK_PERIOD_MS;
             if (args->fill_output != nullptr && (emu_tick % DATA_TICKS) == 0) {
                 args->fill_output(plc_emulator.output_data(), emu_timestamp_ms);
@@ -334,9 +342,10 @@ namespace Botanik { namespace PlcIO {
         return nullptr;
     }
 
-    /** @brief Spawn the emulator thread against shared PLC memory and register its
-     *  teardown with HAL::reset(). The argument block is a static (process lifetime),
-     *  so no heap. Kept joinable (not detached) so reset() can stop it cleanly. */
+    /** @brief Spawn the emulator thread against shared PLC memory and register
+     *  its teardown with HAL::reset(). The argument block is a static (process
+     *  lifetime), so no heap. Kept joinable (not detached) so reset() can stop
+     *  it cleanly. */
     template<typename InputData, typename OutputData>
     inline void start_emulator_thread(PlcInput<InputData>* shared_in,
                                       PlcOutput<OutputData>* shared_out,
@@ -345,12 +354,14 @@ namespace Botanik { namespace PlcIO {
         static EmulatorThreadArgs<InputData, OutputData> args{
             shared_in, shared_out, fill_output };
         _emu_running() = true;
-        // memory barrier to make `_emu_running` visible before the thread reads it
+        // memory barrier to make `_emu_running` visible before the thread reads
+        // it
         HAL::dsb();
-        // Start the thread. Never let this fail silently: without the emulator the
-        // PLC link never acks and the handler is stuck in UNK forever, with no hint
-        // why. EAGAIN here usually means the stack mmap couldn't be locked under
-        // RLIMIT_MEMLOCK - see the start-order note in the sketch's main().
+        // Start the thread. Never let this fail silently: without the emulator
+        // the PLC link never acks and the handler is stuck in UNK forever, with
+        // no hint why. EAGAIN here usually means the stack mmap couldn't be
+        // locked under RLIMIT_MEMLOCK - see the start-order note in the
+        // sketch's main().
         int rc = pthread_create(&_emu_thread(), nullptr,
                                 &_emulator_thread_main<InputData, OutputData>, &args);
         if (rc != 0) {

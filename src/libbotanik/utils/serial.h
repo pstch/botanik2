@@ -22,18 +22,16 @@ namespace Botanik { namespace Utils {
         }
     }
 
-    /**
-     * @brief Non-blocking buffered serial for Arduino UART.
-     *
-     *  Both rings are single-producer/single-consumer (RX: receive() fills,
-     *  read() drains; TX: write() fills, transmit() drains). Every method runs
-     *  on the main loop - there are no serial ISRs - so the ring is NOT ISR-safe
-     *  as wired (never call from interrupt context). Producer and consumer being
-     *  the same thread, no barrier is needed: program order keeps head/tail and
-     *  the byte stores consistent. head/tail stay `volatile` as an intent marker
-     *  (a future ISR/second-thread rewiring would then re-add the barriers, as a
-     *  localized change). The only genuine async boundary here is the PLC shared
-     *  memory, which carries its own barriers. */
+    /** @brief Non-blocking buffered serial for Arduino UART. Both rings are
+     *  single-producer/single-consumer (RX: receive() fills, read() drains; TX:
+     *  write() fills, transmit() drains). Every method runs on the main loop -
+     *  there are no serial ISRs - so the ring is NOT ISR-safe as wired (never
+     *  call from interrupt context). Producer and consumer being the same
+     *  thread, no barrier is needed: program order keeps head/tail and the byte
+     *  stores consistent. head/tail stay `volatile` as an intent marker (a
+     *  future ISR/second-thread rewiring would then re-add the barriers, as a
+     *  localized change). The only genuine async boundary here is the PLC
+     *  shared memory, which carries its own barriers. */
     class BufferedSerial {
     private:
 
@@ -42,7 +40,8 @@ namespace Botanik { namespace Utils {
 
         HAL::RawSerial* _serial;   // wrapped raw port
 
-        static const uint16_t RX_BUF_SIZE = 256;   // power of two (masking arithmetic)
+        // power of two (masking arithmetic)
+        static const uint16_t RX_BUF_SIZE = 256;
         static const uint16_t TX_BUF_SIZE = 4096;
         static_assert(is_power_of_two(RX_BUF_SIZE),
                       "RX_BUF_SIZE must be a power of two");
@@ -56,13 +55,14 @@ namespace Botanik { namespace Utils {
         volatile uint16_t _rx_head = 0, _rx_tail = 0;
         volatile uint16_t _tx_head = 0, _tx_tail = 0;
 
-        /** @brief Cumulative bytes that didn't fit in the TX ring on write(). Callers
-         *  that resume a partial write (the log sink) inflate it, so only watch it on a
-         *  serial whose writers don't resume. Saturating. */
+        /** @brief Cumulative bytes that didn't fit in the TX ring on write().
+         *  Callers that resume a partial write (the log sink) inflate it, so
+         *  only watch it on a serial whose writers don't resume. Saturating. */
         uint32_t _tx_dropped = 0;
 
-        /** @brief Count of receive() cycles aborted with the RX ring full: the loop fell
-         *  behind, so bytes may have been lost in the device FIFO. Saturating. */
+        /** @brief Count of receive() cycles aborted with the RX ring full: the
+         *  loop fell behind, so bytes may have been lost in the device FIFO.
+         *  Saturating. */
         uint32_t _rx_overrun = 0;
 
         /** @} */
@@ -87,14 +87,16 @@ namespace Botanik { namespace Utils {
         /** @brief True if the bound port's output is an interactive terminal
          *  (always false on hardware UARTs). */
         bool is_output_tty() const;
-        /** @brief RX ring size, bytes (usable depth is this - 1: one slot reserved to
-         *  tell full from empty). */
+        /** @brief RX ring size, bytes (usable depth is this - 1: one slot
+         *  reserved to tell full from empty). */
         static constexpr uint16_t rx_capacity() { return RX_BUF_SIZE; }
         /** @brief TX ring size, bytes (usable depth is this - 1). */
         static constexpr uint16_t tx_capacity() { return TX_BUF_SIZE; }
-        /** @brief Cumulative bytes dropped because the TX ring was full (see above). */
+        /** @brief Cumulative bytes dropped because the TX ring was full (see
+         *  above). */
         uint32_t tx_dropped() const { return _tx_dropped; }
-        /** @brief Count of receive() cycles aborted with a full RX ring (see above). */
+        /** @brief Count of receive() cycles aborted with a full RX ring (see
+         *  above). */
         uint32_t rx_overrun() const { return _rx_overrun; }
 
         /** @} */
@@ -102,18 +104,20 @@ namespace Botanik { namespace Utils {
         /** @name Application I/O
          *  @{ */
 
-        /** @brief Copy up to @p len bytes into the TX ring.
-         *  @return Bytes written; < @p len if the ring filled (never blocks). */
+        /** @brief Copy up to @p len bytes into the TX ring. @return Bytes
+         *  written; < @p len if the ring filled (never blocks). */
         uint16_t write(const char* buf, uint16_t len);
-        /** @brief Drop every queued TX byte, leaving the ring empty. Used before a
-         *  full-screen repaint (pending bytes would paint onto a display about to be
-         *  wiped, and emptying first guarantees the clear sequence fits).
-         *  @warning Single-producer reset; must run in transmit()'s context (the main
-         *  loop). Safe here because all access is main-loop only. */
+        /** @brief Drop every queued TX byte, leaving the ring empty. Used
+         *  before a full-screen repaint (pending bytes would paint onto a
+         *  display about to be wiped, and emptying first guarantees the clear
+         *  sequence fits). @warning Single-producer reset; must run in
+         *  transmit()'s context (the main loop). Safe here because all access
+         *  is main-loop only. */
         void tx_discard();
         /** @brief Consume up to @p len bytes from the RX ring. */
         uint16_t read(char* buf, uint16_t len);
-        /** @brief Peek the next RX byte without consuming it; false if empty. */
+        /** @brief Peek the next RX byte without consuming it; false if empty.
+         */
         bool peek(uint8_t* b) const;
 
         /** @} */
@@ -125,7 +129,8 @@ namespace Botanik { namespace Utils {
         uint16_t receive();
         /** @brief Flush the TX ring to the hardware UART FIFO. */
         uint16_t transmit();
-        /** @brief Run one receive + transmit cycle. Main-loop only (not ISR-safe). */
+        /** @brief Run one receive + transmit cycle. Main-loop only (not
+         *  ISR-safe). */
         void step();
 
         /** @} */

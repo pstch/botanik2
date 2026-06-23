@@ -87,7 +87,8 @@ namespace Botanik { namespace Health {
 
         /** @name Queries
          *  @{ */
-        /** @brief The alarm model (terminal / AlarmsPage / shell bind to this). */
+        /** @brief The alarm model (terminal / AlarmsPage / shell bind to
+         *  this). */
         Alarms::AlarmModel& model()      { return _model; }
         /** @brief Wire the alarm notifier's transport (the firmware passes the
          *  MQTT client once it exists). Until then the notifier is a no-op. */
@@ -163,13 +164,14 @@ namespace Botanik { namespace Health {
 
         /** @brief Raise/clear the platform alarms from the scheduler metrics.
          *  SYS_RST holds for the first five minutes; CPU_LOAD / CPU_JITT /
-         *  STACK are level-driven; CPU_XRUN held for a window after an overrun. */
+         *  STACK are level-driven; CPU_XRUN held for a window after an
+         *  overrun. */
         void _assert_platform_alarms(uint64_t now) {
             _model.set_local("SYS_RST", now < 300000);
             if (_sched == nullptr) return;
             const uint32_t period_us = Config::TASK_PERIOD_MS * 1000u;
-            // Under BOTANIK_NO_LOAD_ALARMS hold the CPU_* load alarms cleared so
-            // the active set is stable for screen goldens (SYS_RST / STACK
+            // Under BOTANIK_NO_LOAD_ALARMS hold the CPU_* load alarms cleared
+            // so the active set is stable for screen goldens (SYS_RST / STACK
             // unaffected).
             const bool load = !_no_load_alarms;
             _model.set_local("CPU_LOAD", load &&

@@ -11,7 +11,8 @@
 #include "libbotanik/terminal/parser.h"
 
 namespace Botanik { namespace Pages {
-    /** @brief Abstract interface for a terminal page (occupies the full screen) */
+    /** @brief Abstract interface for a terminal page (occupies the full
+     *  screen) */
     class Page {
     private:
         using Command = Terminal::InputEvent::Command;
@@ -48,14 +49,15 @@ namespace Botanik { namespace Pages {
          *  @{ */
 
         virtual void deactivate() = 0;
-        /** @brief Called when this page becomes active (screen already cleared). */
+        /** @brief Called when this page becomes active (screen already
+         *  cleared). */
         virtual void focus() = 0;
         /** @brief Redraw in-place preserving input state (Ctrl+L). */
         virtual void redraw() { focus(); }
-        /** @brief Per-tick update. Invoked for *every* page (not just the active
-         *  one) so a page can drain queued logs in the background. @p active is
-         *  true only for the page owning the screen; inactive pages emit no
-         *  output. */
+        /** @brief Per-tick update. Invoked for *every* page (not just the
+         *  active one) so a page can drain queued logs in the background.
+         *  @p active is true only for the page owning the screen; inactive
+         *  pages emit no output. */
         virtual void tick(bool active) = 0;
 
         /** @} */

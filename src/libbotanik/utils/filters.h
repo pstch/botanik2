@@ -54,7 +54,8 @@ namespace Botanik { namespace Utils {
             _attack = attack;
             _decay = decay;
         }
-        /** @brief Fold one sample in (attack if it rises, decay if it falls). */
+        /** @brief Fold one sample in (attack if it rises, decay if it falls).
+         */
         void  push(float x) {
             const float a = (x > _value) ? _attack : _decay;
             _value = a * x + (1.0f - a) * _value;
@@ -63,16 +64,14 @@ namespace Botanik { namespace Utils {
         void  reset()       { _value = 0.0f; }
     };
 
-    /** @brief Sliding-window maximum over roughly the last @p window_ticks samples,
-     *  approximated with K rotating time buckets.
-     *
-     *  @note O(1) per sample and O(K) to read, using K words of state - instead of a
-     *  full per-sample ring buffer rescanned O(window) every tick. Each bucket holds
-     *  the max of one time slice; the newest is updated in place and the oldest falls
-     *  off on rotation, so the effective window wobbles by up to one bucket width.
-     *
-     *  @warning Assumes non-negative samples with 0 as the identity (true for the
-     *  microsecond / byte metrics here). */
+    /** @brief Sliding-window maximum over roughly the last @p window_ticks
+     *  samples, approximated with K rotating time buckets. @note O(1) per
+     *  sample and O(K) to read, using K words of state - instead of a full
+     *  per-sample ring buffer rescanned O(window) every tick. Each bucket holds
+     *  the max of one time slice; the newest is updated in place and the oldest
+     *  falls off on rotation, so the effective window wobbles by up to one
+     *  bucket width. @warning Assumes non-negative samples with 0 as the
+     *  identity (true for the microsecond / byte metrics here). */
     template <uint32_t K>
     class WindowedMax {
         static_assert(K >= 2, "WindowedMax needs at least two buckets");
@@ -88,18 +87,21 @@ namespace Botanik { namespace Utils {
             reset();
         }
 
-        /** @brief Fold one sample into the window. @p weight is how many sample slots it
-         *  represents (1 normally; the count of elapsed beats on a scheduler overrun, so
-         *  the window ages by wall-time rather than by released-tick count - otherwise a
-         *  stale peak lingers past the window while ticks are being skipped). */
+        /** @brief Fold one sample into the window. @p weight is how many sample
+         *  slots it represents (1 normally; the count of elapsed beats on a
+         *  scheduler overrun, so the window ages by wall-time rather than by
+         *  released-tick count - otherwise a stale peak lingers past the window
+         *  while ticks are being skipped). */
         void push(uint32_t v, uint32_t weight = 1) {
             _fill += weight;
-            for (uint32_t r = 0; _fill > _bucket_span && r < K; ++r) {  // rotate per elapsed slice
+            // rotate per elapsed slice
+            for (uint32_t r = 0; _fill > _bucket_span && r < K; ++r) {
                 _fill -= _bucket_span;
                 _head = (_head + 1) % K;
                 _bucket[_head] = 0;
             }
-            if (_fill > _bucket_span) _fill = _bucket_span;   // weight spanned the whole window
+            // weight spanned the whole window
+            if (_fill > _bucket_span) _fill = _bucket_span;
             if (v > _bucket[_head]) _bucket[_head] = v;
         }
 

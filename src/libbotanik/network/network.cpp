@@ -2,8 +2,9 @@
  * @file network.cpp
  * @brief NetworkHandler / NtpClient implementations.
  *
- * Bring-up goes through HAL::Net (Mbed vs. BSD handled by the backend). On the sim
- * link_status() returns LINK_UP immediately, so NET_SETUP -> NET_RUNNING next step.
+ * Bring-up goes through HAL::Net (Mbed vs. BSD handled by the backend). On the
+ * sim link_status() returns LINK_UP immediately, so NET_SETUP -> NET_RUNNING
+ * next step.
  */
 
 #include <cstring>
@@ -15,16 +16,17 @@
 namespace Botanik { namespace Network {
 
     namespace {
-        // Convert an SNTP reply's transmit timestamp (bytes 40..47, big-endian: 32-bit
-        // seconds since 1900 + 32-bit fraction) to UNIX milliseconds. Returns 0 if the
-        // timestamp is unset or pre-1970.
+        // Convert an SNTP reply's transmit timestamp (bytes 40..47, big-endian:
+        // 32-bit seconds since 1900 + 32-bit fraction) to UNIX milliseconds.
+        // Returns 0 if the timestamp is unset or pre-1970.
         uint64_t ntp_to_unix_ms(const uint8_t* pkt) {
             uint32_t secs = ((uint32_t)pkt[40] << 24) | ((uint32_t)pkt[41] << 16) |
                             ((uint32_t)pkt[42] << 8)  |  (uint32_t)pkt[43];
             uint32_t frac = ((uint32_t)pkt[44] << 24) | ((uint32_t)pkt[45] << 16) |
                             ((uint32_t)pkt[46] << 8)  |  (uint32_t)pkt[47];
-            const uint32_t NTP_UNIX_DELTA = 2208988800u;   // seconds between 1900 and 1970
-            if (secs < NTP_UNIX_DELTA) return 0;           // 0 / pre-1970 -> invalid
+            // seconds between 1900 and 1970
+            const uint32_t NTP_UNIX_DELTA = 2208988800u;
+            if (secs < NTP_UNIX_DELTA) return 0;   // 0 / pre-1970 -> invalid
             uint64_t unix_s = (uint64_t)secs - NTP_UNIX_DELTA;
             uint32_t ms = (uint32_t)(((uint64_t)frac * 1000u) >> 32);
             return unix_s * 1000ull + ms;
@@ -87,7 +89,8 @@ namespace Botanik { namespace Network {
     void NetworkHandler::on_step(uint64_t now_ms) {
         switch (_state) {
             case NET_IDLE:
-                break;   // wait for a config to arrive (handled in on_config_changed)
+                // wait for a config to arrive (handled in on_config_changed)
+                break;
 
             case NET_SETUP:
                 if (HAL::Net::link_status() == HAL::Net::LINK_UP) {
@@ -141,7 +144,8 @@ namespace Botanik { namespace Network {
     void NtpClient::on_config_changed(uint64_t now_ms) {
         if (_udp >= 0) { HAL::Net::udp_close(_udp); _udp = -1; }
         const PlcIO::PlcOutputConfig_t* c = config();
-        // Restart the client with the new servers / poll interval, from the first server.
+        // Restart the client with the new servers / poll interval, from the
+        // first server.
         _server_idx = 0;
         _state = (c != nullptr && c->ntp.enabled) ? TIME_RESOLVE : TIME_IDLE;
         _since_ms = now_ms;
@@ -167,7 +171,8 @@ namespace Botanik { namespace Network {
 
             case TIME_RESOLVE: {
                 if (c == nullptr || !c->ntp.enabled) { _state = TIME_IDLE; break; }
-                // Needs a live link before sending; the NetworkHandler owns that state.
+                // Needs a live link before sending; the NetworkHandler owns
+                // that state.
                 if (_net == nullptr || !_net->is_up()) break;
 
                 const char* server = (_server_idx == 0) ? c->ntp.server1 : c->ntp.server2;
@@ -175,7 +180,7 @@ namespace Botanik { namespace Network {
 
                 if (_resolver == nullptr) { _next_server_or_error(now_ms); break; }
                 ResolveStatus rs = _resolver->resolve(server, &_server_addr);
-                if (rs == RESOLVE_PENDING) break;                       // DNS in flight
+                if (rs == RESOLVE_PENDING) break;   // DNS in flight
                 if (rs == RESOLVE_FAILED)  { _next_server_or_error(now_ms); break; }
 
                 if (_send_query()) { _state = TIME_QUERY; _since_ms = now_ms; }
@@ -217,12 +222,12 @@ namespace Botanik { namespace Network {
     bool NtpClient::_send_query() {
         HAL::Net::UdpSocket s = HAL::Net::udp_open();
         if (s < 0) return false;
-        _udp = s;                                  // store the handle for the poll/close
+        _udp = s;   // store the handle for the poll/close
         HAL::Net::Ip4 srv;
         srv.b[0]=_server_addr.bytes[0]; srv.b[1]=_server_addr.bytes[1];
         srv.b[2]=_server_addr.bytes[2]; srv.b[3]=_server_addr.bytes[3];
         uint8_t pkt[48] = {0};
-        pkt[0] = 0x23;                             // LI=0, VN=4, Mode=3 (client)
+        pkt[0] = 0x23;   // LI=0, VN=4, Mode=3 (client)
         if (!HAL::Net::udp_sendto(s, srv, 123, pkt, sizeof(pkt))) {
             HAL::Net::udp_close(s); _udp = -1; return false;
         }

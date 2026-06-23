@@ -6,9 +6,11 @@
  */
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>    // snprintf - integer/char conversions are intact on our Mbed nano
+// snprintf - integer/char conversions are intact on our Mbed nano
+#include <cstdio>
 #include <cstdlib>   // getenv - env_u8 (parsing is in-house via parse_uint)
-#include <cmath>     // llround - round-half-away-from-zero without the +0.5 float trap
+// llround - round-half-away-from-zero without the +0.5 float trap
+#include <cmath>
 
 #include "libbotanik/utils/text.h"
 
@@ -17,8 +19,8 @@ namespace Botanik { namespace Utils {
     // Number formatting
     // ------------------------------------------------------------------------
 
-    // Emit the `r` chars of `rev` (held low-to-high) into `out` un-reversed, honoring
-    // `cap`; out is NUL-terminated.
+    // Emit the `r` chars of `rev` (held low-to-high) into `out` un-reversed,
+    // honoring `cap`; out is NUL-terminated.
     static const char* _emit_reversed(char* out, size_t cap, const char* rev, size_t r) {
         size_t w = 0;
         while (r > 0 && w + 1 < cap) out[w++] = rev[--r];
@@ -30,8 +32,8 @@ namespace Botanik { namespace Utils {
                              uint8_t decimals, uint8_t width) {
         if (cap == 0) return buf;
 
-        // Non-finite: emit a tag, not garbage. (value != value is the NaN test; the
-        // huge-bound compare catches infinities without <cmath>.)
+        // Non-finite: emit a tag, not garbage. (value != value is the NaN test;
+        // the huge-bound compare catches infinities without <cmath>.)
         if (value != value) return _emit_reversed(buf, cap, "nan", 3);
         if (value > 1e308 || value < -1e308) {
             char rev[4] = { 'f', 'n', 'i', 0 };          // "inf" reversed
@@ -45,10 +47,11 @@ namespace Botanik { namespace Utils {
         bool negative = value < 0.0;
         if (negative) value = -value;
 
-        // Scale by 10^decimals, round half away from zero into an integer, then peel
-        // digits with integer arithmetic (the rounding carry into the integer part is
-        // free). Diverges from %f only on exact .5 ties (rounds up vs round-to-even);
-        // matching %f's tie-break isn't worth it for a sensor readout.
+        // Scale by 10^decimals, round half away from zero into an integer, then
+        // peel digits with integer arithmetic (the rounding carry into the
+        // integer part is free). Diverges from %f only on exact .5 ties (rounds
+        // up vs round-to-even); matching %f's tie-break isn't worth it for a
+        // sensor readout.
         uint64_t scale = 1;
         for (uint8_t i = 0; i < decimals; i++) scale *= 10;
         uint64_t scaled = (uint64_t)llround(value * (double)scale);
@@ -62,9 +65,10 @@ namespace Botanik { namespace Utils {
         if (decimals > 0) rev[r++] = '.';
         do { rev[r++] = (char)('0' + ipart % 10); ipart /= 10; } while (ipart && r < sizeof(rev) - 2);
 
-        // Zero-pad (after the sign) up to `width`, then prepend the sign last (lands at
-        // the front once un-reversed). The `r < sizeof(rev)-1` guard clamps an oversized
-        // width rather than overrun, so the build buffer (~39) bounds the field.
+        // Zero-pad (after the sign) up to `width`, then prepend the sign last
+        // (lands at the front once un-reversed). The `r < sizeof(rev)-1` guard
+        // clamps an oversized width rather than overrun, so the build buffer
+        // (~39) bounds the field.
         size_t sign_w = negative ? 1 : 0;
         while (r + sign_w < width && r < sizeof(rev) - 1) rev[r++] = '0';
         if (negative) rev[r++] = '-';
@@ -87,13 +91,16 @@ namespace Botanik { namespace Utils {
     const char* format_age(char* buf, size_t cap, uint32_t secs, bool ago, bool floor_min) {
         unsigned v = secs;
         char     u = 's';
-        // Roll up to years past 365 days so the value stays <= 3 digits (a uint32
-        // of seconds tops out at ~136 years), keeping the field fixed-width.
-        if      (secs >= 31536000) { v = secs / 31536000u; u = 'y'; }  // 365-day years
+        // Roll up to years past 365 days so the value stays <= 3 digits (a
+        // uint32 of seconds tops out at ~136 years), keeping the field
+        // fixed-width.
+        // 365-day years
+        if      (secs >= 31536000) { v = secs / 31536000u; u = 'y'; }
         else if (secs >= 86400)    { v = secs / 86400u;    u = 'd'; }
         else if (secs >= 3600)     { v = secs / 3600u;     u = 'h'; }
         else if (secs >= 60)       { v = secs / 60u;       u = 'm'; }
-        else if (floor_min)        { v = 0;                u = 'm'; }  // sub-minute -> "0 m"
+        // sub-minute -> "0 m"
+        else if (floor_min)        { v = 0;                u = 'm'; }
         if (ago) snprintf(buf, cap, "%3u %c ago", v, u);
         else     snprintf(buf, cap, "%3u %c", v, u);
         return buf;
@@ -106,9 +113,11 @@ namespace Botanik { namespace Utils {
         const char* v = getenv(name);
         if (v == nullptr || *v == '\0') return fallback;
         uint16_t len = 0;
-        while (v[len] != '\0') len++;                       // bounded by the env string
+        // bounded by the env string
+        while (v[len] != '\0') len++;
         uint32_t n;
-        if (!parse_uint(v, len, &n) || n > 255) return fallback;   // in-house, no strtol
+        // in-house, no strtol
+        if (!parse_uint(v, len, &n) || n > 255) return fallback;
         return (uint8_t)n;
     }
 

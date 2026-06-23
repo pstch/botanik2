@@ -10,20 +10,22 @@
  * the table). Included at the end of libbotanik.h.
  *
  * Figures differ by word size (host x86-64 vs OPTA ARM Cortex-M7, 32-bit), so
- * each is spelled per target. Payload-templated types are pinned against a probe
- * payload (empty input, 60-byte output, mirroring the sim site); a real site's
- * PLC struct is checked against the PLC IDE's generated types in its own sketch.
+ * each is spelled per target. Payload-templated types are pinned against a
+ * probe payload (empty input, 60-byte output, mirroring the sim site); a real
+ * site's PLC struct is checked against the PLC IDE's generated types in its own
+ * sketch.
  */
 
 #include "libbotanik.h"
 
 namespace Botanik { namespace detail {
 
-    struct ProbePlcIn  {};                   // empty payload (library log fields only)
+    // empty payload (library log fields only)
+    struct ProbePlcIn  {};
     struct ProbePlcOut { uint32_t _w[15]; }; // 60 B, 4-aligned
 
-// Per-target footprint, keyed off TARGET_SIMULATOR (the hardware macro is confined to
-// the HAL, so invert: absent simulator = OPTA-class/ARM build).
+// Per-target footprint, keyed off TARGET_SIMULATOR (the hardware macro is
+// confined to the HAL, so invert: absent simulator = OPTA-class/ARM build).
 #if !defined(TARGET_SIMULATOR)
 #  define BOTANIK_SIZE(host_, opta_) (opta_)
 #else

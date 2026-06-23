@@ -73,7 +73,8 @@ inline uint64_t abit(const char* code) {
  * only drift now and then. @p now_ms is the uptime in milliseconds.
  */
 inline void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
-    const float t = (float)now_ms / 1000.0f;   // seconds - drives irrigation walk
+    // seconds - drives irrigation walk
+    const float t = (float)now_ms / 1000.0f;
 
     // Slow mean-reverting climate driver in [-1, 1] (the * factor pulls it back
     // toward 0): mostly mild, rarely excursing far enough to trip TOO_HOT/HUM.
@@ -112,7 +113,8 @@ inline void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
     // sag/surge out of spec to exercise AC_GRID (drift clamps it back later).
     grid_mv   = drift(grid_mv,   900.0f,  227000.0f, 233000.0f, 0.05f);
     if (chance(0.0025f)) grid_mv = chance(0.5f) ? 224000.0f : 236000.0f;
-    grid_freq = drift(grid_freq, 8.0f,    4990.0f,   5010.0f,   0.05f);  // ~50 Hz
+    // ~50 Hz
+    grid_freq = drift(grid_freq, 8.0f,    4990.0f,   5010.0f,   0.05f);
     dc_mv     = drift(dc_mv,     150.0f,  23500.0f,  24500.0f,  0.05f);
     batt_mv   = drift(batt_mv,   300.0f,  11800.0f,  13000.0f,  0.03f);
     o->grid_ac_mv         = (uint32_t)grid_mv;
@@ -120,7 +122,8 @@ inline void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
     o->dc_bus_mv          = (uint32_t)dc_mv;
     o->dc_bus_a_ok        = 1;
     static bool dc_b_ok = true;
-    dc_b_ok = dc_b_ok ? !chance(0.004f) : chance(0.12f);  // mostly OK, rare dropout
+    // mostly OK, rare dropout
+    dc_b_ok = dc_b_ok ? !chance(0.004f) : chance(0.12f);
     o->dc_bus_b_ok        = dc_b_ok ? 1 : 0;
     o->battery_mv         = (uint32_t)batt_mv;
     o->ups_status         = UpsStatus::ONLINE;

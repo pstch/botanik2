@@ -38,8 +38,8 @@ namespace Botanik { namespace Alarms {
     /** @brief 1 << id as a 64-bit mask, for building masked_by sets. */
     inline uint64_t alarm_bit(uint8_t id) { return (uint64_t)1u << id; }
 
-    /** @brief Default RECENT-mode window (s): AlarmCondition::recent_s overrides
-     *  per-condition (0 = this default, < 0 = never expires). */
+    /** @brief Default RECENT-mode window (s): AlarmCondition::recent_s
+     *  overrides per-condition (0 = this default, < 0 = never expires). */
     static constexpr int32_t DEFAULT_RECENT_S = 7 * 24 * 3600;   // one week
 
     /**
@@ -68,7 +68,8 @@ namespace Botanik { namespace Alarms {
         int32_t     mqtt_off_s;
         /** RECENT-mode window (s): 0 = DEFAULT_RECENT_S, <0 = never expires. */
         int32_t     recent_s;
-        /** hold active this long (s) after the raw bit clears (0 = no latch). */
+        /** hold active this long (s) after the raw bit clears
+         *  (0 = no latch). */
         int32_t     latch_s;
         /** min ON time (s) from onset, even if the raw bit clears (0 = none).
          *  Local anti-flicker net behind the PLC's debounce. */
@@ -107,9 +108,9 @@ namespace Botanik { namespace Alarms {
     };
 
     /** @brief Bit index of the condition whose code equals @p code, or -1 if
-     *  none. The table is the single source of truth (no parallel id enum); code
-     *  lookups are how generic firmware and the site mock-PLC name the alarms
-     *  they assert. */
+     *  none. The table is the single source of truth (no parallel id enum);
+     *  code lookups are how generic firmware and the site mock-PLC name the
+     *  alarms they assert. */
     inline int alarm_index(const AlarmCondition* table, uint8_t count,
                            const char* code) {
         if (table == nullptr || code == nullptr) return -1;
@@ -227,23 +228,25 @@ namespace Botanik { namespace Alarms {
         /** @name Local alarms
          *  @{ */
 
-        /** @brief Set/clear a runtime-sourced alarm bit (merged next step()). */
+        /** @brief Set/clear a runtime-sourced alarm bit (merged next
+         *  step()). */
         void set_local(uint8_t id, bool on) {
             if (id >= ALARM_BITS) return;
             if (on) _local |=  alarm_bit(id);
             else    _local &= ~alarm_bit(id);
         }
 
-        /** @brief Set/clear a local alarm by table code (e.g. "CPU_LOAD"); no-op
-         *  if the code is absent, so generic firmware needn't depend on the site
-         *  defining it. */
+        /** @brief Set/clear a local alarm by table code (e.g. "CPU_LOAD");
+         *  no-op if the code is absent, so generic firmware needn't depend on
+         *  the site defining it. */
         void set_local(const char* code, bool on) {
             int i = alarm_index(_conditions, _count, code);
             if (i >= 0) set_local((uint8_t)i, on);
         }
 
         /** @brief Mark an active condition acknowledged by table code; false if
-         *  unknown or inactive. Informational only (cleared on next ON edge). */
+         *  unknown or inactive. Informational only (cleared on next ON
+         *  edge). */
         bool ack(const char* code) {
             int i = alarm_index(_conditions, _count, code);
             if (i < 0 || !_conditions[i].active) return false;
@@ -251,7 +254,8 @@ namespace Botanik { namespace Alarms {
             return true;
         }
 
-        /** @brief Acknowledge every active condition; returns the count ack'd. */
+        /** @brief Acknowledge every active condition; returns the count
+         *  ack'd. */
         uint8_t ack_all() {
             uint8_t n = 0;
             for (uint8_t i = 0; i < _count; i++)
@@ -265,8 +269,8 @@ namespace Botanik { namespace Alarms {
          *  due log lines / notifications. */
         void step(uint64_t remote_raw, uint64_t now) {
             announce_step(_logger, "AlarmModel");
-            // Mask the remote word to the PLC range (a stray high bit can't drive a
-            // platform condition), then merge the local bits on top.
+            // Mask the remote word to the PLC range (a stray high bit can't
+            // drive a platform condition), then merge the local bits on top.
             _raw = (remote_raw & _site_mask) | _local;
             // dt = 0 on the first step (no latch decrement yet).
             uint32_t dt = _first_step ? 0 : (uint32_t)(now - _last_now);
@@ -297,10 +301,12 @@ namespace Botanik { namespace Alarms {
                     // Reset log_on_sent on the ON edge (not OFF) so it survives
                     // the OFF episode and tells END from FLAP below; seed the
                     // minimum-ON hold.
+                    // acknowledged: a fresh episode is unacknowledged.
+                    // started_ms: onset, for start-time ordering.
                     if (on) { c.off_notified = false; c.log_off_sent = false;
                               c.log_on_sent  = false;
-                              c.acknowledged = false;  // a fresh episode is unacknowledged
-                              c.started_ms = now;      // onset, for start-time ordering
+                              c.acknowledged = false;
+                              c.started_ms = now;
                               if (c.min_on_s > 0)
                                   c.min_on_remaining_ms = (uint32_t)c.min_on_s * 1000u; }
                     else    { c.on_notified  = false; }
@@ -355,7 +361,8 @@ namespace Botanik { namespace Alarms {
         uint8_t  count() const { return _count; }
         /** @brief Active conditions (masked or not). */
         uint8_t  active_count() const { return _active_count; }
-        /** @brief Active and unmasked conditions (the compact alarm-bar set). */
+        /** @brief Active and unmasked conditions (the compact alarm-bar
+         *  set). */
         uint8_t  unmasked_count() const { return _unmasked_count; }
         /** @brief Condition @p i (0 <= i < count()). */
         const AlarmCondition& condition(uint8_t i) const { return _conditions[i]; }

@@ -51,9 +51,10 @@ namespace Botanik { namespace Pages {
             if (_count < L) _count++;
         }
 
-        /** @brief Store a message as one or more lines no wider than @p cols, breaking
-         *  on embedded newlines and on width. Continuation lines get the @p prefix
-         *  marker; one entry per display row. @return lines stored (always >= 1). */
+        /** @brief Store a message as one or more lines no wider than @p cols,
+         *  breaking on embedded newlines and on width. Continuation lines get
+         *  the @p prefix marker; one entry per display row. @return lines
+         *  stored (always >= 1). */
         uint16_t store_wrapped(const char* buf, size_t len, uint16_t cols,
                                const char* prefix, uint16_t plen) {
             const uint16_t seg_cap = N;
@@ -72,8 +73,9 @@ namespace Botanik { namespace Pages {
                 if (cols != 0 && prefix_len != 0 &&
                     (uint16_t)(cols - prefix_len) < CONT_MIN)
                     prefix_len = 0;
-                // Per-row byte budget: fill to the width, or everything left when
-                // unbounded (cols == 0), but never overflow the segment buffer.
+                // Per-row byte budget: fill to the width, or everything left
+                // when unbounded (cols == 0), but never overflow the segment
+                // buffer.
                 // (Input is ASCII-only, so a byte budget == a column budget; a
                 // multibyte glyph would need breaking on a lead-byte boundary.)
                 uint16_t budget = (cols == 0) ? (uint16_t)(len - off)
@@ -106,10 +108,10 @@ namespace Botanik { namespace Pages {
         /** @brief Number of stored lines. */
         uint16_t count() const { return _count; }
 
-        /** @brief Access a stored line by distance from newest (1 = most recent).
-         *  @param from_end steps back from newest (1-based); @param len set on
-         *  success. @return line bytes, or nullptr if @p from_end is out of
-         *  range. */
+        /** @brief Access a stored line by distance from newest (1 = most
+         *  recent). @param from_end steps back from newest (1-based);
+         *  @param len set on success. @return line bytes, or nullptr if
+         *  @p from_end is out of range. */
         const char* line(uint16_t from_end, uint16_t& len) const {
             if (from_end == 0 || from_end > _count) return nullptr;
             uint16_t idx = (uint16_t)((_head + L - from_end) % L);

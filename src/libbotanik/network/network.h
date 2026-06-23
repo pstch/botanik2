@@ -6,9 +6,10 @@
  * @brief NetworkHandler and NtpClient - PLC-config-driven state machines that
  *        bring up the link and run an NTP client.
  *
- * Both derive ConfigHandler, so each restarts when its config block's serial bumps.
- * NetworkHandler owns the link (via HAL::Net) and is_up() is authoritative;
- * NtpClient resolves through the shared NameResolver and gates on is_up().
+ * Both derive ConfigHandler, so each restarts when its config block's serial
+ * bumps. NetworkHandler owns the link (via HAL::Net) and is_up() is
+ * authoritative; NtpClient resolves through the shared NameResolver and gates
+ * on is_up().
  */
 
 #include <cstdint>
@@ -20,23 +21,28 @@
 namespace Botanik { namespace Network {
 
     /** @brief Owns the link (via HAL::Net bring-up); is_up() is authoritative.
-     *  Drives the link state machine from the PLC `net` config block, restarting on
-     *  a config change. Clears the NameResolver cache on reconfiguration / link loss. */
+     *  Drives the link state machine from the PLC `net` config block,
+     *  restarting on a config change. Clears the NameResolver cache on
+     *  reconfiguration / link loss. */
     class NetworkHandler : public ConfigHandler {
         /** @name State
          *  @{ */
 
-        /** @brief Bring-up state. on_config_changed() resets to SETUP (or IDLE if no
-         *  usable config); on_step() drives SETUP -> RUNNING; ERROR backs off. */
+        /** @brief Bring-up state. on_config_changed() resets to SETUP (or IDLE
+         *  if no usable config); on_step() drives SETUP -> RUNNING; ERROR backs
+         *  off. */
         enum State : uint8_t {
-            NET_IDLE = 0,   ///< no usable config (serial 0); nothing to bring up
+            /// no usable config (serial 0); nothing to bring up
+            NET_IDLE = 0,
             NET_SETUP,      ///< link_configure called; waiting for LINK_UP
             NET_RUNNING,    ///< link up with an address; resolver cache valid
-            NET_ERROR,      ///< bring-up failed / link lost; waiting out backoff
+            /// bring-up failed / link lost; waiting out backoff
+            NET_ERROR,
         };
 
         State         _state;
-        uint64_t      _since_ms;   ///< when this state was entered (for timeouts)
+        /// when this state was entered (for timeouts)
+        uint64_t      _since_ms;
         /** @brief Cleared on reconfiguration / link loss (may be null). */
         NameResolver* _resolver;
 
@@ -69,36 +75,43 @@ namespace Botanik { namespace Network {
          *  @{ */
         /** @brief Enter a state and stamp the entry time. */
         void _enter(State s, uint64_t now_ms);
-        /** @brief Configure the link from the PLC net block and move to NET_SETUP. */
+        /** @brief Configure the link from the PLC net block and move to
+         *  NET_SETUP. */
         void _begin_setup(uint64_t now_ms);
         /** @brief Clear the resolver's cache on reconfiguration / link loss. */
         void _unwire_resolver();
         /** @} */
     };
 
-    /** @brief NTP client driven by the PLC `ntp` config block: resolves a server via the
-     *  NameResolver, runs a non-blocking SNTP exchange over HAL::Net UDP, and disciplines
-     *  the RTC. Gated on NetworkHandler::is_up(). Restarts on a config change; falls back
-     *  to the second server and backs off on failure. */
+    /** @brief NTP client driven by the PLC `ntp` config block: resolves a
+     *  server via the NameResolver, runs a non-blocking SNTP exchange over
+     *  HAL::Net UDP, and disciplines the RTC. Gated on NetworkHandler::is_up().
+     *  Restarts on a config change; falls back to the second server and backs
+     *  off on failure. */
     class NtpClient : public ConfigHandler {
         /** @name State
          *  @{ */
         enum State : uint8_t {
             TIME_IDLE = 0,   ///< disabled / no config
-            TIME_RESOLVE,    ///< resolving the current server's name through the resolver
+            /// resolving the current server's name through the resolver
+            TIME_RESOLVE,
             TIME_QUERY,      ///< SNTP request sent; polling for the reply
             TIME_SYNCED,     ///< RTC disciplined; idle until the next poll
             TIME_ERROR,      ///< failed; backing off before a retry
         };
         State                 _state;
-        uint64_t              _since_ms;       ///< when this state was entered (timeouts)
-        NameResolver*         _resolver;       ///< DNS resolver (set by NetworkHandler)
-        const NetworkHandler* _net;            ///< link gate (null = always blocked)
+        /// when this state was entered (timeouts)
+        uint64_t              _since_ms;
+        /// DNS resolver (set by NetworkHandler)
+        NameResolver*         _resolver;
+        /// link gate (null = always blocked)
+        const NetworkHandler* _net;
         /** @brief Resolved address of the server being queried. */
         ResolvedAddr          _server_addr;
         /** @brief Which configured server we are on (0 = server1). */
         uint8_t               _server_idx;
-        HAL::Net::UdpSocket   _udp;            ///< open UDP socket handle (-1 = none)
+        /// open UDP socket handle (-1 = none)
+        HAL::Net::UdpSocket   _udp;
         /** @} */
 
     public:
@@ -114,7 +127,8 @@ namespace Botanik { namespace Network {
     private:
         /** @name Internals
          *  @{ */
-        /** @brief Advance to the second server if there is one, else go to ERROR. */
+        /** @brief Advance to the second server if there is one, else go to
+         *  ERROR. */
         void _next_server_or_error(uint64_t now_ms);
         /** @brief Open the UDP socket and send an SNTP request to _server_addr.
          *  Returns false on any socket error. */

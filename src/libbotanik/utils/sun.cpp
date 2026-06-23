@@ -17,18 +17,21 @@ namespace Botanik { namespace Utils {
     // Constants
     // ------------------------------------------------------------------------
 
-    // Our own PI: M_PI is not guaranteed under strict C++11 (no _USE_MATH_DEFINES).
+    // Our own PI: M_PI is not guaranteed under strict C++11 (no
+    // _USE_MATH_DEFINES).
     static const double PI       = 3.14159265358979323846;
     static const double DEG2RAD  = PI / 180.0;
 
     // Earth's mean axial tilt, degrees (the ecliptic obliquity).
     static const double OBLIQUITY_DEG = 23.4397;
 
-    // Sun-centre altitude at the moment of sunrise/sunset, degrees: the standard
-    // -50' allowance for atmospheric refraction plus the sun's apparent radius.
+    // Sun-centre altitude at the moment of sunrise/sunset, degrees: the
+    // standard -50' allowance for atmospheric refraction plus the sun's
+    // apparent radius.
     static const double SUN_ALTITUDE_DEG = -0.833;
 
-    // J2000.0 epoch (2000-01-01 12:00 TT) and the UNIX epoch, both as Julian dates.
+    // J2000.0 epoch (2000-01-01 12:00 TT) and the UNIX epoch, both as Julian
+    // dates.
     static const double JD_J2000     = 2451545.0;
     static const double JD_UNIX      = 2440587.5;
     static const double MS_PER_DAY   = 86400000.0;
@@ -37,16 +40,16 @@ namespace Botanik { namespace Utils {
     static const double LEAP_FUDGE   = 0.0008;
 
     // Forward search span for next_sun_times(): a hair over a year, so a polar
-    // winter/summer (months with no sunrise or no sunset) still resolves the next
-    // real event rather than giving up after one blank day.
+    // winter/summer (months with no sunrise or no sunset) still resolves the
+    // next real event rather than giving up after one blank day.
     static const int SEARCH_HORIZON_DAYS = 367;
 
     // Helpers
     // ------------------------------------------------------------------------
 
     // Sun's ecliptic longitude (degrees) for a count of days @p t since J2000,
-    // also returning the solar mean anomaly @p M_deg (its sines feed the transit
-    // correction). Both are normalised to [0, 360).
+    // also returning the solar mean anomaly @p M_deg (its sines feed the
+    // transit correction). Both are normalised to [0, 360).
     static double _ecliptic_longitude(double t, double& M_deg) {
         double M = std::fmod(357.5291 + 0.98560028 * t, 360.0);
         if (M < 0.0) M += 360.0;
@@ -75,7 +78,8 @@ namespace Botanik { namespace Utils {
     // entirely above or below the sunrise altitude that day (polar day/night).
     static bool _day_events(long n, double lat_deg, double lon_deg,
                             double& jrise, double& jset) {
-        // mean solar time at this longitude (east +, so noon shifts earlier in UTC)
+        // mean solar time at this longitude (east +, so noon shifts earlier in
+        // UTC)
         double jstar = (double)n - lon_deg / 360.0;
 
         double M;
@@ -83,7 +87,8 @@ namespace Botanik { namespace Utils {
         double Mr = M * DEG2RAD;
         double lambda_r = lambda * DEG2RAD;
 
-        // solar transit (Julian date of local solar noon), equation of time folded in
+        // solar transit (Julian date of local solar noon), equation of time
+        // folded in
         double jtransit = JD_J2000 + jstar
                         + 0.0053 * std::sin(Mr) - 0.0069 * std::sin(2.0 * lambda_r);
 
@@ -91,7 +96,8 @@ namespace Botanik { namespace Utils {
         double sin_decl = std::sin(lambda_r) * std::sin(OBLIQUITY_DEG * DEG2RAD);
         double cos_decl = std::sqrt(1.0 - sin_decl * sin_decl);
 
-        // hour angle of sunrise/sunset; |cos| > 1 means it never reaches that altitude
+        // hour angle of sunrise/sunset; |cos| > 1 means it never reaches that
+        // altitude
         double lat_r = lat_deg * DEG2RAD;
         double cos_w = (std::sin(SUN_ALTITUDE_DEG * DEG2RAD) - std::sin(lat_r) * sin_decl)
                      / (std::cos(lat_r) * cos_decl);
@@ -121,12 +127,14 @@ namespace Botanik { namespace Utils {
         out.sunrise.time_ms = 0; out.sunrise.valid = false;
         out.sunset.time_ms  = 0; out.sunset.valid  = false;
 
-        // day count since J2000 for "now" (noon-anchored, like the algorithm's n)
+        // day count since J2000 for "now" (noon-anchored, like the algorithm's
+        // n)
         double jd_now = (double)unix_ms_from_uptime_ms(now_ms) / MS_PER_DAY + JD_UNIX;
         long n0 = (long)std::floor(jd_now - JD_J2000 + LEAP_FUDGE);
 
-        // Walk forward day by day, taking the first rise / set that lands after now.
-        // Start one day early so a just-past-midnight "now" can't skip today's event.
+        // Walk forward day by day, taking the first rise / set that lands after
+        // now. Start one day early so a just-past-midnight "now" can't skip
+        // today's event.
         for (int i = -1; i <= SEARCH_HORIZON_DAYS; ++i) {
             if (out.sunrise.valid && out.sunset.valid) break;
 

@@ -10,7 +10,8 @@
  * Selected automatically when TARGET_OPTA is defined; see platform.h.
  */
 
-#include <cassert>   // assert() - HAL sits below the logger, so it can't use BOTANIK_ASSERT
+// assert() - HAL sits below the logger, so it can't use BOTANIK_ASSERT
+#include <cassert>
 #include <cstdint>
 #include <chrono>
 #include <ctime>
@@ -22,8 +23,9 @@
 struct PLCSharedVarsInput_t;
 struct PLCSharedVarsOutput_t;
 
-/// Linker symbol for the top of the MSP/ISR stack (the ~1KB exception stack, NOT
-/// the RTOS thread stack the firmware runs on - kept only to satisfy the interface).
+/// Linker symbol for the top of the MSP/ISR stack (the ~1KB exception stack,
+/// NOT the RTOS thread stack the firmware runs on - kept only to satisfy the
+/// interface).
 extern "C" char _estack;
 
 /// Shared-memory buffers exchanged with the PLC coprocessor (M4 core).
@@ -51,18 +53,21 @@ namespace Botanik { namespace HAL {
     }
 
     inline uint32_t get_stack_depth() {
-        // Size of the CURRENT RTOS thread's stack: setup()/loop() run in the Arduino Mbed
-        // main thread, NOT on the ~1KB MSP stack _estack bounds, so ask the RTOS.
+        // Size of the CURRENT RTOS thread's stack: setup()/loop() run in the
+        // Arduino Mbed main thread, NOT on the ~1KB MSP stack _estack bounds,
+        // so ask the RTOS.
         return static_cast<uint32_t>(osThreadGetStackSize(osThreadGetId()));
     }
 
-    /** @brief High-water stack usage (bytes) of the current RTOS thread, from RTX's own
-     *  watermark (RTX paints each thread's stack at creation, so no manual painting on
-     *  hardware). Returns 0 if the watermark is unavailable (RTX tracking disabled). */
+    /** @brief High-water stack usage (bytes) of the current RTOS thread, from
+     *  RTX's own watermark (RTX paints each thread's stack at creation, so no
+     *  manual painting on hardware). Returns 0 if the watermark is unavailable
+     *  (RTX tracking disabled). */
     inline uint32_t get_stack_high() {
         osThreadId_t id = osThreadGetId();
         uint32_t size  = static_cast<uint32_t>(osThreadGetStackSize(id));
-        uint32_t space = static_cast<uint32_t>(osThreadGetStackSpace(id));  // min free ever
+        // space: min free ever
+        uint32_t space = static_cast<uint32_t>(osThreadGetStackSpace(id));
         return (space > 0 && space <= size) ? (size - space) : 0;
     }
 
@@ -105,10 +110,11 @@ namespace Botanik { namespace HAL {
     }
 
     inline uint64_t wall_clock_ms() {
-        // TODO [WALLCLOCK-WRAP-2038]: time() returns time_t, which is 32-bit on this
-        // newlib and WRAPS in Jan 2038 before the widening cast - this must be sourced
-        // from a 64-bit RTC read once the NtpClient/RTC path lands (it also only
-        // resolves whole seconds today; read the RTC sub-second register for ms).
+        // TODO [WALLCLOCK-WRAP-2038]: time() returns time_t, which is 32-bit on
+        // this newlib and WRAPS in Jan 2038 before the widening cast - this
+        // must be sourced from a 64-bit RTC read once the NtpClient/RTC path
+        // lands (it also only resolves whole seconds today; read the RTC
+        // sub-second register for ms).
         return (uint64_t)time(NULL) * 1000;
     }
 
@@ -135,9 +141,10 @@ namespace Botanik { namespace HAL {
         __DMB();
     }
 
-    // @warning dst and src must not alias: ARM_MPU_OrderedMemcpy declares src __RESTRICT,
-    // so an in-place/overlapping copy is UB on the optimized path. Our PLC regions are
-    // always disjoint (PlcInput vs PlcOutput, or a local buffer vs the shared region).
+    // @warning dst and src must not alias: ARM_MPU_OrderedMemcpy declares src
+    // __RESTRICT, so an in-place/overlapping copy is UB on the optimized path.
+    // Our PLC regions are always disjoint (PlcInput vs PlcOutput, or a local
+    // buffer vs the shared region).
     template <typename T>
     inline void ordered_copy(T* dst, const T* src) {
         // ARM_MPU_OrderedMemcpy counts 32-bit words, not bytes.
@@ -145,7 +152,8 @@ namespace Botanik { namespace HAL {
                       "ordered_copy needs a word-multiple T");
         if (std::is_empty<T>::value) return;   // empty payload carries no data
 #if defined(DEBUG)
-        assert((const void*)dst != (const void*)src);   // no aliasing (see @warning)
+        // no aliasing (see @warning)
+        assert((const void*)dst != (const void*)src);
 #endif
         ARM_MPU_OrderedMemcpy((volatile uint32_t*)dst, (const uint32_t*)src,
                               sizeof(T) / sizeof(uint32_t));
@@ -168,16 +176,18 @@ namespace Botanik { namespace HAL {
         return value;
     }
 
-    // Cache discipline for the two PLC regions (each alignas(32), so they never share
-    // a line). clean (write-back) is always safe - it rounds to whole lines and only
-    // ever writes back, losing nothing. invalidate DISCARDS whole lines, so it is safe
-    // ONLY on a region we treat as read-only: invalidate the PLC-OUTPUT region (we never
-    // write it) and clean the PLC-INPUT region (we write it). Sub-region calls within one
-    // region are fine - they round to that region's own lines. @warning never invalidate
-    // a line that holds data we wrote, or that write is silently dropped.
+    // Cache discipline for the two PLC regions (each alignas(32), so they never
+    // share a line). clean (write-back) is always safe - it rounds to whole
+    // lines and only ever writes back, losing nothing. invalidate DISCARDS
+    // whole lines, so it is safe ONLY on a region we treat as read-only:
+    // invalidate the PLC-OUTPUT region (we never write it) and clean the
+    // PLC-INPUT region (we write it). Sub-region calls within one region are
+    // fine - they round to that region's own lines. @warning never invalidate a
+    // line that holds data we wrote, or that write is silently dropped.
     inline void cache_clean(const void* addr, size_t len) {
     #if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
-        SCB_CleanDCache_by_Addr((void*)addr, (int32_t)len);  // CMSIS rounds to lines
+        // CMSIS rounds to lines
+        SCB_CleanDCache_by_Addr((void*)addr, (int32_t)len);
     #else
         (void)addr; (void)len;
     #endif
@@ -212,8 +222,9 @@ namespace Botanik { namespace HAL {
 
     inline void reset() {
         // NVIC_SystemReset is the portable CMSIS reset (always available via
-        // mbed.h); mbed_reset() is an alternative if a softer Mbed-managed reset
-        // is wanted. Compile-reasoned only - confirm on a real arm-none-eabi build.
+        // mbed.h); mbed_reset() is an alternative if a softer Mbed-managed
+        // reset is wanted. Compile-reasoned only - confirm on a real
+        // arm-none-eabi build.
         NVIC_SystemReset();
     }
 
@@ -233,7 +244,8 @@ namespace Botanik { namespace HAL {
     // only - confirm the API and timeout ceiling on a real arm-none-eabi build.
 
     inline void watchdog_start(uint32_t timeout_ms) {
-        // Clamp to the peripheral's max window; the hardware rejects anything above it.
+        // Clamp to the peripheral's max window; the hardware rejects anything
+        // above it.
         uint32_t max = mbed::Watchdog::get_instance().get_max_timeout();
         mbed::Watchdog::get_instance().start(timeout_ms > max ? max : timeout_ms);
     }
@@ -254,8 +266,8 @@ namespace Botanik { namespace HAL {
     /// On the OPTA, the raw serial type is the Arduino UART driver itself.
     using RawSerial = arduino::UART;
 
-    /** @brief Logical serial endpoints: CONSOLE drives the interactive terminal,
-     *  MONITOR the secondary diagnostic/log output. */
+    /** @brief Logical serial endpoints: CONSOLE drives the interactive
+     *  terminal, MONITOR the secondary diagnostic/log output. */
     enum SerialPort { CONSOLE, MONITOR };
 
     /** @brief Resolve a logical SerialPort to its underlying UART.

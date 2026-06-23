@@ -31,8 +31,9 @@ namespace Botanik { namespace Utils {
     // Calendar conversion & formatting
     // ------------------------------------------------------------------------
 
-    // Wall-clock epoch as UNIX ms at uptime 0, captured once. `wall_now - uptime_now` is
-    // invariant (both advance together), so sampling it lazily is fine.
+    // Wall-clock epoch as UNIX ms at uptime 0, captured once. `wall_now -
+    // uptime_now` is invariant (both advance together), so sampling it lazily
+    // is fine.
     static int64_t _boot_epoch_ms() {
         static const int64_t epoch = (int64_t)HAL::wall_clock_ms() - (int64_t)HAL::uptime_ms();
         return epoch;
@@ -55,7 +56,8 @@ namespace Botanik { namespace Utils {
         uint64_t wall_ms     = _wall_ms(timestamp_ms);
         uint64_t total_secs  = wall_ms / 1000;
         uint64_t secs_of_day = total_secs % 86400;
-        int64_t  days        = (int64_t)(total_secs / 86400);  // days since 1970-01-01
+        // days since 1970-01-01
+        int64_t  days        = (int64_t)(total_secs / 86400);
 
         // pure-integer UTC construction through Howard Hinnant's algorithm
         int64_t  z   = days + 719468;
@@ -76,8 +78,8 @@ namespace Botanik { namespace Utils {
         result.minute      = (uint8_t)((secs_of_day % 3600) / 60);
         result.second      = (uint8_t)(secs_of_day % 60);
 
-        // sub-second straight from the wall-clock ms (a real boot epoch, so even
-        // boot-time entries get their true fraction).
+        // sub-second straight from the wall-clock ms (a real boot epoch, so
+        // even boot-time entries get their true fraction).
         result.millisecond = (uint16_t)(wall_ms % 1000);
         result.unixSeconds = total_secs;
         result.unixDays    = (uint32_t)days;

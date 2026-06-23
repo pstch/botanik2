@@ -26,12 +26,14 @@ namespace Botanik { namespace Logs {
             // oldest as a last resort. drain() consumes _readIndex at format
             // time, so advancing it can't corrupt an in-flight send.
             if (!crit) { _dropped += 1; return; }
-            _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE;   // drop oldest
+            // drop oldest
+            _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE;
             _dropped += 1;
         } else if (!crit) {
-            // Reserve the last K usable slots for criticals, so a critical (e.g.
-            // the sink-loss report itself) always seats WITHOUT evicting - which
-            // stops that report from manufacturing the very drop it then reports.
+            // Reserve the last K usable slots for criticals, so a critical
+            // (e.g. the sink-loss report itself) always seats WITHOUT evicting
+            // - which stops that report from manufacturing the very drop it
+            // then reports.
             uint8_t used = (uint8_t)((_writeIndex - _readIndex + Config::LOG_QUEUE_SIZE)
                                      % Config::LOG_QUEUE_SIZE);
             if (used >= (uint8_t)(Config::LOG_QUEUE_SIZE - 1
@@ -52,7 +54,8 @@ namespace Botanik { namespace Logs {
             // Consume now: _message is decoupled from the queue slot.
             _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE;
             if (_length == 0) { _failed++; continue; }   // unformattable: skip
-            if (!_drain_message()) return;               // yield if not fully sent
+            // yield if not fully sent
+            if (!_drain_message()) return;
         }
     }
 
@@ -72,7 +75,8 @@ namespace Botanik { namespace Logs {
     SerialLogWriter::SerialLogWriter(BufferedSerial& serial) :
         _serial(&serial) {}
 
-    // Drain into the serial's TX ring; the serial is flushed separately by the main loop.
+    // Drain into the serial's TX ring; the serial is flushed separately by the
+    // main loop.
     void SerialLogWriter::step() {
         drain();
     }
@@ -81,8 +85,9 @@ namespace Botanik { namespace Logs {
     // ------------------------------------------------------------------------
 
     size_t SerialLogWriter::format(const LogEntry_t* entry, char* buf, size_t len) {
-        // The shared formatter emits no terminator; on a serial sink, newline-terminate
-        // each entry so they don't run together. Format into len-1 to always leave room.
+        // The shared formatter emits no terminator; on a serial sink,
+        // newline-terminate each entry so they don't run together. Format into
+        // len-1 to always leave room.
         if (len == 0) return 0;
         size_t written = format_log_entry(entry, buf, len - 1);
         buf[written++] = '\n';
@@ -99,8 +104,8 @@ namespace Botanik { namespace Logs {
     // MonitorLogWriter
     // ------------------------------------------------------------------------
 
-    // Suppress when the output is a tty: it shares the screen with the console UI,
-    // so log entries would garble the display.
+    // Suppress when the output is a tty: it shares the screen with the console
+    // UI, so log entries would garble the display.
     MonitorLogWriter::MonitorLogWriter(BufferedSerial& serial) :
         SerialLogWriter(serial) {
             _suppressed = serial.is_output_tty();

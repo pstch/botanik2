@@ -8,9 +8,9 @@
 
 namespace Botanik {
 
-    // Wall-clock sanity floor (ms since the UNIX epoch, ~2020-09): below this the
-    // RTC is unset (no NTP yet) and the date-dependent solar math is meaningless,
-    // so we wait.
+    // Wall-clock sanity floor (ms since the UNIX epoch, ~2020-09): below this
+    // the RTC is unset (no NTP yet) and the date-dependent solar math is
+    // meaningless, so we wait.
     static const uint64_t WALL_CLOCK_VALID_MS = 1600000000000ull;
 
     SunPositionTracker::SunPositionTracker(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger)
@@ -33,7 +33,8 @@ namespace Botanik {
 
     void SunPositionTracker::on_step(uint64_t now_ms) {
         const PlcIO::PlcOutputConfig_t* c = config();
-        if (c == nullptr || c->geo.serial == 0) return;  // no location configured
+        // no location configured
+        if (c == nullptr || c->geo.serial == 0) return;
         // wait for a real (NTP) time before the date-dependent solar math
         if (HAL::wall_clock_ms() < WALL_CLOCK_VALID_MS) return;
 
@@ -55,8 +56,8 @@ namespace Botanik {
         _times = Utils::next_sun_times(now_ms, lat, lon);
         _computed = true;
 
-        // Daytime when the sun sets before it next rises. Both events must be valid;
-        // at polar latitudes (one invalid) keep the previous state.
+        // Daytime when the sun sets before it next rises. Both events must be
+        // valid; at polar latitudes (one invalid) keep the previous state.
         bool day = _is_day;
         if (_times.sunrise.valid && _times.sunset.valid)
             day = _times.sunset.time_ms < _times.sunrise.time_ms;

@@ -4,8 +4,8 @@
  * @file scheduler.cpp
  * @brief LoopScheduler implementation - tick timing, overrun reporting, and the
  *        out-of-line performance instrumentation (work-duration sampling, CPU
- *        duty cycle, jitter filtering, stack painting + high-water scan). The hot
- *        tick() path and the stack paint live inline in the header.
+ *        duty cycle, jitter filtering, stack painting + high-water scan). The
+ *        hot tick() path and the stack paint live inline in the header.
  */
 #include <cstddef>
 #include <cstring>
@@ -64,7 +64,8 @@ namespace Botanik { namespace Scheduler {
         _tps_anchor_ms    = 0;
         _tps_anchor_count = 0;
 
-        // clear the published metric fields (leave tick_count/overruns/timestamp)
+        // clear the published metric fields (leave
+        // tick_count/overruns/timestamp)
         _context.ticks_per_second     = 0;
         _context.cpu_load_ema         = 0.0f;
         _context.cpu_loop_us_recent   = 0;
@@ -73,15 +74,16 @@ namespace Botanik { namespace Scheduler {
         _context.cpu_jitter_us_recent = 0;
         _context.cpu_jitter_us_max    = 0;
         _context.stack_usage          = 0.0f;
-        _context.stack_bytes_free     = _stack_depth;   // nothing used yet: all free
+        // nothing used yet: all free
+        _context.stack_bytes_free     = _stack_depth;
         _context.stack_depth          = _stack_depth;
     }
 
     // Tick
     // ------------------------------------------------------------------------
     // tick() is defined inline in the header (always_inline + BOTANIK_NO_ASAN)
-    // so its trailing stack paint folds into the caller's frame and captures the
-    // loop body's SP. The cold helpers below stay out of line.
+    // so its trailing stack paint folds into the caller's frame and captures
+    // the loop body's SP. The cold helpers below stay out of line.
 
     // Internals
     // ------------------------------------------------------------------------
@@ -135,13 +137,15 @@ namespace Botanik { namespace Scheduler {
 
     void LoopScheduler::_record_tps(uint64_t now_ms) {
 #ifdef TARGET_SIMULATOR
-        // TPS is the one metric expressed per *real* second: under BOTANIK_TIME_SCALE
-        // the loop runs faster, so ticks/real-second shows whether the host sustains
-        // the sped-up rate. Hardware has no dilation, so its uptime is already real.
+        // TPS is the one metric expressed per *real* second: under
+        // BOTANIK_TIME_SCALE the loop runs faster, so ticks/real-second shows
+        // whether the host sustains the sped-up rate. Hardware has no dilation,
+        // so its uptime is already real.
         now_ms = HAL::real_uptime_ms();
 #endif
-        // achieved tick rate: ticks since the window anchor over the elapsed window,
-        // normalized to per-second and published once the window reaches a second.
+        // achieved tick rate: ticks since the window anchor over the elapsed
+        // window, normalized to per-second and published once the window
+        // reaches a second.
         if (!_tps_open) {                     // first beat: open the window
             _tps_open         = true;
             _tps_anchor_ms    = now_ms;
@@ -177,9 +181,9 @@ namespace Botanik { namespace Scheduler {
 
     void LoopScheduler::_measure_stack_usage() {
         // High-water used bytes. On hardware the RTOS already watermarks each
-        // thread's stack (painted once at thread creation), so we just read it -
-        // no manual paint of the wrong (MSP) stack. NOTE: that watermark is
-        // ALL-TIME (monotonic, can't reset), so on OPTA the all-time peak
+        // thread's stack (painted once at thread creation), so we just read
+        // it - no manual paint of the wrong (MSP) stack. NOTE: that watermark
+        // is ALL-TIME (monotonic, can't reset), so on OPTA the all-time peak
         // (stack_bytes_max) is exact, but the per-slice "recent" window/EMA
         // degenerate to that same all-time figure. The sim repaints each slice,
         // so there it's a true recent high-water that can fall.
@@ -199,7 +203,8 @@ namespace Botanik { namespace Scheduler {
                 reinterpret_cast<uintptr_t>(_paint_top) & ~(uintptr_t)3u);
             const uint32_t* bot = reinterpret_cast<const uint32_t*>(
                 (reinterpret_cast<uintptr_t>(_paint_bot) + 3u) & ~(uintptr_t)3u);
-            const uint32_t* hw = bot;   // default: the whole painted region was used
+            // default: the whole painted region was used
+            const uint32_t* hw = bot;
             int run = 0;
             for (const uint32_t* p = top; p > bot; ) {
                 --p;

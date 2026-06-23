@@ -93,18 +93,20 @@ namespace Botanik { namespace Pages {
 
         /** @brief Firmware identity block (site name, version, commit),
          *  right-aligned top-right (rows 3-5), clear of the logo. Dot leaders
-         *  align the colons. Static (compile-time values). Drawn after the logo,
-         *  whose clear-to-eol would wipe it. */
+         *  align the colons. Static (compile-time values). Drawn after the
+         *  logo, whose clear-to-eol would wipe it. */
         virtual void draw_id_block() {
             char vbuf[48];
             snprintf(vbuf, sizeof(vbuf), "v%s", Config::FIRMWARE_VERSION);
             const char* const labels[3] = { "Site name", "Version", "Commit" };
             const char* const values[3] = { Config::SITE_NAME, vbuf, BOTANIK_GIT_HASH };
 
-            static const uint16_t COLON_AT = 16;   // col of the space before ":"
+            // col of the space before ":"
+            static const uint16_t COLON_AT = 16;
             static const uint16_t SEP = 3;         // " : " separator width
 
-            // Fixed value-field width = widest value, commit reserving "-dirty".
+            // Fixed value-field width = widest value, commit reserving
+            // "-dirty".
             // Padding to this gives a flush right edge identical for clean and
             // dirty builds.
             static const char DIRTY[] = "-dirty";
@@ -121,7 +123,8 @@ namespace Botanik { namespace Pages {
 
             char lines[3][64];
             const uint16_t cap = (uint16_t)(sizeof(lines[0]) - 1);
-            static const uint16_t PAD = 1;          // trailing pad past the value
+            // trailing pad past the value
+            static const uint16_t PAD = 1;
             // full (padded) row length
             uint16_t target = (uint16_t)(COLON_AT + SEP + vwidth + PAD);
             if (target > cap) target = cap;
@@ -135,8 +138,8 @@ namespace Botanik { namespace Pages {
                 while (n < target) p[n++] = ' ';    // right-pad to fixed field
                 p[n] = '\0';
             }
-            // Right-align with a one-column margin; same left column for all three
-            // rows keeps the colons aligned.
+            // Right-align with a one-column margin; same left column for all
+            // three rows keeps the colons aligned.
             uint16_t cols = _terminal.cols();
             uint16_t left = (cols > (uint16_t)(target + 1))
                                 ? (uint16_t)(cols - target - 1) : 0;
@@ -144,8 +147,9 @@ namespace Botanik { namespace Pages {
                 _label_at((uint16_t)(3 + i), left, lines[i]);
         }
 
-        /** @brief Draw the divider above the bottom log band: a reverse-video bar
-         *  with a normal-video " LOGS " tab near the left. Static (drawn once). */
+        /** @brief Draw the divider above the bottom log band: a reverse-video
+         *  bar with a normal-video " LOGS " tab near the left. Static (drawn
+         *  once). */
         void draw_log_header(uint16_t row) {
             if (row >= _terminal.rows()) return;
             if (!_static_step()) return;     // paced as one static element
@@ -158,7 +162,8 @@ namespace Botanik { namespace Pages {
             memset(spaces, ' ', fill);
 
             static const char TAB[] = " LOGS ";
-            const uint16_t    lead   = 3;          // inverted pad before the tab
+            // inverted pad before the tab
+            const uint16_t    lead   = 3;
             const uint16_t    tablen = (uint16_t)(sizeof(TAB) - 1);
 
             _terminal.move_to({row, 0});
@@ -172,7 +177,8 @@ namespace Botanik { namespace Pages {
             uint16_t rest = (cols > used) ? (uint16_t)(cols - used) : 0;
             // sanity bound
             if (rest > Config::TERMINAL_MAX_COLS) rest = Config::TERMINAL_MAX_COLS;
-            // Chunk so a terminal wider than the local buffer still fills to EOL.
+            // Chunk so a terminal wider than the local buffer still fills to
+            // EOL.
             while (rest) {
                 uint16_t n = (rest > fill) ? fill : rest;
                 _terminal.write_chars(spaces, n);
@@ -210,10 +216,12 @@ namespace Botanik { namespace Pages {
 
         /** @brief Site-specific labels/headers (drawn once). Base: no-op. */
         virtual void draw_payload_static() {}
-        /** @brief Site-specific values (refreshed periodically). Base: no-op. */
+        /** @brief Site-specific values (refreshed periodically). Base:
+         *  no-op. */
         virtual void draw_payload_dynamic() {}
 
-        /** @brief Typed PLC output payload for derived rendering (may be null). */
+        /** @brief Typed PLC output payload for derived rendering (may be
+         *  null). */
         const OutputData* data() const { return _data; }
 
         /** @} */
@@ -221,8 +229,10 @@ namespace Botanik { namespace Pages {
     public:
         HomePage(AnsiTerminal& terminal, const OutputData* data)
             : MetricPage(terminal, 14), _data(data) {
-            _refresh_ms = Config::HOME_REFRESH_MS;   // cold-field redraw cadence
-            _hot_ms     = Config::PAGE_HOT_MS;       // uptime ticks every second
+            // cold-field redraw cadence
+            _refresh_ms = Config::HOME_REFRESH_MS;
+            // uptime ticks every second
+            _hot_ms     = Config::PAGE_HOT_MS;
         }
 
         const char* name() const override { return "HOME"; }
@@ -244,12 +254,13 @@ namespace Botanik { namespace Pages {
         }
 
         void tick(bool active) override {
-            MetricPage::tick(active);            // logo/readings (paced) refresh
+            // logo/readings (paced) refresh
+            MetricPage::tick(active);
             _log_active = active;
             if (active) {
                 _scrollback.drain_redraw(_terminal);
-                // Hold off the live band until the replay finishes - a DL scroll
-                // would shift rows the replay already drew.
+                // Hold off the live band until the replay finishes - a DL
+                // scroll would shift rows the replay already drew.
                 if (_scrollback.redraw_pending()) return;
             }
             // Bank queued entries (pending when active), then paint them paced
@@ -273,8 +284,9 @@ namespace Botanik { namespace Pages {
         }
 
         size_t write(const char* buf, size_t len) override {
-            // Store-only: bank the entry, mark pending when active for the paced
-            // drain_tail. Never blocks/drops, so report the whole entry consumed.
+            // Store-only: bank the entry, mark pending when active for the
+            // paced drain_tail. Never blocks/drops, so report the whole entry
+            // consumed.
             _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(),
                 Config::SHELL_LOG_CONT_PREFIX,
                 (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX), _log_active);

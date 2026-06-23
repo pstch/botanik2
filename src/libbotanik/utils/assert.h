@@ -3,13 +3,14 @@
 
 /**
  * @file assert.h
- * @brief BOTANIK_ASSERT - debug-only assertions that log, then trap or continue.
+ * @brief BOTANIK_ASSERT - debug-only assertions that log, then trap or
+ *        continue.
  *
  * In release builds (DEBUG undefined) the macro compiles out entirely. In debug
- * builds a failed assertion logs a CRITICAL entry under the ASSERT topic (when a
- * logger was registered via set_assert_logger), then:
- *   - traps into an attached debugger (gated on HAL::under_debugger(), because a
- *     bare breakpoint with no debugger HardFaults on the OPTA);
+ * builds a failed assertion logs a CRITICAL entry under the ASSERT topic (when
+ * a logger was registered via set_assert_logger), then:
+ *   - traps into an attached debugger (gated on HAL::under_debugger(), because
+ *     a bare breakpoint with no debugger HardFaults on the OPTA);
  *   - otherwise abort()s on the simulator (loud failure in a headless/CI run);
  *   - otherwise (hardware, no debugger) it has already logged, and continues.
  */
@@ -28,8 +29,8 @@ namespace Botanik {
         return logger;
     }
 
-    /** @brief Register the assert logger. @note a single process-global, so with
-     *  multiple firmware instances the last setup() wins (fine here). */
+    /** @brief Register the assert logger. @note a single process-global, so
+     *  with multiple firmware instances the last setup() wins (fine here). */
     inline void set_assert_logger(Logs::Logger* logger) { get_assert_logger() = logger; }
 
     /** @brief Assertion-failure handler (see BOTANIK_ASSERT). */

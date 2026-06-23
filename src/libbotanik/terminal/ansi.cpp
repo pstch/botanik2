@@ -4,9 +4,10 @@
  *        writers that back the Ansi namespace.
  *
  * Each writer reserves ANSI_MAX_SEQ bytes via availableForWrite() before
- * emitting; if the whole sequence won't fit it writes nothing and returns false.
- * That guard (the TX ring is single-producer, so free space only grows) keeps an
- * escape from ever being split mid-sequence. Callers retry on a later redraw.
+ * emitting; if the whole sequence won't fit it writes nothing and returns
+ * false. That guard (the TX ring is single-producer, so free space only grows)
+ * keeps an escape from ever being split mid-sequence. Callers retry on a later
+ * redraw.
  */
 #include <cstdint>
 
@@ -17,8 +18,9 @@ namespace Botanik { namespace Terminal { namespace Ansi {
 
     namespace {
         // Worst-case single sequence: goto_absolute = CSI(2) + row(<=5) + ';' +
-        // col(<=5) + 'H' = 14. One guard value for all writers; over-reserving the
-        // short ones is harmless and avoids a per-writer count that could drift.
+        // col(<=5) + 'H' = 14. One guard value for all writers; over-reserving
+        // the short ones is harmless and avoids a per-writer count that could
+        // drift.
         constexpr uint16_t ANSI_MAX_SEQ = 16;
 
         // True when the TX ring can take a whole worst-case sequence, so every
@@ -39,8 +41,8 @@ namespace Botanik { namespace Terminal { namespace Ansi {
             _serial.write(&buf[i + 1], 4 - i);
         }
 
-        // Emit "CSI [count] <final>": CSI, the count (only when > 1, since 1 is the
-        // ECMA-48 default), then the final byte(s). count defaults to 1.
+        // Emit "CSI [count] <final>": CSI, the count (only when > 1, since 1 is
+        // the ECMA-48 default), then the final byte(s). count defaults to 1.
         bool _csi_count(BufferedSerial& _serial, const char* final_byte,
                         uint16_t fn, uint16_t count = 1) {
             if (count == 0) return true;
@@ -55,9 +57,9 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     // Generic utilities
     // ------------------------------------------------------------------------
 
-    // ASCII-only (0x20-0x7E): the editor counts one byte == one column, so a high
-    // byte (UTF-8 / Latin-1) is dropped as non-printable rather than corrupt the
-    // byte-counted reconcile cursor.
+    // ASCII-only (0x20-0x7E): the editor counts one byte == one column, so a
+    // high byte (UTF-8 / Latin-1) is dropped as non-printable rather than
+    // corrupt the byte-counted reconcile cursor.
     bool is_printable(uint8_t b) {
         return b >= 0x20 && b <= 0x7E;
     }
@@ -71,7 +73,8 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     bool cancel_sequence(BufferedSerial& _serial) {
-        // Lone C0 control, no CSI: reserve its single byte so it lands all-or-nothing.
+        // Lone C0 control, no CSI: reserve its single byte so it lands
+        // all-or-nothing.
         if (_serial.availableForWrite() < (uint16_t)(sizeof(CAN) - 1)) return false;
         _serial.write(CAN, sizeof(CAN) - 1);
         return true;
@@ -88,7 +91,8 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     bool minitel_setup(BufferedSerial& _serial) {
-        // One-time PRO2 handshake: 12 bytes, within the can_emit() reserve, so atomic.
+        // One-time PRO2 handshake: 12 bytes, within the can_emit() reserve, so
+        // atomic.
         if (!can_emit(_serial)) return false;
         _serial.write(MINITEL_TELINFO,   sizeof(MINITEL_TELINFO) - 1);
         _serial.write(MINITEL_LOWERCASE, sizeof(MINITEL_LOWERCASE) - 1);
@@ -97,7 +101,8 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     bool vt102_setup(BufferedSerial& _serial) {
-        // No one-time setup: DECAWM-off is re-asserted on every screen establish.
+        // No one-time setup: DECAWM-off is re-asserted on every screen
+        // establish.
         (void)_serial;
         return true;
     }
@@ -116,8 +121,9 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     bool move_left(BufferedSerial& _serial, uint16_t count) {
-        // Always the explicit CUB form, never the BS (\b) shortcut: BS is harmless
-        // on a VT100/VT102 but a Minitel can treat it as a destructive backspace.
+        // Always the explicit CUB form, never the BS (\b) shortcut: BS is
+        // harmless on a VT100/VT102 but a Minitel can treat it as a destructive
+        // backspace.
         return _csi_count(_serial, CUB, sizeof(CUB) - 1, count);
     }
 
@@ -140,9 +146,9 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     bool down_to_row_start(BufferedSerial& _serial, uint16_t count) {
-        // CR + count line feeds. The length is caller-controlled, so guard on the
-        // exact run rather than ANSI_MAX_SEQ. The caller keeps the feeds clear of
-        // the last row, else a line feed scrolls the screen.
+        // CR + count line feeds. The length is caller-controlled, so guard on
+        // the exact run rather than ANSI_MAX_SEQ. The caller keeps the feeds
+        // clear of the last row, else a line feed scrolls the screen.
         if (_serial.availableForWrite() < (uint16_t)(1 + count)) return false;
         _serial.write("\r", 1);
         for (uint16_t i = 0; i < count; ++i) _serial.write("\n", 1);
@@ -183,7 +189,8 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         _serial.write("2", 1);
         _serial.write(ED, sizeof(ED) - 1);       // ESC[2J: erase entire display
         _serial.write(CSI, sizeof(CSI) - 1);
-        _serial.write(MOVE, sizeof(MOVE) - 1);   // ESC[H: cursor to home (row 1, col 1)
+        // ESC[H: cursor to home (row 1, col 1)
+        _serial.write(MOVE, sizeof(MOVE) - 1);
         return true;
     }
 

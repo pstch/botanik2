@@ -9,10 +9,12 @@
  * A target selects a site with `-DBOTANIK_SITE=<name>`; CMake points
  * BOTANIK_SITE_HEADER at this file, so the sim harness and OPTA firmware
  * include it without naming the site. Each site exposes the same surface:
- *   - `BotanikSite`           - the firmware type to instantiate (a BotanikFirmware<>).
- *   - `PlcInput/OutputData_t` - the site PLC payload (shared verbatim by the mock PLC
- *                               and the OPTA firmware).
- *   - `start_site_emulator()` / `plc_dilated_timeout()` - the sim-only mock PLC (sim.h).
+ *   - `BotanikSite`           - the firmware type to instantiate (a
+ *                               BotanikFirmware<>).
+ *   - `PlcInput/OutputData_t` - the site PLC payload (shared verbatim by the
+ *                               mock PLC and the OPTA firmware).
+ *   - `start_site_emulator()` / `plc_dilated_timeout()` - the sim-only mock PLC
+ *                               (sim.h).
  *
  * Single source of truth for the greenhouse: the payload + GreenhouseMLB41
  * firmware live here; pages.h and alarms.h/.cpp are pulled in below. Config
@@ -40,7 +42,8 @@
 /** @name PLC payload
  *  @{ */
 
-struct PlcInputData_t {};   // no site-specific data beyond the library log fields
+// no site-specific data beyond the library log fields
+struct PlcInputData_t {};
 
 // Each discrete status wraps an `enum Value` plus a static str() converter,
 // giving a namespace (UpsStatus::ONLINE) and the str() C++ enums can't carry.
@@ -178,7 +181,8 @@ static_assert(sizeof(PlcOutputData_t) % 4 == 0, "PlcOutputData_t must be 4-byte 
 
 namespace {
 
-/** @brief Example site command: a one-line greenhouse summary from live PLC data.
+/** @brief Example site command: a one-line greenhouse summary from live PLC
+ *  data.
  *
  *  Shows the extension model (firmware.h): the ctx passed to set_commands()
  *  is the const PlcOutputData_t* the command reads. */

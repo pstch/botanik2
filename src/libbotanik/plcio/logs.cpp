@@ -30,9 +30,10 @@ namespace Botanik { namespace PlcIO {
         if (HAL::ordered_read(_writeIndex) == *_readIndex) return;
 
         HAL::cache_invalidate(_ctx->output_logs(), sizeof(PlcOutputLogs_t));
-        // Bound the work per tick to one full ring: that is the most the host can
-        // legitimately be behind, so a runaway or corrupt writeIndex can't spin
-        // here and burn the tick budget. Any real backlog is caught next tick.
+        // Bound the work per tick to one full ring: that is the most the host
+        // can legitimately be behind, so a runaway or corrupt writeIndex can't
+        // spin here and burn the tick budget. Any real backlog is caught next
+        // tick.
         uint32_t processed = 0;
         while (processed < Config::LOG_PLC_BUFFER_SIZE
                && HAL::ordered_read(_writeIndex) != *_readIndex) {
@@ -61,7 +62,8 @@ namespace Botanik { namespace PlcIO {
         // flag, not _last_seq==0, so a legitimate seq 0 at the 2^32 wrap isn't
         // misread as "first".)
         if (!_have_seq) { _have_seq = true; _last_seq = entry->seqNum; return; }
-        uint32_t expected = _last_seq + 1;             // modular: wraps with seqNum
+        // modular: wraps with seqNum
+        uint32_t expected = _last_seq + 1;
         if (entry->seqNum != expected) {
             // A gap larger than the ring means the producer lapped us; the
             // true count is unknowable, so clamp it - one corrupt/lapped seqNum

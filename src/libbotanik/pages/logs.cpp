@@ -28,8 +28,8 @@ namespace Botanik { namespace Pages {
     }
 
     void LogsPage::handle_command(Command cmd, uint16_t /*count*/) {
-        // Scroll history a line at a time (live tail freezes while scrolled back);
-        // ENTER clears and returns to the live bottom.
+        // Scroll history a line at a time (live tail freezes while scrolled
+        // back); ENTER clears and returns to the live bottom.
         const uint16_t first_row = 1;
         const uint16_t log_rows  = (uint16_t)(_terminal.rows() - 1);
         switch (cmd) {
@@ -54,19 +54,20 @@ namespace Botanik { namespace Pages {
     void LogsPage::deactivate() {}
 
     void LogsPage::focus() {
-        // Park the cursor at the top of the log area; the redraw replay captures
-        // it as its resting place and restores it once the historical tail has
-        // drained.
+        // Park the cursor at the top of the log area; the redraw replay
+        // captures it as its resting place and restores it once the historical
+        // tail has drained.
         _terminal.move_to({1, 0});
-        _scrollback.begin_redraw((uint16_t)(_terminal.rows() - 1)); // rows 1..rows-1
+        // rows 1..rows-1
+        _scrollback.begin_redraw((uint16_t)(_terminal.rows() - 1));
     }
 
     void LogsPage::tick(bool active) {
         _active = active;
         if (active) {
             _scrollback.drain_redraw(_terminal);
-            // Hold off the live tail until the replay completes - drain_tail's DL
-            // scroll would shift rows the replay already drew.
+            // Hold off the live tail until the replay completes - drain_tail's
+            // DL scroll would shift rows the replay already drew.
             if (_scrollback.redraw_pending()) return;
         }
         // Bank queued entries (pending when active), then paint them paced into

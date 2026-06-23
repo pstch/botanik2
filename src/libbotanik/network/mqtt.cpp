@@ -2,20 +2,21 @@
  * @file mqtt.cpp
  * @brief MqttClient - non-blocking MQTT 3.1.1 publish over HAL::Net TCP.
  *
- * Hand-rolled wire protocol (CONNECT / CONNACK / PUBLISH QoS-0 / PINGREQ), gated on
- * NetworkHandler::is_up() before a connect.
+ * Hand-rolled wire protocol (CONNECT / CONNACK / PUBLISH QoS-0 / PINGREQ),
+ * gated on NetworkHandler::is_up() before a connect.
  */
 
 #include "libbotanik/network/mqtt.h"
 
 #include <cstring>                     // strlen / memcpy
-#include "libbotanik/hal/platform.h"   // HAL::uptime_ms (publish, called off the step path)
+// HAL::uptime_ms (publish, called off the step path)
+#include "libbotanik/hal/platform.h"
 
 namespace Botanik { namespace Network {
 
     namespace {
-        // MQTT "remaining length" varint (1..4 bytes, 7 data bits each). Returns the
-        // number of bytes written to @p p.
+        // MQTT "remaining length" varint (1..4 bytes, 7 data bits each).
+        // Returns the number of bytes written to @p p.
         int encode_remlen(uint8_t* p, uint32_t len) {
             int n = 0;
             do {
@@ -148,7 +149,8 @@ namespace Botanik { namespace Network {
         HAL::Net::Ip4 a;
         a.b[0]=_broker_addr.bytes[0]; a.b[1]=_broker_addr.bytes[1];
         a.b[2]=_broker_addr.bytes[2]; a.b[3]=_broker_addr.bytes[3];
-        int r = HAL::Net::tcp_connect(_sock, a, port);   // 1 done, 0 pending, <0 err
+        // 1 done, 0 pending, <0 err
+        int r = HAL::Net::tcp_connect(_sock, a, port);
         if (r >= 0) return true;
         HAL::Net::tcp_close(_sock); _sock = -1;
         return false;
@@ -160,7 +162,8 @@ namespace Botanik { namespace Network {
         HAL::Net::Ip4 a;
         a.b[0]=_broker_addr.bytes[0]; a.b[1]=_broker_addr.bytes[1];
         a.b[2]=_broker_addr.bytes[2]; a.b[3]=_broker_addr.bytes[3];
-        return HAL::Net::tcp_connect(_sock, a, port);    // 1 connected, 0 waiting, -1 failed
+        // 1 connected, 0 waiting, -1 failed
+        return HAL::Net::tcp_connect(_sock, a, port);
     }
 
     bool MqttClient::_send_connect() {
@@ -178,8 +181,10 @@ namespace Botanik { namespace Network {
         i += encode_remlen(&buf[i], remlen);
         buf[i++] = 0x00; buf[i++] = 0x04;           // protocol name "MQTT"
         buf[i++] = 'M'; buf[i++] = 'Q'; buf[i++] = 'T'; buf[i++] = 'T';
-        buf[i++] = 0x04;                            // protocol level 4 (MQTT 3.1.1)
-        buf[i++] = 0x02;                            // connect flags: clean session
+        // protocol level 4 (MQTT 3.1.1)
+        buf[i++] = 0x04;
+        // connect flags: clean session
+        buf[i++] = 0x02;
         buf[i++] = (uint8_t)(keepalive >> 8);
         buf[i++] = (uint8_t)(keepalive & 0xFF);
         buf[i++] = (uint8_t)(cid_len >> 8);

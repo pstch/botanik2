@@ -5,41 +5,46 @@
  * @file firmware.h
  * @brief BotanikFirmware<In, Out> - the generic firmware base.
  *
- * Owns every long-lived generic component (serials, logger, scheduler, PLC sync,
- * alarm model/reader, terminal, core pages) and the per-tick loop() order, and
- * exposes a reference accessor for each so a site subclass can build its own
- * components on top. A site derives `GreenhouseXXX : BotanikFirmware<In, Out>`,
- * adds its pages as members, and customizes through the register_*() hooks; see
- * docs and CLAUDE.md ("Site-specific code").
+ * Owns every long-lived generic component (serials, logger, scheduler, PLC
+ * sync, alarm model/reader, terminal, core pages) and the per-tick loop()
+ * order, and exposes a reference accessor for each so a site subclass can build
+ * its own components on top. A site derives
+ * `GreenhouseXXX : BotanikFirmware<In, Out>`, adds its pages as members, and
+ * customizes through the register_*() hooks; see docs and CLAUDE.md
+ * ("Site-specific code").
  *
- * Target-independent: the shared PLC region is injected by the caller (sim statics,
- * or HAL::get_plc_input()/get_plc_output() on OPTA). Per-target timing is applied by
- * the harness through the accessors / set_hw_watchdog_ms() before setup().
+ * Target-independent: the shared PLC region is injected by the caller (sim
+ * statics, or HAL::get_plc_input()/get_plc_output() on OPTA). Per-target timing
+ * is applied by the harness through the accessors / set_hw_watchdog_ms() before
+ * setup().
  *
  * PLC-optional (BOTANIK_FEATURE_PLC, default on): the sync handler, log reader,
- * payload, and PLC-fault watchdog escalation. With -DBOTANIK_FEATURE_PLC=OFF derive
- * BotanikFirmware<> - the payload params default to the zero-size Empty type, the loop
- * feeds health a zeroed remote bitset (only local platform alarms fire), and
+ * payload, and PLC-fault watchdog escalation. With -DBOTANIK_FEATURE_PLC=OFF
+ * derive BotanikFirmware<> - the payload params default to the zero-size Empty
+ * type, the loop feeds health a zeroed remote bitset (only local platform
+ * alarms fire), and
  * HealthMonitor runs with a null link context.
  *
- * Terminal-optional (BOTANIK_FEATURE_TERMINAL, default on): the ANSI UI (AnsiTerminal,
- * the built-in pages, the console UART, the register_*() hooks). Off -> headless;
- * diagnostics still reach the MONITOR UART via MonitorLogWriter. The site extension
- * below assumes the UI is present.
+ * Terminal-optional (BOTANIK_FEATURE_TERMINAL, default on): the ANSI UI
+ * (AnsiTerminal, the built-in pages, the console UART, the register_*() hooks).
+ * Off -> headless; diagnostics still reach the MONITOR UART via
+ * MonitorLogWriter. The site extension below assumes the UI is present.
  *
  * @section firmware_extend Extending the base for a site
  *
- * A site is a thin subclass contributing data (PLC payload, alarm table, pages, shell
- * commands), never overriding setup()/loop() - only the protected Template-Method
- * hooks, so the order can't be misordered. Extension surface:
+ * A site is a thin subclass contributing data (PLC payload, alarm table, pages,
+ * shell commands), never overriding setup()/loop() - only the protected
+ * Template-Method hooks, so the order can't be misordered. Extension surface:
  *
- *  - **Alarm table** - ctor arg (`alarm_table`, `alarm_count`). The AlarmModel splices
- *    in the generic platform-health alarms (alarms/platform.h): site/PLC alarms fill
- *    bit 0 up, platform alarms sit at the high end. Pure data; no hook.
- *  - **Pages** - override register_pages() for the tab order (page 0 = boot page);
- *    default registers the built-ins (shell/logs/alarms).
+ *  - **Alarm table** - ctor arg (`alarm_table`, `alarm_count`). The AlarmModel
+ *    splices in the generic platform-health alarms (alarms/platform.h):
+ *    site/PLC alarms fill bit 0 up, platform alarms sit at the high end. Pure
+ *    data; no hook.
+ *  - **Pages** - override register_pages() for the tab order (page 0 = boot
+ *    page); default registers the built-ins (shell/logs/alarms).
  *  - **Shell commands** - override register_commands(), call
- *    shell_page().set_commands(...). Tried after the built-ins (can't shadow exit/reset).
+ *    shell_page().set_commands(...). Tried after the built-ins (can't shadow
+ *    exit/reset).
  *  - **Post-wiring / per-beat** - on_setup() runs once near the end of setup();
  *    on_loop(now_ms) runs each beat with fresh PLC data.
  *
@@ -91,13 +96,14 @@
 
 namespace Botanik {
 
-    /** @brief Zero-size default PLC payload: the template params default to this so a
-     *  PLC-less firmware (BOTANIK_FEATURE_PLC=0) derives BotanikFirmware<>. */
+    /** @brief Zero-size default PLC payload: the template params default to
+     *  this so a PLC-less firmware (BOTANIK_FEATURE_PLC=0) derives
+     *  BotanikFirmware<>. */
     struct Empty {};
 
-    /** @brief Generic firmware base: owns the generic components + the loop order, and
-     *  exposes each for a site subclass to build on. The PLC pieces are compiled in
-     *  only when BOTANIK_FEATURE_PLC is set. */
+    /** @brief Generic firmware base: owns the generic components + the loop
+     *  order, and exposes each for a site subclass to build on. The PLC pieces
+     *  are compiled in only when BOTANIK_FEATURE_PLC is set. */
     template<typename In = Empty, typename Out = Empty>
     class BotanikFirmware {
         /** @name Configuration
@@ -108,8 +114,9 @@ namespace Botanik {
         /** @brief Site PLC alarm table (copied into the model). */
         const Alarms::AlarmCondition* _alarm_table;
         size_t                        _alarm_count;
-        /** @brief HW-watchdog period armed in setup(); the harness overrides it (the
-         *  simulator dilates it) via set_hw_watchdog_ms() before setup(). */
+        /** @brief HW-watchdog period armed in setup(); the harness overrides it
+         *  (the simulator dilates it) via set_hw_watchdog_ms() before
+         *  setup(). */
         uint32_t                      _hw_watchdog_ms = Config::HW_WATCHDOG_MS;
 
         /** @} */
@@ -118,7 +125,8 @@ namespace Botanik {
          *  @{ */
 
 #if BOTANIK_FEATURE_TERMINAL
-        Utils::BufferedSerial          _console_serial;  // dropped headless (no UI)
+        // dropped headless (no UI)
+        Utils::BufferedSerial          _console_serial;
 #endif
         Utils::BufferedSerial          _monitor_serial;
         Logs::Logger                   _logger;
@@ -153,9 +161,9 @@ namespace Botanik {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief Wire up the generic components. @p shared_in / @p shared_out: the
-         *  caller-owned PLC region; @p cols / @p rows: terminal geometry (entry-point
-         *  supplied, like the baud). */
+        /** @brief Wire up the generic components. @p shared_in / @p shared_out:
+         *  the caller-owned PLC region; @p cols / @p rows: terminal geometry
+         *  (entry-point supplied, like the baud). */
         BotanikFirmware(PlcIO::PlcInput<In>*  shared_in,
                         PlcIO::PlcOutput<Out>* shared_out,
                         const Alarms::AlarmCondition* alarm_table, size_t alarm_count,
@@ -179,16 +187,18 @@ namespace Botanik {
                       shared_in, shared_out),
               _sys_ctx(_scheduler.context(), _plc_handler.context())
 #else
-              // No PLC: health takes a null link context + null regions (it degrades the
-              // verdict to "kick while alive"); SystemContext.plc stays null.
+              // No PLC: health takes a null link context + null regions (it
+              // degrades the verdict to "kick while alive"); SystemContext.plc
+              // stays null.
               _health(_alarm_table, (uint8_t)_alarm_count, &_logger,
                       _scheduler.context(), nullptr, nullptr, nullptr),
               _sys_ctx(_scheduler.context())
 #endif
-              // Past _sys_ctx is optional; leading commas let a feature drop out cleanly.
+              // Past _sys_ctx is optional; leading commas let a feature drop
+              // out cleanly.
 #if BOTANIK_FEATURE_NETWORK
-              // Network reads its config from the PLC block (NETWORK requires PLC);
-              // the resolver is shared by every consumer.
+              // Network reads its config from the PLC block (NETWORK requires
+              // PLC); the resolver is shared by every consumer.
               , _resolver(&_logger)
               , _network(_plc_handler.context(), &_logger, &_resolver)
 #endif
@@ -215,8 +225,8 @@ namespace Botanik {
         }
 
 #if !BOTANIK_FEATURE_PLC
-        /** @brief PLC-less convenience ctor: no shared region, so it omits the region
-         *  pointers and delegates to the main ctor with null. */
+        /** @brief PLC-less convenience ctor: no shared region, so it omits the
+         *  region pointers and delegates to the main ctor with null. */
         BotanikFirmware(const Alarms::AlarmCondition* alarm_table, size_t alarm_count,
                         uint32_t console_baud, uint16_t cols = 80, uint16_t rows = 24)
             : BotanikFirmware(nullptr, nullptr, alarm_table, alarm_count,
@@ -225,19 +235,22 @@ namespace Botanik {
 
         virtual ~BotanikFirmware() {}
 
-        /** @brief Bring-up in a fixed, non-overridable order: begin the UARTs, register
-         *  the core sinks, register the pages (register_pages()), select the terminal
-         *  type, show the banner, arm the watchdog. POST runs on HealthMonitor's first
-         *  step() once loop() starts. A site customizes via the hooks, never setup(). */
+        /** @brief Bring-up in a fixed, non-overridable order: begin the UARTs,
+         *  register the core sinks, register the pages (register_pages()),
+         *  select the terminal type, show the banner, arm the watchdog. POST
+         *  runs on HealthMonitor's first step() once loop() starts. A site
+         *  customizes via the hooks, never setup(). */
         void setup() {
-            set_assert_logger(&_logger);   // route BOTANIK_ASSERT failures to the log
+            // route BOTANIK_ASSERT failures to the log
+            set_assert_logger(&_logger);
 #if BOTANIK_FEATURE_TERMINAL
             HAL::get_serial(HAL::CONSOLE)->begin(_baud);
 #endif
             HAL::get_serial(HAL::MONITOR)->begin(_baud);
 
-            // Core sinks: monitor + (with the UI) shell/logs pages, plus a TX-drop watch
-            // on each live UART. A site adds its own in on_setup().
+            // Core sinks: monitor + (with the UI) shell/logs pages, plus a
+            // TX-drop watch on each live UART. A site adds its own in
+            // on_setup().
             _logger.add_writer(&_monitor);
 #if BOTANIK_FEATURE_TERMINAL
             _logger.add_writer(&_shell_page);
@@ -247,16 +260,19 @@ namespace Botanik {
             _logger.watch_tx(&_monitor_serial);
 
 #if BOTANIK_FEATURE_TERMINAL
-            // Let the shell's loglevel / alarm-ack commands reach the live logger + model.
+            // Let the shell's loglevel / alarm-ack commands reach the live
+            // logger + model.
             _shell_page.set_diagnostics(&_logger, &_health.model());
 
             register_commands();   // site commands, tried after the built-ins
-            register_pages();      // tab order (page 0 = boot page); switch_to(0) records it
+            // tab order (page 0 = boot page); switch_to(0) records it
+            register_pages();
             _terminal.setup_vt102();
             _terminal.switch_to(0);
 #endif
 
-            // Details on a second line (the renderer splits on '\n') so it wraps cleanly.
+            // Details on a second line (the renderer splits on '\n') so it
+            // wraps cleanly.
             _logger.info(PlcIO::BOOT, "Botanik v%s\nRunning on : %s",
                          Config::FIRMWARE_VERSION, HAL::hardware_description());
 
@@ -273,15 +289,16 @@ namespace Botanik {
                           (unsigned long)_baud, (unsigned long)_hw_watchdog_ms);
         }
 
-        /** @brief One main-loop iteration. tick() gates a beat and republishes the
-         *  32-bit display "now" (`SchedulerContext::timestamp_ms`) the render path shares.
+        /** @brief One main-loop iteration. tick() gates a beat and republishes
+         *  the 32-bit display "now" (`SchedulerContext::timestamp_ms`) the
+         *  render path shares.
          *  The order is load-bearing (see CONCURRENCY.md):
          *    tick -> receive -> plc -> health -> on_loop -> logger -> terminal
          *         -> drain -> transmit -> watchdog_kick
-         *  The health / alarm / on_loop steps take a fresh 64-bit HAL::uptime_ms(), NOT
-         *  the 32-bit timestamp_ms - their fault-grace / alarm-latch timers want a
-         *  wrap-free clock. Non-virtual so the order can't be reordered; a site adds
-         *  per-beat work via on_loop(). */
+         *  The health / alarm / on_loop steps take a fresh 64-bit
+         *  HAL::uptime_ms(), NOT the 32-bit timestamp_ms - their fault-grace /
+         *  alarm-latch timers want a wrap-free clock. Non-virtual so the order
+         *  can't be reordered; a site adds per-beat work via on_loop(). */
         void loop() {
             if (!_scheduler.tick()) return;
 
@@ -295,9 +312,10 @@ namespace Botanik {
             _plc_log_reader.step();
 #endif
 
-            // Health after the PLC payload is fresh and before the logger drains, so an
-            // alarm START/END lands this beat. Asserts platform alarms, updates the
-            // watchdog verdict, advances the model (remote bitset zeroed without a PLC).
+            // Health after the PLC payload is fresh and before the logger
+            // drains, so an alarm START/END lands this beat. Asserts platform
+            // alarms, updates the watchdog verdict, advances the model (remote
+            // bitset zeroed without a PLC).
             uint64_t now_ms = HAL::uptime_ms();
 #if BOTANIK_FEATURE_PLC
             _health.step(plc_output_data()->alarms, _plc_handler.rx_torn_count(), now_ms);
@@ -306,8 +324,9 @@ namespace Botanik {
 #endif
 
 #if BOTANIK_FEATURE_NETWORK
-            // Config-driven network services. On the simulator these talk over loopback to
-            // an in-process mock responder (network/sim_netd.h); no public network I/O.
+            // Config-driven network services. On the simulator these talk over
+            // loopback to an in-process mock responder (network/sim_netd.h); no
+            // public network I/O.
             _network.step(now_ms);
 #endif
 #if BOTANIK_FEATURE_NTP
@@ -331,13 +350,13 @@ namespace Botanik {
 #endif
             _monitor_serial.transmit();
 
-            // Kick while healthy; HealthMonitor withholds only once a PLC fault persists
-            // past the grace window (the deliberate reboot).
+            // Kick while healthy; HealthMonitor withholds only once a PLC fault
+            // persists past the grace window (the deliberate reboot).
             if (_health.watchdog_ok()) HAL::watchdog_kick();
         }
 
-        /** @brief Run loop() forever (the OPTA entry point; the simulator drives
-         *  loop() itself so it can break on a shutdown signal). */
+        /** @brief Run loop() forever (the OPTA entry point; the simulator
+         *  drives loop() itself so it can break on a shutdown signal). */
         void run() { for (;;) loop(); }
 
         /** @} */
@@ -345,7 +364,8 @@ namespace Botanik {
         /** @name Per-target timing
          *  @{ */
 
-        /** @brief Override the HW-watchdog period armed by setup() (call before it). */
+        /** @brief Override the HW-watchdog period armed by setup() (call before
+         *  it). */
         void set_hw_watchdog_ms(uint32_t ms) { _hw_watchdog_ms = ms; }
 
         /** @} */
@@ -354,9 +374,10 @@ namespace Botanik {
         /** @name HAL region binding (hardware targets)
          *  @{ */
 
-        /** @brief HAL's PLC region cast to the typed PlcInput/PlcOutput<>. The one place
-         *  the cast from HAL's opaque void* lives. On the simulator HAL returns null (the
-         *  sim binds its own mock region through the explicit ctor). */
+        /** @brief HAL's PLC region cast to the typed PlcInput/PlcOutput<>. The
+         *  one place the cast from HAL's opaque void* lives. On the simulator
+         *  HAL returns null (the sim binds its own mock region through the
+         *  explicit ctor). */
         static PlcIO::PlcInput<In>* hal_input() {
             return static_cast<PlcIO::PlcInput<In>*>(HAL::get_plc_input());
         }
@@ -376,7 +397,8 @@ namespace Botanik {
         PlcIO::PlcSyncHandler<In, Out>& plc_handler()     { return _plc_handler; }
         const Out*                      plc_output_data() { return _plc_handler.output_data(); }
 #else
-        /** @brief No PLC link: no shared payload, so null (readers null-check). */
+        /** @brief No PLC link: no shared payload, so null (readers
+         *  null-check). */
         const Out*                      plc_output_data() { return nullptr; }
 #endif
 #if BOTANIK_FEATURE_NETWORK
@@ -402,29 +424,30 @@ namespace Botanik {
 
     protected:
         /** @name Site customization hooks (Template Method)
-         *  Overridden by a site instead of setup()/loop(), so the fixed bring-up and
-         *  cycle order can never be skipped or misordered.
+         *  Overridden by a site instead of setup()/loop(), so the fixed
+         *  bring-up and cycle order can never be skipped or misordered.
          *  @{ */
 
 #if BOTANIK_FEATURE_TERMINAL
-        /** @brief Register the pages in tab order (page 0 = boot page); the add_page()
-         *  call order IS the tab order. Default: the built-ins. */
+        /** @brief Register the pages in tab order (page 0 = boot page); the
+         *  add_page() call order IS the tab order. Default: the built-ins. */
         virtual void register_pages() {
             _terminal.add_page(&_shell_page);
             _terminal.add_page(&_logs_page);
             _terminal.add_page(&_alarms_page);
         }
 
-        /** @brief Register the site's shell command table (tried after the built-ins, so
-         *  a site can't shadow exit/reset). Default: none. */
+        /** @brief Register the site's shell command table (tried after the
+         *  built-ins, so a site can't shadow exit/reset). Default: none. */
         virtual void register_commands() {}
 #endif
 
-        /** @brief Site post-wiring, run once near the end of setup(). Default: nothing. */
+        /** @brief Site post-wiring, run once near the end of setup(). Default:
+         *  nothing. */
         virtual void on_setup() {}
 
-        /** @brief Site per-beat work, run each loop() with fresh PLC data (after health,
-         *  before the logger drains). Default: nothing. */
+        /** @brief Site per-beat work, run each loop() with fresh PLC data
+         *  (after health, before the logger drains). Default: nothing. */
         virtual void on_loop(uint64_t now_ms) { (void)now_ms; }
 
         /** @} */

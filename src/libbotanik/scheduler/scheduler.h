@@ -5,8 +5,8 @@
  * @file scheduler.h
  * @brief LoopScheduler - non-blocking fixed-period loop driver with overrun
  *        handling and built-in performance instrumentation: scheduling jitter,
- *        CPU duty cycle, per-beat work duration, and stack high-water usage. The
- *        reusable metric filters live in utils/filters.h; the PerfContext /
+ *        CPU duty cycle, per-beat work duration, and stack high-water usage.
+ *        The reusable metric filters live in utils/filters.h; the PerfContext /
  *        SchedulerContext they feed are defined here.
  */
 
@@ -19,8 +19,8 @@
 #include "libbotanik/hal/platform.h"
 
 // Because the address sanitizer uses a fake stack for locals, stack-usage
-// measurement is fundamentally incompatible with ASAN; the BOTANIK_NO_ASAN macro
-// annotates the stack paint/scan code so it works against the real stack.
+// measurement is fundamentally incompatible with ASAN; the BOTANIK_NO_ASAN
+// macro annotates the stack paint/scan code so it works against the real stack.
 #if defined(__has_feature)
 #  if __has_feature(address_sanitizer)
 #    define BOTANIK_NO_ASAN __attribute__((no_sanitize("address")))
@@ -36,9 +36,9 @@ namespace Botanik { namespace Logs { class Logger; } }
 
 namespace Botanik { namespace Scheduler {
 
-    /** @brief CPU-load / work-duration / stack-usage metrics, each exposed smoothed
-     *  (EMA), as a recent windowed peak, and as an all-time peak. The base of
-     *  SchedulerContext; LoopScheduler writes every field in place. */
+    /** @brief CPU-load / work-duration / stack-usage metrics, each exposed
+     *  smoothed (EMA), as a recent windowed peak, and as an all-time peak. The
+     *  base of SchedulerContext; LoopScheduler writes every field in place. */
     struct PerfContext {
         /** @brief EMA of CPU load (duty cycle, fraction of period). */
         float    cpu_load_ema       = 0.0f;
@@ -58,10 +58,10 @@ namespace Botanik { namespace Scheduler {
         uint32_t ticks_per_second   = 0;
     };
 
-    /** @brief Stable metrics snapshot consumed by AnsiTerminal for the status bar
-     *  and the `stats` command. Inherits the CPU/stack fields (PerfContext) and adds
-     *  the scheduler's jitter and tick/overrun fields, so consumers read them all
-     *  through one struct via LoopScheduler::context(). */
+    /** @brief Stable metrics snapshot consumed by AnsiTerminal for the status
+     *  bar and the `stats` command. Inherits the CPU/stack fields (PerfContext)
+     *  and adds the scheduler's jitter and tick/overrun fields, so consumers
+     *  read them all through one struct via LoopScheduler::context(). */
     struct SchedulerContext : PerfContext {
         /** @brief EMA of scheduling jitter (fraction of interval). */
         float    cpu_jitter_ema       = 0.0f;
@@ -79,17 +79,17 @@ namespace Botanik { namespace Scheduler {
     };
 
     /** @class LoopScheduler
-     *  @brief Non-blocking fixed-period loop driver: releases one tick per period,
-     *         absorbs overruns, and measures its own per-beat performance (jitter,
-     *         CPU duty cycle, work duration, stack usage), publishing everything
-     *         into the SchedulerContext. */
+     *  @brief Non-blocking fixed-period loop driver: releases one tick per
+     *         period, absorbs overruns, and measures its own per-beat
+     *         performance (jitter, CPU duty cycle, work duration, stack usage),
+     *         publishing everything into the SchedulerContext. */
     class LoopScheduler : public Component {
     private:
         /** @name State
          *  @{ */
 
-        // tick() sleeps until 1 ms before the grid point and busy-waits the last
-        // ms, so a period under 2 ms would be all spin.
+        // tick() sleeps until 1 ms before the grid point and busy-waits the
+        // last ms, so a period under 2 ms would be all spin.
         static_assert(Config::TASK_PERIOD_MS >= 2, "TASK_PERIOD_MS must be >= 2 (sleep/spin split)");
 
         /** @brief Target loop period (ms). */
@@ -114,11 +114,12 @@ namespace Botanik { namespace Scheduler {
         /** @} */
 
         /** @name CPU-load (duty cycle) metrics
-         *  @brief Load is the active fraction of each beat: (elapsed - slept)/elapsed,
-         *  so it counts the work plus the loop/scheduler overhead and the busy-wait,
-         *  and excludes only the real sleep. Both terms are measured from actual
-         *  uptime deltas (not the requested sleep), so an overrunning sleep or a
-         *  skipped beat self-normalizes instead of inflating the figure.
+         *  @brief Load is the active fraction of each beat:
+         *  (elapsed - slept)/elapsed, so it counts the work plus the
+         *  loop/scheduler overhead and the busy-wait, and excludes only the
+         *  real sleep. Both terms are measured from actual uptime deltas (not
+         *  the requested sleep), so an overrunning sleep or a skipped beat
+         *  self-normalizes instead of inflating the figure.
          *  @{ */
 
         Utils::ExpMovingAverage _cpu_load;   ///< EMA of CPU duty cycle
@@ -140,10 +141,10 @@ namespace Botanik { namespace Scheduler {
         /** @} */
 
         /** @name Stack-usage metrics
-         *  @brief The high-water mark is itself a max (the RTOS thread watermark
-         *  on OPTA, a per-slice painted high-water on the sim), so we just track
-         *  the all-time peak - no EMA or rolling-max window layered on top of a
-         *  max.
+         *  @brief The high-water mark is itself a max (the RTOS thread
+         *  watermark on OPTA, a per-slice painted high-water on the sim), so we
+         *  just track the all-time peak - no EMA or rolling-max window layered
+         *  on top of a max.
          *  @{ */
 
         /** @brief total thread stack allocation, bytes */
@@ -177,7 +178,8 @@ namespace Botanik { namespace Scheduler {
 
         /** @brief Construct the loop scheduler.
          *  @param period_ms Target loop period (ms).
-         *  @param logger    Optional logger for startup and periodic load reports. */
+         *  @param logger    Optional logger for startup and periodic load
+         *                   reports. */
         LoopScheduler(uint32_t period_ms = Config::TASK_PERIOD_MS, Logs::Logger* logger = nullptr);
 
         /** @brief Reset the anchor to the current uptime and clear all
@@ -192,17 +194,19 @@ namespace Botanik { namespace Scheduler {
         /**
          * @brief Non-blocking check. Evaluates if it is time to run the task.
          *
-         * On each call it closes the previous beat's work window (work duration +
-         * stack scan); while waiting it accumulates the slept time used for the CPU
-         * duty cycle. When it releases a beat it republishes the loop "now", records
-         * the scheduling jitter and the duty cycle, opens the next work window, and
-         * paints the free stack so the loop work that runs next dirties it.
+         * On each call it closes the previous beat's work window (work duration
+         * + stack scan); while waiting it accumulates the slept time used for
+         * the CPU duty cycle. When it releases a beat it republishes the loop
+         * "now", records the scheduling jitter and the duty cycle, opens the
+         * next work window, and paints the free stack so the loop work that
+         * runs next dirties it.
          *
-         * @warning always_inline + BOTANIK_NO_ASAN: it must fold into the caller's
-         * frame so the stack paint it ends with captures the loop body's SP (and a
-         * real-stack &sp_marker, not an ASAN fake-stack one), not a separate tick()
-         * frame's. That is why the body lives here and the cold helpers stay out of
-         * line - only the hot path that reaches the paint needs inlining.
+         * @warning always_inline + BOTANIK_NO_ASAN: it must fold into the
+         * caller's frame so the stack paint it ends with captures the loop
+         * body's SP (and a real-stack &sp_marker, not an ASAN fake-stack one),
+         * not a separate tick() frame's. That is why the body lives here and
+         * the cold helpers stay out of line - only the hot path that reaches
+         * the paint needs inlining.
          *
          * @return true exactly ONCE per period when it is time to execute.
          */
@@ -214,14 +218,15 @@ namespace Botanik { namespace Scheduler {
             // wrapping the unsigned subtraction).
             uint64_t now_us = HAL::uptime_us();
             uint64_t now_ms = now_us / 1000;
-            // close the previous beat's work window (work duration + stack scan)
+            // close the previous beat's work window (work duration + stack
+            // scan)
             if (_measuring) { _measuring = false; _sample_work(now_us); }
             int64_t remaining_ms = (int64_t)_next_tick_ms - (int64_t)now_ms;
             if (remaining_ms > 0) {
                 // Sleep until the grid minus 1 ms (the last ~1 ms is
                 // busy-waited = active CPU), counting the *actual* slept time
-                // toward idle: timing the sleep rather than trusting the request
-                // keeps the duty cycle honest on overrun.
+                // toward idle: timing the sleep rather than trusting the
+                // request keeps the duty cycle honest on overrun.
                 if (remaining_ms > 1) {
                     uint64_t sleep_start_us = HAL::uptime_us();
                     HAL::sleep_ms((uint32_t)(remaining_ms - 1));
@@ -233,8 +238,8 @@ namespace Botanik { namespace Scheduler {
             _context.timestamp_ms = (uint32_t)now_ms;
             _skip_beats(now_ms);   // no log; surfaced via CPU_XRUN + stats
             // Clamp grid-relative lateness at 0: _skip_beats keeps now >= grid
-            // so it shouldn't underflow, but one wrapped sample would poison the
-            // all-time max.
+            // so it shouldn't underflow, but one wrapped sample would poison
+            // the all-time max.
             uint64_t grid_us = _next_tick_ms * 1000;
             _record_jitter(now_us > grid_us ? (uint32_t)(now_us - grid_us) : 0);
             _record_load(now_us);
@@ -262,7 +267,8 @@ namespace Botanik { namespace Scheduler {
         /** @name Metrics access
          *  @{ */
 
-        /** @brief Stable metrics snapshot for external consumers (e.g. status bar). */
+        /** @brief Stable metrics snapshot for external consumers (e.g. status
+         *  bar). */
         SchedulerContext* context() { return &_context; }
 
         /** @} */
@@ -274,15 +280,16 @@ namespace Botanik { namespace Scheduler {
         /** @brief Advance the next-tick anchor to skip missed beats when the
          *  loop falls behind. */
         void _skip_beats(uint64_t now);
-        /** @brief Filter a beat's scheduling jitter and publish it into the context. */
+        /** @brief Filter a beat's scheduling jitter and publish it into the
+         *  context. */
         void _record_jitter(uint32_t jitter_us);
-        /** @brief Compute the beat's CPU duty cycle (active fraction of the elapsed
-         *  beat) from the actual slept time and publish it. */
+        /** @brief Compute the beat's CPU duty cycle (active fraction of the
+         *  elapsed beat) from the actual slept time and publish it. */
         void _record_load(uint64_t now_us);
         /** @brief Sample the achieved tick rate once per second and publish it.
-         *  @p now_ms is the loop's (dilated) uptime; on the simulator the window
-         *  is measured in real time instead, so the rate stays meaningful under
-         *  BOTANIK_TIME_SCALE. */
+         *  @p now_ms is the loop's (dilated) uptime; on the simulator the
+         *  window is measured in real time instead, so the rate stays
+         *  meaningful under BOTANIK_TIME_SCALE. */
         void _record_tps(uint64_t now_ms);
         /** @brief Close the work window: record work duration and, at slice
          *  boundaries, scan the stack high-water mark; publish both into the
@@ -321,9 +328,9 @@ namespace Botanik { namespace Scheduler {
      *        to a core. Sim-only (POSIX).
      *
      * Policy and affinity are per-thread on Linux, so call it from each thread
-     * that needs realtime (main loop on one core, emulator on another, mirroring
-     * the OPTA's cores). On failure (usually lack of privileges) the thread
-     * keeps running.
+     * that needs realtime (main loop on one core, emulator on another,
+     * mirroring the OPTA's cores). On failure (usually lack of privileges) the
+     * thread keeps running.
      *
      * @param cpu_core_id Core to pin the calling thread to.
      * @param logger      Logger for failure warnings (optional).

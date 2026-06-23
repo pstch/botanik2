@@ -2,8 +2,9 @@
  * @file logger.cpp
  * @brief Logger implementation - token-bucket refill and dispatch.
  *
- * Suppressed-message counters drain on a slower cadence than the bucket refills,
- * so a sustained storm yields an occasional summary, not one report per refill.
+ * Suppressed-message counters drain on a slower cadence than the bucket
+ * refills, so a sustained storm yields an occasional summary, not one report
+ * per refill.
  * push_entry() applies the per-topic filter before the global one, so
  * per-topic-suppressed messages don't drain the global bucket.
  */
@@ -24,7 +25,8 @@ namespace Botanik { namespace Logs {
     // ------------------------------------------------------------------------
 
     Logger::Logger() {
-        uint32_t now = HAL::current_ms();   // one sample: all three anchors share it
+        // one sample: all three anchors share it
+        uint32_t now = HAL::current_ms();
         _perTopic_fillTime_ms   = now;
         _global_fillTime_ms     = now;
         _suppress_reportTime_ms = now;
@@ -75,12 +77,15 @@ namespace Botanik { namespace Logs {
         // Start at 1: slot 0 (NONE) is never consumed (push_entry skips NONE).
         for (uint8_t i = 1; i < PlcIO::LOG_TOPIC_COUNT; ++i)
             _fill_bucket(&_perTopic_buckets[i], topic_fill, _perTopic_burst);
-        // Drain suppressed-message counters on a slower cadence (occasional summary).
+        // Drain suppressed-message counters on a slower cadence (occasional
+        // summary).
         uint32_t report_amount  = (now_ms - _suppress_reportTime_ms) / _suppress_period_ms;
         if (report_amount > 0) {
             _suppress_reportTime_ms += report_amount * _suppress_period_ms;
-            _report_suppressed(&_global_bucket, LogTopic::NONE, now_ms); // global
-            for (uint8_t i = 1; i < PlcIO::LOG_TOPIC_COUNT; ++i)         // skip NONE
+            // global
+            _report_suppressed(&_global_bucket, LogTopic::NONE, now_ms);
+            // skip NONE (slot 0)
+            for (uint8_t i = 1; i < PlcIO::LOG_TOPIC_COUNT; ++i)
                 _report_suppressed(&_perTopic_buckets[i], (LogTopic)i, now_ms);
         }
         // Report data actually lost (not just rate-limited): entries dropped at
@@ -107,13 +112,14 @@ namespace Botanik { namespace Logs {
     // limiter; a limiter-dropped critical is still counted + summary-reported.
     void Logger::push_entry(const PlcIO::LogEntry_t& entry) {
         // Level gate before the limiter so a filtered entry costs no token.
-        // LogLevel is monotonic and LOG_CRITICAL is the max, so a critical never
-        // falls below _min_level.
+        // LogLevel is monotonic and LOG_CRITICAL is the max, so a critical
+        // never falls below _min_level.
         if (entry.level < _min_level) return;
         PlcIO::LogTopic topic = entry.topic >=
             PlcIO::LOG_TOPIC_COUNT ? LogTopic::NONE : entry.topic;
         LogBucket_t* topic_bucket = &_perTopic_buckets[topic];
-        // Per-topic filter first so a per-topic-suppressed msg doesn't drain global.
+        // Per-topic filter first so a per-topic-suppressed msg doesn't drain
+        // global.
         if (topic == LogTopic::NONE || _try_bucket(topic_bucket))
             if (_try_bucket(&_global_bucket))
                 for (uint8_t i = 0; i < _writerCount; i++)
@@ -147,8 +153,8 @@ namespace Botanik { namespace Logs {
 
     bool Logger::_try_bucket(LogBucket_t* bucket) {
         if (bucket->state == 0) {
-            // Saturate rather than wrap: the slow drain cadence lets a long storm
-            // otherwise overflow the uint16_t suppressed count.
+            // Saturate rather than wrap: the slow drain cadence lets a long
+            // storm otherwise overflow the uint16_t suppressed count.
             if (bucket->suppressed != UINT16_MAX) bucket->suppressed++;
             return false;
         }

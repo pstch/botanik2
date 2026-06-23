@@ -111,16 +111,17 @@ namespace Botanik { namespace Pages {
         _active = active;
         if (active) {
             _scrollback.drain_redraw(_terminal);
-            // Hold off the live tail until the replay completes - drain_tail's DL
-            // scroll would shift rows the replay already drew.
+            // Hold off the live tail until the replay completes - drain_tail's
+            // DL scroll would shift rows the replay already drew.
             if (_scrollback.redraw_pending()) return;
         }
         // Bank queued log entries (pending when active; only the active page
         // queues, see push()); command output banks the same way via
         // write_lines().
         drain();
-        // Paint pending lines paced into the log area; emit_tail shifts the editor
-        // up (DL) and back down (IL), so reposition the cursor onto it afterwards.
+        // Paint pending lines paced into the log area; emit_tail shifts the
+        // editor up (DL) and back down (IL), so reposition the cursor onto it
+        // afterwards.
         if (active) {
             uint16_t log_rows =
                 (uint16_t)(_terminal.rows() - 1 - _editor.occupied_rows());
@@ -146,8 +147,8 @@ namespace Botanik { namespace Pages {
     size_t ShellPage::write(const char* buf, size_t len) {
         // Store-only, for both log output (via drain(), indented prefix) and
         // command output (via write_lines(), plain "> " prefix). Bank, mark
-        // pending when active. Never blocks/returns short, so write_lines() can't
-        // drop command output.
+        // pending when active. Never blocks/returns short, so write_lines()
+        // can't drop command output.
         const char* prefix = _draining_log ? Config::SHELL_LOG_CONT_PREFIX
                                            : Config::SHELL_CONT_PREFIX;
         uint16_t    plen   = (uint16_t)strlen(prefix);
@@ -176,9 +177,9 @@ namespace Botanik { namespace Pages {
 
     void ShellPage::clear() {
         _scrollback.clear();
-        // One ED from {1,0} wipes the whole content area in a single CSI (cheaper
-        // than clearing each row); the editor row goes too, so repaint the prompt
-        // after.
+        // One ED from {1,0} wipes the whole content area in a single CSI
+        // (cheaper than clearing each row); the editor row goes too, so repaint
+        // the prompt after.
         _terminal.clear_content();
         _editor.redraw();
     }
@@ -199,8 +200,8 @@ namespace Botanik { namespace Pages {
 
     void ShellPage::_full_redraw() {
         _setup_editor();
-        // Pull origin up so a multi-row prompt redraws without a scroll that would
-        // push the status bar (row 0) off screen.
+        // Pull origin up so a multi-row prompt redraws without a scroll that
+        // would push the status bar (row 0) off screen.
         uint16_t occ = _editor.occupied_rows();
         if (occ > 1) {
             uint16_t rows   = (uint16_t)_terminal.rows();
@@ -212,8 +213,8 @@ namespace Botanik { namespace Pages {
         _scrollback.begin_redraw(
             (uint16_t)(_terminal.rows() - 1 - _editor.occupied_rows()));
         _editor.redraw();
-        // The editor owns a live cursor; switch_to() hides it before focus() and
-        // every other page leaves it hidden.
+        // The editor owns a live cursor; switch_to() hides it before focus()
+        // and every other page leaves it hidden.
         _terminal.set_cursor_visible(true);
     }
 
@@ -233,8 +234,8 @@ namespace Botanik { namespace Pages {
     }
 
     void ShellPage::_cancel_command() {
-        // Ctrl-C: echo the line and drop to a fresh prompt like a submit, but run
-        // nothing.
+        // Ctrl-C: echo the line and drop to a fresh prompt like a submit, but
+        // run nothing.
         char     line[Config::SHELL_INPUT_LEN];
         uint16_t line_len =
             std::min(_editor.buffer_len(), (uint16_t)(sizeof(line) - 1));
@@ -276,8 +277,9 @@ namespace Botanik { namespace Pages {
         uint16_t log_rows = rows - 1 - occupied;  // new (larger) log area
         if (log_rows == 0) return;
 
-        // Scroll the content band down by delta: opens delta rows at the top for
-        // older scrollback; the editor rows fall off the bottom (redrawn after).
+        // Scroll the content band down by delta: opens delta rows at the top
+        // for older scrollback; the editor rows fall off the bottom (redrawn
+        // after).
         // Bounded so row 0 stays put.
         _terminal.scroll_region(1, (uint16_t)(rows - 1), /*up=*/false, delta);
 
@@ -299,8 +301,8 @@ namespace Botanik { namespace Pages {
             _terminal.clear_to_eol();
         }
 
-        // After the scroll the editor content has shifted into its new position -
-        // just reposition the cursor.
+        // After the scroll the editor content has shifted into its new
+        // position - just reposition the cursor.
         _terminal.move_to(_editor.cursor_screen_pos());
     }
 

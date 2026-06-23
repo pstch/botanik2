@@ -32,25 +32,28 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     static constexpr char SEP[] = "\x13";   // Minitel special-keys prefix
     static constexpr char CSI[]  = "\x1B[";  // X3.64 CSI prefix
 
-    // Cancel: aborts a control sequence in progress, returning the parser to ground
-    // state. Emitted after a tx_discard (which can strand a half-sent sequence on the
-    // wire) to resync the terminal.
+    // Cancel: aborts a control sequence in progress, returning the parser to
+    // ground state. Emitted after a tx_discard (which can strand a half-sent
+    // sequence on the wire) to resync the terminal.
     static constexpr char CAN[]  = "\x18";
 
     static constexpr char SM4[]  = "4h"; // Set Mode 4: Insertion
-    static constexpr char RM4[]  = "4l"; // Reset Mode 4: Replacement (Overwrite)
+    // Reset Mode 4: Replacement (Overwrite)
+    static constexpr char RM4[]  = "4l";
 
     static constexpr char DECAWM_SET[]   = "?7h"; // Enable auto-wrap (default)
     static constexpr char DECAWM_RESET[] = "?7l"; // Disable auto-wrap
 
-    static constexpr char DECTCEM_SET[]   = "?25h"; // Show the (blinking) cursor
+    // Show the (blinking) cursor
+    static constexpr char DECTCEM_SET[]   = "?25h";
     static constexpr char DECTCEM_RESET[] = "?25l"; // Hide the cursor
 
     static constexpr char ATTR_NEG[]  = "7m"; // Negative image SGR
     static constexpr char ATTR_NONE[] = "m";  // Normal text SGR
 
     // Minitel PRO2 setup sequences (teleinformatique mode over the DIN port; a
-    // VT100/VT102 ignores them). PRO2 = ESC ':' (per STUM / PyMinitel / Minitel1B):
+    // VT100/VT102 ignores them). PRO2 = ESC ':' (per STUM / PyMinitel /
+    // Minitel1B):
     //   - 80-col teleinformatique      = PRO2 + 0x31 0x7D
     //   - lowercase keyboard           = PRO2 + START(0x69) + MINUSCULES(0x45)
     //   - page mode (stop auto-scroll) = PRO2 + STOP(0x6A) + ROULEAU(0x43)
@@ -82,32 +85,34 @@ namespace Botanik { namespace Terminal { namespace Ansi {
      *  @name State management
      *  @{ */
 
-    // Every escape writer below is all-or-nothing: returns true only when the whole
-    // sequence reached the TX buffer (see file header in ansi.cpp). A false return
-    // means nothing was emitted; the caller must not advance its tracking.
+    // Every escape writer below is all-or-nothing: returns true only when the
+    // whole sequence reached the TX buffer (see file header in ansi.cpp). A
+    // false return means nothing was emitted; the caller must not advance its
+    // tracking.
 
     /** @brief Set insertion mode (IRM) to @p active, using SM4/RM4. */
     bool set_insert_mode(BufferedSerial& _serial, bool active);
 
-    /** @brief Emit CAN to abort any control sequence the terminal is mid-parsing.
-     *  Use after a tx_discard, which can strand a half-sent sequence on the wire
-     *  that would otherwise swallow the next emit. */
+    /** @brief Emit CAN to abort any control sequence the terminal is
+     *  mid-parsing. Use after a tx_discard, which can strand a half-sent
+     *  sequence on the wire that would otherwise swallow the next emit. */
     bool cancel_sequence(BufferedSerial& _serial);
 
-    /** @brief Emit the one-time Minitel PRO2 handshake (80-col teleinformatique +
-     *  lowercase keyboard + page mode); no-op sequences on a VT100/VT102. */
+    /** @brief Emit the one-time Minitel PRO2 handshake (80-col teleinformatique
+     *  + lowercase keyboard + page mode); no-op sequences on a VT100/VT102. */
     bool minitel_setup(BufferedSerial& _serial);
 
-    /** @brief One-time VT100/VT102 setup. Currently a no-op (DECAWM-off is re-asserted
-     *  on every screen establish); the symmetric counterpart to minitel_setup(). */
+    /** @brief One-time VT100/VT102 setup. Currently a no-op (DECAWM-off is
+     *  re-asserted on every screen establish); the symmetric counterpart to
+     *  minitel_setup(). */
     bool vt102_setup(BufferedSerial& _serial);
 
     /** @brief Enable or disable terminal auto-wrap (DECAWM, CSI ? 7 h/l). */
     bool set_auto_wrap(BufferedSerial& _serial, bool enable);
 
-    /** @brief Show or hide the cursor (DECTCEM, CSI ? 25 h/l). A shown cursor blinks
-     *  (no steady mode), so "stop blinking" means hiding it. Minitel honoring of
-     *  DECTCEM is unverified - VERIFY ON HARDWARE. */
+    /** @brief Show or hide the cursor (DECTCEM, CSI ? 25 h/l). A shown cursor
+     *  blinks (no steady mode), so "stop blinking" means hiding it. Minitel
+     *  honoring of DECTCEM is unverified - VERIFY ON HARDWARE. */
     bool set_cursor_visible(BufferedSerial& _serial, bool show);
 
     /** @}
@@ -132,7 +137,8 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     /** @brief Move to the beginning of the row. */
     bool move_row_start(BufferedSerial& _serial);
 
-    /** @brief Drop to the start of the row @p count lines below (CR + line feeds).
+    /** @brief Drop to the start of the row @p count lines below (CR + line
+     *  feeds).
      *  @warning The caller must ensure the feeds won't scroll the screen. */
     bool down_to_row_start(BufferedSerial& _serial, uint16_t count);
 
@@ -154,10 +160,12 @@ namespace Botanik { namespace Terminal { namespace Ansi {
      *  @name Content clearing
      *  @{ */
 
-    /** @brief Clear from the cursor to end of line (columns before it untouched). */
+    /** @brief Clear from the cursor to end of line (columns before it
+     *  untouched). */
     bool clear_to_eol(BufferedSerial& _serial);
 
-    /** @brief Erase from the cursor to end of display (rows above it untouched). */
+    /** @brief Erase from the cursor to end of display (rows above it
+     *  untouched). */
     bool clear_to_eos(BufferedSerial& _serial);
 
     /** @brief Erase entire display and move cursor to home position */

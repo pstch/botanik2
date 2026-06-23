@@ -18,7 +18,8 @@ namespace Botanik { namespace Terminal {
         _buf[0] = '\0';
         _layout.rows[0] = {0, 0, false};
         _layout.count = 1;
-        // Auto-wrap is owned by the terminal (asserted on every screen establish).
+        // Auto-wrap is owned by the terminal (asserted on every screen
+        // establish).
     }
 
     // prompt helpers
@@ -82,8 +83,9 @@ namespace Botanik { namespace Terminal {
     }
 
     void TextEditor::reset() {
-        // Bottom-anchored: rows run from _origin to the content bottom. Clear exactly
-        // that band (clear_rows leaves the alarm bar below it untouched).
+        // Bottom-anchored: rows run from _origin to the content bottom. Clear
+        // exactly that band (clear_rows leaves the alarm bar below it
+        // untouched).
         _terminal->clear_rows(_origin, (uint16_t)(_terminal->rows() - 1));
         uint16_t old_origin = _origin;
         _reset_state();
@@ -126,8 +128,9 @@ namespace Botanik { namespace Terminal {
     // ------------------------------------------------------------------------
 
     void TextEditor::insert_characters(const char* buf, uint16_t len) {
-        // One byte is reserved for the NUL, so usable content is sizeof(_buf)-1: the
-        // layout asserts size rows against the full SHELL_INPUT_LEN, one byte of slack.
+        // One byte is reserved for the NUL, so usable content is
+        // sizeof(_buf)-1: the layout asserts size rows against the full
+        // SHELL_INPUT_LEN, one byte of slack.
         if (len == 0 || (size_t)_len + 1 >= sizeof(_buf)) return;
         if ((uint32_t)_len + len >= sizeof(_buf)) len = (uint16_t)(sizeof(_buf) - _len - 1);
         if (len == 0) return;
@@ -167,17 +170,17 @@ namespace Botanik { namespace Terminal {
     // ------------------------------------------------------------------------
 
     uint16_t TextEditor::_grow_editor() {
-        // Bottom-pinned origin: pull the top up by the rows the editor grew, clamped
-        // at the screen top.
+        // Bottom-pinned origin: pull the top up by the rows the editor grew,
+        // clamped at the screen top.
         uint16_t scr_rows = _terminal->rows();
         uint16_t new_origin;
         if (scr_rows >= _layout.count) new_origin = (uint16_t)(scr_rows - _layout.count);
         else                           new_origin = 0;
 
         if (new_origin < _origin) {
-            // Scroll the content band (rows 1..bottom) up by the grown row count so
-            // the editor's added rows fit; bounded so the status bar (row 0) - and
-            // any reserved bottom row - stay put.
+            // Scroll the content band (rows 1..bottom) up by the grown row
+            // count so the editor's added rows fit; bounded so the status bar
+            // (row 0) - and any reserved bottom row - stay put.
             _terminal->scroll_region(1, (uint16_t)(scr_rows - 1), /*up=*/true,
                                      (uint16_t)(_origin - new_origin));
             _origin = new_origin;
@@ -189,8 +192,9 @@ namespace Botanik { namespace Terminal {
         if (new_origin <= _origin) return;
         // Under suppress the caller repaints, so only move the origin.
         if (!_suppress_sync_redraw && _origin < _terminal->rows()) {
-            // Open blank rows at the old origin to push the editor back down to the
-            // bottom; bounded to [_origin..content bottom] so it never spills below.
+            // Open blank rows at the old origin to push the editor back down to
+            // the bottom; bounded to [_origin..content bottom] so it never
+            // spills below.
             _terminal->scroll_region(_origin, (uint16_t)(_terminal->rows() - 1),
                                      /*up=*/false, (uint16_t)(new_origin - _origin));
         }
@@ -235,9 +239,10 @@ namespace Botanik { namespace Terminal {
             }
         }
 
-        // Splice `amount` content chars at `col`. Chars pushed off the right edge
-        // reflow into the next row (prepended next iteration). Move only when there
-        // is a splice - an absorbed row (amount 0, no length/prompt change) emits nothing.
+        // Splice `amount` content chars at `col`. Chars pushed off the right
+        // edge reflow into the next row (prepended next iteration). Move only
+        // when there is a splice - an absorbed row (amount 0, no length/prompt
+        // change) emits nothing.
         if (amount > 0) {
             _terminal->move_to({hw, col});
             _terminal->write_chars(&_buf[want.buf_start + (col - prompt)],
@@ -285,8 +290,9 @@ namespace Botanik { namespace Terminal {
 
         // Absorption boundary: longest bottom suffix of shifted-identical rows
         // (same buf_len + hard_break, buf_start displaced by exactly l_shift,
-        // lying strictly past the edit). `absorbed_post` is the post index where
-        // the tail is already correct; `absorbed_pre` the matching pre index.
+        // lying strictly past the edit). `absorbed_post` is the post index
+        // where the tail is already correct; `absorbed_pre` the matching pre
+        // index.
         uint16_t span_end_old;
         if (is_insert) span_end_old = span_start;
         else           span_end_old = (uint16_t)(span_start + span_len);
@@ -308,8 +314,8 @@ namespace Botanik { namespace Terminal {
     void TextEditor::_reposition_tail(const SpliceSpan& span, int32_t row_delta,
                                       uint16_t scr_rows) {
         // A single contiguous edit needs at most one IL/DL: it slides the
-        // absorbed tail (and opens the blank rows inserted content paints into).
-        // Nothing to do when there is no tail or no row-count change.
+        // absorbed tail (and opens the blank rows inserted content paints
+        // into). Nothing to do when there is no tail or no row-count change.
         if (span.absorbed_post >= _layout.count || row_delta == 0) return;
 
         uint16_t at;
@@ -319,10 +325,10 @@ namespace Botanik { namespace Terminal {
 
         uint16_t row = (uint16_t)(_origin + at);
         if (row >= scr_rows) return;
-        // Slide the absorbed tail to its new rows (insert also opens the blank rows
-        // the forward walk paints inserted content into). Bounded to [row..content
-        // bottom] so rows below the editor are left untouched. Grow (row_delta > 0)
-        // scrolls the tail down; shrink scrolls it up.
+        // Slide the absorbed tail to its new rows (insert also opens the blank
+        // rows the forward walk paints inserted content into). Bounded to
+        // [row..content bottom] so rows below the editor are left untouched.
+        // Grow (row_delta > 0) scrolls the tail down; shrink scrolls it up.
         _terminal->scroll_region(row, (uint16_t)(scr_rows - 1), /*up=*/row_delta < 0, n);
     }
 
@@ -364,9 +370,9 @@ namespace Botanik { namespace Terminal {
             uint16_t want_prompt = _prompt_len(_row_prompt(i));
 
             // Map post row i to the pre row physically present after the IL/DL.
-            // Rows in the IL-opened gap [absorbed_pre, absorbed_post) have no pre
-            // image (has_pre false) and drop through to the repaint below. The gap
-            // is empty unless the edit grew the row count.
+            // Rows in the IL-opened gap [absorbed_pre, absorbed_post) have no
+            // pre image (has_pre false) and drop through to the repaint below.
+            // The gap is empty unless the edit grew the row count.
             bool     has_pre = !(i >= span.absorbed_pre && i < span.absorbed_post);
             uint16_t pre_idx = (i < span.absorbed_post)
                 ? i : (uint16_t)((int32_t)i - row_delta);
@@ -389,7 +395,8 @@ namespace Botanik { namespace Terminal {
                 _splice_row(i, want_prompt, 0, 0, shown_prompt, want);
             else if (has_pre && (ws < ss + sl) && (ss < ws + wl))
                 // Overlap: cheap left splice by the displacement, cascading the
-                // pushed-off char into the next row (the next iteration prepends).
+                // pushed-off char into the next row (the next iteration
+                // prepends).
                 _splice_row(i, want_prompt, ss - ws, shown.buf_len, shown_prompt, want);
             else
                 // Fresh blank (no pre image) or content reflowed to unrelated

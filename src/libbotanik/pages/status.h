@@ -46,23 +46,24 @@ namespace Botanik { namespace Pages {
          *         blocks. */
         static constexpr uint16_t PAYLOAD_ROW = 10;
 
-        /** @brief System-band two-column geometry (80-col display): left labels at
-         *  col 2 / values right-aligned in L_VAL..L_VAL+L_W; right labels at
+        /** @brief System-band two-column geometry (80-col display): left labels
+         *  at col 2 / values right-aligned in L_VAL..L_VAL+L_W; right labels at
          *  R_LBL / values in R_VAL..R_VAL+R_W. */
         // left values: cols 16..39
         static constexpr uint16_t L_LBL = 2, L_VAL = 16, L_W = 24;
         // right: labels 42.., values 54..76
         static constexpr uint16_t R_LBL = 42, R_VAL = 54, R_W = 23;
 
-        /** @brief Diff-cache slots for the base cells, disjoint from the payload
-         *  slots a derived page uses; slots 1, 2, 6, 7, 9, 31 are left free for
-         *  its network band. */
+        /** @brief Diff-cache slots for the base cells, disjoint from the
+         *  payload slots a derived page uses; slots 1, 2, 6, 7, 9, 31 are left
+         *  free for its network band. */
         static constexpr uint16_t SLOT_PLC = 3, SLOT_CPU = 4, SLOT_JITTER = 5,
                                   SLOT_STACK = 8;
         static constexpr uint16_t SLOT_WALL = 27, SLOT_UPTIME = 28, SLOT_TASK = 29,
                                   SLOT_CONSOLE = 30;
 
-        /** @brief Right-justify @p s into a @p width-wide field. Returns @p buf. */
+        /** @brief Right-justify @p s into a @p width-wide field. Returns
+         *  @p buf. */
         static const char* rjust(char* buf, size_t cap, uint16_t width, const char* s) {
             if (width >= cap) width = (uint16_t)(cap - 1);
             snprintf(buf, cap, "%*s", (int)width, s);
@@ -161,10 +162,12 @@ namespace Botanik { namespace Pages {
 
         /** @brief Site-specific labels/headers (drawn once). Base: no-op. */
         virtual void draw_payload_static() {}
-        /** @brief Site-specific values (refreshed periodically). Base: no-op. */
+        /** @brief Site-specific values (refreshed periodically). Base:
+         *  no-op. */
         virtual void draw_payload_dynamic() {}
 
-        /** @brief Typed PLC output payload for derived rendering (may be null). */
+        /** @brief Typed PLC output payload for derived rendering (may be
+         *  null). */
         const OutputData* data() const { return _data; }
 
         /** @} */
@@ -173,7 +176,8 @@ namespace Botanik { namespace Pages {
         /** @brief Bind to a terminal and PLC payload. */
         StatusPage(AnsiTerminal& terminal, const OutputData* data)
             : MetricPage(terminal, 16), _data(data) {
-            _hot_ms = Config::PAGE_HOT_MS;   // wall clock + uptime tick per second
+            // wall clock + uptime tick per second
+            _hot_ms = Config::PAGE_HOT_MS;
         }
 
         const char* name() const override { return "STATUS"; }

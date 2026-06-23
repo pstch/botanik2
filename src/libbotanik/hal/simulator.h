@@ -11,7 +11,8 @@
  * when TARGET_SIMULATOR is defined; see platform.h.
  */
 
-#include <cassert>   // assert() - HAL sits below the logger, so it can't use BOTANIK_ASSERT
+// assert() - HAL sits below the logger, so it can't use BOTANIK_ASSERT
+#include <cassert>
 #include <cstdint>
 #include <chrono>
 #include <cstring>
@@ -46,18 +47,19 @@ extern "C" inline void botanik_restore_console() {
 
 /** @brief Clean-exit console teardown (not signal-safe). Pages leave the cursor
  *  hidden and parked mid-row, so hand the shell back a sane terminal: show the
- *  cursor, reset attributes, and a fresh line, written straight to the wire (the
- *  final transmission). Then leave raw mode with TCSADRAIN - not TCSAFLUSH - so
- *  those bytes drain instead of being discarded. */
+ *  cursor, reset attributes, and a fresh line, written straight to the wire
+ *  (the final transmission). Then leave raw mode with TCSADRAIN - not TCSAFLUSH
+ *  - so those bytes drain instead of being discarded. */
 inline void botanik_restore_console_clean() {
     if (::isatty(STDIN_FILENO) != 1) return;
-    static const char tail[] = "\033[?25h\033[0m\r\n";  // DECTCEM show, SGR reset, CR LF
+    // DECTCEM show, SGR reset, CR LF
+    static const char tail[] = "\033[?25h\033[0m\r\n";
     (void)::write(STDOUT_FILENO, tail, sizeof(tail) - 1);
     tcsetattr(STDIN_FILENO, TCSADRAIN, botanik_saved_console_termios());
 }
 
-/** @brief Restore the terminal before exiting so Ctrl+C or a crash doesn't leave
- *  the shell in raw mode. Async-signal-safe (tcsetattr + _exit). */
+/** @brief Restore the terminal before exiting so Ctrl+C or a crash doesn't
+ *  leave the shell in raw mode. Async-signal-safe (tcsetattr + _exit). */
 extern "C" inline void botanik_console_signal_handler(int) {
     botanik_restore_console();
     _exit(0);
@@ -70,14 +72,16 @@ namespace Botanik { namespace HAL {
     /** @name Internal helpers
      *  @{ */
 
-    /** @brief Process-start reference for the monotonic uptime clocks; captured once. */
+    /** @brief Process-start reference for the monotonic uptime clocks; captured
+     *  once. */
     inline std::chrono::steady_clock::time_point _process_start() {
         static const auto t0 = std::chrono::steady_clock::now();
         return t0;
     }
 
-    /** @brief BOTANIK_TIME_SCALE: run the sim clocks (and baud throttle) N times faster
-     *  so tests finish sooner with unchanged byte/event ratios. Default 1, clamped >= 1. */
+    /** @brief BOTANIK_TIME_SCALE: run the sim clocks (and baud throttle) N
+     *  times faster so tests finish sooner with unchanged byte/event ratios.
+     *  Default 1, clamped >= 1. */
     inline uint32_t _time_scale() {
         static const uint32_t scale = []() -> uint32_t {
             const char* s = getenv("BOTANIK_TIME_SCALE");
@@ -87,11 +91,11 @@ namespace Botanik { namespace HAL {
         return scale;
     }
 
-    /** @brief Elapsed time since process start, expressed in the duration type T.
-     *  The time-scale multiply is done in __int128 over nanoseconds (sim is x86-64
-     *  only), so it keeps full precision yet can't overflow at the far timepoints
-     *  dilation exists to reach - multiplying the raw ns int64 by the scale first
-     *  overflowed in ~days at scale 1000. */
+    /** @brief Elapsed time since process start, expressed in the duration type
+     *  T. The time-scale multiply is done in __int128 over nanoseconds (sim is
+     *  x86-64 only), so it keeps full precision yet can't overflow at the far
+     *  timepoints dilation exists to reach - multiplying the raw ns int64 by
+     *  the scale first overflowed in ~days at scale 1000. */
     template <typename T>
     inline uint64_t _now_as() {
         const int64_t ns_per_unit =
@@ -127,7 +131,8 @@ namespace Botanik { namespace HAL {
         return 0;
     }
 
-    /** @brief Total allocated stack size for the calling thread (not the used amount). */
+    /** @brief Total allocated stack size for the calling thread (not the used
+     *  amount). */
     inline uint32_t get_stack_depth() {
         pthread_t self = pthread_self();
         pthread_attr_t attr;
@@ -141,8 +146,9 @@ namespace Botanik { namespace HAL {
         return 0;
     }
 
-    /** @brief 0: the host has no RTOS thread watermark, so the scheduler measures the
-     *  high-water itself by painting + scanning the stack (see _measure_stack_usage). */
+    /** @brief 0: the host has no RTOS thread watermark, so the scheduler
+     *  measures the high-water itself by painting + scanning the stack (see
+     *  _measure_stack_usage). */
     inline uint32_t get_stack_high() { return 0; }
 
     /** @} */
@@ -207,19 +213,22 @@ namespace Botanik { namespace HAL {
     }
 
     inline void dmb() {
-        // The sim has no distinct lighter barrier; a full fence is a safe superset.
+        // The sim has no distinct lighter barrier; a full fence is a safe
+        // superset.
         std::atomic_thread_fence(std::memory_order_seq_cst);
     }
 
     template <typename T>
     inline void ordered_copy(T* dst, const T* src) {
-        // Match the OPTA backend's word-multiple + no-alias contract so the sim build
-        // (where DEBUG + tests run) catches violations the hardware can't surface.
+        // Match the OPTA backend's word-multiple + no-alias contract so the sim
+        // build (where DEBUG + tests run) catches violations the hardware can't
+        // surface.
         static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
                       "ordered_copy needs a word-multiple T");
         if (std::is_empty<T>::value) return;   // empty payload carries no data
 #if defined(DEBUG)
-        assert((const void*)dst != (const void*)src);   // no aliasing (ARM_MPU __RESTRICT)
+        // no aliasing (ARM_MPU __RESTRICT)
+        assert((const void*)dst != (const void*)src);
 #endif
         std::memcpy((void*)dst, (const void*)src, sizeof(T));
         dsb();
@@ -241,8 +250,8 @@ namespace Botanik { namespace HAL {
         return value;
     }
 
-    /// No D-cache on the host; the PLC region is plain memory (see opta.h for the
-    /// clean/invalidate discipline these mirror).
+    /// No D-cache on the host; the PLC region is plain memory (see opta.h for
+    /// the clean/invalidate discipline these mirror).
     inline void cache_clean(const void* addr, size_t len)      { (void)addr; (void)len; }
     inline void cache_invalidate(const void* addr, size_t len) { (void)addr; (void)len; }
 
@@ -252,11 +261,13 @@ namespace Botanik { namespace HAL {
      *  @{ */
 
     inline void debug_break() {
-        raise(SIGTRAP);  // <csignal> is already included above for the console handlers
+        // <csignal> is already included above for the console handlers
+        raise(SIGTRAP);
     }
 
-    /** @brief True if a debugger (or any ptrace tracer) is attached: Linux reports
-     *  a non-zero TracerPid in /proc/self/status. Re-read on each call (cheap, and
+    /** @brief True if a debugger (or any ptrace tracer) is attached: Linux
+     *  reports a non-zero TracerPid in /proc/self/status. Re-read on each call
+     *  (cheap, and
      *  a debugger may attach late). */
     inline bool under_debugger() {
         int fd = open("/proc/self/status", O_RDONLY);
@@ -268,7 +279,8 @@ namespace Botanik { namespace HAL {
         buf[n] = '\0';
         const char* p = strstr(buf, "TracerPid:");
         if (p == nullptr) return false;
-        for (p += 10; *p == ' ' || *p == '\t'; ++p) {}  // skip "TracerPid:" + spaces
+        // skip "TracerPid:" + spaces
+        for (p += 10; *p == ' ' || *p == '\t'; ++p) {}
         return *p != '0';
     }
 
@@ -280,7 +292,8 @@ namespace Botanik { namespace HAL {
     /** @brief Host stand-in for the Arduino UART, backed by a pair of file
      *  descriptors with a baud-rate throttle and a simulated UART buffer. */
     class RawSerial {
-        /** @brief Simulated UART FIFO depth (bytes); also caps the token bucket's bank. */
+        /** @brief Simulated UART FIFO depth (bytes); also caps the token
+         *  bucket's bank. */
         static constexpr int FIFO_BYTES = 64;
 
         /** @name State
@@ -289,14 +302,16 @@ namespace Botanik { namespace HAL {
         int _fd_in = -1;             ///< -1 if unbound
         int _fd_out = -1;            ///< -1 if unbound
         uint32_t _baud = 0;          ///< drives the write throttle
-        /** @brief 8N1 slot (us/byte) and its FIFO-deep bank, derived once in begin(). */
+        /** @brief 8N1 slot (us/byte) and its FIFO-deep bank, derived once in
+         *  begin(). */
         uint64_t _slot_us = 0;
         uint64_t _max_bank_us = 0;
-        /** @brief Earliest time (us) the next byte may leave the wire; advanced by one
-         *  8N1 slot per byte sent (token bucket, see write()). */
+        /** @brief Earliest time (us) the next byte may leave the wire; advanced
+         *  by one 8N1 slot per byte sent (token bucket, see write()). */
         uint64_t _next_write_us = 0;
-        /** @brief Whether _fd_out is a terminal. False for a file/pipe sink, where the
-         *  UART model (baud throttle + TIOCOUTQ) is bypassed so redirected output drains. */
+        /** @brief Whether _fd_out is a terminal. False for a file/pipe sink,
+         *  where the UART model (baud throttle + TIOCOUTQ) is bypassed so
+         *  redirected output drains. */
         bool _out_is_tty = false;
 
         /** @} */
@@ -312,10 +327,12 @@ namespace Botanik { namespace HAL {
         /** @name I/O
          *  @{ */
 
-        /** @brief Begin operation at the given baud rate (drives write throttling). */
+        /** @brief Begin operation at the given baud rate (drives write
+         *  throttling). */
         inline void begin(uint32_t baud) {
             _baud = baud;
-            _slot_us = baud ? 10000000ULL / baud : 0;   // 8N1: 10 bit-times per byte
+            // 8N1: 10 bit-times per byte
+            _slot_us = baud ? 10000000ULL / baud : 0;
             _max_bank_us = _slot_us * FIFO_BYTES;
             _next_write_us = _now_as<std::chrono::microseconds>();
         }
@@ -328,16 +345,18 @@ namespace Botanik { namespace HAL {
             return -1;
         }
 
-        /** @brief Write a single byte; 1 on success, 0 if it couldn't be sent (non-blocking
-         *  fd: a full kernel buffer EAGAINs, the byte stays queued, throttle not advanced). */
+        /** @brief Write a single byte; 1 on success, 0 if it couldn't be sent
+         *  (non-blocking fd: a full kernel buffer EAGAINs, the byte stays
+         *  queued, throttle not advanced). */
         inline size_t write(uint8_t c) {
             if (_fd_out == -1) return 0;
             ssize_t n = ::write(_fd_out, &c, 1);
             if (n <= 0) return 0;
             if (_slot_us > 0) {
-                // Token bucket: accumulate the next-slot time (not now+slot), so one
-                // per-tick transmit() drains every byte whose slot has elapsed (real
-                // line rate). Bank is capped to one FIFO so an idle wire can't burst.
+                // Token bucket: accumulate the next-slot time (not now+slot),
+                // so one per-tick transmit() drains every byte whose slot has
+                // elapsed (real line rate). Bank is capped to one FIFO so an
+                // idle wire can't burst.
                 const uint64_t now = _now_as<std::chrono::microseconds>();
                 if (_next_write_us + _max_bank_us < now) _next_write_us = now - _max_bank_us;
                 _next_write_us += _slot_us;
@@ -365,8 +384,9 @@ namespace Botanik { namespace HAL {
             }
         }
 
-        /** @brief Whether the output end is an interactive terminal (false for a file/pipe
-         *  sink, or while unbound). Lets callers suppress output that would garble a console. */
+        /** @brief Whether the output end is an interactive terminal (false for
+         *  a file/pipe sink, or while unbound). Lets callers suppress output
+         *  that would garble a console. */
         inline bool is_output_tty() const { return _out_is_tty; }
 
         /** @brief Number of bytes currently available to read. */
@@ -381,21 +401,22 @@ namespace Botanik { namespace HAL {
          *  throttle is holding off the next write). */
         inline int availableForWrite() {
             if (_fd_out == -1) return 0;
-            // File/pipe sink: no UART to model, so report a full buffer (TIOCOUTQ
-            // would fail with ENOTTY and wedge TX).
+            // File/pipe sink: no UART to model, so report a full buffer
+            // (TIOCOUTQ would fail with ENOTTY and wedge TX).
             if (!_out_is_tty) return FIFO_BYTES;
             if (_slot_us > 0 && _next_write_us > _now_as<std::chrono::microseconds>()) return 0;
             int pending_bytes = 0;
             if (::ioctl(_fd_out, TIOCOUTQ, &pending_bytes) < 0) return 0;
-            int space = FIFO_BYTES - pending_bytes;  // small simulated UART buffer
+            // small simulated UART buffer
+            int space = FIFO_BYTES - pending_bytes;
             return (space < 0) ? 0 : space;
         }
 
         /** @} */
     };
 
-    /** @brief Logical serial endpoints: CONSOLE drives the interactive terminal,
-     *  MONITOR the secondary diagnostic/log output. */
+    /** @brief Logical serial endpoints: CONSOLE drives the interactive
+     *  terminal, MONITOR the secondary diagnostic/log output. */
     enum SerialPort { CONSOLE, MONITOR };
 
     /** @brief Resolve a logical SerialPort to its backing RawSerial.
@@ -412,8 +433,9 @@ namespace Botanik { namespace HAL {
         return (port == MONITOR) ? &monitor : &console;
     }
 
-    /** @brief Whether @p port's output end is an interactive terminal (false for a null
-     *  port). Lets sinks (e.g. MonitorLogWriter) suppress output that would garble the UI. */
+    /** @brief Whether @p port's output end is an interactive terminal (false
+     *  for a null port). Lets sinks (e.g. MonitorLogWriter) suppress output
+     *  that would garble the UI. */
     inline bool serial_is_output_tty(const RawSerial* port) {
         return (port != nullptr) && port->is_output_tty();
     }
@@ -437,8 +459,9 @@ namespace Botanik { namespace HAL {
         signal(SIGTERM, botanik_console_signal_handler);
         signal(SIGSEGV, botanik_console_signal_handler);
         struct termios raw = saved;
-        // Clear ISIG so the app sees Ctrl-C/Z/\ as raw bytes (it decodes them as
-        // InputEvents) rather than as signals. Restore handlers still fire on exit.
+        // Clear ISIG so the app sees Ctrl-C/Z/\ as raw bytes (it decodes them
+        // as InputEvents) rather than as signals. Restore handlers still fire
+        // on exit.
         raw.c_lflag &= ~(ICANON | ECHO | ISIG);
         raw.c_cc[VMIN]  = 0;
         raw.c_cc[VTIME] = 0;
@@ -451,48 +474,57 @@ namespace Botanik { namespace HAL {
      *  @{ */
 
     /** @brief argv captured at startup, for re-exec on reset(). The C runtime
-     *  keeps argv alive for the whole process, so storing the pointer is enough. */
+     *  keeps argv alive for the whole process, so storing the pointer is
+     *  enough. */
     inline char*** _reboot_argv() { static char** argv = nullptr; return &argv; }
 
-    /** @brief Resolved on-disk path of this executable, captured at startup. reset()
-     *  re-execs this path rather than the /proc/self/exe magic symlink: the symlink
-     *  pins the running inode, so after a relink (a new inode at the same path) it
-     *  would re-run the old, now-deleted image. Re-resolving the path picks up a
-     *  rebuilt binary - this is what lets a SIGUSR1 after a build hot-restart the sim. */
+    /** @brief Resolved on-disk path of this executable, captured at startup.
+     *  reset() re-execs this path rather than the /proc/self/exe magic symlink:
+     *  the symlink pins the running inode, so after a relink (a new inode at
+     *  the same path) it would re-run the old, now-deleted image. Re-resolving
+     *  the path picks up a rebuilt binary - this is what lets a SIGUSR1 after a
+     *  build hot-restart the sim. */
     inline char* _reboot_path() { static char path[PATH_MAX] = { 0 }; return path; }
 
-    /** @brief Capture argv and the resolved exe path at the top of main() so reset()
-     *  can re-exec. Resolving the path now, while /proc/self/exe still points at the
-     *  running (not-yet-replaced) file, records the directory entry for later re-exec.
-     *  Simulator-only (the OPTA reset takes no arguments). */
+    /** @brief Capture argv and the resolved exe path at the top of main() so
+     *  reset() can re-exec. Resolving the path now, while /proc/self/exe still
+     *  points at the running (not-yet-replaced) file, records the directory
+     *  entry for later re-exec. Simulator-only (the OPTA reset takes no
+     *  arguments). */
     inline void set_reboot_args(int /*argc*/, char** argv) {
         *_reboot_argv() = argv;
         char*   path = _reboot_path();
         ssize_t n    = readlink("/proc/self/exe", path, PATH_MAX - 1);
-        path[n > 0 ? n : 0] = '\0';   // readlink does not NUL-terminate; empty on failure
+        // readlink does not NUL-terminate; empty on failure
+        path[n > 0 ? n : 0] = '\0';
     }
 
     /** @brief A teardown hook run by reset() just before re-exec. */
     using ResetHook = void(*)();
 
-    /** @brief Slot holding the optional reset hook (a single registrant today). */
+    /** @brief Slot holding the optional reset hook (a single registrant
+     *  today). */
     inline ResetHook* _reset_hook() { static ResetHook hook = nullptr; return &hook; }
 
-    /** @brief Register a teardown hook invoked by reset() before re-exec, so a subsystem
-     *  (e.g. the emulator thread) cleans up first without HAL depending on it. Sim-only. */
+    /** @brief Register a teardown hook invoked by reset() before re-exec, so a
+     *  subsystem (e.g. the emulator thread) cleans up first without HAL
+     *  depending on it. Sim-only. */
     inline void on_reset(ResetHook hook) { *_reset_hook() = hook; }
 
 
     inline void reset() {
         // Run teardown while the image is intact, then execve to replace the
-        // process: drops all threads/FDs and re-enters main() with a fresh uptime.
+        // process: drops all threads/FDs and re-enters main() with a fresh
+        // uptime.
         if (ResetHook hook = *_reset_hook()) hook();
         // Hand the tty back to its pre-raw state before re-exec: the child's
-        // setup_raw_console() snapshots the *current* termios as "original", so an
-        // un-restored raw tty here would leave the terminal raw after a later exit.
+        // setup_raw_console() snapshots the *current* termios as "original", so
+        // an un-restored raw tty here would leave the terminal raw after a
+        // later exit.
         botanik_restore_console_clean();
         char** argv = *_reboot_argv();
-        char*  fallback[] = { (char*)"/proc/self/exe", nullptr };  // if argv was never captured
+        // if argv was never captured
+        char*  fallback[] = { (char*)"/proc/self/exe", nullptr };
         char** av    = argv ? argv : fallback;
         // Prefer the resolved path (re-resolves to a rebuilt binary), then the
         // /proc/self/exe symlink (robust if the path moved), then argv[0].
@@ -505,7 +537,8 @@ namespace Botanik { namespace HAL {
     }
 
     inline void shutdown(int code) {  // default (0) declared in platform.h
-        // Run teardown, hand the console back cleanly (fresh line + cooked echo,
+        // Run teardown, hand the console back cleanly (fresh line + cooked
+        // echo,
         // drained before termios is restored), then exit. atexit re-runs the
         // restore harmlessly. @p code: 0 for "exit", 128+signo on a signal.
         if (ResetHook hook = *_reset_hook()) hook();
@@ -519,7 +552,8 @@ namespace Botanik { namespace HAL {
      *  @{ */
 
     // State is written on the main thread (kick/start/stop) and read by
-    // watchdog_poll() on the emulator thread, shared via the codebase's volatile +
+    // watchdog_poll() on the emulator thread, shared via the codebase's
+    // volatile +
     // dsb() idiom (no std::atomic). 64-bit volatile is fine: simulator-only on
     // x86-64, where aligned 64-bit loads/stores are atomic.
 
@@ -529,8 +563,10 @@ namespace Botanik { namespace HAL {
     inline volatile uint64_t& _wd_last_kick_ms() { static volatile uint64_t k = 0; return k; }
 
     inline void watchdog_start(uint32_t timeout_ms) {
-        _wd_last_kick_ms() = uptime_ms();  // seed kick before timeout, so a poll
-        dsb();                             // seeing the new timeout can't see a stale kick
+        // seed kick before timeout, so a poll seeing the new timeout can't see
+        // a stale kick
+        _wd_last_kick_ms() = uptime_ms();
+        dsb();
         _wd_timeout_ms() = timeout_ms;
     }
 
@@ -547,13 +583,14 @@ namespace Botanik { namespace HAL {
      *  wedged. Traps (SIGTRAP) when a debugger is attached so it breaks on the
      *  wedged state; otherwise resets the process. */
     inline void watchdog_poll() {
-        // 64-bit throughout (no 49-day wrap) and read last_kick *before* now, so a
-        // concurrent watchdog_kick() can't leave last_kick newer than uptime and
-        // underflow the elapsed check into a spurious reset.
+        // 64-bit throughout (no 49-day wrap) and read last_kick *before* now,
+        // so a concurrent watchdog_kick() can't leave last_kick newer than
+        // uptime and underflow the elapsed check into a spurious reset.
         uint64_t timeout   = _wd_timeout_ms();
         if (timeout == 0) return;
         uint64_t last_kick = _wd_last_kick_ms();
-        dsb();                             // read the kick paired with this timeout
+        // read the kick paired with this timeout
+        dsb();
         uint64_t uptime    = uptime_ms();
         if (uptime - last_kick > timeout) {
             if (under_debugger()) debug_break();  // freeze for the debugger

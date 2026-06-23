@@ -12,7 +12,8 @@
  */
 
 #include "libbotanik.h"
-#include "libbotanik/utils/text.h"   // format_float - snprintf has no %f on Mbed
+// format_float - snprintf has no %f on Mbed
+#include "libbotanik/utils/text.h"
 
 #include <algorithm>   // std::max
 #include <cstdio>      // snprintf

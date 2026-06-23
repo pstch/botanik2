@@ -20,7 +20,8 @@
 namespace Botanik { namespace Logs {
 
     /** @brief Base class for logging output channels. Derived classes supply
-     *  format() and write(); the standard implementation is @ref BufferedLogWriter. */
+     *  format() and write(); the standard implementation is
+     *  @ref BufferedLogWriter. */
     class LogWriter {
     private:
         using LogEntry_t = PlcIO::LogEntry_t;
@@ -42,17 +43,20 @@ namespace Botanik { namespace Logs {
 
         /** @brief Serialize bytes to the output medium (never blocks) */
         virtual size_t  write(const char* buf, size_t len) = 0;
-        /** @brief Format a log entry into @p buf; return the number of bytes written */
+        /** @brief Format a log entry into @p buf; return the number of bytes
+         *  written */
         virtual size_t  format(const LogEntry_t* entry, char* buf, size_t len) = 0;
 
         /** @} */
     };
 
     /**
-     * @brief LogWriter with an in-memory FIFO queue and incremental drain. Handles
-     * queueing, drop counting, and partial-send resumption across drain() calls.
+     * @brief LogWriter with an in-memory FIFO queue and incremental drain.
+     * Handles queueing, drop counting, and partial-send resumption across
+     * drain() calls.
      *
-     * Main-loop only (not ISR-safe): push() and drain() share the plain queue cursors.
+     * Main-loop only (not ISR-safe): push() and drain() share the plain queue
+     * cursors.
      */
     class BufferedLogWriter : public LogWriter {
     private:
@@ -61,7 +65,8 @@ namespace Botanik { namespace Logs {
         /** @name Entry queue
          *  @{ */
 
-        LogEntry_t _queue[Config::LOG_QUEUE_SIZE];   ///< ring of pending entries
+        /** ring of pending entries */
+        LogEntry_t _queue[Config::LOG_QUEUE_SIZE];
         uint8_t _readIndex = 0;
         uint8_t _writeIndex = 0;
 
@@ -70,7 +75,8 @@ namespace Botanik { namespace Logs {
         /** @name Outgoing message
          *  @{ */
 
-        char _message[Config::LOG_FORMATTED_LEN];   ///< entry currently being sent
+        /** entry currently being sent */
+        char _message[Config::LOG_FORMATTED_LEN];
         size_t _length = 0;   ///< total bytes in _message
         size_t _sent = 0;     ///< bytes already written
 
@@ -93,9 +99,11 @@ namespace Botanik { namespace Logs {
          *  (counted); a critical seats into the reserve, or evicts the oldest
          *  only if the queue is wholly full. */
         void push(const LogEntry_t* entry) override;
-        /** @brief Flush queued entries to the output medium (call from the main loop) */
+        /** @brief Flush queued entries to the output medium (call from the main
+         *  loop) */
         void drain() override;
-        /** @brief Entries dropped because the queue was full, plus format failures. */
+        /** @brief Entries dropped because the queue was full, plus format
+         *  failures. */
         uint32_t loss_count() const override { return _dropped + _failed; }
 
         /** @} */
@@ -164,8 +172,9 @@ namespace Botanik { namespace Logs {
      *
      * The console UI and this sink can share a terminal (sim: UI on stdout,
      * monitor on stderr; both land on the same screen unless stderr is
-     * redirected). Log lines would garble the display, so when the bound port is
-     * a tty (BufferedSerial::is_output_tty()) every entry is dropped at push() -
+     * redirected). Log lines would garble the display, so when the bound port
+     * is a tty (BufferedSerial::is_output_tty()) every entry is dropped at
+     * push() -
      * redirect to a file/pipe to capture the log. The monitor UART is never a
      * tty on hardware.
      */
@@ -183,7 +192,8 @@ namespace Botanik { namespace Logs {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief Bind to @p serial; suppression decided once from is_output_tty(). */
+        /** @brief Bind to @p serial; suppression decided once from
+         *  is_output_tty(). */
         MonitorLogWriter(BufferedSerial& serial);
 
         /** @} */
@@ -191,7 +201,8 @@ namespace Botanik { namespace Logs {
         /** @name Queue interface
          *  @{ */
 
-        /** @brief Enqueue @p entry, or drop it when the output is a shared terminal. */
+        /** @brief Enqueue @p entry, or drop it when the output is a shared
+         *  terminal. */
         void push(const LogEntry_t* entry) override;
 
         /** @} */

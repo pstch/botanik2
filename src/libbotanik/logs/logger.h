@@ -23,7 +23,8 @@ namespace Botanik { namespace Logs {
     /** @brief State of a single token bucket in the rate limiter. */
     struct LogBucket_t {
         uint16_t    state                   = 0;   ///< tokens available
-        uint16_t    suppressed              = 0;   ///< dropped since last report
+        /** dropped since last report */
+        uint16_t    suppressed              = 0;
         uint32_t    count                   = 0;   ///< total entries passed
     };
 
@@ -32,12 +33,14 @@ namespace Botanik { namespace Logs {
     struct LossReporter_t {
         uint32_t    reported_count          = 0;   ///< total already reported
         uint32_t    last_report_ms          = 0;
-        bool        reported                = false;   ///< gates the instant first report
+        /** gates the instant first report */
+        bool        reported                = false;
     };
 
     /** @class Logger
-     *  @brief Rate-limited logging front-end: applies the dual token-bucket limiter,
-     *         then fans surviving entries out to the registered writers. */
+     *  @brief Rate-limited logging front-end: applies the dual token-bucket
+     *         limiter, then fans surviving entries out to the registered
+     *         writers. */
     class Logger {
     private:
         using LogEntry_t = PlcIO::LogEntry_t;
@@ -60,8 +63,8 @@ namespace Botanik { namespace Logs {
         uint16_t        _perTopic_burst         = Config::LOG_PERTOPIC_BUCKET_BURST;
         uint32_t        _perTopic_period_ms     = Config::LOG_PERTOPIC_BUCKET_PERIOD_MS;
         uint32_t        _perTopic_fillTime_ms   = 0;
-        /** @brief Per-topic buckets. Sized by LOG_TOPIC_MAX (full wire range) so
-         *  the footprint is fixed as topics are added; only the first
+        /** @brief Per-topic buckets. Sized by LOG_TOPIC_MAX (full wire range)
+         *  so the footprint is fixed as topics are added; only the first
          *  LOG_TOPIC_COUNT are used. */
         LogBucket_t     _perTopic_buckets[Config::LOG_TOPIC_MAX];
 
@@ -70,7 +73,8 @@ namespace Botanik { namespace Logs {
         /** @name Suppression reporting
          *  @{ */
 
-        /** @brief Suppressed-report cadence (ms), decoupled from bucket refills. */
+        /** @brief Suppressed-report cadence (ms), decoupled from bucket
+         *  refills. */
         uint32_t        _suppress_period_ms     = Config::LOG_SUPPRESS_REPORT_PERIOD_MS;
         uint32_t        _suppress_reportTime_ms = 0;
 
@@ -110,7 +114,8 @@ namespace Botanik { namespace Logs {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief Construct a Logger with empty writer list and full rate-limit buckets */
+        /** @brief Construct a Logger with empty writer list and full rate-limit
+         *  buckets */
         Logger();
 
         /** @} */
@@ -118,11 +123,14 @@ namespace Botanik { namespace Logs {
         /** @name Writer management
          *  @{ */
 
-        /** @brief Register an output writer; false if the writer list is full */
+        /** @brief Register an output writer; false if the writer list is
+         *  full */
         bool add_writer(LogWriter* writer);
-        /** @brief Unregister a previously added writer; returns false if not found */
+        /** @brief Unregister a previously added writer; returns false if not
+         *  found */
         bool remove_writer(LogWriter* writer);
-        /** @brief True if at least one output writer is registered (POST check). */
+        /** @brief True if at least one output writer is registered (POST
+         *  check). */
         bool has_writers() const { return _writerCount > 0; }
 
         /** @brief Set the minimum forwarded level (criticals always pass); see
@@ -130,9 +138,9 @@ namespace Botanik { namespace Logs {
         void set_min_level(PlcIO::LogLevel lvl) { _min_level = lvl; }
         /** @brief Current minimum forwarded level. */
         PlcIO::LogLevel min_level() const { return _min_level; }
-        /** @brief Watch a serial so its TX-full drops are reported (the terminal
-         *  reserves space, so only non-resuming callers actually drop). Up to two
-         *  (console + monitor). */
+        /** @brief Watch a serial so its TX-full drops are reported (the
+         *  terminal reserves space, so only non-resuming callers actually
+         *  drop). Up to two (console + monitor). */
         void watch_tx(Utils::BufferedSerial* serial) {
             if (serial != nullptr && _watched_tx_count < 2)
                 _watched_tx[_watched_tx_count++] = serial;
@@ -143,9 +151,11 @@ namespace Botanik { namespace Logs {
         /** @name Dispatch
          *  @{ */
 
-        /** @brief Refill rate-limiting token buckets (call once per main-loop period) */
+        /** @brief Refill rate-limiting token buckets (call once per main-loop
+         *  period) */
         void step();
-        /** @brief Forward @p entry to all registered writers after rate-limit checks */
+        /** @brief Forward @p entry to all registered writers after rate-limit
+         *  checks */
         void push_entry(const LogEntry_t& entry);
 
         /** @} */
@@ -153,8 +163,8 @@ namespace Botanik { namespace Logs {
         /**
          * @name Level helpers
          * @brief Build a LogEntry_t (timestamped with HAL::current_ms()) at the
-         *        given @p topic from a printf-style message and forward it through
-         *        push_entry(). One helper per LogLevel.
+         *        given @p topic from a printf-style message and forward it
+         *        through push_entry(). One helper per LogLevel.
          * @{
          */
         void debug   (PlcIO::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
@@ -169,21 +179,24 @@ namespace Botanik { namespace Logs {
         /** @name Rate-limiting internals
          *  @{ */
 
-        /** @brief Try to take a token from @p bucket; returns false if empty. */
+        /** @brief Try to take a token from @p bucket; returns false if
+         *  empty. */
         bool _try_bucket(LogBucket_t* bucket);
         /** @brief Add @p amount tokens to @p bucket, clamped to @p burst. */
         void _fill_bucket(LogBucket_t* bucket, uint16_t amount, uint16_t burst);
-        /** @brief Push a CRITICAL entry straight to the writers (bypassing the rate
-         *  limiter) so loss/suppression reports survive the storm they describe. */
+        /** @brief Push a CRITICAL entry straight to the writers (bypassing the
+         *  rate limiter) so loss/suppression reports survive the storm they
+         *  describe. */
         void _emit_critical(PlcIO::LogTopic topic, uint32_t timestamp_ms,
                             const char* fmt, ...);
-        /** @brief Emit a synthetic warning if @p bucket has suppressed entries. */
+        /** @brief Emit a synthetic warning if @p bucket has suppressed
+         *  entries. */
         void _report_suppressed(LogBucket_t* bucket, PlcIO::LogTopic topic,
                                 uint32_t timestamp_ms);
-        /** @brief Edge-triggered loss report: emit a critical "<delta> <what>" entry
-         *  when @p total has grown and the holdoff elapsed (or on the first loss).
-         *  Pushed straight to the writers (bypassing the rate limiter), as
-         *  LOG_CRITICAL so the writers never drop it. */
+        /** @brief Edge-triggered loss report: emit a critical "<delta> <what>"
+         *  entry when @p total has grown and the holdoff elapsed (or on the
+         *  first loss). Pushed straight to the writers (bypassing the rate
+         *  limiter), as LOG_CRITICAL so the writers never drop it. */
         void _report_loss(LossReporter_t& rep, uint32_t total, uint32_t interval_ms,
                           uint32_t now_ms, const char* what);
         /** @brief Build a timestamped entry from a printf-style message and

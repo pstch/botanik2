@@ -13,7 +13,8 @@
 #include <type_traits>
 
 #include "libbotanik/hal/platform.h"
-#include "libbotanik/plcio/config.h"   // PlcOutputConfig_t - the generic config block
+// PlcOutputConfig_t - the generic config block
+#include "libbotanik/plcio/config.h"
 #include "libbotanik_config.h"
 
 namespace Botanik { namespace PlcIO {
@@ -22,8 +23,9 @@ namespace Botanik { namespace PlcIO {
     // identical whether packed or not - every field already sits at its natural
     // offset, with no implicit padding. That keeps the uint32 cursors readable
     // through plain pointers (no unaligned-access UB) and lets the PLC side
-    // mirror the layout byte-for-byte. The static_asserts below pin the expected
-    // sizes/offsets so a config change can't silently shift the layout.
+    // mirror the layout byte-for-byte. The static_asserts below pin the
+    // expected sizes/offsets so a config change can't silently shift the
+    // layout.
 
     /** @name Log protocol
      *  @{ */
@@ -38,8 +40,9 @@ namespace Botanik { namespace PlcIO {
         LOG_CRITICAL = 32,
     };
 
-    // Values are the wire protocol shared with the PLC, not a sequence; listed in
-    // ascending value order. Changing a value requires a matching PLC-side change.
+    // Values are the wire protocol shared with the PLC, not a sequence; listed
+    // in ascending value order. Changing a value requires a matching PLC-side
+    // change.
     /** @brief Log topic / category (wire value shared with the PLC). */
     enum LogTopic : uint8_t {
         NONE = 0,
@@ -51,7 +54,8 @@ namespace Botanik { namespace PlcIO {
         ASSERT = 6,        // C-side only (PLC never emits these): firmware assertions
         ALARM_START = 7,   // alarm went active
         ALARM_END = 8,     // alarm cleared
-        // alarm cleared without ever logging a START (toggled too fast to dwell)
+        // alarm cleared without ever logging a START (toggled too fast to
+        // dwell)
         ALARM_FLAP = 9,
         HEALTH = 10,       // HealthMonitor (POST verdict, etc.)
     };
@@ -60,9 +64,10 @@ namespace Botanik { namespace PlcIO {
     static_assert(Config::LOG_TOPIC_MAX < (1 << (sizeof(LogTopic)*8)),
                   "LOG_TOPIC_MAX exceeds the range of the LogTopic enum");
 
-    /** @brief Number of defined topics (the enum is dense 0..HEALTH). Bounds the
-     *  logger's per-tick scan loops so they cover the real topics instead of the
-     *  full wire range; the bucket array itself is sized by LOG_TOPIC_MAX. */
+    /** @brief Number of defined topics (the enum is dense 0..HEALTH). Bounds
+     *  the logger's per-tick scan loops so they cover the real topics instead
+     *  of the full wire range; the bucket array itself is sized by
+     *  LOG_TOPIC_MAX. */
     static constexpr uint8_t LOG_TOPIC_COUNT = HEALTH + 1;
     static_assert(LOG_TOPIC_COUNT <= Config::LOG_TOPIC_MAX, "LOG_TOPIC_COUNT exceeds LOG_TOPIC_MAX");
 
@@ -77,7 +82,8 @@ namespace Botanik { namespace PlcIO {
         char            message[Config::LOG_PLC_MESSAGE_LEN];  // @12 .. @267
     };
 
-    // Expected LogEntry_t size, spelled out: 12-byte header + the message buffer.
+    // Expected LogEntry_t size, spelled out: 12-byte header + the message
+    // buffer.
     static constexpr size_t LOG_ENTRY_SIZE = 12 + Config::LOG_PLC_MESSAGE_LEN;  // 268
     static_assert(sizeof(LogEntry_t)  == LOG_ENTRY_SIZE, "LogEntry_t layout drift");
     static_assert(sizeof(LogEntry_t)  % 4 == 0,          "LogEntry_t must be a multiple of 4");
@@ -88,13 +94,15 @@ namespace Botanik { namespace PlcIO {
     /** @name Sync counters
      *  @{ */
 
-    /** @brief PLC input-region sync counters (named from the PLC's point of view). */
+    /** @brief PLC input-region sync counters (named from the PLC's point of
+     *  view). */
     struct PlcInputCounters_t {
         uint32_t            rxSeqNum;
         uint32_t            txAckNum;
     };
 
-    /** @brief PLC output-region sync counters (named from the PLC's point of view). */
+    /** @brief PLC output-region sync counters (named from the PLC's point of
+     *  view). */
     struct PlcOutputCounters_t {
         uint32_t            txSeqNum;
         uint32_t            rxAckNum;
@@ -111,7 +119,8 @@ namespace Botanik { namespace PlcIO {
         uint32_t            readIndex;
     };
 
-    /** @brief PLC output log ring: write cursor (kept first) + the fixed log buffer. */
+    /** @brief PLC output log ring: write cursor (kept first) + the fixed log
+     *  buffer. */
     struct PlcOutputLogs_t {
         // kept first so its alignment is independent of the buffer size and
         // entry size
@@ -137,11 +146,11 @@ namespace Botanik { namespace PlcIO {
     // padding-free combined struct) so the PLC IDE's generated types match
     // byte-for-byte; the sketch's static_assert verifies this.
     //
-    // alignas(32): the host (Cortex-M7) does D-cache clean/invalidate by address
-    // over these regions, so each must own its cache lines end to end.
+    // alignas(32): the host (Cortex-M7) does D-cache clean/invalidate by
+    // address over these regions, so each must own its cache lines end to end.
     // alignas(32) gives a 32-byte-aligned base and rounds sizeof up to a
-    // multiple of 32, so no neighbour ever shares a boundary line. The PLC IDE's
-    // generated types must match this.
+    // multiple of 32, so no neighbour ever shares a boundary line. The PLC
+    // IDE's generated types must match this.
     /** @brief Host->PLC shared region: sync counters, the log read cursor, and
      *  the site payload. */
     template<typename Data>
@@ -159,10 +168,11 @@ namespace Botanik { namespace PlcIO {
 
     /** @brief PLC->host shared region: sync counters, the log ring, the generic
      *  config block, and the site payload.
-     *  @note The library-fixed `conf` block (network/NTP/MQTT, plcio/config.h) sits
-     *  between the logs and the site `data`. Adding/resizing it shifts the `data`
-     *  offset, so it is a coordinated wire-ABI change: the PLC IDE's generated type
-     *  must be updated to match (see @ref md_docs_2PLC__CONFIG). */
+     *  @note The library-fixed `conf` block (network/NTP/MQTT, plcio/config.h)
+     *  sits between the logs and the site `data`. Adding/resizing it shifts the
+     *  `data` offset, so it is a coordinated wire-ABI change: the PLC IDE's
+     *  generated type must be updated to match
+     *  (see @ref md_docs_2PLC__CONFIG). */
     template<typename Data>
     struct alignas(32) PlcOutput {
         static_assert(std::is_empty<Data>::value || sizeof(Data) % sizeof(uint32_t) == 0,

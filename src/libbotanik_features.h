@@ -20,8 +20,8 @@
  * The `#error` guards below fail the build loudly rather than silently
  * miscompiling:
  *  - NTP and MQTT need NETWORK (they run over the network stack).
- *  - NETWORK sources its config from the PLC config block, so it needs PLC until
- *    a config.h fallback lands.
+ *  - NETWORK sources its config from the PLC config block, so it needs PLC
+ *    until a config.h fallback lands.
  */
 
 /** @brief PLC coprocessor link: PlcSyncHandler, PlcLogReader, the PLC-fault
@@ -31,17 +31,20 @@
 #endif
 
 /** @brief Network stack (NetworkHandler / NameResolver). Reserved, default OFF
- *  (declared but not yet instantiated; off keeps a PLC-less build a single flag). */
+ *  (declared but not yet instantiated; off keeps a PLC-less build a single
+ *  flag). */
 #ifndef BOTANIK_FEATURE_NETWORK
 #  define BOTANIK_FEATURE_NETWORK 0
 #endif
 
-/** @brief NTP time sync (NtpClient). Reserved, default OFF; requires NETWORK. */
+/** @brief NTP time sync (NtpClient). Reserved, default OFF; requires
+ *  NETWORK. */
 #ifndef BOTANIK_FEATURE_NTP
 #  define BOTANIK_FEATURE_NTP 0
 #endif
 
-/** @brief MQTT client + alarm notifier. Reserved, default OFF; requires NETWORK. */
+/** @brief MQTT client + alarm notifier. Reserved, default OFF; requires
+ *  NETWORK. */
 #ifndef BOTANIK_FEATURE_MQTT
 #  define BOTANIK_FEATURE_MQTT 0
 #endif

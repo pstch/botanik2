@@ -19,8 +19,8 @@ namespace Botanik { namespace Pages {
      * @brief Full-screen log viewer page.
      *
      * A LogWriter: rows 1..rows-1 scroll as a live log tail. Incoming entries
-     * are queued by BufferedLogWriter and drained on tick(); history is replayed
-     * from a circular scrollback on (re)focus.
+     * are queued by BufferedLogWriter and drained on tick(); history is
+     * replayed from a circular scrollback on (re)focus.
      */
     class LogsPage : public Page, public Logs::BufferedLogWriter {
     private:
@@ -36,7 +36,8 @@ namespace Botanik { namespace Pages {
         /** @brief Circular log line buffer + throttled redraw for page-switch
          *         replay. */
         LogsScrollback _scrollback;
-        /** @brief Mirrors tick(active) so write() knows whether it may paint. */
+        /** @brief Mirrors tick(active) so write() knows whether it may
+         *  paint. */
         bool _active = false;
 
         /** @} */
@@ -73,8 +74,8 @@ namespace Botanik { namespace Pages {
         /** @name Internals
          *  @{ */
 
-        /** @brief Store a timestamped "--- MARK ---" line (SPACE), painted by the next
-         *         drain_tail. */
+        /** @brief Store a timestamped "--- MARK ---" line (SPACE), painted by
+         *         the next drain_tail. */
         void _emit_mark();
 
         /** @} */

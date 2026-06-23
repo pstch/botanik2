@@ -5,13 +5,14 @@
  * @file config_handler.h
  * @brief ConfigHandler - base for PLC-config-driven step handlers.
  *
- * Each config block carries a `serial` the PLC bumps on any edit (plcio/config.h);
- * this base watches it and resets the derived state machine before stepping it on a
- * change. Consumers: NetworkHandler (`net`), NtpClient (`ntp`), SunPositionTracker (`geo`).
+ * Each config block carries a `serial` the PLC bumps on any edit
+ * (plcio/config.h); this base watches it and resets the derived state machine
+ * before stepping it on a change. Consumers: NetworkHandler (`net`), NtpClient
+ * (`ntp`), SunPositionTracker (`geo`).
  *
- * Template Method: step() is non-virtual and fixes the order (read serial -> reset on
- * change -> advance). Hooks: config_serial(), on_config_changed() (reset + latch new
- * config), on_step() (advance).
+ * Template Method: step() is non-virtual and fixes the order (read serial ->
+ * reset on change -> advance). Hooks: config_serial(), on_config_changed()
+ * (reset + latch new config), on_step() (advance).
  */
 
 #include <cstdint>
@@ -28,8 +29,8 @@ namespace Botanik {
         /** @name State
          *  @{ */
 
-        /** @brief Last config serial acted on (0 = none yet, matches the unset block,
-         *  so a never-configured block never triggers a reset). */
+        /** @brief Last config serial acted on (0 = none yet, matches the unset
+         *  block, so a never-configured block never triggers a reset). */
         uint32_t _applied_serial;
 
         /** @} */
@@ -53,10 +54,10 @@ namespace Botanik {
             : _applied_serial(0), _ctx(ctx), _logger(logger), _name(name) {}
         virtual ~ConfigHandler() {}
 
-        /** @brief Advance one tick: announce, then on a config-serial change reset
-         *  (on_config_changed) before stepping (on_step). Non-virtual so the
-         *  read/reset/step order can't be reordered. The serial is in the main-loop RX
-         *  snapshot, so read without a barrier. */
+        /** @brief Advance one tick: announce, then on a config-serial change
+         *  reset (on_config_changed) before stepping (on_step). Non-virtual so
+         *  the read/reset/step order can't be reordered. The serial is in the
+         *  main-loop RX snapshot, so read without a barrier. */
         void step(uint64_t now_ms) {
             announce_step(_logger, _name);
             uint32_t serial = config_serial();
@@ -73,7 +74,8 @@ namespace Botanik {
         /** @name Helpers
          *  @{ */
 
-        /** @brief The generic config block (network/NTP/MQTT/geo), or null if no ctx. */
+        /** @brief The generic config block (network/NTP/MQTT/geo), or null if
+         *  no ctx. */
         const PlcIO::PlcOutputConfig_t* config() const {
             return _ctx ? _ctx->config() : nullptr;
         }
@@ -86,7 +88,8 @@ namespace Botanik {
         /** @brief Serial of the watched config block
          *  (e.g. config()->net.serial; 0 = none). */
         virtual uint32_t config_serial() const = 0;
-        /** @brief Reset and latch the new config (on a watched-serial change). */
+        /** @brief Reset and latch the new config (on a watched-serial
+         *  change). */
         virtual void on_config_changed(uint64_t now_ms) = 0;
         /** @brief Advance the state machine one tick. */
         virtual void on_step(uint64_t now_ms) = 0;
