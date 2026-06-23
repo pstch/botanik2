@@ -121,6 +121,11 @@ namespace Botanik { namespace Logs {
          *  @{ */
 
         BufferedSerial* _serial;   ///< bound output port
+        /** @brief drop every entry when the port is an interactive terminal: a diagnostic
+         *  monitor port can share a tty with the console UI (sim: UI on stdout, monitor on
+         *  stderr, same screen unless redirected), where log lines would garble the display.
+         *  Decided once at construction; the monitor UART is never a tty on hardware. */
+        bool _suppressed;
 
         /** @} */
 
@@ -128,8 +133,18 @@ namespace Botanik { namespace Logs {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief Bind the writer to the given serial port */
-        SerialLogWriter(BufferedSerial& serial);
+        /** @brief Bind the writer to @p serial. With @p drop_if_tty, the writer self-
+         *  suppresses (drops every entry at push()) when @p serial is an interactive
+         *  terminal - for a diagnostic monitor port that may share the console's tty. */
+        SerialLogWriter(BufferedSerial& serial, bool drop_if_tty = false);
+
+        /** @} */
+
+        /** @name Queue interface
+         *  @{ */
+
+        /** @brief Enqueue @p entry, or drop it when suppressed (shared terminal). */
+        void push(const LogEntry_t* entry) override;
 
         /** @} */
 
@@ -151,43 +166,6 @@ namespace Botanik { namespace Logs {
         size_t format(const LogEntry_t* entry, char* buf, size_t len);
         /** @brief Write @p len bytes to the bound serial port (never blocks) */
         size_t write(const char* buf, size_t len);
-
-        /** @} */
-    };
-
-    /**
-     * @brief SerialLogWriter for a diagnostic monitor port that self-suppresses
-     * when its output is an interactive terminal.
-     *
-     * The console UI and this sink can share a terminal (sim: UI on stdout, monitor
-     * on stderr; both land on the same screen unless stderr is redirected). Log lines
-     * would garble the display, so when the bound port is a tty
-     * (BufferedSerial::is_output_tty()) every entry is dropped at push() - redirect to
-     * a file/pipe to capture the log. The monitor UART is never a tty on hardware.
-     */
-    class MonitorLogWriter : public SerialLogWriter {
-    private:
-        /** @name State
-         *  @{ */
-
-        bool _suppressed;   ///< output is a tty: drop so it can't garble a shared display
-
-        /** @} */
-
-    public:
-        /** @name Lifecycle
-         *  @{ */
-
-        /** @brief Bind to @p serial; suppression decided once from is_output_tty(). */
-        MonitorLogWriter(BufferedSerial& serial);
-
-        /** @} */
-
-        /** @name Queue interface
-         *  @{ */
-
-        /** @brief Enqueue @p entry, or drop it when the output is a shared terminal. */
-        void push(const LogEntry_t* entry) override;
 
         /** @} */
     };

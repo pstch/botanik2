@@ -80,14 +80,14 @@ rotating buckets), both in `utils/filters.h`. All tuning constants live in
 
 ## Publishing
 
-`PerfContext` holds the CPU-load / loop-time / stack fields; `SchedulerContext`
-inherits it and adds jitter plus `tick_count`, `overruns`, `ticks_per_second`, and the
-shared per-tick `timestamp_ms`. The scheduler writes every field in place (no copy
-step); consumers (status bar, `stats` command, PLC sync timing) all read this one
-struct via `LoopScheduler::context()`.
+`SchedulerContext` holds the CPU-load / loop-time / stack fields, jitter, plus
+`tick_count`, `overruns`, `ticks_per_second`, and the shared per-tick `timestamp_ms`.
+The scheduler writes every field in place (no copy step); consumers (status bar,
+`stats` command, PLC sync timing) all read this one struct via
+`LoopScheduler::context()`.
 
 \startuml "SchedulerContext: the metrics struct, read via LoopScheduler::context()"
-class PerfContext {
+class SchedulerContext {
   cpu_load_ema : float - duty cycle (active fraction of period)
   cpu_loop_us_recent : uint32 - windowed peak work duration (us)
   cpu_loop_us_max : uint32 - all-time peak work duration (us)
@@ -95,8 +95,6 @@ class PerfContext {
   stack_bytes_free : uint32 - worst-case free stack (bytes)
   stack_depth : uint32 - total stack allocation (bytes)
   ticks_per_second : uint32 - achieved loop rate
-}
-class SchedulerContext {
   cpu_jitter_ema : float - smoothed tick jitter
   cpu_jitter_us_recent : uint32 - windowed peak jitter (us)
   cpu_jitter_us_max : uint32 - all-time peak jitter (us)
@@ -104,5 +102,4 @@ class SchedulerContext {
   overruns : uint32 - beats skipped on overrun
   timestamp_ms : uint32 - shared per-tick now (wraps ~49 days)
 }
-PerfContext <|-- SchedulerContext
 \enduml
