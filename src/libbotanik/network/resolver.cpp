@@ -3,7 +3,8 @@
  * @brief NameResolver - non-blocking hostname -> IPv4 via HAL::Net DNS poll API.
  *
  * IPv4 literals are parsed locally (no DNS, no table slot); hostnames go through
- * dns_begin/dns_poll (sim backend uses getaddrinfo synchronously).
+ * the non-blocking dns_begin/dns_poll poll API (async on both backends:
+ * gethostbyname_async on OPTA, an in-process emulated resolver on the sim).
  */
 
 #include "libbotanik/network/resolver.h"
@@ -16,9 +17,10 @@
 namespace Botanik { namespace Network {
 
     namespace {
-        // Parse a dotted-decimal IPv4 literal ("a.b.c.d", each octet 0..255) into four
-        // octets. Returns false on anything else (a hostname, partial, or out-of-range),
-        // so a name falls through to DNS. Strict: rejects trailing junk and empty octets.
+        // Parse a dotted-decimal IPv4 literal ("a.b.c.d", each octet 0..255) into
+        // four octets. Returns false on anything else (a hostname, partial, or
+        // out-of-range), so a name falls through to DNS. Strict: rejects trailing
+        // junk and empty octets.
         bool parse_ipv4(const char* s, ResolvedAddr* out) {
             ResolvedAddr tmp = {{0, 0, 0, 0}};
             uint32_t octet = 0;
@@ -66,7 +68,8 @@ namespace Botanik { namespace Network {
     NameResolver::Entry* NameResolver::_find(const char* host) {
         for (size_t i = 0; i < Config::DNS_CACHE_SIZE; ++i) {
             Entry& e = _table[i];
-            if (e.state != SLOT_FREE && strncmp(e.host, host, Config::PLC_HOST_STR_LEN) == 0)
+            if (e.state != SLOT_FREE &&
+                strncmp(e.host, host, Config::PLC_HOST_STR_LEN) == 0)
                 return &e;
         }
         return nullptr;
@@ -77,7 +80,8 @@ namespace Botanik { namespace Network {
         for (size_t i = 0; i < Config::DNS_CACHE_SIZE; ++i) {
             uint8_t st = _table[i].state;
             if (st == SLOT_FREE) return &_table[i];
-            // First non-pending row is an evictable cache/error entry (fallback).
+            // First non-pending row is an evictable cache/error entry
+            // (fallback).
             if (st != SLOT_PENDING && victim == nullptr) victim = &_table[i];
         }
         return victim;   // null only if every row is PENDING
@@ -109,9 +113,11 @@ namespace Botanik { namespace Network {
             return RESOLVE_FAILED;
         }
 
-        // Start (or poll) a HAL DNS lookup. A row stores its DnsHandle while pending.
+        // Start (or poll) a HAL DNS lookup. A row stores its DnsHandle while
+        // pending.
         e = _alloc();
-        if (e == nullptr) return RESOLVE_FAILED;       // every row is an in-flight lookup
+        // null only if every row is an in-flight lookup.
+        if (e == nullptr) return RESOLVE_FAILED;
 
         HAL::Net::DnsHandle h = HAL::Net::dns_begin(host);
         if (h == 0) {                                  // could not start
@@ -123,7 +129,8 @@ namespace Botanik { namespace Network {
         e->handle = h;
         e->state  = SLOT_PENDING;
 
-        // Poll immediately: the sim resolves synchronously, and OPTA may hit a stack cache.
+        // Poll once now: usually PENDING (later resolve() calls drive it), but an
+        // OPTA stack-cache hit can land a result immediately.
         HAL::Net::Ip4 ip;
         HAL::Net::DnsResult r = HAL::Net::dns_poll(h, &ip);
         if (r == HAL::Net::DNS_OK) {

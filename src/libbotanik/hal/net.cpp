@@ -1,8 +1,11 @@
 /**
  * @file net.cpp
- * @brief HAL::Net backends. OPTA wraps Mbed sockets; the simulator uses Linux BSD
- *        sockets so NTP/MQTT genuinely run on the host. The TARGET_OPTA / TARGET_SIMULATOR
- *        split is legal here: this file is part of the HAL.
+ * @brief HAL::Net backends. OPTA wraps Mbed sockets; the simulator uses real BSD
+ *        sockets but resolves every name to loopback, so it only ever reaches the
+ *        in-process mock responder (network/sim_netd.h) - never the public
+ *        network. The transport here is protocol-agnostic on both targets;
+ *        NTP/MQTT wire knowledge lives above it. The TARGET_OPTA /
+ *        TARGET_SIMULATOR split is legal here: this file is part of the HAL.
  */
 
 #include "libbotanik/hal/net.h"
@@ -30,7 +33,8 @@ namespace Botanik { namespace HAL { namespace Net {
         UDPSocket g_udp[MAX_UDP]; bool g_udp_used[MAX_UDP] = {false, false};
         TCPSocket g_tcp[MAX_TCP]; bool g_tcp_used[MAX_TCP] = {false, false};
 
-        // DNS slot table: handle -> {state, addr}. Async callback publishes state.
+        // DNS slot table: handle -> {state, addr}. Async callback publishes the
+        // state.
         // st: 0 free, 1 pending, 2 ok, 3 failed
         const int MAX_DNS = 4;
         struct DnsSlot { volatile uint8_t st; Ip4 addr; int mbed_handle; DnsHandle id; };
@@ -171,21 +175,27 @@ namespace Botanik { namespace HAL { namespace Net {
 }}}
 
 #else
-// ---- Simulator backend (Linux BSD sockets) ----
+// ---- Simulator backend (real BSD sockets, loopback-only) ----
+//
+// Thin and protocol-agnostic, like the OPTA backend: it opens real host sockets
+// but every name resolves to 127.0.0.1, so the only peer it can reach is the
+// in-process mock NTP/MQTT responder (network/sim_netd.h) listening on loopback.
+// Nothing reaches the public network. DNS is the one emulated piece - it mirrors
+// the OPTA gethostbyname_async poll model rather than blocking in getaddrinfo. No
+// NTP/MQTT wire knowledge lives here; that stays in the responder and in network/.
 
 #include <cstring>
 #include <cerrno>
 #include <fcntl.h>
 #include <unistd.h>
-#include <netdb.h>
-#include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 
 namespace Botanik { namespace HAL { namespace Net {
 
     namespace {
-        // Set O_NONBLOCK on a fd; returns the fd (or -1 on failure after closing it).
+        // Set O_NONBLOCK on a fd; returns the fd (or -1 on failure after closing
+        // it).
         int set_nonblock(int fd) {
             int fl = fcntl(fd, F_GETFL, 0);
             if (fl < 0 || fcntl(fd, F_SETFL, fl | O_NONBLOCK) < 0) { ::close(fd); return -1; }
@@ -199,52 +209,75 @@ namespace Botanik { namespace HAL { namespace Net {
             memcpy(&s.sin_addr, a.b, 4);
             return s;
         }
+        bool is_loopback(const Ip4& a) { return a.b[0] == 127; }
     }  // namespace
 
-    // Link: the host network is always up. No device to configure.
+    // Link: always up at a fixed loopback address (callers only log / non-null
+    // check it).
     void      link_configure(const LinkConfig&) {}
     void      link_disconnect() {}
     LinkState link_status() { return LINK_UP; }
     bool      link_ip(Ip4* out) {
         if (out == 0) return false;
-        out->b[0] = 127; out->b[1] = 0; out->b[2] = 0; out->b[3] = 1;   // loopback: sufficient (callers only log / check non-null)
+        out->b[0] = 127; out->b[1] = 0; out->b[2] = 0; out->b[3] = 1;
         return true;
     }
 
-    // DNS: synchronous getaddrinfo surfaced through the poll API. The handle encodes the
-    // terminal result directly (no in-flight state): 2 == OK, 3 == FAILED. Resolved address
-    // in a single global slot - safe only because the caller polls immediately after
-    // dns_begin (no interleaved concurrent lookups).
+    // DNS: emulated async resolver mirroring the OPTA gethostbyname_async poll
+    // model - dns_begin stamps a short deadline, dns_poll returns PENDING until it
+    // passes, then 127.0.0.1 (the loopback responder), or FAILED for an
+    // unresolvable name. An all-numeric malformed literal is rejected up front
+    // (Mbed DNS would fail it too).
     namespace {
-        Ip4      g_dns_addr;
+        const int      MAX_DNS     = 4;
+        const uint32_t DNS_STEP_MS = 25;   // emulated lookup latency
+        struct DnsSlot { DnsHandle id; uint64_t ready_ms; bool fail; };   // id 0 = free
+        DnsSlot   g_dns[MAX_DNS] = {};
         DnsHandle g_dns_next = 1;
+        // Refused by the emulated resolver: a *.invalid name (RFC 6761) or
+        // anything with a character illegal in a hostname (so junk like a trailing
+        // space fails, as on real DNS).
+        bool unresolvable(const char* h) {
+            size_t n = strlen(h);
+            if (n >= 8 && strcmp(h + n - 8, ".invalid") == 0) return true;
+            for (const char* p = h; *p; ++p) {
+                char c = *p;
+                bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                          (c >= '0' && c <= '9') || c == '.' || c == '-';
+                if (!ok) return true;
+            }
+            return false;
+        }
     }
     DnsHandle dns_begin(const char* host) {
         if (host == 0 || host[0] == '\0') return 0;
-        // A valid dotted-quad literal is handled by the caller before reaching here.
-        // Any remaining all-numeric string (digits and '.') is a malformed literal;
-        // hardware Mbed DNS treats it as a hostname and fails, so reject it here too
-        // rather than letting getaddrinfo coerce classful notation (e.g. "1.2.3" -> 1.2.0.3).
+        bool numeric = true;
         for (const char* p = host; *p; ++p)
-            if ((*p < '0' || *p > '9') && *p != '.') goto not_numeric;
-        return (++g_dns_next << 2) | 3;   // all-numeric malformed literal - FAILED
-        not_numeric:
-        addrinfo hints; memset(&hints, 0, sizeof(hints));
-        hints.ai_family = AF_INET;
-        addrinfo* res = 0;
-        DnsHandle h = ++g_dns_next;
-        if (getaddrinfo(host, 0, &hints, &res) != 0 || res == 0)
-            return (h << 2) | 3;   // FAILED
-        sockaddr_in* sin = reinterpret_cast<sockaddr_in*>(res->ai_addr);
-        memcpy(g_dns_addr.b, &sin->sin_addr, 4);
-        freeaddrinfo(res);
-        return (h << 2) | 2;       // OK
+            if ((*p < '0' || *p > '9') && *p != '.') { numeric = false; break; }
+        if (numeric) return 0;          // malformed numeric literal -> could-not-start
+        DnsSlot* s = 0;
+        for (int i = 0; i < MAX_DNS; ++i) if (g_dns[i].id == 0) { s = &g_dns[i]; break; }
+        if (s == 0) return 0;
+        s->id       = ++g_dns_next;
+        s->ready_ms = uptime_ms() + DNS_STEP_MS;
+        s->fail     = unresolvable(host);
+        return s->id;
     }
     DnsResult dns_poll(DnsHandle h, Ip4* out) {
-        if ((h & 3) == 2) { if (out) *out = g_dns_addr; return DNS_OK; }
+        for (int i = 0; i < MAX_DNS; ++i) {
+            if (g_dns[i].id != h) continue;
+            if (uptime_ms() < g_dns[i].ready_ms) return DNS_PENDING;
+            bool fail = g_dns[i].fail;
+            g_dns[i].id = 0;            // consume the slot
+            if (fail) return DNS_FAILED;
+            if (out) { out->b[0] = 127; out->b[1] = 0; out->b[2] = 0; out->b[3] = 1; }
+            return DNS_OK;
+        }
         return DNS_FAILED;
     }
-    void dns_cancel(DnsHandle) {}
+    void dns_cancel(DnsHandle h) {
+        for (int i = 0; i < MAX_DNS; ++i) if (g_dns[i].id == h) { g_dns[i].id = 0; return; }
+    }
 
     UdpSocket udp_open() {
         int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
@@ -252,6 +285,9 @@ namespace Botanik { namespace HAL { namespace Net {
     }
     bool udp_sendto(UdpSocket s, const Ip4& a, uint16_t port, const void* buf, size_t len) {
         if (s < 0) return false;
+        // No privileged ports in the sim: route loopback NTP (123) to the mock
+        // responder.
+        if (port == 123 && is_loopback(a)) port = NTP_MOCK_PORT;
         sockaddr_in sin = make_sin(a, port);
         ssize_t n = ::sendto(s, buf, len, 0, reinterpret_cast<sockaddr*>(&sin), sizeof(sin));
         return n == (ssize_t)len;

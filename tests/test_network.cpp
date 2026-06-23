@@ -1,9 +1,9 @@
 /**
  * @file test_network.cpp
- * @brief Host-side tests for the network components. The simulator backend uses real
- *        Linux BSD sockets, so DNS/UDP/TCP actually run on the host - against deterministic
- *        offline targets (.invalid names, TEST-NET-1 192.0.2.x addresses). Tests observe
- *        config-gated state and non-blocking behaviour:
+ * @brief Host-side tests for the network components. The simulator backend uses
+ *        real Linux BSD sockets, so DNS/UDP/TCP actually run on the host - against
+ *        deterministic offline targets (.invalid names, TEST-NET-1 192.0.2.x
+ *        addresses). Tests observe config-gated state and non-blocking behaviour:
  *          - NetworkHandler: link comes up on config, idles when config is cleared,
  *          - MqttClient:     never falsely "connected"; connect to TEST-NET-1 never completes,
  *          - NtpClient: stepped as a Component; UDP query to TEST-NET-1 is non-blocking.
@@ -64,7 +64,8 @@ TEST_CASE("MqttClient: never reports connected to a dead broker; publish gated o
 
     fx.conf().mqtt.serial  = 1;
     fx.conf().mqtt.enabled = 1;
-    std::strncpy(fx.conf().mqtt.broker, "192.0.2.1", Config::PLC_HOST_STR_LEN - 1);  // TEST-NET-1
+    // TEST-NET-1
+    std::strncpy(fx.conf().mqtt.broker, "192.0.2.1", Config::PLC_HOST_STR_LEN - 1);
     fx.publish();
     for (int i = 0; i < 5; ++i) mqtt.step(HAL::uptime_ms());
 
@@ -89,17 +90,22 @@ TEST_CASE("NtpClient: stepped as a Component (announces once); query is non-bloc
 
     fx.conf().ntp.serial  = 1;
     fx.conf().ntp.enabled = 1;
-    // TEST-NET-1 literal: a real UDP send goes nowhere, so the reply never arrives and
-    // the query stays non-blocking (no DNS, no real NTP traffic).
+    // TEST-NET-1 literal: a non-mock address the emulated UDP layer never answers,
+    // so the reply never arrives and the query stays non-blocking (no sync).
     std::strncpy(fx.conf().ntp.server1, "192.0.2.1", Config::PLC_HOST_STR_LEN - 1);
     fx.publish();
 
     for (int i = 0; i < 5; ++i) ts.step(HAL::uptime_ms());   // must not fault or block
 
 #ifdef DEBUG
-    // >= 1 not == 1: the live UDP path and link-up sequence may emit extra log lines
-    // beyond the first-step announce, so exact count is not pinned.
+    // >= 1 not == 1: the live UDP path and link-up sequence may emit extra log
+    // lines beyond the first-step announce, so exact count is not pinned.
     CHECK(w.pushes >= 1);
     CHECK(std::string(w.last_msg).find("NtpClient") != std::string::npos);
 #endif
 }
+
+// Note: the NTP-synced / MQTT-connected success paths need the loopback mock
+// responder (network/sim_netd.h), which runs only in the full simulator, so they
+// are exercised end-to-end by the pyte suite rather than here. These unit tests
+// cover the config-gated state machines and the non-blocking dead-peer behaviour.
