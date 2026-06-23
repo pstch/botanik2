@@ -103,12 +103,14 @@ namespace Botanik {
         /** @name Configuration
          *  @{ */
 
-        uint32_t                  _baud;          // console/monitor baud (sizes the TX gates)
-        const Alarms::AlarmCondition* _alarm_table;  // site PLC alarm table (copied into the model)
-        size_t                    _alarm_count;
+        /** @brief Console/monitor baud (sizes the TX gates). */
+        uint32_t                      _baud;
+        /** @brief Site PLC alarm table (copied into the model). */
+        const Alarms::AlarmCondition* _alarm_table;
+        size_t                        _alarm_count;
         /** @brief HW-watchdog period armed in setup(); the harness overrides it (the
          *  simulator dilates it) via set_hw_watchdog_ms() before setup(). */
-        uint32_t                  _hw_watchdog_ms = Config::HW_WATCHDOG_MS;
+        uint32_t                      _hw_watchdog_ms = Config::HW_WATCHDOG_MS;
 
         /** @} */
 
@@ -116,33 +118,33 @@ namespace Botanik {
          *  @{ */
 
 #if BOTANIK_FEATURE_TERMINAL
-        Utils::BufferedSerial     _console_serial;  // dropped when headless (no UI)
+        Utils::BufferedSerial          _console_serial;  // dropped headless (no UI)
 #endif
-        Utils::BufferedSerial     _monitor_serial;
-        Logs::Logger              _logger;
-        Logs::MonitorLogWriter    _monitor;
-        Scheduler::LoopScheduler  _scheduler;
+        Utils::BufferedSerial          _monitor_serial;
+        Logs::Logger                   _logger;
+        Logs::MonitorLogWriter         _monitor;
+        Scheduler::LoopScheduler       _scheduler;
 #if BOTANIK_FEATURE_PLC
         PlcIO::PlcSyncHandler<In, Out> _plc_handler;
-        PlcIO::PlcLogReader       _plc_log_reader;
+        PlcIO::PlcLogReader            _plc_log_reader;
 #endif
-        Health::HealthMonitor     _health;
-        SystemContext             _sys_ctx;
+        Health::HealthMonitor          _health;
+        SystemContext                  _sys_ctx;
 #if BOTANIK_FEATURE_NETWORK
-        Network::NameResolver     _resolver;
-        Network::NetworkHandler   _network;
+        Network::NameResolver          _resolver;
+        Network::NetworkHandler        _network;
 #endif
 #if BOTANIK_FEATURE_NTP
-        Network::NtpClient  _ntp;
+        Network::NtpClient             _ntp;
 #endif
 #if BOTANIK_FEATURE_MQTT
-        Network::MqttClient       _mqtt;
+        Network::MqttClient            _mqtt;
 #endif
 #if BOTANIK_FEATURE_TERMINAL
-        Terminal::AnsiTerminal    _terminal;
-        Pages::ShellPage          _shell_page;
-        Pages::LogsPage           _logs_page;
-        Pages::AlarmsPage         _alarms_page;
+        Terminal::AnsiTerminal         _terminal;
+        Pages::ShellPage               _shell_page;
+        Pages::LogsPage                _logs_page;
+        Pages::AlarmsPage              _alarms_page;
 #endif
 
         /** @} */
@@ -169,7 +171,8 @@ namespace Botanik {
               _monitor(_monitor_serial),
               _scheduler(Config::TASK_PERIOD_MS, &_logger),
 #if BOTANIK_FEATURE_PLC
-              _plc_handler(shared_in, shared_out, &_scheduler.context()->timestamp_ms, &_logger),
+              _plc_handler(shared_in, shared_out,
+                           &_scheduler.context()->timestamp_ms, &_logger),
               _plc_log_reader(_plc_handler.context(), &_logger),
               _health(_alarm_table, (uint8_t)_alarm_count, &_logger,
                       _scheduler.context(), _plc_handler.context(),
@@ -303,8 +306,8 @@ namespace Botanik {
 #endif
 
 #if BOTANIK_FEATURE_NETWORK
-            // Config-driven network services. On the simulator the link reports up but
-            // the stack is inert (no sockets), so these idle.
+            // Config-driven network services. On the simulator these talk over loopback to
+            // an in-process mock responder (network/sim_netd.h); no public network I/O.
             _network.step(now_ms);
 #endif
 #if BOTANIK_FEATURE_NTP
@@ -354,8 +357,12 @@ namespace Botanik {
         /** @brief HAL's PLC region cast to the typed PlcInput/PlcOutput<>. The one place
          *  the cast from HAL's opaque void* lives. On the simulator HAL returns null (the
          *  sim binds its own mock region through the explicit ctor). */
-        static PlcIO::PlcInput<In>*   hal_input()  { return static_cast<PlcIO::PlcInput<In>*>(HAL::get_plc_input()); }
-        static PlcIO::PlcOutput<Out>* hal_output() { return static_cast<PlcIO::PlcOutput<Out>*>(HAL::get_plc_output()); }
+        static PlcIO::PlcInput<In>* hal_input() {
+            return static_cast<PlcIO::PlcInput<In>*>(HAL::get_plc_input());
+        }
+        static PlcIO::PlcOutput<Out>* hal_output() {
+            return static_cast<PlcIO::PlcOutput<Out>*>(HAL::get_plc_output());
+        }
 
         /** @} */
 #endif
@@ -377,7 +384,7 @@ namespace Botanik {
         Network::NameResolver&          resolver()        { return _resolver; }
 #endif
 #if BOTANIK_FEATURE_NTP
-        Network::NtpClient&       ntp()       { return _ntp; }
+        Network::NtpClient&             ntp()             { return _ntp; }
 #endif
 #if BOTANIK_FEATURE_MQTT
         Network::MqttClient&            mqtt()            { return _mqtt; }

@@ -66,9 +66,9 @@ namespace Botanik { namespace Terminal {
 
         AnsiTerminal* _terminal;       /**< Owning terminal. */
 
-        char     _buf[Config::SHELL_INPUT_LEN];  /**< Editor buffer. */
-        uint16_t _len = 0;             /**< Bytes in _buf. */
-        uint16_t _pos = 0;             /**< Cursor offset in _buf. */
+        char     _buf[Config::SHELL_INPUT_LEN]; /**< Editor buffer. */
+        uint16_t _len    = 0;          /**< Bytes in _buf. */
+        uint16_t _pos    = 0;          /**< Cursor offset in _buf. */
         uint16_t _origin = 0;          /**< Prompt's top row on screen. */
 
         TextView _layout{};            /**< Current/target row layout. */
@@ -93,7 +93,8 @@ namespace Botanik { namespace Terminal {
          * @{
          */
 
-        /** @brief Set the PS1/PS2/PS3 prompt (first row / soft-wrap / after a hard `\\n`). */
+        /** @brief Set the PS1/PS2/PS3 prompt (first row / soft-wrap / after a
+         *  hard `\\n`). */
         void set_ps1(const char* buf, uint16_t len) { _set_ps(RowPrompt::PS1, buf, len); }
         void set_ps2(const char* buf, uint16_t len) { _set_ps(RowPrompt::PS2, buf, len); }
         void set_ps3(const char* buf, uint16_t len) { _set_ps(RowPrompt::PS3, buf, len); }
@@ -201,7 +202,8 @@ namespace Botanik { namespace Terminal {
         const char* buffer() const     { return _buf; }
         /** @brief Number of bytes in the editor buffer. */
         uint16_t    buffer_len() const { return _len; }
-        /** @brief Cursor byte offset in the buffer (0..buffer_len()); for kill-to-EOL. */
+        /** @brief Cursor byte offset in the buffer (0..buffer_len()); for
+         *  kill-to-EOL. */
         uint16_t    cursor_offset() const { return _pos; }
 
         /** @} */
@@ -292,7 +294,8 @@ namespace Botanik { namespace Terminal {
          *  fit; return the new origin (for the later shrink). */
         uint16_t _grow_editor();
 
-        /** @brief Bottom-pinned shrink: slide the editor down once its rows collapsed. */
+        /** @brief Bottom-pinned shrink: slide the editor down once its rows
+         *  collapsed. */
         void _shrink_editor(uint16_t new_origin);
 
         /** @brief Full-paint row `post_idx` (prompt + content + clear): an IL-opened

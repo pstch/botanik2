@@ -9,16 +9,17 @@
  * @brief Global configuration parameters for the Botanik library.
  *
  * Every parameter below is overridable per site. Each value defaults from a
- * `BOTANIK_<NAME>` macro guarded by `#ifndef`, so a site can pin a different value
- * by `#define`-ing that macro before the default is seen. The selected site may ship
- * `src/sites/<name>/config.h` doing exactly that; CMake passes its path as
- * BOTANIK_SITE_CONFIG and includes it below, *PUBLIC on the botanik library* so the
- * override is build-wide - libbotanik's own TUs and every consumer compile against
- * the same values (anything else is an ABI mismatch, e.g. a torn PLC log layout).
+ * `BOTANIK_<NAME>` macro guarded by `#ifndef`, so a site can pin a different
+ * value by `#define`-ing that macro before the default is seen. The selected
+ * site may ship `src/sites/<name>/config.h` doing exactly that; CMake passes its
+ * path as BOTANIK_SITE_CONFIG and includes it below, *PUBLIC on the botanik
+ * library* so the override is build-wide - libbotanik's own TUs and every
+ * consumer compile against the same values (anything else is an ABI mismatch,
+ * e.g. a torn PLC log layout).
  */
 
 #if defined(BOTANIK_SITE_CONFIG)
-#  include BOTANIK_SITE_CONFIG   // site overrides: #define BOTANIK_* before the defaults
+#  include BOTANIK_SITE_CONFIG   // #define BOTANIK_* before the defaults
 #endif
 
 // Feature flags (BOTANIK_FEATURE_*). Included after the site config (so a site
@@ -26,10 +27,11 @@
 // Config also sees Features.
 #include "libbotanik_features.h"
 
-// Declare a Config value from its #ifndef-guarded BOTANIK_<NAME> default. The guard
-// triplet above each call can't be folded in - the preprocessor never re-reads a
-// macro's output as a directive, so a macro can't emit #ifndef - this only keeps the
-// declaration DRY and the name impossible to mistype. #undef'd at end of file.
+// Declare a Config value from its #ifndef-guarded BOTANIK_<NAME> default. The
+// guard triplet above each call can't be folded in - the preprocessor never
+// re-reads a macro's output as a directive, so a macro can't emit #ifndef - this
+// only keeps the declaration DRY and the name impossible to mistype. #undef'd at
+// end of file.
 #define BOTANIK_CFG(type, name) static constexpr type name = BOTANIK_##name
 
 namespace Botanik { namespace Config {
@@ -46,7 +48,8 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(const char*, FIRMWARE_VERSION);
 
-    /** @brief MQTT topic prefix for alarm notifications. Site identity; pinned per site. */
+    /** @brief MQTT topic prefix for alarm notifications. Site identity; pinned
+     *  per site. */
 #ifndef BOTANIK_MQTT_TOPIC_PREFIX
 #  define BOTANIK_MQTT_TOPIC_PREFIX "botanik"
 #endif
@@ -207,13 +210,15 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(size_t, LOG_PLC_MESSAGE_LEN);
 
-    /** @brief Interval between unsolicited TX frames sent to keep the PLC link alive */
+    /** @brief Interval between unsolicited TX frames sent to keep the PLC link
+     *  alive */
 #ifndef BOTANIK_PLC_HEARTBEAT_MS
 #  define BOTANIK_PLC_HEARTBEAT_MS 250
 #endif
     BOTANIK_CFG(uint32_t, PLC_HEARTBEAT_MS);
 
-    /** @brief Time without a TX acknowledgement before the link is considered timed out */
+    /** @brief Time without a TX acknowledgement before the link is considered
+     *  timed out */
 #ifndef BOTANIK_PLC_TIMEOUT_MS
 #  define BOTANIK_PLC_TIMEOUT_MS 2500
 #endif
@@ -277,7 +282,8 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, NET_SETUP_TIMEOUT_MS);
 
-    /** @brief Backoff after a failed (or lost) bring-up before NetworkHandler retries. */
+    /** @brief Backoff after a failed (or lost) bring-up before NetworkHandler
+     *  retries. */
 #ifndef BOTANIK_NET_RETRY_MS
 #  define BOTANIK_NET_RETRY_MS 10000
 #endif
@@ -328,7 +334,8 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, MQTT_KEEPALIVE_DEFAULT_S);
 
-    /** @brief Max time to establish the TCP + MQTT session before failing / backing off. */
+    /** @brief Max time to establish the TCP + MQTT session before failing /
+     *  backing off. */
 #ifndef BOTANIK_MQTT_CONNECT_TIMEOUT_MS
 #  define BOTANIK_MQTT_CONNECT_TIMEOUT_MS 10000
 #endif
@@ -428,7 +435,8 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(size_t, LOG_QUEUE_CRITICAL_RESERVE);
 
-    /** @brief Maximum length of a single formatted log line including metadata (bytes) */
+    /** @brief Maximum length of a single formatted log line including metadata
+     *  (bytes) */
 #ifndef BOTANIK_LOG_FORMATTED_LEN
 #  define BOTANIK_LOG_FORMATTED_LEN 256
 #endif
@@ -546,15 +554,15 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_TX_STATUS_FIELDS_PER_TICK
 #  define BOTANIK_TX_STATUS_FIELDS_PER_TICK 2
 #endif
-    BOTANIK_CFG(uint16_t, TX_STATUS_FIELDS_PER_TICK);   // status bar (clock, metrics)
+    BOTANIK_CFG(uint16_t, TX_STATUS_FIELDS_PER_TICK);  // status bar (clock, metrics)
 #ifndef BOTANIK_TX_HOT_FIELDS_PER_TICK
 #  define BOTANIK_TX_HOT_FIELDS_PER_TICK 4
 #endif
-    BOTANIK_CFG(uint16_t, TX_HOT_FIELDS_PER_TICK);       // page hot (clock/uptime/serial)
+    BOTANIK_CFG(uint16_t, TX_HOT_FIELDS_PER_TICK);     // page hot (clock/uptime/serial)
 #ifndef BOTANIK_TX_COLD_FIELDS_PER_TICK
 #  define BOTANIK_TX_COLD_FIELDS_PER_TICK 4
 #endif
-    BOTANIK_CFG(uint16_t, TX_COLD_FIELDS_PER_TICK);       // page cold values + draw_static
+    BOTANIK_CFG(uint16_t, TX_COLD_FIELDS_PER_TICK);    // page cold values + draw_static
 
     /** @brief Max decoded input events handled per tick. Too low: typing/paste feels
      *  sluggish and the RX ring backs up. Too high: a big paste echoes a large burst in

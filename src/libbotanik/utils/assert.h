@@ -36,10 +36,12 @@ namespace Botanik {
     inline void assert_fail(const char* expr, const char* file, int line) {
         Logs::Logger* logger = get_assert_logger();
         if (logger != nullptr)
-            logger->critical(PlcIO::ASSERT, "assertion failed: %s (%s:%d)", expr, file, line);
-        if (HAL::under_debugger()) { HAL::debug_break(); return; }  // break for the debugger
+            logger->critical(PlcIO::ASSERT, "assertion failed: %s (%s:%d)",
+                             expr, file, line);
+        // Break for the debugger.
+        if (HAL::under_debugger()) { HAL::debug_break(); return; }
 #ifdef TARGET_SIMULATOR
-        abort();                                                    // loud failure, no debugger
+        abort();   // loud failure, no debugger
 #endif
         // Hardware, no debugger: logged above; keep running rather than reboot.
     }

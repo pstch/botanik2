@@ -37,13 +37,13 @@ namespace Botanik { namespace Network {
             MQTT_READY,       ///< connected; keepalive + publishes
             MQTT_ERROR,       ///< failed; backing off before a retry
         };
-        State                   _state;
-        uint64_t                _since_ms;       ///< when the current state was entered (timeouts)
-        uint64_t                _last_ping_ms;   ///< last keepalive PINGREQ
-        NameResolver*           _resolver;       ///< DNS resolver
-        ResolvedAddr            _broker_addr;    ///< resolved broker address
-        const NetworkHandler*   _net;            ///< link gate (null = always blocked)
-        HAL::Net::TcpSocket     _sock;           ///< open TCP socket (-1 = none)
+        State                 _state;
+        uint64_t              _since_ms;       ///< when this state was entered (timeouts)
+        uint64_t              _last_ping_ms;   ///< last keepalive PINGREQ
+        NameResolver*         _resolver;       ///< DNS resolver
+        ResolvedAddr          _broker_addr;    ///< resolved broker address
+        const NetworkHandler* _net;            ///< link gate (null = always blocked)
+        HAL::Net::TcpSocket   _sock;           ///< open TCP socket (-1 = none)
         /** @} */
 
     public:

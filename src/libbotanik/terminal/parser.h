@@ -29,7 +29,8 @@ namespace Botanik { namespace Terminal {
             COMMAND,    // Action/sequence (uses command/params)
         };
 
-        /** @brief A decoded control key or sequence - named keys, Ctrl/Alt combos, function keys. */
+        /** @brief A decoded control key or sequence: named keys, Ctrl/Alt
+         *  combos, function keys. */
         enum class Command : uint16_t {
             // Parser continuation
             NONE = 0,
@@ -43,7 +44,7 @@ namespace Botanik { namespace Terminal {
             // Physical Control Combinations
             CTRL_A, CTRL_B, CTRL_C, CTRL_D, CTRL_E, CTRL_F, CTRL_G,
             CTRL_K, CTRL_L, CTRL_N, CTRL_P, CTRL_R, CTRL_U, CTRL_W, CTRL_Y,
-            CTRL_SPACE, 
+            CTRL_SPACE,
 
             // Shift Combinations
             SHIFT_ENTER, SHIFT_TAB,
@@ -60,17 +61,17 @@ namespace Botanik { namespace Terminal {
         static_assert((int)Command::ALT_9 - (int)Command::ALT_1 == 8 &&
                       (int)Command::ALT_0 == (int)Command::ALT_9 + 1,
                       "ALT_1..ALT_9 must stay contiguous with ALT_0 last");
-        EventType   type = EventType::NONE;
-        Command     command = Command::NONE;
+        EventType   type        = EventType::NONE;
+        Command     command     = Command::NONE;
         // Repeat count for chunked COMMAND events (held BACKSPACE / CTRL_D coalesced
         // under backpressure). Default 1 = run once.
-        uint16_t    count = 1;
-        const char* batch_data = nullptr;   // CONTENT batch
-        uint16_t    batch_len = 0;
-        uint16_t params[8];                 // CSI params
-        uint8_t  param_count = 0;
-        char     prefix = 0;     // e.g. '?' in ESC [ ? 25 l
-        uint8_t  value = 0;
+        uint16_t    count       = 1;
+        const char* batch_data  = nullptr;  // CONTENT batch
+        uint16_t    batch_len   = 0;
+        uint16_t    params[8];              // CSI params
+        uint8_t     param_count = 0;
+        char        prefix      = 0;        // e.g. '?' in ESC [ ? 25 l
+        uint8_t     value       = 0;
     };
 
     /** @} */

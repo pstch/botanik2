@@ -3,9 +3,11 @@
 
 /**
  * @file filters.h
- * @brief Dependency-free metric filter primitives - the asymmetric EMA, the
- *        sliding-window maximum, and the EMA alpha helper. LoopScheduler builds its
- *        per-beat instrumentation on these (CPU load, jitter, work duration, stack).
+ * @brief Dependency-free metric filter primitives.
+ *
+ * The asymmetric EMA, the sliding-window maximum, and the EMA alpha helper.
+ * LoopScheduler builds its per-beat instrumentation on these (CPU load, jitter,
+ * work duration, stack).
  */
 
 #include <cstdint>
@@ -17,16 +19,18 @@ namespace Botanik { namespace Utils {
     /** @name Helpers
      *  @{ */
 
-    /** @brief EMA smoothing factor for a response time constant @p tau_ms, given
-     *  the filter's sample period @p period_ms. Derived from the sample period so
-     *  the filter's wall-clock response stays fixed regardless of how often it is
-     *  fed (forward-Euler: alpha = dt/tau).
+    /** @brief EMA smoothing factor for a time constant @p tau_ms at sample
+     *  period @p period_ms.
      *
-     *  @warning A tau at or below one sample period collapses to 1.0 (instant, since the
-     *  filter can't resolve anything faster than a single sample).
+     *  Derived from the sample period so the filter's wall-clock response stays
+     *  fixed regardless of how often it is fed (forward-Euler: alpha = dt/tau).
+     *
+     *  @warning A tau at or below one sample period collapses to 1.0 (instant,
+     *  since the filter can't resolve anything faster than a single sample).
      *
      *  @note Defaults to the tick period for per-tick metrics. */
-    constexpr float ema_alpha(uint32_t tau_ms, uint32_t period_ms = Config::TASK_PERIOD_MS) {
+    constexpr float ema_alpha(uint32_t tau_ms,
+                              uint32_t period_ms = Config::TASK_PERIOD_MS) {
         return tau_ms <= period_ms
             ? 1.0f
             : (float)period_ms / (float)tau_ms;
@@ -73,8 +77,8 @@ namespace Botanik { namespace Utils {
     class WindowedMax {
         static_assert(K >= 2, "WindowedMax needs at least two buckets");
         uint32_t _bucket[K]   = {};  // K-sized bucket array
-        uint32_t _head        = 0;   // index of the newest (currently filling) bucket
-        uint32_t _fill        = 0;   // samples accumulated into the newest bucket
+        uint32_t _head        = 0;   // index of the newest (filling) bucket
+        uint32_t _fill        = 0;   // samples folded into the newest bucket
         uint32_t _bucket_span = 1;   // samples per bucket = window / K (>= 1)
     public:
 

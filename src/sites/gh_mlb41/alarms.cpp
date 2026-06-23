@@ -3,11 +3,12 @@
 #include "sites/gh_mlb41/alarms.h"
 
 // One entry per alarm, in table (= bit) order. Static prefix filled here (code,
-// description, masked_by, ON/OFF log+mqtt dwell thresholds in seconds; -1 disables an
-// action); dynamic suffix left zeroed for the model. Trailing recent_s/latch_s/min_on_s
-// (RECENT-mode window; latch hold after the raw bit clears; minimum ON time) default to
-// 0 when omitted. min_on_s on the mock-animated rows is a local anti-flicker debounce
-// behind the PLC's own. masked_by is 0 for now.
+// description, masked_by, ON/OFF log+mqtt dwell thresholds in seconds; -1
+// disables an action); dynamic suffix left zeroed for the model. Trailing
+// recent_s/latch_s/min_on_s (RECENT-mode window; latch hold after the raw bit
+// clears; minimum ON time) default to 0 when omitted. min_on_s on the
+// mock-animated rows is a local anti-flicker debounce behind the PLC's own.
+// masked_by is 0 for now.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 const Botanik::Alarms::AlarmCondition g_alarms[] = {

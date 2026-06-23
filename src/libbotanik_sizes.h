@@ -3,14 +3,16 @@
 
 /**
  * @file libbotanik_sizes.h
- * @brief Memory-footprint contract - static_asserts pinning the sizes of the long-lived
- *        "big" objects, so an accidental layout change trips at compile time
- *        (tests/test_sizes.cpp prints the table). Included at the end of libbotanik.h.
+ * @brief Memory-footprint contract pinning the "big" objects' sizes.
  *
- * Figures differ by word size (host x86-64 vs OPTA ARM Cortex-M7, 32-bit), so each is
- * spelled per target. Payload-templated types are pinned against a probe payload (empty
- * input, 60-byte output, mirroring the sim site); a real site's PLC struct is checked
- * against the PLC IDE's generated types in its own sketch.
+ * static_asserts pinning the sizes of the long-lived "big" objects, so an
+ * accidental layout change trips at compile time (tests/test_sizes.cpp prints
+ * the table). Included at the end of libbotanik.h.
+ *
+ * Figures differ by word size (host x86-64 vs OPTA ARM Cortex-M7, 32-bit), so
+ * each is spelled per target. Payload-templated types are pinned against a probe
+ * payload (empty input, 60-byte output, mirroring the sim site); a real site's
+ * PLC struct is checked against the PLC IDE's generated types in its own sketch.
  */
 
 #include "libbotanik.h"

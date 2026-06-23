@@ -26,8 +26,9 @@ namespace Botanik { namespace PlcIO {
         Logger*             _logger;
         PlcSyncContext*     _ctx;
         uint32_t            _last_seq = 0;  ///< only meaningful once _have_seq
-        /** @brief True once a first entry has been seen (so seq 0 is a real value, not a
-         *  "first entry" sentinel - keeps gap detection correct across the 2^32 wrap). */
+        /** @brief True once a first entry has been seen (so seq 0 is a real
+         *  value, not a "first entry" sentinel - keeps gap detection correct
+         *  across the 2^32 wrap). */
         bool                _have_seq = false;
         uint32_t            _dropped  = 0;
         const LogEntry_t*   _logBuffer;

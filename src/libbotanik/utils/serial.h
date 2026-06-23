@@ -25,14 +25,15 @@ namespace Botanik { namespace Utils {
     /**
      * @brief Non-blocking buffered serial for Arduino UART.
      *
-     *  Both rings are single-producer/single-consumer (RX: receive() fills, read()
-     *  drains; TX: write() fills, transmit() drains). Every method runs on the main
-     *  loop - there are no serial ISRs - so the ring is NOT ISR-safe as wired (never
-     *  call from interrupt context). Producer and consumer being the same thread, no
-     *  barrier is needed: program order keeps head/tail and the byte stores consistent.
-     *  head/tail stay `volatile` as an intent marker (a future ISR/second-thread
-     *  rewiring would then re-add the barriers, as a localized change). The only genuine
-     *  async boundary here is the PLC shared memory, which carries its own barriers. */
+     *  Both rings are single-producer/single-consumer (RX: receive() fills,
+     *  read() drains; TX: write() fills, transmit() drains). Every method runs
+     *  on the main loop - there are no serial ISRs - so the ring is NOT ISR-safe
+     *  as wired (never call from interrupt context). Producer and consumer being
+     *  the same thread, no barrier is needed: program order keeps head/tail and
+     *  the byte stores consistent. head/tail stay `volatile` as an intent marker
+     *  (a future ISR/second-thread rewiring would then re-add the barriers, as a
+     *  localized change). The only genuine async boundary here is the PLC shared
+     *  memory, which carries its own barriers. */
     class BufferedSerial {
     private:
 
@@ -41,25 +42,28 @@ namespace Botanik { namespace Utils {
 
         HAL::RawSerial* _serial;   // wrapped raw port
 
-        static const uint16_t RX_BUF_SIZE = 256;    // power of two (masking arithmetic)
+        static const uint16_t RX_BUF_SIZE = 256;   // power of two (masking arithmetic)
         static const uint16_t TX_BUF_SIZE = 4096;
-        static_assert(is_power_of_two(RX_BUF_SIZE), "RX_BUF_SIZE must be a power of two");
-        static_assert(is_power_of_two(TX_BUF_SIZE), "TX_BUF_SIZE must be a power of two");
+        static_assert(is_power_of_two(RX_BUF_SIZE),
+                      "RX_BUF_SIZE must be a power of two");
+        static_assert(is_power_of_two(TX_BUF_SIZE),
+                      "TX_BUF_SIZE must be a power of two");
 
-        char        _rx_buf[RX_BUF_SIZE];
-        char        _tx_buf[TX_BUF_SIZE];
+        char _rx_buf[RX_BUF_SIZE];
+        char _tx_buf[TX_BUF_SIZE];
 
-        volatile uint16_t    _rx_head = 0, _rx_tail = 0;   // head: producer, tail: consumer
-        volatile uint16_t    _tx_head = 0, _tx_tail = 0;
+        // head: producer, tail: consumer
+        volatile uint16_t _rx_head = 0, _rx_tail = 0;
+        volatile uint16_t _tx_head = 0, _tx_tail = 0;
 
         /** @brief Cumulative bytes that didn't fit in the TX ring on write(). Callers
          *  that resume a partial write (the log sink) inflate it, so only watch it on a
          *  serial whose writers don't resume. Saturating. */
-        uint32_t    _tx_dropped = 0;
+        uint32_t _tx_dropped = 0;
 
         /** @brief Count of receive() cycles aborted with the RX ring full: the loop fell
          *  behind, so bytes may have been lost in the device FIFO. Saturating. */
-        uint32_t    _rx_overrun = 0;
+        uint32_t _rx_overrun = 0;
 
         /** @} */
 

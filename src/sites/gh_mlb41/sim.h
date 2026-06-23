@@ -5,10 +5,11 @@
  * @file sim.h
  * @brief gh_mlb41 simulator-only mock PLC: data animator + emulator wiring.
  *
- * Header-only; the whole body is guarded by TARGET_SIMULATOR, so it's a near-empty
- * include on the OPTA / Arduino-library build (where the real coprocessor plays this
- * role). Included only via site.h, after the payload. The floats here only shape the
- * mock signal; the payload keeps the PLC integer conventions and never carries a float.
+ * Header-only; the whole body is guarded by TARGET_SIMULATOR, so it's a
+ * near-empty include on the OPTA / Arduino-library build (where the real
+ * coprocessor plays this role). Included only via site.h, after the payload.
+ * The floats here only shape the mock signal; the payload keeps the PLC integer
+ * conventions and never carries a float.
  */
 
 #ifdef TARGET_SIMULATOR
@@ -19,13 +20,14 @@
 
 #include "libbotanik.h"
 #include "libbotanik/alarms/alarms.h"   // alarm_bit / alarm_index, ALARM_BITS
-#include "sites/gh_mlb41/alarms.h"      // g_alarms - the one alarm definition (codes + bit order)
+#include "sites/gh_mlb41/alarms.h"      // g_alarms - the one alarm definition
 
 /**
  * @brief Grow a base PLC link timeout (ms) by time-dilation factor S, so jitter
- * (amplified by a high BOTANIK_TIME_SCALE) can't false-trip the link. Clamped below
- * 2^31 to keep the 32-bit elapsed compares rollover-safe. No-op when S == 1. Called
- * from main.cpp and the emulator thread (forward-declared in plcio/emulator.h).
+ * (amplified by a high BOTANIK_TIME_SCALE) can't false-trip the link. Clamped
+ * below 2^31 to keep the 32-bit elapsed compares rollover-safe. No-op when
+ * S == 1. Called from main.cpp and the emulator thread (forward-declared in
+ * plcio/emulator.h).
  */
 inline uint32_t plc_dilated_timeout(uint32_t base_ms) {
     uint32_t s = Botanik::HAL::_time_scale();
@@ -43,7 +45,7 @@ inline float frand() {
     return std::uniform_real_distribution<float>(0.0f, 1.0f)(rng);
 }
 
-/// Random walk: with probability p, nudge v by up to +/-step, clamped to [lo, hi].
+/// Random walk: with prob p, nudge v by up to +/-step, clamped to [lo, hi].
 inline float drift(float v, float step, float lo, float hi, float p) {
     if (frand() < p) {
         v += (2.0f * frand() - 1.0f) * step;
@@ -56,8 +58,9 @@ inline float drift(float v, float step, float lo, float hi, float p) {
 /// True with probability p - for rare discrete events (rain, bus dropouts).
 inline bool chance(float p) { return frand() < p; }
 
-/** @brief Mock-PLC alarm bit for a table code (0 if undefined). Resolves through
- *  g_alarms so the mock bitset uses the same bit layout as the firmware. */
+/** @brief Mock-PLC alarm bit for a table code (0 if undefined).
+ *  Resolves through g_alarms so the mock bitset uses the firmware's bit
+ *  layout. */
 inline uint64_t abit(const char* code) {
     int i = Botanik::Alarms::alarm_index(g_alarms, g_alarm_count, code);
     return i >= 0 ? Botanik::Alarms::alarm_bit((uint8_t)i) : 0;
@@ -65,49 +68,51 @@ inline uint64_t abit(const char* code) {
 
 /**
  * @brief Animate the greenhouse payload with plausible, mostly-steady values.
- * Called from the emulator thread (~1 Hz); static state lets values settle and only
- * drift now and then. @p now_ms is the uptime in milliseconds.
+ *
+ * Called from the emulator thread (~1 Hz); static state lets values settle and
+ * only drift now and then. @p now_ms is the uptime in milliseconds.
  */
 inline void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
-    const float t = (float)now_ms / 1000.0f;   // seconds - drives the irrigation walk
+    const float t = (float)now_ms / 1000.0f;   // seconds - drives irrigation walk
 
-    // Slow mean-reverting climate driver in [-1, 1] (the * factor pulls it back toward
-    // 0): mostly mild, only now and then excursing far enough to trip TOO_HOT/TOO_HUM.
+    // Slow mean-reverting climate driver in [-1, 1] (the * factor pulls it back
+    // toward 0): mostly mild, rarely excursing far enough to trip TOO_HOT/HUM.
     static float climate = 0.0f;
     climate = drift(climate, 0.35f, -1.0f, 1.0f, 0.06f) * 0.985f;
 
-    // Climate sensors - three height zones share the level with a static offset
-    // (ceiling warmer/drier than the floor).
-    int temp_centi = 2200 + (int)(300.0f * climate);                 // ~19..25 degC
+    // Climate sensors - three height zones share the level with a static
+    // offset (ceiling warmer/drier than the floor).
+    int temp_centi = 2200 + (int)(300.0f * climate);             // ~19..25 degC
     o->ext_temp_c_centi   = (int16_t)(temp_centi - 150);
     o->floor_temp_c_centi = (int16_t)(temp_centi);
     o->ceil_temp_c_centi  = (int16_t)(temp_centi + 200);
-    int rh_centi = 6000 - (int)(1000.0f * climate);                  // ~50..70 %
+    int rh_centi = 6000 - (int)(1000.0f * climate);              // ~50..70 %
     o->ext_rh_centi_pct   = (uint16_t)(rh_centi + 200);
     o->floor_rh_centi_pct = (uint16_t)(rh_centi);
     o->ceil_rh_centi_pct  = (uint16_t)(rh_centi - 400);
 
-    // Weather - rain rarely sets in then clears; wind sits at a light breeze, gusts.
+    // Weather - rain rarely sets in then clears; wind a light breeze, gusts.
     static bool     raining       = false;
     static uint32_t rain_since_ms = 0;
     raining = raining ? !chance(0.005f) : chance(0.002f);
     if (raining) rain_since_ms = now_ms;
     o->rain_detected = raining ? 1 : 0;
-    o->rain_age_s    = raining ? 0 : (uint32_t)((now_ms - rain_since_ms) / 1000);
+    o->rain_age_s    = raining ? 0
+                               : (uint32_t)((now_ms - rain_since_ms) / 1000);
     static float wind = 12.0f;
     wind = drift(wind, 5.0f, 5.0f, 40.0f, 0.05f);
     o->wind_peak_kmh = (uint16_t)wind;
 
-    // Power - nominal within tight tolerances; the B bus occasionally drops/recovers.
+    // Power - nominal within tight tolerances; the B bus occasionally drops.
     static float grid_mv   = 230000.0f;
     static float grid_freq = 5000.0f;
     static float dc_mv     = 24000.0f;
     static float batt_mv   = 12600.0f;
-    // Grid sits inside spec ([226000, 234000] is the AC_GRID band), with a rare sag/
-    // surge out of spec to exercise AC_GRID (drift clamps it back on a later tick).
+    // Grid sits inside spec ([226000, 234000] is the AC_GRID band), with a rare
+    // sag/surge out of spec to exercise AC_GRID (drift clamps it back later).
     grid_mv   = drift(grid_mv,   900.0f,  227000.0f, 233000.0f, 0.05f);
     if (chance(0.0025f)) grid_mv = chance(0.5f) ? 224000.0f : 236000.0f;
-    grid_freq = drift(grid_freq, 8.0f,    4990.0f,   5010.0f,   0.05f);  // ~49.9..50.1
+    grid_freq = drift(grid_freq, 8.0f,    4990.0f,   5010.0f,   0.05f);  // ~50 Hz
     dc_mv     = drift(dc_mv,     150.0f,  23500.0f,  24500.0f,  0.05f);
     batt_mv   = drift(batt_mv,   300.0f,  11800.0f,  13000.0f,  0.03f);
     o->grid_ac_mv         = (uint32_t)grid_mv;
@@ -115,12 +120,12 @@ inline void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
     o->dc_bus_mv          = (uint32_t)dc_mv;
     o->dc_bus_a_ok        = 1;
     static bool dc_b_ok = true;
-    dc_b_ok = dc_b_ok ? !chance(0.004f) : chance(0.12f);  // mostly OK, the occasional brief dropout
+    dc_b_ok = dc_b_ok ? !chance(0.004f) : chance(0.12f);  // mostly OK, rare dropout
     o->dc_bus_b_ok        = dc_b_ok ? 1 : 0;
     o->battery_mv         = (uint32_t)batt_mv;
     o->ups_status         = UpsStatus::ONLINE;
 
-    // Ventilation tracks temperature; channels stagger so each shows a distinct level.
+    // Ventilation tracks temperature; channels stagger to distinct levels.
     int vent = 50 + (int)(50.0f * climate);
     if (vent < 0)   vent = 0;
     if (vent > 100) vent = 100;
@@ -172,8 +177,9 @@ inline void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
     o->sunrise_min = (uint16_t)sunrise;
     o->sunset_min  = (uint16_t)sunset;
 
-    // Alarms: synthesize the PLC's raw bitset from the mock state. Bits addressed by
-    // table code (abit) so the mock PLC and firmware share the one definition (g_alarms).
+    // Alarms: synthesize the PLC's raw bitset from the mock state. Bits
+    // addressed by table code (abit) so the mock PLC and firmware share the one
+    // definition (g_alarms).
     uint64_t raw = 0;
     if (o->grid_ac_mv < 226000 || o->grid_ac_mv > 234000) raw |= abit("AC_GRID");
     if (!o->dc_bus_b_ok)                                   raw |= abit("DC_PS2");
@@ -186,14 +192,15 @@ inline void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
     if (o->ext_rh_centi_pct > 6800)                        raw |= abit("TOO_HUM");
     if (o->wind_peak_kmh > 35 || raining)                  raw |= abit("WH_STORM");
 
-    // Settle window: keep alarms clear for the first stretch after boot (a real PLC
-    // likewise masks process alarms until its sensors settle).
+    // Settle window: keep alarms clear for the first stretch after boot (a real
+    // PLC likewise masks process alarms until its sensors settle).
     const uint32_t SETTLE_MS = 20000;
     if (now_ms < SETTLE_MS) raw = 0;
 
-    // Debounce: hold each raw bit ON for a minimum dwell so a signal hovering at its
-    // threshold can't strobe the ribbon (mirrors the real PLC's hardware debounce;
-    // the firmware's per-alarm min_on_s is the further local net). Countdown drained by dt.
+    // Debounce: hold each raw bit ON for a minimum dwell so a signal hovering
+    // at its threshold can't strobe the ribbon (mirrors the real PLC's hardware
+    // debounce; the firmware's per-alarm min_on_s is the further local net).
+    // Countdown drained by dt.
     static uint32_t hold_ms[Botanik::Alarms::ALARM_BITS] = {0};
     static uint32_t prev_ms = 0;
     uint32_t dt = (prev_ms == 0) ? 0 : (now_ms - prev_ms);
@@ -213,22 +220,23 @@ inline void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
 }  // namespace
 
 /**
- * @brief Start the mock PLC coprocessor: spawn the emulator thread animating the
- * greenhouse payload. On OPTA the real coprocessor plays this role.
+ * @brief Start the mock PLC coprocessor: spawn the emulator thread animating
+ * the greenhouse payload. On OPTA the real coprocessor plays this role.
  */
 inline void start_site_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,
                                 Botanik::PlcIO::PlcOutput<PlcOutputData_t>* shared_out,
                                 Botanik::Logs::Logger*                      logger) {
-    // Spawn the emulator thread before locking memory: lock_process_memory() arms
-    // mlockall(MCL_FUTURE), which locks every later mmap including a new thread's
-    // stack, so spawning afterwards trips RLIMIT_MEMLOCK with EAGAIN (silently, only
-    // in lean RELEASE builds).
+    // Spawn the emulator thread before locking memory: lock_process_memory()
+    // arms mlockall(MCL_FUTURE), which locks every later mmap including a new
+    // thread's stack, so spawning afterwards trips RLIMIT_MEMLOCK with EAGAIN
+    // (silently, only in lean RELEASE builds).
     Botanik::PlcIO::start_emulator_thread(shared_in, shared_out,
                                           &fill_greenhouse_output, logger);
-    // Lock memory (once), then make the main loop realtime on its own core - separate
-    // from the emulator's, mirroring the OPTA's two cores.
+    // Lock memory (once), then make the main loop realtime on its own core -
+    // separate from the emulator's, mirroring the OPTA's two cores.
     Botanik::Scheduler::lock_process_memory(logger);
-    Botanik::Scheduler::make_thread_realtime(Botanik::Config::SIM_MAIN_CPU_CORE, logger);
+    Botanik::Scheduler::make_thread_realtime(Botanik::Config::SIM_MAIN_CPU_CORE,
+                                             logger);
 }
 
 #endif // TARGET_SIMULATOR

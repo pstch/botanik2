@@ -88,9 +88,10 @@ namespace Botanik { namespace Logs {
         /** @name Queue interface
          *  @{ */
 
-        /** @brief Enqueue @p entry. The last LOG_QUEUE_CRITICAL_RESERVE slots are kept
-         *  for LOG_CRITICAL: a normal that would intrude is dropped (counted); a critical
-         *  seats into the reserve, or evicts the oldest only if the queue is wholly full. */
+        /** @brief Enqueue @p entry. The last LOG_QUEUE_CRITICAL_RESERVE slots
+         *  are kept for LOG_CRITICAL: a normal that would intrude is dropped
+         *  (counted); a critical seats into the reserve, or evicts the oldest
+         *  only if the queue is wholly full. */
         void push(const LogEntry_t* entry) override;
         /** @brief Flush queued entries to the output medium (call from the main loop) */
         void drain() override;
@@ -110,7 +111,8 @@ namespace Botanik { namespace Logs {
     };
 
     /** @brief BufferedLogWriter writing formatted entries (`...message\n`) to a
-     *  BufferedSerial port, respecting the TX buffer's available capacity per drain(). */
+     *  BufferedSerial port, respecting the TX buffer's available capacity per
+     *  drain(). */
     class SerialLogWriter : public BufferedLogWriter {
     protected:
         using BufferedSerial = Utils::BufferedSerial;
@@ -136,9 +138,10 @@ namespace Botanik { namespace Logs {
         /** @name Stepping
          *  @{ */
 
-        /** @brief Drain queued entries into the bound serial's TX ring. Call once per
-         *  tick - this writer has no render path (unlike the page writers), so it must be
-         *  stepped here. The serial itself is flushed separately by the main loop. */
+        /** @brief Drain queued entries into the bound serial's TX ring. Call
+         *  once per tick - this writer has no render path (unlike the page
+         *  writers), so it must be stepped here. The serial itself is flushed
+         *  separately by the main loop. */
         void step();
 
         /** @} */
@@ -147,7 +150,7 @@ namespace Botanik { namespace Logs {
         /** @name Channel implementation
          *  @{ */
 
-        /** @brief Format a log entry into @p buf; returns the number of bytes written */
+        /** @brief Format a log entry into @p buf; returns the bytes written */
         size_t format(const LogEntry_t* entry, char* buf, size_t len);
         /** @brief Write @p len bytes to the bound serial port (never blocks) */
         size_t write(const char* buf, size_t len);
@@ -159,18 +162,20 @@ namespace Botanik { namespace Logs {
      * @brief SerialLogWriter for a diagnostic monitor port that self-suppresses
      * when its output is an interactive terminal.
      *
-     * The console UI and this sink can share a terminal (sim: UI on stdout, monitor
-     * on stderr; both land on the same screen unless stderr is redirected). Log lines
-     * would garble the display, so when the bound port is a tty
-     * (BufferedSerial::is_output_tty()) every entry is dropped at push() - redirect to
-     * a file/pipe to capture the log. The monitor UART is never a tty on hardware.
+     * The console UI and this sink can share a terminal (sim: UI on stdout,
+     * monitor on stderr; both land on the same screen unless stderr is
+     * redirected). Log lines would garble the display, so when the bound port is
+     * a tty (BufferedSerial::is_output_tty()) every entry is dropped at push() -
+     * redirect to a file/pipe to capture the log. The monitor UART is never a
+     * tty on hardware.
      */
     class MonitorLogWriter : public SerialLogWriter {
     private:
         /** @name State
          *  @{ */
 
-        bool _suppressed;   ///< output is a tty: drop so it can't garble a shared display
+        /** output is a tty: drop so it can't garble a shared display */
+        bool _suppressed;
 
         /** @} */
 

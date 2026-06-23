@@ -59,50 +59,56 @@ namespace Botanik { namespace Logs {
 
     void Logger::step() {
         uint32_t now_ms         = HAL::current_ms();
-        // Refill the buckets on their (fast) cadences. The anchor advances by whole
-        // elapsed periods, but the fill is min(amount, burst): the bucket saturates at
-        // burst anyway, and this keeps a long gap from truncating the uint16 fill arg.
+        // Refill the buckets on their (fast) cadences. The anchor advances by
+        // whole elapsed periods, but the fill is min(amount, burst): the bucket
+        // saturates at burst anyway, and this keeps a long gap from truncating
+        // the uint16 fill arg.
         uint32_t global_amount  = (now_ms - _global_fillTime_ms) / _global_period_ms;
         _global_fillTime_ms    += global_amount * _global_period_ms;
         _fill_bucket(&_global_bucket,
-                     (uint16_t)std::min(global_amount, (uint32_t)_global_burst), _global_burst);
+                     (uint16_t)std::min(global_amount, (uint32_t)_global_burst),
+                     _global_burst);
         uint32_t topic_amount   = (now_ms - _perTopic_fillTime_ms) / _perTopic_period_ms;
         _perTopic_fillTime_ms  += topic_amount * _perTopic_period_ms;
-        uint16_t topic_fill     = (uint16_t)std::min(topic_amount, (uint32_t)_perTopic_burst);
-        // Start at 1: slot 0 (NONE) is never consumed (push_entry short-circuits NONE).
+        uint16_t topic_fill     =
+            (uint16_t)std::min(topic_amount, (uint32_t)_perTopic_burst);
+        // Start at 1: slot 0 (NONE) is never consumed (push_entry skips NONE).
         for (uint8_t i = 1; i < PlcIO::LOG_TOPIC_COUNT; ++i)
             _fill_bucket(&_perTopic_buckets[i], topic_fill, _perTopic_burst);
         // Drain suppressed-message counters on a slower cadence (occasional summary).
         uint32_t report_amount  = (now_ms - _suppress_reportTime_ms) / _suppress_period_ms;
         if (report_amount > 0) {
             _suppress_reportTime_ms += report_amount * _suppress_period_ms;
-            _report_suppressed(&_global_bucket, LogTopic::NONE, now_ms);   // global bucket
-            for (uint8_t i = 1; i < PlcIO::LOG_TOPIC_COUNT; ++i)            // per-topic, skip NONE
+            _report_suppressed(&_global_bucket, LogTopic::NONE, now_ms); // global
+            for (uint8_t i = 1; i < PlcIO::LOG_TOPIC_COUNT; ++i)         // skip NONE
                 _report_suppressed(&_perTopic_buckets[i], (LogTopic)i, now_ms);
         }
-        // Report data actually lost (not just rate-limited): entries dropped at the
-        // sinks (summed across writers) and, across the watched serials, their TX-full
-        // drops. Edge-triggered with a per-category holdoff, emitted as criticals so
-        // the writers never drop the report itself.
+        // Report data actually lost (not just rate-limited): entries dropped at
+        // the sinks (summed across writers) and, across the watched serials,
+        // their TX-full drops. Edge-triggered with a per-category holdoff,
+        // emitted as criticals so the writers never drop the report itself.
         uint32_t sink_total = 0;
-        for (uint8_t i = 0; i < _writerCount; i++) sink_total += _writers[i]->loss_count();
+        for (uint8_t i = 0; i < _writerCount; i++)
+            sink_total += _writers[i]->loss_count();
         _report_loss(_sink_loss, sink_total, Config::LOG_SINK_DROP_REPORT_PERIOD_MS,
                      now_ms, "log entries dropped at sink");
         uint32_t tx_total = 0;
-        for (uint8_t i = 0; i < _watched_tx_count; i++) tx_total += _watched_tx[i]->tx_dropped();
+        for (uint8_t i = 0; i < _watched_tx_count; i++)
+            tx_total += _watched_tx[i]->tx_dropped();
         if (_watched_tx_count > 0)
             _report_loss(_tx_loss, tx_total, Config::LOG_TX_DROP_REPORT_PERIOD_MS,
                          now_ms, "serial bytes dropped (TX full)");
     }
 
-    // Two-stage drop policy: the rate limiter applies to EVERY level (a flood backstop;
-    // even a critical storm must not flood the TX chain). Whatever survives is undroppable
-    // at the WRITER FIFO, which reserves slots for criticals. So "critical is undroppable"
-    // means at the sink queue, not the limiter; a limiter-dropped critical is still
-    // counted + summary-reported.
+    // Two-stage drop policy: the rate limiter applies to EVERY level (a flood
+    // backstop; even a critical storm must not flood the TX chain). Whatever
+    // survives is undroppable at the WRITER FIFO, which reserves slots for
+    // criticals. So "critical is undroppable" means at the sink queue, not the
+    // limiter; a limiter-dropped critical is still counted + summary-reported.
     void Logger::push_entry(const PlcIO::LogEntry_t& entry) {
-        // Level gate before the limiter so a filtered entry costs no token. LogLevel is
-        // monotonic and LOG_CRITICAL is the max, so a critical never falls below _min_level.
+        // Level gate before the limiter so a filtered entry costs no token.
+        // LogLevel is monotonic and LOG_CRITICAL is the max, so a critical never
+        // falls below _min_level.
         if (entry.level < _min_level) return;
         PlcIO::LogTopic topic = entry.topic >=
             PlcIO::LOG_TOPIC_COUNT ? LogTopic::NONE : entry.topic;
@@ -150,15 +156,16 @@ namespace Botanik { namespace Logs {
     }
 
     void Logger::_fill_bucket(LogBucket_t* bucket, uint16_t amount, uint16_t burst) {
-        if (amount > 0 && bucket-> state < burst) {
+        if (amount > 0 && bucket->state < burst) {
             bucket->state = std::min((uint16_t)(bucket->state + amount), burst);
         }
     }
 
-    void Logger::_emit_critical(PlcIO::LogTopic topic, uint32_t timestamp_ms, const char* fmt, ...) {
-        // Push a CRITICAL entry straight to every writer, bypassing the rate limiter:
-        // these loss/suppression reports must survive the very storm they summarize
-        // (REPORT-SLOT keeps criticals when the writer FIFO is full).
+    void Logger::_emit_critical(PlcIO::LogTopic topic, uint32_t timestamp_ms,
+                                const char* fmt, ...) {
+        // Push a CRITICAL entry straight to every writer, bypassing the rate
+        // limiter: these loss/suppression reports must survive the very storm
+        // they summarize (REPORT-SLOT keeps criticals when the FIFO is full).
         LogEntry_t entry = {};
         entry.timestamp = timestamp_ms;
         entry.level     = PlcIO::LOG_CRITICAL;
@@ -171,23 +178,28 @@ namespace Botanik { namespace Logs {
         for (uint8_t i = 0; i < _writerCount; i++) _writers[i]->push(&entry);
     }
 
-    void Logger::_report_suppressed(LogBucket_t* bucket, PlcIO::LogTopic topic, uint32_t timestamp_ms) {
+    void Logger::_report_suppressed(LogBucket_t* bucket, PlcIO::LogTopic topic,
+                                    uint32_t timestamp_ms) {
         if (bucket->suppressed == 0) return;
-        _emit_critical(topic, timestamp_ms, "%u msgs suppressed", (unsigned)bucket->suppressed);
+        _emit_critical(topic, timestamp_ms, "%u msgs suppressed",
+                       (unsigned)bucket->suppressed);
         bucket->suppressed = 0;
     }
 
     void Logger::_report_loss(LossReporter_t& rep, uint32_t total, uint32_t interval_ms,
                               uint32_t now_ms, const char* what) {
-        if (total <= rep.reported_count) return;                                  // nothing new
-        if (rep.reported && (now_ms - rep.last_report_ms) < interval_ms) return;  // holdoff
-        _emit_critical(LogTopic::NONE, now_ms, "%u %s", (unsigned)(total - rep.reported_count), what);
+        if (total <= rep.reported_count) return;   // nothing new
+        if (rep.reported && (now_ms - rep.last_report_ms) < interval_ms)
+            return;   // holdoff
+        _emit_critical(LogTopic::NONE, now_ms, "%u %s",
+                       (unsigned)(total - rep.reported_count), what);
         rep.reported_count = total;
         rep.last_report_ms = now_ms;
         rep.reported       = true;
     }
 
-    void Logger::_emit(PlcIO::LogLevel level, PlcIO::LogTopic topic, const char* fmt, va_list ap) {
+    void Logger::_emit(PlcIO::LogLevel level, PlcIO::LogTopic topic,
+                       const char* fmt, va_list ap) {
         LogEntry_t entry = {};
         entry.timestamp = HAL::current_ms();
         entry.level     = level;

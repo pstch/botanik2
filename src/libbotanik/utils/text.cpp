@@ -74,8 +74,8 @@ namespace Botanik { namespace Utils {
 
     const char* format_size(char* buf, size_t cap, uint32_t bytes) {
         if (cap == 0) return buf;
-        if (bytes >= 32768u)                                 // >= 32 KiB: switch to KB
-            snprintf(buf, cap, "%lu KB", (unsigned long)((bytes + 512u) / 1024u));  // round to nearest
+        if (bytes >= 32768u)   // >= 32 KiB: switch to KB, rounded to nearest
+            snprintf(buf, cap, "%lu KB", (unsigned long)((bytes + 512u) / 1024u));
         else
             snprintf(buf, cap, "%lu B", (unsigned long)bytes);
         return buf;

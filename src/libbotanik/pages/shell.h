@@ -24,10 +24,10 @@ namespace Botanik { namespace Pages {
      *   Rows 1..N-2 - log area (live tail, scrolls on each incoming entry)
      *   Row  N-1    - InputEditor (PS1 + optional continuation row)
      *
-     * As a LogWriter, only entries received while active are queued (push() drops
-     * background ones - the full log lives in LogsPage). As a ShellWriter, it gives
-     * CommandShell an output channel. All lines are stored in a circular buffer for
-     * replay on redraw / page-switch.
+     * As a LogWriter, only entries received while active are queued (push()
+     * drops background ones - the full log lives in LogsPage). As a ShellWriter,
+     * it gives CommandShell an output channel. All lines are stored in a circular
+     * buffer for replay on redraw / page-switch.
      */
     class ShellPage : public Page, public Logs::BufferedLogWriter, public Shell::ShellWriter {
     private:
@@ -45,7 +45,8 @@ namespace Botanik { namespace Pages {
         InputEditor        _editor;
         /** @brief Command interpreter fed by the editor. */
         Shell::CommandShell _shell;
-        /** @brief Circular log line buffer + throttled redraw for redraw/page-switch replay. */
+        /** @brief Circular log line buffer + throttled redraw for
+         *         redraw/page-switch replay. */
         ShellScrollback _scrollback;
         /** @brief Mirrors tick(active) so write() knows whether it may paint. */
         bool _active = false;
@@ -116,20 +117,22 @@ namespace Botanik { namespace Pages {
         /** @brief Repaint the whole page (header, log area, editor). */
         void _full_redraw();
 
-        /** @brief Submit the editor line: echo into the scrollback, advance to a fresh
-         *  prompt, dispatch to the shell. Assumes suppress_redraw(true); clears it. */
+        /** @brief Submit the editor line: echo into the scrollback, advance to a
+         *  fresh prompt, dispatch to the shell. Assumes suppress_redraw(true);
+         *  clears it. */
         void _submit_command();
 
         /** @brief Cancel the editor line (Ctrl-C): like submit but runs nothing.
          *  Assumes suppress_redraw(true); clears it. */
         void _cancel_command();
 
-        /** @brief Store each display row of a submitted command in the scrollback (screen
-         *  content is already visible). */
+        /** @brief Store each display row of a submitted command in the scrollback
+         *  (screen content is already visible). */
         void _record_command(const char* cmd, uint16_t len);
 
-        /** @brief Scroll the log area down by delta rows via IL and fill the revealed top
-         *  rows from the scrollback (when the editor shrinks; avoids a full redraw). */
+        /** @brief Scroll the log area down by delta rows via IL and fill the
+         *  revealed top rows from the scrollback (when the editor shrinks; avoids
+         *  a full redraw). */
         void _reveal_log_rows(uint16_t delta);
 
         /** @} */

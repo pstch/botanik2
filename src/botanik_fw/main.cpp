@@ -9,7 +9,7 @@
 #include "botanik_fw/firmware.h"
 
 int main() {
-    Botanik::Firmware::instance().setup();   // first access constructs, then boots
+    Botanik::Firmware::instance().setup();   // first access constructs + boots
     Botanik::Firmware::instance().run();     // never returns
     return 0;
 }

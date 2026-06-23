@@ -20,7 +20,7 @@ namespace Botanik {
     class SunPositionTracker : public ConfigHandler {
         /** @name State
          *  @{ */
-        Utils::SunTimes _times;     ///< next sunrise + sunset (uptime-domain ms)
+        Utils::SunTimes _times;     ///< next sunrise + sunset (uptime ms)
         bool            _is_day;    ///< sun currently above the horizon
         bool            _computed;  ///< _times holds a valid computation
         /** @} */
@@ -41,7 +41,8 @@ namespace Botanik {
         void on_step(uint64_t now_ms) override;
 
     private:
-        /** @brief Recompute the next sun times from the geo config and update day/night. */
+        /** @brief Recompute the next sun times from the geo config and update
+         *  day/night. */
         void _recompute(uint64_t now_ms);
     };
 

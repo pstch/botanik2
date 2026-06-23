@@ -192,7 +192,8 @@ namespace Botanik { namespace HAL {
 
     inline void sleep_ms(uint32_t ms) {
         // uint64 product: ms*1000 overflows uint32 for ms > ~71 min.
-        usleep((useconds_t)((uint64_t)ms * 1000u / _time_scale()));  // scaled to the sped-up clock
+        // scaled to the sped-up clock
+        usleep((useconds_t)((uint64_t)ms * 1000u / _time_scale()));
     }
 
     /** @} */

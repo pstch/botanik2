@@ -3,20 +3,21 @@
 
 /**
  * @file site.h
- * @brief gh_mlb41 site: the PLC payload, the firmware subclass, and the uniform
- *        handle a target harness builds against.
+ * @brief gh_mlb41 site: the PLC payload, the firmware subclass, and the
+ *        uniform handle a target harness builds against.
  *
- * A target selects a site with `-DBOTANIK_SITE=<name>`; CMake points BOTANIK_SITE_HEADER
- * at this file, so the sim harness and OPTA firmware include it without naming the site.
- * Each site exposes the same surface:
+ * A target selects a site with `-DBOTANIK_SITE=<name>`; CMake points
+ * BOTANIK_SITE_HEADER at this file, so the sim harness and OPTA firmware
+ * include it without naming the site. Each site exposes the same surface:
  *   - `BotanikSite`           - the firmware type to instantiate (a BotanikFirmware<>).
  *   - `PlcInput/OutputData_t` - the site PLC payload (shared verbatim by the mock PLC
  *                               and the OPTA firmware).
  *   - `start_site_emulator()` / `plc_dilated_timeout()` - the sim-only mock PLC (sim.h).
  *
- * Single source of truth for the greenhouse: the payload + GreenhouseMLB41 firmware live
- * here; pages.h and alarms.h/.cpp are pulled in below. Config overrides stay in config.h
- * (CMake includes it before the library defaults). See firmware.h for the extension model.
+ * Single source of truth for the greenhouse: the payload + GreenhouseMLB41
+ * firmware live here; pages.h and alarms.h/.cpp are pulled in below. Config
+ * overrides stay in config.h (CMake includes it before the library defaults).
+ * See firmware.h for the extension model.
  */
 
 #include <cstdint>
@@ -26,23 +27,25 @@
 #include "libbotanik/shell/shell.h"   // ShellCommand - the site command table
 
 // ===========================================================================
-// PLC payload (shared verbatim by the simulator's mock PLC and the OPTA firmware)
+// PLC payload (shared verbatim by the mock PLC and the OPTA firmware)
 // ===========================================================================
 //
 // On OPTA PlcOutputData_t mirrors the PLC IDE's generated type, verified with:
 //   static_assert(sizeof(PLCSharedVarsInput_t)   == sizeof(PlcIO::PlcInput<PlcInputData_t>));
 //   static_assert(alignof(PLCSharedVarsOutput_t) == alignof(PlcIO::PlcOutput<PlcOutputData_t>));
-// PLC-style integer conventions (no floats on the wire): millivolts, centi-degrees C,
-// centi-percent humidity, percent actuator levels, discrete states as enums / flags.
+// PLC-style integer conventions (no floats on the wire): millivolts,
+// centi-degrees C, centi-percent humidity, percent actuator levels, discrete
+// states as enums / flags.
 
 /** @name PLC payload
  *  @{ */
 
 struct PlcInputData_t {};   // no site-specific data beyond the library log fields
 
-// Each discrete status wraps an `enum Value` plus a static str() converter, giving a
-// namespace (UpsStatus::ONLINE) and the str() C++ enums can't carry. Payload fields
-// stay raw uint8_t for the wire; str() takes that raw value (UpsStatus::str(d->ups_status)).
+// Each discrete status wraps an `enum Value` plus a static str() converter,
+// giving a namespace (UpsStatus::ONLINE) and the str() C++ enums can't carry.
+// Payload fields stay raw uint8_t for the wire; str() takes that raw value
+// (UpsStatus::str(d->ups_status)).
 
 /** @brief UPS operating state. */
 struct UpsStatus {
@@ -102,12 +105,13 @@ struct NetStatus {
 /**
  * @brief Greenhouse PLC output payload (sensors + actuator feedback).
  *
- * Padded to a 4-byte multiple and ordered widest-first so the combined PlcOutput<>
- * layout has no implicit padding (matches the byte-for-byte contract in plcio/vars.h).
+ * Padded to a 4-byte multiple and ordered widest-first so the combined
+ * PlcOutput<> layout has no implicit padding (matches the byte-for-byte
+ * contract in plcio/vars.h).
  */
 struct PlcOutputData_t {
-    // Widest member first (keeps the rest naturally aligned, no implicit padding).
-    uint64_t alarms;             ///< active alarm conditions reported by the PLC
+    // Widest member first (keeps the rest aligned, no implicit padding).
+    uint64_t alarms;             ///< active alarm conditions from the PLC
     // Power (voltages in millivolts)
     uint32_t grid_ac_mv;         ///< mains AC RMS voltage, millivolts
     uint32_t dc_bus_mv;          ///< DC system bus voltage, millivolts
@@ -122,8 +126,9 @@ struct PlcOutputData_t {
     uint16_t floor_rh_centi_pct; ///< floor relative humidity, 0.01 %
     uint16_t ceil_rh_centi_pct;  ///< ceiling relative humidity, 0.01 %
     uint16_t wind_peak_kmh;      ///< 15-minute peak wind speed, km/h
-    uint32_t rain_age_s;         ///< seconds since rain was last detected (uint32: well
-                                 ///< past the uint16 ~18h ceiling, up to ~136 years)
+    /** Seconds since rain was last detected (uint32: well past the uint16 ~18h
+     *  ceiling, up to ~136 years). */
+    uint32_t rain_age_s;
     // Irrigation
     uint16_t water_in_l;         ///< cumulative water input, liters
     uint16_t water_out_lpm;      ///< current drain flow, liters/minute
@@ -150,7 +155,7 @@ struct PlcOutputData_t {
     uint8_t  dc_bus_a_ok;        ///< DC rectifier A healthy, boolean
     uint8_t  dc_bus_b_ok;        ///< DC rectifier B healthy, boolean
     uint8_t  rain_detected;      ///< rain sensor, boolean
-    uint8_t  cooling_on;         ///< humidifier (evaporative cooling) on, boolean
+    uint8_t  cooling_on;         ///< evaporative cooling (humidifier) on, bool
     uint8_t  generator_running;  ///< emergency generator, boolean (monitored)
     uint8_t  heat_blower_on;     ///< emergency heat blower, boolean (monitored)
     uint8_t  heatpump_on;        ///< heatpump, boolean (monitored)
@@ -162,8 +167,8 @@ static_assert(sizeof(PlcOutputData_t) % 4 == 0, "PlcOutputData_t must be 4-byte 
 
 /** @} */
 
-// Pages and alarm table build on the payload above, so they're included after it
-// (this header is the only includer of pages.h; no circular include).
+// Pages and alarm table build on the payload above, so they're included after
+// it (this header is the only includer of pages.h; no circular include).
 #include "sites/gh_mlb41/alarms.h"
 #include "sites/gh_mlb41/pages.h"
 
@@ -174,8 +179,9 @@ static_assert(sizeof(PlcOutputData_t) % 4 == 0, "PlcOutputData_t must be 4-byte 
 namespace {
 
 /** @brief Example site command: a one-line greenhouse summary from live PLC data.
- *  Shows the extension model (firmware.h): the ctx passed to set_commands() is the
- *  const PlcOutputData_t* the command reads. */
+ *
+ *  Shows the extension model (firmware.h): the ctx passed to set_commands()
+ *  is the const PlcOutputData_t* the command reads. */
 inline void cmd_gh(Botanik::Shell::ShellWriter& out, const char*, uint16_t, void* ctx) {
     const PlcOutputData_t* d = static_cast<const PlcOutputData_t*>(ctx);
     char buf[96];
@@ -194,7 +200,8 @@ inline void cmd_gh(Botanik::Shell::ShellWriter& out, const char*, uint16_t, void
     if (n > 0) out.write(buf, (size_t)n);
 }
 
-/** @brief gh_mlb41 shell commands, registered after the built-ins (can't shadow them). */
+/** @brief gh_mlb41 shell commands, registered after the built-ins (can't
+ *  shadow them). */
 const Botanik::Shell::ShellCommand g_site_commands[] = {
     { "gh", "greenhouse summary (live PLC data)", &cmd_gh },
 };
@@ -206,11 +213,12 @@ const Botanik::Shell::ShellCommand g_site_commands[] = {
 // ===========================================================================
 
 /**
- * @brief The gh_mlb41 greenhouse firmware. `final` so the per-beat hook devirtualizes.
+ * @brief The gh_mlb41 greenhouse firmware. `final` so the per-beat hook
+ *        devirtualizes.
  *
  * Adds the site pages as members (built from the base's exposed components) and
- * customizes registration: its home page leads the tab order and sinks the log stream,
- * and it registers one site shell command.
+ * customizes registration: its home page leads the tab order and sinks the log
+ * stream, and it registers one site shell command.
  */
 class GreenhouseMLB41 final : public Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t> {
     /** @name Site pages
@@ -220,7 +228,8 @@ class GreenhouseMLB41 final : public Botanik::BotanikFirmware<PlcInputData_t, Pl
     /** @} */
 
 public:
-    /** @brief Build the base around this site's alarm table, then the site pages. */
+    /** @brief Build the base around this site's alarm table, then the site
+     *  pages. */
     GreenhouseMLB41(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,
                     Botanik::PlcIO::PlcOutput<PlcOutputData_t>* shared_out,
                     uint32_t console_baud, uint16_t cols = 80, uint16_t rows = 24)
@@ -231,16 +240,17 @@ public:
           _status_page(terminal(), plc_output_data())
     {}
 
-    /** @brief Hardware convenience: bind to the coprocessor's PLC region (via HAL) at
-     *  the config-default baud, so the OPTA sketch is just `BotanikSite fw;` (no region
-     *  casts). The simulator uses the explicit region constructor above. */
+    /** @brief Hardware convenience: bind to the coprocessor's PLC region (via
+     *  HAL) at the config-default baud, so the OPTA sketch is just
+     *  `BotanikSite fw;` (no region casts). The simulator uses the explicit
+     *  region constructor above. */
     explicit GreenhouseMLB41(uint16_t cols = 80, uint16_t rows = 24)
         : GreenhouseMLB41(hal_input(), hal_output(), Botanik::Config::CONSOLE_BAUD, cols, rows)
     {}
 
 protected:
-    /** @brief Tab order (add_page order = tab order): home leads as the boot page ->
-     *  home/shell/logs/status/alarms. */
+    /** @brief Tab order (add_page order = tab order): home leads as the boot
+     *  page -> home/shell/logs/status/alarms. */
     void register_pages() override {
         terminal().add_page(&_home_page);     // page 0 (the boot page)
         terminal().add_page(&shell_page());
@@ -249,20 +259,23 @@ protected:
         terminal().add_page(&alarms_page());
     }
 
-    /** @brief Register the site's "gh" command, reading the live PLC payload (ctx). */
+    /** @brief Register the site's "gh" command, reading the live PLC payload
+     *  (ctx). */
     void register_commands() override {
         shell_page().set_commands(g_site_commands,
                                   sizeof(g_site_commands) / sizeof(g_site_commands[0]),
                                   (void*)plc_output_data());
     }
 
-    /** @brief The home page also sinks the log stream (its bottom log-tail band). */
+    /** @brief The home page also sinks the log stream (its bottom log-tail
+     *  band). */
     void on_setup() override {
         logger().add_writer(&_home_page);
     }
 };
 
-// Simulator-only mock PLC (body compiles only under TARGET_SIMULATOR; near-empty on OPTA).
+// Simulator-only mock PLC (body compiles only under TARGET_SIMULATOR;
+// near-empty on OPTA).
 #include "sites/gh_mlb41/sim.h"
 
 /** @brief The firmware type the harness instantiates for this site. */

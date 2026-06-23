@@ -27,10 +27,10 @@ namespace Botanik { namespace PlcIO {
 
     /** @brief PLC connection status */
     enum PlcStatus {
-        PLC_UNKNOWN,                                // no successful acknowledgment yet
-        PLC_RUNNING,                                // communicating normally
-        PLC_TIMEOUT,                                // no acknowledgment within PLC_TIMEOUT_MS
-        PLC_FAULT                                   // no acknowledgment within PLC_WATCHDOG_MS
+        PLC_UNKNOWN,   // no successful acknowledgment yet
+        PLC_RUNNING,   // communicating normally
+        PLC_TIMEOUT,   // no acknowledgment within PLC_TIMEOUT_MS
+        PLC_FAULT      // no acknowledgment within PLC_WATCHDOG_MS
     };
 
     /** @brief Reader state enumeration */
@@ -43,9 +43,9 @@ namespace Botanik { namespace PlcIO {
     /** @brief Writer state enumeration */
     enum PlcTxState {
         TX_WRITE,
-        TX_COMMIT,                                  // commit a write (or send heartbeat pulse)
+        TX_COMMIT,   // commit a write (or send heartbeat pulse)
         TX_WAIT,
-        TX_IDLE                                     // wait for a write request (or heartbeat interval)
+        TX_IDLE      // wait for a write request (or heartbeat interval)
     };
 
     /** @} */
@@ -61,25 +61,36 @@ namespace Botanik { namespace PlcIO {
         bool             _tx_write       = false;
         PlcOutputLogs_t  _rx_logs_buffer = {};
         PlcInputLogs_t   _tx_logs_buffer = {};
-        PlcOutputConfig_t _rx_config_buffer = {};  ///< PLC's generic config (network/NTP/MQTT)
-        const uint32_t*  _timestamp_ms   = nullptr;  ///< shared loop clock (ms), read-only
+        /** @brief PLC's generic config (network/NTP/MQTT). */
+        PlcOutputConfig_t _rx_config_buffer = {};
+        /** @brief Shared loop clock (ms), read-only. */
+        const uint32_t*  _timestamp_ms   = nullptr;
         /** @brief Time of the last acknowledged TX (wrap-safe loop-clock stamp). */
         Utils::Millis32  _tx_last_ms;
-        uint32_t         _timeout_ms     = Config::PLC_TIMEOUT_MS;  ///< elapsed before PLC_TIMEOUT
-        uint32_t         _watchdog_ms    = Config::PLC_WATCHDOG_MS; ///< elapsed before PLC_FAULT
+        /** @brief Elapsed before PLC_TIMEOUT. */
+        uint32_t         _timeout_ms     = Config::PLC_TIMEOUT_MS;
+        /** @brief Elapsed before PLC_FAULT. */
+        uint32_t         _watchdog_ms    = Config::PLC_WATCHDOG_MS;
         bool             _ever_ackd      = false;
-        Logs::Logger*    _logger         = nullptr;  ///< link status changes (may be null)
-        PlcStatus        _last_status    = PLC_UNKNOWN;  ///< for change detection
+        /** @brief Link status changes (may be null). */
+        Logs::Logger*    _logger         = nullptr;
+        /** @brief For change detection. */
+        PlcStatus        _last_status    = PLC_UNKNOWN;
 
         /** @name Diagnostics (set by the handler ctor; surfaced by the `plc` command)
          *  @{ */
-        const void*      _in_region      = nullptr;  // PLC input region (we write, PLC reads)
-        const void*      _out_region     = nullptr;  // PLC output region (PLC writes, we read)
+        // PLC input region (we write, PLC reads)
+        const void*      _in_region      = nullptr;
+        // PLC output region (PLC writes, we read)
+        const void*      _out_region     = nullptr;
         uint32_t         _in_size        = 0;
         uint32_t         _out_size       = 0;
-        const uint32_t*  _torn_ptr       = nullptr;  // -> handler's live torn-read counter
-        const PlcInputCounters_t*  _in_sync  = nullptr;  // host-written handshake counters (live)
-        const PlcOutputCounters_t* _out_sync = nullptr;  // PLC-written handshake counters (live)
+        // -> handler's live torn-read counter
+        const uint32_t*  _torn_ptr       = nullptr;
+        // host-written handshake counters (live)
+        const PlcInputCounters_t*  _in_sync  = nullptr;
+        // PLC-written handshake counters (live)
+        const PlcOutputCounters_t* _out_sync = nullptr;
         /** @} */
 
         Utils::Millis32  _now() const { return Utils::Millis32(*_timestamp_ms); }
@@ -124,16 +135,21 @@ namespace Botanik { namespace PlcIO {
         /** @brief True once any TX was acknowledged by the PLC. */
         bool        ever_acked()      const { return _ever_ackd; }
         /** @brief Milliseconds since the last acknowledged TX (0 if never acked). */
-        uint32_t    last_ack_age_ms() const { return _ever_ackd ? (uint32_t)(_now() - _tx_last_ms) : 0; }
-        /** @brief Live count of torn RX snapshots discarded (PLC bumped seq mid-copy). */
+        uint32_t    last_ack_age_ms() const {
+            return _ever_ackd ? (uint32_t)(_now() - _tx_last_ms) : 0;
+        }
+        /** @brief Live count of torn RX snapshots discarded (PLC bumped seq
+         *  mid-copy). */
         uint32_t    torn_count()      const { return _torn_ptr ? *_torn_ptr : 0; }
 
         /** @name Live sync counters (each region's own handshake fields, read live; the
          *  PLC-POV names match PlcInput/OutputCounters_t in vars.h)
          *  @{ */
-        /** @brief IN region RX seq: our latest committed TX sequence, read by the PLC. */
+        /** @brief IN region RX seq: our latest committed TX sequence, read by
+         *  the PLC. */
         uint32_t    in_rx_seq()  const { return _in_sync  ? HAL::ordered_read(&_in_sync->rxSeqNum)  : 0; }
-        /** @brief IN region TX ack: our acknowledgment of the PLC's published output. */
+        /** @brief IN region TX ack: our acknowledgment of the PLC's published
+         *  output. */
         uint32_t    in_tx_ack()  const { return _in_sync  ? HAL::ordered_read(&_in_sync->txAckNum)  : 0; }
         /** @brief OUT region TX seq: the PLC's latest published output sequence. */
         uint32_t    out_tx_seq() const { return _out_sync ? HAL::ordered_read(&_out_sync->txSeqNum) : 0; }
@@ -171,13 +187,14 @@ namespace Botanik { namespace PlcIO {
         /** @} */
     };
 
-    // Two state machines (RX from the PLC output range, TX to its input range) using
-    // explicit in-order ops and a transactional seq/ack model, so it is safe even when
-    // the PLC runtime doesn't order its accesses to the shared ranges.
+    // Two state machines (RX from the PLC output range, TX to its input range)
+    // using explicit in-order ops and a transactional seq/ack model, so it is
+    // safe even when the PLC runtime doesn't order its accesses to the shared
+    // ranges.
     //
-    // InputData/OutputData are the site payloads, trivially copyable. The combined
-    // PlcInput/PlcOutput layout must match the PLC IDE's generated types (verified on
-    // OPTA by a static_assert in the user's sketch).
+    // InputData/OutputData are the site payloads, trivially copyable. The
+    // combined PlcInput/PlcOutput layout must match the PLC IDE's generated
+    // types (verified on OPTA by a static_assert in the user's sketch).
     /** @brief Transactional RX/TX state machines over PLC shared memory, templated
      *  on the site payloads. See @ref md_docs_2PLC__SYNC. */
     template<typename InputData, typename OutputData>
@@ -192,14 +209,16 @@ namespace Botanik { namespace PlcIO {
 
         PlcSyncContext         _ctx;
         uint32_t               _heartbeat_ms  = Config::PLC_HEARTBEAT_MS;
-        Utils::Millis32        _tx_commit_ms;  ///< last commit/heartbeat pulse (re-commit on stall)
+        /** @brief Last commit/heartbeat pulse (re-commit on stall). */
+        Utils::Millis32        _tx_commit_ms;
         PlcInput<InputData>*   _plcin;         ///< PLC input memory (write-only)
         PlcOutput<OutputData>* _plcout;        ///< PLC output memory (read-only)
         OutputData             _rx_data_buffer;
         InputData              _tx_data_buffer;
         PlcRxState             _rx_state      = RX_IDLE;
         PlcTxState             _tx_state      = TX_WRITE;
-        uint32_t               _rx_torn       = 0;  ///< RX snapshots discarded as torn (seq bumped mid-copy)
+        /** @brief RX snapshots discarded as torn (seq bumped mid-copy). */
+        uint32_t               _rx_torn       = 0;
         /** @brief PLC's stale rxAckNum read at bind, used to reject a stale-coincidence
          *  ack at first contact (before any real ack is observed). */
         uint32_t               _ack_baseline  = 0;
@@ -215,8 +234,9 @@ namespace Botanik { namespace PlcIO {
                        const uint32_t* timestamp_ms, Logs::Logger* logger = nullptr)
             : _plcin(plcin), _plcout(plcout)
         {
-            // The shared-memory pointers must be mapped: a null here means the PLC
-            // region wasn't wired (mis-linked image, or constructed before the M4 is up).
+            // The shared-memory pointers must be mapped: a null here means the
+            // PLC region wasn't wired (mis-linked image, or constructed before
+            // the M4 is up).
             BOTANIK_ASSERT(plcin != nullptr);
             BOTANIK_ASSERT(plcout != nullptr);
             BOTANIK_ASSERT(timestamp_ms != nullptr);
@@ -233,16 +253,18 @@ namespace Botanik { namespace PlcIO {
             memset(&_tx_data_buffer, 0, sizeof(InputData));
             memset(&_rx_data_buffer, 0, sizeof(OutputData));
 
-            // First-contact baseline: the PLC sync counters may be uninitialized or
-            // stale at boot, so don't trust them. Snapshot the PLC's current output seq
-            // and ack, then seed our own input region to a known start: rxSeqNum = 0 (our
-            // TX seq), and txAckNum = the PLC's current txSeqNum so a stale value isn't
-            // mistaken for a fresh RX message. _ack_baseline gates the first TX ack so a
-            // stale rxAckNum can't be read as a live PLC (see _tx_acknowledged()).
+            // First-contact baseline: the PLC sync counters may be
+            // uninitialized or stale at boot, so don't trust them. Snapshot the
+            // PLC's current output seq and ack, then seed our own input region
+            // to a known start: rxSeqNum = 0 (our TX seq), and txAckNum = the
+            // PLC's current txSeqNum so a stale value isn't mistaken for a fresh
+            // RX message. _ack_baseline gates the first TX ack so a stale
+            // rxAckNum can't be read as a live PLC (see _tx_acknowledged()).
             HAL::cache_invalidate(_plcout, sizeof(*_plcout));
             uint32_t plc_seq = HAL::ordered_read(&_plcout->sync.txSeqNum);
             _ack_baseline    = HAL::ordered_read(&_plcout->sync.rxAckNum);
-            PlcInputCounters_t baseline = { 0u, plc_seq };   // rxSeqNum=0, txAckNum=plc_seq
+            // rxSeqNum=0, txAckNum=plc_seq
+            PlcInputCounters_t baseline = { 0u, plc_seq };
             HAL::ordered_copy(&_plcin->sync, &baseline);
             HAL::cache_clean(_plcin, sizeof(*_plcin));
         }
@@ -254,9 +276,10 @@ namespace Botanik { namespace PlcIO {
 
         /** @brief Payload-independent context for log readers and pages. */
         PlcSyncContext*   context()           { return &_ctx; }
-        /** @brief Most recently received PLC output payload. @warning this is a stable
-         *  interior pointer into the handler's local RX buffer; readers/pages cache it at
-         *  construction, so the buffer must never relocate (no double-buffering/swap). */
+        /** @brief Most recently received PLC output payload.
+         *  @warning this is a stable interior pointer into the handler's local
+         *  RX buffer; readers/pages cache it at construction, so the buffer must
+         *  never relocate (no double-buffering/swap). */
         const OutputData* output_data() const { return &_rx_data_buffer; }
         /** @brief Transmit buffer staged for the PLC input payload. */
         InputData*        input_data()        { return &_tx_data_buffer; }
@@ -297,18 +320,25 @@ namespace Botanik { namespace PlcIO {
         /** @name Transition triggers
          *  @{ */
 
-        inline bool _rx_new_message()      { return HAL::ordered_read(&_plcout->sync.txSeqNum) != _plcin->sync.txAckNum; }
-        // Pulse at heartbeat cadence from the last commit (not the last ack): both the
-        // TX_IDLE keepalive and the TX_WAIT re-pulse of an unacked commit use this, so an
-        // unacked link keeps a steady cadence instead of re-firing every step.
-        inline bool _tx_heartbeat_elapsed(){ return _ctx._now() - _tx_commit_ms > _heartbeat_ms; }
+        inline bool _rx_new_message() {
+            return HAL::ordered_read(&_plcout->sync.txSeqNum)
+                   != _plcin->sync.txAckNum;
+        }
+        // Pulse at heartbeat cadence from the last commit (not the last ack):
+        // both the TX_IDLE keepalive and the TX_WAIT re-pulse of an unacked
+        // commit use this, so an unacked link keeps a steady cadence instead of
+        // re-firing every step.
+        inline bool _tx_heartbeat_elapsed() {
+            return _ctx._now() - _tx_commit_ms > _heartbeat_ms;
+        }
         inline bool _tx_acknowledged() {
             uint32_t ack = HAL::ordered_read(&_plcout->sync.rxAckNum);
             if (ack != _plcin->sync.rxSeqNum) return false;
-            // First-contact gate: a stale rxAckNum that coincidentally equals our first
-            // seq must not be read as a live PLC. Until the link is up, require the ack to
-            // differ from the bind-time stale value (proof the PLC actually wrote it). A
-            // real PLC catches up within a commit or two; after _ever_ackd it's normal.
+            // First-contact gate: a stale rxAckNum that coincidentally equals
+            // our first seq must not be read as a live PLC. Until the link is
+            // up, require the ack to differ from the bind-time stale value
+            // (proof the PLC actually wrote it). A real PLC catches up within a
+            // commit or two; after _ever_ackd it's normal.
             if (!_ctx._ever_ackd && ack == _ack_baseline) return false;
             _ctx._tx_last_ms = _ctx._now();
             _ctx._ever_ackd  = true;
@@ -329,7 +359,8 @@ namespace Botanik { namespace PlcIO {
             HAL::ordered_copy(&_ctx._rx_logs_buffer, &_plcout->logs);
             HAL::ordered_copy(&_ctx._rx_config_buffer, &_plcout->conf);
             HAL::ordered_copy(&_rx_data_buffer, &_plcout->data);
-            HAL::cache_invalidate(&_plcout->sync, sizeof(_plcout->sync));  // re-read from SRAM
+            // re-read from SRAM
+            HAL::cache_invalidate(&_plcout->sync, sizeof(_plcout->sync));
             return HAL::ordered_read(&_plcout->sync.txSeqNum) == seq_before;
         }
         inline void _tx_memcpy() {
@@ -356,8 +387,11 @@ namespace Botanik { namespace PlcIO {
                 case RX_IDLE:   if (_rx_new_message())      return RX_READ; break;
                 case RX_READ:
                     if (_rx_memcpy()) return RX_ACK;
-                    _rx_torn++;       // torn snapshot: discard, do not ack, re-read next tick
-                    if (_ctx._logger) _ctx._logger->warning(PLC_IO, "PLC RX torn read discarded (seq changed mid-copy)");
+                    // torn snapshot: discard, do not ack, re-read next tick
+                    _rx_torn++;
+                    if (_ctx._logger)
+                        _ctx._logger->warning(PLC_IO,
+                            "PLC RX torn read discarded (seq changed mid-copy)");
                     return RX_IDLE;
                 case RX_ACK:    _rx_acknowledge();          return RX_IDLE; break;
             }

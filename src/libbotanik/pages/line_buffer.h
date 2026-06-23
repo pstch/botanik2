@@ -5,10 +5,10 @@
  * @file line_buffer.h
  * @brief LineBuffer<L,N> - a fixed-capacity circular buffer of display lines.
  *
- * The storage primitive under @ref Botanik::Pages::Scrollback "Scrollback": holds
- * the most recent @p L lines (each up to @p N bytes), with soft-wrap splitting on
- * store and newest-first access by distance. Owns no rendering. Instantiate behind
- * a typedef.
+ * The storage primitive under @ref Botanik::Pages::Scrollback "Scrollback":
+ * holds the most recent @p L lines (each up to @p N bytes), with soft-wrap
+ * splitting on store and newest-first access by distance. Owns no rendering.
+ * Instantiate behind a typedef.
  */
 
 #include <algorithm>
@@ -59,22 +59,27 @@ namespace Botanik { namespace Pages {
             const uint16_t seg_cap = N;
             char seg[N];
 
-            const uint16_t CONT_MIN = 2;   // min content width on a continuation row (avoid 1-char fanout)
+            // min content width on a continuation row (avoid 1-char fanout)
+            const uint16_t CONT_MIN = 2;
             uint16_t count = 0;
             for (size_t off = 0; ; ) {
                 uint16_t prefix_len = (count == 0 || cols <= plen) ? 0 : plen;
-                if (prefix_len >= seg_cap) prefix_len = 0;  // a prefix too big for the segment is dropped, not underflowed
-                // If the continuation prefix would leave less than CONT_MIN for content,
-                // drop it on this row rather than fan the line out one char at a time.
-                if (cols != 0 && prefix_len != 0 && (uint16_t)(cols - prefix_len) < CONT_MIN)
+                // a prefix too big for the segment is dropped, not underflowed
+                if (prefix_len >= seg_cap) prefix_len = 0;
+                // If the continuation prefix would leave less than CONT_MIN for
+                // content, drop it on this row rather than fan the line out one
+                // char at a time.
+                if (cols != 0 && prefix_len != 0 &&
+                    (uint16_t)(cols - prefix_len) < CONT_MIN)
                     prefix_len = 0;
                 // Per-row byte budget: fill to the width, or everything left when
-                // unbounded (cols == 0), but never overflow the segment buffer. (Input is
-                // ASCII-only, so a byte budget == a column budget; a multibyte glyph would
-                // need breaking on a lead-byte boundary.)
+                // unbounded (cols == 0), but never overflow the segment buffer.
+                // (Input is ASCII-only, so a byte budget == a column budget; a
+                // multibyte glyph would need breaking on a lead-byte boundary.)
                 uint16_t budget = (cols == 0) ? (uint16_t)(len - off)
                                               : (uint16_t)(cols - prefix_len);
-                if (budget > (uint16_t)(seg_cap - prefix_len)) budget = (uint16_t)(seg_cap - prefix_len);
+                if (budget > (uint16_t)(seg_cap - prefix_len))
+                    budget = (uint16_t)(seg_cap - prefix_len);
 
                 // Take up to `budget` bytes, stopping early at a newline.
                 uint16_t take = Utils::scan_line_segment(buf, off, len, budget);
@@ -85,7 +90,8 @@ namespace Botanik { namespace Pages {
                 count++;
 
                 off += take;
-                if (off < len && buf[off] == '\n') off++;  // consume the break, don't print it
+                // consume the break, don't print it
+                if (off < len && buf[off] == '\n') off++;
                 if (off >= len) break;
             }
             return count;
@@ -101,8 +107,9 @@ namespace Botanik { namespace Pages {
         uint16_t count() const { return _count; }
 
         /** @brief Access a stored line by distance from newest (1 = most recent).
-         *  @param from_end steps back from newest (1-based); @param len set on success.
-         *  @return line bytes, or nullptr if @p from_end is out of range. */
+         *  @param from_end steps back from newest (1-based); @param len set on
+         *  success. @return line bytes, or nullptr if @p from_end is out of
+         *  range. */
         const char* line(uint16_t from_end, uint16_t& len) const {
             if (from_end == 0 || from_end > _count) return nullptr;
             uint16_t idx = (uint16_t)((_head + L - from_end) % L);

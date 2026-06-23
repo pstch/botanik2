@@ -67,24 +67,27 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_dispatch(const char* cmd, uint16_t len) {
-        // First word = command name (leading spaces skipped); the rest = the arguments.
+        // First word = command name (leading spaces skipped); the rest = args.
         const char* args = cmd; uint16_t alen = len, wlen;
         const char* name = Utils::arg_next(args, alen, wlen);
-        if (name == nullptr) return;                            // blank / all-spaces line
-        while (alen > 0 && *args == ' ') { args++; alen--; }    // trim to the argument slice
+        if (name == nullptr) return;                       // blank / all-spaces line
+        while (alen > 0 && *args == ' ') { args++; alen--; }   // trim to arg slice
 
         // Site commands first, so the table can override a built-in (e.g. a site
         // that wants its own `stats`); unmatched names fall through to the built-ins.
         for (size_t i = 0; i < _command_count; i++) {
             const ShellCommand& c = _commands[i];
-            if (c.name != nullptr && c.fn != nullptr && Utils::arg_eq(name, wlen, c.name)) {
+            if (c.name != nullptr && c.fn != nullptr &&
+                Utils::arg_eq(name, wlen, c.name)) {
                 c.fn(_output, args, alen, _command_ctx);
                 return;
             }
         }
         uint8_t bcount; const Builtin* B = _builtins(bcount);
         for (uint8_t i = 0; i < bcount; i++)
-            if (Utils::arg_eq(name, wlen, B[i].name)) { (this->*B[i].fn)(args, alen); return; }
+            if (Utils::arg_eq(name, wlen, B[i].name)) {
+                (this->*B[i].fn)(args, alen); return;
+            }
 
         _unknown(cmd, len);
     }
@@ -94,8 +97,9 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_cmd_help(const char*, uint16_t) {
-        // One line per command, generated from the tables so help can't drift from the
-        // command set. %-10s is a minimum width, not a cap (a long name pushes help right).
+        // One line per command, generated from the tables so help can't drift
+        // from the command set. %-10s is a minimum width, not a cap (a long name
+        // pushes help right).
         char out[Config::LOG_FORMATTED_LEN];
         uint8_t bcount; const Builtin* B = _builtins(bcount);
         for (uint8_t i = 0; i < bcount; i++) {
@@ -105,7 +109,8 @@ namespace Botanik { namespace Shell {
         for (size_t i = 0; i < _command_count; i++) {
             const ShellCommand& c = _commands[i];
             if (c.name == nullptr) continue;
-            int w = snprintf(out, sizeof(out), "  %-10s %s", c.name, c.help ? c.help : "");
+            int w = snprintf(out, sizeof(out), "  %-10s %s",
+                             c.name, c.help ? c.help : "");
             if (w > 0) _output.write(out, std::min((size_t)w, sizeof(out) - 1));
         }
     }
@@ -115,16 +120,22 @@ namespace Botanik { namespace Shell {
     void CommandShell::_cmd_logs(const char* args, uint16_t alen) {
         uint16_t wlen; const char* w = Utils::arg_next(args, alen, wlen);
         if (w == nullptr)
-            _println(_output.logs_enabled() ? "logs: output enabled" : "logs: output disabled");
-        else if (Utils::arg_eq(w, wlen, "on"))  { _output.set_logs_enabled(true);  _println("logs: output enabled"); }
-        else if (Utils::arg_eq(w, wlen, "off")) { _output.set_logs_enabled(false); _println("logs: output disabled"); }
+            _println(_output.logs_enabled() ? "logs: output enabled"
+                                            : "logs: output disabled");
+        else if (Utils::arg_eq(w, wlen, "on")) {
+            _output.set_logs_enabled(true);  _println("logs: output enabled");
+        }
+        else if (Utils::arg_eq(w, wlen, "off")) {
+            _output.set_logs_enabled(false); _println("logs: output disabled");
+        }
         else _println("usage: logs [on|off]");
     }
 
     void CommandShell::_cmd_breakpoint(const char*, uint16_t) { HAL::debug_break(); }
 
-    // Wipe the screen (flushed straight to the wire) before leaving: the main loop
-    // won't run again to drain the TX ring, and neither reset() nor shutdown() returns.
+    // Wipe the screen (flushed straight to the wire) before leaving: the main
+    // loop won't run again to drain the TX ring, and neither reset() nor
+    // shutdown() returns.
     void CommandShell::_cmd_reset(const char*, uint16_t) {
         _terminal.clear_screen_now();
         HAL::reset();      // reboots; does not return
@@ -136,7 +147,7 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_cmd_stats(const char*, uint16_t) {
-        // Emits several lines; the scrollback drains them at LOG_ROWS_PER_TICK (bounded).
+        // Emits several lines; scrollback drains them at LOG_ROWS_PER_TICK.
         Scheduler::SchedulerContext* ctx = _terminal.context().scheduler;
         if (ctx == nullptr) { _println("stats: no scheduler context"); return; }
 
@@ -145,7 +156,8 @@ namespace Botanik { namespace Shell {
         char fa[12], fb[12];
         int w;
 
-        snprintf(val,    sizeof(val),    "%lus", (unsigned long)(HAL::uptime_ms() / 1000));
+        snprintf(val,    sizeof(val),    "%lus",
+            (unsigned long)(HAL::uptime_ms() / 1000));
         snprintf(detail, sizeof(detail), "%lu ticks, %lu overruns",
             (unsigned long)ctx->tick_count, (unsigned long)ctx->overruns);
         w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
@@ -184,7 +196,8 @@ namespace Botanik { namespace Shell {
         if (w > 0) _output.write(out, (size_t)w);
 
         snprintf(detail, sizeof(detail), "%lu TX dropped, %lu RX overruns",
-            (unsigned long)_terminal.tx_dropped(), (unsigned long)_terminal.rx_overrun());
+            (unsigned long)_terminal.tx_dropped(),
+            (unsigned long)_terminal.rx_overrun());
         w = snprintf(out, sizeof(out), "%-29s : %s",
             "Console serial ..............", detail);
         if (w > 0) _output.write(out, (size_t)w);
@@ -202,16 +215,23 @@ namespace Botanik { namespace Shell {
         uint16_t wlen; const char* sub = Utils::arg_next(args, alen, wlen);
         char out[80];
 
-        // "alarms ack <code|all>" - mutates, so it needs the model wired via set_diagnostics.
+        // "alarms ack <code|all>" - mutates, so it needs the model wired via
+        // set_diagnostics.
         if (sub && Utils::arg_eq(sub, wlen, "ack")) {
-            if (_alarm_model == nullptr) { _println("alarms: model unavailable"); return; }
+            if (_alarm_model == nullptr) {
+                _println("alarms: model unavailable"); return;
+            }
             uint16_t tlen; const char* tgt = Utils::arg_next(args, alen, tlen);
-            if (tgt == nullptr) { _println("usage: alarms ack <code|all>"); return; }
+            if (tgt == nullptr) {
+                _println("usage: alarms ack <code|all>"); return;
+            }
             int n;
             if (Utils::arg_eq(tgt, tlen, "all")) {
-                n = snprintf(out, sizeof(out), "acknowledged %u active alarm(s)", _alarm_model->ack_all());
+                n = snprintf(out, sizeof(out), "acknowledged %u active alarm(s)",
+                             _alarm_model->ack_all());
             } else {
-                char code[24]; uint16_t cl = std::min(tlen, (uint16_t)(sizeof(code) - 1));
+                char code[24];
+                uint16_t cl = std::min(tlen, (uint16_t)(sizeof(code) - 1));
                 memcpy(code, tgt, cl); code[cl] = '\0';
                 n = snprintf(out, sizeof(out), _alarm_model->ack(code)
                              ? "acknowledged %s" : "no active alarm '%s'", code);
@@ -223,7 +243,7 @@ namespace Botanik { namespace Shell {
         const Alarms::AlarmModel* m = _terminal.alarms();
         if (m == nullptr) { _println("alarms: model unavailable"); return; }
 
-        // "alarms list" - one paced line per active condition: code, age, masked/ack flags.
+        // "alarms list" - one paced line per active condition: code, age, flags.
         if (sub && Utils::arg_eq(sub, wlen, "list")) {
             if (m->active_count() == 0) { _println("no active alarms"); return; }
             char age[16];
@@ -232,7 +252,8 @@ namespace Botanik { namespace Shell {
                 const Alarms::AlarmCondition& c = m->condition(i);
                 if (!c.active) continue;
                 uint32_t secs = (uint32_t)((now - c.started_ms) / 1000);
-                int n = snprintf(out, sizeof(out), "  %-10s %s%s%s", c.code ? c.code : "?",
+                int n = snprintf(out, sizeof(out), "  %-10s %s%s%s",
+                    c.code ? c.code : "?",
                     Utils::format_age(age, sizeof(age), secs, false),
                     c.unmasked ? "" : " [masked]", c.acknowledged ? " [ack]" : "");
                 if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
@@ -247,7 +268,9 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_cmd_loglevel(const char* args, uint16_t alen) {
-        if (_logger == nullptr) { _println("loglevel: logger unavailable"); return; }
+        if (_logger == nullptr) {
+            _println("loglevel: logger unavailable"); return;
+        }
         static const struct { const char* name; PlcIO::LogLevel lvl; } LEVELS[] = {
             { "debug",  PlcIO::LOG_DEBUG   }, { "info",    PlcIO::LOG_INFO    },
             { "notice", PlcIO::LOG_NOTICE  }, { "warning", PlcIO::LOG_WARNING },
@@ -255,9 +278,10 @@ namespace Botanik { namespace Shell {
         };
         char out[48];
         uint16_t wlen; const char* w = Utils::arg_next(args, alen, wlen);
-        if (w == nullptr) {                                   // report the current threshold
+        if (w == nullptr) {                            // report current threshold
             const char* cur = "?";
-            for (const auto& L : LEVELS) if (L.lvl == _logger->min_level()) cur = L.name;
+            for (const auto& L : LEVELS)
+                if (L.lvl == _logger->min_level()) cur = L.name;
             int n = snprintf(out, sizeof(out), "loglevel: %s", cur);
             if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
             return;
@@ -290,22 +314,24 @@ namespace Botanik { namespace Shell {
             case PlcIO::PLC_FAULT:   s = "FAULT";          break;
             default:                 s = "no contact yet"; break;
         }
-        // Dotted-leader "label .... : value" lines. The 22-char labels are exact (no
-        // %-22s pad); narrower than `stats` so each region line fits 80 cols.
+        // Dotted-leader "label .... : value" lines. The 22-char labels are exact
+        // (no %-22s pad); narrower than `stats` so each region line fits 80 cols.
         char out[128], val[80], sz[16];
         int n;
 
         // Link state, last-ack age, torn-read count.
         if (p->ever_acked())
             snprintf(val, sizeof(val), "%s  (ack %lu ms ago, %lu torn)",
-                     s, (unsigned long)p->last_ack_age_ms(), (unsigned long)p->torn_count());
+                     s, (unsigned long)p->last_ack_age_ms(),
+                     (unsigned long)p->torn_count());
         else
             snprintf(val, sizeof(val), "%s  (%lu torn)", s, (unsigned long)p->torn_count());
         n = snprintf(out, sizeof(out), "%-22s : %s", "PLC link .............", val);
         if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
 
-        // Shared-memory regions: address, size, and the two sync fields resident in that
-        // region (by their PLC-POV names). Fixed-width numbers so columns never shift.
+        // Shared-memory regions: address, size, and the two sync fields resident
+        // in that region (by their PLC-POV names). Fixed-width numbers so columns
+        // never shift.
         snprintf(val, sizeof(val), "%p  %6s  (RX seq %5lu, TX ack %5lu)",
                  p->in_region(), Utils::format_size(sz, sizeof(sz), p->in_size()),
                  (unsigned long)p->in_rx_seq(), (unsigned long)p->in_tx_ack());
@@ -317,7 +343,7 @@ namespace Botanik { namespace Shell {
         n = snprintf(out, sizeof(out), "%-22s : %s", "Shared mem OUT .......", val);
         if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
 
-        // Log ring cursors framed as seq/ack: the PLC's write position vs our read position.
+        // Log ring cursors framed as seq/ack: PLC write pos vs our read pos.
         snprintf(val, sizeof(val), "seq %5lu, ack %5lu",
                  (unsigned long)p->output_logs()->writeIndex,
                  (unsigned long)p->input_logs()->readIndex);
@@ -326,8 +352,8 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_unknown(const char* cmd, uint16_t len) {
-        // Handed to write_lines() as one blob: it wraps at terminal width and splits on
-        // any embedded newline, so no manual bookkeeping is needed.
+        // Handed to write_lines() as one blob: it wraps at terminal width and
+        // splits on any embedded newline, so no manual bookkeeping is needed.
         char out[Config::LOG_FORMATTED_LEN];
         static const char prefix[] = "Unknown command: ";
         uint16_t plen = (uint16_t)(sizeof(prefix) - 1);
@@ -363,10 +389,11 @@ namespace Botanik { namespace Shell {
         else {
             // browse 0 = newest (head-1); browse k = head-1-k, modulo the ring.
             uint8_t slot = (uint8_t)((_hist_head + Config::SHELL_HISTORY_SIZE - 1
-                                      - (uint8_t)_hist_browse) % Config::SHELL_HISTORY_SIZE);
+                                      - (uint8_t)_hist_browse)
+                                     % Config::SHELL_HISTORY_SIZE);
             text = _history[slot]; len = _hist_len[slot];
         }
-        // Replace the editor line: go to the end, delete it all, insert the recalled text.
+        // Replace the editor line: go to the end, delete it, insert recalled text.
         _editor.move_to_line_end();
         _editor.backspace(_editor.buffer_len());
         _editor.insert_characters(text, len);

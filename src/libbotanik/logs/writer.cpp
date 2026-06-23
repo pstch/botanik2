@@ -2,9 +2,9 @@
  * @file writer.cpp
  * @brief LogWriter implementations - queueing and incremental drain.
  *
- * drain() formats one queued entry at a time into _message and tracks _sent so a
- * partial write resumes without re-formatting. SerialLogWriter caps each write at
- * the TX buffer's available space so it never blocks the main loop.
+ * drain() formats one queued entry at a time into _message and tracks _sent so
+ * a partial write resumes without re-formatting. SerialLogWriter caps each
+ * write at the TX buffer's available space so it never blocks the main loop.
  */
 #include "libbotanik/utils/time.h"
 #include "libbotanik/utils/serial.h"
@@ -21,20 +21,21 @@ namespace Botanik { namespace Logs {
     void BufferedLogWriter::push(const LogEntry_t* entry) {
         uint8_t nextIndex = (_writeIndex + 1) % Config::LOG_QUEUE_SIZE;
         bool    crit      = entry->level >= PlcIO::LOG_CRITICAL;
-        if (nextIndex == _readIndex) {                                      // completely full
-            // Critical reserve exhausted: a normal drops; a critical evicts the oldest as
-            // a last resort. drain() consumes _readIndex at format time, so advancing it
-            // can't corrupt an in-flight send.
+        if (nextIndex == _readIndex) {   // completely full
+            // Critical reserve exhausted: a normal drops; a critical evicts the
+            // oldest as a last resort. drain() consumes _readIndex at format
+            // time, so advancing it can't corrupt an in-flight send.
             if (!crit) { _dropped += 1; return; }
-            _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE;         // drop oldest
+            _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE;   // drop oldest
             _dropped += 1;
         } else if (!crit) {
-            // Reserve the last K usable slots for criticals, so a critical (e.g. the
-            // sink-loss report itself) always seats WITHOUT evicting - which stops that
-            // report from manufacturing the very drop it then reports.
+            // Reserve the last K usable slots for criticals, so a critical (e.g.
+            // the sink-loss report itself) always seats WITHOUT evicting - which
+            // stops that report from manufacturing the very drop it then reports.
             uint8_t used = (uint8_t)((_writeIndex - _readIndex + Config::LOG_QUEUE_SIZE)
                                      % Config::LOG_QUEUE_SIZE);
-            if (used >= (uint8_t)(Config::LOG_QUEUE_SIZE - 1 - Config::LOG_QUEUE_CRITICAL_RESERVE)) {
+            if (used >= (uint8_t)(Config::LOG_QUEUE_SIZE - 1
+                                  - Config::LOG_QUEUE_CRITICAL_RESERVE)) {
                 _dropped += 1; return;
             }
         }
@@ -43,13 +44,15 @@ namespace Botanik { namespace Logs {
     }
 
     void BufferedLogWriter::drain() {
-        if (_length > 0 && !_drain_message()) return;                       // resume in-flight; yield if partial
+        // Resume an in-flight message first; yield if it is still partial.
+        if (_length > 0 && !_drain_message()) return;
         while (_readIndex != _writeIndex) {
             const LogEntry_t* entry = &_queue[_readIndex];
             _length = format(entry, _message, Config::LOG_FORMATTED_LEN);
-            _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE;         // consume now: _message is decoupled
-            if (_length == 0) { _failed++; continue; }                      // unformattable: skip
-            if (!_drain_message()) return;                                  // yield if not fully sent
+            // Consume now: _message is decoupled from the queue slot.
+            _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE;
+            if (_length == 0) { _failed++; continue; }   // unformattable: skip
+            if (!_drain_message()) return;               // yield if not fully sent
         }
     }
 

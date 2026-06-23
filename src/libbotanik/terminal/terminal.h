@@ -3,9 +3,10 @@
 
 /**
  * @file terminal.h
- * @brief AnsiTerminal - owns the serial connection and drives the multiplexed
- *        page display, routing input events to the active page and managing the
- *        cursor, geometry, and status bar.
+ * @brief AnsiTerminal - serial connection owner and multiplexed page display.
+ *
+ * Routes input events to the active page and manages the cursor, geometry,
+ * and status bar.
  */
 
 #include <cstdint>
@@ -24,9 +25,10 @@ namespace Botanik { namespace Terminal {
 
 
     /** @class AnsiTerminal
-     *  @brief Owns the serial link and drives the multiplexed page display: routes
-     *         input to the active page, tracks cursor/geometry/attribute state, and
-     *         renders the row-0 status bar.
+     *  @brief Owns the serial link and drives the multiplexed page display.
+     *
+     *  Routes input to the active page, tracks cursor/geometry/attribute
+     *  state, and renders the row-0 status bar.
      */
     class AnsiTerminal : public Botanik::Component {
         using BufferedSerial = Utils::BufferedSerial;
@@ -36,7 +38,8 @@ namespace Botanik { namespace Terminal {
          *  @{ */
 
         InputParser         _parser;
-        Pages::Page*        _pages[8];     /**< Child pages multiplexed onto the display. */
+        /** @brief Child pages multiplexed onto the display. */
+        Pages::Page*        _pages[8];
         uint8_t             _pages_len  = 0;
         uint8_t             _page_index = 0;
 
@@ -63,11 +66,16 @@ namespace Botanik { namespace Terminal {
         /** @name Hardware terminal state
          *  @{ */
 
-        CursorPos           _hw_pos = {0, 0};       /**< Tracked hardware cursor position. */
-        bool                _hw_inverted = false;   /**< Reverse-video attribute state. */
-        bool                _hw_auto_wrap = true;   /**< DECAWM auto-wrap (default: on). */
-        bool                _hw_at_eol = false;     /**< Cursor parked at last col after a row-filling write. */
-        bool                _hw_insert_mode = false; /**< SM4/RM4 insert mode (toggled lazily by write_chars). */
+        /** @brief Tracked hardware cursor position. */
+        CursorPos           _hw_pos         = {0, 0};
+        /** @brief Reverse-video attribute state. */
+        bool                _hw_inverted    = false;
+        /** @brief DECAWM auto-wrap (default: on). */
+        bool                _hw_auto_wrap   = true;
+        /** @brief Cursor parked at last col after a row-filling write. */
+        bool                _hw_at_eol      = false;
+        /** @brief SM4/RM4 insert mode (toggled lazily by write_chars). */
+        bool                _hw_insert_mode = false;
         /** @brief DECTCEM cursor visibility (default: hidden). Pages that want a
          *  visible cursor (only the shell editor today) opt in via
          *  set_cursor_visible() in focus(); switch_to() hides it for everyone else. */
@@ -82,15 +90,18 @@ namespace Botanik { namespace Terminal {
         /** @name Status bar state
          *  @{ */
 
-        uint64_t            _status_last_ms = 0;   /**< Last status-metrics refresh (wall clock). */
+        /** @brief Last status-metrics refresh (wall clock). */
+        uint64_t            _status_last_ms = 0;
         /** @brief Visible width (+NUL) of the right-aligned field "PLC:xxx cpu:nnn%
          *  stk:nnn% ". Build buffer and diff cache are sized from this one constant
          *  so they can never drift apart. */
         static constexpr uint16_t    STATUS_METRICS_LEN = 27;
         /** @brief Diff cache of the last drawn metrics (zero-init forces first draw). */
         char                         _status_metrics_cache[STATUS_METRICS_LEN] = {};
-        uint64_t            _status_clock_last_ms = 0;  /**< Last clock refresh (uptime ms). */
-        static constexpr uint16_t    STATUS_CLOCK_LEN = 8;   /**< HH:MM:SS field width (no NUL). */
+        /** @brief Last clock refresh (uptime ms). */
+        uint64_t            _status_clock_last_ms = 0;
+        /** @brief HH:MM:SS field width (no NUL). */
+        static constexpr uint16_t    STATUS_CLOCK_LEN = 8;
         /** @brief Diff cache of the last drawn clock (zero-init forces first draw). */
         char                         _status_clock_cache[STATUS_CLOCK_LEN] = {};
         /** @brief Round-robin cursor over the status-bar fields (0 = clock, 1 = metrics),
@@ -112,13 +123,15 @@ namespace Botanik { namespace Terminal {
         /** @brief Alarm source feeding the bar (may be null). When null there is no
          *  bar, _reserved_bottom stays 0, and the bottom row belongs to pages. */
         const Alarms::AlarmModel*    _alarms = nullptr;
-        Logs::Logger*                _logger = nullptr;  /**< First-step BOOT announce sink (may be null). */
+        /** @brief First-step BOOT announce sink (may be null). */
+        Logs::Logger*                _logger = nullptr;
         /** @brief Rows reserved at the screen bottom for the bar: 1 when _alarms is
          *  set, else 0. Subtracted by rows() / _content_bottom(). */
         uint16_t                     _reserved_bottom = 0;
         /** @brief Unmasked alarm set last painted (bit i = table row i). */
         uint64_t                     _alarm_sig = 0;
-        /** @brief A bar repaint is due (set on change / screen wipe, cleared once painted). */
+        /** @brief A bar repaint is due (set on change / screen wipe, cleared
+         *  once painted). */
         bool                         _alarm_dirty = true;
 
         /** @} */
@@ -171,8 +184,10 @@ namespace Botanik { namespace Terminal {
          *  visible bottom alarm bar and reserves the bottom screen row for it (the
          *  page content area shrinks by one row); null leaves the full screen to pages. */
         AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
-                     const uint32_t* timestamp_ms, uint32_t baud, const SystemContext& ctx = {},
-                     const Alarms::AlarmModel* alarms = nullptr, Logs::Logger* logger = nullptr);
+                     const uint32_t* timestamp_ms, uint32_t baud,
+                     const SystemContext& ctx = {},
+                     const Alarms::AlarmModel* alarms = nullptr,
+                     Logs::Logger* logger = nullptr);
 
         /** @brief Process input and update terminal state. */
         void step();
@@ -275,7 +290,7 @@ namespace Botanik { namespace Terminal {
          *  bytes must be pushed out here. Best-effort, bounded spin on the TX flush. */
         void clear_screen_now();
 
-        /** @brief Erase the page content area (rows 1..N-1), preserving the status bar */
+        /** @brief Erase the page content area (rows 1..N-1), keeping the status bar */
         void clear_content();
 
         /** @brief Emit a line feed, optionally with a carriage return */
@@ -411,8 +426,12 @@ namespace Botanik { namespace Terminal {
         uint32_t rx_overrun() const { return _serial.rx_overrun(); }
 
         /** @brief Capacity of the serial RX / TX ring buffers, bytes */
-        static constexpr uint16_t rx_capacity() { return Utils::BufferedSerial::rx_capacity(); }
-        static constexpr uint16_t tx_capacity() { return Utils::BufferedSerial::tx_capacity(); }
+        static constexpr uint16_t rx_capacity() {
+            return Utils::BufferedSerial::rx_capacity();
+        }
+        static constexpr uint16_t tx_capacity() {
+            return Utils::BufferedSerial::tx_capacity();
+        }
 
         /** @} */
 

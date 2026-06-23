@@ -22,7 +22,8 @@
 
 namespace Botanik {
 
-    /** @brief Base for a PLC-config-driven state machine: resets on a config-serial bump. */
+    /** @brief Base for a PLC-config-driven state machine: resets on a
+     *  config-serial bump. */
     class ConfigHandler : public Component {
         /** @name State
          *  @{ */
@@ -47,7 +48,8 @@ namespace Botanik {
         /** @name Lifecycle
          *  @{ */
 
-        ConfigHandler(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger, const char* name)
+        ConfigHandler(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger,
+                      const char* name)
             : _applied_serial(0), _ctx(ctx), _logger(logger), _name(name) {}
         virtual ~ConfigHandler() {}
 
@@ -72,14 +74,17 @@ namespace Botanik {
          *  @{ */
 
         /** @brief The generic config block (network/NTP/MQTT/geo), or null if no ctx. */
-        const PlcIO::PlcOutputConfig_t* config() const { return _ctx ? _ctx->config() : nullptr; }
+        const PlcIO::PlcOutputConfig_t* config() const {
+            return _ctx ? _ctx->config() : nullptr;
+        }
 
         /** @} */
 
         /** @name Hooks (implemented by the handler)
          *  @{ */
 
-        /** @brief Serial of the watched config block (e.g. config()->net.serial; 0 = none). */
+        /** @brief Serial of the watched config block
+         *  (e.g. config()->net.serial; 0 = none). */
         virtual uint32_t config_serial() const = 0;
         /** @brief Reset and latch the new config (on a watched-serial change). */
         virtual void on_config_changed(uint64_t now_ms) = 0;

@@ -31,9 +31,11 @@ namespace Botanik { namespace Terminal {
 
     // Lifecycle
 
-    AnsiTerminal::AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
-                               const uint32_t* timestamp_ms, uint32_t baud, const SystemContext& ctx,
-                               const Alarms::AlarmModel* alarms, Logs::Logger* logger) :
+    AnsiTerminal::AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols,
+                               uint16_t rows, const uint32_t* timestamp_ms,
+                               uint32_t baud, const SystemContext& ctx,
+                               const Alarms::AlarmModel* alarms,
+                               Logs::Logger* logger) :
         _parser(serial, timestamp_ms),
         _serial(serial),
         _ctx(ctx),
@@ -42,10 +44,11 @@ namespace Botanik { namespace Terminal {
         _alarms(alarms),
         _logger(logger)
     {
-        // Size the shared cooperative-TX depth floor from the link baud so the felt echo
-        // latency target (Config::TX_COLD_TARGET_MS) holds across links.
+        // Size the shared cooperative-TX depth floor from the link baud so the
+        // felt echo latency target (Config::TX_COLD_TARGET_MS) holds across links.
         _tx_cold_depth = depth_for_baud(baud, Config::TX_COLD_TARGET_MS);
-        _reserved_bottom = (_alarms != nullptr) ? 1 : 0;   // bottom row only when alarms wired
+        // bottom row only when alarms wired
+        _reserved_bottom = (_alarms != nullptr) ? 1 : 0;
     }
 
     void AnsiTerminal::step() {
@@ -65,11 +68,12 @@ namespace Botanik { namespace Terminal {
                 _pages[_page_index]->focus();
         }
         uint64_t now = HAL::uptime_ms();
-        // Status bar paints first each tick (self-contained), interleaving with the
-        // active page's draw. Its two fields (centred HH:MM:SS clock, right-aligned
-        // metrics) share TX_STATUS_FIELDS_PER_TICK and the depth floor; the round-robin
-        // cursor rotates which repaints first so a tight budget never favours the clock.
-        // A field repaints only on its own cadence; an unchanged field spends no budget.
+        // Status bar paints first each tick (self-contained), interleaving with
+        // the active page's draw. Its two fields (centred HH:MM:SS clock, right-
+        // aligned metrics) share TX_STATUS_FIELDS_PER_TICK and the depth floor;
+        // the round-robin cursor rotates which repaints first so a tight budget
+        // never favours the clock. A field repaints only on its own cadence; an
+        // unchanged field spends no budget.
         uint16_t status_budget = Config::TX_STATUS_FIELDS_PER_TICK;
         for (uint8_t v = 0; v < 2 && status_budget > 0 && tx_below_cold(); v++) {
             if (_status_field == 0) {
@@ -79,9 +83,9 @@ namespace Botanik { namespace Terminal {
                 }
             } else {
                 if (now - _status_last_ms >= Config::STATUS_REFRESH_MS) {
-                    // Advance the refresh clock only once the pass fully synced the
-                    // on-screen metrics; a partial run leaves it for the next tick instead
-                    // of waiting out another full STATUS_REFRESH_MS.
+                    // Advance the refresh clock only once the pass fully synced
+                    // the on-screen metrics; a partial run leaves it for the next
+                    // tick instead of waiting out another full STATUS_REFRESH_MS.
                     if (update_status_metrics()) _status_last_ms = now;
                     status_budget--;
                 }
@@ -121,7 +125,8 @@ namespace Botanik { namespace Terminal {
                 ev.command == Command::CTRL_PAGE_DOWN ||
                 ev.command == Command::TAB ||
                 ev.command == Command::SHIFT_TAB) {
-                // TAB / Ctrl+PageDown advance; Shift+TAB / Ctrl+PageUp step back. Both wrap.
+                // TAB / Ctrl+PageDown advance; Shift+TAB / Ctrl+PageUp step
+                // back. Both wrap.
                 const bool back = ev.command == Command::CTRL_PAGE_UP ||
                                   ev.command == Command::SHIFT_TAB;
                 switch_relative(!back);
@@ -171,17 +176,19 @@ namespace Botanik { namespace Terminal {
         // skip=true updates tracking without emitting (hardware already moved).
         bool ok = true;
         if (!skip) {
-            // A row-filling write parks the cursor at the assumed last column, but a
-            // real terminal wider than _cols leaves it one (or more) columns further
-            // right - so the parked column is unknown and any move computed off it
-            // would land short. Reposition absolutely: the one width-independent move.
+            // A row-filling write parks the cursor at the assumed last column,
+            // but a real terminal wider than _cols leaves it one (or more)
+            // columns further right - so the parked column is unknown and any
+            // move computed off it would land short. Reposition absolutely: the
+            // one width-independent move.
             if (_hw_at_eol) {
                 ok = Ansi::goto_absolute(_serial, target);
             }
             // Prefer a relative move when the cursor shares the target's row or
-            // column; goto_absolute is for true diagonals only. A single-axis hop is
-            // never longer than an absolute goto, so there's no delta where absolute
-            // wins. target == _hw_pos returned above, so the differing axis is non-zero.
+            // column; goto_absolute is for true diagonals only. A single-axis hop
+            // is never longer than an absolute goto, so there's no delta where
+            // absolute wins. target == _hw_pos returned above, so the differing
+            // axis is non-zero.
             else if (target.row == _hw_pos.row) { // Same row
                 if (target.col == 0) {
                     ok = Ansi::move_row_start(_serial);   // 1-byte CR beats CUB
@@ -201,7 +208,8 @@ namespace Botanik { namespace Terminal {
                        && target.row < (uint16_t)(_rows - 1)) {
                 // Common "spawn next row" target - CR + LF(s) is cheaper than
                 // goto_absolute. Bounded off the last row so a stray LF can't scroll.
-                ok = Ansi::down_to_row_start(_serial, (uint16_t)(target.row - _hw_pos.row));
+                ok = Ansi::down_to_row_start(_serial,
+                                             (uint16_t)(target.row - _hw_pos.row));
             } else { // Different row and column, use absolute move
                 ok = Ansi::goto_absolute(_serial, target);
             }
@@ -255,7 +263,8 @@ namespace Botanik { namespace Terminal {
         if (enable == _hw_inverted) return;
         // Reserve the longest form (CSI + ATTR_NEG) up front so a split SGR can't
         // swallow following payload bytes.
-        constexpr uint16_t SGR_MAX = (sizeof(Ansi::CSI) - 1) + (sizeof(Ansi::ATTR_NEG) - 1);
+        constexpr uint16_t SGR_MAX =
+            (sizeof(Ansi::CSI) - 1) + (sizeof(Ansi::ATTR_NEG) - 1);
         if (_serial.availableForWrite() < SGR_MAX) return;
 
         _serial.write(Ansi::CSI, sizeof(Ansi::CSI) - 1);
@@ -281,7 +290,8 @@ namespace Botanik { namespace Terminal {
 
     void AnsiTerminal::delete_chars(uint16_t len) {
         if (len == 0) return;
-        Ansi::delete_chars(_serial, len);   // DCH shifts content left; cursor unaffected
+        // DCH shifts content left; cursor unaffected
+        Ansi::delete_chars(_serial, len);
     }
 
     void AnsiTerminal::clear_to_eol() {
@@ -309,9 +319,10 @@ namespace Botanik { namespace Terminal {
 
     void AnsiTerminal::clear_screen_now() {
         clear_screen();
-        // Push the clear out now: the loop won't run again to drain the ring. transmit()
-        // never blocks (it flushes what the wire accepts), so spin until the ring empties.
-        // Bounded so a stuck/full wire can't hang the exit path (a clear is ~10 bytes).
+        // Push the clear out now: the loop won't run again to drain the ring.
+        // transmit() never blocks (it flushes what the wire accepts), so spin
+        // until the ring empties. Bounded so a stuck/full wire can't hang the
+        // exit path (a clear is ~10 bytes).
         for (uint16_t i = 0; i < tx_capacity() && !_serial.tx_empty(); i++)
             _serial.transmit();
     }
@@ -400,20 +411,22 @@ namespace Botanik { namespace Terminal {
         }
     }
 
-    void AnsiTerminal::scroll_region(uint16_t top, uint16_t bottom, bool up, uint16_t n) {
+    void AnsiTerminal::scroll_region(uint16_t top, uint16_t bottom, bool up,
+                                     uint16_t n) {
         if (n == 0 || top > bottom) return;
         uint16_t phys_last = (uint16_t)(_rows > 0 ? _rows - 1 : 0);
         if (bottom > phys_last) bottom = phys_last;
         uint16_t height = (uint16_t)(bottom - top + 1);
         if (n > height) n = height;   // scrolling the whole band just clears it
 
-        // The scroll is a DL/IL pair: the first op displaces every row below the band
-        // (including the reserved bottom alarm bar), the compensating op puts it back.
-        // A band that runs to the physical bottom needs no restore (those rows just
-        // fall off / were already blanked). Emit best-effort: the sub-ops are all-or-
-        // nothing on a full ring, so a tight ring drops the scroll rather than tearing
-        // the layout (callers that advance state assume it landed, so do not silently
-        // skip here - that desyncs them; let the ops fail individually instead).
+        // The scroll is a DL/IL pair: the first op displaces every row below the
+        // band (including the reserved bottom alarm bar), the compensating op puts
+        // it back. A band that runs to the physical bottom needs no restore (those
+        // rows just fall off / were already blanked). Emit best-effort: the
+        // sub-ops are all-or-nothing on a full ring, so a tight ring drops the
+        // scroll rather than tearing the layout (callers that advance state assume
+        // it landed, so do not silently skip here - that desyncs them; let the ops
+        // fail individually instead).
         bool restore = (bottom < phys_last);
 
         if (up) {
@@ -446,12 +459,14 @@ namespace Botanik { namespace Terminal {
 
     void AnsiTerminal::insert_rows(uint16_t count) {
         if (count == 0) return;
-        Ansi::insert_rows(_serial, count);  // IL shifts content; cursor unaffected
+        // IL shifts content; cursor unaffected
+        Ansi::insert_rows(_serial, count);
     }
 
     void AnsiTerminal::delete_rows(uint16_t count) {
         if (count == 0) return;
-        Ansi::delete_rows(_serial, count);  // DL shifts content; cursor unaffected
+        // DL shifts content; cursor unaffected
+        Ansi::delete_rows(_serial, count);
     }
 
     // Pages
@@ -486,10 +501,11 @@ namespace Botanik { namespace Terminal {
         // the page we're leaving first (they'd paint onto the new page). _hw_pos is
         // stale after the drop, so reposition absolutely (not relative move_to).
         _serial.tx_discard();
-        // The discard can strand a half-sent sequence on the wire (transmit() stops
-        // mid-sequence under the baud throttle); cancel_sequence() resyncs the terminal
-        // to ground state so the tab repaint below isn't swallowed by a stuck parser -
-        // that swallow is what leaves some page-name chars un-inverted under TX load.
+        // The discard can strand a half-sent sequence on the wire (transmit()
+        // stops mid-sequence under the baud throttle); cancel_sequence() resyncs
+        // the terminal to ground state so the tab repaint below isn't swallowed by
+        // a stuck parser - that swallow is what leaves some page-name chars
+        // un-inverted under TX load.
         Ansi::cancel_sequence(_serial);
         // Hide the cursor before any repaint so it doesn't blink across the cleared
         // content or the row-0 tabs. The page that wants it (shell editor) shows it
@@ -663,9 +679,10 @@ namespace Botanik { namespace Terminal {
         if (visible == 0) return true;  // nothing to draw == nothing left to sync
         uint16_t metrics_col = (uint16_t)(_cols - visible);
 
-        // The bar is reverse video except the live readings - plc (cols 4..6), cpu
-        // (12..15), stk (21..24) - drawn normal. Build the changed-column mask and the
-        // highlight mask (inverted everywhere but the value cols) over the visible field.
+        // The bar is reverse video except the live readings - plc (cols 4..6),
+        // cpu (12..15), stk (21..24) - drawn normal. Build the changed-column mask
+        // and the highlight mask (inverted everywhere but the value cols) over the
+        // visible field.
         uint32_t emit = 0, hi = 0;
         for (uint16_t i = 0; i < (uint16_t)visible; ++i) {
             if (metrics[i] != _status_metrics_cache[i]) emit |= (1u << i);
@@ -678,17 +695,19 @@ namespace Botanik { namespace Terminal {
         bool      saved_cur = _hw_cursor_visible;
         bool      saved_eol = _hw_at_eol;   // move_to() below clears it; restore it too
 
-        // Hide the cursor before painting so it can't blink across row 0 while the bar
-        // updates (no-op if already hidden, e.g. on a non-shell page). The caller floor-
-        // gates this call and the guaranteed floor fits a whole field, so paint and cache
-        // it in one pass - paint_field_runs segments the SGR per hi at the value boundary.
+        // Hide the cursor before painting so it can't blink across row 0 while the
+        // bar updates (no-op if already hidden, e.g. on a non-shell page). The
+        // caller floor-gates this call and the guaranteed floor fits a whole field,
+        // so paint and cache it in one pass - paint_field_runs segments the SGR per
+        // hi at the value boundary.
         set_cursor_visible(false);
         paint_field_runs(0, metrics_col, metrics, (uint16_t)visible, emit, hi);
         memcpy(_status_metrics_cache, metrics, (size_t)visible);
 
         set_inverted(saved_inv);
-        // Periodic refreshes restore the cursor to where the page left it; draw_status_row
-        // passes restore_cursor=false (its caller repositions absolutely right after).
+        // Periodic refreshes restore the cursor to where the page left it;
+        // draw_status_row passes restore_cursor=false (its caller repositions
+        // absolutely right after).
         if (restore_cursor) { move_to(saved_pos); _hw_at_eol = saved_eol; }
         set_cursor_visible(saved_cur);   // back at the page position, never on row 0
         return true;
@@ -715,10 +734,10 @@ namespace Botanik { namespace Terminal {
         bool      saved_inv = _hw_inverted;
         bool      saved_eol = _hw_at_eol;
 
-        // Diff vs the cache into a changed-column mask, then paint the whole field in one
-        // pass via the shared painter (hi = 0: normal video, so the digits stand out
-        // against the reverse-video bar). Floor-gated by the caller, so the tiny field is
-        // guaranteed to fit - cache it whole.
+        // Diff vs the cache into a changed-column mask, then paint the whole field
+        // in one pass via the shared painter (hi = 0: normal video, so the digits
+        // stand out against the reverse-video bar). Floor-gated by the caller, so
+        // the tiny field is guaranteed to fit - cache it whole.
         uint32_t emit = 0;
         for (uint16_t i = 0; i < STATUS_CLOCK_LEN; ++i)
             if (clk[i] != _status_clock_cache[i]) emit |= (1u << i);
@@ -739,9 +758,10 @@ namespace Botanik { namespace Terminal {
         if (_alarms)
             for (uint8_t i = 0; i < _alarms->count(); i++) {
                 const Alarms::AlarmCondition& c = _alarms->condition(i);
-                // An acknowledged alarm drops off the bar (still active, just no longer
-                // nagging); it re-appears if the condition clears and fires again, which
-                // resets the ack. The set is the bar's dirty signal, so an ack repaints it.
+                // An acknowledged alarm drops off the bar (still active, just no
+                // longer nagging); it re-appears if the condition clears and fires
+                // again, which resets the ack. The set is the bar's dirty signal,
+                // so an ack repaints it.
                 if (c.unmasked && !c.acknowledged) m |= Alarms::alarm_bit(i);
             }
         return m;
@@ -762,8 +782,8 @@ namespace Botanik { namespace Terminal {
         // read as a set against the reverse-video bar (like the active status tab).
         for (uint8_t i = 0; i < _alarms->count(); i++) {
             const Alarms::AlarmCondition& c = _alarms->condition(i);
-            // Skip ack'd alarms - same filter as _unmasked_set() (the dirty signal), so the
-            // drawn codes match what triggered the repaint.
+            // Skip ack'd alarms - same filter as _unmasked_set() (the dirty
+            // signal), so the drawn codes match what triggered the repaint.
             if (!c.unmasked || c.acknowledged || c.code == nullptr) continue;
             uint16_t clen = (uint16_t)strlen(c.code);
             if ((uint16_t)(used + clen + 1) > _cols) break;   // out of room on the row

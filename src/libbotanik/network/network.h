@@ -32,12 +32,13 @@ namespace Botanik { namespace Network {
             NET_IDLE = 0,   ///< no usable config (serial 0); nothing to bring up
             NET_SETUP,      ///< link_configure called; waiting for LINK_UP
             NET_RUNNING,    ///< link up with an address; resolver cache valid
-            NET_ERROR,      ///< bring-up failed / link lost; waiting out the retry backoff
+            NET_ERROR,      ///< bring-up failed / link lost; waiting out backoff
         };
 
-        State             _state;
-        uint64_t          _since_ms;   ///< when the current state was entered (for timeouts)
-        NameResolver*     _resolver;   ///< cleared on reconfiguration / link loss (may be null)
+        State         _state;
+        uint64_t      _since_ms;   ///< when this state was entered (for timeouts)
+        /** @brief Cleared on reconfiguration / link loss (may be null). */
+        NameResolver* _resolver;
 
         /** @} */
 
@@ -45,7 +46,8 @@ namespace Botanik { namespace Network {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief @p resolver (optional) cache is cleared on reconfiguration / link loss. */
+        /** @brief @p resolver (optional) cache is cleared on reconfiguration or
+         *  link loss. */
         NetworkHandler(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger = nullptr,
                        NameResolver* resolver = nullptr);
 
@@ -88,18 +90,21 @@ namespace Botanik { namespace Network {
             TIME_SYNCED,     ///< RTC disciplined; idle until the next poll
             TIME_ERROR,      ///< failed; backing off before a retry
         };
-        State                   _state;
-        uint64_t                _since_ms;       ///< when the current state was entered (for timeouts)
-        NameResolver*           _resolver;       ///< DNS resolver (set by NetworkHandler)
-        const NetworkHandler*   _net;            ///< link gate (null = always blocked)
-        ResolvedAddr            _server_addr;    ///< resolved address of the server being queried
-        uint8_t                 _server_idx;     ///< which configured server we are on (0 = server1)
-        HAL::Net::UdpSocket     _udp;            ///< open UDP socket handle (-1 = none)
+        State                 _state;
+        uint64_t              _since_ms;       ///< when this state was entered (timeouts)
+        NameResolver*         _resolver;       ///< DNS resolver (set by NetworkHandler)
+        const NetworkHandler* _net;            ///< link gate (null = always blocked)
+        /** @brief Resolved address of the server being queried. */
+        ResolvedAddr          _server_addr;
+        /** @brief Which configured server we are on (0 = server1). */
+        uint8_t               _server_idx;
+        HAL::Net::UdpSocket   _udp;            ///< open UDP socket handle (-1 = none)
         /** @} */
 
     public:
         NtpClient(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger = nullptr,
-                        NameResolver* resolver = nullptr, const NetworkHandler* net = nullptr);
+                  NameResolver* resolver = nullptr,
+                  const NetworkHandler* net = nullptr);
 
     protected:
         uint32_t config_serial() const override;

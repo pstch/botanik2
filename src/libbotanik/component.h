@@ -17,7 +17,8 @@
 
 namespace Botanik {
 
-    /** @brief Mixin base: one-shot first-step DEBUG / BOOT announce (loop-inclusion marker). */
+    /** @brief Mixin base: one-shot first-step DEBUG / BOOT announce
+     *  (loop-inclusion marker). */
     class Component {
         bool _announced = false;
 

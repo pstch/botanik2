@@ -125,7 +125,7 @@ namespace Botanik { namespace Network {
     // ------------------------------------------------------------------------
 
     NtpClient::NtpClient(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger,
-                                     NameResolver* resolver, const NetworkHandler* net)
+                         NameResolver* resolver, const NetworkHandler* net)
         : ConfigHandler(ctx, logger, "NtpClient"),
           _state(TIME_IDLE), _since_ms(0), _resolver(resolver), _net(net), _server_idx(0),
           _udp(-1) {
@@ -223,7 +223,9 @@ namespace Botanik { namespace Network {
         srv.b[2]=_server_addr.bytes[2]; srv.b[3]=_server_addr.bytes[3];
         uint8_t pkt[48] = {0};
         pkt[0] = 0x23;                             // LI=0, VN=4, Mode=3 (client)
-        if (!HAL::Net::udp_sendto(s, srv, 123, pkt, sizeof(pkt))) { HAL::Net::udp_close(s); _udp = -1; return false; }
+        if (!HAL::Net::udp_sendto(s, srv, 123, pkt, sizeof(pkt))) {
+            HAL::Net::udp_close(s); _udp = -1; return false;
+        }
         return true;
     }
 
@@ -232,7 +234,9 @@ namespace Botanik { namespace Network {
         HAL::Net::Ip4 from; uint16_t port = 0;
         int r = HAL::Net::udp_recvfrom(_udp, pkt, sizeof(pkt), &from, &port);
         if (r == 0) {
-            if (now_ms - _since_ms > Config::NTP_QUERY_TIMEOUT_MS) { HAL::Net::udp_close(_udp); _udp = -1; return -1; }
+            if (now_ms - _since_ms > Config::NTP_QUERY_TIMEOUT_MS) {
+                HAL::Net::udp_close(_udp); _udp = -1; return -1;
+            }
             return 0;
         }
         if (r < (int)sizeof(pkt)) { HAL::Net::udp_close(_udp); _udp = -1; return -1; }

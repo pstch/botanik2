@@ -66,7 +66,8 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     // ------------------------------------------------------------------------
 
     bool set_insert_mode(BufferedSerial& _serial, bool active) {
-        return _csi_count(_serial, active ? SM4 : RM4, sizeof(SM4) - 1);  // SM4/RM4 same length
+        // SM4/RM4 same length
+        return _csi_count(_serial, active ? SM4 : RM4, sizeof(SM4) - 1);
     }
 
     bool cancel_sequence(BufferedSerial& _serial) {
@@ -167,11 +168,13 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     // ------------------------------------------------------------------------
 
     bool clear_to_eol(BufferedSerial& _serial) {
-        return _csi_count(_serial, EL, sizeof(EL) - 1);   // ESC[K: erase cursor to EOL
+        // ESC[K: erase cursor to EOL
+        return _csi_count(_serial, EL, sizeof(EL) - 1);
     }
 
     bool clear_to_eos(BufferedSerial& _serial) {
-        return _csi_count(_serial, ED, sizeof(ED) - 1);   // ESC[J: erase cursor to end of display
+        // ESC[J: erase cursor to end of display
+        return _csi_count(_serial, ED, sizeof(ED) - 1);
     }
 
     bool clear_screen(BufferedSerial& _serial) {

@@ -8,8 +8,9 @@
 
 namespace Botanik {
 
-    // Wall-clock sanity floor (ms since the UNIX epoch, ~2020-09): below this the RTC is
-    // unset (no NTP yet) and the date-dependent solar math is meaningless, so we wait.
+    // Wall-clock sanity floor (ms since the UNIX epoch, ~2020-09): below this the
+    // RTC is unset (no NTP yet) and the date-dependent solar math is meaningless,
+    // so we wait.
     static const uint64_t WALL_CLOCK_VALID_MS = 1600000000000ull;
 
     SunPositionTracker::SunPositionTracker(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger)
@@ -25,19 +26,21 @@ namespace Botanik {
 
     void SunPositionTracker::on_config_changed(uint64_t now_ms) {
         (void)now_ms;
-        // New location: drop the old computation; on_step recomputes once the clock is valid.
+        // New location: drop the old computation; on_step recomputes once the
+        // clock is valid.
         _computed = false;
     }
 
     void SunPositionTracker::on_step(uint64_t now_ms) {
         const PlcIO::PlcOutputConfig_t* c = config();
-        if (c == nullptr || c->geo.serial == 0) return;          // no location configured
-        if (HAL::wall_clock_ms() < WALL_CLOCK_VALID_MS) return;  // wait for a real (NTP) time
+        if (c == nullptr || c->geo.serial == 0) return;  // no location configured
+        // wait for a real (NTP) time before the date-dependent solar math
+        if (HAL::wall_clock_ms() < WALL_CLOCK_VALID_MS) return;
 
         if (!_computed) { _recompute(now_ms); return; }
 
-        // next_sun_times() always returns future events, so once we pass either one it is
-        // time to roll forward to the following day's.
+        // next_sun_times() always returns future events, so once we pass either
+        // one it is time to roll forward to the following day's.
         bool passed = (_times.sunrise.valid && now_ms >= _times.sunrise.time_ms) ||
                       (_times.sunset.valid  && now_ms >= _times.sunset.time_ms);
         if (passed) _recompute(now_ms);

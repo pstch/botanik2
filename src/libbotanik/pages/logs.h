@@ -3,7 +3,8 @@
 
 /**
  * @file logs.h
- * @brief LogsPage - full-screen live log viewer backed by a circular scrollback.
+ * @brief LogsPage - full-screen live log viewer backed by a circular
+ *        scrollback.
  */
 
 #include "libbotanik_config.h"
@@ -17,9 +18,9 @@ namespace Botanik { namespace Pages {
     /**
      * @brief Full-screen log viewer page.
      *
-     * A LogWriter: rows 1..rows-1 scroll as a live log tail. Incoming entries are
-     * queued by BufferedLogWriter and drained on tick(); history is replayed from a
-     * circular scrollback on (re)focus.
+     * A LogWriter: rows 1..rows-1 scroll as a live log tail. Incoming entries
+     * are queued by BufferedLogWriter and drained on tick(); history is replayed
+     * from a circular scrollback on (re)focus.
      */
     class LogsPage : public Page, public Logs::BufferedLogWriter {
     private:
@@ -32,7 +33,8 @@ namespace Botanik { namespace Pages {
 
         /** @brief Owning terminal. */
         AnsiTerminal& _terminal;
-        /** @brief Circular log line buffer + throttled redraw for page-switch replay. */
+        /** @brief Circular log line buffer + throttled redraw for page-switch
+         *         replay. */
         LogsScrollback _scrollback;
         /** @brief Mirrors tick(active) so write() knows whether it may paint. */
         bool _active = false;

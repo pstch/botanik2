@@ -33,7 +33,7 @@ namespace Botanik { namespace Pages {
     }
 
     bool ShellPage::handle_cancel() {
-        _cancel_command();   // discard the current input line; screen left correct
+        _cancel_command();   // discard the input line; screen left correct
         return true;
     }
 
@@ -41,7 +41,7 @@ namespace Botanik { namespace Pages {
         uint16_t occ_before = _editor.occupied_rows();
         _editor.suppress_redraw(true);
         switch (cmd) {
-            // Submit leaves the screen correct; return early past the shrink check.
+            // Submit leaves the screen correct; return past the shrink check.
             case Command::ENTER:
                 _submit_command();
                 return;
@@ -53,8 +53,8 @@ namespace Botanik { namespace Pages {
 
             case Command::CTRL_U:     _editor.reset();              break;
 
-            // Deletion - `count` may be >1 (parser coalesced a held key); pass through
-            // for one editor reconcile.
+            // Deletion - `count` may be >1 (parser coalesced a held key); pass
+            // through for one editor reconcile.
             case Command::BACKSPACE:  _editor.backspace(count);     break;
             case Command::DELETE:
             case Command::CTRL_D:     _editor.delete_forward(count); break;
@@ -95,7 +95,7 @@ namespace Botanik { namespace Pages {
         _editor.suppress_redraw(false);
         uint16_t occ_after = _editor.occupied_rows();
         if (occ_after != occ_before && _scrollback.redraw_pending()) {
-            // Staged replay now has stale geometry; re-arm it against the new log area.
+            // Staged replay now has stale geometry; re-arm it on the new area.
             _scrollback.begin_redraw((uint16_t)(_terminal.rows() - 1 - occ_after));
         } else if (occ_after < occ_before) {
             _reveal_log_rows(occ_before - occ_after);
@@ -111,17 +111,19 @@ namespace Botanik { namespace Pages {
         _active = active;
         if (active) {
             _scrollback.drain_redraw(_terminal);
-            // Hold off the live tail until the replay completes - drain_tail's DL scroll
-            // would shift rows the replay already drew.
+            // Hold off the live tail until the replay completes - drain_tail's DL
+            // scroll would shift rows the replay already drew.
             if (_scrollback.redraw_pending()) return;
         }
-        // Bank queued log entries (pending when active; only the active page queues, see
-        // push()); command output banks the same way via write_lines().
+        // Bank queued log entries (pending when active; only the active page
+        // queues, see push()); command output banks the same way via
+        // write_lines().
         drain();
-        // Paint pending lines paced into the log area; emit_tail shifts the editor up
-        // (DL) and back down (IL), so reposition the cursor onto it afterwards.
+        // Paint pending lines paced into the log area; emit_tail shifts the editor
+        // up (DL) and back down (IL), so reposition the cursor onto it afterwards.
         if (active) {
-            uint16_t log_rows = (uint16_t)(_terminal.rows() - 1 - _editor.occupied_rows());
+            uint16_t log_rows =
+                (uint16_t)(_terminal.rows() - 1 - _editor.occupied_rows());
             if (_scrollback.drain_tail(_terminal, 1, log_rows))
                 _terminal.move_to(_editor.cursor_screen_pos());
         }
@@ -131,8 +133,8 @@ namespace Botanik { namespace Pages {
     // ------------------------------------------------------------------------
 
     void ShellPage::push(const LogEntry_t* entry) {
-        // Only show logs received while active; background entries are dropped (the full
-        // log lives in LogsPage). "logs off" drops them too.
+        // Only show logs received while active; background entries are dropped
+        // (the full log lives in LogsPage). "logs off" drops them too.
         if (!_active || !_logs_enabled) return;
         Logs::BufferedLogWriter::push(entry);
     }
@@ -142,13 +144,15 @@ namespace Botanik { namespace Pages {
     }
 
     size_t ShellPage::write(const char* buf, size_t len) {
-        // Store-only, for both log output (via drain(), indented prefix) and command
-        // output (via write_lines(), plain "> " prefix). Bank, mark pending when active.
-        // Never blocks/returns short, so write_lines() can't drop command output.
+        // Store-only, for both log output (via drain(), indented prefix) and
+        // command output (via write_lines(), plain "> " prefix). Bank, mark
+        // pending when active. Never blocks/returns short, so write_lines() can't
+        // drop command output.
         const char* prefix = _draining_log ? Config::SHELL_LOG_CONT_PREFIX
                                            : Config::SHELL_CONT_PREFIX;
         uint16_t    plen   = (uint16_t)strlen(prefix);
-        _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(), prefix, plen, _active);
+        _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(), prefix, plen,
+                           _active);
         return len;
     }
 
@@ -172,8 +176,9 @@ namespace Botanik { namespace Pages {
 
     void ShellPage::clear() {
         _scrollback.clear();
-        // One ED from {1,0} wipes the whole content area in a single CSI (cheaper than
-        // clearing each row); the editor row goes too, so repaint the prompt after.
+        // One ED from {1,0} wipes the whole content area in a single CSI (cheaper
+        // than clearing each row); the editor row goes too, so repaint the prompt
+        // after.
         _terminal.clear_content();
         _editor.redraw();
     }
@@ -194,27 +199,29 @@ namespace Botanik { namespace Pages {
 
     void ShellPage::_full_redraw() {
         _setup_editor();
-        // Pull origin up so a multi-row prompt redraws without a scroll that would push
-        // the status bar (row 0) off screen.
+        // Pull origin up so a multi-row prompt redraws without a scroll that would
+        // push the status bar (row 0) off screen.
         uint16_t occ = _editor.occupied_rows();
         if (occ > 1) {
             uint16_t rows   = (uint16_t)_terminal.rows();
             uint16_t origin = (uint16_t)(rows - occ);
             _editor.set_origin(origin > 0 ? origin : 1);
         }
-        // Stage the log area for incremental replay (drained in tick()), then draw the
-        // editor at the bottom.
-        _scrollback.begin_redraw((uint16_t)(_terminal.rows() - 1 - _editor.occupied_rows()));
+        // Stage the log area for incremental replay (drained in tick()), then
+        // draw the editor at the bottom.
+        _scrollback.begin_redraw(
+            (uint16_t)(_terminal.rows() - 1 - _editor.occupied_rows()));
         _editor.redraw();
-        // The editor owns a live cursor; switch_to() hides it before focus() and every
-        // other page leaves it hidden.
+        // The editor owns a live cursor; switch_to() hides it before focus() and
+        // every other page leaves it hidden.
         _terminal.set_cursor_visible(true);
     }
 
     void ShellPage::_submit_command() {
         // Snapshot the line: it must outlive commit(), which clears the editor.
         char     line[Config::SHELL_INPUT_LEN];
-        uint16_t line_len = std::min(_editor.buffer_len(), (uint16_t)(sizeof(line) - 1));
+        uint16_t line_len =
+            std::min(_editor.buffer_len(), (uint16_t)(sizeof(line) - 1));
         memcpy(line, _editor.buffer(), line_len);
         line[line_len] = '\0';
         _record_command(line, line_len);
@@ -226,9 +233,11 @@ namespace Botanik { namespace Pages {
     }
 
     void ShellPage::_cancel_command() {
-        // Ctrl-C: echo the line and drop to a fresh prompt like a submit, but run nothing.
+        // Ctrl-C: echo the line and drop to a fresh prompt like a submit, but run
+        // nothing.
         char     line[Config::SHELL_INPUT_LEN];
-        uint16_t line_len = std::min(_editor.buffer_len(), (uint16_t)(sizeof(line) - 1));
+        uint16_t line_len =
+            std::min(_editor.buffer_len(), (uint16_t)(sizeof(line) - 1));
         memcpy(line, _editor.buffer(), line_len);
         line[line_len] = '\0';
         _record_command(line, line_len);
@@ -246,8 +255,8 @@ namespace Botanik { namespace Pages {
             bool        first = (row == 0);
             const char* pstr  = first ? _editor.ps1()     : _editor.ps2();
             uint16_t    plen  = first ? _editor.ps1_len() : _editor.ps2_len();
-            // >= 1 char/row so a prompt wider than the terminal can't underflow the cap
-            // (and the loop always progresses).
+            // >= 1 char/row so a prompt wider than the terminal can't underflow
+            // the cap (and the loop always progresses).
             uint16_t    cap   = (cols > plen) ? (uint16_t)(cols - plen) : 1;
             uint16_t    rlen  = Utils::scan_line_segment(cmd, pos, cmd_len, cap);
             uint16_t elen = std::min((uint16_t)(plen + rlen), (uint16_t)sizeof(echo));
@@ -267,17 +276,19 @@ namespace Botanik { namespace Pages {
         uint16_t log_rows = rows - 1 - occupied;  // new (larger) log area
         if (log_rows == 0) return;
 
-        // Scroll the content band down by delta: opens delta rows at the top for older
-        // scrollback; the editor rows fall off the bottom (redrawn after). Bounded so
-        // row 0 stays put.
+        // Scroll the content band down by delta: opens delta rows at the top for
+        // older scrollback; the editor rows fall off the bottom (redrawn after).
+        // Bounded so row 0 stays put.
         _terminal.scroll_region(1, (uint16_t)(rows - 1), /*up=*/false, delta);
 
-        // Fill newly blank rows 1..delta with older scrollback entries (the log area had
-        // log_rows - delta rows visible before the shrink).
+        // Fill newly blank rows 1..delta with older scrollback entries (the log
+        // area had log_rows - delta rows visible before the shrink).
         uint16_t prev_log     = log_rows - delta;
-        uint16_t prev_visible = (uint16_t)std::min((size_t)prev_log, (size_t)_scrollback.count());
+        uint16_t prev_visible =
+            (uint16_t)std::min((size_t)prev_log, (size_t)_scrollback.count());
         for (uint16_t d = 0; d < delta; d++) {
-            // Row (1 + d) gets the entry that is (prev_visible + delta - d) steps from newest.
+            // Row (1 + d) gets the entry (prev_visible + delta - d) steps from
+            // newest.
             uint16_t from_end = prev_visible + delta - d;
             uint16_t llen     = 0;
             const char* line  = _scrollback.line(from_end, llen);
@@ -288,8 +299,8 @@ namespace Botanik { namespace Pages {
             _terminal.clear_to_eol();
         }
 
-        // After the scroll the editor content has shifted into its new position - just
-        // reposition the cursor.
+        // After the scroll the editor content has shifted into its new position -
+        // just reposition the cursor.
         _terminal.move_to(_editor.cursor_screen_pos());
     }
 

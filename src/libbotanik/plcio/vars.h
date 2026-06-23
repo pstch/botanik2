@@ -18,12 +18,12 @@
 
 namespace Botanik { namespace PlcIO {
 
-    // These shared-memory structs use explicit padding so their layout is identical
-    // whether packed or not - every field already sits at its natural offset, with no
-    // implicit padding. That keeps the uint32 cursors readable through plain pointers
-    // (no unaligned-access UB) and lets the PLC side mirror the layout byte-for-byte.
-    // The static_asserts below pin the expected sizes/offsets so a config change can't
-    // silently shift the layout.
+    // These shared-memory structs use explicit padding so their layout is
+    // identical whether packed or not - every field already sits at its natural
+    // offset, with no implicit padding. That keeps the uint32 cursors readable
+    // through plain pointers (no unaligned-access UB) and lets the PLC side
+    // mirror the layout byte-for-byte. The static_asserts below pin the expected
+    // sizes/offsets so a config change can't silently shift the layout.
 
     /** @name Log protocol
      *  @{ */
@@ -51,7 +51,8 @@ namespace Botanik { namespace PlcIO {
         ASSERT = 6,        // C-side only (PLC never emits these): firmware assertions
         ALARM_START = 7,   // alarm went active
         ALARM_END = 8,     // alarm cleared
-        ALARM_FLAP = 9,    // alarm cleared without ever logging a START (toggled too fast to dwell)
+        // alarm cleared without ever logging a START (toggled too fast to dwell)
+        ALARM_FLAP = 9,
         HEALTH = 10,       // HealthMonitor (POST verdict, etc.)
     };
 
@@ -65,7 +66,8 @@ namespace Botanik { namespace PlcIO {
     static constexpr uint8_t LOG_TOPIC_COUNT = HEALTH + 1;
     static_assert(LOG_TOPIC_COUNT <= Config::LOG_TOPIC_MAX, "LOG_TOPIC_COUNT exceeds LOG_TOPIC_MAX");
 
-    /** @brief One log record in PLC shared memory: 12-byte header + fixed message buffer. */
+    /** @brief One log record in PLC shared memory: 12-byte header + fixed
+     *  message buffer. */
     struct LogEntry_t {
         uint32_t        timestamp;    // @0
         LogLevel        level;        // @4  (uint8_t)
@@ -105,18 +107,21 @@ namespace Botanik { namespace PlcIO {
 
     /** @brief Host->PLC log-protocol fields (the read cursor). */
     struct PlcInputLogs_t {
-        uint32_t            readIndex;      // host's read position in the PLC log buffer
+        // host's read position in the PLC log buffer
+        uint32_t            readIndex;
     };
 
     /** @brief PLC output log ring: write cursor (kept first) + the fixed log buffer. */
     struct PlcOutputLogs_t {
-        uint32_t            writeIndex;     // kept first so its alignment is independent
-                                            // of the buffer size and entry size
+        // kept first so its alignment is independent of the buffer size and
+        // entry size
+        uint32_t            writeIndex;
         LogEntry_t          logBuffer[Config::LOG_PLC_BUFFER_SIZE];
     };
 
-    // The cursors lead their structs, so the host polls them through plain uint32_t*
-    // at a word-aligned offset regardless of the log buffer/message sizes.
+    // The cursors lead their structs, so the host polls them through plain
+    // uint32_t* at a word-aligned offset regardless of the log buffer/message
+    // sizes.
     static_assert(offsetof(PlcOutputLogs_t, writeIndex) == 0, "writeIndex must lead PlcOutputLogs_t");
     static_assert(offsetof(PlcInputLogs_t,  readIndex)  == 0, "readIndex must lead PlcInputLogs_t");
 
@@ -125,22 +130,26 @@ namespace Botanik { namespace PlcIO {
     /** @name Combined shared structs
      *  @{ */
 
-    // Combined input/output structs. Data is the user-supplied site-specific payload.
-    // No packing: the structs above are explicitly padded so natural alignment already
-    // yields the intended layout. Data must be trivially copyable and naturally aligned
-    // (and a multiple of 4 for a fully padding-free combined struct) so the PLC IDE's
-    // generated types match byte-for-byte; the sketch's static_assert verifies this.
+    // Combined input/output structs. Data is the user-supplied site-specific
+    // payload. No packing: the structs above are explicitly padded so natural
+    // alignment already yields the intended layout. Data must be trivially
+    // copyable and naturally aligned (and a multiple of 4 for a fully
+    // padding-free combined struct) so the PLC IDE's generated types match
+    // byte-for-byte; the sketch's static_assert verifies this.
     //
-    // alignas(32): the host (Cortex-M7) does D-cache clean/invalidate by address over
-    // these regions, so each must own its cache lines end to end. alignas(32) gives a
-    // 32-byte-aligned base and rounds sizeof up to a multiple of 32, so no neighbour
-    // ever shares a boundary line. The PLC IDE's generated types must match this.
-    /** @brief Host->PLC shared region: sync counters, the log read cursor, and the site payload. */
+    // alignas(32): the host (Cortex-M7) does D-cache clean/invalidate by address
+    // over these regions, so each must own its cache lines end to end.
+    // alignas(32) gives a 32-byte-aligned base and rounds sizeof up to a
+    // multiple of 32, so no neighbour ever shares a boundary line. The PLC IDE's
+    // generated types must match this.
+    /** @brief Host->PLC shared region: sync counters, the log read cursor, and
+     *  the site payload. */
     template<typename Data>
     struct alignas(32) PlcInput {
-        // alignas(32) already rounds sizeof to a 32-byte multiple; the contract worth
-        // pinning per-site is that the payload is word-aligned, so the combined struct
-        // is padding-free and ordered_copy's word-multiple requirement holds.
+        // alignas(32) already rounds sizeof to a 32-byte multiple; the contract
+        // worth pinning per-site is that the payload is word-aligned, so the
+        // combined struct is padding-free and ordered_copy's word-multiple
+        // requirement holds.
         static_assert(std::is_empty<Data>::value || sizeof(Data) % sizeof(uint32_t) == 0,
                       "site Data must be a 4-byte multiple (or empty)");
         PlcInputCounters_t  sync;
@@ -164,7 +173,8 @@ namespace Botanik { namespace PlcIO {
         Data                data;
     };
 
-    // On OPTA, add to your sketch to verify layout matches the PLC IDE's generated types:
+    // On OPTA, add to your sketch to verify the layout matches the PLC IDE's
+    // generated types:
     //   static_assert(sizeof(PLCSharedVarsInput_t)   == sizeof(PlcIO::PlcInput<YourInputData_t>));
     //   static_assert(alignof(PLCSharedVarsOutput_t) == alignof(PlcIO::PlcOutput<YourOutputData_t>));
 

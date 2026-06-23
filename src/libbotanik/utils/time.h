@@ -53,11 +53,14 @@ namespace Botanik { namespace Utils {
     /** @name Rollover projection
      *  @{ */
 
-    /** @brief Project a 32-bit @p timestamp into the rollover window centered on @p uptime.
-     *  @note Only correct within +/-half a window (+/-~24.8 days for ms, +/-~35.7 min for µs). */
+    /** @brief Project a 32-bit @p timestamp into the rollover window centered on
+     *  @p uptime.
+     *  @note Only correct within +/-half a window (+/-~24.8 days for ms,
+     *  +/-~35.7 min for µs). */
     uint64_t _project_rollover(uint64_t uptime, uint32_t timestamp);
 
-    /** @brief Project a rolling-over ms uptime counter into the current window (see _project_rollover). */
+    /** @brief Project a rolling-over ms uptime counter into the current window
+     *  (see _project_rollover). */
     uint64_t absolute_ms(uint32_t timestamp_ms);
 
     /** @brief Project a rolling-over µs uptime counter into the current window.

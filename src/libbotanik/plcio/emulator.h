@@ -18,7 +18,8 @@
 #include <cstdio>
 #include <unistd.h>
 #include <pthread.h>
-#include "libbotanik/scheduler/scheduler.h"  // make_thread_realtime for the emulator thread
+// make_thread_realtime for the emulator thread
+#include "libbotanik/scheduler/scheduler.h"
 
 /// Time-dilates a PLC link timeout; defined header-only in the site's sim.h.
 inline uint32_t plc_dilated_timeout(uint32_t base_ms);
@@ -39,10 +40,13 @@ namespace Botanik { namespace PlcIO {
         /** @brief Emulator TX -> what the host will receive. */
         PlcOutputLogs_t  _tx_logs_buffer = {};
         uint32_t*        _timestamp_ms   = nullptr;
-        /** @brief Time of the last acknowledged TX (wrap-safe stamp, like the handler). */
+        /** @brief Time of the last acknowledged TX (wrap-safe stamp, like the
+         *  handler). */
         Utils::Millis32  _tx_last_ms;
-        uint32_t         _timeout_ms     = Config::PLC_TIMEOUT_MS;  ///< elapsed before PLC_TIMEOUT
-        uint32_t         _watchdog_ms    = Config::PLC_WATCHDOG_MS; ///< elapsed before PLC_FAULT
+        /** @brief Elapsed before PLC_TIMEOUT. */
+        uint32_t         _timeout_ms     = Config::PLC_TIMEOUT_MS;
+        /** @brief Elapsed before PLC_FAULT. */
+        uint32_t         _watchdog_ms    = Config::PLC_WATCHDOG_MS;
         bool             _ever_ackd      = false;
 
         Utils::Millis32  _now() const { return Utils::Millis32(*_timestamp_ms); }
@@ -86,8 +90,10 @@ namespace Botanik { namespace PlcIO {
 
         PlcEmulatorContext     _ctx;
         uint32_t               _heartbeat_ms  = Config::PLC_HEARTBEAT_MS;
-        PlcInput<InputData>*   _plcin;        ///< PLC input memory (read-only for the emulator)
-        PlcOutput<OutputData>* _plcout;       ///< PLC output memory (write-only for the emulator)
+        /** @brief PLC input memory (read-only for the emulator). */
+        PlcInput<InputData>*   _plcin;
+        /** @brief PLC output memory (write-only for the emulator). */
+        PlcOutput<OutputData>* _plcout;
         InputData              _rx_data_buffer;
         OutputData             _tx_data_buffer;
         PlcRxState             _rx_state      = RX_IDLE;
@@ -147,10 +153,16 @@ namespace Botanik { namespace PlcIO {
         /** @name Transition triggers
          *  @{ */
 
-        inline bool _rx_new_message()       { return HAL::ordered_read(&_plcin->sync.rxSeqNum) != _plcout->sync.rxAckNum; }
-        inline bool _tx_heartbeat_elapsed() { return _ctx._now() - _ctx._tx_last_ms > _heartbeat_ms; }
+        inline bool _rx_new_message() {
+            return HAL::ordered_read(&_plcin->sync.rxSeqNum)
+                   != _plcout->sync.rxAckNum;
+        }
+        inline bool _tx_heartbeat_elapsed() {
+            return _ctx._now() - _ctx._tx_last_ms > _heartbeat_ms;
+        }
         inline bool _tx_acknowledged() {
-            bool result = HAL::ordered_read(&_plcin->sync.txAckNum) == _plcout->sync.txSeqNum;
+            bool result = HAL::ordered_read(&_plcin->sync.txAckNum)
+                          == _plcout->sync.txSeqNum;
             if (result) { _ctx._tx_last_ms = _ctx._now(); _ctx._ever_ackd = true; }
             return result;
         }
@@ -247,9 +259,11 @@ namespace Botanik { namespace PlcIO {
         void (*fill_output)(OutputData*, uint32_t now_ms);
     };
 
-    /** @brief Run flag/handle for the single emulator thread. Single-writer (lifecycle
-     *  controller) / single-reader (thread loop): volatile + HAL::dsb() to publish - the
-     *  same lock-free pattern as the serial ring buffers, no std::atomic needed. */
+    /** @brief Run flag/handle for the single emulator thread.
+     *
+     *  Single-writer (lifecycle controller) / single-reader (thread loop):
+     *  volatile + HAL::dsb() to publish - the same lock-free pattern as the
+     *  serial ring buffers, no std::atomic needed. */
     inline volatile bool& _emu_running() { static volatile bool running = false; return running; }
     inline pthread_t&      _emu_thread()  { static pthread_t thread; return thread; }
     /** @brief Set true by the thread as its final act (after its last shared-memory
@@ -313,7 +327,8 @@ namespace Botanik { namespace PlcIO {
             emu_tick++;
             HAL::sleep_ms(Config::TASK_PERIOD_MS);
         }
-        // Released the shared region: signal the stopping caller (see stop_emulator_thread).
+        // Released the shared region: signal the stopping caller (see
+        // stop_emulator_thread).
         HAL::dsb();
         _emu_stopped() = true;
         return nullptr;
@@ -327,7 +342,8 @@ namespace Botanik { namespace PlcIO {
                                       PlcOutput<OutputData>* shared_out,
                                       void (*fill_output)(OutputData*, uint32_t) = nullptr,
                                       Logs::Logger* logger = nullptr) {
-        static EmulatorThreadArgs<InputData, OutputData> args{ shared_in, shared_out, fill_output };
+        static EmulatorThreadArgs<InputData, OutputData> args{
+            shared_in, shared_out, fill_output };
         _emu_running() = true;
         // memory barrier to make `_emu_running` visible before the thread reads it
         HAL::dsb();
@@ -340,7 +356,8 @@ namespace Botanik { namespace PlcIO {
         if (rc != 0) {
             _emu_running() = false;
             if (logger != nullptr)
-                logger->error(PLC_IO, "emulator thread failed to start: %s", strerror(rc));
+                logger->error(PLC_IO, "emulator thread failed to start: %s",
+                              strerror(rc));
             return;
         }
         // register a way to stop the thread on system resets

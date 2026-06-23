@@ -103,8 +103,9 @@ namespace Botanik { namespace Terminal {
 
     bool InputParser::_should_flush_pending_command() const {
         if (_pending_cmd == Command::NONE) return false;
-        // A held command (coalesced backspace) wants lower latency than a paste batch, so
-        // it uses a shorter flush timeout than _backpressure_holds()'s text-batch one.
+        // A held command (coalesced backspace) wants lower latency than a paste
+        // batch, so it uses a shorter flush timeout than _backpressure_holds()'s
+        // text-batch one.
         if (_serial.tx_empty()) return true;
         return (*_timestamp_ms - _pending_cmd_start_ms) >= Config::ANSI_CMD_FLUSH_TIMEOUT_MS;
     }
@@ -203,7 +204,8 @@ namespace Botanik { namespace Terminal {
             case 0x15: return Command::CTRL_U;
             case 0x17: return Command::CTRL_W;
             case 0x19: return Command::CTRL_Y;
-            case 0x1B: return Command::ESC;   // unreachable: ESC is intercepted in _handle_idle
+            // unreachable: ESC is intercepted in _handle_idle
+            case 0x1B: return Command::ESC;
             case 0x7F: return Command::BACKSPACE;
             default:   return Command::NONE;
         }
@@ -258,7 +260,8 @@ namespace Botanik { namespace Terminal {
                 }
             }
             case 'Z': return Command::SHIFT_TAB;  // backtab (Shift+Tab)
-            case 'u': return (param1 == 13) ? Command::SHIFT_ENTER : Command::NONE; // kitty: CSI 13;2u
+            // kitty: CSI 13;2u
+            case 'u': return (param1 == 13) ? Command::SHIFT_ENTER : Command::NONE;
             default: return Command::NONE;
         }
     }
@@ -311,9 +314,9 @@ namespace Botanik { namespace Terminal {
                 } else if ((_state == State::IN_ESC || _state == State::IN_CSI ||
                             _state == State::IN_SEP) &&
                            (*_timestamp_ms - _last_byte_ms) >= Config::ANSI_CMD_TIMEOUT_MS) {
-                    // An incomplete escape timed out: a lone ESC emits the ESC command; a
-                    // partial CSI or a stray SEP (0x13/XOFF) just drops to IDLE so it can't
-                    // swallow the next keystroke.
+                    // An incomplete escape timed out: a lone ESC emits the ESC
+                    // command; a partial CSI or a stray SEP (0x13/XOFF) just drops
+                    // to IDLE so it can't swallow the next keystroke.
                     if (_state == State::IN_ESC) {
                         _event.command = Command::ESC;
                         _event.type    = EventType::COMMAND;
@@ -330,7 +333,8 @@ namespace Botanik { namespace Terminal {
                     _chunkable_command_for(b) == _pending_cmd) {
                     _serial.read((char*)&b, 1);
                     _last_byte_ms = *_timestamp_ms;
-                    if (_pending_cmd_count < UINT16_MAX) _pending_cmd_count++;  // saturate, never wrap
+                    // saturate, never wrap
+                    if (_pending_cmd_count < UINT16_MAX) _pending_cmd_count++;
                     continue;
                 }
                 // Coalescing is IDLE-only: a chunkable byte arriving mid-escape (rare;

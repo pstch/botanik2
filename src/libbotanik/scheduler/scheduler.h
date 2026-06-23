@@ -40,20 +40,21 @@ namespace Botanik { namespace Scheduler {
      *  (EMA), as a recent windowed peak, and as an all-time peak. The base of
      *  SchedulerContext; LoopScheduler writes every field in place. */
     struct PerfContext {
-        float    cpu_load_ema       = 0.0f;   ///< EMA of CPU load (duty cycle, fraction of period)
+        /** @brief EMA of CPU load (duty cycle, fraction of period). */
+        float    cpu_load_ema       = 0.0f;
         uint32_t cpu_loop_us_recent = 0;      ///< windowed peak work duration, us
         uint32_t cpu_loop_us_max    = 0;      ///< all-time peak work duration, us
 
-        /** @brief peak stack usage as a fraction of depth (worst-ever); the high-water is
-         *  itself a max, so no EMA/window on top of it. */
+        /** @brief peak stack usage as a fraction of depth (worst-ever); the
+         *  high-water is itself a max, so no EMA/window on top of it. */
         float    stack_usage        = 0.0f;
         /** @brief minimum free stack ever, bytes (= depth - peak used): the
          *  safety-relevant worst-case headroom. */
         uint32_t stack_bytes_free   = 0;
         uint32_t stack_depth        = 0;   ///< total thread stack allocation, bytes
 
-        /** @brief measured loop rate (ticks/sec). Nominal 1000/TASK_PERIOD_MS; dips when
-         *  the loop falls behind. */
+        /** @brief measured loop rate (ticks/sec). Nominal 1000/TASK_PERIOD_MS;
+         *  dips when the loop falls behind. */
         uint32_t ticks_per_second   = 0;
     };
 
@@ -62,15 +63,18 @@ namespace Botanik { namespace Scheduler {
      *  the scheduler's jitter and tick/overrun fields, so consumers read them all
      *  through one struct via LoopScheduler::context(). */
     struct SchedulerContext : PerfContext {
-        float    cpu_jitter_ema       = 0.0f;   ///< EMA of scheduling jitter (fraction of interval)
+        /** @brief EMA of scheduling jitter (fraction of interval). */
+        float    cpu_jitter_ema       = 0.0f;
         uint32_t cpu_jitter_us_recent = 0;      ///< windowed peak jitter, us
         uint32_t cpu_jitter_us_max    = 0;      ///< all-time peak jitter, us
         uint32_t tick_count      = 0;
         uint32_t overruns        = 0;   ///< cumulative beats skipped to overruns
-        /** @brief Loop "now" (uptime ms), republished by tick() when the work window opens;
-         *  the single shared timestamp the PLC sync and terminal input timing read.
-         *  @warning 32-bit, wraps every ~49 days. Every consumer must use wrap-safe
-         *  subtraction `(uint32_t)(now - then) > delta`, never `now > then + delta`. */
+        /** @brief Loop "now" (uptime ms), republished by tick() when the work
+         *  window opens; the single shared timestamp the PLC sync and terminal
+         *  input timing read.
+         *  @warning 32-bit, wraps every ~49 days. Every consumer must use
+         *  wrap-safe subtraction `(uint32_t)(now - then) > delta`, never
+         *  `now > then + delta`. */
         uint32_t timestamp_ms    = 0;
     };
 
@@ -88,11 +92,13 @@ namespace Botanik { namespace Scheduler {
         // ms, so a period under 2 ms would be all spin.
         static_assert(Config::TASK_PERIOD_MS >= 2, "TASK_PERIOD_MS must be >= 2 (sleep/spin split)");
 
-        uint32_t        _period_ms     = Config::TASK_PERIOD_MS;   ///< target loop period (ms)
+        /** @brief Target loop period (ms). */
+        uint32_t        _period_ms     = Config::TASK_PERIOD_MS;
         uint64_t        _next_tick_ms  = 0;   ///< uptime anchor of the next tick
-        Logs::Logger*   _logger        = nullptr;   ///< one-shot startup message (may be null)
-        /** @brief Beats skipped on THIS tick (0 normally); weights the metric windows so a
-         *  catch-up ages them by wall-time, not one sample. */
+        /** @brief One-shot startup message (may be null). */
+        Logs::Logger*   _logger        = nullptr;
+        /** @brief Beats skipped on THIS tick (0 normally); weights the metric
+         *  windows so a catch-up ages them by wall-time, not one sample. */
         uint32_t        _missed_this_beat    = 0;
         SchedulerContext _context      = {};   ///< published metrics snapshot
 
@@ -117,14 +123,16 @@ namespace Botanik { namespace Scheduler {
 
         Utils::ExpMovingAverage _cpu_load;   ///< EMA of CPU duty cycle
         uint64_t                _slept_us = 0;   ///< time slept so far this beat, us
-        uint64_t                _last_release_us = 0;   ///< previous release (duty-cycle window start)
+        /** @brief Previous release (duty-cycle window start). */
+        uint64_t                _last_release_us = 0;
 
         /** @} */
 
         /** @name Work-duration metrics
          *  @{ */
 
-        bool              _measuring     = false;   ///< true between a release and the next-tick sample
+        /** @brief True between a release and the next-tick sample. */
+        bool              _measuring     = false;
         uint64_t          _work_start_us = 0;        ///< work-window open time, us
         uint32_t          _cpu_loop_us_max = 0;      ///< all-time peak, us
         Utils::MetricWindow _cpu_loop_us_window;     ///< windowed peak, us
@@ -132,18 +140,21 @@ namespace Botanik { namespace Scheduler {
         /** @} */
 
         /** @name Stack-usage metrics
-         *  @brief The high-water mark is itself a max (the RTOS thread watermark on OPTA,
-         *  a per-slice painted high-water on the sim), so we just track the all-time peak
-         *  - no EMA or rolling-max window layered on top of a max.
+         *  @brief The high-water mark is itself a max (the RTOS thread watermark
+         *  on OPTA, a per-slice painted high-water on the sim), so we just track
+         *  the all-time peak - no EMA or rolling-max window layered on top of a
+         *  max.
          *  @{ */
 
-        uint32_t          _stack_depth = 0;        ///< total thread stack allocation, bytes
-        uintptr_t         _stack_base  = 0;        ///< one past the stack top; scans downward
+        /** @brief total thread stack allocation, bytes */
+        uint32_t          _stack_depth = 0;
+        /** @brief one past the stack top; scans downward */
+        uintptr_t         _stack_base  = 0;
         uint32_t          _stack_bytes_max = 0;    ///< all-time peak used, bytes
         uint32_t          _stack_slice_tick  = 0;  ///< ticks into the current slice
         bool              _repaint_pending   = true;   ///< repaint on the next tick
-        /** @brief Bounds of the region _paint_below() last painted (sim only), read back
-         *  by _measure_stack_usage(). Null until the first paint. */
+        /** @brief Bounds of the region _paint_below() last painted (sim only),
+         *  read back by _measure_stack_usage(). Null until the first paint. */
         uint8_t*          _paint_top         = nullptr;
         uint8_t*          _paint_bot         = nullptr;
 
@@ -154,8 +165,8 @@ namespace Botanik { namespace Scheduler {
 
         uint64_t          _tps_anchor_ms     = 0;   ///< one-second window anchor (ms)
         uint32_t          _tps_anchor_count  = 0;   ///< tick_count at the anchor
-        /** @brief Window open? A flag, not an anchor==0 sentinel: the clock is legitimately
-         *  0 for the first ~1 ms. */
+        /** @brief Window open? A flag, not an anchor==0 sentinel: the clock is
+         *  legitimately 0 for the first ~1 ms. */
         bool              _tps_open          = false;
 
         /** @} */
@@ -169,7 +180,8 @@ namespace Botanik { namespace Scheduler {
          *  @param logger    Optional logger for startup and periodic load reports. */
         LoopScheduler(uint32_t period_ms = Config::TASK_PERIOD_MS, Logs::Logger* logger = nullptr);
 
-        /** @brief Reset the anchor to the current uptime and clear all metrics/filters. */
+        /** @brief Reset the anchor to the current uptime and clear all
+         *  metrics/filters. */
         void reset();
 
         /** @} */
@@ -196,18 +208,20 @@ namespace Botanik { namespace Scheduler {
          */
         BOTANIK_NO_ASAN inline __attribute__((always_inline)) bool tick() {
             announce_step(_logger, "LoopScheduler");
-            // Derive ms from the same us reading so the jitter math can't underflow against
-            // the grid (a separate uptime_ms() read could straddle the ms boundary and land
-            // just under _next_tick_ms*1000, wrapping the unsigned subtraction).
+            // Derive ms from the same us reading so the jitter math can't
+            // underflow against the grid (a separate uptime_ms() read could
+            // straddle the ms boundary and land just under _next_tick_ms*1000,
+            // wrapping the unsigned subtraction).
             uint64_t now_us = HAL::uptime_us();
             uint64_t now_ms = now_us / 1000;
             // close the previous beat's work window (work duration + stack scan)
             if (_measuring) { _measuring = false; _sample_work(now_us); }
             int64_t remaining_ms = (int64_t)_next_tick_ms - (int64_t)now_ms;
             if (remaining_ms > 0) {
-                // Sleep until the grid minus 1 ms (the last ~1 ms is busy-waited = active
-                // CPU), counting the *actual* slept time toward idle: timing the sleep
-                // rather than trusting the request keeps the duty cycle honest on overrun.
+                // Sleep until the grid minus 1 ms (the last ~1 ms is
+                // busy-waited = active CPU), counting the *actual* slept time
+                // toward idle: timing the sleep rather than trusting the request
+                // keeps the duty cycle honest on overrun.
                 if (remaining_ms > 1) {
                     uint64_t sleep_start_us = HAL::uptime_us();
                     HAL::sleep_ms((uint32_t)(remaining_ms - 1));
@@ -218,8 +232,9 @@ namespace Botanik { namespace Scheduler {
             // publish the loop "now" so consumers share one timestamp per tick
             _context.timestamp_ms = (uint32_t)now_ms;
             _skip_beats(now_ms);   // no log; surfaced via CPU_XRUN + stats
-            // Clamp grid-relative lateness at 0: _skip_beats keeps now >= grid so it
-            // shouldn't underflow, but one wrapped sample would poison the all-time max.
+            // Clamp grid-relative lateness at 0: _skip_beats keeps now >= grid
+            // so it shouldn't underflow, but one wrapped sample would poison the
+            // all-time max.
             uint64_t grid_us = _next_tick_ms * 1000;
             _record_jitter(now_us > grid_us ? (uint32_t)(now_us - grid_us) : 0);
             _record_load(now_us);
@@ -229,9 +244,10 @@ namespace Botanik { namespace Scheduler {
             // open the work window for the beat about to run
             _work_start_us = now_us;
             _measuring     = true;
-            // Repaint the free stack for the high-water scan, at slice boundaries only.
-            // Sim only: on hardware the RTOS watermarks the thread stack, and repainting
-            // would clobber that watermark (see _measure_stack_usage).
+            // Repaint the free stack for the high-water scan, at slice
+            // boundaries only. Sim only: on hardware the RTOS watermarks the
+            // thread stack, and repainting would clobber that watermark (see
+            // _measure_stack_usage).
             if (_repaint_pending) {
                 _repaint_pending = false;
 #ifdef TARGET_SIMULATOR
@@ -255,7 +271,8 @@ namespace Botanik { namespace Scheduler {
         /** @name Internals
          *  @{ */
 
-        /** @brief Advance the next-tick anchor to skip missed beats when the loop falls behind. */
+        /** @brief Advance the next-tick anchor to skip missed beats when the
+         *  loop falls behind. */
         void _skip_beats(uint64_t now);
         /** @brief Filter a beat's scheduling jitter and publish it into the context. */
         void _record_jitter(uint32_t jitter_us);
@@ -267,14 +284,17 @@ namespace Botanik { namespace Scheduler {
          *  is measured in real time instead, so the rate stays meaningful under
          *  BOTANIK_TIME_SCALE. */
         void _record_tps(uint64_t now_ms);
-        /** @brief Close the work window: record work duration and, at slice boundaries,
-         *  scan the stack high-water mark; publish both into the context. */
+        /** @brief Close the work window: record work duration and, at slice
+         *  boundaries, scan the stack high-water mark; publish both into the
+         *  context. */
         BOTANIK_NO_ASAN void _sample_work(uint64_t now_us);
 
-        /** @brief Determine the stack high-water (RTOS watermark on OPTA, a top-down
-         *  sentinel-run scan of the painted region on the sim) and update the metrics. */
+        /** @brief Determine the stack high-water (RTOS watermark on OPTA, a
+         *  top-down sentinel-run scan of the painted region on the sim) and
+         *  update the metrics. */
         BOTANIK_NO_ASAN void _measure_stack_usage();
-        /** @brief Paint the free stack below this frame with the sentinel (simulator only). */
+        /** @brief Paint the free stack below this frame with the sentinel
+         *  (simulator only). */
         BOTANIK_NO_ASAN void _paint_below();
 
         /** @} */
@@ -282,25 +302,28 @@ namespace Botanik { namespace Scheduler {
 
 #ifdef TARGET_SIMULATOR
     /**
-     * @brief Best-effort: lock all process memory (current + future) into RAM to avoid
-     *        page-fault latency. Sim-only (POSIX), process-wide via mlockall(), call once.
+     * @brief Best-effort: lock all process memory (current + future) into RAM
+     *        to avoid page-fault latency. Sim-only (POSIX), process-wide via
+     *        mlockall(), call once.
      *
      * Spawn the emulator thread *before* this: arming MCL_FUTURE first makes
-     * pthread_create lock the new thread's full stack and trip RLIMIT_MEMLOCK (EAGAIN).
-     * Call after the log sinks are registered (so the failure warning isn't dropped). On
-     * failure (usually lack of privileges) the process keeps running.
+     * pthread_create lock the new thread's full stack and trip RLIMIT_MEMLOCK
+     * (EAGAIN). Call after the log sinks are registered (so the failure warning
+     * isn't dropped). On failure (usually lack of privileges) the process keeps
+     * running.
      *
      * @param logger Logger for failure warnings (optional).
      */
     void lock_process_memory(Logs::Logger* logger = nullptr);
 
     /**
-     * @brief Best-effort: switch the *calling thread* to SCHED_FIFO and pin it to a core.
-     *        Sim-only (POSIX).
+     * @brief Best-effort: switch the *calling thread* to SCHED_FIFO and pin it
+     *        to a core. Sim-only (POSIX).
      *
-     * Policy and affinity are per-thread on Linux, so call it from each thread that needs
-     * realtime (main loop on one core, emulator on another, mirroring the OPTA's cores).
-     * On failure (usually lack of privileges) the thread keeps running.
+     * Policy and affinity are per-thread on Linux, so call it from each thread
+     * that needs realtime (main loop on one core, emulator on another, mirroring
+     * the OPTA's cores). On failure (usually lack of privileges) the thread
+     * keeps running.
      *
      * @param cpu_core_id Core to pin the calling thread to.
      * @param logger      Logger for failure warnings (optional).

@@ -23,8 +23,9 @@ namespace Botanik { namespace PlcIO {
     }
 
     void PlcLogReader::drain() {
-        // Coherency: refresh the PLC's write cursor before checking it; bail cheaply
-        // when there's nothing new so we don't invalidate the whole ring every tick.
+        // Coherency: refresh the PLC's write cursor before checking it; bail
+        // cheaply when there's nothing new so we don't invalidate the whole
+        // ring every tick.
         HAL::cache_invalidate(_writeIndex, sizeof(*_writeIndex));
         if (HAL::ordered_read(_writeIndex) == *_readIndex) return;
 
@@ -43,7 +44,8 @@ namespace Botanik { namespace PlcIO {
             _ctx->write();
             processed++;
         }
-        HAL::cache_clean(_ctx->input_logs(), sizeof(PlcInputLogs_t));  // publish readIndex
+        // publish readIndex
+        HAL::cache_clean(_ctx->input_logs(), sizeof(PlcInputLogs_t));
     }
 
     void PlcLogReader::step() {
@@ -55,13 +57,15 @@ namespace Botanik { namespace PlcIO {
     // ------------------------------------------------------------------------
 
     void PlcLogReader::_detect_dropped_entries(const LogEntry_t* entry) {
-        // First entry seen this session: anchor, don't treat as a gap. (A bool flag, not
-        // _last_seq==0, so a legitimate seq 0 at the 2^32 wrap isn't misread as "first".)
+        // First entry seen this session: anchor, don't treat as a gap. (A bool
+        // flag, not _last_seq==0, so a legitimate seq 0 at the 2^32 wrap isn't
+        // misread as "first".)
         if (!_have_seq) { _have_seq = true; _last_seq = entry->seqNum; return; }
         uint32_t expected = _last_seq + 1;             // modular: wraps with seqNum
         if (entry->seqNum != expected) {
-            // A gap larger than the ring means the producer lapped us; the true count is
-            // unknowable, so clamp it - one corrupt/lapped seqNum can't poison the stat.
+            // A gap larger than the ring means the producer lapped us; the
+            // true count is unknowable, so clamp it - one corrupt/lapped seqNum
+            // can't poison the stat.
             uint32_t gap     = entry->seqNum - expected;
             bool     lapped  = gap > Config::LOG_PLC_BUFFER_SIZE;
             uint32_t dropped = lapped ? Config::LOG_PLC_BUFFER_SIZE : gap;
@@ -86,7 +90,8 @@ namespace Botanik { namespace PlcIO {
     void PlcLogReader::_push_plc_entry(const LogEntry_t* plcEntry) {
         LogEntry_t entry;
         memcpy(&entry, plcEntry, sizeof(LogEntry_t));
-        entry.length = std::min(entry.length, (uint16_t)(Config::LOG_PLC_MESSAGE_LEN-1));
+        entry.length = std::min(entry.length,
+                                (uint16_t)(Config::LOG_PLC_MESSAGE_LEN - 1));
         entry.message[entry.length] = '\0';
         _logger->push_entry(entry);
     }

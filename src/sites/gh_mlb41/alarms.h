@@ -1,7 +1,8 @@
 #ifndef SITES_GH_MLB41_ALARMS_H
 #define SITES_GH_MLB41_ALARMS_H
 
-/** @file alarms.h @brief gh_mlb41 site alarm table (fed to the generic AlarmModel). */
+/** @file alarms.h
+ *  @brief gh_mlb41 site alarm table (fed to the generic AlarmModel). */
 
 #include <cstdint>
 

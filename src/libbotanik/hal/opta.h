@@ -147,7 +147,8 @@ namespace Botanik { namespace HAL {
 #if defined(DEBUG)
         assert((const void*)dst != (const void*)src);   // no aliasing (see @warning)
 #endif
-        ARM_MPU_OrderedMemcpy((volatile uint32_t*)dst, (const uint32_t*)src, sizeof(T) / sizeof(uint32_t));
+        ARM_MPU_OrderedMemcpy((volatile uint32_t*)dst, (const uint32_t*)src,
+                              sizeof(T) / sizeof(uint32_t));
         __DSB();
     }
 

@@ -60,13 +60,16 @@ namespace Botanik { namespace Shell {
          *  @{ */
 
         Terminal::AnsiTerminal& _terminal;   ///< terminal the shell renders through
-        Terminal::TextEditor&  _editor;      ///< editor supplying the input line
+        Terminal::TextEditor&   _editor;     ///< editor supplying the input line
         ShellWriter&            _output;     ///< output channel for command results
-        const ShellCommand*     _commands      = nullptr;   ///< site command table (set_commands())
+        /** site command table (set_commands()) */
+        const ShellCommand*     _commands      = nullptr;
         size_t                  _command_count = 0;
-        void*                   _command_ctx   = nullptr;   ///< opaque ctx for each site callback
-        /** @brief Mutable diagnostics targets for the loglevel / alarm commands; null
-         *  until set_diagnostics() wires them (commands then report "unavailable"). */
+        /** opaque ctx for each site callback */
+        void*                   _command_ctx   = nullptr;
+        /** @brief Mutable diagnostics targets for the loglevel / alarm commands;
+         *  null until set_diagnostics() wires them (commands then report
+         *  "unavailable"). */
         Logs::Logger*           _logger        = nullptr;
         Alarms::AlarmModel*     _alarm_model   = nullptr;
 
@@ -98,22 +101,24 @@ namespace Botanik { namespace Shell {
         /** @name Command execution
          *  @{ */
 
-        /** @brief Dispatch a pre-snapshotted command (caller owns snapshot and reset).
-         *         A zero-length command is ignored. */
+        /** @brief Dispatch a pre-snapshotted command (caller owns snapshot and
+         *  reset). A zero-length command is ignored. */
         void run(const char* cmd, uint16_t len);
 
-        /** @brief Wire the mutable diagnostics targets the loglevel / alarm-ack commands
-         *  act on (the owning firmware passes its logger and alarm model). */
+        /** @brief Wire the mutable diagnostics targets the loglevel / alarm-ack
+         *  commands act on (the firmware passes its logger and alarm model). */
         void set_diagnostics(Logs::Logger* logger, Alarms::AlarmModel* alarms) {
             _logger = logger; _alarm_model = alarms;
         }
 
-        /** @brief Register a site command table, tried after the built-ins. @p table
-         *  must outlive the shell (typically a static at the site). @p ctx is passed
-         *  to each callback. Pass count 0 (or a null table) to clear. */
-        void set_commands(const ShellCommand* table, size_t count, void* ctx = nullptr) {
-            // Cap defensively so a bogus count can't walk off the table. A site name that
-            // collides with a built-in is silently dead (built-ins match first by design).
+        /** @brief Register a site command table, tried after the built-ins.
+         *  @p table must outlive the shell (typically a static at the site).
+         *  @p ctx is passed to each callback. Pass count 0 (or null) to clear. */
+        void set_commands(const ShellCommand* table, size_t count,
+                          void* ctx = nullptr) {
+            // Cap defensively so a bogus count can't walk off the table. A site
+            // name that collides with a built-in is silently dead (built-ins
+            // match first by design).
             if (count > Config::SHELL_COMMANDS_MAX) count = Config::SHELL_COMMANDS_MAX;
             _commands      = table;
             _command_count = (table != nullptr) ? count : 0;
@@ -125,8 +130,9 @@ namespace Botanik { namespace Shell {
         /** @name History management
          *  @{ */
 
-        /** @brief Recall the previous (older) history entry into the editor. The first
-         *  call saves the in-progress line as the draft, restored by paging back down. */
+        /** @brief Recall the previous (older) history entry into the editor. The
+         *  first call saves the in-progress line as the draft, restored by
+         *  paging back down. */
         void history_prev();
 
         /** @brief Recall the next (newer) entry; at the newest, restore the draft. */
@@ -137,7 +143,7 @@ namespace Botanik { namespace Shell {
         /** @name Kill-ring (clipboard) management
          *  @{ */
 
-        /** @brief Cut from the cursor to the end of the line into the kill buffer (Ctrl-K). */
+        /** @brief Cut from the cursor to EOL into the kill buffer (Ctrl-K). */
         void kill_to_line_end();
 
         /** @brief Store @p len bytes as the kill buffer (clamped to SHELL_KILL_SIZE). */
@@ -156,7 +162,7 @@ namespace Botanik { namespace Shell {
          *  override a built-in) then the built-in table, and run the handler. */
         void _dispatch(const char* cmd, uint16_t len);
 
-        /** @brief One built-in: name, one-line help, handler taking the argument slice. */
+        /** @brief One built-in: name, one-line help, handler taking the args. */
         struct Builtin { const char* name; const char* help;
                          void (CommandShell::*fn)(const char* args, uint16_t alen); };
         /** @brief The built-in table - single source for both dispatch and `help`, so
@@ -166,8 +172,8 @@ namespace Botanik { namespace Shell {
         /** @brief Append a submitted line to the history ring (skips a consecutive
          *  duplicate) and ends any in-progress browsing. */
         void _history_add(const char* cmd, uint16_t len);
-        /** @brief Replace the editor line with history slot @c _hist_browse (or the draft
-         *  when _hist_browse < 0). */
+        /** @brief Replace the editor line with history slot @c _hist_browse (or
+         *  the draft when _hist_browse < 0). */
         void _load_browse();
 
         /** @name Built-in command handlers

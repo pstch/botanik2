@@ -84,9 +84,13 @@ namespace Botanik { namespace Network {
             case MQTT_CONNECT:
             {
                 int r = _tcp_poll();
-                if (r > 0)      { if (_send_connect()) _enter(MQTT_HANDSHAKE, now_ms); else _fail(now_ms); }
+                if (r > 0) {
+                    if (_send_connect()) _enter(MQTT_HANDSHAKE, now_ms);
+                    else                 _fail(now_ms);
+                }
                 else if (r < 0) _fail(now_ms);
-                else if (now_ms - _since_ms > Config::MQTT_CONNECT_TIMEOUT_MS) _fail(now_ms);
+                else if (now_ms - _since_ms > Config::MQTT_CONNECT_TIMEOUT_MS)
+                    _fail(now_ms);
             }
                 break;
 
@@ -167,7 +171,8 @@ namespace Botanik { namespace Network {
                                                         : Config::MQTT_KEEPALIVE_DEFAULT_S;
 
         uint8_t buf[Config::MQTT_TX_BUF];
-        uint32_t remlen = 10u + 2u + cid_len;        // variable header (10) + client-id (2 + len)
+        // variable header (10) + client-id (2-byte len prefix + cid_len)
+        uint32_t remlen = 10u + 2u + cid_len;
         int i = 0;
         buf[i++] = 0x10;                             // CONNECT
         i += encode_remlen(&buf[i], remlen);
@@ -202,7 +207,8 @@ namespace Botanik { namespace Network {
             if (r < 0) { _fail(now_ms); return; }   // closed/error
         }
         const PlcIO::PlcOutputConfig_t* c = config();
-        uint32_t ka_s = (c && c->mqtt.keepalive_s) ? c->mqtt.keepalive_s : Config::MQTT_KEEPALIVE_DEFAULT_S;
+        uint32_t ka_s = (c && c->mqtt.keepalive_s) ? c->mqtt.keepalive_s
+                                                    : Config::MQTT_KEEPALIVE_DEFAULT_S;
         if (now_ms - _last_ping_ms > (uint64_t)ka_s * 1000ull / 2ull) {
             uint8_t ping[2] = { 0xC0, 0x00 };
             if (HAL::Net::tcp_send(_sock, ping, 2) != 2) { _fail(now_ms); return; }

@@ -5,9 +5,10 @@
  * @file pages.h
  * @brief gh_mlb41 site pages (Home + Status). Used verbatim by sim and OPTA.
  *
- * The floats here are display-only (PLC integer units -> human strings) and never
- * touch shared memory. Included only via site.h (after the payload), so PlcOutputData_t
- * and the status structs are always in scope (no circular include).
+ * The floats here are display-only (PLC integer units -> human strings) and
+ * never touch shared memory. Included only via site.h (after the payload), so
+ * PlcOutputData_t and the status structs are always in scope (no circular
+ * include).
  */
 
 #include "libbotanik.h"
@@ -23,15 +24,16 @@ public:
         : Botanik::Pages::StatusPage<PlcOutputData_t>(terminal, data) {}
 
 protected:
-    // Two-column body geometry on an 80-col display: left panel cols 2..36, right
-    // 41..76. R_VAL=54 clears the 9-wide labels; left labels padded to 10 + colon
-    // (widest "Sun times :") so L_VAL=15 ends the field at col 36 (L_W=22). Values
-    // kept fixed-width so columns never shift as they update.
+    // Two-column body geometry on an 80-col display: left panel cols 2..36,
+    // right 41..76. R_VAL=54 clears the 9-wide labels; left labels padded to
+    // 10 + colon (widest "Sun times :") so L_VAL=15 ends the field at col 36
+    // (L_W=22). Values kept fixed-width so columns never shift as they update.
     static constexpr uint16_t L_HDR = 2,  L_LBL = 3,  L_VAL = 15, L_W = 22;
     static constexpr uint16_t R_HDR = 41, R_LBL = 42, R_VAL = 54, R_W = 23;
     static constexpr uint16_t HDR_WL = 34, HDR_WR = 36;
-    // System-band extras (rows 7, 8) align with the base system fields, rjust()'d to
-    // match. Labels use _label_at (no clear-to-eol) so the two columns don't clobber.
+    // System-band extras (rows 7, 8) align with the base system fields,
+    // rjust()'d to match. Labels use _label_at (no clear-to-eol) so the two
+    // columns don't clobber.
     static constexpr uint16_t SYS_VAL = 16, SYS_W = 24;
 
     void draw_payload_static() override {
@@ -75,7 +77,8 @@ protected:
         char buf[48], fld[40];
         char fa[12], fb[12];
 
-        // System band (rows 7, 8). Network status (slot 6); IP not yet wired (slot 9).
+        // System band (rows 7, 8). Network status (slot 6); IP not yet wired
+        // (slot 9).
         snprintf(buf, sizeof(buf), "%s (lat N/A)", NetStatus::str(d->net_status));
         _cell(6, 7, SYS_VAL, rjust(fld, sizeof(fld), SYS_W, buf), SYS_W);
         _cell(9, 8, SYS_VAL, rjust(fld, sizeof(fld), SYS_W, "N/A"), SYS_W);
@@ -114,8 +117,8 @@ protected:
                  format_float(fa, sizeof(fa), d->ceil_temp_c_centi / 100.0, 1, 4),
                  format_float(fb, sizeof(fb), d->ceil_rh_centi_pct / 100.0, 1, 4));
         _cell(16, 19, L_VAL, buf, L_W);
-        // Last rain: fixed-width age + peak wind (capped at 999). format_age stays
-        // <= 3 digits ("136 y"), so worst case "136 y (wind 999km/h)" < L_W.
+        // Last rain: fixed-width age + peak wind (capped at 999). format_age
+        // stays <= 3 digits ("136 y"), so worst "136 y (wind 999km/h)" < L_W.
         char rb[10];
         unsigned wind = d->wind_peak_kmh;
         if (wind > 999) wind = 999;
@@ -133,8 +136,10 @@ protected:
         snprintf(buf, sizeof(buf), "%03u %03u L / %02u Lpm",
                  wi / 1000, wi % 1000, (unsigned)d->water_out_lpm);
         _cell(19, 11, R_VAL, buf, R_W);
-        if (d->current_tray) snprintf(buf, sizeof(buf), "Tray %u", (unsigned)d->current_tray);
-        else                 snprintf(buf, sizeof(buf), "N/A");
+        if (d->current_tray)
+            snprintf(buf, sizeof(buf), "Tray %u", (unsigned)d->current_tray);
+        else
+            snprintf(buf, sizeof(buf), "N/A");
         _cell(20, 12, R_VAL, buf, R_W);
         _cell(21, 13, R_VAL, d->current_tray ? TrayStatus::str(d->tray_status) : "-", R_W);
 
@@ -163,7 +168,8 @@ public:
 
 protected:
     void draw_payload_static() override {
-        // Identity block (site/version/commit) is the base HomePage's; add readings.
+        // Identity block (site/version/commit) is the base HomePage's; add
+        // readings.
         _label(11, "Temp");
         _label(12, "Humidity");
         _label(13, "Ventilation");
@@ -184,17 +190,21 @@ protected:
         snprintf(buf, sizeof(buf), "%s%%",
                  format_float(fa, sizeof(fa), d->ext_rh_centi_pct / 100.0, 1, 4));
         _value(12, buf);
-        // Aggregate the four zones (most-open window, highest blower) so the summary
-        // can't read "0%" while B-D run.
-        uint8_t win_max  = std::max(std::max(d->window_a, d->window_b), std::max(d->window_c, d->window_d));
-        uint8_t blow_max = std::max(std::max(d->blower_a, d->blower_b), std::max(d->blower_c, d->blower_d));
+        // Aggregate the four zones (most-open window, highest blower) so the
+        // summary can't read "0%" while B-D run.
+        uint8_t win_max  = std::max(std::max(d->window_a, d->window_b),
+                                    std::max(d->window_c, d->window_d));
+        uint8_t blow_max = std::max(std::max(d->blower_a, d->blower_b),
+                                    std::max(d->blower_c, d->blower_d));
         snprintf(buf, sizeof(buf), "Win %s%%  Blow %s%%",
                  format_float(fa, sizeof(fa), (double)win_max, 1, 4),
                  format_float(fb, sizeof(fb), (double)blow_max, 1, 4));
         _value(13, buf);
-        // Tray status padded to its widest value ("DRAINING") so the paren never moves.
+        // Tray status padded to its widest value ("DRAINING") so the paren
+        // never moves.
         if (d->current_tray)
-            snprintf(buf, sizeof(buf), "Tray %u (%-8s)", d->current_tray, TrayStatus::str(d->tray_status));
+            snprintf(buf, sizeof(buf), "Tray %u (%-8s)",
+                     d->current_tray, TrayStatus::str(d->tray_status));
         else
             snprintf(buf, sizeof(buf), "idle");
         _value(14, buf, true, true);   // invert the whole tray value on change

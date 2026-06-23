@@ -71,7 +71,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     static constexpr char DCH[] = "P";  // Delete Character
     static constexpr char EL[]  = "K";  // Erase in Line (Cursor to EOL)
 
-    /** @} 
+    /** @}
      *  @name Generic utilities
      *  @{ */
 

@@ -97,7 +97,8 @@ namespace Botanik { namespace Utils {
                      / (std::cos(lat_r) * cos_decl);
         if (cos_w < -1.0 || cos_w > 1.0) return false;
 
-        double w_days = (std::acos(cos_w) / DEG2RAD) / 360.0;  // half the daylight arc, in days
+        // half the daylight arc, in days
+        double w_days = (std::acos(cos_w) / DEG2RAD) / 360.0;
         jrise = jtransit - w_days;
         jset  = jtransit + w_days;
         return true;

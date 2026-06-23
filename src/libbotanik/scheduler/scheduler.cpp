@@ -79,9 +79,9 @@ namespace Botanik { namespace Scheduler {
 
     // Tick
     // ------------------------------------------------------------------------
-    // tick() is defined inline in the header (always_inline + BOTANIK_NO_ASAN) so its
-    // trailing stack paint folds into the caller's frame and captures the loop body's
-    // SP. The cold helpers below stay out of line.
+    // tick() is defined inline in the header (always_inline + BOTANIK_NO_ASAN)
+    // so its trailing stack paint folds into the caller's frame and captures the
+    // loop body's SP. The cold helpers below stay out of line.
 
     // Internals
     // ------------------------------------------------------------------------
@@ -91,10 +91,12 @@ namespace Botanik { namespace Scheduler {
         if (now >= _next_tick_ms + _period_ms) {
             uint64_t delay = now - _next_tick_ms;
             uint64_t missed_beats = delay / _period_ms;
-            _missed_this_beat = (uint32_t)missed_beats;   // weight this tick's metric samples
+            // weight this tick's metric samples
+            _missed_this_beat = (uint32_t)missed_beats;
             _next_tick_ms += (missed_beats * _period_ms);
-            // Count overruns - surfaced by the CPU_XRUN alarm and the `stats` overrun
-            // count. No log line: it would flood, especially under sim time dilation.
+            // Count overruns - surfaced by the CPU_XRUN alarm and the `stats`
+            // overrun count. No log line: it would flood, especially under sim
+            // time dilation.
             _context.overruns += (uint32_t)missed_beats;
         }
     }
@@ -104,7 +106,8 @@ namespace Botanik { namespace Scheduler {
         float instant = (_period_ms > 0) ? static_cast<float>(jitter_us)
                         / static_cast<float>(_period_ms * 1000u) : 0.0f;
         if (jitter_us > _jitter_us_max) _jitter_us_max = jitter_us;
-        _jitter_window.push(jitter_us, 1 + _missed_this_beat);   // age by elapsed beats
+        // age by elapsed beats
+        _jitter_window.push(jitter_us, 1 + _missed_this_beat);
         _jitter.push(instant);
 
         _context.cpu_jitter_ema       = _jitter.value();
@@ -113,8 +116,9 @@ namespace Botanik { namespace Scheduler {
     }
 
     void LoopScheduler::_record_load(uint64_t now_us) {
-        // duty cycle: active (non-slept) time over the nominal period. Normalizing by
-        // the period (not elapsed) lets an overrunning beat read past 100%.
+        // duty cycle: active (non-slept) time over the nominal period.
+        // Normalizing by the period (not elapsed) lets an overrunning beat read
+        // past 100%.
         if (_last_release_us != 0) {
             uint64_t elapsed = now_us - _last_release_us;
             uint64_t active  = (elapsed > _slept_us) ? (elapsed - _slept_us) : 0;
@@ -157,7 +161,8 @@ namespace Botanik { namespace Scheduler {
         uint32_t busy = (now_us >= _work_start_us)
                       ? static_cast<uint32_t>(now_us - _work_start_us) : 0;
         if (busy > _cpu_loop_us_max) _cpu_loop_us_max = busy;
-        _cpu_loop_us_window.push(busy, 1 + _missed_this_beat);   // age by elapsed beats
+        // age by elapsed beats
+        _cpu_loop_us_window.push(busy, 1 + _missed_this_beat);
 
         // scan the stack high-water at slice boundaries only
         if (++_stack_slice_tick >= Config::STACK_SLICE_TICKS) {
@@ -171,31 +176,35 @@ namespace Botanik { namespace Scheduler {
     }
 
     void LoopScheduler::_measure_stack_usage() {
-        // High-water used bytes. On hardware the RTOS already watermarks each thread's
-        // stack (painted once at thread creation), so we just read it - no manual paint
-        // of the wrong (MSP) stack. NOTE: that watermark is ALL-TIME (monotonic, can't
-        // reset), so on OPTA the all-time peak (stack_bytes_max) is exact, but the
-        // per-slice "recent" window/EMA degenerate to that same all-time figure. The
-        // sim repaints each slice, so there it's a true recent high-water that can fall.
+        // High-water used bytes. On hardware the RTOS already watermarks each
+        // thread's stack (painted once at thread creation), so we just read it -
+        // no manual paint of the wrong (MSP) stack. NOTE: that watermark is
+        // ALL-TIME (monotonic, can't reset), so on OPTA the all-time peak
+        // (stack_bytes_max) is exact, but the per-slice "recent" window/EMA
+        // degenerate to that same all-time figure. The sim repaints each slice,
+        // so there it's a true recent high-water that can fall.
         uint32_t low = HAL::get_stack_high();
 #ifdef TARGET_SIMULATOR
-        // The host has no RTOS watermark: read back the sentinel painted below the loop
-        // frame. Scan the painted region top-down for the first RUN-long run of intact
-        // sentinel words - the start of untouched stack. A multi-word run makes a
-        // coincidental match in used data (~1/2^32 per word) impossible, so this is the
-        // true high-water without the old (non-monotone, unsound) bisection.
+        // The host has no RTOS watermark: read back the sentinel painted below
+        // the loop frame. Scan the painted region top-down for the first
+        // RUN-long run of intact sentinel words - the start of untouched stack.
+        // A multi-word run makes a coincidental match in used data (~1/2^32 per
+        // word) impossible, so this is the true high-water without the old
+        // (non-monotone, unsound) bisection.
         if (_paint_top != nullptr) {
             const uint32_t PAT = (uint32_t)0x01010101u * Config::STACK_PAINT_BYTE;
             const int RUN = 4;   // 16 bytes of intact pattern == untouched
+            // word-align down
             const uint32_t* top = reinterpret_cast<const uint32_t*>(
-                reinterpret_cast<uintptr_t>(_paint_top) & ~(uintptr_t)3u);   // word-align down
+                reinterpret_cast<uintptr_t>(_paint_top) & ~(uintptr_t)3u);
             const uint32_t* bot = reinterpret_cast<const uint32_t*>(
                 (reinterpret_cast<uintptr_t>(_paint_bot) + 3u) & ~(uintptr_t)3u);
             const uint32_t* hw = bot;   // default: the whole painted region was used
             int run = 0;
             for (const uint32_t* p = top; p > bot; ) {
                 --p;
-                if (*p == PAT) { if (++run >= RUN) { hw = p + RUN; break; } }  // first used word above the run
+                // hw = p + RUN is the first used word above the run
+                if (*p == PAT) { if (++run >= RUN) { hw = p + RUN; break; } }
                 else           { run = 0; }
             }
             low = (uint32_t)(_stack_base - reinterpret_cast<uintptr_t>(hw));
@@ -203,9 +212,10 @@ namespace Botanik { namespace Scheduler {
 #endif
         if (low == 0 || _stack_depth == 0) return;   // nothing measurable yet
 
-        // The high-water is already a max; just track the all-time peak - no EMA /
-        // rolling window. Publish the usage fraction and the absolute worst-case
-        // headroom (least free stack ever = depth - peak used), the safety-relevant value.
+        // The high-water is already a max; just track the all-time peak - no
+        // EMA / rolling window. Publish the usage fraction and the absolute
+        // worst-case headroom (least free stack ever = depth - peak used), the
+        // safety-relevant value.
         if (low > _stack_bytes_max) _stack_bytes_max = low;
         _context.stack_usage      = static_cast<float>(_stack_bytes_max)
                                   / static_cast<float>(_stack_depth);
@@ -213,25 +223,28 @@ namespace Botanik { namespace Scheduler {
     }
 
     // Simulator only: hardware uses the RTOS stack watermark instead (see
-    // _measure_stack_usage), and manually repainting an RTOS thread's stack would
-    // clobber the RTOS's own watermark fill.
+    // _measure_stack_usage), and manually repainting an RTOS thread's stack
+    // would clobber the RTOS's own watermark fill.
     void LoopScheduler::_paint_below() {
         if (_stack_base == 0) return;
-        // Ceiling = our own frame (a local), so the region is below the CALLER regardless
-        // of how inlining grows its frame - no dependency on the caller's size. Back off a
-        // margin that clears this function's own locals + memset's frame (the only thing
-        // below us); painting below &marker without it would clobber our spilled locals.
-        // The margin need only cover memset (a known leaf), not an unknown caller frame.
-        // memset (bounds captured once) is correct even at -O0, unlike an inline loop that
-        // re-reads now-clobbered local bounds each iteration.
+        // Ceiling = our own frame (a local), so the region is below the CALLER
+        // regardless of how inlining grows its frame - no dependency on the
+        // caller's size. Back off a margin that clears this function's own
+        // locals + memset's frame (the only thing below us); painting below
+        // &marker without it would clobber our spilled locals. The margin need
+        // only cover memset (a known leaf), not an unknown caller frame. memset
+        // (bounds captured once) is correct even at -O0, unlike an inline loop
+        // that re-reads now-clobbered local bounds each iteration.
         volatile uint8_t marker = 0;
         const ptrdiff_t MARGIN = 512;
         uint8_t* paint_top  = const_cast<uint8_t*>(&marker) - MARGIN;
-        uint8_t* abs_bottom = reinterpret_cast<uint8_t*>(_stack_base - _stack_depth);
+        uint8_t* abs_bottom =
+            reinterpret_cast<uint8_t*>(_stack_base - _stack_depth);
         if (paint_top <= abs_bottom) return;
         uint8_t* paint_bot = paint_top - Config::STACK_SCAN_LIMIT;
         if (paint_bot < abs_bottom) paint_bot = abs_bottom;
-        memset(paint_bot, Config::STACK_PAINT_BYTE, (size_t)(paint_top - paint_bot));
+        memset(paint_bot, Config::STACK_PAINT_BYTE,
+               (size_t)(paint_top - paint_bot));
         _paint_top = paint_top;
         _paint_bot = paint_bot;
     }
@@ -242,8 +255,8 @@ namespace Botanik { namespace Scheduler {
     // ------------------------------------------------------------------------
 
     void lock_process_memory(Logs::Logger* logger) {
-        // Lock pages into RAM (avoid page-fault latency). Process-wide incl. future
-        // mappings, so it's a one-time call.
+        // Lock pages into RAM (avoid page-fault latency). Process-wide incl.
+        // future mappings, so it's a one-time call.
         if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1 && logger != nullptr)
             logger->warning(PlcIO::BOOT, "mlockall failed: \n%s", strerror(errno));
     }
@@ -253,14 +266,17 @@ namespace Botanik { namespace Scheduler {
         struct sched_param param;
         param.sched_priority = 95; // 1 (low) .. 99 (high)
         if (sched_setscheduler(0, SCHED_FIFO, &param) == -1 && logger != nullptr)
-            logger->warning(PlcIO::BOOT, "sched_setscheduler failed: \n%s", strerror(errno));
+            logger->warning(PlcIO::BOOT, "sched_setscheduler failed: \n%s",
+                            strerror(errno));
 
         // pin to a core to prevent migration
         cpu_set_t mask;
         CPU_ZERO(&mask);
         CPU_SET(cpu_core_id, &mask);
-        if (sched_setaffinity(0, sizeof(cpu_set_t), &mask) == -1 && logger != nullptr)
-            logger->warning(PlcIO::BOOT, "sched_setaffinity failed: \n%s", strerror(errno));
+        if (sched_setaffinity(0, sizeof(cpu_set_t), &mask) == -1
+            && logger != nullptr)
+            logger->warning(PlcIO::BOOT, "sched_setaffinity failed: \n%s",
+                            strerror(errno));
     }
 
 #endif
