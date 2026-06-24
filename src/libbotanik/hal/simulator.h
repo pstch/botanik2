@@ -434,8 +434,8 @@ namespace Botanik { namespace HAL {
     }
 
     /** @brief Whether @p port's output end is an interactive terminal (false
-     *  for a null port). Lets sinks (e.g. MonitorLogWriter) suppress output
-     *  that would garble the UI. */
+     *  for a null port). Lets sinks (e.g. the MONITOR SerialLogWriter) suppress
+     *  output that would garble the UI. */
     inline bool is_output_tty(const Raw* port) {
         return (port != nullptr) && port->is_output_tty();
     }

@@ -63,10 +63,9 @@ namespace Botanik { namespace Logs {
         uint16_t        _perTopic_burst         = Config::LOG_PERTOPIC_BUCKET_BURST;
         uint32_t        _perTopic_period_ms     = Config::LOG_PERTOPIC_BUCKET_PERIOD_MS;
         uint32_t        _perTopic_fillTime_ms   = 0;
-        /** @brief Per-topic buckets. Sized by LOG_TOPIC_MAX (full wire range)
-         *  so the footprint is fixed as topics are added; only the first
-         *  LOG_TOPIC_COUNT are used. */
-        LogBucket_t     _perTopic_buckets[Config::LOG_TOPIC_MAX];
+        /** @brief Per-topic buckets, one per live topic. push_entry clamps any index to
+         *  LOG_TOPIC_COUNT (out-of-range topics fold to NONE), so this is the full range used. */
+        LogBucket_t     _perTopic_buckets[PlcIO::LOG_TOPIC_COUNT];
 
         /** @} */
 

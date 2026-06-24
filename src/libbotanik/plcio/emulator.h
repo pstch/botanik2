@@ -41,14 +41,9 @@ namespace Botanik { namespace PlcIO {
         /** @brief Emulator TX -> what the host will receive. */
         PlcOutputLogs_t  _tx_logs_buffer = {};
         uint32_t*        _timestamp_ms   = nullptr;
-        /** @brief Time of the last acknowledged TX (wrap-safe stamp, like the
-         *  handler). */
+        /** @brief Time of the last acknowledged TX (wrap-safe stamp, like the handler);
+         *  drives the heartbeat-elapsed trigger. */
         Utils::Millis32  _tx_last_ms;
-        /** @brief Elapsed before PLC_TIMEOUT. */
-        uint32_t         _timeout_ms     = Config::PLC_TIMEOUT_MS;
-        /** @brief Elapsed before PLC_FAULT. */
-        uint32_t         _watchdog_ms    = Config::PLC_WATCHDOG_MS;
-        bool             _ever_ackd      = false;
 
         Utils::Millis32  _now() const { return Utils::Millis32(*_timestamp_ms); }
 
@@ -63,15 +58,6 @@ namespace Botanik { namespace PlcIO {
         PlcOutputLogs_t*      output_logs()        { return &_tx_logs_buffer; }
         /** @brief Emulator input log buffer (host wrote here). */
         const PlcInputLogs_t* input_logs() const   { return &_rx_logs_buffer; }
-
-        /** @brief Current PLC link status derived from the ack timing. */
-        PlcStatus status() const {
-            uint32_t elapsed = _now() - _tx_last_ms;
-            if (!_ever_ackd)             return PLC_UNKNOWN;
-            if (elapsed > _watchdog_ms)  return PLC_FAULT;
-            if (elapsed > _timeout_ms)   return PLC_TIMEOUT;
-                                         return PLC_RUNNING;
-        }
 
         /** @} */
     };
@@ -143,11 +129,9 @@ namespace Botanik { namespace PlcIO {
         /** @} */
 
         /** @name Simulator timeout overrides
-         *  Set by the emulator thread to the time-dilated link timeouts.
+         *  Set by the emulator thread to the time-dilated heartbeat period.
          *  @{ */
-        void set_heartbeat_ms(uint32_t ms) { _heartbeat_ms     = ms; }
-        void set_timeout_ms  (uint32_t ms) { _ctx._timeout_ms  = ms; }
-        void set_watchdog_ms (uint32_t ms) { _ctx._watchdog_ms = ms; }
+        void set_heartbeat_ms(uint32_t ms) { _heartbeat_ms = ms; }
         /** @} */
 
     private:
@@ -164,7 +148,7 @@ namespace Botanik { namespace PlcIO {
         inline bool _tx_acknowledged() {
             bool result = HAL::Memory::ordered_read(&_plcin->sync.txAckNum)
                           == _plcout->sync.txSeqNum;
-            if (result) { _ctx._tx_last_ms = _ctx._now(); _ctx._ever_ackd = true; }
+            if (result) { _ctx._tx_last_ms = _ctx._now(); }
             return result;
         }
 
@@ -312,10 +296,8 @@ namespace Botanik { namespace PlcIO {
         uint32_t emu_timestamp_ms = 0;
         PlcEmulator<InputData, OutputData> plc_emulator(
             args->shared_in, args->shared_out, &emu_timestamp_ms);
-        // Dilate the link timeouts, mirroring the host handler (main.cpp).
+        // Dilate the heartbeat period, mirroring the host handler (main.cpp).
         plc_emulator.set_heartbeat_ms(plc_dilated_timeout(Config::PLC_HEARTBEAT_MS));
-        plc_emulator.set_timeout_ms  (plc_dilated_timeout(Config::PLC_TIMEOUT_MS));
-        plc_emulator.set_watchdog_ms (plc_dilated_timeout(Config::PLC_WATCHDOG_MS));
         PlcLogWriter plc_log_writer(plc_emulator.context(), &emu_timestamp_ms);
 
         uint32_t emu_tick = 0;

@@ -65,17 +65,7 @@ unmistakable in the log rather than leaving a subtly broken unit running silentl
 
 ## Assertions (BOTANIK_ASSERT)
 
-Where POST is a one-shot boot check, `BOTANIK_ASSERT(expr)` (in
-`utils/assert.h`) guards invariants at the point they must hold. It is a
-development aid: in **release** builds (DEBUG undefined) it compiles out entirely,
-costing nothing on a shipped unit.
-
-In **debug** builds a failed assertion logs a `CRITICAL` entry on the `ASSERT` topic
-(through the logger registered via `set_assert_logger()`, so it reaches the same sinks
-as everything else) and then:
-
-- traps into an attached debugger, gated on `HAL::under_debugger()` (a bare breakpoint
-  with no debugger HardFaults the OPTA, so the gate matters);
-- otherwise `abort()`s on the simulator, for a loud failure in a headless or CI run;
-- otherwise (hardware, no debugger) it has already logged, and continues.
+Where POST is a one-shot boot check, `BOTANIK_ASSERT(expr)` guards invariants at the
+point they must hold. Its mechanics (release compile-out, the debugger-gated trap, the
+abort-on-simulator) are documented at @ref utils/assert.h "utils/assert.h".
 

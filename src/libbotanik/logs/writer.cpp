@@ -72,8 +72,15 @@ namespace Botanik { namespace Logs {
     // Lifecycle
     // ------------------------------------------------------------------------
 
-    SerialLogWriter::SerialLogWriter(BufferedSerial& serial) :
-        _serial(&serial) {}
+    // Suppression (drop_if_tty) is decided once: when the output is a tty it shares the
+    // screen with the console UI, so log entries would garble the display.
+    SerialLogWriter::SerialLogWriter(BufferedSerial& serial, bool drop_if_tty) :
+        _serial(&serial), _suppressed(drop_if_tty && serial.is_output_tty()) {}
+
+    void SerialLogWriter::push(const LogEntry_t* entry) {
+        if (_suppressed) return;
+        BufferedLogWriter::push(entry);
+    }
 
     // Drain into the serial's TX ring; the serial is flushed separately by the
     // main loop.
@@ -99,21 +106,6 @@ namespace Botanik { namespace Logs {
         int available = std::min((uint16_t)len, _serial->availableForWrite());
         if (available == 0) return 0;
         return _serial->write(buf, available);
-    }
-
-    // MonitorLogWriter
-    // ------------------------------------------------------------------------
-
-    // Suppress when the output is a tty: it shares the screen with the console
-    // UI, so log entries would garble the display.
-    MonitorLogWriter::MonitorLogWriter(BufferedSerial& serial) :
-        SerialLogWriter(serial) {
-            _suppressed = serial.is_output_tty();
-        }
-
-    void MonitorLogWriter::push(const LogEntry_t* entry) {
-        if (_suppressed) return;
-        SerialLogWriter::push(entry);
     }
 
 }}

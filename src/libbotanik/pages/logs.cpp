@@ -64,14 +64,11 @@ namespace Botanik { namespace Pages {
 
     void LogsPage::tick(bool active) {
         _active = active;
-        if (active) {
-            _scrollback.drain_redraw(_terminal);
-            // Hold off the live tail until the replay completes - drain_tail's
-            // DL scroll would shift rows the replay already drew.
-            if (_scrollback.redraw_pending()) return;
-        }
-        // Bank queued entries (pending when active), then paint them paced into
-        // the content area (rows 1..rows-1).
+        // Drain any staged focus replay first; bail until it finishes so the live tail's
+        // DL scroll can't shift rows the replay already drew.
+        if (_scrollback.tick_redraw_gate(_terminal, active)) return;
+        // Bank queued entries (pending when active), then paint them paced into the
+        // content area (rows 1..rows-1).
         drain();
         if (active)
             _scrollback.drain_tail(_terminal, 1, (uint16_t)(_terminal.rows() - 1));

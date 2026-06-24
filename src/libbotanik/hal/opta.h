@@ -281,7 +281,7 @@ namespace Botanik { namespace HAL {
 
     /** @brief A hardware UART is never an interactive terminal, so diagnostic
      *  output is never suppressed on OPTA. Mirrors the simulator query so sinks
-     *  (e.g. MonitorLogWriter) stay platform-independent. */
+     *  (e.g. the MONITOR SerialLogWriter) stay platform-independent. */
     inline bool is_output_tty(const Raw*) { return false; }
 
     }  // namespace Serial

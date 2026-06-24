@@ -109,15 +109,11 @@ namespace Botanik { namespace Pages {
 
     void ShellPage::tick(bool active) {
         _active = active;
-        if (active) {
-            _scrollback.drain_redraw(_terminal);
-            // Hold off the live tail until the replay completes - drain_tail's
-            // DL scroll would shift rows the replay already drew.
-            if (_scrollback.redraw_pending()) return;
-        }
-        // Bank queued log entries (pending when active; only the active page
-        // queues, see push()); command output banks the same way via
-        // write_lines().
+        // Drain any staged focus replay first; bail until it finishes so the live tail's
+        // DL scroll can't shift rows the replay already drew.
+        if (_scrollback.tick_redraw_gate(_terminal, active)) return;
+        // Bank queued log entries (pending when active; only the active page queues, see
+        // push()); command output banks the same way via write_lines().
         drain();
         // Paint pending lines paced into the log area; emit_tail shifts the
         // editor up (DL) and back down (IL), so reposition the cursor onto it

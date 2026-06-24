@@ -5,9 +5,9 @@
  * @file scheduler.h
  * @brief LoopScheduler - non-blocking fixed-period loop driver with overrun
  *        handling and built-in performance instrumentation: scheduling jitter,
- *        CPU duty cycle, per-beat work duration, and stack high-water usage.
- *        The reusable metric filters live in utils/filters.h; the PerfContext /
- *        SchedulerContext they feed are defined here.
+ *        CPU duty cycle, per-beat work duration, and stack high-water usage. The
+ *        reusable metric filters live in utils/filters.h; the SchedulerContext
+ *        they feed is defined here.
  */
 
 #include <cstdint>
@@ -36,12 +36,14 @@ namespace Botanik { namespace Logs { class Logger; } }
 
 namespace Botanik { namespace Scheduler {
 
-    /** @brief CPU-load / work-duration / stack-usage metrics, each exposed
-     *  smoothed (EMA), as a recent windowed peak, and as an all-time peak. The
-     *  base of SchedulerContext; LoopScheduler writes every field in place. */
-    struct PerfContext {
-        /** @brief EMA of CPU load (duty cycle, fraction of period). */
-        float    cpu_load_ema       = 0.0f;
+    /** @brief Stable metrics snapshot consumed by AnsiTerminal for the status bar and
+     *  the `stats` command: the CPU-load / work-duration / stack-usage metrics (each
+     *  exposed smoothed (EMA), as a recent windowed peak, and as an all-time peak),
+     *  plus the scheduler's jitter and tick/overrun fields. Consumers read them all
+     *  through one struct via LoopScheduler::context(); LoopScheduler writes every
+     *  field in place. */
+    struct SchedulerContext {
+        float    cpu_load_ema       = 0.0f;   ///< EMA of CPU load (duty cycle, fraction of period)
         uint32_t cpu_loop_us_recent = 0;      ///< windowed peak work duration, us
         uint32_t cpu_loop_us_max    = 0;      ///< all-time peak work duration, us
 
@@ -56,15 +58,8 @@ namespace Botanik { namespace Scheduler {
         /** @brief measured loop rate (ticks/sec). Nominal 1000/TASK_PERIOD_MS;
          *  dips when the loop falls behind. */
         uint32_t ticks_per_second   = 0;
-    };
 
-    /** @brief Stable metrics snapshot consumed by AnsiTerminal for the status
-     *  bar and the `stats` command. Inherits the CPU/stack fields (PerfContext)
-     *  and adds the scheduler's jitter and tick/overrun fields, so consumers
-     *  read them all through one struct via LoopScheduler::context(). */
-    struct SchedulerContext : PerfContext {
-        /** @brief EMA of scheduling jitter (fraction of interval). */
-        float    cpu_jitter_ema       = 0.0f;
+        float    cpu_jitter_ema       = 0.0f;   ///< EMA of scheduling jitter (fraction of interval)
         uint32_t cpu_jitter_us_recent = 0;      ///< windowed peak jitter, us
         uint32_t cpu_jitter_us_max    = 0;      ///< all-time peak jitter, us
         uint32_t tick_count      = 0;

@@ -38,14 +38,14 @@ namespace Botanik { namespace detail {
     static_assert(sizeof(PlcIO::PlcOutputConfig_t)                         == BOTANIK_SIZE(  552,   552), "PlcOutputConfig_t footprint changed");
     static_assert(sizeof(PlcIO::PlcOutput<ProbePlcOut>)                    == BOTANIK_SIZE( 9216,  9216), "PlcOutput footprint changed");
     static_assert(sizeof(PlcIO::PlcSyncContext)                            == BOTANIK_SIZE( 9232,  9196), "PlcSyncContext footprint changed");
-    static_assert(sizeof(PlcIO::PlcEmulatorContext)                        == BOTANIK_SIZE( 8616,  8608), "PlcEmulatorContext footprint changed");
+    static_assert(sizeof(PlcIO::PlcEmulatorContext)                        == BOTANIK_SIZE( 8608,  8596), "PlcEmulatorContext footprint changed");
     static_assert(sizeof(PlcIO::PlcSyncHandler<ProbePlcIn, ProbePlcOut>)   == BOTANIK_SIZE( 9344,  9288), "PlcSyncHandler footprint changed");
-    static_assert(sizeof(PlcIO::PlcEmulator<ProbePlcIn, ProbePlcOut>)      == BOTANIK_SIZE( 8712,  8688), "PlcEmulator footprint changed");
+    static_assert(sizeof(PlcIO::PlcEmulator<ProbePlcIn, ProbePlcOut>)      == BOTANIK_SIZE( 8704,  8676), "PlcEmulator footprint changed");
 
     // Logging
     static_assert(sizeof(Logs::BufferedLogWriter)                          == BOTANIK_SIZE( 8872,  8856), "BufferedLogWriter footprint changed");
-    static_assert(sizeof(Logs::SerialLogWriter)                            == BOTANIK_SIZE( 8880,  8860), "SerialLogWriter footprint changed");
-    static_assert(sizeof(Logs::Logger)                                     == BOTANIK_SIZE( 2200,  2152), "Logger footprint changed");
+    static_assert(sizeof(Logs::SerialLogWriter)                            == BOTANIK_SIZE( 8888,  8864), "SerialLogWriter footprint changed");
+    static_assert(sizeof(Logs::Logger)                                     == BOTANIK_SIZE(  248,   200), "Logger footprint changed");
 
     // Terminal / serial
     static_assert(sizeof(Utils::BufferedSerial)                            == BOTANIK_SIZE( 4376,  4372), "BufferedSerial footprint changed");

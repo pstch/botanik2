@@ -27,8 +27,8 @@
  *
  * Terminal-optional (BOTANIK_FEATURE_TERMINAL, default on): the ANSI UI
  * (AnsiTerminal, the built-in pages, the console UART, the register_*() hooks).
- * Off -> headless; diagnostics still reach the MONITOR UART via
- * MonitorLogWriter. The site extension below assumes the UI is present.
+ * Off -> headless; diagnostics still reach the MONITOR UART via the MONITOR
+ * SerialLogWriter. The site extension below assumes the UI is present.
  *
  * @section firmware_extend Extending the base for a site
  *
@@ -130,7 +130,7 @@ namespace Botanik {
 #endif
         Utils::BufferedSerial          _monitor_serial;
         Logs::Logger                   _logger;
-        Logs::MonitorLogWriter         _monitor;
+        Logs::SerialLogWriter          _monitor;
         Scheduler::LoopScheduler       _scheduler;
 #if BOTANIK_FEATURE_PLC
         PlcIO::PlcSyncHandler<In, Out> _plc_handler;
@@ -176,7 +176,7 @@ namespace Botanik {
 #endif
               _monitor_serial(HAL::Serial::get(HAL::Serial::MONITOR)),
               _logger(),
-              _monitor(_monitor_serial),
+              _monitor(_monitor_serial, /*drop_if_tty=*/true),
               _scheduler(Config::TASK_PERIOD_MS, &_logger),
 #if BOTANIK_FEATURE_PLC
               _plc_handler(shared_in, shared_out,

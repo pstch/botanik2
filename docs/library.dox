@@ -66,8 +66,7 @@ each flag defaults from an `#ifndef`-guarded macro, so a site pins it in
 
 Gate code with the preprocessor `#if BOTANIK_FEATURE_PLC` (it must drop member
 declarations and ctor-init entries, which a `constexpr` cannot, and C++11 has no
-`if constexpr`); a `Botanik::Features::PLC` `constexpr bool` mirror is available for
-expression context. Dependency rules (`NTP`/`MQTT` need `NETWORK`; `NETWORK`
+`if constexpr`). Dependency rules (`NTP`/`MQTT` need `NETWORK`; `NETWORK`
 currently needs `PLC`, since its config comes from the PLC block) are enforced by
 `#error` guards in the header.
 

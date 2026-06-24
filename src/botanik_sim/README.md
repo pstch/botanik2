@@ -7,15 +7,16 @@ into a flashable OPTA image.
 
 ## Layout
 
-| File | Role |
-|---|---|
-| `main.cpp` | Entry point: wires the library together (the equivalent of an Arduino sketch's `setup()` + `loop()`) and owns the main loop. |
-| `simulator.h` | Site PLC payload layout (`PlcInputData_t` / `PlcOutputData_t`) and the mock coprocessor's public interface. |
-| `simulator.cpp` | The mock PLC: a worker thread that animates the greenhouse payload with plausible, time-varying values. |
+This directory is just a thin harness: `main.cpp` is the entry point that wires the
+library together (the equivalent of an Arduino sketch's `setup()` + `loop()`) and owns
+the main loop. The PLC payload (`PlcInputData_t` / `PlcOutputData_t`) and its mock
+animator now live with the site under `src/sites/<name>/`, shared verbatim by the
+simulator and the OPTA firmware.
 
 Unlike the OPTA, the simulator owns the PLC shared memory: `main()` allocates it as
-local statics and the emulator thread writes to it, standing in for the M4 coprocessor.
-On hardware the payload instead mirrors the PLC IDE's generated type.
+local statics and a generic emulator thread (`plcio/emulator.h`) drives the selected
+site's `fill_output()` into it, standing in for the M4 coprocessor. On hardware the
+payload instead mirrors the PLC IDE's generated type.
 
 ## Building & running
 
