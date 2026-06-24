@@ -24,7 +24,7 @@ namespace Botanik { namespace Utils {
     /** @brief A 32-bit ms timestamp that wraps every ~49 days (e.g. the PLC
      *  loop clock). A distinct type offering only wrap-safe elapsed
      *  subtraction: no bare `>`, no mixing with the monotonic 64-bit
-     *  HAL::uptime_ms(). Construct from the raw counter; read `.ms` for the raw
+     *  HAL::Clock::uptime_ms(). Construct from the raw counter; read `.ms` for the raw
      *  value. */
     struct Millis32 {
         uint32_t ms = 0;

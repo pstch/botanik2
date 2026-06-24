@@ -130,11 +130,11 @@ namespace Botanik { namespace Pages {
             char fa[12], fb[12];
 
             // Wall clock (right): current time to the second.
-            Utils::CalendarTime wc = Utils::cal_time_ms(HAL::uptime_ms());
+            Utils::CalendarTime wc = Utils::cal_time_ms(HAL::Clock::uptime_ms());
             snprintf(val, sizeof(val), "%02u/%02u/%02u %02u:%02u:%02u",
                      wc.year % 100, wc.month, wc.day, wc.hour, wc.minute, wc.second);
             _cell(SLOT_WALL, 3, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W, false);
-            fmt_uptime(val, sizeof(val), HAL::uptime_ms());
+            fmt_uptime(val, sizeof(val), HAL::Clock::uptime_ms());
             _cell(SLOT_UPTIME, 4, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W, false);
 
             // CPU load + jitter (left): EMA leads, peak ms in parens.

@@ -9,7 +9,7 @@
 #include "libbotanik/network/mqtt.h"
 
 #include <cstring>                     // strlen / memcpy
-// HAL::uptime_ms (publish, called off the step path)
+// HAL::Clock::uptime_ms (publish, called off the step path)
 #include "libbotanik/hal/platform.h"
 
 namespace Botanik { namespace Network {
@@ -49,13 +49,13 @@ namespace Botanik { namespace Network {
     }
 
     void MqttClient::_fail(uint64_t now_ms) {
-        if (_sock >= 0) { HAL::Net::tcp_close(_sock); _sock = -1; }
+        if (_sock >= 0) { HAL::Network::tcp_close(_sock); _sock = -1; }
         if (_logger != nullptr) _logger->warning(PlcIO::NETWORK, "MQTT disconnected");
         _enter(MQTT_ERROR, now_ms);
     }
 
     void MqttClient::on_config_changed(uint64_t now_ms) {
-        if (_sock >= 0) { HAL::Net::tcp_close(_sock); _sock = -1; }
+        if (_sock >= 0) { HAL::Network::tcp_close(_sock); _sock = -1; }
         const PlcIO::PlcOutputConfig_t* c = config();
         _enter((c != nullptr && c->mqtt.enabled) ? MQTT_RESOLVE : MQTT_IDLE, now_ms);
     }
@@ -136,34 +136,34 @@ namespace Botanik { namespace Network {
         memcpy(&buf[i], topic, tlen);    i += tlen;
         // NOLINTNEXTLINE(bugprone-not-null-terminated-result): binary MQTT packet, not a C string
         memcpy(&buf[i], payload, plen);  i += (int)plen;
-        if (HAL::Net::tcp_send(_sock, buf, i) != i) { _fail(HAL::uptime_ms()); return false; }
+        if (HAL::Network::tcp_send(_sock, buf, i) != i) { _fail(HAL::Clock::uptime_ms()); return false; }
         return true;
     }
 
     bool MqttClient::_tcp_begin() {
-        if (_sock >= 0) HAL::Net::tcp_close(_sock);
-        _sock = HAL::Net::tcp_open();
+        if (_sock >= 0) HAL::Network::tcp_close(_sock);
+        _sock = HAL::Network::tcp_open();
         if (_sock < 0) return false;
         const PlcIO::PlcOutputConfig_t* c = config();
         uint16_t port = (c && c->mqtt.port) ? c->mqtt.port : Config::MQTT_PORT_DEFAULT;
-        HAL::Net::Ip4 a;
+        HAL::Network::Ip4 a;
         a.b[0]=_broker_addr.bytes[0]; a.b[1]=_broker_addr.bytes[1];
         a.b[2]=_broker_addr.bytes[2]; a.b[3]=_broker_addr.bytes[3];
         // 1 done, 0 pending, <0 err
-        int r = HAL::Net::tcp_connect(_sock, a, port);
+        int r = HAL::Network::tcp_connect(_sock, a, port);
         if (r >= 0) return true;
-        HAL::Net::tcp_close(_sock); _sock = -1;
+        HAL::Network::tcp_close(_sock); _sock = -1;
         return false;
     }
 
     int MqttClient::_tcp_poll() {
         const PlcIO::PlcOutputConfig_t* c = config();
         uint16_t port = (c && c->mqtt.port) ? c->mqtt.port : Config::MQTT_PORT_DEFAULT;
-        HAL::Net::Ip4 a;
+        HAL::Network::Ip4 a;
         a.b[0]=_broker_addr.bytes[0]; a.b[1]=_broker_addr.bytes[1];
         a.b[2]=_broker_addr.bytes[2]; a.b[3]=_broker_addr.bytes[3];
         // 1 connected, 0 waiting, -1 failed
-        return HAL::Net::tcp_connect(_sock, a, port);
+        return HAL::Network::tcp_connect(_sock, a, port);
     }
 
     bool MqttClient::_send_connect() {
@@ -192,12 +192,12 @@ namespace Botanik { namespace Network {
         if ((size_t)i + cid_len > sizeof(buf)) return false;
         memcpy(&buf[i], cid, cid_len); i += cid_len;
 
-        return HAL::Net::tcp_send(_sock, buf, i) == i;
+        return HAL::Network::tcp_send(_sock, buf, i) == i;
     }
 
     int MqttClient::_poll_connack() {
         uint8_t buf[4];
-        int r = HAL::Net::tcp_recv(_sock, buf, sizeof(buf));
+        int r = HAL::Network::tcp_recv(_sock, buf, sizeof(buf));
         if (r == 0) return 0;            // would-block
         if (r < 4) return -1;
         if (buf[0] != 0x20 || buf[3] != 0x00) return -1;
@@ -207,7 +207,7 @@ namespace Botanik { namespace Network {
     void MqttClient::_service(uint64_t now_ms) {
         uint8_t scratch[32];
         for (;;) {
-            int r = HAL::Net::tcp_recv(_sock, scratch, sizeof(scratch));
+            int r = HAL::Network::tcp_recv(_sock, scratch, sizeof(scratch));
             if (r == 0) break;           // would-block: drained
             if (r < 0) { _fail(now_ms); return; }   // closed/error
         }
@@ -216,7 +216,7 @@ namespace Botanik { namespace Network {
                                                     : Config::MQTT_KEEPALIVE_DEFAULT_S;
         if (now_ms - _last_ping_ms > (uint64_t)ka_s * 1000ull / 2ull) {
             uint8_t ping[2] = { 0xC0, 0x00 };
-            if (HAL::Net::tcp_send(_sock, ping, 2) != 2) { _fail(now_ms); return; }
+            if (HAL::Network::tcp_send(_sock, ping, 2) != 2) { _fail(now_ms); return; }
             _last_ping_ms = now_ms;
         }
     }

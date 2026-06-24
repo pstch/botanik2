@@ -154,15 +154,15 @@ namespace Botanik { namespace PlcIO {
          *  @{ */
         /** @brief IN region RX seq: our latest committed TX sequence, read by
          *  the PLC. */
-        uint32_t    in_rx_seq()  const { return _in_sync  ? HAL::ordered_read(&_in_sync->rxSeqNum)  : 0; }
+        uint32_t    in_rx_seq()  const { return _in_sync  ? HAL::Memory::ordered_read(&_in_sync->rxSeqNum)  : 0; }
         /** @brief IN region TX ack: our acknowledgment of the PLC's published
          *  output. */
-        uint32_t    in_tx_ack()  const { return _in_sync  ? HAL::ordered_read(&_in_sync->txAckNum)  : 0; }
+        uint32_t    in_tx_ack()  const { return _in_sync  ? HAL::Memory::ordered_read(&_in_sync->txAckNum)  : 0; }
         /** @brief OUT region TX seq: the PLC's latest published output
          *  sequence. */
-        uint32_t    out_tx_seq() const { return _out_sync ? HAL::ordered_read(&_out_sync->txSeqNum) : 0; }
+        uint32_t    out_tx_seq() const { return _out_sync ? HAL::Memory::ordered_read(&_out_sync->txSeqNum) : 0; }
         /** @brief OUT region RX ack: the PLC's acknowledgment of our input. */
-        uint32_t    out_rx_ack() const { return _out_sync ? HAL::ordered_read(&_out_sync->rxAckNum) : 0; }
+        uint32_t    out_rx_ack() const { return _out_sync ? HAL::Memory::ordered_read(&_out_sync->rxAckNum) : 0; }
         /** @} */
         /** @} */
 
@@ -271,13 +271,13 @@ namespace Botanik { namespace PlcIO {
             // PLC's current txSeqNum so a stale value isn't mistaken for a
             // fresh RX message. _ack_baseline gates the first TX ack so a stale
             // rxAckNum can't be read as a live PLC (see _tx_acknowledged()).
-            HAL::cache_invalidate(_plcout, sizeof(*_plcout));
-            uint32_t plc_seq = HAL::ordered_read(&_plcout->sync.txSeqNum);
-            _ack_baseline    = HAL::ordered_read(&_plcout->sync.rxAckNum);
+            HAL::Memory::cache_invalidate(_plcout, sizeof(*_plcout));
+            uint32_t plc_seq = HAL::Memory::ordered_read(&_plcout->sync.txSeqNum);
+            _ack_baseline    = HAL::Memory::ordered_read(&_plcout->sync.rxAckNum);
             // rxSeqNum=0, txAckNum=plc_seq
             PlcInputCounters_t baseline = { 0u, plc_seq };
-            HAL::ordered_copy(&_plcin->sync, &baseline);
-            HAL::cache_clean(_plcin, sizeof(*_plcin));
+            HAL::Memory::ordered_copy(&_plcin->sync, &baseline);
+            HAL::Memory::cache_clean(_plcin, sizeof(*_plcin));
         }
 
         /** @} */
@@ -309,11 +309,11 @@ namespace Botanik { namespace PlcIO {
             // Coherency: drop any stale cached view of the PLC-written region
             // before we poll/copy it, and flush our writes to the host-written
             // region after.
-            HAL::cache_invalidate(_plcout, sizeof(*_plcout));
+            HAL::Memory::cache_invalidate(_plcout, sizeof(*_plcout));
             _rx_state = _rx_step();
             _tx_state = _tx_step();
             _ctx._log_status_change();
-            HAL::cache_clean(_plcin, sizeof(*_plcin));
+            HAL::Memory::cache_clean(_plcin, sizeof(*_plcin));
         }
 
         /** @} */
@@ -334,7 +334,7 @@ namespace Botanik { namespace PlcIO {
          *  @{ */
 
         inline bool _rx_new_message() {
-            return HAL::ordered_read(&_plcout->sync.txSeqNum)
+            return HAL::Memory::ordered_read(&_plcout->sync.txSeqNum)
                    != _plcin->sync.txAckNum;
         }
         // Pulse at heartbeat cadence from the last commit (not the last ack):
@@ -345,7 +345,7 @@ namespace Botanik { namespace PlcIO {
             return _ctx._now() - _tx_commit_ms > _heartbeat_ms;
         }
         inline bool _tx_acknowledged() {
-            uint32_t ack = HAL::ordered_read(&_plcout->sync.rxAckNum);
+            uint32_t ack = HAL::Memory::ordered_read(&_plcout->sync.rxAckNum);
             if (ack != _plcin->sync.rxSeqNum) return false;
             // First-contact gate: a stale rxAckNum that coincidentally equals
             // our first seq must not be read as a live PLC. Until the link is
@@ -368,25 +368,25 @@ namespace Botanik { namespace PlcIO {
         // mid-read, so the snapshot may be torn). The seq_before read also acts
         // as the acquire, ordering the payload copy after it.
         inline bool _rx_memcpy() {
-            uint32_t seq_before = HAL::ordered_read(&_plcout->sync.txSeqNum);
-            HAL::ordered_copy(&_ctx._rx_logs_buffer, &_plcout->logs);
-            HAL::ordered_copy(&_ctx._rx_config_buffer, &_plcout->conf);
-            HAL::ordered_copy(&_rx_data_buffer, &_plcout->data);
+            uint32_t seq_before = HAL::Memory::ordered_read(&_plcout->sync.txSeqNum);
+            HAL::Memory::ordered_copy(&_ctx._rx_logs_buffer, &_plcout->logs);
+            HAL::Memory::ordered_copy(&_ctx._rx_config_buffer, &_plcout->conf);
+            HAL::Memory::ordered_copy(&_rx_data_buffer, &_plcout->data);
             // re-read from SRAM
-            HAL::cache_invalidate(&_plcout->sync, sizeof(_plcout->sync));
-            return HAL::ordered_read(&_plcout->sync.txSeqNum) == seq_before;
+            HAL::Memory::cache_invalidate(&_plcout->sync, sizeof(_plcout->sync));
+            return HAL::Memory::ordered_read(&_plcout->sync.txSeqNum) == seq_before;
         }
         inline void _tx_memcpy() {
-            HAL::ordered_copy(&_plcin->logs, &_ctx._tx_logs_buffer);
-            HAL::ordered_copy(&_plcin->data, &_tx_data_buffer);
+            HAL::Memory::ordered_copy(&_plcin->logs, &_ctx._tx_logs_buffer);
+            HAL::Memory::ordered_copy(&_plcin->data, &_tx_data_buffer);
             _ctx._tx_write = false;
         }
         inline void _rx_acknowledge() {
-            HAL::ordered_copy(&_plcin->sync.txAckNum, &_plcout->sync.txSeqNum);
+            HAL::Memory::ordered_copy(&_plcin->sync.txAckNum, &_plcout->sync.txSeqNum);
         }
         inline void _tx_commit() {
             uint32_t src = _plcin->sync.rxSeqNum + 1;
-            HAL::ordered_copy(&_plcin->sync.rxSeqNum, &src);
+            HAL::Memory::ordered_copy(&_plcin->sync.rxSeqNum, &src);
             _tx_commit_ms = _ctx._now();
         }
 

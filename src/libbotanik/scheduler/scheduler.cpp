@@ -29,8 +29,8 @@ namespace Botanik { namespace Scheduler {
 
     LoopScheduler::LoopScheduler(uint32_t period_ms, Logs::Logger* logger)
         : _period_ms(period_ms), _logger(logger) {
-        _stack_base  = HAL::get_stack_base();
-        _stack_depth = HAL::get_stack_depth();
+        _stack_base  = HAL::Stack::base();
+        _stack_depth = HAL::Stack::depth();
 
         _cpu_load.configure(Utils::ema_alpha(Config::CPU_LOAD_EMA_ATTACK_MS),
                             Utils::ema_alpha(Config::CPU_LOAD_EMA_DECAY_MS));
@@ -43,7 +43,7 @@ namespace Botanik { namespace Scheduler {
     }
 
     void LoopScheduler::reset() {
-        _next_tick_ms = HAL::uptime_ms() + _period_ms;
+        _next_tick_ms = HAL::Clock::uptime_ms() + _period_ms;
 
         _cpu_load.reset();
         _slept_us = 0;
@@ -141,7 +141,7 @@ namespace Botanik { namespace Scheduler {
         // BOTANIK_TIME_SCALE the loop runs faster, so ticks/real-second shows
         // whether the host sustains the sped-up rate. Hardware has no dilation,
         // so its uptime is already real.
-        now_ms = HAL::real_uptime_ms();
+        now_ms = HAL::Clock::real_uptime_ms();
 #endif
         // achieved tick rate: ticks since the window anchor over the elapsed
         // window, normalized to per-second and published once the window
@@ -187,7 +187,7 @@ namespace Botanik { namespace Scheduler {
         // (stack_bytes_max) is exact, but the per-slice "recent" window/EMA
         // degenerate to that same all-time figure. The sim repaints each slice,
         // so there it's a true recent high-water that can fall.
-        uint32_t low = HAL::get_stack_high();
+        uint32_t low = HAL::Stack::high();
 #ifdef TARGET_SIMULATOR
         // The host has no RTOS watermark: read back the sentinel painted below
         // the loop frame. Scan the painted region top-down for the first

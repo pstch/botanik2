@@ -30,7 +30,7 @@ namespace {
 
 TEST_CASE("serial RX: receive() fills the ring, read() drains it in order") {
     Pipe in;
-    Botanik::HAL::RawSerial raw;
+    Botanik::HAL::Serial::Raw raw;
     raw.set_fds(in.r(), -1);
     BufferedSerial bs(&raw);
 
@@ -55,7 +55,7 @@ TEST_CASE("serial RX: receive() fills the ring, read() drains it in order") {
 
 TEST_CASE("serial RX: data survives wrap-around past the ring boundary") {
     Pipe in;
-    Botanik::HAL::RawSerial raw;
+    Botanik::HAL::Serial::Raw raw;
     raw.set_fds(in.r(), -1);
     BufferedSerial bs(&raw);
 
@@ -79,7 +79,7 @@ TEST_CASE("serial RX: data survives wrap-around past the ring boundary") {
 
 TEST_CASE("serial RX: receive() stops at capacity, leaving the rest on the wire") {
     Pipe in;
-    Botanik::HAL::RawSerial raw;
+    Botanik::HAL::Serial::Raw raw;
     raw.set_fds(in.r(), -1);
     BufferedSerial bs(&raw);
 
@@ -135,7 +135,7 @@ TEST_CASE("serial TX: tx_discard() empties the ring") {
 
 TEST_CASE("serial TX: transmit() drains the ring to the device") {
     Pipe out;
-    Botanik::HAL::RawSerial raw;
+    Botanik::HAL::Serial::Raw raw;
     raw.set_fds(-1, out.w());           // a pipe sink (non-tty: no baud throttle)
     BufferedSerial bs(&raw);
 

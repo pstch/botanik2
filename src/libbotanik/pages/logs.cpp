@@ -104,7 +104,7 @@ namespace Botanik { namespace Pages {
 
         // Stamp the marker like a log line, then store it as any entry.
         char time_buf[Utils::TIMESTAMP_LEN];
-        Utils::format_ms_timestamp(HAL::uptime_ms(), time_buf,
+        Utils::format_ms_timestamp(HAL::Clock::uptime_ms(), time_buf,
                                    sizeof(time_buf));
         char mark[40];
         int written = snprintf(mark, sizeof(mark), "%s --- MARK ---", time_buf);

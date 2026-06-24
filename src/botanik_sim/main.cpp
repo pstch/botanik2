@@ -3,7 +3,7 @@
  * @brief Botanik simulator entry point - a thin harness around a site firmware.
  *
  * Selects the site, owns the PLC shared region as local statics (on OPTA it
- * comes from HAL::get_plc_input()/get_plc_output()), applies the sim-only
+ * comes from HAL::PlcIO::input()/get_plc_output()), applies the sim-only
  * timing dilation, and drives loop(). The mock PLC coprocessor is the site's
  * emulator (sim.h).
  */
@@ -37,7 +37,7 @@ extern "C" const char* __asan_default_options() {  // NOLINT(bugprone-reserved-i
 
 // Graceful-shutdown plumbing (process lifecycle is the harness's job, not the
 // site's): the handler clears the run flag so the loop breaks into
-// HAL::shutdown() rather than being killed mid-loop. sig_atomic_t is the
+// HAL::System::shutdown() rather than being killed mid-loop. sig_atomic_t is the
 // async-signal-safe flag type.
 static volatile sig_atomic_t botanik_running = 1;
 static volatile sig_atomic_t botanik_shutdown_signo = 0;
@@ -49,7 +49,7 @@ extern "C" void botanik_sim_shutdown(int signo) {   // NOLINT(bugprone-signal-ha
     botanik_running = 0;
 }
 
-// SIGUSR1 handler: request a hot-restart. Only sets a flag; HAL::reset() runs
+// SIGUSR1 handler: request a hot-restart. Only sets a flag; HAL::System::reset() runs
 // from the main loop so teardown happens in normal context, not the async
 // handler.
 // NOLINT: async-signal-safe (assigns only volatile sig_atomic_t).
@@ -76,19 +76,19 @@ int main(int argc, char** argv) {
     // default.
     static const uint32_t CONSOLE_BAUD = 4800;
 
-    // Stash argv so HAL::reset() can re-exec the process with the same args.
-    HAL::set_reboot_args(argc, argv);
+    // Stash argv so HAL::System::reset() can re-exec the process with the same args.
+    HAL::System::set_reboot_args(argc, argv);
 
     // Raw terminal before any output; SIGSEGV stays with the HAL handler to
     // restore the terminal on a crash.
-    HAL::setup_raw_console();
+    HAL::Serial::setup_raw_console();
     std::signal(SIGINT,  botanik_sim_shutdown);   // NOLINT(bugprone-signal-handler)
     std::signal(SIGTERM, botanik_sim_shutdown);   // NOLINT(bugprone-signal-handler)
     std::signal(SIGUSR1, botanik_sim_reexec);     // NOLINT: hot-restart from a rebuilt binary
 
 #if BOTANIK_FEATURE_PLC
     // Shared PLC memory - firmware handler and emulator point at the same
-    // region. On OPTA this comes from HAL::get_plc_input()/get_plc_output().
+    // region. On OPTA this comes from HAL::PlcIO::input()/get_plc_output().
     static PlcIO::PlcInput<PlcInputData_t>   shared_in  {};
     static PlcIO::PlcOutput<PlcOutputData_t> shared_out {};
 
@@ -104,7 +104,7 @@ int main(int argc, char** argv) {
         // Broker port points at the in-process mock responder (sim has no
         // privileged ports); the name resolves to loopback in the HAL.
         cfg.mqtt.serial = 1; cfg.mqtt.enabled = 1; cfg.mqtt.keepalive_s = 60;
-        cfg.mqtt.port = HAL::Net::MQTT_MOCK_PORT;
+        cfg.mqtt.port = HAL::Network::MQTT_MOCK_PORT;
         sim_set_host(cfg.mqtt.broker, "broker.local");
         cfg.geo.serial = 1;                               // example: Paris (E7)
         cfg.geo.latitude_e7  =  488566000;                //  48.8566 N
@@ -146,11 +146,11 @@ int main(int argc, char** argv) {
     // iterations.
     while (botanik_running) {
         greenhouse.loop();
-        if (botanik_reexec) HAL::reset();
+        if (botanik_reexec) HAL::System::reset();
     }
 
-    // HAL::shutdown() runs the reset hook (joins the emulator thread) and
+    // HAL::System::shutdown() runs the reset hook (joins the emulator thread) and
     // restores the console. Report 128 + signo for the supervisor.
-    HAL::shutdown(128 + (int)botanik_shutdown_signo);
+    HAL::System::shutdown(128 + (int)botanik_shutdown_signo);
     return 0;
 }

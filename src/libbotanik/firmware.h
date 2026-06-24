@@ -14,7 +14,7 @@
  * ("Site-specific code").
  *
  * Target-independent: the shared PLC region is injected by the caller (sim
- * statics, or HAL::get_plc_input()/get_plc_output() on OPTA). Per-target timing
+ * statics, or HAL::PlcIO::input()/get_plc_output() on OPTA). Per-target timing
  * is applied by the harness through the accessors / set_hw_watchdog_ms() before
  * setup().
  *
@@ -172,9 +172,9 @@ namespace Botanik {
               _alarm_table(alarm_table),
               _alarm_count(alarm_count),
 #if BOTANIK_FEATURE_TERMINAL
-              _console_serial(HAL::get_serial(HAL::CONSOLE)),
+              _console_serial(HAL::Serial::get(HAL::Serial::CONSOLE)),
 #endif
-              _monitor_serial(HAL::get_serial(HAL::MONITOR)),
+              _monitor_serial(HAL::Serial::get(HAL::Serial::MONITOR)),
               _logger(),
               _monitor(_monitor_serial),
               _scheduler(Config::TASK_PERIOD_MS, &_logger),
@@ -244,9 +244,9 @@ namespace Botanik {
             // route BOTANIK_ASSERT failures to the log
             set_assert_logger(&_logger);
 #if BOTANIK_FEATURE_TERMINAL
-            HAL::get_serial(HAL::CONSOLE)->begin(_baud);
+            HAL::Serial::get(HAL::Serial::CONSOLE)->begin(_baud);
 #endif
-            HAL::get_serial(HAL::MONITOR)->begin(_baud);
+            HAL::Serial::get(HAL::Serial::MONITOR)->begin(_baud);
 
             // Core sinks: monitor + (with the UI) shell/logs pages, plus a
             // TX-drop watch on each live UART. A site adds its own in
@@ -284,7 +284,7 @@ namespace Botanik {
 
             on_setup();   // site post-wiring (extra sinks / components)
 
-            HAL::watchdog_start(_hw_watchdog_ms);
+            HAL::Watchdog::start(_hw_watchdog_ms);
             _logger.debug(PlcIO::BOOT, "boot complete\nconsole %lu baud, HW watchdog %lu ms",
                           (unsigned long)_baud, (unsigned long)_hw_watchdog_ms);
         }
@@ -296,7 +296,7 @@ namespace Botanik {
          *    tick -> receive -> plc -> health -> on_loop -> logger -> terminal
          *         -> drain -> transmit -> watchdog_kick
          *  The health / alarm / on_loop steps take a fresh 64-bit
-         *  HAL::uptime_ms(), NOT the 32-bit timestamp_ms - their fault-grace /
+         *  HAL::Clock::uptime_ms(), NOT the 32-bit timestamp_ms - their fault-grace /
          *  alarm-latch timers want a wrap-free clock. Non-virtual so the order
          *  can't be reordered; a site adds per-beat work via on_loop(). */
         void loop() {
@@ -316,7 +316,7 @@ namespace Botanik {
             // drains, so an alarm START/END lands this beat. Asserts platform
             // alarms, updates the watchdog verdict, advances the model (remote
             // bitset zeroed without a PLC).
-            uint64_t now_ms = HAL::uptime_ms();
+            uint64_t now_ms = HAL::Clock::uptime_ms();
 #if BOTANIK_FEATURE_PLC
             _health.step(plc_output_data()->alarms, _plc_handler.rx_torn_count(), now_ms);
 #else
@@ -352,7 +352,7 @@ namespace Botanik {
 
             // Kick while healthy; HealthMonitor withholds only once a PLC fault
             // persists past the grace window (the deliberate reboot).
-            if (_health.watchdog_ok()) HAL::watchdog_kick();
+            if (_health.watchdog_ok()) HAL::Watchdog::kick();
         }
 
         /** @brief Run loop() forever (the OPTA entry point; the simulator
@@ -379,10 +379,10 @@ namespace Botanik {
          *  HAL returns null (the sim binds its own mock region through the
          *  explicit ctor). */
         static PlcIO::PlcInput<In>* hal_input() {
-            return static_cast<PlcIO::PlcInput<In>*>(HAL::get_plc_input());
+            return static_cast<PlcIO::PlcInput<In>*>(HAL::PlcIO::input());
         }
         static PlcIO::PlcOutput<Out>* hal_output() {
-            return static_cast<PlcIO::PlcOutput<Out>*>(HAL::get_plc_output());
+            return static_cast<PlcIO::PlcOutput<Out>*>(HAL::PlcIO::output());
         }
 
         /** @} */

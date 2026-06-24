@@ -8,7 +8,7 @@
  *
  * Hardware counterpart of botanik_sim. The simulator owns the PLC region as
  * local statics with time-dilated timeouts; here the region is the M4
- * coprocessor's (via HAL::get_plc_input()/get_plc_output()) and the timeouts
+ * coprocessor's (via HAL::PlcIO::input()/get_plc_output()) and the timeouts
  * are the plain Config values.
  */
 

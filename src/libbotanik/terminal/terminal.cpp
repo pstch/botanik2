@@ -70,7 +70,7 @@ namespace Botanik { namespace Terminal {
             if (_pages_len > 0 && _pages[_page_index] != nullptr)
                 _pages[_page_index]->focus();
         }
-        uint64_t now = HAL::uptime_ms();
+        uint64_t now = HAL::Clock::uptime_ms();
         // Status bar paints first each tick (self-contained), interleaving with
         // the active page's draw. Its two fields (centred HH:MM:SS clock,
         // right-aligned metrics) share TX_STATUS_FIELDS_PER_TICK and the depth
@@ -145,7 +145,7 @@ namespace Botanik { namespace Terminal {
             if (ev.command == Command::CTRL_C) {
                 if (!page->handle_cancel()) {
 #ifdef TARGET_SIMULATOR
-                    HAL::shutdown();
+                    HAL::System::shutdown();
 #endif
                 }
                 break;
@@ -754,7 +754,7 @@ namespace Botanik { namespace Terminal {
     bool AnsiTerminal::update_status_clock(bool restore_cursor) {
         // Wall-clock HH:MM:SS (same source as the STATUS page's "Wall Clock"
         // field).
-        Utils::CalendarTime wc = Utils::cal_time_ms(HAL::uptime_ms());
+        Utils::CalendarTime wc = Utils::cal_time_ms(HAL::Clock::uptime_ms());
         // Oversized scratch so snprintf can't truncation-warn; only the first
         // STATUS_CLOCK_LEN cells ("HH:MM:SS") are diffed/emitted below.
         char clk[16];

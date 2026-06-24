@@ -155,14 +155,14 @@ namespace Botanik { namespace PlcIO {
          *  @{ */
 
         inline bool _rx_new_message() {
-            return HAL::ordered_read(&_plcin->sync.rxSeqNum)
+            return HAL::Memory::ordered_read(&_plcin->sync.rxSeqNum)
                    != _plcout->sync.rxAckNum;
         }
         inline bool _tx_heartbeat_elapsed() {
             return _ctx._now() - _ctx._tx_last_ms > _heartbeat_ms;
         }
         inline bool _tx_acknowledged() {
-            bool result = HAL::ordered_read(&_plcin->sync.txAckNum)
+            bool result = HAL::Memory::ordered_read(&_plcin->sync.txAckNum)
                           == _plcout->sync.txSeqNum;
             if (result) { _ctx._tx_last_ms = _ctx._now(); _ctx._ever_ackd = true; }
             return result;
@@ -174,21 +174,21 @@ namespace Botanik { namespace PlcIO {
          *  @{ */
 
         inline void _rx_memcpy() {
-            HAL::ordered_copy(&_ctx._rx_logs_buffer, &_plcin->logs);
-            HAL::ordered_copy(&_rx_data_buffer, &_plcin->data);
+            HAL::Memory::ordered_copy(&_ctx._rx_logs_buffer, &_plcin->logs);
+            HAL::Memory::ordered_copy(&_rx_data_buffer, &_plcin->data);
         }
         inline void _tx_memcpy() {
-            HAL::ordered_copy(&_plcout->logs, &_ctx._tx_logs_buffer);
-            HAL::ordered_copy(&_plcout->data, &_tx_data_buffer);
+            HAL::Memory::ordered_copy(&_plcout->logs, &_ctx._tx_logs_buffer);
+            HAL::Memory::ordered_copy(&_plcout->data, &_tx_data_buffer);
             _ctx._tx_write = false;
         }
         inline void _rx_acknowledge() {
             uint32_t seq = _plcin->sync.rxSeqNum;
-            HAL::ordered_copy(&_plcout->sync.rxAckNum, &seq);
+            HAL::Memory::ordered_copy(&_plcout->sync.rxAckNum, &seq);
         }
         inline void _tx_commit() {
             uint32_t next_seq = _plcout->sync.txSeqNum + 1;
-            HAL::ordered_copy(&_plcout->sync.txSeqNum, &next_seq);
+            HAL::Memory::ordered_copy(&_plcout->sync.txSeqNum, &next_seq);
         }
 
         /** @} */
@@ -264,7 +264,7 @@ namespace Botanik { namespace PlcIO {
     /** @brief Run flag/handle for the single emulator thread.
      *
      *  Single-writer (lifecycle controller) / single-reader (thread loop):
-     *  volatile + HAL::dsb() to publish - the same lock-free pattern as the
+     *  volatile + HAL::Memory::dsb() to publish - the same lock-free pattern as the
      *  serial ring buffers, no std::atomic needed. */
     inline volatile bool& _emu_running() { static volatile bool running = false; return running; }
     inline pthread_t&      _emu_thread()  { static pthread_t thread; return thread; }
@@ -275,13 +275,13 @@ namespace Botanik { namespace PlcIO {
     inline volatile bool& _emu_stopped() { static volatile bool stopped = false; return stopped; }
 
     /** @brief Cooperatively stop the emulator thread and join it, releasing its
-     *  hold on the shared PLC memory before the caller (HAL::reset) re-execs.
+     *  hold on the shared PLC memory before the caller (HAL::System::reset) re-execs.
      *  A no-op if the thread is not running. */
     inline void stop_emulator_thread() {
         if (!_emu_running()) return;  // not running / already stopped
         _emu_running() = false;
         // publish the stop before joining / re-exec
-        HAL::dsb();
+        HAL::Memory::dsb();
         // When the watchdog trips, reset() runs *on* the emulator thread, so
         // this hook would be joining itself (EDEADLK). Skip the join in that
         // case - the following execve reaps the thread anyway, and we're
@@ -293,7 +293,7 @@ namespace Botanik { namespace PlcIO {
         // that doesn't assume the caller is the main loop. Bounded by one
         // emulator iteration.
         while (!_emu_stopped()) { /* spin */ }
-        HAL::dsb();
+        HAL::Memory::dsb();
         pthread_join(_emu_thread(), nullptr);
     }
 
@@ -321,10 +321,10 @@ namespace Botanik { namespace PlcIO {
         uint32_t emu_tick = 0;
         _emu_stopped() = false;
         while (_emu_running()) {
-            emu_timestamp_ms = (uint32_t)HAL::uptime_ms();
+            emu_timestamp_ms = (uint32_t)HAL::Clock::uptime_ms();
             plc_emulator.step();
             // serviced here so a wedged main loop still trips the watchdog
-            HAL::watchdog_poll();
+            HAL::Watchdog::poll();
             // Refresh the mock payload + request a write at ~1 Hz (DATA_TICKS
             // loop iterations, the rate the site animator is tuned for).
             constexpr uint32_t DATA_TICKS = 1000 / Config::TASK_PERIOD_MS;
@@ -333,17 +333,17 @@ namespace Botanik { namespace PlcIO {
                 plc_emulator.context()->write();
             }
             emu_tick++;
-            HAL::sleep_ms(Config::TASK_PERIOD_MS);
+            HAL::Clock::sleep_ms(Config::TASK_PERIOD_MS);
         }
         // Released the shared region: signal the stopping caller (see
         // stop_emulator_thread).
-        HAL::dsb();
+        HAL::Memory::dsb();
         _emu_stopped() = true;
         return nullptr;
     }
 
     /** @brief Spawn the emulator thread against shared PLC memory and register
-     *  its teardown with HAL::reset(). The argument block is a static (process
+     *  its teardown with HAL::System::reset(). The argument block is a static (process
      *  lifetime), so no heap. Kept joinable (not detached) so reset() can stop
      *  it cleanly. */
     template<typename InputData, typename OutputData>
@@ -356,7 +356,7 @@ namespace Botanik { namespace PlcIO {
         _emu_running() = true;
         // memory barrier to make `_emu_running` visible before the thread reads
         // it
-        HAL::dsb();
+        HAL::Memory::dsb();
         // Start the thread. Never let this fail silently: without the emulator
         // the PLC link never acks and the handler is stuck in UNK forever, with
         // no hint why. EAGAIN here usually means the stack mmap couldn't be
@@ -372,7 +372,7 @@ namespace Botanik { namespace PlcIO {
             return;
         }
         // register a way to stop the thread on system resets
-        HAL::on_reset(&stop_emulator_thread);
+        HAL::System::on_reset(&stop_emulator_thread);
     }
 
 #endif // TARGET_SIMULATOR

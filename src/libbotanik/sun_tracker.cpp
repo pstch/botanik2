@@ -4,7 +4,7 @@
  */
 
 #include "libbotanik/sun_tracker.h"
-#include "libbotanik/hal/platform.h"   // HAL::wall_clock_ms
+#include "libbotanik/hal/platform.h"   // HAL::Clock::wall_ms
 
 namespace Botanik {
 
@@ -36,7 +36,7 @@ namespace Botanik {
         // no location configured
         if (c == nullptr || c->geo.serial == 0) return;
         // wait for a real (NTP) time before the date-dependent solar math
-        if (HAL::wall_clock_ms() < WALL_CLOCK_VALID_MS) return;
+        if (HAL::Clock::wall_ms() < WALL_CLOCK_VALID_MS) return;
 
         if (!_computed) { _recompute(now_ms); return; }
 

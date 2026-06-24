@@ -9,7 +9,7 @@
  * In release builds (DEBUG undefined) the macro compiles out entirely. In debug
  * builds a failed assertion logs a CRITICAL entry under the ASSERT topic (when
  * a logger was registered via set_assert_logger), then:
- *   - traps into an attached debugger (gated on HAL::under_debugger(), because
+ *   - traps into an attached debugger (gated on HAL::Debug::under_debugger(), because
  *     a bare breakpoint with no debugger HardFaults on the OPTA);
  *   - otherwise abort()s on the simulator (loud failure in a headless/CI run);
  *   - otherwise (hardware, no debugger) it has already logged, and continues.
@@ -40,7 +40,7 @@ namespace Botanik {
             logger->critical(PlcIO::ASSERT, "assertion failed: %s (%s:%d)",
                              expr, file, line);
         // Break for the debugger.
-        if (HAL::under_debugger()) { HAL::debug_break(); return; }
+        if (HAL::Debug::under_debugger()) { HAL::Debug::breakpoint(); return; }
 #ifdef TARGET_SIMULATOR
         abort();   // loud failure, no debugger
 #endif

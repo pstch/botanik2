@@ -45,14 +45,14 @@ namespace Botanik { namespace HAL {
 
     /** @} */
 
-    /** @name Stack introspection
-     *  @{ */
+    /** @brief Stack region introspection. */
+    namespace Stack {
 
-    inline uintptr_t get_stack_base() {
+    inline uintptr_t base() {
         return reinterpret_cast<uintptr_t>(&_estack);
     }
 
-    inline uint32_t get_stack_depth() {
+    inline uint32_t depth() {
         // Size of the CURRENT RTOS thread's stack: setup()/loop() run in the
         // Arduino Mbed main thread, NOT on the ~1KB MSP stack _estack bounds,
         // so ask the RTOS.
@@ -63,7 +63,7 @@ namespace Botanik { namespace HAL {
      *  RTX's own watermark (RTX paints each thread's stack at creation, so no
      *  manual painting on hardware). Returns 0 if the watermark is unavailable
      *  (RTX tracking disabled). */
-    inline uint32_t get_stack_high() {
+    inline uint32_t high() {
         osThreadId_t id = osThreadGetId();
         uint32_t size  = static_cast<uint32_t>(osThreadGetStackSize(id));
         // space: min free ever
@@ -71,23 +71,23 @@ namespace Botanik { namespace HAL {
         return (space > 0 && space <= size) ? (size - space) : 0;
     }
 
-    /** @} */
+    }  // namespace Stack
 
-    /** @name PLC shared memory
-     *  @{ */
+    /** @brief PLC coprocessor shared memory. */
+    namespace PlcIO {
 
-    inline void* get_plc_input() {
+    inline void* input() {
         return static_cast<PLCSharedVarsInput_t*>(m_PLCSharedVarsInputBuf);
     }
 
-    inline void* get_plc_output() {
+    inline void* output() {
         return static_cast<PLCSharedVarsOutput_t*>(m_PLCSharedVarsOutputBuf);
     }
 
-    /** @} */
+    }  // namespace PlcIO
 
-    /** @name Timing & clocks
-     *  @{ */
+    /** @brief Timing and clocks. */
+    namespace Clock {
 
     inline uint32_t current_ms() {
         return millis();
@@ -109,7 +109,7 @@ namespace Botanik { namespace HAL {
         ).count();
     }
 
-    inline uint64_t wall_clock_ms() {
+    inline uint64_t wall_ms() {
         // TODO [WALLCLOCK-WRAP-2038]: time() returns time_t, which is 32-bit on
         // this newlib and WRAPS in Jan 2038 before the widening cast - this
         // must be sourced from a 64-bit RTC read once the NtpClient/RTC path
@@ -118,7 +118,7 @@ namespace Botanik { namespace HAL {
         return (uint64_t)time(NULL) * 1000;
     }
 
-    inline void wall_clock_set(uint64_t unix_ms) {
+    inline void set_wall_ms(uint64_t unix_ms) {
         // TODO: program the STM32 RTC (set_time / RTC date+time registers) from
         // unix_ms once NTP sync lands. Reasoned-only; no RTC write wired yet.
         (void)unix_ms;
@@ -128,10 +128,10 @@ namespace Botanik { namespace HAL {
         rtos::ThisThread::sleep_for(std::chrono::milliseconds(ms));
     }
 
-    /** @} */
+    }  // namespace Clock
 
-    /** @name Memory ordering
-     *  @{ */
+    /** @brief Memory-ordering primitives and D-cache maintenance. */
+    namespace Memory {
 
     inline void dsb() {
         __DSB();
@@ -201,12 +201,12 @@ namespace Botanik { namespace HAL {
     #endif
     }
 
-    /** @} */
+    }  // namespace Memory
 
-    /** @name Debug
-     *  @{ */
+    /** @brief Debugger interaction. */
+    namespace Debug {
 
-    inline void debug_break() {
+    inline void breakpoint() {
         __BKPT(0);  // CMSIS breakpoint intrinsic, provided via mbed.h
     }
 
@@ -215,10 +215,10 @@ namespace Botanik { namespace HAL {
         return (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) != 0;
     }
 
-    /** @} */
+    }  // namespace Debug
 
-    /** @name System lifecycle
-     *  @{ */
+    /** @brief System lifecycle (reset / shutdown). */
+    namespace System {
 
     inline void reset() {
         // NVIC_SystemReset is the portable CMSIS reset (always available via
@@ -235,54 +235,56 @@ namespace Botanik { namespace HAL {
         reset();
     }
 
-    /** @} */
+    }  // namespace System
 
-    /** @name Hardware watchdog
-     *  @{ */
+    /** @brief Hardware watchdog. */
+    namespace Watchdog {
 
     // Wrap the Mbed OS Watchdog singleton (the STM32H7 IWDG). Compile-reasoned
     // only - confirm the API and timeout ceiling on a real arm-none-eabi build.
 
-    inline void watchdog_start(uint32_t timeout_ms) {
+    inline void start(uint32_t timeout_ms) {
         // Clamp to the peripheral's max window; the hardware rejects anything
         // above it.
         uint32_t max = mbed::Watchdog::get_instance().get_max_timeout();
         mbed::Watchdog::get_instance().start(timeout_ms > max ? max : timeout_ms);
     }
 
-    inline void watchdog_kick() {
+    inline void kick() {
         mbed::Watchdog::get_instance().kick();
     }
 
-    inline void watchdog_stop() {
+    inline void stop() {
         mbed::Watchdog::get_instance().stop();
     }
 
-    /** @} */
+    }  // namespace Watchdog
 
-    /** @name Serial I/O
-     *  @{ */
+    /** @brief Serial access. */
+    namespace Serial {
 
     /// On the OPTA, the raw serial type is the Arduino UART driver itself.
-    using RawSerial = arduino::UART;
+    using Raw = arduino::UART;
 
     /** @brief Logical serial endpoints: CONSOLE drives the interactive
      *  terminal, MONITOR the secondary diagnostic/log output. */
-    enum SerialPort { CONSOLE, MONITOR };
+    enum Port { CONSOLE, MONITOR };
 
-    /** @brief Resolve a logical SerialPort to its underlying UART.
-     *  @param port CONSOLE (Serial) or MONITOR (Serial1). */
-    inline RawSerial* get_serial(SerialPort port) {
-        if (port == MONITOR) return &Serial1;
-        return &Serial;
+    /** @brief Resolve a logical Port to its underlying UART. The Arduino UART
+     *  globals are at global scope (::Serial / ::Serial1), qualified here to
+     *  avoid the enclosing HAL::Serial namespace.
+     *  @param port CONSOLE (::Serial) or MONITOR (::Serial1). */
+    inline Raw* get(Port port) {
+        if (port == MONITOR) return &::Serial1;
+        return &::Serial;
     }
 
     /** @brief A hardware UART is never an interactive terminal, so diagnostic
      *  output is never suppressed on OPTA. Mirrors the simulator query so sinks
      *  (e.g. MonitorLogWriter) stay platform-independent. */
-    inline bool serial_is_output_tty(const RawSerial*) { return false; }
+    inline bool is_output_tty(const Raw*) { return false; }
 
-    /** @} */
+    }  // namespace Serial
 
 
 }}

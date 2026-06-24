@@ -26,17 +26,17 @@ namespace Botanik { namespace PlcIO {
         // Coherency: refresh the PLC's write cursor before checking it; bail
         // cheaply when there's nothing new so we don't invalidate the whole
         // ring every tick.
-        HAL::cache_invalidate(_writeIndex, sizeof(*_writeIndex));
-        if (HAL::ordered_read(_writeIndex) == *_readIndex) return;
+        HAL::Memory::cache_invalidate(_writeIndex, sizeof(*_writeIndex));
+        if (HAL::Memory::ordered_read(_writeIndex) == *_readIndex) return;
 
-        HAL::cache_invalidate(_ctx->output_logs(), sizeof(PlcOutputLogs_t));
+        HAL::Memory::cache_invalidate(_ctx->output_logs(), sizeof(PlcOutputLogs_t));
         // Bound the work per tick to one full ring: that is the most the host
         // can legitimately be behind, so a runaway or corrupt writeIndex can't
         // spin here and burn the tick budget. Any real backlog is caught next
         // tick.
         uint32_t processed = 0;
         while (processed < Config::LOG_PLC_BUFFER_SIZE
-               && HAL::ordered_read(_writeIndex) != *_readIndex) {
+               && HAL::Memory::ordered_read(_writeIndex) != *_readIndex) {
             uint32_t readIndex = *_readIndex % Config::LOG_PLC_BUFFER_SIZE;
             const LogEntry_t* entry = &_logBuffer[readIndex];
             _detect_dropped_entries(entry);
@@ -46,7 +46,7 @@ namespace Botanik { namespace PlcIO {
             processed++;
         }
         // publish readIndex
-        HAL::cache_clean(_ctx->input_logs(), sizeof(PlcInputLogs_t));
+        HAL::Memory::cache_clean(_ctx->input_logs(), sizeof(PlcInputLogs_t));
     }
 
     void PlcLogReader::step() {

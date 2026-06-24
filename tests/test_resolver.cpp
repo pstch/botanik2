@@ -10,7 +10,7 @@
 #include "doctest.h"
 
 #include "libbotanik/network/resolver.h"
-// HAL::sleep_ms / uptime_ms (poll the async DNS)
+// HAL::Clock::sleep_ms / uptime_ms (poll the async DNS)
 #include "libbotanik/hal/platform.h"
 
 using namespace Botanik;
@@ -22,12 +22,12 @@ namespace {
     // and returns PENDING until the lookup lands. Bounded so a hang fails the test,
     // not spins.
     ResolveStatus settle(NameResolver& r, const char* host, ResolvedAddr* a) {
-        uint64_t start = HAL::uptime_ms();
+        uint64_t start = HAL::Clock::uptime_ms();
         for (;;) {
             ResolveStatus s = r.resolve(host, a);
             if (s != RESOLVE_PENDING) return s;
-            if (HAL::uptime_ms() - start > 15000) return s;
-            HAL::sleep_ms(5);
+            if (HAL::Clock::uptime_ms() - start > 15000) return s;
+            HAL::Clock::sleep_ms(5);
         }
     }
 }

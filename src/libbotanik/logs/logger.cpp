@@ -26,7 +26,7 @@ namespace Botanik { namespace Logs {
 
     Logger::Logger() {
         // one sample: all three anchors share it
-        uint32_t now = HAL::current_ms();
+        uint32_t now = HAL::Clock::current_ms();
         _perTopic_fillTime_ms   = now;
         _global_fillTime_ms     = now;
         _suppress_reportTime_ms = now;
@@ -60,7 +60,7 @@ namespace Botanik { namespace Logs {
     // ------------------------------------------------------------------------
 
     void Logger::step() {
-        uint32_t now_ms         = HAL::current_ms();
+        uint32_t now_ms         = HAL::Clock::current_ms();
         // Refill the buckets on their (fast) cadences. The anchor advances by
         // whole elapsed periods, but the fill is min(amount, burst): the bucket
         // saturates at burst anyway, and this keeps a long gap from truncating
@@ -207,7 +207,7 @@ namespace Botanik { namespace Logs {
     void Logger::_emit(PlcIO::LogLevel level, PlcIO::LogTopic topic,
                        const char* fmt, va_list ap) {
         LogEntry_t entry = {};
-        entry.timestamp = HAL::current_ms();
+        entry.timestamp = HAL::Clock::current_ms();
         entry.level     = level;
         entry.topic     = topic;
         int w = vsnprintf(entry.message, sizeof(entry.message), fmt, ap);

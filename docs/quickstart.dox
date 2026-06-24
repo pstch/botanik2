@@ -57,7 +57,7 @@ void loop() {
 
 The project-root C++ file does the real work: it includes `<libbotanik.h>`, statically
 allocates your site's firmware (a `GreenhouseMLB41` or equivalent), binds the PLC
-shared memory from `HAL::get_plc_input()` / `HAL::get_plc_output()` rather than
+shared memory from `HAL::PlcIO::input()` / `HAL::PlcIO::output()` rather than
 allocating it locally, and defines the two hooks. See `src/botanik_fw/` for the
 reference wiring.
 

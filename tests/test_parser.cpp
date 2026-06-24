@@ -26,7 +26,7 @@ namespace {
     // are decoded by parse(). `now` is the parser's shared loop clock (ms).
     struct ParserFixture {
         int                       pipe_fds[2];
-        Botanik::HAL::RawSerial   raw;
+        Botanik::HAL::Serial::Raw   raw;
         Botanik::Utils::BufferedSerial serial;
         uint32_t                  now = 0;
         InputParser               parser;

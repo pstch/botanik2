@@ -12,7 +12,7 @@
 #include <cstring>   // strncmp / strncpy
 
 #include "libbotanik/hal/net.h"
-#include "libbotanik/hal/platform.h"   // HAL::ordered_read
+#include "libbotanik/hal/platform.h"   // HAL::Memory::ordered_read
 
 namespace Botanik { namespace Network {
 
@@ -58,7 +58,7 @@ namespace Botanik { namespace Network {
     void NameResolver::clear() {
         for (size_t i = 0; i < Config::DNS_CACHE_SIZE; ++i) {
             if (_table[i].state == SLOT_PENDING && _table[i].handle != 0)
-                HAL::Net::dns_cancel(_table[i].handle);
+                HAL::Network::dns_cancel(_table[i].handle);
             _table[i].state   = SLOT_FREE;
             _table[i].handle  = 0;
             _table[i].host[0] = '\0';
@@ -96,17 +96,17 @@ namespace Botanik { namespace Network {
         // Known row? (cached result, lookup in flight, or a stale failure)
         Entry* e = _find(host);
         if (e != nullptr) {
-            uint8_t st = HAL::ordered_read(&e->state);
+            uint8_t st = HAL::Memory::ordered_read(&e->state);
             if (st == SLOT_READY)  { *out = e->addr; return RESOLVE_OK; }
             if (st == SLOT_PENDING) {
-                HAL::Net::Ip4 ip;
-                HAL::Net::DnsResult r = HAL::Net::dns_poll(e->handle, &ip);
-                if (r == HAL::Net::DNS_OK) {
+                HAL::Network::Ip4 ip;
+                HAL::Network::DnsResult r = HAL::Network::dns_poll(e->handle, &ip);
+                if (r == HAL::Network::DNS_OK) {
                     e->addr.bytes[0]=ip.b[0]; e->addr.bytes[1]=ip.b[1];
                     e->addr.bytes[2]=ip.b[2]; e->addr.bytes[3]=ip.b[3];
                     e->state = SLOT_READY; *out = e->addr; return RESOLVE_OK;
                 }
-                if (r == HAL::Net::DNS_FAILED) { e->state = SLOT_FREE; return RESOLVE_FAILED; }
+                if (r == HAL::Network::DNS_FAILED) { e->state = SLOT_FREE; return RESOLVE_FAILED; }
                 return RESOLVE_PENDING;
             }
             e->state = SLOT_FREE;   // SLOT_ERROR: free so the next poll retries
@@ -119,7 +119,7 @@ namespace Botanik { namespace Network {
         // null only if every row is an in-flight lookup.
         if (e == nullptr) return RESOLVE_FAILED;
 
-        HAL::Net::DnsHandle h = HAL::Net::dns_begin(host);
+        HAL::Network::DnsHandle h = HAL::Network::dns_begin(host);
         if (h == 0) {                                  // could not start
             if (_logger != nullptr) _logger->warning(PlcIO::NETWORK, "DNS lookup failed to start");
             return RESOLVE_FAILED;
@@ -131,16 +131,16 @@ namespace Botanik { namespace Network {
 
         // Poll once now: usually PENDING (later resolve() calls drive it), but an
         // OPTA stack-cache hit can land a result immediately.
-        HAL::Net::Ip4 ip;
-        HAL::Net::DnsResult r = HAL::Net::dns_poll(h, &ip);
-        if (r == HAL::Net::DNS_OK) {
+        HAL::Network::Ip4 ip;
+        HAL::Network::DnsResult r = HAL::Network::dns_poll(h, &ip);
+        if (r == HAL::Network::DNS_OK) {
             e->addr.bytes[0]=ip.b[0]; e->addr.bytes[1]=ip.b[1];
             e->addr.bytes[2]=ip.b[2]; e->addr.bytes[3]=ip.b[3];
             e->state = SLOT_READY;
             *out = e->addr;
             return RESOLVE_OK;
         }
-        if (r == HAL::Net::DNS_FAILED) { e->state = SLOT_FREE; return RESOLVE_FAILED; }
+        if (r == HAL::Network::DNS_FAILED) { e->state = SLOT_FREE; return RESOLVE_FAILED; }
         return RESOLVE_PENDING;
     }
 

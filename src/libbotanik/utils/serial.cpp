@@ -1,7 +1,7 @@
 /**
  * @file serial.cpp
  * @brief BufferedSerial implementation - pumps the RX/TX rings to and from
- *        HAL::RawSerial without blocking the main loop.
+ *        HAL::Serial::Raw without blocking the main loop.
  */
 #include <cstdint>
 
@@ -12,7 +12,7 @@ namespace Botanik { namespace Utils {
     // Lifecycle
     // ------------------------------------------------------------------------
 
-    BufferedSerial::BufferedSerial(HAL::RawSerial* serial) :
+    BufferedSerial::BufferedSerial(HAL::Serial::Raw* serial) :
         _serial(serial) {
         memset(_rx_buf, 0, sizeof(_rx_buf));
         memset(_tx_buf, 0, sizeof(_tx_buf));
@@ -32,7 +32,7 @@ namespace Botanik { namespace Utils {
 
     bool BufferedSerial::rx_empty() const { return _rx_head == _rx_tail; }
     bool BufferedSerial::tx_empty() const { return _tx_head == _tx_tail; }
-    bool BufferedSerial::is_output_tty() const { return HAL::serial_is_output_tty(_serial); }
+    bool BufferedSerial::is_output_tty() const { return HAL::Serial::is_output_tty(_serial); }
 
     // Application I/O
     // ------------------------------------------------------------------------

@@ -425,7 +425,7 @@ namespace Botanik { namespace Pages {
          *  same cap/gate/ordinal. */
         void handle_command(Command cmd, uint16_t = 1) override {
             if (cmd == Command::ENTER) {
-                _refresh_last_ms = HAL::uptime_ms();
+                _refresh_last_ms = HAL::Clock::uptime_ms();
                 _cold_done       = 0;       // revisit every field
                 _dynamic_pending = true;    // tick() runs the paced refresh
             }
@@ -456,7 +456,7 @@ namespace Botanik { namespace Pages {
                 draw_hot();       // hot fields (paced)
                 _hot_active = false;
                 _hot_pending = _emit_deferred;
-                _hot_last_ms = HAL::uptime_ms();
+                _hot_last_ms = HAL::Clock::uptime_ms();
                 _cold_idx = 0;
                 _cold_active = true;
                 _emit_count = 0;
@@ -470,7 +470,7 @@ namespace Botanik { namespace Pages {
         void tick(bool active) override {
             _active = active;
             if (!active) return;
-            uint64_t now = HAL::uptime_ms();
+            uint64_t now = HAL::Clock::uptime_ms();
 
             // Hot and cold each get their own per-tick budget (each resets
             // _emit_count and caps on its own constant), so they progress in

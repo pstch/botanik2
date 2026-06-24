@@ -35,7 +35,7 @@ namespace {
     // AnsiTerminal + AlarmModel over a pipe; drains TX into a captured string.
     struct RenderFixture {
         int                    fds[2];
-        HAL::RawSerial         raw;
+        HAL::Serial::Raw         raw;
         Utils::BufferedSerial  serial;
         uint32_t               now = 0;
         Terminal::AnsiTerminal terminal;

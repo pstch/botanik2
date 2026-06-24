@@ -35,7 +35,7 @@ TEST_CASE("SunPositionTracker: computes from geo config, matching utils/sun") {
     SunPositionTracker sun(fx.ctx());
     CHECK_FALSE(sun.ready());                 // nothing computed before the first step
 
-    uint64_t now = HAL::uptime_ms();          // host wall clock is real -> passes the gate
+    uint64_t now = HAL::Clock::uptime_ms();          // host wall clock is real -> passes the gate
     sun.step(now);
     REQUIRE(sun.ready());
 
@@ -59,7 +59,7 @@ TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial cha
     fx.publish();
 
     SunPositionTracker sun(fx.ctx());
-    sun.step(HAL::uptime_ms());
+    sun.step(HAL::Clock::uptime_ms());
     REQUIRE(sun.ready());
     uint64_t paris_sunrise = sun.times().sunrise.time_ms;
 
@@ -71,7 +71,7 @@ TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial cha
     fx.conf().geo.longitude_e7 = LON;
     fx.publish();
 
-    uint64_t now = HAL::uptime_ms();
+    uint64_t now = HAL::Clock::uptime_ms();
     sun.step(now);
     Utils::SunTimes ref = Utils::next_sun_times(now, deg(LAT), deg(LON));
     if (ref.sunrise.valid) {
@@ -83,6 +83,6 @@ TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial cha
 TEST_CASE("SunPositionTracker: stays idle with no geo config") {
     botanik_test::PlcConfigFixture fx;          // conf all zero -> geo.serial 0
     SunPositionTracker sun(fx.ctx());
-    sun.step(HAL::uptime_ms());
+    sun.step(HAL::Clock::uptime_ms());
     CHECK_FALSE(sun.ready());
 }

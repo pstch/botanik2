@@ -21,7 +21,7 @@ built-in handler. An empty line is ignored; an unrecognized one echoes
 | `help`         | Print the one-line list of available commands.                                                                               |
 | `clear`        | @ref Botanik::Shell::ShellWriter::clear "clear()" - wipe the shell scrollback and redraw an empty prompt.                     |
 | `stats`        | Dump scheduler/runtime counters (uptime, CPU load, jitter, stack usage/depth) from @ref Botanik::Scheduler::SchedulerContext. |
-| `breakpoint`   | @ref Botanik::HAL::debug_break "HAL::debug_break()" - trap into an attached debugger.                                         |
+| `breakpoint`   | @ref Botanik::HAL::Debug::breakpoint "HAL::Debug::breakpoint()" - trap into an attached debugger.                             |
 | `reset`        | @ref Botanik::HAL::reset "HAL::reset()" - reboot the firmware (does not return; the simulator re-execs to the current page).  |
 
 @section commands_extending Extending

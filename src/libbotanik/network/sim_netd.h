@@ -15,7 +15,7 @@
  * The NTP/MQTT wire knowledge (the SNTP reply, the CONNACK/PINGRESP) lives here,
  * above the HAL - the HAL transport stays protocol-agnostic. The thread lifecycle
  * mirrors PlcEmulator (plcio/emulator.h): a volatile run flag published with
- * HAL::dsb(), torn down through HAL::on_reset().
+ * HAL::Memory::dsb(), torn down through HAL::System::on_reset().
  */
 
 #ifdef TARGET_SIMULATOR
@@ -29,14 +29,14 @@
 #include <netinet/in.h>
 
 #include "libbotanik/hal/net.h"        // NTP_MOCK_PORT / MQTT_MOCK_PORT
-#include "libbotanik/hal/platform.h"   // HAL::sleep_ms / on_reset / dsb
+#include "libbotanik/hal/platform.h"   // HAL::Clock::sleep_ms / on_reset / dsb
 #include "libbotanik/logs/logger.h"
 #include "libbotanik_config.h"
 
 namespace Botanik { namespace Network {
 
     /** @brief Run flag/handle for the single responder thread. Single-writer (lifecycle)
-     *  / single-reader (thread loop): volatile + HAL::dsb() to publish, the lock-free
+     *  / single-reader (thread loop): volatile + HAL::Memory::dsb() to publish, the lock-free
      *  pattern used throughout (no std::atomic). */
     inline volatile bool& _netd_running() { static volatile bool running = false; return running; }
     inline pthread_t&      _netd_thread()  { static pthread_t thread; return thread; }
@@ -102,7 +102,7 @@ namespace Botanik { namespace Network {
     inline void stop_mock_netd() {
         if (!_netd_running()) return;
         _netd_running() = false;
-        HAL::dsb();
+        HAL::Memory::dsb();
         pthread_join(_netd_thread(), nullptr);
     }
 
@@ -111,8 +111,8 @@ namespace Botanik { namespace Network {
      *  need not race the main loop. */
     inline void* _netd_main(void*) {
         const int MAX_CLIENTS = 4;
-        int udp = detail::netd_bind(HAL::Net::NTP_MOCK_PORT,  /*dgram=*/true);
-        int tcp = detail::netd_bind(HAL::Net::MQTT_MOCK_PORT, /*dgram=*/false);
+        int udp = detail::netd_bind(HAL::Network::NTP_MOCK_PORT,  /*dgram=*/true);
+        int tcp = detail::netd_bind(HAL::Network::MQTT_MOCK_PORT, /*dgram=*/false);
         int client[MAX_CLIENTS];
         for (int i = 0; i < MAX_CLIENTS; ++i) client[i] = -1;
 
@@ -132,7 +132,7 @@ namespace Botanik { namespace Network {
                     if (!detail::netd_serve_mqtt(client[i])) { ::close(client[i]); client[i] = -1; }
                 }
             }
-            HAL::sleep_ms(Config::TASK_PERIOD_MS);
+            HAL::Clock::sleep_ms(Config::TASK_PERIOD_MS);
         }
 
         if (udp >= 0) ::close(udp);
@@ -142,17 +142,17 @@ namespace Botanik { namespace Network {
     }
 
     /** @brief Spawn the mock responder thread and register its teardown with
-     *  HAL::reset(). Start it before the process locks memory (mlockall
+     *  HAL::System::reset(). Start it before the process locks memory (mlockall
      *  MCL_FUTURE), like the emulator. */
     inline void start_mock_netd(Logs::Logger* logger = nullptr) {
         _netd_running() = true;
-        HAL::dsb();
+        HAL::Memory::dsb();
         if (pthread_create(&_netd_thread(), nullptr, &_netd_main, nullptr) != 0) {
             _netd_running() = false;
             if (logger != nullptr) logger->error(PlcIO::NETWORK, "mock netd failed to start");
             return;
         }
-        HAL::on_reset(&stop_mock_netd);
+        HAL::System::on_reset(&stop_mock_netd);
     }
 
 }}

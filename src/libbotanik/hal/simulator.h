@@ -116,10 +116,10 @@ namespace Botanik { namespace HAL {
 
     /** @} */
 
-    /** @name Stack introspection
-     *  @{ */
+    /** @brief Stack region introspection. */
+    namespace Stack {
 
-    inline uintptr_t get_stack_base() {
+    inline uintptr_t base() {
         pthread_t self = pthread_self();
         pthread_attr_t attr;
         if (pthread_getattr_np(self, &attr) == 0) {
@@ -133,7 +133,7 @@ namespace Botanik { namespace HAL {
 
     /** @brief Total allocated stack size for the calling thread (not the used
      *  amount). */
-    inline uint32_t get_stack_depth() {
+    inline uint32_t depth() {
         pthread_t self = pthread_self();
         pthread_attr_t attr;
         if (pthread_getattr_np(self, &attr) == 0) {
@@ -149,21 +149,21 @@ namespace Botanik { namespace HAL {
     /** @brief 0: the host has no RTOS thread watermark, so the scheduler
      *  measures the high-water itself by painting + scanning the stack (see
      *  _measure_stack_usage). */
-    inline uint32_t get_stack_high() { return 0; }
+    inline uint32_t high() { return 0; }
 
-    /** @} */
+    }  // namespace Stack
 
-    /** @name PLC shared memory
-     *  @{ */
+    /** @brief PLC coprocessor shared memory. */
+    namespace PlcIO {
 
     /// No PLC coprocessor exists on the host; the regions are absent.
-    inline void* get_plc_input()  { return nullptr; }
-    inline void* get_plc_output() { return nullptr; }
+    inline void* input()  { return nullptr; }
+    inline void* output() { return nullptr; }
 
-    /** @} */
+    }  // namespace PlcIO
 
-    /** @name Timing & clocks
-     *  @{ */
+    /** @brief Timing and clocks. */
+    namespace Clock {
 
     inline uint32_t current_ms() {
         return (uint32_t)_now_as<std::chrono::milliseconds>();
@@ -188,13 +188,13 @@ namespace Botanik { namespace HAL {
         return (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
     }
 
-    inline uint64_t wall_clock_ms() {
+    inline uint64_t wall_ms() {
         return (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
     }
 
     /// No-op: the host system clock is the wall-clock source on the simulator.
-    inline void wall_clock_set(uint64_t /*unix_ms*/) {}
+    inline void set_wall_ms(uint64_t /*unix_ms*/) {}
 
     inline void sleep_ms(uint32_t ms) {
         // uint64 product: ms*1000 overflows uint32 for ms > ~71 min.
@@ -202,10 +202,10 @@ namespace Botanik { namespace HAL {
         usleep((useconds_t)((uint64_t)ms * 1000u / _time_scale()));
     }
 
-    /** @} */
+    }  // namespace Clock
 
-    /** @name Memory ordering
-     *  @{ */
+    /** @brief Memory-ordering primitives and D-cache maintenance. */
+    namespace Memory {
 
     inline void dsb() {
         // Mimic the ARM DSB for thread visibility
@@ -255,12 +255,12 @@ namespace Botanik { namespace HAL {
     inline void cache_clean(const void* addr, size_t len)      { (void)addr; (void)len; }
     inline void cache_invalidate(const void* addr, size_t len) { (void)addr; (void)len; }
 
-    /** @} */
+    }  // namespace Memory
 
-    /** @name Debug
-     *  @{ */
+    /** @brief Debugger interaction. */
+    namespace Debug {
 
-    inline void debug_break() {
+    inline void breakpoint() {
         // <csignal> is already included above for the console handlers
         raise(SIGTRAP);
     }
@@ -284,14 +284,14 @@ namespace Botanik { namespace HAL {
         return *p != '0';
     }
 
-    /** @} */
+    }  // namespace Debug
 
-    /** @name Serial I/O
-     *  @{ */
+    /** @brief Serial access and console setup. */
+    namespace Serial {
 
     /** @brief Host stand-in for the Arduino UART, backed by a pair of file
      *  descriptors with a baud-rate throttle and a simulated UART buffer. */
-    class RawSerial {
+    class Raw {
         /** @brief Simulated UART FIFO depth (bytes); also caps the token
          *  bucket's bank. */
         static constexpr int FIFO_BYTES = 64;
@@ -320,7 +320,7 @@ namespace Botanik { namespace HAL {
         /** @name Lifecycle
          *  @{ */
 
-        RawSerial() = default;
+        Raw() = default;
 
         /** @} */
 
@@ -417,13 +417,13 @@ namespace Botanik { namespace HAL {
 
     /** @brief Logical serial endpoints: CONSOLE drives the interactive
      *  terminal, MONITOR the secondary diagnostic/log output. */
-    enum SerialPort { CONSOLE, MONITOR };
+    enum Port { CONSOLE, MONITOR };
 
-    /** @brief Resolve a logical SerialPort to its backing RawSerial.
+    /** @brief Resolve a logical Port to its backing Raw serial.
      *  CONSOLE is wired to stdin/stdout, MONITOR to stderr (output only).
      *  @param port CONSOLE or MONITOR. */
-    inline RawSerial* get_serial(SerialPort port) {
-        static RawSerial console, monitor;
+    inline Raw* get(Port port) {
+        static Raw console, monitor;
         static bool initialized = false;
         if (!initialized) {
             console.set_fds(STDIN_FILENO, STDOUT_FILENO);
@@ -436,14 +436,9 @@ namespace Botanik { namespace HAL {
     /** @brief Whether @p port's output end is an interactive terminal (false
      *  for a null port). Lets sinks (e.g. MonitorLogWriter) suppress output
      *  that would garble the UI. */
-    inline bool serial_is_output_tty(const RawSerial* port) {
+    inline bool is_output_tty(const Raw* port) {
         return (port != nullptr) && port->is_output_tty();
     }
-
-    /** @} */
-
-    /** @name Console raw mode
-     *  @{ */
 
     /** @brief Put the controlling terminal into raw mode for interactive use:
      *  disable canonical mode and echo, make reads non-blocking, and register
@@ -468,10 +463,10 @@ namespace Botanik { namespace HAL {
         tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
     }
 
-    /** @} */
+    }  // namespace Serial
 
-    /** @name System lifecycle
-     *  @{ */
+    /** @brief System lifecycle (reset / shutdown). */
+    namespace System {
 
     /** @brief argv captured at startup, for re-exec on reset(). The C runtime
      *  keeps argv alive for the whole process, so storing the pointer is
@@ -546,10 +541,10 @@ namespace Botanik { namespace HAL {
         exit(code);
     }
 
-    /** @} */
+    }  // namespace System
 
-    /** @name Hardware watchdog
-     *  @{ */
+    /** @brief Hardware watchdog. */
+    namespace Watchdog {
 
     // State is written on the main thread (kick/start/stop) and read by
     // watchdog_poll() on the emulator thread, shared via the codebase's
@@ -562,19 +557,19 @@ namespace Botanik { namespace HAL {
     /** @brief Uptime (ms) of the most recent kick. */
     inline volatile uint64_t& _wd_last_kick_ms() { static volatile uint64_t k = 0; return k; }
 
-    inline void watchdog_start(uint32_t timeout_ms) {
+    inline void start(uint32_t timeout_ms) {
         // seed kick before timeout, so a poll seeing the new timeout can't see
         // a stale kick
-        _wd_last_kick_ms() = uptime_ms();
-        dsb();
+        _wd_last_kick_ms() = Clock::uptime_ms();
+        Memory::dsb();
         _wd_timeout_ms() = timeout_ms;
     }
 
-    inline void watchdog_kick() {
-        _wd_last_kick_ms() = uptime_ms();
+    inline void kick() {
+        _wd_last_kick_ms() = Clock::uptime_ms();
     }
 
-    inline void watchdog_stop() {
+    inline void stop() {
         _wd_timeout_ms() = 0;
     }
 
@@ -582,23 +577,23 @@ namespace Botanik { namespace HAL {
      *  runs on the emulator thread so it can fire even when the main loop is
      *  wedged. Traps (SIGTRAP) when a debugger is attached so it breaks on the
      *  wedged state; otherwise resets the process. */
-    inline void watchdog_poll() {
+    inline void poll() {
         // 64-bit throughout (no 49-day wrap) and read last_kick *before* now,
-        // so a concurrent watchdog_kick() can't leave last_kick newer than
+        // so a concurrent kick() can't leave last_kick newer than
         // uptime and underflow the elapsed check into a spurious reset.
         uint64_t timeout   = _wd_timeout_ms();
         if (timeout == 0) return;
         uint64_t last_kick = _wd_last_kick_ms();
         // read the kick paired with this timeout
-        dsb();
-        uint64_t uptime    = uptime_ms();
+        Memory::dsb();
+        uint64_t uptime    = Clock::uptime_ms();
         if (uptime - last_kick > timeout) {
-            if (under_debugger()) debug_break();  // freeze for the debugger
-            else                   reset();        // reboot the wedged process
+            if (Debug::under_debugger()) Debug::breakpoint();  // freeze for the debugger
+            else                         System::reset();      // reboot the wedged process
         }
     }
 
-    /** @} */
+    }  // namespace Watchdog
 
 }}
 

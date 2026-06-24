@@ -216,7 +216,7 @@ namespace Botanik { namespace Scheduler {
             // underflow against the grid (a separate uptime_ms() read could
             // straddle the ms boundary and land just under _next_tick_ms*1000,
             // wrapping the unsigned subtraction).
-            uint64_t now_us = HAL::uptime_us();
+            uint64_t now_us = HAL::Clock::uptime_us();
             uint64_t now_ms = now_us / 1000;
             // close the previous beat's work window (work duration + stack
             // scan)
@@ -228,9 +228,9 @@ namespace Botanik { namespace Scheduler {
                 // toward idle: timing the sleep rather than trusting the
                 // request keeps the duty cycle honest on overrun.
                 if (remaining_ms > 1) {
-                    uint64_t sleep_start_us = HAL::uptime_us();
-                    HAL::sleep_ms((uint32_t)(remaining_ms - 1));
-                    _slept_us += HAL::uptime_us() - sleep_start_us;
+                    uint64_t sleep_start_us = HAL::Clock::uptime_us();
+                    HAL::Clock::sleep_ms((uint32_t)(remaining_ms - 1));
+                    _slept_us += HAL::Clock::uptime_us() - sleep_start_us;
                 }
                 return false;   // busy-wait the last ms; defer work
             }

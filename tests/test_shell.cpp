@@ -26,7 +26,7 @@ namespace {
     // buffered and never flushed, so reconcile output is harmlessly discarded).
     struct ShellFixture {
         int                            pipe_fds[2];
-        HAL::RawSerial                 raw;
+        HAL::Serial::Raw                 raw;
         Utils::BufferedSerial          serial;
         uint32_t                       now = 0;
         Terminal::AnsiTerminal         terminal;

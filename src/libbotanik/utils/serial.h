@@ -4,7 +4,7 @@
 /**
  * @file serial.h
  * @brief BufferedSerial - non-blocking UART wrapper with RX/TX ring buffers
- *        over HAL::RawSerial.
+ *        over HAL::Serial::Raw.
  */
 
 #include <cstdint>
@@ -38,7 +38,7 @@ namespace Botanik { namespace Utils {
         /** @name State
          *  @{ */
 
-        HAL::RawSerial* _serial;   // wrapped raw port
+        HAL::Serial::Raw* _serial;   // wrapped raw port
 
         // power of two (masking arithmetic)
         static const uint16_t RX_BUF_SIZE = 256;
@@ -71,7 +71,7 @@ namespace Botanik { namespace Utils {
         /** @name Lifecycle
          *  @{ */
 
-        BufferedSerial(HAL::RawSerial* serial);
+        BufferedSerial(HAL::Serial::Raw* serial);
 
         /** @} */
 

@@ -48,7 +48,7 @@ namespace Botanik { namespace Network {
         ResolvedAddr          _broker_addr;    ///< resolved broker address
         /// link gate (null = always blocked)
         const NetworkHandler* _net;
-        HAL::Net::TcpSocket   _sock;           ///< open TCP socket (-1 = none)
+        HAL::Network::TcpSocket   _sock;           ///< open TCP socket (-1 = none)
         /** @} */
 
     public:

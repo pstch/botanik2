@@ -100,7 +100,7 @@ terminal sites (e.g. `gh_mlb41`) keep `TERMINAL` on, since their pages assume th
   BOOT line on their first `step()` so a component missing from the loop is obvious.
   See @ref md_docs_2PLC__CONFIG "PLC configuration variables and components".
 - **HAL-only platform access.** Code never calls `<time.h>` or platform APIs
-  directly - only `HAL::current_ms()`, `HAL::dsb()`, `HAL::ordered_copy()`, and
+  directly - only `HAL::Clock::current_ms()`, `HAL::Memory::dsb()`, `HAL::Memory::ordered_copy()`, and
   friends. This is what makes the simulator possible.
 - **PLC shared memory.** Host and PLC coprocessor communicate through shared
   memory using transactional read/write patterns and explicit ARM DSB barriers to

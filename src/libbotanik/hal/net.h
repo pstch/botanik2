@@ -15,7 +15,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace Botanik { namespace HAL { namespace Net {
+namespace Botanik { namespace HAL { namespace Network {
 
     /** @name Address */
     /** @{ */
@@ -96,6 +96,6 @@ namespace Botanik { namespace HAL { namespace Net {
     void      tcp_close(TcpSocket s);
     /** @} */
 
-}}}
+}}}  // namespace Botanik::HAL::Network
 
 #endif // HAL_NET_H

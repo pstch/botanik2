@@ -21,11 +21,11 @@ namespace Botanik { namespace Utils {
     }
 
     uint64_t absolute_ms(uint32_t timestamp_ms) {
-        return _project_rollover(HAL::uptime_ms(), timestamp_ms);
+        return _project_rollover(HAL::Clock::uptime_ms(), timestamp_ms);
     }
 
     uint64_t absolute_us(uint32_t timestamp_us) {
-        return _project_rollover(HAL::uptime_us(), timestamp_us);
+        return _project_rollover(HAL::Clock::uptime_us(), timestamp_us);
     }
 
     // Calendar conversion & formatting
@@ -35,7 +35,7 @@ namespace Botanik { namespace Utils {
     // uptime_now` is invariant (both advance together), so sampling it lazily
     // is fine.
     static int64_t _boot_epoch_ms() {
-        static const int64_t epoch = (int64_t)HAL::wall_clock_ms() - (int64_t)HAL::uptime_ms();
+        static const int64_t epoch = (int64_t)HAL::Clock::wall_ms() - (int64_t)HAL::Clock::uptime_ms();
         return epoch;
     }
 

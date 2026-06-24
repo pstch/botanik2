@@ -1,6 +1,6 @@
 /**
  * @file net.cpp
- * @brief HAL::Net backends. OPTA wraps Mbed sockets; the simulator uses real BSD
+ * @brief HAL::Network backends. OPTA wraps Mbed sockets; the simulator uses real BSD
  *        sockets but resolves every name to loopback, so it only ever reaches the
  *        in-process mock responder (network/sim_netd.h) - never the public
  *        network. The transport here is protocol-agnostic on both targets;
@@ -21,7 +21,7 @@
 #include "netsocket/TCPSocket.h"
 #include <cstring>
 
-namespace Botanik { namespace HAL { namespace Net {
+namespace Botanik { namespace HAL { namespace Network {
 
     namespace {
         // The single wired interface, built lazily (not during static init).
@@ -45,8 +45,8 @@ namespace Botanik { namespace HAL { namespace Net {
                 nsapi_addr_t na = a->get_addr();
                 slot->addr.b[0]=na.bytes[0]; slot->addr.b[1]=na.bytes[1];
                 slot->addr.b[2]=na.bytes[2]; slot->addr.b[3]=na.bytes[3];
-                HAL::dsb(); slot->st = 2;
-            } else { HAL::dsb(); slot->st = 3; }
+                HAL::Memory::dsb(); slot->st = 2;
+            } else { HAL::Memory::dsb(); slot->st = 3; }
         }
 
         SocketAddress make_addr(const Ip4& a, uint16_t port) {
@@ -102,7 +102,7 @@ namespace Botanik { namespace HAL { namespace Net {
     DnsResult dns_poll(DnsHandle h, Ip4* out) {
         for (int i = 0; i < MAX_DNS; ++i) {
             if (g_dns[i].id != h || g_dns[i].st == 0) continue;
-            uint8_t st = HAL::ordered_read(&g_dns[i].st);
+            uint8_t st = HAL::Memory::ordered_read(&g_dns[i].st);
             if (st == 1) return DNS_PENDING;
             if (st == 2) { if (out) *out = g_dns[i].addr; g_dns[i].st = 0; return DNS_OK; }
             g_dns[i].st = 0; return DNS_FAILED;
@@ -178,11 +178,14 @@ namespace Botanik { namespace HAL { namespace Net {
 // ---- Simulator backend (real BSD sockets, loopback-only) ----
 //
 // Thin and protocol-agnostic, like the OPTA backend: it opens real host sockets
-// but every name resolves to 127.0.0.1, so the only peer it can reach is the
-// in-process mock NTP/MQTT responder (network/sim_netd.h) listening on loopback.
-// Nothing reaches the public network. DNS is the one emulated piece - it mirrors
-// the OPTA gethostbyname_async poll model rather than blocking in getaddrinfo. No
-// NTP/MQTT wire knowledge lives here; that stays in the responder and in network/.
+// but is hermetic by construction - udp_sendto/tcp_connect refuse any destination
+// that isn't 127.0.0.0/8, so the process can never send a packet off-host no matter
+// what a config carries. DNS reinforces this by resolving every name to 127.0.0.1,
+// where the in-process mock NTP/MQTT responder (network/sim_netd.h) answers; the
+// loopback guard also catches non-loopback IPv4 literals that bypass DNS. DNS is the
+// one emulated piece - it mirrors the OPTA gethostbyname_async poll model rather than
+// blocking in getaddrinfo. No NTP/MQTT wire knowledge lives here; that stays in the
+// responder and in network/.
 
 #include <cstring>
 #include <cerrno>
@@ -191,7 +194,7 @@ namespace Botanik { namespace HAL { namespace Net {
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-namespace Botanik { namespace HAL { namespace Net {
+namespace Botanik { namespace HAL { namespace Network {
 
     namespace {
         // Set O_NONBLOCK on a fd; returns the fd (or -1 on failure after closing
@@ -259,14 +262,14 @@ namespace Botanik { namespace HAL { namespace Net {
         for (int i = 0; i < MAX_DNS; ++i) if (g_dns[i].id == 0) { s = &g_dns[i]; break; }
         if (s == 0) return 0;
         s->id       = ++g_dns_next;
-        s->ready_ms = uptime_ms() + DNS_STEP_MS;
+        s->ready_ms = Clock::uptime_ms() + DNS_STEP_MS;
         s->fail     = unresolvable(host);
         return s->id;
     }
     DnsResult dns_poll(DnsHandle h, Ip4* out) {
         for (int i = 0; i < MAX_DNS; ++i) {
             if (g_dns[i].id != h) continue;
-            if (uptime_ms() < g_dns[i].ready_ms) return DNS_PENDING;
+            if (Clock::uptime_ms() < g_dns[i].ready_ms) return DNS_PENDING;
             bool fail = g_dns[i].fail;
             g_dns[i].id = 0;            // consume the slot
             if (fail) return DNS_FAILED;
@@ -285,9 +288,9 @@ namespace Botanik { namespace HAL { namespace Net {
     }
     bool udp_sendto(UdpSocket s, const Ip4& a, uint16_t port, const void* buf, size_t len) {
         if (s < 0) return false;
-        // No privileged ports in the sim: route loopback NTP (123) to the mock
-        // responder.
-        if (port == 123 && is_loopback(a)) port = NTP_MOCK_PORT;
+        if (!is_loopback(a)) return false;     // hermetic: never send off-host (see below)
+        // No privileged ports in the sim: route the well-known NTP port to the responder.
+        if (port == 123) port = NTP_MOCK_PORT;
         sockaddr_in sin = make_sin(a, port);
         ssize_t n = ::sendto(s, buf, len, 0, reinterpret_cast<sockaddr*>(&sin), sizeof(sin));
         return n == (ssize_t)len;
@@ -309,6 +312,7 @@ namespace Botanik { namespace HAL { namespace Net {
     }
     int tcp_connect(TcpSocket s, const Ip4& a, uint16_t port) {
         if (s < 0) return -1;
+        if (!is_loopback(a)) return -1;        // hermetic: never connect off-host (see below)
         sockaddr_in sin = make_sin(a, port);
         int r = ::connect(s, reinterpret_cast<sockaddr*>(&sin), sizeof(sin));
         if (r == 0) return 1;                              // connected at once (loopback)

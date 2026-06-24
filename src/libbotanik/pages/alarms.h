@@ -328,7 +328,7 @@ namespace Botanik { namespace Pages {
         void _collect() {
             _nvis = 0;
             if (_model == nullptr) return;
-            uint64_t now = HAL::uptime_ms();
+            uint64_t now = HAL::Clock::uptime_ms();
             for (uint8_t i = 0;
                  i < _model->count() && _nvis < Alarms::ALARM_BITS; i++) {
                 const Alarms::AlarmCondition& c = _model->condition(i);
@@ -377,7 +377,7 @@ namespace Botanik { namespace Pages {
          *  time-based expiry that leaves the active set unchanged. */
         uint64_t _recent_sig() const {
             if (_model == nullptr) return 0;
-            uint64_t now = HAL::uptime_ms(), m = 0;
+            uint64_t now = HAL::Clock::uptime_ms(), m = 0;
             for (uint8_t i = 0; i < _model->count(); i++) {
                 const Alarms::AlarmCondition& c = _model->condition(i);
                 if (c.code != nullptr && _is_recent(c, now)) m |= Alarms::alarm_bit(i);
@@ -803,7 +803,7 @@ namespace Botanik { namespace Pages {
             }
             // Idle: re-check the set once a second (alarms move slowly) and
             // repaint only when it actually moved.
-            uint64_t now = HAL::uptime_ms();
+            uint64_t now = HAL::Clock::uptime_ms();
             if (now - _last_refresh_ms < Config::PAGE_HOT_MS) return;
             _last_refresh_ms = now;
             if (_changed()) _request_repaint();

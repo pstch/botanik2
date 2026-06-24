@@ -51,7 +51,7 @@ namespace Botanik { namespace Network {
         struct Entry {
             char                  host[Config::PLC_HOST_STR_LEN]; ///< name (cache key)
             ResolvedAddr          addr;     ///< result, valid when state == SLOT_READY
-            HAL::Net::DnsHandle   handle;   ///< dns_begin handle while PENDING (0 = none)
+            HAL::Network::DnsHandle   handle;   ///< dns_begin handle while PENDING (0 = none)
             volatile uint8_t      state;    ///< SlotState
         };
 

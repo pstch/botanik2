@@ -111,7 +111,7 @@ namespace Botanik { namespace Network {
         /** @brief Which configured server we are on (0 = server1). */
         uint8_t               _server_idx;
         /// open UDP socket handle (-1 = none)
-        HAL::Net::UdpSocket   _udp;
+        HAL::Network::UdpSocket   _udp;
         /** @} */
 
     public:

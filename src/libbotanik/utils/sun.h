@@ -12,7 +12,7 @@
  * altitude (atmospheric refraction plus the sun's apparent radius). All angles
  * are handled internally in radians; declination is returned in radians.
  *
- * Timestamps are uptime-domain ms, the same domain as HAL::uptime_ms() and the
+ * Timestamps are uptime-domain ms, the same domain as HAL::Clock::uptime_ms() and the
  * inputs to utils/time.h, so a returned event can be compared straight against
  * "now". Location is plain degrees (north +, east +); no timezone is needed,
  * since an absolute instant is timezone-independent and longitude already fixes
@@ -27,7 +27,7 @@ namespace Botanik { namespace Utils {
      *  @{ */
 
     /** @brief A solar event as an absolute uptime-domain ms timestamp
-     *  (comparable to HAL::uptime_ms()). @p valid is false at polar day/night
+     *  (comparable to HAL::Clock::uptime_ms()). @p valid is false at polar day/night
      *  (no event); @p time_ms is then unspecified. */
     struct SunEvent {
         uint64_t time_ms;

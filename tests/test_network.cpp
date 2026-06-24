@@ -35,18 +35,18 @@ TEST_CASE("NetworkHandler: sim path comes up on net config and idles when it is 
     NetworkHandler net(fx.ctx(), nullptr, &resolver);
     CHECK_FALSE(net.is_up());
 
-    // HAL::Net::link_status() returns LINK_UP immediately on the simulator,
+    // HAL::Network::link_status() returns LINK_UP immediately on the simulator,
     // so one step() promotes SETUP to RUNNING.
     fx.conf().net.serial = 1;
     fx.conf().net.dhcp   = 1;
     fx.publish();
-    net.step(HAL::uptime_ms());
+    net.step(HAL::Clock::uptime_ms());
     CHECK(net.is_up());
 
     // Serial back to 0 (config removed) -> back to idle.
     fx.conf().net.serial = 0;
     fx.publish();
-    net.step(HAL::uptime_ms());
+    net.step(HAL::Clock::uptime_ms());
     CHECK_FALSE(net.is_up());
 }
 
@@ -60,16 +60,17 @@ TEST_CASE("MqttClient: never reports connected to a dead broker; publish gated o
     CHECK_FALSE(mqtt.publish("botanik/alarms/X", "ON"));
 
     fx.conf().net.serial = 1; fx.conf().net.dhcp = 1; fx.publish();
-    net.step(HAL::uptime_ms());                 // sim link up
+    net.step(HAL::Clock::uptime_ms());                 // sim link up
 
     fx.conf().mqtt.serial  = 1;
     fx.conf().mqtt.enabled = 1;
-    // TEST-NET-1
+    // Off-host literal: the hermetic sim refuses any non-loopback destination, so the
+    // connect can never complete.
     std::strncpy(fx.conf().mqtt.broker, "192.0.2.1", Config::PLC_HOST_STR_LEN - 1);
     fx.publish();
-    for (int i = 0; i < 5; ++i) mqtt.step(HAL::uptime_ms());
+    for (int i = 0; i < 5; ++i) mqtt.step(HAL::Clock::uptime_ms());
 
-    CHECK_FALSE(mqtt.connected());              // connect to 192.0.2.1 never completes
+    CHECK_FALSE(mqtt.connected());              // off-host: refused, never connects
     CHECK_FALSE(mqtt.publish("botanik/alarms/X", "ON"));
 }
 
@@ -86,16 +87,16 @@ TEST_CASE("NtpClient: stepped as a Component (announces once); query is non-bloc
 
     // Bring the (sim) link up so the time sync can proceed past the link gate.
     fx.conf().net.serial = 1; fx.conf().net.dhcp = 1; fx.publish();
-    net.step(HAL::uptime_ms());
+    net.step(HAL::Clock::uptime_ms());
 
     fx.conf().ntp.serial  = 1;
     fx.conf().ntp.enabled = 1;
-    // TEST-NET-1 literal: a non-mock address the emulated UDP layer never answers,
-    // so the reply never arrives and the query stays non-blocking (no sync).
+    // Off-host literal: the hermetic sim refuses the send, so no reply arrives and the
+    // query stays non-blocking (no sync).
     std::strncpy(fx.conf().ntp.server1, "192.0.2.1", Config::PLC_HOST_STR_LEN - 1);
     fx.publish();
 
-    for (int i = 0; i < 5; ++i) ts.step(HAL::uptime_ms());   // must not fault or block
+    for (int i = 0; i < 5; ++i) ts.step(HAL::Clock::uptime_ms());   // must not fault or block
 
 #ifdef DEBUG
     // >= 1 not == 1: the live UDP path and link-up sequence may emit extra log

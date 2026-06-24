@@ -134,19 +134,19 @@ namespace Botanik { namespace Shell {
         else _println("usage: logs [on|off]");
     }
 
-    void CommandShell::_cmd_breakpoint(const char*, uint16_t) { HAL::debug_break(); }
+    void CommandShell::_cmd_breakpoint(const char*, uint16_t) { HAL::Debug::breakpoint(); }
 
     // Wipe the screen (flushed straight to the wire) before leaving: the main
     // loop won't run again to drain the TX ring, and neither reset() nor
     // shutdown() returns.
     void CommandShell::_cmd_reset(const char*, uint16_t) {
         _terminal.clear_screen_now();
-        HAL::reset();      // reboots; does not return
+        HAL::System::reset();      // reboots; does not return
     }
 
     void CommandShell::_cmd_exit(const char*, uint16_t) {
         _terminal.clear_screen_now();
-        HAL::shutdown();   // sim: exit(0); OPTA: reboots
+        HAL::System::shutdown();   // sim: exit(0); OPTA: reboots
     }
 
     void CommandShell::_cmd_stats(const char*, uint16_t) {
@@ -160,7 +160,7 @@ namespace Botanik { namespace Shell {
         int w;
 
         snprintf(val,    sizeof(val),    "%lus",
-            (unsigned long)(HAL::uptime_ms() / 1000));
+            (unsigned long)(HAL::Clock::uptime_ms() / 1000));
         snprintf(detail, sizeof(detail), "%lu ticks, %lu overruns",
             (unsigned long)ctx->tick_count, (unsigned long)ctx->overruns);
         w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
@@ -251,7 +251,7 @@ namespace Botanik { namespace Shell {
         if (sub && Utils::arg_eq(sub, wlen, "list")) {
             if (m->active_count() == 0) { _println("no active alarms"); return; }
             char age[16];
-            uint64_t now = HAL::uptime_ms();
+            uint64_t now = HAL::Clock::uptime_ms();
             for (uint8_t i = 0; i < m->count(); i++) {
                 const Alarms::AlarmCondition& c = m->condition(i);
                 if (!c.active) continue;
@@ -302,7 +302,7 @@ namespace Botanik { namespace Shell {
 
     void CommandShell::_cmd_uptime(const char*, uint16_t) {
         char buf[16], out[48];
-        uint32_t secs = (uint32_t)(HAL::uptime_ms() / 1000);
+        uint32_t secs = (uint32_t)(HAL::Clock::uptime_ms() / 1000);
         int n = snprintf(out, sizeof(out), "uptime: %s",
                          Utils::format_age(buf, sizeof(buf), secs, false));
         if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));

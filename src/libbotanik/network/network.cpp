@@ -11,7 +11,7 @@
 
 #include "libbotanik/network/network.h"
 
-#include "libbotanik/hal/platform.h"   // HAL::wall_clock_set (NTP -> RTC)
+#include "libbotanik/hal/platform.h"   // HAL::Clock::set_wall_ms (NTP -> RTC)
 
 namespace Botanik { namespace Network {
 
@@ -61,7 +61,7 @@ namespace Botanik { namespace Network {
         _unwire_resolver();
         const PlcIO::PlcOutputConfig_t* c = config();
         if (c == nullptr || c->net.serial == 0) {
-            HAL::Net::link_disconnect();
+            HAL::Network::link_disconnect();
             _enter(NET_IDLE, now_ms);
             return;
         }
@@ -70,7 +70,7 @@ namespace Botanik { namespace Network {
 
     void NetworkHandler::_begin_setup(uint64_t now_ms) {
         const PlcIO::PlcOutputConfig_t* c = config();
-        HAL::Net::LinkConfig lc;
+        HAL::Network::LinkConfig lc;
         memset(&lc, 0, sizeof(lc));
         lc.dhcp = c->net.dhcp != 0;
         if (!lc.dhcp) {
@@ -80,7 +80,7 @@ namespace Botanik { namespace Network {
             strncpy(lc.dns1,    c->net.dns1,    sizeof(lc.dns1) - 1);
             strncpy(lc.dns2,    c->net.dns2,    sizeof(lc.dns2) - 1);
         }
-        HAL::Net::link_configure(lc);
+        HAL::Network::link_configure(lc);
         if (_logger) _logger->info(PlcIO::NETWORK, lc.dhcp ? "network bring-up (DHCP)"
                                                            : "network bring-up (static)");
         _enter(NET_SETUP, now_ms);
@@ -93,11 +93,11 @@ namespace Botanik { namespace Network {
                 break;
 
             case NET_SETUP:
-                if (HAL::Net::link_status() == HAL::Net::LINK_UP) {
+                if (HAL::Network::link_status() == HAL::Network::LINK_UP) {
                     _enter(NET_RUNNING, now_ms);
-                    HAL::Net::Ip4 a;
+                    HAL::Network::Ip4 a;
                     if (_logger) {
-                        if (HAL::Net::link_ip(&a))
+                        if (HAL::Network::link_ip(&a))
                             _logger->notice(PlcIO::NETWORK, "network up: %u.%u.%u.%u",
                                             a.b[0], a.b[1], a.b[2], a.b[3]);
                         else
@@ -110,7 +110,7 @@ namespace Botanik { namespace Network {
                 break;
 
             case NET_RUNNING:
-                if (HAL::Net::link_status() != HAL::Net::LINK_UP) {
+                if (HAL::Network::link_status() != HAL::Network::LINK_UP) {
                     if (_logger) _logger->warning(PlcIO::NETWORK, "network link lost");
                     _unwire_resolver();
                     _enter(NET_ERROR, now_ms);
@@ -142,7 +142,7 @@ namespace Botanik { namespace Network {
     }
 
     void NtpClient::on_config_changed(uint64_t now_ms) {
-        if (_udp >= 0) { HAL::Net::udp_close(_udp); _udp = -1; }
+        if (_udp >= 0) { HAL::Network::udp_close(_udp); _udp = -1; }
         const PlcIO::PlcOutputConfig_t* c = config();
         // Restart the client with the new servers / poll interval, from the
         // first server.
@@ -220,35 +220,35 @@ namespace Botanik { namespace Network {
     }
 
     bool NtpClient::_send_query() {
-        HAL::Net::UdpSocket s = HAL::Net::udp_open();
+        HAL::Network::UdpSocket s = HAL::Network::udp_open();
         if (s < 0) return false;
         _udp = s;   // store the handle for the poll/close
-        HAL::Net::Ip4 srv;
+        HAL::Network::Ip4 srv;
         srv.b[0]=_server_addr.bytes[0]; srv.b[1]=_server_addr.bytes[1];
         srv.b[2]=_server_addr.bytes[2]; srv.b[3]=_server_addr.bytes[3];
         uint8_t pkt[48] = {0};
         pkt[0] = 0x23;   // LI=0, VN=4, Mode=3 (client)
-        if (!HAL::Net::udp_sendto(s, srv, 123, pkt, sizeof(pkt))) {
-            HAL::Net::udp_close(s); _udp = -1; return false;
+        if (!HAL::Network::udp_sendto(s, srv, 123, pkt, sizeof(pkt))) {
+            HAL::Network::udp_close(s); _udp = -1; return false;
         }
         return true;
     }
 
     int NtpClient::_poll_query(uint64_t now_ms) {
         uint8_t pkt[48];
-        HAL::Net::Ip4 from; uint16_t port = 0;
-        int r = HAL::Net::udp_recvfrom(_udp, pkt, sizeof(pkt), &from, &port);
+        HAL::Network::Ip4 from; uint16_t port = 0;
+        int r = HAL::Network::udp_recvfrom(_udp, pkt, sizeof(pkt), &from, &port);
         if (r == 0) {
             if (now_ms - _since_ms > Config::NTP_QUERY_TIMEOUT_MS) {
-                HAL::Net::udp_close(_udp); _udp = -1; return -1;
+                HAL::Network::udp_close(_udp); _udp = -1; return -1;
             }
             return 0;
         }
-        if (r < (int)sizeof(pkt)) { HAL::Net::udp_close(_udp); _udp = -1; return -1; }
+        if (r < (int)sizeof(pkt)) { HAL::Network::udp_close(_udp); _udp = -1; return -1; }
         uint64_t unix_ms = ntp_to_unix_ms(pkt);
-        HAL::Net::udp_close(_udp); _udp = -1;
+        HAL::Network::udp_close(_udp); _udp = -1;
         if (unix_ms == 0) return -1;
-        HAL::wall_clock_set(unix_ms);
+        HAL::Clock::set_wall_ms(unix_ms);
         return 1;
     }
 

@@ -210,7 +210,7 @@ namespace Botanik { namespace Pages {
          *  un-highlighted (it changes every tick). */
         void draw_hot() override {
             char buf[40];
-            fmt_uptime(buf, sizeof(buf), HAL::uptime_ms());
+            fmt_uptime(buf, sizeof(buf), HAL::Clock::uptime_ms());
             _value(9, buf, false);
         }
 
