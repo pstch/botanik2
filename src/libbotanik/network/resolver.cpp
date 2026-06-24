@@ -105,7 +105,11 @@ namespace Botanik { namespace Network {
                     e->addr = ip;
                     e->state = SLOT_READY; *out = e->addr; return RESOLVE_OK;
                 }
-                if (r == HAL::Network::DNS_FAILED) { e->state = SLOT_FREE; return RESOLVE_FAILED; }
+                if (r == HAL::Network::DNS_FAILED) {
+                    if (_logger != nullptr)
+                        _logger->error(PlcIO::NETWORK, "DNS resolve failed: %s", host);
+                    e->state = SLOT_FREE; return RESOLVE_FAILED;
+                }
                 return RESOLVE_PENDING;
             }
             e->state = SLOT_FREE;   // SLOT_ERROR: free so the next poll retries
@@ -138,7 +142,11 @@ namespace Botanik { namespace Network {
             *out = e->addr;
             return RESOLVE_OK;
         }
-        if (r == HAL::Network::DNS_FAILED) { e->state = SLOT_FREE; return RESOLVE_FAILED; }
+        if (r == HAL::Network::DNS_FAILED) {
+            if (_logger != nullptr)
+                _logger->error(PlcIO::NETWORK, "DNS resolve failed: %s", host);
+            e->state = SLOT_FREE; return RESOLVE_FAILED;
+        }
         return RESOLVE_PENDING;
     }
 

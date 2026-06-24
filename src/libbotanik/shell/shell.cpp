@@ -338,18 +338,28 @@ namespace Botanik { namespace Shell {
         n = snprintf(out, sizeof(out), "%-22s : %s", "PLC link .............", val);
         if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
 
-        // Shared-memory regions: address, size, and the two sync fields
-        // resident in that region (by their PLC-POV names). Fixed-width numbers
-        // so columns never shift.
-        snprintf(val, sizeof(val), "%p  %6s  (RX seq %5lu, TX ack %5lu)",
-                 p->in_region(), Utils::format_size(sz, sizeof(sz), p->in_size()),
-                 (unsigned long)p->in_rx_seq(), (unsigned long)p->in_tx_ack());
+        // Shared-memory regions: address + size. Fixed-width numbers so columns
+        // never shift.
+        snprintf(val, sizeof(val), "%p  %6s",
+                 p->in_region(), Utils::format_size(sz, sizeof(sz), p->in_size()));
         n = snprintf(out, sizeof(out), "%-22s : %s", "Shared mem IN ........", val);
         if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
-        snprintf(val, sizeof(val), "%p  %6s  (TX seq %5lu, RX ack %5lu)",
-                 p->out_region(), Utils::format_size(sz, sizeof(sz), p->out_size()),
-                 (unsigned long)p->out_tx_seq(), (unsigned long)p->out_rx_ack());
+        snprintf(val, sizeof(val), "%p  %6s",
+                 p->out_region(), Utils::format_size(sz, sizeof(sz), p->out_size()));
         n = snprintf(out, sizeof(out), "%-22s : %s", "Shared mem OUT .......", val);
+        if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+
+        // Handshake counters grouped by direction: a direction's seq and its
+        // ack together. The seq and its ack live in opposite regions (the
+        // sender bumps the seq in one region, the receiver the ack in the
+        // other), so each line pairs across the two.
+        snprintf(val, sizeof(val), "seq %5lu, ack %5lu",
+                 (unsigned long)p->out_tx_seq(), (unsigned long)p->in_tx_ack());
+        n = snprintf(out, sizeof(out), "%-22s : %s", "TX seq/ack ...........", val);
+        if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+        snprintf(val, sizeof(val), "seq %5lu, ack %5lu",
+                 (unsigned long)p->in_rx_seq(), (unsigned long)p->out_rx_ack());
+        n = snprintf(out, sizeof(out), "%-22s : %s", "RX seq/ack ...........", val);
         if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
 
         // Log ring cursors framed as seq/ack: PLC write pos vs our read pos.
@@ -381,13 +391,11 @@ namespace Botanik { namespace Shell {
             if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
         };
 
-        // Format four octets a.b.c.d into a small static scratch (one at a
-        // time; sequential use is fine).
+        // Format an address into a small static scratch (one at a time;
+        // sequential use is fine).
         char ipbuf[16];
-        auto ip4 = [&](const uint8_t* b) -> const char* {
-            snprintf(ipbuf, sizeof(ipbuf), "%u.%u.%u.%u",
-                     b[0], b[1], b[2], b[3]);
-            return ipbuf;
+        auto ip4 = [&](const HAL::Network::Ip4& a) -> const char* {
+            return HAL::Network::ip4_to_str(a, ipbuf, sizeof(ipbuf));
         };
 
         // --- Link --------------------------------------------------------
@@ -399,22 +407,21 @@ namespace Botanik { namespace Shell {
         // lease or static config, whichever is live), read back from the HAL so
         // a DHCP-assigned value shows too.
         HAL::Network::Ip4 a4;
-        line("IP address ...........", net->ip(&a4) ? ip4(a4.b) : "-");
+        line("IP address ...........", net->ip(&a4) ? ip4(a4) : "-");
         line("Netmask ..............",
-             HAL::Network::link_netmask(&a4) ? ip4(a4.b) : "-");
+             HAL::Network::link_netmask(&a4) ? ip4(a4) : "-");
         line("Gateway ..............",
-             HAL::Network::link_gateway(&a4) ? ip4(a4.b) : "-");
+             HAL::Network::link_gateway(&a4) ? ip4(a4) : "-");
         {
             HAL::Network::Ip4 d0, d1;
             bool h0 = HAL::Network::link_dns(0, &d0);
             bool h1 = HAL::Network::link_dns(1, &d1);
             if (h0 && h1) {
                 char first[16];
-                snprintf(first, sizeof(first), "%u.%u.%u.%u",
-                         d0.b[0], d0.b[1], d0.b[2], d0.b[3]);
-                snprintf(val, sizeof(val), "%s  %s", first, ip4(d1.b));
+                snprintf(val, sizeof(val), "%s  %s",
+                         HAL::Network::ip4_to_str(d0, first, sizeof(first)), ip4(d1));
             } else {
-                snprintf(val, sizeof(val), "%s", h0 ? ip4(d0.b) : "-");
+                snprintf(val, sizeof(val), "%s", h0 ? ip4(d0) : "-");
             }
             line("DNS ..................", val);
         }
@@ -433,7 +440,7 @@ namespace Botanik { namespace Shell {
                 bool resolved = (sa.b[0] | sa.b[1] | sa.b[2] | sa.b[3]) != 0;
                 if (resolved)
                     snprintf(val, sizeof(val), "%s  %s:%u", cfg->ntp.server1,
-                             ip4(sa.b), (unsigned)ntp->server_port());
+                             ip4(sa), (unsigned)ntp->server_port());
                 else
                     snprintf(val, sizeof(val), "%s", cfg->ntp.server1);
                 line("NTP server ...........", val);
@@ -460,7 +467,7 @@ namespace Botanik { namespace Shell {
                 if (mqt->connected()) {
                     Network::ResolvedAddr pa = mqt->peer_addr();
                     snprintf(val, sizeof(val), "%s  %s:%u", cfg->mqtt.broker,
-                             ip4(pa.b), (unsigned)mqt->peer_port());
+                             ip4(pa), (unsigned)mqt->peer_port());
                 } else {
                     snprintf(val, sizeof(val), "%s", cfg->mqtt.broker);
                 }

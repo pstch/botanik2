@@ -141,8 +141,7 @@ namespace Botanik { namespace Pages {
                         ctx.network ? ctx.network->status_str() : "off"), L_W);
             HAL::Network::Ip4 ip;
             if (ctx.network && ctx.network->ip(&ip))
-                snprintf(val, sizeof(val), "%u.%u.%u.%u",
-                         ip.b[0], ip.b[1], ip.b[2], ip.b[3]);
+                HAL::Network::ip4_to_str(ip, val, sizeof(val));
             else
                 snprintf(val, sizeof(val), "no link");
             _cell(SLOT_NETIP, 8, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W);

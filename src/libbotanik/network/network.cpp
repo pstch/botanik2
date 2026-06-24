@@ -186,6 +186,7 @@ namespace Botanik { namespace Network {
             _state = TIME_RESOLVE;
             _since_ms = now_ms;
         } else {
+            if (_logger) _logger->error(PlcIO::TIME, "NTP sync failed (no server answered)");
             _state = TIME_ERROR;
             _sync_held = false;       // sync lost: the next success is a recovery
             _since_ms = now_ms;
@@ -224,11 +225,12 @@ namespace Botanik { namespace Network {
                 if (r > 0) {
                     // Announce only the initial / recovery sync, not the routine
                     // re-poll (it fires every poll_s and would spam the log).
-                    if (!_sync_held && _logger)
-                        _logger->notice(PlcIO::TIME, "NTP synced (%u.%u.%u.%u:%u)",
-                                        _server_addr.b[0], _server_addr.b[1],
-                                        _server_addr.b[2], _server_addr.b[3],
+                    if (!_sync_held && _logger) {
+                        char ab[16];
+                        _logger->notice(PlcIO::TIME, "NTP synced (%s:%u)",
+                                        HAL::Network::ip4_to_str(_server_addr, ab, sizeof(ab)),
                                         (unsigned)server_port());
+                    }
                     _sync_held = true;
                     _state = TIME_SYNCED; _since_ms = now_ms;
                 } else if (r < 0) {

@@ -2,7 +2,6 @@
 
   | CODE     | ON | LAST EVENT     | DESCRIPTION                             |
   +----------+----+----------------+-----------------------------------------+
-  | SYS_RST  | ON | <ALARM_TS> | Reset in the last five minutes          |
   | AC_GRID  |    |                | Grid AC out-of-spec/offline             |
   | DC_PS1   |    |                | DC PS1 volts too low                    |
   | GEN_FLT  |    |                | Generator failed to start               |
@@ -17,6 +16,7 @@
   | ACT_FLT  |    |                | Actioner failure                        |
   | SNS_FLT  |    |                | Sensor fault                            |
   | TOO_HOT  |    |                | Inside temperature too high             |
+  | TOO_COLD |    |                | Inside temperature too low              |
   v----------v----v----------------v-----------------------------------------v
 
   [all]   29 listed   1 active                                   SPACE: active

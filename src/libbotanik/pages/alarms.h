@@ -16,7 +16,9 @@
  *   row N-1          blank row below the legend
  *
  * Rows are ordered active-first then by most-recent onset (started_ms);
- * never-active alarms sit at the bottom. The top / bottom rules cap their
+ * never-active alarms sit at the bottom. The exception is the "all" filter,
+ * which keeps the fixed definition (table) order so rows never reorder as
+ * alarms toggle. The top / bottom rules cap their
  * column marks with '^' / 'v' when alarms are hidden above / below the window.
  * SPACE cycles the filter: recent (default) -> all -> active -> active and not
  * masked. A condition's recent window defaults to one week
@@ -346,6 +348,10 @@ namespace Botanik { namespace Pages {
                 }
                 if (include) _vis[_nvis++] = i;
             }
+            // ALL mode lists every alarm in definition (table) order, so the
+            // rows never reorder as alarms come and go - only the ON badge
+            // changes in place. The other modes order active-first (_before()).
+            if (_mode == MODE_ALL) return;
             // Insertion sort by _before(): runs once per (gated) repaint,
             // _nvis is nearly always tiny, so it beats a general sort and is
             // stable in table order on ties.

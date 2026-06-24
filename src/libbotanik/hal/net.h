@@ -14,6 +14,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 
 namespace Botanik { namespace HAL { namespace Network {
 
@@ -21,6 +22,13 @@ namespace Botanik { namespace HAL { namespace Network {
     /** @{ */
     /** @brief IPv4 address as four octets (network order). */
     struct Ip4 { uint8_t b[4]; };
+
+    /** @brief Format @p a as "a.b.c.d" into @p buf (needs >= 16 bytes);
+     *  returns @p buf for inline use. */
+    inline const char* ip4_to_str(const Ip4& a, char* buf, size_t cap) {
+        snprintf(buf, cap, "%u.%u.%u.%u", a.b[0], a.b[1], a.b[2], a.b[3]);
+        return buf;
+    }
     /** @} */
 
 #ifdef TARGET_SIMULATOR
