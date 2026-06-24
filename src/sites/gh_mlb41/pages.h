@@ -153,11 +153,11 @@ protected:
     void draw_payload_static() override {
         // Identity block (site/version/commit) is the base HomePage's; add
         // readings.
-        _label(11, "Temp");
-        _label(12, "Humidity");
-        _label(13, "Ventilation");
-        _label(14, "Irrigation");
-        _label(15, "Alarms");
+        _label(10, "Temp");
+        _label(11, "Humidity");
+        _label(12, "Ventilation");
+        _label(13, "Irrigation");
+        _label(14, "Alarms");
     }
 
     void draw_payload_dynamic() override {
@@ -169,10 +169,10 @@ protected:
 
         snprintf(buf, sizeof(buf), "%s C",
                  format_float(fa, sizeof(fa), d->ext_temp_c_centi / 100.0, 1, 4));
-        _value(11, buf);
+        _value(10, buf);
         snprintf(buf, sizeof(buf), "%s%%",
                  format_float(fa, sizeof(fa), d->ext_rh_centi_pct / 100.0, 1, 4));
-        _value(12, buf);
+        _value(11, buf);
         // Aggregate the four zones (most-open window, highest blower) so the
         // summary can't read "0%" while B-D run.
         uint8_t win_max  = std::max(std::max(d->window_a, d->window_b),
@@ -182,7 +182,7 @@ protected:
         snprintf(buf, sizeof(buf), "Win %s%%  Blow %s%%",
                  format_float(fa, sizeof(fa), (double)win_max, 1, 4),
                  format_float(fb, sizeof(fb), (double)blow_max, 1, 4));
-        _value(13, buf);
+        _value(12, buf);
         // Tray status padded to its widest value ("DRAINING") so the paren
         // never moves.
         if (d->current_tray)
@@ -190,7 +190,7 @@ protected:
                      d->current_tray, TrayStatus::str(d->tray_status));
         else
             snprintf(buf, sizeof(buf), "idle");
-        _value(14, buf, true, true);   // invert the whole tray value on change
+        _value(13, buf, true, true);   // invert the whole tray value on change
 
         // Short list of active alarm conditions. Clamp the running offset so a
         // (theoretical) truncation can't hand the next snprintf a wrapped size.
@@ -207,7 +207,7 @@ protected:
         add_alarm(d->ups_status != UpsStatus::ONLINE, "UPS");
         add_alarm(d->generator_running, "GEN");
         add_alarm(d->heat_blower_on || d->heatpump_on, "HEAT");
-        _value(15, (buf[0] == '\0') ? "none" : buf);
+        _value(14, (buf[0] == '\0') ? "none" : buf);
     }
 };
 

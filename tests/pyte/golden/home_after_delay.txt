@@ -5,7 +5,6 @@
    | |_) | (_) | || (_| | | | | |   <         Version ........ : <VERSION>
    |_.__/ \___/ \__\__,_|_| |_|_|_|\_\        Commit ......... : <COMMIT>
 
-
   PLC link <P>
   Uptime      <UPTIME>
 

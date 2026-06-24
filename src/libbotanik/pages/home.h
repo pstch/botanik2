@@ -57,7 +57,7 @@ namespace Botanik { namespace Pages {
         /** @} */
 
         /** @brief First content row available to derived payload rendering. */
-        static constexpr uint16_t PAYLOAD_ROW = 11;
+        static constexpr uint16_t PAYLOAD_ROW = 10;
 
         /** @brief First screen row of the bottom log band. Clamped so it never
          *  starts above the fixed content (logo + readings, payload at
@@ -190,8 +190,8 @@ namespace Botanik { namespace Pages {
         void draw_static() override {
             draw_logo();
             draw_id_block();
-            _label(8, "PLC link");
-            _label(9, "Uptime");
+            _label(7, "PLC link");
+            _label(8, "Uptime");
             draw_payload_static();
             // Divider above the bottom log band (band rows are painted from the
             // scrollback, see focus()/tick()).
@@ -202,7 +202,7 @@ namespace Botanik { namespace Pages {
         void draw_dynamic() override {
             // Cold fields only: the uptime counter is hot (see draw_hot()).
             const SystemContext& ctx = _terminal.context();
-            _value(8, ctx.plc ? plc_str(ctx.plc->status()) : "n/a");
+            _value(7, ctx.plc ? plc_str(ctx.plc->status()) : "n/a");
             draw_payload_dynamic();
         }
 
@@ -211,7 +211,7 @@ namespace Botanik { namespace Pages {
         void draw_hot() override {
             char buf[40];
             fmt_uptime(buf, sizeof(buf), HAL::Clock::uptime_ms());
-            _value(9, buf, false);
+            _value(8, buf, false);
         }
 
         /** @brief Site-specific labels/headers (drawn once). Base: no-op. */
