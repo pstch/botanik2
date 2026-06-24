@@ -21,6 +21,7 @@
 #ifdef TARGET_SIMULATOR
 
 #include <cstdint>
+#include <cstdio>                      // fprintf(stderr) - trace received packets
 #include <cstring>
 #include <pthread.h>
 #include <unistd.h>
@@ -78,6 +79,7 @@ namespace Botanik { namespace Network {
             socklen_t sl = sizeof(src);
             ssize_t n = ::recvfrom(udp, req, sizeof(req), 0, reinterpret_cast<sockaddr*>(&src), &sl);
             if (n < 48) return;
+            fprintf(stderr, "[mock-ntp] request (%zd bytes) -> reply\n", n);
             uint8_t rep[48];
             memset(rep, 0, sizeof(rep));
             rep[0] = 0x24;                              // LI=0, VN=4, Mode=4 (server)
@@ -88,6 +90,34 @@ namespace Botanik { namespace Network {
             ::sendto(udp, rep, sizeof(rep), 0, reinterpret_cast<sockaddr*>(&src), sl);
         }
 
+        /** @brief Trace a received MQTT packet to stderr: the control-packet type,
+         *  and for a PUBLISH its decoded topic and payload (QoS 0, the only QoS the
+         *  publisher emits). */
+        inline void netd_trace_mqtt(const uint8_t* pkt, ssize_t n) {
+            switch (pkt[0] & 0xF0) {
+                case 0x10: fprintf(stderr, "[mock-mqtt] CONNECT\n");  return;
+                case 0xC0: fprintf(stderr, "[mock-mqtt] PINGREQ\n");  return;
+                case 0xE0: fprintf(stderr, "[mock-mqtt] DISCONNECT\n"); return;
+                case 0x30: break;                       // PUBLISH: decoded below
+                default:
+                    fprintf(stderr, "[mock-mqtt] packet type 0x%02X (%zd bytes)\n",
+                            pkt[0] & 0xF0, n);
+                    return;
+            }
+            // PUBLISH: skip the remaining-length varint, then read the topic
+            // (2-byte length + bytes); the rest is the payload. QoS 0 -> no packet id.
+            ssize_t i = 1;
+            while (i < n && (pkt[i] & 0x80)) ++i;       // varint continuation bytes
+            ++i;                                        // last varint byte
+            if (i + 2 > n) { fprintf(stderr, "[mock-mqtt] PUBLISH (truncated)\n"); return; }
+            int tlen = (pkt[i] << 8) | pkt[i + 1];
+            i += 2;
+            if (i + tlen > n) { fprintf(stderr, "[mock-mqtt] PUBLISH (truncated)\n"); return; }
+            fprintf(stderr, "[mock-mqtt] PUBLISH %.*s = %.*s\n",
+                    tlen, (const char*)&pkt[i],
+                    (int)(n - i - tlen), (const char*)&pkt[i + tlen]);
+        }
+
         /** @brief Service one MQTT client read: CONNECT -> CONNACK (accepted),
          *  PINGREQ -> PINGRESP, everything else discarded. Returns false once the
          *  peer closes (so the caller drops the fd). */
@@ -96,6 +126,7 @@ namespace Botanik { namespace Network {
             ssize_t n = ::recv(fd, pkt, sizeof(pkt), 0);
             if (n == 0) return false;                   // peer closed
             if (n < 0)  return true;                    // would-block: keep it
+            netd_trace_mqtt(pkt, n);
             if (pkt[0] == 0x10) {                       // CONNECT
                 uint8_t ack[4] = { 0x20, 0x02, 0x00, 0x00 };   // CONNACK, accepted
                 ::send(fd, ack, sizeof(ack), 0);

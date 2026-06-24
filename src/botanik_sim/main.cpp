@@ -61,15 +61,6 @@ extern "C" void botanik_sim_reexec(int) {   // NOLINT(bugprone-signal-handler)
     botanik_reexec = 1;
 }
 
-#if BOTANIK_FEATURE_PLC
-// Copy a hostname / dotted-IPv4 literal into a PLC config address buffer (sim
-// stands in for the coprocessor that publishes these). Always NUL-terminates
-// within the buffer.
-static void sim_set_host(Botanik::PlcIO::HostStr_t dst, const char* s) {
-    std::strncpy(dst, s, Botanik::Config::PLC_HOST_STR_LEN - 1);
-    dst[Botanik::Config::PLC_HOST_STR_LEN - 1] = '\0';
-}
-#endif
 
 int main(int argc, char** argv) {
     using namespace Botanik;
@@ -95,24 +86,8 @@ int main(int argc, char** argv) {
     static PlcIO::PlcInput<PlcInputData_t>   shared_in  {};
     static PlcIO::PlcOutput<PlcOutputData_t> shared_out {};
 
-    // Mock PLC config block (on hardware the coprocessor publishes these).
-    // Per-block serials start at 1 so a consumer latched at 0 applies them
-    // once. See plcio/config.h.
-    {
-        PlcIO::PlcOutputConfig_t& cfg = shared_out.conf;
-        cfg.net.serial  = 1; cfg.net.dhcp = 1;            // DHCP; static empty
-        sim_set_host(cfg.net.dns1, "192.168.1.1");
-        cfg.ntp.serial  = 1; cfg.ntp.enabled = 1; cfg.ntp.poll_s = 64;
-        sim_set_host(cfg.ntp.server1, "pool.ntp.org");
-        // Broker port points at the in-process mock responder (sim has no
-        // privileged ports); the name resolves to loopback in the HAL.
-        cfg.mqtt.serial = 1; cfg.mqtt.enabled = 1; cfg.mqtt.keepalive_s = 60;
-        cfg.mqtt.port = HAL::Network::MQTT_MOCK_PORT;
-        sim_set_host(cfg.mqtt.broker, "broker.local");
-        cfg.geo.serial = 1;                               // example: Paris (E7)
-        cfg.geo.latitude_e7  =  488566000;                //  48.8566 N
-        cfg.geo.longitude_e7 =   23522000;                //   2.3522 E
-    }
+    // The PLC config block (network/NTP/MQTT/geo) is published by the emulator
+    // (the coprocessor's role on hardware) via fill_greenhouse_config, below.
 
     BotanikSite greenhouse(&shared_in, &shared_out, CONSOLE_BAUD, /*cols=*/80, /*rows=*/24);
 
@@ -146,6 +121,7 @@ int main(int argc, char** argv) {
     // builds). Must run after setup()'s allocations.
     PlcIO::start_emulator_thread(&shared_in, &shared_out,
                                  &fill_greenhouse_output,
+                                 &fill_greenhouse_config,
                                  &greenhouse.logger());
     // Lock memory (once), then make the main loop realtime on its own core -
     // separate from the emulator's, mirroring the OPTA's two cores.

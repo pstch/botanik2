@@ -15,6 +15,7 @@
 #ifdef TARGET_SIMULATOR
 
 #include <cstdint>
+#include <cstring>  // strncpy (config host strings)
 #include <cmath>    // pow
 #include <random>
 
@@ -218,6 +219,31 @@ inline void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
         if (on || hold_ms[i] > 0)   debounced |= Botanik::Alarms::alarm_bit(i);
     }
     o->alarms = debounced;
+}
+
+/**
+ * @brief Publish the mock PLC config block (network / NTP / MQTT / geo). On
+ * hardware the coprocessor publishes these; in the sim the emulator does, so
+ * the config originates from the emulated PLC like the rest of the output.
+ * Per-block serials start at 1 so a consumer latched at 0 applies them once.
+ */
+inline void fill_greenhouse_config(Botanik::PlcIO::PlcOutputConfig_t* cfg) {
+    auto set_host = [](Botanik::PlcIO::HostStr_t dst, const char* s) {
+        std::strncpy(dst, s, Botanik::Config::PLC_HOST_STR_LEN - 1);
+        dst[Botanik::Config::PLC_HOST_STR_LEN - 1] = '\0';
+    };
+    cfg->net.serial  = 1; cfg->net.dhcp = 1;            // DHCP; static empty
+    set_host(cfg->net.dns1, "192.168.1.1");
+    cfg->ntp.serial  = 1; cfg->ntp.enabled = 1; cfg->ntp.poll_s = 64;
+    set_host(cfg->ntp.server1, "pool.ntp.org");
+    // Broker port points at the in-process mock responder (sim has no
+    // privileged ports); the name resolves to loopback in the HAL.
+    cfg->mqtt.serial = 1; cfg->mqtt.enabled = 1; cfg->mqtt.keepalive_s = 60;
+    cfg->mqtt.port = Botanik::HAL::Network::MQTT_MOCK_PORT;
+    set_host(cfg->mqtt.broker, "broker.local");
+    cfg->geo.serial = 1;                                // example: Paris (E7)
+    cfg->geo.latitude_e7  =  488566000;                 //  48.8566 N
+    cfg->geo.longitude_e7 =   23522000;                 //   2.3522 E
 }
 
 }  // namespace

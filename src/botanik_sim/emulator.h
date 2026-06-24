@@ -112,6 +112,13 @@ namespace Botanik { namespace PlcIO {
         PlcEmulatorContext*  context()           { return &_ctx; }
         /** @brief Transmit buffer staged for the PLC output payload. */
         OutputData*          output_data()       { return &_tx_data_buffer; }
+
+        /** @brief Publish the PLC config block (network/NTP/MQTT/geo) into the
+         *  output region - the coprocessor's job on hardware. Call once at
+         *  startup; the firmware's ConfigHandlers latch each block's serial. */
+        void publish_config(const PlcOutputConfig_t& cfg) {
+            HAL::Memory::ordered_copy(&_plcout->conf, &cfg);
+        }
         /** @brief Most recently received PLC input payload. */
         const InputData*     input_data() const  { return &_rx_data_buffer; }
 
@@ -243,6 +250,9 @@ namespace Botanik { namespace PlcIO {
         /** @brief Optional site hook filling the output payload with mock
          *  values; null leaves the payload zeroed. */
         void (*fill_output)(OutputData*, uint32_t now_ms);
+        /** @brief Optional site hook filling the PLC config block (published
+         *  once at startup); null leaves the config zeroed (no network). */
+        void (*fill_config)(PlcOutputConfig_t*);
     };
 
     /** @brief Run flag/handle for the single emulator thread.
@@ -300,6 +310,14 @@ namespace Botanik { namespace PlcIO {
         plc_emulator.set_heartbeat_ms(plc_dilated_timeout(Config::PLC_HEARTBEAT_MS));
         PlcLogWriter plc_log_writer(plc_emulator.context(), &emu_timestamp_ms);
 
+        // Publish the config block once (the coprocessor's role on hardware), so
+        // the firmware's ConfigHandlers see it from the emulated PLC.
+        if (args->fill_config != nullptr) {
+            PlcOutputConfig_t cfg{};
+            args->fill_config(&cfg);
+            plc_emulator.publish_config(cfg);
+        }
+
         uint32_t emu_tick = 0;
         _emu_stopped() = false;
         while (_emu_running()) {
@@ -332,9 +350,10 @@ namespace Botanik { namespace PlcIO {
     inline void start_emulator_thread(PlcInput<InputData>* shared_in,
                                       PlcOutput<OutputData>* shared_out,
                                       void (*fill_output)(OutputData*, uint32_t) = nullptr,
+                                      void (*fill_config)(PlcOutputConfig_t*) = nullptr,
                                       Logs::Logger* logger = nullptr) {
         static EmulatorThreadArgs<InputData, OutputData> args{
-            shared_in, shared_out, fill_output };
+            shared_in, shared_out, fill_output, fill_config };
         _emu_running() = true;
         // memory barrier to make `_emu_running` visible before the thread reads
         // it
