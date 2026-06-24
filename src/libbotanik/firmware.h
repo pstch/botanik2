@@ -51,8 +51,8 @@
  * Worked example (a site with one extra page and one extra command):
  * @code
  * // --- site-static tables (single source of truth for this greenhouse) ---
- * extern const Alarms::AlarmCondition g_alarms[];   // alarms/<site>.cpp
- * extern const uint8_t                g_alarm_count;
+ * const Alarms::AlarmCondition g_alarms[] = { ... };  // alarms.h (header-only)
+ * const uint8_t                g_alarm_count = ...;
  *
  * static void cmd_grow(Shell::ShellWriter& out, const char*, uint16_t, void*) {
  *     static const char msg[] = "growth program nominal";

@@ -192,7 +192,8 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
 
     # The selected site (payload + pages + alarm table + mock PLC) compiles into
     # the host application, not the library: it stays out of the OPTA `botanik`
-    # archive. sim.cpp drops out on non-SIMULATOR builds via its own guard.
+    # archive. gh_mlb41 is header-only, so this glob is empty; it stays for sites
+    # that ship their own .cpp.
     file(GLOB BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS "src/sites/${BOTANIK_SITE}/*.cpp")
     add_executable(botanik_sim
         "src/botanik_sim/main.cpp"
@@ -495,9 +496,9 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     # botanik PUBLIC inherits its include dirs, defines, and -Os/-flto options;
     # LINKER_LANGUAGE skips the final link (no entry point in this build) and the
     # C++14 standard matches botanik (Mbed headers need it).
-    # The selected site (payload + pages + alert table) compiles into the firmware
-    # alongside the entry wiring; sim.cpp drops out here via its TARGET_SIMULATOR
-    # guard (this build never defines it), so only alerts.cpp carries through.
+    # The selected site (payload + pages + alarm table) compiles into the firmware
+    # alongside the entry wiring; gh_mlb41 is header-only, so this glob is empty.
+    # It stays for sites that ship their own .cpp.
     file(GLOB BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS "src/sites/${BOTANIK_SITE}/*.cpp")
     add_library(botanik_fw STATIC
         "src/botanik_fw/firmware.cpp"

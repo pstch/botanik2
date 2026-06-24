@@ -17,7 +17,7 @@
  *                               (sim.h).
  *
  * Single source of truth for the greenhouse: the payload + GreenhouseMLB41
- * firmware live here; pages.h and alarms.h/.cpp are pulled in below. Config
+ * firmware live here; pages.h and alarms.h are pulled in below. Config
  * overrides stay in config.h (CMake includes it before the library defaults).
  * See firmware.h for the extension model.
  */
