@@ -553,6 +553,11 @@ namespace Botanik { namespace Terminal {
         // content clear).
         memset(_status_metrics_cache, 0, sizeof(_status_metrics_cache));
         memset(_status_clock_cache,   0, sizeof(_status_clock_cache));
+        // The discard can likewise tear a half-sent alarm-bar repaint, leaving
+        // the reserved bottom row partial. clear_content() preserves (doesn't
+        // repaint) that row, and the alarm set rarely changes, so without this
+        // the torn bar would never recover. Re-flag it for the next bar pass.
+        _alarm_dirty = true;
         _pages[_page_index]->focus();
     }
 

@@ -336,10 +336,14 @@ namespace Botanik { namespace Alarms {
                         dwell >= (uint64_t)c.log_off_s * 1000) {
                         // END with no matching START this episode = toggled too
                         // fast to dwell past log_on_s: report a FLAP, not a
-                        // misleading bare END.
+                        // misleading bare END. But when START logging is
+                        // disabled (log_on_s < 0, e.g. SYS_RST) there is never a
+                        // START by design, so the OFF is a plain END, not a flap.
                         if (_logger) {
-                            if (c.log_on_sent) _logger->info(PlcIO::ALARM_END, "%s", label);
-                            else               _logger->notice(PlcIO::ALARM_FLAP, "%s", label);
+                            if (c.log_on_sent || c.log_on_s < 0)
+                                _logger->info(PlcIO::ALARM_END, "%s", label);
+                            else
+                                _logger->notice(PlcIO::ALARM_FLAP, "%s", label);
                         }
                         c.log_off_sent = true;
                     }
