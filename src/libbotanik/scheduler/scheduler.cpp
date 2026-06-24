@@ -21,6 +21,7 @@
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/plcio/vars.h"
+#include "libbotanik/utils/text.h"   // env_u8 (BOTANIK_NO_RT_WARNING)
 
 namespace Botanik { namespace Scheduler {
 
@@ -259,18 +260,27 @@ namespace Botanik { namespace Scheduler {
     // Simulator utilities (memlock, CPU-pinning and SCHED_FIFO)
     // ------------------------------------------------------------------------
 
+    // BOTANIK_NO_RT_WARNING gates the best-effort failure warnings: a
+    // constrained host (CI/sandbox) denies these privileges, and which it
+    // denies varies, so the warnings are host-dependent noise the screen
+    // goldens silence. The call itself still runs either way.
+    static bool _rt_warn(Logs::Logger* logger) {
+        return logger != nullptr && Utils::env_u8("BOTANIK_NO_RT_WARNING", 0) == 0;
+    }
+
     void lock_process_memory(Logs::Logger* logger) {
         // Lock pages into RAM (avoid page-fault latency). Process-wide incl.
         // future mappings, so it's a one-time call.
-        if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1 && logger != nullptr)
+        if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1 && _rt_warn(logger))
             logger->warning(PlcIO::BOOT, "mlockall failed: \n%s", strerror(errno));
     }
 
     void make_thread_realtime(int cpu_core_id, Logs::Logger* logger) {
+        const bool warn = _rt_warn(logger);
         // SCHED_FIFO + priority; pid 0 = the calling thread.
         struct sched_param param;
         param.sched_priority = 95; // 1 (low) .. 99 (high)
-        if (sched_setscheduler(0, SCHED_FIFO, &param) == -1 && logger != nullptr)
+        if (sched_setscheduler(0, SCHED_FIFO, &param) == -1 && warn)
             logger->warning(PlcIO::BOOT, "sched_setscheduler failed: \n%s",
                             strerror(errno));
 
@@ -278,8 +288,7 @@ namespace Botanik { namespace Scheduler {
         cpu_set_t mask;
         CPU_ZERO(&mask);
         CPU_SET(cpu_core_id, &mask);
-        if (sched_setaffinity(0, sizeof(cpu_set_t), &mask) == -1
-            && logger != nullptr)
+        if (sched_setaffinity(0, sizeof(cpu_set_t), &mask) == -1 && warn)
             logger->warning(PlcIO::BOOT, "sched_setaffinity failed: \n%s",
                             strerror(errno));
     }

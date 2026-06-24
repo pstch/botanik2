@@ -317,7 +317,8 @@ namespace Botanik { namespace Scheduler {
      * pthread_create lock the new thread's full stack and trip RLIMIT_MEMLOCK
      * (EAGAIN). Call after the log sinks are registered (so the failure warning
      * isn't dropped). On failure (usually lack of privileges) the process keeps
-     * running.
+     * running. The failure warning is suppressible via BOTANIK_NO_RT_WARNING
+     * (sim/test determinism).
      *
      * @param logger Logger for failure warnings (optional).
      */
@@ -330,7 +331,8 @@ namespace Botanik { namespace Scheduler {
      * Policy and affinity are per-thread on Linux, so call it from each thread
      * that needs realtime (main loop on one core, emulator on another,
      * mirroring the OPTA's cores). On failure (usually lack of privileges) the
-     * thread keeps running.
+     * thread keeps running. The failure warnings are suppressible via
+     * BOTANIK_NO_RT_WARNING (sim/test determinism).
      *
      * @param cpu_core_id Core to pin the calling thread to.
      * @param logger      Logger for failure warnings (optional).

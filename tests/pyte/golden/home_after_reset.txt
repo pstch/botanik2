@@ -15,10 +15,10 @@
   Irrigation  <IRR>
   Alarms      none
     LOGS
-<TS> [~] BOOT: NtpClient initialized
-<TS> [~] BOOT: MqttClient initialized
 <TS> [~] BOOT: AnsiTerminal initialized
 <TS> [-] SHARED_IO: PLC link <P>
 <TS> [-] NETWORK: network bring-up (DHCP)
 <TS> [+] NETWORK: network up: 127.0.0.1
+<TS> [+] TIME: NTP synced
+<TS> [!] NETWORK: MQTT disconnected
  ALARMS : SYS_RST

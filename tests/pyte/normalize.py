@@ -64,6 +64,13 @@ _SUBS = [
     # site name is deterministic per site, so it stays.
     (re.compile(r"(Version \.+ : )\S+"), r"\g<1><VERSION>"),
     (re.compile(r"(Commit \.+ : )\S+"), r"\g<1><COMMIT>"),
+    # Same volatile version in the boot-log banner ("BOOT: Botanik v<ver>"); its
+    # "> Running on :" platform line is deterministic, so only the version masks.
+    (re.compile(r"(BOOT: Botanik v)\S+"), r"\g<1><VERSION>"),
+    # Boot detail line "> console 4800 baud, HW watchdog N ms": the watchdog
+    # timeout is dilated by BOTANIK_TIME_SCALE, so its value differs between the
+    # assert suite and a faster golden regen. Mask it (the baud is fixed).
+    (re.compile(r"(HW watchdog )\d+( ms)"), r"\g<1><WD>\g<2>"),
     # Home page (site Home) live fields: the mock animates temp / humidity / vents
     # and the irrigation tray/stage (which advances on a timing-dependent tick, so
     # the stage shown depends on how far the mock has run by capture time).
@@ -85,21 +92,12 @@ _SUBS = [
 # scroll the log-writer pages, so they are dropped entirely (see meaningful_lines)
 # rather than asserted on - the tests stay resilient to load instead of pinning it.
 #
-# The simulator's boot also tries three host privileges (mlockall, SCHED_FIFO,
-# CPU affinity) and warns if any is denied. Which are granted varies by host (a
-# CI container may allow memlock but not realtime sched, a sandbox neither), so
-# the warning line and its errno detail are host-dependent boot noise - dropped
-# here so the golden matches regardless of which privileges the runner holds.
-# Because each denied privilege adds two log rows, it also shifts how far the
-# logs page has scrolled by capture time: the version banner ("Botanik v..." and
-# its "Running on" platform line) is pushed off the top on a host that denies
-# more privileges. Drop the banner too so the comparison rests on the always-
-# visible component-init + MARK tail, not on the host-variable boot preamble.
+# (The boot-time privilege warnings - mlockall / SCHED_FIFO / CPU affinity - are
+# host-dependent too, but the harness now silences them at the source via
+# BOTANIK_NO_RT_WARNING, so boot output is deterministic and they need no drop
+# here. The version banner that used to scroll with them is asserted normally.)
 _NOISE = re.compile(
     r"scheduler overrun|ALARM_(?:START|END): (?:CPU |Scheduler overrun)"
-    r"|BOOT: (?:mlockall|sched_setscheduler|sched_setaffinity) failed"
-    r"|> (?:Cannot allocate memory|Operation not permitted)"
-    r"|BOOT: Botanik v|> Running on :"
     # The PLC-link-up log (driven by the sim's PLC emulator thread) and the
     # network bring-up block are logged in a non-deterministic order at boot, so
     # the SHARED_IO line lands on either side of the NETWORK lines run to run.

@@ -49,6 +49,10 @@ class Term:
         env = dict(os.environ)
         env["BOTANIK_TIME_SCALE"] = str(time_scale)
         env["BOTANIK_NO_XRUN_WARNING"] = "1"   # silence load-dependent overrun logs
+        # Silence the boot-time privilege warnings (mlockall / SCHED_FIFO / CPU
+        # affinity): which a host denies varies, so they're host-dependent boot
+        # noise. Suppressing at the source keeps the rendered screen deterministic.
+        env["BOTANIK_NO_RT_WARNING"] = "1"
         # Hold the CPU_* load alarms cleared: they fire at host-timing-dependent
         # moments, so without this the alarm set (and thus the alarms-page screen and
         # the persistent alarm bar) varies run to run. See health.h.
