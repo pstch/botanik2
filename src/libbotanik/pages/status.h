@@ -9,8 +9,9 @@
  * base renders system health as a two-column grid (rows 3..6): left PLC link /
  * CPU load / jitter / stack, right wall clock / uptime / task period / console
  * TX. Values are right-aligned so label and value read as separate sub-columns.
- * Rows 7..8 (network / NTP / MQTT) and below come from the payload hooks
- * (site-specific).
+ * Rows 7..8 (network / NTP / MQTT) are rendered generically from the live
+ * network components (via SystemContext) when BOTANIK_FEATURE_NETWORK is set;
+ * everything below comes from the payload hooks (site-specific).
  *
  * Drawing is diffed by MetricPage; derived content starts at PAYLOAD_ROW. The
  * alarm set is shown on the terminal-owned bottom bar, not here.
@@ -22,11 +23,16 @@
 #include <cstring>
 
 #include "libbotanik_config.h"
+#include "libbotanik_features.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/pages/metric_page.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/utils/text.h"
 #include "libbotanik/utils/time.h"
+#if BOTANIK_FEATURE_NETWORK
+#include "libbotanik/network/network.h"   // NetworkHandler / NtpClient status
+#include "libbotanik/network/mqtt.h"      // MqttClient status
+#endif
 
 namespace Botanik { namespace Pages {
 
@@ -55,12 +61,16 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t R_LBL = 42, R_VAL = 54, R_W = 23;
 
         /** @brief Diff-cache slots for the base cells, disjoint from the
-         *  payload slots a derived page uses; slots 1, 2, 6, 7, 9, 31 are left
-         *  free for its network band. */
+         *  payload slots a derived page uses. Slots 6, 7, 9, 31 carry the
+         *  network band (below); 1, 2 stay free. */
         static constexpr uint16_t SLOT_PLC = 3, SLOT_CPU = 4, SLOT_JITTER = 5,
                                   SLOT_STACK = 8;
         static constexpr uint16_t SLOT_WALL = 27, SLOT_UPTIME = 28, SLOT_TASK = 29,
                                   SLOT_CONSOLE = 30;
+        /** @brief Network-band slots (rows 7..8): link status / IP / NTP /
+         *  MQTT. */
+        static constexpr uint16_t SLOT_NET = 6, SLOT_NETIP = 9, SLOT_NTP = 7,
+                                  SLOT_MQTT = 31;
 
         /** @brief Right-justify @p s into a @p width-wide field. Returns
          *  @p buf. */
@@ -87,7 +97,13 @@ namespace Botanik { namespace Pages {
             _label_at(4, R_LBL, "Uptime");
             _label_at(5, R_LBL, "Task period");
             _label_at(6, R_LBL, "Console TX");
-            // Rows 7..8 (network / NTP / MQTT) are site-specific.
+#if BOTANIK_FEATURE_NETWORK
+            // Rows 7..8: network band, rendered from the live components.
+            _label_at(7, L_LBL, "Network");
+            _label_at(8, L_LBL, "Network IP");
+            _label_at(7, R_LBL, "NTP sync");
+            _label_at(8, R_LBL, "MQTT");
+#endif
             draw_payload_static();
         }
 
@@ -116,6 +132,34 @@ namespace Botanik { namespace Pages {
                          (unsigned long)ctx.scheduler->ticks_per_second);
                 _cell(SLOT_TASK, 5, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);
             }
+
+#if BOTANIK_FEATURE_NETWORK
+            // Network band (rows 7..8) from the live components (each pointer is
+            // null when its feature is off; NTP/MQTT need NETWORK).
+            _cell(SLOT_NET, 7, L_VAL,
+                  rjust(fld, sizeof(fld), L_W,
+                        ctx.network ? ctx.network->status_str() : "off"), L_W);
+            HAL::Network::Ip4 ip;
+            if (ctx.network && ctx.network->ip(&ip))
+                snprintf(val, sizeof(val), "%u.%u.%u.%u",
+                         ip.b[0], ip.b[1], ip.b[2], ip.b[3]);
+            else
+                snprintf(val, sizeof(val), "no link");
+            _cell(SLOT_NETIP, 8, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W);
+
+            if (ctx.ntp && ctx.ntp->synced()) {
+                // Worst case "-2147483.648" (12) -> "synced (.. s)" fills R_W.
+                char nf[16];
+                snprintf(val, sizeof(val), "synced (%s s)",
+                         Utils::format_float(nf, sizeof(nf), ctx.ntp->offset_ms() / 1000.0, 3));
+            } else {
+                snprintf(val, sizeof(val), "%s", ctx.ntp ? ctx.ntp->status_str() : "off");
+            }
+            _cell(SLOT_NTP, 7, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);
+            _cell(SLOT_MQTT, 8, R_VAL,
+                  rjust(fld, sizeof(fld), R_W,
+                        ctx.mqtt ? ctx.mqtt->status_str() : "off"), R_W);
+#endif
 
             draw_payload_dynamic();
         }

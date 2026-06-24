@@ -185,7 +185,27 @@ namespace Botanik {
               _health(_alarm_table, (uint8_t)_alarm_count, &_logger,
                       _scheduler.context(), _plc_handler.context(),
                       shared_in, shared_out),
-              _sys_ctx(_scheduler.context(), _plc_handler.context())
+              // Network components are declared after _sys_ctx; their addresses
+              // are stable, so wiring them here (vs. post-construction) lets the
+              // by-value terminal copy the live set. Null when their feature is
+              // off (NETWORK requires PLC, so only this branch wires them).
+              _sys_ctx(_scheduler.context(), _plc_handler.context()
+#if BOTANIK_FEATURE_NETWORK
+                       , &_network
+#else
+                       , nullptr
+#endif
+#if BOTANIK_FEATURE_NTP
+                       , &_ntp
+#else
+                       , nullptr
+#endif
+#if BOTANIK_FEATURE_MQTT
+                       , &_mqtt
+#else
+                       , nullptr
+#endif
+                       )
 #else
               // No PLC: health takes a null link context + null regions (it
               // degrades the verdict to "kick while alive"); SystemContext.plc

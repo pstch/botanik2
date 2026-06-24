@@ -36,8 +36,16 @@ _SUBS = [
     (re.compile(r"Stack\s+[\d.]+%\s*\(\d+ [KMG]?B free\)"), "Stack <STK>"),
     (re.compile(r"Task period\s+\d+ms \(\d+ RTPS\)"), "Task period <TASK>"),
     (re.compile(r"Console TX\s+\d+/\d+ \(drops: \d+\)"), "Console TX <TX>"),
-    (re.compile(r"Network\s+\w+ \(lat [^)]*\)"), "Network <NET>"),             # net status + latency
-    (re.compile(r"NTP sync\s+(?:OK \([-\d.]+ s\)|no sync)"), "NTP sync <NTP>"),
+    # Network band: link state / IP / NTP / MQTT come from the live components,
+    # so they settle on a timing-dependent tick. The status values are
+    # right-justified with wide padding (>=2 spaces), so \s{2,} avoids matching
+    # the single-spaced alarm-table descriptions ("Network error", ...).
+    # "Network IP" before "Network".
+    (re.compile(r"Network IP\s{2,}(?:\d+\.\d+\.\d+\.\d+|no link)"), "Network IP <NETIP>"),
+    (re.compile(r"Network\s{2,}(?:down|setup|online|error)"), "Network <NET>"),
+    (re.compile(r"NTP sync\s{2,}(?:synced \([-\d.]+ s\)|off|resolving|querying|error)"),
+     "NTP sync <NTP>"),
+    (re.compile(r"MQTT\s{2,}(?:off|resolving|connecting|handshake|ready|error)"), "MQTT <MQTT>"),
     # Site payload values (botanik_sim GreenhouseStatusPage). The mock PLC emulator
     # animates these, and it only spawns where the host permits a realtime thread:
     # on a constrained gate it never starts, so the payload reads all-zero instead.

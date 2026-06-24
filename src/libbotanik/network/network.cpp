@@ -47,6 +47,15 @@ namespace Botanik { namespace Network {
         return c ? c->net.serial : 0;
     }
 
+    const char* NetworkHandler::status_str() const {
+        switch (_state) {
+            case NET_SETUP:   return "setup";
+            case NET_RUNNING: return "online";
+            case NET_ERROR:   return "error";
+            default:          return "down";
+        }
+    }
+
     void NetworkHandler::_enter(State s, uint64_t now_ms) {
         _state = s;
         _since_ms = now_ms;
@@ -131,7 +140,7 @@ namespace Botanik { namespace Network {
                          NameResolver* resolver, const NetworkHandler* net)
         : ConfigHandler(ctx, logger, "NtpClient"),
           _state(TIME_IDLE), _since_ms(0), _resolver(resolver), _net(net), _server_idx(0),
-          _udp(-1) {
+          _udp(-1), _offset_ms(0) {
         _server_addr.bytes[0] = _server_addr.bytes[1] = 0;
         _server_addr.bytes[2] = _server_addr.bytes[3] = 0;
     }
@@ -139,6 +148,16 @@ namespace Botanik { namespace Network {
     uint32_t NtpClient::config_serial() const {
         const PlcIO::PlcOutputConfig_t* c = config();
         return c ? c->ntp.serial : 0;
+    }
+
+    const char* NtpClient::status_str() const {
+        switch (_state) {
+            case TIME_RESOLVE: return "resolving";
+            case TIME_QUERY:   return "querying";
+            case TIME_SYNCED:  return "synced";
+            case TIME_ERROR:   return "error";
+            default:           return "off";
+        }
     }
 
     void NtpClient::on_config_changed(uint64_t now_ms) {
@@ -248,6 +267,13 @@ namespace Botanik { namespace Network {
         uint64_t unix_ms = ntp_to_unix_ms(pkt);
         HAL::Network::udp_close(_udp); _udp = -1;
         if (unix_ms == 0) return -1;
+        // Offset = correction about to be applied (pre-sync clock vs. server).
+        // A cold-start clock can be years off, so saturate to int32 rather than
+        // wrap (after the first sync it is small).
+        int64_t off = (int64_t)unix_ms - (int64_t)HAL::Clock::wall_ms();
+        if (off >  2147483647LL) off =  2147483647LL;
+        if (off < -2147483647LL) off = -2147483647LL;
+        _offset_ms = (int32_t)off;
         HAL::Clock::set_wall_ms(unix_ms);
         return 1;
     }

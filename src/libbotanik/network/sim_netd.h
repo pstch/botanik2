@@ -25,6 +25,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <ctime>                       // time() - current UTC for the NTP reply
 #include <sys/socket.h>
 #include <netinet/in.h>
 
@@ -61,9 +62,9 @@ namespace Botanik { namespace Network {
             return fd;
         }
 
-        /** @brief Answer one SNTP request on @p udp with a canned reply (fixed
-         *  transmit timestamp); the value only has to be a plausible post-1970
-         *  time. */
+        /** @brief Answer one SNTP request on @p udp with a reply carrying the
+         *  host's current UTC time, so a synced client reads a near-zero offset
+         *  (the sim's wall clock is the same host clock). */
         inline void netd_serve_ntp(int udp) {
             uint8_t req[48];
             sockaddr_in src;
@@ -73,7 +74,8 @@ namespace Botanik { namespace Network {
             uint8_t rep[48];
             memset(rep, 0, sizeof(rep));
             rep[0] = 0x24;                              // LI=0, VN=4, Mode=4 (server)
-            const uint32_t secs = 1735689600u + 2208988800u;   // 2025-01-01 UTC, NTP epoch
+            // UNIX seconds (UTC) shifted into the NTP epoch (1900).
+            const uint32_t secs = (uint32_t)(::time(nullptr) + 2208988800u);
             rep[40] = (uint8_t)(secs >> 24); rep[41] = (uint8_t)(secs >> 16);
             rep[42] = (uint8_t)(secs >> 8);  rep[43] = (uint8_t)secs;
             ::sendto(udp, rep, sizeof(rep), 0, reinterpret_cast<sockaddr*>(&src), sl);

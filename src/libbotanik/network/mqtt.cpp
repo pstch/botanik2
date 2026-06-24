@@ -43,6 +43,17 @@ namespace Botanik { namespace Network {
         return c ? c->mqtt.serial : 0;
     }
 
+    const char* MqttClient::status_str() const {
+        switch (_state) {
+            case MQTT_RESOLVE:   return "resolving";
+            case MQTT_CONNECT:   return "connecting";
+            case MQTT_HANDSHAKE: return "handshake";
+            case MQTT_READY:     return "ready";
+            case MQTT_ERROR:     return "error";
+            default:             return "off";
+        }
+    }
+
     void MqttClient::_enter(State s, uint64_t now_ms) {
         _state = s;
         _since_ms = now_ms;

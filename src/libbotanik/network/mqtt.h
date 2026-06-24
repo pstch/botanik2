@@ -57,6 +57,9 @@ namespace Botanik { namespace Network {
 
         /** @brief True when connected and ready to publish. */
         bool connected() const { return _state == MQTT_READY; }
+        /** @brief Connection phase as a short display string
+         *  (off/resolving/connecting/handshake/ready/error). */
+        const char* status_str() const;
         /** @brief Publish a QoS-0 message now if connected; returns false
          *  otherwise (the caller may drop or retry later). @p retain sets the
          *  MQTT retain flag. */

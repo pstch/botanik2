@@ -60,6 +60,15 @@ namespace Botanik { namespace Network {
         /** @brief True once the link is up with an address. */
         bool is_up() const { return _state == NET_RUNNING; }
 
+        /** @brief Bring-up phase as a short display string
+         *  (down/setup/online/error). */
+        const char* status_str() const;
+
+        /** @brief Current IPv4 into @p out; false unless the link is up. */
+        bool ip(HAL::Network::Ip4* out) const {
+            return is_up() && HAL::Network::link_ip(out);
+        }
+
         /** @} */
 
     protected:
@@ -112,12 +121,22 @@ namespace Botanik { namespace Network {
         uint8_t               _server_idx;
         /// open UDP socket handle (-1 = none)
         HAL::Network::UdpSocket   _udp;
+        /** @brief Last measured clock offset, ms (correction applied at sync). */
+        int32_t               _offset_ms;
         /** @} */
 
     public:
         NtpClient(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger = nullptr,
                   NameResolver* resolver = nullptr,
                   const NetworkHandler* net = nullptr);
+
+        /** @brief True once the RTC has been disciplined. */
+        bool synced() const { return _state == TIME_SYNCED; }
+        /** @brief Sync phase as a short display string
+         *  (off/resolving/querying/synced/error). */
+        const char* status_str() const;
+        /** @brief Last measured clock offset, ms (valid after a sync). */
+        int32_t offset_ms() const { return _offset_ms; }
 
     protected:
         uint32_t config_serial() const override;

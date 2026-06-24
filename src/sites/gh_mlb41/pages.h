@@ -32,17 +32,9 @@ protected:
     static constexpr uint16_t L_HDR = 2,  L_LBL = 3,  L_VAL = 15, L_W = 22;
     static constexpr uint16_t R_HDR = 41, R_LBL = 42, R_VAL = 54, R_W = 23;
     static constexpr uint16_t HDR_WL = 34, HDR_WR = 36;
-    // System-band extras (rows 7, 8) align with the base system fields,
-    // rjust()'d to match. Labels use _label_at (no clear-to-eol) so the two
-    // columns don't clobber.
-    static constexpr uint16_t SYS_VAL = 16, SYS_W = 24;
 
     void draw_payload_static() override {
-        // System band (rows 7, 8): network + time/MQTT sync.
-        _label_at(7, 2, "Network");
-        _label_at(8, 2, "Network IP");
-        _label_at(7, R_LBL, "NTP sync");
-        _label_at(8, R_LBL, "MQTT");
+        // Rows 7..8 (network / NTP / MQTT) are drawn by the base StatusPage.
 
         // Left column: POWER + CLIMATE.
         _header  (10, L_HDR, "POWER",   HDR_WL);
@@ -75,20 +67,10 @@ protected:
         using Botanik::Utils::format_float;
         const PlcOutputData_t* d = data();
         if (d == nullptr) return;
-        char buf[48], fld[40];
+        char buf[48];
         char fa[12], fb[12];
 
-        // System band (rows 7, 8). Network status (slot 6); IP not yet wired
-        // (slot 9).
-        snprintf(buf, sizeof(buf), "%s (lat N/A)", NetStatus::str(d->net_status));
-        _cell(6, 7, SYS_VAL, rjust(fld, sizeof(fld), SYS_W, buf), SYS_W);
-        _cell(9, 8, SYS_VAL, rjust(fld, sizeof(fld), SYS_W, "N/A"), SYS_W);
-        // NTP sync + offset (slot 7); MQTT not yet wired (slot 31).
-        if (d->ntp_synced) snprintf(buf, sizeof(buf), "OK (%s s)",
-                                    format_float(fa, sizeof(fa), d->ntp_offset_ms / 1000.0, 3));
-        else               snprintf(buf, sizeof(buf), "no sync");
-        _cell(7,  7, R_VAL, rjust(fld, sizeof(fld), R_W, buf), R_W);
-        _cell(31, 8, R_VAL, rjust(fld, sizeof(fld), R_W, "N/A"), R_W);
+        // Rows 7..8 (network / NTP / MQTT) are drawn by the base StatusPage.
 
         // Power.
         snprintf(buf, sizeof(buf), "%s V (%s Hz)",

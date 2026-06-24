@@ -6,7 +6,7 @@
   CPU jitter <JIT>  Task period <TASK>
   Stack <STK>  Console TX     1/4096 (drops:    0)
   Network <NET>  NTP sync <NTP>
-  Network IP                         N/A  MQTT                            N/A
+  Network IP <NETIP>  MQTT <MQTT>
 
   ==== POWER =======================     ==== IRRIGATION ====================
    Grid AC   : <PWR>          In/Out  :   <WATER>
