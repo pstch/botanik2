@@ -174,7 +174,7 @@ machine plus a few hooks.
 | @ref Botanik::Network::NetworkHandler | `net` | Brings the network device up (DHCP / static), owns the interface, and hands it to the resolver while the link is up. |
 | @ref Botanik::Network::NtpClient | `ntp` | SNTP client: resolves a server, runs a UDP exchange, disciplines the RTC. |
 | @ref Botanik::Network::MqttClient | `mqtt` | MQTT 3.1.1 publisher: connects to the broker over TCP, keepalive, QoS-0 publish. |
-| @ref Botanik::SunPositionTracker | `geo` | Tracks the next sunrise / sunset and the day/night state from the site location (`utils/sun.h`); waits for a valid wall clock. |
+| @ref Botanik::Sun::SunPositionTracker | `geo` | Tracks the next sunrise / sunset and the day/night state from the site location (`sun/sun.h`); waits for a valid wall clock. Gated by `BOTANIK_FEATURE_SUN`. |
 
 ### How they fit together
 

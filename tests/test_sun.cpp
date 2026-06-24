@@ -1,6 +1,6 @@
 /**
  * @file test_sun.cpp
- * @brief Tests for utils/sun.cpp - solar declination and next sunrise/sunset.
+ * @brief Tests for sun/sun.cpp - solar declination and next sunrise/sunset.
  *
  * Like @c cal_time_ms(), these functions fold in a boot epoch sampled from the
  * wall clock, so an absolute timestamp is not fixed across runs. But the API is
@@ -19,10 +19,14 @@
 
 #include "doctest.h"
 
-#include "libbotanik/utils/sun.h"
+#include "libbotanik/sun/sun.h"
 #include "libbotanik/utils/time.h"
 
-using namespace Botanik::Utils;
+#if BOTANIK_FEATURE_SUN
+
+using namespace Botanik::Sun;
+using Botanik::Utils::unix_ms_from_uptime_ms;
+using Botanik::Utils::uptime_ms_from_unix_ms;
 
 // 2024-06-21 00:00:00 UTC (June solstice) and 2024-12-21 12:00:00 UTC (December
 // solstice), as UNIX seconds.
@@ -123,3 +127,5 @@ TEST_CASE("next_sun_times: polar night still resolves the next real sunrise") {
     CHECK(days_ahead >= 18);
     CHECK(days_ahead <= 35);
 }
+
+#endif // BOTANIK_FEATURE_SUN

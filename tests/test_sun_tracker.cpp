@@ -1,6 +1,6 @@
 /**
  * @file test_sun_tracker.cpp
- * @brief Tests for SunPositionTracker - the geo-config-driven wrapper over utils/sun.h.
+ * @brief Tests for SunPositionTracker - the geo-config-driven wrapper over sun/sun.h.
  *        Config is injected through the PlcConfigFixture; the wall clock is the host's
  *        real time (so it passes the tracker's validity gate). The underlying solar
  *        math has its own coverage in test_sun.cpp; here we check the wiring: e7->deg
@@ -11,11 +11,14 @@
 #include "doctest.h"
 
 #include "plc_config_fixture.h"
-#include "libbotanik/sun_tracker.h"
-#include "libbotanik/utils/sun.h"
+#include "libbotanik/sun/sun_tracker.h"
+#include "libbotanik/sun/sun.h"
 #include "libbotanik/hal/platform.h"
 
+#if BOTANIK_FEATURE_SUN
+
 using namespace Botanik;
+using namespace Botanik::Sun;
 
 namespace {
     // Same e7->degrees the tracker does, so a reference next_sun_times() call gets
@@ -40,7 +43,7 @@ TEST_CASE("SunPositionTracker: computes from geo config, matching utils/sun") {
     REQUIRE(sun.ready());
 
     // Must match a direct call with the same instant + location.
-    Utils::SunTimes ref = Utils::next_sun_times(now, deg(LAT), deg(LON));
+    SunTimes ref = next_sun_times(now, deg(LAT), deg(LON));
     CHECK(sun.times().sunrise.valid == ref.sunrise.valid);
     CHECK(sun.times().sunset.valid  == ref.sunset.valid);
     if (ref.sunrise.valid) CHECK(sun.times().sunrise.time_ms == ref.sunrise.time_ms);
@@ -73,7 +76,7 @@ TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial cha
 
     uint64_t now = HAL::Clock::uptime_ms();
     sun.step(now);
-    Utils::SunTimes ref = Utils::next_sun_times(now, deg(LAT), deg(LON));
+    SunTimes ref = next_sun_times(now, deg(LAT), deg(LON));
     if (ref.sunrise.valid) {
         CHECK(sun.times().sunrise.time_ms == ref.sunrise.time_ms);   // picked up the new coords
         CHECK(sun.times().sunrise.time_ms != paris_sunrise);         // and they really differ
@@ -86,3 +89,5 @@ TEST_CASE("SunPositionTracker: stays idle with no geo config") {
     sun.step(HAL::Clock::uptime_ms());
     CHECK_FALSE(sun.ready());
 }
+
+#endif // BOTANIK_FEATURE_SUN

@@ -8,7 +8,7 @@
  * Each config block carries a `serial` the PLC bumps on any edit
  * (plcio/config.h); this base watches it and resets the derived state machine
  * before stepping it on a change. Consumers: NetworkHandler (`net`), NtpClient
- * (`ntp`), SunPositionTracker (`geo`).
+ * (`ntp`), Sun::SunPositionTracker (`geo`).
  *
  * Template Method: step() is non-virtual and fixes the order (read serial ->
  * reset on change -> advance). Hooks: config_serial(), on_config_changed()
