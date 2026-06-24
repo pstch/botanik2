@@ -28,3 +28,4 @@ docs/doxygen/
 
 # Build-time code charts (scripts/code_charts.py, run by the `docs` target)
 docs/generated/
+scripts/__pycache__/
