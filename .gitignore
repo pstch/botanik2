@@ -7,13 +7,16 @@ CMakeFiles
 CMakeCache.txt
 CMake
 
-CTestTestfile.cmake
 
 cmake_install.cmake
 compile_commands.json
 
 Makefile
 
+CTestTestfile.cmake
+tests/botanik_tests_include-*.cmake
+
+generated/
 build/
 build-*/
 
