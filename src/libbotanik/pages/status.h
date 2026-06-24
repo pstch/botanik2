@@ -156,15 +156,20 @@ namespace Botanik { namespace Pages {
                 snprintf(val, sizeof(val), "%s", ctx.ntp ? ctx.ntp->status_str() : "off");
             }
             _cell(SLOT_NTP, 7, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);
-            // When connected, the peer endpoint (host:port) is more useful than
-            // "ready"; max "255.255.255.255:65535" (21) fits R_W.
-            if (ctx.mqtt && ctx.mqtt->connected()) {
-                Network::ResolvedAddr pa = ctx.mqtt->peer_addr();
-                snprintf(val, sizeof(val), "%u.%u.%u.%u:%u",
-                         pa.bytes[0], pa.bytes[1], pa.bytes[2], pa.bytes[3],
-                         (unsigned)ctx.mqtt->peer_port());
+            // State plus the age of the last broker contact (connect or
+            // keepalive) - "ready (3s)" while live, growing once it drops.
+            if (ctx.mqtt) {
+                uint64_t last = ctx.mqtt->last_contact_ms();
+                if (last != 0) {
+                    char nf[12];
+                    uint32_t age_s = (uint32_t)((HAL::Clock::uptime_ms() - last) / 1000);
+                    snprintf(val, sizeof(val), "%s (%s)", ctx.mqtt->status_str(),
+                             Utils::format_age(nf, sizeof(nf), age_s, false));
+                } else {
+                    snprintf(val, sizeof(val), "%s", ctx.mqtt->status_str());
+                }
             } else {
-                snprintf(val, sizeof(val), "%s", ctx.mqtt ? ctx.mqtt->status_str() : "off");
+                snprintf(val, sizeof(val), "off");
             }
             _cell(SLOT_MQTT, 8, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);
 #endif

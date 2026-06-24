@@ -45,7 +45,10 @@ _SUBS = [
     (re.compile(r"Network\s{2,}(?:down|setup|online|error)"), "Network <NET>"),
     (re.compile(r"NTP sync\s{2,}(?:synced \([-\d.]+ s\)|off|resolving|querying|error)"),
      "NTP sync <NTP>"),
-    (re.compile(r"MQTT\s{2,}(?:\d+\.\d+\.\d+\.\d+:\d+|off|resolving|connecting|handshake|ready|error)"),
+    # MQTT shows the state plus an optional "(age)" since last broker contact
+    # (format_age, e.g. "ready (  3 s)"); the age is volatile, so absorb it.
+    (re.compile(r"MQTT\s{2,}(?:off|(?:resolving|connecting|handshake|ready|error)"
+                r"(?: \(\s*\d+ [smhdy]\))?)"),
      "MQTT <MQTT>"),
     # Site payload values (botanik_sim GreenhouseStatusPage). The mock PLC emulator
     # animates these, and it only spawns where the host permits a realtime thread:

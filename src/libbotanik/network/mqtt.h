@@ -65,6 +65,10 @@ namespace Botanik { namespace Network {
         ResolvedAddr peer_addr() const { return _broker_addr; }
         /** @brief Broker TCP port in use (config port, else the default). */
         uint16_t peer_port() const;
+        /** @brief Uptime ms of the last broker contact (connect or keepalive
+         *  ping); 0 if never connected. The status UI shows the age of this as
+         *  "time since last sync". */
+        uint64_t last_contact_ms() const { return _last_ping_ms; }
         /** @brief Publish a QoS-0 message now if connected; returns false
          *  otherwise (the caller may drop or retry later). @p retain sets the
          *  MQTT retain flag. */

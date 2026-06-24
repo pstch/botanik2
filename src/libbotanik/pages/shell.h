@@ -78,6 +78,9 @@ namespace Botanik { namespace Pages {
             _shell.set_diagnostics(logger, alarms);
         }
 
+        /** @brief Wire the NTP client the `ntpsync` command resyncs. */
+        void set_ntp(Network::NtpClient* ntp) { _shell.set_ntp(ntp); }
+
         /** @} */
 
         /** @name Page interface

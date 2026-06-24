@@ -144,6 +144,15 @@ namespace Botanik { namespace Network {
         const char* status_str() const;
         /** @brief Last measured clock offset, ms (valid after a sync). */
         int32_t offset_ms() const { return _offset_ms; }
+        /** @brief Resolved address of the server in use; meaningful once past
+         *  the resolve step (all-zero until then). */
+        ResolvedAddr server_addr() const { return _server_addr; }
+        /** @brief NTP server UDP port (the well-known 123). */
+        uint16_t server_port() const { return 123; }
+        /** @brief Force an immediate resync: restart from the first server now
+         *  (resolve -> query), regardless of the poll cadence. No-op effect
+         *  next step if NTP is disabled/unconfigured. */
+        void resync();
 
     protected:
         uint32_t config_serial() const override;

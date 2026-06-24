@@ -13,9 +13,11 @@
 
 namespace Botanik {
     // loglevel command (set_diagnostics)
-    namespace Logs   { class Logger;     }
+    namespace Logs    { class Logger;     }
     // alarm list/ack command (set_diagnostics)
-    namespace Alarms { class AlarmModel; }
+    namespace Alarms  { class AlarmModel; }
+    // ntpsync command (set_ntp); null when the NTP feature is off
+    namespace Network { class NtpClient;  }
 }
 
 namespace Botanik { namespace Shell {
@@ -82,6 +84,9 @@ namespace Botanik { namespace Shell {
          *  report "unavailable"). */
         Logs::Logger*           _logger        = nullptr;
         Alarms::AlarmModel*     _alarm_model   = nullptr;
+        /** @brief NTP client for the `ntpsync` command; null until set_ntp()
+         *  wires it (off when the NTP feature is absent). */
+        Network::NtpClient*     _ntp           = nullptr;
 
         /** @brief Command-history ring: the most-recent submitted lines. */
         char     _history[Config::SHELL_HISTORY_SIZE][Config::SHELL_HISTORY_ENTRY];
@@ -123,6 +128,11 @@ namespace Botanik { namespace Shell {
         void set_diagnostics(Logs::Logger* logger, Alarms::AlarmModel* alarms) {
             _logger = logger; _alarm_model = alarms;
         }
+
+        /** @brief Wire the NTP client the `ntpsync` command resyncs (the
+         *  firmware passes it when the NTP feature is on; left null otherwise,
+         *  so the command reports "unavailable"). */
+        void set_ntp(Network::NtpClient* ntp) { _ntp = ntp; }
 
         /** @brief Register a site command table, tried after the built-ins.
          *  @p table must outlive the shell (typically a static at the site).
@@ -210,6 +220,7 @@ namespace Botanik { namespace Shell {
         void _cmd_uptime(const char* args, uint16_t alen);
         void _cmd_plc(const char* args, uint16_t alen);
         void _cmd_net(const char* args, uint16_t alen);
+        void _cmd_ntpsync(const char* args, uint16_t alen);
         void _cmd_loglevel(const char* args, uint16_t alen);
         /** @brief Handle an unrecognised command (echoes "Unknown command:
          *  ..."). */

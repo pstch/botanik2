@@ -59,6 +59,7 @@ namespace Botanik { namespace Shell {
             { "uptime",     "time since boot",                &CommandShell::_cmd_uptime     },
             { "plc",        "PLC link status",                &CommandShell::_cmd_plc        },
             { "net",        "network / NTP / MQTT status",     &CommandShell::_cmd_net        },
+            { "ntpsync",    "force an NTP resync now",         &CommandShell::_cmd_ntpsync    },
             { "alarms",     "[list|ack <code|all>] alarms",   &CommandShell::_cmd_alarms     },
             { "loglevel",   "[debug|info|..|critical] filter",&CommandShell::_cmd_loglevel   },
             { "version",    "firmware version",               &CommandShell::_cmd_version    },
@@ -380,29 +381,41 @@ namespace Botanik { namespace Shell {
             if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
         };
 
+        // Format four octets a.b.c.d into a small static scratch (one at a
+        // time; sequential use is fine).
+        char ipbuf[16];
+        auto ip4 = [&](const uint8_t* b) -> const char* {
+            snprintf(ipbuf, sizeof(ipbuf), "%u.%u.%u.%u",
+                     b[0], b[1], b[2], b[3]);
+            return ipbuf;
+        };
+
         // --- Link --------------------------------------------------------
         const char* mode = (cfg != nullptr && cfg->net.dhcp) ? "DHCP" : "static";
         snprintf(val, sizeof(val), "%s  (%s)", net->status_str(), mode);
         line("Network ..............", val);
 
-        HAL::Network::Ip4 ip;
-        if (net->ip(&ip))
-            snprintf(val, sizeof(val), "%u.%u.%u.%u",
-                     ip.b[0], ip.b[1], ip.b[2], ip.b[3]);
-        else
-            snprintf(val, sizeof(val), "-");
-        line("IP address ...........", val);
-
-        // Static config carries the gateway / DNS verbatim; a DHCP lease's are
-        // not surfaced by HAL, so only show them when configured statically.
-        if (cfg != nullptr && !cfg->net.dhcp) {
-            line("Gateway ..............",
-                 cfg->net.gateway[0] ? cfg->net.gateway : "-");
-            if (cfg->net.dns2[0])
-                snprintf(val, sizeof(val), "%s  %s", cfg->net.dns1, cfg->net.dns2);
-            else
-                snprintf(val, sizeof(val), "%s",
-                         cfg->net.dns1[0] ? cfg->net.dns1 : "-");
+        // IP / netmask / gateway / DNS are the active link parameters (the DHCP
+        // lease or static config, whichever is live), read back from the HAL so
+        // a DHCP-assigned value shows too.
+        HAL::Network::Ip4 a4;
+        line("IP address ...........", net->ip(&a4) ? ip4(a4.b) : "-");
+        line("Netmask ..............",
+             HAL::Network::link_netmask(&a4) ? ip4(a4.b) : "-");
+        line("Gateway ..............",
+             HAL::Network::link_gateway(&a4) ? ip4(a4.b) : "-");
+        {
+            HAL::Network::Ip4 d0, d1;
+            bool h0 = HAL::Network::link_dns(0, &d0);
+            bool h1 = HAL::Network::link_dns(1, &d1);
+            if (h0 && h1) {
+                char first[16];
+                snprintf(first, sizeof(first), "%u.%u.%u.%u",
+                         d0.b[0], d0.b[1], d0.b[2], d0.b[3]);
+                snprintf(val, sizeof(val), "%s  %s", first, ip4(d1.b));
+            } else {
+                snprintf(val, sizeof(val), "%s", h0 ? ip4(d0.b) : "-");
+            }
             line("DNS ..................", val);
         }
 
@@ -415,9 +428,12 @@ namespace Botanik { namespace Shell {
                 snprintf(val, sizeof(val), "%s", ntp->status_str());
             line("NTP ..................", val);
             if (cfg != nullptr && cfg->ntp.server1[0]) {
-                if (cfg->ntp.server2[0])
-                    snprintf(val, sizeof(val), "%s  %s",
-                             cfg->ntp.server1, cfg->ntp.server2);
+                // Configured hostname, then the resolved IP:port once known.
+                Network::ResolvedAddr sa = ntp->server_addr();
+                bool resolved = (sa.bytes[0] | sa.bytes[1] | sa.bytes[2] | sa.bytes[3]) != 0;
+                if (resolved)
+                    snprintf(val, sizeof(val), "%s  %s:%u", cfg->ntp.server1,
+                             ip4(sa.bytes), (unsigned)ntp->server_port());
                 else
                     snprintf(val, sizeof(val), "%s", cfg->ntp.server1);
                 line("NTP server ...........", val);
@@ -428,23 +444,27 @@ namespace Botanik { namespace Shell {
 
         // --- MQTT --------------------------------------------------------
         if (mqt != nullptr) {
-            if (mqt->connected()) {
-                Network::ResolvedAddr a = mqt->peer_addr();
-                snprintf(val, sizeof(val), "%s  (%u.%u.%u.%u:%u)",
-                         mqt->status_str(), a.bytes[0], a.bytes[1], a.bytes[2],
-                         a.bytes[3], mqt->peer_port());
-            } else {
-                snprintf(val, sizeof(val), "%s", mqt->status_str());
-            }
-            line("MQTT .................", val);
+            line("MQTT .................", mqt->status_str());
             if (cfg != nullptr && cfg->mqtt.broker[0]) {
-                uint16_t port = cfg->mqtt.port ? cfg->mqtt.port : 1883;
-                snprintf(val, sizeof(val), "%s:%u", cfg->mqtt.broker, port);
+                // Configured hostname, then the resolved IP:port once connected.
+                if (mqt->connected()) {
+                    Network::ResolvedAddr pa = mqt->peer_addr();
+                    snprintf(val, sizeof(val), "%s  %s:%u", cfg->mqtt.broker,
+                             ip4(pa.bytes), (unsigned)mqt->peer_port());
+                } else {
+                    snprintf(val, sizeof(val), "%s", cfg->mqtt.broker);
+                }
                 line("MQTT broker ..........", val);
             }
         } else {
             line("MQTT .................", "disabled");
         }
+    }
+
+    void CommandShell::_cmd_ntpsync(const char*, uint16_t) {
+        if (_ntp == nullptr) { _println("ntpsync: NTP unavailable"); return; }
+        _ntp->resync();
+        _println("ntpsync: NTP resync requested");
     }
 
     void CommandShell::_unknown(const char* cmd, uint16_t len) {

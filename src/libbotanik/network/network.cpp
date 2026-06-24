@@ -171,6 +171,15 @@ namespace Botanik { namespace Network {
         _since_ms = now_ms;
     }
 
+    void NtpClient::resync() {
+        // Drop any in-flight query and restart from the primary server now. The
+        // next on_step() picks it up; if NTP is disabled it falls back to IDLE.
+        if (_udp >= 0) { HAL::Network::udp_close(_udp); _udp = -1; }
+        _server_idx = 0;
+        _state      = TIME_RESOLVE;
+        _since_ms   = HAL::Clock::uptime_ms();
+    }
+
     void NtpClient::_next_server_or_error(uint64_t now_ms) {
         const PlcIO::PlcOutputConfig_t* c = config();
         if (_server_idx == 0 && c != nullptr && c->ntp.server2[0] != '\0') {

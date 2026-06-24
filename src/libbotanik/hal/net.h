@@ -59,6 +59,13 @@ namespace Botanik { namespace HAL { namespace Network {
     LinkState link_status();
     /** @brief Current address into @p out; false if the link is not up. */
     bool      link_ip(Ip4* out);
+    /** @brief Active netmask into @p out; false if the link is not up. */
+    bool      link_netmask(Ip4* out);
+    /** @brief Active default gateway into @p out; false if unavailable. */
+    bool      link_gateway(Ip4* out);
+    /** @brief Active DNS server @p index (0/1) into @p out; false if none.
+     *  Reflects the DHCP lease or the static config, whichever is in use. */
+    bool      link_dns(uint8_t index, Ip4* out);
     /** @} */
 
     /** @name DNS (non-blocking, poll model) */

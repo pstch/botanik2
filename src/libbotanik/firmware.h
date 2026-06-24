@@ -283,6 +283,10 @@ namespace Botanik {
             // Let the shell's loglevel / alarm-ack commands reach the live
             // logger + model.
             _shell_page.set_diagnostics(&_logger, &_health.model());
+#if BOTANIK_FEATURE_NTP
+            // Let the `ntpsync` command force a resync on the live client.
+            _shell_page.set_ntp(&_ntp);
+#endif
 
             register_commands();   // site commands, tried after the built-ins
             // tab order (page 0 = boot page); switch_to(0) records it

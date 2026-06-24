@@ -77,13 +77,39 @@ namespace Botanik { namespace HAL { namespace Network {
         if (st == NSAPI_STATUS_CONNECTING) return LINK_CONNECTING;
         return LINK_DOWN;
     }
+    namespace {
+        // Copy a resolved SocketAddress into our Ip4 (network-order octets).
+        bool addr_to_ip4(const SocketAddress& a, Ip4* out) {
+            nsapi_addr_t na = a.get_addr();
+            if (na.version != NSAPI_IPv4) return false;
+            out->b[0]=na.bytes[0]; out->b[1]=na.bytes[1];
+            out->b[2]=na.bytes[2]; out->b[3]=na.bytes[3];
+            return true;
+        }
+    }
     bool link_ip(Ip4* out) {
         if (!out) return false;
         SocketAddress a;
         if (eth()->get_ip_address(&a) != NSAPI_ERROR_OK) return false;
-        nsapi_addr_t na = a.get_addr();
-        out->b[0]=na.bytes[0]; out->b[1]=na.bytes[1]; out->b[2]=na.bytes[2]; out->b[3]=na.bytes[3];
-        return true;
+        return addr_to_ip4(a, out);
+    }
+    bool link_netmask(Ip4* out) {
+        if (!out) return false;
+        SocketAddress a;
+        if (eth()->get_netmask(&a) != NSAPI_ERROR_OK) return false;
+        return addr_to_ip4(a, out);
+    }
+    bool link_gateway(Ip4* out) {
+        if (!out) return false;
+        SocketAddress a;
+        if (eth()->get_gateway(&a) != NSAPI_ERROR_OK) return false;
+        return addr_to_ip4(a, out);
+    }
+    bool link_dns(uint8_t index, Ip4* out) {
+        if (!out) return false;
+        SocketAddress a;
+        if (eth()->get_dns_server((int)index, &a) != NSAPI_ERROR_OK) return false;
+        return addr_to_ip4(a, out);
     }
 
     DnsHandle dns_begin(const char* host) {
@@ -240,6 +266,23 @@ namespace Botanik { namespace HAL { namespace Network {
     LinkState link_status() { return LINK_UP; }
     bool      link_ip(Ip4* out) {
         if (out == 0) return false;
+        out->b[0] = 127; out->b[1] = 0; out->b[2] = 0; out->b[3] = 1;
+        return true;
+    }
+    // Hermetic loopback link: report plausible mock parameters so the UI has
+    // something to show (the sim has no real lease).
+    bool      link_netmask(Ip4* out) {
+        if (out == 0) return false;
+        out->b[0] = 255; out->b[1] = 0; out->b[2] = 0; out->b[3] = 0;  // /8
+        return true;
+    }
+    bool      link_gateway(Ip4* out) {
+        if (out == 0) return false;
+        out->b[0] = 127; out->b[1] = 0; out->b[2] = 0; out->b[3] = 1;
+        return true;
+    }
+    bool      link_dns(uint8_t index, Ip4* out) {
+        if (out == 0 || index > 0) return false;   // single mock resolver
         out->b[0] = 127; out->b[1] = 0; out->b[2] = 0; out->b[3] = 1;
         return true;
     }
