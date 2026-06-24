@@ -15,9 +15,12 @@
 // sim-only mock-PLC entry.
 #include BOTANIK_SITE_HEADER
 
+// generic PLC emulator engine (host stand-in for the OPTA coprocessor)
+#include "botanik_sim/emulator.h"
+
 #if BOTANIK_FEATURE_NETWORK
 // in-process mock NTP/MQTT responder (loopback)
-#include "libbotanik/network/sim_netd.h"
+#include "botanik_sim/network.h"
 #endif
 
 #include <csignal>
@@ -129,16 +132,26 @@ int main(int argc, char** argv) {
     greenhouse.setup();
 
 #if BOTANIK_FEATURE_NETWORK
-    // Mock NTP/MQTT responder on loopback. Spawned before start_site_emulator
-    // locks process memory (mlockall MCL_FUTURE), like any other thread we create.
+    // Mock NTP/MQTT responder on loopback. Spawned before we lock process memory
+    // (mlockall MCL_FUTURE), like any other thread we create.
     Network::start_mock_netd(&greenhouse.logger());
 #endif
 
 #if BOTANIK_FEATURE_PLC
-    // Mock PLC coprocessor: locks process memory and makes the loop realtime,
-    // so it must run after setup()'s allocations (see start_site_emulator for
-    // the order).
-    start_site_emulator(&shared_in, &shared_out, &greenhouse.logger());
+    // Mock PLC coprocessor: spawn the emulator thread animating the greenhouse
+    // payload (on OPTA the real coprocessor plays this role). Spawn before
+    // locking memory: lock_process_memory() arms mlockall(MCL_FUTURE), which
+    // locks every later mmap including a new thread's stack, so spawning
+    // afterwards trips RLIMIT_MEMLOCK with EAGAIN (silently, in lean RELEASE
+    // builds). Must run after setup()'s allocations.
+    PlcIO::start_emulator_thread(&shared_in, &shared_out,
+                                 &fill_greenhouse_output,
+                                 &greenhouse.logger());
+    // Lock memory (once), then make the main loop realtime on its own core -
+    // separate from the emulator's, mirroring the OPTA's two cores.
+    Scheduler::lock_process_memory(&greenhouse.logger());
+    Scheduler::make_thread_realtime(Config::SIM_MAIN_CPU_CORE,
+                                    &greenhouse.logger());
 #endif
 
     // Drive the firmware until a shutdown signal flips the run flag. SIGUSR1

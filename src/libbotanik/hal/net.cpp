@@ -2,7 +2,7 @@
  * @file net.cpp
  * @brief HAL::Network backends. OPTA wraps Mbed sockets; the simulator uses real BSD
  *        sockets but resolves every name to loopback, so it only ever reaches the
- *        in-process mock responder (network/sim_netd.h) - never the public
+ *        in-process mock responder (botanik_sim/network.h) - never the public
  *        network. The transport here is protocol-agnostic on both targets;
  *        NTP/MQTT wire knowledge lives above it. The TARGET_OPTA /
  *        TARGET_SIMULATOR split is legal here: this file is part of the HAL.
@@ -181,7 +181,7 @@ namespace Botanik { namespace HAL { namespace Network {
 // but is hermetic by construction - udp_sendto/tcp_connect refuse any destination
 // that isn't 127.0.0.0/8, so the process can never send a packet off-host no matter
 // what a config carries. DNS reinforces this by resolving every name to 127.0.0.1,
-// where the in-process mock NTP/MQTT responder (network/sim_netd.h) answers; the
+// where the in-process mock NTP/MQTT responder (botanik_sim/network.h) answers; the
 // loopback guard also catches non-loopback IPv4 literals that bypass DNS. DNS is the
 // one emulated piece - it mirrors the OPTA gethostbyname_async poll model rather than
 // blocking in getaddrinfo. No NTP/MQTT wire knowledge lives here; that stays in the

@@ -107,6 +107,6 @@ TEST_CASE("NtpClient: stepped as a Component (announces once); query is non-bloc
 }
 
 // Note: the NTP-synced / MQTT-connected success paths need the loopback mock
-// responder (network/sim_netd.h), which runs only in the full simulator, so they
+// responder (botanik_sim/network.h), which runs only in the full simulator, so they
 // are exercised end-to-end by the pyte suite rather than here. These unit tests
 // cover the config-gated state machines and the non-blocking dead-peer behaviour.

@@ -345,7 +345,7 @@ namespace Botanik {
 
 #if BOTANIK_FEATURE_NETWORK
             // Config-driven network services. On the simulator these talk over
-            // loopback to an in-process mock responder (network/sim_netd.h); no
+            // loopback to an in-process mock responder (botanik_sim/network.h); no
             // public network I/O.
             _network.step(now_ms);
 #endif

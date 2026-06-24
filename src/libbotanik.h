@@ -28,7 +28,6 @@
 
 #include "libbotanik/plcio/vars.h"
 #include "libbotanik/plcio/sync.h"
-#include "libbotanik/plcio/emulator.h"
 #include "libbotanik/plcio/logs.h"
 
 #include "libbotanik/utils/serial.h"

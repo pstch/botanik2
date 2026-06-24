@@ -1,8 +1,8 @@
-#ifndef NETWORK_SIM_NETD_H
-#define NETWORK_SIM_NETD_H
+#ifndef BOTANIK_SIM_NETWORK_H
+#define BOTANIK_SIM_NETWORK_H
 
 /**
- * @file sim_netd.h
+ * @file network.h
  * @brief Simulator-only mock NTP/MQTT responder.
  *
  * Header-only and guarded by TARGET_SIMULATOR (a near-empty include on OPTA,
@@ -14,7 +14,7 @@
  *
  * The NTP/MQTT wire knowledge (the SNTP reply, the CONNACK/PINGRESP) lives here,
  * above the HAL - the HAL transport stays protocol-agnostic. The thread lifecycle
- * mirrors PlcEmulator (plcio/emulator.h): a volatile run flag published with
+ * mirrors PlcEmulator (botanik_sim/emulator.h): a volatile run flag published with
  * HAL::Memory::dsb(), torn down through HAL::System::on_reset().
  */
 

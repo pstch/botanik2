@@ -5,9 +5,21 @@
 #include <cstring>
 #include <algorithm>
 
-#include "libbotanik/plcio/emulator.h"
+#include "botanik_sim/emulator.h"
 
 namespace Botanik { namespace PlcIO {
+
+    // Footprint contract for the emulator types. They live in the sim harness
+    // now (not the library), so the size pins follow them here rather than
+    // libbotanik_sizes.h. Sim-only build, so the host figure is the only one.
+    namespace {
+        struct ProbePlcIn  {};                    // empty payload (log fields only)
+        struct ProbePlcOut { uint32_t _w[15]; };  // 60 B, 4-aligned
+    }
+    static_assert(sizeof(PlcEmulatorContext)                   == 8608,
+                  "PlcEmulatorContext footprint changed");
+    static_assert(sizeof(PlcEmulator<ProbePlcIn, ProbePlcOut>) == 8704,
+                  "PlcEmulator footprint changed");
 
     // Lifecycle
     // ------------------------------------------------------------------------

@@ -13,8 +13,8 @@
  *                               BotanikFirmware<>).
  *   - `PlcInput/OutputData_t` - the site PLC payload (shared verbatim by the
  *                               mock PLC and the OPTA firmware).
- *   - `start_site_emulator()` / `plc_dilated_timeout()` - the sim-only mock PLC
- *                               (sim.h).
+ *   - `fill_greenhouse_output()` / `plc_dilated_timeout()` - the sim-only mock
+ *                               PLC data animator + timeout dilation (sim.h).
  *
  * Single source of truth for the greenhouse: the payload + GreenhouseMLB41
  * firmware live here; pages.h and alarms.h are pulled in below. Config

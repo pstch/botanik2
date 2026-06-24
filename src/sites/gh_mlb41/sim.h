@@ -3,7 +3,7 @@
 
 /**
  * @file sim.h
- * @brief gh_mlb41 simulator-only mock PLC: data animator + emulator wiring.
+ * @brief gh_mlb41 simulator-only mock PLC: data animator + timeout dilation.
  *
  * Header-only; the whole body is guarded by TARGET_SIMULATOR, so it's a
  * near-empty include on the OPTA / Arduino-library build (where the real
@@ -27,7 +27,7 @@
  * (amplified by a high BOTANIK_TIME_SCALE) can't false-trip the link. Clamped
  * below 2^31 to keep the 32-bit elapsed compares rollover-safe. No-op when
  * S == 1. Called from main.cpp and the emulator thread (forward-declared in
- * plcio/emulator.h).
+ * botanik_sim/emulator.h).
  */
 inline uint32_t plc_dilated_timeout(uint32_t base_ms) {
     uint32_t s = Botanik::HAL::_time_scale();
@@ -221,26 +221,6 @@ inline void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
 }
 
 }  // namespace
-
-/**
- * @brief Start the mock PLC coprocessor: spawn the emulator thread animating
- * the greenhouse payload. On OPTA the real coprocessor plays this role.
- */
-inline void start_site_emulator(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,
-                                Botanik::PlcIO::PlcOutput<PlcOutputData_t>* shared_out,
-                                Botanik::Logs::Logger*                      logger) {
-    // Spawn the emulator thread before locking memory: lock_process_memory()
-    // arms mlockall(MCL_FUTURE), which locks every later mmap including a new
-    // thread's stack, so spawning afterwards trips RLIMIT_MEMLOCK with EAGAIN
-    // (silently, only in lean RELEASE builds).
-    Botanik::PlcIO::start_emulator_thread(shared_in, shared_out,
-                                          &fill_greenhouse_output, logger);
-    // Lock memory (once), then make the main loop realtime on its own core -
-    // separate from the emulator's, mirroring the OPTA's two cores.
-    Botanik::Scheduler::lock_process_memory(logger);
-    Botanik::Scheduler::make_thread_realtime(Botanik::Config::SIM_MAIN_CPU_CORE,
-                                             logger);
-}
 
 #endif // TARGET_SIMULATOR
 

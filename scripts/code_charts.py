@@ -80,6 +80,10 @@ PATH_ALIASES = (
     ("src/libbotanix.h", "src/libbotanik.h"),
     ("src/libbotanik/panes/", "src/libbotanik/pages/"),           # panes -> pages
     ("src/libbotanik_asserts.h", "src/libbotanik/utils/assert.h"),  # asserts -> utils
+    # emulation moved out of the library into the sim harness (plcio/network -> botanik_sim)
+    ("src/libbotanik/plcio/emulator.h",   "src/botanik_sim/emulator.h"),
+    ("src/libbotanik/plcio/emulator.cpp", "src/botanik_sim/emulator.cpp"),
+    ("src/libbotanik/network/sim_netd.h", "src/botanik_sim/network.h"),
 )
 
 

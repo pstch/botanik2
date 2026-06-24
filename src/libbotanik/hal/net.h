@@ -26,7 +26,7 @@ namespace Botanik { namespace HAL { namespace Network {
 #ifdef TARGET_SIMULATOR
     /** @name Simulator loopback endpoints
      *  The sim is hermetic: names resolve to 127.0.0.1 and an in-process mock
-     *  responder (network/sim_netd.h) answers NTP/MQTT over loopback. The sim has
+     *  responder (botanik_sim/network.h) answers NTP/MQTT over loopback. The sim has
      *  no privileged ports, so the responder binds these high ports; the HAL
      *  routes the well-known NTP port (123) here, and the sim's MQTT config points
      *  at MQTT_MOCK_PORT directly.

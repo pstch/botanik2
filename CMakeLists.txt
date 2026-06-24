@@ -197,6 +197,7 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     file(GLOB BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS "src/sites/${BOTANIK_SITE}/*.cpp")
     add_executable(botanik_sim
         "src/botanik_sim/main.cpp"
+        "src/botanik_sim/emulator.cpp"
         ${BOTANIK_SITE_SOURCES})
     target_link_libraries(botanik_sim botanik)
     target_compile_definitions(botanik_sim PRIVATE BOTANIK_SITE_HEADER="${BOTANIK_SITE_HEADER}")
