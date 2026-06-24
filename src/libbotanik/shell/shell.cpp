@@ -10,6 +10,8 @@
 #include "libbotanik/alarms/alarms.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/logs/logger.h"
+#include "libbotanik/network/mqtt.h"
+#include "libbotanik/network/network.h"
 #include "libbotanik/plcio/sync.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/shell/shell.h"
@@ -56,6 +58,7 @@ namespace Botanik { namespace Shell {
             { "stats",      "scheduler / system metrics",     &CommandShell::_cmd_stats      },
             { "uptime",     "time since boot",                &CommandShell::_cmd_uptime     },
             { "plc",        "PLC link status",                &CommandShell::_cmd_plc        },
+            { "net",        "network / NTP / MQTT status",     &CommandShell::_cmd_net        },
             { "alarms",     "[list|ack <code|all>] alarms",   &CommandShell::_cmd_alarms     },
             { "loglevel",   "[debug|info|..|critical] filter",&CommandShell::_cmd_loglevel   },
             { "version",    "firmware version",               &CommandShell::_cmd_version    },
@@ -354,6 +357,94 @@ namespace Botanik { namespace Shell {
                  (unsigned long)p->input_logs()->readIndex);
         n = snprintf(out, sizeof(out), "%-22s : %s", "Logs from PLC ........", val);
         if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+    }
+
+    void CommandShell::_cmd_net(const char*, uint16_t) {
+        const SystemContext&           ctx = _terminal.context();
+        const Network::NetworkHandler* net = ctx.network;
+        // Null whenever BOTANIK_FEATURE_NETWORK is off (no feature macro needed,
+        // SystemContext leaves the pointers null) - report and bail.
+        if (net == nullptr) { _println("net: networking disabled"); return; }
+        const Network::NtpClient*       ntp = ctx.ntp;    // null if _NTP off
+        const Network::MqttClient*      mqt = ctx.mqtt;   // null if _MQTT off
+        const PlcIO::PlcOutputConfig_t* cfg =
+            ctx.plc ? ctx.plc->config() : nullptr;
+
+        // Same dotted-leader "label .... : value" lines as `plc`. Sized to hold
+        // a pair of host strings (DNS / NTP servers); the scrollback soft-wraps
+        // if a long pair overruns 80 cols.
+        char val[2 * Config::PLC_HOST_STR_LEN + 8];
+        auto line = [&](const char* label, const char* v) {
+            char out[2 * Config::PLC_HOST_STR_LEN + 32];
+            int n = snprintf(out, sizeof(out), "%-22s : %s", label, v);
+            if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+        };
+
+        // --- Link --------------------------------------------------------
+        const char* mode = (cfg != nullptr && cfg->net.dhcp) ? "DHCP" : "static";
+        snprintf(val, sizeof(val), "%s  (%s)", net->status_str(), mode);
+        line("Network ..............", val);
+
+        HAL::Network::Ip4 ip;
+        if (net->ip(&ip))
+            snprintf(val, sizeof(val), "%u.%u.%u.%u",
+                     ip.b[0], ip.b[1], ip.b[2], ip.b[3]);
+        else
+            snprintf(val, sizeof(val), "-");
+        line("IP address ...........", val);
+
+        // Static config carries the gateway / DNS verbatim; a DHCP lease's are
+        // not surfaced by HAL, so only show them when configured statically.
+        if (cfg != nullptr && !cfg->net.dhcp) {
+            line("Gateway ..............",
+                 cfg->net.gateway[0] ? cfg->net.gateway : "-");
+            if (cfg->net.dns2[0])
+                snprintf(val, sizeof(val), "%s  %s", cfg->net.dns1, cfg->net.dns2);
+            else
+                snprintf(val, sizeof(val), "%s",
+                         cfg->net.dns1[0] ? cfg->net.dns1 : "-");
+            line("DNS ..................", val);
+        }
+
+        // --- NTP ---------------------------------------------------------
+        if (ntp != nullptr) {
+            if (ntp->synced())
+                snprintf(val, sizeof(val), "%s  (offset %+ld ms)",
+                         ntp->status_str(), (long)ntp->offset_ms());
+            else
+                snprintf(val, sizeof(val), "%s", ntp->status_str());
+            line("NTP ..................", val);
+            if (cfg != nullptr && cfg->ntp.server1[0]) {
+                if (cfg->ntp.server2[0])
+                    snprintf(val, sizeof(val), "%s  %s",
+                             cfg->ntp.server1, cfg->ntp.server2);
+                else
+                    snprintf(val, sizeof(val), "%s", cfg->ntp.server1);
+                line("NTP server ...........", val);
+            }
+        } else {
+            line("NTP ..................", "disabled");
+        }
+
+        // --- MQTT --------------------------------------------------------
+        if (mqt != nullptr) {
+            if (mqt->connected()) {
+                Network::ResolvedAddr a = mqt->peer_addr();
+                snprintf(val, sizeof(val), "%s  (%u.%u.%u.%u:%u)",
+                         mqt->status_str(), a.bytes[0], a.bytes[1], a.bytes[2],
+                         a.bytes[3], mqt->peer_port());
+            } else {
+                snprintf(val, sizeof(val), "%s", mqt->status_str());
+            }
+            line("MQTT .................", val);
+            if (cfg != nullptr && cfg->mqtt.broker[0]) {
+                uint16_t port = cfg->mqtt.port ? cfg->mqtt.port : 1883;
+                snprintf(val, sizeof(val), "%s:%u", cfg->mqtt.broker, port);
+                line("MQTT broker ..........", val);
+            }
+        } else {
+            line("MQTT .................", "disabled");
+        }
     }
 
     void CommandShell::_unknown(const char* cmd, uint16_t len) {
