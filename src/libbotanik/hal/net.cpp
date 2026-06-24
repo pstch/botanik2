@@ -43,8 +43,7 @@ namespace Botanik { namespace HAL { namespace Network {
         void on_dns(DnsSlot* slot, int result, SocketAddress* a) {
             if (result > 0 && a != 0) {
                 nsapi_addr_t na = a->get_addr();
-                slot->addr.b[0]=na.bytes[0]; slot->addr.b[1]=na.bytes[1];
-                slot->addr.b[2]=na.bytes[2]; slot->addr.b[3]=na.bytes[3];
+                memcpy(slot->addr.b, na.bytes, 4);
                 HAL::Memory::dsb(); slot->st = 2;
             } else { HAL::Memory::dsb(); slot->st = 3; }
         }
@@ -82,8 +81,7 @@ namespace Botanik { namespace HAL { namespace Network {
         bool addr_to_ip4(const SocketAddress& a, Ip4* out) {
             nsapi_addr_t na = a.get_addr();
             if (na.version != NSAPI_IPv4) return false;
-            out->b[0]=na.bytes[0]; out->b[1]=na.bytes[1];
-            out->b[2]=na.bytes[2]; out->b[3]=na.bytes[3];
+            memcpy(out->b, na.bytes, 4);
             return true;
         }
     }

@@ -90,6 +90,11 @@ _SUBS = [
     (re.compile(r"(Humidity\s+)[\d.]+%"), r"\g<1><CLIMATE>"),
     (re.compile(r"Win [\d.]+%\s+Blow [\d.]+%"), "Win <VENT> Blow <VENT>"),
     (re.compile(r"(Irrigation\s+)(?:Tray \d+ \([A-Z ]+\)|idle)"), r"\g<1><IRR>"),
+    # The NTP-sync / MQTT-connect log lines carry the resolved socket address
+    # (IP:port); the sim's loopback host part is PID-derived, so strip the
+    # parenthesised address back to the bare message the golden pins.
+    (re.compile(r"(NTP synced) \(\d+\.\d+\.\d+\.\d+:\d+\)"), r"\g<1>"),
+    (re.compile(r"(MQTT connected) \(\d+\.\d+\.\d+\.\d+:\d+\)"), r"\g<1>"),
     # Load-dependent CPU alarms in the ALARMS status bar: a constrained host that
     # can't hold the realtime deadline raises CPU_XRUN/CPU_LOAD/CPU_JITT, which
     # canonical hardware does not. Strip the codes so the bar reads the same either

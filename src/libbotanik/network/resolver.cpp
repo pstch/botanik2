@@ -33,7 +33,7 @@ namespace Botanik { namespace Network {
                     ++digits;
                 } else if (c == '.' || c == '\0') {
                     if (digits == 0 || parts >= 4) return false;
-                    tmp.bytes[parts++] = (uint8_t)octet;
+                    tmp.b[parts++] = (uint8_t)octet;
                     octet = 0; digits = 0;
                     if (c == '\0') break;
                 } else {
@@ -102,8 +102,7 @@ namespace Botanik { namespace Network {
                 HAL::Network::Ip4 ip;
                 HAL::Network::DnsResult r = HAL::Network::dns_poll(e->handle, &ip);
                 if (r == HAL::Network::DNS_OK) {
-                    e->addr.bytes[0]=ip.b[0]; e->addr.bytes[1]=ip.b[1];
-                    e->addr.bytes[2]=ip.b[2]; e->addr.bytes[3]=ip.b[3];
+                    e->addr = ip;
                     e->state = SLOT_READY; *out = e->addr; return RESOLVE_OK;
                 }
                 if (r == HAL::Network::DNS_FAILED) { e->state = SLOT_FREE; return RESOLVE_FAILED; }
@@ -134,8 +133,7 @@ namespace Botanik { namespace Network {
         HAL::Network::Ip4 ip;
         HAL::Network::DnsResult r = HAL::Network::dns_poll(h, &ip);
         if (r == HAL::Network::DNS_OK) {
-            e->addr.bytes[0]=ip.b[0]; e->addr.bytes[1]=ip.b[1];
-            e->addr.bytes[2]=ip.b[2]; e->addr.bytes[3]=ip.b[3];
+            e->addr = ip;
             e->state = SLOT_READY;
             *out = e->addr;
             return RESOLVE_OK;

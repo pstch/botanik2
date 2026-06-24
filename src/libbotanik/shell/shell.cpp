@@ -430,10 +430,10 @@ namespace Botanik { namespace Shell {
             if (cfg != nullptr && cfg->ntp.server1[0]) {
                 // Configured hostname, then the resolved IP:port once known.
                 Network::ResolvedAddr sa = ntp->server_addr();
-                bool resolved = (sa.bytes[0] | sa.bytes[1] | sa.bytes[2] | sa.bytes[3]) != 0;
+                bool resolved = (sa.b[0] | sa.b[1] | sa.b[2] | sa.b[3]) != 0;
                 if (resolved)
                     snprintf(val, sizeof(val), "%s  %s:%u", cfg->ntp.server1,
-                             ip4(sa.bytes), (unsigned)ntp->server_port());
+                             ip4(sa.b), (unsigned)ntp->server_port());
                 else
                     snprintf(val, sizeof(val), "%s", cfg->ntp.server1);
                 line("NTP server ...........", val);
@@ -460,7 +460,7 @@ namespace Botanik { namespace Shell {
                 if (mqt->connected()) {
                     Network::ResolvedAddr pa = mqt->peer_addr();
                     snprintf(val, sizeof(val), "%s  %s:%u", cfg->mqtt.broker,
-                             ip4(pa.bytes), (unsigned)mqt->peer_port());
+                             ip4(pa.b), (unsigned)mqt->peer_port());
                 } else {
                     snprintf(val, sizeof(val), "%s", cfg->mqtt.broker);
                 }

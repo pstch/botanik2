@@ -141,8 +141,7 @@ namespace Botanik { namespace Network {
         : ConfigHandler(ctx, logger, "NtpClient"),
           _state(TIME_IDLE), _since_ms(0), _resolver(resolver), _net(net), _server_idx(0),
           _udp(-1), _offset_ms(0), _sync_held(false) {
-        _server_addr.bytes[0] = _server_addr.bytes[1] = 0;
-        _server_addr.bytes[2] = _server_addr.bytes[3] = 0;
+        _server_addr = HAL::Network::Ip4();   // 0.0.0.0 until resolved
     }
 
     uint32_t NtpClient::config_serial() const {
@@ -225,7 +224,11 @@ namespace Botanik { namespace Network {
                 if (r > 0) {
                     // Announce only the initial / recovery sync, not the routine
                     // re-poll (it fires every poll_s and would spam the log).
-                    if (!_sync_held && _logger) _logger->notice(PlcIO::TIME, "NTP synced");
+                    if (!_sync_held && _logger)
+                        _logger->notice(PlcIO::TIME, "NTP synced (%u.%u.%u.%u:%u)",
+                                        _server_addr.b[0], _server_addr.b[1],
+                                        _server_addr.b[2], _server_addr.b[3],
+                                        (unsigned)server_port());
                     _sync_held = true;
                     _state = TIME_SYNCED; _since_ms = now_ms;
                 } else if (r < 0) {
@@ -258,12 +261,9 @@ namespace Botanik { namespace Network {
         HAL::Network::UdpSocket s = HAL::Network::udp_open();
         if (s < 0) return false;
         _udp = s;   // store the handle for the poll/close
-        HAL::Network::Ip4 srv;
-        srv.b[0]=_server_addr.bytes[0]; srv.b[1]=_server_addr.bytes[1];
-        srv.b[2]=_server_addr.bytes[2]; srv.b[3]=_server_addr.bytes[3];
         uint8_t pkt[48] = {0};
         pkt[0] = 0x23;   // LI=0, VN=4, Mode=3 (client)
-        if (!HAL::Network::udp_sendto(s, srv, 123, pkt, sizeof(pkt))) {
+        if (!HAL::Network::udp_sendto(s, _server_addr, 123, pkt, sizeof(pkt))) {
             HAL::Network::udp_close(s); _udp = -1; return false;
         }
         return true;

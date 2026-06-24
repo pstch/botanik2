@@ -34,8 +34,7 @@ namespace Botanik { namespace Network {
         : ConfigHandler(ctx, logger, "MqttClient"),
           _state(MQTT_IDLE), _since_ms(0), _last_ping_ms(0), _last_pub_ms(0),
           _resolver(resolver), _net(net), _sock(-1) {
-        _broker_addr.bytes[0] = _broker_addr.bytes[1] = 0;
-        _broker_addr.bytes[2] = _broker_addr.bytes[3] = 0;
+        _broker_addr = HAL::Network::Ip4();   // 0.0.0.0 until resolved
     }
 
     uint32_t MqttClient::config_serial() const {
@@ -117,7 +116,11 @@ namespace Botanik { namespace Network {
                 if (r > 0) {
                     _enter(MQTT_READY, now_ms);
                     _last_ping_ms = now_ms;
-                    if (_logger) _logger->notice(PlcIO::NETWORK, "MQTT connected");
+                    if (_logger)
+                        _logger->notice(PlcIO::NETWORK, "MQTT connected (%u.%u.%u.%u:%u)",
+                                        _broker_addr.b[0], _broker_addr.b[1],
+                                        _broker_addr.b[2], _broker_addr.b[3],
+                                        (unsigned)peer_port());
                 } else if (r < 0) {
                     _fail(now_ms);
                 } else if (now_ms - _since_ms > Config::MQTT_CONNECT_TIMEOUT_MS) {
@@ -161,22 +164,16 @@ namespace Botanik { namespace Network {
         if (_sock >= 0) HAL::Network::tcp_close(_sock);
         _sock = HAL::Network::tcp_open();
         if (_sock < 0) return false;
-        HAL::Network::Ip4 a;
-        a.b[0]=_broker_addr.bytes[0]; a.b[1]=_broker_addr.bytes[1];
-        a.b[2]=_broker_addr.bytes[2]; a.b[3]=_broker_addr.bytes[3];
         // 1 done, 0 pending, <0 err
-        int r = HAL::Network::tcp_connect(_sock, a, peer_port());
+        int r = HAL::Network::tcp_connect(_sock, _broker_addr, peer_port());
         if (r >= 0) return true;
         HAL::Network::tcp_close(_sock); _sock = -1;
         return false;
     }
 
     int MqttClient::_tcp_poll() {
-        HAL::Network::Ip4 a;
-        a.b[0]=_broker_addr.bytes[0]; a.b[1]=_broker_addr.bytes[1];
-        a.b[2]=_broker_addr.bytes[2]; a.b[3]=_broker_addr.bytes[3];
         // 1 connected, 0 waiting, -1 failed
-        return HAL::Network::tcp_connect(_sock, a, peer_port());
+        return HAL::Network::tcp_connect(_sock, _broker_addr, peer_port());
     }
 
     bool MqttClient::_send_connect() {

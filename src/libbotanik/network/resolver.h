@@ -20,10 +20,10 @@
 
 namespace Botanik { namespace Network {
 
-    /** @brief A resolved IPv4 address as four octets (a.b.c.d). */
-    struct ResolvedAddr {
-        uint8_t bytes[4];
-    };
+    /** @brief A resolved IPv4 address. Resolution yields exactly the four
+     *  octets the sockets consume, so it is the HAL's IPv4 type - one address
+     *  type end to end (no copy between a resolver type and a socket type). */
+    typedef HAL::Network::Ip4 ResolvedAddr;
 
     /** @brief Outcome of a resolve() call. PENDING and FAILED both mean "not now, try
      *  again on a later tick"; only OK carries an address. */

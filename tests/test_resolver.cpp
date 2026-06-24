@@ -37,17 +37,17 @@ TEST_CASE("NameResolver: a dotted-decimal IPv4 literal resolves to its octets") 
     ResolvedAddr a;
 
     REQUIRE(r.resolve("192.168.1.10", &a) == RESOLVE_OK);
-    CHECK(a.bytes[0] == 192);
-    CHECK(a.bytes[1] == 168);
-    CHECK(a.bytes[2] == 1);
-    CHECK(a.bytes[3] == 10);
+    CHECK(a.b[0] == 192);
+    CHECK(a.b[1] == 168);
+    CHECK(a.b[2] == 1);
+    CHECK(a.b[3] == 10);
 
     REQUIRE(r.resolve("0.0.0.0", &a) == RESOLVE_OK);
-    CHECK((a.bytes[0] | a.bytes[1] | a.bytes[2] | a.bytes[3]) == 0);
+    CHECK((a.b[0] | a.b[1] | a.b[2] | a.b[3]) == 0);
 
     REQUIRE(r.resolve("255.255.255.255", &a) == RESOLVE_OK);
-    CHECK(a.bytes[0] == 255);
-    CHECK(a.bytes[3] == 255);
+    CHECK(a.b[0] == 255);
+    CHECK(a.b[3] == 255);
 }
 
 TEST_CASE("NameResolver: malformed literals are not mis-parsed as addresses") {
@@ -79,7 +79,7 @@ TEST_CASE("NameResolver: a resolvable hostname resolves to the loopback peer") {
     // per-process loopback (127/8, mock_loopback_ip()) where the in-process mock
     // responder listens, after an async PENDING phase that settle() polls through.
     REQUIRE(settle(r, "broker.local", &a) == RESOLVE_OK);
-    CHECK(a.bytes[0] == 127);          // loopback (exact host part is PID-derived)
+    CHECK(a.b[0] == 127);          // loopback (exact host part is PID-derived)
 }
 
 TEST_CASE("NameResolver: empty / null inputs fail cleanly") {
