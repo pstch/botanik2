@@ -210,6 +210,45 @@ const Botanik::Shell::ShellCommand g_site_commands[] = {
     { "gh", "greenhouse summary (live PLC data)", &cmd_gh },
 };
 
+#if BOTANIK_FEATURE_MQTT
+// Site MQTT telemetry fields (example extension via register_telemetry()): each
+// formatter reads the live PlcOutputData_t (ctx) and writes its value; the
+// MqttTelemetry component publishes them under "<prefix>/telemetry/<name>"
+// alongside the library base set.
+inline bool tlm_ext_temp(char* buf, size_t cap, void* ctx) {
+    const PlcOutputData_t* d = static_cast<const PlcOutputData_t*>(ctx);
+    if (d == nullptr) return false;
+    char f[12];
+    snprintf(buf, cap, "%s",
+             Botanik::Utils::format_float(f, sizeof(f), d->ext_temp_c_centi / 100.0, 1));
+    return true;
+}
+inline bool tlm_ext_rh(char* buf, size_t cap, void* ctx) {
+    const PlcOutputData_t* d = static_cast<const PlcOutputData_t*>(ctx);
+    if (d == nullptr) return false;
+    char f[12];
+    snprintf(buf, cap, "%s",
+             Botanik::Utils::format_float(f, sizeof(f), d->ext_rh_centi_pct / 100.0, 1));
+    return true;
+}
+inline bool tlm_window(char* buf, size_t cap, void* ctx) {
+    const PlcOutputData_t* d = static_cast<const PlcOutputData_t*>(ctx);
+    if (d == nullptr) return false;
+    uint8_t m = d->window_a;
+    if (d->window_b > m) m = d->window_b;
+    if (d->window_c > m) m = d->window_c;
+    if (d->window_d > m) m = d->window_d;
+    snprintf(buf, cap, "%u", (unsigned)m);
+    return true;
+}
+
+const Botanik::Network::TelemetryField g_telemetry[] = {
+    { "ext_temp_c", &tlm_ext_temp },
+    { "ext_rh_pct", &tlm_ext_rh   },
+    { "window_pct", &tlm_window   },
+};
+#endif
+
 }  // namespace
 
 // ===========================================================================
@@ -276,6 +315,16 @@ protected:
     void on_setup() override {
         logger().add_writer(&_home_page);
     }
+
+#if BOTANIK_FEATURE_MQTT
+    /** @brief Register the site telemetry fields, reading the live PLC payload
+     *  (ctx). Published after the library base set each cycle. */
+    void register_telemetry() override {
+        telemetry().set_site_fields(g_telemetry,
+                                    sizeof(g_telemetry) / sizeof(g_telemetry[0]),
+                                    (void*)plc_output_data());
+    }
+#endif
 };
 
 // Simulator-only mock PLC (body compiles only under TARGET_SIMULATOR;

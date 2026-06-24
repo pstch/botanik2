@@ -88,7 +88,8 @@
 #include "libbotanik/network/network.h"  // NetworkHandler, NtpClient
 #endif
 #if BOTANIK_FEATURE_MQTT
-#include "libbotanik/network/mqtt.h"     // MqttClient
+#include "libbotanik/network/mqtt.h"      // MqttClient
+#include "libbotanik/network/telemetry.h" // MqttTelemetry
 #endif
 
 #include <cstddef>
@@ -147,6 +148,7 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_MQTT
         Network::MqttClient            _mqtt;
+        Network::MqttTelemetry         _telemetry;
 #endif
 #if BOTANIK_FEATURE_TERMINAL
         Terminal::AnsiTerminal         _terminal;
@@ -227,6 +229,7 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_MQTT
               , _mqtt(_plc_handler.context(), &_logger, &_resolver, &_network)
+              , _telemetry(&_mqtt, &_sys_ctx, Config::MQTT_TOPIC_PREFIX)
 #endif
 #if BOTANIK_FEATURE_TERMINAL
               , _terminal(_console_serial, cols, rows, &_scheduler.context()->timestamp_ms,
@@ -304,6 +307,7 @@ namespace Botanik {
             // Route alarm transitions out through the MQTT client (it is an
             // Alarms::Publisher). Until now the notifier was a no-op.
             _health.set_alarm_publisher(&_mqtt);
+            register_telemetry();   // site telemetry fields (base set always on)
 #endif
 
             on_setup();   // site post-wiring (extra sinks / components)
@@ -358,6 +362,7 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_MQTT
             _mqtt.step(now_ms);
+            _telemetry.step(now_ms);   // periodic field publication (base + site)
 #endif
 
             on_loop(now_ms);   // site per-beat state machines (default no-op)
@@ -434,6 +439,7 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_MQTT
         Network::MqttClient&            mqtt()            { return _mqtt; }
+        Network::MqttTelemetry&         telemetry()       { return _telemetry; }
 #endif
         Health::HealthMonitor&          health()          { return _health; }
         Alarms::AlarmModel&             alarm_model()     { return _health.model(); }
@@ -464,6 +470,13 @@ namespace Botanik {
         /** @brief Register the site's shell command table (tried after the
          *  built-ins, so a site can't shadow exit/reset). Default: none. */
         virtual void register_commands() {}
+#endif
+
+#if BOTANIK_FEATURE_MQTT
+        /** @brief Register the site's MQTT telemetry fields, published after the
+         *  library base set each cycle, via telemetry().set_site_fields(...).
+         *  Default: none (only the base set publishes). */
+        virtual void register_telemetry() {}
 #endif
 
         /** @brief Site post-wiring, run once near the end of setup(). Default:

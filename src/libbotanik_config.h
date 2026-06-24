@@ -372,6 +372,27 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(size_t, MQTT_TX_BUF);
 
+    /** @brief Period between MQTT telemetry publish cycles (ms). 0 disables
+     *  telemetry. Each cycle publishes every registered field once. */
+#ifndef BOTANIK_MQTT_TELEMETRY_PERIOD_MS
+#  define BOTANIK_MQTT_TELEMETRY_PERIOD_MS 30000
+#endif
+    BOTANIK_CFG(uint32_t, MQTT_TELEMETRY_PERIOD_MS);
+
+    /** @brief Topic segment between the prefix and the field name:
+     *  "<MQTT_TOPIC_PREFIX>/<MQTT_TELEMETRY_TOPIC>/<field>". */
+#ifndef BOTANIK_MQTT_TELEMETRY_TOPIC
+#  define BOTANIK_MQTT_TELEMETRY_TOPIC "telemetry"
+#endif
+    BOTANIK_CFG(const char*, MQTT_TELEMETRY_TOPIC);
+
+    /** @brief Publish telemetry with the MQTT retain flag set, so a late
+     *  subscriber gets the last value of each field immediately. */
+#ifndef BOTANIK_MQTT_TELEMETRY_RETAIN
+#  define BOTANIK_MQTT_TELEMETRY_RETAIN 1
+#endif
+    BOTANIK_CFG(bool, MQTT_TELEMETRY_RETAIN);
+
     /** @} */
 
     /**
