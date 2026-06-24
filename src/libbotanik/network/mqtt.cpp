@@ -32,8 +32,8 @@ namespace Botanik { namespace Network {
     MqttClient::MqttClient(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger,
                            NameResolver* resolver, const NetworkHandler* net)
         : ConfigHandler(ctx, logger, "MqttClient"),
-          _state(MQTT_IDLE), _since_ms(0), _last_ping_ms(0), _resolver(resolver),
-          _net(net), _sock(-1) {
+          _state(MQTT_IDLE), _since_ms(0), _last_ping_ms(0), _last_pub_ms(0),
+          _resolver(resolver), _net(net), _sock(-1) {
         _broker_addr.bytes[0] = _broker_addr.bytes[1] = 0;
         _broker_addr.bytes[2] = _broker_addr.bytes[3] = 0;
     }
@@ -153,6 +153,7 @@ namespace Botanik { namespace Network {
         // NOLINTNEXTLINE(bugprone-not-null-terminated-result): binary MQTT packet, not a C string
         memcpy(&buf[i], payload, plen);  i += (int)plen;
         if (HAL::Network::tcp_send(_sock, buf, i) != i) { _fail(HAL::Clock::uptime_ms()); return false; }
+        _last_pub_ms = HAL::Clock::uptime_ms();
         return true;
     }
 

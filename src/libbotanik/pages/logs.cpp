@@ -70,8 +70,13 @@ namespace Botanik { namespace Pages {
         // Bank queued entries (pending when active), then paint them paced into the
         // content area (rows 1..rows-1).
         drain();
-        if (active)
+        if (active) {
             _scrollback.drain_tail(_terminal, 1, (uint16_t)(_terminal.rows() - 1));
+            // Keep the "scrolled up" marker in sync with the view (no-op unless
+            // it moved); survives unrelated repaints since it runs every tick.
+            _scrollback.refresh_scroll_indicator(_terminal, 1,
+                                                 (uint16_t)(_terminal.rows() - 1));
+        }
     }
 
     // BufferedLogWriter interface

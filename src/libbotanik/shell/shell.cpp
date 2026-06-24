@@ -444,7 +444,17 @@ namespace Botanik { namespace Shell {
 
         // --- MQTT --------------------------------------------------------
         if (mqt != nullptr) {
-            line("MQTT .................", mqt->status_str());
+            // State, then time since the last successful publish in parens.
+            uint64_t lp = mqt->last_publish_ms();
+            if (lp != 0) {
+                char ageb[12];
+                uint32_t age_s = (uint32_t)((HAL::Clock::uptime_ms() - lp) / 1000);
+                snprintf(val, sizeof(val), "%s  (pub %s)", mqt->status_str(),
+                         Utils::format_age(ageb, sizeof(ageb), age_s, true));
+            } else {
+                snprintf(val, sizeof(val), "%s  (no pub yet)", mqt->status_str());
+            }
+            line("MQTT .................", val);
             if (cfg != nullptr && cfg->mqtt.broker[0]) {
                 // Configured hostname, then the resolved IP:port once connected.
                 if (mqt->connected()) {

@@ -44,6 +44,7 @@ namespace Botanik { namespace Network {
         /// when this state was entered (timeouts)
         uint64_t              _since_ms;
         uint64_t              _last_ping_ms;   ///< last keepalive PINGREQ
+        uint64_t              _last_pub_ms;    ///< last successful publish (0 = none)
         NameResolver*         _resolver;       ///< DNS resolver
         ResolvedAddr          _broker_addr;    ///< resolved broker address
         /// link gate (null = always blocked)
@@ -69,6 +70,9 @@ namespace Botanik { namespace Network {
          *  ping); 0 if never connected. The status UI shows the age of this as
          *  "time since last sync". */
         uint64_t last_contact_ms() const { return _last_ping_ms; }
+        /** @brief Uptime ms of the last successful publish; 0 if nothing has
+         *  been published yet. */
+        uint64_t last_publish_ms() const { return _last_pub_ms; }
         /** @brief Publish a QoS-0 message now if connected; returns false
          *  otherwise (the caller may drop or retry later). @p retain sets the
          *  MQTT retain flag. */

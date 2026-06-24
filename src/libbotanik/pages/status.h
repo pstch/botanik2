@@ -163,8 +163,11 @@ namespace Botanik { namespace Pages {
                 if (last != 0) {
                     char nf[12];
                     uint32_t age_s = (uint32_t)((HAL::Clock::uptime_ms() - last) / 1000);
+                    // floor_min: clamp sub-minute to "0 m" so this cold field
+                    // changes at most once a minute (not every second), sparing
+                    // the diff-render the per-second redraw.
                     snprintf(val, sizeof(val), "%s (%s)", ctx.mqtt->status_str(),
-                             Utils::format_age(nf, sizeof(nf), age_s, false));
+                             Utils::format_age(nf, sizeof(nf), age_s, false, true));
                 } else {
                     snprintf(val, sizeof(val), "%s", ctx.mqtt->status_str());
                 }

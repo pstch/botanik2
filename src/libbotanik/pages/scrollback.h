@@ -69,6 +69,10 @@ namespace Botanik { namespace Pages {
          *  begin_redraw()/clear() (a focus replay shows the newest). */
         uint16_t _view_offset = 0;
 
+        /** @brief Offset last drawn by refresh_scroll_indicator(), so it emits
+         *  the marker only when the view moves (not every tick). */
+        uint16_t _indicator_offset = 0;
+
         /** @} */
 
     public:
@@ -81,6 +85,7 @@ namespace Botanik { namespace Pages {
             _redraw_i = UINT16_MAX; // and cancel any pending replay
             _pending  = 0;          // nothing left to paint to the live tail
             _view_offset = 0;       // back to the live bottom
+            _indicator_offset = 0;  // marker gone with the cleared screen
         }
 
         /** @} */
@@ -98,6 +103,8 @@ namespace Botanik { namespace Pages {
             _pending     = 0;
             // a focus/redraw replay shows the newest lines
             _view_offset = 0;
+            // the replay repaints the top row, clearing any marker
+            _indicator_offset = 0;
             uint16_t cnt = this->count();
             if (cnt == 0 || log_rows == 0) return;
 
@@ -262,6 +269,21 @@ namespace Botanik { namespace Pages {
             uint16_t moved = up ? (uint16_t)(want - _view_offset)
                                 : (uint16_t)(_view_offset - want);
             if (moved > log_rows) moved = log_rows;    // at most one screenful
+            // Wipe any marker off the top row first: it overlays content there,
+            // and the hardware scroll below would otherwise smear a stale copy
+            // into the window (a ghost trail). refresh_scroll_indicator() redraws
+            // it after the move. Repaint the line it sits on (oldest shown at the
+            // current, pre-move offset).
+            if (_indicator_offset != 0) {
+                uint16_t elen = 0;
+                const char* eln = this->line((uint16_t)(log_rows + _view_offset), elen);
+                terminal.move_to({first_row, 0});
+                if (eln)
+                    terminal.write_chars(eln, (uint16_t)std::min((size_t)elen,
+                                                                 (size_t)terminal.cols()));
+                terminal.clear_to_eol();
+                _indicator_offset = 0;
+            }
             _view_offset = want;
             // tail frozen until bottom
             _pending = 0;
@@ -270,6 +292,9 @@ namespace Botanik { namespace Pages {
             // the exposed lines at the bottom (offset+1 back from newest).
             else    emit_tail(terminal, moved, first_row, log_rows,
                               (uint16_t)(_view_offset + 1));
+            // The "scrolled up" marker is repainted by refresh_scroll_indicator()
+            // from the page tick (not here), so it survives unrelated repaints
+            // and a hardware scroll can't strand a stale copy.
             return true;
         }
 
@@ -285,6 +310,39 @@ namespace Botanik { namespace Pages {
         /** @brief Lines the view is scrolled back from the live bottom
          *         (0 = newest). */
         uint16_t scroll_offset() const { return _view_offset; }
+
+        /** @brief Keep the "scrolled up" marker in sync with the view, called
+         *  each tick by the page. While scrolled back it overlays a compact
+         *  reverse-video tag at the top-right of the window (how many newer
+         *  lines lie below toward the live bottom); at the live bottom it shows
+         *  nothing. Diffed against the last drawn offset so it emits only on a
+         *  change, and saves/restores the cursor so it never disturbs the page.
+         *
+         *  Placed on the top window row: a scroll-down's hardware scroll carries
+         *  it off the top (no stranded ghost), and the bottom-return replay
+         *  repaints over it. */
+        void refresh_scroll_indicator(AnsiTerminal& terminal,
+                                      uint16_t first_row, uint16_t log_rows) {
+            if (_view_offset == _indicator_offset) return;   // unchanged
+            _indicator_offset = _view_offset;
+            // Back at the live bottom: the scroll-off / replay already cleared
+            // the tag, so there is nothing to draw.
+            if (_view_offset == 0 || log_rows == 0) return;
+
+            char tag[20];
+            int n = snprintf(tag, sizeof(tag), " v %u more ", (unsigned)_view_offset);
+            if (n <= 0) return;
+            uint16_t taglen = (uint16_t)n;
+            uint16_t cols   = terminal.cols();
+            if (cols < taglen) return;
+
+            CursorPos saved = terminal.cursor_pos();
+            terminal.move_to({first_row, (uint16_t)(cols - taglen)});
+            terminal.set_inverted(true);
+            terminal.write_chars(tag, taglen);
+            terminal.set_inverted(false);
+            terminal.move_to(saved);            // hand the cursor back
+        }
 
         /** @} */
 
