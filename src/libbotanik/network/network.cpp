@@ -140,7 +140,7 @@ namespace Botanik { namespace Network {
                          NameResolver* resolver, const NetworkHandler* net)
         : ConfigHandler(ctx, logger, "NtpClient"),
           _state(TIME_IDLE), _since_ms(0), _resolver(resolver), _net(net), _server_idx(0),
-          _udp(-1), _offset_ms(0) {
+          _udp(-1), _offset_ms(0), _sync_held(false) {
         _server_addr.bytes[0] = _server_addr.bytes[1] = 0;
         _server_addr.bytes[2] = _server_addr.bytes[3] = 0;
     }
@@ -164,8 +164,9 @@ namespace Botanik { namespace Network {
         if (_udp >= 0) { HAL::Network::udp_close(_udp); _udp = -1; }
         const PlcIO::PlcOutputConfig_t* c = config();
         // Restart the client with the new servers / poll interval, from the
-        // first server.
+        // first server. A reconfig is a fresh start: the next sync is "initial".
         _server_idx = 0;
+        _sync_held = false;
         _state = (c != nullptr && c->ntp.enabled) ? TIME_RESOLVE : TIME_IDLE;
         _since_ms = now_ms;
     }
@@ -178,6 +179,7 @@ namespace Botanik { namespace Network {
             _since_ms = now_ms;
         } else {
             _state = TIME_ERROR;
+            _sync_held = false;       // sync lost: the next success is a recovery
             _since_ms = now_ms;
         }
     }
@@ -189,7 +191,9 @@ namespace Botanik { namespace Network {
                 break;
 
             case TIME_RESOLVE: {
-                if (c == nullptr || !c->ntp.enabled) { _state = TIME_IDLE; break; }
+                if (c == nullptr || !c->ntp.enabled) {
+                    _state = TIME_IDLE; _sync_held = false; break;
+                }
                 // Needs a live link before sending; the NetworkHandler owns
                 // that state.
                 if (_net == nullptr || !_net->is_up()) break;
@@ -210,7 +214,10 @@ namespace Botanik { namespace Network {
             case TIME_QUERY: {
                 int r = _poll_query(now_ms);
                 if (r > 0) {
-                    if (_logger) _logger->notice(PlcIO::TIME, "NTP synced");
+                    // Announce only the initial / recovery sync, not the routine
+                    // re-poll (it fires every poll_s and would spam the log).
+                    if (!_sync_held && _logger) _logger->notice(PlcIO::TIME, "NTP synced");
+                    _sync_held = true;
                     _state = TIME_SYNCED; _since_ms = now_ms;
                 } else if (r < 0) {
                     if (_logger) _logger->warning(PlcIO::TIME, "NTP query failed");

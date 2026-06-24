@@ -60,6 +60,11 @@ namespace Botanik { namespace Network {
         /** @brief Connection phase as a short display string
          *  (off/resolving/connecting/handshake/ready/error). */
         const char* status_str() const;
+        /** @brief Resolved broker IPv4 the socket is using; meaningful while
+         *  connected(). */
+        ResolvedAddr peer_addr() const { return _broker_addr; }
+        /** @brief Broker TCP port in use (config port, else the default). */
+        uint16_t peer_port() const;
         /** @brief Publish a QoS-0 message now if connected; returns false
          *  otherwise (the caller may drop or retry later). @p retain sets the
          *  MQTT retain flag. */

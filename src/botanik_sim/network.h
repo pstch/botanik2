@@ -50,15 +50,22 @@ namespace Botanik { namespace Network {
             if (fd < 0) return -1;
             int one = 1;
             ::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+            // Bind this instance's per-process loopback address (matches what
+            // the HAL resolver hands the firmware) so concurrent sims don't
+            // share the port on 127.0.0.1.
+            HAL::Network::Ip4 lo = HAL::Network::mock_loopback_ip();
             sockaddr_in a;
             memset(&a, 0, sizeof(a));
             a.sin_family      = AF_INET;
             a.sin_port        = htons(port);
-            a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+            memcpy(&a.sin_addr, lo.b, 4);
             if (::bind(fd, reinterpret_cast<sockaddr*>(&a), sizeof(a)) < 0) { ::close(fd); return -1; }
             if (!dgram && ::listen(fd, 4) < 0) { ::close(fd); return -1; }
             int fl = fcntl(fd, F_GETFL, 0);
             fcntl(fd, F_SETFL, fl | O_NONBLOCK);
+            // Close-on-exec so a System::reset() re-exec frees the bound port
+            // instead of leaking the listener into the new image.
+            fcntl(fd, F_SETFD, FD_CLOEXEC);
             return fd;
         }
 
@@ -125,6 +132,7 @@ namespace Botanik { namespace Network {
                 if (c >= 0) {
                     int fl = fcntl(c, F_GETFL, 0);
                     fcntl(c, F_SETFL, fl | O_NONBLOCK);
+                    fcntl(c, F_SETFD, FD_CLOEXEC);   // drop on a reset re-exec
                     int slot = -1;
                     for (int i = 0; i < MAX_CLIENTS; ++i) if (client[i] < 0) { slot = i; break; }
                     if (slot >= 0) client[slot] = c; else ::close(c);

@@ -123,6 +123,11 @@ namespace Botanik { namespace Network {
         HAL::Network::UdpSocket   _udp;
         /** @brief Last measured clock offset, ms (correction applied at sync). */
         int32_t               _offset_ms;
+        /** @brief True while a valid sync is held. Set on a sync, kept across
+         *  the routine re-poll, cleared on a failure (ERROR / disabled / reconfig)
+         *  so the next sync reads as initial-or-recovery (the only ones logged /
+         *  surfaced). */
+        bool                  _sync_held;
         /** @} */
 
     public:
@@ -130,8 +135,10 @@ namespace Botanik { namespace Network {
                   NameResolver* resolver = nullptr,
                   const NetworkHandler* net = nullptr);
 
-        /** @brief True once the RTC has been disciplined. */
-        bool synced() const { return _state == TIME_SYNCED; }
+        /** @brief True while a valid sync is held. Stays true through the routine
+         *  re-poll (it is not "unsynced" mid-refresh); only an actual loss clears
+         *  it. */
+        bool synced() const { return _sync_held; }
         /** @brief Sync phase as a short display string
          *  (off/resolving/querying/synced/error). */
         const char* status_str() const;

@@ -75,12 +75,11 @@ TEST_CASE("NameResolver: a guaranteed-bad hostname resolves to FAILED") {
 TEST_CASE("NameResolver: a resolvable hostname resolves to the loopback peer") {
     NameResolver r;
     ResolvedAddr a;
-    // The sim resolver is hermetic: any well-formed name maps to 127.0.0.1 (the
-    // in-process mock responder), after an async PENDING phase that settle() polls
-    // through.
+    // The sim resolver is hermetic: any well-formed name maps to this instance's
+    // per-process loopback (127/8, mock_loopback_ip()) where the in-process mock
+    // responder listens, after an async PENDING phase that settle() polls through.
     REQUIRE(settle(r, "broker.local", &a) == RESOLVE_OK);
-    CHECK(a.bytes[0] == 127);
-    CHECK(a.bytes[3] == 1);
+    CHECK(a.bytes[0] == 127);          // loopback (exact host part is PID-derived)
 }
 
 TEST_CASE("NameResolver: empty / null inputs fail cleanly") {

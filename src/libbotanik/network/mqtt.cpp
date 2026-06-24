@@ -43,6 +43,11 @@ namespace Botanik { namespace Network {
         return c ? c->mqtt.serial : 0;
     }
 
+    uint16_t MqttClient::peer_port() const {
+        const PlcIO::PlcOutputConfig_t* c = config();
+        return (c && c->mqtt.port) ? c->mqtt.port : Config::MQTT_PORT_DEFAULT;
+    }
+
     const char* MqttClient::status_str() const {
         switch (_state) {
             case MQTT_RESOLVE:   return "resolving";
@@ -155,26 +160,22 @@ namespace Botanik { namespace Network {
         if (_sock >= 0) HAL::Network::tcp_close(_sock);
         _sock = HAL::Network::tcp_open();
         if (_sock < 0) return false;
-        const PlcIO::PlcOutputConfig_t* c = config();
-        uint16_t port = (c && c->mqtt.port) ? c->mqtt.port : Config::MQTT_PORT_DEFAULT;
         HAL::Network::Ip4 a;
         a.b[0]=_broker_addr.bytes[0]; a.b[1]=_broker_addr.bytes[1];
         a.b[2]=_broker_addr.bytes[2]; a.b[3]=_broker_addr.bytes[3];
         // 1 done, 0 pending, <0 err
-        int r = HAL::Network::tcp_connect(_sock, a, port);
+        int r = HAL::Network::tcp_connect(_sock, a, peer_port());
         if (r >= 0) return true;
         HAL::Network::tcp_close(_sock); _sock = -1;
         return false;
     }
 
     int MqttClient::_tcp_poll() {
-        const PlcIO::PlcOutputConfig_t* c = config();
-        uint16_t port = (c && c->mqtt.port) ? c->mqtt.port : Config::MQTT_PORT_DEFAULT;
         HAL::Network::Ip4 a;
         a.b[0]=_broker_addr.bytes[0]; a.b[1]=_broker_addr.bytes[1];
         a.b[2]=_broker_addr.bytes[2]; a.b[3]=_broker_addr.bytes[3];
         // 1 connected, 0 waiting, -1 failed
-        return HAL::Network::tcp_connect(_sock, a, port);
+        return HAL::Network::tcp_connect(_sock, a, peer_port());
     }
 
     bool MqttClient::_send_connect() {

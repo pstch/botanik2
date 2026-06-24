@@ -197,11 +197,14 @@ namespace Botanik { namespace HAL { namespace Network {
 namespace Botanik { namespace HAL { namespace Network {
 
     namespace {
-        // Set O_NONBLOCK on a fd; returns the fd (or -1 on failure after closing
-        // it).
+        // Set O_NONBLOCK + close-on-exec on a fd; returns the fd (or -1 on
+        // failure after closing it). FD_CLOEXEC so System::reset()'s execve
+        // re-exec drops the socket instead of leaking it into the new image
+        // (a leaked TCP listener/peer would keep its port bound).
         int set_nonblock(int fd) {
             int fl = fcntl(fd, F_GETFL, 0);
             if (fl < 0 || fcntl(fd, F_SETFL, fl | O_NONBLOCK) < 0) { ::close(fd); return -1; }
+            if (fcntl(fd, F_SETFD, FD_CLOEXEC) < 0) { ::close(fd); return -1; }
             return fd;
         }
         sockaddr_in make_sin(const Ip4& a, uint16_t port) {
@@ -214,6 +217,21 @@ namespace Botanik { namespace HAL { namespace Network {
         }
         bool is_loopback(const Ip4& a) { return a.b[0] == 127; }
     }  // namespace
+
+    Ip4 mock_loopback_ip() {
+        // 127/8 is all loopback on Linux: spread the PID across the low octets so
+        // two sim instances land on distinct addresses and don't fight over the
+        // shared mock ports. getpid() is stable across a reset re-exec (same PID),
+        // so the rebound address matches.
+        uint32_t h = (uint32_t)getpid();
+        Ip4 a;
+        a.b[0] = 127;
+        a.b[1] = (uint8_t)(h >> 16);
+        a.b[2] = (uint8_t)(h >> 8);
+        a.b[3] = (uint8_t)h;
+        if (a.b[3] == 0) a.b[3] = 1;   // keep a nonzero host octet
+        return a;
+    }
 
     // Link: always up at a fixed loopback address (callers only log / non-null
     // check it).
@@ -273,7 +291,9 @@ namespace Botanik { namespace HAL { namespace Network {
             bool fail = g_dns[i].fail;
             g_dns[i].id = 0;            // consume the slot
             if (fail) return DNS_FAILED;
-            if (out) { out->b[0] = 127; out->b[1] = 0; out->b[2] = 0; out->b[3] = 1; }
+            // Resolve to this instance's loopback so the firmware reaches its own
+            // in-process responder (and not a sibling sim's).
+            if (out) *out = mock_loopback_ip();
             return DNS_OK;
         }
         return DNS_FAILED;

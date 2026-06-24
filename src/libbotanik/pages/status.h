@@ -156,9 +156,17 @@ namespace Botanik { namespace Pages {
                 snprintf(val, sizeof(val), "%s", ctx.ntp ? ctx.ntp->status_str() : "off");
             }
             _cell(SLOT_NTP, 7, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);
-            _cell(SLOT_MQTT, 8, R_VAL,
-                  rjust(fld, sizeof(fld), R_W,
-                        ctx.mqtt ? ctx.mqtt->status_str() : "off"), R_W);
+            // When connected, the peer endpoint (host:port) is more useful than
+            // "ready"; max "255.255.255.255:65535" (21) fits R_W.
+            if (ctx.mqtt && ctx.mqtt->connected()) {
+                Network::ResolvedAddr pa = ctx.mqtt->peer_addr();
+                snprintf(val, sizeof(val), "%u.%u.%u.%u:%u",
+                         pa.bytes[0], pa.bytes[1], pa.bytes[2], pa.bytes[3],
+                         (unsigned)ctx.mqtt->peer_port());
+            } else {
+                snprintf(val, sizeof(val), "%s", ctx.mqtt ? ctx.mqtt->status_str() : "off");
+            }
+            _cell(SLOT_MQTT, 8, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);
 #endif
 
             draw_payload_dynamic();
