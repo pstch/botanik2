@@ -9,8 +9,20 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 namespace Botanik { namespace Utils {
+
+    /** @name String comparison
+     *  @{ */
+
+    /** @brief Null-safe equality of two NUL-terminated strings: true only when
+     *  both are non-null and compare equal. */
+    inline bool compare_str(const char* a, const char* b) {
+        return a != nullptr && b != nullptr && std::strcmp(a, b) == 0;
+    }
+
+    /** @} */
 
     /** @name Line wrapping
      *  @{ */

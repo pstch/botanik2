@@ -15,7 +15,7 @@ using namespace Botanik;
 
 namespace {
     // Static-prefix fields, in order: code, desc, masked_by, log_on_s, log_off_s,
-    // mqtt_on_s, mqtt_off_s, recent_s, latch_s, min_on_s. The dynamic suffix is left
+    // mqtt_on_s, mqtt_off_s, recent_s, off_delay_s, min_on_s. The dynamic suffix is left
     // zero-initialized (the pragma silences the pedantic field-init warning).
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
@@ -54,9 +54,9 @@ TEST_CASE("alarm: ack marks an active condition, ignores inactive / unknown") {
     Alarms::AlarmModel m(TABLE, 2, nullptr);
     m.step(0x1, 1000);                              // raise A (bit 0)
     CHECK(m.active_count() == 1);
-    CHECK(m.condition(0).acknowledged == false);
+    CHECK(m.condition(0).user_ack == false);
     CHECK(m.ack("AAA") == true);
-    CHECK(m.condition(0).acknowledged == true);
+    CHECK(m.condition(0).user_ack == true);
     CHECK(m.ack("BBB") == false);                   // B is not active
     CHECK(m.ack("ZZZ") == false);                   // unknown code
 }
@@ -65,23 +65,23 @@ TEST_CASE("alarm: ack clears on the next ON edge (a fresh episode is unacknowled
     Alarms::AlarmModel m(TABLE, 2, nullptr);
     m.step(0x1, 1000);
     m.ack("AAA");
-    CHECK(m.condition(0).acknowledged == true);
+    CHECK(m.condition(0).user_ack == true);
     m.step(0x0, 2000);                              // A clears
     m.step(0x1, 3000);                              // A re-fires
-    CHECK(m.condition(0).acknowledged == false);    // reset on the ON edge
+    CHECK(m.condition(0).user_ack == false);    // reset on the ON edge
 }
 
 TEST_CASE("alarm: ack_all acknowledges every active condition and counts them") {
     Alarms::AlarmModel m(TABLE, 2, nullptr);
     m.step(0x3, 1000);                              // both active
     CHECK(m.ack_all() == 2);
-    CHECK(m.condition(0).acknowledged == true);
-    CHECK(m.condition(1).acknowledged == true);
+    CHECK(m.condition(0).user_ack == true);
+    CHECK(m.condition(1).user_ack == true);
 
     Alarms::AlarmModel m2(TABLE, 2, nullptr);
     m2.step(0x2, 1000);                             // only B active
     CHECK(m2.ack_all() == 1);
-    CHECK(m2.condition(1).acknowledged == true);
+    CHECK(m2.condition(1).user_ack == true);
 }
 
 TEST_CASE("alarm: min_on_s holds a condition active after the raw bit clears") {

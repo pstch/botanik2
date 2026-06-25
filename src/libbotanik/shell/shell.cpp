@@ -262,7 +262,7 @@ namespace Botanik { namespace Shell {
                 _emitf(out, sizeof(out), "  %-10s %s%s%s",
                     c.code ? c.code : "?",
                     Utils::format_age(age, sizeof(age), secs, false),
-                    c.unmasked ? "" : " [masked]", c.acknowledged ? " [ack]" : "");
+                    c.unmasked ? "" : " [masked]", c.user_ack ? " [ack]" : "");
             }
             return;
         }

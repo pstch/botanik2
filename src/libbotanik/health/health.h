@@ -189,7 +189,7 @@ namespace Botanik { namespace Health {
 
         /** @brief Hold a momentary "event" alarm active for ALARM_EVENT_HOLD_MS
          *  after its @p counter ticks (latched in the source, not via the
-         *  table's latch_s). */
+         *  table's off_delay_s). */
         void _held_event(const char* code, uint32_t counter, uint32_t& last,
                          uint64_t& until_ms, uint64_t now) {
             if (counter != last) {

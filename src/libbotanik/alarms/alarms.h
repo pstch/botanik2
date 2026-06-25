@@ -26,6 +26,7 @@
 #include <cstdio>                      // snprintf (AlarmNotifier::_emit)
 
 #include "libbotanik/utils/assert.h"   // BOTANIK_ASSERT
+#include "libbotanik/utils/text.h"     // compare_str
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/component.h"      // Component (first-step announce)
 #include "libbotanik/alarms/publisher.h" // Publisher (notifier transport seam)
@@ -50,60 +51,46 @@ namespace Botanik { namespace Alarms {
      * action; dwell in seconds.
      */
     struct AlarmCondition {
-        /** @name Static metadata (site-defined)
+        /** @name Static metadata
          *  @{ */
-        /** short code, e.g. "CPU_LOAD" (null = undefined slot) */
-        const char* code;
-        /** human-readable description */
-        const char* desc;
-        /** alarms that suppress this one while active */
-        uint64_t    masked_by;
-        /** min ON dwell (s) before a WARNING "START" log (-1 off) */
-        int32_t     log_on_s;
-        /** min OFF dwell (s) before an INFO "END" log (-1 off) */
-        int32_t     log_off_s;
-        /** min ON dwell (s) before an MQTT notification (-1 off) */
-        int32_t     mqtt_on_s;
-        /** min OFF dwell (s) before an MQTT notification (-1 off) */
-        int32_t     mqtt_off_s;
-        /** RECENT-mode window (s): 0 = DEFAULT_RECENT_S, <0 = never expires. */
-        int32_t     recent_s;
-        /** hold active this long (s) after the raw bit clears
-         *  (0 = no latch). */
-        int32_t     latch_s;
-        /** min ON time (s) from onset, even if the raw bit clears (0 = none).
-         *  Local anti-flicker net behind the PLC's debounce. */
-        int32_t     min_on_s;
+
+        const char* code;       //< short code, max 8 chars
+        const char* desc;       //< human-readable description
+        uint64_t    masked_by;  //< bitset of alarms that suppress this alarm
+
+        int32_t     log_on_s;   //< time ON  before logging event (-1: off)
+        int32_t     log_off_s;  //< time OFF before logging event (-1: off)
+
+        int32_t     mqtt_on_s;  //< time ON  before MQTT notification (-1: off)
+        int32_t     mqtt_off_s; //< time OFF before MQTT notification (-1: off)
+        int32_t     recent_s;   //< duration the event is "recent" (-1: forever)
+
+        // FIXME: are those two duplicates ?
+        int32_t     off_delay_s;    //< minimum state duration (0: no latch)
+        int32_t     min_on_s;   //< minimum ON time from onset (0: no latch)
         /** @} */
 
-        /** @name Dynamic state (model-owned; leave zeroed in a site table)
+        /** @name Dynamic state
          *  @{ */
-        /** effective active (raw bit set, or still latched) */
-        bool        active;
-        /** active and no alarm in masked_by is active */
-        bool        unmasked;
-        /** MQTT ON notification sent (cleared when OFF) */
-        bool        on_notified;
-        /** MQTT OFF notification sent (cleared when ON) */
-        bool        off_notified;
-        /** "alarm START" logged this episode */
-        bool        log_on_sent;
-        /** "alarm END" logged this episode */
-        bool        log_off_sent;
-        /** operator ack'd this episode (cleared on the next ON edge);
-         *  informational, never alters active/unmasked. */
-        bool        acknowledged;
-        /** uptime of the last active/inactive transition */
-        uint64_t    edge_ms;
-        /** uptime of the last ON transition (onset, 0 if never); drives the
-         *  AlarmsPage start-time sort. */
-        uint64_t    started_ms;
+        bool        active;         //< alarm active or latched
+        bool        unmasked;       //< active and not masked by other alarms
+
+        bool        mqtt_on_sent;   //< MQTT ON  notification sent
+        bool        mqtt_off_sent;  //< MQTT OFF notification sent
+
+        bool        log_on_sent;    //< logging ON  event written
+        bool        log_off_sent;   //< logging OFF event written
+
+        bool        user_ack;       //< alarm acknowledged by the user
+        uint64_t    edge_ms;        //< time since last transition
+        uint64_t    started_ms;     //< time since last ON transition
+
         /** latch countdown after the raw bit cleared (0 = not latched).
          *  Wrap-immune; drained by the step elapsed. */
-        uint32_t    latch_remaining_ms;
+        uint32_t    off_delay_rem_ms;
         /** minimum-ON countdown from onset (0 = elapsed), seeded to min_on_s
          *  on the ON edge. Wrap-immune. */
-        uint32_t    min_on_remaining_ms;
+        uint32_t    min_on_rem_ms;
         /** @} */
     };
 
@@ -113,9 +100,10 @@ namespace Botanik { namespace Alarms {
      *  alarms they assert. */
     inline int alarm_index(const AlarmCondition* table, uint8_t count,
                            const char* code) {
+        // bail if we have no valid pointer to the alarm table or alarm code
         if (table == nullptr || code == nullptr) return -1;
         for (uint8_t i = 0; i < count; i++)
-            if (table[i].code != nullptr && std::strcmp(table[i].code, code) == 0)
+            if (Utils::compare_str(table[i].code, code))
                 return (int)i;
         return -1;
     }
@@ -220,7 +208,7 @@ namespace Botanik { namespace Alarms {
             _site_mask = (site_count >= 64) ? ~(uint64_t)0
                                             : (((uint64_t)1 << site_count) - 1);
             for (uint8_t i = 0; i < _count; i++) {   // boot state: settled OFF
-                _conditions[i].off_notified = true;
+                _conditions[i].mqtt_off_sent = true;
                 _conditions[i].log_off_sent = true;
             }
         }
@@ -250,7 +238,7 @@ namespace Botanik { namespace Alarms {
         bool ack(const char* code) {
             int i = alarm_index(_conditions, _count, code);
             if (i < 0 || !_conditions[i].active) return false;
-            _conditions[i].acknowledged = true;
+            _conditions[i].user_ack = true;
             return true;
         }
 
@@ -259,7 +247,7 @@ namespace Botanik { namespace Alarms {
         uint8_t ack_all() {
             uint8_t n = 0;
             for (uint8_t i = 0; i < _count; i++)
-                if (_conditions[i].active) { _conditions[i].acknowledged = true; n++; }
+                if (_conditions[i].active) { _conditions[i].user_ack = true; n++; }
             return n;
         }
 
@@ -286,16 +274,16 @@ namespace Botanik { namespace Alarms {
                 // latch holds active for latch_s after the raw bit clears
                 // (refreshed while set); the minimum-ON hold keeps it active
                 // >= min_on_s from onset (anti-flicker).
-                if (c.latch_remaining_ms > 0)
-                    c.latch_remaining_ms = (c.latch_remaining_ms > dt)
-                                         ? (uint32_t)(c.latch_remaining_ms - dt) : 0;
-                if (c.min_on_remaining_ms > 0)
-                    c.min_on_remaining_ms = (c.min_on_remaining_ms > dt)
-                                          ? (uint32_t)(c.min_on_remaining_ms - dt) : 0;
-                if (raw_on && c.latch_s > 0)
-                    c.latch_remaining_ms = (uint32_t)c.latch_s * 1000u;
-                bool on = raw_on || (c.latch_remaining_ms > 0) ||
-                          (c.min_on_remaining_ms > 0);
+                if (c.off_delay_rem_ms > 0)
+                    c.off_delay_rem_ms = (c.off_delay_rem_ms > dt)
+                                         ? (uint32_t)(c.off_delay_rem_ms - dt) : 0;
+                if (c.min_on_rem_ms > 0)
+                    c.min_on_rem_ms = (c.min_on_rem_ms > dt)
+                                          ? (uint32_t)(c.min_on_rem_ms - dt) : 0;
+                if (raw_on && c.off_delay_s > 0)
+                    c.off_delay_rem_ms = (uint32_t)c.off_delay_s * 1000u;
+                bool on = raw_on || (c.off_delay_rem_ms > 0) ||
+                          (c.min_on_rem_ms > 0);
                 if (on != was) {
                     c.edge_ms = now;
                     // Reset log_on_sent on the ON edge (not OFF) so it survives
@@ -303,13 +291,13 @@ namespace Botanik { namespace Alarms {
                     // minimum-ON hold.
                     // acknowledged: a fresh episode is unacknowledged.
                     // started_ms: onset, for start-time ordering.
-                    if (on) { c.off_notified = false; c.log_off_sent = false;
+                    if (on) { c.mqtt_off_sent = false; c.log_off_sent = false;
                               c.log_on_sent  = false;
-                              c.acknowledged = false;
+                              c.user_ack = false;
                               c.started_ms = now;
                               if (c.min_on_s > 0)
-                                  c.min_on_remaining_ms = (uint32_t)c.min_on_s * 1000u; }
-                    else    { c.on_notified  = false; }
+                                  c.min_on_rem_ms = (uint32_t)c.min_on_s * 1000u; }
+                    else    { c.mqtt_on_sent  = false; }
                 }
                 c.active   = on;
                 c.unmasked = on && ((_raw & c.masked_by) == 0);
@@ -326,10 +314,10 @@ namespace Botanik { namespace Alarms {
                         if (_logger) _logger->warning(PlcIO::ALARM_START, "%s", label);
                         c.log_on_sent = true;
                     }
-                    if (!c.on_notified && c.mqtt_on_s >= 0 &&
+                    if (!c.mqtt_on_sent && c.mqtt_on_s >= 0 &&
                         dwell >= (uint64_t)c.mqtt_on_s * 1000) {
                         if (_notifier) _notifier->notify_on(c);
-                        c.on_notified = true;
+                        c.mqtt_on_sent = true;
                     }
                 } else {
                     if (!c.log_off_sent && c.log_off_s >= 0 &&
@@ -347,10 +335,10 @@ namespace Botanik { namespace Alarms {
                         }
                         c.log_off_sent = true;
                     }
-                    if (!c.off_notified && c.mqtt_off_s >= 0 &&
+                    if (!c.mqtt_off_sent && c.mqtt_off_s >= 0 &&
                         dwell >= (uint64_t)c.mqtt_off_s * 1000) {
                         if (_notifier) _notifier->notify_off(c);
-                        c.off_notified = true;
+                        c.mqtt_off_sent = true;
                     }
                 }
             }

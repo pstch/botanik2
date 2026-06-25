@@ -141,7 +141,7 @@ namespace Botanik { namespace Config {
     /** @brief Platform-health alarm thresholds: CPU_LOAD / CPU_JITT fire when
      *  the rolling-peak load / jitter exceeds this percent of the task period;
      *  STACK fires above this percent stack usage. Per-alarm latch is in the
-     *  site table (latch_s). */
+     *  site table (off_delay_s). */
 #ifndef BOTANIK_ALARM_CPU_LOAD_PCT
 #  define BOTANIK_ALARM_CPU_LOAD_PCT 50
 #endif
@@ -157,7 +157,7 @@ namespace Botanik { namespace Config {
     /** @brief How long a momentary-event alarm (CPU_XRUN, RX_TORN) stays held
      *  active after its counter ticks. HealthMonitor latches this in source (a
      *  proper held state, not a one-beat pulse), independent of the table's
-     *  latch_s. */
+     *  off_delay_s. */
 #ifndef BOTANIK_ALARM_EVENT_HOLD_MS
 #  define BOTANIK_ALARM_EVENT_HOLD_MS 300000
 #endif

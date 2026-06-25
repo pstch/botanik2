@@ -316,8 +316,8 @@ namespace Botanik { namespace Pages {
          *  demotes without removing. */
         bool _before(const Alarms::AlarmCondition& x,
                      const Alarms::AlarmCondition& y) const {
-            bool xn = x.active && !x.acknowledged;     // active and unack'd
-            bool yn = y.active && !y.acknowledged;
+            bool xn = x.active && !x.user_ack;     // active and unack'd
+            bool yn = y.active && !y.user_ack;
             // unack'd-active heads list
             if (xn != yn) return xn;
             // then ack'd-active first
@@ -343,7 +343,7 @@ namespace Botanik { namespace Pages {
                     // out of it too (the ALL / ACTIVE / RECENT views keep it,
                     // demoted by _before()).
                     case MODE_UNMASKED:
-                        include = c.active && c.unmasked && !c.acknowledged; break;
+                        include = c.active && c.unmasked && !c.user_ack; break;
                     default:            include = true;                   break;
                 }
                 if (include) _vis[_nvis++] = i;
@@ -397,7 +397,7 @@ namespace Botanik { namespace Pages {
             if (_model == nullptr) return 0;
             uint64_t m = 0;
             for (uint8_t i = 0; i < _model->count(); i++)
-                if (_model->condition(i).acknowledged) m |= Alarms::alarm_bit(i);
+                if (_model->condition(i).user_ack) m |= Alarms::alarm_bit(i);
             return m;
         }
 
@@ -458,7 +458,7 @@ namespace Botanik { namespace Pages {
         /** @brief ON-cell render state: 0 blank, 1 "OFF", 2 "ON" normal, 3 "ON"
          *  reverse-video (active and unacknowledged). */
         static uint8_t _on_state(const Alarms::AlarmCondition& c) {
-            if (c.active) return c.acknowledged ? 2 : 3;
+            if (c.active) return c.user_ack ? 2 : 3;
             return c.edge_ms != 0 ? 1 : 0;
         }
 
@@ -524,7 +524,7 @@ namespace Botanik { namespace Pages {
                                          state, ev, c.desc ? c.desc : "");
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
-            if (c.active && !c.acknowledged && n > (uint16_t)(STATE_TEXT_COL + 2)) {
+            if (c.active && !c.user_ack && n > (uint16_t)(STATE_TEXT_COL + 2)) {
                 // "ON" sits at STATE_TEXT_COL: split write so only it inverts.
                 _terminal.write_chars(line, STATE_TEXT_COL);
                 _terminal.set_inverted(true);

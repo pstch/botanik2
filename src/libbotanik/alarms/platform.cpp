@@ -4,7 +4,7 @@
  *
  * Codes match those BotanikFirmware::loop() asserts via
  * AlarmModel::set_local().
- * Suffix: dwell thresholds (s; -1 disables), recent_s (0 = default), latch_s.
+ * Suffix: dwell thresholds (s; -1 disables), recent_s (0 = default), off_delay_s.
  */
 
 #include "libbotanik/alarms/platform.h"
@@ -17,7 +17,7 @@ namespace Botanik { namespace Alarms {
         // code        description                       mask logOn logOff mqttOn mqttOff recent latch
         {"SYS_RST",  "Reset in the last five minutes",   0,   -1,   0,     -1,    -1},
         // CPU_XRUN / RX_TORN: HealthMonitor holds these momentary events active
-        // for ALARM_EVENT_HOLD_MS in the source, so their table latch_s is 0
+        // for ALARM_EVENT_HOLD_MS in the source, so their table off_delay_s is 0
         // (no double-latching). RX_TORN logs a START at once (a torn read
         // should never fire).
         {"CPU_XRUN", "Scheduler overrun (skipped beat)", 0,   0,    -1,    -1,    -1,     0,     0},
