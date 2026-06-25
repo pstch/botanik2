@@ -212,75 +212,87 @@ const Botanik::Shell::ShellCommand g_site_commands[] = {
 };
 
 #if BOTANIK_FEATURE_MQTT
-// Site MQTT telemetry: the whole PLC process payload, published under
-// "<prefix>/telemetry/<name>" alongside the library base (system) set. Every
-// value is a plain scalar at a payload offset, so this is a declarative
-// ScalarField table (no per-field formatters) registered via set_site_scalars()
-// in register_telemetry(); MqttTelemetry reads + renders each generically.
-//
-// INT  - integer published verbatim (width per ScalarType).
-// FIX  - fixed-point: raw / div with `dec` decimals (centi/milli units).
-// ENUM - the raw byte rendered through a status str() converter.
-#define GH_INT(nm, field, st) \
-    { nm, offsetof(PlcOutputData_t, field), Botanik::Network::st, 1, 0, nullptr }
-#define GH_FIX(nm, field, st, div, dec) \
-    { nm, offsetof(PlcOutputData_t, field), Botanik::Network::st, div, dec, nullptr }
-#define GH_ENUM(nm, field, strfn) \
-    { nm, offsetof(PlcOutputData_t, field), Botanik::Network::SCALAR_ENUM, 0, 0, strfn }
+// Site MQTT telemetry: the live PLC payload grouped by domain. Each group is a
+// small ScalarField[] published under "<prefix>/telemetry/<group>/<leaf>",
+// alongside the library "system" set; MqttTelemetry reads + renders every field
+// generically off the payload (no per-field code). A field is a leaf name, the
+// payload offset, a ScalarType (read width/sign), and for fixed-point a divisor
+// + decimals (raw / divisor, centi/milli units); a SCALAR_ENUM field renders its
+// raw byte through a status str(). Leaves drop the group prefix (the topic
+// already carries it: ac_supply/grid_v, not ac_supply/grid_ac_v).
+using namespace Botanik::Network;
 
-const Botanik::Network::ScalarField g_telemetry[] = {
-    // Power (millivolts -> volts; mains frequency in 0.01 Hz)
-    GH_FIX("grid_ac_v",        grid_ac_mv,          SCALAR_U32, 1000, 1),
-    GH_FIX("dc_bus_v",         dc_bus_mv,           SCALAR_U32, 1000, 1),
-    GH_FIX("battery_v",        battery_mv,          SCALAR_U32, 1000, 1),
-    GH_FIX("generator_v",      generator_mv,        SCALAR_U32, 1000, 1),
-    GH_FIX("grid_freq_hz",     grid_freq_centi_hz,  SCALAR_U16,  100, 2),
-    // Climate (0.01 degC / 0.01 %RH, one reading per height zone)
-    GH_FIX("ext_temp_c",       ext_temp_c_centi,    SCALAR_I16,  100, 1),
-    GH_FIX("floor_temp_c",     floor_temp_c_centi,  SCALAR_I16,  100, 1),
-    GH_FIX("ceil_temp_c",      ceil_temp_c_centi,   SCALAR_I16,  100, 1),
-    GH_FIX("ext_rh_pct",       ext_rh_centi_pct,    SCALAR_U16,  100, 1),
-    GH_FIX("floor_rh_pct",     floor_rh_centi_pct,  SCALAR_U16,  100, 1),
-    GH_FIX("ceil_rh_pct",      ceil_rh_centi_pct,   SCALAR_U16,  100, 1),
-    GH_INT("wind_peak_kmh",    wind_peak_kmh,       SCALAR_U16),
-    GH_INT("rain_age_s",       rain_age_s,          SCALAR_U32),
-    GH_INT("rain_detected",    rain_detected,       SCALAR_U8),
-    // Irrigation
-    GH_INT("water_in_l",       water_in_l,          SCALAR_U16),
-    GH_INT("water_out_lpm",    water_out_lpm,       SCALAR_U16),
-    GH_INT("current_tray",     current_tray,        SCALAR_U8),
-    GH_ENUM("tray_status",     tray_status,         &TrayStatus::str),
-    // Environment extras
-    GH_INT("sunrise_min",      sunrise_min,         SCALAR_U16),
-    GH_INT("sunset_min",       sunset_min,          SCALAR_U16),
-    // Actuators (percent)
-    GH_INT("window_a",         window_a,            SCALAR_U8),
-    GH_INT("window_b",         window_b,            SCALAR_U8),
-    GH_INT("window_c",         window_c,            SCALAR_U8),
-    GH_INT("window_d",         window_d,            SCALAR_U8),
-    GH_INT("blower_a",         blower_a,            SCALAR_U8),
-    GH_INT("blower_b",         blower_b,            SCALAR_U8),
-    GH_INT("blower_c",         blower_c,            SCALAR_U8),
-    GH_INT("blower_d",         blower_d,            SCALAR_U8),
-    GH_INT("extractor_a",      extractor_a,         SCALAR_U8),
-    GH_INT("extractor_b",      extractor_b,         SCALAR_U8),
-    GH_INT("thermal_screen",   thermal_screen,      SCALAR_U8),
-    // Discrete status / monitored autonomous systems
-    GH_ENUM("ups",             ups_status,          &UpsStatus::str),
-    GH_INT("dc_bus_a_ok",      dc_bus_a_ok,         SCALAR_U8),
-    GH_INT("dc_bus_b_ok",      dc_bus_b_ok,         SCALAR_U8),
-    GH_INT("cooling_on",       cooling_on,          SCALAR_U8),
-    GH_INT("generator_running",generator_running,   SCALAR_U8),
-    GH_INT("heat_blower_on",   heat_blower_on,      SCALAR_U8),
-    GH_INT("heatpump_on",      heatpump_on,         SCALAR_U8),
-    GH_ENUM("net_status",      net_status,          &NetStatus::str),
-    GH_INT("ntp_synced",       ntp_synced,          SCALAR_U8),
-    GH_INT("ntp_offset_ms",    ntp_offset_ms,       SCALAR_I16),
+const ScalarField g_ac_supply[] = {
+    { "grid_v",            offsetof(PlcOutputData_t, grid_ac_mv),         SCALAR_U32, 1000, 1, nullptr },
+    { "grid_freq_hz",      offsetof(PlcOutputData_t, grid_freq_centi_hz), SCALAR_U16,  100, 2, nullptr },
+    { "generator_v",       offsetof(PlcOutputData_t, generator_mv),       SCALAR_U32, 1000, 1, nullptr },
+    { "generator_running", offsetof(PlcOutputData_t, generator_running),  SCALAR_U8,     0, 0, nullptr },
+    { "ups",               offsetof(PlcOutputData_t, ups_status),         SCALAR_ENUM,   0, 0, &UpsStatus::str },
 };
 
-#undef GH_INT
-#undef GH_FIX
-#undef GH_ENUM
+const ScalarField g_dc_supply[] = {
+    { "bus_v",          offsetof(PlcOutputData_t, dc_bus_mv),   SCALAR_U32, 1000, 1, nullptr },
+    { "battery_v",      offsetof(PlcOutputData_t, battery_mv),  SCALAR_U32, 1000, 1, nullptr },
+    { "rectifier_a_ok", offsetof(PlcOutputData_t, dc_bus_a_ok), SCALAR_U8,     0, 0, nullptr },
+    { "rectifier_b_ok", offsetof(PlcOutputData_t, dc_bus_b_ok), SCALAR_U8,     0, 0, nullptr },
+};
+
+const ScalarField g_environment[] = {
+    { "ext_temp_c",    offsetof(PlcOutputData_t, ext_temp_c_centi),   SCALAR_I16, 100, 1, nullptr },
+    { "floor_temp_c",  offsetof(PlcOutputData_t, floor_temp_c_centi), SCALAR_I16, 100, 1, nullptr },
+    { "ceil_temp_c",   offsetof(PlcOutputData_t, ceil_temp_c_centi),  SCALAR_I16, 100, 1, nullptr },
+    { "ext_rh_pct",    offsetof(PlcOutputData_t, ext_rh_centi_pct),   SCALAR_U16, 100, 1, nullptr },
+    { "floor_rh_pct",  offsetof(PlcOutputData_t, floor_rh_centi_pct), SCALAR_U16, 100, 1, nullptr },
+    { "ceil_rh_pct",   offsetof(PlcOutputData_t, ceil_rh_centi_pct),  SCALAR_U16, 100, 1, nullptr },
+    { "wind_peak_kmh", offsetof(PlcOutputData_t, wind_peak_kmh),      SCALAR_U16,   0, 0, nullptr },
+    { "rain_age_s",    offsetof(PlcOutputData_t, rain_age_s),         SCALAR_U32,   0, 0, nullptr },
+    { "rain_detected", offsetof(PlcOutputData_t, rain_detected),      SCALAR_U8,    0, 0, nullptr },
+};
+
+const ScalarField g_irrigation[] = {
+    { "water_in_l",    offsetof(PlcOutputData_t, water_in_l),    SCALAR_U16,  0, 0, nullptr },
+    { "water_out_lpm", offsetof(PlcOutputData_t, water_out_lpm), SCALAR_U16,  0, 0, nullptr },
+    { "current_tray",  offsetof(PlcOutputData_t, current_tray),  SCALAR_U8,   0, 0, nullptr },
+    { "tray_status",   offsetof(PlcOutputData_t, tray_status),   SCALAR_ENUM, 0, 0, &TrayStatus::str },
+};
+
+const ScalarField g_ventilation[] = {
+    { "window_a",    offsetof(PlcOutputData_t, window_a),    SCALAR_U8, 0, 0, nullptr },
+    { "window_b",    offsetof(PlcOutputData_t, window_b),    SCALAR_U8, 0, 0, nullptr },
+    { "window_c",    offsetof(PlcOutputData_t, window_c),    SCALAR_U8, 0, 0, nullptr },
+    { "window_d",    offsetof(PlcOutputData_t, window_d),    SCALAR_U8, 0, 0, nullptr },
+    { "blower_a",    offsetof(PlcOutputData_t, blower_a),    SCALAR_U8, 0, 0, nullptr },
+    { "blower_b",    offsetof(PlcOutputData_t, blower_b),    SCALAR_U8, 0, 0, nullptr },
+    { "blower_c",    offsetof(PlcOutputData_t, blower_c),    SCALAR_U8, 0, 0, nullptr },
+    { "blower_d",    offsetof(PlcOutputData_t, blower_d),    SCALAR_U8, 0, 0, nullptr },
+    { "extractor_a", offsetof(PlcOutputData_t, extractor_a), SCALAR_U8, 0, 0, nullptr },
+    { "extractor_b", offsetof(PlcOutputData_t, extractor_b), SCALAR_U8, 0, 0, nullptr },
+};
+
+const ScalarField g_climate[] = {
+    { "heatpump",       offsetof(PlcOutputData_t, heatpump_on),    SCALAR_U8, 0, 0, nullptr },
+    { "heat_blower",    offsetof(PlcOutputData_t, heat_blower_on), SCALAR_U8, 0, 0, nullptr },
+    { "cooling",        offsetof(PlcOutputData_t, cooling_on),     SCALAR_U8, 0, 0, nullptr },
+    { "thermal_screen", offsetof(PlcOutputData_t, thermal_screen), SCALAR_U8, 0, 0, nullptr },
+};
+
+const ScalarField g_system[] = {
+    { "net_status",    offsetof(PlcOutputData_t, net_status),    SCALAR_ENUM, 0, 0, &NetStatus::str },
+    { "ntp_synced",    offsetof(PlcOutputData_t, ntp_synced),    SCALAR_U8,   0, 0, nullptr },
+    { "ntp_offset_ms", offsetof(PlcOutputData_t, ntp_offset_ms), SCALAR_I16,  0, 0, nullptr },
+    { "sunrise_min",   offsetof(PlcOutputData_t, sunrise_min),   SCALAR_U16,  0, 0, nullptr },
+    { "sunset_min",    offsetof(PlcOutputData_t, sunset_min),    SCALAR_U16,  0, 0, nullptr },
+};
+
+const ScalarGroup g_telemetry_groups[] = {
+    { "ac_supply",   g_ac_supply,   sizeof(g_ac_supply)   / sizeof(g_ac_supply[0])   },
+    { "dc_supply",   g_dc_supply,   sizeof(g_dc_supply)   / sizeof(g_dc_supply[0])   },
+    { "environment", g_environment, sizeof(g_environment) / sizeof(g_environment[0]) },
+    { "irrigation",  g_irrigation,  sizeof(g_irrigation)  / sizeof(g_irrigation[0])  },
+    { "ventilation", g_ventilation, sizeof(g_ventilation) / sizeof(g_ventilation[0]) },
+    { "climate",     g_climate,     sizeof(g_climate)     / sizeof(g_climate[0])     },
+    { "system",      g_system,      sizeof(g_system)      / sizeof(g_system[0])      },
+};
 #endif
 
 }  // namespace
@@ -354,9 +366,10 @@ protected:
     /** @brief Register the site telemetry scalars, read generically off the live
      *  PLC payload. Published after the library base set each cycle. */
     void register_telemetry() override {
-        telemetry().set_site_scalars(g_telemetry,
-                                     sizeof(g_telemetry) / sizeof(g_telemetry[0]),
-                                     plc_output_data());
+        telemetry().set_site_scalar_groups(
+            g_telemetry_groups,
+            sizeof(g_telemetry_groups) / sizeof(g_telemetry_groups[0]),
+            plc_output_data());
     }
 #endif
 };

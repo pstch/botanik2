@@ -52,8 +52,8 @@ namespace Botanik { namespace Network {
      *  for centi-units); SCALAR_ENUM renders the raw byte through @p str.
      *
      *  This is the data-driven alternative to a TelemetryField table: a site
-     *  whose values are plain payload scalars declares one of these (see the
-     *  gh_mlb41 g_telemetry table) and registers it with set_site_scalars(). */
+     *  whose values are plain payload scalars declares these in ScalarGroups (see
+     *  the gh_mlb41 site) and registers them with set_site_scalar_groups(). */
     struct ScalarField {
         const char* name;
         uint16_t    offset;            ///< byte offset into the registered base
@@ -61,6 +61,16 @@ namespace Botanik { namespace Network {
         uint16_t    divisor;           ///< 0/1 = integer; 100 = centi; 1000 = milli
         uint8_t     decimals;          ///< fixed-point precision (divisor > 1)
         const char* (*str)(uint8_t);   ///< SCALAR_ENUM only (else null)
+    };
+
+    /** @brief A named group of ScalarFields published under a shared sub-topic:
+     *  each field emits at "<prefix>/<root>/<topic>/<field>". A site declares one
+     *  small ScalarField[] per domain (dc_supply, ac_supply, irrigation, ...) and
+     *  lists them as a ScalarGroup[] registered with set_site_scalar_groups(). */
+    struct ScalarGroup {
+        const char*        topic;      ///< shared sub-topic (e.g. "ac_supply")
+        const ScalarField* fields;
+        size_t             count;
     };
 
     /** @brief Periodic MQTT telemetry publisher (see file header). */
@@ -79,10 +89,11 @@ namespace Botanik { namespace Network {
         const TelemetryField* _site       = nullptr;
         size_t                _site_count  = 0;
         void*                 _site_ctx    = nullptr;
-        /** @brief Site scalar table (set_site_scalars), rendered generically off
-         *  @ref _scalar_base; null until a site registers one. */
-        const ScalarField*    _scalars      = nullptr;
-        size_t                _scalar_count = 0;
+        /** @brief Site scalar groups (set_site_scalar_groups), each published
+         *  under its own sub-topic and rendered generically off @ref
+         *  _scalar_base; null until a site registers them. */
+        const ScalarGroup*    _groups       = nullptr;
+        size_t                _group_count  = 0;
         const void*           _scalar_base  = nullptr;
         /** @brief Last publish cycle (uptime ms); 0 = none yet. */
         uint64_t              _last_ms     = 0;
@@ -104,14 +115,16 @@ namespace Botanik { namespace Network {
             _site_ctx   = ctx;
         }
 
-        /** @brief Register the site's scalar fields, rendered generically each
-         *  cycle by reading @p base + ScalarField::offset. @p table must outlive
-         *  the firmware; @p base is the struct the offsets index (the live PLC
-         *  payload). Pass count 0 (or null) to clear. */
-        void set_site_scalars(const ScalarField* table, size_t count, const void* base) {
-            _scalars      = table;
-            _scalar_count = (table != nullptr) ? count : 0;
-            _scalar_base  = base;
+        /** @brief Register the site's scalar groups, each published under its own
+         *  sub-topic and rendered generically by reading @p base +
+         *  ScalarField::offset. @p groups must outlive the firmware; @p base is
+         *  the struct the offsets index (the live PLC payload). Pass count 0 (or
+         *  null) to clear. */
+        void set_site_scalar_groups(const ScalarGroup* groups, size_t count,
+                                    const void* base) {
+            _groups      = groups;
+            _group_count = (groups != nullptr) ? count : 0;
+            _scalar_base = base;
         }
 
         /** @brief Publish every base + site field once
@@ -121,13 +134,16 @@ namespace Botanik { namespace Network {
         void step(uint64_t now_ms);
 
     private:
-        /** @brief Publish each field of @p table (ctx its formatter context). */
-        void _publish_table(const TelemetryField* table, size_t count, void* ctx);
-        /** @brief Publish each scalar of the registered site scalar table,
-         *  reading + rendering it generically off @ref _scalar_base. */
+        /** @brief Publish each field of @p table under @p group (null = no group
+         *  sub-topic); ctx is the formatter context. */
+        void _publish_table(const char* group, const TelemetryField* table,
+                            size_t count, void* ctx);
+        /** @brief Publish every registered site scalar group, each under its own
+         *  sub-topic, rendered generically off @ref _scalar_base. */
         void _publish_scalars();
-        /** @brief Build the field topic and publish @p payload (best-effort). */
-        void _emit(const char* name, const char* payload);
+        /** @brief Build the field topic ("<prefix>/<root>[/<group>]/<name>") and
+         *  publish @p payload (best-effort). */
+        void _emit(const char* group, const char* name, const char* payload);
         /** @brief The library base field table (ctx = the SystemContext). */
         static const TelemetryField* _base_fields(size_t& count);
     };

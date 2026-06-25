@@ -111,20 +111,20 @@ namespace Botanik { namespace Network {
 
         size_t base_n = 0;
         const TelemetryField* base = _base_fields(base_n);
-        _publish_table(base, base_n, (void*)_sys);   // library system status
-        _publish_table(_site, _site_count, _site_ctx);   // site computed fields
-        _publish_scalars();                              // site payload scalars
+        _publish_table("system", base, base_n, (void*)_sys);   // library status
+        _publish_table(nullptr, _site, _site_count, _site_ctx); // site computed
+        _publish_scalars();                                     // site scalars
     }
 
-    void MqttTelemetry::_publish_table(const TelemetryField* table, size_t count,
-                                       void* ctx) {
+    void MqttTelemetry::_publish_table(const char* group, const TelemetryField* table,
+                                       size_t count, void* ctx) {
         if (table == nullptr) return;
         char payload[64];
         for (size_t i = 0; i < count; ++i) {
             const TelemetryField& f = table[i];
             if (f.name == nullptr || f.format == nullptr) continue;
             if (!f.format(payload, sizeof(payload), ctx)) continue;   // skipped
-            _emit(f.name, payload);
+            _emit(group, f.name, payload);
         }
     }
 
@@ -146,30 +146,36 @@ namespace Botanik { namespace Network {
     }  // namespace
 
     void MqttTelemetry::_publish_scalars() {
-        if (_scalars == nullptr || _scalar_base == nullptr) return;
+        if (_groups == nullptr || _scalar_base == nullptr) return;
         char payload[64];
-        for (size_t i = 0; i < _scalar_count; ++i) {
-            const ScalarField& f = _scalars[i];
-            if (f.name == nullptr) continue;
-            int64_t raw = scalar_read(_scalar_base, f);
-            if (f.type == SCALAR_ENUM) {
-                if (f.str == nullptr) continue;
-                snprintf(payload, sizeof(payload), "%s", f.str((uint8_t)raw));
-            } else if (f.divisor > 1) {
-                char fb[16];
-                Utils::format_float(fb, sizeof(fb), (double)raw / f.divisor, f.decimals);
-                snprintf(payload, sizeof(payload), "%s", fb);
-            } else {
-                snprintf(payload, sizeof(payload), "%lld", (long long)raw);
+        for (size_t gi = 0; gi < _group_count; ++gi) {
+            const ScalarGroup& g = _groups[gi];
+            for (size_t i = 0; i < g.count; ++i) {
+                const ScalarField& f = g.fields[i];
+                if (f.name == nullptr) continue;
+                int64_t raw = scalar_read(_scalar_base, f);
+                if (f.type == SCALAR_ENUM) {
+                    if (f.str == nullptr) continue;
+                    snprintf(payload, sizeof(payload), "%s", f.str((uint8_t)raw));
+                } else if (f.divisor > 1) {
+                    char fb[16];
+                    Utils::format_float(fb, sizeof(fb), (double)raw / f.divisor, f.decimals);
+                    snprintf(payload, sizeof(payload), "%s", fb);
+                } else {
+                    snprintf(payload, sizeof(payload), "%lld", (long long)raw);
+                }
+                _emit(g.topic, f.name, payload);
             }
-            _emit(f.name, payload);
         }
     }
 
-    void MqttTelemetry::_emit(const char* name, const char* payload) {
+    void MqttTelemetry::_emit(const char* group, const char* name, const char* payload) {
         char topic[96];
-        int n = snprintf(topic, sizeof(topic), "%s/%s/%s",
-                         _prefix, Config::MQTT_TELEMETRY_TOPIC, name);
+        int n = group != nullptr
+            ? snprintf(topic, sizeof(topic), "%s/%s/%s/%s",
+                       _prefix, Config::MQTT_TELEMETRY_TOPIC, group, name)
+            : snprintf(topic, sizeof(topic), "%s/%s/%s",
+                       _prefix, Config::MQTT_TELEMETRY_TOPIC, name);
         if (n <= 0 || (size_t)n >= sizeof(topic)) return;
         // Best-effort: a publish that can't be sent now is dropped (the next
         // cycle re-sends the current value).
