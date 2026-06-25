@@ -118,23 +118,65 @@ namespace Botanik { namespace Network {
                     (int)(n - i - tlen), (const char*)&pkt[i + tlen]);
         }
 
-        /** @brief Service one MQTT client read: CONNECT -> CONNACK (accepted),
-         *  PINGREQ -> PINGRESP, everything else discarded. Returns false once the
-         *  peer closes (so the caller drops the fd). */
-        inline bool netd_serve_mqtt(int fd) {
-            uint8_t pkt[64];
-            ssize_t n = ::recv(fd, pkt, sizeof(pkt), 0);
-            if (n == 0) return false;                   // peer closed
-            if (n < 0)  return true;                    // would-block: keep it
-            netd_trace_mqtt(pkt, n);
-            if (pkt[0] == 0x10) {                       // CONNECT
+        /** @brief One MQTT client: its fd plus a reassembly buffer. TCP is a
+         *  byte stream, so a single read can carry several small packets coalesced
+         *  or split a large one; buffering lets us trace + answer each whole
+         *  packet (the publisher's fields would otherwise show up fragmented). */
+        struct MqttConn {
+            int      fd  = -1;
+            uint8_t  buf[256];
+            uint16_t len = 0;
+        };
+
+        /** @brief Answer one whole MQTT packet: CONNECT -> CONNACK (accepted),
+         *  PINGREQ -> PINGRESP, everything else (PUBLISH, ...) accepted + dropped. */
+        inline void netd_answer_mqtt(int fd, const uint8_t* pkt, size_t n) {
+            netd_trace_mqtt(pkt, (ssize_t)n);
+            if ((pkt[0] & 0xF0) == 0x10) {              // CONNECT
                 uint8_t ack[4] = { 0x20, 0x02, 0x00, 0x00 };   // CONNACK, accepted
                 ::send(fd, ack, sizeof(ack), 0);
-            } else if (pkt[0] == 0xC0) {                // PINGREQ
+            } else if ((pkt[0] & 0xF0) == 0xC0) {       // PINGREQ
                 uint8_t pong[2] = { 0xD0, 0x00 };       // PINGRESP
                 ::send(fd, pong, sizeof(pong), 0);
             }
-            return true;                                // PUBLISH etc.: accepted, discarded
+        }
+
+        /** @brief Read what's available, then trace + answer every complete MQTT
+         *  packet now buffered, leaving any partial tail for the next call.
+         *  Returns false once the peer closes (so the caller drops the conn). */
+        inline bool netd_serve_mqtt(MqttConn& c) {
+            // Append into the reassembly buffer (drop a stuck full buffer rather
+            // than read 0 bytes and misread it as a close).
+            if (c.len >= sizeof(c.buf)) c.len = 0;
+            ssize_t n = ::recv(c.fd, c.buf + c.len, sizeof(c.buf) - c.len, 0);
+            if (n == 0) return false;                   // peer closed
+            if (n > 0)  c.len += (uint16_t)n;           // n < 0: would-block, parse what we have
+
+            // Parse as many whole packets as the buffer holds. MQTT fixed header:
+            // type byte + a 1..4 byte remaining-length varint + that many bytes.
+            size_t off = 0;
+            while (c.len - off >= 2) {
+                uint32_t rem = 0, mult = 1;
+                size_t   p = off + 1;
+                int      rl = 0;
+                bool     complete = false;
+                for (; rl < 4 && p < c.len; ++rl) {
+                    uint8_t enc = c.buf[p++];
+                    rem += (enc & 0x7F) * mult;
+                    if (!(enc & 0x80)) { complete = true; ++rl; break; }
+                    mult *= 128;
+                }
+                if (!complete) break;                   // varint not all here yet
+                size_t total = 1 + rl + rem;
+                if (c.len - off < total) break;         // body not all here yet
+                netd_answer_mqtt(c.fd, &c.buf[off], total);
+                off += total;
+            }
+            if (off > 0) {                              // drop consumed packets
+                memmove(c.buf, c.buf + off, c.len - off);
+                c.len -= (uint16_t)off;
+            }
+            return true;
         }
     }  // namespace detail
 
@@ -153,8 +195,7 @@ namespace Botanik { namespace Network {
         const int MAX_CLIENTS = 4;
         int udp = detail::netd_bind(HAL::Network::NTP_MOCK_PORT,  /*dgram=*/true);
         int tcp = detail::netd_bind(HAL::Network::MQTT_MOCK_PORT, /*dgram=*/false);
-        int client[MAX_CLIENTS];
-        for (int i = 0; i < MAX_CLIENTS; ++i) client[i] = -1;
+        detail::MqttConn client[MAX_CLIENTS];
 
         while (_netd_running()) {
             if (udp >= 0) detail::netd_serve_ntp(udp);
@@ -165,12 +206,15 @@ namespace Botanik { namespace Network {
                     fcntl(c, F_SETFL, fl | O_NONBLOCK);
                     fcntl(c, F_SETFD, FD_CLOEXEC);   // drop on a reset re-exec
                     int slot = -1;
-                    for (int i = 0; i < MAX_CLIENTS; ++i) if (client[i] < 0) { slot = i; break; }
-                    if (slot >= 0) client[slot] = c; else ::close(c);
+                    for (int i = 0; i < MAX_CLIENTS; ++i) if (client[i].fd < 0) { slot = i; break; }
+                    if (slot >= 0) { client[slot].fd = c; client[slot].len = 0; }
+                    else ::close(c);
                 }
                 for (int i = 0; i < MAX_CLIENTS; ++i) {
-                    if (client[i] < 0) continue;
-                    if (!detail::netd_serve_mqtt(client[i])) { ::close(client[i]); client[i] = -1; }
+                    if (client[i].fd < 0) continue;
+                    if (!detail::netd_serve_mqtt(client[i])) {
+                        ::close(client[i].fd); client[i].fd = -1; client[i].len = 0;
+                    }
                 }
             }
             HAL::Clock::sleep_ms(Config::TASK_PERIOD_MS);
@@ -178,7 +222,7 @@ namespace Botanik { namespace Network {
 
         if (udp >= 0) ::close(udp);
         if (tcp >= 0) ::close(tcp);
-        for (int i = 0; i < MAX_CLIENTS; ++i) if (client[i] >= 0) ::close(client[i]);
+        for (int i = 0; i < MAX_CLIENTS; ++i) if (client[i].fd >= 0) ::close(client[i].fd);
         return nullptr;
     }
 
