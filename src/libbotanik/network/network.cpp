@@ -56,10 +56,7 @@ namespace Botanik { namespace Network {
         }
     }
 
-    void NetworkHandler::_enter(State s, uint64_t now_ms) {
-        _state = s;
-        _since_ms = now_ms;
-    }
+    void NetworkHandler::_enter(State s, uint64_t now_ms) { _state = s; _since_ms = now_ms; }
 
     void NetworkHandler::_unwire_resolver() {
         if (_resolver != nullptr) _resolver->clear();

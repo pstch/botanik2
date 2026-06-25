@@ -58,10 +58,7 @@ namespace Botanik { namespace Network {
         }
     }
 
-    void MqttClient::_enter(State s, uint64_t now_ms) {
-        _state = s;
-        _since_ms = now_ms;
-    }
+    void MqttClient::_enter(State s, uint64_t now_ms) { _state = s; _since_ms = now_ms; }
 
     void MqttClient::_fail(uint64_t now_ms) {
         if (_sock >= 0) { HAL::Network::tcp_close(_sock); _sock = -1; }

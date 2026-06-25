@@ -18,15 +18,9 @@ namespace Botanik { namespace Terminal {
     // ------------------------------------------------------------------------
 
     void InputParser::_reset_event() {
-        _event.type = EventType::NONE;
-        _event.command = Command::NONE;
-        _event.count = 1;
-        _event.batch_data = nullptr;
-        _event.batch_len = 0;
-        _event.prefix = 0;
-        _event.value = 0;
-        _event.param_count = 0;
-        for (int i = 0; i < 8; i++) _event.params[i] = 0;
+        // Value-init restores every field to its in-class default (count=1, the
+        // rest zero/NONE) and zero-fills params[], which has no default.
+        _event = InputEvent();
     }
 
     // Chunkable command helpers

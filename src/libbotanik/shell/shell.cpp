@@ -3,6 +3,7 @@
  * @brief CommandShell implementation - command dispatch and built-in commands.
  */
 #include <algorithm>
+#include <cstdarg>
 #include <cstdio>
 #include <cstring>
 
@@ -103,22 +104,30 @@ namespace Botanik { namespace Shell {
         _output.write(msg, strlen(msg));
     }
 
+    void CommandShell::_emitf(char* buf, size_t cap, const char* fmt, ...) {
+        va_list ap; va_start(ap, fmt);
+        int w = vsnprintf(buf, cap, fmt, ap);
+        va_end(ap);
+        if (w > 0) _output.write(buf, std::min((size_t)w, cap - 1));
+    }
+
+    void CommandShell::_line(const char* label, const char* val) {
+        char out[2 * Config::PLC_HOST_STR_LEN + 32];
+        _emitf(out, sizeof(out), "%-22s : %s", label, val);
+    }
+
     void CommandShell::_cmd_help(const char*, uint16_t) {
         // One line per command, generated from the tables so help can't drift
         // from the command set. %-10s is a minimum width, not a cap (a long
         // name pushes help right).
         char out[Config::LOG_FORMATTED_LEN];
         uint8_t bcount; const Builtin* B = _builtins(bcount);
-        for (uint8_t i = 0; i < bcount; i++) {
-            int w = snprintf(out, sizeof(out), "  %-10s %s", B[i].name, B[i].help);
-            if (w > 0) _output.write(out, std::min((size_t)w, sizeof(out) - 1));
-        }
+        for (uint8_t i = 0; i < bcount; i++)
+            _emitf(out, sizeof(out), "  %-10s %s", B[i].name, B[i].help);
         for (size_t i = 0; i < _command_count; i++) {
             const ShellCommand& c = _commands[i];
             if (c.name == nullptr) continue;
-            int w = snprintf(out, sizeof(out), "  %-10s %s",
-                             c.name, c.help ? c.help : "");
-            if (w > 0) _output.write(out, std::min((size_t)w, sizeof(out) - 1));
+            _emitf(out, sizeof(out), "  %-10s %s", c.name, c.help ? c.help : "");
         }
     }
 
@@ -161,61 +170,53 @@ namespace Botanik { namespace Shell {
         char out[Config::LOG_FORMATTED_LEN];
         char val[24], detail[64];
         char fa[12], fb[12];
-        int w;
 
         snprintf(val,    sizeof(val),    "%lus",
             (unsigned long)(HAL::Clock::uptime_ms() / 1000));
         snprintf(detail, sizeof(detail), "%lu ticks, %lu overruns",
             (unsigned long)ctx->tick_count, (unsigned long)ctx->overruns);
-        w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
+        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
             "Uptime ......................", val, detail);
-        if (w > 0) _output.write(out, (size_t)w);
 
         snprintf(val,    sizeof(val),    "%s%%",
             Utils::format_float(fa, sizeof(fa), ctx->cpu_load_ema * 100.0f, 1));
         snprintf(detail, sizeof(detail), "recent %sms, peak %sms",
             Utils::format_float(fa, sizeof(fa), ctx->cpu_loop_us_recent / 1000.0, 2),
             Utils::format_float(fb, sizeof(fb), ctx->cpu_loop_us_max / 1000.0, 2));
-        w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
+        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
             "CPU load ....................", val, detail);
-        if (w > 0) _output.write(out, (size_t)w);
 
         snprintf(val,    sizeof(val),    "%s%%",
             Utils::format_float(fa, sizeof(fa), ctx->cpu_jitter_ema * 100.0f, 1));
         snprintf(detail, sizeof(detail), "recent %sms, peak %sms",
             Utils::format_float(fa, sizeof(fa), ctx->cpu_jitter_us_recent / 1000.0, 2),
             Utils::format_float(fb, sizeof(fb), ctx->cpu_jitter_us_max / 1000.0, 2));
-        w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
+        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
             "CPU jitter ..................", val, detail);
-        if (w > 0) _output.write(out, (size_t)w);
 
         snprintf(val,    sizeof(val),    "%s%%",
             Utils::format_float(fa, sizeof(fa), ctx->stack_usage * 100.0f, 1));
         snprintf(detail, sizeof(detail), "%s free",
             Utils::format_size(fa, sizeof(fa), ctx->stack_bytes_free));
-        w = snprintf(out, sizeof(out), "%-29s : %-8s (%s)",
+        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
             "Stack usage .................", val, detail);
-        if (w > 0) _output.write(out, (size_t)w);
 
         Utils::format_size(val, sizeof(val), ctx->stack_depth);
-        w = snprintf(out, sizeof(out), "%-29s : %s",
+        _emitf(out, sizeof(out), "%-29s : %s",
             "Stack depth .................", val);
-        if (w > 0) _output.write(out, (size_t)w);
 
         snprintf(detail, sizeof(detail), "%lu TX dropped, %lu RX overruns",
             (unsigned long)_terminal.tx_dropped(),
             (unsigned long)_terminal.rx_overrun());
-        w = snprintf(out, sizeof(out), "%-29s : %s",
+        _emitf(out, sizeof(out), "%-29s : %s",
             "Console serial ..............", detail);
-        if (w > 0) _output.write(out, (size_t)w);
     }
 
     void CommandShell::_cmd_version(const char*, uint16_t) {
         char out[Config::LOG_FORMATTED_LEN];
-        int n = snprintf(out, sizeof(out), "Botanik %s (%s) site %s on %s",
-                         Config::FIRMWARE_VERSION, BOTANIK_GIT_HASH,
-                         Config::SITE_NAME, HAL::hardware_description());
-        if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+        _emitf(out, sizeof(out), "Botanik %s (%s) site %s on %s",
+               Config::FIRMWARE_VERSION, BOTANIK_GIT_HASH,
+               Config::SITE_NAME, HAL::hardware_description());
     }
 
     void CommandShell::_cmd_alarms(const char* args, uint16_t alen) {
@@ -232,18 +233,16 @@ namespace Botanik { namespace Shell {
             if (tgt == nullptr) {
                 _println("usage: alarms ack <code|all>"); return;
             }
-            int n;
             if (Utils::arg_eq(tgt, tlen, "all")) {
-                n = snprintf(out, sizeof(out), "acknowledged %u active alarm(s)",
-                             _alarm_model->ack_all());
+                _emitf(out, sizeof(out), "acknowledged %u active alarm(s)",
+                       _alarm_model->ack_all());
             } else {
                 char code[24];
                 uint16_t cl = std::min(tlen, (uint16_t)(sizeof(code) - 1));
                 memcpy(code, tgt, cl); code[cl] = '\0';
-                n = snprintf(out, sizeof(out), _alarm_model->ack(code)
-                             ? "acknowledged %s" : "no active alarm '%s'", code);
+                _emitf(out, sizeof(out), _alarm_model->ack(code)
+                       ? "acknowledged %s" : "no active alarm '%s'", code);
             }
-            if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
             return;
         }
 
@@ -260,19 +259,17 @@ namespace Botanik { namespace Shell {
                 const Alarms::AlarmCondition& c = m->condition(i);
                 if (!c.active) continue;
                 uint32_t secs = (uint32_t)((now - c.started_ms) / 1000);
-                int n = snprintf(out, sizeof(out), "  %-10s %s%s%s",
+                _emitf(out, sizeof(out), "  %-10s %s%s%s",
                     c.code ? c.code : "?",
                     Utils::format_age(age, sizeof(age), secs, false),
                     c.unmasked ? "" : " [masked]", c.acknowledged ? " [ack]" : "");
-                if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
             }
             return;
         }
 
         // Default: the count summary.
-        int n = snprintf(out, sizeof(out), "alarms: %u active, %u unmasked",
-                         m->active_count(), m->unmasked_count());
-        if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+        _emitf(out, sizeof(out), "alarms: %u active, %u unmasked",
+               m->active_count(), m->unmasked_count());
     }
 
     void CommandShell::_cmd_loglevel(const char* args, uint16_t alen) {
@@ -290,15 +287,13 @@ namespace Botanik { namespace Shell {
             const char* cur = "?";
             for (const auto& L : LEVELS)
                 if (L.lvl == _logger->min_level()) cur = L.name;
-            int n = snprintf(out, sizeof(out), "loglevel: %s", cur);
-            if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+            _emitf(out, sizeof(out), "loglevel: %s", cur);
             return;
         }
         for (const auto& L : LEVELS)
             if (Utils::arg_eq(w, wlen, L.name)) {
                 _logger->set_min_level(L.lvl);
-                int n = snprintf(out, sizeof(out), "loglevel: %s", L.name);
-                if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+                _emitf(out, sizeof(out), "loglevel: %s", L.name);
                 return;
             }
         _println("usage: loglevel [debug|info|notice|warning|error|critical]");
@@ -307,9 +302,8 @@ namespace Botanik { namespace Shell {
     void CommandShell::_cmd_uptime(const char*, uint16_t) {
         char buf[16], out[48];
         uint32_t secs = (uint32_t)(HAL::Clock::uptime_ms() / 1000);
-        int n = snprintf(out, sizeof(out), "uptime: %s",
-                         Utils::format_age(buf, sizeof(buf), secs, false));
-        if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+        _emitf(out, sizeof(out), "uptime: %s",
+               Utils::format_age(buf, sizeof(buf), secs, false));
     }
 
     void CommandShell::_cmd_plc(const char*, uint16_t) {
@@ -325,8 +319,7 @@ namespace Botanik { namespace Shell {
         // Dotted-leader "label .... : value" lines. The 22-char labels are
         // exact (no %-22s pad); narrower than `stats` so each region line fits
         // 80 cols.
-        char out[128], val[80], sz[16];
-        int n;
+        char val[80], sz[16];
 
         // Link state, last-ack age, torn-read count.
         if (p->ever_acked())
@@ -335,19 +328,16 @@ namespace Botanik { namespace Shell {
                      (unsigned long)p->torn_count());
         else
             snprintf(val, sizeof(val), "%s  (%lu torn)", s, (unsigned long)p->torn_count());
-        n = snprintf(out, sizeof(out), "%-22s : %s", "PLC link .............", val);
-        if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+        _line("PLC link .............", val);
 
         // Shared-memory regions: address + size. Fixed-width numbers so columns
         // never shift.
         snprintf(val, sizeof(val), "%p  %6s",
                  p->in_region(), Utils::format_size(sz, sizeof(sz), p->in_size()));
-        n = snprintf(out, sizeof(out), "%-22s : %s", "Shared mem IN ........", val);
-        if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+        _line("Shared mem IN ........", val);
         snprintf(val, sizeof(val), "%p  %6s",
                  p->out_region(), Utils::format_size(sz, sizeof(sz), p->out_size()));
-        n = snprintf(out, sizeof(out), "%-22s : %s", "Shared mem OUT .......", val);
-        if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+        _line("Shared mem OUT .......", val);
 
         // Handshake counters grouped by direction: a direction's seq and its
         // ack together. The seq and its ack live in opposite regions (the
@@ -355,19 +345,16 @@ namespace Botanik { namespace Shell {
         // other), so each line pairs across the two.
         snprintf(val, sizeof(val), "seq %5lu, ack %5lu",
                  (unsigned long)p->out_tx_seq(), (unsigned long)p->in_tx_ack());
-        n = snprintf(out, sizeof(out), "%-22s : %s", "TX seq/ack ...........", val);
-        if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+        _line("TX seq/ack ...........", val);
         snprintf(val, sizeof(val), "seq %5lu, ack %5lu",
                  (unsigned long)p->in_rx_seq(), (unsigned long)p->out_rx_ack());
-        n = snprintf(out, sizeof(out), "%-22s : %s", "RX seq/ack ...........", val);
-        if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+        _line("RX seq/ack ...........", val);
 
         // Log ring cursors framed as seq/ack: PLC write pos vs our read pos.
         snprintf(val, sizeof(val), "seq %5lu, ack %5lu",
                  (unsigned long)p->output_logs()->writeIndex,
                  (unsigned long)p->input_logs()->readIndex);
-        n = snprintf(out, sizeof(out), "%-22s : %s", "Logs from PLC ........", val);
-        if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
+        _line("Logs from PLC ........", val);
     }
 
     void CommandShell::_cmd_net(const char*, uint16_t) {
@@ -385,11 +372,6 @@ namespace Botanik { namespace Shell {
         // a pair of host strings (DNS / NTP servers); the scrollback soft-wraps
         // if a long pair overruns 80 cols.
         char val[2 * Config::PLC_HOST_STR_LEN + 8];
-        auto line = [&](const char* label, const char* v) {
-            char out[2 * Config::PLC_HOST_STR_LEN + 32];
-            int n = snprintf(out, sizeof(out), "%-22s : %s", label, v);
-            if (n > 0) _output.write(out, std::min((size_t)n, sizeof(out) - 1));
-        };
 
         // Format an address into a small static scratch (one at a time;
         // sequential use is fine).
@@ -401,16 +383,16 @@ namespace Botanik { namespace Shell {
         // --- Link --------------------------------------------------------
         const char* mode = (cfg != nullptr && cfg->net.dhcp) ? "DHCP" : "static";
         snprintf(val, sizeof(val), "%s  (%s)", net->status_str(), mode);
-        line("Network ..............", val);
+        _line("Network ..............", val);
 
         // IP / netmask / gateway / DNS are the active link parameters (the DHCP
         // lease or static config, whichever is live), read back from the HAL so
         // a DHCP-assigned value shows too.
         HAL::Network::Ip4 a4;
-        line("IP address ...........", net->ip(&a4) ? ip4(a4) : "-");
-        line("Netmask ..............",
+        _line("IP address ...........", net->ip(&a4) ? ip4(a4) : "-");
+        _line("Netmask ..............",
              HAL::Network::link_netmask(&a4) ? ip4(a4) : "-");
-        line("Gateway ..............",
+        _line("Gateway ..............",
              HAL::Network::link_gateway(&a4) ? ip4(a4) : "-");
         {
             HAL::Network::Ip4 d0, d1;
@@ -423,7 +405,7 @@ namespace Botanik { namespace Shell {
             } else {
                 snprintf(val, sizeof(val), "%s", h0 ? ip4(d0) : "-");
             }
-            line("DNS ..................", val);
+            _line("DNS ..................", val);
         }
 
         // --- NTP ---------------------------------------------------------
@@ -433,7 +415,7 @@ namespace Botanik { namespace Shell {
                          ntp->status_str(), (long)ntp->offset_ms());
             else
                 snprintf(val, sizeof(val), "%s", ntp->status_str());
-            line("NTP ..................", val);
+            _line("NTP ..................", val);
             if (cfg != nullptr && cfg->ntp.server1[0]) {
                 // Configured hostname, then the resolved IP:port once known.
                 Network::ResolvedAddr sa = ntp->server_addr();
@@ -443,10 +425,10 @@ namespace Botanik { namespace Shell {
                              ip4(sa), (unsigned)ntp->server_port());
                 else
                     snprintf(val, sizeof(val), "%s", cfg->ntp.server1);
-                line("NTP server ...........", val);
+                _line("NTP server ...........", val);
             }
         } else {
-            line("NTP ..................", "disabled");
+            _line("NTP ..................", "disabled");
         }
 
         // --- MQTT --------------------------------------------------------
@@ -461,7 +443,7 @@ namespace Botanik { namespace Shell {
             } else {
                 snprintf(val, sizeof(val), "%s  (no pub yet)", mqt->status_str());
             }
-            line("MQTT .................", val);
+            _line("MQTT .................", val);
             if (cfg != nullptr && cfg->mqtt.broker[0]) {
                 // Configured hostname, then the resolved IP:port once connected.
                 if (mqt->connected()) {
@@ -471,10 +453,10 @@ namespace Botanik { namespace Shell {
                 } else {
                     snprintf(val, sizeof(val), "%s", cfg->mqtt.broker);
                 }
-                line("MQTT broker ..........", val);
+                _line("MQTT broker ..........", val);
             }
         } else {
-            line("MQTT .................", "disabled");
+            _line("MQTT .................", "disabled");
         }
     }
 
