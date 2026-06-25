@@ -1,18 +1,25 @@
 /**
- * @file sun.cpp
+ * @file sun/sun.cpp
  * @brief Solar position implementation - NOAA "sunrise equation" approximation.
  *
  * Reference: the standard sunrise-equation formulation (en.wikipedia.org/wiki/
  * Sunrise_equation). Day numbers are counted from J2000 (noon-anchored), so the
  * Julian-date arithmetic and the noon-anchored transit fall out directly.
  */
+#include "libbotanik/sun/sun.h"
+
+#if BOTANIK_FEATURE_SUN
+
 #include <cmath>
 #include <cstdint>
 
-#include "libbotanik/utils/sun.h"
-#include "libbotanik/utils/time.h"
+#include "libbotanik/utils/time.h"   // uptime <-> unix ms conversions
 
-namespace Botanik { namespace Utils {
+namespace Botanik { namespace Sun {
+
+    // The boot-epoch <-> UNIX conversions live in Utils (general time helpers).
+    using Botanik::Utils::unix_ms_from_uptime_ms;
+    using Botanik::Utils::uptime_ms_from_unix_ms;
 
     // Constants
     // ------------------------------------------------------------------------
@@ -154,3 +161,5 @@ namespace Botanik { namespace Utils {
     }
 
 }}
+
+#endif // BOTANIK_FEATURE_SUN

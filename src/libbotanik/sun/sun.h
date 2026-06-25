@@ -1,8 +1,8 @@
-#ifndef UTILS_SUN_H
-#define UTILS_SUN_H
+#ifndef SUN_SUN_H
+#define SUN_SUN_H
 
 /**
- * @file sun.h
+ * @file sun/sun.h
  * @brief Solar position utilities - the sun's declination and the next
  *        sunrise/sunset for a given location, as absolute timestamps.
  *
@@ -17,11 +17,20 @@
  * "now". Location is plain degrees (north +, east +); no timezone is needed,
  * since an absolute instant is timezone-independent and longitude already fixes
  * solar noon in UTC.
+ *
+ * Gated by BOTANIK_FEATURE_SUN.
  */
 
 #include <cstdint>
 
-namespace Botanik { namespace Utils {
+// libbotanik_config.h pulls the site config then the feature flags in that
+// order (so a site override wins) - include it, not features.h directly, so
+// this header is safe to include standalone (e.g. from a test).
+#include "libbotanik_config.h"
+
+#if BOTANIK_FEATURE_SUN
+
+namespace Botanik { namespace Sun {
 
     /** @name Types
      *  @{ */
@@ -63,4 +72,5 @@ namespace Botanik { namespace Utils {
 
 }}
 
-#endif // UTILS_SUN_H
+#endif // BOTANIK_FEATURE_SUN
+#endif // SUN_SUN_H

@@ -48,6 +48,15 @@
 #  define BOTANIK_FEATURE_MQTT 0
 #endif
 
+/** @brief Sun tracking: the SunPositionTracker (geo-config-driven sunrise /
+ *  sunset + day/night) and the solar-position math (sun/). Standalone - not
+ *  instantiated by BotanikFirmware, so a site opts in by constructing one.
+ *  Default ON (preserves the always-built behaviour); -DBOTANIK_FEATURE_SUN=OFF
+ *  drops the sun/ sources and their tests. */
+#ifndef BOTANIK_FEATURE_SUN
+#  define BOTANIK_FEATURE_SUN 1
+#endif
+
 /** @brief ANSI terminal UI: AnsiTerminal, the built-in pages, the console UART,
  *  and the register_pages()/register_commands() hooks. Off -> headless; the
  *  logger, scheduler, health/alarm model and PLC link remain, diagnostics reach

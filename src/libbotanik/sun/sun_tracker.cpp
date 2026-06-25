@@ -1,12 +1,15 @@
 /**
- * @file sun_tracker.cpp
+ * @file sun/sun_tracker.cpp
  * @brief SunPositionTracker implementation.
  */
 
-#include "libbotanik/sun_tracker.h"
+#include "libbotanik/sun/sun_tracker.h"
+
+#if BOTANIK_FEATURE_SUN
+
 #include "libbotanik/hal/platform.h"   // HAL::Clock::wall_ms
 
-namespace Botanik {
+namespace Botanik { namespace Sun {
 
     // Wall-clock sanity floor (ms since the UNIX epoch, ~2020-09): below this
     // the RTC is unset (no NTP yet) and the date-dependent solar math is
@@ -53,7 +56,7 @@ namespace Botanik {
         double lon = (double)c->geo.longitude_e7 / 1e7;
 
         bool had = _computed;
-        _times = Utils::next_sun_times(now_ms, lat, lon);
+        _times = next_sun_times(now_ms, lat, lon);
         _computed = true;
 
         // Daytime when the sun sets before it next rises. Both events must be
@@ -68,4 +71,6 @@ namespace Botanik {
         _is_day = day;
     }
 
-}
+}}
+
+#endif // BOTANIK_FEATURE_SUN
