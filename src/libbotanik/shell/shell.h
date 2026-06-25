@@ -227,6 +227,12 @@ namespace Botanik { namespace Shell {
         void _unknown(const char* cmd, uint16_t len);
         /** @brief Write a NUL-terminated line of command output. */
         void _println(const char* msg);
+        /** @brief printf into @p buf (capacity @p cap) and write the result,
+         *  clamped to the buffer; empty / encoding-error output is dropped. */
+        void _emitf(char* buf, size_t cap, const char* fmt, ...)
+            __attribute__((format(printf, 4, 5)));
+        /** @brief Emit a dotted-leader "label : value" status line (plc/net). */
+        void _line(const char* label, const char* val);
         /** @} */
 
         /** @} */

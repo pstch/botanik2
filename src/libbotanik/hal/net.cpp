@@ -85,30 +85,18 @@ namespace Botanik { namespace HAL { namespace Network {
             return true;
         }
     }
-    bool link_ip(Ip4* out) {
-        if (!out) return false;
-        SocketAddress a;
-        if (eth()->get_ip_address(&a) != NSAPI_ERROR_OK) return false;
-        return addr_to_ip4(a, out);
-    }
-    bool link_netmask(Ip4* out) {
-        if (!out) return false;
-        SocketAddress a;
-        if (eth()->get_netmask(&a) != NSAPI_ERROR_OK) return false;
-        return addr_to_ip4(a, out);
-    }
-    bool link_gateway(Ip4* out) {
-        if (!out) return false;
-        SocketAddress a;
-        if (eth()->get_gateway(&a) != NSAPI_ERROR_OK) return false;
-        return addr_to_ip4(a, out);
-    }
-    bool link_dns(uint8_t index, Ip4* out) {
-        if (!out) return false;
-        SocketAddress a;
-        if (eth()->get_dns_server((int)index, &a) != NSAPI_ERROR_OK) return false;
-        return addr_to_ip4(a, out);
-    }
+    // Each link_* getter is the same shape: read one Mbed SocketAddress, copy it
+    // out as an Ip4. CALL is the eth() method (it fills the local `a`).
+    #define LINK_GETTER(CALL) \
+        if (!out) return false; \
+        SocketAddress a; \
+        if (eth()->CALL != NSAPI_ERROR_OK) return false; \
+        return addr_to_ip4(a, out)
+    bool link_ip(Ip4* out)                 { LINK_GETTER(get_ip_address(&a)); }
+    bool link_netmask(Ip4* out)            { LINK_GETTER(get_netmask(&a)); }
+    bool link_gateway(Ip4* out)            { LINK_GETTER(get_gateway(&a)); }
+    bool link_dns(uint8_t index, Ip4* out) { LINK_GETTER(get_dns_server((int)index, &a)); }
+    #undef LINK_GETTER
 
     DnsHandle dns_begin(const char* host) {
         if (host == 0 || host[0] == '\0') return 0;
@@ -240,6 +228,11 @@ namespace Botanik { namespace HAL { namespace Network {
             return s;
         }
         bool is_loopback(const Ip4& a) { return a.b[0] == 127; }
+        bool set4(Ip4* out, uint8_t a, uint8_t b, uint8_t c, uint8_t d) {
+            if (out == 0) return false;
+            out->b[0] = a; out->b[1] = b; out->b[2] = c; out->b[3] = d;
+            return true;
+        }
     }  // namespace
 
     Ip4 mock_loopback_ip() {
@@ -262,27 +255,13 @@ namespace Botanik { namespace HAL { namespace Network {
     void      link_configure(const LinkConfig&) {}
     void      link_disconnect() {}
     LinkState link_status() { return LINK_UP; }
-    bool      link_ip(Ip4* out) {
-        if (out == 0) return false;
-        out->b[0] = 127; out->b[1] = 0; out->b[2] = 0; out->b[3] = 1;
-        return true;
-    }
-    // Hermetic loopback link: report plausible mock parameters so the UI has
-    // something to show (the sim has no real lease).
-    bool      link_netmask(Ip4* out) {
-        if (out == 0) return false;
-        out->b[0] = 255; out->b[1] = 0; out->b[2] = 0; out->b[3] = 0;  // /8
-        return true;
-    }
-    bool      link_gateway(Ip4* out) {
-        if (out == 0) return false;
-        out->b[0] = 127; out->b[1] = 0; out->b[2] = 0; out->b[3] = 1;
-        return true;
-    }
+    // Hermetic loopback link: report plausible mock parameters (127.0.0.1, /8)
+    // so the UI has something to show (the sim has no real lease).
+    bool      link_ip(Ip4* out)      { return set4(out, 127, 0, 0, 1); }
+    bool      link_netmask(Ip4* out) { return set4(out, 255, 0, 0, 0); }
+    bool      link_gateway(Ip4* out) { return set4(out, 127, 0, 0, 1); }
     bool      link_dns(uint8_t index, Ip4* out) {
-        if (out == 0 || index > 0) return false;   // single mock resolver
-        out->b[0] = 127; out->b[1] = 0; out->b[2] = 0; out->b[3] = 1;
-        return true;
+        return index > 0 ? false : set4(out, 127, 0, 0, 1);   // single mock resolver
     }
 
     // DNS: emulated async resolver mirroring the OPTA gethostbyname_async poll
