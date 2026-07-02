@@ -25,6 +25,19 @@
 
 namespace Botanik { namespace Network {
 
+    /** @brief Encode an MQTT "remaining length" varint (1..4 bytes, 7 data
+     *  bits each) into @p p; returns the number of bytes written. */
+    inline int encode_remlen(uint8_t* p, uint32_t len) {
+        int n = 0;
+        do {
+            uint8_t b = (uint8_t)(len % 128);
+            len /= 128;
+            if (len > 0) b |= 0x80;
+            p[n++] = b;
+        } while (len > 0 && n < 4);
+        return n;
+    }
+
     /** @brief Non-blocking MQTT 3.1.1 publisher. Also serves as the alarm
      *  transport (Alarms::Publisher), so HealthMonitor's notifier publishes
      *  through it. */

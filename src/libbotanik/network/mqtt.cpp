@@ -14,21 +14,6 @@
 
 namespace Botanik { namespace Network {
 
-    namespace {
-        // MQTT "remaining length" varint (1..4 bytes, 7 data bits each).
-        // Returns the number of bytes written to @p p.
-        int encode_remlen(uint8_t* p, uint32_t len) {
-            int n = 0;
-            do {
-                uint8_t b = (uint8_t)(len % 128);
-                len /= 128;
-                if (len > 0) b |= 0x80;
-                p[n++] = b;
-            } while (len > 0 && n < 4);
-            return n;
-        }
-    }  // namespace
-
     MqttClient::MqttClient(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger,
                            NameResolver* resolver, const NetworkHandler* net)
         : ConfigHandler(ctx, logger, "MqttClient"),
