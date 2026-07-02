@@ -155,9 +155,7 @@ namespace Botanik { namespace Logs {
 
         /**
          * @name Level helpers
-         * @brief Build a LogEntry_t (timestamped with HAL::Clock::current_ms()) at the
-         *        given @p topic from a printf-style message and forward it
-         *        through push_entry(). One helper per LogLevel.
+         * @brief Build a timestamped LogEntry_t with the given topic.
          * @{
          */
         void debug   (Logs::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
