@@ -43,7 +43,7 @@ namespace Botanik { namespace Alarms {
      *  overrides per-condition (0 = this default, < 0 = never expires). */
     static constexpr int32_t DEFAULT_RECENT_S = 7 * 24 * 3600;   // one week
 
-    struct AlarmHooks;   // side-effect sink (log + MQTT), defined below
+    struct AlarmSink;   // side-effect sink (log + MQTT), defined below
 
     /**
      * @brief One alarm condition: static metadata + model-owned dynamic state.
@@ -99,10 +99,10 @@ namespace Botanik { namespace Alarms {
          *  minimum-ON countdowns by @p dt, recomputes active/unmasked (the
          *  latter against the model's @p merged_raw word), seeds the edge
          *  bookkeeping on a transition, and raises any due log / MQTT event
-         *  through @p hooks. @p raw_on is this condition's merged raw bit; @p
+         *  through @p sink. @p raw_on is this condition's merged raw bit; @p
          *  now is the current uptime (ms). */
         void step(bool raw_on, uint32_t dt, uint64_t now, uint64_t merged_raw,
-                  const AlarmHooks& hooks);
+                  const AlarmSink& sink);
     };
 
     /** @brief Bit index of the alarm with matching @p code, otherwise -1. */
@@ -168,7 +168,7 @@ namespace Botanik { namespace Alarms {
      * simply ignored there (the condition keeps its mqtt_* bookkeeping either
      * way).
      */
-    struct AlarmHooks {
+    struct AlarmSink {
         Logs::Logger*  logger;     //< ALARM-topic sink (null = no logging)
         AlarmNotifier* notifier;   //< MQTT sink (null = none; MQTT-gated)
 
@@ -200,7 +200,7 @@ namespace Botanik { namespace Alarms {
     /** @brief Per-condition tick: the model loop body, owned by the condition.
      *  See the declaration for the parameter contract. */
     inline void AlarmCondition::step(bool raw_on, uint32_t dt, uint64_t now,
-                                     uint64_t merged_raw, const AlarmHooks& hooks) {
+                                     uint64_t merged_raw, const AlarmSink& sink) {
         bool was = active;
         // Two wrap-immune countdowns drained by the elapsed time: the off-delay
         // holds active for off_delay_s after the raw bit clears (refreshed while
@@ -235,12 +235,12 @@ namespace Botanik { namespace Alarms {
         if (on) {
             if (!log_on_sent && log_on_s >= 0 &&
                 dwell >= (uint64_t)log_on_s * 1000) {
-                hooks.log_start(label);
+                sink.log_start(label);
                 log_on_sent = true;
             }
             if (!mqtt_on_sent && mqtt_on_s >= 0 &&
                 dwell >= (uint64_t)mqtt_on_s * 1000) {
-                hooks.notify_on(*this);
+                sink.notify_on(*this);
                 mqtt_on_sent = true;
             }
         } else {
@@ -251,13 +251,13 @@ namespace Botanik { namespace Alarms {
                 // But when START logging is disabled (log_on_s < 0, e.g.
                 // SYS_RST) there is never a START by design, so the OFF is a
                 // plain END, not a flap.
-                if (log_on_sent || log_on_s < 0) hooks.log_end(label);
-                else                             hooks.log_flap(label);
+                if (log_on_sent || log_on_s < 0) sink.log_end(label);
+                else                             sink.log_flap(label);
                 log_off_sent = true;
             }
             if (!mqtt_off_sent && mqtt_off_s >= 0 &&
                 dwell >= (uint64_t)mqtt_off_s * 1000) {
-                hooks.notify_off(*this);
+                sink.notify_off(*this);
                 mqtt_off_sent = true;
             }
         }
@@ -382,11 +382,11 @@ namespace Botanik { namespace Alarms {
             _last_now   = now;
             _active_count = 0;
             _unmasked_count = 0;
-            AlarmHooks hooks{_logger, _notifier};
+            AlarmSink sink{_logger, _notifier};
             for (uint8_t i = 0; i < _count; i++) {
                 AlarmCondition& c = _conditions[i];
                 bool raw_on = ((_raw >> i) & 1u) != 0;
-                c.step(raw_on, dt, now, _raw, hooks);
+                c.step(raw_on, dt, now, _raw, sink);
                 if (c.active) {
                     _active_count++;
                     if (c.unmasked) _unmasked_count++;
