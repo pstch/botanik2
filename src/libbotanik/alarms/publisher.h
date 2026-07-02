@@ -3,21 +3,26 @@
 
 /**
  * @file publisher.h
- * @brief Publisher - the transport seam an AlarmNotifier publishes through.
+ * @brief The file contains the transport interface for external alarm notifications, for
+ * example through MQTT.
  *
- * Decouples alarm notification (alarms/) from the network stack: AlarmNotifier
- * formats a topic/payload and hands it to a Publisher; MqttClient implements
- * Publisher. alarms/ depends only on this interface, never on network/.
+ * Used to decouple alarm notification handlin (in alarms/) 
+ * from the network stack (in network/).
+ * 
  */
 
 namespace Botanik { namespace Alarms {
 
-    /** @brief Abstract publish sink (e.g. an MQTT client). */
+    /** @brief Abstract alarm publish sink */
     struct Publisher {
+
+        /** @brief Construct a new publisher. */
         virtual ~Publisher() {}
+
         /** @brief Publish @p payload under @p topic. Returns false if it could
          *  not be sent (e.g. not connected); the caller may drop or retry. */
         virtual bool publish(const char* topic, const char* payload) = 0;
+
     };
 
 }}
