@@ -102,6 +102,23 @@ namespace Botanik { namespace Utils {
     const char* format_float(char* buf, size_t cap, double value,
                              uint8_t decimals = 1, uint8_t width = 0);
 
+    /** @brief Format @p value as an unsigned decimal into @p buf (the `%lu`
+     *  stand-in), and return @p buf for inline use. Digits are peeled with
+     *  integer math, so it carries no libc/`%f` baggage.
+     *  @param width  Min field width, zero-padded (0 = none).
+     *  @note NUL-terminated when @p cap > 0. */
+    const char* format_uint(char* buf, size_t cap, unsigned long value,
+                            uint8_t width = 0);
+
+    /** @brief Format @p value as a signed decimal into @p buf (the `%lld`
+     *  stand-in), and return @p buf for inline use. Takes @c long @c long so
+     *  callers pass any signed integer without a magnitude concern.
+     *  @param width  Min field width, zero-padded after the sign (0 = none).
+     *  @note NUL-terminated when @p cap > 0; the negation is done on the
+     *  unsigned magnitude, so @c LLONG_MIN is handled without overflow. */
+    const char* format_int(char* buf, size_t cap, long long value,
+                           uint8_t width = 0);
+
     /** @brief Format @p bytes into @p buf as "<n> B" below 32 KiB, or "<n> KB"
      *  (rounded to the nearest KiB) at or above it. Returns @p buf for inline
      *  use. */

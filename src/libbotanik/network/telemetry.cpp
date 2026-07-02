@@ -19,68 +19,64 @@ namespace Botanik { namespace Network {
         // to skip when its source is absent (a null sub-context).
         bool fmt_uptime(char* buf, size_t cap, void* ctx) {
             (void)ctx;
-            snprintf(buf, cap, "%lu", (unsigned long)(HAL::Clock::uptime_ms() / 1000));
+            Utils::format_uint(buf, cap, (unsigned long)(HAL::Clock::uptime_ms() / 1000));
             return true;
         }
         bool fmt_cpu_load(char* buf, size_t cap, void* ctx) {
             const SystemContext* s = static_cast<const SystemContext*>(ctx);
             if (s->scheduler == nullptr) return false;
-            char f[12];
-            snprintf(buf, cap, "%s",
-                     Utils::format_float(f, sizeof(f), s->scheduler->cpu_load_ema * 100.0f, 1));
+            Utils::format_float(buf, cap, s->scheduler->cpu_load_ema * 100.0f, 1);
             return true;
         }
         bool fmt_cpu_jitter(char* buf, size_t cap, void* ctx) {
             const SystemContext* s = static_cast<const SystemContext*>(ctx);
             if (s->scheduler == nullptr) return false;
-            char f[12];
-            snprintf(buf, cap, "%s",
-                     Utils::format_float(f, sizeof(f), s->scheduler->cpu_jitter_ema * 100.0f, 1));
+            Utils::format_float(buf, cap, s->scheduler->cpu_jitter_ema * 100.0f, 1);
             return true;
         }
         bool fmt_stack(char* buf, size_t cap, void* ctx) {
             const SystemContext* s = static_cast<const SystemContext*>(ctx);
             if (s->scheduler == nullptr) return false;
-            char f[12];
-            snprintf(buf, cap, "%s",
-                     Utils::format_float(f, sizeof(f), s->scheduler->stack_usage * 100.0f, 1));
+            Utils::format_float(buf, cap, s->scheduler->stack_usage * 100.0f, 1);
             return true;
         }
         bool fmt_loop_us(char* buf, size_t cap, void* ctx) {
             const SystemContext* s = static_cast<const SystemContext*>(ctx);
             if (s->scheduler == nullptr) return false;
-            snprintf(buf, cap, "%lu", (unsigned long)s->scheduler->cpu_loop_us_recent);
+            Utils::format_uint(buf, cap, (unsigned long)s->scheduler->cpu_loop_us_recent);
             return true;
         }
         bool fmt_ticks(char* buf, size_t cap, void* ctx) {
             const SystemContext* s = static_cast<const SystemContext*>(ctx);
             if (s->scheduler == nullptr) return false;
-            snprintf(buf, cap, "%lu", (unsigned long)s->scheduler->ticks_per_second);
+            Utils::format_uint(buf, cap, (unsigned long)s->scheduler->ticks_per_second);
             return true;
         }
         bool fmt_overruns(char* buf, size_t cap, void* ctx) {
             const SystemContext* s = static_cast<const SystemContext*>(ctx);
             if (s->scheduler == nullptr) return false;
-            snprintf(buf, cap, "%lu", (unsigned long)s->scheduler->overruns);
+            Utils::format_uint(buf, cap, (unsigned long)s->scheduler->overruns);
             return true;
         }
         bool fmt_stack_free(char* buf, size_t cap, void* ctx) {
             const SystemContext* s = static_cast<const SystemContext*>(ctx);
             if (s->scheduler == nullptr) return false;
-            snprintf(buf, cap, "%lu", (unsigned long)s->scheduler->stack_bytes_free);
+            Utils::format_uint(buf, cap, (unsigned long)s->scheduler->stack_bytes_free);
             return true;
         }
         bool fmt_plc(char* buf, size_t cap, void* ctx) {
             const SystemContext* s = static_cast<const SystemContext*>(ctx);
             if (s->plc == nullptr) return false;
             const char* str;
+            size_t len;   // bytes to copy, NUL included (sizeof the literal)
             switch (s->plc->status()) {
-                case PlcIO::PLC_RUNNING: str = "running"; break;
-                case PlcIO::PLC_TIMEOUT: str = "timeout"; break;
-                case PlcIO::PLC_FAULT:   str = "fault";   break;
-                default:                 str = "unknown"; break;
+                case PlcIO::PLC_RUNNING: str = "running"; len = sizeof("running"); break;
+                case PlcIO::PLC_TIMEOUT: str = "timeout"; len = sizeof("timeout"); break;
+                case PlcIO::PLC_FAULT:   str = "fault";   len = sizeof("fault");   break;
+                default:                 str = "unknown"; len = sizeof("unknown"); break;
             }
-            snprintf(buf, cap, "%s", str);
+            if (len > cap) len = cap;
+            memcpy(buf, str, len);
             return true;
         }
     }  // namespace
@@ -154,17 +150,16 @@ namespace Botanik { namespace Network {
                 const ScalarField& f = g.fields[i];
                 if (f.name == nullptr) continue;
                 int64_t raw = scalar_read(_scalar_base, f);
+                const char* out = payload;
                 if (f.type == SCALAR_ENUM) {
                     if (f.str == nullptr) continue;
-                    snprintf(payload, sizeof(payload), "%s", f.str((uint8_t)raw));
+                    out = f.str((uint8_t)raw);   // static string, point at it directly
                 } else if (f.divisor > 1) {
-                    char fb[16];
-                    Utils::format_float(fb, sizeof(fb), (double)raw / f.divisor, f.decimals);
-                    snprintf(payload, sizeof(payload), "%s", fb);
+                    Utils::format_float(payload, sizeof(payload), (double)raw / f.divisor, f.decimals);
                 } else {
-                    snprintf(payload, sizeof(payload), "%lld", (long long)raw);
+                    Utils::format_int(payload, sizeof(payload), (long long)raw);
                 }
-                _emit(g.topic, f.name, payload);
+                _emit(g.topic, f.name, out);
             }
         }
     }

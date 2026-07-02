@@ -13,9 +13,34 @@
 #include "libbotanik/utils/text.h"
 
 using Botanik::Utils::format_float;
+using Botanik::Utils::format_uint;
+using Botanik::Utils::format_int;
 using Botanik::Utils::format_age;
 using Botanik::Utils::format_size;
 using Botanik::Utils::env_u8;
+
+TEST_CASE("format_uint: decimal digits, width, and tight cap") {
+    char b[24];
+    CHECK(std::strcmp(format_uint(b, sizeof(b), 0)          , "0")          == 0);
+    CHECK(std::strcmp(format_uint(b, sizeof(b), 7)          , "7")          == 0);
+    CHECK(std::strcmp(format_uint(b, sizeof(b), 4294967295UL), "4294967295") == 0);  // 2^32-1
+    CHECK(std::strcmp(format_uint(b, sizeof(b), 42, 5)      , "00042")      == 0);   // zero-pad to width
+    CHECK(std::strcmp(format_uint(b, sizeof(b), 12345, 3)   , "12345")      == 0);   // width <= digits: no pad
+    CHECK(std::strcmp(format_uint(b, 4, 12345)             , "123")        == 0);   // truncated, not overrun
+    CHECK(format_uint(b, 0, 9) == b);                                                // cap 0 leaves buf untouched
+}
+
+TEST_CASE("format_int: signed decimal, width, and LLONG_MIN") {
+    char b[24];
+    CHECK(std::strcmp(format_int(b, sizeof(b), 0)      , "0")     == 0);
+    CHECK(std::strcmp(format_int(b, sizeof(b), 42)     , "42")    == 0);
+    CHECK(std::strcmp(format_int(b, sizeof(b), -42)    , "-42")   == 0);
+    CHECK(std::strcmp(format_int(b, sizeof(b), -5, 6)  , "-00005") == 0);  // sign counts toward width
+    CHECK(std::strcmp(format_int(b, sizeof(b),  5, 4)  , "0005")  == 0);
+    // LLONG_MIN must negate via the unsigned magnitude, not overflow.
+    CHECK(std::strcmp(format_int(b, sizeof(b), std::numeric_limits<long long>::min()),
+                      "-9223372036854775808") == 0);
+}
 
 TEST_CASE("format_size: bytes below 32 KiB, KB at/above (rounded)") {
     char b[16];

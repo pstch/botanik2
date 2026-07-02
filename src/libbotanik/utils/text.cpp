@@ -76,12 +76,50 @@ namespace Botanik { namespace Utils {
         return _emit_reversed(buf, cap, rev, r);
     }
 
+    const char* format_uint(char* buf, size_t cap, unsigned long value, uint8_t width) {
+        if (cap == 0) return buf;
+        // Peel digits low-first (reversed), then zero-pad to `width`. rev holds a
+        // 64-bit unsigned long's 20 digits with slack.
+        char rev[24];
+        size_t r = 0;
+        do { rev[r++] = (char)('0' + value % 10); value /= 10; } while (value && r < sizeof(rev) - 1);
+        while (r < width && r < sizeof(rev) - 1) rev[r++] = '0';
+        return _emit_reversed(buf, cap, rev, r);
+    }
+
+    const char* format_int(char* buf, size_t cap, long long value, uint8_t width) {
+        if (cap == 0) return buf;
+        bool negative = value < 0;
+        // Magnitude as unsigned so LLONG_MIN negates without overflow.
+        unsigned long long mag = negative ? (unsigned long long)(-(value + 1)) + 1
+                                          : (unsigned long long)value;
+        char rev[24];   // 20 digits + sign, with slack
+        size_t r = 0;
+        do { rev[r++] = (char)('0' + mag % 10); mag /= 10; } while (mag && r < sizeof(rev) - 1);
+        // Zero-pad (after the sign) up to width, then prepend the sign last.
+        size_t sign_w = negative ? 1 : 0;
+        while (r + sign_w < width && r < sizeof(rev) - 1) rev[r++] = '0';
+        if (negative) rev[r++] = '-';
+        return _emit_reversed(buf, cap, rev, r);
+    }
+
     const char* format_size(char* buf, size_t cap, uint32_t bytes) {
         if (cap == 0) return buf;
-        if (bytes >= 32768u)   // >= 32 KiB: switch to KB, rounded to nearest
-            snprintf(buf, cap, "%lu KB", (unsigned long)((bytes + 512u) / 1024u));
-        else
-            snprintf(buf, cap, "%lu B", (unsigned long)bytes);
+        unsigned long v;
+        const char* unit;
+        if (bytes >= 32768u) {   // >= 32 KiB: switch to KB, rounded to nearest
+            v = (unsigned long)((bytes + 512u) / 1024u);
+            unit = " KB";
+        } else {
+            v = (unsigned long)bytes;
+            unit = " B";
+        }
+        format_uint(buf, cap, v);
+        // Append the unit within cap (format_uint left buf NUL-terminated).
+        size_t n = 0;
+        while (buf[n] != '\0') n++;
+        for (size_t i = 0; unit[i] != '\0' && n + 1 < cap; i++) buf[n++] = unit[i];
+        buf[n] = '\0';
         return buf;
     }
 
