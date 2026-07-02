@@ -22,11 +22,9 @@ namespace Botanik { namespace Logs {
         uint8_t nextIndex = (_writeIndex + 1) % Config::LOG_QUEUE_SIZE;
         bool    crit      = entry->level >= Logs::LOG_CRITICAL;
         if (nextIndex == _readIndex) {   // completely full
-            // Critical reserve exhausted: a normal drops; a critical evicts the
-            // oldest as a last resort. drain() consumes _readIndex at format
-            // time, so advancing it can't corrupt an in-flight send.
+            // drop non-critical messages
             if (!crit) { _dropped += 1; return; }
-            // drop oldest
+            // otherwise, drop oldest message
             _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE;
             _dropped += 1;
         } else if (!crit) {
@@ -34,6 +32,8 @@ namespace Botanik { namespace Logs {
             // (e.g. the sink-loss report itself) always seats WITHOUT evicting
             // - which stops that report from manufacturing the very drop it
             // then reports.
+
+            // TODO: add a utility function to measure "used" instead of doing it here
             uint8_t used = (uint8_t)((_writeIndex - _readIndex + Config::LOG_QUEUE_SIZE)
                                      % Config::LOG_QUEUE_SIZE);
             if (used >= (uint8_t)(Config::LOG_QUEUE_SIZE - 1
@@ -46,14 +46,17 @@ namespace Botanik { namespace Logs {
     }
 
     void BufferedLogWriter::drain() {
-        // Resume an in-flight message first; yield if it is still partial.
+        // resume the current message first, yield if still partial
         if (_length > 0 && !_drain_message()) return;
         while (_readIndex != _writeIndex) {
+            // fetch the next log entry
             const LogEntry_t* entry = &_queue[_readIndex];
-            _length = format(entry, _message, Config::LOG_FORMATTED_LEN);
-            // Consume now: _message is decoupled from the queue slot.
+            // consume the log entry now
             _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE;
-            if (_length == 0) { _failed++; continue; }   // unformattable: skip
+            // format the message into the outgoing message buffer
+            _length = format(entry, _message, Config::LOG_FORMATTED_LEN);
+            // skip unformattable messages, record as failures
+            if (_length == 0) { _failed++; continue; }
             // yield if not fully sent
             if (!_drain_message()) return;
         }
@@ -64,8 +67,11 @@ namespace Botanik { namespace Logs {
 
     // Drain one message; return whether it was fully sent.
     bool BufferedLogWriter::_drain_message() {
+        // try to write more bytes from the message
         _sent += write(&_message[_sent], _length - _sent);
+        // yield if not fully sent
         if (_sent < _length) return false;
+        // reset state if fully sent
         _length = 0; _sent = 0; return true;
     }
 

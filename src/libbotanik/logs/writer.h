@@ -153,7 +153,7 @@ namespace Botanik { namespace Logs {
         /** @name Queue interface
          *  @{ */
 
-        /** @brief Enqueue @p entry, or drop it when suppressed (shared terminal). */
+        /** @brief Enqueue @p entry, or drop it when suppressed. */
         void push(const LogEntry_t* entry) override;
 
         /** @} */
@@ -161,10 +161,7 @@ namespace Botanik { namespace Logs {
         /** @name Stepping
          *  @{ */
 
-        /** @brief Drain queued entries into the bound serial's TX ring. Call
-         *  once per tick - this writer has no render path (unlike the page
-         *  writers), so it must be stepped here. The serial itself is flushed
-         *  separately by the main loop. */
+        /** @brief Drain queued entries into the serial's TX ring */
         void step();
 
         /** @} */
