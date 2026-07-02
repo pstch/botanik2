@@ -43,6 +43,8 @@ namespace Botanik { namespace Alarms {
      *  overrides per-condition (0 = this default, < 0 = never expires). */
     static constexpr int32_t DEFAULT_RECENT_S = 7 * 24 * 3600;   // one week
 
+    struct AlarmHooks;   // side-effect sink (log + MQTT), defined below
+
     /**
      * @brief One alarm condition: static metadata + model-owned dynamic state.
      *
@@ -92,19 +94,28 @@ namespace Botanik { namespace Alarms {
          *  on the ON edge. Wrap-immune. */
         uint32_t    min_on_rem_ms;
         /** @} */
+
+        /** @brief Advance this condition one tick. Drains the off-delay /
+         *  minimum-ON countdowns by @p dt, recomputes active/unmasked (the
+         *  latter against the model's @p merged_raw word), seeds the edge
+         *  bookkeeping on a transition, and raises any due log / MQTT event
+         *  through @p hooks. @p raw_on is this condition's merged raw bit; @p
+         *  now is the current uptime (ms). */
+        void step(bool raw_on, uint32_t dt, uint64_t now, uint64_t merged_raw,
+                  const AlarmHooks& hooks);
     };
 
-    /** @brief Bit index of the condition whose code equals @p code, or -1 if
-     *  none. The table is the single source of truth (no parallel id enum);
-     *  code lookups are how generic firmware and the site mock-PLC name the
-     *  alarms they assert. */
+    /** @brief Bit index of the alarm with matching @p code, otherwise -1. */
     inline int alarm_index(const AlarmCondition* table, uint8_t count,
                            const char* code) {
+
         // bail if we have no valid pointer to the alarm table or alarm code
         if (table == nullptr || code == nullptr) return -1;
+        // look for a matching code
         for (uint8_t i = 0; i < count; i++)
             if (Utils::compare_str(table[i].code, code))
                 return (int)i;
+        // bail if we could'nt find one
         return -1;
     }
 
@@ -146,6 +157,111 @@ namespace Botanik { namespace Alarms {
             _pub->publish(topic, on ? "ON" : "OFF");
         }
     };
+
+    /**
+     * @brief Side-effect sink an AlarmCondition raises events through: the
+     *        ALARM-topic log writer and the MQTT notifier.
+     *
+     * Bundling them keeps AlarmCondition::step free of the model's wiring. Both
+     * sinks may be null (no-op). The MQTT path is the feature seam: it is
+     * compiled out when BOTANIK_FEATURE_MQTT is off, so the notifier field is
+     * simply ignored there (the condition keeps its mqtt_* bookkeeping either
+     * way).
+     */
+    struct AlarmHooks {
+        Logs::Logger*  logger;     //< ALARM-topic sink (null = no logging)
+        AlarmNotifier* notifier;   //< MQTT sink (null = none; MQTT-gated)
+
+        void log_start(const char* label) const {
+            if (logger) logger->warning(PlcIO::ALARM_START, "%s", label);
+        }
+        void log_end(const char* label) const {
+            if (logger) logger->info(PlcIO::ALARM_END, "%s", label);
+        }
+        void log_flap(const char* label) const {
+            if (logger) logger->notice(PlcIO::ALARM_FLAP, "%s", label);
+        }
+        void notify_on(const AlarmCondition& c) const {
+#if BOTANIK_FEATURE_MQTT
+            if (notifier) notifier->notify_on(c);
+#else
+            (void)c;
+#endif
+        }
+        void notify_off(const AlarmCondition& c) const {
+#if BOTANIK_FEATURE_MQTT
+            if (notifier) notifier->notify_off(c);
+#else
+            (void)c;
+#endif
+        }
+    };
+
+    /** @brief Per-condition tick: the model loop body, owned by the condition.
+     *  See the declaration for the parameter contract. */
+    inline void AlarmCondition::step(bool raw_on, uint32_t dt, uint64_t now,
+                                     uint64_t merged_raw, const AlarmHooks& hooks) {
+        bool was = active;
+        // Two wrap-immune countdowns drained by the elapsed time: the off-delay
+        // holds active for off_delay_s after the raw bit clears (refreshed while
+        // set); the minimum-ON hold keeps it active >= min_on_s from onset
+        // (anti-flicker).
+        if (off_delay_rem_ms > 0)
+            off_delay_rem_ms = (off_delay_rem_ms > dt) ? (uint32_t)(off_delay_rem_ms - dt) : 0;
+        if (min_on_rem_ms > 0)
+            min_on_rem_ms = (min_on_rem_ms > dt) ? (uint32_t)(min_on_rem_ms - dt) : 0;
+        if (raw_on && off_delay_s > 0)
+            off_delay_rem_ms = (uint32_t)off_delay_s * 1000u;
+        bool on = raw_on || (off_delay_rem_ms > 0) || (min_on_rem_ms > 0);
+        if (on != was) {
+            edge_ms = now;
+            // Reset log_on_sent on the ON edge (not OFF) so it survives the OFF
+            // episode and tells END from FLAP below; seed the minimum-ON hold.
+            // user_ack: a fresh episode is unacknowledged.
+            // started_ms: onset, for start-time ordering.
+            if (on) { mqtt_off_sent = false; log_off_sent = false;
+                      log_on_sent  = false;
+                      user_ack = false;
+                      started_ms = now;
+                      if (min_on_s > 0)
+                          min_on_rem_ms = (uint32_t)min_on_s * 1000u; }
+            else    { mqtt_on_sent  = false; }
+        }
+        active   = on;
+        unmasked = on && ((merged_raw & masked_by) == 0);
+
+        uint64_t dwell = now - edge_ms;
+        const char* label = desc ? desc : (code ? code : "");
+        if (on) {
+            if (!log_on_sent && log_on_s >= 0 &&
+                dwell >= (uint64_t)log_on_s * 1000) {
+                hooks.log_start(label);
+                log_on_sent = true;
+            }
+            if (!mqtt_on_sent && mqtt_on_s >= 0 &&
+                dwell >= (uint64_t)mqtt_on_s * 1000) {
+                hooks.notify_on(*this);
+                mqtt_on_sent = true;
+            }
+        } else {
+            if (!log_off_sent && log_off_s >= 0 &&
+                dwell >= (uint64_t)log_off_s * 1000) {
+                // END with no matching START this episode = toggled too fast to
+                // dwell past log_on_s: report a FLAP, not a misleading bare END.
+                // But when START logging is disabled (log_on_s < 0, e.g.
+                // SYS_RST) there is never a START by design, so the OFF is a
+                // plain END, not a flap.
+                if (log_on_sent || log_on_s < 0) hooks.log_end(label);
+                else                             hooks.log_flap(label);
+                log_off_sent = true;
+            }
+            if (!mqtt_off_sent && mqtt_off_s >= 0 &&
+                dwell >= (uint64_t)mqtt_off_s * 1000) {
+                hooks.notify_off(*this);
+                mqtt_off_sent = true;
+            }
+        }
+    }
 
     /**
      * @brief Owns the dynamic alarm state over a site-supplied condition table.
@@ -266,80 +382,14 @@ namespace Botanik { namespace Alarms {
             _last_now   = now;
             _active_count = 0;
             _unmasked_count = 0;
+            AlarmHooks hooks{_logger, _notifier};
             for (uint8_t i = 0; i < _count; i++) {
                 AlarmCondition& c = _conditions[i];
-                bool was = c.active;
                 bool raw_on = ((_raw >> i) & 1u) != 0;
-                // Two wrap-immune countdowns drained by the elapsed time: the
-                // latch holds active for latch_s after the raw bit clears
-                // (refreshed while set); the minimum-ON hold keeps it active
-                // >= min_on_s from onset (anti-flicker).
-                if (c.off_delay_rem_ms > 0)
-                    c.off_delay_rem_ms = (c.off_delay_rem_ms > dt)
-                                         ? (uint32_t)(c.off_delay_rem_ms - dt) : 0;
-                if (c.min_on_rem_ms > 0)
-                    c.min_on_rem_ms = (c.min_on_rem_ms > dt)
-                                          ? (uint32_t)(c.min_on_rem_ms - dt) : 0;
-                if (raw_on && c.off_delay_s > 0)
-                    c.off_delay_rem_ms = (uint32_t)c.off_delay_s * 1000u;
-                bool on = raw_on || (c.off_delay_rem_ms > 0) ||
-                          (c.min_on_rem_ms > 0);
-                if (on != was) {
-                    c.edge_ms = now;
-                    // Reset log_on_sent on the ON edge (not OFF) so it survives
-                    // the OFF episode and tells END from FLAP below; seed the
-                    // minimum-ON hold.
-                    // acknowledged: a fresh episode is unacknowledged.
-                    // started_ms: onset, for start-time ordering.
-                    if (on) { c.mqtt_off_sent = false; c.log_off_sent = false;
-                              c.log_on_sent  = false;
-                              c.user_ack = false;
-                              c.started_ms = now;
-                              if (c.min_on_s > 0)
-                                  c.min_on_rem_ms = (uint32_t)c.min_on_s * 1000u; }
-                    else    { c.mqtt_on_sent  = false; }
-                }
-                c.active   = on;
-                c.unmasked = on && ((_raw & c.masked_by) == 0);
-                if (on) {
+                c.step(raw_on, dt, now, _raw, hooks);
+                if (c.active) {
                     _active_count++;
                     if (c.unmasked) _unmasked_count++;
-                }
-
-                uint64_t dwell = now - c.edge_ms;
-                const char* label = c.desc ? c.desc : (c.code ? c.code : "");
-                if (on) {
-                    if (!c.log_on_sent && c.log_on_s >= 0 &&
-                        dwell >= (uint64_t)c.log_on_s * 1000) {
-                        if (_logger) _logger->warning(PlcIO::ALARM_START, "%s", label);
-                        c.log_on_sent = true;
-                    }
-                    if (!c.mqtt_on_sent && c.mqtt_on_s >= 0 &&
-                        dwell >= (uint64_t)c.mqtt_on_s * 1000) {
-                        if (_notifier) _notifier->notify_on(c);
-                        c.mqtt_on_sent = true;
-                    }
-                } else {
-                    if (!c.log_off_sent && c.log_off_s >= 0 &&
-                        dwell >= (uint64_t)c.log_off_s * 1000) {
-                        // END with no matching START this episode = toggled too
-                        // fast to dwell past log_on_s: report a FLAP, not a
-                        // misleading bare END. But when START logging is
-                        // disabled (log_on_s < 0, e.g. SYS_RST) there is never a
-                        // START by design, so the OFF is a plain END, not a flap.
-                        if (_logger) {
-                            if (c.log_on_sent || c.log_on_s < 0)
-                                _logger->info(PlcIO::ALARM_END, "%s", label);
-                            else
-                                _logger->notice(PlcIO::ALARM_FLAP, "%s", label);
-                        }
-                        c.log_off_sent = true;
-                    }
-                    if (!c.mqtt_off_sent && c.mqtt_off_s >= 0 &&
-                        dwell >= (uint64_t)c.mqtt_off_s * 1000) {
-                        if (_notifier) _notifier->notify_off(c);
-                        c.mqtt_off_sent = true;
-                    }
                 }
             }
         }
