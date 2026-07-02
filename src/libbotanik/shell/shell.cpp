@@ -307,6 +307,10 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_cmd_plc(const char*, uint16_t) {
+#if !BOTANIK_FEATURE_PLC
+        _println("plc: PLC link disabled");
+    }
+#else
         const PlcIO::PlcSyncContext* p = _terminal.context().plc;
         if (p == nullptr) { _println("plc: no PLC context"); return; }
         const char* s;
@@ -355,16 +359,29 @@ namespace Botanik { namespace Shell {
                  (unsigned long)p->output_logs()->writeIndex,
                  (unsigned long)p->input_logs()->readIndex);
         _line("Logs from PLC ........", val);
+#endif  // BOTANIK_FEATURE_PLC
     }
 
     void CommandShell::_cmd_net(const char*, uint16_t) {
+#if !BOTANIK_FEATURE_NETWORK
+        _println("net: networking disabled");
+    }
+#else
         const SystemContext&           ctx = _terminal.context();
         const Network::NetworkHandler* net = ctx.network;
-        // Null whenever BOTANIK_FEATURE_NETWORK is off (no feature macro needed,
-        // SystemContext leaves the pointers null) - report and bail.
+        // Report and bail if the link never came up (config absent / offline).
         if (net == nullptr) { _println("net: networking disabled"); return; }
-        const Network::NtpClient*       ntp = ctx.ntp;    // null if _NTP off
-        const Network::MqttClient*      mqt = ctx.mqtt;   // null if _MQTT off
+#if BOTANIK_FEATURE_NTP
+        const Network::NtpClient*       ntp = ctx.ntp;
+#else
+        const Network::NtpClient*       ntp = nullptr;    // _NTP off: not built
+#endif
+#if BOTANIK_FEATURE_MQTT
+        const Network::MqttClient*      mqt = ctx.mqtt;
+#else
+        const Network::MqttClient*      mqt = nullptr;    // _MQTT off: not built
+#endif
+        // NETWORK requires PLC, so the plc member is present in this branch.
         const PlcIO::PlcOutputConfig_t* cfg =
             ctx.plc ? ctx.plc->config() : nullptr;
 
@@ -458,6 +475,7 @@ namespace Botanik { namespace Shell {
         } else {
             _line("MQTT .................", "disabled");
         }
+#endif  // BOTANIK_FEATURE_NETWORK
     }
 
     void CommandShell::_cmd_ntpsync(const char*, uint16_t) {

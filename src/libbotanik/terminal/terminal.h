@@ -473,6 +473,11 @@ namespace Botanik { namespace Terminal {
          *  null) */
         const SystemContext& context() const { return _ctx; }
 
+        /** @brief Replace the attached status contexts (copied by value). Lets
+         *  the owner wire the aggregate after construction, once every
+         *  subsystem address is known. */
+        void set_context(const SystemContext& ctx) { _ctx = ctx; }
+
         /** @brief The attached alarm model, or null when none was supplied
          *  (drives the bottom alarm bar; also read by the shell's "alarms"
          *  command). */

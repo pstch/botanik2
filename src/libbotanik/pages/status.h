@@ -115,7 +115,12 @@ namespace Botanik { namespace Pages {
             // Cold fields only - EMAs and clocks are hot (see draw_hot()).
             _cell(SLOT_PLC, 3, L_VAL,
                   rjust(fld, sizeof(fld), L_W,
-                        ctx.plc ? plc_str(ctx.plc->status()) : "n/a"), L_W);
+#if BOTANIK_FEATURE_PLC
+                        ctx.plc ? plc_str(ctx.plc->status()) : "n/a"
+#else
+                        "n/a"
+#endif
+                        ), L_W);
 
             if (ctx.scheduler) {
                 // Stack: EMA leads, all-time peak free in parens.

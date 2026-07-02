@@ -899,6 +899,7 @@ namespace Botanik { namespace Terminal {
         // No PLC context wired: show a "---" placeholder rather than a blank
         // field.
         const char* plc_str = "---";
+#if BOTANIK_FEATURE_PLC
         if (_ctx.plc != nullptr) switch (_ctx.plc->status()) {
             case PlcIO::PLC_UNKNOWN:  plc_str = "UNK"; break;
             case PlcIO::PLC_RUNNING:  plc_str = "RUN"; break;
@@ -906,6 +907,7 @@ namespace Botanik { namespace Terminal {
             case PlcIO::PLC_FAULT:    plc_str = "FLT"; break;
             default:                  plc_str = "---"; break;
         }
+#endif
         // The scheduler context may be absent (a site can wire a terminal
         // without one); show 0% rather than dereferencing null.
         unsigned cpu = 0, stk = 0;

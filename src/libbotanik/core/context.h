@@ -2,41 +2,58 @@
 #ifndef LIBBOTANIK_CORE_CONTEXT_H
 #define LIBBOTANIK_CORE_CONTEXT_H
 
-/**
- * @file context.h
- * @brief SystemContext - one aggregate of the per-subsystem status contexts the
- *        terminal UI reads.
- */
+/** @file context.h
+ *  @brief SystemContext - one aggregate of the per-subsystem status contexts the
+ *        terminal UI reads. */
 
-// Declare pointer types for context members
+// Include library configuration
+#include "libbotanik_config.h"
+
+// Forward-declare pointer types for context members
 namespace Botanik { namespace Scheduler { struct SchedulerContext;  } }
+
+#if BOTANIK_FEATURE_PLC
 namespace Botanik { namespace PlcIO     { struct PlcSyncContext;    } }
+#endif
+
+#if BOTANIK_FEATURE_NETWORK
 namespace Botanik { namespace Network   {  class NetworkHandler;    } }
+#endif
+
+#if BOTANIK_FEATURE_NTP
 namespace Botanik { namespace Network   {  class NtpClient;         } }
+#endif
+
+#if BOTANIK_FEATURE_MQTT
 namespace Botanik { namespace Network   {  class MqttClient;        } }
+#endif
 
 namespace Botanik {
 
-    /** @brief Aggregate of subsystems context struct and pointers to network components. 
-     * 
-     * Used for reporting commands, for pages that display metrics, etc. */
+    /** @brief Aggregate of subsystem context structs and pointers to the
+     *  optional network components; used by reporting commands and metric pages.
+     *  Every member may be null when its subsystem is absent at runtime. 
+     * @warning Consumers should be gated under the matching `#if BOTANIK_FEATURE_*`. */
     struct SystemContext {
 
         Scheduler::SchedulerContext*   scheduler = nullptr; ///< Performance snapshots
-        PlcIO::PlcSyncContext*         plc       = nullptr; ///< PLC link status
-        const Network::NetworkHandler* network   = nullptr; ///< [optional] IP config handler
-        const Network::NtpClient*      ntp       = nullptr; ///< [optional] SNTP client
-        const Network::MqttClient*     mqtt      = nullptr; ///< [optional] MQTT client
 
-        /** @brief Construct a new system context from pointers to subsystem structs
-         *  or pointers to subsystem components. 
-         *  @note Any can be null when the subsystem is absent. */
-        SystemContext(Scheduler::SchedulerContext* sched = nullptr,
-                      PlcIO::PlcSyncContext*        plc_ctx = nullptr,
-                      const Network::NetworkHandler* net = nullptr,
-                      const Network::NtpClient*      ntp_c = nullptr,
-                      const Network::MqttClient*     mqtt_c = nullptr)
-            : scheduler(sched), plc(plc_ctx), network(net), ntp(ntp_c), mqtt(mqtt_c) {}
+#if BOTANIK_FEATURE_PLC
+        PlcIO::PlcSyncContext*         plc       = nullptr; ///< PLC link status
+#endif
+
+#if BOTANIK_FEATURE_NETWORK
+        const Network::NetworkHandler* network   = nullptr; ///< IP config handler
+#endif
+
+#if BOTANIK_FEATURE_NTP
+        const Network::NtpClient*      ntp       = nullptr; ///< SNTP client
+#endif
+
+#if BOTANIK_FEATURE_MQTT
+        const Network::MqttClient*     mqtt      = nullptr; ///< MQTT client
+#endif
+
     };
 
 }

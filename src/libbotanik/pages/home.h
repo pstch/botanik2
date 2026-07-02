@@ -201,8 +201,12 @@ namespace Botanik { namespace Pages {
 
         void draw_dynamic() override {
             // Cold fields only: the uptime counter is hot (see draw_hot()).
+#if BOTANIK_FEATURE_PLC
             const SystemContext& ctx = _terminal.context();
             _value(7, ctx.plc ? plc_str(ctx.plc->status()) : "n/a");
+#else
+            _value(7, "n/a");
+#endif
             draw_payload_dynamic();
         }
 

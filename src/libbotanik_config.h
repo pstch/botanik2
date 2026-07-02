@@ -70,6 +70,13 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, CONSOLE_BAUD);
 
+    /** @brief Monitor UART baud (log-only sink, no TX gating). Defaults to the
+     *  console rate; override independently for a slower diagnostic link. */
+#ifndef BOTANIK_MONITOR_BAUD
+#  define BOTANIK_MONITOR_BAUD BOTANIK_CONSOLE_BAUD
+#endif
+    BOTANIK_CFG(uint32_t, MONITOR_BAUD);
+
     /** @} */
 
 
