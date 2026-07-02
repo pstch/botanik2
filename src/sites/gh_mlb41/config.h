@@ -10,7 +10,7 @@
  * wins for libbotanik and every consumer alike.
  */
 
-#define BOTANIK_MQTT_TOPIC_PREFIX "botanik/greenhouse"
+#define BOTANIK_MQTT_TOPIC_PREFIX "botanik/gh_mlb41"
 #define BOTANIK_SITE_NAME "gh_mlb41"
 
 // This greenhouse's PLC publishes the net/NTP/MQTT config blocks, so enable the
