@@ -11,7 +11,7 @@
 
 #include "doctest.h"
 
-#include "libbotanik/config_handler.h"
+#include "libbotanik/core/config.h"
 #include "libbotanik/logs/logger.h"
 #include "recording_writer.h"
 

@@ -1,5 +1,5 @@
-#ifndef LIBBOTANIK_COMPONENT_H
-#define LIBBOTANIK_COMPONENT_H
+#ifndef LIBBOTANIK_CORE_COMPONENT_H
+#define LIBBOTANIK_CORE_COMPONENT_H
 
 /**
  * @file component.h
@@ -40,4 +40,4 @@ namespace Botanik {
 
 }
 
-#endif // LIBBOTANIK_COMPONENT_H
+#endif // LIBBOTANIK_CORE_COMPONENT_H

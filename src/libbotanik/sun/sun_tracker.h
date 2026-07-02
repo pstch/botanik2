@@ -21,7 +21,7 @@
 
 #if BOTANIK_FEATURE_SUN
 
-#include "libbotanik/config_handler.h"
+#include "libbotanik/core/config.h"
 #include "libbotanik/sun/sun.h"
 
 namespace Botanik { namespace Sun {

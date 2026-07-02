@@ -1,5 +1,5 @@
-#ifndef LIBBOTANIK_FIRMWARE_H
-#define LIBBOTANIK_FIRMWARE_H
+#ifndef LIBBOTANIK_CORE_FIRMWARE_H
+#define LIBBOTANIK_CORE_FIRMWARE_H
 
 /**
  * @file firmware.h
@@ -519,4 +519,4 @@ namespace Botanik {
 
 }  // namespace Botanik
 
-#endif // LIBBOTANIK_FIRMWARE_H
+#endif // LIBBOTANIK_CORE_FIRMWARE_H

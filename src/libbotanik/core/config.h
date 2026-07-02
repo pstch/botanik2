@@ -1,5 +1,5 @@
-#ifndef LIBBOTANIK_CONFIG_HANDLER_H
-#define LIBBOTANIK_CONFIG_HANDLER_H
+#ifndef LIBBOTANIK_CORE_CONFIG_H
+#define LIBBOTANIK_CORE_CONFIG_H
 
 /**
  * @file config_handler.h
@@ -17,7 +17,7 @@
 
 #include <cstdint>
 
-#include "libbotanik/component.h"     // Component (first-step BOOT announce)
+#include "libbotanik/core/component.h"     // Component (first-step BOOT announce)
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/plcio/sync.h"   // PlcSyncContext (+ config())
 
@@ -99,4 +99,4 @@ namespace Botanik {
 
 }
 
-#endif // LIBBOTANIK_CONFIG_HANDLER_H
+#endif // LIBBOTANIK_CORE_CONFIG_H

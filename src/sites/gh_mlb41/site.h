@@ -26,7 +26,7 @@
 #include <cstdint>
 #include <cstdio>   // snprintf - the example site command
 
-#include "libbotanik/firmware.h"
+#include "libbotanik/core/firmware.h"
 #include "libbotanik/shell/shell.h"   // ShellCommand - the site command table
 
 // ===========================================================================

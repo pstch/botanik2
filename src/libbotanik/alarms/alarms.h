@@ -28,7 +28,7 @@
 #include "libbotanik/utils/assert.h"   // BOTANIK_ASSERT
 #include "libbotanik/utils/text.h"     // compare_str
 #include "libbotanik/logs/logger.h"
-#include "libbotanik/component.h"      // Component (first-step announce)
+#include "libbotanik/core/component.h"      // Component (first-step announce)
 #include "libbotanik/alarms/publisher.h" // Publisher (notifier transport seam)
 
 namespace Botanik { namespace Alarms {

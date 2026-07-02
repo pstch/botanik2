@@ -14,7 +14,7 @@
 
 #include <cstdint>
 
-#include "libbotanik/config_handler.h"
+#include "libbotanik/core/config.h"
 #include "libbotanik/hal/net.h"
 #include "libbotanik/network/resolver.h"
 

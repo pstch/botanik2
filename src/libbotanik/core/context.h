@@ -1,5 +1,5 @@
-#ifndef CONTEXT_H
-#define CONTEXT_H
+#ifndef LIBBOTANIK_CORE_CONTEXT_H
+#define LIBBOTANIK_CORE_CONTEXT_H
 
 /**
  * @file context.h
@@ -45,4 +45,4 @@ namespace Botanik {
 
 }
 
-#endif // CONTEXT_H
+#endif // LIBBOTANIK_CORE_CONTEXT_H

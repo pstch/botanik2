@@ -23,7 +23,7 @@
 #include <cstdint>
 
 #include "libbotanik_config.h"
-#include "libbotanik/context.h"
+#include "libbotanik/core/context.h"
 #include "libbotanik/network/mqtt.h"
 
 namespace Botanik { namespace Network {

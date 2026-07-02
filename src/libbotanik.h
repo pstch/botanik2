@@ -9,7 +9,7 @@
 
 #include "libbotanik/hal/platform.h"
 
-#include "libbotanik/context.h"
+#include "libbotanik/core/context.h"
 
 #include "libbotanik/scheduler/scheduler.h"
 

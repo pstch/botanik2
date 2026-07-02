@@ -14,7 +14,7 @@
 #include <cstring>
 
 #include "libbotanik_config.h"
-#include "libbotanik/component.h"
+#include "libbotanik/core/component.h"
 #include "libbotanik/utils/assert.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/plcio/vars.h"

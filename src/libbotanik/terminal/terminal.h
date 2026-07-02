@@ -13,8 +13,8 @@
 
 #include "libbotanik/utils/serial.h"
 #include "libbotanik/terminal/ansi.h"
-#include "libbotanik/context.h"
-#include "libbotanik/component.h"      // Component (first-step announce)
+#include "libbotanik/core/context.h"
+#include "libbotanik/core/component.h"      // Component (first-step announce)
 #include "libbotanik/logs/logger.h"   // Logs::Logger
 
 #include "libbotanik/pages/page.h"

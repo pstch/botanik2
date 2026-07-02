@@ -14,7 +14,7 @@
 
 #include "libbotanik_config.h"
 
-#include "libbotanik/component.h"
+#include "libbotanik/core/component.h"
 #include "libbotanik/utils/filters.h"
 #include "libbotanik/hal/platform.h"
 
