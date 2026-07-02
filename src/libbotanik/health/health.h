@@ -23,13 +23,13 @@
 #include <cstdint>
 
 #include "libbotanik_config.h"
-#include "libbotanik/alarms/alarms.h"        // AlarmModel, AlarmNotifier
-#include "libbotanik/alarms/platform.h"      // PLATFORM_ALARMS
-#include "libbotanik/alarms/publisher.h"     // Publisher (alarm transport seam)
+#include "libbotanik/alarms/alarms.h"
+#include "libbotanik/alarms/platform.h"
+#include "libbotanik/alarms/publisher.h"
 #include "libbotanik/logs/logger.h"
-#include "libbotanik/scheduler/scheduler.h"  // SchedulerContext
-#include "libbotanik/plcio/sync.h"           // PlcSyncContext
-#include "libbotanik/utils/text.h"           // env_u8 (BOTANIK_NO_LOAD_ALARMS)
+#include "libbotanik/scheduler/scheduler.h"
+#include "libbotanik/plcio/sync.h"
+#include "libbotanik/utils/text.h"
 
 namespace Botanik { namespace Health {
 
@@ -39,7 +39,7 @@ namespace Botanik { namespace Health {
     private:
         /** @name State
          *  @{ */
-        Alarms::AlarmNotifier              _notifier;
+        Alarms::AlarmNotifier              _notifier; //< 
         Alarms::AlarmModel                 _model;
         /** log sink (may be null) */
         Logs::Logger*                      _logger;
@@ -193,7 +193,8 @@ namespace Botanik { namespace Health {
         void _held_event(const char* code, uint32_t counter, uint32_t& last,
                          uint64_t& until_ms, uint64_t now) {
             if (counter != last) {
-                last = counter; until_ms = now + Config::ALARM_EVENT_HOLD_MS;
+                last = counter;
+                until_ms = now + Config::ALARM_EVENT_HOLD_MS;
             }
             _model.set_local(code, now < until_ms);
         }

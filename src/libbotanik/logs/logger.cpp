@@ -2,11 +2,12 @@
  * @file logger.cpp
  * @brief Logger implementation - token-bucket refill and dispatch.
  *
- * Suppressed-message counters drain on a slower cadence than the bucket
- * refills, so a sustained storm yields an occasional summary, not one report
- * per refill.
- * push_entry() applies the per-topic filter before the global one, so
- * per-topic-suppressed messages don't drain the global bucket.
+ * This logger provides dispatch to multiple writers as well as a
+ * single-level hierarchical token bucket filter (TBF) to avoid flooding
+ * the writers. We use a global bucket, and a specific bucket for each 
+ * log topic. We take care to apply the per-topic filter before the global
+ * one, so that messages suppressed by their topic-specific bucket don't
+ * drain the global bucket.
  */
 #include <cstdio>
 
@@ -61,24 +62,21 @@ namespace Botanik { namespace Logs {
 
     void Logger::step() {
         uint32_t now_ms         = HAL::Clock::current_ms();
-        // Refill the buckets on their (fast) cadences. The anchor advances by
-        // whole elapsed periods, but the fill is min(amount, burst): the bucket
-        // saturates at burst anyway, and this keeps a long gap from truncating
-        // the uint16 fill arg.
+
+        // refill the global bucket
         uint32_t global_amount  = (now_ms - _global_fillTime_ms) / _global_period_ms;
         _global_fillTime_ms    += global_amount * _global_period_ms;
-        _fill_bucket(&_global_bucket,
-                     (uint16_t)std::min(global_amount, (uint32_t)_global_burst),
-                     _global_burst);
+        uint16_t global_fill = std::min(global_amount, (uint32_t)_global_burst);
+        _fill_bucket(&_global_bucket, global_fill, _global_burst);
+
+        // refill topic-specific buckets
         uint32_t topic_amount   = (now_ms - _perTopic_fillTime_ms) / _perTopic_period_ms;
         _perTopic_fillTime_ms  += topic_amount * _perTopic_period_ms;
-        uint16_t topic_fill     =
-            (uint16_t)std::min(topic_amount, (uint32_t)_perTopic_burst);
-        // Start at 1: slot 0 (NONE) is never consumed (push_entry skips NONE).
+        uint16_t topic_fill     = std::min(topic_amount, (uint32_t)_perTopic_burst);
         for (uint8_t i = 1; i < Logs::LOG_TOPIC_COUNT; ++i)
             _fill_bucket(&_perTopic_buckets[i], topic_fill, _perTopic_burst);
-        // Drain suppressed-message counters on a slower cadence (occasional
-        // summary).
+
+        // report suppressed messages
         uint32_t report_amount  = (now_ms - _suppress_reportTime_ms) / _suppress_period_ms;
         if (report_amount > 0) {
             _suppress_reportTime_ms += report_amount * _suppress_period_ms;
