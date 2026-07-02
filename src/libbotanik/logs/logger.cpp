@@ -22,6 +22,13 @@ namespace Botanik { namespace Logs {
         using LogTopic = Botanik::Logs::LogTopic;
     }
 
+    // Guard the numeric Config default against a bogus -DBOTANIK_LOG_MIN_LEVEL:
+    // it must be one of the LogLevel bit values (topics.h).
+    static_assert(Config::LOG_MIN_LEVEL == LOG_DEBUG   || Config::LOG_MIN_LEVEL == LOG_INFO  ||
+                  Config::LOG_MIN_LEVEL == LOG_NOTICE  || Config::LOG_MIN_LEVEL == LOG_WARNING ||
+                  Config::LOG_MIN_LEVEL == LOG_ERROR   || Config::LOG_MIN_LEVEL == LOG_CRITICAL,
+                  "BOTANIK_LOG_MIN_LEVEL must be a valid Logs::LogLevel wire value");
+
     // Lifecycle
     // ------------------------------------------------------------------------
 

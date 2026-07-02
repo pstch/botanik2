@@ -487,6 +487,17 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(size_t, LOG_FORMATTED_LEN);
 
+    /** @brief Default minimum forwarded log level (the `loglevel` command
+     *  overrides at runtime; LOG_CRITICAL always passes). A Logs::LogLevel wire
+     *  value (see logs/topics.h): 1=DEBUG, 2=INFO, 4=NOTICE, 8=WARNING, ...
+     *  Default INFO keeps debug spew off on hardware; CMake sets DEBUG for the
+     *  simulator build. Not Logs::LogLevel-typed here: topics.h includes this
+     *  header, so the logger casts the wire value back to the enum. */
+#ifndef BOTANIK_LOG_MIN_LEVEL
+#  define BOTANIK_LOG_MIN_LEVEL 2   /* Logs::LOG_INFO */
+#endif
+    BOTANIK_CFG(uint8_t, LOG_MIN_LEVEL);
+
     /** @} */
 
 
