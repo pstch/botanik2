@@ -1,4 +1,3 @@
-// REVIEW35: OK
 #ifndef LOGS_FORMAT_H
 #define LOGS_FORMAT_H
 
@@ -15,10 +14,6 @@
 #include "libbotanik/utils/time.h"
 
 namespace Botanik { namespace Logs {
-
-    namespace {
-        using namespace Botanik::Utils;
-    }
 
     /** @brief Format a log level into a short prefix.  */
     inline const char* format_log_level(Logs::LogLevel level) { switch (level) {
@@ -50,7 +45,8 @@ namespace Botanik { namespace Logs {
     /** @brief Format a complete log entry as `TIMESTAMP LEVEL TOPIC MESSAGE`.
      *  @return Bytes written, clamped to @p len; 0 on encoding error. */
     inline size_t format_log_entry(const PlcIO::LogEntry_t* entry, char* buf, size_t len) {
-        // format the log level and log tpoic of the log entry
+        using namespace Botanik::Utils;
+        // format the log level and log topic of the log entry
         const char* level = format_log_level(entry->level);
         const char* topic = format_log_topic(entry->topic);
         // skip the separator if the topic is empty
