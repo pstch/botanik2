@@ -114,6 +114,8 @@ namespace Botanik { namespace Logs {
 
         /** @brief Drain bytes from the currently outgoing message. */
         bool _drain_message();
+        /** @brief Occupied queue slots (0..LOG_QUEUE_SIZE-1). */
+        uint8_t _used() const;
 
         /** @} */
     };

@@ -32,12 +32,8 @@ namespace Botanik { namespace Logs {
             // (e.g. the sink-loss report itself) always seats WITHOUT evicting
             // - which stops that report from manufacturing the very drop it
             // then reports.
-
-            // TODO: add a utility function to measure "used" instead of doing it here
-            uint8_t used = (uint8_t)((_writeIndex - _readIndex + Config::LOG_QUEUE_SIZE)
-                                     % Config::LOG_QUEUE_SIZE);
-            if (used >= (uint8_t)(Config::LOG_QUEUE_SIZE - 1
-                                  - Config::LOG_QUEUE_CRITICAL_RESERVE)) {
+            if (_used() >= (uint8_t)(Config::LOG_QUEUE_SIZE - 1
+                                     - Config::LOG_QUEUE_CRITICAL_RESERVE)) {
                 _dropped += 1; return;
             }
         }
@@ -73,6 +69,12 @@ namespace Botanik { namespace Logs {
         if (_sent < _length) return false;
         // reset state if fully sent
         _length = 0; _sent = 0; return true;
+    }
+
+    // Occupied slots between the read and write cursors (0..LOG_QUEUE_SIZE-1).
+    uint8_t BufferedLogWriter::_used() const {
+        return (uint8_t)((_writeIndex - _readIndex + Config::LOG_QUEUE_SIZE)
+                         % Config::LOG_QUEUE_SIZE);
     }
 
     // Lifecycle
