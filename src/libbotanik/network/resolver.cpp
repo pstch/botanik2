@@ -15,36 +15,6 @@
 
 namespace Botanik { namespace Network {
 
-    namespace {
-        // Parse a dotted-decimal IPv4 literal ("a.b.c.d", each octet 0..255) into
-        // four octets. Returns false on anything else (a hostname, partial, or
-        // out-of-range), so a name falls through to DNS. Strict: rejects trailing
-        // junk and empty octets.
-        bool parse_ipv4(const char* s, ResolvedAddr* out) {
-            ResolvedAddr tmp = {{0, 0, 0, 0}};
-            uint32_t octet = 0;
-            int digits = 0, parts = 0;
-            for (const char* p = s; ; ++p) {
-                char c = *p;
-                if (c >= '0' && c <= '9') {
-                    octet = octet * 10u + (uint32_t)(c - '0');
-                    if (octet > 255u) return false;
-                    ++digits;
-                } else if (c == '.' || c == '\0') {
-                    if (digits == 0 || parts >= 4) return false;
-                    tmp.b[parts++] = (uint8_t)octet;
-                    octet = 0; digits = 0;
-                    if (c == '\0') break;
-                } else {
-                    return false;   // non-digit / non-dot: treat as a hostname
-                }
-            }
-            if (parts != 4) return false;
-            *out = tmp;
-            return true;
-        }
-    }  // namespace
-
     NameResolver::NameResolver(Logs::Logger* logger)
         : _logger(logger) {
         for (size_t i = 0; i < Config::DNS_CACHE_SIZE; ++i) {
