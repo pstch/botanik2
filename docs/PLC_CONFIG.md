@@ -160,7 +160,7 @@ machine plus a few hooks.
   (construction order says nothing about loop inclusion); compiled out in release. The
   core loop components announce directly; config-driven ones get it through
   `ConfigHandler`.
-- `Botanik::ConfigHandler` (`config_handler.h`) is a `Component` that watches one
+- `Botanik::ConfigHandler` (`core/config.h`) is a `Component` that watches one
   config block: each `step()` reads its `serial` (see *Change detection*) and, on
   change, resets the derived state machine before stepping it. The order
   (announce -> read-serial/reset -> step) is fixed; a handler fills three hooks
