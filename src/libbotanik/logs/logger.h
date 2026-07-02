@@ -22,17 +22,16 @@ namespace Botanik { namespace Logs {
 
     /** @brief State of a single token bucket in the rate limiter. */
     struct LogBucket_t {
-        uint16_t    state                   = 0;   ///< tokens available
-        /** dropped since last report */
-        uint16_t    suppressed              = 0;
-        uint32_t    count                   = 0;   ///< total entries passed
+        uint16_t    state                   = 0;    ///< tokens available
+        uint16_t    suppressed              = 0;    ///< dropped since last report
+        uint32_t    count                   = 0;    ///< total entries passed
     };
 
     /** @brief Monotonic loss counter for edge-triggered reporting: first loss
      *  reports instantly, later ones only after a per-category holdoff. */
     struct LossReporter_t {
-        uint32_t    reported_count          = 0;   ///< total already reported
-        uint32_t    last_report_ms          = 0;
+        uint32_t    reported_count          = 0;    ///< total already reported
+        uint32_t    last_report_ms          = 0;    ///< timestamp of last report
         /** gates the instant first report */
         bool        reported                = false;
     };
