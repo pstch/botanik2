@@ -1,7 +1,7 @@
 /**
  * @file test_notifier.cpp
- * @brief AlarmNotifier formats "<prefix>/alarms/<CODE>" + ON/OFF and forwards to a
- *        Publisher; with no publisher it is a no-op.
+ * @brief AlarmNotifier formats "<prefix>/alarms/<CODE>" + ON/OFF/FLAP and forwards
+ *        to a Publisher; with no publisher it is a no-op.
  */
 #include <cstring>
 #include <string>
@@ -44,6 +44,11 @@ TEST_CASE("AlarmNotifier: notify_on/off build the topic + payload and forward to
     n.notify_off(c);
     CHECK(pub.calls == 2);
     CHECK(std::string(pub.payload) == "OFF");
+
+    n.notify_flap(c);   // an OFF with no matching ON this episode
+    CHECK(pub.calls == 3);
+    CHECK(std::string(pub.topic)   == "botanik/greenhouse/alarms/NET_FLT");
+    CHECK(std::string(pub.payload) == "FLAP");
 }
 
 TEST_CASE("AlarmNotifier: with no publisher set it is a safe no-op") {

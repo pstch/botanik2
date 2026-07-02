@@ -39,6 +39,11 @@ namespace Botanik { namespace Alarms {
     /** @brief 1 << id as a 64-bit mask, for building masked_by sets. */
     inline uint64_t alarm_bit(uint8_t id) { return (uint64_t)1u << id; }
 
+    /** @brief Wrap-immune countdown drain: @p rem - @p dt, floored at 0. */
+    inline uint32_t drain_ms(uint32_t rem, uint32_t dt) {
+        return rem > dt ? rem - dt : 0;
+    }
+
     /** @brief Default RECENT-mode window (s): AlarmCondition::recent_s
      *  overrides per-condition (0 = this default, < 0 = never expires). */
     static constexpr int32_t DEFAULT_RECENT_S = 7 * 24 * 3600;   // one week
@@ -67,8 +72,7 @@ namespace Botanik { namespace Alarms {
         int32_t     mqtt_off_s; //< time OFF before MQTT notification (-1: off)
         int32_t     recent_s;   //< duration the event is "recent" (-1: forever)
 
-        // FIXME: are those two duplicates ?
-        int32_t     off_delay_s;    //< minimum state duration (0: no latch)
+        int32_t     off_delay_s;    //< hold ON this long after raw clears (0: none)
         int32_t     min_on_s;   //< minimum ON time from onset (0: no latch)
         /** @} */
 
@@ -103,6 +107,20 @@ namespace Botanik { namespace Alarms {
          *  now is the current uptime (ms). */
         void step(bool raw_on, uint32_t dt, uint64_t now, uint64_t merged_raw,
                   const AlarmSink& sink);
+
+    private:
+        /** @brief A once-per-episode event is due: unsent, enabled (>= 0), and
+         *  dwell has reached the threshold. */
+        static bool due(bool sent, int32_t threshold_s, uint64_t dwell_ms) {
+            return !sent && threshold_s >= 0 &&
+                   dwell_ms >= (uint64_t)threshold_s * 1000u;
+        }
+        /** @brief This OFF edge is a FLAP, not a clean end: no matching ON event
+         *  was raised this episode, yet ON raising was enabled (>= 0). When ON is
+         *  disabled by design (< 0, e.g. SYS_RST) the OFF is always a plain end. */
+        static bool is_flap(bool on_sent, int32_t on_threshold_s) {
+            return !on_sent && on_threshold_s >= 0;
+        }
     };
 
     /** @brief Bit index of the alarm with matching @p code, otherwise -1. */
@@ -143,18 +161,19 @@ namespace Botanik { namespace Alarms {
         /** @brief Wire the transport (called once at firmware setup). */
         void set_publisher(Publisher* pub) { _pub = pub; }
 
-        void notify_on(const AlarmCondition& a)  { _emit(a, true); }
-        void notify_off(const AlarmCondition& a) { _emit(a, false); }
+        void notify_on(const AlarmCondition& a)   { _emit(a, "ON"); }
+        void notify_off(const AlarmCondition& a)  { _emit(a, "OFF"); }
+        void notify_flap(const AlarmCondition& a) { _emit(a, "FLAP"); }
 
     private:
-        /** @brief Build "<prefix>/alarms/<CODE>" + ON/OFF and publish (no-op if
-         *  unwired). */
-        void _emit(const AlarmCondition& a, bool on) {
+        /** @brief Build "<prefix>/alarms/<CODE>" + @p state and publish (no-op
+         *  if unwired). */
+        void _emit(const AlarmCondition& a, const char* state) {
             if (_pub == nullptr) return;
             char topic[64];
             snprintf(topic, sizeof(topic), "%s/alarms/%s",
                      _prefix, a.code ? a.code : "?");
-            _pub->publish(topic, on ? "ON" : "OFF");
+            _pub->publish(topic, state);
         }
     };
 
@@ -195,69 +214,62 @@ namespace Botanik { namespace Alarms {
             (void)c;
 #endif
         }
+        void notify_flap(const AlarmCondition& c) const {
+#if BOTANIK_FEATURE_MQTT
+            if (notifier) notifier->notify_flap(c);
+#else
+            (void)c;
+#endif
+        }
     };
 
     /** @brief Per-condition tick: the model loop body, owned by the condition.
      *  See the declaration for the parameter contract. */
     inline void AlarmCondition::step(bool raw_on, uint32_t dt, uint64_t now,
                                      uint64_t merged_raw, const AlarmSink& sink) {
-        bool was = active;
-        // Two wrap-immune countdowns drained by the elapsed time: the off-delay
-        // holds active for off_delay_s after the raw bit clears (refreshed while
-        // set); the minimum-ON hold keeps it active >= min_on_s from onset
-        // (anti-flicker).
-        if (off_delay_rem_ms > 0)
-            off_delay_rem_ms = (off_delay_rem_ms > dt) ? (uint32_t)(off_delay_rem_ms - dt) : 0;
-        if (min_on_rem_ms > 0)
-            min_on_rem_ms = (min_on_rem_ms > dt) ? (uint32_t)(min_on_rem_ms - dt) : 0;
+        // 1. Drain the two wrap-immune latch countdowns, then refresh the
+        //    off-delay while the raw bit is set: the off-delay holds active for
+        //    off_delay_s after the raw bit clears, the minimum-ON hold keeps it
+        //    active >= min_on_s from onset (anti-flicker). `on` holds until the
+        //    raw bit and both latches are clear.
+        off_delay_rem_ms = drain_ms(off_delay_rem_ms, dt);
+        min_on_rem_ms    = drain_ms(min_on_rem_ms, dt);
         if (raw_on && off_delay_s > 0)
             off_delay_rem_ms = (uint32_t)off_delay_s * 1000u;
-        bool on = raw_on || (off_delay_rem_ms > 0) || (min_on_rem_ms > 0);
-        if (on != was) {
+        bool on = raw_on || off_delay_rem_ms > 0 || min_on_rem_ms > 0;
+
+        // 2. On a transition, stamp the edge and reset the per-episode
+        //    bookkeeping. The *_on_sent flags reset on the ON edge (not OFF) so
+        //    they survive the OFF episode and tell a clean end from a FLAP below.
+        if (on != active) {
             edge_ms = now;
-            // Reset log_on_sent on the ON edge (not OFF) so it survives the OFF
-            // episode and tells END from FLAP below; seed the minimum-ON hold.
-            // user_ack: a fresh episode is unacknowledged.
-            // started_ms: onset, for start-time ordering.
-            if (on) { mqtt_off_sent = false; log_off_sent = false;
-                      log_on_sent  = false;
-                      user_ack = false;
-                      started_ms = now;
-                      if (min_on_s > 0)
-                          min_on_rem_ms = (uint32_t)min_on_s * 1000u; }
-            else    { mqtt_on_sent  = false; }
+            if (on) {                       // fresh ON episode
+                mqtt_off_sent = log_off_sent = false;
+                mqtt_on_sent  = log_on_sent  = false;
+                user_ack   = false;         // a fresh episode is unacknowledged
+                started_ms = now;           // onset, for start-time ordering
+                if (min_on_s > 0) min_on_rem_ms = (uint32_t)min_on_s * 1000u;
+            }
         }
         active   = on;
-        unmasked = on && ((merged_raw & masked_by) == 0);
+        unmasked = on && (merged_raw & masked_by) == 0;
 
+        // 3. Raise any log / MQTT event whose dwell threshold has elapsed. The
+        //    OFF side reports a FLAP when no matching ON event fired this episode.
         uint64_t dwell = now - edge_ms;
         const char* label = desc ? desc : (code ? code : "");
         if (on) {
-            if (!log_on_sent && log_on_s >= 0 &&
-                dwell >= (uint64_t)log_on_s * 1000) {
-                sink.log_start(label);
-                log_on_sent = true;
-            }
-            if (!mqtt_on_sent && mqtt_on_s >= 0 &&
-                dwell >= (uint64_t)mqtt_on_s * 1000) {
-                sink.notify_on(*this);
-                mqtt_on_sent = true;
-            }
+            if (due(log_on_sent,  log_on_s,  dwell)) { sink.log_start(label); log_on_sent  = true; }
+            if (due(mqtt_on_sent, mqtt_on_s, dwell)) { sink.notify_on(*this); mqtt_on_sent = true; }
         } else {
-            if (!log_off_sent && log_off_s >= 0 &&
-                dwell >= (uint64_t)log_off_s * 1000) {
-                // END with no matching START this episode = toggled too fast to
-                // dwell past log_on_s: report a FLAP, not a misleading bare END.
-                // But when START logging is disabled (log_on_s < 0, e.g.
-                // SYS_RST) there is never a START by design, so the OFF is a
-                // plain END, not a flap.
-                if (log_on_sent || log_on_s < 0) sink.log_end(label);
-                else                             sink.log_flap(label);
+            if (due(log_off_sent, log_off_s, dwell)) {
+                if (is_flap(log_on_sent, log_on_s)) sink.log_flap(label);
+                else                                sink.log_end(label);
                 log_off_sent = true;
             }
-            if (!mqtt_off_sent && mqtt_off_s >= 0 &&
-                dwell >= (uint64_t)mqtt_off_s * 1000) {
-                sink.notify_off(*this);
+            if (due(mqtt_off_sent, mqtt_off_s, dwell)) {
+                if (is_flap(mqtt_on_sent, mqtt_on_s)) sink.notify_flap(*this);
+                else                                  sink.notify_off(*this);
                 mqtt_off_sent = true;
             }
         }
