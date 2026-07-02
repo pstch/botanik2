@@ -163,6 +163,13 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, ALARM_EVENT_HOLD_MS);
 
+    /** @brief Maximum number of alarm notifiers the model fans transitions out
+     *  to (mirrors LOG_WRITERS_MAX). */
+#ifndef BOTANIK_ALARM_NOTIFIERS_MAX
+#  define BOTANIK_ALARM_NOTIFIERS_MAX 4
+#endif
+    BOTANIK_CFG(uint8_t, ALARM_NOTIFIERS_MAX);
+
     /** @brief Stack high-water is measured (and, on the sim, the free stack
      *  re-painted) once per slice rather than every tick, to amortise the
      *  paint/scan cost. */

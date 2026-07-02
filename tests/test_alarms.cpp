@@ -14,24 +14,24 @@
 using namespace Botanik;
 
 namespace {
-    // Static-prefix fields, in order: code, desc, masked_by, log_on_s, log_off_s,
-    // mqtt_on_s, mqtt_off_s, recent_s, off_delay_s, min_on_s. The dynamic suffix is left
+    // Static-prefix fields, in order: code, desc, masked_by, on_s, off_s,
+    // recent_s, off_delay_s, min_on_s. The dynamic suffix is left
     // zero-initialized (the pragma silences the pedantic field-init warning).
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-    // Two unmasked, unlatched conditions (logging/notify disabled) at bits 0 and 1.
+    // Two unmasked, unlatched conditions (announce disabled) at bits 0 and 1.
     const Alarms::AlarmCondition TABLE[] = {
-        { "AAA", "alarm A", 0, -1, -1, -1, -1, 0, 0 },
-        { "BBB", "alarm B", 0, -1, -1, -1, -1, 0, 0 },
+        { "AAA", "alarm A", 0, -1, -1, 0, 0 },
+        { "BBB", "alarm B", 0, -1, -1, 0, 0 },
     };
-    // One condition with a 5 s minimum-ON hold (logging disabled).
+    // One condition with a 5 s minimum-ON hold (announce disabled).
     const Alarms::AlarmCondition MIN_ON_TABLE[] = {
-        { "MIN", "min on", 0, -1, -1, -1, -1, 0, 0, 5 },
+        { "MIN", "min on", 0, -1, -1, 0, 0, 5 },
     };
-    // One condition that logs a START only after a 2 s dwell, and an END as soon as
-    // it clears (log_off_s 0). A brief blip clears before the START dwell -> FLAP.
+    // One condition that announces a START only after a 2 s dwell, and an END as
+    // soon as it clears (off_s 0). A brief blip clears before the START dwell -> FLAP.
     const Alarms::AlarmCondition FLAP_TABLE[] = {
-        { "FLP", "flap", 0, 2, 0, -1, -1, 0, 0 },
+        { "FLP", "flap", 0, 2, 0, 0, 0 },
     };
 #pragma GCC diagnostic pop
 
@@ -103,7 +103,7 @@ TEST_CASE("alarm: an END with no matching START is logged as a FLAP") {
     Alarms::AlarmModel m(FLAP_TABLE, 1, &logger);
 
     // A blip shorter than the 2 s START dwell: clears before any START is logged.
-    m.step(0x1, 1000);                             // on (dwell 0 < log_on_s 2 s)
+    m.step(0x1, 1000);                             // on (dwell 0 < on_s 2 s)
     logger.step();
     CHECK(rec.has(Logs::ALARM_START) == false);   // too brief to announce a START
     m.step(0x0, 1500);                             // off -> END with no START = FLAP
@@ -116,10 +116,10 @@ TEST_CASE("alarm: a normal episode logs START then END (not FLAP)") {
     Logs::Logger logger;
     TopicRecorder rec;
     logger.add_writer(&rec);
-    // log_on_s 0 so the START is announced at once.
+    // on_s 0 so the START is announced at once.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-    const Alarms::AlarmCondition tbl[] = { { "NRM", "normal", 0, 0, 0, -1, -1, 0, 0 } };
+    const Alarms::AlarmCondition tbl[] = { { "NRM", "normal", 0, 0, 0, 0, 0 } };
 #pragma GCC diagnostic pop
     Alarms::AlarmModel m(tbl, 1, &logger);
 

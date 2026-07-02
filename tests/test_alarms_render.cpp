@@ -25,10 +25,10 @@ namespace {
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
     // Four always-recent conditions (recent_s < 0 never expires), logging/notify off.
     const Alarms::AlarmCondition TABLE[] = {
-        { "AAA", "alarm A", 0, -1, -1, -1, -1, -1, 0 },
-        { "BBB", "alarm B", 0, -1, -1, -1, -1, -1, 0 },
-        { "CCC", "alarm C", 0, -1, -1, -1, -1, -1, 0 },
-        { "DDD", "alarm D", 0, -1, -1, -1, -1, -1, 0 },
+        { "AAA", "alarm A", 0, -1, -1, -1, 0 },
+        { "BBB", "alarm B", 0, -1, -1, -1, 0 },
+        { "CCC", "alarm C", 0, -1, -1, -1, 0 },
+        { "DDD", "alarm D", 0, -1, -1, -1, 0 },
     };
 #pragma GCC diagnostic pop
 

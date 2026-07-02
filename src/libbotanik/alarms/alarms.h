@@ -65,11 +65,8 @@ namespace Botanik { namespace Alarms {
         const char* desc;       //< human-readable description
         uint64_t    masked_by;  //< bitset of alarms that suppress this alarm
 
-        int32_t     log_on_s;   //< time ON  before logging event (-1: off)
-        int32_t     log_off_s;  //< time OFF before logging event (-1: off)
-
-        int32_t     mqtt_on_s;  //< time ON  before MQTT notification (-1: off)
-        int32_t     mqtt_off_s; //< time OFF before MQTT notification (-1: off)
+        int32_t     on_s;       //< time ON  before announcing (log + notify; -1: off)
+        int32_t     off_s;      //< time OFF before announcing (log + notify; -1: off)
         int32_t     recent_s;   //< duration the event is "recent" (-1: forever)
 
         int32_t     off_delay_s;    //< hold ON this long after raw clears (0: none)
@@ -81,11 +78,8 @@ namespace Botanik { namespace Alarms {
         bool        active;         //< alarm active or latched
         bool        unmasked;       //< active and not masked by other alarms
 
-        bool        mqtt_on_sent;   //< MQTT ON  notification sent
-        bool        mqtt_off_sent;  //< MQTT OFF notification sent
-
-        bool        log_on_sent;    //< logging ON  event written
-        bool        log_off_sent;   //< logging OFF event written
+        bool        on_sent;        //< ON  transition announced (log + notify)
+        bool        off_sent;       //< OFF transition announced (log + notify)
 
         bool        user_ack;       //< alarm acknowledged by the user
         uint64_t    edge_ms;        //< time since last transition
@@ -102,9 +96,9 @@ namespace Botanik { namespace Alarms {
         /** @brief Advance this condition one tick. Drains the off-delay /
          *  minimum-ON countdowns by @p dt, recomputes active/unmasked (the
          *  latter against the model's @p merged_raw word), seeds the edge
-         *  bookkeeping on a transition, and raises any due log / MQTT event
-         *  through @p sink. @p raw_on is this condition's merged raw bit; @p
-         *  now is the current uptime (ms). */
+         *  bookkeeping on a transition, and announces a due transition (the log
+         *  line + the notifier fan-out) through @p sink. @p raw_on is this
+         *  condition's merged raw bit; @p now is the current uptime (ms). */
         void step(bool raw_on, uint32_t dt, uint64_t now, uint64_t merged_raw,
                   const AlarmSink& sink);
 
@@ -138,14 +132,32 @@ namespace Botanik { namespace Alarms {
     }
 
     /**
-     * @brief Formats an alarm transition into a topic/payload for a Publisher.
+     * @brief Abstract alarm-transition sink the model fans out to.
      *
-     * Builds "<prefix>/alarms/<CODE>" + "ON"/"OFF" and forwards it to a
-     * Publisher. The model calls notify_on/off when an alarm crosses its MQTT
-     * ON/OFF dwell threshold; the transport is wired later via set_publisher(),
-     * so it is a no-op until then (null publisher disables it).
+     * Mirrors Logs::LogWriter: AlarmModel keeps a list of these and calls the
+     * matching hook when a condition crosses its ON/OFF dwell threshold (or an
+     * OFF turns out to be a FLAP). Implementations format/forward the transition
+     * however they like (MQTT, a second log channel, a buzzer, ...).
      */
-    class AlarmNotifier {
+    struct AlarmNotifier {
+        virtual ~AlarmNotifier() {}
+
+        /** @brief A condition crossed its ON dwell threshold. */
+        virtual void notify_on(const AlarmCondition& a) = 0;
+        /** @brief A condition ended cleanly (its ON event had been raised). */
+        virtual void notify_off(const AlarmCondition& a) = 0;
+        /** @brief A condition ended without a matching ON event (a flap). */
+        virtual void notify_flap(const AlarmCondition& a) = 0;
+    };
+
+    /**
+     * @brief AlarmNotifier that formats a transition as an MQTT topic/payload.
+     *
+     * Builds "<prefix>/alarms/<CODE>" + "ON"/"OFF"/"FLAP" and forwards it to a
+     * Publisher. The transport is wired later via set_publisher(), so it is a
+     * no-op until then (null publisher disables it).
+     */
+    class MqttAlarmNotifier : public AlarmNotifier {
     private:
         /** @name State
          *  @{ */
@@ -155,15 +167,15 @@ namespace Botanik { namespace Alarms {
 
     public:
         /** @brief @p prefix is the MQTT topic root. */
-        explicit AlarmNotifier(const char* prefix)
+        explicit MqttAlarmNotifier(const char* prefix)
             : _prefix(prefix && prefix[0] ? prefix : "botanik"), _pub(nullptr) {}
 
         /** @brief Wire the transport (called once at firmware setup). */
         void set_publisher(Publisher* pub) { _pub = pub; }
 
-        void notify_on(const AlarmCondition& a)   { _emit(a, "ON"); }
-        void notify_off(const AlarmCondition& a)  { _emit(a, "OFF"); }
-        void notify_flap(const AlarmCondition& a) { _emit(a, "FLAP"); }
+        void notify_on(const AlarmCondition& a)   override { _emit(a, "ON"); }
+        void notify_off(const AlarmCondition& a)  override { _emit(a, "OFF"); }
+        void notify_flap(const AlarmCondition& a) override { _emit(a, "FLAP"); }
 
     private:
         /** @brief Build "<prefix>/alarms/<CODE>" + @p state and publish (no-op
@@ -179,17 +191,18 @@ namespace Botanik { namespace Alarms {
 
     /**
      * @brief Side-effect sink an AlarmCondition raises events through: the
-     *        ALARM-topic log writer and the MQTT notifier.
+     *        ALARM-topic log writer and the registered notifier fan-out.
      *
-     * Bundling them keeps AlarmCondition::step free of the model's wiring. Both
-     * sinks may be null (no-op). The MQTT path is the feature seam: it is
-     * compiled out when BOTANIK_FEATURE_MQTT is off, so the notifier field is
-     * simply ignored there (the condition keeps its mqtt_* bookkeeping either
-     * way).
+     * Bundling them keeps AlarmCondition::step free of the model's wiring. The
+     * logger may be null (no-op); the notifier list is the model's own array
+     * (borrowed, may be empty). Each notify_* hook fans the transition out to
+     * every registered notifier, mirroring how Logs::Logger fans an entry out
+     * to its writers.
      */
     struct AlarmSink {
-        Logs::Logger*  logger;     //< ALARM-topic sink (null = no logging)
-        AlarmNotifier* notifier;   //< MQTT sink (null = none; MQTT-gated)
+        Logs::Logger*         logger;          //< ALARM-topic sink (null = no logging)
+        AlarmNotifier* const* notifiers;       //< borrowed notifier array (may be null)
+        uint8_t               notifier_count;  //< entries in @c notifiers
 
         void log_start(const char* label) const {
             if (logger) logger->warning(Logs::ALARM_START, "%s", label);
@@ -201,25 +214,16 @@ namespace Botanik { namespace Alarms {
             if (logger) logger->notice(Logs::ALARM_FLAP, "%s", label);
         }
         void notify_on(const AlarmCondition& c) const {
-#if BOTANIK_FEATURE_MQTT
-            if (notifier) notifier->notify_on(c);
-#else
-            (void)c;
-#endif
+            for (uint8_t i = 0; i < notifier_count; i++)
+                if (notifiers[i]) notifiers[i]->notify_on(c);
         }
         void notify_off(const AlarmCondition& c) const {
-#if BOTANIK_FEATURE_MQTT
-            if (notifier) notifier->notify_off(c);
-#else
-            (void)c;
-#endif
+            for (uint8_t i = 0; i < notifier_count; i++)
+                if (notifiers[i]) notifiers[i]->notify_off(c);
         }
         void notify_flap(const AlarmCondition& c) const {
-#if BOTANIK_FEATURE_MQTT
-            if (notifier) notifier->notify_flap(c);
-#else
-            (void)c;
-#endif
+            for (uint8_t i = 0; i < notifier_count; i++)
+                if (notifiers[i]) notifiers[i]->notify_flap(c);
         }
     };
 
@@ -244,8 +248,8 @@ namespace Botanik { namespace Alarms {
         if (on != active) {
             edge_ms = now;
             if (on) {                       // fresh ON episode
-                mqtt_off_sent = log_off_sent = false;
-                mqtt_on_sent  = log_on_sent  = false;
+                off_sent = false;
+                on_sent  = false;
                 user_ack   = false;         // a fresh episode is unacknowledged
                 started_ms = now;           // onset, for start-time ordering
                 if (min_on_s > 0) min_on_rem_ms = (uint32_t)min_on_s * 1000u;
@@ -254,23 +258,23 @@ namespace Botanik { namespace Alarms {
         active   = on;
         unmasked = on && (merged_raw & masked_by) == 0;
 
-        // 3. Raise any log / MQTT event whose dwell threshold has elapsed. The
-        //    OFF side reports a FLAP when no matching ON event fired this episode.
+        // 3. Announce the transition once its dwell threshold has elapsed: a
+        //    single event drives both the ALARM-topic log line and the notifier
+        //    fan-out. The OFF side reports a FLAP when no matching ON event
+        //    fired this episode.
         uint64_t dwell = now - edge_ms;
         const char* label = desc ? desc : (code ? code : "");
         if (on) {
-            if (due(log_on_sent,  log_on_s,  dwell)) { sink.log_start(label); log_on_sent  = true; }
-            if (due(mqtt_on_sent, mqtt_on_s, dwell)) { sink.notify_on(*this); mqtt_on_sent = true; }
-        } else {
-            if (due(log_off_sent, log_off_s, dwell)) {
-                if (is_flap(log_on_sent, log_on_s)) sink.log_flap(label);
-                else                                sink.log_end(label);
-                log_off_sent = true;
+            if (due(on_sent, on_s, dwell)) {
+                sink.log_start(label);
+                sink.notify_on(*this);
+                on_sent = true;
             }
-            if (due(mqtt_off_sent, mqtt_off_s, dwell)) {
-                if (is_flap(mqtt_on_sent, mqtt_on_s)) sink.notify_flap(*this);
-                else                                  sink.notify_off(*this);
-                mqtt_off_sent = true;
+        } else {
+            if (due(off_sent, off_s, dwell)) {
+                if (is_flap(on_sent, on_s)) { sink.log_flap(label); sink.notify_flap(*this); }
+                else                        { sink.log_end(label);  sink.notify_off(*this); }
+                off_sent = true;
             }
         }
     }
@@ -292,7 +296,9 @@ namespace Botanik { namespace Alarms {
         /** (1<<N)-1: masks the remote word to the PLC range */
         uint64_t        _site_mask;
         Logs::Logger*   _logger;         // ALARM-topic log sink (may be null)
-        AlarmNotifier*  _notifier;       // MQTT sink (may be null)
+        /** registered transition sinks (fan-out, mirrors Logger's writers) */
+        AlarmNotifier*  _notifiers[Config::ALARM_NOTIFIERS_MAX];
+        uint8_t         _notifier_count; // entries used in _notifiers
         /** runtime-sourced alarm bits (platform range) */
         uint64_t        _local;
         /** last merged raw ((remote & mask) | local) */
@@ -313,11 +319,11 @@ namespace Botanik { namespace Alarms {
          *  "settled OFF" so a never-active one never announces an END it never
          *  started. */
         AlarmModel(const AlarmCondition* site_table, uint8_t site_count,
-                   Logs::Logger* logger, AlarmNotifier* notifier = nullptr,
+                   Logs::Logger* logger,
                    const AlarmCondition* platform = nullptr,
                    uint8_t platform_count = 0)
             : _plc_count(0), _count(0), _site_mask(0),
-              _logger(logger), _notifier(notifier),
+              _logger(logger), _notifier_count(0),
               _local(0), _raw(0), _last_now(0), _first_step(true),
               _active_count(0), _unmasked_count(0) {
             BOTANIK_ASSERT(site_count + platform_count <= ALARM_BITS);
@@ -335,11 +341,41 @@ namespace Botanik { namespace Alarms {
             _count     = (uint8_t)(site_count + platform_count);
             _site_mask = (site_count >= 64) ? ~(uint64_t)0
                                             : (((uint64_t)1 << site_count) - 1);
-            for (uint8_t i = 0; i < _count; i++) {   // boot state: settled OFF
-                _conditions[i].mqtt_off_sent = true;
-                _conditions[i].log_off_sent = true;
-            }
+            for (uint8_t i = 0; i < _count; i++)     // boot state: settled OFF
+                _conditions[i].off_sent = true;
         }
+
+        /** @name Notifiers
+         *  @{ */
+
+        /** @brief Register a transition sink; false if @p n is null, already
+         *  registered, or the list is full. */
+        bool add_notifier(AlarmNotifier* n) {
+            if (n == nullptr || _notifier_count >= Config::ALARM_NOTIFIERS_MAX)
+                return false;
+            for (uint8_t i = 0; i < _notifier_count; i++)
+                if (_notifiers[i] == n) return false;   // no double-register
+            _notifiers[_notifier_count++] = n;
+            return true;
+        }
+
+        /** @brief Unregister a previously added notifier; false if not
+         *  found. */
+        bool remove_notifier(AlarmNotifier* n) {
+            for (uint8_t i = 0; i < _notifier_count; i++) {
+                if (_notifiers[i] != n) continue;
+                for (uint8_t j = i; j + 1 < _notifier_count; j++)
+                    _notifiers[j] = _notifiers[j + 1];
+                _notifier_count--;
+                return true;
+            }
+            return false;
+        }
+
+        /** @brief True if at least one notifier is registered. */
+        bool has_notifiers() const { return _notifier_count > 0; }
+
+        /** @} */
 
         /** @name Local alarms
          *  @{ */
@@ -394,7 +430,7 @@ namespace Botanik { namespace Alarms {
             _last_now   = now;
             _active_count = 0;
             _unmasked_count = 0;
-            AlarmSink sink{_logger, _notifier};
+            AlarmSink sink{_logger, _notifiers, _notifier_count};
             for (uint8_t i = 0; i < _count; i++) {
                 AlarmCondition& c = _conditions[i];
                 bool raw_on = ((_raw >> i) & 1u) != 0;

@@ -39,7 +39,7 @@ namespace Botanik { namespace Health {
     private:
         /** @name State
          *  @{ */
-        Alarms::AlarmNotifier              _notifier; //< 
+        Alarms::MqttAlarmNotifier          _notifier; //< MQTT transition sink
         Alarms::AlarmModel                 _model;
         /** log sink (may be null) */
         Logs::Logger*                      _logger;
@@ -80,10 +80,12 @@ namespace Botanik { namespace Health {
                       PlcIO::PlcSyncContext* plc,
                       const void* in_region, const void* out_region)
             : _notifier(Config::MQTT_TOPIC_PREFIX),
-              _model(table, count, logger, &_notifier,
+              _model(table, count, logger,
                      Alarms::PLATFORM_ALARMS, Alarms::PLATFORM_ALARM_COUNT),
               _logger(logger), _sched(sched), _plc(plc),
-              _in_region(in_region), _out_region(out_region) {}
+              _in_region(in_region), _out_region(out_region) {
+            _model.add_notifier(&_notifier);   // the built-in MQTT sink
+        }
 
         /** @name Queries
          *  @{ */
@@ -94,6 +96,11 @@ namespace Botanik { namespace Health {
          *  MQTT client once it exists). Until then the notifier is a no-op. */
         void set_alarm_publisher(Alarms::Publisher* pub) {
             _notifier.set_publisher(pub);
+        }
+        /** @brief Register an extra alarm-transition sink beyond the built-in
+         *  MQTT notifier (fans out to all; false if the list is full). */
+        bool add_alarm_notifier(Alarms::AlarmNotifier* n) {
+            return _model.add_notifier(n);
         }
         /** @brief Result of the boot POST (run on the first step()). */
         bool                post_ok()  const { return _post_ok; }

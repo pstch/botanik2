@@ -1,6 +1,6 @@
 /**
  * @file test_notifier.cpp
- * @brief AlarmNotifier formats "<prefix>/alarms/<CODE>" + ON/OFF/FLAP and forwards
+ * @brief MqttAlarmNotifier formats "<prefix>/alarms/<CODE>" + ON/OFF/FLAP and forwards
  *        to a Publisher; with no publisher it is a no-op.
  */
 #include <cstring>
@@ -28,9 +28,9 @@ namespace {
     };
 }
 
-TEST_CASE("AlarmNotifier: notify_on/off build the topic + payload and forward to the publisher") {
+TEST_CASE("MqttAlarmNotifier: notify_on/off build the topic + payload and forward to the publisher") {
     MockPublisher pub;
-    AlarmNotifier n("botanik/greenhouse");
+    MqttAlarmNotifier n("botanik/greenhouse");
     n.set_publisher(&pub);
 
     AlarmCondition c = {};
@@ -51,11 +51,48 @@ TEST_CASE("AlarmNotifier: notify_on/off build the topic + payload and forward to
     CHECK(std::string(pub.payload) == "FLAP");
 }
 
-TEST_CASE("AlarmNotifier: with no publisher set it is a safe no-op") {
-    AlarmNotifier n("botanik/greenhouse");
+TEST_CASE("MqttAlarmNotifier: with no publisher set it is a safe no-op") {
+    MqttAlarmNotifier n("botanik/greenhouse");
     AlarmCondition c = {};
     c.code = "NET_FLT";
     n.notify_on(c);    // must not crash / dereference null
     n.notify_off(c);
     CHECK(true);
+}
+
+namespace {
+    // Counts the transitions the model fans out to it.
+    struct CountingNotifier : AlarmNotifier {
+        int on = 0, off = 0, flap = 0;
+        void notify_on(const AlarmCondition&)   override { on++; }
+        void notify_off(const AlarmCondition&)  override { off++; }
+        void notify_flap(const AlarmCondition&) override { flap++; }
+    };
+}
+
+TEST_CASE("AlarmModel: a transition fans out to every registered notifier") {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+    // announce ON/OFF at once (on_s = off_s = 0).
+    const AlarmCondition TABLE[] = { { "X", "x", 0, 0, 0, 0, 0 } };
+#pragma GCC diagnostic pop
+    AlarmModel m(TABLE, 1, nullptr);
+    CountingNotifier a, b;
+    CHECK(m.add_notifier(&a));
+    CHECK(m.add_notifier(&b));
+    CHECK(m.has_notifiers());
+    CHECK(m.add_notifier(&a) == false);   // no double-register
+
+    m.step(0x1, 1000);                    // ON -> both notified
+    CHECK(a.on == 1);
+    CHECK(b.on == 1);
+    m.step(0x0, 2000);                    // clean OFF -> both notified
+    CHECK(a.off == 1);
+    CHECK(b.off == 1);
+
+    // Drop one; the remaining notifier still fires, the removed one does not.
+    CHECK(m.remove_notifier(&a));
+    m.step(0x1, 3000);
+    CHECK(a.on == 1);                     // unchanged after removal
+    CHECK(b.on == 2);
 }
