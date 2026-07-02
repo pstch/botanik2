@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <string>
 
 #include "libbotanik/logs/logger.h"
 
@@ -16,10 +17,19 @@ namespace Botanik {
         Logs::LogLevel last_level = Logs::LOG_DEBUG;
         Logs::LogTopic last_topic = Logs::NONE;
         char            last_msg[Config::LOG_PLC_MESSAGE_LEN] = {0};
+        // Every message seen this run, newline-joined. Lets a test look for a
+        // line anywhere in the log instead of pinning it to last_msg, which is
+        // fragile when the order/count of emitted lines is timing-dependent.
+        std::string     all_msgs;
         uint32_t        loss       = 0;
         void push(const PlcIO::LogEntry_t* e) override {
             pushes++; last_level = e->level; last_topic = e->topic;
             memcpy(last_msg, e->message, sizeof(last_msg));
+            all_msgs.append(e->message); all_msgs.push_back('\n');
+        }
+        // True if any recorded message contains @p needle.
+        bool saw(const char* needle) const {
+            return all_msgs.find(needle) != std::string::npos;
         }
         void drain() override {}
         uint32_t loss_count() const override { return loss; }

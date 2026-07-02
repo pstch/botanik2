@@ -101,8 +101,10 @@ TEST_CASE("NtpClient: stepped as a Component (announces once); query is non-bloc
 #ifdef DEBUG
     // >= 1 not == 1: the live UDP path and link-up sequence may emit extra log
     // lines beyond the first-step announce, so exact count is not pinned.
+    // Search all recorded lines, not last_msg: which line lands last is
+    // timing-dependent (a trailing NETWORK/TIME line can follow the announce).
     CHECK(w.pushes >= 1);
-    CHECK(std::string(w.last_msg).find("NtpClient") != std::string::npos);
+    CHECK(w.saw("NtpClient"));
 #endif
 }
 
