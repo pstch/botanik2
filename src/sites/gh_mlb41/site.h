@@ -214,7 +214,7 @@ const Botanik::Shell::ShellCommand g_site_commands[] = {
 #if BOTANIK_FEATURE_MQTT
 // Site MQTT telemetry: the live PLC payload grouped by domain. Each group is a
 // small ScalarField[] published under "<prefix>/telemetry/<group>/<leaf>",
-// alongside the library "system" set; MqttTelemetry reads + renders every field
+// alongside the library "system" set; MqttSender reads + renders every field
 // generically off the payload (no per-field code). A field is a leaf name, the
 // payload offset, a ScalarType (read width/sign), and for fixed-point a divisor
 // + decimals (raw / divisor, centi/milli units); a SCALAR_ENUM field renders its
@@ -318,23 +318,21 @@ class GreenhouseMLB41 final : public Botanik::BotanikFirmware<PlcInputData_t, Pl
 
 public:
     /** @brief Build the base around this site's alarm table, then the site
-     *  pages. */
+     *  pages. Tunable scalars (baud, watchdog) default from Config; the harness
+     *  overrides them via the base set_*() modifiers before setup(). */
     GreenhouseMLB41(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,
-                    Botanik::PlcIO::PlcOutput<PlcOutputData_t>* shared_out,
-                    uint32_t console_baud, uint16_t cols = 80, uint16_t rows = 24)
+                    Botanik::PlcIO::PlcOutput<PlcOutputData_t>* shared_out)
         : Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t>(
-              shared_in, shared_out, g_alarms, g_alarm_count,
-              console_baud, cols, rows),
+              shared_in, shared_out, g_alarms, g_alarm_count),
           _home_page(terminal(), plc_output_data()),
           _status_page(terminal(), plc_output_data())
     {}
 
     /** @brief Hardware convenience: bind to the coprocessor's PLC region (via
-     *  HAL) at the config-default baud, so the OPTA sketch is just
-     *  `BotanikSite fw;` (no region casts). The simulator uses the explicit
-     *  region constructor above. */
-    explicit GreenhouseMLB41(uint16_t cols = 80, uint16_t rows = 24)
-        : GreenhouseMLB41(hal_input(), hal_output(), Botanik::Config::CONSOLE_BAUD, cols, rows)
+     *  HAL), so the OPTA sketch is just `BotanikSite fw;` (no region casts). The
+     *  simulator uses the explicit region constructor above. */
+    GreenhouseMLB41()
+        : GreenhouseMLB41(hal_input(), hal_output())
     {}
 
 protected:

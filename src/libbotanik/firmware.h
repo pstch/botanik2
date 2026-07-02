@@ -14,21 +14,23 @@
  * ("Site-specific code").
  *
  * Target-independent: the shared PLC region is injected by the caller (sim
- * statics, or HAL::PlcIO::input()/get_plc_output() on OPTA). Per-target timing
- * is applied by the harness through the accessors / set_hw_watchdog_ms() before
- * setup().
+ * statics, or HAL::PlcIO::input()/output() on OPTA). Tunable scalars default
+ * from Config and the harness overrides them through a set_*() modifier before
+ * setup() (set_console_baud(), set_hw_watchdog_ms()).
  *
  * PLC-optional (BOTANIK_FEATURE_PLC, default on): the sync handler, log reader,
  * payload, and PLC-fault watchdog escalation. With -DBOTANIK_FEATURE_PLC=OFF
  * derive BotanikFirmware<> - the payload params default to the zero-size Empty
  * type, the loop feeds health a zeroed remote bitset (only local platform
- * alarms fire), and
- * HealthMonitor runs with a null link context.
+ * alarms fire), and HealthMonitor runs with a null link context.
  *
- * Terminal-optional (BOTANIK_FEATURE_TERMINAL, default on): the ANSI UI
- * (AnsiTerminal, the built-in pages, the console UART, the register_*() hooks).
- * Off -> headless; diagnostics still reach the MONITOR UART via the MONITOR
- * SerialLogWriter. The site extension below assumes the UI is present.
+ * Console-optional (BOTANIK_FEATURE_CONSOLE, default on): the interactive ANSI
+ * UI (AnsiTerminal, the built-in pages, the console UART, the register_*()
+ * hooks). Off -> headless. Monitor-optional (BOTANIK_FEATURE_MONITOR, default
+ * on): the secondary MONITOR UART and its SerialLogWriter sink. The two are
+ * independent; a fully headless build turns both off (logs still reach any
+ * site-registered sink). The site extension below assumes the console is
+ * present.
  *
  * @section firmware_extend Extending the base for a site
  *
@@ -36,10 +38,11 @@
  * shell commands), never overriding setup()/loop() - only the protected
  * Template-Method hooks, so the order can't be misordered. Extension surface:
  *
- *  - **Alarm table** - ctor arg (`alarm_table`, `alarm_count`). The AlarmModel
- *    splices in the generic platform-health alarms (alarms/platform.h):
- *    site/PLC alarms fill bit 0 up, platform alarms sit at the high end. Pure
- *    data; no hook.
+ *  - **Alarm table** - ctor arg (`alarm_table`, `alarm_count`); the model copies
+ *    it at construction, so it is a ctor input, not a set_*() value. The
+ *    AlarmModel splices in the generic platform-health alarms
+ *    (alarms/platform.h): site/PLC alarms fill bit 0 up, platform alarms sit at
+ *    the high end. Pure data; no hook.
  *  - **Pages** - override register_pages() for the tab order (page 0 = boot
  *    page); default registers the built-ins (shell/logs/alarms).
  *  - **Shell commands** - override register_commands(), call
@@ -66,8 +69,8 @@
  *     SiteHomePage _home;   // built from the base's components (see ctor)
  * public:
  *     GreenhouseXXX(PlcIO::PlcInput<PlcInputData_t>* in,
- *                   PlcIO::PlcOutput<PlcOutputData_t>* out, uint32_t baud)
- *         : BotanikFirmware(in, out, g_alarms, g_alarm_count, baud),
+ *                   PlcIO::PlcOutput<PlcOutputData_t>* out)
+ *         : BotanikFirmware(in, out, g_alarms, g_alarm_count),
  *           _home(terminal(), plc_output_data()) {}
  * protected:
  *     void register_pages()    override { terminal().add_page(&_home);            // page 0
@@ -89,7 +92,7 @@
 #endif
 #if BOTANIK_FEATURE_MQTT
 #include "libbotanik/network/mqtt.h"      // MqttClient
-#include "libbotanik/network/telemetry.h" // MqttTelemetry
+#include "libbotanik/network/telemetry.h" // MqttSender
 #endif
 
 #include <cstddef>
@@ -110,28 +113,40 @@ namespace Botanik {
         /** @name Configuration
          *  @{ */
 
-        /** @brief Console/monitor baud (sizes the TX gates). */
-        uint32_t                      _baud;
-        /** @brief Site PLC alarm table (copied into the model). */
+        /** @brief Console/monitor baud (sizes the TX gates); shared by both
+         *  UARTs. Defaults from Config; override with set_console_baud(). */
+        uint32_t                      _console_baud  = Config::CONSOLE_BAUD;
+        /** @brief Site PLC alarm table (copied into the model at construction;
+         *  a ctor input, not a set_*() value). */
         const Alarms::AlarmCondition* _alarm_table;
         size_t                        _alarm_count;
         /** @brief HW-watchdog period armed in setup(); the harness overrides it
          *  (the simulator dilates it) via set_hw_watchdog_ms() before
          *  setup(). */
         uint32_t                      _hw_watchdog_ms = Config::HW_WATCHDOG_MS;
+#if BOTANIK_FEATURE_CONSOLE
+        /** @brief Terminal geometry, fixed at construction (the AnsiTerminal
+         *  takes it by value and has no resize). Both targets use 80x24. */
+        uint16_t                      _cols = 80;
+        uint16_t                      _rows = 24;
+#endif
 
         /** @} */
 
         /** @name Generic components (declared in construction order)
          *  @{ */
 
-#if BOTANIK_FEATURE_TERMINAL
+#if BOTANIK_FEATURE_CONSOLE
         // dropped headless (no UI)
         Utils::BufferedSerial          _console_serial;
 #endif
+#if BOTANIK_FEATURE_MONITOR
         Utils::BufferedSerial          _monitor_serial;
+#endif
         Logs::Logger                   _logger;
+#if BOTANIK_FEATURE_MONITOR
         Logs::SerialLogWriter          _monitor;
+#endif
         Scheduler::LoopScheduler       _scheduler;
 #if BOTANIK_FEATURE_PLC
         PlcIO::PlcSyncHandler<In, Out> _plc_handler;
@@ -144,13 +159,13 @@ namespace Botanik {
         Network::NetworkHandler        _network;
 #endif
 #if BOTANIK_FEATURE_NTP
-        Network::NtpClient             _ntp;
+        Network::NtpClient             _ntp_client;
 #endif
 #if BOTANIK_FEATURE_MQTT
         Network::MqttClient            _mqtt;
-        Network::MqttTelemetry         _telemetry;
+        Network::MqttSender            _telemetry;
 #endif
-#if BOTANIK_FEATURE_TERMINAL
+#if BOTANIK_FEATURE_CONSOLE
         Terminal::AnsiTerminal         _terminal;
         Pages::ShellPage               _shell_page;
         Pages::LogsPage                _logs_page;
@@ -164,21 +179,25 @@ namespace Botanik {
          *  @{ */
 
         /** @brief Wire up the generic components. @p shared_in / @p shared_out:
-         *  the caller-owned PLC region; @p cols / @p rows: terminal geometry
-         *  (entry-point supplied, like the baud). */
+         *  the caller-owned PLC region; @p alarm_table / @p alarm_count: the
+         *  site PLC alarm table (copied into the model). Tunable scalars (baud,
+         *  watchdog) default from Config; override via the set_*() modifiers
+         *  before setup(). */
         BotanikFirmware(PlcIO::PlcInput<In>*  shared_in,
                         PlcIO::PlcOutput<Out>* shared_out,
-                        const Alarms::AlarmCondition* alarm_table, size_t alarm_count,
-                        uint32_t console_baud, uint16_t cols = 80, uint16_t rows = 24)
-            : _baud(console_baud),
-              _alarm_table(alarm_table),
+                        const Alarms::AlarmCondition* alarm_table, size_t alarm_count)
+            : _alarm_table(alarm_table),
               _alarm_count(alarm_count),
-#if BOTANIK_FEATURE_TERMINAL
+#if BOTANIK_FEATURE_CONSOLE
               _console_serial(HAL::Serial::get(HAL::Serial::CONSOLE)),
 #endif
+#if BOTANIK_FEATURE_MONITOR
               _monitor_serial(HAL::Serial::get(HAL::Serial::MONITOR)),
+#endif
               _logger(),
+#if BOTANIK_FEATURE_MONITOR
               _monitor(_monitor_serial, /*drop_if_tty=*/true),
+#endif
               _scheduler(Config::TASK_PERIOD_MS, &_logger),
 #if BOTANIK_FEATURE_PLC
               _plc_handler(shared_in, shared_out,
@@ -198,7 +217,7 @@ namespace Botanik {
                        , nullptr
 #endif
 #if BOTANIK_FEATURE_NTP
-                       , &_ntp
+                       , &_ntp_client
 #else
                        , nullptr
 #endif
@@ -225,15 +244,15 @@ namespace Botanik {
               , _network(_plc_handler.context(), &_logger, &_resolver)
 #endif
 #if BOTANIK_FEATURE_NTP
-              , _ntp(_plc_handler.context(), &_logger, &_resolver, &_network)
+              , _ntp_client(_plc_handler.context(), &_logger, &_resolver, &_network)
 #endif
 #if BOTANIK_FEATURE_MQTT
               , _mqtt(_plc_handler.context(), &_logger, &_resolver, &_network)
               , _telemetry(&_mqtt, &_sys_ctx, Config::MQTT_TOPIC_PREFIX)
 #endif
-#if BOTANIK_FEATURE_TERMINAL
-              , _terminal(_console_serial, cols, rows, &_scheduler.context()->timestamp_ms,
-                          _baud, _sys_ctx, &_health.model(), &_logger)
+#if BOTANIK_FEATURE_CONSOLE
+              , _terminal(_console_serial, _cols, _rows, &_scheduler.context()->timestamp_ms,
+                          _console_baud, _sys_ctx, &_health.model(), &_logger)
               , _shell_page(_terminal)
               , _logs_page(_terminal)
               , _alarms_page(_terminal, &_health.model())
@@ -242,18 +261,13 @@ namespace Botanik {
 #if !BOTANIK_FEATURE_PLC
             (void)shared_in; (void)shared_out;   // unused without the PLC link
 #endif
-#if !BOTANIK_FEATURE_TERMINAL
-            (void)cols; (void)rows;   // terminal geometry unused without the UI
-#endif
         }
 
 #if !BOTANIK_FEATURE_PLC
         /** @brief PLC-less convenience ctor: no shared region, so it omits the
          *  region pointers and delegates to the main ctor with null. */
-        BotanikFirmware(const Alarms::AlarmCondition* alarm_table, size_t alarm_count,
-                        uint32_t console_baud, uint16_t cols = 80, uint16_t rows = 24)
-            : BotanikFirmware(nullptr, nullptr, alarm_table, alarm_count,
-                              console_baud, cols, rows) {}
+        BotanikFirmware(const Alarms::AlarmCondition* alarm_table, size_t alarm_count)
+            : BotanikFirmware(nullptr, nullptr, alarm_table, alarm_count) {}
 #endif
 
         virtual ~BotanikFirmware() {}
@@ -266,29 +280,33 @@ namespace Botanik {
         void setup() {
             // route BOTANIK_ASSERT failures to the log
             set_assert_logger(&_logger);
-#if BOTANIK_FEATURE_TERMINAL
-            HAL::Serial::get(HAL::Serial::CONSOLE)->begin(_baud);
+#if BOTANIK_FEATURE_CONSOLE
+            HAL::Serial::get(HAL::Serial::CONSOLE)->begin(_console_baud);
 #endif
-            HAL::Serial::get(HAL::Serial::MONITOR)->begin(_baud);
+#if BOTANIK_FEATURE_MONITOR
+            HAL::Serial::get(HAL::Serial::MONITOR)->begin(_console_baud);
+#endif
 
             // Core sinks: monitor + (with the UI) shell/logs pages, plus a
             // TX-drop watch on each live UART. A site adds its own in
             // on_setup().
+#if BOTANIK_FEATURE_MONITOR
             _logger.add_writer(&_monitor);
-#if BOTANIK_FEATURE_TERMINAL
+            _logger.watch_tx(&_monitor_serial);
+#endif
+#if BOTANIK_FEATURE_CONSOLE
             _logger.add_writer(&_shell_page);
             _logger.add_writer(&_logs_page);
             _logger.watch_tx(&_console_serial);
 #endif
-            _logger.watch_tx(&_monitor_serial);
 
-#if BOTANIK_FEATURE_TERMINAL
+#if BOTANIK_FEATURE_CONSOLE
             // Let the shell's loglevel / alarm-ack commands reach the live
             // logger + model.
             _shell_page.set_diagnostics(&_logger, &_health.model());
 #if BOTANIK_FEATURE_NTP
             // Let the `ntpsync` command force a resync on the live client.
-            _shell_page.set_ntp(&_ntp);
+            _shell_page.set_ntp(&_ntp_client);
 #endif
 
             register_commands();   // site commands, tried after the built-ins
@@ -314,7 +332,7 @@ namespace Botanik {
 
             HAL::Watchdog::start(_hw_watchdog_ms);
             _logger.debug(PlcIO::BOOT, "boot complete\nconsole %lu baud, HW watchdog %lu ms",
-                          (unsigned long)_baud, (unsigned long)_hw_watchdog_ms);
+                          (unsigned long)_console_baud, (unsigned long)_hw_watchdog_ms);
         }
 
         /** @brief One main-loop iteration. tick() gates a beat and republishes
@@ -330,10 +348,12 @@ namespace Botanik {
         void loop() {
             if (!_scheduler.tick()) return;
 
-#if BOTANIK_FEATURE_TERMINAL
+#if BOTANIK_FEATURE_CONSOLE
             _console_serial.receive();
 #endif
+#if BOTANIK_FEATURE_MONITOR
             _monitor_serial.receive();
+#endif
 
 #if BOTANIK_FEATURE_PLC
             _plc_handler.step();
@@ -358,7 +378,7 @@ namespace Botanik {
             _network.step(now_ms);
 #endif
 #if BOTANIK_FEATURE_NTP
-            _ntp.step(now_ms);
+            _ntp_client.step(now_ms);
 #endif
 #if BOTANIK_FEATURE_MQTT
             _mqtt.step(now_ms);
@@ -369,15 +389,19 @@ namespace Botanik {
 
             _logger.step();
 
-#if BOTANIK_FEATURE_TERMINAL
+#if BOTANIK_FEATURE_CONSOLE
             _terminal.step();
 #endif
+#if BOTANIK_FEATURE_MONITOR
             _monitor.drain();
+#endif
 
-#if BOTANIK_FEATURE_TERMINAL
+#if BOTANIK_FEATURE_CONSOLE
             _console_serial.transmit();
 #endif
+#if BOTANIK_FEATURE_MONITOR
             _monitor_serial.transmit();
+#endif
 
             // Kick while healthy; HealthMonitor withholds only once a PLC fault
             // persists past the grace window (the deliberate reboot).
@@ -390,11 +414,14 @@ namespace Botanik {
 
         /** @} */
 
-        /** @name Per-target timing
+        /** @name Per-target tuning (call before setup())
          *  @{ */
 
-        /** @brief Override the HW-watchdog period armed by setup() (call before
-         *  it). */
+        /** @brief Override the console/monitor baud read by setup() (sizes the
+         *  TX gates). */
+        void set_console_baud(uint32_t baud) { _console_baud = baud; }
+
+        /** @brief Override the HW-watchdog period armed by setup(). */
         void set_hw_watchdog_ms(uint32_t ms) { _hw_watchdog_ms = ms; }
 
         /** @} */
@@ -435,15 +462,15 @@ namespace Botanik {
         Network::NameResolver&          resolver()        { return _resolver; }
 #endif
 #if BOTANIK_FEATURE_NTP
-        Network::NtpClient&             ntp()             { return _ntp; }
+        Network::NtpClient&             ntp()             { return _ntp_client; }
 #endif
 #if BOTANIK_FEATURE_MQTT
         Network::MqttClient&            mqtt()            { return _mqtt; }
-        Network::MqttTelemetry&         telemetry()       { return _telemetry; }
+        Network::MqttSender&            telemetry()       { return _telemetry; }
 #endif
         Health::HealthMonitor&          health()          { return _health; }
         Alarms::AlarmModel&             alarm_model()     { return _health.model(); }
-#if BOTANIK_FEATURE_TERMINAL
+#if BOTANIK_FEATURE_CONSOLE
         Terminal::AnsiTerminal&         terminal()        { return _terminal; }
         Pages::ShellPage&               shell_page()      { return _shell_page; }
         Pages::LogsPage&                logs_page()       { return _logs_page; }
@@ -458,7 +485,7 @@ namespace Botanik {
          *  bring-up and cycle order can never be skipped or misordered.
          *  @{ */
 
-#if BOTANIK_FEATURE_TERMINAL
+#if BOTANIK_FEATURE_CONSOLE
         /** @brief Register the pages in tab order (page 0 = boot page); the
          *  add_page() call order IS the tab order. Default: the built-ins. */
         virtual void register_pages() {

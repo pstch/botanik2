@@ -57,12 +57,20 @@
 #  define BOTANIK_FEATURE_SUN 1
 #endif
 
-/** @brief ANSI terminal UI: AnsiTerminal, the built-in pages, the console UART,
- *  and the register_pages()/register_commands() hooks. Off -> headless; the
- *  logger, scheduler, health/alarm model and PLC link remain, diagnostics reach
- *  MONITOR via the SerialLogWriter. */
-#ifndef BOTANIK_FEATURE_TERMINAL
-#  define BOTANIK_FEATURE_TERMINAL 1
+/** @brief Interactive ANSI console: AnsiTerminal, the built-in pages, the
+ *  console UART, and the register_pages()/register_commands() hooks. Off ->
+ *  headless; the logger, scheduler, health/alarm model and PLC link remain, and
+ *  diagnostics still reach the MONITOR UART (see BOTANIK_FEATURE_MONITOR). */
+#ifndef BOTANIK_FEATURE_CONSOLE
+#  define BOTANIK_FEATURE_CONSOLE 1
+#endif
+
+/** @brief Monitor UART log path: the secondary MONITOR serial and its
+ *  SerialLogWriter sink. Off -> no monitor UART (logs only reach the console /
+ *  registered sinks). Independent of CONSOLE: a headless build keeps MONITOR
+ *  for diagnostics; an interactive build can drop it. */
+#ifndef BOTANIK_FEATURE_MONITOR
+#  define BOTANIK_FEATURE_MONITOR 1
 #endif
 
 // --- dependency rules (see file header) ---

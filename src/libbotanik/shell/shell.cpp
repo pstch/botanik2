@@ -461,8 +461,8 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_cmd_ntpsync(const char*, uint16_t) {
-        if (_ntp == nullptr) { _println("ntpsync: NTP unavailable"); return; }
-        _ntp->resync();
+        if (_ntp_client == nullptr) { _println("ntpsync: NTP unavailable"); return; }
+        _ntp_client->resync();
         _println("ntpsync: NTP resync requested");
     }
 

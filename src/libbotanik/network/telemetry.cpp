@@ -85,7 +85,7 @@ namespace Botanik { namespace Network {
         }
     }  // namespace
 
-    const TelemetryField* MqttTelemetry::_base_fields(size_t& count) {
+    const TelemetryField* MqttSender::_base_fields(size_t& count) {
         static const TelemetryField TABLE[] = {
             { "uptime_s",      &fmt_uptime     },
             { "cpu_load",      &fmt_cpu_load   },
@@ -101,7 +101,7 @@ namespace Botanik { namespace Network {
         return TABLE;
     }
 
-    void MqttTelemetry::step(uint64_t now_ms) {
+    void MqttSender::step(uint64_t now_ms) {
         const uint32_t period = Config::MQTT_TELEMETRY_PERIOD_MS;
         if (period == 0) return;                       // telemetry disabled
         if (_mqtt == nullptr || !_mqtt->connected()) return;
@@ -116,7 +116,7 @@ namespace Botanik { namespace Network {
         _publish_scalars();                                     // site scalars
     }
 
-    void MqttTelemetry::_publish_table(const char* group, const TelemetryField* table,
+    void MqttSender::_publish_table(const char* group, const TelemetryField* table,
                                        size_t count, void* ctx) {
         if (table == nullptr) return;
         char payload[64];
@@ -145,7 +145,7 @@ namespace Botanik { namespace Network {
         }
     }  // namespace
 
-    void MqttTelemetry::_publish_scalars() {
+    void MqttSender::_publish_scalars() {
         if (_groups == nullptr || _scalar_base == nullptr) return;
         char payload[64];
         for (size_t gi = 0; gi < _group_count; ++gi) {
@@ -169,7 +169,7 @@ namespace Botanik { namespace Network {
         }
     }
 
-    void MqttTelemetry::_emit(const char* group, const char* name, const char* payload) {
+    void MqttSender::_emit(const char* group, const char* name, const char* payload) {
         char topic[96];
         int n = group != nullptr
             ? snprintf(topic, sizeof(topic), "%s/%s/%s/%s",

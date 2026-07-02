@@ -89,7 +89,8 @@ int main(int argc, char** argv) {
     // The PLC config block (network/NTP/MQTT/geo) is published by the emulator
     // (the coprocessor's role on hardware) via fill_greenhouse_config, below.
 
-    BotanikSite greenhouse(&shared_in, &shared_out, CONSOLE_BAUD, /*cols=*/80, /*rows=*/24);
+    BotanikSite greenhouse(&shared_in, &shared_out);
+    greenhouse.set_console_baud(CONSOLE_BAUD);
 
     // Sim-only timing dilation: grow the PLC link + HW-watchdog timeouts by the
     // time-scale factor so jitter under a high BOTANIK_TIME_SCALE can't
@@ -100,7 +101,8 @@ int main(int argc, char** argv) {
     greenhouse.set_hw_watchdog_ms(plc_dilated_timeout(Config::HW_WATCHDOG_MS));
 #else
     // No PLC: a single-core firmware with no shared region or mock coprocessor.
-    BotanikSite greenhouse(CONSOLE_BAUD, /*cols=*/80, /*rows=*/24);
+    BotanikSite greenhouse;
+    greenhouse.set_console_baud(CONSOLE_BAUD);
     greenhouse.set_hw_watchdog_ms(plc_dilated_timeout(Config::HW_WATCHDOG_MS));
 #endif
 

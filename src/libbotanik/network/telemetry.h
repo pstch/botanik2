@@ -3,7 +3,7 @@
 
 /**
  * @file telemetry.h
- * @brief MqttTelemetry - periodic publication of field values over MQTT.
+ * @brief MqttSender - periodic publication of field values over MQTT.
  *
  * Publishes a set of named values under "<prefix>/<root>/<field>" every
  * Config::MQTT_TELEMETRY_PERIOD_MS while the MqttClient is connected (root =
@@ -46,7 +46,7 @@ namespace Botanik { namespace Network {
     };
 
     /** @brief A scalar telemetry value at a byte @p offset in a flat struct
-     *  (typically the site PLC payload), rendered generically by MqttTelemetry -
+     *  (typically the site PLC payload), rendered generically by MqttSender -
      *  no per-field formatter. Integer types publish verbatim; a @p divisor > 1
      *  makes it fixed-point (value / divisor with @p decimals places, e.g. 100
      *  for centi-units); SCALAR_ENUM renders the raw byte through @p str.
@@ -74,7 +74,7 @@ namespace Botanik { namespace Network {
     };
 
     /** @brief Periodic MQTT telemetry publisher (see file header). */
-    class MqttTelemetry {
+    class MqttSender {
         /** @name State
          *  @{ */
 
@@ -103,7 +103,7 @@ namespace Botanik { namespace Network {
     public:
         /** @brief @p mqtt is the transport, @p sys the live status read by the
          *  base fields, @p prefix the topic root segment before the field. */
-        MqttTelemetry(MqttClient* mqtt, const SystemContext* sys, const char* prefix)
+        MqttSender(MqttClient* mqtt, const SystemContext* sys, const char* prefix)
             : _mqtt(mqtt), _prefix(prefix), _sys(sys) {}
 
         /** @brief Register the site's extra fields, published after the base

@@ -86,7 +86,7 @@ namespace Botanik { namespace Shell {
         Alarms::AlarmModel*     _alarm_model   = nullptr;
         /** @brief NTP client for the `ntpsync` command; null until set_ntp()
          *  wires it (off when the NTP feature is absent). */
-        Network::NtpClient*     _ntp           = nullptr;
+        Network::NtpClient*     _ntp_client           = nullptr;
 
         /** @brief Command-history ring: the most-recent submitted lines. */
         char     _history[Config::SHELL_HISTORY_SIZE][Config::SHELL_HISTORY_ENTRY];
@@ -132,7 +132,7 @@ namespace Botanik { namespace Shell {
         /** @brief Wire the NTP client the `ntpsync` command resyncs (the
          *  firmware passes it when the NTP feature is on; left null otherwise,
          *  so the command reports "unavailable"). */
-        void set_ntp(Network::NtpClient* ntp) { _ntp = ntp; }
+        void set_ntp(Network::NtpClient* ntp) { _ntp_client = ntp; }
 
         /** @brief Register a site command table, tried after the built-ins.
          *  @p table must outlive the shell (typically a static at the site).
