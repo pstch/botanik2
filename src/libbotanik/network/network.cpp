@@ -15,24 +15,6 @@
 
 namespace Botanik { namespace Network {
 
-    namespace {
-        // Convert an SNTP reply's transmit timestamp (bytes 40..47, big-endian:
-        // 32-bit seconds since 1900 + 32-bit fraction) to UNIX milliseconds.
-        // Returns 0 if the timestamp is unset or pre-1970.
-        uint64_t ntp_to_unix_ms(const uint8_t* pkt) {
-            uint32_t secs = ((uint32_t)pkt[40] << 24) | ((uint32_t)pkt[41] << 16) |
-                            ((uint32_t)pkt[42] << 8)  |  (uint32_t)pkt[43];
-            uint32_t frac = ((uint32_t)pkt[44] << 24) | ((uint32_t)pkt[45] << 16) |
-                            ((uint32_t)pkt[46] << 8)  |  (uint32_t)pkt[47];
-            // seconds between 1900 and 1970
-            const uint32_t NTP_UNIX_DELTA = 2208988800u;
-            if (secs < NTP_UNIX_DELTA) return 0;   // 0 / pre-1970 -> invalid
-            uint64_t unix_s = (uint64_t)secs - NTP_UNIX_DELTA;
-            uint32_t ms = (uint32_t)(((uint64_t)frac * 1000u) >> 32);
-            return unix_s * 1000ull + ms;
-        }
-    }  // namespace
-
     // ------------------------------------------------------------------------
     // NetworkHandler
     // ------------------------------------------------------------------------
