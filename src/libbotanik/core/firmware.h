@@ -100,9 +100,8 @@
 
 namespace Botanik {
 
-    /** @brief Zero-size default PLC payload: the template params default to
-     *  this so a PLC-less firmware (BOTANIK_FEATURE_PLC=0) derives
-     *  BotanikFirmware<>. */
+    /** @brief Zero-size default PLC payload, used to fill the BotanikFirmware
+     *  template params when the PLC feature is not enabled. */
     struct Empty {};
 
     /** @brief Generic firmware base: owns the generic components + the loop
@@ -110,16 +109,15 @@ namespace Botanik {
      *  are compiled in only when BOTANIK_FEATURE_PLC is set. */
     template<typename In = Empty, typename Out = Empty>
     class BotanikFirmware {
+
         /** @name Configuration
          *  @{ */
 
-        /** @brief Console/monitor baud (sizes the TX gates); shared by both
+        /** @brief Console/monitor baud rates (sizes the TX gates); shared by both
          *  UARTs. Defaults from Config; override with set_console_baud(). */
         uint32_t                      _console_baud  = Config::CONSOLE_BAUD;
-        /** @brief Site PLC alarm table (copied into the model at construction;
-         *  a ctor input, not a set_*() value). */
-        const Alarms::AlarmCondition* _alarm_table;
-        size_t                        _alarm_count;
+        const Alarms::AlarmCondition* _alarm_table;     ///< Site PLC alarm table
+        size_t                        _alarm_count;     ///< Site PLC alarm table size
         /** @brief HW-watchdog period armed in setup(); the harness overrides it
          *  (the simulator dilates it) via set_hw_watchdog_ms() before
          *  setup(). */
