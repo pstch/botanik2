@@ -12,7 +12,6 @@
 #include <cstring>   // strncmp / strncpy
 
 #include "libbotanik/hal/net.h"
-#include "libbotanik/hal/platform.h"   // HAL::Memory::ordered_read
 
 namespace Botanik { namespace Network {
 
@@ -78,7 +77,7 @@ namespace Botanik { namespace Network {
     NameResolver::Entry* NameResolver::_alloc() {
         Entry* victim = nullptr;
         for (size_t i = 0; i < Config::DNS_CACHE_SIZE; ++i) {
-            uint8_t st = _table[i].state;
+            SlotState st = _table[i].state;
             if (st == SLOT_FREE) return &_table[i];
             // First non-pending row is an evictable cache/error entry
             // (fallback).
@@ -96,7 +95,7 @@ namespace Botanik { namespace Network {
         // Known row? (cached result, lookup in flight, or a stale failure)
         Entry* e = _find(host);
         if (e != nullptr) {
-            uint8_t st = HAL::Memory::ordered_read(&e->state);
+            SlotState st = e->state;
             if (st == SLOT_READY)  { *out = e->addr; return RESOLVE_OK; }
             if (st == SLOT_PENDING) {
                 HAL::Network::Ip4 ip;

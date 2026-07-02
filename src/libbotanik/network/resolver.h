@@ -49,10 +49,10 @@ namespace Botanik { namespace Network {
 
         /** @brief One table row: an in-flight request and/or a cached result. */
         struct Entry {
-            char                  host[Config::PLC_HOST_STR_LEN]; ///< name (cache key)
-            ResolvedAddr          addr;     ///< result, valid when state == SLOT_READY
-            HAL::Network::DnsHandle   handle;   ///< dns_begin handle while PENDING (0 = none)
-            volatile uint8_t      state;    ///< SlotState
+            char                        host[Config::PLC_HOST_STR_LEN]; ///< name (cache key)
+            ResolvedAddr                addr;     ///< result           (when SLOT_READY)
+            HAL::Network::DnsHandle     handle;   ///< async DNS handle (when SLOT_PENDING)
+            SlotState                   state;    ///< current state of the slot
         };
 
         Entry             _table[Config::DNS_CACHE_SIZE];
@@ -64,9 +64,10 @@ namespace Botanik { namespace Network {
         /** @name Lifecycle
          *  @{ */
 
+        /** @brief Construct a new resolver, bound to the given logger (or none). */
         NameResolver(Logs::Logger* logger = nullptr);
-        /** @brief Drop every row (cache + in-flight), cancelling pending lookups. Call
-         *  on a network reconfiguration so stale cached addresses don't linger. */
+
+        /** @brief Drop the whole cache, and cancel pending lookups. */
         void clear();
 
         /** @} */
@@ -74,9 +75,9 @@ namespace Botanik { namespace Network {
         /** @name Resolution
          *  @{ */
 
-        /** @brief Resolve @p host (hostname or IPv4 literal) without blocking. OK with
-         *  @p out filled on a literal / cache / immediate stack hit; PENDING if a lookup
-         *  is in flight; FAILED on error or no free slot. Poll again until OK. */
+        /** @brief Resolve @p host (hostname or IPv4 literal) without blocking, and store
+         *         the result in @p out when successfully resolved.
+         *  @returns The status of the requested resolution. */
         ResolveStatus resolve(const char* host, ResolvedAddr* out);
 
         /** @} */
