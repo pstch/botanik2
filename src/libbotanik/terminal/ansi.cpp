@@ -16,54 +16,43 @@
 namespace Botanik { namespace Terminal { namespace Ansi {
     using BufferedSerial = Botanik::Utils::BufferedSerial;
 
-    namespace {
-        // Worst-case single sequence: goto_absolute = CSI(2) + row(<=5) + ';' +
-        // col(<=5) + 'H' = 14. One guard value for all writers; over-reserving
-        // the short ones is harmless and avoids a per-writer count that could
-        // drift.
-        constexpr uint16_t ANSI_MAX_SEQ = 16;
-
-        // True when the TX ring can take a whole worst-case sequence, so every
-        // write() in the writer below is guaranteed to land (see file header).
-        inline bool can_emit(BufferedSerial& _serial) {
-            return _serial.availableForWrite() >= ANSI_MAX_SEQ;
-        }
-
-        // Append @p val as decimal (no leading zeros).
-        void write_uint16(BufferedSerial& _serial, uint16_t val) {
-            char buf[5];
-            int8_t i = 4;
-            if (val == 0) { _serial.write("0", 1); return; }
-            while (val > 0 && i >= 0) {
-                buf[i--] = (char)('0' + val % 10);
-                val /= 10;
-            }
-            _serial.write(&buf[i + 1], 4 - i);
-        }
-
-        // Emit "CSI [count] <final>": CSI, the count (only when > 1, since 1 is
-        // the ECMA-48 default), then the final byte(s). count defaults to 1.
-        bool _csi_count(BufferedSerial& _serial, const char* final_byte,
-                        uint16_t fn, uint16_t count = 1) {
-            if (count == 0) return true;
-            if (!can_emit(_serial)) return false;
-            _serial.write(CSI, sizeof(CSI) - 1);
-            if (count > 1) write_uint16(_serial, count);
-            _serial.write(final_byte, fn);
-            return true;
-        }
-    }
-
     // Generic utilities
     // ------------------------------------------------------------------------
 
-    // ASCII-only (0x20-0x7E): the editor counts one byte == one column, so a
-    // high byte (UTF-8 / Latin-1) is dropped as non-printable rather than
-    // corrupt the byte-counted reconcile cursor.
-    bool is_printable(uint8_t b) {
-        return b >= 0x20 && b <= 0x7E;
+    // worst-case max X3.64 sequence length
+    constexpr uint16_t ANSI_MAX_SEQ = 16;
+
+    // true when we know we can emit a full control sequence
+    inline bool can_emit(BufferedSerial& _serial) {
+        return _serial.availableForWrite() >= ANSI_MAX_SEQ;
     }
 
+    // determine if a character is in the ASCII printable set
+    bool is_printable(uint8_t b) { return b >= 0x20 && b <= 0x7E; }
+
+    // write @p val to @p _serial in decimal format
+    void write_uint16(BufferedSerial& _serial, uint16_t val) {
+        char buf[5];
+        int8_t i = 4;
+        if (val == 0) { _serial.write("0", 1); return; }
+        while (val > 0 && i >= 0) {
+            buf[i--] = (char)('0' + val % 10);
+            val /= 10;
+        }
+        _serial.write(&buf[i + 1], 4 - i);
+    }
+
+    // emit a CSI quantified command (<CSI> <count> <byte>)
+    bool _csi_count(BufferedSerial& _serial, const char* final_byte,
+                    uint16_t fn, uint16_t count = 1) {
+        if (count == 0) return true;                    // return early if count is zero
+        if (!can_emit(_serial)) return false;           // bail if not enough TX space
+        _serial.write(CSI, sizeof(CSI) - 1);            // write CSI header
+        if (count > 1) write_uint16(_serial, count);    // write count parameter
+        _serial.write(final_byte, fn);                  // write given final byte
+        return true;
+    }
+    
     // State management
     // ------------------------------------------------------------------------
 
@@ -73,26 +62,22 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     bool cancel_sequence(BufferedSerial& _serial) {
-        // Lone C0 control, no CSI: reserve its single byte so it lands
-        // all-or-nothing.
         if (_serial.availableForWrite() < (uint16_t)(sizeof(CAN) - 1)) return false;
         _serial.write(CAN, sizeof(CAN) - 1);
         return true;
     }
 
     bool set_auto_wrap(BufferedSerial& _serial, bool enable) {
-        return _csi_count(_serial, enable ? DECAWM_SET : DECAWM_RESET,
-                          sizeof(DECAWM_SET) - 1);   // SET/RESET same length
+        if (enable) return _csi_count(_serial, DECAWM_SET  , sizeof(DECAWM_SET)   - 1);
+        else        return _csi_count(_serial, DECAWM_RESET, sizeof(DECAWM_RESET) - 1);
     }
 
     bool set_cursor_visible(BufferedSerial& _serial, bool show) {
-        return _csi_count(_serial, show ? DECTCEM_SET : DECTCEM_RESET,
-                          sizeof(DECTCEM_SET) - 1);  // SET/RESET same length
+        if (show) return _csi_count(_serial, DECTCEM_SET,   sizeof(DECTCEM_SET)   - 1);
+        else      return _csi_count(_serial, DECTCEM_RESET, sizeof(DECTCEM_RESET) - 1);
     }
 
     bool minitel_setup(BufferedSerial& _serial) {
-        // One-time PRO2 handshake: 12 bytes, within the can_emit() reserve, so
-        // atomic.
         if (!can_emit(_serial)) return false;
         _serial.write(MINITEL_TELINFO,   sizeof(MINITEL_TELINFO) - 1);
         _serial.write(MINITEL_LOWERCASE, sizeof(MINITEL_LOWERCASE) - 1);
@@ -101,8 +86,6 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     bool vt102_setup(BufferedSerial& _serial) {
-        // No one-time setup: DECAWM-off is re-asserted on every screen
-        // establish.
         (void)_serial;
         return true;
     }
