@@ -1,10 +1,11 @@
 /**
  * @file test_sun_tracker.cpp
- * @brief Tests for SunPositionTracker - the geo-config-driven wrapper over sun/sun.h.
+ * @brief Tests for SunPositionTracker - the geo-config-driven wrapper over the
+ *        sun_tracker.h solar-elevation math.
  *        Config is injected through the PlcConfigFixture; the wall clock is the host's
- *        real time (so it passes the tracker's validity gate). The underlying solar
- *        math has its own coverage in test_sun.cpp; here we check the wiring: e7->deg
- *        conversion, "compute once valid", recompute on a geo change, and day/night.
+ *        real time (so it passes the tracker's validity gate). The elevation math has
+ *        its own coverage in test_sun.cpp; here we check the wiring: e7->deg
+ *        conversion, "compute once valid", and recompute on a geo change.
  */
 #include <cstdint>
 
@@ -12,7 +13,6 @@
 
 #include "plc_config_fixture.h"
 #include "libbotanik/sun/sun_tracker.h"
-#include "libbotanik/sun/sun.h"
 #include "libbotanik/hal/platform.h"
 
 #if BOTANIK_FEATURE_SUN
@@ -21,12 +21,12 @@ using namespace Botanik;
 using namespace Botanik::Sun;
 
 namespace {
-    // Same e7->degrees the tracker does, so a reference next_sun_times() call gets
-    // byte-identical inputs (hence identical results) to compare against.
+    // Same e7->degrees the tracker does, so a reference solar_elevation() call
+    // gets byte-identical inputs (hence an identical result) to compare against.
     double deg(int32_t e7) { return (double)e7 / 1e7; }
 }
 
-TEST_CASE("SunPositionTracker: computes from geo config, matching utils/sun") {
+TEST_CASE("SunPositionTracker: computes elevation from geo config") {
     botanik_test::PlcConfigFixture fx;
     const int32_t LAT = 488566000;   // Paris 48.8566 N
     const int32_t LON =  23522000;   //       2.3522 E
@@ -43,15 +43,33 @@ TEST_CASE("SunPositionTracker: computes from geo config, matching utils/sun") {
     REQUIRE(sun.ready());
 
     // Must match a direct call with the same instant + location.
-    SunTimes ref = next_sun_times(now, deg(LAT), deg(LON));
-    CHECK(sun.times().sunrise.valid == ref.sunrise.valid);
-    CHECK(sun.times().sunset.valid  == ref.sunset.valid);
-    if (ref.sunrise.valid) CHECK(sun.times().sunrise.time_ms == ref.sunrise.time_ms);
-    if (ref.sunset.valid)  CHECK(sun.times().sunset.time_ms  == ref.sunset.time_ms);
+    CHECK(sun.elevation() == doctest::Approx(solar_elevation(now, deg(LAT), deg(LON))));
+}
 
-    // Daytime iff the sun sets before it next rises.
-    if (ref.sunrise.valid && ref.sunset.valid)
-        CHECK(sun.is_daytime() == (ref.sunset.time_ms < ref.sunrise.time_ms));
+TEST_CASE("SunPositionTracker: throttles recomputation between cadence ticks") {
+    botanik_test::PlcConfigFixture fx;
+    const int32_t LAT = 488566000;   // Paris
+    const int32_t LON =  23522000;
+    fx.conf().geo.serial       = 1;
+    fx.conf().geo.latitude_e7  = LAT;
+    fx.conf().geo.longitude_e7 = LON;
+    fx.publish();
+
+    SunPositionTracker sun(fx.ctx());
+    uint64_t t0 = HAL::Clock::uptime_ms();
+    sun.step(t0);
+    REQUIRE(sun.ready());
+    double e0 = sun.elevation();
+
+    // A few seconds on (inside the cadence): no recompute, value stays pinned
+    // even though the true elevation has moved on.
+    sun.step(t0 + 5000);
+    CHECK(sun.elevation() == e0);
+
+    // Two minutes on (past the cadence): recomputes for the new instant.
+    uint64_t t1 = t0 + 120000;
+    sun.step(t1);
+    CHECK(sun.elevation() == doctest::Approx(solar_elevation(t1, deg(LAT), deg(LON))));
 }
 
 TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial changes") {
@@ -64,7 +82,7 @@ TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial cha
     SunPositionTracker sun(fx.ctx());
     sun.step(HAL::Clock::uptime_ms());
     REQUIRE(sun.ready());
-    uint64_t paris_sunrise = sun.times().sunrise.time_ms;
+    double paris_elev = sun.elevation();
 
     // Move far away (Sydney, southern hemisphere) and bump the serial.
     const int32_t LAT = -338700000;   // -33.87
@@ -76,11 +94,8 @@ TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial cha
 
     uint64_t now = HAL::Clock::uptime_ms();
     sun.step(now);
-    SunTimes ref = next_sun_times(now, deg(LAT), deg(LON));
-    if (ref.sunrise.valid) {
-        CHECK(sun.times().sunrise.time_ms == ref.sunrise.time_ms);   // picked up the new coords
-        CHECK(sun.times().sunrise.time_ms != paris_sunrise);         // and they really differ
-    }
+    CHECK(sun.elevation() == doctest::Approx(solar_elevation(now, deg(LAT), deg(LON))));
+    CHECK(sun.elevation() != doctest::Approx(paris_elev));   // different coords -> different angle
 }
 
 TEST_CASE("SunPositionTracker: stays idle with no geo config") {

@@ -48,8 +48,8 @@
 #  define BOTANIK_FEATURE_MQTT 0
 #endif
 
-/** @brief Sun tracking: the SunPositionTracker (geo-config-driven sunrise /
- *  sunset + day/night) and the solar-position math (sun/). Standalone - not
+/** @brief Sun tracking: the SunPositionTracker (geo-config-driven solar
+ *  elevation angle) and the solar-position math (sun/). Standalone - not
  *  instantiated by BotanikFirmware, so a site opts in by constructing one.
  *  Default ON (preserves the always-built behaviour); -DBOTANIK_FEATURE_SUN=OFF
  *  drops the sun/ sources and their tests. */

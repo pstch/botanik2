@@ -43,7 +43,7 @@ Each subsystem with an architecture deep-dive links to its guide in the last col
 | **PLC I/O**  | `plcio/`     | @ref Botanik::PlcIO::PlcSyncHandler runs RX/TX state machines over shared memory with the PLC coprocessor; an emulator stands in for it on the simulator. | @ref md_docs_2PLC__SYNC "PLC Sync" |
 | **Health**   | `health/`    | @ref Botanik::Health::HealthMonitor owns the alarm model and notifier, runs the power-on self-test, and gates the watchdog escalation. | @ref md_docs_2POST "Self-tests" |
 | **Network**  | `network/`   | @ref Botanik::Network::NameResolver (non-blocking DNS), @ref Botanik::Network::NetworkHandler (device bring-up), @ref Botanik::Network::NtpClient (SNTP), and @ref Botanik::Network::MqttClient (MQTT publish) - PLC-config-driven via @ref Botanik::ConfigHandler. | @ref md_docs_2PLC__CONFIG "PLC config" |
-| **Utils**    | `utils/`     | `BufferedSerial` (ring-buffered UART), `PerfMonitor` (loop CPU-load / jitter / stack high-water instrumentation), the `sun.h` solar-position math, and time/uptime helpers. | @ref md_docs_2SCHEDULER__PERF "Scheduler & Perf" |
+| **Utils**    | `utils/`     | `BufferedSerial` (ring-buffered UART), `PerfMonitor` (loop CPU-load / jitter / stack high-water instrumentation), the `sun_tracker.h` solar-position math, and time/uptime helpers. | @ref md_docs_2SCHEDULER__PERF "Scheduler & Perf" |
 
 @section main_features Optional features
 
