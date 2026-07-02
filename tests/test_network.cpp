@@ -80,7 +80,7 @@ TEST_CASE("NtpClient: stepped as a Component (announces once); query is non-bloc
     NetworkHandler net(fx.ctx(), nullptr, &resolver);
     RecordingWriter w;
     Logs::Logger log;
-    log.set_min_level(PlcIO::LOG_DEBUG);
+    log.set_min_level(Logs::LOG_DEBUG);
     log.add_writer(&w);
 
     NtpClient ts(fx.ctx(), &log, &resolver, &net);

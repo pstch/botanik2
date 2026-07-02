@@ -31,7 +31,7 @@ namespace Botanik { namespace PlcIO {
         _writeIndex = &ctx->output_logs()->writeIndex;
     }
 
-    void PlcLogWriter::push_log(LogLevel level, LogTopic topic, const char* msg) {
+    void PlcLogWriter::push_log(Logs::LogLevel level, Logs::LogTopic topic, const char* msg) {
         uint32_t writeIndex = *_writeIndex % Config::LOG_PLC_BUFFER_SIZE;
         LogEntry_t& entry = _logBuffer[writeIndex];
 

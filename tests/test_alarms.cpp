@@ -37,14 +37,14 @@ namespace {
 
     // Records the topic of every entry the logger forwards, for the FLAP tests.
     struct TopicRecorder : Logs::LogWriter {
-        std::vector<PlcIO::LogTopic> topics;
+        std::vector<Logs::LogTopic> topics;
         void     push(const PlcIO::LogEntry_t* e) override { topics.push_back(e->topic); }
         void     drain() override {}
         uint32_t loss_count() const override { return 0; }
         size_t   format(const PlcIO::LogEntry_t*, char*, size_t) override { return 0; }
         size_t   write(const char*, size_t) override { return 0; }
-        bool     has(PlcIO::LogTopic t) const {
-            for (PlcIO::LogTopic x : topics) if (x == t) return true;
+        bool     has(Logs::LogTopic t) const {
+            for (Logs::LogTopic x : topics) if (x == t) return true;
             return false;
         }
     };
@@ -105,11 +105,11 @@ TEST_CASE("alarm: an END with no matching START is logged as a FLAP") {
     // A blip shorter than the 2 s START dwell: clears before any START is logged.
     m.step(0x1, 1000);                             // on (dwell 0 < log_on_s 2 s)
     logger.step();
-    CHECK(rec.has(PlcIO::ALARM_START) == false);   // too brief to announce a START
+    CHECK(rec.has(Logs::ALARM_START) == false);   // too brief to announce a START
     m.step(0x0, 1500);                             // off -> END with no START = FLAP
     logger.step();
-    CHECK(rec.has(PlcIO::ALARM_FLAP) == true);
-    CHECK(rec.has(PlcIO::ALARM_END) == false);
+    CHECK(rec.has(Logs::ALARM_FLAP) == true);
+    CHECK(rec.has(Logs::ALARM_END) == false);
 }
 
 TEST_CASE("alarm: a normal episode logs START then END (not FLAP)") {
@@ -125,9 +125,9 @@ TEST_CASE("alarm: a normal episode logs START then END (not FLAP)") {
 
     m.step(0x1, 1000);                             // on, START logged immediately
     logger.step();
-    CHECK(rec.has(PlcIO::ALARM_START) == true);
+    CHECK(rec.has(Logs::ALARM_START) == true);
     m.step(0x0, 2000);                             // off -> END (START was logged)
     logger.step();
-    CHECK(rec.has(PlcIO::ALARM_END) == true);
-    CHECK(rec.has(PlcIO::ALARM_FLAP) == false);
+    CHECK(rec.has(Logs::ALARM_END) == true);
+    CHECK(rec.has(Logs::ALARM_FLAP) == false);
 }

@@ -318,7 +318,7 @@ namespace Botanik {
 
             // Details on a second line (the renderer splits on '\n') so it
             // wraps cleanly.
-            _logger.info(PlcIO::BOOT, "Botanik v%s\nRunning on : %s",
+            _logger.info(Logs::BOOT, "Botanik v%s\nRunning on : %s",
                          Config::FIRMWARE_VERSION, HAL::hardware_description());
 
 #if BOTANIK_FEATURE_MQTT
@@ -331,7 +331,7 @@ namespace Botanik {
             on_setup();   // site post-wiring (extra sinks / components)
 
             HAL::Watchdog::start(_hw_watchdog_ms);
-            _logger.debug(PlcIO::BOOT, "boot complete\nconsole %lu baud, HW watchdog %lu ms",
+            _logger.debug(Logs::BOOT, "boot complete\nconsole %lu baud, HW watchdog %lu ms",
                           (unsigned long)_console_baud, (unsigned long)_hw_watchdog_ms);
         }
 

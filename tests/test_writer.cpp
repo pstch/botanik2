@@ -49,7 +49,7 @@ namespace {
 
     LogEntry_t make_entry(uint32_t ts) {
         LogEntry_t e = {};
-        e.level = PlcIO::LOG_INFO;
+        e.level = Logs::LOG_INFO;
         e.timestamp = ts;
         return e;
     }

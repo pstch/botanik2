@@ -65,7 +65,7 @@ namespace Botanik { namespace Logs {
         uint32_t        _perTopic_fillTime_ms   = 0;
         /** @brief Per-topic buckets, one per live topic. push_entry clamps any index to
          *  LOG_TOPIC_COUNT (out-of-range topics fold to NONE), so this is the full range used. */
-        LogBucket_t     _perTopic_buckets[PlcIO::LOG_TOPIC_COUNT];
+        LogBucket_t     _perTopic_buckets[Logs::LOG_TOPIC_COUNT];
 
         /** @} */
 
@@ -100,11 +100,11 @@ namespace Botanik { namespace Logs {
          *  (set by the `loglevel` command). Defaults to LOG_DEBUG in DEBUG
          *  builds, LOG_INFO in release (so debug spew is off on hardware);
          *  LOG_CRITICAL is the max, so it never filters. */
-        PlcIO::LogLevel _min_level =
+        Logs::LogLevel _min_level =
 #ifdef DEBUG
-            PlcIO::LOG_DEBUG;
+            Logs::LOG_DEBUG;
 #else
-            PlcIO::LOG_INFO;
+            Logs::LOG_INFO;
 #endif
 
         /** @} */
@@ -134,9 +134,9 @@ namespace Botanik { namespace Logs {
 
         /** @brief Set the minimum forwarded level (criticals always pass); see
          *  @c _min_level. */
-        void set_min_level(PlcIO::LogLevel lvl) { _min_level = lvl; }
+        void set_min_level(Logs::LogLevel lvl) { _min_level = lvl; }
         /** @brief Current minimum forwarded level. */
-        PlcIO::LogLevel min_level() const { return _min_level; }
+        Logs::LogLevel min_level() const { return _min_level; }
         /** @brief Watch a serial so its TX-full drops are reported (the
          *  terminal reserves space, so only non-resuming callers actually
          *  drop). Up to two (console + monitor). */
@@ -166,12 +166,12 @@ namespace Botanik { namespace Logs {
          *        through push_entry(). One helper per LogLevel.
          * @{
          */
-        void debug   (PlcIO::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
-        void info    (PlcIO::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
-        void notice  (PlcIO::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
-        void warning (PlcIO::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
-        void error   (PlcIO::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
-        void critical(PlcIO::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
+        void debug   (Logs::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
+        void info    (Logs::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
+        void notice  (Logs::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
+        void warning (Logs::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
+        void error   (Logs::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
+        void critical(Logs::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
         /** @} */
 
     protected:
@@ -186,11 +186,11 @@ namespace Botanik { namespace Logs {
         /** @brief Push a CRITICAL entry straight to the writers (bypassing the
          *  rate limiter) so loss/suppression reports survive the storm they
          *  describe. */
-        void _emit_critical(PlcIO::LogTopic topic, uint32_t timestamp_ms,
+        void _emit_critical(Logs::LogTopic topic, uint32_t timestamp_ms,
                             const char* fmt, ...);
         /** @brief Emit a synthetic warning if @p bucket has suppressed
          *  entries. */
-        void _report_suppressed(LogBucket_t* bucket, PlcIO::LogTopic topic,
+        void _report_suppressed(LogBucket_t* bucket, Logs::LogTopic topic,
                                 uint32_t timestamp_ms);
         /** @brief Edge-triggered loss report: emit a critical "<delta> <what>"
          *  entry when @p total has grown and the holdoff elapsed (or on the
@@ -200,7 +200,7 @@ namespace Botanik { namespace Logs {
                           uint32_t now_ms, const char* what);
         /** @brief Build a timestamped entry from a printf-style message and
          *  forward it to push_entry(). */
-        void _emit(PlcIO::LogLevel level, PlcIO::LogTopic topic, const char* fmt,
+        void _emit(Logs::LogLevel level, Logs::LogTopic topic, const char* fmt,
                    va_list ap);
 
         /** @} */

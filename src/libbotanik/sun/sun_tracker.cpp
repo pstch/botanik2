@@ -67,7 +67,7 @@ namespace Botanik { namespace Sun {
 
         // Log only real transitions, not the initial detection.
         if (had && day != _is_day && _logger != nullptr)
-            _logger->notice(PlcIO::TIME, day ? "sunrise" : "sunset");
+            _logger->notice(Logs::TIME, day ? "sunrise" : "sunset");
         _is_day = day;
     }
 

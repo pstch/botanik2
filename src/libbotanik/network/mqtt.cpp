@@ -62,7 +62,7 @@ namespace Botanik { namespace Network {
 
     void MqttClient::_fail(uint64_t now_ms) {
         if (_sock >= 0) { HAL::Network::tcp_close(_sock); _sock = -1; }
-        if (_logger != nullptr) _logger->error(PlcIO::NETWORK, "MQTT connection lost");
+        if (_logger != nullptr) _logger->error(Logs::NETWORK, "MQTT connection lost");
         _enter(MQTT_ERROR, now_ms);
     }
 
@@ -115,7 +115,7 @@ namespace Botanik { namespace Network {
                     _last_ping_ms = now_ms;
                     if (_logger) {
                         char ab[16];
-                        _logger->notice(PlcIO::NETWORK, "MQTT connected (%s:%u)",
+                        _logger->notice(Logs::NETWORK, "MQTT connected (%s:%u)",
                                         HAL::Network::ip4_to_str(_broker_addr, ab, sizeof(ab)),
                                         (unsigned)peer_port());
                     }

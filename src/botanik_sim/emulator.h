@@ -231,7 +231,7 @@ namespace Botanik { namespace PlcIO {
         /** @brief Bind the writer to an emulator context and timestamp. */
         PlcLogWriter(PlcEmulatorContext* ctx, uint32_t* timestamp_ms);
         /** @brief Push one log entry into the emulator's output buffer. */
-        void push_log(LogLevel level, LogTopic topic, const char* msg);
+        void push_log(Logs::LogLevel level, Logs::LogTopic topic, const char* msg);
 
         /** @} */
     };
@@ -368,7 +368,7 @@ namespace Botanik { namespace PlcIO {
         if (rc != 0) {
             _emu_running() = false;
             if (logger != nullptr)
-                logger->error(PLC_IO, "emulator thread failed to start: %s",
+                logger->error(Logs::PLC_IO, "emulator thread failed to start: %s",
                               strerror(rc));
             return;
         }

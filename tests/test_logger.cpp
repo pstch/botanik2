@@ -40,9 +40,9 @@ namespace {
 
     // A LOG_INFO entry on a given topic (the level the limiter actually gates;
     // criticals bypass the writer queue, not the buckets).
-    LogEntry_t info_on(PlcIO::LogTopic topic) {
+    LogEntry_t info_on(Logs::LogTopic topic) {
         LogEntry_t e = {};
-        e.level = PlcIO::LOG_INFO;
+        e.level = Logs::LOG_INFO;
         e.topic = topic;
         return e;
     }
@@ -51,7 +51,7 @@ namespace {
 
 TEST_CASE("writer: drain delivers queued entries in order") {
     TestBuffered w;
-    LogEntry_t e = {}; e.level = PlcIO::LOG_INFO;
+    LogEntry_t e = {}; e.level = Logs::LOG_INFO;
     for (uint32_t i = 1; i <= 5; ++i) { e.timestamp = i; w.push(&e); }
     w.drain();
     CHECK(w.sent.size() == 5);
@@ -62,7 +62,7 @@ TEST_CASE("writer: drain delivers queued entries in order") {
 TEST_CASE("writer: criticals seat into the reserve without evicting normals") {
     TestBuffered w;
     const uint32_t NORMAL_CAP = Config::LOG_QUEUE_SIZE - 1 - Config::LOG_QUEUE_CRITICAL_RESERVE;
-    LogEntry_t e = {}; e.level = PlcIO::LOG_INFO;
+    LogEntry_t e = {}; e.level = Logs::LOG_INFO;
     // Normals fill only up to NORMAL_CAP; the last K slots are reserved for criticals.
     for (uint32_t i = 1; i <= NORMAL_CAP; ++i) { e.timestamp = i; w.push(&e); }
     CHECK(w.loss_count() == 0);
@@ -70,7 +70,7 @@ TEST_CASE("writer: criticals seat into the reserve without evicting normals") {
     CHECK(w.loss_count() == 1);
     // Criticals fill the reserve WITHOUT evicting any normal - the key fix that stops the
     // sink-loss report from manufacturing the drop it reports.
-    e.level = PlcIO::LOG_CRITICAL;
+    e.level = Logs::LOG_CRITICAL;
     for (uint32_t i = 0; i < Config::LOG_QUEUE_CRITICAL_RESERVE; ++i) { e.timestamp = 200 + i; w.push(&e); }
     CHECK(w.loss_count() == 1);                     // no eviction occurred
     // Only now (completely full) does a further critical evict the oldest as a last resort.
@@ -87,17 +87,17 @@ TEST_CASE("logger: min_level drops sub-threshold entries, criticals always pass"
     Logs::Logger lg;
     RecordingWriter w;
     lg.add_writer(&w);
-    lg.set_min_level(PlcIO::LOG_WARNING);
-    CHECK(lg.min_level() == PlcIO::LOG_WARNING);
+    lg.set_min_level(Logs::LOG_WARNING);
+    CHECK(lg.min_level() == Logs::LOG_WARNING);
 
-    lg.push_entry(info_on(PlcIO::PLC_IO));          // LOG_INFO < WARNING -> dropped
+    lg.push_entry(info_on(Logs::PLC_IO));          // LOG_INFO < WARNING -> dropped
     CHECK(w.pushes == 0);
 
-    LogEntry_t warn = info_on(PlcIO::PLC_IO); warn.level = PlcIO::LOG_WARNING;
+    LogEntry_t warn = info_on(Logs::PLC_IO); warn.level = Logs::LOG_WARNING;
     lg.push_entry(warn);                            // == threshold -> passes
     CHECK(w.pushes == 1);
 
-    LogEntry_t crit = info_on(PlcIO::PLC_IO); crit.level = PlcIO::LOG_CRITICAL;
+    LogEntry_t crit = info_on(Logs::PLC_IO); crit.level = Logs::LOG_CRITICAL;
     lg.push_entry(crit);                            // critical (max level) always passes
     CHECK(w.pushes == 2);
 }
@@ -113,7 +113,7 @@ TEST_CASE("logger: sink-drop report is edge-triggered, critical, held off") {
     w.loss = 7;
     logger.step();                              // first loss reports instantly
     CHECK(w.pushes == base + 1);
-    CHECK(w.last_level == PlcIO::LOG_CRITICAL);
+    CHECK(w.last_level == Logs::LOG_CRITICAL);
     CHECK(std::string(w.last_msg).find("7") != std::string::npos);
     CHECK(std::string(w.last_msg).find("dropped at sink") != std::string::npos);
 
@@ -169,9 +169,9 @@ TEST_CASE("bucket: _report_suppressed emits a critical summary and clears the ta
     lg.add_writer(&w);
     Logs::LogBucket_t b;
     b.suppressed = 5;
-    lg._report_suppressed(&b, PlcIO::PLC_IO, 1234);
+    lg._report_suppressed(&b, Logs::PLC_IO, 1234);
     CHECK(w.pushes == 1);
-    CHECK(w.last_level == PlcIO::LOG_CRITICAL);   // critical so the writer can't drop it
+    CHECK(w.last_level == Logs::LOG_CRITICAL);   // critical so the writer can't drop it
     CHECK(std::string(w.last_msg).find("5") != std::string::npos);
     CHECK(std::string(w.last_msg).find("suppressed") != std::string::npos);
     CHECK(b.suppressed == 0);                     // drained after reporting
@@ -182,7 +182,7 @@ TEST_CASE("bucket: _report_suppressed with nothing suppressed emits nothing") {
     RecordingWriter w;
     lg.add_writer(&w);
     Logs::LogBucket_t b;                          // suppressed == 0
-    lg._report_suppressed(&b, PlcIO::PLC_IO, 1);
+    lg._report_suppressed(&b, Logs::PLC_IO, 1);
     CHECK(w.pushes == 0);
 }
 
@@ -196,7 +196,7 @@ TEST_CASE("rate limit: a flooded topic passes up to the burst, then drops") {
     // Global and per-topic bursts are equal, so a single topic deplete both in
     // lockstep: exactly `burst` entries survive.
     const int burst = Config::LOG_GLOBAL_BUCKET_BURST;
-    LogEntry_t e = info_on(PlcIO::PLC_IO);
+    LogEntry_t e = info_on(Logs::PLC_IO);
     for (int i = 0; i < burst + 10; ++i) lg.push_entry(e);
     CHECK(w.pushes == burst);
 }
@@ -206,8 +206,8 @@ TEST_CASE("rate limit: the global bucket caps total throughput across topics") {
     RecordingWriter w;
     lg.add_writer(&w);
     const int burst = Config::LOG_GLOBAL_BUCKET_BURST;
-    LogEntry_t a = info_on(PlcIO::PLC_IO);
-    LogEntry_t b = info_on(PlcIO::BOOT);
+    LogEntry_t a = info_on(Logs::PLC_IO);
+    LogEntry_t b = info_on(Logs::BOOT);
     for (int i = 0; i < 15; ++i) lg.push_entry(a);       // global 20->5
     for (int i = 0; i < 15; ++i) lg.push_entry(b);       // topic B has tokens, but
                                                          // global (5) gates it
@@ -219,10 +219,10 @@ TEST_CASE("rate limit: topics with no per-topic bucket are gated by the global b
     RecordingWriter w;
     lg.add_writer(&w);
     const int burst = Config::LOG_GLOBAL_BUCKET_BURST;
-    PlcIO::LogTopic topic = PlcIO::NONE;
-    SUBCASE("NONE skips the per-topic bucket")           { topic = PlcIO::NONE; }
+    Logs::LogTopic topic = Logs::NONE;
+    SUBCASE("NONE skips the per-topic bucket")           { topic = Logs::NONE; }
     // Out of range is the no-OOB-bucket-access regression: it must be clamped to NONE.
-    SUBCASE("an out-of-range topic is treated as NONE")  { topic = (PlcIO::LogTopic)Config::LOG_TOPIC_MAX; }
+    SUBCASE("an out-of-range topic is treated as NONE")  { topic = (Logs::LogTopic)Config::LOG_TOPIC_MAX; }
     LogEntry_t e = info_on(topic);
     for (int i = 0; i < burst + 5; ++i) lg.push_entry(e);
     CHECK(w.pushes == burst);                            // limited by the global bucket alone

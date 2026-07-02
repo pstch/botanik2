@@ -179,15 +179,15 @@ namespace Botanik { namespace PlcIO {
             if (current == _last_status) return;
             switch (current) {
                 case PLC_RUNNING:
-                    if (_last_status == PLC_UNKNOWN) _logger->info  (PLC_IO, "PLC link established");
-                    else                             _logger->notice(PLC_IO, "PLC link recovered");
+                    if (_last_status == PLC_UNKNOWN) _logger->info  (Logs::PLC_IO, "PLC link established");
+                    else                             _logger->notice(Logs::PLC_IO, "PLC link recovered");
                     break;
-                case PLC_TIMEOUT: _logger->warning(PLC_IO, "PLC link timeout");  break;
+                case PLC_TIMEOUT: _logger->warning(Logs::PLC_IO, "PLC link timeout");  break;
                 // Entering fault is logged loudly here; HealthMonitor keeps
                 // kicking the HW watchdog through a grace window and logs the
                 // actual kick-withhold (the reboot) only if the fault persists
                 // (see PLC_FAULT_GRACE_MS).
-                case PLC_FAULT:   _logger->critical(PLC_IO, "PLC link fault (no PLC heartbeat)"); break;
+                case PLC_FAULT:   _logger->critical(Logs::PLC_IO, "PLC link fault (no PLC heartbeat)"); break;
                 default:          _last_status = current; return;
             }
             _last_status = current;
@@ -403,7 +403,7 @@ namespace Botanik { namespace PlcIO {
                     // torn snapshot: discard, do not ack, re-read next tick
                     _rx_torn++;
                     if (_ctx._logger)
-                        _ctx._logger->warning(PLC_IO,
+                        _ctx._logger->warning(Logs::PLC_IO,
                             "PLC RX torn read discarded (seq changed mid-copy)");
                     return RX_IDLE;
                 case RX_ACK:    _rx_acknowledge();          return RX_IDLE; break;

@@ -234,7 +234,7 @@ namespace Botanik { namespace Network {
         HAL::Memory::dsb();
         if (pthread_create(&_netd_thread(), nullptr, &_netd_main, nullptr) != 0) {
             _netd_running() = false;
-            if (logger != nullptr) logger->error(PlcIO::NETWORK, "mock netd failed to start");
+            if (logger != nullptr) logger->error(Logs::NETWORK, "mock netd failed to start");
             return;
         }
         HAL::System::on_reset(&stop_mock_netd);

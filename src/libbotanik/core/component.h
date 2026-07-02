@@ -12,7 +12,7 @@
  * to a flag set with DEBUG undefined.
  */
 
-#include "libbotanik/plcio/vars.h"     // LogTopic (PlcIO::BOOT)
+#include "libbotanik/plcio/vars.h"     // LogTopic (Logs::BOOT)
 #include "libbotanik/logs/logger.h"    // Logs::Logger
 
 namespace Botanik {
@@ -31,7 +31,7 @@ namespace Botanik {
             if (_announced) return;
             _announced = true;
 #ifdef DEBUG
-            if (logger != nullptr) logger->debug(PlcIO::BOOT, "%s initialized", name);
+            if (logger != nullptr) logger->debug(Logs::BOOT, "%s initialized", name);
 #else
             (void)logger; (void)name;
 #endif

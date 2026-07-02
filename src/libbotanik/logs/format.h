@@ -15,28 +15,28 @@
 
 namespace Botanik { namespace Logs {
 
-    inline const char* format_log_level(PlcIO::LogLevel level) { switch (level) {
-        case PlcIO::LOG_DEBUG:      return "[~]";
-        case PlcIO::LOG_INFO:       return "[-]";
-        case PlcIO::LOG_NOTICE:     return "[+]";
-        case PlcIO::LOG_WARNING:    return "[!]";
-        case PlcIO::LOG_ERROR:      return "[*]";
-        case PlcIO::LOG_CRITICAL:   return "[@]";
+    inline const char* format_log_level(Logs::LogLevel level) { switch (level) {
+        case Logs::LOG_DEBUG:      return "[~]";
+        case Logs::LOG_INFO:       return "[-]";
+        case Logs::LOG_NOTICE:     return "[+]";
+        case Logs::LOG_WARNING:    return "[!]";
+        case Logs::LOG_ERROR:      return "[*]";
+        case Logs::LOG_CRITICAL:   return "[@]";
         default:                    return "";
     }; }
 
-    inline const char* format_log_topic(PlcIO::LogTopic topic) { switch (topic) {
-        case PlcIO::NONE:       return "";
-        case PlcIO::BOOT:       return "BOOT";
-        case PlcIO::NETWORK:    return "NETWORK";
-        case PlcIO::TIME:       return "TIME";
-        case PlcIO::STATUS:     return "STATUS";
-        case PlcIO::PLC_IO:     return "SHARED_IO";
-        case PlcIO::ASSERT:     return "ASSERT";
-        case PlcIO::ALARM_START: return "ALARM_START";
-        case PlcIO::ALARM_END:   return "ALARM_END";
-        case PlcIO::ALARM_FLAP:  return "ALARM_FLAP";
-        case PlcIO::HEALTH:      return "HEALTH";
+    inline const char* format_log_topic(Logs::LogTopic topic) { switch (topic) {
+        case Logs::NONE:       return "";
+        case Logs::BOOT:       return "BOOT";
+        case Logs::NETWORK:    return "NETWORK";
+        case Logs::TIME:       return "TIME";
+        case Logs::STATUS:     return "STATUS";
+        case Logs::PLC_IO:     return "SHARED_IO";
+        case Logs::ASSERT:     return "ASSERT";
+        case Logs::ALARM_START: return "ALARM_START";
+        case Logs::ALARM_END:   return "ALARM_END";
+        case Logs::ALARM_FLAP:  return "ALARM_FLAP";
+        case Logs::HEALTH:      return "HEALTH";
         default:                return "";
     }; }
 

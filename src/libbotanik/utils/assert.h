@@ -37,7 +37,7 @@ namespace Botanik {
     inline void assert_fail(const char* expr, const char* file, int line) {
         Logs::Logger* logger = get_assert_logger();
         if (logger != nullptr)
-            logger->critical(PlcIO::ASSERT, "assertion failed: %s (%s:%d)",
+            logger->critical(Logs::ASSERT, "assertion failed: %s (%s:%d)",
                              expr, file, line);
         // Break for the debugger.
         if (HAL::Debug::under_debugger()) { HAL::Debug::breakpoint(); return; }

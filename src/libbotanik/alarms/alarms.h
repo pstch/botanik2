@@ -173,13 +173,13 @@ namespace Botanik { namespace Alarms {
         AlarmNotifier* notifier;   //< MQTT sink (null = none; MQTT-gated)
 
         void log_start(const char* label) const {
-            if (logger) logger->warning(PlcIO::ALARM_START, "%s", label);
+            if (logger) logger->warning(Logs::ALARM_START, "%s", label);
         }
         void log_end(const char* label) const {
-            if (logger) logger->info(PlcIO::ALARM_END, "%s", label);
+            if (logger) logger->info(Logs::ALARM_END, "%s", label);
         }
         void log_flap(const char* label) const {
-            if (logger) logger->notice(PlcIO::ALARM_FLAP, "%s", label);
+            if (logger) logger->notice(Logs::ALARM_FLAP, "%s", label);
         }
         void notify_on(const AlarmCondition& c) const {
 #if BOTANIK_FEATURE_MQTT

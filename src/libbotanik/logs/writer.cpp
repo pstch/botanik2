@@ -20,7 +20,7 @@ namespace Botanik { namespace Logs {
 
     void BufferedLogWriter::push(const LogEntry_t* entry) {
         uint8_t nextIndex = (_writeIndex + 1) % Config::LOG_QUEUE_SIZE;
-        bool    crit      = entry->level >= PlcIO::LOG_CRITICAL;
+        bool    crit      = entry->level >= Logs::LOG_CRITICAL;
         if (nextIndex == _readIndex) {   // completely full
             // Critical reserve exhausted: a normal drops; a critical evicts the
             // oldest as a last resort. drain() consumes _readIndex at format

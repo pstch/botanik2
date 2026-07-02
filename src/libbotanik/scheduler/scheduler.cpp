@@ -272,7 +272,7 @@ namespace Botanik { namespace Scheduler {
         // Lock pages into RAM (avoid page-fault latency). Process-wide incl.
         // future mappings, so it's a one-time call.
         if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1 && _rt_warn(logger))
-            logger->warning(PlcIO::BOOT, "mlockall failed: \n%s", strerror(errno));
+            logger->warning(Logs::BOOT, "mlockall failed: \n%s", strerror(errno));
     }
 
     void make_thread_realtime(int cpu_core_id, Logs::Logger* logger) {
@@ -281,7 +281,7 @@ namespace Botanik { namespace Scheduler {
         struct sched_param param;
         param.sched_priority = 95; // 1 (low) .. 99 (high)
         if (sched_setscheduler(0, SCHED_FIFO, &param) == -1 && warn)
-            logger->warning(PlcIO::BOOT, "sched_setscheduler failed: \n%s",
+            logger->warning(Logs::BOOT, "sched_setscheduler failed: \n%s",
                             strerror(errno));
 
         // pin to a core to prevent migration
@@ -289,7 +289,7 @@ namespace Botanik { namespace Scheduler {
         CPU_ZERO(&mask);
         CPU_SET(cpu_core_id, &mask);
         if (sched_setaffinity(0, sizeof(cpu_set_t), &mask) == -1 && warn)
-            logger->warning(PlcIO::BOOT, "sched_setaffinity failed: \n%s",
+            logger->warning(Logs::BOOT, "sched_setaffinity failed: \n%s",
                             strerror(errno));
     }
 

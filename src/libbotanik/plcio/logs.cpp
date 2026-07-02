@@ -74,8 +74,8 @@ namespace Botanik { namespace PlcIO {
             _dropped += dropped;
             LogEntry_t warn = {};
             warn.timestamp = entry->timestamp;
-            warn.level     = LOG_WARNING;
-            warn.topic     = PLC_IO;
+            warn.level     = Logs::LOG_WARNING;
+            warn.topic     = Logs::PLC_IO;
             int n = snprintf(warn.message, sizeof(warn.message),
                 "%s%u PLC log entries dropped (seq %u..%u)",
                 lapped ? ">=" : "", (unsigned)dropped,

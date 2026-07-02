@@ -276,10 +276,10 @@ namespace Botanik { namespace Shell {
         if (_logger == nullptr) {
             _println("loglevel: logger unavailable"); return;
         }
-        static const struct { const char* name; PlcIO::LogLevel lvl; } LEVELS[] = {
-            { "debug",  PlcIO::LOG_DEBUG   }, { "info",    PlcIO::LOG_INFO    },
-            { "notice", PlcIO::LOG_NOTICE  }, { "warning", PlcIO::LOG_WARNING },
-            { "error",  PlcIO::LOG_ERROR   }, { "critical",PlcIO::LOG_CRITICAL},
+        static const struct { const char* name; Logs::LogLevel lvl; } LEVELS[] = {
+            { "debug",  Logs::LOG_DEBUG   }, { "info",    Logs::LOG_INFO    },
+            { "notice", Logs::LOG_NOTICE  }, { "warning", Logs::LOG_WARNING },
+            { "error",  Logs::LOG_ERROR   }, { "critical",Logs::LOG_CRITICAL},
         };
         char out[48];
         uint16_t wlen; const char* w = Utils::arg_next(args, alen, wlen);

@@ -18,7 +18,7 @@ namespace Botanik { namespace Logs {
 
     namespace {
         using LogEntry_t = Botanik::PlcIO::LogEntry_t;
-        using LogTopic = Botanik::PlcIO::LogTopic;
+        using LogTopic = Botanik::Logs::LogTopic;
     }
 
     // Lifecycle
@@ -31,7 +31,7 @@ namespace Botanik { namespace Logs {
         _global_fillTime_ms     = now;
         _suppress_reportTime_ms = now;
         _global_bucket.state = _global_burst;
-        for (uint8_t i = 0; i < PlcIO::LOG_TOPIC_COUNT; ++i) {
+        for (uint8_t i = 0; i < Logs::LOG_TOPIC_COUNT; ++i) {
             _perTopic_buckets[i].state = _perTopic_burst;
         }
     }
@@ -75,7 +75,7 @@ namespace Botanik { namespace Logs {
         uint16_t topic_fill     =
             (uint16_t)std::min(topic_amount, (uint32_t)_perTopic_burst);
         // Start at 1: slot 0 (NONE) is never consumed (push_entry skips NONE).
-        for (uint8_t i = 1; i < PlcIO::LOG_TOPIC_COUNT; ++i)
+        for (uint8_t i = 1; i < Logs::LOG_TOPIC_COUNT; ++i)
             _fill_bucket(&_perTopic_buckets[i], topic_fill, _perTopic_burst);
         // Drain suppressed-message counters on a slower cadence (occasional
         // summary).
@@ -85,7 +85,7 @@ namespace Botanik { namespace Logs {
             // global
             _report_suppressed(&_global_bucket, LogTopic::NONE, now_ms);
             // skip NONE (slot 0)
-            for (uint8_t i = 1; i < PlcIO::LOG_TOPIC_COUNT; ++i)
+            for (uint8_t i = 1; i < Logs::LOG_TOPIC_COUNT; ++i)
                 _report_suppressed(&_perTopic_buckets[i], (LogTopic)i, now_ms);
         }
         // Report data actually lost (not just rate-limited): entries dropped at
@@ -115,8 +115,8 @@ namespace Botanik { namespace Logs {
         // LogLevel is monotonic and LOG_CRITICAL is the max, so a critical
         // never falls below _min_level.
         if (entry.level < _min_level) return;
-        PlcIO::LogTopic topic = entry.topic >=
-            PlcIO::LOG_TOPIC_COUNT ? LogTopic::NONE : entry.topic;
+        Logs::LogTopic topic = entry.topic >=
+            Logs::LOG_TOPIC_COUNT ? LogTopic::NONE : entry.topic;
         LogBucket_t* topic_bucket = &_perTopic_buckets[topic];
         // Per-topic filter first so a per-topic-suppressed msg doesn't drain
         // global.
@@ -129,23 +129,23 @@ namespace Botanik { namespace Logs {
     // Level helpers
     // ------------------------------------------------------------------------
 
-    void Logger::debug(PlcIO::LogTopic topic, const char* fmt, ...) {
-        va_list ap; va_start(ap, fmt); _emit(PlcIO::LOG_DEBUG, topic, fmt, ap); va_end(ap);
+    void Logger::debug(Logs::LogTopic topic, const char* fmt, ...) {
+        va_list ap; va_start(ap, fmt); _emit(Logs::LOG_DEBUG, topic, fmt, ap); va_end(ap);
     }
-    void Logger::info(PlcIO::LogTopic topic, const char* fmt, ...) {
-        va_list ap; va_start(ap, fmt); _emit(PlcIO::LOG_INFO, topic, fmt, ap); va_end(ap);
+    void Logger::info(Logs::LogTopic topic, const char* fmt, ...) {
+        va_list ap; va_start(ap, fmt); _emit(Logs::LOG_INFO, topic, fmt, ap); va_end(ap);
     }
-    void Logger::notice(PlcIO::LogTopic topic, const char* fmt, ...) {
-        va_list ap; va_start(ap, fmt); _emit(PlcIO::LOG_NOTICE, topic, fmt, ap); va_end(ap);
+    void Logger::notice(Logs::LogTopic topic, const char* fmt, ...) {
+        va_list ap; va_start(ap, fmt); _emit(Logs::LOG_NOTICE, topic, fmt, ap); va_end(ap);
     }
-    void Logger::warning(PlcIO::LogTopic topic, const char* fmt, ...) {
-        va_list ap; va_start(ap, fmt); _emit(PlcIO::LOG_WARNING, topic, fmt, ap); va_end(ap);
+    void Logger::warning(Logs::LogTopic topic, const char* fmt, ...) {
+        va_list ap; va_start(ap, fmt); _emit(Logs::LOG_WARNING, topic, fmt, ap); va_end(ap);
     }
-    void Logger::error(PlcIO::LogTopic topic, const char* fmt, ...) {
-        va_list ap; va_start(ap, fmt); _emit(PlcIO::LOG_ERROR, topic, fmt, ap); va_end(ap);
+    void Logger::error(Logs::LogTopic topic, const char* fmt, ...) {
+        va_list ap; va_start(ap, fmt); _emit(Logs::LOG_ERROR, topic, fmt, ap); va_end(ap);
     }
-    void Logger::critical(PlcIO::LogTopic topic, const char* fmt, ...) {
-        va_list ap; va_start(ap, fmt); _emit(PlcIO::LOG_CRITICAL, topic, fmt, ap); va_end(ap);
+    void Logger::critical(Logs::LogTopic topic, const char* fmt, ...) {
+        va_list ap; va_start(ap, fmt); _emit(Logs::LOG_CRITICAL, topic, fmt, ap); va_end(ap);
     }
 
     // Rate-limiting internals
@@ -167,14 +167,14 @@ namespace Botanik { namespace Logs {
         }
     }
 
-    void Logger::_emit_critical(PlcIO::LogTopic topic, uint32_t timestamp_ms,
+    void Logger::_emit_critical(Logs::LogTopic topic, uint32_t timestamp_ms,
                                 const char* fmt, ...) {
         // Push a CRITICAL entry straight to every writer, bypassing the rate
         // limiter: these loss/suppression reports must survive the very storm
         // they summarize (REPORT-SLOT keeps criticals when the FIFO is full).
         LogEntry_t entry = {};
         entry.timestamp = timestamp_ms;
-        entry.level     = PlcIO::LOG_CRITICAL;
+        entry.level     = Logs::LOG_CRITICAL;
         entry.topic     = topic;
         va_list ap; va_start(ap, fmt);
         int w = vsnprintf(entry.message, sizeof(entry.message), fmt, ap);
@@ -184,7 +184,7 @@ namespace Botanik { namespace Logs {
         for (uint8_t i = 0; i < _writerCount; i++) _writers[i]->push(&entry);
     }
 
-    void Logger::_report_suppressed(LogBucket_t* bucket, PlcIO::LogTopic topic,
+    void Logger::_report_suppressed(LogBucket_t* bucket, Logs::LogTopic topic,
                                     uint32_t timestamp_ms) {
         if (bucket->suppressed == 0) return;
         _emit_critical(topic, timestamp_ms, "%u msgs suppressed",
@@ -204,7 +204,7 @@ namespace Botanik { namespace Logs {
         rep.reported       = true;
     }
 
-    void Logger::_emit(PlcIO::LogLevel level, PlcIO::LogTopic topic,
+    void Logger::_emit(Logs::LogLevel level, Logs::LogTopic topic,
                        const char* fmt, va_list ap) {
         LogEntry_t entry = {};
         entry.timestamp = HAL::Clock::current_ms();

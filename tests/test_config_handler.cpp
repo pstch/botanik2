@@ -78,7 +78,7 @@ TEST_CASE("ConfigHandler: a serial that jumps several values still resets exactl
 TEST_CASE("Component: announces once on the first step, on the BOOT topic") {
     RecordingWriter w;
     Logs::Logger log;
-    log.set_min_level(PlcIO::LOG_DEBUG);   // let the DEBUG announce through
+    log.set_min_level(Logs::LOG_DEBUG);   // let the DEBUG announce through
     log.add_writer(&w);
 
     TestHandler h(&log);
@@ -87,8 +87,8 @@ TEST_CASE("Component: announces once on the first step, on the BOOT topic") {
     CHECK(h.steps == 5);
 #ifdef DEBUG
     CHECK(w.pushes == 1);                   // one announce total, not one per step
-    CHECK(w.last_level == PlcIO::LOG_DEBUG);
-    CHECK(w.last_topic == PlcIO::BOOT);
+    CHECK(w.last_level == Logs::LOG_DEBUG);
+    CHECK(w.last_topic == Logs::BOOT);
     CHECK(std::string(w.last_msg).find("TestHandler") != std::string::npos);
 #else
     CHECK(w.pushes == 0);                   // compiled out when DEBUG is undefined

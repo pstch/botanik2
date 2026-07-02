@@ -13,8 +13,8 @@ namespace Botanik {
     // sink-drop reporting. Each suite reads whichever fields it asserts on.
     struct RecordingWriter : Logs::LogWriter {
         int             pushes     = 0;
-        PlcIO::LogLevel last_level = PlcIO::LOG_DEBUG;
-        PlcIO::LogTopic last_topic = PlcIO::NONE;
+        Logs::LogLevel last_level = Logs::LOG_DEBUG;
+        Logs::LogTopic last_topic = Logs::NONE;
         char            last_msg[Config::LOG_PLC_MESSAGE_LEN] = {0};
         uint32_t        loss       = 0;
         void push(const PlcIO::LogEntry_t* e) override {

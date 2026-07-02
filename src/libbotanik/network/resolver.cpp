@@ -107,7 +107,7 @@ namespace Botanik { namespace Network {
                 }
                 if (r == HAL::Network::DNS_FAILED) {
                     if (_logger != nullptr)
-                        _logger->error(PlcIO::NETWORK, "DNS resolve failed: %s", host);
+                        _logger->error(Logs::NETWORK, "DNS resolve failed: %s", host);
                     e->state = SLOT_FREE; return RESOLVE_FAILED;
                 }
                 return RESOLVE_PENDING;
@@ -124,7 +124,7 @@ namespace Botanik { namespace Network {
 
         HAL::Network::DnsHandle h = HAL::Network::dns_begin(host);
         if (h == 0) {                                  // could not start
-            if (_logger != nullptr) _logger->warning(PlcIO::NETWORK, "DNS lookup failed to start");
+            if (_logger != nullptr) _logger->warning(Logs::NETWORK, "DNS lookup failed to start");
             return RESOLVE_FAILED;
         }
         strncpy(e->host, host, Config::PLC_HOST_STR_LEN - 1);
@@ -144,7 +144,7 @@ namespace Botanik { namespace Network {
         }
         if (r == HAL::Network::DNS_FAILED) {
             if (_logger != nullptr)
-                _logger->error(PlcIO::NETWORK, "DNS resolve failed: %s", host);
+                _logger->error(Logs::NETWORK, "DNS resolve failed: %s", host);
             e->state = SLOT_FREE; return RESOLVE_FAILED;
         }
         return RESOLVE_PENDING;

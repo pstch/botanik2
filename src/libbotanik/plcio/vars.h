@@ -15,6 +15,8 @@
 #include "libbotanik/hal/platform.h"
 // PlcOutputConfig_t - the generic config block
 #include "libbotanik/plcio/config.h"
+// LogLevel / LogTopic - carried byte-for-byte in the log ring below
+#include "libbotanik/logs/topics.h"
 #include "libbotanik_config.h"
 
 namespace Botanik { namespace PlcIO {
@@ -30,53 +32,16 @@ namespace Botanik { namespace PlcIO {
     /** @name Log protocol
      *  @{ */
 
-    /** @brief Log severity level (wire value shared with the PLC). */
-    enum LogLevel : uint8_t {
-        LOG_DEBUG = 1,
-        LOG_INFO = 2,
-        LOG_NOTICE = 4,
-        LOG_WARNING = 8,
-        LOG_ERROR = 16,
-        LOG_CRITICAL = 32,
-    };
-
-    // Values are the wire protocol shared with the PLC, not a sequence; listed
-    // in ascending value order. Changing a value requires a matching PLC-side
-    // change.
-    /** @brief Log topic / category (wire value shared with the PLC). */
-    enum LogTopic : uint8_t {
-        NONE = 0,
-        PLC_IO = 1,
-        BOOT = 2,
-        NETWORK = 3,
-        TIME = 4,
-        STATUS = 5,
-        ASSERT = 6,        // C-side only (PLC never emits these): firmware assertions
-        ALARM_START = 7,   // alarm went active
-        ALARM_END = 8,     // alarm cleared
-        // alarm cleared without ever logging a START (toggled too fast to
-        // dwell)
-        ALARM_FLAP = 9,
-        HEALTH = 10,       // HealthMonitor (POST verdict, etc.)
-    };
-
-    // Check that the defined topic count can fit in the LogTopic enum
-    static_assert(Config::LOG_TOPIC_MAX < (1 << (sizeof(LogTopic)*8)),
-                  "LOG_TOPIC_MAX exceeds the range of the LogTopic enum");
-
-    /** @brief Number of defined topics (the enum is dense 0..HEALTH). Bounds
-     *  the logger's per-tick scan loops so they cover the real topics instead
-     *  of the full wire range; the bucket array itself is sized by
-     *  LOG_TOPIC_MAX. */
-    static constexpr uint8_t LOG_TOPIC_COUNT = HEALTH + 1;
-    static_assert(LOG_TOPIC_COUNT <= Config::LOG_TOPIC_MAX, "LOG_TOPIC_COUNT exceeds LOG_TOPIC_MAX");
+    // LogLevel / LogTopic / LOG_TOPIC_COUNT now live in logs/topics.h (logging
+    // primitives, usable without the PLC); their values remain the wire
+    // protocol the log ring below carries byte-for-byte.
 
     /** @brief One log record in PLC shared memory: 12-byte header + fixed
      *  message buffer. */
     struct LogEntry_t {
         uint32_t        timestamp;    // @0
-        LogLevel        level;        // @4  (uint8_t)
-        LogTopic        topic;        // @5  (uint8_t)
+        Logs::LogLevel  level;        // @4  (uint8_t)
+        Logs::LogTopic  topic;        // @5  (uint8_t)
         uint16_t        length;       // @6
         uint32_t        seqNum;       // @8  (4B fills @8..@11; keeps message[] word-aligned)
         char            message[Config::LOG_PLC_MESSAGE_LEN];  // @12 .. @267

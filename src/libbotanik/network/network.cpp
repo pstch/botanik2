@@ -87,7 +87,7 @@ namespace Botanik { namespace Network {
             strncpy(lc.dns2,    c->net.dns2,    sizeof(lc.dns2) - 1);
         }
         HAL::Network::link_configure(lc);
-        if (_logger) _logger->info(PlcIO::NETWORK, lc.dhcp ? "network bring-up (DHCP)"
+        if (_logger) _logger->info(Logs::NETWORK, lc.dhcp ? "network bring-up (DHCP)"
                                                            : "network bring-up (static)");
         _enter(NET_SETUP, now_ms);
     }
@@ -104,20 +104,20 @@ namespace Botanik { namespace Network {
                     HAL::Network::Ip4 a;
                     if (_logger) {
                         if (HAL::Network::link_ip(&a))
-                            _logger->notice(PlcIO::NETWORK, "network up: %u.%u.%u.%u",
+                            _logger->notice(Logs::NETWORK, "network up: %u.%u.%u.%u",
                                             a.b[0], a.b[1], a.b[2], a.b[3]);
                         else
-                            _logger->notice(PlcIO::NETWORK, "network up");
+                            _logger->notice(Logs::NETWORK, "network up");
                     }
                 } else if (now_ms - _since_ms > Config::NET_SETUP_TIMEOUT_MS) {
-                    if (_logger) _logger->warning(PlcIO::NETWORK, "network bring-up timed out");
+                    if (_logger) _logger->warning(Logs::NETWORK, "network bring-up timed out");
                     _enter(NET_ERROR, now_ms);
                 }
                 break;
 
             case NET_RUNNING:
                 if (HAL::Network::link_status() != HAL::Network::LINK_UP) {
-                    if (_logger) _logger->warning(PlcIO::NETWORK, "network link lost");
+                    if (_logger) _logger->warning(Logs::NETWORK, "network link lost");
                     _unwire_resolver();
                     _enter(NET_ERROR, now_ms);
                 }
@@ -183,7 +183,7 @@ namespace Botanik { namespace Network {
             _state = TIME_RESOLVE;
             _since_ms = now_ms;
         } else {
-            if (_logger) _logger->error(PlcIO::TIME, "NTP sync failed (no server answered)");
+            if (_logger) _logger->error(Logs::TIME, "NTP sync failed (no server answered)");
             _state = TIME_ERROR;
             _sync_held = false;       // sync lost: the next success is a recovery
             _since_ms = now_ms;
@@ -224,14 +224,14 @@ namespace Botanik { namespace Network {
                     // re-poll (it fires every poll_s and would spam the log).
                     if (!_sync_held && _logger) {
                         char ab[16];
-                        _logger->notice(PlcIO::TIME, "NTP synced (%s:%u)",
+                        _logger->notice(Logs::TIME, "NTP synced (%s:%u)",
                                         HAL::Network::ip4_to_str(_server_addr, ab, sizeof(ab)),
                                         (unsigned)server_port());
                     }
                     _sync_held = true;
                     _state = TIME_SYNCED; _since_ms = now_ms;
                 } else if (r < 0) {
-                    if (_logger) _logger->warning(PlcIO::TIME, "NTP query failed");
+                    if (_logger) _logger->warning(Logs::TIME, "NTP query failed");
                     _next_server_or_error(now_ms);
                 }
                 break;

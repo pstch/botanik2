@@ -150,16 +150,16 @@ namespace Botanik { namespace Health {
             if (_logger == nullptr || !_logger->has_writers()) ok = false;
             _post_ok = ok;
             if (_logger) {
-                if (ok) _logger->info(PlcIO::HEALTH, "POST ok (site %s)",
+                if (ok) _logger->info(Logs::HEALTH, "POST ok (site %s)",
                                       Config::SITE_NAME);
-                else    _logger->critical(PlcIO::HEALTH, "POST failed (site %s)",
+                else    _logger->critical(Logs::HEALTH, "POST failed (site %s)",
                                           Config::SITE_NAME);
             }
         }
 
         /** @brief Log a POST failure line (CRITICAL, HEALTH topic). */
         void _post_fail(const char* what, const char* detail) {
-            if (_logger) _logger->critical(PlcIO::HEALTH, "POST: %s %s", what, detail);
+            if (_logger) _logger->critical(Logs::HEALTH, "POST: %s %s", what, detail);
         }
 
         /** @brief Raise/clear the platform alarms from the scheduler metrics.
@@ -211,7 +211,7 @@ namespace Botanik { namespace Health {
             bool within_grace =
                 (now - _fault_since_ms) <= Config::PLC_FAULT_GRACE_MS;
             if (_watchdog_ok && !within_grace && _logger)   // kicking->withhold
-                _logger->critical(PlcIO::PLC_IO,
+                _logger->critical(Logs::PLC_IO,
                     "PLC fault persisted, withholding watchdog kick (reboot imminent)");
             _watchdog_ok = within_grace;
         }
