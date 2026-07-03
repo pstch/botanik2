@@ -1,15 +1,10 @@
-// REVIEW_35: TODO
+// REVIEW_35: WIP
 #ifndef SCHEDULER_SCHEDULER_H
 #define SCHEDULER_SCHEDULER_H
 
 /**
  * @file scheduler.h
- * @brief LoopScheduler - non-blocking fixed-period loop driver with overrun
- *        handling and built-in performance instrumentation: scheduling jitter,
- *        CPU duty cycle, per-beat work duration, and stack high-water usage. The
- *        reusable metric filters live in utils/filters.h; the SchedulerContext
- *        they feed is defined here.
- */
+ * @brief Non-blocking fixed-period loop driver with perf monitoring. */
 
 #include <cstdint>
 
@@ -33,50 +28,40 @@
 #  define BOTANIK_NO_ASAN
 #endif
 
+
+// forward declare the Logger pointer type
 namespace Botanik { namespace Logs { class Logger; } }
 
 namespace Botanik { namespace Scheduler {
 
-    /** @brief Stable metrics snapshot consumed by AnsiTerminal for the status bar and
-     *  the `stats` command: the CPU-load / work-duration / stack-usage metrics (each
-     *  exposed smoothed (EMA), as a recent windowed peak, and as an all-time peak),
-     *  plus the scheduler's jitter and tick/overrun fields. Consumers read them all
-     *  through one struct via LoopScheduler::context(); LoopScheduler writes every
-     *  field in place. */
+    /** @brief Stable metrics snapshot consumed by AnsiTerminal.
+     *  @note Written by LoopScheduler, read by other components. */
     struct SchedulerContext {
-        float    cpu_load_ema       = 0.0f;   ///< EMA of CPU load (duty cycle, fraction of period)
-        uint32_t cpu_loop_us_recent = 0;      ///< windowed peak work duration, us
-        uint32_t cpu_loop_us_max    = 0;      ///< all-time peak work duration, us
+        float    cpu_load_ema       = 0.0f;     ///< EMA of CPU load (duty cycle, fraction of period)
+        uint32_t cpu_loop_us_recent = 0;        ///< Windowed peak work duration, us
+        uint32_t cpu_loop_us_max    = 0;        ///< All-time peak work duration, us
 
-        /** @brief peak stack usage as a fraction of depth (worst-ever); the
-         *  high-water is itself a max, so no EMA/window on top of it. */
-        float    stack_usage        = 0.0f;
-        /** @brief minimum free stack ever, bytes (= depth - peak used): the
-         *  safety-relevant worst-case headroom. */
-        uint32_t stack_bytes_free   = 0;
-        uint32_t stack_depth        = 0;   ///< total thread stack allocation, bytes
+        float    stack_usage        = 0.0f;     ///< Peak stack usage, fraction
+        uint32_t stack_bytes_free   = 0;        ///< Minimum free stack ever, bytes
+        uint32_t stack_depth        = 0;        ///< Total thread stack allocation, bytes
 
-        /** @brief measured loop rate (ticks/sec). Nominal 1000/TASK_PERIOD_MS;
-         *  dips when the loop falls behind. */
-        uint32_t ticks_per_second   = 0;
+        uint32_t ticks_per_second   = 0;        ///< Measured actual loop rate (TPS)
 
         float    cpu_jitter_ema       = 0.0f;   ///< EMA of scheduling jitter (fraction of interval)
-        uint32_t cpu_jitter_us_recent = 0;      ///< windowed peak jitter, us
-        uint32_t cpu_jitter_us_max    = 0;      ///< all-time peak jitter, us
-        uint32_t tick_count      = 0;
-        uint32_t overruns        = 0;   ///< cumulative beats skipped to overruns
-        /** @brief Loop "now" (uptime ms), republished by tick() when the work
-         *  window opens; the single shared timestamp the PLC sync and terminal
-         *  input timing read.
-         *  @warning 32-bit, wraps every ~49 days. Every consumer must use
-         *  wrap-safe subtraction `(uint32_t)(now - then) > delta`, never
-         *  `now > then + delta`. */
+        uint32_t cpu_jitter_us_recent = 0;      ///< Windowed peak CPU jitter, us
+        uint32_t cpu_jitter_us_max    = 0;      ///< All-time peak CPU jitter, us
+        uint32_t tick_count      = 0;           ///< Tick count since init
+        uint32_t overruns        = 0;           ///< Cumulative beats skipped to overruns
+        
+        /** @brief Loop "now" (uptime ms), republished by tick() when the work window opens.
+         *  @warning 32-bit, wraps every ~49 days. */
+        // FIXME: can't we use Millis32 here ?
         uint32_t timestamp_ms    = 0;
     };
 
     /** @class LoopScheduler
-     *  @brief Non-blocking fixed-period loop driver: releases one tick per
-     *         period, absorbs overruns, and measures its own per-beat
+     *  @brief Non-blocking fixed-period loop driver: releases ticks at the 
+     *         configured period, absorbs overruns, and measures its own per-beat
      *         performance (jitter, CPU duty cycle, work duration, stack usage),
      *         publishing everything into the SchedulerContext. */
     class LoopScheduler : public Component {
