@@ -50,7 +50,7 @@ TEST_CASE("NetworkHandler: sim path comes up on net config and idles when it is 
     CHECK_FALSE(net.is_up());
 }
 
-TEST_CASE("MqttClient: never reports connected to a dead broker; publish gated on connection") {
+TEST_CASE("MqttClient: never reports connected to a dead broker, publish gated on connection") {
     botanik_test::PlcConfigFixture fx;
     NameResolver resolver;
     NetworkHandler net(fx.ctx(), nullptr, &resolver);
@@ -74,7 +74,7 @@ TEST_CASE("MqttClient: never reports connected to a dead broker; publish gated o
     CHECK_FALSE(mqtt.publish("botanik/alarms/X", "ON"));
 }
 
-TEST_CASE("NtpClient: stepped as a Component (announces once); query is non-blocking") {
+TEST_CASE("NtpClient: stepped as a Component (announces once), query is non-blocking") {
     botanik_test::PlcConfigFixture fx;
     NameResolver resolver;
     NetworkHandler net(fx.ctx(), nullptr, &resolver);
