@@ -1,6 +1,6 @@
 // REVIEW_35: TODO
-#ifndef TERMINAL_STATUS_BAR_H
-#define TERMINAL_STATUS_BAR_H
+#ifndef CONSOLE_STATUS_BAR_H
+#define CONSOLE_STATUS_BAR_H
 
 /**
  * @file status_bar.h
@@ -106,4 +106,4 @@ namespace Botanik { namespace Terminal {
 
 }}
 
-#endif // TERMINAL_STATUS_BAR_H
+#endif // CONSOLE_STATUS_BAR_H

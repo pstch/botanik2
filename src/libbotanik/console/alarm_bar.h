@@ -1,6 +1,6 @@
 // REVIEW_35: TODO
-#ifndef TERMINAL_ALARM_BAR_H
-#define TERMINAL_ALARM_BAR_H
+#ifndef CONSOLE_ALARM_BAR_H
+#define CONSOLE_ALARM_BAR_H
 
 /**
  * @file alarm_bar.h
@@ -77,4 +77,4 @@ namespace Botanik { namespace Terminal {
 
 }}
 
-#endif // TERMINAL_ALARM_BAR_H
+#endif // CONSOLE_ALARM_BAR_H

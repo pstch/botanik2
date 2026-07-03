@@ -15,7 +15,7 @@
 
 #include "libbotanik/alarms/alarms.h"
 #include "libbotanik/pages/alarms.h"
-#include "libbotanik/terminal/terminal.h"
+#include "libbotanik/console/terminal.h"
 
 using namespace Botanik;
 using Command = Terminal::InputEvent::Command;

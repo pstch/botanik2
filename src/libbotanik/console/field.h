@@ -1,6 +1,6 @@
 // REVIEW_35: TODO
-#ifndef TERMINAL_FIELD_H
-#define TERMINAL_FIELD_H
+#ifndef CONSOLE_FIELD_H
+#define CONSOLE_FIELD_H
 
 /**
  * @file field.h
@@ -46,4 +46,4 @@ namespace Botanik { namespace Terminal { namespace Field {
 
 }}}
 
-#endif // TERMINAL_FIELD_H
+#endif // CONSOLE_FIELD_H

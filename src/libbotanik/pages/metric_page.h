@@ -27,8 +27,8 @@
 #include "libbotanik/utils/assert.h"       // BOTANIK_ASSERT (DEBUG slot guard)
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/pages/page.h"
-#include "libbotanik/terminal/terminal.h"
-#include "libbotanik/terminal/field.h"
+#include "libbotanik/console/terminal.h"
+#include "libbotanik/console/field.h"
 #include "libbotanik/plcio/sync.h"
 
 namespace Botanik { namespace Pages {

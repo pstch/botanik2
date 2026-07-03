@@ -12,7 +12,7 @@
 
 #include "doctest.h"
 
-#include "libbotanik/terminal/parser.h"
+#include "libbotanik/console/parser.h"
 
 using namespace Botanik;
 using Botanik::Terminal::InputParser;

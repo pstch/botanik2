@@ -9,8 +9,8 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "libbotanik/terminal/terminal.h"
-#include "libbotanik/terminal/editor.h"
+#include "libbotanik/console/terminal.h"
+#include "libbotanik/console/editor.h"
 
 namespace Botanik {
     // loglevel command (set_diagnostics)

@@ -1,6 +1,6 @@
 // REVIEW_35: TODO
-#ifndef TERMINAL_PARSER_H
-#define TERMINAL_PARSER_H
+#ifndef CONSOLE_PARSER_H
+#define CONSOLE_PARSER_H
 
 /**
  * @file parser.h
@@ -12,7 +12,7 @@
 
 #include "libbotanik_config.h"
 #include "libbotanik/utils/serial.h"
-#include "libbotanik/terminal/ansi.h"
+#include "libbotanik/console/ansi.h"
 
 namespace Botanik { namespace Terminal {
 
@@ -239,4 +239,4 @@ namespace Botanik { namespace Terminal {
 
 }}
 
-#endif // TERMINAL_PARSER_H
+#endif // CONSOLE_PARSER_H

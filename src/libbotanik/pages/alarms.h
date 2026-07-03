@@ -39,7 +39,7 @@
 #include "libbotanik/alarms/alarms.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/pages/page.h"
-#include "libbotanik/terminal/terminal.h"
+#include "libbotanik/console/terminal.h"
 #include "libbotanik/utils/time.h"
 
 namespace Botanik { namespace Pages {

@@ -23,9 +23,9 @@
 #include "libbotanik/pages/status.h"
 #include "libbotanik/pages/alarms.h"
 
-#include "libbotanik/terminal/terminal.h"
-#include "libbotanik/terminal/parser.h"
-#include "libbotanik/terminal/editor.h"
+#include "libbotanik/console/terminal.h"
+#include "libbotanik/console/parser.h"
+#include "libbotanik/console/editor.h"
 
 #include "libbotanik/plcio/vars.h"
 #include "libbotanik/plcio/sync.h"

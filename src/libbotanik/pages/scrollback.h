@@ -15,7 +15,7 @@
 
 #include "libbotanik_config.h"
 #include "libbotanik/pages/line_buffer.h"
-#include "libbotanik/terminal/terminal.h"
+#include "libbotanik/console/terminal.h"
 
 namespace Botanik { namespace Pages {
 

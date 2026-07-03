@@ -1,6 +1,6 @@
 // REVIEW_35: TODO
-#ifndef TERMINAL_ANSI_H
-#define TERMINAL_ANSI_H
+#ifndef CONSOLE_ANSI_H
+#define CONSOLE_ANSI_H
 
 /**
  * @file ansi.h
@@ -176,4 +176,4 @@ namespace Botanik { namespace Terminal { namespace Ansi {
 
 }}}
 
-#endif // TERMINAL_ANSI_H
+#endif // CONSOLE_ANSI_H

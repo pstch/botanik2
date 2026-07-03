@@ -1,6 +1,6 @@
 // REVIEW_35: TODO
-#ifndef TERMINAL_TERMINAL_H
-#define TERMINAL_TERMINAL_H
+#ifndef CONSOLE_TERMINAL_H
+#define CONSOLE_TERMINAL_H
 
 /**
  * @file terminal.h
@@ -13,9 +13,9 @@
 #include <cstdint>
 
 #include "libbotanik/utils/serial.h"
-#include "libbotanik/terminal/ansi.h"
-#include "libbotanik/terminal/status_bar.h"
-#include "libbotanik/terminal/alarm_bar.h"
+#include "libbotanik/console/ansi.h"
+#include "libbotanik/console/status_bar.h"
+#include "libbotanik/console/alarm_bar.h"
 #include "libbotanik/core/context.h"
 #include "libbotanik/core/component.h"      // Component (first-step announce)
 #include "libbotanik/logs/logger.h"   // Logs::Logger
@@ -485,4 +485,4 @@ namespace Botanik { namespace Terminal {
 
 }}
 
-#endif // TERMINAL_TERMINAL_H
+#endif // CONSOLE_TERMINAL_H

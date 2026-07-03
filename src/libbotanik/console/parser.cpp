@@ -6,7 +6,7 @@
  */
 #include <cstdint>
 
-#include "libbotanik/terminal/parser.h"
+#include "libbotanik/console/parser.h"
 
 namespace Botanik { namespace Terminal {
 

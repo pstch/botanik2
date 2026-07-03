@@ -12,7 +12,7 @@
 #include "libbotanik/pages/page.h"
 #include "libbotanik/pages/scrollback.h"
 #include "libbotanik/logs/writer.h"
-#include "libbotanik/terminal/terminal.h"
+#include "libbotanik/console/terminal.h"
 
 namespace Botanik { namespace Pages {
 

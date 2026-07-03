@@ -6,8 +6,8 @@
 #include <cstdint>
 #include <cstring>
 
-#include "libbotanik/terminal/alarm_bar.h"
-#include "libbotanik/terminal/terminal.h"
+#include "libbotanik/console/alarm_bar.h"
+#include "libbotanik/console/terminal.h"
 #include "libbotanik/alarms/alarms.h"
 
 namespace Botanik { namespace Terminal {

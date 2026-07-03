@@ -12,9 +12,9 @@
 #include "libbotanik_config.h"
 
 #include "libbotanik/hal/platform.h"
-#include "libbotanik/terminal/status_bar.h"
-#include "libbotanik/terminal/terminal.h"
-#include "libbotanik/terminal/field.h"
+#include "libbotanik/console/status_bar.h"
+#include "libbotanik/console/terminal.h"
+#include "libbotanik/console/field.h"
 #include "libbotanik/utils/time.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/plcio/sync.h"

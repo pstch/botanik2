@@ -14,9 +14,9 @@
 
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/utils/serial.h"
-#include "libbotanik/terminal/parser.h"
-#include "libbotanik/terminal/terminal.h"
-#include "libbotanik/terminal/ansi.h"
+#include "libbotanik/console/parser.h"
+#include "libbotanik/console/terminal.h"
+#include "libbotanik/console/ansi.h"
 
 
 namespace Botanik { namespace Terminal {

@@ -10,14 +10,14 @@
  * it against the pre-edit layout (`_pre`) so only the minimal terminal ops are
  * emitted.
  */
-#ifndef TERMINAL_EDITOR_H
-#define TERMINAL_EDITOR_H
+#ifndef CONSOLE_EDITOR_H
+#define CONSOLE_EDITOR_H
 
 #include <cstdint>
 #include <cstring>
 
 #include "libbotanik_config.h"
-#include "libbotanik/terminal/terminal.h"
+#include "libbotanik/console/terminal.h"
 
 
 namespace Botanik { namespace Terminal {
@@ -340,4 +340,4 @@ namespace Botanik { namespace Terminal {
 
 }}
 
-#endif // TERMINAL_EDITOR_H
+#endif // CONSOLE_EDITOR_H

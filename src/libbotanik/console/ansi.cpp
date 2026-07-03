@@ -12,7 +12,7 @@
  */
 #include <cstdint>
 
-#include "libbotanik/terminal/ansi.h"
+#include "libbotanik/console/ansi.h"
 
 namespace Botanik { namespace Terminal { namespace Ansi {
     using BufferedSerial = Botanik::Utils::BufferedSerial;

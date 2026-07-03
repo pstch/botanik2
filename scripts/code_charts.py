@@ -51,7 +51,7 @@ TEST_AREA = {
     "test_filters":        "logs",
     "test_line_buffer":    "pages",
     "test_logger":         "logs",
-    "test_parser":         "terminal",
+    "test_parser":         "console",
     "test_resolver":       "network",
     "test_serial":         "utils",
     "test_shell":          "shell",
@@ -79,6 +79,7 @@ PATH_ALIASES = (
     ("src/libbotanix_config.h", "src/libbotanik_config.h"),
     ("src/libbotanix.h", "src/libbotanik.h"),
     ("src/libbotanik/panes/", "src/libbotanik/pages/"),           # panes -> pages
+    ("src/libbotanik/terminal/", "src/libbotanik/console/"),      # terminal -> console
     ("src/libbotanik_asserts.h", "src/libbotanik/utils/assert.h"),  # asserts -> utils
     # emulation moved out of the library into the sim harness (plcio/network -> botanik_sim)
     ("src/libbotanik/plcio/emulator.h",   "src/botanik_sim/emulator.h"),
