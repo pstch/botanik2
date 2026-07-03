@@ -9,15 +9,17 @@
  * fall out directly.
  */
 
-#include "libbotanik/sun/sun_tracker.h"
 
-#if BOTANIK_FEATURE_SUN
 
 #include <cmath>
 #include <cstdint>
 
-#include "libbotanik/hal/platform.h"   // HAL::Clock::wall_ms
-#include "libbotanik/utils/time.h"     // uptime <-> unix ms conversions
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/utils/time.h"
+
+#include "libbotanik/sun/sun_tracker.h"
+
+#if BOTANIK_FEATURE_SUN
 
 namespace Botanik { namespace Sun {
 
