@@ -1,3 +1,4 @@
+// REVIEW_35: DONE
 /**
  * @file serial.cpp
  * @brief BufferedSerial implementation - pumps the RX/TX rings to and from
@@ -18,6 +19,8 @@ namespace Botanik { namespace Utils {
         memset(_tx_buf, 0, sizeof(_tx_buf));
     }
 
+    bool BufferedSerial::is_output_tty() const { return HAL::Serial::is_output_tty(_serial); }
+
     // Status & capacity
     // ------------------------------------------------------------------------
 
@@ -32,7 +35,6 @@ namespace Botanik { namespace Utils {
 
     bool BufferedSerial::rx_empty() const { return _rx_head == _rx_tail; }
     bool BufferedSerial::tx_empty() const { return _tx_head == _tx_tail; }
-    bool BufferedSerial::is_output_tty() const { return HAL::Serial::is_output_tty(_serial); }
 
     // Application I/O
     // ------------------------------------------------------------------------
@@ -41,23 +43,19 @@ namespace Botanik { namespace Utils {
         uint16_t pos = 0;
         while (pos < len) {
             uint16_t next_head = (_tx_head + 1) & (TX_BUF_SIZE - 1);
-            // full: count the unwritten bytes (saturating), yield
+            // full: count the unwritten bytes (saturating) then yield
             if (next_head == _tx_tail) {
                 uint32_t drop = (uint32_t)(len - pos);
                 _tx_dropped = (_tx_dropped > UINT32_MAX - drop) ? UINT32_MAX : _tx_dropped + drop;
                 return pos;
             }
             _tx_buf[_tx_head] = buf[pos++];
-            // no barrier: single-thread ring, see serial.h
             _tx_head = next_head;
         }
         return pos;
     }
 
     void BufferedSerial::tx_discard() {
-        // Producer-side reset: snap our head back to the consumer's tail so the
-        // ring reads empty. No barrier: producer and consumer are the same
-        // thread (serial.h).
         _tx_head = _tx_tail;
     }
 
@@ -85,9 +83,7 @@ namespace Botanik { namespace Utils {
         if (!_serial) return rcvd;
         while (true) {
             uint16_t head = (_rx_head + 1) & (RX_BUF_SIZE - 1);
-            // Full: yield *before* consuming a device byte we can't store. Flag
-            // it - the device FIFO may now overflow unseen (saturating, one per
-            // stalled cycle).
+            // RX buffer is FULL: yield *before* consuming a device byte we can't store.
             if (head == _rx_tail) {
                 if (_rx_overrun != UINT32_MAX) _rx_overrun++;
                 return rcvd;
@@ -95,7 +91,7 @@ namespace Botanik { namespace Utils {
             int byte = _serial->read();
             if (byte == -1) return rcvd;
             _rx_buf[_rx_head] = static_cast<char>(byte);
-            _rx_head = head;   // no barrier: single-thread ring, see serial.h
+            _rx_head = head;
             rcvd++;
         }
     }

@@ -1,3 +1,4 @@
+// REVIEW_35: DONE
 #ifndef UTILS_TEXT_H
 #define UTILS_TEXT_H
 
@@ -16,15 +17,14 @@ namespace Botanik { namespace Utils {
     /** @name String comparison
      *  @{ */
 
-    /** @brief Null-safe equality of two NUL-terminated strings: true only when
-     *  both are non-null and compare equal. */
+    /** @brief Null-safe equality of two NUL-terminated strings 
+     *  @returns True when both pointers are non-null and contain the same text. */
     inline bool compare_str(const char* a, const char* b) {
         return a != nullptr && b != nullptr && std::strcmp(a, b) == 0;
     }
 
-    /** @} */
-
-    /** @name Line wrapping
+    /** @}
+     *  @name Line wrapping
      *  @{ */
 
     /** @brief Length of the next display segment of [buf+off, buf+len): up to
@@ -37,10 +37,9 @@ namespace Botanik { namespace Utils {
         return take;
     }
 
-    /** @} */
-
-    /** @name Argument parsing (shell) Bounded, NUL-free helpers over a slice of
-     *  the command line (no libc strtol). @{ */
+    /** @} 
+     *  @name Argument parsing helpers (for the shell) 
+     *  @{ */
 
     /** @brief Extract the next whitespace-delimited word from [@p args, @p
      *  args+alen). Returns the word start (nullptr if none) and sets @p wlen to
@@ -66,6 +65,7 @@ namespace Botanik { namespace Utils {
     /** @brief Parse [@p s, @p s+len) as a decimal uint32 into @p out. Returns
      *  false on an empty string, a non-digit, or overflow. */
     inline bool parse_uint(const char* s, uint16_t len, uint32_t* out) {
+        // FIXME: make more readable. the hidden constant is annoying
         if (len == 0) return false;
         uint32_t v = 0;
         for (uint16_t i = 0; i < len; i++) {
@@ -78,9 +78,8 @@ namespace Botanik { namespace Utils {
         return true;
     }
 
-    /** @} */
-
-    /** @name Number formatting
+    /** @} 
+     *  @name Number formatting
      *  @{ */
 
     /** @brief Format @p value as a fixed-point decimal into @p buf, mirroring
@@ -124,9 +123,8 @@ namespace Botanik { namespace Utils {
      *  use. */
     const char* format_size(char* buf, size_t cap, uint32_t bytes);
 
-    /** @} */
-
-    /** @name Duration formatting
+    /** @} 
+     *  @name Duration formatting
      *  @{ */
 
     /** @brief Format @p secs as a fixed-width age string into @p buf (returned
@@ -138,15 +136,13 @@ namespace Botanik { namespace Utils {
     const char* format_age(char* buf, size_t cap, uint32_t secs,
                            bool ago = true, bool floor_min = false);
 
-    /** @} */
-
-    /** @name Environment
+    /** @}
+     *  @name Environment
      *  @{ */
 
     /** @brief Read environment variable @p name as an unsigned 8-bit integer.
-     *  Returns @p fallback when it is unset, empty, non-numeric, or outside
-     *  0..255. On targets without an environment (OPTA) getenv yields null, so
-     *  this always returns @p fallback. */
+     *  @returns @p fallback if unset, otherwise parsed uint8_t value.
+     *  @note This is only for the simulator, on other targets we just return @p fallback . */
     uint8_t env_u8(const char* name, uint8_t fallback = 0);
 
     /** @} */

@@ -1,3 +1,4 @@
+// REVIEW_35: DONE
 #ifndef UTILS_TIME_H
 #define UTILS_TIME_H
 
@@ -12,43 +13,53 @@
 
 namespace Botanik { namespace Utils {
 
-    // Three time representations: UNIX timestamps (uint64), absolute ms/us
-    // uptime (uint64), and rolling-over 32-bit ms/us uptime. Some components
-    // record bare 32-bit counters; absolute_ms()/absolute_us() project them
-    // into the rollover window centered on now. Plus the usual
+    // We use three time representations: 
+    //  - UNIX timestamps (uint64), 
+    //  - absolute ms/us uptime (uint64)
+    //  - rolling-over 32-bit ms/us uptime. 
+    // 
+    // Some components record bare 32-bit counters; absolute_ms()/absolute_us() 
+    // project them into the rollover window centered on now. Plus the usual
     // conversion/formatting helpers.
 
     /** @name Types
      *  @{ */
 
-    /** @brief A 32-bit ms timestamp that wraps every ~49 days (e.g. the PLC
-     *  loop clock). A distinct type offering only wrap-safe elapsed
-     *  subtraction: no bare `>`, no mixing with the monotonic 64-bit
-     *  HAL::Clock::uptime_ms(). Construct from the raw counter; read `.ms` for the raw
-     *  value. */
+    /** @brief A 32-bit ms timestamp that wraps every ~49 days (e.g. the PLC loop clock). 
+     *  @note This is a distinct type offering only wrap-safe elapsed subtraction. */
     struct Millis32 {
-        uint32_t ms = 0;
         Millis32() = default;
+
+        /** @brief Internal 32-bit ms timestamp */
+        uint32_t ms = 0;
+
+        /** @brief Construct by wrapping an uint32_t value. */
         explicit Millis32(uint32_t v) : ms(v) {}
-        /** @brief Wrap-safe elapsed time since the @p earlier stamp (this -
-         *  earlier). */
+
+        /** @brief Wrap-safe elapsed time since the @p earlier stamp (this - earlier). */
         uint32_t operator-(Millis32 earlier) const { return ms - earlier.ms; }
+
+        /** @brief Do equality comparison using the internal value. */
         bool operator==(Millis32 o) const { return ms == o.ms; }
+
+        /** @brief Do inequality comparison using the internal value. */
         bool operator!=(Millis32 o) const { return ms != o.ms; }
     };
 
     /** @brief Calendar time, without the tm struct's idiosyncrasies and with
      *  extra total-days / -seconds fields. */
     struct CalendarTime {
-        uint16_t    year;               // full year, e.g. 2026
-        uint8_t     month;              // 1-indexed
-        uint8_t     day;                // 1-indexed
-        uint8_t     hour;               // 0-indexed
-        uint8_t     minute;             // 0-indexed
-        uint8_t     second;             // 0-indexed
-        uint16_t    millisecond;        // 0-indexed
-        uint32_t    unixDays;           // days since the UNIX epoch
-        uint64_t    unixSeconds;        // seconds since the UNIX epoch
+        uint16_t    year;               ///< Year of epoch, e.g. 2026
+
+        uint8_t     month;              ///< Month of year,     1-indexed
+        uint8_t     day;                ///< Day of month,      1-indexed
+        uint8_t     hour;               ///< Hour of day,       0-indexed
+        uint8_t     minute;             ///< Minute of hour,    0-indexed
+        uint8_t     second;             ///< Second of minute,  0-indexed
+        uint16_t    millisecond;        ///< Millis of second,  0-indexed
+
+        uint32_t    unixDays;           ///< Days since the UNIX epoch
+        uint64_t    unixSeconds;        ///< Seconds since the UNIX epoch
     };
 
     /** @} */

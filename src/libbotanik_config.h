@@ -2,9 +2,6 @@
 #ifndef LIBBOTANIK_CONFIG_H
 #define LIBBOTANIK_CONFIG_H
 
-#include <cstdint>
-#include <cstring>
-
 /** @file libbotanik_config.h
  *  @brief Global configuration parameters for the Botanik library.
  * 
@@ -13,8 +10,10 @@
  *        overrides. The path of the selected site is passed by CMake in
  *        BOTANIK_SITE_CONFIG. */
 
-#define BOTANIK_CFG(type, name) static constexpr type name = BOTANIK_##name
+#include <cstdint>
+#include <cstring>
 
+#define BOTANIK_CFG(type, name) static constexpr type name = BOTANIK_##name
 
 // Site configuration
 // ===========================================================================
@@ -27,6 +26,9 @@
 // ===========================================================================
 
 #include "libbotanik_features.h"
+
+// Configuration variables
+// ===========================================================================
 
 namespace Botanik { namespace Config {
 
@@ -43,7 +45,7 @@ namespace Botanik { namespace Config {
     /** @brief MQTT topic prefix for alarm notifications. Site identity; pinned
      *  per site. */
 #ifndef BOTANIK_MQTT_TOPIC_PREFIX
-#  define BOTANIK_MQTT_TOPIC_PREFIX "botanik"
+#  define BOTANIK_MQTT_TOPIC_PREFIX "botanik/default"
 #endif
     BOTANIK_CFG(const char*, MQTT_TOPIC_PREFIX);
 
