@@ -80,6 +80,10 @@ int main(int argc, char** argv) {
     std::signal(SIGINT,  botanik_sim_shutdown);   // NOLINT(bugprone-signal-handler)
     std::signal(SIGTERM, botanik_sim_shutdown);   // NOLINT(bugprone-signal-handler)
     std::signal(SIGUSR1, botanik_sim_reexec);     // NOLINT: hot-restart from a rebuilt binary
+    // Console/socket writes to a closed reader EPIPE (write() returns 0, byte
+    // stays queued) instead of killing us with SIGPIPE. Hit routinely once the
+    // console consumer disconnects while we're emitting fast (high dilation).
+    std::signal(SIGPIPE, SIG_IGN);                // NOLINT(bugprone-signal-handler)
 
 #if BOTANIK_FEATURE_PLC
     // Shared PLC memory - firmware handler and emulator point at the same
