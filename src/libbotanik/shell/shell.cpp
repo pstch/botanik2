@@ -1,3 +1,4 @@
+// REVIEW_35: TODO
 /**
  * @file shell.cpp
  * @brief CommandShell implementation - command dispatch and built-in commands.

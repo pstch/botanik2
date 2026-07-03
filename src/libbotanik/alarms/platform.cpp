@@ -1,3 +1,4 @@
+// REVIEW_35: TODO
 /**
  * @file platform.cpp
  * @brief The generic platform-health alarm table (see platform.h).

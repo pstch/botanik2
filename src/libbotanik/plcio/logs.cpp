@@ -1,3 +1,4 @@
+// REVIEW_35: TODO
 /**
  * @file logs.cpp
  * @brief PlcLogReader implementation - sequence-gap detection and forwarding.

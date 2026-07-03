@@ -1,3 +1,4 @@
+// REVIEW_35: TODO
 /**
  * @file writer.cpp
  * @brief LogWriter implementations - queueing and incremental drain.

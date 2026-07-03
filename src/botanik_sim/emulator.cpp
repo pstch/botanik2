@@ -1,3 +1,4 @@
+// REVIEW_35: TODO
 /**
  * @file emulator.cpp
  * @brief PLC emulator implementation - the PLC-side log writer.

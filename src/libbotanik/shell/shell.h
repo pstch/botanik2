@@ -1,3 +1,4 @@
+// REVIEW_35: TODO
 /**
  * @file shell.h
  * @brief Command shell - dispatch, built-in commands, and extensibility hooks.

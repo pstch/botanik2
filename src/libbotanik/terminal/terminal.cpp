@@ -1,3 +1,4 @@
+// REVIEW_35: TODO
 /**
  * @file terminal.cpp
  * @brief AnsiTerminal implementation - cursor/geometry tracking, text output,

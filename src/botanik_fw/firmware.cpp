@@ -1,3 +1,4 @@
+// REVIEW_35: TODO
 /**
  * @file firmware.cpp
  * @brief Constructs the OPTA firmware singleton against the coprocessor's PLC

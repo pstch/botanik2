@@ -1,3 +1,4 @@
+// REVIEW_35: TODO
 /**
  * @file resolver.cpp
  * @brief NameResolver - non-blocking hostname -> IPv4 via HAL::Net DNS poll API.

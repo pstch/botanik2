@@ -1,3 +1,4 @@
+// REVIEW_35: TODO
 /**
  * @file editor.cpp
  * @brief TextEditor - byte-efficient multi-row line editor. Each edit mutates
