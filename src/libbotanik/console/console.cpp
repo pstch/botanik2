@@ -30,7 +30,7 @@ namespace Botanik { namespace Terminal {
     }
 
     void Console::step() {
-        announce_step(_logger, "AnsiTerminal");
+        announce_step(_logger, "Console");
         // Snapshot the RX depth before the parse loop drains it, so the serial
         // gauge reports what was actually waiting this cycle rather than ~0.
         _term.snapshot_rx();
