@@ -17,4 +17,6 @@ diagrams; the @ref deepdives cover specific mechanisms in more detail.
   from the serial port through the parser to the active page.
 - @subpage md_docs_2LOG__FLOW - **Log flow.** How a log entry travels from a call
   site through rate limiting out to every sink.
+- @subpage md_docs_2NETWORKING - **Networking.** The optional config-driven network
+  stack: the device handler, resolver, NTP, and MQTT clients.
 */
