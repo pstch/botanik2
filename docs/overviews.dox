@@ -9,6 +9,8 @@ diagrams; the @ref deepdives cover specific mechanisms in more detail.
 - @subpage md_docs_2CONCURRENCY - **Concurrency model.** The single cooperative
   loop, the per-tick cycle contract, and why plain `volatile` + barriers replace
   locks and `std::atomic`.
+- @subpage md_docs_2CONTEXTS - **Contexts.** The per-subsystem status structs and
+  the `SystemContext` aggregate the read-only UI paths borrow.
 - @subpage md_docs_2PAGES - **Pages.** The page hierarchy and the screen contract
   every full-screen view shares.
 - @subpage md_docs_2EVENT__DISPATCH - **Event dispatch.** How input events flow

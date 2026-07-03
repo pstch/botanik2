@@ -25,6 +25,12 @@ with no alarms it reverts to the page, so a page reads its usable row count from
 terminal rather than assuming a fixed height. The terminal clears the content area on
 every page switch, so `focus()` always paints onto a blank canvas.
 
+## Status contexts
+
+The status bar, the `stats` command, and the metric pages read one
+borrowed-pointer aggregate, @ref Botanik::SystemContext, rather than reaching
+into each subsystem - see @ref md_docs_2CONTEXTS "Contexts".
+
 ## The Page interface
 
 @ref Botanik::Pages::Page declares the contract:
@@ -102,3 +108,39 @@ beat can overrun the serial output:
 - **Scrollback navigation.** The view moves back through retained history a key at a
   time, painting only newly exposed rows. While scrolled up the live tail is **frozen**
   so incoming lines don't yank the view; `scroll_to_bottom()` releases it.
+
+## Alarms
+
+@ref Botanik::Pages::AlarmsPage renders the alarm-condition table as a scrollable view
+(filter modes: recent / all / active / unmasked). Each row is one
+@ref Botanik::Alarms::AlarmCondition: a **static** metadata prefix the site defines by
+aggregate-init (the row index is the alarm's bit index) followed by a **dynamic** suffix
+the @ref Botanik::Alarms::AlarmModel owns and drives (left zeroed at init). A threshold
+of `-1` disables that action; dwell fields are in seconds.
+
+\startuml "AlarmCondition: site-defined static metadata + model-owned dynamic state"
+class AlarmCondition {
+  code : const char* - short code (<= 8 chars)
+  desc : const char* - human description
+  masked_by : uint64 - alarms that suppress this one
+  on_s : int32 - ON dwell before announce (-1 off)
+  off_s : int32 - OFF dwell before announce (-1 off)
+  recent_s : int32 - "recent" window (-1 forever)
+  off_delay_s : int32 - hold ON after raw clears
+  min_on_s : int32 - minimum ON latch from onset
+  --
+  active : bool - active or latched
+  unmasked : bool - active and not masked
+  on_sent : bool - ON transition announced
+  off_sent : bool - OFF transition announced
+  user_ack : bool - acknowledged by the user
+  edge_ms : uint64 - since last transition
+  started_ms : uint64 - since last ON transition
+  off_delay_rem_ms : uint32 - off-delay countdown
+  min_on_rem_ms : uint32 - minimum-ON countdown
+}
+\enduml
+
+The `--` separator splits the site-owned static metadata (above) from the model-owned
+dynamic state (below); @ref Botanik::Alarms::AlarmCondition::step "step()" advances the
+countdowns and announces due ON/OFF transitions each tick.
