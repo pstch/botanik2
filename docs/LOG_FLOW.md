@@ -40,6 +40,20 @@ per-topic `CRITICAL` summary of how many entries each bucket suppressed - classe
 `CRITICAL` so the report survives the storm it describes (see
 [Silent-loss reporting](#silent-loss-reporting)).
 
+\startuml "Logger: the rate-limited fan-out hub - dual token buckets, then a fixed writer array"
+class Logger {
+  debug() / info() / notice() / warning() / error()
+  add_writer(LogWriter*) : bool
+  watch_tx(BufferedSerial*)
+  step()
+  --
+  _global_bucket : LogBucket_t
+  _perTopic_buckets[LOG_TOPIC_COUNT] : LogBucket_t
+  _writers[LOG_WRITERS_MAX] : LogWriter*
+  _min_level : LogLevel
+}
+\enduml
+
 ```
  log entry (topic T)
         │
@@ -74,6 +88,20 @@ normal entry is dropped and counted, but a `LOG_CRITICAL` entry is **undroppable
 evicts the oldest queued entry to seat itself (still counting the eviction as a drop).
 `drain()` consumes the read index at format time, decoupling the outgoing line from the
 queue so eviction is safe.
+
+\startuml "the LogWriter sink hierarchy: the serial writer and the three pages that double as sinks, all fed by the Logger"
+class LogWriter
+class BufferedLogWriter
+class SerialLogWriter
+
+LogWriter <|-- BufferedLogWriter
+BufferedLogWriter <|-- SerialLogWriter
+BufferedLogWriter <|-- LogsPage
+BufferedLogWriter <|-- HomePage
+BufferedLogWriter <|-- ShellPage
+
+Logger o--> "0..LOG_WRITERS_MAX" LogWriter : fans out to
+\enduml
 
 ## Silent-loss reporting {#silent-loss-reporting}
 
