@@ -21,7 +21,7 @@ called once per beat in a fixed order - the **per-tick cycle contract**:
     5. HealthMonitor   step()
     6. site            on_loop()
     7. Logger          step()
-    8. AnsiTerminal    step()
+    8. Console         step()
     9. PerfMonitor     drain()
    10. BufferedSerial  transmit()
    11. HAL             watchdog_kick()

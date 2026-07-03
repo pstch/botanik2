@@ -94,6 +94,6 @@ instead of asserting. It is deliberately separate from `check`/`test`.
 - `conftest.py`  - the PTY/pyte `Term`, the `spawn` and `assert_screen` fixtures.
 - `normalize.py` - field-level regex that masks volatile cells (clock, uptime,
   TX/RX depths, cpu/stk, PLC state, log timestamps) before comparison.
-- `keys.py`      - input byte sequences matching `terminal/parser.cpp`.
+- `keys.py`      - input byte sequences matching `console/parser.cpp`.
 - `helpers.py`   - boot / page-switch helpers.
 - `test_*.py`    - home, status, logs, and the shell reconciliation scenarios.

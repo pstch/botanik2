@@ -27,7 +27,7 @@ Abstraction Layer so the same code builds as a Linux simulator or for the OPTA.
 |---|---|---|
 | **HAL** | `hal/` | Unified platform interface (clocks, memory ordering, stack/PLC introspection, serial). `simulator.h` and `opta.h` implement it. |
 | **Scheduler** | `scheduler/` | Non-blocking fixed-period loop driver with overrun handling and built-in CPU-load, scheduling-jitter, work-duration, and stack-usage instrumentation. |
-| **Terminal UI** | `terminal/` | `AnsiTerminal` drives a multiplexed page display; `InputParser` decodes byte streams into events; `TextEditor` is a byte-efficient line editor. |
+| **Console UI** | `console/` | `Console` drives a multiplexed page display over the `AnsiTerminal` VT device; `InputParser` decodes byte streams into events; `TextEditor` is a byte-efficient line editor. |
 | **Pages** | `pages/` | Full-screen views (`Shell`, `Logs`, `Home`, `Status`) behind a common `Page` interface. |
 | **Logging** | `logs/` | `Logger` rate-limits with a dual token-bucket, then fans entries out to `LogWriter`s. |
 | **PLC I/O** | `plcio/` | `PlcSyncHandler` runs RX/TX state machines over shared memory with the PLC coprocessor; an emulator stands in for it on the simulator. |
@@ -52,7 +52,7 @@ sketch does the equivalent).
 - **Rate-limited logging.** A global bucket plus a per-topic bucket throttle log
   volume; suppressed-message counts are reported on a slower cadence.
 - **Byte-efficient terminal.** The UI targets a low-bandwidth serial link, so
-  the terminal/editor layer minimizes the escape sequences it emits.
+  the console/editor layer minimizes the escape sequences it emits.
 - **Self-instrumenting loop.** `LoopScheduler` measures per-beat CPU load (the
   duty cycle, `(period − slept)/period`), scheduling jitter, work duration, and
   stack high-water usage (the last via stack painting), surfaced live in the

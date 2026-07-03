@@ -1,4 +1,4 @@
-"""Shell page: the TextEditor reconciliation edge cases (terminal/editor.cpp).
+"""Shell page: the TextEditor reconciliation edge cases (console/editor.cpp).
 
 Correct reconciliation must be visually identical to a full redraw, so each
 golden doubles as the oracle: any wrong splice / IL-DL / prompt-flip shows up as

@@ -10,7 +10,7 @@ and uppercasing everything:
 
 ```
 src/libbotanik/utils/serial.h  →  UTILS_SERIAL_H
-src/libbotanik/terminal/ansi.h →  TERMINAL_ANSI_H
+src/libbotanik/console/ansi.h →  CONSOLE_ANSI_H
 src/libbotanik_config.h        →  LIBBOTANIK_CONFIG_H
 ```
 

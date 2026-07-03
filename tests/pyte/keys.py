@@ -1,4 +1,4 @@
-"""Input byte sequences the firmware's InputParser decodes (terminal/parser.cpp).
+"""Input byte sequences the firmware's InputParser decodes (console/parser.cpp).
 
 Tests speak the real wire protocol: raw bytes a terminal would send. Sourced
 from InputParser::_map_control_char / _map_esc_extension / _map_csi_to_command.

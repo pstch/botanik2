@@ -105,9 +105,9 @@ The library subsystems under `src/libbotanik/`:
 
 **Config handler (`core/config.h`)** - `ConfigHandler` is a base for PLC-config-driven state machines that reset and restart whenever the operator bumps their config block's serial (template-method order: read serial -> reset on change -> advance). `SunPositionTracker` and the network handlers build on it.
 
-**Terminal UI (`terminal/`)** - `AnsiTerminal` owns the serial connection and drives a multiplexed page display. `InputParser` decodes raw byte streams into `InputEvent`s (handles X3.64 CSI, Alt, and function-key escape sequences). `TextEditor`/`InputEditor` is a byte-efficient line-editing state machine that consumes `InputEvent`s. `Ansi` is a stateless helper that emits ANSI escape codes. The layer minimizes escape bytes emitted (low-bandwidth serial link).
+**Console UI (`console/`)** - two layers. `AnsiTerminal` is the VT **device**: it owns the serial connection, tracks the cursor/attribute/geometry shadow state, and emits ANSI escape codes (via `Ansi`, a stateless escape-code helper). `Console` composes an `AnsiTerminal` (exposed via `terminal()`) and drives the multiplexed page display: it routes input to the active page, owns the row-0 status bar and the bottom alarm bar, reserves the content area (`rows()`), and runs the per-tick `step()`. Renderers (pages, editor, bars) hold a `Console&` and paint through its `terminal()`. `InputParser` decodes raw byte streams into `InputEvent`s (handles X3.64 CSI, Alt, and function-key escape sequences). `TextEditor`/`InputEditor` is a byte-efficient line-editing state machine that consumes `InputEvent`s. The layer minimizes escape bytes emitted (low-bandwidth serial link).
 
-**Pages (`pages/`)** - Full-screen views behind a common `Page` interface; `AnsiTerminal` routes input to the active page and calls its render method on demand. Core pages: `Home`, `Shell`, `Logs`, `Status`, `AlarmsPage` (scrollable alarm-condition table, filter modes recent/all/active/unmasked). Building blocks: `MetricPage` (diff-rendered metric display base with value cache + watch-style highlighting), `Scrollback<L>` (throttled incremental-redraw circular buffer) over `LineBuffer<L,N>` (fixed-capacity circular storage with soft-wrap).
+**Pages (`pages/`)** - Full-screen views behind a common `Page` interface; `Console` routes input to the active page and calls its render method on demand. Core pages: `Home`, `Shell`, `Logs`, `Status`, `AlarmsPage` (scrollable alarm-condition table, filter modes recent/all/active/unmasked). Building blocks: `MetricPage` (diff-rendered metric display base with value cache + watch-style highlighting), `Scrollback<L>` (throttled incremental-redraw circular buffer) over `LineBuffer<L,N>` (fixed-capacity circular storage with soft-wrap).
 
 **Shell (`shell/`)** - `CommandShell` handles command submission, built-in dispatch (`help`, `clear`, `logs`, `stats`, `version`, ...), command history (up/down recall), and a kill-ring (Ctrl-K/Ctrl-Y). Sites extend it with a registered `ShellCommand[]` table.
 
@@ -144,7 +144,7 @@ The library subsystems under `src/libbotanik/`:
 |---|---|---|
 | `BOTANIK_FEATURE_PLC` | on | `PlcSyncHandler`, `PlcLogReader`, the `<In, Out>` payload threaded through `BotanikFirmware`, and the PLC-fault watchdog escalation |
 | `BOTANIK_FEATURE_NETWORK` / `_NTP` / `_MQTT` | off | the `network/` stack (`NetworkHandler`/`NameResolver`/`TimeSyncHandler`/`MqttClient`), instantiated + stepped by `BotanikFirmware`; on for `gh_mlb41`. `NTP`/`MQTT` require `NETWORK`, `NETWORK` requires `PLC` (enforced by `#error`) |
-| `BOTANIK_FEATURE_CONSOLE` | on | the interactive ANSI UI: `AnsiTerminal`, the built-in shell/logs/alarms pages, the console UART, and the `register_pages()` / `register_commands()` hooks. Off -> headless |
+| `BOTANIK_FEATURE_CONSOLE` | on | the interactive ANSI UI: `Console` (over the `AnsiTerminal` VT device), the built-in shell/logs/alarms pages, the console UART, and the `register_pages()` / `register_commands()` hooks. Off -> headless |
 | `BOTANIK_FEATURE_MONITOR` | on | the secondary MONITOR UART and its `SerialLogWriter` sink. Independent of `CONSOLE`: a headless build can keep MONITOR for diagnostics, an interactive build can drop it. Both off -> logs reach only site-registered sinks |
 
 Gate with the preprocessor `#if BOTANIK_FEATURE_PLC` (must drop member decls / ctor-init entries; C++11 has no `if constexpr`); a `Botanik::Features::PLC` `constexpr bool` mirror exists for expression context. To build PLC-less: `-DBOTANIK_FEATURE_PLC=OFF` and derive from `BotanikFirmware<>` (the payload params default to a zero-size `Empty`). `HealthMonitor` already tolerates a null PLC link (POST skips the region check, the watchdog keeps kicking while the loop is alive). See the "Optional features" section of the docs Library page (`docs/library.dox`).
@@ -157,7 +157,7 @@ Three layers, generic to specific:
 
 | Layer | Holds | Examples |
 |---|---|---|
-| `libbotanik` | generic, site- and target-independent machinery, plus the `BotanikFirmware<In, Out>` base that owns the generic components, exposes a reference to each on the instance, and drives the per-tick `loop()` | `PlcSyncHandler`, `AnsiTerminal`, `AlarmModel`, `BotanikFirmware` |
+| `libbotanik` | generic, site- and target-independent machinery, plus the `BotanikFirmware<In, Out>` base that owns the generic components, exposes a reference to each on the instance, and drives the per-tick `loop()` | `PlcSyncHandler`, `Console`, `AlarmModel`, `BotanikFirmware` |
 | site (`gh_mlb41`) | single source of truth for one greenhouse: the `PlcInput/OutputData_t` layout, site pages (Home/Status), the `g_alarms[]` table, the `fill_output()` data simulation, and a `GreenhouseMLB41` class deriving from `BotanikFirmware` | `gh_mlb41` |
 | target / entry point | thin: selects one site and runs it | `botanik_sim` harness, generated OPTA `.ino` |
 

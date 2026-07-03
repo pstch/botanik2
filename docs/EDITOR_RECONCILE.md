@@ -1,6 +1,6 @@
 # Editor Reconcile
 
-How `TextEditor` (`terminal/editor.h`) repaints a multi-row line after an edit
+How `TextEditor` (`console/editor.h`) repaints a multi-row line after an edit
 while emitting the **fewest possible bytes** over the serial link. The UI drives a
 low-bandwidth terminal, so a naive "clear and redraw everything" repaint is not
 acceptable.

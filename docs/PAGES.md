@@ -1,6 +1,6 @@
 # Pages
 
-A *page* is a full-screen view multiplexed by @ref Botanik::Terminal::AnsiTerminal.
+A *page* is a full-screen view multiplexed by @ref Botanik::Terminal::Console.
 Every page implements the @ref Botanik::Pages::Page interface; the terminal holds
 up to 8 of them, routes input to the active one (see
 [EVENT_DISPATCH.md](EVENT_DISPATCH.md)), and ticks all of them each loop.
@@ -9,11 +9,11 @@ up to 8 of them, routes input to the active one (see
 
 ```
 ┌────────────────────────────────────────────────────┐
-│ Row 0    status bar (page tabs + live metrics)     │ ← AnsiTerminal
+│ Row 0    status bar (page tabs + live metrics)     │ ← Console
 ├────────────────────────────────────────────────────┤
 │          page content area (rows 1 .. N-2)         │ ← active page
 ├────────────────────────────────────────────────────┤
-│ Row N-1  alarm bar (only while alarms active)      │ ← AnsiTerminal
+│ Row N-1  alarm bar (only while alarms active)      │ ← Console
 └────────────────────────────────────────────────────┘
 ```
 

@@ -13,7 +13,7 @@ exactly once per period, when the work for that beat should run.
 ```
  while (true) {
      if (scheduler.tick()) {     // true once per TASK_PERIOD_MS
-         ...do the work...        // serial, PLC sync, logging, terminal
+         ...do the work...        // serial, PLC sync, logging, console
      }
  }
 ```

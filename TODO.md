@@ -32,7 +32,7 @@
    different rules. Generalize into one paced-pass abstraction so a new field class or
    cadence tweak can't desync one copy from the others.
 
- - Two separate paced painters: AnsiTerminal::step()'s status bar has its own budget +
+ - Two separate paced painters: Console::step()'s status bar has its own budget +
    round-robin cursor + tx_below_cold() gate, duplicating MetricPage's per-pass
    field-budget machinery. Unify so the cooperative-TX policy (floor, caps, all-or-
    nothing) lives in one place instead of two that must be kept in sync by hand.
@@ -49,7 +49,7 @@
   consumers read.
 - ~~Decouple the terminal code (status bar & `stats` command) from the separate
   SchedulerContext/PlcSyncContext pointers.~~ Done: `SystemContext` (context.h)
-  bundles both; AnsiTerminal takes one `SystemContext` and exposes it via
+  bundles both; Console takes one `SystemContext` and exposes it via
   `context()`. Consumers read the concrete sub-context fields through it.
   Decided *not* to hide those fields behind a status-provider interface: single
   producer/consumer, POD snapshots are idiomatic here, and the vtable indirection
@@ -81,7 +81,7 @@ NOTE: all screen interactions done by Page classes should always go through Ansi
   restore the draft when navigating back to head. Buffer sizes are in
   `Config::SHELL_HISTORY_SIZE` / `Config::SHELL_HISTORY_ENTRY`.
 
-- **Shell kill ring** (`shell/shell.h/cpp`, `terminal/editor.h/cpp`, `pages/shell.cpp`):
+- **Shell kill ring** (`shell/shell.h/cpp`, `console/editor.h/cpp`, `pages/shell.cpp`):
   Implement Ctrl+K (`kill_to_end()`), Ctrl+W (`kill_word_backward()`), and Ctrl+Y
   (`paste_kill()`) in `InputEditor` and `CommandShell`. A single-slot kill buffer of
   `Config::SHELL_KILL_SIZE` bytes is sufficient for now.

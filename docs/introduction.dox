@@ -25,7 +25,7 @@ one below.
 
 | Layer (generic &rarr; specific) | What it is | Who writes it |
 |-------|------------|---------------|
-| **Base library** (`libbotanik`) | The generic, site- and target-independent machinery: the terminal, logger, scheduler, PLC sync, health monitor, alarm model, and the `BotanikFirmware<In, Out>` base that owns them and drives the per-tick loop. | shipped, reused as-is |
+| **Base library** (`libbotanik`) | The generic, site- and target-independent machinery: the console, logger, scheduler, PLC sync, health monitor, alarm model, and the `BotanikFirmware<In, Out>` base that owns them and drives the per-tick loop. | shipped, reused as-is |
 | **Site** (e.g. `gh_mlb41`) | Everything specific to one physical greenhouse and its PLC program: the shared-memory payload layout, the site pages, the alarm table, and a `GreenhouseMLB41` class deriving `BotanikFirmware`. One site, used verbatim by both the simulator and the hardware. | per greenhouse |
 | **Sketch / entry point** | The thinnest layer: it selects one site and runs it. On hardware this is the Arduino sketch's `setup()`/`loop()`; on the host it is the simulator harness. | per project |
 
@@ -36,7 +36,7 @@ already provides:
 
 - **A non-blocking main loop** - bounded `step()`s called in a fixed, load-bearing
   order each tick (see @ref md_docs_2CONCURRENCY "the concurrency model").
-- **A multiplexed terminal UI** - a page-based ANSI terminal with a low-bandwidth line
+- **A multiplexed console UI** - a page-based ANSI terminal with a low-bandwidth line
   editor, plus ready-made Home, Status, Logs, and Shell pages.
 - **Rate-limited logging** - a dual token-bucket limiter feeding pluggable sinks, with
   undroppable criticals and edge-triggered silent-loss reporting.

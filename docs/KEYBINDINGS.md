@@ -3,24 +3,24 @@
 This page lists every key binding and the function it dispatches to. A binding
 resolves in two stages: @ref Botanik::Terminal::InputParser decodes the raw byte
 stream into an `InputEvent::Command`, then
-@ref Botanik::Terminal::AnsiTerminal::step "AnsiTerminal::step()" routes it - a
-handful of commands are intercepted by the terminal, the rest handed to the active
+@ref Botanik::Terminal::Console::step "Console::step()" routes it - a
+handful of commands are intercepted by the console, the rest handed to the active
 page's `handle_command()`. See [EVENT_DISPATCH.md](EVENT_DISPATCH.md) for the full
 dispatch architecture.
 
-## Terminal intercepts
+## Console intercepts
 
-Consumed by @ref Botanik::Terminal::AnsiTerminal::step "AnsiTerminal::step()"
+Consumed by @ref Botanik::Terminal::Console::step "Console::step()"
 before they can reach the active page.
 
 | Key(s)              | Action                                                                                                  |
 |---------------------|---------------------------------------------------------------------------------------------------------|
 | Ctrl+L              | @ref Botanik::Pages::Page::redraw "page->redraw()" - clear, redraw the status row, repaint the page      |
-| HOME                | @ref Botanik::Terminal::AnsiTerminal::switch_to "switch_to(0)" - jump to the first page                  |
-| Alt+1 ... Alt+9       | @ref Botanik::Terminal::AnsiTerminal::switch_to "switch_to(0...8)"                                         |
-| Alt+0               | @ref Botanik::Terminal::AnsiTerminal::switch_to "switch_to(9)" (if registered)                           |
-| TAB / Ctrl+PageDown | @ref Botanik::Terminal::AnsiTerminal::switch_relative "switch_relative(true)" - next page, wraps         |
-| Ctrl+PageUp         | @ref Botanik::Terminal::AnsiTerminal::switch_relative "switch_relative(false)" - previous page, wraps    |
+| HOME                | @ref Botanik::Terminal::Console::switch_to "switch_to(0)" - jump to the first page                  |
+| Alt+1 ... Alt+9       | @ref Botanik::Terminal::Console::switch_to "switch_to(0...8)"                                         |
+| Alt+0               | @ref Botanik::Terminal::Console::switch_to "switch_to(9)" (if registered)                           |
+| TAB / Ctrl+PageDown | @ref Botanik::Terminal::Console::switch_relative "switch_relative(true)" - next page, wraps         |
+| Ctrl+PageUp         | @ref Botanik::Terminal::Console::switch_relative "switch_relative(false)" - previous page, wraps    |
 | Ctrl+C              | @ref Botanik::Pages::Page::handle_cancel "page->handle_cancel()" first; if declined, default: quit (simulator) / no-op (hardware) |
 
 ## Shell page
@@ -48,7 +48,7 @@ Every editing action drives the @ref Botanik::Terminal::TextEditor line editor.
 | BACKSPACE             | @ref Botanik::Terminal::TextEditor::backspace "editor.backspace(count)" (Ctrl+H or DEL)                 |
 | Ctrl+D / DELETE       | @ref Botanik::Terminal::TextEditor::delete_forward "editor.delete_forward(count)"                       |
 | Ctrl+U                | @ref Botanik::Terminal::TextEditor::reset "editor.reset()" - clear the line                              |
-| Ctrl+C                | @ref Botanik::Pages::ShellPage::handle_cancel "handle_cancel()" - echo + discard the line (terminal intercept) |
+| Ctrl+C                | @ref Botanik::Pages::ShellPage::handle_cancel "handle_cancel()" - echo + discard the line (console intercept) |
 | Ctrl+K / Ctrl+W / Ctrl+Y | kill ring - TODO, no-op                                                                              |
 | Ctrl+R                | history search - TODO, no-op                                                                            |
 | **Selection / Mark**  |                                                                                                        |
@@ -78,7 +78,7 @@ Read-only metric displays, handled by the shared
 
 ## Notes
 
-- **TAB is a terminal intercept** cycling to the next page (Shift+Tab decodes to the
+- **TAB is a console intercept** cycling to the next page (Shift+Tab decodes to the
   same command); shell auto-completion is not wired up.
 - **Held keys are coalesced.** The parser batches repeated BACKSPACE / Ctrl+D into a
   single command with a `count`, so the editor does one reconcile pass instead of N -
