@@ -1,3 +1,4 @@
+// REVIEW_35: DONE
 #ifndef UTILS_ASSERT_H
 #define UTILS_ASSERT_H
 
@@ -6,13 +7,12 @@
  * @brief BOTANIK_ASSERT - debug-only assertions that log, then trap or
  *        continue.
  *
- * In release builds (DEBUG undefined) the macro compiles out entirely. In debug
- * builds a failed assertion logs a CRITICAL entry under the ASSERT topic (when
- * a logger was registered via set_assert_logger), then:
- *   - traps into an attached debugger (gated on HAL::Debug::under_debugger(), because
- *     a bare breakpoint with no debugger HardFaults on the OPTA);
- *   - otherwise abort()s on the simulator (loud failure in a headless/CI run);
- *   - otherwise (hardware, no debugger) it has already logged, and continues.
+ * This macro is compiled out entirely in release builds, it's only used when
+ * DEBUG is defined. It logs a CRITICAL entry under the ASSERT topic, then :
+ *   - if there is a debugger, traps into the attached debugger
+ *   - if we are on the simulator, abort()s on the simulator
+ *   - otherwise, just keeps running.
+ * 
  */
 
 #include <cstdlib>   // abort
@@ -20,34 +20,51 @@
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/logs/logger.h"
 
+// Assertion handling (and logging)
+// ===========================================================================
+
 namespace Botanik {
 
-    /** @brief Accessor for the assert logger (function-local static keeps this
-     *  header-only; set once via set_assert_logger, may stay null). */
+    /** @brief Get the global assertion logger. */
     inline Logs::Logger*& get_assert_logger() {
         static Logs::Logger* logger = nullptr;
         return logger;
     }
 
-    /** @brief Register the assert logger. @note a single process-global, so
-     *  with multiple firmware instances the last setup() wins (fine here). */
-    inline void set_assert_logger(Logs::Logger* logger) { get_assert_logger() = logger; }
+    /** @brief Set the global assertion logger.  */
+    inline void set_assert_logger(Logs::Logger* logger) { 
+        get_assert_logger() = logger;
+    }
 
     /** @brief Assertion-failure handler (see BOTANIK_ASSERT). */
     inline void assert_fail(const char* expr, const char* file, int line) {
+        // Get the assertion logger
         Logs::Logger* logger = get_assert_logger();
+
+        // Log a message if we have a logger
         if (logger != nullptr)
-            logger->critical(Logs::ASSERT, "assertion failed: %s (%s:%d)",
+            logger->critical(Logs::ASSERT, "assertion failed:\n%s (%s:%d)",
                              expr, file, line);
+
         // Break for the debugger.
-        if (HAL::Debug::under_debugger()) { HAL::Debug::breakpoint(); return; }
+        if (HAL::Debug::under_debugger()) { 
+            HAL::Debug::breakpoint(); 
+            return;
+        }
+
+        // If on the simulator, abort the program.
 #ifdef TARGET_SIMULATOR
-        abort();   // loud failure, no debugger
+        abort();
 #endif
-        // Hardware, no debugger: logged above; keep running rather than reboot.
+
+        // If on hardware, keep running.
+        return;
     }
 
 }
+
+// BOTANIK_ASSERT macro
+// ===========================================================================
 
 #ifdef DEBUG
     #define BOTANIK_ASSERT(cond) \
