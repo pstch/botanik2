@@ -127,6 +127,21 @@ class Term:
             if (changed and now - last_change >= quiet) or now >= deadline:
                 return
 
+    def wait_for(self, needles, timeout=6.0):
+        """Pump until every string in `needles` appears somewhere on screen.
+
+        """
+        if isinstance(needles, str):
+            needles = (needles,)
+        deadline = time.time() + timeout
+        while True:
+            blob = "\n".join(self.screen.display)
+            if all(n in blob for n in needles):
+                return True
+            if time.time() >= deadline:
+                return False
+            self._pump(0.02)
+
     # -- inspection ----------------------------------------------------------
 
     def snapshot(self):
