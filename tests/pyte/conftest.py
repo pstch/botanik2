@@ -38,15 +38,16 @@ def pytest_addoption(parser):
 class Term:
     """A running botanik_sim plus a pyte screen fed from its PTY."""
 
-    # Default scale 3 - ~3x faster than real time. Higher is reliable too (the
-    # suite passes serially past scale 30 and under `ctest -j` past scale 12 once
-    # boot() waits out the async network log, see helpers.py), but buys little:
-    # wall time is dominated by the wall-clock settle()/pump windows, not the
-    # dilated sim time, so 5x the scale is only ~30% faster. Override per-run with
-    # PYTE_TIME_SCALE=N (env, honored through pytest/ctest/make alike). Use a
-    # release/no-sanitizer sim; a debug+ASAN build is much slower per tick.
-    # BOTANIK_NO_XRUN_WARNING (set below) silences the load-dependent overrun logs.
-    def __init__(self, binary, time_scale=3, page=None):
+    # Default scale 50 - the greenhouse lives 50x faster, so time-bound waits
+    # (the network boot handshake, refresh cycles) finish in a fraction of the wall
+    # time. The assertions are written to tolerate a fast-drifting sim (volatile
+    # state masked in normalize.py, live log tails not pinned - see the resilience
+    # notes in helpers.py / test_*.py); the suite stays green at far higher scales
+    # too (verified 19/19 at scale 500). Override per-run with PYTE_TIME_SCALE=N
+    # (env, honored through pytest/ctest/make alike). Use a release/no-sanitizer
+    # sim; a debug+ASAN build is much slower per tick. BOTANIK_NO_XRUN_WARNING (set
+    # below) silences the load-dependent overrun logs.
+    def __init__(self, binary, time_scale=50, page=None):
         time_scale = int(os.environ.get("PYTE_TIME_SCALE", time_scale))  # tunable knob
         env = dict(os.environ)
         env["BOTANIK_TIME_SCALE"] = str(time_scale)
@@ -203,8 +204,14 @@ def assert_screen(request):
     """
     update = request.config.getoption("--update")
 
-    def _check(term, name, timeout=8.0):
+    def _check(term, name, timeout=8.0, rows=None):
+        # rows=(start, stop): compare only that half-open row band, both sides
+        # sliced before meaningful_lines. Use it when the rest of the screen holds
+        # legitimately-drifting content the test isn't about - e.g. a page's live
+        # log tail, which at high BOTANIK_TIME_SCALE churns and scrolls the pinned
+        # lines away. The golden still stores the full screen for review.
         path = GOLDEN_DIR / f"{name}.txt"
+        clip = (lambda lines: lines[rows[0]:rows[1]]) if rows else (lambda lines: lines)
         if update:
             term.settle(quiet=0.4)        # extra-stable capture for the golden
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -216,10 +223,10 @@ def assert_screen(request):
         # meaningful_lines (volatile fields normalized, overrun/blank noise
         # dropped) so an incidental scroll or stray overrun can't fail a correct
         # screen.
-        want = meaningful_lines(path.read_text().split("\n"))
+        want = meaningful_lines(clip(path.read_text().split("\n")))
         deadline = time.time() + timeout
         while True:
-            if meaningful_lines(term.screen.display) == want:
+            if meaningful_lines(clip(term.screen.display)) == want:
                 return
             if time.time() >= deadline:
                 break

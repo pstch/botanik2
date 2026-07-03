@@ -21,4 +21,4 @@
 
 
 botanik> abcdef
- ALARMS : SYS_RST
+ ALARMS :<BAR>

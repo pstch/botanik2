@@ -165,10 +165,11 @@ if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
         add_dependencies(check pyte-sim)
 
         # Opt-in golden regeneration (NOT part of check/test, so the gate never
-        # rewrites expectations). Review the diff before committing. PYTE_TIME_SCALE
-        # (read by conftest.py) runs the sim clock faster than the assert suite's
-        # default so a regen finishes sooner; override it on the command line if a
-        # capture races (see tests/pyte/README.md on time dilation).
+        # rewrites expectations). Review the diff before committing. Regen runs at a
+        # deliberately moderate scale (below the assert suite's default) so each
+        # golden captures a low-drift snapshot - the assertions mask volatile state
+        # either way, but a calm capture is easier to eyeball. Override on the
+        # command line if a capture races (see tests/pyte/README.md on time dilation).
         set(BOTANIK_PYTE_UPDATE_SCALE 6 CACHE STRING
             "Sim time-scale used when regenerating pyte goldens (pytest-update)")
         add_custom_target(pytest-update

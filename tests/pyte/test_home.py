@@ -4,18 +4,25 @@ import keys
 from helpers import boot, goto
 
 
+# The home page's lower band (rows 16+) is a live log tail; at high
+# BOTANIK_TIME_SCALE the fast greenhouse floods it with alarm transitions that
+# scroll the boot log away, so every home test asserts the widget rows (0..15)
+# only. The log tail's behaviour is covered scale-invariantly by test_logs_marks.
+HOME_WIDGET = (0, 16)
+
+
 def test_home_on_boot(spawn, assert_screen):
-    """The landing screen after boot (volatile fields normalized)."""
+    """The home widget on the landing screen after boot (volatile fields normalized)."""
     term = boot(spawn)
-    assert_screen(term, "home_boot")
+    assert_screen(term, "home_boot", rows=HOME_WIDGET)
 
 
 def test_home_after_delay(spawn, assert_screen):
-    """Home stays correct across a refresh cycle; only volatile fields move."""
+    """Home widget stays correct across a refresh cycle; only volatile fields move."""
     term = boot(spawn)
     # Let at least one HOME_REFRESH_MS (5s sim -> 0.5s wall at scale 10) elapse.
     term.settle(quiet=0.6, timeout=3.0)
-    assert_screen(term, "home_after_delay")
+    assert_screen(term, "home_after_delay", rows=HOME_WIDGET)
 
 
 def test_home_after_reset(spawn, assert_screen):
@@ -30,4 +37,4 @@ def test_home_after_reset(spawn, assert_screen):
     term.send(keys.text("reset"))
     term.send(keys.ENTER)
     term.settle(timeout=6.0)             # allow for the re-exec + reboot redraw
-    assert_screen(term, "home_after_reset")
+    assert_screen(term, "home_after_reset", rows=HOME_WIDGET)

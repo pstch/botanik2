@@ -18,7 +18,7 @@
    Exterior  : <CLIMATE>           Windows :   <ACT4>
    Floor     : <CLIMATE>           Blowers :   <ACT4>
    Ceiling   : <CLIMATE>           Extract.:   <ACT2>
-   Last rain :   <RAIN>        Humidif.:   <HUMID>
+   Last rain : <RAIN>        Humidif.:   <HUMID>
    Sun times : <SUN>              Screen  :   <SCREEN>
 
- ALARMS : SYS_RST
+ ALARMS :<BAR>

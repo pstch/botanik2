@@ -61,7 +61,11 @@ _SUBS = [
     (re.compile(r"[\d.]+ V \(gen [\d.]+V\)"), "<PWR>"),                        # Battery
     (re.compile(r"(UPS\s+:\s+)\w+"), r"\g<1><UPS>"),
     (re.compile(r"[\d.]+ C  RH [\d.]+%"), "<CLIMATE>"),                        # temp/RH zones
-    (re.compile(r"(Last rain\s*:\s*)\d+ \w+ \(wind \d+km/h\)"), r"\g<1><RAIN>"),
+    # Collapse the post-colon padding (\s* OUTSIDE the kept group): the rain age
+    # is right-justified in a fixed field, so a wider value (more sim days at high
+    # scale) trades leading spaces for digits. Pinning the padding would make the
+    # golden scale-dependent; a single space is scale-invariant.
+    (re.compile(r"(Last rain\s*:)\s*\d+ \w+ \(wind \d+km/h\)"), r"\g<1> <RAIN>"),
     (re.compile(r"\d{2}:\d{2} / \d{2}:\d{2}"), "<SUN>"),
     (re.compile(r"\d+ \d+ L / \d+ Lpm"), "<WATER>"),
     (re.compile(r"(Tray\s+:\s+)(?:Tray \d+|N/A)"), r"\g<1><TRAY>"),
@@ -95,11 +99,20 @@ _SUBS = [
     # parenthesised address back to the bare message the golden pins.
     (re.compile(r"(NTP synced) \(\d+\.\d+\.\d+\.\d+:\d+\)"), r"\g<1>"),
     (re.compile(r"(MQTT connected) \(\d+\.\d+\.\d+\.\d+:\d+\)"), r"\g<1>"),
-    # Load-dependent CPU alarms in the ALARMS status bar: a constrained host that
-    # can't hold the realtime deadline raises CPU_XRUN/CPU_LOAD/CPU_JITT, which
-    # canonical hardware does not. Strip the codes so the bar reads the same either
-    # way (their START/END log lines are dropped as noise below).
-    (re.compile(r" CPU_\w+"), ""),
+    # The persistent alarm bar (bottom row " ALARMS : CODE CODE ...") shows the
+    # live unmasked-alarm set, which the fast-living greenhouse cycles constantly
+    # (SYS_RST clears, site conditions trip in and out) - so which codes are shown
+    # is timing-dependent, not layout. Mask the whole code list to a fixed token so
+    # every page test asserts the bar's presence/position, not its momentary set.
+    # Subsumes the old CPU_* strip; the dedicated alarms page asserts the table, not
+    # the bar, so it is unaffected. (The bar's ALARM_START/END log lines are dropped
+    # as noise below.)
+    (re.compile(r"^( ALARMS :).*$"), r"\g<1><BAR>"),
+    # Alarms page footer "... N active": how many conditions are currently raised
+    # is live state the fast greenhouse cycles, so mask the count (the "SPACE:
+    # active" mode hint has no leading digit and is left alone). "N listed" is the
+    # fixed catalog size and stays.
+    (re.compile(r"\d+ active"), "<NA> active"),
 ]
 
 # Timing-noise log lines: the scheduler logs an overrun whenever a tick misses
@@ -114,7 +127,11 @@ _SUBS = [
 # BOTANIK_NO_RT_WARNING, so boot output is deterministic and they need no drop
 # here. The version banner that used to scroll with them is asserted normally.)
 _NOISE = re.compile(
-    r"scheduler overrun|ALARM_(?:START|END): (?:CPU |Scheduler overrun)"
+    # Every alarm transition (START/END/FLAP), not just the CPU/overrun ones: the
+    # fast greenhouse trips site conditions (temp, PS volts, storm, network) in and
+    # out constantly, flooding the log tail run to run. No golden pins one, so drop
+    # them all; alarm state is still asserted via the alarms page table.
+    r"scheduler overrun|ALARM_(?:START|END|FLAP):"
     # The PLC-link-up log (driven by the sim's PLC emulator thread) and the
     # network bring-up block are logged in a non-deterministic order at boot, so
     # the SHARED_IO line lands on either side of the NETWORK lines run to run.

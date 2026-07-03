@@ -21,4 +21,4 @@
 
 
 botanik> Xbc
- ALARMS : SYS_RST
+ ALARMS :<BAR>

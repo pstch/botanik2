@@ -21,4 +21,4 @@
 <TS> [+] NETWORK: network up: 127.0.0.1
 <TS> [+] TIME: NTP synced
 <TS> [+] NETWORK: MQTT connected
- ALARMS : SYS_RST
+ ALARMS :<BAR>

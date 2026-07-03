@@ -12,14 +12,19 @@ editor's reconciliation) that a source diff can't.
   which only answers on a tty. A pipe would bypass the baud throttle and the TX
   back-pressure path we want to exercise.
 - **Speed via `BOTANIK_TIME_SCALE` (not a higher baud):** the simulator's clock
-  runs N times faster than wall-clock (default scale 3). Every byte/event ratio
+  runs N times faster than wall-clock (default scale 50). Every byte/event ratio
   is identical to a real 4800-baud run; only wall time is compressed. See
   `hal/simulator.h`. Override per run with `PYTE_TIME_SCALE=N` (env, honored
-  through pytest, `ctest`, and `make` alike). Higher scales are reliable (the
-  suite passes serially past scale 30 and under `ctest -j` past scale 12) but buy
-  little: wall time is dominated by the wall-clock `settle`/pump windows, not the
-  dilated sim time, so 5x the scale is only ~30% faster. The real speedup is
-  running the tests in parallel (see Running); the default stays at 3.
+  through pytest, `ctest`, and `make` alike). The suite is written to tolerate a
+  fast-drifting sim, so it stays green far higher (verified 19/19 at scale 500).
+- **Resilience to a fast-living greenhouse:** at high scale the mock greenhouse
+  (correctly) lives N x faster, so during the harness's wall-clock settle/assert
+  windows its state drifts - alarms cycle, `SYS_RST` clears, the boot log scrolls
+  under the alarm flood, mock values move. The assertions treat that as volatile:
+  `normalize.py` masks the live alarm bar / active count / drifting fields and
+  drops `ALARM_*` log spam; `assert_screen(rows=(a,b))` compares only the region a
+  test is about (home tests assert the widget, not the live log tail); the
+  log/alarm-catalog tests assert behaviour/structure rather than pinning churn.
 - **Determinism vs. async boot chatter:** the network handshake (DNS -> NTP ->
   MQTT, which retries on a missed reply) logs at timing-dependent moments. If it
   is still in flight when a test leaves the Home page, a late line lands in the

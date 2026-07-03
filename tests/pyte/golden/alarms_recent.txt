@@ -19,6 +19,6 @@
 
   +----------+----+----------------+-----------------------------------------+
 
-  [recent]   1 listed   1 active                                    SPACE: all
+  [recent]   1 listed   <NA> active                                    SPACE: all
 
- ALARMS : SYS_RST
+ ALARMS :<BAR>

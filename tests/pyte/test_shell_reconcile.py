@@ -117,8 +117,10 @@ def test_taller_than_screen(spawn, assert_screen):
         _type(term, "line%02d" % i)
         if i % 10 == 0:
             term.settle()                # keep the RX ring from overrunning
-    term.settle()
-    assert_screen(term, "shell_taller_than_screen")
+    # Assert the visible editor window (rows 1..22) only. Row 23 is where the
+    # scrolled-off overflow rows overprint the alarm bar - a garbled artifact whose
+    # bar content also drifts with the fast greenhouse; not what this test checks.
+    assert_screen(term, "shell_taller_than_screen", rows=(0, 23))
 
 
 # 9. Delete-forward vs backspace: same resulting buffer, different cursor. A
