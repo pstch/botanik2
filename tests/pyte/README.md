@@ -15,7 +15,11 @@ editor's reconciliation) that a source diff can't.
   runs N times faster than wall-clock (the harness uses scale 3). Every
   byte/event ratio is identical to a real 4800-baud run; only wall time is
   compressed. See `hal/simulator.h`. Scale 3 leaves ~3ms wall per 10ms tick;
-  pushing higher (>=5) makes input/render race at the ~1ms budget.
+  pushing higher (>=5) makes input/render race at the ~1ms budget and the sim
+  starts dropping keystrokes (measured: flaky from scale 4 up, and no wall-time
+  win since the per-test `settle`/pump windows are wall-clock, not sim-time). The
+  speedup comes from running the tests in parallel instead (see Running), so the
+  factor stays at 3.
 - **Release sim only:** the tests run against a release, no-sanitizer
   `botanik_sim` (the CMake target builds one in a sub-tree). A debug+ASAN build
   is too slow per dilated tick.
@@ -46,6 +50,14 @@ never fails configure and never installs).
 ctest --test-dir build-debug -R pyte --output-on-failure   # via CTest
 make -C build-debug check                                  # part of the gate
 ```
+
+Each test function is its own CTest entry (`pyte:<file>::<func>`, discovered at
+configure time), so `ctest -j` runs them concurrently - this is where the wall-
+time win comes from. The `.envrc` exports `CTEST_PARALLEL_LEVEL=$(nproc)` so a
+bare `ctest` parallelizes; `make check` passes the same `-j` explicitly. The job
+count is bounded to the core count on purpose: each dilated sim needs a whole
+core to keep its per-tick budget, so oversubscribing them reintroduces the
+dropped-input flakiness (same failure mode as raising the time scale).
 
 Or directly (needs a release sim binary). Pass the test dir explicitly so pytest
 loads this `conftest.py` (and the `--sim`/`--update` options) regardless of CWD:

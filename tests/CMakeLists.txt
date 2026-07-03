@@ -56,8 +56,24 @@ doctest_discover_tests(botanik_tests)
 #   - clang-tidy     : bugprone static analysis, findings promoted to errors
 # clang-tidy is added conditionally since the target only exists when
 # run-clang-tidy was found at configure time.
+#
+# The gate runs ctest in parallel (-j): the doctest cases and, now, the per-test
+# pyte entries are independent, so a multi-core host clears the suite far faster.
+# Defaults to the host core count; override with -DBOTANIK_CTEST_JOBS=N. Bounding
+# -j to the core count is deliberate: each dilated pyte sim needs a whole core to
+# meet its per-tick wall budget, so oversubscribing them drops input (the same
+# failure mode as raising BOTANIK_TIME_SCALE). At -j = cores, at most `cores` sims
+# run at once, one core each - measured reliable; a higher scale is not (see
+# tests/pyte/README.md).
+include(ProcessorCount)
+ProcessorCount(_nproc)
+if(_nproc EQUAL 0)
+    set(_nproc 4)
+endif()
+set(BOTANIK_CTEST_JOBS ${_nproc} CACHE STRING
+    "Parallel job count for the ctest gate (make check)")
 add_custom_target(check
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j ${BOTANIK_CTEST_JOBS}
     DEPENDS botanik_tests botanik_strict
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Pre-push gate: warning-clean build + clang-tidy + unit tests"
@@ -108,13 +124,46 @@ if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
             VERBATIM)
         add_custom_target(pyte-sim DEPENDS ${_pyte_sim_bin})
 
-        # One CTest entry running the whole pytest suite. The test dir is passed
-        # explicitly so pytest loads its conftest (and thus the --sim/--update
-        # options) regardless of the invocation's CWD.
-        add_test(NAME pyte
-            COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider
-                    ${_pyte_dir} --sim ${_pyte_sim_bin}
-            WORKING_DIRECTORY ${_pyte_dir})
+        # One CTest entry per pytest test function (not the whole suite as a
+        # single pass/fail), mirroring doctest_discover_tests. We ask pytest for
+        # its node IDs at configure time (--collect-only just imports the modules,
+        # so it needs neither the sim nor a build) and emit an add_test() per ID.
+        # Re-run configure to pick up added/removed/renamed tests: the CONFIGURE_DEPENDS
+        # glob refreshes when the file set changes, and CMAKE_CONFIGURE_DEPENDS
+        # re-triggers when an existing file's contents do.
+        file(GLOB _pyte_test_files CONFIGURE_DEPENDS ${_pyte_dir}/test_*.py)
+        set_property(DIRECTORY APPEND PROPERTY
+            CMAKE_CONFIGURE_DEPENDS ${_pyte_test_files})
+        execute_process(
+            COMMAND ${Python3_EXECUTABLE} -m pytest --collect-only -q
+                    -p no:cacheprovider
+            WORKING_DIRECTORY ${_pyte_dir}
+            OUTPUT_VARIABLE _pyte_collect
+            RESULT_VARIABLE _pyte_collect_rc
+            ERROR_QUIET)
+        string(REGEX MATCHALL "test_[^ \n]+\\.py::[^ \n]+" _pyte_nodes "${_pyte_collect}")
+        if(_pyte_collect_rc EQUAL 0 AND _pyte_nodes)
+            foreach(_node IN LISTS _pyte_nodes)
+                # The node ID is passed explicitly; WORKING_DIRECTORY is the test
+                # dir so pytest loads its conftest (the --sim option) regardless of
+                # the invocation's CWD.
+                add_test(NAME "pyte:${_node}"
+                    COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider
+                            ${_node} --sim ${_pyte_sim_bin}
+                    WORKING_DIRECTORY ${_pyte_dir})
+            endforeach()
+            list(LENGTH _pyte_nodes _pyte_count)
+            message(STATUS "pyte: registered ${_pyte_count} screen tests")
+        else()
+            # Collection failed (e.g. a syntax error in a test module): fall back to
+            # a single entry running the whole suite so coverage is never silently
+            # dropped, and the failure surfaces when the test runs.
+            message(WARNING "pyte: --collect-only failed; registering the suite as one test")
+            add_test(NAME pyte
+                COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider
+                        ${_pyte_dir} --sim ${_pyte_sim_bin}
+                WORKING_DIRECTORY ${_pyte_dir})
+        endif()
         # ctest/make test don't build; `check` does — make it build the sim too.
         add_dependencies(check pyte-sim)
 
