@@ -218,7 +218,7 @@ namespace Botanik { namespace Pages {
             // Settles between bursts, so keep the highlight. Drops clamped
             // against field overflow, depth and drops width-padded so the
             // separators hold a fixed column.
-            uint32_t drops = _terminal.tx_dropped();
+            uint32_t drops = _terminal.serial().tx_dropped();
             if (drops > 9999) drops = 9999;
             snprintf(val, sizeof(val), "%4u/%u (drops: %4lu)",
                      _terminal.tx_used(), AnsiTerminal::tx_capacity(), (unsigned long)drops);

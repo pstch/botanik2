@@ -204,8 +204,8 @@ namespace Botanik { namespace Shell {
             "Stack usage .................", val, detail);
 
         snprintf(detail, sizeof(detail), "%lu TX dropped, %lu RX overruns",
-            (unsigned long)_terminal.tx_dropped(),
-            (unsigned long)_terminal.rx_overrun());
+            (unsigned long)_terminal.serial().tx_dropped(),
+            (unsigned long)_terminal.serial().rx_overrun());
         _emitf(out, sizeof(out), "%-29s : %s",
             "Console serial ..............", detail);
     }

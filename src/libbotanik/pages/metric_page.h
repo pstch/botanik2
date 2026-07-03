@@ -28,6 +28,7 @@
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/pages/page.h"
 #include "libbotanik/terminal/terminal.h"
+#include "libbotanik/terminal/field.h"
 #include "libbotanik/plcio/sync.h"
 
 namespace Botanik { namespace Pages {
@@ -288,10 +289,7 @@ namespace Botanik { namespace Pages {
 
             // Render into the fixed-width, space-padded field.
             char     cf[CACHE_COLS];
-            uint16_t vlen = 0;
-            for (const char* p = s; *p && vlen < width; ++p) cf[vlen++] = *p;
-            for (uint16_t i = vlen; i < width; ++i) cf[i] = ' ';
-            cf[width] = '\0';
+            uint16_t vlen = Terminal::Field::render(cf, s, width);
 
             const bool     cached = (slot < CACHE_SLOTS);
             const bool     fresh  = !cached || (_vfresh & (1u << slot)) != 0;
@@ -300,14 +298,8 @@ namespace Botanik { namespace Pages {
 
             // Per-column change mask, promoted to whole-subfield highlights: a
             // digit run lights if any of its digits moved.
-            uint32_t chg = 0, newhi = 0;
-            if (fresh) {
-                // blank screen: emit glyphs only, no highlight
-                for (uint16_t i = 0; i < width; ++i)
-                    if (cf[i] != ' ') chg |= (1u << i);
-            } else {
-                for (uint16_t i = 0; i < width; ++i)
-                    if (cf[i] != prev[i]) chg |= (1u << i);
+            uint32_t chg = Terminal::Field::changed(cf, prev, width, fresh), newhi = 0;
+            if (!fresh) {
                 // Highlight opt-out keeps a settled subfield from re-emitting
                 // just to clear an inversion - only changed glyphs are written.
                 if (highlight && invert) {

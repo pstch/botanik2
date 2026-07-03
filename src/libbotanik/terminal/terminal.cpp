@@ -17,10 +17,6 @@
 #include "libbotanik/terminal/parser.h"
 #include "libbotanik/terminal/terminal.h"
 #include "libbotanik/terminal/ansi.h"
-#include "libbotanik/scheduler/scheduler.h"
-#include "libbotanik/plcio/sync.h"
-#include "libbotanik/utils/time.h"
-#include "libbotanik/alarms/alarms.h"
 
 
 namespace Botanik { namespace Terminal {
@@ -43,7 +39,9 @@ namespace Botanik { namespace Terminal {
         _cols(cols),
         _rows(rows),
         _alarms(alarms),
-        _logger(logger)
+        _logger(logger),
+        _status_bar(*this),
+        _alarm_bar(*this)
     {
         // Size the shared cooperative-TX depth floor from the link baud so the
         // felt echo latency target (Config::TX_COLD_TARGET_MS) holds across
@@ -54,7 +52,6 @@ namespace Botanik { namespace Terminal {
     }
 
     void AnsiTerminal::step() {
-        using Command = InputEvent::Command;
         announce_step(_logger, "AnsiTerminal");
         // Snapshot the RX depth before the parse loop below drains it, so the
         // serial gauge reports what was actually waiting this cycle rather than
@@ -67,36 +64,31 @@ namespace Botanik { namespace Terminal {
         // do.
         if (!_screen_ready) {
             _establish_screen();
-            draw_status_row();
+            _status_bar.draw_row();
             if (_pages_len > 0 && _pages[_page_index] != nullptr)
                 _pages[_page_index]->focus();
         }
-        uint64_t now = HAL::Clock::uptime_ms();
         // Status bar paints first each tick (self-contained), interleaving with
-        // the active page's draw. Its two fields (centred HH:MM:SS clock,
-        // right-aligned metrics) share TX_STATUS_FIELDS_PER_TICK and the depth
-        // floor; the round-robin cursor rotates which repaints first so a tight
-        // budget never favours the clock. A field repaints only on its own
-        // cadence; an unchanged field spends no budget.
-        uint16_t status_budget = Config::TX_STATUS_FIELDS_PER_TICK;
-        for (uint8_t v = 0; v < 2 && status_budget > 0 && tx_below_cold(); v++) {
-            if (_status_field == 0) {
-                if (now - _status_clock_last_ms >= Config::PAGE_HOT_MS) {
-                    _status_clock_last_ms = now;
-                    if (update_status_clock()) status_budget--;
-                }
-            } else {
-                if (now - _status_last_ms >= Config::STATUS_REFRESH_MS) {
-                    // Advance the refresh clock only once the pass fully synced
-                    // the on-screen metrics; a partial run leaves it for the
-                    // next tick instead of waiting out another full
-                    // STATUS_REFRESH_MS.
-                    if (update_status_metrics()) _status_last_ms = now;
-                    status_budget--;
-                }
-            }
-            _status_field ^= 1;
-        }
+        // the active page's draw.
+        _status_bar.step(HAL::Clock::uptime_ms());
+        // Drain buffered input into the active page (terminal-level intercepts
+        // like Ctrl-L and page switches are consumed first).
+        _pump_input();
+        // Tick every page, not just the active one: each is its own LogWriter
+        // and must drain into its scrollback every step so a later focus()
+        // replays an up-to-date tail. Inactive pages don't render (gated on
+        // their active flag).
+        for (uint8_t i = 0; i < _pages_len; i++)
+            if (_pages[i] != nullptr) _pages[i]->tick(i == _page_index);
+        // Last: top up the bottom alarm bar over whatever the active page just
+        // drew. Self-gated (no-op unless the set changed or the row was wiped)
+        // and saves/restores the page cursor, so it never disturbs a settled
+        // page.
+        _alarm_bar.step();
+    }
+
+    void AnsiTerminal::_pump_input() {
+        using Command = InputEvent::Command;
         // Handle up to INPUT_EVENTS_PER_TICK events this tick so a paste or
         // fast typing stays responsive without letting a flood monopolise the
         // loop. Light events (text echo, cursor/edit commands) keep iterating;
@@ -118,7 +110,7 @@ namespace Botanik { namespace Terminal {
             // the tick).
             if (ev.command == Command::CTRL_L) {
                 clear_screen();
-                draw_status_row();
+                _status_bar.draw_row();
                 page->redraw();
                 break;
             }
@@ -155,17 +147,6 @@ namespace Botanik { namespace Terminal {
             // tick.
             page->handle_command(ev.command, ev.count);
         }
-        // Tick every page, not just the active one: each is its own LogWriter
-        // and must drain into its scrollback every step so a later focus()
-        // replays an up-to-date tail. Inactive pages don't render (gated on
-        // their active flag).
-        for (uint8_t i = 0; i < _pages_len; i++)
-            if (_pages[i] != nullptr) _pages[i]->tick(i == _page_index);
-        // Last: top up the bottom alarm bar over whatever the active page just
-        // drew. Self-gated (no-op unless the set changed or the row was wiped)
-        // and saves/restores the page cursor, so it never disturbs a settled
-        // page.
-        _run_alarm_bar();
     }
 
     // Cursor & geometry
@@ -181,25 +162,19 @@ namespace Botanik { namespace Terminal {
             return;
         }
 
-        // Emit the move all-or-nothing: on a TX-full failure leave _hw_pos
-        // untouched so tracking stays truthful (a wrong _hw_pos smears every
-        // later write).
-        // skip=true updates tracking without emitting (hardware already moved).
+        // All-or-nothing: on TX-full leave _hw_pos untouched (a wrong _hw_pos
+        // smears every later write). skip=true tracks without emitting.
         bool ok = true;
         if (!skip) {
-            // A row-filling write parks the cursor at the assumed last column,
-            // but a real terminal wider than _cols leaves it one (or more)
-            // columns further right - so the parked column is unknown and any
-            // move computed off it would land short. Reposition absolutely: the
-            // one width-independent move.
+            // After a row-filling write the real column is unknown (a wider
+            // terminal parks further right), so a relative move lands short:
+            // reposition absolutely.
             if (_hw_at_eol) {
                 ok = Ansi::goto_absolute(_serial, target);
             }
-            // Prefer a relative move when the cursor shares the target's row or
-            // column; goto_absolute is for true diagonals only. A single-axis
-            // hop is never longer than an absolute goto, so there's no delta
-            // where absolute wins. target == _hw_pos returned above, so the
-            // differing axis is non-zero.
+            // Prefer a relative move when sharing the target's row or column
+            // (never longer than an absolute goto); absolute is for true
+            // diagonals only.
             else if (target.row == _hw_pos.row) { // Same row
                 if (target.col == 0) {
                     ok = Ansi::move_row_start(_serial);   // 1-byte CR beats CUB
@@ -230,6 +205,16 @@ namespace Botanik { namespace Terminal {
             _hw_pos = target;
             _hw_at_eol = false;
         }
+    }
+
+    void AnsiTerminal::restore_cursor(const CursorSnapshot& snap, bool restore_pos) {
+        set_inverted(snap.inverted);
+        if (restore_pos) {
+            move_to(snap.pos);
+            // move_to() cleared it; the page may have parked at EOL.
+            _hw_at_eol = snap.at_eol;
+        }
+        set_cursor_visible(snap.cursor_visible);
     }
 
     // Text output & character attributes
@@ -300,6 +285,19 @@ namespace Botanik { namespace Terminal {
         _hw_cursor_visible = show;
     }
 
+    void AnsiTerminal::fill_spaces(uint16_t to_col) {
+        // 31 spaces + NUL; the NUL must never reach the wire (terminals drop it
+        // without moving, but write_chars would still bump _hw_pos by its len).
+        static const char sp[32] = "                               ";
+        constexpr uint16_t SP_LEN = sizeof(sp) - 1;
+        // Drive termination off a local counter, not _hw_pos.col: filling to the
+        // last column parks the cursor at _cols-1 (auto-wrap is off UI-wide), so
+        // it never reaches to_col == _cols and a _hw_pos.col loop would spin.
+        for (uint16_t col = _hw_pos.col; col < to_col; col = (uint16_t)(col + SP_LEN)) {
+            write_chars(sp, std::min((uint16_t)(to_col - col), SP_LEN));
+        }
+    }
+
     // Content manipulation
 
     void AnsiTerminal::delete_chars(uint16_t len) {
@@ -335,9 +333,8 @@ namespace Botanik { namespace Terminal {
     void AnsiTerminal::clear_screen_now() {
         clear_screen();
         // Push the clear out now: the loop won't run again to drain the ring.
-        // transmit() never blocks (it flushes what the wire accepts), so spin
-        // until the ring empties. Bounded so a stuck/full wire can't hang the
-        // exit path (a clear is ~10 bytes).
+        // transmit() never blocks, so spin until empty, bounded so a stuck wire
+        // can't hang the exit path.
         for (uint16_t i = 0; i < tx_capacity() && !_serial.tx_empty(); i++)
             _serial.transmit();
     }
@@ -349,19 +346,16 @@ namespace Botanik { namespace Terminal {
         Ansi::clear_screen(_serial);
         _hw_pos = {0, 0};
         _hw_at_eol = false;
-        // Boot marker: emit "ACAB" once per process (gated on the first
-        // establish, so Ctrl-L redraws don't repeat it) to mark a fresh start /
-        // re-exec in the stream. Track the four columns it advances. (cols >=
-        // 5, so it can't wrap.)
+        // Boot marker: emit "ACAB" once per process (not on Ctrl-L redraws) to
+        // mark a fresh start in the stream. Track the 4 cols it advances (cols
+        // >= 5, so it can't wrap).
         if (!_screen_ready) {
             _serial.write("ACAB", 4);
             _hw_pos.col = 4;
         }
-        // Auto-wrap stays off UI-wide (every page pre-wraps its own content); a
-        // stray wrap parks the cursor and the next clear_to_eol eats a glyph.
-        // Emit unconditionally (a prior copy may have been discarded). Harmless
-        // on a Minitel that ignores it; free right-margin protection on one
-        // that honors it.
+        // Auto-wrap stays off UI-wide (pages pre-wrap; a stray wrap parks the
+        // cursor and the next clear_to_eol eats a glyph). Emit unconditionally
+        // (a prior copy may have been discarded).
         set_auto_wrap(false);
         // Hide the cursor by default (only the shell editor opts back in via
         // focus()). A fresh clear leaves it shown, so force the emit by
@@ -371,14 +365,13 @@ namespace Botanik { namespace Terminal {
         // Reset reverse-video and insert mode: ED clears neither, so the unit
         // may still hold them while our shadows read "normal". Force both emits
         // to resync.
-        _hw_inverted = true;
-        set_inverted(false);                    // -> SGR normal (ESC[m)
+        force_inverted(false);                  // -> SGR normal (ESC[m)
         Ansi::set_insert_mode(_serial, false);  // -> replace mode (ESC[4l)
         _hw_insert_mode = false;
         _screen_ready = true;
         // The clear wiped the alarm bar's row; flag it for the next step's bar
         // pass.
-        _alarm_dirty = true;
+        _alarm_bar.mark_dirty();
     }
 
     void AnsiTerminal::setup_vt102() {
@@ -439,14 +432,10 @@ namespace Botanik { namespace Terminal {
         uint16_t height = (uint16_t)(bottom - top + 1);
         if (n > height) n = height;   // scrolling the whole band just clears it
 
-        // The scroll is a DL/IL pair: the first op displaces every row below
-        // the band (including the reserved bottom alarm bar), the compensating
-        // op puts it back. A band that runs to the physical bottom needs no
-        // restore (those rows just fall off / were already blanked). Emit
-        // best-effort: the sub-ops are all-or-nothing on a full ring, so a
-        // tight ring drops the scroll rather than tearing the layout (callers
-        // that advance state assume it landed, so do not silently skip here -
-        // that desyncs them; let the ops fail individually instead).
+        // DL/IL pair: the first op displaces every row below the band, the
+        // compensating op restores it (a band running to the physical bottom
+        // needs no restore). Best-effort: sub-ops are all-or-nothing, so a tight
+        // ring drops the scroll rather than tearing the layout.
         bool restore = (bottom < phys_last);
 
         if (up) {
@@ -520,16 +509,13 @@ namespace Botanik { namespace Terminal {
             _pages[_page_index]->deactivate();
         uint8_t prev = _page_index;
         _page_index = index;
-        // Page change: keep row 0, clear only the content area. Drop bytes
-        // queued for the page we're leaving first (they'd paint onto the new
-        // page). _hw_pos is stale after the drop, so reposition absolutely (not
-        // relative move_to).
+        // Drop bytes queued for the page we're leaving (they'd paint onto the
+        // new one). _hw_pos is stale after the drop, so reposition absolutely.
         _serial.tx_discard();
-        // The discard can strand a half-sent sequence on the wire (transmit()
-        // stops mid-sequence under the baud throttle); cancel_sequence()
-        // resyncs the terminal to ground state so the tab repaint below isn't
-        // swallowed by a stuck parser - that swallow is what leaves some
-        // page-name chars un-inverted under TX load.
+        // The discard can strand a half-sent sequence on the wire;
+        // cancel_sequence() resyncs to ground state so the tab repaint below
+        // isn't swallowed by a stuck parser (that swallow is what left some tab
+        // chars un-inverted under TX load).
         Ansi::cancel_sequence(_serial);
         // Hide the cursor before any repaint so it doesn't blink across the
         // cleared content or the row-0 tabs. The page that wants it (shell
@@ -546,114 +532,19 @@ namespace Botanik { namespace Terminal {
         // Only the tabs' video flips on a switch, so repaint just the two
         // affected tabs (the one we left, the one we entered) rather than the
         // whole bar.
-        draw_status_tab(prev);
-        if (prev != index) draw_status_tab(index);
-        // The tx_discard above may have dropped a queued metrics or clock
-        // update; invalidate both diff caches so the next refresh repaints them
-        // in full (no bytes go out here - the on-screen row 0 survived the
-        // content clear).
-        memset(_status_metrics_cache, 0, sizeof(_status_metrics_cache));
-        memset(_status_clock_cache,   0, sizeof(_status_clock_cache));
-        // The discard can likewise tear a half-sent alarm-bar repaint, leaving
-        // the reserved bottom row partial. clear_content() preserves (doesn't
-        // repaint) that row, and the alarm set rarely changes, so without this
-        // the torn bar would never recover. Re-flag it for the next bar pass.
-        _alarm_dirty = true;
+        _status_bar.draw_tab(prev);
+        if (prev != index) _status_bar.draw_tab(index);
+        // The tx_discard may have dropped a queued row-0 update; invalidate the
+        // diff caches so the next refresh repaints them in full.
+        _status_bar.invalidate();
+        // The discard can likewise tear a half-sent alarm-bar repaint; the set
+        // rarely changes, so without re-flagging the torn bar would never
+        // recover.
+        _alarm_bar.mark_dirty();
         _pages[_page_index]->focus();
     }
 
-    // Status bar
-
-    void AnsiTerminal::draw_status_row() {
-        // field width (drop NUL)
-        constexpr uint16_t mlen = STATUS_METRICS_LEN - 1;
-
-        // Save the attribute only, not the cursor: every caller repositions
-        // absolutely right after, so a cursor restore here would be wasted.
-        bool      saved_inv = _hw_inverted;
-
-        move_to({0, 0});
-
-        // Force the reverse-video background to emit before the tabs: a prior
-        // tx_discard can leave _hw_inverted stale, which would make the first
-        // tab's set_inverted() a wrong no-op. Clear the tracked state to force
-        // it.
-        _hw_inverted = false;
-        set_inverted(true);
-
-        // One blank column, then one " NAME " tab per page. The bar is reverse
-        // video; the active tab is drawn normal so it stands out.
-        write_chars(" ", 1);
-        for (uint8_t i = 0; i < _pages_len; i++) {
-            if (_pages[i] == nullptr) continue;
-            const char* nm = _pages[i]->name();
-            set_inverted(i != _page_index);
-            write_chars(" ", 1);
-            write_chars(nm, (uint16_t)strlen(nm));
-            write_chars(" ", 1);
-        }
-        set_inverted(true);
-
-        // Middle: spaces up to metrics start column
-        uint16_t metrics_col = (_cols > (uint16_t)(mlen)) ? (uint16_t)(_cols - mlen) : 0;
-        // 31 spaces + NUL. The NUL must never reach the wire: terminals drop it
-        // without moving, but write_chars would still bump _hw_pos by its
-        // length.
-        static const char spaces[32] = "                               ";
-        constexpr uint16_t SPACES_LEN = sizeof(spaces) - 1;
-        while (_hw_pos.col < metrics_col) {
-            uint16_t chunk = std::min((uint16_t)(metrics_col - _hw_pos.col), SPACES_LEN);
-            write_chars(spaces, chunk);
-        }
-
-        // Right: invalidate the diff cache, then let update_status_metrics()
-        // paint - it's the single place that knows the per-field video and
-        // truncates narrow.
-        memset(_status_metrics_cache, 0, sizeof(_status_metrics_cache));
-        update_status_metrics(/*restore_cursor=*/false);
-
-        // Centred HH:MM:SS clock: invalidate its cache and paint the initial
-        // value so it is not blank until the first per-second hot tick.
-        memset(_status_clock_cache, 0, sizeof(_status_clock_cache));
-        update_status_clock(/*restore_cursor=*/false);
-
-        // Restore only the attribute; the cursor is left where the metrics
-        // parked it (the caller repositions absolutely).
-        set_inverted(saved_inv);
-    }
-
-    void AnsiTerminal::draw_status_tab(uint8_t index) {
-        if (index >= _pages_len || _pages[index] == nullptr) return;
-
-        // Tab columns mirror draw_status_row(): one leading blank, then one
-        // " NAME " (name length + 2) per page in order.
-        uint16_t col = 1;
-        for (uint8_t i = 0; i < index; i++) {
-            if (_pages[i] == nullptr) continue;
-            col += (uint16_t)(strlen(_pages[i]->name()) + 2);
-        }
-        const char* nm = _pages[index]->name();
-
-        // Save the attribute only, not the cursor: switch_to() draws both
-        // flipped tabs then lets the incoming focus() reposition, so a restore
-        // here is moot.
-        bool      saved_inv = _hw_inverted;
-
-        move_to({0, col});
-        // Active tab normal video, others reverse. Force the SGR to emit: a
-        // preceding tx_discard can leave _hw_inverted stale and make
-        // set_inverted() a wrong no-op (same hazard draw_status_row() guards).
-        bool inv = (index != _page_index);
-        _hw_inverted = !inv;
-        set_inverted(inv);
-        write_chars(" ", 1);
-        write_chars(nm, (uint16_t)strlen(nm));
-        write_chars(" ", 1);
-
-        // Restore only the attribute; the cursor is left for the caller (see
-        // above).
-        set_inverted(saved_inv);
-    }
+    // Field painter (shared by StatusBar and MetricPage)
 
     uint16_t AnsiTerminal::emit_field_run(uint16_t row, uint16_t col, const char* cf,
                                           uint16_t a, uint16_t b, uint32_t hi) {
@@ -699,226 +590,6 @@ namespace Botanik { namespace Terminal {
             emit_field_run(row, col, cf, a, i, hi);
         }
         set_inverted(false);   // leave the terminal normal
-    }
-
-    // Value-cell columns in the metrics string "PLC:xxx cpu:nnn% stk:nnn% " -
-    // drawn normal-video against the reverse-video bar. One place tied to the
-    // _build_metrics format so the layout and the highlight can't drift apart.
-    static bool metric_value_col(int c) {
-        return (c >= 4 && c <= 6)      // PLC status
-            || (c >= 12 && c <= 15)    // cpu value + '%'
-            || (c >= 21 && c <= 24);   // stk value + '%'
-    }
-
-    // Shared status-field paint: save the bar's video state, paint the changed runs,
-    // snapshot the cache, restore. The metrics caller brackets this with the cursor-
-    // visibility hide it alone needs; the byte sequence is otherwise identical.
-    void AnsiTerminal::_paint_status_field(uint16_t col, const char* field, uint16_t len,
-                                           uint32_t emit, uint32_t hi, char* cache,
-                                           bool restore_cursor) {
-        CursorPos saved_pos = _hw_pos;
-        bool      saved_inv = _hw_inverted;
-        bool      saved_eol = _hw_at_eol;   // move_to() below clears it; restore it too
-
-        paint_field_runs(0, col, field, len, emit, hi);
-        memcpy(cache, field, (size_t)len);
-
-        set_inverted(saved_inv);
-        // Periodic refreshes restore the cursor to where the page left it; draw_status_row
-        // passes restore_cursor=false (its caller repositions absolutely right after).
-        if (restore_cursor) { move_to(saved_pos); _hw_at_eol = saved_eol; }
-    }
-
-    bool AnsiTerminal::update_status_metrics(bool restore_cursor) {
-        char metrics[STATUS_METRICS_LEN];
-        int mlen = _build_metrics(metrics, sizeof(metrics));
-
-        // mlen is constant (fixed-width fields), so a byte index maps to a
-        // fixed col.
-        uint16_t visible = (uint16_t)std::min((int)_cols, mlen);
-        // nothing to draw == nothing left to sync
-        if (visible == 0) return true;
-        uint16_t metrics_col = (uint16_t)(_cols - visible);
-
-        // The bar is reverse video except the live readings - plc (cols 4..6),
-        // cpu (12..15), stk (21..24) - drawn normal. Build the changed-column
-        // mask and the highlight mask (inverted everywhere but the value cols)
-        // over the visible field.
-        uint32_t emit = 0, hi = 0;
-        for (uint16_t i = 0; i < (uint16_t)visible; ++i) {
-            if (metrics[i] != _status_metrics_cache[i]) emit |= (1u << i);
-            if (!metric_value_col(i)) hi |= (1u << i);
-        }
-        if (emit == 0) return true;   // already in sync, nothing to paint
-
-        bool saved_cur = _hw_cursor_visible;
-        // Hide the cursor before painting so it can't blink across row 0 while
-        // the bar updates (no-op if already hidden, e.g. on a non-shell page).
-        // The caller floor-gates this call and the guaranteed floor fits a whole
-        // field, so paint and cache it in one pass - paint_field_runs segments
-        // the SGR per hi at the value boundary.
-        set_cursor_visible(false);
-        _paint_status_field(metrics_col, metrics, (uint16_t)visible, emit, hi,
-                            _status_metrics_cache, restore_cursor);
-        set_cursor_visible(saved_cur);   // back at the page position, never on row 0
-        return true;
-    }
-
-    bool AnsiTerminal::update_status_clock(bool restore_cursor) {
-        // Wall-clock HH:MM:SS (same source as the STATUS page's "Wall Clock"
-        // field).
-        Utils::CalendarTime wc = Utils::cal_time_ms(HAL::Clock::uptime_ms());
-        // Oversized scratch so snprintf can't truncation-warn; only the first
-        // STATUS_CLOCK_LEN cells ("HH:MM:SS") are diffed/emitted below.
-        char clk[16];
-        snprintf(clk, sizeof(clk), "%02u:%02u:%02u",
-                 (unsigned)wc.hour, (unsigned)wc.minute, (unsigned)wc.second);
-
-        // Centre the field, nudged 5 columns right; skip on a terminal too
-        // narrow to fit it clear of the right-aligned metrics.
-        if (_cols < STATUS_CLOCK_LEN) return false;
-        uint16_t clock_col   = (uint16_t)((_cols - STATUS_CLOCK_LEN) / 2 + 5);
-        uint16_t metrics_col = (_cols > (uint16_t)(STATUS_METRICS_LEN - 1))
-                                   ? (uint16_t)(_cols - (STATUS_METRICS_LEN - 1)) : 0;
-        if ((uint16_t)(clock_col + STATUS_CLOCK_LEN) > metrics_col) return false;
-
-        // Diff vs the cache into a changed-column mask, then paint the whole
-        // field in one pass via the shared painter (hi = 0: normal video, so
-        // the digits stand out against the reverse-video bar). Floor-gated by
-        // the caller, so the tiny field is guaranteed to fit - cache it whole.
-        uint32_t emit = 0;
-        for (uint16_t i = 0; i < STATUS_CLOCK_LEN; ++i)
-            if (clk[i] != _status_clock_cache[i]) emit |= (1u << i);
-        if (emit == 0) return false;
-
-        _paint_status_field(clock_col, clk, STATUS_CLOCK_LEN, emit, 0u,
-                            _status_clock_cache, restore_cursor);
-        return true;
-    }
-
-    // Alarm bar
-
-    uint64_t AnsiTerminal::_unmasked_set() const {
-        uint64_t m = 0;
-        if (_alarms)
-            for (uint8_t i = 0; i < _alarms->count(); i++) {
-                const Alarms::AlarmCondition& c = _alarms->condition(i);
-                // An acknowledged alarm drops off the bar (still active, just
-                // no longer nagging); it re-appears if the condition clears and
-                // fires again, which resets the ack. The set is the bar's dirty
-                // signal, so an ack repaints it.
-                if (c.unmasked && !c.user_ack) m |= Alarms::alarm_bit(i);
-            }
-        return m;
-    }
-
-    void AnsiTerminal::draw_alarm_bar() {
-        if (_alarms == nullptr || _rows == 0 || _cols == 0) return;
-        // physical last row (reserved for us)
-        uint16_t row = (uint16_t)(_rows - 1);
-
-        static const char hdr[] = " ALARMS : ";
-        uint16_t used = (uint16_t)(sizeof(hdr) - 1);
-
-        move_to({row, 0});
-        set_inverted(true);
-        write_chars(hdr, used);
-
-        // Unmasked codes in normal video, each followed by an inverted space,
-        // so they read as a set against the reverse-video bar (like the active
-        // status tab).
-        for (uint8_t i = 0; i < _alarms->count(); i++) {
-            const Alarms::AlarmCondition& c = _alarms->condition(i);
-            // Skip ack'd alarms - same filter as _unmasked_set() (the dirty
-            // signal), so the drawn codes match what triggered the repaint.
-            if (!c.unmasked || c.user_ack || c.code == nullptr) continue;
-            uint16_t clen = (uint16_t)strlen(c.code);
-            // out of room on the row
-            if ((uint16_t)(used + clen + 1) > _cols) break;
-            set_inverted(false);
-            write_chars(c.code, clen);
-            set_inverted(true);
-            // inverted separator
-            write_chars(" ", 1);
-            used = (uint16_t)(used + clen + 1);
-        }
-
-        // Reverse-video fill to the end of the row, chunked.
-        char sp[32];
-        memset(sp, ' ', sizeof(sp));
-        while (used < _cols) {
-            uint16_t n = (uint16_t)((_cols - used) > (uint16_t)sizeof(sp)
-                                        ? sizeof(sp) : (_cols - used));
-            write_chars(sp, n);
-            used = (uint16_t)(used + n);
-        }
-        set_inverted(false);
-    }
-
-    void AnsiTerminal::_run_alarm_bar() {
-        if (_alarms == nullptr) return;
-        uint64_t sig = _unmasked_set();
-        if (sig != _alarm_sig) _alarm_dirty = true;
-        if (!_alarm_dirty) return;
-        // cooperative: wait for a shallow ring
-        if (!tx_below_cold()) return;
-
-        // Save the page cursor and its visibility: the bar paints on the bottom
-        // row and must hand the cursor back where the page left it (a visible
-        // shell cursor would otherwise blink on the bar). Mirrors
-        // update_status_metrics().
-        CursorPos saved_pos = _hw_pos;
-        bool      saved_inv = _hw_inverted;
-        bool      saved_cur = _hw_cursor_visible;
-        bool      saved_eol = _hw_at_eol;
-        set_cursor_visible(false);
-
-        draw_alarm_bar();
-
-        set_inverted(saved_inv);
-        move_to(saved_pos);
-        // move_to cleared it; the page may have parked at EOL
-        _hw_at_eol = saved_eol;
-        set_cursor_visible(saved_cur);
-        _alarm_sig   = sig;
-        _alarm_dirty = false;
-    }
-
-    // Serial / TX
-
-    uint16_t AnsiTerminal::tx_available() const {
-        return _serial.availableForWrite();
-    }
-
-    bool AnsiTerminal::tx_empty() const {
-        return _serial.tx_empty();
-    }
-
-    // Internals
-
-    int AnsiTerminal::_build_metrics(char* buf, size_t cap) const {
-        // No PLC context wired: show a "---" placeholder rather than a blank
-        // field.
-        const char* plc_str = "---";
-#if BOTANIK_FEATURE_PLC
-        if (_ctx.plc != nullptr) switch (_ctx.plc->status()) {
-            case PlcIO::PLC_UNKNOWN:  plc_str = "UNK"; break;
-            case PlcIO::PLC_RUNNING:  plc_str = "RUN"; break;
-            case PlcIO::PLC_TIMEOUT:  plc_str = "TMO"; break;
-            case PlcIO::PLC_FAULT:    plc_str = "FLT"; break;
-            default:                  plc_str = "---"; break;
-        }
-#endif
-        // The scheduler context may be absent (a site can wire a terminal
-        // without one); show 0% rather than dereferencing null.
-        unsigned cpu = 0, stk = 0;
-        if (_ctx.scheduler != nullptr) {
-            cpu = (unsigned)lroundf(_ctx.scheduler->cpu_load_ema    * 100.0f);
-            stk = (unsigned)lroundf(_ctx.scheduler->stack_usage * 100.0f);
-        }
-        if (cpu > 999) cpu = 999;
-        if (stk > 999) stk = 999;
-        return snprintf(buf, cap, "PLC:%s cpu:%3u%% stk:%3u%% ", plc_str, cpu, stk);
     }
 
 }}
