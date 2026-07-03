@@ -179,16 +179,16 @@ machine plus a few hooks.
 ### How they fit together
 
 ```
-┌──────────────────────────────────────────┐
+┌───────────────────────────────────────────┐
 │ NetworkHandler   (watches: net)           │
 │ device bring-up (DHCP / static)           │
-└──────────────────────────────────────────┘
+└───────────────────────────────────────────┘
      │ set_interface (on link up)
      ▼
-┌──────────────────────────────────────────┐
+┌───────────────────────────────────────────┐
 │ NameResolver   (holds the live interface) │
 │ resolve(): non-blocking DNS + cache       │
-└──────────────────────────────────────────┘
+└───────────────────────────────────────────┘
      │
      ├──▶ NtpClient  (watches: ntp)   UDP / SNTP
      └──▶ MqttClient       (watches: mqtt)  TCP / MQTT publish
