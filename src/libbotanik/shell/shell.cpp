@@ -197,14 +197,11 @@ namespace Botanik { namespace Shell {
 
         snprintf(val,    sizeof(val),    "%s%%",
             Utils::format_float(fa, sizeof(fa), ctx->stack_usage * 100.0f, 1));
-        snprintf(detail, sizeof(detail), "%s free",
-            Utils::format_size(fa, sizeof(fa), ctx->stack_bytes_free));
+        snprintf(detail, sizeof(detail), "%s free, %s total",
+            Utils::format_size(fa, sizeof(fa), ctx->stack_bytes_free),
+            Utils::format_size(fb, sizeof(fb), ctx->stack_depth));
         _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
             "Stack usage .................", val, detail);
-
-        Utils::format_size(val, sizeof(val), ctx->stack_depth);
-        _emitf(out, sizeof(out), "%-29s : %s",
-            "Stack depth .................", val);
 
         snprintf(detail, sizeof(detail), "%lu TX dropped, %lu RX overruns",
             (unsigned long)_terminal.tx_dropped(),
