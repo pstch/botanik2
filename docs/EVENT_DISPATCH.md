@@ -24,6 +24,22 @@ refreshes the row-0 status bar when due and the TX ring has room, dispatches one
 @ref Botanik::Terminal::InputEvent from the parser, and **ticks every page** (not just
 the active one) so each can drain its queued log entries (see [LOG_FLOW.md](LOG_FLOW.md)).
 
+\startuml "the console layer: Console (a Component) composes the AnsiTerminal device, owns the two bars, and holds the page array"
+class Component
+class AnsiTerminal
+class StatusBar
+class AlarmBar
+class Page
+
+Component <|-- Console
+Console *-- AnsiTerminal : terminal()
+Console *-- StatusBar
+Console *-- AlarmBar
+Console o--> "0..8" Page : routes input to the active one
+StatusBar ..> AnsiTerminal : paints via
+AlarmBar ..> AnsiTerminal : paints via
+\enduml
+
 @ref Botanik::Terminal::InputParser decodes raw bytes into structured `InputEvent`s,
 handling X3.64 CSI sequences, Alt-prefixed keys, function-key escapes, and the kitty
 `CSI u` form. Held BACKSPACE / Ctrl+D presses coalesce into one event carrying a repeat
