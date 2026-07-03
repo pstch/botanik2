@@ -1,5 +1,6 @@
-// REVIEW_35: TODO
 # botanik_sim - Linux simulator
+
+<!-- REVIEW_35: TODO -->
 
 Runs `libbotanik` as an ordinary Linux process so the full terminal UI, logging,
 scheduler, and PLC sync layer can be exercised without hardware. The hardware
