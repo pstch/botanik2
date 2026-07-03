@@ -59,12 +59,9 @@ doctest_discover_tests(botanik_tests)
 #
 # The gate runs ctest in parallel (-j): the doctest cases and, now, the per-test
 # pyte entries are independent, so a multi-core host clears the suite far faster.
-# Defaults to the host core count; override with -DBOTANIK_CTEST_JOBS=N. Bounding
-# -j to the core count is deliberate: each dilated pyte sim needs a whole core to
-# meet its per-tick wall budget, so oversubscribing them drops input (the same
-# failure mode as raising BOTANIK_TIME_SCALE). At -j = cores, at most `cores` sims
-# run at once, one core each - measured reliable; a higher scale is not (see
-# tests/pyte/README.md).
+# Defaults to the host core count; override with -DBOTANIK_CTEST_JOBS=N. Defaulting
+# -j to the core count keeps each dilated pyte sim on its own core (they run best
+# undisturbed) rather than piling more sims onto the box than it can run at once.
 include(ProcessorCount)
 ProcessorCount(_nproc)
 if(_nproc EQUAL 0)

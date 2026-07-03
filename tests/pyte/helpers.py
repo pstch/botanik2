@@ -14,9 +14,8 @@ NET_BOOT_DONE = ("MQTT connected", "NTP synced")
 def boot(spawn, **kwargs):
     """Launch a sim, wait for boot (incl. the network handshake) to finish."""
     term = spawn(**kwargs)
-    term.settle()
-    term.wait_for(NET_BOOT_DONE)   # drain the boot log before any page switch
-    term.settle()
+    term.settle()                  # boot screen renders and goes quiet
+    term.wait_for(NET_BOOT_DONE)   # ...but the async net log can trail it; wait it out
     return term
 
 

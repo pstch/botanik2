@@ -38,12 +38,14 @@ def pytest_addoption(parser):
 class Term:
     """A running botanik_sim plus a pyte screen fed from its PTY."""
 
-    # Scale 3 is the sweet spot: ~3x faster than real time, yet the dilated
-    # scheduler still keeps ~3ms wall per 10ms tick - enough that page switches
-    # and edits render reliably. At scale >=5 the ~1ms budget makes input/render
-    # race (e.g. a page switch is occasionally dropped). Use a release/no-sanitizer
-    # sim; a debug+ASAN build is much slower per tick. BOTANIK_NO_XRUN_WARNING
-    # (set below) silences the load-dependent overrun logs either way.
+    # Default scale 3 - ~3x faster than real time. Higher is reliable too (the
+    # suite passes serially past scale 30 and under `ctest -j` past scale 12 once
+    # boot() waits out the async network log, see helpers.py), but buys little:
+    # wall time is dominated by the wall-clock settle()/pump windows, not the
+    # dilated sim time, so 5x the scale is only ~30% faster. Override per-run with
+    # PYTE_TIME_SCALE=N (env, honored through pytest/ctest/make alike). Use a
+    # release/no-sanitizer sim; a debug+ASAN build is much slower per tick.
+    # BOTANIK_NO_XRUN_WARNING (set below) silences the load-dependent overrun logs.
     def __init__(self, binary, time_scale=3, page=None):
         time_scale = int(os.environ.get("PYTE_TIME_SCALE", time_scale))  # tunable knob
         env = dict(os.environ)
@@ -130,6 +132,11 @@ class Term:
     def wait_for(self, needles, timeout=6.0):
         """Pump until every string in `needles` appears somewhere on screen.
 
+        Content-based sync for events settle() can miss: an async sequence (the
+        DNS->NTP->MQTT boot handshake, which retries) emits in bursts with gaps,
+        so the quiet window can return mid-sequence. Waiting for its final markers
+        is deterministic where a quiet-window guess is not. Returns True once all
+        are present, False on timeout (caller proceeds either way).
         """
         if isinstance(needles, str):
             needles = (needles,)

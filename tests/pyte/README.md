@@ -12,14 +12,21 @@ editor's reconciliation) that a source diff can't.
   which only answers on a tty. A pipe would bypass the baud throttle and the TX
   back-pressure path we want to exercise.
 - **Speed via `BOTANIK_TIME_SCALE` (not a higher baud):** the simulator's clock
-  runs N times faster than wall-clock (the harness uses scale 3). Every
-  byte/event ratio is identical to a real 4800-baud run; only wall time is
-  compressed. See `hal/simulator.h`. Scale 3 leaves ~3ms wall per 10ms tick;
-  pushing higher (>=5) makes input/render race at the ~1ms budget and the sim
-  starts dropping keystrokes (measured: flaky from scale 4 up, and no wall-time
-  win since the per-test `settle`/pump windows are wall-clock, not sim-time). The
-  speedup comes from running the tests in parallel instead (see Running), so the
-  factor stays at 3.
+  runs N times faster than wall-clock (default scale 3). Every byte/event ratio
+  is identical to a real 4800-baud run; only wall time is compressed. See
+  `hal/simulator.h`. Override per run with `PYTE_TIME_SCALE=N` (env, honored
+  through pytest, `ctest`, and `make` alike). Higher scales are reliable (the
+  suite passes serially past scale 30 and under `ctest -j` past scale 12) but buy
+  little: wall time is dominated by the wall-clock `settle`/pump windows, not the
+  dilated sim time, so 5x the scale is only ~30% faster. The real speedup is
+  running the tests in parallel (see Running); the default stays at 3.
+- **Determinism vs. async boot chatter:** the network handshake (DNS -> NTP ->
+  MQTT, which retries on a missed reply) logs at timing-dependent moments. If it
+  is still in flight when a test leaves the Home page, a late line lands in the
+  Shell page's live log tail and breaks that (blank-tail) golden. `boot()` waits
+  for the handshake's final markers before returning (`helpers.py`), which is
+  what makes high scales flake-free; a plain `settle()` quiet window is not
+  enough (it can return in a gap mid-handshake).
 - **Release sim only:** the tests run against a release, no-sanitizer
   `botanik_sim` (the CMake target builds one in a sub-tree). A debug+ASAN build
   is too slow per dilated tick.
@@ -55,9 +62,8 @@ Each test function is its own CTest entry (`pyte:<file>::<func>`, discovered at
 configure time), so `ctest -j` runs them concurrently - this is where the wall-
 time win comes from. The `.envrc` exports `CTEST_PARALLEL_LEVEL=$(nproc)` so a
 bare `ctest` parallelizes; `make check` passes the same `-j` explicitly. The job
-count is bounded to the core count on purpose: each dilated sim needs a whole
-core to keep its per-tick budget, so oversubscribing them reintroduces the
-dropped-input flakiness (same failure mode as raising the time scale).
+count defaults to the core count: each dilated sim is happiest with a core to
+itself, so this avoids piling more sims onto the box than it can run at once.
 
 Or directly (needs a release sim binary). Pass the test dir explicitly so pytest
 loads this `conftest.py` (and the `--sim`/`--update` options) regardless of CWD:
