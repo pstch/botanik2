@@ -272,7 +272,9 @@ namespace Botanik { namespace Terminal {
     }
 
     void AnsiTerminal::set_auto_wrap(bool enable) {
-        Ansi::set_auto_wrap(_serial, enable);
+        // Only commit the tracked mode if the sequence reached the wire: a stale
+        // _hw_auto_wrap makes write_chars mispredict the wrap and smear _hw_pos.
+        if (!Ansi::set_auto_wrap(_serial, enable)) return;
         _hw_auto_wrap = enable;
     }
 
