@@ -7,14 +7,18 @@
 #include <cstring>
 
 #include "libbotanik/console/alarm_bar.h"
+#include "libbotanik/console/console.h"
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/alarms/alarms.h"
 
 namespace Botanik { namespace Terminal {
 
+    AlarmBar::AlarmBar(Console& console)
+        : _c(console), _t(console.terminal()) {}
+
     uint64_t AlarmBar::unmasked_set() const {
         uint64_t m = 0;
-        const Alarms::AlarmModel* alarms = _t.alarms();
+        const Alarms::AlarmModel* alarms = _c.alarms();
         if (alarms)
             for (uint8_t i = 0; i < alarms->count(); i++) {
                 const Alarms::AlarmCondition& c = alarms->condition(i);
@@ -28,7 +32,7 @@ namespace Botanik { namespace Terminal {
     }
 
     void AlarmBar::draw() {
-        const Alarms::AlarmModel* alarms = _t.alarms();
+        const Alarms::AlarmModel* alarms = _c.alarms();
         if (alarms == nullptr || _t.rows_total() == 0 || _t.cols() == 0) return;
         // physical last row (reserved for us)
         uint16_t row  = (uint16_t)(_t.rows_total() - 1);
@@ -67,7 +71,7 @@ namespace Botanik { namespace Terminal {
     }
 
     void AlarmBar::step() {
-        if (_t.alarms() == nullptr) return;
+        if (_c.alarms() == nullptr) return;
         uint64_t sig = unmasked_set();
         if (sig != _sig) _dirty = true;
         if (!_dirty) return;

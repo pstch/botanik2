@@ -13,6 +13,7 @@
 
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/console/status_bar.h"
+#include "libbotanik/console/console.h"
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/console/field.h"
 #include "libbotanik/utils/time.h"
@@ -29,6 +30,9 @@ namespace Botanik { namespace Terminal {
             || (c >= 12 && c <= 15)    // cpu value + '%'
             || (c >= 21 && c <= 24);   // stk value + '%'
     }
+
+    StatusBar::StatusBar(Console& console)
+        : _c(console), _t(console.terminal()) {}
 
     // Cooperative paint
 
@@ -74,10 +78,10 @@ namespace Botanik { namespace Terminal {
         // One blank column, then one " NAME " tab per page. The bar is reverse
         // video; the active tab is drawn normal so it stands out.
         _t.write_chars(" ", 1);
-        for (uint8_t i = 0; i < _t.page_count(); i++) {
-            const char* nm = _t.page_name(i);
+        for (uint8_t i = 0; i < _c.page_count(); i++) {
+            const char* nm = _c.page_name(i);
             if (nm == nullptr) continue;
-            _t.set_inverted(i != _t.active_page());
+            _t.set_inverted(i != _c.active_page());
             _t.write_chars(" ", 1);
             _t.write_chars(nm, (uint16_t)strlen(nm));
             _t.write_chars(" ", 1);
@@ -100,14 +104,14 @@ namespace Botanik { namespace Terminal {
     }
 
     void StatusBar::draw_tab(uint8_t index) {
-        const char* nm = _t.page_name(index);
+        const char* nm = _c.page_name(index);
         if (nm == nullptr) return;
 
         // Tab columns mirror draw_row(): one leading blank, then one " NAME "
         // (name length + 2) per page in order.
         uint16_t col = 1;
         for (uint8_t i = 0; i < index; i++) {
-            const char* pn = _t.page_name(i);
+            const char* pn = _c.page_name(i);
             if (pn != nullptr) col += (uint16_t)(strlen(pn) + 2);
         }
 
@@ -115,7 +119,7 @@ namespace Botanik { namespace Terminal {
         _t.move_to({0, col});
         // Active tab normal video, others reverse; force the SGR to emit (same
         // stale-shadow hazard draw_row() guards).
-        _t.force_inverted(index != _t.active_page());
+        _t.force_inverted(index != _c.active_page());
         _t.write_chars(" ", 1);
         _t.write_chars(nm, (uint16_t)strlen(nm));
         _t.write_chars(" ", 1);
@@ -197,7 +201,7 @@ namespace Botanik { namespace Terminal {
     }
 
     int StatusBar::build_metrics(char* buf, size_t cap) const {
-        const SystemContext& ctx = _t.context();
+        const SystemContext& ctx = _c.context();
         // No PLC context wired: show a "---" placeholder rather than a blank
         // field.
         const char* plc_str = "---";

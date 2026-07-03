@@ -22,8 +22,8 @@
 /** @brief Greenhouse status page: renders the full sensor/actuator set. */
 class GreenhouseStatusPage : public Botanik::Pages::StatusPage<PlcOutputData_t> {
 public:
-    GreenhouseStatusPage(Botanik::Terminal::AnsiTerminal& terminal, const PlcOutputData_t* data)
-        : Botanik::Pages::StatusPage<PlcOutputData_t>(terminal, data) {}
+    GreenhouseStatusPage(Botanik::Terminal::Console& console, const PlcOutputData_t* data)
+        : Botanik::Pages::StatusPage<PlcOutputData_t>(console, data) {}
 
 protected:
     // Two-column body geometry on an 80-col display: left panel cols 2..36,
@@ -147,8 +147,8 @@ protected:
 /** @brief Greenhouse home page: logo + a compact key-readings summary. */
 class GreenhouseHomePage : public Botanik::Pages::HomePage<PlcOutputData_t> {
 public:
-    GreenhouseHomePage(Botanik::Terminal::AnsiTerminal& terminal, const PlcOutputData_t* data)
-        : Botanik::Pages::HomePage<PlcOutputData_t>(terminal, data) {}
+    GreenhouseHomePage(Botanik::Terminal::Console& console, const PlcOutputData_t* data)
+        : Botanik::Pages::HomePage<PlcOutputData_t>(console, data) {}
 
 protected:
     void draw_payload_static() override {

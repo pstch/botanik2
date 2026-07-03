@@ -64,7 +64,7 @@ namespace Botanik {
     class ConsoleStack {
 
         Utils::BufferedSerial   _serial;
-        Terminal::AnsiTerminal  _terminal;
+        Terminal::Console       _terminal;
         Pages::ShellPage        _shell;
         Pages::LogsPage         _logs;
         Pages::AlarmsPage       _alarms;
@@ -85,7 +85,7 @@ namespace Botanik {
               _alarms(_terminal, alarms) {}
 
         Utils::BufferedSerial&  serial()   { return _serial; }
-        Terminal::AnsiTerminal& terminal() { return _terminal; }
+        Terminal::Console&      terminal() { return _terminal; }
         Pages::ShellPage&       shell()    { return _shell; }
         Pages::LogsPage&        logs()     { return _logs; }
         Pages::AlarmsPage&      alarms()   { return _alarms; }

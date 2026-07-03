@@ -434,7 +434,7 @@ namespace Botanik {
         Health::HealthMonitor&          health()          { return _health; }
         Alarms::AlarmModel&             alarm_model()     { return _health.model(); }
 #if BOTANIK_FEATURE_CONSOLE
-        Terminal::AnsiTerminal&         terminal()        { return _console.terminal(); }
+        Terminal::Console&              terminal()        { return _console.terminal(); }
         Pages::ShellPage&               shell_page()      { return _console.shell(); }
         Pages::LogsPage&                logs_page()       { return _console.logs(); }
         Pages::AlarmsPage&              alarms_page()     { return _console.alarms(); }

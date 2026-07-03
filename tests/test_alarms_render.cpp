@@ -16,6 +16,7 @@
 #include "libbotanik/alarms/alarms.h"
 #include "libbotanik/pages/alarms.h"
 #include "libbotanik/console/terminal.h"
+#include "libbotanik/console/console.h"
 
 using namespace Botanik;
 using Command = Terminal::InputEvent::Command;
@@ -38,7 +39,7 @@ namespace {
         HAL::Serial::Raw         raw;
         Utils::BufferedSerial  serial;
         uint32_t               now = 0;
-        Terminal::AnsiTerminal terminal;
+        Terminal::Console      console;
         Alarms::AlarmModel     model;
         Pages::AlarmsPage      page;
 
@@ -47,9 +48,9 @@ namespace {
         explicit RenderFixture(uint16_t rows = 24)
             : serial(&raw),
               // Very high baud so the cooperative TX floor never throttles a paint.
-              terminal(serial, 80, rows, &now, 4000000u),
+              console(serial, 80, rows, &now, 4000000u),
               model(TABLE, 4, nullptr),
-              page(terminal, &model) {
+              page(console, &model) {
             REQUIRE(::pipe(fds) == 0);
             ::fcntl(fds[0], F_SETFL, O_NONBLOCK);   // read end never blocks
             raw.set_fds(fds[0], fds[1]);

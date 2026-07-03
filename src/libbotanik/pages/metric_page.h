@@ -27,6 +27,7 @@
 #include "libbotanik/utils/assert.h"       // BOTANIK_ASSERT (DEBUG slot guard)
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/pages/page.h"
+#include "libbotanik/console/console.h"
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/console/field.h"
 #include "libbotanik/plcio/sync.h"
@@ -37,12 +38,15 @@ namespace Botanik { namespace Pages {
     class MetricPage : public Page {
     protected:
         using AnsiTerminal = Terminal::AnsiTerminal;
+        using Console      = Terminal::Console;
         using Command      = Terminal::InputEvent::Command;
 
         /** @name State
          *  @{ */
 
-        /** @brief Owning terminal. */
+        /** @brief Owning console (content-area geometry + context). */
+        Console&      _console;
+        /** @brief The VT device it paints through (cached _console.terminal()). */
         AnsiTerminal& _terminal;
         /** @brief Column at which values are written (labels start at column
          *  2). */
@@ -197,7 +201,7 @@ namespace Botanik { namespace Pages {
         /** @brief Draw a label at column 2 and clear to EOL. Static, not
          *  cached. */
         void _label(uint16_t row, const char* s) {
-            if (row >= _terminal.rows()) return;
+            if (row >= _console.rows()) return;
             if (!_static_step()) return;
             _terminal.move_to({row, 2});
             _terminal.write_chars(s, (uint16_t)strlen(s));
@@ -211,7 +215,7 @@ namespace Botanik { namespace Pages {
          *  status label) instead of per-digit-run. */
         void _value(uint16_t row, const char* s, bool highlight = true,
                     bool invert = false) {
-            if (row >= _terminal.rows()) return;
+            if (row >= _console.rows()) return;
             uint16_t width = (_value_col < _terminal.cols())
                                  ? (uint16_t)(_terminal.cols() - _value_col) : 0;
             _field(row, row, _value_col, s, width, highlight, invert);
@@ -220,7 +224,7 @@ namespace Botanik { namespace Pages {
         /** @brief Draw a dash-ruled group header "==== TITLE ====" padded to
          *  @p width. Static, not cached. */
         void _header(uint16_t row, uint16_t col, const char* title, uint16_t width) {
-            if (row >= _terminal.rows()) return;
+            if (row >= _console.rows()) return;
             if (!_static_step()) return;
             char buf[96];
             if (width > (uint16_t)(sizeof(buf) - 1))
@@ -239,7 +243,7 @@ namespace Botanik { namespace Pages {
          *  clear-to-EOL, so it never disturbs a second column on the same row.
          *  Not cached. */
         void _label_at(uint16_t row, uint16_t col, const char* s) {
-            if (row >= _terminal.rows()) return;
+            if (row >= _console.rows()) return;
             if (!_static_step()) return;
             _terminal.move_to({row, col});
             _terminal.write_chars(s, (uint16_t)strlen(s));
@@ -264,7 +268,7 @@ namespace Botanik { namespace Pages {
          *  untouched, so the draw retries next refresh. */
         void _field(uint16_t slot, uint16_t row, uint16_t col, const char* s,
                     uint16_t width, bool highlight = true, bool invert = false) {
-            if (row >= _terminal.rows() || width == 0) return;
+            if (row >= _console.rows() || width == 0) return;
             // Pacing ordinal (cold or hot pass): handle each field at most once
             // per period. The cursor advances on every visited field, so a
             // deferred pass resumes past the done fields - a value that changes
@@ -403,8 +407,8 @@ namespace Botanik { namespace Pages {
 
         /** @brief Bind to a terminal; @p value_col is where values are
          *  written. */
-        MetricPage(AnsiTerminal& terminal, uint16_t value_col)
-            : _terminal(terminal), _value_col(value_col) { _invalidate(); }
+        MetricPage(Console& console, uint16_t value_col)
+            : _console(console), _terminal(console.terminal()), _value_col(value_col) { _invalidate(); }
 
     public:
         /** @name Page interface

@@ -1,152 +1,32 @@
 // REVIEW_35: TODO
 /**
  * @file terminal.cpp
- * @brief AnsiTerminal implementation - cursor/geometry tracking, text output,
- *        content manipulation, page routing, and status-bar rendering.
+ * @brief AnsiTerminal implementation - the VT device: cursor/geometry tracking,
+ *        text output, content scrolling, the shared field painter, and TX gating.
  */
 #include <cstdint>
-#include <cstring>
-#include <cstdio>
-#include <cmath>
 #include <algorithm>
 
 #include "libbotanik_config.h"
 
-#include "libbotanik/hal/platform.h"
 #include "libbotanik/utils/serial.h"
-#include "libbotanik/console/parser.h"
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/console/ansi.h"
 
 
 namespace Botanik { namespace Terminal {
 
-    namespace {
-        using namespace Botanik::Utils;
-        using namespace Botanik::Pages;
-    }
-
     // Lifecycle
 
     AnsiTerminal::AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols,
-                               uint16_t rows, const uint32_t* timestamp_ms,
-                               uint32_t baud, const SystemContext& ctx,
-                               const Alarms::AlarmModel* alarms,
-                               Logs::Logger* logger) :
-        _parser(serial, timestamp_ms),
+                               uint16_t rows, uint32_t baud) :
         _serial(serial),
-        _ctx(ctx),
         _cols(cols),
-        _rows(rows),
-        _alarms(alarms),
-        _logger(logger),
-        _status_bar(*this),
-        _alarm_bar(*this)
+        _rows(rows)
     {
         // Size the shared cooperative-TX depth floor from the link baud so the
-        // felt echo latency target (Config::TX_COLD_TARGET_MS) holds across
-        // links.
+        // felt echo latency target (Config::TX_COLD_TARGET_MS) holds across links.
         _tx_cold_depth = depth_for_baud(baud, Config::TX_COLD_TARGET_MS);
-        // bottom row only when alarms wired
-        _reserved_bottom = (_alarms != nullptr) ? 1 : 0;
-    }
-
-    void AnsiTerminal::step() {
-        announce_step(_logger, "AnsiTerminal");
-        // Snapshot the RX depth before the parse loop below drains it, so the
-        // serial gauge reports what was actually waiting this cycle rather than
-        // ~0 post-drain.
-        _rx_cycle_used = _serial.available();
-        // Establish the screen on the first step (not in setup_*()) so the
-        // clear lands after the handshake setup_*() queued, in order: clear,
-        // "ACAB" boot marker, contents. _establish_screen() (not clear_screen)
-        // so the queued handshake survives the tx_discard clear_screen would
-        // do.
-        if (!_screen_ready) {
-            _establish_screen();
-            _status_bar.draw_row();
-            if (_pages_len > 0 && _pages[_page_index] != nullptr)
-                _pages[_page_index]->focus();
-        }
-        // Status bar paints first each tick (self-contained), interleaving with
-        // the active page's draw.
-        _status_bar.step(HAL::Clock::uptime_ms());
-        // Drain buffered input into the active page (terminal-level intercepts
-        // like Ctrl-L and page switches are consumed first).
-        _pump_input();
-        // Tick every page, not just the active one: each is its own LogWriter
-        // and must drain into its scrollback every step so a later focus()
-        // replays an up-to-date tail. Inactive pages don't render (gated on
-        // their active flag).
-        for (uint8_t i = 0; i < _pages_len; i++)
-            if (_pages[i] != nullptr) _pages[i]->tick(i == _page_index);
-        // Last: top up the bottom alarm bar over whatever the active page just
-        // drew. Self-gated (no-op unless the set changed or the row was wiped)
-        // and saves/restores the page cursor, so it never disturbs a settled
-        // page.
-        _alarm_bar.step();
-    }
-
-    void AnsiTerminal::_pump_input() {
-        using Command = InputEvent::Command;
-        // Handle up to INPUT_EVENTS_PER_TICK events this tick so a paste or
-        // fast typing stays responsive without letting a flood monopolise the
-        // loop. Light events (text echo, cursor/edit commands) keep iterating;
-        // a heavy terminal intercept (full clear/redraw or a page switch) does
-        // its one repaint and yields the rest of the tick so two full repaints
-        // can never stack.
-        for (uint16_t n = 0; n < Config::INPUT_EVENTS_PER_TICK; n++) {
-            InputEvent& ev = _parser.parse();
-            if (ev.type == InputEvent::EventType::NONE) break;
-            if (_pages_len == 0 || _pages[_page_index] == nullptr) continue;
-            Pages::Page* page = _pages[_page_index];
-            if (ev.type == InputEvent::EventType::CONTENT) {
-                page->handle_text_batch(ev.batch_data, ev.batch_len);
-                continue;
-            }
-            if (ev.type != InputEvent::EventType::COMMAND) continue;
-            // Terminal-level intercepts - consumed before reaching the page.
-            // These repaint the whole screen, so each breaks (takes the rest of
-            // the tick).
-            if (ev.command == Command::CTRL_L) {
-                clear_screen();
-                _status_bar.draw_row();
-                page->redraw();
-                break;
-            }
-            if (ev.command == Command::HOME)   { switch_to(0);  break; }
-            if (ev.command >= Command::ALT_1 && ev.command <= Command::ALT_9) {
-                switch_to((uint8_t)((uint16_t)ev.command - (uint16_t)Command::ALT_1));
-                break;
-            }
-            if (ev.command == Command::ALT_0) { switch_to(9); break; }
-            if (ev.command == Command::CTRL_PAGE_UP ||
-                ev.command == Command::CTRL_PAGE_DOWN ||
-                ev.command == Command::TAB ||
-                ev.command == Command::SHIFT_TAB) {
-                // TAB / Ctrl+PageDown advance; Shift+TAB / Ctrl+PageUp step
-                // back. Both wrap.
-                const bool back = ev.command == Command::CTRL_PAGE_UP ||
-                                  ev.command == Command::SHIFT_TAB;
-                switch_relative(!back);
-                break;
-            }
-            // Ctrl+C: let the page consume it (e.g. cancel an input line); if
-            // it doesn't, apply the default - quit on the simulator (Ctrl+C
-            // arrives as a byte in raw mode), a no-op on hardware so a stray
-            // Ctrl+C can't reboot the controller.
-            if (ev.command == Command::CTRL_C) {
-                if (!page->handle_cancel()) {
-#ifdef TARGET_SIMULATOR
-                    HAL::System::shutdown();
-#endif
-                }
-                break;
-            }
-            // Light page command (edit/cursor/etc.): keep handling more this
-            // tick.
-            page->handle_command(ev.command, ev.count);
-        }
     }
 
     // Cursor & geometry
@@ -329,7 +209,7 @@ namespace Botanik { namespace Terminal {
         // on the wire, which would otherwise swallow the leading bytes of the
         // clear below.
         Ansi::cancel_sequence(_serial);
-        _establish_screen();
+        establish_screen();
     }
 
     void AnsiTerminal::clear_screen_now() {
@@ -341,7 +221,7 @@ namespace Botanik { namespace Terminal {
             _serial.transmit();
     }
 
-    void AnsiTerminal::_establish_screen() {
+    void AnsiTerminal::establish_screen() {
         // Clear+home, then reset tracked cursor/wrap state. No TX discard here
         // - the caller owns that (clear_screen drops stale paint; the
         // first-step bootstrap keeps the setup_*() handshake it queued).
@@ -371,14 +251,13 @@ namespace Botanik { namespace Terminal {
         Ansi::set_insert_mode(_serial, false);  // -> replace mode (ESC[4l)
         _hw_insert_mode = false;
         _screen_ready = true;
-        // The clear wiped the alarm bar's row; flag it for the next step's bar
-        // pass.
-        _alarm_bar.mark_dirty();
+        // The clear wiped the alarm-bar row; the Console re-flags it for the next
+        // bar pass (the device knows nothing of the bar).
     }
 
     void AnsiTerminal::setup_vt102() {
         // Plain VT100/VT102 (the default): no special handshake. DECAWM and the
-        // clear are handled later (_establish_screen / first step()).
+        // clear are handled later (establish_screen / first step()).
         Ansi::vt102_setup(_serial);
     }
 
@@ -389,41 +268,31 @@ namespace Botanik { namespace Terminal {
         Ansi::minitel_setup(_serial);
     }
 
-    void AnsiTerminal::clear_content() {
-        if (_reserved_bottom == 0) {
-            // No reserved bar: one erase-to-end-of-display clears rows 1..N-1,
-            // leaving the row-0 status bar.
-            move_to({1, 0});
-            clear_to_eos();
-            return;
+    void AnsiTerminal::newline(bool carriage_return) {
+        // Emit and track a line feed; the caller confines it to the content band.
+        if (carriage_return) {
+            _serial.write("\r\n", 2);
+            _hw_pos.col = 0;
+        } else {
+            _serial.write("\n", 1);
         }
-        // A reserved alarm bar sits below the content, so
-        // erase-to-end-of-display would wipe it. Clear just the content rows
-        // instead (clear_rows scrolls the band off by its full height, leaving
-        // the bar in place).
-        clear_rows(1, _content_bottom());
+        _hw_pos.row++;
     }
 
-    void AnsiTerminal::line_feed(bool carriage_return) {
-        uint16_t content_bottom = _content_bottom();
-        if (_hw_pos.row < content_bottom) {
-            // Normal case: cursor moves into the next row
-            if (carriage_return) {
-                _serial.write("\r\n", 2);
-                _hw_pos.col = 0;
-            } else {
-                _serial.write("\n", 1);
-            }
-            _hw_pos.row++;
-        } else {
-            // At the bottom of the content area: scroll the content band (rows
-            // 1..content_bottom) up one so the row-0 status bar - and the
-            // reserved bottom row, once there is one - are never touched, then
-            // drop onto the freed bottom row.
-            uint16_t target_col = carriage_return ? 0 : _hw_pos.col;
-            scroll_region(1, content_bottom, /*up=*/true, 1);
-            move_to({content_bottom, target_col});
-        }
+    void AnsiTerminal::tx_discard() {
+        _serial.tx_discard();
+    }
+
+    void AnsiTerminal::cancel_sequence() {
+        Ansi::cancel_sequence(_serial);
+    }
+
+    void AnsiTerminal::reset_to(const CursorPos& pos) {
+        // Absolute reposition after a tx_discard left _hw_pos unknown; sync the
+        // shadow to match (a relative move would land wrong).
+        Ansi::goto_absolute(_serial, pos);
+        _hw_pos = pos;
+        _hw_at_eol = false;
     }
 
     void AnsiTerminal::scroll_region(uint16_t top, uint16_t bottom, bool up,
@@ -480,70 +349,6 @@ namespace Botanik { namespace Terminal {
         if (count == 0) return;
         // DL shifts content; cursor unaffected
         Ansi::delete_rows(_serial, count);
-    }
-
-    // Pages
-
-    int8_t AnsiTerminal::add_page(Pages::Page* page) {
-        if (page == nullptr || _pages_len >= 8) return -1;
-        _pages[_pages_len] = page;
-        return (int8_t)(_pages_len++);
-    }
-
-    void AnsiTerminal::switch_relative(bool forward) {
-        if (_pages_len == 0) return;
-        uint8_t next = forward
-            ? (uint8_t)((_page_index + 1) % _pages_len)
-            : (uint8_t)((_page_index + _pages_len - 1) % _pages_len);
-        switch_to(next);
-    }
-
-    void AnsiTerminal::switch_to(uint8_t index) {
-        if (index >= _pages_len || _pages[index] == nullptr) return;
-        if (!_screen_ready) {
-            // Establish is deferred to the first step(); drawing here would be
-            // wiped by that clear, so just record the target page for the
-            // bootstrap.
-            _page_index = index;
-            return;
-        }
-        if (_pages[_page_index] != nullptr)
-            _pages[_page_index]->deactivate();
-        uint8_t prev = _page_index;
-        _page_index = index;
-        // Drop bytes queued for the page we're leaving (they'd paint onto the
-        // new one). _hw_pos is stale after the drop, so reposition absolutely.
-        _serial.tx_discard();
-        // The discard can strand a half-sent sequence on the wire;
-        // cancel_sequence() resyncs to ground state so the tab repaint below
-        // isn't swallowed by a stuck parser (that swallow is what left some tab
-        // chars un-inverted under TX load).
-        Ansi::cancel_sequence(_serial);
-        // Hide the cursor before any repaint so it doesn't blink across the
-        // cleared content or the row-0 tabs. The page that wants it (shell
-        // editor) shows it again from focus(). Lazy, so a no-op when already
-        // off.
-        set_cursor_visible(false);
-        Ansi::goto_absolute(_serial, {1, 0});
-        _hw_pos = {1, 0};
-        _hw_at_eol = false;
-        // Clear only the content band: clear_content() preserves both the row-0
-        // status bar and the bottom alarm bar (no wipe-and-repaint flicker on a
-        // page switch).
-        clear_content();
-        // Only the tabs' video flips on a switch, so repaint just the two
-        // affected tabs (the one we left, the one we entered) rather than the
-        // whole bar.
-        _status_bar.draw_tab(prev);
-        if (prev != index) _status_bar.draw_tab(index);
-        // The tx_discard may have dropped a queued row-0 update; invalidate the
-        // diff caches so the next refresh repaints them in full.
-        _status_bar.invalidate();
-        // The discard can likewise tear a half-sent alarm-bar repaint; the set
-        // rarely changes, so without re-flagging the torn bar would never
-        // recover.
-        _alarm_bar.mark_dirty();
-        _pages[_page_index]->focus();
     }
 
     // Field painter (shared by StatusBar and MetricPage)

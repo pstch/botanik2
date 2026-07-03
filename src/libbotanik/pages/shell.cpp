@@ -16,10 +16,11 @@ namespace Botanik { namespace Pages {
     // Lifecycle
     // ------------------------------------------------------------------------
 
-    ShellPage::ShellPage(Terminal::AnsiTerminal& terminal) :
-        _terminal(terminal),
-        _editor(&terminal),
-        _shell(terminal, _editor, *this)
+    ShellPage::ShellPage(Terminal::Console& console) :
+        _console(console),
+        _terminal(console.terminal()),
+        _editor(&console),
+        _shell(console, _editor, *this)
     {}
 
     // Page interface
@@ -97,7 +98,7 @@ namespace Botanik { namespace Pages {
         uint16_t occ_after = _editor.occupied_rows();
         if (occ_after != occ_before && _scrollback.redraw_pending()) {
             // Staged replay now has stale geometry; re-arm it on the new area.
-            _scrollback.begin_redraw((uint16_t)(_terminal.rows() - 1 - occ_after));
+            _scrollback.begin_redraw((uint16_t)(_console.rows() - 1 - occ_after));
         } else if (occ_after < occ_before) {
             _reveal_log_rows(occ_before - occ_after);
         }
@@ -121,7 +122,7 @@ namespace Botanik { namespace Pages {
         // afterwards.
         if (active) {
             uint16_t log_rows =
-                (uint16_t)(_terminal.rows() - 1 - _editor.occupied_rows());
+                (uint16_t)(_console.rows() - 1 - _editor.occupied_rows());
             if (_scrollback.drain_tail(_terminal, 1, log_rows))
                 _terminal.move_to(_editor.cursor_screen_pos());
         }
@@ -177,7 +178,7 @@ namespace Botanik { namespace Pages {
         // One ED from {1,0} wipes the whole content area in a single CSI
         // (cheaper than clearing each row); the editor row goes too, so repaint
         // the prompt after.
-        _terminal.clear_content();
+        _console.clear_content();
         _editor.redraw();
     }
 
@@ -185,7 +186,7 @@ namespace Botanik { namespace Pages {
     // ------------------------------------------------------------------------
 
     void ShellPage::_setup_editor() {
-        uint16_t editor_row = (uint16_t)(_terminal.rows() - 1);
+        uint16_t editor_row = (uint16_t)(_console.rows() - 1);
         _editor.set_origin(editor_row);
         const char ps1[] = "botanik> ";
         _editor.set_ps1(ps1, sizeof(ps1) - 1);
@@ -201,14 +202,14 @@ namespace Botanik { namespace Pages {
         // would push the status bar (row 0) off screen.
         uint16_t occ = _editor.occupied_rows();
         if (occ > 1) {
-            uint16_t rows   = (uint16_t)_terminal.rows();
+            uint16_t rows   = (uint16_t)_console.rows();
             uint16_t origin = (uint16_t)(rows - occ);
             _editor.set_origin(origin > 0 ? origin : 1);
         }
         // Stage the log area for incremental replay (drained in tick()), then
         // draw the editor at the bottom.
         _scrollback.begin_redraw(
-            (uint16_t)(_terminal.rows() - 1 - _editor.occupied_rows()));
+            (uint16_t)(_console.rows() - 1 - _editor.occupied_rows()));
         _editor.redraw();
         // The editor owns a live cursor; switch_to() hides it before focus()
         // and every other page leaves it hidden.
@@ -224,7 +225,7 @@ namespace Botanik { namespace Pages {
         line[line_len] = '\0';
         _record_command(line, line_len);
         _terminal.move_to(_editor.end_pos());
-        _terminal.line_feed(true);
+        _console.line_feed(true);
         _editor.suppress_redraw(false);
         _editor.commit();
         _shell.run(line, line_len);  // run() ignores an empty line
@@ -240,7 +241,7 @@ namespace Botanik { namespace Pages {
         line[line_len] = '\0';
         _record_command(line, line_len);
         _terminal.move_to(_editor.end_pos());
-        _terminal.line_feed(true);
+        _console.line_feed(true);
         _editor.suppress_redraw(false);
         _editor.commit();
     }
@@ -269,7 +270,7 @@ namespace Botanik { namespace Pages {
 
     void ShellPage::_reveal_log_rows(uint16_t delta) {
         if (delta == 0) return;
-        uint16_t rows     = (uint16_t)_terminal.rows();
+        uint16_t rows     = (uint16_t)_console.rows();
         uint16_t occupied = _editor.occupied_rows();
         uint16_t log_rows = rows - 1 - occupied;  // new (larger) log area
         if (log_rows == 0) return;

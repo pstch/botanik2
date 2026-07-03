@@ -12,6 +12,7 @@
 #include "libbotanik/pages/page.h"
 #include "libbotanik/pages/scrollback.h"
 #include "libbotanik/logs/writer.h"
+#include "libbotanik/console/console.h"
 #include "libbotanik/console/terminal.h"
 
 namespace Botanik { namespace Pages {
@@ -26,13 +27,16 @@ namespace Botanik { namespace Pages {
     class LogsPage : public Page, public Logs::BufferedLogWriter {
     private:
         using AnsiTerminal = Terminal::AnsiTerminal;
+        using Console      = Terminal::Console;
         using LogEntry_t   = PlcIO::LogEntry_t;
         using Command      = Terminal::InputEvent::Command;
 
         /** @name State
          *  @{ */
 
-        /** @brief Owning terminal. */
+        /** @brief Owning console (content-area geometry + clear_content). */
+        Console&      _console;
+        /** @brief The VT device it paints through (cached _console.terminal()). */
         AnsiTerminal& _terminal;
         /** @brief Circular log line buffer + throttled redraw for page-switch
          *         replay. */
@@ -47,7 +51,7 @@ namespace Botanik { namespace Pages {
         /** @name Lifecycle
          *  @{ */
 
-        LogsPage(Terminal::AnsiTerminal& terminal);
+        LogsPage(Terminal::Console& console);
 
         /** @} */
 

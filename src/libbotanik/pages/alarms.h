@@ -39,6 +39,7 @@
 #include "libbotanik/alarms/alarms.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/pages/page.h"
+#include "libbotanik/console/console.h"
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/utils/time.h"
 
@@ -48,12 +49,15 @@ namespace Botanik { namespace Pages {
     class AlarmsPage : public Page {
     private:
         using AnsiTerminal = Terminal::AnsiTerminal;
+        using Console      = Terminal::Console;
         using Command      = Terminal::InputEvent::Command;
 
         /** @name State
          *  @{ */
 
-        /** @brief Owning terminal. */
+        /** @brief Owning console (content-area geometry). */
+        Console&                  _console;
+        /** @brief The VT device it paints through (cached _console.terminal()). */
         AnsiTerminal&             _terminal;
         /** @brief Alarm source (may be null). */
         const Alarms::AlarmModel* _model;
@@ -426,14 +430,14 @@ namespace Botanik { namespace Pages {
          *  rule. The rules carry the scroll arrows (see _paint_element()).
          *  @{ */
         // free row below at rows()-1
-        uint16_t _legend_row()  const { return (uint16_t)(_terminal.rows() - 2); }
+        uint16_t _legend_row()  const { return (uint16_t)(_console.rows() - 2); }
         // bottom rule (free row above legend at rows()-3)
-        uint16_t _brule_row()   const { return (uint16_t)(_terminal.rows() - 4); }
-        uint16_t _data_bottom() const { return (uint16_t)(_terminal.rows() - 5); }
+        uint16_t _brule_row()   const { return (uint16_t)(_console.rows() - 4); }
+        uint16_t _data_bottom() const { return (uint16_t)(_console.rows() - 5); }
         /** @brief Number of data rows that fit, or 0 if the screen is too
          *  short. */
         uint16_t _window() const {
-            uint16_t r = _terminal.rows();
+            uint16_t r = _console.rows();
             return (r >= (uint16_t)(DATA_TOP + 5)) ? (uint16_t)(r - DATA_TOP - 4) : 0;
         }
         /** @brief Largest scroll offset that still fills the window (0 = all
@@ -743,8 +747,8 @@ namespace Botanik { namespace Pages {
 
     public:
         /** @brief Bind to a terminal and alarm model. */
-        AlarmsPage(AnsiTerminal& terminal, const Alarms::AlarmModel* model)
-            : _terminal(terminal), _model(model) { _invalidate_shadow(); }
+        AlarmsPage(Console& console, const Alarms::AlarmModel* model)
+            : _console(console), _terminal(console.terminal()), _model(model) { _invalidate_shadow(); }
 
         /** @name Page interface
          *  @{ */

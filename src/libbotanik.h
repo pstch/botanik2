@@ -24,6 +24,7 @@
 #include "libbotanik/pages/alarms.h"
 
 #include "libbotanik/console/terminal.h"
+#include "libbotanik/console/console.h"
 #include "libbotanik/console/parser.h"
 #include "libbotanik/console/editor.h"
 

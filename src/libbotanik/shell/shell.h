@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "libbotanik/console/console.h"
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/console/editor.h"
 
@@ -69,7 +70,9 @@ namespace Botanik { namespace Shell {
         /** @name State
          *  @{ */
 
-        /** terminal the shell renders through */
+        /** console the shell reads context/alarms from */
+        Terminal::Console&      _console;
+        /** VT device the shell renders through (cached _console.terminal()) */
         Terminal::AnsiTerminal& _terminal;
         /** editor supplying the input line */
         Terminal::TextEditor&   _editor;
@@ -111,7 +114,7 @@ namespace Botanik { namespace Shell {
         /** @name Lifecycle
          *  @{ */
 
-        CommandShell(Terminal::AnsiTerminal& terminal,
+        CommandShell(Terminal::Console&      console,
                      Terminal::TextEditor&  editor,
                      ShellWriter&            output);
 

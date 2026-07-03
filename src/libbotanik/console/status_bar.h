@@ -20,6 +20,7 @@
 namespace Botanik { namespace Terminal {
 
     class AnsiTerminal;
+    class Console;
 
     /** @brief Row-0 status bar (see file header). */
     class StatusBar {
@@ -27,8 +28,9 @@ namespace Botanik { namespace Terminal {
         /** @name State
          *  @{ */
 
-        /** @brief The terminal this bar paints through (page state, geometry,
-         *  and the paint primitives). */
+        /** @brief The console this bar belongs to (page state + context). */
+        Console&            _c;
+        /** @brief The VT device it paints through (cached _c.terminal()). */
         AnsiTerminal&       _t;
         /** @brief Last metrics refresh (wall clock). */
         uint64_t            _last_ms = 0;
@@ -52,8 +54,8 @@ namespace Botanik { namespace Terminal {
         /** @} */
 
     public:
-        /** @brief Bind the bar to its owning terminal. */
-        explicit StatusBar(AnsiTerminal& terminal) : _t(terminal) {}
+        /** @brief Bind the bar to its owning console (caches its device). */
+        explicit StatusBar(Console& console);
 
         /** @name Cooperative paint
          *  @{ */

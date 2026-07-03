@@ -17,8 +17,8 @@ namespace Botanik { namespace Pages {
     // Lifecycle
     // ------------------------------------------------------------------------
 
-    LogsPage::LogsPage(Terminal::AnsiTerminal& terminal) :
-        _terminal(terminal)
+    LogsPage::LogsPage(Terminal::Console& console) :
+        _console(console), _terminal(console.terminal())
     {}
 
     // Page interface
@@ -32,10 +32,10 @@ namespace Botanik { namespace Pages {
         // Scroll history a line at a time (live tail freezes while scrolled
         // back); ENTER clears and returns to the live bottom.
         const uint16_t first_row = 1;
-        const uint16_t log_rows  = (uint16_t)(_terminal.rows() - 1);
+        const uint16_t log_rows  = (uint16_t)(_console.rows() - 1);
         switch (cmd) {
             case Command::ENTER:
-                _terminal.clear_content();
+                _console.clear_content();
                 focus();
                 break;
             case Command::UP:
@@ -60,7 +60,7 @@ namespace Botanik { namespace Pages {
         // tail has drained.
         _terminal.move_to({1, 0});
         // rows 1..rows-1
-        _scrollback.begin_redraw((uint16_t)(_terminal.rows() - 1));
+        _scrollback.begin_redraw((uint16_t)(_console.rows() - 1));
     }
 
     void LogsPage::tick(bool active) {
@@ -72,11 +72,11 @@ namespace Botanik { namespace Pages {
         // content area (rows 1..rows-1).
         drain();
         if (active) {
-            _scrollback.drain_tail(_terminal, 1, (uint16_t)(_terminal.rows() - 1));
+            _scrollback.drain_tail(_terminal, 1, (uint16_t)(_console.rows() - 1));
             // Keep the "scrolled up" marker in sync with the view (no-op unless
             // it moved); survives unrelated repaints since it runs every tick.
             _scrollback.refresh_scroll_indicator(_terminal, 1,
-                                                 (uint16_t)(_terminal.rows() - 1));
+                                                 (uint16_t)(_console.rows() - 1));
         }
     }
 

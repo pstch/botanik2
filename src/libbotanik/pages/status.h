@@ -109,7 +109,7 @@ namespace Botanik { namespace Pages {
         }
 
         void draw_dynamic() override {
-            const SystemContext& ctx = _terminal.context();
+            const SystemContext& ctx = _console.context();
             char val[40], fld[40];
             char fa[12];
 
@@ -190,7 +190,7 @@ namespace Botanik { namespace Pages {
          *  un-highlighted (the highlight would churn on never-settling values)
          *  except console TX, which settles between bursts. */
         void draw_hot() override {
-            const SystemContext& ctx = _terminal.context();
+            const SystemContext& ctx = _console.context();
             char val[40], fld[40];
             char fa[12], fb[12];
 
@@ -239,8 +239,8 @@ namespace Botanik { namespace Pages {
 
     public:
         /** @brief Bind to a terminal and PLC payload. */
-        StatusPage(AnsiTerminal& terminal, const OutputData* data)
-            : MetricPage(terminal, 16), _data(data) {
+        StatusPage(Console& console, const OutputData* data)
+            : MetricPage(console, 16), _data(data) {
             // wall clock + uptime tick per second
             _hot_ms = Config::PAGE_HOT_MS;
         }

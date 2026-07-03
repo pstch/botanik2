@@ -11,11 +11,13 @@
 #include <cstring>
 
 #include "libbotanik/console/editor.h"
+#include "libbotanik/console/console.h"
 
 
 namespace Botanik { namespace Terminal {
 
-    TextEditor::TextEditor(AnsiTerminal* terminal) : _terminal(terminal) {
+    TextEditor::TextEditor(Console* console)
+        : _console(console), _terminal(&console->terminal()) {
         _buf[0] = '\0';
         _layout.rows[0] = {0, 0, false};
         _layout.count = 1;
@@ -78,7 +80,7 @@ namespace Botanik { namespace Terminal {
     void TextEditor::_reset_state() {
         _len = _pos = 0;
         _buf[0]    = '\0';
-        _origin    = (uint16_t)(_terminal->rows() - 1);
+        _origin    = (uint16_t)(_console->rows() - 1);
         _layout.rows[0]   = {0, 0, false};
         _layout.count = 1;
     }
@@ -87,7 +89,7 @@ namespace Botanik { namespace Terminal {
         // Bottom-anchored: rows run from _origin to the content bottom. Clear
         // exactly that band (clear_rows leaves the alarm bar below it
         // untouched).
-        _terminal->clear_rows(_origin, (uint16_t)(_terminal->rows() - 1));
+        _terminal->clear_rows(_origin, (uint16_t)(_console->rows() - 1));
         uint16_t old_origin = _origin;
         _reset_state();
         uint16_t draw_row = _suppress_sync_redraw ? old_origin : _origin;
@@ -105,7 +107,7 @@ namespace Botanik { namespace Terminal {
     }
 
     void TextEditor::set_origin(uint16_t row) {
-        uint16_t max_row = (uint16_t)(_terminal->rows() - 1);
+        uint16_t max_row = (uint16_t)(_console->rows() - 1);
         _origin = row > max_row ? max_row : row;
     }
 
@@ -116,7 +118,7 @@ namespace Botanik { namespace Terminal {
         // Destination rows assumed already blank; only write prompt + content.
         for (uint16_t i = 0; i < _layout.count; i++) {
             uint16_t hw_row = _origin + i;
-            if (hw_row >= _terminal->rows()) break;
+            if (hw_row >= _console->rows()) break;
             _terminal->move_to({hw_row, 0});
             _write_prompt(i);
             if (_layout.rows[i].buf_len > 0)
@@ -173,7 +175,7 @@ namespace Botanik { namespace Terminal {
     uint16_t TextEditor::_grow_editor() {
         // Bottom-pinned origin: pull the top up by the rows the editor grew,
         // clamped at the screen top.
-        uint16_t scr_rows = _terminal->rows();
+        uint16_t scr_rows = _console->rows();
         uint16_t new_origin;
         if (scr_rows >= _layout.count) new_origin = (uint16_t)(scr_rows - _layout.count);
         else                           new_origin = 0;
@@ -192,11 +194,11 @@ namespace Botanik { namespace Terminal {
     void TextEditor::_shrink_editor(uint16_t new_origin) {
         if (new_origin <= _origin) return;
         // Under suppress the caller repaints, so only move the origin.
-        if (!_suppress_sync_redraw && _origin < _terminal->rows()) {
+        if (!_suppress_sync_redraw && _origin < _console->rows()) {
             // Open blank rows at the old origin to push the editor back down to
             // the bottom; bounded to [_origin..content bottom] so it never
             // spills below.
-            _terminal->scroll_region(_origin, (uint16_t)(_terminal->rows() - 1),
+            _terminal->scroll_region(_origin, (uint16_t)(_console->rows() - 1),
                                      /*up=*/false, (uint16_t)(new_origin - _origin));
         }
         _origin = new_origin;
@@ -225,7 +227,7 @@ namespace Botanik { namespace Terminal {
         // Prompt-class flip (PS2<->PS3): rewrite the gutter. A longer prompt's
         // push drops trailing content off the right edge, so shrink shown_len
         // accordingly before the length-align below.
-        if (shown_prompt_l != prompt && hw < _terminal->rows()) {
+        if (shown_prompt_l != prompt && hw < _console->rows()) {
             RowPrompt p = _row_prompt(post_idx);
             _terminal->move_to({hw, 0});
             if (prompt <= shown_prompt_l) {
@@ -269,7 +271,7 @@ namespace Botanik { namespace Terminal {
 
     void TextEditor::_new_row(uint16_t post_idx) {
         uint16_t hw = (uint16_t)(_origin + post_idx);
-        if (hw >= _terminal->rows()) return;
+        if (hw >= _console->rows()) return;
         const RowView& want = _layout.rows[post_idx];
         _terminal->move_to({hw, 0});
         _write_prompt(post_idx);
@@ -339,7 +341,7 @@ namespace Botanik { namespace Terminal {
         else           l_shift = -(int32_t)span_len;
 
         int32_t  row_delta = (int32_t)_layout.count - (int32_t)_pre.count;
-        uint16_t scr_rows  = _terminal->rows();
+        uint16_t scr_rows  = _console->rows();
 
         // Scroll up if the editor grew, so the added rows fit.
         uint16_t new_origin = _grow_editor();

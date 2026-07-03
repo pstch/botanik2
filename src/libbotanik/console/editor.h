@@ -22,6 +22,8 @@
 
 namespace Botanik { namespace Terminal {
 
+    class Console;
+
     using Ansi::CursorPos;
 
     /** @brief Class of prompt to draw at the start of a row */
@@ -66,7 +68,8 @@ namespace Botanik { namespace Terminal {
          * @{
          */
 
-        AnsiTerminal* _terminal;       /**< Owning terminal. */
+        Console*      _console;        /**< Owning console (content-area rows()). */
+        AnsiTerminal* _terminal;       /**< VT device (cached _console->terminal()). */
 
         char     _buf[Config::SHELL_INPUT_LEN]; /**< Editor buffer. */
         uint16_t _len    = 0;          /**< Bytes in _buf. */
@@ -90,8 +93,8 @@ namespace Botanik { namespace Terminal {
 
     public:
 
-        /** @brief Construct a TextEditor bound to the given terminal */
-        explicit TextEditor(AnsiTerminal* terminal);
+        /** @brief Construct a TextEditor bound to the given console */
+        explicit TextEditor(Console* console);
 
         /**
          * @name Prompts

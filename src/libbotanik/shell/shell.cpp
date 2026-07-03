@@ -34,10 +34,10 @@ namespace Botanik { namespace Shell {
     // Lifecycle
     // ------------------------------------------------------------------------
 
-    CommandShell::CommandShell(Terminal::AnsiTerminal& terminal,
+    CommandShell::CommandShell(Terminal::Console&      console,
                                Terminal::TextEditor&   editor,
                                ShellWriter&            output)
-        : _terminal(terminal), _editor(editor), _output(output)
+        : _console(console), _terminal(console.terminal()), _editor(editor), _output(output)
     {}
 
     // Command execution
@@ -165,7 +165,7 @@ namespace Botanik { namespace Shell {
 
     void CommandShell::_cmd_stats(const char*, uint16_t) {
         // Emits several lines; scrollback drains them at LOG_ROWS_PER_TICK.
-        Scheduler::SchedulerContext* ctx = _terminal.context().scheduler;
+        Scheduler::SchedulerContext* ctx = _console.context().scheduler;
         if (ctx == nullptr) { _println("stats: no scheduler context"); return; }
 
         char out[Config::LOG_FORMATTED_LEN];
@@ -244,7 +244,7 @@ namespace Botanik { namespace Shell {
             return;
         }
 
-        const Alarms::AlarmModel* m = _terminal.alarms();
+        const Alarms::AlarmModel* m = _console.alarms();
         if (m == nullptr) { _println("alarms: model unavailable"); return; }
 
         // "alarms list" - one paced line per active condition: code, age,
@@ -309,7 +309,7 @@ namespace Botanik { namespace Shell {
         _println("plc: PLC link disabled");
     }
 #else
-        const PlcIO::PlcSyncContext* p = _terminal.context().plc;
+        const PlcIO::PlcSyncContext* p = _console.context().plc;
         if (p == nullptr) { _println("plc: no PLC context"); return; }
         const char* s;
         switch (p->status()) {
@@ -365,7 +365,7 @@ namespace Botanik { namespace Shell {
         _println("net: networking disabled");
     }
 #else
-        const SystemContext&           ctx = _terminal.context();
+        const SystemContext&           ctx = _console.context();
         const Network::NetworkHandler* net = ctx.network;
         // Report and bail if the link never came up (config absent / offline).
         if (net == nullptr) { _println("net: networking disabled"); return; }

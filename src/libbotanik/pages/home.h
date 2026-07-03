@@ -65,7 +65,7 @@ namespace Botanik { namespace Pages {
          *  PAYLOAD_ROW); on a too-short screen the band collapses to empty
          *  (band_top == rows). */
         uint16_t log_band_top() const {
-            uint16_t rows = _terminal.rows();
+            uint16_t rows = _console.rows();
             uint16_t top  = (rows > Config::HOME_SCROLLBACK_LINES)
                        ? (uint16_t)(rows - Config::HOME_SCROLLBACK_LINES) : 1;
             if (top < PAYLOAD_ROW) top = (rows > PAYLOAD_ROW) ? PAYLOAD_ROW : rows;
@@ -86,7 +86,7 @@ namespace Botanik { namespace Pages {
             };
             uint16_t row = 1;
             for (const char* line : LOGO) {
-                if (row >= _terminal.rows()) return;
+                if (row >= _console.rows()) return;
                 _label(row, line);   // col 2 + clear-to-eol; paced via static
                 row++;
             }
@@ -152,7 +152,7 @@ namespace Botanik { namespace Pages {
          *  bar with a normal-video " LOGS " tab near the left. Static (drawn
          *  once). */
         void draw_log_header(uint16_t row) {
-            if (row >= _terminal.rows()) return;
+            if (row >= _console.rows()) return;
             if (!_static_step()) return;     // paced as one static element
             uint16_t cols = _terminal.cols();
 
@@ -203,7 +203,7 @@ namespace Botanik { namespace Pages {
         void draw_dynamic() override {
             // Cold fields only: the uptime counter is hot (see draw_hot()).
 #if BOTANIK_FEATURE_PLC
-            const SystemContext& ctx = _terminal.context();
+            const SystemContext& ctx = _console.context();
             _value(7, ctx.plc ? plc_str(ctx.plc->status()) : "n/a");
 #else
             _value(7, "n/a");
@@ -232,8 +232,8 @@ namespace Botanik { namespace Pages {
         /** @} */
 
     public:
-        HomePage(AnsiTerminal& terminal, const OutputData* data)
-            : MetricPage(terminal, 14), _data(data) {
+        HomePage(Console& console, const OutputData* data)
+            : MetricPage(console, 14), _data(data) {
             // cold-field redraw cadence
             _refresh_ms = Config::HOME_REFRESH_MS;
             // uptime ticks every second
@@ -250,7 +250,7 @@ namespace Botanik { namespace Pages {
             _log_active = true;
             // Stage the bottom band (drained by tick()); spanning the content
             // area bottom-aligns the lines against the last row.
-            _scrollback.begin_redraw((uint16_t)(_terminal.rows() - 1));
+            _scrollback.begin_redraw((uint16_t)(_console.rows() - 1));
         }
 
         void deactivate() override {
@@ -271,7 +271,7 @@ namespace Botanik { namespace Pages {
             if (active) {
                 uint16_t band_top = log_band_top();
                 _scrollback.drain_tail(_terminal, band_top,
-                                       (uint16_t)(_terminal.rows() - band_top));
+                                       (uint16_t)(_console.rows() - band_top));
             }
         }
 

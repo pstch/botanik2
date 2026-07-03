@@ -22,6 +22,7 @@ namespace Botanik { namespace Alarms { class AlarmModel; } }
 namespace Botanik { namespace Terminal {
 
     class AnsiTerminal;
+    class Console;
 
     /** @brief Bottom-row alarm strip (see file header). */
     class AlarmBar {
@@ -29,8 +30,9 @@ namespace Botanik { namespace Terminal {
         /** @name State
          *  @{ */
 
-        /** @brief The terminal this bar paints through (alarm source, geometry,
-         *  paint primitives). */
+        /** @brief The console this bar belongs to (alarm source). */
+        Console&            _c;
+        /** @brief The VT device it paints through (cached _c.terminal()). */
         AnsiTerminal&       _t;
         /** @brief Unmasked alarm set last painted (bit i = table row i). */
         uint64_t            _sig = 0;
@@ -40,8 +42,8 @@ namespace Botanik { namespace Terminal {
         /** @} */
 
     public:
-        /** @brief Bind the bar to its owning terminal. */
-        explicit AlarmBar(AnsiTerminal& terminal) : _t(terminal) {}
+        /** @brief Bind the bar to its owning console (caches its device). */
+        explicit AlarmBar(Console& console);
 
         /** @name Cooperative paint
          *  @{ */

@@ -29,16 +29,16 @@ namespace {
         HAL::Serial::Raw                 raw;
         Utils::BufferedSerial          serial;
         uint32_t                       now = 0;
-        Terminal::AnsiTerminal         terminal;
+        Terminal::Console              console;
         Terminal::TextEditor           editor;
         NullWriter                     writer;
         Shell::CommandShell            shell;
 
         ShellFixture()
             : serial(&raw),
-              terminal(serial, 80, 24, &now, 115200),
-              editor(&terminal),
-              shell(terminal, editor, writer) {
+              console(serial, 80, 24, &now, 115200),
+              editor(&console),
+              shell(console, editor, writer) {
             REQUIRE(::pipe(pipe_fds) == 0);
             raw.set_fds(pipe_fds[0], pipe_fds[1]);
             editor.reset();

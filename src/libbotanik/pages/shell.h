@@ -12,6 +12,7 @@
 #include "libbotanik/pages/page.h"
 #include "libbotanik/pages/scrollback.h"
 #include "libbotanik/logs/writer.h"
+#include "libbotanik/console/console.h"
 #include "libbotanik/console/editor.h"
 #include "libbotanik/shell/shell.h"
 
@@ -33,6 +34,7 @@ namespace Botanik { namespace Pages {
     class ShellPage : public Page, public Logs::BufferedLogWriter, public Shell::ShellWriter {
     private:
         using AnsiTerminal = Terminal::AnsiTerminal;
+        using Console      = Terminal::Console;
         using InputEditor  = Terminal::TextEditor;
         using LogEntry_t   = PlcIO::LogEntry_t;
         using Command      = Terminal::InputEvent::Command;
@@ -40,7 +42,9 @@ namespace Botanik { namespace Pages {
         /** @name State
          *  @{ */
 
-        /** @brief Owning terminal. */
+        /** @brief Owning console (content-area geometry + clear_content/line_feed). */
+        Console&           _console;
+        /** @brief The VT device it paints through (cached _console.terminal()). */
         AnsiTerminal&      _terminal;
         /** @brief Bottom-row line editor. */
         InputEditor        _editor;
@@ -66,7 +70,7 @@ namespace Botanik { namespace Pages {
         /** @name Lifecycle
          *  @{ */
 
-        ShellPage(Terminal::AnsiTerminal& terminal);
+        ShellPage(Terminal::Console& console);
 
         /** @brief Register a site command table (tried after the built-ins). */
         void set_commands(const Shell::ShellCommand* table, size_t count, void* ctx = nullptr) {
