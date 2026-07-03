@@ -20,10 +20,10 @@ set(CMAKE_C_USE_RESPONSE_FILE_FOR_INCLUDES ON)
 set(BOTANIK_TARGET "SIMULATOR" CACHE STRING "Target platform: SIMULATOR or OPTA")
 
 # Greenhouse site to build: selects src/sites/<name>/ (its payload, pages, alert
-# table, mock PLC) and the site.h header the harness/firmware include via
-# BOTANIK_SITE_HEADER. One site per build; both targets run the same one.
+# table, mock PLC). Just the name is set here; libbotanik_site.h derives the
+# site.h / config.h include paths from it (so the IDE needs only -DBOTANIK_SITE
+# too). One site per build; both targets run the same one.
 set(BOTANIK_SITE "gh_mlb41" CACHE STRING "Greenhouse site under src/sites/")
-set(BOTANIK_SITE_HEADER "sites/${BOTANIK_SITE}/site.h")
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -125,20 +125,22 @@ set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/src/libbotanik/scheduler/scheduler.cpp"
     PROPERTIES COMPILE_FLAGS "-Wdouble-promotion")
 
-# Site config overrides (optional): if the selected site ships a config.h, make it
-# build-wide by defining BOTANIK_SITE_CONFIG PUBLIC on the library - so libbotanik's
-# own TUs and every consumer compile against the same overridden Config values
-# (anything narrower is an ABI mismatch). libbotanik_config.h #includes it before
-# its #ifndef defaults. No-op when the site has no overrides.
+# Site selection: the site NAME is the single source of truth, forwarded PUBLIC on
+# the library. libbotanik_site.h (pulled in by libbotanik_config.h) derives both the
+# site.h and config.h include paths from it; config.h carries the build-wide Config
+# overrides libbotanik_config.h #includes before its #ifndef defaults - so libbotanik's
+# own TUs and every consumer compile against the same overridden values (anything
+# narrower is an ABI mismatch).
 # ABI guard: any TU that includes libbotanik_config.h MUST link `botanik` so it picks
 # up this PUBLIC define transitively; a TU that includes the header without linking the
 # library would silently compile against the un-overridden defaults (e.g. mis-sized
 # LOG_PLC_* buffers) and mismatch the rest of the build.
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/sites/${BOTANIK_SITE}/config.h")
-    target_compile_definitions(botanik PUBLIC
-        BOTANIK_SITE_CONFIG="sites/${BOTANIK_SITE}/config.h")
-    message(STATUS "Site config overrides: src/sites/${BOTANIK_SITE}/config.h")
+target_compile_definitions(botanik PUBLIC BOTANIK_SITE=${BOTANIK_SITE})
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/sites/${BOTANIK_SITE}/config.h")
+    message(FATAL_ERROR "Site '${BOTANIK_SITE}' has no config.h "
+        "(src/sites/${BOTANIK_SITE}/config.h); every site must ship one.")
 endif()
+message(STATUS "Site: ${BOTANIK_SITE} (src/sites/${BOTANIK_SITE}/)")
 
 # Optional-subsystem feature flags (libbotanik_features.h). Each defaults ON in
 # the header; pass -DBOTANIK_FEATURE_<X>=ON/OFF to override. We forward only the
@@ -201,7 +203,6 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         "src/botanik_sim/emulator.cpp"
         ${BOTANIK_SITE_SOURCES})
     target_link_libraries(botanik_sim botanik)
-    target_compile_definitions(botanik_sim PRIVATE BOTANIK_SITE_HEADER="${BOTANIK_SITE_HEADER}")
 
     # Hot-restart: after every relink, signal any running simulators to re-exec the
     # rebuilt binary (SIGUSR1 -> botanik_sim_reexec -> HAL::reset, which re-execs the
@@ -508,7 +509,6 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
         "src/botanik_fw/botanik_arduino.cpp"
         ${BOTANIK_SITE_SOURCES})
     target_link_libraries(botanik_fw PUBLIC botanik)
-    target_compile_definitions(botanik_fw PRIVATE BOTANIK_SITE_HEADER="${BOTANIK_SITE_HEADER}")
     set_target_properties(botanik_fw PROPERTIES
         LINKER_LANGUAGE CXX
         CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)

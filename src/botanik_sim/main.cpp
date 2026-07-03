@@ -11,9 +11,10 @@
 
 #include "libbotanik.h"
 
-// Site selected at configure time (-DBOTANIK_SITE); CMake points
-// BOTANIK_SITE_HEADER at its site.h, exposing BotanikSite + payload + the
+// Site selected at configure time (-DBOTANIK_SITE); libbotanik_site.h derives
+// BOTANIK_SITE_HEADER -> its site.h, exposing BotanikSite + payload + the
 // sim-only mock-PLC entry.
+#include "libbotanik_site.h"
 #include BOTANIK_SITE_HEADER
 
 // generic PLC emulator engine (host stand-in for the OPTA coprocessor)

@@ -13,8 +13,9 @@
  * are the plain Config values.
  */
 
-// Site selected at configure time (-DBOTANIK_SITE); CMake points
-// BOTANIK_SITE_HEADER at its site.h, exposing BotanikSite + the payload.
+// Site selected at configure time (-DBOTANIK_SITE); libbotanik_site.h derives
+// BOTANIK_SITE_HEADER -> its site.h, exposing BotanikSite + the payload.
+#include "libbotanik_site.h"
 #include BOTANIK_SITE_HEADER
 
 namespace Botanik { namespace Firmware {

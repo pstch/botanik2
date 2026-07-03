@@ -18,6 +18,7 @@
 #include "doctest.h"
 
 #include "libbotanik.h"            // all library types (pages, terminal, editor, plcio)
+#include "libbotanik_site.h"       // BOTANIK_SITE -> BOTANIK_SITE_HEADER
 #include BOTANIK_SITE_HEADER       // selected site: PlcInputData_t / PlcOutputData_t
 
 // Concrete instantiations of the templated pages/PLC structs, matching what the

@@ -18,6 +18,8 @@
 // Site configuration
 // ===========================================================================
 
+#include "libbotanik_site.h"     // BOTANIK_SITE -> BOTANIK_SITE_CONFIG/HEADER
+
 #if defined(BOTANIK_SITE_CONFIG)
 #  include BOTANIK_SITE_CONFIG   // #define BOTANIK_* before the defaults
 #endif
