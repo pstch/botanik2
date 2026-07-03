@@ -62,6 +62,7 @@ each flag defaults from an `#ifndef`-guarded macro, so a site pins it in
 | `BOTANIK_FEATURE_NETWORK` | off     | The `network/` stack: @ref Botanik::Network::NetworkHandler + @ref Botanik::Network::NameResolver, instantiated and stepped by `BotanikFirmware`. Requires `PLC` (config comes from the PLC block). | wired; default off (on for `gh_mlb41`) |
 | `BOTANIK_FEATURE_NTP`     | off     | @ref Botanik::Network::NtpClient (SNTP). Requires `NETWORK`. | wired; default off |
 | `BOTANIK_FEATURE_MQTT`    | off     | @ref Botanik::Network::MqttClient + the alarm notifier. Requires `NETWORK`. | wired; default off |
+| `BOTANIK_FEATURE_SUN`     | **on**  | @ref Botanik::Sun::SunPositionTracker + the `solar_elevation()` NOAA math (`sun/`) and its tests. Standalone - not instantiated by `BotanikFirmware`. | active |
 | `BOTANIK_FEATURE_CONSOLE` | **on**  | @ref Botanik::Terminal::Console (over the @ref Botanik::Terminal::AnsiTerminal VT device), the built-in shell/logs/alarms pages, the console UART they drive, and the `register_pages()` / `register_commands()` hooks. Off -> a headless firmware. | active |
 | `BOTANIK_FEATURE_MONITOR` | **on**  | The secondary MONITOR UART and its @ref Botanik::Logs::SerialLogWriter sink. Independent of `CONSOLE`. | active |
 

@@ -144,6 +144,7 @@ The library subsystems under `src/libbotanik/`:
 |---|---|---|
 | `BOTANIK_FEATURE_PLC` | on | `PlcSyncHandler`, `PlcLogReader`, the `<In, Out>` payload threaded through `BotanikFirmware`, and the PLC-fault watchdog escalation |
 | `BOTANIK_FEATURE_NETWORK` / `_NTP` / `_MQTT` | off | the `network/` stack (`NetworkHandler`/`NameResolver`/`TimeSyncHandler`/`MqttClient`), instantiated + stepped by `BotanikFirmware`; on for `gh_mlb41`. `NTP`/`MQTT` require `NETWORK`, `NETWORK` requires `PLC` (enforced by `#error`) |
+| `BOTANIK_FEATURE_SUN` | on | the `sun/` solar-position tracker (`Sun::SunPositionTracker` + the `solar_elevation()` NOAA math) and its tests. Standalone - not instantiated by `BotanikFirmware`; a site owns it |
 | `BOTANIK_FEATURE_CONSOLE` | on | the interactive ANSI UI: `Console` (over the `AnsiTerminal` VT device), the built-in shell/logs/alarms pages, the console UART, and the `register_pages()` / `register_commands()` hooks. Off -> headless |
 | `BOTANIK_FEATURE_MONITOR` | on | the secondary MONITOR UART and its `SerialLogWriter` sink. Independent of `CONSOLE`: a headless build can keep MONITOR for diagnostics, an interactive build can drop it. Both off -> logs reach only site-registered sinks |
 
