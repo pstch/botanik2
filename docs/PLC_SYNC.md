@@ -27,6 +27,30 @@ class "PlcOutput<OutputData>\n(PLC -> host)" as PO {
 }
 \enduml
 
+Each section is its own named struct (`plcio/vars.h`), named from the **PLC's** point of
+view. The `sync` counters are one word per direction pair; the `logs` section is the
+host's read cursor on the input side and the PLC's write cursor plus the ring of
+`LogEntry_t` records on the output side:
+
+\startuml "the sync-cursor and log-ring section structs (PLC's point of view)"
+class PlcInputCounters_t {
+  rxSeqNum : uint32 - PLC's copy of the host TX seq
+  txAckNum : uint32 - host's ack of the PLC TX seq
+}
+class PlcOutputCounters_t {
+  txSeqNum : uint32 - PLC TX seq (bumped on commit)
+  rxAckNum : uint32 - PLC's ack of the host TX seq
+}
+class PlcInputLogs_t {
+  readIndex : uint32 - host read cursor (leads the struct)
+}
+class PlcOutputLogs_t {
+  writeIndex : uint32 - PLC write cursor (leads the struct)
+  logBuffer : LogEntry_t[N] - the log ring
+}
+PlcOutputLogs_t "1" *-- "N" LogEntry_t
+\enduml
+
 Every struct is explicitly padded so its layout is identical packed or not, and the
 cursors (`writeIndex` / `readIndex`) lead their structs so the host can poll them
 through a word-aligned `uint32_t*` regardless of payload size. `static_assert`s in

@@ -53,6 +53,18 @@ text, not packed integers (see "Addresses").
 | `dns1`    | `HostStr_t` | primary DNS server (the resolver's upstream) |
 | `dns2`    | `HostStr_t` | secondary DNS server, empty = none |
 
+\startuml "PlcNetConfig_t: the network-interface block"
+class PlcNetConfig_t {
+  serial : uint32 - change counter (leads the block)
+  dhcp : uint8 - 1 = DHCP, 0 = static
+  ip : HostStr_t - static IPv4 literal (dhcp == 0)
+  netmask : HostStr_t
+  gateway : HostStr_t
+  dns1 : HostStr_t - resolver upstream
+  dns2 : HostStr_t - empty = none
+}
+\enduml
+
 ### ntp - NTP client
 
 | Field | Type | Meaning |
@@ -63,6 +75,16 @@ text, not packed integers (see "Addresses").
 | `server1` | `HostStr_t` | hostname or IPv4 literal |
 | `server2` | `HostStr_t` | empty = none |
 
+\startuml "PlcNtpConfig_t: the NTP-client block"
+class PlcNtpConfig_t {
+  serial : uint32 - change counter (leads the block)
+  enabled : uint8 - 1 = run the client
+  poll_s : uint16 - poll interval, s (0 = default)
+  server1 : HostStr_t - hostname or IPv4 literal
+  server2 : HostStr_t - empty = none
+}
+\enduml
+
 ### mqtt - MQTT client
 
 | Field | Type | Meaning |
@@ -72,6 +94,16 @@ text, not packed integers (see "Addresses").
 | `port`        | `uint16_t`  | broker TCP port (0 = firmware default, 1883) |
 | `keepalive_s` | `uint16_t`  | MQTT keepalive, seconds (0 = firmware default) |
 | `broker`      | `HostStr_t` | hostname or IPv4 literal |
+
+\startuml "PlcMqttConfig_t: the MQTT-client block"
+class PlcMqttConfig_t {
+  serial : uint32 - change counter (leads the block)
+  enabled : uint8 - 1 = connect to the broker
+  port : uint16 - broker TCP port (0 = 1883)
+  keepalive_s : uint16 - keepalive, s (0 = default)
+  broker : HostStr_t - hostname or IPv4 literal
+}
+\enduml
 
 The MQTT **client id** is *not* on the wire: it is derived from `Config::SITE_NAME` at
 compile time. There are no credential or TLS fields - the brokers in scope are
@@ -89,6 +121,30 @@ the wire - so latitude and longitude use the common "E7" encoding (degrees * 1e7
 | `serial`        | `uint32_t` | bumped by the PLC on any change to this block |
 | `latitude_e7`   | `int32_t`  | latitude, degrees * 1e7 (north +, south -); -90e7..90e7 |
 | `longitude_e7`  | `int32_t`  | longitude, degrees * 1e7 (east +, west -); -180e7..180e7 |
+
+\startuml "PlcGeoConfig_t: the site-location block"
+class PlcGeoConfig_t {
+  serial : uint32 - change counter (leads the block)
+  latitude_e7 : int32 - degrees * 1e7 (N +, S -)
+  longitude_e7 : int32 - degrees * 1e7 (E +, W -)
+}
+\enduml
+
+The four blocks are the members of the generic `PlcOutputConfig_t`, in this order, that
+`PlcOutput<Data>` carries as its `conf` section:
+
+\startuml "PlcOutputConfig_t: the generic conf section aggregates the four blocks"
+class PlcOutputConfig_t {
+  net : PlcNetConfig_t
+  ntp : PlcNtpConfig_t
+  mqtt : PlcMqttConfig_t
+  geo : PlcGeoConfig_t
+}
+PlcOutputConfig_t *-- PlcNetConfig_t
+PlcOutputConfig_t *-- PlcNtpConfig_t
+PlcOutputConfig_t *-- PlcMqttConfig_t
+PlcOutputConfig_t *-- PlcGeoConfig_t
+\enduml
 
 No timezone field: the device runs in UTC throughout (RTC is UTC from NTP, solar math
 is timezone-independent - longitude alone fixes solar noon). Local-time presentation

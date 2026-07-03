@@ -113,7 +113,7 @@ beat can overrun the serial output:
 
 @ref Botanik::Pages::AlarmsPage renders the alarm-condition table as a scrollable view
 (filter modes: recent / all / active / unmasked). Each row is one
-@ref Botanik::Alarms::AlarmCondition: a **static** metadata prefix the site defines by
+@ref Botanik::Alarms::AlarmCondition - a **static** metadata prefix the site defines by
 aggregate-init (the row index is the alarm's bit index) followed by a **dynamic** suffix
 the @ref Botanik::Alarms::AlarmModel owns and drives (left zeroed at init). A threshold
 of `-1` disables that action; dwell fields are in seconds.

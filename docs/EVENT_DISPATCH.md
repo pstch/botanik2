@@ -30,6 +30,25 @@ handling X3.64 CSI sequences, Alt-prefixed keys, function-key escapes, and the k
 `count`. The @ref Botanik::Terminal::Ansi helper is a stateless write-only API for
 emitting escape sequences (used by `AnsiTerminal`).
 
+One decoded event is an @ref Botanik::Terminal::InputEvent. Its `type` selects which
+half of the payload is live: `CONTENT` uses the `batch_data`/`batch_len` run, `COMMAND`
+uses the `command` key (plus its `count`). The CSI fields (`params`/`param_count`/
+`prefix`/`value`) carry a partially-parsed escape sequence.
+
+\startuml "InputEvent: one decoded key or text run; `type` selects the live half"
+class InputEvent {
+  type : EventType - NONE / CONTENT / COMMAND
+  command : Command - decoded key (COMMAND)
+  count : uint16 - repeat for coalesced keys (default 1)
+  batch_data : const char* - printable run (CONTENT)
+  batch_len : uint16 - run length
+  params : uint16[8] - CSI numeric params
+  param_count : uint8 - CSI params seen
+  prefix : char - CSI private prefix (e.g. '?')
+  value : uint8 - final decoded byte
+}
+\enduml
+
 ### Pages
 
 @ref Botanik::Terminal::Console holds up to 8 @ref Botanik::Pages::Page pointers and

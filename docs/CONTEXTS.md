@@ -44,8 +44,9 @@ SystemContext o-- SchedulerContext : scheduler
 SystemContext o-- PlcSyncContext : plc
 \enduml
 
-@ref Botanik::SystemContext::set_context lets the owner wire the aggregate after
-construction, once every subsystem's address is known.
+The owner fills the aggregate's members after construction, once every subsystem's
+address is known, then hands it to the console via
+@ref Botanik::Terminal::Console::set_context.
 
 ## The individual contexts
 
