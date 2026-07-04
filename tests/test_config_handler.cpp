@@ -34,7 +34,7 @@ namespace {
 
 }  // namespace
 
-TEST_CASE("ConfigHandler: on_step runs every step; on_config_changed only on a serial change") {
+TEST_CASE("ConfigHandler: on_step runs every step, on_config_changed only on a serial change") {
     TestHandler h(nullptr);
 
     // Serial stays 0 (never configured): on_step runs, on_config_changed does not.
