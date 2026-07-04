@@ -9,8 +9,6 @@
  * fall out directly.
  */
 
-
-
 #include <cmath>
 #include <cstdint>
 

@@ -22,8 +22,7 @@ namespace Botanik { namespace Sun {
 
     /** @brief Sun's elevation angle (radians) above the horizon at @p now_ms,
      *         seen from the given location (@p lat_deg north +, @p lon_deg east +).
-     *  @note Positive above the horizon, negative below; peaks each day at solar noon
-     *        at 90 deg - |lat - declination|. */
+     *  @note Positive above the horizon, negative below; peaks each day at solar noon. */
     double solar_elevation(uint64_t now_ms, double lat_deg, double lon_deg);
 
     /** @} 
@@ -47,8 +46,15 @@ namespace Botanik { namespace Sun {
         bool ready() const { return _computed; }
 
     protected:
+        /** @brief Get the serial number of the geographical configuration.
+         * @implements ConfigHandler
+          */
         uint32_t config_serial() const override;
+
+        /** @brief Invalidate the current . */
         void on_config_changed(uint64_t now_ms) override;
+
+        /** @brief Recompute the solar elevation after a delay has elapsed. */
         void on_step(uint64_t now_ms) override;
     };
 
