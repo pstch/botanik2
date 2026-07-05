@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <cstdarg>
 
+#include "libbotanik/core/component.h"
 #include "libbotanik/plcio/vars.h"
 #include "libbotanik/logs/writer.h"
 #include "libbotanik_config.h"
@@ -41,7 +42,7 @@ namespace Botanik { namespace Logs {
      *  @brief Rate-limited logging front-end: applies the dual token-bucket
      *         limiter, then fans surviving entries out to the registered
      *         writers. */
-    class Logger {
+    class Logger : public Botanik::Component {
     private:
         using LogEntry_t = PlcIO::LogEntry_t;
 
@@ -146,8 +147,13 @@ namespace Botanik { namespace Logs {
          *  @{ */
 
         /** @brief Refill rate-limiting token buckets (call once per main-loop
-         *  period) */
+         *  period). Not driven through Component::step(): the Logger is a
+         *  Component for uniformity (and to break the Logger/Component include
+         *  cycle), stepped with no timestamp and never announced. */
         void step();
+        /** @brief Healthy while at least one writer is registered (a writerless
+         *  logger silently swallows everything). */
+        bool healthy() const override { return has_writers(); }
         /** @brief Forward @p entry to all registered writers after rate-limit
          *  checks */
         void push_entry(const LogEntry_t& entry);

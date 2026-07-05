@@ -13,8 +13,9 @@ namespace Botanik { namespace Utils {
     // Lifecycle
     // ------------------------------------------------------------------------
 
-    BufferedSerial::BufferedSerial(HAL::Serial::Raw* serial) :
-        _serial(serial) {
+    BufferedSerial::BufferedSerial(HAL::Serial::Raw* serial, Logs::Logger* logger,
+                                   const char* name) :
+        Component(logger, name), _serial(serial) {
         memset(_rx_buf, 0, sizeof(_rx_buf));
         memset(_tx_buf, 0, sizeof(_tx_buf));
     }
@@ -107,7 +108,8 @@ namespace Botanik { namespace Utils {
         return sent;
     }
 
-    void BufferedSerial::step() {
+    void BufferedSerial::on_step(uint64_t now_ms) {
+        (void)now_ms;
         receive();
         transmit();
     }

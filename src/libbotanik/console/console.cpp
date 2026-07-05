@@ -17,11 +17,11 @@ namespace Botanik { namespace Terminal {
                      const uint32_t* timestamp_ms, uint32_t baud,
                      const SystemContext& ctx, const Alarms::AlarmModel* alarms,
                      Logs::Logger* logger) :
+        Component(logger, "Console"),
         _term(serial, cols, rows, baud),
         _parser(serial, timestamp_ms),
         _ctx(ctx),
         _alarms(alarms),
-        _logger(logger),
         _status_bar(*this),
         _alarm_bar(*this)
     {
@@ -29,8 +29,7 @@ namespace Botanik { namespace Terminal {
         _reserved_bottom = (_alarms != nullptr) ? 1 : 0;
     }
 
-    void Console::step() {
-        announce_step(_logger, "Console");
+    void Console::on_step(uint64_t now_ms) {
         // Snapshot the RX depth before the parse loop drains it, so the serial
         // gauge reports what was actually waiting this cycle rather than ~0.
         _term.snapshot_rx();
@@ -46,7 +45,7 @@ namespace Botanik { namespace Terminal {
         }
         // Status bar paints first each tick (self-contained), interleaving with
         // the active page's draw.
-        _status_bar.step(HAL::Clock::uptime_ms());
+        _status_bar.step(now_ms);
         // Drain buffered input into the active page (terminal-level intercepts
         // like Ctrl-L and page switches are consumed first).
         _pump_input();

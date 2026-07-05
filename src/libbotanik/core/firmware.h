@@ -50,7 +50,7 @@
  *    shell_page().set_commands(...). Tried after the built-ins (can't shadow
  *    exit/reset).
  *  - **Post-wiring / per-beat** - on_setup() runs once near the end of setup();
- *    on_loop(now_ms) runs each beat with fresh PLC data.
+ *    on_step(now_ms) runs each beat with fresh PLC data.
  *
  * Worked example (a site with one extra page and one extra command):
  * @code
@@ -176,7 +176,7 @@ namespace Botanik {
               _plc_log_reader(_plc_handler.context(), &_logger),
               _health(_alarm_table, (uint8_t)_alarm_count, &_logger,
                       _scheduler.context(), _plc_handler.context(),
-                      shared_in, shared_out)
+                      shared_in, shared_out, &_plc_handler.output_data()->alarms)
 #else
               // No PLC: health takes a null link context + null regions (it
               // degrades the verdict to "kick while alive").
@@ -185,7 +185,7 @@ namespace Botanik {
 #endif
               , _sys_ctx()   // fields wired in the body, once addresses are known
 #if BOTANIK_FEATURE_MONITOR
-              , _monitor()
+              , _monitor(&_logger)
 #endif
 #if BOTANIK_FEATURE_NETWORK
               // Network reads its config from the PLC block (NETWORK requires
@@ -305,37 +305,42 @@ namespace Botanik {
          *  the 32-bit display "now" (`SchedulerContext::timestamp_ms`) the
          *  render path shares.
          *  The order is load-bearing (see CONCURRENCY.md):
-         *    tick -> receive -> plc -> health -> on_loop -> logger -> terminal
-         *         -> drain -> transmit -> watchdog_kick
-         *  The health / alarm / on_loop steps take a fresh 64-bit
-         *  HAL::Clock::uptime_ms(), NOT the 32-bit timestamp_ms - their fault-grace /
-         *  alarm-latch timers want a wrap-free clock. Non-virtual so the order
-         *  can't be reordered; a site adds per-beat work via on_loop(). */
+         *    tick -> serial.receive -> plc -> health -> net -> on_step -> logger
+         *         -> terminal/drain -> serial.transmit -> watchdog_kick
+         *  Every stepped unit is a Component driven by step(now_ms) with a fresh
+         *  64-bit HAL::Clock::uptime_ms(), NOT the 32-bit timestamp_ms - their
+         *  fault-grace / alarm-latch timers want a wrap-free clock. Non-virtual
+         *  so the order can't be reordered; a site adds per-beat work via
+         *  on_step(). */
         void loop() {
-            if (!_scheduler.tick()) return;
+            if (!_scheduler.tick()) return;   // driver: gates the beat, produces the clock
 
+            // One 64-bit "now" for every Component stepped this beat.
+            uint64_t now_ms = HAL::Clock::uptime_ms();
+
+            // Serial RX at the top: fresh input before processing. BufferedSerial
+            // is a Component (step() == receive()+transmit()), but the loop drives
+            // its two halves at the phases they belong - RX here, TX after the
+            // render below. Stepping the full pump at both ends would cost an extra
+            // read() syscall each beat and split the console's cooperative,
+            // baud-paced TX across the render, perturbing throughput.
 #if BOTANIK_FEATURE_CONSOLE
-            _console.receive();
+            _console.serial().receive();
 #endif
 #if BOTANIK_FEATURE_MONITOR
-            _monitor.receive();
+            _monitor.serial().receive();
 #endif
 
 #if BOTANIK_FEATURE_PLC
-            _plc_handler.step();
-            _plc_log_reader.step();
+            _plc_handler.step(now_ms);
+            _plc_log_reader.step(now_ms);
 #endif
 
             // Health after the PLC payload is fresh and before the logger
-            // drains, so an alarm START/END lands this beat. Asserts platform
-            // alarms, updates the watchdog verdict, advances the model (remote
-            // bitset zeroed without a PLC).
-            uint64_t now_ms = HAL::Clock::uptime_ms();
-#if BOTANIK_FEATURE_PLC
-            _health.step(plc_output_data()->alarms, _plc_handler.rx_torn_count(), now_ms);
-#else
-            _health.step(0, 0, now_ms);
-#endif
+            // drains, so an alarm START/END lands this beat. It reads the remote
+            // alarm bitset + torn count through its stored pointers (both null
+            // without a PLC, so only local platform alarms fire).
+            _health.step(now_ms);
 
 #if BOTANIK_FEATURE_NETWORK
             // Config-driven network services (resolver/network/ntp/mqtt +
@@ -345,22 +350,25 @@ namespace Botanik {
             _net.step(now_ms);
 #endif
 
-            on_loop(now_ms);   // site per-beat state machines (default no-op)
+            on_step(now_ms);   // site per-beat state machines (default no-op)
 
             _logger.step();
 
+            // Middle logic: terminal render + monitor log-queue drain.
 #if BOTANIK_FEATURE_CONSOLE
-            _console.step();
+            _console.step(now_ms);
 #endif
 #if BOTANIK_FEATURE_MONITOR
-            _monitor.drain();
+            _monitor.writer().step(now_ms);
 #endif
 
+            // Serial TX at the bottom: push this beat's rendered output out after
+            // everything drew.
 #if BOTANIK_FEATURE_CONSOLE
-            _console.transmit();
+            _console.serial().transmit();
 #endif
 #if BOTANIK_FEATURE_MONITOR
-            _monitor.transmit();
+            _monitor.serial().transmit();
 #endif
 
             // Kick while healthy; HealthMonitor withholds only once a PLC fault
@@ -474,8 +482,10 @@ namespace Botanik {
         virtual void on_setup() {}
 
         /** @brief Site per-beat work, run each loop() with fresh PLC data
-         *  (after health, before the logger drains). Default: nothing. */
-        virtual void on_loop(uint64_t now_ms) { (void)now_ms; }
+         *  (after health, before the logger drains). Named to match the Component
+         *  hook (the firmware is the loop driver, not itself a Component).
+         *  Default: nothing. */
+        virtual void on_step(uint64_t now_ms) { (void)now_ms; }
 
         /** @} */
     };

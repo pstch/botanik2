@@ -83,7 +83,9 @@ namespace Botanik { namespace Logs {
 
     // Suppression (drop_if_tty) is decided once: when the output is a tty it shares the
     // screen with the console UI, so log entries would garble the display.
-    SerialLogWriter::SerialLogWriter(BufferedSerial& serial, bool drop_if_tty) :
+    SerialLogWriter::SerialLogWriter(BufferedSerial& serial, bool drop_if_tty,
+                                     Logger* logger, const char* name) :
+        Component(logger, name),
         _serial(&serial), _suppressed(drop_if_tty && serial.is_output_tty()) {}
 
     void SerialLogWriter::push(const LogEntry_t* entry) {
@@ -93,7 +95,8 @@ namespace Botanik { namespace Logs {
 
     // Drain into the serial's TX ring; the serial is flushed separately by the
     // main loop.
-    void SerialLogWriter::step() {
+    void SerialLogWriter::on_step(uint64_t now_ms) {
+        (void)now_ms;
         drain();
     }
 

@@ -7,15 +7,16 @@
  * @brief NetworkHandler and NtpClient - PLC-config-driven state machines that
  *        bring up the link and run an NTP client.
  *
- * Both derive ConfigHandler, so each restarts when its config block's serial
- * bumps. NetworkHandler owns the link (via HAL::Net) and is_up() is
- * authoritative; NtpClient resolves through the shared NameResolver and gates
- * on is_up().
+ * Both derive Component (config-serial machinery), so each restarts when its
+ * config block's serial bumps. NetworkHandler owns the link (via HAL::Net) and
+ * is_up() is authoritative; NtpClient resolves through the shared NameResolver
+ * and gates on is_up().
  */
 
 #include <cstdint>
 
-#include "libbotanik/core/config.h"
+#include "libbotanik/core/component.h"
+#include "libbotanik/plcio/sync.h"      // PlcSyncContext + plc_config()
 #include "libbotanik/hal/net.h"
 #include "libbotanik/network/resolver.h"
 
@@ -41,7 +42,7 @@ namespace Botanik { namespace Network {
      *  Drives the link state machine from the PLC `net` config block,
      *  restarting on a config change. Clears the NameResolver cache on
      *  reconfiguration / link loss. */
-    class NetworkHandler : public ConfigHandler {
+    class NetworkHandler : public Component {
         /** @name State
          *  @{ */
 
@@ -57,6 +58,8 @@ namespace Botanik { namespace Network {
             NET_ERROR,
         };
 
+        /** @brief PLC config source (may be null in tests). */
+        PlcIO::PlcSyncContext* _ctx;
         State         _state;
         /// when this state was entered (for timeouts)
         uint64_t      _since_ms;
@@ -64,6 +67,9 @@ namespace Botanik { namespace Network {
         NameResolver* _resolver;
 
         /** @} */
+
+        /** @brief The generic config block (or null with no ctx). */
+        const PlcIO::PlcOutputConfig_t* config() const { return PlcIO::plc_config(_ctx); }
 
     public:
         /** @name Lifecycle
@@ -77,6 +83,9 @@ namespace Botanik { namespace Network {
         /** @brief True once the link is up with an address. */
         bool is_up() const { return _state == NET_RUNNING; }
 
+        /** @brief Healthy while the link is up. */
+        bool healthy() const override { return is_up(); }
+
         /** @brief Bring-up phase as a short display string
          *  (down/setup/online/error). */
         const char* status_str() const;
@@ -89,7 +98,7 @@ namespace Botanik { namespace Network {
         /** @} */
 
     protected:
-        /** @name ConfigHandler hooks
+        /** @name Component hooks
          *  @{ */
         uint32_t config_serial() const override;
         void on_config_changed(uint64_t now_ms) override;
@@ -114,7 +123,7 @@ namespace Botanik { namespace Network {
      *  HAL::Net UDP, and disciplines the RTC. Gated on NetworkHandler::is_up().
      *  Restarts on a config change; falls back to the second server and backs
      *  off on failure. */
-    class NtpClient : public ConfigHandler {
+    class NtpClient : public Component {
         /** @name State
          *  @{ */
         enum State : uint8_t {
@@ -125,6 +134,8 @@ namespace Botanik { namespace Network {
             TIME_SYNCED,     ///< RTC disciplined; idle until the next poll
             TIME_ERROR,      ///< failed; backing off before a retry
         };
+        /** @brief PLC config source (may be null in tests). */
+        PlcIO::PlcSyncContext* _ctx;
         State                 _state;
         /// when this state was entered (timeouts)
         uint64_t              _since_ms;
@@ -147,6 +158,9 @@ namespace Botanik { namespace Network {
         bool                  _sync_held;
         /** @} */
 
+        /** @brief The generic config block (or null with no ctx). */
+        const PlcIO::PlcOutputConfig_t* config() const { return PlcIO::plc_config(_ctx); }
+
     public:
         NtpClient(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger = nullptr,
                   NameResolver* resolver = nullptr,
@@ -156,6 +170,8 @@ namespace Botanik { namespace Network {
          *  re-poll (it is not "unsynced" mid-refresh); only an actual loss clears
          *  it. */
         bool synced() const { return _sync_held; }
+        /** @brief Healthy while a valid time sync is held. */
+        bool healthy() const override { return _sync_held; }
         /** @brief Sync phase as a short display string
          *  (off/resolving/querying/synced/error). */
         const char* status_str() const;

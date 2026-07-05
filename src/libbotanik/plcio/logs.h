@@ -24,7 +24,6 @@ namespace Botanik { namespace PlcIO {
         /** @name State
          *  @{ */
 
-        Logger*             _logger;
         PlcSyncContext*     _ctx;
         uint32_t            _last_seq = 0;  ///< only meaningful once _have_seq
         /** @brief True once a first entry has been seen (so seq 0 is a real
@@ -46,10 +45,13 @@ namespace Botanik { namespace PlcIO {
         PlcLogReader(PlcSyncContext* ctx, Logger* logger);
         /** @brief Drain all pending PLC log entries. */
         void drain();
-        /** @brief Drain all pending PLC log entries; call once per tick. */
-        void step();
 
         /** @} */
+
+    protected:
+        /** @brief Drain all pending PLC log entries (driven by Component::step;
+         *  @p now_ms unused). */
+        void on_step(uint64_t now_ms) override;
 
     private:
         /** @name Internals

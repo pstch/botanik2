@@ -6,7 +6,7 @@
  * @file mqtt.h
  * @brief MqttClient - minimal non-blocking MQTT 3.1.1 publisher over TCP.
  *
- * Config-driven (ConfigHandler, the `mqtt` block): connects, keeps alive with
+ * Config-driven (Component, the `mqtt` block): connects, keeps alive with
  * PINGREQ, publishes QoS-0; restarts on a config change, backs off / reconnects
  * on failure. The broker name resolves through the shared NameResolver; the
  * link must be up (NetworkHandler::is_up()) before a connect.
@@ -17,9 +17,8 @@
 
 #include <cstdint>
 
-#include "libbotanik/core/config.h"
 #include "libbotanik/hal/net.h"
-#include "libbotanik/network/network.h"
+#include "libbotanik/network/network.h"   // Component + PlcSyncContext + plc_config
 #include "libbotanik/network/resolver.h"
 // Alarms::Publisher (alarm transport)
 #include "libbotanik/alarms/publisher.h"
@@ -42,7 +41,7 @@ namespace Botanik { namespace Network {
     /** @brief Non-blocking MQTT 3.1.1 publisher. Also serves as the alarm
      *  transport (Alarms::Publisher), so HealthMonitor's notifier publishes
      *  through it. */
-    class MqttClient : public ConfigHandler, public Alarms::Publisher {
+    class MqttClient : public Component, public Alarms::Publisher {
         /** @name State
          *  @{ */
         enum State : uint8_t {
@@ -54,6 +53,8 @@ namespace Botanik { namespace Network {
             MQTT_READY,       ///< connected; keepalive + publishes
             MQTT_ERROR,       ///< failed; backing off before a retry
         };
+        /** @brief PLC config source (may be null in tests). */
+        PlcIO::PlcSyncContext* _ctx;
         State                 _state;
         /// when this state was entered (timeouts)
         uint64_t              _since_ms;
@@ -65,6 +66,9 @@ namespace Botanik { namespace Network {
         const NetworkHandler* _net;
         HAL::Network::TcpSocket   _sock;           ///< open TCP socket (-1 = none)
         /** @} */
+
+        /** @brief The generic config block (or null with no ctx). */
+        const PlcIO::PlcOutputConfig_t* config() const { return PlcIO::plc_config(_ctx); }
 
     public:
         MqttClient(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger = nullptr,

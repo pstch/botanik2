@@ -8,7 +8,6 @@
  * (noon-anchored), so the Julian-date arithmetic and the noon-anchored transit
  * fall out directly.
  */
-
 #include <cmath>
 #include <cstdint>
 
@@ -31,9 +30,10 @@ namespace Botanik { namespace Sun {
     // ------------------------------------------------------------------------
 
     // Our own PI: M_PI is not guaranteed under strict C++11 (no
-    // _USE_MATH_DEFINES).
-    static const double PI       = 3.14159265358979323846;
-    static const double DEG2RAD  = PI / 180.0;
+    // _USE_MATH_DEFINES), and the Arduino/Mbed core #defines PI as a macro on
+    // OPTA, so use a distinct name.
+    static const double SOLAR_PI = 3.14159265358979323846;
+    static const double DEG2RAD  = SOLAR_PI / 180.0;
 
     // Earth's mean axial tilt, degrees (the ecliptic obliquity).
     static const double OBLIQUITY_DEG = 23.4397;
@@ -120,7 +120,7 @@ namespace Botanik { namespace Sun {
     static const uint64_t SUN_RECOMPUTE_MS = 60000ull;
 
     SunPositionTracker::SunPositionTracker(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger)
-        : ConfigHandler(ctx, logger, "SunPositionTracker"),
+        : Component(logger, "SunPositionTracker"), _ctx(ctx),
           _elevation(0.0), _next_ms(0), _computed(false) {}
 
     uint32_t SunPositionTracker::config_serial() const {

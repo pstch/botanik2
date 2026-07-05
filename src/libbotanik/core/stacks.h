@@ -41,18 +41,14 @@ namespace Botanik {
         Logs::SerialLogWriter _writer;
 
     public:
-        MonitorStack()
-            : _serial(HAL::Serial::get(HAL::Serial::MONITOR)),
-              _writer(_serial, /*drop_if_tty=*/true) {}
+        MonitorStack(Logs::Logger* logger = nullptr)
+            : _serial(HAL::Serial::get(HAL::Serial::MONITOR), logger, "MonitorSerial"),
+              _writer(_serial, /*drop_if_tty=*/true, logger, "MonitorWriter") {}
 
         Utils::BufferedSerial& serial() { return _serial; }
         Logs::SerialLogWriter& writer() { return _writer; }
-
-        /** @name Per-beat steps (called in the firmware loop order) @{ */
-        void receive()  { _serial.receive(); }
-        void drain()    { _writer.drain(); }
-        void transmit() { _serial.transmit(); }
-        /** @} */
+        // Both the serial pump (serial().step) and the writer drain
+        // (writer().step) are Components stepped directly by the firmware loop.
     };
 #endif
 
@@ -77,7 +73,7 @@ namespace Botanik {
         ConsoleStack(uint16_t cols, uint16_t rows, const uint32_t* timestamp_ms,
                      uint32_t baud, const Alarms::AlarmModel* alarms,
                      Logs::Logger* logger)
-            : _serial(HAL::Serial::get(HAL::Serial::CONSOLE)),
+            : _serial(HAL::Serial::get(HAL::Serial::CONSOLE), logger, "ConsoleSerial"),
               _terminal(_serial, cols, rows, timestamp_ms, baud,
                         SystemContext(), alarms, logger),
               _shell(_terminal),
@@ -90,11 +86,9 @@ namespace Botanik {
         Pages::LogsPage&        logs()     { return _logs; }
         Pages::AlarmsPage&      alarms()   { return _alarms; }
 
-        /** @name Per-beat steps (called in the firmware loop order) @{ */
-        void receive()  { _serial.receive(); }
-        void step()     { _terminal.step(); }
-        void transmit() { _serial.transmit(); }
-        /** @} */
+        /** @brief Terminal logic step (the serial pump is stepped separately by
+         *  the firmware via serial()). */
+        void step(uint64_t now_ms) { _terminal.step(now_ms); }
     };
 #endif
 

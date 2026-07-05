@@ -11,7 +11,7 @@
  * byte-for-byte (see @ref md_docs_2PLC__CONFIG). Explicitly padded (layout
  * identical packed or not), and each block's `serial` leads it (word-aligned)
  * so a consumer can poll it through a uint32_t* and re-apply only when the PLC
- * bumps it (watch-and-reset in ConfigHandler).
+ * bumps it (watch-and-reset in the config-driven Components).
  */
 
 #include <cstdint>

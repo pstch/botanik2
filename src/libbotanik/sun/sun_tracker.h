@@ -11,7 +11,8 @@
 #include <cstdint>
 
 #include "libbotanik_config.h"
-#include "libbotanik/core/config.h"
+#include "libbotanik/core/component.h"
+#include "libbotanik/plcio/sync.h"      // PlcSyncContext + plc_config()
 
 #if BOTANIK_FEATURE_SUN
 
@@ -30,10 +31,14 @@ namespace Botanik { namespace Sun {
      *  @{ */
 
     /** @brief Tracks the sun's elevation angle for the geo-configured location. */
-    class SunPositionTracker : public ConfigHandler {
+    class SunPositionTracker : public Component {
+        PlcIO::PlcSyncContext* _ctx;   ///< PLC config source (may be null in tests).
         double   _elevation;   ///< Sun's elevation le cached value (radians).
         uint64_t _next_ms;     ///< Timestamp the next scheduled recompute.
         bool     _computed;    ///< Elevation angle successfully acquired.
+
+        /** @brief The generic config block (or null with no ctx). */
+        const PlcIO::PlcOutputConfig_t* config() const { return PlcIO::plc_config(_ctx); }
 
     public:
         SunPositionTracker(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger = nullptr);
@@ -47,7 +52,7 @@ namespace Botanik { namespace Sun {
 
     protected:
         /** @brief Get the serial number of the geographical configuration.
-         * @implements ConfigHandler
+         * @implements Component
           */
         uint32_t config_serial() const override;
 

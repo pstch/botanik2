@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <string.h>
 
+#include "libbotanik/core/component.h"
 #include "libbotanik/hal/platform.h"
 
 namespace Botanik { namespace Utils {
@@ -31,8 +32,14 @@ namespace Botanik { namespace Utils {
      *   - TX:  write() fills,   transmit() drains. 
      * 
      *  Every method runs on the main loop, the ring is NOT ISR-safe.
-     *  Producer and consumer being the same thread, no barrier is needed. */
-    class BufferedSerial {
+     *  Producer and consumer being the same thread, no barrier is needed.
+     *
+     *  A Component: step(now_ms) runs one receive+transmit pump. The firmware
+     *  does not step the full pump, though - it drives the two halves at the loop
+     *  phases they belong: receive() at the top (fresh RX before processing) and
+     *  transmit() at the bottom (flush the render). step() is there for the
+     *  uniform Component interface / a future scheduler. */
+    class BufferedSerial : public Botanik::Component {
     private:
 
         /** @name State
@@ -72,7 +79,8 @@ namespace Botanik { namespace Utils {
         /** @name Lifecycle
          *  @{ */
 
-        BufferedSerial(HAL::Serial::Raw* serial);
+        BufferedSerial(HAL::Serial::Raw* serial, Logs::Logger* logger = nullptr,
+                       const char* name = "BufferedSerial");
 
         /** @brief True if the bound port's output is an interactive terminal
          *  (always false on hardware UARTs). */
@@ -133,11 +141,12 @@ namespace Botanik { namespace Utils {
         /** @brief Flush the TX ring to the hardware UART FIFO. */
         uint16_t transmit();
 
-        /** @brief Run one receive + transmit cycle. 
-         *  @note Main-loop only (not ISR-safe). */
-        void step();
-
         /** @} */
+
+    protected:
+        /** @brief Run one receive + transmit cycle (driven by Component::step;
+         *  @p now_ms unused). Main-loop only (not ISR-safe). */
+        void on_step(uint64_t now_ms) override;
     };
 
 }}

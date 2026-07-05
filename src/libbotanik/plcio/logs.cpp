@@ -16,7 +16,7 @@ namespace Botanik { namespace PlcIO {
     // ------------------------------------------------------------------------
 
     PlcLogReader::PlcLogReader(PlcSyncContext* ctx, Logger* logger)
-        : _logger(logger), _ctx(ctx)
+        : Component(logger, "PlcLogReader"), _ctx(ctx)
     {
         _logBuffer  = ctx->output_logs()->logBuffer;
         _writeIndex = &ctx->output_logs()->writeIndex;
@@ -50,8 +50,8 @@ namespace Botanik { namespace PlcIO {
         HAL::Memory::cache_clean(_ctx->input_logs(), sizeof(PlcInputLogs_t));
     }
 
-    void PlcLogReader::step() {
-        announce_step(_logger, "PlcLogReader");
+    void PlcLogReader::on_step(uint64_t now_ms) {
+        (void)now_ms;
         drain();
     }
 

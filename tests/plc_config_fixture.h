@@ -35,7 +35,7 @@ namespace botanik_test {
          *  IDLE -> READ (copies conf) -> ACK. */
         void publish() {
             out.sync.txSeqNum += 1;               // signal a fresh PLC message
-            for (int i = 0; i < 4; ++i) handler.step();
+            for (int i = 0; i < 4; ++i) handler.step(0);   // now_ms unused by the PLC handler
         }
 
         /** @brief The populated context to hand a component under test. */

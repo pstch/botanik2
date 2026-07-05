@@ -197,6 +197,13 @@ namespace Botanik { namespace PlcIO {
         /** @} */
     };
 
+    /** @brief The generic config block (network/NTP/MQTT/geo) behind a sync
+     *  context, or null if @p ctx is null. Shared by the config-driven handlers
+     *  (keeps the PLC config source out of the generic Component). */
+    inline const PlcOutputConfig_t* plc_config(PlcSyncContext* ctx) {
+        return ctx ? ctx->config() : nullptr;
+    }
+
     // Two state machines (RX from the PLC output range, TX to its input range)
     // using explicit in-order ops and a transactional seq/ack model, so it is
     // safe even when the PLC runtime doesn't order its accesses to the shared
@@ -243,7 +250,7 @@ namespace Botanik { namespace PlcIO {
         /** @brief Bind the handler to PLC shared memory and a timestamp. */
         PlcSyncHandler(PlcInput<InputData>* plcin, PlcOutput<OutputData>* plcout,
                        const uint32_t* timestamp_ms, Logs::Logger* logger = nullptr)
-            : _plcin(plcin), _plcout(plcout)
+            : Component(logger, "PlcSyncHandler"), _plcin(plcin), _plcout(plcout)
         {
             // The shared-memory pointers must be mapped: a null here means the
             // PLC region wasn't wired (mis-linked image, or constructed before
@@ -299,14 +306,20 @@ namespace Botanik { namespace PlcIO {
          *  violations). */
         uint32_t          rx_torn_count() const { return _rx_torn; }
 
+        /** @brief Healthy while the PLC link is not faulted (no heartbeat past
+         *  PLC_WATCHDOG_MS). */
+        bool healthy() const override { return !_ctx.faulted(); }
+
         /** @} */
 
+    protected:
         /** @name Step
          *  @{ */
 
-        /** @brief Advance both state machines once; call per tick. */
-        inline void step() {
-            announce_step(_ctx._logger, "PlcSyncHandler");
+        /** @brief Advance both state machines once (driven by Component::step;
+         *  uses the shared 32-bit link clock, so @p now_ms is unused). */
+        void on_step(uint64_t now_ms) override {
+            (void)now_ms;
             // Coherency: drop any stale cached view of the PLC-written region
             // before we poll/copy it, and flush our writes to the host-written
             // region after.
@@ -318,6 +331,8 @@ namespace Botanik { namespace PlcIO {
         }
 
         /** @} */
+
+    public:
 
 #ifdef TARGET_SIMULATOR
         /** @name Simulator timeout overrides

@@ -116,7 +116,7 @@ namespace Botanik { namespace PlcIO {
 
         /** @brief Publish the PLC config block (network/NTP/MQTT/geo) into the
          *  output region - the coprocessor's job on hardware. Call once at
-         *  startup; the firmware's ConfigHandlers latch each block's serial. */
+         *  startup; the firmware's config-driven Components latch each block's serial. */
         void publish_config(const PlcOutputConfig_t& cfg) {
             HAL::Memory::ordered_copy(&_plcout->conf, &cfg);
         }
@@ -312,7 +312,7 @@ namespace Botanik { namespace PlcIO {
         PlcLogWriter plc_log_writer(plc_emulator.context(), &emu_timestamp_ms);
 
         // Publish the config block once (the coprocessor's role on hardware), so
-        // the firmware's ConfigHandlers see it from the emulated PLC.
+        // the firmware's config-driven Components see it from the emulated PLC.
         if (args->fill_config != nullptr) {
             PlcOutputConfig_t cfg{};
             args->fill_config(&cfg);

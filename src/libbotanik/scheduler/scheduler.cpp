@@ -44,6 +44,12 @@ namespace Botanik { namespace Scheduler {
         reset();
     }
 
+    void LoopScheduler::_announce() {
+#ifdef DEBUG
+        if (_logger != nullptr) _logger->debug(Logs::BOOT, "LoopScheduler initialized");
+#endif
+    }
+
     void LoopScheduler::reset() {
         _next_tick_ms = HAL::Clock::uptime_ms() + _period_ms;
 
@@ -170,12 +176,19 @@ namespace Botanik { namespace Scheduler {
         // age by elapsed beats
         _cpu_loop_us_window.push(busy, 1 + _missed_this_beat);
 
-        // scan the stack high-water at slice boundaries only
+        // Scan the stack high-water. The sim repaints the free stack each slice
+        // and scans the sentinel (STACK_SLICE_TICKS throttles the repaint); OPTA
+        // reads the monotonic RTOS watermark, so it needs neither the paint nor
+        // the throttle - just sample it each beat.
+#ifdef TARGET_SIMULATOR
         if (++_stack_slice_tick >= Config::STACK_SLICE_TICKS) {
             _stack_slice_tick = 0;
             _measure_stack_usage();
             _repaint_pending = true;
         }
+#else
+        _measure_stack_usage();
+#endif
 
         _context.cpu_loop_us_max    = _cpu_loop_us_max;
         _context.cpu_loop_us_recent = _cpu_loop_us_window.value();
@@ -229,10 +242,14 @@ namespace Botanik { namespace Scheduler {
         _context.stack_bytes_free = _stack_depth - _stack_bytes_max;
     }
 
+#ifdef TARGET_SIMULATOR
+
     // Simulator only: hardware uses the RTOS stack watermark instead (see
     // _measure_stack_usage), and manually repainting an RTOS thread's stack
-    // would clobber the RTOS's own watermark fill.
-    void LoopScheduler::_paint_below() {
+    // would clobber the RTOS's own watermark fill. noinline is load-bearing: it
+    // paints below its own &marker, so if it folded into the caller the paint
+    // would clobber the caller's live locals.
+    __attribute__((noinline)) void LoopScheduler::_paint_below() {
         if (_stack_base == 0) return;
         // Ceiling = our own frame (a local), so the region is below the CALLER
         // regardless of how inlining grows its frame - no dependency on the
@@ -255,8 +272,6 @@ namespace Botanik { namespace Scheduler {
         _paint_top = paint_top;
         _paint_bot = paint_bot;
     }
-
-#ifdef TARGET_SIMULATOR
 
     // Simulator utilities (memlock, CPU-pinning and SCHED_FIFO)
     // ------------------------------------------------------------------------

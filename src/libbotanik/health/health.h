@@ -42,15 +42,15 @@ namespace Botanik { namespace Health {
          *  @{ */
         Alarms::MqttAlarmNotifier          _notifier; //< MQTT transition sink
         Alarms::AlarmModel                 _model;
-        /** log sink (may be null) */
-        Logs::Logger*                      _logger;
         /** perf metrics (may be null) */
         const Scheduler::SchedulerContext* _sched;
-        /** PLC link status (may be null) */
+        /** PLC link status + live torn count (may be null) */
         PlcIO::PlcSyncContext*             _plc;
         /** PLC shared region (for POST) */
         const void*                        _in_region;
         const void*                        _out_region;
+        /** remote (PLC) alarm bitset in the output payload (may be null) */
+        const uint64_t*                    _remote_alarms;
 
         /** last overrun count seen (edge detect) */
         uint32_t _xrun_last        = 0;
@@ -65,8 +65,6 @@ namespace Botanik { namespace Health {
         /** cached verdict (see watchdog_ok()) */
         bool     _watchdog_ok      = true;
         bool     _post_ok          = false;
-        /** POST has run (fires on first step()) */
-        bool     _posted           = false;
         // BOTANIK_NO_LOAD_ALARMS: hold the CPU_* load alarms cleared for
         // deterministic screen goldens (sim/test only; env_u8 reads 0 on OPTA).
         bool     _no_load_alarms   = Utils::env_u8("BOTANIK_NO_LOAD_ALARMS", 0) != 0;
@@ -79,12 +77,15 @@ namespace Botanik { namespace Health {
                       Logs::Logger* logger,
                       const Scheduler::SchedulerContext* sched,
                       PlcIO::PlcSyncContext* plc,
-                      const void* in_region, const void* out_region)
-            : _notifier(Config::MQTT_TOPIC_PREFIX),
+                      const void* in_region, const void* out_region,
+                      const uint64_t* remote_alarms = nullptr)
+            : Component(logger, "HealthMonitor"),
+              _notifier(Config::MQTT_TOPIC_PREFIX),
               _model(table, count, logger,
                      Alarms::PLATFORM_ALARMS, Alarms::PLATFORM_ALARM_COUNT),
-              _logger(logger), _sched(sched), _plc(plc),
-              _in_region(in_region), _out_region(out_region) {
+              _sched(sched), _plc(plc),
+              _in_region(in_region), _out_region(out_region),
+              _remote_alarms(remote_alarms) {
             _model.add_notifier(&_notifier);   // the built-in MQTT sink
         }
 
@@ -103,30 +104,34 @@ namespace Botanik { namespace Health {
         bool add_alarm_notifier(Alarms::AlarmNotifier* n) {
             return _model.add_notifier(n);
         }
-        /** @brief Result of the boot POST (run on the first step()). */
+        /** @brief Result of the boot POST (run in setup() on the first step()). */
         bool                post_ok()  const { return _post_ok; }
         /** @brief Whether the HW watchdog should be kicked this beat (see
          *  file header). */
         bool                watchdog_ok() const { return _watchdog_ok; }
+        /** @brief Healthy while the watchdog verdict holds and POST passed. */
+        bool                healthy() const override { return _watchdog_ok && _post_ok; }
         /** @} */
 
-        /** @brief Per beat: on the first beat run POST (sinks now registered),
-         *  then assert the platform alarms, update the watchdog verdict, and
-         *  advance the model with the remote bitset. @p now is uptime in ms. */
-        void step(uint64_t remote_raw, uint32_t rx_torn, uint64_t now) {
-            announce_step(_logger, "HealthMonitor");
-            if (!_posted) { _posted = true; _post(); }
+    protected:
+        /** @brief POST runs once on the first step() (sinks now registered). */
+        void setup(uint64_t now) override { (void)now; _post(); }
+
+        /** @brief Per beat: assert the platform alarms, update the watchdog
+         *  verdict, and advance the model with the remote bitset. The remote
+         *  bitset and torn count are read live through the stored pointers
+         *  (null-safe). @p now is uptime in ms. */
+        void on_step(uint64_t now) override {
             _assert_platform_alarms(now);
 #if BOTANIK_FEATURE_PLC
             // A rising cross-core torn-read count raises RX_TORN: should never
             // fire (the handshake upholds mutual exclusion), so it is a loud
             // latched diagnostic.
+            uint32_t rx_torn = _plc ? _plc->torn_count() : 0;
             _held_event("RX_TORN", rx_torn, _rx_torn_last, _rx_torn_until_ms, now);
-#else
-            (void)rx_torn;
 #endif
             _update_watchdog(now);
-            _model.step(remote_raw, now);
+            _model.step(_remote_alarms ? *_remote_alarms : 0, now);
         }
 
     private:

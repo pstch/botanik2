@@ -123,8 +123,9 @@ namespace Botanik { namespace Logs {
 
     /** @brief BufferedLogWriter writing formatted entries (`...message\n`) to a
      *  BufferedSerial port, respecting the TX buffer's available capacity per
-     *  drain(). */
-    class SerialLogWriter : public BufferedLogWriter {
+     *  drain(). Also a Component: step(now_ms) drains the queue into the port's
+     *  TX ring (the port is flushed to hardware separately). */
+    class SerialLogWriter : public BufferedLogWriter, public Botanik::Component {
     protected:
         using BufferedSerial = Utils::BufferedSerial;
         using LogEntry_t = PlcIO::LogEntry_t;
@@ -148,8 +149,11 @@ namespace Botanik { namespace Logs {
 
         /** @brief Bind the writer to @p serial. With @p drop_if_tty, the writer self-
          *  suppresses (drops every entry at push()) when @p serial is an interactive
-         *  terminal - for a diagnostic monitor port that may share the console's tty. */
-        SerialLogWriter(BufferedSerial& serial, bool drop_if_tty = false);
+         *  terminal - for a diagnostic monitor port that may share the console's tty.
+         *  @p logger / @p name feed the Component base (announce; logger may be
+         *  null to stay silent). */
+        SerialLogWriter(BufferedSerial& serial, bool drop_if_tty = false,
+                        Logger* logger = nullptr, const char* name = "SerialLogWriter");
 
         /** @} */
 
@@ -161,11 +165,13 @@ namespace Botanik { namespace Logs {
 
         /** @} */
 
+    protected:
         /** @name Stepping
          *  @{ */
 
-        /** @brief Drain queued entries into the serial's TX ring */
-        void step();
+        /** @brief Drain queued entries into the serial's TX ring (driven by
+         *  Component::step; @p now_ms unused). */
+        void on_step(uint64_t now_ms) override;
 
         /** @} */
 

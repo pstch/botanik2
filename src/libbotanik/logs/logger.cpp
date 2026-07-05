@@ -33,7 +33,7 @@ namespace Botanik { namespace Logs {
     // Lifecycle
     // ------------------------------------------------------------------------
 
-    Logger::Logger() {
+    Logger::Logger() : Component(this, "Logger") {
         // one sample: all three anchors share it
         uint32_t now = HAL::Clock::current_ms();
         _perTopic_fillTime_ms   = now;

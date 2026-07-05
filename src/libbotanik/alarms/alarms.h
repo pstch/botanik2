@@ -244,12 +244,13 @@ namespace Botanik { namespace Alarms {
         uint8_t         _count;          // N + M: total conditions scanned
         /** (1<<N)-1: masks the remote word to the PLC range */
         uint64_t        _site_mask;
-        Logs::Logger*   _logger;         // ALARM-topic log sink (may be null)
         /** registered transition sinks (fan-out, mirrors Logger's writers) */
         AlarmNotifier*  _notifiers[Config::ALARM_NOTIFIERS_MAX];
         uint8_t         _notifier_count; // entries used in _notifiers
         /** runtime-sourced alarm bits (platform range) */
         uint64_t        _local;
+        /** remote (PLC) raw bitset latched by the 2-arg step() for on_step() */
+        uint64_t        _remote_raw = 0;
         /** last merged raw ((remote & mask) | local) */
         uint64_t        _raw;
         /** uptime of the last step (latch countdown) */
@@ -271,8 +272,9 @@ namespace Botanik { namespace Alarms {
                    Logs::Logger* logger,
                    const AlarmCondition* platform = nullptr,
                    uint8_t platform_count = 0)
-            : _plc_count(0), _count(0), _site_mask(0),
-              _logger(logger), _notifier_count(0),
+            : Component(logger, "AlarmModel"),
+              _plc_count(0), _count(0), _site_mask(0),
+              _notifier_count(0),
               _local(0), _raw(0), _last_now(0), _first_step(true),
               _active_count(0), _unmasked_count(0) {
             BOTANIK_ASSERT(site_count + platform_count <= ALARM_BITS);
@@ -366,13 +368,21 @@ namespace Botanik { namespace Alarms {
 
         /** @} */
 
+        /** @brief Latch the PLC remote bitset for this beat, then advance via the
+         *  Component step (first-step announce + on_step). Kept 2-arg so the many
+         *  call sites (health + tests) are unchanged. */
+        void step(uint64_t remote_raw, uint64_t now) {
+            _remote_raw = remote_raw;
+            Component::step(now);
+        }
+
+    protected:
         /** @brief Merge the PLC + local bitsets, advance each condition, raise
          *  due log lines / notifications. */
-        void step(uint64_t remote_raw, uint64_t now) {
-            announce_step(_logger, "AlarmModel");
+        void on_step(uint64_t now) override {
             // Mask the remote word to the PLC range (a stray high bit can't
             // drive a platform condition), then merge the local bits on top.
-            _raw = (remote_raw & _site_mask) | _local;
+            _raw = (_remote_raw & _site_mask) | _local;
             // dt = 0 on the first step (no latch decrement yet).
             uint32_t dt = _first_step ? 0 : (uint32_t)(now - _last_now);
             _first_step = false;
@@ -390,6 +400,8 @@ namespace Botanik { namespace Alarms {
                 }
             }
         }
+
+    public:
 
         /** @name Queries
          *  @{ */

@@ -62,8 +62,6 @@ namespace Botanik { namespace Terminal {
         /** @brief Alarm source feeding the bar (may be null). When null there is
          *  no bar, _reserved_bottom stays 0, and the bottom row belongs to pages. */
         const Alarms::AlarmModel*    _alarms = nullptr;
-        /** @brief First-step BOOT announce sink (may be null). */
-        Logs::Logger*                _logger = nullptr;
         /** @brief Rows reserved at the screen bottom for the alarm bar: 1 when
          *  _alarms is set, else 0. Subtracted by rows() / _content_bottom(). */
         uint16_t                     _reserved_bottom = 0;
@@ -97,9 +95,6 @@ namespace Botanik { namespace Terminal {
          *  this reference. */
         AnsiTerminal&       terminal()       { return _term; }
         const AnsiTerminal& terminal() const { return _term; }
-
-        /** @brief Process input and update the display (called once per beat). */
-        void step();
 
         /** @brief Select the terminal type (forwarded to the device); call once
          *  before the first render. */
@@ -171,6 +166,11 @@ namespace Botanik { namespace Terminal {
         const Alarms::AlarmModel* alarms() const { return _alarms; }
 
         /** @} */
+
+    protected:
+        /** @brief Process input and update the display, once per beat (driven by
+         *  Component::step with the cycle timestamp). */
+        void on_step(uint64_t now_ms) override;
 
     private:
         /** @name Internals

@@ -10,7 +10,6 @@
 
 #include "libbotanik_config.h"
 
-#include "libbotanik/core/component.h"
 #include "libbotanik/utils/filters.h"
 #include "libbotanik/hal/platform.h"
 
@@ -63,8 +62,11 @@ namespace Botanik { namespace Scheduler {
      *  @brief Non-blocking fixed-period loop driver: releases ticks at the 
      *         configured period, absorbs overruns, and measures its own per-beat
      *         performance (jitter, CPU duty cycle, work duration, stack usage),
-     *         publishing everything into the SchedulerContext. */
-    class LoopScheduler : public Component {
+     *         publishing everything into the SchedulerContext.
+     *  @note Not a Component: it is the loop *driver* (it produces the beat and
+     *        the timestamp the Components are stepped with), so it keeps tick()
+     *        and does its own one-shot boot announce. */
+    class LoopScheduler {
     private:
         /** @name State
          *  @{ */
@@ -78,6 +80,7 @@ namespace Botanik { namespace Scheduler {
         uint64_t        _next_tick_ms  = 0;   ///< uptime anchor of the next tick
         /** @brief One-shot startup message (may be null). */
         Logs::Logger*   _logger        = nullptr;
+        bool            _announced      = false;   ///< first-tick boot announce latch
         /** @brief Beats skipped on THIS tick (0 normally); weights the metric
          *  windows so a catch-up ages them by wall-time, not one sample. */
         uint32_t        _missed_this_beat    = 0;
@@ -192,7 +195,7 @@ namespace Botanik { namespace Scheduler {
          * @return true exactly ONCE per period when it is time to execute.
          */
         BOTANIK_NO_ASAN inline __attribute__((always_inline)) bool tick() {
-            announce_step(_logger, "LoopScheduler");
+            if (!_announced) { _announced = true; _announce(); }   // once, out of line
             // Derive ms from the same us reading so the jitter math can't
             // underflow against the grid (a separate uptime_ms() read could
             // straddle the ms boundary and land just under _next_tick_ms*1000,
@@ -258,6 +261,9 @@ namespace Botanik { namespace Scheduler {
         /** @name Internals
          *  @{ */
 
+        /** @brief Out-of-line one-shot boot announce (keeps the full Logger out
+         *  of this header and the hot tick() path). */
+        void _announce();
         /** @brief Advance the next-tick anchor to skip missed beats when the
          *  loop falls behind. */
         void _skip_beats(uint64_t now);
@@ -281,9 +287,14 @@ namespace Botanik { namespace Scheduler {
          *  top-down sentinel-run scan of the painted region on the sim) and
          *  update the metrics. */
         BOTANIK_NO_ASAN void _measure_stack_usage();
+#ifdef TARGET_SIMULATOR
         /** @brief Paint the free stack below this frame with the sentinel
-         *  (simulator only). */
-        BOTANIK_NO_ASAN void _paint_below();
+         *  (simulator only - hardware reads the RTOS watermark, so this does not
+         *  exist there). MUST stay a real, out-of-line frame: it paints below its
+         *  own `&marker`, so if it inlined into the caller the paint would clobber
+         *  the caller's live locals (see _paint_below). */
+        BOTANIK_NO_ASAN __attribute__((noinline)) void _paint_below();
+#endif
 
         /** @} */
     };
