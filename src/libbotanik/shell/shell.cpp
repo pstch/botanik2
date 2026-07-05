@@ -14,6 +14,7 @@
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/network/mqtt.h"
 #include "libbotanik/network/network.h"
+#include "libbotanik/network/ntp.h"
 #include "libbotanik/plcio/sync.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/shell/shell.h"

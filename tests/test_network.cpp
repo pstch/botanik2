@@ -18,6 +18,7 @@
 #include "plc_config_fixture.h"
 #include "recording_writer.h"
 #include "libbotanik/network/network.h"
+#include "libbotanik/network/ntp.h"
 #include "libbotanik/network/mqtt.h"
 #include "libbotanik/network/resolver.h"
 #include "libbotanik/logs/logger.h"

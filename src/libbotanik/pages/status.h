@@ -31,8 +31,11 @@
 #include "libbotanik/utils/text.h"
 #include "libbotanik/utils/time.h"
 #if BOTANIK_FEATURE_NETWORK
-#include "libbotanik/network/network.h"   // NetworkHandler / NtpClient status
+#include "libbotanik/network/network.h"   // NetworkHandler status
 #include "libbotanik/network/mqtt.h"      // MqttClient status
+#endif
+#if BOTANIK_FEATURE_NTP
+#include "libbotanik/network/ntp.h"       // NtpClient status
 #endif
 
 namespace Botanik { namespace Pages {
