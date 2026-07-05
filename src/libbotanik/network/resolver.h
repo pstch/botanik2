@@ -81,11 +81,15 @@ namespace Botanik { namespace Network {
             char                        host[Config::PLC_HOST_STR_LEN]; ///< name (cache key)
             ResolvedAddr                addr;     ///< result           (when SLOT_READY)
             HAL::Network::DnsHandle     handle;   ///< async DNS handle (when SLOT_PENDING)
+            uint64_t                    ready_at; ///< uptime ms the row became READY (TTL base)
             SlotState                   state;    ///< current state of the slot
         };
 
         Entry             _table[Config::DNS_CACHE_SIZE];
         Logs::Logger*     _logger;
+        /** @brief Max age a READY entry is served before re-resolving (0 = never
+         *  expire). Defaults from Config::DNS_CACHE_TTL_MS. */
+        uint32_t          _cache_ttl_ms = Config::DNS_CACHE_TTL_MS;
 
         /** @} */
 
@@ -98,6 +102,10 @@ namespace Botanik { namespace Network {
 
         /** @brief Drop the whole cache, and cancel pending lookups. */
         void clear();
+
+        /** @brief Override the cache max-age (ms) for this resolver; 0 disables
+         *  expiry. Defaults from Config::DNS_CACHE_TTL_MS. */
+        void set_cache_ttl_ms(uint32_t ms) { _cache_ttl_ms = ms; }
 
         /** @} */
 
@@ -115,6 +123,9 @@ namespace Botanik { namespace Network {
         /** @name Internals
          *  @{ */
 
+        /** @brief True if a READY row has aged past Config::DNS_CACHE_TTL_MS (0
+         *  = never expire), so it must be re-resolved rather than served. */
+        bool _expired(const Entry& e) const;
         /** @brief Find the row holding @p host (any non-free state), or null. */
         Entry* _find(const char* host);
         /** @brief Reserve a row for a new lookup: a FREE row, else an evictable

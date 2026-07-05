@@ -233,6 +233,15 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(size_t, DNS_CACHE_SIZE);
 
+    /** @brief Max age (ms) a resolved entry is served from the cache before it is
+     *  re-resolved. The HAL DNS API exposes no record TTL, so this bounds
+     *  staleness (e.g. a server whose address changes) without it. 0 disables
+     *  expiry (cache until evicted / cleared on reconfig). Default 1 h. */
+#ifndef BOTANIK_DNS_CACHE_TTL_MS
+#  define BOTANIK_DNS_CACHE_TTL_MS 3600000u
+#endif
+    BOTANIK_CFG(uint32_t, DNS_CACHE_TTL_MS);
+
     /** @brief Max time spent waiting for the link to come up. */
 #ifndef BOTANIK_NET_SETUP_TIMEOUT_MS
 #  define BOTANIK_NET_SETUP_TIMEOUT_MS 30000

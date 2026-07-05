@@ -13,15 +13,17 @@
 #include <cstring>   // strncmp / strncpy
 
 #include "libbotanik/hal/net.h"
+#include "libbotanik/hal/platform.h"   // HAL::Clock::uptime_ms (cache TTL)
 
 namespace Botanik { namespace Network {
 
     NameResolver::NameResolver(Logs::Logger* logger)
         : _logger(logger) {
         for (size_t i = 0; i < Config::DNS_CACHE_SIZE; ++i) {
-            _table[i].state   = SLOT_FREE;
-            _table[i].handle  = 0;
-            _table[i].host[0] = '\0';
+            _table[i].state    = SLOT_FREE;
+            _table[i].handle   = 0;
+            _table[i].host[0]  = '\0';
+            _table[i].ready_at = 0;
         }
     }
 
@@ -29,10 +31,17 @@ namespace Botanik { namespace Network {
         for (size_t i = 0; i < Config::DNS_CACHE_SIZE; ++i) {
             if (_table[i].state == SLOT_PENDING && _table[i].handle != 0)
                 HAL::Network::dns_cancel(_table[i].handle);
-            _table[i].state   = SLOT_FREE;
-            _table[i].handle  = 0;
-            _table[i].host[0] = '\0';
+            _table[i].state    = SLOT_FREE;
+            _table[i].handle   = 0;
+            _table[i].host[0]  = '\0';
+            _table[i].ready_at = 0;
         }
+    }
+
+    bool NameResolver::_expired(const Entry& e) const {
+        if (_cache_ttl_ms == 0) return false;   // 0 = never expire
+        // uptime is monotonic (64-bit, no wrap), so a plain difference is safe.
+        return (HAL::Clock::uptime_ms() - e.ready_at) > (uint64_t)_cache_ttl_ms;
     }
 
     NameResolver::Entry* NameResolver::_find(const char* host) {
@@ -66,13 +75,16 @@ namespace Botanik { namespace Network {
         // Known row? (cached result, lookup in flight, or a stale failure)
         Entry* e = _find(host);
         if (e != nullptr) {
-            SlotState st = e->state;
-            if (st == SLOT_READY)  { *out = e->addr; return RESOLVE_OK; }
-            if (st == SLOT_PENDING) {
+            if (e->state == SLOT_READY) {
+                // Serve the cached address unless it has aged past the TTL; an
+                // expired entry is dropped and re-resolved via the miss path below.
+                if (!_expired(*e)) { *out = e->addr; return RESOLVE_OK; }
+                e->state = SLOT_FREE;
+            } else if (e->state == SLOT_PENDING) {
                 HAL::Network::Ip4 ip;
                 HAL::Network::DnsResult r = HAL::Network::dns_poll(e->handle, &ip);
                 if (r == HAL::Network::DNS_OK) {
-                    e->addr = ip;
+                    e->addr = ip; e->ready_at = HAL::Clock::uptime_ms();
                     e->state = SLOT_READY; *out = e->addr; return RESOLVE_OK;
                 }
                 if (r == HAL::Network::DNS_FAILED) {
@@ -81,9 +93,10 @@ namespace Botanik { namespace Network {
                     e->state = SLOT_FREE; return RESOLVE_FAILED;
                 }
                 return RESOLVE_PENDING;
+            } else {
+                e->state = SLOT_FREE;   // SLOT_ERROR: free so the next poll retries
+                return RESOLVE_FAILED;
             }
-            e->state = SLOT_FREE;   // SLOT_ERROR: free so the next poll retries
-            return RESOLVE_FAILED;
         }
 
         // Start (or poll) a HAL DNS lookup. A row stores its DnsHandle while
@@ -108,6 +121,7 @@ namespace Botanik { namespace Network {
         HAL::Network::DnsResult r = HAL::Network::dns_poll(h, &ip);
         if (r == HAL::Network::DNS_OK) {
             e->addr = ip;
+            e->ready_at = HAL::Clock::uptime_ms();
             e->state = SLOT_READY;
             *out = e->addr;
             return RESOLVE_OK;

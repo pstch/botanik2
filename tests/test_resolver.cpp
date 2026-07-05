@@ -82,6 +82,29 @@ TEST_CASE("NameResolver: a resolvable hostname resolves to the loopback peer") {
     CHECK(a.b[0] == 127);          // loopback (exact host part is PID-derived)
 }
 
+TEST_CASE("NameResolver: a cached entry is re-resolved after the TTL") {
+    NameResolver r;
+    r.set_cache_ttl_ms(20);                 // short max-age for the test
+    ResolvedAddr a;
+
+    REQUIRE(settle(r, "broker.local", &a) == RESOLVE_OK);   // first lookup -> cached
+    // Still fresh: served straight from the cache, no new async lookup (OK now,
+    // not PENDING).
+    CHECK(r.resolve("broker.local", &a) == RESOLVE_OK);
+
+    // Past the max-age: the stale entry is dropped and a fresh lookup begins, so
+    // this call is PENDING rather than an instant cache hit.
+    HAL::Clock::sleep_ms(30);
+    CHECK(r.resolve("broker.local", &a) == RESOLVE_PENDING);
+    CHECK(settle(r, "broker.local", &a) == RESOLVE_OK);      // and it re-resolves
+
+    // TTL 0 disables expiry: the entry stays cached across the same wait.
+    r.set_cache_ttl_ms(0);
+    REQUIRE(settle(r, "broker.local", &a) == RESOLVE_OK);
+    HAL::Clock::sleep_ms(30);
+    CHECK(r.resolve("broker.local", &a) == RESOLVE_OK);      // still cached
+}
+
 TEST_CASE("NameResolver: empty / null inputs fail cleanly") {
     NameResolver r;
     ResolvedAddr a;
