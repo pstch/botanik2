@@ -198,8 +198,9 @@ inline void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
     if (o->wind_peak_kmh > 35 || raining)                  raw |= abit("WH_STORM");
 
     // Settle window: keep alarms clear for the first stretch after boot (a real
-    // PLC likewise masks process alarms until its sensors settle).
-    const uint32_t SETTLE_MS = 20000;
+    // PLC likewise masks process alarms until its sensors settle). Kept generous
+    // so the first alarm lands well after boot, not seconds in.
+    const uint32_t SETTLE_MS = 120000;   // 2 min
     if (now_ms < SETTLE_MS) raw = 0;
 
     // Debounce: hold each raw bit ON for a minimum dwell so a signal hovering

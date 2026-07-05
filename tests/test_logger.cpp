@@ -193,25 +193,30 @@ TEST_CASE("rate limit: a flooded topic passes up to the burst, then drops") {
     Logs::Logger lg;
     RecordingWriter w;
     lg.add_writer(&w);
-    // Global and per-topic bursts are equal, so a single topic deplete both in
-    // lockstep: exactly `burst` entries survive.
-    const int burst = Config::LOG_GLOBAL_BUCKET_BURST;
+    // A single topic is gated by the smaller of its per-topic bucket and the
+    // shared global bucket.
+    const int gburst = Config::LOG_GLOBAL_BUCKET_BURST;
+    const int tburst = Config::LOG_PERTOPIC_BUCKET_BURST;
+    const int cap = gburst < tburst ? gburst : tburst;
     LogEntry_t e = info_on(Logs::PLC_IO);
-    for (int i = 0; i < burst + 10; ++i) lg.push_entry(e);
-    CHECK(w.pushes == burst);
+    for (int i = 0; i < cap + 10; ++i) lg.push_entry(e);
+    CHECK(w.pushes == cap);
 }
 
 TEST_CASE("rate limit: the global bucket caps total throughput across topics") {
     Logs::Logger lg;
     RecordingWriter w;
     lg.add_writer(&w);
-    const int burst = Config::LOG_GLOBAL_BUCKET_BURST;
+    // Exhaust topic A's per-topic bucket (global drops by tburst), then flood a
+    // second topic: B still has per-topic tokens, but the global remainder gates
+    // it, so the total is the global burst. (Assumes tburst <= gburst <= 2*tburst.)
+    const int gburst = Config::LOG_GLOBAL_BUCKET_BURST;
+    const int tburst = Config::LOG_PERTOPIC_BUCKET_BURST;
     LogEntry_t a = info_on(Logs::PLC_IO);
     LogEntry_t b = info_on(Logs::BOOT);
-    for (int i = 0; i < 15; ++i) lg.push_entry(a);       // global 20->5
-    for (int i = 0; i < 15; ++i) lg.push_entry(b);       // topic B has tokens, but
-                                                         // global (5) gates it
-    CHECK(w.pushes == burst);                            // 15 + 5: global is the cap
+    for (int i = 0; i < tburst; ++i) lg.push_entry(a);   // A's topic bucket -> 0, global -= tburst
+    for (int i = 0; i < tburst; ++i) lg.push_entry(b);   // B has topic tokens, global (gburst-tburst) gates it
+    CHECK(w.pushes == gburst);                           // tburst + (gburst - tburst): global is the cap
 }
 
 TEST_CASE("rate limit: topics with no per-topic bucket are gated by the global bucket alone") {

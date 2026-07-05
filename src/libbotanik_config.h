@@ -327,9 +327,11 @@ namespace Botanik { namespace Config {
      *  @name Logging parameters
      *  @{ */
 
-    /** @brief Maximum burst size (number of logs allowed in a quick succession) */
+    /** @brief Maximum burst size (number of logs allowed in a quick succession).
+     *  Sized to absorb the boot burst: every Component announces on its first
+     *  step, all in the first beat, on top of the setup() banner + POST. */
 #ifndef BOTANIK_LOG_GLOBAL_BUCKET_BURST
-#  define BOTANIK_LOG_GLOBAL_BUCKET_BURST 20
+#  define BOTANIK_LOG_GLOBAL_BUCKET_BURST 32
 #endif
     BOTANIK_CFG(uint16_t, LOG_GLOBAL_BUCKET_BURST);
 
