@@ -1,4 +1,4 @@
-// REVIEW_35: TODO
+// REVIEW_35: DONE
 /**
  * @file sun/sun_tracker.cpp
  * @brief SunPositionTracker and the NOAA solar-elevation math.
@@ -114,11 +114,6 @@ namespace Botanik { namespace Sun {
     // meaningless, so we wait.
     static const uint64_t WALL_CLOCK_VALID_MS = 1600000000000ull;
 
-    // Recompute cadence (ms): the elevation drifts ~0.25 deg/min, so a minute
-    // between updates keeps it well under a degree stale for a fraction of the
-    // per-beat trig work.
-    static const uint64_t SUN_RECOMPUTE_MS = 60000ull;
-
     SunPositionTracker::SunPositionTracker(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger)
         : Component(logger, "SunPositionTracker"), _ctx(ctx),
           _elevation(0.0), _next_ms(0), _computed(false) {}
@@ -150,7 +145,7 @@ namespace Botanik { namespace Sun {
         double lon = (double)c->geo.longitude_e7 / 1e7;
         _elevation = solar_elevation(now_ms, lat, lon);
         _computed  = true;
-        _next_ms   = now_ms + SUN_RECOMPUTE_MS;
+        _next_ms   = now_ms + Config::SUN_RECOMPUTE_MS;
     }
 
 }}

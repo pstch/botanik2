@@ -333,6 +333,19 @@ namespace Botanik { namespace Config {
     BOTANIK_CFG(bool, MQTT_TELEMETRY_RETAIN);
 
     /** @}
+     *  @name Sun position tracking
+     *  @{ */
+
+    /** @brief Recompute cadence (ms) for the solar-elevation tracker.
+     *  @note The elevation drifts ~0.25 deg/min, so a minute between updates
+     *        keeps it well under a degree stale for a fraction of the per-beat
+     *        trig work. */
+#ifndef BOTANIK_SUN_RECOMPUTE_MS
+#  define BOTANIK_SUN_RECOMPUTE_MS 60000
+#endif
+    BOTANIK_CFG(uint32_t, SUN_RECOMPUTE_MS);
+
+    /** @}
      *  @name Logging parameters
      *  @{ */
 
