@@ -20,9 +20,9 @@ namespace Botanik { namespace Network {
     // NetworkHandler
     // ------------------------------------------------------------------------
 
-    NetworkHandler::NetworkHandler(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger,
+    NetworkHandler::NetworkHandler(const Cfg::ConfigHandler* cfg, Logs::Logger* logger,
                                    NameResolver* resolver)
-        : Component(logger, "NetworkHandler"), _ctx(ctx),
+        : Component(logger, "NetworkHandler"), _cfg(cfg),
           _state(NET_IDLE), _since_ms(0), _resolver(resolver) {}
 
     uint32_t NetworkHandler::config_serial() const {

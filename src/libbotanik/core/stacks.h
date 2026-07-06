@@ -115,15 +115,15 @@ namespace Botanik {
         /** @param plc the PLC sync context the handlers read their config from;
          *  @param logger the shared logger; @param sys the live status the MQTT
          *  telemetry base fields read (stored, read per-beat). */
-        NetworkStack(PlcIO::PlcSyncContext* plc, Logs::Logger* logger,
+        NetworkStack(const Cfg::ConfigHandler* cfg, Logs::Logger* logger,
                      const SystemContext* sys)
             : _resolver(logger),
-              _network(plc, logger, &_resolver)
+              _network(cfg, logger, &_resolver)
 #if BOTANIK_FEATURE_NTP
-            , _ntp(plc, logger, &_resolver, &_network)
+            , _ntp(cfg, logger, &_resolver, &_network)
 #endif
 #if BOTANIK_FEATURE_MQTT
-            , _mqtt(plc, logger, &_resolver, &_network)
+            , _mqtt(cfg, logger, &_resolver, &_network)
             , _telemetry(&_mqtt, sys, Config::MQTT_TOPIC_PREFIX)
 #endif
         { (void)sys; }

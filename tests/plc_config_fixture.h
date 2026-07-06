@@ -15,6 +15,7 @@
 #include <cstdint>
 
 #include "libbotanik/plcio/sync.h"
+#include "libbotanik/core/config_plc.h"
 
 namespace botanik_test {
 
@@ -26,6 +27,10 @@ namespace botanik_test {
         Botanik::PlcIO::PlcOutput<Out>          out{};
         uint32_t                                ts = 0;
         Botanik::PlcIO::PlcSyncHandler<In, Out> handler{&in, &out, &ts, nullptr};
+        /** @brief A PLC-backed ConfigHandler over this fixture's RX snapshot -
+         *  what the config-driven components now consume (image() reads the
+         *  published conf live). */
+        Botanik::Cfg::PlcConfigHandler          cfg{handler.context(), nullptr};
 
         /** @brief The config the mock PLC publishes. Set fields, then call publish(). */
         Botanik::PlcIO::PlcOutputConfig_t& conf() { return out.conf; }

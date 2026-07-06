@@ -150,8 +150,8 @@ namespace Botanik { namespace Sun {
     // meaningless, so we wait.
     static const uint64_t WALL_CLOCK_VALID_MS = 1600000000000ull;
 
-    SunPositionTracker::SunPositionTracker(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger)
-        : Component(logger, "SunPositionTracker"), _ctx(ctx),
+    SunPositionTracker::SunPositionTracker(const Cfg::ConfigHandler* cfg, Logs::Logger* logger)
+        : Component(logger, "SunPositionTracker"), _cfg(cfg),
           _pos(), _next_ms(0), _computed(false) {}
 
     uint32_t SunPositionTracker::config_serial() const {

@@ -15,9 +15,9 @@
 
 namespace Botanik { namespace Network {
 
-    MqttClient::MqttClient(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger,
+    MqttClient::MqttClient(const Cfg::ConfigHandler* cfg, Logs::Logger* logger,
                            NameResolver* resolver, const NetworkHandler* net)
-        : Component(logger, "MqttClient"), _ctx(ctx),
+        : Component(logger, "MqttClient"), _cfg(cfg),
           _state(MQTT_IDLE), _since_ms(0), _last_ping_ms(0), _last_pub_ms(0),
           _resolver(resolver), _net(net), _sock(-1) {
         _broker_addr = HAL::Network::Ip4();   // 0.0.0.0 until resolved

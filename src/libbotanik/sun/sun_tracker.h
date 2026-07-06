@@ -12,7 +12,7 @@
 
 #include "libbotanik_config.h"
 #include "libbotanik/core/component.h"
-#include "libbotanik/plcio/sync.h"      // PlcSyncContext + plc_config()
+#include "libbotanik/core/config.h"     // Cfg::ConfigHandler + PlcOutputConfig_t
 
 #if BOTANIK_FEATURE_SUN
 
@@ -53,16 +53,18 @@ namespace Botanik { namespace Sun {
      *         current angle, the day's peak, the angle-to-peak ratio, and
      *         whether the sun is rising or falling. */
     class SunPositionTracker : public Component {
-        PlcIO::PlcSyncContext* _ctx;   ///< PLC config source (may be null in tests).
+        const Cfg::ConfigHandler* _cfg;   ///< config source (may be null in tests).
         SolarPosition _pos;    ///< Cached solar position (see ready()).
         uint64_t _next_ms;     ///< Timestamp the next scheduled recompute.
         bool     _computed;    ///< Position successfully acquired.
 
-        /** @brief The generic config block (or null with no ctx). */
-        const PlcIO::PlcOutputConfig_t* config() const { return PlcIO::plc_config(_ctx); }
+        /** @brief The generic config block (or null with no config source). */
+        const PlcIO::PlcOutputConfig_t* config() const {
+            return _cfg != nullptr ? _cfg->image() : nullptr;
+        }
 
     public:
-        SunPositionTracker(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger = nullptr);
+        SunPositionTracker(const Cfg::ConfigHandler* cfg, Logs::Logger* logger = nullptr);
 
         /** @brief Sun's elevation angle above the horizon (radians; negative below).
          *  @note Zero until the first computation (see ready()). */

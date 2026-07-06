@@ -14,9 +14,9 @@
 
 namespace Botanik { namespace Network {
 
-    NtpClient::NtpClient(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger,
+    NtpClient::NtpClient(const Cfg::ConfigHandler* cfg, Logs::Logger* logger,
                          NameResolver* resolver, const NetworkHandler* net)
-        : Component(logger, "NtpClient"), _ctx(ctx),
+        : Component(logger, "NtpClient"), _cfg(cfg),
           _state(TIME_IDLE), _since_ms(0), _resolver(resolver), _net(net), _server_idx(0),
           _udp(-1), _offset_ms(0), _sync_held(false) {
         _server_addr = HAL::Network::Ip4();   // 0.0.0.0 until resolved

@@ -15,7 +15,7 @@
 #include <cstdint>
 
 #include "libbotanik/core/component.h"
-#include "libbotanik/plcio/sync.h"        // PlcSyncContext + plc_config()
+#include "libbotanik/core/config.h"       // Cfg::ConfigHandler + PlcOutputConfig_t
 #include "libbotanik/hal/net.h"
 #include "libbotanik/network/resolver.h"
 #include "libbotanik/network/network.h"   // NetworkHandler (link gate)
@@ -54,8 +54,8 @@ namespace Botanik { namespace Network {
             TIME_SYNCED,     ///< RTC disciplined; idle until the next poll
             TIME_ERROR,      ///< failed; backing off before a retry
         };
-        /** @brief PLC config source (may be null in tests). */
-        PlcIO::PlcSyncContext* _ctx;
+        /** @brief Config source (may be null in tests). */
+        const Cfg::ConfigHandler* _cfg;
         State                 _state;
         /// when this state was entered (timeouts)
         uint64_t              _since_ms;
@@ -78,11 +78,13 @@ namespace Botanik { namespace Network {
         bool                  _sync_held;
         /** @} */
 
-        /** @brief The generic config block (or null with no ctx). */
-        const PlcIO::PlcOutputConfig_t* config() const { return PlcIO::plc_config(_ctx); }
+        /** @brief The generic config block (or null with no config source). */
+        const PlcIO::PlcOutputConfig_t* config() const {
+            return _cfg != nullptr ? _cfg->image() : nullptr;
+        }
 
     public:
-        NtpClient(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger = nullptr,
+        NtpClient(const Cfg::ConfigHandler* cfg, Logs::Logger* logger = nullptr,
                   NameResolver* resolver = nullptr,
                   const NetworkHandler* net = nullptr);
 

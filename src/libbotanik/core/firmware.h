@@ -198,9 +198,9 @@ namespace Botanik {
               , _monitor(&_logger)
 #endif
 #if BOTANIK_FEATURE_NETWORK
-              // Network reads its config from the PLC block (NETWORK requires
-              // PLC); telemetry publishes the live _sys_ctx (stored, read later).
-              , _net(_plc_handler.context(), &_logger, &_sys_ctx)
+              // Network reads its config from the ConfigHandler image (NETWORK
+              // requires PLC); telemetry publishes the live _sys_ctx (read later).
+              , _net(&_config, &_logger, &_sys_ctx)
 #endif
 #if BOTANIK_FEATURE_CONSOLE
               , _console(_console_cols, _console_rows,
