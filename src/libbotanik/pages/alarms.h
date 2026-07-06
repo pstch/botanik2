@@ -59,21 +59,17 @@ namespace Botanik { namespace Pages {
         Console&                  _console;
         /** @brief The VT device it paints through (cached _console.terminal()). */
         AnsiTerminal&             _terminal;
-        /** @brief Alarm source (may be null). */
-        const Alarms::AlarmModel* _model;
+        /** @brief Alarm source (may be null). Non-const: the `a` key acks the
+         *  selected condition through it. */
+        Alarms::AlarmModel*       _model;
         /** @brief Mirrors tick(active). */
         bool                      _active   = false;
         /** @brief Filter mode, cycled by SPACE (see MODE_*). Defaults to
          *  RECENT. */
         uint8_t                   _mode     = MODE_RECENT;
         /** @brief First visible data row on screen (scroll offset from the top
-         *  of the set); _scroll_pending holds the not-yet-applied delta. */
+         *  of the set), moved to keep the selection cursor in the window. */
         uint16_t                  _top      = 0;
-        /** @brief Rows still to scroll to reach where the user keyed (+ down,
-         *  - up). Applied a row at a time only while the TX ring is shallow
-         *  (see _drain_scroll), so a scroll never floods the buffer or falls
-         *  back to a full redraw. */
-        int16_t                   _scroll_pending = 0;
         /** @brief Staged-repaint cursor: the next table element to paint, or
          *  PAINT_IDLE when fully drawn. A repaint is paced a few rows per tick
          *  under the TX floor (see _paint_step()) so it never starves the
@@ -105,6 +101,10 @@ namespace Botanik { namespace Pages {
         uint8_t                   _vis[Alarms::ALARM_BITS];
         /** @brief Number of visible entries in _vis. */
         uint8_t                   _nvis     = 0;
+        /** @brief Selection cursor: index into the visible set (_vis). The
+         *  selected row is drawn inverted; `a` acks its condition. Clamped to the
+         *  set in _collect(). */
+        uint16_t                  _selected = 0;
 
         /** @} */
 
@@ -120,7 +120,7 @@ namespace Botanik { namespace Pages {
         /** @brief idx: alarm table index, ROW_STRUCT, or ROW_BLANK. sig: data
          *  row = packed (ON state | event minute); structural row =
          *  FNV(line bytes). */
-        struct RowShadow { uint8_t idx; uint32_t sig; };
+        struct RowShadow { uint8_t idx; uint32_t sig; bool sel; };
         RowShadow                 _row[MAX_ROWS];
         /** @} */
 
@@ -292,9 +292,9 @@ namespace Botanik { namespace Pages {
             _terminal.write_chars(left + 3 + ml, (uint16_t)(llen - 3 - ml));
             _terminal.clear_to_eol();
 
-            // Right-aligned "SPACE: <next mode>" hint, when it clears the left.
-            char right[24];
-            int rn = snprintf(right, sizeof(right), "SPACE: %s", next);
+            // Right-aligned hint (ack + next filter), when it clears the left.
+            char right[32];
+            int rn = snprintf(right, sizeof(right), "a:ack  SPACE: %s", next);
             if (rn < 0) rn = 0;
             uint16_t cols = _terminal.cols();
             uint16_t rcol = (cols > (uint16_t)(rn + 2)) ? (uint16_t)(cols - rn - 2) : 0;
@@ -356,7 +356,7 @@ namespace Botanik { namespace Pages {
             // ALL mode lists every alarm in definition (table) order, so the
             // rows never reorder as alarms come and go - only the ON badge
             // changes in place. The other modes order active-first (_before()).
-            if (_mode == MODE_ALL) return;
+            if (_mode == MODE_ALL) { _clamp_selection(); return; }
             // Insertion sort by _before(): runs once per (gated) repaint,
             // _nvis is nearly always tiny, so it beats a general sort and is
             // stable in table order on ties.
@@ -370,6 +370,14 @@ namespace Botanik { namespace Pages {
                 }
                 _vis[b + 1] = v;
             }
+            _clamp_selection();
+        }
+
+        /** @brief Keep the selection cursor inside the (possibly reshaped)
+         *  visible set. */
+        void _clamp_selection() {
+            if (_nvis == 0) _selected = 0;
+            else if (_selected >= _nvis) _selected = (uint16_t)(_nvis - 1);
         }
 
         /** @brief Bitmask of conditions whose effective (latched) state is
@@ -520,7 +528,8 @@ namespace Botanik { namespace Pages {
          *  cell shows a reverse-video "ON" badge while active and unacked,
          *  "OFF" once cleared, blank if never fired. One inline pass (no
          *  flicker-prone normal-then-inverted overdraw). */
-        void _draw_full_row(uint16_t row, const Alarms::AlarmCondition& c) {
+        void _draw_full_row(uint16_t row, const Alarms::AlarmCondition& c,
+                            bool selected = false) {
             char ev[16];
             _fmt_event(ev, sizeof(ev), c);
             const char* state = c.active ? "ON" : (c.edge_ms != 0 ? "OFF" : "");
@@ -528,6 +537,15 @@ namespace Botanik { namespace Pages {
             uint16_t n = _build_grid_row(line, sizeof(line), c.code ? c.code : "?",
                                          state, ev, c.desc ? c.desc : "");
             _terminal.move_to({row, 0});
+            if (selected) {
+                // Whole-row highlight for the selection cursor (the ON badge's
+                // own inversion is dropped - the reverse-video row already reads).
+                _terminal.force_inverted(true);
+                _terminal.write_chars(line, n);
+                _terminal.set_inverted(false);
+                _terminal.clear_to_eol();
+                return;
+            }
             _terminal.set_inverted(false);
             if (c.active && !c.user_ack && n > (uint16_t)(STATE_TEXT_COL + 2)) {
                 // "ON" sits at STATE_TEXT_COL: split write so only it inverts.
@@ -553,78 +571,59 @@ namespace Botanik { namespace Pages {
             if (new_idx == ROW_BLANK) {                       // past set->blank
                 if (!shadowed || _row[row].idx != ROW_BLANK) {
                     _clear_raw(row);
-                    if (shadowed) { _row[row].idx = ROW_BLANK; _row[row].sig = 0; }
+                    if (shadowed) { _row[row].idx = ROW_BLANK; _row[row].sig = 0; _row[row].sel = false; }
                 }
                 return;
             }
             const Alarms::AlarmCondition& c = _model->condition(_vis[vi]);
             uint32_t sig = _pack(c);
-            if (shadowed && _row[row].idx == new_idx) {       // same alarm
-                if (_row[row].sig != sig) {
-                    if (_cells_fit()) _patch_cells(row, c);
-                    else              _draw_full_row(row, c);
-                    _row[row].sig = sig;
-                }
-                return;                                       // sig eq -> skip
+            bool     sel = (vi == _selected);
+            if (shadowed && _row[row].idx == new_idx &&
+                _row[row].sig == sig && _row[row].sel == sel)
+                return;                                       // fully unchanged
+            // Same alarm, selection unchanged, not selected: patch the two cells.
+            // Otherwise (identity moved, or selection toggled) full redraw so the
+            // whole-row highlight paints/clears.
+            if (shadowed && _row[row].idx == new_idx && _row[row].sel == sel &&
+                !sel && _cells_fit()) {
+                _patch_cells(row, c);
+            } else {
+                _draw_full_row(row, c, sel);
             }
-            _draw_full_row(row, c);                           // identity moved
-            if (shadowed) { _row[row].idx = new_idx; _row[row].sig = sig; }
+            if (shadowed) { _row[row].idx = new_idx; _row[row].sig = sig; _row[row].sel = sel; }
         }
 
-        /** @brief Request a full (paced) repaint from the top. The repaint
-         *  supersedes any deferred scroll - drop it. */
-        void _request_repaint() { _scroll_pending = 0; _paint_i = 0; }
+        /** @brief Request a full (paced) repaint from the top. */
+        void _request_repaint() { _paint_i = 0; }
 
-        /** @brief Fold a deferred scroll into _top (clamped) and repaint - used
-         *  when the screen is stale (set moved or a paint mid-flight) so a
-         *  one-row scroll is wrong. */
-        void _fold_pending_and_repaint() {
+        /** @brief Scroll _top so the selection cursor stays in the window. */
+        void _follow_selection() {
             uint16_t window = _window();
+            if (window == 0) return;
+            if (_selected < _top)                    _top = _selected;
+            else if (_selected >= _top + window)     _top = (uint16_t)(_selected - window + 1);
             uint16_t maxtop = _max_top(window);
-            int32_t  d = (int32_t)_top + _scroll_pending;
-            _top = (uint16_t)(d < 0 ? 0
-                                    : (d > (int32_t)maxtop ? (int32_t)maxtop : d));
-            _request_repaint();   // clears _scroll_pending
+            if (_top > maxtop) _top = maxtop;
         }
 
-        /** @brief Apply the deferred scroll a row at a time, only while the TX
-         *  ring is shallow (cold floor): one scroll_region() shift + the
-         *  exposed row fit under the floor, so the buffer never fills and the
-         *  scroll never falls back to a full repaint. Stops the moment the ring
-         *  is no longer shallow; tick() resumes it. */
-        void _drain_scroll() {
-            uint16_t window = _window();
-            if (window == 0) { _scroll_pending = 0; return; }
-            uint16_t data_bottom = _data_bottom();
-            uint16_t maxtop = _max_top(window);
-            while (_scroll_pending != 0 && _terminal.tx_below_cold()) {
-                bool     down    = _scroll_pending > 0;
-                uint16_t old_top = _top;
-                _terminal.scroll_region(DATA_TOP, data_bottom, /*up=*/down, 1);
-                // The scroll shifted the band without redrawing; shift the
-                // shadow in lockstep so the next repaint diffs the right rows
-                // (the exposed row is repainted just below).
-                if (down) {
-                    for (uint16_t i = DATA_TOP;
-                         i < data_bottom && (uint16_t)(i + 1) < MAX_ROWS; i++)
-                        _row[i] = _row[i + 1];
-                } else {
-                    for (uint16_t i = data_bottom;
-                         i > DATA_TOP && i < MAX_ROWS; i--)
-                        _row[i] = _row[i - 1];
-                }
-                _top = down ? (uint16_t)(_top + 1) : (uint16_t)(_top - 1);
-                if (down) _draw_data_row(data_bottom,
-                                         (uint16_t)(_top + window - 1));
-                else      _draw_data_row(DATA_TOP, _top);
-                _scroll_pending = (int16_t)(_scroll_pending + (down ? -1 : 1));
-                // Repaint a rule only when its arrow flips (top at 0, bottom at
-                // maxtop).
-                if ((old_top == 0) != (_top == 0))
-                    _draw_rule(RULE_ROW, _top ? '^' : '+');
-                if ((old_top < maxtop) != (_top < maxtop))
-                    _draw_rule(_brule_row(), (_top < maxtop) ? 'v' : '+');
-            }
+        /** @brief Move the selection cursor by @p dir (clamped to the set),
+         *  auto-scroll to keep it visible, and repaint (the highlight moved). */
+        void _move_selection(int dir) {
+            if (_nvis == 0) return;
+            int32_t s = (int32_t)_selected + dir;
+            if (s < 0)               s = 0;
+            if (s >= (int32_t)_nvis) s = (int32_t)_nvis - 1;
+            _selected = (uint16_t)s;
+            _follow_selection();
+            _request_repaint();   // the moved highlight repaints via the sel diff
+        }
+
+        /** @brief Acknowledge the selected condition through the model. */
+        void _ack_selected() {
+            if (_model == nullptr || _selected >= _nvis) return;
+            const Alarms::AlarmCondition& c = _model->condition(_vis[_selected]);
+            if (c.code != nullptr) _model->ack(c.code);
+            _request_repaint();   // ack changes the badge / sort
         }
 
         /** @brief True while a staged repaint is in progress (or pending its
@@ -706,48 +705,9 @@ namespace Botanik { namespace Pages {
             if (_paint_i >= total) _paint_i = PAINT_IDLE;   // frame complete
         }
 
-        /** @brief Queue a one-line scroll. Scrolling does not change the
-         *  visible set, so it reuses _vis/_nvis from the last paint: accumulate
-         *  the move into _scroll_pending (clamped) and let _drain_scroll()
-         *  apply it under the TX floor. If a repaint is already due, fold the
-         *  move into a full repaint instead of scrolling stale rows. */
-        void _scroll(bool down) {
-            uint16_t window = _window();
-            if (window == 0) return;
-            uint16_t maxtop = _max_top(window);
-            // Where the view sits after this key: top + pending + step, clamped
-            // to the set.
-            int32_t desired = (int32_t)_top + _scroll_pending + (down ? 1 : -1);
-            if (desired < 0) desired = 0;
-            else if (desired > (int32_t)maxtop) desired = (int32_t)maxtop;
-            int16_t pending = (int16_t)(desired - (int32_t)_top);
-            // already at that end
-            if (pending == _scroll_pending) return;
-            _scroll_pending = pending;
-
-            if (_painting() || _changed()) { _fold_pending_and_repaint(); return; }
-            // apply now if the ring is shallow; tick() finishes the rest
-            _drain_scroll();
-        }
-
-        /** @brief Jump the view by a full page and repaint. A large move goes
-         *  through the paced full repaint (re-collects/re-clamps _top), not a
-         *  burst of one-row shifts. */
-        void _page_scroll(bool down) {
-            uint16_t window = _window();
-            if (window == 0) return;
-            uint16_t maxtop = _max_top(window);
-            int32_t  cur = (int32_t)_top + _scroll_pending;   // where keyed to
-            int32_t  nt  = down ? (cur + window) : (cur - window);
-            if (nt < 0) nt = 0; else if (nt > (int32_t)maxtop) nt = (int32_t)maxtop;
-            if (nt == cur) return;             // already at that end
-            _top = (uint16_t)nt;
-            _request_repaint();                // clears _scroll_pending
-        }
-
     public:
         /** @brief Bind to a terminal and alarm model. */
-        AlarmsPage(Console& console, const Alarms::AlarmModel* model)
+        AlarmsPage(Console& console, Alarms::AlarmModel* model)
             : _console(console), _terminal(console.terminal()), _model(model) { _invalidate_shadow(); }
 
         /** @name Page interface
@@ -759,30 +719,32 @@ namespace Botanik { namespace Pages {
             if (c == ' ') {                 // cycle filter mode
                 _mode = (uint8_t)((_mode + 1) % MODE_COUNT);
                 _top  = 0;
+                _selected = 0;
                 // legend is painted first (reactive)
                 _request_repaint();
+            } else if (c == 'a' || c == 'A') {   // ack the selected condition
+                _ack_selected();
             }
         }
 
         void handle_command(Command cmd, uint16_t = 1) override {
             switch (cmd) {
                 case Command::ENTER:
-                    _top = 0; _request_repaint();       // jump to top
+                    _top = 0; _selected = 0; _request_repaint();   // jump to top
                     break;
                 case Command::UP:
                 case Command::CTRL_P:
-                    // incremental scroll_region
-                    _scroll(/*down=*/false);
+                    _move_selection(-1);
                     break;
                 case Command::DOWN:
                 case Command::CTRL_N:
-                    _scroll(/*down=*/true);
+                    _move_selection(+1);
                     break;
                 case Command::PAGE_UP:
-                    _page_scroll(/*down=*/false);
+                    _move_selection(-(int)_window());
                     break;
                 case Command::PAGE_DOWN:
-                    _page_scroll(/*down=*/true);
+                    _move_selection(+(int)_window());
                     break;
                 default: break;
             }
@@ -804,14 +766,6 @@ namespace Botanik { namespace Pages {
             if (!active) return;
             // A staged repaint advances a few rows per tick under the TX floor.
             if (_painting()) { _paint_step(); return; }
-            // Finish a deferred scroll as TX drains; if the set moved while it
-            // waited, fold the rest into a full repaint instead of scrolling
-            // stale rows.
-            if (_scroll_pending != 0) {
-                if (_changed()) _fold_pending_and_repaint();
-                else            _drain_scroll();
-                return;
-            }
             // Idle: re-check the set once a second (alarms move slowly) and
             // repaint only when it actually moved.
             uint64_t now = HAL::Clock::uptime_ms();

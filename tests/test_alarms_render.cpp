@@ -107,19 +107,23 @@ static void raise_all(RenderFixture& f) {
 // active alarms demotes it below the still-nagging ones, which would reshuffle
 // every row's identity and force full redraws - that is the identity-change case
 // below, not a same-row cell patch).
-TEST_CASE("alarms render: same-alarm state change patches only the cell") {
+// The selection cursor (default row 0) always full-redraws to carry its
+// highlight, so the cell-patch path is exercised on a NON-selected row: BBB sits
+// at row 1, and acking it (unack->ack keeps it below the still-unacked AAA) only
+// changes its ON cell.
+TEST_CASE("alarms render: a non-selected same-alarm state change patches only the cell") {
     RenderFixture f;
-    f.model.step(0x1, 1000);                     // only AAA active -> sole row, no peers
+    f.model.step(0x3, 1000);                     // AAA + BBB active; row0=AAA (sel), row1=BBB
     f.page.focus();
     f.paint();                                   // initial full paint; discard
 
-    CHECK(f.model.ack("AAA") == true);           // active+unack -> active+ack (stays put)
-    f.page.handle_command(Command::ENTER, 1);    // repaint, shadow intact
+    CHECK(f.model.ack("BBB") == true);           // BBB (row1) active+unack -> active+ack
+    f.page.handle_command(Command::ENTER, 1);    // repaint, shadow intact, selection at row0
     std::string out = f.paint();
 
-    CHECK(out.size() > 0);                       // the ON cell was rewritten
-    CHECK(out.find("alarm A") == std::string::npos);  // DESCRIPTION not re-emitted
-    CHECK(out.find("AAA")     == std::string::npos);  // CODE not re-emitted
+    CHECK(out.size() > 0);                        // BBB's ON cell was rewritten
+    CHECK(out.find("alarm B") == std::string::npos);  // DESCRIPTION not re-emitted
+    CHECK(out.find("BBB")     == std::string::npos);  // CODE not re-emitted (patched)
 }
 
 // A repaint with nothing changed emits nothing (all data rows skipped too).
@@ -146,23 +150,21 @@ TEST_CASE("alarms render: identity change redraws the row in full") {
     CHECK(out.find("BBB") != std::string::npos);   // a full row carried the new CODE
 }
 
-// A one-line scroll is incremental: the data band shifts via scroll_region (an
-// IL/DL pair) and only the newly exposed row is drawn. The shadow shift in
-// _drain_scroll mirrors that move, so the rows that merely slid are NOT redrawn.
-// A short window (10 rows -> data window of 2) makes the 4-alarm set overflow so
-// DOWN actually scrolls. With all four raised at once they keep table order
-// (AAA, BBB, CCC, DDD); top=0 shows AAA,BBB and DOWN to top=1 exposes CCC.
-TEST_CASE("alarms render: a one-line scroll redraws only the exposed row") {
+// DOWN moves the selection cursor, not the window. A short window (10 rows ->
+// data window of 2) overflows the 4-alarm set; with all four raised at once they
+// keep table order (AAA, BBB, CCC, DDD). top=0 shows AAA,BBB; moving the cursor
+// down past the window bottom auto-scrolls so CCC comes into view.
+TEST_CASE("alarms render: DOWN moves the selection and scrolls it into view") {
     RenderFixture f(10);
     f.model.step(0xF, 1000);
     f.page.focus();
     std::string full = f.paint();
-    REQUIRE(full.find("AAA") != std::string::npos);   // top of the window
+    REQUIRE(full.find("AAA") != std::string::npos);   // window top
+    REQUIRE(full.find("CCC") == std::string::npos);   // below the window
 
-    f.page.handle_command(Command::DOWN, 1);          // scroll one line
-    std::string scrolled = f.paint();                 // drain the scroll
-    CHECK(scrolled.size() < full.size());             // incremental, not a full repaint
-    CHECK(scrolled.find("CCC") != std::string::npos); // newly exposed row drawn
-    CHECK(scrolled.find("AAA") == std::string::npos); // scrolled off, not redrawn
-    CHECK(scrolled.find("BBB") == std::string::npos); // slid by scroll_region, not redrawn
+    f.page.handle_command(Command::DOWN, 1);          // cursor -> row 1 (BBB, still shown)
+    f.paint();
+    f.page.handle_command(Command::DOWN, 1);          // cursor -> row 2 (CCC): scroll to reveal
+    std::string out = f.paint();
+    CHECK(out.find("CCC") != std::string::npos);      // the cursor followed down into view
 }
