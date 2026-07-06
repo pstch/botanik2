@@ -50,6 +50,10 @@ namespace Botanik { namespace Terminal {
         static constexpr uint16_t CLOCK_LEN = 8;
         /** @brief Diff cache of the last drawn clock. */
         char                _clock_cache[CLOCK_LEN] = {};
+        /** @brief Column just past the last-drawn tab strip. The active tab is
+         *  wider (N:NAME vs N), so the strip shrinks when switching to a
+         *  shorter-named page; draw_tabs() clears the freed columns using this. */
+        uint16_t            _tabs_end_col = 0;
 
         /** @} */
 
@@ -68,9 +72,11 @@ namespace Botanik { namespace Terminal {
         /** @brief Full rebuild of the whole row (first paint, Ctrl-L redraw). */
         void draw_row();
 
-        /** @brief Repaint a single page tab in its active/inactive video, used
-         *  by switch_to() to flip just the two tabs that change on a switch. */
-        void draw_tab(uint8_t index);
+        /** @brief Repaint the whole tab strip, used by switch_to(). The active
+         *  tab's width changes on a switch (N:NAME vs N), shifting every tab
+         *  after it, so the strip is redrawn as a unit (and shrink residue
+         *  cleared) rather than patching individual tabs. */
+        void draw_tabs();
 
         /** @brief Drop the clock and metrics diff caches so the next refresh
          *  repaints them in full (after a tx_discard on a page switch). */
@@ -79,6 +85,17 @@ namespace Botanik { namespace Terminal {
         /** @} */
 
     private:
+        /** @name Tab strip
+         *  @{ */
+
+        /** @brief Draw the compact tab strip (leading blank + one "N"/"N:NAME"
+         *  tab per page, single-space separated) starting at the current cursor
+         *  (row 0). Caller has forced the reverse-video background. @return the
+         *  column just past the strip. */
+        uint16_t draw_tab_strip();
+
+        /** @} */
+
         /** @name Field painters
          *  @{ */
 

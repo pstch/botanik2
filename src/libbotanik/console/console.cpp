@@ -172,7 +172,6 @@ namespace Botanik { namespace Terminal {
         }
         if (_pages[_page_index] != nullptr)
             _pages[_page_index]->deactivate();
-        uint8_t prev = _page_index;
         _page_index = index;
         // Drop bytes queued for the page we're leaving (they'd paint onto the new
         // one), resync a possibly-torn sequence, then reposition absolutely (the
@@ -186,10 +185,9 @@ namespace Botanik { namespace Terminal {
         // Clear only the content band: preserves the row-0 status bar and the
         // bottom alarm bar (no wipe-and-repaint flicker on a page switch).
         clear_content();
-        // Only the tabs' video flips on a switch, so repaint just the two affected
-        // tabs (the one we left, the one we entered) rather than the whole bar.
-        _status_bar.draw_tab(prev);
-        if (prev != index) _status_bar.draw_tab(index);
+        // The active tab expands to "N:NAME" and the rest collapse to a number,
+        // so a switch reflows the whole strip (widths shift); repaint it as a unit.
+        _status_bar.draw_tabs();
         // The tx_discard may have dropped a queued row-0 update; invalidate the
         // diff caches so the next refresh repaints them in full.
         _status_bar.invalidate();

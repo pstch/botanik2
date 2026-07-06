@@ -1,4 +1,4 @@
-  HOME  SHELL  LOGS  STATUS  ALARMS      <TIME>     PLC:<P> cpu:<C> stk:<S>
+ 1 2 3 4:STATUS 5                        <TIME>     PLC:<P> cpu:<C> stk:<S>
 
   ==== SYSTEM STATUS =========================================================
   PLC link <P>  Wall clock        <CLOCK>

@@ -75,17 +75,9 @@ namespace Botanik { namespace Terminal {
         // first tab's set_inverted() a wrong no-op.
         _t.force_inverted(true);
 
-        // One blank column, then one " NAME " tab per page. The bar is reverse
-        // video; the active tab is drawn normal so it stands out.
-        _t.write_chars(" ", 1);
-        for (uint8_t i = 0; i < _c.page_count(); i++) {
-            const char* nm = _c.page_name(i);
-            if (nm == nullptr) continue;
-            _t.set_inverted(i != _c.active_page());
-            _t.write_chars(" ", 1);
-            _t.write_chars(nm, (uint16_t)strlen(nm));
-            _t.write_chars(" ", 1);
-        }
+        // Compact tab strip: "1 2 3:LOGS 4 5" - only the active page shows its
+        // name. Records the strip extent for draw_tabs()'s shrink handling.
+        _tabs_end_col = draw_tab_strip();
         _t.set_inverted(true);
 
         // Middle: spaces up to the metrics start column.
@@ -103,27 +95,48 @@ namespace Botanik { namespace Terminal {
         _t.set_inverted(saved_inv);
     }
 
-    void StatusBar::draw_tab(uint8_t index) {
-        const char* nm = _c.page_name(index);
-        if (nm == nullptr) return;
-
-        // Tab columns mirror draw_row(): one leading blank, then one " NAME "
-        // (name length + 2) per page in order.
-        uint16_t col = 1;
-        for (uint8_t i = 0; i < index; i++) {
-            const char* pn = _c.page_name(i);
-            if (pn != nullptr) col += (uint16_t)(strlen(pn) + 2);
-        }
-
+    void StatusBar::draw_tabs() {
         bool saved_inv = _t.inverted();
-        _t.move_to({0, col});
-        // Active tab normal video, others reverse; force the SGR to emit (same
+        _t.move_to({0, 0});
+        // Force the reverse-video background to emit before the tabs (same
         // stale-shadow hazard draw_row() guards).
-        _t.force_inverted(index != _c.active_page());
-        _t.write_chars(" ", 1);
-        _t.write_chars(nm, (uint16_t)strlen(nm));
-        _t.write_chars(" ", 1);
+        _t.force_inverted(true);
+
+        uint16_t end = draw_tab_strip();
+
+        // The active tab is wider (N:NAME), so switching to a shorter-named page
+        // shrinks the strip; clear the freed columns (still reverse video).
+        _t.set_inverted(true);
+        if (end < _tabs_end_col) _t.fill_spaces(_tabs_end_col);
+        _tabs_end_col = end;
+
         _t.set_inverted(saved_inv);
+    }
+
+    uint16_t StatusBar::draw_tab_strip() {
+        // Leading blank column, then one tab per page: just the 1-based number,
+        // expanded to "N:NAME" for the active page. Single-space separated. Only
+        // the active tab's "N:NAME" is normal video; the bar (and separators)
+        // stay reverse video.
+        _t.set_inverted(true);
+        _t.write_chars(" ", 1);
+        uint16_t col = 1;
+        for (uint8_t i = 0; i < _c.page_count(); i++) {
+            const char* nm = _c.page_name(i);
+            if (nm == nullptr) continue;
+            char tab[24];
+            int n = (i == _c.active_page())
+                ? snprintf(tab, sizeof(tab), "%u:%s", (unsigned)(i + 1), nm)
+                : snprintf(tab, sizeof(tab), "%u", (unsigned)(i + 1));
+            if (n < 0) continue;
+            uint16_t len = (uint16_t)std::min(n, (int)sizeof(tab) - 1);
+            _t.set_inverted(i != _c.active_page());
+            _t.write_chars(tab, len);
+            _t.set_inverted(true);
+            _t.write_chars(" ", 1);   // separator, reverse video
+            col += (uint16_t)(len + 1);
+        }
+        return col;
     }
 
     void StatusBar::invalidate() {

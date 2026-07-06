@@ -1,4 +1,4 @@
-  HOME  SHELL  LOGS  STATUS  ALARMS      <TIME>     PLC:<P> cpu:<C> stk:<S>
+ 1:HOME 2 3 4 5                          <TIME>     PLC:<P> cpu:<C> stk:<S>
     _           _              _ _
    | |__   ___ | |_ __ _ _ __ (_) | __
    | '_ \ / _ \| __/ _` | '_ \| | |/ /        Site name ...... : gh_mlb41
