@@ -25,31 +25,24 @@ namespace Botanik { namespace HAL { namespace Storage {
 }}}  // namespace Botanik::HAL::Storage
 
 #ifdef TARGET_OPTA
-// ---- OPTA: Mbed global KVStore (internal-flash TDBStore) --------------------
-// NOTE: compiled only on the OPTA build (needs Mbed KVStore configured); not
-// exercised by the host test suite. Validate on hardware.
-#include "kvstore_global_api/kvstore_global_api.h"
+// ---- OPTA: not yet wired to flash -------------------------------------------
+// HAL::Storage backs LocalConfigHandler, used only when BOTANIK_FEATURE_PLC is
+// off; the reference site (gh_mlb41) runs PLC-on and never calls this, so the
+// OPTA firmware links without a flash backend. A PLC-less OPTA site should wire
+// this to the Mbed global KVStore (internal-flash TDBStore) - the module ships
+// with the core but is not on this build's curated include path and needs a
+// configured default kvstore, so it must be enabled + validated on hardware:
+//
+//   #include "kvstore_global_api/kvstore_global_api.h"
+//   set:    return kv_set(key, buf, len, 0) == MBED_SUCCESS;
+//   get:    size_t n; if (kv_get(key, buf, cap, &n)) return false; *out_len = n;
+//   remove: int rc = kv_remove(key); return rc == MBED_SUCCESS || rc == MBED_ERROR_ITEM_NOT_FOUND;
 
 namespace Botanik { namespace HAL { namespace Storage {
 
-    bool set(const char* key, const void* buf, size_t len) {
-        if (!key_ok(key)) return false;
-        return kv_set(key, buf, len, 0) == MBED_SUCCESS;
-    }
-
-    bool get(const char* key, void* buf, size_t cap, size_t* out_len) {
-        if (!key_ok(key)) return false;
-        size_t actual = 0;
-        if (kv_get(key, buf, cap, &actual) != MBED_SUCCESS) return false;
-        if (out_len != nullptr) *out_len = actual;
-        return true;
-    }
-
-    bool remove(const char* key) {
-        if (!key_ok(key)) return false;
-        int rc = kv_remove(key);
-        return rc == MBED_SUCCESS || rc == MBED_ERROR_ITEM_NOT_FOUND;
-    }
+    bool set(const char* key, const void*, size_t)    { (void)key_ok(key); return false; }
+    bool get(const char* key, void*, size_t, size_t*) { (void)key_ok(key); return false; }
+    bool remove(const char* key)                      { return key_ok(key); }
 
 }}}  // namespace Botanik::HAL::Storage
 
