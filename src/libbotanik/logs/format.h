@@ -43,6 +43,34 @@ namespace Botanik { namespace Logs {
         default:                    return "";
     }; }
 
+    /** @brief Lowercase level word, for MQTT topic segments. */
+    inline const char* format_log_level_name(Logs::LogLevel level) { switch (level) {
+        case Logs::LOG_DEBUG:      return "debug";
+        case Logs::LOG_INFO:       return "info";
+        case Logs::LOG_NOTICE:     return "notice";
+        case Logs::LOG_WARNING:    return "warning";
+        case Logs::LOG_ERROR:      return "error";
+        case Logs::LOG_CRITICAL:   return "critical";
+        default:                    return "unknown";
+    }; }
+
+    /** @brief Lowercase topic word, for MQTT topic segments (PLC_IO -> "shared_io",
+     *  matching the SHARED_IO display label). */
+    inline const char* format_log_topic_name(Logs::LogTopic topic) { switch (topic) {
+        case Logs::NONE:           return "none";
+        case Logs::PLC_IO:         return "shared_io";
+        case Logs::BOOT:           return "boot";
+        case Logs::NETWORK:        return "network";
+        case Logs::TIME:           return "time";
+        case Logs::STATUS:         return "status";
+        case Logs::ASSERT:         return "assert";
+        case Logs::ALARM_START:    return "alarm_start";
+        case Logs::ALARM_END:      return "alarm_end";
+        case Logs::ALARM_FLAP:     return "alarm_flap";
+        case Logs::HEALTH:         return "health";
+        default:                    return "unknown";
+    }; }
+
     /** @brief Format a complete log entry as `TIMESTAMP LEVEL TOPIC MESSAGE`.
      *  @return Bytes written, clamped to @p len; 0 on encoding error. */
     inline size_t format_log_entry(const PlcIO::LogEntry_t* entry, char* buf, size_t len) {

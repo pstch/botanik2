@@ -48,8 +48,11 @@ namespace Botanik { namespace Network {
 
     void MqttClient::_fail(uint64_t now_ms) {
         if (_sock >= 0) { HAL::Network::tcp_close(_sock); _sock = -1; }
-        if (_logger != nullptr) _logger->error(Logs::NETWORK, "MQTT connection lost");
+        // Enter ERROR before logging: a log sink that publishes the line (see
+        // MqttLogWriter) would otherwise re-enter publish() while _state is still
+        // READY (socket now closed), fail the send, and recurse back into _fail().
         _enter(MQTT_ERROR, now_ms);
+        if (_logger != nullptr) _logger->error(Logs::NETWORK, "MQTT connection lost");
     }
 
     void MqttClient::on_config_changed(uint64_t now_ms) {

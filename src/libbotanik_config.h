@@ -332,6 +332,21 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(bool, MQTT_TELEMETRY_RETAIN);
 
+    /** @brief MQTT topic base for the log sink: entries publish under
+     *  "<MQTT_LOG_TOPIC>/logs/<level>/<topic>". */
+#ifndef BOTANIK_MQTT_LOG_TOPIC
+#  define BOTANIK_MQTT_LOG_TOPIC "botanik/default"
+#endif
+    BOTANIK_CFG(const char*, MQTT_LOG_TOPIC);
+
+    /** @brief Minimum level the MQTT log sink publishes (its own gate, on top of
+     *  the logger's). Keeps low-severity chatter off the broker; criticals always
+     *  pass. */
+#ifndef BOTANIK_MQTT_LOG_MIN_LEVEL
+#  define BOTANIK_MQTT_LOG_MIN_LEVEL 4   /* Logs::LOG_NOTICE */
+#endif
+    BOTANIK_CFG(uint8_t, MQTT_LOG_MIN_LEVEL);
+
     /** @}
      *  @name Sun position tracking
      *  @{ */

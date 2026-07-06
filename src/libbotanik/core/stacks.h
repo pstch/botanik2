@@ -27,6 +27,7 @@
 #endif
 #if BOTANIK_FEATURE_MQTT
 #include "libbotanik/network/mqtt.h"      // MqttClient
+#include "libbotanik/network/mqtt_log.h"  // MqttLogWriter
 #include "libbotanik/network/telemetry.h" // MqttSender
 #endif
 
@@ -109,6 +110,7 @@ namespace Botanik {
 #if BOTANIK_FEATURE_MQTT
         Network::MqttClient     _mqtt;
         Network::MqttSender     _telemetry;
+        Network::MqttLogWriter  _mqtt_log;
 #endif
 
     public:
@@ -136,6 +138,7 @@ namespace Botanik {
 #if BOTANIK_FEATURE_MQTT
         Network::MqttClient&     mqtt()      { return _mqtt; }
         Network::MqttSender&     telemetry() { return _telemetry; }
+        Network::MqttLogWriter&  mqtt_log()  { return _mqtt_log; }
 #endif
 
         /** @brief Advance every enabled service for this beat. */

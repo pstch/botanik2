@@ -283,6 +283,9 @@ namespace Botanik {
             // Route alarm transitions out through the MQTT client (it is an
             // Alarms::Publisher). Until now the notifier was a no-op.
             _health.set_alarm_publisher(&_net.mqtt());
+            // Stream log entries out to the broker (best-effort, own min level).
+            _net.mqtt_log().set_publisher(&_net.mqtt());
+            _logger.add_writer(&_net.mqtt_log());
             register_telemetry();   // site telemetry fields (base set always on)
 #endif
 
