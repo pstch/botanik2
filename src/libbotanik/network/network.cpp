@@ -27,7 +27,7 @@ namespace Botanik { namespace Network {
 
     uint32_t NetworkHandler::config_serial() const {
         const PlcIO::PlcOutputConfig_t* c = config();
-        return c ? c->net.serial : 0;
+        return c ? c->net_serial : 0;
     }
 
     const char* NetworkHandler::status_str() const {
@@ -49,7 +49,7 @@ namespace Botanik { namespace Network {
         // Clear the resolver cache, then re-bring-up (or idle).
         _unwire_resolver();
         const PlcIO::PlcOutputConfig_t* c = config();
-        if (c == nullptr || c->net.serial == 0) {
+        if (c == nullptr || c->net_serial == 0) {
             HAL::Network::link_disconnect();
             _enter(NET_IDLE, now_ms);
             return;
@@ -61,13 +61,13 @@ namespace Botanik { namespace Network {
         const PlcIO::PlcOutputConfig_t* c = config();
         HAL::Network::LinkConfig lc;
         memset(&lc, 0, sizeof(lc));
-        lc.dhcp = c->net.dhcp != 0;
+        lc.dhcp = c->net_dhcp != 0;
         if (!lc.dhcp) {
-            strncpy(lc.ip,      c->net.ip,      sizeof(lc.ip) - 1);
-            strncpy(lc.netmask, c->net.netmask, sizeof(lc.netmask) - 1);
-            strncpy(lc.gateway, c->net.gateway, sizeof(lc.gateway) - 1);
-            strncpy(lc.dns1,    c->net.dns1,    sizeof(lc.dns1) - 1);
-            strncpy(lc.dns2,    c->net.dns2,    sizeof(lc.dns2) - 1);
+            strncpy(lc.ip,      c->net_ip,      sizeof(lc.ip) - 1);
+            strncpy(lc.netmask, c->net_netmask, sizeof(lc.netmask) - 1);
+            strncpy(lc.gateway, c->net_gateway, sizeof(lc.gateway) - 1);
+            strncpy(lc.dns1,    c->net_dns1,    sizeof(lc.dns1) - 1);
+            strncpy(lc.dns2,    c->net_dns2,    sizeof(lc.dns2) - 1);
         }
         HAL::Network::link_configure(lc);
         if (_logger) _logger->info(Logs::NETWORK, lc.dhcp ? "network bring-up (DHCP)"

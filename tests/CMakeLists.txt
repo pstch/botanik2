@@ -21,6 +21,7 @@ add_executable(botanik_tests
     test_serial.cpp
     test_writer.cpp
     test_config_handler.cpp
+    test_config_params.cpp
     test_resolver.cpp
     test_sun_tracker.cpp
     test_network.cpp

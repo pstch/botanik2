@@ -397,7 +397,7 @@ namespace Botanik { namespace Shell {
         };
 
         // --- Link --------------------------------------------------------
-        const char* mode = (cfg != nullptr && cfg->net.dhcp) ? "DHCP" : "static";
+        const char* mode = (cfg != nullptr && cfg->net_dhcp) ? "DHCP" : "static";
         snprintf(val, sizeof(val), "%s  (%s)", net->status_str(), mode);
         _line("Network ..............", val);
 
@@ -432,15 +432,15 @@ namespace Botanik { namespace Shell {
             else
                 snprintf(val, sizeof(val), "%s", ntp->status_str());
             _line("NTP ..................", val);
-            if (cfg != nullptr && cfg->ntp.server1[0]) {
+            if (cfg != nullptr && cfg->ntp_server1[0]) {
                 // Configured hostname, then the resolved IP:port once known.
                 Network::ResolvedAddr sa = ntp->server_addr();
                 bool resolved = (sa.b[0] | sa.b[1] | sa.b[2] | sa.b[3]) != 0;
                 if (resolved)
-                    snprintf(val, sizeof(val), "%s  %s:%u", cfg->ntp.server1,
+                    snprintf(val, sizeof(val), "%s  %s:%u", cfg->ntp_server1,
                              ip4(sa), (unsigned)ntp->server_port());
                 else
-                    snprintf(val, sizeof(val), "%s", cfg->ntp.server1);
+                    snprintf(val, sizeof(val), "%s", cfg->ntp_server1);
                 _line("NTP server ...........", val);
             }
         } else {
@@ -460,14 +460,14 @@ namespace Botanik { namespace Shell {
                 snprintf(val, sizeof(val), "%s  (no pub yet)", mqt->status_str());
             }
             _line("MQTT .................", val);
-            if (cfg != nullptr && cfg->mqtt.broker[0]) {
+            if (cfg != nullptr && cfg->mqtt_broker[0]) {
                 // Configured hostname, then the resolved IP:port once connected.
                 if (mqt->connected()) {
                     Network::ResolvedAddr pa = mqt->peer_addr();
-                    snprintf(val, sizeof(val), "%s  %s:%u", cfg->mqtt.broker,
+                    snprintf(val, sizeof(val), "%s  %s:%u", cfg->mqtt_broker,
                              ip4(pa), (unsigned)mqt->peer_port());
                 } else {
-                    snprintf(val, sizeof(val), "%s", cfg->mqtt.broker);
+                    snprintf(val, sizeof(val), "%s", cfg->mqtt_broker);
                 }
                 _line("MQTT broker ..........", val);
             }
