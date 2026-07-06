@@ -67,10 +67,24 @@ namespace Botanik { namespace Sun {
         return lambda;
     }
 
+    // Daylight hours for a latitude/declination geometry: the sun is up while
+    // the hour angle is within +/- H0, where cos(H0) = -tan(lat) tan(decl).
+    // Earth turns 2*pi per 24 h, so daylight = 24 * H0 / pi. Saturates to 24 h
+    // (polar day) or 0 h (polar night) once the sun no longer crosses the horizon.
+    static double _day_length_hours(double sin_lat, double cos_lat,
+                                    double sin_decl, double cos_decl) {
+        double denom = cos_lat * cos_decl;
+        if (denom == 0.0) return 12.0;    // degenerate (pole, decl 0); split the difference
+        double cos_H0 = -(sin_lat * sin_decl) / denom;
+        if (cos_H0 <= -1.0) return 24.0;  // sun never sets
+        if (cos_H0 >=  1.0) return  0.0;  // sun never rises
+        return 24.0 * std::acos(cos_H0) / SOLAR_PI;
+    }
+
     // Solar position
     // ------------------------------------------------------------------------
 
-    double solar_elevation(uint64_t now_ms, double lat_deg, double lon_deg) {
+    SolarPosition solar_position(uint64_t now_ms, double lat_deg, double lon_deg) {
         double jd_now = (double)unix_ms_from_uptime_ms(now_ms) / MS_PER_DAY + JD_UNIX;
 
         // Integer day count since J2000 whose solar noon is nearest "now" (so
@@ -99,11 +113,33 @@ namespace Botanik { namespace Sun {
         // periodic, so there is no need to wrap it into range.
         double H_r = (jd_now - jtransit) * 360.0 * DEG2RAD;
 
-        // Altitude (elevation) above the horizon.
-        double lat_r = lat_deg * DEG2RAD;
-        double sin_alt = std::sin(lat_r) * sin_decl
-                       + std::cos(lat_r) * cos_decl * std::cos(H_r);
-        return std::asin(sin_alt);
+        double lat_r   = lat_deg * DEG2RAD;
+        double sin_lat = std::sin(lat_r);
+        double cos_lat = std::cos(lat_r);
+
+        SolarPosition p;
+        // Current altitude (elevation) above the horizon.
+        double sin_alt = sin_lat * sin_decl + cos_lat * cos_decl * std::cos(H_r);
+        p.elevation = std::asin(sin_alt);
+        // Peak altitude is reached at solar noon, where the hour angle is 0 (so
+        // cos(H) = 1); it reduces to the classic 90 - |lat - decl|. Reported as a
+        // magnitude (always >= 0): it only goes negative in deep polar night,
+        // where we still want a positive reference for the (signed) elevation ratio.
+        double sin_alt_peak = sin_lat * sin_decl + cos_lat * cos_decl;
+        p.peak_elevation = std::fabs(std::asin(sin_alt_peak));
+        // Before transit the sun is still climbing toward noon; after, falling.
+        p.rising = jd_now < jtransit;
+
+        // Today's daylight span from the current declination.
+        p.day_length_h = _day_length_hours(sin_lat, cos_lat, sin_decl, cos_decl);
+        // Longest day at this latitude: the summer solstice, where the
+        // declination reaches the obliquity toward this hemisphere (same sign as
+        // the latitude). At the equator this is a flat 12 h either way.
+        double sign_lat     = (sin_lat >= 0.0) ? 1.0 : -1.0;
+        double sin_decl_max = std::sin(OBLIQUITY_DEG * DEG2RAD) * sign_lat;
+        double cos_decl_max = std::cos(OBLIQUITY_DEG * DEG2RAD);
+        p.max_day_length_h  = _day_length_hours(sin_lat, cos_lat, sin_decl_max, cos_decl_max);
+        return p;
     }
 
     // SunPositionTracker
@@ -116,7 +152,7 @@ namespace Botanik { namespace Sun {
 
     SunPositionTracker::SunPositionTracker(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger)
         : Component(logger, "SunPositionTracker"), _ctx(ctx),
-          _elevation(0.0), _next_ms(0), _computed(false) {}
+          _pos(), _next_ms(0), _computed(false) {}
 
     uint32_t SunPositionTracker::config_serial() const {
         const PlcIO::PlcOutputConfig_t* c = config();
@@ -143,9 +179,9 @@ namespace Botanik { namespace Sun {
 
         double lat = (double)c->geo.latitude_e7  / 1e7;
         double lon = (double)c->geo.longitude_e7 / 1e7;
-        _elevation = solar_elevation(now_ms, lat, lon);
-        _computed  = true;
-        _next_ms   = now_ms + Config::SUN_RECOMPUTE_MS;
+        _pos      = solar_position(now_ms, lat, lon);
+        _computed = true;
+        _next_ms  = now_ms + Config::SUN_RECOMPUTE_MS;
     }
 
 }}

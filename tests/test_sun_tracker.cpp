@@ -21,7 +21,7 @@ using namespace Botanik;
 using namespace Botanik::Sun;
 
 namespace {
-    // Same e7->degrees the tracker does, so a reference solar_elevation() call
+    // Same e7->degrees the tracker does, so a reference solar_position() call
     // gets byte-identical inputs (hence an identical result) to compare against.
     double deg(int32_t e7) { return (double)e7 / 1e7; }
 }
@@ -43,7 +43,31 @@ TEST_CASE("SunPositionTracker: computes elevation from geo config") {
     REQUIRE(sun.ready());
 
     // Must match a direct call with the same instant + location.
-    CHECK(sun.elevation() == doctest::Approx(solar_elevation(now, deg(LAT), deg(LON))));
+    CHECK(sun.elevation() == doctest::Approx(solar_position(now, deg(LAT), deg(LON)).elevation));
+}
+
+TEST_CASE("SunPositionTracker: exposes peak, ratio and rising from the same sample") {
+    botanik_test::PlcConfigFixture fx;
+    const int32_t LAT = 488566000;   // Paris 48.8566 N
+    const int32_t LON =  23522000;   //       2.3522 E
+    fx.conf().geo.serial       = 1;
+    fx.conf().geo.latitude_e7  = LAT;
+    fx.conf().geo.longitude_e7 = LON;
+    fx.publish();
+
+    SunPositionTracker sun(fx.ctx());
+    uint64_t now = HAL::Clock::uptime_ms();
+    sun.step(now);
+    REQUIRE(sun.ready());
+
+    // Every accessor must agree with a direct solar_position() at the same instant.
+    SolarPosition ref = solar_position(now, deg(LAT), deg(LON));
+    CHECK(sun.elevation()        == doctest::Approx(ref.elevation));
+    CHECK(sun.peak_elevation()   == doctest::Approx(ref.peak_elevation));
+    CHECK(sun.elevation_ratio()  == doctest::Approx(ref.ratio()));
+    CHECK(sun.rising()           == ref.rising);
+    CHECK(sun.day_length_h()     == doctest::Approx(ref.day_length_h));
+    CHECK(sun.max_day_length_h() == doctest::Approx(ref.max_day_length_h));
 }
 
 TEST_CASE("SunPositionTracker: throttles recomputation between cadence ticks") {
@@ -69,7 +93,7 @@ TEST_CASE("SunPositionTracker: throttles recomputation between cadence ticks") {
     // Two minutes on (past the cadence): recomputes for the new instant.
     uint64_t t1 = t0 + 120000;
     sun.step(t1);
-    CHECK(sun.elevation() == doctest::Approx(solar_elevation(t1, deg(LAT), deg(LON))));
+    CHECK(sun.elevation() == doctest::Approx(solar_position(t1, deg(LAT), deg(LON)).elevation));
 }
 
 TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial changes") {
@@ -94,7 +118,7 @@ TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial cha
 
     uint64_t now = HAL::Clock::uptime_ms();
     sun.step(now);
-    CHECK(sun.elevation() == doctest::Approx(solar_elevation(now, deg(LAT), deg(LON))));
+    CHECK(sun.elevation() == doctest::Approx(solar_position(now, deg(LAT), deg(LON)).elevation));
     CHECK(sun.elevation() != doctest::Approx(paris_elev));   // different coords -> different angle
 }
 
