@@ -125,23 +125,6 @@ namespace Botanik { namespace Network {
         }
     }
 
-    namespace {
-        // Read a ScalarField's value as a 64-bit integer (sign-extended), from
-        // base + offset. memcpy keeps it alignment-safe on the real payload.
-        int64_t scalar_read(const void* base, const ScalarField& f) {
-            const uint8_t* p = static_cast<const uint8_t*>(base) + f.offset;
-            switch (f.type) {
-                case SCALAR_U8:
-                case SCALAR_ENUM: return *p;
-                case SCALAR_U16:  { uint16_t v; memcpy(&v, p, 2); return v; }
-                case SCALAR_U32:  { uint32_t v; memcpy(&v, p, 4); return v; }
-                case SCALAR_I16:  { int16_t  v; memcpy(&v, p, 2); return v; }
-                case SCALAR_I32:  { int32_t  v; memcpy(&v, p, 4); return v; }
-            }
-            return 0;
-        }
-    }  // namespace
-
     void MqttSender::_publish_scalars() {
         if (_groups == nullptr || _scalar_base == nullptr) return;
         char payload[64];
@@ -150,16 +133,9 @@ namespace Botanik { namespace Network {
             for (size_t i = 0; i < g.count; ++i) {
                 const ScalarField& f = g.fields[i];
                 if (f.name == nullptr) continue;
-                int64_t raw = scalar_read(_scalar_base, f);
-                const char* out = payload;
-                if (f.type == SCALAR_ENUM) {
-                    if (f.str == nullptr) continue;
-                    out = f.str((uint8_t)raw);   // static string, point at it directly
-                } else if (f.divisor > 1) {
-                    Utils::format_float(payload, sizeof(payload), (double)raw / f.divisor, f.decimals);
-                } else {
-                    Utils::format_int(payload, sizeof(payload), (long long)raw);
-                }
+                // An ENUM with no mapper is skipped (no payload to publish).
+                if (f.type == SCALAR_ENUM && f.str == nullptr) continue;
+                const char* out = scalar_format(f, _scalar_base, payload, sizeof(payload));
                 _emit(g.topic, f.name, out);
             }
         }

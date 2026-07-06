@@ -20,6 +20,10 @@ namespace Botanik {
     namespace Alarms  { class AlarmModel; }
     // ntpsync command (set_ntp); null when the NTP feature is off
     namespace Network { class NtpClient;  }
+    // config get/set command (set_config)
+    namespace Cfg     { class ConfigHandler; }
+    // status command (set_status_vars): the status-variable descriptor group
+    namespace Network { struct ScalarGroup; }
 }
 
 namespace Botanik { namespace Shell {
@@ -91,6 +95,13 @@ namespace Botanik { namespace Shell {
         /** @brief NTP client for the `ntpsync` command; null until set_ntp()
          *  wires it (off when the NTP feature is absent). */
         Network::NtpClient*     _ntp_client           = nullptr;
+        /** @brief Config backend for the `config` get/set command (set_config). */
+        Cfg::ConfigHandler*     _config               = nullptr;
+        /** @brief Status-variable table for the `status` command
+         *  (set_status_vars): the site scalar groups + the payload they read. */
+        const Network::ScalarGroup* _status_groups    = nullptr;
+        size_t                  _status_group_count   = 0;
+        const void*             _status_base          = nullptr;
 
         /** @brief Command-history ring: the most-recent submitted lines. */
         char     _history[Config::SHELL_HISTORY_SIZE][Config::SHELL_HISTORY_ENTRY];
@@ -137,6 +148,16 @@ namespace Botanik { namespace Shell {
          *  firmware passes it when the NTP feature is on; left null otherwise,
          *  so the command reports "unavailable"). */
         void set_ntp(Network::NtpClient* ntp) { _ntp_client = ntp; }
+
+        /** @brief Wire the config backend the `config` command reads/writes. */
+        void set_config(Cfg::ConfigHandler* config) { _config = config; }
+
+        /** @brief Wire the status-variable table the `status` command reads:
+         *  @p groups over @p base (the live PLC payload). Null clears it. */
+        void set_status_vars(const Network::ScalarGroup* groups, size_t count,
+                             const void* base) {
+            _status_groups = groups; _status_group_count = count; _status_base = base;
+        }
 
         /** @brief Register a site command table, tried after the built-ins.
          *  @p table must outlive the shell (typically a static at the site).
@@ -226,6 +247,8 @@ namespace Botanik { namespace Shell {
         void _cmd_net(const char* args, uint16_t alen);
         void _cmd_ntpsync(const char* args, uint16_t alen);
         void _cmd_loglevel(const char* args, uint16_t alen);
+        void _cmd_config(const char* args, uint16_t alen);
+        void _cmd_status(const char* args, uint16_t alen);
         /** @brief Handle an unrecognised command (echoes "Unknown command:
          *  ..."). */
         void _unknown(const char* cmd, uint16_t len);

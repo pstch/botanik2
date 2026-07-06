@@ -26,6 +26,7 @@
 #include "libbotanik_config.h"
 #include "libbotanik/core/context.h"
 #include "libbotanik/network/mqtt.h"
+#include "libbotanik/network/telemetry_types.h"   // ScalarType/Field/Group + read/format
 
 namespace Botanik { namespace Network {
 
@@ -38,41 +39,9 @@ namespace Botanik { namespace Network {
         bool (*format)(char* buf, size_t cap, void* ctx);
     };
 
-    /** @brief How to read + render a ScalarField's bytes (its width and sign;
-     *  ENUM is a u8 rendered through a str() converter). */
-    enum ScalarType {
-        SCALAR_U8, SCALAR_U16, SCALAR_U32,   ///< unsigned integer
-        SCALAR_I16, SCALAR_I32,              ///< signed integer
-        SCALAR_ENUM                          ///< u8 -> string via ScalarField::str
-    };
-
-    /** @brief A scalar telemetry value at a byte @p offset in a flat struct
-     *  (typically the site PLC payload), rendered generically by MqttSender -
-     *  no per-field formatter. Integer types publish verbatim; a @p divisor > 1
-     *  makes it fixed-point (value / divisor with @p decimals places, e.g. 100
-     *  for centi-units); SCALAR_ENUM renders the raw byte through @p str.
-     *
-     *  This is the data-driven alternative to a TelemetryField table: a site
-     *  whose values are plain payload scalars declares these in ScalarGroups (see
-     *  the gh_mlb41 site) and registers them with set_site_scalar_groups(). */
-    struct ScalarField {
-        const char* name;
-        uint16_t    offset;            ///< byte offset into the registered base
-        ScalarType  type;
-        uint16_t    divisor;           ///< 0/1 = integer; 100 = centi; 1000 = milli
-        uint8_t     decimals;          ///< fixed-point precision (divisor > 1)
-        const char* (*str)(uint8_t);   ///< SCALAR_ENUM only (else null)
-    };
-
-    /** @brief A named group of ScalarFields published under a shared sub-topic:
-     *  each field emits at "<prefix>/<root>/<topic>/<field>". A site declares one
-     *  small ScalarField[] per domain (dc_supply, ac_supply, irrigation, ...) and
-     *  lists them as a ScalarGroup[] registered with set_site_scalar_groups(). */
-    struct ScalarGroup {
-        const char*        topic;      ///< shared sub-topic (e.g. "ac_supply")
-        const ScalarField* fields;
-        size_t             count;
-    };
+    // ScalarType / ScalarField / ScalarGroup (the status-variable descriptor
+    // table) live in telemetry_types.h so non-network consumers (the shell's
+    // `status` command) can read them without the MqttSender. Published here.
 
     /** @brief Periodic MQTT telemetry publisher (see file header). */
     class MqttSender {

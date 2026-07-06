@@ -29,6 +29,7 @@
 
 #include "libbotanik/core/firmware.h"
 #include "libbotanik/shell/shell.h"   // ShellCommand - the site command table
+#include "libbotanik/pages/config_page.h"   // the interactive CONFIG page
 
 // ===========================================================================
 // PLC payload (shared verbatim by the mock PLC and the OPTA firmware)
@@ -313,8 +314,9 @@ const ScalarGroup g_telemetry_groups[] = {
 class GreenhouseMLB41 final : public Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t> {
     /** @name Site pages
      *  @{ */
-    GreenhouseHomePage   _home_page;
-    GreenhouseStatusPage _status_page;
+    GreenhouseHomePage           _home_page;
+    GreenhouseStatusPage         _status_page;
+    Botanik::Pages::ConfigPage   _config_page;
     /** @} */
 
 public:
@@ -326,7 +328,8 @@ public:
         : Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t>(
               shared_in, shared_out, g_alarms, g_alarm_count),
           _home_page(terminal(), plc_output_data()),
-          _status_page(terminal(), plc_output_data())
+          _status_page(terminal(), plc_output_data()),
+          _config_page(terminal(), &config())
     {}
 
     /** @brief Hardware convenience: bind to the coprocessor's PLC region (via
@@ -345,6 +348,7 @@ protected:
         terminal().add_page(&logs_page());
         terminal().add_page(&_status_page);
         terminal().add_page(&alarms_page());
+        terminal().add_page(&_config_page);
     }
 
     /** @brief Register the site's "gh" command, reading the live PLC payload
@@ -356,9 +360,15 @@ protected:
     }
 
     /** @brief The home page also sinks the log stream (its bottom log-tail
-     *  band). */
+     *  band); the `status` shell command reads the site scalar table live. */
     void on_setup() override {
         logger().add_writer(&_home_page);
+#if BOTANIK_FEATURE_CONSOLE
+        shell_page().set_status_vars(
+            g_telemetry_groups,
+            sizeof(g_telemetry_groups) / sizeof(g_telemetry_groups[0]),
+            plc_output_data());
+#endif
     }
 
 #if BOTANIK_FEATURE_MQTT

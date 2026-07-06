@@ -86,6 +86,15 @@ namespace Botanik { namespace Pages {
         /** @brief Wire the NTP client the `ntpsync` command resyncs. */
         void set_ntp(Network::NtpClient* ntp) { _shell.set_ntp(ntp); }
 
+        /** @brief Wire the config backend for the `config` get/set command. */
+        void set_config(Cfg::ConfigHandler* config) { _shell.set_config(config); }
+
+        /** @brief Wire the status-variable table for the `status` command. */
+        void set_status_vars(const Network::ScalarGroup* groups, size_t count,
+                             const void* base) {
+            _shell.set_status_vars(groups, count, base);
+        }
+
         /** @} */
 
         /** @name Page interface

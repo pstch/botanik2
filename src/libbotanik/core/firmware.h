@@ -272,6 +272,8 @@ namespace Botanik {
             // Let the shell's loglevel / alarm-ack commands reach the live
             // logger + model.
             _console.shell().set_diagnostics(&_logger, &_health.model());
+            // Let the `config` get/set command reach the config backend.
+            _console.shell().set_config(&_config);
 #if BOTANIK_FEATURE_NTP
             // Let the `ntpsync` command force a resync on the live client.
             _console.shell().set_ntp(&_net.ntp());

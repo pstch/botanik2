@@ -25,6 +25,7 @@
 
 #include <cstddef>   // offsetof, size_t
 #include <cstdint>
+#include <cstring>   // strlen/strncmp (find by name)
 
 #include "libbotanik/core/component.h"
 #include "libbotanik/plcio/config.h"   // PlcOutputConfig_t (the config image)
@@ -205,6 +206,22 @@ namespace Botanik { namespace Cfg {
         /** @brief Render parameter @p i's current value into @p buf. */
         int format(uint8_t i, char* buf, size_t cap) const {
             return format_value(param(i), image(), buf, cap);
+        }
+
+        /** @brief Render a given parameter's current value into @p buf. */
+        int format_param(const ConfigParam& p, char* buf, size_t cap) const {
+            return format_value(p, image(), buf, cap);
+        }
+
+        /** @brief Find a parameter by name (library + site), or null. */
+        const ConfigParam* find(const char* name, uint16_t len) const {
+            for (uint8_t i = 0; i < count(); i++) {
+                const ConfigParam& p = param(i);
+                if (p.name != nullptr &&
+                    std::strlen(p.name) == len && std::strncmp(p.name, name, len) == 0)
+                    return &p;
+            }
+            return nullptr;
         }
 
         /** @} */
