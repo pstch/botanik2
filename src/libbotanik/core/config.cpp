@@ -65,6 +65,22 @@ namespace Botanik { namespace Cfg {
         }
     }
 
+    void group_byte_range(uint8_t group, uint16_t* start, uint16_t* len) {
+        // Each group runs from its serial up to the next group's serial (or the
+        // end of the struct for the last group).
+        uint16_t s = group_serial_offset(group);
+        uint16_t end;
+        switch (group) {
+            case CFG_NET:  end = (uint16_t)offsetof(PlcIO::PlcOutputConfig_t, ntp_serial);  break;
+            case CFG_NTP:  end = (uint16_t)offsetof(PlcIO::PlcOutputConfig_t, mqtt_serial); break;
+            case CFG_MQTT: end = (uint16_t)offsetof(PlcIO::PlcOutputConfig_t, geo_serial);  break;
+            case CFG_GEO:  end = (uint16_t)sizeof(PlcIO::PlcOutputConfig_t);                break;
+            default:       end = s;                                                         break;
+        }
+        *start = s;
+        *len   = (uint16_t)(end - s);
+    }
+
     int32_t read_scalar(const ConfigParam& p, const void* base) {
         const uint8_t* q = (const uint8_t*)base + p.offset;
         switch (p.type) {

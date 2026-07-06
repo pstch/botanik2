@@ -19,7 +19,7 @@ namespace Botanik { namespace PlcIO {
     }
     static_assert(sizeof(PlcEmulatorContext)                   == 8608,
                   "PlcEmulatorContext footprint changed");
-    static_assert(sizeof(PlcEmulator<ProbePlcIn, ProbePlcOut>) == 8704,
+    static_assert(sizeof(PlcEmulator<ProbePlcIn, ProbePlcOut>) == 9272,
                   "PlcEmulator footprint changed");
 
     // Lifecycle

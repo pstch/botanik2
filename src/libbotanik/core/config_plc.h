@@ -14,6 +14,8 @@
  * on.
  */
 
+#include <cstring>
+
 #include "libbotanik/core/config.h"
 #include "libbotanik/plcio/sync.h"   // PlcSyncContext + plc_config()
 
@@ -28,6 +30,10 @@ namespace Botanik { namespace Cfg {
         /** @brief PLC link the config snapshot is read from (never null in a
          *  live firmware; guarded anyway). */
         PlcIO::PlcSyncContext* _ctx;
+        /** @brief Monotonic host-side write serial per group. Kept independent
+         *  of the PLC output serial so a write is always detected as an advance
+         *  by the PLC, regardless of the output serial's value. */
+        uint32_t _write_serial[CFG_GROUP_COUNT];
 
         /** @} */
 
@@ -36,7 +42,9 @@ namespace Botanik { namespace Cfg {
          *  @{ */
 
         PlcConfigHandler(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger)
-            : ConfigHandler(logger), _ctx(ctx) {}
+            : ConfigHandler(logger), _ctx(ctx) {
+            for (uint8_t g = 0; g < CFG_GROUP_COUNT; g++) _write_serial[g] = 0;
+        }
 
         /** @} */
 
@@ -50,9 +58,29 @@ namespace Botanik { namespace Cfg {
             return &empty;
         }
 
-        bool set(const ConfigParam& /*p*/, const char* /*text*/) override {
-            // Write-back lands with the PLC input-config mirror (wire change).
-            return false;
+        /** @brief Push an edit to the PLC: stage the parameter's whole group
+         *  (current values with the one edit applied) in the input mirror, bump
+         *  the group's host write serial, and request a TX. The PLC applies the
+         *  group to NVM and reflects it on the output serial the consumers
+         *  watch. @return false (nothing staged) on invalid input or no link. */
+        bool set(const ConfigParam& p, const char* text) override {
+            PlcIO::PlcInputConfig_t* mirror = (_ctx != nullptr) ? _ctx->input_config() : nullptr;
+            if (mirror == nullptr) return false;
+
+            // Stage the edited group's current fields, then apply the one edit,
+            // so the PLC applies a coherent group (only the edited field changed).
+            uint16_t start, len;
+            group_byte_range(p.group, &start, &len);
+            memcpy((uint8_t*)mirror + start, (const uint8_t*)image() + start, len);
+            if (!write_value(p, text, mirror)) return false;
+
+            // Monotonic host write serial (independent of the output serial).
+            _write_serial[p.group] += 1;
+            uint16_t soff = group_serial_offset(p.group);
+            memcpy((uint8_t*)mirror + soff, &_write_serial[p.group], 4);
+
+            _ctx->write();
+            return true;
         }
 
         /** @} */

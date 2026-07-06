@@ -14,6 +14,7 @@
 #include "libbotanik_config.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/plcio/sync.h"
+#include "libbotanik/core/config.h"   // Cfg::group_* helpers for config write-back
 
 #ifdef TARGET_SIMULATOR
 #include <cstdio>
@@ -86,6 +87,12 @@ namespace Botanik { namespace PlcIO {
         OutputData             _tx_data_buffer;
         PlcRxState             _rx_state      = RX_IDLE;
         PlcTxState             _tx_state      = TX_IDLE;
+        /** @brief Authoritative config (the coprocessor's NVM stand-in): seeded
+         *  by publish_config, edited by host write-backs, mirrored to _plcout. */
+        PlcOutputConfig_t      _conf;
+        /** @brief Last host write serial applied per group (input serial space,
+         *  independent of the output serials the firmware watches). */
+        uint32_t               _applied_write_serial[Cfg::CFG_GROUP_COUNT];
 
         /** @} */
 
@@ -102,6 +109,8 @@ namespace Botanik { namespace PlcIO {
             _ctx._tx_last_ms   = Utils::Millis32(*timestamp_ms);
             memset(&_rx_data_buffer, 0, sizeof(InputData));
             memset(&_tx_data_buffer, 0, sizeof(OutputData));
+            memset(&_conf, 0, sizeof(_conf));
+            for (uint8_t g = 0; g < Cfg::CFG_GROUP_COUNT; g++) _applied_write_serial[g] = 0;
         }
 
         /** @} */
@@ -118,7 +127,8 @@ namespace Botanik { namespace PlcIO {
          *  output region - the coprocessor's job on hardware. Call once at
          *  startup; the firmware's config-driven Components latch each block's serial. */
         void publish_config(const PlcOutputConfig_t& cfg) {
-            HAL::Memory::ordered_copy(&_plcout->conf, &cfg);
+            _conf = cfg;
+            HAL::Memory::ordered_copy(&_plcout->conf, &_conf);
         }
         /** @brief Most recently received PLC input payload. */
         const InputData*     input_data() const  { return &_rx_data_buffer; }
@@ -168,6 +178,35 @@ namespace Botanik { namespace PlcIO {
         inline void _rx_memcpy() {
             HAL::Memory::ordered_copy(&_ctx._rx_logs_buffer, &_plcin->logs);
             HAL::Memory::ordered_copy(&_rx_data_buffer, &_plcin->data);
+            _apply_input_config();
+        }
+
+        /** @brief Apply any host config write-backs: for each group whose input
+         *  write serial advanced, copy its fields into the authoritative config,
+         *  bump the OUTPUT serial (so the firmware's consumers re-apply), and
+         *  republish. Stand-in for the coprocessor writing its NVM. */
+        inline void _apply_input_config() {
+            PlcInputConfig_t in;
+            HAL::Memory::ordered_copy(&in, &_plcin->conf);
+            bool changed = false;
+            for (uint8_t g = 0; g < Cfg::CFG_GROUP_COUNT; g++) {
+                uint16_t soff = Cfg::group_serial_offset(g);
+                uint32_t w;
+                memcpy(&w, (const uint8_t*)&in + soff, 4);
+                if (w == _applied_write_serial[g]) continue;   // no new write
+                _applied_write_serial[g] = w;
+                // Copy the group's fields (skip its 4-byte serial) into _conf.
+                uint16_t start, len;
+                Cfg::group_byte_range(g, &start, &len);
+                memcpy((uint8_t*)&_conf + start + 4, (const uint8_t*)&in + start + 4, len - 4);
+                // Bump the output serial the firmware's consumers watch.
+                uint32_t out;
+                memcpy(&out, (const uint8_t*)&_conf + soff, 4);
+                out += 1;
+                memcpy((uint8_t*)&_conf + soff, &out, 4);
+                changed = true;
+            }
+            if (changed) HAL::Memory::ordered_copy(&_plcout->conf, &_conf);
         }
         inline void _tx_memcpy() {
             HAL::Memory::ordered_copy(&_plcout->logs, &_ctx._tx_logs_buffer);

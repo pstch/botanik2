@@ -89,6 +89,13 @@ namespace Botanik { namespace PlcIO {
     static_assert(offsetof(PlcOutputConfig_t, geo_serial)  % 4 == 0, "geo_serial must be word-aligned");
     static_assert(sizeof(PlcOutputConfig_t) % 4 == 0, "PlcOutputConfig_t must be 4-byte aligned");
 
+    /** @brief Host->PLC config write-back mirror. Same flat layout as the output
+     *  block, so the ConfigParam offsets address both. The host writes an edited
+     *  parameter's group fields here and bumps that group's `<group>_serial`
+     *  (host-owned in this instance); the PLC applies the group to its NVM and
+     *  reflects it on the output block's serial (which the consumers watch). */
+    typedef PlcOutputConfig_t PlcInputConfig_t;
+
     /** @} */
 
 }}

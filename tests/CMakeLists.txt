@@ -23,6 +23,7 @@ add_executable(botanik_tests
     test_config_handler.cpp
     test_config_params.cpp
     test_config_local.cpp
+    test_config_writeback.cpp
     test_storage.cpp
     test_resolver.cpp
     test_sun_tracker.cpp

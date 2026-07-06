@@ -38,8 +38,8 @@ namespace Botanik { namespace detail {
     static_assert(sizeof(PlcIO::PlcOutputLogs_t)                           == BOTANIK_SIZE( 8580,  8580), "PlcOutputLogs_t footprint changed");
     static_assert(sizeof(PlcIO::PlcOutputConfig_t)                         == BOTANIK_SIZE(  552,   552), "PlcOutputConfig_t footprint changed");
     static_assert(sizeof(PlcIO::PlcOutput<ProbePlcOut>)                    == BOTANIK_SIZE( 9216,  9216), "PlcOutput footprint changed");
-    static_assert(sizeof(PlcIO::PlcSyncContext)                            == BOTANIK_SIZE( 9232,  9196), "PlcSyncContext footprint changed");
-    static_assert(sizeof(PlcIO::PlcSyncHandler<ProbePlcIn, ProbePlcOut>)   == BOTANIK_SIZE( 9376,  9304), "PlcSyncHandler footprint changed");
+    static_assert(sizeof(PlcIO::PlcSyncContext)                            == BOTANIK_SIZE( 9784,  9748), "PlcSyncContext footprint changed");
+    static_assert(sizeof(PlcIO::PlcSyncHandler<ProbePlcIn, ProbePlcOut>)   == BOTANIK_SIZE( 9928,  9856), "PlcSyncHandler footprint changed");
     // PlcEmulator{,Context} pins live with the emulator in botanik_sim/emulator.cpp.
 
     // Logging

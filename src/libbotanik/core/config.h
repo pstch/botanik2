@@ -100,6 +100,11 @@ namespace Botanik { namespace Cfg {
     /** @brief Byte offset of a group's serial word in the config image. */
     uint16_t group_serial_offset(uint8_t group);
 
+    /** @brief The contiguous byte range [*start, *start + *len) of a group's
+     *  fields in the image (its serial leads the range). Groups are laid out
+     *  contiguously, so a whole group can be copied in one memcpy. */
+    void group_byte_range(uint8_t group, uint16_t* start, uint16_t* len);
+
     /** @brief Validate CFG_STRING edit text @p s per the parameter's StrKind
      *  (IPv4 or hostname, required or optional). */
     bool validate_string(const ConfigParam& p, const char* s);
