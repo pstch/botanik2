@@ -6,7 +6,8 @@
  * @file mqtt_log.h
  * @brief MqttLogWriter - a LogWriter that publishes each entry to the MQTT broker.
  *
- * Each entry is published QoS-0 under "<MQTT_LOG_TOPIC>/logs/<level>/<topic>"
+ * Each entry is published QoS-0 under
+ * "<MQTT_TOPIC_PREFIX>/<MQTT_LOG_TOPIC>/<level>/<topic>"
  * (e.g. ".../logs/debug/shared_io") with a "<timestamp> <message>" payload.
  * Publish-only, best-effort: an entry that can't go out now (link down, broker
  * gone) is dropped, not queued - MQTT already owns the socket TX, so a second
@@ -71,8 +72,8 @@ namespace Botanik { namespace Network {
         size_t format(const LogEntry_t* entry, char* buf, size_t len) override;
         /** @brief Unused: this sink is message-oriented (publishes in push()). */
         size_t write(const char* buf, size_t len) override { (void)buf; (void)len; return 0; }
-        /** @brief Build "<MQTT_LOG_TOPIC>/logs/<level>/<topic>" into @p buf;
-         *  returns the length, or 0 on truncation. */
+        /** @brief Build "<MQTT_TOPIC_PREFIX>/<MQTT_LOG_TOPIC>/<level>/<topic>"
+         *  into @p buf; returns the length, or 0 on truncation. */
         static size_t build_topic(char* buf, size_t len,
                                   Logs::LogLevel level, Logs::LogTopic topic);
 

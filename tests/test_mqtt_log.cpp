@@ -7,6 +7,7 @@
  */
 #include <cstdint>
 #include <cstring>
+#include <string>
 
 #include "doctest.h"
 
@@ -62,7 +63,10 @@ TEST_CASE("mqtt log: topic assembly") {
     char buf[96];
     size_t n = TestSink::build_topic(buf, sizeof(buf), Logs::LOG_DEBUG, Logs::PLC_IO);
     CHECK(n > 0);
-    CHECK(std::strcmp(buf, "botanik/default/logs/debug/shared_io") == 0);
+    // "<prefix>/<segment>/<level>/<topic>", both segments from config.
+    std::string want = std::string(Config::MQTT_TOPIC_PREFIX) + "/"
+                     + Config::MQTT_LOG_TOPIC + "/debug/shared_io";
+    CHECK(want == buf);
 
     // Truncation reports 0 (no partial topic published).
     char tiny[8];

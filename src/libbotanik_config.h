@@ -44,20 +44,22 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(const char*, FIRMWARE_VERSION);
 
-    /** @brief MQTT topic prefix for alarm notifications. Site identity; pinned
-     *  per site. */
-#ifndef BOTANIK_MQTT_TOPIC_PREFIX
-#  define BOTANIK_MQTT_TOPIC_PREFIX "botanik/default"
-#endif
-    BOTANIK_CFG(const char*, MQTT_TOPIC_PREFIX);
-
     /** @brief Human-readable site (greenhouse) name, surfaced in the version
      *  command, home screen, and POST line. Pinned per site (matches the
-     *  -DBOTANIK_SITE dir). */
+     *  -DBOTANIK_SITE dir). Defined before the prefix so it can seed its
+     *  default. */
 #ifndef BOTANIK_SITE_NAME
 #  define BOTANIK_SITE_NAME "generic"
 #endif
     BOTANIK_CFG(const char*, SITE_NAME);
+
+    /** @brief MQTT topic root shared by the alarm, telemetry, and log topics
+     *  ("<prefix>/alarms/...", "<prefix>/<telemetry>/...",
+     *  "<prefix>/<logs>/..."). Defaults to "default/<site>"; pinned per site. */
+#ifndef BOTANIK_MQTT_TOPIC_PREFIX
+#  define BOTANIK_MQTT_TOPIC_PREFIX "default/" BOTANIK_SITE_NAME
+#endif
+    BOTANIK_CFG(const char*, MQTT_TOPIC_PREFIX);
 
     /** @}
      *  @name Interface parameters
@@ -321,7 +323,7 @@ namespace Botanik { namespace Config {
 
     /** @brief MQTT topic segment between the prefix and the field name. */
 #ifndef BOTANIK_MQTT_TELEMETRY_TOPIC
-#  define BOTANIK_MQTT_TELEMETRY_TOPIC "botanik/default"
+#  define BOTANIK_MQTT_TELEMETRY_TOPIC "status"
 #endif
     BOTANIK_CFG(const char*, MQTT_TELEMETRY_TOPIC);
 
@@ -332,10 +334,10 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(bool, MQTT_TELEMETRY_RETAIN);
 
-    /** @brief MQTT topic base for the log sink: entries publish under
-     *  "<MQTT_LOG_TOPIC>/logs/<level>/<topic>". */
+    /** @brief MQTT topic segment for the log sink: entries publish under
+     *  "<MQTT_TOPIC_PREFIX>/<MQTT_LOG_TOPIC>/<level>/<topic>". */
 #ifndef BOTANIK_MQTT_LOG_TOPIC
-#  define BOTANIK_MQTT_LOG_TOPIC "botanik/default"
+#  define BOTANIK_MQTT_LOG_TOPIC "logs"
 #endif
     BOTANIK_CFG(const char*, MQTT_LOG_TOPIC);
 

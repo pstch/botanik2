@@ -55,7 +55,8 @@ namespace Botanik { namespace Network {
 
     size_t MqttLogWriter::build_topic(char* buf, size_t len,
                                       Logs::LogLevel level, Logs::LogTopic topic) {
-        int n = snprintf(buf, len, "%s/logs/%s/%s", Config::MQTT_LOG_TOPIC,
+        int n = snprintf(buf, len, "%s/%s/%s/%s",
+                         Config::MQTT_TOPIC_PREFIX, Config::MQTT_LOG_TOPIC,
                          Logs::format_log_level_name(level),
                          Logs::format_log_topic_name(topic));
         if (n < 0 || (size_t)n >= len) return 0;   // encode error / truncated
