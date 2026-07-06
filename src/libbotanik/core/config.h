@@ -52,6 +52,15 @@ namespace Botanik { namespace Cfg {
         CFG_GROUP_COUNT
     };
 
+    /** @brief How to validate a CFG_STRING parameter's edited text (STR_NONE for
+     *  non-string params). The *_OPT variants also accept an empty string (an
+     *  unset optional address, e.g. a second DNS server). */
+    enum StrKind {
+        STR_NONE,
+        STR_IPV4, STR_IPV4_OPT,
+        STR_HOST, STR_HOST_OPT
+    };
+
     /** @brief One configuration parameter: a flat, PLC-matching @p name at byte
      *  @p offset in the config image, its @p type, display scaling and edit
      *  bounds. Numeric types validate against [@p min, @p max]; CFG_STRING uses
@@ -68,6 +77,7 @@ namespace Botanik { namespace Cfg {
         int32_t     min;        ///< inclusive lower bound (numeric types)
         int32_t     max;        ///< inclusive upper bound (numeric types)
         uint16_t    capacity;   ///< CFG_STRING buffer size incl. NUL (else 0)
+        uint8_t     str_kind;   ///< StrKind: CFG_STRING validator (else STR_NONE)
         const char* (*str)(uint8_t);   ///< CFG_ENUM only (else null)
     };
 
@@ -83,8 +93,16 @@ namespace Botanik { namespace Cfg {
     /** @brief True for the text (CFG_STRING) type. */
     inline bool is_string(const ConfigParam& p) { return p.type == CFG_STRING; }
 
+    /** @brief Stored width of a parameter's value in the image (its scalar width,
+     *  or the string capacity). */
+    size_t param_width(const ConfigParam& p);
+
     /** @brief Byte offset of a group's serial word in the config image. */
     uint16_t group_serial_offset(uint8_t group);
+
+    /** @brief Validate CFG_STRING edit text @p s per the parameter's StrKind
+     *  (IPv4 or hostname, required or optional). */
+    bool validate_string(const ConfigParam& p, const char* s);
 
     /** @brief Read a numeric parameter (any non-string type) from @p base as a
      *  sign-extended int32. Undefined for CFG_STRING. */
@@ -183,6 +201,19 @@ namespace Botanik { namespace Cfg {
         int format(uint8_t i, char* buf, size_t cap) const {
             return format_value(param(i), image(), buf, cap);
         }
+
+        /** @} */
+
+    protected:
+        /** @name Shared write path
+         *  @{ */
+
+        /** @brief Parse + validate edit text @p text for parameter @p p and
+         *  write its bytes into @p base at p.offset (numeric by width, string
+         *  copied and NUL-padded to capacity). @return false (nothing written)
+         *  on invalid input. Backends call this against their writable target
+         *  (the local image, or the PLC input mirror). */
+        static bool write_value(const ConfigParam& p, const char* text, void* base);
 
         /** @} */
     };

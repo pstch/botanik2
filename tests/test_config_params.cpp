@@ -141,8 +141,8 @@ TEST_CASE("ConfigHandler registry: library + site params") {
     CHECK(strcmp(h.param(0).name, CONFIG_PARAMS[0].name) == 0);
 
     static const ConfigParam site[] = {
-        {"site_a", 0, CFG_U8, 0, 0, CFG_NET, 0, 1, 0, nullptr},
-        {"site_b", 0, CFG_U8, 0, 0, CFG_NET, 0, 1, 0, nullptr},
+        {"site_a", 0, CFG_U8, 0, 0, CFG_NET, 0, 1, 0, STR_NONE, nullptr},
+        {"site_b", 0, CFG_U8, 0, 0, CFG_NET, 0, 1, 0, STR_NONE, nullptr},
     };
     h.set_site_params(site, 2);
     CHECK(h.count() == (uint8_t)(CONFIG_PARAM_COUNT + 2));
