@@ -556,6 +556,19 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, TX_COLD_FIELDS_PER_TICK);
 
+    /** @brief TxScheduler transaction pool: slot count and per-slot byte capacity
+     *  (one queued transaction per slot). Bounds the console's queued-TX RAM
+     *  (SLOTS * SLOT_LEN). See docs/TX_QUEUE_DESIGN.md. */
+#ifndef BOTANIK_TX_QUEUE_SLOTS
+#  define BOTANIK_TX_QUEUE_SLOTS 48
+#endif
+    BOTANIK_CFG(uint16_t, TX_QUEUE_SLOTS);
+
+#ifndef BOTANIK_TX_QUEUE_SLOT_LEN
+#  define BOTANIK_TX_QUEUE_SLOT_LEN 192
+#endif
+    BOTANIK_CFG(uint16_t, TX_QUEUE_SLOT_LEN);
+
     /** @brief Max decoded input events handled per tick. 
      *  @note Too low: typing/paste feels sluggish and the RX ring backs up. 
      *  @note Too high: a big paste echoes a large burst in one tick. */
