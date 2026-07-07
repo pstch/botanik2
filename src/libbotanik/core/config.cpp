@@ -46,7 +46,7 @@ namespace Botanik { namespace Cfg {
     // Read / render
 
     const char* type_name(const ConfigParam& p) {
-        if (p.divisor > 1) return "fix";   // fixed-point scalar (e.g. geo degrees)
+        if (p.divisor > 1) return "float";   // fixed-point shown as a decimal (geo degrees)
         switch (p.type) {
             case CFG_U8:     return "u8";
             case CFG_U16:    return "u16";
