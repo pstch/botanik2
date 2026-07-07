@@ -1,7 +1,8 @@
 /**
  * @file test_storage.cpp
- * @brief Tests for the simulator HAL::Storage backend (per-key files). Points
- *        the store at a throwaway per-test directory via $BOTANIK_CONFIG_STORE.
+ * @brief Tests for the simulator HAL::Storage backend (a single external KV
+ *        file). Points the store at a throwaway per-test file via
+ *        $BOTANIK_CONFIG_STORE and starts each case from empty.
  */
 #include <cstdint>
 #include <cstring>
@@ -17,20 +18,14 @@ using namespace Botanik::HAL;
 
 namespace {
     struct StoreEnv {
-        char dir[64];
+        char path[64];
         StoreEnv() {
-            snprintf(dir, sizeof(dir), "/tmp/botanik_test_store_%ld", (long)getpid());
-            setenv("BOTANIK_CONFIG_STORE", dir, 1);
+            snprintf(path, sizeof(path), "/tmp/botanik_test_store_%ld", (long)getpid());
+            setenv("BOTANIK_CONFIG_STORE", path, 1);
+            unlink(path);   // start from an empty store
         }
         ~StoreEnv() {
-            // best-effort cleanup of the keys the tests write
-            const char* keys[] = {"k_scalar", "k_str", "k_big", "k_gone"};
-            char path[128];
-            for (const char* k : keys) {
-                snprintf(path, sizeof(path), "%s/%s", dir, k);
-                unlink(path);
-            }
-            rmdir(dir);
+            unlink(path);
             unsetenv("BOTANIK_CONFIG_STORE");
         }
     };

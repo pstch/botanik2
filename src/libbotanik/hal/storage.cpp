@@ -1,9 +1,9 @@
 // REVIEW_35: TODO
 /**
  * @file storage.cpp
- * @brief HAL::Storage backends: Mbed KVStore on OPTA, a per-process directory of
- *        one-file-per-key on the simulator. The TARGET_OPTA / TARGET_SIMULATOR
- *        split is legal here: this file is part of the HAL.
+ * @brief HAL::Storage backends: Mbed KVStore on OPTA, a single external file (one
+ *        "key=hex" record per line) emulating the KV store on the simulator. The
+ *        TARGET_OPTA / TARGET_SIMULATOR split is legal here: this is the HAL.
  */
 #include "libbotanik/hal/storage.h"
 
@@ -12,12 +12,13 @@
 namespace Botanik { namespace HAL { namespace Storage {
 
     namespace {
-        // A valid key is non-empty and path-safe (no '/', so it maps to a single
-        // file / a flat KVStore entry without traversal).
+        // A valid key is a non-empty simple identifier: no '/' (path-safe / flat
+        // KVStore entry), and no '=' or newline (the sim store's record
+        // delimiters).
         bool key_ok(const char* key) {
             if (key == nullptr || key[0] == 0) return false;
             for (const char* p = key; *p != 0; ++p)
-                if (*p == '/') return false;
+                if (*p == '/' || *p == '=' || *p == '\n') return false;
             return true;
         }
     }  // namespace
@@ -47,70 +48,145 @@ namespace Botanik { namespace HAL { namespace Storage {
 }}}  // namespace Botanik::HAL::Storage
 
 #else
-// ---- Simulator: one file per key under a per-process directory --------------
-// The directory is derived from the PID, so concurrent sims stay isolated and a
-// clean launch starts empty, while an in-process execve reboot (same PID) keeps
-// the store. Override the location with $BOTANIK_CONFIG_STORE (used by tests).
+// ---- Simulator: one external file, "key=hex" one record per line ------------
+// A single file emulates the OPTA's KV store (one flash region holding every
+// key). It lives at a stable path so config persists across sim runs, like the
+// real NVM; override with $BOTANIK_CONFIG_STORE (used by tests). Values are hex
+// so arbitrary bytes survive a line-based text file. The whole store is small
+// (a handful of config parameters), so each op rewrites it in full.
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <unistd.h>
-#include <sys/stat.h>
 
 namespace Botanik { namespace HAL { namespace Storage {
 
     namespace {
-        const char* store_dir() {
+        constexpr size_t STORE_MAX = 8192;   // whole-file cap (config is tiny)
+
+        const char* store_path() {
             const char* env = getenv("BOTANIK_CONFIG_STORE");
             if (env != nullptr && env[0] != 0) return env;
-            static char buf[64];
+            static char buf[256];
             static bool built = false;
             if (!built) {
-                snprintf(buf, sizeof(buf), "/tmp/botanik_cfg_%ld", (long)getpid());
+                const char* home = getenv("HOME");
+                if (home != nullptr && home[0] != 0)
+                    snprintf(buf, sizeof(buf), "%s/.botanik_config", home);
+                else
+                    snprintf(buf, sizeof(buf), "/tmp/botanik_config");
                 built = true;
             }
             return buf;
         }
 
-        bool key_path(const char* key, char* out, size_t cap) {
-            int n = snprintf(out, cap, "%s/%s", store_dir(), key);
-            return n > 0 && (size_t)n < cap;
+        // Read the whole store into buf; returns its length (0 if absent).
+        size_t load(char* buf, size_t cap) {
+            FILE* f = fopen(store_path(), "rb");
+            if (f == nullptr) return 0;
+            size_t n = fread(buf, 1, cap, f);
+            fclose(f);
+            return n;
+        }
+
+        bool store(const char* buf, size_t len) {
+            FILE* f = fopen(store_path(), "wb");
+            if (f == nullptr) return false;
+            size_t w = (len > 0) ? fwrite(buf, 1, len, f) : 0;
+            bool ok = (w == len);
+            return (fclose(f) == 0) && ok;
+        }
+
+        char hex_digit(unsigned v) { return (char)(v < 10 ? '0' + v : 'a' + v - 10); }
+        int  hex_val(char c) {
+            if (c >= '0' && c <= '9') return c - '0';
+            if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+            if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+            return -1;
+        }
+
+        // Does the line s[ls..le) hold "<key>=..."?
+        bool line_is_key(const char* s, size_t ls, size_t le,
+                         const char* key, size_t klen) {
+            return (le - ls > klen) && s[ls + klen] == '=' &&
+                   memcmp(s + ls, key, klen) == 0;
+        }
+
+        // Append every line of the store except @p key's into @p out.
+        size_t copy_without(const char* in, size_t n, const char* key,
+                            size_t klen, char* out, size_t cap) {
+            size_t o = 0, i = 0;
+            while (i < n) {
+                size_t ls = i;
+                while (i < n && in[i] != '\n') i++;
+                if (i < n) i++;                        // consume the newline
+                size_t le = (i > ls && in[i - 1] == '\n') ? i - 1 : i;
+                if (line_is_key(in, ls, le, key, klen)) continue;
+                if (o + (i - ls) > cap) break;         // overflow: drop the tail
+                memcpy(out + o, in + ls, i - ls);
+                o += (i - ls);
+            }
+            return o;
         }
     }  // namespace
 
     bool set(const char* key, const void* buf, size_t len) {
         if (!key_ok(key)) return false;
-        mkdir(store_dir(), 0700);   // ignore EEXIST; fopen below reports real failures
-        char path[256];
-        if (!key_path(key, path, sizeof(path))) return false;
-        FILE* f = fopen(path, "wb");
-        if (f == nullptr) return false;
-        size_t w = (len > 0) ? fwrite(buf, 1, len, f) : 0;
-        bool ok = (w == len);
-        return (fclose(f) == 0) && ok;
+        size_t klen = strlen(key);
+        char in[STORE_MAX];
+        size_t n = load(in, sizeof(in));
+        char out[STORE_MAX];
+        size_t o = copy_without(in, n, key, klen, out, sizeof(out));
+        // Append "key=<hex>\n" (a raw record, not a NUL-terminated string).
+        if (o + klen + 1 + 2 * len + 1 > sizeof(out)) return false;
+        for (size_t j = 0; j < klen; j++) out[o++] = key[j];
+        out[o++] = '=';
+        const uint8_t* v = static_cast<const uint8_t*>(buf);
+        for (size_t j = 0; j < len; j++) {
+            out[o++] = hex_digit((unsigned)(v[j] >> 4));
+            out[o++] = hex_digit((unsigned)(v[j] & 0xF));
+        }
+        out[o++] = '\n';
+        return store(out, o);
     }
 
     bool get(const char* key, void* buf, size_t cap, size_t* out_len) {
         if (!key_ok(key)) return false;
-        char path[256];
-        if (!key_path(key, path, sizeof(path))) return false;
-        FILE* f = fopen(path, "rb");
-        if (f == nullptr) return false;
-        size_t n = (cap > 0) ? fread(buf, 1, cap, f) : 0;
-        // A byte still readable means the stored value is larger than cap: the
-        // caller's buffer can't hold it, so report failure (partial read).
-        bool overflow = (fgetc(f) != EOF);
-        fclose(f);
-        if (overflow) return false;
-        if (out_len != nullptr) *out_len = n;
-        return true;
+        size_t klen = strlen(key);
+        char in[STORE_MAX];
+        size_t n = load(in, sizeof(in));
+        size_t i = 0;
+        while (i < n) {
+            size_t ls = i;
+            while (i < n && in[i] != '\n') i++;
+            size_t le = i;
+            if (i < n) i++;
+            if (!line_is_key(in, ls, le, key, klen)) continue;
+            size_t hs = ls + klen + 1, hlen = le - hs;
+            if (hlen % 2 != 0) return false;           // malformed record
+            size_t vlen = hlen / 2;
+            if (vlen > cap) return false;              // caller's buffer too small
+            uint8_t* dst = static_cast<uint8_t*>(buf);
+            for (size_t j = 0; j < vlen; j++) {
+                int hi = hex_val(in[hs + 2 * j]), lo = hex_val(in[hs + 2 * j + 1]);
+                if (hi < 0 || lo < 0) return false;
+                dst[j] = (uint8_t)((hi << 4) | lo);
+            }
+            if (out_len != nullptr) *out_len = vlen;
+            return true;
+        }
+        return false;                                  // missing key
     }
 
     bool remove(const char* key) {
         if (!key_ok(key)) return false;
-        char path[256];
-        if (!key_path(key, path, sizeof(path))) return false;
-        unlink(path);   // missing key is not an error
-        return true;
+        size_t klen = strlen(key);
+        char in[STORE_MAX];
+        size_t n = load(in, sizeof(in));
+        if (n == 0) return true;                       // nothing stored
+        char out[STORE_MAX];
+        size_t o = copy_without(in, n, key, klen, out, sizeof(out));
+        if (o == n) return true;                        // key absent: idempotent
+        return store(out, o);
     }
 
 }}}  // namespace Botanik::HAL::Storage

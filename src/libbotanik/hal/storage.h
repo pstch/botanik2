@@ -9,9 +9,10 @@
  * Portable surface used by LocalConfigHandler when BOTANIK_FEATURE_PLC is off
  * (the PLC otherwise owns config in its own NVM). Per-key raw-byte blobs that
  * survive a reboot. The two backends live in storage.cpp: Mbed KVStore on the
- * OPTA (internal-flash TDBStore), a per-process directory of one-file-per-key on
- * the simulator. No Mbed or POSIX headers leak through this header; the
- * TARGET_OPTA / TARGET_SIMULATOR split is legal here (this file is the HAL).
+ * OPTA (internal-flash TDBStore), and a single external file (one `key=hex`
+ * record per line) emulating that KV store on the simulator. No Mbed or POSIX
+ * headers leak through this header; the TARGET_OPTA / TARGET_SIMULATOR split is
+ * legal here (this file is the HAL).
  *
  * Keys are short identifiers (the flat ConfigParam names, e.g. "ntp_poll_s");
  * they must be non-empty and contain no '/'. Values are the parameter's raw
