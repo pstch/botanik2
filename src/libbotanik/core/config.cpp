@@ -45,6 +45,20 @@ namespace Botanik { namespace Cfg {
 
     // Read / render
 
+    const char* type_name(const ConfigParam& p) {
+        if (p.divisor > 1) return "fix";   // fixed-point scalar (e.g. geo degrees)
+        switch (p.type) {
+            case CFG_U8:     return "u8";
+            case CFG_U16:    return "u16";
+            case CFG_U32:    return "u32";
+            case CFG_I16:    return "i16";
+            case CFG_I32:    return "i32";
+            case CFG_ENUM:   return "enum";
+            case CFG_STRING: return "str";
+        }
+        return "?";
+    }
+
     size_t param_width(const ConfigParam& p) {
         switch (p.type) {
             case CFG_U8: case CFG_ENUM: return 1;

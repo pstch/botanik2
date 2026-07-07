@@ -94,6 +94,10 @@ namespace Botanik { namespace Cfg {
     /** @brief True for the text (CFG_STRING) type. */
     inline bool is_string(const ConfigParam& p) { return p.type == CFG_STRING; }
 
+    /** @brief Short display name for a parameter's type ("u8"/"i32"/"enum"/
+     *  "str", or "fix" for a fixed-point scalar). */
+    const char* type_name(const ConfigParam& p);
+
     /** @brief Stored width of a parameter's value in the image (its scalar width,
      *  or the string capacity). */
     size_t param_width(const ConfigParam& p);
