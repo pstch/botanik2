@@ -75,6 +75,12 @@ namespace Botanik { namespace Terminal {
         uint16_t _len    = 0;          /**< Bytes in _buf. */
         uint16_t _pos    = 0;          /**< Cursor offset in _buf. */
         uint16_t _origin = 0;          /**< Prompt's top row on screen. */
+        uint16_t _indent = 0;          /**< Left margin: cols [0.._indent) are
+                                        *   reserved for a caller-drawn label;
+                                        *   0 = flush left (the shell default). */
+        bool     _single_line = false; /**< When set, refuse newlines and any
+                                        *   insert past the row end, so the
+                                        *   editor stays exactly one row. */
 
         TextView _layout{};            /**< Current/target row layout. */
         /** Pre-edit layout (copied before rebuild). */
@@ -156,6 +162,16 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Pin the prompt's top row to a specific screen row */
         void set_origin(uint16_t row);
+
+        /** @brief Reserve `col` columns at the left for a caller-drawn label;
+         *  the editor renders its prompt + content starting at that column.
+         *  0 = flush left (the default; the shell uses it). */
+        void set_indent(uint16_t col) { _indent = col; }
+
+        /** @brief Single-line mode: refuse newlines and any insert past the row
+         *  end, keeping the editor to one row (the CONFIG value field). Off by
+         *  default (the shell's multi-row editing). */
+        void set_single_line(bool v) { _single_line = v; }
 
         /** @} */
 
