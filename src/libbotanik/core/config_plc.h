@@ -7,11 +7,11 @@
  * @brief PlcConfigHandler - the config backend when the PLC owns config in NVM.
  *
  * The image is the PLC's RX config snapshot (plc_config(ctx)), read-only here;
- * an edit is pushed back through the PLC input mirror (a host-bumped input
- * serial the PLC applies to NVM and reflects on the output serial the consumers
- * watch). The write path lands with the input-mirror wire change; until then
- * set() reports failure. Selected by BotanikFirmware when BOTANIK_FEATURE_PLC is
- * on.
+ * an edit is pushed back through the PLC input mirror: set() stages the edited
+ * parameter's whole group in the input config, bumps a host-owned group write
+ * serial, and requests a TX. The PLC applies the group to NVM and reflects it
+ * on the output serial the consumers watch. Selected by BotanikFirmware when
+ * BOTANIK_FEATURE_PLC is on.
  */
 
 #include <cstring>
