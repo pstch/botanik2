@@ -31,6 +31,7 @@
 #include <cstring>
 
 #include "libbotanik_config.h"
+#include "libbotanik/hal/platform.h"
 #include "libbotanik/pages/page.h"
 #include "libbotanik/console/console.h"
 #include "libbotanik/console/terminal.h"
@@ -71,6 +72,7 @@ namespace Botanik { namespace Pages {
         bool                _active   = false;
         uint16_t            _top      = 0;           ///< first visible variable
         uint16_t            _paint_i  = PAINT_IDLE;  ///< staged-paint cursor
+        uint64_t            _last_refresh_ms = 0;    ///< last value-diff refresh
         /** @brief Per-screen-row value cache (diff gate); a scroll invalidates
          *  it wholesale via the paced repaint. */
         char                _vcache[MAX_CACHE_ROWS][VAL_CAP];
@@ -128,6 +130,13 @@ namespace Botanik { namespace Pages {
             _active = active;
             if (!active) return;
             if (_painting()) { _paint_step(); return; }
+            // Refresh values on a slow cadence, not every tick: the telemetry
+            // animates fast, and repainting each changed row every beat would
+            // load the TX ring and make scrolls (which paint immediately) lag
+            // behind the queued value updates. Scrolls bypass this throttle.
+            uint64_t now = HAL::Clock::uptime_ms();
+            if (now - _last_refresh_ms < Config::MONITOR_REFRESH_MS) return;
+            _last_refresh_ms = now;
             _repaint_changes();
         }
 
@@ -269,9 +278,56 @@ namespace Botanik { namespace Pages {
             int32_t t = (int32_t)_top + delta;
             if (t < 0) t = 0;
             if (t > (int32_t)maxtop) t = (int32_t)maxtop;
-            if ((uint16_t)t == _top) return;
+            int32_t d = t - (int32_t)_top;
+            if (d == 0) return;
             _top = (uint16_t)t;
-            _request_repaint();      // every visible row remaps: full paced repaint
+            uint16_t win = _window();
+            uint16_t nd  = (uint16_t)(d < 0 ? -d : d);
+            // Fast path (scroll the kept rows with the terminal, DL/IL, and paint
+            // only the newly-revealed rows) only with TX headroom: a full ring
+            // would drop the best-effort scroll and tear the layout, so fall back
+            // to the robust paced repaint. Also full-repaint when a staged one is
+            // in flight or there is no overlap to keep.
+            if (_painting() || nd >= win || !_terminal.tx_below_cold()) {
+                _request_repaint(); return;
+            }
+            _scroll_rows(d > 0, nd, win);
+        }
+
+        /** @brief Shift the data band by @p nd rows via scroll_region (DL/IL),
+         *  shift the value cache to match, and repaint only the revealed rows
+         *  plus the rules and footer. */
+        void _scroll_rows(bool down, uint16_t nd, uint16_t win) {
+            uint16_t total    = _total();
+            uint16_t band_bot = (uint16_t)(DATA_TOP + win - 1);
+            _terminal.set_cursor_visible(false);
+            _terminal.scroll_region(DATA_TOP, band_bot, /*up=*/down, nd);
+            if (down) {                                   // content up, reveal at bottom
+                for (uint16_t i = 0; (uint16_t)(i + nd) < win && (uint16_t)(i + nd) < MAX_CACHE_ROWS; i++)
+                    memcpy(_vcache[i], _vcache[i + nd], VAL_CAP);
+                for (uint16_t k = 0; k < nd; k++) _repaint_row((uint16_t)(win - nd + k), total);
+            } else {                                      // content down, reveal at top
+                for (int i = (int)win - 1; i >= (int)nd && i < MAX_CACHE_ROWS; i--)
+                    memcpy(_vcache[i], _vcache[i - nd], VAL_CAP);
+                for (uint16_t k = 0; k < nd; k++) _repaint_row(k, total);
+            }
+            _draw_rule(TRULE_ROW, _top > 0 ? '^' : '+');
+            _draw_rule((uint16_t)(_console.rows() - 2),
+                       (uint16_t)(_top + win) < total ? 'v' : '+');
+            _draw_footer();
+            _painted_top = _top;
+        }
+
+        /** @brief Draw window row @p vi (blank past the set) and cache its value. */
+        void _repaint_row(uint16_t vi, uint16_t total) {
+            uint16_t row = (uint16_t)(DATA_TOP + vi);
+            uint16_t r   = (uint16_t)(_top + vi);
+            if (r < total) {
+                _draw_row(r, row);
+                if (vi < MAX_CACHE_ROWS) _value_text(r, _vcache[vi], VAL_CAP);
+            } else {
+                _clear_row(row);
+            }
         }
 
         // Staged paint (paced, shares AlarmsPage's TX-floor cadence)
@@ -283,7 +339,7 @@ namespace Botanik { namespace Pages {
         /** @brief Paint one staged element: 0 = top margin, 1 = header, 2 = top
          *  rule, 3.. = data rows (each seeds its value cache), then bottom rule,
          *  then footer. Order/count must match _paint_step()'s total. */
-        void _paint_element(uint16_t e, uint16_t win, uint16_t shown) {
+        void _paint_element(uint16_t e, uint16_t win) {
             if (e == 0) {
                 _terminal.set_cursor_visible(false);
                 _clear_row(TOP_ROW);
@@ -292,15 +348,7 @@ namespace Botanik { namespace Pages {
             } else if (e == 2) {
                 _draw_rule(TRULE_ROW, _top > 0 ? '^' : '+');
             } else if (e < (uint16_t)(3 + win)) {
-                uint16_t vi  = (uint16_t)(e - 3);        // window row
-                uint16_t row = (uint16_t)(DATA_TOP + vi);
-                if (vi < shown) {
-                    uint16_t r = (uint16_t)(_top + vi);
-                    _draw_row(r, row);
-                    if (vi < MAX_CACHE_ROWS) _value_text(r, _vcache[vi], VAL_CAP);
-                } else {
-                    _clear_row(row);
-                }
+                _repaint_row((uint16_t)(e - 3), _total());
             } else if (e == (uint16_t)(3 + win)) {
                 _draw_rule((uint16_t)(_console.rows() - 2),
                            (uint16_t)(_top + win) < _total() ? 'v' : '+');
@@ -313,12 +361,10 @@ namespace Botanik { namespace Pages {
          *  elements this tick, only while the ring is shallow. */
         void _paint_step() {
             uint16_t win   = _window();
-            uint16_t total = _total();
-            uint16_t shown = (total - _top < win) ? (uint16_t)(total - _top) : win;
             uint16_t count = (uint16_t)(win + 5);   // top+header+trule+data+brule+footer
             uint16_t budget = Config::TX_COLD_FIELDS_PER_TICK;
             while (_paint_i < count && budget > 0 && _terminal.tx_below_cold()) {
-                _paint_element(_paint_i, win, shown);
+                _paint_element(_paint_i, win);
                 _paint_i++;
                 budget--;
             }
