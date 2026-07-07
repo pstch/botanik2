@@ -1,4 +1,4 @@
- 1 2 3 4 5:ALARMS 6                 <TIME>          PLC:<P> cpu:<C> stk:<S>
+ 1 2 3 4 5:ALARMS 6 7               <TIME>          PLC:<P> cpu:<C> stk:<S>
 
   | CODE     | ON | LAST EVENT     | DESCRIPTION                             |
   +----------+----+----------------+-----------------------------------------+
