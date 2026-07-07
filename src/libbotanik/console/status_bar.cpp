@@ -195,11 +195,12 @@ namespace Botanik { namespace Terminal {
         snprintf(clk, sizeof(clk), "%02u:%02u:%02u",
                  (unsigned)wc.hour, (unsigned)wc.minute, (unsigned)wc.second);
 
-        // Centre the field, nudged 5 columns right; skip on a terminal too
-        // narrow to fit it clear of the right-aligned metrics.
+        // Centre the field; the compact numeric tab strip no longer needs the
+        // old rightward nudge. Skip on a terminal too narrow to fit it clear of
+        // the right-aligned metrics.
         uint16_t cols = _t.cols();
         if (cols < CLOCK_LEN) return false;
-        uint16_t clock_col   = (uint16_t)((cols - CLOCK_LEN) / 2 + 5);
+        uint16_t clock_col   = (uint16_t)((cols - CLOCK_LEN) / 2);
         uint16_t metrics_col = (cols > (uint16_t)(METRICS_LEN - 1))
                                    ? (uint16_t)(cols - (METRICS_LEN - 1)) : 0;
         if ((uint16_t)(clock_col + CLOCK_LEN) > metrics_col) return false;
