@@ -69,6 +69,14 @@ namespace Botanik { namespace Utils {
          *  @note This counter is saturating. */
         uint32_t _tx_dropped = 0;
 
+        /** @brief Capture redirect (see begin_capture()): while set, write()
+         *  appends here instead of the TX ring and availableForWrite() reports
+         *  this buffer's room. Lets the terminal record a transaction's bytes
+         *  through its normal ops without touching the emit sites. */
+        char*    _cap_buf = nullptr;
+        uint16_t _cap_cap = 0;
+        uint16_t _cap_len = 0;
+
         /** @brief Count of receive() cycles aborted with the RX ring full.
          *  @note This counter is saturating. */
         uint32_t _rx_overrun = 0;
@@ -120,6 +128,18 @@ namespace Botanik { namespace Utils {
         /** @brief Copy up to @p len bytes into the TX ring. @return Bytes
          *  written; < @p len if the ring filled (never blocks). */
         uint16_t write(const char* buf, uint16_t len);
+
+        /** @brief Redirect write()/availableForWrite() to @p buf (capacity
+         *  @p cap) instead of the TX ring, so a caller can record the exact
+         *  bytes its ops would emit. Main-loop only; end with end_capture(). */
+        void begin_capture(char* buf, uint16_t cap) {
+            _cap_buf = buf; _cap_cap = cap; _cap_len = 0;
+        }
+        /** @brief Stop capturing; @return the number of bytes recorded. */
+        uint16_t end_capture() {
+            uint16_t n = _cap_len; _cap_buf = nullptr; _cap_cap = 0; _cap_len = 0;
+            return n;
+        }
 
         /** @brief Drop every queued TX byte, leaving the ring empty.
          *  @note Used before a full-screen repaint.

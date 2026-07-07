@@ -30,6 +30,7 @@ namespace Botanik { namespace Utils {
     }
 
     uint16_t BufferedSerial::availableForWrite() const {
+        if (_cap_buf != nullptr) return (uint16_t)(_cap_cap - _cap_len);
         uint16_t occupied = (_tx_head - _tx_tail) & (TX_BUF_SIZE - 1);
         return (TX_BUF_SIZE - 1) - occupied;
     }
@@ -41,6 +42,14 @@ namespace Botanik { namespace Utils {
     // ------------------------------------------------------------------------
 
     uint16_t BufferedSerial::write(const char* buf, uint16_t len) {
+        // Capture redirect: record into the caller's buffer, not the ring.
+        if (_cap_buf != nullptr) {
+            uint16_t room = (uint16_t)(_cap_cap - _cap_len);
+            uint16_t n = (len < room) ? len : room;
+            memcpy(_cap_buf + _cap_len, buf, n);
+            _cap_len = (uint16_t)(_cap_len + n);
+            return n;
+        }
         uint16_t pos = 0;
         while (pos < len) {
             uint16_t next_head = (_tx_head + 1) & (TX_BUF_SIZE - 1);

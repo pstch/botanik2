@@ -48,7 +48,7 @@ namespace Botanik { namespace detail {
     static_assert(sizeof(Logs::Logger)                                     == BOTANIK_SIZE(  280,   216), "Logger footprint changed");
 
     // Terminal / serial
-    static_assert(sizeof(Utils::BufferedSerial)                            == BOTANIK_SIZE( 4416,  4392), "BufferedSerial footprint changed");
+    static_assert(sizeof(Utils::BufferedSerial)                            == BOTANIK_SIZE( 4432,  4400), "BufferedSerial footprint changed");
     static_assert(sizeof(Terminal::TextEditor)                             == BOTANIK_SIZE(  984,   972), "TextEditor footprint changed");
 
     // Pages
