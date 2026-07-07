@@ -23,11 +23,12 @@
  * column marks with '^' / 'v' when alarms are hidden above / below the window.
  * SPACE cycles the filter: recent (default) -> all -> active -> active and not
  * masked. A condition's recent window defaults to one week
- * (AlarmCondition::recent_s). UP/DOWN scroll a line at a time (one
- * scroll_region() shift + one painted row); PAGE_UP/DOWN jump a window and
- * ENTER returns to the top, both via a full repaint. The set is re-checked
- * once a second; a repaint is paced a few rows per tick under the shared TX
- * floor, so it interleaves with the bars.
+ * (AlarmCondition::recent_s). UP/DOWN move a selection cursor (drawn inverted),
+ * auto-scrolling the window only when the cursor would leave it; PAGE_UP/DOWN
+ * move it a window at a time and ENTER jumps back to the top. `a` acknowledges
+ * the selected condition. The set is re-checked once a second; a repaint is
+ * paced a few rows per tick under the shared TX floor, so it interleaves with
+ * the bars.
  */
 
 #include <algorithm>
@@ -165,6 +166,11 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t EVENT_TEXT_COL =
             STATE_TEXT_COL + STATE_INNER + 2;                          // 20
         static constexpr uint16_t EVENT_INNER    = EVENT_W - 1;        // 15
+        /** @brief CODE field span (contents only, no "| " border): the only part
+         *  inverted for the selection cursor, so a selection move patches one
+         *  small field, not a whole row. */
+        static constexpr uint16_t CODE_CELL_L    = MARGIN + 2;             // 4
+        static constexpr uint16_t CODE_CELL_R    = MARGIN + 2 + CODE_W - 1;// 13
         /** @} */
 
         /** @brief Description-column width: the row remainder, clamped. */
@@ -213,7 +219,7 @@ namespace Botanik { namespace Pages {
         /** @brief Reset the whole paint shadow to "unknown" (forces a
          *  redraw). */
         void _invalidate_shadow() {
-            for (RowShadow& r : _row) { r.idx = ROW_BLANK; r.sig = 0; }
+            for (RowShadow& r : _row) { r.idx = ROW_BLANK; r.sig = 0; r.sel = false; }
         }
 
         /** @brief FNV-1a over s[0..n), masked to 31 bits: a structural row's
@@ -524,10 +530,21 @@ namespace Botanik { namespace Pages {
                 cell, (uint16_t)std::min((size_t)m, sizeof(cell) - 1));
         }
 
-        /** @brief Draw a full data row (CODE/ON/EVENT/DESCRIPTION). The state
-         *  cell shows a reverse-video "ON" badge while active and unacked,
-         *  "OFF" once cleared, blank if never fired. One inline pass (no
-         *  flicker-prone normal-then-inverted overdraw). */
+        /** @brief Invert the CODE cell of @p line for the selection cursor: only
+         *  the first cell highlights (a whole-row invert would repaint the whole
+         *  row on every selection move). Writes the margin + CODE cell and leaves
+         *  the cursor at CODE_CELL_R. */
+        void _write_code_cell(const char* line, bool selected) {
+            _terminal.write_chars(line, CODE_CELL_L);              // margin + "| "
+            if (selected) _terminal.set_inverted(true);
+            _terminal.write_chars(line + CODE_CELL_L, (uint16_t)(CODE_CELL_R - CODE_CELL_L));
+            if (selected) _terminal.set_inverted(false);
+        }
+
+        /** @brief Draw a full data row (CODE/ON/EVENT/DESCRIPTION). Only the CODE
+         *  cell inverts for the selection cursor; the state cell shows its own
+         *  reverse-video "ON" badge while active and unacked (independent of
+         *  selection). One inline pass (no flicker-prone overdraw). */
         void _draw_full_row(uint16_t row, const Alarms::AlarmCondition& c,
                             bool selected = false) {
             char ev[16];
@@ -537,28 +554,34 @@ namespace Botanik { namespace Pages {
             uint16_t n = _build_grid_row(line, sizeof(line), c.code ? c.code : "?",
                                          state, ev, c.desc ? c.desc : "");
             _terminal.move_to({row, 0});
-            if (selected) {
-                // Whole-row highlight for the selection cursor (the ON badge's
-                // own inversion is dropped - the reverse-video row already reads).
-                _terminal.force_inverted(true);
-                _terminal.write_chars(line, n);
-                _terminal.set_inverted(false);
-                _terminal.clear_to_eol();
-                return;
-            }
             _terminal.set_inverted(false);
+            _write_code_cell(line, selected);
             if (c.active && !c.user_ack && n > (uint16_t)(STATE_TEXT_COL + 2)) {
-                // "ON" sits at STATE_TEXT_COL: split write so only it inverts.
-                _terminal.write_chars(line, STATE_TEXT_COL);
+                // "ON" sits at STATE_TEXT_COL: split so only it inverts.
+                _terminal.write_chars(line + CODE_CELL_R,
+                                      (uint16_t)(STATE_TEXT_COL - CODE_CELL_R));
                 _terminal.set_inverted(true);
                 _terminal.write_chars(line + STATE_TEXT_COL, 2);
                 _terminal.set_inverted(false);
                 _terminal.write_chars(line + STATE_TEXT_COL + 2,
                                       (uint16_t)(n - STATE_TEXT_COL - 2));
             } else {
-                _terminal.write_chars(line, n);
+                _terminal.write_chars(line + CODE_CELL_R, (uint16_t)(n - CODE_CELL_R));
             }
             _terminal.clear_to_eol();
+        }
+
+        /** @brief Repaint only the CODE field of @p row (its highlight moved). */
+        void _patch_code_cell(uint16_t row, const Alarms::AlarmCondition& c,
+                              bool selected) {
+            char cell[16];
+            int m = snprintf(cell, sizeof(cell), "%-*.*s",
+                             (int)(CODE_W - 1), (int)(CODE_W - 1), c.code ? c.code : "?");
+            if (m < 0) m = 0;
+            _terminal.move_to({row, CODE_CELL_L});
+            if (selected) _terminal.set_inverted(true);
+            _terminal.write_chars(cell, (uint16_t)m);
+            if (selected) _terminal.set_inverted(false);
         }
 
         /** @brief Paint data row at screen @p row for visible entry @p vi: skip
@@ -578,14 +601,21 @@ namespace Botanik { namespace Pages {
             const Alarms::AlarmCondition& c = _model->condition(_vis[vi]);
             uint32_t sig = _pack(c);
             bool     sel = (vi == _selected);
-            if (shadowed && _row[row].idx == new_idx &&
-                _row[row].sig == sig && _row[row].sel == sel)
-                return;                                       // fully unchanged
-            // Same alarm, selection unchanged, not selected: patch the two cells.
-            // Otherwise (identity moved, or selection toggled) full redraw so the
-            // whole-row highlight paints/clears.
-            if (shadowed && _row[row].idx == new_idx && _row[row].sel == sel &&
-                !sel && _cells_fit()) {
+            bool idx_same = shadowed && _row[row].idx == new_idx;
+            bool sig_same = idx_same && _row[row].sig == sig;
+            bool sel_same = idx_same && _row[row].sel == sel;
+            if (sig_same && sel_same) return;                 // fully unchanged
+            if (sig_same) {
+                // Content identical, only the selection cursor moved: patch just
+                // the first cell instead of repainting the whole row.
+                _patch_code_cell(row, c, sel);
+                _row[row].sel = sel;
+                return;
+            }
+            // Same alarm, value changed, selection unchanged and not selected:
+            // patch ON/EVENT. Otherwise full redraw (identity moved, or the
+            // selected first cell must repaint with the value).
+            if (idx_same && sel_same && !sel && _cells_fit()) {
                 _patch_cells(row, c);
             } else {
                 _draw_full_row(row, c, sel);
