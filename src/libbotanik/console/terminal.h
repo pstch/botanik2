@@ -17,8 +17,10 @@
 
 #include <cstdint>
 
+#include "libbotanik_config.h"
 #include "libbotanik/utils/serial.h"
 #include "libbotanik/console/ansi.h"
+#include "libbotanik/console/tx_queue.h"
 
 namespace Botanik { namespace Terminal {
 
@@ -96,6 +98,26 @@ namespace Botanik { namespace Terminal {
             if (d > cap) d = cap;
             return (uint16_t)d;
         }
+
+        /** @}
+         *  @name Transaction recording (see tx_begin / tx_commit and
+         *  docs/TX_QUEUE_DESIGN.md)
+         *  @{ */
+
+        /** @brief The priority-laned transaction queue drained into the ring by
+         *  tx_drain(). */
+        TxScheduler _tx;
+        /** @brief Scratch the current transaction's bytes are captured into. */
+        char        _txn_buf[Config::TX_QUEUE_SLOT_LEN];
+        bool        _recording = false;
+        uint8_t     _txn_lane  = 0;
+        uint32_t    _txn_key   = 0;
+        /** @brief Shadow saved at tx_begin() and restored at tx_commit(): the
+         *  recorded bytes are queued, not sent, so the real cursor has not moved. */
+        CursorPos   _txn_saved_pos = {0, 0};
+        bool        _txn_saved_inv = false;
+        bool        _txn_saved_eol = false;
+        bool        _txn_saved_cur = false;
 
         /** @} */
 
@@ -314,6 +336,32 @@ namespace Botanik { namespace Terminal {
         static constexpr uint16_t tx_capacity() {
             return Utils::BufferedSerial::tx_capacity();
         }
+
+        /** @}
+         *  @name Transaction path (priority-laned, coalescing, atomic)
+         *  @{ */
+
+        /** @brief Begin recording a transaction: the ops between here and
+         *  tx_commit() are captured (not sent) into a self-contained byte batch
+         *  tagged @p lane / @p key. The shadow is saved and the position forced
+         *  unknown so the batch opens with an absolute move (self-contained). */
+        void tx_begin(uint8_t lane, uint32_t key);
+
+        /** @brief Finish the current transaction and submit it to the queue; the
+         *  saved shadow is restored (the bytes are queued, not sent). */
+        void tx_commit();
+
+        /** @brief True between tx_begin() and tx_commit(). */
+        bool tx_recording() const { return _recording; }
+
+        /** @brief Drop every queued transaction owned by @p owner (a page leaving
+         *  focus); see TxScheduler::drop_owner(). */
+        void tx_drop_owner(uint16_t owner) { _tx.drop_owner(owner); }
+
+        /** @brief Drain queued transactions into the TX ring within this tick's
+         *  byte budget (the room below the cold floor). Called once per loop by
+         *  the Console after the renderers have submitted. */
+        void tx_drain();
 
         /** @} */
     };

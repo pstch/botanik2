@@ -56,6 +56,11 @@ namespace Botanik { namespace Terminal {
             if (_pages[i] != nullptr) _pages[i]->tick(i == _page_index);
         // Last: top up the bottom alarm bar over whatever the active page drew.
         _alarm_bar.step();
+        // Drain the transaction queue into the TX ring: renderers that submit
+        // (rather than write direct) have queued their work by now; the scheduler
+        // paces it, highest lane first, within this tick's byte budget. No-op
+        // while no renderer submits (migration lands per-renderer).
+        _term.tx_drain();
     }
 
     void Console::_pump_input() {

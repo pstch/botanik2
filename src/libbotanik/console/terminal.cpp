@@ -399,4 +399,60 @@ namespace Botanik { namespace Terminal {
         set_inverted(false);   // leave the terminal normal
     }
 
+    // Transaction path
+    // ------------------------------------------------------------------------
+
+    namespace {
+        // Drains the scheduler into the TX ring; room()/write() are the ring's,
+        // so drain()'s atomicity check (len <= room) prevents any partial write.
+        struct RingSink : public TxSink {
+            Utils::BufferedSerial& s;
+            uint16_t wrote = 0;
+            explicit RingSink(Utils::BufferedSerial& serial) : s(serial) {}
+            uint16_t room() const override { return s.availableForWrite(); }
+            void write(const char* b, uint16_t n) override {
+                s.write(b, n); wrote = (uint16_t)(wrote + n);
+            }
+        };
+    }
+
+    void AnsiTerminal::tx_begin(uint8_t lane, uint32_t key) {
+        _txn_lane = lane;
+        _txn_key  = key;
+        _txn_saved_pos = _hw_pos;
+        _txn_saved_inv = _hw_inverted;
+        _txn_saved_eol = _hw_at_eol;
+        _txn_saved_cur = _hw_cursor_visible;
+        // Force the transaction's first move_to to emit an absolute CUP.
+        _hw_pos    = { (uint16_t)0xFFFF, (uint16_t)0xFFFF };
+        _hw_at_eol = false;
+        _recording = true;
+        _serial.begin_capture(_txn_buf, (uint16_t)sizeof(_txn_buf));
+    }
+
+    void AnsiTerminal::tx_commit() {
+        uint16_t len = _serial.end_capture();
+        _recording = false;
+        // The recorded bytes are queued, not sent: the real terminal is unchanged,
+        // so restore the shadow to what it was before tx_begin() (no emit).
+        _hw_pos            = _txn_saved_pos;
+        _hw_inverted       = _txn_saved_inv;
+        _hw_at_eol         = _txn_saved_eol;
+        _hw_cursor_visible = _txn_saved_cur;
+        if (len > 0) _tx.submit(_txn_lane, _txn_key, _txn_buf, len);
+    }
+
+    void AnsiTerminal::tx_drain() {
+        uint16_t used   = tx_used();
+        uint16_t budget = (used < _tx_cold_depth) ? (uint16_t)(_tx_cold_depth - used) : 0;
+        RingSink sink(_serial);
+        _tx.drain(sink, budget, _tx_cold_depth);
+        if (sink.wrote > 0) {
+            // A drained transaction moved the real cursor to its end; the shadow
+            // no longer tracks it, so force the next move_to to re-home absolutely.
+            _hw_pos    = { (uint16_t)0xFFFF, (uint16_t)0xFFFF };
+            _hw_at_eol = false;
+        }
+    }
+
 }}
