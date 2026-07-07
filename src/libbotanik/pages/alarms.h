@@ -644,8 +644,48 @@ namespace Botanik { namespace Pages {
             if (s < 0)               s = 0;
             if (s >= (int32_t)_nvis) s = (int32_t)_nvis - 1;
             _selected = (uint16_t)s;
+            uint16_t old_top = _top;
             _follow_selection();
-            _request_repaint();   // the moved highlight repaints via the sel diff
+            int32_t td = (int32_t)_top - (int32_t)old_top;
+            uint16_t win = _window();
+            // When the window scrolled a little, shift the kept rows with the
+            // terminal (DL/IL) and their shadows in lockstep, so the paced
+            // repaint below only redraws the newly-revealed rows (not the whole
+            // window). Needs TX headroom (a full ring would drop the best-effort
+            // scroll and tear); a big jump has no overlap worth keeping. Either
+            // way the paced repaint that follows restores a correct screen.
+            if (td != 0 && !_painting() && (uint16_t)(td < 0 ? -td : td) < win &&
+                _terminal.tx_below_cold())
+                _scroll_shadow(td, win);
+            _request_repaint();   // diff-gated: emits only the changed rows
+        }
+
+        /** @brief Scroll the data band by @p td rows (DL/IL) and shift the paint
+         *  shadow to match, blanking the revealed rows' shadows so the diff-gate
+         *  repaints them (and skips the kept rows). */
+        void _scroll_shadow(int32_t td, uint16_t win) {
+            uint16_t band_top = DATA_TOP;
+            uint16_t band_bot = (uint16_t)(DATA_TOP + win - 1);
+            uint16_t n = (uint16_t)(td < 0 ? -td : td);
+            _terminal.scroll_region(band_top, band_bot, /*up=*/td > 0, n);
+            if (td > 0) {   // scrolled up: screen row s now shows what row s+n did
+                for (uint16_t s = band_top; (uint16_t)(s + n) <= band_bot &&
+                                            (uint16_t)(s + n) < MAX_ROWS; s++)
+                    _row[s] = _row[s + n];
+                for (uint16_t s = (uint16_t)(band_bot - n + 1);
+                     s <= band_bot && s < MAX_ROWS; s++) _blank_shadow(s);
+            } else {        // scrolled down: screen row s now shows what row s-n did
+                for (int s = (int)band_bot; s - (int)n >= (int)band_top &&
+                                            s < (int)MAX_ROWS; s--)
+                    _row[s] = _row[s - n];
+                for (uint16_t s = band_top; s < (uint16_t)(band_top + n) &&
+                                            s < MAX_ROWS; s++) _blank_shadow(s);
+            }
+        }
+
+        /** @brief Reset one row's shadow to "unknown" (forces a repaint). */
+        void _blank_shadow(uint16_t s) {
+            _row[s].idx = ROW_BLANK; _row[s].sig = 0; _row[s].sel = false;
         }
 
         /** @brief Acknowledge the selected condition through the model. */
