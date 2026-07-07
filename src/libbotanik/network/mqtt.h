@@ -18,7 +18,8 @@
 #include <cstdint>
 
 #include "libbotanik/hal/net.h"
-#include "libbotanik/network/network.h"   // Component + PlcSyncContext + plc_config
+#include "libbotanik/core/config.h"        // Cfg::ConfigHandler + PlcOutputConfig_t
+#include "libbotanik/network/network.h"    // Component, NetworkHandler
 #include "libbotanik/network/resolver.h"
 // Alarms::Publisher (alarm transport)
 #include "libbotanik/alarms/publisher.h"
