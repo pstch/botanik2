@@ -26,8 +26,10 @@ namespace Botanik { namespace Terminal {
 
     /** @class AnsiTerminal
      *  @brief Owns the serial link; emits ANSI and tracks the terminal shadow
-     *  state. See the file header. */
-    class AnsiTerminal {
+     *  state. See the file header. Is the TxEmitter that renders one queued
+     *  transaction (move to base, content, advance to end) with the leading move
+     *  optimized against the tracked real cursor. */
+    class AnsiTerminal : public TxEmitter {
         using BufferedSerial = Utils::BufferedSerial;
         using CursorPos = Terminal::Ansi::CursorPos;
 
@@ -133,6 +135,11 @@ namespace Botanik { namespace Terminal {
         bool        _recording = false;
         uint8_t     _txn_lane  = 0;
         uint32_t    _txn_key   = 0;
+        /** @brief The recording's first move_to is the transaction's base (the
+         *  scheduler emits the optimal move to it at drain); the rest is content. */
+        bool        _rec_base_pending = false;
+        CursorPos   _txn_base = {0, 0};   ///< where the content paints from
+        CursorPos   _txn_end  = {0, 0};   ///< where the content leaves the cursor
         /** @brief Shadow saved at tx_begin() and restored at tx_commit(): the
          *  recorded bytes are queued, not sent, so the real cursor has not moved. */
         CursorPos   _txn_saved_pos = {0, 0};
@@ -383,6 +390,14 @@ namespace Botanik { namespace Terminal {
          *  byte budget (the room below the cold floor). Called once per loop by
          *  the Console after the renderers have submitted. */
         void tx_drain();
+
+        /** @brief TxEmitter: render one queued transaction - move to @p base_row/
+         *  @p base_col (minimal sequence from the tracked cursor), emit @p content,
+         *  leave the cursor at @p end. @return bytes emitted, or 0 if the ring
+         *  could not hold it. For the scheduler; not a renderer entry point. */
+        uint16_t emit(uint16_t base_row, uint16_t base_col,
+                      const char* content, uint16_t len,
+                      uint16_t end_row, uint16_t end_col) override;
 
         /** @} */
     };

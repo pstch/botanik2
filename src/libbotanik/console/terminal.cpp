@@ -38,6 +38,15 @@ namespace Botanik { namespace Terminal {
             (uint16_t)std::min((uint16_t)(_rows > 0 ? _rows - 1 : 0), target_in.row),
             (uint16_t)std::min((uint16_t)(_cols > 0 ? _cols - 1 : 0), target_in.col),
         };
+        // While recording, the first move_to fixes the transaction's base: the
+        // scheduler emits the optimal move to it at drain, so it is not recorded.
+        if (_recording && _rec_base_pending) {
+            _txn_base = target;
+            _hw_pos = target;          // content moves optimize from the base
+            _hw_at_eol = false;
+            _rec_base_pending = false;
+            return;
+        }
         if (target == _hw_pos) {
             return;
         }
@@ -409,39 +418,57 @@ namespace Botanik { namespace Terminal {
         _txn_saved_inv = _hw_inverted;
         _txn_saved_eol = _hw_at_eol;
         _txn_saved_cur = _hw_cursor_visible;
-        // Force the transaction's first move_to to emit an absolute CUP.
-        _hw_pos    = { (uint16_t)0xFFFF, (uint16_t)0xFFFF };
-        _hw_at_eol = false;
-        _recording = true;
+        // Recording baseline: the first move_to fixes the base (captured by
+        // move_to), content records relative to it, in normal video.
+        _rec_base_pending = true;
+        _txn_base    = {0, 0};
+        _hw_inverted = false;
+        _hw_at_eol   = false;
+        _recording   = true;
         // Route the ops' bytes into the record buffer instead of the ring.
         _record.reset(_txn_buf, (uint16_t)sizeof(_txn_buf));
         _sink = &_record;
     }
 
     void AnsiTerminal::tx_commit() {
+        _txn_end = _hw_pos;               // where the content left the cursor
         uint16_t len = _record.len;
         _sink = &_serial;                 // ops emit to the ring again
         _recording = false;
+        _rec_base_pending = false;
         // The recorded bytes are queued, not sent: the real terminal is unchanged,
         // so restore the shadow to what it was before tx_begin() (no emit).
         _hw_pos            = _txn_saved_pos;
         _hw_inverted       = _txn_saved_inv;
         _hw_at_eol         = _txn_saved_eol;
         _hw_cursor_visible = _txn_saved_cur;
-        if (len > 0) _tx.submit(_txn_lane, _txn_key, _txn_buf, len);
+        if (len > 0)
+            _tx.submit(_txn_lane, _txn_key, _txn_base.row, _txn_base.col,
+                       _txn_end.row, _txn_end.col, _txn_buf, len);
+    }
+
+    uint16_t AnsiTerminal::emit(uint16_t base_row, uint16_t base_col,
+                                const char* content, uint16_t len,
+                                uint16_t end_row, uint16_t end_col) {
+        // Conservative atomicity gate: content + a reserve for the leading move
+        // and SGR reset. If it fits, the sub-ops below cannot be truncated.
+        if (_serial.availableForWrite() < (uint16_t)(len + TX_MOVE_RESERVE)) return 0;
+        uint16_t before = tx_used();
+        move_to({base_row, base_col});          // minimal move from the real cursor
+        if (_hw_inverted) set_inverted(false);  // content assumes normal video
+        _serial.write(content, len);            // fits (gated above)
+        _hw_pos      = {end_row, end_col};       // content left the cursor here
+        _hw_inverted = false;                    // content is balanced (ends normal)
+        _hw_at_eol   = false;
+        return (uint16_t)(tx_used() - before);
     }
 
     void AnsiTerminal::tx_drain() {
         uint16_t used   = tx_used();
         uint16_t budget = (used < _tx_cold_depth) ? (uint16_t)(_tx_cold_depth - used) : 0;
-        // Drain straight into the ring (never the record sink).
-        uint16_t sent = _tx.drain(_serial, budget, _tx_cold_depth);
-        if (sent > 0) {
-            // A drained transaction moved the real cursor to its end; the shadow
-            // no longer tracks it, so force the next move_to to re-home absolutely.
-            _hw_pos    = { (uint16_t)0xFFFF, (uint16_t)0xFFFF };
-            _hw_at_eol = false;
-        }
+        // The terminal is the emitter; emit() tracks the real cursor exactly, so
+        // no shadow invalidation is needed afterwards.
+        _tx.drain(*this, budget, _tx_cold_depth);
     }
 
 }}
