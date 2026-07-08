@@ -71,17 +71,13 @@ namespace Botanik { namespace Pages {
         /** @brief First visible data row on screen (scroll offset from the top
          *  of the set), moved to keep the selection cursor in the window. */
         uint16_t                  _top      = 0;
-        /** @brief Staged-repaint cursor: the next table element to paint, or
-         *  PAINT_IDLE when fully drawn. A repaint is paced a few rows per tick
-         *  under the TX floor (see _paint_step()) so it never starves the
-         *  status / alarm bars; _request_repaint() restarts it from the top. */
-        static constexpr uint16_t PAINT_IDLE = 0xFFFF;
-        uint16_t                  _paint_i  = 0;
-        /** @brief Data rows that held content last frame. When a repaint finds
-         *  fewer, the vacated rows (and the bottom rule) are cleared up front
-         *  so stale rows don't linger through the paced repaint. Reset on
-         *  focus. */
-        uint16_t                  _painted_data = 0;
+        /** @brief Set on focus (a cleared screen): the next tick submits the
+         *  structural chrome and repaints every row. */
+        bool                      _repaint_all = false;
+        /** @brief A nav / mode / ack / set-change happened: the next tick
+         *  recollects and repaints the changed rows. The scheduler paces the
+         *  resulting transactions, so the page never staged-paces itself. */
+        bool                      _dirty = false;
         /** @brief Uptime of the last once-a-second alarm-set re-check (see
          *  tick()). */
         uint64_t                  _last_refresh_ms = 0;
@@ -112,17 +108,36 @@ namespace Botanik { namespace Pages {
         /** @name Paint shadow
          *  One entry per screen row: what that row last showed, so a repaint
          *  emits only what changed. idx tags the row kind; sig is its change
-         *  signature.
+         *  signature. Each paint is a keyed TX_STRUCT transaction (owner 0xA0,
+         *  keyed by screen row); the scheduler paces and coalesces them, so the
+         *  page never staged-paces itself. The drawn shadow (_row) is promoted
+         *  from the submitted one (_row_sub) only once the row's transaction has
+         *  drained (_promote), so dropping a still-queued data-row paint on a
+         *  scroll can never desync the shadow. A scroll shifts the kept rows'
+         *  drawn shadows to match the DL/IL and poisons the revealed ones.
          *  @{ */
         static constexpr uint16_t MAX_ROWS    = 64;   // rows beyond this redraw
         static constexpr uint8_t  ROW_STRUCT  = 0xFE; // header/rule/margin/blank
         static constexpr uint8_t  ROW_BLANK   = 0xFF; // empty data row / unknown
+        static constexpr uint8_t  ROW_POISON  = 0xFD; // force a redraw (scroll reveal)
         static constexpr uint32_t EVENT_EMPTY = 0x3FFFFFFF;  // LAST EVENT empty
-        /** @brief idx: alarm table index, ROW_STRUCT, or ROW_BLANK. sig: data
-         *  row = packed (ON state | event minute); structural row =
+        /** @brief idx: alarm table index, ROW_STRUCT, ROW_BLANK, or ROW_POISON.
+         *  sig: data row = packed (ON state | event minute); structural row =
          *  FNV(line bytes). */
         struct RowShadow { uint8_t idx; uint32_t sig; bool sel; };
-        RowShadow                 _row[MAX_ROWS];
+        RowShadow                 _row[MAX_ROWS];       ///< last drawn (on the wire)
+        RowShadow                 _row_sub[MAX_ROWS];   ///< last submitted (queued)
+        bool                      _row_pend[MAX_ROWS];  ///< a paint is outstanding
+        /** @brief Owner (high 16 bits) of this page's transaction keys. */
+        static constexpr uint16_t OWNER = 0x00A0;
+        /** @brief Coalescing key for the paint at screen @p row. */
+        static uint32_t _row_key(uint16_t row) {
+            return ((uint32_t)OWNER << 16) | (uint32_t)(0x1000 + row);
+        }
+        /** @brief FNV signature of the last-drawn legend, so it repaints only on
+         *  a mode / count change, not on every selection move. */
+        uint32_t                  _legend_sig = 0;
+        bool                      _legend_valid = false;
         /** @} */
 
         /** @name Filter modes
@@ -159,13 +174,6 @@ namespace Botanik { namespace Pages {
          *  write at this column so only those two chars are reverse-video (no
          *  flicker-prone overdraw). */
         static constexpr uint16_t STATE_TEXT_COL = MARGIN + 2 + (CODE_W - 1) + 2;
-        /** @brief ON-cell inner width and the LAST EVENT cell's text column /
-         *  inner width, tracking the same layout _build_grid_row() emits. Used
-         *  by the per-cell patch path (_patch_cells). */
-        static constexpr uint16_t STATE_INNER    = STATE_W - 1;        // 3
-        static constexpr uint16_t EVENT_TEXT_COL =
-            STATE_TEXT_COL + STATE_INNER + 2;                          // 20
-        static constexpr uint16_t EVENT_INNER    = EVENT_W - 1;        // 15
         /** @brief CODE field span (contents only, no "| " border): the only part
          *  inverted for the selection cursor, so a selection move patches one
          *  small field, not a whole row. */
@@ -216,10 +224,44 @@ namespace Botanik { namespace Pages {
             return n;
         }
 
-        /** @brief Reset the whole paint shadow to "unknown" (forces a
-         *  redraw). */
+        /** @brief Reset the whole paint shadow to "unknown" (forces a redraw)
+         *  and clear all pending flags (a cleared screen drops queued paints). */
         void _invalidate_shadow() {
-            for (RowShadow& r : _row) { r.idx = ROW_BLANK; r.sig = 0; r.sel = false; }
+            for (uint16_t r = 0; r < MAX_ROWS; r++) {
+                _row[r].idx = ROW_BLANK; _row[r].sig = 0; _row[r].sel = false;
+                _row_pend[r] = false;
+            }
+            _legend_valid = false;
+        }
+
+        /** @brief What screen @p row currently shows or is queued to show. */
+        const RowShadow& _intended(uint16_t row) const {
+            return _row_pend[row] ? _row_sub[row] : _row[row];
+        }
+
+        /** @brief Adopt a drained row's submitted shadow as its drawn shadow, so
+         *  the shadow reflects the wire (shifting/dropping it stays consistent). */
+        void _promote(uint16_t row) {
+            if (row < MAX_ROWS && _row_pend[row] &&
+                !_terminal.tx_has_key(Terminal::TX_STRUCT, _row_key(row))) {
+                _row[row] = _row_sub[row];
+                _row_pend[row] = false;
+            }
+        }
+
+        /** @brief Record that a fresh paint with shadow @p s was just submitted
+         *  for @p row (pending until it drains). */
+        void _mark_sub(uint16_t row, const RowShadow& s) {
+            if (row >= MAX_ROWS) return;
+            _row_sub[row] = s; _row_pend[row] = true;
+        }
+
+        /** @brief Poison a row's drawn shadow (force a redraw) and drop pending
+         *  submit intent; the queued transaction is dropped separately. */
+        void _poison_shadow(uint16_t row) {
+            if (row >= MAX_ROWS) return;
+            _row[row].idx = ROW_POISON; _row[row].sig = 0; _row[row].sel = false;
+            _row_pend[row] = false;
         }
 
         /** @brief FNV-1a over s[0..n), masked to 31 bits: a structural row's
@@ -231,16 +273,23 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Draw a structural row through the shadow: skip when its bytes
-         *  are unchanged on screen, else emit and record the fingerprint. */
+         *  are unchanged (on the wire or queued), else submit a keyed transaction
+         *  and record the fingerprint as pending. */
         void _emit(uint16_t row, const char* line, uint16_t n) {
             uint32_t sig = _hash(line, n);
-            if (row < MAX_ROWS && _row[row].idx == ROW_STRUCT && _row[row].sig == sig)
-                return;
+            if (row < MAX_ROWS) {
+                _promote(row);
+                const RowShadow& it = _intended(row);
+                if (it.idx == ROW_STRUCT && it.sig == sig) return;
+            }
+            _terminal.tx_begin(Terminal::TX_STRUCT, _row_key(row));
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
             _terminal.write_chars(line, n);
             _terminal.clear_to_eol();
-            if (row < MAX_ROWS) { _row[row].idx = ROW_STRUCT; _row[row].sig = sig; }
+            _terminal.tx_commit();
+            RowShadow s = { ROW_STRUCT, sig, false };
+            _mark_sub(row, s);
         }
 
         /** @brief Draw a '|'-ruled grid row (all normal video). */
@@ -272,7 +321,11 @@ namespace Botanik { namespace Pages {
         void _clear_row(uint16_t row) { _emit(row, "", 0); }
 
         /** @brief Draw the footer legend: reverse-video mode badge + counts on
-         *  the left, SPACE-cycles-mode hint on the right. */
+         *  the left, SPACE-cycles-mode hint on the right. One keyed transaction,
+         *  diff-gated on a content signature so it repaints only on a mode / count
+         *  change - never on a selection move (the "legend rewritten each row"
+         *  cost). The legend row sits below the data band, so it is never dropped
+         *  by a scroll; a plain submit-time signature is enough. */
         void _draw_footer(uint16_t row, uint8_t nvis, uint8_t active) {
             const char* mode = _mode_label(_mode);
             const char* next = _mode_label((uint8_t)((_mode + 1) % MODE_COUNT));
@@ -283,31 +336,40 @@ namespace Botanik { namespace Pages {
             if (ln < 0) ln = 0;
             uint16_t llen = (uint16_t)std::min((size_t)ln, sizeof(left) - 1);
 
+            uint16_t ml = (uint16_t)strlen(mode);
+            if ((uint16_t)(3 + ml) > llen) ml = (llen > 3) ? (uint16_t)(llen - 3) : 0;
+
+            char right[32];
+            int rn = snprintf(right, sizeof(right), "a:ack  SPACE: %s", next);
+            if (rn < 0) rn = 0;
+            uint16_t cols = _terminal.cols();
+            uint16_t rcol = (cols > (uint16_t)(rn + 2)) ? (uint16_t)(cols - rn - 2) : 0;
+
+            // Diff gate: skip when nothing the legend shows has changed.
+            uint32_t sig = _hash(left, llen);
+            sig = (sig * 16777619u) ^ _hash(right, (uint16_t)rn);
+            sig = (sig ^ ((uint32_t)rcol << 16) ^ ml) & 0x7FFFFFFFu;
+            if (_legend_valid && _legend_sig == sig) return;
+
+            _terminal.tx_begin(Terminal::TX_STRUCT, _row_key(row));
             // One pass with the mode label (col 3, inside the brackets)
             // reverse-video, so it reads as a badge without a flicker-prone
             // normal-then-inverted overdraw.
-            uint16_t ml = (uint16_t)strlen(mode);
-            if ((uint16_t)(3 + ml) > llen) ml = (llen > 3) ? (uint16_t)(llen - 3) : 0;
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
             _terminal.write_chars(left, 3);                       // "  ["
             _terminal.set_inverted(true);
             _terminal.write_chars(left + 3, ml);                  // mode badge
             _terminal.set_inverted(false);
-            // "]  ... active"
             _terminal.write_chars(left + 3 + ml, (uint16_t)(llen - 3 - ml));
             _terminal.clear_to_eol();
-
             // Right-aligned hint (ack + next filter), when it clears the left.
-            char right[32];
-            int rn = snprintf(right, sizeof(right), "a:ack  SPACE: %s", next);
-            if (rn < 0) rn = 0;
-            uint16_t cols = _terminal.cols();
-            uint16_t rcol = (cols > (uint16_t)(rn + 2)) ? (uint16_t)(cols - rn - 2) : 0;
             if (rcol > llen + 2) {
                 _terminal.move_to({row, rcol});
                 _terminal.write_chars(right, (uint16_t)rn);
             }
+            _terminal.tx_commit();
+            _legend_sig = sig; _legend_valid = true;
         }
 
         /** @brief True if @p c belongs in RECENT mode: a last event still
@@ -441,7 +503,7 @@ namespace Botanik { namespace Pages {
         /** @name Window geometry
          *  Bottom-anchored on the content area. From the bottom up: free row,
          *  legend, free row, bottom rule, then the data band up to the top
-         *  rule. The rules carry the scroll arrows (see _paint_element()).
+         *  rule. The rules carry the scroll arrows (see _draw_rules()).
          *  @{ */
         // free row below at rows()-1
         uint16_t _legend_row()  const { return (uint16_t)(_console.rows() - 2); }
@@ -491,49 +553,10 @@ namespace Botanik { namespace Pages {
             return ((uint32_t)_on_state(c) << 30) | ev;
         }
 
-        /** @brief True when the fixed CODE/ON/EVENT columns fit, so cell
-         *  patching is safe; on a narrower screen the row falls back to a
-         *  clamped full redraw. */
-        bool _cells_fit() const {
-            return _terminal.cols() >= (uint16_t)(EVENT_TEXT_COL + EVENT_INNER + 2);
-        }
-
-        /** @brief Blank a data row without touching the structural shadow
-         *  path. */
-        void _clear_raw(uint16_t row) {
-            _terminal.move_to({row, 0});
-            _terminal.set_inverted(false);
-            _terminal.clear_to_eol();
-        }
-
-        /** @brief Rewrite only the ON and LAST EVENT cells (CODE/DESCRIPTION
-         *  stay). Both are fully overwritten, so no clear_to_eol. */
-        void _patch_cells(uint16_t row, const Alarms::AlarmCondition& c) {
-            uint8_t on = _on_state(c);
-            _terminal.move_to({row, STATE_TEXT_COL});
-            if (on == 3) {                                   // "ON" reverse+pad
-                _terminal.set_inverted(true);  _terminal.write_chars("ON", 2);
-                _terminal.set_inverted(false); _terminal.write_chars(" ", 1);
-            } else {
-                _terminal.set_inverted(false);
-                _terminal.write_chars(
-                    on == 2 ? "ON " : (on == 1 ? "OFF" : "   "), 3);
-            }
-            char ev[16];
-            _fmt_event(ev, sizeof(ev), c);
-            char cell[24];
-            int m = snprintf(cell, sizeof(cell), "%-*.*s",
-                             (int)EVENT_INNER, (int)EVENT_INNER, ev);
-            if (m < 0) m = 0;
-            _terminal.move_to({row, EVENT_TEXT_COL});
-            _terminal.write_chars(
-                cell, (uint16_t)std::min((size_t)m, sizeof(cell) - 1));
-        }
-
         /** @brief Invert the CODE cell of @p line for the selection cursor: only
-         *  the first cell highlights (a whole-row invert would repaint the whole
-         *  row on every selection move). Writes the margin + CODE cell and leaves
-         *  the cursor at CODE_CELL_R. */
+         *  the first cell highlights (a whole-row invert would cost bandwidth for
+         *  no gain). Writes the margin + CODE cell, leaving the cursor at
+         *  CODE_CELL_R. Used inside a data-row transaction. */
         void _write_code_cell(const char* line, bool selected) {
             _terminal.write_chars(line, CODE_CELL_L);              // margin + "| "
             if (selected) _terminal.set_inverted(true);
@@ -541,18 +564,20 @@ namespace Botanik { namespace Pages {
             if (selected) _terminal.set_inverted(false);
         }
 
-        /** @brief Draw a full data row (CODE/ON/EVENT/DESCRIPTION). Only the CODE
-         *  cell inverts for the selection cursor; the state cell shows its own
-         *  reverse-video "ON" badge while active and unacked (independent of
-         *  selection). One inline pass (no flicker-prone overdraw). */
-        void _draw_full_row(uint16_t row, const Alarms::AlarmCondition& c,
-                            bool selected = false) {
+        /** @brief Submit a full data row (CODE/ON/EVENT/DESCRIPTION) as one keyed
+         *  transaction. Only the CODE cell inverts for the selection cursor; the
+         *  state cell shows its own reverse-video "ON" badge while active and
+         *  unacked (independent of selection). One inline pass, no partial-cell
+         *  patch - a partial paint would be unsafe to coalesce over a queued full
+         *  row, and the diff gate already skips unchanged rows. */
+        void _draw_full_row(uint16_t row, const Alarms::AlarmCondition& c, bool selected) {
             char ev[16];
             _fmt_event(ev, sizeof(ev), c);
             const char* state = c.active ? "ON" : (c.edge_ms != 0 ? "OFF" : "");
             char     line[160];
             uint16_t n = _build_grid_row(line, sizeof(line), c.code ? c.code : "?",
                                          state, ev, c.desc ? c.desc : "");
+            _terminal.tx_begin(Terminal::TX_STRUCT, _row_key(row));
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
             _write_code_cell(line, selected);
@@ -569,62 +594,45 @@ namespace Botanik { namespace Pages {
                 _terminal.write_chars(line + CODE_CELL_R, (uint16_t)(n - CODE_CELL_R));
             }
             _terminal.clear_to_eol();
+            _terminal.tx_commit();
         }
 
-        /** @brief Repaint only the CODE field of @p row (its highlight moved). */
-        void _patch_code_cell(uint16_t row, const Alarms::AlarmCondition& c,
-                              bool selected) {
-            char cell[16];
-            int m = snprintf(cell, sizeof(cell), "%-*.*s",
-                             (int)(CODE_W - 1), (int)(CODE_W - 1), c.code ? c.code : "?");
-            if (m < 0) m = 0;
-            _terminal.move_to({row, CODE_CELL_L});
-            if (selected) _terminal.set_inverted(true);
-            _terminal.write_chars(cell, (uint16_t)m);
-            if (selected) _terminal.set_inverted(false);
+        /** @brief Blank a data row as a keyed transaction (past the set). */
+        void _submit_clear(uint16_t row) {
+            _terminal.tx_begin(Terminal::TX_STRUCT, _row_key(row));
+            _terminal.move_to({row, 0});
+            _terminal.set_inverted(false);
+            _terminal.clear_to_eol();
+            _terminal.tx_commit();
         }
 
-        /** @brief Paint data row at screen @p row for visible entry @p vi: skip
-         *  when unchanged, patch only ON/EVENT when the alarm is the same, full
-         *  redraw when the identity changed or vi is past the set (blank).
-         *  Rows beyond MAX_ROWS always draw. */
+        /** @brief Paint data row at screen @p row for visible entry @p vi:
+         *  promote a drained paint, skip when the intended shadow is unchanged,
+         *  else submit a full row (or blank past the set). Rows beyond MAX_ROWS
+         *  always draw (unshadowed). */
         void _draw_data_row(uint16_t row, uint16_t vi) {
-            bool    shadowed = row < MAX_ROWS;
-            uint8_t new_idx  = (vi < _nvis) ? _vis[vi] : ROW_BLANK;
-            if (new_idx == ROW_BLANK) {                       // past set->blank
-                if (!shadowed || _row[row].idx != ROW_BLANK) {
-                    _clear_raw(row);
-                    if (shadowed) { _row[row].idx = ROW_BLANK; _row[row].sig = 0; _row[row].sel = false; }
+            bool shadowed = row < MAX_ROWS;
+            if (shadowed) _promote(row);
+            uint8_t new_idx = (vi < _nvis) ? _vis[vi] : ROW_BLANK;
+            if (new_idx == ROW_BLANK) {                       // past set -> blank
+                if (!shadowed || _intended(row).idx != ROW_BLANK) {
+                    _submit_clear(row);
+                    RowShadow s = { ROW_BLANK, 0, false };
+                    _mark_sub(row, s);
                 }
                 return;
             }
             const Alarms::AlarmCondition& c = _model->condition(_vis[vi]);
             uint32_t sig = _pack(c);
             bool     sel = (vi == _selected);
-            bool idx_same = shadowed && _row[row].idx == new_idx;
-            bool sig_same = idx_same && _row[row].sig == sig;
-            bool sel_same = idx_same && _row[row].sel == sel;
-            if (sig_same && sel_same) return;                 // fully unchanged
-            if (sig_same) {
-                // Content identical, only the selection cursor moved: patch just
-                // the first cell instead of repainting the whole row.
-                _patch_code_cell(row, c, sel);
-                _row[row].sel = sel;
-                return;
+            if (shadowed) {
+                const RowShadow& it = _intended(row);
+                if (it.idx == new_idx && it.sig == sig && it.sel == sel) return;
             }
-            // Same alarm, value changed, selection unchanged and not selected:
-            // patch ON/EVENT. Otherwise full redraw (identity moved, or the
-            // selected first cell must repaint with the value).
-            if (idx_same && sel_same && !sel && _cells_fit()) {
-                _patch_cells(row, c);
-            } else {
-                _draw_full_row(row, c, sel);
-            }
-            if (shadowed) { _row[row].idx = new_idx; _row[row].sig = sig; _row[row].sel = sel; }
+            _draw_full_row(row, c, sel);
+            RowShadow s = { new_idx, sig, sel };
+            _mark_sub(row, s);
         }
-
-        /** @brief Request a full (paced) repaint from the top. */
-        void _request_repaint() { _paint_i = 0; }
 
         /** @brief Scroll _top so the selection cursor stays in the window. */
         void _follow_selection() {
@@ -637,7 +645,9 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Move the selection cursor by @p dir (clamped to the set),
-         *  auto-scroll to keep it visible, and repaint (the highlight moved). */
+         *  auto-scroll to keep it visible, and mark dirty (the highlight moved).
+         *  A scroll shifts the kept rows with a DL/IL transaction; the tick's
+         *  repaint then only redraws the revealed / re-highlighted rows. */
         void _move_selection(int dir) {
             if (_nvis == 0) return;
             int32_t s = (int32_t)_selected + dir;
@@ -647,45 +657,63 @@ namespace Botanik { namespace Pages {
             uint16_t old_top = _top;
             _follow_selection();
             int32_t td = (int32_t)_top - (int32_t)old_top;
-            uint16_t win = _window();
-            // When the window scrolled a little, shift the kept rows with the
-            // terminal (DL/IL) and their shadows in lockstep, so the paced
-            // repaint below only redraws the newly-revealed rows (not the whole
-            // window). Needs TX headroom (a full ring would drop the best-effort
-            // scroll and tear); a big jump has no overlap worth keeping. Either
-            // way the paced repaint that follows restores a correct screen.
-            if (td != 0 && !_painting() && (uint16_t)(td < 0 ? -td : td) < win &&
-                _terminal.tx_below_cold())
-                _scroll_shadow(td, win);
-            _request_repaint();   // diff-gated: emits only the changed rows
+            if (td != 0) {
+                uint16_t win = _window();
+                uint16_t nd  = (uint16_t)(td < 0 ? -td : td);
+                _drop_band_pending(win);
+                if (nd < win) { _submit_scroll(td > 0, nd, win); _scroll_shadow(td, win); }
+                else          { _poison_band(win); }
+            }
+            _dirty = true;   // repaint the re-highlighted / revealed rows
         }
 
-        /** @brief Scroll the data band by @p td rows (DL/IL) and shift the paint
-         *  shadow to match, blanking the revealed rows' shadows so the diff-gate
-         *  repaints them (and skips the kept rows). */
+        /** @brief Drop every queued data-row transaction in the band and clear
+         *  its pending flag (the drawn shadow stays the source of truth). */
+        void _drop_band_pending(uint16_t win) {
+            for (uint16_t vi = 0; vi < win; vi++) {
+                uint16_t row = (uint16_t)(DATA_TOP + vi);
+                if (row < MAX_ROWS && _row_pend[row]) {
+                    _terminal.tx_drop_key(Terminal::TX_STRUCT, _row_key(row));
+                    _row_pend[row] = false;
+                }
+            }
+        }
+
+        /** @brief Submit the band's DL/IL shift as one atomic TX_STRUCT
+         *  transaction (key 0: scrolls never coalesce). */
+        void _submit_scroll(bool down, uint16_t nd, uint16_t win) {
+            uint16_t band_bot = (uint16_t)(DATA_TOP + win - 1);
+            _terminal.tx_begin(Terminal::TX_STRUCT, 0);
+            _terminal.scroll_region(DATA_TOP, band_bot, /*up=*/down, nd);
+            _terminal.tx_commit();
+        }
+
+        /** @brief Poison every row in the band (no DL/IL overlap worth keeping,
+         *  e.g. a full-page jump), so the tick's repaint redraws them all. */
+        void _poison_band(uint16_t win) {
+            for (uint16_t vi = 0; vi < win; vi++) _poison_shadow((uint16_t)(DATA_TOP + vi));
+        }
+
+        /** @brief Shift the drawn shadow by @p td rows to track the DL/IL,
+         *  poisoning the revealed rows so the tick's repaint redraws them (and
+         *  skips the kept rows). The band's pending flags were cleared already. */
         void _scroll_shadow(int32_t td, uint16_t win) {
             uint16_t band_top = DATA_TOP;
             uint16_t band_bot = (uint16_t)(DATA_TOP + win - 1);
             uint16_t n = (uint16_t)(td < 0 ? -td : td);
-            _terminal.scroll_region(band_top, band_bot, /*up=*/td > 0, n);
             if (td > 0) {   // scrolled up: screen row s now shows what row s+n did
                 for (uint16_t s = band_top; (uint16_t)(s + n) <= band_bot &&
                                             (uint16_t)(s + n) < MAX_ROWS; s++)
                     _row[s] = _row[s + n];
                 for (uint16_t s = (uint16_t)(band_bot - n + 1);
-                     s <= band_bot && s < MAX_ROWS; s++) _blank_shadow(s);
+                     s <= band_bot && s < MAX_ROWS; s++) _poison_shadow(s);
             } else {        // scrolled down: screen row s now shows what row s-n did
                 for (int s = (int)band_bot; s - (int)n >= (int)band_top &&
                                             s < (int)MAX_ROWS; s--)
                     _row[s] = _row[s - n];
                 for (uint16_t s = band_top; s < (uint16_t)(band_top + n) &&
-                                            s < MAX_ROWS; s++) _blank_shadow(s);
+                                            s < MAX_ROWS; s++) _poison_shadow(s);
             }
-        }
-
-        /** @brief Reset one row's shadow to "unknown" (forces a repaint). */
-        void _blank_shadow(uint16_t s) {
-            _row[s].idx = ROW_BLANK; _row[s].sig = 0; _row[s].sel = false;
         }
 
         /** @brief Acknowledge the selected condition through the model. */
@@ -693,86 +721,28 @@ namespace Botanik { namespace Pages {
             if (_model == nullptr || _selected >= _nvis) return;
             const Alarms::AlarmCondition& c = _model->condition(_vis[_selected]);
             if (c.code != nullptr) _model->ack(c.code);
-            _request_repaint();   // ack changes the badge / sort
+            _dirty = true;   // ack changes the badge / sort
         }
 
-        /** @brief True while a staged repaint is in progress (or pending its
-         *         first tick). */
-        bool _painting() const { return _paint_i != PAINT_IDLE; }
-
-        /** @brief Paint one staged element by index: 0 = legend (first so a
-         *  mode change reads instantly, and only once), then top margin,
-         *  header, top rule, data rows, bottom rule, blank above the legend,
-         *  blank below. Order/count must match _paint_step()'s total
-         *  (window + 7). */
-        void _paint_element(uint16_t e, uint16_t window) {
+        /** @brief Submit the static chrome: top margin, header, and the two blank
+         *  rows around the legend. The rules and legend carry live state, so they
+         *  are submitted (diff-gated) by the per-tick _repaint(). */
+        void _submit_structure() {
             uint16_t legend = _legend_row();
-            if      (e == 0)               // legend
-                _draw_footer(legend, _nvis,
-                             _model ? _model->active_count() : 0);
-            else if (e == 1)               _clear_row(1);   // top margin
-            else if (e == 2)
-                _draw_grid_row(HEADER_ROW, "CODE", "ON",
-                               "LAST EVENT", "DESCRIPTION");
-            else if (e == 3)
-                _draw_rule(RULE_ROW, _hidden_above() ? '^' : '+');
-            else if (e < (uint16_t)(4 + window))
-                _draw_data_row((uint16_t)(DATA_TOP + (e - 4)),
-                               (uint16_t)(_top + (e - 4)));
-            else if (e == (uint16_t)(4 + window))            // bottom rule
-                _draw_rule(_brule_row(), _hidden_below(window) ? 'v' : '+');
-            else if (e == (uint16_t)(5 + window))     // free above legend
-                _clear_row((uint16_t)(legend - 1));
-            else                                       // free below legend
-                _clear_row((uint16_t)(legend + 1));
+            _clear_row(1);                                      // top margin
+            _draw_grid_row(HEADER_ROW, "CODE", "ON", "LAST EVENT", "DESCRIPTION");
+            _clear_row((uint16_t)(legend - 1));                 // blank above legend
+            _clear_row((uint16_t)(legend + 1));                 // blank below legend
         }
 
-        /** @brief Advance the staged repaint: draw at most
-         *  TX_COLD_FIELDS_PER_TICK rows this tick, only while the ring is
-         *  shallow, so a full repaint spreads over ticks instead of flooding.
-         *  The view set is collected and clamped once, on the first element, so
-         *  the frame stays self-consistent; a mid-paint change is caught by the
-         *  next 1 s re-check. */
-        void _paint_step() {
-            uint16_t window = _window();
-            if (window == 0) { _snapshot(); _paint_i = PAINT_IDLE; return; }
-            // margin + header + top rule + data + bottom rule + free + legend
-            // + free
-            uint16_t total = (uint16_t)(window + 7);
-
-            if (_paint_i == 0) {
-                _collect();
-                uint16_t maxtop = _max_top(window);
-                if (_top > maxtop) _top = maxtop;
-                // Snapshot the painted set up front, so a change during/after
-                // staging reads as _changed() and re-triggers rather than being
-                // masked by a completion-time snapshot of a newer set.
-                _snapshot();
-                // If the set shrank, clear the now-empty rows (and bottom rule)
-                // up front so they don't linger as stale content while the
-                // redraw walks down.
-                uint16_t content = (_nvis < window) ? _nvis : window;
-                if (content < _painted_data) {
-                    _terminal.clear_rows((uint16_t)(DATA_TOP + content),
-                                         _brule_row());
-                    // Those rows were blanked without _draw_data_row;
-                    // invalidate their shadow so the staged repaint redraws not
-                    // skips them.
-                    for (uint16_t r = (uint16_t)(DATA_TOP + content);
-                         r <= _brule_row() && r < MAX_ROWS; r++) {
-                        _row[r].idx = ROW_BLANK; _row[r].sig = 0;
-                    }
-                }
-                _painted_data = content;
-            }
-
-            uint16_t budget = Config::TX_COLD_FIELDS_PER_TICK;
-            while (_paint_i < total && budget > 0 && _terminal.tx_below_cold()) {
-                _paint_element(_paint_i, window);
-                _paint_i++;
-                budget--;
-            }
-            if (_paint_i >= total) _paint_i = PAINT_IDLE;   // frame complete
+        /** @brief Submit the rules, legend, and every changed data row (diff-gated
+         *  through the shadow). The full window is walked so a shrunk set blanks
+         *  its vacated rows. */
+        void _repaint(uint16_t window) {
+            _draw_rules(window);
+            _draw_footer(_legend_row(), _nvis, _model ? _model->active_count() : 0);
+            for (uint16_t vi = 0; vi < window; vi++)
+                _draw_data_row((uint16_t)(DATA_TOP + vi), (uint16_t)(_top + vi));
         }
 
     public:
@@ -790,8 +760,7 @@ namespace Botanik { namespace Pages {
                 _mode = (uint8_t)((_mode + 1) % MODE_COUNT);
                 _top  = 0;
                 _selected = 0;
-                // legend is painted first (reactive)
-                _request_repaint();
+                _dirty = true;              // reorders the list + legend
             } else if (c == 'a' || c == 'A') {   // ack the selected condition
                 _ack_selected();
             }
@@ -800,7 +769,7 @@ namespace Botanik { namespace Pages {
         void handle_command(Command cmd, uint16_t = 1) override {
             switch (cmd) {
                 case Command::ENTER:
-                    _top = 0; _selected = 0; _request_repaint();   // jump to top
+                    _top = 0; _selected = 0; _dirty = true;   // jump to top
                     break;
                 case Command::UP:
                 case Command::CTRL_P:
@@ -824,24 +793,37 @@ namespace Botanik { namespace Pages {
 
         void focus() override {
             _active = true;
-            // switch_to cleared the screen; nothing painted
-            _painted_data = 0;
-            // shadow no longer matches the cleared screen
+            // switch_to cleared the screen; the shadow no longer matches it.
             _invalidate_shadow();
-            _request_repaint();   // repaint from scratch
+            _repaint_all = true;   // repaint from scratch
         }
 
         void tick(bool active) override {
             _active = active;
             if (!active) return;
-            // A staged repaint advances a few rows per tick under the TX floor.
-            if (_painting()) { _paint_step(); return; }
-            // Idle: re-check the set once a second (alarms move slowly) and
-            // repaint only when it actually moved.
+            // Re-check the set on a slow cadence (alarms move slowly); mark dirty
+            // only when the displayed set actually moved.
             uint64_t now = HAL::Clock::uptime_ms();
-            if (now - _last_refresh_ms < Config::PAGE_HOT_MS) return;
-            _last_refresh_ms = now;
-            if (_changed()) _request_repaint();
+            if (now - _last_refresh_ms >= Config::PAGE_HOT_MS) {
+                _last_refresh_ms = now;
+                if (_changed()) _dirty = true;
+            }
+            if (!_repaint_all && !_dirty) return;
+            uint16_t window = _window();
+            if (window == 0) { _snapshot(); _repaint_all = false; _dirty = false; return; }
+            // Rebuild the view set and re-clamp the window before painting.
+            _collect();
+            uint16_t maxtop = _max_top(window);
+            if (_top > maxtop) _top = maxtop;
+            if (_repaint_all) {
+                _submit_structure();
+                _poison_band(window);   // force every data row to redraw
+                _repaint_all = false;
+            }
+            // Submit the rules, legend, and changed rows; the scheduler paces them.
+            _repaint(window);
+            _snapshot();
+            _dirty = false;
         }
 
         /** @} */

@@ -4,7 +4,8 @@
  *        AnsiTerminal lets us drain TX and assert exactly what a repaint wrote -
  *        the diff's contract is "emit only what changed", so the byte stream is
  *        the oracle. High baud disables the throttle so a paint finishes in a
- *        few ticks; we pump tick()+transmit() until the pipe goes quiet.
+ *        few ticks; each pump submits (tick), drains the transaction queue, and
+ *        transmits until the pipe goes quiet.
  */
 #include <cstdint>
 #include <fcntl.h>
@@ -66,10 +67,15 @@ namespace {
             while ((n = ::read(fds[0], buf, sizeof buf)) > 0) out.append(buf, (size_t)n);
             return out;
         }
-        // Pump ticks until a paint settles, capturing all bytes it wrote.
+        // Pump ticks until a paint settles, capturing all bytes it wrote. Each
+        // tick submits transactions; tx_drain() feeds the ring, capture() the pipe.
         std::string paint() {
             std::string out;
-            for (int i = 0; i < 64; i++) { page.tick(true); out += capture(); }
+            for (int i = 0; i < 64; i++) {
+                page.tick(true);
+                console.terminal().tx_drain();
+                out += capture();
+            }
             return out;
         }
     };
@@ -100,18 +106,13 @@ static void raise_all(RenderFixture& f) {
     f.paint();                   // initial full paint; discard
 }
 
-// Acking an active alarm flips only its ON badge (active+unack -> active+ack):
-// same alarm identity, so the repaint must rewrite just the ON cell - far less
-// than a full row, and it must NOT re-emit the CODE/DESC text. A single active
-// alarm is used so the ack does not reorder the list (acking one of several
-// active alarms demotes it below the still-nagging ones, which would reshuffle
-// every row's identity and force full redraws - that is the identity-change case
-// below, not a same-row cell patch).
-// The selection cursor (default row 0) always full-redraws to carry its
-// highlight, so the cell-patch path is exercised on a NON-selected row: BBB sits
-// at row 1, and acking it (unack->ack keeps it below the still-unacked AAA) only
-// changes its ON cell.
-TEST_CASE("alarms render: a non-selected same-alarm state change patches only the cell") {
+// Acking an active alarm flips its ON badge (active+unack -> active+ack): a
+// same-identity change, so its row (only) repaints. The transactional path draws
+// the whole row as one keyed transaction (a partial-cell patch would be unsafe to
+// coalesce over a queued full row), so BBB's CODE/DESC reach the wire again - but
+// the still-unacked AAA row above it is diff-skipped. A single reorder-free ack is
+// used (BBB stays below the still-nagging AAA) so only one row's shadow changes.
+TEST_CASE("alarms render: a same-alarm state change redraws its row, skips the rest") {
     RenderFixture f;
     f.model.step(0x3, 1000);                     // AAA + BBB active; row0=AAA (sel), row1=BBB
     f.page.focus();
@@ -121,9 +122,10 @@ TEST_CASE("alarms render: a non-selected same-alarm state change patches only th
     f.page.handle_command(Command::ENTER, 1);    // repaint, shadow intact, selection at row0
     std::string out = f.paint();
 
-    CHECK(out.size() > 0);                        // BBB's ON cell was rewritten
-    CHECK(out.find("alarm B") == std::string::npos);  // DESCRIPTION not re-emitted
-    CHECK(out.find("BBB")     == std::string::npos);  // CODE not re-emitted (patched)
+    CHECK(out.find("BBB")     != std::string::npos);  // BBB's row redrawn in full
+    CHECK(out.find("AAA")     == std::string::npos);  // the unchanged AAA row is skipped
+    CHECK(out.find("CODE")    == std::string::npos);  // header/rules not re-emitted
+    CHECK(out.find("----")    == std::string::npos);
 }
 
 // A repaint with nothing changed emits nothing (all data rows skipped too).
