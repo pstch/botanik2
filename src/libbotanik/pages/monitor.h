@@ -59,7 +59,27 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t VAL_CAP    = 48;   // formatted value + diff cache
         static constexpr uint16_t LINE_CAP   = 192;  // row string buffer
         static constexpr uint16_t MAX_CACHE_ROWS = 40;
-        static constexpr uint16_t PAINT_IDLE = 0xFFFF;
+        /** @} */
+
+        /** @name Transaction keys
+         *  Every paint is a keyed transaction (owner 0xE0). All of the page's
+         *  work rides one lane - TX_STRUCT - so a scroll (submitted while input
+         *  is handled) and the value rows (submitted from tick()) stay in strict
+         *  FIFO order: the scroll's DL/IL always drains before any row paints over
+         *  the shifted band, whatever lane the weighted drain happens to lead
+         *  with. Data rows are keyed by screen row so a fresh paint replaces a
+         *  still-queued one; the scroll itself carries key 0 (never coalesced -
+         *  two scrolls must both apply).
+         *  @{ */
+        static constexpr uint16_t OWNER      = 0x00E0;
+        static constexpr uint32_t KEY_MARGIN = ((uint32_t)OWNER << 16) | 1;
+        static constexpr uint32_t KEY_HEADER = ((uint32_t)OWNER << 16) | 2;
+        static constexpr uint32_t KEY_TRULE  = ((uint32_t)OWNER << 16) | 3;
+        static constexpr uint32_t KEY_BRULE  = ((uint32_t)OWNER << 16) | 4;
+        static constexpr uint32_t KEY_FOOTER = ((uint32_t)OWNER << 16) | 5;
+        static uint32_t _row_key(uint16_t row) {
+            return ((uint32_t)OWNER << 16) | (uint32_t)(0x1000 + row);
+        }
         /** @} */
 
         /** @name State
@@ -71,12 +91,25 @@ namespace Botanik { namespace Pages {
         const void*         _base;
         bool                _active   = false;
         uint16_t            _top      = 0;           ///< first visible variable
-        uint16_t            _paint_i  = PAINT_IDLE;  ///< staged-paint cursor
-        uint64_t            _last_refresh_ms = 0;    ///< last value-diff refresh
-        /** @brief Per-screen-row value cache (diff gate); a scroll invalidates
-         *  it wholesale via the paced repaint. */
+        /** @brief Set on focus (a cleared screen): the next tick submits the
+         *  chrome and repaints every row. */
+        bool                _repaint_all = false;
+        /** @brief Per-window-row cache of the value last *drawn* at that screen
+         *  row: a value string for a data row, or the sentinels below for a
+         *  poisoned (force-redraw) or blank (past the set) row. Promoted from
+         *  _vsub only once the row's transaction has drained (see _repaint_changes),
+         *  so it always reflects the wire - dropping a still-queued row paint on a
+         *  scroll can never desync it. A scroll shifts the kept rows' entries to
+         *  match the DL/IL and poisons the revealed ones. */
         char                _vcache[MAX_CACHE_ROWS][VAL_CAP];
-        uint16_t            _painted_top = 0xFFFF;   ///< _top the cache reflects
+        /** @brief Value of the last *submitted* (queued, not-yet-drained) paint
+         *  for each row, and whether one is outstanding. The diff gate compares
+         *  the live value against this (when pending) or the drawn cache, so a
+         *  coalesced or dropped paint never leaves a value un-redrawn. */
+        char                _vsub[MAX_CACHE_ROWS][VAL_CAP];
+        bool                _vpend[MAX_CACHE_ROWS] = {};
+        static constexpr char POISON = '\xFF';   // force a redraw (never a value)
+        static constexpr char BLANK  = '\x7F';   // row is past the set (cleared)
         /** @} */
 
     public:
@@ -123,20 +156,20 @@ namespace Botanik { namespace Pages {
             _active = true;
             uint16_t maxtop = _max_top();
             if (_top > maxtop) _top = maxtop;
-            _request_repaint();      // switch_to cleared the screen; paint fresh
+            _repaint_all = true;     // switch_to cleared the screen; paint fresh
         }
 
         void tick(bool active) override {
             _active = active;
             if (!active) return;
-            if (_painting()) { _paint_step(); return; }
-            // Refresh values on a slow cadence, not every tick: the telemetry
-            // animates fast, and repainting each changed row every beat would
-            // load the TX ring and make scrolls (which paint immediately) lag
-            // behind the queued value updates. Scrolls bypass this throttle.
-            uint64_t now = HAL::Clock::uptime_ms();
-            if (now - _last_refresh_ms < Config::MONITOR_REFRESH_MS) return;
-            _last_refresh_ms = now;
+            if (_repaint_all) {
+                _submit_structure();
+                _poison_cache();     // force every row to redraw
+                _repaint_all = false;
+            }
+            // Submit any row whose value changed. No throttle: the diff gate only
+            // submits changes and coalescing collapses churn on the same row, so
+            // the scheduler (not a timer) paces the wire.
             _repaint_changes();
         }
 
@@ -213,19 +246,27 @@ namespace Botanik { namespace Pages {
             return (n < 0) ? 0 : (uint16_t)n;
         }
 
+        /** @brief Submit data row @p r at screen @p row as a TX_STRUCT
+         *  transaction keyed by the screen row. */
         void _draw_row(uint16_t r, uint16_t row) {
             char line[LINE_CAP];
             uint16_t n = _row_text(r, line, sizeof(line));
+            _terminal.tx_begin(Terminal::TX_STRUCT, _row_key(row));
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
             _terminal.write_chars(line, n);
             _terminal.clear_to_eol();
+            _terminal.tx_commit();
         }
 
+        /** @brief Blank screen @p row (a data row past the end of the set),
+         *  keyed like the data row so it coalesces with a stale paint. */
         void _clear_row(uint16_t row) {
+            _terminal.tx_begin(Terminal::TX_STRUCT, _row_key(row));
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
             _terminal.clear_to_eol();
+            _terminal.tx_commit();
         }
 
         void _draw_header() {
@@ -233,14 +274,16 @@ namespace Botanik { namespace Pages {
             int n = snprintf(line, sizeof(line), "%*s| %-*.*s | %-*.*s | %-*.*s |",
                              (int)MARGIN, "", GROUP_W, GROUP_W, "GROUP",
                              NAME_W, NAME_W, "VARIABLE", _value_w(), _value_w(), "VALUE");
+            _terminal.tx_begin(Terminal::TX_STRUCT, KEY_HEADER);
             _terminal.move_to({HEADER_ROW, 0});
             _terminal.set_inverted(false);
             _terminal.write_chars(line, (n < 0) ? 0 : (uint16_t)n);
             _terminal.clear_to_eol();
+            _terminal.tx_commit();
         }
 
         /** @brief Draw a rule row; @p cap ('^' / 'v' / '+') marks hidden rows. */
-        void _draw_rule(uint16_t row, char cap) {
+        void _draw_rule(uint16_t row, char cap, uint32_t key) {
             char line[LINE_CAP];
             uint16_t vw = _value_w();
             size_t k = 0;
@@ -252,10 +295,21 @@ namespace Botanik { namespace Pages {
             if (k < sizeof(line)) line[k++] = '+';
             for (uint16_t i = 0; i < vw + 2 && k < sizeof(line); i++)      line[k++] = '-';
             if (k < sizeof(line)) line[k++] = cap;
+            _terminal.tx_begin(Terminal::TX_STRUCT, key);
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
             _terminal.write_chars(line, (uint16_t)k);
             _terminal.clear_to_eol();
+            _terminal.tx_commit();
+        }
+
+        /** @brief Submit both rules, capping with '^' / 'v' when rows are hidden
+         *  above / below the window. */
+        void _draw_rules() {
+            uint16_t win = _window(), total = _total();
+            _draw_rule(TRULE_ROW, _top > 0 ? '^' : '+', KEY_TRULE);
+            _draw_rule((uint16_t)(_console.rows() - 2),
+                       (uint16_t)(_top + win) < total ? 'v' : '+', KEY_BRULE);
         }
 
         void _draw_footer() {
@@ -265,10 +319,61 @@ namespace Botanik { namespace Pages {
             int n = snprintf(line, sizeof(line),
                              " UP/DOWN scroll   PAGE UP/DOWN page      %u-%u / %u",
                              (unsigned)(total ? _top + 1 : 0), (unsigned)last, (unsigned)total);
+            _terminal.tx_begin(Terminal::TX_STRUCT, KEY_FOOTER);
             _terminal.move_to({(uint16_t)(_console.rows() - 1), 0});
             _terminal.set_inverted(false);
             _terminal.write_chars(line, (n < 0) ? 0 : (uint16_t)n);
             _terminal.clear_to_eol();
+            _terminal.tx_commit();
+        }
+
+        // Structure + cache helpers
+        // --------------------------------------------------------------------
+
+        /** @brief Submit the static chrome (margin, header, both rules, footer). */
+        void _submit_structure() {
+            _terminal.tx_begin(Terminal::TX_STRUCT, KEY_MARGIN);
+            _terminal.move_to({TOP_ROW, 0});
+            _terminal.set_inverted(false);
+            _terminal.clear_to_eol();
+            _terminal.tx_commit();
+            _draw_header();
+            _draw_rules();
+            _draw_footer();
+        }
+
+        /** @brief What screen row @p vi currently shows or is queued to show: the
+         *  submitted value while a paint is outstanding, else the drawn value. */
+        const char* _intended(uint16_t vi) const {
+            return _vpend[vi] ? _vsub[vi] : _vcache[vi];
+        }
+
+        /** @brief Adopt a drained row's submitted value as its drawn value, so the
+         *  cache reflects the wire (and shifting/dropping it stays consistent). */
+        void _promote(uint16_t vi, uint16_t row) {
+            if (_vpend[vi] && !_terminal.tx_has_key(Terminal::TX_STRUCT, _row_key(row))) {
+                memcpy(_vcache[vi], _vsub[vi], VAL_CAP);
+                _vpend[vi] = false;
+            }
+        }
+
+        /** @brief Record that a fresh paint carrying @p val was just submitted for
+         *  row @p vi (pending until it drains). */
+        void _mark_sub(uint16_t vi, const char* val) {
+            memcpy(_vsub[vi], val, VAL_CAP);
+            _vpend[vi] = true;
+        }
+
+        /** @brief Poison a row's drawn cache (force a redraw) and drop any pending
+         *  submit intent; the queued transaction itself is dropped separately. */
+        void _poison_row(uint16_t vi) {
+            if (vi >= MAX_CACHE_ROWS) return;
+            _vcache[vi][0] = POISON; _vcache[vi][1] = '\0';
+            _vpend[vi] = false;
+        }
+
+        void _poison_cache() {
+            for (uint16_t vi = 0; vi < MAX_CACHE_ROWS; vi++) _poison_row(vi);
         }
 
         // Scroll
@@ -283,110 +388,83 @@ namespace Botanik { namespace Pages {
             _top = (uint16_t)t;
             uint16_t win = _window();
             uint16_t nd  = (uint16_t)(d < 0 ? -d : d);
-            // Fast path (scroll the kept rows with the terminal, DL/IL, and paint
-            // only the newly-revealed rows) only with TX headroom: a full ring
-            // would drop the best-effort scroll and tear the layout, so fall back
-            // to the robust paced repaint. Also full-repaint when a staged one is
-            // in flight or there is no overlap to keep.
-            if (_painting() || nd >= win || !_terminal.tx_below_cold()) {
-                _request_repaint(); return;
+            // Drop the band's queued row paints: they were keyed to the old
+            // content and would land on the wrong variable after the shift. Safe
+            // because the drawn cache (not the dropped submits) is authoritative.
+            _drop_band_pending(win);
+            if (nd < win) {
+                // Overlap kept: shift it with a DL/IL scroll transaction and let
+                // _repaint_changes() (this tick) paint the poisoned revealed rows.
+                _submit_scroll(d > 0, nd, win);
+                _shift_cache(d > 0, nd, win);
+            } else {
+                // No overlap (a full page / ends jump): every row is revealed.
+                _poison_cache();
             }
-            _scroll_rows(d > 0, nd, win);
-        }
-
-        /** @brief Shift the data band by @p nd rows via scroll_region (DL/IL),
-         *  shift the value cache to match, and repaint only the revealed rows
-         *  plus the rules and footer. */
-        void _scroll_rows(bool down, uint16_t nd, uint16_t win) {
-            uint16_t total    = _total();
-            uint16_t band_bot = (uint16_t)(DATA_TOP + win - 1);
-            _terminal.set_cursor_visible(false);
-            _terminal.scroll_region(DATA_TOP, band_bot, /*up=*/down, nd);
-            if (down) {                                   // content up, reveal at bottom
-                for (uint16_t i = 0; (uint16_t)(i + nd) < win && (uint16_t)(i + nd) < MAX_CACHE_ROWS; i++)
-                    memcpy(_vcache[i], _vcache[i + nd], VAL_CAP);
-                for (uint16_t k = 0; k < nd; k++) _repaint_row((uint16_t)(win - nd + k), total);
-            } else {                                      // content down, reveal at top
-                for (int i = (int)win - 1; i >= (int)nd && i < MAX_CACHE_ROWS; i--)
-                    memcpy(_vcache[i], _vcache[i - nd], VAL_CAP);
-                for (uint16_t k = 0; k < nd; k++) _repaint_row(k, total);
-            }
-            _draw_rule(TRULE_ROW, _top > 0 ? '^' : '+');
-            _draw_rule((uint16_t)(_console.rows() - 2),
-                       (uint16_t)(_top + win) < total ? 'v' : '+');
+            // The scroll arrows and the position counter moved.
+            _draw_rules();
             _draw_footer();
-            _painted_top = _top;
         }
 
-        /** @brief Draw window row @p vi (blank past the set) and cache its value. */
-        void _repaint_row(uint16_t vi, uint16_t total) {
-            uint16_t row = (uint16_t)(DATA_TOP + vi);
-            uint16_t r   = (uint16_t)(_top + vi);
-            if (r < total) {
-                _draw_row(r, row);
-                if (vi < MAX_CACHE_ROWS) _value_text(r, _vcache[vi], VAL_CAP);
-            } else {
-                _clear_row(row);
+        /** @brief Submit the band's DL/IL shift as one atomic TX_STRUCT
+         *  transaction (key 0: scrolls never coalesce). */
+        void _submit_scroll(bool down, uint16_t nd, uint16_t win) {
+            uint16_t band_bot = (uint16_t)(DATA_TOP + win - 1);
+            _terminal.tx_begin(Terminal::TX_STRUCT, 0);
+            _terminal.scroll_region(DATA_TOP, band_bot, /*up=*/down, nd);
+            _terminal.tx_commit();
+        }
+
+        /** @brief Drop every queued data-row transaction in the band and clear its
+         *  pending flag (the drawn cache stays the source of truth). */
+        void _drop_band_pending(uint16_t win) {
+            for (uint16_t vi = 0; vi < win && vi < MAX_CACHE_ROWS; vi++) {
+                if (!_vpend[vi]) continue;
+                _terminal.tx_drop_key(Terminal::TX_STRUCT,
+                                      _row_key((uint16_t)(DATA_TOP + vi)));
+                _vpend[vi] = false;
             }
         }
 
-        // Staged paint (paced, shares AlarmsPage's TX-floor cadence)
-        // --------------------------------------------------------------------
-
-        bool _painting() const { return _paint_i != PAINT_IDLE; }
-        void _request_repaint() { _paint_i = 0; }
-
-        /** @brief Paint one staged element: 0 = top margin, 1 = header, 2 = top
-         *  rule, 3.. = data rows (each seeds its value cache), then bottom rule,
-         *  then footer. Order/count must match _paint_step()'s total. */
-        void _paint_element(uint16_t e, uint16_t win) {
-            if (e == 0) {
-                _terminal.set_cursor_visible(false);
-                _clear_row(TOP_ROW);
-            } else if (e == 1) {
-                _draw_header();
-            } else if (e == 2) {
-                _draw_rule(TRULE_ROW, _top > 0 ? '^' : '+');
-            } else if (e < (uint16_t)(3 + win)) {
-                _repaint_row((uint16_t)(e - 3), _total());
-            } else if (e == (uint16_t)(3 + win)) {
-                _draw_rule((uint16_t)(_console.rows() - 2),
-                           (uint16_t)(_top + win) < _total() ? 'v' : '+');
-            } else {
-                _draw_footer();
+        /** @brief Shift the drawn-value cache by @p nd rows to track the DL/IL,
+         *  poisoning the newly-revealed rows so _repaint_changes() redraws them.
+         *  The band's pending flags were already cleared by _drop_band_pending. */
+        void _shift_cache(bool down, uint16_t nd, uint16_t win) {
+            if (down) {                                   // content up, reveal bottom
+                for (uint16_t vi = 0; (uint16_t)(vi + nd) < win &&
+                                      (uint16_t)(vi + nd) < MAX_CACHE_ROWS; vi++)
+                    memcpy(_vcache[vi], _vcache[vi + nd], VAL_CAP);
+                for (uint16_t vi = (uint16_t)(win - nd); vi < win; vi++) _poison_row(vi);
+            } else {                                      // content down, reveal top
+                for (int vi = (int)win - 1; vi >= (int)nd && vi < (int)MAX_CACHE_ROWS; vi--)
+                    memcpy(_vcache[vi], _vcache[vi - nd], VAL_CAP);
+                for (uint16_t vi = 0; vi < nd; vi++) _poison_row(vi);
             }
         }
 
-        /** @brief Advance the staged repaint: at most TX_COLD_FIELDS_PER_TICK
-         *  elements this tick, only while the ring is shallow. */
-        void _paint_step() {
-            uint16_t win   = _window();
-            uint16_t count = (uint16_t)(win + 5);   // top+header+trule+data+brule+footer
-            uint16_t budget = Config::TX_COLD_FIELDS_PER_TICK;
-            while (_paint_i < count && budget > 0 && _terminal.tx_below_cold()) {
-                _paint_element(_paint_i, win);
-                _paint_i++;
-                budget--;
-            }
-            if (_paint_i >= count) {
-                _painted_top = _top;
-                _paint_i = PAINT_IDLE;
-            }
-        }
-
-        /** @brief Repaint only rows whose value changed (steady, no scroll). */
+        /** @brief Submit any window row whose value no longer matches what is (or
+         *  is queued to be) on screen: a data row that changed or was poisoned by a
+         *  scroll, or a row that fell past the end of the set (blanked). Promotes a
+         *  drained row's cache first, and diffs against the intended value so a
+         *  coalesced/dropped paint is re-submitted rather than lost. */
         void _repaint_changes() {
-            if (_top != _painted_top) { _request_repaint(); return; }
-            uint16_t win   = _window();
-            uint16_t total = _total();
-            uint16_t shown = (total - _top < win) ? (uint16_t)(total - _top) : win;
+            uint16_t win = _window(), total = _total();
             char val[VAL_CAP];
-            for (uint16_t vi = 0; vi < shown && vi < MAX_CACHE_ROWS; vi++) {
-                uint16_t r = (uint16_t)(_top + vi);
-                _value_text(r, val, sizeof(val));
-                if (strcmp(val, _vcache[vi]) == 0) continue;
-                _draw_row(r, (uint16_t)(DATA_TOP + vi));
-                memcpy(_vcache[vi], val, VAL_CAP);
+            for (uint16_t vi = 0; vi < win; vi++) {
+                uint16_t r    = (uint16_t)(_top + vi);
+                uint16_t row  = (uint16_t)(DATA_TOP + vi);
+                bool cached   = vi < MAX_CACHE_ROWS;
+                if (cached) _promote(vi, row);
+                if (r < total) {
+                    _value_text(r, val, sizeof(val));
+                    if (!cached || strcmp(val, _intended(vi)) != 0) {
+                        _draw_row(r, row);
+                        if (cached) _mark_sub(vi, val);
+                    }
+                } else if (!cached || _intended(vi)[0] != BLANK) {
+                    _clear_row(row);
+                    if (cached) { _vsub[vi][0] = BLANK; _vsub[vi][1] = '\0'; _vpend[vi] = true; }
+                }
             }
         }
     };
