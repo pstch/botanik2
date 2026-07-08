@@ -38,6 +38,9 @@ namespace Botanik { namespace Terminal {
             (uint16_t)std::min((uint16_t)(_rows > 0 ? _rows - 1 : 0), target_in.row),
             (uint16_t)std::min((uint16_t)(_cols > 0 ? _cols - 1 : 0), target_in.col),
         };
+        // A direct move (not recording a transaction, not draining one) sets the
+        // desired live cursor - where tx_drain() re-homes a visible cursor to.
+        if (!_recording && !_draining) _live_cursor_pos = target;
         // While recording, the first move_to fixes the transaction's base: the
         // scheduler emits the optimal move to it at drain, so it is not recorded.
         if (_recording && _rec_base_pending) {
@@ -466,9 +469,14 @@ namespace Botanik { namespace Terminal {
     void AnsiTerminal::tx_drain() {
         uint16_t used   = tx_used();
         uint16_t budget = (used < _tx_cold_depth) ? (uint16_t)(_tx_cold_depth - used) : 0;
-        // The terminal is the emitter; emit() tracks the real cursor exactly, so
-        // no shadow invalidation is needed afterwards.
-        _tx.drain(*this, budget, _tx_cold_depth);
+        // The terminal is the emitter; emit() tracks the real cursor exactly.
+        _draining = true;
+        uint16_t sent = _tx.drain(*this, budget, _tx_cold_depth);
+        _draining = false;
+        // A drained transaction left the real cursor at its end. If a live cursor
+        // is showing (the shell editor), re-home it to where the renderer wants it
+        // so a row-0 value update can't strand it.
+        if (sent > 0 && _hw_cursor_visible) move_to(_live_cursor_pos);
     }
 
 }}

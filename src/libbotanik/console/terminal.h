@@ -140,6 +140,11 @@ namespace Botanik { namespace Terminal {
         bool        _rec_base_pending = false;
         CursorPos   _txn_base = {0, 0};   ///< where the content paints from
         CursorPos   _txn_end  = {0, 0};   ///< where the content leaves the cursor
+        /** @brief Desired live cursor: where a direct move_to last put it (not
+         *  drain's transaction moves). Re-homed after tx_drain() when visible, so
+         *  a value update on row 0 can't strand the shell editor's cursor. */
+        bool        _draining = false;
+        CursorPos   _live_cursor_pos = {0, 0};
         /** @brief Shadow saved at tx_begin() and restored at tx_commit(): the
          *  recorded bytes are queued, not sent, so the real cursor has not moved. */
         CursorPos   _txn_saved_pos = {0, 0};
