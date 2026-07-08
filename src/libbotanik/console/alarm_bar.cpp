@@ -75,16 +75,12 @@ namespace Botanik { namespace Terminal {
         uint64_t sig = unmasked_set();
         if (sig != _sig) _dirty = true;
         if (!_dirty) return;
-        // cooperative: wait for a shallow ring
-        if (!_t.tx_below_cold()) return;
-
-        // Save the page cursor and its visibility: the bar paints on the bottom
-        // row and must hand the cursor back where the page left it (a visible
-        // shell cursor would otherwise blink on the bar). Mirrors the status bar.
-        AnsiTerminal::CursorSnapshot snap = _t.save_cursor();
-        _t.set_cursor_visible(false);
+        // Submit the whole bar as a coalescing transaction; the queue paces it,
+        // and the drain's cursor re-assertion keeps a visible page cursor put.
+        static const uint32_t KEY_ALARMBAR = 0xF0010003u;   // chrome owner, id 3
+        _t.tx_begin(TX_STRUCT, KEY_ALARMBAR);
         draw();
-        _t.restore_cursor(snap);
+        _t.tx_commit();
         _sig   = sig;
         _dirty = false;
     }
