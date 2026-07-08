@@ -133,25 +133,34 @@ namespace Botanik { namespace Terminal {
     }
 
     void StatusBar::invalidate() {
+        // A full redraw repaints the background under both fields, so any
+        // in-flight submitted-but-not-drawn transaction is now moot: clear the
+        // drawn caches AND the pending flags so the next refresh diffs from
+        // scratch (drop_owner on the switch already dropped the queued tx).
         memset(_metrics_cache, 0, sizeof(_metrics_cache));
         memset(_clock_cache,   0, sizeof(_clock_cache));
+        _metrics_sub_v = false;
+        _clock_sub_v   = false;
     }
 
     // Field painters
 
     void StatusBar::submit_field(uint16_t col, const char* field, uint16_t len,
-                                 uint32_t hi, char* cache, uint32_t key) {
-        // Whole field (self-contained), so a coalesced-away predecessor never
-        // leaves a stale column. The diff-gate in the callers decides whether to
-        // submit at all; the queue drops superseded updates.
-        uint32_t all = (len >= 32) ? 0xFFFFFFFFu : (uint32_t)((1u << len) - 1);
+                                 uint32_t hi, uint32_t key, uint32_t emit) {
+        // Only the changed cells (per-cell diff). The callers diff against the
+        // *drawn* cache, so `emit` covers every cell pending since the last draw -
+        // a coalesced-away predecessor leaves nothing stale.
         _t.tx_begin(TX_VALUE, key);
-        _t.paint_field_runs(0, col, field, len, all, hi);
+        _t.paint_field_runs(0, col, field, len, emit, hi);
         _t.tx_commit();
-        memcpy(cache, field, (size_t)len);
     }
 
     bool StatusBar::update_metrics() {
+        // Promote the last submitted field to "drawn" once its transaction drained.
+        if (_metrics_sub_v && !_t.tx_has_key(TX_VALUE, KEY_METRICS)) {
+            memcpy(_metrics_cache, _metrics_sub, METRICS_LEN);
+            _metrics_sub_v = false;
+        }
         char metrics[METRICS_LEN];
         int mlen = build_metrics(metrics, sizeof(metrics));
 
@@ -162,18 +171,26 @@ namespace Botanik { namespace Terminal {
         uint16_t metrics_col = (uint16_t)(_t.cols() - visible);
 
         // The bar is reverse video except the live readings (plc/cpu/stk), drawn
-        // normal. Diff-gate on change; highlight mask inverts all but the value cols.
+        // normal. Diff against the drawn cache; highlight mask inverts all but the
+        // value cols.
         uint32_t emit = Field::changed(metrics, _metrics_cache, visible, false);
         if (emit == 0) return true;   // already in sync
         uint32_t hi = 0;
         for (uint16_t i = 0; i < visible; ++i)
             if (!metric_value_col(i)) hi |= (1u << i);
 
-        submit_field(metrics_col, metrics, visible, hi, _metrics_cache, KEY_METRICS);
+        submit_field(metrics_col, metrics, visible, hi, KEY_METRICS, emit);
+        memcpy(_metrics_sub, metrics, (size_t)visible);   // pending until it drains
+        _metrics_sub_v = true;
         return true;
     }
 
     bool StatusBar::update_clock() {
+        // Promote the last submitted clock to "drawn" once its transaction drained.
+        if (_clock_sub_v && !_t.tx_has_key(TX_VALUE, KEY_CLOCK)) {
+            memcpy(_clock_cache, _clock_sub, CLOCK_LEN);
+            _clock_sub_v = false;
+        }
         // Wall-clock HH:MM:SS (same source as the STATUS page's "Wall Clock").
         Utils::CalendarTime wc = Utils::cal_time_ms(HAL::Clock::uptime_ms());
         // Oversized scratch so snprintf can't truncation-warn; only the first
@@ -197,7 +214,9 @@ namespace Botanik { namespace Terminal {
         uint32_t emit = Field::changed(clk, _clock_cache, CLOCK_LEN, false);
         if (emit == 0) return false;
 
-        submit_field(clock_col, clk, CLOCK_LEN, 0u, _clock_cache, KEY_CLOCK);
+        submit_field(clock_col, clk, CLOCK_LEN, 0u, KEY_CLOCK, emit);
+        memcpy(_clock_sub, clk, CLOCK_LEN);   // pending until it drains
+        _clock_sub_v = true;
         return true;
     }
 

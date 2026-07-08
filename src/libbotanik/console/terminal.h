@@ -392,6 +392,10 @@ namespace Botanik { namespace Terminal {
          *  focus); see TxScheduler::drop_owner(). */
         void tx_drop_owner(uint16_t owner) { _tx.drop_owner(owner); }
 
+        /** @brief True while a transaction with @p key is still queued on @p lane
+         *  (not yet drained); see TxScheduler::has_key(). */
+        bool tx_has_key(uint8_t lane, uint32_t key) const { return _tx.has_key(lane, key); }
+
         /** @brief Drain queued transactions into the TX ring within this tick's
          *  byte budget (the room below the cold floor). Called once per loop by
          *  the Console after the renderers have submitted. */

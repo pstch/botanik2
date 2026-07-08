@@ -153,6 +153,11 @@ namespace Botanik { namespace Terminal {
         }
     }
 
+    bool TxScheduler::has_key(uint8_t lane, uint32_t key) const {
+        if (lane >= TX_LANE_COUNT || key == 0) return false;
+        return _lane_find_key(lane, key) != NIL;
+    }
+
     uint16_t TxScheduler::queued() const {
         uint16_t n = 0;
         for (uint8_t l = 0; l < TX_LANE_COUNT; l++)

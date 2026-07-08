@@ -117,6 +117,10 @@ namespace Botanik { namespace Terminal {
          *  @{ */
         uint16_t queued() const;
         uint32_t dropped() const { return _dropped; }
+        /** @brief True if a transaction with @p key is still queued on @p lane
+         *  (not yet drained). Lets a renderer defer its "drawn" diff cache until
+         *  its update actually reached the wire. */
+        bool has_key(uint8_t lane, uint32_t key) const;
         /** @} */
 
     private:
