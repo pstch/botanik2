@@ -151,6 +151,7 @@ namespace Botanik { namespace Terminal {
         bool        _txn_saved_inv = false;
         bool        _txn_saved_eol = false;
         bool        _txn_saved_cur = false;
+        bool        _txn_saved_ins = false;   ///< SM4/RM4 insert mode across a txn
 
         /** @} */
 

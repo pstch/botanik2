@@ -421,13 +421,17 @@ namespace Botanik { namespace Terminal {
         _txn_saved_inv = _hw_inverted;
         _txn_saved_eol = _hw_at_eol;
         _txn_saved_cur = _hw_cursor_visible;
+        _txn_saved_ins = _hw_insert_mode;
         // Recording baseline: the first move_to fixes the base (captured by
-        // move_to), content records relative to it, in normal video.
+        // move_to), content records relative to it, in normal video and replace
+        // (RM4) mode. So content carries no stray SGR/SM4 that a differing real
+        // state would make wrong when the transaction is emitted.
         _rec_base_pending = true;
-        _txn_base    = {0, 0};
-        _hw_inverted = false;
-        _hw_at_eol   = false;
-        _recording   = true;
+        _txn_base       = {0, 0};
+        _hw_inverted    = false;
+        _hw_insert_mode = false;
+        _hw_at_eol      = false;
+        _recording      = true;
         // Route the ops' bytes into the record buffer instead of the ring.
         _record.reset(_txn_buf, (uint16_t)sizeof(_txn_buf));
         _sink = &_record;
@@ -445,6 +449,7 @@ namespace Botanik { namespace Terminal {
         _hw_inverted       = _txn_saved_inv;
         _hw_at_eol         = _txn_saved_eol;
         _hw_cursor_visible = _txn_saved_cur;
+        _hw_insert_mode    = _txn_saved_ins;
         if (len > 0)
             _tx.submit(_txn_lane, _txn_key, _txn_base.row, _txn_base.col,
                        _txn_end.row, _txn_end.col, _txn_buf, len);
@@ -459,10 +464,15 @@ namespace Botanik { namespace Terminal {
         uint16_t before = tx_used();
         move_to({base_row, base_col});          // minimal move from the real cursor
         if (_hw_inverted) set_inverted(false);  // content assumes normal video
+        if (_hw_insert_mode) {                   // ...and replace (RM4) mode
+            Ansi::set_insert_mode(_serial, false);
+            _hw_insert_mode = false;
+        }
         _serial.write(content, len);            // fits (gated above)
-        _hw_pos      = {end_row, end_col};       // content left the cursor here
-        _hw_inverted = false;                    // content is balanced (ends normal)
-        _hw_at_eol   = false;
+        _hw_pos         = {end_row, end_col};    // content left the cursor here
+        _hw_inverted    = false;                 // content is balanced (ends normal)
+        _hw_insert_mode = false;                 // ...and replace
+        _hw_at_eol      = false;
         return (uint16_t)(tx_used() - before);
     }
 
