@@ -36,9 +36,6 @@ namespace Botanik { namespace Terminal {
         uint64_t            _last_ms = 0;
         /** @brief Last clock refresh (uptime ms). */
         uint64_t            _clock_last_ms = 0;
-        /** @brief Round-robin cursor over the two paced fields (0 = clock,
-         *  1 = metrics) so a tight budget rotates which repaints first. */
-        uint8_t             _field = 0;
 
         /** @brief Visible width (+NUL) of "PLC:xxx cpu:nnn% stk:nnn% ". Build
          *  buffer and diff cache share this constant so they can't drift. */
@@ -99,26 +96,22 @@ namespace Botanik { namespace Terminal {
         /** @name Field painters
          *  @{ */
 
-        /** @brief Refresh only the metrics field (skips if unchanged).
-         *  @p restore_pos returns the cursor to where it started (a standalone
-         *  periodic refresh); draw_row passes false. @return true once the field
-         *  is in sync. */
-        bool update_metrics(bool restore_pos = true);
+        /** @brief Refresh the metrics field: if it changed, submit a coalescing
+         *  transaction. @return true (kept for the caller's cadence bookkeeping). */
+        bool update_metrics();
 
-        /** @brief Refresh the centred HH:MM:SS clock (skipped on a very narrow
-         *  terminal). @p restore_pos as for update_metrics(). @return true if it
-         *  emitted (a digit changed), to charge the field budget. */
-        bool update_clock(bool restore_pos = true);
+        /** @brief Refresh the centred HH:MM:SS clock the same way (skipped on a
+         *  very narrow terminal). @return true if it submitted an update. */
+        bool update_clock();
 
         /** @brief Render the right-side metrics field into @p buf (fixed width,
          *  so a byte index maps to a fixed column); returns its length. */
         int build_metrics(char* buf, size_t cap) const;
 
-        /** @brief Paint the @p emit columns of @p field at (row 0, @p col) with
-         *  @p hi as the inverted mask, snapshot it into @p cache, and restore the
-         *  bar's video (and, when @p restore_pos, the cursor). */
-        void paint_field(uint16_t col, const char* field, uint16_t len,
-                         uint32_t emit, uint32_t hi, char* cache, bool restore_pos);
+        /** @brief Submit @p field (whole, @p hi inverted mask) at (row 0, @p col)
+         *  as a @p key-coalesced transaction, and snapshot it into @p cache. */
+        void submit_field(uint16_t col, const char* field, uint16_t len,
+                          uint32_t hi, char* cache, uint32_t key);
 
         /** @} */
     };

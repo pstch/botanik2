@@ -36,28 +36,21 @@ namespace Botanik { namespace Terminal {
 
     // Cooperative paint
 
+    // Coalescing keys for the two chrome fields (owner 0xF001, not a page).
+    static const uint32_t KEY_CLOCK   = 0xF0010001u;
+    static const uint32_t KEY_METRICS = 0xF0010002u;
+
     void StatusBar::step(uint64_t now) {
-        // The clock and metrics share TX_STATUS_FIELDS_PER_TICK and the depth
-        // floor; the round-robin cursor rotates which repaints first so a tight
-        // budget never favours the clock. A field repaints only on its cadence;
-        // an unchanged field spends no budget.
-        uint16_t budget = Config::TX_STATUS_FIELDS_PER_TICK;
-        for (uint8_t v = 0; v < 2 && budget > 0 && _t.tx_below_cold(); v++) {
-            if (_field == 0) {
-                if (now - _clock_last_ms >= Config::PAGE_HOT_MS) {
-                    _clock_last_ms = now;
-                    if (update_clock()) budget--;
-                }
-            } else {
-                if (now - _last_ms >= Config::STATUS_REFRESH_MS) {
-                    // Advance the refresh clock only once the pass fully synced
-                    // the on-screen metrics; a partial run leaves it for the
-                    // next tick instead of waiting out another STATUS_REFRESH_MS.
-                    if (update_metrics()) _last_ms = now;
-                    budget--;
-                }
-            }
-            _field ^= 1;
+        // Refresh the clock and metrics on their own cadence; each submits a
+        // coalescing transaction that the scheduler paces. No per-tick budget or
+        // round-robin here - the TX queue owns priority and pacing.
+        if (now - _clock_last_ms >= Config::PAGE_HOT_MS) {
+            _clock_last_ms = now;
+            update_clock();
+        }
+        if (now - _last_ms >= Config::STATUS_REFRESH_MS) {
+            _last_ms = now;
+            update_metrics();
         }
     }
 
@@ -84,13 +77,13 @@ namespace Botanik { namespace Terminal {
         uint16_t metrics_col = (_t.cols() > mlen) ? (uint16_t)(_t.cols() - mlen) : 0;
         _t.fill_spaces(metrics_col);
 
-        // Right + centre: invalidate the diff caches, then let the field
-        // painters draw - they know the per-field video and truncate narrow.
+        // Right + centre: invalidate the diff caches, then submit the two fields
+        // as transactions (they drain over this direct background next tick).
         invalidate();
-        update_metrics(/*restore_pos=*/false);
-        update_clock(/*restore_pos=*/false);
+        update_metrics();
+        update_clock();
 
-        // Restore only the attribute; the cursor is left where the metrics
+        // Restore only the attribute; the cursor is left where fill_spaces
         // parked it (the caller repositions absolutely).
         _t.set_inverted(saved_inv);
     }
@@ -146,18 +139,19 @@ namespace Botanik { namespace Terminal {
 
     // Field painters
 
-    void StatusBar::paint_field(uint16_t col, const char* field, uint16_t len,
-                                uint32_t emit, uint32_t hi, char* cache,
-                                bool restore_pos) {
-        AnsiTerminal::CursorSnapshot snap = _t.save_cursor();
-        _t.paint_field_runs(0, col, field, len, emit, hi);
+    void StatusBar::submit_field(uint16_t col, const char* field, uint16_t len,
+                                 uint32_t hi, char* cache, uint32_t key) {
+        // Whole field (self-contained), so a coalesced-away predecessor never
+        // leaves a stale column. The diff-gate in the callers decides whether to
+        // submit at all; the queue drops superseded updates.
+        uint32_t all = (len >= 32) ? 0xFFFFFFFFu : (uint32_t)((1u << len) - 1);
+        _t.tx_begin(TX_VALUE, key);
+        _t.paint_field_runs(0, col, field, len, all, hi);
+        _t.tx_commit();
         memcpy(cache, field, (size_t)len);
-        // Periodic refreshes restore the cursor to where the page left it;
-        // draw_row passes false (its caller repositions absolutely).
-        _t.restore_cursor(snap, restore_pos);
     }
 
-    bool StatusBar::update_metrics(bool restore_pos) {
+    bool StatusBar::update_metrics() {
         char metrics[METRICS_LEN];
         int mlen = build_metrics(metrics, sizeof(metrics));
 
@@ -168,25 +162,18 @@ namespace Botanik { namespace Terminal {
         uint16_t metrics_col = (uint16_t)(_t.cols() - visible);
 
         // The bar is reverse video except the live readings (plc/cpu/stk), drawn
-        // normal. Changed-column mask + highlight mask (inverted everywhere but
-        // the value cols) over the visible field.
+        // normal. Diff-gate on change; highlight mask inverts all but the value cols.
         uint32_t emit = Field::changed(metrics, _metrics_cache, visible, false);
         if (emit == 0) return true;   // already in sync
         uint32_t hi = 0;
         for (uint16_t i = 0; i < visible; ++i)
             if (!metric_value_col(i)) hi |= (1u << i);
 
-        // Hide the cursor before painting so it can't blink across row 0 while
-        // the bar updates (no-op if already hidden). The guaranteed floor fits a
-        // whole field, so paint and cache it in one pass.
-        bool saved_cur = _t.cursor_visible();
-        _t.set_cursor_visible(false);
-        paint_field(metrics_col, metrics, visible, emit, hi, _metrics_cache, restore_pos);
-        _t.set_cursor_visible(saved_cur);   // back at the page position
+        submit_field(metrics_col, metrics, visible, hi, _metrics_cache, KEY_METRICS);
         return true;
     }
 
-    bool StatusBar::update_clock(bool restore_pos) {
+    bool StatusBar::update_clock() {
         // Wall-clock HH:MM:SS (same source as the STATUS page's "Wall Clock").
         Utils::CalendarTime wc = Utils::cal_time_ms(HAL::Clock::uptime_ms());
         // Oversized scratch so snprintf can't truncation-warn; only the first
@@ -210,7 +197,7 @@ namespace Botanik { namespace Terminal {
         uint32_t emit = Field::changed(clk, _clock_cache, CLOCK_LEN, false);
         if (emit == 0) return false;
 
-        paint_field(clock_col, clk, CLOCK_LEN, emit, 0u, _clock_cache, restore_pos);
+        submit_field(clock_col, clk, CLOCK_LEN, 0u, _clock_cache, KEY_CLOCK);
         return true;
     }
 
