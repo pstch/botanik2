@@ -153,6 +153,22 @@ namespace Botanik { namespace Terminal {
         }
     }
 
+    void TxScheduler::drop_key(uint8_t lane, uint32_t key) {
+        if (lane >= TX_LANE_COUNT || key == 0) return;
+        uint8_t prev = NIL, i = _head[lane];
+        while (i != NIL) {
+            uint8_t next = _slot[i].next;
+            if (_slot[i].key == key) {
+                if (prev == NIL) _head[lane] = next; else _slot[prev].next = next;
+                if (_tail[lane] == i) _tail[lane] = prev;
+                _release(i);
+                return;   // keys are unique within a lane
+            }
+            prev = i;
+            i = next;
+        }
+    }
+
     bool TxScheduler::has_key(uint8_t lane, uint32_t key) const {
         if (lane >= TX_LANE_COUNT || key == 0) return false;
         return _lane_find_key(lane, key) != NIL;

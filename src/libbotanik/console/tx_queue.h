@@ -108,6 +108,11 @@ namespace Botanik { namespace Terminal {
          *  equals @p owner (a page leaving focus). Not counted as a drop. */
         void drop_owner(uint16_t owner);
 
+        /** @brief Drop the queued transaction with @p key on @p lane, if any (a
+         *  renderer superseding one specific pending paint - e.g. the edit line
+         *  taking over a row whose idle hint is still queued). Not a drop count. */
+        void drop_key(uint8_t lane, uint32_t key);
+
         /** @brief Drop all queued transactions. */
         void clear();
 
