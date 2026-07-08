@@ -8,10 +8,10 @@
  *
  * Three fields on the reverse-video top row: page tabs (left), a centred
  * HH:MM:SS clock, and a right-aligned "PLC:xxx cpu:nnn% stk:nnn%" metrics field.
- * Owned by AnsiTerminal and painted cooperatively over the active page each
- * step(): the clock and metrics share TX_STATUS_FIELDS_PER_TICK and the depth
- * floor, a round-robin cursor rotating which repaints first, and each field
- * diffs against its own cache so an unchanged field spends no TX budget.
+ * Owned by AnsiTerminal. The clock and metrics refresh on their own cadence,
+ * each submitting a keyed TX_VALUE transaction (the scheduler paces + coalesces
+ * them); per-cell diffing against the drawn cache means an unchanged field, or an
+ * unchanged cell within a field, spends no TX bytes.
  */
 
 #include <cstddef>

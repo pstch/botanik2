@@ -494,16 +494,7 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, PAGE_HOT_MS);
 
-    /** @brief Value-refresh interval (ms) for the MONITOR page. Slow on purpose:
-     *  the status variables animate fast, so refreshing every tick would load
-     *  the TX ring and make scrolls lag behind queued value updates.
-     *  @note Time-based (refresh rate independent of the tick interval). */
-#ifndef BOTANIK_MONITOR_REFRESH_MS
-#  define BOTANIK_MONITOR_REFRESH_MS 1000
-#endif
-    BOTANIK_CFG(uint32_t, MONITOR_REFRESH_MS);
-
-    /** @brief Log lines the Home page keeps in its bottom log tail. 
+    /** @brief Log lines the Home page keeps in its bottom log tail.
      *  @note Small on purpose: a live "last few entries" widget, 
      *        not a full scrollback like the Logs page. */
 #ifndef BOTANIK_HOME_SCROLLBACK_LINES
