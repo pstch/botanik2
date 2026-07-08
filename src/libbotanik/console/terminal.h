@@ -104,10 +104,31 @@ namespace Botanik { namespace Terminal {
          *  docs/TX_QUEUE_DESIGN.md)
          *  @{ */
 
+        /** @brief A ByteSink over a fixed buffer: the terminal points _sink here
+         *  while recording so its ops (and the Ansi helpers) capture their bytes
+         *  instead of reaching the ring. */
+        struct BufSink : public Utils::ByteSink {
+            char*    buf = nullptr;
+            uint16_t cap = 0, len = 0;
+            void reset(char* b, uint16_t c) { buf = b; cap = c; len = 0; }
+            uint16_t availableForWrite() const override { return (uint16_t)(cap - len); }
+            uint16_t write(const char* s, uint16_t n) override {
+                uint16_t room = (uint16_t)(cap - len);
+                uint16_t w = (n < room) ? n : room;
+                for (uint16_t i = 0; i < w; i++) buf[len + i] = s[i];
+                len = (uint16_t)(len + w);
+                return w;
+            }
+        };
+
         /** @brief The priority-laned transaction queue drained into the ring by
          *  tx_drain(). */
         TxScheduler _tx;
-        /** @brief Scratch the current transaction's bytes are captured into. */
+        /** @brief Byte destination for every op: the TX ring (BufferedSerial)
+         *  normally, the record buffer between tx_begin() and tx_commit(). */
+        Utils::ByteSink* _sink = &_serial;
+        BufSink     _record;
+        /** @brief Scratch the current transaction's bytes are recorded into. */
         char        _txn_buf[Config::TX_QUEUE_SLOT_LEN];
         bool        _recording = false;
         uint8_t     _txn_lane  = 0;

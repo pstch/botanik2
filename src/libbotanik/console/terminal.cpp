@@ -50,24 +50,24 @@ namespace Botanik { namespace Terminal {
             // terminal parks further right), so a relative move lands short:
             // reposition absolutely.
             if (_hw_at_eol) {
-                ok = Ansi::goto_absolute(_serial, target);
+                ok = Ansi::goto_absolute(*_sink, target);
             }
             // Prefer a relative move when sharing the target's row or column
             // (never longer than an absolute goto); absolute is for true
             // diagonals only.
             else if (target.row == _hw_pos.row) { // Same row
                 if (target.col == 0) {
-                    ok = Ansi::move_row_start(_serial);   // 1-byte CR beats CUB
+                    ok = Ansi::move_row_start(*_sink);   // 1-byte CR beats CUB
                 } else if (target.col < _hw_pos.col) {
-                    ok = Ansi::move_left(_serial, _hw_pos.col - target.col);
+                    ok = Ansi::move_left(*_sink, _hw_pos.col - target.col);
                 } else {
-                    ok = Ansi::move_right(_serial, target.col - _hw_pos.col);
+                    ok = Ansi::move_right(*_sink, target.col - _hw_pos.col);
                 }
             } else if (target.col == _hw_pos.col) { // Same column
                 if (target.row < _hw_pos.row) {
-                    ok = Ansi::move_up(_serial, _hw_pos.row - target.row);
+                    ok = Ansi::move_up(*_sink, _hw_pos.row - target.row);
                 } else {
-                    ok = Ansi::move_down(_serial, target.row - _hw_pos.row);
+                    ok = Ansi::move_down(*_sink, target.row - _hw_pos.row);
                 }
             } else if (target.col == 0 && target.row > _hw_pos.row
                        && (target.row - _hw_pos.row) < 4
@@ -75,10 +75,10 @@ namespace Botanik { namespace Terminal {
                 // Common "spawn next row" target - CR + LF(s) is cheaper than
                 // goto_absolute. Bounded off the last row so a stray LF can't
                 // scroll.
-                ok = Ansi::down_to_row_start(_serial,
+                ok = Ansi::down_to_row_start(*_sink,
                                              (uint16_t)(target.row - _hw_pos.row));
             } else { // Different row and column, use absolute move
-                ok = Ansi::goto_absolute(_serial, target);
+                ok = Ansi::goto_absolute(*_sink, target);
             }
         }
         if (ok) {
@@ -109,14 +109,14 @@ namespace Botanik { namespace Terminal {
             // Commit the latch only if the toggle reached the wire. Latching
             // past a dropped RM4 would let a later replace-mode write paint in
             // insert mode and corrupt the line; bail and let the caller redraw.
-            if (!Ansi::set_insert_mode(_serial, insert)) return 0;
+            if (!Ansi::set_insert_mode(*_sink, insert)) return 0;
             _hw_insert_mode = insert;
         }
 
         // Track only what reached the wire: write() drops the tail when TX
         // fills, so advancing _hw_pos by the full len would desync tracking.
         // Dropped glyphs are content loss a redraw fixes; a wrong cursor isn't.
-        uint16_t written = _serial.write(s, len);
+        uint16_t written = _sink->write(s, len);
         uint32_t new_col = (uint32_t)_hw_pos.col + written;
         if (new_col >= _cols) {
             if (_hw_auto_wrap) {
@@ -143,18 +143,18 @@ namespace Botanik { namespace Terminal {
         // can't swallow following payload bytes.
         constexpr uint16_t SGR_MAX =
             (sizeof(Ansi::CSI) - 1) + (sizeof(Ansi::ATTR_NEG) - 1);
-        if (_serial.availableForWrite() < SGR_MAX) return;
+        if (_sink->availableForWrite() < SGR_MAX) return;
 
-        _serial.write(Ansi::CSI, sizeof(Ansi::CSI) - 1);
-        if (enable) _serial.write(Ansi::ATTR_NEG,  sizeof(Ansi::ATTR_NEG) - 1);
-        else        _serial.write(Ansi::ATTR_NONE, sizeof(Ansi::ATTR_NONE) - 1);
+        _sink->write(Ansi::CSI, sizeof(Ansi::CSI) - 1);
+        if (enable) _sink->write(Ansi::ATTR_NEG,  sizeof(Ansi::ATTR_NEG) - 1);
+        else        _sink->write(Ansi::ATTR_NONE, sizeof(Ansi::ATTR_NONE) - 1);
         _hw_inverted = enable;
     }
 
     void AnsiTerminal::set_auto_wrap(bool enable) {
         // Only commit the tracked mode if the sequence reached the wire: a stale
         // _hw_auto_wrap makes write_chars mispredict the wrap and smear _hw_pos.
-        if (!Ansi::set_auto_wrap(_serial, enable)) return;
+        if (!Ansi::set_auto_wrap(*_sink, enable)) return;
         _hw_auto_wrap = enable;
     }
 
@@ -163,7 +163,7 @@ namespace Botanik { namespace Terminal {
         // Only commit the tracked state if the sequence actually reached the
         // wire, so a TX-full skip is retried on the next call rather than
         // silently lost.
-        if (!Ansi::set_cursor_visible(_serial, show)) return;
+        if (!Ansi::set_cursor_visible(*_sink, show)) return;
         _hw_cursor_visible = show;
     }
 
@@ -185,18 +185,18 @@ namespace Botanik { namespace Terminal {
     void AnsiTerminal::delete_chars(uint16_t len) {
         if (len == 0) return;
         // DCH shifts content left; cursor unaffected
-        Ansi::delete_chars(_serial, len);
+        Ansi::delete_chars(*_sink, len);
     }
 
     void AnsiTerminal::clear_to_eol() {
         // Cursor parked at the last cell after a row-filling write: nothing
         // past it to erase, and the parked cell holds valid content.
         if (_hw_at_eol) return;
-        Ansi::clear_to_eol(_serial);  // EL leaves the cursor in place
+        Ansi::clear_to_eol(*_sink);  // EL leaves the cursor in place
     }
 
     void AnsiTerminal::clear_to_eos() {
-        Ansi::clear_to_eos(_serial);
+        Ansi::clear_to_eos(*_sink);
         _hw_at_eol = false;
     }
 
@@ -208,7 +208,7 @@ namespace Botanik { namespace Terminal {
         // Resync the terminal: the discard may have torn a half-sent sequence
         // on the wire, which would otherwise swallow the leading bytes of the
         // clear below.
-        Ansi::cancel_sequence(_serial);
+        Ansi::cancel_sequence(*_sink);
         establish_screen();
     }
 
@@ -225,14 +225,14 @@ namespace Botanik { namespace Terminal {
         // Clear+home, then reset tracked cursor/wrap state. No TX discard here
         // - the caller owns that (clear_screen drops stale paint; the
         // first-step bootstrap keeps the setup_*() handshake it queued).
-        Ansi::clear_screen(_serial);
+        Ansi::clear_screen(*_sink);
         _hw_pos = {0, 0};
         _hw_at_eol = false;
         // Boot marker: emit "ACAB" once per process (not on Ctrl-L redraws) to
         // mark a fresh start in the stream. Track the 4 cols it advances (cols
         // >= 5, so it can't wrap).
         if (!_screen_ready) {
-            _serial.write("ACAB", 4);
+            _sink->write("ACAB", 4);
             _hw_pos.col = 4;
         }
         // Auto-wrap stays off UI-wide (pages pre-wrap; a stray wrap parks the
@@ -248,7 +248,7 @@ namespace Botanik { namespace Terminal {
         // may still hold them while our shadows read "normal". Force both emits
         // to resync.
         force_inverted(false);                  // -> SGR normal (ESC[m)
-        Ansi::set_insert_mode(_serial, false);  // -> replace mode (ESC[4l)
+        Ansi::set_insert_mode(*_sink, false);  // -> replace mode (ESC[4l)
         _hw_insert_mode = false;
         _screen_ready = true;
         // The clear wiped the alarm-bar row; the Console re-flags it for the next
@@ -258,23 +258,23 @@ namespace Botanik { namespace Terminal {
     void AnsiTerminal::setup_vt102() {
         // Plain VT100/VT102 (the default): no special handshake. DECAWM and the
         // clear are handled later (establish_screen / first step()).
-        Ansi::vt102_setup(_serial);
+        Ansi::vt102_setup(*_sink);
     }
 
     void AnsiTerminal::setup_minitel() {
         // Drive a real Minitel (1B+/2) over the DIN link. The PRO2 handshake
         // (sent before the ANSI clear, while the unit is still native) selects
         // 80-col teleinformatique mode, a lowercase keyboard, and page mode.
-        Ansi::minitel_setup(_serial);
+        Ansi::minitel_setup(*_sink);
     }
 
     void AnsiTerminal::newline(bool carriage_return) {
         // Emit and track a line feed; the caller confines it to the content band.
         if (carriage_return) {
-            _serial.write("\r\n", 2);
+            _sink->write("\r\n", 2);
             _hw_pos.col = 0;
         } else {
-            _serial.write("\n", 1);
+            _sink->write("\n", 1);
         }
         _hw_pos.row++;
     }
@@ -284,13 +284,13 @@ namespace Botanik { namespace Terminal {
     }
 
     void AnsiTerminal::cancel_sequence() {
-        Ansi::cancel_sequence(_serial);
+        Ansi::cancel_sequence(*_sink);
     }
 
     void AnsiTerminal::reset_to(const CursorPos& pos) {
         // Absolute reposition after a tx_discard left _hw_pos unknown; sync the
         // shadow to match (a relative move would land wrong).
-        Ansi::goto_absolute(_serial, pos);
+        Ansi::goto_absolute(*_sink, pos);
         _hw_pos = pos;
         _hw_at_eol = false;
     }
@@ -342,13 +342,13 @@ namespace Botanik { namespace Terminal {
     void AnsiTerminal::insert_rows(uint16_t count) {
         if (count == 0) return;
         // IL shifts content; cursor unaffected
-        Ansi::insert_rows(_serial, count);
+        Ansi::insert_rows(*_sink, count);
     }
 
     void AnsiTerminal::delete_rows(uint16_t count) {
         if (count == 0) return;
         // DL shifts content; cursor unaffected
-        Ansi::delete_rows(_serial, count);
+        Ansi::delete_rows(*_sink, count);
     }
 
     // Field painter (shared by StatusBar and MetricPage)
@@ -402,20 +402,6 @@ namespace Botanik { namespace Terminal {
     // Transaction path
     // ------------------------------------------------------------------------
 
-    namespace {
-        // Drains the scheduler into the TX ring; room()/write() are the ring's,
-        // so drain()'s atomicity check (len <= room) prevents any partial write.
-        struct RingSink : public TxSink {
-            Utils::BufferedSerial& s;
-            uint16_t wrote = 0;
-            explicit RingSink(Utils::BufferedSerial& serial) : s(serial) {}
-            uint16_t room() const override { return s.availableForWrite(); }
-            void write(const char* b, uint16_t n) override {
-                s.write(b, n); wrote = (uint16_t)(wrote + n);
-            }
-        };
-    }
-
     void AnsiTerminal::tx_begin(uint8_t lane, uint32_t key) {
         _txn_lane = lane;
         _txn_key  = key;
@@ -427,11 +413,14 @@ namespace Botanik { namespace Terminal {
         _hw_pos    = { (uint16_t)0xFFFF, (uint16_t)0xFFFF };
         _hw_at_eol = false;
         _recording = true;
-        _serial.begin_capture(_txn_buf, (uint16_t)sizeof(_txn_buf));
+        // Route the ops' bytes into the record buffer instead of the ring.
+        _record.reset(_txn_buf, (uint16_t)sizeof(_txn_buf));
+        _sink = &_record;
     }
 
     void AnsiTerminal::tx_commit() {
-        uint16_t len = _serial.end_capture();
+        uint16_t len = _record.len;
+        _sink = &_serial;                 // ops emit to the ring again
         _recording = false;
         // The recorded bytes are queued, not sent: the real terminal is unchanged,
         // so restore the shadow to what it was before tx_begin() (no emit).
@@ -445,9 +434,9 @@ namespace Botanik { namespace Terminal {
     void AnsiTerminal::tx_drain() {
         uint16_t used   = tx_used();
         uint16_t budget = (used < _tx_cold_depth) ? (uint16_t)(_tx_cold_depth - used) : 0;
-        RingSink sink(_serial);
-        _tx.drain(sink, budget, _tx_cold_depth);
-        if (sink.wrote > 0) {
+        // Drain straight into the ring (never the record sink).
+        uint16_t sent = _tx.drain(_serial, budget, _tx_cold_depth);
+        if (sent > 0) {
             // A drained transaction moved the real cursor to its end; the shadow
             // no longer tracks it, so force the next move_to to re-home absolutely.
             _hw_pos    = { (uint16_t)0xFFFF, (uint16_t)0xFFFF };
