@@ -96,16 +96,37 @@ namespace Botanik { namespace Terminal {
 
     uint16_t TxScheduler::drain(TxEmitter& emitter, uint16_t budget, uint16_t max_budget) {
         uint16_t sent = 0;
+
+        // Weighted rotation: a busy high lane must not fully starve a low one, but
+        // the lower the lane the lower its cadence. Each drain picks a "lead" lane
+        // by weight (lane 0 leads 4/7 of drains, lane 1 2/7, lane 2 1/7); the lead
+        // is serviced first, then all lanes in strict priority order. At a low
+        // baud (budget ~ one transaction) this makes the lead lane the one that
+        // emits, so emissions follow the weights instead of always the top lane.
+        static const uint8_t WEIGHT[TX_LANE_COUNT] = { 4, 2, 1 };
+        static const uint8_t WSUM = 7;
+        uint8_t lead = 0, acc = _phase;
         for (uint8_t l = 0; l < TX_LANE_COUNT; l++) {
+            if (acc < WEIGHT[l]) { lead = l; break; }
+            acc = (uint8_t)(acc - WEIGHT[l]);
+        }
+        _phase = (uint8_t)((_phase + 1) % WSUM);
+
+        // Visit order: the lead lane, then every lane in priority order.
+        for (uint8_t k = 0; k <= TX_LANE_COUNT; k++) {
+            uint8_t l = (k == 0) ? lead : (uint8_t)(k - 1);
+            if (k > 0 && l == lead) continue;   // lead already serviced
             while (_head[l] != NIL) {
                 const Slot& s = _slot[_head[l]];
-                // Size against the budget with a reserve for the leading move.
                 uint16_t need = (uint16_t)(s.len + TX_MOVE_RESERVE);
-                bool oversized = need > max_budget;
-                if (!oversized && need > budget) return sent;   // wait for a fuller budget
+                bool oversized = need > max_budget;   // can never fit a budget
+                // Oversized emits only while the ring is still shallow (budget>0),
+                // so it makes one step of progress without flooding the ring past
+                // the latency floor. A fitting transaction just needs the budget.
+                if (oversized ? (budget == 0) : (need > budget)) return sent;
                 uint16_t used = emitter.emit(s.base_row, s.base_col, s.data, s.len,
                                              s.end_row, s.end_col);
-                if (used == 0) return sent;                     // ring full: wait
+                if (used == 0) return sent;           // ring full: wait
                 sent   = (uint16_t)(sent + used);
                 budget = (used < budget) ? (uint16_t)(budget - used) : 0;
                 _release(_lane_pop(l));

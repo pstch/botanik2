@@ -74,6 +74,7 @@ namespace Botanik { namespace Terminal {
         uint8_t  _tail[TX_LANE_COUNT];   ///< per-lane FIFO tail
         uint8_t  _free;                  ///< free-list head
         uint32_t _dropped = 0;           ///< transactions dropped on pool overflow
+        uint8_t  _phase   = 0;           ///< weighted-rotation cursor for drain()
         /** @} */
 
     public:
