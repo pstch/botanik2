@@ -65,57 +65,52 @@ namespace Botanik { namespace Terminal {
         return false;
     }
 
-    bool TxScheduler::submit(uint8_t lane, uint32_t key, const char* buf, uint16_t len) {
+    bool TxScheduler::submit(uint8_t lane, uint32_t key,
+                             uint16_t base_row, uint16_t base_col,
+                             uint16_t end_row, uint16_t end_col,
+                             const char* content, uint16_t len) {
         if (lane >= TX_LANE_COUNT) return false;
         if (len > Config::TX_QUEUE_SLOT_LEN) len = (uint16_t)Config::TX_QUEUE_SLOT_LEN;
 
-        // Coalesce: replace a same-key queued transaction in place (keep position).
-        if (key != 0) {
-            uint8_t idx = _lane_find_key(lane, key);
-            if (idx != NIL) {
-                memcpy(_slot[idx].data, buf, len);
-                _slot[idx].len = len;
-                return true;
-            }
-        }
-
-        uint8_t idx = _alloc();
+        // Coalesce: reuse a same-key queued transaction's slot in place (keeping
+        // its position); else allocate (evicting the lowest priority if full).
+        uint8_t idx = (key != 0) ? _lane_find_key(lane, key) : NIL;
         if (idx == NIL) {
-            if (!_evict_lowest()) return false;
             idx = _alloc();
-            if (idx == NIL) return false;
+            if (idx == NIL) {
+                if (!_evict_lowest()) return false;
+                idx = _alloc();
+                if (idx == NIL) return false;
+            }
+            _lane_append(lane, idx);
         }
-        _slot[idx].key = key;
-        _slot[idx].len = len;
-        memcpy(_slot[idx].data, buf, len);
-        _lane_append(lane, idx);
+        _slot[idx].key      = key;
+        _slot[idx].len      = len;
+        _slot[idx].base_row = base_row;
+        _slot[idx].base_col = base_col;
+        _slot[idx].end_row  = end_row;
+        _slot[idx].end_col  = end_col;
+        memcpy(_slot[idx].data, content, len);
         return true;
     }
 
-    uint16_t TxScheduler::drain(Utils::ByteSink& sink, uint16_t budget, uint16_t max_budget) {
+    uint16_t TxScheduler::drain(TxEmitter& emitter, uint16_t budget, uint16_t max_budget) {
         uint16_t sent = 0;
         for (uint8_t l = 0; l < TX_LANE_COUNT; l++) {
             while (_head[l] != NIL) {
-                uint8_t  idx  = _head[l];
-                uint16_t len  = _slot[idx].len;
-                uint16_t room = sink.availableForWrite();
-                if (len <= budget && len <= room) {
-                    sink.write(_slot[idx].data, len);
-                    sent   = (uint16_t)(sent + len);
-                    budget = (uint16_t)(budget - len);
-                    _release(_lane_pop(l));
-                } else if (len > max_budget && len <= room) {
-                    // Oversized: can never fit a budget, emit once there is room.
-                    sink.write(_slot[idx].data, len);
-                    sent   = (uint16_t)(sent + len);
-                    budget = 0;
-                    _release(_lane_pop(l));
-                    break;
-                } else {
-                    break;   // atomic: leave queued until it fully fits
-                }
+                const Slot& s = _slot[_head[l]];
+                // Size against the budget with a reserve for the leading move.
+                uint16_t need = (uint16_t)(s.len + TX_MOVE_RESERVE);
+                bool oversized = need > max_budget;
+                if (!oversized && need > budget) return sent;   // wait for a fuller budget
+                uint16_t used = emitter.emit(s.base_row, s.base_col, s.data, s.len,
+                                             s.end_row, s.end_col);
+                if (used == 0) return sent;                     // ring full: wait
+                sent   = (uint16_t)(sent + used);
+                budget = (used < budget) ? (uint16_t)(budget - used) : 0;
+                _release(_lane_pop(l));
+                if (oversized || budget == 0) return sent;
             }
-            if (budget == 0) break;
         }
         return sent;
     }

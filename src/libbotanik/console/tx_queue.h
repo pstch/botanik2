@@ -7,25 +7,24 @@
  * @brief TxScheduler - priority-laned, coalescing, atomic transaction queue for
  *        the console TX path (see docs/TX_QUEUE_DESIGN.md).
  *
- * Renderers submit self-contained, idempotent byte transactions (a whole row /
- * rule / cell) tagged with a priority lane and an optional coalescing key. The
- * scheduler drains them highest-lane-first into a TxSink within a per-tick byte
- * budget, emitting each transaction atomically (never a partial write); a
- * transaction that does not fit stays queued. A newer transaction with the same
- * key replaces an older un-emitted one, so superseded updates never reach the
- * wire. This replaces the cooperative TX sharing (per-component tx_below_cold()
- * budgets + per-page paint staging) the single droppable ring forced.
+ * Renderers submit idempotent paint transactions (a whole row / rule / cell)
+ * tagged with a priority lane and an optional coalescing key. A transaction is
+ * { base position, content bytes (no leading move), end position }: the content
+ * paints from base and the SCHEDULER's drain lets the emitter (the terminal)
+ * emit the optimal move from the real cursor to base first - so the relative-
+ * move optimization is preserved across transactions. The scheduler owns the
+ * priority order + per-tick byte budget + atomicity; the emitter owns the actual
+ * bytes. A newer transaction with the same key replaces an older un-emitted one,
+ * so superseded updates never reach the wire.
  *
- * Phase 1: the scheduler and its unit tests, standalone - not yet wired to the
- * AnsiTerminal emit path or the console loop (that lands per-renderer in the
- * later migration phases, which also delete the old cooperative machinery).
+ * This replaces the cooperative TX sharing (per-component tx_below_cold() budgets
+ * + per-page paint staging) the single droppable ring forced.
  */
 
 #include <cstdint>
 #include <cstring>
 
 #include "libbotanik_config.h"
-#include "libbotanik/utils/byte_sink.h"
 
 namespace Botanik { namespace Terminal {
 
@@ -37,6 +36,24 @@ namespace Botanik { namespace Terminal {
         TX_LANE_COUNT
     };
 
+    /** @brief Bytes the scheduler reserves for a transaction's leading move +
+     *  attribute reset when sizing it against the budget/ring (the emitter's real
+     *  move is usually shorter). A worst-case absolute CUP + SGR. */
+    static const uint16_t TX_MOVE_RESERVE = 16;
+
+    /** @brief Emits one transaction: move the real cursor to (@p base_row,
+     *  @p base_col) with the minimal sequence, then the content, then leave it at
+     *  (@p end_row, @p end_col). The terminal implements this so the move
+     *  optimizes against the cursor it tracks. @return bytes emitted, or 0 if the
+     *  ring could not hold it (the scheduler leaves it queued). */
+    class TxEmitter {
+    public:
+        virtual ~TxEmitter() {}
+        virtual uint16_t emit(uint16_t base_row, uint16_t base_col,
+                              const char* content, uint16_t len,
+                              uint16_t end_row, uint16_t end_col) = 0;
+    };
+
     /** @brief Priority-laned, coalescing, atomic transaction queue (see the file
      *  header and docs/TX_QUEUE_DESIGN.md). Fixed-pool, no allocation. */
     class TxScheduler {
@@ -45,8 +62,10 @@ namespace Botanik { namespace Terminal {
          *  @{ */
         static const uint8_t NIL = 0xFF;
         struct Slot {
-            char     data[Config::TX_QUEUE_SLOT_LEN];
+            char     data[Config::TX_QUEUE_SLOT_LEN];   ///< content (no leading move)
             uint16_t len;
+            uint16_t base_row, base_col;   ///< where the content paints from
+            uint16_t end_row,  end_col;    ///< where it leaves the cursor
             uint32_t key;      ///< 0 = no coalescing; else <owner:16><id:16>
             uint8_t  next;     ///< intrusive link (free list or a lane FIFO)
         };
@@ -63,25 +82,29 @@ namespace Botanik { namespace Terminal {
         /** @name Submit / drain / drop
          *  @{ */
 
-        /** @brief Queue a transaction on @p lane. @p key 0 skips coalescing; else a
-         *  queued transaction with the same key in the same lane is replaced in
-         *  place (keeping its position). @p len is clamped to the slot size.
-         *  @return false only if the pool is full and nothing could be evicted; on
-         *  a full pool the oldest lowest-priority queued transaction is evicted
-         *  first (counted in dropped()). */
-        bool submit(uint8_t lane, uint32_t key, const char* buf, uint16_t len);
+        /** @brief Queue a transaction on @p lane painting @p content (bytes, no
+         *  leading move) from @p base leaving the cursor at @p end. @p key 0 skips
+         *  coalescing; else a queued same-key transaction in the same lane is
+         *  replaced in place. @p len is clamped to the slot size. @return false
+         *  only if the pool is full and nothing could be evicted; on a full pool
+         *  the oldest lowest-priority queued transaction is evicted first (counted
+         *  in dropped()). */
+        bool submit(uint8_t lane, uint32_t key,
+                    uint16_t base_row, uint16_t base_col,
+                    uint16_t end_row, uint16_t end_col,
+                    const char* content, uint16_t len);
 
-        /** @brief Drain queued transactions into @p sink, highest lane first, up to
-         *  @p budget bytes this tick. Each transaction is emitted atomically (only
-         *  when it fully fits both the remaining budget and sink.availableForWrite());
-         *  one that does not fit stays queued. @p max_budget is the full per-tick
+        /** @brief Drain queued transactions through @p emitter, highest lane
+         *  first, up to @p budget bytes this tick. A transaction is emitted only
+         *  when its content + reserved move fits the remaining budget (atomic);
+         *  one that does not stays queued. @p max_budget is the full per-tick
          *  budget: a transaction larger than it can never fit a budget, so it is
-         *  emitted as soon as there is room (the oversized escape). @return the
-         *  number of bytes emitted this call. */
-        uint16_t drain(Utils::ByteSink& sink, uint16_t budget, uint16_t max_budget);
+         *  emitted as soon as the emitter has room (the oversized escape).
+         *  @return bytes emitted this call. */
+        uint16_t drain(TxEmitter& emitter, uint16_t budget, uint16_t max_budget);
 
         /** @brief Drop every queued transaction whose key owner (high 16 bits)
-         *  equals @p owner (e.g. a page leaving focus). Not counted as a drop. */
+         *  equals @p owner (a page leaving focus). Not counted as a drop. */
         void drop_owner(uint16_t owner);
 
         /** @brief Drop all queued transactions. */
