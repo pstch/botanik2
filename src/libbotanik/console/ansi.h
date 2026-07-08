@@ -9,7 +9,7 @@
  */
 
 #include <cstdint>
-#include "libbotanik/utils/serial.h"
+#include "libbotanik/utils/byte_sink.h"
 
 
 namespace Botanik { namespace Terminal { namespace Ansi {
@@ -17,7 +17,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     /** @name Types and constants
      *  @{ */
 
-    using BufferedSerial = Utils::BufferedSerial;
+    using ByteSink = Utils::ByteSink;
 
     /** @brief Physical display coordinate. 0-indexed; the conversion to
      *  1-indexing happens when commands are sent to the remote device. */
@@ -92,56 +92,56 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     // tracking.
 
     /** @brief Set insertion mode (IRM) to @p active, using SM4/RM4. */
-    bool set_insert_mode(BufferedSerial& _serial, bool active);
+    bool set_insert_mode(ByteSink& _serial, bool active);
 
     /** @brief Emit CAN to abort any control sequence the terminal is
      *  mid-parsing. Use after a tx_discard, which can strand a half-sent
      *  sequence on the wire that would otherwise swallow the next emit. */
-    bool cancel_sequence(BufferedSerial& _serial);
+    bool cancel_sequence(ByteSink& _serial);
 
     /** @brief Emit the one-time Minitel PRO2 handshake (80-col teleinformatique
      *  + lowercase keyboard + page mode); no-op sequences on a VT100/VT102. */
-    bool minitel_setup(BufferedSerial& _serial);
+    bool minitel_setup(ByteSink& _serial);
 
     /** @brief One-time VT100/VT102 setup. Currently a no-op (DECAWM-off is
      *  re-asserted on every screen establish); the symmetric counterpart to
      *  minitel_setup(). */
-    bool vt102_setup(BufferedSerial& _serial);
+    bool vt102_setup(ByteSink& _serial);
 
     /** @brief Enable or disable terminal auto-wrap (DECAWM, CSI ? 7 h/l). */
-    bool set_auto_wrap(BufferedSerial& _serial, bool enable);
+    bool set_auto_wrap(ByteSink& _serial, bool enable);
 
     /** @brief Show or hide the cursor (DECTCEM, CSI ? 25 h/l). A shown cursor
      *  blinks (no steady mode), so "stop blinking" means hiding it. Minitel
      *  honoring of DECTCEM is unverified - VERIFY ON HARDWARE. */
-    bool set_cursor_visible(BufferedSerial& _serial, bool show);
+    bool set_cursor_visible(ByteSink& _serial, bool show);
 
     /** @}
      *  @name Cursor movement
      *  @{ */
 
     /** @brief Move to the given absolute position. */
-    bool goto_absolute(BufferedSerial& _serial, const CursorPos& cursor);
+    bool goto_absolute(ByteSink& _serial, const CursorPos& cursor);
 
     /** @brief Move the cursor left @p count times. */
-    bool move_left(BufferedSerial& _serial, uint16_t count);
+    bool move_left(ByteSink& _serial, uint16_t count);
 
     /** @brief Move the cursor right @p count times. */
-    bool move_right(BufferedSerial& _serial, uint16_t count);
+    bool move_right(ByteSink& _serial, uint16_t count);
 
     /** @brief Move the cursor up @p count times. */
-    bool move_up(BufferedSerial& _serial, uint16_t count);
+    bool move_up(ByteSink& _serial, uint16_t count);
 
     /** @brief Move the cursor down @p count times. */
-    bool move_down(BufferedSerial& _serial, uint16_t count);
+    bool move_down(ByteSink& _serial, uint16_t count);
 
     /** @brief Move to the beginning of the row. */
-    bool move_row_start(BufferedSerial& _serial);
+    bool move_row_start(ByteSink& _serial);
 
     /** @brief Drop to the start of the row @p count lines below (CR + line
      *  feeds).
      *  @warning The caller must ensure the feeds won't scroll the screen. */
-    bool down_to_row_start(BufferedSerial& _serial, uint16_t count);
+    bool down_to_row_start(ByteSink& _serial, uint16_t count);
 
     /** @}
      *  @name Content edition
@@ -149,13 +149,13 @@ namespace Botanik { namespace Terminal { namespace Ansi {
 
     /** @brief Insert rows (shifts remaining rows down).
      *  @warning At the last row, scrolls the entire screen upwards. */
-    bool insert_rows(BufferedSerial& _serial, uint16_t count);
+    bool insert_rows(ByteSink& _serial, uint16_t count);
 
     /** @brief Delete rows (shifts remaining rows up). */
-    bool delete_rows(BufferedSerial& _serial, uint16_t count);
+    bool delete_rows(ByteSink& _serial, uint16_t count);
 
     /** @brief Delete characters (shifts remaining columns left). */
-    bool delete_chars(BufferedSerial& _serial, uint16_t count);
+    bool delete_chars(ByteSink& _serial, uint16_t count);
 
     /** @}
      *  @name Content clearing
@@ -163,14 +163,14 @@ namespace Botanik { namespace Terminal { namespace Ansi {
 
     /** @brief Clear from the cursor to end of line (columns before it
      *  untouched). */
-    bool clear_to_eol(BufferedSerial& _serial);
+    bool clear_to_eol(ByteSink& _serial);
 
     /** @brief Erase from the cursor to end of display (rows above it
      *  untouched). */
-    bool clear_to_eos(BufferedSerial& _serial);
+    bool clear_to_eos(ByteSink& _serial);
 
     /** @brief Erase entire display and move cursor to home position */
-    bool clear_screen(BufferedSerial& _serial);
+    bool clear_screen(ByteSink& _serial);
 
     /** @} */
 
