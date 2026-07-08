@@ -25,6 +25,7 @@
 #include <cstring>
 
 #include "libbotanik_config.h"
+#include "libbotanik/utils/byte_sink.h"
 
 namespace Botanik { namespace Terminal {
 
@@ -34,17 +35,6 @@ namespace Botanik { namespace Terminal {
         TX_STRUCT,      ///< scrolls (DL/IL), headers, rules, page structure
         TX_VALUE,       ///< data-row value updates, telemetry, clock/metrics
         TX_LANE_COUNT
-    };
-
-    /** @brief Byte sink the scheduler drains into: the TX ring in production, a
-     *  capture buffer under test. `write()` is only called with len <= room(). */
-    class TxSink {
-    public:
-        virtual ~TxSink() {}
-        /** @brief Bytes that will be accepted right now (for the atomicity check). */
-        virtual uint16_t room() const = 0;
-        /** @brief Append @p len bytes; the caller guarantees @p len <= room(). */
-        virtual void     write(const char* buf, uint16_t len) = 0;
     };
 
     /** @brief Priority-laned, coalescing, atomic transaction queue (see the file
@@ -83,11 +73,12 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Drain queued transactions into @p sink, highest lane first, up to
          *  @p budget bytes this tick. Each transaction is emitted atomically (only
-         *  when it fully fits both the remaining budget and sink.room()); one that
-         *  does not fit stays queued. @p max_budget is the full per-tick budget: a
-         *  transaction larger than it can never fit a budget, so it is emitted as
-         *  soon as sink.room() allows (the oversized escape). */
-        void drain(TxSink& sink, uint16_t budget, uint16_t max_budget);
+         *  when it fully fits both the remaining budget and sink.availableForWrite());
+         *  one that does not fit stays queued. @p max_budget is the full per-tick
+         *  budget: a transaction larger than it can never fit a budget, so it is
+         *  emitted as soon as there is room (the oversized escape). @return the
+         *  number of bytes emitted this call. */
+        uint16_t drain(Utils::ByteSink& sink, uint16_t budget, uint16_t max_budget);
 
         /** @brief Drop every queued transaction whose key owner (high 16 bits)
          *  equals @p owner (e.g. a page leaving focus). Not counted as a drop. */

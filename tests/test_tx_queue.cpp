@@ -11,21 +11,23 @@
 #include "doctest.h"
 
 #include "libbotanik_config.h"
+#include "libbotanik/utils/byte_sink.h"
 #include "libbotanik/console/tx_queue.h"
 
 using namespace Botanik::Terminal;
 
 namespace {
-    // Captures drained bytes; room() is a settable ceiling decremented on write,
-    // so a test can model a full/near-full ring.
-    struct CaptureSink : public TxSink {
+    // Captures drained bytes; availableForWrite() is a settable ceiling
+    // decremented on write, so a test can model a full/near-full ring.
+    struct CaptureSink : public Botanik::Utils::ByteSink {
         std::string out;
         uint16_t    _room;
         explicit CaptureSink(uint16_t room = 60000) : _room(room) {}
-        uint16_t room() const override { return _room; }
-        void write(const char* b, uint16_t n) override {
+        uint16_t availableForWrite() const override { return _room; }
+        uint16_t write(const char* b, uint16_t n) override {
             out.append(b, n);
             _room = (n <= _room) ? (uint16_t)(_room - n) : 0;
+            return n;
         }
     };
 

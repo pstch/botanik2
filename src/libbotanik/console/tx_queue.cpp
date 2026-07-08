@@ -92,19 +92,22 @@ namespace Botanik { namespace Terminal {
         return true;
     }
 
-    void TxScheduler::drain(TxSink& sink, uint16_t budget, uint16_t max_budget) {
+    uint16_t TxScheduler::drain(Utils::ByteSink& sink, uint16_t budget, uint16_t max_budget) {
+        uint16_t sent = 0;
         for (uint8_t l = 0; l < TX_LANE_COUNT; l++) {
             while (_head[l] != NIL) {
                 uint8_t  idx  = _head[l];
                 uint16_t len  = _slot[idx].len;
-                uint16_t room = sink.room();
+                uint16_t room = sink.availableForWrite();
                 if (len <= budget && len <= room) {
                     sink.write(_slot[idx].data, len);
+                    sent   = (uint16_t)(sent + len);
                     budget = (uint16_t)(budget - len);
                     _release(_lane_pop(l));
                 } else if (len > max_budget && len <= room) {
                     // Oversized: can never fit a budget, emit once there is room.
                     sink.write(_slot[idx].data, len);
+                    sent   = (uint16_t)(sent + len);
                     budget = 0;
                     _release(_lane_pop(l));
                     break;
@@ -114,6 +117,7 @@ namespace Botanik { namespace Terminal {
             }
             if (budget == 0) break;
         }
+        return sent;
     }
 
     void TxScheduler::drop_owner(uint16_t owner) {
