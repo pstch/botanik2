@@ -35,6 +35,7 @@
 #include "libbotanik/pages/page.h"
 #include "libbotanik/console/console.h"
 #include "libbotanik/console/terminal.h"
+#include "libbotanik/console/field.h"
 #include "libbotanik/network/telemetry_types.h"
 
 namespace Botanik { namespace Pages {
@@ -80,6 +81,10 @@ namespace Botanik { namespace Pages {
         static uint32_t _row_key(uint16_t row) {
             return ((uint32_t)OWNER << 16) | (uint32_t)(0x1000 + row);
         }
+        /** @brief Screen column where the VALUE cell's text starts, tracking the
+         *  layout _row_text() emits: margin + "| " + group + " | " + name + " | ".
+         *  A value change repaints only this cell, never the static group/name. */
+        static constexpr uint16_t VALUE_COL = MARGIN + 2 + GROUP_W + 3 + NAME_W + 3;
         /** @} */
 
         /** @name State
@@ -108,6 +113,11 @@ namespace Botanik { namespace Pages {
          *  coalesced or dropped paint never leaves a value un-redrawn. */
         char                _vsub[MAX_CACHE_ROWS][VAL_CAP];
         bool                _vpend[MAX_CACHE_ROWS] = {};
+        /** @brief The pending paint for a row is a whole-row draw (group/name/
+         *  borders + value), not just a value cell: a value-cell patch must not
+         *  coalesce over it (it would strand the static columns), so while this is
+         *  set the row keeps repainting in full until the full draw drains. */
+        bool                _vfull[MAX_CACHE_ROWS] = {};
         static constexpr char POISON = '\xFF';   // force a redraw (never a value)
         static constexpr char BLANK  = '\x7F';   // row is past the set (cleared)
         /** @} */
@@ -229,6 +239,31 @@ namespace Botanik { namespace Pages {
             const Network::ScalarField& f = _groups[gi].fields[fi];
             const char* s = Network::scalar_format(f, _base, out, cap);
             if (s != out) { std::strncpy(out, s, cap - 1); out[cap - 1] = 0; }
+        }
+
+        /** @brief Diff width of the VALUE cell: the display width, clamped to the
+         *  31-column per-cell mask (a monitor value is short, so the cells beyond
+         *  it stay padding either way). */
+        uint16_t _vw() const {
+            uint16_t w = _value_w();
+            return (w > 31) ? 31 : w;
+        }
+
+        /** @brief Render variable @p r's value into @p cf, space-padded to _vw()
+         *  (so a byte index maps to a fixed cell for the per-cell diff). */
+        void _value_cf(uint16_t r, char* cf) const {
+            char raw[VAL_CAP];
+            _value_text(r, raw, sizeof(raw));
+            Terminal::Field::render(cf, raw, _vw());
+        }
+
+        /** @brief Repaint only the @p emit cells of the VALUE cell (@p cf) at
+         *  screen @p row, as one transaction keyed by the row (coalesces with a
+         *  same-row value patch; a full row draw uses the same key). */
+        void _draw_value(uint16_t row, const char* cf, uint32_t emit) {
+            _terminal.tx_begin(Terminal::TX_STRUCT, _row_key(row));
+            _terminal.paint_field_runs(row, VALUE_COL, cf, _vw(), emit, 0);
+            _terminal.tx_commit();
         }
 
         /** @brief Build the full "  | group | name | value |" row into @p out. */
@@ -449,21 +484,44 @@ namespace Botanik { namespace Pages {
          *  coalesced/dropped paint is re-submitted rather than lost. */
         void _repaint_changes() {
             uint16_t win = _window(), total = _total();
-            char val[VAL_CAP];
+            uint16_t vw = _vw();
+            char cf[VAL_CAP];
             for (uint16_t vi = 0; vi < win; vi++) {
                 uint16_t r    = (uint16_t)(_top + vi);
                 uint16_t row  = (uint16_t)(DATA_TOP + vi);
                 bool cached   = vi < MAX_CACHE_ROWS;
                 if (cached) _promote(vi, row);
                 if (r < total) {
-                    _value_text(r, val, sizeof(val));
-                    if (!cached || strcmp(val, _intended(vi)) != 0) {
+                    _value_cf(r, cf);
+                    if (!cached) { _draw_row(r, row); continue; }
+                    const char* intended = _intended(vi);
+                    // No change vs what is drawn / queued: skip.
+                    if (intended[0] != POISON && intended[0] != BLANK &&
+                        memcmp(cf, intended, vw) == 0) continue;
+                    // A whole-row draw is needed when the static columns aren't on
+                    // screen (a poisoned/blanked row) or a whole-row draw is still
+                    // queued (a value patch would strand them by coalescing over it);
+                    // otherwise repaint only the value cells that moved.
+                    bool need_full = _vcache[vi][0] == POISON ||
+                                     _vcache[vi][0] == BLANK ||
+                                     (_vpend[vi] && _vfull[vi]);
+                    if (need_full) {
                         _draw_row(r, row);
-                        if (cached) _mark_sub(vi, val);
+                        _mark_sub(vi, cf); _vfull[vi] = true;
+                    } else {
+                        // Emit the cells changed since the DRAWN value (complete,
+                        // so a coalescing re-submit never strands a cell).
+                        uint32_t emit = Terminal::Field::changed(cf, _vcache[vi], vw, false);
+                        if (emit == 0) continue;
+                        _draw_value(row, cf, emit);
+                        _mark_sub(vi, cf); _vfull[vi] = false;
                     }
                 } else if (!cached || _intended(vi)[0] != BLANK) {
                     _clear_row(row);
-                    if (cached) { _vsub[vi][0] = BLANK; _vsub[vi][1] = '\0'; _vpend[vi] = true; }
+                    if (cached) {
+                        _vsub[vi][0] = BLANK; _vsub[vi][1] = '\0';
+                        _vpend[vi] = true; _vfull[vi] = false;
+                    }
                 }
             }
         }
