@@ -120,13 +120,22 @@ namespace Botanik { namespace Terminal {
         bool emitted[TX_LANE_COUNT] = { false };
         for (uint8_t oi = 0; oi < TX_LANE_COUNT; oi++) {
             uint8_t l = order[oi];
+            // The promoted (starved) lane force-emits its head: it has waited
+            // TX_STARVE_LIMIT drains, and its transaction may be larger than the
+            // room below the floor (which a higher-lane flood keeps near zero), so
+            // a plain budget check would never let it through. One forced emit
+            // per promotion overshoots the floor by a single transaction - bounded,
+            // and only while a lane is actually starving.
+            bool force = (oi == 0 && lead != NIL);
             while (_head[l] != NIL) {
                 const Slot& s = _slot[_head[l]];
                 uint16_t need = (uint16_t)(s.len + TX_MOVE_RESERVE);
                 bool oversized = need > max_budget;   // can never fit a budget
                 // Oversized emits while the ring is still shallow (budget>0), one
-                // step at a time; a fitting transaction just needs the budget.
-                if (oversized ? (budget == 0) : (need > budget)) break;
+                // step at a time; a fitting transaction just needs the budget. The
+                // forced head bypasses the budget check (emit() still gates on the
+                // physical ring room), so a starved lane always makes progress.
+                if (!force && (oversized ? (budget == 0) : (need > budget))) break;
                 uint16_t used = emitter.emit(s.base_row, s.base_col, s.data, s.len,
                                              s.end_row, s.end_col);
                 if (used == 0) break;                 // ring full: wait
@@ -134,7 +143,8 @@ namespace Botanik { namespace Terminal {
                 budget = (used < budget) ? (uint16_t)(budget - used) : 0;
                 emitted[l] = true;
                 _release(_lane_pop(l));
-                if (oversized || budget == 0) break;
+                if (oversized || (!force && budget == 0)) break;
+                force = false;   // only the first (starved) transaction is forced
             }
         }
 
