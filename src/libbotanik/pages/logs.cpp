@@ -19,7 +19,9 @@ namespace Botanik { namespace Pages {
 
     LogsPage::LogsPage(Terminal::Console& console) :
         _console(console), _terminal(console.terminal())
-    {}
+    {
+        _scrollback.set_owner(0x00F0);
+    }
 
     // Page interface
     // ------------------------------------------------------------------------

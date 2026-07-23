@@ -240,6 +240,7 @@ namespace Botanik { namespace Pages {
             _refresh_ms = Config::HOME_REFRESH_MS;
             // uptime ticks every second
             _hot_ms     = Config::PAGE_HOT_MS;
+            _scrollback.set_owner(0x00B1);   // distinct from the metric fields
         }
 
         const char* name() const override { return "HOME"; }

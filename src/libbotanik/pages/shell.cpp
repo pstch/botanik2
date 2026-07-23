@@ -21,7 +21,9 @@ namespace Botanik { namespace Pages {
         _terminal(console.terminal()),
         _editor(&console),
         _shell(console, _editor, *this)
-    {}
+    {
+        _scrollback.set_owner(0x00E1);
+    }
 
     // Page interface
     // ------------------------------------------------------------------------
