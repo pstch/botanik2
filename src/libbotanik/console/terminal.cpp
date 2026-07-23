@@ -494,8 +494,13 @@ namespace Botanik { namespace Terminal {
         _draining = false;
         // A drained transaction left the real cursor at its end. If a live cursor
         // is showing (the shell editor), re-home it to where the renderer wants it
-        // so a row-0 value update can't strand it.
-        if (sent > 0 && _hw_cursor_visible) move_to(_live_cursor_pos);
+        // so a row-0 value update can't strand it. {0,0} means "no placement
+        // requested" (row 0 is the status bar, never an edit point): re-homing
+        // there just bounces the cursor to the corner on every drain, so skip it
+        // - a real editor cursor always sits below row 0.
+        if (sent > 0 && _hw_cursor_visible &&
+            !(_live_cursor_pos.row == 0 && _live_cursor_pos.col == 0))
+            move_to(_live_cursor_pos);
     }
 
 }}

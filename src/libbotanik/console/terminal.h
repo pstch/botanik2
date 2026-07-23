@@ -349,11 +349,6 @@ namespace Botanik { namespace Terminal {
          *  gauges (tx_dropped / rx_overrun / capacity). */
         const BufferedSerial& serial() const { return _serial; }
 
-        /** @brief The shared paint depth floor: ring shallow enough to preserve
-         *  the latency target (Config::TX_COLD_TARGET_MS) at the link baud. Every
-         *  cooperative paint path gates on this one floor. */
-        bool tx_below_cold() const { return tx_used() <= _tx_cold_depth; }
-
         /** @brief RX ring depth captured by the last snapshot_rx(), before the
          *  parser drained it (the live depth reads ~0 by the time a page paints
          *  its serial gauge). */

@@ -528,25 +528,6 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, LOG_ROWS_PER_TICK);
 
-    /** @brief Per-tick field budget for the status bar. */
-#ifndef BOTANIK_TX_STATUS_FIELDS_PER_TICK
-#  define BOTANIK_TX_STATUS_FIELDS_PER_TICK 2
-#endif
-    BOTANIK_CFG(uint16_t, TX_STATUS_FIELDS_PER_TICK);
-
-    /** @brief Per-tick field budget for "hot" metrics field values. */
-#ifndef BOTANIK_TX_HOT_FIELDS_PER_TICK
-#  define BOTANIK_TX_HOT_FIELDS_PER_TICK 4
-#endif
-    BOTANIK_CFG(uint16_t, TX_HOT_FIELDS_PER_TICK);
-
-    /** @brief Per-tick field budget for "cold" metrics field values and
-     *         for static contents. */
-#ifndef BOTANIK_TX_COLD_FIELDS_PER_TICK
-#  define BOTANIK_TX_COLD_FIELDS_PER_TICK 4
-#endif
-    BOTANIK_CFG(uint16_t, TX_COLD_FIELDS_PER_TICK);
-
     /** @brief TxScheduler transaction pool: slot count and per-slot byte capacity
      *  (one queued transaction per slot). Bounds the console's queued-TX RAM
      *  (SLOTS * SLOT_LEN). Sized to hold a whole dense screen's worth of paints
@@ -626,12 +607,6 @@ namespace Botanik { namespace Config {
 #  define BOTANIK_SCROLLBACK_LINE_LEN 256
 #endif
     BOTANIK_CFG(uint16_t, SCROLLBACK_LINE_LEN);
-
-    /** @brief Max scrollback rows redrawn per tick() during deferred replay */
-#ifndef BOTANIK_SCROLLBACK_ROWS_PER_TICK
-#  define BOTANIK_SCROLLBACK_ROWS_PER_TICK 1
-#endif
-    BOTANIK_CFG(uint16_t, SCROLLBACK_ROWS_PER_TICK);
 
     /** @brief Continuation prefix for wrapped command-output rows. */
 #ifndef BOTANIK_SHELL_CONT_PREFIX

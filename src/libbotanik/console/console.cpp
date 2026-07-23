@@ -207,8 +207,10 @@ namespace Botanik { namespace Terminal {
         // The tx_discard may have dropped a queued row-0 update; invalidate the
         // diff caches so the next refresh repaints them in full.
         _status_bar.invalidate();
-        // The discard can likewise tear a half-sent alarm-bar repaint; re-flag it.
-        _alarm_bar.mark_dirty();
+        // The alarm bar is NOT redrawn here: clear_content() preserves its bottom
+        // row, so its already-drawn content survives the switch unchanged. Its
+        // step() repaints it only when the alarm set actually moves (a switch that
+        // coincides with an alarm change is caught by the next set-change check).
         _pages[_page_index]->focus();
     }
 

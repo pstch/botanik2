@@ -4,9 +4,9 @@
 
 /**
  * @file scrollback.h
- * @brief Scrollback - a LineBuffer with throttled incremental redraw, used by
- *        the logs and shell pages (via the ShellScrollback / LogsScrollback
- *        typedefs below).
+ * @brief Scrollback - a LineBuffer with a transactional incremental redraw, used
+ *        by the logs, shell and home pages (via the ShellScrollback /
+ *        LogsScrollback / HomeScrollback typedefs below).
  */
 
 #include <algorithm>
@@ -20,13 +20,13 @@
 namespace Botanik { namespace Pages {
 
     /**
-     * @brief Circular scrollback buffer with throttled, incremental redraw.
+     * @brief Circular scrollback buffer with a transactional incremental redraw.
      *
-     * Layers a deferred redraw over a @ref LineBuffer of @p L lines: emits at
-     * most SCROLLBACK_ROWS_PER_TICK rows per drain_redraw() so a full replay
-     * can't flood TX in one tick. The window is bottom-aligned within rows
-     * 1..log_rows (caller-supplied). Name it through @ref ShellScrollback /
-     * @ref LogsScrollback.
+     * Layers a deferred redraw over a @ref LineBuffer of @p L lines: each log-line
+     * row, DL/IL scroll and replay is a TX_STRUCT transaction the scheduler paces,
+     * so the scrollback shares the wire fairly with the page's other transactions.
+     * The window is bottom-aligned within rows 1..log_rows (caller-supplied). Name
+     * it through @ref ShellScrollback / @ref LogsScrollback / @ref HomeScrollback.
      */
     template<uint16_t L>
     class Scrollback : public LineBuffer<L, Config::SCROLLBACK_LINE_LEN> {
