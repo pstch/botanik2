@@ -13,7 +13,7 @@ namespace Botanik { namespace Terminal {
     TxScheduler::TxScheduler() { clear(); }
 
     void TxScheduler::clear() {
-        for (uint8_t l = 0; l < TX_LANE_COUNT; l++) { _head[l] = NIL; _tail[l] = NIL; }
+        for (uint8_t l = 0; l < TX_LANE_COUNT; l++) { _head[l] = NIL; _tail[l] = NIL; _starve[l] = 0; }
         // Chain every slot onto the free list.
         for (uint16_t i = 0; i < Config::TX_QUEUE_SLOTS; i++)
             _slot[i].next = (uint8_t)(i + 1 < Config::TX_QUEUE_SLOTS ? i + 1 : NIL);
@@ -97,44 +97,53 @@ namespace Botanik { namespace Terminal {
     uint16_t TxScheduler::drain(TxEmitter& emitter, uint16_t budget, uint16_t max_budget) {
         uint16_t sent = 0;
 
-        // Strict priority order: INPUT, then STRUCT, then VALUE. A higher lane
-        // always drains before a lower one within a tick, so keystroke echo
-        // precedes structure, and structure (a page's static template, a scroll)
-        // precedes the values that fill it - never the reverse, which would
-        // scatter the initial draw or paint a value onto a row a later structural
-        // clear then wipes. To keep a sustained flood of a higher lane from fully
-        // starving a lower one, each lane holds back a small reserve of the budget
-        // for the lower lanes when any of them has queued work (so e.g. the clock
-        // still ticks during a full-screen structural repaint). The reserve is
-        // capped at half the budget so the current lane always makes progress too,
-        // and it stays small enough that a low baud (tiny budget) still drains.
-        for (uint8_t l = 0; l < TX_LANE_COUNT; l++) {
-            bool lower_work = false;
-            for (uint8_t j = (uint8_t)(l + 1); j < TX_LANE_COUNT; j++)
-                if (_head[j] != NIL) lower_work = true;
-            uint16_t reserve = 0;
-            if (lower_work) {
-                reserve = TX_LANE_RESERVE;
-                if (reserve > (uint16_t)(budget / 2)) reserve = (uint16_t)(budget / 2);
-            }
-            uint16_t cap = (budget > reserve) ? (uint16_t)(budget - reserve) : 0;
+        // Bounded-starvation strict priority. Normally the lanes drain in strict
+        // order - INPUT, then STRUCT, then VALUE - so keystroke echo precedes
+        // structure, and structure (a page's static template, a scroll) precedes
+        // the values that fill it; the initial draw is clean, never scattered. No
+        // lane is capped below its transaction, so a mid-sized structural row can
+        // never be stuck behind a reserve. To stop a sustained higher-lane flood
+        // (e.g. continuous table churn) from freezing a lower one, a lane that has
+        // been skipped with queued work for TX_STARVE_LIMIT consecutive drains is
+        // promoted to the front of THIS drain - so the clock keeps ticking, at a
+        // bounded worst-case latency, without reordering on a normal drain.
+        uint8_t order[TX_LANE_COUNT];
+        for (uint8_t i = 0; i < TX_LANE_COUNT; i++) order[i] = i;
+        uint8_t lead = NIL;
+        for (uint8_t l = 0; l < TX_LANE_COUNT; l++)
+            if (_head[l] != NIL && _starve[l] >= TX_STARVE_LIMIT) { lead = l; break; }
+        if (lead != NIL && lead != 0) {
+            for (uint8_t i = lead; i > 0; i--) order[i] = order[(uint8_t)(i - 1)];
+            order[0] = lead;
+        }
+
+        bool emitted[TX_LANE_COUNT] = { false };
+        for (uint8_t oi = 0; oi < TX_LANE_COUNT; oi++) {
+            uint8_t l = order[oi];
             while (_head[l] != NIL) {
                 const Slot& s = _slot[_head[l]];
                 uint16_t need = (uint16_t)(s.len + TX_MOVE_RESERVE);
                 bool oversized = need > max_budget;   // can never fit a budget
-                // Oversized emits only while there is room below the floor (cap>0),
-                // so it makes one step of progress without flooding past the
-                // latency floor. A fitting transaction just needs to fit the cap.
-                if (oversized ? (cap == 0) : (need > cap)) break;
+                // Oversized emits while the ring is still shallow (budget>0), one
+                // step at a time; a fitting transaction just needs the budget.
+                if (oversized ? (budget == 0) : (need > budget)) break;
                 uint16_t used = emitter.emit(s.base_row, s.base_col, s.data, s.len,
                                              s.end_row, s.end_col);
                 if (used == 0) break;                 // ring full: wait
                 sent   = (uint16_t)(sent + used);
                 budget = (used < budget) ? (uint16_t)(budget - used) : 0;
-                cap    = (used < cap)    ? (uint16_t)(cap - used)    : 0;
+                emitted[l] = true;
                 _release(_lane_pop(l));
-                if (oversized || cap == 0) break;
+                if (oversized || budget == 0) break;
             }
+        }
+
+        // A lane that had work but emitted nothing this drain got starved; one
+        // that emitted (or is now empty) is caught up. TX_STARVE_LIMIT such drains
+        // promotes it to the front next time.
+        for (uint8_t l = 0; l < TX_LANE_COUNT; l++) {
+            if (emitted[l] || _head[l] == NIL) _starve[l] = 0;
+            else if (_starve[l] < 0xFFFF)      _starve[l]++;
         }
         return sent;
     }

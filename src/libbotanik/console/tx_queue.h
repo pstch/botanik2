@@ -41,13 +41,11 @@ namespace Botanik { namespace Terminal {
      *  move is usually shorter). A worst-case absolute CUP + SGR. */
     static const uint16_t TX_MOVE_RESERVE = 16;
 
-    /** @brief Bytes a lane holds back per drain for lower-priority lanes that
-     *  have queued work, so a sustained higher-lane flood can't fully starve
-     *  them (e.g. the clock keeps ticking during a full-screen repaint). Sized
-     *  to fit one small value transaction (a clock cell + its leading move);
-     *  capped at half the live budget in drain() so it never starves the current
-     *  lane or a low-baud tick. */
-    static const uint16_t TX_LANE_RESERVE = 32;
+    /** @brief Consecutive drains a lane may be skipped (with queued work) before
+     *  it is promoted to the front of the next drain, bounding how long a
+     *  sustained higher-lane flood can starve it (e.g. the clock under continuous
+     *  table churn). Small, so the felt worst-case latency stays a few ticks. */
+    static const uint16_t TX_STARVE_LIMIT = 8;
 
     /** @brief Emits one transaction: move the real cursor to (@p base_row,
      *  @p base_col) with the minimal sequence, then the content, then leave it at
@@ -82,6 +80,7 @@ namespace Botanik { namespace Terminal {
         uint8_t  _tail[TX_LANE_COUNT];   ///< per-lane FIFO tail
         uint8_t  _free;                  ///< free-list head
         uint32_t _dropped = 0;           ///< transactions dropped on pool overflow
+        uint16_t _starve[TX_LANE_COUNT] = { 0 };  ///< drains a lane has been skipped
         /** @} */
 
     public:
