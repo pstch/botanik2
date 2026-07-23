@@ -107,12 +107,12 @@ static void raise_all(RenderFixture& f) {
 }
 
 // Acking an active alarm flips its ON badge (active+unack -> active+ack): a
-// same-identity change, so its row (only) repaints. The transactional path draws
-// the whole row as one keyed transaction (a partial-cell patch would be unsafe to
-// coalesce over a queued full row), so BBB's CODE/DESC reach the wire again - but
-// the still-unacked AAA row above it is diff-skipped. A single reorder-free ack is
-// used (BBB stays below the still-nagging AAA) so only one row's shadow changes.
-TEST_CASE("alarms render: a same-alarm state change redraws its row, skips the rest") {
+// same-identity change, so only its mutable cells (ON badge + LAST EVENT) repaint
+// on the value lane. The CODE cell (and the static DESCRIPTION) stay untouched, so
+// "BBB" does NOT reach the wire again - a whole-row redraw would be wasted bytes.
+// The still-unacked AAA row above it is diff-skipped, as are the header and rules.
+// A single reorder-free ack is used (BBB stays below AAA) so one row's shadow moves.
+TEST_CASE("alarms render: a same-alarm state change patches its cells, skips the rest") {
     RenderFixture f;
     f.model.step(0x3, 1000);                     // AAA + BBB active; row0=AAA (sel), row1=BBB
     f.page.focus();
@@ -122,7 +122,8 @@ TEST_CASE("alarms render: a same-alarm state change redraws its row, skips the r
     f.page.handle_command(Command::ENTER, 1);    // repaint, shadow intact, selection at row0
     std::string out = f.paint();
 
-    CHECK(out.find("BBB")     != std::string::npos);  // BBB's row redrawn in full
+    CHECK(out.size()          > 0);                   // the ON/EVENT cell patch was emitted
+    CHECK(out.find("BBB")     == std::string::npos);  // CODE cell untouched (cells-only patch)
     CHECK(out.find("AAA")     == std::string::npos);  // the unchanged AAA row is skipped
     CHECK(out.find("CODE")    == std::string::npos);  // header/rules not re-emitted
     CHECK(out.find("----")    == std::string::npos);

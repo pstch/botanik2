@@ -128,6 +128,11 @@ namespace Botanik { namespace Pages {
         RowShadow                 _row[MAX_ROWS];       ///< last drawn (on the wire)
         RowShadow                 _row_sub[MAX_ROWS];   ///< last submitted (queued)
         bool                      _row_pend[MAX_ROWS];  ///< a paint is outstanding
+        /** @brief The outstanding paint for a row is a full row / clear on
+         *  TX_STRUCT (true) or a cell patch on TX_VALUE (false). Promote/drop must
+         *  check the right lane, and a value patch must not coalesce over a queued
+         *  full row (it would strand the CODE/DESCRIPTION cells). */
+        bool                      _row_full[MAX_ROWS];
         /** @brief Owner (high 16 bits) of this page's transaction keys. */
         static constexpr uint16_t OWNER = 0x00A0;
         /** @brief Coalescing key for the paint at screen @p row. */
@@ -174,6 +179,13 @@ namespace Botanik { namespace Pages {
          *  write at this column so only those two chars are reverse-video (no
          *  flicker-prone overdraw). */
         static constexpr uint16_t STATE_TEXT_COL = MARGIN + 2 + (CODE_W - 1) + 2;
+        /** @brief ON-cell inner width, and the LAST EVENT cell's text column and
+         *  inner width, tracking the same layout _build_grid_row() emits: used by
+         *  the per-cell patch (_patch_cells) so a value change repaints only the
+         *  ON + LAST EVENT cells, not the whole row. */
+        static constexpr uint16_t STATE_INNER    = STATE_W - 1;               // 3
+        static constexpr uint16_t EVENT_TEXT_COL  = STATE_TEXT_COL + STATE_INNER + 2;
+        static constexpr uint16_t EVENT_INNER     = EVENT_W - 1;              // 15
         /** @brief CODE field span (contents only, no "| " border): the only part
          *  inverted for the selection cursor, so a selection move patches one
          *  small field, not a whole row. */
@@ -229,7 +241,7 @@ namespace Botanik { namespace Pages {
         void _invalidate_shadow() {
             for (uint16_t r = 0; r < MAX_ROWS; r++) {
                 _row[r].idx = ROW_BLANK; _row[r].sig = 0; _row[r].sel = false;
-                _row_pend[r] = false;
+                _row_pend[r] = false; _row_full[r] = true;
             }
             _legend_valid = false;
         }
@@ -242,18 +254,20 @@ namespace Botanik { namespace Pages {
         /** @brief Adopt a drained row's submitted shadow as its drawn shadow, so
          *  the shadow reflects the wire (shifting/dropping it stays consistent). */
         void _promote(uint16_t row) {
-            if (row < MAX_ROWS && _row_pend[row] &&
-                !_terminal.tx_has_key(Terminal::TX_STRUCT, _row_key(row))) {
+            if (row >= MAX_ROWS || !_row_pend[row]) return;
+            // A full row / clear rides TX_STRUCT; a cell patch rides TX_VALUE.
+            uint8_t lane = _row_full[row] ? Terminal::TX_STRUCT : Terminal::TX_VALUE;
+            if (!_terminal.tx_has_key(lane, _row_key(row))) {
                 _row[row] = _row_sub[row];
                 _row_pend[row] = false;
             }
         }
 
         /** @brief Record that a fresh paint with shadow @p s was just submitted
-         *  for @p row (pending until it drains). */
-        void _mark_sub(uint16_t row, const RowShadow& s) {
+         *  for @p row (pending until it drains); @p full tags its lane. */
+        void _mark_sub(uint16_t row, const RowShadow& s, bool full) {
             if (row >= MAX_ROWS) return;
-            _row_sub[row] = s; _row_pend[row] = true;
+            _row_sub[row] = s; _row_pend[row] = true; _row_full[row] = full;
         }
 
         /** @brief Poison a row's drawn shadow (force a redraw) and drop pending
@@ -289,7 +303,7 @@ namespace Botanik { namespace Pages {
             _terminal.clear_to_eol();
             _terminal.tx_commit();
             RowShadow s = { ROW_STRUCT, sig, false };
-            _mark_sub(row, s);
+            _mark_sub(row, s, /*full=*/true);
         }
 
         /** @brief Draw a '|'-ruled grid row (all normal video). */
@@ -606,10 +620,58 @@ namespace Botanik { namespace Pages {
             _terminal.tx_commit();
         }
 
+        /** @brief True when the fixed CODE/ON/EVENT columns fit, so a cell patch is
+         *  safe; a narrower screen falls back to a clamped full redraw. */
+        bool _cells_fit() const {
+            return _terminal.cols() >= (uint16_t)(EVENT_TEXT_COL + EVENT_INNER + 2);
+        }
+
+        /** @brief Patch only the cells of @p row that changed (@p do_code = the
+         *  CODE cell / selection cursor, @p do_state = the ON badge + LAST EVENT),
+         *  as one TX_VALUE transaction. The CODE cell inverts when @p sel; the ON
+         *  badge shows its own reverse-video "ON" while active-and-unacked. Both
+         *  cells are rewritten whole (no per-glyph diff), so re-submitting is
+         *  complete and coalescing-safe. Keeps the static columns untouched. */
+        void _patch_row(uint16_t row, const Alarms::AlarmCondition& c, bool sel,
+                        bool do_code, bool do_state) {
+            _terminal.tx_begin(Terminal::TX_VALUE, _row_key(row));
+            if (do_code) {
+                char cell[CODE_W + 1];
+                snprintf(cell, sizeof(cell), "%-*.*s",
+                         (int)(CODE_W - 1), (int)(CODE_W - 1), c.code ? c.code : "?");
+                _terminal.move_to({row, CODE_CELL_L});
+                if (sel) _terminal.set_inverted(true);
+                _terminal.write_chars(cell, (uint16_t)(CODE_CELL_R - CODE_CELL_L));
+                if (sel) _terminal.set_inverted(false);
+            }
+            if (do_state) {
+                uint8_t on = _on_state(c);
+                _terminal.move_to({row, STATE_TEXT_COL});
+                if (on == 3) {                                   // "ON" reverse + pad
+                    _terminal.set_inverted(true);  _terminal.write_chars("ON", 2);
+                    _terminal.set_inverted(false); _terminal.write_chars(" ", 1);
+                } else {
+                    _terminal.set_inverted(false);
+                    _terminal.write_chars(on == 2 ? "ON " : (on == 1 ? "OFF" : "   "), 3);
+                }
+                char ev[16];
+                _fmt_event(ev, sizeof(ev), c);
+                char cell[24];
+                int m = snprintf(cell, sizeof(cell), "%-*.*s",
+                                 (int)EVENT_INNER, (int)EVENT_INNER, ev);
+                if (m < 0) m = 0;
+                _terminal.move_to({row, EVENT_TEXT_COL});
+                _terminal.write_chars(cell, (uint16_t)std::min((size_t)m, sizeof(cell) - 1));
+            }
+            _terminal.tx_commit();
+        }
+
         /** @brief Paint data row at screen @p row for visible entry @p vi:
          *  promote a drained paint, skip when the intended shadow is unchanged,
-         *  else submit a full row (or blank past the set). Rows beyond MAX_ROWS
-         *  always draw (unshadowed). */
+         *  else patch just the mutable cells (same alarm, only ON/EVENT/selection
+         *  moved) on TX_VALUE, or submit a full row on TX_STRUCT when the identity
+         *  changed / the drawn row is stale (poison/blank/full still queued) / the
+         *  cells don't fit. Rows beyond MAX_ROWS always full-draw (unshadowed). */
         void _draw_data_row(uint16_t row, uint16_t vi) {
             bool shadowed = row < MAX_ROWS;
             if (shadowed) _promote(row);
@@ -618,20 +680,35 @@ namespace Botanik { namespace Pages {
                 if (!shadowed || _intended(row).idx != ROW_BLANK) {
                     _submit_clear(row);
                     RowShadow s = { ROW_BLANK, 0, false };
-                    _mark_sub(row, s);
+                    _mark_sub(row, s, /*full=*/true);
                 }
                 return;
             }
             const Alarms::AlarmCondition& c = _model->condition(_vis[vi]);
             uint32_t sig = _pack(c);
             bool     sel = (vi == _selected);
-            if (shadowed) {
-                const RowShadow& it = _intended(row);
-                if (it.idx == new_idx && it.sig == sig && it.sel == sel) return;
+            if (!shadowed) { _draw_full_row(row, c, sel); return; }
+            const RowShadow& it = _intended(row);
+            if (it.idx == new_idx && it.sig == sig && it.sel == sel) return;
+            RowShadow ns = { new_idx, sig, sel };
+            // A patch touches only the CODE/ON/EVENT cells and leaves the static
+            // columns alone, so it is only valid when this same alarm is already on
+            // the wire (drawn idx matches), no full row is still queued for it (a
+            // patch must not coalesce over it and strand the statics), and the cells
+            // fit. Otherwise redraw the whole row.
+            const RowShadow& drawn = _row[row];
+            bool full = drawn.idx != new_idx || (_row_pend[row] && _row_full[row]) ||
+                        !_cells_fit();
+            if (full) {
+                _draw_full_row(row, c, sel);                  // TX_STRUCT
+                _mark_sub(row, ns, /*full=*/true);
+            } else {
+                // Same alarm already drawn: patch the cells that moved vs the wire.
+                bool do_state = drawn.sig != sig;             // ON badge / LAST EVENT
+                bool do_code  = drawn.sel != sel;             // selection cursor
+                _patch_row(row, c, sel, do_code, do_state);   // TX_VALUE
+                _mark_sub(row, ns, /*full=*/false);
             }
-            _draw_full_row(row, c, sel);
-            RowShadow s = { new_idx, sig, sel };
-            _mark_sub(row, s);
         }
 
         /** @brief Scroll _top so the selection cursor stays in the window. */
@@ -673,7 +750,11 @@ namespace Botanik { namespace Pages {
             for (uint16_t vi = 0; vi < win; vi++) {
                 uint16_t row = (uint16_t)(DATA_TOP + vi);
                 if (row < MAX_ROWS && _row_pend[row]) {
-                    _terminal.tx_drop_key(Terminal::TX_STRUCT, _row_key(row));
+                    // A pending paint sits on TX_STRUCT (full row) or TX_VALUE
+                    // (cell patch); drop from the lane it was queued on.
+                    _terminal.tx_drop_key(
+                        _row_full[row] ? Terminal::TX_STRUCT : Terminal::TX_VALUE,
+                        _row_key(row));
                     _row_pend[row] = false;
                 }
             }
