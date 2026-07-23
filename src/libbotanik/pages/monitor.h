@@ -99,6 +99,10 @@ namespace Botanik { namespace Pages {
         /** @brief Set on focus (a cleared screen): the next tick submits the
          *  chrome and repaints every row. */
         bool                _repaint_all = false;
+        /** @brief Last-drawn top / bottom rule cap ('+', '^', 'v'; 0 = force a
+         *  redraw). Diff-gated so a scroll that doesn't cross the top/bottom edge
+         *  doesn't needlessly repaint the grid rules. */
+        char                _cap_t = 0, _cap_b = 0;
         /** @brief Per-window-row cache of the value last *drawn* at that screen
          *  row: a value string for a data row, or the sentinels below for a
          *  poisoned (force-redraw) or blank (past the set) row. Promoted from
@@ -173,6 +177,7 @@ namespace Botanik { namespace Pages {
             _active = active;
             if (!active) return;
             if (_repaint_all) {
+                _cap_t = _cap_b = 0;  // cleared screen: force the rules to redraw
                 _submit_structure();
                 _poison_cache();     // force every row to redraw
                 _repaint_all = false;
@@ -340,13 +345,18 @@ namespace Botanik { namespace Pages {
             _terminal.tx_commit();
         }
 
-        /** @brief Submit both rules, capping with '^' / 'v' when rows are hidden
-         *  above / below the window. */
+        /** @brief Submit either rule whose cap changed, capping with '^' / 'v'
+         *  when rows are hidden above / below the window. Diff-gated: a scroll in
+         *  the middle of the set leaves both caps unchanged and repaints nothing. */
         void _draw_rules() {
             uint16_t win = _window(), total = _total();
-            _draw_rule(TRULE_ROW, _top > 0 ? '^' : '+', KEY_TRULE);
-            _draw_rule((uint16_t)(_console.rows() - 2),
-                       (uint16_t)(_top + win) < total ? 'v' : '+', KEY_BRULE);
+            char ct = _top > 0 ? '^' : '+';
+            char cb = (uint16_t)(_top + win) < total ? 'v' : '+';
+            if (ct != _cap_t) { _draw_rule(TRULE_ROW, ct, KEY_TRULE); _cap_t = ct; }
+            if (cb != _cap_b) {
+                _draw_rule((uint16_t)(_console.rows() - 2), cb, KEY_BRULE);
+                _cap_b = cb;
+            }
         }
 
         void _draw_footer() {
