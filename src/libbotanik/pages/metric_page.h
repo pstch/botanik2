@@ -101,15 +101,25 @@ namespace Botanik { namespace Pages {
                       "CACHE_COLS must fit a uint32 per-column mask");
         static_assert(CACHE_SLOTS <= 32,
                       "CACHE_SLOTS must fit a uint32 per-slot mask");
-        /** @brief Last value written per slot, for change detection. */
+        /** @brief Last value *drawn* (on the wire) per slot, for change
+         *  detection. Promoted from _vsub only once the slot's transaction has
+         *  drained (see _field), so a per-cell paint that coalesces over a
+         *  still-queued one carries every cell changed since the last drawn value
+         *  - never stranding the un-emitted cells of a dropped predecessor. */
         char          _vcache[CACHE_SLOTS][CACHE_COLS];
         /** @brief Columns drawn reverse-video per slot (bit i = column i), so
          *  the next diff knows the prior highlight state and clears a subfield
          *  once it settles. */
         uint32_t      _vhi[CACHE_SLOTS]   = {};
+        /** @brief Value / highlight of the last *submitted* (queued) paint per
+         *  slot, promoted into _vcache/_vhi when the transaction drains. */
+        char          _vsub[CACHE_SLOTS][CACHE_COLS];
+        uint32_t      _vsubhi[CACHE_SLOTS] = {};
+        /** @brief Slots with a submitted paint not yet drained (bit i = slot i). */
+        uint32_t      _vpend = 0;
         /** @brief Slots awaiting a first paint after a clear (bit i = slot i):
          *  drawn unhighlighted (nothing has "changed" yet); the bit clears once
-         *  painted. */
+         *  the paint drains. */
         uint32_t      _vfresh = ~0u;
 
         /** @} */
@@ -123,6 +133,9 @@ namespace Botanik { namespace Pages {
         void _invalidate() {
             memset(_vcache, 0, sizeof(_vcache));
             memset(_vhi,    0, sizeof(_vhi));
+            memset(_vsub,   0, sizeof(_vsub));
+            memset(_vsubhi, 0, sizeof(_vsubhi));
+            _vpend  = 0;
             _vfresh = ~0u;
         }
 
@@ -212,12 +225,23 @@ namespace Botanik { namespace Pages {
             BOTANIK_ASSERT(slot < CACHE_SLOTS);
             if (width > CACHE_COLS - 1) width = CACHE_COLS - 1;
 
+            const bool     cached = (slot < CACHE_SLOTS);
+            const uint32_t bit    = cached ? (1u << slot) : 0u;
+            // Promote the last submitted paint to "drawn" once it drained, so the
+            // diff below targets what is actually on screen.
+            if (bit && (_vpend & bit) &&
+                !_terminal.tx_has_key(Terminal::TX_VALUE, _field_key(slot))) {
+                memcpy(_vcache[slot], _vsub[slot], CACHE_COLS);
+                _vhi[slot] = _vsubhi[slot];
+                _vpend  &= ~bit;
+                _vfresh &= ~bit;
+            }
+
             // Render into the fixed-width, space-padded field.
             char     cf[CACHE_COLS];
             uint16_t vlen = Terminal::Field::render(cf, s, width);
 
-            const bool     cached = (slot < CACHE_SLOTS);
-            const bool     fresh  = !cached || (_vfresh & (1u << slot)) != 0;
+            const bool     fresh  = !cached || (_vfresh & bit) != 0;
             const char*    prev   = cached ? _vcache[slot] : "";
             const uint32_t oldhi  = cached ? _vhi[slot]    : 0u;
 
@@ -245,26 +269,27 @@ namespace Botanik { namespace Pages {
             }
 
             // Emit a byte when its glyph or its highlight state changed. Submit
-            // the changed columns as one keyed TX_VALUE transaction; the scheduler
-            // paces + coalesces them, so there is no per-tick cap or depth gate.
-            // Something changed: submit the WHOLE field (all columns) as one
-            // keyed TX_VALUE transaction, highlighting only the changed runs.
-            // Emitting the full field (not just the changed columns) keeps the
-            // paint self-contained, so a coalesced or evicted paint just leaves
-            // the field stale until its next change - it can never strand the
-            // unchanged columns of a dropped predecessor (as a partial would).
+            // only those changed cells (per-cell diff) as one keyed TX_VALUE
+            // transaction - a settled field spends no TX, and a changing field
+            // repaints a few cells, not its whole width (redrawing existing cells
+            // is the cost we want to avoid). The diff is against the drawn cache,
+            // so while a paint is pending the mask covers every cell changed since
+            // the last drawn value; a coalescing re-submit is then complete and
+            // can never strand a dropped predecessor's cells.
             uint32_t emit = chg | (newhi ^ oldhi);
             if (emit == 0) return;
-            uint32_t all = (width >= 32) ? ~0u : ((1u << width) - 1u);
             _terminal.tx_begin(Terminal::TX_VALUE, _field_key(slot));
-            _terminal.paint_field_runs(row, col, cf, width, all, newhi);
+            _terminal.paint_field_runs(row, col, cf, width, emit, newhi);
             _terminal.tx_commit();
 
+            // Record the submitted value; _vcache/_vhi are promoted from it only
+            // when this transaction drains (so a coalescing re-submit before then
+            // still diffs against the on-screen value).
             if (cached) {
-                memcpy(_vcache[slot], cf, width);
-                _vcache[slot][width] = '\0';
-                _vhi[slot]   = newhi;
-                _vfresh     &= ~(1u << slot);
+                memcpy(_vsub[slot], cf, width);
+                _vsub[slot][width] = '\0';
+                _vsubhi[slot] = newhi;
+                _vpend       |= bit;
             }
         }
 
