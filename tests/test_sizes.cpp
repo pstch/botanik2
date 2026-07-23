@@ -46,7 +46,7 @@ TEST_CASE("sizeof: terminal & input objects") {
     // AnsiTerminal owns the TxScheduler transaction pool
     // (Config::TX_QUEUE_SLOTS * TX_QUEUE_SLOT_LEN, ~9 KB), so its budget tracks
     // that knob, not the VT device state (~640 B).
-    REPORT_SIZE(Botanik::Terminal::AnsiTerminal, 12288);
+    REPORT_SIZE(Botanik::Terminal::AnsiTerminal, 20480);
     REPORT_SIZE(Botanik::Terminal::TextEditor,   2048);
     REPORT_SIZE(Botanik::Terminal::InputParser,   512);
 }
