@@ -213,9 +213,11 @@ namespace Botanik { namespace Terminal {
     }
 
     void AnsiTerminal::clear_screen() {
-        // Drop bytes still queued for TX - they'd paint onto a display we're
-        // wiping. Emptying the ring also guarantees the clear sequence fits, so
-        // the _hw_pos reset below is correct with no dropped-write path.
+        // Abandon queued transactions and buffered bytes - both would paint onto a
+        // display we're about to wipe. Emptying the ring also guarantees the clear
+        // sequence fits, so the _hw_pos reset below is correct with no dropped-write
+        // path.
+        _tx.clear();
         _serial.tx_discard();
         // Resync the terminal: the discard may have torn a half-sent sequence
         // on the wire, which would otherwise swallow the leading bytes of the
@@ -472,7 +474,14 @@ namespace Botanik { namespace Terminal {
         _hw_pos         = {end_row, end_col};    // content left the cursor here
         _hw_inverted    = false;                 // content is balanced (ends normal)
         _hw_insert_mode = false;                 // ...and replace
-        _hw_at_eol      = false;
+        // A transaction whose content reached the last column leaves the real
+        // cursor parked there in the terminal's ambiguous pending-wrap state (a
+        // right-aligned field like the row-0 metrics ends at cols-1). Flag it so
+        // the NEXT transaction's leading move is absolute, not a relative move
+        // from a position the terminal counts one cell further right - the "clock
+        // shifted by one character" bug (auto-wrap is off, but the pending-wrap
+        // column is still off-by-one for a relative move on a real terminal).
+        _hw_at_eol      = (_cols > 0 && end_col >= (uint16_t)(_cols - 1));
         return (uint16_t)(tx_used() - before);
     }
 

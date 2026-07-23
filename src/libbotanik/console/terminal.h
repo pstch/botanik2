@@ -396,6 +396,11 @@ namespace Botanik { namespace Terminal {
          *  see TxScheduler::drop_key(). */
         void tx_drop_key(uint8_t lane, uint32_t key) { _tx.drop_key(lane, key); }
 
+        /** @brief Drop every queued transaction (all lanes): a page switch / full
+         *  redraw abandons whatever the old screen queued so the new page starts
+         *  with an empty pool and can never overflow it into an eviction. */
+        void tx_clear() { _tx.clear(); }
+
         /** @brief True while a transaction with @p key is still queued on @p lane
          *  (not yet drained); see TxScheduler::has_key(). */
         bool tx_has_key(uint8_t lane, uint32_t key) const { return _tx.has_key(lane, key); }

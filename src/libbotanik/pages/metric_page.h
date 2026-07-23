@@ -126,15 +126,17 @@ namespace Botanik { namespace Pages {
             _vfresh = ~0u;
         }
 
-        /** @brief Draw a label at column 2 and clear to EOL as one keyed static
-         *  transaction. Static, not value-cached. */
+        /** @brief Draw a label at column 2 as one keyed static transaction. Only
+         *  its own glyphs are written - no clear-to-EOL: a label is always drawn
+         *  onto a freshly-cleared screen (focus / Ctrl-L), so a clear would be
+         *  redundant, and it would wipe the value column (or an adjacent block)
+         *  when the two lanes drain out of order. Static, not value-cached. */
         void _label(uint16_t row, const char* s) {
             if (row >= _console.rows()) return;
             _terminal.tx_begin(Terminal::TX_STRUCT, _static_key());
             _terminal.move_to({row, 2});
             _terminal.set_inverted(false);
             _terminal.write_chars(s, (uint16_t)strlen(s));
-            _terminal.clear_to_eol();
             _terminal.tx_commit();
         }
 

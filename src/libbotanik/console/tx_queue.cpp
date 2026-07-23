@@ -97,40 +97,43 @@ namespace Botanik { namespace Terminal {
     uint16_t TxScheduler::drain(TxEmitter& emitter, uint16_t budget, uint16_t max_budget) {
         uint16_t sent = 0;
 
-        // Weighted rotation: a busy high lane must not fully starve a low one, but
-        // the lower the lane the lower its cadence. Each drain picks a "lead" lane
-        // by weight (lane 0 leads 4/7 of drains, lane 1 2/7, lane 2 1/7); the lead
-        // is serviced first, then all lanes in strict priority order. At a low
-        // baud (budget ~ one transaction) this makes the lead lane the one that
-        // emits, so emissions follow the weights instead of always the top lane.
-        static const uint8_t WEIGHT[TX_LANE_COUNT] = { 4, 2, 1 };
-        static const uint8_t WSUM = 7;
-        uint8_t lead = 0, acc = _phase;
+        // Strict priority order: INPUT, then STRUCT, then VALUE. A higher lane
+        // always drains before a lower one within a tick, so keystroke echo
+        // precedes structure, and structure (a page's static template, a scroll)
+        // precedes the values that fill it - never the reverse, which would
+        // scatter the initial draw or paint a value onto a row a later structural
+        // clear then wipes. To keep a sustained flood of a higher lane from fully
+        // starving a lower one, each lane holds back a small reserve of the budget
+        // for the lower lanes when any of them has queued work (so e.g. the clock
+        // still ticks during a full-screen structural repaint). The reserve is
+        // capped at half the budget so the current lane always makes progress too,
+        // and it stays small enough that a low baud (tiny budget) still drains.
         for (uint8_t l = 0; l < TX_LANE_COUNT; l++) {
-            if (acc < WEIGHT[l]) { lead = l; break; }
-            acc = (uint8_t)(acc - WEIGHT[l]);
-        }
-        _phase = (uint8_t)((_phase + 1) % WSUM);
-
-        // Visit order: the lead lane, then every lane in priority order.
-        for (uint8_t k = 0; k <= TX_LANE_COUNT; k++) {
-            uint8_t l = (k == 0) ? lead : (uint8_t)(k - 1);
-            if (k > 0 && l == lead) continue;   // lead already serviced
+            bool lower_work = false;
+            for (uint8_t j = (uint8_t)(l + 1); j < TX_LANE_COUNT; j++)
+                if (_head[j] != NIL) lower_work = true;
+            uint16_t reserve = 0;
+            if (lower_work) {
+                reserve = TX_LANE_RESERVE;
+                if (reserve > (uint16_t)(budget / 2)) reserve = (uint16_t)(budget / 2);
+            }
+            uint16_t cap = (budget > reserve) ? (uint16_t)(budget - reserve) : 0;
             while (_head[l] != NIL) {
                 const Slot& s = _slot[_head[l]];
                 uint16_t need = (uint16_t)(s.len + TX_MOVE_RESERVE);
                 bool oversized = need > max_budget;   // can never fit a budget
-                // Oversized emits only while the ring is still shallow (budget>0),
-                // so it makes one step of progress without flooding the ring past
-                // the latency floor. A fitting transaction just needs the budget.
-                if (oversized ? (budget == 0) : (need > budget)) return sent;
+                // Oversized emits only while there is room below the floor (cap>0),
+                // so it makes one step of progress without flooding past the
+                // latency floor. A fitting transaction just needs to fit the cap.
+                if (oversized ? (cap == 0) : (need > cap)) break;
                 uint16_t used = emitter.emit(s.base_row, s.base_col, s.data, s.len,
                                              s.end_row, s.end_col);
-                if (used == 0) return sent;           // ring full: wait
+                if (used == 0) break;                 // ring full: wait
                 sent   = (uint16_t)(sent + used);
                 budget = (used < budget) ? (uint16_t)(budget - used) : 0;
+                cap    = (used < cap)    ? (uint16_t)(cap - used)    : 0;
                 _release(_lane_pop(l));
-                if (oversized || budget == 0) return sent;
+                if (oversized || cap == 0) break;
             }
         }
         return sent;

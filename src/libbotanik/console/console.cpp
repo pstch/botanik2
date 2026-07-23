@@ -186,9 +186,12 @@ namespace Botanik { namespace Terminal {
         if (_pages[_page_index] != nullptr)
             _pages[_page_index]->deactivate();
         _page_index = index;
-        // Drop bytes queued for the page we're leaving (they'd paint onto the new
-        // one), resync a possibly-torn sequence, then reposition absolutely (the
-        // shadow is stale after the discard).
+        // Abandon everything queued for the page we're leaving: clear the whole
+        // transaction pool (so the new page's paint can never coexist with the old
+        // one's and overflow the pool into an eviction), drop the bytes already in
+        // the ring, and resync a possibly-torn sequence. Then reposition absolutely
+        // (the shadow is stale after the discard).
+        _term.tx_clear();
         _term.tx_discard();
         _term.cancel_sequence();
         // Hide the cursor before any repaint so it doesn't blink across the
