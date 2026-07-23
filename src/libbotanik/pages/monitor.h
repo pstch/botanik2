@@ -258,10 +258,12 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Repaint only the @p emit cells of the VALUE cell (@p cf) at
-         *  screen @p row, as one transaction keyed by the row (coalesces with a
-         *  same-row value patch; a full row draw uses the same key). */
+         *  screen @p row, as one transaction keyed by the row. Ongoing value
+         *  churn rides the lower TX_VALUE lane, so a scroll and its revealed rows
+         *  (TX_STRUCT) always drain first - the new line paints right after the
+         *  scroll, not behind a scatter of value updates. */
         void _draw_value(uint16_t row, const char* cf, uint32_t emit) {
-            _terminal.tx_begin(Terminal::TX_STRUCT, _row_key(row));
+            _terminal.tx_begin(Terminal::TX_VALUE, _row_key(row));
             _terminal.paint_field_runs(row, VALUE_COL, cf, _vw(), emit, 0);
             _terminal.tx_commit();
         }
@@ -386,7 +388,9 @@ namespace Botanik { namespace Pages {
         /** @brief Adopt a drained row's submitted value as its drawn value, so the
          *  cache reflects the wire (and shifting/dropping it stays consistent). */
         void _promote(uint16_t vi, uint16_t row) {
-            if (_vpend[vi] && !_terminal.tx_has_key(Terminal::TX_STRUCT, _row_key(row))) {
+            // A full row / blank rides TX_STRUCT; a value patch rides TX_VALUE.
+            uint8_t lane = _vfull[vi] ? Terminal::TX_STRUCT : Terminal::TX_VALUE;
+            if (_vpend[vi] && !_terminal.tx_has_key(lane, _row_key(row))) {
                 memcpy(_vcache[vi], _vsub[vi], VAL_CAP);
                 _vpend[vi] = false;
             }
@@ -455,8 +459,11 @@ namespace Botanik { namespace Pages {
         void _drop_band_pending(uint16_t win) {
             for (uint16_t vi = 0; vi < win && vi < MAX_CACHE_ROWS; vi++) {
                 if (!_vpend[vi]) continue;
-                _terminal.tx_drop_key(Terminal::TX_STRUCT,
-                                      _row_key((uint16_t)(DATA_TOP + vi)));
+                // A band row's pending paint may be a full row (TX_STRUCT) or a
+                // value patch (TX_VALUE); drop whichever is queued.
+                uint32_t key = _row_key((uint16_t)(DATA_TOP + vi));
+                _terminal.tx_drop_key(Terminal::TX_STRUCT, key);
+                _terminal.tx_drop_key(Terminal::TX_VALUE, key);
                 _vpend[vi] = false;
             }
         }
@@ -517,10 +524,10 @@ namespace Botanik { namespace Pages {
                         _mark_sub(vi, cf); _vfull[vi] = false;
                     }
                 } else if (!cached || _intended(vi)[0] != BLANK) {
-                    _clear_row(row);
+                    _clear_row(row);   // TX_STRUCT, like a full row
                     if (cached) {
                         _vsub[vi][0] = BLANK; _vsub[vi][1] = '\0';
-                        _vpend[vi] = true; _vfull[vi] = false;
+                        _vpend[vi] = true; _vfull[vi] = true;
                     }
                 }
             }
