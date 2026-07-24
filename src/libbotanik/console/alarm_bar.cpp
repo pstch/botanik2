@@ -72,8 +72,14 @@ namespace Botanik { namespace Terminal {
 
     void AlarmBar::step() {
         if (_c.alarms() == nullptr) return;
+        uint16_t row = (uint16_t)(_t.rows_total() - 1);
         uint64_t sig = unmasked_set();
         if (sig != _sig) _dirty = true;
+        // _dirty means the row was wiped and needs framing again, so it goes back
+        // to structure until that draw lands; a plain set change is routine and
+        // can wait behind the page.
+        if (_dirty)                     _t.set_row_priority(row, row, PRIO_STRUCT);
+        else if (_t.row_reconciled(row)) _t.set_row_priority(row, row, PRIO_COLD);
         if (!_dirty) return;
         // Redraw the whole bar immediate-mode; the terminal diff pares the bytes.
         draw();

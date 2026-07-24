@@ -36,6 +36,11 @@ namespace Botanik { namespace Terminal {
         for (uint16_t r = 0; r < GRID_ROWS; r++) _row_prio[r] = PRIO_STRUCT;
     }
 
+    bool AnsiTerminal::row_reconciled(uint16_t row) const {
+        if (row >= _rows) return true;
+        return memcmp(&_front[_idx(row, 0)], &_back[_idx(row, 0)], _cols) == 0;
+    }
+
     void AnsiTerminal::set_row_priority(uint16_t top, uint16_t bottom, uint8_t prio) {
         if (prio >= PRIO_COUNT) return;
         for (uint16_t r = top; r <= bottom && r < GRID_ROWS; r++) _row_prio[r] = prio;

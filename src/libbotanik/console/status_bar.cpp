@@ -37,6 +37,12 @@ namespace Botanik { namespace Terminal {
 
 
     void StatusBar::step(uint64_t now) {
+        // Once the bar's structural draw has actually reached the wire, demote the
+        // row: from here on it only carries the clock and metrics ticking over,
+        // and that must not take its cut of the budget ahead of the page. Held at
+        // STRUCT until then so the first draw frames the screen with the page
+        // rather than trailing behind it.
+        if (_t.row_reconciled(0)) _t.set_row_priority(0, 0, PRIO_COLD);
         // Rebuild the clock and metrics on their own cadence and repaint the whole
         // field; the terminal's back-buffer diff emits only the cells that moved.
         if (now - _clock_last_ms >= Config::PAGE_HOT_MS) {
@@ -50,6 +56,10 @@ namespace Botanik { namespace Terminal {
     }
 
     void StatusBar::draw_row() {
+        // A full bar draw is structure - it frames the screen on boot and after a
+        // Ctrl-L clear, so it rides with the page rather than behind it. step()
+        // demotes the row again once this has landed.
+        _t.set_row_priority(0, 0, PRIO_STRUCT);
         constexpr uint16_t mlen = METRICS_LEN - 1;   // field width (drop NUL)
 
         // Save the attribute only, not the cursor: every caller repositions
@@ -80,6 +90,10 @@ namespace Botanik { namespace Terminal {
     }
 
     void StatusBar::draw_tabs() {
+        // A page switch has to read back instantly, so the tab strip goes out
+        // ahead of the page it is announcing - the operator pressed a key and the
+        // strip is the acknowledgement. step() demotes the row once it lands.
+        _t.set_row_priority(0, 0, PRIO_INPUT);
         bool saved_inv = _t.inverted();
         _t.move_to({0, 0});
         _t.set_inverted(true);

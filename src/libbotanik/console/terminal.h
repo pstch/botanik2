@@ -251,6 +251,11 @@ namespace Botanik { namespace Terminal {
          *  Renderers own the rows they draw; the default is PRIO_STRUCT. */
         void set_row_priority(uint16_t top, uint16_t bottom, uint8_t prio);
 
+        /** @brief True once @p row is fully on the wire (FRONT matches BACK).
+         *  Lets a renderer hold a structural draw at its own priority until it has
+         *  actually landed, and only then demote itself for routine updates. */
+        bool row_reconciled(uint16_t row) const;
+
         /** @brief Declare where the visible cursor belongs. The renderer owning
          *  the cursor (the editor) calls this whenever it moves; present() parks
          *  there after reconciling. */
