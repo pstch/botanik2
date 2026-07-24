@@ -196,3 +196,31 @@ TEST_CASE("alarms render: DOWN moves the selection and scrolls it into view") {
     std::string out = f.paint();
     CHECK(out.find("CCC") != std::string::npos);      // the cursor followed down into view
 }
+
+// SPACE cycles the filter mode, and the badge is the acknowledgement of that
+// keypress - so it has to reach the wire before the table rewrite the same
+// keypress triggered, not after a screenful of rows. The legend row is raised to
+// PRIO_INPUT for exactly that, and it must survive the tick it was raised in:
+// with a repaint pending the row still shows the old badge, so a naive
+// "reconciled?" check reads true and demotes it before it is ever drawn.
+TEST_CASE("alarms render: a mode change shows the new mode before the rows") {
+    RenderFixture f(12);                          // short screen: rows overflow
+    f.model.step(0xF, 1000);
+    f.page.focus();
+    f.paint();                                    // settle the initial paint
+
+    f.page.handle_text(' ');                      // recent -> all
+    // One tick + one present: the badge should already be on the wire.
+    f.page.tick(true);
+    f.console.terminal().present();
+    std::string first = f.capture();
+
+    CHECK(first.find("all") != std::string::npos);   // the new mode badge
+    CHECK(first.find("AAA") == std::string::npos);   // ...ahead of any data row
+    CHECK(first.find("DDD") == std::string::npos);
+    // Just the legend, not a table's worth of bytes riding along with it.
+    CHECK(first.size() < 150);      // one row, not a table
+    // And the page settles rather than churning on the raised row.
+    f.paint();
+    CHECK(f.paint().empty());
+}

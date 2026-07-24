@@ -554,7 +554,11 @@ namespace Botanik { namespace Pages {
             if (!active) return;
             // The legend is only urgent while a mode change is being acknowledged;
             // once that has reached the wire it is ordinary page structure again.
-            if (_terminal.row_reconciled(_legend_row()))
+            // The _dirty guard matters: with a repaint pending the legend still
+            // holds the *old* badge and so reads as reconciled, and demoting on
+            // that would undo the promotion handle_text() just made - in the same
+            // tick, before the new badge was even drawn.
+            if (!_dirty && _terminal.row_reconciled(_legend_row()))
                 _terminal.set_row_priority(_legend_row(), _legend_row(),
                                            Terminal::PRIO_STRUCT);
             // Re-check the set on a slow cadence (alarms move slowly); mark dirty
