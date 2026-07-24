@@ -262,17 +262,16 @@ namespace Botanik { namespace Shell {
                 const Alarms::AlarmCondition& c = m->condition(i);
                 if (!c.active) continue;
                 uint32_t secs = (uint32_t)((now - c.started_ms) / 1000);
-                _emitf(out, sizeof(out), "  %-10s %s%s%s",
+                _emitf(out, sizeof(out), "  %-10s %s%s",
                     c.code ? c.code : "?",
                     Utils::format_age(age, sizeof(age), secs, false),
-                    c.unmasked ? "" : " [masked]", c.user_ack ? " [ack]" : "");
+                    c.user_ack ? " [ack]" : "");
             }
             return;
         }
 
         // Default: the count summary.
-        _emitf(out, sizeof(out), "alarms: %u active, %u unmasked",
-               m->active_count(), m->unmasked_count());
+        _emitf(out, sizeof(out), "alarms: %u active", m->active_count());
     }
 
     void CommandShell::_cmd_config(const char* args, uint16_t alen) {

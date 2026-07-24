@@ -35,50 +35,41 @@
  *
  * @section firmware_extend Extending the base for a site
  *
- * A site is a thin subclass contributing data (PLC payload, alarm table, pages,
- * shell commands), never overriding setup()/loop() - only the protected
- * Template-Method hooks, so the order can't be misordered. Extension surface:
+ * A site is data, not code: it fills a SiteDescriptor (name + the config-param,
+ * shell-command, status-variable, and alarm tables) and hands it to the base.
+ * The base owns every page (home/shell/logs/alarms/config/monitor) and wires
+ * each table generically, so a site subclass is a thin binding of the payload
+ * type + the descriptor. Extension surface:
  *
- *  - **Alarm table** - ctor arg (`alarm_table`, `alarm_count`); the model copies
- *    it at construction, so it is a ctor input, not a set_*() value. The
- *    AlarmModel splices in the generic platform-health alarms
- *    (alarms/platform.h): site/PLC alarms fill bit 0 up, platform alarms sit at
- *    the high end. Pure data; no hook.
- *  - **Pages** - override register_pages() for the tab order (page 0 = boot
- *    page); default registers the built-ins (shell/logs/alarms).
- *  - **Shell commands** - override register_commands(), call
- *    shell_page().set_commands(...). Tried after the built-ins (can't shadow
- *    exit/reset).
+ *  - **Descriptor tables** (SiteDescriptor) - the alarm conditions (each with the
+ *    byte offset of its boolean in the PLC payload; the AlarmModel splices in the
+ *    generic platform-health alarms from alarms/platform.h), config parameters,
+ *    shell commands, and status-variable groups. Pure data; no hook.
+ *  - **Pages** - the default register_pages() registers the full set. A site only
+ *    overrides it to reorder or splice in an extra page (e.g. re-adding a STATUS
+ *    page by subclassing Pages::StatusPage). Page 0 is the boot page.
  *  - **Post-wiring / per-beat** - on_setup() runs once near the end of setup();
  *    on_step(now_ms) runs each beat with fresh PLC data.
  *
- * Worked example (a site with one extra page and one extra command):
+ * Worked example (the common case: no custom code, just the descriptor):
  * @code
  * // --- site-static tables (single source of truth for this greenhouse) ---
- * const Alarms::AlarmCondition g_alarms[] = { ... };  // alarms.h (header-only)
- * const uint8_t                g_alarm_count = ...;
- *
- * static void cmd_grow(Shell::ShellWriter& out, const char*, uint16_t, void*) {
- *     static const char msg[] = "growth program nominal";
- *     out.write(msg, sizeof(msg) - 1);
- * }
- * static const Shell::ShellCommand g_commands[] = {
- *     { "grow", "growth program status", &cmd_grow },
+ * const Alarms::AlarmCondition g_alarms[]  = { ... };  // code, desc, offset, dwell
+ * const Network::ScalarGroup   g_status[]  = { ... };  // status variables
+ * const Shell::ShellCommand    g_cmds[]    = { ... };  // site shell commands
+ * const SiteDescriptor g_site = {
+ *     Config::SITE_NAME,
+ *     nullptr, 0,                          // config parameters (optional)
+ *     g_cmds,   1,
+ *     g_status, 7,
+ *     g_alarms, 23,
  * };
  *
  * class GreenhouseXXX final : public BotanikFirmware<PlcInputData_t, PlcOutputData_t> {
- *     SiteHomePage _home;   // built from the base's components (see ctor)
  * public:
  *     GreenhouseXXX(PlcIO::PlcInput<PlcInputData_t>* in,
  *                   PlcIO::PlcOutput<PlcOutputData_t>* out)
- *         : BotanikFirmware(in, out, g_alarms, g_alarm_count),
- *           _home(terminal(), plc_output_data()) {}
- * protected:
- *     void register_pages()    override { terminal().add_page(&_home);            // page 0
- *                                         terminal().add_page(&shell_page()); }   // ...
- *     void register_commands() override { shell_page().set_commands(
- *                                             g_commands, 1, this); }
- *     void on_setup()          override { logger().add_writer(&_home); }
+ *         : BotanikFirmware(in, out, g_site) {}
  * };
  * @endcode
  */
@@ -87,6 +78,9 @@
 #include "libbotanik/utils/assert.h"     // set_assert_logger
 #include "libbotanik/alarms/alarms.h"    // AlarmCondition (site table type)
 #include "libbotanik/health/health.h"    // HealthMonitor (owns the alarm model + notifier)
+#include "libbotanik/core/config.h"      // Cfg::ConfigParam (descriptor param table)
+#include "libbotanik/shell/shell.h"      // Shell::ShellCommand (descriptor command table)
+#include "libbotanik/network/telemetry_types.h"  // Network::ScalarGroup (status vars)
 #include "libbotanik/core/stacks.h"      // Monitor/Console/NetworkStack composition
 #if BOTANIK_FEATURE_PLC
 #include "libbotanik/core/config_plc.h"  // PlcConfigHandler (PLC-owned config)
@@ -103,6 +97,36 @@ namespace Botanik {
      *  template params when the PLC feature is not enabled. */
     struct Empty {};
 
+    /**
+     * @brief The declarative description of a site: its name plus the four
+     * generated tables. The firmware base owns every page and wires each table
+     * generically, so a site is data (these tables + its PLC payload), not code.
+     *
+     * The tables mirror what the Arduino PLC project exposes and are meant to be
+     * generated from it:
+     *   - @c params        - config parameters (Cfg::ConfigParam: name, offset,
+     *                        type, scaling, bounds, group).
+     *   - @c commands      - site shell commands (Shell::ShellCommand).
+     *   - @c status_groups - read-only status variables (Network::ScalarGroup /
+     *                        ScalarField: name, offset, type, scaling, desc).
+     *   - @c alarms        - alarm conditions (Alarms::AlarmCondition: code,
+     *                        desc, payload boolean offset, dwell policy).
+     *
+     * Any table may be null / count 0. Every pointer is borrowed and must outlive
+     * the firmware (site statics). See core/firmware.h "Extending the base".
+     */
+    struct SiteDescriptor {
+        const char*                   name;                ///< == Config::SITE_NAME
+        const Cfg::ConfigParam*       params;              ///< site config parameters
+        uint8_t                       param_count;
+        const Shell::ShellCommand*    commands;            ///< site shell commands
+        uint8_t                       command_count;
+        const Network::ScalarGroup*   status_groups;       ///< status-variable table
+        uint8_t                       status_group_count;
+        const Alarms::AlarmCondition* alarms;              ///< alarm-condition table
+        uint8_t                       alarm_count;
+    };
+
     /** @brief Generic firmware base: owns the generic components + the loop
      *  order, and exposes each for a site subclass to build on. The PLC pieces
      *  are compiled in only when BOTANIK_FEATURE_PLC is set. */
@@ -117,8 +141,9 @@ namespace Botanik {
         /** @brief Monitor UART baud (log-only, no TX gating) */
         uint32_t                      _monitor_baud  = Config::MONITOR_BAUD;
 
-        const Alarms::AlarmCondition* _alarm_table;     ///< Site PLC alarm table
-        size_t                        _alarm_count;     ///< Site PLC alarm table size
+        /** @brief The site's declarative tables + name (borrowed; site statics
+         *  outlive the firmware). Drives page/command/telemetry/config wiring. */
+        SiteDescriptor                _site;
 
         /** @brief HW-watchdog period armed in setup(); the harness overrides it
          *  (the simulator dilates it) via set_hw_watchdog_ms() before
@@ -158,6 +183,13 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_CONSOLE
         ConsoleStack                   _console;     ///< console UART + terminal + pages
+        // Site-independent pages the base owns (declared after _console so
+        // terminal() is live): the landing page, the editable CONFIG table over
+        // the config backend, and the read-only MONITOR table over the site's
+        // status-variable groups.
+        Pages::HomePage                _home_page;
+        Pages::ConfigPage              _config_page;
+        Pages::MonitorPage             _monitor_page;
 #endif
 
         /** @} */
@@ -167,15 +199,13 @@ namespace Botanik {
          *  @{ */
 
         /** @brief Wire up the generic components. @p shared_in / @p shared_out:
-         *  the caller-owned PLC region; @p alarm_table / @p alarm_count: the
-         *  site PLC alarm table (copied into the model). Tunable scalars (baud,
-         *  watchdog) default from Config; override via the set_*() modifiers
-         *  before setup(). */
+         *  the caller-owned PLC region; @p site: the site's declarative tables +
+         *  name (borrowed). Tunable scalars (baud, watchdog) default from Config;
+         *  override via the set_*() modifiers before setup(). */
         BotanikFirmware(PlcIO::PlcInput<In>*  shared_in,
                         PlcIO::PlcOutput<Out>* shared_out,
-                        const Alarms::AlarmCondition* alarm_table, size_t alarm_count)
-            : _alarm_table(alarm_table),
-              _alarm_count(alarm_count),
+                        const SiteDescriptor& site)
+            : _site(site),
               _logger(),
               _scheduler(Config::TASK_PERIOD_MS, &_logger),
 #if BOTANIK_FEATURE_PLC
@@ -183,14 +213,17 @@ namespace Botanik {
                            &_scheduler.context()->timestamp_ms, &_logger),
               _plc_log_reader(_plc_handler.context(), &_logger),
               _config(_plc_handler.context(), &_logger),
-              _health(_alarm_table, (uint8_t)_alarm_count, &_logger,
+              // Health owns the alarm model, which reads each site alarm's
+              // boolean from the PLC output payload directly (its offset).
+              _health(_site.alarms, _site.alarm_count, &_logger,
                       _scheduler.context(), _plc_handler.context(),
-                      shared_in, shared_out, &_plc_handler.output_data()->alarms)
+                      shared_in, shared_out, plc_output_data())
 #else
               // No PLC: config comes from local storage; health takes a null link
-              // context + null regions (it degrades to "kick while alive").
+              // context + null regions + an empty reader (only local platform
+              // alarms fire, it degrades to "kick while alive").
               _config(&_logger),
-              _health(_alarm_table, (uint8_t)_alarm_count, &_logger,
+              _health(_site.alarms, _site.alarm_count, &_logger,
                       _scheduler.context(), nullptr, nullptr, nullptr)
 #endif
               , _sys_ctx()   // fields wired in the body, once addresses are known
@@ -206,6 +239,11 @@ namespace Botanik {
               , _console(_console_cols, _console_rows,
                          &_scheduler.context()->timestamp_ms, _console_baud,
                          &_health.model(), &_logger)
+              // Base-owned pages, built from the descriptor + the live payload.
+              , _home_page(_console.terminal())
+              , _config_page(_console.terminal(), &_config)
+              , _monitor_page(_console.terminal(), _site.status_groups,
+                              _site.status_group_count, plc_output_data())
 #endif
         {
             // Wire the status aggregate now every subsystem address is fixed,
@@ -234,8 +272,8 @@ namespace Botanik {
 #if !BOTANIK_FEATURE_PLC
         /** @brief PLC-less convenience ctor: no shared region, so it omits the
          *  region pointers and delegates to the main ctor with null. */
-        BotanikFirmware(const Alarms::AlarmCondition* alarm_table, size_t alarm_count)
-            : BotanikFirmware(nullptr, nullptr, alarm_table, alarm_count) {}
+        explicit BotanikFirmware(const SiteDescriptor& site)
+            : BotanikFirmware(nullptr, nullptr, site) {}
 #endif
 
         virtual ~BotanikFirmware() {}
@@ -248,6 +286,9 @@ namespace Botanik {
         void setup() {
             // route BOTANIK_ASSERT failures to the log
             set_assert_logger(&_logger);
+            // Register the site's config parameters (appended after the library
+            // built-ins) so the CONFIG page and the `config` command see them.
+            _config.set_site_params(_site.params, _site.param_count);
 #if BOTANIK_FEATURE_CONSOLE
             HAL::Serial::get(HAL::Serial::CONSOLE)->begin(_console_baud);
 #endif
@@ -265,6 +306,8 @@ namespace Botanik {
 #if BOTANIK_FEATURE_CONSOLE
             _logger.add_writer(&_console.shell());
             _logger.add_writer(&_console.logs());
+            // The home page sinks the log stream into its bottom log-tail band.
+            _logger.add_writer(&_home_page);
             _logger.watch_tx(&_console.serial());
 #endif
 
@@ -274,6 +317,10 @@ namespace Botanik {
             _console.shell().set_diagnostics(&_logger, &_health.model());
             // Let the `config` get/set command reach the config backend.
             _console.shell().set_config(&_config);
+            // Let the `status` command render the site status-variable table.
+            _console.shell().set_status_vars(_site.status_groups,
+                                             _site.status_group_count,
+                                             plc_output_data());
 #if BOTANIK_FEATURE_NTP
             // Let the `ntpsync` command force a resync on the live client.
             _console.shell().set_ntp(&_net.ntp());
@@ -478,23 +525,37 @@ namespace Botanik {
 
 #if BOTANIK_FEATURE_CONSOLE
         /** @brief Register the pages in tab order (page 0 = boot page); the
-         *  add_page() call order IS the tab order. Default: the built-ins. */
+         *  add_page() call order IS the tab order. Default: the full set -
+         *  home / shell / logs / alarms / config / monitor. A site override can
+         *  reorder them or splice in its own (e.g. re-add a STATUS page by
+         *  subclassing Pages::StatusPage and add_page()-ing it here). */
         virtual void register_pages() {
+            _console.terminal().add_page(&_home_page);       // page 0 (boot page)
             _console.terminal().add_page(&_console.shell());
             _console.terminal().add_page(&_console.logs());
             _console.terminal().add_page(&_console.alarms());
+            _console.terminal().add_page(&_config_page);
+            _console.terminal().add_page(&_monitor_page);
         }
 
         /** @brief Register the site's shell command table (tried after the
-         *  built-ins, so a site can't shadow exit/reset). Default: none. */
-        virtual void register_commands() {}
+         *  built-ins, so a site can't shadow exit/reset). Default: the
+         *  descriptor's commands, reading the live PLC payload as their ctx. */
+        virtual void register_commands() {
+            _console.shell().set_commands(_site.commands, _site.command_count,
+                                          (void*)plc_output_data());
+        }
 #endif
 
 #if BOTANIK_FEATURE_MQTT
-        /** @brief Register the site's MQTT telemetry fields, published after the
-         *  library base set each cycle, via telemetry().set_site_fields(...).
-         *  Default: none (only the base set publishes). */
-        virtual void register_telemetry() {}
+        /** @brief Register the site's MQTT telemetry, published after the library
+         *  base set each cycle. Default: the descriptor's status-variable groups,
+         *  read generically off the live PLC payload. */
+        virtual void register_telemetry() {
+            telemetry().set_site_scalar_groups(_site.status_groups,
+                                               _site.status_group_count,
+                                               plc_output_data());
+        }
 #endif
 
         /** @brief Site post-wiring, run once near the end of setup(). Default:

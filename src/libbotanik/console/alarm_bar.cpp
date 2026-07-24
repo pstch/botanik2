@@ -37,7 +37,7 @@ namespace Botanik { namespace Terminal {
                 // longer nagging); it re-appears if the condition clears and
                 // fires again, which resets the ack. The set is the bar's dirty
                 // signal, so an ack repaints it.
-                if (c.unmasked && !c.user_ack) m |= Alarms::alarm_bit(i);
+                if (c.active && !c.user_ack) m |= Alarms::alarm_bit(i);
             }
         return m;
     }
@@ -63,7 +63,7 @@ namespace Botanik { namespace Terminal {
             const Alarms::AlarmCondition& c = alarms->condition(i);
             // Skip ack'd alarms - same filter as unmasked_set() (the dirty
             // signal), so the drawn codes match what triggered the repaint.
-            if (!c.unmasked || c.user_ack || c.code == nullptr) continue;
+            if (!c.active || c.user_ack || c.code == nullptr) continue;
             uint16_t clen = (uint16_t)strlen(c.code);
             // out of room on the row
             if ((uint16_t)(used + clen + 1) > cols) break;

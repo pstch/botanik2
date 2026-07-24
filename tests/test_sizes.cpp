@@ -23,7 +23,7 @@
 
 // Concrete instantiations of the templated pages/PLC structs, matching what the
 // simulator actually builds (see botanik_sim/main.cpp).
-using HomePage_t   = Botanik::Pages::HomePage<PlcOutputData_t>;
+using HomePage_t   = Botanik::Pages::HomePage;
 using StatusPage_t = Botanik::Pages::StatusPage<PlcOutputData_t>;
 using PlcInput_t   = Botanik::PlcIO::PlcInput<PlcInputData_t>;
 using PlcOutput_t  = Botanik::PlcIO::PlcOutput<PlcOutputData_t>;

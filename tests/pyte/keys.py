@@ -12,7 +12,8 @@ ENTER = b"\r"
 SHIFT_ENTER = ESC + b"\n"
 
 # Page switch: Alt+digit. ALT_1 -> page 0 (HOME), ALT_2 -> SHELL, ALT_3 -> LOGS,
-# ALT_4 -> STATUS, ALT_5 -> ALARMS (terminal.cpp routes ALT_n to switch_to(n-1)).
+# ALT_4 -> ALARMS, ALT_5 -> CONFIG, ALT_6 -> MONITOR (terminal.cpp routes ALT_n
+# to switch_to(n-1)). STATUS was removed from the tab order.
 ALT_1 = ESC + b"1"
 ALT_2 = ESC + b"2"
 ALT_3 = ESC + b"3"

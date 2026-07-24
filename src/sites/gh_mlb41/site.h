@@ -17,10 +17,12 @@
  *   - `fill_greenhouse_output()` / `plc_dilated_timeout()` - the sim-only mock
  *                               PLC data animator + timeout dilation (sim.h).
  *
- * Single source of truth for the greenhouse: the payload + GreenhouseMLB41
- * firmware live here; pages.h and alarms.h are pulled in below. Config
- * overrides stay in config.h (CMake includes it before the library defaults).
- * See firmware.h for the extension model.
+ * Single source of truth for the greenhouse: the payload, the declarative tables
+ * (status variables, shell commands, and the alarm table in alarms.h), the
+ * @ref g_site SiteDescriptor, and the thin GreenhouseMLB41 binding. The base
+ * (BotanikFirmware) owns every page and wires the tables - the site declares no
+ * pages. Config overrides stay in config.h (CMake includes it before the library
+ * defaults). See firmware.h for the extension model.
  */
 
 #include <cstddef>  // offsetof - the telemetry scalar table
@@ -29,8 +31,8 @@
 
 #include "libbotanik/core/firmware.h"
 #include "libbotanik/shell/shell.h"   // ShellCommand - the site command table
-#include "libbotanik/pages/config_page.h"   // the interactive CONFIG page
-#include "libbotanik/pages/monitor.h"       // the PLC status-variable MONITOR page
+// The CONFIG / MONITOR / HOME pages are base-owned now (BotanikFirmware); a
+// site supplies only the declarative tables below (see SiteDescriptor).
 
 // ===========================================================================
 // PLC payload (shared verbatim by the mock PLC and the OPTA firmware)
@@ -117,8 +119,9 @@ struct NetStatus {
  * contract in plcio/vars.h).
  */
 struct PlcOutputData_t {
-    // Widest member first (keeps the rest aligned, no implicit padding).
-    uint64_t alarms;             ///< active alarm conditions from the PLC
+    // Widest members first (keeps the rest aligned, no implicit padding). Each
+    // alarm is an individual boolean field near the end (AlarmReader gathers
+    // them into the raw bitset via g_alarms offsets), not a packed word.
     // Power (voltages in millivolts)
     uint32_t grid_ac_mv;         ///< mains AC RMS voltage, millivolts
     uint32_t dc_bus_mv;          ///< DC system bus voltage, millivolts
@@ -168,16 +171,42 @@ struct PlcOutputData_t {
     uint8_t  heatpump_on;        ///< heatpump, boolean (monitored)
     uint8_t  net_status;         ///< NetStatus (down / link / online)
     uint8_t  ntp_synced;         ///< NTP disciplined the RTC, boolean
-    uint8_t  _reserved[1];       ///< pad to a 4-byte multiple
+    // Per-alarm booleans (1 = active), one per g_alarms row in table order; the
+    // row index is the alarm bit, and g_alarms carries each field's offset so
+    // AlarmReader folds them into the raw bitset. On OPTA these mirror the PLC
+    // program's alarm outputs.
+    uint8_t  alarm_ac_grid;      ///< AC_GRID
+    uint8_t  alarm_dc_ps1;       ///< DC_PS1
+    uint8_t  alarm_gen_flt;      ///< GEN_FLT
+    uint8_t  alarm_ac_local;     ///< AC_LOCAL
+    uint8_t  alarm_dc_ps2;       ///< DC_PS2
+    uint8_t  alarm_dc_ups;       ///< DC_UPS
+    uint8_t  alarm_dc_local;     ///< DC_LOCAL
+    uint8_t  alarm_gen_batt;     ///< GEN_BATT
+    uint8_t  alarm_plc_flt;      ///< PLC_FLT
+    uint8_t  alarm_net_flt;      ///< NET_FLT
+    uint8_t  alarm_ntp_tim;      ///< NTP_TIM
+    uint8_t  alarm_act_flt;      ///< ACT_FLT
+    uint8_t  alarm_sns_flt;      ///< SNS_FLT
+    uint8_t  alarm_too_hot;      ///< TOO_HOT
+    uint8_t  alarm_too_cold;     ///< TOO_COLD
+    uint8_t  alarm_too_hum;      ///< TOO_HUM
+    uint8_t  alarm_tmp_str;      ///< TMP_STR
+    uint8_t  alarm_wtr_lk;       ///< WTR_LK
+    uint8_t  alarm_wtr_bar;      ///< WTR_BAR
+    uint8_t  alarm_wtr_clog;     ///< WTR_CLOG
+    uint8_t  alarm_io_drop;      ///< IO_DROP
+    uint8_t  alarm_log_fld;      ///< LOG_FLD
+    uint8_t  alarm_wh_storm;     ///< WH_STORM
+    uint8_t  _reserved[2];       ///< pad to a 4-byte multiple
 };
 static_assert(sizeof(PlcOutputData_t) % 4 == 0, "PlcOutputData_t must be 4-byte aligned");
 
 /** @} */
 
-// Pages and alarm table build on the payload above, so they're included after
-// it (this header is the only includer of pages.h; no circular include).
+// The alarm table builds on the payload above (offsetof), so it is included
+// after it.
 #include "sites/gh_mlb41/alarms.h"
-#include "sites/gh_mlb41/pages.h"
 
 // ===========================================================================
 // Site shell command (example extension via the register_commands() hook)
@@ -214,7 +243,6 @@ const Botanik::Shell::ShellCommand g_site_commands[] = {
     { "gh", "greenhouse summary (live PLC data)", &cmd_gh },
 };
 
-#if BOTANIK_FEATURE_MQTT || BOTANIK_FEATURE_CONSOLE
 // Site status-variable table: the live PLC payload grouped by domain, read
 // generically by MQTT telemetry, the shell `status` command, and the MONITOR
 // page. Each group is a small ScalarField[] published under
@@ -300,7 +328,19 @@ const ScalarGroup g_telemetry_groups[] = {
 };
 const uint8_t g_telemetry_group_count =
     (uint8_t)(sizeof(g_telemetry_groups) / sizeof(g_telemetry_groups[0]));
-#endif
+
+// ---------------------------------------------------------------------------
+// The declarative site descriptor: the one bundle GreenhouseMLB41 hands the
+// firmware base. Name + the four generated tables (no site config parameters
+// yet - the slot is null/0). The base owns every page and wires each table.
+// ---------------------------------------------------------------------------
+const Botanik::SiteDescriptor g_site = {
+    Botanik::Config::SITE_NAME,
+    nullptr, 0,                                  // config parameters (none yet)
+    g_site_commands,     (uint8_t)(sizeof(g_site_commands) / sizeof(g_site_commands[0])),
+    g_telemetry_groups,  g_telemetry_group_count,
+    g_alarms,            g_alarm_count,
+};
 
 }  // namespace
 
@@ -309,36 +349,24 @@ const uint8_t g_telemetry_group_count =
 // ===========================================================================
 
 /**
- * @brief The gh_mlb41 greenhouse firmware. `final` so the per-beat hook
- *        devirtualizes.
+ * @brief The gh_mlb41 greenhouse firmware.
  *
- * Adds the site pages as members (built from the base's exposed components) and
- * customizes registration: its home page leads the tab order and sinks the log
- * stream, and it registers one site shell command.
+ * A thin binding of the generic base to this site's PLC payload + descriptor:
+ * it declares no pages and overrides no hooks. The base owns every page
+ * (home/shell/logs/alarms/config/monitor) and wires the descriptor's tables
+ * (alarms, commands, status variables, config parameters) generically, so the
+ * site is data (@ref g_site + the tables above), not code. A site that needs
+ * custom per-beat logic or an extra page (e.g. re-adding a STATUS page) would
+ * override the base's on_step() / register_pages() hooks here.
  */
 class GreenhouseMLB41 final : public Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t> {
-    /** @name Site pages
-     *  @{ */
-    GreenhouseHomePage           _home_page;
-    GreenhouseStatusPage         _status_page;
-    Botanik::Pages::ConfigPage   _config_page;
-    Botanik::Pages::MonitorPage  _monitor_page;
-    /** @} */
-
 public:
-    /** @brief Build the base around this site's alarm table, then the site
-     *  pages. Tunable scalars (baud, watchdog) default from Config; the harness
-     *  overrides them via the base set_*() modifiers before setup(). */
+    /** @brief Simulator / explicit-region ctor: hand the base the caller-owned
+     *  PLC region and this site's descriptor. */
     GreenhouseMLB41(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,
                     Botanik::PlcIO::PlcOutput<PlcOutputData_t>* shared_out)
         : Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t>(
-              shared_in, shared_out, g_alarms, g_alarm_count),
-          _home_page(terminal(), plc_output_data()),
-          _status_page(terminal(), plc_output_data()),
-          _config_page(terminal(), &config()),
-          _monitor_page(terminal(), g_telemetry_groups,
-                        g_telemetry_group_count,
-                        plc_output_data())
+              shared_in, shared_out, g_site)
     {}
 
     /** @brief Hardware convenience: bind to the coprocessor's PLC region (via
@@ -347,50 +375,6 @@ public:
     GreenhouseMLB41()
         : GreenhouseMLB41(hal_input(), hal_output())
     {}
-
-protected:
-    /** @brief Tab order (add_page order = tab order): home leads as the boot
-     *  page -> home/shell/logs/status/alarms/config/monitor. */
-    void register_pages() override {
-        terminal().add_page(&_home_page);     // page 0 (the boot page)
-        terminal().add_page(&shell_page());
-        terminal().add_page(&logs_page());
-        terminal().add_page(&_status_page);
-        terminal().add_page(&alarms_page());
-        terminal().add_page(&_config_page);
-        terminal().add_page(&_monitor_page);
-    }
-
-    /** @brief Register the site's "gh" command, reading the live PLC payload
-     *  (ctx). */
-    void register_commands() override {
-        shell_page().set_commands(g_site_commands,
-                                  sizeof(g_site_commands) / sizeof(g_site_commands[0]),
-                                  (void*)plc_output_data());
-    }
-
-    /** @brief The home page also sinks the log stream (its bottom log-tail
-     *  band); the `status` shell command reads the site scalar table live. */
-    void on_setup() override {
-        logger().add_writer(&_home_page);
-#if BOTANIK_FEATURE_CONSOLE
-        shell_page().set_status_vars(
-            g_telemetry_groups,
-            g_telemetry_group_count,
-            plc_output_data());
-#endif
-    }
-
-#if BOTANIK_FEATURE_MQTT
-    /** @brief Register the site telemetry scalars, read generically off the live
-     *  PLC payload. Published after the library base set each cycle. */
-    void register_telemetry() override {
-        telemetry().set_site_scalar_groups(
-            g_telemetry_groups,
-            g_telemetry_group_count,
-            plc_output_data());
-    }
-#endif
 };
 
 // Simulator-only mock PLC (body compiles only under TARGET_SIMULATOR;

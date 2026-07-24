@@ -12,7 +12,7 @@
 namespace Botanik { namespace Alarms {
 
     void AlarmCondition::step(bool raw_on, uint32_t dt, uint64_t now,
-                              uint64_t merged_raw, const AlarmSink& sink) {
+                              const AlarmSink& sink) {
         // 1. Drain the two wrap-immune latch countdowns, then refresh the
         //    off-delay while the raw bit is set: the off-delay holds active for
         //    off_delay_s after the raw bit clears, the minimum-ON hold keeps it
@@ -38,7 +38,6 @@ namespace Botanik { namespace Alarms {
             }
         }
         active   = on;
-        unmasked = on && (merged_raw & masked_by) == 0;
 
         // 3. Announce the transition once its dwell threshold has elapsed: a
         //    single event drives both the ALARM-topic log line and the notifier

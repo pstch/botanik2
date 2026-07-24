@@ -49,8 +49,6 @@ namespace Botanik { namespace Health {
         /** PLC shared region (for POST) */
         const void*                        _in_region;
         const void*                        _out_region;
-        /** remote (PLC) alarm bitset in the output payload (may be null) */
-        const uint64_t*                    _remote_alarms;
 
         /** last overrun count seen (edge detect) */
         uint32_t _xrun_last        = 0;
@@ -78,14 +76,14 @@ namespace Botanik { namespace Health {
                       const Scheduler::SchedulerContext* sched,
                       PlcIO::PlcSyncContext* plc,
                       const void* in_region, const void* out_region,
-                      const uint64_t* remote_alarms = nullptr)
+                      const void* alarm_base = nullptr)
             : Component(logger, "HealthMonitor"),
               _notifier(Config::MQTT_TOPIC_PREFIX),
               _model(table, count, logger,
-                     Alarms::PLATFORM_ALARMS, Alarms::PLATFORM_ALARM_COUNT),
+                     Alarms::PLATFORM_ALARMS, Alarms::PLATFORM_ALARM_COUNT,
+                     alarm_base),
               _sched(sched), _plc(plc),
-              _in_region(in_region), _out_region(out_region),
-              _remote_alarms(remote_alarms) {
+              _in_region(in_region), _out_region(out_region) {
             _model.add_notifier(&_notifier);   // the built-in MQTT sink
         }
 
@@ -118,9 +116,9 @@ namespace Botanik { namespace Health {
         void setup(uint64_t now) override { (void)now; _post(); }
 
         /** @brief Per beat: assert the platform alarms, update the watchdog
-         *  verdict, and advance the model with the remote bitset. The remote
-         *  bitset and torn count are read live through the stored pointers
-         *  (null-safe). @p now is uptime in ms. */
+         *  verdict, and advance the model (which reads each site alarm's boolean
+         *  from the PLC output payload directly). The torn count is read live
+         *  through the stored pointer (null-safe). @p now is uptime in ms. */
         void on_step(uint64_t now) override {
             _assert_platform_alarms(now);
 #if BOTANIK_FEATURE_PLC
@@ -131,7 +129,8 @@ namespace Botanik { namespace Health {
             _held_event("RX_TORN", rx_torn, _rx_torn_last, _rx_torn_until_ms, now);
 #endif
             _update_watchdog(now);
-            _model.step(_remote_alarms ? *_remote_alarms : 0, now);
+            // The model reads each site alarm's boolean from the payload itself.
+            _model.step(now);
         }
 
     private:

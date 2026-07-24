@@ -220,7 +220,12 @@ inline void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
         else                        hold_ms[i] = 0;
         if (on || hold_ms[i] > 0)   debounced |= Botanik::Alarms::alarm_bit(i);
     }
-    o->alarms = debounced;
+    // Scatter the debounced bitset into the per-alarm boolean fields (bit i ->
+    // g_alarms[i].offset), the wire form the firmware's AlarmReader gathers. On
+    // hardware the PLC program drives these booleans directly.
+    uint8_t* base = reinterpret_cast<uint8_t*>(o);
+    for (uint8_t i = 0; i < g_alarm_count; i++)
+        base[g_alarms[i].offset] = (uint8_t)((debounced >> i) & 1u);
 }
 
 /**

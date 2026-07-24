@@ -290,9 +290,10 @@ namespace Botanik { namespace Pages {
                     case MODE_ACTIVE:   include = c.active;               break;
                     // UNMASKED mirrors the alarm bar, so an ack'd alarm drops
                     // out of it too (the ALL / ACTIVE / RECENT views keep it,
-                    // demoted by _before()).
+                    // demoted by _before()). With masking removed this is the
+                    // active-and-un-ack'd set.
                     case MODE_UNMASKED:
-                        include = c.active && c.unmasked && !c.user_ack; break;
+                        include = c.active && !c.user_ack; break;
                     default:            include = true;                   break;
                 }
                 if (include) _vis[_nvis++] = i;

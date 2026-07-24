@@ -11,11 +11,23 @@
 #include "libbotanik/alarms/alarms.h"
 #include "libbotanik/logs/logger.h"
 
+#include <cstddef>   // offsetof
+
 using namespace Botanik;
 
 namespace {
-    // Static-prefix fields, in order: code, desc, masked_by, on_s, off_s,
-    // recent_s, off_delay_s, min_on_s. The dynamic suffix is left
+    // Drive a model without a PLC payload: set each condition's local override
+    // from @p bits (bit i -> condition i), then step. Mirrors how the old bitset
+    // step() raised/cleared conditions, keeping the tests terse.
+    void step_bits(Alarms::AlarmModel& m, uint64_t bits, uint64_t now) {
+        for (uint8_t i = 0; i < m.count(); i++)
+            m.set_local(i, ((bits >> i) & 1u) != 0);
+        m.step(now);
+    }
+
+    // Static-prefix fields, in order: code, desc, offset (payload boolean; 0
+    // here - these tests drive conditions via set_local, no payload), on_s,
+    // off_s, recent_s, off_delay_s, min_on_s. The dynamic suffix is left
     // zero-initialized (the pragma silences the pedantic field-init warning).
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
@@ -52,7 +64,7 @@ namespace {
 
 TEST_CASE("alarm: ack marks an active condition, ignores inactive / unknown") {
     Alarms::AlarmModel m(TABLE, 2, nullptr);
-    m.step(0x1, 1000);                              // raise A (bit 0)
+    step_bits(m, 0x1, 1000);                              // raise A (bit 0)
     CHECK(m.active_count() == 1);
     CHECK(m.condition(0).user_ack == false);
     CHECK(m.ack("AAA") == true);
@@ -63,36 +75,36 @@ TEST_CASE("alarm: ack marks an active condition, ignores inactive / unknown") {
 
 TEST_CASE("alarm: ack clears on the next ON edge (a fresh episode is unacknowledged)") {
     Alarms::AlarmModel m(TABLE, 2, nullptr);
-    m.step(0x1, 1000);
+    step_bits(m, 0x1, 1000);
     m.ack("AAA");
     CHECK(m.condition(0).user_ack == true);
-    m.step(0x0, 2000);                              // A clears
-    m.step(0x1, 3000);                              // A re-fires
+    step_bits(m, 0x0, 2000);                              // A clears
+    step_bits(m, 0x1, 3000);                              // A re-fires
     CHECK(m.condition(0).user_ack == false);    // reset on the ON edge
 }
 
 TEST_CASE("alarm: ack_all acknowledges every active condition and counts them") {
     Alarms::AlarmModel m(TABLE, 2, nullptr);
-    m.step(0x3, 1000);                              // both active
+    step_bits(m, 0x3, 1000);                              // both active
     CHECK(m.ack_all() == 2);
     CHECK(m.condition(0).user_ack == true);
     CHECK(m.condition(1).user_ack == true);
 
     Alarms::AlarmModel m2(TABLE, 2, nullptr);
-    m2.step(0x2, 1000);                             // only B active
+    step_bits(m2, 0x2, 1000);                             // only B active
     CHECK(m2.ack_all() == 1);
     CHECK(m2.condition(1).user_ack == true);
 }
 
 TEST_CASE("alarm: min_on_s holds a condition active after the raw bit clears") {
     Alarms::AlarmModel m(MIN_ON_TABLE, 1, nullptr);
-    m.step(0x1, 1000);                              // raise (seeds the 5 s min-on hold)
+    step_bits(m, 0x1, 1000);                              // raise (seeds the 5 s min-on hold)
     CHECK(m.condition(0).active == true);
-    m.step(0x0, 2000);                              // raw clears 1 s in: still held
+    step_bits(m, 0x0, 2000);                              // raw clears 1 s in: still held
     CHECK(m.condition(0).active == true);
-    m.step(0x0, 5500);                              // 4.5 s in: still within the 5 s hold
+    step_bits(m, 0x0, 5500);                              // 4.5 s in: still within the 5 s hold
     CHECK(m.condition(0).active == true);
-    m.step(0x0, 6500);                              // 5.5 s in: hold elapsed, now clears
+    step_bits(m, 0x0, 6500);                              // 5.5 s in: hold elapsed, now clears
     CHECK(m.condition(0).active == false);
 }
 
@@ -103,10 +115,10 @@ TEST_CASE("alarm: an END with no matching START is logged as a FLAP") {
     Alarms::AlarmModel m(FLAP_TABLE, 1, &logger);
 
     // A blip shorter than the 2 s START dwell: clears before any START is logged.
-    m.step(0x1, 1000);                             // on (dwell 0 < on_s 2 s)
+    step_bits(m, 0x1, 1000);                             // on (dwell 0 < on_s 2 s)
     logger.step();
     CHECK(rec.has(Logs::ALARM_START) == false);   // too brief to announce a START
-    m.step(0x0, 1500);                             // off -> END with no START = FLAP
+    step_bits(m, 0x0, 1500);                             // off -> END with no START = FLAP
     logger.step();
     CHECK(rec.has(Logs::ALARM_FLAP) == true);
     CHECK(rec.has(Logs::ALARM_END) == false);
@@ -123,11 +135,44 @@ TEST_CASE("alarm: a normal episode logs START then END (not FLAP)") {
 #pragma GCC diagnostic pop
     Alarms::AlarmModel m(tbl, 1, &logger);
 
-    m.step(0x1, 1000);                             // on, START logged immediately
+    step_bits(m, 0x1, 1000);                             // on, START logged immediately
     logger.step();
     CHECK(rec.has(Logs::ALARM_START) == true);
-    m.step(0x0, 2000);                             // off -> END (START was logged)
+    step_bits(m, 0x0, 2000);                             // off -> END (START was logged)
     logger.step();
     CHECK(rec.has(Logs::ALARM_END) == true);
     CHECK(rec.has(Logs::ALARM_FLAP) == false);
+}
+
+TEST_CASE("alarm reader: model reads per-alarm booleans from the payload") {
+    // Mock site payload: three per-alarm boolean fields at distinct offsets.
+    struct Payload { uint8_t a; uint8_t pad; uint8_t b; uint8_t c; };
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+    // code, desc, offset (payload boolean), on_s, off_s, ... - announce off.
+    const Alarms::AlarmCondition tbl[] = {
+        { "AAA", "a", (uint16_t)offsetof(Payload, a), -1, -1 },  // bit 0
+        { "BBB", "b", (uint16_t)offsetof(Payload, b), -1, -1 },  // bit 1
+        { "CCC", "c", (uint16_t)offsetof(Payload, c), -1, -1 },  // bit 2
+    };
+#pragma GCC diagnostic pop
+
+    Logs::Logger logger;
+    Payload p{};
+    Alarms::AlarmModel m(tbl, 3, &logger, nullptr, 0, &p);
+
+    m.step(1000);
+    CHECK(m.condition(0).active == false);
+    p.a = 1;
+    m.step(2000);
+    CHECK(m.condition(0).active == true);
+    CHECK(m.condition(2).active == false);
+    p.c = 7;                               // any non-zero byte counts as on
+    m.step(3000);
+    CHECK(m.condition(0).active == true);
+    CHECK(m.condition(2).active == true);
+    p.a = 0;
+    m.step(4000);
+    CHECK(m.condition(0).active == false);
+    CHECK(m.condition(2).active == true);
 }

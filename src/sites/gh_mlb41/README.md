@@ -7,17 +7,18 @@ truth for the `gh_mlb41` greenhouse.
 
 | File | Holds |
 |---|---|
-| `site.h` | the PLC payload (`PlcInput/OutputData_t` + status enums and their string companions) **and** the `GreenhouseMLB41` firmware subclass. The uniform handle a harness builds against (`BotanikSite`, the payload, the sim-only mock-PLC entry). |
-| `pages.h` | the site pages (`GreenhouseHomePage`, `GreenhouseStatusPage`). |
-| `alarms.h` / `alarms.cpp` | the `g_alarms[]` condition table (one row per alarm bit). |
+| `site.h` | the PLC payload (`PlcInput/OutputData_t` + status enums and their string companions), the declarative tables (status-variable `ScalarGroup[]`, the `gh` shell command), the `g_site` `SiteDescriptor` bundling every table, and the thin `GreenhouseMLB41` binding. The uniform handle a harness builds against (`BotanikSite`, the payload, the sim-only mock-PLC entry). |
+| `alarms.h` | the `g_alarms[]` condition table (one row per alarm: code, description, the payload boolean's `offsetof`, dwell). |
 | `sim.h` | the header-only simulator mock PLC (data animator + emulator wiring); its whole body is `#ifdef TARGET_SIMULATOR`, so it drops out of the hardware build. |
 | `config.h` | build-wide config overrides (`#define BOTANIK_*`); kept separate so CMake includes it before the library defaults. |
 
-`GreenhouseMLB41` derives `BotanikFirmware<PlcInputData_t, PlcOutputData_t>` and adds
-its pages, its alarm table, and one example shell command (`gh`). It never overrides
-`setup()`/`loop()`; it customizes through the base's hooks (`register_pages()`,
-`register_commands()`, `on_setup()`). See `src/libbotanik/firmware.h` for the full
-extension model and a worked example.
+`GreenhouseMLB41` derives `BotanikFirmware<PlcInputData_t, PlcOutputData_t>` and just
+passes `g_site` to the base constructor - it declares no pages and overrides no hooks.
+The base owns every page (home/shell/logs/alarms/config/monitor) and wires the
+descriptor's tables generically, so the site is data, not code. A site needing custom
+per-beat logic or an extra page (e.g. re-adding a STATUS page by subclassing
+`Pages::StatusPage`) would override the base's `on_step()` / `register_pages()`. See
+`src/libbotanik/core/firmware.h` for the full extension model and a worked example.
 
 ## Data model
 
@@ -28,7 +29,7 @@ with a `str()` companion (`UpsStatus`, `TrayStatus`, `NetStatus`):
 
 \startuml "gh_mlb41 PlcOutputData_t: the greenhouse state the PLC publishes"
 class PlcOutputData_t {
-  alarms : uint64 bitset (one condition per bit)
+  alarms : one uint8 boolean per condition (AlarmModel reads each by offset)
   power : grid_ac / dc_bus / battery / generator (mV), grid_freq
   climate : ext/floor/ceil temp + RH, wind_peak, rain_age
   irrigation : water_in / water_out, current_tray, tray_status*

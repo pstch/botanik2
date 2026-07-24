@@ -16,7 +16,7 @@ from helpers import boot, goto
 
 def test_alarms_recent(spawn, assert_screen):
     term = boot(spawn)
-    goto(term, keys.ALT_5)          # switch to ALARMS (page 4), RECENT by default
+    goto(term, keys.ALT_4)          # switch to ALARMS (page 4), RECENT by default
     assert_screen(term, "alarms_recent")
 
 
@@ -31,7 +31,7 @@ def test_alarms_all(spawn):
     the momentary alarm state (that is what the alarms page exists to show live).
     """
     term = boot(spawn)
-    goto(term, keys.ALT_5)
+    goto(term, keys.ALT_4)
     term.send(b" ")                 # SPACE: RECENT -> ALL (lists the full catalog)
     term.settle()
     assert term.wait_for(("| CODE     | ON | LAST EVENT", "listed", "SPACE: active")), \

@@ -8,7 +8,7 @@ is the scale-invariant assertion here (cf. test_logs.py).
 import keys
 from helpers import boot, goto
 
-ALT_6 = keys.ESC + b"6"      # CONFIG is page index 5
+ALT_6 = keys.ESC + b"5"      # CONFIG is page index 4 (ALT_5)
 CTRL_U = b"\x15"             # clear the edit line
 
 

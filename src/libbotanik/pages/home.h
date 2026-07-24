@@ -4,13 +4,13 @@
 
 /**
  * @file home.h
- * @brief HomePage - landing screen (template base): ASCII logo, a compact
- *        system summary, and a small live log tail along the bottom.
+ * @brief HomePage - landing screen: ASCII logo, a compact system summary, and
+ *        a small live log tail along the bottom.
  *
- * Templated on the site PLC output payload for type-safe data() access. The
- * base lays out the logo and the payload-independent summary (PLC link,
- * uptime); derived classes add site readings via the payload hooks. Drawing is
- * diffed by MetricPage.
+ * Site-independent: it shows the logo, the firmware identity block, the PLC
+ * link status and uptime, and the log tail - nothing from the site payload. A
+ * site adds nothing here (per-site readings live on the MONITOR page). Drawing
+ * is diffed by MetricPage.
  *
  * Also a LogWriter: the bottom HOME_SCROLLBACK_LINES rows show a live tail (no
  * scroll-up), replayed from a small HomeScrollback. begin_redraw() over the
@@ -40,15 +40,12 @@
 
 namespace Botanik { namespace Pages {
 
-    /** @brief Landing page base (see file header). */
-    template<typename OutputData>
+    /** @brief Landing page (see file header). */
     class HomePage : public MetricPage, public Logs::BufferedLogWriter {
     protected:
         /** @name State
          *  @{ */
 
-        /** @brief Typed PLC output payload (may be null). */
-        const OutputData* _data;
         /** @brief Bottom log tail: most recent lines, bottom-aligned on the
          *         screen. */
         HomeScrollback _scrollback;
@@ -57,13 +54,12 @@ namespace Botanik { namespace Pages {
 
         /** @} */
 
-        /** @brief First content row available to derived payload rendering. */
+        /** @brief First content row below the fixed identity block. */
         static constexpr uint16_t PAYLOAD_ROW = 10;
 
         /** @brief First screen row of the bottom log band. Clamped so it never
-         *  starts above the fixed content (logo + readings, payload at
-         *  PAYLOAD_ROW); on a too-short screen the band collapses to empty
-         *  (band_top == rows). */
+         *  starts above the fixed content (logo + summary); on a too-short
+         *  screen the band collapses to empty (band_top == rows). */
         uint16_t log_band_top() const {
             uint16_t rows = _console.rows();
             uint16_t top  = (rows > Config::HOME_SCROLLBACK_LINES)
@@ -192,7 +188,6 @@ namespace Botanik { namespace Pages {
             draw_id_block();
             _label(7, "PLC link");
             _label(8, "Uptime");
-            draw_payload_static();
             // Divider above the bottom log band (band rows are painted from the
             // scrollback, see focus()/tick()).
             uint16_t band_top = log_band_top();
@@ -207,7 +202,6 @@ namespace Botanik { namespace Pages {
 #else
             _value(7, "n/a");
 #endif
-            draw_payload_dynamic();
         }
 
         /** @brief Uptime counter - hot field, refreshed every second,
@@ -218,21 +212,11 @@ namespace Botanik { namespace Pages {
             _value(8, buf, false);
         }
 
-        /** @brief Site-specific labels/headers (drawn once). Base: no-op. */
-        virtual void draw_payload_static() {}
-        /** @brief Site-specific values (refreshed periodically). Base:
-         *  no-op. */
-        virtual void draw_payload_dynamic() {}
-
-        /** @brief Typed PLC output payload for derived rendering (may be
-         *  null). */
-        const OutputData* data() const { return _data; }
-
         /** @} */
 
     public:
-        HomePage(Console& console, const OutputData* data)
-            : MetricPage(console, 14), _data(data) {
+        explicit HomePage(Console& console)
+            : MetricPage(console, 14) {
             // cold-field redraw cadence
             _refresh_ms = Config::HOME_REFRESH_MS;
             // uptime ticks every second

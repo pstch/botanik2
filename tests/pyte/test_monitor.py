@@ -8,7 +8,7 @@ emulator animates, so a content check is the scale-invariant assertion here
 import keys
 from helpers import boot, goto
 
-ALT_7 = keys.ESC + b"7"      # MONITOR is page index 6
+ALT_7 = keys.ESC + b"6"      # MONITOR is page index 5 (ALT_6)
 
 
 def test_monitor_renders(spawn):

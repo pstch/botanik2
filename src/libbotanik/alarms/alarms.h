@@ -4,17 +4,18 @@
 
 /**
  * @file alarms.h
- * @brief Alarm model - merges remote (PLC) and local alarm bitsets.
+ * @brief Alarm model - per-condition dwell/latch state machine.
  *
  * Tracks each condition's dwell, raises ALARM-topic log lines / MQTT
  * notifications on the ON/OFF thresholds, and exposes the set for display.
  *
- * The condition list is two disjoint namespaces: PLC/site alarms fill [0..N),
- * mapping to the low N bits of the PLC's 64-bit `alarms` word; the generic
- * platform-health alarms (platform.h) follow at [N..N+M), driven only locally
- * (set_local()). step() masks the remote word to the low N bits before merging
- * local bits, so a stray PLC bit can never drive a platform condition. N + M
- * must be <= 64.
+ * There is no aggregate alarm bitset: each condition's raw input is read
+ * directly each step. Two disjoint namespaces: PLC/site alarms fill [0..N),
+ * each reading its own boolean field in the PLC output payload (its `offset`);
+ * the generic platform-health alarms (platform.h) follow at [N..N+M), driven
+ * only locally (set_local()). A site alarm's local override is OR'd with its
+ * payload boolean; a platform alarm has no payload field, so it rests on its
+ * override alone. N + M must be <= ALARM_BITS.
  *
  * The model owns its working AlarmCondition array: it copies both const tables
  * in at construction, then owns the dynamic state. The site table stays
@@ -34,10 +35,12 @@
 
 namespace Botanik { namespace Alarms {
 
-    /** @brief Width of the raw alarm bitset (and of the condition table). */
+    /** @brief Maximum number of alarm conditions (site + platform). */
     static constexpr uint8_t ALARM_BITS = 64;
 
-    /** @brief 1 << id as a 64-bit mask, for building masked_by sets. */
+    /** @brief 1 << id as a 64-bit mask. The model no longer uses a bitset; this
+     *  helps the console layer build a compact per-frame change signature over
+     *  the condition set (alarm bar / alarms page). */
     inline uint64_t alarm_bit(uint8_t id) { return (uint64_t)1u << id; }
 
     /** @brief Wrap-immune countdown drain: @p rem - @p dt, floored at 0. */
@@ -64,7 +67,11 @@ namespace Botanik { namespace Alarms {
 
         const char* code;       //< short code, max 8 chars
         const char* desc;       //< human-readable description
-        uint64_t    masked_by;  //< bitset of alarms that suppress this alarm
+        /** Byte offset of this alarm's boolean field in the site PLC output
+         *  payload: the model reads it directly (a non-zero byte = active).
+         *  Left 0 for the platform-health alarms (driven locally via
+         *  set_local(), never read from the payload). */
+        uint16_t    offset;
 
         int32_t     on_s;       //< time ON  before announcing (log + notify; -1: off)
         int32_t     off_s;      //< time OFF before announcing (log + notify; -1: off)
@@ -76,8 +83,10 @@ namespace Botanik { namespace Alarms {
 
         /** @name Dynamic state
          *  @{ */
+        /** local override raw: the runtime-sourced input for platform-health
+         *  alarms (set_local); OR'd with the payload boolean for site alarms. */
+        bool        local_raw;
         bool        active;         //< alarm active or latched
-        bool        unmasked;       //< active and not masked by other alarms
 
         bool        on_sent;        //< ON  transition announced (log + notify)
         bool        off_sent;       //< OFF transition announced (log + notify)
@@ -95,13 +104,12 @@ namespace Botanik { namespace Alarms {
         /** @} */
 
         /** @brief Advance this condition one tick. Drains the off-delay /
-         *  minimum-ON countdowns by @p dt, recomputes active/unmasked (the
-         *  latter against the model's @p merged_raw word), seeds the edge
+         *  minimum-ON countdowns by @p dt, recomputes active, seeds the edge
          *  bookkeeping on a transition, and announces a due transition (the log
          *  line + the notifier fan-out) through @p sink. @p raw_on is this
-         *  condition's merged raw bit; @p now is the current uptime (ms). */
-        void step(bool raw_on, uint32_t dt, uint64_t now, uint64_t merged_raw,
-                  const AlarmSink& sink);
+         *  condition's raw input (payload boolean or local override); @p now is
+         *  the current uptime (ms). */
+        void step(bool raw_on, uint32_t dt, uint64_t now, const AlarmSink& sink);
 
     private:
         /** @brief A once-per-episode event is due: unsent, enabled (>= 0), and
@@ -226,9 +234,9 @@ namespace Botanik { namespace Alarms {
     /**
      * @brief Owns the dynamic alarm state over a site-supplied condition table.
      *
-     * step() runs once per loop with the remote raw bitset + uptime: merges
-     * local bits, advances dwell, raises log lines / notifications, recomputes
-     * the masked view.
+     * step(now) runs once per loop: it reads each condition's raw input (its
+     * payload boolean OR its local override), advances dwell, and raises log
+     * lines / notifications. No aggregate bitset is built or stored.
      */
     class AlarmModel : public Botanik::Component {
     private:
@@ -237,41 +245,36 @@ namespace Botanik { namespace Alarms {
         AlarmCondition  _conditions[ALARM_BITS]; // model-owned working array
         uint8_t         _plc_count;      // N: PLC/site conditions at [0..N)
         uint8_t         _count;          // N + M: total conditions scanned
-        /** (1<<N)-1: masks the remote word to the PLC range */
-        uint64_t        _site_mask;
+        /** site PLC output payload the site alarm offsets address (may be null:
+         *  no link -> site alarms rest on their local override only) */
+        const void*     _base;
         /** registered transition sinks (fan-out, mirrors Logger's writers) */
         AlarmNotifier*  _notifiers[Config::ALARM_NOTIFIERS_MAX];
         uint8_t         _notifier_count; // entries used in _notifiers
-        /** runtime-sourced alarm bits (platform range) */
-        uint64_t        _local;
-        /** remote (PLC) raw bitset latched by the 2-arg step() for on_step() */
-        uint64_t        _remote_raw = 0;
-        /** last merged raw ((remote & mask) | local) */
-        uint64_t        _raw;
         /** uptime of the last step (latch countdown) */
         uint64_t        _last_now;
         /** suppress latch decrement on first step */
         bool            _first_step;
         uint8_t         _active_count;   // active conditions this step
-        /** active and unmasked conditions this step */
-        uint8_t         _unmasked_count;
         /** @} */
 
     public:
         /** @brief Bind to the site PLC table (@p site_count at [0..N)) and the
          *  optional platform-health table (@p platform_count appended at
-         *  [N..N+M)). Both const, copied in; N + M <= ALARM_BITS. Alarms start
-         *  "settled OFF" so a never-active one never announces an END it never
-         *  started. */
+         *  [N..N+M)). Both const, copied in; N + M <= ALARM_BITS. @p base is the
+         *  site PLC output payload the site alarm offsets address (null = no
+         *  link). Alarms start "settled OFF" so a never-active one never
+         *  announces an END it never started. */
         AlarmModel(const AlarmCondition* site_table, uint8_t site_count,
                    Logs::Logger* logger,
                    const AlarmCondition* platform = nullptr,
-                   uint8_t platform_count = 0)
+                   uint8_t platform_count = 0,
+                   const void* base = nullptr)
             : Component(logger, "AlarmModel"),
-              _plc_count(0), _count(0), _site_mask(0),
+              _plc_count(0), _count(0), _base(base),
               _notifier_count(0),
-              _local(0), _raw(0), _last_now(0), _first_step(true),
-              _active_count(0), _unmasked_count(0) {
+              _last_now(0), _first_step(true),
+              _active_count(0) {
             BOTANIK_ASSERT(site_count + platform_count <= ALARM_BITS);
             // Clamp defensively so a too-large count can't overflow the array.
             if (site_count > ALARM_BITS) site_count = ALARM_BITS;
@@ -285,8 +288,6 @@ namespace Botanik { namespace Alarms {
                 _conditions[site_count + j] = platform[j];
             _plc_count = site_count;
             _count     = (uint8_t)(site_count + platform_count);
-            _site_mask = (site_count >= 64) ? ~(uint64_t)0
-                                            : (((uint64_t)1 << site_count) - 1);
             for (uint8_t i = 0; i < _count; i++)     // boot state: settled OFF
                 _conditions[i].off_sent = true;
         }
@@ -326,12 +327,12 @@ namespace Botanik { namespace Alarms {
         /** @name Local alarms
          *  @{ */
 
-        /** @brief Set/clear a runtime-sourced alarm bit (merged next
-         *  step()). */
+        /** @brief Set/clear a condition's local raw override (applied next
+         *  step()). Platform-health alarms are driven only this way; a site
+         *  alarm's override is OR'd with its payload boolean. */
         void set_local(uint8_t id, bool on) {
-            if (id >= ALARM_BITS) return;
-            if (on) _local |=  alarm_bit(id);
-            else    _local &= ~alarm_bit(id);
+            if (id >= _count) return;
+            _conditions[id].local_raw = on;
         }
 
         /** @brief Set/clear a local alarm by table code (e.g. "CPU_LOAD");
@@ -363,37 +364,33 @@ namespace Botanik { namespace Alarms {
 
         /** @} */
 
-        /** @brief Latch the PLC remote bitset for this beat, then advance via the
-         *  Component step (first-step announce + on_step). Kept 2-arg so the many
-         *  call sites (health + tests) are unchanged. */
-        void step(uint64_t remote_raw, uint64_t now) {
-            _remote_raw = remote_raw;
-            Component::step(now);
-        }
-
     protected:
-        /** @brief Merge the PLC + local bitsets, advance each condition, raise
-         *  due log lines / notifications. */
+        /** @brief Read each condition's raw input (site payload boolean OR its
+         *  local override) and advance it, raising due log lines / notifications.
+         *  Component::step(now) is the public entry (first-step announce +
+         *  on_step); no aggregate bitset is built. */
         void on_step(uint64_t now) override {
-            // Mask the remote word to the PLC range (a stray high bit can't
-            // drive a platform condition), then merge the local bits on top.
-            _raw = (_remote_raw & _site_mask) | _local;
             // dt = 0 on the first step (no latch decrement yet).
             uint32_t dt = _first_step ? 0 : (uint32_t)(now - _last_now);
             _first_step = false;
             _last_now   = now;
             _active_count = 0;
-            _unmasked_count = 0;
             AlarmSink sink{_logger, _notifiers, _notifier_count};
             for (uint8_t i = 0; i < _count; i++) {
                 AlarmCondition& c = _conditions[i];
-                bool raw_on = ((_raw >> i) & 1u) != 0;
-                c.step(raw_on, dt, now, _raw, sink);
-                if (c.active) {
-                    _active_count++;
-                    if (c.unmasked) _unmasked_count++;
-                }
+                bool raw_on = c.local_raw || _site_raw(i);
+                c.step(raw_on, dt, now, sink);
+                if (c.active) _active_count++;
             }
+        }
+
+    private:
+        /** @brief This site condition's payload boolean (a non-zero byte at its
+         *  offset). False for the platform-health range (i >= _plc_count) or when
+         *  there is no payload (null base). Single-byte read: alignment-safe. */
+        bool _site_raw(uint8_t i) const {
+            if (i >= _plc_count || _base == nullptr) return false;
+            return static_cast<const uint8_t*>(_base)[_conditions[i].offset] != 0;
         }
 
     public:
@@ -401,15 +398,10 @@ namespace Botanik { namespace Alarms {
         /** @name Queries
          *  @{ */
 
-        /** @brief Merged raw bitset from the last step(). */
-        uint64_t raw() const { return _raw; }
         /** @brief Number of table entries scanned. */
         uint8_t  count() const { return _count; }
-        /** @brief Active conditions (masked or not). */
+        /** @brief Active conditions this step. */
         uint8_t  active_count() const { return _active_count; }
-        /** @brief Active and unmasked conditions (the compact alarm-bar
-         *  set). */
-        uint8_t  unmasked_count() const { return _unmasked_count; }
         /** @brief Condition @p i (0 <= i < count()). */
         const AlarmCondition& condition(uint8_t i) const { return _conditions[i]; }
         /** @brief Index of @p code, or -1 (POST uses it to verify set_local

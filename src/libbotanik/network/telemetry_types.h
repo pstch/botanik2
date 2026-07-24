@@ -39,6 +39,11 @@ namespace Botanik { namespace Network {
         uint16_t    divisor;           ///< 0/1 = integer; 100 = centi; 1000 = milli
         uint8_t     decimals;          ///< fixed-point precision (divisor > 1)
         const char* (*str)(uint8_t);   ///< SCALAR_ENUM only (else null)
+        /** Human-readable description (may be null). Part of the declarative
+         *  status-variable spec, generated from the PLC project; last in the
+         *  struct so existing positional initializers keep zero-initialising it.
+         *  Not rendered yet (MONITOR / `status` show name+value). */
+        const char* desc;
     };
 
     /** @brief A named group of ScalarFields under a shared sub-topic. A site
