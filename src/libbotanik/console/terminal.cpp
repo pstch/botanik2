@@ -33,17 +33,19 @@ namespace Botanik { namespace Terminal {
     {
         _tx_cold_depth = depth_for_baud(baud, Config::TX_COLD_TARGET_MS);
         for (uint16_t i = 0; i < GRID_CELLS; i++) { _front[i] = CELL_BLANK; _back[i] = CELL_BLANK; }
-        for (uint16_t r = 0; r < GRID_ROWS; r++) _row_prio[r] = PRIO_STRUCT;
+        for (uint16_t r = 0; r < GRID_ROWS; r++) _row_base[r] = _row_prio[r] = PRIO_STRUCT;
     }
 
-    bool AnsiTerminal::row_reconciled(uint16_t row) const {
-        if (row >= _rows) return true;
-        return memcmp(&_front[_idx(row, 0)], &_back[_idx(row, 0)], _cols) == 0;
+    void AnsiTerminal::set_row_priority(uint16_t top, uint16_t bottom, RowPriority prio) {
+        for (uint16_t r = top; r <= bottom && r < GRID_ROWS; r++)
+            _row_base[r] = _row_prio[r] = (uint8_t)prio;
     }
 
-    void AnsiTerminal::set_row_priority(uint16_t top, uint16_t bottom, uint8_t prio) {
-        if (prio >= PRIO_COUNT) return;
-        for (uint16_t r = top; r <= bottom && r < GRID_ROWS; r++) _row_prio[r] = prio;
+    void AnsiTerminal::boost_rows(uint16_t top, uint16_t bottom, RowPriority prio) {
+        // Only ever upwards: a boost is a claim on the wire, not a demotion, so
+        // two renderers sharing a row cannot undercut each other.
+        for (uint16_t r = top; r <= bottom && r < GRID_ROWS; r++)
+            if ((uint8_t)prio < _row_prio[r]) _row_prio[r] = (uint8_t)prio;
     }
 
     void AnsiTerminal::_reset_grids() {
@@ -464,6 +466,11 @@ namespace Botanik { namespace Terminal {
     }
 
     bool AnsiTerminal::_reconcile_row(uint16_t row, uint16_t& budget) {
+        // Nothing pending: skip in one memcmp rather than two per-cell walks. The
+        // boost is deliberately NOT dropped here - a row that has been raised but
+        // not yet drawn is clean, and standing it down now would undo the claim
+        // before the draw it was made for.
+        if (memcmp(&_front[_idx(row, 0)], &_back[_idx(row, 0)], _cols) == 0) return true;
         // A sideways slide is one escape; try that before rewriting cells. It may
         // leave a remainder (the cells it could not express), which the run loop
         // below then reconciles normally.
@@ -491,6 +498,8 @@ namespace Botanik { namespace Terminal {
             if (oversized || budget == 0) return false;
             col = b;
         }
+        // The row is on the wire, so whatever claim was made on it is spent.
+        _row_prio[row] = _row_base[row];
         return true;
     }
 
@@ -500,23 +509,16 @@ namespace Botanik { namespace Terminal {
         // this tick's budget. @return true when the screen is fully reconciled;
         // false means work is left for the next tick.
         //
-        // Rows are visited by priority class, then top to bottom within a class.
-        // That is the whole of the priority mechanism: when the budget runs out
-        // mid-frame, what got dropped is the least important thing on screen
-        // rather than whatever happened to sit lowest. Nothing is queued, so a
-        // row that misses one tick simply still differs on the next.
+        // Rows are visited by priority class, so an exhausted budget drops the
+        // least important rows rather than whatever sat lowest. Nothing is queued:
+        // a row that misses a tick still differs from BACK on the next one.
         uint16_t used   = tx_used();
         uint16_t budget = (used < _tx_cold_depth) ? (uint16_t)(_tx_cold_depth - used) : 0;
         for (uint8_t prio = 0; prio < PRIO_COUNT; prio++) {
-            // Within a class, resume where the budget ran out last tick and wrap.
-            // Starting from the top every tick would let the upper rows spend the
-            // whole budget forever, so on a page whose every row updates on the
-            // same cadence (STATUS) the lower ones would never reach the wire at
-            // all - starvation inside a class, which priority cannot help with
-            // because the rows are equally important. Round-robin is the fairness
-            // a FIFO queue would have provided, except the back-buffer already
-            // holds the pending work, so it costs one row index per class.
-            uint16_t start = _resume[prio] < _rows ? _resume[prio] : 0;
+            // Within a class, resume where the budget ran out and wrap: equally
+            // ranked rows take turns instead of the top ones winning every tick.
+            // See docs/SCREEN_BACKBUFFER.md.
+            uint16_t start = _resume[prio];
             for (uint16_t i = 0; i < _rows; i++) {
                 uint16_t row = (uint16_t)(start + i);
                 if (row >= _rows) row = (uint16_t)(row - _rows);
@@ -524,7 +526,7 @@ namespace Botanik { namespace Terminal {
                 if (!_reconcile_row(row, budget)) {
                     // Pick this row up again next tick: it is either unfinished or
                     // untried, and either way it is owed the next slot.
-                    _resume[prio] = row;
+                    _resume[prio] = (uint8_t)row;
                     return false;
                 }
             }

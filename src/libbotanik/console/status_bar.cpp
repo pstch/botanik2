@@ -31,18 +31,16 @@ namespace Botanik { namespace Terminal {
     }
 
     StatusBar::StatusBar(Console& console)
-        : _c(console), _t(console.terminal()) {}
+        : _c(console), _t(console.terminal()) {
+        // The bar's resting worth: it is the clock and the metrics ticking over,
+        // which may skip a tick without anyone minding. Its full draws boost.
+        _t.set_row_priority(0, PRIO_COLD);
+    }
 
     // Cooperative paint
 
 
     void StatusBar::step(uint64_t now) {
-        // Once the bar's structural draw has actually reached the wire, demote the
-        // row: from here on it only carries the clock and metrics ticking over,
-        // and that must not take its cut of the budget ahead of the page. Held at
-        // STRUCT until then so the first draw frames the screen with the page
-        // rather than trailing behind it.
-        if (_t.row_reconciled(0)) _t.set_row_priority(0, 0, PRIO_COLD);
         // Rebuild the clock and metrics on their own cadence and repaint the whole
         // field; the terminal's back-buffer diff emits only the cells that moved.
         if (now - _clock_last_ms >= Config::PAGE_HOT_MS) {
@@ -56,10 +54,9 @@ namespace Botanik { namespace Terminal {
     }
 
     void StatusBar::draw_row() {
-        // A full bar draw is the frame around the page - on boot and after a
-        // Ctrl-L clear it should land before the page it frames, not with it.
-        // step() demotes the row again once this has landed.
-        _t.set_row_priority(0, 0, PRIO_CHROME);
+        // A full bar draw is the frame around the page: on boot and after a
+        // Ctrl-L clear it lands before the page it frames.
+        _t.boost_row(0, PRIO_CHROME);
         constexpr uint16_t mlen = METRICS_LEN - 1;   // field width (drop NUL)
 
         // Save the attribute only, not the cursor: every caller repositions
@@ -90,10 +87,10 @@ namespace Botanik { namespace Terminal {
     }
 
     void StatusBar::draw_tabs() {
-        // A page switch has to read back instantly, so the tab strip goes out
-        // ahead of the page it is announcing - the operator pressed a key and the
-        // strip is the acknowledgement. step() demotes the row once it lands.
-        _t.set_row_priority(0, 0, PRIO_INPUT);
+        // A page switch has to read back instantly: the operator pressed a key
+        // and the strip is the acknowledgement, so it goes ahead of the page it
+        // is announcing.
+        _t.boost_row(0, PRIO_INPUT);
         bool saved_inv = _t.inverted();
         _t.move_to({0, 0});
         _t.set_inverted(true);

@@ -44,10 +44,9 @@ namespace Botanik { namespace Terminal {
                            *   it behind every page row. Demoted once drawn. */
         PRIO_STRUCT = 2,  /**< Page structure and fresh content: drawn once, and a
                            *   page that only half-arrives looks broken. */
-        PRIO_HOT    = 3,  /**< Live fields the operator is actually watching. */
-        PRIO_COLD   = 4,  /**< Routine chrome churn (clock, metrics, alarm set):
-                           *   valuable, but it may skip a tick without harm. */
-        PRIO_COUNT  = 5
+        PRIO_COLD   = 3,  /**< Routine churn (clock, metrics, alarm set): valuable,
+                           *   but it may skip a tick without harm. */
+        PRIO_COUNT  = 4
     };
 
     /** @class AnsiTerminal
@@ -112,18 +111,20 @@ namespace Botanik { namespace Terminal {
         PendingScroll _scrolls[MAX_SCROLLS];
         uint8_t       _nscrolls = 0;
 
-        /** @brief Per-row priority class (see RowPriority), the order present()
-         *  reconciles rows in. One byte a row - the back-buffer already holds the
-         *  pending work, so priority needs no queue of its own. Filled with
-         *  PRIO_STRUCT by the constructor (a brace-initialiser would set only the
-         *  first row and leave the rest at 0, which is PRIO_INPUT). */
+        /** @brief Per-row priority class, the order present() reconciles rows in.
+         *  `_row_base` is what the row is worth at rest; `_row_prio` is what it is
+         *  worth right now, which boost_rows() raises and _reconcile_row() drops
+         *  back to the base once the row has actually reached the wire. Filled by
+         *  the constructor (a brace-initialiser would set only the first row and
+         *  leave the rest at 0, which is PRIO_INPUT). */
+        uint8_t _row_base[GRID_ROWS];
         uint8_t _row_prio[GRID_ROWS];
 
-        /** @brief Per class, the row present() resumes its scan at - set to
-         *  wherever the tick's budget ran out. Round-robin within a class, so
-         *  equally-ranked rows take turns instead of the top ones winning every
-         *  tick. Two bytes a class, and no queue. */
-        uint16_t _resume[PRIO_COUNT] = { 0 };
+        /** @brief Per class, the row present() resumes its scan at - wherever the
+         *  tick's budget ran out. Round-robin within a class, so equally-ranked
+         *  rows take turns instead of the top ones winning every tick. A byte a
+         *  class (rows are bounded by GRID_ROWS), and no queue. */
+        uint8_t _resume[PRIO_COUNT] = { 0 };
 
         /** @}
          *  @name Wire (on-the-wire) terminal state, tracked by present()
@@ -259,14 +260,21 @@ namespace Botanik { namespace Terminal {
         void set_auto_wrap(bool enable);
         void set_cursor_visible(bool show);
 
-        /** @brief Classify rows [@p top, @p bottom] for present()'s emit order.
-         *  Renderers own the rows they draw; the default is PRIO_STRUCT. */
-        void set_row_priority(uint16_t top, uint16_t bottom, uint8_t prio);
+        /** @brief Classify rows [@p top, @p bottom] for present()'s emit order -
+         *  what they are worth at rest. Renderers own the rows they draw; the
+         *  default is PRIO_STRUCT. */
+        void set_row_priority(uint16_t top, uint16_t bottom, RowPriority prio);
+        void set_row_priority(uint16_t row, RowPriority prio) {
+            set_row_priority(row, row, prio);
+        }
 
-        /** @brief True once @p row is fully on the wire (FRONT matches BACK).
-         *  Lets a renderer hold a structural draw at its own priority until it has
-         *  actually landed, and only then demote itself for routine updates. */
-        bool row_reconciled(uint16_t row) const;
+        /** @brief Raise rows [@p top, @p bottom] until the draw about to be made
+         *  on them reaches the wire, then they fall back to their resting class on
+         *  their own. Renderers therefore never have to work out when to stand
+         *  down, which is the part they kept getting wrong: a boost is scoped to
+         *  the draw, so it cannot leak past a page switch or outlive its page. */
+        void boost_rows(uint16_t top, uint16_t bottom, RowPriority prio);
+        void boost_row(uint16_t row, RowPriority prio) { boost_rows(row, row, prio); }
 
         /** @brief Declare where the visible cursor belongs. The renderer owning
          *  the cursor (the editor) calls this whenever it moves; present() parks

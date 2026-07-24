@@ -136,7 +136,7 @@ every tick forever. Walking rows strictly top-down, that chrome takes its cut
 first, every time, and the page behind it starves.
 
 Priority here is **just the order `_emit_diff()` visits rows in** - a `uint8_t`
-per row (`RowPriority`: INPUT / STRUCT / HOT / COLD), 32 bytes for the whole
+per row (`RowPriority`: INPUT / CHROME / STRUCT / COLD), 32 bytes for the whole
 screen. When the budget runs out mid-frame, what gets dropped is the least
 important thing on screen rather than whatever sat lowest.
 
@@ -155,11 +155,25 @@ and wraps (`_resume[]`, one row index per class). That is the fairness a FIFO
 queue would have provided, for two bytes a class and no queue - again because the
 back-buffer, not a queue, is what holds the outstanding work.
 
-Who sets what: the Console demotes row 0 and the alarm strip to COLD, the editor
-raises its own rows to INPUT each edit (keystroke echo must feel immediate, and
-the editor is bottom-pinned so its extent moves). Everything else defaults to
-STRUCT, on the grounds that a half-drawn page reads as broken while a clock that
-skips a tick does not.
+**Resting worth vs a claim.** A row has a base class (`set_row_priority`) and a
+current one. `boost_rows()` raises the current one for the draw a renderer is
+about to make, and `_reconcile_row()` drops it back to the base once that row has
+actually reached the wire - so a boost is scoped to its draw and expires by
+itself. Renderers never decide when to stand down, which is the part they kept
+getting wrong: hand-rolled, the editor never lowered its rows at all (they became
+a high-water mark of every extent it had ever had) and a boost outstanding across
+a page switch outranked the next page's rows indefinitely.
+
+A clean row is skipped without dropping its boost. A row raised but not yet drawn
+is clean, and standing it down for that would undo the claim in the same tick it
+was made.
+
+Who sets what: both bars rest at COLD (their routine churn may skip a tick) and
+boost to CHROME for a full draw; the status bar boosts to INPUT for the tab strip
+on a page switch, the alarms page boosts its legend row to INPUT for a mode
+change, and the editor boosts its own rows to INPUT on each edit. Everything else
+rests at STRUCT, on the grounds that a half-drawn page reads as broken while a
+clock that skips a tick does not.
 
 ### Pacing / budget
 
@@ -170,10 +184,8 @@ no partial emit). What doesn't fit this tick stays in FRONT and is re-diffed nex
 tick - no per-renderer staging, no state between ticks. This is the whole "handle
 the restricted TX budget" story, in one place.
 
-Priority falls out of draw order + the diff: keystroke echo and structure are
-drawn before telemetry within a tick, and the scroll DL/IL is emitted before the
-cell diff. (There are no explicit lanes; the earlier design's priority queue was
-subsumed by "draw the frame, then diff it.")
+Ordering beyond the priority classes falls out of the emit order: the scroll
+DL/IL goes before the cell diff, since it is what makes the diff cheap.
 
 ## 4. Scrolling (the one stateful op)
 

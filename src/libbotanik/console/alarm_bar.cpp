@@ -14,7 +14,16 @@
 namespace Botanik { namespace Terminal {
 
     AlarmBar::AlarmBar(Console& console)
-        : _c(console), _t(console.terminal()) {}
+        : _c(console), _t(console.terminal()) {
+        // Resting worth: the unmasked set changes rarely and can wait behind the
+        // page when it does. Full draws boost (see step()).
+        _t.set_row_priority(_row(), PRIO_COLD);
+    }
+
+    uint16_t AlarmBar::_row() const {
+        uint16_t rows = _t.rows_total();
+        return rows > 0 ? (uint16_t)(rows - 1) : 0;
+    }
 
     uint64_t AlarmBar::unmasked_set() const {
         uint64_t m = 0;
@@ -35,7 +44,7 @@ namespace Botanik { namespace Terminal {
         const Alarms::AlarmModel* alarms = _c.alarms();
         if (alarms == nullptr || _t.rows_total() == 0 || _t.cols() == 0) return;
         // physical last row (reserved for us)
-        uint16_t row  = (uint16_t)(_t.rows_total() - 1);
+        uint16_t row  = _row();
         uint16_t cols = _t.cols();
 
         static const char hdr[] = " ALARMS : ";
@@ -72,16 +81,13 @@ namespace Botanik { namespace Terminal {
 
     void AlarmBar::step() {
         if (_c.alarms() == nullptr) return;
-        uint16_t row = (uint16_t)(_t.rows_total() - 1);
         uint64_t sig = unmasked_set();
         if (sig != _sig) _dirty = true;
-        // _dirty means the row was wiped and needs drawing in full, so it goes
-        // back to CHROME until that lands - it is the bottom row, and page rows
-        // above it would otherwise all go first. A plain set change is routine and
-        // can wait behind the page.
-        if (_dirty)                      _t.set_row_priority(row, row, PRIO_CHROME);
-        else if (_t.row_reconciled(row)) _t.set_row_priority(row, row, PRIO_COLD);
         if (!_dirty) return;
+        // The strip is the bottom row, so page rows above it would all go first
+        // on a budget too small for both. Boost it: the frame lands before the
+        // page it frames, then falls back to its resting COLD on its own.
+        _t.boost_row(_row(), PRIO_CHROME);
         // Redraw the whole bar immediate-mode; the terminal diff pares the bytes.
         draw();
         _sig   = sig;

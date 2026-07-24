@@ -38,12 +38,6 @@ namespace Botanik { namespace Terminal {
         // clear_screen, so it keeps the queued handshake bytes).
         if (!_term.screen_ready()) {
             _term.establish_screen();
-            // Every row starts as structure, the bars included: their first draw
-            // frames the screen and must land with it, not after the page. Each
-            // bar demotes its own row to COLD once that draw is on the wire, so
-            // only the routine clock/metrics churn yields (see StatusBar::step).
-            _term.set_row_priority(0, (uint16_t)(_term.rows_total() - 1),
-                                   Terminal::PRIO_STRUCT);
             // Full redraw order: status bar, alarm bar, then the page. Order is
             // cosmetic now that present() reconciles the whole frame at once, but
             // it keeps the chrome first if a paced frame only gets partway.

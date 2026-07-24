@@ -511,13 +511,10 @@ namespace Botanik { namespace Pages {
                 _top  = 0;
                 _selected = 0;
                 _dirty = true;              // reorders the list + legend
-                // The badge is the feedback for the keypress, so it has to be the
-                // first thing on the wire - ahead of the table repaint the same
-                // keypress just triggered. Raising the legend row does that
-                // without holding the table back a tick; tick() drops it again
-                // once the badge has landed.
-                _terminal.set_row_priority(_legend_row(), _legend_row(),
-                                           Terminal::PRIO_INPUT);
+                // The badge acknowledges the keypress, so it goes ahead of the
+                // table repaint the same keypress triggered - without holding the
+                // table back a tick. It stands down once drawn.
+                _terminal.boost_row(_legend_row(), Terminal::PRIO_INPUT);
             } else if (c == 'a' || c == 'A') {   // ack the selected condition
                 _ack_selected();
             }
@@ -552,15 +549,6 @@ namespace Botanik { namespace Pages {
         void tick(bool active) override {
             _active = active;
             if (!active) return;
-            // The legend is only urgent while a mode change is being acknowledged;
-            // once that has reached the wire it is ordinary page structure again.
-            // The _dirty guard matters: with a repaint pending the legend still
-            // holds the *old* badge and so reads as reconciled, and demoting on
-            // that would undo the promotion handle_text() just made - in the same
-            // tick, before the new badge was even drawn.
-            if (!_dirty && _terminal.row_reconciled(_legend_row()))
-                _terminal.set_row_priority(_legend_row(), _legend_row(),
-                                           Terminal::PRIO_STRUCT);
             // Re-check the set on a slow cadence (alarms move slowly); mark dirty
             // only when the displayed set actually moved.
             uint64_t now = HAL::Clock::uptime_ms();

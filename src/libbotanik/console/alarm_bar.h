@@ -57,6 +57,12 @@ namespace Botanik { namespace Terminal {
          *  the reserved row). */
         void mark_dirty() { _dirty = true; }
 
+    private:
+        /** @brief The physical last row, reserved for the strip. */
+        uint16_t _row() const;
+
+    public:
+
         /** @} */
 
     private:
