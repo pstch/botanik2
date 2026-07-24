@@ -511,7 +511,7 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, PAGE_HOT_MS);
 
-    /** @brief Log lines the Home page keeps in its bottom log tail. 
+    /** @brief Log lines the Home page keeps in its bottom log tail.
      *  @note Small on purpose: a live "last few entries" widget, 
      *        not a full scrollback like the Logs page. */
 #ifndef BOTANIK_HOME_SCROLLBACK_LINES
@@ -544,25 +544,6 @@ namespace Botanik { namespace Config {
 #  define BOTANIK_LOG_ROWS_PER_TICK 2
 #endif
     BOTANIK_CFG(uint16_t, LOG_ROWS_PER_TICK);
-
-    /** @brief Per-tick field budget for the status bar. */
-#ifndef BOTANIK_TX_STATUS_FIELDS_PER_TICK
-#  define BOTANIK_TX_STATUS_FIELDS_PER_TICK 2
-#endif
-    BOTANIK_CFG(uint16_t, TX_STATUS_FIELDS_PER_TICK);
-
-    /** @brief Per-tick field budget for "hot" metrics field values. */
-#ifndef BOTANIK_TX_HOT_FIELDS_PER_TICK
-#  define BOTANIK_TX_HOT_FIELDS_PER_TICK 4
-#endif
-    BOTANIK_CFG(uint16_t, TX_HOT_FIELDS_PER_TICK);
-
-    /** @brief Per-tick field budget for "cold" metrics field values and
-     *         for static contents. */
-#ifndef BOTANIK_TX_COLD_FIELDS_PER_TICK
-#  define BOTANIK_TX_COLD_FIELDS_PER_TICK 4
-#endif
-    BOTANIK_CFG(uint16_t, TX_COLD_FIELDS_PER_TICK);
 
     /** @brief Max decoded input events handled per tick. 
      *  @note Too low: typing/paste feels sluggish and the RX ring backs up. 
@@ -625,12 +606,6 @@ namespace Botanik { namespace Config {
 #  define BOTANIK_SCROLLBACK_LINE_LEN 256
 #endif
     BOTANIK_CFG(uint16_t, SCROLLBACK_LINE_LEN);
-
-    /** @brief Max scrollback rows redrawn per tick() during deferred replay */
-#ifndef BOTANIK_SCROLLBACK_ROWS_PER_TICK
-#  define BOTANIK_SCROLLBACK_ROWS_PER_TICK 1
-#endif
-    BOTANIK_CFG(uint16_t, SCROLLBACK_ROWS_PER_TICK);
 
     /** @brief Continuation prefix for wrapped command-output rows. */
 #ifndef BOTANIK_SHELL_CONT_PREFIX

@@ -29,6 +29,8 @@
 
 #include "libbotanik/core/firmware.h"
 #include "libbotanik/shell/shell.h"   // ShellCommand - the site command table
+#include "libbotanik/pages/config_page.h"   // the interactive CONFIG page
+#include "libbotanik/pages/monitor.h"       // the PLC status-variable MONITOR page
 
 // ===========================================================================
 // PLC payload (shared verbatim by the mock PLC and the OPTA firmware)
@@ -212,9 +214,11 @@ const Botanik::Shell::ShellCommand g_site_commands[] = {
     { "gh", "greenhouse summary (live PLC data)", &cmd_gh },
 };
 
-#if BOTANIK_FEATURE_MQTT
-// Site MQTT telemetry: the live PLC payload grouped by domain. Each group is a
-// small ScalarField[] published under "<prefix>/telemetry/<group>/<leaf>",
+#if BOTANIK_FEATURE_MQTT || BOTANIK_FEATURE_CONSOLE
+// Site status-variable table: the live PLC payload grouped by domain, read
+// generically by MQTT telemetry, the shell `status` command, and the MONITOR
+// page. Each group is a small ScalarField[] published under
+// "<prefix>/telemetry/<group>/<leaf>",
 // alongside the library "system" set; MqttSender reads + renders every field
 // generically off the payload (no per-field code). A field is a leaf name, the
 // payload offset, a ScalarType (read width/sign), and for fixed-point a divisor
@@ -313,8 +317,10 @@ const ScalarGroup g_telemetry_groups[] = {
 class GreenhouseMLB41 final : public Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t> {
     /** @name Site pages
      *  @{ */
-    GreenhouseHomePage   _home_page;
-    GreenhouseStatusPage _status_page;
+    GreenhouseHomePage           _home_page;
+    GreenhouseStatusPage         _status_page;
+    Botanik::Pages::ConfigPage   _config_page;
+    Botanik::Pages::MonitorPage  _monitor_page;
     /** @} */
 
 public:
@@ -326,7 +332,11 @@ public:
         : Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t>(
               shared_in, shared_out, g_alarms, g_alarm_count),
           _home_page(terminal(), plc_output_data()),
-          _status_page(terminal(), plc_output_data())
+          _status_page(terminal(), plc_output_data()),
+          _config_page(terminal(), &config()),
+          _monitor_page(terminal(), g_telemetry_groups,
+                        sizeof(g_telemetry_groups) / sizeof(g_telemetry_groups[0]),
+                        plc_output_data())
     {}
 
     /** @brief Hardware convenience: bind to the coprocessor's PLC region (via
@@ -338,13 +348,15 @@ public:
 
 protected:
     /** @brief Tab order (add_page order = tab order): home leads as the boot
-     *  page -> home/shell/logs/status/alarms. */
+     *  page -> home/shell/logs/status/alarms/config/monitor. */
     void register_pages() override {
         terminal().add_page(&_home_page);     // page 0 (the boot page)
         terminal().add_page(&shell_page());
         terminal().add_page(&logs_page());
         terminal().add_page(&_status_page);
         terminal().add_page(&alarms_page());
+        terminal().add_page(&_config_page);
+        terminal().add_page(&_monitor_page);
     }
 
     /** @brief Register the site's "gh" command, reading the live PLC payload
@@ -356,9 +368,15 @@ protected:
     }
 
     /** @brief The home page also sinks the log stream (its bottom log-tail
-     *  band). */
+     *  band); the `status` shell command reads the site scalar table live. */
     void on_setup() override {
         logger().add_writer(&_home_page);
+#if BOTANIK_FEATURE_CONSOLE
+        shell_page().set_status_vars(
+            g_telemetry_groups,
+            sizeof(g_telemetry_groups) / sizeof(g_telemetry_groups[0]),
+            plc_output_data());
+#endif
     }
 
 #if BOTANIK_FEATURE_MQTT

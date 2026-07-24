@@ -14,6 +14,8 @@ add_executable(botanik_tests
     test_logger.cpp
     test_alarms.cpp
     test_alarms_render.cpp
+    test_terminal_present.cpp
+    test_editor_bytes.cpp
     test_filters.cpp
     test_line_buffer.cpp
     test_parser.cpp
@@ -21,6 +23,10 @@ add_executable(botanik_tests
     test_serial.cpp
     test_writer.cpp
     test_config_handler.cpp
+    test_config_params.cpp
+    test_config_local.cpp
+    test_config_writeback.cpp
+    test_storage.cpp
     test_resolver.cpp
     test_sun_tracker.cpp
     test_network.cpp

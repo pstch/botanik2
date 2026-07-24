@@ -43,7 +43,10 @@ using PlcOutput_t  = Botanik::PlcIO::PlcOutput<PlcOutputData_t>;
 // dominated by config-driven line/log buffers (scrollback + BufferedLogWriter),
 // so they move with the Config::*_LINES / LOG_* knobs, not with code churn.
 TEST_CASE("sizeof: terminal & input objects") {
-    REPORT_SIZE(Botanik::Terminal::AnsiTerminal, 1024);
+    // AnsiTerminal owns the screen back-buffer: two GRID_ROWS x GRID_COLS cell
+    // grids (front + back, ~8 KB) diffed by present(); its size tracks the grid
+    // dimensions, not the VT device state (~100 B).
+    REPORT_SIZE(Botanik::Terminal::AnsiTerminal, 12288);
     REPORT_SIZE(Botanik::Terminal::TextEditor,   2048);
     REPORT_SIZE(Botanik::Terminal::InputParser,   512);
 }
@@ -56,7 +59,7 @@ TEST_CASE("sizeof: pages") {
 }
 
 TEST_CASE("sizeof: PLC shared-memory payloads") {
-    REPORT_SIZE(PlcInput_t,    256);
+    REPORT_SIZE(PlcInput_t,   1024);
     REPORT_SIZE(PlcOutput_t, 16384);
     // The combined structs are alignas(32) so the host can clean/invalidate the
     // D-cache per region (see plcio/vars.h): each is 32-byte aligned and its size
@@ -70,6 +73,7 @@ TEST_CASE("sizeof: PLC shared-memory payloads") {
                            + sizeof(PlcOutputData_t);
     const size_t in_parts  = sizeof(Botanik::PlcIO::PlcInputCounters_t)
                            + sizeof(Botanik::PlcIO::PlcInputLogs_t)
+                           + sizeof(Botanik::PlcIO::PlcInputConfig_t)
                            + sizeof(PlcInputData_t);
     CHECK(sizeof(PlcOutput_t) == ((out_parts + 31) / 32) * 32);
     CHECK(sizeof(PlcInput_t)  == ((in_parts  + 31) / 32) * 32);

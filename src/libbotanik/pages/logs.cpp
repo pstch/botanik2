@@ -19,7 +19,8 @@ namespace Botanik { namespace Pages {
 
     LogsPage::LogsPage(Terminal::Console& console) :
         _console(console), _terminal(console.terminal())
-    {}
+    {
+    }
 
     // Page interface
     // ------------------------------------------------------------------------

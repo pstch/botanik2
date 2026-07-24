@@ -1,10 +1,12 @@
 /**
  * @file test_alarms_render.cpp
- * @brief AlarmsPage paint diffing: bytes emitted on repaint. A pipe-backed
- *        AnsiTerminal lets us drain TX and assert exactly what a repaint wrote -
- *        the diff's contract is "emit only what changed", so the byte stream is
- *        the oracle. High baud disables the throttle so a paint finishes in a
- *        few ticks; we pump tick()+transmit() until the pipe goes quiet.
+ * @brief AlarmsPage paint diffing: bytes emitted on repaint. The page draws
+ *        immediate-mode into the terminal's FRONT grid and present() emits the
+ *        minimal diff, so "emit only what changed" is the contract under test. A
+ *        pipe-backed AnsiTerminal lets us drain TX and assert exactly what a
+ *        repaint wrote. High baud disables the throttle so a paint finishes in a
+ *        few ticks; each pump ticks the page, presents, and transmits until the
+ *        pipe goes quiet.
  */
 #include <cstdint>
 #include <fcntl.h>
@@ -66,10 +68,16 @@ namespace {
             while ((n = ::read(fds[0], buf, sizeof buf)) > 0) out.append(buf, (size_t)n);
             return out;
         }
-        // Pump ticks until a paint settles, capturing all bytes it wrote.
+        // Pump ticks until a paint settles, capturing all bytes it wrote. Each
+        // tick draws into the FRONT grid; present() diffs it to the wire; capture()
+        // reads the emitted bytes off the pipe.
         std::string paint() {
             std::string out;
-            for (int i = 0; i < 64; i++) { page.tick(true); out += capture(); }
+            for (int i = 0; i < 64; i++) {
+                page.tick(true);
+                console.terminal().present();
+                out += capture();
+            }
             return out;
         }
     };
@@ -86,7 +94,7 @@ TEST_CASE("alarms render: unchanged repaint skips the structural rows") {
     CHECK(first.size() > 0);                  // structural rows drawn once
     CHECK(first.find("CODE") != std::string::npos);   // header was in the first paint
 
-    f.page.handle_command(Command::ENTER, 1); // request repaint, shadow intact
+    f.page.handle_command(Command::ENTER, 1); // request repaint
     std::string second = f.paint();
     CHECK(second.size() < first.size() / 2);  // only the footer, not the table
     CHECK(second.find("CODE") == std::string::npos);  // header skipped
@@ -100,26 +108,27 @@ static void raise_all(RenderFixture& f) {
     f.paint();                   // initial full paint; discard
 }
 
-// Acking an active alarm flips only its ON badge (active+unack -> active+ack):
-// same alarm identity, so the repaint must rewrite just the ON cell - far less
-// than a full row, and it must NOT re-emit the CODE/DESC text. A single active
-// alarm is used so the ack does not reorder the list (acking one of several
-// active alarms demotes it below the still-nagging ones, which would reshuffle
-// every row's identity and force full redraws - that is the identity-change case
-// below, not a same-row cell patch).
-TEST_CASE("alarms render: same-alarm state change patches only the cell") {
+// Acking an active alarm flips its ON badge (active+unack -> active+ack). The
+// page redraws the whole table, but only the cells that actually moved reach the
+// wire: the badge and the timestamp on that one row. The static DESCRIPTION
+// column is byte-identical, so "alarm B" never reaches the wire again, and the
+// untouched AAA row, header and rules are all diffed away.
+TEST_CASE("alarms render: a same-alarm state change patches its cells, skips the rest") {
     RenderFixture f;
-    f.model.step(0x1, 1000);                     // only AAA active -> sole row, no peers
+    f.model.step(0x3, 1000);                     // AAA + BBB active; row0=AAA (sel), row1=BBB
     f.page.focus();
     f.paint();                                   // initial full paint; discard
 
-    CHECK(f.model.ack("AAA") == true);           // active+unack -> active+ack (stays put)
-    f.page.handle_command(Command::ENTER, 1);    // repaint, shadow intact
+    CHECK(f.model.ack("BBB") == true);           // BBB (row1) active+unack -> active+ack
+    f.page.handle_command(Command::ENTER, 1);    // repaint, selection still at row0
     std::string out = f.paint();
 
-    CHECK(out.size() > 0);                       // the ON cell was rewritten
-    CHECK(out.find("alarm A") == std::string::npos);  // DESCRIPTION not re-emitted
-    CHECK(out.find("AAA")     == std::string::npos);  // CODE not re-emitted
+    CHECK(out.size()          > 0);                   // the changed cells were emitted
+    CHECK(out.find("alarm B") == std::string::npos);  // static DESCRIPTION diffed away
+    CHECK(out.find("AAA")     == std::string::npos);  // the unchanged AAA row is skipped
+    CHECK(out.find("alarm A") == std::string::npos);  // ...its description too
+    CHECK(out.find("CODE")    == std::string::npos);  // header/rules not re-emitted
+    CHECK(out.find("----")    == std::string::npos);
 }
 
 // A repaint with nothing changed emits nothing (all data rows skipped too).
@@ -132,8 +141,8 @@ TEST_CASE("alarms render: unchanged data repaint emits nothing") {
     CHECK(out.find("----") == std::string::npos);  // no rule re-emitted
 }
 
-// Raising a new alarm reorders the list (new row identity), so at least one row
-// is redrawn in full - its CODE/DESC reach the wire.
+// Raising a new alarm reorders the list, so a row's whole content changes and
+// the diff has no choice but to send it - CODE and DESCRIPTION both.
 TEST_CASE("alarms render: identity change redraws the row in full") {
     RenderFixture f;
     f.model.step(0x1, 1000);             // only AAA
@@ -146,23 +155,72 @@ TEST_CASE("alarms render: identity change redraws the row in full") {
     CHECK(out.find("BBB") != std::string::npos);   // a full row carried the new CODE
 }
 
-// A one-line scroll is incremental: the data band shifts via scroll_region (an
-// IL/DL pair) and only the newly exposed row is drawn. The shadow shift in
-// _drain_scroll mirrors that move, so the rows that merely slid are NOT redrawn.
-// A short window (10 rows -> data window of 2) makes the 4-alarm set overflow so
-// DOWN actually scrolls. With all four raised at once they keep table order
-// (AAA, BBB, CCC, DDD); top=0 shows AAA,BBB and DOWN to top=1 exposes CCC.
-TEST_CASE("alarms render: a one-line scroll redraws only the exposed row") {
+// Moving the selection within the window (no scroll) changes only the old row's
+// CODE cell (un-highlighted) and the new row's CODE cell (highlighted), so the
+// diff emits just those two runs. The descriptions and the other rows never reach
+// the wire, proving the highlight costs cells, not full-row redraws.
+TEST_CASE("alarms render: a selection move repaints both CODE cells, nothing else") {
+    RenderFixture f;                             // 24 rows: all four fit, so no scroll
+    f.model.step(0xF, 1000);                     // AAA..DDD active; row0=AAA selected
+    f.page.focus();
+    f.paint();                                   // initial paint; discard
+
+    f.page.handle_command(Command::DOWN, 1);     // AAA(row0) -> BBB(row1), stays in window
+    std::string out = f.paint();
+
+    CHECK(out.find("AAA")     != std::string::npos);  // old row's CODE repainted (plain)
+    CHECK(out.find("BBB")     != std::string::npos);  // new row's CODE repainted (inverted)
+    CHECK(out.find("alarm A") == std::string::npos);  // DESCRIPTION untouched (cell patch)
+    CHECK(out.find("alarm B") == std::string::npos);
+    CHECK(out.find("CCC")     == std::string::npos);  // no other row repainted
+    CHECK(out.find("DDD")     == std::string::npos);
+    CHECK(out.find("CODE")    == std::string::npos);  // header/rules not re-emitted
+    CHECK(out.find("----")    == std::string::npos);
+}
+
+// DOWN moves the selection cursor, not the window. A short window (10 rows ->
+// data window of 2) overflows the 4-alarm set; with all four raised at once they
+// keep table order (AAA, BBB, CCC, DDD). top=0 shows AAA,BBB; moving the cursor
+// down past the window bottom auto-scrolls so CCC comes into view.
+TEST_CASE("alarms render: DOWN moves the selection and scrolls it into view") {
     RenderFixture f(10);
     f.model.step(0xF, 1000);
     f.page.focus();
     std::string full = f.paint();
-    REQUIRE(full.find("AAA") != std::string::npos);   // top of the window
+    REQUIRE(full.find("AAA") != std::string::npos);   // window top
+    REQUIRE(full.find("CCC") == std::string::npos);   // below the window
 
-    f.page.handle_command(Command::DOWN, 1);          // scroll one line
-    std::string scrolled = f.paint();                 // drain the scroll
-    CHECK(scrolled.size() < full.size());             // incremental, not a full repaint
-    CHECK(scrolled.find("CCC") != std::string::npos); // newly exposed row drawn
-    CHECK(scrolled.find("AAA") == std::string::npos); // scrolled off, not redrawn
-    CHECK(scrolled.find("BBB") == std::string::npos); // slid by scroll_region, not redrawn
+    f.page.handle_command(Command::DOWN, 1);          // cursor -> row 1 (BBB, still shown)
+    f.paint();
+    f.page.handle_command(Command::DOWN, 1);          // cursor -> row 2 (CCC): scroll to reveal
+    std::string out = f.paint();
+    CHECK(out.find("CCC") != std::string::npos);      // the cursor followed down into view
+}
+
+// SPACE cycles the filter mode, and the badge is the acknowledgement of that
+// keypress - so it has to reach the wire before the table rewrite the same
+// keypress triggered, not after a screenful of rows. The legend row is raised to
+// PRIO_INPUT for exactly that, and it must survive the tick it was raised in:
+// with a repaint pending the row still shows the old badge, so a naive
+// "reconciled?" check reads true and demotes it before it is ever drawn.
+TEST_CASE("alarms render: a mode change shows the new mode before the rows") {
+    RenderFixture f(12);                          // short screen: rows overflow
+    f.model.step(0xF, 1000);
+    f.page.focus();
+    f.paint();                                    // settle the initial paint
+
+    f.page.handle_text(' ');                      // recent -> all
+    // One tick + one present: the badge should already be on the wire.
+    f.page.tick(true);
+    f.console.terminal().present();
+    std::string first = f.capture();
+
+    CHECK(first.find("all") != std::string::npos);   // the new mode badge
+    CHECK(first.find("AAA") == std::string::npos);   // ...ahead of any data row
+    CHECK(first.find("DDD") == std::string::npos);
+    // Just the legend, not a table's worth of bytes riding along with it.
+    CHECK(first.size() < 150);      // one row, not a table
+    // And the page settles rather than churning on the raised row.
+    f.paint();
+    CHECK(f.paint().empty());
 }

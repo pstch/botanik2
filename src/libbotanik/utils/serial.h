@@ -15,6 +15,7 @@
 
 #include "libbotanik/core/component.h"
 #include "libbotanik/hal/platform.h"
+#include "libbotanik/utils/byte_sink.h"
 
 namespace Botanik { namespace Utils {
 
@@ -39,7 +40,7 @@ namespace Botanik { namespace Utils {
      *  phases they belong: receive() at the top (fresh RX before processing) and
      *  transmit() at the bottom (flush the render). step() is there for the
      *  uniform Component interface / a future scheduler. */
-    class BufferedSerial : public Botanik::Component {
+    class BufferedSerial : public Botanik::Component, public ByteSink {
     private:
 
         /** @name State
@@ -92,8 +93,8 @@ namespace Botanik { namespace Utils {
 
         /** @brief Bytes available to read from the RX buffer. */
         uint16_t available() const;
-        /** @brief Bytes that can still be written to the TX buffer. */
-        uint16_t availableForWrite() const;
+        /** @brief Bytes that can still be written to the TX buffer (ByteSink). */
+        uint16_t availableForWrite() const override;
 
         /** @brief TODO */
         bool rx_empty() const;
@@ -117,9 +118,9 @@ namespace Botanik { namespace Utils {
          *  @name Application I/O
          *  @{ */
 
-        /** @brief Copy up to @p len bytes into the TX ring. @return Bytes
-         *  written; < @p len if the ring filled (never blocks). */
-        uint16_t write(const char* buf, uint16_t len);
+        /** @brief Copy up to @p len bytes into the TX ring (ByteSink). @return
+         *  Bytes written; < @p len if the ring filled (never blocks). */
+        uint16_t write(const char* buf, uint16_t len) override;
 
         /** @brief Drop every queued TX byte, leaving the ring empty.
          *  @note Used before a full-screen repaint.

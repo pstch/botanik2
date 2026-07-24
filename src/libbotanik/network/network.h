@@ -15,7 +15,7 @@
 #include <cstdint>
 
 #include "libbotanik/core/component.h"
-#include "libbotanik/plcio/sync.h"      // PlcSyncContext + plc_config()
+#include "libbotanik/core/config.h"     // Cfg::ConfigHandler + PlcOutputConfig_t
 #include "libbotanik/hal/net.h"
 #include "libbotanik/network/resolver.h"
 
@@ -41,8 +41,8 @@ namespace Botanik { namespace Network {
             NET_ERROR,
         };
 
-        /** @brief PLC config source (may be null in tests). */
-        PlcIO::PlcSyncContext* _ctx;
+        /** @brief Config source (may be null in tests). */
+        const Cfg::ConfigHandler* _cfg;
         State         _state;
         /// when this state was entered (for timeouts)
         uint64_t      _since_ms;
@@ -51,8 +51,10 @@ namespace Botanik { namespace Network {
 
         /** @} */
 
-        /** @brief The generic config block (or null with no ctx). */
-        const PlcIO::PlcOutputConfig_t* config() const { return PlcIO::plc_config(_ctx); }
+        /** @brief The generic config block (or null with no config source). */
+        const PlcIO::PlcOutputConfig_t* config() const {
+            return _cfg != nullptr ? _cfg->image() : nullptr;
+        }
 
     public:
         /** @name Lifecycle
@@ -60,7 +62,7 @@ namespace Botanik { namespace Network {
 
         /** @brief @p resolver (optional) cache is cleared on reconfiguration or
          *  link loss. */
-        NetworkHandler(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger = nullptr,
+        NetworkHandler(const Cfg::ConfigHandler* cfg, Logs::Logger* logger = nullptr,
                        NameResolver* resolver = nullptr);
 
         /** @brief True once the link is up with an address. */

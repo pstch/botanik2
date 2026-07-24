@@ -8,10 +8,9 @@
  *
  * Three fields on the reverse-video top row: page tabs (left), a centred
  * HH:MM:SS clock, and a right-aligned "PLC:xxx cpu:nnn% stk:nnn%" metrics field.
- * Owned by AnsiTerminal and painted cooperatively over the active page each
- * step(): the clock and metrics share TX_STATUS_FIELDS_PER_TICK and the depth
- * floor, a round-robin cursor rotating which repaints first, and each field
- * diffs against its own cache so an unchanged field spends no TX budget.
+ * Owned by AnsiTerminal. The clock and metrics rebuild on their own cadence and
+ * repaint their whole field; the terminal's back-buffer diff emits only the cells
+ * that actually changed, so the bar keeps no diff cache.
  */
 
 #include <cstddef>
@@ -36,20 +35,15 @@ namespace Botanik { namespace Terminal {
         uint64_t            _last_ms = 0;
         /** @brief Last clock refresh (uptime ms). */
         uint64_t            _clock_last_ms = 0;
-        /** @brief Round-robin cursor over the two paced fields (0 = clock,
-         *  1 = metrics) so a tight budget rotates which repaints first. */
-        uint8_t             _field = 0;
 
-        /** @brief Visible width (+NUL) of "PLC:xxx cpu:nnn% stk:nnn% ". Build
-         *  buffer and diff cache share this constant so they can't drift. */
+        /** @brief Visible width (+NUL) of "PLC:xxx cpu:nnn% stk:nnn% ". */
         static constexpr uint16_t METRICS_LEN = 27;
-        /** @brief Diff cache of the last drawn metrics (zero-init forces first
-         *  draw). */
-        char                _metrics_cache[METRICS_LEN] = {};
         /** @brief HH:MM:SS field width (no NUL). */
         static constexpr uint16_t CLOCK_LEN = 8;
-        /** @brief Diff cache of the last drawn clock. */
-        char                _clock_cache[CLOCK_LEN] = {};
+        /** @brief Column just past the last-drawn tab strip. The active tab is
+         *  wider (N:NAME vs N), so the strip shrinks when switching to a
+         *  shorter-named page; draw_tabs() clears the freed columns using this. */
+        uint16_t            _tabs_end_col = 0;
 
         /** @} */
 
@@ -68,40 +62,44 @@ namespace Botanik { namespace Terminal {
         /** @brief Full rebuild of the whole row (first paint, Ctrl-L redraw). */
         void draw_row();
 
-        /** @brief Repaint a single page tab in its active/inactive video, used
-         *  by switch_to() to flip just the two tabs that change on a switch. */
-        void draw_tab(uint8_t index);
-
-        /** @brief Drop the clock and metrics diff caches so the next refresh
-         *  repaints them in full (after a tx_discard on a page switch). */
-        void invalidate();
+        /** @brief Repaint the whole tab strip, used by switch_to(). The active
+         *  tab's width changes on a switch (N:NAME vs N), shifting every tab
+         *  after it, so the strip is redrawn as a unit (and shrink residue
+         *  cleared) rather than patching individual tabs. */
+        void draw_tabs();
 
         /** @} */
 
     private:
+        /** @name Tab strip
+         *  @{ */
+
+        /** @brief Draw the compact tab strip (leading blank + one "N"/"N:NAME"
+         *  tab per page, single-space separated) starting at the current cursor
+         *  (row 0). Caller has forced the reverse-video background. @return the
+         *  column just past the strip. */
+        uint16_t draw_tab_strip();
+
+        /** @} */
+
         /** @name Field painters
          *  @{ */
 
-        /** @brief Refresh only the metrics field (skips if unchanged).
-         *  @p restore_pos returns the cursor to where it started (a standalone
-         *  periodic refresh); draw_row passes false. @return true once the field
-         *  is in sync. */
-        bool update_metrics(bool restore_pos = true);
+        /** @brief Repaint the metrics field (the diff drops the unchanged
+         *  cells). @return true (kept for the caller's cadence bookkeeping). */
+        bool update_metrics();
 
-        /** @brief Refresh the centred HH:MM:SS clock (skipped on a very narrow
-         *  terminal). @p restore_pos as for update_metrics(). @return true if it
-         *  emitted (a digit changed), to charge the field budget. */
-        bool update_clock(bool restore_pos = true);
+        /** @brief Refresh the centred HH:MM:SS clock the same way (skipped on a
+         *  very narrow terminal). @return true if it painted the field. */
+        bool update_clock();
 
         /** @brief Render the right-side metrics field into @p buf (fixed width,
          *  so a byte index maps to a fixed column); returns its length. */
         int build_metrics(char* buf, size_t cap) const;
 
-        /** @brief Paint the @p emit columns of @p field at (row 0, @p col) with
-         *  @p hi as the inverted mask, snapshot it into @p cache, and restore the
-         *  bar's video (and, when @p restore_pos, the cursor). */
-        void paint_field(uint16_t col, const char* field, uint16_t len,
-                         uint32_t emit, uint32_t hi, char* cache, bool restore_pos);
+        /** @brief Paint the whole @p field (@p hi inverted mask) at (row 0,
+         *  @p col); the terminal diff drops the cells that did not move. */
+        void submit_field(uint16_t col, const char* field, uint16_t len, uint32_t hi);
 
         /** @} */
     };

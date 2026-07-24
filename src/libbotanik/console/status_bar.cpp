@@ -15,7 +15,6 @@
 #include "libbotanik/console/status_bar.h"
 #include "libbotanik/console/console.h"
 #include "libbotanik/console/terminal.h"
-#include "libbotanik/console/field.h"
 #include "libbotanik/utils/time.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/plcio/sync.h"
@@ -32,32 +31,27 @@ namespace Botanik { namespace Terminal {
     }
 
     StatusBar::StatusBar(Console& console)
-        : _c(console), _t(console.terminal()) {}
+        : _c(console), _t(console.terminal()) {
+        // Row 0 is the frame around the page: it should land before the page on
+        // boot and on a page switch. Its routine churn costs almost nothing - the
+        // clock and metrics rebuild once a second, some tens of bytes against a
+        // budget of thousands, so ranking it above the page starves nothing.
+        _t.set_row_priority(0, PRIO_CHROME);
+    }
 
     // Cooperative paint
 
+
     void StatusBar::step(uint64_t now) {
-        // The clock and metrics share TX_STATUS_FIELDS_PER_TICK and the depth
-        // floor; the round-robin cursor rotates which repaints first so a tight
-        // budget never favours the clock. A field repaints only on its cadence;
-        // an unchanged field spends no budget.
-        uint16_t budget = Config::TX_STATUS_FIELDS_PER_TICK;
-        for (uint8_t v = 0; v < 2 && budget > 0 && _t.tx_below_cold(); v++) {
-            if (_field == 0) {
-                if (now - _clock_last_ms >= Config::PAGE_HOT_MS) {
-                    _clock_last_ms = now;
-                    if (update_clock()) budget--;
-                }
-            } else {
-                if (now - _last_ms >= Config::STATUS_REFRESH_MS) {
-                    // Advance the refresh clock only once the pass fully synced
-                    // the on-screen metrics; a partial run leaves it for the
-                    // next tick instead of waiting out another STATUS_REFRESH_MS.
-                    if (update_metrics()) _last_ms = now;
-                    budget--;
-                }
-            }
-            _field ^= 1;
+        // Rebuild the clock and metrics on their own cadence and repaint the whole
+        // field; the terminal's back-buffer diff emits only the cells that moved.
+        if (now - _clock_last_ms >= Config::PAGE_HOT_MS) {
+            _clock_last_ms = now;
+            update_clock();
+        }
+        if (now - _last_ms >= Config::STATUS_REFRESH_MS) {
+            _last_ms = now;
+            update_metrics();
         }
     }
 
@@ -70,133 +64,112 @@ namespace Botanik { namespace Terminal {
 
         _t.move_to({0, 0});
 
-        // Force the reverse-video background to emit before the tabs: a prior
-        // tx_discard can leave the inverted shadow stale, which would make the
-        // first tab's set_inverted() a wrong no-op.
-        _t.force_inverted(true);
+        // Assert the reverse-video background (the row-0 bar).
+        _t.set_inverted(true);
 
-        // One blank column, then one " NAME " tab per page. The bar is reverse
-        // video; the active tab is drawn normal so it stands out.
-        _t.write_chars(" ", 1);
-        for (uint8_t i = 0; i < _c.page_count(); i++) {
-            const char* nm = _c.page_name(i);
-            if (nm == nullptr) continue;
-            _t.set_inverted(i != _c.active_page());
-            _t.write_chars(" ", 1);
-            _t.write_chars(nm, (uint16_t)strlen(nm));
-            _t.write_chars(" ", 1);
-        }
+        // Compact tab strip: "1 2 3:LOGS 4 5" - only the active page shows its
+        // name. Records the strip extent for draw_tabs()'s shrink handling.
+        _tabs_end_col = draw_tab_strip();
         _t.set_inverted(true);
 
         // Middle: spaces up to the metrics start column.
         uint16_t metrics_col = (_t.cols() > mlen) ? (uint16_t)(_t.cols() - mlen) : 0;
         _t.fill_spaces(metrics_col);
 
-        // Right + centre: invalidate the diff caches, then let the field
-        // painters draw - they know the per-field video and truncate narrow.
-        invalidate();
-        update_metrics(/*restore_pos=*/false);
-        update_clock(/*restore_pos=*/false);
+        // Right + centre: paint the two live fields over the background.
+        update_metrics();
+        update_clock();
 
-        // Restore only the attribute; the cursor is left where the metrics
+        // Restore only the attribute; the cursor is left where fill_spaces
         // parked it (the caller repositions absolutely).
         _t.set_inverted(saved_inv);
     }
 
-    void StatusBar::draw_tab(uint8_t index) {
-        const char* nm = _c.page_name(index);
-        if (nm == nullptr) return;
-
-        // Tab columns mirror draw_row(): one leading blank, then one " NAME "
-        // (name length + 2) per page in order.
-        uint16_t col = 1;
-        for (uint8_t i = 0; i < index; i++) {
-            const char* pn = _c.page_name(i);
-            if (pn != nullptr) col += (uint16_t)(strlen(pn) + 2);
-        }
-
+    void StatusBar::draw_tabs() {
         bool saved_inv = _t.inverted();
-        _t.move_to({0, col});
-        // Active tab normal video, others reverse; force the SGR to emit (same
-        // stale-shadow hazard draw_row() guards).
-        _t.force_inverted(index != _c.active_page());
-        _t.write_chars(" ", 1);
-        _t.write_chars(nm, (uint16_t)strlen(nm));
-        _t.write_chars(" ", 1);
+        _t.move_to({0, 0});
+        _t.set_inverted(true);
+
+        uint16_t end = draw_tab_strip();
+
+        // The active tab is wider (N:NAME), so switching to a shorter-named page
+        // shrinks the strip; clear the freed columns (still reverse video).
+        _t.set_inverted(true);
+        if (end < _tabs_end_col) _t.fill_spaces(_tabs_end_col);
+        _tabs_end_col = end;
+
         _t.set_inverted(saved_inv);
     }
 
-    void StatusBar::invalidate() {
-        memset(_metrics_cache, 0, sizeof(_metrics_cache));
-        memset(_clock_cache,   0, sizeof(_clock_cache));
+    uint16_t StatusBar::draw_tab_strip() {
+        // Leading blank column, then one tab per page: just the 1-based number,
+        // expanded to "N:NAME" for the active page. Single-space separated. Only
+        // the active tab's "N:NAME" is normal video; the bar (and separators)
+        // stay reverse video.
+        _t.set_inverted(true);
+        _t.write_chars(" ", 1);
+        uint16_t col = 1;
+        for (uint8_t i = 0; i < _c.page_count(); i++) {
+            const char* nm = _c.page_name(i);
+            if (nm == nullptr) continue;
+            char tab[24];
+            int n = (i == _c.active_page())
+                ? snprintf(tab, sizeof(tab), "%u:%s", (unsigned)(i + 1), nm)
+                : snprintf(tab, sizeof(tab), "%u", (unsigned)(i + 1));
+            if (n < 0) continue;
+            uint16_t len = (uint16_t)std::min(n, (int)sizeof(tab) - 1);
+            _t.set_inverted(i != _c.active_page());
+            _t.write_chars(tab, len);
+            _t.set_inverted(true);
+            _t.write_chars(" ", 1);   // separator, reverse video
+            col += (uint16_t)(len + 1);
+        }
+        return col;
     }
 
     // Field painters
 
-    void StatusBar::paint_field(uint16_t col, const char* field, uint16_t len,
-                                uint32_t emit, uint32_t hi, char* cache,
-                                bool restore_pos) {
-        AnsiTerminal::CursorSnapshot snap = _t.save_cursor();
-        _t.paint_field_runs(0, col, field, len, emit, hi);
-        memcpy(cache, field, (size_t)len);
-        // Periodic refreshes restore the cursor to where the page left it;
-        // draw_row passes false (its caller repositions absolutely).
-        _t.restore_cursor(snap, restore_pos);
+    void StatusBar::submit_field(uint16_t col, const char* field, uint16_t len,
+                                 uint32_t hi) {
+        // Paint the whole field (all cells); the terminal's diff drops the ones
+        // that did not move. hi segments the reverse-video runs.
+        _t.paint_field_runs(0, col, field, len, hi);
     }
 
-    bool StatusBar::update_metrics(bool restore_pos) {
+    bool StatusBar::update_metrics() {
         char metrics[METRICS_LEN];
         int mlen = build_metrics(metrics, sizeof(metrics));
-
-        // mlen is constant (fixed-width fields), so a byte index maps to a
-        // fixed col.
+        // mlen is constant (fixed-width fields), so a byte index maps to a fixed col.
         uint16_t visible = (uint16_t)std::min((int)_t.cols(), mlen);
-        if (visible == 0) return true;   // nothing to draw == nothing to sync
+        if (visible == 0) return true;
         uint16_t metrics_col = (uint16_t)(_t.cols() - visible);
-
         // The bar is reverse video except the live readings (plc/cpu/stk), drawn
-        // normal. Changed-column mask + highlight mask (inverted everywhere but
-        // the value cols) over the visible field.
-        uint32_t emit = Field::changed(metrics, _metrics_cache, visible, false);
-        if (emit == 0) return true;   // already in sync
+        // normal: highlight mask inverts all but the value cols.
         uint32_t hi = 0;
         for (uint16_t i = 0; i < visible; ++i)
             if (!metric_value_col(i)) hi |= (1u << i);
-
-        // Hide the cursor before painting so it can't blink across row 0 while
-        // the bar updates (no-op if already hidden). The guaranteed floor fits a
-        // whole field, so paint and cache it in one pass.
-        bool saved_cur = _t.cursor_visible();
-        _t.set_cursor_visible(false);
-        paint_field(metrics_col, metrics, visible, emit, hi, _metrics_cache, restore_pos);
-        _t.set_cursor_visible(saved_cur);   // back at the page position
+        submit_field(metrics_col, metrics, visible, hi);
         return true;
     }
 
-    bool StatusBar::update_clock(bool restore_pos) {
+    bool StatusBar::update_clock() {
         // Wall-clock HH:MM:SS (same source as the STATUS page's "Wall Clock").
         Utils::CalendarTime wc = Utils::cal_time_ms(HAL::Clock::uptime_ms());
-        // Oversized scratch so snprintf can't truncation-warn; only the first
-        // CLOCK_LEN cells ("HH:MM:SS") are diffed/emitted below.
         char clk[16];
         snprintf(clk, sizeof(clk), "%02u:%02u:%02u",
                  (unsigned)wc.hour, (unsigned)wc.minute, (unsigned)wc.second);
 
-        // Centre the field, nudged 5 columns right; skip on a terminal too
-        // narrow to fit it clear of the right-aligned metrics.
+        // Centre the field; skip on a terminal too narrow to fit it clear of the
+        // right-aligned metrics.
         uint16_t cols = _t.cols();
         if (cols < CLOCK_LEN) return false;
-        uint16_t clock_col   = (uint16_t)((cols - CLOCK_LEN) / 2 + 5);
+        uint16_t clock_col   = (uint16_t)((cols - CLOCK_LEN) / 2);
         uint16_t metrics_col = (cols > (uint16_t)(METRICS_LEN - 1))
                                    ? (uint16_t)(cols - (METRICS_LEN - 1)) : 0;
         if ((uint16_t)(clock_col + CLOCK_LEN) > metrics_col) return false;
 
-        // Diff vs the cache, then paint the whole field in one pass (hi = 0:
-        // normal video, so the digits stand out against the reverse-video bar).
-        uint32_t emit = Field::changed(clk, _clock_cache, CLOCK_LEN, false);
-        if (emit == 0) return false;
-
-        paint_field(clock_col, clk, CLOCK_LEN, emit, 0u, _clock_cache, restore_pos);
+        // hi = 0: normal video, so the digits stand out against the reverse bar.
+        submit_field(clock_col, clk, CLOCK_LEN, 0u);
         return true;
     }
 

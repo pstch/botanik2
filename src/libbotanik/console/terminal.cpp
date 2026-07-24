@@ -1,11 +1,18 @@
 // REVIEW_35: TODO
 /**
  * @file terminal.cpp
- * @brief AnsiTerminal implementation - the VT device: cursor/geometry tracking,
- *        text output, content scrolling, the shared field painter, and TX gating.
+ * @brief AnsiTerminal implementation - the VT device over a screen back-buffer.
+ *
+ * Renderers paint immediate-mode into the FRONT cell grid through the usual ops;
+ * present() diffs FRONT against BACK (the wire) and emits the minimal, paced ANSI
+ * to reconcile them. See terminal.h.
  */
 #include <cstdint>
+#include <cstring>
 #include <algorithm>
+#ifdef TARGET_SIMULATOR
+#include <cstdlib>   // getenv, for the BOTANIK_SHOW_CURSOR dev override
+#endif
 
 #include "libbotanik_config.h"
 
@@ -21,382 +28,518 @@ namespace Botanik { namespace Terminal {
     AnsiTerminal::AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols,
                                uint16_t rows, uint32_t baud) :
         _serial(serial),
-        _cols(cols),
-        _rows(rows)
+        _cols(cols ? (cols < GRID_COLS ? cols : GRID_COLS) : 1),
+        _rows(rows ? (rows < GRID_ROWS ? rows : GRID_ROWS) : 1)
     {
-        // Size the shared cooperative-TX depth floor from the link baud so the
-        // felt echo latency target (Config::TX_COLD_TARGET_MS) holds across links.
         _tx_cold_depth = depth_for_baud(baud, Config::TX_COLD_TARGET_MS);
+        for (uint16_t i = 0; i < GRID_CELLS; i++) { _front[i] = CELL_BLANK; _back[i] = CELL_BLANK; }
+        for (uint16_t r = 0; r < GRID_ROWS; r++) _row_prio[r] = PRIO_STRUCT;
     }
 
-    // Cursor & geometry
-
-    void AnsiTerminal::move_to(const CursorPos& target_in, bool skip) {
-        // The hardware caps the cursor at the last row/column, so clamp any
-        // out-of-range target here to keep _hw_pos honest.
-        CursorPos target = {
-            (uint16_t)std::min((uint16_t)(_rows > 0 ? _rows - 1 : 0), target_in.row),
-            (uint16_t)std::min((uint16_t)(_cols > 0 ? _cols - 1 : 0), target_in.col),
-        };
-        if (target == _hw_pos) {
-            return;
-        }
-
-        // All-or-nothing: on TX-full leave _hw_pos untouched (a wrong _hw_pos
-        // smears every later write). skip=true tracks without emitting.
-        bool ok = true;
-        if (!skip) {
-            // After a row-filling write the real column is unknown (a wider
-            // terminal parks further right), so a relative move lands short:
-            // reposition absolutely.
-            if (_hw_at_eol) {
-                ok = Ansi::goto_absolute(_serial, target);
-            }
-            // Prefer a relative move when sharing the target's row or column
-            // (never longer than an absolute goto); absolute is for true
-            // diagonals only.
-            else if (target.row == _hw_pos.row) { // Same row
-                if (target.col == 0) {
-                    ok = Ansi::move_row_start(_serial);   // 1-byte CR beats CUB
-                } else if (target.col < _hw_pos.col) {
-                    ok = Ansi::move_left(_serial, _hw_pos.col - target.col);
-                } else {
-                    ok = Ansi::move_right(_serial, target.col - _hw_pos.col);
-                }
-            } else if (target.col == _hw_pos.col) { // Same column
-                if (target.row < _hw_pos.row) {
-                    ok = Ansi::move_up(_serial, _hw_pos.row - target.row);
-                } else {
-                    ok = Ansi::move_down(_serial, target.row - _hw_pos.row);
-                }
-            } else if (target.col == 0 && target.row > _hw_pos.row
-                       && (target.row - _hw_pos.row) < 4
-                       && target.row < (uint16_t)(_rows - 1)) {
-                // Common "spawn next row" target - CR + LF(s) is cheaper than
-                // goto_absolute. Bounded off the last row so a stray LF can't
-                // scroll.
-                ok = Ansi::down_to_row_start(_serial,
-                                             (uint16_t)(target.row - _hw_pos.row));
-            } else { // Different row and column, use absolute move
-                ok = Ansi::goto_absolute(_serial, target);
-            }
-        }
-        if (ok) {
-            _hw_pos = target;
-            _hw_at_eol = false;
-        }
+    void AnsiTerminal::set_row_priority(uint16_t top, uint16_t bottom, RowPriority prio) {
+        for (uint16_t r = top; r <= bottom && r < GRID_ROWS; r++)
+            _row_prio[r] = (uint8_t)prio;
     }
 
-    void AnsiTerminal::restore_cursor(const CursorSnapshot& snap, bool restore_pos) {
-        set_inverted(snap.inverted);
-        if (restore_pos) {
-            move_to(snap.pos);
-            // move_to() cleared it; the page may have parked at EOL.
-            _hw_at_eol = snap.at_eol;
-        }
-        set_cursor_visible(snap.cursor_visible);
+    void AnsiTerminal::_reset_grids() {
+        for (uint16_t r = 0; r < _rows; r++)
+            for (uint16_t c = 0; c < _cols; c++)
+                _front[_idx(r, c)] = _back[_idx(r, c)] = CELL_BLANK;
     }
 
-    // Text output & character attributes
+    // Draw cursor & geometry
+
+    void AnsiTerminal::move_to(const CursorPos& target_in) {
+        uint16_t r = std::min((uint16_t)(_rows > 0 ? _rows - 1 : 0), target_in.row);
+        uint16_t c = std::min((uint16_t)(_cols > 0 ? _cols - 1 : 0), target_in.col);
+        _draw_row = r;
+        _draw_col = c;
+    }
+
+    // Text output & character attributes (into the FRONT grid)
 
     uint16_t AnsiTerminal::write_chars(const char *s, uint16_t len, bool insert) {
-        if (len == 0) return 0;
-
-        // Lazy SM4/RM4 toggling: keep insert mode latched so consecutive
-        // inserts cost just the char byte, instead of re-bracketing each with
-        // SM4/RM4.
-        if (insert != _hw_insert_mode) {
-            // Commit the latch only if the toggle reached the wire. Latching
-            // past a dropped RM4 would let a later replace-mode write paint in
-            // insert mode and corrupt the line; bail and let the caller redraw.
-            if (!Ansi::set_insert_mode(_serial, insert)) return 0;
-            _hw_insert_mode = insert;
-        }
-
-        // Track only what reached the wire: write() drops the tail when TX
-        // fills, so advancing _hw_pos by the full len would desync tracking.
-        // Dropped glyphs are content loss a redraw fixes; a wrong cursor isn't.
-        uint16_t written = _serial.write(s, len);
-        uint32_t new_col = (uint32_t)_hw_pos.col + written;
-        if (new_col >= _cols) {
-            if (_hw_auto_wrap) {
-                _hw_pos.col = 0;
-                _hw_pos.row++;
-                if (_hw_pos.row >= _rows) _hw_pos.row = _rows - 1;
-                _hw_at_eol = false;
-            } else {
-                _hw_pos.col = _cols - 1;
-                // Parked at the last cell, which holds a char we just wrote;
-                // flag it so a follow-up clear_to_eol doesn't erase it.
-                _hw_at_eol = true;
+        if (len == 0 || _draw_row >= _rows) return 0;
+        uint8_t pen = _draw_inv ? CELL_INV : 0;
+        for (uint16_t i = 0; i < len; i++) {
+            if (_draw_col >= _cols) {
+                if (_hw_auto_wrap) { _draw_col = 0; if (++_draw_row >= _rows) { _draw_row = _rows - 1; return i; } }
+                else { _draw_col = _cols; break; }   // no wrap: park at EOL, drop the rest
             }
-        } else {
-            _hw_pos.col = (uint16_t)new_col;
-            _hw_at_eol = false;
+            if (insert) {
+                // Shift the row's cells right by one at the draw column (dropping
+                // the overflow), then stamp. A grid-only op: present()'s shift
+                // detection is what turns it back into an escape on the wire.
+                for (uint16_t c = (uint16_t)(_cols - 1); c > _draw_col; c--)
+                    _front[_idx(_draw_row, c)] = _front[_idx(_draw_row, (uint16_t)(c - 1))];
+            }
+            _front[_idx(_draw_row, _draw_col)] = (uint8_t)((s[i] & CELL_CH) | pen);
+            if (_draw_col + 1 >= _cols) { _draw_col = _cols; }   // parked past last col
+            else _draw_col++;
         }
-        return written;
+        return len;
     }
 
-    void AnsiTerminal::set_inverted(bool enable) {
-        if (enable == _hw_inverted) return;
-        // Reserve the longest form (CSI + ATTR_NEG) up front so a split SGR
-        // can't swallow following payload bytes.
-        constexpr uint16_t SGR_MAX =
-            (sizeof(Ansi::CSI) - 1) + (sizeof(Ansi::ATTR_NEG) - 1);
-        if (_serial.availableForWrite() < SGR_MAX) return;
-
-        _serial.write(Ansi::CSI, sizeof(Ansi::CSI) - 1);
-        if (enable) _serial.write(Ansi::ATTR_NEG,  sizeof(Ansi::ATTR_NEG) - 1);
-        else        _serial.write(Ansi::ATTR_NONE, sizeof(Ansi::ATTR_NONE) - 1);
-        _hw_inverted = enable;
-    }
+    void AnsiTerminal::set_inverted(bool enable) { _draw_inv = enable; }
 
     void AnsiTerminal::set_auto_wrap(bool enable) {
-        // Only commit the tracked mode if the sequence reached the wire: a stale
-        // _hw_auto_wrap makes write_chars mispredict the wrap and smear _hw_pos.
-        if (!Ansi::set_auto_wrap(_serial, enable)) return;
-        _hw_auto_wrap = enable;
+        // A one-time wire mode (DECAWM); emit it directly and track it (the draw
+        // model reads it to decide wrap vs. park).
+        if (Ansi::set_auto_wrap(_serial, enable)) _hw_auto_wrap = enable;
     }
 
     void AnsiTerminal::set_cursor_visible(bool show) {
-        if (show == _hw_cursor_visible) return;
-        // Only commit the tracked state if the sequence actually reached the
-        // wire, so a TX-full skip is retried on the next call rather than
-        // silently lost.
-        if (!Ansi::set_cursor_visible(_serial, show)) return;
-        _hw_cursor_visible = show;
+#ifdef TARGET_SIMULATOR
+        // Dev override: BOTANIK_SHOW_CURSOR keeps the cursor visible everywhere
+        // (handy for eyeballing where a paint leaves it in the sim). Read once -
+        // the environment cannot change mid-run.
+        static const bool force_visible = getenv("BOTANIK_SHOW_CURSOR") != nullptr;
+        if (force_visible) show = true;
+#endif
+        _want_cursor_visible = show;   // present() reconciles the wire state
     }
 
     void AnsiTerminal::fill_spaces(uint16_t to_col) {
-        // 31 spaces + NUL; the NUL must never reach the wire (terminals drop it
-        // without moving, but write_chars would still bump _hw_pos by its len).
         static const char sp[32] = "                               ";
         constexpr uint16_t SP_LEN = sizeof(sp) - 1;
-        // Drive termination off a local counter, not _hw_pos.col: filling to the
-        // last column parks the cursor at _cols-1 (auto-wrap is off UI-wide), so
-        // it never reaches to_col == _cols and a _hw_pos.col loop would spin.
-        for (uint16_t col = _hw_pos.col; col < to_col; col = (uint16_t)(col + SP_LEN)) {
+        for (uint16_t col = _draw_col; col < to_col; col = (uint16_t)(col + SP_LEN))
             write_chars(sp, std::min((uint16_t)(to_col - col), SP_LEN));
+    }
+
+    // Content manipulation (into the FRONT grid)
+
+    void AnsiTerminal::delete_chars(uint16_t len) {
+        if (len == 0 || _draw_row >= _rows || _draw_col >= _cols) return;
+        uint8_t pen = _draw_inv ? CELL_INV : 0;
+        for (uint16_t c = _draw_col; c < _cols; c++) {
+            uint16_t src = (uint16_t)(c + len);
+            _front[_idx(_draw_row, c)] = (src < _cols) ? _front[_idx(_draw_row, src)]
+                                                       : (uint8_t)(CELL_BLANK | pen);
         }
     }
 
-    // Content manipulation
-
-    void AnsiTerminal::delete_chars(uint16_t len) {
-        if (len == 0) return;
-        // DCH shifts content left; cursor unaffected
-        Ansi::delete_chars(_serial, len);
-    }
-
     void AnsiTerminal::clear_to_eol() {
-        // Cursor parked at the last cell after a row-filling write: nothing
-        // past it to erase, and the parked cell holds valid content.
-        if (_hw_at_eol) return;
-        Ansi::clear_to_eol(_serial);  // EL leaves the cursor in place
+        if (_draw_row >= _rows || _draw_col >= _cols) return;   // parked past last col
+        uint8_t pen = _draw_inv ? CELL_INV : 0;
+        for (uint16_t c = _draw_col; c < _cols; c++)
+            _front[_idx(_draw_row, c)] = (uint8_t)(CELL_BLANK | pen);
     }
 
     void AnsiTerminal::clear_to_eos() {
-        Ansi::clear_to_eos(_serial);
-        _hw_at_eol = false;
+        if (_draw_row >= _rows) return;
+        uint8_t pen = _draw_inv ? CELL_INV : 0;
+        uint16_t c0 = (_draw_col < _cols) ? _draw_col : 0;
+        for (uint16_t c = c0; c < _cols; c++) _front[_idx(_draw_row, c)] = (uint8_t)(CELL_BLANK | pen);
+        for (uint16_t r = (uint16_t)(_draw_row + 1); r < _rows; r++)
+            for (uint16_t c = 0; c < _cols; c++) _front[_idx(r, c)] = (uint8_t)(CELL_BLANK | pen);
     }
 
+    void AnsiTerminal::_shift_grid(uint8_t* g, uint16_t top, uint16_t bottom,
+                                   bool up, uint16_t n) {
+        // Move the band's rows within @p g and blank the freed rows. Used for
+        // FRONT (in scroll_region, the desired screen) and for BACK (in present(),
+        // once the matching DL/IL has actually reached the wire).
+        if (up) {
+            for (uint16_t r = top; (uint16_t)(r + n) <= bottom; r++)
+                for (uint16_t c = 0; c < _cols; c++)
+                    g[_idx(r, c)] = g[_idx((uint16_t)(r + n), c)];
+            for (uint16_t r = (uint16_t)(bottom - n + 1); r <= bottom; r++)
+                for (uint16_t c = 0; c < _cols; c++) g[_idx(r, c)] = CELL_BLANK;
+        } else {
+            for (int r = (int)bottom; r - (int)n >= (int)top; r--)
+                for (uint16_t c = 0; c < _cols; c++)
+                    g[_idx((uint16_t)r, c)] = g[_idx((uint16_t)(r - n), c)];
+            for (uint16_t r = top; r < (uint16_t)(top + n); r++)
+                for (uint16_t c = 0; c < _cols; c++) g[_idx(r, c)] = CELL_BLANK;
+        }
+    }
+
+    void AnsiTerminal::scroll_region(uint16_t top, uint16_t bottom, bool up, uint16_t n) {
+        if (n == 0 || top > bottom) return;
+        uint16_t phys_last = (uint16_t)(_rows > 0 ? _rows - 1 : 0);
+        if (bottom > phys_last) bottom = phys_last;
+        uint16_t height = (uint16_t)(bottom - top + 1);
+        if (n > height) n = height;
+        // Shift FRONT now (the desired screen); present() shifts BACK only if it
+        // emits the matching DL/IL, so a dropped scroll just repaints the band.
+        _shift_grid(_front, top, bottom, up, n);
+        // Overflow degrades to a band repaint by the cell diff (FRONT already
+        // shifted), never a lost frame - so silently dropping the record is safe.
+        if (_nscrolls < MAX_SCROLLS) _scrolls[_nscrolls++] = { top, bottom, n, up };
+    }
+
+    void AnsiTerminal::newline(bool carriage_return) {
+        if (carriage_return) _draw_col = 0;
+        if (_draw_row + 1 < _rows) _draw_row++;
+    }
+
+    // Field painter (shared by StatusBar and MetricPage) - built on the primitives
+
+    void AnsiTerminal::paint_field_runs(uint16_t row, uint16_t col, const char* cf,
+                                        uint16_t width, uint32_t hi) {
+        // Paint the whole field, split into reverse-video segments per `hi`. No
+        // per-cell gating here: the back-buffer diff already drops every cell whose
+        // glyph and attribute both held, so a "changed cells only" mask would be
+        // hand-rolled coalescing in front of a coalescing diff.
+        if (width == 0) return;
+        move_to({row, col});
+        uint16_t seg = 0;
+        bool seg_inv = (hi & 1u) != 0;
+        for (uint16_t k = 0; k < width; ++k) {
+            bool ki = ((hi >> k) & 1u) != 0;
+            if (ki != seg_inv) {
+                set_inverted(seg_inv);
+                write_chars(&cf[seg], (uint16_t)(k - seg));
+                seg = k; seg_inv = ki;
+            }
+        }
+        set_inverted(seg_inv);
+        write_chars(&cf[seg], (uint16_t)(width - seg));
+        set_inverted(false);
+    }
+
+    // Screen bring-up / low-level ops
+
     void AnsiTerminal::clear_screen() {
-        // Drop bytes still queued for TX - they'd paint onto a display we're
-        // wiping. Emptying the ring also guarantees the clear sequence fits, so
-        // the _hw_pos reset below is correct with no dropped-write path.
         _serial.tx_discard();
-        // Resync the terminal: the discard may have torn a half-sent sequence
-        // on the wire, which would otherwise swallow the leading bytes of the
-        // clear below.
         Ansi::cancel_sequence(_serial);
         establish_screen();
     }
 
     void AnsiTerminal::clear_screen_now() {
         clear_screen();
-        // Push the clear out now: the loop won't run again to drain the ring.
-        // transmit() never blocks, so spin until empty, bounded so a stuck wire
-        // can't hang the exit path.
+        present();
         for (uint16_t i = 0; i < tx_capacity() && !_serial.tx_empty(); i++)
             _serial.transmit();
     }
 
     void AnsiTerminal::establish_screen() {
-        // Clear+home, then reset tracked cursor/wrap state. No TX discard here
-        // - the caller owns that (clear_screen drops stale paint; the
-        // first-step bootstrap keeps the setup_*() handshake it queued).
         Ansi::clear_screen(_serial);
         _hw_pos = {0, 0};
         _hw_at_eol = false;
-        // Boot marker: emit "ACAB" once per process (not on Ctrl-L redraws) to
-        // mark a fresh start in the stream. Track the 4 cols it advances (cols
-        // >= 5, so it can't wrap).
-        if (!_screen_ready) {
-            _serial.write("ACAB", 4);
-            _hw_pos.col = 4;
-        }
-        // Auto-wrap stays off UI-wide (pages pre-wrap; a stray wrap parks the
-        // cursor and the next clear_to_eol eats a glyph). Emit unconditionally
-        // (a prior copy may have been discarded).
+        _hw_inverted = false;
+        if (!_screen_ready) { _serial.write("ACAB", 4); _hw_pos.col = 4; }
+        // Auto-wrap off UI-wide; hide the cursor by default; SGR normal, replace mode.
         set_auto_wrap(false);
-        // Hide the cursor by default (only the shell editor opts back in via
-        // focus()). A fresh clear leaves it shown, so force the emit by
-        // flipping the shadow past the lazy guard.
-        _hw_cursor_visible = true;
-        set_cursor_visible(false);
-        // Reset reverse-video and insert mode: ED clears neither, so the unit
-        // may still hold them while our shadows read "normal". Force both emits
-        // to resync.
-        force_inverted(false);                  // -> SGR normal (ESC[m)
-        Ansi::set_insert_mode(_serial, false);  // -> replace mode (ESC[4l)
-        _hw_insert_mode = false;
+        _hw_cursor_visible = true; _want_cursor_visible = false;
+        if (Ansi::set_cursor_visible(_serial, false)) _hw_cursor_visible = false;
+        Ansi::set_insert_mode(_serial, false);   // defensive: we never set SM4
         _screen_ready = true;
-        // The clear wiped the alarm-bar row; the Console re-flags it for the next
-        // bar pass (the device knows nothing of the bar).
+        // The screen is now physically blank: both grids blank, draw cursor home.
+        _reset_grids();
+        _draw_row = _draw_col = 0; _draw_inv = false;
     }
 
-    void AnsiTerminal::setup_vt102() {
-        // Plain VT100/VT102 (the default): no special handshake. DECAWM and the
-        // clear are handled later (establish_screen / first step()).
-        Ansi::vt102_setup(_serial);
-    }
+    void AnsiTerminal::setup_vt102()   { Ansi::vt102_setup(_serial); }
+    void AnsiTerminal::setup_minitel() { Ansi::minitel_setup(_serial); }
+    void AnsiTerminal::cancel_sequence() { Ansi::cancel_sequence(_serial); }
 
-    void AnsiTerminal::setup_minitel() {
-        // Drive a real Minitel (1B+/2) over the DIN link. The PRO2 handshake
-        // (sent before the ANSI clear, while the unit is still native) selects
-        // 80-col teleinformatique mode, a lowercase keyboard, and page mode.
-        Ansi::minitel_setup(_serial);
-    }
+    // present() - reconcile FRONT to the wire
+    // ------------------------------------------------------------------------
 
-    void AnsiTerminal::newline(bool carriage_return) {
-        // Emit and track a line feed; the caller confines it to the content band.
-        if (carriage_return) {
-            _serial.write("\r\n", 2);
-            _hw_pos.col = 0;
+    bool AnsiTerminal::_go(const CursorPos& target) {
+        if (target == _hw_pos && !_hw_at_eol) return true;
+        bool ok;
+        if (_hw_at_eol) {
+            ok = Ansi::goto_absolute(_serial, target);
+        } else if (target.row == _hw_pos.row) {
+            if (target.col == 0)                 ok = Ansi::move_row_start(_serial);
+            else if (target.col < _hw_pos.col)   ok = Ansi::move_left(_serial, (uint16_t)(_hw_pos.col - target.col));
+            else if (target.col > _hw_pos.col)   ok = Ansi::move_right(_serial, (uint16_t)(target.col - _hw_pos.col));
+            else                                 ok = true;
+        } else if (target.col == _hw_pos.col) {
+            if (target.row < _hw_pos.row) ok = Ansi::move_up(_serial, (uint16_t)(_hw_pos.row - target.row));
+            else                          ok = Ansi::move_down(_serial, (uint16_t)(target.row - _hw_pos.row));
+        } else if (target.col == 0 && target.row > _hw_pos.row &&
+                   (target.row - _hw_pos.row) < 4 && target.row < (uint16_t)(_rows - 1)) {
+            ok = Ansi::down_to_row_start(_serial, (uint16_t)(target.row - _hw_pos.row));
         } else {
-            _serial.write("\n", 1);
+            ok = Ansi::goto_absolute(_serial, target);
         }
-        _hw_pos.row++;
+        if (ok) { _hw_pos = target; _hw_at_eol = false; }
+        return ok;
     }
 
-    void AnsiTerminal::tx_discard() {
-        _serial.tx_discard();
+    uint16_t AnsiTerminal::_run_cost(uint16_t row, uint16_t a, uint16_t b) const {
+        // Leading absolute move (worst case) + one SGR per attribute transition +
+        // one byte per glyph. Conservative upper bound for the ring/budget gate.
+        uint16_t cost = 8;
+        bool inv = _hw_inverted;
+        for (uint16_t c = a; c < b; c++) {
+            bool ci = (_front[_idx(row, c)] & CELL_INV) != 0;
+            if (ci != inv) { cost += 5; inv = ci; }
+            cost += 1;
+        }
+        return cost;
     }
 
-    void AnsiTerminal::cancel_sequence() {
-        Ansi::cancel_sequence(_serial);
+    uint16_t AnsiTerminal::_put_run(uint16_t row, uint16_t a, uint16_t b) {
+        uint16_t before = tx_used();
+        if (!_go({row, a})) return 0;
+        char buf[GRID_COLS];
+        uint16_t k = a;
+        while (k < b) {
+            bool inv = (_front[_idx(row, k)] & CELL_INV) != 0;
+            if (inv != _hw_inverted) {
+                _serial.write(Ansi::CSI, sizeof(Ansi::CSI) - 1);
+                _serial.write(inv ? Ansi::ATTR_NEG : Ansi::ATTR_NONE,
+                              inv ? sizeof(Ansi::ATTR_NEG) - 1 : sizeof(Ansi::ATTR_NONE) - 1);
+                _hw_inverted = inv;
+            }
+            uint16_t n = 0, m = k;
+            while (m < b && (((_front[_idx(row, m)] & CELL_INV) != 0) == inv)) {
+                buf[n++] = (char)(_front[_idx(row, m)] & CELL_CH);
+                _back[_idx(row, m)] = _front[_idx(row, m)];   // reconcile
+                m++;
+            }
+            _serial.write(buf, n);
+            k = m;
+        }
+        // Track the real cursor: it advanced to column b (parked if it hit the edge).
+        if (b >= _cols) { _hw_pos.col = (uint16_t)(_cols - 1); _hw_at_eol = true; }
+        else            { _hw_pos.col = b; _hw_at_eol = false; }
+        _hw_pos.row = row;
+        return (uint16_t)(tx_used() - before);
     }
 
-    void AnsiTerminal::reset_to(const CursorPos& pos) {
-        // Absolute reposition after a tx_discard left _hw_pos unknown; sync the
-        // shadow to match (a relative move would land wrong).
-        Ansi::goto_absolute(_serial, pos);
-        _hw_pos = pos;
+    void AnsiTerminal::present() {
+        _emit_scrolls();
+        // The cursor is parked only once the frame is fully reconciled: while the
+        // diff is still paced out over several ticks the cursor is being moved by
+        // the runs anyway, and re-homing it every tick would burn a move per tick
+        // for nothing. A settled screen gets the cursor put where it belongs.
+        if (_emit_diff()) _park_cursor();
+    }
+
+    void AnsiTerminal::_emit_scrolls() {
+        // Emit each pending band DL/IL and, only if every part of it reached the
+        // wire, shift BACK to match. If any part did not fit the ring, BACK stays
+        // put and the cell diff repaints the whole band instead - more bytes, but
+        // correct. Shifting BACK after a dropped escape would be the opposite: the
+        // diff would believe those rows were already right and never repaint them,
+        // so the band would stay wrong until something forced a full clear.
+        for (uint8_t i = 0; i < _nscrolls; i++) {
+            const PendingScroll& s = _scrolls[i];
+            bool restore = (s.bottom < (uint16_t)(_rows - 1));
+            uint16_t back = (uint16_t)(s.bottom - s.n + 1);
+            bool ok;
+            if (s.up) {
+                ok = _go({s.top, 0}) && delete_rows_wire(s.n);
+                if (ok && restore) ok = _go({back, 0}) && insert_rows_wire(s.n);
+            } else {
+                ok = !restore || (_go({back, 0}) && delete_rows_wire(s.n));
+                if (ok) ok = _go({s.top, 0}) && insert_rows_wire(s.n);
+            }
+            if (ok) _shift_grid(_back, s.top, s.bottom, s.up, s.n);   // mirror the wire
+        }
+        _nscrolls = 0;
+    }
+
+    uint16_t AnsiTerminal::_shift_row(uint16_t row, uint16_t budget) {
+        // A row whose content slid sideways (the line editor inserting or deleting
+        // characters, a column widening) differs from BACK at every column past
+        // the edit, so the plain run diff rewrites the whole tail. The terminal
+        // can do it in one escape instead: SM4/RM4 insert mode to open cells, DCH
+        // to close them. Both shift the row's cells *with* their attributes,
+        // exactly like the grid shift the renderer did.
+        //
+        // @return bytes emitted, or 0 when a shift does not apply or does not pay
+        // (the caller's run loop then reconciles the row the ordinary way, and
+        // also mops up whatever a shift left over).
+        uint16_t a = 0;
+        while (a < _cols && _front[_idx(row, a)] == _back[_idx(row, a)]) a++;
+        if (a >= _cols) return 0;                          // row already matches
+        uint16_t last = (uint16_t)(_cols - 1);
+        while (last > a && _front[_idx(row, last)] == _back[_idx(row, last)]) last--;
+
+        // Short diffs are cheaper to just rewrite than to bracket in an escape.
+        if ((uint16_t)(last - a + 1) < SHIFT_MIN_SPAN) return 0;
+
+        // Derive the width from the content rather than trying every width: the
+        // cell sitting at column `a` on one side must reappear further along on
+        // the other, and where it lands *is* the width. A few candidate landings
+        // cost a few memcmps, where scanning every width costs one per column -
+        // and this puts no ceiling on how far a row may have slid, which a fixed
+        // cap silently turns into a full-row rewrite.
+        const uint8_t* fr = &_front[_idx(row, 0)];
+        const uint8_t* bk = &_back [_idx(row, 0)];
+        uint16_t right = 0, left = 0;
+
+        // Right shift by n: BACK's cell at `a` is pushed out to FRONT's `a + n`.
+        for (uint16_t p = (uint16_t)(a + 1), tries = 0;
+             p < _cols && tries < SHIFT_CANDIDATES; p++) {
+            if (fr[p] != bk[a]) continue;
+            tries++;
+            uint16_t n = (uint16_t)(p - a);
+            if (memcmp(fr + a + n, bk + a, (size_t)(_cols - a - n)) == 0) { right = n; break; }
+        }
+        // Left shift by n: BACK's cell at `a + n` is pulled back to FRONT's `a`.
+        for (uint16_t p = (uint16_t)(a + 1), tries = 0;
+             p < _cols && tries < SHIFT_CANDIDATES; p++) {
+            if (bk[p] != fr[a]) continue;
+            tries++;
+            uint16_t n = (uint16_t)(p - a);
+            if (memcmp(fr + a, bk + a + n, (size_t)(_cols - a - n)) == 0) { left = n; break; }
+        }
+        if (right == 0 && left == 0) return 0;
+
+        // Cost both candidates and take the cheaper, but only if it beats
+        // rewriting the span outright. Costing matters as much as detecting:
+        // repeating text matches itself at its own period, so both directions
+        // often verify, and choosing the wrong one is worse than choosing neither.
+        uint16_t plain = _run_cost(row, a, (uint16_t)(last + 1));
+        uint16_t cost_right = 0xFFFF, cost_left = 0xFFFF;
+
+        // Right: the inserted cells go out as one run, so they must share an
+        // attribute. A mixed run disqualifies the candidate rather than being
+        // bracketed cell by cell.
+        bool ins_inv = (fr[a] & CELL_INV) != 0;
+        if (right != 0) {
+            bool uniform = true;
+            for (uint16_t c = a; c < (uint16_t)(a + right); c++)
+                if (((fr[c] & CELL_INV) != 0) != ins_inv) { uniform = false; break; }
+            if (uniform)
+                cost_right = (uint16_t)(8 + 4 + right + 4 + (ins_inv != _hw_inverted ? 5 : 0));
+        }
+
+        // Left: the DCH is a handful of bytes, but it blanks `n` cells at the
+        // right edge and any of those FRONT wants filled must be painted behind
+        // it. Ignoring that is what makes a wide coincidental match look free.
+        if (left != 0) {
+            uint16_t tail = 0;
+            for (uint16_t c = (uint16_t)(_cols - left); c < _cols; c++)
+                if (_front[_idx(row, c)] != (uint8_t)CELL_BLANK) tail++;
+            cost_left = (uint16_t)(8 + 6 + (_hw_inverted ? 5 : 0) + (tail != 0 ? tail + 8 : 0));
+        }
+
+        if (cost_right <= cost_left) left = 0; else right = 0;
+        uint16_t cost = right ? cost_right : cost_left;
+        if (cost >= plain) return 0;
+        if (_serial.availableForWrite() < cost || cost > budget) return 0;
+
+        uint16_t before = tx_used();
+        if (!_go({row, a})) return 0;
+
+        if (right != 0) {
+            if (ins_inv != _hw_inverted) {
+                _serial.write(Ansi::CSI, sizeof(Ansi::CSI) - 1);
+                _serial.write(ins_inv ? Ansi::ATTR_NEG : Ansi::ATTR_NONE,
+                              ins_inv ? sizeof(Ansi::ATTR_NEG) - 1
+                                      : sizeof(Ansi::ATTR_NONE) - 1);
+                _hw_inverted = ins_inv;
+            }
+            // Insert mode: the glyphs written push the rest of the row right.
+            if (!Ansi::set_insert_mode(_serial, true)) return 0;
+            char buf[GRID_COLS];
+            for (uint16_t c = a; c < (uint16_t)(a + right); c++)
+                buf[c - a] = (char)(fr[c] & CELL_CH);
+            _serial.write(buf, right);
+            Ansi::set_insert_mode(_serial, false);
+            // Mirror the wire in BACK: shift right, then stamp what we wrote.
+            for (uint16_t c = (uint16_t)(_cols - 1); c >= (uint16_t)(a + right); c--)
+                _back[_idx(row, c)] = _back[_idx(row, (uint16_t)(c - right))];
+            for (uint16_t c = a; c < (uint16_t)(a + right); c++)
+                _back[_idx(row, c)] = _front[_idx(row, c)];
+            _hw_pos.col = (uint16_t)(a + right);
+        } else {
+            // DCH fills the cells it frees using the current attributes on
+            // terminals with background-colour erase, so drop reverse video first
+            // or those cells come back inverted.
+            if (_hw_inverted) {
+                _serial.write(Ansi::CSI, sizeof(Ansi::CSI) - 1);
+                _serial.write(Ansi::ATTR_NONE, sizeof(Ansi::ATTR_NONE) - 1);
+                _hw_inverted = false;
+            }
+            if (!Ansi::delete_chars(_serial, left)) return 0;
+            for (uint16_t c = a; (uint16_t)(c + left) < _cols; c++)
+                _back[_idx(row, c)] = _back[_idx(row, (uint16_t)(c + left))];
+            for (uint16_t c = (uint16_t)(_cols - left); c < _cols; c++)
+                _back[_idx(row, c)] = CELL_BLANK;
+        }
         _hw_at_eol = false;
+        uint16_t after = tx_used();
+        return (after > before) ? (uint16_t)(after - before) : 0;
     }
 
-    void AnsiTerminal::scroll_region(uint16_t top, uint16_t bottom, bool up,
-                                     uint16_t n) {
-        if (n == 0 || top > bottom) return;
-        uint16_t phys_last = (uint16_t)(_rows > 0 ? _rows - 1 : 0);
-        if (bottom > phys_last) bottom = phys_last;
-        uint16_t height = (uint16_t)(bottom - top + 1);
-        if (n > height) n = height;   // scrolling the whole band just clears it
+    bool AnsiTerminal::_reconcile_row(uint16_t row, uint16_t& budget) {
+        // Nothing pending: skip in one memcmp rather than two per-cell walks.
+        if (memcmp(&_front[_idx(row, 0)], &_back[_idx(row, 0)], _cols) == 0) return true;
+        // A sideways slide is one escape; try that before rewriting cells. It may
+        // leave a remainder (the cells it could not express), which the run loop
+        // below then reconciles normally.
+        uint16_t moved = _shift_row(row, budget);
+        budget = (moved < budget) ? (uint16_t)(budget - moved) : 0;
+        if (moved != 0 && budget == 0) return false;
+        uint16_t col = 0;
+        while (col < _cols) {
+            if (_front[_idx(row, col)] == _back[_idx(row, col)]) { col++; continue; }
+            uint16_t a = col, b = col;
+            while (b < _cols && _front[_idx(row, b)] != _back[_idx(row, b)]) b++;
+            uint16_t cost = _run_cost(row, a, b);
+            if (_serial.availableForWrite() < cost) return false;  // ring full
+            // A run that needs the whole budget or more can never fit inside one,
+            // so it goes out as soon as the ring is shallow (and ends the tick).
+            // This has to be >=, not >: tx_used() never reports an empty ring as
+            // 0, so budget is always at least a byte under _tx_cold_depth, and a
+            // run costing exactly _tx_cold_depth would otherwise be too big to
+            // fit and not big enough to escape - stuck for good.
+            bool oversized = cost >= _tx_cold_depth;
+            if (oversized ? (budget == 0) : (cost > budget)) return false;
+            uint16_t sent = _put_run(row, a, b);
+            if (sent == 0) return false;
+            budget = (sent < budget) ? (uint16_t)(budget - sent) : 0;
+            if (oversized || budget == 0) return false;
+            col = b;
+        }
+        return true;
+    }
 
-        // DL/IL pair: the first op displaces every row below the band, the
-        // compensating op restores it (a band running to the physical bottom
-        // needs no restore). Best-effort: sub-ops are all-or-nothing, so a tight
-        // ring drops the scroll rather than tearing the layout.
-        bool restore = (bottom < phys_last);
-
-        if (up) {
-            // Drop the top n rows: DL n at the band top slides rows
-            // top+n..bottom up to top..bottom-n (and pulls everything below the
-            // band up with them).
-            move_to({top, 0});
-            delete_rows(n);
-            // IL n at the band's new bottom pushes the displaced below-band
-            // rows back down and leaves the n freed rows blank. Skipped when
-            // the band runs to the screen bottom: the DL already left those
-            // rows blank and there is nothing below to restore.
-            if (restore) {
-                move_to({(uint16_t)(bottom - n + 1), 0});
-                insert_rows(n);
+    bool AnsiTerminal::_emit_diff() {
+        // Walk FRONT vs BACK and emit each changed run, all-or-nothing (the ring
+        // drops silently, so a partial run would be a torn frame) and paced under
+        // this tick's budget. @return true when the screen is fully reconciled;
+        // false means work is left for the next tick.
+        //
+        // Rows are visited by priority class, so an exhausted budget drops the
+        // least important rows rather than whatever sat lowest. Nothing is queued:
+        // a row that misses a tick still differs from BACK on the next one.
+        uint16_t used   = tx_used();
+        uint16_t budget = (used < _tx_cold_depth) ? (uint16_t)(_tx_cold_depth - used) : 0;
+        for (uint8_t prio = 0; prio < PRIO_COUNT; prio++) {
+            // Within a class, resume where the budget ran out and wrap: equally
+            // ranked rows take turns instead of the top ones winning every tick.
+            // See docs/SCREEN_BACKBUFFER.md.
+            uint16_t start = _resume[prio];
+            for (uint16_t i = 0; i < _rows; i++) {
+                uint16_t row = (uint16_t)(start + i);
+                if (row >= _rows) row = (uint16_t)(row - _rows);
+                if (_row_prio[row] != prio) continue;
+                if (!_reconcile_row(row, budget)) {
+                    // Pick this row up again next tick: it is either unfinished or
+                    // untried, and either way it is owed the next slot.
+                    _resume[prio] = (uint8_t)row;
+                    return false;
+                }
             }
-        } else {
-            // Drop the bottom n rows first (when the band stops short of the
-            // screen bottom) so the IL below cannot shove band content onto
-            // rows it must leave alone; when the band runs to the bottom those
-            // rows just fall off.
-            if (restore) {
-                move_to({(uint16_t)(bottom - n + 1), 0});
-                delete_rows(n);
-            }
-            // IL n at the band top slides rows top..bottom-n down to
-            // top+n..bottom and opens the n freed rows at the top.
-            move_to({top, 0});
-            insert_rows(n);
+            _resume[prio] = 0;      // class fully reconciled; start fresh next time
         }
+        return true;
     }
 
-    void AnsiTerminal::insert_rows(uint16_t count) {
-        if (count == 0) return;
-        // IL shifts content; cursor unaffected
-        Ansi::insert_rows(_serial, count);
+    void AnsiTerminal::_park_cursor() {
+        if (_want_cursor_visible != _hw_cursor_visible &&
+            Ansi::set_cursor_visible(_serial, _want_cursor_visible))
+            _hw_cursor_visible = _want_cursor_visible;
+        // A visible cursor belongs at the edit point of whoever asked for it (only
+        // the shell editor does) - that is where its last move_to left the draw
+        // cursor. With no such owner, idle it in the bottom-right corner so it sits
+        // out of the content instead of wherever the last run happened to end.
+        if (_hw_cursor_visible) _go(_live_cursor_pos);
+        else                    _go({(uint16_t)(_rows - 1), (uint16_t)(_cols - 1)});
     }
 
-    void AnsiTerminal::delete_rows(uint16_t count) {
-        if (count == 0) return;
-        // DL shifts content; cursor unaffected
-        Ansi::delete_rows(_serial, count);
-    }
-
-    // Field painter (shared by StatusBar and MetricPage)
-
-    uint16_t AnsiTerminal::emit_field_run(uint16_t row, uint16_t col, const char* cf,
-                                          uint16_t a, uint16_t b, uint32_t hi) {
-        move_to({row, (uint16_t)(col + a)});
-        uint16_t seg = a;
-        bool seg_inv = ((hi >> a) & 1u) != 0;
-        uint16_t written = 0;
-        for (uint16_t k = a; k < b; ++k) {
-            bool ki = ((hi >> k) & 1u) != 0;
-            if (ki != seg_inv) {
-                set_inverted(seg_inv);
-                written += write_chars(&cf[seg], (uint16_t)(k - seg));
-                seg = k; seg_inv = ki;
-            }
-        }
-        set_inverted(seg_inv);
-        written += write_chars(&cf[seg], (uint16_t)(b - seg));
-        return written;   // contiguous leading cells that reached the wire
-    }
-
-    void AnsiTerminal::paint_field_runs(uint16_t row, uint16_t col, const char* cf,
-                                        uint16_t width, uint32_t emit, uint32_t hi) {
-        if (emit == 0) return;
-
-        // Bridge clean gaps up to MERGE wide: a ~7-byte cursor move costs more
-        // than overwriting a couple of unchanged characters in place.
-        const uint16_t MERGE = 4;
-        uint32_t render = emit;
-        int last = -1;
-        for (uint16_t i = 0; i < width; ++i) {
-            if (!((emit >> i) & 1u)) continue;
-            if (last >= 0 && (int)i - last - 1 <= (int)MERGE)
-                for (int g = last + 1; g < (int)i; ++g) render |= (1u << g);
-            last = (int)i;
-        }
-
-        uint16_t i = 0;
-        while (i < width) {
-            if (!((render >> i) & 1u)) { i++; continue; }
-            uint16_t a = i;
-            while (i < width && ((render >> i) & 1u)) i++;
-            // [a, i); SGR segmented per hi
-            emit_field_run(row, col, cf, a, i, hi);
-        }
-        set_inverted(false);   // leave the terminal normal
-    }
+    // Wire-side row shifts used only by present() for the scroll DL/IL.
+    bool AnsiTerminal::delete_rows_wire(uint16_t count) { return Ansi::delete_rows(_serial, count); }
+    bool AnsiTerminal::insert_rows_wire(uint16_t count) { return Ansi::insert_rows(_serial, count); }
 
 }}

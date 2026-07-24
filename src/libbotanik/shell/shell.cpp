@@ -12,9 +12,11 @@
 #include "libbotanik/alarms/alarms.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/logs/logger.h"
+#include "libbotanik/core/config.h"
 #include "libbotanik/network/mqtt.h"
 #include "libbotanik/network/network.h"
 #include "libbotanik/network/ntp.h"
+#include "libbotanik/network/telemetry_types.h"
 #include "libbotanik/plcio/sync.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/shell/shell.h"
@@ -64,6 +66,8 @@ namespace Botanik { namespace Shell {
             { "net",        "network / NTP / MQTT status",     &CommandShell::_cmd_net        },
             { "ntpsync",    "force an NTP resync now",         &CommandShell::_cmd_ntpsync    },
             { "alarms",     "[list|ack <code|all>] alarms",   &CommandShell::_cmd_alarms     },
+            { "config",     "[get <n>|set <n> <v>] params",   &CommandShell::_cmd_config     },
+            { "status",     "[get <name>] status variables",  &CommandShell::_cmd_status     },
             { "loglevel",   "[debug|info|..|critical] filter",&CommandShell::_cmd_loglevel   },
             { "version",    "firmware version",               &CommandShell::_cmd_version    },
             { "breakpoint", "trap into an attached debugger", &CommandShell::_cmd_breakpoint },
@@ -271,6 +275,74 @@ namespace Botanik { namespace Shell {
                m->active_count(), m->unmasked_count());
     }
 
+    void CommandShell::_cmd_config(const char* args, uint16_t alen) {
+        if (_config == nullptr) { _println("config: unavailable"); return; }
+        char out[128];
+        uint16_t w0; const char* a0 = Utils::arg_next(args, alen, w0);
+
+        // "config" with no args: list every parameter and its value.
+        if (a0 == nullptr) {
+            char val[40];
+            for (uint8_t i = 0; i < _config->count(); i++) {
+                const Cfg::ConfigParam& p = _config->param(i);
+                _config->format(i, val, sizeof(val));
+                _emitf(out, sizeof(out), "  %-18s %s", p.name, val);
+            }
+            return;
+        }
+
+        // "config set <name> <value>"
+        if (Utils::arg_eq(a0, w0, "set")) {
+            uint16_t wn; const char* nm = Utils::arg_next(args, alen, wn);
+            uint16_t wv; const char* v  = Utils::arg_next(args, alen, wv);
+            if (nm == nullptr || v == nullptr) {
+                _println("usage: config set <name> <value>"); return;
+            }
+            const Cfg::ConfigParam* p = _config->find(nm, wn);
+            if (p == nullptr) { _println("config: unknown parameter"); return; }
+            char val[96];
+            uint16_t vc = std::min(wv, (uint16_t)(sizeof(val) - 1));
+            memcpy(val, v, vc); val[vc] = '\0';
+            if (_config->set(*p, val)) _emitf(out, sizeof(out), "%s = %s", p->name, val);
+            else _emitf(out, sizeof(out), "config: invalid value for %s", p->name);
+            return;
+        }
+
+        // "config get <name>" or "config <name>"
+        const char* nm = a0; uint16_t wn = w0;
+        if (Utils::arg_eq(a0, w0, "get")) nm = Utils::arg_next(args, alen, wn);
+        if (nm == nullptr) { _println("usage: config get <name>"); return; }
+        const Cfg::ConfigParam* p = _config->find(nm, wn);
+        if (p == nullptr) { _println("config: unknown parameter"); return; }
+        char val[40];
+        _config->format_param(*p, val, sizeof(val));
+        _emitf(out, sizeof(out), "%s = %s", p->name, val);
+    }
+
+    void CommandShell::_cmd_status(const char* args, uint16_t alen) {
+        if (_status_groups == nullptr || _status_base == nullptr) {
+            _println("status: unavailable"); return;
+        }
+        char out[128], val[64];
+        uint16_t w0; const char* a0 = Utils::arg_next(args, alen, w0);
+        const char* nm = a0; uint16_t wn = w0;
+        if (a0 != nullptr && Utils::arg_eq(a0, w0, "get")) nm = Utils::arg_next(args, alen, wn);
+
+        bool found = false;
+        for (size_t gi = 0; gi < _status_group_count; ++gi) {
+            const Network::ScalarGroup& g = _status_groups[gi];
+            for (size_t i = 0; i < g.count; ++i) {
+                const Network::ScalarField& f = g.fields[i];
+                if (f.name == nullptr) continue;
+                if (nm != nullptr && !Utils::arg_eq(nm, wn, f.name)) continue;
+                const char* s = Network::scalar_format(f, _status_base, val, sizeof(val));
+                _emitf(out, sizeof(out), "  %-18s %s", f.name, s);
+                found = true;
+            }
+        }
+        if (nm != nullptr && !found) _println("status: unknown variable");
+    }
+
     void CommandShell::_cmd_loglevel(const char* args, uint16_t alen) {
         if (_logger == nullptr) {
             _println("loglevel: logger unavailable"); return;
@@ -397,7 +469,7 @@ namespace Botanik { namespace Shell {
         };
 
         // --- Link --------------------------------------------------------
-        const char* mode = (cfg != nullptr && cfg->net.dhcp) ? "DHCP" : "static";
+        const char* mode = (cfg != nullptr && cfg->net_dhcp) ? "DHCP" : "static";
         snprintf(val, sizeof(val), "%s  (%s)", net->status_str(), mode);
         _line("Network ..............", val);
 
@@ -432,15 +504,15 @@ namespace Botanik { namespace Shell {
             else
                 snprintf(val, sizeof(val), "%s", ntp->status_str());
             _line("NTP ..................", val);
-            if (cfg != nullptr && cfg->ntp.server1[0]) {
+            if (cfg != nullptr && cfg->ntp_server1[0]) {
                 // Configured hostname, then the resolved IP:port once known.
                 Network::ResolvedAddr sa = ntp->server_addr();
                 bool resolved = (sa.b[0] | sa.b[1] | sa.b[2] | sa.b[3]) != 0;
                 if (resolved)
-                    snprintf(val, sizeof(val), "%s  %s:%u", cfg->ntp.server1,
+                    snprintf(val, sizeof(val), "%s  %s:%u", cfg->ntp_server1,
                              ip4(sa), (unsigned)ntp->server_port());
                 else
-                    snprintf(val, sizeof(val), "%s", cfg->ntp.server1);
+                    snprintf(val, sizeof(val), "%s", cfg->ntp_server1);
                 _line("NTP server ...........", val);
             }
         } else {
@@ -460,14 +532,14 @@ namespace Botanik { namespace Shell {
                 snprintf(val, sizeof(val), "%s  (no pub yet)", mqt->status_str());
             }
             _line("MQTT .................", val);
-            if (cfg != nullptr && cfg->mqtt.broker[0]) {
+            if (cfg != nullptr && cfg->mqtt_broker[0]) {
                 // Configured hostname, then the resolved IP:port once connected.
                 if (mqt->connected()) {
                     Network::ResolvedAddr pa = mqt->peer_addr();
-                    snprintf(val, sizeof(val), "%s  %s:%u", cfg->mqtt.broker,
+                    snprintf(val, sizeof(val), "%s  %s:%u", cfg->mqtt_broker,
                              ip4(pa), (unsigned)mqt->peer_port());
                 } else {
-                    snprintf(val, sizeof(val), "%s", cfg->mqtt.broker);
+                    snprintf(val, sizeof(val), "%s", cfg->mqtt_broker);
                 }
                 _line("MQTT broker ..........", val);
             }

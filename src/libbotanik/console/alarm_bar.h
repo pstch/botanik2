@@ -9,10 +9,9 @@
  * A reverse-video bar on the physical last row (reserved by the terminal when
  * an alarm model is wired), showing " ALARMS : " then the unmasked, un-ack'd
  * alarm codes drawn normal-video so they read as a set. Owned by AnsiTerminal
- * and repainted cooperatively from step(): only when the unmasked set changes
- * or the row was wiped (mark_dirty()), and only while the TX ring is shallow.
- * No change-highlighting - the set is visible as a whole. The dirty flag
- * survives a deferred paint so a later tick retries.
+ * and repainted from step() only when the unmasked set changes or the row was
+ * wiped (mark_dirty()); the terminal's back-buffer diff then emits just the
+ * cells that moved. No change-highlighting - the set is visible as a whole.
  */
 
 #include <cstdint>
@@ -48,16 +47,21 @@ namespace Botanik { namespace Terminal {
         /** @name Cooperative paint
          *  @{ */
 
-        /** @brief Per-step pass: repaint when the unmasked set changed or the
-         *  row was wiped, but only while the TX ring is shallow; saves and
-         *  restores the page cursor and its visibility so the bar never steals a
-         *  visible cursor (e.g. the shell editor's) to the bottom row. No-op
-         *  without an alarm source. */
+        /** @brief Per-step pass: repaint the bar when the unmasked set changed
+         *  or the row was wiped. present() paces the resulting diff and re-parks
+         *  a visible page cursor (the shell editor's) afterwards. No-op without
+         *  an alarm source. */
         void step();
 
         /** @brief Flag a repaint (after a full-screen clear or page switch wiped
          *  the reserved row). */
         void mark_dirty() { _dirty = true; }
+
+    private:
+        /** @brief The physical last row, reserved for the strip. */
+        uint16_t _row() const;
+
+    public:
 
         /** @} */
 

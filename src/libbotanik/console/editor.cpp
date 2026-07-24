@@ -32,9 +32,9 @@ namespace Botanik { namespace Terminal {
     }
 
     uint16_t TextEditor::_row_cap(uint16_t row_idx) const {
-        uint16_t cols   = _terminal->cols();
-        uint16_t prompt = _prompt_len(_row_prompt(row_idx));
-        return cols > prompt ? (uint16_t)(cols - prompt) : 1;
+        uint16_t cols = _terminal->cols();
+        uint16_t used = (uint16_t)(_prompt_len(_row_prompt(row_idx)) + _indent);
+        return cols > used ? (uint16_t)(cols - used) : 1;
     }
 
     void TextEditor::_write_prompt(uint16_t row_idx) {
@@ -70,7 +70,7 @@ namespace Botanik { namespace Terminal {
     CursorPos TextEditor::_map_cursor_pos(uint16_t pos) const {
         uint16_t i      = _owner_row(pos, _layout);
         uint16_t prompt = _prompt_len(_row_prompt(i));
-        uint16_t col    = (uint16_t)(prompt + (pos - _layout.rows[i].buf_start));
+        uint16_t col    = (uint16_t)(_indent + prompt + (pos - _layout.rows[i].buf_start));
         return { (uint16_t)(_origin + i), col };
     }
 
@@ -93,17 +93,17 @@ namespace Botanik { namespace Terminal {
         uint16_t old_origin = _origin;
         _reset_state();
         uint16_t draw_row = _suppress_sync_redraw ? old_origin : _origin;
-        _terminal->move_to({draw_row, 0});
+        _terminal->move_to({draw_row, _indent});
         _write_prompt(0);
         if (!_suppress_sync_redraw)
-            _terminal->move_to(_map_cursor_pos(0));
+            _place_cursor(_map_cursor_pos(0));
     }
 
     void TextEditor::commit() {
         _reset_state();
-        _terminal->move_to({_origin, 0});
+        _terminal->move_to({_origin, _indent});
         _write_prompt(0);
-        _terminal->move_to(_map_cursor_pos(0));
+        _place_cursor(_map_cursor_pos(0));
     }
 
     void TextEditor::set_origin(uint16_t row) {
@@ -115,16 +115,17 @@ namespace Botanik { namespace Terminal {
     // ------------------------------------------------------------------------
 
     void TextEditor::redraw() {
+        _place_rows();          // a page switch handed the band back; reclaim it
         // Destination rows assumed already blank; only write prompt + content.
         for (uint16_t i = 0; i < _layout.count; i++) {
             uint16_t hw_row = _origin + i;
             if (hw_row >= _console->rows()) break;
-            _terminal->move_to({hw_row, 0});
+            _terminal->move_to({hw_row, _indent});
             _write_prompt(i);
             if (_layout.rows[i].buf_len > 0)
                 _terminal->write_chars(&_buf[_layout.rows[i].buf_start], _layout.rows[i].buf_len);
         }
-        _terminal->move_to(_map_cursor_pos(_pos));
+        _place_cursor(_map_cursor_pos(_pos));
     }
 
     // editing
@@ -138,6 +139,17 @@ namespace Botanik { namespace Terminal {
         if ((uint32_t)_len + len >= sizeof(_buf)) len = (uint16_t)(sizeof(_buf) - _len - 1);
         if (len == 0) return;
 
+        if (_single_line) {
+            // Refuse newlines (stop at the first) and any content past the row
+            // end, so the editor never wraps to a second row.
+            for (uint16_t i = 0; i < len; i++)
+                if (buf[i] == '\n') { len = i; break; }
+            uint16_t cap = _row_cap(0);
+            if (_len >= cap) return;
+            if ((uint16_t)(_len + len) > cap) len = (uint16_t)(cap - _len);
+            if (len == 0) return;
+        }
+
         uint16_t pos = _pos;
 
         if (_pos < _len) memmove(&_buf[_pos + len], &_buf[_pos], _len - _pos);
@@ -149,7 +161,7 @@ namespace Botanik { namespace Terminal {
         _pre = _layout;
         _rebuild_layout();
         _reconcile(pos, len, /*is_insert=*/true);
-        _terminal->move_to(_map_cursor_pos(_pos));
+        _place_cursor(_map_cursor_pos(_pos));
     }
 
     void TextEditor::remove_characters(uint16_t len) {
@@ -166,11 +178,30 @@ namespace Botanik { namespace Terminal {
         _pre = _layout;
         _rebuild_layout();
         _reconcile(pos, len, false);
-        _terminal->move_to(_map_cursor_pos(_pos));
+        _place_cursor(_map_cursor_pos(_pos));
     }
 
     // grow/shrink helpers
     // ------------------------------------------------------------------------
+
+    void TextEditor::_place_rows() {
+        uint16_t rows = _console->rows();
+        if (rows == 0) return;
+        uint16_t bottom = (uint16_t)(rows - 1);
+        // Release the content band, then claim exactly the rows occupied now -
+        // not everything below _origin, because the editor is not always at the
+        // bottom of the screen (the CONFIG page edits a row mid-table, and the
+        // rows under it belong to the table).
+        //
+        // Releasing the whole band is only safe while no page keeps a class of
+        // its own on a row an editor shares a screen with. Nothing does today,
+        // and a page re-declares in focus() anyway.
+        _terminal->set_row_priority(1, bottom, PRIO_STRUCT);
+        if (_layout.count == 0 || _origin > bottom) return;
+        uint16_t last = (uint16_t)(_origin + _layout.count - 1);
+        if (last > bottom) last = bottom;
+        _terminal->set_row_priority(_origin, last, PRIO_INPUT);
+    }
 
     uint16_t TextEditor::_grow_editor() {
         // Bottom-pinned origin: pull the top up by the rows the editor grew,
@@ -229,7 +260,7 @@ namespace Botanik { namespace Terminal {
         // accordingly before the length-align below.
         if (shown_prompt_l != prompt && hw < _console->rows()) {
             RowPrompt p = _row_prompt(post_idx);
-            _terminal->move_to({hw, 0});
+            _terminal->move_to({hw, _indent});
             if (prompt <= shown_prompt_l) {
                 _terminal->write_chars(_prompt_buf(p), prompt);
                 _terminal->delete_chars((uint16_t)(shown_prompt_l - prompt));
@@ -247,11 +278,11 @@ namespace Botanik { namespace Terminal {
         // when there is a splice - an absorbed row (amount 0, no length/prompt
         // change) emits nothing.
         if (amount > 0) {
-            _terminal->move_to({hw, col});
+            _terminal->move_to({hw, (uint16_t)(_indent + col)});
             _terminal->write_chars(&_buf[want.buf_start + (col - prompt)],
                                    (uint16_t)amount, /*insert=*/true);
         } else if (amount < 0) {
-            _terminal->move_to({hw, col});
+            _terminal->move_to({hw, (uint16_t)(_indent + col)});
             _terminal->delete_chars((uint16_t)(-amount));
         }
 
@@ -260,11 +291,11 @@ namespace Botanik { namespace Terminal {
         int32_t  after_i = (int32_t)shown_len + amount;
         uint16_t after   = after_i < 0 ? 0 : (after_i > (int32_t)cap ? cap : (uint16_t)after_i);
         if (want.buf_len > after) {
-            _terminal->move_to({hw, (uint16_t)(prompt + after)});
+            _terminal->move_to({hw, (uint16_t)(_indent + prompt + after)});
             _terminal->write_chars(&_buf[want.buf_start + after],
                                    (uint16_t)(want.buf_len - after));
         } else if (want.buf_len < after) {
-            _terminal->move_to({hw, (uint16_t)(prompt + want.buf_len)});
+            _terminal->move_to({hw, (uint16_t)(_indent + prompt + want.buf_len)});
             _terminal->clear_to_eol();
         }
     }
@@ -273,7 +304,7 @@ namespace Botanik { namespace Terminal {
         uint16_t hw = (uint16_t)(_origin + post_idx);
         if (hw >= _console->rows()) return;
         const RowView& want = _layout.rows[post_idx];
-        _terminal->move_to({hw, 0});
+        _terminal->move_to({hw, _indent});
         _write_prompt(post_idx);
         if (want.buf_len > 0)
             _terminal->write_chars(&_buf[want.buf_start], want.buf_len);
@@ -336,6 +367,11 @@ namespace Botanik { namespace Terminal {
     }
 
     void TextEditor::_reconcile(uint16_t span_start, uint16_t span_len, bool is_insert) {
+        // Keystroke echo has to feel immediate however busy the screen is. The
+        // editor is bottom-pinned, so its extent moves: hand the whole content
+        // band back to the page first, then claim the rows it actually occupies
+        // now. Otherwise rows the editor has grown past keep its class forever.
+        _place_rows();
         int32_t l_shift;
         if (is_insert) l_shift = (int32_t)span_len;
         else           l_shift = -(int32_t)span_len;
@@ -416,23 +452,23 @@ namespace Botanik { namespace Terminal {
     void TextEditor::move_left() {
         if (_pos == 0) return;
         _pos--;
-        _terminal->move_to(_map_cursor_pos(_pos));
+        _place_cursor(_map_cursor_pos(_pos));
     }
 
     void TextEditor::move_right() {
         if (_pos >= _len) return;
         _pos++;
-        _terminal->move_to(_map_cursor_pos(_pos));
+        _place_cursor(_map_cursor_pos(_pos));
     }
 
     void TextEditor::move_to_line_start() {
         while (_pos > 0 && _buf[_pos - 1] != '\n') _pos--;
-        _terminal->move_to(_map_cursor_pos(_pos));
+        _place_cursor(_map_cursor_pos(_pos));
     }
 
     void TextEditor::move_to_line_end() {
         while (_pos < _len && _buf[_pos] != '\n') _pos++;
-        _terminal->move_to(_map_cursor_pos(_pos));
+        _place_cursor(_map_cursor_pos(_pos));
     }
 
     void TextEditor::backspace(uint16_t count) {
@@ -457,13 +493,13 @@ namespace Botanik { namespace Terminal {
     void TextEditor::move_word_left() {
         while (_pos > 0 && !_is_word_char(_buf[_pos - 1])) _pos--;
         while (_pos > 0 &&  _is_word_char(_buf[_pos - 1])) _pos--;
-        _terminal->move_to(_map_cursor_pos(_pos));
+        _place_cursor(_map_cursor_pos(_pos));
     }
 
     void TextEditor::move_word_right() {
         while (_pos < _len &&  _is_word_char(_buf[_pos])) _pos++;
         while (_pos < _len && !_is_word_char(_buf[_pos])) _pos++;
-        _terminal->move_to(_map_cursor_pos(_pos));
+        _place_cursor(_map_cursor_pos(_pos));
     }
 
 }}

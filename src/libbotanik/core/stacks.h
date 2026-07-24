@@ -75,7 +75,7 @@ namespace Botanik {
          *  @param alarms feeds the bottom alarm bar (also the AlarmsPage source);
          *  @param logger the sink the pages announce through. */
         ConsoleStack(uint16_t cols, uint16_t rows, const uint32_t* timestamp_ms,
-                     uint32_t baud, const Alarms::AlarmModel* alarms,
+                     uint32_t baud, Alarms::AlarmModel* alarms,
                      Logs::Logger* logger)
             : _serial(HAL::Serial::get(HAL::Serial::CONSOLE), logger, "ConsoleSerial"),
               _terminal(_serial, cols, rows, timestamp_ms, baud,
@@ -117,15 +117,15 @@ namespace Botanik {
         /** @param plc the PLC sync context the handlers read their config from;
          *  @param logger the shared logger; @param sys the live status the MQTT
          *  telemetry base fields read (stored, read per-beat). */
-        NetworkStack(PlcIO::PlcSyncContext* plc, Logs::Logger* logger,
+        NetworkStack(const Cfg::ConfigHandler* cfg, Logs::Logger* logger,
                      const SystemContext* sys)
             : _resolver(logger),
-              _network(plc, logger, &_resolver)
+              _network(cfg, logger, &_resolver)
 #if BOTANIK_FEATURE_NTP
-            , _ntp(plc, logger, &_resolver, &_network)
+            , _ntp(cfg, logger, &_resolver, &_network)
 #endif
 #if BOTANIK_FEATURE_MQTT
-            , _mqtt(plc, logger, &_resolver, &_network)
+            , _mqtt(cfg, logger, &_resolver, &_network)
             , _telemetry(&_mqtt, sys, Config::MQTT_TOPIC_PREFIX)
 #endif
         { (void)sys; }

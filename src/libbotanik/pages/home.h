@@ -153,7 +153,6 @@ namespace Botanik { namespace Pages {
          *  once). */
         void draw_log_header(uint16_t row) {
             if (row >= _console.rows()) return;
-            if (!_static_step()) return;     // paced as one static element
             uint16_t cols = _terminal.cols();
 
             // Spaces to paint the reverse-video background in one write.

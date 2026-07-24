@@ -64,8 +64,10 @@ namespace Botanik { namespace PlcIO {
         bool             _tx_write       = false;
         PlcOutputLogs_t  _rx_logs_buffer = {};
         PlcInputLogs_t   _tx_logs_buffer = {};
-        /** @brief PLC's generic config (network/NTP/MQTT). */
+        /** @brief PLC's generic config (network/NTP/MQTT), snapshotted from RX. */
         PlcOutputConfig_t _rx_config_buffer = {};
+        /** @brief Host->PLC config write-back mirror, shipped on a TX write. */
+        PlcInputConfig_t _tx_config_buffer = {};
         /** @brief Shared loop clock (ms), read-only. */
         const uint32_t*  _timestamp_ms   = nullptr;
         /** @brief Time of the last acknowledged TX (wrap-safe loop-clock
@@ -118,6 +120,10 @@ namespace Botanik { namespace PlcIO {
         /** @brief Local copy of the PLC's input log buffer. */
         PlcInputLogs_t*        input_logs()        { return &_tx_logs_buffer; }
         const PlcInputLogs_t*  input_logs() const  { return &_tx_logs_buffer; }
+        /** @brief Writable config write-back mirror. A config backend fills the
+         *  edited group's fields + bumps its serial, then calls write() to ship
+         *  it to the PLC on the next TX. */
+        PlcInputConfig_t*      input_config()      { return &_tx_config_buffer; }
 
         /** @brief Current PLC link status derived from the ack timing. */
         PlcStatus status() const {
@@ -394,6 +400,7 @@ namespace Botanik { namespace PlcIO {
         }
         inline void _tx_memcpy() {
             HAL::Memory::ordered_copy(&_plcin->logs, &_ctx._tx_logs_buffer);
+            HAL::Memory::ordered_copy(&_plcin->conf, &_ctx._tx_config_buffer);
             HAL::Memory::ordered_copy(&_plcin->data, &_tx_data_buffer);
             _ctx._tx_write = false;
         }

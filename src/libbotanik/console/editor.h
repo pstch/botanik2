@@ -75,6 +75,12 @@ namespace Botanik { namespace Terminal {
         uint16_t _len    = 0;          /**< Bytes in _buf. */
         uint16_t _pos    = 0;          /**< Cursor offset in _buf. */
         uint16_t _origin = 0;          /**< Prompt's top row on screen. */
+        uint16_t _indent = 0;          /**< Left margin: cols [0.._indent) are
+                                        *   reserved for a caller-drawn label;
+                                        *   0 = flush left (the shell default). */
+        bool     _single_line = false; /**< When set, refuse newlines and any
+                                        *   insert past the row end, so the
+                                        *   editor stays exactly one row. */
 
         TextView _layout{};            /**< Current/target row layout. */
         /** Pre-edit layout (copied before rebuild). */
@@ -148,14 +154,27 @@ namespace Botanik { namespace Terminal {
          *  character */
         CursorPos end_pos() const { return _map_cursor_pos(_len); }
 
-        /** @brief Hardware cursor position at the logical edit point (_pos) */
-        CursorPos cursor_screen_pos() const { return _map_cursor_pos(_pos); }
+        /** @brief Home the terminal cursor at the edit point and declare it as
+         *  the visible cursor's home. Pages that draw around the editor call this
+         *  once they are done, so present() parks there and not wherever the last
+         *  bar painted. */
+        void place_cursor() { _place_cursor(_map_cursor_pos(_pos)); }
 
         /** @brief Number of screen rows occupied by the editor right now */
         uint16_t occupied_rows() const { return _layout.count; }
 
         /** @brief Pin the prompt's top row to a specific screen row */
         void set_origin(uint16_t row);
+
+        /** @brief Reserve `col` columns at the left for a caller-drawn label;
+         *  the editor renders its prompt + content starting at that column.
+         *  0 = flush left (the default; the shell uses it). */
+        void set_indent(uint16_t col) { _indent = col; }
+
+        /** @brief Single-line mode: refuse newlines and any insert past the row
+         *  end, keeping the editor to one row (the CONFIG value field). Off by
+         *  default (the shell's multi-row editing). */
+        void set_single_line(bool v) { _single_line = v; }
 
         /** @} */
 
@@ -276,6 +295,20 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Buffer-position-to-screen-position map. O(_layout.count). */
         CursorPos _map_cursor_pos(uint16_t pos) const;
+
+        /** @brief Declare which rows the editor occupies now. Called whenever the
+         *  extent may have moved. */
+        void _place_rows();
+
+
+        /** @brief Home the cursor at @p p and tell the terminal that is where the
+         *  visible cursor belongs. The two go together: a later renderer in the
+         *  same tick (the status or alarm bar) moves the draw cursor away, so
+         *  present() needs the declared position, not the last one used. */
+        void _place_cursor(const CursorPos& p) {
+            _terminal->move_to(p);
+            _terminal->set_cursor_pos(p);
+        }
 
         /** @brief Write the prompt for `row_idx` at the current cursor
          *  position. */

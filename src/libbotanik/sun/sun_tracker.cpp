@@ -150,13 +150,13 @@ namespace Botanik { namespace Sun {
     // meaningless, so we wait.
     static const uint64_t WALL_CLOCK_VALID_MS = 1600000000000ull;
 
-    SunPositionTracker::SunPositionTracker(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger)
-        : Component(logger, "SunPositionTracker"), _ctx(ctx),
+    SunPositionTracker::SunPositionTracker(const Cfg::ConfigHandler* cfg, Logs::Logger* logger)
+        : Component(logger, "SunPositionTracker"), _cfg(cfg),
           _pos(), _next_ms(0), _computed(false) {}
 
     uint32_t SunPositionTracker::config_serial() const {
         const PlcIO::PlcOutputConfig_t* c = config();
-        return c ? c->geo.serial : 0;
+        return c ? c->geo_serial : 0;
     }
 
     void SunPositionTracker::on_config_changed(uint64_t now_ms) {
@@ -169,7 +169,7 @@ namespace Botanik { namespace Sun {
     void SunPositionTracker::on_step(uint64_t now_ms) {
         const PlcIO::PlcOutputConfig_t* c = config();
         // no location configured
-        if (c == nullptr || c->geo.serial == 0) return;
+        if (c == nullptr || c->geo_serial == 0) return;
         // wait for a real (NTP) time before the date-dependent solar math
         if (HAL::Clock::wall_ms() < WALL_CLOCK_VALID_MS) return;
 
@@ -177,8 +177,8 @@ namespace Botanik { namespace Sun {
         // first valid beat / after a geo change, both signalled by !_computed).
         if (_computed && now_ms < _next_ms) return;
 
-        double lat = (double)c->geo.latitude_e7  / 1e7;
-        double lon = (double)c->geo.longitude_e7 / 1e7;
+        double lat = (double)c->geo_latitude_e7  / 1e7;
+        double lon = (double)c->geo_longitude_e7 / 1e7;
         _pos      = solar_position(now_ms, lat, lon);
         _computed = true;
         _next_ms  = now_ms + Config::SUN_RECOMPUTE_MS;

@@ -18,6 +18,7 @@ using Botanik::Utils::format_int;
 using Botanik::Utils::format_age;
 using Botanik::Utils::format_size;
 using Botanik::Utils::env_u8;
+using Botanik::Utils::env_u32;
 
 TEST_CASE("format_uint: decimal digits, width, and tight cap") {
     char b[24];
@@ -141,8 +142,30 @@ TEST_CASE("format_age: field is constant width (9 chars + NUL)") {
     // Width holds up to 3 digits; >= 1000 d would widen it.
 }
 
-// env_u8
+// env_u32 / env_u8
 // ----------------------------------------------------------------------------
+
+// Baud rates and the like don't fit a byte, so env_u32 is the general reader and
+// env_u8 is the range-checked narrowing of it.
+TEST_CASE("env_u32: parses the full 32-bit range, falls back on junk") {
+    setenv("BOTANIK_TEST_U32", "4800", 1);
+    CHECK(env_u32("BOTANIK_TEST_U32", 9) == 4800u);
+    setenv("BOTANIK_TEST_U32", "115200", 1);
+    CHECK(env_u32("BOTANIK_TEST_U32", 9) == 115200u);
+    setenv("BOTANIK_TEST_U32", "0", 1);
+    CHECK(env_u32("BOTANIK_TEST_U32", 9) == 0u);
+    setenv("BOTANIK_TEST_U32", "4294967295", 1);
+    CHECK(env_u32("BOTANIK_TEST_U32", 9) == 4294967295u);
+
+    unsetenv("BOTANIK_TEST_U32");
+    CHECK(env_u32("BOTANIK_TEST_U32", 9) == 9u);
+    setenv("BOTANIK_TEST_U32", "", 1);
+    CHECK(env_u32("BOTANIK_TEST_U32", 9) == 9u);
+    setenv("BOTANIK_TEST_U32", "12x", 1);
+    CHECK(env_u32("BOTANIK_TEST_U32", 9) == 9u);
+    unsetenv("BOTANIK_TEST_U32");
+}
+
 
 TEST_CASE("env_u8: parses valid values, clamps the rest to the fallback") {
     setenv("BOTANIK_TEST_U8", "3", 1);

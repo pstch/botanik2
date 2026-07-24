@@ -15,7 +15,6 @@
 #include "libbotanik/console/ansi.h"
 
 namespace Botanik { namespace Terminal { namespace Ansi {
-    using BufferedSerial = Botanik::Utils::BufferedSerial;
 
     // Generic utilities
     // ------------------------------------------------------------------------
@@ -24,7 +23,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     constexpr uint16_t ANSI_MAX_SEQ = 16;
 
     // true when we know we can emit a full control sequence
-    inline bool can_emit(BufferedSerial& _serial) {
+    inline bool can_emit(ByteSink& _serial) {
         return _serial.availableForWrite() >= ANSI_MAX_SEQ;
     }
 
@@ -32,7 +31,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     bool is_printable(uint8_t b) { return b >= 0x20 && b <= 0x7E; }
 
     // write @p val to @p _serial in decimal format
-    void write_uint16(BufferedSerial& _serial, uint16_t val) {
+    void write_uint16(ByteSink& _serial, uint16_t val) {
         char buf[5];
         int8_t i = 4;
         if (val == 0) { _serial.write("0", 1); return; }
@@ -44,7 +43,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     // emit a CSI quantified command (<CSI> <count> <byte>)
-    bool _csi_count(BufferedSerial& _serial, const char* final_byte,
+    bool _csi_count(ByteSink& _serial, const char* final_byte,
                     uint16_t fn, uint16_t count = 1) {
         if (count == 0) return true;                    // return early if count is zero
         if (!can_emit(_serial)) return false;           // bail if not enough TX space
@@ -57,28 +56,28 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     // State management
     // ------------------------------------------------------------------------
 
-    bool set_insert_mode(BufferedSerial& _serial, bool active) {
+    bool set_insert_mode(ByteSink& _serial, bool active) {
         // SM4/RM4 same length
         return _csi_count(_serial, active ? SM4 : RM4, sizeof(SM4) - 1);
     }
 
-    bool cancel_sequence(BufferedSerial& _serial) {
+    bool cancel_sequence(ByteSink& _serial) {
         if (_serial.availableForWrite() < (uint16_t)(sizeof(CAN) - 1)) return false;
         _serial.write(CAN, sizeof(CAN) - 1);
         return true;
     }
 
-    bool set_auto_wrap(BufferedSerial& _serial, bool enable) {
+    bool set_auto_wrap(ByteSink& _serial, bool enable) {
         if (enable) return _csi_count(_serial, DECAWM_SET  , sizeof(DECAWM_SET)   - 1);
         else        return _csi_count(_serial, DECAWM_RESET, sizeof(DECAWM_RESET) - 1);
     }
 
-    bool set_cursor_visible(BufferedSerial& _serial, bool show) {
+    bool set_cursor_visible(ByteSink& _serial, bool show) {
         if (show) return _csi_count(_serial, DECTCEM_SET,   sizeof(DECTCEM_SET)   - 1);
         else      return _csi_count(_serial, DECTCEM_RESET, sizeof(DECTCEM_RESET) - 1);
     }
 
-    bool minitel_setup(BufferedSerial& _serial) {
+    bool minitel_setup(ByteSink& _serial) {
         if (!can_emit(_serial)) return false;
         _serial.write(MINITEL_TELINFO,   sizeof(MINITEL_TELINFO) - 1);
         _serial.write(MINITEL_LOWERCASE, sizeof(MINITEL_LOWERCASE) - 1);
@@ -86,7 +85,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         return true;
     }
 
-    bool vt102_setup(BufferedSerial& _serial) {
+    bool vt102_setup(ByteSink& _serial) {
         (void)_serial;
         return true;
     }
@@ -94,7 +93,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     // Cursor movement
     // ------------------------------------------------------------------------
 
-    bool goto_absolute(BufferedSerial& _serial, const CursorPos& cursor) {
+    bool goto_absolute(ByteSink& _serial, const CursorPos& cursor) {
         if (!can_emit(_serial)) return false;
         _serial.write(CSI, sizeof(CSI) - 1);
         write_uint16(_serial, (uint16_t)(cursor.row + 1));
@@ -104,32 +103,32 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         return true;
     }
 
-    bool move_left(BufferedSerial& _serial, uint16_t count) {
+    bool move_left(ByteSink& _serial, uint16_t count) {
         // Always the explicit CUB form, never the BS (\b) shortcut: BS is
         // harmless on a VT100/VT102 but a Minitel can treat it as a destructive
         // backspace.
         return _csi_count(_serial, CUB, sizeof(CUB) - 1, count);
     }
 
-    bool move_right(BufferedSerial& _serial, uint16_t count) {
+    bool move_right(ByteSink& _serial, uint16_t count) {
         return _csi_count(_serial, CUF, sizeof(CUF) - 1, count);
     }
 
-    bool move_up(BufferedSerial& _serial, uint16_t count) {
+    bool move_up(ByteSink& _serial, uint16_t count) {
         return _csi_count(_serial, CUU, sizeof(CUU) - 1, count);
     }
 
-    bool move_down(BufferedSerial& _serial, uint16_t count) {
+    bool move_down(ByteSink& _serial, uint16_t count) {
         return _csi_count(_serial, CUD, sizeof(CUD) - 1, count);
     }
 
-    bool move_row_start(BufferedSerial& _serial) {
+    bool move_row_start(ByteSink& _serial) {
         if (!can_emit(_serial)) return false;
         _serial.write("\r", 1);
         return true;
     }
 
-    bool down_to_row_start(BufferedSerial& _serial, uint16_t count) {
+    bool down_to_row_start(ByteSink& _serial, uint16_t count) {
         // CR + count line feeds. The length is caller-controlled, so guard on
         // the exact run rather than ANSI_MAX_SEQ. The caller keeps the feeds
         // clear of the last row, else a line feed scrolls the screen.
@@ -142,32 +141,22 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     // Content edition
     // ------------------------------------------------------------------------
 
-    bool insert_rows(BufferedSerial& _serial, uint16_t count) {
+    bool insert_rows(ByteSink& _serial, uint16_t count) {
         return _csi_count(_serial, IL, sizeof(IL) - 1, count);
     }
 
-    bool delete_rows(BufferedSerial& _serial, uint16_t count) {
+    bool delete_rows(ByteSink& _serial, uint16_t count) {
         return _csi_count(_serial, DL, sizeof(DL) - 1, count);
     }
 
-    bool delete_chars(BufferedSerial& _serial, uint16_t count) {
+    bool delete_chars(ByteSink& _serial, uint16_t count) {
         return _csi_count(_serial, DCH, sizeof(DCH) - 1, count);
     }
 
     // Content clearing
     // ------------------------------------------------------------------------
 
-    bool clear_to_eol(BufferedSerial& _serial) {
-        // ESC[K: erase cursor to EOL
-        return _csi_count(_serial, EL, sizeof(EL) - 1);
-    }
-
-    bool clear_to_eos(BufferedSerial& _serial) {
-        // ESC[J: erase cursor to end of display
-        return _csi_count(_serial, ED, sizeof(ED) - 1);
-    }
-
-    bool clear_screen(BufferedSerial& _serial) {
+    bool clear_screen(ByteSink& _serial) {
         if (!can_emit(_serial)) return false;
         _serial.write(CSI, sizeof(CSI) - 1);
         _serial.write("2", 1);

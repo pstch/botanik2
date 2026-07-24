@@ -14,7 +14,18 @@
 namespace Botanik { namespace Terminal {
 
     AlarmBar::AlarmBar(Console& console)
-        : _c(console), _t(console.terminal()) {}
+        : _c(console), _t(console.terminal()) {
+        // The strip frames the page from the bottom row, so page rows above it
+        // would all go first on a strict top-down walk. Chrome outranks the page
+        // to stop that; the set changes rarely enough that it costs the page
+        // nothing.
+        _t.set_row_priority(_row(), PRIO_CHROME);
+    }
+
+    uint16_t AlarmBar::_row() const {
+        uint16_t rows = _t.rows_total();
+        return rows > 0 ? (uint16_t)(rows - 1) : 0;
+    }
 
     uint64_t AlarmBar::unmasked_set() const {
         uint64_t m = 0;
@@ -35,7 +46,7 @@ namespace Botanik { namespace Terminal {
         const Alarms::AlarmModel* alarms = _c.alarms();
         if (alarms == nullptr || _t.rows_total() == 0 || _t.cols() == 0) return;
         // physical last row (reserved for us)
-        uint16_t row  = (uint16_t)(_t.rows_total() - 1);
+        uint16_t row  = _row();
         uint16_t cols = _t.cols();
 
         static const char hdr[] = " ALARMS : ";
@@ -75,16 +86,8 @@ namespace Botanik { namespace Terminal {
         uint64_t sig = unmasked_set();
         if (sig != _sig) _dirty = true;
         if (!_dirty) return;
-        // cooperative: wait for a shallow ring
-        if (!_t.tx_below_cold()) return;
-
-        // Save the page cursor and its visibility: the bar paints on the bottom
-        // row and must hand the cursor back where the page left it (a visible
-        // shell cursor would otherwise blink on the bar). Mirrors the status bar.
-        AnsiTerminal::CursorSnapshot snap = _t.save_cursor();
-        _t.set_cursor_visible(false);
+        // Redraw the whole bar immediate-mode; the terminal diff pares the bytes.
         draw();
-        _t.restore_cursor(snap);
         _sig   = sig;
         _dirty = false;
     }

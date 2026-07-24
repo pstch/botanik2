@@ -88,6 +88,11 @@
 #include "libbotanik/alarms/alarms.h"    // AlarmCondition (site table type)
 #include "libbotanik/health/health.h"    // HealthMonitor (owns the alarm model + notifier)
 #include "libbotanik/core/stacks.h"      // Monitor/Console/NetworkStack composition
+#if BOTANIK_FEATURE_PLC
+#include "libbotanik/core/config_plc.h"  // PlcConfigHandler (PLC-owned config)
+#else
+#include "libbotanik/core/config_local.h"// LocalConfigHandler (flash/file config)
+#endif
 
 #include <cstddef>
 #include <cstdint>
@@ -139,6 +144,9 @@ namespace Botanik {
 #if BOTANIK_FEATURE_PLC
         PlcIO::PlcSyncHandler<In, Out> _plc_handler;
         PlcIO::PlcLogReader            _plc_log_reader;
+        Cfg::PlcConfigHandler          _config;       ///< PLC-owned config snapshot
+#else
+        Cfg::LocalConfigHandler        _config;       ///< flash/file-backed config
 #endif
         Health::HealthMonitor          _health;
         SystemContext                  _sys_ctx;     ///< Filled in the ctor body
@@ -174,12 +182,14 @@ namespace Botanik {
               _plc_handler(shared_in, shared_out,
                            &_scheduler.context()->timestamp_ms, &_logger),
               _plc_log_reader(_plc_handler.context(), &_logger),
+              _config(_plc_handler.context(), &_logger),
               _health(_alarm_table, (uint8_t)_alarm_count, &_logger,
                       _scheduler.context(), _plc_handler.context(),
                       shared_in, shared_out, &_plc_handler.output_data()->alarms)
 #else
-              // No PLC: health takes a null link context + null regions (it
-              // degrades the verdict to "kick while alive").
+              // No PLC: config comes from local storage; health takes a null link
+              // context + null regions (it degrades to "kick while alive").
+              _config(&_logger),
               _health(_alarm_table, (uint8_t)_alarm_count, &_logger,
                       _scheduler.context(), nullptr, nullptr, nullptr)
 #endif
@@ -188,9 +198,9 @@ namespace Botanik {
               , _monitor(&_logger)
 #endif
 #if BOTANIK_FEATURE_NETWORK
-              // Network reads its config from the PLC block (NETWORK requires
-              // PLC); telemetry publishes the live _sys_ctx (stored, read later).
-              , _net(_plc_handler.context(), &_logger, &_sys_ctx)
+              // Network reads its config from the ConfigHandler image (NETWORK
+              // requires PLC); telemetry publishes the live _sys_ctx (read later).
+              , _net(&_config, &_logger, &_sys_ctx)
 #endif
 #if BOTANIK_FEATURE_CONSOLE
               , _console(_console_cols, _console_rows,
@@ -262,6 +272,8 @@ namespace Botanik {
             // Let the shell's loglevel / alarm-ack commands reach the live
             // logger + model.
             _console.shell().set_diagnostics(&_logger, &_health.model());
+            // Let the `config` get/set command reach the config backend.
+            _console.shell().set_config(&_config);
 #if BOTANIK_FEATURE_NTP
             // Let the `ntpsync` command force a resync on the live client.
             _console.shell().set_ntp(&_net.ntp());
@@ -338,6 +350,10 @@ namespace Botanik {
             _plc_handler.step(now_ms);
             _plc_log_reader.step(now_ms);
 #endif
+            // Config backend: refresh the image from the fresh PLC snapshot (or,
+            // PLC-less, load local storage on the first step) before the
+            // config-driven Components (net/sun) read it below.
+            _config.step(now_ms);
 
             // Health after the PLC payload is fresh and before the logger
             // drains, so an alarm START/END lands this beat. It reads the remote
@@ -444,6 +460,7 @@ namespace Botanik {
 #endif
         Health::HealthMonitor&          health()          { return _health; }
         Alarms::AlarmModel&             alarm_model()     { return _health.model(); }
+        Cfg::ConfigHandler&             config()          { return _config; }
 #if BOTANIK_FEATURE_CONSOLE
         Terminal::Console&              terminal()        { return _console.terminal(); }
         Pages::ShellPage&               shell_page()      { return _console.shell(); }

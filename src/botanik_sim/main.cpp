@@ -25,6 +25,8 @@
 #include "botanik_sim/network.h"
 #endif
 
+#include "libbotanik/utils/text.h"   // env_u32 (BOTANIK_CONSOLE_BAUD)
+
 #include <csignal>
 #include <cstring>   // std::strncpy - seeding the mock PLC config block
 
@@ -69,8 +71,18 @@ int main(int argc, char** argv) {
 
     // Deliberately low (not Config::CONSOLE_BAUD) so the sim exercises the TX
     // pacing at a slow, Minitel-like rate; the OPTA firmware uses the config
-    // default.
-    static const uint32_t CONSOLE_BAUD = 4800;
+    // default. BOTANIK_CONSOLE_BAUD overrides it for smoketesting - it drives
+    // both the sim UART's write throttle and present()'s per-tick byte budget,
+    // so raising it makes the console feel fast and lowering it makes the pacing
+    // easy to watch. Note this trades away the property BOTANIK_TIME_SCALE
+    // preserves: dilation keeps every byte/event ratio identical to a 4800-baud
+    // run, a different baud does not.
+    // 0 is rejected rather than honoured: it switches the sim UART's throttle off
+    // while pinning present()'s budget at its 8-byte floor, which reads as "the
+    // console is broken" rather than "the console is fast".
+    uint32_t console_baud = Utils::env_u32("BOTANIK_CONSOLE_BAUD", 4800);
+    if (console_baud == 0) console_baud = 4800;
+    const uint32_t CONSOLE_BAUD = console_baud;
 
     // Stash argv so HAL::System::reset() can re-exec the process with the same args.
     HAL::System::set_reboot_args(argc, argv);

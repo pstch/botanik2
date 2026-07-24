@@ -52,6 +52,8 @@ TEST_AREA = {
     "test_line_buffer":    "pages",
     "test_logger":         "logs",
     "test_parser":         "console",
+    "test_terminal_present": "console",
+    "test_editor_bytes":   "console",
     "test_resolver":       "network",
     "test_serial":         "utils",
     "test_shell":          "shell",
