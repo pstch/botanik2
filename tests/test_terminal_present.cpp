@@ -276,3 +276,32 @@ TEST_CASE("present: a run costing exactly the tick budget still goes out") {
     CHECK(out.find("SEVENCH") != std::string::npos);
     CHECK(f.present().empty());          // and it converged rather than looping
 }
+
+// The STATUS page is a screenful of live fields all updating on the same cadence.
+// They share one priority class, so priority alone does nothing for them - and
+// walking the class top-down means the upper rows spend the whole budget every
+// tick and the lower ones never reach the wire at all. That is starvation within
+// a class, and it is what a FIFO queue would have fixed by fairness.
+TEST_CASE("present: no row starves when every row updates every tick") {
+    TermFixture f(20, 12, 1200u);        // 15-byte budget, ~half a row
+    f.settle();
+
+    bool seen[9] = { false };
+    for (int tick = 1; tick <= 300; tick++) {
+        for (uint16_t r = 1; r <= 8; r++) {   // every row dirties every tick
+            char line[24];
+            snprintf(line, sizeof line, "R%u=%03d", (unsigned)r, tick % 1000);
+            f.put(r, 0, line);
+        }
+        std::string out = f.present();
+        for (uint16_t r = 1; r <= 8; r++) {
+            char tag[8];
+            snprintf(tag, sizeof tag, "R%u=", (unsigned)r);
+            if (out.find(tag) != std::string::npos) seen[r] = true;
+        }
+    }
+    for (uint16_t r = 1; r <= 8; r++) {
+        INFO("row " << r << " never reached the wire in 300 ticks");
+        CHECK(seen[r]);
+    }
+}

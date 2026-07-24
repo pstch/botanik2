@@ -508,10 +508,27 @@ namespace Botanik { namespace Terminal {
         uint16_t used   = tx_used();
         uint16_t budget = (used < _tx_cold_depth) ? (uint16_t)(_tx_cold_depth - used) : 0;
         for (uint8_t prio = 0; prio < PRIO_COUNT; prio++) {
-            for (uint16_t row = 0; row < _rows; row++) {
+            // Within a class, resume where the budget ran out last tick and wrap.
+            // Starting from the top every tick would let the upper rows spend the
+            // whole budget forever, so on a page whose every row updates on the
+            // same cadence (STATUS) the lower ones would never reach the wire at
+            // all - starvation inside a class, which priority cannot help with
+            // because the rows are equally important. Round-robin is the fairness
+            // a FIFO queue would have provided, except the back-buffer already
+            // holds the pending work, so it costs one row index per class.
+            uint16_t start = _resume[prio] < _rows ? _resume[prio] : 0;
+            for (uint16_t i = 0; i < _rows; i++) {
+                uint16_t row = (uint16_t)(start + i);
+                if (row >= _rows) row = (uint16_t)(row - _rows);
                 if (_row_prio[row] != prio) continue;
-                if (!_reconcile_row(row, budget)) return false;
+                if (!_reconcile_row(row, budget)) {
+                    // Pick this row up again next tick: it is either unfinished or
+                    // untried, and either way it is owed the next slot.
+                    _resume[prio] = row;
+                    return false;
+                }
             }
+            _resume[prio] = 0;      // class fully reconciled; start fresh next time
         }
         return true;
     }

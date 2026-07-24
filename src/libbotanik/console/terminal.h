@@ -119,6 +119,12 @@ namespace Botanik { namespace Terminal {
          *  first row and leave the rest at 0, which is PRIO_INPUT). */
         uint8_t _row_prio[GRID_ROWS];
 
+        /** @brief Per class, the row present() resumes its scan at - set to
+         *  wherever the tick's budget ran out. Round-robin within a class, so
+         *  equally-ranked rows take turns instead of the top ones winning every
+         *  tick. Two bytes a class, and no queue. */
+        uint16_t _resume[PRIO_COUNT] = { 0 };
+
         /** @}
          *  @name Wire (on-the-wire) terminal state, tracked by present()
          *  @{ */

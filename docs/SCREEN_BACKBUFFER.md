@@ -146,6 +146,15 @@ evicted - the back-buffer already *is* the record of outstanding work. This is
 the thing the earlier `TxScheduler` needed hundreds of lines and a shadow per
 renderer to achieve (§6).
 
+**Fairness within a class.** Priority orders *unequal* rows; it does nothing for
+a page like STATUS whose every row is a live field on the same cadence. Scanning
+each class from the top would let the upper rows spend the whole budget every
+tick, and the lower ones would never reach the wire - measured: rows 2-8 of 8
+never updated once in 300 ticks. So each class resumes where its budget ran out
+and wraps (`_resume[]`, one row index per class). That is the fairness a FIFO
+queue would have provided, for two bytes a class and no queue - again because the
+back-buffer, not a queue, is what holds the outstanding work.
+
 Who sets what: the Console demotes row 0 and the alarm strip to COLD, the editor
 raises its own rows to INPUT each edit (keystroke echo must feel immediate, and
 the editor is bottom-pinned so its extent moves). Everything else defaults to
