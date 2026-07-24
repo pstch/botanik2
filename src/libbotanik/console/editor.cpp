@@ -115,6 +115,7 @@ namespace Botanik { namespace Terminal {
     // ------------------------------------------------------------------------
 
     void TextEditor::redraw() {
+        _place_rows();          // a page switch handed the band back; reclaim it
         // Destination rows assumed already blank; only write prompt + content.
         for (uint16_t i = 0; i < _layout.count; i++) {
             uint16_t hw_row = _origin + i;
@@ -182,6 +183,15 @@ namespace Botanik { namespace Terminal {
 
     // grow/shrink helpers
     // ------------------------------------------------------------------------
+
+    void TextEditor::_place_rows() {
+        uint16_t rows = _console->rows();
+        if (rows == 0) return;
+        uint16_t bottom = (uint16_t)(rows - 1);
+        _terminal->set_row_priority(1, bottom, PRIO_STRUCT);
+        if (_origin <= bottom)
+            _terminal->set_row_priority(_origin, bottom, PRIO_INPUT);
+    }
 
     uint16_t TextEditor::_grow_editor() {
         // Bottom-pinned origin: pull the top up by the rows the editor grew,
@@ -347,10 +357,11 @@ namespace Botanik { namespace Terminal {
     }
 
     void TextEditor::_reconcile(uint16_t span_start, uint16_t span_len, bool is_insert) {
-        // Keystroke echo has to feel immediate however busy the screen is. A
-        // boost rather than a classification: it is scoped to this edit's draw, so
-        // it cannot outlive the editor's current extent or follow a page switch.
-        _terminal->boost_rows(_origin, (uint16_t)(_console->rows() - 1), PRIO_INPUT);
+        // Keystroke echo has to feel immediate however busy the screen is. The
+        // editor is bottom-pinned, so its extent moves: hand the whole content
+        // band back to the page first, then claim the rows it actually occupies
+        // now. Otherwise rows the editor has grown past keep its class forever.
+        _place_rows();
         int32_t l_shift;
         if (is_insert) l_shift = (int32_t)span_len;
         else           l_shift = -(int32_t)span_len;

@@ -181,6 +181,10 @@ namespace Botanik { namespace Terminal {
          *  Home/Alt-N/Tab switches, Ctrl-C) first. */
         void _pump_input();
 
+        /** @brief Hand the content band back to the incoming page as plain
+         *  structure (see the definition). */
+        void _reset_content_priority();
+
         /** @brief Last screen row a page may scroll/draw content into (0-indexed):
          *  physical last row minus the reserved bottom bar minus row 0. */
         uint16_t _content_bottom() const {

@@ -15,9 +15,11 @@ namespace Botanik { namespace Terminal {
 
     AlarmBar::AlarmBar(Console& console)
         : _c(console), _t(console.terminal()) {
-        // Resting worth: the unmasked set changes rarely and can wait behind the
-        // page when it does. Full draws boost (see step()).
-        _t.set_row_priority(_row(), PRIO_COLD);
+        // The strip frames the page from the bottom row, so page rows above it
+        // would all go first on a strict top-down walk. Chrome outranks the page
+        // to stop that; the set changes rarely enough that it costs the page
+        // nothing.
+        _t.set_row_priority(_row(), PRIO_CHROME);
     }
 
     uint16_t AlarmBar::_row() const {
@@ -84,10 +86,6 @@ namespace Botanik { namespace Terminal {
         uint64_t sig = unmasked_set();
         if (sig != _sig) _dirty = true;
         if (!_dirty) return;
-        // The strip is the bottom row, so page rows above it would all go first
-        // on a budget too small for both. Boost it: the frame lands before the
-        // page it frames, then falls back to its resting COLD on its own.
-        _t.boost_row(_row(), PRIO_CHROME);
         // Redraw the whole bar immediate-mode; the terminal diff pares the bytes.
         draw();
         _sig   = sig;

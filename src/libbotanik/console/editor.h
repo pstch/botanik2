@@ -299,6 +299,11 @@ namespace Botanik { namespace Terminal {
         /** @brief Buffer-position-to-screen-position map. O(_layout.count). */
         CursorPos _map_cursor_pos(uint16_t pos) const;
 
+        /** @brief Declare which rows the editor currently occupies: the content
+         *  band goes back to the page, then the editor's own rows are marked as
+         *  carrying keystroke echo. Called whenever the extent may have moved. */
+        void _place_rows();
+
         /** @brief Home the cursor at @p p and tell the terminal that is where the
          *  visible cursor belongs. The two go together: a later renderer in the
          *  same tick (the status or alarm bar) moves the draw cursor away, so

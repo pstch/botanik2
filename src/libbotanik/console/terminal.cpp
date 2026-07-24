@@ -33,19 +33,12 @@ namespace Botanik { namespace Terminal {
     {
         _tx_cold_depth = depth_for_baud(baud, Config::TX_COLD_TARGET_MS);
         for (uint16_t i = 0; i < GRID_CELLS; i++) { _front[i] = CELL_BLANK; _back[i] = CELL_BLANK; }
-        for (uint16_t r = 0; r < GRID_ROWS; r++) _row_base[r] = _row_prio[r] = PRIO_STRUCT;
+        for (uint16_t r = 0; r < GRID_ROWS; r++) _row_prio[r] = PRIO_STRUCT;
     }
 
     void AnsiTerminal::set_row_priority(uint16_t top, uint16_t bottom, RowPriority prio) {
         for (uint16_t r = top; r <= bottom && r < GRID_ROWS; r++)
-            _row_base[r] = _row_prio[r] = (uint8_t)prio;
-    }
-
-    void AnsiTerminal::boost_rows(uint16_t top, uint16_t bottom, RowPriority prio) {
-        // Only ever upwards: a boost is a claim on the wire, not a demotion, so
-        // two renderers sharing a row cannot undercut each other.
-        for (uint16_t r = top; r <= bottom && r < GRID_ROWS; r++)
-            if ((uint8_t)prio < _row_prio[r]) _row_prio[r] = (uint8_t)prio;
+            _row_prio[r] = (uint8_t)prio;
     }
 
     void AnsiTerminal::_reset_grids() {
@@ -466,10 +459,7 @@ namespace Botanik { namespace Terminal {
     }
 
     bool AnsiTerminal::_reconcile_row(uint16_t row, uint16_t& budget) {
-        // Nothing pending: skip in one memcmp rather than two per-cell walks. The
-        // boost is deliberately NOT dropped here - a row that has been raised but
-        // not yet drawn is clean, and standing it down now would undo the claim
-        // before the draw it was made for.
+        // Nothing pending: skip in one memcmp rather than two per-cell walks.
         if (memcmp(&_front[_idx(row, 0)], &_back[_idx(row, 0)], _cols) == 0) return true;
         // A sideways slide is one escape; try that before rewriting cells. It may
         // leave a remainder (the cells it could not express), which the run loop
@@ -498,8 +488,6 @@ namespace Botanik { namespace Terminal {
             if (oversized || budget == 0) return false;
             col = b;
         }
-        // The row is on the wire, so whatever claim was made on it is spent.
-        _row_prio[row] = _row_base[row];
         return true;
     }
 

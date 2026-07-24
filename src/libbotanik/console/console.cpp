@@ -44,8 +44,10 @@ namespace Botanik { namespace Terminal {
             _status_bar.draw_row();
             _alarm_bar.mark_dirty();      // the clear wiped the alarm-bar row
             _alarm_bar.step();
-            if (_pages_len > 0 && _pages[_page_index] != nullptr)
+            if (_pages_len > 0 && _pages[_page_index] != nullptr) {
+                _reset_content_priority();
                 _pages[_page_index]->focus();
+            }
         }
         // Status bar paints first each tick (self-contained), interleaving with
         // the active page's draw.
@@ -196,7 +198,16 @@ namespace Botanik { namespace Terminal {
         // row, so its already-drawn content survives the switch unchanged. Its
         // step() repaints it only when the alarm set actually moves (a switch that
         // coincides with an alarm change is caught by the next set-change check).
+        _reset_content_priority();
         _pages[_page_index]->focus();
+    }
+
+    void Console::_reset_content_priority() {
+        // The content band belongs to whichever page is on it, so hand it back as
+        // plain structure on a switch. The incoming page declares anything of its
+        // own in focus() - without this the outgoing page's classes (the shell
+        // editor's rows, say) would outrank the new page's content indefinitely.
+        _term.set_row_priority(1, _content_bottom(), Terminal::PRIO_STRUCT);
     }
 
 }}

@@ -511,10 +511,9 @@ namespace Botanik { namespace Pages {
                 _top  = 0;
                 _selected = 0;
                 _dirty = true;              // reorders the list + legend
-                // The badge acknowledges the keypress, so it goes ahead of the
-                // table repaint the same keypress triggered - without holding the
-                // table back a tick. It stands down once drawn.
-                _terminal.boost_row(_legend_row(), Terminal::PRIO_INPUT);
+                // The legend row already outranks the table (declared in
+                // focus()), so the badge goes out ahead of the repaint this same
+                // keypress triggered.
             } else if (c == 'a' || c == 'A') {   // ack the selected condition
                 _ack_selected();
             }
@@ -542,6 +541,10 @@ namespace Botanik { namespace Pages {
         void deactivate() override { _active = false; }
 
         void focus() override {
+            // The legend carries the mode badge, which acknowledges a keypress and
+            // so must beat the table rows it sits under. Declared here because the
+            // Console hands the content band back on every page switch.
+            _terminal.set_row_priority(_legend_row(), Terminal::PRIO_CHROME);
             _active = true;
             _dirty = true;   // draw the whole page fresh (the terminal diff pares it)
         }

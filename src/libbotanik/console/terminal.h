@@ -112,12 +112,10 @@ namespace Botanik { namespace Terminal {
         uint8_t       _nscrolls = 0;
 
         /** @brief Per-row priority class, the order present() reconciles rows in.
-         *  `_row_base` is what the row is worth at rest; `_row_prio` is what it is
-         *  worth right now, which boost_rows() raises and _reconcile_row() drops
-         *  back to the base once the row has actually reached the wire. Filled by
-         *  the constructor (a brace-initialiser would set only the first row and
-         *  leave the rest at 0, which is PRIO_INPUT). */
-        uint8_t _row_base[GRID_ROWS];
+         *  A standing property of the row, set by whoever owns it - not something
+         *  a renderer raises and lowers around a draw. Filled by the constructor
+         *  (a brace-initialiser would set only the first row and leave the rest at
+         *  0, which is PRIO_INPUT). */
         uint8_t _row_prio[GRID_ROWS];
 
         /** @brief Per class, the row present() resumes its scan at - wherever the
@@ -260,21 +258,15 @@ namespace Botanik { namespace Terminal {
         void set_auto_wrap(bool enable);
         void set_cursor_visible(bool show);
 
-        /** @brief Classify rows [@p top, @p bottom] for present()'s emit order -
-         *  what they are worth at rest. Renderers own the rows they draw; the
+        /** @brief Classify rows [@p top, @p bottom] for present()'s emit order.
+         *  A row's class says what kind of thing lives there, so it is declared
+         *  once by whoever owns the row - the Console resets the content band on a
+         *  page switch and the incoming page declares its own in focus(). The
          *  default is PRIO_STRUCT. */
         void set_row_priority(uint16_t top, uint16_t bottom, RowPriority prio);
         void set_row_priority(uint16_t row, RowPriority prio) {
             set_row_priority(row, row, prio);
         }
-
-        /** @brief Raise rows [@p top, @p bottom] until the draw about to be made
-         *  on them reaches the wire, then they fall back to their resting class on
-         *  their own. Renderers therefore never have to work out when to stand
-         *  down, which is the part they kept getting wrong: a boost is scoped to
-         *  the draw, so it cannot leak past a page switch or outlive its page. */
-        void boost_rows(uint16_t top, uint16_t bottom, RowPriority prio);
-        void boost_row(uint16_t row, RowPriority prio) { boost_rows(row, row, prio); }
 
         /** @brief Declare where the visible cursor belongs. The renderer owning
          *  the cursor (the editor) calls this whenever it moves; present() parks

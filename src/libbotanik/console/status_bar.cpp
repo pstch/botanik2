@@ -32,9 +32,11 @@ namespace Botanik { namespace Terminal {
 
     StatusBar::StatusBar(Console& console)
         : _c(console), _t(console.terminal()) {
-        // The bar's resting worth: it is the clock and the metrics ticking over,
-        // which may skip a tick without anyone minding. Its full draws boost.
-        _t.set_row_priority(0, PRIO_COLD);
+        // Row 0 is the frame around the page: it should land before the page on
+        // boot and on a page switch. Its routine churn costs almost nothing - the
+        // clock and metrics rebuild once a second, some tens of bytes against a
+        // budget of thousands, so ranking it above the page starves nothing.
+        _t.set_row_priority(0, PRIO_CHROME);
     }
 
     // Cooperative paint
@@ -54,9 +56,6 @@ namespace Botanik { namespace Terminal {
     }
 
     void StatusBar::draw_row() {
-        // A full bar draw is the frame around the page: on boot and after a
-        // Ctrl-L clear it lands before the page it frames.
-        _t.boost_row(0, PRIO_CHROME);
         constexpr uint16_t mlen = METRICS_LEN - 1;   // field width (drop NUL)
 
         // Save the attribute only, not the cursor: every caller repositions
@@ -87,10 +86,6 @@ namespace Botanik { namespace Terminal {
     }
 
     void StatusBar::draw_tabs() {
-        // A page switch has to read back instantly: the operator pressed a key
-        // and the strip is the acknowledgement, so it goes ahead of the page it
-        // is announcing.
-        _t.boost_row(0, PRIO_INPUT);
         bool saved_inv = _t.inverted();
         _t.move_to({0, 0});
         _t.set_inverted(true);

@@ -306,50 +306,30 @@ TEST_CASE("present: no row starves when every row updates every tick") {
     }
 }
 
-// A boost is scoped to the draw it was made for, and the terminal is what knows
-// when that draw landed - so renderers never have to work out when to stand down.
-// They kept getting it wrong when they did: the editor raised its rows and never
-// lowered them, so the shell's content rows became a high-water mark of every
-// editor extent ever seen, and a boost outstanding at a page switch outranked the
-// next page's rows forever.
-TEST_CASE("present: a boost is spent once the row it was made for lands") {
-    TermFixture f(20, 10, 4000000u);     // budget ample: the row lands at once
+// A row's class is a standing property of what lives there, not something raised
+// around a draw. That only works if ownership is handed over cleanly: the Console
+// returns the content band to plain structure on a page switch and the incoming
+// page declares its own rows in focus(). Without that handover the outgoing
+// page's classes (the shell editor's rows, say) would outrank the new page's
+// content for good - which is how the first cut of this leaked.
+TEST_CASE("present: reclassifying a row hands it back to the page") {
+    TermFixture f(20, 10, 1200u);        // budget ~ one row
     f.settle();
 
-    f.term.set_row_priority(4, Terminal::PRIO_COLD);   // resting worth
-    f.term.boost_row(4, Terminal::PRIO_INPUT);
-    f.put(4, 0, "URGENT");
-    f.settle();                          // the draw reaches the wire...
-
-    // ...and the claim is spent, so the row is back to competing as COLD. Prove
-    // it by starving: a page row now beats it.
-    TermFixture g(20, 10, 1200u);
-    g.settle();
-    g.term.set_row_priority(4, Terminal::PRIO_COLD);
-    g.term.boost_row(4, Terminal::PRIO_INPUT);
-    g.put(4, 0, "URGENT");
-    g.settle();                          // spends the boost
-    g.put(4, 0, "SECOND");               // routine update, no new boost
-    g.put(2, 0, "PAGEROW");              // ordinary page structure
-    std::string out = g.present();
-    CHECK(out.find("PAGEROW") != std::string::npos);   // page wins now
-    CHECK(out.find("SECOND")  == std::string::npos);   // demoted row waits
-}
-
-// A row raised before anything is drawn on it must keep the claim: it is clean at
-// that moment, and standing it down for being clean would undo the boost in the
-// same tick it was made - which is exactly what the alarms mode badge hit.
-TEST_CASE("present: a boost survives until its draw actually happens") {
-    TermFixture f(20, 10, 1200u);
-    f.settle();
-
-    f.term.set_row_priority(6, Terminal::PRIO_COLD);
-    f.term.boost_row(6, Terminal::PRIO_INPUT);
-    f.present();                         // a frame with nothing drawn yet
-    f.put(6, 0, "BADGE");                // ...the draw arrives a tick later
-    f.put(1, 0, "PAGEROW");
+    // A page owns row 6 and marks it as carrying keystroke echo.
+    f.term.set_row_priority(6, Terminal::PRIO_INPUT);
+    f.put(6, 0, "EDITROW");
+    f.put(2, 0, "PAGEROW");
     std::string out = f.present();
-    // Both may fit the tick; what the claim buys is going first.
-    CHECK(out.find("BADGE") != std::string::npos);
-    CHECK(out.find("BADGE") < out.find("PAGEROW"));
+    CHECK(out.find("EDITROW") < out.find("PAGEROW"));   // echo goes first
+    f.settle();
+
+    // Page switch: the band goes back to plain structure, and the row stops
+    // outranking its neighbours.
+    f.term.set_row_priority(1, 9, Terminal::PRIO_STRUCT);
+    f.put(6, 0, "was-edit");
+    f.put(2, 0, "now-page");
+    out = f.present();
+    CHECK(out.find("now-page") != std::string::npos);   // top-down again
+    CHECK(out.find("was-edit") == std::string::npos);
 }
