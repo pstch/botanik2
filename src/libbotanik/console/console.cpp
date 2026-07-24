@@ -38,6 +38,18 @@ namespace Botanik { namespace Terminal {
         // clear_screen, so it keeps the queued handshake bytes).
         if (!_term.screen_ready()) {
             _term.establish_screen();
+            // Classify the screen for present()'s emit order. The chrome (row-0
+            // status bar and the bottom alarm strip) is the thing that changes on
+            // its own every tick, so at a low baud it is exactly what starves the
+            // page it sits around. It goes last: a clock that skips a tick costs
+            // nothing, a half-drawn page costs the operator.
+            _term.set_row_priority(0, (uint16_t)(_term.rows_total() - 1),
+                                   Terminal::PRIO_STRUCT);
+            _term.set_row_priority(0, 0, Terminal::PRIO_COLD);
+            if (_reserved_bottom > 0)
+                _term.set_row_priority((uint16_t)(_term.rows_total() - 1),
+                                       (uint16_t)(_term.rows_total() - 1),
+                                       Terminal::PRIO_COLD);
             // Full redraw order: status bar, alarm bar, then the page. Order is
             // cosmetic now that present() reconciles the whole frame at once, but
             // it keeps the chrome first if a paced frame only gets partway.

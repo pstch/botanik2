@@ -347,6 +347,11 @@ namespace Botanik { namespace Terminal {
     }
 
     void TextEditor::_reconcile(uint16_t span_start, uint16_t span_len, bool is_insert) {
+        // The rows the editor occupies carry keystroke echo, which has to feel
+        // immediate however busy the rest of the screen is. Re-declared each edit
+        // because the editor is bottom-pinned and its extent moves.
+        _terminal->set_row_priority(_origin, (uint16_t)(_console->rows() - 1),
+                                    PRIO_INPUT);
         int32_t l_shift;
         if (is_insert) l_shift = (int32_t)span_len;
         else           l_shift = -(int32_t)span_len;

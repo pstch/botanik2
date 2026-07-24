@@ -26,6 +26,24 @@
 
 namespace Botanik { namespace Terminal {
 
+    /** @brief How urgently a row's changes want the wire, when a tick's byte
+     *  budget cannot carry all of them. Lower goes first.
+     *
+     *  This is the whole priority mechanism: present() walks rows in this order,
+     *  so an exhausted budget drops the least important rows rather than whatever
+     *  sat lowest on screen. There is no queue - a row that misses a tick simply
+     *  still differs from the back-buffer on the next one, so nothing is lost,
+     *  reordered or coalesced. That is what the back-buffer buys here. */
+    enum RowPriority : uint8_t {
+        PRIO_INPUT  = 0,  /**< Keystroke echo and the edit point: must feel instant. */
+        PRIO_STRUCT = 1,  /**< Structure and fresh content: drawn once, and a page
+                           *   that only half-arrives looks broken. */
+        PRIO_HOT    = 2,  /**< Live fields the operator is actually watching. */
+        PRIO_COLD   = 3,  /**< Background chrome (clock, metrics, alarm strip):
+                           *   valuable, but it may skip a tick without harm. */
+        PRIO_COUNT  = 4
+    };
+
     /** @class AnsiTerminal
      *  @brief Owns the serial link and a screen back-buffer; renderers paint into
      *  its FRONT grid and present() emits the minimal diff to the wire. See the
@@ -87,6 +105,13 @@ namespace Botanik { namespace Terminal {
         static constexpr uint8_t MAX_SCROLLS = 8;
         PendingScroll _scrolls[MAX_SCROLLS];
         uint8_t       _nscrolls = 0;
+
+        /** @brief Per-row priority class (see RowPriority), the order present()
+         *  reconciles rows in. One byte a row - the back-buffer already holds the
+         *  pending work, so priority needs no queue of its own. Filled with
+         *  PRIO_STRUCT by the constructor (a brace-initialiser would set only the
+         *  first row and leave the rest at 0, which is PRIO_INPUT). */
+        uint8_t _row_prio[GRID_ROWS];
 
         /** @}
          *  @name Wire (on-the-wire) terminal state, tracked by present()
@@ -169,6 +194,9 @@ namespace Botanik { namespace Terminal {
         /** @brief Emit the paced FRONT-vs-BACK cell diff. @return true when the
          *  screen is fully reconciled; false when work is left for the next tick. */
         bool _emit_diff();
+        /** @brief Reconcile one row: its sideways slide, then its changed runs.
+         *  @return false when the tick's budget or the ring ran out. */
+        bool _reconcile_row(uint16_t row, uint16_t& budget);
         /** @brief Reconcile cursor visibility and park it: at the edit point when
          *  a renderer wants it visible, else idle in the bottom-right corner. */
         void _park_cursor();
@@ -218,6 +246,10 @@ namespace Botanik { namespace Terminal {
         void set_inverted(bool enable);
         void set_auto_wrap(bool enable);
         void set_cursor_visible(bool show);
+
+        /** @brief Classify rows [@p top, @p bottom] for present()'s emit order.
+         *  Renderers own the rows they draw; the default is PRIO_STRUCT. */
+        void set_row_priority(uint16_t top, uint16_t bottom, uint8_t prio);
 
         /** @brief Declare where the visible cursor belongs. The renderer owning
          *  the cursor (the editor) calls this whenever it moves; present() parks

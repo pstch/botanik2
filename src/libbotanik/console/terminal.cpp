@@ -33,6 +33,12 @@ namespace Botanik { namespace Terminal {
     {
         _tx_cold_depth = depth_for_baud(baud, Config::TX_COLD_TARGET_MS);
         for (uint16_t i = 0; i < GRID_CELLS; i++) { _front[i] = CELL_BLANK; _back[i] = CELL_BLANK; }
+        for (uint16_t r = 0; r < GRID_ROWS; r++) _row_prio[r] = PRIO_STRUCT;
+    }
+
+    void AnsiTerminal::set_row_priority(uint16_t top, uint16_t bottom, uint8_t prio) {
+        if (prio >= PRIO_COUNT) return;
+        for (uint16_t r = top; r <= bottom && r < GRID_ROWS; r++) _row_prio[r] = prio;
     }
 
     void AnsiTerminal::_reset_grids() {
@@ -452,36 +458,50 @@ namespace Botanik { namespace Terminal {
         return (after > before) ? (uint16_t)(after - before) : 0;
     }
 
+    bool AnsiTerminal::_reconcile_row(uint16_t row, uint16_t& budget) {
+        // A sideways slide is one escape; try that before rewriting cells. It may
+        // leave a remainder (the cells it could not express), which the run loop
+        // below then reconciles normally.
+        uint16_t moved = _shift_row(row, budget);
+        budget = (moved < budget) ? (uint16_t)(budget - moved) : 0;
+        if (moved != 0 && budget == 0) return false;
+        uint16_t col = 0;
+        while (col < _cols) {
+            if (_front[_idx(row, col)] == _back[_idx(row, col)]) { col++; continue; }
+            uint16_t a = col, b = col;
+            while (b < _cols && _front[_idx(row, b)] != _back[_idx(row, b)]) b++;
+            uint16_t cost = _run_cost(row, a, b);
+            if (_serial.availableForWrite() < cost) return false;  // ring full
+            // A run bigger than the whole budget can never fit one, so it goes out
+            // as soon as the ring is shallow (and ends the tick).
+            bool oversized = cost > _tx_cold_depth;
+            if (oversized ? (budget == 0) : (cost > budget)) return false;
+            uint16_t sent = _put_run(row, a, b);
+            if (sent == 0) return false;
+            budget = (sent < budget) ? (uint16_t)(budget - sent) : 0;
+            if (oversized || budget == 0) return false;
+            col = b;
+        }
+        return true;
+    }
+
     bool AnsiTerminal::_emit_diff() {
         // Walk FRONT vs BACK and emit each changed run, all-or-nothing (the ring
         // drops silently, so a partial run would be a torn frame) and paced under
         // this tick's budget. @return true when the screen is fully reconciled;
         // false means work is left for the next tick.
+        //
+        // Rows are visited by priority class, then top to bottom within a class.
+        // That is the whole of the priority mechanism: when the budget runs out
+        // mid-frame, what got dropped is the least important thing on screen
+        // rather than whatever happened to sit lowest. Nothing is queued, so a
+        // row that misses one tick simply still differs on the next.
         uint16_t used   = tx_used();
         uint16_t budget = (used < _tx_cold_depth) ? (uint16_t)(_tx_cold_depth - used) : 0;
-        for (uint16_t row = 0; row < _rows; row++) {
-            // A sideways slide is one escape; try that before rewriting cells. It
-            // may leave a remainder (the cells it could not express), which the
-            // run loop below then reconciles normally.
-            uint16_t moved = _shift_row(row, budget);
-            budget = (moved < budget) ? (uint16_t)(budget - moved) : 0;
-            if (moved != 0 && budget == 0) return false;
-            uint16_t col = 0;
-            while (col < _cols) {
-                if (_front[_idx(row, col)] == _back[_idx(row, col)]) { col++; continue; }
-                uint16_t a = col, b = col;
-                while (b < _cols && _front[_idx(row, b)] != _back[_idx(row, b)]) b++;
-                uint16_t cost = _run_cost(row, a, b);
-                if (_serial.availableForWrite() < cost) return false;  // ring full
-                // A run bigger than the whole budget can never fit one, so it goes
-                // out as soon as the ring is shallow (and ends the tick).
-                bool oversized = cost > _tx_cold_depth;
-                if (oversized ? (budget == 0) : (cost > budget)) return false;
-                uint16_t sent = _put_run(row, a, b);
-                if (sent == 0) return false;
-                budget = (sent < budget) ? (uint16_t)(budget - sent) : 0;
-                if (oversized || budget == 0) return false;
-                col = b;
+        for (uint8_t prio = 0; prio < PRIO_COUNT; prio++) {
+            for (uint16_t row = 0; row < _rows; row++) {
+                if (_row_prio[row] != prio) continue;
+                if (!_reconcile_row(row, budget)) return false;
             }
         }
         return true;

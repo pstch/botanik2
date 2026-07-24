@@ -128,6 +128,30 @@ and puts the single IL/DL at that boundary. See EDITOR_RECONCILE.md. A heuristic
 in place of that search handles the clean cases and quietly loses the rest, which
 is why the search stayed.
 
+### Priority
+
+The budget is small enough at 4800 baud that a tick carries a fraction of a
+screen, and the chrome (row-0 clock and metrics, the alarm strip) redraws itself
+every tick forever. Walking rows strictly top-down, that chrome takes its cut
+first, every time, and the page behind it starves.
+
+Priority here is **just the order `_emit_diff()` visits rows in** - a `uint8_t`
+per row (`RowPriority`: INPUT / STRUCT / HOT / COLD), 32 bytes for the whole
+screen. When the budget runs out mid-frame, what gets dropped is the least
+important thing on screen rather than whatever sat lowest.
+
+There is deliberately no queue. A row that misses a tick simply still differs
+from BACK on the next one, so nothing is stored, reordered, coalesced or
+evicted - the back-buffer already *is* the record of outstanding work. This is
+the thing the earlier `TxScheduler` needed hundreds of lines and a shadow per
+renderer to achieve (§6).
+
+Who sets what: the Console demotes row 0 and the alarm strip to COLD, the editor
+raises its own rows to INPUT each edit (keystroke echo must feel immediate, and
+the editor is bottom-pinned so its extent moves). Everything else defaults to
+STRUCT, on the grounds that a half-drawn page reads as broken while a clock that
+skips a tick does not.
+
 ### Pacing / budget
 
 `present()` emits at most `_tx_cold_depth` bytes above what's already queued in
