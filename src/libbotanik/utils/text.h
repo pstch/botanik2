@@ -140,6 +140,11 @@ namespace Botanik { namespace Utils {
      *  @name Environment
      *  @{ */
 
+    /** @brief Read environment variable @p name as an unsigned 32-bit integer.
+     *  @returns @p fallback if unset, empty, unparseable or out of range.
+     *  @note This is only for the simulator, on other targets we just return @p fallback . */
+    uint32_t env_u32(const char* name, uint32_t fallback = 0);
+
     /** @brief Read environment variable @p name as an unsigned 8-bit integer.
      *  @returns @p fallback if unset, otherwise parsed uint8_t value.
      *  @note This is only for the simulator, on other targets we just return @p fallback . */

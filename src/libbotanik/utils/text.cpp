@@ -149,7 +149,7 @@ namespace Botanik { namespace Utils {
     // Environment
     // ------------------------------------------------------------------------
 
-    uint8_t env_u8(const char* name, uint8_t fallback) {
+    uint32_t env_u32(const char* name, uint32_t fallback) {
         // read environment variable or return fallback if unset
         const char* v = getenv(name);
         if (v == nullptr || *v == '\0') return fallback;
@@ -157,9 +157,16 @@ namespace Botanik { namespace Utils {
         uint16_t len = 0;
         while (v[len] != '\0') len++;
         uint32_t n;
-        // parse unsigned integer, return as uint8_t
-        if (!parse_uint(v, len, &n) || n > 255) return fallback;
-        return (uint8_t)n;
+        // parse unsigned integer; anything malformed keeps the fallback
+        if (!parse_uint(v, len, &n)) return fallback;
+        return n;
+    }
+
+    uint8_t env_u8(const char* name, uint8_t fallback) {
+        // Sentinel-free: read as u32 and reject what doesn't fit a byte. 256 is
+        // out of range, not a wrap to 0.
+        uint32_t n = env_u32(name, fallback);
+        return n > 255 ? fallback : (uint8_t)n;
     }
 
 }}
