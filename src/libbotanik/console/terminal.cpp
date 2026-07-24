@@ -217,6 +217,11 @@ namespace Botanik { namespace Terminal {
         Ansi::clear_screen(_serial);
         _hw_pos = {0, 0};
         _hw_at_eol = false;
+        // ED does not touch SGR, so the wire could still be in reverse video if a
+        // prior paced frame's closing CSI 0 m was dropped (tx_discard on Ctrl-L).
+        // Force SGR normal on the wire so it matches the _hw_inverted=false model.
+        _serial.write(Ansi::CSI, sizeof(Ansi::CSI) - 1);
+        _serial.write(Ansi::ATTR_NONE, sizeof(Ansi::ATTR_NONE) - 1);
         _hw_inverted = false;
         if (!_screen_ready) { _serial.write("ACAB", 4); _hw_pos.col = 4; }
         // Auto-wrap off UI-wide; hide the cursor by default; SGR normal, replace mode.
