@@ -5,6 +5,21 @@ while emitting the **fewest possible bytes** over the serial link. The UI drives
 low-bandwidth terminal, so a naive "clear and redraw everything" repaint is not
 acceptable.
 
+**Where this sits.** The editor does not write to the wire. Its ops paint into the
+terminal's FRONT grid, and `present()` diffs that against what is on the wire and
+paces the result (see @ref md_docs_2SCREEN__BACKBUFFER). So the per-row splicing
+below is byte-neutral on its own - a spliced row and a fully repainted row leave
+FRONT identical, and the diff emits the same either way.
+
+What the editor still contributes, and the reason it keeps this machinery when
+every other renderer dropped its own, is **where the single IL/DL goes**. It is
+the one renderer that reflows content across rows *and* changes its row count in
+the same edit, and a scroll placed where content did not actually move is worse
+than no scroll at all: it displaces rows out from under the terminal's per-row
+shift detection and costs a full rewrite of each. `_find_splice_span()` computes
+that placement; a heuristic in its place measured 195 bytes where the search
+costs 25.
+
 ## Buffer, layout, reconcile
 
 Every edit runs the same three steps:

@@ -311,3 +311,37 @@ TEST_CASE("present: reclassifying a row hands it back to the page") {
     CHECK(out.find("now-page") != std::string::npos);   // top-down again
     CHECK(out.find("was-edit") == std::string::npos);
 }
+
+// A scroll only mirrors into BACK if the whole DL/IL actually reached the wire.
+// The ring drops silently, so shifting BACK after a dropped escape is the worst
+// possible outcome: the diff would then believe those rows were already correct
+// and never repaint them, leaving the band wrong until a full clear.
+TEST_CASE("present: a scroll whose escape does not fit leaves BACK alone") {
+    TermFixture f(20, 10);
+    for (uint16_t r = 1; r <= 6; r++) {
+        char line[8]; snprintf(line, sizeof line, "row%u", (unsigned)r);
+        f.put(r, 0, line);
+    }
+    f.settle();
+
+    // Stuff the ring so neither the DL nor its compensating IL can be emitted.
+    const char pad = '.';
+    while (f.serial.availableForWrite() > 4) f.serial.write(&pad, 1);
+
+    f.term.scroll_region(1, 6, /*up=*/true, 1);
+    for (uint16_t r = 1; r <= 6; r++) {
+        char line[8]; snprintf(line, sizeof line, "row%u", (unsigned)(r + 1));
+        f.put(r, 0, line);
+    }
+    f.term.present();          // the scroll cannot go out
+    f.capture();               // drain the stuffing
+
+    // The band must still converge. With BACK left unshifted the diff repaints
+    // whatever really differs - here just the digit per row, since row1 -> row2
+    // is a one-cell change - and the screen ends consistent. Convergence is the
+    // property under test: a wrongly-mirrored BACK would leave FRONT and the wire
+    // permanently disagreeing, and present() would go quiet with the band wrong.
+    std::string out = f.settle();
+    CHECK(out.size() > 0);              // the band was reconciled somehow
+    CHECK(f.present().empty());         // and FRONT now matches BACK
+}

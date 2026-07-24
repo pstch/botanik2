@@ -73,9 +73,12 @@ ShellWriter <|-- ShellPage
   output above. Also a `LogWriter` and `ShellWriter`.
 - @ref Botanik::Pages::LogsPage - the full scrolling log; a `LogWriter` that replays
   its @ref Botanik::Pages::LogsScrollback on focus.
-- @ref Botanik::Pages::MetricPage - base for read-only metric displays. Diffs each
-  value field against the last paint and re-emits only the changed bytes
-  (`watch -d`-style), so a refresh never saturates the low-baud link.
+- @ref Botanik::Pages::MetricPage - base for read-only metric displays. Repaints
+  its fields whole; the terminal's back-buffer diff drops whatever did not move, so
+  a refresh never saturates the low-baud link. It keeps one value cache of its own,
+  and only to spot *which* values changed for the `watch -d`-style highlight - a
+  question about the data, which the diff cannot answer (it knows which cells
+  differ, not why).
   - @ref Botanik::Pages::HomePage "HomePage<T>" - landing page (also a `LogWriter`).
   - @ref Botanik::Pages::StatusPage "StatusPage<T>" - full runtime/health display.
 
@@ -88,23 +91,26 @@ Pages that show log lines keep them in a fixed-size circular
 @ref Botanik::Pages::Scrollback (aliased per page: `ShellScrollback`,
 `LogsScrollback`, `HomeScrollback`, each sized by a `Config::*_SCROLLBACK_LINES`
 knob). It keeps the log UI both **bounded in RAM** and **safe on a low-baud serial
-link**: every paint path is incremental, paced per tick, and back-pressure-aware, so a
-burst of log lines can never block the main loop or flood the TX ring.
+link**: paint paths are incremental and bounded per beat, and the terminal paces the
+resulting bytes, so a burst of log lines can never block the main loop or flood the
+TX ring.
 
 `Scrollback` extends a @ref Botanik::Pages::LineBuffer "LineBuffer" - a ring of `L`
 rows. Lines are stored *pre-wrapped* (split into screen-width rows at insert time), so
 replay is a straight row-by-row blit; oldest rows fall off as new ones arrive.
 
-It serves three jobs, each gated against the TX ring and capped per tick so no single
-beat can overrun the serial output:
+It serves three jobs. None of them meters the wire itself: they draw into the
+terminal's FRONT grid and `present()` paces what that costs (see
+@ref md_docs_2SCREEN__BACKBUFFER). What they do bound is how much *work* a beat
+does, so a burst never stalls the loop:
 
 - **Live tail.** While the page is active, a new line is banked and `drain_tail()`
   paints pending rows per beat, scrolling the band up (one IL/DL) and writing new rows
   at the bottom. A *background* page skips this, banking lines and repainting on its
   next `focus()`.
 - **Focus / page-switch replay.** On `focus()`, Ctrl+L, or returning to the live
-  bottom, it stages a bottom-aligned redraw, capped per beat and stopping early if the
-  next row won't fit TX - so a full-screen replay spreads across several ticks.
+  bottom, it stages a bottom-aligned redraw and drains it into the grid; the paced
+  diff then spreads the bytes across as many ticks as the link needs.
 - **Scrollback navigation.** The view moves back through retained history a key at a
   time, painting only newly exposed rows. While scrolled up the live tail is **frozen**
   so incoming lines don't yank the view; `scroll_to_bottom()` releases it.

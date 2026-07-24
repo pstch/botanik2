@@ -232,6 +232,8 @@ The back-buffer moves that reasoning into **one** place the renderers never see.
 It subsumes coalescing (FRONT holds the latest), atomicity (per-cell attributes,
 whole-cell emits), and pacing (one budget in `present()`), and deletes the queue,
 the shims, and every per-page shadow. Net: ~1.3k fewer lines, `AnsiTerminal`
-smaller, and the bug classes gone by construction. The one thing the queue did
-that the diff doesn't is *explicit* lane priority; in practice draw-order +
-emit-order cover it.
+smaller, and the bug classes gone by construction.
+
+Explicit priority did come back, but as a byte per row rather than a queue (see
+the Priority section above): the back-buffer already holds the outstanding work,
+so ordering it needs a rank, not a lane.

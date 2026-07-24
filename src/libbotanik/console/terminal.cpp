@@ -312,20 +312,23 @@ namespace Botanik { namespace Terminal {
     }
 
     void AnsiTerminal::_emit_scrolls() {
-        // Emit each pending band DL/IL and, on success, shift BACK to match (so the
-        // cell diff then repaints only the revealed rows). On failure BACK stays put
-        // and the diff repaints the whole band - correct, just more bytes.
+        // Emit each pending band DL/IL and, only if every part of it reached the
+        // wire, shift BACK to match. If any part did not fit the ring, BACK stays
+        // put and the cell diff repaints the whole band instead - more bytes, but
+        // correct. Shifting BACK after a dropped escape would be the opposite: the
+        // diff would believe those rows were already right and never repaint them,
+        // so the band would stay wrong until something forced a full clear.
         for (uint8_t i = 0; i < _nscrolls; i++) {
             const PendingScroll& s = _scrolls[i];
             bool restore = (s.bottom < (uint16_t)(_rows - 1));
-            bool ok = true;
+            uint16_t back = (uint16_t)(s.bottom - s.n + 1);
+            bool ok;
             if (s.up) {
-                if (_go({s.top, 0})) delete_rows_wire(s.n); else ok = false;
-                if (ok && restore && _go({(uint16_t)(s.bottom - s.n + 1), 0})) insert_rows_wire(s.n);
-                else if (restore) ok = false;
+                ok = _go({s.top, 0}) && delete_rows_wire(s.n);
+                if (ok && restore) ok = _go({back, 0}) && insert_rows_wire(s.n);
             } else {
-                if (restore) { if (_go({(uint16_t)(s.bottom - s.n + 1), 0})) delete_rows_wire(s.n); else ok = false; }
-                if (ok && _go({s.top, 0})) insert_rows_wire(s.n); else ok = false;
+                ok = !restore || (_go({back, 0}) && delete_rows_wire(s.n));
+                if (ok) ok = _go({s.top, 0}) && insert_rows_wire(s.n);
             }
             if (ok) _shift_grid(_back, s.top, s.bottom, s.up, s.n);   // mirror the wire
         }
@@ -536,7 +539,7 @@ namespace Botanik { namespace Terminal {
     }
 
     // Wire-side row shifts used only by present() for the scroll DL/IL.
-    void AnsiTerminal::delete_rows_wire(uint16_t count) { Ansi::delete_rows(_serial, count); }
-    void AnsiTerminal::insert_rows_wire(uint16_t count) { Ansi::insert_rows(_serial, count); }
+    bool AnsiTerminal::delete_rows_wire(uint16_t count) { return Ansi::delete_rows(_serial, count); }
+    bool AnsiTerminal::insert_rows_wire(uint16_t count) { return Ansi::insert_rows(_serial, count); }
 
 }}
