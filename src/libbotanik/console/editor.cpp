@@ -230,9 +230,29 @@ namespace Botanik { namespace Terminal {
         _terminal->clear_to_eol();
     }
 
+    int32_t TextEditor::_hard_break_delta() const {
+        int32_t d = 0;
+        for (uint16_t i = 0; i < _pre.count; i++)    if (_pre.rows[i].hard_break) d--;
+        for (uint16_t i = 0; i < _layout.count; i++) if (_layout.rows[i].hard_break) d++;
+        return d;
+    }
+
     void TextEditor::_slide_tail(uint16_t edit_row, int32_t row_delta,
                                  uint16_t scr_rows) {
         if (row_delta == 0) return;
+        // WHERE the row appears decides whether anything needs sliding at all.
+        //
+        // A hard break splits a row in place, so every row below it really does
+        // move down (or up, when the break goes away) and needs the IL/DL.
+        //
+        // A soft-wrap reflow is different: the text just got long enough for one
+        // more row, and that row appears at the BOTTOM. Every existing row keeps
+        // its position and merely reflows sideways by a column or two - which the
+        // terminal's per-row shift detection handles for a few bytes each. The
+        // bottom-pinned grow above has already moved the block as a whole, so an
+        // IL here would displace those rows out from under that detection and
+        // force a full rewrite of every one of them.
+        if (_hard_break_delta() == 0) return;
         // Nothing below the edit row to move - the row the edit added (or removed)
         // is the bottom one - so an IL/DL here would buy nothing and cost 4 bytes.
         if (_pre.count <= (uint16_t)(edit_row + 1)) return;

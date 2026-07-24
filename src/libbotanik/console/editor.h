@@ -316,6 +316,11 @@ namespace Botanik { namespace Terminal {
          *  position. */
         void _write_prompt(uint16_t row_idx);
 
+        /** @brief Change in the number of hard-broken rows across this edit
+         *  (`_pre` vs `_layout`). Non-zero means the row count moved because a
+         *  `\n` came or went, not because the text reflowed. */
+        int32_t _hard_break_delta() const;
+
         /** @brief The single IL/DL for a row-count change: slide the rows below
          *  `edit_row` by `row_delta`, opening (grow) or closing (shrink) the rows
          *  the repaint then fills. No-op when the row count held. */

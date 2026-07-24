@@ -149,3 +149,66 @@ TEST_CASE("editor bytes: a hard break costs a scroll plus the new row") {
     CHECK(cost > 0);
     CHECK(cost <= 120);
 }
+
+// The case where a row moves vertically AND slides sideways at once: editing at
+// the head of a multi-row input reflows every row below by a column, while the
+// editor also grows or shrinks a row. Neither optimization catches a row that
+// did both - the shift detection compares a row against the same row in the
+// back-buffer - so the reconcile must not displace rows the reflow left in
+// place. A soft-wrap row appears at the bottom, so the bottom-pinned grow has
+// already positioned everything: an IL below the edit would push each reflowed
+// row out from under the shift detection and cost a full rewrite each.
+//
+// The budgets below are per-row: one shift escape each, not one row rewrite each.
+TEST_CASE("editor bytes: head edits reflow rows without rewriting them") {
+    // 80 columns exactly, so each typed block fills one row with no wrap slack.
+    const char* ROW = "0123456789abcdefghijklmnopqrstuvwxyz0123456789"
+                      "ABCDEFGHIJKLMNOPQRSTUVWXYZ01234567";
+
+    struct Case { int rows; size_t insert_max; size_t delete_max; };
+    const Case cases[] = { {2, 60, 64}, {4, 82, 96}, {6, 104, 128} };
+
+    for (const Case& c : cases) {
+        EditorBytes f;
+        for (int i = 0; i < c.rows; i++) f.type(ROW);
+        f.flush();
+        uint16_t len = f.editor.buffer_len();
+        for (uint16_t i = 0; i < len; i++) f.editor.move_left();   // to the head
+        f.flush();
+
+        // Insert one char at the head: every row shifts right one column and the
+        // input gains a row at the bottom.
+        size_t ins = f.cost_of_type("Z");
+        CHECK(ins > 0);
+        CHECK(ins <= c.insert_max);
+
+        // ...and delete it again: every row shifts back left, the row goes away.
+        f.editor.delete_forward(1);
+        size_t del = f.flush().size();
+        CHECK(del > 0);
+        CHECK(del <= c.delete_max);
+    }
+}
+
+// A hard break is the case that genuinely does need the IL: it splits a row in
+// place, so the rows below move down bodily rather than reflowing. Dropping the
+// slide for reflows must not drop it here.
+TEST_CASE("editor bytes: a hard break still slides the rows below it") {
+    EditorBytes f;
+    f.type("first line");
+    f.editor.insert_characters("\n", 1);
+    f.type("second line");
+    f.editor.insert_characters("\n", 1);
+    f.type("third line");
+    f.flush();
+
+    // Back up into the first line and break it: lines two and three slide down.
+    for (uint16_t i = 0; i < 27; i++) f.editor.move_left();
+    f.flush();
+
+    size_t cost = f.cost_of_type("\n");
+    CHECK(cost > 0);
+    CHECK(cost <= 60);                        // an IL plus the split row, not 3 rows
+    // The rows that merely slid were not re-sent.
+    CHECK(f.flush().empty());                 // and it converged
+}
