@@ -298,6 +298,8 @@ const ScalarGroup g_telemetry_groups[] = {
     { "climate",     g_climate,     sizeof(g_climate)     / sizeof(g_climate[0])     },
     { "system",      g_system,      sizeof(g_system)      / sizeof(g_system[0])      },
 };
+const uint8_t g_telemetry_group_count =
+    (uint8_t)(sizeof(g_telemetry_groups) / sizeof(g_telemetry_groups[0]));
 #endif
 
 }  // namespace
@@ -335,7 +337,7 @@ public:
           _status_page(terminal(), plc_output_data()),
           _config_page(terminal(), &config()),
           _monitor_page(terminal(), g_telemetry_groups,
-                        sizeof(g_telemetry_groups) / sizeof(g_telemetry_groups[0]),
+                        g_telemetry_group_count,
                         plc_output_data())
     {}
 
@@ -374,7 +376,7 @@ protected:
 #if BOTANIK_FEATURE_CONSOLE
         shell_page().set_status_vars(
             g_telemetry_groups,
-            sizeof(g_telemetry_groups) / sizeof(g_telemetry_groups[0]),
+            g_telemetry_group_count,
             plc_output_data());
 #endif
     }
@@ -385,7 +387,7 @@ protected:
     void register_telemetry() override {
         telemetry().set_site_scalar_groups(
             g_telemetry_groups,
-            sizeof(g_telemetry_groups) / sizeof(g_telemetry_groups[0]),
+            g_telemetry_group_count,
             plc_output_data());
     }
 #endif

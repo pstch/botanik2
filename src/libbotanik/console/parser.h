@@ -202,6 +202,9 @@ namespace Botanik { namespace Terminal {
          *  @{ */
 
         /** @brief Handle one byte in the IDLE state. */
+        /** @brief Set the event command (COMMAND type if non-NONE), back to IDLE.
+         *  Shared tail of the idle/sep/esc handlers. */
+        State _set_command(InputEvent::Command c);
         State _handle_idle(uint8_t b);
 
         /** @brief Handle one byte in the IN_ESC state. */

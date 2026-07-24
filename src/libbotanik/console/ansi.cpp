@@ -68,13 +68,14 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     bool set_auto_wrap(ByteSink& _serial, bool enable) {
-        if (enable) return _csi_count(_serial, DECAWM_SET  , sizeof(DECAWM_SET)   - 1);
-        else        return _csi_count(_serial, DECAWM_RESET, sizeof(DECAWM_RESET) - 1);
+        // DECAWM_SET / _RESET are equal length, so one sizeof covers both.
+        return _csi_count(_serial, enable ? DECAWM_SET : DECAWM_RESET,
+                          sizeof(DECAWM_SET) - 1);
     }
 
     bool set_cursor_visible(ByteSink& _serial, bool show) {
-        if (show) return _csi_count(_serial, DECTCEM_SET,   sizeof(DECTCEM_SET)   - 1);
-        else      return _csi_count(_serial, DECTCEM_RESET, sizeof(DECTCEM_RESET) - 1);
+        return _csi_count(_serial, show ? DECTCEM_SET : DECTCEM_RESET,
+                          sizeof(DECTCEM_SET) - 1);
     }
 
     bool minitel_setup(ByteSink& _serial) {

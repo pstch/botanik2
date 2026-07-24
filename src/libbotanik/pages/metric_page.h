@@ -109,12 +109,7 @@ namespace Botanik { namespace Pages {
          *  its own glyphs are written - no clear-to-EOL: a label is always drawn
          *  onto a freshly-cleared screen (focus / Ctrl-L), so a clear would be
          *  redundant (and would wipe an adjacent block). Not value-cached. */
-        void _label(uint16_t row, const char* s) {
-            if (row >= _console.rows()) return;
-            _terminal.move_to({row, 2});
-            _terminal.set_inverted(false);
-            _terminal.write_chars(s, (uint16_t)strlen(s));
-        }
+        void _label(uint16_t row, const char* s) { _label_at(row, 2, s); }
 
         /** @brief Write a value at _value_col. The field runs to
          *  EOL, so a shrinking value clears its own tail. @p highlight = false

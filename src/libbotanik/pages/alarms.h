@@ -447,12 +447,7 @@ namespace Botanik { namespace Pages {
          *  row when it holds an alarm, else a blanked row (past the set). Drawn every
          *  time; the terminal's back-buffer diff drops the cells that did not move. */
         void _draw_data_row(uint16_t row, uint16_t vi) {
-            if (vi >= _nvis) {                                // past the set: blank it
-                _terminal.move_to({row, 0});
-                _terminal.set_inverted(false);
-                _terminal.clear_to_eol();
-                return;
-            }
+            if (vi >= _nvis) { _clear_row(row); return; }     // past the set: blank it
             const Alarms::AlarmCondition& c = _model->condition(_vis[vi]);
             _draw_full_row(row, c, vi == _selected);
         }
@@ -501,22 +496,8 @@ namespace Botanik { namespace Pages {
         }
 
         void handle_command(Command cmd, uint16_t = 1) override {
-            switch (cmd) {
-                case Command::ENTER:
-                    _top = 0; _selected = 0; _dirty = true;   // jump to top
-                    break;
-                case Command::UP:
-                case Command::CTRL_P:
-                    _move_selection(-1);   _dirty = true;   break;
-                case Command::DOWN:
-                case Command::CTRL_N:
-                    _move_selection(+1);   _dirty = true;   break;
-                case Command::PAGE_UP:
-                    _move_selection(-(int)_page_step());  _dirty = true;  break;
-                case Command::PAGE_DOWN:
-                    _move_selection(+(int)_page_step());  _dirty = true;  break;
-                default: break;
-            }
+            if (_nav_command(cmd)) { _dirty = true; return; }
+            if (cmd == Command::ENTER) { _top = 0; _selected = 0; _dirty = true; }  // jump to top
         }
 
         void deactivate() override {}

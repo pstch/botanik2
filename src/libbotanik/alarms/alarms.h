@@ -214,18 +214,13 @@ namespace Botanik { namespace Alarms {
         void log_flap(const char* label) const {
             if (logger) logger->notice(Logs::ALARM_FLAP, "%s", label);
         }
-        void notify_on(const AlarmCondition& c) const {
+        void _fan(void (AlarmNotifier::*m)(const AlarmCondition&), const AlarmCondition& c) const {
             for (uint8_t i = 0; i < notifier_count; i++)
-                if (notifiers[i]) notifiers[i]->notify_on(c);
+                if (notifiers[i]) (notifiers[i]->*m)(c);
         }
-        void notify_off(const AlarmCondition& c) const {
-            for (uint8_t i = 0; i < notifier_count; i++)
-                if (notifiers[i]) notifiers[i]->notify_off(c);
-        }
-        void notify_flap(const AlarmCondition& c) const {
-            for (uint8_t i = 0; i < notifier_count; i++)
-                if (notifiers[i]) notifiers[i]->notify_flap(c);
-        }
+        void notify_on(const AlarmCondition& c)   const { _fan(&AlarmNotifier::notify_on, c); }
+        void notify_off(const AlarmCondition& c)  const { _fan(&AlarmNotifier::notify_off, c); }
+        void notify_flap(const AlarmCondition& c) const { _fan(&AlarmNotifier::notify_flap, c); }
     };
 
     /**

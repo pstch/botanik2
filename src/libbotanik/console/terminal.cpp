@@ -273,6 +273,15 @@ namespace Botanik { namespace Terminal {
         return cost;
     }
 
+    void AnsiTerminal::_set_hw_inverted(bool inv) {
+        // Sync the wire's reverse-video state, emitting the SGR only on a change.
+        if (inv == _hw_inverted) return;
+        _serial.write(Ansi::CSI, sizeof(Ansi::CSI) - 1);
+        _serial.write(inv ? Ansi::ATTR_NEG : Ansi::ATTR_NONE,
+                      inv ? sizeof(Ansi::ATTR_NEG) - 1 : sizeof(Ansi::ATTR_NONE) - 1);
+        _hw_inverted = inv;
+    }
+
     uint16_t AnsiTerminal::_put_run(uint16_t row, uint16_t a, uint16_t b) {
         uint16_t before = tx_used();
         if (!_go({row, a})) return 0;
@@ -280,12 +289,7 @@ namespace Botanik { namespace Terminal {
         uint16_t k = a;
         while (k < b) {
             bool inv = (_front[_idx(row, k)] & CELL_INV) != 0;
-            if (inv != _hw_inverted) {
-                _serial.write(Ansi::CSI, sizeof(Ansi::CSI) - 1);
-                _serial.write(inv ? Ansi::ATTR_NEG : Ansi::ATTR_NONE,
-                              inv ? sizeof(Ansi::ATTR_NEG) - 1 : sizeof(Ansi::ATTR_NONE) - 1);
-                _hw_inverted = inv;
-            }
+            _set_hw_inverted(inv);
             uint16_t n = 0, m = k;
             while (m < b && (((_front[_idx(row, m)] & CELL_INV) != 0) == inv)) {
                 buf[n++] = (char)(_front[_idx(row, m)] & CELL_CH);
@@ -421,13 +425,7 @@ namespace Botanik { namespace Terminal {
         if (!_go({row, a})) return 0;
 
         if (right != 0) {
-            if (ins_inv != _hw_inverted) {
-                _serial.write(Ansi::CSI, sizeof(Ansi::CSI) - 1);
-                _serial.write(ins_inv ? Ansi::ATTR_NEG : Ansi::ATTR_NONE,
-                              ins_inv ? sizeof(Ansi::ATTR_NEG) - 1
-                                      : sizeof(Ansi::ATTR_NONE) - 1);
-                _hw_inverted = ins_inv;
-            }
+            _set_hw_inverted(ins_inv);
             // Insert mode: the glyphs written push the rest of the row right.
             if (!Ansi::set_insert_mode(_serial, true)) return 0;
             char buf[GRID_COLS];
@@ -445,11 +443,7 @@ namespace Botanik { namespace Terminal {
             // DCH fills the cells it frees using the current attributes on
             // terminals with background-colour erase, so drop reverse video first
             // or those cells come back inverted.
-            if (_hw_inverted) {
-                _serial.write(Ansi::CSI, sizeof(Ansi::CSI) - 1);
-                _serial.write(Ansi::ATTR_NONE, sizeof(Ansi::ATTR_NONE) - 1);
-                _hw_inverted = false;
-            }
+            _set_hw_inverted(false);
             if (!Ansi::delete_chars(_serial, left)) return 0;
             for (uint16_t c = a; (uint16_t)(c + left) < _cols; c++)
                 _back[_idx(row, c)] = _back[_idx(row, (uint16_t)(c + left))];

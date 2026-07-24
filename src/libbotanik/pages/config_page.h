@@ -105,19 +105,8 @@ namespace Botanik { namespace Pages {
 
         void handle_command(Command cmd, uint16_t count = 1) override {
             if (_editing) { _handle_edit_command(cmd, count); return; }
-            uint16_t n = _param_count();
-            if (n == 0) return;
-            switch (cmd) {
-                case Command::UP:    case Command::CTRL_P: _move_selection(-1);        break;
-                case Command::DOWN:  case Command::CTRL_N: _move_selection(+1);        break;
-                case Command::PAGE_UP:   _move_selection(-(int)_page_step());          break;
-                case Command::PAGE_DOWN: _move_selection(+(int)_page_step());          break;
-                case Command::HOME:      _move_selection(-(int)n);                    break;
-                case Command::END:       _move_selection(+(int)n);                    break;
-                case Command::ENTER:     _start_edit();                               break;
-                default: break;
-            }
-            _dirty = true;
+            if (_nav_command(cmd)) { _dirty = true; return; }
+            if (cmd == Command::ENTER && _param_count() > 0) { _start_edit(); _dirty = true; }
         }
 
         bool handle_cancel() override {
@@ -230,9 +219,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief Draw the static chrome: top margin, header, rule. */
         void _draw_structure() {
-            _terminal.move_to({TOP_ROW, 0});
-            _terminal.set_inverted(false);
-            _terminal.clear_to_eol();
+            _blank_line(TOP_ROW);
             _draw_header();
             _draw_rule();
         }
@@ -270,11 +257,8 @@ namespace Botanik { namespace Pages {
                 return;
             }
             _terminal.set_cursor_visible(false);
-            _terminal.move_to({row, 0});
-            _terminal.set_inverted(false);
             const char* hint = " UP/DOWN select   ENTER edit   ESC cancel";
-            _terminal.write_chars(hint, (uint16_t)strlen(hint));
-            _terminal.clear_to_eol();
+            _draw_line(row, hint, (uint16_t)strlen(hint));
         }
 
         /** @brief Draw the "[invalid]" marker after the edit value, then restore

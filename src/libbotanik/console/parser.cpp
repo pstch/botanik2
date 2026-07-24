@@ -109,35 +109,25 @@ namespace Botanik { namespace Terminal {
     // State handlers
     // ------------------------------------------------------------------------
 
+    InputParser::State InputParser::_set_command(Command c) {
+        _event.command = c;
+        if (c != Command::NONE) _event.type = EventType::COMMAND;
+        return State::IDLE;
+    }
     InputParser::State InputParser::_handle_idle(uint8_t b) {
         if (b == (uint8_t)(*Ansi::ESC))  return State::IN_ESC;
         if (b == (uint8_t)(*Ansi::SEP))  return State::IN_SEP;
-        if (Ansi::is_printable(b)) {
-            return _append_text(b);
-        }
-        _event.command = _map_control_char(b);
-        if (_event.command != Command::NONE) {
-            _event.type = EventType::COMMAND;
-        }
-        return State::IDLE;
+        if (Ansi::is_printable(b))       return _append_text(b);
+        return _set_command(_map_control_char(b));
     }
 
     InputParser::State InputParser::_handle_sep(uint8_t b) {
-        _event.command = _map_sep_to_command(b);
-        if (_event.command != Command::NONE)
-            _event.type = EventType::COMMAND;
-        return State::IDLE;
+        return _set_command(_map_sep_to_command(b));
     }
 
     InputParser::State InputParser::_handle_esc(uint8_t b) {
         if (b == '[') return State::IN_CSI;
-
-        _event.command = _map_esc_extension(b);
-        if (_event.command != Command::NONE) {
-            _event.type = EventType::COMMAND;
-        }
-
-        return State::IDLE;
+        return _set_command(_map_esc_extension(b));
     }
 
     InputParser::State InputParser::_handle_csi(uint8_t b) {
@@ -206,19 +196,13 @@ namespace Botanik { namespace Terminal {
     }
 
     Command InputParser::_map_esc_extension(const uint8_t b) {
+        // ALT_1..ALT_9 are contiguous (static_assert in parser.h); map digits
+        // arithmetically, keep 0 and the letters explicit.
+        if (b >= '1' && b <= '9')
+            return (Command)((int)Command::ALT_1 + (b - '1'));
         switch (b) {
-            case 0x0D:
-            case 0x0A:  return Command::SHIFT_ENTER;  // Alt+Enter
+            case 0x0D: case 0x0A: return Command::SHIFT_ENTER;  // Alt+Enter
             case '0':   return Command::ALT_0;
-            case '1':   return Command::ALT_1;
-            case '2':   return Command::ALT_2;
-            case '3':   return Command::ALT_3;
-            case '4':   return Command::ALT_4;
-            case '5':   return Command::ALT_5;
-            case '6':   return Command::ALT_6;
-            case '7':   return Command::ALT_7;
-            case '8':   return Command::ALT_8;
-            case '9':   return Command::ALT_9;
             case 'b':   return Command::ALT_B;         // Alt+B (Back word)
             case 'f':   return Command::ALT_F;         // Alt+F (Forward word)
             default:    return Command::NONE;

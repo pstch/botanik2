@@ -217,34 +217,28 @@ namespace Botanik { namespace Pages {
         _terminal.set_cursor_visible(true);
     }
 
-    void ShellPage::_submit_command() {
-        // Snapshot the line: it must outlive commit(), which clears the editor.
-        char     line[Config::SHELL_INPUT_LEN];
-        uint16_t line_len =
-            std::min(_editor.buffer_len(), (uint16_t)(sizeof(line) - 1));
-        memcpy(line, _editor.buffer(), line_len);
-        line[line_len] = '\0';
-        _record_command(line, line_len);
+    uint16_t ShellPage::_echo_and_reset(char* line, uint16_t cap) {
+        // Snapshot the line (it must outlive commit(), which clears the editor),
+        // record it to history, and advance to a fresh prompt.
+        uint16_t n = std::min(_editor.buffer_len(), (uint16_t)(cap - 1));
+        memcpy(line, _editor.buffer(), n);
+        line[n] = '\0';
+        _record_command(line, n);
         _terminal.move_to(_editor.end_pos());
         _console.line_feed(true);
         _editor.suppress_redraw(false);
         _editor.commit();
-        _shell.run(line, line_len);  // run() ignores an empty line
+        return n;
     }
-
+    void ShellPage::_submit_command() {
+        char line[Config::SHELL_INPUT_LEN];
+        uint16_t n = _echo_and_reset(line, sizeof(line));
+        _shell.run(line, n);         // run() ignores an empty line
+    }
     void ShellPage::_cancel_command() {
-        // Ctrl-C: echo the line and drop to a fresh prompt like a submit, but
-        // run nothing.
-        char     line[Config::SHELL_INPUT_LEN];
-        uint16_t line_len =
-            std::min(_editor.buffer_len(), (uint16_t)(sizeof(line) - 1));
-        memcpy(line, _editor.buffer(), line_len);
-        line[line_len] = '\0';
-        _record_command(line, line_len);
-        _terminal.move_to(_editor.end_pos());
-        _console.line_feed(true);
-        _editor.suppress_redraw(false);
-        _editor.commit();
+        // Ctrl-C: echo and reset like a submit, but run nothing.
+        char line[Config::SHELL_INPUT_LEN];
+        _echo_and_reset(line, sizeof(line));
     }
 
     void ShellPage::_record_command(const char* cmd, uint16_t cmd_len) {

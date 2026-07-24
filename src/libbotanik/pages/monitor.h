@@ -95,20 +95,8 @@ namespace Botanik { namespace Pages {
 
         void handle_text(char /*c*/) override {}   // read-only: no text entry
 
-        void handle_command(Command cmd, uint16_t count = 1) override {
-            uint16_t total = _total(), win = _window();
-            if (total == 0 || win == 0) return;
-            switch (cmd) {
-                case Command::UP:    case Command::CTRL_P: _move_selection(-1);         break;
-                case Command::DOWN:  case Command::CTRL_N: _move_selection(+1);         break;
-                case Command::PAGE_UP:   _move_selection(-(int)_page_step());             break;
-                case Command::PAGE_DOWN: _move_selection(+(int)_page_step());             break;
-                case Command::HOME:  _move_selection(-(int)total);                      break;
-                case Command::END:   _move_selection(+(int)total);                      break;
-                default: return;
-            }
-            _dirty = true;   // redraw next tick, not on the value cadence
-            (void)count;
+        void handle_command(Command cmd, uint16_t = 1) override {
+            if (_nav_command(cmd)) _dirty = true;   // redraw next tick, not the cadence
         }
 
         /** @} */
@@ -254,18 +242,13 @@ namespace Botanik { namespace Pages {
             int n = snprintf(line, sizeof(line),
                              " UP/DOWN select   PAGE UP/DOWN page      %u-%u / %u",
                              (unsigned)(total ? _top + 1 : 0), (unsigned)last, (unsigned)total);
-            _terminal.move_to({(uint16_t)(_console.rows() - 1), 0});
-            _terminal.set_inverted(false);
-            _terminal.write_chars(line, (n < 0) ? 0 : (uint16_t)n);
-            _terminal.clear_to_eol();
+            _draw_line((uint16_t)(_console.rows() - 1), line, (n < 0) ? 0 : (uint16_t)n);
         }
 
         /** @brief Draw the static chrome (blank top margin + header); the rules and
          *  footer carry live state and are drawn separately each tick. */
         void _draw_structure() {
-            _terminal.move_to({TOP_ROW, 0});
-            _terminal.set_inverted(false);
-            _terminal.clear_to_eol();
+            _blank_line(TOP_ROW);
             _draw_header();
         }
 

@@ -170,6 +170,9 @@ namespace Botanik { namespace Terminal {
          *  from _hw_pos (relative where cheaper, absolute for diagonals), tracking
          *  _hw_pos. Emits to the ring. @return false if the ring could not hold it. */
         bool _go(const CursorPos& target);
+        /** @brief Sync the wire's reverse-video (SGR) state to @p inv, emitting
+         *  the escape only when it changes. */
+        void _set_hw_inverted(bool inv);
         /** @brief Emit cells [@p a, @p b) of grid @p row from _front (positioning
          *  the cursor, toggling reverse-video per cell), copy them into _back, and
          *  return the byte cost. */

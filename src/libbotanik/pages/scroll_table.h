@@ -34,6 +34,7 @@ namespace Botanik { namespace Pages {
     class ScrollTablePage : public Page {
     protected:
         using AnsiTerminal = Terminal::AnsiTerminal;
+        using Command      = Terminal::InputEvent::Command;
 
         /** @name State
          *  @{ */
@@ -95,6 +96,22 @@ namespace Botanik { namespace Pages {
             if (_top > maxtop) _top = maxtop;
         }
 
+        /** @brief Handle the standard table nav keys (UP/DOWN, CTRL_P/N,
+         *  PAGE_UP/DOWN, HOME/END). @return true if @p cmd was a nav key, so the
+         *  caller can set its dirty flag and stop; false leaves the caller to try
+         *  its own keys (ENTER = edit / jump, etc.). */
+        bool _nav_command(Command cmd) {
+            switch (cmd) {
+                case Command::UP:   case Command::CTRL_P: _move_selection(-1); return true;
+                case Command::DOWN: case Command::CTRL_N: _move_selection(+1); return true;
+                case Command::PAGE_UP:   _move_selection(-(int)_page_step()); return true;
+                case Command::PAGE_DOWN: _move_selection(+(int)_page_step()); return true;
+                case Command::HOME: _move_selection(-(int)_row_count()); return true;
+                case Command::END:  _move_selection(+(int)_row_count()); return true;
+                default: return false;
+            }
+        }
+
         /** @brief Move the cursor by @p dir (clamped to the set), auto-scrolling
          *  the band to keep it visible. A shift smaller than the window rides a
          *  DL/IL so only the revealed rows repaint; a full-page jump keeps no
@@ -122,6 +139,9 @@ namespace Botanik { namespace Pages {
         /** @}
          *  @name Bordered-table rendering
          *  @{ */
+
+        /** @brief Blank a whole row (normal video). */
+        void _blank_line(uint16_t row) { _draw_line(row, "", 0); }
 
         /** @brief Draw a full line at @p row in normal video, then clear the rest
          *  of the row. The plain (unselected) row / header / rule painter. */
