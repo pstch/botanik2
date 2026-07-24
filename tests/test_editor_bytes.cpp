@@ -212,3 +212,35 @@ TEST_CASE("editor bytes: a hard break still slides the rows below it") {
     // The rows that merely slid were not re-sent.
     CHECK(f.flush().empty());                 // and it converged
 }
+
+// A bulk edit (a paste, a yank, coalesced fast typing) slides a row by many
+// columns at once. The shift detector must have no ceiling on the width: capping
+// it turns every wider slide into a silent full-row rewrite, which is worth ~120
+// bytes a keystroke on a two-row input.
+TEST_CASE("editor bytes: a wide slide is still one escape") {
+    const char* ROW = "0123456789abcdefghijklmnopqrstuvwxyz0123456789"
+                      "ABCDEFGHIJKLMNOPQRSTUVWXYZ01234567";
+    {
+        EditorBytes f;
+        f.type(ROW); f.type(ROW);
+        f.flush();
+        uint16_t len = f.editor.buffer_len();
+        for (uint16_t i = 0; i < len; i++) f.editor.move_left();
+        f.flush();
+        size_t cost = f.cost_of_type("0123456789");     // 10-column right slide
+        CHECK(cost > 0);
+        CHECK(cost <= 110);                             // was 196 with a width cap
+    }
+    {
+        EditorBytes f;
+        f.type(ROW); f.type(ROW); f.type(ROW);
+        f.flush();
+        uint16_t len = f.editor.buffer_len();
+        for (uint16_t i = 0; i < len; i++) f.editor.move_left();
+        f.flush();
+        f.editor.delete_forward(10);                    // 10-column left slide
+        size_t cost = f.flush().size();
+        CHECK(cost > 0);
+        CHECK(cost <= 110);                             // was 269
+    }
+}
