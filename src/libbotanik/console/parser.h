@@ -72,8 +72,6 @@ namespace Botanik { namespace Terminal {
         uint16_t    batch_len   = 0;
         uint16_t    params[8];              // CSI params
         uint8_t     param_count = 0;
-        char        prefix      = 0;        // e.g. '?' in ESC [ ? 25 l
-        uint8_t     value       = 0;
     };
 
     /** @} */

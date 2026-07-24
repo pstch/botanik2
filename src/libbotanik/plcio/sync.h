@@ -429,14 +429,14 @@ namespace Botanik { namespace PlcIO {
                         _ctx._logger->warning(Logs::PLC_IO,
                             "PLC RX torn read discarded (seq changed mid-copy)");
                     return RX_IDLE;
-                case RX_ACK:    _rx_acknowledge();          return RX_IDLE; break;
+                case RX_ACK:    _rx_acknowledge();          return RX_IDLE;
             }
             return _rx_state;
         }
         inline PlcTxState _tx_step() {
             switch (_tx_state) {
-                case TX_WRITE:  _tx_memcpy();               return TX_COMMIT; break;
-                case TX_COMMIT: _tx_commit();               return TX_WAIT;   break;
+                case TX_WRITE:  _tx_memcpy();               return TX_COMMIT;
+                case TX_COMMIT: _tx_commit();               return TX_WAIT;
                 case TX_WAIT:   if (_tx_acknowledged())     return TX_IDLE;
                         else if (_tx_heartbeat_elapsed())   return TX_COMMIT; break;
                 case TX_IDLE:   if (_ctx._tx_write)         return TX_WRITE;

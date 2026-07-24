@@ -158,14 +158,10 @@ namespace Botanik { namespace Terminal {
             return State::IN_CSI;
         }
 
-        if (b == '?' || b == '>' || b == '<' || b == '=') {
-            _event.prefix = (char)b;
-            return State::IN_CSI;
-        }
+        // Private-mode prefix (? > < =): consumed to stay in CSI, not dispatched.
+        if (b == '?' || b == '>' || b == '<' || b == '=') return State::IN_CSI;
 
         if (b >= 0x40 && b <= 0x7E) {
-            _event.value = b;
-            _event.param_count++;
             _event.command = _map_csi_to_command(b, _event.params[0], _event.params[1]);
             _event.type = EventType::COMMAND;
             return State::IDLE;

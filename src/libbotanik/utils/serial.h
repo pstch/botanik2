@@ -96,9 +96,9 @@ namespace Botanik { namespace Utils {
         /** @brief Bytes that can still be written to the TX buffer (ByteSink). */
         uint16_t availableForWrite() const override;
 
-        /** @brief TODO */
+        /** @brief True when the RX ring holds no unread bytes. */
         bool rx_empty() const;
-        /** @brief TODO */
+        /** @brief True when the TX ring has nothing left to transmit. */
         bool tx_empty() const;
 
         /** @brief RX ring size, bytes (usable depth is this - 1: one slot

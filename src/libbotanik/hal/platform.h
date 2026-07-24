@@ -66,12 +66,6 @@ namespace Botanik { namespace HAL {
          *  (Arduino millis()). */
         inline uint32_t current_ms();
 
-        /** @brief Sawtooth us uptime (rolls over ~71 min), regular clock
-         *  (Arduino micros()).
-         *  @warning Does not run in SLEEP mode; use only for short RUN-mode
-         *  intervals. */
-        inline uint32_t current_us();
-
         /** @brief Monotonic ms uptime (no rollover), low-power clock. */
         inline uint64_t uptime_ms();
 
@@ -111,10 +105,6 @@ namespace Botanik { namespace HAL {
         /** @brief Copy a block of memory with hardware-enforced ordering. */
         template <typename T>
         inline void ordered_copy(T* dst, const T* src);
-
-        /** @brief Atomically push a value into a memory location. */
-        template<typename T>
-        inline void ordered_move(T* dst, T src);
 
         /** @brief Read a value the other core may be writing: a volatile load
          *  (never cached in a register) plus dmb() for acquire ordering. */

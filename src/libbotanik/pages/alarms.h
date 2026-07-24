@@ -63,7 +63,6 @@ namespace Botanik { namespace Pages {
          *  selected condition through it. */
         Alarms::AlarmModel*       _model;
         /** @brief Mirrors tick(active). */
-        bool                      _active   = false;
         /** @brief Filter mode, cycled by SPACE (see MODE_*). Defaults to
          *  RECENT. */
         uint8_t                   _mode     = MODE_RECENT;
@@ -127,13 +126,6 @@ namespace Botanik { namespace Pages {
          *  write at this column so only those two chars are reverse-video (no
          *  flicker-prone overdraw). */
         static constexpr uint16_t STATE_TEXT_COL = MARGIN + 2 + (CODE_W - 1) + 2;
-        /** @brief ON-cell inner width, and the LAST EVENT cell's text column and
-         *  inner width, tracking the same layout _build_grid_row() emits: used by
-         *  the per-cell patch (_patch_cells) so a value change repaints only the
-         *  ON + LAST EVENT cells, not the whole row. */
-        static constexpr uint16_t STATE_INNER    = STATE_W - 1;               // 3
-        static constexpr uint16_t EVENT_TEXT_COL  = STATE_TEXT_COL + STATE_INNER + 2;
-        static constexpr uint16_t EVENT_INNER     = EVENT_W - 1;              // 15
         /** @brief CODE field span (contents only, no "| " border): the only part
          *  inverted for the selection cursor, so a selection move patches one
          *  small field, not a whole row. The span stops one column short of the
@@ -537,19 +529,17 @@ namespace Botanik { namespace Pages {
             }
         }
 
-        void deactivate() override { _active = false; }
+        void deactivate() override {}
 
         void focus() override {
             // The legend carries the mode badge, which acknowledges a keypress and
             // so must beat the table rows it sits under. Declared here because the
             // Console hands the content band back on every page switch.
             _terminal.set_row_priority(_legend_row(), Terminal::PRIO_CHROME);
-            _active = true;
             _dirty = true;   // draw the whole page fresh (the terminal diff pares it)
         }
 
         void tick(bool active) override {
-            _active = active;
             if (!active) return;
             // Re-check the set on a slow cadence (alarms move slowly); mark dirty
             // only when the displayed set actually moved.

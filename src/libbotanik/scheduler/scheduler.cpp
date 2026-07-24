@@ -113,8 +113,7 @@ namespace Botanik { namespace Scheduler {
 
     void LoopScheduler::_record_jitter(uint32_t jitter_us) {
         // instantaneous jitter as a fraction of the tick interval
-        float instant = (_period_ms > 0) ? static_cast<float>(jitter_us)
-                        / static_cast<float>(_period_ms * 1000u) : 0.0f;
+        float instant = _fraction_of_period(jitter_us);
         if (jitter_us > _jitter_us_max) _jitter_us_max = jitter_us;
         // age by elapsed beats
         _jitter_window.push(jitter_us, 1 + _missed_this_beat);
@@ -132,8 +131,7 @@ namespace Botanik { namespace Scheduler {
         if (_last_release_us != 0) {
             uint64_t elapsed = now_us - _last_release_us;
             uint64_t active  = (elapsed > _slept_us) ? (elapsed - _slept_us) : 0;
-            float instant    = (_period_ms > 0) ? static_cast<float>(active)
-                             / static_cast<float>(_period_ms * 1000u) : 0.0f;
+            float instant    = _fraction_of_period(active);
             _cpu_load.push(instant);
             _context.cpu_load_ema = _cpu_load.value();
         }

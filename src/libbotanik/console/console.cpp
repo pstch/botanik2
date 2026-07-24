@@ -30,9 +30,6 @@ namespace Botanik { namespace Terminal {
     }
 
     void Console::on_step(uint64_t now_ms) {
-        // Snapshot the RX depth before the parse loop drains it, so the serial
-        // gauge reports what was actually waiting this cycle rather than ~0.
-        _term.snapshot_rx();
         // Establish the screen on the first step (not in setup_*()) so the clear
         // lands after the handshake setup_*() queued (establish_screen(), not
         // clear_screen, so it keeps the queued handshake bytes).

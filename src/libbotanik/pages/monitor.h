@@ -72,7 +72,6 @@ namespace Botanik { namespace Pages {
         const ScalarGroup*  _groups;
         size_t              _group_count;
         const void*         _base;
-        bool                _active   = false;
         /** @brief A nav happened: redraw on the next tick rather than waiting for
          *  the value cadence, so scrolling/selection feels immediate. */
         bool                _dirty    = true;
@@ -117,17 +116,15 @@ namespace Botanik { namespace Pages {
         /** @name Focus & update
          *  @{ */
 
-        void deactivate() override { _active = false; }
+        void deactivate() override {}
 
         void focus() override {
-            _active = true;
             _clamp_selection();
             _follow_selection();
             _dirty = true;
         }
 
         void tick(bool active) override {
-            _active = active;
             if (!active) return;
             // Rebuild on the value cadence (or immediately after a nav): the table
             // is redrawn immediate-mode and the terminal's back-buffer diff emits

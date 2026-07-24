@@ -69,9 +69,7 @@ namespace Botanik { namespace Network {
         /** @} */
 
         /** @brief The generic config block (or null with no config source). */
-        const PlcIO::PlcOutputConfig_t* config() const {
-            return _cfg != nullptr ? _cfg->image() : nullptr;
-        }
+        const PlcIO::PlcOutputConfig_t* config() const { return Cfg::config_image(_cfg); }
 
     public:
         MqttClient(const Cfg::ConfigHandler* cfg, Logs::Logger* logger = nullptr,

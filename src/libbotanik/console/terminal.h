@@ -144,10 +144,6 @@ namespace Botanik { namespace Terminal {
          *  links and the ring never overflows into a dropped (torn) write. */
         uint16_t            _tx_cold_depth = 0;
 
-        /** @brief RX ring depth snapshotted at the top of the loop's step()
-         *  (pre-parse), surfaced by rx_used() for the serial gauge. */
-        uint16_t            _rx_cycle_used = 0;
-
         /** @brief Ring headroom the budget floor always leaves free, so a single
          *  oversized run (see present()'s escape) still has somewhere to land
          *  rather than being deferred forever. */
@@ -194,7 +190,7 @@ namespace Botanik { namespace Terminal {
          *  blanked). Called for FRONT by scroll_region and for BACK by present()
          *  once the matching DL/IL has reached the wire. */
         void _shift_grid(uint8_t* g, uint16_t top, uint16_t bottom, bool up, uint16_t n);
-        /** @brief Blank the whole back-buffer (both grids) - after a physical
+        /** @brief Blank the active region of both grids - after a physical
          *  clear, the wire is blank and nothing is drawn. */
         void _reset_grids();
         /** @name present() phases
@@ -307,7 +303,6 @@ namespace Botanik { namespace Terminal {
          *  @{ */
 
         void establish_screen();
-        void snapshot_rx() { _rx_cycle_used = _serial.available(); }
 
         /** @brief Abort a half-sent control sequence on the wire, returning the
          *  terminal parser to ground state. */
@@ -318,7 +313,6 @@ namespace Botanik { namespace Terminal {
          *  @{ */
 
         const BufferedSerial& serial() const { return _serial; }
-        uint16_t rx_used() const { return _rx_cycle_used; }
         uint16_t tx_used() const {
             uint16_t cap = Utils::BufferedSerial::tx_capacity();
             uint16_t freed = _serial.availableForWrite();

@@ -72,7 +72,8 @@ namespace Botanik { namespace Pages {
          *  @{ */
         Console&            _console;
         Cfg::ConfigHandler* _config;
-        bool                _active   = false;
+        bool                _dirty    = true;    ///< table needs a redraw (nav / edit / focus)
+        uint64_t            _last_refresh_ms = 0; ///< last cadence rebuild
 
         /** @name Edit sub-state
          *  @{ */
@@ -116,6 +117,7 @@ namespace Botanik { namespace Pages {
                 case Command::ENTER:     _start_edit();                               break;
                 default: break;
             }
+            _dirty = true;
         }
 
         bool handle_cancel() override {
@@ -128,21 +130,28 @@ namespace Botanik { namespace Pages {
         /** @name Focus & update
          *  @{ */
 
-        void deactivate() override { _active = false; }
+        void deactivate() override {}
 
         void focus() override {
-            _active = true;
             _editing = false;
+            _dirty = true;
             if (_selected >= _param_count()) _selected = 0;
             _follow_selection();
         }
 
         void tick(bool active) override {
-            _active = active;
             if (!active) return;
             // While editing, the editor owns the screen (it redraws the prompt row
             // and its cursor on each keystroke); leave the static table as drawn.
             if (_editing) return;
+            // Rebuild on nav/edit (_dirty) or the value cadence; the cadence still
+            // catches an external group-serial bump. Re-formatting every row every
+            // tick would burn CPU for a screen that almost never changes (monitor
+            // gates the same way).
+            uint64_t now = HAL::Clock::uptime_ms();
+            if (!_dirty && now - _last_refresh_ms < Config::PAGE_HOT_MS) return;
+            _last_refresh_ms = now;
+            _dirty = false;
             // Redraw the table immediate-mode; the terminal's back-buffer diff emits
             // only the cells that moved, so the page keeps no per-row cache.
             uint16_t n = _param_count();
@@ -347,6 +356,7 @@ namespace Botanik { namespace Pages {
 
         void _cancel_edit() {
             _editing = false;
+            _dirty = true;
             _draw_prompt_row();       // restore the hint, hide the cursor
         }
 
@@ -358,6 +368,7 @@ namespace Botanik { namespace Pages {
             line[n] = 0;
             if (_config->set(*_edit_param, line)) {
                 _editing = false;
+                _dirty = true;
                 _draw_prompt_row();   // value diff repaints the table row next tick
             } else {
                 _edit_error = true;   // stay in edit, flag it

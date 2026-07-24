@@ -127,7 +127,6 @@ namespace Botanik { namespace Cfg {
     int format_value(const ConfigParam& p, const void* base, char* buf, size_t cap);
 
     /** @brief Validate a numeric candidate @p v against [min, max]. */
-    bool validate_numeric(const ConfigParam& p, int32_t v);
 
     /** @brief Parse edit text @p s for parameter @p p into @p out (numeric
      *  types only) and bounds-check it. @return false on a malformed number or
@@ -243,6 +242,13 @@ namespace Botanik { namespace Cfg {
 
         /** @} */
     };
+
+    /** @brief The config image behind a handler, or null if @p h is null. Shared
+     *  by the config-driven components so each keeps no null-guard of its own
+     *  (mirrors PlcIO::plc_config for the sync context). */
+    inline const PlcIO::PlcOutputConfig_t* config_image(const ConfigHandler* h) {
+        return h != nullptr ? h->image() : nullptr;
+    }
 
 }}
 

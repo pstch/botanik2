@@ -170,10 +170,6 @@ namespace Botanik { namespace HAL {
         return (uint32_t)_now_as<std::chrono::milliseconds>();
     }
 
-    inline uint32_t current_us() {
-        return (uint32_t)_now_as<std::chrono::microseconds>();
-    }
-
     inline uint64_t uptime_ms() {
         return _now_as<std::chrono::milliseconds>();
     }
@@ -232,15 +228,6 @@ namespace Botanik { namespace HAL {
         assert((const void*)dst != (const void*)src);
 #endif
         std::memcpy((void*)dst, (const void*)src, sizeof(T));
-        dsb();
-    }
-
-    template<typename T>
-    inline void ordered_move(T* dst, T src) {
-        static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
-                      "ordered_move needs a word-multiple T");
-        if (std::is_empty<T>::value) return;   // empty payload carries no data
-        *dst = src;
         dsb();
     }
 

@@ -289,14 +289,6 @@ namespace Botanik { namespace Pages {
             return true;
         }
 
-        /** @brief Release a scrolled-back view: jump to the live bottom and
-         *  stage a bottom-aligned replay (paced by drain_redraw). No-op when
-         *  already at bottom. */
-        void scroll_to_bottom(uint16_t log_rows) {
-            if (_view_offset == 0) return;
-            // resets the offset and stages the newest window
-            begin_redraw(log_rows);
-        }
 
         /** @brief Keep the "scrolled up" marker in sync with the view, called
          *  each tick by the page. While scrolled back it overlays a compact

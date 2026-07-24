@@ -269,6 +269,11 @@ namespace Botanik { namespace Scheduler {
         void _skip_beats(uint64_t now);
         /** @brief Filter a beat's scheduling jitter and publish it into the
          *  context. */
+        /** @brief @p us as a fraction of the nominal tick period (0 if the
+         *  period is unset). Single-precision - this file is -Wdouble-promotion. */
+        float _fraction_of_period(uint64_t us) const {
+            return (_period_ms > 0) ? (float)us / (float)(_period_ms * 1000u) : 0.0f;
+        }
         void _record_jitter(uint32_t jitter_us);
         /** @brief Compute the beat's CPU duty cycle (active fraction of the
          *  elapsed beat) from the actual slept time and publish it. */

@@ -136,12 +136,12 @@ namespace Botanik { namespace Terminal {
         _t.paint_field_runs(0, col, field, len, hi);
     }
 
-    bool StatusBar::update_metrics() {
+    void StatusBar::update_metrics() {
         char metrics[METRICS_LEN];
         int mlen = build_metrics(metrics, sizeof(metrics));
         // mlen is constant (fixed-width fields), so a byte index maps to a fixed col.
         uint16_t visible = (uint16_t)std::min((int)_t.cols(), mlen);
-        if (visible == 0) return true;
+        if (visible == 0) return;
         uint16_t metrics_col = (uint16_t)(_t.cols() - visible);
         // The bar is reverse video except the live readings (plc/cpu/stk), drawn
         // normal: highlight mask inverts all but the value cols.
@@ -149,10 +149,9 @@ namespace Botanik { namespace Terminal {
         for (uint16_t i = 0; i < visible; ++i)
             if (!metric_value_col(i)) hi |= (1u << i);
         submit_field(metrics_col, metrics, visible, hi);
-        return true;
     }
 
-    bool StatusBar::update_clock() {
+    void StatusBar::update_clock() {
         // Wall-clock HH:MM:SS (same source as the STATUS page's "Wall Clock").
         Utils::CalendarTime wc = Utils::cal_time_ms(HAL::Clock::uptime_ms());
         char clk[16];
@@ -162,15 +161,14 @@ namespace Botanik { namespace Terminal {
         // Centre the field; skip on a terminal too narrow to fit it clear of the
         // right-aligned metrics.
         uint16_t cols = _t.cols();
-        if (cols < CLOCK_LEN) return false;
+        if (cols < CLOCK_LEN) return;
         uint16_t clock_col   = (uint16_t)((cols - CLOCK_LEN) / 2);
         uint16_t metrics_col = (cols > (uint16_t)(METRICS_LEN - 1))
                                    ? (uint16_t)(cols - (METRICS_LEN - 1)) : 0;
-        if ((uint16_t)(clock_col + CLOCK_LEN) > metrics_col) return false;
+        if ((uint16_t)(clock_col + CLOCK_LEN) > metrics_col) return;
 
         // hi = 0: normal video, so the digits stand out against the reverse bar.
         submit_field(clock_col, clk, CLOCK_LEN, 0u);
-        return true;
     }
 
     int StatusBar::build_metrics(char* buf, size_t cap) const {

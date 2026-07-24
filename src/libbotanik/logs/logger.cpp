@@ -179,14 +179,9 @@ namespace Botanik { namespace Logs {
         // limiter: these loss/suppression reports must survive the very storm
         // they summarize (REPORT-SLOT keeps criticals when the FIFO is full).
         LogEntry_t entry = {};
-        entry.timestamp = timestamp_ms;
-        entry.level     = Logs::LOG_CRITICAL;
-        entry.topic     = topic;
         va_list ap; va_start(ap, fmt);
-        int w = vsnprintf(entry.message, sizeof(entry.message), fmt, ap);
+        _build_entry(entry, Logs::LOG_CRITICAL, topic, timestamp_ms, fmt, ap);
         va_end(ap);
-        if (w < 0) w = 0;
-        entry.length = (uint16_t)std::min((size_t)w, sizeof(entry.message) - 1);
         for (uint8_t i = 0; i < _writerCount; i++) _writers[i]->push(&entry);
     }
 
@@ -210,15 +205,20 @@ namespace Botanik { namespace Logs {
         rep.reported       = true;
     }
 
+    void Logger::_build_entry(LogEntry_t& e, Logs::LogLevel level, Logs::LogTopic topic,
+                              uint32_t timestamp_ms, const char* fmt, va_list ap) {
+        e.timestamp = timestamp_ms;
+        e.level     = level;
+        e.topic     = topic;
+        int w = vsnprintf(e.message, sizeof(e.message), fmt, ap);
+        if (w < 0) w = 0;
+        e.length = (uint16_t)std::min((size_t)w, sizeof(e.message) - 1);
+    }
+
     void Logger::_emit(Logs::LogLevel level, Logs::LogTopic topic,
                        const char* fmt, va_list ap) {
         LogEntry_t entry = {};
-        entry.timestamp = HAL::Clock::current_ms();
-        entry.level     = level;
-        entry.topic     = topic;
-        int w = vsnprintf(entry.message, sizeof(entry.message), fmt, ap);
-        if (w < 0) w = 0;
-        entry.length = (uint16_t)std::min((size_t)w, sizeof(entry.message) - 1);
+        _build_entry(entry, level, topic, HAL::Clock::current_ms(), fmt, ap);
         push_entry(entry);
     }
 

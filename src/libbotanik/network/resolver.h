@@ -73,7 +73,6 @@ namespace Botanik { namespace Network {
             SLOT_FREE = 0,   ///< empty, reusable
             SLOT_PENDING,    ///< dns_begin in flight; dns_poll drives state
             SLOT_READY,      ///< resolved; addr valid (also a cache entry)
-            SLOT_ERROR,      ///< lookup failed; transient (freed on the next resolve())
         };
 
         /** @brief One table row: an in-flight request and/or a cached result. */

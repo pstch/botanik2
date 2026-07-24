@@ -85,13 +85,12 @@ namespace Botanik { namespace Terminal {
         /** @name Field painters
          *  @{ */
 
-        /** @brief Repaint the metrics field (the diff drops the unchanged
-         *  cells). @return true (kept for the caller's cadence bookkeeping). */
-        bool update_metrics();
+        /** @brief Repaint the metrics field (the diff drops the unchanged cells). */
+        void update_metrics();
 
         /** @brief Refresh the centred HH:MM:SS clock the same way (skipped on a
-         *  very narrow terminal). @return true if it painted the field. */
-        bool update_clock();
+         *  very narrow terminal). */
+        void update_clock();
 
         /** @brief Render the right-side metrics field into @p buf (fixed width,
          *  so a byte index maps to a fixed column); returns its length. */

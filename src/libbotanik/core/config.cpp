@@ -79,18 +79,23 @@ namespace Botanik { namespace Cfg {
         }
     }
 
+    // The serial words sit in the struct in ConfigGroup order, so a group's byte
+    // range runs from its serial to the next group's (or the struct end for the
+    // last). Pinned here so group_byte_range can derive the end instead of a
+    // second switch that could drift from group_serial_offset.
+    static_assert(offsetof(PlcIO::PlcOutputConfig_t, net_serial)
+                < offsetof(PlcIO::PlcOutputConfig_t, ntp_serial), "config serial order");
+    static_assert(offsetof(PlcIO::PlcOutputConfig_t, ntp_serial)
+                < offsetof(PlcIO::PlcOutputConfig_t, mqtt_serial), "config serial order");
+    static_assert(offsetof(PlcIO::PlcOutputConfig_t, mqtt_serial)
+                < offsetof(PlcIO::PlcOutputConfig_t, geo_serial), "config serial order");
+
     void group_byte_range(uint8_t group, uint16_t* start, uint16_t* len) {
-        // Each group runs from its serial up to the next group's serial (or the
-        // end of the struct for the last group).
-        uint16_t s = group_serial_offset(group);
-        uint16_t end;
-        switch (group) {
-            case CFG_NET:  end = (uint16_t)offsetof(PlcIO::PlcOutputConfig_t, ntp_serial);  break;
-            case CFG_NTP:  end = (uint16_t)offsetof(PlcIO::PlcOutputConfig_t, mqtt_serial); break;
-            case CFG_MQTT: end = (uint16_t)offsetof(PlcIO::PlcOutputConfig_t, geo_serial);  break;
-            case CFG_GEO:  end = (uint16_t)sizeof(PlcIO::PlcOutputConfig_t);                break;
-            default:       end = s;                                                         break;
-        }
+        if (group >= CFG_GROUP_COUNT) { *start = 0; *len = 0; return; }
+        uint16_t s   = group_serial_offset(group);
+        uint16_t end = (group + 1 < CFG_GROUP_COUNT)
+            ? group_serial_offset((uint8_t)(group + 1))
+            : (uint16_t)sizeof(PlcIO::PlcOutputConfig_t);
         *start = s;
         *len   = (uint16_t)(end - s);
     }
@@ -141,7 +146,7 @@ namespace Botanik { namespace Cfg {
 
     // Validate / parse
 
-    bool validate_numeric(const ConfigParam& p, int32_t v) {
+    static bool validate_numeric(const ConfigParam& p, int32_t v) {
         return v >= p.min && v <= p.max;
     }
 

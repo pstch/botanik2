@@ -94,10 +94,6 @@ namespace Botanik { namespace HAL {
         return millis();
     }
 
-    inline uint32_t current_us() {
-        return micros();
-    }
-
     inline uint64_t uptime_ms() {
         return std::chrono::duration_cast<std::chrono::milliseconds>(
             mbed::LowPowerClock::now().time_since_epoch()
@@ -158,15 +154,6 @@ namespace Botanik { namespace HAL {
 #endif
         ARM_MPU_OrderedMemcpy((volatile uint32_t*)dst, (const uint32_t*)src,
                               sizeof(T) / sizeof(uint32_t));
-        __DSB();
-    }
-
-    template<typename T>
-    inline void ordered_move(T* dst, T src) {
-        static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
-                      "ordered_move needs a word-multiple T");
-        if (std::is_empty<T>::value) return;   // empty payload carries no data
-        *dst = src;
         __DSB();
     }
 

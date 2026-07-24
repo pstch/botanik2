@@ -6,11 +6,10 @@
  * @file field.h
  * @brief Shared fixed-width field render + per-column diff.
  *
- * The row-0 status bar and the full-screen MetricPage both "diff a fixed-width
- * field and repaint only the changed runs" over the terminal's
- * paint_field_runs() painter. Each keeps its own value cache, highlight policy,
- * and pacing; only the mechanical render-and-diff is common, and lives here so
- * the two can't drift apart.
+ * MetricPage diffs a fixed-width field against its last value and asks for the
+ * changed runs to be repainted (the watch-style highlight); the mechanical
+ * render-and-changed split lives here. The status bar builds its own mask inline
+ * and does not use this.
  */
 
 #include <cstdint>

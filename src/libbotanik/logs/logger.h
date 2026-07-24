@@ -201,6 +201,11 @@ namespace Botanik { namespace Logs {
          *  forward it to push_entry(). */
         void _emit(Logs::LogLevel level, Logs::LogTopic topic, const char* fmt,
                    va_list ap);
+        /** @brief Stamp @p e (assumed zero-inited) with level/topic/timestamp and
+         *  the formatted message, clamping the length. The shared body of _emit
+         *  and _emit_critical. */
+        void _build_entry(LogEntry_t& e, Logs::LogLevel level, Logs::LogTopic topic,
+                          uint32_t timestamp_ms, const char* fmt, va_list ap);
 
         /** @} */
     };

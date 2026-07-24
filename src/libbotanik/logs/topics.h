@@ -55,8 +55,8 @@ namespace Botanik { namespace Logs {
 
     /** @brief Number of defined topics (the enum is dense 0..HEALTH). Bounds
      *  the logger's per-tick scan loops so they cover the real topics instead
-     *  of the full wire range; the bucket array itself is sized by
-     *  LOG_TOPIC_MAX. */
+     *  of the full wire range; the per-topic bucket array is sized by
+     *  LOG_TOPIC_COUNT. */
     static constexpr uint8_t LOG_TOPIC_COUNT = HEALTH + 1;
     static_assert(LOG_TOPIC_COUNT <= Config::LOG_TOPIC_MAX, "LOG_TOPIC_COUNT exceeds LOG_TOPIC_MAX");
 

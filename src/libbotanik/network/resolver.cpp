@@ -93,10 +93,10 @@ namespace Botanik { namespace Network {
                     e->state = SLOT_FREE; return RESOLVE_FAILED;
                 }
                 return RESOLVE_PENDING;
-            } else {
-                e->state = SLOT_FREE;   // SLOT_ERROR: free so the next poll retries
-                return RESOLVE_FAILED;
             }
+            // A READY entry past its TTL was freed above and falls through to a
+            // fresh lookup; _find never returns a FREE row, so there is no other
+            // state to handle here.
         }
 
         // Start (or poll) a HAL DNS lookup. A row stores its DnsHandle while
