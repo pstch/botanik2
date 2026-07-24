@@ -153,8 +153,8 @@ namespace Botanik { namespace Terminal {
         uint16_t _shift_row(uint16_t row, uint16_t budget);
         /** @brief Smallest changed span worth expressing as a shift, and the
          *  widest slide still plausibly a slide rather than new content. */
-        static constexpr uint16_t SHIFT_MIN_SPAN  = 12;
-        static constexpr uint16_t SHIFT_MAX_CELLS = 8;
+        static constexpr uint16_t SHIFT_MIN_SPAN   = 12;
+        static constexpr uint16_t SHIFT_CANDIDATES = 8;
         /** @brief Shift grid @p g for a band scroll (content moves, freed rows
          *  blanked). Called for FRONT by scroll_region and for BACK by present()
          *  once the matching DL/IL has reached the wire. */
