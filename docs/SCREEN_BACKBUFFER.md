@@ -113,14 +113,20 @@ inferred the same way (a renderer's intent is ambiguous across rows), which is
 why `scroll_region()` stays an explicit call.
 
 **The trap: a row that moves *and* slides.** The shift test compares a row
-against *the same row* in BACK, so a row that also moved vertically never
-matches and gets rewritten in full. That makes an announced scroll's placement
-load-bearing: putting a DL/IL where content did *not* actually move displaces
-rows out from under the shift detection and costs a full rewrite each. The line
-editor is where this bites - see `_slide_tail()` in `console/editor.cpp`, which
-slides only for a hard break (rows below really do move) and not for a soft-wrap
-reflow (rows stay put and merely reflow sideways). Getting that wrong cost 206
-bytes per keystroke instead of 47 on a two-row input.
+against *the same row* in BACK, so a row that also moved vertically never matches
+and gets rewritten in full. That makes an announced scroll's **placement**
+load-bearing, not just its existence: putting a DL/IL where content did *not*
+actually move displaces rows out from under the shift detection and costs a full
+rewrite each. Measured on the line editor, a misplaced IL cost 206 bytes per
+keystroke where the right placement costs 47.
+
+So a renderer that both reflows and changes its row count has to *compute* where
+the row count actually changed rather than assume it. The line editor is the one
+that does this, in `_find_splice_span()` (`console/editor.cpp`): it diffs the
+pre-edit row layout against the new one for the longest shifted-identical suffix,
+and puts the single IL/DL at that boundary. See EDITOR_RECONCILE.md. A heuristic
+in place of that search handles the clean cases and quietly loses the rest, which
+is why the search stayed.
 
 ### Pacing / budget
 
@@ -160,6 +166,12 @@ void tick(bool active) {
 No `_sig`, no `_promote`, no `_reconcile_band`, no keyed transactions. The three
 tables (alarms / monitor / config) share the same shape: a scroll band + a
 selection cursor, redrawn immediate-mode, pared by the diff.
+
+The line editor is the deliberate exception: it keeps a real reconcile pass
+(EDITOR_RECONCILE.md), because it is the one renderer that reflows content across
+rows *and* changes its row count in the same edit - the case above. Its per-row
+splicing is byte-neutral against the diff, but the layout diff it does to place
+the IL/DL is not something the back-buffer can infer.
 
 ## 6. Why not the multi-queue
 

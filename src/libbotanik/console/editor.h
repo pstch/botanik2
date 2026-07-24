@@ -6,9 +6,9 @@
  *
  * Three prompt classes start a row: PS1 (first row), PS2 (after a soft wrap),
  * PS3 (after a hard `\\n`). Auto-wrap is off - the editor owns wrapping. Each
- * edit mutates the buffer, rebuilds the row layout (`_layout`), and repaints
- * from the edit row down - plus one IL/DL when the row count changed, which is
- * the only thing the terminal's cell diff cannot work out for itself.
+ * edit mutates the buffer, rebuilds the row layout (`_layout`), and reconciles
+ * it against the pre-edit layout (`_pre`) so only the minimal terminal ops are
+ * emitted.
  */
 #ifndef CONSOLE_EDITOR_H
 #define CONSOLE_EDITOR_H
@@ -41,8 +41,7 @@ namespace Botanik { namespace Terminal {
     };
 
     /** @brief A laid-out view of the buffer: the row slices plus their count.
-     *  Used for both `_layout` (current/target) and `_pre` (pre-edit, kept only
-     *  to tell how the row count moved and where a removal started). */
+     *  Used for both `_layout` (current/target) and `_pre` (pre-edit). */
     struct TextView {
         RowView  rows[Config::EDITOR_MAX_ROWS];
         uint16_t count;
@@ -53,11 +52,8 @@ namespace Botanik { namespace Terminal {
      * @brief Multi-row line editor.
      *
      * insert/remove mutate the buffer, rebuild the row layout, then reconcile
-     * the screen: one IL/DL when the row count changed (`_pre` vs `_layout`),
-     * then a repaint of every row from the edit row down. The repaint looks
-     * wasteful and is not - the terminal diffs it against the back-buffer, so a
-     * row the IL/DL already placed correctly costs nothing, and a row that did
-     * change costs exactly its changed cells.
+     * the screen by diffing `_pre` against `_layout`: one IL/DL for the
+     * row-count change, then a forward per-row splice walk from the edit row.
      *
      * @note Layout is capped at `Config::EDITOR_MAX_ROWS`. At >=
      * `EDITOR_MIN_COLS` the buffer always fits by soft-wrap (static_assert in
@@ -316,15 +312,28 @@ namespace Botanik { namespace Terminal {
          *  position. */
         void _write_prompt(uint16_t row_idx);
 
-        /** @brief Change in the number of hard-broken rows across this edit
-         *  (`_pre` vs `_layout`). Non-zero means the row count moved because a
-         *  `\n` came or went, not because the text reflowed. */
-        int32_t _hard_break_delta() const;
+        /** @brief Where an edit lands in the forward walk. `edit_row` is the
+         *  first affected row. Rows at or below `absorbed_post` are already
+         *  correct (shifted by the IL/DL), so the per-row walk only splices
+         *  `[edit_row, absorbed_post)`. */
+        struct SpliceSpan {
+            uint16_t edit_row;      /**< R: first affected post row */
+            /** A: post idx where the absorbed tail begins */
+            uint16_t absorbed_post;
+            uint16_t absorbed_pre;  /**< P: matching pre idx of that boundary */
+        };
 
-        /** @brief The single IL/DL for a row-count change: slide the rows below
-         *  `edit_row` by `row_delta`, opening (grow) or closing (shrink) the rows
-         *  the repaint then fills. No-op when the row count held. */
-        void _slide_tail(uint16_t edit_row, int32_t row_delta, uint16_t scr_rows);
+        /** @brief Locate the edit row and the absorbed-tail boundary by diffing
+         *         `_pre` against `_layout` (longest shifted-identical
+         *         suffix). */
+        SpliceSpan _find_splice_span(uint16_t span_start, uint16_t span_len,
+                                     bool is_insert, int32_t l_shift,
+                                     int32_t row_delta) const;
+
+        /** @brief Emit the single IL/DL that repositions the absorbed tail and
+         *  opens the blank rows inserted content paints into. */
+        void _reposition_tail(const SpliceSpan& span, int32_t row_delta,
+                              uint16_t scr_rows);
 
         /** @brief Reconcile the screen to `_layout` after an edit of `span_len`
          *  bytes at offset `span_start`. See the class-level note for the
@@ -339,10 +348,26 @@ namespace Botanik { namespace Terminal {
          *  collapsed. */
         void _shrink_editor(uint16_t new_origin);
 
-        /** @brief Paint row `post_idx` whole: prompt, content, clear to EOL. The
-         *  terminal's back-buffer diff drops whatever did not actually change, so
-         *  this is the only row painter the reconcile needs. */
+        /** @brief Full-paint row `post_idx` (prompt + content + clear): an
+         *  IL-opened blank, or a row whose old glyphs are unrelated to the
+         *  wanted content. */
         void _new_row(uint16_t post_idx);
+
+        /** @brief Reconcile one row: splice `amount` chars at column `col`
+         *  (insert if >0, delete if <0), then length-align the tail to `want`.
+         *  The edit row passes `col = cursor`; rows below pass `col = prompt`,
+         *  `amount = displacement`. `shown_len`/`shown_prompt_l` describe what
+         *  the row physically shows now. */
+        void _splice_row(uint16_t post_idx, uint16_t col, int32_t amount,
+                         uint16_t shown_len, uint16_t shown_prompt_l,
+                         const RowView& want);
+
+        /** @brief Signed count of content chars the edit splices onto its own
+         *  row: the span clipped to that row's content (0 for a closing `\n`),
+         *  positive for insert, negative for remove. */
+        static int32_t _edit_row_amount(uint16_t span_start, uint16_t span_len,
+                                        bool is_insert, const RowView& post_row,
+                                        const RowView& pre_row);
 
         /** @} */
     };

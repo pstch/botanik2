@@ -208,10 +208,12 @@ namespace Botanik { namespace Terminal {
          *  @name Text output & character attributes
          *  @{ */
 
-        /** @brief Stamp characters at the draw cursor into the FRONT grid.
+        /** @brief Stamp characters at the draw cursor into the FRONT grid; @p
+         *  insert shifts the row's existing cells right first. Both are grid-only
+         *  - present()'s shift detection decides what that costs on the wire.
          *  @return @p len (a grid stamp never drops - pacing happens in
          *  present()). */
-        uint16_t write_chars(const char *buf, uint16_t len);
+        uint16_t write_chars(const char *buf, uint16_t len, bool insert = false);
 
         void set_inverted(bool enable);
         void set_auto_wrap(bool enable);
@@ -234,6 +236,9 @@ namespace Botanik { namespace Terminal {
          *  @name Content manipulation
          *  @{ */
 
+        /** @brief Shift the row's cells left by @p len at the draw cursor,
+         *  blanking the freed cells at the right edge (grid-only). */
+        void delete_chars(uint16_t len);
         void clear_to_eol();
         void clear_to_eos();
         void clear_screen();

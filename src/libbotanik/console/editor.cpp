@@ -2,10 +2,9 @@
 /**
  * @file editor.cpp
  * @brief TextEditor - byte-efficient multi-row line editor. Each edit mutates
- *        the buffer, rebuilds the row layout (`_layout`), and reconciles the
- *        screen: one IL/DL when the row count changed (compared against `_pre`),
- *        then a plain repaint from the edit row down. The terminal's back-buffer
- *        diff turns that repaint into only the cells that actually moved.
+ *        the buffer, rebuilds the row layout (`_layout`), and reconciles it
+ *        against the pre-edit layout (`_pre`): one IL/DL for the row-count
+ *        change, then a forward per-row splice walk from the edit row.
  */
 #include <cctype>
 #include <cstdint>
@@ -216,8 +215,70 @@ namespace Botanik { namespace Terminal {
         _origin = new_origin;
     }
 
-    // reconciliation
+    // reconciliation helpers
     // ------------------------------------------------------------------------
+
+    int32_t TextEditor::_edit_row_amount(uint16_t span_start, uint16_t span_len,
+                                         bool is_insert, const RowView& post_row,
+                                         const RowView& pre_row) {
+        const RowView& row = is_insert ? post_row : pre_row;
+        uint16_t row_end = (uint16_t)(row.buf_start + row.buf_len);
+        uint16_t avail   = (uint16_t)(row_end - span_start);
+        uint16_t head    = span_len < avail ? span_len : avail;
+        return is_insert ? (int32_t)head : -(int32_t)head;
+    }
+
+    void TextEditor::_splice_row(uint16_t post_idx, uint16_t col, int32_t amount,
+                                 uint16_t shown_len, uint16_t shown_prompt_l,
+                                  const RowView& want) {
+        uint16_t hw     = (uint16_t)(_origin + post_idx);
+        uint16_t prompt = _prompt_len(_row_prompt(post_idx));
+        uint16_t cap    = _row_cap(post_idx);
+
+        // Prompt-class flip (PS2<->PS3): rewrite the gutter. A longer prompt's
+        // push drops trailing content off the right edge, so shrink shown_len
+        // accordingly before the length-align below.
+        if (shown_prompt_l != prompt && hw < _console->rows()) {
+            RowPrompt p = _row_prompt(post_idx);
+            _terminal->move_to({hw, _indent});
+            if (prompt <= shown_prompt_l) {
+                _terminal->write_chars(_prompt_buf(p), prompt);
+                _terminal->delete_chars((uint16_t)(shown_prompt_l - prompt));
+            } else {
+                _terminal->write_chars(_prompt_buf(p), prompt, /*insert=*/true);
+                _terminal->delete_chars(shown_prompt_l);
+                uint32_t total = (uint32_t)shown_prompt_l + prompt + shown_len;
+                uint16_t cols  = _terminal->cols();
+                if (total > cols) shown_len -= (uint16_t)(total - cols);
+            }
+        }
+
+        // Splice `amount` content chars at `col`. Chars pushed off the right
+        // edge reflow into the next row (prepended next iteration). Move only
+        // when there is a splice - an absorbed row (amount 0, no length/prompt
+        // change) emits nothing.
+        if (amount > 0) {
+            _terminal->move_to({hw, (uint16_t)(_indent + col)});
+            _terminal->write_chars(&_buf[want.buf_start + (col - prompt)],
+                                   (uint16_t)amount, /*insert=*/true);
+        } else if (amount < 0) {
+            _terminal->move_to({hw, (uint16_t)(_indent + col)});
+            _terminal->delete_chars((uint16_t)(-amount));
+        }
+
+        // Length-align the tail. `after` is what the row shows post-splice; a
+        // shrink here is what clears a row that just gained a hard break.
+        int32_t  after_i = (int32_t)shown_len + amount;
+        uint16_t after   = after_i < 0 ? 0 : (after_i > (int32_t)cap ? cap : (uint16_t)after_i);
+        if (want.buf_len > after) {
+            _terminal->move_to({hw, (uint16_t)(_indent + prompt + after)});
+            _terminal->write_chars(&_buf[want.buf_start + after],
+                                   (uint16_t)(want.buf_len - after));
+        } else if (want.buf_len < after) {
+            _terminal->move_to({hw, (uint16_t)(_indent + prompt + want.buf_len)});
+            _terminal->clear_to_eol();
+        }
+    }
 
     void TextEditor::_new_row(uint16_t post_idx) {
         uint16_t hw = (uint16_t)(_origin + post_idx);
@@ -230,74 +291,135 @@ namespace Botanik { namespace Terminal {
         _terminal->clear_to_eol();
     }
 
-    int32_t TextEditor::_hard_break_delta() const {
-        int32_t d = 0;
-        for (uint16_t i = 0; i < _pre.count; i++)    if (_pre.rows[i].hard_break) d--;
-        for (uint16_t i = 0; i < _layout.count; i++) if (_layout.rows[i].hard_break) d++;
-        return d;
+    TextEditor::SpliceSpan
+    TextEditor::_find_splice_span(uint16_t span_start, uint16_t span_len,
+                                  bool is_insert, int32_t l_shift,
+                                  int32_t row_delta) const {
+        // First affected row. Insert: the post owner (where the new bytes land
+        // - a `\n` inserted at a soft-wrap boundary closes the row *above* the
+        // pre owner). Remove: the pre owner (the deleted bytes lived there).
+        uint16_t edit_row;
+        if (is_insert) edit_row = _owner_row(span_start, _layout);
+        else           edit_row = _owner_row(span_start, _pre);
+
+        // Absorption boundary: longest bottom suffix of shifted-identical rows
+        // (same buf_len + hard_break, buf_start displaced by exactly l_shift,
+        // lying strictly past the edit). `absorbed_post` is the post index
+        // where the tail is already correct; `absorbed_pre` the matching pre
+        // index.
+        uint16_t span_end_old;
+        if (is_insert) span_end_old = span_start;
+        else           span_end_old = (uint16_t)(span_start + span_len);
+
+        uint16_t t = 0;
+        while (t < _pre.count && t < _layout.count) {
+            const RowView& pre = _pre.rows[_pre.count - 1 - t];
+            const RowView& po  = _layout.rows[_layout.count - 1 - t];
+            if (po.buf_len != pre.buf_len || po.hard_break != pre.hard_break) break;
+            if ((int32_t)po.buf_start != (int32_t)pre.buf_start + l_shift) break;
+            if (pre.buf_start < span_end_old) break;
+            t++;
+        }
+        uint16_t absorbed_post = (uint16_t)(_layout.count - t);
+        uint16_t absorbed_pre  = (uint16_t)((int32_t)absorbed_post - row_delta);
+        return { edit_row, absorbed_post, absorbed_pre };
     }
 
-    void TextEditor::_slide_tail(uint16_t edit_row, int32_t row_delta,
-                                 uint16_t scr_rows) {
-        if (row_delta == 0) return;
-        // WHERE the row appears decides whether anything needs sliding at all.
-        //
-        // A hard break splits a row in place, so every row below it really does
-        // move down (or up, when the break goes away) and needs the IL/DL.
-        //
-        // A soft-wrap reflow is different: the text just got long enough for one
-        // more row, and that row appears at the BOTTOM. Every existing row keeps
-        // its position and merely reflows sideways by a column or two - which the
-        // terminal's per-row shift detection handles for a few bytes each. The
-        // bottom-pinned grow above has already moved the block as a whole, so an
-        // IL here would displace those rows out from under that detection and
-        // force a full rewrite of every one of them.
-        if (_hard_break_delta() == 0) return;
-        // Nothing below the edit row to move - the row the edit added (or removed)
-        // is the bottom one - so an IL/DL here would buy nothing and cost 4 bytes.
-        if (_pre.count <= (uint16_t)(edit_row + 1)) return;
-        uint16_t at = (uint16_t)(_origin + edit_row + 1);
-        if (at >= scr_rows) return;
+    void TextEditor::_reposition_tail(const SpliceSpan& span, int32_t row_delta,
+                                      uint16_t scr_rows) {
+        // A single contiguous edit needs at most one IL/DL: it slides the
+        // absorbed tail (and opens the blank rows inserted content paints
+        // into). Nothing to do when there is no tail or no row-count change.
+        if (span.absorbed_post >= _layout.count || row_delta == 0) return;
+
+        uint16_t at;
+        if (row_delta > 0) at = span.absorbed_pre;
+        else               at = span.absorbed_post;
         uint16_t n = (uint16_t)(row_delta > 0 ? row_delta : -row_delta);
-        // Grow scrolls the rows below the edit down, opening the n blank rows the
-        // repaint then fills; shrink scrolls them up, closing the n it vacated.
-        // Bounded to [at..content bottom], so the rows above the edit stay put.
-        _terminal->scroll_region(at, (uint16_t)(scr_rows - 1), /*up=*/row_delta < 0, n);
+
+        uint16_t row = (uint16_t)(_origin + at);
+        if (row >= scr_rows) return;
+        // Slide the absorbed tail to its new rows (insert also opens the blank
+        // rows the forward walk paints inserted content into). Bounded to
+        // [row..content bottom] so rows below the editor are left untouched.
+        // Grow (row_delta > 0) scrolls the tail down; shrink scrolls it up.
+        _terminal->scroll_region(row, (uint16_t)(scr_rows - 1), /*up=*/row_delta < 0, n);
     }
 
     void TextEditor::_reconcile(uint16_t span_start, uint16_t span_len, bool is_insert) {
+        int32_t l_shift;
+        if (is_insert) l_shift = (int32_t)span_len;
+        else           l_shift = -(int32_t)span_len;
+
         int32_t  row_delta = (int32_t)_layout.count - (int32_t)_pre.count;
         uint16_t scr_rows  = _console->rows();
 
-        // Bottom-pinned grow first, so the added rows fit. It also normalises what
-        // follows: whichever way the origin moved, pre row p now sits at post
-        // index p relative to the new origin.
+        // Scroll up if the editor grew, so the added rows fit.
         uint16_t new_origin = _grow_editor();
 
-        // First row the edit can touch; everything above it is untouched by
-        // construction. Insert: the post owner (a `\n` inserted at a soft-wrap
-        // boundary closes the row *above* the pre owner). Remove: the pre owner
-        // (the deleted bytes lived there).
-        uint16_t edit_row = is_insert ? _owner_row(span_start, _layout)
-                                      : _owner_row(span_start, _pre);
+        // Find the edit row and the absorbed tail: the bottom run of rows that
+        // the edit only shifted, needing the IL/DL below but no per-row work.
+        SpliceSpan span = _find_splice_span(span_start, span_len, is_insert,
+                                            l_shift, row_delta);
 
-        // The one thing the cell diff cannot deduce for itself: when the edit
-        // changes the row count, every row below it slides. One IL/DL moves them,
-        // and that is the whole byte win here - without it the diff would find
-        // every row below the edit different and rewrite the entire tail.
-        _slide_tail(edit_row, row_delta, scr_rows);
+        // One IL/DL slides that tail to its new rows (and, on insert, opens the
+        // blank rows the forward walk paints the new content into).
+        _reposition_tail(span, row_delta, scr_rows);
 
-        // Then simply redraw from the edit row down. A row the IL/DL already put
-        // in the right place redraws to identical cells, so the diff emits nothing
-        // for it. That is what replaced the old absorbed-tail search and per-row
-        // splicing: the back-buffer works it out per cell, for free, where the
-        // splice could only ever express one contiguous shift per row.
-        (void)span_len;
-        for (uint16_t i = edit_row; i < _layout.count; i++) _new_row(i);
+        // Edit-row splice geometry, computed once (the walk's first row is the
+        // edit row): the cursor column, and the signed count of content chars
+        // the edit adds/removes on that row.
+        const RowView& edit_post = _layout.rows[span.edit_row];
+        const RowView& edit_pre  = _pre.rows[span.edit_row];
+        uint16_t edit_col    = (uint16_t)(_prompt_len(_row_prompt(span.edit_row))
+                                          + (span_start - edit_post.buf_start));
+        int32_t  edit_amount = _edit_row_amount(span_start, span_len, is_insert,
+                                                edit_post, edit_pre);
+
+        // Forward walk from the edit row. Each row maps to the pre row now
+        // physically present (or is fresh: an IL-opened blank, or a row whose
+        // old glyphs are unrelated to the wanted content).
+        for (uint16_t i = span.edit_row; i < _layout.count; i++) {
+            const RowView& want  = _layout.rows[i];
+            uint16_t want_prompt = _prompt_len(_row_prompt(i));
+
+            // Map post row i to the pre row physically present after the IL/DL.
+            // Rows in the IL-opened gap [absorbed_pre, absorbed_post) have no
+            // pre image (has_pre false) and drop through to the repaint below.
+            // The gap is empty unless the edit grew the row count.
+            bool     has_pre = !(i >= span.absorbed_pre && i < span.absorbed_post);
+            uint16_t pre_idx = (i < span.absorbed_post)
+                ? i : (uint16_t)((int32_t)i - row_delta);
+            const RowView& shown  = _pre.rows[pre_idx];
+            uint16_t shown_prompt = _prompt_len(_row_prompt_in(_pre, pre_idx));
+
+            // How far the present pre row's content slid, and whether the
+            // displaced slice still overlaps the wanted one (only meaningful
+            // when has_pre - the conditions below gate on it).
+            int32_t ss = (int32_t)shown.buf_start + l_shift;
+            int32_t sl = (int32_t)shown.buf_len;
+            int32_t ws = (int32_t)want.buf_start;
+            int32_t wl = (int32_t)want.buf_len;
+
+            if (has_pre && i == span.edit_row)
+                // Edit row: splice the inserted/removed run at the cursor.
+                _splice_row(i, edit_col, edit_amount, shown.buf_len, shown_prompt, want);
+            else if (has_pre && sl == 0 && wl == 0)
+                // Both rows empty: nothing to write but a possible prompt flip.
+                _splice_row(i, want_prompt, 0, 0, shown_prompt, want);
+            else if (has_pre && (ws < ss + sl) && (ss < ws + wl))
+                // Overlap: cheap left splice by the displacement, cascading the
+                // pushed-off char into the next row (the next iteration
+                // prepends).
+                _splice_row(i, want_prompt, ss - ws, shown.buf_len, shown_prompt, want);
+            else
+                // Fresh blank (no pre image) or content reflowed to unrelated
+                // columns: a full repaint is byte-optimal either way.
+                _new_row(i);
+        }
 
         _shrink_editor(new_origin);
     }
-
 
     // cursor motion
     // ------------------------------------------------------------------------
