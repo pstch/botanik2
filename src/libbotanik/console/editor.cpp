@@ -188,9 +188,19 @@ namespace Botanik { namespace Terminal {
         uint16_t rows = _console->rows();
         if (rows == 0) return;
         uint16_t bottom = (uint16_t)(rows - 1);
+        // Release the content band, then claim exactly the rows occupied now -
+        // not everything below _origin, because the editor is not always at the
+        // bottom of the screen (the CONFIG page edits a row mid-table, and the
+        // rows under it belong to the table).
+        //
+        // Releasing the whole band is only safe while no page keeps a class of
+        // its own on a row an editor shares a screen with. Nothing does today,
+        // and a page re-declares in focus() anyway.
         _terminal->set_row_priority(1, bottom, PRIO_STRUCT);
-        if (_origin <= bottom)
-            _terminal->set_row_priority(_origin, bottom, PRIO_INPUT);
+        if (_layout.count == 0 || _origin > bottom) return;
+        uint16_t last = (uint16_t)(_origin + _layout.count - 1);
+        if (last > bottom) last = bottom;
+        _terminal->set_row_priority(_origin, last, PRIO_INPUT);
     }
 
     uint16_t TextEditor::_grow_editor() {

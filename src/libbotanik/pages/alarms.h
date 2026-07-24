@@ -396,7 +396,6 @@ namespace Botanik { namespace Pages {
         uint16_t _legend_row()  const { return (uint16_t)(_console.rows() - 2); }
         // bottom rule (free row above legend at rows()-3)
         uint16_t _brule_row()   const { return (uint16_t)(_console.rows() - 4); }
-        uint16_t _data_bottom() const { return (uint16_t)(_console.rows() - 5); }
         /** @brief Number of data rows that fit, or 0 if the screen is too
          *  short. */
         uint16_t _window() const override {

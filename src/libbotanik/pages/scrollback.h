@@ -155,9 +155,6 @@ namespace Botanik { namespace Pages {
         /** @brief True while a staged redraw still has rows left to emit */
         bool redraw_pending() const { return _redraw_i != UINT16_MAX; }
 
-        /** @brief Cancel a staged redraw without emitting its remaining rows */
-        void cancel_redraw() { _redraw_i = UINT16_MAX; }
-
         /** @brief Draw every remaining replay row; present() paces the bytes,
          *  so there is no per-tick cap or cold-floor gate here. One-shot: after
          *  it runs the replay is fully staged. */
@@ -300,10 +297,6 @@ namespace Botanik { namespace Pages {
             // resets the offset and stages the newest window
             begin_redraw(log_rows);
         }
-
-        /** @brief Lines the view is scrolled back from the live bottom
-         *         (0 = newest). */
-        uint16_t scroll_offset() const { return _view_offset; }
 
         /** @brief Keep the "scrolled up" marker in sync with the view, called
          *  each tick by the page. While scrolled back it overlays a compact

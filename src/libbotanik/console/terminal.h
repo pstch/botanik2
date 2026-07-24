@@ -43,10 +43,9 @@ namespace Botanik { namespace Terminal {
                            *   is the bottom row, so top-down order alone would put
                            *   it behind every page row. Demoted once drawn. */
         PRIO_STRUCT = 2,  /**< Page structure and fresh content: drawn once, and a
-                           *   page that only half-arrives looks broken. */
-        PRIO_COLD   = 3,  /**< Routine churn (clock, metrics, alarm set): valuable,
-                           *   but it may skip a tick without harm. */
-        PRIO_COUNT  = 4
+                           *   page that only half-arrives looks broken. Also the
+                           *   resting class of every row nobody has claimed. */
+        PRIO_COUNT  = 3
     };
 
     /** @class AnsiTerminal

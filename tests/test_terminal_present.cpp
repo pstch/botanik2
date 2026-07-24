@@ -204,31 +204,9 @@ TEST_CASE("present: a row shifted left rides a DCH") {
     CHECK(out.size() < 24);
 }
 
-// Priority exists for one reason: at a low baud the per-tick budget carries only
-// a fraction of a screen, and the chrome (a clock, a metrics field) redraws
-// itself every tick forever. Walking rows strictly top-down, that chrome sits at
-// row 0 and takes its cut first every time, so the page behind it arrives late.
-//
-// The mechanism is just the order present() visits rows in, so that is what this
-// asserts: with a budget that fits about one row, dirty the chrome and the page
-// in the same frame and see which one reaches the wire.
-TEST_CASE("present: a demoted chrome row yields the wire to page content") {
-    TermFixture f(20, 10, 1200u);        // budget = 15 bytes a tick
-    f.settle();
-
-    f.term.set_row_priority(0, 0, Terminal::PRIO_COLD);
-    f.put(0, 0, "12:34:56");             // chrome, demoted
-    f.put(4, 0, "PAGECONTENT");          // page, default PRIO_STRUCT
-    std::string first = f.present();
-
-    CHECK(first.find("PAGECONTENT") != std::string::npos);   // content went first
-    CHECK(first.find("12:34:56")   == std::string::npos);    // chrome waited
-    // The chrome is not dropped, just deferred - it lands once content is done.
-    CHECK(f.settle().find("12:34:56") != std::string::npos);
-}
-
-// The converse, so the test above cannot pass for the wrong reason: with both
-// rows in the same class it really is top-down, and row 0 wins.
+// The control for the two ordering tests below: with every row in one class the
+// walk really is top-down, so row 0 wins the budget. Without this they could pass
+// for the wrong reason.
 TEST_CASE("present: without priorities the top row wins the budget") {
     TermFixture f(20, 10, 1200u);
     f.settle();

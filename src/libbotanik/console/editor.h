@@ -154,9 +154,6 @@ namespace Botanik { namespace Terminal {
          *  character */
         CursorPos end_pos() const { return _map_cursor_pos(_len); }
 
-        /** @brief Hardware cursor position at the logical edit point (_pos) */
-        CursorPos cursor_screen_pos() const { return _map_cursor_pos(_pos); }
-
         /** @brief Home the terminal cursor at the edit point and declare it as
          *  the visible cursor's home. Pages that draw around the editor call this
          *  once they are done, so present() parks there and not wherever the last
@@ -299,10 +296,10 @@ namespace Botanik { namespace Terminal {
         /** @brief Buffer-position-to-screen-position map. O(_layout.count). */
         CursorPos _map_cursor_pos(uint16_t pos) const;
 
-        /** @brief Declare which rows the editor currently occupies: the content
-         *  band goes back to the page, then the editor's own rows are marked as
-         *  carrying keystroke echo. Called whenever the extent may have moved. */
+        /** @brief Declare which rows the editor occupies now. Called whenever the
+         *  extent may have moved. */
         void _place_rows();
+
 
         /** @brief Home the cursor at @p p and tell the terminal that is where the
          *  visible cursor belongs. The two go together: a later renderer in the
