@@ -1,0 +1,151 @@
+/**
+ * @file test_editor_bytes.cpp
+ * @brief TextEditor wire cost: bytes actually emitted per edit.
+ *
+ * The editor is the one renderer whose reconcile still reasons about the screen
+ * itself, because a row-count change needs an IL/DL the cell diff cannot deduce.
+ * These tests pin what that costs in bytes, so the reconcile can be simplified
+ * without silently getting chattier: each drives an edit against a pipe-backed
+ * console, presents, and asserts the drained byte count.
+ *
+ * The budgets are upper bounds with a little slack, not exact counts - they are
+ * meant to catch a regression in kind (a full-screen repaint where a one-row
+ * splice belongs), not to freeze the escape-code tuning.
+ */
+#include <cstdint>
+#include <cstring>
+#include <fcntl.h>
+#include <string>
+#include <unistd.h>
+
+#include "doctest.h"
+
+#include "libbotanik/console/console.h"
+#include "libbotanik/console/editor.h"
+
+using namespace Botanik;
+
+namespace {
+
+    // A TextEditor over a real Console whose serial is a pipe we can drain. Baud
+    // is high so present()'s pacing never truncates a frame: we want the total
+    // cost of an edit, not what fits in one tick.
+    struct EditorBytes {
+        int                   fds[2];
+        HAL::Serial::Raw      raw;
+        Utils::BufferedSerial serial;
+        uint32_t              now = 0;
+        Terminal::Console     console;
+        Terminal::TextEditor  editor;
+
+        EditorBytes()
+            : serial(&raw), console(serial, 80, 24, &now, 4000000u), editor(&console) {
+            REQUIRE(::pipe(fds) == 0);
+            ::fcntl(fds[0], F_SETFL, O_NONBLOCK);
+            raw.set_fds(fds[0], fds[1]);
+            console.terminal().establish_screen();
+            editor.reset();
+            flush();                 // discard bring-up + the initial prompt
+        }
+        ~EditorBytes() { ::close(fds[0]); ::close(fds[1]); }
+
+        /** @brief Present until settled and return everything that reached the pipe. */
+        std::string flush() {
+            std::string out;
+            char buf[8192];
+            for (int i = 0; i < 40; i++) {
+                console.terminal().present();
+                for (int j = 0; j < 8; j++) serial.transmit();
+                ssize_t n;
+                while ((n = ::read(fds[0], buf, sizeof buf)) > 0) out.append(buf, (size_t)n);
+            }
+            return out;
+        }
+        void type(const char* s) {
+            editor.insert_characters(s, (uint16_t)strlen(s));
+        }
+        /** @brief Bytes the next edit costs on the wire. */
+        size_t cost_of_type(const char* s) { type(s); return flush().size(); }
+    };
+
+}
+
+// Typing at the end of a short line: one glyph per keystroke, plus whatever the
+// cursor park costs. This is the common case and it must stay tiny.
+TEST_CASE("editor bytes: appending a char costs about a char") {
+    EditorBytes f;
+    f.type("hello");
+    f.flush();
+
+    size_t cost = f.cost_of_type("!");
+    CHECK(cost > 0);
+    CHECK(cost <= 20);
+}
+
+// Inserting at the *start* of a line shifts everything right. The whole tail
+// changes, so those cells legitimately reach the wire - but nothing more than
+// that one row should.
+TEST_CASE("editor bytes: inserting at the line head repaints one row, not the screen") {
+    EditorBytes f;
+    f.type("the quick brown fox jumps over the lazy dog");
+    f.flush();
+
+    for (int i = 0; i < 42; i++) f.editor.move_left();   // home, without redrawing
+    f.flush();
+
+    size_t cost = f.cost_of_type("X");
+    CHECK(cost > 0);
+    CHECK(cost <= 80);          // one row's worth of shifted cells, at most
+}
+
+// A soft-wrap growing the editor by a row is the case the IL/DL exists for: the
+// rows below slide, and only the newly revealed content should be painted. The
+// budget here is what proves the scroll is still being used - a repaint of the
+// whole wrapped body would cost several hundred bytes.
+TEST_CASE("editor bytes: growing by a wrapped row rides a scroll, not a repaint") {
+    EditorBytes f;
+    // Fill well past one row (80 cols) so the editor is several rows tall.
+    for (int i = 0; i < 5; i++)
+        f.type("0123456789abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOP ");
+    f.flush();
+
+    // Go to the head of the text and insert there: every following row reflows by
+    // one column, and the body grows a row once it crosses the wrap boundary.
+    uint16_t len = f.editor.buffer_len();
+    for (uint16_t i = 0; i < len; i++) f.editor.move_left();
+    f.flush();
+
+    size_t cost = f.cost_of_type("Z");
+    CHECK(cost > 0);
+    CHECK(cost <= 420);
+}
+
+// Deleting the char that un-wraps a row shrinks the editor: the DL closes the
+// vacated row and the rows below slide up.
+TEST_CASE("editor bytes: shrinking a row rides a scroll too") {
+    EditorBytes f;
+    for (int i = 0; i < 3; i++)
+        f.type("0123456789abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOP ");
+    f.flush();
+
+    uint16_t len = f.editor.buffer_len();
+    for (uint16_t i = 0; i < len; i++) f.editor.move_left();
+    f.flush();
+
+    f.editor.delete_forward(1);     // un-wraps the tail by one column
+    size_t cost = f.flush().size();
+    CHECK(cost > 0);
+    CHECK(cost <= 300);
+}
+
+// Enter opens a hard-broken continuation row: a one-row grow with a fresh PS2/PS3
+// gutter, and the rows below slide rather than being repainted.
+TEST_CASE("editor bytes: a hard break costs a scroll plus the new row") {
+    EditorBytes f;
+    f.type("first line");
+    f.flush();
+
+    size_t cost = f.cost_of_type("\n");
+    CHECK(cost > 0);
+    CHECK(cost <= 120);
+}

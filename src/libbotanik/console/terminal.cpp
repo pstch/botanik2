@@ -47,24 +47,17 @@ namespace Botanik { namespace Terminal {
         uint16_t c = std::min((uint16_t)(_cols > 0 ? _cols - 1 : 0), target_in.col);
         _draw_row = r;
         _draw_col = c;
-        _live_cursor_pos = { r, c };
     }
 
     // Text output & character attributes (into the FRONT grid)
 
-    uint16_t AnsiTerminal::write_chars(const char *s, uint16_t len, bool insert) {
+    uint16_t AnsiTerminal::write_chars(const char *s, uint16_t len) {
         if (len == 0 || _draw_row >= _rows) return 0;
         uint8_t pen = _draw_inv ? CELL_INV : 0;
         for (uint16_t i = 0; i < len; i++) {
             if (_draw_col >= _cols) {
                 if (_hw_auto_wrap) { _draw_col = 0; if (++_draw_row >= _rows) { _draw_row = _rows - 1; return i; } }
                 else { _draw_col = _cols; break; }   // no wrap: park at EOL, drop the rest
-            }
-            if (insert) {
-                // Shift the row's cells right by one at the draw column (drop the
-                // overflow), then stamp - matches SM4 insert mode.
-                for (uint16_t c = (uint16_t)(_cols - 1); c > _draw_col; c--)
-                    _front[_idx(_draw_row, c)] = _front[_idx(_draw_row, (uint16_t)(c - 1))];
             }
             _front[_idx(_draw_row, _draw_col)] = (uint8_t)((s[i] & CELL_CH) | pen);
             if (_draw_col + 1 >= _cols) { _draw_col = _cols; }   // parked past last col
@@ -100,16 +93,6 @@ namespace Botanik { namespace Terminal {
     }
 
     // Content manipulation (into the FRONT grid)
-
-    void AnsiTerminal::delete_chars(uint16_t len) {
-        if (len == 0 || _draw_row >= _rows || _draw_col >= _cols) return;
-        uint8_t pen = _draw_inv ? CELL_INV : 0;
-        for (uint16_t c = _draw_col; c < _cols; c++) {
-            uint16_t src = (uint16_t)(c + len);
-            _front[_idx(_draw_row, c)] = (src < _cols) ? _front[_idx(_draw_row, src)]
-                                                       : (uint8_t)(CELL_BLANK | pen);
-        }
-    }
 
     void AnsiTerminal::clear_to_eol() {
         if (_draw_row >= _rows || _draw_col >= _cols) return;   // parked past last col

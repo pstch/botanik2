@@ -125,7 +125,7 @@ namespace Botanik { namespace Pages {
             uint16_t log_rows =
                 (uint16_t)(_console.rows() - 1 - _editor.occupied_rows());
             if (_scrollback.drain_tail(_terminal, 1, log_rows))
-                _terminal.move_to(_editor.cursor_screen_pos());
+                _editor.place_cursor();
         }
     }
 
@@ -302,7 +302,7 @@ namespace Botanik { namespace Pages {
 
         // After the scroll the editor content has shifted into its new
         // position - just reposition the cursor.
-        _terminal.move_to(_editor.cursor_screen_pos());
+        _editor.place_cursor();
     }
 
 }}

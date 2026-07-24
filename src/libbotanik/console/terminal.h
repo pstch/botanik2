@@ -74,8 +74,10 @@ namespace Botanik { namespace Terminal {
         bool     _draw_inv = false;
         /** @brief Desired cursor visibility (only the shell editor asks for on). */
         bool     _want_cursor_visible = false;
-        /** @brief Desired live cursor position (where a visible cursor is parked
-         *  after present() reconciles the screen). Set by move_to. */
+        /** @brief Where a visible cursor parks once present() has reconciled the
+         *  screen. Set only by set_cursor_pos(), i.e. by the renderer that owns
+         *  the cursor - NOT by move_to, or the last renderer to paint in the tick
+         *  (a status/alarm bar) would drag the cursor off the edit point. */
         CursorPos _live_cursor_pos = {0, 0};
 
         /** @brief Band scrolls recorded by scroll_region this tick, emitted as
@@ -197,14 +199,19 @@ namespace Botanik { namespace Terminal {
          *  @name Text output & character attributes
          *  @{ */
 
-        /** @brief Stamp characters at the draw cursor into the FRONT grid; @p insert
-         *  shifts existing cells of the row right first. @return @p len (a grid
-         *  stamp never drops - pacing happens in present()). */
-        uint16_t write_chars(const char *buf, uint16_t len, bool insert = false);
+        /** @brief Stamp characters at the draw cursor into the FRONT grid.
+         *  @return @p len (a grid stamp never drops - pacing happens in
+         *  present()). */
+        uint16_t write_chars(const char *buf, uint16_t len);
 
         void set_inverted(bool enable);
         void set_auto_wrap(bool enable);
         void set_cursor_visible(bool show);
+
+        /** @brief Declare where the visible cursor belongs. The renderer owning
+         *  the cursor (the editor) calls this whenever it moves; present() parks
+         *  there after reconciling. */
+        void set_cursor_pos(const CursorPos& p) { _live_cursor_pos = p; }
 
         void fill_spaces(uint16_t to_col);
 
@@ -218,7 +225,6 @@ namespace Botanik { namespace Terminal {
          *  @name Content manipulation
          *  @{ */
 
-        void delete_chars(uint16_t len);
         void clear_to_eol();
         void clear_to_eos();
         void clear_screen();

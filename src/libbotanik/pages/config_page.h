@@ -305,7 +305,7 @@ namespace Botanik { namespace Pages {
             _terminal.move_to(_editor.end_pos());
             const char* e = "  [invalid]";
             _terminal.write_chars(e, (uint16_t)strlen(e));
-            _terminal.move_to(_editor.cursor_screen_pos());
+            _editor.place_cursor();
         }
 
         /** @brief Clear a shown error marker (on the next edit keystroke). */
@@ -313,7 +313,7 @@ namespace Botanik { namespace Pages {
             _terminal.move_to(_editor.end_pos());
             _terminal.clear_to_eol();
             _edit_error = false;
-            _terminal.move_to(_editor.cursor_screen_pos());
+            _editor.place_cursor();
         }
 
         // Edit sub-state
@@ -338,7 +338,7 @@ namespace Botanik { namespace Pages {
             char val[80];
             int n = _config->format((uint8_t)_selected, val, sizeof(val));
             if (n > 0) _editor.insert_characters(val, (uint16_t)n);
-            else       _terminal.move_to(_editor.cursor_screen_pos());
+            else       _editor.place_cursor();
 
             _edit_error = false;
             _editing = true;

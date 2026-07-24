@@ -62,6 +62,10 @@ namespace Botanik { namespace Pages {
         /** @brief Alarm source (may be null). Non-const: the `a` key acks the
          *  selected condition through it. */
         Alarms::AlarmModel*       _model;
+        /** @brief Set when a mode change is waiting to show its badge before the
+         *  table repaint it also triggered (see handle_text). */
+        bool                      _legend_first = false;
+
         /** @brief Mirrors tick(active). */
         bool                      _active   = false;
         /** @brief Filter mode, cycled by SPACE (see MODE_*). Defaults to
@@ -511,6 +515,12 @@ namespace Botanik { namespace Pages {
                 _top  = 0;
                 _selected = 0;
                 _dirty = true;              // reorders the list + legend
+                // The badge is the feedback for the keypress, so it must be the
+                // first thing on the wire. It lives on the bottom row and the
+                // diff emits top-down, so a normal repaint would put it behind a
+                // whole table's worth of bytes: paint it alone this tick and let
+                // the table follow on the next.
+                _legend_first = true;
             } else if (c == 'a' || c == 'A') {   // ack the selected condition
                 _ack_selected();
             }
@@ -561,6 +571,14 @@ namespace Botanik { namespace Pages {
             _collect();
             uint16_t maxtop = _max_top();
             if (_top > maxtop) _top = maxtop;
+            if (_legend_first) {
+                // Mode just changed: this tick draws only the badge (a handful of
+                // cells, so it goes out whole), and _dirty stays set so the next
+                // tick repaints the table behind it.
+                _legend_first = false;
+                _draw_footer(_legend_row(), _nvis, _model ? _model->active_count() : 0);
+                return;
+            }
             _draw_structure();
             _draw_rules(window);
             _draw_footer(_legend_row(), _nvis, _model ? _model->active_count() : 0);
