@@ -154,6 +154,10 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     /** @brief Delete rows (shifts remaining rows up). */
     bool delete_rows(ByteSink& _serial, uint16_t count);
 
+    /** @brief Delete @p count characters at the cursor (DCH), shifting the rest
+     *  of the row left and blanking the freed cells at the right edge. */
+    bool delete_chars(ByteSink& _serial, uint16_t count);
+
     /** @}
      *  @name Content clearing
      *  @{ */

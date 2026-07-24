@@ -146,6 +146,15 @@ namespace Botanik { namespace Terminal {
         /** @brief Estimated worst-case bytes to emit run [@p a, @p b) of @p row
          *  (leading move + SGR toggles + glyphs), for the budget gate. */
         uint16_t _run_cost(uint16_t row, uint16_t a, uint16_t b) const;
+        /** @brief Reconcile @p row as a horizontal shift (SM4/RM4 insert or DCH)
+         *  when its cells merely slid sideways, which the per-cell diff would
+         *  otherwise rewrite in full. @return bytes emitted, 0 if not applicable
+         *  or not cheaper than a rewrite. */
+        uint16_t _shift_row(uint16_t row, uint16_t budget);
+        /** @brief Smallest changed span worth expressing as a shift, and the
+         *  widest slide still plausibly a slide rather than new content. */
+        static constexpr uint16_t SHIFT_MIN_SPAN  = 12;
+        static constexpr uint16_t SHIFT_MAX_CELLS = 8;
         /** @brief Shift grid @p g for a band scroll (content moves, freed rows
          *  blanked). Called for FRONT by scroll_region and for BACK by present()
          *  once the matching DL/IL has reached the wire. */

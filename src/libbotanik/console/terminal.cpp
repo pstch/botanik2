@@ -308,6 +308,100 @@ namespace Botanik { namespace Terminal {
         _nscrolls = 0;
     }
 
+    uint16_t AnsiTerminal::_shift_row(uint16_t row, uint16_t budget) {
+        // A row whose content slid sideways (the line editor inserting or deleting
+        // a character, a table column widening) differs from BACK at every column
+        // past the edit, so the plain run diff rewrites the whole tail. The
+        // terminal can do it in one escape instead: SM4/RM4 insert mode to open
+        // cells, DCH to close them. Both shift the row's cells *with* their
+        // attributes, exactly like the grid shift the renderer did.
+        //
+        // @return bytes emitted, or 0 when a shift does not apply or does not pay
+        // (the caller's run loop then reconciles the row the ordinary way, and
+        // also mops up whatever a shift left over).
+        uint16_t a = 0;
+        while (a < _cols && _front[_idx(row, a)] == _back[_idx(row, a)]) a++;
+        if (a >= _cols) return 0;                          // row already matches
+        uint16_t last = (uint16_t)(_cols - 1);
+        while (last > a && _front[_idx(row, last)] == _back[_idx(row, last)]) last--;
+
+        // Short diffs are cheaper to just rewrite than to bracket in an escape.
+        uint16_t span = (uint16_t)(last - a + 1);
+        if (span < SHIFT_MIN_SPAN) return 0;
+
+        // Find the smallest shift that explains the whole tail. Only small shifts
+        // are worth testing: a wide one means the content changed, not moved.
+        uint16_t max_n = (uint16_t)(_cols - a);
+        if (max_n > SHIFT_MAX_CELLS) max_n = SHIFT_MAX_CELLS;
+        uint16_t right = 0, left = 0;
+        for (uint16_t n = 1; n <= max_n && (right == 0 && left == 0); n++) {
+            // Right: inserting n cells at `a` would push BACK[c-n] to c.
+            bool ok = true;
+            for (uint16_t c = (uint16_t)(a + n); c < _cols && ok; c++)
+                if (_front[_idx(row, c)] != _back[_idx(row, (uint16_t)(c - n))]) ok = false;
+            if (ok) { right = n; break; }
+            // Left: deleting n cells at `a` would pull BACK[c+n] down to c. The
+            // last n cells are whatever DCH's blank fill leaves; the run loop
+            // fixes them if FRONT wants something else there.
+            ok = true;
+            for (uint16_t c = a; (uint16_t)(c + n) < _cols && ok; c++)
+                if (_front[_idx(row, c)] != _back[_idx(row, (uint16_t)(c + n))]) ok = false;
+            if (ok) left = n;
+        }
+        if (right == 0 && left == 0) return 0;
+
+        // Only shift if it actually beats rewriting the span.
+        uint16_t plain = _run_cost(row, a, (uint16_t)(last + 1));
+        uint16_t cost  = right ? (uint16_t)(8 + 4 + right + 4 + 5)   // move+SM4+glyphs+RM4+SGR
+                               : (uint16_t)(8 + 5 + 5);              // move+DCH+SGR
+        if (cost >= plain) return 0;
+        if (_serial.availableForWrite() < cost || cost > budget) return 0;
+
+        uint16_t before = tx_used();
+        if (!_go({row, a})) return 0;
+
+        // Both escapes fill the cells they free using the current attributes on
+        // terminals with background-colour erase, so drop reverse video first or
+        // the freed cells come back inverted.
+        if (_hw_inverted) {
+            _serial.write(Ansi::CSI, sizeof(Ansi::CSI) - 1);
+            _serial.write(Ansi::ATTR_NONE, sizeof(Ansi::ATTR_NONE) - 1);
+            _hw_inverted = false;
+        }
+
+        if (right) {
+            // Insert mode: the glyphs written push the rest of the row right.
+            if (!Ansi::set_insert_mode(_serial, true)) return 0;
+            char buf[GRID_COLS];
+            uint16_t n = 0;
+            for (uint16_t c = a; c < (uint16_t)(a + right); c++) {
+                // Inverted cells inside the inserted run would need SGR bracketing
+                // mid-insert; leave those to the run loop by writing them blank
+                // here and letting the diff correct them.
+                uint8_t cell = _front[_idx(row, c)];
+                buf[n++] = (char)((cell & CELL_INV) ? CELL_BLANK : (cell & CELL_CH));
+            }
+            _serial.write(buf, n);
+            Ansi::set_insert_mode(_serial, false);
+            // Mirror the wire in BACK: shift right, then stamp what we wrote.
+            for (uint16_t c = (uint16_t)(_cols - 1); c >= (uint16_t)(a + right); c--)
+                _back[_idx(row, c)] = _back[_idx(row, (uint16_t)(c - right))];
+            for (uint16_t c = a; c < (uint16_t)(a + right); c++)
+                _back[_idx(row, c)] = (uint8_t)buf[c - a];
+            _hw_pos.col = (uint16_t)(a + right);
+        } else {
+            if (!Ansi::delete_chars(_serial, left)) return 0;
+            // Mirror: shift left, blank the freed cells at the right edge.
+            for (uint16_t c = a; (uint16_t)(c + left) < _cols; c++)
+                _back[_idx(row, c)] = _back[_idx(row, (uint16_t)(c + left))];
+            for (uint16_t c = (uint16_t)(_cols - left); c < _cols; c++)
+                _back[_idx(row, c)] = CELL_BLANK;
+        }
+        _hw_at_eol = false;
+        uint16_t after = tx_used();
+        return (after > before) ? (uint16_t)(after - before) : 0;
+    }
+
     bool AnsiTerminal::_emit_diff() {
         // Walk FRONT vs BACK and emit each changed run, all-or-nothing (the ring
         // drops silently, so a partial run would be a torn frame) and paced under
@@ -316,6 +410,12 @@ namespace Botanik { namespace Terminal {
         uint16_t used   = tx_used();
         uint16_t budget = (used < _tx_cold_depth) ? (uint16_t)(_tx_cold_depth - used) : 0;
         for (uint16_t row = 0; row < _rows; row++) {
+            // A sideways slide is one escape; try that before rewriting cells. It
+            // may leave a remainder (the cells it could not express), which the
+            // run loop below then reconciles normally.
+            uint16_t moved = _shift_row(row, budget);
+            budget = (moved < budget) ? (uint16_t)(budget - moved) : 0;
+            if (moved != 0 && budget == 0) return false;
             uint16_t col = 0;
             while (col < _cols) {
                 if (_front[_idx(row, col)] == _back[_idx(row, col)]) { col++; continue; }

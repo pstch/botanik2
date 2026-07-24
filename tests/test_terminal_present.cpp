@@ -166,3 +166,40 @@ TEST_CASE("present: the idle cursor parks in the bottom-right corner") {
     CHECK(out.find("MID-SCREEN") == std::string::npos);
     CHECK(out.back() == 'H');          // ends on an absolute CUP (ESC[r;cH)
 }
+
+// A row shifted sideways is the case a plain cell diff is worst at: every column
+// from the shift point on differs, so a naive diff rewrites the whole tail.
+// _shift_row spots the slide and sends one escape (SM4/RM4 insert mode, or DCH)
+// instead - but only when that actually beats rewriting the span.
+TEST_CASE("present: a row shifted right rides an insert, not a tail rewrite") {
+    TermFixture f(80, 10);
+    const char* text = "the quick brown fox jumps over the lazy dog and keeps running";
+    f.put(3, 0, text);
+    f.settle();
+
+    // Same text, one column over: cells 1.. all differ from BACK.
+    f.put(3, 0, "X");
+    f.put(3, 1, text);
+    std::string out = f.settle();
+
+    CHECK(out.find('X') != std::string::npos);
+    CHECK(out.find("quick brown fox") == std::string::npos);  // tail not rewritten
+    CHECK(out.size() < 24);
+}
+
+// The mirror case: deleting a column shifts the tail left, which is a DCH.
+TEST_CASE("present: a row shifted left rides a DCH") {
+    TermFixture f(80, 10);
+    const char* text = "the quick brown fox jumps over the lazy dog and keeps running";
+    f.put(3, 0, "X");
+    f.put(3, 1, text);
+    f.settle();
+
+    f.put(3, 0, text);
+    f.term.move_to({3, (uint16_t)strlen(text)});
+    f.term.clear_to_eol();
+    std::string out = f.settle();
+
+    CHECK(out.find("quick brown fox") == std::string::npos);  // tail not rewritten
+    CHECK(out.size() < 24);
+}

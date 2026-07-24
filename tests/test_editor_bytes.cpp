@@ -82,9 +82,9 @@ TEST_CASE("editor bytes: appending a char costs about a char") {
     CHECK(cost <= 20);
 }
 
-// Inserting at the *start* of a line shifts everything right. The whole tail
-// changes, so those cells legitimately reach the wire - but nothing more than
-// that one row should.
+// Inserting at the *start* of a line shifts everything right. Every column past
+// the cursor differs from the back-buffer, so a plain cell diff would rewrite the
+// whole tail; the terminal recognises the slide and sends one insert instead.
 TEST_CASE("editor bytes: inserting at the line head repaints one row, not the screen") {
     EditorBytes f;
     f.type("the quick brown fox jumps over the lazy dog");
@@ -95,13 +95,13 @@ TEST_CASE("editor bytes: inserting at the line head repaints one row, not the sc
 
     size_t cost = f.cost_of_type("X");
     CHECK(cost > 0);
-    CHECK(cost <= 80);          // one row's worth of shifted cells, at most
+    CHECK(cost <= 28);          // a DCH/insert-mode shift, not a row rewrite
 }
 
-// A soft-wrap growing the editor by a row is the case the IL/DL exists for: the
-// rows below slide, and only the newly revealed content should be painted. The
-// budget here is what proves the scroll is still being used - a repaint of the
-// whole wrapped body would cost several hundred bytes.
+// A soft-wrap growing the editor by a row exercises both shifts at once: the IL
+// slides the rows below, and each reflowed row slides one column sideways. The
+// budget proves both are being used - repainting the wrapped body outright costs
+// several hundred bytes.
 TEST_CASE("editor bytes: growing by a wrapped row rides a scroll, not a repaint") {
     EditorBytes f;
     // Fill well past one row (80 cols) so the editor is several rows tall.
@@ -117,7 +117,7 @@ TEST_CASE("editor bytes: growing by a wrapped row rides a scroll, not a repaint"
 
     size_t cost = f.cost_of_type("Z");
     CHECK(cost > 0);
-    CHECK(cost <= 420);
+    CHECK(cost <= 90);
 }
 
 // Deleting the char that un-wraps a row shrinks the editor: the DL closes the
@@ -135,7 +135,7 @@ TEST_CASE("editor bytes: shrinking a row rides a scroll too") {
     f.editor.delete_forward(1);     // un-wraps the tail by one column
     size_t cost = f.flush().size();
     CHECK(cost > 0);
-    CHECK(cost <= 300);
+    CHECK(cost <= 70);
 }
 
 // Enter opens a hard-broken continuation row: a one-row grow with a fresh PS2/PS3

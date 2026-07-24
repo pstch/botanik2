@@ -97,6 +97,21 @@ These are the three phases of `present()`, and they are named as such in the
 code: `_emit_scrolls()`, `_emit_diff()` (returns whether the frame is fully
 reconciled), `_park_cursor()`.
 
+### Horizontal shifts
+
+A cell diff is worst exactly where a renderer slid a row sideways (the editor
+inserting a character, a column widening): every cell past the edit differs, so a
+naive diff rewrites the whole tail. Before the run loop, `_shift_row()` checks
+whether the row is simply BACK shifted by a few columns, and if so sends one
+escape - SM4/RM4 insert mode to open cells, DCH to close them - which shifts the
+terminal's own cells, attributes and all. It only does so when that beats
+rewriting the changed span, and anything it can't express is left to the run loop
+behind it. A one-column slide of a 61-column row costs ~19 bytes instead of 80.
+
+This is the *only* structural op the diff infers. Vertical slides can't be
+inferred the same way (a renderer's intent is ambiguous across rows), which is
+why `scroll_region()` stays an explicit call.
+
 ### Pacing / budget
 
 `present()` emits at most `_tx_cold_depth` bytes above what's already queued in
