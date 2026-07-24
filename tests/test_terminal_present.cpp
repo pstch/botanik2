@@ -240,3 +240,39 @@ TEST_CASE("present: without priorities the top row wins the budget") {
     CHECK(first.find("12:34:56")   != std::string::npos);
     CHECK(first.find("PAGECONTENT") == std::string::npos);
 }
+
+// The alarm strip is the physical bottom row, so top-down order alone puts it
+// behind every page row above it - the frame arriving after the thing it frames,
+// which reads as a fault on a slow link. PRIO_CHROME outranks page structure to
+// stop that, and this pins it: a bottom row drawn as chrome beats a page row well
+// above it.
+TEST_CASE("present: the bottom chrome row is drawn before the page it frames") {
+    TermFixture f(20, 10, 1200u);        // budget = 15 bytes a tick
+    f.settle();
+
+    uint16_t bottom = 9;
+    f.term.set_row_priority(bottom, bottom, Terminal::PRIO_CHROME);
+    f.put(2, 0, "PAGEROW");              // page content, nearer the top
+    f.put(bottom, 0, "ALARMS:");         // the frame, at the very bottom
+    std::string first = f.present();
+
+    CHECK(first.find("ALARMS:")  != std::string::npos);
+    CHECK(first.find("PAGEROW") == std::string::npos);
+    CHECK(f.settle().find("PAGEROW") != std::string::npos);   // page follows
+}
+
+// A run is emitted either because it fits this tick's remaining budget, or
+// because it is too big to ever fit one and takes the oversized escape. Those two
+// tests have to overlap, or a run in the gap between them is deferred every tick
+// forever. They did not: tx_used() reports a byte in use even on an empty ring,
+// so the budget is always under the full depth, and a run costing exactly the
+// full depth fell straight through the crack.
+TEST_CASE("present: a run costing exactly the tick budget still goes out") {
+    TermFixture f(20, 10, 1200u);        // depth = 1200 * 128 / 10000 = 15 bytes
+    f.settle();
+    // A leading absolute move is budgeted at 8, so 7 glyphs costs exactly 15.
+    f.put(3, 0, "SEVENCH");
+    std::string out = f.settle();
+    CHECK(out.find("SEVENCH") != std::string::npos);
+    CHECK(f.present().empty());          // and it converged rather than looping
+}

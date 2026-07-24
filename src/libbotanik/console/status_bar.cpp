@@ -56,10 +56,10 @@ namespace Botanik { namespace Terminal {
     }
 
     void StatusBar::draw_row() {
-        // A full bar draw is structure - it frames the screen on boot and after a
-        // Ctrl-L clear, so it rides with the page rather than behind it. step()
-        // demotes the row again once this has landed.
-        _t.set_row_priority(0, 0, PRIO_STRUCT);
+        // A full bar draw is the frame around the page - on boot and after a
+        // Ctrl-L clear it should land before the page it frames, not with it.
+        // step() demotes the row again once this has landed.
+        _t.set_row_priority(0, 0, PRIO_CHROME);
         constexpr uint16_t mlen = METRICS_LEN - 1;   // field width (drop NUL)
 
         // Save the attribute only, not the cursor: every caller repositions

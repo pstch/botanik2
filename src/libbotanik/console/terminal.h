@@ -36,12 +36,18 @@ namespace Botanik { namespace Terminal {
      *  reordered or coalesced. That is what the back-buffer buys here. */
     enum RowPriority : uint8_t {
         PRIO_INPUT  = 0,  /**< Keystroke echo and the edit point: must feel instant. */
-        PRIO_STRUCT = 1,  /**< Structure and fresh content: drawn once, and a page
-                           *   that only half-arrives looks broken. */
-        PRIO_HOT    = 2,  /**< Live fields the operator is actually watching. */
-        PRIO_COLD   = 3,  /**< Background chrome (clock, metrics, alarm strip):
+        PRIO_CHROME = 1,  /**< The frame around the page - the status bar and the
+                           *   alarm strip, while they are being drawn in full. It
+                           *   outranks the page because a frame that arrives after
+                           *   what it frames looks like a fault, and the alarm bar
+                           *   is the bottom row, so top-down order alone would put
+                           *   it behind every page row. Demoted once drawn. */
+        PRIO_STRUCT = 2,  /**< Page structure and fresh content: drawn once, and a
+                           *   page that only half-arrives looks broken. */
+        PRIO_HOT    = 3,  /**< Live fields the operator is actually watching. */
+        PRIO_COLD   = 4,  /**< Routine chrome churn (clock, metrics, alarm set):
                            *   valuable, but it may skip a tick without harm. */
-        PRIO_COUNT  = 4
+        PRIO_COUNT  = 5
     };
 
     /** @class AnsiTerminal

@@ -477,9 +477,13 @@ namespace Botanik { namespace Terminal {
             while (b < _cols && _front[_idx(row, b)] != _back[_idx(row, b)]) b++;
             uint16_t cost = _run_cost(row, a, b);
             if (_serial.availableForWrite() < cost) return false;  // ring full
-            // A run bigger than the whole budget can never fit one, so it goes out
-            // as soon as the ring is shallow (and ends the tick).
-            bool oversized = cost > _tx_cold_depth;
+            // A run that needs the whole budget or more can never fit inside one,
+            // so it goes out as soon as the ring is shallow (and ends the tick).
+            // This has to be >=, not >: tx_used() never reports an empty ring as
+            // 0, so budget is always at least a byte under _tx_cold_depth, and a
+            // run costing exactly _tx_cold_depth would otherwise be too big to
+            // fit and not big enough to escape - stuck for good.
+            bool oversized = cost >= _tx_cold_depth;
             if (oversized ? (budget == 0) : (cost > budget)) return false;
             uint16_t sent = _put_run(row, a, b);
             if (sent == 0) return false;
