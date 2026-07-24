@@ -190,13 +190,8 @@ namespace Botanik { namespace Pages {
         // --------------------------------------------------------------------
 
         uint16_t _value_w() const {
-            // margins + "| " + name + " | " + type + " | " + value + " |"
-            uint16_t used = (uint16_t)(2 * MARGIN + 2 + NAME_W + 3 + TYPE_W + 3 + 2);
-            uint16_t cols = _terminal.cols();
-            uint16_t w = (cols > used) ? (uint16_t)(cols - used) : 8;
-            if (w < 8) w = 8;
-            if (w > LINE_CAP - 48) w = (uint16_t)(LINE_CAP - 48);   // keep row in LINE_CAP
-            return w;
+            return _value_width(_terminal.cols(), MARGIN, NAME_W, TYPE_W,
+                                (uint16_t)(LINE_CAP - 48));   // keep row in LINE_CAP
         }
 
         /** @brief Build the full "  | name | type | value |" row into @p out
@@ -206,11 +201,8 @@ namespace Botanik { namespace Pages {
             char val[VAL_CAP];
             const Cfg::ConfigParam& p = _config->param((uint8_t)idx);
             _config->format((uint8_t)idx, val, sizeof(val));
-            int n = snprintf(out, cap, "%*s| %-*.*s | %-*.*s | %-*.*s |",
-                             (int)MARGIN, "", NAME_W, NAME_W, p.name,
-                             TYPE_W, TYPE_W, Cfg::type_name(p),
-                             _value_w(), _value_w(), val);
-            return (n < 0) ? 0 : (uint16_t)n;
+            return _bordered_row(out, cap, MARGIN, NAME_W, p.name,
+                                 TYPE_W, Cfg::type_name(p), _value_w(), val);
         }
 
         /** @brief Draw a full data row @p idx at screen @p row; only the selected
@@ -219,44 +211,21 @@ namespace Botanik { namespace Pages {
         void _draw_row(uint16_t idx, uint16_t row, bool selected) {
             char line[LINE_CAP];
             uint16_t n = _row_text(idx, line, sizeof(line));
-            _terminal.move_to({row, 0});
-            _terminal.set_inverted(false);
-            _terminal.write_chars(line, NAME_CELL_L);                 // margin + "| "
-            if (selected) _terminal.set_inverted(true);
-            _terminal.write_chars(line + NAME_CELL_L, (uint16_t)(NAME_CELL_R - NAME_CELL_L));
-            if (selected) _terminal.set_inverted(false);
-            if (n > NAME_CELL_R)
-                _terminal.write_chars(line + NAME_CELL_R, (uint16_t)(n - NAME_CELL_R));
-            _terminal.clear_to_eol();
+            _draw_selected_line(row, line, n, NAME_CELL_L, NAME_CELL_R, selected);
         }
 
         void _draw_header() {
             char line[LINE_CAP];
-            int n = snprintf(line, sizeof(line), "%*s| %-*.*s | %-*.*s | %-*.*s |",
-                             (int)MARGIN, "", NAME_W, NAME_W, "PARAMETER",
-                             TYPE_W, TYPE_W, "TYPE", _value_w(), _value_w(), "VALUE");
-            _terminal.move_to({HEADER_ROW, 0});
-            _terminal.set_inverted(false);
-            _terminal.write_chars(line, (n < 0) ? 0 : (uint16_t)n);
-            _terminal.clear_to_eol();
+            uint16_t n = _bordered_row(line, sizeof(line), MARGIN,
+                                       NAME_W, "PARAMETER", TYPE_W, "TYPE",
+                                       _value_w(), "VALUE");
+            _draw_line(HEADER_ROW, line, n);
         }
 
         void _draw_rule() {
-            char line[LINE_CAP];
-            uint16_t vw = _value_w();
-            size_t k = 0;
-            for (uint16_t i = 0; i < MARGIN && k < sizeof(line); i++)       line[k++] = ' ';
-            if (k < sizeof(line)) line[k++] = '+';
-            for (uint16_t i = 0; i < NAME_W + 2 && k < sizeof(line); i++)   line[k++] = '-';
-            if (k < sizeof(line)) line[k++] = '+';
-            for (uint16_t i = 0; i < TYPE_W + 2 && k < sizeof(line); i++)   line[k++] = '-';
-            if (k < sizeof(line)) line[k++] = '+';
-            for (uint16_t i = 0; i < vw + 2 && k < sizeof(line); i++)       line[k++] = '-';
-            if (k < sizeof(line)) line[k++] = '+';
-            _terminal.move_to({RULE_ROW, 0});
-            _terminal.set_inverted(false);
-            _terminal.write_chars(line, (uint16_t)k);
-            _terminal.clear_to_eol();
+            uint16_t spans[3] = { (uint16_t)(NAME_W + 2), (uint16_t)(TYPE_W + 2),
+                                  (uint16_t)(_value_w() + 2) };
+            ScrollTablePage::_draw_rule(RULE_ROW, MARGIN, spans, 3, '+', '+');
         }
 
         /** @brief Draw the static chrome: top margin, header, rule. */

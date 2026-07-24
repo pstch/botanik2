@@ -183,10 +183,7 @@ namespace Botanik { namespace Pages {
         /** @brief Draw a structural row (all normal video); the terminal's diff
          *  drops it when unchanged. */
         void _emit(uint16_t row, const char* line, uint16_t n) {
-            _terminal.move_to({row, 0});
-            _terminal.set_inverted(false);
-            _terminal.write_chars(line, n);
-            _terminal.clear_to_eol();
+            _draw_line(row, line, n);   // shared bordered-table line painter
         }
 
         /** @brief Draw a '|'-ruled grid row (all normal video). */
@@ -201,17 +198,10 @@ namespace Botanik { namespace Pages {
          *  corner/separator char: '+' plain, or '^'/'v' to cap the edge with
          *  scroll arrows when alarms are hidden above / below. */
         void _draw_rule(uint16_t row, char sep = '+') {
-            uint16_t w[4] = { CODE_W, STATE_W, EVENT_W, _desc_w() };
-            char     line[160];
-            uint16_t n = 0;
-            line[n++] = ' '; line[n++] = ' ';                // left margin
-            if (n < sizeof(line) - 1) line[n++] = sep;
-            for (uint8_t i = 0; i < 4; i++) {
-                for (uint16_t k = 0; k < w[i] && n < sizeof(line) - 1; k++)
-                    line[n++] = '-';
-                if (n < sizeof(line) - 1) line[n++] = sep;
-            }
-            _emit(row, line, n);
+            // The alarms grid's column widths already include the cell padding,
+            // so the spans go in as-is (unlike MONITOR/CONFIG's +2).
+            uint16_t spans[4] = { CODE_W, STATE_W, EVENT_W, _desc_w() };
+            ScrollTablePage::_draw_rule(row, MARGIN, spans, 4, sep, sep);
         }
 
         /** @brief Blank a structural row. */

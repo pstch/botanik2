@@ -11,6 +11,11 @@
  * supplies only the band geometry (_data_top / _window) and the row count;
  * clamping, follow-scroll, and the DL/IL band shift are shared.
  *
+ * The bordered-table chrome is shared too: a full-line draw, an N-column dash
+ * rule, a selection-cell inversion, and the 3-column value-row helpers that
+ * MONITOR and CONFIG both need. ALARMS uses the line + rule primitives and keeps
+ * its 4-column / ON-badge row draw bespoke.
+ *
  * Moving the cursor past a window edge scrolls the band through
  * AnsiTerminal::scroll_region(), so the terminal's back-buffer diff repaints just
  * the revealed rows; the subclass's tick() then redraws the table immediate-mode
@@ -18,6 +23,7 @@
  */
 
 #include <cstdint>
+#include <cstdio>
 
 #include "libbotanik/pages/page.h"
 #include "libbotanik/console/terminal.h"
@@ -111,6 +117,81 @@ namespace Botanik { namespace Pages {
                 _terminal.scroll_region(top, (uint16_t)(top + win - 1),
                                         /*up=*/td > 0, nd);
             }
+        }
+
+        /** @}
+         *  @name Bordered-table rendering
+         *  @{ */
+
+        /** @brief Draw a full line at @p row in normal video, then clear the rest
+         *  of the row. The plain (unselected) row / header / rule painter. */
+        void _draw_line(uint16_t row, const char* line, uint16_t n) {
+            _terminal.move_to({row, 0});
+            _terminal.set_inverted(false);
+            _terminal.write_chars(line, n);
+            _terminal.clear_to_eol();
+        }
+
+        /** @brief Draw a prebuilt line, inverting screen columns [@p cell_l,
+         *  @p cell_r) when @p selected - the selection cursor. Clamps to @p n, so
+         *  a short line never over-reads. */
+        void _draw_selected_line(uint16_t row, const char* line, uint16_t n,
+                                 uint16_t cell_l, uint16_t cell_r, bool selected) {
+            _terminal.move_to({row, 0});
+            _terminal.set_inverted(false);
+            if (selected && n > cell_l) {
+                _terminal.write_chars(line, cell_l);
+                _terminal.set_inverted(true);
+                uint16_t e = (n < cell_r) ? n : cell_r;
+                _terminal.write_chars(line + cell_l, (uint16_t)(e - cell_l));
+                _terminal.set_inverted(false);
+                if (n > cell_r)
+                    _terminal.write_chars(line + cell_r, (uint16_t)(n - cell_r));
+            } else {
+                _terminal.write_chars(line, n);
+            }
+            _terminal.clear_to_eol();
+        }
+
+        /** @brief Draw a dash rule: @p margin blanks, then @p ncols columns of
+         *  '-' with @p join between them and @p end_cap at the outer ends. Each
+         *  @p spans[i] is that column's dash count (the caller includes any cell
+         *  padding). @p end_cap carries the '^' / 'v' hidden-rows marker. */
+        void _draw_rule(uint16_t row, uint16_t margin, const uint16_t* spans,
+                        uint8_t ncols, char join, char end_cap) {
+            char line[160];
+            uint16_t n = 0;
+            for (uint16_t i = 0; i < margin && n < sizeof(line) - 1; i++) line[n++] = ' ';
+            if (n < sizeof(line) - 1) line[n++] = end_cap;
+            for (uint8_t c = 0; c < ncols; c++) {
+                for (uint16_t k = 0; k < spans[c] && n < sizeof(line) - 1; k++) line[n++] = '-';
+                if (n < sizeof(line) - 1) line[n++] = (c + 1 == ncols) ? end_cap : join;
+            }
+            _draw_line(row, line, n);
+        }
+
+        /** @brief Flexible value-column width for a 3-column bordered row: total
+         *  minus the two fixed columns and their borders, floored at 8 and capped
+         *  at @p cap. */
+        static uint16_t _value_width(uint16_t cols, uint16_t margin,
+                                     uint16_t c0, uint16_t c1, uint16_t cap) {
+            uint16_t used = (uint16_t)(2 * margin + 2 + c0 + 3 + c1 + 3 + 2);
+            uint16_t w = (cols > used) ? (uint16_t)(cols - used) : 8;
+            if (w < 8) w = 8;
+            if (w > cap) w = cap;
+            return w;
+        }
+
+        /** @brief Build a 3-column bordered row "<margin>| a | b | v |" into
+         *  @p out (columns left-justified and clipped to their widths).
+         *  @return its length. */
+        static uint16_t _bordered_row(char* out, size_t cap, uint16_t margin,
+                                      uint16_t c0w, const char* a,
+                                      uint16_t c1w, const char* b,
+                                      uint16_t vw, const char* v) {
+            int n = snprintf(out, cap, "%*s| %-*.*s | %-*.*s | %-*.*s |",
+                             (int)margin, "", c0w, c0w, a, c1w, c1w, b, vw, vw, v);
+            return (n < 0) ? 0 : (uint16_t)n;
         }
 
         /** @} */

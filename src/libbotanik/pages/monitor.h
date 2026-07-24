@@ -185,12 +185,8 @@ namespace Botanik { namespace Pages {
         /** @} */
 
         uint16_t _value_w() const {
-            uint16_t used = (uint16_t)(2 * MARGIN + 2 + GROUP_W + 3 + NAME_W + 3 + 2);
-            uint16_t cols = _terminal.cols();
-            uint16_t w = (cols > used) ? (uint16_t)(cols - used) : 8;
-            if (w < 8) w = 8;
-            if (w > VAL_CAP - 1) w = (uint16_t)(VAL_CAP - 1);
-            return w;
+            return _value_width(_terminal.cols(), MARGIN, GROUP_W, NAME_W,
+                                (uint16_t)(VAL_CAP - 1));
         }
 
         // Rendering
@@ -212,12 +208,10 @@ namespace Botanik { namespace Pages {
             const Network::ScalarField& f = _groups[gi].fields[fi];
             char val[VAL_CAP];
             _value_text(r, val, sizeof(val));
-            int n = snprintf(out, cap, "%*s| %-*.*s | %-*.*s | %-*.*s |",
-                             (int)MARGIN, "",
-                             GROUP_W, GROUP_W, first ? _groups[gi].topic : "",
-                             NAME_W, NAME_W, f.name ? f.name : "",
-                             _value_w(), _value_w(), val);
-            return (n < 0) ? 0 : (uint16_t)n;
+            return _bordered_row(out, cap, MARGIN,
+                                 GROUP_W, first ? _groups[gi].topic : "",
+                                 NAME_W, f.name ? f.name : "",
+                                 _value_w(), val);
         }
 
         /** @brief Draw data row @p r at screen @p row, inverting the NAME field for
@@ -226,50 +220,22 @@ namespace Botanik { namespace Pages {
         void _draw_row(uint16_t r, uint16_t row, bool selected) {
             char line[LINE_CAP];
             uint16_t n = _row_text(r, line, sizeof(line));
-            _terminal.move_to({row, 0});
-            _terminal.set_inverted(false);
-            if (selected && n > NAME_CELL_L) {
-                _terminal.write_chars(line, NAME_CELL_L);        // margin + | group |
-                _terminal.set_inverted(true);
-                uint16_t nend = (n < NAME_CELL_R) ? n : NAME_CELL_R;
-                _terminal.write_chars(line + NAME_CELL_L, (uint16_t)(nend - NAME_CELL_L));
-                _terminal.set_inverted(false);
-                if (n > NAME_CELL_R)
-                    _terminal.write_chars(line + NAME_CELL_R, (uint16_t)(n - NAME_CELL_R));
-            } else {
-                _terminal.write_chars(line, n);
-            }
-            _terminal.clear_to_eol();
+            _draw_selected_line(row, line, n, NAME_CELL_L, NAME_CELL_R, selected);
         }
 
         void _draw_header() {
             char line[LINE_CAP];
-            int n = snprintf(line, sizeof(line), "%*s| %-*.*s | %-*.*s | %-*.*s |",
-                             (int)MARGIN, "", GROUP_W, GROUP_W, "GROUP",
-                             NAME_W, NAME_W, "VARIABLE", _value_w(), _value_w(), "VALUE");
-            _terminal.move_to({HEADER_ROW, 0});
-            _terminal.set_inverted(false);
-            _terminal.write_chars(line, (n < 0) ? 0 : (uint16_t)n);
-            _terminal.clear_to_eol();
+            uint16_t n = _bordered_row(line, sizeof(line), MARGIN,
+                                       GROUP_W, "GROUP", NAME_W, "VARIABLE",
+                                       _value_w(), "VALUE");
+            _draw_line(HEADER_ROW, line, n);
         }
 
         /** @brief Draw a rule row; @p cap ('^' / 'v' / '+') marks hidden rows. */
         void _draw_rule(uint16_t row, char cap) {
-            char line[LINE_CAP];
-            uint16_t vw = _value_w();
-            size_t k = 0;
-            for (uint16_t i = 0; i < MARGIN && k < sizeof(line); i++)     line[k++] = ' ';
-            if (k < sizeof(line)) line[k++] = cap;
-            for (uint16_t i = 0; i < GROUP_W + 2 && k < sizeof(line); i++) line[k++] = '-';
-            if (k < sizeof(line)) line[k++] = '+';
-            for (uint16_t i = 0; i < NAME_W + 2 && k < sizeof(line); i++)  line[k++] = '-';
-            if (k < sizeof(line)) line[k++] = '+';
-            for (uint16_t i = 0; i < vw + 2 && k < sizeof(line); i++)      line[k++] = '-';
-            if (k < sizeof(line)) line[k++] = cap;
-            _terminal.move_to({row, 0});
-            _terminal.set_inverted(false);
-            _terminal.write_chars(line, (uint16_t)k);
-            _terminal.clear_to_eol();
+            uint16_t spans[3] = { (uint16_t)(GROUP_W + 2), (uint16_t)(NAME_W + 2),
+                                  (uint16_t)(_value_w() + 2) };
+            ScrollTablePage::_draw_rule(row, MARGIN, spans, 3, '+', cap);
         }
 
         /** @brief Draw both rules, capping with '^' / 'v' when rows are hidden
