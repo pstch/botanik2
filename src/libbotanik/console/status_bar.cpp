@@ -127,8 +127,7 @@ namespace Botanik { namespace Terminal {
                                  uint32_t hi) {
         // Paint the whole field (all cells); the terminal's diff drops the ones
         // that did not move. hi segments the reverse-video runs.
-        uint32_t all = (len >= 32) ? 0xFFFFFFFFu : (uint32_t)((1u << len) - 1u);
-        _t.paint_field_runs(0, col, field, len, all, hi);
+        _t.paint_field_runs(0, col, field, len, hi);
     }
 
     bool StatusBar::update_metrics() {

@@ -9,9 +9,9 @@
  * A reverse-video bar on the physical last row (reserved by the terminal when
  * an alarm model is wired), showing " ALARMS : " then the unmasked, un-ack'd
  * alarm codes drawn normal-video so they read as a set. Owned by AnsiTerminal
- * and submitted as a transaction from step() only when the unmasked set changes
- * or the row was wiped (mark_dirty()); the TX queue paces + coalesces it. No
- * change-highlighting - the set is visible as a whole.
+ * and repainted from step() only when the unmasked set changes or the row was
+ * wiped (mark_dirty()); the terminal's back-buffer diff then emits just the
+ * cells that moved. No change-highlighting - the set is visible as a whole.
  */
 
 #include <cstdint>
@@ -47,10 +47,10 @@ namespace Botanik { namespace Terminal {
         /** @name Cooperative paint
          *  @{ */
 
-        /** @brief Per-step pass: submit the bar as a transaction when the
-         *  unmasked set changed or the row was wiped. The queue paces it, and the
-         *  drain's cursor re-assertion keeps a visible page cursor (the shell
-         *  editor's) in place. No-op without an alarm source. */
+        /** @brief Per-step pass: repaint the bar when the unmasked set changed
+         *  or the row was wiped. present() paces the resulting diff and re-parks
+         *  a visible page cursor (the shell editor's) afterwards. No-op without
+         *  an alarm source. */
         void step();
 
         /** @brief Flag a repaint (after a full-screen clear or page switch wiped

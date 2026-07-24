@@ -528,24 +528,6 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, LOG_ROWS_PER_TICK);
 
-    /** @brief TxScheduler transaction pool: slot count and per-slot byte capacity
-     *  (one queued transaction per slot). Bounds the console's queued-TX RAM
-     *  (SLOTS * SLOT_LEN). Sized to hold a whole dense screen's worth of paints
-     *  in flight at once (the two-column STATUS page submits ~50 label/value
-     *  transactions in its first tick) plus the row-0 chrome, so a full repaint
-     *  never overflows the pool and evicts a not-yet-drained value - which would
-     *  desync that value's diff cache and strand it blank (or tear the per-cell
-     *  clock). See docs/TX_QUEUE_DESIGN.md. */
-#ifndef BOTANIK_TX_QUEUE_SLOTS
-#  define BOTANIK_TX_QUEUE_SLOTS 80
-#endif
-    BOTANIK_CFG(uint16_t, TX_QUEUE_SLOTS);
-
-#ifndef BOTANIK_TX_QUEUE_SLOT_LEN
-#  define BOTANIK_TX_QUEUE_SLOT_LEN 192
-#endif
-    BOTANIK_CFG(uint16_t, TX_QUEUE_SLOT_LEN);
-
     /** @brief Max decoded input events handled per tick. 
      *  @note Too low: typing/paste feels sluggish and the RX ring backs up. 
      *  @note Too high: a big paste echoes a large burst in one tick. */

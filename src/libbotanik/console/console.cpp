@@ -38,10 +38,9 @@ namespace Botanik { namespace Terminal {
         // clear_screen, so it keeps the queued handshake bytes).
         if (!_term.screen_ready()) {
             _term.establish_screen();
-            // Full redraw order: the status bar (direct), then the alarm bar, then
-            // the page. Submitting the bar here (not at the end of the step) puts
-            // it ahead of the page's structural transactions in the STRUCT lane, so
-            // the chrome drains before the page contents fill in.
+            // Full redraw order: status bar, alarm bar, then the page. Order is
+            // cosmetic now that present() reconciles the whole frame at once, but
+            // it keeps the chrome first if a paced frame only gets partway.
             _status_bar.draw_row();
             _alarm_bar.mark_dirty();      // the clear wiped the alarm-bar row
             _alarm_bar.step();
@@ -86,8 +85,7 @@ namespace Botanik { namespace Terminal {
             // repaint the whole screen, so each breaks (takes the rest of the tick).
             if (ev.command == Command::CTRL_L) {
                 _term.clear_screen();
-                // Chrome first (status bar, then alarm bar), then the page - the
-                // bar is submitted here so it precedes the page's transactions.
+                // Chrome first (status bar, then alarm bar), then the page.
                 _status_bar.draw_row();
                 _alarm_bar.mark_dirty();   // clear_screen wiped the alarm-bar row
                 _alarm_bar.step();

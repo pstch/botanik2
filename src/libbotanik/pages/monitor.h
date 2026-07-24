@@ -137,7 +137,7 @@ namespace Botanik { namespace Pages {
             if (!_dirty && now - _last_refresh_ms < Config::PAGE_HOT_MS) return;
             _last_refresh_ms = now;
             _dirty = false;
-            uint16_t total = _total(), win = _window();
+            uint16_t win = _window();
             _clamp_selection();
             _follow_selection();
             _draw_structure();

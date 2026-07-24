@@ -222,14 +222,13 @@ namespace Botanik { namespace Pages {
             _emit(row, line, n);
         }
 
-        /** @brief Blank a structural row (through the paint shadow). */
+        /** @brief Blank a structural row. */
         void _clear_row(uint16_t row) { _emit(row, "", 0); }
 
         /** @brief Draw the footer legend: reverse-video mode badge + counts on
          *  the left, SPACE-cycles-mode hint on the right. Drawn immediate-mode; the
          *  terminal's back-buffer diff repaints it only on an actual mode / count
-         *  change. The legend row sits below the data band, so it is never dropped
-         *  by a scroll; a plain submit-time signature is enough. */
+         *  change. */
         void _draw_footer(uint16_t row, uint8_t nvis, uint8_t active) {
             const char* mode = _mode_label(_mode);
             const char* next = _mode_label((uint8_t)((_mode + 1) % MODE_COUNT));

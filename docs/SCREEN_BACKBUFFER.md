@@ -1,4 +1,7 @@
-# Console TX path — the screen back-buffer
+# The console screen back-buffer
+
+How the console gets a whole screen's worth of intent onto a slow serial link:
+one diff, in one place, paced under a per-tick byte budget.
 
 Status: **shipped**. (This replaces an earlier "transactional multi-queue"
 proposal; see §6 for why that was abandoned.)
@@ -16,7 +19,7 @@ itself so it never overruns the ring. The hard constraints:
 - **Priority.** A scroll or keystroke echo must beat telemetry churn for the ring.
 
 The earlier design met these by making *each renderer* reason about a paced,
-coalescing, droppable queue — per-page "what's on the wire vs. what's queued"
+coalescing, droppable queue - per-page "what's on the wire vs. what's queued"
 shadows, promotion, scroll reconciliation, replicated across every page. That
 bookkeeping was the complexity, and it was where the bugs lived.
 
@@ -32,7 +35,9 @@ Console::step() ── present() ── diff FRONT vs BACK ── minimal paced 
                                      └── copy emitted cells ──▶ BACK grid
 ```
 
-- **FRONT** = what renderers have drawn this frame (the desired screen).
+- **FRONT** = the desired screen. It is **retained**, not per-frame: it holds
+  whatever was last drawn there and is only overwritten where a renderer draws
+  again. A tick that draws nothing leaves FRONT (and so the screen) alone.
 - **BACK** = what `present()` has actually put on the wire.
 
 Renderers draw **immediate-mode** through the usual ops; those ops now stamp
@@ -40,13 +45,17 @@ cells into FRONT instead of emitting bytes. Once per tick the Console calls
 `present()`, which walks FRONT vs BACK and emits the minimal ANSI to reconcile
 them, then copies the emitted cells into BACK.
 
+The pairing is what makes "redraw everything, every tick" cheap: renderers are
+immediate-mode (no memory of what they drew), while the *screen* is retained-mode
+(FRONT remembers), and the diff between the two is the wire traffic.
+
 A cell is one byte: a 7-bit glyph with the top bit (`CELL_INV`) for reverse
 video. Two grids sized for the largest terminal (`GRID_ROWS x GRID_COLS`) cost
-~8 kB — it *replaced* the ~9 kB transaction pool, so RAM is flat.
+~8 kB - it *replaced* the ~9 kB transaction pool, so RAM is flat.
 
 ### What this buys, for free
 
-- **"Emit only what changed" is automatic and per-cell** — the diff drops any
+- **"Emit only what changed" is automatic and per-cell** - the diff drops any
   cell that didn't move, for every renderer, with no page-side cache. Redrawing
   an unchanged row costs zero bytes.
 - **No torn frames.** Each cell carries its own attribute, so inversion can't
@@ -54,14 +63,19 @@ video. Two grids sized for the largest terminal (`GRID_ROWS x GRID_COLS`) cost
   half-written. The paced budget (below) guarantees the ring never overruns.
 - **Coalescing is free.** If a value changes twice before `present()`, FRONT
   just holds the latest; intermediate values never reach the wire.
-- **Renderers keep no shadow state.** No `_row`/`_vcache`/`_sig`, no promote, no
-  scroll reconciliation. Pages are layout + "render current state."
+- **Renderers keep no shadow state.** No `_row`/`_sig`, no promote, no scroll
+  reconciliation. Pages are layout + "render current state."
 
-## 3. `present()` — the diff (`console/terminal.cpp`)
+The one surviving page-side cache is `MetricPage`'s `_vcache`, and it is *not* a
+wire shadow: it answers "did this value change since last tick" so the page can
+apply the watch-style highlight. That's a semantic question about the data, which
+the terminal can't answer - it only knows which cells differ, not why.
+
+## 3. `present()` - the diff (`console/terminal.cpp`)
 
 1. **Pending scrolls first.** `scroll_region()` shifts the FRONT grid and records
    a DL/IL. `present()` emits the DL/IL and, *only if it fit*, shifts BACK to
-   match — so a kept row's FRONT==BACK and the diff skips it. If the DL/IL can't
+   match - so a kept row's FRONT==BACK and the diff skips it. If the DL/IL can't
    fit, BACK is left unshifted and the cell diff simply repaints the band
    (correct, just more bytes). A scroll can therefore never desync the screen.
 2. **Paced cell diff.** Row by row, find each run where FRONT≠BACK and emit it:
@@ -69,17 +83,27 @@ video. Two grids sized for the largest terminal (`GRID_ROWS x GRID_COLS`) cost
    reverse video per run, write the glyphs, copy the run into BACK (`_put_run`).
    The leading move + SGR + glyph byte-minimization is the same tuning the old
    direct-write path had.
-3. **Cursor.** After the diff, park the real cursor where a visible cursor
-   belongs (the shell editor's edit point) — one owner, re-homed each tick, so a
-   value update elsewhere can't strand it.
+3. **Cursor.** Park the real cursor: at the edit point when a renderer asked for
+   a visible cursor (the shell editor), otherwise idle in the **bottom-right
+   corner**, out of the content. One owner, re-homed each tick, so a value update
+   elsewhere can't strand it.
+
+   The park is skipped when the diff ran out of budget and left work for the next
+   tick: mid-repaint the frame is inconsistent anyway, and parking would spend a
+   move on a cursor that the next tick immediately moves again. It happens on the
+   tick the screen finally settles.
+
+These are the three phases of `present()`, and they are named as such in the
+code: `_emit_scrolls()`, `_emit_diff()` (returns whether the frame is fully
+reconciled), `_park_cursor()`.
 
 ### Pacing / budget
 
 `present()` emits at most `_tx_cold_depth` bytes above what's already queued in
 the ring (`depth_for_baud()` from `TX_COLD_TARGET_MS`), and never starts a run it
-can't fit (checked against `availableForWrite()`, so a run is all-or-nothing —
+can't fit (checked against `availableForWrite()`, so a run is all-or-nothing  - 
 no partial emit). What doesn't fit this tick stays in FRONT and is re-diffed next
-tick — no per-renderer staging, no state between ticks. This is the whole "handle
+tick - no per-renderer staging, no state between ticks. This is the whole "handle
 the restricted TX budget" story, in one place.
 
 Priority falls out of draw order + the diff: keystroke echo and structure are
@@ -118,7 +142,7 @@ The abandoned proposal put a priority-laned, coalescing, atomic transaction
 *queue* (`TxScheduler`) between renderers and the ring. It worked, but it pushed
 the "on the wire vs. queued" reasoning **into every renderer** (each needed a
 drawn-vs-submitted shadow + promotion to diff and to reconcile scrolls). That
-per-page machinery — replicated three-plus times — was the actual complexity and
+per-page machinery - replicated three-plus times - was the actual complexity and
 the source of a run of stuck-highlight / redraw-pileup bugs.
 
 The back-buffer moves that reasoning into **one** place the renderers never see.

@@ -1,11 +1,12 @@
 /**
  * @file test_alarms_render.cpp
- * @brief AlarmsPage paint diffing: bytes emitted on repaint. A pipe-backed
- *        AnsiTerminal lets us drain TX and assert exactly what a repaint wrote -
- *        the diff's contract is "emit only what changed", so the byte stream is
- *        the oracle. High baud disables the throttle so a paint finishes in a
- *        few ticks; each pump submits (tick), drains the transaction queue, and
- *        transmits until the pipe goes quiet.
+ * @brief AlarmsPage paint diffing: bytes emitted on repaint. The page draws
+ *        immediate-mode into the terminal's FRONT grid and present() emits the
+ *        minimal diff, so "emit only what changed" is the contract under test. A
+ *        pipe-backed AnsiTerminal lets us drain TX and assert exactly what a
+ *        repaint wrote. High baud disables the throttle so a paint finishes in a
+ *        few ticks; each pump ticks the page, presents, and transmits until the
+ *        pipe goes quiet.
  */
 #include <cstdint>
 #include <fcntl.h>
@@ -93,7 +94,7 @@ TEST_CASE("alarms render: unchanged repaint skips the structural rows") {
     CHECK(first.size() > 0);                  // structural rows drawn once
     CHECK(first.find("CODE") != std::string::npos);   // header was in the first paint
 
-    f.page.handle_command(Command::ENTER, 1); // request repaint, shadow intact
+    f.page.handle_command(Command::ENTER, 1); // request repaint
     std::string second = f.paint();
     CHECK(second.size() < first.size() / 2);  // only the footer, not the table
     CHECK(second.find("CODE") == std::string::npos);  // header skipped
@@ -107,14 +108,11 @@ static void raise_all(RenderFixture& f) {
     f.paint();                   // initial full paint; discard
 }
 
-// Acking an active alarm flips its ON badge (active+unack -> active+ack): a
-// same-identity change, so its row is patched on the value lane (the mutable
-// CODE / ON / LAST EVENT cells), NOT redrawn whole - the static DESCRIPTION column
-// stays untouched, so "alarm B" never reaches the wire again. (The single shadow
-// tracks only submitted intent, so a patch rewrites all mutable cells including
-// CODE, which is why "BBB" reappears; the byte win is skipping DESCRIPTION and
-// every other row.) The still-unacked AAA row above is diff-skipped, as are the
-// header and rules. A single reorder-free ack (BBB stays below AAA) moves one row.
+// Acking an active alarm flips its ON badge (active+unack -> active+ack). The
+// page redraws the whole table, but only the cells that actually moved reach the
+// wire: the badge and the timestamp on that one row. The static DESCRIPTION
+// column is byte-identical, so "alarm B" never reaches the wire again, and the
+// untouched AAA row, header and rules are all diffed away.
 TEST_CASE("alarms render: a same-alarm state change patches its cells, skips the rest") {
     RenderFixture f;
     f.model.step(0x3, 1000);                     // AAA + BBB active; row0=AAA (sel), row1=BBB
@@ -122,11 +120,11 @@ TEST_CASE("alarms render: a same-alarm state change patches its cells, skips the
     f.paint();                                   // initial full paint; discard
 
     CHECK(f.model.ack("BBB") == true);           // BBB (row1) active+unack -> active+ack
-    f.page.handle_command(Command::ENTER, 1);    // repaint, shadow intact, selection at row0
+    f.page.handle_command(Command::ENTER, 1);    // repaint, selection still at row0
     std::string out = f.paint();
 
-    CHECK(out.size()          > 0);                   // the mutable-cell patch was emitted
-    CHECK(out.find("alarm B") == std::string::npos);  // static DESCRIPTION untouched (cell patch)
+    CHECK(out.size()          > 0);                   // the changed cells were emitted
+    CHECK(out.find("alarm B") == std::string::npos);  // static DESCRIPTION diffed away
     CHECK(out.find("AAA")     == std::string::npos);  // the unchanged AAA row is skipped
     CHECK(out.find("alarm A") == std::string::npos);  // ...its description too
     CHECK(out.find("CODE")    == std::string::npos);  // header/rules not re-emitted
@@ -143,8 +141,8 @@ TEST_CASE("alarms render: unchanged data repaint emits nothing") {
     CHECK(out.find("----") == std::string::npos);  // no rule re-emitted
 }
 
-// Raising a new alarm reorders the list (new row identity), so at least one row
-// is redrawn in full - its CODE/DESC reach the wire.
+// Raising a new alarm reorders the list, so a row's whole content changes and
+// the diff has no choice but to send it - CODE and DESCRIPTION both.
 TEST_CASE("alarms render: identity change redraws the row in full") {
     RenderFixture f;
     f.model.step(0x1, 1000);             // only AAA
@@ -157,10 +155,10 @@ TEST_CASE("alarms render: identity change redraws the row in full") {
     CHECK(out.find("BBB") != std::string::npos);   // a full row carried the new CODE
 }
 
-// Moving the selection within the window (no scroll) repaints the old row's CODE
-// cell (un-highlighted) and the new row's CODE cell (highlighted) - and only those
-// two cells, as one atomic transaction. The descriptions and the other rows are
-// untouched, proving it's a cell patch, not a pair of full-row redraws.
+// Moving the selection within the window (no scroll) changes only the old row's
+// CODE cell (un-highlighted) and the new row's CODE cell (highlighted), so the
+// diff emits just those two runs. The descriptions and the other rows never reach
+// the wire, proving the highlight costs cells, not full-row redraws.
 TEST_CASE("alarms render: a selection move repaints both CODE cells, nothing else") {
     RenderFixture f;                             // 24 rows: all four fit, so no scroll
     f.model.step(0xF, 1000);                     // AAA..DDD active; row0=AAA selected

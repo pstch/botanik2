@@ -154,20 +154,9 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     /** @brief Delete rows (shifts remaining rows up). */
     bool delete_rows(ByteSink& _serial, uint16_t count);
 
-    /** @brief Delete characters (shifts remaining columns left). */
-    bool delete_chars(ByteSink& _serial, uint16_t count);
-
     /** @}
      *  @name Content clearing
      *  @{ */
-
-    /** @brief Clear from the cursor to end of line (columns before it
-     *  untouched). */
-    bool clear_to_eol(ByteSink& _serial);
-
-    /** @brief Erase from the cursor to end of display (rows above it
-     *  untouched). */
-    bool clear_to_eos(ByteSink& _serial);
 
     /** @brief Erase entire display and move cursor to home position */
     bool clear_screen(ByteSink& _serial);

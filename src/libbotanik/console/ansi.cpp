@@ -149,22 +149,8 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         return _csi_count(_serial, DL, sizeof(DL) - 1, count);
     }
 
-    bool delete_chars(ByteSink& _serial, uint16_t count) {
-        return _csi_count(_serial, DCH, sizeof(DCH) - 1, count);
-    }
-
     // Content clearing
     // ------------------------------------------------------------------------
-
-    bool clear_to_eol(ByteSink& _serial) {
-        // ESC[K: erase cursor to EOL
-        return _csi_count(_serial, EL, sizeof(EL) - 1);
-    }
-
-    bool clear_to_eos(ByteSink& _serial) {
-        // ESC[J: erase cursor to end of display
-        return _csi_count(_serial, ED, sizeof(ED) - 1);
-    }
 
     bool clear_screen(ByteSink& _serial) {
         if (!can_emit(_serial)) return false;

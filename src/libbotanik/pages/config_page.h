@@ -278,8 +278,7 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Draw the bottom prompt row for the current state. When editing,
-         *  the editor owns the row (direct writes); otherwise the idle hint is a
-         *  keyed structural transaction the scheduler paces. */
+         *  the editor owns the row; otherwise this paints the idle hint. */
         void _draw_prompt_row() {
             uint16_t row = (uint16_t)(_console.rows() - 1);
             if (_editing) {

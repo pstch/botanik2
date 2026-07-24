@@ -42,21 +42,12 @@ namespace Botanik { namespace Terminal {
 
     // Draw cursor & geometry
 
-    void AnsiTerminal::move_to(const CursorPos& target_in, bool /*skip*/) {
+    void AnsiTerminal::move_to(const CursorPos& target_in) {
         uint16_t r = std::min((uint16_t)(_rows > 0 ? _rows - 1 : 0), target_in.row);
         uint16_t c = std::min((uint16_t)(_cols > 0 ? _cols - 1 : 0), target_in.col);
         _draw_row = r;
         _draw_col = c;
         _live_cursor_pos = { r, c };
-    }
-
-    void AnsiTerminal::restore_cursor(const CursorSnapshot& snap, bool restore_pos) {
-        set_inverted(snap.inverted);
-        if (restore_pos) {
-            move_to(snap.pos);
-            if (snap.at_eol) _draw_col = _cols;   // re-park past the last column
-        }
-        set_cursor_visible(snap.cursor_visible);
     }
 
     // Text output & character attributes (into the FRONT grid)
@@ -177,44 +168,26 @@ namespace Botanik { namespace Terminal {
 
     // Field painter (shared by StatusBar and MetricPage) - built on the primitives
 
-    uint16_t AnsiTerminal::emit_field_run(uint16_t row, uint16_t col, const char* cf,
-                                          uint16_t a, uint16_t b, uint32_t hi) {
-        move_to({row, (uint16_t)(col + a)});
-        uint16_t seg = a;
-        bool seg_inv = ((hi >> a) & 1u) != 0;
-        uint16_t written = 0;
-        for (uint16_t k = a; k < b; ++k) {
+    void AnsiTerminal::paint_field_runs(uint16_t row, uint16_t col, const char* cf,
+                                        uint16_t width, uint32_t hi) {
+        // Paint the whole field, split into reverse-video segments per `hi`. No
+        // per-cell gating here: the back-buffer diff already drops every cell whose
+        // glyph and attribute both held, so a "changed cells only" mask would be
+        // hand-rolled coalescing in front of a coalescing diff.
+        if (width == 0) return;
+        move_to({row, col});
+        uint16_t seg = 0;
+        bool seg_inv = (hi & 1u) != 0;
+        for (uint16_t k = 0; k < width; ++k) {
             bool ki = ((hi >> k) & 1u) != 0;
             if (ki != seg_inv) {
                 set_inverted(seg_inv);
-                written += write_chars(&cf[seg], (uint16_t)(k - seg));
+                write_chars(&cf[seg], (uint16_t)(k - seg));
                 seg = k; seg_inv = ki;
             }
         }
         set_inverted(seg_inv);
-        written += write_chars(&cf[seg], (uint16_t)(b - seg));
-        return written;
-    }
-
-    void AnsiTerminal::paint_field_runs(uint16_t row, uint16_t col, const char* cf,
-                                        uint16_t width, uint32_t emit, uint32_t hi) {
-        if (emit == 0) return;
-        const uint16_t MERGE = 4;
-        uint32_t render = emit;
-        int last = -1;
-        for (uint16_t i = 0; i < width; ++i) {
-            if (!((emit >> i) & 1u)) continue;
-            if (last >= 0 && (int)i - last - 1 <= (int)MERGE)
-                for (int g = last + 1; g < (int)i; ++g) render |= (1u << g);
-            last = (int)i;
-        }
-        uint16_t i = 0;
-        while (i < width) {
-            if (!((render >> i) & 1u)) { i++; continue; }
-            uint16_t a = i;
-            while (i < width && ((render >> i) & 1u)) i++;
-            emit_field_run(row, col, cf, a, i, hi);
-        }
+        write_chars(&cf[seg], (uint16_t)(width - seg));
         set_inverted(false);
     }
 
@@ -243,7 +216,7 @@ namespace Botanik { namespace Terminal {
         set_auto_wrap(false);
         _hw_cursor_visible = true; _want_cursor_visible = false;
         if (Ansi::set_cursor_visible(_serial, false)) _hw_cursor_visible = false;
-        Ansi::set_insert_mode(_serial, false); _hw_insert_mode = false;
+        Ansi::set_insert_mode(_serial, false);   // defensive: we never set SM4
         _screen_ready = true;
         // The screen is now physically blank: both grids blank, draw cursor home.
         _reset_grids();
@@ -295,7 +268,6 @@ namespace Botanik { namespace Terminal {
 
     uint16_t AnsiTerminal::_put_run(uint16_t row, uint16_t a, uint16_t b) {
         uint16_t before = tx_used();
-        if (_hw_insert_mode) { Ansi::set_insert_mode(_serial, false); _hw_insert_mode = false; }
         if (!_go({row, a})) return 0;
         char buf[GRID_COLS];
         uint16_t k = a;
@@ -324,10 +296,18 @@ namespace Botanik { namespace Terminal {
     }
 
     void AnsiTerminal::present() {
-        // 1) Pending band scrolls: emit the DL/IL and, on success, shift BACK to
-        //    match (so the cell diff then repaints only the revealed rows). On
-        //    failure BACK stays put and the diff repaints the whole band - correct,
-        //    just more bytes.
+        _emit_scrolls();
+        // The cursor is parked only once the frame is fully reconciled: while the
+        // diff is still paced out over several ticks the cursor is being moved by
+        // the runs anyway, and re-homing it every tick would burn a move per tick
+        // for nothing. A settled screen gets the cursor put where it belongs.
+        if (_emit_diff()) _park_cursor();
+    }
+
+    void AnsiTerminal::_emit_scrolls() {
+        // Emit each pending band DL/IL and, on success, shift BACK to match (so the
+        // cell diff then repaints only the revealed rows). On failure BACK stays put
+        // and the diff repaints the whole band - correct, just more bytes.
         for (uint8_t i = 0; i < _nscrolls; i++) {
             const PendingScroll& s = _scrolls[i];
             bool restore = (s.bottom < (uint16_t)(_rows - 1));
@@ -343,8 +323,13 @@ namespace Botanik { namespace Terminal {
             if (ok) _shift_grid(_back, s.top, s.bottom, s.up, s.n);   // mirror the wire
         }
         _nscrolls = 0;
+    }
 
-        // 2) Paced cell diff.
+    bool AnsiTerminal::_emit_diff() {
+        // Walk FRONT vs BACK and emit each changed run, all-or-nothing (the ring
+        // drops silently, so a partial run would be a torn frame) and paced under
+        // this tick's budget. @return true when the screen is fully reconciled;
+        // false means work is left for the next tick.
         uint16_t used   = tx_used();
         uint16_t budget = (used < _tx_cold_depth) ? (uint16_t)(_tx_cold_depth - used) : 0;
         for (uint16_t row = 0; row < _rows; row++) {
@@ -354,24 +339,31 @@ namespace Botanik { namespace Terminal {
                 uint16_t a = col, b = col;
                 while (b < _cols && _front[_idx(row, b)] != _back[_idx(row, b)]) b++;
                 uint16_t cost = _run_cost(row, a, b);
-                if (_serial.availableForWrite() < cost) return;   // ring full: defer
+                if (_serial.availableForWrite() < cost) return false;  // ring full
+                // A run bigger than the whole budget can never fit one, so it goes
+                // out as soon as the ring is shallow (and ends the tick).
                 bool oversized = cost > _tx_cold_depth;
-                if (oversized ? (budget == 0) : (cost > budget)) return;   // paced: defer
+                if (oversized ? (budget == 0) : (cost > budget)) return false;
                 uint16_t sent = _put_run(row, a, b);
-                if (sent == 0) return;
+                if (sent == 0) return false;
                 budget = (sent < budget) ? (uint16_t)(budget - sent) : 0;
-                if (oversized || budget == 0) return;
+                if (oversized || budget == 0) return false;
                 col = b;
             }
         }
+        return true;
+    }
 
-        // 3) Cursor: visibility, then park it where a visible cursor belongs.
+    void AnsiTerminal::_park_cursor() {
         if (_want_cursor_visible != _hw_cursor_visible &&
             Ansi::set_cursor_visible(_serial, _want_cursor_visible))
             _hw_cursor_visible = _want_cursor_visible;
-        if (_hw_cursor_visible &&
-            !(_live_cursor_pos.row == 0 && _live_cursor_pos.col == 0))
-            _go(_live_cursor_pos);
+        // A visible cursor belongs at the edit point of whoever asked for it (only
+        // the shell editor does) - that is where its last move_to left the draw
+        // cursor. With no such owner, idle it in the bottom-right corner so it sits
+        // out of the content instead of wherever the last run happened to end.
+        if (_hw_cursor_visible) _go(_live_cursor_pos);
+        else                    _go({(uint16_t)(_rows - 1), (uint16_t)(_cols - 1)});
     }
 
     // Wire-side row shifts used only by present() for the scroll DL/IL.

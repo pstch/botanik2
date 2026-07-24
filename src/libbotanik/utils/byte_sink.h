@@ -4,14 +4,11 @@
 
 /**
  * @file byte_sink.h
- * @brief ByteSink - the abstract byte destination the escape-code layer and the
- *        transaction queue emit through.
+ * @brief ByteSink - the minimal "somewhere bytes can go" interface.
  *
- * The VT device (AnsiTerminal), the stateless Ansi helpers, and the TxScheduler
- * write to a ByteSink rather than the concrete BufferedSerial, so their output
- * can be redirected: to the TX ring in normal operation, or to a scratch buffer
- * while a transaction is being recorded. BufferedSerial implements it; the
- * terminal owns a small record-buffer sink for tx_begin()/tx_commit().
+ * The stateless Ansi escape helpers write through this rather than naming a
+ * concrete port, so the escape-code layer stays independent of the serial
+ * implementation. BufferedSerial is the implementer.
  */
 
 #include <cstdint>

@@ -94,7 +94,6 @@ namespace Botanik { namespace Terminal {
         bool                _hw_inverted    = false;    ///< real reverse-video
         bool                _hw_auto_wrap   = true;      ///< DECAWM (kept off UI-wide)
         bool                _hw_at_eol      = false;    ///< parked at last col (pending wrap)
-        bool                _hw_insert_mode = false;    ///< SM4/RM4 on the wire
         bool                _hw_cursor_visible = false; ///< DECTCEM on the wire
         bool                _screen_ready = false;      ///< screen established once
 
@@ -152,6 +151,18 @@ namespace Botanik { namespace Terminal {
         /** @brief Blank the whole back-buffer (both grids) - after a physical
          *  clear, the wire is blank and nothing is drawn. */
         void _reset_grids();
+        /** @name present() phases
+         *  @{ */
+        /** @brief Emit each pending band DL/IL, shifting BACK on success. */
+        void _emit_scrolls();
+        /** @brief Emit the paced FRONT-vs-BACK cell diff. @return true when the
+         *  screen is fully reconciled; false when work is left for the next tick. */
+        bool _emit_diff();
+        /** @brief Reconcile cursor visibility and park it: at the edit point when
+         *  a renderer wants it visible, else idle in the bottom-right corner. */
+        void _park_cursor();
+        /** @} */
+
         /** @brief Wire-side DL/IL, used only by present() to emit a band scroll. */
         void delete_rows_wire(uint16_t count);
         void insert_rows_wire(uint16_t count);
@@ -171,28 +182,13 @@ namespace Botanik { namespace Terminal {
          *  @name Cursor & geometry
          *  @{ */
 
-        /** @brief Move the draw cursor to an absolute position. @p skip is accepted
-         *  for source compatibility and ignored (a draw move never emits). */
-        void move_to(const CursorPos& position, bool skip = false);
+        /** @brief Move the draw cursor to an absolute position (never emits; the
+         *  wire cursor is present()'s business). */
+        void move_to(const CursorPos& position);
 
         inline CursorPos cursor_pos() const { return { _draw_row, _draw_col }; }
         inline bool inverted() const { return _draw_inv; }
-        inline bool cursor_visible() const { return _want_cursor_visible; }
         inline bool screen_ready() const { return _screen_ready; }
-
-        struct CursorSnapshot {
-            CursorPos pos;
-            bool inverted;
-            bool at_eol;
-            bool cursor_visible;
-        };
-
-        CursorSnapshot save_cursor() const {
-            return { { _draw_row, _draw_col }, _draw_inv,
-                     _draw_col >= _cols, _want_cursor_visible };
-        }
-
-        void restore_cursor(const CursorSnapshot& snap, bool restore_pos = true);
 
         inline uint16_t cols() const { return _cols; }
         inline uint16_t rows_total() const { return _rows; }
@@ -212,11 +208,11 @@ namespace Botanik { namespace Terminal {
 
         void fill_spaces(uint16_t to_col);
 
-        uint16_t emit_field_run(uint16_t row, uint16_t col, const char* cf,
-                                uint16_t a, uint16_t b, uint32_t hi);
-
+        /** @brief Paint the whole fixed-width field @p cf at (@p row, @p col),
+         *  split into reverse-video segments per the @p hi column mask. The
+         *  back-buffer diff drops whatever did not actually change. */
         void paint_field_runs(uint16_t row, uint16_t col, const char* cf,
-                              uint16_t width, uint32_t emit, uint32_t hi);
+                              uint16_t width, uint32_t hi);
 
         /** @}
          *  @name Content manipulation

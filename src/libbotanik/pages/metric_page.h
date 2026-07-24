@@ -212,8 +212,7 @@ namespace Botanik { namespace Pages {
 
             // Paint the whole field with the highlight mask; the terminal diff
             // drops the cells whose glyph and attribute both held.
-            uint32_t all = (width >= 32) ? ~0u : (uint32_t)((1u << width) - 1u);
-            _terminal.paint_field_runs(row, col, cf, width, all, newhi);
+            _terminal.paint_field_runs(row, col, cf, width, newhi);
 
             if (cached) {
                 memcpy(_vcache[slot], cf, width);

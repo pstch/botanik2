@@ -74,20 +74,16 @@ namespace Botanik { namespace Pages {
 
         /** @} */
 
-        /** @name Transaction paint (owner set by the page)
-         *  Every paint is a TX_STRUCT transaction the scheduler paces, so the
-         *  scrollback shares the wire fairly with the page's other transactions
-         *  instead of writing straight to the ring and starving them. All the
-         *  scrollback's paints ride one lane in submission order, so a scroll's
-         *  DL/IL always drains after the rows it scrolls and before the rows
-         *  revealed behind it (strict FIFO). Row paints carry key 0 - never
-         *  coalesced - so a bottom-row append can't merge across a later scroll
-         *  and tear; the tail is bounded per drain, so the pool can't overflow.
+        /** @name Paint (owner set by the page)
+         *  These draw into the terminal's FRONT grid, never the wire: a scroll
+         *  shifts the grid and the row paints stamp over it, so ordering within
+         *  a tick is just program order. present() then emits the DL/IL and the
+         *  minimal cell diff, paced under the tick's byte budget.
          *  @{ */
 
-        /** @brief Submit log line @p from_newest (steps back from the newest
-         *  stored line) at screen @p row; blank the row when
-         *  the line is missing (past the stored set). */
+        /** @brief Draw log line @p from_newest (steps back from the newest
+         *  stored line) at screen @p row; blank the row when the line is missing
+         *  (past the stored set). */
         void _draw_line(AnsiTerminal& t, uint16_t row, uint16_t from_newest) {
             uint16_t llen = 0;
             const char* ln = this->line(from_newest, llen);
@@ -98,7 +94,7 @@ namespace Botanik { namespace Pages {
             t.clear_to_eol();
         }
 
-        /** @brief Submit a band scroll (DL/IL). */
+        /** @brief Scroll the log band (emitted as a DL/IL by present()). */
         void _submit_scroll(AnsiTerminal& t, uint16_t first_row, uint16_t log_rows,
                             bool up, uint16_t n) {
             t.scroll_region(first_row, (uint16_t)(first_row + log_rows - 1), up, n);
@@ -162,9 +158,9 @@ namespace Botanik { namespace Pages {
         /** @brief Cancel a staged redraw without emitting its remaining rows */
         void cancel_redraw() { _redraw_i = UINT16_MAX; }
 
-        /** @brief Submit every remaining replay row as a transaction; the
-         *  scheduler paces the drain, so there is no per-tick cap or cold-floor
-         *  gate. One-shot: after it runs the replay is fully queued. */
+        /** @brief Draw every remaining replay row; present() paces the bytes,
+         *  so there is no per-tick cap or cold-floor gate here. One-shot: after
+         *  it runs the replay is fully staged. */
         void drain_redraw(AnsiTerminal& terminal) {
             if (_redraw_i == UINT16_MAX) return;
             while (_redraw_i < _redraw_count) {
@@ -196,10 +192,9 @@ namespace Botanik { namespace Pages {
             // taller than the window: show newest rows
             if (n > log_rows) n = log_rows;
 
-            // Scroll up by n (one transaction): drops the n oldest visible rows,
-            // opens n blank slots at the bottom, leaving rows above first_row and
-            // below the window untouched. The n row paints below ride the same
-            // lane in submission order, so they always drain after this DL.
+            // Scroll up by n: drops the n oldest visible rows and opens n blank
+            // slots at the bottom, leaving rows above first_row and below the
+            // window untouched. The row paints below then stamp over the slots.
             _submit_scroll(terminal, first_row, log_rows, /*up=*/true, n);
             uint16_t first_slot = (uint16_t)(first_row + log_rows - n);
 
@@ -335,9 +330,8 @@ namespace Botanik { namespace Pages {
             uint16_t cols   = terminal.cols();
             if (cols < taglen) return;
 
-            // drawn over the top row's content (submitted after
-            // it in the page tick, so FIFO lays it on top). The drain re-homes the
-            // cursor, so no save/restore here.
+            // Drawn over the top row's content (after it in the page tick, so it
+            // wins in the grid). present() re-parks the cursor, so no save/restore.
             terminal.move_to({first_row, (uint16_t)(cols - taglen)});
             terminal.set_inverted(true);
             terminal.write_chars(tag, taglen);
@@ -360,7 +354,7 @@ namespace Botanik { namespace Pages {
 
             // Top row is the oldest shown: line(log_rows + _view_offset) back
             // from newest, each row down one nearer. The window is full here,
-            // so the indices resolve. Rows ride the same lane after the DL.
+            // so the indices resolve.
             for (uint16_t i = 0; i < n; i++)
                 _draw_line(terminal, (uint16_t)(first_row + i),
                            (uint16_t)(log_rows + _view_offset - i));
