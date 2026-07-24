@@ -34,8 +34,8 @@ namespace Botanik { namespace Terminal {
         // gauge reports what was actually waiting this cycle rather than ~0.
         _term.snapshot_rx();
         // Establish the screen on the first step (not in setup_*()) so the clear
-        // lands after the handshake setup_*() queued. establish_screen() (not
-        // clear_screen) so the queued handshake survives the tx_discard.
+        // lands after the handshake setup_*() queued (establish_screen(), not
+        // clear_screen, so it keeps the queued handshake bytes).
         if (!_term.screen_ready()) {
             _term.establish_screen();
             // Full redraw order: the status bar (direct), then the alarm bar, then
@@ -61,11 +61,9 @@ namespace Botanik { namespace Terminal {
             if (_pages[i] != nullptr) _pages[i]->tick(i == _page_index);
         // Last: top up the bottom alarm bar over whatever the active page drew.
         _alarm_bar.step();
-        // Drain the transaction queue into the TX ring: renderers that submit
-        // (rather than write direct) have queued their work by now; the scheduler
-        // paces it, highest lane first, within this tick's byte budget. No-op
-        // while no renderer submits (migration lands per-renderer).
-        _term.tx_drain();
+        // Reconcile the frame: diff the FRONT grid the renderers just drew against
+        // the wire and emit the minimal, paced ANSI to catch it up.
+        _term.present();
     }
 
     void Console::_pump_input() {
@@ -186,27 +184,16 @@ namespace Botanik { namespace Terminal {
         if (_pages[_page_index] != nullptr)
             _pages[_page_index]->deactivate();
         _page_index = index;
-        // Abandon everything queued for the page we're leaving: clear the whole
-        // transaction pool (so the new page's paint can never coexist with the old
-        // one's and overflow the pool into an eviction), drop the bytes already in
-        // the ring, and resync a possibly-torn sequence. Then reposition absolutely
-        // (the shadow is stale after the discard).
-        _term.tx_clear();
-        _term.tx_discard();
-        _term.cancel_sequence();
         // Hide the cursor before any repaint so it doesn't blink across the
         // cleared content or the row-0 tabs. focus() shows it again if wanted.
         _term.set_cursor_visible(false);
-        _term.reset_to({1, 0});
         // Clear only the content band: preserves the row-0 status bar and the
-        // bottom alarm bar (no wipe-and-repaint flicker on a page switch).
+        // bottom alarm bar. The new page's focus() redraws it and the back-buffer
+        // diff emits just the net change - no wipe-and-repaint flicker.
         clear_content();
         // The active tab expands to "N:NAME" and the rest collapse to a number,
         // so a switch reflows the whole strip (widths shift); repaint it as a unit.
         _status_bar.draw_tabs();
-        // The tx_discard may have dropped a queued row-0 update; invalidate the
-        // diff caches so the next refresh repaints them in full.
-        _status_bar.invalidate();
         // The alarm bar is NOT redrawn here: clear_content() preserves its bottom
         // row, so its already-drawn content survives the switch unchanged. Its
         // step() repaints it only when the alarm set actually moves (a switch that

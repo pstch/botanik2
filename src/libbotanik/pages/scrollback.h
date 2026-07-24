@@ -4,7 +4,7 @@
 
 /**
  * @file scrollback.h
- * @brief Scrollback - a LineBuffer with a transactional incremental redraw, used
+ * @brief Scrollback - a LineBuffer with an incremental redraw, used
  *        by the logs, shell and home pages (via the ShellScrollback /
  *        LogsScrollback / HomeScrollback typedefs below).
  */
@@ -20,11 +20,11 @@
 namespace Botanik { namespace Pages {
 
     /**
-     * @brief Circular scrollback buffer with a transactional incremental redraw.
+     * @brief Circular scrollback buffer with an incremental redraw.
      *
      * Layers a deferred redraw over a @ref LineBuffer of @p L lines: each log-line
-     * row, DL/IL scroll and replay is a TX_STRUCT transaction the scheduler paces,
-     * so the scrollback shares the wire fairly with the page's other transactions.
+     * row, DL/IL scroll and replay draw immediate-mode; the terminal back-buffer diff
+     * pares the bytes.
      * The window is bottom-aligned within rows 1..log_rows (caller-supplied). Name
      * it through @ref ShellScrollback / @ref LogsScrollback / @ref HomeScrollback.
      */
@@ -84,37 +84,29 @@ namespace Botanik { namespace Pages {
          *  coalesced - so a bottom-row append can't merge across a later scroll
          *  and tear; the tail is bounded per drain, so the pool can't overflow.
          *  @{ */
-        uint16_t _owner = 0;
 
         /** @brief Submit log line @p from_newest (steps back from the newest
-         *  stored line) at screen @p row as one transaction; blank the row when
+         *  stored line) at screen @p row; blank the row when
          *  the line is missing (past the stored set). */
         void _draw_line(AnsiTerminal& t, uint16_t row, uint16_t from_newest) {
             uint16_t llen = 0;
             const char* ln = this->line(from_newest, llen);
-            t.tx_begin(Terminal::TX_STRUCT, 0);
             t.move_to({row, 0});
             t.set_inverted(false);
             if (ln) t.write_chars(ln, (uint16_t)std::min((size_t)llen,
                                                          (size_t)t.cols()));
             t.clear_to_eol();
-            t.tx_commit();
         }
 
-        /** @brief Submit a band scroll (DL/IL) as one atomic transaction. */
+        /** @brief Submit a band scroll (DL/IL). */
         void _submit_scroll(AnsiTerminal& t, uint16_t first_row, uint16_t log_rows,
                             bool up, uint16_t n) {
-            t.tx_begin(Terminal::TX_STRUCT, 0);
             t.scroll_region(first_row, (uint16_t)(first_row + log_rows - 1), up, n);
-            t.tx_commit();
         }
 
         /** @} */
 
     public:
-        /** @brief Set the owner tag for this scrollback's transaction keys
-         *  (distinct per page). */
-        void set_owner(uint16_t owner) { _owner = owner; }
 
         /** @name Line storage
          *  @{ */
@@ -343,15 +335,13 @@ namespace Botanik { namespace Pages {
             uint16_t cols   = terminal.cols();
             if (cols < taglen) return;
 
-            // One transaction, drawn over the top row's content (submitted after
+            // drawn over the top row's content (submitted after
             // it in the page tick, so FIFO lays it on top). The drain re-homes the
             // cursor, so no save/restore here.
-            terminal.tx_begin(Terminal::TX_STRUCT, 0);
             terminal.move_to({first_row, (uint16_t)(cols - taglen)});
             terminal.set_inverted(true);
             terminal.write_chars(tag, taglen);
             terminal.set_inverted(false);
-            terminal.tx_commit();
         }
 
         /** @} */

@@ -75,12 +75,8 @@ namespace Botanik { namespace Terminal {
         uint64_t sig = unmasked_set();
         if (sig != _sig) _dirty = true;
         if (!_dirty) return;
-        // Submit the whole bar as a coalescing transaction; the queue paces it,
-        // and the drain's cursor re-assertion keeps a visible page cursor put.
-        static const uint32_t KEY_ALARMBAR = 0xF0010003u;   // chrome owner, id 3
-        _t.tx_begin(TX_STRUCT, KEY_ALARMBAR);
+        // Redraw the whole bar immediate-mode; the terminal diff pares the bytes.
         draw();
-        _t.tx_commit();
         _sig   = sig;
         _dirty = false;
     }

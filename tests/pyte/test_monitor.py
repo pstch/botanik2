@@ -23,7 +23,9 @@ def test_monitor_scrolls(spawn):
     term = boot(spawn)
     goto(term, ALT_7)
     assert term.wait_for("grid_v")
-    # Scroll to the bottom of the table; a late-group variable should appear.
-    for _ in range(30):
+    # A few DOWNs move the selection cursor; END jumps it to the last variable,
+    # auto-scrolling the window so a late-group variable comes into view.
+    for _ in range(3):
         term.send(keys.DOWN)
+    term.send(keys.END_KEY)
     assert term.wait_for("sunset_min"), "did not scroll to the last group"

@@ -33,6 +33,7 @@
 #include "libbotanik_config.h"
 #include "libbotanik/core/config.h"
 #include "libbotanik/pages/page.h"
+#include "libbotanik/pages/scroll_table.h"
 #include "libbotanik/console/console.h"
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/console/editor.h"
@@ -40,7 +41,7 @@
 namespace Botanik { namespace Pages {
 
     /** @brief Full-screen editable configuration table (see file header). */
-    class ConfigPage : public Page {
+    class ConfigPage : public ScrollTablePage {
     private:
         using AnsiTerminal = Terminal::AnsiTerminal;
         using Console      = Terminal::Console;
@@ -67,41 +68,11 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t NAME_CELL_R = MARGIN + 2 + NAME_W;   // name field end
         /** @} */
 
-        /** @name Transaction keys
-         *  Every paint is a keyed transaction (owner 0xC0): the scheduler paces
-         *  and coalesces them, so the page submits and never staged-paces itself.
-         *  Structural chrome goes on TX_STRUCT; the per-parameter data rows churn
-         *  on TX_VALUE, keyed by screen row so a fresh value/selection paint
-         *  replaces a still-queued one for the same row.
-         *  @{ */
-        static constexpr uint16_t OWNER      = 0x00C0;
-        static constexpr uint32_t KEY_MARGIN = ((uint32_t)OWNER << 16) | 1;
-        static constexpr uint32_t KEY_HEADER = ((uint32_t)OWNER << 16) | 2;
-        static constexpr uint32_t KEY_RULE   = ((uint32_t)OWNER << 16) | 3;
-        static constexpr uint32_t KEY_PROMPT = ((uint32_t)OWNER << 16) | 4;
-        /** @brief Coalescing key for the data row painted at screen @p row. */
-        static uint32_t _row_key(uint16_t row) {
-            return ((uint32_t)OWNER << 16) | (uint32_t)(0x1000 + row);
-        }
-        /** @} */
-
         /** @name State
          *  @{ */
         Console&            _console;
-        AnsiTerminal&       _terminal;
         Cfg::ConfigHandler* _config;
         bool                _active   = false;
-        /** @brief Set on focus (a cleared screen): the next tick submits the
-         *  structural chrome and forces every data row to repaint. The scheduler
-         *  paces the resulting transactions, so no per-page staging is needed. */
-        bool                _repaint_all = false;
-        uint16_t            _selected  = 0;          ///< cursor row (param index)
-        uint16_t            _sel_prev  = 0xFFFF;      ///< last-painted selection
-        /** @brief Per-row value cache (diff gate; only changed rows repaint).
-         *  64 rows is well above the library table; a site adding more than that
-         *  many params would simply lose the diff gate on the overflow. */
-        static constexpr uint16_t MAX_CACHE_ROWS = 64;
-        char                _vcache[MAX_CACHE_ROWS][VAL_CAP];
 
         /** @name Edit sub-state
          *  @{ */
@@ -116,7 +87,7 @@ namespace Botanik { namespace Pages {
         /** @brief @p console owns the content geometry; @p config is the backend
          *  the table reads/writes (may be null -> empty table). */
         ConfigPage(Console& console, Cfg::ConfigHandler* config)
-            : _console(console), _terminal(console.terminal()), _config(config),
+            : ScrollTablePage(console.terminal()), _console(console), _config(config),
               _editor(&console) {}
 
         const char* name() const override { return "CONFIG"; }
@@ -136,17 +107,13 @@ namespace Botanik { namespace Pages {
             uint16_t n = _param_count();
             if (n == 0) return;
             switch (cmd) {
-                case Command::UP:
-                case Command::CTRL_P:
-                    if (_selected > 0) _selected--;
-                    break;
-                case Command::DOWN:
-                case Command::CTRL_N:
-                    if (_selected + 1 < n) _selected++;
-                    break;
-                case Command::HOME:      _selected = 0;         break;
-                case Command::END:       _selected = (uint16_t)(n - 1); break;
-                case Command::ENTER:     _start_edit();         break;
+                case Command::UP:    case Command::CTRL_P: _move_selection(-1);        break;
+                case Command::DOWN:  case Command::CTRL_N: _move_selection(+1);        break;
+                case Command::PAGE_UP:   _move_selection(-(int)_page_step());          break;
+                case Command::PAGE_DOWN: _move_selection(+(int)_page_step());          break;
+                case Command::HOME:      _move_selection(-(int)n);                    break;
+                case Command::END:       _move_selection(+(int)n);                    break;
+                case Command::ENTER:     _start_edit();                               break;
                 default: break;
             }
         }
@@ -167,23 +134,28 @@ namespace Botanik { namespace Pages {
             _active = true;
             _editing = false;
             if (_selected >= _param_count()) _selected = 0;
-            _repaint_all = true;     // switch_to cleared the screen; paint fresh
+            _follow_selection();
         }
 
         void tick(bool active) override {
             _active = active;
             if (!active) return;
-            // On a fresh screen, submit the structural chrome and force every
-            // data row to redraw; the scheduler paces the transactions.
-            if (_repaint_all) {
-                _submit_structure();
-                _invalidate_rows();
-                _sel_prev = 0xFFFF;
-                _repaint_all = false;
+            // While editing, the editor owns the screen (it redraws the prompt row
+            // and its cursor on each keystroke); leave the static table as drawn.
+            if (_editing) return;
+            // Redraw the table immediate-mode; the terminal's back-buffer diff emits
+            // only the cells that moved, so the page keeps no per-row cache.
+            uint16_t n = _param_count();
+            _clamp_selection();
+            _follow_selection();
+            _draw_structure();
+            uint16_t win = _window();
+            for (uint16_t vi = 0; vi < win; vi++) {
+                uint16_t row = (uint16_t)(DATA_TOP + vi), idx = (uint16_t)(_top + vi);
+                if (idx < n) _draw_row(idx, row, idx == _selected);
+                else { _terminal.move_to({row, 0}); _terminal.set_inverted(false); _terminal.clear_to_eol(); }
             }
-            // Submit any row whose value or selection changed. The editor's live
-            // cursor is re-homed by tx_drain, so no manual re-park here.
-            _repaint_changes();
+            _draw_prompt_row();
         }
 
         /** @} */
@@ -198,13 +170,12 @@ namespace Botanik { namespace Pages {
             return (prompt > DATA_TOP) ? (uint16_t)(prompt - DATA_TOP) : 0;
         }
 
-        /** @brief Visible parameter rows (the smaller of the table and the
-         *  content height). */
-        uint16_t _shown() const {
-            uint16_t vis = _visible_rows();
-            uint16_t n   = _param_count();
-            return (n < vis) ? n : vis;
-        }
+        /** @name ScrollTablePage geometry
+         *  @{ */
+        uint16_t _data_top()  const override { return DATA_TOP; }
+        uint16_t _window()    const override { return _visible_rows(); }
+        uint16_t _row_count() const override { return _param_count(); }
+        /** @} */
 
         // Rendering
         // --------------------------------------------------------------------
@@ -233,21 +204,12 @@ namespace Botanik { namespace Pages {
             return (n < 0) ? 0 : (uint16_t)n;
         }
 
-        /** @brief The name field's padded contents only, for the cheap selection
-         *  patch (no border or padding). */
-        uint16_t _name_field_text(uint16_t idx, char* buf, size_t cap) const {
-            const Cfg::ConfigParam& p = _config->param((uint8_t)idx);
-            int n = snprintf(buf, cap, "%-*.*s", NAME_W, NAME_W, p.name);
-            return (n < 0) ? 0 : (uint16_t)n;
-        }
-
-        /** @brief Draw a full data row; only the selected row's name field
-         *  inverts (whole-row invert is dropped to save TX on selection moves).
-         *  Submitted as one TX_VALUE transaction keyed by screen @p row. */
+        /** @brief Draw a full data row @p idx at screen @p row; only the selected
+         *  row's NAME field inverts. The terminal's back-buffer diff pares it to the
+         *  cells that actually moved. */
         void _draw_row(uint16_t idx, uint16_t row, bool selected) {
             char line[LINE_CAP];
             uint16_t n = _row_text(idx, line, sizeof(line));
-            _terminal.tx_begin(Terminal::TX_VALUE, _row_key(row));
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
             _terminal.write_chars(line, NAME_CELL_L);                 // margin + "| "
@@ -257,30 +219,6 @@ namespace Botanik { namespace Pages {
             if (n > NAME_CELL_R)
                 _terminal.write_chars(line + NAME_CELL_R, (uint16_t)(n - NAME_CELL_R));
             _terminal.clear_to_eol();
-            _terminal.tx_commit();
-        }
-
-        /** @brief Repaint only the name field of a row (its highlight moved).
-         *  Same key as _draw_row: a selection patch and a pending full redraw of
-         *  the row coalesce to whichever was submitted last. */
-        void _patch_name_cell(uint16_t idx, uint16_t row, bool selected) {
-            char cell[NAME_W + 2];
-            uint16_t n = _name_field_text(idx, cell, sizeof(cell));
-            _terminal.tx_begin(Terminal::TX_VALUE, _row_key(row));
-            _terminal.move_to({row, NAME_CELL_L});
-            if (selected) _terminal.set_inverted(true);
-            _terminal.write_chars(cell, n);
-            if (selected) _terminal.set_inverted(false);
-            _terminal.tx_commit();
-        }
-
-        /** @brief Blank the top-margin row (TX_STRUCT). */
-        void _draw_margin() {
-            _terminal.tx_begin(Terminal::TX_STRUCT, KEY_MARGIN);
-            _terminal.move_to({TOP_ROW, 0});
-            _terminal.set_inverted(false);
-            _terminal.clear_to_eol();
-            _terminal.tx_commit();
         }
 
         void _draw_header() {
@@ -288,12 +226,10 @@ namespace Botanik { namespace Pages {
             int n = snprintf(line, sizeof(line), "%*s| %-*.*s | %-*.*s | %-*.*s |",
                              (int)MARGIN, "", NAME_W, NAME_W, "PARAMETER",
                              TYPE_W, TYPE_W, "TYPE", _value_w(), _value_w(), "VALUE");
-            _terminal.tx_begin(Terminal::TX_STRUCT, KEY_HEADER);
             _terminal.move_to({HEADER_ROW, 0});
             _terminal.set_inverted(false);
             _terminal.write_chars(line, (n < 0) ? 0 : (uint16_t)n);
             _terminal.clear_to_eol();
-            _terminal.tx_commit();
         }
 
         void _draw_rule() {
@@ -308,53 +244,19 @@ namespace Botanik { namespace Pages {
             if (k < sizeof(line)) line[k++] = '+';
             for (uint16_t i = 0; i < vw + 2 && k < sizeof(line); i++)       line[k++] = '-';
             if (k < sizeof(line)) line[k++] = '+';
-            _terminal.tx_begin(Terminal::TX_STRUCT, KEY_RULE);
             _terminal.move_to({RULE_ROW, 0});
             _terminal.set_inverted(false);
             _terminal.write_chars(line, (uint16_t)k);
             _terminal.clear_to_eol();
-            _terminal.tx_commit();
         }
 
-        // Repaint driver (scheduler-paced; no per-page staging)
-        // --------------------------------------------------------------------
-
-        /** @brief Submit the static chrome: top margin, header, rule, and (when
-         *  not editing) the bottom hint. */
-        void _submit_structure() {
-            _draw_margin();
+        /** @brief Draw the static chrome: top margin, header, rule. */
+        void _draw_structure() {
+            _terminal.move_to({TOP_ROW, 0});
+            _terminal.set_inverted(false);
+            _terminal.clear_to_eol();
             _draw_header();
             _draw_rule();
-            if (!_editing) _draw_prompt_row();
-        }
-
-        /** @brief Poison the row value cache so every shown row redraws next
-         *  _repaint_changes() (after a full-screen clear). */
-        void _invalidate_rows() {
-            uint16_t shown = _shown();
-            for (uint16_t i = 0; i < shown && i < MAX_CACHE_ROWS; i++) {
-                _vcache[i][0] = '\xFF';   // no formatted value starts with 0xFF
-                _vcache[i][1] = '\0';
-            }
-        }
-
-        /** @brief Submit any row whose value or selection changed. A value change
-         *  redraws the whole row; a selection move only patches the first cell. */
-        void _repaint_changes() {
-            uint16_t shown = _shown();
-            char val[VAL_CAP];
-            for (uint16_t i = 0; i < shown; i++) {
-                _config->format((uint8_t)i, val, sizeof(val));
-                bool sel_now = (i == _selected), sel_then = (i == _sel_prev);
-                bool cached = i < MAX_CACHE_ROWS;
-                if (!cached || strcmp(val, _vcache[i]) != 0) {
-                    _draw_row(i, (uint16_t)(DATA_TOP + i), sel_now);
-                    if (cached) memcpy(_vcache[i], val, VAL_CAP);
-                } else if (sel_now != sel_then) {
-                    _patch_name_cell(i, (uint16_t)(DATA_TOP + i), sel_now);
-                }
-            }
-            _sel_prev = _selected;
         }
 
         // Prompt row (bottom): edit field or hint
@@ -391,13 +293,11 @@ namespace Botanik { namespace Pages {
                 return;
             }
             _terminal.set_cursor_visible(false);
-            _terminal.tx_begin(Terminal::TX_STRUCT, KEY_PROMPT);
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
             const char* hint = " UP/DOWN select   ENTER edit   ESC cancel";
             _terminal.write_chars(hint, (uint16_t)strlen(hint));
             _terminal.clear_to_eol();
-            _terminal.tx_commit();
         }
 
         /** @brief Draw the "[invalid]" marker after the edit value, then restore
@@ -422,9 +322,6 @@ namespace Botanik { namespace Pages {
 
         void _start_edit() {
             if (_selected >= _param_count()) return;
-            // The editor writes the prompt row directly; drop any still-queued
-            // idle hint for it so a late drain can't overwrite the edit line.
-            _terminal.tx_drop_key(Terminal::TX_STRUCT, KEY_PROMPT);
             _edit_param = &_config->param((uint8_t)_selected);
             uint16_t row = (uint16_t)(_console.rows() - 1);
             char label[48];

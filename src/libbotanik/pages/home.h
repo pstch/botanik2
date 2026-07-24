@@ -166,8 +166,6 @@ namespace Botanik { namespace Pages {
             const uint16_t    lead   = 3;
             const uint16_t    tablen = (uint16_t)(sizeof(TAB) - 1);
 
-            // One keyed static transaction (balanced inversion, ends normal).
-            _terminal.tx_begin(Terminal::TX_STRUCT, _static_key());
             _terminal.move_to({row, 0});
             // Reverse-video pad, normal-video tab, then reverse fill to EOL.
             _terminal.set_inverted(true);
@@ -187,7 +185,6 @@ namespace Botanik { namespace Pages {
                 rest -= n;
             }
             _terminal.set_inverted(false);
-            _terminal.tx_commit();
         }
 
         void draw_static() override {
@@ -235,12 +232,11 @@ namespace Botanik { namespace Pages {
 
     public:
         HomePage(Console& console, const OutputData* data)
-            : MetricPage(console, 14, /*owner=*/0x00B0), _data(data) {
+            : MetricPage(console, 14), _data(data) {
             // cold-field redraw cadence
             _refresh_ms = Config::HOME_REFRESH_MS;
             // uptime ticks every second
             _hot_ms     = Config::PAGE_HOT_MS;
-            _scrollback.set_owner(0x00B1);   // distinct from the metric fields
         }
 
         const char* name() const override { return "HOME"; }

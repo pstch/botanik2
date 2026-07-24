@@ -68,12 +68,13 @@ namespace {
             return out;
         }
         // Pump ticks until a paint settles, capturing all bytes it wrote. Each
-        // tick submits transactions; tx_drain() feeds the ring, capture() the pipe.
+        // tick draws into the FRONT grid; present() diffs it to the wire; capture()
+        // reads the emitted bytes off the pipe.
         std::string paint() {
             std::string out;
             for (int i = 0; i < 64; i++) {
                 page.tick(true);
-                console.terminal().tx_drain();
+                console.terminal().present();
                 out += capture();
             }
             return out;
@@ -107,11 +108,13 @@ static void raise_all(RenderFixture& f) {
 }
 
 // Acking an active alarm flips its ON badge (active+unack -> active+ack): a
-// same-identity change, so only its mutable cells (ON badge + LAST EVENT) repaint
-// on the value lane. The CODE cell (and the static DESCRIPTION) stay untouched, so
-// "BBB" does NOT reach the wire again - a whole-row redraw would be wasted bytes.
-// The still-unacked AAA row above it is diff-skipped, as are the header and rules.
-// A single reorder-free ack is used (BBB stays below AAA) so one row's shadow moves.
+// same-identity change, so its row is patched on the value lane (the mutable
+// CODE / ON / LAST EVENT cells), NOT redrawn whole - the static DESCRIPTION column
+// stays untouched, so "alarm B" never reaches the wire again. (The single shadow
+// tracks only submitted intent, so a patch rewrites all mutable cells including
+// CODE, which is why "BBB" reappears; the byte win is skipping DESCRIPTION and
+// every other row.) The still-unacked AAA row above is diff-skipped, as are the
+// header and rules. A single reorder-free ack (BBB stays below AAA) moves one row.
 TEST_CASE("alarms render: a same-alarm state change patches its cells, skips the rest") {
     RenderFixture f;
     f.model.step(0x3, 1000);                     // AAA + BBB active; row0=AAA (sel), row1=BBB
@@ -122,9 +125,10 @@ TEST_CASE("alarms render: a same-alarm state change patches its cells, skips the
     f.page.handle_command(Command::ENTER, 1);    // repaint, shadow intact, selection at row0
     std::string out = f.paint();
 
-    CHECK(out.size()          > 0);                   // the ON/EVENT cell patch was emitted
-    CHECK(out.find("BBB")     == std::string::npos);  // CODE cell untouched (cells-only patch)
+    CHECK(out.size()          > 0);                   // the mutable-cell patch was emitted
+    CHECK(out.find("alarm B") == std::string::npos);  // static DESCRIPTION untouched (cell patch)
     CHECK(out.find("AAA")     == std::string::npos);  // the unchanged AAA row is skipped
+    CHECK(out.find("alarm A") == std::string::npos);  // ...its description too
     CHECK(out.find("CODE")    == std::string::npos);  // header/rules not re-emitted
     CHECK(out.find("----")    == std::string::npos);
 }
@@ -151,6 +155,29 @@ TEST_CASE("alarms render: identity change redraws the row in full") {
     f.page.handle_command(Command::ENTER, 1);
     std::string out = f.paint();
     CHECK(out.find("BBB") != std::string::npos);   // a full row carried the new CODE
+}
+
+// Moving the selection within the window (no scroll) repaints the old row's CODE
+// cell (un-highlighted) and the new row's CODE cell (highlighted) - and only those
+// two cells, as one atomic transaction. The descriptions and the other rows are
+// untouched, proving it's a cell patch, not a pair of full-row redraws.
+TEST_CASE("alarms render: a selection move repaints both CODE cells, nothing else") {
+    RenderFixture f;                             // 24 rows: all four fit, so no scroll
+    f.model.step(0xF, 1000);                     // AAA..DDD active; row0=AAA selected
+    f.page.focus();
+    f.paint();                                   // initial paint; discard
+
+    f.page.handle_command(Command::DOWN, 1);     // AAA(row0) -> BBB(row1), stays in window
+    std::string out = f.paint();
+
+    CHECK(out.find("AAA")     != std::string::npos);  // old row's CODE repainted (plain)
+    CHECK(out.find("BBB")     != std::string::npos);  // new row's CODE repainted (inverted)
+    CHECK(out.find("alarm A") == std::string::npos);  // DESCRIPTION untouched (cell patch)
+    CHECK(out.find("alarm B") == std::string::npos);
+    CHECK(out.find("CCC")     == std::string::npos);  // no other row repainted
+    CHECK(out.find("DDD")     == std::string::npos);
+    CHECK(out.find("CODE")    == std::string::npos);  // header/rules not re-emitted
+    CHECK(out.find("----")    == std::string::npos);
 }
 
 // DOWN moves the selection cursor, not the window. A short window (10 rows ->

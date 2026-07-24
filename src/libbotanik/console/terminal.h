@@ -4,15 +4,18 @@
 
 /**
  * @file terminal.h
- * @brief AnsiTerminal - the VT device.
+ * @brief AnsiTerminal - a compositing screen over a VT device.
  *
- * The low-level half of the console: it owns the serial link, emits ANSI escape
- * sequences, and tracks the cursor / attribute / physical-geometry shadow state.
- * Cursor moves, character output, content scrolling, the shared field painter,
- * and cooperative-TX gating live here. The Console (console.h) composes one of
- * these and drives page multiplexing, the status/alarm bars, and the per-tick
- * step() on top of it. Renderers (pages, editor, bars) hold an AnsiTerminal&
- * (obtained via Console::terminal()) and paint through it.
+ * The low-level half of the console. Renderers (pages, editor, bars) draw
+ * immediate-mode through the usual ops (move_to / write_chars / set_inverted /
+ * clear_to_eol / scroll_region ...); those ops paint into an in-memory FRONT
+ * cell grid rather than the wire. Once per tick the Console calls present(),
+ * which diffs FRONT against BACK (what is on the wire), emits the minimal ANSI
+ * to reconcile them - paced under the tick's byte budget - and copies the
+ * emitted cells into BACK. Renderers therefore keep no "what did I draw" shadow
+ * of their own: redrawing an unchanged cell costs nothing because the diff drops
+ * it. The Console (console.h) composes one of these and drives page
+ * multiplexing, the status/alarm bars, and the per-tick step().
  */
 
 #include <cstdint>
@@ -20,16 +23,14 @@
 #include "libbotanik_config.h"
 #include "libbotanik/utils/serial.h"
 #include "libbotanik/console/ansi.h"
-#include "libbotanik/console/tx_queue.h"
 
 namespace Botanik { namespace Terminal {
 
     /** @class AnsiTerminal
-     *  @brief Owns the serial link; emits ANSI and tracks the terminal shadow
-     *  state. See the file header. Is the TxEmitter that renders one queued
-     *  transaction (move to base, content, advance to end) with the leading move
-     *  optimized against the tracked real cursor. */
-    class AnsiTerminal : public TxEmitter {
+     *  @brief Owns the serial link and a screen back-buffer; renderers paint into
+     *  its FRONT grid and present() emits the minimal diff to the wire. See the
+     *  file header. */
+    class AnsiTerminal {
         using BufferedSerial = Utils::BufferedSerial;
         using CursorPos = Terminal::Ansi::CursorPos;
 
@@ -46,112 +47,114 @@ namespace Botanik { namespace Terminal {
         uint16_t            _rows;          /**< Physical display height in rows. */
 
         /** @}
-         *  @name Hardware terminal state
+         *  @name Screen back-buffer
+         *  Two cell grids, indexed [row*_cols + col]. A cell is a 7-bit glyph in
+         *  the low bits with CELL_INV (reverse video) in the high bit; a blank is
+         *  ' '. _front is what renderers have drawn (the desired screen); _back is
+         *  what present() has put on the wire. Sized for the largest supported
+         *  terminal; _cols/_rows are clamped to it at construction.
          *  @{ */
+        static constexpr uint16_t GRID_COLS  = 132;
+        static constexpr uint16_t GRID_ROWS  = 32;
+        static constexpr uint16_t GRID_CELLS = GRID_COLS * GRID_ROWS;
+        static constexpr uint8_t  CELL_INV   = 0x80;
+        static constexpr uint8_t  CELL_CH    = 0x7F;
+        static constexpr uint8_t  CELL_BLANK = ' ';
+        uint8_t _front[GRID_CELLS];
+        uint8_t _back [GRID_CELLS];
+        inline uint16_t _idx(uint16_t row, uint16_t col) const {
+            return (uint16_t)(row * _cols + col);
+        }
 
-        /** @brief Tracked hardware cursor position. */
-        CursorPos           _hw_pos         = {0, 0};
-        /** @brief Reverse-video attribute state. */
-        bool                _hw_inverted    = false;
-        /** @brief DECAWM auto-wrap (default: on). */
-        bool                _hw_auto_wrap   = true;
-        /** @brief Cursor parked at last col after a row-filling write. */
-        bool                _hw_at_eol      = false;
-        /** @brief SM4/RM4 insert mode (toggled lazily by write_chars). */
-        bool                _hw_insert_mode = false;
-        /** @brief DECTCEM cursor visibility (default: hidden). Pages that want a
-         *  visible cursor (only the shell editor today) opt in via
-         *  set_cursor_visible() in focus(); switch_to() hides it otherwise. */
-        bool                _hw_cursor_visible = false;
-        /** @brief Screen has been established (cleared) at least once. Lets the
-         *  first switch_to() skip a redundant clear that would tx_discard a
-         *  setup_*()'s freshly-emitted handshake. */
-        bool                _screen_ready = false;
+        /** @brief Draw cursor: where the next write_chars stamps. _draw_col may
+         *  equal _cols (parked past the last column after a row-filling write, so a
+         *  following clear_to_eol erases nothing). */
+        uint16_t _draw_row = 0, _draw_col = 0;
+        /** @brief Draw pen: reverse-video applied to stamped cells. */
+        bool     _draw_inv = false;
+        /** @brief Desired cursor visibility (only the shell editor asks for on). */
+        bool     _want_cursor_visible = false;
+        /** @brief Desired live cursor position (where a visible cursor is parked
+         *  after present() reconciles the screen). Set by move_to. */
+        CursorPos _live_cursor_pos = {0, 0};
+
+        /** @brief Band scrolls recorded by scroll_region this tick, emitted as
+         *  DL/IL by present() before the cell diff (both grids were already
+         *  shifted, so the diff then only repaints the revealed rows). */
+        struct PendingScroll { uint16_t top, bottom, n; bool up; };
+        static constexpr uint8_t MAX_SCROLLS = 8;
+        PendingScroll _scrolls[MAX_SCROLLS];
+        uint8_t       _nscrolls = 0;
 
         /** @}
-         *  @name Cooperative-TX depth gates
+         *  @name Wire (on-the-wire) terminal state, tracked by present()
          *  @{ */
 
-        /** @brief Single paint depth floor in bytes, derived from the link baud
-         *  at construction via depth_for_baud(). Shared by every cooperative
-         *  paint path (status bar, page hot/cold, draw_static, replays). */
+        CursorPos           _hw_pos         = {0, 0};   ///< real cursor position
+        bool                _hw_inverted    = false;    ///< real reverse-video
+        bool                _hw_auto_wrap   = true;      ///< DECAWM (kept off UI-wide)
+        bool                _hw_at_eol      = false;    ///< parked at last col (pending wrap)
+        bool                _hw_insert_mode = false;    ///< SM4/RM4 on the wire
+        bool                _hw_cursor_visible = false; ///< DECTCEM on the wire
+        bool                _screen_ready = false;      ///< screen established once
+
+        /** @}
+         *  @name Pacing
+         *  @{ */
+
+        /** @brief Per-tick emit budget floor in bytes, derived from the link baud
+         *  at construction; present() emits at most this many bytes above what is
+         *  already queued in the ring, so the felt latency target holds across
+         *  links and the ring never overflows into a dropped (torn) write. */
         uint16_t            _tx_cold_depth = 0;
 
         /** @brief RX ring depth snapshotted at the top of the loop's step()
          *  (pre-parse), surfaced by rx_used() for the serial gauge. */
         uint16_t            _rx_cycle_used = 0;
 
-        /** @brief Worst-case bytes one paced field/label/clock can emit: a full
-         *  CACHE_COLS-wide cell is a cursor move (~8) + per-column glyph/SGR
-         *  toggles (~5 each). The cold floor reserves at least this much above
-         *  it, so a paced write taken while tx_below_cold() can never truncate. */
-        static constexpr uint16_t MAX_FIELD_TX_BYTES = 256;
+        /** @brief Ring headroom the budget floor always leaves free, so a single
+         *  oversized run (see present()'s escape) still has somewhere to land
+         *  rather than being deferred forever. */
+        static constexpr uint16_t TX_HEADROOM_BYTES = 256;
 
-        /** @brief Bytes that drain in @p target_ms at @p baud (8N1: baud/10
-         *  B/s), clamped to a small floor and to leave a whole worst-case field
-         *  of ring headroom above it. The byte depth is the latency target
-         *  turned into a FIFO depth; it is dilation-invariant. */
+        /** @brief Bytes that drain in @p target_ms at @p baud (8N1: baud/10 B/s),
+         *  clamped to a small floor and to leave TX_HEADROOM_BYTES of ring free.
+         *  The latency target turned into a byte depth; dilation-invariant. */
         static uint16_t depth_for_baud(uint32_t baud, uint32_t target_ms) {
-            static_assert(Utils::BufferedSerial::tx_capacity() > MAX_FIELD_TX_BYTES + 8,
-                          "TX ring too small to guarantee a paced field above the floor");
+            static_assert(Utils::BufferedSerial::tx_capacity() > TX_HEADROOM_BYTES + 8,
+                          "TX ring too small to keep the headroom above the floor");
             uint32_t d = (uint32_t)(((uint64_t)baud * target_ms) / 10000u);
             if (d < 8) d = 8;
-            uint16_t cap = (uint16_t)(tx_capacity() - MAX_FIELD_TX_BYTES);
+            uint16_t cap = (uint16_t)(tx_capacity() - TX_HEADROOM_BYTES);
             if (d > cap) d = cap;
             return (uint16_t)d;
         }
 
         /** @}
-         *  @name Transaction recording (see tx_begin / tx_commit and
-         *  docs/TX_QUEUE_DESIGN.md)
+         *  @name present() internals
          *  @{ */
 
-        /** @brief A ByteSink over a fixed buffer: the terminal points _sink here
-         *  while recording so its ops (and the Ansi helpers) capture their bytes
-         *  instead of reaching the ring. */
-        struct BufSink : public Utils::ByteSink {
-            char*    buf = nullptr;
-            uint16_t cap = 0, len = 0;
-            void reset(char* b, uint16_t c) { buf = b; cap = c; len = 0; }
-            uint16_t availableForWrite() const override { return (uint16_t)(cap - len); }
-            uint16_t write(const char* s, uint16_t n) override {
-                uint16_t room = (uint16_t)(cap - len);
-                uint16_t w = (n < room) ? n : room;
-                for (uint16_t i = 0; i < w; i++) buf[len + i] = s[i];
-                len = (uint16_t)(len + w);
-                return w;
-            }
-        };
-
-        /** @brief The priority-laned transaction queue drained into the ring by
-         *  tx_drain(). */
-        TxScheduler _tx;
-        /** @brief Byte destination for every op: the TX ring (BufferedSerial)
-         *  normally, the record buffer between tx_begin() and tx_commit(). */
-        Utils::ByteSink* _sink = &_serial;
-        BufSink     _record;
-        /** @brief Scratch the current transaction's bytes are recorded into. */
-        char        _txn_buf[Config::TX_QUEUE_SLOT_LEN];
-        bool        _recording = false;
-        uint8_t     _txn_lane  = 0;
-        uint32_t    _txn_key   = 0;
-        /** @brief The recording's first move_to is the transaction's base (the
-         *  scheduler emits the optimal move to it at drain); the rest is content. */
-        bool        _rec_base_pending = false;
-        CursorPos   _txn_base = {0, 0};   ///< where the content paints from
-        CursorPos   _txn_end  = {0, 0};   ///< where the content leaves the cursor
-        /** @brief Desired live cursor: where a direct move_to last put it (not
-         *  drain's transaction moves). Re-homed after tx_drain() when visible, so
-         *  a value update on row 0 can't strand the shell editor's cursor. */
-        bool        _draining = false;
-        CursorPos   _live_cursor_pos = {0, 0};
-        /** @brief Shadow saved at tx_begin() and restored at tx_commit(): the
-         *  recorded bytes are queued, not sent, so the real cursor has not moved. */
-        CursorPos   _txn_saved_pos = {0, 0};
-        bool        _txn_saved_inv = false;
-        bool        _txn_saved_eol = false;
-        bool        _txn_saved_cur = false;
-        bool        _txn_saved_ins = false;   ///< SM4/RM4 insert mode across a txn
+        /** @brief Position the real cursor at @p target with the minimal sequence
+         *  from _hw_pos (relative where cheaper, absolute for diagonals), tracking
+         *  _hw_pos. Emits to the ring. @return false if the ring could not hold it. */
+        bool _go(const CursorPos& target);
+        /** @brief Emit cells [@p a, @p b) of grid @p row from _front (positioning
+         *  the cursor, toggling reverse-video per cell), copy them into _back, and
+         *  return the byte cost. */
+        uint16_t _put_run(uint16_t row, uint16_t a, uint16_t b);
+        /** @brief Estimated worst-case bytes to emit run [@p a, @p b) of @p row
+         *  (leading move + SGR toggles + glyphs), for the budget gate. */
+        uint16_t _run_cost(uint16_t row, uint16_t a, uint16_t b) const;
+        /** @brief Shift grid @p g for a band scroll (content moves, freed rows
+         *  blanked). Called for FRONT by scroll_region and for BACK by present()
+         *  once the matching DL/IL has reached the wire. */
+        void _shift_grid(uint8_t* g, uint16_t top, uint16_t bottom, bool up, uint16_t n);
+        /** @brief Blank the whole back-buffer (both grids) - after a physical
+         *  clear, the wire is blank and nothing is drawn. */
+        void _reset_grids();
+        /** @brief Wire-side DL/IL, used only by present() to emit a band scroll. */
+        void delete_rows_wire(uint16_t count);
+        void insert_rows_wire(uint16_t count);
 
         /** @} */
 
@@ -159,16 +162,8 @@ namespace Botanik { namespace Terminal {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief Initialize the device. @p baud sizes the cooperative-TX depth
-         *  floor (see tx_below_cold()) so the felt echo latency stays constant
-         *  across links. */
         AnsiTerminal(BufferedSerial& serial, uint16_t cols, uint16_t rows, uint32_t baud);
 
-        /** @brief Select and initialize the target terminal type. Call once,
-         *  before the first render; emits only the type's one-time handshake.
-         *  - setup_minitel(): 80-col teleinformatique mode, lowercase keyboard,
-         *    page mode (PRO2, sent while the unit is still native).
-         *  - setup_vt102(): plain VT100/VT102 (the default). */
         void setup_minitel();
         void setup_vt102();
 
@@ -176,24 +171,15 @@ namespace Botanik { namespace Terminal {
          *  @name Cursor & geometry
          *  @{ */
 
-        /** @brief Move cursor to an absolute position. @p skip updates the
-         *  internal state only, without emitting an ANSI sequence. */
+        /** @brief Move the draw cursor to an absolute position. @p skip is accepted
+         *  for source compatibility and ignored (a draw move never emits). */
         void move_to(const CursorPos& position, bool skip = false);
 
-        /** @brief Get the current logical cursor position. */
-        inline CursorPos cursor_pos() const { return _hw_pos; }
-
-        /** @brief Current reverse-video (inverted) shadow. */
-        inline bool inverted() const { return _hw_inverted; }
-
-        /** @brief Current cursor-visibility shadow. */
-        inline bool cursor_visible() const { return _hw_cursor_visible; }
-
-        /** @brief Whether the screen has been established (cleared) at least once. */
+        inline CursorPos cursor_pos() const { return { _draw_row, _draw_col }; }
+        inline bool inverted() const { return _draw_inv; }
+        inline bool cursor_visible() const { return _want_cursor_visible; }
         inline bool screen_ready() const { return _screen_ready; }
 
-        /** @brief Snapshot of the tracked cursor/attribute shadows, for a paint
-         *  that must hand the terminal back exactly as it found it. */
         struct CursorSnapshot {
             CursorPos pos;
             bool inverted;
@@ -201,68 +187,34 @@ namespace Botanik { namespace Terminal {
             bool cursor_visible;
         };
 
-        /** @brief Capture the cursor position, reverse-video, EOL-park, and
-         *  cursor-visibility shadows. */
         CursorSnapshot save_cursor() const {
-            return { _hw_pos, _hw_inverted, _hw_at_eol, _hw_cursor_visible };
+            return { { _draw_row, _draw_col }, _draw_inv,
+                     _draw_col >= _cols, _want_cursor_visible };
         }
 
-        /** @brief Restore a save_cursor() snapshot: reverse-video and cursor
-         *  visibility always, the cursor position (and EOL-park) only when
-         *  @p restore_pos - a mid-rebuild caller that repositions absolutely
-         *  right after passes false. */
         void restore_cursor(const CursorSnapshot& snap, bool restore_pos = true);
 
-        /** @brief Physical display width in columns. */
         inline uint16_t cols() const { return _cols; }
-
-        /** @brief Physical display height in rows (status row 0 + content + the
-         *  reserved alarm-bar row). The alarm bar draws on the physical last
-         *  row; pages size off Console::rows(), which excludes the reserved bar. */
         inline uint16_t rows_total() const { return _rows; }
 
         /** @}
          *  @name Text output & character attributes
          *  @{ */
 
-        /** @brief Write characters at the cursor; @p insert uses insertion mode
-         *  (shifts existing text right).
-         *  @return Characters that actually reached the wire (< len when the TX
-         *          ring filled), so callers can cache only what was drawn. */
+        /** @brief Stamp characters at the draw cursor into the FRONT grid; @p insert
+         *  shifts existing cells of the row right first. @return @p len (a grid
+         *  stamp never drops - pacing happens in present()). */
         uint16_t write_chars(const char *buf, uint16_t len, bool insert = false);
 
-        /** @brief Set or clear the reverse-video (inverted) attribute. */
         void set_inverted(bool enable);
-
-        /** @brief Enable or disable terminal auto-wrap (DECAWM, CSI ? 7 h/l). */
         void set_auto_wrap(bool enable);
-
-        /** @brief Show or hide the (blinking) cursor (DECTCEM). Lazy: emits only
-         *  on a state change. */
         void set_cursor_visible(bool show);
 
-        /** @brief Write spaces from the current column up to (not including)
-         *  @p to_col, chunked. Keeps the current reverse-video state, so it fills
-         *  a bar background. No-op once the cursor is at/past @p to_col. */
         void fill_spaces(uint16_t to_col);
 
-        /** @brief Force the next set_inverted(@p enable) to emit even if the
-         *  shadow already agrees: a preceding tx_discard can leave _hw_inverted
-         *  stale, which would make a plain set_inverted() a wrong no-op. */
-        void force_inverted(bool enable) { _hw_inverted = !enable; set_inverted(enable); }
-
-        /** @brief Emit columns [@p a, @p b) of the fixed-width field @p cf at
-         *  screen (@p row, @p col + a), split into reverse-video segments per
-         *  @p hi. The shared run-emit used by the status bar and MetricPage.
-         *  @return Leading cells of the run that reached the wire. */
         uint16_t emit_field_run(uint16_t row, uint16_t col, const char* cf,
                                 uint16_t a, uint16_t b, uint32_t hi);
 
-        /** @brief Paint the @p emit columns of field @p cf at (@p row, @p col),
-         *  drawing the @p hi columns reverse-video, coalescing dirty runs. Leaves
-         *  the terminal non-inverted. The shared paced-field painter for the
-         *  status bar and MetricPage; the caller owns the floor/budget gate, the
-         *  value cache, and the cursor-shadow save/restore. */
         void paint_field_runs(uint16_t row, uint16_t col, const char* cf,
                               uint16_t width, uint32_t emit, uint32_t hi);
 
@@ -270,148 +222,54 @@ namespace Botanik { namespace Terminal {
          *  @name Content manipulation
          *  @{ */
 
-        /** @brief Delete characters at current position, shifting the line left. */
         void delete_chars(uint16_t len);
-
-        /** @brief Erase content from cursor to the end of the line. */
         void clear_to_eol();
-
-        /** @brief Erase from the cursor to the end of the display. */
         void clear_to_eos();
-
-        /** @brief Erase the entire display and home the cursor (drops queued TX
-         *  first, then re-establishes). */
         void clear_screen();
-
-        /** @brief Clear the screen and flush it straight to the wire, for a clean
-         *  exit or reset (the main loop won't tick again to drain the ring).
-         *  Best-effort, bounded spin on the TX flush. */
         void clear_screen_now();
-
-        /** @brief Insert blank rows at cursor, pushing subsequent rows down. */
-        void insert_rows(uint16_t count);
-
-        /** @brief Delete rows at cursor, pulling subsequent rows up. */
-        void delete_rows(uint16_t count);
-
-        /** @brief Scroll the inclusive screen-row band [@p top .. @p bottom] by
-         *  @p n rows, leaving every row outside the band untouched. @p up drops
-         *  the top n rows (freed rows open at the bottom); otherwise the reverse.
-         *  Built from plain DL/IL (no DECSTBM): a DL/IL pair, the second op
-         *  restoring the rows the first displaced past the band; when the band
-         *  runs to the physical last row the compensating op is skipped. */
         void scroll_region(uint16_t top, uint16_t bottom, bool up, uint16_t n = 1);
 
-        /** @brief Clear screen rows [@p top .. @p bottom] inclusive (scrolls the
-         *  band off by its full height - the way to blank a row range without an
-         *  erase-to-end-of-display that would also wipe the alarm bar). */
         void clear_rows(uint16_t top, uint16_t bottom) {
             if (top > bottom) return;
             scroll_region(top, bottom, /*up=*/true, (uint16_t)(bottom - top + 1));
         }
 
-        /** @brief Emit a line feed (\\n, or \\r\\n when @p carriage_return) and
-         *  advance the tracked cursor. No bounds check - the caller confines it
-         *  to the content band (see Console::line_feed()). */
         void newline(bool carriage_return);
 
         /** @}
          *  @name Screen bring-up / low-level ops (for the Console)
          *  @{ */
 
-        /** @brief Clear+home the screen and reset cursor/wrap tracking,
-         *  re-asserting DECAWM off on every call. Does not discard the TX buffer
-         *  (the caller owns that: clear_screen drops stale paint; the first-step
-         *  bootstrap keeps the setup_*() handshake it queued). */
         void establish_screen();
-
-        /** @brief Snapshot the RX ring depth (pre-parse), read back by rx_used().
-         *  The Console calls this once at the top of its step(). */
         void snapshot_rx() { _rx_cycle_used = _serial.available(); }
 
-        /** @brief Drop bytes still queued for TX (they'd paint onto a display
-         *  we're about to wipe or repaint). */
-        void tx_discard();
-
         /** @brief Abort a half-sent control sequence on the wire, returning the
-         *  terminal parser to ground state (emitted after a tx_discard). */
+         *  terminal parser to ground state. */
         void cancel_sequence();
-
-        /** @brief Absolute reposition to @p pos, syncing the shadow. Used after a
-         *  tx_discard leaves _hw_pos unknown (a relative move would land wrong). */
-        void reset_to(const CursorPos& pos);
 
         /** @}
          *  @name Serial / TX
          *  @{ */
 
-        /** @brief Read-only access to the serial device, for the diagnostic
-         *  gauges (tx_dropped / rx_overrun / capacity). */
         const BufferedSerial& serial() const { return _serial; }
-
-        /** @brief RX ring depth captured by the last snapshot_rx(), before the
-         *  parser drained it (the live depth reads ~0 by the time a page paints
-         *  its serial gauge). */
         uint16_t rx_used() const { return _rx_cycle_used; }
-
-        /** @brief Bytes currently queued in the serial TX ring buffer. */
         uint16_t tx_used() const {
             uint16_t cap = Utils::BufferedSerial::tx_capacity();
             uint16_t freed = _serial.availableForWrite();
             return (freed <= cap) ? (uint16_t)(cap - freed) : 0;
         }
-
-        /** @brief Capacity of the serial TX ring buffer, bytes. */
         static constexpr uint16_t tx_capacity() {
             return Utils::BufferedSerial::tx_capacity();
         }
 
         /** @}
-         *  @name Transaction path (priority-laned, coalescing, atomic)
+         *  @name Frame reconciliation
          *  @{ */
 
-        /** @brief Begin recording a transaction: the ops between here and
-         *  tx_commit() are captured (not sent) into a self-contained byte batch
-         *  tagged @p lane / @p key. The shadow is saved and the position forced
-         *  unknown so the batch opens with an absolute move (self-contained). */
-        void tx_begin(uint8_t lane, uint32_t key);
-
-        /** @brief Finish the current transaction and submit it to the queue; the
-         *  saved shadow is restored (the bytes are queued, not sent). */
-        void tx_commit();
-
-        /** @brief True between tx_begin() and tx_commit(). */
-        bool tx_recording() const { return _recording; }
-
-        /** @brief Drop every queued transaction owned by @p owner (a page leaving
-         *  focus); see TxScheduler::drop_owner(). */
-        void tx_drop_owner(uint16_t owner) { _tx.drop_owner(owner); }
-
-        /** @brief Drop the queued transaction @p key on @p lane, if still queued;
-         *  see TxScheduler::drop_key(). */
-        void tx_drop_key(uint8_t lane, uint32_t key) { _tx.drop_key(lane, key); }
-
-        /** @brief Drop every queued transaction (all lanes): a page switch / full
-         *  redraw abandons whatever the old screen queued so the new page starts
-         *  with an empty pool and can never overflow it into an eviction. */
-        void tx_clear() { _tx.clear(); }
-
-        /** @brief True while a transaction with @p key is still queued on @p lane
-         *  (not yet drained); see TxScheduler::has_key(). */
-        bool tx_has_key(uint8_t lane, uint32_t key) const { return _tx.has_key(lane, key); }
-
-        /** @brief Drain queued transactions into the TX ring within this tick's
-         *  byte budget (the room below the cold floor). Called once per loop by
-         *  the Console after the renderers have submitted. */
-        void tx_drain();
-
-        /** @brief TxEmitter: render one queued transaction - move to @p base_row/
-         *  @p base_col (minimal sequence from the tracked cursor), emit @p content,
-         *  leave the cursor at @p end. @return bytes emitted, or 0 if the ring
-         *  could not hold it. For the scheduler; not a renderer entry point. */
-        uint16_t emit(uint16_t base_row, uint16_t base_col,
-                      const char* content, uint16_t len,
-                      uint16_t end_row, uint16_t end_col) override;
+        /** @brief Reconcile the FRONT grid to the wire: emit any pending band
+         *  scrolls, then the minimal cell diff, paced under this tick's byte
+         *  budget. Called once per loop by the Console after renderers have drawn. */
+        void present();
 
         /** @} */
     };

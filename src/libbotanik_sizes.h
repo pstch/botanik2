@@ -52,14 +52,14 @@ namespace Botanik { namespace detail {
     static_assert(sizeof(Terminal::TextEditor)                             == BOTANIK_SIZE(  984,   972), "TextEditor footprint changed");
 
     // Pages
-    static_assert(sizeof(Pages::MetricPage)                                == BOTANIK_SIZE( 2384,  2368), "MetricPage footprint changed");
+    static_assert(sizeof(Pages::MetricPage)                                == BOTANIK_SIZE( 1096,  1080), "MetricPage footprint changed");
     static_assert(sizeof(Pages::ShellPage)                                 == BOTANIK_SIZE(19968, 19868), "ShellPage footprint changed");
     static_assert(sizeof(Pages::LogsPage)                                  == BOTANIK_SIZE(25432, 25404), "LogsPage footprint changed");
-    static_assert(sizeof(Pages::HomePage<ProbePlcOut>)                     == BOTANIK_SIZE(12832, 12792), "HomePage footprint changed");
-    static_assert(sizeof(Pages::StatusPage<ProbePlcOut>)                   == BOTANIK_SIZE( 2392,  2376), "StatusPage footprint changed");
-    static_assert(sizeof(Pages::ShellScrollback)                           == BOTANIK_SIZE( 8274,  8274), "ShellScrollback footprint changed");
-    static_assert(sizeof(Pages::LogsScrollback)                            == BOTANIK_SIZE(16530, 16530), "LogsScrollback footprint changed");
-    static_assert(sizeof(Pages::HomeScrollback)                            == BOTANIK_SIZE( 1566,  1566), "HomeScrollback footprint changed");
+    static_assert(sizeof(Pages::HomePage<ProbePlcOut>)                     == BOTANIK_SIZE(11544, 11504), "HomePage footprint changed");
+    static_assert(sizeof(Pages::StatusPage<ProbePlcOut>)                   == BOTANIK_SIZE( 1104,  1088), "StatusPage footprint changed");
+    static_assert(sizeof(Pages::ShellScrollback)                           == BOTANIK_SIZE( 8272,  8272), "ShellScrollback footprint changed");
+    static_assert(sizeof(Pages::LogsScrollback)                            == BOTANIK_SIZE(16528, 16528), "LogsScrollback footprint changed");
+    static_assert(sizeof(Pages::HomeScrollback)                            == BOTANIK_SIZE( 1564,  1564), "HomeScrollback footprint changed");
 
 #undef BOTANIK_SIZE
 
