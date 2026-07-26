@@ -16,6 +16,17 @@
  * of their own: redrawing an unchanged cell costs nothing because the diff drops
  * it. The Console (console.h) composes one of these and drives page
  * multiplexing, the status/alarm bars, and the per-tick step().
+ *
+ * This intermediate buffering is load-bearing, not an optimization. It is what
+ * lets every page (config/monitor/alarms/home) redraw its whole content
+ * immediate-mode each tick - full tables, detail panels, selection cursors,
+ * watch-style value highlights - while the wire only ever sees the handful of
+ * cells that actually moved. Over the low-bandwidth serial link that "redraw
+ * everything, let the diff pare it" pattern is only affordable because of this
+ * back-buffer, so the pages are written against it deliberately and must not be
+ * rewritten to track their own dirty regions or diff by hand. The one measured
+ * exception is the line editor, which reconciles its own row (docs/
+ * EDITOR_RECONCILE.md); see also docs/SCREEN_BACKBUFFER.md.
  */
 
 #include <cstdint>

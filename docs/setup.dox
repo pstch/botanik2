@@ -1,16 +1,19 @@
 /**
 @page setup Setup
 
-@brief Initialise a project for a new site.
+@brief Initialise a project for a new site, and instantiate the library for it.
 
-A **site** is the single source of truth for one greenhouse: its PLC payload,
-pages, alarm table, and config overrides. Starting a new deployment means creating
-a site directory and pointing the build at it, copying the reference site
-@ref reference "gh_mlb41" as a template.
+A **site** is the single source of truth for one greenhouse: its PLC payload plus
+the declarative tables that describe it (status variables, home-screen readings,
+shell commands, config parameters, alarms). `libbotanik` stays generic - a site is
+data, not code. Starting a new deployment means creating a site directory and
+pointing the build at it, copying the reference site @ref reference "gh_mlb41" as a
+template.
 
 @section setup_clone Getting the code
 
-Clone the repository:
+The library is meant to be consumed as a git submodule of the project (or vendored
+into the Arduino zip; see @ref quickstart). To work on it directly, clone it:
 
 @code{.sh}
 git clone git@framagit.org:pstch2/botanik.git
@@ -25,8 +28,6 @@ OPTA build); install it once with arduino-cli:
 arduino-cli core install arduino:mbed_opta   # one-time: the cross-toolchain for OPTA
 @endcode
 
-Only the @ref md_src_2botanik__fw_2README "OPTA firmware" build needs it.
-
 @section setup_dir The site directory
 
 Create `src/sites/<name>/` (the `<name>` is the code-name you select with
@@ -34,27 +35,76 @@ Create `src/sites/<name>/` (the `<name>` is the code-name you select with
 
 | File | Holds |
 |------|-------|
-| `site.h` | The PLC payload (`PlcInputData_t` / `PlcOutputData_t` plus its status enums and their string companions) **and** the firmware subclass deriving `BotanikFirmware<>`. It also exposes the uniform handle a harness builds against: `BotanikSite`, the payload types, and the sim-only mock-PLC entry. |
-| `pages.h` | The site pages (the Home and Status views for this greenhouse). |
-| `alarms.h` / `alarms.cpp` | The `g_alarms[]` table - one row per alarm bit, mapping the PLC's raised bits to human-readable conditions. |
+| `site.h` | The PLC payload (`PlcInputData_t` / `PlcOutputData_t` plus its status enums and their `str()` companions), the declarative tables (status-variable `ScalarGroup[]`, home-field `HomeField[]`, shell `ShellCommand[]`, config `ConfigParam[]`), the `SiteDescriptor` (`g_site`) that bundles them, and the thin firmware binding. It exposes the uniform handle a harness builds against: `BotanikSite`, the payload types, and the sim-only mock-PLC entry. |
+| `alarms.h` | The `g_alarms[]` table - one row per alarm: code, description, the byte `offsetof` of that alarm's boolean field in `PlcOutputData_t`, dwell policy, and a remediation note. |
 | `sim.h` | The header-only mock PLC: the data animator that fills the payload with plausible values for the simulator. Its body is guarded by `#ifdef TARGET_SIMULATOR`, so it drops out of the hardware build. |
 | `config.h` | Build-wide config overrides: `#define BOTANIK_*` for any value in `libbotanik_config.h` this site needs to pin (the `LOG_PLC_*` sizes must match the PLC program). Kept separate so CMake can include it before the library defaults. |
+
+The site declares **no pages** and overrides **no lifecycle hooks** - the base owns
+every page and wires every table (see @ref setup_descriptor). The declarative tables
+are meant to be generated from the Arduino PLC project.
 
 @section setup_payload The payload contract
 
 The site's `PlcInputData_t` / `PlcOutputData_t` is the byte-for-byte layout shared with
 the M4 coprocessor (the PLC IDE generates the matching type on its side). Both the
 simulator's mock PLC and the OPTA firmware use it verbatim - never fork it per target.
-Generic components constrain it (e.g. the alarm/status machinery needs a 64-bit
-`alarms` bitset on the output struct); the site defines its layout to satisfy those
-contracts and verifies the size with `static_assert`s.
+The declarative tables address the payload **by byte offset**: each status variable
+and each alarm names a field in `PlcOutputData_t` (an alarm names its own `uint8_t`
+boolean - there is no packed alarm bitset). The site defines its layout to satisfy
+those contracts and verifies the size with `static_assert`s.
 
-@section setup_firmware The firmware subclass
+@section setup_descriptor Declaring the site: the SiteDescriptor
 
-The subclass derives `BotanikFirmware<PlcInputData_t, PlcOutputData_t>` and customises
-through the protected hooks (`register_pages()`, `register_commands()`, `on_setup()`,
-`on_loop()`) rather than overriding `setup()`/`loop()`; the alarm table is passed to
-the base constructor. See the worked extension example in `firmware.h`.
+Everything site-specific is gathered into one `Botanik::SiteDescriptor` (see
+`core/firmware.h`): the site name plus the generated tables. Any table may be
+null / count 0.
+
+@code{.cpp}
+const Botanik::SiteDescriptor g_site = {
+    Botanik::Config::SITE_NAME,
+    g_params,   g_param_count,          // config parameters (CONFIG page + `config` cmd)
+    g_commands, g_command_count,        // site shell commands
+    g_status,   g_status_group_count,   // status variables (MONITOR page, telemetry, `status`)
+    g_home,     g_home_field_count,     // home-screen readings (up to 5 left + 8 right)
+    g_alarms,   g_alarm_count,          // alarm conditions
+};
+@endcode
+
+The base `BotanikFirmware` reads this descriptor to build and wire every page
+(home / shell / logs / alarms / config / monitor) and every backend generically -
+no per-field code, and no per-site page classes.
+
+@section setup_firmware Instantiating the firmware
+
+A site is a thin binding that hands the descriptor to the base:
+
+@code{.cpp}
+class GreenhouseXXX final : public Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t> {
+public:
+    GreenhouseXXX(Botanik::PlcIO::PlcInput<PlcInputData_t>*   in,
+                  Botanik::PlcIO::PlcOutput<PlcOutputData_t>* out)
+        : Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t>(in, out, g_site) {}
+
+    GreenhouseXXX() : GreenhouseXXX(hal_input(), hal_output()) {}   // bind the HAL region
+};
+using BotanikSite = GreenhouseXXX;
+@endcode
+
+That is the whole firmware class: it declares no members and overrides nothing. A site
+that genuinely needs custom per-beat logic or an extra page (for example re-adding a
+`StatusPage`) may still override the base's `on_step()` / `register_pages()` hooks here,
+but the common case needs neither.
+
+Both targets instantiate the same `BotanikSite`, differing only in where the PLC region
+comes from:
+
+- **Simulator** (`botanik_sim/main.cpp`): allocates the shared region as local statics
+  and passes them to the explicit-region constructor, then drives a mock coprocessor
+  from the site's `sim.h` animator.
+- **Hardware** (the Arduino entry point): uses the default constructor, which binds to
+  the coprocessor's region via `HAL::PlcIO::input()` / `output()`. See @ref quickstart
+  for how the sketch, the project-root wiring, and the imported library fit together.
 
 @section setup_build Selecting the site
 
