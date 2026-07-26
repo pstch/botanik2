@@ -55,7 +55,7 @@ namespace Botanik { namespace detail {
     static_assert(sizeof(Pages::MetricPage)                                == BOTANIK_SIZE( 1096,  1080), "MetricPage footprint changed");
     static_assert(sizeof(Pages::ShellPage)                                 == BOTANIK_SIZE(19968, 19868), "ShellPage footprint changed");
     static_assert(sizeof(Pages::LogsPage)                                  == BOTANIK_SIZE(25432, 25404), "LogsPage footprint changed");
-    static_assert(sizeof(Pages::HomePage)                                  == BOTANIK_SIZE(11536, 11500), "HomePage footprint changed");
+    static_assert(sizeof(Pages::HomePage)                                  == BOTANIK_SIZE(11560, 11512), "HomePage footprint changed");
     static_assert(sizeof(Pages::StatusPage<ProbePlcOut>)                   == BOTANIK_SIZE( 1104,  1088), "StatusPage footprint changed");
     static_assert(sizeof(Pages::ShellScrollback)                           == BOTANIK_SIZE( 8272,  8272), "ShellScrollback footprint changed");
     static_assert(sizeof(Pages::LogsScrollback)                            == BOTANIK_SIZE(16528, 16528), "LogsScrollback footprint changed");

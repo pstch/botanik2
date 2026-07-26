@@ -87,13 +87,24 @@ _SUBS = [
     # timeout is dilated by BOTANIK_TIME_SCALE, so its value differs between the
     # assert suite and a faster golden regen. Mask it (the baud is fixed).
     (re.compile(r"(HW watchdog )\d+( ms)"), r"\g<1><WD>\g<2>"),
-    # Home page (site Home) live fields: the mock animates temp / humidity / vents
-    # and the irrigation tray/stage (which advances on a timing-dependent tick, so
-    # the stage shown depends on how far the mock has run by capture time).
-    (re.compile(r"(Temp\s+)[\d.]+ C"), r"\g<1><CLIMATE>"),
-    (re.compile(r"(Humidity\s+)[\d.]+%"), r"\g<1><CLIMATE>"),
-    (re.compile(r"Win [\d.]+%\s+Blow [\d.]+%"), "Win <VENT> Blow <VENT>"),
-    (re.compile(r"(Irrigation\s+)(?:Tray \d+ \([A-Z ]+\)|idle)"), r"\g<1><IRR>"),
+    # Home page site readings (declarative home-field table: label + live value).
+    # The mock animates them, and on a constrained gate the emulator may not run so
+    # they read zero - either way only the value moves, so mask it and keep the
+    # label. Each value is bounded to its column so the pattern never eats the
+    # adjacent column's label.
+    (re.compile(r"(Temp\s+)[\d.]+ C"), r"\g<1><HF>"),
+    (re.compile(r"(Humidity\s+)[\d.]+ %"), r"\g<1><HF>"),
+    (re.compile(r"(Wind\s+)\d+ km/h"), r"\g<1><HF>"),
+    (re.compile(r"(Water in\s+)\d+ L"), r"\g<1><HF>"),
+    (re.compile(r"(Tray\s+)\d+"), r"\g<1><HF>"),
+    (re.compile(r"(Grid\s+)[\d.]+ V"), r"\g<1><HF>"),
+    (re.compile(r"(DC bus\s+)[\d.]+ V"), r"\g<1><HF>"),
+    (re.compile(r"(Battery\s+)[\d.]+ V"), r"\g<1><HF>"),
+    (re.compile(r"(UPS\s+)\w+"), r"\g<1><HF>"),
+    (re.compile(r"(Network\s+)\w+"), r"\g<1><HF>"),
+    (re.compile(r"(NTP sync\s+)\d+"), r"\g<1><HF>"),
+    (re.compile(r"(Cooling\s+)\d+"), r"\g<1><HF>"),
+    (re.compile(r"(Heatpump\s+)\d+"), r"\g<1><HF>"),
     # The NTP-sync / MQTT-connect log lines carry the resolved socket address
     # (IP:port); the sim's loopback host part is PID-derived, so strip the
     # parenthesised address back to the bare message the golden pins.

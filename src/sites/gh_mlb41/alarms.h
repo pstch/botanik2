@@ -23,12 +23,12 @@
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 const Botanik::Alarms::AlarmCondition g_alarms[] = {
     // code        description                        offset                                       on off rec latch minOn
-    {"AC_GRID",  "Grid AC out-of-spec/offline",       offsetof(PlcOutputData_t, alarm_ac_grid),   2,  2,  0,   0,   10},
+    {"AC_GRID",  "Grid AC out-of-spec/offline",       offsetof(PlcOutputData_t, alarm_ac_grid),   2,  2,  0,   0,   10, "check mains breaker / utility feed"},
     {"DC_PS1",   "DC PS1 volts too low",              offsetof(PlcOutputData_t, alarm_dc_ps1),    2,  2,  0,   0,    0},
-    {"GEN_FLT",  "Generator failed to start",         offsetof(PlcOutputData_t, alarm_gen_flt),   1,  2,  0,   0,   10},
+    {"GEN_FLT",  "Generator failed to start",         offsetof(PlcOutputData_t, alarm_gen_flt),   1,  2,  0,   0,   10, "inspect generator + start battery"},
     {"AC_LOCAL", "Local AC out of spec or offline",   offsetof(PlcOutputData_t, alarm_ac_local),  2,  2,  0,   0,    0},
     {"DC_PS2",   "DC PS2 volts too low",              offsetof(PlcOutputData_t, alarm_dc_ps2),    2,  2,  0,   0,   10},
-    {"DC_UPS",   "DC UPS on battery",                 offsetof(PlcOutputData_t, alarm_dc_ups),    1,  2,  0,   0,   10},
+    {"DC_UPS",   "DC UPS on battery",                 offsetof(PlcOutputData_t, alarm_dc_ups),    1,  2,  0,   0,   10, "restore mains; check UPS battery"},
     {"DC_LOCAL", "Local DC volts too low",            offsetof(PlcOutputData_t, alarm_dc_local),  2,  2,  0,   0,    0},
     {"GEN_BATT", "Gen. start battery low",            offsetof(PlcOutputData_t, alarm_gen_batt),  5,  5,  0,   0,    0},
     {"PLC_FLT",  "Failed to synchronize with PLC",    offsetof(PlcOutputData_t, alarm_plc_flt),   2,  2,  0,   0,    0},
@@ -36,16 +36,16 @@ const Botanik::Alarms::AlarmCondition g_alarms[] = {
     {"NTP_TIM",  "NTP sync timeout",                  offsetof(PlcOutputData_t, alarm_ntp_tim),   5,  5,  0,   0,   10},
     {"ACT_FLT",  "Actioner failure",                  offsetof(PlcOutputData_t, alarm_act_flt),   2,  2,  0,   0,    0},
     {"SNS_FLT",  "Sensor fault",                      offsetof(PlcOutputData_t, alarm_sns_flt),   2,  2,  0,   0,    0},
-    {"TOO_HOT",  "Inside temperature too high",       offsetof(PlcOutputData_t, alarm_too_hot),   3,  3,  0,   0,   15},
+    {"TOO_HOT",  "Inside temperature too high",       offsetof(PlcOutputData_t, alarm_too_hot),   3,  3,  0,   0,   15, "increase ventilation / open windows"},
     {"TOO_COLD", "Inside temperature too low",        offsetof(PlcOutputData_t, alarm_too_cold),  3,  3,  0,   0,   15},
     {"TOO_HUM",  "Relative humidity too high",        offsetof(PlcOutputData_t, alarm_too_hum),   3,  3,  0,   0,   15},
     {"TMP_STR",  "Temp. stratification too high",     offsetof(PlcOutputData_t, alarm_tmp_str),   5,  5,  0,   0,    0},
-    {"WTR_LK",   "Leak in irrigation circuit",        offsetof(PlcOutputData_t, alarm_wtr_lk),    1,  2,  0,   0,    0},
+    {"WTR_LK",   "Leak in irrigation circuit",        offsetof(PlcOutputData_t, alarm_wtr_lk),    1,  2,  0,   0,    0, "shut irrigation valve, inspect circuit"},
     {"WTR_BAR",  "Water pressure too low",            offsetof(PlcOutputData_t, alarm_wtr_bar),   2,  2,  0,   0,    0},
     {"WTR_CLOG", "Failing to drain a tray",           offsetof(PlcOutputData_t, alarm_wtr_clog),  3,  3,  0,   0,    0},
     {"IO_DROP",  "Logical I/O drops",                 offsetof(PlcOutputData_t, alarm_io_drop),   2,  2,  0,   0,    0},
     {"LOG_FLD",  "Logs flooding",                     offsetof(PlcOutputData_t, alarm_log_fld),   2,  2,  0,   0,    0},
-    {"WH_STORM", "Current storm conditions",          offsetof(PlcOutputData_t, alarm_wh_storm),  2,  5,  0,   0,   15},
+    {"WH_STORM", "Current storm conditions",          offsetof(PlcOutputData_t, alarm_wh_storm),  2,  5,  0,   0,   15, "close roof windows, secure screens"},
 };
 const uint8_t g_alarm_count = (uint8_t)(sizeof(g_alarms) / sizeof(g_alarms[0]));
 #pragma GCC diagnostic pop

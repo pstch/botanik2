@@ -62,6 +62,7 @@
  *     nullptr, 0,                          // config parameters (optional)
  *     g_cmds,   1,
  *     g_status, 7,
+ *     g_home,   13,                        // home-screen readings (optional)
  *     g_alarms, 23,
  * };
  *
@@ -123,6 +124,8 @@ namespace Botanik {
         uint8_t                       command_count;
         const Network::ScalarGroup*   status_groups;       ///< status-variable table
         uint8_t                       status_group_count;
+        const Network::HomeField*     home_fields;         ///< home-screen readings
+        uint8_t                       home_field_count;
         const Alarms::AlarmCondition* alarms;              ///< alarm-condition table
         uint8_t                       alarm_count;
     };
@@ -240,7 +243,8 @@ namespace Botanik {
                          &_scheduler.context()->timestamp_ms, _console_baud,
                          &_health.model(), &_logger)
               // Base-owned pages, built from the descriptor + the live payload.
-              , _home_page(_console.terminal())
+              , _home_page(_console.terminal(), _site.home_fields,
+                           _site.home_field_count, plc_output_data())
               , _config_page(_console.terminal(), &_config)
               , _monitor_page(_console.terminal(), _site.status_groups,
                               _site.status_group_count, plc_output_data())

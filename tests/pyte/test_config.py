@@ -1,4 +1,5 @@
-"""CONFIG page: renders the parameter table and edits a value inline.
+"""CONFIG page: the parameter table, the selected-row detail panel, and an
+inline value edit.
 
 Content checks (not a full-screen golden): the values are PLC-config-driven and
 an edit round-trips asynchronously through the emulated PLC, so a content check
@@ -16,21 +17,24 @@ def test_config_page_renders(spawn):
     term = boot(spawn)
     goto(term, ALT_6)
     assert term.wait_for("PARAMETER"), "config table header missing"
+    assert term.wait_for("DEFAULT"), "default column header missing"
     assert term.wait_for("ntp_poll_s"), "config parameter rows missing"
 
 
-def test_config_edit_roundtrip(spawn):
+def test_config_detail_and_edit(spawn):
     term = boot(spawn)
     goto(term, ALT_6)
     assert term.wait_for("ntp_poll_s")
-    # Move the cursor down to ntp_poll_s (library index 7), open the inline edit,
-    # clear it, type a new value, and commit.
+    # Move the cursor down to ntp_poll_s (library index 7); the detail panel
+    # tracks the selection.
     for _ in range(7):
         term.send(keys.DOWN)
+    assert term.wait_for("NTP poll interval"), "detail panel did not follow selection"
+    # ENTER opens the inline editor on the bottom row; clear, retype, commit.
     term.send(keys.ENTER)
-    assert term.wait_for("ntp_poll_s ="), "edit prompt did not open"
+    assert term.wait_for("ntp_poll_s ="), "inline edit did not open"
     term.send(CTRL_U)
     term.send(b"120")
     term.send(keys.ENTER)
-    # The edit round-trips through the PLC write-back and repaints the row.
+    # The edit round-trips through the PLC write-back and repaints the table row.
     assert term.wait_for("120"), "edited value did not round-trip"

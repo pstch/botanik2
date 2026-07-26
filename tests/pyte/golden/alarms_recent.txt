@@ -3,9 +3,6 @@
   | CODE     | ON | LAST EVENT     | DESCRIPTION                             |
   +----------+----+----------------+-----------------------------------------+
   | SYS_RST  | ON | <ALARM_TS> | Reset in the last five minutes          |
-  | DC_PS2   | OFF| <ALARM_TS> | DC PS2 volts too low                    |
-
-
 
 
 
@@ -19,6 +16,9 @@
 
   +----------+----+----------------+-----------------------------------------+
 
-  [recent]   2 listed   <NA> active                             a:ack  SPACE: all
+ Remediation : -
+ Ack'd       : -
+
+  [recent]   1 listed   <NA> active                             a:ack  SPACE: all
 
  ALARMS :<BAR>

@@ -39,11 +39,14 @@ namespace Botanik { namespace Network {
         uint16_t    divisor;           ///< 0/1 = integer; 100 = centi; 1000 = milli
         uint8_t     decimals;          ///< fixed-point precision (divisor > 1)
         const char* (*str)(uint8_t);   ///< SCALAR_ENUM only (else null)
-        /** Human-readable description (may be null). Part of the declarative
-         *  status-variable spec, generated from the PLC project; last in the
-         *  struct so existing positional initializers keep zero-initialising it.
-         *  Not rendered yet (MONITOR / `status` show name+value). */
-        const char* desc;
+        // Descriptive metadata (may be null), part of the declarative
+        // status-variable spec generated from the PLC project; last in the struct
+        // so existing positional initializers keep zero-initialising them. The
+        // MONITOR page shows unit as a column and description/notes in a panel
+        // below the table.
+        const char* desc;    ///< one-line description
+        const char* unit;    ///< physical unit, e.g. "C"/"V"/"%" ("" = none)
+        const char* notes;   ///< extra notes / caveats
     };
 
     /** @brief A named group of ScalarFields under a shared sub-topic. A site
@@ -53,6 +56,15 @@ namespace Botanik { namespace Network {
         const char*        topic;      ///< shared sub-topic (e.g. "ac_supply")
         const ScalarField* fields;
         size_t             count;
+    };
+
+    /** @brief A home-screen reading: a display @p label paired with the status
+     *  variable (@p var) whose live value it shows. A site lists these in a
+     *  HomeField[]; the HomePage lays them out in two columns (up to 5 left +
+     *  8 right = 13). */
+    struct HomeField {
+        const char* label;
+        ScalarField var;
     };
 
     /** @brief Read @p f's value from @p base as a sign-extended 64-bit integer.

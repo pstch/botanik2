@@ -28,6 +28,7 @@
 #include "libbotanik/logs/writer.h"
 #include "libbotanik/pages/metric_page.h"
 #include "libbotanik/pages/scrollback.h"
+#include "libbotanik/network/telemetry_types.h"   // HomeField / scalar_format
 
 // Build-stamped git short hash (generated header); "unknown" when absent
 // (Arduino .ino deploy doesn't run CMake).
@@ -52,6 +53,23 @@ namespace Botanik { namespace Pages {
         /** @brief Mirrors tick(active); gates band repaints in write(). */
         bool _log_active = false;
 
+        /** @brief Site home-field table (label + status variable) + the payload
+         *  they read. Up to LEFT_MAX + RIGHT_MAX shown; extras ignored. */
+        const Network::HomeField* _fields      = nullptr;
+        uint8_t                   _field_count = 0;
+        const void*               _base        = nullptr;
+
+        /** @} */
+
+        /** @name Home-field two-column layout
+         *  Left column: LEFT_MAX rows from LEFT_TOP; right column: RIGHT_MAX rows
+         *  from RIGHT_TOP (below the identity block). Labels left-justified,
+         *  values in a fixed field so columns stay put.
+         *  @{ */
+        static constexpr uint8_t  LEFT_MAX  = 5,  RIGHT_MAX = 8;
+        static constexpr uint16_t LEFT_TOP  = 10, RIGHT_TOP = 7;
+        static constexpr uint16_t L_LBL = 2,  L_VAL = 15, L_W = 22;
+        static constexpr uint16_t R_LBL = 42, R_VAL = 55, R_W = 22;
         /** @} */
 
         /** @brief First content row below the fixed identity block. */
@@ -183,11 +201,35 @@ namespace Botanik { namespace Pages {
             _terminal.set_inverted(false);
         }
 
+        /** @brief Place site home-field @p i: its label row + column, value
+         *  column + width, and diff-cache slot. @return false past the two
+         *  columns' capacity (LEFT_MAX + RIGHT_MAX). Slots 10..14 (left) and
+         *  15..22 (right) are disjoint from the base's 7/8. */
+        bool _field_place(uint8_t i, uint16_t& row, uint16_t& lbl, uint16_t& val,
+                          uint16_t& w, uint16_t& slot) const {
+            if (i < LEFT_MAX) {
+                row = (uint16_t)(LEFT_TOP + i); lbl = L_LBL; val = L_VAL; w = L_W;
+                slot = (uint16_t)(10 + i);
+            } else {
+                uint8_t r = (uint8_t)(i - LEFT_MAX);
+                if (r >= RIGHT_MAX) return false;
+                row = (uint16_t)(RIGHT_TOP + r); lbl = R_LBL; val = R_VAL; w = R_W;
+                slot = (uint16_t)(15 + r);
+            }
+            return true;
+        }
+
         void draw_static() override {
             draw_logo();
             draw_id_block();
             _label(7, "PLC link");
             _label(8, "Uptime");
+            // Site home-field labels (two columns).
+            for (uint8_t i = 0; i < _field_count; i++) {
+                uint16_t row, lbl, val, w, slot;
+                if (!_field_place(i, row, lbl, val, w, slot)) break;
+                _label_at(row, lbl, _fields[i].label);
+            }
             // Divider above the bottom log band (band rows are painted from the
             // scrollback, see focus()/tick()).
             uint16_t band_top = log_band_top();
@@ -196,12 +238,26 @@ namespace Botanik { namespace Pages {
 
         void draw_dynamic() override {
             // Cold fields only: the uptime counter is hot (see draw_hot()).
+            // Bounded to the left column (not clear-to-EOL) so the right home-field
+            // column at rows 7..8 survives.
 #if BOTANIK_FEATURE_PLC
             const SystemContext& ctx = _console.context();
-            _value(7, ctx.plc ? plc_str(ctx.plc->status()) : "n/a");
+            _cell(7, 7, L_VAL, ctx.plc ? plc_str(ctx.plc->status()) : "n/a", L_W);
 #else
-            _value(7, "n/a");
+            _cell(7, 7, L_VAL, "n/a", L_W);
 #endif
+            // Site home-field values (formatted off the live payload + unit).
+            if (_base == nullptr) return;
+            for (uint8_t i = 0; i < _field_count; i++) {
+                uint16_t row, lbl, val, w, slot;
+                if (!_field_place(i, row, lbl, val, w, slot)) break;
+                const Network::ScalarField& f = _fields[i].var;
+                char vb[32], buf[40];
+                const char* s = Network::scalar_format(f, _base, vb, sizeof(vb));
+                if (f.unit && f.unit[0]) snprintf(buf, sizeof(buf), "%s %s", s, f.unit);
+                else                     snprintf(buf, sizeof(buf), "%s", s);
+                _cell(slot, row, val, buf, w);
+            }
         }
 
         /** @brief Uptime counter - hot field, refreshed every second,
@@ -209,14 +265,19 @@ namespace Botanik { namespace Pages {
         void draw_hot() override {
             char buf[40];
             fmt_uptime(buf, sizeof(buf), HAL::Clock::uptime_ms());
-            _value(8, buf, false);
+            _cell(8, 8, L_VAL, buf, L_W, false);   // bounded (see draw_dynamic)
         }
 
         /** @} */
 
     public:
-        explicit HomePage(Console& console)
-            : MetricPage(console, 14) {
+        /** @brief @p fields (+ @p count) is the site home-field table and @p base
+         *  the payload it reads (all borrowed; may be null/0 for a bare home
+         *  screen). */
+        HomePage(Console& console, const Network::HomeField* fields = nullptr,
+                 uint8_t count = 0, const void* base = nullptr)
+            : MetricPage(console, 14),
+              _fields(fields), _field_count(count), _base(base) {
             // cold-field redraw cadence
             _refresh_ms = Config::HOME_REFRESH_MS;
             // uptime ticks every second

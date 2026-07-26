@@ -80,6 +80,12 @@ namespace Botanik { namespace Cfg {
         uint16_t    capacity;   ///< CFG_STRING buffer size incl. NUL (else 0)
         uint8_t     str_kind;   ///< StrKind: CFG_STRING validator (else STR_NONE)
         const char* (*str)(uint8_t);   ///< CFG_ENUM only (else null)
+        // Descriptive metadata (site/PLC-specified), shown in the CONFIG table
+        // (default + unit columns) and the edit modal. All display-only.
+        const char* deflt;      ///< default value as display text (may be "")
+        const char* unit;       ///< physical unit, e.g. "s"/"deg"/"mV" ("" = none)
+        const char* desc;       ///< one-line description (may be "")
+        const char* notes;      ///< extra notes / edit caveats (may be "")
     };
 
     /** @brief The library built-in parameters (net/ntp/mqtt/geo), flat. */

@@ -58,8 +58,12 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t DATA_TOP   = 4;    // first variable row
         static constexpr uint16_t GROUP_W    = 12;   // group-topic column
         static constexpr uint16_t NAME_W     = 18;   // variable-name column
+        static constexpr uint16_t UNIT_W     = 6;    // physical-unit column
         static constexpr uint16_t VAL_CAP    = 48;   // formatted value buffer
         static constexpr uint16_t LINE_CAP   = 192;  // row string buffer
+        // Detail panel below the table (like the CONFIG page): bottom rule +
+        // blank spacer + Description + Notes + blank spacer for the selected var.
+        static constexpr uint16_t PANEL_H    = 5;
         /** @brief NAME field span (contents only): the part inverted for the
          *  selection cursor, leaving the border gap each side. */
         static constexpr uint16_t NAME_CELL_L = MARGIN + 2 + GROUP_W + 3;   // 19
@@ -127,6 +131,7 @@ namespace Botanik { namespace Pages {
             _follow_selection();
             _draw_structure();
             _draw_rules();
+            _draw_panel();
             _draw_footer();
             for (uint16_t vi = 0; vi < win; vi++) {
                 uint16_t r = (uint16_t)(_top + vi);
@@ -160,9 +165,18 @@ namespace Botanik { namespace Pages {
             return false;
         }
 
-        /** @brief Visible variable rows (between the two rules). */
+        /** @brief Footer row (position line) and bottom rule row. The bottom rule
+         *  sits PANEL_H rows above the footer, reserving the detail panel. */
+        uint16_t _footer_row() const { return (uint16_t)(_console.rows() - 1); }
+        uint16_t _brule_row() const {
+            uint16_t f = _footer_row();
+            return (f > (uint16_t)(DATA_TOP + PANEL_H)) ? (uint16_t)(f - PANEL_H) : DATA_TOP;
+        }
+
+        /** @brief Visible variable rows (table shrinks to leave room for the
+         *  detail panel below the bottom rule). */
         uint16_t _window() const override {
-            uint16_t brule = (uint16_t)(_console.rows() - 2);
+            uint16_t brule = _brule_row();
             return (brule > DATA_TOP) ? (uint16_t)(brule - DATA_TOP) : 0;
         }
 
@@ -172,9 +186,33 @@ namespace Botanik { namespace Pages {
         uint16_t _row_count() const override { return _total(); }
         /** @} */
 
+        /** @brief Flexible VALUE width for the 4-column row (group | name | value
+         *  | unit): the display minus the three fixed columns and every border,
+         *  floored at 8 and capped at VAL_CAP-1. */
         uint16_t _value_w() const {
-            return _value_width(_terminal.cols(), MARGIN, GROUP_W, NAME_W,
-                                (uint16_t)(VAL_CAP - 1));
+            uint16_t used = (uint16_t)(2 * MARGIN + 2 + GROUP_W + 3 + NAME_W + 3
+                                       + 3 + UNIT_W + 2);
+            uint16_t cols = _terminal.cols();
+            uint16_t w = (cols > used) ? (uint16_t)(cols - used) : 8;
+            if (w < 8) w = 8;
+            if (w > (uint16_t)(VAL_CAP - 1)) w = (uint16_t)(VAL_CAP - 1);
+            return w;
+        }
+
+        /** @brief Build a "  | group | name | value | unit |" row into @p out. */
+        uint16_t _row4(char* out, size_t cap, const char* g, const char* nm,
+                       const char* v, const char* u) const {
+            int n = snprintf(out, cap, "%*s| %-*.*s | %-*.*s | %-*.*s | %-*.*s |",
+                             (int)MARGIN, "", GROUP_W, GROUP_W, g, NAME_W, NAME_W, nm,
+                             _value_w(), _value_w(), v, UNIT_W, UNIT_W, u);
+            return (n < 0) ? 0 : (uint16_t)n;
+        }
+
+        /** @brief The ScalarField for variable @p r, or null. */
+        const Network::ScalarField* _field_at(uint16_t r) const {
+            size_t gi = 0, fi = 0; bool first = false;
+            if (!_at(r, gi, fi, first)) return nullptr;
+            return &_groups[gi].fields[fi];
         }
 
         // Rendering
@@ -189,17 +227,15 @@ namespace Botanik { namespace Pages {
             if (s != out) { std::strncpy(out, s, cap - 1); out[cap - 1] = 0; }
         }
 
-        /** @brief Build the full "  | group | name | value |" row into @p out. */
+        /** @brief Build the full "  | group | name | value | unit |" row. */
         uint16_t _row_text(uint16_t r, char* out, size_t cap) const {
             size_t gi = 0, fi = 0; bool first = false;
             if (!_at(r, gi, fi, first)) { if (cap) out[0] = 0; return 0; }
             const Network::ScalarField& f = _groups[gi].fields[fi];
             char val[VAL_CAP];
             _value_text(r, val, sizeof(val));
-            return _bordered_row(out, cap, MARGIN,
-                                 GROUP_W, first ? _groups[gi].topic : "",
-                                 NAME_W, f.name ? f.name : "",
-                                 _value_w(), val);
+            return _row4(out, cap, first ? _groups[gi].topic : "",
+                         f.name ? f.name : "", val, f.unit ? f.unit : "");
         }
 
         /** @brief Draw data row @p r at screen @p row, inverting the NAME field for
@@ -213,17 +249,15 @@ namespace Botanik { namespace Pages {
 
         void _draw_header() {
             char line[LINE_CAP];
-            uint16_t n = _bordered_row(line, sizeof(line), MARGIN,
-                                       GROUP_W, "GROUP", NAME_W, "VARIABLE",
-                                       _value_w(), "VALUE");
+            uint16_t n = _row4(line, sizeof(line), "GROUP", "VARIABLE", "VALUE", "UNIT");
             _draw_line(HEADER_ROW, line, n);
         }
 
         /** @brief Draw a rule row; @p cap ('^' / 'v' / '+') marks hidden rows. */
         void _draw_rule(uint16_t row, char cap) {
-            uint16_t spans[3] = { (uint16_t)(GROUP_W + 2), (uint16_t)(NAME_W + 2),
-                                  (uint16_t)(_value_w() + 2) };
-            ScrollTablePage::_draw_rule(row, MARGIN, spans, 3, '+', cap);
+            uint16_t spans[4] = { (uint16_t)(GROUP_W + 2), (uint16_t)(NAME_W + 2),
+                                  (uint16_t)(_value_w() + 2), (uint16_t)(UNIT_W + 2) };
+            ScrollTablePage::_draw_rule(row, MARGIN, spans, 4, '+', cap);
         }
 
         /** @brief Draw both rules, capping with '^' / 'v' when rows are hidden
@@ -231,8 +265,27 @@ namespace Botanik { namespace Pages {
         void _draw_rules() {
             uint16_t win = _window(), total = _total();
             _draw_rule(TRULE_ROW, _top > 0 ? '^' : '+');
-            _draw_rule((uint16_t)(_console.rows() - 2),
-                       (uint16_t)(_top + win) < total ? 'v' : '+');
+            _draw_rule(_brule_row(), (uint16_t)(_top + win) < total ? 'v' : '+');
+        }
+
+        /** @brief " Label       : value" panel line (clear_to_eol wipes the old
+         *  value's tail when the selection moves to a shorter one). */
+        void _panel_field(uint16_t row, const char* label, const char* value) {
+            char buf[LINE_CAP];
+            int n = snprintf(buf, sizeof(buf), " %-11s : %s", label,
+                             (value && value[0]) ? value : "-");
+            _draw_line(row, buf, (n < 0) ? 0 : (uint16_t)n);
+        }
+
+        /** @brief Detail panel below the bottom rule: blank, Description, Notes,
+         *  blank for the selected variable. */
+        void _draw_panel() {
+            uint16_t br = _brule_row();
+            _blank_line((uint16_t)(br + 1));
+            const Network::ScalarField* f = _field_at(_selected);
+            _panel_field((uint16_t)(br + 2), "Description", f ? f->desc  : nullptr);
+            _panel_field((uint16_t)(br + 3), "Notes",       f ? f->notes : nullptr);
+            _blank_line((uint16_t)(br + 4));
         }
 
         void _draw_footer() {
@@ -242,7 +295,7 @@ namespace Botanik { namespace Pages {
             int n = snprintf(line, sizeof(line),
                              " UP/DOWN select   PAGE UP/DOWN page      %u-%u / %u",
                              (unsigned)(total ? _top + 1 : 0), (unsigned)last, (unsigned)total);
-            _draw_line((uint16_t)(_console.rows() - 1), line, (n < 0) ? 0 : (uint16_t)n);
+            _draw_line(_footer_row(), line, (n < 0) ? 0 : (uint16_t)n);
         }
 
         /** @brief Draw the static chrome (blank top margin + header); the rules and

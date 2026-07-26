@@ -255,66 +255,72 @@ const Botanik::Shell::ShellCommand g_site_commands[] = {
 // already carries it: ac_supply/grid_v, not ac_supply/grid_ac_v).
 using namespace Botanik::Network;
 
+// Trailing fields per row: str, description, unit, notes. Notes are optional
+// (left off on most rows). Silence the pedantic missing-field-initializer note
+// (str/notes unset on many rows).
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+
 const ScalarField g_ac_supply[] = {
-    { "grid_v",            offsetof(PlcOutputData_t, grid_ac_mv),         SCALAR_U32, 1000, 1, nullptr },
-    { "grid_freq_hz",      offsetof(PlcOutputData_t, grid_freq_centi_hz), SCALAR_U16,  100, 2, nullptr },
-    { "generator_v",       offsetof(PlcOutputData_t, generator_mv),       SCALAR_U32, 1000, 1, nullptr },
-    { "generator_running", offsetof(PlcOutputData_t, generator_running),  SCALAR_U8,     0, 0, nullptr },
-    { "ups",               offsetof(PlcOutputData_t, ups_status),         SCALAR_ENUM,   0, 0, &UpsStatus::str },
+    { "grid_v",            offsetof(PlcOutputData_t, grid_ac_mv),         SCALAR_U32, 1000, 1, nullptr, "Mains AC voltage",   "V"  },
+    { "grid_freq_hz",      offsetof(PlcOutputData_t, grid_freq_centi_hz), SCALAR_U16,  100, 2, nullptr, "Mains frequency",    "Hz" },
+    { "generator_v",       offsetof(PlcOutputData_t, generator_mv),       SCALAR_U32, 1000, 1, nullptr, "Generator voltage",  "V"  },
+    { "generator_running", offsetof(PlcOutputData_t, generator_running),  SCALAR_U8,     0, 0, nullptr, "Generator running",  ""   },
+    { "ups",               offsetof(PlcOutputData_t, ups_status),         SCALAR_ENUM,   0, 0, &UpsStatus::str, "UPS state",   "",  "OFFLINE/ONLINE/BATTERY/FAULT" },
 };
 
 const ScalarField g_dc_supply[] = {
-    { "bus_v",          offsetof(PlcOutputData_t, dc_bus_mv),   SCALAR_U32, 1000, 1, nullptr },
-    { "battery_v",      offsetof(PlcOutputData_t, battery_mv),  SCALAR_U32, 1000, 1, nullptr },
-    { "rectifier_a_ok", offsetof(PlcOutputData_t, dc_bus_a_ok), SCALAR_U8,     0, 0, nullptr },
-    { "rectifier_b_ok", offsetof(PlcOutputData_t, dc_bus_b_ok), SCALAR_U8,     0, 0, nullptr },
+    { "bus_v",          offsetof(PlcOutputData_t, dc_bus_mv),   SCALAR_U32, 1000, 1, nullptr, "DC bus voltage",      "V" },
+    { "battery_v",      offsetof(PlcOutputData_t, battery_mv),  SCALAR_U32, 1000, 1, nullptr, "Battery bank voltage","V" },
+    { "rectifier_a_ok", offsetof(PlcOutputData_t, dc_bus_a_ok), SCALAR_U8,     0, 0, nullptr, "Rectifier A healthy", ""  },
+    { "rectifier_b_ok", offsetof(PlcOutputData_t, dc_bus_b_ok), SCALAR_U8,     0, 0, nullptr, "Rectifier B healthy", ""  },
 };
 
 const ScalarField g_environment[] = {
-    { "ext_temp_c",    offsetof(PlcOutputData_t, ext_temp_c_centi),   SCALAR_I16, 100, 1, nullptr },
-    { "floor_temp_c",  offsetof(PlcOutputData_t, floor_temp_c_centi), SCALAR_I16, 100, 1, nullptr },
-    { "ceil_temp_c",   offsetof(PlcOutputData_t, ceil_temp_c_centi),  SCALAR_I16, 100, 1, nullptr },
-    { "ext_rh_pct",    offsetof(PlcOutputData_t, ext_rh_centi_pct),   SCALAR_U16, 100, 1, nullptr },
-    { "floor_rh_pct",  offsetof(PlcOutputData_t, floor_rh_centi_pct), SCALAR_U16, 100, 1, nullptr },
-    { "ceil_rh_pct",   offsetof(PlcOutputData_t, ceil_rh_centi_pct),  SCALAR_U16, 100, 1, nullptr },
-    { "wind_peak_kmh", offsetof(PlcOutputData_t, wind_peak_kmh),      SCALAR_U16,   0, 0, nullptr },
-    { "rain_age_s",    offsetof(PlcOutputData_t, rain_age_s),         SCALAR_U32,   0, 0, nullptr },
-    { "rain_detected", offsetof(PlcOutputData_t, rain_detected),      SCALAR_U8,    0, 0, nullptr },
+    { "ext_temp_c",    offsetof(PlcOutputData_t, ext_temp_c_centi),   SCALAR_I16, 100, 1, nullptr, "Exterior temperature", "C"    },
+    { "floor_temp_c",  offsetof(PlcOutputData_t, floor_temp_c_centi), SCALAR_I16, 100, 1, nullptr, "Floor-level temperature", "C" },
+    { "ceil_temp_c",   offsetof(PlcOutputData_t, ceil_temp_c_centi),  SCALAR_I16, 100, 1, nullptr, "Ceiling-level temperature", "C" },
+    { "ext_rh_pct",    offsetof(PlcOutputData_t, ext_rh_centi_pct),   SCALAR_U16, 100, 1, nullptr, "Exterior humidity",    "%"    },
+    { "floor_rh_pct",  offsetof(PlcOutputData_t, floor_rh_centi_pct), SCALAR_U16, 100, 1, nullptr, "Floor humidity",       "%"    },
+    { "ceil_rh_pct",   offsetof(PlcOutputData_t, ceil_rh_centi_pct),  SCALAR_U16, 100, 1, nullptr, "Ceiling humidity",     "%"    },
+    { "wind_peak_kmh", offsetof(PlcOutputData_t, wind_peak_kmh),      SCALAR_U16,   0, 0, nullptr, "15-min peak wind",     "km/h" },
+    { "rain_age_s",    offsetof(PlcOutputData_t, rain_age_s),         SCALAR_U32,   0, 0, nullptr, "Time since last rain", "s",   "0 while raining" },
+    { "rain_detected", offsetof(PlcOutputData_t, rain_detected),      SCALAR_U8,    0, 0, nullptr, "Rain sensor",          ""     },
 };
 
 const ScalarField g_irrigation[] = {
-    { "water_in_l",    offsetof(PlcOutputData_t, water_in_l),    SCALAR_U16,  0, 0, nullptr },
-    { "water_out_lpm", offsetof(PlcOutputData_t, water_out_lpm), SCALAR_U16,  0, 0, nullptr },
-    { "current_tray",  offsetof(PlcOutputData_t, current_tray),  SCALAR_U8,   0, 0, nullptr },
-    { "tray_status",   offsetof(PlcOutputData_t, tray_status),   SCALAR_ENUM, 0, 0, &TrayStatus::str },
+    { "water_in_l",    offsetof(PlcOutputData_t, water_in_l),    SCALAR_U16,  0, 0, nullptr, "Cumulative water input", "L"     },
+    { "water_out_lpm", offsetof(PlcOutputData_t, water_out_lpm), SCALAR_U16,  0, 0, nullptr, "Current drain flow",     "L/min" },
+    { "current_tray",  offsetof(PlcOutputData_t, current_tray),  SCALAR_U8,   0, 0, nullptr, "Active tray",            "",     "0 = none" },
+    { "tray_status",   offsetof(PlcOutputData_t, tray_status),   SCALAR_ENUM, 0, 0, &TrayStatus::str, "Tray cycle phase", "", "IDLE/FILLING/SOAKING/DRAINING" },
 };
 
 const ScalarField g_ventilation[] = {
-    { "window_a",    offsetof(PlcOutputData_t, window_a),    SCALAR_U8, 0, 0, nullptr },
-    { "window_b",    offsetof(PlcOutputData_t, window_b),    SCALAR_U8, 0, 0, nullptr },
-    { "window_c",    offsetof(PlcOutputData_t, window_c),    SCALAR_U8, 0, 0, nullptr },
-    { "window_d",    offsetof(PlcOutputData_t, window_d),    SCALAR_U8, 0, 0, nullptr },
-    { "blower_a",    offsetof(PlcOutputData_t, blower_a),    SCALAR_U8, 0, 0, nullptr },
-    { "blower_b",    offsetof(PlcOutputData_t, blower_b),    SCALAR_U8, 0, 0, nullptr },
-    { "blower_c",    offsetof(PlcOutputData_t, blower_c),    SCALAR_U8, 0, 0, nullptr },
-    { "blower_d",    offsetof(PlcOutputData_t, blower_d),    SCALAR_U8, 0, 0, nullptr },
-    { "extractor_a", offsetof(PlcOutputData_t, extractor_a), SCALAR_U8, 0, 0, nullptr },
-    { "extractor_b", offsetof(PlcOutputData_t, extractor_b), SCALAR_U8, 0, 0, nullptr },
+    { "window_a",    offsetof(PlcOutputData_t, window_a),    SCALAR_U8, 0, 0, nullptr, "Roof window A opening", "%" },
+    { "window_b",    offsetof(PlcOutputData_t, window_b),    SCALAR_U8, 0, 0, nullptr, "Roof window B opening", "%" },
+    { "window_c",    offsetof(PlcOutputData_t, window_c),    SCALAR_U8, 0, 0, nullptr, "Roof window C opening", "%" },
+    { "window_d",    offsetof(PlcOutputData_t, window_d),    SCALAR_U8, 0, 0, nullptr, "Roof window D opening", "%" },
+    { "blower_a",    offsetof(PlcOutputData_t, blower_a),    SCALAR_U8, 0, 0, nullptr, "Blower A level",        "%" },
+    { "blower_b",    offsetof(PlcOutputData_t, blower_b),    SCALAR_U8, 0, 0, nullptr, "Blower B level",        "%" },
+    { "blower_c",    offsetof(PlcOutputData_t, blower_c),    SCALAR_U8, 0, 0, nullptr, "Blower C level",        "%" },
+    { "blower_d",    offsetof(PlcOutputData_t, blower_d),    SCALAR_U8, 0, 0, nullptr, "Blower D level",        "%" },
+    { "extractor_a", offsetof(PlcOutputData_t, extractor_a), SCALAR_U8, 0, 0, nullptr, "Air extractor A level", "%" },
+    { "extractor_b", offsetof(PlcOutputData_t, extractor_b), SCALAR_U8, 0, 0, nullptr, "Air extractor B level", "%" },
 };
 
 const ScalarField g_climate[] = {
-    { "heatpump",       offsetof(PlcOutputData_t, heatpump_on),    SCALAR_U8, 0, 0, nullptr },
-    { "heat_blower",    offsetof(PlcOutputData_t, heat_blower_on), SCALAR_U8, 0, 0, nullptr },
-    { "cooling",        offsetof(PlcOutputData_t, cooling_on),     SCALAR_U8, 0, 0, nullptr },
-    { "thermal_screen", offsetof(PlcOutputData_t, thermal_screen), SCALAR_U8, 0, 0, nullptr },
+    { "heatpump",       offsetof(PlcOutputData_t, heatpump_on),    SCALAR_U8, 0, 0, nullptr, "Heatpump",              ""  },
+    { "heat_blower",    offsetof(PlcOutputData_t, heat_blower_on), SCALAR_U8, 0, 0, nullptr, "Emergency heat blower", ""  },
+    { "cooling",        offsetof(PlcOutputData_t, cooling_on),     SCALAR_U8, 0, 0, nullptr, "Evaporative cooling",   ""  },
+    { "thermal_screen", offsetof(PlcOutputData_t, thermal_screen), SCALAR_U8, 0, 0, nullptr, "Thermal screen closure","%" },
 };
 
 const ScalarField g_system[] = {
-    { "net_status",    offsetof(PlcOutputData_t, net_status),    SCALAR_ENUM, 0, 0, &NetStatus::str },
-    { "ntp_synced",    offsetof(PlcOutputData_t, ntp_synced),    SCALAR_U8,   0, 0, nullptr },
-    { "ntp_offset_ms", offsetof(PlcOutputData_t, ntp_offset_ms), SCALAR_I16,  0, 0, nullptr },
-    { "sunrise_min",   offsetof(PlcOutputData_t, sunrise_min),   SCALAR_U16,  0, 0, nullptr },
-    { "sunset_min",    offsetof(PlcOutputData_t, sunset_min),    SCALAR_U16,  0, 0, nullptr },
+    { "net_status",    offsetof(PlcOutputData_t, net_status),    SCALAR_ENUM, 0, 0, &NetStatus::str, "Network link state", "", "DOWN/LINK/ONLINE" },
+    { "ntp_synced",    offsetof(PlcOutputData_t, ntp_synced),    SCALAR_U8,   0, 0, nullptr, "NTP disciplined the RTC", ""    },
+    { "ntp_offset_ms", offsetof(PlcOutputData_t, ntp_offset_ms), SCALAR_I16,  0, 0, nullptr, "NTP clock offset",        "ms"  },
+    { "sunrise_min",   offsetof(PlcOutputData_t, sunrise_min),   SCALAR_U16,  0, 0, nullptr, "Sunrise",                 "min" },
+    { "sunset_min",    offsetof(PlcOutputData_t, sunset_min),    SCALAR_U16,  0, 0, nullptr, "Sunset",                  "min" },
 };
 
 const ScalarGroup g_telemetry_groups[] = {
@@ -329,6 +335,28 @@ const ScalarGroup g_telemetry_groups[] = {
 const uint8_t g_telemetry_group_count =
     (uint8_t)(sizeof(g_telemetry_groups) / sizeof(g_telemetry_groups[0]));
 
+// Home-screen readings: label + status variable (offset/type/scaling/unit). The
+// HomePage lays these out two columns, up to 5 left then 8 right (13 total).
+const HomeField g_home_fields[] = {
+    // left column (5)
+    { "Temp",      { "", offsetof(PlcOutputData_t, ext_temp_c_centi), SCALAR_I16, 100, 1, nullptr, nullptr, "C" } },
+    { "Humidity",  { "", offsetof(PlcOutputData_t, ext_rh_centi_pct), SCALAR_U16, 100, 1, nullptr, nullptr, "%" } },
+    { "Wind",      { "", offsetof(PlcOutputData_t, wind_peak_kmh),    SCALAR_U16,   0, 0, nullptr, nullptr, "km/h" } },
+    { "Water in",  { "", offsetof(PlcOutputData_t, water_in_l),       SCALAR_U16,   0, 0, nullptr, nullptr, "L" } },
+    { "Tray",      { "", offsetof(PlcOutputData_t, current_tray),     SCALAR_U8,    0, 0, nullptr, nullptr, "" } },
+    // right column (8)
+    { "Grid",      { "", offsetof(PlcOutputData_t, grid_ac_mv),  SCALAR_U32, 1000, 1, nullptr, nullptr, "V" } },
+    { "DC bus",    { "", offsetof(PlcOutputData_t, dc_bus_mv),   SCALAR_U32, 1000, 1, nullptr, nullptr, "V" } },
+    { "Battery",   { "", offsetof(PlcOutputData_t, battery_mv),  SCALAR_U32, 1000, 1, nullptr, nullptr, "V" } },
+    { "UPS",       { "", offsetof(PlcOutputData_t, ups_status),  SCALAR_ENUM,   0, 0, &UpsStatus::str, nullptr, "" } },
+    { "Network",   { "", offsetof(PlcOutputData_t, net_status),  SCALAR_ENUM,   0, 0, &NetStatus::str, nullptr, "" } },
+    { "NTP sync",  { "", offsetof(PlcOutputData_t, ntp_synced),  SCALAR_U8,     0, 0, nullptr, nullptr, "" } },
+    { "Cooling",   { "", offsetof(PlcOutputData_t, cooling_on),  SCALAR_U8,     0, 0, nullptr, nullptr, "" } },
+    { "Heatpump",  { "", offsetof(PlcOutputData_t, heatpump_on), SCALAR_U8,     0, 0, nullptr, nullptr, "" } },
+};
+const uint8_t g_home_field_count = (uint8_t)(sizeof(g_home_fields) / sizeof(g_home_fields[0]));
+#pragma GCC diagnostic pop
+
 // ---------------------------------------------------------------------------
 // The declarative site descriptor: the one bundle GreenhouseMLB41 hands the
 // firmware base. Name + the four generated tables (no site config parameters
@@ -339,6 +367,7 @@ const Botanik::SiteDescriptor g_site = {
     nullptr, 0,                                  // config parameters (none yet)
     g_site_commands,     (uint8_t)(sizeof(g_site_commands) / sizeof(g_site_commands[0])),
     g_telemetry_groups,  g_telemetry_group_count,
+    g_home_fields,       g_home_field_count,
     g_alarms,            g_alarm_count,
 };
 

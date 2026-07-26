@@ -17,36 +17,38 @@ namespace Botanik { namespace Cfg {
     // Library built-in parameters. name == the PlcOutputConfig_t field name;
     // offset via offsetof; the flat namespace's grouping is only the `group`
     // tag (which <group>_serial to bump) and the shared name prefix.
-    // Fields: name, offset, type, divisor, decimals, group, min, max, capacity, str_kind, str
+    // Fields: name, offset, type, divisor, decimals, group, min, max, capacity,
+    //         str_kind, str, default, unit, description, notes
     static const uint16_t HS = Config::PLC_HOST_STR_LEN;
     const ConfigParam CONFIG_PARAMS[] = {
         // -- network --
-        {"net_dhcp",        offsetof(PlcIO::PlcOutputConfig_t, net_dhcp),        CFG_U8,     0, 0, CFG_NET,  0, 1, 0,  STR_NONE,     nullptr},
-        {"net_ip",          offsetof(PlcIO::PlcOutputConfig_t, net_ip),          CFG_STRING, 0, 0, CFG_NET,  0, 0, HS, STR_IPV4,     nullptr},
-        {"net_netmask",     offsetof(PlcIO::PlcOutputConfig_t, net_netmask),     CFG_STRING, 0, 0, CFG_NET,  0, 0, HS, STR_IPV4,     nullptr},
-        {"net_gateway",     offsetof(PlcIO::PlcOutputConfig_t, net_gateway),     CFG_STRING, 0, 0, CFG_NET,  0, 0, HS, STR_IPV4,     nullptr},
-        {"net_dns1",        offsetof(PlcIO::PlcOutputConfig_t, net_dns1),        CFG_STRING, 0, 0, CFG_NET,  0, 0, HS, STR_IPV4,     nullptr},
-        {"net_dns2",        offsetof(PlcIO::PlcOutputConfig_t, net_dns2),        CFG_STRING, 0, 0, CFG_NET,  0, 0, HS, STR_IPV4_OPT, nullptr},
+        {"net_dhcp",        offsetof(PlcIO::PlcOutputConfig_t, net_dhcp),        CFG_U8,     0, 0, CFG_NET,  0, 1, 0,  STR_NONE,     nullptr, "1", "",    "DHCP (1) or static IP (0)", ""},
+        {"net_ip",          offsetof(PlcIO::PlcOutputConfig_t, net_ip),          CFG_STRING, 0, 0, CFG_NET,  0, 0, HS, STR_IPV4,     nullptr, "",  "",    "Static IPv4 address",       "used when DHCP off"},
+        {"net_netmask",     offsetof(PlcIO::PlcOutputConfig_t, net_netmask),     CFG_STRING, 0, 0, CFG_NET,  0, 0, HS, STR_IPV4,     nullptr, "",  "",    "Static subnet mask",        "used when DHCP off"},
+        {"net_gateway",     offsetof(PlcIO::PlcOutputConfig_t, net_gateway),     CFG_STRING, 0, 0, CFG_NET,  0, 0, HS, STR_IPV4,     nullptr, "",  "",    "Default gateway",           "used when DHCP off"},
+        {"net_dns1",        offsetof(PlcIO::PlcOutputConfig_t, net_dns1),        CFG_STRING, 0, 0, CFG_NET,  0, 0, HS, STR_IPV4,     nullptr, "",  "",    "Primary DNS server",        ""},
+        {"net_dns2",        offsetof(PlcIO::PlcOutputConfig_t, net_dns2),        CFG_STRING, 0, 0, CFG_NET,  0, 0, HS, STR_IPV4_OPT, nullptr, "",  "",    "Secondary DNS server",      "empty = none"},
         // -- NTP --
-        {"ntp_enabled",     offsetof(PlcIO::PlcOutputConfig_t, ntp_enabled),     CFG_U8,     0, 0, CFG_NTP,  0, 1, 0,  STR_NONE,     nullptr},
-        {"ntp_poll_s",      offsetof(PlcIO::PlcOutputConfig_t, ntp_poll_s),      CFG_U16,    0, 0, CFG_NTP,  0, 65535, 0, STR_NONE,   nullptr},
-        {"ntp_server1",     offsetof(PlcIO::PlcOutputConfig_t, ntp_server1),     CFG_STRING, 0, 0, CFG_NTP,  0, 0, HS, STR_HOST,     nullptr},
-        {"ntp_server2",     offsetof(PlcIO::PlcOutputConfig_t, ntp_server2),     CFG_STRING, 0, 0, CFG_NTP,  0, 0, HS, STR_HOST_OPT, nullptr},
+        {"ntp_enabled",     offsetof(PlcIO::PlcOutputConfig_t, ntp_enabled),     CFG_U8,     0, 0, CFG_NTP,  0, 1, 0,  STR_NONE,     nullptr, "1", "",    "Enable NTP time sync",      ""},
+        {"ntp_poll_s",      offsetof(PlcIO::PlcOutputConfig_t, ntp_poll_s),      CFG_U16,    0, 0, CFG_NTP,  0, 65535, 0, STR_NONE,   nullptr, "64","s",   "NTP poll interval",         "0 = firmware default"},
+        {"ntp_server1",     offsetof(PlcIO::PlcOutputConfig_t, ntp_server1),     CFG_STRING, 0, 0, CFG_NTP,  0, 0, HS, STR_HOST,     nullptr, "pool.ntp.org", "", "Primary NTP server",   ""},
+        {"ntp_server2",     offsetof(PlcIO::PlcOutputConfig_t, ntp_server2),     CFG_STRING, 0, 0, CFG_NTP,  0, 0, HS, STR_HOST_OPT, nullptr, "",  "",    "Secondary NTP server",      "empty = none"},
         // -- MQTT --
-        {"mqtt_enabled",    offsetof(PlcIO::PlcOutputConfig_t, mqtt_enabled),    CFG_U8,     0, 0, CFG_MQTT, 0, 1, 0,  STR_NONE,     nullptr},
-        {"mqtt_port",       offsetof(PlcIO::PlcOutputConfig_t, mqtt_port),       CFG_U16,    0, 0, CFG_MQTT, 0, 65535, 0, STR_NONE,   nullptr},
-        {"mqtt_keepalive_s",offsetof(PlcIO::PlcOutputConfig_t, mqtt_keepalive_s),CFG_U16,    0, 0, CFG_MQTT, 0, 65535, 0, STR_NONE,   nullptr},
-        {"mqtt_broker",     offsetof(PlcIO::PlcOutputConfig_t, mqtt_broker),     CFG_STRING, 0, 0, CFG_MQTT, 0, 0, HS, STR_HOST,     nullptr},
+        {"mqtt_enabled",    offsetof(PlcIO::PlcOutputConfig_t, mqtt_enabled),    CFG_U8,     0, 0, CFG_MQTT, 0, 1, 0,  STR_NONE,     nullptr, "1", "",    "Enable MQTT publishing",    ""},
+        {"mqtt_port",       offsetof(PlcIO::PlcOutputConfig_t, mqtt_port),       CFG_U16,    0, 0, CFG_MQTT, 0, 65535, 0, STR_NONE,   nullptr, "1883","",  "Broker TCP port",           "0 = firmware default"},
+        {"mqtt_keepalive_s",offsetof(PlcIO::PlcOutputConfig_t, mqtt_keepalive_s),CFG_U16,    0, 0, CFG_MQTT, 0, 65535, 0, STR_NONE,   nullptr, "60","s",   "MQTT keepalive",            "0 = firmware default"},
+        {"mqtt_broker",     offsetof(PlcIO::PlcOutputConfig_t, mqtt_broker),     CFG_STRING, 0, 0, CFG_MQTT, 0, 0, HS, STR_HOST,     nullptr, "",  "",    "MQTT broker host",          ""},
         // -- geo (degrees * 1e7; edited/shown as decimal degrees) --
-        {"geo_latitude_e7", offsetof(PlcIO::PlcOutputConfig_t, geo_latitude_e7), CFG_I32, 10000000, 7, CFG_GEO,  -900000000,  900000000, 0, STR_NONE, nullptr},
-        {"geo_longitude_e7",offsetof(PlcIO::PlcOutputConfig_t, geo_longitude_e7),CFG_I32, 10000000, 7, CFG_GEO, -1800000000, 1800000000, 0, STR_NONE, nullptr},
+        {"geo_latitude_e7", offsetof(PlcIO::PlcOutputConfig_t, geo_latitude_e7), CFG_I32, 10000000, 7, CFG_GEO,  -900000000,  900000000, 0, STR_NONE, nullptr, "48.8566", "deg", "Site latitude",  "north +, south -"},
+        {"geo_longitude_e7",offsetof(PlcIO::PlcOutputConfig_t, geo_longitude_e7),CFG_I32, 10000000, 7, CFG_GEO, -1800000000, 1800000000, 0, STR_NONE, nullptr, "2.3522",  "deg", "Site longitude", "east +, west -"},
     };
     const uint8_t CONFIG_PARAM_COUNT = (uint8_t)(sizeof(CONFIG_PARAMS) / sizeof(CONFIG_PARAMS[0]));
 
     // Read / render
 
     const char* type_name(const ConfigParam& p) {
-        if (p.divisor > 1) return "float";   // fixed-point shown as a decimal (geo degrees)
+        if (p.divisor > 1) return "f32";   // fixed-point shown as a decimal (geo degrees)
+        if (p.type == CFG_U8 && p.min == 0 && p.max == 1) return "b";   // boolean (0/1)
         switch (p.type) {
             case CFG_U8:     return "u8";
             case CFG_U16:    return "u16";

@@ -335,7 +335,9 @@ namespace Botanik { namespace Shell {
                 if (f.name == nullptr) continue;
                 if (nm != nullptr && !Utils::arg_eq(nm, wn, f.name)) continue;
                 const char* s = Network::scalar_format(f, _status_base, val, sizeof(val));
-                _emitf(out, sizeof(out), "  %-18s %s", f.name, s);
+                // Append the physical unit when the field carries one.
+                _emitf(out, sizeof(out), "  %-18s %s%s%s", f.name, s,
+                       (f.unit && f.unit[0]) ? " " : "", (f.unit && f.unit[0]) ? f.unit : "");
                 found = true;
             }
         }

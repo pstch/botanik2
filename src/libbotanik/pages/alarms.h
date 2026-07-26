@@ -248,6 +248,38 @@ namespace Botanik { namespace Pages {
             }
         }
 
+        /** @brief " Label       : value" panel line. */
+        void _panel_field(uint16_t row, const char* label, const char* value) {
+            char buf[192];
+            int n = snprintf(buf, sizeof(buf), " %-11s : %s", label,
+                             (value && value[0]) ? value : "-");
+            _draw_line(row, buf, (n < 0) ? 0 : (uint16_t)n);
+        }
+
+        /** @brief Detail panel between the bottom rule and the legend, spaced by
+         *  a blank row each side: the selected alarm's Remediation (its notes -
+         *  what to do while it is up) and the time it was acknowledged (if any).
+         *  Description is already a table column. */
+        void _draw_notes() {
+            const Alarms::AlarmCondition* c =
+                (_model != nullptr && _selected < _nvis)
+                    ? &_model->condition(_vis[_selected]) : nullptr;
+            char ackbuf[24];
+            const char* ack = "-";
+            if (c != nullptr && c->user_ack) {
+                Utils::CalendarTime t = Utils::cal_time_ms(c->ack_ms);
+                snprintf(ackbuf, sizeof(ackbuf), "%02u/%02u/%02u %02u:%02u",
+                         (unsigned)(t.year % 100), (unsigned)t.month, (unsigned)t.day,
+                         (unsigned)t.hour, (unsigned)t.minute);
+                ack = ackbuf;
+            }
+            uint16_t br = _brule_row();
+            _blank_line((uint16_t)(br + 1));
+            _panel_field((uint16_t)(br + 2), "Remediation", c ? c->notes : nullptr);
+            _panel_field((uint16_t)(br + 3), "Ack'd", ack);
+            _blank_line((uint16_t)(br + 4));
+        }
+
         /** @brief True if @p c belongs in RECENT mode: a last event still
          *  within its window. Active = always recent; inactive expires
          *  recent_s after it cleared (0 = DEFAULT_RECENT_S, <0 = never). */
@@ -372,18 +404,19 @@ namespace Botanik { namespace Pages {
 
         /** @name Window geometry
          *  Bottom-anchored on the content area. From the bottom up: free row,
-         *  legend, free row, bottom rule, then the data band up to the top
-         *  rule. The rules carry the scroll arrows (see _draw_rules()).
+         *  legend, blank, Ack'd line, Remediation line, blank, bottom rule, then
+         *  the data band up to the top rule. The rules carry the scroll arrows
+         *  (see _draw_rules()).
          *  @{ */
         // free row below at rows()-1
         uint16_t _legend_row()  const { return (uint16_t)(_console.rows() - 2); }
-        // bottom rule (free row above legend at rows()-3)
-        uint16_t _brule_row()   const { return (uint16_t)(_console.rows() - 4); }
+        // bottom rule; between it and the legend: blank, Remediation, Ack'd, blank
+        uint16_t _brule_row()   const { return (uint16_t)(_console.rows() - 7); }
         /** @brief Number of data rows that fit, or 0 if the screen is too
          *  short. */
         uint16_t _window() const override {
             uint16_t r = _console.rows();
-            return (r >= (uint16_t)(DATA_TOP + 5)) ? (uint16_t)(r - DATA_TOP - 4) : 0;
+            return (r >= (uint16_t)(DATA_TOP + 8)) ? (uint16_t)(r - DATA_TOP - 7) : 0;
         }
         /** @name ScrollTablePage geometry
          *  @{ */
@@ -531,6 +564,7 @@ namespace Botanik { namespace Pages {
             if (_top > maxtop) _top = maxtop;
             _draw_structure();
             _draw_rules(window);
+            _draw_notes();
             _draw_footer(_legend_row(), _nvis, _model ? _model->active_count() : 0);
             for (uint16_t vi = 0; vi < window; vi++)
                 _draw_data_row((uint16_t)(DATA_TOP + vi), (uint16_t)(_top + vi));

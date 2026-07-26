@@ -79,6 +79,10 @@ namespace Botanik { namespace Alarms {
 
         int32_t     off_delay_s;    //< hold ON this long after raw clears (0: none)
         int32_t     min_on_s;   //< minimum ON time from onset (0: no latch)
+        /** Extra notes / caveats (may be null), shown in a line below the ALARMS
+         *  table. Last in the metadata block so existing positional literals
+         *  that stop earlier keep zero-initialising it. */
+        const char* notes;
         /** @} */
 
         /** @name Dynamic state
@@ -92,6 +96,7 @@ namespace Botanik { namespace Alarms {
         bool        off_sent;       //< OFF transition announced (log + notify)
 
         bool        user_ack;       //< alarm acknowledged by the user
+        uint64_t    ack_ms;         //< uptime the user ack'd it (valid if user_ack)
         uint64_t    edge_ms;        //< time since last transition
         uint64_t    started_ms;     //< time since last ON transition
 
@@ -350,6 +355,7 @@ namespace Botanik { namespace Alarms {
             int i = alarm_index(_conditions, _count, code);
             if (i < 0 || !_conditions[i].active) return false;
             _conditions[i].user_ack = true;
+            _conditions[i].ack_ms   = _last_now;
             return true;
         }
 
@@ -358,7 +364,11 @@ namespace Botanik { namespace Alarms {
         uint8_t ack_all() {
             uint8_t n = 0;
             for (uint8_t i = 0; i < _count; i++)
-                if (_conditions[i].active) { _conditions[i].user_ack = true; n++; }
+                if (_conditions[i].active) {
+                    _conditions[i].user_ack = true;
+                    _conditions[i].ack_ms   = _last_now;
+                    n++;
+                }
             return n;
         }
 

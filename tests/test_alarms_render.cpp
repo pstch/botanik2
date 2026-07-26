@@ -188,12 +188,13 @@ TEST_CASE("alarms render: a selection move repaints both CODE cells, nothing els
     CHECK(out.find("----")    == std::string::npos);
 }
 
-// DOWN moves the selection cursor, not the window. A short window (10 rows ->
-// data window of 2) overflows the 4-alarm set; with all four raised at once they
-// keep table order (AAA, BBB, CCC, DDD). top=0 shows AAA,BBB; moving the cursor
-// down past the window bottom auto-scrolls so CCC comes into view.
+// DOWN moves the selection cursor, not the window. A short window (13 rows ->
+// data window of 2, after the detail panel's bottom reserve) overflows the
+// 4-alarm set; with all four raised at once they keep table order (AAA, BBB,
+// CCC, DDD). top=0 shows AAA,BBB; moving the cursor down past the window bottom
+// auto-scrolls so CCC comes into view.
 TEST_CASE("alarms render: DOWN moves the selection and scrolls it into view") {
-    RenderFixture f(10);
+    RenderFixture f(13);
     step_bits(f.model, 0xF, 1000);
     f.page.focus();
     std::string full = f.paint();
