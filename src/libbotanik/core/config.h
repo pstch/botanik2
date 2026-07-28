@@ -225,6 +225,51 @@ namespace Botanik { namespace Cfg {
         return h != nullptr ? h->image() : nullptr;
     }
 
+    /** @name Read config by parameter name (null-safe)
+     *
+     *  The config-driven library components (network / NTP / MQTT / sun) source
+     *  their values by *name*, not by dereferencing a typed struct, so the
+     *  parameters can live anywhere in the site payload the descriptor points at.
+     *  Each is null-safe (a null handler / missing parameter yields the default),
+     *  mirroring @ref config_image.
+     *  @{ */
+
+    /** @brief Find a parameter by NUL-terminated name (null handler -> null). */
+    inline const ConfigParam* cfg_find(const ConfigHandler* h, const char* name) {
+        return h != nullptr ? h->find(name, (uint16_t)std::strlen(name)) : nullptr;
+    }
+
+    /** @brief Read a numeric parameter by name as int32 (@p dflt if absent). */
+    inline int32_t cfg_int(const ConfigHandler* h, const char* name, int32_t dflt = 0) {
+        const ConfigParam* p = cfg_find(h, name);
+        return p != nullptr ? read_scalar(*p, h->image()) : dflt;
+    }
+
+    /** @brief Read an SCALAR_F32 parameter by name (@p dflt if absent / wrong type). */
+    inline float cfg_f32(const ConfigHandler* h, const char* name, float dflt = 0.0f) {
+        const ConfigParam* p = cfg_find(h, name);
+        return (p != nullptr && p->type == SCALAR_F32) ? scalar_read_f32(*p, h->image()) : dflt;
+    }
+
+    /** @brief Pointer to an SCALAR_STRING parameter's text by name ("" if absent).
+     *  Valid for the handler's lifetime (points into its image). */
+    inline const char* cfg_str(const ConfigHandler* h, const char* name) {
+        const ConfigParam* p = cfg_find(h, name);
+        return (p != nullptr && p->type == SCALAR_STRING) ? scalar_read_string(*p, h->image()) : "";
+    }
+
+    /** @brief The change serial for a config group (0 if no handler / image). A
+     *  consumer watches this to re-apply its group after a committed edit. */
+    inline uint32_t cfg_group_serial(const ConfigHandler* h, uint8_t group) {
+        const PlcIO::PlcOutputConfig_t* img = config_image(h);
+        if (img == nullptr) return 0;
+        uint32_t v;
+        std::memcpy(&v, (const uint8_t*)img + group_serial_offset(group), 4);
+        return v;
+    }
+
+    /** @} */
+
 }}
 
 #endif // LIBBOTANIK_CORE_CONFIG_H

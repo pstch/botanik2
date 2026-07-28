@@ -23,8 +23,7 @@ namespace Botanik { namespace Network {
     }
 
     uint32_t NtpClient::config_serial() const {
-        const PlcIO::PlcOutputConfig_t* c = config();
-        return c ? c->ntp_serial : 0;
+        return Cfg::cfg_group_serial(_cfg, Cfg::CFG_NTP);
     }
 
     const char* NtpClient::status_str() const {
@@ -39,12 +38,11 @@ namespace Botanik { namespace Network {
 
     void NtpClient::on_config_changed(uint64_t now_ms) {
         if (_udp >= 0) { HAL::Network::udp_close(_udp); _udp = -1; }
-        const PlcIO::PlcOutputConfig_t* c = config();
         // Restart the client with the new servers / poll interval, from the
         // first server. A reconfig is a fresh start: the next sync is "initial".
         _server_idx = 0;
         _sync_held = false;
-        _state = (c != nullptr && c->ntp_enabled) ? TIME_RESOLVE : TIME_IDLE;
+        _state = Cfg::cfg_int(_cfg, "ntp_enabled") ? TIME_RESOLVE : TIME_IDLE;
         _since_ms = now_ms;
     }
 
@@ -58,8 +56,7 @@ namespace Botanik { namespace Network {
     }
 
     void NtpClient::_next_server_or_error(uint64_t now_ms) {
-        const PlcIO::PlcOutputConfig_t* c = config();
-        if (_server_idx == 0 && c != nullptr && c->ntp_server2[0] != '\0') {
+        if (_server_idx == 0 && Cfg::cfg_str(_cfg, "ntp_server2")[0] != '\0') {
             _server_idx = 1;              // try the secondary server
             _state = TIME_RESOLVE;
             _since_ms = now_ms;
@@ -72,20 +69,19 @@ namespace Botanik { namespace Network {
     }
 
     void NtpClient::on_step(uint64_t now_ms) {
-        const PlcIO::PlcOutputConfig_t* c = config();
         switch (_state) {
             case TIME_IDLE:
                 break;
 
             case TIME_RESOLVE: {
-                if (c == nullptr || !c->ntp_enabled) {
+                if (!Cfg::cfg_int(_cfg, "ntp_enabled")) {
                     _state = TIME_IDLE; _sync_held = false; break;
                 }
                 // Needs a live link before sending; the NetworkHandler owns
                 // that state.
                 if (_net == nullptr || !_net->is_up()) break;
 
-                const char* server = (_server_idx == 0) ? c->ntp_server1 : c->ntp_server2;
+                const char* server = Cfg::cfg_str(_cfg, _server_idx == 0 ? "ntp_server1" : "ntp_server2");
                 if (server[0] == '\0') { _next_server_or_error(now_ms); break; }
 
                 if (_resolver == nullptr) { _next_server_or_error(now_ms); break; }
@@ -119,8 +115,8 @@ namespace Botanik { namespace Network {
             }
 
             case TIME_SYNCED: {
-                uint32_t poll_s = (c != nullptr && c->ntp_poll_s) ? c->ntp_poll_s
-                                                                  : Config::NTP_POLL_DEFAULT_S;
+                uint32_t poll_s = (uint32_t)Cfg::cfg_int(_cfg, "ntp_poll_s");
+                if (poll_s == 0) poll_s = Config::NTP_POLL_DEFAULT_S;
                 if (now_ms - _since_ms > (uint64_t)poll_s * 1000ull) {
                     _server_idx = 0;
                     _state = TIME_RESOLVE; _since_ms = now_ms;

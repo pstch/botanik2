@@ -15,7 +15,7 @@
 #include <cstdint>
 
 #include "libbotanik/core/component.h"
-#include "libbotanik/core/config.h"       // Cfg::ConfigHandler + PlcOutputConfig_t
+#include "libbotanik/core/config.h"       // Cfg::ConfigHandler + cfg_* name getters
 #include "libbotanik/hal/net.h"
 #include "libbotanik/network/resolver.h"
 #include "libbotanik/network/network.h"   // NetworkHandler (link gate)
@@ -77,9 +77,6 @@ namespace Botanik { namespace Network {
          *  surfaced). */
         bool                  _sync_held;
         /** @} */
-
-        /** @brief The generic config block (or null with no config source). */
-        const PlcIO::PlcOutputConfig_t* config() const { return Cfg::config_image(_cfg); }
 
     public:
         NtpClient(const Cfg::ConfigHandler* cfg, Logs::Logger* logger = nullptr,

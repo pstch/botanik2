@@ -18,7 +18,7 @@
 #include <cstdint>
 
 #include "libbotanik/hal/net.h"
-#include "libbotanik/core/config.h"        // Cfg::ConfigHandler + PlcOutputConfig_t
+#include "libbotanik/core/config.h"        // Cfg::ConfigHandler + cfg_* name getters
 #include "libbotanik/network/network.h"    // Component, NetworkHandler
 #include "libbotanik/network/resolver.h"
 // Alarms::Publisher (alarm transport)
@@ -67,9 +67,6 @@ namespace Botanik { namespace Network {
         const NetworkHandler* _net;
         HAL::Network::TcpSocket   _sock;           ///< open TCP socket (-1 = none)
         /** @} */
-
-        /** @brief The generic config block (or null with no config source). */
-        const PlcIO::PlcOutputConfig_t* config() const { return Cfg::config_image(_cfg); }
 
     public:
         MqttClient(const Cfg::ConfigHandler* cfg, Logs::Logger* logger = nullptr,

@@ -24,13 +24,12 @@ namespace Botanik { namespace Network {
     }
 
     uint32_t MqttClient::config_serial() const {
-        const PlcIO::PlcOutputConfig_t* c = config();
-        return c ? c->mqtt_serial : 0;
+        return Cfg::cfg_group_serial(_cfg, Cfg::CFG_MQTT);
     }
 
     uint16_t MqttClient::peer_port() const {
-        const PlcIO::PlcOutputConfig_t* c = config();
-        return (c && c->mqtt_port) ? c->mqtt_port : Config::MQTT_PORT_DEFAULT;
+        uint16_t port = (uint16_t)Cfg::cfg_int(_cfg, "mqtt_port");
+        return port ? port : Config::MQTT_PORT_DEFAULT;
     }
 
     const char* MqttClient::status_str() const {
@@ -57,24 +56,23 @@ namespace Botanik { namespace Network {
 
     void MqttClient::on_config_changed(uint64_t now_ms) {
         if (_sock >= 0) { HAL::Network::tcp_close(_sock); _sock = -1; }
-        const PlcIO::PlcOutputConfig_t* c = config();
-        _enter((c != nullptr && c->mqtt_enabled) ? MQTT_RESOLVE : MQTT_IDLE, now_ms);
+        _enter(Cfg::cfg_int(_cfg, "mqtt_enabled") ? MQTT_RESOLVE : MQTT_IDLE, now_ms);
     }
 
     void MqttClient::on_step(uint64_t now_ms) {
-        const PlcIO::PlcOutputConfig_t* c = config();
         switch (_state) {
             case MQTT_IDLE:
                 break;
 
             case MQTT_RESOLVE: {
-                if (c == nullptr || !c->mqtt_enabled) { _enter(MQTT_IDLE, now_ms); break; }
+                if (!Cfg::cfg_int(_cfg, "mqtt_enabled")) { _enter(MQTT_IDLE, now_ms); break; }
                 // Needs the link to be up before opening a TCP socket.
                 if (_net == nullptr || !_net->is_up()) break;
-                if (c->mqtt_broker[0] == '\0') { _fail(now_ms); break; }
+                const char* broker = Cfg::cfg_str(_cfg, "mqtt_broker");
+                if (broker[0] == '\0') { _fail(now_ms); break; }
 
                 if (_resolver == nullptr) { _fail(now_ms); break; }
-                ResolveStatus rs = _resolver->resolve(c->mqtt_broker, &_broker_addr);
+                ResolveStatus rs = _resolver->resolve(broker, &_broker_addr);
                 if (rs == RESOLVE_PENDING) break;
                 if (rs == RESOLVE_FAILED)  { _fail(now_ms); break; }
 
@@ -166,9 +164,8 @@ namespace Botanik { namespace Network {
     bool MqttClient::_send_connect() {
         const char* cid = Config::SITE_NAME;
         uint16_t cid_len = (uint16_t)strlen(cid);
-        const PlcIO::PlcOutputConfig_t* c = config();
-        uint16_t keepalive = (c && c->mqtt_keepalive_s) ? c->mqtt_keepalive_s
-                                                        : Config::MQTT_KEEPALIVE_DEFAULT_S;
+        uint16_t keepalive = (uint16_t)Cfg::cfg_int(_cfg, "mqtt_keepalive_s");
+        if (keepalive == 0) keepalive = Config::MQTT_KEEPALIVE_DEFAULT_S;
 
         uint8_t buf[Config::MQTT_TX_BUF];
         // variable header (10) + client-id (2-byte len prefix + cid_len)
@@ -208,9 +205,8 @@ namespace Botanik { namespace Network {
             if (r == 0) break;           // would-block: drained
             if (r < 0) { _fail(now_ms); return; }   // closed/error
         }
-        const PlcIO::PlcOutputConfig_t* c = config();
-        uint32_t ka_s = (c && c->mqtt_keepalive_s) ? c->mqtt_keepalive_s
-                                                    : Config::MQTT_KEEPALIVE_DEFAULT_S;
+        uint32_t ka_s = (uint32_t)Cfg::cfg_int(_cfg, "mqtt_keepalive_s");
+        if (ka_s == 0) ka_s = Config::MQTT_KEEPALIVE_DEFAULT_S;
         if (now_ms - _last_ping_ms > (uint64_t)ka_s * 1000ull / 2ull) {
             uint8_t ping[2] = { 0xC0, 0x00 };
             if (HAL::Network::tcp_send(_sock, ping, 2) != 2) { _fail(now_ms); return; }

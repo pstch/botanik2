@@ -453,10 +453,7 @@ namespace Botanik { namespace Shell {
 #else
         const Network::MqttClient*      mqt = nullptr;    // _MQTT off: not built
 #endif
-        // NETWORK requires PLC, so the plc member is present in this branch.
-        const PlcIO::PlcOutputConfig_t* cfg =
-            ctx.plc ? ctx.plc->config() : nullptr;
-
+        // Config values are read by name off the config handler (null-safe).
         // Same dotted-leader "label .... : value" lines as `plc`. Sized to hold
         // a pair of host strings (DNS / NTP servers); the scrollback soft-wraps
         // if a long pair overruns 80 cols.
@@ -470,7 +467,7 @@ namespace Botanik { namespace Shell {
         };
 
         // --- Link --------------------------------------------------------
-        const char* mode = (cfg != nullptr && cfg->net_dhcp) ? "DHCP" : "static";
+        const char* mode = Cfg::cfg_int(_config, "net_dhcp") ? "DHCP" : "static";
         snprintf(val, sizeof(val), "%s  (%s)", net->status_str(), mode);
         _line("Network ..............", val);
 
@@ -505,15 +502,16 @@ namespace Botanik { namespace Shell {
             else
                 snprintf(val, sizeof(val), "%s", ntp->status_str());
             _line("NTP ..................", val);
-            if (cfg != nullptr && cfg->ntp_server1[0]) {
+            const char* s1 = Cfg::cfg_str(_config, "ntp_server1");
+            if (s1[0]) {
                 // Configured hostname, then the resolved IP:port once known.
                 Network::ResolvedAddr sa = ntp->server_addr();
                 bool resolved = (sa.b[0] | sa.b[1] | sa.b[2] | sa.b[3]) != 0;
                 if (resolved)
-                    snprintf(val, sizeof(val), "%s  %s:%u", cfg->ntp_server1,
+                    snprintf(val, sizeof(val), "%s  %s:%u", s1,
                              ip4(sa), (unsigned)ntp->server_port());
                 else
-                    snprintf(val, sizeof(val), "%s", cfg->ntp_server1);
+                    snprintf(val, sizeof(val), "%s", s1);
                 _line("NTP server ...........", val);
             }
         } else {
@@ -533,14 +531,15 @@ namespace Botanik { namespace Shell {
                 snprintf(val, sizeof(val), "%s  (no pub yet)", mqt->status_str());
             }
             _line("MQTT .................", val);
-            if (cfg != nullptr && cfg->mqtt_broker[0]) {
+            const char* brk = Cfg::cfg_str(_config, "mqtt_broker");
+            if (brk[0]) {
                 // Configured hostname, then the resolved IP:port once connected.
                 if (mqt->connected()) {
                     Network::ResolvedAddr pa = mqt->peer_addr();
-                    snprintf(val, sizeof(val), "%s  %s:%u", cfg->mqtt_broker,
+                    snprintf(val, sizeof(val), "%s  %s:%u", brk,
                              ip4(pa), (unsigned)mqt->peer_port());
                 } else {
-                    snprintf(val, sizeof(val), "%s", cfg->mqtt_broker);
+                    snprintf(val, sizeof(val), "%s", brk);
                 }
                 _line("MQTT broker ..........", val);
             }
