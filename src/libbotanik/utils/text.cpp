@@ -74,6 +74,24 @@ namespace Botanik { namespace Utils {
         return _emit_reversed(buf, cap, rev, r);
     }
 
+    const char* format_f32(char* buf, size_t cap, double value) {
+        // Float display for the f32 scalar type: up to 4 decimals with trailing
+        // zeros (and a bare trailing '.') trimmed, so 21.5 / 230.2 / 48.8566 read
+        // cleanly and a whole value shows no ".0". 4 places also rounds away the
+        // low-bit noise a 32-bit float carries.
+        format_float(buf, cap, value, 4);
+        size_t n = 0;
+        while (buf[n] != '\0') n++;
+        bool has_dot = false;
+        for (size_t i = 0; i < n; i++) if (buf[i] == '.') { has_dot = true; break; }
+        if (has_dot) {
+            while (n > 0 && buf[n - 1] == '0') n--;
+            if (n > 0 && buf[n - 1] == '.') n--;
+            buf[n] = '\0';
+        }
+        return buf;
+    }
+
     const char* format_uint(char* buf, size_t cap, unsigned long value, uint8_t width) {
         if (cap == 0) return buf;
         // FIXME: make more readable

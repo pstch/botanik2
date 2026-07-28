@@ -37,7 +37,7 @@
 #include "libbotanik/pages/scroll_table.h"
 #include "libbotanik/console/console.h"
 #include "libbotanik/console/terminal.h"
-#include "libbotanik/network/telemetry_types.h"
+#include "libbotanik/core/scalar.h"
 
 namespace Botanik { namespace Pages {
 
@@ -47,7 +47,7 @@ namespace Botanik { namespace Pages {
         using AnsiTerminal = Terminal::AnsiTerminal;
         using Console      = Terminal::Console;
         using Command      = Terminal::InputEvent::Command;
-        using ScalarGroup  = Network::ScalarGroup;
+        using ScalarGroup  = ScalarGroup;
 
         /** @name Layout
          *  @{ */
@@ -209,7 +209,7 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief The ScalarField for variable @p r, or null. */
-        const Network::ScalarField* _field_at(uint16_t r) const {
+        const ScalarField* _field_at(uint16_t r) const {
             size_t gi = 0, fi = 0; bool first = false;
             if (!_at(r, gi, fi, first)) return nullptr;
             return &_groups[gi].fields[fi];
@@ -222,8 +222,8 @@ namespace Botanik { namespace Pages {
         void _value_text(uint16_t r, char* out, size_t cap) const {
             size_t gi = 0, fi = 0; bool first = false;
             if (_base == nullptr || !_at(r, gi, fi, first)) { if (cap) out[0] = 0; return; }
-            const Network::ScalarField& f = _groups[gi].fields[fi];
-            const char* s = Network::scalar_format(f, _base, out, cap);
+            const ScalarField& f = _groups[gi].fields[fi];
+            const char* s = scalar_format(f, _base, out, cap);
             if (s != out) { std::strncpy(out, s, cap - 1); out[cap - 1] = 0; }
         }
 
@@ -231,7 +231,7 @@ namespace Botanik { namespace Pages {
         uint16_t _row_text(uint16_t r, char* out, size_t cap) const {
             size_t gi = 0, fi = 0; bool first = false;
             if (!_at(r, gi, fi, first)) { if (cap) out[0] = 0; return 0; }
-            const Network::ScalarField& f = _groups[gi].fields[fi];
+            const ScalarField& f = _groups[gi].fields[fi];
             char val[VAL_CAP];
             _value_text(r, val, sizeof(val));
             return _row4(out, cap, first ? _groups[gi].topic : "",
@@ -282,7 +282,7 @@ namespace Botanik { namespace Pages {
         void _draw_panel() {
             uint16_t br = _brule_row();
             _blank_line((uint16_t)(br + 1));
-            const Network::ScalarField* f = _field_at(_selected);
+            const ScalarField* f = _field_at(_selected);
             _panel_field((uint16_t)(br + 2), "Description", f ? f->desc  : nullptr);
             _panel_field((uint16_t)(br + 3), "Notes",       f ? f->notes : nullptr);
             _blank_line((uint16_t)(br + 4));

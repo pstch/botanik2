@@ -92,11 +92,14 @@ _SUBS = [
     # they read zero - either way only the value moves, so mask it and keep the
     # label. Each value is bounded to its column so the pattern never eats the
     # adjacent column's label.
-    (re.compile(r"(Temp\s+)[\d.]+ C"), r"\g<1><HF>"),
-    (re.compile(r"(Humidity\s+)[\d.]+ %"), r"\g<1><HF>"),
-    (re.compile(r"(Wind\s+)\d+ km/h"), r"\g<1><HF>"),
-    (re.compile(r"(Water in\s+)\d+ L"), r"\g<1><HF>"),
-    (re.compile(r"(Tray\s+)\d+"), r"\g<1><HF>"),
+    # Left column: also absorb the trailing pad up to the right column, so a
+    # variable-length f32 value (21.5 vs 21.1739) collapses to a fixed token and
+    # doesn't shift the right column in the normalized line.
+    (re.compile(r"(Temp\s+)[\d.]+ C\s+"), r"\g<1><HF> "),
+    (re.compile(r"(Humidity\s+)[\d.]+ %\s+"), r"\g<1><HF> "),
+    (re.compile(r"(Wind\s+)\d+ km/h\s+"), r"\g<1><HF> "),
+    (re.compile(r"(Water in\s+)\d+ L\s+"), r"\g<1><HF> "),
+    (re.compile(r"(Tray\s+)\d+\s+"), r"\g<1><HF> "),
     (re.compile(r"(Grid\s+)[\d.]+ V"), r"\g<1><HF>"),
     (re.compile(r"(DC bus\s+)[\d.]+ V"), r"\g<1><HF>"),
     (re.compile(r"(Battery\s+)[\d.]+ V"), r"\g<1><HF>"),

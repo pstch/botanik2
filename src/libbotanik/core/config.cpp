@@ -1,8 +1,8 @@
 // REVIEW_35: TODO
 /**
  * @file config.cpp
- * @brief The library ConfigParam table + the generic read/render/validate
- *        helpers declared in config.h.
+ * @brief The library config-parameter table (ScalarField[]) + the
+ *        generic read/render/validate helpers declared in config.h.
  */
 #include <cstdint>
 #include <cstddef>
@@ -11,62 +11,65 @@
 #include <cstdlib>
 
 #include "libbotanik/core/config.h"
+#include "libbotanik/utils/text.h"   // format_f32 / format_int
 
 namespace Botanik { namespace Cfg {
 
-    // Library built-in parameters. name == the PlcOutputConfig_t field name;
-    // offset via offsetof; the flat namespace's grouping is only the `group`
-    // tag (which <group>_serial to bump) and the shared name prefix.
-    // Fields: name, offset, type, divisor, decimals, group, min, max, capacity,
-    //         str_kind, str, default, unit, description, notes
+    // Library built-in parameters, as writable ScalarFields. name == the
+    // PlcOutputConfig_t field name; the value is read at out_offset and a commit
+    // written at in_offset (== out_offset, since the input mirror shares the
+    // layout). Fields: name, out_offset, in_offset, type, str, unit, desc, notes,
+    // default, min, max, capacity, str_kind, group.
     static const uint16_t HS = Config::PLC_HOST_STR_LEN;
+#define CO(f) (int16_t)offsetof(PlcIO::PlcOutputConfig_t, f)
     const ConfigParam CONFIG_PARAMS[] = {
         // -- network --
-        {"net_dhcp",        offsetof(PlcIO::PlcOutputConfig_t, net_dhcp),        CFG_U8,     0, 0, CFG_NET,  0, 1, 0,  STR_NONE,     nullptr, "1", "",    "DHCP (1) or static IP (0)", ""},
-        {"net_ip",          offsetof(PlcIO::PlcOutputConfig_t, net_ip),          CFG_STRING, 0, 0, CFG_NET,  0, 0, HS, STR_IPV4,     nullptr, "",  "",    "Static IPv4 address",       "used when DHCP off"},
-        {"net_netmask",     offsetof(PlcIO::PlcOutputConfig_t, net_netmask),     CFG_STRING, 0, 0, CFG_NET,  0, 0, HS, STR_IPV4,     nullptr, "",  "",    "Static subnet mask",        "used when DHCP off"},
-        {"net_gateway",     offsetof(PlcIO::PlcOutputConfig_t, net_gateway),     CFG_STRING, 0, 0, CFG_NET,  0, 0, HS, STR_IPV4,     nullptr, "",  "",    "Default gateway",           "used when DHCP off"},
-        {"net_dns1",        offsetof(PlcIO::PlcOutputConfig_t, net_dns1),        CFG_STRING, 0, 0, CFG_NET,  0, 0, HS, STR_IPV4,     nullptr, "",  "",    "Primary DNS server",        ""},
-        {"net_dns2",        offsetof(PlcIO::PlcOutputConfig_t, net_dns2),        CFG_STRING, 0, 0, CFG_NET,  0, 0, HS, STR_IPV4_OPT, nullptr, "",  "",    "Secondary DNS server",      "empty = none"},
+        {"net_dhcp",        CO(net_dhcp),     CO(net_dhcp),     SCALAR_U8,     nullptr, "",    "DHCP (1) or static IP (0)", "",                 "1",            0, 1,      0,  STR_NONE,     CFG_NET},
+        {"net_ip",          CO(net_ip),       CO(net_ip),       SCALAR_STRING, nullptr, "",    "Static IPv4 address",       "used when DHCP off","",             0, 0,      HS, STR_IPV4,     CFG_NET},
+        {"net_netmask",     CO(net_netmask),  CO(net_netmask),  SCALAR_STRING, nullptr, "",    "Static subnet mask",        "used when DHCP off","",             0, 0,      HS, STR_IPV4,     CFG_NET},
+        {"net_gateway",     CO(net_gateway),  CO(net_gateway),  SCALAR_STRING, nullptr, "",    "Default gateway",           "used when DHCP off","",             0, 0,      HS, STR_IPV4,     CFG_NET},
+        {"net_dns1",        CO(net_dns1),     CO(net_dns1),     SCALAR_STRING, nullptr, "",    "Primary DNS server",        "",                 "",             0, 0,      HS, STR_IPV4,     CFG_NET},
+        {"net_dns2",        CO(net_dns2),     CO(net_dns2),     SCALAR_STRING, nullptr, "",    "Secondary DNS server",      "empty = none",     "",             0, 0,      HS, STR_IPV4_OPT, CFG_NET},
         // -- NTP --
-        {"ntp_enabled",     offsetof(PlcIO::PlcOutputConfig_t, ntp_enabled),     CFG_U8,     0, 0, CFG_NTP,  0, 1, 0,  STR_NONE,     nullptr, "1", "",    "Enable NTP time sync",      ""},
-        {"ntp_poll_s",      offsetof(PlcIO::PlcOutputConfig_t, ntp_poll_s),      CFG_U16,    0, 0, CFG_NTP,  0, 65535, 0, STR_NONE,   nullptr, "64","s",   "NTP poll interval",         "0 = firmware default"},
-        {"ntp_server1",     offsetof(PlcIO::PlcOutputConfig_t, ntp_server1),     CFG_STRING, 0, 0, CFG_NTP,  0, 0, HS, STR_HOST,     nullptr, "pool.ntp.org", "", "Primary NTP server",   ""},
-        {"ntp_server2",     offsetof(PlcIO::PlcOutputConfig_t, ntp_server2),     CFG_STRING, 0, 0, CFG_NTP,  0, 0, HS, STR_HOST_OPT, nullptr, "",  "",    "Secondary NTP server",      "empty = none"},
+        {"ntp_enabled",     CO(ntp_enabled),  CO(ntp_enabled),  SCALAR_U8,     nullptr, "",    "Enable NTP time sync",      "",                 "1",            0, 1,      0,  STR_NONE,     CFG_NTP},
+        {"ntp_poll_s",      CO(ntp_poll_s),   CO(ntp_poll_s),   SCALAR_U16,    nullptr, "s",   "NTP poll interval",         "0 = firmware default","64",         0, 65535,  0,  STR_NONE,     CFG_NTP},
+        {"ntp_server1",     CO(ntp_server1),  CO(ntp_server1),  SCALAR_STRING, nullptr, "",    "Primary NTP server",        "",                 "pool.ntp.org", 0, 0,      HS, STR_HOST,     CFG_NTP},
+        {"ntp_server2",     CO(ntp_server2),  CO(ntp_server2),  SCALAR_STRING, nullptr, "",    "Secondary NTP server",      "empty = none",     "",             0, 0,      HS, STR_HOST_OPT, CFG_NTP},
         // -- MQTT --
-        {"mqtt_enabled",    offsetof(PlcIO::PlcOutputConfig_t, mqtt_enabled),    CFG_U8,     0, 0, CFG_MQTT, 0, 1, 0,  STR_NONE,     nullptr, "1", "",    "Enable MQTT publishing",    ""},
-        {"mqtt_port",       offsetof(PlcIO::PlcOutputConfig_t, mqtt_port),       CFG_U16,    0, 0, CFG_MQTT, 0, 65535, 0, STR_NONE,   nullptr, "1883","",  "Broker TCP port",           "0 = firmware default"},
-        {"mqtt_keepalive_s",offsetof(PlcIO::PlcOutputConfig_t, mqtt_keepalive_s),CFG_U16,    0, 0, CFG_MQTT, 0, 65535, 0, STR_NONE,   nullptr, "60","s",   "MQTT keepalive",            "0 = firmware default"},
-        {"mqtt_broker",     offsetof(PlcIO::PlcOutputConfig_t, mqtt_broker),     CFG_STRING, 0, 0, CFG_MQTT, 0, 0, HS, STR_HOST,     nullptr, "",  "",    "MQTT broker host",          ""},
-        // -- geo (degrees * 1e7; edited/shown as decimal degrees) --
-        {"geo_latitude_e7", offsetof(PlcIO::PlcOutputConfig_t, geo_latitude_e7), CFG_I32, 10000000, 7, CFG_GEO,  -900000000,  900000000, 0, STR_NONE, nullptr, "48.8566", "deg", "Site latitude",  "north +, south -"},
-        {"geo_longitude_e7",offsetof(PlcIO::PlcOutputConfig_t, geo_longitude_e7),CFG_I32, 10000000, 7, CFG_GEO, -1800000000, 1800000000, 0, STR_NONE, nullptr, "2.3522",  "deg", "Site longitude", "east +, west -"},
+        {"mqtt_enabled",    CO(mqtt_enabled), CO(mqtt_enabled), SCALAR_U8,     nullptr, "",    "Enable MQTT publishing",    "",                 "1",            0, 1,      0,  STR_NONE,     CFG_MQTT},
+        {"mqtt_port",       CO(mqtt_port),    CO(mqtt_port),    SCALAR_U16,    nullptr, "",    "Broker TCP port",           "0 = firmware default","1883",       0, 65535,  0,  STR_NONE,     CFG_MQTT},
+        {"mqtt_keepalive_s",CO(mqtt_keepalive_s),CO(mqtt_keepalive_s),SCALAR_U16, nullptr,"s", "MQTT keepalive",            "0 = firmware default","60",         0, 65535,  0,  STR_NONE,     CFG_MQTT},
+        {"mqtt_broker",     CO(mqtt_broker),  CO(mqtt_broker),  SCALAR_STRING, nullptr, "",    "MQTT broker host",          "",                 "",             0, 0,      HS, STR_HOST,     CFG_MQTT},
+        // -- geo (decimal degrees) --
+        {"geo_latitude",    CO(geo_latitude), CO(geo_latitude), SCALAR_F32,    nullptr, "deg", "Site latitude",            "north +, south -", "48.8566",      -90,  90,   0,  STR_NONE,     CFG_GEO},
+        {"geo_longitude",   CO(geo_longitude),CO(geo_longitude),SCALAR_F32,    nullptr, "deg", "Site longitude",           "east +, west -",   "2.3522",       -180, 180,  0,  STR_NONE,     CFG_GEO},
     };
+#undef CO
     const uint8_t CONFIG_PARAM_COUNT = (uint8_t)(sizeof(CONFIG_PARAMS) / sizeof(CONFIG_PARAMS[0]));
 
     // Read / render
 
     const char* type_name(const ConfigParam& p) {
-        if (p.divisor > 1) return "f32";   // fixed-point shown as a decimal (geo degrees)
-        if (p.type == CFG_U8 && p.min == 0 && p.max == 1) return "b";   // boolean (0/1)
+        if (p.type == SCALAR_U8 && p.min == 0 && p.max == 1) return "b";   // boolean (0/1)
         switch (p.type) {
-            case CFG_U8:     return "u8";
-            case CFG_U16:    return "u16";
-            case CFG_U32:    return "u32";
-            case CFG_I16:    return "i16";
-            case CFG_I32:    return "i32";
-            case CFG_ENUM:   return "enum";
-            case CFG_STRING: return "str";
+            case SCALAR_U8:     return "u8";
+            case SCALAR_U16:    return "u16";
+            case SCALAR_U32:    return "u32";
+            case SCALAR_I16:    return "i16";
+            case SCALAR_I32:    return "i32";
+            case SCALAR_F32:    return "f32";
+            case SCALAR_ENUM:   return "enum";
+            case SCALAR_STRING: return "str";
         }
         return "?";
     }
 
     size_t param_width(const ConfigParam& p) {
         switch (p.type) {
-            case CFG_U8: case CFG_ENUM: return 1;
-            case CFG_U16: case CFG_I16: return 2;
-            case CFG_U32: case CFG_I32: return 4;
-            case CFG_STRING:            return p.capacity;
+            case SCALAR_U8: case SCALAR_ENUM: return 1;
+            case SCALAR_U16: case SCALAR_I16: return 2;
+            case SCALAR_U32: case SCALAR_I32: case SCALAR_F32: return 4;
+            case SCALAR_STRING:               return p.capacity;
         }
         return 0;
     }
@@ -103,20 +106,17 @@ namespace Botanik { namespace Cfg {
     }
 
     int32_t read_scalar(const ConfigParam& p, const void* base) {
-        const uint8_t* q = (const uint8_t*)base + p.offset;
+        const uint8_t* q = (const uint8_t*)base + p.out_offset;
         switch (p.type) {
-            case CFG_U8: case CFG_ENUM: { uint8_t  v; memcpy(&v, q, 1); return v; }
-            case CFG_U16:               { uint16_t v; memcpy(&v, q, 2); return v; }
-            case CFG_U32:               { uint32_t v; memcpy(&v, q, 4); return (int32_t)v; }
-            case CFG_I16:               { int16_t  v; memcpy(&v, q, 2); return v; }
-            case CFG_I32:               { int32_t  v; memcpy(&v, q, 4); return v; }
-            case CFG_STRING:            return 0;
+            case SCALAR_U8: case SCALAR_ENUM: { uint8_t  v; memcpy(&v, q, 1); return v; }
+            case SCALAR_U16:                  { uint16_t v; memcpy(&v, q, 2); return v; }
+            case SCALAR_U32:                  { uint32_t v; memcpy(&v, q, 4); return (int32_t)v; }
+            case SCALAR_I16:                  { int16_t  v; memcpy(&v, q, 2); return v; }
+            case SCALAR_I32:                  { int32_t  v; memcpy(&v, q, 4); return v; }
+            case SCALAR_F32:                  { float    v; memcpy(&v, q, 4); return (int32_t)v; }
+            case SCALAR_STRING:               return 0;
         }
         return 0;
-    }
-
-    const char* read_string(const ConfigParam& p, const void* base) {
-        return (const char*)((const uint8_t*)base + p.offset);
     }
 
     // Copy at most cap-1 bytes of s into buf, NUL-terminate, return length.
@@ -130,17 +130,15 @@ namespace Botanik { namespace Cfg {
 
     int format_value(const ConfigParam& p, const void* base, char* buf, size_t cap) {
         if (cap == 0) return 0;
-        if (p.type == CFG_STRING) return copy_str(buf, cap, read_string(p, base));
-
+        if (p.type == SCALAR_STRING) return copy_str(buf, cap, scalar_read_string(p, base));
+        if (p.type == SCALAR_F32) {
+            Utils::format_f32(buf, cap, (double)scalar_read_f32(p, base));
+            return (int)strlen(buf);
+        }
         int32_t v = read_scalar(p, base);
-        if (p.type == CFG_ENUM && p.str != nullptr) {
+        if (p.type == SCALAR_ENUM && p.str != nullptr) {
             const char* s = p.str((uint8_t)v);
             if (s != nullptr) return copy_str(buf, cap, s);
-        }
-        if (p.divisor > 1) {
-            int n = snprintf(buf, cap, "%.*f", (int)p.decimals,
-                             (double)v / (double)p.divisor);
-            return (n < 0) ? 0 : (n < (int)cap ? n : (int)cap - 1);
         }
         int n = snprintf(buf, cap, "%ld", (long)v);
         return (n < 0) ? 0 : (n < (int)cap ? n : (int)cap - 1);
@@ -148,30 +146,28 @@ namespace Botanik { namespace Cfg {
 
     // Validate / parse
 
-    static bool validate_numeric(const ConfigParam& p, int32_t v) {
-        return v >= p.min && v <= p.max;
-    }
-
     bool parse_scalar(const ConfigParam& p, const char* s, int32_t* out) {
         if (s == nullptr || *s == 0) return false;
         char* end = nullptr;
-        long long r;
-        if (p.divisor > 1) {
-            // Fixed-point: parse decimal, scale by divisor, round to nearest.
-            double d = strtod(s, &end);
-            if (end == s) return false;
-            double scaled = d * (double)p.divisor;
-            r = (long long)(scaled < 0 ? scaled - 0.5 : scaled + 0.5);
-        } else {
-            long v = strtol(s, &end, 10);
-            if (end == s) return false;
-            r = v;
-        }
+        long v = strtol(s, &end, 10);
+        if (end == s) return false;
         while (*end == ' ') end++;
         if (*end != 0) return false;                 // trailing garbage
-        if (r < INT32_MIN || r > INT32_MAX) return false;
-        if (!validate_numeric(p, (int32_t)r)) return false;
-        *out = (int32_t)r;
+        if (v < INT32_MIN || v > INT32_MAX) return false;
+        if (v < p.min || v > p.max) return false;
+        *out = (int32_t)v;
+        return true;
+    }
+
+    bool parse_f32(const ConfigParam& p, const char* s, float* out) {
+        if (s == nullptr || *s == 0) return false;
+        char* end = nullptr;
+        double d = strtod(s, &end);
+        if (end == s) return false;
+        while (*end == ' ') end++;
+        if (*end != 0) return false;                 // trailing garbage
+        if (d < (double)p.min || d > (double)p.max) return false;
+        *out = (float)d;
         return true;
     }
 
@@ -218,10 +214,12 @@ namespace Botanik { namespace Cfg {
         }
     }
 
-    // Shared write path (base helper)
+    // Shared write path (base helper): writes into @p base at the parameter's
+    // in_offset (the input mirror).
 
     bool ConfigHandler::write_value(const ConfigParam& p, const char* text, void* base) {
-        uint8_t* dst = (uint8_t*)base + p.offset;
+        if (p.in_offset < 0) return false;            // read-only: not writable
+        uint8_t* dst = (uint8_t*)base + p.in_offset;
         if (is_string(p)) {
             if (!validate_string(p, text)) return false;
             size_t n = 0;
@@ -229,15 +227,21 @@ namespace Botanik { namespace Cfg {
             memset(dst + n, 0, p.capacity - n);   // NUL-pad the fixed-size field
             return true;
         }
+        if (p.type == SCALAR_F32) {
+            float f = 0.0f;
+            if (!parse_f32(p, text, &f)) return false;
+            memcpy(dst, &f, 4);
+            return true;
+        }
         int32_t v = 0;
         if (!parse_scalar(p, text, &v)) return false;
         switch (p.type) {
-            case CFG_U8: case CFG_ENUM: { uint8_t  b = (uint8_t)v;  memcpy(dst, &b, 1); break; }
-            case CFG_U16:               { uint16_t b = (uint16_t)v; memcpy(dst, &b, 2); break; }
-            case CFG_U32:               { uint32_t b = (uint32_t)v; memcpy(dst, &b, 4); break; }
-            case CFG_I16:               { int16_t  b = (int16_t)v;  memcpy(dst, &b, 2); break; }
-            case CFG_I32:               { int32_t  b = v;           memcpy(dst, &b, 4); break; }
-            case CFG_STRING:            return false;
+            case SCALAR_U8: case SCALAR_ENUM: { uint8_t  b = (uint8_t)v;  memcpy(dst, &b, 1); break; }
+            case SCALAR_U16:                  { uint16_t b = (uint16_t)v; memcpy(dst, &b, 2); break; }
+            case SCALAR_U32:                  { uint32_t b = (uint32_t)v; memcpy(dst, &b, 4); break; }
+            case SCALAR_I16:                  { int16_t  b = (int16_t)v;  memcpy(dst, &b, 2); break; }
+            case SCALAR_I32:                  { int32_t  b = v;           memcpy(dst, &b, 4); break; }
+            default:                          return false;
         }
         return true;
     }

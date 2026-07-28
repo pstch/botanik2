@@ -16,7 +16,7 @@
 #include "libbotanik/network/mqtt.h"
 #include "libbotanik/network/network.h"
 #include "libbotanik/network/ntp.h"
-#include "libbotanik/network/telemetry_types.h"
+#include "libbotanik/core/scalar.h"
 #include "libbotanik/plcio/sync.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/shell/shell.h"
@@ -329,12 +329,12 @@ namespace Botanik { namespace Shell {
 
         bool found = false;
         for (size_t gi = 0; gi < _status_group_count; ++gi) {
-            const Network::ScalarGroup& g = _status_groups[gi];
+            const ScalarGroup& g = _status_groups[gi];
             for (size_t i = 0; i < g.count; ++i) {
-                const Network::ScalarField& f = g.fields[i];
+                const ScalarField& f = g.fields[i];
                 if (f.name == nullptr) continue;
                 if (nm != nullptr && !Utils::arg_eq(nm, wn, f.name)) continue;
-                const char* s = Network::scalar_format(f, _status_base, val, sizeof(val));
+                const char* s = scalar_format(f, _status_base, val, sizeof(val));
                 // Append the physical unit when the field carries one.
                 _emitf(out, sizeof(out), "  %-18s %s%s%s", f.name, s,
                        (f.unit && f.unit[0]) ? " " : "", (f.unit && f.unit[0]) ? f.unit : "");

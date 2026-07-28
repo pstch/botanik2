@@ -4,23 +4,23 @@
 
 /**
  * @file config.h
- * @brief Configuration parameter model - the ConfigParam descriptor table and
- *        the ConfigHandler base that owns a flat config image.
+ * @brief Configuration parameter model - the ConfigHandler base over a flat
+ *        config image, addressed by the same ScalarField descriptor the
+ *        status-variable table uses.
  *
- * Configuration is a flat namespace of parameters (network/NTP/MQTT/geo today),
- * the writable sibling of the telemetry "status variable table". The image is
- * the flat PlcIO::PlcOutputConfig_t; a ConfigParam[] table (library built-ins +
- * an optional site table) maps each parameter name to its byte offset, type and
- * bounds, so the CONFIG page and the backends read/render/validate/write any
- * parameter generically - no per-field code (mirrors the telemetry ScalarField
- * table and the alarm-condition table).
+ * Configuration is a flat namespace of parameters (network/NTP/MQTT/geo today).
+ * A parameter is just a writable ScalarField: `ConfigParam` is an alias
+ * for it, so status variables and config parameters share one descriptor. The
+ * value is read from the parameter's @c out_offset in the flat
+ * PlcIO::PlcOutputConfig_t image and a committed edit is written to its
+ * @c in_offset in the input mirror (same layout, so in == out for a real param).
+ * A ScalarField[] table (library built-ins + an optional site table) drives the
+ * CONFIG page and the backends generically - no per-field code.
  *
- * ConfigHandler is the storage-backend base. Two concrete backends derive it
- * (built in a later step): PlcConfigHandler (the PLC owns the values in NVM) and
- * LocalConfigHandler (Mbed flash / a sim file). Both expose the same image() +
- * set() surface, so the config-driven Components and the CONFIG page are backend
- * agnostic. Its own ConfigType (not the network ScalarType) keeps this always-on
- * core header free of the network-gated telemetry include.
+ * ConfigHandler is the storage-backend base. Two concrete backends derive it:
+ * PlcConfigHandler (the PLC owns the values in NVM) and LocalConfigHandler (Mbed
+ * flash / a sim file). Both expose the same image() + set() surface, so the
+ * config-driven Components and the CONFIG page are backend agnostic.
  */
 
 #include <cstddef>   // offsetof, size_t
@@ -28,64 +28,34 @@
 #include <cstring>   // strlen/strncmp (find by name)
 
 #include "libbotanik/core/component.h"
-#include "libbotanik/plcio/config.h"   // PlcOutputConfig_t (the config image)
+#include "libbotanik/plcio/config.h"           // PlcOutputConfig_t (the config image)
+#include "libbotanik/core/scalar.h"  // ScalarField / ScalarType (the shared descriptor)
 
 namespace Botanik { namespace Cfg {
 
     /** @name Parameter descriptor
      *  @{ */
 
-    /** @brief How to read + render a ConfigParam's bytes (its width and sign);
-     *  CFG_ENUM is a u8 shown through ConfigParam::str, CFG_STRING a NUL-
-     *  terminated char buffer. */
-    enum ConfigType {
-        CFG_U8, CFG_U16, CFG_U32,   ///< unsigned integer
-        CFG_I16, CFG_I32,           ///< signed integer
-        CFG_ENUM,                   ///< u8 -> string via ConfigParam::str
-        CFG_STRING                  ///< NUL-terminated text (e.g. an IP or host)
-    };
+    /** @brief A config parameter is a writable ScalarField (in_offset >=
+     *  0). One descriptor for both status variables and parameters. */
+    using ConfigParam = ScalarField;
 
     /** @brief Parameter group. Only used to pick which `<group>_serial` word to
      *  bump on a committed edit (the consumers re-apply per group, not per
-     *  parameter). Order is independent of the flat parameter order. */
+     *  parameter). Held in ScalarField::group as a plain byte. */
     enum ConfigGroup {
         CFG_NET, CFG_NTP, CFG_MQTT, CFG_GEO,
         CFG_GROUP_COUNT
     };
 
-    /** @brief How to validate a CFG_STRING parameter's edited text (STR_NONE for
+    /** @brief How to validate a string parameter's edited text (STR_NONE for
      *  non-string params). The *_OPT variants also accept an empty string (an
-     *  unset optional address, e.g. a second DNS server). */
+     *  unset optional address, e.g. a second DNS server). Held in
+     *  ScalarField::str_kind as a plain byte. */
     enum StrKind {
         STR_NONE,
         STR_IPV4, STR_IPV4_OPT,
         STR_HOST, STR_HOST_OPT
-    };
-
-    /** @brief One configuration parameter: a flat, PLC-matching @p name at byte
-     *  @p offset in the config image, its @p type, display scaling and edit
-     *  bounds. Numeric types validate against [@p min, @p max]; CFG_STRING uses
-     *  @p capacity (bytes incl. NUL) and a type-specific validator. @p group
-     *  selects the serial bumped on commit. Static, site-/library-defined; the
-     *  handler holds no per-parameter state. */
-    struct ConfigParam {
-        const char* name;       ///< flat name, == the image field name
-        uint16_t    offset;     ///< byte offset into PlcOutputConfig_t
-        ConfigType  type;
-        uint32_t    divisor;    ///< 0/1 = integer; else fixed-point (value/divisor)
-        uint8_t     decimals;   ///< fixed-point precision (divisor > 1)
-        uint8_t     group;      ///< ConfigGroup: which <group>_serial to bump
-        int32_t     min;        ///< inclusive lower bound (numeric types)
-        int32_t     max;        ///< inclusive upper bound (numeric types)
-        uint16_t    capacity;   ///< CFG_STRING buffer size incl. NUL (else 0)
-        uint8_t     str_kind;   ///< StrKind: CFG_STRING validator (else STR_NONE)
-        const char* (*str)(uint8_t);   ///< CFG_ENUM only (else null)
-        // Descriptive metadata (site/PLC-specified), shown in the CONFIG table
-        // (default + unit columns) and the edit modal. All display-only.
-        const char* deflt;      ///< default value as display text (may be "")
-        const char* unit;       ///< physical unit, e.g. "s"/"deg"/"mV" ("" = none)
-        const char* desc;       ///< one-line description (may be "")
-        const char* notes;      ///< extra notes / edit caveats (may be "")
     };
 
     /** @brief The library built-in parameters (net/ntp/mqtt/geo), flat. */
@@ -97,11 +67,11 @@ namespace Botanik { namespace Cfg {
     /** @name Generic read / render / validate (no handler instance needed)
      *  @{ */
 
-    /** @brief True for the text (CFG_STRING) type. */
-    inline bool is_string(const ConfigParam& p) { return p.type == CFG_STRING; }
+    /** @brief True for the text (SCALAR_STRING) type. */
+    inline bool is_string(const ConfigParam& p) { return p.type == SCALAR_STRING; }
 
-    /** @brief Short display name for a parameter's type ("u8"/"i32"/"enum"/
-     *  "str", or "float" for a fixed-point scalar shown as a decimal). */
+    /** @brief Short display name for a parameter's type ("u8"/"i32"/"f32"/"enum"/
+     *  "str", "b" for a 0/1 boolean). */
     const char* type_name(const ConfigParam& p);
 
     /** @brief Stored width of a parameter's value in the image (its scalar width,
@@ -116,28 +86,27 @@ namespace Botanik { namespace Cfg {
      *  contiguously, so a whole group can be copied in one memcpy. */
     void group_byte_range(uint8_t group, uint16_t* start, uint16_t* len);
 
-    /** @brief Validate CFG_STRING edit text @p s per the parameter's StrKind
+    /** @brief Validate SCALAR_STRING edit text @p s per the parameter's StrKind
      *  (IPv4 or hostname, required or optional). */
     bool validate_string(const ConfigParam& p, const char* s);
 
-    /** @brief Read a numeric parameter (any non-string type) from @p base as a
-     *  sign-extended int32. Undefined for CFG_STRING. */
+    /** @brief Read a numeric parameter (any non-string type) from @p base at its
+     *  out_offset as a sign-extended int32. Undefined for SCALAR_STRING. */
     int32_t read_scalar(const ConfigParam& p, const void* base);
 
-    /** @brief Pointer to a CFG_STRING parameter's text within @p base. */
-    const char* read_string(const ConfigParam& p, const void* base);
-
     /** @brief Render parameter @p p (read from @p base) as display text into
-     *  @p buf: enum via str(), fixed-point via divisor/decimals, string
-     *  verbatim, else a plain integer. @return the written length. */
+     *  @p buf: enum via str(), f32 via format_f32, string verbatim, else a plain
+     *  integer. @return the written length. */
     int format_value(const ConfigParam& p, const void* base, char* buf, size_t cap);
 
-    /** @brief Validate a numeric candidate @p v against [min, max]. */
-
-    /** @brief Parse edit text @p s for parameter @p p into @p out (numeric
-     *  types only) and bounds-check it. @return false on a malformed number or
-     *  an out-of-range value. */
+    /** @brief Parse edit text @p s for parameter @p p into @p out (integer types
+     *  only) and bounds-check it. @return false on a malformed number or an
+     *  out-of-range value. */
     bool parse_scalar(const ConfigParam& p, const char* s, int32_t* out);
+
+    /** @brief Parse edit text @p s for an f32 parameter into @p out and
+     *  bounds-check it against [min, max]. @return false on malformed / OOR. */
+    bool parse_f32(const ConfigParam& p, const char* s, float* out);
 
     /** @brief True if @p s is a dotted-decimal IPv4 literal (four 0..255
      *  octets). An empty string is allowed only when @p allow_empty (an unset
@@ -240,7 +209,7 @@ namespace Botanik { namespace Cfg {
          *  @{ */
 
         /** @brief Parse + validate edit text @p text for parameter @p p and
-         *  write its bytes into @p base at p.offset (numeric by width, string
+         *  write its bytes into @p base at p.in_offset (numeric by width, string
          *  copied and NUL-padded to capacity). @return false (nothing written)
          *  on invalid input. Backends call this against their writable target
          *  (the local image, or the PLC input mirror). */

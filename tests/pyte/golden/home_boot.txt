@@ -8,11 +8,11 @@
   PLC link <P>                    Grid         <HF>
   Uptime       <UPTIME>             DC bus       <HF>
                                           Battery      <HF>
-  Temp         <HF>                     UPS          <HF>
-  Humidity     <HF>                     Network      <HF>
-  Wind         <HF>                    NTP sync     <HF>
-  Water in     <HF>                      Cooling      <HF>
-  Tray         <HF>                          Heatpump     <HF>
+  Temp         <HF> UPS          <HF>
+  Humidity     <HF> Network      <HF>
+  Wind         <HF> NTP sync     <HF>
+  Water in     <HF> Cooling      <HF>
+  Tray         <HF> Heatpump     <HF>
 
     LOGS
 <TS> [~] BOOT: MonitorWriter initialized

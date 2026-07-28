@@ -85,14 +85,14 @@ inline void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
 
     // Climate sensors - three height zones share the level with a static
     // offset (ceiling warmer/drier than the floor).
-    int temp_centi = 2200 + (int)(300.0f * climate);             // ~19..25 degC
-    o->ext_temp_c_centi   = (int16_t)(temp_centi - 150);
-    o->floor_temp_c_centi = (int16_t)(temp_centi);
-    o->ceil_temp_c_centi  = (int16_t)(temp_centi + 200);
-    int rh_centi = 6000 - (int)(1000.0f * climate);              // ~50..70 %
-    o->ext_rh_centi_pct   = (uint16_t)(rh_centi + 200);
-    o->floor_rh_centi_pct = (uint16_t)(rh_centi);
-    o->ceil_rh_centi_pct  = (uint16_t)(rh_centi - 400);
+    float temp_c = 22.0f + 3.0f * climate;                       // ~19..25 degC
+    o->ext_temp_c   = temp_c - 1.5f;
+    o->floor_temp_c = temp_c;
+    o->ceil_temp_c  = temp_c + 2.0f;
+    float rh = 60.0f - 10.0f * climate;                          // ~50..70 %
+    o->ext_rh_pct   = rh + 2.0f;
+    o->floor_rh_pct = rh;
+    o->ceil_rh_pct  = rh - 4.0f;
 
     // Weather - rain rarely sets in then clears; wind a light breeze, gusts.
     static bool     raining       = false;
@@ -107,28 +107,27 @@ inline void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
     o->wind_peak_kmh = (uint16_t)wind;
 
     // Power - nominal within tight tolerances; the B bus occasionally drops.
-    static float grid_mv   = 230000.0f;
-    static float grid_freq = 5000.0f;
-    static float dc_mv     = 24000.0f;
-    static float batt_mv   = 12600.0f;
-    // Grid sits inside spec ([226000, 234000] is the AC_GRID band), with a rare
+    static float grid_v  = 230.0f;
+    static float grid_hz = 50.0f;
+    static float dc_v    = 24.0f;
+    static float batt_v  = 12.6f;
+    // Grid sits inside spec ([226, 234] V is the AC_GRID band), with a rare
     // sag/surge out of spec to exercise AC_GRID (drift clamps it back later).
-    grid_mv   = drift(grid_mv,   900.0f,  227000.0f, 233000.0f, 0.05f);
-    if (chance(0.0025f)) grid_mv = chance(0.5f) ? 224000.0f : 236000.0f;
-    // ~50 Hz
-    grid_freq = drift(grid_freq, 8.0f,    4990.0f,   5010.0f,   0.05f);
-    dc_mv     = drift(dc_mv,     150.0f,  23500.0f,  24500.0f,  0.05f);
-    batt_mv   = drift(batt_mv,   300.0f,  11800.0f,  13000.0f,  0.03f);
-    o->grid_ac_mv         = (uint32_t)grid_mv;
-    o->grid_freq_centi_hz = (uint16_t)grid_freq;
-    o->dc_bus_mv          = (uint32_t)dc_mv;
-    o->dc_bus_a_ok        = 1;
+    grid_v  = drift(grid_v,  0.9f,  227.0f, 233.0f, 0.05f);
+    if (chance(0.0025f)) grid_v = chance(0.5f) ? 224.0f : 236.0f;
+    grid_hz = drift(grid_hz, 0.08f, 49.90f, 50.10f, 0.05f);
+    dc_v    = drift(dc_v,    0.15f, 23.5f,  24.5f,  0.05f);
+    batt_v  = drift(batt_v,  0.30f, 11.8f,  13.0f,  0.03f);
+    o->grid_ac_v    = grid_v;
+    o->grid_freq_hz = grid_hz;
+    o->dc_bus_v     = dc_v;
+    o->dc_bus_a_ok  = 1;
     static bool dc_b_ok = true;
     // mostly OK, rare dropout
     dc_b_ok = dc_b_ok ? !chance(0.004f) : chance(0.12f);
-    o->dc_bus_b_ok        = dc_b_ok ? 1 : 0;
-    o->battery_mv         = (uint32_t)batt_mv;
-    o->ups_status         = UpsStatus::ONLINE;
+    o->dc_bus_b_ok  = dc_b_ok ? 1 : 0;
+    o->battery_v    = batt_v;
+    o->ups_status   = UpsStatus::ONLINE;
 
     // Ventilation tracks temperature; channels stagger to distinct levels.
     int vent = 50 + (int)(50.0f * climate);
@@ -158,7 +157,7 @@ inline void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
 
     // Monitored autonomous heating (active when it gets cold)
     o->generator_running = (climate < -0.7f) ? 1 : 0;
-    o->generator_mv      = o->generator_running ? 13800 : 0;
+    o->generator_v       = o->generator_running ? 13.8f : 0.0f;
     o->heat_blower_on    = (climate < -0.7f) ? 1 : 0;
     o->heatpump_on       = (climate < -0.4f) ? 1 : 0;
 
@@ -186,16 +185,16 @@ inline void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
     // addressed by table code (abit) so the mock PLC and firmware share the one
     // definition (g_alarms).
     uint64_t raw = 0;
-    if (o->grid_ac_mv < 226000 || o->grid_ac_mv > 234000) raw |= abit("AC_GRID");
-    if (!o->dc_bus_b_ok)                                   raw |= abit("DC_PS2");
-    if (o->ups_status != UpsStatus::ONLINE)                raw |= abit("DC_UPS");
-    if (o->generator_running && o->generator_mv < 12000)   raw |= abit("GEN_FLT");
-    if (o->net_status == NetStatus::DOWN)                  raw |= abit("NET_FLT");
-    if (!o->ntp_synced)                                    raw |= abit("NTP_TIM");
-    if (o->ceil_temp_c_centi > 2600)                       raw |= abit("TOO_HOT");
-    if (o->floor_temp_c_centi < 1500)                      raw |= abit("TOO_COLD");
-    if (o->ext_rh_centi_pct > 6800)                        raw |= abit("TOO_HUM");
-    if (o->wind_peak_kmh > 35 || raining)                  raw |= abit("WH_STORM");
+    if (o->grid_ac_v < 226.0f || o->grid_ac_v > 234.0f)  raw |= abit("AC_GRID");
+    if (!o->dc_bus_b_ok)                                  raw |= abit("DC_PS2");
+    if (o->ups_status != UpsStatus::ONLINE)               raw |= abit("DC_UPS");
+    if (o->generator_running && o->generator_v < 12.0f)  raw |= abit("GEN_FLT");
+    if (o->net_status == NetStatus::DOWN)                 raw |= abit("NET_FLT");
+    if (!o->ntp_synced)                                   raw |= abit("NTP_TIM");
+    if (o->ceil_temp_c > 26.0f)                           raw |= abit("TOO_HOT");
+    if (o->floor_temp_c < 15.0f)                          raw |= abit("TOO_COLD");
+    if (o->ext_rh_pct > 68.0f)                            raw |= abit("TOO_HUM");
+    if (o->wind_peak_kmh > 35 || raining)                 raw |= abit("WH_STORM");
 
     // Settle window: keep alarms clear for the first stretch after boot (a real
     // PLC likewise masks process alarms until its sensors settle). Kept generous
@@ -248,9 +247,9 @@ inline void fill_greenhouse_config(Botanik::PlcIO::PlcOutputConfig_t* cfg) {
     cfg->mqtt_serial = 1; cfg->mqtt_enabled = 1; cfg->mqtt_keepalive_s = 60;
     cfg->mqtt_port = Botanik::HAL::Network::MQTT_MOCK_PORT;
     set_host(cfg->mqtt_broker, "broker.local");
-    cfg->geo_serial = 1;                                // example: Paris (E7)
-    cfg->geo_latitude_e7  =  488566000;                 //  48.8566 N
-    cfg->geo_longitude_e7 =   23522000;                 //   2.3522 E
+    cfg->geo_serial = 1;                                // example: Paris
+    cfg->geo_latitude  = 48.8566f;                      // 48.8566 N
+    cfg->geo_longitude =  2.3522f;                      //  2.3522 E
 }
 
 }  // namespace

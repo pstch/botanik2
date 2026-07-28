@@ -90,7 +90,7 @@ namespace Botanik { namespace Pages {
         void set_config(Cfg::ConfigHandler* config) { _shell.set_config(config); }
 
         /** @brief Wire the status-variable table for the `status` command. */
-        void set_status_vars(const Network::ScalarGroup* groups, size_t count,
+        void set_status_vars(const ScalarGroup* groups, size_t count,
                              const void* base) {
             _shell.set_status_vars(groups, count, base);
         }

@@ -28,7 +28,7 @@
 #include "libbotanik/logs/writer.h"
 #include "libbotanik/pages/metric_page.h"
 #include "libbotanik/pages/scrollback.h"
-#include "libbotanik/network/telemetry_types.h"   // HomeField / scalar_format
+#include "libbotanik/core/scalar.h"   // HomeField / scalar_format
 
 // Build-stamped git short hash (generated header); "unknown" when absent
 // (Arduino .ino deploy doesn't run CMake).
@@ -55,7 +55,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief Site home-field table (label + status variable) + the payload
          *  they read. Up to LEFT_MAX + RIGHT_MAX shown; extras ignored. */
-        const Network::HomeField* _fields      = nullptr;
+        const HomeField* _fields      = nullptr;
         uint8_t                   _field_count = 0;
         const void*               _base        = nullptr;
 
@@ -251,9 +251,9 @@ namespace Botanik { namespace Pages {
             for (uint8_t i = 0; i < _field_count; i++) {
                 uint16_t row, lbl, val, w, slot;
                 if (!_field_place(i, row, lbl, val, w, slot)) break;
-                const Network::ScalarField& f = _fields[i].var;
+                const ScalarField& f = _fields[i].var;
                 char vb[32], buf[40];
-                const char* s = Network::scalar_format(f, _base, vb, sizeof(vb));
+                const char* s = scalar_format(f, _base, vb, sizeof(vb));
                 if (f.unit && f.unit[0]) snprintf(buf, sizeof(buf), "%s %s", s, f.unit);
                 else                     snprintf(buf, sizeof(buf), "%s", s);
                 _cell(slot, row, val, buf, w);
@@ -274,7 +274,7 @@ namespace Botanik { namespace Pages {
         /** @brief @p fields (+ @p count) is the site home-field table and @p base
          *  the payload it reads (all borrowed; may be null/0 for a bare home
          *  screen). */
-        HomePage(Console& console, const Network::HomeField* fields = nullptr,
+        HomePage(Console& console, const HomeField* fields = nullptr,
                  uint8_t count = 0, const void* base = nullptr)
             : MetricPage(console, 14),
               _fields(fields), _field_count(count), _base(base) {

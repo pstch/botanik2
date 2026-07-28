@@ -75,8 +75,8 @@ namespace Botanik { namespace PlcIO {
 
         // -- geo (feeds the sunrise/sunset math; UTC device, no timezone) --
         uint32_t  geo_serial;      ///< bumped by the PLC on any geo_* change
-        int32_t   geo_latitude_e7; ///< degrees * 1e7 (north +, south -); -90e7..90e7
-        int32_t   geo_longitude_e7;///< degrees * 1e7 (east +, west -); -180e7..180e7
+        float     geo_latitude;    ///< site latitude, decimal degrees (north +, south -)
+        float     geo_longitude;   ///< site longitude, decimal degrees (east +, west -)
     };
 
     // Each group's serial is word-aligned so a consumer can poll it through a

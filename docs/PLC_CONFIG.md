@@ -113,20 +113,20 @@ on the PLC side.
 ### geo - site location
 
 The site's geographical position, used by the base library to compute sunrise and
-sunset (e.g. for window / thermal-screen scheduling). Integer-scaled - no floats on
-the wire - so latitude and longitude use the common "E7" encoding (degrees * 1e7).
+sunset (e.g. for window / thermal-screen scheduling). Latitude and longitude are
+32-bit floats in decimal degrees.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `serial`        | `uint32_t` | bumped by the PLC on any change to this block |
-| `latitude_e7`   | `int32_t`  | latitude, degrees * 1e7 (north +, south -); -90e7..90e7 |
-| `longitude_e7`  | `int32_t`  | longitude, degrees * 1e7 (east +, west -); -180e7..180e7 |
+| `serial`      | `uint32_t` | bumped by the PLC on any change to this block |
+| `latitude`    | `float`    | latitude, decimal degrees (north +, south -); -90..90 |
+| `longitude`   | `float`    | longitude, decimal degrees (east +, west -); -180..180 |
 
 \startuml "PlcGeoConfig_t: the site-location block"
 class PlcGeoConfig_t {
   serial : uint32 - change counter (leads the block)
-  latitude_e7 : int32 - degrees * 1e7 (N +, S -)
-  longitude_e7 : int32 - degrees * 1e7 (E +, W -)
+  latitude : float - decimal degrees (N +, S -)
+  longitude : float - decimal degrees (E +, W -)
 }
 \enduml
 

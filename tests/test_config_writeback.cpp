@@ -42,7 +42,7 @@ TEST_CASE("PLC config write-back: host edit reflects via the emulated PLC") {
     init.ntp_enabled = 1;
     init.ntp_poll_s  = 64;
     init.geo_serial  = 1;
-    init.geo_latitude_e7 = 100000000;   // 10.0 deg
+    init.geo_latitude = 10.0f;   // 10.0 deg
     emu.publish_config(init);
 
     // Pump both state machines, advancing the shared clock so heartbeats fire.
@@ -72,7 +72,7 @@ TEST_CASE("PLC config write-back: host edit reflects via the emulated PLC") {
 
     // Untouched groups (geo) did not re-apply.
     CHECK(cfg.image()->geo_serial == 1);
-    CHECK(cfg.image()->geo_latitude_e7 == 100000000);
+    CHECK(cfg.image()->geo_latitude == doctest::Approx(10.0f));
 
     // A second edit bumps the serial again and keeps other NTP fields intact.
     CHECK(cfg.set(*poll, "128"));

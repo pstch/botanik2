@@ -36,16 +36,18 @@ TEST_CASE("config table: sane offsets, string capacities, group tags") {
     CHECK(CONFIG_PARAM_COUNT == 16);
     for (uint8_t i = 0; i < CONFIG_PARAM_COUNT; i++) {
         const ConfigParam& p = CONFIG_PARAMS[i];
-        CHECK(p.offset < sizeof(PlcIO::PlcOutputConfig_t));
+        CHECK(p.out_offset >= 0);
+        CHECK((size_t)p.out_offset < sizeof(PlcIO::PlcOutputConfig_t));
+        CHECK(p.in_offset == p.out_offset);   // config: input mirror shares the layout
         CHECK(p.group < CFG_GROUP_COUNT);
         if (is_string(p)) CHECK(p.capacity == Config::PLC_HOST_STR_LEN);
     }
     // Spot-check a few names resolve and carry the expected type/group.
     REQUIRE(find("net_dhcp") != nullptr);
-    CHECK(find("net_dhcp")->type == CFG_U8);
-    CHECK(find("net_ip")->type == CFG_STRING);
+    CHECK(find("net_dhcp")->type == SCALAR_U8);
+    CHECK(find("net_ip")->type == SCALAR_STRING);
     CHECK(find("ntp_poll_s")->group == CFG_NTP);
-    CHECK(find("geo_latitude_e7")->type == CFG_I32);
+    CHECK(find("geo_latitude")->type == SCALAR_F32);
 }
 
 TEST_CASE("group_serial_offset matches the image serial fields") {
@@ -57,10 +59,10 @@ TEST_CASE("group_serial_offset matches the image serial fields") {
 
 TEST_CASE("read + format values off an image") {
     PlcIO::PlcOutputConfig_t c{};
-    c.net_dhcp        = 1;
-    c.ntp_poll_s      = 64;
-    c.mqtt_port       = 1883;
-    c.geo_latitude_e7 = 488566000;    // 48.8566 N
+    c.net_dhcp     = 1;
+    c.ntp_poll_s   = 64;
+    c.mqtt_port    = 1883;
+    c.geo_latitude = 48.8566f;
     strcpy(c.net_ip, "192.168.1.5");
 
     char buf[80];
@@ -74,9 +76,9 @@ TEST_CASE("read + format values off an image") {
     format_value(*find("mqtt_port"), &c, buf, sizeof(buf));
     CHECK(strcmp(buf, "1883") == 0);
 
-    // Fixed-point: 488566000 / 1e7 = 48.8566000 (7 decimals).
-    format_value(*find("geo_latitude_e7"), &c, buf, sizeof(buf));
-    CHECK(strcmp(buf, "48.8566000") == 0);
+    // f32 shown via format_f32 (trailing zeros trimmed).
+    format_value(*find("geo_latitude"), &c, buf, sizeof(buf));
+    CHECK(strcmp(buf, "48.8566") == 0);
 
     format_value(*find("net_ip"), &c, buf, sizeof(buf));
     CHECK(strcmp(buf, "192.168.1.5") == 0);
@@ -84,7 +86,7 @@ TEST_CASE("read + format values off an image") {
     CHECK(read_scalar(*find("ntp_poll_s"), &c) == 64);
 }
 
-TEST_CASE("parse_scalar: integers, bounds, and fixed-point round-trip") {
+TEST_CASE("parse_scalar: integers and bounds") {
     int32_t v = 0;
 
     // Integer within range.
@@ -103,13 +105,17 @@ TEST_CASE("parse_scalar: integers, bounds, and fixed-point round-trip") {
     // Boolean-ish u8 bound.
     CHECK(parse_scalar(*find("net_dhcp"), "1", &v));
     CHECK_FALSE(parse_scalar(*find("net_dhcp"), "2", &v));
+}
 
-    // Fixed-point geo: decimal degrees -> e7, then bounds.
-    CHECK(parse_scalar(*find("geo_latitude_e7"), "48.8566", &v));
-    CHECK(v == 488566000);
-    CHECK(parse_scalar(*find("geo_latitude_e7"), "-90", &v));
-    CHECK(v == -900000000);
-    CHECK_FALSE(parse_scalar(*find("geo_latitude_e7"), "91", &v));   // > +90 deg
+TEST_CASE("parse_f32: decimal degrees and bounds") {
+    float f = 0.0f;
+    CHECK(parse_f32(*find("geo_latitude"), "48.8566", &f));
+    CHECK(f == doctest::Approx(48.8566));
+    CHECK(parse_f32(*find("geo_latitude"), "-90", &f));
+    CHECK(f == doctest::Approx(-90.0));
+    CHECK_FALSE(parse_f32(*find("geo_latitude"), "91", &f));    // > +90 deg
+    CHECK_FALSE(parse_f32(*find("geo_latitude"), "abc", &f));
+    CHECK_FALSE(parse_f32(*find("geo_latitude"), "", &f));
 }
 
 TEST_CASE("validate_ipv4") {
@@ -140,9 +146,10 @@ TEST_CASE("ConfigHandler registry: library + site params") {
     CHECK(h.count() == CONFIG_PARAM_COUNT);
     CHECK(strcmp(h.param(0).name, CONFIG_PARAMS[0].name) == 0);
 
+    // name, out_offset, in_offset, type, str, unit, desc, notes, deflt, min, max, capacity, str_kind, group
     static const ConfigParam site[] = {
-        {"site_a", 0, CFG_U8, 0, 0, CFG_NET, 0, 1, 0, STR_NONE, nullptr, "", "", "", ""},
-        {"site_b", 0, CFG_U8, 0, 0, CFG_NET, 0, 1, 0, STR_NONE, nullptr, "", "", "", ""},
+        {"site_a", 0, 0, SCALAR_U8, nullptr, "", "", "", "", 0, 1, 0, STR_NONE, CFG_NET},
+        {"site_b", 0, 0, SCALAR_U8, nullptr, "", "", "", "", 0, 1, 0, STR_NONE, CFG_NET},
     };
     h.set_site_params(site, 2);
     CHECK(h.count() == (uint8_t)(CONFIG_PARAM_COUNT + 2));

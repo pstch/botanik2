@@ -119,33 +119,34 @@ struct NetStatus {
  * contract in plcio/vars.h).
  */
 struct PlcOutputData_t {
-    // Widest members first (keeps the rest aligned, no implicit padding). Each
-    // alarm is an individual boolean field near the end (AlarmReader gathers
-    // them into the raw bitset via g_alarms offsets), not a packed word.
-    // Power (voltages in millivolts)
-    uint32_t grid_ac_mv;         ///< mains AC RMS voltage, millivolts
-    uint32_t dc_bus_mv;          ///< DC system bus voltage, millivolts
-    uint32_t battery_mv;         ///< battery bank voltage, millivolts
-    uint32_t generator_mv;       ///< generator output voltage, millivolts
-    uint16_t grid_freq_centi_hz; ///< mains frequency, 0.01 Hz
-    // Climate (filtered sensor data, one reading per height zone)
-    int16_t  ext_temp_c_centi;   ///< exterior air temp, 0.01 degC
-    int16_t  floor_temp_c_centi; ///< floor-level temp, 0.01 degC
-    int16_t  ceil_temp_c_centi;  ///< ceiling-level temp, 0.01 degC
-    uint16_t ext_rh_centi_pct;   ///< exterior relative humidity, 0.01 %
-    uint16_t floor_rh_centi_pct; ///< floor relative humidity, 0.01 %
-    uint16_t ceil_rh_centi_pct;  ///< ceiling relative humidity, 0.01 %
-    uint16_t wind_peak_kmh;      ///< 15-minute peak wind speed, km/h
+    // 4-byte members first (floats in native units + the one u32 counter), then
+    // 2-byte, then the u8 flags/levels - widest-first so the combined PlcOutput<>
+    // has no implicit padding. Real-valued quantities are floats (V / Hz / degC /
+    // %), not scaled integers. Each alarm is an individual boolean near the end.
+    // Power (float volts / Hz)
+    float    grid_ac_v;          ///< mains AC RMS voltage, V
+    float    dc_bus_v;           ///< DC system bus voltage, V
+    float    battery_v;          ///< battery bank voltage, V
+    float    generator_v;        ///< generator output voltage, V
+    float    grid_freq_hz;       ///< mains frequency, Hz
+    // Climate (float, one reading per height zone)
+    float    ext_temp_c;         ///< exterior air temp, degC
+    float    floor_temp_c;       ///< floor-level temp, degC
+    float    ceil_temp_c;        ///< ceiling-level temp, degC
+    float    ext_rh_pct;         ///< exterior relative humidity, %
+    float    floor_rh_pct;       ///< floor relative humidity, %
+    float    ceil_rh_pct;        ///< ceiling relative humidity, %
     /** Seconds since rain was last detected (uint32: well past the uint16 ~18h
      *  ceiling, up to ~136 years). */
     uint32_t rain_age_s;
-    // Irrigation
+    // 2-byte counters
+    uint16_t wind_peak_kmh;      ///< 15-minute peak wind speed, km/h
     uint16_t water_in_l;         ///< cumulative water input, liters
     uint16_t water_out_lpm;      ///< current drain flow, liters/minute
-    // System / environment extras
     uint16_t sunrise_min;        ///< sunrise, minutes since local midnight
     uint16_t sunset_min;         ///< sunset, minutes since local midnight
     int16_t  ntp_offset_ms;      ///< NTP clock offset, milliseconds (signed)
+    // Irrigation / actuators / status (u8)
     uint8_t  current_tray;       ///< active tray (1..N), 0 = none
     uint8_t  tray_status;        ///< TrayStatus
     // Actuators (levels in percent)
@@ -253,7 +254,7 @@ const Botanik::Shell::ShellCommand g_site_commands[] = {
 // + decimals (raw / divisor, centi/milli units); a SCALAR_ENUM field renders its
 // raw byte through a status str(). Leaves drop the group prefix (the topic
 // already carries it: ac_supply/grid_v, not ac_supply/grid_ac_v).
-using namespace Botanik::Network;
+using namespace Botanik;
 
 // Trailing fields per row: str, description, unit, notes. Notes are optional
 // (left off on most rows). Silence the pedantic missing-field-initializer note
@@ -261,66 +262,70 @@ using namespace Botanik::Network;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 
+// Read-only status variables: out_offset = payload field, in_offset = -1. Real
+// values are SCALAR_F32 in native units. Fields per row: name, out_offset,
+// in_offset, type, str, unit, desc, notes.
+#define SO(f) (int16_t)offsetof(PlcOutputData_t, f)
 const ScalarField g_ac_supply[] = {
-    { "grid_v",            offsetof(PlcOutputData_t, grid_ac_mv),         SCALAR_U32, 1000, 1, nullptr, "Mains AC voltage",   "V"  },
-    { "grid_freq_hz",      offsetof(PlcOutputData_t, grid_freq_centi_hz), SCALAR_U16,  100, 2, nullptr, "Mains frequency",    "Hz" },
-    { "generator_v",       offsetof(PlcOutputData_t, generator_mv),       SCALAR_U32, 1000, 1, nullptr, "Generator voltage",  "V"  },
-    { "generator_running", offsetof(PlcOutputData_t, generator_running),  SCALAR_U8,     0, 0, nullptr, "Generator running",  ""   },
-    { "ups",               offsetof(PlcOutputData_t, ups_status),         SCALAR_ENUM,   0, 0, &UpsStatus::str, "UPS state",   "",  "OFFLINE/ONLINE/BATTERY/FAULT" },
+    { "grid_v",            SO(grid_ac_v),         -1, SCALAR_F32,  nullptr,         "V",  "Mains AC voltage",   "" },
+    { "grid_freq_hz",      SO(grid_freq_hz),      -1, SCALAR_F32,  nullptr,         "Hz", "Mains frequency",    "" },
+    { "generator_v",       SO(generator_v),       -1, SCALAR_F32,  nullptr,         "V",  "Generator voltage",  "" },
+    { "generator_running", SO(generator_running), -1, SCALAR_U8,   nullptr,         "",   "Generator running",  "" },
+    { "ups",               SO(ups_status),        -1, SCALAR_ENUM, &UpsStatus::str, "",   "UPS state", "OFFLINE/ONLINE/BATTERY/FAULT" },
 };
 
 const ScalarField g_dc_supply[] = {
-    { "bus_v",          offsetof(PlcOutputData_t, dc_bus_mv),   SCALAR_U32, 1000, 1, nullptr, "DC bus voltage",      "V" },
-    { "battery_v",      offsetof(PlcOutputData_t, battery_mv),  SCALAR_U32, 1000, 1, nullptr, "Battery bank voltage","V" },
-    { "rectifier_a_ok", offsetof(PlcOutputData_t, dc_bus_a_ok), SCALAR_U8,     0, 0, nullptr, "Rectifier A healthy", ""  },
-    { "rectifier_b_ok", offsetof(PlcOutputData_t, dc_bus_b_ok), SCALAR_U8,     0, 0, nullptr, "Rectifier B healthy", ""  },
+    { "bus_v",          SO(dc_bus_v),   -1, SCALAR_F32, nullptr, "V", "DC bus voltage",       "" },
+    { "battery_v",      SO(battery_v),  -1, SCALAR_F32, nullptr, "V", "Battery bank voltage", "" },
+    { "rectifier_a_ok", SO(dc_bus_a_ok),-1, SCALAR_U8,  nullptr, "",  "Rectifier A healthy",  "" },
+    { "rectifier_b_ok", SO(dc_bus_b_ok),-1, SCALAR_U8,  nullptr, "",  "Rectifier B healthy",  "" },
 };
 
 const ScalarField g_environment[] = {
-    { "ext_temp_c",    offsetof(PlcOutputData_t, ext_temp_c_centi),   SCALAR_I16, 100, 1, nullptr, "Exterior temperature", "C"    },
-    { "floor_temp_c",  offsetof(PlcOutputData_t, floor_temp_c_centi), SCALAR_I16, 100, 1, nullptr, "Floor-level temperature", "C" },
-    { "ceil_temp_c",   offsetof(PlcOutputData_t, ceil_temp_c_centi),  SCALAR_I16, 100, 1, nullptr, "Ceiling-level temperature", "C" },
-    { "ext_rh_pct",    offsetof(PlcOutputData_t, ext_rh_centi_pct),   SCALAR_U16, 100, 1, nullptr, "Exterior humidity",    "%"    },
-    { "floor_rh_pct",  offsetof(PlcOutputData_t, floor_rh_centi_pct), SCALAR_U16, 100, 1, nullptr, "Floor humidity",       "%"    },
-    { "ceil_rh_pct",   offsetof(PlcOutputData_t, ceil_rh_centi_pct),  SCALAR_U16, 100, 1, nullptr, "Ceiling humidity",     "%"    },
-    { "wind_peak_kmh", offsetof(PlcOutputData_t, wind_peak_kmh),      SCALAR_U16,   0, 0, nullptr, "15-min peak wind",     "km/h" },
-    { "rain_age_s",    offsetof(PlcOutputData_t, rain_age_s),         SCALAR_U32,   0, 0, nullptr, "Time since last rain", "s",   "0 while raining" },
-    { "rain_detected", offsetof(PlcOutputData_t, rain_detected),      SCALAR_U8,    0, 0, nullptr, "Rain sensor",          ""     },
+    { "ext_temp_c",    SO(ext_temp_c),   -1, SCALAR_F32, nullptr, "C",    "Exterior temperature",      "" },
+    { "floor_temp_c",  SO(floor_temp_c), -1, SCALAR_F32, nullptr, "C",    "Floor-level temperature",   "" },
+    { "ceil_temp_c",   SO(ceil_temp_c),  -1, SCALAR_F32, nullptr, "C",    "Ceiling-level temperature", "" },
+    { "ext_rh_pct",    SO(ext_rh_pct),   -1, SCALAR_F32, nullptr, "%",    "Exterior humidity",         "" },
+    { "floor_rh_pct",  SO(floor_rh_pct), -1, SCALAR_F32, nullptr, "%",    "Floor humidity",            "" },
+    { "ceil_rh_pct",   SO(ceil_rh_pct),  -1, SCALAR_F32, nullptr, "%",    "Ceiling humidity",          "" },
+    { "wind_peak_kmh", SO(wind_peak_kmh),-1, SCALAR_U16, nullptr, "km/h", "15-min peak wind",          "" },
+    { "rain_age_s",    SO(rain_age_s),   -1, SCALAR_U32, nullptr, "s",    "Time since last rain", "0 while raining" },
+    { "rain_detected", SO(rain_detected),-1, SCALAR_U8,  nullptr, "",     "Rain sensor",               "" },
 };
 
 const ScalarField g_irrigation[] = {
-    { "water_in_l",    offsetof(PlcOutputData_t, water_in_l),    SCALAR_U16,  0, 0, nullptr, "Cumulative water input", "L"     },
-    { "water_out_lpm", offsetof(PlcOutputData_t, water_out_lpm), SCALAR_U16,  0, 0, nullptr, "Current drain flow",     "L/min" },
-    { "current_tray",  offsetof(PlcOutputData_t, current_tray),  SCALAR_U8,   0, 0, nullptr, "Active tray",            "",     "0 = none" },
-    { "tray_status",   offsetof(PlcOutputData_t, tray_status),   SCALAR_ENUM, 0, 0, &TrayStatus::str, "Tray cycle phase", "", "IDLE/FILLING/SOAKING/DRAINING" },
+    { "water_in_l",    SO(water_in_l),   -1, SCALAR_U16,  nullptr, "L",     "Cumulative water input", "" },
+    { "water_out_lpm", SO(water_out_lpm),-1, SCALAR_U16,  nullptr, "L/min", "Current drain flow",     "" },
+    { "current_tray",  SO(current_tray), -1, SCALAR_U8,   nullptr, "",      "Active tray",            "0 = none" },
+    { "tray_status",   SO(tray_status),  -1, SCALAR_ENUM, &TrayStatus::str, "", "Tray cycle phase", "IDLE/FILLING/SOAKING/DRAINING" },
 };
 
 const ScalarField g_ventilation[] = {
-    { "window_a",    offsetof(PlcOutputData_t, window_a),    SCALAR_U8, 0, 0, nullptr, "Roof window A opening", "%" },
-    { "window_b",    offsetof(PlcOutputData_t, window_b),    SCALAR_U8, 0, 0, nullptr, "Roof window B opening", "%" },
-    { "window_c",    offsetof(PlcOutputData_t, window_c),    SCALAR_U8, 0, 0, nullptr, "Roof window C opening", "%" },
-    { "window_d",    offsetof(PlcOutputData_t, window_d),    SCALAR_U8, 0, 0, nullptr, "Roof window D opening", "%" },
-    { "blower_a",    offsetof(PlcOutputData_t, blower_a),    SCALAR_U8, 0, 0, nullptr, "Blower A level",        "%" },
-    { "blower_b",    offsetof(PlcOutputData_t, blower_b),    SCALAR_U8, 0, 0, nullptr, "Blower B level",        "%" },
-    { "blower_c",    offsetof(PlcOutputData_t, blower_c),    SCALAR_U8, 0, 0, nullptr, "Blower C level",        "%" },
-    { "blower_d",    offsetof(PlcOutputData_t, blower_d),    SCALAR_U8, 0, 0, nullptr, "Blower D level",        "%" },
-    { "extractor_a", offsetof(PlcOutputData_t, extractor_a), SCALAR_U8, 0, 0, nullptr, "Air extractor A level", "%" },
-    { "extractor_b", offsetof(PlcOutputData_t, extractor_b), SCALAR_U8, 0, 0, nullptr, "Air extractor B level", "%" },
+    { "window_a",    SO(window_a),    -1, SCALAR_U8, nullptr, "%", "Roof window A opening", "" },
+    { "window_b",    SO(window_b),    -1, SCALAR_U8, nullptr, "%", "Roof window B opening", "" },
+    { "window_c",    SO(window_c),    -1, SCALAR_U8, nullptr, "%", "Roof window C opening", "" },
+    { "window_d",    SO(window_d),    -1, SCALAR_U8, nullptr, "%", "Roof window D opening", "" },
+    { "blower_a",    SO(blower_a),    -1, SCALAR_U8, nullptr, "%", "Blower A level",        "" },
+    { "blower_b",    SO(blower_b),    -1, SCALAR_U8, nullptr, "%", "Blower B level",        "" },
+    { "blower_c",    SO(blower_c),    -1, SCALAR_U8, nullptr, "%", "Blower C level",        "" },
+    { "blower_d",    SO(blower_d),    -1, SCALAR_U8, nullptr, "%", "Blower D level",        "" },
+    { "extractor_a", SO(extractor_a), -1, SCALAR_U8, nullptr, "%", "Air extractor A level", "" },
+    { "extractor_b", SO(extractor_b), -1, SCALAR_U8, nullptr, "%", "Air extractor B level", "" },
 };
 
 const ScalarField g_climate[] = {
-    { "heatpump",       offsetof(PlcOutputData_t, heatpump_on),    SCALAR_U8, 0, 0, nullptr, "Heatpump",              ""  },
-    { "heat_blower",    offsetof(PlcOutputData_t, heat_blower_on), SCALAR_U8, 0, 0, nullptr, "Emergency heat blower", ""  },
-    { "cooling",        offsetof(PlcOutputData_t, cooling_on),     SCALAR_U8, 0, 0, nullptr, "Evaporative cooling",   ""  },
-    { "thermal_screen", offsetof(PlcOutputData_t, thermal_screen), SCALAR_U8, 0, 0, nullptr, "Thermal screen closure","%" },
+    { "heatpump",       SO(heatpump_on),    -1, SCALAR_U8, nullptr, "",  "Heatpump",               "" },
+    { "heat_blower",    SO(heat_blower_on), -1, SCALAR_U8, nullptr, "",  "Emergency heat blower",  "" },
+    { "cooling",        SO(cooling_on),     -1, SCALAR_U8, nullptr, "",  "Evaporative cooling",    "" },
+    { "thermal_screen", SO(thermal_screen), -1, SCALAR_U8, nullptr, "%", "Thermal screen closure", "" },
 };
 
 const ScalarField g_system[] = {
-    { "net_status",    offsetof(PlcOutputData_t, net_status),    SCALAR_ENUM, 0, 0, &NetStatus::str, "Network link state", "", "DOWN/LINK/ONLINE" },
-    { "ntp_synced",    offsetof(PlcOutputData_t, ntp_synced),    SCALAR_U8,   0, 0, nullptr, "NTP disciplined the RTC", ""    },
-    { "ntp_offset_ms", offsetof(PlcOutputData_t, ntp_offset_ms), SCALAR_I16,  0, 0, nullptr, "NTP clock offset",        "ms"  },
-    { "sunrise_min",   offsetof(PlcOutputData_t, sunrise_min),   SCALAR_U16,  0, 0, nullptr, "Sunrise",                 "min" },
-    { "sunset_min",    offsetof(PlcOutputData_t, sunset_min),    SCALAR_U16,  0, 0, nullptr, "Sunset",                  "min" },
+    { "net_status",    SO(net_status),    -1, SCALAR_ENUM, &NetStatus::str, "",    "Network link state", "DOWN/LINK/ONLINE" },
+    { "ntp_synced",    SO(ntp_synced),    -1, SCALAR_U8,   nullptr, "",    "NTP disciplined the RTC", "" },
+    { "ntp_offset_ms", SO(ntp_offset_ms), -1, SCALAR_I16,  nullptr, "ms",  "NTP clock offset",        "" },
+    { "sunrise_min",   SO(sunrise_min),   -1, SCALAR_U16,  nullptr, "min", "Sunrise",                 "" },
+    { "sunset_min",    SO(sunset_min),    -1, SCALAR_U16,  nullptr, "min", "Sunset",                  "" },
 };
 
 const ScalarGroup g_telemetry_groups[] = {
@@ -335,26 +340,28 @@ const ScalarGroup g_telemetry_groups[] = {
 const uint8_t g_telemetry_group_count =
     (uint8_t)(sizeof(g_telemetry_groups) / sizeof(g_telemetry_groups[0]));
 
-// Home-screen readings: label + status variable (offset/type/scaling/unit). The
-// HomePage lays these out two columns, up to 5 left then 8 right (13 total).
+// Home-screen readings: label + status variable. The HomePage lays these out in
+// two columns, up to 5 left then 8 right (13 total). Inner ScalarField fields:
+// name, out_offset, in_offset (-1), type, str, unit.
 const HomeField g_home_fields[] = {
     // left column (5)
-    { "Temp",      { "", offsetof(PlcOutputData_t, ext_temp_c_centi), SCALAR_I16, 100, 1, nullptr, nullptr, "C" } },
-    { "Humidity",  { "", offsetof(PlcOutputData_t, ext_rh_centi_pct), SCALAR_U16, 100, 1, nullptr, nullptr, "%" } },
-    { "Wind",      { "", offsetof(PlcOutputData_t, wind_peak_kmh),    SCALAR_U16,   0, 0, nullptr, nullptr, "km/h" } },
-    { "Water in",  { "", offsetof(PlcOutputData_t, water_in_l),       SCALAR_U16,   0, 0, nullptr, nullptr, "L" } },
-    { "Tray",      { "", offsetof(PlcOutputData_t, current_tray),     SCALAR_U8,    0, 0, nullptr, nullptr, "" } },
+    { "Temp",      { "", SO(ext_temp_c),   -1, SCALAR_F32, nullptr, "C" } },
+    { "Humidity",  { "", SO(ext_rh_pct),   -1, SCALAR_F32, nullptr, "%" } },
+    { "Wind",      { "", SO(wind_peak_kmh),-1, SCALAR_U16, nullptr, "km/h" } },
+    { "Water in",  { "", SO(water_in_l),   -1, SCALAR_U16, nullptr, "L" } },
+    { "Tray",      { "", SO(current_tray), -1, SCALAR_U8,  nullptr, "" } },
     // right column (8)
-    { "Grid",      { "", offsetof(PlcOutputData_t, grid_ac_mv),  SCALAR_U32, 1000, 1, nullptr, nullptr, "V" } },
-    { "DC bus",    { "", offsetof(PlcOutputData_t, dc_bus_mv),   SCALAR_U32, 1000, 1, nullptr, nullptr, "V" } },
-    { "Battery",   { "", offsetof(PlcOutputData_t, battery_mv),  SCALAR_U32, 1000, 1, nullptr, nullptr, "V" } },
-    { "UPS",       { "", offsetof(PlcOutputData_t, ups_status),  SCALAR_ENUM,   0, 0, &UpsStatus::str, nullptr, "" } },
-    { "Network",   { "", offsetof(PlcOutputData_t, net_status),  SCALAR_ENUM,   0, 0, &NetStatus::str, nullptr, "" } },
-    { "NTP sync",  { "", offsetof(PlcOutputData_t, ntp_synced),  SCALAR_U8,     0, 0, nullptr, nullptr, "" } },
-    { "Cooling",   { "", offsetof(PlcOutputData_t, cooling_on),  SCALAR_U8,     0, 0, nullptr, nullptr, "" } },
-    { "Heatpump",  { "", offsetof(PlcOutputData_t, heatpump_on), SCALAR_U8,     0, 0, nullptr, nullptr, "" } },
+    { "Grid",      { "", SO(grid_ac_v),  -1, SCALAR_F32,  nullptr,         "V" } },
+    { "DC bus",    { "", SO(dc_bus_v),   -1, SCALAR_F32,  nullptr,         "V" } },
+    { "Battery",   { "", SO(battery_v),  -1, SCALAR_F32,  nullptr,         "V" } },
+    { "UPS",       { "", SO(ups_status), -1, SCALAR_ENUM, &UpsStatus::str, "" } },
+    { "Network",   { "", SO(net_status), -1, SCALAR_ENUM, &NetStatus::str, "" } },
+    { "NTP sync",  { "", SO(ntp_synced), -1, SCALAR_U8,   nullptr,         "" } },
+    { "Cooling",   { "", SO(cooling_on), -1, SCALAR_U8,   nullptr,         "" } },
+    { "Heatpump",  { "", SO(heatpump_on),-1, SCALAR_U8,   nullptr,         "" } },
 };
 const uint8_t g_home_field_count = (uint8_t)(sizeof(g_home_fields) / sizeof(g_home_fields[0]));
+#undef SO
 #pragma GCC diagnostic pop
 
 // ---------------------------------------------------------------------------

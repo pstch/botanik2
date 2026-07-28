@@ -55,7 +55,7 @@
  * @code
  * // --- site-static tables (single source of truth for this greenhouse) ---
  * const Alarms::AlarmCondition g_alarms[]  = { ... };  // code, desc, offset, dwell
- * const Network::ScalarGroup   g_status[]  = { ... };  // status variables
+ * const ScalarGroup   g_status[]  = { ... };  // status variables
  * const Shell::ShellCommand    g_cmds[]    = { ... };  // site shell commands
  * const SiteDescriptor g_site = {
  *     Config::SITE_NAME,
@@ -81,7 +81,7 @@
 #include "libbotanik/health/health.h"    // HealthMonitor (owns the alarm model + notifier)
 #include "libbotanik/core/config.h"      // Cfg::ConfigParam (descriptor param table)
 #include "libbotanik/shell/shell.h"      // Shell::ShellCommand (descriptor command table)
-#include "libbotanik/network/telemetry_types.h"  // Network::ScalarGroup (status vars)
+#include "libbotanik/core/scalar.h"  // ScalarGroup (status vars)
 #include "libbotanik/core/stacks.h"      // Monitor/Console/NetworkStack composition
 #if BOTANIK_FEATURE_PLC
 #include "libbotanik/core/config_plc.h"  // PlcConfigHandler (PLC-owned config)
@@ -108,7 +108,7 @@ namespace Botanik {
      *   - @c params        - config parameters (Cfg::ConfigParam: name, offset,
      *                        type, scaling, bounds, group).
      *   - @c commands      - site shell commands (Shell::ShellCommand).
-     *   - @c status_groups - read-only status variables (Network::ScalarGroup /
+     *   - @c status_groups - read-only status variables (ScalarGroup /
      *                        ScalarField: name, offset, type, scaling, desc).
      *   - @c alarms        - alarm conditions (Alarms::AlarmCondition: code,
      *                        desc, payload boolean offset, dwell policy).
@@ -122,9 +122,9 @@ namespace Botanik {
         uint8_t                       param_count;
         const Shell::ShellCommand*    commands;            ///< site shell commands
         uint8_t                       command_count;
-        const Network::ScalarGroup*   status_groups;       ///< status-variable table
+        const ScalarGroup*   status_groups;       ///< status-variable table
         uint8_t                       status_group_count;
-        const Network::HomeField*     home_fields;         ///< home-screen readings
+        const HomeField*     home_fields;         ///< home-screen readings
         uint8_t                       home_field_count;
         const Alarms::AlarmCondition* alarms;              ///< alarm-condition table
         uint8_t                       alarm_count;

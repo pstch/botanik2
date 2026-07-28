@@ -177,8 +177,8 @@ namespace Botanik { namespace Sun {
         // first valid beat / after a geo change, both signalled by !_computed).
         if (_computed && now_ms < _next_ms) return;
 
-        double lat = (double)c->geo_latitude_e7  / 1e7;
-        double lon = (double)c->geo_longitude_e7 / 1e7;
+        double lat = (double)c->geo_latitude;
+        double lon = (double)c->geo_longitude;
         _pos      = solar_position(now_ms, lat, lon);
         _computed = true;
         _next_ms  = now_ms + Config::SUN_RECOMPUTE_MS;

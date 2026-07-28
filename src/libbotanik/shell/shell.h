@@ -12,6 +12,7 @@
 #include "libbotanik/console/console.h"
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/console/editor.h"
+#include "libbotanik/core/scalar.h"   // ScalarGroup (status-var table)
 
 namespace Botanik {
     // loglevel command (set_diagnostics)
@@ -23,7 +24,7 @@ namespace Botanik {
     // config get/set command (set_config)
     namespace Cfg     { class ConfigHandler; }
     // status command (set_status_vars): the status-variable descriptor group
-    namespace Network { struct ScalarGroup; }
+    // (ScalarGroup) comes in via core/scalar.h, included above.
 }
 
 namespace Botanik { namespace Shell {
@@ -99,7 +100,7 @@ namespace Botanik { namespace Shell {
         Cfg::ConfigHandler*     _config               = nullptr;
         /** @brief Status-variable table for the `status` command
          *  (set_status_vars): the site scalar groups + the payload they read. */
-        const Network::ScalarGroup* _status_groups    = nullptr;
+        const ScalarGroup* _status_groups    = nullptr;
         size_t                  _status_group_count   = 0;
         const void*             _status_base          = nullptr;
 
@@ -154,7 +155,7 @@ namespace Botanik { namespace Shell {
 
         /** @brief Wire the status-variable table the `status` command reads:
          *  @p groups over @p base (the live PLC payload). Null clears it. */
-        void set_status_vars(const Network::ScalarGroup* groups, size_t count,
+        void set_status_vars(const ScalarGroup* groups, size_t count,
                              const void* base) {
             _status_groups = groups; _status_group_count = count; _status_base = base;
         }

@@ -26,7 +26,7 @@
 #include "libbotanik_config.h"
 #include "libbotanik/core/context.h"
 #include "libbotanik/network/mqtt.h"
-#include "libbotanik/network/telemetry_types.h"   // ScalarType/Field/Group + read/format
+#include "libbotanik/core/scalar.h"   // ScalarType/Field/Group + read/format
 
 namespace Botanik { namespace Network {
 
@@ -40,7 +40,7 @@ namespace Botanik { namespace Network {
     };
 
     // ScalarType / ScalarField / ScalarGroup (the status-variable descriptor
-    // table) live in telemetry_types.h so non-network consumers (the shell's
+    // table) live in core/scalar.h so non-network consumers (the shell's
     // `status` command) can read them without the MqttSender. Published here.
 
     /** @brief Periodic MQTT telemetry publisher (see file header). */

@@ -31,8 +31,8 @@ TEST_CASE("SunPositionTracker: computes elevation from geo config") {
     const int32_t LAT = 488566000;   // Paris 48.8566 N
     const int32_t LON =  23522000;   //       2.3522 E
     fx.conf().geo_serial       = 1;
-    fx.conf().geo_latitude_e7  = LAT;
-    fx.conf().geo_longitude_e7 = LON;
+    fx.conf().geo_latitude  = (float)deg(LAT);
+    fx.conf().geo_longitude = (float)deg(LON);
     fx.publish();
 
     SunPositionTracker sun(&fx.cfg);
@@ -51,8 +51,8 @@ TEST_CASE("SunPositionTracker: exposes peak, ratio and rising from the same samp
     const int32_t LAT = 488566000;   // Paris 48.8566 N
     const int32_t LON =  23522000;   //       2.3522 E
     fx.conf().geo_serial       = 1;
-    fx.conf().geo_latitude_e7  = LAT;
-    fx.conf().geo_longitude_e7 = LON;
+    fx.conf().geo_latitude  = (float)deg(LAT);
+    fx.conf().geo_longitude = (float)deg(LON);
     fx.publish();
 
     SunPositionTracker sun(&fx.cfg);
@@ -75,8 +75,8 @@ TEST_CASE("SunPositionTracker: throttles recomputation between cadence ticks") {
     const int32_t LAT = 488566000;   // Paris
     const int32_t LON =  23522000;
     fx.conf().geo_serial       = 1;
-    fx.conf().geo_latitude_e7  = LAT;
-    fx.conf().geo_longitude_e7 = LON;
+    fx.conf().geo_latitude  = (float)deg(LAT);
+    fx.conf().geo_longitude = (float)deg(LON);
     fx.publish();
 
     SunPositionTracker sun(&fx.cfg);
@@ -99,8 +99,8 @@ TEST_CASE("SunPositionTracker: throttles recomputation between cadence ticks") {
 TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial changes") {
     botanik_test::PlcConfigFixture fx;
     fx.conf().geo_serial = 1;
-    fx.conf().geo_latitude_e7  = 488566000;   // Paris
-    fx.conf().geo_longitude_e7 =  23522000;
+    fx.conf().geo_latitude  = 48.8566f;   // Paris
+    fx.conf().geo_longitude =  2.3522f;
     fx.publish();
 
     SunPositionTracker sun(&fx.cfg);
@@ -112,8 +112,8 @@ TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial cha
     const int32_t LAT = -338700000;   // -33.87
     const int32_t LON = 1512100000;   // 151.21 E
     fx.conf().geo_serial       = 2;
-    fx.conf().geo_latitude_e7  = LAT;
-    fx.conf().geo_longitude_e7 = LON;
+    fx.conf().geo_latitude  = (float)deg(LAT);
+    fx.conf().geo_longitude = (float)deg(LON);
     fx.publish();
 
     uint64_t now = HAL::Clock::uptime_ms();

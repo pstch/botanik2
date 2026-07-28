@@ -49,7 +49,7 @@ namespace Botanik { namespace Cfg {
 
         bool set(const ConfigParam& p, const char* text) override {
             if (!write_value(p, text, &_image)) return false;
-            HAL::Storage::set(p.name, (const uint8_t*)&_image + p.offset, param_width(p));
+            HAL::Storage::set(p.name, (const uint8_t*)&_image + p.in_offset, param_width(p));
             bump_group(p.group);
             return true;
         }
@@ -63,7 +63,7 @@ namespace Botanik { namespace Cfg {
         void setup(uint64_t /*now_ms*/) override {
             for (uint8_t i = 0; i < CONFIG_PARAM_COUNT; i++) {
                 const ConfigParam& p = CONFIG_PARAMS[i];
-                HAL::Storage::get(p.name, (uint8_t*)&_image + p.offset,
+                HAL::Storage::get(p.name, (uint8_t*)&_image + p.out_offset,
                                   param_width(p), nullptr);
             }
             for (uint8_t g = 0; g < CFG_GROUP_COUNT; g++) {

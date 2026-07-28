@@ -241,14 +241,12 @@ namespace Botanik { namespace Pages {
         // Detail panel (selected parameter's min/max/description/notes)
         // --------------------------------------------------------------------
 
-        /** @brief Format a numeric bound in display units ("-" for strings). */
+        /** @brief Format a numeric bound ("-" for strings; the min/max are whole
+         *  numbers, shown plainly even for an f32 param). */
         const char* _fmt_bound(char* buf, size_t cap, const Cfg::ConfigParam& p,
                                int32_t v) const {
             if (Cfg::is_string(p)) { snprintf(buf, cap, "-"); return buf; }
-            if (p.divisor > 1)
-                snprintf(buf, cap, "%.*f", (int)p.decimals, (double)v / (double)p.divisor);
-            else
-                snprintf(buf, cap, "%ld", (long)v);
+            snprintf(buf, cap, "%ld", (long)v);
             return buf;
         }
 
