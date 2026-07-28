@@ -95,7 +95,7 @@ namespace Botanik { namespace Cfg {
     int32_t read_scalar(const ConfigParam& p, const void* base);
 
     /** @brief Render parameter @p p (read from @p base) as display text into
-     *  @p buf: enum via str(), f32 via format_f32, string verbatim, else a plain
+     *  @p buf: enum via str(), f32 to `digits` decimals, string verbatim, else a plain
      *  integer. @return the written length. */
     int format_value(const ConfigParam& p, const void* base, char* buf, size_t cap);
 

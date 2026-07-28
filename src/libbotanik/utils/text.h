@@ -101,12 +101,6 @@ namespace Botanik { namespace Utils {
     const char* format_float(char* buf, size_t cap, double value,
                              uint8_t decimals = 1, uint8_t width = 0);
 
-    /** @brief Format a 32-bit float for display: up to 4 decimals, trailing
-     *  zeros (and a bare trailing '.') trimmed (so 21.5 / 230.2 / 48.8566, and a
-     *  whole value shows no ".0"). The f32 scalar/config type renders through
-     *  this; @return @p buf. */
-    const char* format_f32(char* buf, size_t cap, double value);
-
     /** @brief Format @p value as an unsigned decimal into @p buf (the `%lu`
      *  stand-in), and return @p buf for inline use. Digits are peeled with
      *  integer math, so it carries no libc/`%f` baggage.

@@ -11,38 +11,38 @@
 #include <cstdlib>
 
 #include "libbotanik/core/config.h"
-#include "libbotanik/utils/text.h"   // format_f32 / format_int
+#include "libbotanik/utils/text.h"   // format_float / format_int
 
 namespace Botanik { namespace Cfg {
 
     // Library built-in parameters, as writable ScalarFields. name == the
     // PlcOutputConfig_t field name; the value is read at out_offset and a commit
     // written at in_offset (== out_offset, since the input mirror shares the
-    // layout). Fields: name, out_offset, in_offset, type, str, unit, desc, notes,
-    // default, min, max, capacity, str_kind, group.
+    // layout). Fields: name, out_offset, in_offset, type, digits, str, unit,
+    // desc, notes, default, min, max, capacity, str_kind, group.
     static const uint16_t HS = Config::PLC_HOST_STR_LEN;
 #define CO(f) (int16_t)offsetof(PlcIO::PlcOutputConfig_t, f)
     const ConfigParam CONFIG_PARAMS[] = {
         // -- network --
-        {"net_dhcp",        CO(net_dhcp),     CO(net_dhcp),     SCALAR_U8,     nullptr, "",    "DHCP (1) or static IP (0)", "",                 "1",            0, 1,      0,  STR_NONE,     CFG_NET},
-        {"net_ip",          CO(net_ip),       CO(net_ip),       SCALAR_STRING, nullptr, "",    "Static IPv4 address",       "used when DHCP off","",             0, 0,      HS, STR_IPV4,     CFG_NET},
-        {"net_netmask",     CO(net_netmask),  CO(net_netmask),  SCALAR_STRING, nullptr, "",    "Static subnet mask",        "used when DHCP off","",             0, 0,      HS, STR_IPV4,     CFG_NET},
-        {"net_gateway",     CO(net_gateway),  CO(net_gateway),  SCALAR_STRING, nullptr, "",    "Default gateway",           "used when DHCP off","",             0, 0,      HS, STR_IPV4,     CFG_NET},
-        {"net_dns1",        CO(net_dns1),     CO(net_dns1),     SCALAR_STRING, nullptr, "",    "Primary DNS server",        "",                 "",             0, 0,      HS, STR_IPV4,     CFG_NET},
-        {"net_dns2",        CO(net_dns2),     CO(net_dns2),     SCALAR_STRING, nullptr, "",    "Secondary DNS server",      "empty = none",     "",             0, 0,      HS, STR_IPV4_OPT, CFG_NET},
+        {"net_dhcp",        CO(net_dhcp),     CO(net_dhcp),     SCALAR_U8,     0, nullptr, "",    "DHCP (1) or static IP (0)", "",                 "1",            0, 1,      0,  STR_NONE,     CFG_NET},
+        {"net_ip",          CO(net_ip),       CO(net_ip),       SCALAR_STRING, 0, nullptr, "",    "Static IPv4 address",       "used when DHCP off","",             0, 0,      HS, STR_IPV4,     CFG_NET},
+        {"net_netmask",     CO(net_netmask),  CO(net_netmask),  SCALAR_STRING, 0, nullptr, "",    "Static subnet mask",        "used when DHCP off","",             0, 0,      HS, STR_IPV4,     CFG_NET},
+        {"net_gateway",     CO(net_gateway),  CO(net_gateway),  SCALAR_STRING, 0, nullptr, "",    "Default gateway",           "used when DHCP off","",             0, 0,      HS, STR_IPV4,     CFG_NET},
+        {"net_dns1",        CO(net_dns1),     CO(net_dns1),     SCALAR_STRING, 0, nullptr, "",    "Primary DNS server",        "",                 "",             0, 0,      HS, STR_IPV4,     CFG_NET},
+        {"net_dns2",        CO(net_dns2),     CO(net_dns2),     SCALAR_STRING, 0, nullptr, "",    "Secondary DNS server",      "empty = none",     "",             0, 0,      HS, STR_IPV4_OPT, CFG_NET},
         // -- NTP --
-        {"ntp_enabled",     CO(ntp_enabled),  CO(ntp_enabled),  SCALAR_U8,     nullptr, "",    "Enable NTP time sync",      "",                 "1",            0, 1,      0,  STR_NONE,     CFG_NTP},
-        {"ntp_poll_s",      CO(ntp_poll_s),   CO(ntp_poll_s),   SCALAR_U16,    nullptr, "s",   "NTP poll interval",         "0 = firmware default","64",         0, 65535,  0,  STR_NONE,     CFG_NTP},
-        {"ntp_server1",     CO(ntp_server1),  CO(ntp_server1),  SCALAR_STRING, nullptr, "",    "Primary NTP server",        "",                 "pool.ntp.org", 0, 0,      HS, STR_HOST,     CFG_NTP},
-        {"ntp_server2",     CO(ntp_server2),  CO(ntp_server2),  SCALAR_STRING, nullptr, "",    "Secondary NTP server",      "empty = none",     "",             0, 0,      HS, STR_HOST_OPT, CFG_NTP},
+        {"ntp_enabled",     CO(ntp_enabled),  CO(ntp_enabled),  SCALAR_U8,     0, nullptr, "",    "Enable NTP time sync",      "",                 "1",            0, 1,      0,  STR_NONE,     CFG_NTP},
+        {"ntp_poll_s",      CO(ntp_poll_s),   CO(ntp_poll_s),   SCALAR_U16,    0, nullptr, "s",   "NTP poll interval",         "0 = firmware default","64",         0, 65535,  0,  STR_NONE,     CFG_NTP},
+        {"ntp_server1",     CO(ntp_server1),  CO(ntp_server1),  SCALAR_STRING, 0, nullptr, "",    "Primary NTP server",        "",                 "pool.ntp.org", 0, 0,      HS, STR_HOST,     CFG_NTP},
+        {"ntp_server2",     CO(ntp_server2),  CO(ntp_server2),  SCALAR_STRING, 0, nullptr, "",    "Secondary NTP server",      "empty = none",     "",             0, 0,      HS, STR_HOST_OPT, CFG_NTP},
         // -- MQTT --
-        {"mqtt_enabled",    CO(mqtt_enabled), CO(mqtt_enabled), SCALAR_U8,     nullptr, "",    "Enable MQTT publishing",    "",                 "1",            0, 1,      0,  STR_NONE,     CFG_MQTT},
-        {"mqtt_port",       CO(mqtt_port),    CO(mqtt_port),    SCALAR_U16,    nullptr, "",    "Broker TCP port",           "0 = firmware default","1883",       0, 65535,  0,  STR_NONE,     CFG_MQTT},
-        {"mqtt_keepalive_s",CO(mqtt_keepalive_s),CO(mqtt_keepalive_s),SCALAR_U16, nullptr,"s", "MQTT keepalive",            "0 = firmware default","60",         0, 65535,  0,  STR_NONE,     CFG_MQTT},
-        {"mqtt_broker",     CO(mqtt_broker),  CO(mqtt_broker),  SCALAR_STRING, nullptr, "",    "MQTT broker host",          "",                 "",             0, 0,      HS, STR_HOST,     CFG_MQTT},
+        {"mqtt_enabled",    CO(mqtt_enabled), CO(mqtt_enabled), SCALAR_U8,     0, nullptr, "",    "Enable MQTT publishing",    "",                 "1",            0, 1,      0,  STR_NONE,     CFG_MQTT},
+        {"mqtt_port",       CO(mqtt_port),    CO(mqtt_port),    SCALAR_U16,    0, nullptr, "",    "Broker TCP port",           "0 = firmware default","1883",       0, 65535,  0,  STR_NONE,     CFG_MQTT},
+        {"mqtt_keepalive_s",CO(mqtt_keepalive_s),CO(mqtt_keepalive_s),SCALAR_U16, 0, nullptr,"s", "MQTT keepalive",            "0 = firmware default","60",         0, 65535,  0,  STR_NONE,     CFG_MQTT},
+        {"mqtt_broker",     CO(mqtt_broker),  CO(mqtt_broker),  SCALAR_STRING, 0, nullptr, "",    "MQTT broker host",          "",                 "",             0, 0,      HS, STR_HOST,     CFG_MQTT},
         // -- geo (decimal degrees) --
-        {"geo_latitude",    CO(geo_latitude), CO(geo_latitude), SCALAR_F32,    nullptr, "deg", "Site latitude",            "north +, south -", "48.8566",      -90,  90,   0,  STR_NONE,     CFG_GEO},
-        {"geo_longitude",   CO(geo_longitude),CO(geo_longitude),SCALAR_F32,    nullptr, "deg", "Site longitude",           "east +, west -",   "2.3522",       -180, 180,  0,  STR_NONE,     CFG_GEO},
+        {"geo_latitude",    CO(geo_latitude), CO(geo_latitude), SCALAR_F32,    4, nullptr, "deg", "Site latitude",            "north +, south -", "48.8566",      -90,  90,   0,  STR_NONE,     CFG_GEO},
+        {"geo_longitude",   CO(geo_longitude),CO(geo_longitude),SCALAR_F32,    4, nullptr, "deg", "Site longitude",           "east +, west -",   "2.3522",       -180, 180,  0,  STR_NONE,     CFG_GEO},
     };
 #undef CO
     const uint8_t CONFIG_PARAM_COUNT = (uint8_t)(sizeof(CONFIG_PARAMS) / sizeof(CONFIG_PARAMS[0]));
@@ -132,7 +132,7 @@ namespace Botanik { namespace Cfg {
         if (cap == 0) return 0;
         if (p.type == SCALAR_STRING) return copy_str(buf, cap, scalar_read_string(p, base));
         if (p.type == SCALAR_F32) {
-            Utils::format_f32(buf, cap, (double)scalar_read_f32(p, base));
+            Utils::format_float(buf, cap, (double)scalar_read_f32(p, base), p.digits);
             return (int)strlen(buf);
         }
         int32_t v = read_scalar(p, base);

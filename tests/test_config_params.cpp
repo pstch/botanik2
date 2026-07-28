@@ -76,7 +76,7 @@ TEST_CASE("read + format values off an image") {
     format_value(*find("mqtt_port"), &c, buf, sizeof(buf));
     CHECK(strcmp(buf, "1883") == 0);
 
-    // f32 shown via format_f32 (trailing zeros trimmed).
+    // f32 shown to the param's `digits` (geo = 4 decimals).
     format_value(*find("geo_latitude"), &c, buf, sizeof(buf));
     CHECK(strcmp(buf, "48.8566") == 0);
 
@@ -146,10 +146,10 @@ TEST_CASE("ConfigHandler registry: library + site params") {
     CHECK(h.count() == CONFIG_PARAM_COUNT);
     CHECK(strcmp(h.param(0).name, CONFIG_PARAMS[0].name) == 0);
 
-    // name, out_offset, in_offset, type, str, unit, desc, notes, deflt, min, max, capacity, str_kind, group
+    // name, out_offset, in_offset, type, digits, str, unit, desc, notes, deflt, min, max, capacity, str_kind, group
     static const ConfigParam site[] = {
-        {"site_a", 0, 0, SCALAR_U8, nullptr, "", "", "", "", 0, 1, 0, STR_NONE, CFG_NET},
-        {"site_b", 0, 0, SCALAR_U8, nullptr, "", "", "", "", 0, 1, 0, STR_NONE, CFG_NET},
+        {"site_a", 0, 0, SCALAR_U8, 0, nullptr, "", "", "", "", 0, 1, 0, STR_NONE, CFG_NET},
+        {"site_b", 0, 0, SCALAR_U8, 0, nullptr, "", "", "", "", 0, 1, 0, STR_NONE, CFG_NET},
     };
     h.set_site_params(site, 2);
     CHECK(h.count() == (uint8_t)(CONFIG_PARAM_COUNT + 2));

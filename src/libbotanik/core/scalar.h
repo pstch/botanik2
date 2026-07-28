@@ -26,7 +26,7 @@ namespace Botanik {
     enum ScalarType {
         SCALAR_U8, SCALAR_U16, SCALAR_U32,   ///< unsigned integer
         SCALAR_I16, SCALAR_I32,              ///< signed integer
-        SCALAR_F32,                          ///< 32-bit float, shown via format_f32
+        SCALAR_F32,                          ///< 32-bit float, shown to `digits` decimals
         SCALAR_ENUM,                         ///< u8 -> string via ScalarField::str
         SCALAR_STRING                        ///< NUL-terminated text (config only)
     };
@@ -54,6 +54,7 @@ namespace Botanik {
         int16_t     out_offset;        ///< read offset in the PLC output image (>= 0)
         int16_t     in_offset;         ///< write offset in the PLC input image; -1 = read-only
         ScalarType  type;
+        uint8_t     digits;            ///< SCALAR_F32 display decimals (0 for ints/enum/string)
         const char* (*str)(uint8_t);   ///< SCALAR_ENUM only (else null)
         const char* unit;              ///< physical unit, e.g. "C"/"V"/"%" ("" = none)
         const char* desc;              ///< one-line description
@@ -123,7 +124,7 @@ namespace Botanik {
     inline const char* scalar_format(const ScalarField& f, const void* base,
                                      char* buf, size_t cap) {
         if (f.type == SCALAR_F32)
-            return Utils::format_f32(buf, cap, (double)scalar_read_f32(f, base));
+            return Utils::format_float(buf, cap, (double)scalar_read_f32(f, base), f.digits);
         if (f.type == SCALAR_STRING)
             return scalar_read_string(f, base);
         int64_t raw = scalar_read(f, base);
