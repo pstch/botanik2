@@ -9,7 +9,7 @@
  * the generator never touches it. Only the table's shape is fixed. Commands are
  * registered after the library built-ins, so they cannot shadow exit/reset.
  *
- * The ctx passed to each handler is the live `const PlcOutputData_t*` (wired by
+ * The ctx passed to each handler is the live `const SiteData_t*` (wired by
  * the firmware base from the descriptor), so a command reads fresh PLC data
  * without holding any state of its own.
  */
@@ -19,14 +19,14 @@
 
 #include "botanik.h"
 
-#include "payload.h"
+#include "data.h"
 
 namespace Site {
 
 /** @brief Example site command: a one-line greenhouse summary from live PLC
  *  data. */
 inline void cmd_gh(Botanik::Shell::ShellWriter& out, const char*, uint16_t, void* ctx) {
-    const PlcOutputData_t* d = static_cast<const PlcOutputData_t*>(ctx);
+    const SiteData_t* d = static_cast<const SiteData_t*>(ctx);
     char buf[96];
     int n;
     if (d == nullptr)

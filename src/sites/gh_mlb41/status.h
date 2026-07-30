@@ -27,7 +27,7 @@
 
 #include "botanik.h"
 
-#include "payload.h"
+#include "data.h"
 
 namespace Site {
 
@@ -38,7 +38,7 @@ using namespace Botanik;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 
-#define SO(f) (int16_t)offsetof(PlcOutputData_t, f)
+#define SO(f) (int16_t)offsetof(SiteData_t, f)
 
 const ScalarField g_ac_supply[] = {
     { "grid_v",            SO(grid_ac_v), SCALAR_F32, 1,  nullptr,         "V",  "Mains AC voltage",   "" },

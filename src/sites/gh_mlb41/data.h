@@ -134,7 +134,7 @@ struct GreenhouseConfig_t {
 /**
  * @brief Greenhouse PLC output payload (sensors + actuator feedback).
  */
-struct PlcOutputData_t {
+struct SiteData_t {
     // Power (float volts / Hz)
     float    grid_ac_v;          ///< mains AC RMS voltage, V
     float    dc_bus_v;           ///< DC system bus voltage, V
@@ -227,14 +227,14 @@ struct PlcOutputData_t {
  *  declarative table addresses these structs with a 16-bit byte offset.
  *  @{ */
 
-static_assert(sizeof(PlcOutputData_t) % 4 == 0, "PlcOutputData_t must be 4-byte aligned");
-static_assert(sizeof(PlcOutputData_t) <= 32767, "PlcOutputData_t exceeds the table offset range");
+static_assert(sizeof(SiteData_t) % 4 == 0, "SiteData_t must be 4-byte aligned");
+static_assert(sizeof(SiteData_t) <= 32767, "SiteData_t exceeds the table offset range");
 
 /** @} */
 
 // On OPTA, verify the payload against the PLC IDE's generated types once they
 // are in scope in the integrator's entry file:
 //   static_assert(sizeof(PLCSharedVarsInput_t)   == sizeof(Botanik::PlcIO::PlcInput<PlcInputData_t>));
-//   static_assert(alignof(PLCSharedVarsOutput_t) == alignof(Botanik::PlcIO::PlcOutput<PlcOutputData_t>));
+//   static_assert(alignof(PLCSharedVarsOutput_t) == alignof(Botanik::PlcIO::PlcOutput<SiteData_t>));
 
 #endif // SITE_PAYLOAD_H

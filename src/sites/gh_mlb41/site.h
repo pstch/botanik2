@@ -20,9 +20,9 @@
  *
  * Every site exposes the same surface, so a harness never names the site:
  *   - `BotanikSite`           the firmware type to instantiate
- *   - `PlcOutputData_t`       the site data struct (from payload.h)
+ *   - `SiteData_t`       the site data struct (from payload.h)
  *   - `Site::simulate()`      the simulated field (sim.h)
- *   - `plc_dilated_timeout()` sim-only timeout dilation (sim.h)
+ *   - `dilated_timeout()` sim-only timeout dilation (sim.h)
  *
  * A target selects a site by directory (-DBOTANIK_SITE_DIR, or -DBOTANIK_SITE
  * for one in the library tree); CMake points BOTANIK_SITE_HEADER at this file.
@@ -48,12 +48,12 @@
  * Pages::StatusPage) would override the base's on_step() / register_pages()
  * here. See libbotanik/core/firmware.h for the extension model.
  */
-class GreenhouseMLB41 final : public Botanik::BotanikFirmware<PlcOutputData_t> {
+class GreenhouseMLB41 final : public Botanik::BotanikFirmware<SiteData_t> {
 public:
     /** @brief Hand the base this site's descriptor; the base owns the data
      *  struct the tables address. */
     GreenhouseMLB41()
-        : Botanik::BotanikFirmware<PlcOutputData_t>(Site::g_site)
+        : Botanik::BotanikFirmware<SiteData_t>(Site::g_site)
     {}
 };
 

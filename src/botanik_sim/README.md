@@ -11,7 +11,7 @@ into a flashable OPTA image.
 
 This directory is just a thin harness: `main.cpp` is the entry point that wires the
 library together (the equivalent of an Arduino sketch's `setup()` + `loop()`) and owns
-the main loop. The PLC payload (`PlcInputData_t` / `PlcOutputData_t`) and its mock
+the main loop. The PLC payload (`PlcInputData_t` / `SiteData_t`) and its mock
 animator now live with the site under `src/sites/<name>/`, shared verbatim by the
 simulator and the OPTA firmware.
 

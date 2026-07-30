@@ -27,7 +27,7 @@ wholesale; it must never touch the others.
 | File | Owner | Contents |
 |---|---|---|
 | `botanik.h` | GENERATED | the only file that knows where `libbotanik` sits relative to this directory |
-| `payload.h` | GENERATED | `PlcInputData_t` / `PlcOutputData_t`, field-domain enums, layout asserts |
+| `payload.h` | GENERATED | `PlcInputData_t` / `SiteData_t`, field-domain enums, layout asserts |
 | `status.h` | GENERATED | read-only status variables + home-screen readings |
 | `params.h` | GENERATED | writable config parameters |
 | `alarms.h` | GENERATED | alarm conditions |
@@ -48,7 +48,7 @@ sketch folder exists** - not the sketch root, not `src/`. A quoted include
 resolves against the including file's own directory, and that is the only
 mechanism available.
 
-1. **Sibling files by bare name**: `#include "payload.h"`.
+1. **Sibling files by bare name**: `#include "data.h"`.
 2. **The library only through `botanik.h`**: never `#include "libbotanik/..."`
    from a site file. `botanik.h` holds those paths, and is the single file to
    regenerate if the site directory moves.
@@ -70,7 +70,7 @@ can silently resolve to the *reference* site in the library tree instead of your
 ## 4. The payload
 
 `payload.h` declares the two structs exchanged with the M4 coprocessor.
-`PlcOutputData_t` is what the PLC publishes (sensors, actuator feedback, alarm
+`SiteData_t` is what the PLC publishes (sensors, actuator feedback, alarm
 booleans, reflected config); `PlcInputData_t` is what the host writes back
 (staged config edits).
 
@@ -105,7 +105,7 @@ misplaced offset silently reads a neighbouring field. Emit every field explicitl
 | # | Field | Type | Meaning |
 |---|---|---|---|
 | 1 | `name` | `const char*` | leaf name, without the group prefix |
-| 2 | `out_offset` | `int16_t` | `offsetof(PlcOutputData_t, field)` |
+| 2 | `out_offset` | `int16_t` | `offsetof(SiteData_t, field)` |
 | 3 | `in_offset` | `int16_t` | `-1` for a status variable |
 | 4 | `type` | `ScalarType` | read width and sign |
 | 5 | `digits` | `uint8_t` | `SCALAR_F32` decimals, else `0` |
@@ -164,7 +164,7 @@ is left zeroed for the model):
 |---|---|---|---|
 | 1 | `code` | `const char*` | short code, max 8 chars |
 | 2 | `desc` | `const char*` | human-readable |
-| 3 | `offset` | `uint16_t` | `offsetof(PlcOutputData_t, alarm_x)` |
+| 3 | `offset` | `uint16_t` | `offsetof(SiteData_t, alarm_x)` |
 | 4 | `on_s` | `int32_t` | dwell ON before announcing; `-1` disables |
 | 5 | `off_s` | `int32_t` | dwell OFF before announcing; `-1` disables |
 | 6 | `recent_s` | `int32_t` | RECENT-mode window; `0` = default, `-1` = never expires |
@@ -184,7 +184,7 @@ silently drop the tail; the generated file must carry the `static_assert`.
 
 `Botanik::Shell::ShellCommand { name, help, fn }` where `fn` is
 `void (*)(ShellWriter& out, const char* args, uint16_t arglen, void* ctx)`. `ctx`
-is the live `const PlcOutputData_t*`. Registered after the built-ins, so a site
+is the live `const SiteData_t*`. Registered after the built-ins, so a site
 command cannot shadow `exit` or `reset`.
 
 ### 5.5 The descriptor (`descriptor.h`)
@@ -222,11 +222,11 @@ them.
 Thin by design: no members, no hook overrides in the common case.
 
 ```cpp
-class GreenhouseXXX final : public Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t> {
+class GreenhouseXXX final : public Botanik::BotanikFirmware<PlcInputData_t, SiteData_t> {
 public:
     GreenhouseXXX(Botanik::PlcIO::PlcInput<PlcInputData_t>*   in,
-                  Botanik::PlcIO::PlcOutput<PlcOutputData_t>* out)
-        : Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t>(in, out, Site::g_site) {}
+                  Botanik::PlcIO::PlcOutput<SiteData_t>* out)
+        : Botanik::BotanikFirmware<PlcInputData_t, SiteData_t>(in, out, Site::g_site) {}
 
     GreenhouseXXX() : GreenhouseXXX(hal_input(), hal_output()) {}   // binds the HAL region
 };
@@ -247,12 +247,12 @@ page 0 is the boot page), `register_commands()`, `register_telemetry()`,
 Whole body guarded by `#ifdef TARGET_SIMULATOR`, so it vanishes on hardware where
 the real coprocessor plays this role. Two required names:
 
-- `inline uint32_t plc_dilated_timeout(uint32_t base_ms)` at **global** scope
+- `inline uint32_t dilated_timeout(uint32_t base_ms)` at **global** scope
   (the emulator forward-declares it there).
 - `Site::MockPlc`, which owns the shared region and the emulator:
   `input()`, `output()`, `start(Botanik::Logs::Logger*)`.
 
-Its animator is `Site::fill_output(PlcOutputData_t* o, const PlcInputData_t* in,
+Its animator is `Site::fill_output(SiteData_t* o, const PlcInputData_t* in,
 uint32_t now_ms)`, called about once a second from the emulator thread.
 
 The site owns this rather than the harness so the simulator runs against **your**
@@ -309,6 +309,6 @@ scope:
 
 ```cpp
 static_assert(sizeof(PLCSharedVarsInput_t)   == sizeof(Botanik::PlcIO::PlcInput<PlcInputData_t>), "");
-static_assert(sizeof(PLCSharedVarsOutput_t)  == sizeof(Botanik::PlcIO::PlcOutput<PlcOutputData_t>), "");
-static_assert(alignof(PLCSharedVarsOutput_t) == alignof(Botanik::PlcIO::PlcOutput<PlcOutputData_t>), "");
+static_assert(sizeof(PLCSharedVarsOutput_t)  == sizeof(Botanik::PlcIO::PlcOutput<SiteData_t>), "");
+static_assert(alignof(PLCSharedVarsOutput_t) == alignof(Botanik::PlcIO::PlcOutput<SiteData_t>), "");
 ```

@@ -35,8 +35,8 @@ Create `src/sites/<name>/` (the `<name>` is the code-name you select with
 
 | File | Holds |
 |------|-------|
-| `site.h` | The PLC payload (`PlcInputData_t` / `PlcOutputData_t` plus its status enums and their `str()` companions), the declarative tables (status-variable `ScalarGroup[]`, home-field `HomeField[]`, shell `ShellCommand[]`, config `ConfigParam[]`), the `SiteDescriptor` (`g_site`) that bundles them, and the thin firmware binding. It exposes the uniform handle a harness builds against: `BotanikSite`, the payload types, and the sim-only mock-PLC entry. |
-| `alarms.h` | The `g_alarms[]` table - one row per alarm: code, description, the byte `offsetof` of that alarm's boolean field in `PlcOutputData_t`, dwell policy, and a remediation note. |
+| `site.h` | The PLC payload (`PlcInputData_t` / `SiteData_t` plus its status enums and their `str()` companions), the declarative tables (status-variable `ScalarGroup[]`, home-field `HomeField[]`, shell `ShellCommand[]`, config `ConfigParam[]`), the `SiteDescriptor` (`g_site`) that bundles them, and the thin firmware binding. It exposes the uniform handle a harness builds against: `BotanikSite`, the payload types, and the sim-only mock-PLC entry. |
+| `alarms.h` | The `g_alarms[]` table - one row per alarm: code, description, the byte `offsetof` of that alarm's boolean field in `SiteData_t`, dwell policy, and a remediation note. |
 | `sim.h` | The header-only mock PLC: the data animator that fills the payload with plausible values for the simulator. Its body is guarded by `#ifdef TARGET_SIMULATOR`, so it drops out of the hardware build. |
 | `config.h` | Build-wide config overrides: `#define BOTANIK_*` for any value in `libbotanik_config.h` this site needs to pin (the `LOG_PLC_*` sizes must match the PLC program). Kept separate so CMake can include it before the library defaults. |
 
@@ -46,11 +46,11 @@ are meant to be generated from the Arduino PLC project.
 
 @section setup_payload The payload contract
 
-The site's `PlcInputData_t` / `PlcOutputData_t` is the byte-for-byte layout shared with
+The site's `PlcInputData_t` / `SiteData_t` is the byte-for-byte layout shared with
 the M4 coprocessor (the PLC IDE generates the matching type on its side). Both the
 simulator's mock PLC and the OPTA firmware use it verbatim - never fork it per target.
 The declarative tables address the payload **by byte offset**: each status variable
-and each alarm names a field in `PlcOutputData_t` (an alarm names its own `uint8_t`
+and each alarm names a field in `SiteData_t` (an alarm names its own `uint8_t`
 boolean - there is no packed alarm bitset). The site defines its layout to satisfy
 those contracts and verifies the size with `static_assert`s.
 
@@ -80,11 +80,11 @@ no per-field code, and no per-site page classes.
 A site is a thin binding that hands the descriptor to the base:
 
 @code{.cpp}
-class GreenhouseXXX final : public Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t> {
+class GreenhouseXXX final : public Botanik::BotanikFirmware<PlcInputData_t, SiteData_t> {
 public:
     GreenhouseXXX(Botanik::PlcIO::PlcInput<PlcInputData_t>*   in,
-                  Botanik::PlcIO::PlcOutput<PlcOutputData_t>* out)
-        : Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t>(in, out, g_site) {}
+                  Botanik::PlcIO::PlcOutput<SiteData_t>* out)
+        : Botanik::BotanikFirmware<PlcInputData_t, SiteData_t>(in, out, g_site) {}
 
     GreenhouseXXX() : GreenhouseXXX(hal_input(), hal_output()) {}   // bind the HAL region
 };

@@ -19,12 +19,12 @@
 
 #include "libbotanik.h"            // all library types (pages, terminal, editor, plcio)
 #include "libbotanik_site.h"       // BOTANIK_SITE -> BOTANIK_SITE_HEADER
-#include BOTANIK_SITE_HEADER       // selected site: PlcInputData_t / PlcOutputData_t
+#include BOTANIK_SITE_HEADER       // selected site: PlcInputData_t / SiteData_t
 
 // Concrete instantiations of the templated pages/PLC structs, matching what the
 // simulator actually builds (see botanik_sim/main.cpp).
 using HomePage_t   = Botanik::Pages::HomePage;
-using StatusPage_t = Botanik::Pages::StatusPage<PlcOutputData_t>;
+using StatusPage_t = Botanik::Pages::StatusPage<SiteData_t>;
 
 // Report a type's size and guard it against runaway growth. The budget is a
 // loose ceiling — bump it deliberately if a structure legitimately needs it.
@@ -59,5 +59,5 @@ TEST_CASE("sizeof: pages") {
 TEST_CASE("sizeof: site data struct") {
     // The site data struct is plain RAM now - no shared region, no alignment or
     // cache contract to honour. Only its bulk still matters.
-    REPORT_SIZE(PlcOutputData_t, 16384);
+    REPORT_SIZE(SiteData_t, 16384);
 }

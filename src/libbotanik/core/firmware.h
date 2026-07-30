@@ -66,10 +66,10 @@
  *     g_alarms, 23,
  * };
  *
- * class GreenhouseXXX final : public BotanikFirmware<PlcInputData_t, PlcOutputData_t> {
+ * class GreenhouseXXX final : public BotanikFirmware<PlcInputData_t, SiteData_t> {
  * public:
  *     GreenhouseXXX(PlcIO::PlcInput<PlcInputData_t>* in,
- *                   PlcIO::PlcOutput<PlcOutputData_t>* out)
+ *                   PlcIO::PlcOutput<SiteData_t>* out)
  *         : BotanikFirmware(in, out, g_site) {}
  * };
  * @endcode

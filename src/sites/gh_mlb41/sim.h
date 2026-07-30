@@ -35,7 +35,7 @@
  * S == 1. Called from main.cpp and the emulator thread (forward-declared in
  * botanik_sim/emulator.h).
  */
-inline uint32_t plc_dilated_timeout(uint32_t base_ms) {
+inline uint32_t dilated_timeout(uint32_t base_ms) {
     uint32_t s = Botanik::HAL::_time_scale();
     if (s <= 1) return base_ms;
     double scaled = (double)base_ms * std::pow((double)s, 3);
@@ -78,7 +78,7 @@ inline uint64_t abit(const char* code) {
  * Called from the emulator thread (~1 Hz); static state lets values settle and
  * only drift now and then. @p now_ms is the uptime in milliseconds.
  */
-inline void fill_output(PlcOutputData_t* o, uint32_t now_ms) {
+inline void fill_output(SiteData_t* o, uint32_t now_ms) {
     // seconds - drives irrigation walk
     const float t = (float)now_ms / 1000.0f;
 
@@ -272,7 +272,7 @@ inline void fill_output(PlcOutputData_t* o, uint32_t now_ms) {
  * to emulate, just this site's data struct being filled in place. Control logic
  * will write the same struct once the scan cycle lands.
  */
-inline void simulate(PlcOutputData_t* data, uint32_t now_ms) {
+inline void simulate(SiteData_t* data, uint32_t now_ms) {
     fill_output(data, now_ms);
 }
 

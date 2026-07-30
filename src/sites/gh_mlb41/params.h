@@ -10,7 +10,7 @@
  * file.
  *
  * A parameter is declared over BOTH site payloads, which are distinct layouts:
- * out_offset reads the live value the PLC reflects (PlcOutputData_t), in_offset
+ * out_offset reads the live value the PLC reflects (SiteData_t), in_offset
  * stages an edit for the PLC to latch (PlcInputData_t).
  *
  * Commit model: editing a value only stages it. Each group's commit serial is an
@@ -28,13 +28,13 @@
 
 #include "botanik.h"
 
-#include "payload.h"
+#include "data.h"
 
 namespace Site {
 
 using namespace Botanik;
 
-#define OO(f) (int16_t)offsetof(PlcOutputData_t, config.f)
+#define OO(f) (int16_t)offsetof(SiteData_t, config.f)
 #define CAP   (uint16_t)GreenhouseConfig_t::STRLEN
 
 const Params::Param g_params[] = {

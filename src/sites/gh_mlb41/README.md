@@ -12,7 +12,7 @@ truth for the `gh_mlb41` greenhouse.
 | `sim.h` | the header-only simulator mock PLC (data animator + emulator wiring); its whole body is `#ifdef TARGET_SIMULATOR`, so it drops out of the hardware build. |
 | `config.h` | build-wide config overrides (`#define BOTANIK_*`); kept separate so CMake includes it before the library defaults. |
 
-`GreenhouseMLB41` derives `BotanikFirmware<PlcInputData_t, PlcOutputData_t>` and just
+`GreenhouseMLB41` derives `BotanikFirmware<PlcInputData_t, SiteData_t>` and just
 passes `g_site` to the base constructor - it declares no pages and overrides no hooks.
 The base owns every page (home/shell/logs/alarms/config/monitor) and wires the
 descriptor's tables generically, so the site is data, not code. A site needing custom
@@ -23,12 +23,12 @@ per-beat logic or an extra page (e.g. re-adding a STATUS page by subclassing
 ## Data model
 
 `PlcInputData_t` is empty (the host writes only the library log/sync fields back to
-the PLC). `PlcOutputData_t` is the greenhouse the PLC publishes each cycle - sensors
+the PLC). `SiteData_t` is the greenhouse the PLC publishes each cycle - sensors
 and actuator feedback, grouped below. Three `uint8_t` fields carry enumerated states
 with a `str()` companion (`UpsStatus`, `TrayStatus`, `NetStatus`):
 
-\startuml "gh_mlb41 PlcOutputData_t: the greenhouse state the PLC publishes"
-class PlcOutputData_t {
+\startuml "gh_mlb41 SiteData_t: the greenhouse state the PLC publishes"
+class SiteData_t {
   alarms : one uint8 boolean per condition (AlarmModel reads each by offset)
   power : grid_ac / dc_bus / battery / generator (mV), grid_freq
   climate : ext/floor/ceil temp + RH, wind_peak, rain_age
@@ -76,11 +76,11 @@ void loop() {
 
 Notes:
 
-- **Payload contract.** On hardware `PlcOutputData_t` must match the PLC IDE's
+- **Payload contract.** On hardware `SiteData_t` must match the PLC IDE's
   generated type byte-for-byte. Once those types are in scope, assert it:
   ```cpp
   static_assert(sizeof(PLCSharedVarsInput_t)   == sizeof(Botanik::PlcIO::PlcInput<PlcInputData_t>));
-  static_assert(alignof(PLCSharedVarsOutput_t) == alignof(Botanik::PlcIO::PlcOutput<PlcOutputData_t>));
+  static_assert(alignof(PLCSharedVarsOutput_t) == alignof(Botanik::PlcIO::PlcOutput<SiteData_t>));
   ```
 - **Console baud / geometry.** The HAL constructor uses `BOTANIK_CONSOLE_BAUD` and
   80x24; pass `BotanikSite fw(cols, rows)` to change the geometry. The simulator passes

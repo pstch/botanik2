@@ -96,7 +96,7 @@ int main(int argc, char** argv) {
 
     BotanikSite greenhouse;
     greenhouse.set_console_baud(CONSOLE_BAUD);
-    greenhouse.set_hw_watchdog_ms(plc_dilated_timeout(Config::HW_WATCHDOG_MS));
+    greenhouse.set_hw_watchdog_ms(dilated_timeout(Config::HW_WATCHDOG_MS));
 
     greenhouse.setup();
 

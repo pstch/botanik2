@@ -11,7 +11,7 @@
  *
  * One row per alarm, in table order: the ROW INDEX IS THE ALARM BIT, so row
  * order is load-bearing and must match the payload's alarm booleans. Each row
- * names the byte offset of its own uint8_t boolean in PlcOutputData_t (the model
+ * names the byte offset of its own uint8_t boolean in SiteData_t (the model
  * reads it directly; there is no packed bitset).
  *
  * Fields: code, description, offset, then the ON/OFF announce dwell in seconds
@@ -27,7 +27,7 @@
 
 #include "botanik.h"
 
-#include "payload.h"
+#include "data.h"
 
 namespace Site {
 
@@ -36,7 +36,7 @@ namespace Site {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 
-#define AO(f) offsetof(PlcOutputData_t, f)
+#define AO(f) offsetof(SiteData_t, f)
 
 const Botanik::Alarms::AlarmCondition g_alarms[] = {
     // code        description                        offset             on off rec latch minOn  remediation

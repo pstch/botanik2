@@ -23,7 +23,7 @@
 
 #include "botanik.h"
 
-#include "payload.h"      // the PLC payload every table addresses by offset
+#include "data.h"      // the PLC payload every table addresses by offset
 #include "status.h"       // status variables + home-screen readings
 #include "params.h"       // config parameters
 #include "alarms.h"       // alarm conditions
