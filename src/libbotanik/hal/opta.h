@@ -18,8 +18,9 @@
 #include <ctime>
 #include <type_traits>
 
-// mbed.h: micros(), millis(), mbed::LowPowerClock, arduino::UART
+// mbed.h: mbed::LowPowerClock, mbed::BufferedSerial, CMSIS intrinsics
 #include "mbed.h"
+#include "USBSerial.h"    // MONITOR transport (USB CDC)
 
 struct PLCSharedVarsInput_t;
 struct PLCSharedVarsOutput_t;
@@ -91,7 +92,11 @@ namespace Botanik { namespace HAL {
     namespace Clock {
 
     inline uint32_t current_ms() {
-        return millis();
+        // Mbed's clock, not Arduino's millis(): we link Mbed without the
+        // Arduino core, so millis() would not resolve.
+        return static_cast<uint32_t>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                mbed::LowPowerClock::now().time_since_epoch()).count());
     }
 
     inline uint64_t uptime_ms() {
@@ -248,26 +253,92 @@ namespace Botanik { namespace HAL {
 
     }  // namespace Watchdog
 
-    /** @brief Serial access. */
+    /**
+     * @brief Serial access.
+     *
+     * CONSOLE and MONITOR are *logical* endpoints. Each is backed by a concrete
+     * transport behind one small interface, so which physical port serves which
+     * role is a one-line change in get() rather than a change to any caller.
+     * Today: CONSOLE on the hardware UART (Mbed's own CONSOLE_TX/RX pins for
+     * this target, PG_14 / PG_9), MONITOR on USB CDC.
+     *
+     * Pure Mbed - no Arduino core. Virtual dispatch is deliberate and cheap
+     * here: these are two long-lived RAM objects, not the flash-resident
+     * descriptor tables where a vptr would force the table out of .rodata.
+     */
     namespace Serial {
 
-    /// On the OPTA, the raw serial type is the Arduino UART driver itself.
-    using Raw = arduino::UART;
+    /** @brief The transport-independent surface Utils::BufferedSerial drives. */
+    class Raw {
+    public:
+        virtual ~Raw() {}
+        /** @brief Bring the port up at @p baud. Transports with no line rate
+         *  (USB CDC) ignore it. */
+        virtual void     begin(uint32_t baud) = 0;
+        /** @brief Next buffered byte, or -1 when there is none. */
+        virtual int      read() = 0;
+        /** @brief Queue one byte; returns the number accepted (0 or 1). */
+        virtual size_t   write(uint8_t c) = 0;
+        /** @brief Non-zero while the transport can take more output. Gates the
+         *  TX drain loop, which writes a byte at a time and re-checks. */
+        virtual uint16_t availableForWrite() = 0;
+    };
+
+    /** @brief Hardware UART transport. */
+    class UartRaw : public Raw {
+        mbed::BufferedSerial _port;
+    public:
+        UartRaw(PinName tx, PinName rx) : _port(tx, rx) {
+            _port.set_blocking(false);   // the main loop must never stall on IO
+        }
+        void begin(uint32_t baud) override { _port.set_baud((int)baud); }
+        int read() override {
+            uint8_t c;
+            return _port.read(&c, 1) == 1 ? (int)c : -1;
+        }
+        size_t write(uint8_t c) override {
+            return _port.write(&c, 1) == 1 ? (size_t)1 : (size_t)0;
+        }
+        uint16_t availableForWrite() override { return _port.writable() ? 1 : 0; }
+    };
+
+    /** @brief USB CDC transport. */
+    class UsbRaw : public Raw {
+        USBSerial _port;
+    public:
+        // connect_blocking = false: without it construction waits for a host,
+        // which would hang boot whenever nothing is plugged in.
+        UsbRaw() : _port(false) {}
+        void begin(uint32_t) override {}          // CDC has no line rate
+        int read() override {
+            return _port.available() ? _port._getc() : -1;
+        }
+        size_t write(uint8_t c) override {
+            // With no host attached, discard rather than stall: this is a
+            // diagnostic port, and blocking the log drain would take the loop
+            // down with it.
+            if (!_port.connected()) return 1;
+            return _port._putc(c) >= 0 ? (size_t)1 : (size_t)0;
+        }
+        uint16_t availableForWrite() override { return 1; }
+    };
 
     /** @brief Logical serial endpoints: CONSOLE drives the interactive
      *  terminal, MONITOR the secondary diagnostic/log output. */
     enum Port { CONSOLE, MONITOR };
 
-    /** @brief Resolve a logical Port to its underlying UART. The Arduino UART
-     *  globals are at global scope (::Serial / ::Serial1), qualified here to
-     *  avoid the enclosing HAL::Serial namespace.
-     *  @param port CONSOLE (::Serial) or MONITOR (::Serial1). */
+    /** @brief Resolve a logical Port to its transport. Swapping the two is a
+     *  change to these two lines and nothing else. Function-local statics, so
+     *  each is constructed on first use (after the RTOS is up) rather than
+     *  before main(). */
     inline Raw* get(Port port) {
-        if (port == MONITOR) return &::Serial1;
-        return &::Serial;
+        static UartRaw console(CONSOLE_TX, CONSOLE_RX);
+        static UsbRaw  monitor;
+        return (port == MONITOR) ? static_cast<Raw*>(&monitor)
+                                 : static_cast<Raw*>(&console);
     }
 
-    /** @brief A hardware UART is never an interactive terminal, so diagnostic
+    /** @brief Neither transport is an interactive terminal, so diagnostic
      *  output is never suppressed on OPTA. Mirrors the simulator query so sinks
      *  (e.g. the MONITOR SerialLogWriter) stay platform-independent. */
     inline bool is_output_tty(const Raw*) { return false; }

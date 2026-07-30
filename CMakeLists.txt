@@ -324,7 +324,10 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     # macros Mbed's headers gate on (atomics, CRC) — without them mbed_atomic.h
     # errors out with "Unknown ARM architecture for exclusive access".
     target_compile_options(botanik PUBLIC
-        -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard)
+        -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=softfp
+        # libmbed.a is built -fno-rtti; without matching it we get
+        # undefined "typeinfo for ..." at link.
+        -fno-rtti)
 
     target_compile_definitions(botanik PUBLIC 
         ARM_MATH_CM7
@@ -486,6 +489,11 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
         "${MBED_ROOT}/cores/arduino/mbed/storage/filesystem/include"
         "${MBED_ROOT}/cores/arduino/mbed/storage/blockdevice/include"
         "${MBED_ROOT}/cores/arduino/mbed/drivers/include"
+        "${MBED_ROOT}/cores/arduino/mbed/drivers/usb/include"
+        "${MBED_ROOT}/cores/arduino/mbed/drivers/usb/include/usb"
+        "${MBED_ROOT}/cores/arduino/mbed/drivers/usb/include/usb/internal"
+        "${MBED_ROOT}/cores/arduino/mbed/hal/usb/include"
+        "${MBED_ROOT}/cores/arduino/mbed/hal/usb/include/usb"
         "${MBED_ROOT}/cores/arduino"
         "${MBED_ROOT}/variants/OPTA"
         "${MBED_ROOT}/libraries/SocketWrapper/src"
@@ -538,6 +546,60 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     set_target_properties(botanik_fw PROPERTIES
         LINKER_LANGUAGE CXX
         CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
+
+    # ------------------------------------------------------------------
+    # botanik_opta - the flashable M7 image
+    # ------------------------------------------------------------------
+    # Built entirely by us: no Arduino IDE, no Arduino core sources, and not the
+    # core's 2017 toolchain (which is ~40x slower on Mbed headers - a three-line
+    # Mbed program does not finish compiling in 100 s with it, versus 2.6 s on
+    # GCC 14). We take only three things from the core package: the prebuilt
+    # libmbed.a, the linker script, and the target's PinNames.
+    #
+    # Two things are load-bearing here:
+    #  - -mfloat-abi=softfp above. libmbed.a is softfp; mixing float ABIs does
+    #    not link at all.
+    #  - the linker script is PREPROCESSED first: it references CM4_BINARY_START.
+    #
+    # Resulting layout: .text at 0x08040000 (the app base, with a bootloader
+    # below it), .data/.bss in RAM at 0x24000000, entry at Reset_Handler.
+    set(MBED_VARIANT "${MBED_ROOT}/variants/OPTA")
+    set(MBED_CM4_DEFS -DCM4_BINARY_START=0x60000000
+                      -DCM4_BINARY_END=0x60040000
+                      -DCM4_RAM_END=0x60080000)
+    set(_ldscript "${CMAKE_BINARY_DIR}/linker_script.ld")
+
+    add_custom_command(OUTPUT "${_ldscript}"
+        COMMAND ${CMAKE_CXX_COMPILER} -E -P -x c ${MBED_CM4_DEFS}
+                "${MBED_VARIANT}/linker_script.ld" -o "${_ldscript}"
+        DEPENDS "${MBED_VARIANT}/linker_script.ld"
+        COMMENT "Preprocessing the Mbed linker script"
+        VERBATIM)
+    add_custom_target(botanik_ldscript DEPENDS "${_ldscript}")
+
+    add_executable(botanik_opta
+        "src/botanik_fw/firmware.cpp"
+        "src/botanik_fw/main.cpp"
+        "src/botanik_fw/mbed_hooks.cpp"
+        ${BOTANIK_SITE_SOURCES})
+    add_dependencies(botanik_opta botanik_ldscript)
+    set_target_properties(botanik_opta PROPERTIES
+        SUFFIX ".elf"
+        CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON
+        LINK_FLAGS "-Wl,--gc-sections -Wl,--as-needed @${MBED_VARIANT}/ldflags.txt -T${_ldscript} -Wl,-Map,${CMAKE_BINARY_DIR}/botanik_opta.map --specs=nosys.specs")
+    # Libraries via target_link_libraries so they land AFTER our objects.
+    # --whole-archive keeps libmbed's vector table and RTOS entry, which nothing
+    # references by symbol; --gc-sections then prunes what is genuinely unused.
+    target_link_libraries(botanik_opta
+        botanik
+        -Wl,--whole-archive "${MBED_VARIANT}/libs/libmbed.a" -Wl,--no-whole-archive
+        -Wl,--start-group -lstdc++ -lsupc++ -lm -lc -lgcc -lnosys -Wl,--end-group)
+
+    add_custom_command(TARGET botanik_opta POST_BUILD
+        COMMAND ${CMAKE_OBJCOPY} -O binary
+                "$<TARGET_FILE:botanik_opta>" "${CMAKE_BINARY_DIR}/botanik_opta.bin"
+        COMMAND ${CMAKE_COMMAND} -E echo "-- flashable image: ${CMAKE_BINARY_DIR}/botanik_opta.bin"
+        VERBATIM)
 
 endif()
 
