@@ -264,7 +264,7 @@ namespace Botanik { namespace Terminal {
     // Lifecycle
     // ------------------------------------------------------------------------
 
-    InputParser::InputParser(Utils::BufferedSerial& serial, const uint32_t* timestamp_ms)
+    InputParser::InputParser(Utils::BufferedSerial& serial, const uint64_t* timestamp_ms)
         : _serial(serial), _timestamp_ms(timestamp_ms) {
         _reset_event();
         _state = State::IDLE;

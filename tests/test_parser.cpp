@@ -28,7 +28,7 @@ namespace {
         int                       pipe_fds[2];
         Botanik::HAL::Serial::Raw   raw;
         Botanik::Utils::BufferedSerial serial;
-        uint32_t                  now = 0;
+        uint64_t                  now = 0;
         InputParser               parser;
 
         ParserFixture() : serial(&raw), parser(serial, &now) {

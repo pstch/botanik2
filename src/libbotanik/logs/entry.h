@@ -24,7 +24,7 @@ namespace Botanik { namespace Logs {
      *  buffer. Kept a POD with an inline buffer (rather than a pointer) so
      *  entries can be copied into ring buffers without any allocation. */
     struct LogEntry {
-        uint32_t  timestamp;    ///< uptime ms when the entry was raised
+        uint64_t  timestamp;    ///< uptime ms when the entry was raised
         LogLevel  level;
         LogTopic  topic;
         uint16_t  length;       ///< bytes used in message, excluding the NUL

@@ -76,7 +76,7 @@ TEST_CASE("writer ring: FIFO order is preserved as the cursors wrap repeatedly")
 TEST_CASE("writer ring: a batch that straddles the wrap boundary drains in order") {
     CapWriter w;
     // Advance the cursors close to the end of the ring one entry at a time...
-    uint32_t ts = 0;
+    uint64_t ts = 0;
     for (int i = 0; i < (int)Config::LOG_QUEUE_SIZE - 3; ++i) {
         Logs::LogEntry e = make_entry(++ts);
         w.push(&e);

@@ -74,7 +74,7 @@ namespace Botanik {
          *  32-bit display clock; @param baud sizes the TX depth floor;
          *  @param alarms feeds the bottom alarm bar (also the AlarmsPage source);
          *  @param logger the sink the pages announce through. */
-        ConsoleStack(uint16_t cols, uint16_t rows, const uint32_t* timestamp_ms,
+        ConsoleStack(uint16_t cols, uint16_t rows, const uint64_t* timestamp_ms,
                      uint32_t baud, Alarms::AlarmModel* alarms,
                      Logs::Logger* logger)
             : _serial(HAL::Serial::get(HAL::Serial::CONSOLE), logger, "ConsoleSerial"),

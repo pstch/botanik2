@@ -14,7 +14,7 @@ namespace Botanik { namespace Terminal {
     // Lifecycle
 
     Console::Console(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
-                     const uint32_t* timestamp_ms, uint32_t baud,
+                     const uint64_t* timestamp_ms, uint32_t baud,
                      const SystemContext& ctx, const Alarms::AlarmModel* alarms,
                      Logs::Logger* logger) :
         Component(logger, "Console"),

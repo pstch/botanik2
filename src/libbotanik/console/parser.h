@@ -101,7 +101,7 @@ namespace Botanik { namespace Terminal {
         BufferedSerial& _serial;
         /** @brief Shared loop timestamp (ms), published by the scheduler;
          *  read-only. */
-        const uint32_t* _timestamp_ms;
+        const uint64_t* _timestamp_ms;
 
         /** @brief Event currently being constructed. */
         InputEvent      _event;
@@ -130,7 +130,7 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Construct a parser bound to a serial wrapper and
          *  timestamp. */
-        InputParser(BufferedSerial& serial, const uint32_t* timestamp_ms);
+        InputParser(BufferedSerial& serial, const uint64_t* timestamp_ms);
 
         /** @} */
 

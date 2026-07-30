@@ -45,7 +45,7 @@ namespace Botanik { namespace Network {
 
     size_t MqttLogWriter::format(const Logs::LogEntry* entry, char* buf, size_t len) {
         if (len == 0) return 0;
-        uint64_t ts = Utils::absolute_ms(entry->timestamp);
+        uint64_t ts = entry->timestamp;
         char time_buf[Utils::TIMESTAMP_LEN];
         Utils::format_ms_timestamp(ts, time_buf, sizeof(time_buf));
         int written = snprintf(buf, len, "%s %s", time_buf, entry->message);

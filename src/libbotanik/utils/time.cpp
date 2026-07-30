@@ -16,18 +16,8 @@ namespace Botanik { namespace Utils {
     // Rollover projection
     // ------------------------------------------------------------------------
 
-    uint64_t _project_rollover(uint64_t uptime, uint32_t timestamp) {
-        int32_t diff = (int32_t)(timestamp - (uint32_t)(uptime & 0xFFFFFFFFULL));
-        return (uint64_t)((int64_t)uptime + diff);
-    }
 
-    uint64_t absolute_ms(uint32_t timestamp_ms) {
-        return _project_rollover(HAL::Clock::uptime_ms(), timestamp_ms);
-    }
 
-    uint64_t absolute_us(uint32_t timestamp_us) {
-        return _project_rollover(HAL::Clock::uptime_us(), timestamp_us);
-    }
 
     // Calendar conversion & formatting
     // ------------------------------------------------------------------------

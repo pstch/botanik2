@@ -81,7 +81,7 @@ namespace Botanik { namespace Logs {
         // skip the separator if the topic is empty
         const char* topic_sep = (topic[0] != '\0') ? ":" : "";
         // format the timestamp
-        uint64_t timestamp = absolute_ms(entry->timestamp);
+        uint64_t timestamp = entry->timestamp;
         char time_buf[TIMESTAMP_LEN];
         format_ms_timestamp(timestamp, time_buf, sizeof(time_buf));
         // build the formatted log entry

@@ -18,34 +18,11 @@ namespace Botanik { namespace Utils {
     //  - absolute ms/us uptime (uint64)
     //  - rolling-over 32-bit ms/us uptime. 
     // 
-    // Some components record bare 32-bit counters; absolute_ms()/absolute_us() 
-    // project them into the rollover window centered on now. Plus the usual
-    // conversion/formatting helpers.
 
     /** @name Types
      *  @{ */
 
-    /** @brief A 32-bit ms timestamp that wraps every ~49 days (e.g. the PLC loop clock). 
-     *  @note This is a distinct type offering only wrap-safe elapsed subtraction. */
-    struct Millis32 {
-        Millis32() = default;
-
-        /** @brief Internal 32-bit ms timestamp */
-        uint32_t ms = 0;
-
-        /** @brief Construct by wrapping an uint32_t value. */
-        explicit Millis32(uint32_t v) : ms(v) {}
-
-        /** @brief Wrap-safe elapsed time since the @p earlier stamp (this - earlier). */
-        uint32_t operator-(Millis32 earlier) const { return ms - earlier.ms; }
-
-        /** @brief Do equality comparison using the internal value. */
-        bool operator==(Millis32 o) const { return ms == o.ms; }
-
-        /** @brief Do inequality comparison using the internal value. */
-        bool operator!=(Millis32 o) const { return ms != o.ms; }
-    };
-
+    
     /** @brief Calendar time, without the tm struct's idiosyncrasies and with
      *  extra total-days / -seconds fields. */
     struct CalendarTime {
@@ -67,19 +44,8 @@ namespace Botanik { namespace Utils {
     /** @name Rollover projection
      *  @{ */
 
-    /** @brief Project a 32-bit @p timestamp into the rollover window centered
-     *  on @p uptime. @note Only correct within +/-half a window (+/-~24.8 days
-     *  for ms, +/-~35.7 min for µs). */
-    uint64_t _project_rollover(uint64_t uptime, uint32_t timestamp);
 
-    /** @brief Project a rolling-over ms uptime counter into the current window
-     *  (see _project_rollover). */
-    uint64_t absolute_ms(uint32_t timestamp_ms);
 
-    /** @brief Project a rolling-over µs uptime counter into the current window.
-     *  @warning see uptime_ms() about the µs precision of the low-power clock.
-     */
-    uint64_t absolute_us(uint32_t timestamp_us);
 
     /** @} */
 

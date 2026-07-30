@@ -86,7 +86,7 @@ namespace Botanik { namespace Terminal {
          *  bar and reserves the bottom screen row for it (the content area shrinks
          *  by one row); null leaves the full screen to pages. */
         Console(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
-                const uint32_t* timestamp_ms, uint32_t baud,
+                const uint64_t* timestamp_ms, uint32_t baud,
                 const SystemContext& ctx = {},
                 const Alarms::AlarmModel* alarms = nullptr,
                 Logs::Logger* logger = nullptr);

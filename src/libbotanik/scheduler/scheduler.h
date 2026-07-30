@@ -54,8 +54,7 @@ namespace Botanik { namespace Scheduler {
         
         /** @brief Loop "now" (uptime ms), republished by tick() when the work window opens.
          *  @warning 32-bit, wraps every ~49 days. */
-        // FIXME: can't we use Millis32 here ?
-        uint32_t timestamp_ms    = 0;
+        uint64_t timestamp_ms    = 0;
     };
 
     /** @class LoopScheduler

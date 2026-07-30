@@ -28,7 +28,7 @@ namespace {
         int                            pipe_fds[2];
         HAL::Serial::Raw                 raw;
         Utils::BufferedSerial          serial;
-        uint32_t                       now = 0;
+        uint64_t                       now = 0;
         Terminal::Console              console;
         Terminal::TextEditor           editor;
         NullWriter                     writer;

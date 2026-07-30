@@ -33,46 +33,13 @@ static int64_t days_from_civil(int64_t y, unsigned m, unsigned d) {
 // _project_rollover
 // ----------------------------------------------------------------------------
 
-TEST_CASE("_project_rollover: low 32 bits always reproduce the timestamp") {
-    CHECK((uint32_t)_project_rollover(1000,              1234)       == 1234u);
-    CHECK((uint32_t)_project_rollover(0x100000000,  0xABCDu)    == 0xABCDu);
-    CHECK((uint32_t)_project_rollover(0xDEADBEEF,    0x12345678) == 0x12345678u);
-}
 
-TEST_CASE("_project_rollover: identity when timestamp matches the uptime window") {
-    CHECK(_project_rollover(1000, 1000) == 1000ULL);
-    CHECK(_project_rollover(0x100000000 + 500, 500) == 0x100000000 + 500);
-}
 
-TEST_CASE("_project_rollover: result stays within half a window of uptime") {
-    const uint64_t uptime = 0x300000000 + 12345;
-    const uint32_t stamps[] = {0u, 1u, 12344u, 12345u, 12346u, 0x80000000u, 0xFFFFFFFFu};
-    for (uint32_t ts : stamps) {
-        int64_t delta = (int64_t)_project_rollover(uptime, ts) - (int64_t)uptime;
-        CHECK(delta >= -(int64_t)0x80000000);
-        CHECK(delta <=  (int64_t)0x80000000);
-    }
-}
 
-TEST_CASE("_project_rollover: projects across the 32-bit boundary in both directions") {
-    // Timestamp just *before* a rollover, observed from just after it: in the past.
-    CHECK(_project_rollover(0x100000000, 0xFFFFFFFF) == 0xFFFFFFFF);
-    // Timestamp just *after* a rollover, observed from just before it: in the future.
-    CHECK(_project_rollover(0xFFFFFFFF, 0u) == 0x100000000);
-}
 
 // absolute_ms / absolute_us
 // ----------------------------------------------------------------------------
 
-TEST_CASE("absolute_ms/us: preserve the 32-bit timestamp in the low word") {
-    // The projection target is the live HAL uptime, so we can't pin the high
-    // word, but the low word must always survive the round-trip.
-    const uint32_t stamps[] = {0u, 1u, 250u, 0x12345678u, 0xFFFFFFFFu};
-    for (uint32_t ts : stamps) {
-        CHECK((uint32_t)absolute_ms(ts) == ts);
-        CHECK((uint32_t)absolute_us(ts) == ts);
-    }
-}
 
 // cal_time_ms
 // ----------------------------------------------------------------------------
