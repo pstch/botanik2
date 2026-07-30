@@ -83,35 +83,30 @@
 #include "../shell/shell.h"      // Shell::ShellCommand (descriptor command table)
 #include "scalar.h"  // ScalarGroup (status vars)
 #include "stacks.h"      // Monitor/Console/NetworkStack composition
-#if BOTANIK_FEATURE_PLC
-#include "libbotanik/params/store_plc.h"    // PlcParamStore (PLC-owned params)
-#else
 #include "libbotanik/params/store_local.h"  // LocalParamStore (flash/file params)
-#endif
 
 #include <cstddef>
 #include <cstdint>
 
 namespace Botanik {
 
-    /** @brief Zero-size default PLC payload, used to fill the BotanikFirmware
-     *  template params when the PLC feature is not enabled. */
+    /** @brief Zero-size default site data, so BotanikFirmware<> is usable by a
+     *  site that publishes nothing. */
     struct Empty {};
 
     /**
      * @brief The declarative description of a site: its name plus the four
      * generated tables. The firmware base owns every page and wires each table
-     * generically, so a site is data (these tables + its PLC payload), not code.
+     * generically, so a site is data (these tables + its data struct), not code.
      *
-     * The tables mirror what the Arduino PLC project exposes and are meant to be
-     * generated from it:
+     * The tables are meant to be generated:
      *   - @c params        - config parameters (Params::Param: name, offset,
      *                        type, scaling, bounds, group).
      *   - @c commands      - site shell commands (Shell::ShellCommand).
      *   - @c status_groups - read-only status variables (ScalarGroup /
      *                        ScalarField: name, offset, type, scaling, desc).
      *   - @c alarms        - alarm conditions (Alarms::AlarmCondition: code,
-     *                        desc, payload boolean offset, dwell policy).
+     *                        desc, data-struct boolean offset, dwell policy).
      *
      * Any table may be null / count 0. Every pointer is borrowed and must outlive
      * the firmware (site statics). See core/firmware.h "Extending the base".
@@ -131,10 +126,18 @@ namespace Botanik {
     };
 
     /** @brief Generic firmware base: owns the generic components + the loop
-     *  order, and exposes each for a site subclass to build on. The PLC pieces
-     *  are compiled in only when BOTANIK_FEATURE_PLC is set. */
-    template<typename In = Empty, typename Out = Empty>
+     *  order, and exposes each for a site subclass to build on.
+     *
+     *  @tparam Data the site's data struct - the values its tables address by
+     *  offset. The firmware owns one instance in RAM; on the simulator the
+     *  site's animator fills it, and control logic will write it directly once
+     *  the scan cycle lands. */
+    template<typename Data = Empty>
     class BotanikFirmware {
+
+        /** @brief The site's live data. Owned here so there is exactly one
+         *  instance and every table addresses the same bytes. */
+        Data                          _data;
 
         /** @name Configuration
          *  @{ */
@@ -169,13 +172,7 @@ namespace Botanik {
 
         Logs::Logger                   _logger;
         Scheduler::LoopScheduler       _scheduler;
-#if BOTANIK_FEATURE_PLC
-        PlcIO::PlcSyncHandler<In, Out> _plc_handler;
-        PlcIO::PlcLogReader            _plc_log_reader;
-        Params::PlcParamStore          _param_store;  ///< params live in the PLC payload
-#else
         Params::LocalParamStore        _param_store;  ///< params live in flash/a file
-#endif
         Params::ParamHandler           _params;       ///< the parameter model (over _param_store)
         Health::HealthMonitor          _health;
         SystemContext                  _sys_ctx;     ///< Filled in the ctor body
@@ -206,34 +203,17 @@ namespace Botanik {
          *  the caller-owned PLC region; @p site: the site's declarative tables +
          *  name (borrowed). Tunable scalars (baud, watchdog) default from Config;
          *  override via the set_*() modifiers before setup(). */
-        BotanikFirmware(PlcIO::PlcInput<In>*  shared_in,
-                        PlcIO::PlcOutput<Out>* shared_out,
-                        const SiteDescriptor& site)
+        explicit BotanikFirmware(const SiteDescriptor& site)
             : _site(site),
               _logger(),
               _scheduler(Config::TASK_PERIOD_MS, &_logger),
-#if BOTANIK_FEATURE_PLC
-              _plc_handler(shared_in, shared_out,
-                           &_scheduler.context()->timestamp_ms, &_logger),
-              _plc_log_reader(_plc_handler.context(), &_logger),
-              _param_store(_plc_handler.context()),
-#else
               // No PLC: params come from local storage.
               _param_store(&_logger),
-#endif
               _params(&_param_store, &_logger),
-#if BOTANIK_FEATURE_PLC
-              // Health owns the alarm model, which reads each site alarm's
-              // boolean from the PLC output payload directly (its offset).
-              _health(_site.alarms, _site.alarm_count, &_logger,
-                      _scheduler.context(), _plc_handler.context(),
-                      shared_in, shared_out, plc_output_data())
-#else
               // Health takes a null link context + null regions + an empty reader
               // (only local platform alarms fire; degrades to "kick while alive").
               _health(_site.alarms, _site.alarm_count, &_logger,
-                      _scheduler.context(), nullptr, nullptr, nullptr)
-#endif
+                      _scheduler.context(), &_data)
               , _sys_ctx()   // fields wired in the body, once addresses are known
 #if BOTANIK_FEATURE_MONITOR
               , _monitor(&_logger)
@@ -249,18 +229,15 @@ namespace Botanik {
                          &_health.model(), &_logger)
               // Base-owned pages, built from the descriptor + the live payload.
               , _home_page(_console.terminal(), _site.home_fields,
-                           _site.home_field_count, plc_output_data())
+                           _site.home_field_count, data())
               , _params_page(_console.terminal(), &_params)
               , _monitor_page(_console.terminal(), _site.status_groups,
-                              _site.status_group_count, plc_output_data())
+                              _site.status_group_count, data())
 #endif
         {
             // Wire the status aggregate now every subsystem address is fixed,
             // then hand a copy to the terminal (it holds SystemContext by value).
             _sys_ctx.scheduler = _scheduler.context();
-#if BOTANIK_FEATURE_PLC
-            _sys_ctx.plc = _plc_handler.context();
-#endif
 #if BOTANIK_FEATURE_NETWORK
             _sys_ctx.network = &_net.network();
 #endif
@@ -273,17 +250,8 @@ namespace Botanik {
 #if BOTANIK_FEATURE_CONSOLE
             _console.terminal().set_context(_sys_ctx);
 #endif
-#if !BOTANIK_FEATURE_PLC
-            (void)shared_in; (void)shared_out;   // unused without the PLC link
-#endif
         }
 
-#if !BOTANIK_FEATURE_PLC
-        /** @brief PLC-less convenience ctor: no shared region, so it omits the
-         *  region pointers and delegates to the main ctor with null. */
-        explicit BotanikFirmware(const SiteDescriptor& site)
-            : BotanikFirmware(nullptr, nullptr, site) {}
-#endif
 
         virtual ~BotanikFirmware() {}
 
@@ -329,7 +297,7 @@ namespace Botanik {
             // Let the `status` command render the site status-variable table.
             _console.shell().set_status_vars(_site.status_groups,
                                              _site.status_group_count,
-                                             plc_output_data());
+                                             data());
 #if BOTANIK_FEATURE_NTP
             // Let the `ntpsync` command force a resync on the live client.
             _console.shell().set_ntp(&_net.ntp());
@@ -402,10 +370,6 @@ namespace Botanik {
             _monitor.serial().receive();
 #endif
 
-#if BOTANIK_FEATURE_PLC
-            _plc_handler.step(now_ms);
-            _plc_log_reader.step(now_ms);
-#endif
             // Config backend: refresh the image from the fresh PLC snapshot (or,
             // PLC-less, load local storage on the first step) before the
             // config-driven Components (net/sun) read it below.
@@ -472,37 +436,16 @@ namespace Botanik {
 
         /** @} */
 
-#if BOTANIK_FEATURE_PLC
-        /** @name HAL region binding (hardware targets)
-         *  @{ */
-
-        /** @brief HAL's PLC region cast to the typed PlcInput/PlcOutput<>. The
-         *  one place the cast from HAL's opaque void* lives. On the simulator
-         *  HAL returns null (the sim binds its own mock region through the
-         *  explicit ctor). */
-        static PlcIO::PlcInput<In>* hal_input() {
-            return static_cast<PlcIO::PlcInput<In>*>(HAL::PlcIO::input());
-        }
-        static PlcIO::PlcOutput<Out>* hal_output() {
-            return static_cast<PlcIO::PlcOutput<Out>*>(HAL::PlcIO::output());
-        }
-
-        /** @} */
-#endif
 
         /** @name Component access (for the site subclass / harness)
          *  @{ */
 
         Logs::Logger&                   logger()          { return _logger; }
         Scheduler::LoopScheduler&       scheduler()       { return _scheduler; }
-#if BOTANIK_FEATURE_PLC
-        PlcIO::PlcSyncHandler<In, Out>& plc_handler()     { return _plc_handler; }
-        const Out*                      plc_output_data() { return _plc_handler.output_data(); }
-#else
-        /** @brief No PLC link: no shared payload, so null (readers
-         *  null-check). */
-        const Out*                      plc_output_data() { return nullptr; }
-#endif
+        /** @brief The site's live data struct: the single instance every
+         *  declarative table addresses by offset. */
+        const Data*                     data() const { return &_data; }
+        Data*                           data()       { return &_data; }
 #if BOTANIK_FEATURE_NETWORK
         Network::NetworkHandler&        network()         { return _net.network(); }
         Network::NameResolver&          resolver()        { return _net.resolver(); }
@@ -552,7 +495,7 @@ namespace Botanik {
          *  descriptor's commands, reading the live PLC payload as their ctx. */
         virtual void register_commands() {
             _console.shell().set_commands(_site.commands, _site.command_count,
-                                          (void*)plc_output_data());
+                                          (void*)data());
         }
 #endif
 
@@ -563,7 +506,7 @@ namespace Botanik {
         virtual void register_telemetry() {
             telemetry().set_site_scalar_groups(_site.status_groups,
                                                _site.status_group_count,
-                                               plc_output_data());
+                                               data());
         }
 #endif
 

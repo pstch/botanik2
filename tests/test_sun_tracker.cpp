@@ -11,7 +11,7 @@
 
 #include "doctest.h"
 
-#include "plc_params_fixture.h"
+#include "params_fixture.h"
 #include "libbotanik/sun/sun_tracker.h"
 #include "libbotanik/hal/platform.h"
 
@@ -27,7 +27,7 @@ namespace {
 }
 
 TEST_CASE("SunPositionTracker: computes elevation from geo config") {
-    botanik_test::PlcConfigFixture fx;
+    botanik_test::ParamFixture fx;
     const int32_t LAT = 488566000;   // Paris 48.8566 N
     const int32_t LON =  23522000;   //       2.3522 E
     fx.conf().geo_serial       = 1;
@@ -47,7 +47,7 @@ TEST_CASE("SunPositionTracker: computes elevation from geo config") {
 }
 
 TEST_CASE("SunPositionTracker: exposes peak, ratio and rising from the same sample") {
-    botanik_test::PlcConfigFixture fx;
+    botanik_test::ParamFixture fx;
     const int32_t LAT = 488566000;   // Paris 48.8566 N
     const int32_t LON =  23522000;   //       2.3522 E
     fx.conf().geo_serial       = 1;
@@ -71,7 +71,7 @@ TEST_CASE("SunPositionTracker: exposes peak, ratio and rising from the same samp
 }
 
 TEST_CASE("SunPositionTracker: throttles recomputation between cadence ticks") {
-    botanik_test::PlcConfigFixture fx;
+    botanik_test::ParamFixture fx;
     const int32_t LAT = 488566000;   // Paris
     const int32_t LON =  23522000;
     fx.conf().geo_serial       = 1;
@@ -97,7 +97,7 @@ TEST_CASE("SunPositionTracker: throttles recomputation between cadence ticks") {
 }
 
 TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial changes") {
-    botanik_test::PlcConfigFixture fx;
+    botanik_test::ParamFixture fx;
     fx.conf().geo_serial = 1;
     fx.conf().geo_latitude  = 48.8566f;   // Paris
     fx.conf().geo_longitude =  2.3522f;
@@ -123,7 +123,7 @@ TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial cha
 }
 
 TEST_CASE("SunPositionTracker: stays idle with no geo config") {
-    botanik_test::PlcConfigFixture fx;          // conf all zero -> geo.serial 0
+    botanik_test::ParamFixture fx;          // conf all zero -> geo.serial 0
     SunPositionTracker sun(&fx.cfg);
     sun.step(HAL::Clock::uptime_ms());
     CHECK_FALSE(sun.ready());

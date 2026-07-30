@@ -172,7 +172,7 @@ message(STATUS "Site: ${_site_dir}")
 # the header; pass -DBOTANIK_FEATURE_<X>=ON/OFF to override. We forward only the
 # flags explicitly set on the command line, as a PUBLIC define on `botanik` so
 # the whole build agrees (same ABI discipline as BOTANIK_SITE_CONFIG above).
-foreach(_feat PLC NETWORK NTP MQTT CONSOLE MONITOR SUN)
+foreach(_feat NETWORK NTP MQTT CONSOLE MONITOR SUN)
     if(DEFINED BOTANIK_FEATURE_${_feat})
         if(BOTANIK_FEATURE_${_feat})
             set(_feat_val 1)
@@ -226,7 +226,6 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     file(GLOB BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS "${_site_dir}/*.cpp")
     add_executable(botanik_sim
         "src/botanik_sim/main.cpp"
-        "src/botanik_sim/emulator.cpp"
         ${BOTANIK_SITE_SOURCES})
     target_link_libraries(botanik_sim botanik)
 

@@ -17,8 +17,8 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "libbotanik/plcio/sync.h"
-#include "libbotanik/params/store_plc.h"
+#include "libbotanik/params/params.h"
+#include "libbotanik/params/store.h"
 
 namespace botanik_test {
 
@@ -66,42 +66,32 @@ namespace botanik_test {
         *count = (uint8_t)(sizeof(params) / sizeof(params[0]));
         return params;
     }
-#undef FX_OFF
 
-    struct PlcConfigFixture {
-        struct In  { FixtureConfig config; };
-        struct Out { FixtureConfig config; };
+    /** @brief An in-memory ParamStore over FixtureConfig.
+     *
+     * Replaces the old PLC-backed fixture: there is no shared region to publish
+     * through any more, so a test sets fields on conf() and they are live at
+     * once. publish() is kept as a no-op so the existing tests read unchanged.
+     */
+    struct ParamFixture : Botanik::Params::ParamStore {
+        FixtureConfig               img{};
+        Botanik::Params::ParamHandler cfg{this, nullptr};
 
-        Botanik::PlcIO::PlcInput<In>            in{};
-        Botanik::PlcIO::PlcOutput<Out>          out{};
-        uint32_t                                ts = 0;
-        Botanik::PlcIO::PlcSyncHandler<In, Out> handler{&in, &out, &ts, nullptr};
-        /** @brief A PLC-backed store + the generic handler over it, mirroring how
-         *  BotanikFirmware wires the pair (core/firmware.h). */
-        Botanik::Params::PlcParamStore          store{handler.context()};
-        Botanik::Params::ParamHandler           cfg{&store, nullptr};
-
-        PlcConfigFixture() {
+        ParamFixture() {
             uint8_t n = 0;
             const Botanik::Params::Param* p = fixture_params(&n);
             cfg.set_site_params(p, n);
         }
+        const void* image() const override { return &img; }
+        bool set(const Botanik::Params::Param&, const char*) override { return false; }
 
-        /** @brief The config the mock PLC publishes. Set fields, then publish(). */
-        FixtureConfig& conf() { return out.data.config; }
-
-        /** @brief Push the current conf into the handler's RX snapshot via one
-         *  PLC->host transaction: bump the PLC sequence, then run the RX machine
-         *  through IDLE -> READ (copies the payload) -> ACK. */
-        void publish() {
-            out.sync.txSeqNum += 1;               // signal a fresh PLC message
-            for (int i = 0; i < 4; ++i) handler.step(0);   // now_ms unused by the PLC handler
-        }
-
-        /** @brief The populated context to hand a component under test. */
-        Botanik::PlcIO::PlcSyncContext* ctx() { return handler.context(); }
+        /** @brief The config under test; edits take effect immediately. */
+        FixtureConfig& conf() { return img; }
+        /** @brief No-op: kept so tests written against the PLC fixture still read
+         *  naturally. */
+        void publish() {}
     };
 
 }  // namespace botanik_test
 
-#endif // TESTS_PLC_PARAMS_FIXTURE_H
+#endif // PARAMS_FIXTURE_H

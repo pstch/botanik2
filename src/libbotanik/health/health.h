@@ -29,7 +29,6 @@
 #include "../alarms/publisher.h"
 #include "../logs/logger.h"
 #include "../scheduler/scheduler.h"
-#include "../plcio/sync.h"
 #include "../utils/text.h"
 
 namespace Botanik { namespace Health {
@@ -45,7 +44,6 @@ namespace Botanik { namespace Health {
         /** perf metrics (may be null) */
         const Scheduler::SchedulerContext* _sched;
         /** PLC link status + live torn count (may be null) */
-        PlcIO::PlcSyncContext*             _plc;
         /** PLC shared region (for POST) */
         const void*                        _in_region;
         const void*                        _out_region;
@@ -74,16 +72,13 @@ namespace Botanik { namespace Health {
         HealthMonitor(const Alarms::AlarmCondition* table, uint8_t count,
                       Logs::Logger* logger,
                       const Scheduler::SchedulerContext* sched,
-                      PlcIO::PlcSyncContext* plc,
-                      const void* in_region, const void* out_region,
                       const void* alarm_base = nullptr)
             : Component(logger, "HealthMonitor"),
               _notifier(Config::MQTT_TOPIC_PREFIX),
               _model(table, count, logger,
                      Alarms::PLATFORM_ALARMS, Alarms::PLATFORM_ALARM_COUNT,
                      alarm_base),
-              _sched(sched), _plc(plc),
-              _in_region(in_region), _out_region(out_region) {
+              _sched(sched) {
             _model.add_notifier(&_notifier);   // the built-in MQTT sink
         }
 
@@ -121,13 +116,6 @@ namespace Botanik { namespace Health {
          *  through the stored pointer (null-safe). @p now is uptime in ms. */
         void on_step(uint64_t now) override {
             _assert_platform_alarms(now);
-#if BOTANIK_FEATURE_PLC
-            // A rising cross-core torn-read count raises RX_TORN: should never
-            // fire (the handshake upholds mutual exclusion), so it is a loud
-            // latched diagnostic.
-            uint32_t rx_torn = _plc ? _plc->torn_count() : 0;
-            _held_event("RX_TORN", rx_torn, _rx_torn_last, _rx_torn_until_ms, now);
-#endif
             _update_watchdog(now);
             // The model reads each site alarm's boolean from the payload itself.
             _model.step(now);
@@ -149,15 +137,6 @@ namespace Botanik { namespace Health {
                 if (_model.index_of(code) < 0) {
                     ok = false; _post_fail("alarm code missing", code);
                 }
-#if BOTANIK_FEATURE_PLC
-            // The PLC shared region must be present and 32-byte aligned (DMA).
-            if (_in_region == nullptr || _out_region == nullptr) {
-                ok = false; _post_fail("PLC region null", "");
-            } else if (((uintptr_t)_in_region % 32u) != 0 ||
-                       ((uintptr_t)_out_region % 32u) != 0) {
-                ok = false; _post_fail("PLC region misaligned", "");
-            }
-#endif
             // A logger with no writers would silently swallow everything.
             if (_logger == nullptr || !_logger->has_writers()) ok = false;
             _post_ok = ok;
@@ -211,22 +190,12 @@ namespace Botanik { namespace Health {
             _model.set_local(code, now < until_ms);
         }
 
-        /** @brief Timed-escalation watchdog verdict: keep kicking while healthy
-         *  and through a transient PLC fault; withhold (log the reboot once)
-         *  only once a fault persists past PLC_FAULT_GRACE_MS. */
-        void _update_watchdog(uint64_t now) {
-            if (_plc == nullptr || !_plc->faulted()) {
-                _fault_since_ms = 0;
-                _watchdog_ok    = true;
-                return;
-            }
-            if (_fault_since_ms == 0) _fault_since_ms = now;   // fault edge
-            bool within_grace =
-                (now - _fault_since_ms) <= Config::PLC_FAULT_GRACE_MS;
-            if (_watchdog_ok && !within_grace && _logger)   // kicking->withhold
-                _logger->critical(Logs::PLC_IO,
-                    "PLC fault persisted, withholding watchdog kick (reboot imminent)");
-            _watchdog_ok = within_grace;
+        /** @brief Watchdog verdict. The timed escalation existed to reboot both
+         *  cores when the PLC link stayed faulted; with no link to lose, we kick
+         *  while the loop is alive. Control-side fault escalation belongs to the
+         *  scan cycle, not here. */
+        void _update_watchdog(uint64_t /*now*/) {
+            _watchdog_ok = true;
         }
     };
 

@@ -245,12 +245,7 @@ namespace Botanik { namespace Pages {
             // Cold fields only: the uptime counter is hot (see draw_hot()).
             // Bounded to the left column (not clear-to-EOL) so the right home-field
             // column at rows 7..8 survives.
-#if BOTANIK_FEATURE_PLC
-            const SystemContext& ctx = _console.context();
-            _cell(7, 7, L_VAL, ctx.plc ? plc_str(ctx.plc->status()) : "n/a", L_W);
-#else
             _cell(7, 7, L_VAL, "n/a", L_W);
-#endif
             // Site home-field values (formatted off the live payload + unit).
             if (_base == nullptr) return;
             for (uint8_t i = 0; i < _field_count; i++) {

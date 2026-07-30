@@ -23,12 +23,6 @@
 #include <cmath>    // pow
 #include <random>
 
-// Src-rooted on purpose, unlike every other include in this site. The emulator
-// lives in the simulator harness, not the library, so it is only ever compiled by
-// our CMake build - which puts the library's src/ on the include path. This
-// include sits inside the TARGET_SIMULATOR guard, so a vendored sketch build
-// never reaches it and never needs the harness present.
-#include "botanik_sim/emulator.h"       // PlcEmulator + start_emulator_thread
 
 #include "botanik.h"
 
@@ -84,8 +78,7 @@ inline uint64_t abit(const char* code) {
  * Called from the emulator thread (~1 Hz); static state lets values settle and
  * only drift now and then. @p now_ms is the uptime in milliseconds.
  */
-inline void fill_output(PlcOutputData_t* o, const PlcInputData_t* in,
-                                   uint32_t now_ms) {
+inline void fill_output(PlcOutputData_t* o, uint32_t now_ms) {
     // seconds - drives irrigation walk
     const float t = (float)now_ms / 1000.0f;
 
@@ -264,72 +257,24 @@ inline void fill_output(PlcOutputData_t* o, const PlcInputData_t* in,
         set_host(cfg.mqtt_broker, "broker.local");
         cfg.geo = 1; cfg.geo_latitude = 48.8566f; cfg.geo_longitude = 2.3522f;  // Paris
     }
-    // Adopt each group the host committed (its serial advanced and is non-zero):
-    // take the staged fields as-is (the params page is responsible for a coherent
-    // group), then the new serial the Components watch.
-    if (in != nullptr) {
-        const GreenhouseConfig_t& ic = in->config;
-        if (ic.net && ic.net != cfg.net) {
-            cfg.net_dhcp = ic.net_dhcp;
-            set_host(cfg.net_ip, ic.net_ip);         set_host(cfg.net_netmask, ic.net_netmask);
-            set_host(cfg.net_gateway, ic.net_gateway);
-            set_host(cfg.net_dns1, ic.net_dns1);     set_host(cfg.net_dns2, ic.net_dns2);
-            cfg.net = ic.net;
-        }
-        if (ic.ntp && ic.ntp != cfg.ntp) {
-            cfg.ntp_enabled = ic.ntp_enabled; cfg.ntp_poll_s = ic.ntp_poll_s;
-            set_host(cfg.ntp_server1, ic.ntp_server1); set_host(cfg.ntp_server2, ic.ntp_server2);
-            cfg.ntp = ic.ntp;
-        }
-        if (ic.mqtt && ic.mqtt != cfg.mqtt) {
-            cfg.mqtt_enabled = ic.mqtt_enabled; cfg.mqtt_port = ic.mqtt_port;
-            cfg.mqtt_keepalive_s = ic.mqtt_keepalive_s;
-            set_host(cfg.mqtt_broker, ic.mqtt_broker);
-            cfg.mqtt = ic.mqtt;
-        }
-        if (ic.geo && ic.geo != cfg.geo) {
-            cfg.geo_latitude = ic.geo_latitude; cfg.geo_longitude = ic.geo_longitude;
-            cfg.geo = ic.geo;
-        }
-    }
     o->config = cfg;
 }
 
 // ---------------------------------------------------------------------------
-// The site's mock PLC instance
+// The simulated field
 // ---------------------------------------------------------------------------
 
 /**
- * @brief The mock PLC coprocessor for this site: it owns the shared region and
- * animates it with fill_output() above.
+ * @brief Drive one beat of the simulated greenhouse.
  *
- * The site owns this, not the harness, so the emulator is instantiated against
- * THIS site's generated payload types - the simulator therefore runs the real
- * generated code, with the same struct layout and table offsets the hardware
- * uses. On OPTA the M4 coprocessor plays this role and none of this compiles.
- *
- * The harness allocates one of these (as a static - the region is large and must
- * outlive the firmware), hands the two region pointers to the firmware, and
- * calls start() at the right point in its own bring-up order: after setup(), and
- * before it locks process memory (mlockall(MCL_FUTURE) would otherwise trip
- * RLIMIT_MEMLOCK on the new thread's stack).
+ * What the mock PLC coprocessor used to do from its own thread, now called
+ * straight from the sim harness: there is no shared memory and no second core
+ * to emulate, just this site's data struct being filled in place. Control logic
+ * will write the same struct once the scan cycle lands.
  */
-class MockPlc {
-    Botanik::PlcIO::PlcInput<PlcInputData_t>   _in  {};
-    Botanik::PlcIO::PlcOutput<PlcOutputData_t> _out {};
-
-public:
-    /** @brief Host -> PLC region (the firmware writes, the mock reads). */
-    Botanik::PlcIO::PlcInput<PlcInputData_t>*   input()  { return &_in; }
-    /** @brief PLC -> host region (the mock writes, the firmware reads). */
-    Botanik::PlcIO::PlcOutput<PlcOutputData_t>* output() { return &_out; }
-
-    /** @brief Spawn the emulator thread driving the shared-memory protocol from
-     *  the PLC's side, animating the payload through fill_output(). */
-    void start(Botanik::Logs::Logger* logger) {
-        Botanik::PlcIO::start_emulator_thread(&_in, &_out, &fill_output, logger);
-    }
-};
+inline void simulate(PlcOutputData_t* data, uint32_t now_ms) {
+    fill_output(data, now_ms);
+}
 
 }  // namespace Site
 

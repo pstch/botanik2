@@ -13,11 +13,6 @@
 // Features flags
 // ===========================================================================
 
-/** @brief PLC coprocessor link. */
-#ifndef BOTANIK_FEATURE_PLC
-#  define BOTANIK_FEATURE_PLC 1
-#endif
-
 /** @brief Network stack (NetworkHandler / NameResolver). */
 #ifndef BOTANIK_FEATURE_NETWORK
 #  define BOTANIK_FEATURE_NETWORK 0
@@ -58,9 +53,6 @@
 #endif
 #if BOTANIK_FEATURE_MQTT && !BOTANIK_FEATURE_NETWORK
 #  error "BOTANIK_FEATURE_MQTT requires BOTANIK_FEATURE_NETWORK"
-#endif
-#if BOTANIK_FEATURE_NETWORK && !BOTANIK_FEATURE_PLC
-#  error "BOTANIK_FEATURE_NETWORK requires BOTANIK_FEATURE_PLC (network config comes from the PLC block; no config.h fallback yet)"
 #endif
 
 #endif // LIBBOTANIK_FEATURES_H

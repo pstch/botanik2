@@ -15,7 +15,7 @@
 
 #include "doctest.h"
 
-#include "plc_params_fixture.h"
+#include "params_fixture.h"
 #include "recording_writer.h"
 #include "libbotanik/network/network.h"
 #include "libbotanik/network/ntp.h"
@@ -31,7 +31,7 @@ namespace {
 }
 
 TEST_CASE("NetworkHandler: sim path comes up on net config and idles when it is cleared") {
-    botanik_test::PlcConfigFixture fx;
+    botanik_test::ParamFixture fx;
     NameResolver resolver;
     NetworkHandler net(&fx.cfg, nullptr, &resolver);
     CHECK_FALSE(net.is_up());
@@ -52,7 +52,7 @@ TEST_CASE("NetworkHandler: sim path comes up on net config and idles when it is 
 }
 
 TEST_CASE("MqttClient: never reports connected to a dead broker, publish gated on connection") {
-    botanik_test::PlcConfigFixture fx;
+    botanik_test::ParamFixture fx;
     NameResolver resolver;
     NetworkHandler net(&fx.cfg, nullptr, &resolver);
     MqttClient mqtt(&fx.cfg, nullptr, &resolver, &net);
@@ -76,7 +76,7 @@ TEST_CASE("MqttClient: never reports connected to a dead broker, publish gated o
 }
 
 TEST_CASE("NtpClient: stepped as a Component (announces once), query is non-blocking") {
-    botanik_test::PlcConfigFixture fx;
+    botanik_test::ParamFixture fx;
     NameResolver resolver;
     NetworkHandler net(&fx.cfg, nullptr, &resolver);
     RecordingWriter w;

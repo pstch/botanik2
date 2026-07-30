@@ -31,7 +31,6 @@
 #include "../console/console.h"
 #include "../console/terminal.h"
 #include "../console/field.h"
-#include "../plcio/sync.h"
 
 namespace Botanik { namespace Pages {
 
@@ -216,15 +215,6 @@ namespace Botanik { namespace Pages {
             }
         }
 
-        /** @brief Map a PLC link status to a short display string. */
-        static const char* plc_str(PlcIO::PlcStatus s) {
-            switch (s) {
-                case PlcIO::PLC_RUNNING: return "RUNNING";
-                case PlcIO::PLC_TIMEOUT: return "TIMEOUT";
-                case PlcIO::PLC_FAULT:   return "FAULT";
-                default:                 return "UNKNOWN";
-            }
-        }
 
         /** @brief Format a ms uptime as "DDDDd HH:MM:SS" (fixed-width fields,
          *  so each subfield keeps a stable column for per-subfield

@@ -9,7 +9,6 @@
 #include <cstring>
 
 #include "../hal/platform.h"
-#include "../plcio/sync.h"
 #include "../scheduler/scheduler.h"
 #include "../utils/text.h"
 
@@ -65,21 +64,6 @@ namespace Botanik { namespace Network {
             Utils::format_uint(buf, cap, (unsigned long)s->scheduler->stack_bytes_free);
             return true;
         }
-        bool fmt_plc(char* buf, size_t cap, void* ctx) {
-            const SystemContext* s = static_cast<const SystemContext*>(ctx);
-            if (s->plc == nullptr) return false;
-            const char* str;
-            size_t len;   // bytes to copy, NUL included (sizeof the literal)
-            switch (s->plc->status()) {
-                case PlcIO::PLC_RUNNING: str = "running"; len = sizeof("running"); break;
-                case PlcIO::PLC_TIMEOUT: str = "timeout"; len = sizeof("timeout"); break;
-                case PlcIO::PLC_FAULT:   str = "fault";   len = sizeof("fault");   break;
-                default:                 str = "unknown"; len = sizeof("unknown"); break;
-            }
-            if (len > cap) len = cap;
-            memcpy(buf, str, len);
-            return true;
-        }
     }  // namespace
 
     const TelemetryField* MqttSender::_base_fields(size_t& count) {
@@ -92,7 +76,6 @@ namespace Botanik { namespace Network {
             { "overruns",      &fmt_overruns   },
             { "stack",         &fmt_stack      },
             { "stack_free_b",  &fmt_stack_free },
-            { "plc",           &fmt_plc        },
         };
         count = sizeof(TABLE) / sizeof(TABLE[0]);
         return TABLE;

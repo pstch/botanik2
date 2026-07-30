@@ -22,8 +22,6 @@
 namespace Botanik { namespace detail {
 
     // empty payload (library log fields only)
-    struct ProbePlcIn  {};
-    struct ProbePlcOut { uint32_t _w[15]; }; // 60 B, 4-aligned
 
 // Per-target footprint, keyed off TARGET_SIMULATOR (the hardware macro is
 // confined to the HAL, so invert: absent simulator = OPTA-class/ARM build).
@@ -33,12 +31,7 @@ namespace Botanik { namespace detail {
 #  define BOTANIK_SIZE(host_, opta_) (host_)
 #endif
 
-    // PLC shared memory + sync state machines
     static_assert(sizeof(Logs::LogEntry)                                == BOTANIK_SIZE(  268,   268), "Logs::LogEntry footprint changed");
-    static_assert(sizeof(PlcIO::PlcOutputLogs_t)                           == BOTANIK_SIZE( 8580,  8580), "PlcOutputLogs_t footprint changed");
-    static_assert(sizeof(PlcIO::PlcOutput<ProbePlcOut>)                    == BOTANIK_SIZE( 8672,  8672), "PlcOutput footprint changed");
-    static_assert(sizeof(PlcIO::PlcSyncContext)                            == BOTANIK_SIZE( 8696,  8652), "PlcSyncContext footprint changed");
-    static_assert(sizeof(PlcIO::PlcSyncHandler<ProbePlcIn, ProbePlcOut>)   == BOTANIK_SIZE( 8840,  8760), "PlcSyncHandler footprint changed");
     // PlcEmulator{,Context} pins live with the emulator in botanik_sim/emulator.cpp.
 
     // Logging
@@ -55,7 +48,6 @@ namespace Botanik { namespace detail {
     static_assert(sizeof(Pages::ShellPage)                                 == BOTANIK_SIZE(19968, 19868), "ShellPage footprint changed");
     static_assert(sizeof(Pages::LogsPage)                                  == BOTANIK_SIZE(25432, 25400), "LogsPage footprint changed");
     static_assert(sizeof(Pages::HomePage)                                  == BOTANIK_SIZE(11560, 11512), "HomePage footprint changed");
-    static_assert(sizeof(Pages::StatusPage<ProbePlcOut>)                   == BOTANIK_SIZE( 1104,  1080), "StatusPage footprint changed");
     static_assert(sizeof(Pages::ShellScrollback)                           == BOTANIK_SIZE( 8272,  8272), "ShellScrollback footprint changed");
     static_assert(sizeof(Pages::LogsScrollback)                            == BOTANIK_SIZE(16528, 16528), "LogsScrollback footprint changed");
     static_assert(sizeof(Pages::HomeScrollback)                            == BOTANIK_SIZE( 1564,  1564), "HomeScrollback footprint changed");

@@ -72,8 +72,16 @@ namespace Botanik { namespace Params {
                         p.field.name, (unsigned)sizeof(_image));
                 return;
             }
-            HAL::Storage::get(p.field.name, _image + p.field.out_offset,
-                              param_width(p), nullptr);
+            // Missing key -> the parameter's declared default, NOT zero. With
+            // the PLC gone this store is the only source of parameters, so a
+            // first boot on empty storage would otherwise bring the firmware up
+            // with a zeroed network/NTP/MQTT config and no way to tell that
+            // apart from a deliberate 0.
+            if (!HAL::Storage::get(p.field.name, _image + p.field.out_offset,
+                                   param_width(p), nullptr)) {
+                if (p.meta.def != nullptr && p.meta.def[0] != '\0')
+                    write_value(p, p.meta.def, _image, p.field.out_offset);
+            }
         }
     };
 

@@ -3,10 +3,8 @@
  * @file main.cpp
  * @brief Botanik simulator entry point - a thin harness around a site firmware.
  *
- * Selects the site, owns the PLC shared region as local statics (on OPTA it
- * comes from HAL::PlcIO::input()/get_plc_output()), applies the sim-only
- * timing dilation, and drives loop(). The mock PLC coprocessor is the site's
- * emulator (sim.h).
+ * Selects the site, applies the sim-only timing dilation, drives loop(), and
+ * animates the site's data struct through its simulated field (sim.h).
  */
 
 #include "libbotanik.h"
@@ -17,8 +15,6 @@
 #include "libbotanik_site.h"
 #include BOTANIK_SITE_HEADER
 
-// generic PLC emulator engine (host stand-in for the OPTA coprocessor)
-#include "botanik_sim/emulator.h"
 
 #if BOTANIK_FEATURE_NETWORK
 // in-process mock NTP/MQTT responder (loopback)
@@ -98,34 +94,9 @@ int main(int argc, char** argv) {
     // console consumer disconnects while we're emitting fast (high dilation).
     std::signal(SIGPIPE, SIG_IGN);                // NOLINT(bugprone-signal-handler)
 
-#if BOTANIK_FEATURE_PLC
-    // The site's own mock PLC coprocessor: it owns the shared region and the
-    // emulator, instantiated against the site's generated payload types, so the
-    // simulation runs the real generated code. Static because the region is large
-    // and must outlive the firmware. On OPTA the region comes from
-    // HAL::PlcIO::input()/output() and the M4 coprocessor plays this role.
-    //
-    // Config parameters (network/NTP/MQTT/geo) are ordinary fields of the site
-    // payload; the mock's fill_output() seeds and reflects them, which is the
-    // coprocessor's job on hardware.
-    static Site::MockPlc mock_plc;
-
-    BotanikSite greenhouse(mock_plc.input(), mock_plc.output());
-    greenhouse.set_console_baud(CONSOLE_BAUD);
-
-    // Sim-only timing dilation: grow the PLC link + HW-watchdog timeouts by the
-    // time-scale factor so jitter under a high BOTANIK_TIME_SCALE can't
-    // false-trip them.
-    greenhouse.plc_handler().set_heartbeat_ms(plc_dilated_timeout(Config::PLC_HEARTBEAT_MS));
-    greenhouse.plc_handler().set_timeout_ms  (plc_dilated_timeout(Config::PLC_TIMEOUT_MS));
-    greenhouse.plc_handler().set_watchdog_ms (plc_dilated_timeout(Config::PLC_WATCHDOG_MS));
-    greenhouse.set_hw_watchdog_ms(plc_dilated_timeout(Config::HW_WATCHDOG_MS));
-#else
-    // No PLC: a single-core firmware with no shared region or mock coprocessor.
     BotanikSite greenhouse;
     greenhouse.set_console_baud(CONSOLE_BAUD);
     greenhouse.set_hw_watchdog_ms(plc_dilated_timeout(Config::HW_WATCHDOG_MS));
-#endif
 
     greenhouse.setup();
 
@@ -135,29 +106,20 @@ int main(int argc, char** argv) {
     Network::start_mock_netd(&greenhouse.logger());
 #endif
 
-#if BOTANIK_FEATURE_PLC
-    // Start the site's mock coprocessor: spawns the emulator thread animating
-    // the payload. Spawn before locking memory: lock_process_memory() arms
-    // mlockall(MCL_FUTURE), which locks every later mmap including a new thread's
-    // stack, so spawning afterwards trips RLIMIT_MEMLOCK with EAGAIN (silently,
-    // in lean RELEASE builds). Must run after setup()'s allocations.
-    mock_plc.start(&greenhouse.logger());
-    // Lock memory (once), then make the main loop realtime on its own core -
-    // separate from the emulator's, mirroring the OPTA's two cores.
-    Scheduler::lock_process_memory(&greenhouse.logger());
-    Scheduler::make_thread_realtime(Config::SIM_MAIN_CPU_CORE,
-                                    &greenhouse.logger());
-#endif
 
     // Drive the firmware until a shutdown signal flips the run flag. SIGUSR1
     // (sent by a build after relinking) re-execs at this safe point between
     // iterations.
     while (botanik_running) {
+        // The simulated field, in place of the mock coprocessor that used to
+        // animate a shared region from its own thread: fill the firmware's data
+        // struct, then run the beat that reads it.
+        Site::simulate(greenhouse.data(), (uint32_t)HAL::Clock::uptime_ms());
         greenhouse.loop();
         if (botanik_reexec) HAL::System::reset();
     }
 
-    // HAL::System::shutdown() runs the reset hook (joins the emulator thread) and
+    // HAL::System::shutdown() runs the reset hook and
     // restores the console. Report 128 + signo for the supervisor.
     HAL::System::shutdown(128 + (int)botanik_shutdown_signo);
     return 0;

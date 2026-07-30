@@ -17,7 +17,6 @@
 #include "../network/network.h"
 #include "../network/ntp.h"
 #include "../core/scalar.h"
-#include "../plcio/sync.h"
 #include "../scheduler/scheduler.h"
 #include "shell.h"
 #include "../utils/text.h"
@@ -379,59 +378,7 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_cmd_plc(const char*, uint16_t) {
-#if !BOTANIK_FEATURE_PLC
         _println("plc: PLC link disabled");
-    }
-#else
-        const PlcIO::PlcSyncContext* p = _console.context().plc;
-        if (p == nullptr) { _println("plc: no PLC context"); return; }
-        const char* s;
-        switch (p->status()) {
-            case PlcIO::PLC_RUNNING: s = "running";        break;
-            case PlcIO::PLC_TIMEOUT: s = "TIMEOUT";        break;
-            case PlcIO::PLC_FAULT:   s = "FAULT";          break;
-            default:                 s = "no contact yet"; break;
-        }
-        // Dotted-leader "label .... : value" lines. The 22-char labels are
-        // exact (no %-22s pad); narrower than `stats` so each region line fits
-        // 80 cols.
-        char val[80], sz[16];
-
-        // Link state, last-ack age, torn-read count.
-        if (p->ever_acked())
-            snprintf(val, sizeof(val), "%s  (ack %lu ms ago, %lu torn)",
-                     s, (unsigned long)p->last_ack_age_ms(),
-                     (unsigned long)p->torn_count());
-        else
-            snprintf(val, sizeof(val), "%s  (%lu torn)", s, (unsigned long)p->torn_count());
-        _line("PLC link .............", val);
-
-        // Shared-memory regions: address + size. Fixed-width numbers so columns
-        // never shift.
-        snprintf(val, sizeof(val), "%p  %6s",
-                 p->in_region(), Utils::format_size(sz, sizeof(sz), p->in_size()));
-        _line("Shared mem IN ........", val);
-        snprintf(val, sizeof(val), "%p  %6s",
-                 p->out_region(), Utils::format_size(sz, sizeof(sz), p->out_size()));
-        _line("Shared mem OUT .......", val);
-
-        // Handshake counters grouped by direction: a direction's seq and its
-        // ack together. The seq and its ack live in opposite regions (the
-        // sender bumps the seq in one region, the receiver the ack in the
-        // other), so each line pairs across the two.
-        snprintf(val, sizeof(val), "seq %5lu, ack %5lu",
-                 (unsigned long)p->out_tx_seq(), (unsigned long)p->in_tx_ack());
-        _line("TX seq/ack ...........", val);
-        snprintf(val, sizeof(val), "seq %5lu, ack %5lu",
-                 (unsigned long)p->in_rx_seq(), (unsigned long)p->out_rx_ack());
-        _line("RX seq/ack ...........", val);
-
-        // Log ring cursors framed as seq/ack: PLC write pos vs our read pos.
-        snprintf(val, sizeof(val), "seq %5lu, ack %5lu",
-                 (unsigned long)p->output_logs()->writeIndex,
-                 (unsigned long)p->input_logs()->readIndex);
-        _line("Logs from PLC ........", val);
-#endif  // BOTANIK_FEATURE_PLC
     }
 
     void CommandShell::_cmd_net(const char*, uint16_t) {

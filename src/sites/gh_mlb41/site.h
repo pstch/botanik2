@@ -20,8 +20,8 @@
  *
  * Every site exposes the same surface, so a harness never names the site:
  *   - `BotanikSite`           the firmware type to instantiate
- *   - `PlcInput/OutputData_t` the PLC payload (from payload.h)
- *   - `Site::MockPlc`         the simulator's mock coprocessor (sim.h)
+ *   - `PlcOutputData_t`       the site data struct (from payload.h)
+ *   - `Site::simulate()`      the simulated field (sim.h)
  *   - `plc_dilated_timeout()` sim-only timeout dilation (sim.h)
  *
  * A target selects a site by directory (-DBOTANIK_SITE_DIR, or -DBOTANIK_SITE
@@ -48,21 +48,12 @@
  * Pages::StatusPage) would override the base's on_step() / register_pages()
  * here. See libbotanik/core/firmware.h for the extension model.
  */
-class GreenhouseMLB41 final : public Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t> {
+class GreenhouseMLB41 final : public Botanik::BotanikFirmware<PlcOutputData_t> {
 public:
-    /** @brief Simulator / explicit-region ctor: hand the base the caller-owned
-     *  PLC region and this site's descriptor. */
-    GreenhouseMLB41(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,
-                    Botanik::PlcIO::PlcOutput<PlcOutputData_t>* shared_out)
-        : Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t>(
-              shared_in, shared_out, Site::g_site)
-    {}
-
-    /** @brief Hardware convenience: bind to the coprocessor's PLC region (via
-     *  HAL), so the OPTA sketch is just `BotanikSite fw;` (no region casts). The
-     *  simulator uses the explicit region constructor above. */
+    /** @brief Hand the base this site's descriptor; the base owns the data
+     *  struct the tables address. */
     GreenhouseMLB41()
-        : GreenhouseMLB41(hal_input(), hal_output())
+        : Botanik::BotanikFirmware<PlcOutputData_t>(Site::g_site)
     {}
 };
 

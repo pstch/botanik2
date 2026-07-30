@@ -25,8 +25,6 @@
 // simulator actually builds (see botanik_sim/main.cpp).
 using HomePage_t   = Botanik::Pages::HomePage;
 using StatusPage_t = Botanik::Pages::StatusPage<PlcOutputData_t>;
-using PlcInput_t   = Botanik::PlcIO::PlcInput<PlcInputData_t>;
-using PlcOutput_t  = Botanik::PlcIO::PlcOutput<PlcOutputData_t>;
 
 // Report a type's size and guard it against runaway growth. The budget is a
 // loose ceiling — bump it deliberately if a structure legitimately needs it.
@@ -58,21 +56,8 @@ TEST_CASE("sizeof: pages") {
     REPORT_SIZE(Botanik::Pages::ShellPage, 65536);
 }
 
-TEST_CASE("sizeof: PLC shared-memory payloads") {
-    REPORT_SIZE(PlcInput_t,   1024);
-    REPORT_SIZE(PlcOutput_t, 16384);
-    // The combined structs are alignas(32) so the host can clean/invalidate the
-    // D-cache per region (see plcio/vars.h): each is 32-byte aligned and its size
-    // is the sum of its parts rounded up to a 32-byte multiple (the members are
-    // all 4-aligned and consecutive, so the only padding is that rounding).
-    CHECK(alignof(PlcOutput_t) == 32);
-    CHECK(alignof(PlcInput_t)  == 32);
-    const size_t out_parts = sizeof(Botanik::PlcIO::PlcOutputCounters_t)
-                           + sizeof(Botanik::PlcIO::PlcOutputLogs_t)
-                           + sizeof(PlcOutputData_t);
-    const size_t in_parts  = sizeof(Botanik::PlcIO::PlcInputCounters_t)
-                           + sizeof(Botanik::PlcIO::PlcInputLogs_t)
-                           + sizeof(PlcInputData_t);
-    CHECK(sizeof(PlcOutput_t) == ((out_parts + 31) / 32) * 32);
-    CHECK(sizeof(PlcInput_t)  == ((in_parts  + 31) / 32) * 32);
+TEST_CASE("sizeof: site data struct") {
+    // The site data struct is plain RAM now - no shared region, no alignment or
+    // cache contract to honour. Only its bulk still matters.
+    REPORT_SIZE(PlcOutputData_t, 16384);
 }
