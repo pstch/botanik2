@@ -87,12 +87,6 @@ namespace Botanik { namespace PlcIO {
         OutputData             _tx_data_buffer;
         PlcRxState             _rx_state      = RX_IDLE;
         PlcTxState             _tx_state      = TX_IDLE;
-        /** @brief Authoritative config (the coprocessor's NVM stand-in): seeded
-         *  by publish_config, edited by host write-backs, mirrored to _plcout. */
-        PlcOutputConfig_t      _conf;
-        /** @brief Last host write serial applied per group (input serial space,
-         *  independent of the output serials the firmware watches). */
-        uint32_t               _applied_write_serial[Cfg::CFG_GROUP_COUNT];
 
         /** @} */
 
@@ -109,8 +103,6 @@ namespace Botanik { namespace PlcIO {
             _ctx._tx_last_ms   = Utils::Millis32(*timestamp_ms);
             memset(&_rx_data_buffer, 0, sizeof(InputData));
             memset(&_tx_data_buffer, 0, sizeof(OutputData));
-            memset(&_conf, 0, sizeof(_conf));
-            for (uint8_t g = 0; g < Cfg::CFG_GROUP_COUNT; g++) _applied_write_serial[g] = 0;
         }
 
         /** @} */
@@ -122,15 +114,8 @@ namespace Botanik { namespace PlcIO {
         PlcEmulatorContext*  context()           { return &_ctx; }
         /** @brief Transmit buffer staged for the PLC output payload. */
         OutputData*          output_data()       { return &_tx_data_buffer; }
-
-        /** @brief Publish the PLC config block (network/NTP/MQTT/geo) into the
-         *  output region - the coprocessor's job on hardware. Call once at
-         *  startup; the firmware's config-driven Components latch each block's serial. */
-        void publish_config(const PlcOutputConfig_t& cfg) {
-            _conf = cfg;
-            HAL::Memory::ordered_copy(&_plcout->conf, &_conf);
-        }
-        /** @brief Most recently received PLC input payload. */
+        /** @brief Most recently received PLC input payload (host write-backs -
+         *  config edits ride here, applied by the site's fill_output). */
         const InputData*     input_data() const  { return &_rx_data_buffer; }
 
         /** @} */
@@ -178,35 +163,6 @@ namespace Botanik { namespace PlcIO {
         inline void _rx_memcpy() {
             HAL::Memory::ordered_copy(&_ctx._rx_logs_buffer, &_plcin->logs);
             HAL::Memory::ordered_copy(&_rx_data_buffer, &_plcin->data);
-            _apply_input_config();
-        }
-
-        /** @brief Apply any host config write-backs: for each group whose input
-         *  write serial advanced, copy its fields into the authoritative config,
-         *  bump the OUTPUT serial (so the firmware's consumers re-apply), and
-         *  republish. Stand-in for the coprocessor writing its NVM. */
-        inline void _apply_input_config() {
-            PlcInputConfig_t in;
-            HAL::Memory::ordered_copy(&in, &_plcin->conf);
-            bool changed = false;
-            for (uint8_t g = 0; g < Cfg::CFG_GROUP_COUNT; g++) {
-                uint16_t soff = Cfg::group_serial_offset(g);
-                uint32_t w;
-                memcpy(&w, (const uint8_t*)&in + soff, 4);
-                if (w == _applied_write_serial[g]) continue;   // no new write
-                _applied_write_serial[g] = w;
-                // Copy the group's fields (skip its 4-byte serial) into _conf.
-                uint16_t start, len;
-                Cfg::group_byte_range(g, &start, &len);
-                memcpy((uint8_t*)&_conf + start + 4, (const uint8_t*)&in + start + 4, len - 4);
-                // Bump the output serial the firmware's consumers watch.
-                uint32_t out;
-                memcpy(&out, (const uint8_t*)&_conf + soff, 4);
-                out += 1;
-                memcpy((uint8_t*)&_conf + soff, &out, 4);
-                changed = true;
-            }
-            if (changed) HAL::Memory::ordered_copy(&_plcout->conf, &_conf);
         }
         inline void _tx_memcpy() {
             HAL::Memory::ordered_copy(&_plcout->logs, &_ctx._tx_logs_buffer);
@@ -287,12 +243,10 @@ namespace Botanik { namespace PlcIO {
     struct EmulatorThreadArgs {
         PlcInput<InputData>*   shared_in;
         PlcOutput<OutputData>* shared_out;
-        /** @brief Optional site hook filling the output payload with mock
-         *  values; null leaves the payload zeroed. */
-        void (*fill_output)(OutputData*, uint32_t now_ms);
-        /** @brief Optional site hook filling the PLC config block (published
-         *  once at startup); null leaves the config zeroed (no network). */
-        void (*fill_config)(PlcOutputConfig_t*);
+        /** @brief Optional site hook animating the output payload from the mock
+         *  state (and applying host config commits read from @p in); null leaves
+         *  the payload zeroed. */
+        void (*fill_output)(OutputData*, const InputData* in, uint32_t now_ms);
     };
 
     /** @brief Run flag/handle for the single emulator thread.
@@ -350,14 +304,6 @@ namespace Botanik { namespace PlcIO {
         plc_emulator.set_heartbeat_ms(plc_dilated_timeout(Config::PLC_HEARTBEAT_MS));
         PlcLogWriter plc_log_writer(plc_emulator.context(), &emu_timestamp_ms);
 
-        // Publish the config block once (the coprocessor's role on hardware), so
-        // the firmware's config-driven Components see it from the emulated PLC.
-        if (args->fill_config != nullptr) {
-            PlcOutputConfig_t cfg{};
-            args->fill_config(&cfg);
-            plc_emulator.publish_config(cfg);
-        }
-
         uint32_t emu_tick = 0;
         _emu_stopped() = false;
         while (_emu_running()) {
@@ -369,7 +315,8 @@ namespace Botanik { namespace PlcIO {
             // loop iterations, the rate the site animator is tuned for).
             constexpr uint32_t DATA_TICKS = 1000 / Config::TASK_PERIOD_MS;
             if (args->fill_output != nullptr && (emu_tick % DATA_TICKS) == 0) {
-                args->fill_output(plc_emulator.output_data(), emu_timestamp_ms);
+                args->fill_output(plc_emulator.output_data(),
+                                  plc_emulator.input_data(), emu_timestamp_ms);
                 plc_emulator.context()->write();
             }
             emu_tick++;
@@ -389,11 +336,10 @@ namespace Botanik { namespace PlcIO {
     template<typename InputData, typename OutputData>
     inline void start_emulator_thread(PlcInput<InputData>* shared_in,
                                       PlcOutput<OutputData>* shared_out,
-                                      void (*fill_output)(OutputData*, uint32_t) = nullptr,
-                                      void (*fill_config)(PlcOutputConfig_t*) = nullptr,
+                                      void (*fill_output)(OutputData*, const InputData*, uint32_t) = nullptr,
                                       Logs::Logger* logger = nullptr) {
         static EmulatorThreadArgs<InputData, OutputData> args{
-            shared_in, shared_out, fill_output, fill_config };
+            shared_in, shared_out, fill_output };
         _emu_running() = true;
         // memory barrier to make `_emu_running` visible before the thread reads
         // it

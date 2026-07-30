@@ -1,10 +1,13 @@
 /**
  * @file test_config_writeback.cpp
- * @brief Full-loop test of the PLC config write-back: PlcConfigHandler.set()
- *        stages the input mirror, the host TX ships it, the emulated PLC applies
- *        the group and reflects it on the output serial, and the host RX surfaces
- *        the new value on image() with the group serial bumped once.
+ * @brief Full-loop test of the PLC config write-back with config as ordinary
+ *        payload fields: PlcConfigHandler.set() stages an edit into the input
+ *        payload mirror at the parameter's in_offset, the host TX ships it, the
+ *        emulated PLC (played here, since group-apply is site logic now) latches
+ *        a group when its commit serial advances and reflects it on the output,
+ *        and the host RX surfaces the new value on image() by name.
  */
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 
@@ -13,97 +16,135 @@
 #include "libbotanik/plcio/sync.h"
 #include "botanik_sim/emulator.h"
 #include "libbotanik/core/config_plc.h"
+#include "plc_config_fixture.h"   // FixtureConfig + fixture_params
 
 using namespace Botanik;
 using namespace Botanik::PlcIO;
 
 namespace {
-    struct Empty {};
+    using botanik_test::FixtureConfig;
+    struct CfgIn  { FixtureConfig config; };
+    struct CfgOut { FixtureConfig config; };
 
-    const Cfg::ConfigParam* find(const char* name) {
-        for (uint8_t i = 0; i < Cfg::CONFIG_PARAM_COUNT; i++)
-            if (strcmp(Cfg::CONFIG_PARAMS[i].name, name) == 0) return &Cfg::CONFIG_PARAMS[i];
-        return nullptr;
+    // Play the PLC's per-group config apply (a site's fill_output does this in
+    // the real sim): for each group whose input commit serial advanced, adopt
+    // its staged fields and reflect the serial on the output.
+    void apply_config(CfgOut* out, const CfgIn* in) {
+        FixtureConfig& oc = out->config;
+        const FixtureConfig& ic = in->config;
+        if (ic.net_serial && ic.net_serial != oc.net_serial) {
+            strncpy(oc.net_ip, ic.net_ip, sizeof(oc.net_ip) - 1);
+            oc.net_ip[sizeof(oc.net_ip) - 1] = '\0';
+            oc.net_serial = ic.net_serial;
+        }
+        if (ic.ntp_serial && ic.ntp_serial != oc.ntp_serial) {
+            oc.ntp_poll_s   = ic.ntp_poll_s;
+            oc.ntp_enabled  = ic.ntp_enabled;
+            oc.ntp_serial   = ic.ntp_serial;
+        }
+    }
+
+    const Cfg::ConfigParam* find(Cfg::PlcConfigHandler& h, const char* name) {
+        return h.find(name, (uint16_t)strlen(name));
     }
 }
 
 TEST_CASE("PLC config write-back: host edit reflects via the emulated PLC") {
-    PlcInput<Empty>  in{};
-    PlcOutput<Empty> out{};
+    PlcInput<CfgIn>  in{};
+    PlcOutput<CfgOut> out{};
     uint32_t ts = 0;
 
-    PlcSyncHandler<Empty, Empty> host(&in, &out, &ts, nullptr);
-    PlcEmulator<Empty, Empty>    emu(&in, &out, &ts);
-    Cfg::PlcConfigHandler        cfg(host.context(), nullptr);
+    PlcSyncHandler<CfgIn, CfgOut> host(&in, &out, &ts, nullptr);
+    PlcEmulator<CfgIn, CfgOut>    emu(&in, &out, &ts);
+    Cfg::PlcConfigHandler         cfg(host.context(), nullptr);
+    uint8_t np = 0;
+    const Cfg::ConfigParam* fp = botanik_test::fixture_params(&np);
+    cfg.set_site_params(fp, np);
 
     // The "PLC" publishes an initial config (NTP group serial 1, poll 64).
-    PlcOutputConfig_t init{};
-    init.ntp_serial  = 1;
-    init.ntp_enabled = 1;
-    init.ntp_poll_s  = 64;
-    init.geo_serial  = 1;
-    init.geo_latitude = 10.0f;   // 10.0 deg
-    emu.publish_config(init);
+    emu.output_data()->config.ntp_serial  = 1;
+    emu.output_data()->config.ntp_enabled = 1;
+    emu.output_data()->config.ntp_poll_s  = 64;
+    emu.output_data()->config.geo_serial   = 1;
+    emu.output_data()->config.geo_latitude = 10.0f;
+    emu.context()->write();
 
-    // Pump both state machines, advancing the shared clock so heartbeats fire.
     auto pump = [&](int n) {
         for (int i = 0; i < n; i++) {
             ts += Config::PLC_HEARTBEAT_MS / 5 + 1;
             host.step(ts);
             emu.step();
+            apply_config(emu.output_data(), emu.input_data());
+            emu.context()->write();
         }
     };
 
     pump(40);
-    REQUIRE(cfg.image()->ntp_poll_s == 64);      // initial config synced to host
-    uint32_t ntp_serial0 = cfg.image()->ntp_serial;
+    REQUIRE(cfg_int(&cfg, "ntp_poll_s") == 64);      // initial config synced to host
+    uint32_t ntp_serial0 = cfg_group_serial(&cfg, "ntp");
 
-    // Host edits ntp_poll_s. set() stages the mirror + requests a TX write.
-    const Cfg::ConfigParam* poll = find("ntp_poll_s");
+    // Host edits ntp_poll_s (stage), then bumps the "ntp" serial (commit).
+    const Cfg::ConfigParam* poll = find(cfg, "ntp_poll_s");
+    const Cfg::ConfigParam* ntp  = find(cfg, "ntp");
     REQUIRE(poll != nullptr);
+    REQUIRE(ntp != nullptr);
     CHECK(cfg.set(*poll, "300"));
+    CHECK(cfg.set(*ntp, "2"));
 
     pump(40);
 
     // The edit round-tripped: the PLC applied it and reflected it on the output,
-    // and the NTP group serial advanced exactly once (so the consumer re-applies).
-    CHECK(cfg.image()->ntp_poll_s == 300);
-    CHECK(cfg.image()->ntp_serial == ntp_serial0 + 1);
+    // and the NTP commit serial advanced (so the consumer re-applies).
+    CHECK(cfg_int(&cfg, "ntp_poll_s") == 300);
+    CHECK(cfg_group_serial(&cfg, "ntp") == 2);
+    CHECK(cfg_group_serial(&cfg, "ntp") != ntp_serial0);
 
     // Untouched groups (geo) did not re-apply.
-    CHECK(cfg.image()->geo_serial == 1);
-    CHECK(cfg.image()->geo_latitude == doctest::Approx(10.0f));
+    CHECK(cfg_group_serial(&cfg, "geo") == 1);
+    CHECK(cfg_f32(&cfg, "geo_latitude") == doctest::Approx(10.0f));
 
-    // A second edit bumps the serial again and keeps other NTP fields intact.
+    // A second edit + commit round-trips the newly staged value. (Only staged
+    // fields are applied - the transport does not preserve un-staged group
+    // fields; a coherent group is the editor's responsibility.)
     CHECK(cfg.set(*poll, "128"));
+    CHECK(cfg.set(*ntp, "3"));
     pump(40);
-    CHECK(cfg.image()->ntp_poll_s == 128);
-    CHECK(cfg.image()->ntp_enabled == 1);        // preserved across the write
-    CHECK(cfg.image()->ntp_serial == ntp_serial0 + 2);
+    CHECK(cfg_int(&cfg, "ntp_poll_s") == 128);
+    CHECK(cfg_group_serial(&cfg, "ntp") == 3);
 }
 
 TEST_CASE("PLC config write-back: a string edit crosses the wire") {
-    PlcInput<Empty>  in{};
-    PlcOutput<Empty> out{};
+    PlcInput<CfgIn>  in{};
+    PlcOutput<CfgOut> out{};
     uint32_t ts = 0;
-    PlcSyncHandler<Empty, Empty> host(&in, &out, &ts, nullptr);
-    PlcEmulator<Empty, Empty>    emu(&in, &out, &ts);
-    Cfg::PlcConfigHandler        cfg(host.context(), nullptr);
+    PlcSyncHandler<CfgIn, CfgOut> host(&in, &out, &ts, nullptr);
+    PlcEmulator<CfgIn, CfgOut>    emu(&in, &out, &ts);
+    Cfg::PlcConfigHandler         cfg(host.context(), nullptr);
+    uint8_t np = 0;
+    const Cfg::ConfigParam* fp = botanik_test::fixture_params(&np);
+    cfg.set_site_params(fp, np);
 
-    PlcOutputConfig_t init{};
-    init.net_serial = 1;
-    strcpy(init.net_ip, "192.168.0.2");
-    emu.publish_config(init);
+    emu.output_data()->config.net_serial = 1;
+    strcpy(emu.output_data()->config.net_ip, "192.168.0.2");
+    emu.context()->write();
 
     auto pump = [&](int n) {
-        for (int i = 0; i < n; i++) { ts += Config::PLC_HEARTBEAT_MS / 5 + 1; host.step(ts); emu.step(); }
+        for (int i = 0; i < n; i++) {
+            ts += Config::PLC_HEARTBEAT_MS / 5 + 1;
+            host.step(ts); emu.step();
+            apply_config(emu.output_data(), emu.input_data());
+            emu.context()->write();
+        }
     };
     pump(40);
-    REQUIRE(strcmp(cfg.image()->net_ip, "192.168.0.2") == 0);
+    REQUIRE(strcmp(cfg_str(&cfg, "net_ip"), "192.168.0.2") == 0);
 
-    const Cfg::ConfigParam* ip = find("net_ip");
+    const Cfg::ConfigParam* ip  = find(cfg, "net_ip");
+    const Cfg::ConfigParam* net = find(cfg, "net");
     REQUIRE(ip != nullptr);
+    REQUIRE(net != nullptr);
     CHECK(cfg.set(*ip, "10.1.2.3"));
+    CHECK(cfg.set(*net, "2"));
     pump(40);
-    CHECK(strcmp(cfg.image()->net_ip, "10.1.2.3") == 0);
+    CHECK(strcmp(cfg_str(&cfg, "net_ip"), "10.1.2.3") == 0);
 }

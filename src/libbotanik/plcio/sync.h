@@ -64,10 +64,13 @@ namespace Botanik { namespace PlcIO {
         bool             _tx_write       = false;
         PlcOutputLogs_t  _rx_logs_buffer = {};
         PlcInputLogs_t   _tx_logs_buffer = {};
-        /** @brief PLC's generic config (network/NTP/MQTT), snapshotted from RX. */
-        PlcOutputConfig_t _rx_config_buffer = {};
-        /** @brief Host->PLC config write-back mirror, shipped on a TX write. */
-        PlcInputConfig_t _tx_config_buffer = {};
+        /** @brief Type-erased pointers into the templated handler's payload
+         *  buffers, so the non-templated context (and the config handler that
+         *  holds one) can read the RX output payload and stage the TX input
+         *  payload without knowing the site types. Config parameters live in
+         *  those payloads (addressed by byte offset). Set by the handler ctor. */
+        const void*      _rx_data        = nullptr;
+        void*            _tx_data        = nullptr;
         /** @brief Shared loop clock (ms), read-only. */
         const uint32_t*  _timestamp_ms   = nullptr;
         /** @brief Time of the last acknowledged TX (wrap-safe loop-clock
@@ -111,19 +114,16 @@ namespace Botanik { namespace PlcIO {
         void                   write()             { _tx_write = true; }
         /** @brief Local copy of the PLC's output log buffer. */
         const PlcOutputLogs_t* output_logs() const { return &_rx_logs_buffer; }
-        /** @brief Local copy of the PLC's generic configuration
-         *  (network/NTP/MQTT). Snapshotted in the same RX transaction as the
-         *  payload. Each block's `serial` increments when the PLC changes it; a
-         *  consumer latches the serial and re-applies only on change (see
-         *  Network::NetworkHandler). */
-        const PlcOutputConfig_t* config() const { return &_rx_config_buffer; }
         /** @brief Local copy of the PLC's input log buffer. */
         PlcInputLogs_t*        input_logs()        { return &_tx_logs_buffer; }
         const PlcInputLogs_t*  input_logs() const  { return &_tx_logs_buffer; }
-        /** @brief Writable config write-back mirror. A config backend fills the
-         *  edited group's fields + bumps its serial, then calls write() to ship
-         *  it to the PLC on the next TX. */
-        PlcInputConfig_t*      input_config()      { return &_tx_config_buffer; }
+        /** @brief RX snapshot of the PLC output payload as raw bytes (config
+         *  parameters read here by offset). Null before the handler binds. */
+        const void*            output_data_bytes() const { return _rx_data; }
+        /** @brief TX input-payload mirror as raw bytes: a config backend writes an
+         *  edited parameter's value here by offset, then calls write() to ship it
+         *  on the next TX (the PLC latches config when its serial field bumps). */
+        void*                  input_data_bytes()        { return _tx_data; }
 
         /** @brief Current PLC link status derived from the ack timing. */
         PlcStatus status() const {
@@ -203,13 +203,6 @@ namespace Botanik { namespace PlcIO {
         /** @} */
     };
 
-    /** @brief The generic config block (network/NTP/MQTT/geo) behind a sync
-     *  context, or null if @p ctx is null. Shared by the config-driven handlers
-     *  (keeps the PLC config source out of the generic Component). */
-    inline const PlcOutputConfig_t* plc_config(PlcSyncContext* ctx) {
-        return ctx ? ctx->config() : nullptr;
-    }
-
     // Two state machines (RX from the PLC output range, TX to its input range)
     // using explicit in-order ops and a transactional seq/ack model, so it is
     // safe even when the PLC runtime doesn't order its accesses to the shared
@@ -277,6 +270,9 @@ namespace Botanik { namespace PlcIO {
             _ctx._out_sync     = &plcout->sync;
             memset(&_tx_data_buffer, 0, sizeof(InputData));
             memset(&_rx_data_buffer, 0, sizeof(OutputData));
+            // Type-erased views for the non-templated context (config handler).
+            _ctx._rx_data = &_rx_data_buffer;
+            _ctx._tx_data = &_tx_data_buffer;
 
             // First-contact baseline: the PLC sync counters may be
             // uninitialized or stale at boot, so don't trust them. Snapshot the
@@ -392,7 +388,6 @@ namespace Botanik { namespace PlcIO {
         inline bool _rx_memcpy() {
             uint32_t seq_before = HAL::Memory::ordered_read(&_plcout->sync.txSeqNum);
             HAL::Memory::ordered_copy(&_ctx._rx_logs_buffer, &_plcout->logs);
-            HAL::Memory::ordered_copy(&_ctx._rx_config_buffer, &_plcout->conf);
             HAL::Memory::ordered_copy(&_rx_data_buffer, &_plcout->data);
             // re-read from SRAM
             HAL::Memory::cache_invalidate(&_plcout->sync, sizeof(_plcout->sync));
@@ -400,7 +395,6 @@ namespace Botanik { namespace PlcIO {
         }
         inline void _tx_memcpy() {
             HAL::Memory::ordered_copy(&_plcin->logs, &_ctx._tx_logs_buffer);
-            HAL::Memory::ordered_copy(&_plcin->conf, &_ctx._tx_config_buffer);
             HAL::Memory::ordered_copy(&_plcin->data, &_tx_data_buffer);
             _ctx._tx_write = false;
         }

@@ -23,7 +23,7 @@ namespace Botanik { namespace Network {
     }
 
     uint32_t NtpClient::config_serial() const {
-        return Cfg::cfg_group_serial(_cfg, Cfg::CFG_NTP);
+        return Cfg::cfg_group_serial(_cfg, "ntp");
     }
 
     const char* NtpClient::status_str() const {

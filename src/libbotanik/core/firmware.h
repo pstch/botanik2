@@ -174,7 +174,7 @@ namespace Botanik {
         PlcIO::PlcLogReader            _plc_log_reader;
         Cfg::PlcConfigHandler          _config;       ///< PLC-owned config snapshot
 #else
-        Cfg::LocalConfigHandler        _config;       ///< flash/file-backed config
+        Cfg::LocalConfigHandler<Out>   _config;       ///< flash/file-backed config
 #endif
         Health::HealthMonitor          _health;
         SystemContext                  _sys_ctx;     ///< Filled in the ctor body

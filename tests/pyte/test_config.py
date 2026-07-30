@@ -25,16 +25,27 @@ def test_config_detail_and_edit(spawn):
     term = boot(spawn)
     goto(term, ALT_6)
     assert term.wait_for("ntp_poll_s")
-    # Move the cursor down to ntp_poll_s (library index 7); the detail panel
-    # tracks the selection.
-    for _ in range(7):
+    # Move the cursor down to ntp_poll_s (table index 9: net, net_dhcp, net_ip,
+    # net_netmask, net_gateway, net_dns1, net_dns2, ntp, ntp_enabled, ntp_poll_s);
+    # the detail panel tracks the selection.
+    for _ in range(9):
         term.send(keys.DOWN)
     assert term.wait_for("NTP poll interval"), "detail panel did not follow selection"
-    # ENTER opens the inline editor on the bottom row; clear, retype, commit.
+    # ENTER opens the inline editor on the bottom row; clear, retype, stage.
+    # Editing a field only stages it - it commits when the group's serial bumps.
     term.send(keys.ENTER)
     assert term.wait_for("ntp_poll_s ="), "inline edit did not open"
     term.send(CTRL_U)
     term.send(b"120")
     term.send(keys.ENTER)
-    # The edit round-trips through the PLC write-back and repaints the table row.
-    assert term.wait_for("120"), "edited value did not round-trip"
+    # Commit: move up to the "ntp" group serial (index 7) and bump it. That ships
+    # the staged group; the emulated PLC latches it and reflects it back.
+    for _ in range(2):
+        term.send(keys.UP)
+    term.send(keys.ENTER)
+    assert term.wait_for("ntp ="), "inline edit did not open on the serial"
+    term.send(CTRL_U)
+    term.send(b"2")
+    term.send(keys.ENTER)
+    # The commit round-trips through the PLC write-back and repaints the row.
+    assert term.wait_for("120"), "committed value did not round-trip"

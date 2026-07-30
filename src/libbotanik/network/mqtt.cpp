@@ -24,7 +24,7 @@ namespace Botanik { namespace Network {
     }
 
     uint32_t MqttClient::config_serial() const {
-        return Cfg::cfg_group_serial(_cfg, Cfg::CFG_MQTT);
+        return Cfg::cfg_group_serial(_cfg, "mqtt");
     }
 
     uint16_t MqttClient::peer_port() const {

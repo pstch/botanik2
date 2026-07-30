@@ -69,11 +69,9 @@ TEST_CASE("sizeof: PLC shared-memory payloads") {
     CHECK(alignof(PlcInput_t)  == 32);
     const size_t out_parts = sizeof(Botanik::PlcIO::PlcOutputCounters_t)
                            + sizeof(Botanik::PlcIO::PlcOutputLogs_t)
-                           + sizeof(Botanik::PlcIO::PlcOutputConfig_t)
                            + sizeof(PlcOutputData_t);
     const size_t in_parts  = sizeof(Botanik::PlcIO::PlcInputCounters_t)
                            + sizeof(Botanik::PlcIO::PlcInputLogs_t)
-                           + sizeof(Botanik::PlcIO::PlcInputConfig_t)
                            + sizeof(PlcInputData_t);
     CHECK(sizeof(PlcOutput_t) == ((out_parts + 31) / 32) * 32);
     CHECK(sizeof(PlcInput_t)  == ((in_parts  + 31) / 32) * 32);

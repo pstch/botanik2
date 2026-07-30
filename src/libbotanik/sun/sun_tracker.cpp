@@ -155,7 +155,7 @@ namespace Botanik { namespace Sun {
           _pos(), _next_ms(0), _computed(false) {}
 
     uint32_t SunPositionTracker::config_serial() const {
-        return Cfg::cfg_group_serial(_cfg, Cfg::CFG_GEO);
+        return Cfg::cfg_group_serial(_cfg, "geo");
     }
 
     void SunPositionTracker::on_config_changed(uint64_t now_ms) {
@@ -167,7 +167,7 @@ namespace Botanik { namespace Sun {
 
     void SunPositionTracker::on_step(uint64_t now_ms) {
         // no location configured
-        if (Cfg::cfg_group_serial(_cfg, Cfg::CFG_GEO) == 0) return;
+        if (Cfg::cfg_group_serial(_cfg, "geo") == 0) return;
         // wait for a real (NTP) time before the date-dependent solar math
         if (HAL::Clock::wall_ms() < WALL_CLOCK_VALID_MS) return;
 

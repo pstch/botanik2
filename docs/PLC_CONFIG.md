@@ -8,33 +8,41 @@ program is its natural home (that is where the installer already works, and its
 retained variables survive a reboot), so the **PLC is the configuration authority**;
 it travels in the PLC->host (`PlcOutput`) region like any other PLC output.
 
-The config block is **generic**: it lives in `libbotanik` (`plcio/config.h`), not in
-a site payload, so the components are written once against one layout. The first half
-of this page is the config block (the wire contract); the second is the components
-that consume it.
+Configuration is **not a separate wire block**: each parameter is an ordinary field
+of the site's own PLC payload, described by a `ScalarField` (`Cfg::ConfigParam`) that
+names its byte `out_offset` (read, in the output payload) and `in_offset` (write, in
+the input payload). The library ships no parameter table and no config struct - the
+**site declares every parameter** over its `PlcInput/OutputData_t` (see the `gh_mlb41`
+`GreenhouseConfig_t`, embedded in both payloads), and the library reads the values it
+needs by name (`Cfg::cfg_int/cfg_f32/cfg_str`). The first half of this page is those
+parameters (the wire contract the site must satisfy); the second is the components
+that consume them.
 
 ## Where it sits
 
-The config block is a library-fixed section of `PlcOutput<Data>` (`plcio/vars.h`).
-In layout order the generic `conf` block sits between the log ring and the site
-payload:
+Config parameters live in the site payload of both regions (`plcio/vars.h`); there is
+no library-fixed `conf` section anymore:
 
-\startuml "PlcOutput layout: the generic conf block sits between the log ring and the site payload"
+\startuml "config parameters are ordinary fields of the site payload"
 class "PlcOutput<OutputData>" as PO {
   sync : txSeqNum, rxAckNum
   logs : writeIndex, logBuffer[N]
-  conf : net, ntp, mqtt, geo  (generic, library-fixed - this doc)
-  data : site payload
+  data : site payload - status vars + live config values + group serials
 }
 \enduml
 
-It is snapshotted in the *same* RX transaction as the payload, under the same seqnum
-handshake (see @ref md_docs_2PLC__SYNC); consumers read the stable local copy through
-`PlcSyncContext::config()`, never the shared region directly.
+The output payload is snapshotted in the RX transaction under the seqnum handshake
+(see @ref md_docs_2PLC__SYNC); a consumer reads the stable local copy through its
+`Cfg::ConfigHandler::image()`, never the shared region directly.
 
-The host never writes this block; only the PLC does. There is no host->PLC config
-acknowledgement - a consumer reflects what it applied through the status it already
-reports (link state, NTP-synced flag, and so on).
+The host **does** write config (unlike other PLC outputs): an edit on the params page
+stages a value into the input payload mirror at the parameter's `in_offset`. Nothing
+applies until the user *commits* the group by editing its **commit serial** - an
+ordinary parameter named after the group (`"net"`, `"ntp"`, `"mqtt"`, `"geo"`).
+Bumping the serial ships the staged group; the PLC latches it and reflects the new
+serial on the output, which the consuming component watches to re-apply. Only staged
+fields are applied - a coherent group is the editor's responsibility, not the
+transport's.
 
 ## The blocks
 

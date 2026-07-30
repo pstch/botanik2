@@ -6,12 +6,13 @@
  * @file config_local.h
  * @brief LocalConfigHandler - the config backend when there is no PLC.
  *
- * Owns the config image in RAM, loads each library parameter from HAL::Storage
- * at boot (falling back to the zeroed default when absent), and on an edit
- * writes the parameter back to storage and bumps its group serial so the
- * config-driven Components re-apply. Selected by BotanikFirmware when
- * BOTANIK_FEATURE_PLC is off (where the network stack is also off, so geo is the
- * live consumer).
+ * Owns a single RAM image, laid out as the site's PLC output payload (@p Out),
+ * so parameters address it by their out_offset. Loads each parameter from
+ * HAL::Storage at boot (falling back to the zeroed default when absent), and on
+ * an edit writes the value into the image (and back to storage). With no PLC to
+ * latch it, an edit applies to the image directly; a consumer still re-applies
+ * off the serial parameter the user bumps. Selected (templated on the site
+ * payload) by BotanikFirmware when BOTANIK_FEATURE_PLC is off.
  */
 
 #include <cstdint>
@@ -22,16 +23,14 @@
 
 namespace Botanik { namespace Cfg {
 
-    /** @brief Flash/file-backed configuration backend (see file header). */
+    /** @brief Flash/file-backed configuration backend (see file header). @p Out
+     *  is the site's PLC output payload type (the config image layout). */
+    template<typename Out>
     class LocalConfigHandler : public ConfigHandler {
 
-        /** @name State
-         *  @{ */
-
-        /** @brief The live config image (loaded from storage, edited in place). */
-        PlcIO::PlcOutputConfig_t _image;
-
-        /** @} */
+        /** @brief The live config image (loaded from storage, edited in place),
+         *  laid out as the site output payload so out_offset addresses it. */
+        Out _image;
 
     public:
         /** @name Lifecycle
@@ -45,41 +44,27 @@ namespace Botanik { namespace Cfg {
         /** @name Backend surface
          *  @{ */
 
-        const PlcIO::PlcOutputConfig_t* image() const override { return &_image; }
+        const void* image() const override { return &_image; }
 
         bool set(const ConfigParam& p, const char* text) override {
-            if (!write_value(p, text, &_image)) return false;
-            HAL::Storage::set(p.name, (const uint8_t*)&_image + p.in_offset, param_width(p));
-            bump_group(p.group);
+            // Single image: write (and persist) at out_offset so a read sees it.
+            if (!write_value(p, text, &_image, p.out_offset)) return false;
+            HAL::Storage::set(p.name, (const uint8_t*)&_image + p.out_offset, param_width(p));
             return true;
         }
 
         /** @} */
 
     protected:
-        /** @brief Load every library parameter from storage into the image
-         *  (missing keys keep the zero default), then seed each group serial to 1
-         *  so each consumer applies its config exactly once at boot. */
+        /** @brief Load every registered parameter from storage into the image
+         *  (missing keys keep the zero default). Serials are ordinary parameters,
+         *  so a site that wants a one-shot boot apply seeds their stored value. */
         void setup(uint64_t /*now_ms*/) override {
-            for (uint8_t i = 0; i < CONFIG_PARAM_COUNT; i++) {
-                const ConfigParam& p = CONFIG_PARAMS[i];
+            for (uint8_t i = 0; i < count(); i++) {
+                const ConfigParam& p = param(i);
                 HAL::Storage::get(p.name, (uint8_t*)&_image + p.out_offset,
                                   param_width(p), nullptr);
             }
-            for (uint8_t g = 0; g < CFG_GROUP_COUNT; g++) {
-                uint32_t one = 1;
-                memcpy((uint8_t*)&_image + group_serial_offset(g), &one, 4);
-            }
-        }
-
-    private:
-        /** @brief Increment the given group's serial word in the image. */
-        void bump_group(uint8_t group) {
-            uint8_t* s = (uint8_t*)&_image + group_serial_offset(group);
-            uint32_t v;
-            memcpy(&v, s, 4);
-            v += 1;
-            memcpy(s, &v, 4);
         }
     };
 

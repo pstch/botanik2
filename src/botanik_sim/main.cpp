@@ -104,8 +104,9 @@ int main(int argc, char** argv) {
     static PlcIO::PlcInput<PlcInputData_t>   shared_in  {};
     static PlcIO::PlcOutput<PlcOutputData_t> shared_out {};
 
-    // The PLC config block (network/NTP/MQTT/geo) is published by the emulator
-    // (the coprocessor's role on hardware) via fill_greenhouse_config, below.
+    // Config parameters (network/NTP/MQTT/geo) are ordinary fields of the site
+    // payload now; the emulator's fill_greenhouse_output seeds and reflects them
+    // (the coprocessor's role on hardware).
 
     BotanikSite greenhouse(&shared_in, &shared_out);
     greenhouse.set_console_baud(CONSOLE_BAUD);
@@ -141,7 +142,6 @@ int main(int argc, char** argv) {
     // builds). Must run after setup()'s allocations.
     PlcIO::start_emulator_thread(&shared_in, &shared_out,
                                  &fill_greenhouse_output,
-                                 &fill_greenhouse_config,
                                  &greenhouse.logger());
     // Lock memory (once), then make the main loop realtime on its own core -
     // separate from the emulator's, mirroring the OPTA's two cores.

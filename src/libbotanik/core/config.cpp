@@ -15,37 +15,10 @@
 
 namespace Botanik { namespace Cfg {
 
-    // Library built-in parameters, as writable ScalarFields. name == the
-    // PlcOutputConfig_t field name; the value is read at out_offset and a commit
-    // written at in_offset (== out_offset, since the input mirror shares the
-    // layout). Fields: name, out_offset, in_offset, type, digits, str, unit,
-    // desc, notes, default, min, max, capacity, str_kind, group.
-    static const uint16_t HS = Config::PLC_HOST_STR_LEN;
-#define CO(f) (int16_t)offsetof(PlcIO::PlcOutputConfig_t, f)
-    const ConfigParam CONFIG_PARAMS[] = {
-        // -- network --
-        {"net_dhcp",        CO(net_dhcp),     CO(net_dhcp),     SCALAR_U8,     0, nullptr, "",    "DHCP (1) or static IP (0)", "",                 "1",            0, 1,      0,  STR_NONE,     CFG_NET},
-        {"net_ip",          CO(net_ip),       CO(net_ip),       SCALAR_STRING, 0, nullptr, "",    "Static IPv4 address",       "used when DHCP off","",             0, 0,      HS, STR_IPV4,     CFG_NET},
-        {"net_netmask",     CO(net_netmask),  CO(net_netmask),  SCALAR_STRING, 0, nullptr, "",    "Static subnet mask",        "used when DHCP off","",             0, 0,      HS, STR_IPV4,     CFG_NET},
-        {"net_gateway",     CO(net_gateway),  CO(net_gateway),  SCALAR_STRING, 0, nullptr, "",    "Default gateway",           "used when DHCP off","",             0, 0,      HS, STR_IPV4,     CFG_NET},
-        {"net_dns1",        CO(net_dns1),     CO(net_dns1),     SCALAR_STRING, 0, nullptr, "",    "Primary DNS server",        "",                 "",             0, 0,      HS, STR_IPV4,     CFG_NET},
-        {"net_dns2",        CO(net_dns2),     CO(net_dns2),     SCALAR_STRING, 0, nullptr, "",    "Secondary DNS server",      "empty = none",     "",             0, 0,      HS, STR_IPV4_OPT, CFG_NET},
-        // -- NTP --
-        {"ntp_enabled",     CO(ntp_enabled),  CO(ntp_enabled),  SCALAR_U8,     0, nullptr, "",    "Enable NTP time sync",      "",                 "1",            0, 1,      0,  STR_NONE,     CFG_NTP},
-        {"ntp_poll_s",      CO(ntp_poll_s),   CO(ntp_poll_s),   SCALAR_U16,    0, nullptr, "s",   "NTP poll interval",         "0 = firmware default","64",         0, 65535,  0,  STR_NONE,     CFG_NTP},
-        {"ntp_server1",     CO(ntp_server1),  CO(ntp_server1),  SCALAR_STRING, 0, nullptr, "",    "Primary NTP server",        "",                 "pool.ntp.org", 0, 0,      HS, STR_HOST,     CFG_NTP},
-        {"ntp_server2",     CO(ntp_server2),  CO(ntp_server2),  SCALAR_STRING, 0, nullptr, "",    "Secondary NTP server",      "empty = none",     "",             0, 0,      HS, STR_HOST_OPT, CFG_NTP},
-        // -- MQTT --
-        {"mqtt_enabled",    CO(mqtt_enabled), CO(mqtt_enabled), SCALAR_U8,     0, nullptr, "",    "Enable MQTT publishing",    "",                 "1",            0, 1,      0,  STR_NONE,     CFG_MQTT},
-        {"mqtt_port",       CO(mqtt_port),    CO(mqtt_port),    SCALAR_U16,    0, nullptr, "",    "Broker TCP port",           "0 = firmware default","1883",       0, 65535,  0,  STR_NONE,     CFG_MQTT},
-        {"mqtt_keepalive_s",CO(mqtt_keepalive_s),CO(mqtt_keepalive_s),SCALAR_U16, 0, nullptr,"s", "MQTT keepalive",            "0 = firmware default","60",         0, 65535,  0,  STR_NONE,     CFG_MQTT},
-        {"mqtt_broker",     CO(mqtt_broker),  CO(mqtt_broker),  SCALAR_STRING, 0, nullptr, "",    "MQTT broker host",          "",                 "",             0, 0,      HS, STR_HOST,     CFG_MQTT},
-        // -- geo (decimal degrees) --
-        {"geo_latitude",    CO(geo_latitude), CO(geo_latitude), SCALAR_F32,    4, nullptr, "deg", "Site latitude",            "north +, south -", "48.8566",      -90,  90,   0,  STR_NONE,     CFG_GEO},
-        {"geo_longitude",   CO(geo_longitude),CO(geo_longitude),SCALAR_F32,    4, nullptr, "deg", "Site longitude",           "east +, west -",   "2.3522",       -180, 180,  0,  STR_NONE,     CFG_GEO},
-    };
-#undef CO
-    const uint8_t CONFIG_PARAM_COUNT = (uint8_t)(sizeof(CONFIG_PARAMS) / sizeof(CONFIG_PARAMS[0]));
+    // The library ships no built-in parameter table: a site declares every
+    // parameter over its own PLC input/output payload (see the SiteDescriptor).
+    // These are the generic read / render / validate helpers the CONFIG page,
+    // the `config` command and the backends use, all driven by a ScalarField.
 
     // Read / render
 
@@ -72,37 +45,6 @@ namespace Botanik { namespace Cfg {
             case SCALAR_STRING:               return p.capacity;
         }
         return 0;
-    }
-
-    uint16_t group_serial_offset(uint8_t group) {
-        switch (group) {
-            case CFG_NET:  return (uint16_t)offsetof(PlcIO::PlcOutputConfig_t, net_serial);
-            case CFG_NTP:  return (uint16_t)offsetof(PlcIO::PlcOutputConfig_t, ntp_serial);
-            case CFG_MQTT: return (uint16_t)offsetof(PlcIO::PlcOutputConfig_t, mqtt_serial);
-            case CFG_GEO:  return (uint16_t)offsetof(PlcIO::PlcOutputConfig_t, geo_serial);
-            default:       return 0;
-        }
-    }
-
-    // The serial words sit in the struct in ConfigGroup order, so a group's byte
-    // range runs from its serial to the next group's (or the struct end for the
-    // last). Pinned here so group_byte_range can derive the end instead of a
-    // second switch that could drift from group_serial_offset.
-    static_assert(offsetof(PlcIO::PlcOutputConfig_t, net_serial)
-                < offsetof(PlcIO::PlcOutputConfig_t, ntp_serial), "config serial order");
-    static_assert(offsetof(PlcIO::PlcOutputConfig_t, ntp_serial)
-                < offsetof(PlcIO::PlcOutputConfig_t, mqtt_serial), "config serial order");
-    static_assert(offsetof(PlcIO::PlcOutputConfig_t, mqtt_serial)
-                < offsetof(PlcIO::PlcOutputConfig_t, geo_serial), "config serial order");
-
-    void group_byte_range(uint8_t group, uint16_t* start, uint16_t* len) {
-        if (group >= CFG_GROUP_COUNT) { *start = 0; *len = 0; return; }
-        uint16_t s   = group_serial_offset(group);
-        uint16_t end = (group + 1 < CFG_GROUP_COUNT)
-            ? group_serial_offset((uint8_t)(group + 1))
-            : (uint16_t)sizeof(PlcIO::PlcOutputConfig_t);
-        *start = s;
-        *len   = (uint16_t)(end - s);
     }
 
     int32_t read_scalar(const ConfigParam& p, const void* base) {
@@ -214,12 +156,14 @@ namespace Botanik { namespace Cfg {
         }
     }
 
-    // Shared write path (base helper): writes into @p base at the parameter's
-    // in_offset (the input mirror).
+    // Shared write path (base helper): writes @p p's parsed value into @p base
+    // at byte @p offset. A PLC backend passes the input-mirror in_offset; a local
+    // backend passes the single-image out_offset. Writability is p.in_offset >= 0
+    // either way (a read-only status variable is never editable).
 
-    bool ConfigHandler::write_value(const ConfigParam& p, const char* text, void* base) {
+    bool ConfigHandler::write_value(const ConfigParam& p, const char* text, void* base, int16_t offset) {
         if (p.in_offset < 0) return false;            // read-only: not writable
-        uint8_t* dst = (uint8_t*)base + p.in_offset;
+        uint8_t* dst = (uint8_t*)base + offset;
         if (is_string(p)) {
             if (!validate_string(p, text)) return false;
             size_t n = 0;

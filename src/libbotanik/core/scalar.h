@@ -46,8 +46,9 @@ namespace Botanik {
      * The @c deflt / @c min / @c max / @c capacity / @c str_kind / @c group
      * fields are edit metadata, meaningful only for a writable parameter
      * (@p in_offset >= 0); a status variable leaves them null / 0. @c str_kind is
-     * a Cfg::StrKind and @c group a Cfg::ConfigGroup, held as plain bytes so this
-     * header stays free of the config include.
+     * a Cfg::StrKind held as a plain byte so this header stays free of the config
+     * include. @c group names the parameter's config group (e.g. "net"); the
+     * group's commit serial is the parameter sharing that name.
      */
     struct ScalarField {
         const char* name;
@@ -64,7 +65,7 @@ namespace Botanik {
         int32_t     max;               ///< inclusive upper bound (numeric params)
         uint16_t    capacity;          ///< SCALAR_STRING buffer size incl NUL (else 0)
         uint8_t     str_kind;          ///< Cfg::StrKind for SCALAR_STRING (else 0)
-        uint8_t     group;             ///< Cfg::ConfigGroup serial to bump on commit
+        const char* group;             ///< config-group name ("" = none); commit serial shares it
     };
 
     /** @brief True for a writable parameter (has an input offset). */

@@ -10,20 +10,20 @@ Two regions, each a `PlcInput<Data>` / `PlcOutput<Data>` (`plcio/vars.h`). "Inpu
 and "Output" are named from the **PLC's** point of view: the host *writes* the
 input region and *reads* the output region.
 
-Each region holds the same three sections (sync cursors, the log ring, the site
-payload); `PlcOutput` adds the `conf` config block (see @ref md_docs_2PLC__CONFIG):
+Each region holds the same three sections: sync cursors, the log ring, and the
+site payload. Config parameters (network/NTP/MQTT/geo) are ordinary fields of the
+site payload now, not a separate block (see @ref md_docs_2PLC__CONFIG):
 
 \startuml "the two shared regions and their sections"
 class "PlcInput<InputData>\n(host -> PLC)" as PI {
   sync : rxSeqNum, txAckNum
   logs : readIndex
-  data : site payload
+  data : site payload (incl. staged config edits)
 }
 class "PlcOutput<OutputData>\n(PLC -> host)" as PO {
   sync : txSeqNum, rxAckNum
   logs : writeIndex, logBuffer[N]
-  conf : net / ntp / mqtt / geo
-  data : site payload
+  data : site payload (incl. live config + group serials)
 }
 \enduml
 

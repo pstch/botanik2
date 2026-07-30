@@ -48,8 +48,50 @@
 /** @name PLC payload
  *  @{ */
 
-// no site-specific data beyond the library log fields
-struct PlcInputData_t {};
+/** @brief Config parameters (network / NTP / MQTT / geo), embedded verbatim in
+ *  both the input payload (host stages edits at in_offset) and the output
+ *  payload (PLC reflects the live values at out_offset), so a parameter's
+ *  in_offset and out_offset are genuinely distinct. Each group's commit serial
+ *  (@c net / @c ntp / @c mqtt / @c geo) is an ordinary u32 field the user bumps
+ *  on the params page to commit that group's staged edits; the PLC latches the
+ *  group and reflects the serial back, which the consuming Component watches.
+ *  Ordered widest-first (and _pad'd) so the sub-struct - and both payloads that
+ *  embed it - stay 4-byte-aligned and padding-free. */
+struct GreenhouseConfig_t {
+    static const int STRLEN = (int)Botanik::Config::PLC_HOST_STR_LEN;
+    // 4-byte: geo values + the per-group commit serials
+    float    geo_latitude;       ///< site latitude, decimal degrees
+    float    geo_longitude;      ///< site longitude, decimal degrees
+    uint32_t net;                ///< network group commit serial (bump to apply)
+    uint32_t ntp;                ///< NTP group commit serial
+    uint32_t mqtt;               ///< MQTT group commit serial
+    uint32_t geo;                ///< geo group commit serial
+    // 2-byte
+    uint16_t ntp_poll_s;         ///< NTP poll interval, s (0 = firmware default)
+    uint16_t mqtt_port;          ///< broker TCP port (0 = firmware default)
+    uint16_t mqtt_keepalive_s;   ///< MQTT keepalive, s (0 = firmware default)
+    // 1-byte flags
+    uint8_t  net_dhcp;           ///< DHCP (1) or static IP (0)
+    uint8_t  ntp_enabled;        ///< enable NTP time sync
+    uint8_t  mqtt_enabled;       ///< enable MQTT publishing
+    uint8_t  _pad[3];            ///< align the string block (and total) to 4
+    // strings (each PLC_HOST_STR_LEN, a 4-byte multiple)
+    char     net_ip[STRLEN];     ///< static IPv4, used when net_dhcp == 0
+    char     net_netmask[STRLEN];
+    char     net_gateway[STRLEN];
+    char     net_dns1[STRLEN];
+    char     net_dns2[STRLEN];   ///< empty = none
+    char     ntp_server1[STRLEN];
+    char     ntp_server2[STRLEN];///< empty = none
+    char     mqtt_broker[STRLEN];
+};
+
+// Host -> PLC payload: the config write-back mirror (host stages edited config
+// values here; the PLC latches a group when its serial field bumps).
+struct PlcInputData_t {
+    GreenhouseConfig_t config;
+};
+static_assert(sizeof(PlcInputData_t) % 4 == 0, "PlcInputData_t must be 4-byte aligned");
 
 // Each discrete status wraps an `enum Value` plus a static str() converter,
 // giving a namespace (UpsStatus::ONLINE) and the str() C++ enums can't carry.
@@ -199,7 +241,11 @@ struct PlcOutputData_t {
     uint8_t  alarm_io_drop;      ///< IO_DROP
     uint8_t  alarm_log_fld;      ///< LOG_FLD
     uint8_t  alarm_wh_storm;     ///< WH_STORM
-    uint8_t  _reserved[2];       ///< pad to a 4-byte multiple
+    uint8_t  _reserved[2];       ///< pad the alarm block to a 4-byte multiple
+    // Config parameters + per-group commit serials, reflected by the PLC. The
+    // params page reads these (out_offset); a commit serial bumps here after the
+    // PLC applies a staged edit, which the consuming Component watches.
+    GreenhouseConfig_t config;
 };
 static_assert(sizeof(PlcOutputData_t) % 4 == 0, "PlcOutputData_t must be 4-byte aligned");
 
@@ -364,14 +410,55 @@ const uint8_t g_home_field_count = (uint8_t)(sizeof(g_home_fields) / sizeof(g_ho
 #undef SO
 #pragma GCC diagnostic pop
 
+// Config parameters: network / NTP / MQTT / geo, plus each group's commit
+// serial. Declared over the site payload - out_offset in PlcOutputData_t (read
+// the live value), in_offset in PlcInputData_t (stage an edit) - the two are
+// distinct layouts. The group name doubles as the name of that group's commit
+// serial parameter: editing net_ip stages it, editing "net" commits the group.
+// Fields: name, out_offset, in_offset, type, digits, str, unit, desc, notes,
+// default, min, max, capacity, str_kind, group.
+#define OO(f) (int16_t)offsetof(PlcOutputData_t, config.f)
+#define IO(f) (int16_t)offsetof(PlcInputData_t,  config.f)
+#define CAP   (uint16_t)GreenhouseConfig_t::STRLEN
+const Cfg::ConfigParam g_config_params[] = {
+    // -- network --
+    {"net",          OO(net),           IO(net),           SCALAR_U32,    0, nullptr, "",    "Network config commit", "bump to apply net edits", "0", 0, 1000000000, 0, Cfg::STR_NONE,     "net"},
+    {"net_dhcp",     OO(net_dhcp),      IO(net_dhcp),      SCALAR_U8,     0, nullptr, "",    "DHCP (1) or static IP (0)", "",              "1",  0, 1,      0,   Cfg::STR_NONE,     "net"},
+    {"net_ip",       OO(net_ip),        IO(net_ip),        SCALAR_STRING, 0, nullptr, "",    "Static IPv4 address", "used when DHCP off",  "",   0, 0,      CAP, Cfg::STR_IPV4,     "net"},
+    {"net_netmask",  OO(net_netmask),   IO(net_netmask),   SCALAR_STRING, 0, nullptr, "",    "Static subnet mask",  "used when DHCP off",  "",   0, 0,      CAP, Cfg::STR_IPV4,     "net"},
+    {"net_gateway",  OO(net_gateway),   IO(net_gateway),   SCALAR_STRING, 0, nullptr, "",    "Default gateway",     "used when DHCP off",  "",   0, 0,      CAP, Cfg::STR_IPV4,     "net"},
+    {"net_dns1",     OO(net_dns1),      IO(net_dns1),      SCALAR_STRING, 0, nullptr, "",    "Primary DNS server",  "",                    "",   0, 0,      CAP, Cfg::STR_IPV4,     "net"},
+    {"net_dns2",     OO(net_dns2),      IO(net_dns2),      SCALAR_STRING, 0, nullptr, "",    "Secondary DNS server","empty = none",        "",   0, 0,      CAP, Cfg::STR_IPV4_OPT, "net"},
+    // -- NTP --
+    {"ntp",          OO(ntp),           IO(ntp),           SCALAR_U32,    0, nullptr, "",    "NTP config commit", "bump to apply ntp edits", "0", 0, 1000000000, 0, Cfg::STR_NONE,     "ntp"},
+    {"ntp_enabled",  OO(ntp_enabled),   IO(ntp_enabled),   SCALAR_U8,     0, nullptr, "",    "Enable NTP time sync","",                    "1",  0, 1,      0,   Cfg::STR_NONE,     "ntp"},
+    {"ntp_poll_s",   OO(ntp_poll_s),    IO(ntp_poll_s),    SCALAR_U16,    0, nullptr, "s",   "NTP poll interval",   "0 = firmware default","64", 0, 65535,  0,   Cfg::STR_NONE,     "ntp"},
+    {"ntp_server1",  OO(ntp_server1),   IO(ntp_server1),   SCALAR_STRING, 0, nullptr, "",    "Primary NTP server",  "",          "pool.ntp.org", 0, 0,      CAP, Cfg::STR_HOST,     "ntp"},
+    {"ntp_server2",  OO(ntp_server2),   IO(ntp_server2),   SCALAR_STRING, 0, nullptr, "",    "Secondary NTP server","empty = none",        "",   0, 0,      CAP, Cfg::STR_HOST_OPT, "ntp"},
+    // -- MQTT --
+    {"mqtt",         OO(mqtt),          IO(mqtt),          SCALAR_U32,    0, nullptr, "",    "MQTT config commit", "bump to apply mqtt edits","0",0, 1000000000, 0, Cfg::STR_NONE,     "mqtt"},
+    {"mqtt_enabled", OO(mqtt_enabled),  IO(mqtt_enabled),  SCALAR_U8,     0, nullptr, "",    "Enable MQTT publishing","",                  "1",  0, 1,      0,   Cfg::STR_NONE,     "mqtt"},
+    {"mqtt_port",    OO(mqtt_port),     IO(mqtt_port),     SCALAR_U16,    0, nullptr, "",    "Broker TCP port",     "0 = firmware default","1883",0,65535,  0,   Cfg::STR_NONE,     "mqtt"},
+    {"mqtt_keepalive_s",OO(mqtt_keepalive_s),IO(mqtt_keepalive_s),SCALAR_U16,0,nullptr,"s",  "MQTT keepalive",      "0 = firmware default","60", 0, 65535,  0,   Cfg::STR_NONE,     "mqtt"},
+    {"mqtt_broker",  OO(mqtt_broker),   IO(mqtt_broker),   SCALAR_STRING, 0, nullptr, "",    "MQTT broker host",    "",                    "",   0, 0,      CAP, Cfg::STR_HOST,     "mqtt"},
+    // -- geo (decimal degrees) --
+    {"geo",          OO(geo),           IO(geo),           SCALAR_U32,    0, nullptr, "",    "Geo config commit", "bump to apply geo edits", "0", 0, 1000000000, 0, Cfg::STR_NONE,     "geo"},
+    {"geo_latitude", OO(geo_latitude),  IO(geo_latitude),  SCALAR_F32,    4, nullptr, "deg", "Site latitude",       "north +, south -",  "48.8566", -90,  90, 0,  Cfg::STR_NONE,     "geo"},
+    {"geo_longitude",OO(geo_longitude), IO(geo_longitude), SCALAR_F32,    4, nullptr, "deg", "Site longitude",      "east +, west -",    "2.3522", -180, 180, 0,  Cfg::STR_NONE,     "geo"},
+};
+#undef OO
+#undef IO
+#undef CAP
+const uint8_t g_config_param_count = (uint8_t)(sizeof(g_config_params) / sizeof(g_config_params[0]));
+
 // ---------------------------------------------------------------------------
 // The declarative site descriptor: the one bundle GreenhouseMLB41 hands the
-// firmware base. Name + the four generated tables (no site config parameters
-// yet - the slot is null/0). The base owns every page and wires each table.
+// firmware base. Name + the generated tables. The base owns every page and
+// wires each table.
 // ---------------------------------------------------------------------------
 const Botanik::SiteDescriptor g_site = {
     Botanik::Config::SITE_NAME,
-    nullptr, 0,                                  // config parameters (none yet)
+    g_config_params,     g_config_param_count,   // config parameters (params page)
     g_site_commands,     (uint8_t)(sizeof(g_site_commands) / sizeof(g_site_commands[0])),
     g_telemetry_groups,  g_telemetry_group_count,
     g_home_fields,       g_home_field_count,

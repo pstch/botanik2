@@ -14,8 +14,6 @@
 #include <type_traits>
 
 #include "libbotanik/hal/platform.h"
-// PlcOutputConfig_t - the generic config block
-#include "libbotanik/plcio/config.h"
 // LogLevel / LogTopic - carried byte-for-byte in the log ring below
 #include "libbotanik/logs/topics.h"
 #include "libbotanik_config.h"
@@ -117,14 +115,10 @@ namespace Botanik { namespace PlcIO {
     // alignas(32) gives a 32-byte-aligned base and rounds sizeof up to a
     // multiple of 32, so no neighbour ever shares a boundary line. The PLC
     // IDE's generated types must match this.
-    /** @brief Host->PLC shared region: sync counters, the log read cursor, the
-     *  generic config write-back mirror, and the site payload.
-     *  @note The `conf` mirror is symmetric with PlcOutput's `conf` block: the
-     *  host writes an edited group's fields and bumps its serial, and the PLC
-     *  applies it. It sits between the logs and the site `data`, so it shifts the
-     *  input `data` offset - a coordinated wire-ABI change: the PLC IDE's
-     *  generated input type must be updated to match
-     *  (see @ref md_docs_2PLC__CONFIG). */
+    /** @brief Host->PLC shared region: sync counters, the log read cursor, and
+     *  the site payload. Config parameters (network/NTP/MQTT/geo) are now ordinary
+     *  fields of the site `data` (the host stages an edited value, the PLC latches
+     *  it when its group serial field bumps) - there is no separate config block. */
     template<typename Data>
     struct alignas(32) PlcInput {
         // alignas(32) already rounds sizeof to a 32-byte multiple; the contract
@@ -135,24 +129,18 @@ namespace Botanik { namespace PlcIO {
                       "site Data must be a 4-byte multiple (or empty)");
         PlcInputCounters_t  sync;
         PlcInputLogs_t      logs;
-        PlcInputConfig_t    conf;
         Data                data;
     };
 
-    /** @brief PLC->host shared region: sync counters, the log ring, the generic
-     *  config block, and the site payload.
-     *  @note The library-fixed `conf` block (network/NTP/MQTT, plcio/config.h)
-     *  sits between the logs and the site `data`. Adding/resizing it shifts the
-     *  `data` offset, so it is a coordinated wire-ABI change: the PLC IDE's
-     *  generated type must be updated to match
-     *  (see @ref md_docs_2PLC__CONFIG). */
+    /** @brief PLC->host shared region: sync counters, the log ring, and the site
+     *  payload. Config parameters and their group serials are ordinary fields of
+     *  the site `data` - there is no separate config block. */
     template<typename Data>
     struct alignas(32) PlcOutput {
         static_assert(std::is_empty<Data>::value || sizeof(Data) % sizeof(uint32_t) == 0,
                       "site Data must be a 4-byte multiple (or empty)");
         PlcOutputCounters_t sync;
         PlcOutputLogs_t     logs;
-        PlcOutputConfig_t   conf;
         Data                data;
     };
 

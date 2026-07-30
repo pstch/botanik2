@@ -36,10 +36,9 @@ namespace Botanik { namespace detail {
     // PLC shared memory + sync state machines
     static_assert(sizeof(PlcIO::LogEntry_t)                                == BOTANIK_SIZE(  268,   268), "LogEntry_t footprint changed");
     static_assert(sizeof(PlcIO::PlcOutputLogs_t)                           == BOTANIK_SIZE( 8580,  8580), "PlcOutputLogs_t footprint changed");
-    static_assert(sizeof(PlcIO::PlcOutputConfig_t)                         == BOTANIK_SIZE(  552,   552), "PlcOutputConfig_t footprint changed");
-    static_assert(sizeof(PlcIO::PlcOutput<ProbePlcOut>)                    == BOTANIK_SIZE( 9216,  9216), "PlcOutput footprint changed");
-    static_assert(sizeof(PlcIO::PlcSyncContext)                            == BOTANIK_SIZE( 9784,  9748), "PlcSyncContext footprint changed");
-    static_assert(sizeof(PlcIO::PlcSyncHandler<ProbePlcIn, ProbePlcOut>)   == BOTANIK_SIZE( 9928,  9856), "PlcSyncHandler footprint changed");
+    static_assert(sizeof(PlcIO::PlcOutput<ProbePlcOut>)                    == BOTANIK_SIZE( 8672,  8672), "PlcOutput footprint changed");
+    static_assert(sizeof(PlcIO::PlcSyncContext)                            == BOTANIK_SIZE( 8696,  8652), "PlcSyncContext footprint changed");
+    static_assert(sizeof(PlcIO::PlcSyncHandler<ProbePlcIn, ProbePlcOut>)   == BOTANIK_SIZE( 8840,  8760), "PlcSyncHandler footprint changed");
     // PlcEmulator{,Context} pins live with the emulator in botanik_sim/emulator.cpp.
 
     // Logging

@@ -9,13 +9,13 @@
  *        status-variable table uses.
  *
  * Configuration is a flat namespace of parameters (network/NTP/MQTT/geo today).
- * A parameter is just a writable ScalarField: `ConfigParam` is an alias
- * for it, so status variables and config parameters share one descriptor. The
- * value is read from the parameter's @c out_offset in the flat
- * PlcIO::PlcOutputConfig_t image and a committed edit is written to its
- * @c in_offset in the input mirror (same layout, so in == out for a real param).
- * A ScalarField[] table (library built-ins + an optional site table) drives the
- * CONFIG page and the backends generically - no per-field code.
+ * A parameter is just a writable ScalarField: `ConfigParam` is an alias for it,
+ * so status variables and config parameters share one descriptor. The value is
+ * read from the parameter's @c out_offset in the config image (the site's PLC
+ * output payload) and a committed edit is written to its @c in_offset in the
+ * input payload mirror; the two are distinct site-defined layouts. The site
+ * declares the whole ScalarField[] table (the library ships none) and it drives
+ * the CONFIG page and the backends generically - no per-field code.
  *
  * ConfigHandler is the storage-backend base. Two concrete backends derive it:
  * PlcConfigHandler (the PLC owns the values in NVM) and LocalConfigHandler (Mbed
@@ -28,7 +28,6 @@
 #include <cstring>   // strlen/strncmp (find by name)
 
 #include "libbotanik/core/component.h"
-#include "libbotanik/plcio/config.h"           // PlcOutputConfig_t (the config image)
 #include "libbotanik/core/scalar.h"  // ScalarField / ScalarType (the shared descriptor)
 
 namespace Botanik { namespace Cfg {
@@ -37,16 +36,10 @@ namespace Botanik { namespace Cfg {
      *  @{ */
 
     /** @brief A config parameter is a writable ScalarField (in_offset >=
-     *  0). One descriptor for both status variables and parameters. */
+     *  0). One descriptor for both status variables and parameters. The site
+     *  declares every parameter over its own PLC input/output payload; the
+     *  library ships no built-in table and reads what it needs by name. */
     using ConfigParam = ScalarField;
-
-    /** @brief Parameter group. Only used to pick which `<group>_serial` word to
-     *  bump on a committed edit (the consumers re-apply per group, not per
-     *  parameter). Held in ScalarField::group as a plain byte. */
-    enum ConfigGroup {
-        CFG_NET, CFG_NTP, CFG_MQTT, CFG_GEO,
-        CFG_GROUP_COUNT
-    };
 
     /** @brief How to validate a string parameter's edited text (STR_NONE for
      *  non-string params). The *_OPT variants also accept an empty string (an
@@ -57,10 +50,6 @@ namespace Botanik { namespace Cfg {
         STR_IPV4, STR_IPV4_OPT,
         STR_HOST, STR_HOST_OPT
     };
-
-    /** @brief The library built-in parameters (net/ntp/mqtt/geo), flat. */
-    extern const ConfigParam CONFIG_PARAMS[];
-    extern const uint8_t     CONFIG_PARAM_COUNT;
 
     /** @} */
 
@@ -77,14 +66,6 @@ namespace Botanik { namespace Cfg {
     /** @brief Stored width of a parameter's value in the image (its scalar width,
      *  or the string capacity). */
     size_t param_width(const ConfigParam& p);
-
-    /** @brief Byte offset of a group's serial word in the config image. */
-    uint16_t group_serial_offset(uint8_t group);
-
-    /** @brief The contiguous byte range [*start, *start + *len) of a group's
-     *  fields in the image (its serial leads the range). Groups are laid out
-     *  contiguously, so a whole group can be copied in one memcpy. */
-    void group_byte_range(uint8_t group, uint16_t* start, uint16_t* len);
 
     /** @brief Validate SCALAR_STRING edit text @p s per the parameter's StrKind
      *  (IPv4 or hostname, required or optional). */
@@ -121,16 +102,17 @@ namespace Botanik { namespace Cfg {
     /** @} */
 
     /** @brief Configuration storage-backend base: owns the parameter registry
-     *  (library + optional site table) and the generic read/render/validate/
-     *  write surface over a flat config image. Concrete backends supply the
-     *  image and the write path. */
+     *  (the site table) and the generic read/render/validate/write surface over
+     *  a flat config image. Concrete backends supply the image and the write
+     *  path. The image is a byte blob addressed by each parameter's offsets - the
+     *  site's PLC output payload for a live PLC, a RAM buffer for a local build. */
     class ConfigHandler : public Component {
 
         /** @name Parameter registry
          *  @{ */
 
-        /** @brief Site parameter table appended after the library set (may be
-         *  null). Registered via set_site_params(); must outlive the handler. */
+        /** @brief Site parameter table (may be null). Registered via
+         *  set_site_params(); must outlive the handler. */
         const ConfigParam* _site       = nullptr;
         uint8_t            _site_count  = 0;
 
@@ -145,26 +127,20 @@ namespace Botanik { namespace Cfg {
 
         /** @} */
 
-        /** @name Parameter access (library table then site table)
+        /** @name Parameter access
          *  @{ */
 
-        /** @brief Register the site's extra parameters, addressed after the
-         *  library set. @p table must outlive the handler; count 0 clears. */
+        /** @brief Register the site's parameter table. @p table must outlive the
+         *  handler; count 0 clears. */
         void set_site_params(const ConfigParam* table, uint8_t count) {
             _site = table; _site_count = count;
         }
 
-        /** @brief Total parameter count (library + site). */
-        uint8_t count() const {
-            return (uint8_t)(CONFIG_PARAM_COUNT + _site_count);
-        }
+        /** @brief Total parameter count. */
+        uint8_t count() const { return _site_count; }
 
-        /** @brief The @p i-th parameter (library entries first, then site). */
-        const ConfigParam& param(uint8_t i) const {
-            return (i < CONFIG_PARAM_COUNT)
-                ? CONFIG_PARAMS[i]
-                : _site[i - CONFIG_PARAM_COUNT];
-        }
+        /** @brief The @p i-th parameter. */
+        const ConfigParam& param(uint8_t i) const { return _site[i]; }
 
         /** @} */
 
@@ -172,26 +148,29 @@ namespace Botanik { namespace Cfg {
          *  @{ */
 
         /** @brief The current config image (backend-owned; stable for the
-         *  handler's lifetime). Never null. */
-        virtual const PlcIO::PlcOutputConfig_t* image() const = 0;
+         *  handler's lifetime). Never null. Addressed by parameter byte offset. */
+        virtual const void* image() const = 0;
 
         /** @brief Apply an edited value (as display text) to parameter @p p:
-         *  parse + validate, then persist through the backend and bump the
-         *  parameter's group serial. @return false (image unchanged) on invalid
-         *  input. */
+         *  parse + validate, then persist through the backend. @return false
+         *  (image unchanged) on invalid input. */
         virtual bool set(const ConfigParam& p, const char* text) = 0;
 
         /** @brief Render parameter @p i's current value into @p buf. */
         int format(uint8_t i, char* buf, size_t cap) const {
-            return format_value(param(i), image(), buf, cap);
+            const void* img = image();
+            if (img == nullptr) { if (cap) buf[0] = '\0'; return 0; }
+            return format_value(param(i), img, buf, cap);
         }
 
         /** @brief Render a given parameter's current value into @p buf. */
         int format_param(const ConfigParam& p, char* buf, size_t cap) const {
-            return format_value(p, image(), buf, cap);
+            const void* img = image();
+            if (img == nullptr) { if (cap) buf[0] = '\0'; return 0; }
+            return format_value(p, img, buf, cap);
         }
 
-        /** @brief Find a parameter by name (library + site), or null. */
+        /** @brief Find a parameter by name, or null. */
         const ConfigParam* find(const char* name, uint16_t len) const {
             for (uint8_t i = 0; i < count(); i++) {
                 const ConfigParam& p = param(i);
@@ -209,19 +188,19 @@ namespace Botanik { namespace Cfg {
          *  @{ */
 
         /** @brief Parse + validate edit text @p text for parameter @p p and
-         *  write its bytes into @p base at p.in_offset (numeric by width, string
-         *  copied and NUL-padded to capacity). @return false (nothing written)
-         *  on invalid input. Backends call this against their writable target
-         *  (the local image, or the PLC input mirror). */
-        static bool write_value(const ConfigParam& p, const char* text, void* base);
+         *  write its bytes into @p base at byte @p offset (numeric by width,
+         *  string copied and NUL-padded to capacity). @return false (nothing
+         *  written) on invalid input or a read-only parameter. A PLC backend
+         *  passes the input-mirror @c in_offset; a local backend the single-image
+         *  @c out_offset. */
+        static bool write_value(const ConfigParam& p, const char* text, void* base, int16_t offset);
 
         /** @} */
     };
 
     /** @brief The config image behind a handler, or null if @p h is null. Shared
-     *  by the config-driven components so each keeps no null-guard of its own
-     *  (mirrors PlcIO::plc_config for the sync context). */
-    inline const PlcIO::PlcOutputConfig_t* config_image(const ConfigHandler* h) {
+     *  by the config-driven components so each keeps no null-guard of its own. */
+    inline const void* config_image(const ConfigHandler* h) {
         return h != nullptr ? h->image() : nullptr;
     }
 
@@ -242,30 +221,33 @@ namespace Botanik { namespace Cfg {
     /** @brief Read a numeric parameter by name as int32 (@p dflt if absent). */
     inline int32_t cfg_int(const ConfigHandler* h, const char* name, int32_t dflt = 0) {
         const ConfigParam* p = cfg_find(h, name);
-        return p != nullptr ? read_scalar(*p, h->image()) : dflt;
+        const void* img = (p != nullptr) ? h->image() : nullptr;
+        return img != nullptr ? read_scalar(*p, img) : dflt;
     }
 
     /** @brief Read an SCALAR_F32 parameter by name (@p dflt if absent / wrong type). */
     inline float cfg_f32(const ConfigHandler* h, const char* name, float dflt = 0.0f) {
         const ConfigParam* p = cfg_find(h, name);
-        return (p != nullptr && p->type == SCALAR_F32) ? scalar_read_f32(*p, h->image()) : dflt;
+        const void* img = (p != nullptr && p->type == SCALAR_F32) ? h->image() : nullptr;
+        return img != nullptr ? scalar_read_f32(*p, img) : dflt;
     }
 
     /** @brief Pointer to an SCALAR_STRING parameter's text by name ("" if absent).
      *  Valid for the handler's lifetime (points into its image). */
     inline const char* cfg_str(const ConfigHandler* h, const char* name) {
         const ConfigParam* p = cfg_find(h, name);
-        return (p != nullptr && p->type == SCALAR_STRING) ? scalar_read_string(*p, h->image()) : "";
+        const void* img = (p != nullptr && p->type == SCALAR_STRING) ? h->image() : nullptr;
+        return img != nullptr ? scalar_read_string(*p, img) : "";
     }
 
-    /** @brief The change serial for a config group (0 if no handler / image). A
-     *  consumer watches this to re-apply its group after a committed edit. */
-    inline uint32_t cfg_group_serial(const ConfigHandler* h, uint8_t group) {
-        const PlcIO::PlcOutputConfig_t* img = config_image(h);
-        if (img == nullptr) return 0;
-        uint32_t v;
-        std::memcpy(&v, (const uint8_t*)img + group_serial_offset(group), 4);
-        return v;
+    /** @brief The change serial for a config group: the value of the parameter
+     *  named @p group (its commit serial), read from the output image. 0 if
+     *  absent. A consumer watches this to re-apply after the user commits an
+     *  edit by bumping that serial. */
+    inline uint32_t cfg_group_serial(const ConfigHandler* h, const char* group) {
+        const ConfigParam* p = cfg_find(h, group);
+        const void* img = (p != nullptr) ? h->image() : nullptr;
+        return img != nullptr ? (uint32_t)read_scalar(*p, img) : 0;
     }
 
     /** @} */

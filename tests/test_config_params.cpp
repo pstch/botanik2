@@ -1,10 +1,12 @@
 /**
  * @file test_config_params.cpp
- * @brief Tests for the ConfigParam model (core/config.h): the library table,
- *        the generic read/format/validate/parse helpers, and the ConfigHandler
- *        registry (library + site params). The backends (Plc/Local) and the
- *        write path are exercised elsewhere; here we cover the pure helpers.
+ * @brief Tests for the ConfigParam model (core/config.h): the generic
+ *        read/format/validate/parse helpers and the ConfigHandler registry,
+ *        driven by a self-contained parameter table (the library ships none -
+ *        a site declares its parameters over its own payload). The backends
+ *        (Plc/Local) and the write path are exercised elsewhere.
  */
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 
@@ -16,49 +18,63 @@ using namespace Botanik;
 using namespace Botanik::Cfg;
 
 namespace {
+    // Self-contained config payload + parameter table (a site's stand-in).
+    struct TestCfg {
+        float    geo_latitude;
+        uint32_t net;                ///< network group commit serial
+        uint16_t ntp_poll_s;
+        uint16_t mqtt_port;
+        uint8_t  net_dhcp;
+        uint8_t  _pad[3];
+        char     net_ip[64];
+    };
+
+#define OFF(f) (int16_t)offsetof(TestCfg, f)
+    const ConfigParam PARAMS[] = {
+        // name, out_offset, in_offset, type, digits, str, unit, desc, notes, default, min, max, capacity, str_kind, group
+        {"net",          OFF(net),         OFF(net),         SCALAR_U32,    0, nullptr, "",    "commit", "", "0", 0, 1000000000, 0,  STR_NONE, "net"},
+        {"net_dhcp",     OFF(net_dhcp),     OFF(net_dhcp),     SCALAR_U8,    0, nullptr, "",    "dhcp",   "", "1", 0, 1,      0,  STR_NONE, "net"},
+        {"net_ip",       OFF(net_ip),       OFF(net_ip),       SCALAR_STRING,0, nullptr, "",    "ip",     "", "",  0, 0,      64, STR_IPV4, "net"},
+        {"ntp_poll_s",   OFF(ntp_poll_s),   OFF(ntp_poll_s),   SCALAR_U16,   0, nullptr, "s",   "poll",   "", "64",0, 65535,  0,  STR_NONE, "ntp"},
+        {"mqtt_port",    OFF(mqtt_port),    OFF(mqtt_port),    SCALAR_U16,   0, nullptr, "",    "port",   "", "1883",0,65535, 0,  STR_NONE, "mqtt"},
+        {"geo_latitude", OFF(geo_latitude), OFF(geo_latitude), SCALAR_F32,   4, nullptr, "deg", "lat",    "", "48.8566", -90, 90, 0, STR_NONE, "geo"},
+    };
+#undef OFF
+    const uint8_t PARAM_COUNT = (uint8_t)(sizeof(PARAMS) / sizeof(PARAMS[0]));
+
     const ConfigParam* find(const char* name) {
-        for (uint8_t i = 0; i < CONFIG_PARAM_COUNT; i++)
-            if (strcmp(CONFIG_PARAMS[i].name, name) == 0) return &CONFIG_PARAMS[i];
+        for (uint8_t i = 0; i < PARAM_COUNT; i++)
+            if (strcmp(PARAMS[i].name, name) == 0) return &PARAMS[i];
         return nullptr;
     }
 
     // A trivial backend: a local image, no write path (set() stubbed). Enough to
     // exercise the registry (count/param/format).
     struct TestHandler : ConfigHandler {
-        PlcIO::PlcOutputConfig_t img{};
-        TestHandler() : ConfigHandler(nullptr) {}
-        const PlcIO::PlcOutputConfig_t* image() const override { return &img; }
+        TestCfg img{};
+        TestHandler() : ConfigHandler(nullptr) { set_site_params(PARAMS, PARAM_COUNT); }
+        const void* image() const override { return &img; }
         bool set(const ConfigParam&, const char*) override { return false; }
     };
 }
 
 TEST_CASE("config table: sane offsets, string capacities, group tags") {
-    CHECK(CONFIG_PARAM_COUNT == 16);
-    for (uint8_t i = 0; i < CONFIG_PARAM_COUNT; i++) {
-        const ConfigParam& p = CONFIG_PARAMS[i];
+    for (uint8_t i = 0; i < PARAM_COUNT; i++) {
+        const ConfigParam& p = PARAMS[i];
         CHECK(p.out_offset >= 0);
-        CHECK((size_t)p.out_offset < sizeof(PlcIO::PlcOutputConfig_t));
-        CHECK(p.in_offset == p.out_offset);   // config: input mirror shares the layout
-        CHECK(p.group < CFG_GROUP_COUNT);
-        if (is_string(p)) CHECK(p.capacity == Config::PLC_HOST_STR_LEN);
+        CHECK((size_t)p.out_offset < sizeof(TestCfg));
+        CHECK(p.group != nullptr);
+        if (is_string(p)) CHECK(p.capacity == sizeof(TestCfg::net_ip));
     }
-    // Spot-check a few names resolve and carry the expected type/group.
     REQUIRE(find("net_dhcp") != nullptr);
     CHECK(find("net_dhcp")->type == SCALAR_U8);
     CHECK(find("net_ip")->type == SCALAR_STRING);
-    CHECK(find("ntp_poll_s")->group == CFG_NTP);
+    CHECK(strcmp(find("ntp_poll_s")->group, "ntp") == 0);
     CHECK(find("geo_latitude")->type == SCALAR_F32);
 }
 
-TEST_CASE("group_serial_offset matches the image serial fields") {
-    CHECK(group_serial_offset(CFG_NET)  == offsetof(PlcIO::PlcOutputConfig_t, net_serial));
-    CHECK(group_serial_offset(CFG_NTP)  == offsetof(PlcIO::PlcOutputConfig_t, ntp_serial));
-    CHECK(group_serial_offset(CFG_MQTT) == offsetof(PlcIO::PlcOutputConfig_t, mqtt_serial));
-    CHECK(group_serial_offset(CFG_GEO)  == offsetof(PlcIO::PlcOutputConfig_t, geo_serial));
-}
-
 TEST_CASE("read + format values off an image") {
-    PlcIO::PlcOutputConfig_t c{};
+    TestCfg c{};
     c.net_dhcp     = 1;
     c.ntp_poll_s   = 64;
     c.mqtt_port    = 1883;
@@ -89,20 +105,16 @@ TEST_CASE("read + format values off an image") {
 TEST_CASE("parse_scalar: integers and bounds") {
     int32_t v = 0;
 
-    // Integer within range.
     CHECK(parse_scalar(*find("ntp_poll_s"), "64", &v));
     CHECK(v == 64);
 
-    // Out of range (u16 field, max 65535) and below min (0).
     CHECK_FALSE(parse_scalar(*find("ntp_poll_s"), "70000", &v));
     CHECK_FALSE(parse_scalar(*find("ntp_poll_s"), "-5", &v));
 
-    // Malformed.
     CHECK_FALSE(parse_scalar(*find("ntp_poll_s"), "abc", &v));
     CHECK_FALSE(parse_scalar(*find("ntp_poll_s"), "12x", &v));
     CHECK_FALSE(parse_scalar(*find("ntp_poll_s"), "", &v));
 
-    // Boolean-ish u8 bound.
     CHECK(parse_scalar(*find("net_dhcp"), "1", &v));
     CHECK_FALSE(parse_scalar(*find("net_dhcp"), "2", &v));
 }
@@ -141,26 +153,19 @@ TEST_CASE("validate_hostname") {
     CHECK_FALSE(validate_hostname("toolong", 4));     // 7 chars, cap 4
 }
 
-TEST_CASE("ConfigHandler registry: library + site params") {
+TEST_CASE("ConfigHandler registry + format through the image") {
     TestHandler h;
-    CHECK(h.count() == CONFIG_PARAM_COUNT);
-    CHECK(strcmp(h.param(0).name, CONFIG_PARAMS[0].name) == 0);
+    CHECK(h.count() == PARAM_COUNT);
+    CHECK(strcmp(h.param(0).name, PARAMS[0].name) == 0);
 
-    // name, out_offset, in_offset, type, digits, str, unit, desc, notes, deflt, min, max, capacity, str_kind, group
-    static const ConfigParam site[] = {
-        {"site_a", 0, 0, SCALAR_U8, 0, nullptr, "", "", "", "", 0, 1, 0, STR_NONE, CFG_NET},
-        {"site_b", 0, 0, SCALAR_U8, 0, nullptr, "", "", "", "", 0, 1, 0, STR_NONE, CFG_NET},
-    };
-    h.set_site_params(site, 2);
-    CHECK(h.count() == (uint8_t)(CONFIG_PARAM_COUNT + 2));
-    CHECK(strcmp(h.param(CONFIG_PARAM_COUNT).name, "site_a") == 0);
-    CHECK(strcmp(h.param((uint8_t)(CONFIG_PARAM_COUNT + 1)).name, "site_b") == 0);
+    // find() resolves a registered parameter.
+    CHECK(h.find("mqtt_port", 9) != nullptr);
+    CHECK(h.find("nope", 4) == nullptr);
 
-    // format() reads through image(); default image is zeroed.
+    // format() reads through image().
     h.img.mqtt_port = 8883;
     char buf[32];
-    // find mqtt_port's index in the library table
-    for (uint8_t i = 0; i < CONFIG_PARAM_COUNT; i++)
+    for (uint8_t i = 0; i < h.count(); i++)
         if (strcmp(h.param(i).name, "mqtt_port") == 0) {
             h.format(i, buf, sizeof(buf));
             CHECK(strcmp(buf, "8883") == 0);

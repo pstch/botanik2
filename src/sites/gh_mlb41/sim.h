@@ -74,7 +74,8 @@ inline uint64_t abit(const char* code) {
  * Called from the emulator thread (~1 Hz); static state lets values settle and
  * only drift now and then. @p now_ms is the uptime in milliseconds.
  */
-inline void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
+inline void fill_greenhouse_output(PlcOutputData_t* o, const PlcInputData_t* in,
+                                   uint32_t now_ms) {
     // seconds - drives irrigation walk
     const float t = (float)now_ms / 1000.0f;
 
@@ -225,31 +226,63 @@ inline void fill_greenhouse_output(PlcOutputData_t* o, uint32_t now_ms) {
     uint8_t* base = reinterpret_cast<uint8_t*>(o);
     for (uint8_t i = 0; i < g_alarm_count; i++)
         base[g_alarms[i].offset] = (uint8_t)((debounced >> i) & 1u);
-}
 
-/**
- * @brief Publish the mock PLC config block (network / NTP / MQTT / geo). On
- * hardware the coprocessor publishes these; in the sim the emulator does, so
- * the config originates from the emulated PLC like the rest of the output.
- * Per-block serials start at 1 so a consumer latched at 0 applies them once.
- */
-inline void fill_greenhouse_config(Botanik::PlcIO::PlcOutputConfig_t* cfg) {
-    auto set_host = [](Botanik::PlcIO::HostStr_t dst, const char* s) {
-        std::strncpy(dst, s, Botanik::Config::PLC_HOST_STR_LEN - 1);
-        dst[Botanik::Config::PLC_HOST_STR_LEN - 1] = '\0';
+    // ---- Config (network / NTP / MQTT / geo) ------------------------------
+    // Authoritative config: the coprocessor's NVM stand-in. Config parameters
+    // are now ordinary payload fields, so the mock PLC owns a copy, seeds it
+    // once (serials start at 1 so a consumer latched at 0 applies once), adopts
+    // any group the host committed (its input serial advanced on the params
+    // page), and mirrors the whole block into the output the params page and the
+    // config-driven Components read.
+    static GreenhouseConfig_t cfg;
+    static bool cfg_seeded = false;
+    auto set_host = [](char* dst, const char* s) {
+        std::strncpy(dst, s, GreenhouseConfig_t::STRLEN - 1);
+        dst[GreenhouseConfig_t::STRLEN - 1] = '\0';
     };
-    cfg->net_serial  = 1; cfg->net_dhcp = 1;            // DHCP; static empty
-    set_host(cfg->net_dns1, "192.168.1.1");
-    cfg->ntp_serial  = 1; cfg->ntp_enabled = 1; cfg->ntp_poll_s = 64;
-    set_host(cfg->ntp_server1, "pool.ntp.org");
-    // Broker port points at the in-process mock responder (sim has no
-    // privileged ports); the name resolves to loopback in the HAL.
-    cfg->mqtt_serial = 1; cfg->mqtt_enabled = 1; cfg->mqtt_keepalive_s = 60;
-    cfg->mqtt_port = Botanik::HAL::Network::MQTT_MOCK_PORT;
-    set_host(cfg->mqtt_broker, "broker.local");
-    cfg->geo_serial = 1;                                // example: Paris
-    cfg->geo_latitude  = 48.8566f;                      // 48.8566 N
-    cfg->geo_longitude =  2.3522f;                      //  2.3522 E
+    if (!cfg_seeded) {
+        cfg_seeded = true;
+        memset(&cfg, 0, sizeof(cfg));
+        cfg.net = 1; cfg.net_dhcp = 1;                  // DHCP; static empty
+        set_host(cfg.net_dns1, "192.168.1.1");
+        cfg.ntp = 1; cfg.ntp_enabled = 1; cfg.ntp_poll_s = 64;
+        set_host(cfg.ntp_server1, "pool.ntp.org");
+        // Broker port points at the in-process mock responder (sim has no
+        // privileged ports); the name resolves to loopback in the HAL.
+        cfg.mqtt = 1; cfg.mqtt_enabled = 1; cfg.mqtt_keepalive_s = 60;
+        cfg.mqtt_port = Botanik::HAL::Network::MQTT_MOCK_PORT;
+        set_host(cfg.mqtt_broker, "broker.local");
+        cfg.geo = 1; cfg.geo_latitude = 48.8566f; cfg.geo_longitude = 2.3522f;  // Paris
+    }
+    // Adopt each group the host committed (its serial advanced and is non-zero):
+    // take the staged fields as-is (the params page is responsible for a coherent
+    // group), then the new serial the Components watch.
+    if (in != nullptr) {
+        const GreenhouseConfig_t& ic = in->config;
+        if (ic.net && ic.net != cfg.net) {
+            cfg.net_dhcp = ic.net_dhcp;
+            set_host(cfg.net_ip, ic.net_ip);         set_host(cfg.net_netmask, ic.net_netmask);
+            set_host(cfg.net_gateway, ic.net_gateway);
+            set_host(cfg.net_dns1, ic.net_dns1);     set_host(cfg.net_dns2, ic.net_dns2);
+            cfg.net = ic.net;
+        }
+        if (ic.ntp && ic.ntp != cfg.ntp) {
+            cfg.ntp_enabled = ic.ntp_enabled; cfg.ntp_poll_s = ic.ntp_poll_s;
+            set_host(cfg.ntp_server1, ic.ntp_server1); set_host(cfg.ntp_server2, ic.ntp_server2);
+            cfg.ntp = ic.ntp;
+        }
+        if (ic.mqtt && ic.mqtt != cfg.mqtt) {
+            cfg.mqtt_enabled = ic.mqtt_enabled; cfg.mqtt_port = ic.mqtt_port;
+            cfg.mqtt_keepalive_s = ic.mqtt_keepalive_s;
+            set_host(cfg.mqtt_broker, ic.mqtt_broker);
+            cfg.mqtt = ic.mqtt;
+        }
+        if (ic.geo && ic.geo != cfg.geo) {
+            cfg.geo_latitude = ic.geo_latitude; cfg.geo_longitude = ic.geo_longitude;
+            cfg.geo = ic.geo;
+        }
+    }
+    o->config = cfg;
 }
 
 }  // namespace

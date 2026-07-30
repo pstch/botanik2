@@ -26,7 +26,7 @@ namespace Botanik { namespace Network {
           _state(NET_IDLE), _since_ms(0), _resolver(resolver) {}
 
     uint32_t NetworkHandler::config_serial() const {
-        return Cfg::cfg_group_serial(_cfg, Cfg::CFG_NET);
+        return Cfg::cfg_group_serial(_cfg, "net");
     }
 
     const char* NetworkHandler::status_str() const {
@@ -47,7 +47,7 @@ namespace Botanik { namespace Network {
     void NetworkHandler::on_config_changed(uint64_t now_ms) {
         // Clear the resolver cache, then re-bring-up (or idle).
         _unwire_resolver();
-        if (Cfg::cfg_group_serial(_cfg, Cfg::CFG_NET) == 0) {
+        if (Cfg::cfg_group_serial(_cfg, "net") == 0) {
             HAL::Network::link_disconnect();
             _enter(NET_IDLE, now_ms);
             return;
