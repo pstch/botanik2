@@ -31,5 +31,8 @@
 #include "../../libbotanik/core/scalar.h"        // ScalarField / ScalarGroup / HomeField
 #include "../../libbotanik/alarms/alarms.h"      // Alarms::AlarmCondition
 #include "../../libbotanik/shell/shell.h"        // Shell::ShellCommand
+#include "../../libbotanik/vars/io.h"            // the variable model + typed handles
+#include "../../libbotanik/scan/scan.h"          // Task / ScanContext
+#include "../../libbotanik/scan/blocks.h"        // function blocks
 
 #endif // SITE_BOTANIK_H
