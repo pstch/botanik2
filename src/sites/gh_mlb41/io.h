@@ -10,10 +10,11 @@
  * file.
  *
  * Bus: RS485, ModbusRTU master, 38400 baud, none/8/1, on COM2.
- * 8 field devices, 70 mapped signals, 20 free channels.
+ * 8 field devices, 71 mapped signals, 20 free channels.
+ * (70 in the published device map, plus MTR-2 object 2 - see below.)
  *
  *   SRR/TAC/MTR-1  Eastron SDM630    addr 5   37 analog in
- *   SRR/TAC/MTR-2  Lettel MCT1-140   addr 6    5 analog in
+ *   SRR/TAC/MTR-2  Lettel MCT1-140   addr 6    6 analog in
  *   SRR/TDC/AI-1   Waveshare 25767   addr 11   8 free  (unmapped)
  *   SRR/TDC/AO-1   Waveshare 26211   addr 16   8 free  (unmapped)
  *   SRR/TDC/RO-1   Waveshare 26517   addr 31   6 coils out (+2 free)
@@ -54,7 +55,7 @@ using namespace Botanik::Vars;
 #define COIL(nm, dev, coil, desc) \
     { {nm, "", desc, "", "0"}, {IO_MODBUS_RTU, dev, coil, 5}, false }
 
-/** @name Analog inputs (42)
+/** @name Analog inputs (43)
  *
  *  Plain `const`, so each is internal to the including TU. Two TUs include this
  *  site in the firmware build, so the tables cost ~2.8 KB of flash twice. Moving
@@ -104,7 +105,8 @@ const AnalogInVar g_analog_in[] = {
     MTR("pwr_L3_W",        "W",   5, 36, -1e6f,  1e6f,   "L3 active power"),
 
     // -- SRR/TAC/MTR-2, Lettel MCT1-140, addr 6: single-phase meter --
-    // Object 2 is absent from the device profile; the gap is deliberate.
+    // Object 2 (ats_W) is not in the published device map, which lists this
+    // meter as 5 signals; it is mapped here deliberately.
     MTR("ats_V",           "V",   6,  0, 0.0f,   500.0f, "ATS voltage"),
     MTR("ats_A",           "A",   6,  1, 0.0f,   200.0f, "ATS current"),
     MTR("ats_W",           "W",   6,  2, 0.0f,   1000.0f, "ATS active power"),
