@@ -78,8 +78,13 @@ const Scan::Task g_tasks[] = {
 };
 const uint8_t g_task_count = (uint8_t)(sizeof(g_tasks) / sizeof(g_tasks[0]));
 
-/** @brief Per-task diagnostics; one entry per row above. */
-Botanik::Scan::TaskStats g_task_stats[sizeof(g_tasks) / sizeof(g_tasks[0])];
+/** @brief Per-task diagnostics; one entry per row above.
+ *
+ *  Declared, not defined: this is mutable state, so a definition in the header
+ *  would give every including TU its own copy and break the link the moment two
+ *  of them exist (the sim has one, the firmware has two). Defined in io.cpp
+ *  alongside the other site value stores. */
+extern Botanik::Scan::TaskStats g_task_stats[];
 
 }  // namespace Site
 
