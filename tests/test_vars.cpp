@@ -37,7 +37,7 @@ namespace {
         DigitalValue div[1]{}; DigitalValue dov[1]{};
         Io io;
         Fixture() {
-            IoTables t;
+            IoTables t = {};
             t.ai = AI;   t.ai_v = aiv; t.ai_n = 2;
             t.ao = AO;   t.ao_v = aov; t.ao_n = 1;
             t.di = DI;   t.di_v = div; t.di_n = 1;
@@ -102,9 +102,26 @@ TEST_CASE("vars: all_outputs_safe drops every output to its default") {
     CHECK_FALSE(f.io.ao(0).valid());
 }
 
-TEST_CASE("vars: an out-of-range index clamps rather than faulting") {
+TEST_CASE("vars: an out-of-range index resolves to an inert sink") {
     Fixture f;
-    CHECK(f.io.ai(99).value() == doctest::Approx(1.5f));   // clamped to the last
+    // NOT clamped to the last entry: clamping aliased a typo onto a real
+    // signal, so a bad index would have driven an actual relay.
+    CHECK(f.io.ai(99).value() == doctest::Approx(0.0f));
+    f.io.dout(99).set(true);                       // absorbed, drives nothing
+    CHECK_FALSE(f.io.dout(0).value() == false);    // the real coil is untouched
+}
+
+TEST_CASE("vars: indexing an EMPTY table is safe") {
+    // gh_mlb41 really is in this shape: the AI-1 / AO-1 modules are wired but
+    // unmapped, so its analog-output and digital-input tables are null. Reaching
+    // into one must not dereference null.
+    IoTables t = {};
+    Io io(t);
+    io.init();
+    CHECK(io.ao(0).value() == doctest::Approx(0.0f));
+    CHECK_FALSE(io.di(0).value());
+    io.ao(0).set(50.0f);                            // absorbed
+    io.all_outputs_safe();                          // and sweeps cleanly
 }
 
 TEST_CASE("vars: a malformed default reads as zero, not a parsed prefix") {
@@ -115,7 +132,7 @@ TEST_CASE("vars: a malformed default reads as zero, not a parsed prefix") {
           SCALAR_I16, 1.0f, 0.0f, 0.0f, 100.0f, 0 },
     };
     AnalogValue v[1]{};
-    IoTables t; t.ai = bad; t.ai_v = v; t.ai_n = 1;
+    IoTables t = {}; t.ai = bad; t.ai_v = v; t.ai_n = 1;
     Io io(t); io.init();
     CHECK(io.ai(0).value() == doctest::Approx(0.0f));
 }

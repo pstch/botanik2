@@ -23,6 +23,15 @@
 
 namespace Botanik { namespace Scan {
 
+    /** @brief Advance @p elapsed by @p dt_ms, saturating at @p limit. Saturating
+     *  rather than wrapping matters: a hold far longer than the limit must stay
+     *  elapsed, not roll back around to zero. Shared by all three timers. */
+    inline void accumulate(uint32_t& elapsed, uint32_t limit, uint32_t dt_ms) {
+        if (elapsed >= limit) return;
+        uint32_t room = limit - elapsed;
+        elapsed += (dt_ms < room) ? dt_ms : room;
+    }
+
     /** @name Timers
      *  @{ */
 
@@ -35,11 +44,7 @@ namespace Botanik { namespace Scan {
     public:
         bool operator()(bool in, uint32_t delay_ms, uint32_t dt_ms) {
             if (!in) { _elapsed = 0; _q = false; return false; }
-            // Saturate rather than wrap: a very long hold must stay elapsed.
-            if (_elapsed < delay_ms) {
-                uint32_t room = delay_ms - _elapsed;
-                _elapsed += (dt_ms < room) ? dt_ms : room;
-            }
+            accumulate(_elapsed, delay_ms, dt_ms);
             _q = (_elapsed >= delay_ms);
             return _q;
         }
@@ -56,10 +61,7 @@ namespace Botanik { namespace Scan {
         bool operator()(bool in, uint32_t delay_ms, uint32_t dt_ms) {
             if (in) { _elapsed = 0; _q = true; return true; }
             if (!_q) return false;
-            if (_elapsed < delay_ms) {
-                uint32_t room = delay_ms - _elapsed;
-                _elapsed += (dt_ms < room) ? dt_ms : room;
-            }
+            accumulate(_elapsed, delay_ms, dt_ms);
             if (_elapsed >= delay_ms) _q = false;
             return _q;
         }
@@ -78,10 +80,7 @@ namespace Botanik { namespace Scan {
             if (in && !_prev && !_q) { _q = true; _elapsed = 0; }   // rising edge
             _prev = in;
             if (_q) {
-                if (_elapsed < width_ms) {
-                    uint32_t room = width_ms - _elapsed;
-                    _elapsed += (dt_ms < room) ? dt_ms : room;
-                }
+                accumulate(_elapsed, width_ms, dt_ms);
                 if (_elapsed >= width_ms) _q = false;
             }
             return _q;

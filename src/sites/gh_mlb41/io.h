@@ -55,6 +55,12 @@ using namespace Botanik::Vars;
     { {nm, "", desc, "", "0"}, {IO_MODBUS_RTU, dev, coil, 5}, false }
 
 /** @name Analog inputs (42)
+ *
+ *  Plain `const`, so each is internal to the including TU. Two TUs include this
+ *  site in the firmware build, so the tables cost ~2.8 KB of flash twice. Moving
+ *  the rows into io.cpp behind an `extern const` declaration would fix that; it
+ *  is deferred because it restructures the generated file, and 2.8 KB against a
+ *  1.8 MB budget is not yet worth the churn.
  *  @{ */
 
 const AnalogInVar g_analog_in[] = {
@@ -194,16 +200,19 @@ extern DigitalValue g_digital_out_values[DO_COUNT];
 
 /** @} */
 
-/** @brief Bind the tables to their stores. The site hands this to the firmware,
- *  which builds an Io over it. */
-inline IoTables io_tables() {
-    IoTables t;
-    t.ai   = g_analog_in;   t.ai_v = g_analog_in_values;   t.ai_n = AI_COUNT;
-    t.dout = g_digital_out; t.do_v = g_digital_out_values; t.do_n = DO_COUNT;
-    // No analog outputs or digital inputs: the AI-1 / AO-1 modules are wired but
-    // unmapped, so those tables stay empty until channels are assigned.
-    return t;
-}
+/** @brief The tables bound to their stores, as a brace-initialiser.
+ *
+ *  A macro rather than a function so the site's SiteDescriptor stays a
+ *  compile-time constant in flash: any function call in that initialiser makes
+ *  it dynamic and moves the whole descriptor into .data.
+ *
+ *  Analog outputs and digital inputs are empty: the AI-1 / AO-1 modules are
+ *  wired but unmapped, so those tables wait until channels are assigned. */
+#define SITE_IO_TABLES { \
+    g_analog_in,   g_analog_in_values,   AI_COUNT, \
+    nullptr,       nullptr,              0, \
+    nullptr,       nullptr,              0, \
+    g_digital_out, g_digital_out_values, DO_COUNT }
 
 // The enums must stay in step with the tables they index; a mismatch would
 // silently read the wrong signal.

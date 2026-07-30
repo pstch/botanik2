@@ -82,7 +82,7 @@
 #include "libbotanik/params/params.h"   // Params::Param + ParamHandler (the model)
 #include "../shell/shell.h"
 #include "../vars/io.h"      // Vars::Io / IoTables
-#include "../scan/scan.h"     // Scan::Driver / Task      // Shell::ShellCommand (descriptor command table)
+#include "../scan/scan.h"     // Scan::Driver / Task
 #include "scalar.h"  // ScalarGroup (status vars)
 #include "stacks.h"      // Monitor/Console/NetworkStack composition
 #include "libbotanik/params/store_local.h"  // LocalParamStore (flash/file params)

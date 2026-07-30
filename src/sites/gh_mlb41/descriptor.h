@@ -42,7 +42,7 @@ const Botanik::SiteDescriptor g_site = {
     g_status_groups, g_status_group_count,   // monitor page, telemetry, `status`
     g_home_fields,   g_home_field_count,     // home-screen readings
     g_alarms,        g_alarm_count,          // alarm conditions
-    io_tables(),                             // field IO: variables + values
+    SITE_IO_TABLES,                          // field IO: variables + values
     g_tasks,         g_task_count,   g_task_stats,   // control programs
 };
 

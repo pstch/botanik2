@@ -47,9 +47,6 @@ namespace Botanik { namespace Vars {
         IO_MODBUS_RTU    ///< Modbus RTU; `device`/`reg`/`fc` address it
     };
 
-    /** @brief Value representation, for variables whose type is not implied by
-     *  their table (internal globals, parameters). */
-    enum VarType : uint8_t { VT_BOOL, VT_FLOAT, VT_INT, VT_STRING };
 
     /** @brief Which table a VarRef points into. */
     enum VarKind : uint8_t {
@@ -57,9 +54,12 @@ namespace Botanik { namespace Vars {
         VAR_INTERNAL,  VAR_PARAM
     };
 
-    /** @brief A reference to any variable, by table and index. Status groups,
-     *  home fields and alarm conditions all address variables through this, so
-     *  no table carries byte offsets any more. */
+    /** @brief A reference to any variable, by table and index.
+     *
+     *  The intended addressing for status groups, home fields and alarm
+     *  conditions. Those still address the site data struct by byte offset -
+     *  moving them over is the remaining half of the migration, and until it
+     *  lands this type has no users. */
     struct VarRef { VarKind kind; uint16_t index; };
 
     /** @brief What every variable carries, whatever its kind. */
@@ -125,13 +125,6 @@ namespace Botanik { namespace Vars {
         bool      invert;
     };
 
-    /** @brief A computed global: written by control logic, reachable by status
-     *  variables, alarms and the UI exactly like field IO. No binding, because
-     *  no driver touches it. */
-    struct InternalVar {
-        Variable var;
-        VarType  type;
-    };
 
     /** @} */
 
@@ -145,12 +138,6 @@ namespace Botanik { namespace Vars {
         float    def;
         uint64_t timestamp;    ///< uptime ms of the last good update
         bool     valid;
-#if defined(DEBUG)
-        /** @brief Task index that last wrote this value, +1 (0 = nobody). Debug
-         *  only: catches two tasks driving the same output, which is otherwise
-         *  invisible until an actuator misbehaves. */
-        uint8_t  writer;
-#endif
     };
 
     /** @brief One digital value. */
@@ -159,19 +146,8 @@ namespace Botanik { namespace Vars {
         bool     def;
         uint64_t timestamp;
         bool     valid;
-#if defined(DEBUG)
-        uint8_t  writer;
-#endif
     };
 
-    /** @brief One internal value; the union covers every type an internal
-     *  global may take (text is not one of them). */
-    struct InternalValue {
-        union { float f; int32_t i; bool b; } value;
-        union { float f; int32_t i; bool b; } def;
-        uint64_t timestamp;
-        bool     valid;
-    };
 
     /** @} */
 

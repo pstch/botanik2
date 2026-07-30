@@ -9,6 +9,17 @@
 
 namespace Botanik { namespace Vars {
 
+    // The inert sink out-of-range accesses resolve to. Named so it is obvious
+    // in a log or a debugger that a bad index was used.
+    const AnalogInVar   Io::_sink_a_desc  = { {"<none>", "", "", "", "0"}, {IO_LOCAL, 0, 0, 0},
+                                              SCALAR_F32, 1.0f, 0.0f, 0.0f, 0.0f, 0 };
+    const AnalogOutVar  Io::_sink_ao_desc = { {"<none>", "", "", "", "0"}, {IO_LOCAL, 0, 0, 0},
+                                              SCALAR_F32, 1.0f, 0.0f };
+    const DigitalInVar  Io::_sink_d_desc  = { {"<none>", "", "", "", "0"}, {IO_LOCAL, 0, 0, 0}, false, 0 };
+    const DigitalOutVar Io::_sink_do_desc = { {"<none>", "", "", "", "0"}, {IO_LOCAL, 0, 0, 0}, false };
+    AnalogValue         Io::_sink_a = {};
+    DigitalValue        Io::_sink_d = {};
+
     namespace {
         /** @brief Parse a declared default as a float; 0 when absent or
          *  unparseable. Runs once at init, never in the scan. */
@@ -18,7 +29,9 @@ namespace Botanik { namespace Vars {
             float v = strtof(text, &end);
             // Reject trailing junk: a malformed default should read as 0 rather
             // than as whatever prefix happened to parse.
-            return (end != nullptr && *end == '\0') ? v : 0.0f;
+            if (end == nullptr) return 0.0f;
+            while (*end == ' ' || *end == '\t') end++;   // as params parsing does
+            return (*end == '\0') ? v : 0.0f;
         }
         /** @brief Parse a declared default as a boolean. Accepts the numeric
          *  form the tables use ("0"/"1"); anything non-zero is true. */
@@ -28,53 +41,52 @@ namespace Botanik { namespace Vars {
         }
     }
 
+    namespace {
+        /** @brief Seed one table: parse each declared default into its slot and
+         *  start invalid, so a variable reads as its default until something
+         *  gives it a real value. */
+        template <typename Desc, typename Val, typename Parse>
+        void seed(const Desc* d, Val* v, uint16_t n, Parse parse) {
+            for (uint16_t i = 0; i < n; i++) {
+                v[i].def   = parse(d[i].var.def);
+                v[i].value = v[i].def;
+                v[i].valid = false;
+            }
+        }
+
+        /** @brief Drop one output table to its declared safe state. */
+        template <typename Val>
+        void to_safe(Val* v, uint16_t n) {
+            for (uint16_t i = 0; i < n; i++) { v[i].value = v[i].def; v[i].valid = false; }
+        }
+
+        /** @brief Invalidate inputs whose last good read is older than their
+         *  declared timeout. A timeout of 0 means "never expires", for a value
+         *  a driver publishes only on change. */
+        template <typename Desc, typename Val>
+        void expire(const Desc* d, Val* v, uint16_t n, uint64_t now_ms) {
+            for (uint16_t i = 0; i < n; i++) {
+                uint32_t t = d[i].timeout_ms;
+                if (t != 0 && v[i].valid && (now_ms - v[i].timestamp) > t) v[i].valid = false;
+            }
+        }
+    }
+
     void Io::init() {
-        for (uint16_t i = 0; i < _t.ai_n; i++) {
-            _t.ai_v[i].def   = def_f(_t.ai[i].var.def);
-            _t.ai_v[i].value = _t.ai_v[i].def;
-            _t.ai_v[i].valid = false;      // nothing has read it yet
-        }
-        for (uint16_t i = 0; i < _t.ao_n; i++) {
-            _t.ao_v[i].def   = def_f(_t.ao[i].var.def);
-            _t.ao_v[i].value = _t.ao_v[i].def;
-            _t.ao_v[i].valid = false;      // safe state until logic demands one
-        }
-        for (uint16_t i = 0; i < _t.di_n; i++) {
-            _t.di_v[i].def   = def_b(_t.di[i].var.def);
-            _t.di_v[i].value = _t.di_v[i].def;
-            _t.di_v[i].valid = false;
-        }
-        for (uint16_t i = 0; i < _t.do_n; i++) {
-            _t.do_v[i].def   = def_b(_t.dout[i].var.def);
-            _t.do_v[i].value = _t.do_v[i].def;
-            _t.do_v[i].valid = false;
-        }
+        seed(_t.ai,   _t.ai_v, _t.ai_n, def_f);
+        seed(_t.ao,   _t.ao_v, _t.ao_n, def_f);
+        seed(_t.di,   _t.di_v, _t.di_n, def_b);
+        seed(_t.dout, _t.do_v, _t.do_n, def_b);
     }
 
     void Io::all_outputs_safe() {
-        for (uint16_t i = 0; i < _t.ao_n; i++) {
-            _t.ao_v[i].value = _t.ao_v[i].def;
-            _t.ao_v[i].valid = false;
-        }
-        for (uint16_t i = 0; i < _t.do_n; i++) {
-            _t.do_v[i].value = _t.do_v[i].def;
-            _t.do_v[i].valid = false;
-        }
+        to_safe(_t.ao_v, _t.ao_n);
+        to_safe(_t.do_v, _t.do_n);
     }
 
     void Io::expire_stale(uint64_t now_ms) {
-        // A timeout of 0 means "never expires" - useful for a value a driver
-        // publishes only on change.
-        for (uint16_t i = 0; i < _t.ai_n; i++) {
-            uint32_t t = _t.ai[i].timeout_ms;
-            if (t != 0 && _t.ai_v[i].valid && (now_ms - _t.ai_v[i].timestamp) > t)
-                _t.ai_v[i].valid = false;
-        }
-        for (uint16_t i = 0; i < _t.di_n; i++) {
-            uint32_t t = _t.di[i].timeout_ms;
-            if (t != 0 && _t.di_v[i].valid && (now_ms - _t.di_v[i].timestamp) > t)
-                _t.di_v[i].valid = false;
-        }
+        expire(_t.ai, _t.ai_v, _t.ai_n, now_ms);
+        expire(_t.di, _t.di_v, _t.di_n, now_ms);
     }
 
 }}  // namespace Botanik::Vars

@@ -20,7 +20,6 @@
  */
 
 #include <cstdint>
-#include <cstring>
 
 #include "variable.h"
 
@@ -87,23 +86,32 @@ namespace Botanik { namespace Vars {
 
     /** @brief The site's variable tables and their value stores, bound
      *  together. Every pointer is borrowed; a site declares all of them as
-     *  statics (descriptors const, values mutable). */
+     *  statics (descriptors const, values mutable).
+     *
+     *  No default member initialisers: in C++11 an NSDMI stops this being an
+     *  aggregate, which forces a runtime constructor call at the site's
+     *  descriptor and drags the whole (otherwise const) SiteDescriptor out of
+     *  flash into .data with a startup initialiser. Same reasoning as
+     *  SiteDescriptor itself. */
     struct IoTables {
-        const AnalogInVar*   ai   = nullptr;  AnalogValue*   ai_v  = nullptr;  uint16_t ai_n  = 0;
-        const AnalogOutVar*  ao   = nullptr;  AnalogValue*   ao_v  = nullptr;  uint16_t ao_n  = 0;
-        const DigitalInVar*  di   = nullptr;  DigitalValue*  di_v  = nullptr;  uint16_t di_n  = 0;
-        const DigitalOutVar* dout = nullptr;  DigitalValue*  do_v  = nullptr;  uint16_t do_n  = 0;
-        const InternalVar*   iv   = nullptr;  InternalValue* iv_v  = nullptr;  uint16_t iv_n  = 0;
+        const AnalogInVar*   ai;    AnalogValue*   ai_v;  uint16_t ai_n;
+        const AnalogOutVar*  ao;    AnalogValue*   ao_v;  uint16_t ao_n;
+        const DigitalInVar*  di;    DigitalValue*  di_v;  uint16_t di_n;
+        const DigitalOutVar* dout;  DigitalValue*  do_v;  uint16_t do_n;
     };
 
     /**
      * @brief What control programs are handed to reach their variables.
      *
      * Indices come from the site's generated enums; they are the array index,
-     * so a lookup is a bounds check and two pointer adds. An out-of-range index
-     * is clamped to the last entry rather than faulting - a program with a bad
-     * index is a build-time mistake, and taking the firmware down mid-scan is
-     * the worse failure.
+     * so a lookup is a bounds check and two pointer adds.
+     *
+     * An out-of-range index - or any index into an empty table - resolves to an
+     * inert sink rather than faulting or clamping. Clamping was worse than it
+     * looked: it aliased a bad index onto the LAST entry, so a typo would drive
+     * a real relay. The sink absorbs reads and writes harmlessly, so a mistake
+     * shows up as a signal that never moves instead of the wrong actuator
+     * firing.
      */
     class Io {
         IoTables _t;
@@ -118,13 +126,27 @@ namespace Botanik { namespace Vars {
 
         /** @name Typed access
          *  @{ */
-        AnalogIn   ai(uint16_t i)   const { i = _clamp(i, _t.ai_n);  return AnalogIn(&_t.ai[i], &_t.ai_v[i]); }
-        AnalogOut  ao(uint16_t i)   const { i = _clamp(i, _t.ao_n);  return AnalogOut(&_t.ao[i], &_t.ao_v[i]); }
-        DigitalIn  di(uint16_t i)   const { i = _clamp(i, _t.di_n);  return DigitalIn(&_t.di[i], &_t.di_v[i]); }
-        DigitalOut dout(uint16_t i) const { i = _clamp(i, _t.do_n);  return DigitalOut(&_t.dout[i], &_t.do_v[i]); }
+        AnalogIn ai(uint16_t i) const {
+            if (i < _t.ai_n) return AnalogIn(&_t.ai[i], &_t.ai_v[i]);
+            _sink_a = AnalogValue();     // fresh: a sink never accumulates state
+            return AnalogIn(&_sink_a_desc, &_sink_a);
+        }
+        AnalogOut ao(uint16_t i) const {
+            if (i < _t.ao_n) return AnalogOut(&_t.ao[i], &_t.ao_v[i]);
+            _sink_a = AnalogValue();
+            return AnalogOut(&_sink_ao_desc, &_sink_a);
+        }
+        DigitalIn di(uint16_t i) const {
+            if (i < _t.di_n) return DigitalIn(&_t.di[i], &_t.di_v[i]);
+            _sink_d = DigitalValue();
+            return DigitalIn(&_sink_d_desc, &_sink_d);
+        }
+        DigitalOut dout(uint16_t i) const {
+            if (i < _t.do_n) return DigitalOut(&_t.dout[i], &_t.do_v[i]);
+            _sink_d = DigitalValue();
+            return DigitalOut(&_sink_do_desc, &_sink_d);
+        }
         /** @} */
-
-        const IoTables& tables() const { return _t; }
 
         /** @brief Drop every output to its declared safe state. The write phase
          *  calls this on a fault, watchdog escalation or scan overrun. */
@@ -136,7 +158,16 @@ namespace Botanik { namespace Vars {
         void expire_stale(uint64_t now_ms);
 
     private:
-        static uint16_t _clamp(uint16_t i, uint16_t n) { return (n == 0) ? 0 : (i < n ? i : (uint16_t)(n - 1)); }
+        /** @brief The inert sink an out-of-range index resolves to. Reset on
+         *  every such access, so a write to one bad index is never visible to
+         *  the next reader - the sink is scratch, not shared state. Only the
+         *  error path pays for the reset. */
+        static const AnalogInVar   _sink_a_desc;
+        static const AnalogOutVar  _sink_ao_desc;
+        static const DigitalInVar  _sink_d_desc;
+        static const DigitalOutVar _sink_do_desc;
+        static AnalogValue         _sink_a;
+        static DigitalValue        _sink_d;
     };
 
 }}  // namespace Botanik::Vars
