@@ -40,7 +40,7 @@ using namespace Botanik;
 
 const Params::Param g_params[] = {
     // -- network --
-    {{"net",          OO(net),           IO(net),           SCALAR_U32,    0, nullptr, "",    "Network config commit", "bump to apply net edits"}, {"0", 0, 1000000000, 0, Params::STR_NONE,     "net"}},
+    {{"net",          OO(net),           IO(net),           SCALAR_U32,    0, nullptr, "",    "Network config commit", "bump to apply net edits"}, {"1", 0, 1000000000, 0, Params::STR_NONE,     "net"}},
     {{"net_dhcp",     OO(net_dhcp),      IO(net_dhcp),      SCALAR_U8,     0, nullptr, "",    "DHCP (1) or static IP (0)", ""},              {"1",  0, 1,      0,   Params::STR_NONE,     "net"}},
     {{"net_ip",       OO(net_ip),        IO(net_ip),        SCALAR_STRING, 0, nullptr, "",    "Static IPv4 address", "used when DHCP off"},  {"",   0, 0,      CAP, Params::STR_IPV4,     "net"}},
     {{"net_netmask",  OO(net_netmask),   IO(net_netmask),   SCALAR_STRING, 0, nullptr, "",    "Static subnet mask",  "used when DHCP off"},  {"",   0, 0,      CAP, Params::STR_IPV4,     "net"}},
@@ -48,19 +48,19 @@ const Params::Param g_params[] = {
     {{"net_dns1",     OO(net_dns1),      IO(net_dns1),      SCALAR_STRING, 0, nullptr, "",    "Primary DNS server",  ""},                    {"",   0, 0,      CAP, Params::STR_IPV4,     "net"}},
     {{"net_dns2",     OO(net_dns2),      IO(net_dns2),      SCALAR_STRING, 0, nullptr, "",    "Secondary DNS server","empty = none"},        {"",   0, 0,      CAP, Params::STR_IPV4_OPT, "net"}},
     // -- NTP --
-    {{"ntp",          OO(ntp),           IO(ntp),           SCALAR_U32,    0, nullptr, "",    "NTP config commit", "bump to apply ntp edits"}, {"0", 0, 1000000000, 0, Params::STR_NONE,     "ntp"}},
+    {{"ntp",          OO(ntp),           IO(ntp),           SCALAR_U32,    0, nullptr, "",    "NTP config commit", "bump to apply ntp edits"}, {"1", 0, 1000000000, 0, Params::STR_NONE,     "ntp"}},
     {{"ntp_enabled",  OO(ntp_enabled),   IO(ntp_enabled),   SCALAR_U8,     0, nullptr, "",    "Enable NTP time sync",""},                    {"1",  0, 1,      0,   Params::STR_NONE,     "ntp"}},
     {{"ntp_poll_s",   OO(ntp_poll_s),    IO(ntp_poll_s),    SCALAR_U16,    0, nullptr, "s",   "NTP poll interval",   "0 = firmware default"},{"64", 0, 65535,  0,   Params::STR_NONE,     "ntp"}},
     {{"ntp_server1",  OO(ntp_server1),   IO(ntp_server1),   SCALAR_STRING, 0, nullptr, "",    "Primary NTP server",  ""},          {"pool.ntp.org", 0, 0,      CAP, Params::STR_HOST,     "ntp"}},
     {{"ntp_server2",  OO(ntp_server2),   IO(ntp_server2),   SCALAR_STRING, 0, nullptr, "",    "Secondary NTP server","empty = none"},        {"",   0, 0,      CAP, Params::STR_HOST_OPT, "ntp"}},
     // -- MQTT --
-    {{"mqtt",         OO(mqtt),          IO(mqtt),          SCALAR_U32,    0, nullptr, "",    "MQTT config commit", "bump to apply mqtt edits"},{"0",0, 1000000000, 0, Params::STR_NONE,     "mqtt"}},
+    {{"mqtt",         OO(mqtt),          IO(mqtt),          SCALAR_U32,    0, nullptr, "",    "MQTT config commit", "bump to apply mqtt edits"},{"1",0, 1000000000, 0, Params::STR_NONE,     "mqtt"}},
     {{"mqtt_enabled", OO(mqtt_enabled),  IO(mqtt_enabled),  SCALAR_U8,     0, nullptr, "",    "Enable MQTT publishing",""},                  {"1",  0, 1,      0,   Params::STR_NONE,     "mqtt"}},
     {{"mqtt_port",    OO(mqtt_port),     IO(mqtt_port),     SCALAR_U16,    0, nullptr, "",    "Broker TCP port",     "0 = firmware default"},{"1883",0,65535,  0,   Params::STR_NONE,     "mqtt"}},
     {{"mqtt_keepalive_s",OO(mqtt_keepalive_s),IO(mqtt_keepalive_s),SCALAR_U16,0,nullptr,"s",  "MQTT keepalive",      "0 = firmware default"},{"60", 0, 65535,  0,   Params::STR_NONE,     "mqtt"}},
     {{"mqtt_broker",  OO(mqtt_broker),   IO(mqtt_broker),   SCALAR_STRING, 0, nullptr, "",    "MQTT broker host",    ""},                    {"",   0, 0,      CAP, Params::STR_HOST,     "mqtt"}},
     // -- geo (decimal degrees) --
-    {{"geo",          OO(geo),           IO(geo),           SCALAR_U32,    0, nullptr, "",    "Geo config commit", "bump to apply geo edits"}, {"0", 0, 1000000000, 0, Params::STR_NONE,     "geo"}},
+    {{"geo",          OO(geo),           IO(geo),           SCALAR_U32,    0, nullptr, "",    "Geo config commit", "bump to apply geo edits"}, {"1", 0, 1000000000, 0, Params::STR_NONE,     "geo"}},
     {{"geo_latitude", OO(geo_latitude),  IO(geo_latitude),  SCALAR_F32,    4, nullptr, "deg", "Site latitude",       "north +, south -"},  {"48.8566", -90,  90, 0,  Params::STR_NONE,     "geo"}},
     {{"geo_longitude",OO(geo_longitude), IO(geo_longitude), SCALAR_F32,    4, nullptr, "deg", "Site longitude",      "east +, west -"},    {"2.3522", -180, 180, 0,  Params::STR_NONE,     "geo"}},
 };

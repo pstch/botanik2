@@ -227,7 +227,6 @@ namespace Botanik { namespace Pages {
         void draw_static() override {
             draw_logo();
             draw_id_block();
-            _label(7, "PLC link");
             _label(8, "Uptime");
             // Site home-field labels (two columns).
             for (uint8_t i = 0; i < _field_count; i++) {
@@ -243,9 +242,6 @@ namespace Botanik { namespace Pages {
 
         void draw_dynamic() override {
             // Cold fields only: the uptime counter is hot (see draw_hot()).
-            // Bounded to the left column (not clear-to-EOL) so the right home-field
-            // column at rows 7..8 survives.
-            _cell(7, 7, L_VAL, "n/a", L_W);
             // Site home-field values (formatted off the live payload + unit).
             if (_base == nullptr) return;
             for (uint8_t i = 0; i < _field_count; i++) {
