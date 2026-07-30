@@ -89,6 +89,9 @@ namespace Botanik { namespace Pages {
         void set_params(Params::ParamHandler* config) { _shell.set_params(config); }
 
         /** @brief Wire the status-variable table for the `status` command. */
+        /** @brief Forward the variable model to the shell (`vars`). */
+        void set_vars(Vars::Io* io) { _shell.set_vars(io); }
+
         void set_status_vars(const ScalarGroup* groups, size_t count,
                              const void* base) {
             _shell.set_status_vars(groups, count, base);

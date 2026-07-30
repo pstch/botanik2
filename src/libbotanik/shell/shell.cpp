@@ -67,6 +67,7 @@ namespace Botanik { namespace Shell {
             { "alarms",     "[list|ack <code|all>] alarms",   &CommandShell::_cmd_alarms     },
             { "params",     "[get <n>|set <n> <v>] a parameter", &CommandShell::_cmd_params     },
             { "status",     "[get <name>] status variables",  &CommandShell::_cmd_status     },
+            { "vars",       "[<name>] field IO variables",    &CommandShell::_cmd_vars       },
             { "loglevel",   "[debug|info|..|critical] filter",&CommandShell::_cmd_loglevel   },
             { "version",    "firmware version",               &CommandShell::_cmd_version    },
             { "breakpoint", "trap into an attached debugger", &CommandShell::_cmd_breakpoint },
@@ -315,6 +316,38 @@ namespace Botanik { namespace Shell {
         char val[40];
         _params->format_param(*p, val, sizeof(val));
         _emitf(out, sizeof(out), "%s = %s", p->field.name, val);
+    }
+
+    void CommandShell::_cmd_vars(const char* args, uint16_t alen) {
+        if (_vars == nullptr) { _println("vars: unavailable"); return; }
+        uint16_t wn = 0;
+        const char* nm = Utils::arg_next(args, alen, wn);
+
+        char out[128], val[32];
+        const Vars::IoTables& t = _vars->tables();
+        bool found = false;
+
+        // A variable reading its default is worth marking: the number looks
+        // perfectly reasonable, which is exactly the trap.
+        for (uint16_t i = 0; i < t.ai_n; i++) {
+            Vars::AnalogIn v = _vars->ai(i);
+            if (nm != nullptr && !Utils::arg_eq(nm, wn, v.name())) continue;
+            Utils::format_float(val, sizeof(val), v.value(), 2);
+            _emitf(out, sizeof(out), "  %-20s %-10s %-4s %s", v.name(), val,
+                   (v.unit() && v.unit()[0]) ? v.unit() : "",
+                   v.valid() ? "" : "(default: no reading)");
+            found = true;
+        }
+        for (uint16_t i = 0; i < t.do_n; i++) {
+            Vars::DigitalOut v = _vars->dout(i);
+            if (nm != nullptr && !Utils::arg_eq(nm, wn, v.name())) continue;
+            _emitf(out, sizeof(out), "  %-20s %-10s %-4s %s", v.name(),
+                   v.value() ? "on" : "off", "",
+                   v.valid() ? "" : "(default: not driven)");
+            found = true;
+        }
+        if (!found) _println(nm != nullptr ? "vars: unknown variable"
+                                           : "vars: no field IO declared");
     }
 
     void CommandShell::_cmd_status(const char* args, uint16_t alen) {

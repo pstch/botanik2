@@ -314,6 +314,8 @@ namespace Botanik {
             // Let the `config` get/set command reach the config backend.
             _console.shell().set_params(&_params);
             // Let the `status` command render the site status-variable table.
+            // Let the `vars` command enumerate the field IO.
+            _console.shell().set_vars(&_io);
             _console.shell().set_status_vars(_site.status_groups,
                                              _site.status_group_count,
                                              data());

@@ -124,6 +124,10 @@ namespace Botanik { namespace Vars {
          *  program) gives it a real value. */
         void init();
 
+        /** @brief The bound tables. Used by the console to enumerate variables;
+         *  programs address them by index through the handles instead. */
+        const IoTables& tables() const { return _t; }
+
         /** @name Typed access
          *  @{ */
         AnalogIn ai(uint16_t i) const {

@@ -107,6 +107,7 @@ const AnalogInVar g_analog_in[] = {
     // Object 2 is absent from the device profile; the gap is deliberate.
     MTR("ats_V",           "V",   6,  0, 0.0f,   500.0f, "ATS voltage"),
     MTR("ats_A",           "A",   6,  1, 0.0f,   200.0f, "ATS current"),
+    MTR("ats_W",           "W",   6,  2, 0.0f,   1000.0f, "ATS active power"),
     MTR("ats_VAr",         "VAr", 6,  3, -1e6f,  1e6f,   "ATS reactive power"),
     MTR("ats_VA",          "VA",  6,  4, -1e6f,  1e6f,   "ATS apparent power"),
     MTR("ats_Hz",          "Hz",  6,  5, 0.0f,   100.0f, "ATS frequency"),
@@ -127,7 +128,7 @@ enum AiId : uint16_t {
     AI_PWR_12_V, AI_PWR_L23_V, AI_PWR_L31_V,
     AI_PWR_LL_AVG_THD, AI_PWR_LN_AVG_THD, AI_PWR_N_A,
     AI_PWR_L1_W, AI_PWR_L2_W, AI_PWR_L3_W,
-    AI_ATS_V, AI_ATS_A, AI_ATS_VAR, AI_ATS_VA, AI_ATS_HZ,
+    AI_ATS_V, AI_ATS_A, AI_ATS_W, AI_ATS_VAR, AI_ATS_VA, AI_ATS_HZ,
     AI_COUNT
 };
 
