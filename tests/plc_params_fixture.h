@@ -18,7 +18,7 @@
 #include <cstdint>
 
 #include "libbotanik/plcio/sync.h"
-#include "libbotanik/core/params_plc.h"
+#include "libbotanik/params/store_plc.h"
 
 namespace botanik_test {
 
@@ -76,8 +76,10 @@ namespace botanik_test {
         Botanik::PlcIO::PlcOutput<Out>          out{};
         uint32_t                                ts = 0;
         Botanik::PlcIO::PlcSyncHandler<In, Out> handler{&in, &out, &ts, nullptr};
-        /** @brief A PLC-backed ParamHandler over this fixture's RX snapshot. */
-        Botanik::Params::PlcParamHandler          cfg{handler.context(), nullptr};
+        /** @brief A PLC-backed store + the generic handler over it, mirroring how
+         *  BotanikFirmware wires the pair (core/firmware.h). */
+        Botanik::Params::PlcParamStore          store{handler.context()};
+        Botanik::Params::ParamHandler           cfg{&store, nullptr};
 
         PlcConfigFixture() {
             uint8_t n = 0;

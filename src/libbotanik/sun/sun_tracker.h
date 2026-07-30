@@ -12,7 +12,7 @@
 
 #include "../../libbotanik_config.h"
 #include "../core/component.h"
-#include "../core/params.h"     // Params::ParamHandler + cfg_* name getters
+#include "libbotanik/params/params.h"     // Params::ParamHandler + cfg_* name getters
 
 #if BOTANIK_FEATURE_SUN
 

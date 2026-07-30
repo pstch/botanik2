@@ -12,7 +12,7 @@
 #include "../alarms/alarms.h"
 #include "../hal/platform.h"
 #include "../logs/logger.h"
-#include "../core/params.h"
+#include "libbotanik/params/params.h"
 #include "../network/mqtt.h"
 #include "../network/network.h"
 #include "../network/ntp.h"

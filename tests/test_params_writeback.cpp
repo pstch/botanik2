@@ -1,7 +1,7 @@
 /**
  * @file test_config_writeback.cpp
  * @brief Full-loop test of the PLC config write-back with config as ordinary
- *        payload fields: PlcParamHandler.set() stages an edit into the input
+ *        payload fields: the PLC store's set() stages an edit into the input
  *        payload mirror at the parameter's in_offset, the host TX ships it, the
  *        emulated PLC (played here, since group-apply is site logic now) latches
  *        a group when its commit serial advances and reflects it on the output,
@@ -15,7 +15,7 @@
 
 #include "libbotanik/plcio/sync.h"
 #include "botanik_sim/emulator.h"
-#include "libbotanik/core/params_plc.h"
+#include "libbotanik/params/store_plc.h"
 #include "plc_params_fixture.h"   // FixtureConfig + fixture_params
 
 using namespace Botanik;
@@ -44,7 +44,7 @@ namespace {
         }
     }
 
-    const Params::Param* find(Params::PlcParamHandler& h, const char* name) {
+    const Params::Param* find(Params::ParamHandler& h, const char* name) {
         return h.find(name, (uint16_t)strlen(name));
     }
 }
@@ -56,7 +56,8 @@ TEST_CASE("PLC config write-back: host edit reflects via the emulated PLC") {
 
     PlcSyncHandler<CfgIn, CfgOut> host(&in, &out, &ts, nullptr);
     PlcEmulator<CfgIn, CfgOut>    emu(&in, &out, &ts);
-    Params::PlcParamHandler         cfg(host.context(), nullptr);
+    Params::PlcParamStore           store(host.context());
+    Params::ParamHandler            cfg(&store, nullptr);
     uint8_t np = 0;
     const Params::Param* fp = botanik_test::fixture_params(&np);
     cfg.set_site_params(fp, np);
@@ -119,7 +120,8 @@ TEST_CASE("PLC config write-back: a string edit crosses the wire") {
     uint32_t ts = 0;
     PlcSyncHandler<CfgIn, CfgOut> host(&in, &out, &ts, nullptr);
     PlcEmulator<CfgIn, CfgOut>    emu(&in, &out, &ts);
-    Params::PlcParamHandler         cfg(host.context(), nullptr);
+    Params::PlcParamStore           store(host.context());
+    Params::ParamHandler            cfg(&store, nullptr);
     uint8_t np = 0;
     const Params::Param* fp = botanik_test::fixture_params(&np);
     cfg.set_site_params(fp, np);

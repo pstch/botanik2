@@ -236,6 +236,14 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, TABLE_ROWS_MAX);
 
+    /** @brief Bytes reserved for the local (no-PLC) parameter image. Must cover
+     *  the site's parameter block (its widest out_offset + value width). Only
+     *  used when BOTANIK_FEATURE_PLC is off; keep it <= PAYLOAD_OFFSET_MAX. */
+#ifndef BOTANIK_LOCAL_PARAM_IMAGE_BYTES
+#  define BOTANIK_LOCAL_PARAM_IMAGE_BYTES 512
+#endif
+    BOTANIK_CFG(uint16_t, LOCAL_PARAM_IMAGE_BYTES);
+
     /** @}
      *  @name PLC Synchronization
      *  @{ */

@@ -1,8 +1,7 @@
-// REVIEW_35: TODO
 /**
- * @file config.cpp
- * @brief The library config-parameter table (ScalarField[]) + the
- *        generic read/render/validate helpers declared in config.h.
+ * @file params.cpp
+ * @brief The generic parameter read/render/validate/write helpers declared in
+ *        params.h, plus ParamHandler's delegation to its ParamStore.
  */
 #include <cstdint>
 #include <cstddef>
@@ -10,15 +9,16 @@
 #include <cstring>
 #include <cstdlib>
 
-#include "params.h"
-#include "../utils/text.h"   // format_float / format_int
+#include "libbotanik/params/params.h"
+#include "libbotanik/params/store.h"     // ParamStore (ParamHandler delegates to it)
+#include "libbotanik/utils/text.h"       // format_float / format_int
 
 namespace Botanik { namespace Params {
 
     // The library ships no built-in parameter table: a site declares every
     // parameter over its own PLC input/output payload (see the SiteDescriptor).
-    // These are the generic read / render / validate helpers the CONFIG page,
-    // the `config` command and the backends use, all driven by a ScalarField.
+    // These are the generic read / render / validate helpers the PARAMS page,
+    // the `params` command and the stores use, all driven by a ScalarField.
 
     // Read / render
 
@@ -148,12 +148,12 @@ namespace Botanik { namespace Params {
         }
     }
 
-    // Shared write path (base helper): writes @p p's parsed value into @p base
-    // at byte @p offset. A PLC backend passes the input-mirror in_offset; a local
-    // backend passes the single-image out_offset. Writability is p.in_offset >= 0
-    // either way (a read-only status variable is never editable).
+    // Shared write path (used by both stores): writes @p p's parsed value into
+    // @p base at byte @p offset. The PLC store passes the input-mirror in_offset;
+    // the local store passes the single-image out_offset. Writability is
+    // p.in_offset >= 0 either way (a read-only status variable is never editable).
 
-    bool ParamHandler::write_value(const Param& p, const char* text, void* base, int16_t offset) {
+    bool write_value(const Param& p, const char* text, void* base, int16_t offset) {
         if (p.field.in_offset < 0) return false;      // read-only: not writable
         uint8_t* dst = (uint8_t*)base + offset;
         if (is_string(p)) {
@@ -180,6 +180,16 @@ namespace Botanik { namespace Params {
             default:                          return false;
         }
         return true;
+    }
+
+    // ParamHandler: the model delegates the value surface to its store.
+
+    const void* ParamHandler::image() const { return _store->image(); }
+
+    bool ParamHandler::set(const Param& p, const char* text) { return _store->set(p, text); }
+
+    void ParamHandler::setup(uint64_t /*now_ms*/) {
+        for (uint8_t i = 0; i < count(); i++) _store->load(param(i));
     }
 
 }}

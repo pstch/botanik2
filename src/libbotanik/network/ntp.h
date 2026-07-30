@@ -15,7 +15,7 @@
 #include <cstdint>
 
 #include "../core/component.h"
-#include "../core/params.h"       // Params::ParamHandler + cfg_* name getters
+#include "libbotanik/params/params.h"       // Params::ParamHandler + cfg_* name getters
 #include "../hal/net.h"
 #include "resolver.h"
 #include "network.h"   // NetworkHandler (link gate)

@@ -79,14 +79,14 @@
 #include "../utils/assert.h"     // set_assert_logger
 #include "../alarms/alarms.h"    // AlarmCondition (site table type)
 #include "../health/health.h"    // HealthMonitor (owns the alarm model + notifier)
-#include "params.h"      // Params::Param (descriptor param table)
+#include "libbotanik/params/params.h"   // Params::Param + ParamHandler (the model)
 #include "../shell/shell.h"      // Shell::ShellCommand (descriptor command table)
 #include "scalar.h"  // ScalarGroup (status vars)
 #include "stacks.h"      // Monitor/Console/NetworkStack composition
 #if BOTANIK_FEATURE_PLC
-#include "params_plc.h"  // PlcParamHandler (PLC-owned config)
+#include "libbotanik/params/store_plc.h"    // PlcParamStore (PLC-owned params)
 #else
-#include "params_local.h"// LocalParamHandler (flash/file config)
+#include "libbotanik/params/store_local.h"  // LocalParamStore (flash/file params)
 #endif
 
 #include <cstddef>
@@ -172,10 +172,11 @@ namespace Botanik {
 #if BOTANIK_FEATURE_PLC
         PlcIO::PlcSyncHandler<In, Out> _plc_handler;
         PlcIO::PlcLogReader            _plc_log_reader;
-        Params::PlcParamHandler          _params;       ///< PLC-owned config snapshot
+        Params::PlcParamStore          _param_store;  ///< params live in the PLC payload
 #else
-        Params::LocalParamHandler<Out>   _params;       ///< flash/file-backed config
+        Params::LocalParamStore        _param_store;  ///< params live in flash/a file
 #endif
+        Params::ParamHandler           _params;       ///< the parameter model (over _param_store)
         Health::HealthMonitor          _health;
         SystemContext                  _sys_ctx;     ///< Filled in the ctor body
 #if BOTANIK_FEATURE_MONITOR
@@ -215,17 +216,21 @@ namespace Botanik {
               _plc_handler(shared_in, shared_out,
                            &_scheduler.context()->timestamp_ms, &_logger),
               _plc_log_reader(_plc_handler.context(), &_logger),
-              _params(_plc_handler.context(), &_logger),
+              _param_store(_plc_handler.context()),
+#else
+              // No PLC: params come from local storage.
+              _param_store(&_logger),
+#endif
+              _params(&_param_store, &_logger),
+#if BOTANIK_FEATURE_PLC
               // Health owns the alarm model, which reads each site alarm's
               // boolean from the PLC output payload directly (its offset).
               _health(_site.alarms, _site.alarm_count, &_logger,
                       _scheduler.context(), _plc_handler.context(),
                       shared_in, shared_out, plc_output_data())
 #else
-              // No PLC: config comes from local storage; health takes a null link
-              // context + null regions + an empty reader (only local platform
-              // alarms fire, it degrades to "kick while alive").
-              _params(&_logger),
+              // Health takes a null link context + null regions + an empty reader
+              // (only local platform alarms fire; degrades to "kick while alive").
               _health(_site.alarms, _site.alarm_count, &_logger,
                       _scheduler.context(), nullptr, nullptr, nullptr)
 #endif

@@ -1,6 +1,6 @@
 /**
- * @file test_config_params.cpp
- * @brief Tests for the Param model (core/config.h): the generic
+ * @file test_params.cpp
+ * @brief Tests for the Param model (params/params.h): the generic
  *        read/format/validate/parse helpers and the ParamHandler registry,
  *        driven by a self-contained parameter table (the library ships none -
  *        a site declares its parameters over its own payload). The backends
@@ -12,7 +12,8 @@
 
 #include "doctest.h"
 
-#include "libbotanik/core/params.h"
+#include "libbotanik/params/params.h"
+#include "libbotanik/params/store.h"   // ParamStore - the backend the handler drives
 
 using namespace Botanik;
 using namespace Botanik::Params;
@@ -49,12 +50,20 @@ namespace {
     }
 
     // A trivial backend: a local image, no write path (set() stubbed). Enough to
-    // exercise the registry (count/param/format).
-    struct TestHandler : ParamHandler {
+    // exercise the registry (count/param/format). Since the store/handler split,
+    // the image lives on the store and the handler is the generic one over it.
+    struct TestStore : ParamStore {
         TestCfg img{};
-        TestHandler() : ParamHandler(nullptr) { set_site_params(PARAMS, PARAM_COUNT); }
         const void* image() const override { return &img; }
         bool set(const Param&, const char*) override { return false; }
+    };
+
+    struct TestHandler : ParamHandler {
+        TestStore store;
+        // The base only stores the pointer, so handing it a member that is
+        // constructed a moment later is safe here.
+        TestHandler() : ParamHandler(&store, nullptr) { set_site_params(PARAMS, PARAM_COUNT); }
+        TestCfg& img() { return store.img; }
     };
 }
 
@@ -163,7 +172,7 @@ TEST_CASE("ParamHandler registry + format through the image") {
     CHECK(h.find("nope", 4) == nullptr);
 
     // format() reads through image().
-    h.img.mqtt_port = 8883;
+    h.img().mqtt_port = 8883;
     char buf[32];
     for (uint8_t i = 0; i < h.count(); i++)
         if (strcmp(h.param(i).field.name, "mqtt_port") == 0) {

@@ -1,37 +1,38 @@
-// REVIEW_35: TODO
-#ifndef LIBBOTANIK_CORE_PARAMS_H
-#define LIBBOTANIK_CORE_PARAMS_H
+#ifndef LIBBOTANIK_PARAMS_PARAMS_H
+#define LIBBOTANIK_PARAMS_PARAMS_H
 
 /**
- * @file config.h
- * @brief Configuration parameter model - the ParamHandler base over a flat
- *        config image, addressed by the same ScalarField descriptor the
- *        status-variable table uses.
+ * @file params.h
+ * @brief The parameter model: the Param descriptor, the generic
+ *        read/render/validate/write ops, and ParamHandler - a concrete model
+ *        over a pluggable ParamStore backend.
  *
- * Configuration is a flat namespace of parameters (network/NTP/MQTT/geo today).
- * A parameter (`Param`) pairs a ScalarField (the shared read/display
- * descriptor) with a ParamMeta (default / bounds / string-kind / group) - the
- * edit metadata a read-only status variable does not carry. The value is read
- * from the field's @c out_offset in the config image (the site's PLC output
- * payload) and a committed edit is written to its @c in_offset in the input
- * payload mirror; the two are distinct site-defined layouts. The site declares
- * the whole Param[] table (the library ships none) and it drives the
- * CONFIG page and the backends generically - no per-field code.
+ * A parameter (`Param`) pairs a ScalarField (the shared read/display descriptor,
+ * core/scalar.h) with a ParamMeta (default / bounds / string-kind / group) - the
+ * edit metadata a read-only status variable does not carry. Values are read from
+ * the field's @c out_offset in the current image and a committed edit is written
+ * at its @c in_offset. The site declares the whole Param[] table (the library
+ * ships none) and it drives the PARAMS page and the components generically - no
+ * per-field code.
  *
- * ParamHandler is the storage-backend base. Two concrete backends derive it:
- * PlcParamHandler (the PLC owns the values in NVM) and LocalParamHandler (Mbed
- * flash / a sim file). Both expose the same image() + set() surface, so the
- * config-driven Components and the CONFIG page are backend agnostic.
+ * ParamHandler is the model everything consumes (the PARAMS page, the shell, the
+ * config-driven network/sun Components): it owns the registry + the generic
+ * read/format/find/get_* surface. WHERE the bytes live is a separate concern - a
+ * ParamStore (params/store.h) it delegates image()/set()/load() to. Two stores
+ * exist: PlcParamStore (the PLC owns the values) and LocalParamStore (flash /
+ * a sim file); the model is identical either way.
  */
 
 #include <cstddef>   // offsetof, size_t
 #include <cstdint>
 #include <cstring>   // strlen/strncmp (find by name)
 
-#include "component.h"
-#include "scalar.h"  // ScalarField / ScalarType (the shared descriptor)
+#include "libbotanik/core/component.h"
+#include "libbotanik/core/scalar.h"  // ScalarField / ScalarType (the shared descriptor)
 
 namespace Botanik { namespace Params {
+
+    struct ParamStore;   // params/store.h - the backend seam ParamHandler drives
 
     /** @name Parameter descriptor
      *  @{ */
@@ -47,9 +48,9 @@ namespace Botanik { namespace Params {
     };
 
     /** @brief Edit metadata for a writable parameter: the pieces a read-only
-     *  status variable does not carry. @c str_kind is a StrKind held as a plain
-     *  byte; @c group names the parameter's config group (e.g. "net"), and the
-     *  group's commit serial is the parameter sharing that name. */
+     *  status variable does not carry. @c kind is a StrKind held as a plain byte;
+     *  @c group names the parameter's config group (e.g. "net"), and the group's
+     *  commit serial is the parameter sharing that name. */
     struct ParamMeta {
         const char* def;               ///< default value (display text)
         int32_t     min;               ///< inclusive lower bound (numeric)
@@ -66,7 +67,7 @@ namespace Botanik { namespace Params {
      *  built-in table and reads what it needs by name. */
     struct Param {
         ScalarField field;
-        ParamMeta  meta;
+        ParamMeta   meta;
     };
 
     /** @} */
@@ -117,22 +118,32 @@ namespace Botanik { namespace Params {
      *  @p allow_empty. */
     bool validate_hostname(const char* s, uint16_t cap, bool allow_empty = false);
 
+    /** @brief Parse + validate edit text @p text for parameter @p p and write its
+     *  bytes into @p base at byte @p offset (numeric by width, string copied and
+     *  NUL-padded to capacity). @return false (nothing written) on invalid input
+     *  or a read-only parameter. A PLC store passes the input-mirror @c in_offset;
+     *  the local store its single-image @c out_offset. Shared by the stores. */
+    bool write_value(const Param& p, const char* text, void* base, int16_t offset);
+
     /** @} */
 
-    /** @brief Configuration storage-backend base: owns the parameter registry
-     *  (the site table) and the generic read/render/validate/write surface over
-     *  a flat config image. Concrete backends supply the image and the write
-     *  path. The image is a byte blob addressed by each parameter's offsets - the
-     *  site's PLC output payload for a live PLC, a RAM buffer for a local build. */
+    /** @brief The parameter model: owns the site parameter registry and the
+     *  generic read/render/find surface over a flat image. WHERE the bytes live
+     *  and how an edit commits is delegated to a ParamStore (never null); the
+     *  model is backend-agnostic, so the PARAMS page, the shell and the
+     *  config-driven Components all consume this one concrete type. */
     class ParamHandler : public Component {
 
-        /** @name Parameter registry
+        /** @name State
          *  @{ */
 
         /** @brief Site parameter table (may be null). Registered via
          *  set_site_params(); must outlive the handler. */
         const Param* _site       = nullptr;
-        uint8_t            _site_count  = 0;
+        uint8_t      _site_count = 0;
+
+        /** @brief The storage backend (image + write + boot load). Never null. */
+        ParamStore*  _store;
 
         /** @} */
 
@@ -140,8 +151,8 @@ namespace Botanik { namespace Params {
         /** @name Lifecycle
          *  @{ */
 
-        explicit ParamHandler(Logs::Logger* logger)
-            : Component(logger, "Config") {}
+        ParamHandler(ParamStore* store, Logs::Logger* logger)
+            : Component(logger, "Params"), _store(store) {}
 
         /** @} */
 
@@ -162,17 +173,17 @@ namespace Botanik { namespace Params {
 
         /** @} */
 
-        /** @name Backend surface (image + write)
+        /** @name Value surface (delegates to the store)
          *  @{ */
 
-        /** @brief The current config image (backend-owned; stable for the
+        /** @brief The current parameter image (store-owned; stable for the
          *  handler's lifetime). Never null. Addressed by parameter byte offset. */
-        virtual const void* image() const = 0;
+        const void* image() const;
 
         /** @brief Apply an edited value (as display text) to parameter @p p:
-         *  parse + validate, then persist through the backend. @return false
+         *  parse + validate, then persist/commit through the store. @return false
          *  (image unchanged) on invalid input. */
-        virtual bool set(const Param& p, const char* text) = 0;
+        bool set(const Param& p, const char* text);
 
         /** @brief Render parameter @p i's current value into @p buf. */
         int format(uint8_t i, char* buf, size_t cap) const {
@@ -203,27 +214,18 @@ namespace Botanik { namespace Params {
         /** @} */
 
     protected:
-        /** @name Shared write path
-         *  @{ */
-
-        /** @brief Parse + validate edit text @p text for parameter @p p and
-         *  write its bytes into @p base at byte @p offset (numeric by width,
-         *  string copied and NUL-padded to capacity). @return false (nothing
-         *  written) on invalid input or a read-only parameter. A PLC backend
-         *  passes the input-mirror @c in_offset; a local backend the single-image
-         *  @c out_offset. */
-        static bool write_value(const Param& p, const char* text, void* base, int16_t offset);
-
-        /** @} */
+        /** @brief One-shot boot load: hand each registered parameter to the store
+         *  (the local store seeds it from HAL::Storage; the PLC store no-ops). */
+        void setup(uint64_t now_ms) override;
     };
 
-    /** @brief The config image behind a handler, or null if @p h is null. Shared
-     *  by the config-driven components so each keeps no null-guard of its own. */
+    /** @brief The image behind a handler, or null if @p h is null. Shared by the
+     *  config-driven components so each keeps no null-guard of its own. */
     inline const void* image(const ParamHandler* h) {
         return h != nullptr ? h->image() : nullptr;
     }
 
-    /** @name Read config by parameter name (null-safe)
+    /** @name Read parameters by name (null-safe)
      *
      *  The config-driven library components (network / NTP / MQTT / sun) source
      *  their values by *name*, not by dereferencing a typed struct, so the
@@ -273,4 +275,4 @@ namespace Botanik { namespace Params {
 
 }}
 
-#endif // LIBBOTANIK_CORE_PARAMS_H
+#endif // LIBBOTANIK_PARAMS_PARAMS_H

@@ -32,7 +32,7 @@
 #include <cstring>
 
 #include "../../libbotanik_config.h"
-#include "../core/params.h"
+#include "libbotanik/params/params.h"
 #include "page.h"
 #include "scroll_table.h"
 #include "../console/console.h"

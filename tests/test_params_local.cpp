@@ -1,6 +1,7 @@
 /**
  * @file test_config_local.cpp
- * @brief Tests for LocalParamHandler: the flash/file-backed config backend.
+ * @brief Tests for LocalParamStore: the flash/file-backed params backend,
+ *        driven through the generic ParamHandler.
  *        Storage points at a throwaway per-test directory. The handler is
  *        templated on a tiny self-contained config payload and driven by a
  *        site-style parameter table (the library ships none); checks the boot
@@ -16,7 +17,7 @@
 
 #include "doctest.h"
 
-#include "libbotanik/core/params_local.h"
+#include "libbotanik/params/store_local.h"
 
 using namespace Botanik;
 using namespace Botanik::Params;
@@ -57,10 +58,12 @@ namespace {
     };
 }
 
-TEST_CASE("LocalParamHandler: edits apply to the image and validate") {
+TEST_CASE("LocalParamStore: edits apply to the image and validate") {
     StoreEnv env;
 
-    LocalParamHandler<TestCfg> h(nullptr);
+    LocalParamStore h_store(nullptr);
+
+    ParamHandler h(&h_store, nullptr);
     h.set_site_params(PARAMS, PARAM_COUNT);
     h.step(0);   // first step runs setup(): load (empty) -> zeroed defaults
 
@@ -84,11 +87,12 @@ TEST_CASE("LocalParamHandler: edits apply to the image and validate") {
     CHECK(strcmp(get_str(&h, "net_ip"), "10.0.0.5") == 0);
 }
 
-TEST_CASE("LocalParamHandler: values persist across a fresh handler") {
+TEST_CASE("LocalParamStore: values persist across a fresh handler") {
     StoreEnv env;
 
     {
-        LocalParamHandler<TestCfg> h(nullptr);
+        LocalParamStore h_store(nullptr);
+        ParamHandler h(&h_store, nullptr);
         h.set_site_params(PARAMS, PARAM_COUNT);
         h.step(0);
         h.set(*h.find("ntp_poll_s", 10), "300");
@@ -96,7 +100,8 @@ TEST_CASE("LocalParamHandler: values persist across a fresh handler") {
     }
 
     // A brand-new handler (simulating a reboot) reloads persisted values.
-    LocalParamHandler<TestCfg> h2(nullptr);
+    LocalParamStore h2_store(nullptr);
+    ParamHandler h2(&h2_store, nullptr);
     h2.set_site_params(PARAMS, PARAM_COUNT);
     h2.step(0);
     CHECK(get_int(&h2, "ntp_poll_s") == 300);

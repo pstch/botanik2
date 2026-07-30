@@ -18,7 +18,7 @@
 #include <cstdint>
 
 #include "../hal/net.h"
-#include "../core/params.h"        // Params::ParamHandler + cfg_* name getters
+#include "libbotanik/params/params.h"        // Params::ParamHandler + cfg_* name getters
 #include "network.h"    // Component, NetworkHandler
 #include "resolver.h"
 // Alarms::Publisher (alarm transport)
