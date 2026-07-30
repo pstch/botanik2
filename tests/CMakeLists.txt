@@ -5,7 +5,11 @@
 # CMakeLists. doctest ships as a single vendored header (tests/vendor/doctest.h);
 # there is nothing to fetch or build.
 
+# The suite compiles the selected site's header (test_sizes.cpp pins its data
+# struct), so it must link the site's own sources too - the IO value stores live
+# in one of them.
 add_executable(botanik_tests
+    ${BOTANIK_SITE_SOURCES}
     doctest_main.cpp
     test_text.cpp
     test_time.cpp

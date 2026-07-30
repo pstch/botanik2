@@ -10,7 +10,7 @@
 namespace Botanik { namespace Scan {
 
     void Driver::on_step(uint64_t now_ms) {
-        if (_tasks == nullptr || _stats == nullptr) return;
+        if (_tasks == nullptr || _stats == nullptr || _io == nullptr) return;
 
         for (uint8_t i = 0; i < _count; i++) {
             const Task& t = _tasks[i];
@@ -40,10 +40,7 @@ namespace Botanik { namespace Scan {
                 }
             }
 
-            ScanContext ctx;
-            ctx.now_ms = now_ms;
-            ctx.dt_ms  = dt;
-            ctx.missed = missed;
+            ScanContext ctx = { now_ms, dt, missed, *_io };
 
             uint64_t t0 = HAL::Clock::uptime_us();
             t.run(ctx);

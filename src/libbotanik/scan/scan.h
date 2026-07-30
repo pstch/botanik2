@@ -32,6 +32,7 @@
 #include <cstdint>
 
 #include "../core/component.h"
+#include "../vars/io.h"
 
 namespace Botanik { namespace Scan {
 
@@ -46,6 +47,8 @@ namespace Botanik { namespace Scan {
         uint32_t dt_ms;
         /** @brief Activations dropped since the last run; 0 normally. */
         uint16_t missed;
+        /** @brief The variables this program reads and drives. */
+        Vars::Io& io;
     };
 
     /** @brief A control program. Const and flash-resident like the other site
@@ -83,6 +86,7 @@ namespace Botanik { namespace Scan {
         const Task* _tasks = nullptr;
         uint8_t     _count = 0;
         TaskStats*  _stats = nullptr;   ///< caller-owned, _count entries
+        Vars::Io*   _io    = nullptr;   ///< borrowed; the firmware owns it
 
         /** @} */
 
@@ -93,9 +97,9 @@ namespace Botanik { namespace Scan {
         /** @brief Bind the (borrowed) task table and its stats storage. Both
          *  must outlive the driver; a site declares them as statics. */
         Driver(const Task* tasks, uint8_t count, TaskStats* stats,
-               Logs::Logger* logger = nullptr)
+               Vars::Io* io, Logs::Logger* logger = nullptr)
             : Component(logger, "Scan"), _tasks(tasks), _count(count),
-              _stats(stats) {}
+              _stats(stats), _io(io) {}
 
         /** @} */
 

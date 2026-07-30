@@ -80,7 +80,9 @@
 #include "../alarms/alarms.h"    // AlarmCondition (site table type)
 #include "../health/health.h"    // HealthMonitor (owns the alarm model + notifier)
 #include "libbotanik/params/params.h"   // Params::Param + ParamHandler (the model)
-#include "../shell/shell.h"      // Shell::ShellCommand (descriptor command table)
+#include "../shell/shell.h"
+#include "../vars/io.h"      // Vars::Io / IoTables
+#include "../scan/scan.h"     // Scan::Driver / Task      // Shell::ShellCommand (descriptor command table)
 #include "scalar.h"  // ScalarGroup (status vars)
 #include "stacks.h"      // Monitor/Console/NetworkStack composition
 #include "libbotanik/params/store_local.h"  // LocalParamStore (flash/file params)
@@ -123,6 +125,16 @@ namespace Botanik {
         uint8_t                       home_field_count;
         const Alarms::AlarmCondition* alarms;              ///< alarm-condition table
         uint8_t                       alarm_count;
+        /** @brief Field IO: the variable tables bound to their value stores.
+         *  A site with no field IO passes a default-constructed IoTables.
+         *  (No default member initialisers here: in C++11 an NSDMI would stop
+         *  SiteDescriptor being an aggregate, and every site brace-inits it.) */
+        Vars::IoTables                io;
+        /** @brief Control programs and their per-task diagnostics. The stats
+         *  array is site-owned and must hold @c task_count entries. */
+        const Scan::Task*             tasks;
+        uint8_t                       task_count;
+        Scan::TaskStats*              task_stats;
     };
 
     /** @brief Generic firmware base: owns the generic components + the loop
@@ -174,6 +186,8 @@ namespace Botanik {
         Scheduler::LoopScheduler       _scheduler;
         Params::LocalParamStore        _param_store;  ///< params live in flash/a file
         Params::ParamHandler           _params;       ///< the parameter model (over _param_store)
+        Vars::Io                       _io;          ///< the site's variables
+        Scan::Driver                   _scan;        ///< the control programs
         Health::HealthMonitor          _health;
         SystemContext                  _sys_ctx;     ///< Filled in the ctor body
 #if BOTANIK_FEATURE_MONITOR
@@ -210,6 +224,8 @@ namespace Botanik {
               // No PLC: params come from local storage.
               _param_store(&_logger),
               _params(&_param_store, &_logger),
+              _io(site.io),
+              _scan(site.tasks, site.task_count, site.task_stats, &_io, &_logger),
               // Health takes a null link context + null regions + an empty reader
               // (only local platform alarms fire; degrades to "kick while alive").
               _health(_site.alarms, _site.alarm_count, &_logger,
@@ -266,6 +282,9 @@ namespace Botanik {
             // Register the site's config parameters (appended after the library
             // built-ins) so the CONFIG page and the `config` command see them.
             _params.set_site_params(_site.params, _site.param_count);
+            // Seed every variable with its declared default, so a value read
+            // before any driver has spoken is the default rather than zero.
+            _io.init();
 #if BOTANIK_FEATURE_CONSOLE
             HAL::Serial::get(HAL::Serial::CONSOLE)->begin(_console_baud);
 #endif
@@ -379,6 +398,11 @@ namespace Botanik {
             // drains, so an alarm START/END lands this beat. It reads the remote
             // alarm bitset + torn count through its stored pointers (both null
             // without a PLC, so only local platform alarms fire).
+            // Read phase. With no field drivers yet this only ages out readings
+            // whose timeout has passed; a driver refreshing them slots in here,
+            // before anything reads, which is what makes one beat coherent.
+            _io.expire_stale(now_ms);
+
             _health.step(now_ms);
 
 #if BOTANIK_FEATURE_NETWORK
@@ -388,6 +412,14 @@ namespace Botanik {
             // network I/O.
             _net.step(now_ms);
 #endif
+
+            // Execute phase: every control program that has come due.
+            _scan.step(now_ms);
+
+            // Write phase. A fault, watchdog escalation or overrun drops every
+            // output to its declared safe state instead of pushing a stale
+            // demand at the field.
+            if (!_health.watchdog_ok()) _io.all_outputs_safe();
 
             on_step(now_ms);   // site per-beat state machines (default no-op)
 
