@@ -84,7 +84,7 @@ namespace Botanik { namespace Pages {
     // BufferedLogWriter interface
     // ------------------------------------------------------------------------
 
-    size_t LogsPage::format(const LogEntry_t* entry, char* buf, size_t len) {
+    size_t LogsPage::format(const Logs::LogEntry* entry, char* buf, size_t len) {
         return Logs::format_log_entry(entry, buf, len);
     }
 

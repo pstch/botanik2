@@ -257,10 +257,10 @@ namespace Botanik { namespace Config {
 
     /** @brief Maximum length of a single log message from the PLC.
      *  @note Must match PLC-side code ! */
-#ifndef BOTANIK_LOG_PLC_MESSAGE_LEN
-#  define BOTANIK_LOG_PLC_MESSAGE_LEN 256
+#ifndef BOTANIK_LOG_MESSAGE_LEN
+#  define BOTANIK_LOG_MESSAGE_LEN 256
 #endif
-    BOTANIK_CFG(size_t, LOG_PLC_MESSAGE_LEN);
+    BOTANIK_CFG(size_t, LOG_MESSAGE_LEN);
 
     /** @brief Interval between unsolicited TX frames sent to keep the PLC link alive */
 #ifndef BOTANIK_PLC_HEARTBEAT_MS

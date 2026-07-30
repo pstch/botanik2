@@ -10,7 +10,7 @@
 
 #include "component.h"
 #include "../logs/logger.h"    // Logs::Logger (full definition)
-#include "../plcio/vars.h"     // Logs::BOOT
+#include "../logs/topics.h"   // Logs::BOOT
 
 namespace Botanik {
 

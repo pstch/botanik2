@@ -17,7 +17,7 @@ namespace Botanik { namespace Network {
     MqttLogWriter::MqttLogWriter(Logs::LogLevel min_level)
         : _min_level(min_level) {}
 
-    void MqttLogWriter::push(const LogEntry_t* entry) {
+    void MqttLogWriter::push(const Logs::LogEntry* entry) {
         // sink-local level gate (criticals always pass: LOG_CRITICAL is the max)
         if (entry->level < _min_level) return;
         // best-effort: drop when the link is down, and bail on reentrancy - a log
@@ -43,7 +43,7 @@ namespace Botanik { namespace Network {
         _busy = false;
     }
 
-    size_t MqttLogWriter::format(const LogEntry_t* entry, char* buf, size_t len) {
+    size_t MqttLogWriter::format(const Logs::LogEntry* entry, char* buf, size_t len) {
         if (len == 0) return 0;
         uint64_t ts = Utils::absolute_ms(entry->timestamp);
         char time_buf[Utils::TIMESTAMP_LEN];

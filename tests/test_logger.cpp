@@ -16,7 +16,6 @@
 #include "recording_writer.h"
 
 using namespace Botanik;
-using LogEntry_t = PlcIO::LogEntry_t;
 
 namespace {
 
@@ -24,7 +23,7 @@ namespace {
     // drains so we can see which entries survived the queue.
     struct TestBuffered : Logs::BufferedLogWriter {
         std::vector<uint32_t> sent;
-        size_t format(const PlcIO::LogEntry_t* e, char* buf, size_t len) override {
+        size_t format(const Logs::LogEntry* e, char* buf, size_t len) override {
             (void)len; sent.push_back(e->timestamp); buf[0] = 'x'; return 1;
         }
         size_t write(const char* buf, size_t len) override { (void)buf; return len; }
@@ -40,8 +39,8 @@ namespace {
 
     // A LOG_INFO entry on a given topic (the level the limiter actually gates;
     // criticals bypass the writer queue, not the buckets).
-    LogEntry_t info_on(Logs::LogTopic topic) {
-        LogEntry_t e = {};
+    Logs::LogEntry info_on(Logs::LogTopic topic) {
+        Logs::LogEntry e = {};
         e.level = Logs::LOG_INFO;
         e.topic = topic;
         return e;
@@ -51,7 +50,7 @@ namespace {
 
 TEST_CASE("writer: drain delivers queued entries in order") {
     TestBuffered w;
-    LogEntry_t e = {}; e.level = Logs::LOG_INFO;
+    Logs::LogEntry e = {}; e.level = Logs::LOG_INFO;
     for (uint32_t i = 1; i <= 5; ++i) { e.timestamp = i; w.push(&e); }
     w.drain();
     CHECK(w.sent.size() == 5);
@@ -62,7 +61,7 @@ TEST_CASE("writer: drain delivers queued entries in order") {
 TEST_CASE("writer: criticals seat into the reserve without evicting normals") {
     TestBuffered w;
     const uint32_t NORMAL_CAP = Config::LOG_QUEUE_SIZE - 1 - Config::LOG_QUEUE_CRITICAL_RESERVE;
-    LogEntry_t e = {}; e.level = Logs::LOG_INFO;
+    Logs::LogEntry e = {}; e.level = Logs::LOG_INFO;
     // Normals fill only up to NORMAL_CAP; the last K slots are reserved for criticals.
     for (uint32_t i = 1; i <= NORMAL_CAP; ++i) { e.timestamp = i; w.push(&e); }
     CHECK(w.loss_count() == 0);
@@ -93,11 +92,11 @@ TEST_CASE("logger: min_level drops sub-threshold entries, criticals always pass"
     lg.push_entry(info_on(Logs::PLC_IO));          // LOG_INFO < WARNING -> dropped
     CHECK(w.pushes == 0);
 
-    LogEntry_t warn = info_on(Logs::PLC_IO); warn.level = Logs::LOG_WARNING;
+    Logs::LogEntry warn = info_on(Logs::PLC_IO); warn.level = Logs::LOG_WARNING;
     lg.push_entry(warn);                            // == threshold -> passes
     CHECK(w.pushes == 1);
 
-    LogEntry_t crit = info_on(Logs::PLC_IO); crit.level = Logs::LOG_CRITICAL;
+    Logs::LogEntry crit = info_on(Logs::PLC_IO); crit.level = Logs::LOG_CRITICAL;
     lg.push_entry(crit);                            // critical (max level) always passes
     CHECK(w.pushes == 2);
 }
@@ -198,7 +197,7 @@ TEST_CASE("rate limit: a flooded topic passes up to the burst, then drops") {
     const int gburst = Config::LOG_GLOBAL_BUCKET_BURST;
     const int tburst = Config::LOG_PERTOPIC_BUCKET_BURST;
     const int cap = gburst < tburst ? gburst : tburst;
-    LogEntry_t e = info_on(Logs::PLC_IO);
+    Logs::LogEntry e = info_on(Logs::PLC_IO);
     for (int i = 0; i < cap + 10; ++i) lg.push_entry(e);
     CHECK(w.pushes == cap);
 }
@@ -212,8 +211,8 @@ TEST_CASE("rate limit: the global bucket caps total throughput across topics") {
     // it, so the total is the global burst. (Assumes tburst <= gburst <= 2*tburst.)
     const int gburst = Config::LOG_GLOBAL_BUCKET_BURST;
     const int tburst = Config::LOG_PERTOPIC_BUCKET_BURST;
-    LogEntry_t a = info_on(Logs::PLC_IO);
-    LogEntry_t b = info_on(Logs::BOOT);
+    Logs::LogEntry a = info_on(Logs::PLC_IO);
+    Logs::LogEntry b = info_on(Logs::BOOT);
     for (int i = 0; i < tburst; ++i) lg.push_entry(a);   // A's topic bucket -> 0, global -= tburst
     for (int i = 0; i < tburst; ++i) lg.push_entry(b);   // B has topic tokens, global (gburst-tburst) gates it
     CHECK(w.pushes == gburst);                           // tburst + (gburst - tburst): global is the cap
@@ -228,7 +227,7 @@ TEST_CASE("rate limit: topics with no per-topic bucket are gated by the global b
     SUBCASE("NONE skips the per-topic bucket")           { topic = Logs::NONE; }
     // Out of range is the no-OOB-bucket-access regression: it must be clamped to NONE.
     SUBCASE("an out-of-range topic is treated as NONE")  { topic = (Logs::LogTopic)Config::LOG_TOPIC_MAX; }
-    LogEntry_t e = info_on(topic);
+    Logs::LogEntry e = info_on(topic);
     for (int i = 0; i < burst + 5; ++i) lg.push_entry(e);
     CHECK(w.pushes == burst);                            // limited by the global bucket alone
 }

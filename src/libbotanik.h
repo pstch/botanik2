@@ -33,6 +33,7 @@
 #include "libbotanik/console/parser.h"
 #include "libbotanik/console/editor.h"
 
+#include "libbotanik/logs/entry.h"
 #include "libbotanik/plcio/vars.h"
 #include "libbotanik/plcio/sync.h"
 #include "libbotanik/plcio/logs.h"

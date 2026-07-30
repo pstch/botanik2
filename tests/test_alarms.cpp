@@ -50,10 +50,10 @@ namespace {
     // Records the topic of every entry the logger forwards, for the FLAP tests.
     struct TopicRecorder : Logs::LogWriter {
         std::vector<Logs::LogTopic> topics;
-        void     push(const PlcIO::LogEntry_t* e) override { topics.push_back(e->topic); }
+        void     push(const Logs::LogEntry* e) override { topics.push_back(e->topic); }
         void     drain() override {}
         uint32_t loss_count() const override { return 0; }
-        size_t   format(const PlcIO::LogEntry_t*, char*, size_t) override { return 0; }
+        size_t   format(const Logs::LogEntry*, char*, size_t) override { return 0; }
         size_t   write(const char*, size_t) override { return 0; }
         bool     has(Logs::LogTopic t) const {
             for (Logs::LogTopic x : topics) if (x == t) return true;

@@ -39,7 +39,7 @@ namespace Botanik { namespace PlcIO {
         while (processed < Config::LOG_PLC_BUFFER_SIZE
                && HAL::Memory::ordered_read(_writeIndex) != *_readIndex) {
             uint32_t readIndex = *_readIndex % Config::LOG_PLC_BUFFER_SIZE;
-            const LogEntry_t* entry = &_logBuffer[readIndex];
+            const Logs::LogEntry* entry = &_logBuffer[readIndex];
             _detect_dropped_entries(entry);
             _push_plc_entry(entry);
             *_readIndex = (*_readIndex + 1) % Config::LOG_PLC_BUFFER_SIZE;
@@ -58,7 +58,7 @@ namespace Botanik { namespace PlcIO {
     // Internals
     // ------------------------------------------------------------------------
 
-    void PlcLogReader::_detect_dropped_entries(const LogEntry_t* entry) {
+    void PlcLogReader::_detect_dropped_entries(const Logs::LogEntry* entry) {
         // First entry seen this session: anchor, don't treat as a gap. (A bool
         // flag, not _last_seq==0, so a legitimate seq 0 at the 2^32 wrap isn't
         // misread as "first".)
@@ -73,7 +73,7 @@ namespace Botanik { namespace PlcIO {
             bool     lapped  = gap > Config::LOG_PLC_BUFFER_SIZE;
             uint32_t dropped = lapped ? Config::LOG_PLC_BUFFER_SIZE : gap;
             _dropped += dropped;
-            LogEntry_t warn = {};
+            Logs::LogEntry warn = {};
             warn.timestamp = entry->timestamp;
             warn.level     = Logs::LOG_WARNING;
             warn.topic     = Logs::PLC_IO;
@@ -90,11 +90,11 @@ namespace Botanik { namespace PlcIO {
         _last_seq = entry->seqNum;
     }
 
-    void PlcLogReader::_push_plc_entry(const LogEntry_t* plcEntry) {
-        LogEntry_t entry;
-        memcpy(&entry, plcEntry, sizeof(LogEntry_t));
+    void PlcLogReader::_push_plc_entry(const Logs::LogEntry* plcEntry) {
+        Logs::LogEntry entry;
+        memcpy(&entry, plcEntry, sizeof(Logs::LogEntry));
         entry.length = std::min(entry.length,
-                                (uint16_t)(Config::LOG_PLC_MESSAGE_LEN - 1));
+                                (uint16_t)(Config::LOG_MESSAGE_LEN - 1));
         entry.message[entry.length] = '\0';
         _logger->push_entry(entry);
     }

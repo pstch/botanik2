@@ -19,7 +19,6 @@
 namespace Botanik { namespace Logs {
 
     namespace {
-        using LogEntry_t = Botanik::PlcIO::LogEntry_t;
         using LogTopic = Botanik::Logs::LogTopic;
     }
 
@@ -116,7 +115,7 @@ namespace Botanik { namespace Logs {
     // survives is undroppable at the WRITER FIFO, which reserves slots for
     // criticals. So "critical is undroppable" means at the sink queue, not the
     // limiter; a limiter-dropped critical is still counted + summary-reported.
-    void Logger::push_entry(const PlcIO::LogEntry_t& entry) {
+    void Logger::push_entry(const Logs::LogEntry& entry) {
         // Level gate before the limiter so a filtered entry costs no token.
         // LogLevel is monotonic and LOG_CRITICAL is the max, so a critical
         // never falls below _min_level.
@@ -178,7 +177,7 @@ namespace Botanik { namespace Logs {
         // Push a CRITICAL entry straight to every writer, bypassing the rate
         // limiter: these loss/suppression reports must survive the very storm
         // they summarize (REPORT-SLOT keeps criticals when the FIFO is full).
-        LogEntry_t entry = {};
+        Logs::LogEntry entry = {};
         va_list ap; va_start(ap, fmt);
         _build_entry(entry, Logs::LOG_CRITICAL, topic, timestamp_ms, fmt, ap);
         va_end(ap);
@@ -205,7 +204,7 @@ namespace Botanik { namespace Logs {
         rep.reported       = true;
     }
 
-    void Logger::_build_entry(LogEntry_t& e, Logs::LogLevel level, Logs::LogTopic topic,
+    void Logger::_build_entry(Logs::LogEntry& e, Logs::LogLevel level, Logs::LogTopic topic,
                               uint32_t timestamp_ms, const char* fmt, va_list ap) {
         e.timestamp = timestamp_ms;
         e.level     = level;
@@ -217,7 +216,7 @@ namespace Botanik { namespace Logs {
 
     void Logger::_emit(Logs::LogLevel level, Logs::LogTopic topic,
                        const char* fmt, va_list ap) {
-        LogEntry_t entry = {};
+        Logs::LogEntry entry = {};
         _build_entry(entry, level, topic, HAL::Clock::current_ms(), fmt, ap);
         push_entry(entry);
     }

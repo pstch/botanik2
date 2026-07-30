@@ -330,7 +330,7 @@ namespace Botanik { namespace Pages {
         /** @name BufferedLogWriter interface
          *  @{ */
 
-        size_t format(const PlcIO::LogEntry_t* entry, char* buf, size_t len) override {
+        size_t format(const Logs::LogEntry* entry, char* buf, size_t len) override {
             return Logs::format_log_entry(entry, buf, len);
         }
 

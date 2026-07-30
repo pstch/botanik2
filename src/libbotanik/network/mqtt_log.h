@@ -29,7 +29,6 @@ namespace Botanik { namespace Network {
      *  (firmware setup); a null transport drops everything. */
     class MqttLogWriter : public Logs::LogWriter {
     private:
-        using LogEntry_t = PlcIO::LogEntry_t;
 
         /** @name State
          *  @{ */
@@ -57,7 +56,7 @@ namespace Botanik { namespace Network {
          *  @{ */
 
         /** @brief Filter, format, and publish @p entry now (best-effort). */
-        void push(const LogEntry_t* entry) override;
+        void push(const Logs::LogEntry* entry) override;
         /** @brief No-op: nothing is buffered. */
         void drain() override {}
 
@@ -69,7 +68,7 @@ namespace Botanik { namespace Network {
 
         /** @brief Format the payload ("<timestamp> <message>") into @p buf;
          *  returns the bytes written (excluding the terminator). */
-        size_t format(const LogEntry_t* entry, char* buf, size_t len) override;
+        size_t format(const Logs::LogEntry* entry, char* buf, size_t len) override;
         /** @brief Unused: this sink is message-oriented (publishes in push()). */
         size_t write(const char* buf, size_t len) override { (void)buf; (void)len; return 0; }
         /** @brief Build "<MQTT_TOPIC_PREFIX>/<MQTT_LOG_TOPIC>/<level>/<topic>"

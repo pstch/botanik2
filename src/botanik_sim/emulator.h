@@ -215,7 +215,7 @@ namespace Botanik { namespace PlcIO {
         PlcEmulatorContext* _ctx;
         const uint32_t*     _timestamp_ms;
         uint32_t            _next_seq   = 1;
-        LogEntry_t*         _logBuffer;
+        Logs::LogEntry*         _logBuffer;
         uint32_t*           _writeIndex;
 
         /** @} */

@@ -28,7 +28,6 @@ namespace Botanik { namespace Pages {
     private:
         using AnsiTerminal = Terminal::AnsiTerminal;
         using Console      = Terminal::Console;
-        using LogEntry_t   = PlcIO::LogEntry_t;
         using Command      = Terminal::InputEvent::Command;
 
         /** @name State
@@ -71,7 +70,7 @@ namespace Botanik { namespace Pages {
         /** @name BufferedLogWriter interface
          *  @{ */
 
-        size_t format(const LogEntry_t* entry, char* buf, size_t len) override;
+        size_t format(const Logs::LogEntry* entry, char* buf, size_t len) override;
         size_t write(const char* buf, size_t len) override;
 
         /** @} */

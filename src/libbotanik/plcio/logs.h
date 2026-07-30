@@ -31,7 +31,7 @@ namespace Botanik { namespace PlcIO {
          *  across the 2^32 wrap). */
         bool                _have_seq = false;
         uint32_t            _dropped  = 0;
-        const LogEntry_t*   _logBuffer;
+        const Logs::LogEntry*   _logBuffer;
         const uint32_t*     _writeIndex;    ///< PLC-owned write cursor
         uint32_t*           _readIndex;     ///< host-owned read cursor
 
@@ -58,9 +58,9 @@ namespace Botanik { namespace PlcIO {
          *  @{ */
 
         /** @brief Detect and report sequence-number gaps as dropped entries. */
-        void _detect_dropped_entries(const LogEntry_t* entry);
+        void _detect_dropped_entries(const Logs::LogEntry* entry);
         /** @brief Forward one PLC entry into the local Logger. */
-        void _push_plc_entry(const LogEntry_t* plcEntry);
+        void _push_plc_entry(const Logs::LogEntry* plcEntry);
 
         /** @} */
     };

@@ -16,7 +16,7 @@
 #include <cstdarg>
 
 #include "../core/component.h"
-#include "../plcio/vars.h"
+#include "entry.h"
 #include "writer.h"
 #include "../../libbotanik_config.h"
 
@@ -44,7 +44,6 @@ namespace Botanik { namespace Logs {
      *         writers. */
     class Logger : public Botanik::Component {
     private:
-        using LogEntry_t = PlcIO::LogEntry_t;
 
         /** @name Global rate-limiter
          *  @{ */
@@ -156,13 +155,13 @@ namespace Botanik { namespace Logs {
         bool healthy() const override { return has_writers(); }
         /** @brief Forward @p entry to all registered writers after rate-limit
          *  checks */
-        void push_entry(const LogEntry_t& entry);
+        void push_entry(const Logs::LogEntry& entry);
 
         /** @} */
 
         /**
          * @name Level helpers
-         * @brief Build a timestamped LogEntry_t with the given topic.
+         * @brief Build a timestamped Logs::LogEntry with the given topic.
          * @{
          */
         void debug   (Logs::LogTopic topic, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
@@ -204,7 +203,7 @@ namespace Botanik { namespace Logs {
         /** @brief Stamp @p e (assumed zero-inited) with level/topic/timestamp and
          *  the formatted message, clamping the length. The shared body of _emit
          *  and _emit_critical. */
-        void _build_entry(LogEntry_t& e, Logs::LogLevel level, Logs::LogTopic topic,
+        void _build_entry(Logs::LogEntry& e, Logs::LogLevel level, Logs::LogTopic topic,
                           uint32_t timestamp_ms, const char* fmt, va_list ap);
 
         /** @} */

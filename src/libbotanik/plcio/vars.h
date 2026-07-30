@@ -15,7 +15,7 @@
 
 #include "../hal/platform.h"
 // LogLevel / LogTopic - carried byte-for-byte in the log ring below
-#include "../logs/topics.h"
+#include "../logs/entry.h"
 #include "../../libbotanik_config.h"
 
 namespace Botanik { namespace PlcIO {
@@ -35,23 +35,8 @@ namespace Botanik { namespace PlcIO {
     // primitives, usable without the PLC); their values remain the wire
     // protocol the log ring below carries byte-for-byte.
 
-    /** @brief One log record in PLC shared memory: 12-byte header + fixed
-     *  message buffer. */
-    struct LogEntry_t {
-        uint32_t        timestamp;    // @0
-        Logs::LogLevel  level;        // @4  (uint8_t)
-        Logs::LogTopic  topic;        // @5  (uint8_t)
-        uint16_t        length;       // @6
-        uint32_t        seqNum;       // @8  (4B fills @8..@11; keeps message[] word-aligned)
-        char            message[Config::LOG_PLC_MESSAGE_LEN];  // @12 .. @267
-    };
-
-    // Expected LogEntry_t size, spelled out: 12-byte header + the message
-    // buffer.
-    static constexpr size_t LOG_ENTRY_SIZE = 12 + Config::LOG_PLC_MESSAGE_LEN;  // 268
-    static_assert(sizeof(LogEntry_t)  == LOG_ENTRY_SIZE, "LogEntry_t layout drift");
-    static_assert(sizeof(LogEntry_t)  % 4 == 0,          "LogEntry_t must be a multiple of 4");
-    static_assert(alignof(LogEntry_t) == 4,              "LogEntry_t must be 4-byte aligned");
+    // The log record itself now lives in logs/entry.h - it is the host's log
+    // type, not a wire type.
 
     /** @} */
 
@@ -89,7 +74,7 @@ namespace Botanik { namespace PlcIO {
         // kept first so its alignment is independent of the buffer size and
         // entry size
         uint32_t            writeIndex;
-        LogEntry_t          logBuffer[Config::LOG_PLC_BUFFER_SIZE];
+        Logs::LogEntry          logBuffer[Config::LOG_PLC_BUFFER_SIZE];
     };
 
     // The cursors lead their structs, so the host polls them through plain

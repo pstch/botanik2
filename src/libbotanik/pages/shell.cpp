@@ -132,14 +132,14 @@ namespace Botanik { namespace Pages {
     // BufferedLogWriter + ShellWriter interface
     // ------------------------------------------------------------------------
 
-    void ShellPage::push(const LogEntry_t* entry) {
+    void ShellPage::push(const Logs::LogEntry* entry) {
         // Only show logs received while active; background entries are dropped
         // (the full log lives in LogsPage). "logs off" drops them too.
         if (!_active || !_logs_enabled) return;
         Logs::BufferedLogWriter::push(entry);
     }
 
-    size_t ShellPage::format(const LogEntry_t* entry, char* buf, size_t len) {
+    size_t ShellPage::format(const Logs::LogEntry* entry, char* buf, size_t len) {
         return Logs::format_log_entry(entry, buf, len);
     }
 

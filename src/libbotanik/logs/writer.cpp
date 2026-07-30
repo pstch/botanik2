@@ -19,7 +19,7 @@ namespace Botanik { namespace Logs {
     // Queue interface
     // ------------------------------------------------------------------------
 
-    void BufferedLogWriter::push(const LogEntry_t* entry) {
+    void BufferedLogWriter::push(const Logs::LogEntry* entry) {
         uint8_t nextIndex = (_writeIndex + 1) % Config::LOG_QUEUE_SIZE;
         bool    crit      = entry->level >= Logs::LOG_CRITICAL;
         if (nextIndex == _readIndex) {   // completely full
@@ -38,7 +38,7 @@ namespace Botanik { namespace Logs {
                 _dropped += 1; return;
             }
         }
-        memcpy(&_queue[_writeIndex], entry, sizeof(LogEntry_t));
+        memcpy(&_queue[_writeIndex], entry, sizeof(Logs::LogEntry));
         _writeIndex = nextIndex;
     }
 
@@ -47,7 +47,7 @@ namespace Botanik { namespace Logs {
         if (_length > 0 && !_drain_message()) return;
         while (_readIndex != _writeIndex) {
             // fetch the next log entry
-            const LogEntry_t* entry = &_queue[_readIndex];
+            const Logs::LogEntry* entry = &_queue[_readIndex];
             // consume the log entry now
             _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE;
             // format the message into the outgoing message buffer
@@ -88,7 +88,7 @@ namespace Botanik { namespace Logs {
         Component(logger, name),
         _serial(&serial), _suppressed(drop_if_tty && serial.is_output_tty()) {}
 
-    void SerialLogWriter::push(const LogEntry_t* entry) {
+    void SerialLogWriter::push(const Logs::LogEntry* entry) {
         if (_suppressed) return;
         BufferedLogWriter::push(entry);
     }
@@ -103,7 +103,7 @@ namespace Botanik { namespace Logs {
     // Channel implementation
     // ------------------------------------------------------------------------
 
-    size_t SerialLogWriter::format(const LogEntry_t* entry, char* buf, size_t len) {
+    size_t SerialLogWriter::format(const Logs::LogEntry* entry, char* buf, size_t len) {
         // The shared formatter emits no terminator; on a serial sink,
         // newline-terminate each entry so they don't run together. Format into
         // len-1 to always leave room.

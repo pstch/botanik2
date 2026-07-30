@@ -16,7 +16,7 @@
 
 #include "../../libbotanik_config.h"
 #include "../utils/serial.h"
-#include "../plcio/vars.h"
+#include "entry.h"
 
 namespace Botanik { namespace Logs {
 
@@ -25,13 +25,12 @@ namespace Botanik { namespace Logs {
      *  @ref BufferedLogWriter. */
     class LogWriter {
     private:
-        using LogEntry_t = PlcIO::LogEntry_t;
     public:
         /** @name Queue interface
          *  @{ */
 
         /** @brief Enqueue a new log entry for deferred output */
-        virtual void    push(const LogEntry_t* entry) = 0;
+        virtual void    push(const Logs::LogEntry* entry) = 0;
         /** @brief Attempt to flush enqueued entries to the output medium */
         virtual void    drain() = 0;
         /** @brief Cumulative entries lost at this sink, for loss reporting. */
@@ -46,7 +45,7 @@ namespace Botanik { namespace Logs {
         virtual size_t  write(const char* buf, size_t len) = 0;
         /** @brief Format a log entry into @p buf; return the number of bytes
          *  written */
-        virtual size_t  format(const LogEntry_t* entry, char* buf, size_t len) = 0;
+        virtual size_t  format(const Logs::LogEntry* entry, char* buf, size_t len) = 0;
 
         /** @} */
     };
@@ -61,13 +60,12 @@ namespace Botanik { namespace Logs {
      */
     class BufferedLogWriter : public LogWriter {
     private:
-        using LogEntry_t = PlcIO::LogEntry_t;
 
         /** @name Entry queue
          *  @{ */
 
         /** ring of pending entries */
-        LogEntry_t _queue[Config::LOG_QUEUE_SIZE];
+        Logs::LogEntry _queue[Config::LOG_QUEUE_SIZE];
         uint8_t _readIndex = 0;
         uint8_t _writeIndex = 0;
 
@@ -99,7 +97,7 @@ namespace Botanik { namespace Logs {
          *  are kept for LOG_CRITICAL: a normal that would intrude is dropped
          *  (counted); a critical seats into the reserve, or evicts the oldest
          *  only if the queue is wholly full. */
-        void push(const LogEntry_t* entry) override;
+        void push(const Logs::LogEntry* entry) override;
         /** @brief Flush queued entries to the output medium (call from the main
          *  loop) */
         void drain() override;
@@ -128,7 +126,6 @@ namespace Botanik { namespace Logs {
     class SerialLogWriter : public BufferedLogWriter, public Botanik::Component {
     protected:
         using BufferedSerial = Utils::BufferedSerial;
-        using LogEntry_t = PlcIO::LogEntry_t;
 
     private:
         /** @name State
@@ -161,7 +158,7 @@ namespace Botanik { namespace Logs {
          *  @{ */
 
         /** @brief Enqueue @p entry, or drop it when suppressed. */
-        void push(const LogEntry_t* entry) override;
+        void push(const Logs::LogEntry* entry) override;
 
         /** @} */
 
@@ -180,7 +177,7 @@ namespace Botanik { namespace Logs {
          *  @{ */
 
         /** @brief Format a log entry into @p buf; returns the bytes written */
-        size_t format(const LogEntry_t* entry, char* buf, size_t len);
+        size_t format(const Logs::LogEntry* entry, char* buf, size_t len);
         /** @brief Write @p len bytes to the bound serial port (never blocks) */
         size_t write(const char* buf, size_t len);
 

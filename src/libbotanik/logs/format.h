@@ -11,7 +11,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <algorithm>
-#include "../plcio/vars.h"
+#include "entry.h"
 #include "../utils/time.h"
 
 namespace Botanik { namespace Logs {
@@ -73,7 +73,7 @@ namespace Botanik { namespace Logs {
 
     /** @brief Format a complete log entry as `TIMESTAMP LEVEL TOPIC MESSAGE`.
      *  @return Bytes written, clamped to @p len; 0 on encoding error. */
-    inline size_t format_log_entry(const PlcIO::LogEntry_t* entry, char* buf, size_t len) {
+    inline size_t format_log_entry(const Logs::LogEntry* entry, char* buf, size_t len) {
         using namespace Botanik::Utils;
         // format the log level and log topic of the log entry
         const char* level = format_log_level(entry->level);

@@ -9,7 +9,7 @@
  * These are logging primitives, needed even in a PLC-less build, so they live
  * with the logger rather than in the (optional) PLC area. Their values are the
  * wire protocol shared with the PLC, though: the PLC log ring carries them
- * byte-for-byte (see PlcIO::LogEntry_t in plcio/vars.h), so changing a value is
+ * byte-for-byte (see Logs::LogEntry in plcio/vars.h), so changing a value is
  * a coordinated PLC-side change, not a local rename.
  */
 

@@ -34,7 +34,7 @@ namespace Botanik { namespace PlcIO {
 
     void PlcLogWriter::push_log(Logs::LogLevel level, Logs::LogTopic topic, const char* msg) {
         uint32_t writeIndex = *_writeIndex % Config::LOG_PLC_BUFFER_SIZE;
-        LogEntry_t& entry = _logBuffer[writeIndex];
+        Logs::LogEntry& entry = _logBuffer[writeIndex];
 
         entry.timestamp = *_timestamp_ms;
         entry.level     = level;
@@ -42,7 +42,7 @@ namespace Botanik { namespace PlcIO {
         entry.seqNum    = _next_seq++;
 
         uint16_t len = (uint16_t)std::min(
-            std::strlen(msg), (size_t)(Config::LOG_PLC_MESSAGE_LEN - 1));
+            std::strlen(msg), (size_t)(Config::LOG_MESSAGE_LEN - 1));
         std::memcpy(entry.message, msg, len);
         entry.message[len] = '\0';
         entry.length = len;

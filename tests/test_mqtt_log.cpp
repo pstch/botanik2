@@ -24,9 +24,9 @@ namespace {
         using MqttLogWriter::format;
     };
 
-    PlcIO::LogEntry_t make_entry(Logs::LogLevel level, Logs::LogTopic topic,
+    Logs::LogEntry make_entry(Logs::LogLevel level, Logs::LogTopic topic,
                                  const char* msg) {
-        PlcIO::LogEntry_t e;
+        Logs::LogEntry e;
         memset(&e, 0, sizeof(e));
         e.timestamp = 0;
         e.level = level;
@@ -75,7 +75,7 @@ TEST_CASE("mqtt log: topic assembly") {
 
 TEST_CASE("mqtt log: payload carries timestamp then message") {
     TestSink sink;
-    PlcIO::LogEntry_t e = make_entry(Logs::LOG_NOTICE, Logs::NETWORK, "link up");
+    Logs::LogEntry e = make_entry(Logs::LOG_NOTICE, Logs::NETWORK, "link up");
     char buf[128];
     size_t n = sink.format(&e, buf, sizeof(buf));
     CHECK(n > 0);
@@ -88,7 +88,7 @@ TEST_CASE("mqtt log: payload carries timestamp then message") {
 
 TEST_CASE("mqtt log: no publisher wired is a safe no-op") {
     Network::MqttLogWriter sink;   // never call set_publisher()
-    PlcIO::LogEntry_t e = make_entry(Logs::LOG_CRITICAL, Logs::HEALTH, "boom");
+    Logs::LogEntry e = make_entry(Logs::LOG_CRITICAL, Logs::HEALTH, "boom");
     sink.push(&e);                 // must not crash / deref a null transport
     CHECK(sink.loss_count() == 0); // best-effort: link-down drops aren't losses
 }

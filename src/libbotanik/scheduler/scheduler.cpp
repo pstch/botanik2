@@ -21,7 +21,7 @@
 #include "scheduler.h"
 #include "../hal/platform.h"
 #include "../logs/logger.h"
-#include "../plcio/vars.h"
+#include "../logs/topics.h"
 #include "../utils/text.h"   // env_u8 (BOTANIK_NO_RT_WARNING)
 
 namespace Botanik { namespace Scheduler {

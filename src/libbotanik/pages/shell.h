@@ -36,7 +36,6 @@ namespace Botanik { namespace Pages {
         using AnsiTerminal = Terminal::AnsiTerminal;
         using Console      = Terminal::Console;
         using InputEditor  = Terminal::TextEditor;
-        using LogEntry_t   = PlcIO::LogEntry_t;
         using Command      = Terminal::InputEvent::Command;
 
         /** @name State
@@ -117,8 +116,8 @@ namespace Botanik { namespace Pages {
          *  @{ */
 
         // One implementation serves both base interfaces.
-        void   push(const LogEntry_t* entry) override;
-        size_t format(const LogEntry_t* entry, char* buf, size_t len) override;
+        void   push(const Logs::LogEntry* entry) override;
+        size_t format(const Logs::LogEntry* entry, char* buf, size_t len) override;
         size_t write(const char* buf, size_t len) override;
         void   write_lines(const char* buf, uint16_t len) override;
         void   drain() override;

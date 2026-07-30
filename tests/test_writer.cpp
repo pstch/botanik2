@@ -16,7 +16,6 @@
 #include "libbotanik/logs/writer.h"
 
 using namespace Botanik;
-using LogEntry_t = PlcIO::LogEntry_t;
 
 namespace {
 
@@ -31,7 +30,7 @@ namespace {
         size_t cap          = 4096;      // bytes write() accepts per call
         bool   fail_format  = false;
 
-        size_t format(const PlcIO::LogEntry_t* e, char* buf, size_t len) override {
+        size_t format(const Logs::LogEntry* e, char* buf, size_t len) override {
             format_calls++;
             if (fail_format) return 0;
             order.push_back(e->timestamp);
@@ -47,8 +46,8 @@ namespace {
         }
     };
 
-    LogEntry_t make_entry(uint32_t ts) {
-        LogEntry_t e = {};
+    Logs::LogEntry make_entry(uint32_t ts) {
+        Logs::LogEntry e = {};
         e.level = Logs::LOG_INFO;
         e.timestamp = ts;
         return e;
@@ -65,7 +64,7 @@ TEST_CASE("writer ring: FIFO order is preserved as the cursors wrap repeatedly")
     // indices wrap around LOG_QUEUE_SIZE several times. Order must stay intact.
     const uint32_t total = (uint32_t)Config::LOG_QUEUE_SIZE * 3 + 5;
     for (uint32_t i = 1; i <= total; ++i) {
-        LogEntry_t e = make_entry(i);
+        Logs::LogEntry e = make_entry(i);
         w.push(&e);
         w.drain();
     }
@@ -79,14 +78,14 @@ TEST_CASE("writer ring: a batch that straddles the wrap boundary drains in order
     // Advance the cursors close to the end of the ring one entry at a time...
     uint32_t ts = 0;
     for (int i = 0; i < (int)Config::LOG_QUEUE_SIZE - 3; ++i) {
-        LogEntry_t e = make_entry(++ts);
+        Logs::LogEntry e = make_entry(++ts);
         w.push(&e);
         w.drain();
     }
     // ...then queue a burst that wraps past the end before a single drain.
     w.order.clear();
     const int burst = 8;
-    for (int i = 0; i < burst; ++i) { LogEntry_t e = make_entry(++ts); w.push(&e); }
+    for (int i = 0; i < burst; ++i) { Logs::LogEntry e = make_entry(++ts); w.push(&e); }
     w.drain();
     REQUIRE(w.order.size() == (size_t)burst);
     for (int i = 0; i < burst; ++i)
@@ -100,7 +99,7 @@ TEST_CASE("writer: a partial write resumes without re-formatting the entry") {
     CapWriter w;
     w.msg_len = 10;
     w.cap     = 3;                       // sink takes only 3 bytes per drain()
-    LogEntry_t e = make_entry(42);
+    Logs::LogEntry e = make_entry(42);
     w.push(&e);
 
     w.drain();                           // formats once, sends 3
@@ -123,7 +122,7 @@ TEST_CASE("writer: a stalled sink (cap 0) makes no progress but never re-formats
     CapWriter w;
     w.msg_len = 5;
     w.cap     = 0;                       // sink refuses every byte
-    LogEntry_t e = make_entry(1);
+    Logs::LogEntry e = make_entry(1);
     w.push(&e);
     for (int i = 0; i < 4; ++i) w.drain();
     CHECK(w.written == 0);
@@ -136,7 +135,7 @@ TEST_CASE("writer: a stalled sink (cap 0) makes no progress but never re-formats
 TEST_CASE("writer: entries that fail to format are skipped and counted as loss") {
     CapWriter w;
     w.fail_format = true;
-    LogEntry_t a = make_entry(1), b = make_entry(2);
+    Logs::LogEntry a = make_entry(1), b = make_entry(2);
     w.push(&a);
     w.push(&b);
     w.drain();
