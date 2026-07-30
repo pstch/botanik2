@@ -248,12 +248,6 @@ namespace Botanik { namespace Config {
      *  @name PLC Synchronization
      *  @{ */
 
-    /** @brief Number of entries in the circular PLC log buffer.
-     *  @note Must match PLC-side code ! */
-#ifndef BOTANIK_LOG_PLC_BUFFER_SIZE
-#  define BOTANIK_LOG_PLC_BUFFER_SIZE 32
-#endif
-    BOTANIK_CFG(size_t, LOG_PLC_BUFFER_SIZE);
 
     /** @brief Maximum length of a single log message from the PLC.
      *  @note Must match PLC-side code ! */
@@ -262,32 +256,13 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(size_t, LOG_MESSAGE_LEN);
 
-    /** @brief Interval between unsolicited TX frames sent to keep the PLC link alive */
-#ifndef BOTANIK_PLC_HEARTBEAT_MS
-#  define BOTANIK_PLC_HEARTBEAT_MS 250
-#endif
-    BOTANIK_CFG(uint32_t, PLC_HEARTBEAT_MS);
 
-    /** @brief Time without a TX acknowledgement before the link is considered timed out */
-#ifndef BOTANIK_PLC_TIMEOUT_MS
-#  define BOTANIK_PLC_TIMEOUT_MS 2500
-#endif
-    BOTANIK_CFG(uint32_t, PLC_TIMEOUT_MS);
 
-    /** @brief Time without any PLC activity before the link is considered faulted */
-#ifndef BOTANIK_PLC_WATCHDOG_MS
-#  define BOTANIK_PLC_WATCHDOG_MS 5000
-#endif
-    BOTANIK_CFG(uint32_t, PLC_WATCHDOG_MS);
 
     /** @brief Grace period after a PLC fault during which the HW watchdog is still kicked.
      *         A transient fault rides through (logged + alarmed), but a fault that persists 
      *         this long stops the kick, resetting both cores (the deliberate recovery that 
      *         gives the PLC image a fresh start). */
-#ifndef BOTANIK_PLC_FAULT_GRACE_MS
-#  define BOTANIK_PLC_FAULT_GRACE_MS 15000
-#endif
-    BOTANIK_CFG(uint32_t, PLC_FAULT_GRACE_MS);
 
     /** @}
      *  @name PLC configuration variables

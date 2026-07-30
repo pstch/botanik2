@@ -13,7 +13,6 @@
  *
  *   - our loop is alive (we reach watchdog_ok() every beat) -> keep kicking;
  *   - a PLC fault is transient -> keep kicking (the fault is logged + alarmed),
- *     riding it through the PLC_FAULT_GRACE_MS grace window;
  *   - a PLC fault persists past the grace -> withhold the kick, letting the HW
  *     watchdog reset BOTH cores - the deliberate recovery that gives the PLC
  *     image a fresh start.
@@ -45,8 +44,6 @@ namespace Botanik { namespace Health {
         const Scheduler::SchedulerContext* _sched;
         /** PLC link status + live torn count (may be null) */
         /** PLC shared region (for POST) */
-        const void*                        _in_region;
-        const void*                        _out_region;
 
         /** last overrun count seen (edge detect) */
         uint32_t _xrun_last        = 0;
@@ -57,7 +54,6 @@ namespace Botanik { namespace Health {
         /** RX_TORN held active until this uptime */
         uint64_t _rx_torn_until_ms = 0;
         /** uptime PLC fault began (0 = not faulted) */
-        uint64_t _fault_since_ms   = 0;
         /** cached verdict (see watchdog_ok()) */
         bool     _watchdog_ok      = true;
         bool     _post_ok          = false;

@@ -131,12 +131,6 @@ struct GreenhouseConfig_t {
     char     mqtt_broker[STRLEN];
 };
 
-/** @brief Host -> PLC payload: the config write-back mirror (host stages edited
- *  config values here; the PLC latches a group when its serial field bumps). */
-struct PlcInputData_t {
-    GreenhouseConfig_t config;
-};
-
 /**
  * @brief Greenhouse PLC output payload (sensors + actuator feedback).
  */
@@ -233,9 +227,7 @@ struct PlcOutputData_t {
  *  declarative table addresses these structs with a 16-bit byte offset.
  *  @{ */
 
-static_assert(sizeof(PlcInputData_t)  % 4 == 0, "PlcInputData_t must be 4-byte aligned");
 static_assert(sizeof(PlcOutputData_t) % 4 == 0, "PlcOutputData_t must be 4-byte aligned");
-static_assert(sizeof(PlcInputData_t)  <= 32767, "PlcInputData_t exceeds the table offset range");
 static_assert(sizeof(PlcOutputData_t) <= 32767, "PlcOutputData_t exceeds the table offset range");
 
 /** @} */

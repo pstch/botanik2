@@ -149,12 +149,10 @@ namespace Botanik { namespace Params {
     }
 
     // Shared write path (used by both stores): writes @p p's parsed value into
-    // @p base at byte @p offset. The PLC store passes the input-mirror in_offset;
+    // @p base at byte @p offset.
     // the local store passes the single-image out_offset. Writability is
-    // p.in_offset >= 0 either way (a read-only status variable is never editable).
 
     bool write_value(const Param& p, const char* text, void* base, int16_t offset) {
-        if (p.field.in_offset < 0) return false;      // read-only: not writable
         uint8_t* dst = (uint8_t*)base + offset;
         if (is_string(p)) {
             if (!validate_string(p, text)) return false;

@@ -32,13 +32,13 @@ namespace {
 
 #define OFF(f) (int16_t)offsetof(TestCfg, f)
     const Param PARAMS[] = {
-        // field {name, out_offset, in_offset, type, digits, str, unit, desc, notes}, meta {def, min, max, len, kind, group}
-        {{"net",          OFF(net),         OFF(net),         SCALAR_U32,    0, nullptr, "",    "commit", ""}, {"0", 0, 1000000000, 0,  STR_NONE, "net"}},
-        {{"net_dhcp",     OFF(net_dhcp),     OFF(net_dhcp),     SCALAR_U8,    0, nullptr, "",    "dhcp",   ""}, {"1", 0, 1,      0,  STR_NONE, "net"}},
-        {{"net_ip",       OFF(net_ip),       OFF(net_ip),       SCALAR_STRING,0, nullptr, "",    "ip",     ""}, {"",  0, 0,      64, STR_IPV4, "net"}},
-        {{"ntp_poll_s",   OFF(ntp_poll_s),   OFF(ntp_poll_s),   SCALAR_U16,   0, nullptr, "s",   "poll",   ""}, {"64",0, 65535,  0,  STR_NONE, "ntp"}},
-        {{"mqtt_port",    OFF(mqtt_port),    OFF(mqtt_port),    SCALAR_U16,   0, nullptr, "",    "port",   ""}, {"1883",0,65535, 0,  STR_NONE, "mqtt"}},
-        {{"geo_latitude", OFF(geo_latitude), OFF(geo_latitude), SCALAR_F32,   4, nullptr, "deg", "lat",    ""}, {"48.8566", -90, 90, 0, STR_NONE, "geo"}},
+        // field {name, out_offset, type, digits, str, unit, desc, notes}, meta {def, min, max, len, kind, group}
+        {{"net",          OFF(net),         SCALAR_U32,    0, nullptr, "",    "commit", ""}, {"0", 0, 1000000000, 0,  STR_NONE, "net"}},
+        {{"net_dhcp",     OFF(net_dhcp),     SCALAR_U8,    0, nullptr, "",    "dhcp",   ""}, {"1", 0, 1,      0,  STR_NONE, "net"}},
+        {{"net_ip",       OFF(net_ip),       SCALAR_STRING,0, nullptr, "",    "ip",     ""}, {"",  0, 0,      64, STR_IPV4, "net"}},
+        {{"ntp_poll_s",   OFF(ntp_poll_s),   SCALAR_U16,   0, nullptr, "s",   "poll",   ""}, {"64",0, 65535,  0,  STR_NONE, "ntp"}},
+        {{"mqtt_port",    OFF(mqtt_port),    SCALAR_U16,   0, nullptr, "",    "port",   ""}, {"1883",0,65535, 0,  STR_NONE, "mqtt"}},
+        {{"geo_latitude", OFF(geo_latitude), SCALAR_F32,   4, nullptr, "deg", "lat",    ""}, {"48.8566", -90, 90, 0, STR_NONE, "geo"}},
     };
 #undef OFF
     const uint8_t PARAM_COUNT = (uint8_t)(sizeof(PARAMS) / sizeof(PARAMS[0]));

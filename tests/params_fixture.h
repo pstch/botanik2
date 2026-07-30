@@ -49,19 +49,19 @@ namespace botanik_test {
         using namespace Botanik;
         using namespace Botanik::Params;
         static const Param params[] = {
-            {{"net",          FX_OFF(net_serial),   FX_OFF(net_serial),   SCALAR_U32,    0, nullptr, "",  "commit",""}, {"0",0,1000000000,0, STR_NONE, "net"}},
-            {{"net_dhcp",     FX_OFF(net_dhcp),     FX_OFF(net_dhcp),     SCALAR_U8,     0, nullptr, "",  "dhcp",""},   {"1",0,1,0, STR_NONE, "net"}},
-            {{"net_ip",       FX_OFF(net_ip),       FX_OFF(net_ip),       SCALAR_STRING, 0, nullptr, "",  "ip",""},     {"",0,0,64, STR_IPV4, "net"}},
-            {{"ntp",          FX_OFF(ntp_serial),   FX_OFF(ntp_serial),   SCALAR_U32,    0, nullptr, "",  "commit",""}, {"0",0,1000000000,0, STR_NONE, "ntp"}},
-            {{"ntp_enabled",  FX_OFF(ntp_enabled),  FX_OFF(ntp_enabled),  SCALAR_U8,     0, nullptr, "",  "en",""},     {"1",0,1,0, STR_NONE, "ntp"}},
-            {{"ntp_poll_s",   FX_OFF(ntp_poll_s),   FX_OFF(ntp_poll_s),   SCALAR_U16,    0, nullptr, "s", "poll",""},   {"64",0,65535,0, STR_NONE, "ntp"}},
-            {{"ntp_server1",  FX_OFF(ntp_server1),  FX_OFF(ntp_server1),  SCALAR_STRING, 0, nullptr, "",  "srv",""},    {"",0,0,64, STR_HOST, "ntp"}},
-            {{"mqtt",         FX_OFF(mqtt_serial),  FX_OFF(mqtt_serial),  SCALAR_U32,    0, nullptr, "",  "commit",""}, {"0",0,1000000000,0, STR_NONE, "mqtt"}},
-            {{"mqtt_enabled", FX_OFF(mqtt_enabled), FX_OFF(mqtt_enabled), SCALAR_U8,     0, nullptr, "",  "en",""},     {"1",0,1,0, STR_NONE, "mqtt"}},
-            {{"mqtt_broker",  FX_OFF(mqtt_broker),  FX_OFF(mqtt_broker),  SCALAR_STRING, 0, nullptr, "",  "brk",""},    {"",0,0,64, STR_HOST, "mqtt"}},
-            {{"geo",          FX_OFF(geo_serial),   FX_OFF(geo_serial),   SCALAR_U32,    0, nullptr, "",  "commit",""}, {"0",0,1000000000,0, STR_NONE, "geo"}},
-            {{"geo_latitude", FX_OFF(geo_latitude), FX_OFF(geo_latitude), SCALAR_F32,    4, nullptr, "deg","lat",""},   {"48.8566",-90,90,0, STR_NONE, "geo"}},
-            {{"geo_longitude",FX_OFF(geo_longitude),FX_OFF(geo_longitude),SCALAR_F32,    4, nullptr, "deg","lon",""},   {"2.3522",-180,180,0, STR_NONE, "geo"}},
+            {{"net",          FX_OFF(net_serial),   SCALAR_U32,    0, nullptr, "",  "commit",""}, {"0",0,1000000000,0, STR_NONE, "net"}},
+            {{"net_dhcp",     FX_OFF(net_dhcp),     SCALAR_U8,     0, nullptr, "",  "dhcp",""},   {"1",0,1,0, STR_NONE, "net"}},
+            {{"net_ip",       FX_OFF(net_ip),       SCALAR_STRING, 0, nullptr, "",  "ip",""},     {"",0,0,64, STR_IPV4, "net"}},
+            {{"ntp",          FX_OFF(ntp_serial),   SCALAR_U32,    0, nullptr, "",  "commit",""}, {"0",0,1000000000,0, STR_NONE, "ntp"}},
+            {{"ntp_enabled",  FX_OFF(ntp_enabled),  SCALAR_U8,     0, nullptr, "",  "en",""},     {"1",0,1,0, STR_NONE, "ntp"}},
+            {{"ntp_poll_s",   FX_OFF(ntp_poll_s),   SCALAR_U16,    0, nullptr, "s", "poll",""},   {"64",0,65535,0, STR_NONE, "ntp"}},
+            {{"ntp_server1",  FX_OFF(ntp_server1),  SCALAR_STRING, 0, nullptr, "",  "srv",""},    {"",0,0,64, STR_HOST, "ntp"}},
+            {{"mqtt",         FX_OFF(mqtt_serial),  SCALAR_U32,    0, nullptr, "",  "commit",""}, {"0",0,1000000000,0, STR_NONE, "mqtt"}},
+            {{"mqtt_enabled", FX_OFF(mqtt_enabled), SCALAR_U8,     0, nullptr, "",  "en",""},     {"1",0,1,0, STR_NONE, "mqtt"}},
+            {{"mqtt_broker",  FX_OFF(mqtt_broker),  SCALAR_STRING, 0, nullptr, "",  "brk",""},    {"",0,0,64, STR_HOST, "mqtt"}},
+            {{"geo",          FX_OFF(geo_serial),   SCALAR_U32,    0, nullptr, "",  "commit",""}, {"0",0,1000000000,0, STR_NONE, "geo"}},
+            {{"geo_latitude", FX_OFF(geo_latitude), SCALAR_F32,    4, nullptr, "deg","lat",""},   {"48.8566",-90,90,0, STR_NONE, "geo"}},
+            {{"geo_longitude",FX_OFF(geo_longitude),SCALAR_F32,    4, nullptr, "deg","lon",""},   {"2.3522",-180,180,0, STR_NONE, "geo"}},
         };
         *count = (uint8_t)(sizeof(params) / sizeof(params[0]));
         return params;

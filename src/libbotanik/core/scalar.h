@@ -42,15 +42,13 @@ namespace Botanik {
      *
      * @p out_offset is where the current value is read (in the PLC output image -
      * the site payload for a status variable, or the parameter's live value).
-     * @p in_offset is where a new value is written (in the PLC input image);
-     * **-1 marks a read-only status variable**. Real-valued quantities are
+     * Real-valued quantities are
      * SCALAR_F32 in native units (no scaled-integer / divisor convention),
      * displayed to @c digits decimals.
      */
     struct ScalarField {
         const char* name;
         int16_t     out_offset;        ///< read offset in the PLC output image (>= 0)
-        int16_t     in_offset;         ///< write offset in the PLC input image; -1 = read-only
         ScalarType  type;
         uint8_t     digits;            ///< SCALAR_F32 display decimals (0 for ints/enum/string)
         const char* (*str)(uint8_t);   ///< SCALAR_ENUM only (else null)
@@ -64,9 +62,6 @@ namespace Botanik {
     // stored, silently addressing the wrong field.
     static_assert(Config::PAYLOAD_OFFSET_MAX == (uint16_t)INT16_MAX,
                   "Config::PAYLOAD_OFFSET_MAX must track the offset field width");
-
-    /** @brief True for a writable parameter (has an input offset). */
-    inline bool scalar_writable(const ScalarField& f) { return f.in_offset >= 0; }
 
     /** @brief A named group of ScalarFields under a shared sub-topic. A site
      *  declares one ScalarField[] per domain (dc_supply, ac_supply, ...) and

@@ -14,9 +14,6 @@ These dive into one mechanism each, past the orientation @ref overviews.
   CPU / jitter / stack metrics.
 - @subpage md_docs_2PLC__SYNC - **PLC shared-memory sync.** The RX/TX state
   machines and the transactional handshake with the PLC coprocessor.
-- @subpage md_docs_2PLC__PARAMS - **PLC configuration variables and components.** The
-  generic network / NTP / MQTT / geo config the PLC publishes, how to set up the
-  matching PLC-side structure, and the Component / ConfigHandler-based network stack
   and sun tracker that consume it.
 - @subpage md_docs_2SCREEN__BACKBUFFER - **The console TX path.** The screen
   back-buffer: how a whole screen's worth of intent becomes the minimal paced

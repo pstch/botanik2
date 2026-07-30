@@ -13,7 +13,7 @@ template.
 @section setup_clone Getting the code
 
 The library is meant to be consumed as a git submodule of the project (or vendored
-into the Arduino zip; see @ref quickstart). To work on it directly, clone it:
+in-tree). To work on it directly, clone it:
 
 @code{.sh}
 git clone git@framagit.org:pstch2/botanik.git
@@ -103,7 +103,7 @@ comes from:
   and passes them to the explicit-region constructor, then drives a mock coprocessor
   from the site's `sim.h` animator.
 - **Hardware** (the Arduino entry point): uses the default constructor, which binds to
-  the coprocessor's region via `HAL::PlcIO::input()` / `output()`. See @ref quickstart
+  the coprocessor's region via `HAL::PlcIO::input()` / `output()`.
   for how the sketch, the project-root wiring, and the imported library fit together.
 
 @section setup_build Selecting the site
@@ -117,5 +117,5 @@ make -C build botanik_sim
 @endcode
 
 With the site building and animating under the simulator, the next step is wiring it
-into the hardware project - see @ref quickstart.
+into the hardware project .
 */
