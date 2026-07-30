@@ -5,12 +5,16 @@
 
 These dive into one mechanism each, past the orientation @ref overviews.
 
+- @subpage md_docs_2SITE__INTERFACE - **Site interface contract.** The complete
+  contract between the library and one greenhouse's site code: the file split,
+  the include rules, every table's exact field order, the capacity limits, and
+  the checklist a generated site must satisfy.
 - @subpage md_docs_2SCHEDULER__PERF - **Scheduler & perf monitoring.** The
   non-blocking fixed-period loop, overrun handling, and the self-instrumented
   CPU / jitter / stack metrics.
 - @subpage md_docs_2PLC__SYNC - **PLC shared-memory sync.** The RX/TX state
   machines and the transactional handshake with the PLC coprocessor.
-- @subpage md_docs_2PLC__CONFIG - **PLC configuration variables and components.** The
+- @subpage md_docs_2PLC__PARAMS - **PLC configuration variables and components.** The
   generic network / NTP / MQTT / geo config the PLC publishes, how to set up the
   matching PLC-side structure, and the Component / ConfigHandler-based network stack
   and sun tracker that consume it.
