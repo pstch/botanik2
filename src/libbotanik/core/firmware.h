@@ -188,6 +188,9 @@ namespace Botanik {
         Params::ParamHandler           _params;       ///< the parameter model (over _param_store)
         Vars::Io                       _io;          ///< the site's variables
         Scan::Driver                   _scan;        ///< the control programs
+        /** @brief Latched SAFE mode: outputs held at their declared safe state
+         *  and the scan inhibited, until health recovers. */
+        bool                           _safe_mode = false;
         Health::HealthMonitor          _health;
         SystemContext                  _sys_ctx;     ///< Filled in the ctor body
 #if BOTANIK_FEATURE_MONITOR
@@ -415,13 +418,26 @@ namespace Botanik {
             _net.step(now_ms);
 #endif
 
-            // Execute phase: every control program that has come due.
-            _scan.step(now_ms);
+            // SAFE mode is a LATCH, not a per-beat sweep. Sweeping outputs
+            // after the scan would have been a flicker: the next beat's tasks
+            // re-drive the same demands before the sweep runs again. A fault has
+            // to inhibit the scan, so the outputs stay at their safe state until
+            // health actually recovers.
+            if (!_health.watchdog_ok()) {
+                if (!_safe_mode) {
+                    _safe_mode = true;
+                    _io.all_outputs_safe();
+                    _logger.critical(Logs::HEALTH,
+                        "SAFE mode: outputs held at their safe state, scan inhibited");
+                }
+            } else if (_safe_mode) {
+                _safe_mode = false;
+                _logger.warning(Logs::HEALTH, "SAFE mode cleared, scan resuming");
+            }
 
-            // Write phase. A fault, watchdog escalation or overrun drops every
-            // output to its declared safe state instead of pushing a stale
-            // demand at the field.
-            if (!_health.watchdog_ok()) _io.all_outputs_safe();
+            // Execute phase: every control program that has come due. Inhibited
+            // in SAFE mode so nothing can drive an output back out of it.
+            if (!_safe_mode) _scan.step(now_ms);
 
             on_step(now_ms);   // site per-beat state machines (default no-op)
 
