@@ -8,13 +8,13 @@
  *        live log output.
  */
 
-#include "libbotanik_config.h"
-#include "libbotanik/pages/page.h"
-#include "libbotanik/pages/scrollback.h"
-#include "libbotanik/logs/writer.h"
-#include "libbotanik/console/console.h"
-#include "libbotanik/console/editor.h"
-#include "libbotanik/shell/shell.h"
+#include "../../libbotanik_config.h"
+#include "page.h"
+#include "scrollback.h"
+#include "../logs/writer.h"
+#include "../console/console.h"
+#include "../console/editor.h"
+#include "../shell/shell.h"
 
 namespace Botanik { namespace Pages {
 

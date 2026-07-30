@@ -8,10 +8,10 @@
 
 #include <cstdint>
 
-#include "libbotanik_config.h"
+#include "../../libbotanik_config.h"
 
-#include "libbotanik/utils/filters.h"
-#include "libbotanik/hal/platform.h"
+#include "../utils/filters.h"
+#include "../hal/platform.h"
 
 // Because the address sanitizer uses a fake stack for locals, stack-usage
 // measurement is fundamentally incompatible with ASAN; the BOTANIK_NO_ASAN

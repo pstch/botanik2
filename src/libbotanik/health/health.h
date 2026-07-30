@@ -23,14 +23,14 @@
 
 #include <cstdint>
 
-#include "libbotanik_config.h"
-#include "libbotanik/alarms/alarms.h"
-#include "libbotanik/alarms/platform.h"
-#include "libbotanik/alarms/publisher.h"
-#include "libbotanik/logs/logger.h"
-#include "libbotanik/scheduler/scheduler.h"
-#include "libbotanik/plcio/sync.h"
-#include "libbotanik/utils/text.h"
+#include "../../libbotanik_config.h"
+#include "../alarms/alarms.h"
+#include "../alarms/platform.h"
+#include "../alarms/publisher.h"
+#include "../logs/logger.h"
+#include "../scheduler/scheduler.h"
+#include "../plcio/sync.h"
+#include "../utils/text.h"
 
 namespace Botanik { namespace Health {
 

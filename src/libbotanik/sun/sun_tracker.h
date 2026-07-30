@@ -10,9 +10,9 @@
 
 #include <cstdint>
 
-#include "libbotanik_config.h"
-#include "libbotanik/core/component.h"
-#include "libbotanik/core/params.h"     // Params::ParamHandler + cfg_* name getters
+#include "../../libbotanik_config.h"
+#include "../core/component.h"
+#include "../core/params.h"     // Params::ParamHandler + cfg_* name getters
 
 #if BOTANIK_FEATURE_SUN
 

@@ -9,10 +9,10 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "libbotanik/console/console.h"
-#include "libbotanik/console/terminal.h"
-#include "libbotanik/console/editor.h"
-#include "libbotanik/core/scalar.h"   // ScalarGroup (status-var table)
+#include "../console/console.h"
+#include "../console/terminal.h"
+#include "../console/editor.h"
+#include "../core/scalar.h"   // ScalarGroup (status-var table)
 
 namespace Botanik {
     // loglevel command (set_diagnostics)

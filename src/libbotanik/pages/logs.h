@@ -8,12 +8,12 @@
  *        scrollback.
  */
 
-#include "libbotanik_config.h"
-#include "libbotanik/pages/page.h"
-#include "libbotanik/pages/scrollback.h"
-#include "libbotanik/logs/writer.h"
-#include "libbotanik/console/console.h"
-#include "libbotanik/console/terminal.h"
+#include "../../libbotanik_config.h"
+#include "page.h"
+#include "scrollback.h"
+#include "../logs/writer.h"
+#include "../console/console.h"
+#include "../console/terminal.h"
 
 namespace Botanik { namespace Pages {
 

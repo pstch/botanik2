@@ -22,9 +22,9 @@
 #include <cstring>
 
 #ifdef TARGET_OPTA
-    #include "libbotanik/hal/opta.h"
+    #include "opta.h"
 #else
-    #include "libbotanik/hal/simulator.h"
+    #include "simulator.h"
 #endif
 
 namespace Botanik { namespace HAL {

@@ -17,8 +17,8 @@
 
 #include <cstdlib>   // abort
 
-#include "libbotanik/hal/platform.h"
-#include "libbotanik/logs/logger.h"
+#include "../hal/platform.h"
+#include "../logs/logger.h"
 
 // Assertion handling (and logging)
 // ===========================================================================

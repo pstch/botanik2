@@ -11,10 +11,10 @@
 #include <cmath>
 #include <cstdint>
 
-#include "libbotanik/hal/platform.h"
-#include "libbotanik/utils/time.h"
+#include "../hal/platform.h"
+#include "../utils/time.h"
 
-#include "libbotanik/sun/sun_tracker.h"
+#include "sun_tracker.h"
 
 #if BOTANIK_FEATURE_SUN
 

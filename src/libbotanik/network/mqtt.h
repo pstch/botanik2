@@ -17,12 +17,12 @@
 
 #include <cstdint>
 
-#include "libbotanik/hal/net.h"
-#include "libbotanik/core/params.h"        // Params::ParamHandler + cfg_* name getters
-#include "libbotanik/network/network.h"    // Component, NetworkHandler
-#include "libbotanik/network/resolver.h"
+#include "../hal/net.h"
+#include "../core/params.h"        // Params::ParamHandler + cfg_* name getters
+#include "network.h"    // Component, NetworkHandler
+#include "resolver.h"
 // Alarms::Publisher (alarm transport)
-#include "libbotanik/alarms/publisher.h"
+#include "../alarms/publisher.h"
 
 namespace Botanik { namespace Network {
 

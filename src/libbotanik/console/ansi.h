@@ -9,7 +9,7 @@
  */
 
 #include <cstdint>
-#include "libbotanik/utils/byte_sink.h"
+#include "../utils/byte_sink.h"
 
 
 namespace Botanik { namespace Terminal { namespace Ansi {

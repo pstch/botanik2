@@ -17,10 +17,10 @@
 
 #include <cstddef>
 
-#include "libbotanik_config.h"
-#include "libbotanik/logs/writer.h"    // LogWriter
-#include "libbotanik/logs/topics.h"    // LogLevel / LogTopic
-#include "libbotanik/network/mqtt.h"   // MqttClient
+#include "../../libbotanik_config.h"
+#include "../logs/writer.h"    // LogWriter
+#include "../logs/topics.h"    // LogLevel / LogTopic
+#include "mqtt.h"   // MqttClient
 
 namespace Botanik { namespace Network {
 

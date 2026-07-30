@@ -10,8 +10,8 @@
 #include <cstring>
 #include <cstdlib>
 
-#include "libbotanik/core/params.h"
-#include "libbotanik/utils/text.h"   // format_float / format_int
+#include "params.h"
+#include "../utils/text.h"   // format_float / format_int
 
 namespace Botanik { namespace Params {
 

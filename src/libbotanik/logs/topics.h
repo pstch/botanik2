@@ -15,7 +15,7 @@
 
 #include <cstdint>
 
-#include "libbotanik_config.h"
+#include "../../libbotanik_config.h"
 
 namespace Botanik { namespace Logs {
 

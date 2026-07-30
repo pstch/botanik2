@@ -14,8 +14,8 @@
  * BOTANIK_FEATURE_PLC is on.
  */
 
-#include "libbotanik/core/params.h"
-#include "libbotanik/plcio/sync.h"   // PlcSyncContext
+#include "params.h"
+#include "../plcio/sync.h"   // PlcSyncContext
 
 namespace Botanik { namespace Params {
 

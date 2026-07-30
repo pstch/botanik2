@@ -24,14 +24,14 @@
 #include <cstdio>
 #include <cstring>
 
-#include "libbotanik_config.h"
-#include "libbotanik/utils/assert.h"       // BOTANIK_ASSERT (DEBUG slot guard)
-#include "libbotanik/hal/platform.h"
-#include "libbotanik/pages/page.h"
-#include "libbotanik/console/console.h"
-#include "libbotanik/console/terminal.h"
-#include "libbotanik/console/field.h"
-#include "libbotanik/plcio/sync.h"
+#include "../../libbotanik_config.h"
+#include "../utils/assert.h"       // BOTANIK_ASSERT (DEBUG slot guard)
+#include "../hal/platform.h"
+#include "page.h"
+#include "../console/console.h"
+#include "../console/terminal.h"
+#include "../console/field.h"
+#include "../plcio/sync.h"
 
 namespace Botanik { namespace Pages {
 

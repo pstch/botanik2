@@ -8,19 +8,19 @@
 #include <cstdio>
 #include <cstring>
 
-#include "libbotanik_config.h"
-#include "libbotanik/alarms/alarms.h"
-#include "libbotanik/hal/platform.h"
-#include "libbotanik/logs/logger.h"
-#include "libbotanik/core/params.h"
-#include "libbotanik/network/mqtt.h"
-#include "libbotanik/network/network.h"
-#include "libbotanik/network/ntp.h"
-#include "libbotanik/core/scalar.h"
-#include "libbotanik/plcio/sync.h"
-#include "libbotanik/scheduler/scheduler.h"
-#include "libbotanik/shell/shell.h"
-#include "libbotanik/utils/text.h"
+#include "../../libbotanik_config.h"
+#include "../alarms/alarms.h"
+#include "../hal/platform.h"
+#include "../logs/logger.h"
+#include "../core/params.h"
+#include "../network/mqtt.h"
+#include "../network/network.h"
+#include "../network/ntp.h"
+#include "../core/scalar.h"
+#include "../plcio/sync.h"
+#include "../scheduler/scheduler.h"
+#include "shell.h"
+#include "../utils/text.h"
 
 // Build-time git short hash: a generated header on the CMake builds (see
 // CMakeLists), "unknown" on the Arduino .ino deploy (no CMake, so the header

@@ -12,9 +12,9 @@
  */
 #include <cstdio>
 
-#include "libbotanik/hal/platform.h"
-#include "libbotanik/logs/logger.h"
-#include "libbotanik/utils/time.h"
+#include "../hal/platform.h"
+#include "logger.h"
+#include "../utils/time.h"
 
 namespace Botanik { namespace Logs {
 

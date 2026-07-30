@@ -13,9 +13,9 @@
 #include <algorithm>
 #include <string.h>
 
-#include "libbotanik/core/component.h"
-#include "libbotanik/hal/platform.h"
-#include "libbotanik/utils/byte_sink.h"
+#include "../core/component.h"
+#include "../hal/platform.h"
+#include "byte_sink.h"
 
 namespace Botanik { namespace Utils {
 

@@ -13,10 +13,10 @@
 #include <cstddef>   // offsetof
 #include <type_traits>
 
-#include "libbotanik/hal/platform.h"
+#include "../hal/platform.h"
 // LogLevel / LogTopic - carried byte-for-byte in the log ring below
-#include "libbotanik/logs/topics.h"
-#include "libbotanik_config.h"
+#include "../logs/topics.h"
+#include "../../libbotanik_config.h"
 
 namespace Botanik { namespace PlcIO {
 

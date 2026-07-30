@@ -14,11 +14,11 @@
 #include <cstdlib>   // getenv, for the BOTANIK_SHOW_CURSOR dev override
 #endif
 
-#include "libbotanik_config.h"
+#include "../../libbotanik_config.h"
 
-#include "libbotanik/utils/serial.h"
-#include "libbotanik/console/terminal.h"
-#include "libbotanik/console/ansi.h"
+#include "../utils/serial.h"
+#include "terminal.h"
+#include "ansi.h"
 
 
 namespace Botanik { namespace Terminal {

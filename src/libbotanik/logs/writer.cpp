@@ -7,11 +7,11 @@
  * a partial write resumes without re-formatting. SerialLogWriter caps each
  * write at the TX buffer's available space so it never blocks the main loop.
  */
-#include "libbotanik/utils/time.h"
-#include "libbotanik/utils/serial.h"
+#include "../utils/time.h"
+#include "../utils/serial.h"
 
-#include "libbotanik/logs/writer.h"
-#include "libbotanik/logs/format.h"
+#include "writer.h"
+#include "format.h"
 
 
 namespace Botanik { namespace Logs {

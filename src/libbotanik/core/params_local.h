@@ -18,8 +18,8 @@
 #include <cstdint>
 #include <cstring>
 
-#include "libbotanik/core/params.h"
-#include "libbotanik/hal/storage.h"
+#include "params.h"
+#include "../hal/storage.h"
 
 namespace Botanik { namespace Params {
 

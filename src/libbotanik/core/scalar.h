@@ -15,8 +15,8 @@
 #include <cstdint>
 #include <cstring>
 
-#include "libbotanik/utils/text.h"   // format_float / format_int
-#include "libbotanik_config.h"
+#include "../utils/text.h"   // format_float / format_int
+#include "../../libbotanik_config.h"
 
 namespace Botanik {
 

@@ -14,9 +14,9 @@
 #include <cstdint>
 #include <cstring>
 
-#include "libbotanik_config.h"
-#include "libbotanik/utils/serial.h"
-#include "libbotanik/plcio/vars.h"
+#include "../../libbotanik_config.h"
+#include "../utils/serial.h"
+#include "../plcio/vars.h"
 
 namespace Botanik { namespace Logs {
 

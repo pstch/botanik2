@@ -5,9 +5,9 @@
  */
 #include <cstdint>
 
-#include "libbotanik_config.h"
-#include "libbotanik/hal/platform.h"
-#include "libbotanik/console/console.h"
+#include "../../libbotanik_config.h"
+#include "../hal/platform.h"
+#include "console.h"
 
 namespace Botanik { namespace Terminal {
 

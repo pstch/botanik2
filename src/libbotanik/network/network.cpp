@@ -10,9 +10,9 @@
 
 #include <cstring>
 
-#include "libbotanik/network/network.h"
+#include "network.h"
 
-#include "libbotanik/hal/platform.h"   // HAL::Clock::set_wall_ms (NTP -> RTC)
+#include "../hal/platform.h"   // HAL::Clock::set_wall_ms (NTP -> RTC)
 
 namespace Botanik { namespace Network {
 

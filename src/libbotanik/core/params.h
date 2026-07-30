@@ -28,8 +28,8 @@
 #include <cstdint>
 #include <cstring>   // strlen/strncmp (find by name)
 
-#include "libbotanik/core/component.h"
-#include "libbotanik/core/scalar.h"  // ScalarField / ScalarType (the shared descriptor)
+#include "component.h"
+#include "scalar.h"  // ScalarField / ScalarType (the shared descriptor)
 
 namespace Botanik { namespace Params {
 

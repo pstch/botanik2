@@ -25,8 +25,8 @@
 #include <cstdint>
 #include <cstdio>
 
-#include "libbotanik/pages/page.h"
-#include "libbotanik/console/terminal.h"
+#include "page.h"
+#include "../console/terminal.h"
 
 namespace Botanik { namespace Pages {
 

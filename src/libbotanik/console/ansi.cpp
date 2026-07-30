@@ -12,7 +12,7 @@
  */
 #include <cstdint>
 
-#include "libbotanik/console/ansi.h"
+#include "ansi.h"
 
 namespace Botanik { namespace Terminal { namespace Ansi {
 

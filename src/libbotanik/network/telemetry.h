@@ -23,10 +23,10 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "libbotanik_config.h"
-#include "libbotanik/core/context.h"
-#include "libbotanik/network/mqtt.h"
-#include "libbotanik/core/scalar.h"   // ScalarType/Field/Group + read/format
+#include "../../libbotanik_config.h"
+#include "../core/context.h"
+#include "mqtt.h"
+#include "../core/scalar.h"   // ScalarType/Field/Group + read/format
 
 namespace Botanik { namespace Network {
 

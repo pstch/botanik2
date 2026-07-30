@@ -36,14 +36,14 @@
 #include <cstdio>
 #include <cstring>
 
-#include "libbotanik_config.h"
-#include "libbotanik/alarms/alarms.h"
-#include "libbotanik/hal/platform.h"
-#include "libbotanik/pages/page.h"
-#include "libbotanik/pages/scroll_table.h"
-#include "libbotanik/console/console.h"
-#include "libbotanik/console/terminal.h"
-#include "libbotanik/utils/time.h"
+#include "../../libbotanik_config.h"
+#include "../alarms/alarms.h"
+#include "../hal/platform.h"
+#include "page.h"
+#include "scroll_table.h"
+#include "../console/console.h"
+#include "../console/terminal.h"
+#include "../utils/time.h"
 
 namespace Botanik { namespace Pages {
 

@@ -8,7 +8,7 @@
  * Suffix: dwell thresholds (s; -1 disables), recent_s (0 = default), off_delay_s.
  */
 
-#include "libbotanik/alarms/platform.h"
+#include "platform.h"
 
 namespace Botanik { namespace Alarms {
 

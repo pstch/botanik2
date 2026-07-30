@@ -3,14 +3,14 @@
  * @file mqtt_log.cpp
  * @brief MqttLogWriter - publish log entries to the MQTT broker.
  */
-#include "libbotanik/network/mqtt_log.h"
+#include "mqtt_log.h"
 
 #include <algorithm>   // std::min
 #include <cstdio>      // snprintf
 #include <cstring>     // strlen
 
-#include "libbotanik/logs/format.h"   // format_log_level_name / _topic_name
-#include "libbotanik/utils/time.h"    // absolute_ms / format_ms_timestamp
+#include "../logs/format.h"   // format_log_level_name / _topic_name
+#include "../utils/time.h"    // absolute_ms / format_ms_timestamp
 
 namespace Botanik { namespace Network {
 

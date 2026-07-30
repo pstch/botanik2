@@ -7,10 +7,10 @@
 #include <cstring>
 #include <cstdio>
 
-#include "libbotanik_config.h"
-#include "libbotanik/hal/platform.h"
-#include "libbotanik/logs/format.h"
-#include "libbotanik/pages/logs.h"
+#include "../../libbotanik_config.h"
+#include "../hal/platform.h"
+#include "../logs/format.h"
+#include "logs.h"
 
 namespace Botanik { namespace Pages {
 

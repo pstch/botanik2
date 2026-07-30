@@ -17,7 +17,7 @@
 #include <cstdint>
 #include <cstring>
 
-#include "libbotanik/utils/text.h"
+#include "../utils/text.h"
 
 namespace Botanik { namespace Pages {
 

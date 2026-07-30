@@ -7,7 +7,7 @@
  * otherwise header-only alarm types, and it needs the complete AlarmSink.
  */
 
-#include "libbotanik/alarms/alarms.h"
+#include "alarms.h"
 
 namespace Botanik { namespace Alarms {
 

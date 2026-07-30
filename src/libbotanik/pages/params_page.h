@@ -31,13 +31,13 @@
 #include <cstdio>
 #include <cstring>
 
-#include "libbotanik_config.h"
-#include "libbotanik/core/params.h"
-#include "libbotanik/pages/page.h"
-#include "libbotanik/pages/scroll_table.h"
-#include "libbotanik/console/console.h"
-#include "libbotanik/console/terminal.h"
-#include "libbotanik/console/editor.h"
+#include "../../libbotanik_config.h"
+#include "../core/params.h"
+#include "page.h"
+#include "scroll_table.h"
+#include "../console/console.h"
+#include "../console/terminal.h"
+#include "../console/editor.h"
 
 namespace Botanik { namespace Pages {
 

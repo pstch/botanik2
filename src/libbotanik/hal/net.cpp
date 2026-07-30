@@ -9,8 +9,8 @@
  *        TARGET_SIMULATOR split is legal here: this file is part of the HAL.
  */
 
-#include "libbotanik/hal/net.h"
-#include "libbotanik/hal/platform.h"
+#include "net.h"
+#include "platform.h"
 
 #ifdef TARGET_OPTA
 // ---- OPTA backend (Mbed) ----

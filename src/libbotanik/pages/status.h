@@ -23,19 +23,19 @@
 
 #include <cstring>
 
-#include "libbotanik_config.h"
-#include "libbotanik_features.h"
-#include "libbotanik/hal/platform.h"
-#include "libbotanik/pages/metric_page.h"
-#include "libbotanik/scheduler/scheduler.h"
-#include "libbotanik/utils/text.h"
-#include "libbotanik/utils/time.h"
+#include "../../libbotanik_config.h"
+#include "../../libbotanik_features.h"
+#include "../hal/platform.h"
+#include "metric_page.h"
+#include "../scheduler/scheduler.h"
+#include "../utils/text.h"
+#include "../utils/time.h"
 #if BOTANIK_FEATURE_NETWORK
-#include "libbotanik/network/network.h"   // NetworkHandler status
-#include "libbotanik/network/mqtt.h"      // MqttClient status
+#include "../network/network.h"   // NetworkHandler status
+#include "../network/mqtt.h"      // MqttClient status
 #endif
 #if BOTANIK_FEATURE_NTP
-#include "libbotanik/network/ntp.h"       // NtpClient status
+#include "../network/ntp.h"       // NtpClient status
 #endif
 
 namespace Botanik { namespace Pages {

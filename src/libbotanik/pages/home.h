@@ -22,13 +22,13 @@
 #include <cstdio>
 #include <cstring>
 
-#include "libbotanik_config.h"
-#include "libbotanik/hal/platform.h"
-#include "libbotanik/logs/format.h"
-#include "libbotanik/logs/writer.h"
-#include "libbotanik/pages/metric_page.h"
-#include "libbotanik/pages/scrollback.h"
-#include "libbotanik/core/scalar.h"   // HomeField / scalar_format
+#include "../../libbotanik_config.h"
+#include "../hal/platform.h"
+#include "../logs/format.h"
+#include "../logs/writer.h"
+#include "metric_page.h"
+#include "scrollback.h"
+#include "../core/scalar.h"   // HomeField / scalar_format
 
 // Build-stamped git short hash (generated header); "unknown" when absent
 // (Arduino .ino deploy doesn't run CMake).

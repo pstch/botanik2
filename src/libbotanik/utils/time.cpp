@@ -8,8 +8,8 @@
 #include <cstdint>
 #include <cstdio>
 
-#include "libbotanik/hal/platform.h"
-#include "libbotanik/utils/time.h"
+#include "../hal/platform.h"
+#include "time.h"
 
 namespace Botanik { namespace Utils {
 

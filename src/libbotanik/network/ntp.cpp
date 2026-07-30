@@ -8,9 +8,9 @@
  * Gated on NetworkHandler::is_up().
  */
 
-#include "libbotanik/network/ntp.h"
+#include "ntp.h"
 
-#include "libbotanik/hal/platform.h"   // HAL::Clock::set_wall_ms (NTP -> RTC)
+#include "../hal/platform.h"   // HAL::Clock::set_wall_ms (NTP -> RTC)
 
 namespace Botanik { namespace Network {
 

@@ -14,7 +14,7 @@
  * bits never collide.
  */
 
-#include "libbotanik/alarms/alarms.h"
+#include "alarms.h"
 
 namespace Botanik { namespace Alarms {
 

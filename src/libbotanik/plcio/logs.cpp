@@ -8,7 +8,7 @@
 #include <cstring>
 #include <algorithm>
 
-#include "libbotanik/plcio/logs.h"
+#include "logs.h"
 
 namespace Botanik { namespace PlcIO {
 

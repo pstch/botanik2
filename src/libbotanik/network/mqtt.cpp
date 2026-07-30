@@ -7,11 +7,11 @@
  * gated on NetworkHandler::is_up() before a connect.
  */
 
-#include "libbotanik/network/mqtt.h"
+#include "mqtt.h"
 
 #include <cstring>                     // strlen / memcpy
 // HAL::Clock::uptime_ms (publish, called off the step path)
-#include "libbotanik/hal/platform.h"
+#include "../hal/platform.h"
 
 namespace Botanik { namespace Network {
 

@@ -16,13 +16,13 @@
 #include <sys/mman.h>
 #endif
 
-#include "libbotanik_config.h"
+#include "../../libbotanik_config.h"
 
-#include "libbotanik/scheduler/scheduler.h"
-#include "libbotanik/hal/platform.h"
-#include "libbotanik/logs/logger.h"
-#include "libbotanik/plcio/vars.h"
-#include "libbotanik/utils/text.h"   // env_u8 (BOTANIK_NO_RT_WARNING)
+#include "scheduler.h"
+#include "../hal/platform.h"
+#include "../logs/logger.h"
+#include "../plcio/vars.h"
+#include "../utils/text.h"   // env_u8 (BOTANIK_NO_RT_WARNING)
 
 namespace Botanik { namespace Scheduler {
 

@@ -6,10 +6,10 @@
 #include <algorithm>
 #include <cstring>
 
-#include "libbotanik_config.h"
-#include "libbotanik/logs/format.h"
-#include "libbotanik/utils/text.h"
-#include "libbotanik/pages/shell.h"
+#include "../../libbotanik_config.h"
+#include "../logs/format.h"
+#include "../utils/text.h"
+#include "shell.h"
 
 namespace Botanik { namespace Pages {
 

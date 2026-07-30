@@ -13,9 +13,9 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "libbotanik_config.h"
-#include "libbotanik/pages/line_buffer.h"
-#include "libbotanik/console/terminal.h"
+#include "../../libbotanik_config.h"
+#include "line_buffer.h"
+#include "../console/terminal.h"
 
 namespace Botanik { namespace Pages {
 

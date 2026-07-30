@@ -9,7 +9,7 @@
  */
 
 #include <cstdint>
-#include "libbotanik/console/parser.h"
+#include "../console/parser.h"
 
 namespace Botanik { namespace Pages {
     /** @brief Abstract interface for a terminal page (occupies the full

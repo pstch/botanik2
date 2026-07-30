@@ -10,9 +10,9 @@
 
 #include <cstdint>
 
-#include "libbotanik_config.h"
-#include "libbotanik/utils/serial.h"
-#include "libbotanik/console/ansi.h"
+#include "../../libbotanik_config.h"
+#include "../utils/serial.h"
+#include "ansi.h"
 
 namespace Botanik { namespace Terminal {
 

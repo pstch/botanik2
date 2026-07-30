@@ -14,11 +14,11 @@
 
 #include <cstdint>
 
-#include "libbotanik/core/component.h"
-#include "libbotanik/core/params.h"       // Params::ParamHandler + cfg_* name getters
-#include "libbotanik/hal/net.h"
-#include "libbotanik/network/resolver.h"
-#include "libbotanik/network/network.h"   // NetworkHandler (link gate)
+#include "../core/component.h"
+#include "../core/params.h"       // Params::ParamHandler + cfg_* name getters
+#include "../hal/net.h"
+#include "resolver.h"
+#include "network.h"   // NetworkHandler (link gate)
 
 namespace Botanik { namespace Network {
 

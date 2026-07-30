@@ -3,15 +3,15 @@
  * @file telemetry.cpp
  * @brief MqttTelemetry implementation - the base field set + the publish cycle.
  */
-#include "libbotanik/network/telemetry.h"
+#include "telemetry.h"
 
 #include <cstdio>
 #include <cstring>
 
-#include "libbotanik/hal/platform.h"
-#include "libbotanik/plcio/sync.h"
-#include "libbotanik/scheduler/scheduler.h"
-#include "libbotanik/utils/text.h"
+#include "../hal/platform.h"
+#include "../plcio/sync.h"
+#include "../scheduler/scheduler.h"
+#include "../utils/text.h"
 
 namespace Botanik { namespace Network {
 

@@ -11,7 +11,7 @@
 #include <cstdlib>
 #include <cmath>
 
-#include "libbotanik/utils/text.h"
+#include "text.h"
 
 namespace Botanik { namespace Utils {
 

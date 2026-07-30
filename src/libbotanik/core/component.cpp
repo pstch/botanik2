@@ -8,9 +8,9 @@
  * topic are pulled in.
  */
 
-#include "libbotanik/core/component.h"
-#include "libbotanik/logs/logger.h"    // Logs::Logger (full definition)
-#include "libbotanik/plcio/vars.h"     // Logs::BOOT
+#include "component.h"
+#include "../logs/logger.h"    // Logs::Logger (full definition)
+#include "../plcio/vars.h"     // Logs::BOOT
 
 namespace Botanik {
 

@@ -75,18 +75,18 @@
  * @endcode
  */
 
-#include "libbotanik.h"
-#include "libbotanik/utils/assert.h"     // set_assert_logger
-#include "libbotanik/alarms/alarms.h"    // AlarmCondition (site table type)
-#include "libbotanik/health/health.h"    // HealthMonitor (owns the alarm model + notifier)
-#include "libbotanik/core/params.h"      // Params::Param (descriptor param table)
-#include "libbotanik/shell/shell.h"      // Shell::ShellCommand (descriptor command table)
-#include "libbotanik/core/scalar.h"  // ScalarGroup (status vars)
-#include "libbotanik/core/stacks.h"      // Monitor/Console/NetworkStack composition
+#include "../../libbotanik.h"
+#include "../utils/assert.h"     // set_assert_logger
+#include "../alarms/alarms.h"    // AlarmCondition (site table type)
+#include "../health/health.h"    // HealthMonitor (owns the alarm model + notifier)
+#include "params.h"      // Params::Param (descriptor param table)
+#include "../shell/shell.h"      // Shell::ShellCommand (descriptor command table)
+#include "scalar.h"  // ScalarGroup (status vars)
+#include "stacks.h"      // Monitor/Console/NetworkStack composition
 #if BOTANIK_FEATURE_PLC
-#include "libbotanik/core/params_plc.h"  // PlcParamHandler (PLC-owned config)
+#include "params_plc.h"  // PlcParamHandler (PLC-owned config)
 #else
-#include "libbotanik/core/params_local.h"// LocalParamHandler (flash/file config)
+#include "params_local.h"// LocalParamHandler (flash/file config)
 #endif
 
 #include <cstddef>

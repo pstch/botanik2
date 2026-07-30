@@ -10,8 +10,8 @@
 #include <cstdint>
 #include <cstring>
 
-#include "libbotanik/console/editor.h"
-#include "libbotanik/console/console.h"
+#include "editor.h"
+#include "console.h"
 
 
 namespace Botanik { namespace Terminal {

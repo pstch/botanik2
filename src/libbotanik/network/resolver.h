@@ -15,9 +15,9 @@
 
 #include <cstdint>
 
-#include "libbotanik/hal/net.h"
-#include "libbotanik/logs/logger.h"
-#include "libbotanik_config.h"
+#include "../hal/net.h"
+#include "../logs/logger.h"
+#include "../../libbotanik_config.h"
 
 namespace Botanik { namespace Network {
 

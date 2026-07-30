@@ -15,10 +15,10 @@
 #include <cstdint>
 #include <cstdarg>
 
-#include "libbotanik/core/component.h"
-#include "libbotanik/plcio/vars.h"
-#include "libbotanik/logs/writer.h"
-#include "libbotanik_config.h"
+#include "../core/component.h"
+#include "../plcio/vars.h"
+#include "writer.h"
+#include "../../libbotanik_config.h"
 
 namespace Botanik { namespace Logs {
 

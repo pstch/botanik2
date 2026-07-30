@@ -5,7 +5,7 @@
  *        "key=hex" record per line) emulating the KV store on the simulator. The
  *        TARGET_OPTA / TARGET_SIMULATOR split is legal here: this is the HAL.
  */
-#include "libbotanik/hal/storage.h"
+#include "storage.h"
 
 #include <cstring>
 

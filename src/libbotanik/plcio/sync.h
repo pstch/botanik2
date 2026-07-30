@@ -14,13 +14,13 @@
 #include <cstdio>
 #include <cstring>
 
-#include "libbotanik_config.h"
-#include "libbotanik/core/component.h"
-#include "libbotanik/utils/assert.h"
-#include "libbotanik/hal/platform.h"
-#include "libbotanik/plcio/vars.h"
-#include "libbotanik/logs/logger.h"
-#include "libbotanik/utils/time.h"
+#include "../../libbotanik_config.h"
+#include "../core/component.h"
+#include "../utils/assert.h"
+#include "../hal/platform.h"
+#include "vars.h"
+#include "../logs/logger.h"
+#include "../utils/time.h"
 
 namespace Botanik { namespace PlcIO {
 

@@ -8,8 +8,8 @@
  *        detecting and reporting dropped entries via sequence numbers.
  */
 
-#include "libbotanik/logs/logger.h"
-#include "libbotanik/plcio/sync.h"
+#include "../logs/logger.h"
+#include "sync.h"
 
 namespace Botanik { namespace PlcIO {
 

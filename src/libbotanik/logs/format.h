@@ -11,8 +11,8 @@
 #include <cstdint>
 #include <cstdio>
 #include <algorithm>
-#include "libbotanik/plcio/vars.h"
-#include "libbotanik/utils/time.h"
+#include "../plcio/vars.h"
+#include "../utils/time.h"
 
 namespace Botanik { namespace Logs {
 

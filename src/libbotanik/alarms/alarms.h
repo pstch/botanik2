@@ -27,12 +27,12 @@
 #include <cstring>
 #include <cstdio>                      // snprintf (AlarmNotifier::_emit)
 
-#include "libbotanik/utils/assert.h"   // BOTANIK_ASSERT
-#include "libbotanik/utils/text.h"     // compare_str
-#include "libbotanik/logs/logger.h"
-#include "libbotanik/core/component.h"      // Component (first-step announce)
-#include "libbotanik_config.h"
-#include "libbotanik/alarms/publisher.h" // Publisher (notifier transport seam)
+#include "../utils/assert.h"   // BOTANIK_ASSERT
+#include "../utils/text.h"     // compare_str
+#include "../logs/logger.h"
+#include "../core/component.h"      // Component (first-step announce)
+#include "../../libbotanik_config.h"
+#include "publisher.h" // Publisher (notifier transport seam)
 
 namespace Botanik { namespace Alarms {
 

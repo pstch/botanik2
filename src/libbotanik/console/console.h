@@ -16,15 +16,15 @@
 
 #include <cstdint>
 
-#include "libbotanik/utils/serial.h"
-#include "libbotanik/console/terminal.h"
-#include "libbotanik/console/parser.h"
-#include "libbotanik/console/status_bar.h"
-#include "libbotanik/console/alarm_bar.h"
-#include "libbotanik/core/context.h"
-#include "libbotanik/core/component.h"      // Component (first-step announce)
-#include "libbotanik/logs/logger.h"         // Logs::Logger
-#include "libbotanik/pages/page.h"
+#include "../utils/serial.h"
+#include "terminal.h"
+#include "parser.h"
+#include "status_bar.h"
+#include "alarm_bar.h"
+#include "../core/context.h"
+#include "../core/component.h"      // Component (first-step announce)
+#include "../logs/logger.h"         // Logs::Logger
+#include "../pages/page.h"
 
 namespace Botanik { namespace Alarms { class AlarmModel; } }
 

@@ -9,15 +9,15 @@
 #include <cmath>
 #include <algorithm>
 
-#include "libbotanik_config.h"
+#include "../../libbotanik_config.h"
 
-#include "libbotanik/hal/platform.h"
-#include "libbotanik/console/status_bar.h"
-#include "libbotanik/console/console.h"
-#include "libbotanik/console/terminal.h"
-#include "libbotanik/utils/time.h"
-#include "libbotanik/scheduler/scheduler.h"
-#include "libbotanik/plcio/sync.h"
+#include "../hal/platform.h"
+#include "status_bar.h"
+#include "console.h"
+#include "terminal.h"
+#include "../utils/time.h"
+#include "../scheduler/scheduler.h"
+#include "../plcio/sync.h"
 
 namespace Botanik { namespace Terminal {
 

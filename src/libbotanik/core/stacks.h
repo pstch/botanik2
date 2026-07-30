@@ -17,18 +17,18 @@
  *  - NetworkStack  - resolver + network handler + (NTP) + (MQTT + telemetry).
  */
 
-#include "libbotanik.h"
+#include "../../libbotanik.h"
 #if BOTANIK_FEATURE_NETWORK
-#include "libbotanik/network/resolver.h" // NameResolver
-#include "libbotanik/network/network.h"  // NetworkHandler
+#include "../network/resolver.h" // NameResolver
+#include "../network/network.h"  // NetworkHandler
 #endif
 #if BOTANIK_FEATURE_NTP
-#include "libbotanik/network/ntp.h"       // NtpClient
+#include "../network/ntp.h"       // NtpClient
 #endif
 #if BOTANIK_FEATURE_MQTT
-#include "libbotanik/network/mqtt.h"      // MqttClient
-#include "libbotanik/network/mqtt_log.h"  // MqttLogWriter
-#include "libbotanik/network/telemetry.h" // MqttSender
+#include "../network/mqtt.h"      // MqttClient
+#include "../network/mqtt_log.h"  // MqttLogWriter
+#include "../network/telemetry.h" // MqttSender
 #endif
 
 #include <cstdint>
