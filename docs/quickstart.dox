@@ -3,77 +3,136 @@
 
 @brief Integrate the library into an Arduino PLC IDE project.
 
-This walks through delivering Botanik into an Axel PLC IDE project: producing the
-library zip, importing it, and writing the thin entry point that runs your site. It
-assumes you already have a site building under the simulator (see @ref setup).
+This walks through delivering Botanik into an Axel PLC IDE project: vendoring the
+sources into the sketch folder, wiring the entry point, and keeping the emulator
+running against the same site code. It assumes you already have a site building
+under the simulator (see @ref setup).
 
-@section qs_package Package the library
+@section qs_why Why vendoring, not a library import
 
-The library ships as an Arduino zip. Packaging just copies and zips text, so it runs
-from any configured tree - no OPTA toolchain needed:
+The Axel PLC IDE can only install libraries from a fixed, years-old public index,
+so neither "Add .ZIP Library" nor a normal library dependency is available to us.
+The delivery path is therefore to copy the sources into the IDE project's sketch
+folder and reference them directly.
+
+Three rules of the Arduino sketch build shape everything below. They were measured
+against `arduino-cli` with the real `arduino:mbed_opta` core, not assumed:
+
+| Rule | Consequence |
+|------|-------------|
+| `<sketch>/src/**` is compiled, recursively | the vendored tree goes in `src/`, and nowhere else - a subfolder by any other name is silently not compiled |
+| No include directory inside the sketch folder is added - not the sketch root, not `src/` | every header must resolve *relative to the including file*; this is why libbotanik's internal includes and the site's are all relative |
+| `-DTARGET_OPTA` *is* passed to every TU (it ships in the core's `variants/OPTA/defines.txt`) | HAL selection works with no help from us |
+
+The second rule is the one that bites. A quoted include searches the including
+file's own directory, which is why a `.ino` at the sketch root can say
+`#include "src/..."` but a file *inside* `src/` cannot.
+
+@section qs_vendor Produce the tree
 
 @code{.sh}
-make -C build arduino-lib      # -> build/arduino/libbotanik.zip
+make -C build vendor          # -> build/vendor/src/ + entry.cpp.example
 @endcode
 
-The zip holds `libbotanik` only (umbrella headers plus the `libbotanik/` tree), no
-entry point; the IDE compiles it with the OPTA board's own flags.
+Platform-independent (it only copies text), so it runs from the default SIMULATOR
+tree. The result mirrors our own `src/`, which is required: the site's includes of
+the library are written against the `sites/<name>/` position.
 
-@section qs_import Import it
+@code
+<sketch>/
+  <sketch>.ino                  trivial: calls botanik_setup() / botanik_step()
+  entry.cpp                     yours, from entry.cpp.example
+  src/                          <- build/vendor/src, dropped in wholesale
+    libbotanik.h  libbotanik_config.h  libbotanik_features.h  ...
+    libbotanik/...              the library
+    sites/<name>/...            your generated site
+    botanik_site_config.h       generated hook, see below
+@endcode
 
-In the IDE, use *Sketch -> Include Library -> Add .ZIP Library* and point it at
-`build/arduino/libbotanik.zip`.
+@section qs_config How the site config reaches the library
 
-@section qs_pieces How the pieces map to the IDE
-
-The Axel PLC IDE owns the sketch and only accepts imported Arduino libraries - no
-sketch folder or arbitrary file tree. So the project is split three ways:
-
-| IDE side | Reference here | Role |
-|----------|----------------|------|
-| The "sketch" window | `botanik_fw.ino` | Thin: `setup()` calls `botanik_setup()`, `loop()` calls `botanik_step()`. |
-| A C++ file at the project root | `botanik_arduino.cpp` + your site + `firmware.{h,cpp}` | Includes `<libbotanik.h>`, constructs the firmware, and *defines* `botanik_setup()` / `botanik_step()`. |
-| Imported library | `libbotanik` (the zip) | The building blocks. |
-
-`botanik_setup()` / `botanik_step()` are **not** library API - they are declared in
-`botanik_arduino.h`, defined by your project-root file, and called by the sketch. This
-indirection exists because the imported library cannot ship its own `.ino`.
-
-@section qs_sketch The sketch
-
-The sketch window is deliberately trivial:
+The site's `config.h` carries the build-wide `BOTANIK_*` overrides that
+`libbotanik_config.h` must see *before* its own defaults - and the IDE gives us no
+`-D` to point at it. So `make vendor` writes a one-line `botanik_site_config.h` at
+the tree root:
 
 @code{.cpp}
-#include "botanik_arduino.h"
-
-void setup() {
-    botanik_setup();
-}
-
-void loop() {
-    botanik_step();
-}
+#include "sites/gh_mlb41/config.h"
 @endcode
 
-The project-root C++ file does the real work: it includes `<libbotanik.h>`, statically
-allocates your site's firmware (a `GreenhouseMLB41` or equivalent), binds the PLC
-shared memory from `HAL::PlcIO::input()` / `HAL::PlcIO::output()` rather than
-allocating it locally, and defines the two hooks. See `src/botanik_fw/` for the
-reference wiring.
+`libbotanik_config.h` picks it up through an `__has_include` hook. Because that
+header sits at the same tree root, the quoted include resolves against its own
+directory - so every library TU gets the site's overrides with no build-system
+cooperation at all. Nothing to configure, and no way for one TU to miss it.
 
-@note The exact hook names (`botanik_setup` / `botanik_step`) are placeholders pending
-confirmation of the symbol the Axel runtime calls into; adjust them to match.
+@section qs_entry The entry point
+
+`entry.cpp` lives at the **sketch root**, not in `src/`: that is the one location
+from which `#include "src/sites/<name>/site.h"` resolves. It constructs the
+firmware as a function-local static (so it is built after the core's `init()` has
+brought up the UARTs and the shared-memory region) and defines the two hooks:
+
+@code{.cpp}
+#include "src/sites/gh_mlb41/site.h"
+
+static BotanikSite& firmware() {
+    static BotanikSite fw;      // default ctor binds the PLC region via HAL
+    return fw;
+}
+
+extern "C" void botanik_setup(void) { firmware().setup(); }
+extern "C" void botanik_step(void)  { firmware().loop(); }
+@endcode
+
+The sketch window stays trivial:
+
+@code{.cpp}
+extern "C" void botanik_setup(void);
+extern "C" void botanik_step(void);
+void setup() { botanik_setup(); }
+void loop()  { botanik_step(); }
+@endcode
+
+@note The hook names `botanik_setup` / `botanik_step` are placeholders pending
+confirmation of the symbol the Axel runtime actually calls into; adjust them to
+match. This is the last unconfirmed piece of the integration.
+
+@section qs_assert The payload contract
+
+This is the check worth wiring first, because it is the one that catches a
+regenerated PLC program drifting from the regenerated site. Once the PLC IDE's
+generated types are in scope in `entry.cpp`:
+
+@code{.cpp}
+static_assert(sizeof(PLCSharedVarsInput_t)   == sizeof(Botanik::PlcIO::PlcInput<PlcInputData_t>), "");
+static_assert(sizeof(PLCSharedVarsOutput_t)  == sizeof(Botanik::PlcIO::PlcOutput<PlcOutputData_t>), "");
+static_assert(alignof(PLCSharedVarsOutput_t) == alignof(Botanik::PlcIO::PlcOutput<PlcOutputData_t>), "");
+@endcode
+
+@section qs_emulator Running the emulator on the same site code
+
+The point of keeping the site in your project is that the simulator runs the very
+same generated code. Point the build at the site directory inside your sketch:
+
+@code{.sh}
+cmake -B build-site -DBOTANIK_TARGET=SIMULATOR \
+      -DBOTANIK_SITE_DIR=/path/to/LLSketch/src/sites/gh_mlb41
+make -C build-site botanik_sim && ./build-site/botanik_sim
+@endcode
+
+The site owns its mock coprocessor (`Site::MockPlc` in its `sim.h`), so the
+emulator is instantiated against your generated payload types - same layout, same
+table offsets, same alarm bits as the hardware build.
 
 @section qs_abi Checking the ARM build without the IDE
 
-For a fast "does it still build and fit the target" check without the full Arduino
-link, compile the library (plus the reference wiring) for ARM directly:
+For a fast "does it still build and fit" check without the Arduino toolchain:
 
 @code{.sh}
 cmake -B build-opta -DBOTANIK_TARGET=OPTA
 make -C build-opta
 @endcode
 
-This exercises size, LTO, and the footprint `static_assert`s. Use `arduino-lib`
-plus the IDE to produce the actual flashable image.
+This exercises size, LTO, and the footprint `static_assert`s. Use the IDE to
+produce the actual flashable image.
 */
