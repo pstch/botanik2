@@ -11,7 +11,7 @@
 
 #include "doctest.h"
 
-#include "plc_config_fixture.h"
+#include "plc_params_fixture.h"
 #include "libbotanik/sun/sun_tracker.h"
 #include "libbotanik/hal/platform.h"
 

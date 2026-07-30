@@ -415,42 +415,42 @@ const uint8_t g_home_field_count = (uint8_t)(sizeof(g_home_fields) / sizeof(g_ho
 // the live value), in_offset in PlcInputData_t (stage an edit) - the two are
 // distinct layouts. The group name doubles as the name of that group's commit
 // serial parameter: editing net_ip stages it, editing "net" commits the group.
-// Each row pairs a ScalarField (read/display) with a ConfigMeta (edit):
+// Each row pairs a ScalarField (read/display) with a ParamMeta (edit):
 //   field {name, out_offset, in_offset, type, digits, str, unit, desc, notes}
 //   meta  {def, min, max, len, kind, group}
 #define OO(f) (int16_t)offsetof(PlcOutputData_t, config.f)
 #define IO(f) (int16_t)offsetof(PlcInputData_t,  config.f)
 #define CAP   (uint16_t)GreenhouseConfig_t::STRLEN
-const Cfg::ConfigParam g_config_params[] = {
+const Params::Param g_params[] = {
     // -- network --
-    {{"net",          OO(net),           IO(net),           SCALAR_U32,    0, nullptr, "",    "Network config commit", "bump to apply net edits"}, {"0", 0, 1000000000, 0, Cfg::STR_NONE,     "net"}},
-    {{"net_dhcp",     OO(net_dhcp),      IO(net_dhcp),      SCALAR_U8,     0, nullptr, "",    "DHCP (1) or static IP (0)", ""},              {"1",  0, 1,      0,   Cfg::STR_NONE,     "net"}},
-    {{"net_ip",       OO(net_ip),        IO(net_ip),        SCALAR_STRING, 0, nullptr, "",    "Static IPv4 address", "used when DHCP off"},  {"",   0, 0,      CAP, Cfg::STR_IPV4,     "net"}},
-    {{"net_netmask",  OO(net_netmask),   IO(net_netmask),   SCALAR_STRING, 0, nullptr, "",    "Static subnet mask",  "used when DHCP off"},  {"",   0, 0,      CAP, Cfg::STR_IPV4,     "net"}},
-    {{"net_gateway",  OO(net_gateway),   IO(net_gateway),   SCALAR_STRING, 0, nullptr, "",    "Default gateway",     "used when DHCP off"},  {"",   0, 0,      CAP, Cfg::STR_IPV4,     "net"}},
-    {{"net_dns1",     OO(net_dns1),      IO(net_dns1),      SCALAR_STRING, 0, nullptr, "",    "Primary DNS server",  ""},                    {"",   0, 0,      CAP, Cfg::STR_IPV4,     "net"}},
-    {{"net_dns2",     OO(net_dns2),      IO(net_dns2),      SCALAR_STRING, 0, nullptr, "",    "Secondary DNS server","empty = none"},        {"",   0, 0,      CAP, Cfg::STR_IPV4_OPT, "net"}},
+    {{"net",          OO(net),           IO(net),           SCALAR_U32,    0, nullptr, "",    "Network config commit", "bump to apply net edits"}, {"0", 0, 1000000000, 0, Params::STR_NONE,     "net"}},
+    {{"net_dhcp",     OO(net_dhcp),      IO(net_dhcp),      SCALAR_U8,     0, nullptr, "",    "DHCP (1) or static IP (0)", ""},              {"1",  0, 1,      0,   Params::STR_NONE,     "net"}},
+    {{"net_ip",       OO(net_ip),        IO(net_ip),        SCALAR_STRING, 0, nullptr, "",    "Static IPv4 address", "used when DHCP off"},  {"",   0, 0,      CAP, Params::STR_IPV4,     "net"}},
+    {{"net_netmask",  OO(net_netmask),   IO(net_netmask),   SCALAR_STRING, 0, nullptr, "",    "Static subnet mask",  "used when DHCP off"},  {"",   0, 0,      CAP, Params::STR_IPV4,     "net"}},
+    {{"net_gateway",  OO(net_gateway),   IO(net_gateway),   SCALAR_STRING, 0, nullptr, "",    "Default gateway",     "used when DHCP off"},  {"",   0, 0,      CAP, Params::STR_IPV4,     "net"}},
+    {{"net_dns1",     OO(net_dns1),      IO(net_dns1),      SCALAR_STRING, 0, nullptr, "",    "Primary DNS server",  ""},                    {"",   0, 0,      CAP, Params::STR_IPV4,     "net"}},
+    {{"net_dns2",     OO(net_dns2),      IO(net_dns2),      SCALAR_STRING, 0, nullptr, "",    "Secondary DNS server","empty = none"},        {"",   0, 0,      CAP, Params::STR_IPV4_OPT, "net"}},
     // -- NTP --
-    {{"ntp",          OO(ntp),           IO(ntp),           SCALAR_U32,    0, nullptr, "",    "NTP config commit", "bump to apply ntp edits"}, {"0", 0, 1000000000, 0, Cfg::STR_NONE,     "ntp"}},
-    {{"ntp_enabled",  OO(ntp_enabled),   IO(ntp_enabled),   SCALAR_U8,     0, nullptr, "",    "Enable NTP time sync",""},                    {"1",  0, 1,      0,   Cfg::STR_NONE,     "ntp"}},
-    {{"ntp_poll_s",   OO(ntp_poll_s),    IO(ntp_poll_s),    SCALAR_U16,    0, nullptr, "s",   "NTP poll interval",   "0 = firmware default"},{"64", 0, 65535,  0,   Cfg::STR_NONE,     "ntp"}},
-    {{"ntp_server1",  OO(ntp_server1),   IO(ntp_server1),   SCALAR_STRING, 0, nullptr, "",    "Primary NTP server",  ""},          {"pool.ntp.org", 0, 0,      CAP, Cfg::STR_HOST,     "ntp"}},
-    {{"ntp_server2",  OO(ntp_server2),   IO(ntp_server2),   SCALAR_STRING, 0, nullptr, "",    "Secondary NTP server","empty = none"},        {"",   0, 0,      CAP, Cfg::STR_HOST_OPT, "ntp"}},
+    {{"ntp",          OO(ntp),           IO(ntp),           SCALAR_U32,    0, nullptr, "",    "NTP config commit", "bump to apply ntp edits"}, {"0", 0, 1000000000, 0, Params::STR_NONE,     "ntp"}},
+    {{"ntp_enabled",  OO(ntp_enabled),   IO(ntp_enabled),   SCALAR_U8,     0, nullptr, "",    "Enable NTP time sync",""},                    {"1",  0, 1,      0,   Params::STR_NONE,     "ntp"}},
+    {{"ntp_poll_s",   OO(ntp_poll_s),    IO(ntp_poll_s),    SCALAR_U16,    0, nullptr, "s",   "NTP poll interval",   "0 = firmware default"},{"64", 0, 65535,  0,   Params::STR_NONE,     "ntp"}},
+    {{"ntp_server1",  OO(ntp_server1),   IO(ntp_server1),   SCALAR_STRING, 0, nullptr, "",    "Primary NTP server",  ""},          {"pool.ntp.org", 0, 0,      CAP, Params::STR_HOST,     "ntp"}},
+    {{"ntp_server2",  OO(ntp_server2),   IO(ntp_server2),   SCALAR_STRING, 0, nullptr, "",    "Secondary NTP server","empty = none"},        {"",   0, 0,      CAP, Params::STR_HOST_OPT, "ntp"}},
     // -- MQTT --
-    {{"mqtt",         OO(mqtt),          IO(mqtt),          SCALAR_U32,    0, nullptr, "",    "MQTT config commit", "bump to apply mqtt edits"},{"0",0, 1000000000, 0, Cfg::STR_NONE,     "mqtt"}},
-    {{"mqtt_enabled", OO(mqtt_enabled),  IO(mqtt_enabled),  SCALAR_U8,     0, nullptr, "",    "Enable MQTT publishing",""},                  {"1",  0, 1,      0,   Cfg::STR_NONE,     "mqtt"}},
-    {{"mqtt_port",    OO(mqtt_port),     IO(mqtt_port),     SCALAR_U16,    0, nullptr, "",    "Broker TCP port",     "0 = firmware default"},{"1883",0,65535,  0,   Cfg::STR_NONE,     "mqtt"}},
-    {{"mqtt_keepalive_s",OO(mqtt_keepalive_s),IO(mqtt_keepalive_s),SCALAR_U16,0,nullptr,"s",  "MQTT keepalive",      "0 = firmware default"},{"60", 0, 65535,  0,   Cfg::STR_NONE,     "mqtt"}},
-    {{"mqtt_broker",  OO(mqtt_broker),   IO(mqtt_broker),   SCALAR_STRING, 0, nullptr, "",    "MQTT broker host",    ""},                    {"",   0, 0,      CAP, Cfg::STR_HOST,     "mqtt"}},
+    {{"mqtt",         OO(mqtt),          IO(mqtt),          SCALAR_U32,    0, nullptr, "",    "MQTT config commit", "bump to apply mqtt edits"},{"0",0, 1000000000, 0, Params::STR_NONE,     "mqtt"}},
+    {{"mqtt_enabled", OO(mqtt_enabled),  IO(mqtt_enabled),  SCALAR_U8,     0, nullptr, "",    "Enable MQTT publishing",""},                  {"1",  0, 1,      0,   Params::STR_NONE,     "mqtt"}},
+    {{"mqtt_port",    OO(mqtt_port),     IO(mqtt_port),     SCALAR_U16,    0, nullptr, "",    "Broker TCP port",     "0 = firmware default"},{"1883",0,65535,  0,   Params::STR_NONE,     "mqtt"}},
+    {{"mqtt_keepalive_s",OO(mqtt_keepalive_s),IO(mqtt_keepalive_s),SCALAR_U16,0,nullptr,"s",  "MQTT keepalive",      "0 = firmware default"},{"60", 0, 65535,  0,   Params::STR_NONE,     "mqtt"}},
+    {{"mqtt_broker",  OO(mqtt_broker),   IO(mqtt_broker),   SCALAR_STRING, 0, nullptr, "",    "MQTT broker host",    ""},                    {"",   0, 0,      CAP, Params::STR_HOST,     "mqtt"}},
     // -- geo (decimal degrees) --
-    {{"geo",          OO(geo),           IO(geo),           SCALAR_U32,    0, nullptr, "",    "Geo config commit", "bump to apply geo edits"}, {"0", 0, 1000000000, 0, Cfg::STR_NONE,     "geo"}},
-    {{"geo_latitude", OO(geo_latitude),  IO(geo_latitude),  SCALAR_F32,    4, nullptr, "deg", "Site latitude",       "north +, south -"},  {"48.8566", -90,  90, 0,  Cfg::STR_NONE,     "geo"}},
-    {{"geo_longitude",OO(geo_longitude), IO(geo_longitude), SCALAR_F32,    4, nullptr, "deg", "Site longitude",      "east +, west -"},    {"2.3522", -180, 180, 0,  Cfg::STR_NONE,     "geo"}},
+    {{"geo",          OO(geo),           IO(geo),           SCALAR_U32,    0, nullptr, "",    "Geo config commit", "bump to apply geo edits"}, {"0", 0, 1000000000, 0, Params::STR_NONE,     "geo"}},
+    {{"geo_latitude", OO(geo_latitude),  IO(geo_latitude),  SCALAR_F32,    4, nullptr, "deg", "Site latitude",       "north +, south -"},  {"48.8566", -90,  90, 0,  Params::STR_NONE,     "geo"}},
+    {{"geo_longitude",OO(geo_longitude), IO(geo_longitude), SCALAR_F32,    4, nullptr, "deg", "Site longitude",      "east +, west -"},    {"2.3522", -180, 180, 0,  Params::STR_NONE,     "geo"}},
 };
 #undef OO
 #undef IO
 #undef CAP
-const uint8_t g_config_param_count = (uint8_t)(sizeof(g_config_params) / sizeof(g_config_params[0]));
+const uint8_t g_param_count = (uint8_t)(sizeof(g_params) / sizeof(g_params[0]));
 
 // ---------------------------------------------------------------------------
 // The declarative site descriptor: the one bundle GreenhouseMLB41 hands the
@@ -459,7 +459,7 @@ const uint8_t g_config_param_count = (uint8_t)(sizeof(g_config_params) / sizeof(
 // ---------------------------------------------------------------------------
 const Botanik::SiteDescriptor g_site = {
     Botanik::Config::SITE_NAME,
-    g_config_params,     g_config_param_count,   // config parameters (params page)
+    g_params,     g_param_count,   // config parameters (params page)
     g_site_commands,     (uint8_t)(sizeof(g_site_commands) / sizeof(g_site_commands[0])),
     g_telemetry_groups,  g_telemetry_group_count,
     g_home_fields,       g_home_field_count,

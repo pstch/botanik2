@@ -79,14 +79,14 @@
 #include "libbotanik/utils/assert.h"     // set_assert_logger
 #include "libbotanik/alarms/alarms.h"    // AlarmCondition (site table type)
 #include "libbotanik/health/health.h"    // HealthMonitor (owns the alarm model + notifier)
-#include "libbotanik/core/config.h"      // Cfg::ConfigParam (descriptor param table)
+#include "libbotanik/core/params.h"      // Params::Param (descriptor param table)
 #include "libbotanik/shell/shell.h"      // Shell::ShellCommand (descriptor command table)
 #include "libbotanik/core/scalar.h"  // ScalarGroup (status vars)
 #include "libbotanik/core/stacks.h"      // Monitor/Console/NetworkStack composition
 #if BOTANIK_FEATURE_PLC
-#include "libbotanik/core/config_plc.h"  // PlcConfigHandler (PLC-owned config)
+#include "libbotanik/core/params_plc.h"  // PlcParamHandler (PLC-owned config)
 #else
-#include "libbotanik/core/config_local.h"// LocalConfigHandler (flash/file config)
+#include "libbotanik/core/params_local.h"// LocalParamHandler (flash/file config)
 #endif
 
 #include <cstddef>
@@ -105,7 +105,7 @@ namespace Botanik {
      *
      * The tables mirror what the Arduino PLC project exposes and are meant to be
      * generated from it:
-     *   - @c params        - config parameters (Cfg::ConfigParam: name, offset,
+     *   - @c params        - config parameters (Params::Param: name, offset,
      *                        type, scaling, bounds, group).
      *   - @c commands      - site shell commands (Shell::ShellCommand).
      *   - @c status_groups - read-only status variables (ScalarGroup /
@@ -118,7 +118,7 @@ namespace Botanik {
      */
     struct SiteDescriptor {
         const char*                   name;                ///< == Config::SITE_NAME
-        const Cfg::ConfigParam*       params;              ///< site config parameters
+        const Params::Param*       params;              ///< site config parameters
         uint8_t                       param_count;
         const Shell::ShellCommand*    commands;            ///< site shell commands
         uint8_t                       command_count;
@@ -172,9 +172,9 @@ namespace Botanik {
 #if BOTANIK_FEATURE_PLC
         PlcIO::PlcSyncHandler<In, Out> _plc_handler;
         PlcIO::PlcLogReader            _plc_log_reader;
-        Cfg::PlcConfigHandler          _config;       ///< PLC-owned config snapshot
+        Params::PlcParamHandler          _params;       ///< PLC-owned config snapshot
 #else
-        Cfg::LocalConfigHandler<Out>   _config;       ///< flash/file-backed config
+        Params::LocalParamHandler<Out>   _params;       ///< flash/file-backed config
 #endif
         Health::HealthMonitor          _health;
         SystemContext                  _sys_ctx;     ///< Filled in the ctor body
@@ -191,7 +191,7 @@ namespace Botanik {
         // the config backend, and the read-only MONITOR table over the site's
         // status-variable groups.
         Pages::HomePage                _home_page;
-        Pages::ConfigPage              _config_page;
+        Pages::ParamsPage              _params_page;
         Pages::MonitorPage             _monitor_page;
 #endif
 
@@ -215,7 +215,7 @@ namespace Botanik {
               _plc_handler(shared_in, shared_out,
                            &_scheduler.context()->timestamp_ms, &_logger),
               _plc_log_reader(_plc_handler.context(), &_logger),
-              _config(_plc_handler.context(), &_logger),
+              _params(_plc_handler.context(), &_logger),
               // Health owns the alarm model, which reads each site alarm's
               // boolean from the PLC output payload directly (its offset).
               _health(_site.alarms, _site.alarm_count, &_logger,
@@ -225,7 +225,7 @@ namespace Botanik {
               // No PLC: config comes from local storage; health takes a null link
               // context + null regions + an empty reader (only local platform
               // alarms fire, it degrades to "kick while alive").
-              _config(&_logger),
+              _params(&_logger),
               _health(_site.alarms, _site.alarm_count, &_logger,
                       _scheduler.context(), nullptr, nullptr, nullptr)
 #endif
@@ -234,9 +234,9 @@ namespace Botanik {
               , _monitor(&_logger)
 #endif
 #if BOTANIK_FEATURE_NETWORK
-              // Network reads its config from the ConfigHandler image (NETWORK
+              // Network reads its config from the ParamHandler image (NETWORK
               // requires PLC); telemetry publishes the live _sys_ctx (read later).
-              , _net(&_config, &_logger, &_sys_ctx)
+              , _net(&_params, &_logger, &_sys_ctx)
 #endif
 #if BOTANIK_FEATURE_CONSOLE
               , _console(_console_cols, _console_rows,
@@ -245,7 +245,7 @@ namespace Botanik {
               // Base-owned pages, built from the descriptor + the live payload.
               , _home_page(_console.terminal(), _site.home_fields,
                            _site.home_field_count, plc_output_data())
-              , _config_page(_console.terminal(), &_config)
+              , _params_page(_console.terminal(), &_params)
               , _monitor_page(_console.terminal(), _site.status_groups,
                               _site.status_group_count, plc_output_data())
 #endif
@@ -292,7 +292,7 @@ namespace Botanik {
             set_assert_logger(&_logger);
             // Register the site's config parameters (appended after the library
             // built-ins) so the CONFIG page and the `config` command see them.
-            _config.set_site_params(_site.params, _site.param_count);
+            _params.set_site_params(_site.params, _site.param_count);
 #if BOTANIK_FEATURE_CONSOLE
             HAL::Serial::get(HAL::Serial::CONSOLE)->begin(_console_baud);
 #endif
@@ -320,7 +320,7 @@ namespace Botanik {
             // logger + model.
             _console.shell().set_diagnostics(&_logger, &_health.model());
             // Let the `config` get/set command reach the config backend.
-            _console.shell().set_config(&_config);
+            _console.shell().set_params(&_params);
             // Let the `status` command render the site status-variable table.
             _console.shell().set_status_vars(_site.status_groups,
                                              _site.status_group_count,
@@ -404,7 +404,7 @@ namespace Botanik {
             // Config backend: refresh the image from the fresh PLC snapshot (or,
             // PLC-less, load local storage on the first step) before the
             // config-driven Components (net/sun) read it below.
-            _config.step(now_ms);
+            _params.step(now_ms);
 
             // Health after the PLC payload is fresh and before the logger
             // drains, so an alarm START/END lands this beat. It reads the remote
@@ -511,7 +511,7 @@ namespace Botanik {
 #endif
         Health::HealthMonitor&          health()          { return _health; }
         Alarms::AlarmModel&             alarm_model()     { return _health.model(); }
-        Cfg::ConfigHandler&             config()          { return _config; }
+        Params::ParamHandler&             params()          { return _params; }
 #if BOTANIK_FEATURE_CONSOLE
         Terminal::Console&              terminal()        { return _console.terminal(); }
         Pages::ShellPage&               shell_page()      { return _console.shell(); }
@@ -538,7 +538,7 @@ namespace Botanik {
             _console.terminal().add_page(&_console.shell());
             _console.terminal().add_page(&_console.logs());
             _console.terminal().add_page(&_console.alarms());
-            _console.terminal().add_page(&_config_page);
+            _console.terminal().add_page(&_params_page);
             _console.terminal().add_page(&_monitor_page);
         }
 

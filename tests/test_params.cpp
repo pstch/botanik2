@@ -1,7 +1,7 @@
 /**
  * @file test_config_params.cpp
- * @brief Tests for the ConfigParam model (core/config.h): the generic
- *        read/format/validate/parse helpers and the ConfigHandler registry,
+ * @brief Tests for the Param model (core/config.h): the generic
+ *        read/format/validate/parse helpers and the ParamHandler registry,
  *        driven by a self-contained parameter table (the library ships none -
  *        a site declares its parameters over its own payload). The backends
  *        (Plc/Local) and the write path are exercised elsewhere.
@@ -12,10 +12,10 @@
 
 #include "doctest.h"
 
-#include "libbotanik/core/config.h"
+#include "libbotanik/core/params.h"
 
 using namespace Botanik;
-using namespace Botanik::Cfg;
+using namespace Botanik::Params;
 
 namespace {
     // Self-contained config payload + parameter table (a site's stand-in).
@@ -30,7 +30,7 @@ namespace {
     };
 
 #define OFF(f) (int16_t)offsetof(TestCfg, f)
-    const ConfigParam PARAMS[] = {
+    const Param PARAMS[] = {
         // field {name, out_offset, in_offset, type, digits, str, unit, desc, notes}, meta {def, min, max, len, kind, group}
         {{"net",          OFF(net),         OFF(net),         SCALAR_U32,    0, nullptr, "",    "commit", ""}, {"0", 0, 1000000000, 0,  STR_NONE, "net"}},
         {{"net_dhcp",     OFF(net_dhcp),     OFF(net_dhcp),     SCALAR_U8,    0, nullptr, "",    "dhcp",   ""}, {"1", 0, 1,      0,  STR_NONE, "net"}},
@@ -42,7 +42,7 @@ namespace {
 #undef OFF
     const uint8_t PARAM_COUNT = (uint8_t)(sizeof(PARAMS) / sizeof(PARAMS[0]));
 
-    const ConfigParam* find(const char* name) {
+    const Param* find(const char* name) {
         for (uint8_t i = 0; i < PARAM_COUNT; i++)
             if (strcmp(PARAMS[i].field.name, name) == 0) return &PARAMS[i];
         return nullptr;
@@ -50,17 +50,17 @@ namespace {
 
     // A trivial backend: a local image, no write path (set() stubbed). Enough to
     // exercise the registry (count/param/format).
-    struct TestHandler : ConfigHandler {
+    struct TestHandler : ParamHandler {
         TestCfg img{};
-        TestHandler() : ConfigHandler(nullptr) { set_site_params(PARAMS, PARAM_COUNT); }
+        TestHandler() : ParamHandler(nullptr) { set_site_params(PARAMS, PARAM_COUNT); }
         const void* image() const override { return &img; }
-        bool set(const ConfigParam&, const char*) override { return false; }
+        bool set(const Param&, const char*) override { return false; }
     };
 }
 
 TEST_CASE("config table: sane offsets, string capacities, group tags") {
     for (uint8_t i = 0; i < PARAM_COUNT; i++) {
-        const ConfigParam& p = PARAMS[i];
+        const Param& p = PARAMS[i];
         CHECK(p.field.out_offset >= 0);
         CHECK((size_t)p.field.out_offset < sizeof(TestCfg));
         CHECK(p.meta.group != nullptr);
@@ -153,7 +153,7 @@ TEST_CASE("validate_hostname") {
     CHECK_FALSE(validate_hostname("toolong", 4));     // 7 chars, cap 4
 }
 
-TEST_CASE("ConfigHandler registry + format through the image") {
+TEST_CASE("ParamHandler registry + format through the image") {
     TestHandler h;
     CHECK(h.count() == PARAM_COUNT);
     CHECK(strcmp(h.param(0).field.name, PARAMS[0].field.name) == 0);

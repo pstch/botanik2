@@ -19,11 +19,17 @@ set(CMAKE_C_USE_RESPONSE_FILE_FOR_INCLUDES ON)
 # Change with cmake -DBOTANIK_TARGET=SIMULATOR ..
 set(BOTANIK_TARGET "SIMULATOR" CACHE STRING "Target platform: SIMULATOR or OPTA")
 
-# Greenhouse site to build: selects src/sites/<name>/ (its payload, pages, alert
-# table, mock PLC). Just the name is set here; libbotanik_site.h derives the
-# site.h / config.h include paths from it (so the IDE needs only -DBOTANIK_SITE
-# too). One site per build; both targets run the same one.
+# Greenhouse site to build: one directory holding the payload, the generated
+# tables, the alarm table and the mock PLC. Two ways to name it:
+#
+#   -DBOTANIK_SITE=<name>     a site in this tree, i.e. src/sites/<name>/
+#   -DBOTANIK_SITE_DIR=<path> any directory on disk, e.g. a consumer project's
+#                             LLSketch dir holding its generated site
+#
+# BOTANIK_SITE_DIR wins when both are given. One site per build; both targets
+# run the same one. See the site resolution block further down.
 set(BOTANIK_SITE "gh_mlb41" CACHE STRING "Greenhouse site under src/sites/")
+set(BOTANIK_SITE_DIR "" CACHE PATH "Site directory (overrides BOTANIK_SITE; may be out of tree)")
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -125,22 +131,42 @@ set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/src/libbotanik/scheduler/scheduler.cpp"
     PROPERTIES COMPILE_FLAGS "-Wdouble-promotion")
 
-# Site selection: the site NAME is the single source of truth, forwarded PUBLIC on
-# the library. libbotanik_site.h (pulled in by libbotanik_config.h) derives both the
-# site.h and config.h include paths from it; config.h carries the build-wide Config
-# overrides libbotanik_config.h #includes before its #ifndef defaults - so libbotanik's
-# own TUs and every consumer compile against the same overridden values (anything
-# narrower is an ABI mismatch).
+# Site resolution: the site DIRECTORY is the single source of truth. We resolve it
+# to two absolute paths and forward those PUBLIC on the library, so the site's files
+# are found by full path and nothing has to sit on the include path (a flat site dir
+# carries names like config.h / status.h / alarms.h, which we must not let shadow
+# anyone else's headers - notably Mbed's on the OPTA build).
+#
+# Site-internal includes are RELATIVE ("payload.h", not "sites/<name>/payload.h"),
+# which is what makes an out-of-tree site work: a quoted include resolves against
+# the including file's own directory first, so a site's files always find each
+# other and can never be shadowed by the reference site in this tree.
+#
+# config.h carries the build-wide Config overrides libbotanik_config.h #includes
+# before its #ifndef defaults, so libbotanik's own TUs and every consumer compile
+# against the same values.
 # ABI guard: any TU that includes libbotanik_config.h MUST link `botanik` so it picks
-# up this PUBLIC define transitively; a TU that includes the header without linking the
-# library would silently compile against the un-overridden defaults (e.g. mis-sized
-# LOG_PLC_* buffers) and mismatch the rest of the build.
-target_compile_definitions(botanik PUBLIC BOTANIK_SITE=${BOTANIK_SITE})
-if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/sites/${BOTANIK_SITE}/config.h")
-    message(FATAL_ERROR "Site '${BOTANIK_SITE}' has no config.h "
-        "(src/sites/${BOTANIK_SITE}/config.h); every site must ship one.")
+# up these PUBLIC defines transitively; a TU that includes the header without linking
+# the library would silently compile against the un-overridden defaults and mismatch
+# the rest of the build. Sizes that are part of the PLC wire contract are declared by
+# the site's payload.h instead, precisely so they cannot go missing this way.
+if(BOTANIK_SITE_DIR)
+    get_filename_component(_site_dir "${BOTANIK_SITE_DIR}" ABSOLUTE
+                           BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+else()
+    set(_site_dir "${CMAKE_CURRENT_SOURCE_DIR}/src/sites/${BOTANIK_SITE}")
 endif()
-message(STATUS "Site: ${BOTANIK_SITE} (src/sites/${BOTANIK_SITE}/)")
+foreach(_f config.h site.h)
+    if(NOT EXISTS "${_site_dir}/${_f}")
+        message(FATAL_ERROR "Site directory '${_site_dir}' has no ${_f}; "
+            "every site must ship one. Point -DBOTANIK_SITE_DIR=<path> at a site "
+            "directory, or -DBOTANIK_SITE=<name> at one under src/sites/.")
+    endif()
+endforeach()
+target_compile_definitions(botanik PUBLIC
+    BOTANIK_SITE_CONFIG=\"${_site_dir}/config.h\"
+    BOTANIK_SITE_HEADER=\"${_site_dir}/site.h\")
+message(STATUS "Site: ${_site_dir}")
 
 # Optional-subsystem feature flags (libbotanik_features.h). Each defaults ON in
 # the header; pass -DBOTANIK_FEATURE_<X>=ON/OFF to override. We forward only the
@@ -193,11 +219,11 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         message(STATUS "Sanitizers enabled: ${BOTANIK_SANITIZE}")
     endif()
 
-    # The selected site (payload + pages + alarm table + mock PLC) compiles into
+    # The selected site (payload + tables + alarm table + mock PLC) compiles into
     # the host application, not the library: it stays out of the OPTA `botanik`
     # archive. gh_mlb41 is header-only, so this glob is empty; it stays for sites
     # that ship their own .cpp.
-    file(GLOB BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS "src/sites/${BOTANIK_SITE}/*.cpp")
+    file(GLOB BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS "${_site_dir}/*.cpp")
     add_executable(botanik_sim
         "src/botanik_sim/main.cpp"
         "src/botanik_sim/emulator.cpp"
@@ -499,10 +525,10 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     # botanik PUBLIC inherits its include dirs, defines, and -Os/-flto options;
     # LINKER_LANGUAGE skips the final link (no entry point in this build) and the
     # C++14 standard matches botanik (Mbed headers need it).
-    # The selected site (payload + pages + alarm table) compiles into the firmware
+    # The selected site (payload + tables + alarm table) compiles into the firmware
     # alongside the entry wiring; gh_mlb41 is header-only, so this glob is empty.
     # It stays for sites that ship their own .cpp.
-    file(GLOB BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS "src/sites/${BOTANIK_SITE}/*.cpp")
+    file(GLOB BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS "${_site_dir}/*.cpp")
     add_library(botanik_fw STATIC
         "src/botanik_fw/firmware.cpp"
         "src/botanik_fw/main.cpp"

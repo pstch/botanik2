@@ -1,11 +1,11 @@
-#ifndef TESTS_PLC_CONFIG_FIXTURE_H
-#define TESTS_PLC_CONFIG_FIXTURE_H
+#ifndef TESTS_PLC_PARAMS_FIXTURE_H
+#define TESTS_PLC_PARAMS_FIXTURE_H
 
 /**
  * @file plc_config_fixture.h
  * @brief Test helper: drive a real PlcSyncHandler over throwaway shared regions
  *        so a test can populate the PLC->host config values and read them back
- *        through a PlcConfigHandler - the exact path the live components consume.
+ *        through a PlcParamHandler - the exact path the live components consume.
  *
  * Config parameters are ordinary payload fields now, so the fixture defines a
  * small config payload (net / NTP / geo) carried in both the input and output
@@ -18,7 +18,7 @@
 #include <cstdint>
 
 #include "libbotanik/plcio/sync.h"
-#include "libbotanik/core/config_plc.h"
+#include "libbotanik/core/params_plc.h"
 
 namespace botanik_test {
 
@@ -45,10 +45,10 @@ namespace botanik_test {
     // Parameter table over FixtureConfig (out_offset == in_offset here: the two
     // regions share the layout). The group name doubles as its serial parameter.
 #define FX_OFF(f) (int16_t)offsetof(FixtureConfig, f)
-    inline const Botanik::Cfg::ConfigParam* fixture_params(uint8_t* count) {
+    inline const Botanik::Params::Param* fixture_params(uint8_t* count) {
         using namespace Botanik;
-        using namespace Botanik::Cfg;
-        static const ConfigParam params[] = {
+        using namespace Botanik::Params;
+        static const Param params[] = {
             {{"net",          FX_OFF(net_serial),   FX_OFF(net_serial),   SCALAR_U32,    0, nullptr, "",  "commit",""}, {"0",0,1000000000,0, STR_NONE, "net"}},
             {{"net_dhcp",     FX_OFF(net_dhcp),     FX_OFF(net_dhcp),     SCALAR_U8,     0, nullptr, "",  "dhcp",""},   {"1",0,1,0, STR_NONE, "net"}},
             {{"net_ip",       FX_OFF(net_ip),       FX_OFF(net_ip),       SCALAR_STRING, 0, nullptr, "",  "ip",""},     {"",0,0,64, STR_IPV4, "net"}},
@@ -76,12 +76,12 @@ namespace botanik_test {
         Botanik::PlcIO::PlcOutput<Out>          out{};
         uint32_t                                ts = 0;
         Botanik::PlcIO::PlcSyncHandler<In, Out> handler{&in, &out, &ts, nullptr};
-        /** @brief A PLC-backed ConfigHandler over this fixture's RX snapshot. */
-        Botanik::Cfg::PlcConfigHandler          cfg{handler.context(), nullptr};
+        /** @brief A PLC-backed ParamHandler over this fixture's RX snapshot. */
+        Botanik::Params::PlcParamHandler          cfg{handler.context(), nullptr};
 
         PlcConfigFixture() {
             uint8_t n = 0;
-            const Botanik::Cfg::ConfigParam* p = fixture_params(&n);
+            const Botanik::Params::Param* p = fixture_params(&n);
             cfg.set_site_params(p, n);
         }
 
@@ -102,4 +102,4 @@ namespace botanik_test {
 
 }  // namespace botanik_test
 
-#endif // TESTS_PLC_CONFIG_FIXTURE_H
+#endif // TESTS_PLC_PARAMS_FIXTURE_H

@@ -35,8 +35,8 @@ namespace Botanik {
      * @brief One PLC variable, read-only (a status variable) or read/write (a
      * config parameter). The single declarative descriptor for both: generated
      * from the PLC project, addressed by byte offset, rendered generically - no
-     * per-field code. A writable parameter pairs this with a Cfg::ConfigMeta
-     * (default / bounds / group) in a Cfg::ConfigParam; the edit metadata lives
+     * per-field code. A writable parameter pairs this with a Params::ParamMeta
+     * (default / bounds / group) in a Params::Param; the edit metadata lives
      * there so this descriptor stays lean for the many read-only status vars.
      *
      * @p out_offset is where the current value is read (in the PLC output image -

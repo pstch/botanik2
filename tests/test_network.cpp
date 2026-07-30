@@ -15,7 +15,7 @@
 
 #include "doctest.h"
 
-#include "plc_config_fixture.h"
+#include "plc_params_fixture.h"
 #include "recording_writer.h"
 #include "libbotanik/network/network.h"
 #include "libbotanik/network/ntp.h"

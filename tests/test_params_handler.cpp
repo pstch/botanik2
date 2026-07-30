@@ -28,18 +28,18 @@ namespace {
         int      steps           = 0;
         uint64_t last_change_now = 0;
         explicit TestHandler(Logs::Logger* lg) : Component(lg, "TestHandler") {}
-        uint32_t config_serial() const override { return serial; }
+        uint32_t param_serial() const override { return serial; }
         void setup(uint64_t now) override { (void)now; setups++; }
-        void on_config_changed(uint64_t now) override { changes++; last_change_now = now; }
+        void on_param_changed(uint64_t now) override { changes++; last_change_now = now; }
         void on_step(uint64_t now) override { (void)now; steps++; }
     };
 
 }  // namespace
 
-TEST_CASE("Component: on_step runs every step, on_config_changed only on a serial change") {
+TEST_CASE("Component: on_step runs every step, on_param_changed only on a serial change") {
     TestHandler h(nullptr);
 
-    // Serial stays 0 (never configured): on_step runs, on_config_changed does not.
+    // Serial stays 0 (never configured): on_step runs, on_param_changed does not.
     h.step(100);
     CHECK(h.steps == 1);
     CHECK(h.changes == 0);

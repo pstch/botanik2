@@ -14,7 +14,7 @@
 #include "libbotanik_config.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/plcio/sync.h"
-#include "libbotanik/core/config.h"   // Cfg::group_* helpers for config write-back
+#include "libbotanik/core/params.h"   // Params::group_* helpers for config write-back
 
 #ifdef TARGET_SIMULATOR
 #include <cstdio>

@@ -1,7 +1,7 @@
 /**
  * @file test_config_writeback.cpp
  * @brief Full-loop test of the PLC config write-back with config as ordinary
- *        payload fields: PlcConfigHandler.set() stages an edit into the input
+ *        payload fields: PlcParamHandler.set() stages an edit into the input
  *        payload mirror at the parameter's in_offset, the host TX ships it, the
  *        emulated PLC (played here, since group-apply is site logic now) latches
  *        a group when its commit serial advances and reflects it on the output,
@@ -15,8 +15,8 @@
 
 #include "libbotanik/plcio/sync.h"
 #include "botanik_sim/emulator.h"
-#include "libbotanik/core/config_plc.h"
-#include "plc_config_fixture.h"   // FixtureConfig + fixture_params
+#include "libbotanik/core/params_plc.h"
+#include "plc_params_fixture.h"   // FixtureConfig + fixture_params
 
 using namespace Botanik;
 using namespace Botanik::PlcIO;
@@ -44,7 +44,7 @@ namespace {
         }
     }
 
-    const Cfg::ConfigParam* find(Cfg::PlcConfigHandler& h, const char* name) {
+    const Params::Param* find(Params::PlcParamHandler& h, const char* name) {
         return h.find(name, (uint16_t)strlen(name));
     }
 }
@@ -56,9 +56,9 @@ TEST_CASE("PLC config write-back: host edit reflects via the emulated PLC") {
 
     PlcSyncHandler<CfgIn, CfgOut> host(&in, &out, &ts, nullptr);
     PlcEmulator<CfgIn, CfgOut>    emu(&in, &out, &ts);
-    Cfg::PlcConfigHandler         cfg(host.context(), nullptr);
+    Params::PlcParamHandler         cfg(host.context(), nullptr);
     uint8_t np = 0;
-    const Cfg::ConfigParam* fp = botanik_test::fixture_params(&np);
+    const Params::Param* fp = botanik_test::fixture_params(&np);
     cfg.set_site_params(fp, np);
 
     // The "PLC" publishes an initial config (NTP group serial 1, poll 64).
@@ -80,12 +80,12 @@ TEST_CASE("PLC config write-back: host edit reflects via the emulated PLC") {
     };
 
     pump(40);
-    REQUIRE(cfg_int(&cfg, "ntp_poll_s") == 64);      // initial config synced to host
-    uint32_t ntp_serial0 = cfg_group_serial(&cfg, "ntp");
+    REQUIRE(get_int(&cfg, "ntp_poll_s") == 64);      // initial config synced to host
+    uint32_t ntp_serial0 = group_serial(&cfg, "ntp");
 
     // Host edits ntp_poll_s (stage), then bumps the "ntp" serial (commit).
-    const Cfg::ConfigParam* poll = find(cfg, "ntp_poll_s");
-    const Cfg::ConfigParam* ntp  = find(cfg, "ntp");
+    const Params::Param* poll = find(cfg, "ntp_poll_s");
+    const Params::Param* ntp  = find(cfg, "ntp");
     REQUIRE(poll != nullptr);
     REQUIRE(ntp != nullptr);
     CHECK(cfg.set(*poll, "300"));
@@ -95,13 +95,13 @@ TEST_CASE("PLC config write-back: host edit reflects via the emulated PLC") {
 
     // The edit round-tripped: the PLC applied it and reflected it on the output,
     // and the NTP commit serial advanced (so the consumer re-applies).
-    CHECK(cfg_int(&cfg, "ntp_poll_s") == 300);
-    CHECK(cfg_group_serial(&cfg, "ntp") == 2);
-    CHECK(cfg_group_serial(&cfg, "ntp") != ntp_serial0);
+    CHECK(get_int(&cfg, "ntp_poll_s") == 300);
+    CHECK(group_serial(&cfg, "ntp") == 2);
+    CHECK(group_serial(&cfg, "ntp") != ntp_serial0);
 
     // Untouched groups (geo) did not re-apply.
-    CHECK(cfg_group_serial(&cfg, "geo") == 1);
-    CHECK(cfg_f32(&cfg, "geo_latitude") == doctest::Approx(10.0f));
+    CHECK(group_serial(&cfg, "geo") == 1);
+    CHECK(get_f32(&cfg, "geo_latitude") == doctest::Approx(10.0f));
 
     // A second edit + commit round-trips the newly staged value. (Only staged
     // fields are applied - the transport does not preserve un-staged group
@@ -109,8 +109,8 @@ TEST_CASE("PLC config write-back: host edit reflects via the emulated PLC") {
     CHECK(cfg.set(*poll, "128"));
     CHECK(cfg.set(*ntp, "3"));
     pump(40);
-    CHECK(cfg_int(&cfg, "ntp_poll_s") == 128);
-    CHECK(cfg_group_serial(&cfg, "ntp") == 3);
+    CHECK(get_int(&cfg, "ntp_poll_s") == 128);
+    CHECK(group_serial(&cfg, "ntp") == 3);
 }
 
 TEST_CASE("PLC config write-back: a string edit crosses the wire") {
@@ -119,9 +119,9 @@ TEST_CASE("PLC config write-back: a string edit crosses the wire") {
     uint32_t ts = 0;
     PlcSyncHandler<CfgIn, CfgOut> host(&in, &out, &ts, nullptr);
     PlcEmulator<CfgIn, CfgOut>    emu(&in, &out, &ts);
-    Cfg::PlcConfigHandler         cfg(host.context(), nullptr);
+    Params::PlcParamHandler         cfg(host.context(), nullptr);
     uint8_t np = 0;
-    const Cfg::ConfigParam* fp = botanik_test::fixture_params(&np);
+    const Params::Param* fp = botanik_test::fixture_params(&np);
     cfg.set_site_params(fp, np);
 
     emu.output_data()->config.net_serial = 1;
@@ -137,14 +137,14 @@ TEST_CASE("PLC config write-back: a string edit crosses the wire") {
         }
     };
     pump(40);
-    REQUIRE(strcmp(cfg_str(&cfg, "net_ip"), "192.168.0.2") == 0);
+    REQUIRE(strcmp(get_str(&cfg, "net_ip"), "192.168.0.2") == 0);
 
-    const Cfg::ConfigParam* ip  = find(cfg, "net_ip");
-    const Cfg::ConfigParam* net = find(cfg, "net");
+    const Params::Param* ip  = find(cfg, "net_ip");
+    const Params::Param* net = find(cfg, "net");
     REQUIRE(ip != nullptr);
     REQUIRE(net != nullptr);
     CHECK(cfg.set(*ip, "10.1.2.3"));
     CHECK(cfg.set(*net, "2"));
     pump(40);
-    CHECK(strcmp(cfg_str(&cfg, "net_ip"), "10.1.2.3") == 0);
+    CHECK(strcmp(get_str(&cfg, "net_ip"), "10.1.2.3") == 0);
 }

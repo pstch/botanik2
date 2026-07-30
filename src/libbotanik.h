@@ -21,7 +21,7 @@
 #include "libbotanik/pages/shell.h"
 #include "libbotanik/pages/logs.h"
 #include "libbotanik/pages/alarms.h"
-#include "libbotanik/pages/config_page.h"
+#include "libbotanik/pages/params_page.h"
 #include "libbotanik/pages/monitor.h"
 // StatusPage is a reusable building block, kept but NOT in the default tab
 // order: a site re-adds a STATUS page by subclassing it and overriding

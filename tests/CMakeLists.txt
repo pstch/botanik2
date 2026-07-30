@@ -22,10 +22,10 @@ add_executable(botanik_tests
     test_shell.cpp
     test_serial.cpp
     test_writer.cpp
-    test_config_handler.cpp
-    test_config_params.cpp
-    test_config_local.cpp
-    test_config_writeback.cpp
+    test_params_handler.cpp
+    test_params.cpp
+    test_params_local.cpp
+    test_params_writeback.cpp
     test_storage.cpp
     test_resolver.cpp
     test_sun_tracker.cpp

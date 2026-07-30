@@ -21,8 +21,8 @@ namespace Botanik {
     namespace Alarms  { class AlarmModel; }
     // ntpsync command (set_ntp); null when the NTP feature is off
     namespace Network { class NtpClient;  }
-    // config get/set command (set_config)
-    namespace Cfg     { class ConfigHandler; }
+    // config get/set command (set_params)
+    namespace Params     { class ParamHandler; }
     // status command (set_status_vars): the status-variable descriptor group
     // (ScalarGroup) comes in via core/scalar.h, included above.
 }
@@ -96,8 +96,8 @@ namespace Botanik { namespace Shell {
         /** @brief NTP client for the `ntpsync` command; null until set_ntp()
          *  wires it (off when the NTP feature is absent). */
         Network::NtpClient*     _ntp_client           = nullptr;
-        /** @brief Config backend for the `config` get/set command (set_config). */
-        Cfg::ConfigHandler*     _config               = nullptr;
+        /** @brief Config backend for the `config` get/set command (set_params). */
+        Params::ParamHandler*     _params               = nullptr;
         /** @brief Status-variable table for the `status` command
          *  (set_status_vars): the site scalar groups + the payload they read. */
         const ScalarGroup* _status_groups    = nullptr;
@@ -151,7 +151,7 @@ namespace Botanik { namespace Shell {
         void set_ntp(Network::NtpClient* ntp) { _ntp_client = ntp; }
 
         /** @brief Wire the config backend the `config` command reads/writes. */
-        void set_config(Cfg::ConfigHandler* config) { _config = config; }
+        void set_params(Params::ParamHandler* config) { _params = config; }
 
         /** @brief Wire the status-variable table the `status` command reads:
          *  @p groups over @p base (the live PLC payload). Null clears it. */
@@ -248,7 +248,7 @@ namespace Botanik { namespace Shell {
         void _cmd_net(const char* args, uint16_t alen);
         void _cmd_ntpsync(const char* args, uint16_t alen);
         void _cmd_loglevel(const char* args, uint16_t alen);
-        void _cmd_config(const char* args, uint16_t alen);
+        void _cmd_params(const char* args, uint16_t alen);
         void _cmd_status(const char* args, uint16_t alen);
         /** @brief Handle an unrecognised command (echoes "Unknown command:
          *  ..."). */

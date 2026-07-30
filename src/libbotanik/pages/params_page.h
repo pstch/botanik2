@@ -1,10 +1,10 @@
 // REVIEW_35: TODO
-#ifndef PAGES_CONFIG_PAGE_H
-#define PAGES_CONFIG_PAGE_H
+#ifndef PAGES_PARAMS_PAGE_H
+#define PAGES_PARAMS_PAGE_H
 
 /**
  * @file config_page.h
- * @brief ConfigPage - interactive table of configuration parameters.
+ * @brief ParamsPage - interactive table of configuration parameters.
  *
  * Layout (row 0 is the terminal status bar, the bottom row the alarm bar); the
  * same bordered shape as AlarmsPage - a blank top margin and blank columns each
@@ -12,7 +12,7 @@
  *   row 1            blank top margin
  *   row 2            header  (| PARAMETER | TYPE | VALUE | DEFAULT | UNIT |)
  *   row 3            top rule
- *   rows 4..K        one row per ConfigParam (windowed / scrollable)
+ *   rows 4..K        one row per Param (windowed / scrollable)
  *   rows K..         detail panel for the selected parameter: a separator then
  *                    Minimum / Maximum / Description / Notes
  *   rows()-1         edit prompt / hint line (just above the alarm bar)
@@ -21,7 +21,7 @@
  * detail panel tracks it. ENTER opens an inline edit on the bottom prompt line:
  * a static " name = " label and a single-line TextEditor (anchored to the
  * bottom row) render the value, seeded with the row's current text. ENTER
- * commits (parse + validate through ConfigHandler::set, which persists + bumps
+ * commits (parse + validate through ParamHandler::set, which persists + bumps
  * the group serial); ESC/Ctrl+C cancels. An invalid value is rejected and
  * flagged, leaving edit mode open. Rows repaint only on a change, so a steady
  * screen spends no TX budget.
@@ -32,7 +32,7 @@
 #include <cstring>
 
 #include "libbotanik_config.h"
-#include "libbotanik/core/config.h"
+#include "libbotanik/core/params.h"
 #include "libbotanik/pages/page.h"
 #include "libbotanik/pages/scroll_table.h"
 #include "libbotanik/console/console.h"
@@ -42,7 +42,7 @@
 namespace Botanik { namespace Pages {
 
     /** @brief Full-screen editable configuration table (see file header). */
-    class ConfigPage : public ScrollTablePage {
+    class ParamsPage : public ScrollTablePage {
     private:
         using AnsiTerminal = Terminal::AnsiTerminal;
         using Console      = Terminal::Console;
@@ -75,14 +75,14 @@ namespace Botanik { namespace Pages {
         /** @name State
          *  @{ */
         Console&            _console;
-        Cfg::ConfigHandler* _config;
+        Params::ParamHandler* _params;
         bool                _dirty    = true;    ///< table needs a redraw
         uint64_t            _last_refresh_ms = 0; ///< last cadence rebuild
 
         /** @name Edit sub-state (bottom-row inline editor) @{ */
         InputEditor         _editor;                 ///< single-line value editor
         bool                _editing    = false;
-        const Cfg::ConfigParam* _edit_param = nullptr;
+        const Params::Param* _edit_param = nullptr;
         bool                _edit_error = false;      ///< last commit rejected
         /** @} */
         /** @} */
@@ -90,11 +90,11 @@ namespace Botanik { namespace Pages {
     public:
         /** @brief @p console owns the content geometry; @p config is the backend
          *  the table reads/writes (may be null -> empty table). */
-        ConfigPage(Console& console, Cfg::ConfigHandler* config)
-            : ScrollTablePage(console.terminal()), _console(console), _config(config),
+        ParamsPage(Console& console, Params::ParamHandler* config)
+            : ScrollTablePage(console.terminal()), _console(console), _params(config),
               _editor(&console) {}
 
-        const char* name() const override { return "CONFIG"; }
+        const char* name() const override { return "PARAMS"; }
 
         /** @name Input
          *  @{ */
@@ -157,7 +157,7 @@ namespace Botanik { namespace Pages {
         /** @} */
 
     private:
-        uint16_t _param_count() const { return _config != nullptr ? _config->count() : 0; }
+        uint16_t _param_count() const { return _params != nullptr ? _params->count() : 0; }
 
         /** @brief Row the bottom edit/hint prompt sits on (above the alarm bar). */
         uint16_t _prompt_row() const { return (uint16_t)(_console.rows() - 1); }
@@ -209,11 +209,11 @@ namespace Botanik { namespace Pages {
         }
 
         void _draw_row(uint16_t idx, uint16_t row, bool selected) {
-            const Cfg::ConfigParam& p = _config->param((uint8_t)idx);
+            const Params::Param& p = _params->param((uint8_t)idx);
             char val[VAL_CAP];
-            _config->format((uint8_t)idx, val, sizeof(val));
+            _params->format((uint8_t)idx, val, sizeof(val));
             char line[LINE_CAP];
-            uint16_t n = _row5(line, sizeof(line), p.field.name, Cfg::type_name(p), val,
+            uint16_t n = _row5(line, sizeof(line), p.field.name, Params::type_name(p), val,
                                p.meta.def ? p.meta.def : "", p.field.unit ? p.field.unit : "");
             _draw_selected_line(row, line, n, NAME_CELL_L, NAME_CELL_R, selected);
         }
@@ -243,9 +243,9 @@ namespace Botanik { namespace Pages {
 
         /** @brief Format a numeric bound ("-" for strings; the min/max are whole
          *  numbers, shown plainly even for an f32 param). */
-        const char* _fmt_bound(char* buf, size_t cap, const Cfg::ConfigParam& p,
+        const char* _fmt_bound(char* buf, size_t cap, const Params::Param& p,
                                int32_t v) const {
-            if (Cfg::is_string(p)) { snprintf(buf, cap, "-"); return buf; }
+            if (Params::is_string(p)) { snprintf(buf, cap, "-"); return buf; }
             snprintf(buf, cap, "%ld", (long)v);
             return buf;
         }
@@ -280,7 +280,7 @@ namespace Botanik { namespace Pages {
                 for (uint16_t i = 2; i < PANEL_H; i++) _blank_line((uint16_t)(r + i));
                 return;
             }
-            const Cfg::ConfigParam& p = _config->param((uint8_t)_selected);
+            const Params::Param& p = _params->param((uint8_t)_selected);
             char b[24];
             _panel_field((uint16_t)(r + 2), "Minimum",     _fmt_bound(b, sizeof(b), p, p.meta.min));
             _panel_field((uint16_t)(r + 3), "Maximum",     _fmt_bound(b, sizeof(b), p, p.meta.max));
@@ -341,7 +341,7 @@ namespace Botanik { namespace Pages {
 
         void _start_edit() {
             if (_selected >= _param_count()) return;
-            _edit_param = &_config->param((uint8_t)_selected);
+            _edit_param = &_params->param((uint8_t)_selected);
             _draw_panel();            // pin the panel to the parameter being edited
             uint16_t row = _prompt_row();
             char label[48];
@@ -356,7 +356,7 @@ namespace Botanik { namespace Pages {
             _draw_label();
 
             char val[80];
-            int n = _config->format((uint8_t)_selected, val, sizeof(val));
+            int n = _params->format((uint8_t)_selected, val, sizeof(val));
             if (n > 0) _editor.insert_characters(val, (uint16_t)n);
             else       _editor.place_cursor();
 
@@ -377,7 +377,7 @@ namespace Botanik { namespace Pages {
             if (n > (uint16_t)(sizeof(line) - 1)) n = (uint16_t)(sizeof(line) - 1);
             memcpy(line, _editor.buffer(), n);
             line[n] = 0;
-            if (_config->set(*_edit_param, line)) {
+            if (_params->set(*_edit_param, line)) {
                 _editing = false;
                 _dirty = true;        // value diff repaints the table row next tick
                 _draw_prompt_row();
@@ -417,4 +417,4 @@ namespace Botanik { namespace Pages {
 
 }}
 
-#endif // PAGES_CONFIG_PAGE_H
+#endif // PAGES_PARAMS_PAGE_H

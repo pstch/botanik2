@@ -12,7 +12,7 @@
 #include "libbotanik/alarms/alarms.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/logs/logger.h"
-#include "libbotanik/core/config.h"
+#include "libbotanik/core/params.h"
 #include "libbotanik/network/mqtt.h"
 #include "libbotanik/network/network.h"
 #include "libbotanik/network/ntp.h"
@@ -66,7 +66,7 @@ namespace Botanik { namespace Shell {
             { "net",        "network / NTP / MQTT status",     &CommandShell::_cmd_net        },
             { "ntpsync",    "force an NTP resync now",         &CommandShell::_cmd_ntpsync    },
             { "alarms",     "[list|ack <code|all>] alarms",   &CommandShell::_cmd_alarms     },
-            { "config",     "[get <n>|set <n> <v>] params",   &CommandShell::_cmd_config     },
+            { "params",     "[get <n>|set <n> <v>] a parameter", &CommandShell::_cmd_params     },
             { "status",     "[get <name>] status variables",  &CommandShell::_cmd_status     },
             { "loglevel",   "[debug|info|..|critical] filter",&CommandShell::_cmd_loglevel   },
             { "version",    "firmware version",               &CommandShell::_cmd_version    },
@@ -274,17 +274,17 @@ namespace Botanik { namespace Shell {
         _emitf(out, sizeof(out), "alarms: %u active", m->active_count());
     }
 
-    void CommandShell::_cmd_config(const char* args, uint16_t alen) {
-        if (_config == nullptr) { _println("config: unavailable"); return; }
+    void CommandShell::_cmd_params(const char* args, uint16_t alen) {
+        if (_params == nullptr) { _println("params: unavailable"); return; }
         char out[128];
         uint16_t w0; const char* a0 = Utils::arg_next(args, alen, w0);
 
         // "config" with no args: list every parameter and its value.
         if (a0 == nullptr) {
             char val[40];
-            for (uint8_t i = 0; i < _config->count(); i++) {
-                const Cfg::ConfigParam& p = _config->param(i);
-                _config->format(i, val, sizeof(val));
+            for (uint8_t i = 0; i < _params->count(); i++) {
+                const Params::Param& p = _params->param(i);
+                _params->format(i, val, sizeof(val));
                 _emitf(out, sizeof(out), "  %-18s %s", p.field.name, val);
             }
             return;
@@ -295,26 +295,26 @@ namespace Botanik { namespace Shell {
             uint16_t wn; const char* nm = Utils::arg_next(args, alen, wn);
             uint16_t wv; const char* v  = Utils::arg_next(args, alen, wv);
             if (nm == nullptr || v == nullptr) {
-                _println("usage: config set <name> <value>"); return;
+                _println("usage: params set <name> <value>"); return;
             }
-            const Cfg::ConfigParam* p = _config->find(nm, wn);
-            if (p == nullptr) { _println("config: unknown parameter"); return; }
+            const Params::Param* p = _params->find(nm, wn);
+            if (p == nullptr) { _println("params: unknown parameter"); return; }
             char val[96];
             uint16_t vc = std::min(wv, (uint16_t)(sizeof(val) - 1));
             memcpy(val, v, vc); val[vc] = '\0';
-            if (_config->set(*p, val)) _emitf(out, sizeof(out), "%s = %s", p->field.name, val);
-            else _emitf(out, sizeof(out), "config: invalid value for %s", p->field.name);
+            if (_params->set(*p, val)) _emitf(out, sizeof(out), "%s = %s", p->field.name, val);
+            else _emitf(out, sizeof(out), "params: invalid value for %s", p->field.name);
             return;
         }
 
         // "config get <name>" or "config <name>"
         const char* nm = a0; uint16_t wn = w0;
         if (Utils::arg_eq(a0, w0, "get")) nm = Utils::arg_next(args, alen, wn);
-        if (nm == nullptr) { _println("usage: config get <name>"); return; }
-        const Cfg::ConfigParam* p = _config->find(nm, wn);
-        if (p == nullptr) { _println("config: unknown parameter"); return; }
+        if (nm == nullptr) { _println("usage: params get <name>"); return; }
+        const Params::Param* p = _params->find(nm, wn);
+        if (p == nullptr) { _println("params: unknown parameter"); return; }
         char val[40];
-        _config->format_param(*p, val, sizeof(val));
+        _params->format_param(*p, val, sizeof(val));
         _emitf(out, sizeof(out), "%s = %s", p->field.name, val);
     }
 
@@ -467,7 +467,7 @@ namespace Botanik { namespace Shell {
         };
 
         // --- Link --------------------------------------------------------
-        const char* mode = Cfg::cfg_int(_config, "net_dhcp") ? "DHCP" : "static";
+        const char* mode = Params::get_int(_params, "net_dhcp") ? "DHCP" : "static";
         snprintf(val, sizeof(val), "%s  (%s)", net->status_str(), mode);
         _line("Network ..............", val);
 
@@ -502,7 +502,7 @@ namespace Botanik { namespace Shell {
             else
                 snprintf(val, sizeof(val), "%s", ntp->status_str());
             _line("NTP ..................", val);
-            const char* s1 = Cfg::cfg_str(_config, "ntp_server1");
+            const char* s1 = Params::get_str(_params, "ntp_server1");
             if (s1[0]) {
                 // Configured hostname, then the resolved IP:port once known.
                 Network::ResolvedAddr sa = ntp->server_addr();
@@ -531,7 +531,7 @@ namespace Botanik { namespace Shell {
                 snprintf(val, sizeof(val), "%s  (no pub yet)", mqt->status_str());
             }
             _line("MQTT .................", val);
-            const char* brk = Cfg::cfg_str(_config, "mqtt_broker");
+            const char* brk = Params::get_str(_params, "mqtt_broker");
             if (brk[0]) {
                 // Configured hostname, then the resolved IP:port once connected.
                 if (mqt->connected()) {

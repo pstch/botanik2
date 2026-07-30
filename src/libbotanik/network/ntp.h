@@ -15,7 +15,7 @@
 #include <cstdint>
 
 #include "libbotanik/core/component.h"
-#include "libbotanik/core/config.h"       // Cfg::ConfigHandler + cfg_* name getters
+#include "libbotanik/core/params.h"       // Params::ParamHandler + cfg_* name getters
 #include "libbotanik/hal/net.h"
 #include "libbotanik/network/resolver.h"
 #include "libbotanik/network/network.h"   // NetworkHandler (link gate)
@@ -55,7 +55,7 @@ namespace Botanik { namespace Network {
             TIME_ERROR,      ///< failed; backing off before a retry
         };
         /** @brief Config source (may be null in tests). */
-        const Cfg::ConfigHandler* _cfg;
+        const Params::ParamHandler* _cfg;
         State                 _state;
         /// when this state was entered (timeouts)
         uint64_t              _since_ms;
@@ -79,7 +79,7 @@ namespace Botanik { namespace Network {
         /** @} */
 
     public:
-        NtpClient(const Cfg::ConfigHandler* cfg, Logs::Logger* logger = nullptr,
+        NtpClient(const Params::ParamHandler* cfg, Logs::Logger* logger = nullptr,
                   NameResolver* resolver = nullptr,
                   const NetworkHandler* net = nullptr);
 
@@ -105,8 +105,8 @@ namespace Botanik { namespace Network {
         void resync();
 
     protected:
-        uint32_t config_serial() const override;
-        void on_config_changed(uint64_t now_ms) override;
+        uint32_t param_serial() const override;
+        void on_param_changed(uint64_t now_ms) override;
         void on_step(uint64_t now_ms) override;
 
     private:

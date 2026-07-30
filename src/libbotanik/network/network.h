@@ -15,7 +15,7 @@
 #include <cstdint>
 
 #include "libbotanik/core/component.h"
-#include "libbotanik/core/config.h"     // Cfg::ConfigHandler + cfg_* name getters
+#include "libbotanik/core/params.h"     // Params::ParamHandler + cfg_* name getters
 #include "libbotanik/hal/net.h"
 #include "libbotanik/network/resolver.h"
 
@@ -29,7 +29,7 @@ namespace Botanik { namespace Network {
         /** @name State
          *  @{ */
 
-        /** @brief Bring-up state. on_config_changed() resets to SETUP (or IDLE
+        /** @brief Bring-up state. on_param_changed() resets to SETUP (or IDLE
          *  if no usable config); on_step() drives SETUP -> RUNNING; ERROR backs
          *  off. */
         enum State : uint8_t {
@@ -42,7 +42,7 @@ namespace Botanik { namespace Network {
         };
 
         /** @brief Config source (may be null in tests). */
-        const Cfg::ConfigHandler* _cfg;
+        const Params::ParamHandler* _cfg;
         State         _state;
         /// when this state was entered (for timeouts)
         uint64_t      _since_ms;
@@ -57,7 +57,7 @@ namespace Botanik { namespace Network {
 
         /** @brief @p resolver (optional) cache is cleared on reconfiguration or
          *  link loss. */
-        NetworkHandler(const Cfg::ConfigHandler* cfg, Logs::Logger* logger = nullptr,
+        NetworkHandler(const Params::ParamHandler* cfg, Logs::Logger* logger = nullptr,
                        NameResolver* resolver = nullptr);
 
         /** @brief True once the link is up with an address. */
@@ -80,8 +80,8 @@ namespace Botanik { namespace Network {
     protected:
         /** @name Component hooks
          *  @{ */
-        uint32_t config_serial() const override;
-        void on_config_changed(uint64_t now_ms) override;
+        uint32_t param_serial() const override;
+        void on_param_changed(uint64_t now_ms) override;
         void on_step(uint64_t now_ms) override;
         /** @} */
 

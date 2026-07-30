@@ -10,10 +10,10 @@
 #include <cstring>
 #include <cstdlib>
 
-#include "libbotanik/core/config.h"
+#include "libbotanik/core/params.h"
 #include "libbotanik/utils/text.h"   // format_float / format_int
 
-namespace Botanik { namespace Cfg {
+namespace Botanik { namespace Params {
 
     // The library ships no built-in parameter table: a site declares every
     // parameter over its own PLC input/output payload (see the SiteDescriptor).
@@ -22,7 +22,7 @@ namespace Botanik { namespace Cfg {
 
     // Read / render
 
-    const char* type_name(const ConfigParam& p) {
+    const char* type_name(const Param& p) {
         if (p.field.type == SCALAR_U8 && p.meta.min == 0 && p.meta.max == 1)
             return "b";                                                    // boolean (0/1)
         switch (p.field.type) {
@@ -38,7 +38,7 @@ namespace Botanik { namespace Cfg {
         return "?";
     }
 
-    size_t param_width(const ConfigParam& p) {
+    size_t param_width(const Param& p) {
         switch (p.field.type) {
             case SCALAR_U8: case SCALAR_ENUM: return 1;
             case SCALAR_U16: case SCALAR_I16: return 2;
@@ -48,7 +48,7 @@ namespace Botanik { namespace Cfg {
         return 0;
     }
 
-    int32_t read_scalar(const ConfigParam& p, const void* base) {
+    int32_t read_scalar(const Param& p, const void* base) {
         return (int32_t)scalar_read(p.field, base);   // sign-extended, truncated to 32
     }
 
@@ -61,7 +61,7 @@ namespace Botanik { namespace Cfg {
         return (int)n;
     }
 
-    int format_value(const ConfigParam& p, const void* base, char* buf, size_t cap) {
+    int format_value(const Param& p, const void* base, char* buf, size_t cap) {
         if (cap == 0) return 0;
         const ScalarField& f = p.field;
         if (f.type == SCALAR_STRING) return copy_str(buf, cap, scalar_read_string(f, base));
@@ -80,7 +80,7 @@ namespace Botanik { namespace Cfg {
 
     // Validate / parse
 
-    bool parse_scalar(const ConfigParam& p, const char* s, int32_t* out) {
+    bool parse_scalar(const Param& p, const char* s, int32_t* out) {
         if (s == nullptr || *s == 0) return false;
         char* end = nullptr;
         long v = strtol(s, &end, 10);
@@ -93,7 +93,7 @@ namespace Botanik { namespace Cfg {
         return true;
     }
 
-    bool parse_f32(const ConfigParam& p, const char* s, float* out) {
+    bool parse_f32(const Param& p, const char* s, float* out) {
         if (s == nullptr || *s == 0) return false;
         char* end = nullptr;
         double d = strtod(s, &end);
@@ -138,7 +138,7 @@ namespace Botanik { namespace Cfg {
         return true;
     }
 
-    bool validate_string(const ConfigParam& p, const char* s) {
+    bool validate_string(const Param& p, const char* s) {
         switch (p.meta.kind) {
             case STR_IPV4:     return validate_ipv4(s, false);
             case STR_IPV4_OPT: return validate_ipv4(s, true);
@@ -153,7 +153,7 @@ namespace Botanik { namespace Cfg {
     // backend passes the single-image out_offset. Writability is p.in_offset >= 0
     // either way (a read-only status variable is never editable).
 
-    bool ConfigHandler::write_value(const ConfigParam& p, const char* text, void* base, int16_t offset) {
+    bool ParamHandler::write_value(const Param& p, const char* text, void* base, int16_t offset) {
         if (p.field.in_offset < 0) return false;      // read-only: not writable
         uint8_t* dst = (uint8_t*)base + offset;
         if (is_string(p)) {

@@ -20,13 +20,13 @@ namespace Botanik { namespace Network {
     // NetworkHandler
     // ------------------------------------------------------------------------
 
-    NetworkHandler::NetworkHandler(const Cfg::ConfigHandler* cfg, Logs::Logger* logger,
+    NetworkHandler::NetworkHandler(const Params::ParamHandler* cfg, Logs::Logger* logger,
                                    NameResolver* resolver)
         : Component(logger, "NetworkHandler"), _cfg(cfg),
           _state(NET_IDLE), _since_ms(0), _resolver(resolver) {}
 
-    uint32_t NetworkHandler::config_serial() const {
-        return Cfg::cfg_group_serial(_cfg, "net");
+    uint32_t NetworkHandler::param_serial() const {
+        return Params::group_serial(_cfg, "net");
     }
 
     const char* NetworkHandler::status_str() const {
@@ -44,10 +44,10 @@ namespace Botanik { namespace Network {
         if (_resolver != nullptr) _resolver->clear();
     }
 
-    void NetworkHandler::on_config_changed(uint64_t now_ms) {
+    void NetworkHandler::on_param_changed(uint64_t now_ms) {
         // Clear the resolver cache, then re-bring-up (or idle).
         _unwire_resolver();
-        if (Cfg::cfg_group_serial(_cfg, "net") == 0) {
+        if (Params::group_serial(_cfg, "net") == 0) {
             HAL::Network::link_disconnect();
             _enter(NET_IDLE, now_ms);
             return;
@@ -58,13 +58,13 @@ namespace Botanik { namespace Network {
     void NetworkHandler::_begin_setup(uint64_t now_ms) {
         HAL::Network::LinkConfig lc;
         memset(&lc, 0, sizeof(lc));
-        lc.dhcp = Cfg::cfg_int(_cfg, "net_dhcp") != 0;
+        lc.dhcp = Params::get_int(_cfg, "net_dhcp") != 0;
         if (!lc.dhcp) {
-            strncpy(lc.ip,      Cfg::cfg_str(_cfg, "net_ip"),      sizeof(lc.ip) - 1);
-            strncpy(lc.netmask, Cfg::cfg_str(_cfg, "net_netmask"), sizeof(lc.netmask) - 1);
-            strncpy(lc.gateway, Cfg::cfg_str(_cfg, "net_gateway"), sizeof(lc.gateway) - 1);
-            strncpy(lc.dns1,    Cfg::cfg_str(_cfg, "net_dns1"),    sizeof(lc.dns1) - 1);
-            strncpy(lc.dns2,    Cfg::cfg_str(_cfg, "net_dns2"),    sizeof(lc.dns2) - 1);
+            strncpy(lc.ip,      Params::get_str(_cfg, "net_ip"),      sizeof(lc.ip) - 1);
+            strncpy(lc.netmask, Params::get_str(_cfg, "net_netmask"), sizeof(lc.netmask) - 1);
+            strncpy(lc.gateway, Params::get_str(_cfg, "net_gateway"), sizeof(lc.gateway) - 1);
+            strncpy(lc.dns1,    Params::get_str(_cfg, "net_dns1"),    sizeof(lc.dns1) - 1);
+            strncpy(lc.dns2,    Params::get_str(_cfg, "net_dns2"),    sizeof(lc.dns2) - 1);
         }
         HAL::Network::link_configure(lc);
         if (_logger) _logger->info(Logs::NETWORK, lc.dhcp ? "network bring-up (DHCP)"
@@ -75,7 +75,7 @@ namespace Botanik { namespace Network {
     void NetworkHandler::on_step(uint64_t now_ms) {
         switch (_state) {
             case NET_IDLE:
-                // wait for a config to arrive (handled in on_config_changed)
+                // wait for a config to arrive (handled in on_param_changed)
                 break;
 
             case NET_SETUP:

@@ -1,10 +1,10 @@
 // REVIEW_35: TODO
-#ifndef LIBBOTANIK_CORE_CONFIG_PLC_H
-#define LIBBOTANIK_CORE_CONFIG_PLC_H
+#ifndef LIBBOTANIK_CORE_PARAMS_PLC_H
+#define LIBBOTANIK_CORE_PARAMS_PLC_H
 
 /**
  * @file config_plc.h
- * @brief PlcConfigHandler - the config backend when the PLC owns config in NVM.
+ * @brief PlcParamHandler - the config backend when the PLC owns config in NVM.
  *
  * The image is the PLC's RX output payload (config parameters are ordinary
  * fields of it, read at each parameter's out_offset). An edit writes the value
@@ -14,13 +14,13 @@
  * BOTANIK_FEATURE_PLC is on.
  */
 
-#include "libbotanik/core/config.h"
+#include "libbotanik/core/params.h"
 #include "libbotanik/plcio/sync.h"   // PlcSyncContext
 
-namespace Botanik { namespace Cfg {
+namespace Botanik { namespace Params {
 
     /** @brief PLC-backed configuration backend (see file header). */
-    class PlcConfigHandler : public ConfigHandler {
+    class PlcParamHandler : public ParamHandler {
 
         /** @brief PLC link the payload is read from / staged to (never null in a
          *  live firmware; guarded anyway). */
@@ -30,8 +30,8 @@ namespace Botanik { namespace Cfg {
         /** @name Lifecycle
          *  @{ */
 
-        PlcConfigHandler(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger)
-            : ConfigHandler(logger), _ctx(ctx) {}
+        PlcParamHandler(PlcIO::PlcSyncContext* ctx, Logs::Logger* logger)
+            : ParamHandler(logger), _ctx(ctx) {}
 
         /** @} */
 
@@ -47,7 +47,7 @@ namespace Botanik { namespace Cfg {
          *  parameters: editing one is how the user commits its group (the PLC
          *  latches config when the serial field advances). @return false on
          *  invalid input, a read-only parameter, or no link. */
-        bool set(const ConfigParam& p, const char* text) override {
+        bool set(const Param& p, const char* text) override {
             void* mirror = (_ctx != nullptr) ? _ctx->input_data_bytes() : nullptr;
             if (mirror == nullptr) return false;
             if (!write_value(p, text, mirror, p.field.in_offset)) return false;
@@ -60,4 +60,4 @@ namespace Botanik { namespace Cfg {
 
 }}
 
-#endif // LIBBOTANIK_CORE_CONFIG_PLC_H
+#endif // LIBBOTANIK_CORE_PARAMS_PLC_H

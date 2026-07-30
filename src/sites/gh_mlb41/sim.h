@@ -235,13 +235,13 @@ inline void fill_greenhouse_output(PlcOutputData_t* o, const PlcInputData_t* in,
     // page), and mirrors the whole block into the output the params page and the
     // config-driven Components read.
     static GreenhouseConfig_t cfg;
-    static bool cfg_seeded = false;
+    static bool params_seeded = false;
     auto set_host = [](char* dst, const char* s) {
         std::strncpy(dst, s, GreenhouseConfig_t::STRLEN - 1);
         dst[GreenhouseConfig_t::STRLEN - 1] = '\0';
     };
-    if (!cfg_seeded) {
-        cfg_seeded = true;
+    if (!params_seeded) {
+        params_seeded = true;
         memset(&cfg, 0, sizeof(cfg));
         cfg.net = 1; cfg.net_dhcp = 1;                  // DHCP; static empty
         set_host(cfg.net_dns1, "192.168.1.1");
