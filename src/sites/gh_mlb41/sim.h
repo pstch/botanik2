@@ -1,16 +1,19 @@
-// REVIEW_35: TODO
-#ifndef SITES_GH_MLB41_SIM_H
-#define SITES_GH_MLB41_SIM_H
+#ifndef SITE_SIM_H
+#define SITE_SIM_H
 
 /**
  * @file sim.h
- * @brief gh_mlb41 simulator-only mock PLC: data animator + timeout dilation.
+ * @brief HAND-WRITTEN - the gh_mlb41 mock PLC: the data animator, the emulator
+ *        instance the simulator runs, and the timeout dilation.
  *
- * Header-only; the whole body is guarded by TARGET_SIMULATOR, so it's a
- * near-empty include on the OPTA / Arduino-library build (where the real
- * coprocessor plays this role). Included only via site.h, after the payload.
- * The floats here only shape the mock signal; the payload keeps the PLC integer
- * conventions and never carries a float.
+ * Not generated: how a greenhouse *behaves* is judgement, not schema, so this
+ * file is yours. What matters for the interface is that it animates THIS site's
+ * generated payload, so the simulator exercises the same layout, tables and
+ * offsets the hardware will.
+ *
+ * Header-only; the whole body is guarded by TARGET_SIMULATOR, so it is a
+ * near-empty include on the OPTA / Arduino build, where the real M4 coprocessor
+ * plays this role. The floats here only shape the mock signal.
  */
 
 #ifdef TARGET_SIMULATOR
@@ -22,7 +25,9 @@
 
 #include "libbotanik.h"
 #include "libbotanik/alarms/alarms.h"   // alarm_bit / alarm_index, ALARM_BITS
-#include "sites/gh_mlb41/alarms.h"      // g_alarms - the one alarm definition
+#include "botanik_sim/emulator.h"       // PlcEmulator + start_emulator_thread
+
+#include "alarms.h"                     // g_alarms - the one alarm definition
 
 /**
  * @brief Grow a base PLC link timeout (ms) by time-dilation factor S, so jitter
@@ -39,7 +44,7 @@ inline uint32_t plc_dilated_timeout(uint32_t base_ms) {
     return scaled >= cap ? (uint32_t)cap : (uint32_t)scaled;
 }
 
-namespace {
+namespace Site {
 
 /// PRNG draw in [0, 1). Fixed seed keeps runs reproducible.
 inline float frand() {
@@ -74,7 +79,7 @@ inline uint64_t abit(const char* code) {
  * Called from the emulator thread (~1 Hz); static state lets values settle and
  * only drift now and then. @p now_ms is the uptime in milliseconds.
  */
-inline void fill_greenhouse_output(PlcOutputData_t* o, const PlcInputData_t* in,
+inline void fill_output(PlcOutputData_t* o, const PlcInputData_t* in,
                                    uint32_t now_ms) {
     // seconds - drives irrigation walk
     const float t = (float)now_ms / 1000.0f;
@@ -285,8 +290,44 @@ inline void fill_greenhouse_output(PlcOutputData_t* o, const PlcInputData_t* in,
     o->config = cfg;
 }
 
-}  // namespace
+// ---------------------------------------------------------------------------
+// The site's mock PLC instance
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief The mock PLC coprocessor for this site: it owns the shared region and
+ * animates it with fill_output() above.
+ *
+ * The site owns this, not the harness, so the emulator is instantiated against
+ * THIS site's generated payload types - the simulator therefore runs the real
+ * generated code, with the same struct layout and table offsets the hardware
+ * uses. On OPTA the M4 coprocessor plays this role and none of this compiles.
+ *
+ * The harness allocates one of these (as a static - the region is large and must
+ * outlive the firmware), hands the two region pointers to the firmware, and
+ * calls start() at the right point in its own bring-up order: after setup(), and
+ * before it locks process memory (mlockall(MCL_FUTURE) would otherwise trip
+ * RLIMIT_MEMLOCK on the new thread's stack).
+ */
+class MockPlc {
+    Botanik::PlcIO::PlcInput<PlcInputData_t>   _in  {};
+    Botanik::PlcIO::PlcOutput<PlcOutputData_t> _out {};
+
+public:
+    /** @brief Host -> PLC region (the firmware writes, the mock reads). */
+    Botanik::PlcIO::PlcInput<PlcInputData_t>*   input()  { return &_in; }
+    /** @brief PLC -> host region (the mock writes, the firmware reads). */
+    Botanik::PlcIO::PlcOutput<PlcOutputData_t>* output() { return &_out; }
+
+    /** @brief Spawn the emulator thread driving the shared-memory protocol from
+     *  the PLC's side, animating the payload through fill_output(). */
+    void start(Botanik::Logs::Logger* logger) {
+        Botanik::PlcIO::start_emulator_thread(&_in, &_out, &fill_output, logger);
+    }
+};
+
+}  // namespace Site
 
 #endif // TARGET_SIMULATOR
 
-#endif // SITES_GH_MLB41_SIM_H
+#endif // SITE_SIM_H

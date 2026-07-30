@@ -67,6 +67,11 @@ namespace Botanik { namespace Pages {
          *  values in a fixed field so columns stay put.
          *  @{ */
         static constexpr uint8_t  LEFT_MAX  = 5,  RIGHT_MAX = 8;
+        // Published as Config::HOME_FIELDS_MAX for generated home-field tables to
+        // static_assert against: extras past the two columns are silently ignored
+        // by _slot(), so a site must be able to catch that at build time.
+        static_assert(LEFT_MAX + RIGHT_MAX == Config::HOME_FIELDS_MAX,
+                      "Config::HOME_FIELDS_MAX must track the two columns' capacity");
         static constexpr uint16_t LEFT_TOP  = 10, RIGHT_TOP = 7;
         static constexpr uint16_t L_LBL = 2,  L_VAL = 15, L_W = 22;
         static constexpr uint16_t R_LBL = 42, R_VAL = 55, R_W = 22;

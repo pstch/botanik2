@@ -31,12 +31,19 @@
 #include "libbotanik/utils/text.h"     // compare_str
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/core/component.h"      // Component (first-step announce)
+#include "libbotanik_config.h"
 #include "libbotanik/alarms/publisher.h" // Publisher (notifier transport seam)
 
 namespace Botanik { namespace Alarms {
 
     /** @brief Maximum number of alarm conditions (site + platform). */
     static constexpr uint8_t ALARM_BITS = 64;
+
+    // The site-facing half of this number is published as Config::SITE_ALARMS_MAX
+    // for generated alarm tables to static_assert against. Keep the two agreed:
+    // a site that overruns its share is clamped here, silently losing the tail.
+    static_assert(ALARM_BITS == Config::ALARM_SLOTS,
+                  "Config::ALARM_SLOTS must track Alarms::ALARM_BITS");
 
     /** @brief 1 << id as a 64-bit mask. The model no longer uses a bitset; this
      *  helps the console layer build a compact per-frame change signature over

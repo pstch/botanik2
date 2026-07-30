@@ -27,4 +27,11 @@ namespace Botanik { namespace Alarms {
         (uint8_t)(sizeof(PLATFORM_ALARMS) / sizeof(PLATFORM_ALARMS[0]));
 #pragma GCC diagnostic pop
 
+    // Config::SITE_ALARMS_MAX hands a site whatever this table does not use, so
+    // the budget must actually cover it - otherwise the model would clamp a
+    // legal site table and silently drop its tail.
+    static_assert(sizeof(PLATFORM_ALARMS) / sizeof(PLATFORM_ALARMS[0])
+                      <= Config::PLATFORM_ALARMS_RESERVED,
+                  "PLATFORM_ALARMS outgrew Config::PLATFORM_ALARMS_RESERVED");
+
 }}

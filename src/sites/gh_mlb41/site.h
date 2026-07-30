@@ -1,472 +1,36 @@
-// REVIEW_35: TODO
-#ifndef SITES_GH_MLB41_SITE_H
-#define SITES_GH_MLB41_SITE_H
+#ifndef SITE_H
+#define SITE_H
 
 /**
  * @file site.h
- * @brief gh_mlb41 site: the PLC payload, the firmware subclass, and the
- *        uniform handle a target harness builds against.
+ * @brief HAND-WRITTEN - the gh_mlb41 firmware binding, and the uniform handle
+ *        every target harness builds against.
  *
- * A target selects a site with `-DBOTANIK_SITE=<name>`; CMake points
- * BOTANIK_SITE_HEADER at this file, so the sim harness and OPTA firmware
- * include it without naming the site. Each site exposes the same surface:
- *   - `BotanikSite`           - the firmware type to instantiate (a
- *                               BotanikFirmware<>).
- *   - `PlcInput/OutputData_t` - the site PLC payload (shared verbatim by the
- *                               mock PLC and the OPTA firmware).
- *   - `fill_greenhouse_output()` / `plc_dilated_timeout()` - the sim-only mock
- *                               PLC data animator + timeout dilation (sim.h).
+ * Not generated: this is the one file you own and the generator never
+ * overwrites. It is deliberately tiny, because a site is data. Everything
+ * declarative lives in the generated files this pulls in through descriptor.h:
  *
- * Single source of truth for the greenhouse: the payload, the declarative tables
- * (status variables, shell commands, and the alarm table in alarms.h), the
- * @ref g_site SiteDescriptor, and the thin GreenhouseMLB41 binding. The base
- * (BotanikFirmware) owns every page and wires the tables - the site declares no
- * pages. Config overrides stay in config.h (CMake includes it before the library
- * defaults). See firmware.h for the extension model.
+ *   payload.h      GENERATED  the PLC payload + its layout asserts
+ *   status.h       GENERATED  status variables + home-screen readings
+ *   params.h       GENERATED  config parameters
+ *   alarms.h       GENERATED  alarm conditions
+ *   descriptor.h   GENERATED  the SiteDescriptor bundling them
+ *   commands.h     hand-written  shell commands (code, not schema)
+ *   sim.h          hand-written  the mock PLC: animator + emulator instance
+ *
+ * Every site exposes the same surface, so a harness never names the site:
+ *   - `BotanikSite`           the firmware type to instantiate
+ *   - `PlcInput/OutputData_t` the PLC payload (from payload.h)
+ *   - `Site::MockPlc`         the simulator's mock coprocessor (sim.h)
+ *   - `plc_dilated_timeout()` sim-only timeout dilation (sim.h)
+ *
+ * A target selects a site by directory (-DBOTANIK_SITE_DIR, or -DBOTANIK_SITE
+ * for one in the library tree); CMake points BOTANIK_SITE_HEADER at this file.
+ * All includes here are RELATIVE, so this directory works unchanged whether it
+ * lives in the library tree or in a consumer's project.
  */
 
-#include <cstddef>  // offsetof - the telemetry scalar table
-#include <cstdint>
-#include <cstdio>   // snprintf - the example site command
-
-#include "libbotanik/core/firmware.h"
-#include "libbotanik/shell/shell.h"   // ShellCommand - the site command table
-// The CONFIG / MONITOR / HOME pages are base-owned now (BotanikFirmware); a
-// site supplies only the declarative tables below (see SiteDescriptor).
-
-// ===========================================================================
-// PLC payload (shared verbatim by the mock PLC and the OPTA firmware)
-// ===========================================================================
-//
-// On OPTA PlcOutputData_t mirrors the PLC IDE's generated type, verified with:
-//   static_assert(sizeof(PLCSharedVarsInput_t)   == sizeof(PlcIO::PlcInput<PlcInputData_t>));
-//   static_assert(alignof(PLCSharedVarsOutput_t) == alignof(PlcIO::PlcOutput<PlcOutputData_t>));
-// PLC-style integer conventions (no floats on the wire): millivolts,
-// centi-degrees C, centi-percent humidity, percent actuator levels, discrete
-// states as enums / flags.
-
-/** @name PLC payload
- *  @{ */
-
-/** @brief Config parameters (network / NTP / MQTT / geo), embedded verbatim in
- *  both the input payload (host stages edits at in_offset) and the output
- *  payload (PLC reflects the live values at out_offset), so a parameter's
- *  in_offset and out_offset are genuinely distinct. Each group's commit serial
- *  (@c net / @c ntp / @c mqtt / @c geo) is an ordinary u32 field the user bumps
- *  on the params page to commit that group's staged edits; the PLC latches the
- *  group and reflects the serial back, which the consuming Component watches.
- *  Ordered widest-first (and _pad'd) so the sub-struct - and both payloads that
- *  embed it - stay 4-byte-aligned and padding-free. */
-struct GreenhouseConfig_t {
-    static const int STRLEN = (int)Botanik::Config::PLC_HOST_STR_LEN;
-    // 4-byte: geo values + the per-group commit serials
-    float    geo_latitude;       ///< site latitude, decimal degrees
-    float    geo_longitude;      ///< site longitude, decimal degrees
-    uint32_t net;                ///< network group commit serial (bump to apply)
-    uint32_t ntp;                ///< NTP group commit serial
-    uint32_t mqtt;               ///< MQTT group commit serial
-    uint32_t geo;                ///< geo group commit serial
-    // 2-byte
-    uint16_t ntp_poll_s;         ///< NTP poll interval, s (0 = firmware default)
-    uint16_t mqtt_port;          ///< broker TCP port (0 = firmware default)
-    uint16_t mqtt_keepalive_s;   ///< MQTT keepalive, s (0 = firmware default)
-    // 1-byte flags
-    uint8_t  net_dhcp;           ///< DHCP (1) or static IP (0)
-    uint8_t  ntp_enabled;        ///< enable NTP time sync
-    uint8_t  mqtt_enabled;       ///< enable MQTT publishing
-    uint8_t  _pad[3];            ///< align the string block (and total) to 4
-    // strings (each PLC_HOST_STR_LEN, a 4-byte multiple)
-    char     net_ip[STRLEN];     ///< static IPv4, used when net_dhcp == 0
-    char     net_netmask[STRLEN];
-    char     net_gateway[STRLEN];
-    char     net_dns1[STRLEN];
-    char     net_dns2[STRLEN];   ///< empty = none
-    char     ntp_server1[STRLEN];
-    char     ntp_server2[STRLEN];///< empty = none
-    char     mqtt_broker[STRLEN];
-};
-
-// Host -> PLC payload: the config write-back mirror (host stages edited config
-// values here; the PLC latches a group when its serial field bumps).
-struct PlcInputData_t {
-    GreenhouseConfig_t config;
-};
-static_assert(sizeof(PlcInputData_t) % 4 == 0, "PlcInputData_t must be 4-byte aligned");
-
-// Each discrete status wraps an `enum Value` plus a static str() converter,
-// giving a namespace (UpsStatus::ONLINE) and the str() C++ enums can't carry.
-// Payload fields stay raw uint8_t for the wire; str() takes that raw value
-// (UpsStatus::str(d->ups_status)).
-
-/** @brief UPS operating state. */
-struct UpsStatus {
-    enum Value : uint8_t {
-        OFFLINE    = 0,
-        ONLINE     = 1,
-        ON_BATTERY = 2,
-        FAULT      = 3,
-    };
-    /** @brief Short display string for a raw ups_status payload value. */
-    static const char* str(uint8_t s) {
-        switch (s) {
-            case ONLINE:     return "ONLINE";
-            case ON_BATTERY: return "BATTERY";
-            case FAULT:      return "FAULT";
-            default:         return "OFFLINE";
-        }
-    }
-};
-
-/** @brief Irrigation tray cycle phase. */
-struct TrayStatus {
-    enum Value : uint8_t {
-        IDLE     = 0,
-        FILLING  = 1,
-        SOAKING  = 2,
-        DRAINING = 3,
-    };
-    /** @brief Short display string for a raw tray_status payload value. */
-    static const char* str(uint8_t s) {
-        switch (s) {
-            case FILLING:  return "FILLING";
-            case SOAKING:  return "SOAKING";
-            case DRAINING: return "DRAINING";
-            default:       return "IDLE";
-        }
-    }
-};
-
-/** @brief Network link state. */
-struct NetStatus {
-    enum Value : uint8_t {
-        DOWN   = 0,   ///< no link
-        LINK   = 1,   ///< L2 up, no address yet
-        ONLINE = 2,   ///< up with an address
-    };
-    /** @brief Short display string for a raw net_status payload value. */
-    static const char* str(uint8_t s) {
-        switch (s) {
-            case ONLINE: return "ONLINE";
-            case LINK:   return "LINK";
-            default:     return "DOWN";
-        }
-    }
-};
-
-/**
- * @brief Greenhouse PLC output payload (sensors + actuator feedback).
- *
- * Padded to a 4-byte multiple and ordered widest-first so the combined
- * PlcOutput<> layout has no implicit padding (matches the byte-for-byte
- * contract in plcio/vars.h).
- */
-struct PlcOutputData_t {
-    // 4-byte members first (floats in native units + the one u32 counter), then
-    // 2-byte, then the u8 flags/levels - widest-first so the combined PlcOutput<>
-    // has no implicit padding. Real-valued quantities are floats (V / Hz / degC /
-    // %), not scaled integers. Each alarm is an individual boolean near the end.
-    // Power (float volts / Hz)
-    float    grid_ac_v;          ///< mains AC RMS voltage, V
-    float    dc_bus_v;           ///< DC system bus voltage, V
-    float    battery_v;          ///< battery bank voltage, V
-    float    generator_v;        ///< generator output voltage, V
-    float    grid_freq_hz;       ///< mains frequency, Hz
-    // Climate (float, one reading per height zone)
-    float    ext_temp_c;         ///< exterior air temp, degC
-    float    floor_temp_c;       ///< floor-level temp, degC
-    float    ceil_temp_c;        ///< ceiling-level temp, degC
-    float    ext_rh_pct;         ///< exterior relative humidity, %
-    float    floor_rh_pct;       ///< floor relative humidity, %
-    float    ceil_rh_pct;        ///< ceiling relative humidity, %
-    /** Seconds since rain was last detected (uint32: well past the uint16 ~18h
-     *  ceiling, up to ~136 years). */
-    uint32_t rain_age_s;
-    // 2-byte counters
-    uint16_t wind_peak_kmh;      ///< 15-minute peak wind speed, km/h
-    uint16_t water_in_l;         ///< cumulative water input, liters
-    uint16_t water_out_lpm;      ///< current drain flow, liters/minute
-    uint16_t sunrise_min;        ///< sunrise, minutes since local midnight
-    uint16_t sunset_min;         ///< sunset, minutes since local midnight
-    int16_t  ntp_offset_ms;      ///< NTP clock offset, milliseconds (signed)
-    // Irrigation / actuators / status (u8)
-    uint8_t  current_tray;       ///< active tray (1..N), 0 = none
-    uint8_t  tray_status;        ///< TrayStatus
-    // Actuators (levels in percent)
-    uint8_t  window_a;           ///< roof window A opening, percent
-    uint8_t  window_b;           ///< roof window B opening, percent
-    uint8_t  window_c;           ///< roof window C opening, percent
-    uint8_t  window_d;           ///< roof window D opening, percent
-    uint8_t  blower_a;           ///< blower A level, percent
-    uint8_t  blower_b;           ///< blower B level, percent
-    uint8_t  blower_c;           ///< blower C level, percent
-    uint8_t  blower_d;           ///< blower D level, percent
-    uint8_t  extractor_a;        ///< air extractor A level, percent
-    uint8_t  extractor_b;        ///< air extractor B level, percent
-    uint8_t  thermal_screen;     ///< thermal screen closure, percent
-    // Discrete status / monitored autonomous systems
-    uint8_t  ups_status;         ///< UpsStatus
-    uint8_t  dc_bus_a_ok;        ///< DC rectifier A healthy, boolean
-    uint8_t  dc_bus_b_ok;        ///< DC rectifier B healthy, boolean
-    uint8_t  rain_detected;      ///< rain sensor, boolean
-    uint8_t  cooling_on;         ///< evaporative cooling (humidifier) on, bool
-    uint8_t  generator_running;  ///< emergency generator, boolean (monitored)
-    uint8_t  heat_blower_on;     ///< emergency heat blower, boolean (monitored)
-    uint8_t  heatpump_on;        ///< heatpump, boolean (monitored)
-    uint8_t  net_status;         ///< NetStatus (down / link / online)
-    uint8_t  ntp_synced;         ///< NTP disciplined the RTC, boolean
-    // Per-alarm booleans (1 = active), one per g_alarms row in table order; the
-    // row index is the alarm bit, and g_alarms carries each field's offset so
-    // AlarmReader folds them into the raw bitset. On OPTA these mirror the PLC
-    // program's alarm outputs.
-    uint8_t  alarm_ac_grid;      ///< AC_GRID
-    uint8_t  alarm_dc_ps1;       ///< DC_PS1
-    uint8_t  alarm_gen_flt;      ///< GEN_FLT
-    uint8_t  alarm_ac_local;     ///< AC_LOCAL
-    uint8_t  alarm_dc_ps2;       ///< DC_PS2
-    uint8_t  alarm_dc_ups;       ///< DC_UPS
-    uint8_t  alarm_dc_local;     ///< DC_LOCAL
-    uint8_t  alarm_gen_batt;     ///< GEN_BATT
-    uint8_t  alarm_plc_flt;      ///< PLC_FLT
-    uint8_t  alarm_net_flt;      ///< NET_FLT
-    uint8_t  alarm_ntp_tim;      ///< NTP_TIM
-    uint8_t  alarm_act_flt;      ///< ACT_FLT
-    uint8_t  alarm_sns_flt;      ///< SNS_FLT
-    uint8_t  alarm_too_hot;      ///< TOO_HOT
-    uint8_t  alarm_too_cold;     ///< TOO_COLD
-    uint8_t  alarm_too_hum;      ///< TOO_HUM
-    uint8_t  alarm_tmp_str;      ///< TMP_STR
-    uint8_t  alarm_wtr_lk;       ///< WTR_LK
-    uint8_t  alarm_wtr_bar;      ///< WTR_BAR
-    uint8_t  alarm_wtr_clog;     ///< WTR_CLOG
-    uint8_t  alarm_io_drop;      ///< IO_DROP
-    uint8_t  alarm_log_fld;      ///< LOG_FLD
-    uint8_t  alarm_wh_storm;     ///< WH_STORM
-    uint8_t  _reserved[2];       ///< pad the alarm block to a 4-byte multiple
-    // Config parameters + per-group commit serials, reflected by the PLC. The
-    // params page reads these (out_offset); a commit serial bumps here after the
-    // PLC applies a staged edit, which the consuming Component watches.
-    GreenhouseConfig_t config;
-};
-static_assert(sizeof(PlcOutputData_t) % 4 == 0, "PlcOutputData_t must be 4-byte aligned");
-
-/** @} */
-
-// The alarm table builds on the payload above (offsetof), so it is included
-// after it.
-#include "sites/gh_mlb41/alarms.h"
-
-// ===========================================================================
-// Site shell command (example extension via the register_commands() hook)
-// ===========================================================================
-
-namespace {
-
-/** @brief Example site command: a one-line greenhouse summary from live PLC
- *  data.
- *
- *  Shows the extension model (firmware.h): the ctx passed to set_commands()
- *  is the const PlcOutputData_t* the command reads. */
-inline void cmd_gh(Botanik::Shell::ShellWriter& out, const char*, uint16_t, void* ctx) {
-    const PlcOutputData_t* d = static_cast<const PlcOutputData_t*>(ctx);
-    char buf[96];
-    int n;
-    if (d == nullptr)
-        n = snprintf(buf, sizeof(buf), "%s: no PLC data", Botanik::Config::SITE_NAME);
-    else if (d->current_tray)
-        n = snprintf(buf, sizeof(buf), "%s: tray %u %s, UPS %s, net %s",
-                     Botanik::Config::SITE_NAME, (unsigned)d->current_tray,
-                     TrayStatus::str(d->tray_status), UpsStatus::str(d->ups_status),
-                     NetStatus::str(d->net_status));
-    else
-        n = snprintf(buf, sizeof(buf), "%s: idle, UPS %s, net %s",
-                     Botanik::Config::SITE_NAME, UpsStatus::str(d->ups_status),
-                     NetStatus::str(d->net_status));
-    if (n > 0) out.write(buf, (size_t)n);
-}
-
-/** @brief gh_mlb41 shell commands, registered after the built-ins (can't
- *  shadow them). */
-const Botanik::Shell::ShellCommand g_site_commands[] = {
-    { "gh", "greenhouse summary (live PLC data)", &cmd_gh },
-};
-
-// Site status-variable table: the live PLC payload grouped by domain, read
-// generically by MQTT telemetry, the shell `status` command, and the MONITOR
-// page. Each group is a small ScalarField[] published under
-// "<prefix>/telemetry/<group>/<leaf>",
-// alongside the library "system" set; MqttSender reads + renders every field
-// generically off the payload (no per-field code). A field is a leaf name, the
-// payload offset, a ScalarType (read width/sign), and for fixed-point a divisor
-// + decimals (raw / divisor, centi/milli units); a SCALAR_ENUM field renders its
-// raw byte through a status str(). Leaves drop the group prefix (the topic
-// already carries it: ac_supply/grid_v, not ac_supply/grid_ac_v).
-using namespace Botanik;
-
-// Trailing fields per row: str, description, unit, notes. Notes are optional
-// (left off on most rows). Silence the pedantic missing-field-initializer note
-// (str/notes unset on many rows).
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-
-// Read-only status variables: out_offset = payload field, in_offset = -1. Real
-// values are SCALAR_F32 in native units. Fields per row: name, out_offset,
-// in_offset, type, digits, str, unit, desc, notes.
-#define SO(f) (int16_t)offsetof(PlcOutputData_t, f)
-const ScalarField g_ac_supply[] = {
-    { "grid_v",            SO(grid_ac_v),         -1, SCALAR_F32, 1,  nullptr,         "V",  "Mains AC voltage",   "" },
-    { "grid_freq_hz",      SO(grid_freq_hz),      -1, SCALAR_F32, 2,  nullptr,         "Hz", "Mains frequency",    "" },
-    { "generator_v",       SO(generator_v),       -1, SCALAR_F32, 1,  nullptr,         "V",  "Generator voltage",  "" },
-    { "generator_running", SO(generator_running), -1, SCALAR_U8, 0,   nullptr,         "",   "Generator running",  "" },
-    { "ups",               SO(ups_status),        -1, SCALAR_ENUM, 0, &UpsStatus::str, "",   "UPS state", "OFFLINE/ONLINE/BATTERY/FAULT" },
-};
-
-const ScalarField g_dc_supply[] = {
-    { "bus_v",          SO(dc_bus_v),   -1, SCALAR_F32, 1, nullptr, "V", "DC bus voltage",       "" },
-    { "battery_v",      SO(battery_v),  -1, SCALAR_F32, 1, nullptr, "V", "Battery bank voltage", "" },
-    { "rectifier_a_ok", SO(dc_bus_a_ok),-1, SCALAR_U8, 0,  nullptr, "",  "Rectifier A healthy",  "" },
-    { "rectifier_b_ok", SO(dc_bus_b_ok),-1, SCALAR_U8, 0,  nullptr, "",  "Rectifier B healthy",  "" },
-};
-
-const ScalarField g_environment[] = {
-    { "ext_temp_c",    SO(ext_temp_c),   -1, SCALAR_F32, 1, nullptr, "C",    "Exterior temperature",      "" },
-    { "floor_temp_c",  SO(floor_temp_c), -1, SCALAR_F32, 1, nullptr, "C",    "Floor-level temperature",   "" },
-    { "ceil_temp_c",   SO(ceil_temp_c),  -1, SCALAR_F32, 1, nullptr, "C",    "Ceiling-level temperature", "" },
-    { "ext_rh_pct",    SO(ext_rh_pct),   -1, SCALAR_F32, 1, nullptr, "%",    "Exterior humidity",         "" },
-    { "floor_rh_pct",  SO(floor_rh_pct), -1, SCALAR_F32, 1, nullptr, "%",    "Floor humidity",            "" },
-    { "ceil_rh_pct",   SO(ceil_rh_pct),  -1, SCALAR_F32, 1, nullptr, "%",    "Ceiling humidity",          "" },
-    { "wind_peak_kmh", SO(wind_peak_kmh),-1, SCALAR_U16, 0, nullptr, "km/h", "15-min peak wind",          "" },
-    { "rain_age_s",    SO(rain_age_s),   -1, SCALAR_U32, 0, nullptr, "s",    "Time since last rain", "0 while raining" },
-    { "rain_detected", SO(rain_detected),-1, SCALAR_U8, 0,  nullptr, "",     "Rain sensor",               "" },
-};
-
-const ScalarField g_irrigation[] = {
-    { "water_in_l",    SO(water_in_l),   -1, SCALAR_U16, 0,  nullptr, "L",     "Cumulative water input", "" },
-    { "water_out_lpm", SO(water_out_lpm),-1, SCALAR_U16, 0,  nullptr, "L/min", "Current drain flow",     "" },
-    { "current_tray",  SO(current_tray), -1, SCALAR_U8, 0,   nullptr, "",      "Active tray",            "0 = none" },
-    { "tray_status",   SO(tray_status),  -1, SCALAR_ENUM, 0, &TrayStatus::str, "", "Tray cycle phase", "IDLE/FILLING/SOAKING/DRAINING" },
-};
-
-const ScalarField g_ventilation[] = {
-    { "window_a",    SO(window_a),    -1, SCALAR_U8, 0, nullptr, "%", "Roof window A opening", "" },
-    { "window_b",    SO(window_b),    -1, SCALAR_U8, 0, nullptr, "%", "Roof window B opening", "" },
-    { "window_c",    SO(window_c),    -1, SCALAR_U8, 0, nullptr, "%", "Roof window C opening", "" },
-    { "window_d",    SO(window_d),    -1, SCALAR_U8, 0, nullptr, "%", "Roof window D opening", "" },
-    { "blower_a",    SO(blower_a),    -1, SCALAR_U8, 0, nullptr, "%", "Blower A level",        "" },
-    { "blower_b",    SO(blower_b),    -1, SCALAR_U8, 0, nullptr, "%", "Blower B level",        "" },
-    { "blower_c",    SO(blower_c),    -1, SCALAR_U8, 0, nullptr, "%", "Blower C level",        "" },
-    { "blower_d",    SO(blower_d),    -1, SCALAR_U8, 0, nullptr, "%", "Blower D level",        "" },
-    { "extractor_a", SO(extractor_a), -1, SCALAR_U8, 0, nullptr, "%", "Air extractor A level", "" },
-    { "extractor_b", SO(extractor_b), -1, SCALAR_U8, 0, nullptr, "%", "Air extractor B level", "" },
-};
-
-const ScalarField g_climate[] = {
-    { "heatpump",       SO(heatpump_on),    -1, SCALAR_U8, 0, nullptr, "",  "Heatpump",               "" },
-    { "heat_blower",    SO(heat_blower_on), -1, SCALAR_U8, 0, nullptr, "",  "Emergency heat blower",  "" },
-    { "cooling",        SO(cooling_on),     -1, SCALAR_U8, 0, nullptr, "",  "Evaporative cooling",    "" },
-    { "thermal_screen", SO(thermal_screen), -1, SCALAR_U8, 0, nullptr, "%", "Thermal screen closure", "" },
-};
-
-const ScalarField g_system[] = {
-    { "net_status",    SO(net_status),    -1, SCALAR_ENUM, 0, &NetStatus::str, "",    "Network link state", "DOWN/LINK/ONLINE" },
-    { "ntp_synced",    SO(ntp_synced),    -1, SCALAR_U8, 0,   nullptr, "",    "NTP disciplined the RTC", "" },
-    { "ntp_offset_ms", SO(ntp_offset_ms), -1, SCALAR_I16, 0,  nullptr, "ms",  "NTP clock offset",        "" },
-    { "sunrise_min",   SO(sunrise_min),   -1, SCALAR_U16, 0,  nullptr, "min", "Sunrise",                 "" },
-    { "sunset_min",    SO(sunset_min),    -1, SCALAR_U16, 0,  nullptr, "min", "Sunset",                  "" },
-};
-
-const ScalarGroup g_telemetry_groups[] = {
-    { "ac_supply",   g_ac_supply,   sizeof(g_ac_supply)   / sizeof(g_ac_supply[0])   },
-    { "dc_supply",   g_dc_supply,   sizeof(g_dc_supply)   / sizeof(g_dc_supply[0])   },
-    { "environment", g_environment, sizeof(g_environment) / sizeof(g_environment[0]) },
-    { "irrigation",  g_irrigation,  sizeof(g_irrigation)  / sizeof(g_irrigation[0])  },
-    { "ventilation", g_ventilation, sizeof(g_ventilation) / sizeof(g_ventilation[0]) },
-    { "climate",     g_climate,     sizeof(g_climate)     / sizeof(g_climate[0])     },
-    { "system",      g_system,      sizeof(g_system)      / sizeof(g_system[0])      },
-};
-const uint8_t g_telemetry_group_count =
-    (uint8_t)(sizeof(g_telemetry_groups) / sizeof(g_telemetry_groups[0]));
-
-// Home-screen readings: label + status variable. The HomePage lays these out in
-// two columns, up to 5 left then 8 right (13 total). Inner ScalarField fields:
-// name, out_offset, in_offset (-1), type, digits, str, unit.
-const HomeField g_home_fields[] = {
-    // left column (5)
-    { "Temp",      { "", SO(ext_temp_c),   -1, SCALAR_F32, 1, nullptr, "C" } },
-    { "Humidity",  { "", SO(ext_rh_pct),   -1, SCALAR_F32, 1, nullptr, "%" } },
-    { "Wind",      { "", SO(wind_peak_kmh),-1, SCALAR_U16, 0, nullptr, "km/h" } },
-    { "Water in",  { "", SO(water_in_l),   -1, SCALAR_U16, 0, nullptr, "L" } },
-    { "Tray",      { "", SO(current_tray), -1, SCALAR_U8, 0,  nullptr, "" } },
-    // right column (8)
-    { "Grid",      { "", SO(grid_ac_v),  -1, SCALAR_F32, 1,  nullptr,         "V" } },
-    { "DC bus",    { "", SO(dc_bus_v),   -1, SCALAR_F32, 1,  nullptr,         "V" } },
-    { "Battery",   { "", SO(battery_v),  -1, SCALAR_F32, 1,  nullptr,         "V" } },
-    { "UPS",       { "", SO(ups_status), -1, SCALAR_ENUM, 0, &UpsStatus::str, "" } },
-    { "Network",   { "", SO(net_status), -1, SCALAR_ENUM, 0, &NetStatus::str, "" } },
-    { "NTP sync",  { "", SO(ntp_synced), -1, SCALAR_U8, 0,   nullptr,         "" } },
-    { "Cooling",   { "", SO(cooling_on), -1, SCALAR_U8, 0,   nullptr,         "" } },
-    { "Heatpump",  { "", SO(heatpump_on),-1, SCALAR_U8, 0,   nullptr,         "" } },
-};
-const uint8_t g_home_field_count = (uint8_t)(sizeof(g_home_fields) / sizeof(g_home_fields[0]));
-#undef SO
-#pragma GCC diagnostic pop
-
-// Config parameters: network / NTP / MQTT / geo, plus each group's commit
-// serial. Declared over the site payload - out_offset in PlcOutputData_t (read
-// the live value), in_offset in PlcInputData_t (stage an edit) - the two are
-// distinct layouts. The group name doubles as the name of that group's commit
-// serial parameter: editing net_ip stages it, editing "net" commits the group.
-// Each row pairs a ScalarField (read/display) with a ParamMeta (edit):
-//   field {name, out_offset, in_offset, type, digits, str, unit, desc, notes}
-//   meta  {def, min, max, len, kind, group}
-#define OO(f) (int16_t)offsetof(PlcOutputData_t, config.f)
-#define IO(f) (int16_t)offsetof(PlcInputData_t,  config.f)
-#define CAP   (uint16_t)GreenhouseConfig_t::STRLEN
-const Params::Param g_params[] = {
-    // -- network --
-    {{"net",          OO(net),           IO(net),           SCALAR_U32,    0, nullptr, "",    "Network config commit", "bump to apply net edits"}, {"0", 0, 1000000000, 0, Params::STR_NONE,     "net"}},
-    {{"net_dhcp",     OO(net_dhcp),      IO(net_dhcp),      SCALAR_U8,     0, nullptr, "",    "DHCP (1) or static IP (0)", ""},              {"1",  0, 1,      0,   Params::STR_NONE,     "net"}},
-    {{"net_ip",       OO(net_ip),        IO(net_ip),        SCALAR_STRING, 0, nullptr, "",    "Static IPv4 address", "used when DHCP off"},  {"",   0, 0,      CAP, Params::STR_IPV4,     "net"}},
-    {{"net_netmask",  OO(net_netmask),   IO(net_netmask),   SCALAR_STRING, 0, nullptr, "",    "Static subnet mask",  "used when DHCP off"},  {"",   0, 0,      CAP, Params::STR_IPV4,     "net"}},
-    {{"net_gateway",  OO(net_gateway),   IO(net_gateway),   SCALAR_STRING, 0, nullptr, "",    "Default gateway",     "used when DHCP off"},  {"",   0, 0,      CAP, Params::STR_IPV4,     "net"}},
-    {{"net_dns1",     OO(net_dns1),      IO(net_dns1),      SCALAR_STRING, 0, nullptr, "",    "Primary DNS server",  ""},                    {"",   0, 0,      CAP, Params::STR_IPV4,     "net"}},
-    {{"net_dns2",     OO(net_dns2),      IO(net_dns2),      SCALAR_STRING, 0, nullptr, "",    "Secondary DNS server","empty = none"},        {"",   0, 0,      CAP, Params::STR_IPV4_OPT, "net"}},
-    // -- NTP --
-    {{"ntp",          OO(ntp),           IO(ntp),           SCALAR_U32,    0, nullptr, "",    "NTP config commit", "bump to apply ntp edits"}, {"0", 0, 1000000000, 0, Params::STR_NONE,     "ntp"}},
-    {{"ntp_enabled",  OO(ntp_enabled),   IO(ntp_enabled),   SCALAR_U8,     0, nullptr, "",    "Enable NTP time sync",""},                    {"1",  0, 1,      0,   Params::STR_NONE,     "ntp"}},
-    {{"ntp_poll_s",   OO(ntp_poll_s),    IO(ntp_poll_s),    SCALAR_U16,    0, nullptr, "s",   "NTP poll interval",   "0 = firmware default"},{"64", 0, 65535,  0,   Params::STR_NONE,     "ntp"}},
-    {{"ntp_server1",  OO(ntp_server1),   IO(ntp_server1),   SCALAR_STRING, 0, nullptr, "",    "Primary NTP server",  ""},          {"pool.ntp.org", 0, 0,      CAP, Params::STR_HOST,     "ntp"}},
-    {{"ntp_server2",  OO(ntp_server2),   IO(ntp_server2),   SCALAR_STRING, 0, nullptr, "",    "Secondary NTP server","empty = none"},        {"",   0, 0,      CAP, Params::STR_HOST_OPT, "ntp"}},
-    // -- MQTT --
-    {{"mqtt",         OO(mqtt),          IO(mqtt),          SCALAR_U32,    0, nullptr, "",    "MQTT config commit", "bump to apply mqtt edits"},{"0",0, 1000000000, 0, Params::STR_NONE,     "mqtt"}},
-    {{"mqtt_enabled", OO(mqtt_enabled),  IO(mqtt_enabled),  SCALAR_U8,     0, nullptr, "",    "Enable MQTT publishing",""},                  {"1",  0, 1,      0,   Params::STR_NONE,     "mqtt"}},
-    {{"mqtt_port",    OO(mqtt_port),     IO(mqtt_port),     SCALAR_U16,    0, nullptr, "",    "Broker TCP port",     "0 = firmware default"},{"1883",0,65535,  0,   Params::STR_NONE,     "mqtt"}},
-    {{"mqtt_keepalive_s",OO(mqtt_keepalive_s),IO(mqtt_keepalive_s),SCALAR_U16,0,nullptr,"s",  "MQTT keepalive",      "0 = firmware default"},{"60", 0, 65535,  0,   Params::STR_NONE,     "mqtt"}},
-    {{"mqtt_broker",  OO(mqtt_broker),   IO(mqtt_broker),   SCALAR_STRING, 0, nullptr, "",    "MQTT broker host",    ""},                    {"",   0, 0,      CAP, Params::STR_HOST,     "mqtt"}},
-    // -- geo (decimal degrees) --
-    {{"geo",          OO(geo),           IO(geo),           SCALAR_U32,    0, nullptr, "",    "Geo config commit", "bump to apply geo edits"}, {"0", 0, 1000000000, 0, Params::STR_NONE,     "geo"}},
-    {{"geo_latitude", OO(geo_latitude),  IO(geo_latitude),  SCALAR_F32,    4, nullptr, "deg", "Site latitude",       "north +, south -"},  {"48.8566", -90,  90, 0,  Params::STR_NONE,     "geo"}},
-    {{"geo_longitude",OO(geo_longitude), IO(geo_longitude), SCALAR_F32,    4, nullptr, "deg", "Site longitude",      "east +, west -"},    {"2.3522", -180, 180, 0,  Params::STR_NONE,     "geo"}},
-};
-#undef OO
-#undef IO
-#undef CAP
-const uint8_t g_param_count = (uint8_t)(sizeof(g_params) / sizeof(g_params[0]));
-
-// ---------------------------------------------------------------------------
-// The declarative site descriptor: the one bundle GreenhouseMLB41 hands the
-// firmware base. Name + the generated tables. The base owns every page and
-// wires each table.
-// ---------------------------------------------------------------------------
-const Botanik::SiteDescriptor g_site = {
-    Botanik::Config::SITE_NAME,
-    g_params,     g_param_count,   // config parameters (params page)
-    g_site_commands,     (uint8_t)(sizeof(g_site_commands) / sizeof(g_site_commands[0])),
-    g_telemetry_groups,  g_telemetry_group_count,
-    g_home_fields,       g_home_field_count,
-    g_alarms,            g_alarm_count,
-};
-
-}  // namespace
+#include "descriptor.h"   // Site::g_site + every generated table (and payload.h)
 
 // ===========================================================================
 // GreenhouseMLB41 - the gh_mlb41 site firmware (derives BotanikFirmware)
@@ -477,11 +41,12 @@ const Botanik::SiteDescriptor g_site = {
  *
  * A thin binding of the generic base to this site's PLC payload + descriptor:
  * it declares no pages and overrides no hooks. The base owns every page
- * (home/shell/logs/alarms/config/monitor) and wires the descriptor's tables
+ * (home/shell/logs/alarms/params/monitor) and wires the descriptor's tables
  * (alarms, commands, status variables, config parameters) generically, so the
- * site is data (@ref g_site + the tables above), not code. A site that needs
- * custom per-beat logic or an extra page (e.g. re-adding a STATUS page) would
- * override the base's on_step() / register_pages() hooks here.
+ * site is data (the generated tables), not code. A site that needs custom
+ * per-beat logic or an extra page (e.g. re-adding a STATUS page by subclassing
+ * Pages::StatusPage) would override the base's on_step() / register_pages()
+ * here. See libbotanik/core/firmware.h for the extension model.
  */
 class GreenhouseMLB41 final : public Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t> {
 public:
@@ -490,7 +55,7 @@ public:
     GreenhouseMLB41(Botanik::PlcIO::PlcInput<PlcInputData_t>*   shared_in,
                     Botanik::PlcIO::PlcOutput<PlcOutputData_t>* shared_out)
         : Botanik::BotanikFirmware<PlcInputData_t, PlcOutputData_t>(
-              shared_in, shared_out, g_site)
+              shared_in, shared_out, Site::g_site)
     {}
 
     /** @brief Hardware convenience: bind to the coprocessor's PLC region (via
@@ -501,11 +66,12 @@ public:
     {}
 };
 
-// Simulator-only mock PLC (body compiles only under TARGET_SIMULATOR;
-// near-empty on OPTA).
-#include "sites/gh_mlb41/sim.h"
+// The mock PLC (animator + Site::MockPlc). Body compiles only under
+// TARGET_SIMULATOR; near-empty on OPTA, where the real coprocessor plays that
+// role. Included after the payload it animates.
+#include "sim.h"
 
 /** @brief The firmware type the harness instantiates for this site. */
 using BotanikSite = GreenhouseMLB41;
 
-#endif // SITES_GH_MLB41_SITE_H
+#endif // SITE_H

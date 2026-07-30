@@ -99,16 +99,18 @@ int main(int argc, char** argv) {
     std::signal(SIGPIPE, SIG_IGN);                // NOLINT(bugprone-signal-handler)
 
 #if BOTANIK_FEATURE_PLC
-    // Shared PLC memory - firmware handler and emulator point at the same
-    // region. On OPTA this comes from HAL::PlcIO::input()/get_plc_output().
-    static PlcIO::PlcInput<PlcInputData_t>   shared_in  {};
-    static PlcIO::PlcOutput<PlcOutputData_t> shared_out {};
-
+    // The site's own mock PLC coprocessor: it owns the shared region and the
+    // emulator, instantiated against the site's generated payload types, so the
+    // simulation runs the real generated code. Static because the region is large
+    // and must outlive the firmware. On OPTA the region comes from
+    // HAL::PlcIO::input()/output() and the M4 coprocessor plays this role.
+    //
     // Config parameters (network/NTP/MQTT/geo) are ordinary fields of the site
-    // payload now; the emulator's fill_greenhouse_output seeds and reflects them
-    // (the coprocessor's role on hardware).
+    // payload; the mock's fill_output() seeds and reflects them, which is the
+    // coprocessor's job on hardware.
+    static Site::MockPlc mock_plc;
 
-    BotanikSite greenhouse(&shared_in, &shared_out);
+    BotanikSite greenhouse(mock_plc.input(), mock_plc.output());
     greenhouse.set_console_baud(CONSOLE_BAUD);
 
     // Sim-only timing dilation: grow the PLC link + HW-watchdog timeouts by the
@@ -134,15 +136,12 @@ int main(int argc, char** argv) {
 #endif
 
 #if BOTANIK_FEATURE_PLC
-    // Mock PLC coprocessor: spawn the emulator thread animating the greenhouse
-    // payload (on OPTA the real coprocessor plays this role). Spawn before
-    // locking memory: lock_process_memory() arms mlockall(MCL_FUTURE), which
-    // locks every later mmap including a new thread's stack, so spawning
-    // afterwards trips RLIMIT_MEMLOCK with EAGAIN (silently, in lean RELEASE
-    // builds). Must run after setup()'s allocations.
-    PlcIO::start_emulator_thread(&shared_in, &shared_out,
-                                 &fill_greenhouse_output,
-                                 &greenhouse.logger());
+    // Start the site's mock coprocessor: spawns the emulator thread animating
+    // the payload. Spawn before locking memory: lock_process_memory() arms
+    // mlockall(MCL_FUTURE), which locks every later mmap including a new thread's
+    // stack, so spawning afterwards trips RLIMIT_MEMLOCK with EAGAIN (silently,
+    // in lean RELEASE builds). Must run after setup()'s allocations.
+    mock_plc.start(&greenhouse.logger());
     // Lock memory (once), then make the main loop realtime on its own core -
     // separate from the emulator's, mirroring the OPTA's two cores.
     Scheduler::lock_process_memory(&greenhouse.logger());

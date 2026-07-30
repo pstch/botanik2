@@ -168,6 +168,62 @@ namespace Botanik { namespace Config {
     BOTANIK_CFG(uint32_t, CPU_JITTER_EMA_DECAY_MS);
 
     /** @}
+     *  @name Site descriptor capacity limits
+     *
+     *  Bounds a site's generated tables must respect; each would otherwise be a
+     *  silent runtime truncation (home fields past the two columns ignored, an
+     *  over-long alarm table clamped with its tail dropped, a table count past
+     *  its uint8_t counter wrapped, a byte offset past ScalarField's int16_t
+     *  field truncated). Each limit's authoritative source (Alarms::ALARM_BITS,
+     *  HomePage geometry, ScalarField's offset type) static_asserts it still
+     *  agrees, so the two can never drift.
+     *  @{ */
+
+    /** @brief Home-screen readings the HomePage lays out (its two columns
+     *  summed); extras are ignored at render. Pinned in pages/home.h. */
+#ifndef BOTANIK_HOME_FIELDS_MAX
+#  define BOTANIK_HOME_FIELDS_MAX 13
+#endif
+    BOTANIK_CFG(uint8_t, HOME_FIELDS_MAX);
+
+    /** @brief Total alarm slots in the model's working array. Pinned against
+     *  Alarms::ALARM_BITS in alarms/alarms.h. */
+#ifndef BOTANIK_ALARM_SLOTS
+#  define BOTANIK_ALARM_SLOTS 64
+#endif
+    BOTANIK_CFG(uint8_t, ALARM_SLOTS);
+
+    /** @brief Slots reserved for the generic platform-health alarms spliced in
+     *  above the site's - a budget, not the live count, so adding one does not
+     *  silently shrink a site's share. Pinned in alarms/platform.cpp. */
+#ifndef BOTANIK_PLATFORM_ALARMS_RESERVED
+#  define BOTANIK_PLATFORM_ALARMS_RESERVED 8
+#endif
+    BOTANIK_CFG(uint8_t, PLATFORM_ALARMS_RESERVED);
+
+    /** @brief Alarm conditions a site may declare; beyond it the model clamps
+     *  and the tail never fires. */
+#ifndef BOTANIK_SITE_ALARMS_MAX
+#  define BOTANIK_SITE_ALARMS_MAX (BOTANIK_ALARM_SLOTS - BOTANIK_PLATFORM_ALARMS_RESERVED)
+#endif
+    BOTANIK_CFG(uint8_t, SITE_ALARMS_MAX);
+
+    /** @brief Largest byte offset a table can address in a payload: ScalarField
+     *  holds offsets as int16_t (-1 = read-only), so the range stops at
+     *  INT16_MAX. Pinned in core/scalar.h. */
+#ifndef BOTANIK_PAYLOAD_OFFSET_MAX
+#  define BOTANIK_PAYLOAD_OFFSET_MAX 32767
+#endif
+    BOTANIK_CFG(uint16_t, PAYLOAD_OFFSET_MAX);
+
+    /** @brief Rows in any one generated table. Every SiteDescriptor count is a
+     *  uint8_t, so a longer table would wrap its count and publish a prefix. */
+#ifndef BOTANIK_TABLE_ROWS_MAX
+#  define BOTANIK_TABLE_ROWS_MAX 255
+#endif
+    BOTANIK_CFG(uint16_t, TABLE_ROWS_MAX);
+
+    /** @}
      *  @name PLC Synchronization
      *  @{ */
 

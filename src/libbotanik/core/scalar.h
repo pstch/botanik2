@@ -16,6 +16,7 @@
 #include <cstring>
 
 #include "libbotanik/utils/text.h"   // format_float / format_int
+#include "libbotanik_config.h"
 
 namespace Botanik {
 
@@ -57,6 +58,12 @@ namespace Botanik {
         const char* desc;              ///< one-line description
         const char* notes;             ///< extra notes / caveats
     };
+
+    // Published as Config::PAYLOAD_OFFSET_MAX for generated payloads to
+    // static_assert their size against: an offset past this truncates when
+    // stored, silently addressing the wrong field.
+    static_assert(Config::PAYLOAD_OFFSET_MAX == (uint16_t)INT16_MAX,
+                  "Config::PAYLOAD_OFFSET_MAX must track the offset field width");
 
     /** @brief True for a writable parameter (has an input offset). */
     inline bool scalar_writable(const ScalarField& f) { return f.in_offset >= 0; }
