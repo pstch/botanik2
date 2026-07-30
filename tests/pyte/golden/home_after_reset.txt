@@ -5,7 +5,7 @@
    | |_) | (_) | || (_| | | | | |   <         Version ........ : <VERSION>
    |_.__/ \___/ \__\__,_|_| |_|_|_|\_\        Commit ......... : <COMMIT>
 
-  PLC link <P>                    Grid         <HF>
+                                          Grid         <HF>
   Uptime       <UPTIME>             DC bus       <HF>
                                           Battery      <HF>
   Temp         <HF> UPS          <HF>
@@ -15,10 +15,10 @@
   Tray         <HF> Heatpump     <HF>
 
     LOGS
+<TS> [~] BOOT: NtpClient initialized
+<TS> [*] TIME: NTP sync failed (no server answered)
+<TS> [~] BOOT: MqttClient initialized
+<TS> [*] NETWORK: MQTT connection lost
+<TS> [~] BOOT: Console initialized
 <TS> [~] BOOT: MonitorWriter initialized
-<TS> [-] SHARED_IO: PLC link <P>
-<TS> [-] NETWORK: network bring-up (DHCP)
-<TS> [+] NETWORK: network up: 127.0.0.1
-<TS> [+] TIME: NTP synced
-<TS> [+] NETWORK: MQTT connected
  ALARMS :<BAR>

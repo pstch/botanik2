@@ -51,5 +51,4 @@ payload and alarm table; it never re-implements the loop. The next pages walk th
 end to end:
 
 - @subpage setup - initialise a project for a new site.
-- @subpage quickstart - integrate the library into an Arduino PLC IDE project.
 */

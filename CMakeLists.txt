@@ -539,7 +539,6 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     add_library(botanik_fw STATIC
         "src/botanik_fw/firmware.cpp"
         "src/botanik_fw/main.cpp"
-        "src/botanik_fw/botanik_arduino.cpp"
         ${BOTANIK_SITE_SOURCES})
     target_link_libraries(botanik_fw PUBLIC botanik)
     set_target_properties(botanik_fw PROPERTIES
@@ -602,104 +601,9 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
 
 endif()
 
-# Arduino library package
-# ============================================================================
-# The Axel PLC IDE owns the sketch and only accepts *imported Arduino libraries* -
-# it can't take an arbitrary file tree or a sketch folder. So this is the delivery
-# artifact: a zip whose top folder holds library.properties + src/, importable via
-# the IDE's "Add .ZIP Library". It's NOT a compile step - the OPTA build flags come
-# from the board when the IDE compiles the library, which is exactly why we don't
-# replay the DEVICE_*/TARGET_* define wall here. Platform-independent (just copies +
-# zips text), so `make arduino-lib` works from the default SIMULATOR tree.
-#
-# The package is libbotanik ONLY (the umbrella headers + the libbotanik/ tree). The
-# entry-point wiring - #include <libbotanik.h>, construct the components, define the
-# botanik_setup()/botanik_step() the sketch window calls - is written by the
-# integrator in a C++ file at the *project* root, NOT shipped here. src/botanik_fw/
-# is our reference for that file (and drives the OPTA ABI check); it stays out of the
-# imported library so it can't collide with the integrator's own entry point.
-set(ARDUINO_PKG "${CMAKE_BINARY_DIR}/arduino")
-set(ARDUINO_LIB "${ARDUINO_PKG}/libbotanik")        # top folder name == library name
-
-add_custom_target(arduino-lib
-    # Clean stage so a removed source never lingers in the package.
-    COMMAND ${CMAKE_COMMAND} -E rm -rf "${ARDUINO_LIB}"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${ARDUINO_LIB}/src"
-    # The metadata marker that makes the folder a (recursive-layout) library.
-    COMMAND ${CMAKE_COMMAND} -E copy
-            "${CMAKE_SOURCE_DIR}/cmake/library.properties.in"
-            "${ARDUINO_LIB}/library.properties"
-    # Library content: the umbrella headers + the libbotanik tree, nothing else.
-    # copy_directory follows the real tree (not a symlink), so the zip stays
-    # self-contained once unpacked on the IDE host.
-    COMMAND ${CMAKE_COMMAND} -E copy
-            "${CMAKE_SOURCE_DIR}/src/libbotanik.h"
-            "${CMAKE_SOURCE_DIR}/src/libbotanik_config.h"
-            "${CMAKE_SOURCE_DIR}/src/libbotanik_sizes.h"
-            "${ARDUINO_LIB}/src/"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_SOURCE_DIR}/src/libbotanik" "${ARDUINO_LIB}/src/libbotanik"
-    # Zip it: cmake -E tar can emit a zip with --format=zip.
-    COMMAND ${CMAKE_COMMAND} -E chdir "${ARDUINO_PKG}"
-            ${CMAKE_COMMAND} -E tar cf "libbotanik.zip" --format=zip "libbotanik"
-    COMMENT "Packaging importable Arduino library: ${ARDUINO_PKG}/libbotanik.zip"
-    VERBATIM
-)
-
-# Vendored sketch tree (the delivery path that actually works)
-# ============================================================================
-# The Axel PLC IDE can only import libraries from a fixed, years-old public index,
-# so `arduino-lib` above is not a usable delivery path for it. Instead we vendor
-# the sources straight into the IDE project's sketch folder.
-#
-# `make vendor` emits a tree to drop in as the sketch's src/ subfolder:
-#
-#     <sketch>/src/                       <- the output of this target
-#     <sketch>/entry.cpp                  <- from vendor/entry.cpp.example
-#     <sketch>/<sketch>.ino               <- calls botanik_setup/botanik_step
-#
-# Two measured IDE build rules shape this (see docs/quickstart):
-#  - <sketch>/src/** IS compiled, recursively. A subfolder by any other name is not.
-#  - NO include directory inside the sketch folder is added - not the sketch root,
-#    not src/. So every header must be found relative to the including file, which
-#    is why libbotanik's internal includes and the site's are all relative, and why
-#    the layout below must mirror our own src/ exactly.
-#
-# botanik_site_config.h is generated at the tree root so libbotanik_config.h picks
-# it up by relative include (see the __has_include hook there): that is how the
-# site's build-wide Config overrides reach every library TU with no -D available.
-set(VENDOR_DIR "${CMAKE_BINARY_DIR}/vendor")
-get_filename_component(_site_name "${_site_dir}" NAME)
-
-add_custom_target(vendor
-    COMMAND ${CMAKE_COMMAND} -E rm -rf "${VENDOR_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${VENDOR_DIR}/src"
-    # Umbrella headers sit at the tree root, where "libbotanik/x.h" resolves.
-    COMMAND ${CMAKE_COMMAND} -E copy
-            "${CMAKE_SOURCE_DIR}/src/libbotanik.h"
-            "${CMAKE_SOURCE_DIR}/src/libbotanik_config.h"
-            "${CMAKE_SOURCE_DIR}/src/libbotanik_features.h"
-            "${CMAKE_SOURCE_DIR}/src/libbotanik_site.h"
-            "${CMAKE_SOURCE_DIR}/src/libbotanik_sizes.h"
-            "${VENDOR_DIR}/src/"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_SOURCE_DIR}/src/libbotanik" "${VENDOR_DIR}/src/libbotanik"
-    # The site keeps its sites/<name>/ position: that is what its relative
-    # includes of the library (../../libbotanik/...) are written against.
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${_site_dir}" "${VENDOR_DIR}/src/sites/${_site_name}"
-    # The no -D site-config hook, resolved relative to libbotanik_config.h.
-    COMMAND ${CMAKE_COMMAND} -E echo
-            "#include \"sites/${_site_name}/config.h\""
-            > "${VENDOR_DIR}/src/botanik_site_config.h"
-    # The entry point the integrator adapts, kept OUT of src/ so it cannot
-    # collide with their own.
-    COMMAND ${CMAKE_COMMAND} -E copy
-            "${CMAKE_SOURCE_DIR}/cmake/entry.cpp.example"
-            "${VENDOR_DIR}/entry.cpp.example"
-    COMMENT "Vendoring sketch tree for site '${_site_name}': ${VENDOR_DIR}/src"
-    VERBATIM
-)
+# NOTE: the Arduino library zip and the vendored-sketch tree are gone. Both
+# existed to get sources into the Axel PLC IDE; we build the flashable image
+# ourselves now (botanik_opta above) and sites live in this tree.
 
 # Doxygen documentation
 # ============================================================================
