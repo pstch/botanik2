@@ -11,14 +11,9 @@ namespace Botanik { namespace Vars {
 
     // The inert sink out-of-range accesses resolve to. Named so it is obvious
     // in a log or a debugger that a bad index was used.
-    const AnalogInVar   Io::_sink_a_desc  = { {"<none>", "", "", "", "0"}, {IO_LOCAL, 0, 0, 0},
-                                              SCALAR_F32, 1.0f, 0.0f, 0.0f, 0.0f, 0 };
-    const AnalogOutVar  Io::_sink_ao_desc = { {"<none>", "", "", "", "0"}, {IO_LOCAL, 0, 0, 0},
-                                              SCALAR_F32, 1.0f, 0.0f };
-    const DigitalInVar  Io::_sink_d_desc  = { {"<none>", "", "", "", "0"}, {IO_LOCAL, 0, 0, 0}, false, 0 };
-    const DigitalOutVar Io::_sink_do_desc = { {"<none>", "", "", "", "0"}, {IO_LOCAL, 0, 0, 0}, false };
-    AnalogValue         Io::_sink_a = {};
-    DigitalValue        Io::_sink_d = {};
+    const Variable Io::_sink_desc = { "<none>", "", "", "", "0", 0, nullptr };
+    AnalogValue    Io::_sink_a = {};
+    DigitalValue   Io::_sink_d = {};
 
     namespace {
         /** @brief Parse a declared default as a float; 0 when absent or
@@ -42,13 +37,20 @@ namespace Botanik { namespace Vars {
     }
 
     namespace {
+        /** @brief The common part of any descriptor. An internal's descriptor
+         *  IS the Variable (it has nothing to add), so the two overloads let
+         *  one template walk every table. */
+        inline const Variable& var_of(const Variable& v) { return v; }
+        template <typename Desc>
+        inline const Variable& var_of(const Desc& d) { return d.var; }
+
         /** @brief Seed one table: parse each declared default into its slot and
          *  start invalid, so a variable reads as its default until something
          *  gives it a real value. */
         template <typename Desc, typename Val, typename Parse>
         void seed(const Desc* d, Val* v, uint16_t n, Parse parse) {
             for (uint16_t i = 0; i < n; i++) {
-                v[i].def   = parse(d[i].var.def);
+                v[i].def   = parse(var_of(d[i]).def);
                 v[i].value = v[i].def;
                 v[i].valid = false;
             }
@@ -77,6 +79,8 @@ namespace Botanik { namespace Vars {
         seed(_t.ao,   _t.ao_v, _t.ao_n, def_f);
         seed(_t.di,   _t.di_v, _t.di_n, def_b);
         seed(_t.dout, _t.do_v, _t.do_n, def_b);
+        seed(_t.ia,   _t.ia_v, _t.ia_n, def_f);
+        seed(_t.id,   _t.id_v, _t.id_n, def_b);
     }
 
     void Io::all_outputs_safe() {

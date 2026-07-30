@@ -28,58 +28,72 @@ namespace Botanik { namespace Vars {
     /** @name Handles
      *  @{ */
 
+    /* A handle carries `const Variable*`, not the full descriptor: every
+     * accessor it offers lives on the common part, so one handle type serves a
+     * field signal and a computed internal alike. The scaling and binding a
+     * descriptor adds beyond that are the driver's business, and the driver
+     * walks the tables directly. */
+
     /** @brief Read handle over an analog input. */
     class AnalogIn {
-        const AnalogInVar* _d;
+        const Variable*    _d;
         const AnalogValue* _v;
     public:
-        AnalogIn(const AnalogInVar* d, const AnalogValue* v) : _d(d), _v(v) {}
+        AnalogIn(const Variable* d, const AnalogValue* v) : _d(d), _v(v) {}
         /** @brief Engineering value; the default when the reading is invalid. */
         float       value() const { return _v->valid ? _v->value : _v->def; }
         bool        valid() const { return _v->valid; }
         uint64_t    timestamp() const { return _v->timestamp; }
-        const char* name() const { return _d->var.name; }
-        const char* unit() const { return _d->var.unit; }
+        const char* name() const { return _d->name; }
+        const char* unit() const { return _d->unit; }
+        /** @brief The descriptor, for a generic reader (see access.h). */
+        const Variable* meta() const { return _d; }
     };
 
-    /** @brief Read/write handle over an analog output. */
+    /** @brief Read/write handle over an analog output, or over a computed
+     *  analog internal (which a program both writes and reads back). */
     class AnalogOut {
-        const AnalogOutVar* _d;
-        AnalogValue*        _v;
+        const Variable* _d;
+        AnalogValue*    _v;
     public:
-        AnalogOut(const AnalogOutVar* d, AnalogValue* v) : _d(d), _v(v) {}
+        AnalogOut(const Variable* d, AnalogValue* v) : _d(d), _v(v) {}
         float       value() const { return _v->valid ? _v->value : _v->def; }
         bool        valid() const { return _v->valid; }
         /** @brief Demand a new value; the write phase pushes it to the field. */
         void        set(float v) { _v->value = v; _v->valid = true; }
         /** @brief Drop to the declared safe state (what a fault does). */
         void        safe() { _v->value = _v->def; _v->valid = false; }
-        const char* name() const { return _d->var.name; }
+        const char* name() const { return _d->name; }
+        const char* unit() const { return _d->unit; }
+        const Variable* meta() const { return _d; }
     };
 
     /** @brief Read handle over a digital input. */
     class DigitalIn {
-        const DigitalInVar* _d;
+        const Variable*     _d;
         const DigitalValue* _v;
     public:
-        DigitalIn(const DigitalInVar* d, const DigitalValue* v) : _d(d), _v(v) {}
+        DigitalIn(const Variable* d, const DigitalValue* v) : _d(d), _v(v) {}
         bool        value() const { return _v->valid ? _v->value : _v->def; }
         bool        valid() const { return _v->valid; }
         uint64_t    timestamp() const { return _v->timestamp; }
-        const char* name() const { return _d->var.name; }
+        const char* name() const { return _d->name; }
+        const Variable* meta() const { return _d; }
     };
 
-    /** @brief Read/write handle over a digital output. */
+    /** @brief Read/write handle over a digital / relay output, or over a
+     *  computed digital internal. */
     class DigitalOut {
-        const DigitalOutVar* _d;
-        DigitalValue*        _v;
+        const Variable* _d;
+        DigitalValue*   _v;
     public:
-        DigitalOut(const DigitalOutVar* d, DigitalValue* v) : _d(d), _v(v) {}
+        DigitalOut(const Variable* d, DigitalValue* v) : _d(d), _v(v) {}
         bool        value() const { return _v->valid ? _v->value : _v->def; }
         bool        valid() const { return _v->valid; }
         void        set(bool v) { _v->value = v; _v->valid = true; }
         void        safe() { _v->value = _v->def; _v->valid = false; }
-        const char* name() const { return _d->var.name; }
+        const char* name() const { return _d->name; }
+        const Variable* meta() const { return _d; }
     };
 
     /** @} */
@@ -98,6 +112,12 @@ namespace Botanik { namespace Vars {
         const AnalogOutVar*  ao;    AnalogValue*   ao_v;  uint16_t ao_n;
         const DigitalInVar*  di;    DigitalValue*  di_v;  uint16_t di_n;
         const DigitalOutVar* dout;  DigitalValue*  do_v;  uint16_t do_n;
+        /** Computed globals: no binding, no scaling, so the descriptor is the
+         *  bare Variable. Everything the firmware derives rather than reads -
+         *  setpoints, states, and the alarm conditions - lives here, which is
+         *  what lets the site describe itself without a payload struct. */
+        const Variable*      ia;    AnalogValue*   ia_v;  uint16_t ia_n;
+        const Variable*      id;    DigitalValue*  id_v;  uint16_t id_n;
     };
 
     /**
@@ -131,26 +151,43 @@ namespace Botanik { namespace Vars {
         /** @name Typed access
          *  @{ */
         AnalogIn ai(uint16_t i) const {
-            if (i < _t.ai_n) return AnalogIn(&_t.ai[i], &_t.ai_v[i]);
+            if (i < _t.ai_n) return AnalogIn(&_t.ai[i].var, &_t.ai_v[i]);
             _sink_a = AnalogValue();     // fresh: a sink never accumulates state
-            return AnalogIn(&_sink_a_desc, &_sink_a);
+            return AnalogIn(&_sink_desc, &_sink_a);
         }
         AnalogOut ao(uint16_t i) const {
-            if (i < _t.ao_n) return AnalogOut(&_t.ao[i], &_t.ao_v[i]);
+            if (i < _t.ao_n) return AnalogOut(&_t.ao[i].var, &_t.ao_v[i]);
             _sink_a = AnalogValue();
-            return AnalogOut(&_sink_ao_desc, &_sink_a);
+            return AnalogOut(&_sink_desc, &_sink_a);
         }
         DigitalIn di(uint16_t i) const {
-            if (i < _t.di_n) return DigitalIn(&_t.di[i], &_t.di_v[i]);
+            if (i < _t.di_n) return DigitalIn(&_t.di[i].var, &_t.di_v[i]);
             _sink_d = DigitalValue();
-            return DigitalIn(&_sink_d_desc, &_sink_d);
+            return DigitalIn(&_sink_desc, &_sink_d);
         }
         DigitalOut dout(uint16_t i) const {
-            if (i < _t.do_n) return DigitalOut(&_t.dout[i], &_t.do_v[i]);
+            if (i < _t.do_n) return DigitalOut(&_t.dout[i].var, &_t.do_v[i]);
             _sink_d = DigitalValue();
-            return DigitalOut(&_sink_do_desc, &_sink_d);
+            return DigitalOut(&_sink_desc, &_sink_d);
+        }
+        /** @brief A computed analog global. Read/write: whoever derives it
+         *  writes it, everyone else observes it. */
+        AnalogOut ia(uint16_t i) const {
+            if (i < _t.ia_n) return AnalogOut(&_t.ia[i], &_t.ia_v[i]);
+            _sink_a = AnalogValue();
+            return AnalogOut(&_sink_desc, &_sink_a);
+        }
+        /** @brief A computed digital global (an alarm condition, a state flag). */
+        DigitalOut id(uint16_t i) const {
+            if (i < _t.id_n) return DigitalOut(&_t.id[i], &_t.id_v[i]);
+            _sink_d = DigitalValue();
+            return DigitalOut(&_sink_desc, &_sink_d);
         }
         /** @} */
+
+        /** @brief The inert descriptor an unresolvable reference renders as.
+         *  Never null, so a generic reader needs no null check. */
+        const Variable* none() const { return &_sink_desc; }
 
         /** @brief Drop every output to its declared safe state. The write phase
          *  calls this on a fault, watchdog escalation or scan overrun. */
@@ -165,13 +202,11 @@ namespace Botanik { namespace Vars {
         /** @brief The inert sink an out-of-range index resolves to. Reset on
          *  every such access, so a write to one bad index is never visible to
          *  the next reader - the sink is scratch, not shared state. Only the
-         *  error path pays for the reset. */
-        static const AnalogInVar   _sink_a_desc;
-        static const AnalogOutVar  _sink_ao_desc;
-        static const DigitalInVar  _sink_d_desc;
-        static const DigitalOutVar _sink_do_desc;
-        static AnalogValue         _sink_a;
-        static DigitalValue        _sink_d;
+         *  error path pays for the reset. One descriptor covers all six tables
+         *  now that a handle only ever sees the common part. */
+        static const Variable _sink_desc;
+        static AnalogValue    _sink_a;
+        static DigitalValue   _sink_d;
     };
 
 }}  // namespace Botanik::Vars

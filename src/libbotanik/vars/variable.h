@@ -48,21 +48,32 @@ namespace Botanik { namespace Vars {
     };
 
 
-    /** @brief Which table a VarRef points into. */
+    /** @brief Which table a VarRef points into.
+     *
+     *  The four IO kinds are field signals; the two INTERNAL kinds are computed
+     *  globals the control programs (and the library's own components) write.
+     *  VAR_PARAM is reserved: parameters still live in their own byte-image
+     *  store, and folding them in here waits on an index-addressed one. */
     enum VarKind : uint8_t {
         VAR_ANALOG_IN, VAR_ANALOG_OUT, VAR_DIGITAL_IN, VAR_DIGITAL_OUT,
-        VAR_INTERNAL,  VAR_PARAM
+        VAR_INTERNAL_ANALOG, VAR_INTERNAL_DIGITAL, VAR_PARAM
     };
 
     /** @brief A reference to any variable, by table and index.
      *
-     *  The intended addressing for status groups, home fields and alarm
-     *  conditions. Those still address the site data struct by byte offset -
-     *  moving them over is the remaining half of the migration, and until it
-     *  lands this type has no users. */
+     *  How everything that merely *observes* a variable addresses it: status
+     *  groups, home fields and alarm conditions. Two bytes of table plus index
+     *  instead of a byte offset into a payload struct, so a reference survives
+     *  the layout changing under it. */
     struct VarRef { VarKind kind; uint16_t index; };
 
-    /** @brief What every variable carries, whatever its kind. */
+    /** @brief What every variable carries, whatever its kind.
+     *
+     *  Includes how to *render* it (@c digits, @c str). Presentation on the
+     *  descriptor looks impure, but it is the same call the old ScalarField
+     *  made and for the same reason: the monitor page, the shell, MQTT
+     *  telemetry and the home screen must all render a variable identically,
+     *  and the only place that can be stated once is the variable itself. */
     struct Variable {
         const char* name;      ///< symbolic name; also the telemetry leaf
         const char* unit;      ///< "C", "%", "" for none
@@ -71,6 +82,14 @@ namespace Botanik { namespace Vars {
         /** @brief Default, as text, parsed once at init. Input substitute,
          *  output safe state, parameter factory value. */
         const char* def;
+        /** @brief Decimals to show for an analog value (0 renders it as an
+         *  integer). Ignored for digitals. */
+        uint8_t     digits;
+        /** @brief Enum renderer: maps the value, truncated to a byte, to a
+         *  short label. Null for a plain number. Lets a discrete state read as
+         *  ONLINE rather than 2 without a per-field special case anywhere
+         *  downstream. */
+        const char* (*str)(uint8_t);
     };
 
     /** @brief How a driver reaches a variable. `device`/`fc` are unused for
