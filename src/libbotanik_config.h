@@ -18,6 +18,19 @@
 // Site configuration
 // ===========================================================================
 
+// Vendored builds (the library copied into an Arduino PLC IDE sketch) get no -D
+// and no include path: the IDE adds neither the sketch root nor its src/ as an
+// include dir. So the vendoring step drops a generated botanik_site_config.h
+// beside THIS header, at the vendored tree's root. A quoted include resolves
+// against the including file's own directory, which is exactly that root, so the
+// site config reaches every library TU with no build-system cooperation at all.
+// Skipped when the build already named a site config (our CMake passes one).
+#if !defined(BOTANIK_SITE_CONFIG) && defined(__has_include)
+#  if __has_include("botanik_site_config.h")
+#    define BOTANIK_SITE_CONFIG "botanik_site_config.h"
+#  endif
+#endif
+
 #include "libbotanik_site.h"     // BOTANIK_SITE -> BOTANIK_SITE_CONFIG/HEADER
 
 #if defined(BOTANIK_SITE_CONFIG)

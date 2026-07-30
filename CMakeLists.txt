@@ -585,6 +585,61 @@ add_custom_target(arduino-lib
     VERBATIM
 )
 
+# Vendored sketch tree (the delivery path that actually works)
+# ============================================================================
+# The Axel PLC IDE can only import libraries from a fixed, years-old public index,
+# so `arduino-lib` above is not a usable delivery path for it. Instead we vendor
+# the sources straight into the IDE project's sketch folder.
+#
+# `make vendor` emits a tree to drop in as the sketch's src/ subfolder:
+#
+#     <sketch>/src/                       <- the output of this target
+#     <sketch>/entry.cpp                  <- from vendor/entry.cpp.example
+#     <sketch>/<sketch>.ino               <- calls botanik_setup/botanik_step
+#
+# Two measured IDE build rules shape this (see docs/quickstart):
+#  - <sketch>/src/** IS compiled, recursively. A subfolder by any other name is not.
+#  - NO include directory inside the sketch folder is added - not the sketch root,
+#    not src/. So every header must be found relative to the including file, which
+#    is why libbotanik's internal includes and the site's are all relative, and why
+#    the layout below must mirror our own src/ exactly.
+#
+# botanik_site_config.h is generated at the tree root so libbotanik_config.h picks
+# it up by relative include (see the __has_include hook there): that is how the
+# site's build-wide Config overrides reach every library TU with no -D available.
+set(VENDOR_DIR "${CMAKE_BINARY_DIR}/vendor")
+get_filename_component(_site_name "${_site_dir}" NAME)
+
+add_custom_target(vendor
+    COMMAND ${CMAKE_COMMAND} -E rm -rf "${VENDOR_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${VENDOR_DIR}/src"
+    # Umbrella headers sit at the tree root, where "libbotanik/x.h" resolves.
+    COMMAND ${CMAKE_COMMAND} -E copy
+            "${CMAKE_SOURCE_DIR}/src/libbotanik.h"
+            "${CMAKE_SOURCE_DIR}/src/libbotanik_config.h"
+            "${CMAKE_SOURCE_DIR}/src/libbotanik_features.h"
+            "${CMAKE_SOURCE_DIR}/src/libbotanik_site.h"
+            "${CMAKE_SOURCE_DIR}/src/libbotanik_sizes.h"
+            "${VENDOR_DIR}/src/"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/src/libbotanik" "${VENDOR_DIR}/src/libbotanik"
+    # The site keeps its sites/<name>/ position: that is what its relative
+    # includes of the library (../../libbotanik/...) are written against.
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${_site_dir}" "${VENDOR_DIR}/src/sites/${_site_name}"
+    # The no -D site-config hook, resolved relative to libbotanik_config.h.
+    COMMAND ${CMAKE_COMMAND} -E echo
+            "#include \"sites/${_site_name}/config.h\""
+            > "${VENDOR_DIR}/src/botanik_site_config.h"
+    # The entry point the integrator adapts, kept OUT of src/ so it cannot
+    # collide with their own.
+    COMMAND ${CMAKE_COMMAND} -E copy
+            "${CMAKE_SOURCE_DIR}/cmake/entry.cpp.example"
+            "${VENDOR_DIR}/entry.cpp.example"
+    COMMENT "Vendoring sketch tree for site '${_site_name}': ${VENDOR_DIR}/src"
+    VERBATIM
+)
+
 # Doxygen documentation
 # ============================================================================
 # Platform-independent: `make -C build docs` regenerates the HTML API docs
