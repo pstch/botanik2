@@ -34,21 +34,17 @@ namespace Botanik {
     /**
      * @brief One PLC variable, read-only (a status variable) or read/write (a
      * config parameter). The single declarative descriptor for both: generated
-     * from the PLC project, addressed by byte offset, rendered/validated
-     * generically - no per-field code.
+     * from the PLC project, addressed by byte offset, rendered generically - no
+     * per-field code. A writable parameter pairs this with a Cfg::ConfigMeta
+     * (default / bounds / group) in a Cfg::ConfigParam; the edit metadata lives
+     * there so this descriptor stays lean for the many read-only status vars.
      *
      * @p out_offset is where the current value is read (in the PLC output image -
-     * the site payload for a status variable, the config block for a parameter).
+     * the site payload for a status variable, or the parameter's live value).
      * @p in_offset is where a new value is written (in the PLC input image);
      * **-1 marks a read-only status variable**. Real-valued quantities are
-     * SCALAR_F32 in native units (no scaled-integer / divisor convention).
-     *
-     * The @c deflt / @c min / @c max / @c capacity / @c str_kind / @c group
-     * fields are edit metadata, meaningful only for a writable parameter
-     * (@p in_offset >= 0); a status variable leaves them null / 0. @c str_kind is
-     * a Cfg::StrKind held as a plain byte so this header stays free of the config
-     * include. @c group names the parameter's config group (e.g. "net"); the
-     * group's commit serial is the parameter sharing that name.
+     * SCALAR_F32 in native units (no scaled-integer / divisor convention),
+     * displayed to @c digits decimals.
      */
     struct ScalarField {
         const char* name;
@@ -60,12 +56,6 @@ namespace Botanik {
         const char* unit;              ///< physical unit, e.g. "C"/"V"/"%" ("" = none)
         const char* desc;              ///< one-line description
         const char* notes;             ///< extra notes / caveats
-        const char* deflt;             ///< default value (display text; params)
-        int32_t     min;               ///< inclusive lower bound (numeric params)
-        int32_t     max;               ///< inclusive upper bound (numeric params)
-        uint16_t    capacity;          ///< SCALAR_STRING buffer size incl NUL (else 0)
-        uint8_t     str_kind;          ///< Cfg::StrKind for SCALAR_STRING (else 0)
-        const char* group;             ///< config-group name ("" = none); commit serial shares it
     };
 
     /** @brief True for a writable parameter (has an input offset). */

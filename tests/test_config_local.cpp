@@ -31,9 +31,9 @@ namespace {
 
 #define OFF(f) (int16_t)offsetof(TestCfg, f)
     const ConfigParam PARAMS[] = {
-        // name, out_offset, in_offset, type, digits, str, unit, desc, notes, default, min, max, capacity, str_kind, group
-        {"ntp_poll_s", OFF(ntp_poll_s), OFF(ntp_poll_s), SCALAR_U16,    0, nullptr, "s", "", "", "64", 0, 65535, 0,  STR_NONE, "ntp"},
-        {"net_ip",     OFF(net_ip),     OFF(net_ip),     SCALAR_STRING, 0, nullptr, "",  "", "", "",   0, 0,     16, STR_IPV4, "net"},
+        // field {name, out_offset, in_offset, type, digits, str, unit, desc, notes}, meta {def, min, max, len, kind, group}
+        {{"ntp_poll_s", OFF(ntp_poll_s), OFF(ntp_poll_s), SCALAR_U16,    0, nullptr, "s", "", ""}, {"64", 0, 65535, 0,  STR_NONE, "ntp"}},
+        {{"net_ip",     OFF(net_ip),     OFF(net_ip),     SCALAR_STRING, 0, nullptr, "",  "", ""}, {"",   0, 0,     16, STR_IPV4, "net"}},
     };
 #undef OFF
     const uint8_t PARAM_COUNT = (uint8_t)(sizeof(PARAMS) / sizeof(PARAMS[0]));

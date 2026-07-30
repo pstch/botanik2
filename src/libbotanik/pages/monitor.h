@@ -47,7 +47,6 @@ namespace Botanik { namespace Pages {
         using AnsiTerminal = Terminal::AnsiTerminal;
         using Console      = Terminal::Console;
         using Command      = Terminal::InputEvent::Command;
-        using ScalarGroup  = ScalarGroup;
 
         /** @name Layout
          *  @{ */

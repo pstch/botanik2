@@ -213,8 +213,8 @@ namespace Botanik { namespace Pages {
             char val[VAL_CAP];
             _config->format((uint8_t)idx, val, sizeof(val));
             char line[LINE_CAP];
-            uint16_t n = _row5(line, sizeof(line), p.name, Cfg::type_name(p), val,
-                               p.deflt ? p.deflt : "", p.unit ? p.unit : "");
+            uint16_t n = _row5(line, sizeof(line), p.field.name, Cfg::type_name(p), val,
+                               p.meta.def ? p.meta.def : "", p.field.unit ? p.field.unit : "");
             _draw_selected_line(row, line, n, NAME_CELL_L, NAME_CELL_R, selected);
         }
 
@@ -282,10 +282,10 @@ namespace Botanik { namespace Pages {
             }
             const Cfg::ConfigParam& p = _config->param((uint8_t)_selected);
             char b[24];
-            _panel_field((uint16_t)(r + 2), "Minimum",     _fmt_bound(b, sizeof(b), p, p.min));
-            _panel_field((uint16_t)(r + 3), "Maximum",     _fmt_bound(b, sizeof(b), p, p.max));
-            _panel_field((uint16_t)(r + 4), "Description", p.desc);
-            _panel_field((uint16_t)(r + 5), "Notes",       p.notes);
+            _panel_field((uint16_t)(r + 2), "Minimum",     _fmt_bound(b, sizeof(b), p, p.meta.min));
+            _panel_field((uint16_t)(r + 3), "Maximum",     _fmt_bound(b, sizeof(b), p, p.meta.max));
+            _panel_field((uint16_t)(r + 4), "Description", p.field.desc);
+            _panel_field((uint16_t)(r + 5), "Notes",       p.field.notes);
             _blank_line((uint16_t)(r + 6));
         }
 
@@ -294,7 +294,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief " name = " static label for the parameter being edited. */
         uint16_t _edit_label(char* buf, size_t cap) const {
-            int n = snprintf(buf, cap, " %s = ", _edit_param->name);
+            int n = snprintf(buf, cap, " %s = ", _edit_param->field.name);
             return (n < 0) ? 0 : (uint16_t)n;
         }
 

@@ -9,13 +9,14 @@
  *        status-variable table uses.
  *
  * Configuration is a flat namespace of parameters (network/NTP/MQTT/geo today).
- * A parameter is just a writable ScalarField: `ConfigParam` is an alias for it,
- * so status variables and config parameters share one descriptor. The value is
- * read from the parameter's @c out_offset in the config image (the site's PLC
- * output payload) and a committed edit is written to its @c in_offset in the
- * input payload mirror; the two are distinct site-defined layouts. The site
- * declares the whole ScalarField[] table (the library ships none) and it drives
- * the CONFIG page and the backends generically - no per-field code.
+ * A parameter (`ConfigParam`) pairs a ScalarField (the shared read/display
+ * descriptor) with a ConfigMeta (default / bounds / string-kind / group) - the
+ * edit metadata a read-only status variable does not carry. The value is read
+ * from the field's @c out_offset in the config image (the site's PLC output
+ * payload) and a committed edit is written to its @c in_offset in the input
+ * payload mirror; the two are distinct site-defined layouts. The site declares
+ * the whole ConfigParam[] table (the library ships none) and it drives the
+ * CONFIG page and the backends generically - no per-field code.
  *
  * ConfigHandler is the storage-backend base. Two concrete backends derive it:
  * PlcConfigHandler (the PLC owns the values in NVM) and LocalConfigHandler (Mbed
@@ -35,20 +36,37 @@ namespace Botanik { namespace Cfg {
     /** @name Parameter descriptor
      *  @{ */
 
-    /** @brief A config parameter is a writable ScalarField (in_offset >=
-     *  0). One descriptor for both status variables and parameters. The site
-     *  declares every parameter over its own PLC input/output payload; the
-     *  library ships no built-in table and reads what it needs by name. */
-    using ConfigParam = ScalarField;
-
     /** @brief How to validate a string parameter's edited text (STR_NONE for
      *  non-string params). The *_OPT variants also accept an empty string (an
      *  unset optional address, e.g. a second DNS server). Held in
-     *  ScalarField::str_kind as a plain byte. */
+     *  ConfigMeta::kind as a plain byte. */
     enum StrKind {
         STR_NONE,
         STR_IPV4, STR_IPV4_OPT,
         STR_HOST, STR_HOST_OPT
+    };
+
+    /** @brief Edit metadata for a writable parameter: the pieces a read-only
+     *  status variable does not carry. @c str_kind is a StrKind held as a plain
+     *  byte; @c group names the parameter's config group (e.g. "net"), and the
+     *  group's commit serial is the parameter sharing that name. */
+    struct ConfigMeta {
+        const char* def;               ///< default value (display text)
+        int32_t     min;               ///< inclusive lower bound (numeric)
+        int32_t     max;               ///< inclusive upper bound (numeric)
+        uint16_t    len;               ///< SCALAR_STRING buffer size incl NUL (else 0)
+        uint8_t     kind;              ///< StrKind for SCALAR_STRING (else STR_NONE)
+        const char* group;             ///< config-group name; commit serial shares it
+    };
+
+    /** @brief A config parameter: a ScalarField (shared read/display descriptor)
+     *  paired with its ConfigMeta. One field type serves both status variables
+     *  and parameters; only a parameter carries the meta. The site declares every
+     *  parameter over its own PLC input/output payload; the library ships no
+     *  built-in table and reads what it needs by name. */
+    struct ConfigParam {
+        ScalarField field;
+        ConfigMeta  meta;
     };
 
     /** @} */
@@ -57,7 +75,7 @@ namespace Botanik { namespace Cfg {
      *  @{ */
 
     /** @brief True for the text (SCALAR_STRING) type. */
-    inline bool is_string(const ConfigParam& p) { return p.type == SCALAR_STRING; }
+    inline bool is_string(const ConfigParam& p) { return p.field.type == SCALAR_STRING; }
 
     /** @brief Short display name for a parameter's type ("u8"/"i32"/"f32"/"enum"/
      *  "str", "b" for a 0/1 boolean). */
@@ -174,8 +192,9 @@ namespace Botanik { namespace Cfg {
         const ConfigParam* find(const char* name, uint16_t len) const {
             for (uint8_t i = 0; i < count(); i++) {
                 const ConfigParam& p = param(i);
-                if (p.name != nullptr &&
-                    std::strlen(p.name) == len && std::strncmp(p.name, name, len) == 0)
+                if (p.field.name != nullptr &&
+                    std::strlen(p.field.name) == len &&
+                    std::strncmp(p.field.name, name, len) == 0)
                     return &p;
             }
             return nullptr;
@@ -228,16 +247,16 @@ namespace Botanik { namespace Cfg {
     /** @brief Read an SCALAR_F32 parameter by name (@p dflt if absent / wrong type). */
     inline float cfg_f32(const ConfigHandler* h, const char* name, float dflt = 0.0f) {
         const ConfigParam* p = cfg_find(h, name);
-        const void* img = (p != nullptr && p->type == SCALAR_F32) ? h->image() : nullptr;
-        return img != nullptr ? scalar_read_f32(*p, img) : dflt;
+        const void* img = (p != nullptr && p->field.type == SCALAR_F32) ? h->image() : nullptr;
+        return img != nullptr ? scalar_read_f32(p->field, img) : dflt;
     }
 
     /** @brief Pointer to an SCALAR_STRING parameter's text by name ("" if absent).
      *  Valid for the handler's lifetime (points into its image). */
     inline const char* cfg_str(const ConfigHandler* h, const char* name) {
         const ConfigParam* p = cfg_find(h, name);
-        const void* img = (p != nullptr && p->type == SCALAR_STRING) ? h->image() : nullptr;
-        return img != nullptr ? scalar_read_string(*p, img) : "";
+        const void* img = (p != nullptr && p->field.type == SCALAR_STRING) ? h->image() : nullptr;
+        return img != nullptr ? scalar_read_string(p->field, img) : "";
     }
 
     /** @brief The change serial for a config group: the value of the parameter

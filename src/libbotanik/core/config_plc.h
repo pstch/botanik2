@@ -50,7 +50,7 @@ namespace Botanik { namespace Cfg {
         bool set(const ConfigParam& p, const char* text) override {
             void* mirror = (_ctx != nullptr) ? _ctx->input_data_bytes() : nullptr;
             if (mirror == nullptr) return false;
-            if (!write_value(p, text, mirror, p.in_offset)) return false;
+            if (!write_value(p, text, mirror, p.field.in_offset)) return false;
             _ctx->write();
             return true;
         }

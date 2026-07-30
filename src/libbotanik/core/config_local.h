@@ -48,8 +48,9 @@ namespace Botanik { namespace Cfg {
 
         bool set(const ConfigParam& p, const char* text) override {
             // Single image: write (and persist) at out_offset so a read sees it.
-            if (!write_value(p, text, &_image, p.out_offset)) return false;
-            HAL::Storage::set(p.name, (const uint8_t*)&_image + p.out_offset, param_width(p));
+            if (!write_value(p, text, &_image, p.field.out_offset)) return false;
+            HAL::Storage::set(p.field.name, (const uint8_t*)&_image + p.field.out_offset,
+                              param_width(p));
             return true;
         }
 
@@ -62,7 +63,7 @@ namespace Botanik { namespace Cfg {
         void setup(uint64_t /*now_ms*/) override {
             for (uint8_t i = 0; i < count(); i++) {
                 const ConfigParam& p = param(i);
-                HAL::Storage::get(p.name, (uint8_t*)&_image + p.out_offset,
+                HAL::Storage::get(p.field.name, (uint8_t*)&_image + p.field.out_offset,
                                   param_width(p), nullptr);
             }
         }

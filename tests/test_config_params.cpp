@@ -31,20 +31,20 @@ namespace {
 
 #define OFF(f) (int16_t)offsetof(TestCfg, f)
     const ConfigParam PARAMS[] = {
-        // name, out_offset, in_offset, type, digits, str, unit, desc, notes, default, min, max, capacity, str_kind, group
-        {"net",          OFF(net),         OFF(net),         SCALAR_U32,    0, nullptr, "",    "commit", "", "0", 0, 1000000000, 0,  STR_NONE, "net"},
-        {"net_dhcp",     OFF(net_dhcp),     OFF(net_dhcp),     SCALAR_U8,    0, nullptr, "",    "dhcp",   "", "1", 0, 1,      0,  STR_NONE, "net"},
-        {"net_ip",       OFF(net_ip),       OFF(net_ip),       SCALAR_STRING,0, nullptr, "",    "ip",     "", "",  0, 0,      64, STR_IPV4, "net"},
-        {"ntp_poll_s",   OFF(ntp_poll_s),   OFF(ntp_poll_s),   SCALAR_U16,   0, nullptr, "s",   "poll",   "", "64",0, 65535,  0,  STR_NONE, "ntp"},
-        {"mqtt_port",    OFF(mqtt_port),    OFF(mqtt_port),    SCALAR_U16,   0, nullptr, "",    "port",   "", "1883",0,65535, 0,  STR_NONE, "mqtt"},
-        {"geo_latitude", OFF(geo_latitude), OFF(geo_latitude), SCALAR_F32,   4, nullptr, "deg", "lat",    "", "48.8566", -90, 90, 0, STR_NONE, "geo"},
+        // field {name, out_offset, in_offset, type, digits, str, unit, desc, notes}, meta {def, min, max, len, kind, group}
+        {{"net",          OFF(net),         OFF(net),         SCALAR_U32,    0, nullptr, "",    "commit", ""}, {"0", 0, 1000000000, 0,  STR_NONE, "net"}},
+        {{"net_dhcp",     OFF(net_dhcp),     OFF(net_dhcp),     SCALAR_U8,    0, nullptr, "",    "dhcp",   ""}, {"1", 0, 1,      0,  STR_NONE, "net"}},
+        {{"net_ip",       OFF(net_ip),       OFF(net_ip),       SCALAR_STRING,0, nullptr, "",    "ip",     ""}, {"",  0, 0,      64, STR_IPV4, "net"}},
+        {{"ntp_poll_s",   OFF(ntp_poll_s),   OFF(ntp_poll_s),   SCALAR_U16,   0, nullptr, "s",   "poll",   ""}, {"64",0, 65535,  0,  STR_NONE, "ntp"}},
+        {{"mqtt_port",    OFF(mqtt_port),    OFF(mqtt_port),    SCALAR_U16,   0, nullptr, "",    "port",   ""}, {"1883",0,65535, 0,  STR_NONE, "mqtt"}},
+        {{"geo_latitude", OFF(geo_latitude), OFF(geo_latitude), SCALAR_F32,   4, nullptr, "deg", "lat",    ""}, {"48.8566", -90, 90, 0, STR_NONE, "geo"}},
     };
 #undef OFF
     const uint8_t PARAM_COUNT = (uint8_t)(sizeof(PARAMS) / sizeof(PARAMS[0]));
 
     const ConfigParam* find(const char* name) {
         for (uint8_t i = 0; i < PARAM_COUNT; i++)
-            if (strcmp(PARAMS[i].name, name) == 0) return &PARAMS[i];
+            if (strcmp(PARAMS[i].field.name, name) == 0) return &PARAMS[i];
         return nullptr;
     }
 
@@ -61,16 +61,16 @@ namespace {
 TEST_CASE("config table: sane offsets, string capacities, group tags") {
     for (uint8_t i = 0; i < PARAM_COUNT; i++) {
         const ConfigParam& p = PARAMS[i];
-        CHECK(p.out_offset >= 0);
-        CHECK((size_t)p.out_offset < sizeof(TestCfg));
-        CHECK(p.group != nullptr);
-        if (is_string(p)) CHECK(p.capacity == sizeof(TestCfg::net_ip));
+        CHECK(p.field.out_offset >= 0);
+        CHECK((size_t)p.field.out_offset < sizeof(TestCfg));
+        CHECK(p.meta.group != nullptr);
+        if (is_string(p)) CHECK(p.meta.len == sizeof(TestCfg::net_ip));
     }
     REQUIRE(find("net_dhcp") != nullptr);
-    CHECK(find("net_dhcp")->type == SCALAR_U8);
-    CHECK(find("net_ip")->type == SCALAR_STRING);
-    CHECK(strcmp(find("ntp_poll_s")->group, "ntp") == 0);
-    CHECK(find("geo_latitude")->type == SCALAR_F32);
+    CHECK(find("net_dhcp")->field.type == SCALAR_U8);
+    CHECK(find("net_ip")->field.type == SCALAR_STRING);
+    CHECK(strcmp(find("ntp_poll_s")->meta.group, "ntp") == 0);
+    CHECK(find("geo_latitude")->field.type == SCALAR_F32);
 }
 
 TEST_CASE("read + format values off an image") {
@@ -156,7 +156,7 @@ TEST_CASE("validate_hostname") {
 TEST_CASE("ConfigHandler registry + format through the image") {
     TestHandler h;
     CHECK(h.count() == PARAM_COUNT);
-    CHECK(strcmp(h.param(0).name, PARAMS[0].name) == 0);
+    CHECK(strcmp(h.param(0).field.name, PARAMS[0].field.name) == 0);
 
     // find() resolves a registered parameter.
     CHECK(h.find("mqtt_port", 9) != nullptr);
@@ -166,7 +166,7 @@ TEST_CASE("ConfigHandler registry + format through the image") {
     h.img.mqtt_port = 8883;
     char buf[32];
     for (uint8_t i = 0; i < h.count(); i++)
-        if (strcmp(h.param(i).name, "mqtt_port") == 0) {
+        if (strcmp(h.param(i).field.name, "mqtt_port") == 0) {
             h.format(i, buf, sizeof(buf));
             CHECK(strcmp(buf, "8883") == 0);
         }

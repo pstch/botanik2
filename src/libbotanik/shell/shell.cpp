@@ -285,7 +285,7 @@ namespace Botanik { namespace Shell {
             for (uint8_t i = 0; i < _config->count(); i++) {
                 const Cfg::ConfigParam& p = _config->param(i);
                 _config->format(i, val, sizeof(val));
-                _emitf(out, sizeof(out), "  %-18s %s", p.name, val);
+                _emitf(out, sizeof(out), "  %-18s %s", p.field.name, val);
             }
             return;
         }
@@ -302,8 +302,8 @@ namespace Botanik { namespace Shell {
             char val[96];
             uint16_t vc = std::min(wv, (uint16_t)(sizeof(val) - 1));
             memcpy(val, v, vc); val[vc] = '\0';
-            if (_config->set(*p, val)) _emitf(out, sizeof(out), "%s = %s", p->name, val);
-            else _emitf(out, sizeof(out), "config: invalid value for %s", p->name);
+            if (_config->set(*p, val)) _emitf(out, sizeof(out), "%s = %s", p->field.name, val);
+            else _emitf(out, sizeof(out), "config: invalid value for %s", p->field.name);
             return;
         }
 
@@ -315,7 +315,7 @@ namespace Botanik { namespace Shell {
         if (p == nullptr) { _println("config: unknown parameter"); return; }
         char val[40];
         _config->format_param(*p, val, sizeof(val));
-        _emitf(out, sizeof(out), "%s = %s", p->name, val);
+        _emitf(out, sizeof(out), "%s = %s", p->field.name, val);
     }
 
     void CommandShell::_cmd_status(const char* args, uint16_t alen) {
