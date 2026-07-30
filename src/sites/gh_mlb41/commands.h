@@ -17,8 +17,7 @@
 #include <cstdint>
 #include <cstdio>    // snprintf
 
-#include "libbotanik/shell/shell.h"   // Shell::ShellCommand / ShellWriter
-#include "libbotanik_config.h"        // Config::SITE_NAME
+#include "botanik.h"
 
 #include "payload.h"
 

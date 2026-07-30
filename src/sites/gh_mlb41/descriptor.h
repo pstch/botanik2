@@ -21,8 +21,7 @@
 
 #include <cstdint>
 
-#include "libbotanik/core/firmware.h"   // Botanik::SiteDescriptor
-#include "libbotanik_config.h"          // Config::SITE_NAME
+#include "botanik.h"
 
 #include "payload.h"      // the PLC payload every table addresses by offset
 #include "status.h"       // status variables + home-screen readings

@@ -25,8 +25,7 @@
 #include <cstddef>   // offsetof
 #include <cstdint>
 
-#include "libbotanik/core/scalar.h"   // ScalarField / ScalarGroup / HomeField
-#include "libbotanik_config.h"
+#include "botanik.h"
 
 #include "payload.h"
 

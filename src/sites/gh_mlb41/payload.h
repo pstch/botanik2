@@ -24,7 +24,7 @@
 
 #include <cstdint>
 
-#include "libbotanik_config.h"   // Config::PLC_HOST_STR_LEN (config string width)
+#include "botanik.h"
 
 /** @name Field-domain enums
  *  Each discrete status wraps an `enum Value` plus a static str() converter,

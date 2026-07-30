@@ -26,8 +26,7 @@
 #include <cstddef>   // offsetof
 #include <cstdint>
 
-#include "libbotanik/core/params.h"   // Params::Param / ParamMeta / StrKind
-#include "libbotanik_config.h"
+#include "botanik.h"
 
 #include "payload.h"
 

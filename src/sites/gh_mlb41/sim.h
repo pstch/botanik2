@@ -23,9 +23,14 @@
 #include <cmath>    // pow
 #include <random>
 
-#include "libbotanik.h"
-#include "libbotanik/alarms/alarms.h"   // alarm_bit / alarm_index, ALARM_BITS
+// Src-rooted on purpose, unlike every other include in this site. The emulator
+// lives in the simulator harness, not the library, so it is only ever compiled by
+// our CMake build - which puts the library's src/ on the include path. This
+// include sits inside the TARGET_SIMULATOR guard, so a vendored sketch build
+// never reaches it and never needs the harness present.
 #include "botanik_sim/emulator.h"       // PlcEmulator + start_emulator_thread
+
+#include "botanik.h"
 
 #include "alarms.h"                     // g_alarms - the one alarm definition
 

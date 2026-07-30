@@ -25,8 +25,7 @@
 #include <cstddef>   // offsetof
 #include <cstdint>
 
-#include "libbotanik/alarms/alarms.h"   // Alarms::AlarmCondition
-#include "libbotanik_config.h"
+#include "botanik.h"
 
 #include "payload.h"
 
