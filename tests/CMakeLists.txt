@@ -19,6 +19,7 @@ add_executable(botanik_tests
     test_alarms.cpp
     test_blocks.cpp
     test_vars.cpp
+    test_scalar.cpp
     test_scan.cpp
     test_alarms_render.cpp
     test_terminal_present.cpp

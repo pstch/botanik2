@@ -1,0 +1,214 @@
+#ifndef VARS_SCALAR_H
+#define VARS_SCALAR_H
+
+/**
+ * @file scalar.h
+ * @brief One value slot for every type a variable can hold, and the type-driven
+ *        read / write / render / parse that go with it.
+ *
+ * @section scalar_one_tag One tag, four uses
+ *
+ * A variable carries a single VarType. That tag governs its live value AND its
+ * declared @c min, @c max and @c def - they are the same union, read the same
+ * way, so they cannot disagree about what the variable is. That is the whole
+ * point: the previous model had a type on the descriptor, bounds as int32_t and
+ * a default as text, and a real-valued parameter with integer bounds silently
+ * rejected legal values (geo_latitude could not be set to -90.5).
+ *
+ * @section scalar_flash Why constexpr constructors
+ *
+ * A site's variable table is `const` and must be constant-initialised straight
+ * into flash: no `.data` copy, no startup initialiser. A union with constexpr
+ * constructors keeps that property (the enclosing descriptor stays an aggregate,
+ * since a *member* having constructors does not disqualify it), while plain
+ * brace-initialisation could only ever reach the union's FIRST member - C++11
+ * has no designated initialisers. Two constraints fall out and are load-bearing:
+ *
+ *  - a C++11 constexpr function body must be a SINGLE return statement, so the
+ *    factories below construct rather than assign
+ *  - a bare integer literal converts equally well to uint64_t, int64_t and
+ *    float, so Scalar(int) is deleted and the named factories are the way in
+ *
+ * @section scalar_width Persisted width
+ *
+ * @c type_width() is the NARROW width (1/2/4/8), not sizeof(Scalar). It is what
+ * a value occupies in storage, and keeping it narrow is what lets already-stored
+ * records stay readable.
+ */
+
+#include <cmath>     // roundf (write coercion)
+#include <cstddef>
+#include <cstdint>
+
+namespace Botanik { namespace Vars {
+
+    /** @name Types
+     *  @{ */
+
+    /** @brief What a variable's value IS. Distinct from how it arrives on the
+     *  wire, which is the binding's business. */
+    enum VarType : uint8_t {
+        T_BOOL,
+        T_U8, T_U16, T_U32, T_U64,
+        T_I8, T_I16, T_I32, T_I64,
+        T_F32,
+        T_ENUM,   ///< a small unsigned code, rendered through a str() converter
+        T_STR     ///< text; the live value lives in the site's char pool
+    };
+
+    /** @brief How to validate a T_STR's edit text. */
+    enum StrKind : uint8_t {
+        STR_NONE,       ///< any text that fits
+        STR_IPV4,       ///< dotted quad, required
+        STR_IPV4_OPT,   ///< dotted quad, empty allowed
+        STR_HOST,       ///< hostname, required
+        STR_HOST_OPT    ///< hostname, empty allowed
+    };
+
+    /**
+     * @brief One value slot: 8 bytes, whatever the type.
+     *
+     * @c s holds a T_STR's DEFAULT text (a flash pointer). A T_STR's LIVE text
+     * is not here - it lives in the site's char pool, because a slot cannot hold
+     * a hostname.
+     */
+    union Scalar {
+        uint64_t    u;
+        int64_t     i;
+        float       f;
+        const char* s;
+
+        constexpr Scalar()              : u(0) {}
+        constexpr Scalar(uint64_t v)    : u(v) {}
+        constexpr Scalar(int64_t v)     : i(v) {}
+        constexpr Scalar(float v)       : f(v) {}
+        constexpr Scalar(const char* v) : s(v) {}
+        /** Deleted so a stray `Scalar(0)` names itself in the error instead of
+         *  listing four equally good candidates from inside a macro expansion. */
+        Scalar(int) = delete;
+
+        static constexpr Scalar U(uint64_t v)    { return Scalar(v); }
+        static constexpr Scalar I(int64_t v)     { return Scalar(v); }
+        static constexpr Scalar F(float v)       { return Scalar(v); }
+        static constexpr Scalar S(const char* v) { return Scalar(v); }
+        static constexpr Scalar B(bool v)        { return Scalar((uint64_t)(v ? 1u : 0u)); }
+    };
+    static_assert(sizeof(Scalar)  == 8, "Scalar must stay 8 bytes");
+    static_assert(alignof(Scalar) == 8, "Scalar must stay 8-aligned");
+
+    /** @} */
+
+    /** @name Type queries
+     *  Each body is a single return: a C++11 constexpr function may be nothing
+     *  else.
+     *  @{ */
+
+    /** @brief Bytes a value occupies when PERSISTED (0 for T_STR, whose width is
+     *  its declared capacity). Deliberately narrow, not sizeof(Scalar). */
+    constexpr uint8_t type_width(VarType t) {
+        return (t == T_BOOL || t == T_U8 || t == T_I8 || t == T_ENUM) ? 1 :
+               (t == T_U16  || t == T_I16)                            ? 2 :
+               (t == T_U32  || t == T_I32 || t == T_F32)              ? 4 :
+               (t == T_U64  || t == T_I64)                            ? 8 : 0;
+    }
+    constexpr bool type_signed(VarType t) {
+        return t == T_I8 || t == T_I16 || t == T_I32 || t == T_I64;
+    }
+    constexpr bool type_real(VarType t) { return t == T_F32; }
+    constexpr bool type_text(VarType t) { return t == T_STR; }
+
+    /** @brief Short display name ("bool", "u16", "f32", "enum", "str"). */
+    const char* type_name(VarType t);
+
+    /** @brief The type's own representable range, as a Scalar of that type.
+     *  Used to reject a value that parses but does not fit. */
+    Scalar type_min(VarType t);
+    Scalar type_max(VarType t);
+
+    /** @} */
+
+    /** @name Reads - the slot, as whatever the caller wants
+     *  @{ */
+
+    /** @brief As a float. Digitals read 0/1, so a consumer that only wants to
+     *  display or publish never branches on the type. */
+    inline float as_f32(VarType t, Scalar v) {
+        return type_real(t) ? v.f : (type_signed(t) ? (float)v.i : (float)v.u);
+    }
+    inline int64_t as_i64(VarType t, Scalar v) {
+        return type_real(t) ? (int64_t)v.f : (type_signed(t) ? v.i : (int64_t)v.u);
+    }
+    inline bool as_bool(VarType t, Scalar v) { return as_i64(t, v) != 0; }
+
+    /** @} */
+
+    /** @name Writes - normalised INTO the slot the type names
+     *  The one place a write is coerced, so a later read is exact rather than a
+     *  reinterpretation of the wrong union member.
+     *  @{ */
+
+    inline Scalar from_f32(VarType t, float x) {
+        // roundf, not (int)(x + 0.5f): the add-then-truncate idiom rounds the
+        // wrong way for values just under .5, where the addition itself carries.
+        return type_real(t)   ? Scalar::F(x)
+             : type_signed(t) ? Scalar::I((int64_t)roundf(x))
+                              : Scalar::U(x < 0.0f ? 0u : (uint64_t)roundf(x));
+    }
+    inline Scalar from_i64(VarType t, int64_t x) {
+        return type_real(t)   ? Scalar::F((float)x)
+             : type_signed(t) ? Scalar::I(x)
+                              : Scalar::U(x < 0 ? 0u : (uint64_t)x);
+    }
+    inline Scalar from_bool(VarType t, bool b) {
+        return type_real(t) ? Scalar::F(b ? 1.0f : 0.0f) : Scalar::U(b ? 1u : 0u);
+    }
+
+    /** @} */
+
+    /** @name Compare, render, parse
+     *  @{ */
+
+    /** @brief Is @p v within [@p lo, @p hi], compared as @p t? */
+    bool in_range(VarType t, Scalar v, Scalar lo, Scalar hi);
+
+    /**
+     * @brief Render @p v into @p buf.
+     *
+     * @param digits decimals for T_F32 (ignored otherwise)
+     * @param str    T_ENUM converter; when it maps, its static string is
+     *               returned directly and @p buf is untouched
+     * @return the text - @p buf, or a static string
+     *
+     * T_STR is not renderable from a Scalar (its live text is in the pool), and
+     * returns "".
+     */
+    const char* format_scalar(VarType t, Scalar v, uint8_t digits,
+                              const char* (*str)(uint64_t), char* buf, size_t cap);
+
+    /** @brief Why a parse failed. */
+    enum ParseResult : uint8_t {
+        PARSE_OK,
+        PARSE_MALFORMED,   ///< empty, unparseable, or trailing junk
+        PARSE_RANGE        ///< parsed, but outside the type's own range
+    };
+
+    /** @brief Parse @p text as @p t into @p out. Rejects trailing junk, so
+     *  "12abc" is malformed rather than quietly becoming 12. Range-checks
+     *  against the TYPE only; declared min/max are the caller's business (see
+     *  in_range). T_STR always returns PARSE_MALFORMED - a string is not a
+     *  scalar; use validate_str(). */
+    ParseResult parse_scalar(VarType t, const char* text, Scalar* out);
+
+    /** @brief Does @p text satisfy @p kind, and fit in @p cap bytes incl NUL? */
+    bool validate_str(StrKind kind, const char* text, uint16_t cap);
+
+    /** @brief Dotted-quad IPv4. */
+    bool validate_ipv4(const char* s, bool allow_empty = false);
+    /** @brief Hostname or dotted quad, at most @p cap bytes incl NUL. */
+    bool validate_hostname(const char* s, uint16_t cap, bool allow_empty = false);
+
+    /** @} */
+
+}}  // namespace Botanik::Vars
+
+#endif // VARS_SCALAR_H
