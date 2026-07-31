@@ -175,15 +175,27 @@ const uint8_t g_status_group_count =
  *  @{ */
 
 /** @brief Home-screen readings: label + variable. The HomePage lays these out
- *  in two columns, 5 left then 8 right. */
+ *  in three columns of 8, filled column-major; column 1 holds 6 (its top two
+ *  cells carry the uptime readout and a spacer). Labels are capped at 11 chars
+ *  and values at 13 by the column geometry. */
 const HomeVar g_home_fields[] = {
-    // left column: the incoming supply at a glance
+    // column 1 (6): the incoming supply at a glance
     { "Line V",    { VAR_ANALOG_IN, AI_PWR_LN_V } },
+    { "Line-line", { VAR_ANALOG_IN, AI_PWR_LL_V } },
     { "Line Hz",   { VAR_ANALOG_IN, AI_PWR_HZ } },
     { "Current",   { VAR_ANALOG_IN, AI_PWR_TOTAL_A } },
     { "Power",     { VAR_ANALOG_IN, AI_PWR_TOTAL_W } },
     { "Pwr factor",{ VAR_ANALOG_IN, AI_PWR_TOTAL_PF } },
-    // right column: the transfer switch, then derived state
+    // column 2 (8): the same supply, per phase
+    { "L1 V",      { VAR_ANALOG_IN, AI_PWR_L1_V } },
+    { "L2 V",      { VAR_ANALOG_IN, AI_PWR_L2_V } },
+    { "L3 V",      { VAR_ANALOG_IN, AI_PWR_L3_V } },
+    { "L1 A",      { VAR_ANALOG_IN, AI_PWR_L1_A } },
+    { "L2 A",      { VAR_ANALOG_IN, AI_PWR_L2_A } },
+    { "L3 A",      { VAR_ANALOG_IN, AI_PWR_L3_A } },
+    { "Neutral A", { VAR_ANALOG_IN, AI_PWR_N_A } },
+    { "THD L-N",   { VAR_ANALOG_IN, AI_PWR_LN_AVG_THD } },
+    // column 3 (8): the transfer switch, then derived state
     { "ATS V",     { VAR_ANALOG_IN, AI_ATS_V } },
     { "ATS A",     { VAR_ANALOG_IN, AI_ATS_A } },
     { "ATS W",     { VAR_ANALOG_IN, AI_ATS_W } },

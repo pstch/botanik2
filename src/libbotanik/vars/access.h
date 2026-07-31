@@ -39,7 +39,7 @@ namespace Botanik { namespace Vars {
 
     /** @brief A home-screen reading: a display @p label paired with the
      *  variable whose live value it shows. A site lists these in a HomeVar[];
-     *  the HomePage lays them out in two columns. The label is separate from
+     *  the HomePage lays them out in three columns. The label is separate from
      *  the variable's own name because the home screen wants "Temp" where the
      *  monitor table wants "ext_temp_c". */
     struct HomeVar {

@@ -136,9 +136,9 @@ every tick forever. Walking rows strictly top-down, that chrome takes its cut
 first, every time, and the page behind it starves.
 
 Priority here is **just the order `_emit_diff()` visits rows in** - a `uint8_t`
-per row (`RowPriority`: INPUT / CHROME / STRUCT / COLD), 32 bytes for the whole
-screen. When the budget runs out mid-frame, what gets dropped is the least
-important thing on screen rather than whatever sat lowest.
+per row (`RowPriority`: INPUT / CHROME / STRUCT), 32 bytes for the whole screen.
+When the budget runs out mid-frame, what gets dropped is the least important
+thing on screen rather than whatever sat lowest.
 
 There is deliberately no queue. A row that misses a tick simply still differs
 from BACK on the next one, so nothing is stored, reordered, coalesced or
@@ -147,13 +147,30 @@ the thing the earlier `TxScheduler` needed hundreds of lines and a shadow per
 renderer to achieve (§6).
 
 **Fairness within a class.** Priority orders *unequal* rows; it does nothing for
-a page like STATUS whose every row is a live field on the same cadence. Scanning
-each class from the top would let the upper rows spend the whole budget every
-tick, and the lower ones would never reach the wire - measured: rows 2-8 of 8
-never updated once in 300 ticks. So each class resumes where its budget ran out
-and wraps (`_resume[]`, one row index per class). That is the fairness a FIFO
-queue would have provided, for two bytes a class and no queue - again because the
-back-buffer, not a queue, is what holds the outstanding work.
+a page like STATUS whose every row is a live field on the same cadence. Restarting
+each class from the top every tick would let the upper rows spend the whole budget
+every time, and the lower ones would never reach the wire - measured: rows 2-8 of
+8 never updated once in 300 ticks. So each class *resumes* where its budget ran
+out (`_resume[]`, one row index per class) and starts a fresh pass at the top only
+once it has reached the bottom. The walk steps down a row a tick, which is the
+fairness a FIFO queue would have provided, for two bytes a class and no queue -
+again because the back-buffer, not a queue, is what holds the outstanding work.
+
+**Ordering wins over strict round-robin.** The walk only ever runs *downward*: it
+never wraps from the bottom back round to the top within a tick. An earlier cut
+did wrap, on the grounds that equally-ranked rows should take strict turns, and it
+was wrong - one frame could carry rows N..max followed by rows 0..N-1, so a freshly
+switched page painted its bottom half first and consecutive lines of shell output
+arrived in the wrong order. Content is written to be read top-down and a tick's
+worth of wire has to preserve that; the cost is that rows above the parked cursor
+wait for the next pass, which costs a tick, not a row.
+
+The parked cursor also outlives the frame that parked it, and therefore the *page*
+that parked it. `restart_scan()` sends the walk back to the top of every class, and
+is called wherever the content changed as an ordered whole: by `scroll_region()` (a
+band scroll, so a tail's revealed rows go out oldest-first), by `establish_screen()`
+(a full repaint), and by the Console on a page switch - which needs it explicitly,
+because `clear_content()` does not always scroll.
 
 **A class is a standing property, not a claim around a draw.** A row is
 classified once by whoever owns it, and that is the whole protocol - renderers

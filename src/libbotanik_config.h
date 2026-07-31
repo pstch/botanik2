@@ -184,7 +184,7 @@ namespace Botanik { namespace Config {
      *  @name Site descriptor capacity limits
      *
      *  Bounds a site's generated tables must respect; each would otherwise be a
-     *  silent runtime truncation (home fields past the two columns ignored, an
+     *  silent runtime truncation (home fields past the three columns ignored, an
      *  over-long alarm table clamped with its tail dropped, a table count past
      *  its uint8_t counter wrapped, a byte offset past ScalarField's int16_t
      *  field truncated). Each limit's authoritative source (Alarms::ALARM_BITS,
@@ -192,10 +192,10 @@ namespace Botanik { namespace Config {
      *  agrees, so the two can never drift.
      *  @{ */
 
-    /** @brief Home-screen readings the HomePage lays out (its two columns
+    /** @brief Home-screen readings the HomePage lays out (its three columns
      *  summed); extras are ignored at render. Pinned in pages/home.h. */
 #ifndef BOTANIK_HOME_FIELDS_MAX
-#  define BOTANIK_HOME_FIELDS_MAX 13
+#  define BOTANIK_HOME_FIELDS_MAX 22
 #endif
     BOTANIK_CFG(uint8_t, HOME_FIELDS_MAX);
 

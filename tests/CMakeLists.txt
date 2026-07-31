@@ -122,14 +122,32 @@ if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
         file(GLOB_RECURSE _pyte_sim_srcs CONFIGURE_DEPENDS
              ${CMAKE_SOURCE_DIR}/src/*.cpp ${CMAKE_SOURCE_DIR}/src/*.c
              ${CMAKE_SOURCE_DIR}/src/*.h)
+
+        # Configuring the sub-tree is its own step, keyed on the CMake files: it
+        # used to run on every source change, ahead of the build, for a tree that
+        # was already configured. The sub-build's own `make` still re-runs CMake by
+        # itself when its inputs change, so this only has to create the tree once.
+        # LTO off: the whole-program link dominated this build, and the tests need
+        # a sim that isn't sanitizer-slow, not one that is optimally inlined.
         add_custom_command(
-            OUTPUT ${_pyte_sim_bin}
+            OUTPUT ${_pyte_sim_dir}/CMakeCache.txt
             COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${CMAKE_SOURCE_DIR}
                     -B ${_pyte_sim_dir} -DBOTANIK_TARGET=SIMULATOR
                     -DCMAKE_BUILD_TYPE=RELEASE -DBOTANIK_SANITIZE=OFF
-                    -DBOTANIK_PYTE_TESTS=OFF
+                    -DBOTANIK_PYTE_TESTS=OFF -DBOTANIK_LTO=OFF
+            DEPENDS ${CMAKE_SOURCE_DIR}/CMakeLists.txt
+                    ${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt
+            COMMENT "Configuring the release botanik_sim tree for the pyte tests"
+            VERBATIM)
+
+        # --parallel is explicit: `cmake --build` starts a fresh make that inherits
+        # no jobserver from the outer one, so without it this sub-build compiles
+        # single-file-at-a-time no matter what -j the outer build was given.
+        add_custom_command(
+            OUTPUT ${_pyte_sim_bin}
             COMMAND ${CMAKE_COMMAND} --build ${_pyte_sim_dir} --target botanik_sim
-            DEPENDS ${_pyte_sim_srcs}
+                    --parallel ${_nproc}
+            DEPENDS ${_pyte_sim_srcs} ${_pyte_sim_dir}/CMakeCache.txt
             COMMENT "Building release botanik_sim for the pyte tests"
             VERBATIM)
         add_custom_target(pyte-sim DEPENDS ${_pyte_sim_bin})
@@ -161,6 +179,13 @@ if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
                     COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider
                             ${_node} --sim ${_pyte_sim_bin}
                     WORKING_DIRECTORY ${_pyte_dir})
+                # ctest launches the most expensive test first, but only once it
+                # has timings of its own - and it never gets usable ones here,
+                # since doctest case names contain spaces and its cost file is
+                # whitespace-delimited. Declaring the cost keeps a screen test
+                # (~10s) from starting after 200 sub-second unit tests on a fresh
+                # tree, which is where the -j slots go idle waiting for the tail.
+                set_tests_properties("pyte:${_node}" PROPERTIES COST 10)
             endforeach()
             list(LENGTH _pyte_nodes _pyte_count)
             message(STATUS "pyte: registered ${_pyte_count} screen tests")

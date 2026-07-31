@@ -129,9 +129,10 @@ namespace Botanik { namespace Terminal {
         uint8_t _row_prio[GRID_ROWS];
 
         /** @brief Per class, the row present() resumes its scan at - wherever the
-         *  tick's budget ran out. Round-robin within a class, so equally-ranked
-         *  rows take turns instead of the top ones winning every tick. A byte a
-         *  class (rows are bounded by GRID_ROWS), and no queue. */
+         *  tick's budget ran out. The walk only ever runs downward from there and
+         *  starts a fresh pass at the top once the class is drained, so what
+         *  reaches the wire in a tick is always in row order. A byte a class
+         *  (rows are bounded by GRID_ROWS), and no queue. */
         uint8_t _resume[PRIO_COUNT] = { 0 };
 
         /** @}
@@ -278,6 +279,14 @@ namespace Botanik { namespace Terminal {
         void set_row_priority(uint16_t row, RowPriority prio) {
             set_row_priority(row, row, prio);
         }
+
+        /** @brief Send present()'s row walk back to the top of every class.
+         *  Call it when the content changed as an ordered whole - a band scroll,
+         *  a page switch, a full repaint - so the rows reach the wire in the
+         *  order they read in. Without it a walk parked mid-screen by the
+         *  previous frame decides where the next one starts painting.
+         *  scroll_region() and establish_screen() call it themselves. */
+        void restart_scan();
 
         /** @brief Declare where the visible cursor belongs. The renderer owning
          *  the cursor (the editor) calls this whenever it moves; present() parks

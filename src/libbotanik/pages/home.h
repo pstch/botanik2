@@ -7,10 +7,10 @@
  * @brief HomePage - landing screen: ASCII logo, a compact system summary, and
  *        a small live log tail along the bottom.
  *
- * Site-independent: it shows the logo, the firmware identity block, the PLC
- * link status and uptime, and the log tail - nothing from the site payload. A
- * site adds nothing here (per-site readings live on the MONITOR page). Drawing
- * is diffed by MetricPage.
+ * Site-independent: it shows the logo, the firmware identity block, uptime, the
+ * log tail, and the site's home-field readings laid out in three columns of 8
+ * (the site supplies the table; the page owns the geometry). Drawing is diffed
+ * by MetricPage.
  *
  * Also a LogWriter: the bottom HOME_SCROLLBACK_LINES rows show a live tail (no
  * scroll-up), replayed from a small HomeScrollback. begin_redraw() over the
@@ -54,31 +54,44 @@ namespace Botanik { namespace Pages {
         bool _log_active = false;
 
         /** @brief Site home-field table (label + status variable) + the payload
-         *  they read. Up to LEFT_MAX + RIGHT_MAX shown; extras ignored. */
+         *  they read. Up to COLS * COL_MAX shown; extras ignored. */
         const Vars::HomeVar* _fields      = nullptr;
         uint8_t                   _field_count = 0;
         const Vars::Io*           _io          = nullptr;
 
         /** @} */
 
-        /** @name Home-field two-column layout
-         *  Left column: LEFT_MAX rows from LEFT_TOP; right column: RIGHT_MAX rows
-         *  from RIGHT_TOP (below the identity block). Labels left-justified,
-         *  values in a fixed field so columns stay put.
+        /** @name Home-field three-column layout
+         *  COLS columns of COL_MAX rows each, starting at COL_TOP (one blank row
+         *  below the logo, clear of the identity block). Column 1 gives its top
+         *  UPTIME_CELLS cells to the uptime readout and a spacer, so it holds
+         *  COL_MAX - UPTIME_CELLS fields. Labels left-justified, values in a fixed
+         *  field so columns stay put. Per-column geometry lives in _field_place().
          *  @{ */
-        static constexpr uint8_t  LEFT_MAX  = 5,  RIGHT_MAX = 8;
-        // Published as Config::HOME_FIELDS_MAX for generated home-field tables to
-        // static_assert against: extras past the two columns are silently ignored
-        // by _slot(), so a site must be able to catch that at build time.
-        static_assert(LEFT_MAX + RIGHT_MAX == Config::HOME_FIELDS_MAX,
-                      "Config::HOME_FIELDS_MAX must track the two columns' capacity");
-        static constexpr uint16_t LEFT_TOP  = 10, RIGHT_TOP = 7;
-        static constexpr uint16_t L_LBL = 2,  L_VAL = 15, L_W = 22;
-        static constexpr uint16_t R_LBL = 42, R_VAL = 55, R_W = 22;
+        static constexpr uint8_t  COLS = 3, COL_MAX = 8, UPTIME_CELLS = 2;
+        /** @brief Site fields the three columns hold. Published as
+         *  Config::HOME_FIELDS_MAX for generated home-field tables to
+         *  static_assert against: extras are silently ignored by _field_place(),
+         *  so a site must be able to catch that at build time. */
+        static constexpr uint8_t  FIELD_CAP = COLS * COL_MAX - UPTIME_CELLS;
+        static_assert(FIELD_CAP == Config::HOME_FIELDS_MAX,
+                      "Config::HOME_FIELDS_MAX must track the three columns' capacity");
+        static constexpr uint16_t COL_TOP = 7;
+        /** @brief Value width shared by the three columns (80 cols / 3). */
+        static constexpr uint16_t COL_W = 13;
         /** @} */
 
-        /** @brief First content row below the fixed identity block. */
-        static constexpr uint16_t PAYLOAD_ROW = 10;
+        /** @name Uptime readout
+         *  Column 1's top cell: same label / value columns as the fields below it
+         *  ("DDDd HH:MM:SS" is exactly one value field wide).
+         *  @{ */
+        static constexpr uint16_t UPTIME_ROW = COL_TOP, UPTIME_VAL = 13,
+                                  UPTIME_W = COL_W;
+        static constexpr uint16_t UPTIME_SLOT = FIELD_CAP;
+        /** @} */
+
+        /** @brief First content row below the fixed layout (uptime + columns). */
+        static constexpr uint16_t PAYLOAD_ROW = COL_TOP + COL_MAX;
 
         /** @brief First screen row of the bottom log band. Clamped so it never
          *  starts above the fixed content (logo + summary); on a too-short
@@ -207,28 +220,38 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Place site home-field @p i: its label row + column, value
-         *  column + width, and diff-cache slot. @return false past the two
-         *  columns' capacity (LEFT_MAX + RIGHT_MAX). Slots 10..14 (left) and
-         *  15..22 (right) are disjoint from the base's 7/8. */
+         *  column + width, and diff-cache slot. Fills column-major (the first
+         *  column's fields, then the second, then the third). @return false past
+         *  FIELD_CAP. Slots are the field index itself, leaving UPTIME_SLOT
+         *  upward free. */
         bool _field_place(uint8_t i, uint16_t& row, uint16_t& lbl, uint16_t& val,
                           uint16_t& w, uint16_t& slot) const {
-            if (i < LEFT_MAX) {
-                row = (uint16_t)(LEFT_TOP + i); lbl = L_LBL; val = L_VAL; w = L_W;
-                slot = (uint16_t)(10 + i);
-            } else {
-                uint8_t r = (uint8_t)(i - LEFT_MAX);
-                if (r >= RIGHT_MAX) return false;
-                row = (uint16_t)(RIGHT_TOP + r); lbl = R_LBL; val = R_VAL; w = R_W;
-                slot = (uint16_t)(15 + r);
+            // Per-column geometry (a static constexpr array member would be
+            // odr-used here and need an out-of-class definition). Column 1 starts
+            // below the uptime readout and its spacer, so it is that much shorter.
+            static const uint16_t LBL[COLS] = { 2, 28, 54 };
+            static const uint16_t VAL[COLS] = { 13, 39, 65 };
+            static const uint16_t TOP[COLS] = { COL_TOP + UPTIME_CELLS,
+                                                COL_TOP, COL_TOP };
+            static const uint8_t  MAX[COLS] = { COL_MAX - UPTIME_CELLS,
+                                                COL_MAX, COL_MAX };
+            slot = i;
+            for (uint8_t c = 0; c < COLS; c++) {
+                if (i < MAX[c]) {
+                    row = (uint16_t)(TOP[c] + i);
+                    lbl = LBL[c]; val = VAL[c]; w = COL_W;
+                    return true;
+                }
+                i = (uint8_t)(i - MAX[c]);
             }
-            return true;
+            return false;
         }
 
         void draw_static() override {
             draw_logo();
             draw_id_block();
-            _label(8, "Uptime");
-            // Site home-field labels (two columns).
+            _label(UPTIME_ROW, "Uptime");
+            // Site home-field labels (three columns).
             for (uint8_t i = 0; i < _field_count; i++) {
                 uint16_t row, lbl, val, w, slot;
                 if (!_field_place(i, row, lbl, val, w, slot)) break;
@@ -262,7 +285,8 @@ namespace Botanik { namespace Pages {
         void draw_hot() override {
             char buf[40];
             fmt_uptime(buf, sizeof(buf), HAL::Clock::uptime_ms());
-            _cell(8, 8, L_VAL, buf, L_W, false);   // bounded (see draw_dynamic)
+            // bounded (see draw_dynamic)
+            _cell(UPTIME_SLOT, UPTIME_ROW, UPTIME_VAL, buf, UPTIME_W, false);
         }
 
         /** @} */

@@ -5,14 +5,14 @@
    | |_) | (_) | || (_| | | | | |   <         Version ........ : <VERSION>
    |_.__/ \___/ \__\__,_|_| |_|_|_|\_\        Commit ......... : <COMMIT>
 
-                                          ATS V        <HF>
-  Uptime       <UPTIME>             ATS A        <HF>
-                                          ATS W        <HF>
-  Line V       <HF> ATS Hz       <HF>
-  Line Hz      <HF> Supply Hz    <HF>
-  Current      <HF> Lockout      <HF>
-  Power        <HF> Screen       <HF>
-  Pwr factor   <HF> Skirt        <HF>
+  Uptime     <UPTIME>  L1 V       <HF>           ATS V      <HF>
+                            L2 V       <HF>           ATS A      <HF>
+  Line V     <HF>           L3 V       <HF>           ATS W      <HF>
+  Line-line  <HF>           L1 A       <HF>           ATS Hz     <HF>
+  Line Hz    <HF>           L2 A       <HF>           Supply Hz  <HF>
+  Current    <HF>           L3 A       <HF>           Lockout    <HF>
+  Power      <HF>           Neutral A  <HF>           Screen     <HF>
+  Pwr factor <HF>           THD L-N    <HF>           Skirt      <HF>
 
     LOGS
 <TS> [~] BOOT: MqttClient initialized
