@@ -165,6 +165,16 @@ arrived in the wrong order. Content is written to be read top-down and a tick's
 worth of wire has to preserve that; the cost is that rows above the parked cursor
 wait for the next pass, which costs a tick, not a row.
 
+**Reaching the bottom is not being drained.** A class that resumed mid-screen has
+only covered the rows below the cursor, and the ones above it may be dirty again -
+so it does *not* hand the budget to the class below on that tick; it ends the tick
+and takes the next one from the top. Chrome is what makes this load-bearing: it is
+not a contiguous band (row 0, the alarms legend mid-screen, the alarm strip at the
+bottom), so it routinely parks the walk below one of its own rows. Without the
+rule, the strip parking the cursor on the bottom row let the alarms *table* paint
+while the legend above it waited - the page arriving before the frame around it,
+which is the one thing PRIO_CHROME exists to stop.
+
 The parked cursor also outlives the frame that parked it, and therefore the *page*
 that parked it. `restart_scan()` sends the walk back to the top of every class, and
 is called wherever the content changed as an ordered whole: by `scroll_region()` (a
