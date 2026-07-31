@@ -38,22 +38,15 @@ namespace Botanik { namespace Health {
     private:
         /** @name State
          *  @{ */
-        Alarms::MqttAlarmNotifier          _notifier; //< MQTT transition sink
+        Alarms::MqttAlarmNotifier          _notifier; ///< MQTT transition sink
         Alarms::AlarmModel                 _model;
         /** perf metrics (may be null) */
         const Scheduler::SchedulerContext* _sched;
-        /** PLC link status + live torn count (may be null) */
-        /** PLC shared region (for POST) */
 
         /** last overrun count seen (edge detect) */
         uint32_t _xrun_last        = 0;
         /** CPU_XRUN held active until this uptime */
         uint64_t _xrun_until_ms    = 0;
-        /** last torn-read count seen (edge detect) */
-        uint32_t _rx_torn_last     = 0;
-        /** RX_TORN held active until this uptime */
-        uint64_t _rx_torn_until_ms = 0;
-        /** uptime PLC fault began (0 = not faulted) */
         /** cached verdict (see watchdog_ok()) */
         bool     _watchdog_ok      = true;
         bool     _post_ok          = false;
@@ -128,7 +121,7 @@ namespace Botanik { namespace Health {
             // merged table, or set_local() would silently no-op (guards the
             // alarm-namespace wiring).
             static const char* const codes[] =
-                { "SYS_RST", "CPU_LOAD", "CPU_JITT", "STACK", "CPU_XRUN", "RX_TORN" };
+                { "SYS_RST", "CPU_LOAD", "CPU_JITT", "STACK", "CPU_XRUN" };
             for (const char* code : codes)
                 if (_model.index_of(code) < 0) {
                     ok = false; _post_fail("alarm code missing", code);

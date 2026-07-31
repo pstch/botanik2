@@ -27,7 +27,7 @@ namespace Botanik { namespace HAL { namespace Storage {
 
 #ifdef TARGET_OPTA
 // ---- OPTA: not yet wired to flash -------------------------------------------
-// HAL::Storage backs LocalParamHandler, used only when BOTANIK_FEATURE_PLC is
+// HAL::Storage backs the local parameter store, used when the PLC feature is
 // off; the reference site (gh_mlb41) runs PLC-on and never calls this, so the
 // OPTA firmware links without a flash backend. A PLC-less OPTA site should wire
 // this to the Mbed global KVStore (internal-flash TDBStore) - the module ships

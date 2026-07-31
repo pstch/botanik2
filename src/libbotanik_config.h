@@ -141,7 +141,7 @@ namespace Botanik { namespace Config {
 #  define BOTANIK_ALARM_STACK_PCT 80
 #endif
     BOTANIK_CFG(uint8_t, ALARM_STACK_PCT);
-    /** @brief How long a momentary-event alarm (CPU_XRUN, RX_TORN) stays held
+    /** @brief How long a momentary-event alarm (CPU_XRUN) stays held
      *  active after its counter ticks. HealthMonitor latches this in source (a
      *  proper held state, not a one-beat pulse), independent of the table's
      *  off_delay_s. */
@@ -238,7 +238,7 @@ namespace Botanik { namespace Config {
 
     /** @brief Bytes reserved for the local (no-PLC) parameter image. Must cover
      *  the site's parameter block (its widest out_offset + value width). Only
-     *  used when BOTANIK_FEATURE_PLC is off; keep it <= PAYLOAD_OFFSET_MAX. */
+     *  keep it <= PAYLOAD_OFFSET_MAX. */
 #ifndef BOTANIK_LOCAL_PARAM_IMAGE_BYTES
 #  define BOTANIK_LOCAL_PARAM_IMAGE_BYTES 512
 #endif
@@ -477,7 +477,7 @@ namespace Botanik { namespace Config {
 
     /** @brief Max unique log topics; sizes the per-topic bucket array (fixed footprint).
      *  @note Bounded by the uint8_t LogTopic type and bucket-loop counters, so
-     *        must stay <= 255 - see the static_assert in plcio/vars.h. */
+     *        must stay <= 255 - see the static_assert in logs/topics.h. */
 #ifndef BOTANIK_LOG_TOPIC_MAX
 #  define BOTANIK_LOG_TOPIC_MAX 255
 #endif

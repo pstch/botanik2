@@ -16,7 +16,7 @@ them live under `src/sites/<name>/`, shared verbatim by the simulator and the OP
 firmware - the sim writes the same variables the Modbus driver will.
 
 Unlike the OPTA, the simulator owns the PLC shared memory: `main()` allocates it as
-local statics and a generic emulator thread (`plcio/emulator.h`) drives the selected
+local statics and a generic emulator thread drives the selected
 site's `fill_output()` into it, standing in for the M4 coprocessor. On hardware the
 payload instead mirrors the PLC IDE's generated type.
 

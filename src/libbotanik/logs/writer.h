@@ -107,6 +107,12 @@ namespace Botanik { namespace Logs {
 
         /** @} */
 
+    protected:
+        /** @brief The standard entry rendering (Logs::format_log_entry). A sink
+         *  that needs its own wire shape overrides this; the page-side sinks all
+         *  want exactly this, so it is the default rather than three copies. */
+        size_t format(const Logs::LogEntry* entry, char* buf, size_t len) override;
+
     private:
         /** @name Internals
          *  @{ */

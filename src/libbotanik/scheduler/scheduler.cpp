@@ -1,6 +1,6 @@
 // REVIEW_35: TODO
-// TODO: AnsiTerminal still reads the concrete SchedulerContext/PlcSyncContext;
-// a future unified Context wrapper could decouple it from both. See TODO.md.
+// TODO: AnsiTerminal still reads the concrete SchedulerContext; a future
+// unified Context wrapper could decouple it. See TODO.md.
 /**
  * @file scheduler.cpp
  * @brief LoopScheduler implementation - tick timing, overrun reporting, and the

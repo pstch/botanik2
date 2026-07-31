@@ -139,10 +139,6 @@ namespace Botanik { namespace Pages {
         Logs::BufferedLogWriter::push(entry);
     }
 
-    size_t ShellPage::format(const Logs::LogEntry* entry, char* buf, size_t len) {
-        return Logs::format_log_entry(entry, buf, len);
-    }
-
     size_t ShellPage::write(const char* buf, size_t len) {
         // Store-only, for both log output (via drain(), indented prefix) and
         // command output (via write_lines(), plain "> " prefix). Bank, mark

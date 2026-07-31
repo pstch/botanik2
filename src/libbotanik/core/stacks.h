@@ -98,8 +98,8 @@ namespace Botanik {
 
 #if BOTANIK_FEATURE_NETWORK
     /** @brief The config-driven network services, all sourcing their config from
-     *  the PLC block (NETWORK requires PLC). NTP and MQTT are further gated;
-     *  telemetry rides on MQTT and publishes the live SystemContext. */
+     *  the parameter model. NTP and MQTT are further gated; telemetry rides on
+     *  MQTT and publishes the live SystemContext. */
     class NetworkStack {
 
         Network::NameResolver   _resolver;
@@ -114,7 +114,7 @@ namespace Botanik {
 #endif
 
     public:
-        /** @param plc the PLC sync context the handlers read their config from;
+        /** @param cfg the parameter model the handlers read their config from;
          *  @param logger the shared logger; @param sys the live status the MQTT
          *  telemetry base fields read (stored, read per-beat). */
         NetworkStack(const Params::ParamHandler* cfg, Logs::Logger* logger,

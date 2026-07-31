@@ -70,7 +70,6 @@ namespace Botanik { namespace Pages {
         /** @name BufferedLogWriter interface
          *  @{ */
 
-        size_t format(const Logs::LogEntry* entry, char* buf, size_t len) override;
         size_t write(const char* buf, size_t len) override;
 
         /** @} */

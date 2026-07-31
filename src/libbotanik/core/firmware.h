@@ -15,15 +15,10 @@
  * ("Site-specific code").
  *
  * Target-independent: the shared PLC region is injected by the caller (sim
- * statics, or HAL::PlcIO::input()/output() on OPTA). Tunable scalars default
+ * statics). Tunable scalars default
  * from Config and the harness overrides them through a set_*() modifier before
  * setup() (set_console_baud(), set_monitor_baud(), set_hw_watchdog_ms()).
  *
- * PLC-optional (BOTANIK_FEATURE_PLC, default on): the sync handler, log reader,
- * payload, and PLC-fault watchdog escalation. With -DBOTANIK_FEATURE_PLC=OFF
- * derive BotanikFirmware - it carries no payload type at all
- * type, the loop feeds health a zeroed remote bitset (only local platform
- * alarms fire), and HealthMonitor runs with a null link context.
  *
  * Console-optional (BOTANIK_FEATURE_CONSOLE, default on): the interactive ANSI
  * UI (AnsiTerminal, the built-in pages, the console UART, the register_*()
@@ -132,16 +127,8 @@ namespace Botanik {
     };
 
     /** @brief Generic firmware base: owns the generic components + the loop
-     *  order, and exposes each for a site subclass to build on.
-     *
-     *  @tparam Data the site's data struct - the values its tables address by
-     *  offset. The firmware owns one instance in RAM; on the simulator the
-     *  site's animator fills it, and control logic will write it directly once
-     *  the scan cycle lands. */
+     *  order, and exposes each for a site subclass to build on. */
     class BotanikFirmware {
-
-        /** @brief The site's live data. Owned here so there is exactly one
-         *  instance and every table addresses the same bytes. */
 
         /** @name Configuration
          *  @{ */
@@ -384,20 +371,15 @@ namespace Botanik {
             _monitor.serial().receive();
 #endif
 
-            // Config backend: refresh the image from the fresh PLC snapshot (or,
-            // PLC-less, load local storage on the first step) before the
-            // config-driven Components (net/sun) read it below.
+            // Params first: the config-driven Components (net/sun) read the
+            // image below. Loads local storage on the first step.
             _params.step(now_ms);
 
-            // Health after the PLC payload is fresh and before the logger
-            // drains, so an alarm START/END lands this beat. It reads the remote
-            // alarm bitset + torn count through its stored pointers (both null
-            // without a PLC, so only local platform alarms fire).
-            // Read phase. With no field drivers yet this only ages out readings
-            // whose timeout has passed; a driver refreshing them slots in here,
-            // before anything reads, which is what makes one beat coherent.
+            // Read phase: age out readings past their timeout, so one beat is
+            // coherent. Field drivers slot in here, before anything reads.
             _io.expire_stale(now_ms);
 
+            // Health before the logger drains, so an alarm START/END lands this beat.
             _health.step(now_ms);
 
 #if BOTANIK_FEATURE_NETWORK

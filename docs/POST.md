@@ -44,7 +44,7 @@ charge of its own boot check and runs it once the loop is actually turning.
 
 | Check | Why it matters |
 |---|---|
-| Every platform-health alarm code the firmware asserts (`SYS_RST`, `CPU_LOAD`, `CPU_JITT`, `STACK`, `CPU_XRUN`, `RX_TORN`) resolves in the merged alarm table | A missing code would make `AlarmModel::set_local(code)` silently no-op, so a real condition would never raise. Guards the alarm-namespace wiring (site bits at the low end, platform bits spliced at the high end). |
+| Every platform-health alarm code the firmware asserts (`SYS_RST`, `CPU_LOAD`, `CPU_JITT`, `STACK`, `CPU_XRUN`) resolves in the merged alarm table | A missing code would make `AlarmModel::set_local(code)` silently no-op, so a real condition would never raise. Guards the alarm-namespace wiring (site bits at the low end, platform bits spliced at the high end). |
 | The PLC shared region pointers (in / out) are non-null | A null region means the handler can never sync with the coprocessor. |
 | Both regions are 32-byte aligned | The cache-maintenance / DMA path requires it; a misaligned region corrupts cross-core transfers. |
 | The logger has at least one registered writer | A logger with no sinks swallows everything, including this very report. |

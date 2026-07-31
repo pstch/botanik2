@@ -158,7 +158,7 @@ namespace Botanik { namespace HAL {
 
         /** @brief Start the hardware watchdog: not kicked within @p timeout_ms
          *  -> the firmware resets. Distinct from the PLC software watchdog
-         *  (plcio/sync.h), which guards comms liveness, not the whole firmware.
+         *  which guards comms liveness, not the whole firmware.
          *  OPTA: the MCU's independent watchdog peripheral. Sim: serviced from
          *  the emulator thread (independent of the main loop, so a wedged loop
          *  still trips it). */

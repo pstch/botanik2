@@ -1,4 +1,4 @@
- 1 2:SHELL 3 4 5 6                  <TIME>          PLC:<P> cpu:<C> stk:<S>
+ 1 2:SHELL 3 4 5 6                  <TIME>                  cpu:<C> stk:<S>
 
 
 

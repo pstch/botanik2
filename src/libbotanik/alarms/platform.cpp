@@ -23,7 +23,6 @@ namespace Botanik { namespace Alarms {
         {"CPU_LOAD", "CPU load over threshold",          {},   5,  5,   0,     300},
         {"STACK",    "Stack usage over threshold",       {},   5,  5,   0,     300},
         {"CPU_JITT", "CPU jitter over threshold",        {},   5,  5,   0,     300},
-        {"RX_TORN",  "PLC torn read (handshake violation)", {}, 0, -1,  0,     0},
     };
     const uint8_t PLATFORM_ALARM_COUNT =
         (uint8_t)(sizeof(PLATFORM_ALARMS) / sizeof(PLATFORM_ALARMS[0]));

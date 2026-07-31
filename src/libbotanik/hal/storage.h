@@ -6,7 +6,7 @@
  * @file storage.h
  * @brief Minimal HAL key-value persistence for configuration held off the PLC.
  *
- * Portable surface used by LocalParamHandler when BOTANIK_FEATURE_PLC is off
+ * Portable surface used by the local parameter store
  * (the PLC otherwise owns config in its own NVM). Per-key raw-byte blobs that
  * survive a reboot. The two backends live in storage.cpp: Mbed KVStore on the
  * OPTA (internal-flash TDBStore), and a single external file (one `key=hex`

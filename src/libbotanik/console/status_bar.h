@@ -36,8 +36,8 @@ namespace Botanik { namespace Terminal {
         /** @brief Last clock refresh (uptime ms). */
         uint64_t            _clock_last_ms = 0;
 
-        /** @brief Visible width (+NUL) of "PLC:xxx cpu:nnn% stk:nnn% ". */
-        static constexpr uint16_t METRICS_LEN = 27;
+        /** @brief Visible width (+NUL) of "cpu:nnn% stk:nnn% ". */
+        static constexpr uint16_t METRICS_LEN = 19;
         /** @brief HH:MM:SS field width (no NUL). */
         static constexpr uint16_t CLOCK_LEN = 8;
         /** @brief Column just past the last-drawn tab strip. The active tab is
