@@ -52,8 +52,7 @@ namespace Botanik { namespace Scheduler {
         uint32_t tick_count      = 0;           ///< Tick count since init
         uint32_t overruns        = 0;           ///< Cumulative beats skipped to overruns
         
-        /** @brief Loop "now" (uptime ms), republished by tick() when the work window opens.
-         *  @warning 32-bit, wraps every ~49 days. */
+        /** @brief Loop "now" (uptime ms), republished by tick() when the work window opens. */
         uint64_t timestamp_ms    = 0;
     };
 
@@ -218,7 +217,7 @@ namespace Botanik { namespace Scheduler {
                 return false;   // busy-wait the last ms; defer work
             }
             // publish the loop "now" so consumers share one timestamp per tick
-            _context.timestamp_ms = (uint32_t)now_ms;
+            _context.timestamp_ms = now_ms;
             _skip_beats(now_ms);   // no log; surfaced via CPU_XRUN + stats
             // Clamp grid-relative lateness at 0: _skip_beats keeps now >= grid
             // so it shouldn't underflow, but one wrapped sample would poison

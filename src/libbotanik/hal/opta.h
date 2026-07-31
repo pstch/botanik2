@@ -114,16 +114,16 @@ namespace Botanik { namespace HAL {
     inline uint64_t wall_ms() {
         // TODO [WALLCLOCK-WRAP-2038]: time() returns time_t, which is 32-bit on
         // this newlib and WRAPS in Jan 2038 before the widening cast - this
-        // must be sourced from a 64-bit RTC read once the NtpClient/RTC path
-        // lands (it also only resolves whole seconds today; read the RTC
-        // sub-second register for ms).
+        // must be sourced from a 64-bit RTC read (it also only resolves whole
+        // seconds; read the RTC sub-second register for ms).
         return (uint64_t)time(NULL) * 1000;
     }
 
     inline void set_wall_ms(uint64_t unix_ms) {
-        // TODO: program the STM32 RTC (set_time / RTC date+time registers) from
-        // unix_ms once NTP sync lands. Reasoned-only; no RTC write wired yet.
-        (void)unix_ms;
+        // Programs the STM32 RTC, which is what time() reads back. Whole
+        // seconds only: Mbed's set_time() takes a time_t, so the sub-second
+        // part of an NTP sync is dropped (see WALLCLOCK-WRAP-2038).
+        set_time((time_t)(unix_ms / 1000u));
     }
 
     inline void sleep_ms(uint32_t ms) {

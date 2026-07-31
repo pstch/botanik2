@@ -23,7 +23,7 @@ namespace Botanik { namespace Network {
             _table[i].state    = SLOT_FREE;
             _table[i].handle   = 0;
             _table[i].host[0]  = '\0';
-            _table[i].ready_at = 0;
+            _table[i].stamp_at = 0;
         }
     }
 
@@ -34,14 +34,14 @@ namespace Botanik { namespace Network {
             _table[i].state    = SLOT_FREE;
             _table[i].handle   = 0;
             _table[i].host[0]  = '\0';
-            _table[i].ready_at = 0;
+            _table[i].stamp_at = 0;
         }
     }
 
     bool NameResolver::_expired(const Entry& e) const {
         if (_cache_ttl_ms == 0) return false;   // 0 = never expire
         // uptime is monotonic (64-bit, no wrap), so a plain difference is safe.
-        return (HAL::Clock::uptime_ms() - e.ready_at) > (uint64_t)_cache_ttl_ms;
+        return (HAL::Clock::uptime_ms() - e.stamp_at) > (uint64_t)_cache_ttl_ms;
     }
 
     NameResolver::Entry* NameResolver::_find(const char* host) {
@@ -55,15 +55,29 @@ namespace Botanik { namespace Network {
     }
 
     NameResolver::Entry* NameResolver::_alloc() {
+        const uint64_t now = HAL::Clock::uptime_ms();
         Entry* victim = nullptr;
+        Entry* stale  = nullptr;                       // oldest reclaimable in-flight row
         for (size_t i = 0; i < Config::DNS_CACHE_SIZE; ++i) {
-            SlotState st = _table[i].state;
-            if (st == SLOT_FREE) return &_table[i];
-            // First non-pending row is an evictable cache/error entry
-            // (fallback).
-            if (st != SLOT_PENDING && victim == nullptr) victim = &_table[i];
+            Entry& e = _table[i];
+            if (e.state == SLOT_FREE) return &e;
+            if (e.state != SLOT_PENDING) {
+                // First non-pending row is an evictable cache/error entry.
+                if (victim == nullptr) victim = &e;
+            } else if ((now - e.stamp_at) > (uint64_t)Config::DNS_PENDING_MAX_MS &&
+                       (stale == nullptr || e.stamp_at < stale->stamp_at)) {
+                stale = &e;
+            }
         }
-        return victim;   // null only if every row is PENDING
+        if (victim != nullptr) return victim;
+        // Every row is in flight: reclaim the oldest one past the age bound, so
+        // callers that abandoned a lookup cannot wedge the table for good.
+        if (stale != nullptr) {
+            if (stale->handle != 0) HAL::Network::dns_cancel(stale->handle);
+            stale->handle = 0;
+            stale->state  = SLOT_FREE;
+        }
+        return stale;
     }
 
     ResolveStatus NameResolver::resolve(const char* host, ResolvedAddr* out) {
@@ -84,7 +98,7 @@ namespace Botanik { namespace Network {
                 HAL::Network::Ip4 ip;
                 HAL::Network::DnsResult r = HAL::Network::dns_poll(e->handle, &ip);
                 if (r == HAL::Network::DNS_OK) {
-                    e->addr = ip; e->ready_at = HAL::Clock::uptime_ms();
+                    e->addr = ip; e->stamp_at = HAL::Clock::uptime_ms();
                     e->state = SLOT_READY; *out = e->addr; return RESOLVE_OK;
                 }
                 if (r == HAL::Network::DNS_FAILED) {
@@ -94,15 +108,12 @@ namespace Botanik { namespace Network {
                 }
                 return RESOLVE_PENDING;
             }
-            // A READY entry past its TTL was freed above and falls through to a
-            // fresh lookup; _find never returns a FREE row, so there is no other
-            // state to handle here.
         }
 
         // Start (or poll) a HAL DNS lookup. A row stores its DnsHandle while
         // pending.
         e = _alloc();
-        // null only if every row is an in-flight lookup.
+        // null only while every row is a lookup too young to reclaim.
         if (e == nullptr) return RESOLVE_FAILED;
 
         HAL::Network::DnsHandle h = HAL::Network::dns_begin(host);
@@ -112,8 +123,9 @@ namespace Botanik { namespace Network {
         }
         strncpy(e->host, host, Config::PLC_HOST_STR_LEN - 1);
         e->host[Config::PLC_HOST_STR_LEN - 1] = '\0';
-        e->handle = h;
-        e->state  = SLOT_PENDING;
+        e->handle   = h;
+        e->state    = SLOT_PENDING;
+        e->stamp_at = HAL::Clock::uptime_ms();   // in-flight age, for _alloc()'s reclaim
 
         // Poll once now: usually PENDING (later resolve() calls drive it), but an
         // OPTA stack-cache hit can land a result immediately.
@@ -121,7 +133,7 @@ namespace Botanik { namespace Network {
         HAL::Network::DnsResult r = HAL::Network::dns_poll(h, &ip);
         if (r == HAL::Network::DNS_OK) {
             e->addr = ip;
-            e->ready_at = HAL::Clock::uptime_ms();
+            e->stamp_at = HAL::Clock::uptime_ms();
             e->state = SLOT_READY;
             *out = e->addr;
             return RESOLVE_OK;

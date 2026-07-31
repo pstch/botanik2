@@ -111,16 +111,16 @@ namespace Botanik { namespace Terminal {
         char            _text_buf[Config::ANSI_INPUT_BATCH_SIZE];
         uint16_t        _text_len = 0;
         /** @brief Timestamp of the last byte read. */
-        uint32_t        _last_byte_ms = 0;
+        uint64_t        _last_byte_ms = 0;
         /** @brief When the current text batch started. */
-        uint32_t        _batch_start_ms = 0;
+        uint64_t        _batch_start_ms = 0;
 
         /** @brief Pending chunkable command (held BACKSPACE / CTRL_D),
          *  coalesced into one COMMAND event with `count` instead of N reconcile
          *  passes. */
         InputEvent::Command _pending_cmd = InputEvent::Command::NONE;
         uint16_t            _pending_cmd_count = 0;
-        uint32_t            _pending_cmd_start_ms = 0;
+        uint64_t            _pending_cmd_start_ms = 0;
 
         /** @} */
 

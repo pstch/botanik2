@@ -356,16 +356,15 @@ namespace Botanik {
         }
 
         /** @brief One main-loop iteration. tick() gates a beat and republishes
-         *  the 32-bit display "now" (`SchedulerContext::timestamp_ms`) the
-         *  render path shares.
+         *  the display "now" (`SchedulerContext::timestamp_ms`) the render path
+         *  shares.
          *  The order is load-bearing (see CONCURRENCY.md):
-         *    tick -> serial.receive -> plc -> health -> net -> on_step -> logger
-         *         -> terminal/drain -> serial.transmit -> watchdog_kick
+         *    tick -> serial.receive -> params -> io.expire_stale -> health -> net
+         *         -> scan -> on_step -> logger -> terminal/drain
+         *         -> serial.transmit -> watchdog_kick
          *  Every stepped unit is a Component driven by step(now_ms) with a fresh
-         *  64-bit HAL::Clock::uptime_ms(), NOT the 32-bit timestamp_ms - their
-         *  fault-grace / alarm-latch timers want a wrap-free clock. Non-virtual
-         *  so the order can't be reordered; a site adds per-beat work via
-         *  on_step(). */
+         *  HAL::Clock::uptime_ms(). Non-virtual so the order can't be reordered;
+         *  a site adds per-beat work via on_step(). */
         void loop() {
             if (!_scheduler.tick()) return;   // driver: gates the beat, produces the clock
 

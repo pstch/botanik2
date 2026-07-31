@@ -71,7 +71,7 @@ namespace Botanik { namespace Pages {
 
         ShellPage(Terminal::Console& console);
 
-        /** @brief Register a site command table (tried after the built-ins). */
+        /** @brief Register a site command table (tried before the built-ins). */
         void set_commands(const Shell::ShellCommand* table, size_t count, void* ctx = nullptr) {
             _shell.set_commands(table, count, ctx);
         }

@@ -296,6 +296,15 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, DNS_CACHE_TTL_MS);
 
+    /** @brief Max time (ms) a row stays in flight before _alloc() may cancel and
+     *  reclaim it. A caller that abandons a lookup (a group serial bumps mid
+     *  resolve) never frees its row, so without this the table leaks a slot per
+     *  abandonment until every row is PENDING and resolution fails for good. */
+#ifndef BOTANIK_DNS_PENDING_MAX_MS
+#  define BOTANIK_DNS_PENDING_MAX_MS 30000u
+#endif
+    BOTANIK_CFG(uint32_t, DNS_PENDING_MAX_MS);
+
     /** @brief Max time spent waiting for the link to come up. */
 #ifndef BOTANIK_NET_SETUP_TIMEOUT_MS
 #  define BOTANIK_NET_SETUP_TIMEOUT_MS 30000

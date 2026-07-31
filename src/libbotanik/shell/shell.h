@@ -51,7 +51,7 @@ namespace Botanik { namespace Shell {
 
     /** @brief Site-defined shell command: a name, one-line help text, and a
      *  callback. Registered as a table via CommandShell::set_commands() and
-     *  tried after the built-ins (so a site can't shadow exit/reset). The name
+     *  tried before the built-ins, so the table can override one. The name
      *  may be followed by arguments: the remainder of the line after the name
      *  (leading spaces trimmed) is handed to the callback as @p args /
      *  @p arglen, and @p ctx is the opaque pointer passed to set_commands(). */
@@ -167,15 +167,15 @@ namespace Botanik { namespace Shell {
             _status_groups = groups; _status_group_count = count;
         }
 
-        /** @brief Register a site command table, tried after the built-ins.
+        /** @brief Register a site command table, tried before the built-ins.
          *  @p table must outlive the shell (typically a static at the site).
          *  @p ctx is passed to each callback. Pass count 0 (or null) to
-         *  clear. */
+         *  clear.
+         *  @warning A site name that collides with a built-in overrides it,
+         *  including `exit` and `reset`. */
         void set_commands(const ShellCommand* table, size_t count,
                           void* ctx = nullptr) {
-            // Cap defensively so a bogus count can't walk off the table. A site
-            // name that collides with a built-in is silently dead (built-ins
-            // match first by design).
+            // Cap defensively so a bogus count can't walk off the table.
             if (count > Config::SHELL_COMMANDS_MAX) count = Config::SHELL_COMMANDS_MAX;
             _commands      = table;
             _command_count = (table != nullptr) ? count : 0;
