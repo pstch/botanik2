@@ -7,12 +7,15 @@ truth for the `gh_mlb41` greenhouse.
 
 | File | Holds |
 |---|---|
-| `site.h` | the PLC payload (`PlcInput/OutputData_t` + status enums and their string companions), the declarative tables (status-variable `ScalarGroup[]`, the `gh` shell command), the `g_site` `SiteDescriptor` bundling every table, and the thin `GreenhouseMLB41` binding. The uniform handle a harness builds against (`BotanikSite`, the payload, the sim-only mock-PLC entry). |
-| `alarms.h` | the `g_alarms[]` condition table (one row per alarm: code, description, the payload boolean's `offsetof`, dwell). |
-| `sim.h` | the header-only simulator mock PLC (data animator + emulator wiring); its whole body is `#ifdef TARGET_SIMULATOR`, so it drops out of the hardware build. |
+| `site.h` | the `g_site` `SiteDescriptor` bundling every table, and the thin `GreenhouseMLB41` binding. The uniform handle a harness builds against (`BotanikSite`). |
+| `io.h` / `io.cpp` | the variable tables (analog/digital in/out + computed internals) and their RAM value stores. |
+| `status.h` | the display groups (`VarGroup[]`) and the home-screen readings (`HomeVar[]`), as VarRefs into those tables. |
+| `data.h` | `GreenhouseConfig_t`: the byte image the config parameters are laid out in - all that is left of the PLC payload. |
+| `alarms.h` | the `g_alarms[]` condition table (one row per alarm: code, description, the VarRef carrying the condition, dwell). |
+| `sim.h` | the header-only simulated field: it writes the variable tables the way a Modbus driver will. Its whole body is `#ifdef TARGET_SIMULATOR`, so it drops out of the hardware build. |
 | `config.h` | build-wide config overrides (`#define BOTANIK_*`); kept separate so CMake includes it before the library defaults. |
 
-`GreenhouseMLB41` derives `BotanikFirmware<PlcInputData_t, SiteData_t>` and just
+`GreenhouseMLB41` derives `BotanikFirmware` and just
 passes `g_site` to the base constructor - it declares no pages and overrides no hooks.
 The base owns every page (home/shell/logs/alarms/config/monitor) and wires the
 descriptor's tables generically, so the site is data, not code. A site needing custom
@@ -22,28 +25,35 @@ per-beat logic or an extra page (e.g. re-adding a STATUS page by subclassing
 
 ## Data model
 
-`PlcInputData_t` is empty (the host writes only the library log/sync fields back to
-the PLC). `SiteData_t` is the greenhouse the PLC publishes each cycle - sensors
-and actuator feedback, grouped below. Three `uint8_t` fields carry enumerated states
-with a `str()` companion (`UpsStatus`, `TrayStatus`, `NetStatus`):
+Everything the site exposes is a **variable**, declared in `io.h` and addressed by
+table and index. There is no payload struct: nothing carries a byte offset any
+more, so re-ordering a table cannot silently re-point a status row, an alarm or a
+home field at its neighbour.
 
-\startuml "gh_mlb41 SiteData_t: the greenhouse state the PLC publishes"
-class SiteData_t {
-  alarms : one uint8 boolean per condition (AlarmModel reads each by offset)
-  power : grid_ac / dc_bus / battery / generator (mV), grid_freq
-  climate : ext/floor/ceil temp + RH, wind_peak, rain_age
-  irrigation : water_in / water_out, current_tray, tray_status*
-  system : sunrise_min, sunset_min, ntp_offset_ms
-  actuators : window a-d, blower a-d, extractor a/b, thermal_screen (%)
-  status : ups_status*, dc_bus_a/b_ok, rain, cooling, generator, heat_blower, heatpump, net_status*, ntp_synced
+\startuml "gh_mlb41 variables: what the site declares"
+class "io.h" as IO {
+  analog in (43) : SDM630 three-phase meter (37) + MCT1-140 transfer switch (6)
+  analog out (0) : AO-1 module wired but unmapped
+  digital in (0) : AI-1 module wired but unmapped
+  digital out (28) : relay coils on four 26517 expansions
+  internal analog : values the control programs compute
+  internal digital : the 23 alarm conditions + program state flags
 }
 \enduml
 
-The `*` fields are enums with a `str()` companion:
+Each row carries its name, unit, description, plausibility band, display
+precision and - the load-bearing one - a **default**, which does three jobs: an
+input's substitute when a read is invalid, an output's safe state on a fault, and
+a parameter's factory value.
 
-- `UpsStatus` - OFFLINE / ONLINE / ON_BATTERY / FAULT
-- `TrayStatus` - IDLE / FILLING / SOAKING / DRAINING
-- `NetStatus` - DOWN / LINK / ONLINE
+`status.h` groups those variables for display (`VarGroup[]`, one sub-topic each)
+and lists the home-screen readings; `alarms.h` names, per condition, the internal
+digital that carries it. All three are generated from the same source, so their
+indices agree by construction.
+
+The one byte image left is `data.h`: `GreenhouseConfig_t`, the layout the config
+**parameters** are stored in. Folding those into the variable model waits on an
+index-addressed parameter store.
 
 ## Integrating into an Arduino sketch
 
@@ -76,17 +86,11 @@ void loop() {
 
 Notes:
 
-- **Payload contract.** On hardware `SiteData_t` must match the PLC IDE's
-  generated type byte-for-byte. Once those types are in scope, assert it:
-  ```cpp
-  static_assert(sizeof(PLCSharedVarsInput_t)   == sizeof(Botanik::PlcIO::PlcInput<PlcInputData_t>));
-  static_assert(alignof(PLCSharedVarsOutput_t) == alignof(Botanik::PlcIO::PlcOutput<SiteData_t>));
-  ```
 - **Console baud / geometry.** The HAL constructor uses `BOTANIK_CONSOLE_BAUD` and
   80x24; pass `BotanikSite fw(cols, rows)` to change the geometry. The simulator passes
   an explicit low baud through the region constructor instead.
-- **No mock PLC on hardware.** `sim.h` compiles to nothing without `TARGET_SIMULATOR`;
-  the real M4 coprocessor animates the payload instead.
+- **No simulated field on hardware.** `sim.h` compiles to nothing without
+  `TARGET_SIMULATOR`; the Modbus driver fills the same variables instead.
 - The `botanik_fw` target and its C-callable hooks in `src/botanik_fw/` are the
   canonical examples of this wiring (the Axel runtime drives the hooks, not a bare
   `loop()`).

@@ -4,13 +4,13 @@
 
 /**
  * @file firmware.h
- * @brief BotanikFirmware<In, Out> - the generic firmware base.
+ * @brief BotanikFirmware - the generic firmware base.
  *
  * Owns every long-lived generic component (serials, logger, scheduler, PLC
  * sync, alarm model/reader, terminal, core pages) and the per-tick loop()
  * order, and exposes a reference accessor for each so a site subclass can build
  * its own components on top. A site derives
- * `GreenhouseXXX : BotanikFirmware<In, Out>`, adds its pages as members, and
+ * `GreenhouseXXX : BotanikFirmware`, adds its pages as members, and
  * customizes through the register_*() hooks; see docs and CLAUDE.md
  * ("Site-specific code").
  *
@@ -21,7 +21,7 @@
  *
  * PLC-optional (BOTANIK_FEATURE_PLC, default on): the sync handler, log reader,
  * payload, and PLC-fault watchdog escalation. With -DBOTANIK_FEATURE_PLC=OFF
- * derive BotanikFirmware<> - the payload params default to the zero-size Empty
+ * derive BotanikFirmware - it carries no payload type at all
  * type, the loop feeds health a zeroed remote bitset (only local platform
  * alarms fire), and HealthMonitor runs with a null link context.
  *
@@ -66,11 +66,9 @@
  *     g_alarms, 23,
  * };
  *
- * class GreenhouseXXX final : public BotanikFirmware<PlcInputData_t, SiteData_t> {
+ * class GreenhouseXXX final : public BotanikFirmware {
  * public:
- *     GreenhouseXXX(PlcIO::PlcInput<PlcInputData_t>* in,
- *                   PlcIO::PlcOutput<SiteData_t>* out)
- *         : BotanikFirmware(in, out, g_site) {}
+ *     GreenhouseXXX() : BotanikFirmware(g_site) {}
  * };
  * @endcode
  */
@@ -91,10 +89,6 @@
 #include <cstdint>
 
 namespace Botanik {
-
-    /** @brief Zero-size default site data, so BotanikFirmware<> is usable by a
-     *  site that publishes nothing. */
-    struct Empty {};
 
     /**
      * @brief The declarative description of a site: its name plus the four
@@ -144,12 +138,10 @@ namespace Botanik {
      *  offset. The firmware owns one instance in RAM; on the simulator the
      *  site's animator fills it, and control logic will write it directly once
      *  the scan cycle lands. */
-    template<typename Data = Empty>
     class BotanikFirmware {
 
         /** @brief The site's live data. Owned here so there is exactly one
          *  instance and every table addresses the same bytes. */
-        Data                          _data;
 
         /** @name Configuration
          *  @{ */
@@ -491,10 +483,10 @@ namespace Botanik {
 
         Logs::Logger&                   logger()          { return _logger; }
         Scheduler::LoopScheduler&       scheduler()       { return _scheduler; }
-        /** @brief The site's live data struct: the single instance every
-         *  declarative table addresses by offset. */
-        const Data*                     data() const { return &_data; }
-        Data*                           data()       { return &_data; }
+        /** @brief The site's variable tables bound to their value stores: what
+         *  everything - programs, console, telemetry - reads and writes. */
+        const Vars::Io&                 io() const { return _io; }
+        Vars::Io&                       io()       { return _io; }
 #if BOTANIK_FEATURE_NETWORK
         Network::NetworkHandler&        network()         { return _net.network(); }
         Network::NameResolver&          resolver()        { return _net.resolver(); }
@@ -544,7 +536,7 @@ namespace Botanik {
          *  descriptor's commands, reading the live PLC payload as their ctx. */
         virtual void register_commands() {
             _console.shell().set_commands(_site.commands, _site.command_count,
-                                          (void*)data());
+                                          (void*)&_io);
         }
 #endif
 

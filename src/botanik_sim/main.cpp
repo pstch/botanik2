@@ -4,7 +4,7 @@
  * @brief Botanik simulator entry point - a thin harness around a site firmware.
  *
  * Selects the site, applies the sim-only timing dilation, drives loop(), and
- * animates the site's data struct through its simulated field (sim.h).
+ * animates the site's variable tables through its simulated field (sim.h).
  */
 
 #include "libbotanik.h"
@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
         // The simulated field, in place of the mock coprocessor that used to
         // animate a shared region from its own thread: fill the firmware's data
         // struct, then run the beat that reads it.
-        Site::simulate(greenhouse.data(), (uint32_t)HAL::Clock::uptime_ms());
+        Site::simulate((uint32_t)HAL::Clock::uptime_ms());
         greenhouse.loop();
         if (botanik_reexec) HAL::System::reset();
     }

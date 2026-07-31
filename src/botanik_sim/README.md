@@ -11,9 +11,9 @@ into a flashable OPTA image.
 
 This directory is just a thin harness: `main.cpp` is the entry point that wires the
 library together (the equivalent of an Arduino sketch's `setup()` + `loop()`) and owns
-the main loop. The PLC payload (`PlcInputData_t` / `SiteData_t`) and its mock
-animator now live with the site under `src/sites/<name>/`, shared verbatim by the
-simulator and the OPTA firmware.
+the main loop. The site's variable tables and the simulated field that animates
+them live under `src/sites/<name>/`, shared verbatim by the simulator and the OPTA
+firmware - the sim writes the same variables the Modbus driver will.
 
 Unlike the OPTA, the simulator owns the PLC shared memory: `main()` allocates it as
 local statics and a generic emulator thread (`plcio/emulator.h`) drives the selected

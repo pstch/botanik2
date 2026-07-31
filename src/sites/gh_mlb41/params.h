@@ -9,14 +9,14 @@
  * Generated from the Arduino PLC IDE project. Regenerating overwrites this
  * file.
  *
- * A parameter is declared over BOTH site payloads, which are distinct layouts:
- * out_offset reads the live value the PLC reflects (SiteData_t), in_offset
- * stages an edit for the PLC to latch (PlcInputData_t).
+ * A parameter is addressed by byte offset into the parameter image, whose
+ * layout is GreenhouseConfig_t (data.h): out_offset reads the live value,
+ * in_offset stages an edit.
  *
  * Commit model: editing a value only stages it. Each group's commit serial is an
  * ordinary parameter NAMED AFTER THE GROUP ("net" commits the net group), so
- * editing that serial ships the staged group; the PLC latches it and reflects
- * the serial back, which the consuming Component watches.
+ * editing that serial ships the staged group; the consuming Component watches
+ * the serial and re-applies its group when it bumps.
  *
  * Each row pairs a ScalarField (read/display) with a ParamMeta (edit bounds):
  *   field {name, out_offset, type, digits, str, unit, desc, notes}
@@ -34,7 +34,7 @@ namespace Site {
 
 using namespace Botanik;
 
-#define OO(f) (int16_t)offsetof(SiteData_t, config.f)
+#define OO(f) (int16_t)offsetof(GreenhouseConfig_t, f)
 #define CAP   (uint16_t)GreenhouseConfig_t::STRLEN
 
 const Params::Param g_params[] = {

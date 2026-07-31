@@ -19,12 +19,14 @@
 
 #include "libbotanik.h"            // all library types (pages, terminal, editor, plcio)
 #include "libbotanik_site.h"       // BOTANIK_SITE -> BOTANIK_SITE_HEADER
-#include BOTANIK_SITE_HEADER       // selected site: PlcInputData_t / SiteData_t
+#include BOTANIK_SITE_HEADER       // selected site: its tables + parameter image
 
 // Concrete instantiations of the templated pages/PLC structs, matching what the
 // simulator actually builds (see botanik_sim/main.cpp).
 using HomePage_t   = Botanik::Pages::HomePage;
-using StatusPage_t = Botanik::Pages::StatusPage<SiteData_t>;
+// StatusPage is an unregistered building block; a site subclass supplies
+// whatever payload type it draws. Sized here on the parameter image.
+using StatusPage_t = Botanik::Pages::StatusPage<GreenhouseConfig_t>;
 
 // Report a type's size and guard it against runaway growth. The budget is a
 // loose ceiling — bump it deliberately if a structure legitimately needs it.
@@ -56,8 +58,8 @@ TEST_CASE("sizeof: pages") {
     REPORT_SIZE(Botanik::Pages::ShellPage, 65536);
 }
 
-TEST_CASE("sizeof: site data struct") {
-    // The site data struct is plain RAM now - no shared region, no alignment or
-    // cache contract to honour. Only its bulk still matters.
-    REPORT_SIZE(SiteData_t, 16384);
+TEST_CASE("sizeof: site parameter image") {
+    // All that is left of the site payload: the config parameters' layout.
+    // Status, actuators and alarms are variables now, sized by their tables.
+    REPORT_SIZE(GreenhouseConfig_t, 16384);
 }

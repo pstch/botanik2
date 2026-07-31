@@ -124,143 +124,98 @@ inline void publish_meters(uint32_t now_ms) {
 }
 
 /**
- * @brief Animate the greenhouse payload with plausible, mostly-steady values.
+ * @brief Drive the relay coils, so the climate and irrigation groups show
+ * something moving.
  *
- * Called from the emulator thread (~1 Hz); static state lets values settle and
- * only drift now and then. @p now_ms is the uptime in milliseconds.
+ * A caricature of a control law, not one: the point is that the console reads
+ * these through the same handles a real program writes them with.
  */
-inline void fill_output(SiteData_t* o, uint32_t now_ms) {
-    // seconds - drives irrigation walk
+inline void drive_coils(uint32_t now_ms) {
     const float t = (float)now_ms / 1000.0f;
 
-    // Slow mean-reverting climate driver in [-1, 1] (the * factor pulls it back
-    // toward 0): mostly mild, rarely excursing far enough to trip TOO_HOT/HUM.
-    static float climate = 0.0f;
-    climate = drift(climate, 0.35f, -1.0f, 1.0f, 0.06f) * 0.985f;
+    // Windows track a slow thermal cycle; open and close are interlocked, as
+    // the real drives are (energising both would fight the motor).
+    static float thermal = 0.0f;
+    thermal = drift(thermal, 0.3f, -1.0f, 1.0f, 0.05f) * 0.99f;
+    const bool opening = thermal > 0.35f;
+    const bool closing = thermal < -0.35f;
 
-    // Climate sensors - three height zones share the level with a static
-    // offset (ceiling warmer/drier than the floor).
-    float temp_c = 22.0f + 3.0f * climate;                       // ~19..25 degC
-    o->ext_temp_c   = temp_c - 1.5f;
-    o->floor_temp_c = temp_c;
-    o->ceil_temp_c  = temp_c + 2.0f;
-    float rh = 60.0f - 10.0f * climate;                          // ~50..70 %
-    o->ext_rh_pct   = rh + 2.0f;
-    o->floor_rh_pct = rh;
-    o->ceil_rh_pct  = rh - 4.0f;
+    const uint16_t opn[] = { DO_CLI_WINDOW1_OPN, DO_CLI_WINDOW2_OPN,
+                             DO_CLI_WINDOW3_OPN, DO_CLI_WINDOW4_OPN };
+    const uint16_t clo[] = { DO_CLI_WINDOW1_CLO, DO_CLI_WINDOW2_CLO,
+                             DO_CLI_WINDOW3_CLO, DO_CLI_WINDOW4_CLO };
+    for (uint8_t i = 0; i < 4; i++) {
+        g_digital_out_values[opn[i]].value = opening;
+        g_digital_out_values[opn[i]].valid = true;
+        g_digital_out_values[clo[i]].value = closing;
+        g_digital_out_values[clo[i]].valid = true;
+    }
 
-    // Weather - rain rarely sets in then clears; wind a light breeze, gusts.
-    static bool     raining       = false;
-    static uint32_t rain_since_ms = 0;
-    raining = raining ? !chance(0.005f) : chance(0.002f);
-    if (raining) rain_since_ms = now_ms;
-    o->rain_detected = raining ? 1 : 0;
-    o->rain_age_s    = raining ? 0
-                               : (uint32_t)((now_ms - rain_since_ms) / 1000);
-    static float wind = 12.0f;
-    wind = drift(wind, 5.0f, 5.0f, 40.0f, 0.05f);
-    o->wind_peak_kmh = (uint16_t)wind;
+    // Destratification fans step up with the thermal load.
+    const uint16_t fans[] = { DO_CLI_DESTRAT1_SPEED1, DO_CLI_DESTRAT1_SPEED2,
+                              DO_CLI_DESTRAT1_SPEED3 };
+    const int speed = (thermal > 0.6f) ? 3 : (thermal > 0.2f) ? 2 : (thermal > -0.2f) ? 1 : 0;
+    for (uint8_t i = 0; i < 3; i++) {
+        g_digital_out_values[fans[i]].value = (speed == (int)i + 1);
+        g_digital_out_values[fans[i]].valid = true;
+    }
 
-    // Power - nominal within tight tolerances; the B bus occasionally drops.
-    static float grid_v  = 230.0f;
-    static float grid_hz = 50.0f;
-    static float dc_v    = 24.0f;
-    static float batt_v  = 12.6f;
-    // Grid sits inside spec ([226, 234] V is the AC_GRID band), with a rare
-    // sag/surge out of spec to exercise AC_GRID (drift clamps it back later).
-    grid_v  = drift(grid_v,  0.9f,  227.0f, 233.0f, 0.05f);
-    if (chance(0.0025f)) grid_v = chance(0.5f) ? 224.0f : 236.0f;
-    grid_hz = drift(grid_hz, 0.08f, 49.90f, 50.10f, 0.05f);
-    dc_v    = drift(dc_v,    0.15f, 23.5f,  24.5f,  0.05f);
-    batt_v  = drift(batt_v,  0.30f, 11.8f,  13.0f,  0.03f);
-    o->grid_ac_v    = grid_v;
-    o->grid_freq_hz = grid_hz;
-    o->dc_bus_v     = dc_v;
-    o->dc_bus_a_ok  = 1;
-    static bool dc_b_ok = true;
-    // mostly OK, rare dropout
-    dc_b_ok = dc_b_ok ? !chance(0.004f) : chance(0.12f);
-    o->dc_bus_b_ok  = dc_b_ok ? 1 : 0;
-    o->battery_v    = batt_v;
-    o->ups_status   = UpsStatus::ONLINE;
+    g_digital_out_values[DO_CLI_SCREEN].value = thermal < -0.5f;
+    g_digital_out_values[DO_CLI_SCREEN].valid = true;
 
-    // Ventilation tracks temperature; channels stagger to distinct levels.
-    int vent = 50 + (int)(50.0f * climate);
-    if (vent < 0)   vent = 0;
-    if (vent > 100) vent = 100;
-    o->window_a = (uint8_t)vent;
-    o->window_b = (uint8_t)(vent > 10 ? vent - 10 : 0);
-    o->window_c = (uint8_t)(vent / 2);
-    o->window_d = (uint8_t)(vent / 4);
-    o->blower_a = (uint8_t)vent;
-    o->blower_b = (uint8_t)(vent / 2);
-    o->blower_c = (uint8_t)(vent / 4);
-    o->blower_d = 0;
-    o->extractor_a = (uint8_t)(vent * 3 / 4);
-    o->extractor_b = (uint8_t)(vent > 20 ? vent - 20 : 0);
-    o->thermal_screen = (uint8_t)((climate < -0.3f) ? 80 : 0);
-    o->cooling_on  = (climate > 0.5f) ? 1 : 0;
+    // Irrigation walks the trays, one at a time, ~40 s each.
+    const uint16_t trays[] = { DO_IRR_TRAY1, DO_IRR_TRAY2, DO_IRR_TRAY3, DO_IRR_TRAY4,
+                               DO_IRR_TRAY5, DO_IRR_TRAY6, DO_IRR_TRAY7, DO_IRR_TRAY8 };
+    const int active = ((int)(t / 40.0f)) % 8;
+    for (uint8_t i = 0; i < 8; i++) {
+        g_digital_out_values[trays[i]].value = ((int)i == active);
+        g_digital_out_values[trays[i]].valid = true;
+    }
+    g_digital_out_values[DO_IRR_INPUT_RO1].value  = (active < 4);
+    g_digital_out_values[DO_IRR_INPUT_RO1].valid  = true;
+    g_digital_out_values[DO_IRR_OUTPUT_RO1].value = (active >= 4);
+    g_digital_out_values[DO_IRR_OUTPUT_RO1].valid = true;
+}
 
-    // Irrigation: walk trays 1..6 (~30 s each), cycling fill -> soak -> drain.
-    uint32_t cycle  = (uint32_t)t / 30;
-    o->current_tray = (uint8_t)(1 + cycle % 6);
-    o->tray_status  = (uint8_t)(TrayStatus::FILLING + cycle % 3);
-    o->water_in_l   = (uint16_t)(100 + cycle % 50);
-    static float water_out = 3.0f;
-    water_out = drift(water_out, 1.0f, 1.0f, 6.0f, 0.05f);
-    o->water_out_lpm = (uint16_t)water_out;
-
-    // Monitored autonomous heating (active when it gets cold)
-    o->generator_running = (climate < -0.7f) ? 1 : 0;
-    o->generator_v       = o->generator_running ? 13.8f : 0.0f;
-    o->heat_blower_on    = (climate < -0.7f) ? 1 : 0;
-    o->heatpump_on       = (climate < -0.4f) ? 1 : 0;
-
-    // Network: mostly online, rare brief outage recovering via LINK.
-    static bool net_up = true;
-    net_up = net_up ? !chance(0.003f) : chance(0.3f);
-    o->net_status = net_up ? NetStatus::ONLINE
-                           : (chance(0.5f) ? NetStatus::LINK : NetStatus::DOWN);
-
-    // NTP: disciplined while online, small wandering offset.
-    static float ntp_off = 2.0f;
-    ntp_off = drift(ntp_off, 3.0f, -25.0f, 25.0f, 0.1f);
-    o->ntp_synced     = net_up ? 1 : 0;
-    o->ntp_offset_ms  = (int16_t)ntp_off;
-
-    // Sun times: roughly fixed, drift seasonally only a touch.
-    static float sunrise = 6.0f * 60 + 12;   // 06:12
-    static float sunset  = 21.0f * 60 + 34;  // 21:34
-    sunrise = drift(sunrise, 1.0f, 5.0f * 60, 8.0f * 60, 0.02f);
-    sunset  = drift(sunset,  1.0f, 19.0f * 60, 22.0f * 60, 0.02f);
-    o->sunrise_min = (uint16_t)sunrise;
-    o->sunset_min  = (uint16_t)sunset;
-
-    // Alarms: synthesize the PLC's raw bitset from the mock state. Bits
-    // addressed by table code (abit) so the mock PLC and firmware share the one
-    // definition (g_alarms).
+/**
+ * @brief Raise and clear alarm conditions.
+ *
+ * Triggers read the same variables the console shows, so an alarm on screen
+ * always has a visible cause in the monitor table. What used to drive this -
+ * a mock payload of climate fields no sensor produced - is gone; the site has
+ * no climate instrumentation mapped yet, so those conditions rest on their own
+ * slow drift until it is.
+ */
+inline void publish_alarms(uint32_t now_ms) {
     uint64_t raw = 0;
-    if (o->grid_ac_v < 226.0f || o->grid_ac_v > 234.0f)  raw |= abit("AC_GRID");
-    if (!o->dc_bus_b_ok)                                  raw |= abit("DC_PS2");
-    if (o->ups_status != UpsStatus::ONLINE)               raw |= abit("DC_UPS");
-    if (o->generator_running && o->generator_v < 12.0f)  raw |= abit("GEN_FLT");
-    if (o->net_status == NetStatus::DOWN)                 raw |= abit("NET_FLT");
-    if (!o->ntp_synced)                                   raw |= abit("NTP_TIM");
-    if (o->ceil_temp_c > 26.0f)                           raw |= abit("TOO_HOT");
-    if (o->floor_temp_c < 15.0f)                          raw |= abit("TOO_COLD");
-    if (o->ext_rh_pct > 68.0f)                            raw |= abit("TOO_HUM");
-    if (o->wind_peak_kmh > 35 || raining)                 raw |= abit("WH_STORM");
 
-    // Settle window: keep alarms clear for the first stretch after boot (a real
-    // PLC likewise masks process alarms until its sensors settle). Kept generous
-    // so the first alarm lands well after boot, not seconds in.
+    // Real causes, read back through the variable tables.
+    const float ln  = g_analog_in_values[AI_PWR_LN_V].value;
+    const float pf  = g_analog_in_values[AI_PWR_TOTAL_PF].value;
+    const float hz  = g_analog_in_values[AI_PWR_HZ].value;
+    if (ln < 226.0f || ln > 234.0f)  raw |= abit("AC_GRID");
+    if (hz < 49.9f  || hz > 50.1f)   raw |= abit("AC_LOCAL");
+    if (pf < 0.90f)                  raw |= abit("DC_PS1");
+
+    // No sensor mapped for these yet: a slow random walk stands in, so the
+    // alarms page and its dwell/ack machinery still have something to show.
+    static float weather = 0.0f, plant = 0.0f;
+    weather = drift(weather, 0.30f, -1.0f, 1.0f, 0.03f) * 0.99f;
+    plant   = drift(plant,   0.30f, -1.0f, 1.0f, 0.03f) * 0.99f;
+    if (weather >  0.80f) raw |= abit("WH_STORM");
+    if (plant   >  0.85f) raw |= abit("TOO_HOT");
+    if (plant   < -0.85f) raw |= abit("TOO_COLD");
+    if (weather < -0.85f) raw |= abit("TOO_HUM");
+
+    // Settle window: keep alarms clear for the first stretch after boot (real
+    // plant likewise masks process alarms until its sensors settle). Kept
+    // generous so the first alarm lands well after boot, not seconds in.
     const uint32_t SETTLE_MS = 120000;   // 2 min
     if (now_ms < SETTLE_MS) raw = 0;
 
     // Debounce: hold each raw bit ON for a minimum dwell so a signal hovering
-    // at its threshold can't strobe the ribbon (mirrors the real PLC's hardware
-    // debounce; the firmware's per-alarm min_on_s is the further local net).
-    // Countdown drained by dt.
+    // at its threshold cannot strobe the ribbon. The firmware's per-alarm
+    // min_on_s is the further local net.
     static uint32_t hold_ms[Botanik::Alarms::ALARM_BITS] = {0};
     static uint32_t prev_ms = 0;
     uint32_t dt = (prev_ms == 0) ? 0 : (now_ms - prev_ms);
@@ -274,6 +229,7 @@ inline void fill_output(SiteData_t* o, uint32_t now_ms) {
         else                        hold_ms[i] = 0;
         if (on || hold_ms[i] > 0)   debounced |= Botanik::Alarms::alarm_bit(i);
     }
+
     // Scatter the debounced bitset into the variables the alarm table names
     // (row i -> g_alarms[i].ref), which is where the model reads them. On
     // hardware a control program drives the same internals.
@@ -284,58 +240,24 @@ inline void fill_output(SiteData_t* o, uint32_t now_ms) {
         g_internal_digital_values[r.index].value = ((debounced >> i) & 1u) != 0;
         g_internal_digital_values[r.index].valid = true;
     }
-
-    // ---- Field IO ---------------------------------------------------------
-    // Drive the real meter signals, which is what the console, the shell and
-    // telemetry now read. Stamped and marked valid, exactly as a Modbus driver
-    // would: without a timestamp Io::expire_stale() would drop them within the
-    // meter's 5 s timeout and the whole table would read as its defaults.
-    publish_meters(now_ms);
-
-    // ---- Config (network / NTP / MQTT / geo) ------------------------------
-    // Authoritative config: the coprocessor's NVM stand-in. Config parameters
-    // are now ordinary payload fields, so the mock PLC owns a copy, seeds it
-    // once (serials start at 1 so a consumer latched at 0 applies once), adopts
-    // any group the host committed (its input serial advanced on the params
-    // page), and mirrors the whole block into the output the params page and the
-    // config-driven Components read.
-    static GreenhouseConfig_t cfg;
-    static bool params_seeded = false;
-    auto set_host = [](char* dst, const char* s) {
-        std::strncpy(dst, s, GreenhouseConfig_t::STRLEN - 1);
-        dst[GreenhouseConfig_t::STRLEN - 1] = '\0';
-    };
-    if (!params_seeded) {
-        params_seeded = true;
-        memset(&cfg, 0, sizeof(cfg));
-        cfg.net = 1; cfg.net_dhcp = 1;                  // DHCP; static empty
-        set_host(cfg.net_dns1, "192.168.1.1");
-        cfg.ntp = 1; cfg.ntp_enabled = 1; cfg.ntp_poll_s = 64;
-        set_host(cfg.ntp_server1, "pool.ntp.org");
-        // Broker port points at the in-process mock responder (sim has no
-        // privileged ports); the name resolves to loopback in the HAL.
-        cfg.mqtt = 1; cfg.mqtt_enabled = 1; cfg.mqtt_keepalive_s = 60;
-        cfg.mqtt_port = Botanik::HAL::Network::MQTT_MOCK_PORT;
-        set_host(cfg.mqtt_broker, "broker.local");
-        cfg.geo = 1; cfg.geo_latitude = 48.8566f; cfg.geo_longitude = 2.3522f;  // Paris
-    }
-    o->config = cfg;
 }
 
 // ---------------------------------------------------------------------------
-// The simulated field
+// Entry point
 // ---------------------------------------------------------------------------
 
 /**
- * @brief Drive one beat of the simulated greenhouse.
+ * @brief Stand in for the field: publish meter readings, drive the coils, and
+ * raise alarms.
  *
  * What the mock PLC coprocessor used to do from its own thread, now called
- * straight from the sim harness: there is no shared memory and no second core
- * to emulate, just this site's data struct being filled in place. Control logic
- * will write the same struct once the scan cycle lands.
+ * straight from the sim harness. It writes the variable tables - the same ones
+ * a Modbus driver will write - so nothing downstream can tell the difference.
  */
-inline void simulate(SiteData_t* data, uint32_t now_ms) {
-    fill_output(data, now_ms);
+inline void simulate(uint32_t now_ms) {
+    publish_meters(now_ms);
+    drive_coils(now_ms);
+    publish_alarms(now_ms);
 }
 
 }  // namespace Site

@@ -20,7 +20,6 @@
  *
  * Every site exposes the same surface, so a harness never names the site:
  *   - `BotanikSite`           the firmware type to instantiate
- *   - `SiteData_t`       the site data struct (from payload.h)
  *   - `Site::simulate()`      the simulated field (sim.h)
  *   - `dilated_timeout()` sim-only timeout dilation (sim.h)
  *
@@ -48,12 +47,12 @@
  * Pages::StatusPage) would override the base's on_step() / register_pages()
  * here. See libbotanik/core/firmware.h for the extension model.
  */
-class GreenhouseMLB41 final : public Botanik::BotanikFirmware<SiteData_t> {
+class GreenhouseMLB41 final : public Botanik::BotanikFirmware {
 public:
     /** @brief Hand the base this site's descriptor; the base owns the data
      *  struct the tables address. */
     GreenhouseMLB41()
-        : Botanik::BotanikFirmware<SiteData_t>(Site::g_site)
+        : Botanik::BotanikFirmware(Site::g_site)
     {}
 };
 

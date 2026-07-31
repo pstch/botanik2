@@ -323,31 +323,39 @@ namespace Botanik { namespace Shell {
         uint16_t wn = 0;
         const char* nm = Utils::arg_next(args, alen, wn);
 
-        char out[128], val[32];
+        // Every table, in kind order. Walking the kinds rather than naming two
+        // of them by hand is the point: a table added to the model shows up
+        // here without touching this command, where the old version silently
+        // omitted whatever it did not list.
+        static const Vars::VarKind KINDS[] = {
+            Vars::VAR_ANALOG_IN, Vars::VAR_ANALOG_OUT,
+            Vars::VAR_DIGITAL_IN, Vars::VAR_DIGITAL_OUT,
+            Vars::VAR_INTERNAL_ANALOG, Vars::VAR_INTERNAL_DIGITAL
+        };
         const Vars::IoTables& t = _vars->tables();
-        bool found = false;
+        const uint16_t COUNTS[] = { t.ai_n, t.ao_n, t.di_n, t.do_n, t.ia_n, t.id_n };
 
-        // A variable reading its default is worth marking: the number looks
-        // perfectly reasonable, which is exactly the trap.
-        for (uint16_t i = 0; i < t.ai_n; i++) {
-            Vars::AnalogIn v = _vars->ai(i);
-            if (nm != nullptr && !Utils::arg_eq(nm, wn, v.name())) continue;
-            Utils::format_float(val, sizeof(val), v.value(), 2);
-            _emitf(out, sizeof(out), "  %-20s %-10s %-4s %s", v.name(), val,
-                   (v.unit() && v.unit()[0]) ? v.unit() : "",
-                   v.valid() ? "" : "(default: no reading)");
-            found = true;
-        }
-        for (uint16_t i = 0; i < t.do_n; i++) {
-            Vars::DigitalOut v = _vars->dout(i);
-            if (nm != nullptr && !Utils::arg_eq(nm, wn, v.name())) continue;
-            _emitf(out, sizeof(out), "  %-20s %-10s %-4s %s", v.name(),
-                   v.value() ? "on" : "off", "",
-                   v.valid() ? "" : "(default: not driven)");
-            found = true;
+        char out[128], val[48];
+        bool found = false;
+        for (uint8_t k = 0; k < 6; k++) {
+            for (uint16_t i = 0; i < COUNTS[k]; i++) {
+                Vars::VarRef ref = { KINDS[k], i };
+                Vars::VarView v = Vars::var_view(*_vars, ref);
+                if (v.meta->name == nullptr) continue;
+                if (nm != nullptr && !Utils::arg_eq(nm, wn, v.meta->name)) continue;
+                const char* s = Vars::var_format(v, val, sizeof(val));
+                const char* u = v.meta->unit;
+                // A variable reading its default is worth marking: the number
+                // looks perfectly reasonable, which is exactly the trap.
+                _emitf(out, sizeof(out), "  %-20s %-10s %-4s %s", v.meta->name, s,
+                       (u && u[0]) ? u : "",
+                       v.valid ? "" : (v.digital ? "(default: not driven)"
+                                                 : "(default: no reading)"));
+                found = true;
+            }
         }
         if (!found) _println(nm != nullptr ? "vars: unknown variable"
-                                           : "vars: no field IO declared");
+                                           : "vars: no variables declared");
     }
 
     void CommandShell::_cmd_status(const char* args, uint16_t alen) {
