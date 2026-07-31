@@ -32,6 +32,16 @@
 
 namespace Botanik { namespace Params {
 
+    /** @brief What a set() attempt did. A failed PERSIST is not a rejected
+     *  EDIT: the value is live either way, and telling the operator their input
+     *  was invalid when the flash refused it sends them to fix the wrong thing. */
+    enum SetResult : uint8_t {
+        SET_OK,             ///< applied and persisted
+        SET_INVALID,        ///< rejected - malformed, out of range, read-only; nothing changed
+        SET_NOT_PERSISTED   ///< applied in RAM, but storage refused it; lost at reboot
+    };
+
+
     struct ParamStore;   // params/store.h - the backend seam ParamHandler drives
 
     /** @name Parameter descriptor
@@ -183,7 +193,7 @@ namespace Botanik { namespace Params {
         /** @brief Apply an edited value (as display text) to parameter @p p:
          *  parse + validate, then persist/commit through the store. @return false
          *  (image unchanged) on invalid input. */
-        bool set(const Param& p, const char* text);
+        SetResult set(const Param& p, const char* text);
 
         /** @brief Render parameter @p i's current value into @p buf. */
         int format(uint8_t i, char* buf, size_t cap) const {

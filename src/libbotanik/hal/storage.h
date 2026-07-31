@@ -6,17 +6,22 @@
  * @file storage.h
  * @brief Minimal HAL key-value persistence for configuration held off the PLC.
  *
- * Portable surface used by LocalParamHandler when BOTANIK_FEATURE_PLC is off
- * (the PLC otherwise owns config in its own NVM). Per-key raw-byte blobs that
- * survive a reboot. The two backends live in storage.cpp: Mbed KVStore on the
- * OPTA (internal-flash TDBStore), and a single external file (one `key=hex`
- * record per line) emulating that KV store on the simulator. No Mbed or POSIX
- * headers leak through this header; the TARGET_OPTA / TARGET_SIMULATOR split is
- * legal here (this file is the HAL).
+ * Per-key raw-byte blobs that survive a reboot; this is where the config
+ * parameters live. The two backends are in storage.cpp: the Mbed global KV
+ * store on the OPTA, and a single external file (one `key=hex` record per line)
+ * emulating it on the simulator. No Mbed or POSIX headers leak through this
+ * header; the TARGET_OPTA / TARGET_SIMULATOR split is legal here (this file is
+ * the HAL).
  *
- * Keys are short identifiers (the flat Param names, e.g. "ntp_poll_s");
- * they must be non-empty and contain no '/'. Values are the parameter's raw
- * bytes (scalar width or string capacity).
+ * Which physical device backs the OPTA store - internal flash or the QSPI - is
+ * an Mbed config decision, not ours, and has not been confirmed on hardware.
+ * The `storage` shell command exists to check it with a set / power-cycle / get
+ * round-trip.
+ *
+ * Keys are short identifiers (the flat Param names, e.g. "ntp_poll_s"); they
+ * must be non-empty and contain no '/', '=' or newline. The OPTA backend
+ * prepends Mbed's partition prefix itself. Values are the parameter's raw bytes
+ * (scalar width or string capacity).
  */
 
 #include <cstddef>

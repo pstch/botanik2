@@ -39,22 +39,19 @@ namespace {
 #undef OFF
     const uint8_t PARAM_COUNT = (uint8_t)(sizeof(PARAMS) / sizeof(PARAMS[0]));
 
+    /** @brief Point HAL::Storage at a scratch store. It is one FILE holding
+     *  every key, not a directory - the one-file-per-key layout is long gone. */
     struct StoreEnv {
-        char dir[64];
-        StoreEnv() {
-            snprintf(dir, sizeof(dir), "/tmp/botanik_test_local_%ld", (long)getpid());
-            setenv("BOTANIK_CONFIG_STORE", dir, 1);
-        }
-        ~StoreEnv() {
-            const char* keys[] = {"ntp_poll_s", "net_ip"};
-            char path[128];
-            for (const char* k : keys) {
-                snprintf(path, sizeof(path), "%s/%s", dir, k);
-                unlink(path);
+        char path[64];
+        explicit StoreEnv(const char* where = nullptr) {
+            if (where != nullptr) {
+                snprintf(path, sizeof(path), "%s", where);
+            } else {
+                snprintf(path, sizeof(path), "/tmp/botanik_test_local_%ld", (long)getpid());
             }
-            rmdir(dir);
-            unsetenv("BOTANIK_CONFIG_STORE");
+            setenv("BOTANIK_CONFIG_STORE", path, 1);
         }
+        ~StoreEnv() { unlink(path); unsetenv("BOTANIK_CONFIG_STORE"); }
     };
 }
 
@@ -73,17 +70,17 @@ TEST_CASE("LocalParamStore: edits apply to the image and validate") {
     REQUIRE(ip != nullptr);
 
     // Edit a scalar: the image (read at out_offset) updates.
-    CHECK(h.set(*poll, "120"));
+    CHECK(h.set(*poll, "120") == Params::SET_OK);
     CHECK(get_int(&h, "ntp_poll_s") == 120);
 
     // Edit a string (validated as IPv4).
-    CHECK(h.set(*ip, "10.0.0.5"));
+    CHECK(h.set(*ip, "10.0.0.5") == Params::SET_OK);
     CHECK(strcmp(get_str(&h, "net_ip"), "10.0.0.5") == 0);
 
     // Invalid edits are rejected and leave the image untouched.
-    CHECK_FALSE(h.set(*poll, "99999"));       // > u16-bounded max 65535
+    CHECK(h.set(*poll, "99999") == Params::SET_INVALID);       // > u16-bounded max 65535
     CHECK(get_int(&h, "ntp_poll_s") == 120);
-    CHECK_FALSE(h.set(*ip, "999.1.1.1"));     // bad octet
+    CHECK(h.set(*ip, "999.1.1.1") == Params::SET_INVALID);     // bad octet
     CHECK(strcmp(get_str(&h, "net_ip"), "10.0.0.5") == 0);
 }
 
@@ -106,4 +103,25 @@ TEST_CASE("LocalParamStore: values persist across a fresh handler") {
     h2.step(0);
     CHECK(get_int(&h2, "ntp_poll_s") == 300);
     CHECK(strcmp(get_str(&h2, "net_ip"), "192.168.9.9") == 0);
+}
+
+TEST_CASE("LocalParamStore: a value that cannot be stored is not a rejected edit") {
+    // The distinction the tri-state exists for. Reporting "invalid" when the
+    // flash refused a perfectly good value sends the operator to fix their
+    // input, which was never the problem.
+    StoreEnv env("/nonexistent-dir-botanik-test/store");
+
+    LocalParamStore h_store(nullptr);
+    ParamHandler h(&h_store, nullptr);
+    h.set_site_params(PARAMS, PARAM_COUNT);
+    h.step(0);
+
+    const Param* poll = h.find("ntp_poll_s", 10);
+    REQUIRE(poll != nullptr);
+
+    CHECK(h.set(*poll, "120") == Params::SET_NOT_PERSISTED);
+    // ...and the value IS live, which is why this is not SET_INVALID.
+    CHECK(Params::get_int(&h, "ntp_poll_s", 0) == 120);
+    // A genuinely bad value still reads as invalid, storage or no storage.
+    CHECK(h.set(*poll, "99999") == Params::SET_INVALID);
 }

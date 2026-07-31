@@ -11,6 +11,7 @@
 #include "../../libbotanik_config.h"
 #include "../alarms/alarms.h"
 #include "../hal/platform.h"
+#include "../hal/storage.h"
 #include "../logs/logger.h"
 #include "libbotanik/params/params.h"
 #include "../network/mqtt.h"
@@ -68,6 +69,7 @@ namespace Botanik { namespace Shell {
             { "params",     "[get <n>|set <n> <v>] a parameter", &CommandShell::_cmd_params     },
             { "status",     "[get <name>] status variables",  &CommandShell::_cmd_status     },
             { "vars",       "[<name>] field IO variables",    &CommandShell::_cmd_vars       },
+            { "storage",    "get|set|del <key> [<text>]",     &CommandShell::_cmd_storage    },
             { "loglevel",   "[debug|info|..|critical] filter",&CommandShell::_cmd_loglevel   },
             { "version",    "firmware version",               &CommandShell::_cmd_version    },
             { "breakpoint", "trap into an attached debugger", &CommandShell::_cmd_breakpoint },
@@ -302,8 +304,20 @@ namespace Botanik { namespace Shell {
             char val[96];
             uint16_t vc = std::min(wv, (uint16_t)(sizeof(val) - 1));
             memcpy(val, v, vc); val[vc] = '\0';
-            if (_params->set(*p, val)) _emitf(out, sizeof(out), "%s = %s", p->field.name, val);
-            else _emitf(out, sizeof(out), "params: invalid value for %s", p->field.name);
+            switch (_params->set(*p, val)) {
+                case Params::SET_OK:
+                    _emitf(out, sizeof(out), "%s = %s", p->field.name, val);
+                    break;
+                case Params::SET_NOT_PERSISTED:
+                    // Live, but it dies at the next reboot - say which of the
+                    // two failed, since the fixes are entirely different.
+                    _emitf(out, sizeof(out), "%s = %s  (NOT SAVED: storage refused it)",
+                           p->field.name, val);
+                    break;
+                default:
+                    _emitf(out, sizeof(out), "params: invalid value for %s", p->field.name);
+                    break;
+            }
             return;
         }
 
@@ -356,6 +370,48 @@ namespace Botanik { namespace Shell {
         }
         if (!found) _println(nm != nullptr ? "vars: unknown variable"
                                            : "vars: no variables declared");
+    }
+
+    void CommandShell::_cmd_storage(const char* args, uint16_t alen) {
+        // Raw access to HAL::Storage. Exists so the OPTA's KV backend can be
+        // brought up with a set / power-cycle / get round-trip instead of a
+        // firmware rebuild per hypothesis - where the Mbed KV region actually
+        // lands is a config decision we do not make and cannot check from here.
+        uint16_t w = 0;
+        const char* op = Utils::arg_next(args, alen, w);
+        uint16_t kw = 0;
+        const char* key = Utils::arg_next(args, alen, kw);
+        if (op == nullptr || key == nullptr) {
+            _println("usage: storage get|set|del <key> [<text>]");
+            return;
+        }
+        // The key must be NUL-terminated for the HAL; arg_next hands back a
+        // span into the input line.
+        char k[64];
+        if (kw >= sizeof(k)) { _println("storage: key too long"); return; }
+        memcpy(k, key, kw); k[kw] = 0;
+
+        char out[128];
+        if (Utils::arg_eq(op, w, "get")) {
+            char val[96]; size_t n = 0;
+            if (!HAL::Storage::get(k, val, sizeof(val) - 1, &n)) {
+                _emitf(out, sizeof(out), "storage: '%s' not found", k);
+                return;
+            }
+            val[n] = 0;
+            _emitf(out, sizeof(out), "  %s = %s (%u bytes)", k, val, (unsigned)n);
+        } else if (Utils::arg_eq(op, w, "set")) {
+            uint16_t vw = 0;
+            const char* val = Utils::arg_next(args, alen, vw);
+            if (val == nullptr) { _println("storage: set needs a value"); return; }
+            _emitf(out, sizeof(out), "storage: %s",
+                   HAL::Storage::set(k, val, vw) ? "ok" : "FAILED");
+        } else if (Utils::arg_eq(op, w, "del")) {
+            _emitf(out, sizeof(out), "storage: %s",
+                   HAL::Storage::remove(k) ? "ok" : "FAILED");
+        } else {
+            _println("usage: storage get|set|del <key> [<text>]");
+        }
     }
 
     void CommandShell::_cmd_status(const char* args, uint16_t alen) {

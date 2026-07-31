@@ -258,6 +258,7 @@ namespace Botanik { namespace Shell {
         void _cmd_params(const char* args, uint16_t alen);
         void _cmd_status(const char* args, uint16_t alen);
         void _cmd_vars(const char* args, uint16_t alen);
+        void _cmd_storage(const char* args, uint16_t alen);
         /** @brief Handle an unrecognised command (echoes "Unknown command:
          *  ..."). */
         void _unknown(const char* cmd, uint16_t len);

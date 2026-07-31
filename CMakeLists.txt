@@ -487,6 +487,12 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
         "${MBED_ROOT}/cores/arduino/mbed/events/include"
         "${MBED_ROOT}/cores/arduino/mbed/storage/filesystem/include"
         "${MBED_ROOT}/cores/arduino/mbed/storage/blockdevice/include"
+        # KVStore: HAL::Storage's OPTA backend. Already in the prebuilt libmbed.a
+        # (kv_set/kv_get/kv_remove + TDBStore); only the headers were missing.
+        "${MBED_ROOT}/cores/arduino/mbed/storage/kvstore/include"
+        "${MBED_ROOT}/cores/arduino/mbed/storage/kvstore/kvstore_global_api/include"
+        "${MBED_ROOT}/cores/arduino/mbed/storage/kvstore/tdbstore/include"
+        "${MBED_ROOT}/cores/arduino/mbed/platform/include"
         "${MBED_ROOT}/cores/arduino/mbed/drivers/include"
         "${MBED_ROOT}/cores/arduino/mbed/drivers/usb/include"
         "${MBED_ROOT}/cores/arduino/mbed/drivers/usb/include/usb"

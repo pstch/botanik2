@@ -184,7 +184,7 @@ namespace Botanik { namespace Params {
 
     const void* ParamHandler::image() const { return _store->image(); }
 
-    bool ParamHandler::set(const Param& p, const char* text) { return _store->set(p, text); }
+    SetResult ParamHandler::set(const Param& p, const char* text) { return _store->set(p, text); }
 
     void ParamHandler::setup(uint64_t /*now_ms*/) {
         for (uint8_t i = 0; i < count(); i++) _store->load(param(i));

@@ -26,24 +26,59 @@ namespace Botanik { namespace HAL { namespace Storage {
 }}}  // namespace Botanik::HAL::Storage
 
 #ifdef TARGET_OPTA
-// ---- OPTA: not yet wired to flash -------------------------------------------
-// HAL::Storage backs LocalParamHandler, used only when BOTANIK_FEATURE_PLC is
-// off; the reference site (gh_mlb41) runs PLC-on and never calls this, so the
-// OPTA firmware links without a flash backend. A PLC-less OPTA site should wire
-// this to the Mbed global KVStore (internal-flash TDBStore) - the module ships
-// with the core but is not on this build's curated include path and needs a
-// configured default kvstore, so it must be enabled + validated on hardware:
-//
-//   #include "kvstore_global_api/kvstore_global_api.h"
-//   set:    return kv_set(key, buf, len, 0) == MBED_SUCCESS;
-//   get:    size_t n; if (kv_get(key, buf, cap, &n)) return false; *out_len = n;
-//   remove: int rc = kv_remove(key); return rc == MBED_SUCCESS || rc == MBED_ERROR_ITEM_NOT_FOUND;
+// ---- OPTA: the Mbed global KV store ------------------------------------------
+// kv_set/kv_get/kv_remove resolve to the configured default kvstore, a TDBStore
+// over BlockDevice::get_default_instance(). Which device that is - internal
+// flash or the QSPI - is decided by the Mbed config, not by us; the variant
+// ships STORAGE_TYPE=default with the TDB region base and size both 0, so Mbed
+// places it. Confirm the placement on hardware before trusting it: the `storage`
+// shell command exists for exactly that.
+#include "platform/mbed_error.h"
+#include "kvstore_global_api/kvstore_global_api.h"
 
 namespace Botanik { namespace HAL { namespace Storage {
 
-    bool set(const char* key, const void*, size_t)    { (void)key_ok(key); return false; }
-    bool get(const char* key, void*, size_t, size_t*) { (void)key_ok(key); return false; }
-    bool remove(const char* key)                      { return key_ok(key); }
+    namespace {
+        // Mbed wants "/<partition>/<key>", while a HAL key is the bare
+        // identifier (key_ok even rejects '/'). MBED_CONF_STORAGE_DEFAULT_KV is
+        // the partition name; "kv" is the variant's value.
+        const char PARTITION[] = "/kv/";
+        // KVStore caps a full key at 128 chars including the partition.
+        const size_t FULL_KEY_MAX = 129;
+
+        bool full_key(char* out, size_t cap, const char* key) {
+            if (!key_ok(key)) return false;
+            const size_t plen = sizeof(PARTITION) - 1;
+            const size_t klen = strlen(key);
+            if (plen + klen + 1 > cap) return false;
+            memcpy(out, PARTITION, plen);
+            memcpy(out + plen, key, klen + 1);
+            return true;
+        }
+    }  // namespace
+
+    bool set(const char* key, const void* buf, size_t len) {
+        char full[FULL_KEY_MAX];
+        if (!full_key(full, sizeof(full), key)) return false;
+        return kv_set(full, buf, len, 0) == MBED_SUCCESS;
+    }
+
+    bool get(const char* key, void* buf, size_t cap, size_t* out_len) {
+        char full[FULL_KEY_MAX];
+        if (!full_key(full, sizeof(full), key)) return false;
+        size_t n = 0;
+        if (kv_get(full, buf, cap, &n) != MBED_SUCCESS) return false;
+        if (out_len != nullptr) *out_len = n;
+        return true;
+    }
+
+    bool remove(const char* key) {
+        char full[FULL_KEY_MAX];
+        if (!full_key(full, sizeof(full), key)) return false;
+        // Absent is not an error: remove() is documented idempotent.
+        const int rc = kv_remove(full);
+        return rc == MBED_SUCCESS || rc == MBED_ERROR_ITEM_NOT_FOUND;
+    }
 
 }}}  // namespace Botanik::HAL::Storage
 

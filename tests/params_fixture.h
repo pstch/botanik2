@@ -83,7 +83,10 @@ namespace botanik_test {
             cfg.set_site_params(p, n);
         }
         const void* image() const override { return &img; }
-        bool set(const Botanik::Params::Param&, const char*) override { return false; }
+        Botanik::Params::SetResult set(const Botanik::Params::Param&,
+                                       const char*) override {
+            return Botanik::Params::SET_INVALID;
+        }
 
         /** @brief The config under test; edits take effect immediately. */
         FixtureConfig& conf() { return img; }

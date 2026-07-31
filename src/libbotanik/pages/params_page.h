@@ -84,6 +84,9 @@ namespace Botanik { namespace Pages {
         bool                _editing    = false;
         const Params::Param* _edit_param = nullptr;
         bool                _edit_error = false;      ///< last commit rejected
+        /** last commit applied but did not reach storage (shown on the prompt
+         *  row, since the value itself is live and the row will show it) */
+        bool                _not_persisted = false;
         /** @} */
         /** @} */
 
@@ -318,7 +321,9 @@ namespace Botanik { namespace Pages {
                 return;
             }
             _terminal.set_cursor_visible(false);
-            const char* hint = " UP/DOWN select   ENTER edit   ESC cancel";
+            const char* hint = _not_persisted
+                ? " NOT SAVED - value is live but storage refused it"
+                : " UP/DOWN select   ENTER edit   ESC cancel";
             _draw_line(row, hint, (uint16_t)strlen(hint));
         }
 
@@ -377,14 +382,19 @@ namespace Botanik { namespace Pages {
             if (n > (uint16_t)(sizeof(line) - 1)) n = (uint16_t)(sizeof(line) - 1);
             memcpy(line, _editor.buffer(), n);
             line[n] = 0;
-            if (_params->set(*_edit_param, line)) {
-                _editing = false;
-                _dirty = true;        // value diff repaints the table row next tick
-                _draw_prompt_row();
-            } else {
+            const Params::SetResult r = _params->set(*_edit_param, line);
+            if (r == Params::SET_INVALID) {
                 _edit_error = true;   // stay in edit, flag it
                 _draw_error_marker();
+                return;
             }
+            // Applied. SET_NOT_PERSISTED means it is live but will not survive a
+            // reboot - leaving the operator stuck in the editor would suggest the
+            // input was wrong, which it was not; the critical log carries it.
+            _not_persisted = (r == Params::SET_NOT_PERSISTED);
+            _editing = false;
+            _dirty = true;            // value diff repaints the table row next tick
+            _draw_prompt_row();
         }
 
         void _handle_edit_command(Command cmd, uint16_t count) {

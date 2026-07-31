@@ -54,11 +54,19 @@ namespace Botanik { namespace Params {
 
         const void* image() const override { return _image; }
 
-        bool set(const Param& p, const char* text) override {
-            if (!_fits(p)) return false;
-            if (!write_value(p, text, _image, p.field.out_offset)) return false;
-            HAL::Storage::set(p.field.name, _image + p.field.out_offset, param_width(p));
-            return true;
+        SetResult set(const Param& p, const char* text) override {
+            if (!_fits(p)) return SET_INVALID;
+            if (!write_value(p, text, _image, p.field.out_offset)) return SET_INVALID;
+            // The value is already live in the image. If storage refuses it, say
+            // so rather than reporting success on an edit that dies at reboot.
+            if (!HAL::Storage::set(p.field.name, _image + p.field.out_offset,
+                                   param_width(p))) {
+                if (_logger)
+                    _logger->critical(Logs::BOOT, "param '%s' not persisted",
+                                      p.field.name);
+                return SET_NOT_PERSISTED;
+            }
+            return SET_OK;
         }
 
         /** @brief Seed one parameter from storage (missing keys keep the zero

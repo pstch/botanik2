@@ -55,7 +55,7 @@ namespace {
     struct TestStore : ParamStore {
         TestCfg img{};
         const void* image() const override { return &img; }
-        bool set(const Param&, const char*) override { return false; }
+        SetResult set(const Param&, const char*) override { return SET_INVALID; }
     };
 
     struct TestHandler : ParamHandler {
