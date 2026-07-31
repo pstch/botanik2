@@ -164,10 +164,6 @@ namespace Botanik { namespace Scheduler {
          *                   reports. */
         LoopScheduler(uint32_t period_ms = Config::TASK_PERIOD_MS, Logs::Logger* logger = nullptr);
 
-        /** @brief Reset the anchor to the current uptime and clear all
-         *  metrics/filters. */
-        void reset();
-
         /** @} */
 
         /** @name Tick

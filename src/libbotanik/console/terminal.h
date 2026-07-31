@@ -318,9 +318,6 @@ namespace Botanik { namespace Terminal {
 
         void establish_screen();
 
-        /** @brief Abort a half-sent control sequence on the wire, returning the
-         *  terminal parser to ground state. */
-        void cancel_sequence();
 
         /** @}
          *  @name Serial / TX

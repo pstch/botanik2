@@ -12,9 +12,9 @@
  * clamping, follow-scroll, and the DL/IL band shift are shared.
  *
  * The bordered-table chrome is shared too: a full-line draw, an N-column dash
- * rule, a selection-cell inversion, and the 3-column value-row helpers that
- * MONITOR and CONFIG both need. ALARMS uses the line + rule primitives and keeps
- * its 4-column / ON-badge row draw bespoke.
+ * rule, a selection-cell inversion, a flexible-column width and the detail-panel
+ * line all three tables use. Each page keeps its own row builder (their column
+ * sets differ).
  *
  * Moving the cursor past a window edge scrolls the band through
  * AnsiTerminal::scroll_region(), so the terminal's back-buffer diff repaints just
@@ -190,28 +190,23 @@ namespace Botanik { namespace Pages {
             _draw_line(row, line, n);
         }
 
-        /** @brief Flexible value-column width for a 3-column bordered row: total
-         *  minus the two fixed columns and their borders, floored at 8 and capped
-         *  at @p cap. */
-        static uint16_t _value_width(uint16_t cols, uint16_t margin,
-                                     uint16_t c0, uint16_t c1, uint16_t cap) {
-            uint16_t used = (uint16_t)(2 * margin + 2 + c0 + 3 + c1 + 3 + 2);
+        /** @brief Flexible column width: the display minus @p used, floored at
+         *  8 and capped at @p cap. */
+        uint16_t _flex_width(uint16_t used, uint16_t cap) const {
+            uint16_t cols = _terminal.cols();
             uint16_t w = (cols > used) ? (uint16_t)(cols - used) : 8;
-            if (w < 8) w = 8;
+            if (w < 8)   w = 8;
             if (w > cap) w = cap;
             return w;
         }
 
-        /** @brief Build a 3-column bordered row "<margin>| a | b | v |" into
-         *  @p out (columns left-justified and clipped to their widths).
-         *  @return its length. */
-        static uint16_t _bordered_row(char* out, size_t cap, uint16_t margin,
-                                      uint16_t c0w, const char* a,
-                                      uint16_t c1w, const char* b,
-                                      uint16_t vw, const char* v) {
-            int n = snprintf(out, cap, "%*s| %-*.*s | %-*.*s | %-*.*s |",
-                             (int)margin, "", c0w, c0w, a, c1w, c1w, b, vw, vw, v);
-            return (n < 0) ? 0 : (uint16_t)n;
+        /** @brief " Label       : value" panel line (clear_to_eol wipes the old
+         *  value's tail when the selection moves to a shorter one). */
+        void _panel_field(uint16_t row, const char* label, const char* value) {
+            char buf[192];
+            int n = snprintf(buf, sizeof(buf), " %-11s : %s", label,
+                             (value && value[0]) ? value : "-");
+            _draw_line(row, buf, (n < 0) ? 0 : (uint16_t)n);
         }
 
         /** @} */

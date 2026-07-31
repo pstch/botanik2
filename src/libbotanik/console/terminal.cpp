@@ -237,7 +237,6 @@ namespace Botanik { namespace Terminal {
 
     void AnsiTerminal::setup_vt102()   { Ansi::vt102_setup(_serial); }
     void AnsiTerminal::setup_minitel() { Ansi::minitel_setup(_serial); }
-    void AnsiTerminal::cancel_sequence() { Ansi::cancel_sequence(_serial); }
 
     // present() - reconcile FRONT to the wire
     // ------------------------------------------------------------------------

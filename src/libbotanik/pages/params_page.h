@@ -188,13 +188,8 @@ namespace Botanik { namespace Pages {
         /** @brief Flexible VALUE width: the display minus the four fixed columns
          *  and every border, floored at 8 and capped at VAL_CAP-1. */
         uint16_t _value_w() const {
-            uint16_t used = (uint16_t)(MARGIN + 2 + NAME_W + 3 + TYPE_W + 3 + 3
-                                       + DEFAULT_W + 3 + UNIT_W + 2);
-            uint16_t cols = _terminal.cols();
-            uint16_t w = (cols > used) ? (uint16_t)(cols - used) : 8;
-            if (w < 8) w = 8;
-            if (w > (uint16_t)(VAL_CAP - 1)) w = (uint16_t)(VAL_CAP - 1);
-            return w;
+            return _flex_width((uint16_t)(MARGIN + 2 + NAME_W + 3 + TYPE_W + 3 + 3
+                                          + DEFAULT_W + 3 + UNIT_W + 2), (uint16_t)(VAL_CAP - 1));
         }
 
         /** @brief Build the "  | name | type | value | default | unit |" row. */
@@ -259,15 +254,6 @@ namespace Botanik { namespace Pages {
             uint16_t w = (cols > (uint16_t)(2 * MARGIN)) ? (uint16_t)(cols - 2 * MARGIN) : 0;
             for (uint16_t i = 0; i < w && n < LINE_CAP - 1; i++) buf[n++] = '-';
             _draw_line(row, buf, n);
-        }
-
-        /** @brief " Label       : value" detail line (clear_to_eol wipes the old
-         *  value's tail when the selection moves to a shorter one). */
-        void _panel_field(uint16_t row, const char* label, const char* value) {
-            char buf[128];
-            int n = snprintf(buf, sizeof(buf), " %-11s : %s", label,
-                             (value && value[0]) ? value : "-");
-            _draw_line(row, buf, (n < 0) ? 0 : (uint16_t)n);
         }
 
         /** @brief Draw the detail panel for the selected parameter: a separator,

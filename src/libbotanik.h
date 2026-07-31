@@ -38,6 +38,5 @@
 #include "libbotanik/utils/serial.h"
 #include "libbotanik/utils/time.h"
 
-#include "libbotanik_sizes.h"   // static_asserts pinning the "big" object sizes
 
 #endif // LIBBOTANIK_H

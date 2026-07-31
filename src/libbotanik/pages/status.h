@@ -233,7 +233,7 @@ namespace Botanik { namespace Pages {
     public:
         /** @brief Bind to a terminal and PLC payload. */
         StatusPage(Console& console, const OutputData* data)
-            : MetricPage(console, 16), _data(data) {
+            : MetricPage(console), _data(data) {
             // wall clock + uptime tick per second
             _hot_ms = Config::PAGE_HOT_MS;
         }

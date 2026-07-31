@@ -23,7 +23,6 @@ namespace Botanik { namespace Logs {
         LogLevel  level;
         LogTopic  topic;
         uint16_t  length;       ///< bytes used in message, excluding the NUL
-        uint32_t  seqNum;       ///< monotonic; gaps mean entries were dropped
         char      message[Config::LOG_MESSAGE_LEN];
     };
 

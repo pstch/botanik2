@@ -38,9 +38,9 @@ namespace Botanik { namespace Logs {
         _perTopic_fillTime_ms   = now;
         _global_fillTime_ms     = now;
         _suppress_reportTime_ms = now;
-        _global_bucket.state = _global_burst;
+        _global_bucket.state = Config::LOG_GLOBAL_BUCKET_BURST;
         for (uint8_t i = 0; i < Logs::LOG_TOPIC_COUNT; ++i) {
-            _perTopic_buckets[i].state = _perTopic_burst;
+            _perTopic_buckets[i].state = Config::LOG_PERTOPIC_BUCKET_BURST;
         }
     }
 
@@ -71,22 +71,22 @@ namespace Botanik { namespace Logs {
         uint32_t now_ms         = HAL::Clock::current_ms();
 
         // refill the global bucket
-        uint32_t global_amount  = (now_ms - _global_fillTime_ms) / _global_period_ms;
-        _global_fillTime_ms    += global_amount * _global_period_ms;
-        uint16_t global_fill = std::min(global_amount, (uint32_t)_global_burst);
-        _fill_bucket(&_global_bucket, global_fill, _global_burst);
+        uint32_t global_amount  = (now_ms - _global_fillTime_ms) / Config::LOG_GLOBAL_BUCKET_PERIOD_MS;
+        _global_fillTime_ms    += global_amount * Config::LOG_GLOBAL_BUCKET_PERIOD_MS;
+        uint16_t global_fill = std::min(global_amount, (uint32_t)Config::LOG_GLOBAL_BUCKET_BURST);
+        _fill_bucket(&_global_bucket, global_fill, Config::LOG_GLOBAL_BUCKET_BURST);
 
         // refill topic-specific buckets
-        uint32_t topic_amount   = (now_ms - _perTopic_fillTime_ms) / _perTopic_period_ms;
-        _perTopic_fillTime_ms  += topic_amount * _perTopic_period_ms;
-        uint16_t topic_fill     = std::min(topic_amount, (uint32_t)_perTopic_burst);
+        uint32_t topic_amount   = (now_ms - _perTopic_fillTime_ms) / Config::LOG_PERTOPIC_BUCKET_PERIOD_MS;
+        _perTopic_fillTime_ms  += topic_amount * Config::LOG_PERTOPIC_BUCKET_PERIOD_MS;
+        uint16_t topic_fill     = std::min(topic_amount, (uint32_t)Config::LOG_PERTOPIC_BUCKET_BURST);
         for (uint8_t i = 1; i < Logs::LOG_TOPIC_COUNT; ++i)
-            _fill_bucket(&_perTopic_buckets[i], topic_fill, _perTopic_burst);
+            _fill_bucket(&_perTopic_buckets[i], topic_fill, Config::LOG_PERTOPIC_BUCKET_BURST);
 
         // report suppressed messages
-        uint32_t report_amount  = (now_ms - _suppress_reportTime_ms) / _suppress_period_ms;
+        uint32_t report_amount  = (now_ms - _suppress_reportTime_ms) / Config::LOG_SUPPRESS_REPORT_PERIOD_MS;
         if (report_amount > 0) {
-            _suppress_reportTime_ms += report_amount * _suppress_period_ms;
+            _suppress_reportTime_ms += report_amount * Config::LOG_SUPPRESS_REPORT_PERIOD_MS;
             // global
             _report_suppressed(&_global_bucket, LogTopic::NONE, now_ms);
             // skip NONE (slot 0)
@@ -163,7 +163,7 @@ namespace Botanik { namespace Logs {
             if (bucket->suppressed != UINT16_MAX) bucket->suppressed++;
             return false;
         }
-        else { bucket->count++; bucket->state--; return true; }
+        else { bucket->state--; return true; }
     }
 
     void Logger::_fill_bucket(LogBucket_t* bucket, uint16_t amount, uint16_t burst) {

@@ -188,8 +188,6 @@ namespace Botanik { namespace Terminal {
             case 0x15: return Command::CTRL_U;
             case 0x17: return Command::CTRL_W;
             case 0x19: return Command::CTRL_Y;
-            // unreachable: ESC is intercepted in _handle_idle
-            case 0x1B: return Command::ESC;
             case 0x7F: return Command::BACKSPACE;
             default:   return Command::NONE;
         }

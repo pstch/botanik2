@@ -92,8 +92,7 @@ namespace Botanik { namespace Network {
         size_t base_n = 0;
         const TelemetryField* base = _base_fields(base_n);
         _publish_table("system", base, base_n, (void*)_sys);   // library status
-        _publish_table(nullptr, _site, _site_count, _site_ctx); // site computed
-        _publish_scalars();                                     // site scalars
+        _publish_scalars();                                     // site variables
     }
 
     void MqttSender::_publish_table(const char* group, const TelemetryField* table,

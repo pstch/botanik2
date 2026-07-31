@@ -40,12 +40,4 @@
 #  endif
 #endif
 
-/** @brief 1 when a site header is nameable, 0 when the library is being built
- *  standalone. Lets a TU that needs the site fail with its own message. */
-#ifdef BOTANIK_SITE_HEADER
-#  define BOTANIK_HAVE_SITE 1
-#else
-#  define BOTANIK_HAVE_SITE 0
-#endif
-
 #endif

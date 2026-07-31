@@ -26,7 +26,6 @@ namespace Botanik { namespace Logs {
     struct LogBucket_t {
         uint16_t    state                   = 0;    ///< tokens available
         uint16_t    suppressed              = 0;    ///< dropped since last report
-        uint32_t    count                   = 0;    ///< total entries passed
     };
 
     /** @brief Monotonic loss counter for edge-triggered reporting: first loss
@@ -45,37 +44,19 @@ namespace Botanik { namespace Logs {
     class Logger : public Botanik::Component {
     private:
 
-        /** @name Global rate-limiter
+        /** @name Rate-limiter
+         *  @brief Token buckets and their refill anchors. Burst sizes and
+         *  periods come straight from Config (they were mirrored into members
+         *  that nothing ever wrote).
          *  @{ */
 
-        /** max tokens */
-        uint16_t        _global_burst           = Config::LOG_GLOBAL_BUCKET_BURST;
-        /** refill period */
-        uint32_t        _global_period_ms       = Config::LOG_GLOBAL_BUCKET_PERIOD_MS;
-        uint32_t        _global_fillTime_ms     = 0;   ///< last refill time
+        uint32_t        _global_fillTime_ms     = 0;   ///< last global refill
         LogBucket_t     _global_bucket;
-
-        /** @} */
-
-        /** @name Per-topic rate-limiter
-         *  @{ */
-
-        uint16_t        _perTopic_burst         = Config::LOG_PERTOPIC_BUCKET_BURST;
-        uint32_t        _perTopic_period_ms     = Config::LOG_PERTOPIC_BUCKET_PERIOD_MS;
-        uint32_t        _perTopic_fillTime_ms   = 0;
-        /** @brief Per-topic buckets, one per live topic. push_entry clamps any index to
-         *  LOG_TOPIC_COUNT (out-of-range topics fold to NONE), so this is the full range used. */
+        uint32_t        _perTopic_fillTime_ms   = 0;   ///< last per-topic refill
+        /** @brief One bucket per live topic; push_entry folds out-of-range
+         *  topics to NONE. */
         LogBucket_t     _perTopic_buckets[Logs::LOG_TOPIC_COUNT];
-
-        /** @} */
-
-        /** @name Suppression reporting
-         *  @{ */
-
-        /** @brief Suppressed-report cadence (ms), decoupled from bucket
-         *  refills. */
-        uint32_t        _suppress_period_ms     = Config::LOG_SUPPRESS_REPORT_PERIOD_MS;
-        uint32_t        _suppress_reportTime_ms = 0;
+        uint32_t        _suppress_reportTime_ms = 0;   ///< suppressed-report cadence anchor
 
         /** @} */
 

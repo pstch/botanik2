@@ -41,50 +41,17 @@ namespace Botanik { namespace Scheduler {
         _cpu_loop_us_window.configure(Config::LOAD_METRIC_WINDOW);
         _jitter_window.configure(Config::LOAD_METRIC_WINDOW);
 
-        reset();
+        // Everything else starts at its in-class initializer; only the anchor
+        // and the stack fields need the runtime values.
+        _next_tick_ms             = HAL::Clock::uptime_ms() + _period_ms;
+        _context.stack_bytes_free = _stack_depth;   // nothing used yet
+        _context.stack_depth      = _stack_depth;
     }
 
     void LoopScheduler::_announce() {
 #ifdef DEBUG
         if (_logger != nullptr) _logger->debug(Logs::BOOT, "LoopScheduler initialized");
 #endif
-    }
-
-    void LoopScheduler::reset() {
-        _next_tick_ms = HAL::Clock::uptime_ms() + _period_ms;
-
-        _cpu_load.reset();
-        _slept_us = 0;
-        _last_release_us = 0;
-
-        _measuring       = false;
-        _cpu_loop_us_max = 0;
-        _cpu_loop_us_window.reset();
-
-        _jitter.reset();
-        _jitter_window.reset();
-        _jitter_us_max = 0;
-
-        _stack_bytes_max  = 0;
-        _stack_slice_tick = 0;
-        _repaint_pending  = true;
-
-        _tps_anchor_ms    = 0;
-        _tps_anchor_count = 0;
-
-        // clear the published metric fields (leave
-        // tick_count/overruns/timestamp)
-        _context.ticks_per_second     = 0;
-        _context.cpu_load_ema         = 0.0f;
-        _context.cpu_loop_us_recent   = 0;
-        _context.cpu_loop_us_max      = 0;
-        _context.cpu_jitter_ema       = 0.0f;
-        _context.cpu_jitter_us_recent = 0;
-        _context.cpu_jitter_us_max    = 0;
-        _context.stack_usage          = 0.0f;
-        // nothing used yet: all free
-        _context.stack_bytes_free     = _stack_depth;
-        _context.stack_depth          = _stack_depth;
     }
 
     // Tick

@@ -61,7 +61,6 @@ namespace Botanik { namespace Shell {
             { "logs",       "[on|off]  live log output",      &CommandShell::_cmd_logs       },
             { "stats",      "scheduler / system metrics",     &CommandShell::_cmd_stats      },
             { "uptime",     "time since boot",                &CommandShell::_cmd_uptime     },
-            { "plc",        "PLC link status",                &CommandShell::_cmd_plc        },
             { "net",        "network / NTP / MQTT status",     &CommandShell::_cmd_net        },
             { "ntpsync",    "force an NTP resync now",         &CommandShell::_cmd_ntpsync    },
             { "alarms",     "[list|ack <code|all>] alarms",   &CommandShell::_cmd_alarms     },
@@ -420,10 +419,6 @@ namespace Botanik { namespace Shell {
         uint32_t secs = (uint32_t)(HAL::Clock::uptime_ms() / 1000);
         _emitf(out, sizeof(out), "uptime: %s",
                Utils::format_age(buf, sizeof(buf), secs, false));
-    }
-
-    void CommandShell::_cmd_plc(const char*, uint16_t) {
-        _println("plc: PLC link disabled");
     }
 
     void CommandShell::_cmd_net(const char*, uint16_t) {

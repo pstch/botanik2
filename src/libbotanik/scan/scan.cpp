@@ -36,19 +36,14 @@ namespace Botanik { namespace Scan {
                 if (t.period_ms != 0 && elapsed >= 2ull * t.period_ms) {
                     uint64_t skipped = (elapsed / t.period_ms) - 1;
                     missed = (skipped > 0xFFFF) ? 0xFFFF : (uint16_t)skipped;
-                    s.missed_total += missed;
                 }
             }
 
             ScanContext ctx = { now_ms, dt, missed, *_io };
 
-            uint64_t t0 = HAL::Clock::uptime_us();
             t.run(ctx);
-            uint32_t took = (uint32_t)(HAL::Clock::uptime_us() - t0);
 
             s.last_run_ms = now_ms;
-            s.last_us     = took;
-            if (took > s.peak_us) s.peak_us = took;
             s.runs++;
         }
     }

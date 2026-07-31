@@ -7,10 +7,8 @@
  * @brief OPTA firmware: the site firmware bound to the coprocessor's PLC
  *        shared memory.
  *
- * Hardware counterpart of botanik_sim. The simulator owns the PLC region as
- * local statics with time-dilated timeouts; here the region is the M4
- * coprocessor's (via HAL::PlcIO::input()/get_plc_output()) and the timeouts
- * are the plain Config values.
+ * Hardware counterpart of botanik_sim: same site, plain Config timeouts (the
+ * simulator dilates them).
  */
 
 // Site selected at configure time (-DBOTANIK_SITE); libbotanik_site.h derives

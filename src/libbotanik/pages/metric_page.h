@@ -50,9 +50,7 @@ namespace Botanik { namespace Pages {
         AnsiTerminal& _terminal;
         /** @brief Column at which values are written (labels start at column
          *  2). */
-        uint16_t      _value_col;
         /** @brief True while this page owns the screen. */
-        bool          _active          = false;
         /** @brief Last dynamic refresh (uptime ms). */
         uint64_t      _refresh_last_ms = 0;
         /** @brief Interval between full dynamic refreshes (ms); a subclass may
@@ -110,18 +108,6 @@ namespace Botanik { namespace Pages {
          *  redundant (and would wipe an adjacent block). Not value-cached. */
         void _label(uint16_t row, const char* s) { _label_at(row, 2, s); }
 
-        /** @brief Write a value at _value_col. The field runs to
-         *  EOL, so a shrinking value clears its own tail. @p highlight = false
-         *  for fields that change every refresh (a clock). @p invert lights the
-         *  whole value as one block on change (for non-numeric values like a
-         *  status label) instead of per-digit-run. */
-        void _value(uint16_t row, const char* s, bool highlight = true,
-                    bool invert = false) {
-            if (row >= _console.rows()) return;
-            uint16_t width = (_value_col < _terminal.cols())
-                                 ? (uint16_t)(_terminal.cols() - _value_col) : 0;
-            _field(row, row, _value_col, s, width, highlight, invert);
-        }
 
         /** @brief Draw a dash-ruled group header "==== TITLE ====" padded to
          *  @p width. Not cached. */
@@ -245,10 +231,9 @@ namespace Botanik { namespace Pages {
 
         /** @} */
 
-        /** @brief Bind to a terminal; @p value_col is where values are written. */
-        MetricPage(Console& console, uint16_t value_col)
-            : _console(console), _terminal(console.terminal()),
-              _value_col(value_col) { _invalidate(); }
+        /** @brief Bind to a terminal. */
+        MetricPage(Console& console)
+            : _console(console), _terminal(console.terminal()) { _invalidate(); }
 
     public:
         /** @name Page interface
@@ -263,16 +248,14 @@ namespace Botanik { namespace Pages {
             if (cmd == Command::ENTER) _cold_due = true;
         }
 
-        void deactivate() override { _active = false; }
+        void deactivate() override {}
 
         void focus() override {
-            _active = true;
             _invalidate();          // screen cleared on switch: repaint everything
             _repaint_all = true;    // tick() submits static + all values
         }
 
         void tick(bool active) override {
-            _active = active;
             if (!active) return;
             uint64_t now = HAL::Clock::uptime_ms();
 

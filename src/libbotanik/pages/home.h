@@ -273,7 +273,7 @@ namespace Botanik { namespace Pages {
          *  screen). */
         HomePage(Console& console, const Vars::HomeVar* fields = nullptr,
                  uint8_t count = 0, const Vars::Io* io = nullptr)
-            : MetricPage(console, 14),
+            : MetricPage(console),
               _fields(fields), _field_count(count), _io(io) {
             // cold-field redraw cadence
             _refresh_ms = Config::HOME_REFRESH_MS;

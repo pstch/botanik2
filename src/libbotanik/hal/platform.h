@@ -13,7 +13,8 @@
  * hardware, simulator.h for the Linux host build.
  *
  * The surface is grouped into nested namespaces by concern (Clock, Memory,
- * Stack, PlcIO, Debug, System, Watchdog, Serial, plus Network in net.h). All
+ * Stack, Debug, System, Watchdog, Serial, plus Storage (storage.h) and
+ * Network (net.h)). All
  * other code must go through this interface; never reach for raw <time.h> or
  * platform-specific calls directly.
  */
@@ -50,14 +51,6 @@ namespace Botanik { namespace HAL {
         inline uint32_t high();
 
     }  // namespace Stack
-
-    /** @brief PLC coprocessor shared-memory regions (null when absent). */
-    namespace PlcIO {
-
-        inline void* input();
-        inline void* output();
-
-    }  // namespace PlcIO
 
     /** @brief Timing and clocks. */
     namespace Clock {
@@ -102,25 +95,10 @@ namespace Botanik { namespace HAL {
          *  waiting for completion. Used for cross-core counter polls. */
         inline void dmb();
 
-        /** @brief Copy a block of memory with hardware-enforced ordering. */
-        template <typename T>
-        inline void ordered_copy(T* dst, const T* src);
-
         /** @brief Read a value the other core may be writing: a volatile load
          *  (never cached in a register) plus dmb() for acquire ordering. */
         template <typename T>
         inline T ordered_read(const volatile T* src);
-
-        /** @brief Clean (write back) the D-cache over [addr, addr+len) after
-         *  writing a shared region, so the other core sees the data in SRAM.
-         *  No-op without a D-cache (simulator, or a Cortex-M4). Rounds to whole
-         *  cache lines. */
-        inline void cache_clean(const void* addr, size_t len);
-
-        /** @brief Invalidate the D-cache over [addr, addr+len) before reading a
-         *  shared region, so a stale cached copy can't hide the other core's
-         *  writes. No-op without a D-cache. Rounds to whole cache lines. */
-        inline void cache_invalidate(const void* addr, size_t len);
 
     }  // namespace Memory
 

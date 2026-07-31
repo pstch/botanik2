@@ -52,10 +52,22 @@ TEST_CASE("sizeof: terminal & input objects") {
 }
 
 TEST_CASE("sizeof: pages") {
-    REPORT_SIZE(HomePage_t,                32768);
-    REPORT_SIZE(StatusPage_t,               4096);
-    REPORT_SIZE(Botanik::Pages::LogsPage,  65536);
-    REPORT_SIZE(Botanik::Pages::ShellPage, 65536);
+    REPORT_SIZE(HomePage_t,                     32768);
+    REPORT_SIZE(StatusPage_t,                    4096);
+    REPORT_SIZE(Botanik::Pages::LogsPage,       65536);
+    REPORT_SIZE(Botanik::Pages::ShellPage,      65536);
+    REPORT_SIZE(Botanik::Pages::MetricPage,      4096);
+    REPORT_SIZE(Botanik::Pages::ShellScrollback,16384);
+    REPORT_SIZE(Botanik::Pages::LogsScrollback, 32768);
+    REPORT_SIZE(Botanik::Pages::HomeScrollback,  4096);
+}
+
+TEST_CASE("sizeof: logging & serial") {
+    REPORT_SIZE(Botanik::Logs::LogEntry,             1024);
+    REPORT_SIZE(Botanik::Logs::Logger,               1024);
+    REPORT_SIZE(Botanik::Logs::BufferedLogWriter,   16384);
+    REPORT_SIZE(Botanik::Logs::SerialLogWriter,     16384);
+    REPORT_SIZE(Botanik::Utils::BufferedSerial,      8192);
 }
 
 TEST_CASE("sizeof: site parameter image") {
