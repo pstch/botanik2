@@ -352,6 +352,36 @@ TEST_CASE("present: rows revealed by a band scroll go out oldest first") {
     CHECK(older < newer);
 }
 
+// Chrome is not one contiguous band: the status bar is row 0, the alarms legend
+// sits mid-screen and the alarm strip is the bottom row. So the class routinely
+// parks the walk below one of its own rows - and reaching the bottom from there
+// does not mean the class is done. Letting the page through at that point is a
+// priority inversion: the alarms table painted while the legend above it waited a
+// tick, which is exactly the frame-after-what-it-frames case PRIO_CHROME exists
+// to prevent.
+TEST_CASE("present: chrome above the parked walk still beats the page") {
+    TermFixture f(20, 12, BAUD_2ROWS);
+    f.term.set_row_priority(1, Terminal::PRIO_CHROME);    // legend, mid-screen
+    f.term.set_row_priority(11, Terminal::PRIO_CHROME);   // alarm strip, bottom
+    f.settle();
+
+    // Park the walk on chrome's own bottom row: the legend takes the budget and
+    // the strip below it does not fit.
+    f.put(1, 0, WIDE);
+    f.put(11, 0, WIDE);
+    f.present();
+
+    f.put(1, 0, "LEGEND");               // the frame, above the parked walk
+    f.put(5, 0, "PG");                   // and the page it frames
+    std::string out = f.settle();
+
+    size_t legend = out.find("LEGEND"), page = out.find("PG");
+    REQUIRE(legend != std::string::npos);
+    REQUIRE(page != std::string::npos);
+    INFO("the page was painted before the chrome that frames it");
+    CHECK(legend < page);
+}
+
 // A row's class is a standing property of what lives there, not something raised
 // around a draw. That only works if ownership is handed over cleanly: the Console
 // returns the content band to plain structure on a page switch and the incoming

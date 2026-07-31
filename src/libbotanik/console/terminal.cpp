@@ -514,7 +514,6 @@ namespace Botanik { namespace Terminal {
         // a row that misses a tick still differs from BACK on the next one.
         uint16_t used   = tx_used();
         uint16_t budget = (used < _tx_cold_depth) ? (uint16_t)(_tx_cold_depth - used) : 0;
-        bool full = true;
         for (uint8_t prio = 0; prio < PRIO_COUNT; prio++) {
             // Within a class the walk only ever runs downward: it resumes where
             // the budget ran out and stops at the bottom, then starts the next
@@ -524,9 +523,6 @@ namespace Botanik { namespace Terminal {
             // past budget-hungry upper rows is also what stops them winning the
             // budget every tick. See docs/SCREEN_BACKBUFFER.md.
             uint16_t start = _resume[prio];
-            // Rows above `start` are this pass's leftovers, not this tick's:
-            // they get the next pass, so the frame is not settled yet.
-            if (start != 0) full = false;
             for (uint16_t row = start; row < _rows; row++) {
                 if (_row_prio[row] != prio) continue;
                 if (!_reconcile_row(row, budget)) {
@@ -536,9 +532,17 @@ namespace Botanik { namespace Terminal {
                     return false;
                 }
             }
-            _resume[prio] = 0;      // class drained; next pass starts at the top
+            _resume[prio] = 0;      // next pass starts at the top
+            // Reaching the bottom is not the same as being drained: the rows above
+            // `start` were served on an earlier tick and may be dirty again, and
+            // they still outrank every lower class. Ending the tick here is what
+            // keeps that true - a class only lets the page through once it has
+            // been all the way down from the top. Without it the alarm bar parking
+            // the walk on the bottom row let the table paint while the legend row
+            // above it waited, which is the frame arriving after what it frames.
+            if (start != 0) return false;
         }
-        return full;
+        return true;
     }
 
     void AnsiTerminal::_park_cursor() {
