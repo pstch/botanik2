@@ -81,10 +81,15 @@ ctest --test-dir build -R pyte --output-on-failure  # just the pyte suite
 - **`botanik_strict`** - a `-Werror` mirror of the library (plain `make` stays
   warning-tolerant; this gate fails on any warning).
 - **clang-tidy** - the `bugprone-*` checks from `.clang-tidy`, promoted to errors
-  (only present when `run-clang-tidy` was found at configure time).
+  (only present when `clang-tidy` was found at configure time). Incremental: one
+  stamp per TU under `build/clang-tidy/`, so only sources whose text or included
+  headers changed are re-analyzed. Header tracking comes from the Makefile
+  generator's dependency scanner; under Ninja (or without `clang-tidy`, with
+  `run-clang-tidy` present) the target falls back to the full sweep.
 - the **doctest + pyte** suites via `ctest`.
 
-A separate `make -C build cppcheck` target runs cppcheck when installed.
+A separate `make -C build cppcheck` target runs cppcheck when installed, and
+`make -C build clang-tidy-all` re-lints the whole tree ignoring the stamps.
 
 ## Architecture
 

@@ -212,7 +212,14 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     if(NOT BOTANIK_SANITIZE STREQUAL "OFF")
         string(REPLACE "+" "," _san "${BOTANIK_SANITIZE}")
         set(_san_flags -fsanitize=${_san} -fno-omit-frame-pointer)
-        target_compile_options(botanik PUBLIC ${_san_flags})
+        # Everything that links botanik gets instrumented - except the strict
+        # warning mirror below, which is compiled for its diagnostics and never
+        # run. $<TARGET_PROPERTY:NAME> in an INTERFACE genex names the *consuming*
+        # target, and this is the only way to opt out: CMake emits a target's own
+        # options before the ones inherited from its link libraries, so a
+        # -fno-sanitize=all on the mirror would be overridden by this line.
+        target_compile_options(botanik PUBLIC
+            "$<$<NOT:$<STREQUAL:$<TARGET_PROPERTY:NAME>,botanik_strict>>:${_san_flags}>")
         # Propagate as link flags too (via target_link_libraries for CMake 3.10
         # compatibility — target_link_options is 3.13+) so the runtimes get linked.
         target_link_libraries(botanik PUBLIC ${_san_flags})
@@ -243,9 +250,15 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
 
     # Link-time optimization for Release only (cross-TU inlining on top of -O3).
     # Probed so a toolchain without LTO support degrades to a plain -O3 build.
+    # -DBOTANIK_LTO=OFF turns it off for builds that want the -O3 codegen without
+    # paying the whole-program link: the pyte sub-build below does exactly that,
+    # since its sim only has to be "not sanitizer-slow", not optimally inlined.
+    option(BOTANIK_LTO "Link-time optimization for RELEASE builds" ON)
     include(CheckIPOSupported)
     check_ipo_supported(RESULT _ipo_ok OUTPUT _ipo_msg)
-    if(_ipo_ok)
+    if(NOT BOTANIK_LTO)
+        message(STATUS "LTO disabled (BOTANIK_LTO=OFF), Release will use -O3 only")
+    elseif(_ipo_ok)
         set_property(TARGET botanik botanik_sim
                      PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
     else()
@@ -255,11 +268,17 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     # Strict warning gate. A mirror of the library compiled with -Werror, built
     # only on demand (EXCLUDE_FROM_ALL) so day-to-day `make` stays warning-tolerant
     # — visibility, not a hard gate — while `make check` fails hard on any warning.
-    # Linking `botanik` re-uses its PUBLIC include dirs, defines, and warning (and
-    # sanitizer) flags, so the two stay in lockstep with no duplicated settings.
+    # Linking `botanik` re-uses its PUBLIC include dirs, defines and warning flags,
+    # so the two stay in lockstep with no duplicated settings.
     add_library(botanik_strict STATIC EXCLUDE_FROM_ALL ${LIB_SOURCES})
     target_link_libraries(botanik_strict PRIVATE botanik)
-    target_compile_options(botanik_strict PRIVATE -Werror)
+    # -g0, and no sanitizer instrumentation (opted out where the flags are set):
+    # the mirror is never run or debugged, only compiled for its diagnostics, and
+    # neither DWARF nor ASan changes which warnings GCC emits. The optimization
+    # level does (-Wmaybe-uninitialized and friends need the optimizer's flow
+    # analysis), so -O0 is inherited untouched and the diagnostic set stays
+    # exactly the one this gate has always applied.
+    target_compile_options(botanik_strict PRIVATE -Werror -g0)
     # Keep this mirror out of compile_commands.json. Otherwise every library TU
     # gets a second, -Werror entry, and run-clang-tidy lints each file twice —
     # the -Werror pass promoting ordinary -Wall warnings (e.g. unused-private-field
@@ -288,12 +307,45 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         message(STATUS "cppcheck not found — skipping cppcheck target")
     endif()
 
-    # clang-tidy static analysis target. Drives run-clang-tidy over our own src/
-    # tree (the regex is matched against the paths in compile_commands.json); the
-    # check set and header filter live in .clang-tidy, with bugprone-* promoted to
-    # errors there so a finding makes the target — and `make check` — fail.
+    # clang-tidy static analysis over our own src/ tree. The check set and header
+    # filter live in .clang-tidy, with bugprone-* promoted to errors there so a
+    # finding makes the target (and `make check`) fail.
+    #
+    # Incremental, one stamp file per TU: `make check` re-lints only the sources
+    # whose text (or whose included headers) changed, instead of re-analyzing all
+    # of src/ on every run. That full sweep cost ~130s here and was pure waste on
+    # an unchanged tree, since a bare custom target has no outputs to compare.
+    # Header tracking comes from IMPLICIT_DEPENDS, i.e. the Makefile generator's
+    # own dependency scanner. Ninja and the IDE generators ignore it, so they
+    # keep the always-run full sweep (correct, just slower). Re-generating
+    # compile_commands.json (any re-configure) or editing .clang-tidy invalidates
+    # every stamp: the lint depends on the exact compile flags and check set, not
+    # only on the source text.
+    set(_tidy_sources ${LIB_SOURCES} ${BOTANIK_SITE_SOURCES}
+                      "${CMAKE_CURRENT_SOURCE_DIR}/src/botanik_sim/main.cpp")
+    find_program(CLANG_TIDY NAMES clang-tidy)
     find_program(RUN_CLANG_TIDY NAMES run-clang-tidy run-clang-tidy.py)
-    if(RUN_CLANG_TIDY)
+    if(CLANG_TIDY AND CMAKE_GENERATOR MATCHES "Make")
+        set(_tidy_stamp_dir "${CMAKE_BINARY_DIR}/clang-tidy")
+        file(MAKE_DIRECTORY "${_tidy_stamp_dir}")
+        set(_tidy_stamps "")
+        foreach(_tidy_src IN LISTS _tidy_sources)
+            file(RELATIVE_PATH _tidy_rel "${CMAKE_SOURCE_DIR}" "${_tidy_src}")
+            string(REPLACE "/" "_" _tidy_stamp "${_tidy_rel}")
+            set(_tidy_stamp "${_tidy_stamp_dir}/${_tidy_stamp}.stamp")
+            add_custom_command(
+                OUTPUT "${_tidy_stamp}"
+                COMMAND ${CLANG_TIDY} -p ${CMAKE_BINARY_DIR} --quiet "${_tidy_src}"
+                COMMAND ${CMAKE_COMMAND} -E touch "${_tidy_stamp}"
+                DEPENDS "${_tidy_src}" "${CMAKE_SOURCE_DIR}/.clang-tidy"
+                        "${CMAKE_BINARY_DIR}/compile_commands.json"
+                IMPLICIT_DEPENDS CXX "${_tidy_src}"
+                COMMENT "clang-tidy ${_tidy_rel}"
+                VERBATIM)
+            list(APPEND _tidy_stamps "${_tidy_stamp}")
+        endforeach()
+        add_custom_target(clang-tidy DEPENDS ${_tidy_stamps})
+    elseif(RUN_CLANG_TIDY)
         add_custom_target(clang-tidy
             COMMAND ${RUN_CLANG_TIDY}
                 -p ${CMAKE_BINARY_DIR}
@@ -303,7 +355,20 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
             VERBATIM
         )
     else()
-        message(STATUS "run-clang-tidy not found — skipping clang-tidy target")
+        message(STATUS "clang-tidy not found - skipping clang-tidy target")
+    endif()
+
+    # The unconditional sweep, kept as its own target: same checks, every TU, no
+    # stamps consulted. For CI, or to re-validate the whole tree on demand.
+    if(RUN_CLANG_TIDY)
+        add_custom_target(clang-tidy-all
+            COMMAND ${RUN_CLANG_TIDY}
+                -p ${CMAKE_BINARY_DIR}
+                -quiet
+                "${CMAKE_SOURCE_DIR}/src/.*"
+            COMMENT "Running clang-tidy over all of src/ (SIMULATOR)"
+            VERBATIM
+        )
     endif()
 
     # doctest unit tests (host-only, so SIMULATOR-only). enable_testing() here
