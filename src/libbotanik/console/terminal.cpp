@@ -41,6 +41,10 @@ namespace Botanik { namespace Terminal {
             _row_prio[r] = (uint8_t)prio;
     }
 
+    void AnsiTerminal::restart_scan() {
+        for (uint8_t p = 0; p < PRIO_COUNT; p++) _resume[p] = 0;
+    }
+
     void AnsiTerminal::_reset_grids() {
         for (uint16_t r = 0; r < _rows; r++)
             for (uint16_t c = 0; c < _cols; c++)
@@ -166,6 +170,10 @@ namespace Botanik { namespace Terminal {
         // Overflow degrades to a band repaint by the cell diff (FRONT already
         // shifted), never a lost frame - so silently dropping the record is safe.
         if (_nscrolls < MAX_SCROLLS) _scrolls[_nscrolls++] = { top, bottom, n, up };
+        // The band moved as a unit and the rows it reveals are meant to be read
+        // in order, so the diff has to walk them from the top rather than from
+        // wherever the last frame's budget happened to stop.
+        restart_scan();
     }
 
     void AnsiTerminal::newline(bool carriage_return) {
@@ -230,8 +238,10 @@ namespace Botanik { namespace Terminal {
         if (Ansi::set_cursor_visible(_serial, false)) _hw_cursor_visible = false;
         Ansi::set_insert_mode(_serial, false);   // defensive: we never set SM4
         _screen_ready = true;
-        // The screen is now physically blank: both grids blank, draw cursor home.
+        // The screen is now physically blank: both grids blank, draw cursor home,
+        // and the diff walks the repaint that follows from the top.
         _reset_grids();
+        restart_scan();
         _draw_row = _draw_col = 0; _draw_inv = false;
     }
 
@@ -504,14 +514,20 @@ namespace Botanik { namespace Terminal {
         // a row that misses a tick still differs from BACK on the next one.
         uint16_t used   = tx_used();
         uint16_t budget = (used < _tx_cold_depth) ? (uint16_t)(_tx_cold_depth - used) : 0;
+        bool full = true;
         for (uint8_t prio = 0; prio < PRIO_COUNT; prio++) {
-            // Within a class, resume where the budget ran out and wrap: equally
-            // ranked rows take turns instead of the top ones winning every tick.
-            // See docs/SCREEN_BACKBUFFER.md.
+            // Within a class the walk only ever runs downward: it resumes where
+            // the budget ran out and stops at the bottom, then starts the next
+            // pass at the top. That is what keeps a tick's emissions in row
+            // order - lines of output, and the rows of a freshly drawn page,
+            // read top-down and have to arrive that way. Advancing the cursor
+            // past budget-hungry upper rows is also what stops them winning the
+            // budget every tick. See docs/SCREEN_BACKBUFFER.md.
             uint16_t start = _resume[prio];
-            for (uint16_t i = 0; i < _rows; i++) {
-                uint16_t row = (uint16_t)(start + i);
-                if (row >= _rows) row = (uint16_t)(row - _rows);
+            // Rows above `start` are this pass's leftovers, not this tick's:
+            // they get the next pass, so the frame is not settled yet.
+            if (start != 0) full = false;
+            for (uint16_t row = start; row < _rows; row++) {
                 if (_row_prio[row] != prio) continue;
                 if (!_reconcile_row(row, budget)) {
                     // Pick this row up again next tick: it is either unfinished or
@@ -520,9 +536,9 @@ namespace Botanik { namespace Terminal {
                     return false;
                 }
             }
-            _resume[prio] = 0;      // class fully reconciled; start fresh next time
+            _resume[prio] = 0;      // class drained; next pass starts at the top
         }
-        return true;
+        return full;
     }
 
     void AnsiTerminal::_park_cursor() {

@@ -195,6 +195,13 @@ namespace Botanik { namespace Terminal {
         // row, so its already-drawn content survives the switch unchanged. Its
         // step() repaints it only when the alarm set actually moves (a switch that
         // coincides with an alarm change is caught by the next set-change check).
+        //
+        // The whole content band is about to be redrawn, so send the diff's walk
+        // back to the top: left where the outgoing page's budget ran out, the new
+        // page would paint from that row down and only then fill in above it.
+        // clear_content() does this itself on its scroll path, but not on the
+        // clear_to_eos one.
+        _term.restart_scan();
         _reset_content_priority();
         _pages[_page_index]->focus();
     }

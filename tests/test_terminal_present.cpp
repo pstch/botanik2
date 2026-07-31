@@ -8,11 +8,12 @@
  * emitting a partial run. A pipe-backed AnsiTerminal lets us drain TX and assert
  * exactly what a frame wrote, so the byte stream is the oracle.
  *
- * The four cases pin the invariants the design rests on: minimal emit, pacing
- * across ticks, scroll-then-diff (a DL/IL beats a band repaint), and the
- * all-or-nothing ring gate.
+ * The cases pin the invariants the design rests on: minimal emit, pacing across
+ * ticks, scroll-then-diff (a DL/IL beats a band repaint), the all-or-nothing ring
+ * gate, the priority classes, and the top-down row order within a tick.
  */
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <fcntl.h>
 #include <string>
@@ -282,6 +283,73 @@ TEST_CASE("present: no row starves when every row updates every tick") {
         INFO("row " << r << " never reached the wire in 300 ticks");
         CHECK(seen[r]);
     }
+}
+
+namespace {
+    // A row wide enough that two of them cannot share a tick at BAUD_2ROWS, so a
+    // frame reliably runs out of budget partway down and parks the walk there.
+    const char WIDE[] = "####################";
+    // budget = baud * TX_COLD_TARGET_MS / 10000 = 40 bytes, one WIDE row and a bit
+    constexpr uint32_t BAUD_2ROWS = 3125u;
+
+    /** @brief Leave the walk parked at @p row with everything above it settled. */
+    void strand_walk_at(TermFixture& f, uint16_t row) {
+        f.settle();
+        f.put((uint16_t)(row - 1), 0, WIDE);   // fits the tick...
+        f.put(row, 0, WIDE);                   // ...and this one does not
+        f.present();
+    }
+}
+
+// Whatever a single frame puts on the wire has to read top-down: lines of shell
+// output, the rows of a page. An earlier cut resumed each class where the budget
+// ran out and then *wrapped* within the tick, so one frame could carry rows
+// N..max followed by rows 0..N-1 - the page painting its bottom half first.
+TEST_CASE("present: one frame never emits a row before one above it") {
+    TermFixture f(20, 12, BAUD_2ROWS);
+    strand_walk_at(f, 11);               // budget died on the last row
+
+    f.put(1, 0, "TOP");                  // now dirty a row above the parked walk
+    std::string one = f.present();       // ...and take a single frame
+
+    size_t top = one.find("TOP"), bottom = one.find(WIDE);
+    INFO("a frame carried row 11 before row 1");
+    CHECK((top == std::string::npos || bottom == std::string::npos || top < bottom));
+}
+
+// The parked walk is per class and outlives the frame that parked it, so on its
+// own it also outlives the page that drew it: the outgoing page's budget ran out
+// at row N and the incoming page starts painting there. restart_scan() is what
+// the Console calls on a switch - and what a band scroll and a full repaint call
+// for themselves.
+TEST_CASE("present: restart_scan sends the walk back to the top") {
+    TermFixture f(20, 12, BAUD_2ROWS);
+    strand_walk_at(f, 11);
+
+    f.term.restart_scan();
+    f.put(1, 0, "TOP");
+    std::string one = f.present();
+
+    CHECK(one.find("TOP") != std::string::npos);   // the top row leads again
+}
+
+// A band scroll is the shell/logs tail: DL the rows off the top, paint the freed
+// slots at the bottom oldest-first. Those slots are consecutive lines of output,
+// so the wire has to carry them in that order - which it does only because
+// scroll_region() restarts the walk, rather than resuming it below them.
+TEST_CASE("present: rows revealed by a band scroll go out oldest first") {
+    TermFixture f(20, 12, BAUD_2ROWS);
+    strand_walk_at(f, 9);                // parked on the band's bottom row
+
+    f.term.scroll_region(1, 9, /*up=*/true, 2);
+    f.put(8, 0, "OLDER");                // the two freed slots, in reading order
+    f.put(9, 0, "NEWER");
+    std::string out = f.settle();
+
+    size_t older = out.find("OLDER"), newer = out.find("NEWER");
+    REQUIRE(older != std::string::npos);
+    REQUIRE(newer != std::string::npos);
+    CHECK(older < newer);
 }
 
 // A row's class is a standing property of what lives there, not something raised
