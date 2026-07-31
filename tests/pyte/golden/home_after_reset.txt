@@ -5,20 +5,20 @@
    | |_) | (_) | || (_| | | | | |   <         Version ........ : <VERSION>
    |_.__/ \___/ \__\__,_|_| |_|_|_|\_\        Commit ......... : <COMMIT>
 
-                                          Grid         <HF>
-  Uptime       <UPTIME>             DC bus       <HF>
-                                          Battery      <HF>
-  Temp         <HF> UPS          <HF>
-  Humidity     <HF> Network      <HF>
-  Wind         <HF> NTP sync     <HF>
-  Water in     <HF> Cooling      <HF>
-  Tray         <HF> Heatpump     <HF>
+                                          ATS V        <HF>
+  Uptime       <UPTIME>             ATS A        <HF>
+                                          ATS W        <HF>
+  Line V       <HF> ATS Hz       <HF>
+  Line Hz      <HF> Supply Hz    <HF>
+  Current      <HF> Lockout      <HF>
+  Power        <HF> Screen       <HF>
+  Pwr factor   <HF> Skirt        <HF>
 
     LOGS
-<TS> [~] BOOT: NtpClient initialized
-<TS> [*] TIME: NTP sync failed (no server answered)
-<TS> [~] BOOT: MqttClient initialized
 <TS> [*] NETWORK: MQTT connection lost
+<TS> [~] BOOT: Scan initialized
 <TS> [~] BOOT: Console initialized
 <TS> [~] BOOT: MonitorWriter initialized
+<TS> [+] TIME: NTP synced
+<TS> [*] NETWORK: MQTT connection lost
  ALARMS :<BAR>

@@ -17,7 +17,7 @@
 
 
 
-<TS> [*] TIME: NTP sync failed (no server answered)
+
 <TS> [*] NETWORK: MQTT connection lost
 botanik> 77777777777777777777777777777777777777777777777777777777777777777777777
 ...> tail

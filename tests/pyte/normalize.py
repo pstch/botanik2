@@ -95,19 +95,21 @@ _SUBS = [
     # Left column: also absorb the trailing pad up to the right column, so a
     # variable-length f32 value (21.5 vs 21.1739) collapses to a fixed token and
     # doesn't shift the right column in the normalized line.
-    (re.compile(r"(Temp\s+)[\d.]+ C\s+"), r"\g<1><HF> "),
-    (re.compile(r"(Humidity\s+)[\d.]+ %\s+"), r"\g<1><HF> "),
-    (re.compile(r"(Wind\s+)\d+ km/h\s+"), r"\g<1><HF> "),
-    (re.compile(r"(Water in\s+)\d+ L\s+"), r"\g<1><HF> "),
-    (re.compile(r"(Tray\s+)\d+\s+"), r"\g<1><HF> "),
-    (re.compile(r"(Grid\s+)[\d.]+ V"), r"\g<1><HF>"),
-    (re.compile(r"(DC bus\s+)[\d.]+ V"), r"\g<1><HF>"),
-    (re.compile(r"(Battery\s+)[\d.]+ V"), r"\g<1><HF>"),
-    (re.compile(r"(UPS\s+)\w+"), r"\g<1><HF>"),
-    (re.compile(r"(Network\s+)\w+"), r"\g<1><HF>"),
-    (re.compile(r"(NTP sync\s+)\d+"), r"\g<1><HF>"),
-    (re.compile(r"(Cooling\s+)\d+"), r"\g<1><HF>"),
-    (re.compile(r"(Heatpump\s+)\d+"), r"\g<1><HF>"),
+    # Left column (site status.h g_home_fields), then the right column. Each
+    # label's \s+ absorbs the value's variable width so the columns stay put.
+    (re.compile(r"(Line V\s+)[\d.]+ V\s+"), r"\g<1><HF> "),
+    (re.compile(r"(Line Hz\s+)[\d.]+ Hz\s+"), r"\g<1><HF> "),
+    (re.compile(r"(Current\s+)[\d.]+ A\s+"), r"\g<1><HF> "),
+    (re.compile(r"(Power\s+)\d+ W\s+"), r"\g<1><HF> "),
+    (re.compile(r"(Pwr factor\s+)[\d.]+\s+"), r"\g<1><HF> "),
+    (re.compile(r"(ATS V\s+)[\d.]+ V"), r"\g<1><HF>"),
+    (re.compile(r"(ATS A\s+)[\d.]+ A"), r"\g<1><HF>"),
+    (re.compile(r"(ATS W\s+)\d+ W"), r"\g<1><HF>"),
+    (re.compile(r"(ATS Hz\s+)[\d.]+ Hz"), r"\g<1><HF>"),
+    (re.compile(r"(Supply Hz\s+)[\d.]+ Hz"), r"\g<1><HF>"),
+    (re.compile(r"(Lockout\s+)\d+"), r"\g<1><HF>"),
+    (re.compile(r"(Screen\s+)\d+"), r"\g<1><HF>"),
+    (re.compile(r"(Skirt\s+)\d+"), r"\g<1><HF>"),
     # The NTP-sync / MQTT-connect log lines carry the resolved socket address
     # (IP:port); the sim's loopback host part is PID-derived, so strip the
     # parenthesised address back to the bare message the golden pins.
