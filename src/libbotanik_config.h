@@ -221,14 +221,6 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint8_t, SITE_ALARMS_MAX);
 
-    /** @brief Largest byte offset a table can address in a payload: ScalarField
-     *  holds offsets as int16_t (-1 = read-only), so the range stops at
-     *  INT16_MAX. Pinned in core/scalar.h. */
-#ifndef BOTANIK_PAYLOAD_OFFSET_MAX
-#  define BOTANIK_PAYLOAD_OFFSET_MAX 32767
-#endif
-    BOTANIK_CFG(uint16_t, PAYLOAD_OFFSET_MAX);
-
     /** @brief Rows in any one generated table. Every SiteDescriptor count is a
      *  uint8_t, so a longer table would wrap its count and publish a prefix. */
 #ifndef BOTANIK_TABLE_ROWS_MAX
@@ -236,13 +228,6 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, TABLE_ROWS_MAX);
 
-    /** @brief Bytes reserved for the local (no-PLC) parameter image. Must cover
-     *  the site's parameter block (its widest out_offset + value width). Only
-     *  used when BOTANIK_FEATURE_PLC is off; keep it <= PAYLOAD_OFFSET_MAX. */
-#ifndef BOTANIK_LOCAL_PARAM_IMAGE_BYTES
-#  define BOTANIK_LOCAL_PARAM_IMAGE_BYTES 512
-#endif
-    BOTANIK_CFG(uint16_t, LOCAL_PARAM_IMAGE_BYTES);
 
     /** @}
      *  @name PLC Synchronization

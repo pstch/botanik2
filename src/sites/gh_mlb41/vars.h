@@ -69,6 +69,45 @@ using namespace Botanik::Vars;
       { XP_NONE, T_F32, 0, 0, 0, 0, 1.0f, 0.0f }, \
       0, 0, 0, T_F32, ROLE_INTERNAL, dgt, STR_NONE, 0, {} }
 
+/** @brief Text-parameter capacity, including the NUL. */
+static const uint16_t STR_CAP = 64;
+/** @brief 8 text parameters x STR_CAP. */
+static const uint16_t STR_POOL_BYTES = 8 * STR_CAP;
+
+// ---- Parameters --------------------------------------------------------
+// Persisted and editable. They sit at the END of the table so the field-IO
+// indices above never move when one is added. `def` is a typed literal, so a
+// bad default is a compile error rather than a boot-time parse yielding zero.
+
+/** @brief A group's commit serial: bump it to apply that group's staged edits.
+ *  Named after the group, which is how the consuming component finds it. */
+#define PSERIAL(nm, desc) \
+    { Scalar::U(0), Scalar::U(1000000000), Scalar::U(1), nm, "", desc, nullptr, \
+      { XP_NONE, T_U32, 0, 0, 0, 0, 1.0f, 0.0f }, \
+      0, 0, 0, T_U32, ROLE_PARAM, 0, STR_NONE, F_BOUNDED, {} }
+
+#define PBOOL(nm, dflt, desc) \
+    { Scalar::B(false), Scalar::B(true), Scalar::B(dflt), nm, "", desc, nullptr, \
+      { XP_NONE, T_BOOL, 0, 0, 0, 0, 1.0f, 0.0f }, \
+      0, 0, 0, T_BOOL, ROLE_PARAM, 0, STR_NONE, F_BOUNDED, {} }
+
+#define PU16(nm, dflt, lo, hi, unit, desc) \
+    { Scalar::U(lo), Scalar::U(hi), Scalar::U(dflt), nm, unit, desc, nullptr, \
+      { XP_NONE, T_U16, 0, 0, 0, 0, 1.0f, 0.0f }, \
+      0, 0, 0, T_U16, ROLE_PARAM, 0, STR_NONE, F_BOUNDED, {} }
+
+#define PF32(nm, dflt, lo, hi, dgt, unit, desc) \
+    { Scalar::F(lo), Scalar::F(hi), Scalar::F(dflt), nm, unit, desc, nullptr, \
+      { XP_NONE, T_F32, 0, 0, 0, 0, 1.0f, 0.0f }, \
+      0, 0, 0, T_F32, ROLE_PARAM, dgt, STR_NONE, F_BOUNDED, {} }
+
+/** @brief A text parameter. Its live value lives in the string pool at @p off;
+ *  `def` carries the factory text, which init() copies into the pool. */
+#define PSTR(nm, off, kind_, dflt, desc) \
+    { Scalar::U(0), Scalar::U(0), Scalar::S(dflt), nm, "", desc, nullptr, \
+      { XP_NONE, T_STR, 0, 0, 0, 0, 1.0f, 0.0f }, \
+      0, off, STR_CAP, T_STR, ROLE_PARAM, 0, kind_, 0, {} }
+
 /** @brief Every variable this site declares, in one table.
  *
  *  Plain `const`, so each including TU gets its own copy; two TUs include this
@@ -196,6 +235,31 @@ const Variable g_vars[] = {
     IBOOL("sys_supply_lockout", "supply unhealthy: actuators held off"),
     IREAL("sys_supply_hz", "Hz", 2, "deadbanded incoming supply frequency"),
  /** @} */
+
+    // -- network --
+    PSERIAL("net", "Network config commit"),
+    PBOOL("net_dhcp", 1, "DHCP (1) or static IP (0)"),
+    PSTR("net_ip", 0, STR_IPV4, "", "Static IPv4 address"),
+    PSTR("net_netmask", 64, STR_IPV4, "", "Static subnet mask"),
+    PSTR("net_gateway", 128, STR_IPV4, "", "Default gateway"),
+    PSTR("net_dns1", 192, STR_IPV4, "", "Primary DNS server"),
+    PSTR("net_dns2", 256, STR_IPV4_OPT, "", "Secondary DNS server"),
+    // -- NTP --
+    PSERIAL("ntp", "NTP config commit"),
+    PBOOL("ntp_enabled", 1, "Enable NTP time sync"),
+    PU16("ntp_poll_s", 64, 0, 65535, "s", "NTP poll interval"),
+    PSTR("ntp_server1", 320, STR_HOST, "pool.ntp.org", "Primary NTP server"),
+    PSTR("ntp_server2", 384, STR_HOST_OPT, "", "Secondary NTP server"),
+    // -- MQTT --
+    PSERIAL("mqtt", "MQTT config commit"),
+    PBOOL("mqtt_enabled", 1, "Enable MQTT publishing"),
+    PU16("mqtt_port", 1883, 1, 65535, "", "Broker TCP port"),
+    PU16("mqtt_keepalive_s", 60, 0, 65535, "s", "MQTT keepalive"),
+    PSTR("mqtt_broker", 448, STR_HOST, "", "MQTT broker host"),
+    // -- geo (decimal degrees) --
+    PSERIAL("geo", "Geo config commit"),
+    PF32("geo_latitude", 48.8566f, -90.0f, 90.0f, 4, "deg", "Site latitude, north +"),
+    PF32("geo_longitude", 2.3522f, -180.0f, 180.0f, 4, "deg", "Site longitude, east +"),
 };
 const uint16_t g_var_count = (uint16_t)(sizeof(g_vars) / sizeof(g_vars[0]));
 
@@ -203,6 +267,11 @@ const uint16_t g_var_count = (uint16_t)(sizeof(g_vars) / sizeof(g_vars[0]));
 #undef COIL
 #undef IBOOL
 #undef IREAL
+#undef PSERIAL
+#undef PBOOL
+#undef PU16
+#undef PF32
+#undef PSTR
 
 /** @brief Symbolic index per variable. The row order above is the enum order;
  *  a mismatch would silently address the wrong signal, so the count is
@@ -240,6 +309,26 @@ enum VarId : uint16_t {
     V_ALARM_TMP_STR, V_ALARM_WTR_LK, V_ALARM_WTR_BAR,
     V_ALARM_WTR_CLOG, V_ALARM_IO_DROP, V_ALARM_LOG_FLD,
     V_ALARM_WH_STORM, V_SYS_SUPPLY_LOCKOUT, V_SYS_SUPPLY_HZ,
+    V_NET,
+    V_NET_DHCP,
+    V_NET_IP,
+    V_NET_NETMASK,
+    V_NET_GATEWAY,
+    V_NET_DNS1,
+    V_NET_DNS2,
+    V_NTP,
+    V_NTP_ENABLED,
+    V_NTP_POLL_S,
+    V_NTP_SERVER1,
+    V_NTP_SERVER2,
+    V_MQTT,
+    V_MQTT_ENABLED,
+    V_MQTT_PORT,
+    V_MQTT_KEEPALIVE_S,
+    V_MQTT_BROKER,
+    V_GEO,
+    V_GEO_LATITUDE,
+    V_GEO_LONGITUDE,
     V_COUNT
 };
 
@@ -247,9 +336,10 @@ enum VarId : uint16_t {
  *  @{ */
 
 extern Value g_var_values[V_COUNT];
-/** @brief T_STR live text. Empty until the parameters land here; a zero-size
- *  array is not valid C++, so it holds one byte. */
-extern char  g_str_pool[1];
+/** @brief T_STR live text: one STR_CAP slot per text parameter, addressed by
+ *  Variable::str_off. The one place a byte offset survives, sized exactly by
+ *  the generator and asserted below. */
+extern char  g_str_pool[STR_POOL_BYTES];
 
 /** @} */
 
@@ -259,18 +349,22 @@ extern char  g_str_pool[1];
  *  compile-time constant in flash: any function call in that initialiser makes
  *  it dynamic and moves the whole descriptor into .data.
  *
- *  The trailing pair is the ROLE_PARAM block. It is empty for now - parameters
- *  still live in their own byte image - and when they arrive they append to the
- *  END of the table, so no existing index moves. */
+ *  The trailing pair is the ROLE_PARAM block: a contiguous run at the end of
+ *  the table, so the parameter pages address it with a dense 0-based index and
+ *  one add, and adding a parameter never moves a field-IO index. */
 #define SITE_VAR_TABLES { \
     g_vars, g_var_values, V_COUNT, \
-    g_str_pool, (uint16_t)sizeof(g_str_pool), \
-    0, 0 }
+    g_str_pool, STR_POOL_BYTES, \
+    V_NET, (uint16_t)(V_COUNT - V_NET) }
 
 // The enum must stay in step with the table it indexes; a mismatch would
 // silently read the wrong signal.
 static_assert(sizeof(g_vars) / sizeof(g_vars[0]) == (size_t)V_COUNT,
               "g_vars and VarId disagree: an index would address the wrong variable");
+
+// The pool must cover every text parameter's slot; a short pool would let one
+// silently overlap its neighbour.
+static_assert(STR_POOL_BYTES >= 8 * STR_CAP, "the string pool is too small");
 
 }  // namespace Site
 

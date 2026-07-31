@@ -13,11 +13,10 @@
 #include "../hal/platform.h"
 #include "../hal/storage.h"
 #include "../logs/logger.h"
-#include "libbotanik/params/params.h"
+#include "libbotanik/vars/params.h"
 #include "../network/mqtt.h"
 #include "../network/network.h"
 #include "../network/ntp.h"
-#include "../core/scalar.h"
 #include "../scheduler/scheduler.h"
 #include "shell.h"
 #include "../utils/text.h"
@@ -284,10 +283,10 @@ namespace Botanik { namespace Shell {
         // "config" with no args: list every parameter and its value.
         if (a0 == nullptr) {
             char val[40];
-            for (uint8_t i = 0; i < _params->count(); i++) {
-                const Params::Param& p = _params->param(i);
-                _params->format(i, val, sizeof(val));
-                _emitf(out, sizeof(out), "  %-18s %s", p.field.name, val);
+            for (uint16_t i = 0; i < _params->count(); i++) {
+                const char* v = _params->format(i, val, sizeof(val));
+                _emitf(out, sizeof(out), "  %-18s %s",
+                       _params->param(i).meta()->name, v);
             }
             return;
         }
@@ -299,23 +298,24 @@ namespace Botanik { namespace Shell {
             if (nm == nullptr || v == nullptr) {
                 _println("usage: params set <name> <value>"); return;
             }
-            const Params::Param* p = _params->find(nm, wn);
-            if (p == nullptr) { _println("params: unknown parameter"); return; }
+            const Vars::VarRef r = _params->find(nm, wn);
+            if (r.index == Vars::VAR_NONE) { _println("params: unknown parameter"); return; }
+            Vars::Var p = _vars->var(r);
             char val[96];
             uint16_t vc = std::min(wv, (uint16_t)(sizeof(val) - 1));
             memcpy(val, v, vc); val[vc] = '\0';
-            switch (_params->set(*p, val)) {
-                case Params::SET_OK:
-                    _emitf(out, sizeof(out), "%s = %s", p->field.name, val);
+            switch (_params->set(p, val)) {
+                case Vars::SET_OK:
+                    _emitf(out, sizeof(out), "%s = %s", p.meta()->name, val);
                     break;
-                case Params::SET_NOT_PERSISTED:
+                case Vars::SET_NOT_PERSISTED:
                     // Live, but it dies at the next reboot - say which of the
                     // two failed, since the fixes are entirely different.
                     _emitf(out, sizeof(out), "%s = %s  (NOT SAVED: storage refused it)",
-                           p->field.name, val);
+                           p.meta()->name, val);
                     break;
                 default:
-                    _emitf(out, sizeof(out), "params: invalid value for %s", p->field.name);
+                    _emitf(out, sizeof(out), "params: invalid value for %s", p.meta()->name);
                     break;
             }
             return;
@@ -325,11 +325,12 @@ namespace Botanik { namespace Shell {
         const char* nm = a0; uint16_t wn = w0;
         if (Utils::arg_eq(a0, w0, "get")) nm = Utils::arg_next(args, alen, wn);
         if (nm == nullptr) { _println("usage: params get <name>"); return; }
-        const Params::Param* p = _params->find(nm, wn);
-        if (p == nullptr) { _println("params: unknown parameter"); return; }
+        const Vars::VarRef r = _params->find(nm, wn);
+        if (r.index == Vars::VAR_NONE) { _println("params: unknown parameter"); return; }
         char val[40];
-        _params->format_param(*p, val, sizeof(val));
-        _emitf(out, sizeof(out), "%s = %s", p->field.name, val);
+        Vars::Var p = _vars->var(r);
+        const char* fv = Vars::var_format(*_vars, p, val, sizeof(val));
+        _emitf(out, sizeof(out), "%s = %s", p.meta()->name, fv);
     }
 
     void CommandShell::_cmd_vars(const char* args, uint16_t alen) {
@@ -503,7 +504,7 @@ namespace Botanik { namespace Shell {
         };
 
         // --- Link --------------------------------------------------------
-        const char* mode = Params::get_int(_params, "net_dhcp") ? "DHCP" : "static";
+        const char* mode = Vars::get_int(_vars, "net_dhcp") ? "DHCP" : "static";
         snprintf(val, sizeof(val), "%s  (%s)", net->status_str(), mode);
         _line("Network ..............", val);
 
@@ -538,7 +539,7 @@ namespace Botanik { namespace Shell {
             else
                 snprintf(val, sizeof(val), "%s", ntp->status_str());
             _line("NTP ..................", val);
-            const char* s1 = Params::get_str(_params, "ntp_server1");
+            const char* s1 = Vars::get_str(_vars, "ntp_server1");
             if (s1[0]) {
                 // Configured hostname, then the resolved IP:port once known.
                 Network::ResolvedAddr sa = ntp->server_addr();
@@ -567,7 +568,7 @@ namespace Botanik { namespace Shell {
                 snprintf(val, sizeof(val), "%s  (no pub yet)", mqt->status_str());
             }
             _line("MQTT .................", val);
-            const char* brk = Params::get_str(_params, "mqtt_broker");
+            const char* brk = Vars::get_str(_vars, "mqtt_broker");
             if (brk[0]) {
                 // Configured hostname, then the resolved IP:port once connected.
                 if (mqt->connected()) {

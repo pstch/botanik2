@@ -40,7 +40,6 @@ namespace Botanik { namespace Network {
     };
 
     // Vars::VarGroup / VarRef (the status-variable descriptor
-    // table) live in core/scalar.h so non-network consumers (the shell's
     // `status` command) can read them without the MqttSender. Published here.
 
     /** @brief Periodic MQTT telemetry publisher (see file header). */

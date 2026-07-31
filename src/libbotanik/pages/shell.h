@@ -86,7 +86,7 @@ namespace Botanik { namespace Pages {
         void set_ntp(Network::NtpClient* ntp) { _shell.set_ntp(ntp); }
 
         /** @brief Wire the config backend for the `config` get/set command. */
-        void set_params(Params::ParamHandler* config) { _shell.set_params(config); }
+        void set_params(Vars::Params* config) { _shell.set_params(config); }
 
         /** @brief Wire the status-variable table for the `status` command. */
         /** @brief Forward the variable model to the shell (`vars`). */

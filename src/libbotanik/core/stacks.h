@@ -117,7 +117,7 @@ namespace Botanik {
         /** @param plc the PLC sync context the handlers read their config from;
          *  @param logger the shared logger; @param sys the live status the MQTT
          *  telemetry base fields read (stored, read per-beat). */
-        NetworkStack(const Params::ParamHandler* cfg, Logs::Logger* logger,
+        NetworkStack(const Vars::Bank* cfg, Logs::Logger* logger,
                      const SystemContext* sys)
             : _resolver(logger),
               _network(cfg, logger, &_resolver)

@@ -15,7 +15,7 @@
 #include <cstdint>
 
 #include "../core/component.h"
-#include "libbotanik/params/params.h"       // Params::ParamHandler + cfg_* name getters
+#include "libbotanik/vars/params.h"       // Vars::Bank + cfg_* name getters
 #include "../hal/net.h"
 #include "resolver.h"
 #include "network.h"   // NetworkHandler (link gate)
@@ -55,7 +55,7 @@ namespace Botanik { namespace Network {
             TIME_ERROR,      ///< failed; backing off before a retry
         };
         /** @brief Config source (may be null in tests). */
-        const Params::ParamHandler* _cfg;
+        const Vars::Bank* _cfg;
         State                 _state;
         /// when this state was entered (timeouts)
         uint64_t              _since_ms;
@@ -79,7 +79,7 @@ namespace Botanik { namespace Network {
         /** @} */
 
     public:
-        NtpClient(const Params::ParamHandler* cfg, Logs::Logger* logger = nullptr,
+        NtpClient(const Vars::Bank* cfg, Logs::Logger* logger = nullptr,
                   NameResolver* resolver = nullptr,
                   const NetworkHandler* net = nullptr);
 

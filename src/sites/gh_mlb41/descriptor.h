@@ -23,9 +23,7 @@
 
 #include "botanik.h"
 
-#include "data.h"         // the parameter image (config parameters only)
 #include "status.h"       // status variables + home-screen readings
-#include "params.h"       // config parameters
 #include "alarms.h"       // alarm conditions
 #include "commands.h"     // shell commands (hand-written)
 #include "vars.h"         // every variable, in one table
@@ -37,12 +35,11 @@ namespace Site {
  *  Botanik::SiteDescriptor. Any table may be null / count 0. */
 const Botanik::SiteDescriptor g_site = {
     Botanik::Config::SITE_NAME,
-    g_params,        g_param_count,          // params page + `param` command
     g_commands,      g_command_count,        // site shell commands
     g_status_groups, g_status_group_count,   // monitor page, telemetry, `status`
     g_home_fields,   g_home_field_count,     // home-screen readings
     g_alarms,        g_alarm_count,          // alarm conditions
-    SITE_VAR_TABLES,                         // every variable + its value store
+    SITE_VAR_TABLES,                         // every variable, values, string pool
     g_tasks,         g_task_count,   g_task_stats,   // control programs
 };
 

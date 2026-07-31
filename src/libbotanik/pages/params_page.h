@@ -32,7 +32,7 @@
 #include <cstring>
 
 #include "../../libbotanik_config.h"
-#include "libbotanik/params/params.h"
+#include "libbotanik/vars/params.h"
 #include "page.h"
 #include "scroll_table.h"
 #include "../console/console.h"
@@ -75,14 +75,14 @@ namespace Botanik { namespace Pages {
         /** @name State
          *  @{ */
         Console&            _console;
-        Params::ParamHandler* _params;
+        Vars::Params* _params;
         bool                _dirty    = true;    ///< table needs a redraw
         uint64_t            _last_refresh_ms = 0; ///< last cadence rebuild
 
         /** @name Edit sub-state (bottom-row inline editor) @{ */
         InputEditor         _editor;                 ///< single-line value editor
         bool                _editing    = false;
-        const Params::Param* _edit_param = nullptr;
+        uint16_t _edit_index = 0;   ///< the parameter being edited
         bool                _edit_error = false;      ///< last commit rejected
         /** last commit applied but did not reach storage (shown on the prompt
          *  row, since the value itself is live and the row will show it) */
@@ -93,7 +93,7 @@ namespace Botanik { namespace Pages {
     public:
         /** @brief @p console owns the content geometry; @p config is the backend
          *  the table reads/writes (may be null -> empty table). */
-        ParamsPage(Console& console, Params::ParamHandler* config)
+        ParamsPage(Console& console, Vars::Params* config)
             : ScrollTablePage(console.terminal()), _console(console), _params(config),
               _editor(&console) {}
 
@@ -212,12 +212,16 @@ namespace Botanik { namespace Pages {
         }
 
         void _draw_row(uint16_t idx, uint16_t row, bool selected) {
-            const Params::Param& p = _params->param((uint8_t)idx);
+            Vars::Var p = _params->param(idx);
+            const Vars::Variable& d = *p.meta();
             char val[VAL_CAP];
-            _params->format((uint8_t)idx, val, sizeof(val));
+            _params->format(idx, val, sizeof(val));
             char line[LINE_CAP];
-            uint16_t n = _row5(line, sizeof(line), p.field.name, Params::type_name(p), val,
-                               p.meta.def ? p.meta.def : "", p.field.unit ? p.field.unit : "");
+            char dflt[VAL_CAP];
+            _params->format_scalar_of(d, d.def, dflt, sizeof(dflt));
+            uint16_t n = _row5(line, sizeof(line), d.name, Vars::type_name(d.type), val,
+                               (d.type == Vars::T_STR && d.def.s) ? d.def.s : dflt,
+                               d.unit ? d.unit : "");
             _draw_selected_line(row, line, n, NAME_CELL_L, NAME_CELL_R, selected);
         }
 
@@ -244,12 +248,28 @@ namespace Botanik { namespace Pages {
         // Detail panel (selected parameter's min/max/description/notes)
         // --------------------------------------------------------------------
 
-        /** @brief Format a numeric bound ("-" for strings; the min/max are whole
-         *  numbers, shown plainly even for an f32 param). */
-        const char* _fmt_bound(char* buf, size_t cap, const Params::Param& p,
-                               int32_t v) const {
-            if (Params::is_string(p)) { snprintf(buf, cap, "-"); return buf; }
-            snprintf(buf, cap, "%ld", (long)v);
+        /** @brief The config group a parameter belongs to: the prefix of its
+         *  name, which is also the name of the group's commit serial. */
+        static const char* _group_of(const Vars::Variable& d) {
+            static char g[16];
+            const char* u = strchr(d.name, '_');
+            if (u == nullptr) return d.name;          // the serial itself
+            size_t n = (size_t)(u - d.name);
+            if (n >= sizeof(g)) n = sizeof(g) - 1;
+            memcpy(g, d.name, n); g[n] = 0;
+            return g;
+        }
+
+        /** @brief Format a bound, in the parameter's OWN type - so a real
+         *  parameter's band shows its decimals instead of being truncated to
+         *  whole numbers. "-" when there is no declared band. */
+        const char* _fmt_bound(char* buf, size_t cap, const Vars::Variable& d,
+                               Vars::Scalar v) const {
+            if (d.type == Vars::T_STR || (d.flags & Vars::F_BOUNDED) == 0) {
+                snprintf(buf, cap, "-"); return buf;
+            }
+            const char* t = _params->format_scalar_of(d, v, buf, cap);
+            if (t != buf) { strncpy(buf, t, cap - 1); buf[cap - 1] = 0; }
             return buf;
         }
 
@@ -283,12 +303,13 @@ namespace Botanik { namespace Pages {
                 for (uint16_t i = 2; i < PANEL_H; i++) _blank_line((uint16_t)(r + i));
                 return;
             }
-            const Params::Param& p = _params->param((uint8_t)_selected);
+            Vars::Var p = _params->param(_selected);
+            const Vars::Variable& d = *p.meta();
             char b[24];
-            _panel_field((uint16_t)(r + 2), "Minimum",     _fmt_bound(b, sizeof(b), p, p.meta.min));
-            _panel_field((uint16_t)(r + 3), "Maximum",     _fmt_bound(b, sizeof(b), p, p.meta.max));
-            _panel_field((uint16_t)(r + 4), "Description", p.field.desc);
-            _panel_field((uint16_t)(r + 5), "Notes",       p.field.notes);
+            _panel_field((uint16_t)(r + 2), "Minimum",     _fmt_bound(b, sizeof(b), d, d.min));
+            _panel_field((uint16_t)(r + 3), "Maximum",     _fmt_bound(b, sizeof(b), d, d.max));
+            _panel_field((uint16_t)(r + 4), "Description", d.desc);
+            _panel_field((uint16_t)(r + 5), "Group",       _group_of(d));
             _blank_line((uint16_t)(r + 6));
         }
 
@@ -297,7 +318,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief " name = " static label for the parameter being edited. */
         uint16_t _edit_label(char* buf, size_t cap) const {
-            int n = snprintf(buf, cap, " %s = ", _edit_param->field.name);
+            int n = snprintf(buf, cap, " %s = ", _params->param(_edit_index).meta()->name);
             return (n < 0) ? 0 : (uint16_t)n;
         }
 
@@ -346,7 +367,7 @@ namespace Botanik { namespace Pages {
 
         void _start_edit() {
             if (_selected >= _param_count()) return;
-            _edit_param = &_params->param((uint8_t)_selected);
+            _edit_index = _selected;
             _draw_panel();            // pin the panel to the parameter being edited
             uint16_t row = _prompt_row();
             char label[48];
@@ -361,7 +382,9 @@ namespace Botanik { namespace Pages {
             _draw_label();
 
             char val[80];
-            int n = _params->format((uint8_t)_selected, val, sizeof(val));
+            const char* fv = _params->format(_selected, val, sizeof(val));
+            const int n = (int)strlen(fv);
+            if (fv != val) { strncpy(val, fv, sizeof(val) - 1); val[sizeof(val) - 1] = 0; }
             if (n > 0) _editor.insert_characters(val, (uint16_t)n);
             else       _editor.place_cursor();
 
@@ -382,8 +405,8 @@ namespace Botanik { namespace Pages {
             if (n > (uint16_t)(sizeof(line) - 1)) n = (uint16_t)(sizeof(line) - 1);
             memcpy(line, _editor.buffer(), n);
             line[n] = 0;
-            const Params::SetResult r = _params->set(*_edit_param, line);
-            if (r == Params::SET_INVALID) {
+            const Vars::SetResult r = _params->set(_params->param(_edit_index), line);
+            if (r == Vars::SET_INVALID) {
                 _edit_error = true;   // stay in edit, flag it
                 _draw_error_marker();
                 return;
@@ -391,7 +414,7 @@ namespace Botanik { namespace Pages {
             // Applied. SET_NOT_PERSISTED means it is live but will not survive a
             // reboot - leaving the operator stuck in the editor would suggest the
             // input was wrong, which it was not; the critical log carries it.
-            _not_persisted = (r == Params::SET_NOT_PERSISTED);
+            _not_persisted = (r == Vars::SET_NOT_PERSISTED);
             _editing = false;
             _dirty = true;            // value diff repaints the table row next tick
             _draw_prompt_row();

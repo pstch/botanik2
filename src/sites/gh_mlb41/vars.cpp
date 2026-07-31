@@ -14,7 +14,7 @@
 namespace Site {
 
 Value g_var_values[V_COUNT] = {};
-char  g_str_pool[1] = {};
+char  g_str_pool[STR_POOL_BYTES] = {};
 
 /** @brief Per-task diagnostics, declared extern in tasks.h for the same
  *  reason. */

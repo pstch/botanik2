@@ -1,100 +1,104 @@
-#ifndef TESTS_PLC_PARAMS_FIXTURE_H
-#define TESTS_PLC_PARAMS_FIXTURE_H
+#ifndef BOTANIK_TEST_PARAMS_FIXTURE_H
+#define BOTANIK_TEST_PARAMS_FIXTURE_H
 
 /**
- * @file plc_config_fixture.h
- * @brief Test helper: drive a real PlcSyncHandler over throwaway shared regions
- *        so a test can populate the PLC->host config values and read them back
- *        through a PlcParamHandler - the exact path the live components consume.
+ * @file params_fixture.h
+ * @brief A small variable bank carrying the config parameters the library
+ *        components read (net / NTP / MQTT / geo), for the tests that drive
+ *        those components.
  *
- * Config parameters are ordinary payload fields now, so the fixture defines a
- * small config payload (net / NTP / geo) carried in both the input and output
- * regions, and registers a matching parameter table on the handler. Set fields
- * via conf(), then publish() pushes them through one RX transaction so the
- * handler's image() reflects them.
+ * The components look their values up BY NAME, so this only has to declare the
+ * same names - not the same layout, and not the site's whole table.
  */
 
-#include <cstddef>
 #include <cstdint>
+#include <cstring>
 
-#include "libbotanik/params/params.h"
-#include "libbotanik/params/store.h"
+#include "libbotanik/vars/model.h"
+#include "libbotanik/vars/params.h"
 
 namespace botanik_test {
 
-    /** @brief Config payload carried by both PLC regions (a site stand-in),
-     *  covering the net / NTP / MQTT / geo the library components read. Each
-     *  group's commit serial is an ordinary u32 field named after the group. */
-    struct FixtureConfig {
-        float    geo_latitude;
-        float    geo_longitude;
-        uint32_t net_serial;
-        uint32_t ntp_serial;
-        uint32_t mqtt_serial;
-        uint32_t geo_serial;
-        uint16_t ntp_poll_s;
-        uint8_t  net_dhcp;
-        uint8_t  ntp_enabled;
-        uint8_t  mqtt_enabled;
-        uint8_t  _pad[3];
-        char     net_ip[64];
-        char     ntp_server1[64];
-        char     mqtt_broker[64];
-    };
+    class ParamFixture {
+        static const uint16_t CAP = 64;
 
-    // Parameter table over FixtureConfig (out_offset == in_offset here: the two
-    // regions share the layout). The group name doubles as its serial parameter.
-#define FX_OFF(f) (int16_t)offsetof(FixtureConfig, f)
-    inline const Botanik::Params::Param* fixture_params(uint8_t* count) {
-        using namespace Botanik;
-        using namespace Botanik::Params;
-        static const Param params[] = {
-            {{"net",          FX_OFF(net_serial),   SCALAR_U32,    0, nullptr, "",  "commit",""}, {"0",0,1000000000,0, STR_NONE, "net"}},
-            {{"net_dhcp",     FX_OFF(net_dhcp),     SCALAR_U8,     0, nullptr, "",  "dhcp",""},   {"1",0,1,0, STR_NONE, "net"}},
-            {{"net_ip",       FX_OFF(net_ip),       SCALAR_STRING, 0, nullptr, "",  "ip",""},     {"",0,0,64, STR_IPV4, "net"}},
-            {{"ntp",          FX_OFF(ntp_serial),   SCALAR_U32,    0, nullptr, "",  "commit",""}, {"0",0,1000000000,0, STR_NONE, "ntp"}},
-            {{"ntp_enabled",  FX_OFF(ntp_enabled),  SCALAR_U8,     0, nullptr, "",  "en",""},     {"1",0,1,0, STR_NONE, "ntp"}},
-            {{"ntp_poll_s",   FX_OFF(ntp_poll_s),   SCALAR_U16,    0, nullptr, "s", "poll",""},   {"64",0,65535,0, STR_NONE, "ntp"}},
-            {{"ntp_server1",  FX_OFF(ntp_server1),  SCALAR_STRING, 0, nullptr, "",  "srv",""},    {"",0,0,64, STR_HOST, "ntp"}},
-            {{"mqtt",         FX_OFF(mqtt_serial),  SCALAR_U32,    0, nullptr, "",  "commit",""}, {"0",0,1000000000,0, STR_NONE, "mqtt"}},
-            {{"mqtt_enabled", FX_OFF(mqtt_enabled), SCALAR_U8,     0, nullptr, "",  "en",""},     {"1",0,1,0, STR_NONE, "mqtt"}},
-            {{"mqtt_broker",  FX_OFF(mqtt_broker),  SCALAR_STRING, 0, nullptr, "",  "brk",""},    {"",0,0,64, STR_HOST, "mqtt"}},
-            {{"geo",          FX_OFF(geo_serial),   SCALAR_U32,    0, nullptr, "",  "commit",""}, {"0",0,1000000000,0, STR_NONE, "geo"}},
-            {{"geo_latitude", FX_OFF(geo_latitude), SCALAR_F32,    4, nullptr, "deg","lat",""},   {"48.8566",-90,90,0, STR_NONE, "geo"}},
-            {{"geo_longitude",FX_OFF(geo_longitude),SCALAR_F32,    4, nullptr, "deg","lon",""},   {"2.3522",-180,180,0, STR_NONE, "geo"}},
-        };
-        *count = (uint8_t)(sizeof(params) / sizeof(params[0]));
-        return params;
-    }
+        #define FX_NUM(nm, t, dflt) \
+            { Botanik::Vars::Scalar::U(0), Botanik::Vars::Scalar::U(1000000000), \
+              Botanik::Vars::Scalar::U(dflt), nm, "", "", nullptr, \
+              { Botanik::Vars::XP_NONE, t, 0, 0, 0, 0, 1.0f, 0.0f }, \
+              0, 0, 0, t, Botanik::Vars::ROLE_PARAM, 0, Botanik::Vars::STR_NONE, \
+              Botanik::Vars::F_BOUNDED, {} }
+        #define FX_STR(nm, off) \
+            { Botanik::Vars::Scalar::U(0), Botanik::Vars::Scalar::U(0), \
+              Botanik::Vars::Scalar::S(""), nm, "", "", nullptr, \
+              { Botanik::Vars::XP_NONE, Botanik::Vars::T_STR, 0, 0, 0, 0, 1.0f, 0.0f }, \
+              0, off, CAP, Botanik::Vars::T_STR, Botanik::Vars::ROLE_PARAM, 0, \
+              Botanik::Vars::STR_NONE, 0, {} }
+        #define FX_F32(nm) \
+            { Botanik::Vars::Scalar::F(-180.0f), Botanik::Vars::Scalar::F(180.0f), \
+              Botanik::Vars::Scalar::F(0.0f), nm, "deg", "", nullptr, \
+              { Botanik::Vars::XP_NONE, Botanik::Vars::T_F32, 0, 0, 0, 0, 1.0f, 0.0f }, \
+              0, 0, 0, Botanik::Vars::T_F32, Botanik::Vars::ROLE_PARAM, 4, \
+              Botanik::Vars::STR_NONE, Botanik::Vars::F_BOUNDED, {} }
 
-    /** @brief An in-memory ParamStore over FixtureConfig.
-     *
-     * Replaces the old PLC-backed fixture: there is no shared region to publish
-     * through any more, so a test sets fields on conf() and they are live at
-     * once. publish() is kept as a no-op so the existing tests read unchanged.
-     */
-    struct ParamFixture : Botanik::Params::ParamStore {
-        FixtureConfig               img{};
-        Botanik::Params::ParamHandler cfg{this, nullptr};
+        static const Botanik::Vars::Variable* table(uint16_t* n) {
+            using namespace Botanik::Vars;
+            static const Variable v[] = {
+                FX_NUM("net", T_U32, 0), FX_NUM("net_dhcp", T_BOOL, 1), FX_STR("net_ip", 0),
+                FX_NUM("ntp", T_U32, 0), FX_NUM("ntp_enabled", T_BOOL, 1),
+                FX_NUM("ntp_poll_s", T_U16, 64), FX_STR("ntp_server1", CAP),
+                FX_NUM("mqtt", T_U32, 0), FX_NUM("mqtt_enabled", T_BOOL, 1),
+                FX_NUM("mqtt_port", T_U16, 1883), FX_STR("mqtt_broker", 2 * CAP),
+                FX_NUM("geo", T_U32, 0), FX_F32("geo_latitude"), FX_F32("geo_longitude"),
+            };
+            *n = (uint16_t)(sizeof(v) / sizeof(v[0]));
+            return v;
+        }
+        #undef FX_NUM
+        #undef FX_STR
+        #undef FX_F32
 
+        Botanik::Vars::Value _vals[14]{};
+        char                 _pool[3 * CAP]{};
+        Botanik::Vars::Bank  _bank;
+
+    public:
         ParamFixture() {
-            uint8_t n = 0;
-            const Botanik::Params::Param* p = fixture_params(&n);
-            cfg.set_site_params(p, n);
-        }
-        const void* image() const override { return &img; }
-        Botanik::Params::SetResult set(const Botanik::Params::Param&,
-                                       const char*) override {
-            return Botanik::Params::SET_INVALID;
+            using namespace Botanik::Vars;
+            uint16_t n = 0;
+            const Variable* v = table(&n);
+            VarTables t = {};
+            t.var = v; t.val = _vals; t.count = n;
+            t.pool = _pool; t.pool_bytes = (uint16_t)sizeof(_pool);
+            t.param_first = 0; t.param_count = n;
+            _bank = Bank(t);
+            _bank.init();
         }
 
-        /** @brief The config under test; edits take effect immediately. */
-        FixtureConfig& conf() { return img; }
-        /** @brief No-op: kept so tests written against the PLC fixture still read
-         *  naturally. */
+        /** @brief What the components under test are handed. */
+        Botanik::Vars::Bank& bank() { return _bank; }
+
+        /** @name Drive a value directly, as if an operator had committed it
+         *  @{ */
+        void set_num(const char* name, double v) {
+            Botanik::Vars::Var h = _bank.var(_bank.find(name));
+            h.set((float)v);
+        }
+        void set_str(const char* name, const char* text) {
+            using namespace Botanik::Vars;
+            const VarRef r = _bank.find(name);
+            if (r.index == VAR_NONE) return;
+            const Variable* d = _bank.var(r).meta();
+            std::strncpy(_pool + d->str_off, text, CAP - 1);
+            _pool[d->str_off + CAP - 1] = 0;
+        }
+        /** @} */
+
+        /** @brief No-op: edits take effect immediately. Kept so the tests read
+         *  the way they did against the PLC fixture. */
         void publish() {}
     };
 
 }  // namespace botanik_test
 
-#endif // PARAMS_FIXTURE_H
+#endif // BOTANIK_TEST_PARAMS_FIXTURE_H

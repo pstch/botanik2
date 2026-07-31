@@ -83,8 +83,8 @@ TEST_CASE("scalar: widths are the narrow persisted ones, not sizeof(Scalar)") {
 }
 
 TEST_CASE("scalar: bounds compare in the variable's own type") {
-    // The bug this fixes: a real-valued parameter with int32 bounds rejected
-    // -90.5 as out of [-90, 90], because the comparison happened in integers.
+    // What int32 bounds could not express: a fractional band. Bounds of
+    // 0.5..2.5 truncated to 0..2 before the comparison ever happened.
     CHECK(in_range(T_F32, Scalar::F(-90.5f), Scalar::F(-90.5f), Scalar::F(90.5f)));
     CHECK_FALSE(in_range(T_F32, Scalar::F(-90.6f), Scalar::F(-90.5f), Scalar::F(90.5f)));
     CHECK(in_range(T_U16, Scalar::U(3600), Scalar::U(0), Scalar::U(3600)));

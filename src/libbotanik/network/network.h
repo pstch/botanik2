@@ -15,7 +15,7 @@
 #include <cstdint>
 
 #include "../core/component.h"
-#include "libbotanik/params/params.h"     // Params::ParamHandler + cfg_* name getters
+#include "libbotanik/vars/params.h"     // Vars::Bank + cfg_* name getters
 #include "../hal/net.h"
 #include "resolver.h"
 
@@ -42,7 +42,7 @@ namespace Botanik { namespace Network {
         };
 
         /** @brief Config source (may be null in tests). */
-        const Params::ParamHandler* _cfg;
+        const Vars::Bank* _cfg;
         State         _state;
         /// when this state was entered (for timeouts)
         uint64_t      _since_ms;
@@ -57,7 +57,7 @@ namespace Botanik { namespace Network {
 
         /** @brief @p resolver (optional) cache is cleared on reconfiguration or
          *  link loss. */
-        NetworkHandler(const Params::ParamHandler* cfg, Logs::Logger* logger = nullptr,
+        NetworkHandler(const Vars::Bank* cfg, Logs::Logger* logger = nullptr,
                        NameResolver* resolver = nullptr);
 
         /** @brief True once the link is up with an address. */

@@ -77,13 +77,13 @@
 #include "../utils/assert.h"     // set_assert_logger
 #include "../alarms/alarms.h"    // AlarmCondition (site table type)
 #include "../health/health.h"    // HealthMonitor (owns the alarm model + notifier)
-#include "libbotanik/params/params.h"   // Params::Param + ParamHandler (the model)
+#include "libbotanik/vars/params.h"   // Vars::Params (the editable variables)
 #include "../shell/shell.h"
 #include "../vars/model.h"      // Vars::Bank / VarTables
 #include "../scan/scan.h"     // Scan::Driver / Task
 #include "../vars/access.h"  // VarGroup / HomeVar (status vars)
 #include "stacks.h"      // Monitor/Console/NetworkStack composition
-#include "libbotanik/params/store_local.h"  // LocalParamStore (flash/file params)
+#include "libbotanik/vars/params.h"  // LocalParamStore (flash/file params)
 
 #include <cstddef>
 #include <cstdint>
@@ -96,7 +96,8 @@ namespace Botanik {
      * generically, so a site is data (these tables + its data struct), not code.
      *
      * The tables are meant to be generated:
-     *   - @c params        - config parameters (Params::Param: name, offset,
+     *   - @c params        - REMOVED: parameters are ROLE_PARAM rows of the
+     *                        variable table now (Params::Param: name, offset,
      *                        type, scaling, bounds, group).
      *   - @c commands      - site shell commands (Shell::ShellCommand).
      *   - @c status_groups - read-only status variables (Vars::VarGroup: a
@@ -109,8 +110,6 @@ namespace Botanik {
      */
     struct SiteDescriptor {
         const char*                   name;                ///< == Config::SITE_NAME
-        const Params::Param*       params;              ///< site config parameters
-        uint8_t                       param_count;
         const Shell::ShellCommand*    commands;            ///< site shell commands
         uint8_t                       command_count;
         const Vars::VarGroup* status_groups;       ///< status-variable table
@@ -176,9 +175,9 @@ namespace Botanik {
 
         Logs::Logger                   _logger;
         Scheduler::LoopScheduler       _scheduler;
-        Params::LocalParamStore        _param_store;  ///< params live in flash/a file
-        Params::ParamHandler           _params;       ///< the parameter model (over _param_store)
         Vars::Bank                       _io;          ///< the site's variables
+        Vars::KvParamStore             _param_store; ///< one storage key per parameter
+        Vars::Params                   _params;      ///< the editable view of the variables
         Scan::Driver                   _scan;        ///< the control programs
         /** @brief Latched SAFE mode: outputs held at their declared safe state
          *  and the scan inhibited, until health recovers. */
@@ -217,8 +216,8 @@ namespace Botanik {
               _logger(),
               _scheduler(Config::TASK_PERIOD_MS, &_logger),
               // No PLC: params come from local storage.
-              _param_store(&_logger),
-              _params(&_param_store, &_logger),
+              _param_store(),
+              _params(&_io, &_param_store, &_logger),
               _io(site.vars),
               _scan(site.tasks, site.task_count, site.task_stats, &_io, &_logger),
               // Site alarm conditions resolve against the variable tables;
@@ -232,7 +231,7 @@ namespace Botanik {
 #if BOTANIK_FEATURE_NETWORK
               // Network reads its config from the ParamHandler image (NETWORK
               // requires PLC); telemetry publishes the live _sys_ctx (read later).
-              , _net(&_params, &_logger, &_sys_ctx)
+              , _net(&_io, &_logger, &_sys_ctx)
 #endif
 #if BOTANIK_FEATURE_CONSOLE
               , _console(_console_cols, _console_rows,
@@ -276,7 +275,6 @@ namespace Botanik {
             set_assert_logger(&_logger);
             // Register the site's config parameters (appended after the library
             // built-ins) so the CONFIG page and the `config` command see them.
-            _params.set_site_params(_site.params, _site.param_count);
             // Seed every variable with its declared default, so a value read
             // before any driver has spoken is the default rather than zero.
             _io.init();
@@ -500,7 +498,7 @@ namespace Botanik {
 #endif
         Health::HealthMonitor&          health()          { return _health; }
         Alarms::AlarmModel&             alarm_model()     { return _health.model(); }
-        Params::ParamHandler&             params()          { return _params; }
+        Vars::Params&                     params()          { return _params; }
 #if BOTANIK_FEATURE_CONSOLE
         Terminal::Console&              terminal()        { return _console.terminal(); }
         Pages::ShellPage&               shell_page()      { return _console.shell(); }

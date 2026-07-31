@@ -12,7 +12,7 @@
 
 #include "../../libbotanik_config.h"
 #include "../core/component.h"
-#include "libbotanik/params/params.h"     // Params::ParamHandler + cfg_* name getters
+#include "libbotanik/vars/params.h"     // Vars::Bank + cfg_* name getters
 
 #if BOTANIK_FEATURE_SUN
 
@@ -53,13 +53,13 @@ namespace Botanik { namespace Sun {
      *         current angle, the day's peak, the angle-to-peak ratio, and
      *         whether the sun is rising or falling. */
     class SunPositionTracker : public Component {
-        const Params::ParamHandler* _cfg;   ///< config source (may be null in tests). Read by name.
+        const Vars::Bank* _cfg;   ///< config source (may be null in tests). Read by name.
         SolarPosition _pos;    ///< Cached solar position (see ready()).
         uint64_t _next_ms;     ///< Timestamp the next scheduled recompute.
         bool     _computed;    ///< Position successfully acquired.
 
     public:
-        SunPositionTracker(const Params::ParamHandler* cfg, Logs::Logger* logger = nullptr);
+        SunPositionTracker(const Vars::Bank* cfg, Logs::Logger* logger = nullptr);
 
         /** @brief Sun's elevation angle above the horizon (radians; negative below).
          *  @note Zero until the first computation (see ready()). */

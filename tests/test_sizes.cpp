@@ -24,9 +24,12 @@
 // Concrete instantiations of the templated pages/PLC structs, matching what the
 // simulator actually builds (see botanik_sim/main.cpp).
 using HomePage_t   = Botanik::Pages::HomePage;
-// StatusPage is an unregistered building block; a site subclass supplies
-// whatever payload type it draws. Sized here on the parameter image.
-using StatusPage_t = Botanik::Pages::StatusPage<GreenhouseConfig_t>;
+// StatusPage is an unregistered building block; its template parameter is what
+// a site subclass draws in its own payload rows. Nothing at this site has one
+// any more - variables are reached through the bank - so it is sized here on a
+// stand-in, and the parameter is arguably vestigial now.
+struct StatusPayloadStandIn { uint32_t whatever; };
+using StatusPage_t = Botanik::Pages::StatusPage<StatusPayloadStandIn>;
 
 // Report a type's size and guard it against runaway growth. The budget is a
 // loose ceiling — bump it deliberately if a structure legitimately needs it.
@@ -58,8 +61,14 @@ TEST_CASE("sizeof: pages") {
     REPORT_SIZE(Botanik::Pages::ShellPage, 65536);
 }
 
-TEST_CASE("sizeof: site parameter image") {
-    // All that is left of the site payload: the config parameters' layout.
-    // Status, actuators and alarms are variables now, sized by their tables.
-    REPORT_SIZE(GreenhouseConfig_t, 16384);
+TEST_CASE("sizeof: the site's variable table and value store") {
+    // The site payload is gone entirely: parameters, status, actuators and
+    // alarms are all rows of one table now. The descriptors are flash, the
+    // values are the only RAM cost.
+    REPORT_SIZE(Botanik::Vars::Variable, 128);
+    REPORT_SIZE(Botanik::Vars::Value, 32);
+    MESSAGE("site variables = " << (int)Site::V_COUNT);
+    MESSAGE("descriptor table = " << sizeof(Site::g_vars) << " bytes (flash)");
+    MESSAGE("value store = " << sizeof(Site::g_var_values) << " bytes (RAM)");
+    CHECK(sizeof(Site::g_vars) > 0);
 }

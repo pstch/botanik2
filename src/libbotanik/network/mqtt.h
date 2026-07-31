@@ -18,7 +18,7 @@
 #include <cstdint>
 
 #include "../hal/net.h"
-#include "libbotanik/params/params.h"        // Params::ParamHandler + cfg_* name getters
+#include "libbotanik/vars/params.h"        // Vars::Bank + cfg_* name getters
 #include "network.h"    // Component, NetworkHandler
 #include "resolver.h"
 // Alarms::Publisher (alarm transport)
@@ -55,7 +55,7 @@ namespace Botanik { namespace Network {
             MQTT_ERROR,       ///< failed; backing off before a retry
         };
         /** @brief Config source (may be null in tests). */
-        const Params::ParamHandler* _cfg;
+        const Vars::Bank* _cfg;
         State                 _state;
         /// when this state was entered (timeouts)
         uint64_t              _since_ms;
@@ -69,7 +69,7 @@ namespace Botanik { namespace Network {
         /** @} */
 
     public:
-        MqttClient(const Params::ParamHandler* cfg, Logs::Logger* logger = nullptr,
+        MqttClient(const Vars::Bank* cfg, Logs::Logger* logger = nullptr,
                    NameResolver* resolver = nullptr, const NetworkHandler* net = nullptr);
 
         /** @brief True when connected and ready to publish. */

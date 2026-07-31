@@ -12,8 +12,8 @@
  * declared @c min, @c max and @c def - they are the same union, read the same
  * way, so they cannot disagree about what the variable is. That is the whole
  * point: the previous model had a type on the descriptor, bounds as int32_t and
- * a default as text, and a real-valued parameter with integer bounds silently
- * rejected legal values (geo_latitude could not be set to -90.5).
+ * a default as text, so a real-valued parameter could not express a fractional
+ * band at all - bounds of 0.5..2.5 truncated to 0..2 before the comparison.
  *
  * @section scalar_flash Why constexpr constructors
  *

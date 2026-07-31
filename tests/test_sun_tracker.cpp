@@ -30,12 +30,12 @@ TEST_CASE("SunPositionTracker: computes elevation from geo config") {
     botanik_test::ParamFixture fx;
     const int32_t LAT = 488566000;   // Paris 48.8566 N
     const int32_t LON =  23522000;   //       2.3522 E
-    fx.conf().geo_serial       = 1;
-    fx.conf().geo_latitude  = (float)deg(LAT);
-    fx.conf().geo_longitude = (float)deg(LON);
+    fx.set_num("geo", 1);
+    fx.set_num("geo_latitude", (float)deg(LAT));
+    fx.set_num("geo_longitude", (float)deg(LON));
     fx.publish();
 
-    SunPositionTracker sun(&fx.cfg);
+    SunPositionTracker sun(&fx.bank());
     CHECK_FALSE(sun.ready());                 // nothing computed before the first step
 
     uint64_t now = HAL::Clock::uptime_ms();          // host wall clock is real -> passes the gate
@@ -50,12 +50,12 @@ TEST_CASE("SunPositionTracker: exposes peak, ratio and rising from the same samp
     botanik_test::ParamFixture fx;
     const int32_t LAT = 488566000;   // Paris 48.8566 N
     const int32_t LON =  23522000;   //       2.3522 E
-    fx.conf().geo_serial       = 1;
-    fx.conf().geo_latitude  = (float)deg(LAT);
-    fx.conf().geo_longitude = (float)deg(LON);
+    fx.set_num("geo", 1);
+    fx.set_num("geo_latitude", (float)deg(LAT));
+    fx.set_num("geo_longitude", (float)deg(LON));
     fx.publish();
 
-    SunPositionTracker sun(&fx.cfg);
+    SunPositionTracker sun(&fx.bank());
     uint64_t now = HAL::Clock::uptime_ms();
     sun.step(now);
     REQUIRE(sun.ready());
@@ -74,12 +74,12 @@ TEST_CASE("SunPositionTracker: throttles recomputation between cadence ticks") {
     botanik_test::ParamFixture fx;
     const int32_t LAT = 488566000;   // Paris
     const int32_t LON =  23522000;
-    fx.conf().geo_serial       = 1;
-    fx.conf().geo_latitude  = (float)deg(LAT);
-    fx.conf().geo_longitude = (float)deg(LON);
+    fx.set_num("geo", 1);
+    fx.set_num("geo_latitude", (float)deg(LAT));
+    fx.set_num("geo_longitude", (float)deg(LON));
     fx.publish();
 
-    SunPositionTracker sun(&fx.cfg);
+    SunPositionTracker sun(&fx.bank());
     uint64_t t0 = HAL::Clock::uptime_ms();
     sun.step(t0);
     REQUIRE(sun.ready());
@@ -98,12 +98,12 @@ TEST_CASE("SunPositionTracker: throttles recomputation between cadence ticks") {
 
 TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial changes") {
     botanik_test::ParamFixture fx;
-    fx.conf().geo_serial = 1;
-    fx.conf().geo_latitude  = 48.8566f;   // Paris
-    fx.conf().geo_longitude =  2.3522f;
+    fx.set_num("geo", 1);
+    fx.set_num("geo_latitude", 48.8566f);   // Paris
+    fx.set_num("geo_longitude", 2.3522f);
     fx.publish();
 
-    SunPositionTracker sun(&fx.cfg);
+    SunPositionTracker sun(&fx.bank());
     sun.step(HAL::Clock::uptime_ms());
     REQUIRE(sun.ready());
     double paris_elev = sun.elevation();
@@ -111,9 +111,9 @@ TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial cha
     // Move far away (Sydney, southern hemisphere) and bump the serial.
     const int32_t LAT = -338700000;   // -33.87
     const int32_t LON = 1512100000;   // 151.21 E
-    fx.conf().geo_serial       = 2;
-    fx.conf().geo_latitude  = (float)deg(LAT);
-    fx.conf().geo_longitude = (float)deg(LON);
+    fx.set_num("geo", 2);
+    fx.set_num("geo_latitude", (float)deg(LAT));
+    fx.set_num("geo_longitude", (float)deg(LON));
     fx.publish();
 
     uint64_t now = HAL::Clock::uptime_ms();
@@ -124,7 +124,7 @@ TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial cha
 
 TEST_CASE("SunPositionTracker: stays idle with no geo config") {
     botanik_test::ParamFixture fx;          // conf all zero -> geo.serial 0
-    SunPositionTracker sun(&fx.cfg);
+    SunPositionTracker sun(&fx.bank());
     sun.step(HAL::Clock::uptime_ms());
     CHECK_FALSE(sun.ready());
 }

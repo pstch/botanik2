@@ -12,8 +12,8 @@
 #include "../console/console.h"
 #include "../console/terminal.h"
 #include "../console/editor.h"
-#include "../core/scalar.h"
-#include "../vars/access.h"   // VarGroup (status-var table), Io
+#include "../vars/access.h"   // VarGroup (status-var table), Bank
+#include "../vars/params.h"   // Vars::Params (the `params` command)
 
 namespace Botanik {
     // loglevel command (set_diagnostics)
@@ -98,7 +98,7 @@ namespace Botanik { namespace Shell {
          *  wires it (off when the NTP feature is absent). */
         Network::NtpClient*     _ntp_client           = nullptr;
         /** @brief Config backend for the `config` get/set command (set_params). */
-        Params::ParamHandler*     _params               = nullptr;
+        Vars::Params*     _params               = nullptr;
         /** @brief Status-variable table for the `status` command
          *  (set_status_vars): the site variable groups. They resolve against
          *  the same Io the `vars` command walks - there is one live source of
@@ -155,7 +155,7 @@ namespace Botanik { namespace Shell {
         void set_ntp(Network::NtpClient* ntp) { _ntp_client = ntp; }
 
         /** @brief Wire the config backend the `config` command reads/writes. */
-        void set_params(Params::ParamHandler* config) { _params = config; }
+        void set_params(Vars::Params* config) { _params = config; }
 
         /** @brief Bind the variable model. `vars` lists the field IO through
          *  it, and `status` resolves its groups against it. */
