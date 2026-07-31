@@ -33,6 +33,10 @@ namespace Botanik { namespace Logs { class Logger; } }
 
 namespace Botanik { namespace Scheduler {
 
+    /** @brief The rolling-max window the per-beat metrics use. Bound here, not
+     *  in utils/filters.h: the bucket count is a scheduler tuning knob. */
+    typedef Utils::WindowedMax<Config::LOAD_METRIC_BUCKETS> MetricWindow;
+
     /** @brief Stable metrics snapshot consumed by AnsiTerminal.
      *  @note Written by LoopScheduler, read by other components. */
     struct SchedulerContext {
@@ -90,7 +94,7 @@ namespace Botanik { namespace Scheduler {
          *  @{ */
 
         Utils::ExpMovingAverage _jitter;          ///< EMA (fraction of tick interval)
-        Utils::MetricWindow     _jitter_window;   ///< windowed peak, us
+        MetricWindow     _jitter_window;   ///< windowed peak, us
         uint32_t                _jitter_us_max = 0;   ///< all-time peak, us
 
         /** @} */
@@ -118,7 +122,7 @@ namespace Botanik { namespace Scheduler {
         bool              _measuring     = false;
         uint64_t          _work_start_us = 0;        ///< work-window open time, us
         uint32_t          _cpu_loop_us_max = 0;      ///< all-time peak, us
-        Utils::MetricWindow _cpu_loop_us_window;     ///< windowed peak, us
+        MetricWindow _cpu_loop_us_window;     ///< windowed peak, us
 
         /** @} */
 

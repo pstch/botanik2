@@ -300,7 +300,6 @@ namespace Botanik { namespace Terminal {
          *  blanking the freed cells at the right edge (grid-only). */
         void delete_chars(uint16_t len);
         void clear_to_eol();
-        void clear_to_eos();
         void clear_screen();
         void clear_screen_now();
         void scroll_region(uint16_t top, uint16_t bottom, bool up, uint16_t n = 1);

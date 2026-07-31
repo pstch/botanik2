@@ -126,16 +126,10 @@ namespace Botanik { namespace Terminal {
     // Content-area geometry & scrolling
 
     void Console::clear_content() {
-        if (_reserved_bottom == 0) {
-            // No reserved bar: one erase-to-end-of-display clears rows 1..N-1,
-            // leaving the row-0 status bar.
-            _term.move_to({1, 0});
-            _term.clear_to_eos();
-            return;
-        }
-        // A reserved alarm bar sits below the content, so erase-to-end-of-display
-        // would wipe it. Clear just the content rows (clear_rows scrolls the band
-        // off by its full height, leaving the bar in place).
+        // clear_rows scrolls the band off by its full height: one escape, and it
+        // shifts BACK too, so the diff then emits nothing. (An erase-to-end-of-
+        // display would only blank FRONT, leaving the diff to write a space over
+        // every non-blank cell - and would wipe a reserved alarm bar besides.)
         _term.clear_rows(1, _content_bottom());
     }
 

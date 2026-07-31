@@ -1,8 +1,8 @@
 // REVIEW_35: DONE
 /**
  * @file time.cpp
- * @brief Time utility implementations - rollover projection, calendar/UNIX
- *        conversion, and timestamp formatting.
+ * @brief Time utility implementations - calendar/UNIX conversion and timestamp
+ *        formatting.
  */
 #include <cstddef>
 #include <cstdint>
@@ -12,12 +12,6 @@
 #include "time.h"
 
 namespace Botanik { namespace Utils {
-
-    // Rollover projection
-    // ------------------------------------------------------------------------
-
-
-
 
     // Calendar conversion & formatting
     // ------------------------------------------------------------------------

@@ -21,7 +21,7 @@
 #include "botanik_sim/network.h"
 #endif
 
-#include "libbotanik/utils/text.h"   // env_u32 (BOTANIK_CONSOLE_BAUD)
+#include "libbotanik/hal/platform.h"   // HAL::Env::u32 (BOTANIK_CONSOLE_BAUD)
 
 #include <csignal>
 #include <cstring>   // std::strncpy - seeding the mock PLC config block
@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
     // 0 is rejected rather than honoured: it switches the sim UART's throttle off
     // while pinning present()'s budget at its 8-byte floor, which reads as "the
     // console is broken" rather than "the console is fast".
-    uint32_t console_baud = Utils::env_u32("BOTANIK_CONSOLE_BAUD", 4800);
+    uint32_t console_baud = HAL::Env::u32("BOTANIK_CONSOLE_BAUD", 4800);
     if (console_baud == 0) console_baud = 4800;
     const uint32_t CONSOLE_BAUD = console_baud;
 

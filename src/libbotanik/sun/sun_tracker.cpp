@@ -167,7 +167,7 @@ namespace Botanik { namespace Sun {
 
     void SunPositionTracker::on_step(uint64_t now_ms) {
         // no location configured
-        if (Params::group_serial(_cfg, "geo") == 0) return;
+        if (applied_serial() == 0) return;   // geo not configured
         // wait for a real (NTP) time before the date-dependent solar math
         if (HAL::Clock::wall_ms() < WALL_CLOCK_VALID_MS) return;
 

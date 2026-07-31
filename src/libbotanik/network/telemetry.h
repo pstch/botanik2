@@ -27,18 +27,9 @@
 
 namespace Botanik { namespace Network {
 
-    /** @brief One telemetry datapoint: a topic leaf @p name and a @p format
-     *  callback that writes its payload into @p buf (cap bytes). @p format
-     *  returns false to skip publishing this field this cycle (e.g. no data
-     *  yet). @p ctx is the opaque pointer registered with the field's table. */
-    struct TelemetryField {
-        const char* name;
-        bool (*format)(char* buf, size_t cap, void* ctx);
-    };
-
-    // Vars::VarGroup / VarRef (the status-variable descriptor
-    // table) live in core/scalar.h so non-network consumers (the shell's
-    // `status` command) can read them without the MqttSender. Published here.
+    // Vars::VarGroup / VarRef (the status-variable descriptor table) live in
+    // vars/access.h, so non-network consumers (the shell's `status` command)
+    // read them without the MqttSender. Published here.
 
     /** @brief Periodic MQTT telemetry publisher (see file header). */
     class MqttSender {
@@ -86,18 +77,14 @@ namespace Botanik { namespace Network {
         void step(uint64_t now_ms);
 
     private:
-        /** @brief Publish each field of @p table under @p group; ctx is the
-         *  formatter context. */
-        void _publish_table(const char* group, const TelemetryField* table,
-                            size_t count, void* ctx);
+        /** @brief Publish the library base fields under "system". */
+        void _publish_base(const SystemContext* sys);
         /** @brief Publish every registered site variable group, each under its
          *  own sub-topic, resolved against _io. */
         void _publish_scalars();
         /** @brief Build the field topic ("<prefix>/<root>[/<group>]/<name>") and
          *  publish @p payload (best-effort). */
         void _emit(const char* group, const char* name, const char* payload);
-        /** @brief The library base field table (ctx = the SystemContext). */
-        static const TelemetryField* _base_fields(size_t& count);
     };
 
 }}

@@ -151,6 +151,21 @@ namespace Botanik { namespace HAL {
 
     }  // namespace Watchdog
 
+    /** @brief Process environment. Host-only in practice: the OPTA backend has
+     *  no environment and always yields the fallback. Lives here rather than in
+     *  utils/ because reading it is a platform call. */
+    namespace Env {
+
+        /** @brief Environment variable @p name as a uint32.
+         *  @returns @p fallback if unset, empty, unparseable or out of range. */
+        uint32_t u32(const char* name, uint32_t fallback = 0);
+
+        /** @brief Environment variable @p name as a uint8.
+         *  @returns @p fallback if unset or it does not fit a byte. */
+        uint8_t  u8(const char* name, uint8_t fallback = 0);
+
+    }  // namespace Env
+
     /** @brief Serial access (Serial::Raw, Serial::get(), ports) is
      *  intentionally *not* re-declared here: the types and (host-only)
      *  setup_raw_console() are platform-specific and live in the selected

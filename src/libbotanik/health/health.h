@@ -51,8 +51,8 @@ namespace Botanik { namespace Health {
         bool     _watchdog_ok      = true;
         bool     _post_ok          = false;
         // BOTANIK_NO_LOAD_ALARMS: hold the CPU_* load alarms cleared for
-        // deterministic screen goldens (sim/test only; env_u8 reads 0 on OPTA).
-        bool     _no_load_alarms   = Utils::env_u8("BOTANIK_NO_LOAD_ALARMS", 0) != 0;
+        // deterministic screen goldens (sim/test only; reads 0 on OPTA).
+        bool     _no_load_alarms   = HAL::Env::u8("BOTANIK_NO_LOAD_ALARMS", 0) != 0;
         /** @} */
 
     public:

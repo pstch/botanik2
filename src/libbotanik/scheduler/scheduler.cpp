@@ -22,7 +22,7 @@
 #include "../hal/platform.h"
 #include "../logs/logger.h"
 #include "../logs/topics.h"
-#include "../utils/text.h"   // env_u8 (BOTANIK_NO_RT_WARNING)
+
 
 namespace Botanik { namespace Scheduler {
 
@@ -246,7 +246,7 @@ namespace Botanik { namespace Scheduler {
     // denies varies, so the warnings are host-dependent noise the screen
     // goldens silence. The call itself still runs either way.
     static bool _rt_warn(Logs::Logger* logger) {
-        return logger != nullptr && Utils::env_u8("BOTANIK_NO_RT_WARNING", 0) == 0;
+        return logger != nullptr && HAL::Env::u8("BOTANIK_NO_RT_WARNING", 0) == 0;
     }
 
     void lock_process_memory(Logs::Logger* logger) {
