@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
         // The simulated field, in place of the mock coprocessor that used to
         // animate a shared region from its own thread: fill the firmware's data
         // struct, then run the beat that reads it.
-        Site::simulate((uint32_t)HAL::Clock::uptime_ms());
+        Site::simulate(greenhouse.io(), (uint32_t)HAL::Clock::uptime_ms());
         greenhouse.loop();
         if (botanik_reexec) HAL::System::reset();
     }

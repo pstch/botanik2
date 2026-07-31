@@ -57,7 +57,7 @@ namespace Botanik { namespace Pages {
          *  they read. Up to COLS * COL_MAX shown; extras ignored. */
         const Vars::HomeVar* _fields      = nullptr;
         uint8_t                   _field_count = 0;
-        const Vars::Io*           _io          = nullptr;
+        const Vars::Bank*           _io          = nullptr;
 
         /** @} */
 
@@ -270,10 +270,10 @@ namespace Botanik { namespace Pages {
             for (uint8_t i = 0; i < _field_count; i++) {
                 uint16_t row, lbl, val, w, slot;
                 if (!_field_place(i, row, lbl, val, w, slot)) break;
-                Vars::VarView v = Vars::var_view(*_io, _fields[i].ref);
+                Vars::Var h = _io->var(_fields[i].ref);
                 char vb[32], buf[40];
-                const char* s = Vars::var_format(v, vb, sizeof(vb));
-                const char* u = v.meta ? v.meta->unit : nullptr;
+                const char* s = Vars::var_format(*_io, h, vb, sizeof(vb));
+                const char* u = h.meta()->unit;
                 if (u && u[0]) snprintf(buf, sizeof(buf), "%s %s", s, u);
                 else           snprintf(buf, sizeof(buf), "%s", s);
                 _cell(slot, row, val, buf, w);
@@ -296,7 +296,7 @@ namespace Botanik { namespace Pages {
          *  what resolves them (all borrowed; may be null/0 for a bare home
          *  screen). */
         HomePage(Console& console, const Vars::HomeVar* fields = nullptr,
-                 uint8_t count = 0, const Vars::Io* io = nullptr)
+                 uint8_t count = 0, const Vars::Bank* io = nullptr)
             : MetricPage(console, 14),
               _fields(fields), _field_count(count), _io(io) {
             // cold-field redraw cadence

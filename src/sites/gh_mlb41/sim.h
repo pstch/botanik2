@@ -72,12 +72,12 @@ inline uint64_t abit(const char* code) {
     return i >= 0 ? Botanik::Alarms::alarm_bit((uint8_t)i) : 0;
 }
 
-/** @brief Write one analog input as a driver would: value, timestamp, valid. */
-inline void put_ai(uint16_t id, float v, uint32_t now_ms) {
-    if (id >= AI_COUNT) return;
-    g_analog_in_values[id].value     = v;
-    g_analog_in_values[id].timestamp = now_ms;
-    g_analog_in_values[id].valid     = true;
+/** @brief Publish one reading as a driver would: value, timestamp, valid in
+ *  one step. Through the handle, not the value array - writing the array
+ *  directly is how the simulated field silently drifted out of step with the
+ *  model, since it would not fail to compile when the model changed. */
+inline void put(Vars::Bank& io, uint16_t id, float v, uint32_t now_ms) {
+    io.var(id).publish(Scalar::F(v), now_ms);
 }
 
 /**
@@ -88,7 +88,7 @@ inline void put_ai(uint16_t id, float v, uint32_t now_ms) {
  * invalid, which is honest - it reads as "no data" on the monitor page rather
  * than as a fabricated measurement.
  */
-inline void publish_meters(uint32_t now_ms) {
+inline void publish_meters(Vars::Bank& io, uint32_t now_ms) {
     const float t = (float)now_ms / 1000.0f;
 
     static float v_drift = 0.0f, load = 0.0f;
@@ -100,27 +100,27 @@ inline void publish_meters(uint32_t now_ms) {
     const float pf = 0.88f + 0.10f * load;
     const float watts = ln * amps * pf * 3.0f;
 
-    put_ai(AI_PWR_L1_V, ln + 1.2f, now_ms);
-    put_ai(AI_PWR_L2_V, ln - 0.8f, now_ms);
-    put_ai(AI_PWR_L3_V, ln + 0.3f, now_ms);
-    put_ai(AI_PWR_LN_V, ln, now_ms);
-    put_ai(AI_PWR_LL_V, ln * 1.732f, now_ms);
-    put_ai(AI_PWR_L1_A, amps / 3.0f, now_ms);
-    put_ai(AI_PWR_L2_A, amps / 3.0f, now_ms);
-    put_ai(AI_PWR_L3_A, amps / 3.0f, now_ms);
-    put_ai(AI_PWR_AVG_A, amps / 3.0f, now_ms);
-    put_ai(AI_PWR_TOTAL_A, amps, now_ms);
-    put_ai(AI_PWR_TOTAL_W, watts, now_ms);
-    put_ai(AI_PWR_TOTAL_VA, watts / pf, now_ms);
-    put_ai(AI_PWR_TOTAL_PF, pf, now_ms);
+    put(io, V_PWR_L1_V, ln + 1.2f, now_ms);
+    put(io, V_PWR_L2_V, ln - 0.8f, now_ms);
+    put(io, V_PWR_L3_V, ln + 0.3f, now_ms);
+    put(io, V_PWR_LN_V, ln, now_ms);
+    put(io, V_PWR_LL_V, ln * 1.732f, now_ms);
+    put(io, V_PWR_L1_A, amps / 3.0f, now_ms);
+    put(io, V_PWR_L2_A, amps / 3.0f, now_ms);
+    put(io, V_PWR_L3_A, amps / 3.0f, now_ms);
+    put(io, V_PWR_AVG_A, amps / 3.0f, now_ms);
+    put(io, V_PWR_TOTAL_A, amps, now_ms);
+    put(io, V_PWR_TOTAL_W, watts, now_ms);
+    put(io, V_PWR_TOTAL_VA, watts / pf, now_ms);
+    put(io, V_PWR_TOTAL_PF, pf, now_ms);
     // Mains frequency wanders in the last decimal, as a real one does.
-    put_ai(AI_PWR_HZ, 50.0f + 0.03f * sinf(t / 37.0f), now_ms);
+    put(io, V_PWR_HZ, 50.0f + 0.03f * sinf(t / 37.0f), now_ms);
 
     // The transfer switch sees the same supply, lightly loaded.
-    put_ai(AI_ATS_V,  ln - 0.5f, now_ms);
-    put_ai(AI_ATS_A,  amps * 0.15f, now_ms);
-    put_ai(AI_ATS_W,  watts * 0.15f, now_ms);
-    put_ai(AI_ATS_HZ, 50.0f + 0.03f * sinf(t / 37.0f), now_ms);
+    put(io, V_ATS_V,  ln - 0.5f, now_ms);
+    put(io, V_ATS_A,  amps * 0.15f, now_ms);
+    put(io, V_ATS_W,  watts * 0.15f, now_ms);
+    put(io, V_ATS_HZ, 50.0f + 0.03f * sinf(t / 37.0f), now_ms);
 }
 
 /**
@@ -130,7 +130,7 @@ inline void publish_meters(uint32_t now_ms) {
  * A caricature of a control law, not one: the point is that the console reads
  * these through the same handles a real program writes them with.
  */
-inline void drive_coils(uint32_t now_ms) {
+inline void drive_coils(Vars::Bank& io, uint32_t now_ms) {
     const float t = (float)now_ms / 1000.0f;
 
     // Windows track a slow thermal cycle; open and close are interlocked, as
@@ -140,41 +140,34 @@ inline void drive_coils(uint32_t now_ms) {
     const bool opening = thermal > 0.35f;
     const bool closing = thermal < -0.35f;
 
-    const uint16_t opn[] = { DO_CLI_WINDOW1_OPN, DO_CLI_WINDOW2_OPN,
-                             DO_CLI_WINDOW3_OPN, DO_CLI_WINDOW4_OPN };
-    const uint16_t clo[] = { DO_CLI_WINDOW1_CLO, DO_CLI_WINDOW2_CLO,
-                             DO_CLI_WINDOW3_CLO, DO_CLI_WINDOW4_CLO };
+    const uint16_t opn[] = { V_CLI_WINDOW1_OPN, V_CLI_WINDOW2_OPN,
+                             V_CLI_WINDOW3_OPN, V_CLI_WINDOW4_OPN };
+    const uint16_t clo[] = { V_CLI_WINDOW1_CLO, V_CLI_WINDOW2_CLO,
+                             V_CLI_WINDOW3_CLO, V_CLI_WINDOW4_CLO };
     for (uint8_t i = 0; i < 4; i++) {
-        g_digital_out_values[opn[i]].value = opening;
-        g_digital_out_values[opn[i]].valid = true;
-        g_digital_out_values[clo[i]].value = closing;
-        g_digital_out_values[clo[i]].valid = true;
+        io.var(opn[i]).set(opening);
+        io.var(clo[i]).set(closing);
     }
 
     // Destratification fans step up with the thermal load.
-    const uint16_t fans[] = { DO_CLI_DESTRAT1_SPEED1, DO_CLI_DESTRAT1_SPEED2,
-                              DO_CLI_DESTRAT1_SPEED3 };
+    const uint16_t fans[] = { V_CLI_DESTRAT1_SPEED1, V_CLI_DESTRAT1_SPEED2,
+                              V_CLI_DESTRAT1_SPEED3 };
     const int speed = (thermal > 0.6f) ? 3 : (thermal > 0.2f) ? 2 : (thermal > -0.2f) ? 1 : 0;
     for (uint8_t i = 0; i < 3; i++) {
-        g_digital_out_values[fans[i]].value = (speed == (int)i + 1);
-        g_digital_out_values[fans[i]].valid = true;
+        io.var(fans[i]).set((speed == (int)i + 1));
     }
 
-    g_digital_out_values[DO_CLI_SCREEN].value = thermal < -0.5f;
-    g_digital_out_values[DO_CLI_SCREEN].valid = true;
+    io.var(V_CLI_SCREEN).set(thermal < -0.5f);
 
     // Irrigation walks the trays, one at a time, ~40 s each.
-    const uint16_t trays[] = { DO_IRR_TRAY1, DO_IRR_TRAY2, DO_IRR_TRAY3, DO_IRR_TRAY4,
-                               DO_IRR_TRAY5, DO_IRR_TRAY6, DO_IRR_TRAY7, DO_IRR_TRAY8 };
+    const uint16_t trays[] = { V_IRR_TRAY1, V_IRR_TRAY2, V_IRR_TRAY3, V_IRR_TRAY4,
+                               V_IRR_TRAY5, V_IRR_TRAY6, V_IRR_TRAY7, V_IRR_TRAY8 };
     const int active = ((int)(t / 40.0f)) % 8;
     for (uint8_t i = 0; i < 8; i++) {
-        g_digital_out_values[trays[i]].value = ((int)i == active);
-        g_digital_out_values[trays[i]].valid = true;
+        io.var(trays[i]).set(((int)i == active));
     }
-    g_digital_out_values[DO_IRR_INPUT_RO1].value  = (active < 4);
-    g_digital_out_values[DO_IRR_INPUT_RO1].valid  = true;
-    g_digital_out_values[DO_IRR_OUTPUT_RO1].value = (active >= 4);
-    g_digital_out_values[DO_IRR_OUTPUT_RO1].valid = true;
+    io.var(V_IRR_INPUT_RO1).set((active < 4));
+    io.var(V_IRR_OUTPUT_RO1).set((active >= 4));
 }
 
 /**
@@ -186,13 +179,13 @@ inline void drive_coils(uint32_t now_ms) {
  * no climate instrumentation mapped yet, so those conditions rest on their own
  * slow drift until it is.
  */
-inline void publish_alarms(uint32_t now_ms) {
+inline void publish_alarms(Vars::Bank& io, uint32_t now_ms) {
     uint64_t raw = 0;
 
     // Real causes, read back through the variable tables.
-    const float ln  = g_analog_in_values[AI_PWR_LN_V].value;
-    const float pf  = g_analog_in_values[AI_PWR_TOTAL_PF].value;
-    const float hz  = g_analog_in_values[AI_PWR_HZ].value;
+    const float ln  = io.var(V_PWR_LN_V).value();
+    const float pf  = io.var(V_PWR_TOTAL_PF).value();
+    const float hz  = io.var(V_PWR_HZ).value();
     if (ln < 226.0f || ln > 234.0f)  raw |= abit("AC_GRID");
     if (hz < 49.9f  || hz > 50.1f)   raw |= abit("AC_LOCAL");
     if (pf < 0.90f)                  raw |= abit("DC_PS1");
@@ -233,13 +226,8 @@ inline void publish_alarms(uint32_t now_ms) {
     // Scatter the debounced bitset into the variables the alarm table names
     // (row i -> g_alarms[i].ref), which is where the model reads them. On
     // hardware a control program drives the same internals.
-    for (uint8_t i = 0; i < g_alarm_count; i++) {
-        const Botanik::Vars::VarRef& r = g_alarms[i].ref;
-        if (r.kind != Botanik::Vars::VAR_INTERNAL_DIGITAL) continue;
-        if (r.index >= ID_COUNT) continue;
-        g_internal_digital_values[r.index].value = ((debounced >> i) & 1u) != 0;
-        g_internal_digital_values[r.index].valid = true;
-    }
+    for (uint8_t i = 0; i < g_alarm_count; i++)
+        io.var(g_alarms[i].ref).set(((debounced >> i) & 1u) != 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -254,10 +242,10 @@ inline void publish_alarms(uint32_t now_ms) {
  * straight from the sim harness. It writes the variable tables - the same ones
  * a Modbus driver will write - so nothing downstream can tell the difference.
  */
-inline void simulate(uint32_t now_ms) {
-    publish_meters(now_ms);
-    drive_coils(now_ms);
-    publish_alarms(now_ms);
+inline void simulate(Vars::Bank& io, uint32_t now_ms) {
+    publish_meters(io, now_ms);
+    drive_coils(io, now_ms);
+    publish_alarms(io, now_ms);
 }
 
 }  // namespace Site

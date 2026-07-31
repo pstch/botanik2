@@ -64,7 +64,7 @@ namespace Botanik { namespace Network {
          *  _scalar_base; null until a site registers them. */
         const Vars::VarGroup* _groups       = nullptr;
         size_t                _group_count  = 0;
-        const Vars::Io*       _io           = nullptr;
+        const Vars::Bank*       _io           = nullptr;
         /** @brief Last publish cycle (uptime ms); 0 = none yet. */
         uint64_t              _last_ms     = 0;
 
@@ -90,7 +90,7 @@ namespace Botanik { namespace Network {
          *  against @p io. Both must outlive the firmware. Pass count 0 (or
          *  null) to clear. */
         void set_site_scalar_groups(const Vars::VarGroup* groups, size_t count,
-                                    const Vars::Io* io) {
+                                    const Vars::Bank* io) {
             _groups      = groups;
             _group_count = (groups != nullptr) ? count : 0;
             _io          = io;

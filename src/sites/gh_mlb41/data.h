@@ -10,7 +10,7 @@
  * file: hand-written site code belongs in site.h / commands.h / sim.h.
  *
  * This is all that is left of the PLC payload. Status variables, actuators and
- * alarm conditions are variables now (io.h / status.h), addressed by table and
+ * alarm conditions are variables now (vars.h / status.h), addressed by index and
  * index; only the config parameters still live in a byte image, and this is its
  * layout. Field ORDER is therefore load-bearing for params.h alone.
  *

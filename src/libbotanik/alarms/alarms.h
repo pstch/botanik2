@@ -33,7 +33,7 @@
 #include "../core/component.h"      // Component (first-step announce)
 #include "../../libbotanik_config.h"
 #include "publisher.h" // Publisher (notifier transport seam)
-#include "../vars/access.h"   // VarRef / var_bool
+#include "../vars/model.h"   // VarRef / Bank
 
 namespace Botanik { namespace Alarms {
 
@@ -260,7 +260,7 @@ namespace Botanik { namespace Alarms {
         uint8_t         _count;          // N + M: total conditions scanned
         /** the variable tables the site alarm refs resolve against (may be
          *  null -> site alarms rest on their local override only) */
-        const Vars::Io* _io;
+        const Vars::Bank* _io;
         /** registered transition sinks (fan-out, mirrors Logger's writers) */
         AlarmNotifier*  _notifiers[Config::ALARM_NOTIFIERS_MAX];
         uint8_t         _notifier_count; // entries used in _notifiers
@@ -282,7 +282,7 @@ namespace Botanik { namespace Alarms {
                    Logs::Logger* logger,
                    const AlarmCondition* platform = nullptr,
                    uint8_t platform_count = 0,
-                   const Vars::Io* io = nullptr)
+                   const Vars::Bank* io = nullptr)
             : Component(logger, "AlarmModel"),
               _plc_count(0), _count(0), _io(io),
               _notifier_count(0),
@@ -407,7 +407,7 @@ namespace Botanik { namespace Alarms {
          *  platform-health range (i >= _plc_count) or with no tables bound. */
         bool _site_raw(uint8_t i) const {
             if (i >= _plc_count || _io == nullptr) return false;
-            return Vars::var_bool(*_io, _conditions[i].ref);
+            return _io->var(_conditions[i].ref).b();
         }
 
     public:

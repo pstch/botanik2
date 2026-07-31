@@ -145,25 +145,25 @@ TEST_CASE("alarm: a normal episode logs START then END (not FLAP)") {
 }
 
 TEST_CASE("alarm reader: model reads each condition's variable") {
-    // Three alarm conditions, each naming a computed digital.
-    const Vars::Variable IDV[] = {
-        { "alarm_a", "", "", "", "0", 0, nullptr },
-        { "alarm_b", "", "", "", "0", 0, nullptr },
-        { "alarm_c", "", "", "", "0", 0, nullptr },
-    };
-    Vars::DigitalValue idv[3]{};
-    Vars::IoTables t = {};
-    t.id = IDV; t.id_v = idv; t.id_n = 3;
-    Vars::Io io(t);
+    // Three alarm conditions, each naming a computed digital by index.
+    #define IB(nm) { Vars::Scalar::B(false), Vars::Scalar::B(true), Vars::Scalar::B(false), \
+                     nm, "", "", nullptr, { Vars::XP_NONE, Vars::T_BOOL, 0, 0, 0, 0, 1.0f, 0.0f }, \
+                     0, 0, 0, Vars::T_BOOL, Vars::ROLE_INTERNAL, 0, Vars::STR_NONE, 0, {} }
+    const Vars::Variable VARS[] = { IB("alarm_a"), IB("alarm_b"), IB("alarm_c") };
+    #undef IB
+    Vars::Value vals[3]{};
+    Vars::VarTables t = {};
+    t.var = VARS; t.val = vals; t.count = 3;
+    Vars::Bank io(t);
     io.init();
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
     // code, desc, ref, on_s, off_s, ... - announce off.
     const Alarms::AlarmCondition tbl[] = {
-        { "AAA", "a", { Vars::VAR_INTERNAL_DIGITAL, 0 }, -1, -1 },  // bit 0
-        { "BBB", "b", { Vars::VAR_INTERNAL_DIGITAL, 1 }, -1, -1 },  // bit 1
-        { "CCC", "c", { Vars::VAR_INTERNAL_DIGITAL, 2 }, -1, -1 },  // bit 2
+        { "AAA", "a", { 0 }, -1, -1 },
+        { "BBB", "b", { 1 }, -1, -1 },
+        { "CCC", "c", { 2 }, -1, -1 },
     };
 #pragma GCC diagnostic pop
 
@@ -172,28 +172,29 @@ TEST_CASE("alarm reader: model reads each condition's variable") {
 
     m.step(1000);
     CHECK(m.condition(0).active == false);
-    io.id(0).set(true);
+    io.var((uint16_t)0).set(true);
     m.step(2000);
     CHECK(m.condition(0).active == true);
     CHECK(m.condition(2).active == false);
-    io.id(2).set(true);
+    io.var((uint16_t)2).set(true);
     m.step(3000);
     CHECK(m.condition(0).active == true);
     CHECK(m.condition(2).active == true);
-    io.id(0).set(false);
+    io.var((uint16_t)0).set(false);
     m.step(4000);
     CHECK(m.condition(0).active == false);
     CHECK(m.condition(2).active == true);
 }
 
 TEST_CASE("alarm reader: a condition naming no variable rests on set_local") {
-    // The platform-health alarms are in exactly this shape: a zeroed ref, which
-    // resolves inertly rather than reading analog-input 0 and firing on it.
-    Vars::Io io;
+    // The platform-health alarms are in exactly this shape. VAR_NONE, not a
+    // zeroed ref: with a bare index, 0 is a REAL variable, so a zeroed ref
+    // would quietly make a platform alarm track the first row.
+    Vars::Bank io;
     io.init();
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-    const Alarms::AlarmCondition tbl[] = { { "PLT", "platform", {}, -1, -1 } };
+    const Alarms::AlarmCondition tbl[] = { { "PLT", "platform", { Vars::VAR_NONE }, -1, -1 } };
 #pragma GCC diagnostic pop
     Logs::Logger logger;
     Alarms::AlarmModel m(tbl, 1, &logger, nullptr, 0, &io);
@@ -204,3 +205,4 @@ TEST_CASE("alarm reader: a condition naming no variable rests on set_local") {
     m.step(2000);
     CHECK(m.condition(0).active == true);
 }
+

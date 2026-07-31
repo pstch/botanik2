@@ -74,7 +74,7 @@ namespace Botanik { namespace Pages {
         Console&            _console;
         const Vars::VarGroup* _groups;
         size_t              _group_count;
-        const Vars::Io*     _io;
+        const Vars::Bank*     _io;
         /** @brief A nav happened: redraw on the next tick rather than waiting for
          *  the value cadence, so scrolling/selection feels immediate. */
         bool                _dirty    = true;
@@ -87,7 +87,7 @@ namespace Botanik { namespace Pages {
          *  variables to show and @p io is what resolves them (any may be
          *  null/0 -> empty table). */
         MonitorPage(Console& console, const Vars::VarGroup* groups, size_t group_count,
-                    const Vars::Io* io)
+                    const Vars::Bank* io)
             : ScrollTablePage(console.terminal()), _console(console),
               _groups(groups), _group_count(group_count), _io(io) {}
 
@@ -212,21 +212,8 @@ namespace Botanik { namespace Pages {
         Vars::VarRef _ref_at(uint16_t r, bool& ok) const {
             size_t gi = 0, fi = 0; bool first = false;
             ok = _at(r, gi, fi, first);
-            if (!ok) { Vars::VarRef none = { Vars::VAR_PARAM, 0 }; return none; }
+            if (!ok) { Vars::VarRef none = { Vars::VAR_NONE }; return none; }
             return _groups[gi].refs[fi];
-        }
-
-        /** @brief Resolve variable @p r. An unresolvable row still yields a
-         *  renderable view (the inert descriptor), so callers need no null
-         *  check - they only care about @p ok for the group column. */
-        Vars::VarView _view_at(uint16_t r, bool& ok) const {
-            Vars::VarRef ref = _ref_at(r, ok);
-            if (_io == nullptr) {
-                Vars::VarView v; v.meta = nullptr; v.number = 0.0f;
-                v.digital = false; v.valid = false;
-                return v;
-            }
-            return Vars::var_view(*_io, ref);
         }
 
         // Rendering
@@ -235,9 +222,9 @@ namespace Botanik { namespace Pages {
         /** @brief Format variable @p r's value into @p out. */
         void _value_text(uint16_t r, char* out, size_t cap) const {
             bool ok = false;
-            Vars::VarView v = _view_at(r, ok);
-            if (!ok || v.meta == nullptr) { if (cap) out[0] = 0; return; }
-            const char* s = Vars::var_format(v, out, cap);
+            Vars::VarRef ref = _ref_at(r, ok);
+            if (!ok || _io == nullptr) { if (cap) out[0] = 0; return; }
+            const char* s = Vars::var_format(*_io, ref, out, cap);
             if (s != out) { std::strncpy(out, s, cap - 1); out[cap - 1] = 0; }
         }
 
@@ -246,11 +233,15 @@ namespace Botanik { namespace Pages {
             size_t gi = 0, fi = 0; bool first = false;
             if (!_at(r, gi, fi, first)) { if (cap) out[0] = 0; return 0; }
             bool ok = false;
-            Vars::VarView v = _view_at(r, ok);
+            Vars::VarRef ref = _ref_at(r, ok);
             char val[VAL_CAP];
             _value_text(r, val, sizeof(val));
-            const char* nm = (v.meta && v.meta->name) ? v.meta->name : "";
-            const char* un = (v.meta && v.meta->unit) ? v.meta->unit : "";
+            const char* nm = "", *un = "";
+            if (_io != nullptr) {
+                const Vars::Variable* m = _io->var(ref).meta();
+                if (m->name != nullptr) nm = m->name;
+                if (m->unit != nullptr) un = m->unit;
+            }
             return _row4(out, cap, first ? _groups[gi].topic : "", nm, val, un);
         }
 
@@ -267,6 +258,25 @@ namespace Botanik { namespace Pages {
             char line[LINE_CAP];
             uint16_t n = _row4(line, sizeof(line), "GROUP", "VARIABLE", "VALUE", "UNIT");
             _draw_line(HEADER_ROW, line, n);
+        }
+
+        /** @brief One line saying where a reading comes from. */
+        static void _describe_binding(const Vars::Binding& b, char* out, size_t cap) {
+            switch (b.transport) {
+                case Vars::XP_MODBUS:
+                    snprintf(out, cap, "Modbus dev %u fc %u reg %u",
+                             (unsigned)b.device, (unsigned)b.fc, (unsigned)b.reg);
+                    break;
+                case Vars::XP_LOCAL_ANALOG:
+                    snprintf(out, cap, "analog channel %u", (unsigned)b.reg);
+                    break;
+                case Vars::XP_LOCAL_DIGITAL:
+                    snprintf(out, cap, "digital channel %u", (unsigned)b.reg);
+                    break;
+                default:
+                    snprintf(out, cap, "computed");
+                    break;
+            }
         }
 
         /** @brief Draw a rule row; @p cap ('^' / 'v' / '+') marks hidden rows. */
@@ -299,15 +309,20 @@ namespace Botanik { namespace Pages {
             uint16_t br = _brule_row();
             _blank_line((uint16_t)(br + 1));
             bool ok = false;
-            Vars::VarView v = _view_at(_selected, ok);
-            const Vars::Variable* m = ok ? v.meta : nullptr;
-            _panel_field((uint16_t)(br + 2), "Description", m ? m->desc  : nullptr);
-            _panel_field((uint16_t)(br + 3), "Notes",       m ? m->notes : nullptr);
-            // Quality is new information the byte-offset model could not carry:
-            // a variable nothing has written reads as its default, which looks
-            // exactly like a real reading unless the page says otherwise.
+            Vars::VarRef ref = _ref_at(_selected, ok);
+            const bool have = ok && _io != nullptr;
+            Vars::Var h = have ? _io->var(ref) : Vars::Var(nullptr, nullptr);
+            _panel_field((uint16_t)(br + 2), "Description", have ? h.meta()->desc : nullptr);
+            // The binding, which the byte-offset model had nowhere to put: where
+            // this reading physically comes from is the first thing you want
+            // when one looks wrong.
+            char bind[48];
+            if (have) _describe_binding(h.meta()->bind, bind, sizeof(bind));
+            _panel_field((uint16_t)(br + 3), "Source", have ? bind : nullptr);
+            // Quality is likewise new: a variable nothing has written reads as
+            // its default, which looks exactly like a real reading otherwise.
             _panel_field((uint16_t)(br + 4), "Quality",
-                         !ok ? nullptr : (v.valid ? "live" : "no data (showing default)"));
+                         !have ? nullptr : (h.valid() ? "live" : "no data (showing default)"));
             _blank_line((uint16_t)(br + 5));
         }
 

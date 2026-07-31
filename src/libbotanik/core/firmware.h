@@ -79,7 +79,7 @@
 #include "../health/health.h"    // HealthMonitor (owns the alarm model + notifier)
 #include "libbotanik/params/params.h"   // Params::Param + ParamHandler (the model)
 #include "../shell/shell.h"
-#include "../vars/io.h"      // Vars::Io / IoTables
+#include "../vars/model.h"      // Vars::Bank / VarTables
 #include "../scan/scan.h"     // Scan::Driver / Task
 #include "../vars/access.h"  // VarGroup / HomeVar (status vars)
 #include "stacks.h"      // Monitor/Console/NetworkStack composition
@@ -120,10 +120,10 @@ namespace Botanik {
         const Alarms::AlarmCondition* alarms;              ///< alarm-condition table
         uint8_t                       alarm_count;
         /** @brief Field IO: the variable tables bound to their value stores.
-         *  A site with no field IO passes a default-constructed IoTables.
+         *  A site with no variables passes a default-constructed VarTables.
          *  (No default member initialisers here: in C++11 an NSDMI would stop
          *  SiteDescriptor being an aggregate, and every site brace-inits it.) */
-        Vars::IoTables                io;
+        Vars::VarTables               vars;
         /** @brief Control programs and their per-task diagnostics. The stats
          *  array is site-owned and must hold @c task_count entries. */
         const Scan::Task*             tasks;
@@ -178,7 +178,7 @@ namespace Botanik {
         Scheduler::LoopScheduler       _scheduler;
         Params::LocalParamStore        _param_store;  ///< params live in flash/a file
         Params::ParamHandler           _params;       ///< the parameter model (over _param_store)
-        Vars::Io                       _io;          ///< the site's variables
+        Vars::Bank                       _io;          ///< the site's variables
         Scan::Driver                   _scan;        ///< the control programs
         /** @brief Latched SAFE mode: outputs held at their declared safe state
          *  and the scan inhibited, until health recovers. */
@@ -219,7 +219,7 @@ namespace Botanik {
               // No PLC: params come from local storage.
               _param_store(&_logger),
               _params(&_param_store, &_logger),
-              _io(site.io),
+              _io(site.vars),
               _scan(site.tasks, site.task_count, site.task_stats, &_io, &_logger),
               // Site alarm conditions resolve against the variable tables;
               // platform-health alarms are driven locally either way.
@@ -485,8 +485,8 @@ namespace Botanik {
         Scheduler::LoopScheduler&       scheduler()       { return _scheduler; }
         /** @brief The site's variable tables bound to their value stores: what
          *  everything - programs, console, telemetry - reads and writes. */
-        const Vars::Io&                 io() const { return _io; }
-        Vars::Io&                       io()       { return _io; }
+        const Vars::Bank&                 io() const { return _io; }
+        Vars::Bank&                       io()       { return _io; }
 #if BOTANIK_FEATURE_NETWORK
         Network::NetworkHandler&        network()         { return _net.network(); }
         Network::NameResolver&          resolver()        { return _net.resolver(); }

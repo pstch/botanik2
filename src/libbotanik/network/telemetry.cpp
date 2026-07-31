@@ -114,14 +114,14 @@ namespace Botanik { namespace Network {
         for (size_t gi = 0; gi < _group_count; ++gi) {
             const Vars::VarGroup& g = _groups[gi];
             for (size_t i = 0; i < g.count; ++i) {
-                Vars::VarView v = Vars::var_view(*_io, g.refs[i]);
-                if (v.meta->name == nullptr) continue;
+                Vars::Var h = _io->var(g.refs[i]);
+                if (h.meta()->name == nullptr) continue;
                 // Publish only what has actually been read: a default value on
                 // the broker is indistinguishable from a measurement, and a
                 // subscriber cannot tell the sensor died.
-                if (!v.valid) continue;
-                const char* out = Vars::var_format(v, payload, sizeof(payload));
-                _emit(g.topic, v.meta->name, out);
+                if (!h.valid()) continue;
+                const char* out = Vars::var_format(*_io, h, payload, sizeof(payload));
+                _emit(g.topic, h.meta()->name, out);
             }
         }
     }

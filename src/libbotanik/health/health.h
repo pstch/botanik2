@@ -70,7 +70,7 @@ namespace Botanik { namespace Health {
         HealthMonitor(const Alarms::AlarmCondition* table, uint8_t count,
                       Logs::Logger* logger,
                       const Scheduler::SchedulerContext* sched,
-                      const Vars::Io* io = nullptr)
+                      const Vars::Bank* io = nullptr)
             : Component(logger, "HealthMonitor"),
               _notifier(Config::MQTT_TOPIC_PREFIX),
               _model(table, count, logger,

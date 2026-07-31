@@ -23,7 +23,7 @@
 
 #include "botanik.h"
 
-#include "io.h"
+#include "vars.h"
 
 namespace Site {
 
@@ -45,7 +45,7 @@ inline void supply_watch(ScanContext& c) {
     // A meter that has stopped answering reads as its default (0 V), which is
     // out of band and therefore unhealthy - the fallback does the right thing
     // here without the program testing valid() at all.
-    float ln = c.io.ai(AI_PWR_LN_V).value();
+    float ln = c.io.var(V_PWR_LN_V).value();
     bool  unhealthy = (ln < 200.0f) || (ln > 260.0f);
 
     // Reset-dominant: recovery wins, so the lockout cannot stick once the
@@ -55,13 +55,13 @@ inline void supply_watch(ScanContext& c) {
     // Publish the decision as an internal, so the console, the shell and
     // telemetry can all see WHY the windows are held - a coil reading 0 does
     // not distinguish "not commanded" from "locked out".
-    c.io.id(ID_SYS_SUPPLY_LOCKOUT).set(lockout.q());
+    c.io.var(V_SYS_SUPPLY_LOCKOUT).set(lockout.q());
 
     if (lockout.q()) {
-        c.io.dout(DO_CLI_WINDOW1_OPN).set(false);
-        c.io.dout(DO_CLI_WINDOW2_OPN).set(false);
-        c.io.dout(DO_CLI_WINDOW3_OPN).set(false);
-        c.io.dout(DO_CLI_WINDOW4_OPN).set(false);
+        c.io.var(V_CLI_WINDOW1_OPN).set(false);
+        c.io.var(V_CLI_WINDOW2_OPN).set(false);
+        c.io.var(V_CLI_WINDOW3_OPN).set(false);
+        c.io.var(V_CLI_WINDOW4_OPN).set(false);
     }
 }
 
@@ -73,7 +73,7 @@ inline void supply_watch(ScanContext& c) {
  */
 inline void supply_report(ScanContext& c) {
     static Scan::Deadband hz;
-    c.io.ia(IA_SYS_SUPPLY_HZ).set(hz(c.io.ai(AI_PWR_HZ).value(), 0.05f));
+    c.io.var(V_SYS_SUPPLY_HZ).set(hz(c.io.var(V_PWR_HZ).value(), 0.05f));
 }
 
 /** @brief The site's control programs, in execution order. */
@@ -87,7 +87,7 @@ const uint8_t g_task_count = (uint8_t)(sizeof(g_tasks) / sizeof(g_tasks[0]));
  *
  *  Declared, not defined: this is mutable state, so a definition in the header
  *  would give every including TU its own copy and break the link the moment two
- *  of them exist (the sim has one, the firmware has two). Defined in io.cpp
+ *  of them exist (the sim has one, the firmware has two). Defined in vars.cpp
  *  alongside the other site value stores. */
 extern Botanik::Scan::TaskStats g_task_stats[];
 

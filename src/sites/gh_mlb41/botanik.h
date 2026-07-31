@@ -31,7 +31,7 @@
 #include "../../libbotanik/vars/access.h"        // VarRef / VarGroup / HomeVar
 #include "../../libbotanik/alarms/alarms.h"      // Alarms::AlarmCondition
 #include "../../libbotanik/shell/shell.h"        // Shell::ShellCommand
-#include "../../libbotanik/vars/io.h"            // the variable model + typed handles
+#include "../../libbotanik/vars/model.h"         // the variable model + its handle
 #include "../../libbotanik/scan/scan.h"          // Task / ScanContext
 #include "../../libbotanik/scan/blocks.h"        // function blocks
 

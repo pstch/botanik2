@@ -23,12 +23,12 @@
 
 #include "botanik.h"
 
-#include "data.h"      // the PLC payload every table addresses by offset
+#include "data.h"         // the parameter image (config parameters only)
 #include "status.h"       // status variables + home-screen readings
 #include "params.h"       // config parameters
 #include "alarms.h"       // alarm conditions
 #include "commands.h"     // shell commands (hand-written)
-#include "io.h"           // field IO variables
+#include "vars.h"         // every variable, in one table
 #include "tasks.h"        // control programs (hand-written)
 
 namespace Site {
@@ -42,7 +42,7 @@ const Botanik::SiteDescriptor g_site = {
     g_status_groups, g_status_group_count,   // monitor page, telemetry, `status`
     g_home_fields,   g_home_field_count,     // home-screen readings
     g_alarms,        g_alarm_count,          // alarm conditions
-    SITE_IO_TABLES,                          // field IO: variables + values
+    SITE_VAR_TABLES,                         // every variable + its value store
     g_tasks,         g_task_count,   g_task_stats,   // control programs
 };
 

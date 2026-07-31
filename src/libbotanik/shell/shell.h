@@ -105,7 +105,7 @@ namespace Botanik { namespace Shell {
          *  variable values now, not a table plus a payload pointer. */
         const Vars::VarGroup* _status_groups    = nullptr;
         /** @brief The variable model, for the `vars` command. */
-        Vars::Io*          _vars              = nullptr;
+        Vars::Bank*          _vars              = nullptr;
         size_t                  _status_group_count   = 0;
 
         /** @brief Command-history ring: the most-recent submitted lines. */
@@ -159,7 +159,7 @@ namespace Botanik { namespace Shell {
 
         /** @brief Bind the variable model. `vars` lists the field IO through
          *  it, and `status` resolves its groups against it. */
-        void set_vars(Vars::Io* io) { _vars = io; }
+        void set_vars(Vars::Bank* io) { _vars = io; }
 
         /** @brief Wire the status-variable table the `status` command reads.
          *  Values come from the Io given to set_vars(). Null clears it. */
