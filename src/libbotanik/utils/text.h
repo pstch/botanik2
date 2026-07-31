@@ -17,7 +17,7 @@ namespace Botanik { namespace Utils {
     /** @name String comparison
      *  @{ */
 
-    /** @brief Null-safe equality of two NUL-terminated strings 
+    /** @brief Null-safe equality of two NUL-terminated strings
      *  @returns True when both pointers are non-null and contain the same text. */
     inline bool compare_str(const char* a, const char* b) {
         return a != nullptr && b != nullptr && std::strcmp(a, b) == 0;
@@ -37,7 +37,7 @@ namespace Botanik { namespace Utils {
         return take;
     }
 
-    /** @} 
+    /** @}
      *  @name Numeric parsing
      *  @{ */
 
@@ -57,7 +57,7 @@ namespace Botanik { namespace Utils {
         return true;
     }
 
-    /** @} 
+    /** @}
      *  @name Number formatting
      *  @{ */
 
@@ -92,7 +92,7 @@ namespace Botanik { namespace Utils {
      *  use. */
     const char* format_size(char* buf, size_t cap, uint32_t bytes);
 
-    /** @} 
+    /** @}
      *  @name Duration formatting
      *  @{ */
 

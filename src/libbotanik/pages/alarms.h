@@ -62,7 +62,6 @@ namespace Botanik { namespace Pages {
         /** @brief Alarm source (may be null). Non-const: the `a` key acks the
          *  selected condition through it. */
         Alarms::AlarmModel*       _model;
-        /** @brief Mirrors tick(active). */
         /** @brief Filter mode, cycled by SPACE (see MODE_*). Defaults to
          *  RECENT. */
         uint8_t                   _mode     = MODE_RECENT;

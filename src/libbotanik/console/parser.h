@@ -170,7 +170,7 @@ namespace Botanik { namespace Terminal {
 
         /** @brief True while output backpressure should hold the emit window
          *         open for a batch/command started at @p start_ms. */
-        bool _backpressure_holds(uint32_t start_ms) const;
+        bool _backpressure_holds(uint64_t start_ms) const;
 
         /** @brief True when the pending text batch should be flushed now. */
         bool _should_flush_text() const;
@@ -201,10 +201,11 @@ namespace Botanik { namespace Terminal {
         /** @name State handlers
          *  @{ */
 
-        /** @brief Handle one byte in the IDLE state. */
         /** @brief Set the event command (COMMAND type if non-NONE), back to IDLE.
          *  Shared tail of the idle/sep/esc handlers. */
         State _set_command(InputEvent::Command c);
+
+        /** @brief Handle one byte in the IDLE state. */
         State _handle_idle(uint8_t b);
 
         /** @brief Handle one byte in the IN_ESC state. */

@@ -26,12 +26,12 @@ namespace Botanik { namespace Utils {
     }
 
     /** @class BufferedSerial
-     *  @brief Non-blocking buffered serial for Arduino UART. 
-     * 
+     *  @brief Non-blocking buffered serial for Arduino UART.
+     *
      *  Both rings are single-producer/single-consumer :
      *   - RX: receive() fills, read() drains
-     *   - TX:  write() fills,   transmit() drains. 
-     * 
+     *   - TX:  write() fills,   transmit() drains.
+     *
      *  Every method runs on the main loop, the ring is NOT ISR-safe.
      *  Producer and consumer being the same thread, no barrier is needed.
      *
@@ -87,7 +87,7 @@ namespace Botanik { namespace Utils {
          *  (always false on hardware UARTs). */
         bool is_output_tty() const;
 
-        /** @} 
+        /** @}
          *  @name Status & capacity
          *  @{ */
 
@@ -133,7 +133,7 @@ namespace Botanik { namespace Utils {
         /** @brief Peek the next RX byte without consuming it; false if empty. */
         bool peek(uint8_t* b) const;
 
-        /** @} 
+        /** @}
          *  @name Hardware I/O
          *  @{ */
 

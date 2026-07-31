@@ -118,7 +118,7 @@ namespace Botanik { namespace Terminal {
                 }
                 break;
             }
-            // Light page command (edit/cursor/etc.): keep handling more this tick.
+            // Light page command (edit/cursor/etc.): keep handlingg more this tick.
             page->handle_command(ev.command, ev.count);
         }
     }

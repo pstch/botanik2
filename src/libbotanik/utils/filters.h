@@ -21,8 +21,8 @@ namespace Botanik { namespace Utils {
      *  @{ */
 
     /** @brief EMA smoothing factor for a time constant @p tau_ms at sample
-     *         period @p period_ms. Derived from the sample period so the 
-     *         filter's wall-clock response stays fixed regardless of how 
+     *         period @p period_ms. Derived from the sample period so the
+     *         filter's wall-clock response stays fixed regardless of how
      *         often it is fed.
      *
      *  @warning A tau at or below one sample period collapses to 1.0 (instant,
@@ -34,14 +34,14 @@ namespace Botanik { namespace Utils {
         return tau_ms <= period_ms ? 1.0f : (float)period_ms / (float)tau_ms;
     }
 
-    /** @} 
+    /** @}
      *  @name Metric filters
      *  @{ */
 
     /** @class ExpMovingAverage
      *  @brief Exponential moving average handler with asymmetric attack/decay.
-     *  @note A sample above the current value is folded in with @c attack, 
-     *        one below it with @c decay, so the filter can rise fast and 
+     *  @note A sample above the current value is folded in with @c attack,
+     *        one below it with @c decay, so the filter can rise fast and
      *        fall slow (or vice versa). */
     class ExpMovingAverage {
         float _value  = 0.0f;   ///< Current filtered value
@@ -72,7 +72,7 @@ namespace Botanik { namespace Utils {
 
     /** @class WindowedMax
      *  @brief Sliding-window maximum over roughly the last @p window_ticks
-     *         samples, approximated with K rotating time buckets. 
+     *         samples, approximated with K rotating time buckets.
      *  @param K: amount of rotating time buckets
      *  @note O(1) per sample and O(K) to read, using K words of state.
      *  @warning Assumes non-negative samples with 0 as the identity. */
@@ -91,10 +91,10 @@ namespace Botanik { namespace Utils {
             reset();
         }
 
-        /** @brief Fold one sample into the window. 
-         *  @note @p weight is how many sample slots it represents 
-         *           (1 normally; or the count of elapsed beats on a 
-         *           scheduler overrun, so the window ages by wall-time 
+        /** @brief Fold one sample into the window.
+         *  @note @p weight is how many sample slots it represents
+         *           (1 normally; or the count of elapsed beats on a
+         *           scheduler overrun, so the window ages by wall-time
          *           rather than by released-tick count. */
         void push(uint32_t v, uint32_t weight = 1) {
             // FIXME: make more readable

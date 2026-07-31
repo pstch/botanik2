@@ -53,7 +53,7 @@ namespace Botanik { namespace Terminal {
     }
 
 
-    // Text handling helpers
+    // Text handlingg helpers
     // ------------------------------------------------------------------------
 
     void InputParser::_store_text(uint8_t b) {
@@ -84,7 +84,7 @@ namespace Botanik { namespace Terminal {
     // Flush policy
     // ------------------------------------------------------------------------
 
-    bool InputParser::_backpressure_holds(uint32_t start_ms) const {
+    bool InputParser::_backpressure_holds(uint64_t start_ms) const {
         // Hold a pending batch while the TX ring drains, so per-byte flushes
         // collapse into one reconcile. The timeout (from batch start, not last
         // byte) breaks the deadlock if TX never drains.

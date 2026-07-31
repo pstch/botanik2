@@ -4,9 +4,9 @@
 
 /** @file libbotanik_config.h
  *  @brief Global configuration parameters for the Botanik library.
- * 
+ *
  *  @note Every parameter in this file is overridable per site. The site selected
- *        by the build tools may ship `src/sites/<name>/config.h` and `#define` 
+ *        by the build tools may ship `src/sites/<name>/config.h` and `#define`
  *        overrides. The path of the selected site is passed by CMake in
  *        BOTANIK_SITE_CONFIG. */
 
@@ -260,8 +260,8 @@ namespace Botanik { namespace Config {
 
 
     /** @brief Grace period after a PLC fault during which the HW watchdog is still kicked.
-     *         A transient fault rides through (logged + alarmed), but a fault that persists 
-     *         this long stops the kick, resetting both cores (the deliberate recovery that 
+     *         A transient fault rides through (logged + alarmed), but a fault that persists
+     *         this long stops the kick, resetting both cores (the deliberate recovery that
      *         gives the PLC image a fresh start). */
 
     /** @}
@@ -374,8 +374,8 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(size_t, MQTT_TX_BUF);
 
-    /** @brief Period between MQTT telemetry publish cycles (ms). 
-     *  @note 0 disables telemetry. 
+    /** @brief Period between MQTT telemetry publish cycles (ms).
+     *  @note 0 disables telemetry.
      *  @note Each cycle publishes every registered field once. */
 #ifndef BOTANIK_MQTT_TELEMETRY_PERIOD_MS
 #  define BOTANIK_MQTT_TELEMETRY_PERIOD_MS 30000
@@ -453,7 +453,7 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, LOG_PERTOPIC_BUCKET_PERIOD_MS);
 
-    /** @brief How often (ms) a suppressed-entries-summaries summary may be emitted.
+    /** @brief How often (ms) a summary of suppressed entries may be emitted.
      *  @note Decoupled from the bucket refill periods so a sustained log storm
      *  produces an occasional summary instead of one per refill tick. */
 #ifndef BOTANIK_LOG_SUPPRESS_REPORT_PERIOD_MS
@@ -536,8 +536,8 @@ namespace Botanik { namespace Config {
     BOTANIK_CFG(uint32_t, ANSI_CMD_TIMEOUT_MS);
 
     /** @brief Max time a coalesced command (held backspace / Ctrl+D) is held
-     *         under TX backpressure before it flushes. 
-     *  @note Shorter than the text-batch timeout: an edit wants lower 
+     *         under TX backpressure before it flushes.
+     *  @note Shorter than the text-batch timeout: an edit wants lower
      *        latency than a paste batch. */
 #ifndef BOTANIK_ANSI_CMD_FLUSH_TIMEOUT_MS
 #  define BOTANIK_ANSI_CMD_FLUSH_TIMEOUT_MS 250
@@ -573,7 +573,7 @@ namespace Botanik { namespace Config {
     BOTANIK_CFG(uint32_t, PAGE_HOT_MS);
 
     /** @brief Log lines the Home page keeps in its bottom log tail.
-     *  @note Small on purpose: a live "last few entries" widget, 
+     *  @note Small on purpose: a live "last few entries" widget,
      *        not a full scrollback like the Logs page. */
 #ifndef BOTANIK_HOME_SCROLLBACK_LINES
 #  define BOTANIK_HOME_SCROLLBACK_LINES 6
@@ -582,14 +582,14 @@ namespace Botanik { namespace Config {
 
     /** @}
      *  @name TX pacing parameters
-     * 
+     *
      *  We only have one FIFO queue for serial TX and cannot jump ahead, so we need
      *  bulk producers to only progress while the TX buffer is shallow to keep the
      *  the interactive path responsive.
-     * 
-     *  A depth floor gates that; per-tick caps bound the burst once open. 
+     *
+     *  A depth floor gates that; per-tick caps bound the burst once open.
      *  See docs/ for the full model.
-     * 
+     *
      *  @{ */
 
     /** @brief Single paint depth floor */
@@ -606,8 +606,8 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, LOG_ROWS_PER_TICK);
 
-    /** @brief Max decoded input events handled per tick. 
-     *  @note Too low: typing/paste feels sluggish and the RX ring backs up. 
+    /** @brief Max decoded input events handled per tick.
+     *  @note Too low: typing/paste feels sluggish and the RX ring backs up.
      *  @note Too high: a big paste echoes a large burst in one tick. */
 #ifndef BOTANIK_INPUT_EVENTS_PER_TICK
 #  define BOTANIK_INPUT_EVENTS_PER_TICK 4
@@ -726,8 +726,8 @@ namespace Botanik { namespace Config {
 
 #ifdef TARGET_SIMULATOR
 
-    /** @brief CPU core the simulator pins the main thread to. 
-     *  @note Mirros the main loop running on one core of the OPTA. */
+    /** @brief CPU core the simulator pins the main thread to.
+     *  @note Mirrors the main loop running on one core of the OPTA. */
 #ifndef BOTANIK_SIM_MAIN_CPU_CORE
 #  define BOTANIK_SIM_MAIN_CPU_CORE 0
 #endif

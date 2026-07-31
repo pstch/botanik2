@@ -78,20 +78,20 @@ namespace Botanik { namespace Utils {
 
     const char* format_size(char* buf, size_t cap, uint32_t bytes) {
         if (cap == 0) return buf;
-        unsigned long v;
+        long long v;
         const char* unit;
 
         // Format as rounded kibibytes when > 32 KiB
         if (bytes >= 32768u) {
-            v = (unsigned long)((bytes + 512u) / 1024u);
+            v = (long long)((bytes + 512u) / 1024u);
             unit = " KB";
         } else {
-            v = (unsigned long)bytes;
+            v = (long long)bytes;
             unit = " B";
         }
         format_int(buf, cap, v);
 
-        // Append the unit within cap (format_uint left buf NUL-terminated).
+        // Append the unit within cap (format_int left buf NUL-terminated).
         size_t n = 0;
         while (buf[n] != '\0') n++;
         for (size_t i = 0; unit[i] != '\0' && n + 1 < cap; i++) buf[n++] = unit[i];
@@ -114,7 +114,7 @@ namespace Botanik { namespace Utils {
         else if (floor_min)        { v = 0;                u = 'm'; }
 
         // Format in a string buffer
-        // FIXME: let's try do this witout snprintf
+        // FIXME: let's try do this without snprintf
         if (ago) snprintf(buf, cap, "%3u %c ago", v, u);
         else     snprintf(buf, cap, "%3u %c", v, u);
 

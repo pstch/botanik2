@@ -49,7 +49,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         _serial.write(final_byte, fn);                  // write given final byte
         return true;
     }
-    
+
     // State management
     // ------------------------------------------------------------------------
 

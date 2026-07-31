@@ -55,13 +55,13 @@ namespace Botanik { namespace Scheduler {
         uint32_t cpu_jitter_us_max    = 0;      ///< All-time peak CPU jitter, us
         uint32_t tick_count      = 0;           ///< Tick count since init
         uint32_t overruns        = 0;           ///< Cumulative beats skipped to overruns
-        
+
         /** @brief Loop "now" (uptime ms), republished by tick() when the work window opens. */
         uint64_t timestamp_ms    = 0;
     };
 
     /** @class LoopScheduler
-     *  @brief Non-blocking fixed-period loop driver: releases ticks at the 
+     *  @brief Non-blocking fixed-period loop driver: releases ticks at the
      *         configured period, absorbs overruns, and measures its own per-beat
      *         performance (jitter, CPU duty cycle, work duration, stack usage),
      *         publishing everything into the SchedulerContext.
@@ -100,12 +100,10 @@ namespace Botanik { namespace Scheduler {
         /** @} */
 
         /** @name CPU-load (duty cycle) metrics
-         *  @brief Load is the active fraction of each beat:
-         *  (elapsed - slept)/elapsed, so it counts the work plus the
-         *  loop/scheduler overhead and the busy-wait, and excludes only the
-         *  real sleep. Both terms are measured from actual uptime deltas (not
-         *  the requested sleep), so an overrunning sleep or a skipped beat
-         *  self-normalizes instead of inflating the figure.
+         *  @brief Load is a beat's active (non-slept) time over the nominal
+         *  period, so it counts work plus loop overhead plus the busy-wait, and
+         *  an overrunning beat reads past 100%. Both terms come from actual
+         *  uptime deltas, not the requested sleep.
          *  @{ */
 
         Utils::ExpMovingAverage _cpu_load;   ///< EMA of CPU duty cycle
@@ -265,13 +263,14 @@ namespace Botanik { namespace Scheduler {
         /** @brief Advance the next-tick anchor to skip missed beats when the
          *  loop falls behind. */
         void _skip_beats(uint64_t now);
-        /** @brief Filter a beat's scheduling jitter and publish it into the
-         *  context. */
         /** @brief @p us as a fraction of the nominal tick period (0 if the
-         *  period is unset). Single-precision - this file is -Wdouble-promotion. */
+         *  period is unset). Single-precision: the metric math must not promote
+         *  (no double FPU on the M4). */
         float _fraction_of_period(uint64_t us) const {
             return (_period_ms > 0) ? (float)us / (float)(_period_ms * 1000u) : 0.0f;
         }
+        /** @brief Filter a beat's scheduling jitter and publish it into the
+         *  context. */
         void _record_jitter(uint32_t jitter_us);
         /** @brief Compute the beat's CPU duty cycle (active fraction of the
          *  elapsed beat) from the actual slept time and publish it. */

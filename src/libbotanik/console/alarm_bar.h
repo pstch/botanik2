@@ -8,7 +8,7 @@
  *
  * A reverse-video bar on the physical last row (reserved by the terminal when
  * an alarm model is wired), showing " ALARMS : " then the unmasked, un-ack'd
- * alarm codes drawn normal-video so they read as a set. Owned by AnsiTerminal
+ * alarm codes drawn normal-video so they read as a set. Owned by Console
  * and repainted from step() only when the unmasked set changes or the row was
  * wiped (mark_dirty()); the terminal's back-buffer diff then emits just the
  * cells that moved. No change-highlighting - the set is visible as a whole.

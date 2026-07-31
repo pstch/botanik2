@@ -7,8 +7,8 @@
  *
  *  Each `BOTANIK_FEATURE_<X>` toggles one optional subsystem. They are usually
  *  set in the site-specific config.h (`#define BOTANIK_FEATURE_XXX 0`).
- * 
- *  We then use these preprecessor variables to gate code using `#if`. */
+ *
+ *  We then use these preprocessor variables to gate code using `#if`. */
 
 // Features flags
 // ===========================================================================

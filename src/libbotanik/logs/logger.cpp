@@ -5,7 +5,7 @@
  *
  * This logger provides dispatch to multiple writers as well as a
  * single-level hierarchical token bucket filter (TBF) to avoid flooding
- * the writers. We use a global bucket, and a specific bucket for each 
+ * the writers. We use a global bucket, and a specific bucket for each
  * log topic. We take care to apply the per-topic filter before the global
  * one, so that messages suppressed by their topic-specific bucket don't
  * drain the global bucket.

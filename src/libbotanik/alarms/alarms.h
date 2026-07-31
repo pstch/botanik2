@@ -73,20 +73,20 @@ namespace Botanik { namespace Alarms {
         /** @name Static metadata
          *  @{ */
 
-        const char* code;       //< short code, max 8 chars
-        const char* desc;       //< human-readable description
+        const char* code;       ///< short code, max 8 chars
+        const char* desc;       ///< human-readable description
         /** The variable carrying this condition: the model reads it directly
          *  each step (non-zero = active). Left zeroed for the platform-health
          *  alarms, which are driven locally via set_local() and never read a
          *  variable. */
         Vars::VarRef ref;
 
-        int32_t     on_s;       //< time ON  before announcing (log + notify; -1: off)
-        int32_t     off_s;      //< time OFF before announcing (log + notify; -1: off)
-        int32_t     recent_s;   //< duration the event is "recent" (-1: forever)
+        int32_t     on_s;       ///< time ON  before announcing (log + notify; -1: off)
+        int32_t     off_s;      ///< time OFF before announcing (log + notify; -1: off)
+        int32_t     recent_s;   ///< duration the event is "recent" (-1: forever)
 
-        int32_t     off_delay_s;    //< hold ON this long after raw clears (0: none)
-        int32_t     min_on_s;   //< minimum ON time from onset (0: no latch)
+        int32_t     off_delay_s;    ///< hold ON this long after raw clears (0: none)
+        int32_t     min_on_s;   ///< minimum ON time from onset (0: no latch)
         /** Extra notes / caveats (may be null), shown in a line below the ALARMS
          *  table. Last in the metadata block so existing positional literals
          *  that stop earlier keep zero-initialising it. */
@@ -98,15 +98,15 @@ namespace Botanik { namespace Alarms {
         /** local override raw: the runtime-sourced input for platform-health
          *  alarms (set_local); OR'd with the payload boolean for site alarms. */
         bool        local_raw;
-        bool        active;         //< alarm active or latched
+        bool        active;         ///< alarm active or latched
 
-        bool        on_sent;        //< ON  transition announced (log + notify)
-        bool        off_sent;       //< OFF transition announced (log + notify)
+        bool        on_sent;        ///< ON  transition announced (log + notify)
+        bool        off_sent;       ///< OFF transition announced (log + notify)
 
-        bool        user_ack;       //< alarm acknowledged by the user
-        uint64_t    ack_ms;         //< uptime the user ack'd it (valid if user_ack)
-        uint64_t    edge_ms;        //< time since last transition
-        uint64_t    started_ms;     //< time since last ON transition
+        bool        user_ack;       ///< alarm acknowledged by the user
+        uint64_t    ack_ms;         ///< uptime the user ack'd it (valid if user_ack)
+        uint64_t    edge_ms;        ///< time since last transition
+        uint64_t    started_ms;     ///< time since last ON transition
 
         /** latch countdown after the raw bit cleared (0 = not latched).
          *  Wrap-immune; drained by the step elapsed. */
@@ -149,7 +149,7 @@ namespace Botanik { namespace Alarms {
         for (uint8_t i = 0; i < count; i++)
             if (Utils::compare_str(table[i].code, code))
                 return (int)i;
-        // bail if we could'nt find one
+        // bail if we couldn't find one
         return -1;
     }
 
@@ -222,9 +222,9 @@ namespace Botanik { namespace Alarms {
      * to its writers.
      */
     struct AlarmSink {
-        Logs::Logger*         logger;          //< ALARM-topic sink (null = no logging)
-        AlarmNotifier* const* notifiers;       //< borrowed notifier array (may be null)
-        uint8_t               notifier_count;  //< entries in @c notifiers
+        Logs::Logger*         logger;          ///< ALARM-topic sink (null = no logging)
+        AlarmNotifier* const* notifiers;       ///< borrowed notifier array (may be null)
+        uint8_t               notifier_count;  ///< entries in @c notifiers
 
         void log_start(const char* label) const {
             if (logger) logger->warning(Logs::ALARM_START, "%s", label);

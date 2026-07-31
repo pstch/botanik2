@@ -18,7 +18,7 @@ namespace Botanik { namespace Utils {
     /** @name Types
      *  @{ */
 
-    
+
     /** @brief Calendar time, without the tm struct's idiosyncrasies and with
      *  extra total-days / -seconds fields. */
     struct CalendarTime {

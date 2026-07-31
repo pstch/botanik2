@@ -8,7 +8,7 @@
  *
  * Three fields on the reverse-video top row: page tabs (left), a centred
  * HH:MM:SS clock, and a right-aligned "PLC:xxx cpu:nnn% stk:nnn%" metrics field.
- * Owned by AnsiTerminal. The clock and metrics rebuild on their own cadence and
+ * Owned by Console. The clock and metrics rebuild on their own cadence and
  * repaint their whole field; the terminal's back-buffer diff emits only the cells
  * that actually changed, so the bar keeps no diff cache.
  */
