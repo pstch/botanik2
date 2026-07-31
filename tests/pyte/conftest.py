@@ -47,7 +47,7 @@ class Term:
     # (env, honored through pytest/ctest/make alike). Use a release/no-sanitizer
     # sim; a debug+ASAN build is much slower per tick. BOTANIK_NO_XRUN_WARNING (set
     # below) silences the load-dependent overrun logs.
-    def __init__(self, binary, time_scale=50, page=None):
+    def __init__(self, binary, time_scale=50, page=None, watch=(), store=None):
         time_scale = int(os.environ.get("PYTE_TIME_SCALE", time_scale))  # tunable knob
         env = dict(os.environ)
         env["BOTANIK_TIME_SCALE"] = str(time_scale)
@@ -60,6 +60,13 @@ class Term:
         # moments, so without this the alarm set (and thus the alarms-page screen and
         # the persistent alarm bar) varies run to run. See health.h.
         env["BOTANIK_NO_LOAD_ALARMS"] = "1"
+        # Private config store. HAL::Storage otherwise persists to ~/.botanik_config,
+        # which the tests would share with each other (four sims run in parallel) and
+        # with the developer's own sim: test_params commits an edit, so a suite run
+        # left ntp_poll_s=120 behind for every later run and every desktop launch.
+        # storage.cpp documents $BOTANIK_CONFIG_STORE as exactly this override.
+        if store is not None:
+            env["BOTANIK_CONFIG_STORE"] = str(store)
         # main.cpp always boots to Home (switch_to(0)) and ignores BOTANIK_PAGE,
         # but clear it so a stale value from the parent env can never matter.
         env.pop("BOTANIK_PAGE", None)
@@ -80,6 +87,15 @@ class Term:
         self.screen = pyte.Screen(COLS, ROWS)
         self.stream = pyte.Stream(self.screen)
 
+        # Markers to latch as they go by. The screen is a window, not a log: a boot
+        # line lands in the 7-row log tail and scrolls out of it a moment later, so
+        # "has this happened?" cannot be answered by looking at the current screen.
+        # Every pump records which watched markers were visible, and wait_for()
+        # answers from that record. Register them at construction to cover the
+        # bytes that arrive before the first wait_for() call.
+        self._watch = set(watch)
+        self._seen = set()
+
     # -- raw I/O -------------------------------------------------------------
 
     def _pump(self, timeout):
@@ -93,7 +109,16 @@ class Term:
             return 0
         if data:
             self.stream.feed(data.decode("latin-1"))
+            self._latch()
         return len(data)
+
+    def _latch(self):
+        """Record any watched marker currently on screen (see __init__)."""
+        pending = self._watch - self._seen
+        if not pending:
+            return
+        blob = "\n".join(self.screen.display)
+        self._seen |= set(n for n in pending if n in blob)
 
     def send(self, data):
         """Write raw input bytes to the firmware (str is UTF-8 encoded)."""
@@ -131,20 +156,27 @@ class Term:
                 return
 
     def wait_for(self, needles, timeout=6.0):
-        """Pump until every string in `needles` appears somewhere on screen.
+        """Pump until every string in `needles` has been seen on screen.
 
         Content-based sync for events settle() can miss: an async sequence (the
         DNS->NTP->MQTT boot handshake, which retries) emits in bursts with gaps,
         so the quiet window can return mid-sequence. Waiting for its final markers
         is deterministic where a quiet-window guess is not. Returns True once all
         are present, False on timeout (caller proceeds either way).
+
+        "Seen", not "on screen right now": the markers are latched as they arrive
+        (see _latch), so two log lines that never share the visible tail - or one
+        that scrolled past during the preceding settle() - still satisfy the wait.
+        Requiring them simultaneously made this call burn its full timeout on
+        every test, and the sim ages ~50x wall-clock while it waits.
         """
         if isinstance(needles, str):
             needles = (needles,)
+        self._watch |= set(needles)
+        self._latch()
         deadline = time.time() + timeout
         while True:
-            blob = "\n".join(self.screen.display)
-            if all(n in blob for n in needles):
+            if self._seen >= set(needles):
                 return True
             if time.time() >= deadline:
                 return False
@@ -167,7 +199,7 @@ class Term:
 
 
 @pytest.fixture
-def spawn(request):
+def spawn(request, tmp_path):
     """Factory that launches botanik_sim instances and tears them down."""
     sim = request.config.getoption("--sim") or os.environ.get("BOTANIK_SIM")
     if not sim:
@@ -178,6 +210,9 @@ def spawn(request):
     instances = []
 
     def _spawn(**kwargs):
+        # One config store per sim (see Term): pytest's tmp_path is per-test, and
+        # the index keeps two sims in one test from sharing one.
+        kwargs.setdefault("store", tmp_path / f"config{len(instances)}")
         term = Term(sim, **kwargs)
         instances.append(term)
         return term
