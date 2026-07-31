@@ -30,9 +30,11 @@
 #  define BOTANIK_FEATURE_MQTT 0
 #endif
 
-/** @brief Sun altitude tracking */
+/** @brief Sun altitude tracking. Off by default: the tracker is standalone
+ *  (BotanikFirmware does not instantiate it), so a site that wants it turns it
+ *  on in its own config.h and owns the instance. */
 #ifndef BOTANIK_FEATURE_SUN
-#  define BOTANIK_FEATURE_SUN 1
+#  define BOTANIK_FEATURE_SUN 0
 #endif
 
 /** @brief Interactive ANSI console. */

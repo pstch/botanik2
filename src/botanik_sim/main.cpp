@@ -106,6 +106,13 @@ int main(int argc, char** argv) {
     Network::start_mock_netd(&greenhouse.logger());
 #endif
 
+    // Real-time posture for the beat: pages locked in RAM and the loop thread on
+    // SCHED_FIFO, pinned to its own core, so the scheduler's jitter figures
+    // measure the firmware rather than the host's scheduler. Both warn and carry
+    // on without privileges (BOTANIK_NO_RT_WARNING silences that).
+    Scheduler::lock_process_memory(&greenhouse.logger());
+    Scheduler::make_thread_realtime(Config::SIM_MAIN_CPU_CORE, &greenhouse.logger());
+
 
     // Drive the firmware until a shutdown signal flips the run flag. SIGUSR1
     // (sent by a build after relinking) re-execs at this safe point between
