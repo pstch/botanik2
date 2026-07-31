@@ -124,7 +124,9 @@ consumers: the MONITOR page, the shell `status` command, and MQTT telemetry unde
 `ac_supply/grid_v`, not `ac_supply/grid_ac_v`.
 
 Home-screen readings are `HomeField { label, ScalarField var }` in
-`g_home_fields[]`. The page lays out 5 left then 8 right; extras past
+`g_home_fields[]`. The page lays out three columns of 8, filled column-major -
+column 1 holds 6, its top two cells carrying the uptime readout and a spacer
+(labels capped at 11 chars, values at 13); extras past
 `Config::HOME_FIELDS_MAX` used to be dropped silently, so the generated file must
 carry the `static_assert`.
 
@@ -210,7 +212,7 @@ them.
 
 | Constant | Default | Guards against |
 |---|---|---|
-| `Config::HOME_FIELDS_MAX` | 13 | home fields past the two columns being ignored |
+| `Config::HOME_FIELDS_MAX` | 22 | home fields past the three columns being ignored |
 | `Config::SITE_ALARMS_MAX` | 56 | the alarm model clamping and dropping the tail |
 | `Config::ALARM_SLOTS` | 64 | total slots, site + platform |
 | `Config::PLATFORM_ALARMS_RESERVED` | 8 | the library's own share |

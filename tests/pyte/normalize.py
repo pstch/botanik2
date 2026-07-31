@@ -20,7 +20,7 @@ _SUBS = [
     # with-seconds patterns above: its minute prefix would otherwise bite the head
     # off a full HH:MM:SS stamp before they match.
     (re.compile(r"\d{2}/\d{2}/\d{2} \d{2}:\d{2}\b"), "<ALARM_TS>"),            # alarm LAST EVENT
-    (re.compile(r"\d{4,}d \d{2}:\d{2}:\d{2}"), "<UPTIME>"),                    # uptime DDDDd HH:MM:SS
+    (re.compile(r"\d{3,}d \d{2}:\d{2}:\d{2}"), "<UPTIME>"),                    # uptime DDDd HH:MM:SS
     (re.compile(r"\b\d{2}:\d{2}:\d{2}\b"), "<TIME>"),                          # status-bar clock HH:MM:SS
     (re.compile(r"cpu:\s*\d+%"), "cpu:<C>"),                                   # CPU load
     (re.compile(r"stk:\s*\d+%"), "stk:<S>"),                                   # stack high-water
@@ -87,27 +87,8 @@ _SUBS = [
     # timeout is dilated by BOTANIK_TIME_SCALE, so its value differs between the
     # assert suite and a faster golden regen. Mask it (the baud is fixed).
     (re.compile(r"(HW watchdog )\d+( ms)"), r"\g<1><WD>\g<2>"),
-    # Home page site readings (declarative home-field table: label + live value).
-    # The mock animates them, and on a constrained gate the emulator may not run so
-    # they read zero - either way only the value moves, so mask it and keep the
-    # label. Each value is bounded to its column so the pattern never eats the
-    # adjacent column's label.
-    # Left column: also absorb the trailing pad up to the right column, so a
-    # variable-length f32 value (21.5 vs 21.1739) collapses to a fixed token and
-    # doesn't shift the right column in the normalized line.
-    (re.compile(r"(Temp\s+)[\d.]+ C\s+"), r"\g<1><HF> "),
-    (re.compile(r"(Humidity\s+)[\d.]+ %\s+"), r"\g<1><HF> "),
-    (re.compile(r"(Wind\s+)\d+ km/h\s+"), r"\g<1><HF> "),
-    (re.compile(r"(Water in\s+)\d+ L\s+"), r"\g<1><HF> "),
-    (re.compile(r"(Tray\s+)\d+\s+"), r"\g<1><HF> "),
-    (re.compile(r"(Grid\s+)[\d.]+ V"), r"\g<1><HF>"),
-    (re.compile(r"(DC bus\s+)[\d.]+ V"), r"\g<1><HF>"),
-    (re.compile(r"(Battery\s+)[\d.]+ V"), r"\g<1><HF>"),
-    (re.compile(r"(UPS\s+)\w+"), r"\g<1><HF>"),
-    (re.compile(r"(Network\s+)\w+"), r"\g<1><HF>"),
-    (re.compile(r"(NTP sync\s+)\d+"), r"\g<1><HF>"),
-    (re.compile(r"(Cooling\s+)\d+"), r"\g<1><HF>"),
-    (re.compile(r"(Heatpump\s+)\d+"), r"\g<1><HF>"),
+    # (The home page's own site readings are masked after this list - see
+    # _HOME_FIELDS: they are generated from the site's home-field table.)
     # The NTP-sync / MQTT-connect log lines carry the resolved socket address
     # (IP:port); the sim's loopback host part is PID-derived, so strip the
     # parenthesised address back to the bare message the golden pins.
@@ -128,6 +109,39 @@ _SUBS = [
     # fixed catalog size and stays.
     (re.compile(r"\d+ active"), "<NA> active"),
 ]
+
+# Home page site readings (the site's declarative home-field table: label + live
+# value, three columns; column 1 is two cells shorter - uptime + a spacer sit
+# above it). The mock animates them, and on a constrained gate
+# the emulator may not run so they read zero - either way only the value moves,
+# so mask it and keep the label. Mirrors src/sites/gh_mlb41/status.h
+# g_home_fields[]: (label, unit) in table order, so a renamed field shows up here
+# as an unmasked - and therefore flaky - value.
+_HOME_FIELDS = (
+    ("Line V", " V"), ("Line-line", " V"), ("Line Hz", " Hz"), ("Current", " A"),
+    ("Power", " W"), ("Pwr factor", ""),
+    ("L1 V", " V"), ("L2 V", " V"), ("L3 V", " V"),
+    ("L1 A", " A"), ("L2 A", " A"), ("L3 A", " A"),
+    ("Neutral A", " A"), ("THD L-N", " %"),
+    ("ATS V", " V"), ("ATS A", " A"), ("ATS W", " W"), ("ATS Hz", " Hz"),
+    ("Supply Hz", " Hz"), ("Lockout", ""), ("Screen", ""), ("Skirt", ""),
+)
+
+
+def _mask_home_value(m):
+    """Replace a home-field value with a token padded to the field it replaced.
+
+    The pattern absorbs the value's trailing pad up to the next column, so a
+    variable-length f32 (21.5 vs 21.1739) can't shift that column; padding the
+    token back to the same width keeps the golden pinning where the next column
+    starts.
+    """
+    return m.group(1) + "<HF>".ljust(len(m.group(2)))
+
+
+_SUBS += [(re.compile("(" + re.escape(label) + r"\s+)(-?[\d.]+" + unit + r"\s*)"),
+           _mask_home_value)
+          for label, unit in _HOME_FIELDS]
 
 # Timing-noise log lines: the scheduler logs an overrun whenever a tick misses
 # its period, which under time dilation happens at load-dependent moments. The

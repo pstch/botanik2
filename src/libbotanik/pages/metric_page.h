@@ -216,16 +216,17 @@ namespace Botanik { namespace Pages {
         }
 
 
-        /** @brief Format a ms uptime as "DDDDd HH:MM:SS" (fixed-width fields,
-         *  so each subfield keeps a stable column for per-subfield
-         *  highlighting). */
+        /** @brief Format a ms uptime as "DDDd HH:MM:SS" (fixed-width fields, so
+         *  each subfield keeps a stable column for per-subfield highlighting).
+         *  13 columns wide, i.e. one page-column value field; past 999 days the
+         *  day count grows a digit and the field with it. */
         static void fmt_uptime(char* buf, size_t cap, uint64_t ms) {
             uint64_t s = ms / 1000;
             unsigned d   = (unsigned)(s / 86400); s %= 86400;
             unsigned h   = (unsigned)(s / 3600);  s %= 3600;
             unsigned m   = (unsigned)(s / 60);
             unsigned sec = (unsigned)(s % 60);
-            snprintf(buf, cap, "%04ud %02u:%02u:%02u", d, h, m, sec);
+            snprintf(buf, cap, "%03ud %02u:%02u:%02u", d, h, m, sec);
         }
 
         /** @} */
