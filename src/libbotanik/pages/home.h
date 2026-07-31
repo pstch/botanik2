@@ -28,7 +28,7 @@
 #include "../logs/writer.h"
 #include "metric_page.h"
 #include "scrollback.h"
-#include "../core/scalar.h"   // HomeField / scalar_format
+#include "../vars/access.h"   // HomeVar / var_format
 
 // Build-stamped git short hash (generated header); "unknown" when absent
 // (Arduino .ino deploy doesn't run CMake).
@@ -55,9 +55,9 @@ namespace Botanik { namespace Pages {
 
         /** @brief Site home-field table (label + status variable) + the payload
          *  they read. Up to LEFT_MAX + RIGHT_MAX shown; extras ignored. */
-        const HomeField* _fields      = nullptr;
+        const Vars::HomeVar* _fields      = nullptr;
         uint8_t                   _field_count = 0;
-        const void*               _base        = nullptr;
+        const Vars::Io*           _io          = nullptr;
 
         /** @} */
 
@@ -243,15 +243,16 @@ namespace Botanik { namespace Pages {
         void draw_dynamic() override {
             // Cold fields only: the uptime counter is hot (see draw_hot()).
             // Site home-field values (formatted off the live payload + unit).
-            if (_base == nullptr) return;
+            if (_io == nullptr) return;
             for (uint8_t i = 0; i < _field_count; i++) {
                 uint16_t row, lbl, val, w, slot;
                 if (!_field_place(i, row, lbl, val, w, slot)) break;
-                const ScalarField& f = _fields[i].var;
+                Vars::VarView v = Vars::var_view(*_io, _fields[i].ref);
                 char vb[32], buf[40];
-                const char* s = scalar_format(f, _base, vb, sizeof(vb));
-                if (f.unit && f.unit[0]) snprintf(buf, sizeof(buf), "%s %s", s, f.unit);
-                else                     snprintf(buf, sizeof(buf), "%s", s);
+                const char* s = Vars::var_format(v, vb, sizeof(vb));
+                const char* u = v.meta ? v.meta->unit : nullptr;
+                if (u && u[0]) snprintf(buf, sizeof(buf), "%s %s", s, u);
+                else           snprintf(buf, sizeof(buf), "%s", s);
                 _cell(slot, row, val, buf, w);
             }
         }
@@ -267,13 +268,13 @@ namespace Botanik { namespace Pages {
         /** @} */
 
     public:
-        /** @brief @p fields (+ @p count) is the site home-field table and @p base
-         *  the payload it reads (all borrowed; may be null/0 for a bare home
+        /** @brief @p fields (+ @p count) is the site home-field table and @p io
+         *  what resolves them (all borrowed; may be null/0 for a bare home
          *  screen). */
-        HomePage(Console& console, const HomeField* fields = nullptr,
-                 uint8_t count = 0, const void* base = nullptr)
+        HomePage(Console& console, const Vars::HomeVar* fields = nullptr,
+                 uint8_t count = 0, const Vars::Io* io = nullptr)
             : MetricPage(console, 14),
-              _fields(fields), _field_count(count), _base(base) {
+              _fields(fields), _field_count(count), _io(io) {
             // cold-field redraw cadence
             _refresh_ms = Config::HOME_REFRESH_MS;
             // uptime ticks every second

@@ -55,7 +55,7 @@
  * @code
  * // --- site-static tables (single source of truth for this greenhouse) ---
  * const Alarms::AlarmCondition g_alarms[]  = { ... };  // code, desc, offset, dwell
- * const ScalarGroup   g_status[]  = { ... };  // status variables
+ * const Vars::VarGroup g_status[]  = { ... };  // status variables
  * const Shell::ShellCommand    g_cmds[]    = { ... };  // site shell commands
  * const SiteDescriptor g_site = {
  *     Config::SITE_NAME,
@@ -83,7 +83,7 @@
 #include "../shell/shell.h"
 #include "../vars/io.h"      // Vars::Io / IoTables
 #include "../scan/scan.h"     // Scan::Driver / Task
-#include "scalar.h"  // ScalarGroup (status vars)
+#include "../vars/access.h"  // VarGroup / HomeVar (status vars)
 #include "stacks.h"      // Monitor/Console/NetworkStack composition
 #include "libbotanik/params/store_local.h"  // LocalParamStore (flash/file params)
 
@@ -105,8 +105,8 @@ namespace Botanik {
      *   - @c params        - config parameters (Params::Param: name, offset,
      *                        type, scaling, bounds, group).
      *   - @c commands      - site shell commands (Shell::ShellCommand).
-     *   - @c status_groups - read-only status variables (ScalarGroup /
-     *                        ScalarField: name, offset, type, scaling, desc).
+     *   - @c status_groups - read-only status variables (Vars::VarGroup: a
+     *                        sub-topic plus the VarRefs it publishes).
      *   - @c alarms        - alarm conditions (Alarms::AlarmCondition: code,
      *                        desc, data-struct boolean offset, dwell policy).
      *
@@ -119,9 +119,9 @@ namespace Botanik {
         uint8_t                       param_count;
         const Shell::ShellCommand*    commands;            ///< site shell commands
         uint8_t                       command_count;
-        const ScalarGroup*   status_groups;       ///< status-variable table
+        const Vars::VarGroup* status_groups;       ///< status-variable table
         uint8_t                       status_group_count;
-        const HomeField*     home_fields;         ///< home-screen readings
+        const Vars::HomeVar* home_fields;         ///< home-screen readings
         uint8_t                       home_field_count;
         const Alarms::AlarmCondition* alarms;              ///< alarm-condition table
         uint8_t                       alarm_count;
@@ -229,10 +229,10 @@ namespace Botanik {
               _params(&_param_store, &_logger),
               _io(site.io),
               _scan(site.tasks, site.task_count, site.task_stats, &_io, &_logger),
-              // Health takes a null link context + null regions + an empty reader
-              // (only local platform alarms fire; degrades to "kick while alive").
+              // Site alarm conditions resolve against the variable tables;
+              // platform-health alarms are driven locally either way.
               _health(_site.alarms, _site.alarm_count, &_logger,
-                      _scheduler.context(), &_data)
+                      _scheduler.context(), &_io)
               , _sys_ctx()   // fields wired in the body, once addresses are known
 #if BOTANIK_FEATURE_MONITOR
               , _monitor(&_logger)
@@ -248,10 +248,10 @@ namespace Botanik {
                          &_health.model(), &_logger)
               // Base-owned pages, built from the descriptor + the live payload.
               , _home_page(_console.terminal(), _site.home_fields,
-                           _site.home_field_count, data())
+                           _site.home_field_count, &_io)
               , _params_page(_console.terminal(), &_params)
               , _monitor_page(_console.terminal(), _site.status_groups,
-                              _site.status_group_count, data())
+                              _site.status_group_count, &_io)
 #endif
         {
             // Wire the status aggregate now every subsystem address is fixed,
@@ -320,8 +320,7 @@ namespace Botanik {
             // Let the `vars` command enumerate the field IO.
             _console.shell().set_vars(&_io);
             _console.shell().set_status_vars(_site.status_groups,
-                                             _site.status_group_count,
-                                             data());
+                                             _site.status_group_count);
 #if BOTANIK_FEATURE_NTP
             // Let the `ntpsync` command force a resync on the live client.
             _console.shell().set_ntp(&_net.ntp());
@@ -551,12 +550,11 @@ namespace Botanik {
 
 #if BOTANIK_FEATURE_MQTT
         /** @brief Register the site's MQTT telemetry, published after the library
-         *  base set each cycle. Default: the descriptor's status-variable groups,
-         *  read generically off the live PLC payload. */
+         *  base set each cycle. Default: the descriptor's status-variable
+         *  groups, resolved generically against the live variable tables. */
         virtual void register_telemetry() {
             telemetry().set_site_scalar_groups(_site.status_groups,
-                                               _site.status_group_count,
-                                               data());
+                                                _site.status_group_count, &_io);
         }
 #endif
 

@@ -33,7 +33,7 @@ namespace Botanik { namespace Scan {
                 // never caught up (see scan.h). dt is the REAL elapsed time, so a
                 // task that ran late does not lose the time it was late by.
                 dt = (elapsed > 0xFFFFFFFFull) ? 0xFFFFFFFFu : (uint32_t)elapsed;
-                if (t.period_ms != 0 && elapsed >= 2u * t.period_ms) {
+                if (t.period_ms != 0 && elapsed >= 2ull * t.period_ms) {
                     uint64_t skipped = (elapsed / t.period_ms) - 1;
                     missed = (skipped > 0xFFFF) ? 0xFFFF : (uint16_t)skipped;
                     s.missed_total += missed;

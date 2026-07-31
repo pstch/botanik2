@@ -52,6 +52,11 @@ inline void supply_watch(ScanContext& c) {
     // supply is good again.
     lockout(bad_for(unhealthy, 5000, c.dt_ms), !unhealthy);
 
+    // Publish the decision as an internal, so the console, the shell and
+    // telemetry can all see WHY the windows are held - a coil reading 0 does
+    // not distinguish "not commanded" from "locked out".
+    c.io.id(ID_SYS_SUPPLY_LOCKOUT).set(lockout.q());
+
     if (lockout.q()) {
         c.io.dout(DO_CLI_WINDOW1_OPN).set(false);
         c.io.dout(DO_CLI_WINDOW2_OPN).set(false);
@@ -68,7 +73,7 @@ inline void supply_watch(ScanContext& c) {
  */
 inline void supply_report(ScanContext& c) {
     static Scan::Deadband hz;
-    (void)hz(c.io.ai(AI_PWR_HZ).value(), 0.05f);
+    c.io.ia(IA_SYS_SUPPLY_HZ).set(hz(c.io.ai(AI_PWR_HZ).value(), 0.05f));
 }
 
 /** @brief The site's control programs, in execution order. */

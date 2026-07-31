@@ -39,10 +39,12 @@ namespace Botanik { namespace Vars {
     namespace {
         /** @brief The common part of any descriptor. An internal's descriptor
          *  IS the Variable (it has nothing to add), so the two overloads let
-         *  one template walk every table. */
-        inline const Variable& var_of(const Variable& v) { return v; }
+         *  one template walk every table. By pointer, not reference: returning
+         *  a const reference to a parameter invites a use-after-free if the
+         *  argument is ever a temporary. */
+        inline const Variable* var_of(const Variable* v) { return v; }
         template <typename Desc>
-        inline const Variable& var_of(const Desc& d) { return d.var; }
+        inline const Variable* var_of(const Desc* d) { return &d->var; }
 
         /** @brief Seed one table: parse each declared default into its slot and
          *  start invalid, so a variable reads as its default until something
@@ -50,7 +52,7 @@ namespace Botanik { namespace Vars {
         template <typename Desc, typename Val, typename Parse>
         void seed(const Desc* d, Val* v, uint16_t n, Parse parse) {
             for (uint16_t i = 0; i < n; i++) {
-                v[i].def   = parse(var_of(d[i]).def);
+                v[i].def   = parse(var_of(&d[i])->def);
                 v[i].value = v[i].def;
                 v[i].valid = false;
             }

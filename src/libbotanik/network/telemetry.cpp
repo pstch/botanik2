@@ -109,17 +109,19 @@ namespace Botanik { namespace Network {
     }
 
     void MqttSender::_publish_scalars() {
-        if (_groups == nullptr || _scalar_base == nullptr) return;
+        if (_groups == nullptr || _io == nullptr) return;
         char payload[64];
         for (size_t gi = 0; gi < _group_count; ++gi) {
-            const ScalarGroup& g = _groups[gi];
+            const Vars::VarGroup& g = _groups[gi];
             for (size_t i = 0; i < g.count; ++i) {
-                const ScalarField& f = g.fields[i];
-                if (f.name == nullptr) continue;
-                // An ENUM with no mapper is skipped (no payload to publish).
-                if (f.type == SCALAR_ENUM && f.str == nullptr) continue;
-                const char* out = scalar_format(f, _scalar_base, payload, sizeof(payload));
-                _emit(g.topic, f.name, out);
+                Vars::VarView v = Vars::var_view(*_io, g.refs[i]);
+                if (v.meta->name == nullptr) continue;
+                // Publish only what has actually been read: a default value on
+                // the broker is indistinguishable from a measurement, and a
+                // subscriber cannot tell the sensor died.
+                if (!v.valid) continue;
+                const char* out = Vars::var_format(v, payload, sizeof(payload));
+                _emit(g.topic, v.meta->name, out);
             }
         }
     }

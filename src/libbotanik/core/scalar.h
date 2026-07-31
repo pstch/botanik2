@@ -3,12 +3,13 @@
 
 /**
  * @file scalar.h
- * @brief The scalar-variable descriptor types (ScalarType / ScalarField /
- *        ScalarGroup / HomeField) and their generic read/format. One descriptor
- *        serves both a read-only status variable and a read/write config
- *        parameter, so this lives in core (not the network stack): the always-on
- *        shell `status` command, the MONITOR/CONFIG pages, the HomePage fields
- *        and the MQTT telemetry sender all read the same tables.
+ * @brief The scalar descriptor (ScalarType / ScalarField) and its generic
+ *        read/format, addressed by byte offset into a value image.
+ *
+ * Status variables have moved to the variable model (vars/), which addresses by
+ * table and index rather than by offset. What is left here backs the CONFIG
+ * parameters, whose store is still a byte image - folding those in too waits on
+ * an index-addressed parameter store.
  */
 
 #include <cstddef>
@@ -33,17 +34,13 @@ namespace Botanik {
     };
 
     /**
-     * @brief One PLC variable, read-only (a status variable) or read/write (a
-     * config parameter). The single declarative descriptor for both: generated
-     * from the PLC project, addressed by byte offset, rendered generically - no
-     * per-field code. A writable parameter pairs this with a Params::ParamMeta
-     * (default / bounds / group) in a Params::Param; the edit metadata lives
-     * there so this descriptor stays lean for the many read-only status vars.
+     * @brief One config parameter's read/display descriptor: addressed by byte
+     * offset into the parameter image, rendered generically - no per-field
+     * code. A Params::Param pairs it with the edit metadata (default / bounds /
+     * group).
      *
-     * @p out_offset is where the current value is read (in the PLC output image -
-     * the site payload for a status variable, or the parameter's live value).
-     * Real-valued quantities are
-     * SCALAR_F32 in native units (no scaled-integer / divisor convention),
+     * @p out_offset is where the current value is read. Real-valued quantities
+     * are SCALAR_F32 in native units (no scaled-integer / divisor convention),
      * displayed to @c digits decimals.
      */
     struct ScalarField {
@@ -62,24 +59,6 @@ namespace Botanik {
     // stored, silently addressing the wrong field.
     static_assert(Config::PAYLOAD_OFFSET_MAX == (uint16_t)INT16_MAX,
                   "Config::PAYLOAD_OFFSET_MAX must track the offset field width");
-
-    /** @brief A named group of ScalarFields under a shared sub-topic. A site
-     *  declares one ScalarField[] per domain (dc_supply, ac_supply, ...) and
-     *  lists them as a ScalarGroup[]. */
-    struct ScalarGroup {
-        const char*        topic;      ///< shared sub-topic (e.g. "ac_supply")
-        const ScalarField* fields;
-        size_t             count;
-    };
-
-    /** @brief A home-screen reading: a display @p label paired with the status
-     *  variable (@p var) whose live value it shows. A site lists these in a
-     *  HomeField[]; the HomePage lays them out in two columns (up to 5 left +
-     *  8 right = 13). */
-    struct HomeField {
-        const char* label;
-        ScalarField var;
-    };
 
     /** @brief Read @p f's value from @p base (at @p f.out_offset) as a
      *  sign-extended 64-bit integer. memcpy keeps it alignment-safe on the real

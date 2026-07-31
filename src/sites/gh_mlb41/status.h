@@ -3,141 +3,200 @@
 
 /**
  * @file status.h
- * @brief GENERATED - the gh_mlb41 status variables: the read-only telemetry
- *        table and the home-screen readings.
+ * @brief GENERATED - the gh_mlb41 status variables: what the console, the
+ *        shell and MQTT telemetry publish, and the home-screen readings.
  *
- * Generated from the Arduino PLC IDE project. Regenerating overwrites this
- * file.
+ * Generated from the site's IO map. Regenerating overwrites this file.
  *
- * One table, three consumers, no per-field code: the MONITOR page, the shell
- * `status` command, and MQTT telemetry all render these generically off the
- * live payload. Each group is published under
- * "<prefix>/telemetry/<group>/<leaf>", so leaves drop the group prefix
- * (ac_supply/grid_v, not ac_supply/grid_ac_v).
+ * One table, three consumers, no per-variable code: the MONITOR page, the
+ * shell `status` command and MQTT telemetry all resolve these generically
+ * against the live variable tables. Each group is published under
+ * "<prefix>/telemetry/<group>/<name>", where the leaf is the variable's own
+ * name from io.h - there is no second place to keep names in sync.
  *
- * A field is: name, out_offset, type, digits, str, unit, desc,
- * notes. Status variables are read-only, so in_offset is always -1 and the
- * edit metadata (default/min/max/capacity/str_kind/group) is left off. Real
- * values are SCALAR_F32 in native units with a per-field display precision;
- * a SCALAR_ENUM field renders its raw byte through a payload str().
+ * A row is a VarRef: which table, which index. Nothing here carries a byte
+ * offset, so re-ordering a variable table cannot silently re-point a status
+ * row at its neighbour; a stale index resolves inertly instead.
  */
 
-#include <cstddef>   // offsetof
 #include <cstdint>
 
 #include "botanik.h"
 
-#include "data.h"
+#include "io.h"
 
 namespace Site {
 
 using namespace Botanik;
+using namespace Botanik::Vars;
 
-// Trailing fields per row are optional (notes are left off on most rows), so
-// silence the pedantic missing-field-initializer note for the tables.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+/** @name Status groups
+ *  @{ */
 
-#define SO(f) (int16_t)offsetof(SiteData_t, f)
-
-const ScalarField g_ac_supply[] = {
-    { "grid_v",            SO(grid_ac_v), SCALAR_F32, 1,  nullptr,         "V",  "Mains AC voltage",   "" },
-    { "grid_freq_hz",      SO(grid_freq_hz), SCALAR_F32, 2,  nullptr,         "Hz", "Mains frequency",    "" },
-    { "generator_v",       SO(generator_v), SCALAR_F32, 1,  nullptr,         "V",  "Generator voltage",  "" },
-    { "generator_running", SO(generator_running), SCALAR_U8, 0,   nullptr,         "",   "Generator running",  "" },
-    { "ups",               SO(ups_status), SCALAR_ENUM, 0, &UpsStatus::str, "",   "UPS state", "OFFLINE/ONLINE/BATTERY/FAULT" },
+/** @brief Three-phase power meter (SDM630). */
+const VarRef g_grp_power[] = {
+    { VAR_ANALOG_IN, AI_PWR_L1_V },
+    { VAR_ANALOG_IN, AI_PWR_L2_V },
+    { VAR_ANALOG_IN, AI_PWR_L3_V },
+    { VAR_ANALOG_IN, AI_PWR_L1_A },
+    { VAR_ANALOG_IN, AI_PWR_L2_A },
+    { VAR_ANALOG_IN, AI_PWR_L3_A },
+    { VAR_ANALOG_IN, AI_PWR_L1_VA },
+    { VAR_ANALOG_IN, AI_PWR_L2_VA },
+    { VAR_ANALOG_IN, AI_PWR_L3_VA },
+    { VAR_ANALOG_IN, AI_PWR_L1_VAR },
+    { VAR_ANALOG_IN, AI_PWR_L2_VAR },
+    { VAR_ANALOG_IN, AI_PWR_L3_VAR },
+    { VAR_ANALOG_IN, AI_PWR_P1_PF },
+    { VAR_ANALOG_IN, AI_PWR_P2_PF },
+    { VAR_ANALOG_IN, AI_PWR_P3_PF },
+    { VAR_ANALOG_IN, AI_PWR_P1_PA },
+    { VAR_ANALOG_IN, AI_PWR_P2_PA },
+    { VAR_ANALOG_IN, AI_PWR_P3_PA },
+    { VAR_ANALOG_IN, AI_PWR_LN_V },
+    { VAR_ANALOG_IN, AI_PWR_LL_V },
+    { VAR_ANALOG_IN, AI_PWR_AVG_A },
+    { VAR_ANALOG_IN, AI_PWR_TOTAL_A },
+    { VAR_ANALOG_IN, AI_PWR_TOTAL_W },
+    { VAR_ANALOG_IN, AI_PWR_TOTAL_VA },
+    { VAR_ANALOG_IN, AI_PWR_TOTAL_VAR },
+    { VAR_ANALOG_IN, AI_PWR_TOTAL_PF },
+    { VAR_ANALOG_IN, AI_PWR_TOTAL_PA },
+    { VAR_ANALOG_IN, AI_PWR_HZ },
+    { VAR_ANALOG_IN, AI_PWR_12_V },
+    { VAR_ANALOG_IN, AI_PWR_L23_V },
+    { VAR_ANALOG_IN, AI_PWR_L31_V },
+    { VAR_ANALOG_IN, AI_PWR_LL_AVG_THD },
+    { VAR_ANALOG_IN, AI_PWR_LN_AVG_THD },
+    { VAR_ANALOG_IN, AI_PWR_N_A },
+    { VAR_ANALOG_IN, AI_PWR_L1_W },
+    { VAR_ANALOG_IN, AI_PWR_L2_W },
+    { VAR_ANALOG_IN, AI_PWR_L3_W },
 };
 
-const ScalarField g_dc_supply[] = {
-    { "bus_v",          SO(dc_bus_v), SCALAR_F32, 1, nullptr, "V", "DC bus voltage",       "" },
-    { "battery_v",      SO(battery_v), SCALAR_F32, 1, nullptr, "V", "Battery bank voltage", "" },
-    { "rectifier_a_ok", SO(dc_bus_a_ok), SCALAR_U8, 0,  nullptr, "",  "Rectifier A healthy",  "" },
-    { "rectifier_b_ok", SO(dc_bus_b_ok), SCALAR_U8, 0,  nullptr, "",  "Rectifier B healthy",  "" },
+/** @brief Transfer-switch meter (MCT1-140). */
+const VarRef g_grp_ats[] = {
+    { VAR_ANALOG_IN, AI_ATS_V },
+    { VAR_ANALOG_IN, AI_ATS_A },
+    { VAR_ANALOG_IN, AI_ATS_W },
+    { VAR_ANALOG_IN, AI_ATS_VAR },
+    { VAR_ANALOG_IN, AI_ATS_VA },
+    { VAR_ANALOG_IN, AI_ATS_HZ },
 };
 
-const ScalarField g_environment[] = {
-    { "ext_temp_c",    SO(ext_temp_c), SCALAR_F32, 1, nullptr, "C",    "Exterior temperature",      "" },
-    { "floor_temp_c",  SO(floor_temp_c), SCALAR_F32, 1, nullptr, "C",    "Floor-level temperature",   "" },
-    { "ceil_temp_c",   SO(ceil_temp_c), SCALAR_F32, 1, nullptr, "C",    "Ceiling-level temperature", "" },
-    { "ext_rh_pct",    SO(ext_rh_pct), SCALAR_F32, 1, nullptr, "%",    "Exterior humidity",         "" },
-    { "floor_rh_pct",  SO(floor_rh_pct), SCALAR_F32, 1, nullptr, "%",    "Floor humidity",            "" },
-    { "ceil_rh_pct",   SO(ceil_rh_pct), SCALAR_F32, 1, nullptr, "%",    "Ceiling humidity",          "" },
-    { "wind_peak_kmh", SO(wind_peak_kmh), SCALAR_U16, 0, nullptr, "km/h", "15-min peak wind",          "" },
-    { "rain_age_s",    SO(rain_age_s), SCALAR_U32, 0, nullptr, "s",    "Time since last rain", "0 while raining" },
-    { "rain_detected", SO(rain_detected), SCALAR_U8, 0,  nullptr, "",     "Rain sensor",               "" },
+/** @brief Climate actuators: window drives, destratification fans, screen. */
+const VarRef g_grp_climate[] = {
+    { VAR_DIGITAL_OUT, DO_CLI_WINDOW1_OPN },
+    { VAR_DIGITAL_OUT, DO_CLI_WINDOW1_CLO },
+    { VAR_DIGITAL_OUT, DO_CLI_WINDOW2_OPN },
+    { VAR_DIGITAL_OUT, DO_CLI_WINDOW2_CLO },
+    { VAR_DIGITAL_OUT, DO_CLI_WINDOW3_OPN },
+    { VAR_DIGITAL_OUT, DO_CLI_WINDOW3_CLO },
+    { VAR_DIGITAL_OUT, DO_CLI_DESTRAT1_SPEED1 },
+    { VAR_DIGITAL_OUT, DO_CLI_DESTRAT1_SPEED2 },
+    { VAR_DIGITAL_OUT, DO_CLI_DESTRAT1_SPEED3 },
+    { VAR_DIGITAL_OUT, DO_CLI_SCREEN },
+    { VAR_DIGITAL_OUT, DO_CLI_WINDOW4_OPN },
+    { VAR_DIGITAL_OUT, DO_CLI_WINDOW4_CLO },
+    { VAR_DIGITAL_OUT, DO_CLI_DESTRAT2_SPEED1 },
+    { VAR_DIGITAL_OUT, DO_CLI_DESTRAT2_SPEED2 },
+    { VAR_DIGITAL_OUT, DO_CLI_DESTRAT2_SPEED3 },
+    { VAR_DIGITAL_OUT, DO_CLI_SKIRTVALVE },
 };
 
-const ScalarField g_irrigation[] = {
-    { "water_in_l",    SO(water_in_l), SCALAR_U16, 0,  nullptr, "L",     "Cumulative water input", "" },
-    { "water_out_lpm", SO(water_out_lpm), SCALAR_U16, 0,  nullptr, "L/min", "Current drain flow",     "" },
-    { "current_tray",  SO(current_tray), SCALAR_U8, 0,   nullptr, "",      "Active tray",            "0 = none" },
-    { "tray_status",   SO(tray_status), SCALAR_ENUM, 0, &TrayStatus::str, "", "Tray cycle phase", "IDLE/FILLING/SOAKING/DRAINING" },
+/** @brief Irrigation valves and tray selectors. */
+const VarRef g_grp_irrigation[] = {
+    { VAR_DIGITAL_OUT, DO_IRR_INPUT_RO1 },
+    { VAR_DIGITAL_OUT, DO_IRR_OUTPUT_RO1 },
+    { VAR_DIGITAL_OUT, DO_IRR_TRAY1 },
+    { VAR_DIGITAL_OUT, DO_IRR_TRAY2 },
+    { VAR_DIGITAL_OUT, DO_IRR_INPUT_RO2 },
+    { VAR_DIGITAL_OUT, DO_IRR_OUTPUT_RO2 },
+    { VAR_DIGITAL_OUT, DO_IRR_TRAY3 },
+    { VAR_DIGITAL_OUT, DO_IRR_TRAY4 },
+    { VAR_DIGITAL_OUT, DO_IRR_TRAY5 },
+    { VAR_DIGITAL_OUT, DO_IRR_TRAY6 },
+    { VAR_DIGITAL_OUT, DO_IRR_TRAY7 },
+    { VAR_DIGITAL_OUT, DO_IRR_TRAY8 },
 };
 
-const ScalarField g_ventilation[] = {
-    { "window_a",    SO(window_a), SCALAR_U8, 0, nullptr, "%", "Roof window A opening", "" },
-    { "window_b",    SO(window_b), SCALAR_U8, 0, nullptr, "%", "Roof window B opening", "" },
-    { "window_c",    SO(window_c), SCALAR_U8, 0, nullptr, "%", "Roof window C opening", "" },
-    { "window_d",    SO(window_d), SCALAR_U8, 0, nullptr, "%", "Roof window D opening", "" },
-    { "blower_a",    SO(blower_a), SCALAR_U8, 0, nullptr, "%", "Blower A level",        "" },
-    { "blower_b",    SO(blower_b), SCALAR_U8, 0, nullptr, "%", "Blower B level",        "" },
-    { "blower_c",    SO(blower_c), SCALAR_U8, 0, nullptr, "%", "Blower C level",        "" },
-    { "blower_d",    SO(blower_d), SCALAR_U8, 0, nullptr, "%", "Blower D level",        "" },
-    { "extractor_a", SO(extractor_a), SCALAR_U8, 0, nullptr, "%", "Air extractor A level", "" },
-    { "extractor_b", SO(extractor_b), SCALAR_U8, 0, nullptr, "%", "Air extractor B level", "" },
+/** @brief Alarm conditions. Computed digitals, so the alarms page, the monitor
+ *  table and telemetry all read the one set of booleans. */
+const VarRef g_grp_alarms[] = {
+    { VAR_INTERNAL_DIGITAL, ID_AC_GRID },
+    { VAR_INTERNAL_DIGITAL, ID_DC_PS1 },
+    { VAR_INTERNAL_DIGITAL, ID_GEN_FLT },
+    { VAR_INTERNAL_DIGITAL, ID_AC_LOCAL },
+    { VAR_INTERNAL_DIGITAL, ID_DC_PS2 },
+    { VAR_INTERNAL_DIGITAL, ID_DC_UPS },
+    { VAR_INTERNAL_DIGITAL, ID_DC_LOCAL },
+    { VAR_INTERNAL_DIGITAL, ID_GEN_BATT },
+    { VAR_INTERNAL_DIGITAL, ID_PLC_FLT },
+    { VAR_INTERNAL_DIGITAL, ID_NET_FLT },
+    { VAR_INTERNAL_DIGITAL, ID_NTP_TIM },
+    { VAR_INTERNAL_DIGITAL, ID_ACT_FLT },
+    { VAR_INTERNAL_DIGITAL, ID_SNS_FLT },
+    { VAR_INTERNAL_DIGITAL, ID_TOO_HOT },
+    { VAR_INTERNAL_DIGITAL, ID_TOO_COLD },
+    { VAR_INTERNAL_DIGITAL, ID_TOO_HUM },
+    { VAR_INTERNAL_DIGITAL, ID_TMP_STR },
+    { VAR_INTERNAL_DIGITAL, ID_WTR_LK },
+    { VAR_INTERNAL_DIGITAL, ID_WTR_BAR },
+    { VAR_INTERNAL_DIGITAL, ID_WTR_CLOG },
+    { VAR_INTERNAL_DIGITAL, ID_IO_DROP },
+    { VAR_INTERNAL_DIGITAL, ID_LOG_FLD },
+    { VAR_INTERNAL_DIGITAL, ID_WH_STORM },
 };
 
-const ScalarField g_climate[] = {
-    { "heatpump",       SO(heatpump_on), SCALAR_U8, 0, nullptr, "",  "Heatpump",               "" },
-    { "heat_blower",    SO(heat_blower_on), SCALAR_U8, 0, nullptr, "",  "Emergency heat blower",  "" },
-    { "cooling",        SO(cooling_on), SCALAR_U8, 0, nullptr, "",  "Evaporative cooling",    "" },
-    { "thermal_screen", SO(thermal_screen), SCALAR_U8, 0, nullptr, "%", "Thermal screen closure", "" },
+/** @brief Firmware-derived state. */
+const VarRef g_grp_system[] = {
+    { VAR_INTERNAL_ANALOG,  IA_SYS_SUPPLY_HZ },
+    { VAR_INTERNAL_DIGITAL, ID_SYS_SUPPLY_LOCKOUT },
 };
 
-const ScalarField g_system[] = {
-    { "net_status",    SO(net_status), SCALAR_ENUM, 0, &NetStatus::str, "",    "Network link state", "DOWN/LINK/ONLINE" },
-    { "ntp_synced",    SO(ntp_synced), SCALAR_U8, 0,   nullptr, "",    "NTP disciplined the RTC", "" },
-    { "ntp_offset_ms", SO(ntp_offset_ms), SCALAR_I16, 0,  nullptr, "ms",  "NTP clock offset",        "" },
-    { "sunrise_min",   SO(sunrise_min), SCALAR_U16, 0,  nullptr, "min", "Sunrise",                 "" },
-    { "sunset_min",    SO(sunset_min), SCALAR_U16, 0,  nullptr, "min", "Sunset",                  "" },
-};
+#define GRP(nm) { #nm, g_grp_##nm, (uint16_t)(sizeof(g_grp_##nm) / sizeof(g_grp_##nm[0])) }
 
-const ScalarGroup g_status_groups[] = {
-    { "ac_supply",   g_ac_supply,   sizeof(g_ac_supply)   / sizeof(g_ac_supply[0])   },
-    { "dc_supply",   g_dc_supply,   sizeof(g_dc_supply)   / sizeof(g_dc_supply[0])   },
-    { "environment", g_environment, sizeof(g_environment) / sizeof(g_environment[0]) },
-    { "irrigation",  g_irrigation,  sizeof(g_irrigation)  / sizeof(g_irrigation[0])  },
-    { "ventilation", g_ventilation, sizeof(g_ventilation) / sizeof(g_ventilation[0]) },
-    { "climate",     g_climate,     sizeof(g_climate)     / sizeof(g_climate[0])     },
-    { "system",      g_system,      sizeof(g_system)      / sizeof(g_system[0])      },
+const VarGroup g_status_groups[] = {
+    GRP(power),
+    GRP(ats),
+    GRP(climate),
+    GRP(irrigation),
+    GRP(alarms),
+    GRP(system),
 };
 const uint8_t g_status_group_count =
     (uint8_t)(sizeof(g_status_groups) / sizeof(g_status_groups[0]));
 
-// Home-screen readings: label + status variable. The HomePage lays these out in
-// two columns, LEFT_MAX then RIGHT_MAX. Inner ScalarField fields: name,
-// out_offset, type, digits, str, unit.
-const HomeField g_home_fields[] = {
-    // left column
-    { "Temp",      { "", SO(ext_temp_c), SCALAR_F32, 1, nullptr, "C" } },
-    { "Humidity",  { "", SO(ext_rh_pct), SCALAR_F32, 1, nullptr, "%" } },
-    { "Wind",      { "", SO(wind_peak_kmh), SCALAR_U16, 0, nullptr, "km/h" } },
-    { "Water in",  { "", SO(water_in_l), SCALAR_U16, 0, nullptr, "L" } },
-    { "Tray",      { "", SO(current_tray), SCALAR_U8, 0,  nullptr, "" } },
-    // right column
-    { "Grid",      { "", SO(grid_ac_v), SCALAR_F32, 1,  nullptr,         "V" } },
-    { "DC bus",    { "", SO(dc_bus_v), SCALAR_F32, 1,  nullptr,         "V" } },
-    { "Battery",   { "", SO(battery_v), SCALAR_F32, 1,  nullptr,         "V" } },
-    { "UPS",       { "", SO(ups_status), SCALAR_ENUM, 0, &UpsStatus::str, "" } },
-    { "Network",   { "", SO(net_status), SCALAR_ENUM, 0, &NetStatus::str, "" } },
-    { "NTP sync",  { "", SO(ntp_synced), SCALAR_U8, 0,   nullptr,         "" } },
-    { "Cooling",   { "", SO(cooling_on), SCALAR_U8, 0,   nullptr,         "" } },
-    { "Heatpump",  { "", SO(heatpump_on), SCALAR_U8, 0,   nullptr,         "" } },
-};
-const uint8_t g_home_field_count = (uint8_t)(sizeof(g_home_fields) / sizeof(g_home_fields[0]));
+#undef GRP
 
-#undef SO
-#pragma GCC diagnostic pop
+/** @} */
+
+/** @name Home screen
+ *  @{ */
+
+/** @brief Home-screen readings: label + variable. The HomePage lays these out
+ *  in two columns, 5 left then 8 right. */
+const HomeVar g_home_fields[] = {
+    // left column: the incoming supply at a glance
+    { "Line V",    { VAR_ANALOG_IN, AI_PWR_LN_V } },
+    { "Line Hz",   { VAR_ANALOG_IN, AI_PWR_HZ } },
+    { "Current",   { VAR_ANALOG_IN, AI_PWR_TOTAL_A } },
+    { "Power",     { VAR_ANALOG_IN, AI_PWR_TOTAL_W } },
+    { "Pwr factor",{ VAR_ANALOG_IN, AI_PWR_TOTAL_PF } },
+    // right column: the transfer switch, then derived state
+    { "ATS V",     { VAR_ANALOG_IN, AI_ATS_V } },
+    { "ATS A",     { VAR_ANALOG_IN, AI_ATS_A } },
+    { "ATS W",     { VAR_ANALOG_IN, AI_ATS_W } },
+    { "ATS Hz",    { VAR_ANALOG_IN, AI_ATS_HZ } },
+    { "Supply Hz", { VAR_INTERNAL_ANALOG,  IA_SYS_SUPPLY_HZ } },
+    { "Lockout",   { VAR_INTERNAL_DIGITAL, ID_SYS_SUPPLY_LOCKOUT } },
+    { "Screen",    { VAR_DIGITAL_OUT, DO_CLI_SCREEN } },
+    { "Skirt",     { VAR_DIGITAL_OUT, DO_CLI_SKIRTVALVE } },
+};
+const uint8_t g_home_field_count =
+    (uint8_t)(sizeof(g_home_fields) / sizeof(g_home_fields[0]));
+
+/** @} */
 
 // Capacity contract: the home screen silently ignores fields past its two
 // columns, so pin the count at compile time instead.

@@ -82,7 +82,7 @@ TEST_CASE("AlarmModel: a transition fans out to every registered notifier") {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
     // announce ON/OFF at once (on_s = off_s = 0).
-    const AlarmCondition TABLE[] = { { "X", "x", 0, 0, 0, 0, 0 } };
+    const AlarmCondition TABLE[] = { { "X", "x", {}, 0, 0, 0, 0 } };
 #pragma GCC diagnostic pop
     AlarmModel m(TABLE, 1, nullptr);
     CountingNotifier a, b;

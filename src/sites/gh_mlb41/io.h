@@ -46,14 +46,16 @@ using namespace Botanik::Vars;
 // Meter reading: a REAL over Modbus, read by object index. Bands are generous
 // on purpose - they exist to catch a dead or unplugged meter reporting a rail,
 // not to police the process.
-#define MTR(nm, unit, dev, obj, lo, hi, desc) \
-    { {nm, unit, desc, "", "0"}, {IO_MODBUS_RTU, dev, obj, 3}, \
+// `dgt` is the display precision: a power factor rendered to 0 decimals is
+// useless, a watt reading to 2 is noise.
+#define MTR(nm, unit, dgt, dev, obj, lo, hi, desc) \
+    { {nm, unit, desc, "", "0", dgt, nullptr}, {IO_MODBUS_RTU, dev, obj, 3}, \
       SCALAR_F32, 1.0f, 0.0f, lo, hi, 5000 }
 
 // Relay coil. Default "0" is the safe state: every actuator de-energises on a
 // fault, which for windows, valves and fans is the direction that does no harm.
 #define COIL(nm, dev, coil, desc) \
-    { {nm, "", desc, "", "0"}, {IO_MODBUS_RTU, dev, coil, 5}, false }
+    { {nm, "", desc, "", "0", 0, nullptr}, {IO_MODBUS_RTU, dev, coil, 5}, false }
 
 /** @name Analog inputs (43)
  *
@@ -66,53 +68,53 @@ using namespace Botanik::Vars;
 
 const AnalogInVar g_analog_in[] = {
     // -- SRR/TAC/MTR-1, Eastron SDM630, addr 5: three-phase power meter --
-    MTR("pwr_L1_V",        "V",   5,  0, 0.0f,   500.0f, "L1 phase voltage"),
-    MTR("pwr_L2_V",        "V",   5,  1, 0.0f,   500.0f, "L2 phase voltage"),
-    MTR("pwr_L3_V",        "V",   5,  2, 0.0f,   500.0f, "L3 phase voltage"),
-    MTR("pwr_L1_A",        "A",   5,  3, 0.0f,   200.0f, "L1 current"),
-    MTR("pwr_L2_A",        "A",   5,  4, 0.0f,   200.0f, "L2 current"),
-    MTR("pwr_L3_A",        "A",   5,  5, 0.0f,   200.0f, "L3 current"),
-    MTR("pwr_L1_VA",       "VA",  5,  6, -1e6f,  1e6f,   "L1 apparent power"),
-    MTR("pwr_L2_VA",       "VA",  5,  7, -1e6f,  1e6f,   "L2 apparent power"),
-    MTR("pwr_L3_VA",       "VA",  5,  8, -1e6f,  1e6f,   "L3 apparent power"),
-    MTR("pwr_L1_VAr",      "VAr", 5,  9, -1e6f,  1e6f,   "L1 reactive power"),
-    MTR("pwr_L2_VAr",      "VAr", 5, 10, -1e6f,  1e6f,   "L2 reactive power"),
-    MTR("pwr_L3_VAr",      "VAr", 5, 11, -1e6f,  1e6f,   "L3 reactive power"),
-    MTR("pwr_P1_PF",       "",    5, 12, -1.0f,  1.0f,   "L1 power factor"),
-    MTR("pwr_P2_PF",       "",    5, 13, -1.0f,  1.0f,   "L2 power factor"),
-    MTR("pwr_P3_PF",       "",    5, 14, -1.0f,  1.0f,   "L3 power factor"),
-    MTR("pwr_P1_PA",       "deg", 5, 15, -180.0f, 180.0f, "L1 phase angle"),
-    MTR("pwr_P2_PA",       "deg", 5, 16, -180.0f, 180.0f, "L2 phase angle"),
-    MTR("pwr_P3_PA",       "deg", 5, 17, -180.0f, 180.0f, "L3 phase angle"),
-    MTR("pwr_LN_V",        "V",   5, 18, 0.0f,   500.0f, "average line-to-neutral voltage"),
-    MTR("pwr_LL_V",        "V",   5, 19, 0.0f,   900.0f, "average line-to-line voltage"),
-    MTR("pwr_avg_A",       "A",   5, 20, 0.0f,   200.0f, "average current"),
-    MTR("pwr_total_A",     "A",   5, 21, 0.0f,   600.0f, "total current"),
-    MTR("pwr_total_W",     "W",   5, 22, -1e6f,  1e6f,   "total active power"),
-    MTR("pwr_total_VA",    "VA",  5, 23, -1e6f,  1e6f,   "total apparent power"),
-    MTR("pwr_total_VAR",   "VAr", 5, 24, -1e6f,  1e6f,   "total reactive power"),
-    MTR("pwr_total_PF",    "",    5, 25, -1.0f,  1.0f,   "total power factor"),
-    MTR("pwr_total_PA",    "deg", 5, 26, -180.0f, 180.0f, "total phase angle"),
-    MTR("pwr_Hz",          "Hz",  5, 27, 0.0f,   100.0f, "line frequency"),
-    MTR("pwr_12_V",        "V",   5, 28, 0.0f,   900.0f, "L1-L2 voltage"),
-    MTR("pwr_L23_V",       "V",   5, 29, 0.0f,   900.0f, "L2-L3 voltage"),
-    MTR("pwr_L31_V",       "V",   5, 30, 0.0f,   900.0f, "L3-L1 voltage"),
-    MTR("pwr_LL_avg_THD",  "%",   5, 31, 0.0f,   100.0f, "line-to-line average THD"),
-    MTR("pwr_LN_avg_THD",  "%",   5, 32, 0.0f,   100.0f, "line-to-neutral average THD"),
-    MTR("pwr_N_A",         "A",   5, 33, 0.0f,   200.0f, "neutral current"),
-    MTR("pwr_L1_W",        "W",   5, 34, -1e6f,  1e6f,   "L1 active power"),
-    MTR("pwr_L2_W",        "W",   5, 35, -1e6f,  1e6f,   "L2 active power"),
-    MTR("pwr_L3_W",        "W",   5, 36, -1e6f,  1e6f,   "L3 active power"),
+    MTR("pwr_L1_V",        "V", 1,   5,  0, 0.0f,   500.0f, "L1 phase voltage"),
+    MTR("pwr_L2_V",        "V", 1,   5,  1, 0.0f,   500.0f, "L2 phase voltage"),
+    MTR("pwr_L3_V",        "V", 1,   5,  2, 0.0f,   500.0f, "L3 phase voltage"),
+    MTR("pwr_L1_A",        "A", 1,   5,  3, 0.0f,   200.0f, "L1 current"),
+    MTR("pwr_L2_A",        "A", 1,   5,  4, 0.0f,   200.0f, "L2 current"),
+    MTR("pwr_L3_A",        "A", 1,   5,  5, 0.0f,   200.0f, "L3 current"),
+    MTR("pwr_L1_VA",       "VA", 0,  5,  6, -1e6f,  1e6f,   "L1 apparent power"),
+    MTR("pwr_L2_VA",       "VA", 0,  5,  7, -1e6f,  1e6f,   "L2 apparent power"),
+    MTR("pwr_L3_VA",       "VA", 0,  5,  8, -1e6f,  1e6f,   "L3 apparent power"),
+    MTR("pwr_L1_VAr",      "VAr", 0, 5,  9, -1e6f,  1e6f,   "L1 reactive power"),
+    MTR("pwr_L2_VAr",      "VAr", 0, 5, 10, -1e6f,  1e6f,   "L2 reactive power"),
+    MTR("pwr_L3_VAr",      "VAr", 0, 5, 11, -1e6f,  1e6f,   "L3 reactive power"),
+    MTR("pwr_P1_PF",       "", 3,    5, 12, -1.0f,  1.0f,   "L1 power factor"),
+    MTR("pwr_P2_PF",       "", 3,    5, 13, -1.0f,  1.0f,   "L2 power factor"),
+    MTR("pwr_P3_PF",       "", 3,    5, 14, -1.0f,  1.0f,   "L3 power factor"),
+    MTR("pwr_P1_PA",       "deg", 1, 5, 15, -180.0f, 180.0f, "L1 phase angle"),
+    MTR("pwr_P2_PA",       "deg", 1, 5, 16, -180.0f, 180.0f, "L2 phase angle"),
+    MTR("pwr_P3_PA",       "deg", 1, 5, 17, -180.0f, 180.0f, "L3 phase angle"),
+    MTR("pwr_LN_V",        "V", 1,   5, 18, 0.0f,   500.0f, "average line-to-neutral voltage"),
+    MTR("pwr_LL_V",        "V", 1,   5, 19, 0.0f,   900.0f, "average line-to-line voltage"),
+    MTR("pwr_avg_A",       "A", 1,   5, 20, 0.0f,   200.0f, "average current"),
+    MTR("pwr_total_A",     "A", 1,   5, 21, 0.0f,   600.0f, "total current"),
+    MTR("pwr_total_W",     "W", 0,   5, 22, -1e6f,  1e6f,   "total active power"),
+    MTR("pwr_total_VA",    "VA", 0,  5, 23, -1e6f,  1e6f,   "total apparent power"),
+    MTR("pwr_total_VAR",   "VAr", 0, 5, 24, -1e6f,  1e6f,   "total reactive power"),
+    MTR("pwr_total_PF",    "", 3,    5, 25, -1.0f,  1.0f,   "total power factor"),
+    MTR("pwr_total_PA",    "deg", 1, 5, 26, -180.0f, 180.0f, "total phase angle"),
+    MTR("pwr_Hz",          "Hz", 2,  5, 27, 0.0f,   100.0f, "line frequency"),
+    MTR("pwr_12_V",        "V", 1,   5, 28, 0.0f,   900.0f, "L1-L2 voltage"),
+    MTR("pwr_L23_V",       "V", 1,   5, 29, 0.0f,   900.0f, "L2-L3 voltage"),
+    MTR("pwr_L31_V",       "V", 1,   5, 30, 0.0f,   900.0f, "L3-L1 voltage"),
+    MTR("pwr_LL_avg_THD",  "%", 1,   5, 31, 0.0f,   100.0f, "line-to-line average THD"),
+    MTR("pwr_LN_avg_THD",  "%", 1,   5, 32, 0.0f,   100.0f, "line-to-neutral average THD"),
+    MTR("pwr_N_A",         "A", 1,   5, 33, 0.0f,   200.0f, "neutral current"),
+    MTR("pwr_L1_W",        "W", 0,   5, 34, -1e6f,  1e6f,   "L1 active power"),
+    MTR("pwr_L2_W",        "W", 0,   5, 35, -1e6f,  1e6f,   "L2 active power"),
+    MTR("pwr_L3_W",        "W", 0,   5, 36, -1e6f,  1e6f,   "L3 active power"),
 
     // -- SRR/TAC/MTR-2, Lettel MCT1-140, addr 6: single-phase meter --
     // Object 2 (ats_W) is not in the published device map, which lists this
     // meter as 5 signals; it is mapped here deliberately.
-    MTR("ats_V",           "V",   6,  0, 0.0f,   500.0f, "ATS voltage"),
-    MTR("ats_A",           "A",   6,  1, 0.0f,   200.0f, "ATS current"),
-    MTR("ats_W",           "W",   6,  2, 0.0f,   1000.0f, "ATS active power"),
-    MTR("ats_VAr",         "VAr", 6,  3, -1e6f,  1e6f,   "ATS reactive power"),
-    MTR("ats_VA",          "VA",  6,  4, -1e6f,  1e6f,   "ATS apparent power"),
-    MTR("ats_Hz",          "Hz",  6,  5, 0.0f,   100.0f, "ATS frequency"),
+    MTR("ats_V",           "V", 1,   6,  0, 0.0f,   500.0f, "ATS voltage"),
+    MTR("ats_A",           "A", 1,   6,  1, 0.0f,   200.0f, "ATS current"),
+    MTR("ats_W",           "W", 0,   6,  2, 0.0f,   1000.0f, "ATS active power"),
+    MTR("ats_VAr",         "VAr", 0, 6,  3, -1e6f,  1e6f,   "ATS reactive power"),
+    MTR("ats_VA",          "VA", 0,  6,  4, -1e6f,  1e6f,   "ATS apparent power"),
+    MTR("ats_Hz",          "Hz", 2,  6,  5, 0.0f,   100.0f, "ATS frequency"),
 };
 const uint16_t g_analog_in_count = (uint16_t)(sizeof(g_analog_in) / sizeof(g_analog_in[0]));
 
@@ -192,6 +194,77 @@ enum DoId : uint16_t {
 
 /** @} */
 
+
+/** @name Internal variables (computed globals)
+ *
+ *  Everything the firmware derives rather than reads. They are variables like
+ *  any other - the monitor page, the shell and telemetry resolve them through
+ *  the same VarRef - which is what lets the site describe its whole state
+ *  without a payload struct for the console to walk.
+ *  @{ */
+
+/** @brief Computed analog globals, written by the control programs. */
+const Variable g_internal_analog[] = {
+    { "sys_supply_hz", "Hz", "deadbanded incoming supply frequency", "", "0", 2, nullptr },
+};
+const uint16_t g_internal_analog_count =
+    (uint16_t)(sizeof(g_internal_analog) / sizeof(g_internal_analog[0]));
+
+/** @brief Symbolic index per computed analog. */
+enum IaId : uint16_t {
+    IA_SYS_SUPPLY_HZ,
+    IA_COUNT
+};
+
+/** @brief Computed digital globals: the alarm conditions, plus the state flags
+ *  the control programs latch.
+ *
+ *  The alarm rows come FIRST and in alarms.h order, because each row of that
+ *  table now names its condition by VarRef - the two files are generated
+ *  together and their order is the contract between them. */
+const Variable g_internal_digital[] = {
+    { "alarm_ac_grid",        "", "Grid AC out-of-spec/offline",            "", "0", 0, nullptr },
+    { "alarm_dc_ps1",         "", "DC PS1 volts too low",                   "", "0", 0, nullptr },
+    { "alarm_gen_flt",        "", "Generator failed to start",              "", "0", 0, nullptr },
+    { "alarm_ac_local",       "", "Local AC out of spec or offline",        "", "0", 0, nullptr },
+    { "alarm_dc_ps2",         "", "DC PS2 volts too low",                   "", "0", 0, nullptr },
+    { "alarm_dc_ups",         "", "DC UPS on battery",                      "", "0", 0, nullptr },
+    { "alarm_dc_local",       "", "Local DC volts too low",                 "", "0", 0, nullptr },
+    { "alarm_gen_batt",       "", "Gen. start battery low",                 "", "0", 0, nullptr },
+    { "alarm_plc_flt",        "", "Failed to synchronize with PLC",         "", "0", 0, nullptr },
+    { "alarm_net_flt",        "", "Network error",                          "", "0", 0, nullptr },
+    { "alarm_ntp_tim",        "", "NTP sync timeout",                       "", "0", 0, nullptr },
+    { "alarm_act_flt",        "", "Actioner failure",                       "", "0", 0, nullptr },
+    { "alarm_sns_flt",        "", "Sensor fault",                           "", "0", 0, nullptr },
+    { "alarm_too_hot",        "", "Inside temperature too high",            "", "0", 0, nullptr },
+    { "alarm_too_cold",       "", "Inside temperature too low",             "", "0", 0, nullptr },
+    { "alarm_too_hum",        "", "Relative humidity too high",             "", "0", 0, nullptr },
+    { "alarm_tmp_str",        "", "Temp. stratification too high",          "", "0", 0, nullptr },
+    { "alarm_wtr_lk",         "", "Leak in irrigation circuit",             "", "0", 0, nullptr },
+    { "alarm_wtr_bar",        "", "Water pressure too low",                 "", "0", 0, nullptr },
+    { "alarm_wtr_clog",       "", "Failing to drain a tray",                "", "0", 0, nullptr },
+    { "alarm_io_drop",        "", "Logical I/O drops",                      "", "0", 0, nullptr },
+    { "alarm_log_fld",        "", "Logs flooding",                          "", "0", 0, nullptr },
+    { "alarm_wh_storm",       "", "Current storm conditions",               "", "0", 0, nullptr },
+    { "sys_supply_lockout", "", "supply unhealthy: actuators held off", "", "0", 0, nullptr },
+};
+const uint16_t g_internal_digital_count =
+    (uint16_t)(sizeof(g_internal_digital) / sizeof(g_internal_digital[0]));
+
+/** @brief Symbolic index per computed digital. */
+enum IdId : uint16_t {
+    ID_AC_GRID, ID_DC_PS1, ID_GEN_FLT, ID_AC_LOCAL,
+    ID_DC_PS2, ID_DC_UPS, ID_DC_LOCAL, ID_GEN_BATT,
+    ID_PLC_FLT, ID_NET_FLT, ID_NTP_TIM, ID_ACT_FLT,
+    ID_SNS_FLT, ID_TOO_HOT, ID_TOO_COLD, ID_TOO_HUM,
+    ID_TMP_STR, ID_WTR_LK, ID_WTR_BAR, ID_WTR_CLOG,
+    ID_IO_DROP, ID_LOG_FLD, ID_WH_STORM,
+    ID_SYS_SUPPLY_LOCKOUT,
+    ID_COUNT
+};
+
+/** @} */
+
 #undef MTR
 #undef COIL
 
@@ -200,6 +273,8 @@ enum DoId : uint16_t {
 
 extern AnalogValue  g_analog_in_values[AI_COUNT];
 extern DigitalValue g_digital_out_values[DO_COUNT];
+extern AnalogValue  g_internal_analog_values[IA_COUNT];
+extern DigitalValue g_internal_digital_values[ID_COUNT];
 
 /** @} */
 
@@ -212,10 +287,12 @@ extern DigitalValue g_digital_out_values[DO_COUNT];
  *  Analog outputs and digital inputs are empty: the AI-1 / AO-1 modules are
  *  wired but unmapped, so those tables wait until channels are assigned. */
 #define SITE_IO_TABLES { \
-    g_analog_in,   g_analog_in_values,   AI_COUNT, \
-    nullptr,       nullptr,              0, \
-    nullptr,       nullptr,              0, \
-    g_digital_out, g_digital_out_values, DO_COUNT }
+    g_analog_in,       g_analog_in_values,       AI_COUNT, \
+    nullptr,           nullptr,                  0, \
+    nullptr,           nullptr,                  0, \
+    g_digital_out,     g_digital_out_values,     DO_COUNT, \
+    g_internal_analog, g_internal_analog_values, IA_COUNT, \
+    g_internal_digital,g_internal_digital_values,ID_COUNT }
 
 // The enums must stay in step with the tables they index; a mismatch would
 // silently read the wrong signal.

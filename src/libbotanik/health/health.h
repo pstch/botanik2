@@ -63,17 +63,17 @@ namespace Botanik { namespace Health {
         /** @} */
 
     public:
-        /** @brief Build the notifier + model around the site PLC alarm table
-         *  (the model appends the platform-health alarms). */
+        /** @brief Build the notifier + model around the site alarm table (the
+         *  model appends the platform-health alarms). @p io resolves each site
+         *  condition's variable. */
         HealthMonitor(const Alarms::AlarmCondition* table, uint8_t count,
                       Logs::Logger* logger,
                       const Scheduler::SchedulerContext* sched,
-                      const void* alarm_base = nullptr)
+                      const Vars::Io* io = nullptr)
             : Component(logger, "HealthMonitor"),
               _notifier(Config::MQTT_TOPIC_PREFIX),
               _model(table, count, logger,
-                     Alarms::PLATFORM_ALARMS, Alarms::PLATFORM_ALARM_COUNT,
-                     alarm_base),
+                     Alarms::PLATFORM_ALARMS, Alarms::PLATFORM_ALARM_COUNT, io),
               _sched(sched) {
             _model.add_notifier(&_notifier);   // the built-in MQTT sink
         }

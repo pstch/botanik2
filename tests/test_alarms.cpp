@@ -25,25 +25,25 @@ namespace {
         m.step(now);
     }
 
-    // Static-prefix fields, in order: code, desc, offset (payload boolean; 0
-    // here - these tests drive conditions via set_local, no payload), on_s,
-    // off_s, recent_s, off_delay_s, min_on_s. The dynamic suffix is left
+    // Static-prefix fields, in order: code, desc, ref (the variable carrying
+    // the condition; {} here - these tests drive conditions via set_local),
+    // on_s, off_s, recent_s, off_delay_s, min_on_s. The dynamic suffix is left
     // zero-initialized (the pragma silences the pedantic field-init warning).
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
     // Two unmasked, unlatched conditions (announce disabled) at bits 0 and 1.
     const Alarms::AlarmCondition TABLE[] = {
-        { "AAA", "alarm A", 0, -1, -1, 0, 0 },
-        { "BBB", "alarm B", 0, -1, -1, 0, 0 },
+        { "AAA", "alarm A", {}, -1, -1, 0, 0 },
+        { "BBB", "alarm B", {}, -1, -1, 0, 0 },
     };
     // One condition with a 5 s minimum-ON hold (announce disabled).
     const Alarms::AlarmCondition MIN_ON_TABLE[] = {
-        { "MIN", "min on", 0, -1, -1, 0, 0, 5 },
+        { "MIN", "min on", {}, -1, -1, 0, 0, 5 },
     };
     // One condition that announces a START only after a 2 s dwell, and an END as
     // soon as it clears (off_s 0). A brief blip clears before the START dwell -> FLAP.
     const Alarms::AlarmCondition FLAP_TABLE[] = {
-        { "FLP", "flap", 0, 2, 0, 0, 0 },
+        { "FLP", "flap", {}, 2, 0, 0, 0 },
     };
 #pragma GCC diagnostic pop
 
@@ -131,7 +131,7 @@ TEST_CASE("alarm: a normal episode logs START then END (not FLAP)") {
     // on_s 0 so the START is announced at once.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-    const Alarms::AlarmCondition tbl[] = { { "NRM", "normal", 0, 0, 0, 0, 0 } };
+    const Alarms::AlarmCondition tbl[] = { { "NRM", "normal", {}, 0, 0, 0, 0 } };
 #pragma GCC diagnostic pop
     Alarms::AlarmModel m(tbl, 1, &logger);
 
@@ -144,35 +144,63 @@ TEST_CASE("alarm: a normal episode logs START then END (not FLAP)") {
     CHECK(rec.has(Logs::ALARM_FLAP) == false);
 }
 
-TEST_CASE("alarm reader: model reads per-alarm booleans from the payload") {
-    // Mock site payload: three per-alarm boolean fields at distinct offsets.
-    struct Payload { uint8_t a; uint8_t pad; uint8_t b; uint8_t c; };
+TEST_CASE("alarm reader: model reads each condition's variable") {
+    // Three alarm conditions, each naming a computed digital.
+    const Vars::Variable IDV[] = {
+        { "alarm_a", "", "", "", "0", 0, nullptr },
+        { "alarm_b", "", "", "", "0", 0, nullptr },
+        { "alarm_c", "", "", "", "0", 0, nullptr },
+    };
+    Vars::DigitalValue idv[3]{};
+    Vars::IoTables t = {};
+    t.id = IDV; t.id_v = idv; t.id_n = 3;
+    Vars::Io io(t);
+    io.init();
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-    // code, desc, offset (payload boolean), on_s, off_s, ... - announce off.
+    // code, desc, ref, on_s, off_s, ... - announce off.
     const Alarms::AlarmCondition tbl[] = {
-        { "AAA", "a", (uint16_t)offsetof(Payload, a), -1, -1 },  // bit 0
-        { "BBB", "b", (uint16_t)offsetof(Payload, b), -1, -1 },  // bit 1
-        { "CCC", "c", (uint16_t)offsetof(Payload, c), -1, -1 },  // bit 2
+        { "AAA", "a", { Vars::VAR_INTERNAL_DIGITAL, 0 }, -1, -1 },  // bit 0
+        { "BBB", "b", { Vars::VAR_INTERNAL_DIGITAL, 1 }, -1, -1 },  // bit 1
+        { "CCC", "c", { Vars::VAR_INTERNAL_DIGITAL, 2 }, -1, -1 },  // bit 2
     };
 #pragma GCC diagnostic pop
 
     Logs::Logger logger;
-    Payload p{};
-    Alarms::AlarmModel m(tbl, 3, &logger, nullptr, 0, &p);
+    Alarms::AlarmModel m(tbl, 3, &logger, nullptr, 0, &io);
 
     m.step(1000);
     CHECK(m.condition(0).active == false);
-    p.a = 1;
+    io.id(0).set(true);
     m.step(2000);
     CHECK(m.condition(0).active == true);
     CHECK(m.condition(2).active == false);
-    p.c = 7;                               // any non-zero byte counts as on
+    io.id(2).set(true);
     m.step(3000);
     CHECK(m.condition(0).active == true);
     CHECK(m.condition(2).active == true);
-    p.a = 0;
+    io.id(0).set(false);
     m.step(4000);
     CHECK(m.condition(0).active == false);
     CHECK(m.condition(2).active == true);
+}
+
+TEST_CASE("alarm reader: a condition naming no variable rests on set_local") {
+    // The platform-health alarms are in exactly this shape: a zeroed ref, which
+    // resolves inertly rather than reading analog-input 0 and firing on it.
+    Vars::Io io;
+    io.init();
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+    const Alarms::AlarmCondition tbl[] = { { "PLT", "platform", {}, -1, -1 } };
+#pragma GCC diagnostic pop
+    Logs::Logger logger;
+    Alarms::AlarmModel m(tbl, 1, &logger, nullptr, 0, &io);
+
+    m.step(1000);
+    CHECK(m.condition(0).active == false);
+    m.set_local((uint8_t)0, true);
+    m.step(2000);
+    CHECK(m.condition(0).active == true);
 }

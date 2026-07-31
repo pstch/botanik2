@@ -4,12 +4,12 @@
 
 /**
  * @file monitor.h
- * @brief MonitorPage - scrollable table of PLC status variables.
+ * @brief MonitorPage - scrollable table of the site's status variables.
  *
  * The read-only sibling of the CONFIG page: it renders the site's status
- * variable table (the ScalarGroup[] the `status` shell command and MQTT
- * telemetry also read) live off the PLC payload, one row per field, grouped.
- * Generic over any ScalarGroup[] + base pointer, so it has no per-field code.
+ * variable table (the VarGroup[] the `status` shell command and MQTT telemetry
+ * also read) live off the variable tables, one row per variable, grouped.
+ * Generic over any VarGroup[] + Io, so it has no per-variable code.
  *
  * Layout (row 0 is the terminal status bar, the bottom row the alarm bar); the
  * same bordered shape as the other tables:
@@ -37,7 +37,7 @@
 #include "scroll_table.h"
 #include "../console/console.h"
 #include "../console/terminal.h"
-#include "../core/scalar.h"
+#include "../vars/access.h"
 
 namespace Botanik { namespace Pages {
 
@@ -61,8 +61,8 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t VAL_CAP    = 48;   // formatted value buffer
         static constexpr uint16_t LINE_CAP   = 192;  // row string buffer
         // Detail panel below the table (like the CONFIG page): bottom rule +
-        // blank spacer + Description + Notes + blank spacer for the selected var.
-        static constexpr uint16_t PANEL_H    = 5;
+        // blank spacer + Description + Notes + Quality + blank spacer.
+        static constexpr uint16_t PANEL_H    = 6;
         /** @brief NAME field span (contents only): the part inverted for the
          *  selection cursor, leaving the border gap each side. */
         static constexpr uint16_t NAME_CELL_L = MARGIN + 2 + GROUP_W + 3;   // 19
@@ -72,9 +72,9 @@ namespace Botanik { namespace Pages {
         /** @name State
          *  @{ */
         Console&            _console;
-        const ScalarGroup*  _groups;
+        const Vars::VarGroup* _groups;
         size_t              _group_count;
-        const void*         _base;
+        const Vars::Io*     _io;
         /** @brief A nav happened: redraw on the next tick rather than waiting for
          *  the value cadence, so scrolling/selection feels immediate. */
         bool                _dirty    = true;
@@ -83,13 +83,13 @@ namespace Botanik { namespace Pages {
         /** @} */
 
     public:
-        /** @brief @p console owns the content geometry; @p groups + @p base are
-         *  the status-variable table and the payload it reads (any may be
+        /** @brief @p console owns the content geometry; @p groups names the
+         *  variables to show and @p io is what resolves them (any may be
          *  null/0 -> empty table). */
-        MonitorPage(Console& console, const ScalarGroup* groups, size_t group_count,
-                    const void* base)
+        MonitorPage(Console& console, const Vars::VarGroup* groups, size_t group_count,
+                    const Vars::Io* io)
             : ScrollTablePage(console.terminal()), _console(console),
-              _groups(groups), _group_count(group_count), _base(base) {}
+              _groups(groups), _group_count(group_count), _io(io) {}
 
         const char* name() const override { return "MONITOR"; }
 
@@ -207,11 +207,26 @@ namespace Botanik { namespace Pages {
             return (n < 0) ? 0 : (uint16_t)n;
         }
 
-        /** @brief The ScalarField for variable @p r, or null. */
-        const ScalarField* _field_at(uint16_t r) const {
+        /** @brief The reference for variable @p r; @p ok is false when @p r is
+         *  past the end. */
+        Vars::VarRef _ref_at(uint16_t r, bool& ok) const {
             size_t gi = 0, fi = 0; bool first = false;
-            if (!_at(r, gi, fi, first)) return nullptr;
-            return &_groups[gi].fields[fi];
+            ok = _at(r, gi, fi, first);
+            if (!ok) { Vars::VarRef none = { Vars::VAR_PARAM, 0 }; return none; }
+            return _groups[gi].refs[fi];
+        }
+
+        /** @brief Resolve variable @p r. An unresolvable row still yields a
+         *  renderable view (the inert descriptor), so callers need no null
+         *  check - they only care about @p ok for the group column. */
+        Vars::VarView _view_at(uint16_t r, bool& ok) const {
+            Vars::VarRef ref = _ref_at(r, ok);
+            if (_io == nullptr) {
+                Vars::VarView v; v.meta = nullptr; v.number = 0.0f;
+                v.digital = false; v.valid = false;
+                return v;
+            }
+            return Vars::var_view(*_io, ref);
         }
 
         // Rendering
@@ -219,10 +234,10 @@ namespace Botanik { namespace Pages {
 
         /** @brief Format variable @p r's value into @p out. */
         void _value_text(uint16_t r, char* out, size_t cap) const {
-            size_t gi = 0, fi = 0; bool first = false;
-            if (_base == nullptr || !_at(r, gi, fi, first)) { if (cap) out[0] = 0; return; }
-            const ScalarField& f = _groups[gi].fields[fi];
-            const char* s = scalar_format(f, _base, out, cap);
+            bool ok = false;
+            Vars::VarView v = _view_at(r, ok);
+            if (!ok || v.meta == nullptr) { if (cap) out[0] = 0; return; }
+            const char* s = Vars::var_format(v, out, cap);
             if (s != out) { std::strncpy(out, s, cap - 1); out[cap - 1] = 0; }
         }
 
@@ -230,11 +245,13 @@ namespace Botanik { namespace Pages {
         uint16_t _row_text(uint16_t r, char* out, size_t cap) const {
             size_t gi = 0, fi = 0; bool first = false;
             if (!_at(r, gi, fi, first)) { if (cap) out[0] = 0; return 0; }
-            const ScalarField& f = _groups[gi].fields[fi];
+            bool ok = false;
+            Vars::VarView v = _view_at(r, ok);
             char val[VAL_CAP];
             _value_text(r, val, sizeof(val));
-            return _row4(out, cap, first ? _groups[gi].topic : "",
-                         f.name ? f.name : "", val, f.unit ? f.unit : "");
+            const char* nm = (v.meta && v.meta->name) ? v.meta->name : "";
+            const char* un = (v.meta && v.meta->unit) ? v.meta->unit : "";
+            return _row4(out, cap, first ? _groups[gi].topic : "", nm, val, un);
         }
 
         /** @brief Draw data row @p r at screen @p row, inverting the NAME field for
@@ -281,10 +298,17 @@ namespace Botanik { namespace Pages {
         void _draw_panel() {
             uint16_t br = _brule_row();
             _blank_line((uint16_t)(br + 1));
-            const ScalarField* f = _field_at(_selected);
-            _panel_field((uint16_t)(br + 2), "Description", f ? f->desc  : nullptr);
-            _panel_field((uint16_t)(br + 3), "Notes",       f ? f->notes : nullptr);
-            _blank_line((uint16_t)(br + 4));
+            bool ok = false;
+            Vars::VarView v = _view_at(_selected, ok);
+            const Vars::Variable* m = ok ? v.meta : nullptr;
+            _panel_field((uint16_t)(br + 2), "Description", m ? m->desc  : nullptr);
+            _panel_field((uint16_t)(br + 3), "Notes",       m ? m->notes : nullptr);
+            // Quality is new information the byte-offset model could not carry:
+            // a variable nothing has written reads as its default, which looks
+            // exactly like a real reading unless the page says otherwise.
+            _panel_field((uint16_t)(br + 4), "Quality",
+                         !ok ? nullptr : (v.valid ? "live" : "no data (showing default)"));
+            _blank_line((uint16_t)(br + 5));
         }
 
         void _draw_footer() {

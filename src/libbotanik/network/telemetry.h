@@ -26,7 +26,7 @@
 #include "../../libbotanik_config.h"
 #include "../core/context.h"
 #include "mqtt.h"
-#include "../core/scalar.h"   // ScalarType/Field/Group + read/format
+#include "../vars/access.h"   // VarGroup / VarRef + resolve/format
 
 namespace Botanik { namespace Network {
 
@@ -39,7 +39,7 @@ namespace Botanik { namespace Network {
         bool (*format)(char* buf, size_t cap, void* ctx);
     };
 
-    // ScalarType / ScalarField / ScalarGroup (the status-variable descriptor
+    // Vars::VarGroup / VarRef (the status-variable descriptor
     // table) live in core/scalar.h so non-network consumers (the shell's
     // `status` command) can read them without the MqttSender. Published here.
 
@@ -59,12 +59,12 @@ namespace Botanik { namespace Network {
         const TelemetryField* _site       = nullptr;
         size_t                _site_count  = 0;
         void*                 _site_ctx    = nullptr;
-        /** @brief Site scalar groups (set_site_scalar_groups), each published
+        /** @brief Site variable groups (set_site_scalar_groups), each published
          *  under its own sub-topic and rendered generically off @ref
          *  _scalar_base; null until a site registers them. */
-        const ScalarGroup*    _groups       = nullptr;
+        const Vars::VarGroup* _groups       = nullptr;
         size_t                _group_count  = 0;
-        const void*           _scalar_base  = nullptr;
+        const Vars::Io*       _io           = nullptr;
         /** @brief Last publish cycle (uptime ms); 0 = none yet. */
         uint64_t              _last_ms     = 0;
 
@@ -85,16 +85,15 @@ namespace Botanik { namespace Network {
             _site_ctx   = ctx;
         }
 
-        /** @brief Register the site's scalar groups, each published under its own
-         *  sub-topic and rendered generically by reading @p base +
-         *  ScalarField::offset. @p groups must outlive the firmware; @p base is
-         *  the struct the offsets index (the live PLC payload). Pass count 0 (or
+        /** @brief Register the site's variable groups, each published under its
+         *  own sub-topic and rendered generically by resolving its VarRefs
+         *  against @p io. Both must outlive the firmware. Pass count 0 (or
          *  null) to clear. */
-        void set_site_scalar_groups(const ScalarGroup* groups, size_t count,
-                                    const void* base) {
+        void set_site_scalar_groups(const Vars::VarGroup* groups, size_t count,
+                                    const Vars::Io* io) {
             _groups      = groups;
             _group_count = (groups != nullptr) ? count : 0;
-            _scalar_base = base;
+            _io          = io;
         }
 
         /** @brief Publish every base + site field once

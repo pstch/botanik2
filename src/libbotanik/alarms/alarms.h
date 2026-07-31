@@ -10,12 +10,12 @@
  * notifications on the ON/OFF thresholds, and exposes the set for display.
  *
  * There is no aggregate alarm bitset: each condition's raw input is read
- * directly each step. Two disjoint namespaces: PLC/site alarms fill [0..N),
- * each reading its own boolean field in the PLC output payload (its `offset`);
- * the generic platform-health alarms (platform.h) follow at [N..N+M), driven
- * only locally (set_local()). A site alarm's local override is OR'd with its
- * payload boolean; a platform alarm has no payload field, so it rests on its
- * override alone. N + M must be <= ALARM_BITS.
+ * directly each step. Two disjoint namespaces: site alarms fill [0..N), each
+ * naming the variable that carries its condition (its `ref`, normally a
+ * computed digital); the generic platform-health alarms (platform.h) follow at
+ * [N..N+M), driven only locally (set_local()). A site alarm's local override is
+ * OR'd with its variable; a platform alarm names no variable, so it rests on
+ * its override alone. N + M must be <= ALARM_BITS.
  *
  * The model owns its working AlarmCondition array: it copies both const tables
  * in at construction, then owns the dynamic state. The site table stays
@@ -33,6 +33,7 @@
 #include "../core/component.h"      // Component (first-step announce)
 #include "../../libbotanik_config.h"
 #include "publisher.h" // Publisher (notifier transport seam)
+#include "../vars/access.h"   // VarRef / var_bool
 
 namespace Botanik { namespace Alarms {
 
@@ -74,11 +75,11 @@ namespace Botanik { namespace Alarms {
 
         const char* code;       //< short code, max 8 chars
         const char* desc;       //< human-readable description
-        /** Byte offset of this alarm's boolean field in the site PLC output
-         *  payload: the model reads it directly (a non-zero byte = active).
-         *  Left 0 for the platform-health alarms (driven locally via
-         *  set_local(), never read from the payload). */
-        uint16_t    offset;
+        /** The variable carrying this condition: the model reads it directly
+         *  each step (non-zero = active). Left zeroed for the platform-health
+         *  alarms, which are driven locally via set_local() and never read a
+         *  variable. */
+        Vars::VarRef ref;
 
         int32_t     on_s;       //< time ON  before announcing (log + notify; -1: off)
         int32_t     off_s;      //< time OFF before announcing (log + notify; -1: off)
@@ -257,9 +258,9 @@ namespace Botanik { namespace Alarms {
         AlarmCondition  _conditions[ALARM_BITS]; // model-owned working array
         uint8_t         _plc_count;      // N: PLC/site conditions at [0..N)
         uint8_t         _count;          // N + M: total conditions scanned
-        /** site PLC output payload the site alarm offsets address (may be null:
-         *  no link -> site alarms rest on their local override only) */
-        const void*     _base;
+        /** the variable tables the site alarm refs resolve against (may be
+         *  null -> site alarms rest on their local override only) */
+        const Vars::Io* _io;
         /** registered transition sinks (fan-out, mirrors Logger's writers) */
         AlarmNotifier*  _notifiers[Config::ALARM_NOTIFIERS_MAX];
         uint8_t         _notifier_count; // entries used in _notifiers
@@ -273,17 +274,17 @@ namespace Botanik { namespace Alarms {
     public:
         /** @brief Bind to the site PLC table (@p site_count at [0..N)) and the
          *  optional platform-health table (@p platform_count appended at
-         *  [N..N+M)). Both const, copied in; N + M <= ALARM_BITS. @p base is the
-         *  site PLC output payload the site alarm offsets address (null = no
-         *  link). Alarms start "settled OFF" so a never-active one never
-         *  announces an END it never started. */
+         *  [N..N+M)). Both const, copied in; N + M <= ALARM_BITS. @p io is what
+         *  the site alarm refs resolve against (null = none). Alarms start
+         *  "settled OFF" so a never-active one never announces an END it never
+         *  started. */
         AlarmModel(const AlarmCondition* site_table, uint8_t site_count,
                    Logs::Logger* logger,
                    const AlarmCondition* platform = nullptr,
                    uint8_t platform_count = 0,
-                   const void* base = nullptr)
+                   const Vars::Io* io = nullptr)
             : Component(logger, "AlarmModel"),
-              _plc_count(0), _count(0), _base(base),
+              _plc_count(0), _count(0), _io(io),
               _notifier_count(0),
               _last_now(0), _first_step(true),
               _active_count(0) {
@@ -402,12 +403,11 @@ namespace Botanik { namespace Alarms {
         }
 
     private:
-        /** @brief This site condition's payload boolean (a non-zero byte at its
-         *  offset). False for the platform-health range (i >= _plc_count) or when
-         *  there is no payload (null base). Single-byte read: alignment-safe. */
+        /** @brief This site condition's variable, as a boolean. False for the
+         *  platform-health range (i >= _plc_count) or with no tables bound. */
         bool _site_raw(uint8_t i) const {
-            if (i >= _plc_count || _base == nullptr) return false;
-            return static_cast<const uint8_t*>(_base)[_conditions[i].offset] != 0;
+            if (i >= _plc_count || _io == nullptr) return false;
+            return Vars::var_bool(*_io, _conditions[i].ref);
         }
 
     public:

@@ -351,7 +351,7 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_cmd_status(const char* args, uint16_t alen) {
-        if (_status_groups == nullptr || _status_base == nullptr) {
+        if (_status_groups == nullptr || _vars == nullptr) {
             _println("status: unavailable"); return;
         }
         char out[128], val[64];
@@ -361,15 +361,19 @@ namespace Botanik { namespace Shell {
 
         bool found = false;
         for (size_t gi = 0; gi < _status_group_count; ++gi) {
-            const ScalarGroup& g = _status_groups[gi];
+            const Vars::VarGroup& g = _status_groups[gi];
             for (size_t i = 0; i < g.count; ++i) {
-                const ScalarField& f = g.fields[i];
-                if (f.name == nullptr) continue;
-                if (nm != nullptr && !Utils::arg_eq(nm, wn, f.name)) continue;
-                const char* s = scalar_format(f, _status_base, val, sizeof(val));
-                // Append the physical unit when the field carries one.
-                _emitf(out, sizeof(out), "  %-18s %s%s%s", f.name, s,
-                       (f.unit && f.unit[0]) ? " " : "", (f.unit && f.unit[0]) ? f.unit : "");
+                Vars::VarView v = Vars::var_view(*_vars, g.refs[i]);
+                const char* name = v.meta->name;
+                if (name == nullptr) continue;
+                if (nm != nullptr && !Utils::arg_eq(nm, wn, name)) continue;
+                const char* s = Vars::var_format(v, val, sizeof(val));
+                const char* u = v.meta->unit;
+                // Append the physical unit when the variable carries one, and
+                // flag a reading nothing has written - it is showing a default.
+                _emitf(out, sizeof(out), "  %-18s %s%s%s%s", name, s,
+                       (u && u[0]) ? " " : "", (u && u[0]) ? u : "",
+                       v.valid ? "" : "   (no data)");
                 found = true;
             }
         }

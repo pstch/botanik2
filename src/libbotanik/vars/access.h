@@ -37,6 +37,16 @@ namespace Botanik { namespace Vars {
         uint16_t      count;
     };
 
+    /** @brief A home-screen reading: a display @p label paired with the
+     *  variable whose live value it shows. A site lists these in a HomeVar[];
+     *  the HomePage lays them out in two columns. The label is separate from
+     *  the variable's own name because the home screen wants "Temp" where the
+     *  monitor table wants "ext_temp_c". */
+    struct HomeVar {
+        const char* label;
+        VarRef      ref;
+    };
+
     /** @brief A resolved variable: its descriptor and its current value, with
      *  the kind already folded away.
      *

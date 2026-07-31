@@ -72,6 +72,57 @@ inline uint64_t abit(const char* code) {
     return i >= 0 ? Botanik::Alarms::alarm_bit((uint8_t)i) : 0;
 }
 
+/** @brief Write one analog input as a driver would: value, timestamp, valid. */
+inline void put_ai(uint16_t id, float v, uint32_t now_ms) {
+    if (id >= AI_COUNT) return;
+    g_analog_in_values[id].value     = v;
+    g_analog_in_values[id].timestamp = now_ms;
+    g_analog_in_values[id].valid     = true;
+}
+
+/**
+ * @brief Stand in for the Modbus RTU master: publish plausible readings for the
+ * two meters.
+ *
+ * Only the signals worth watching are animated; the rest of the table stays
+ * invalid, which is honest - it reads as "no data" on the monitor page rather
+ * than as a fabricated measurement.
+ */
+inline void publish_meters(uint32_t now_ms) {
+    const float t = (float)now_ms / 1000.0f;
+
+    static float v_drift = 0.0f, load = 0.0f;
+    v_drift = drift(v_drift, 0.4f, -1.0f, 1.0f, 0.05f) * 0.99f;
+    load    = drift(load,    0.5f,  0.0f, 1.0f, 0.04f);
+
+    const float ln = 230.0f + 6.0f * v_drift;          // ~224..236 V
+    const float amps = 4.0f + 28.0f * load;
+    const float pf = 0.88f + 0.10f * load;
+    const float watts = ln * amps * pf * 3.0f;
+
+    put_ai(AI_PWR_L1_V, ln + 1.2f, now_ms);
+    put_ai(AI_PWR_L2_V, ln - 0.8f, now_ms);
+    put_ai(AI_PWR_L3_V, ln + 0.3f, now_ms);
+    put_ai(AI_PWR_LN_V, ln, now_ms);
+    put_ai(AI_PWR_LL_V, ln * 1.732f, now_ms);
+    put_ai(AI_PWR_L1_A, amps / 3.0f, now_ms);
+    put_ai(AI_PWR_L2_A, amps / 3.0f, now_ms);
+    put_ai(AI_PWR_L3_A, amps / 3.0f, now_ms);
+    put_ai(AI_PWR_AVG_A, amps / 3.0f, now_ms);
+    put_ai(AI_PWR_TOTAL_A, amps, now_ms);
+    put_ai(AI_PWR_TOTAL_W, watts, now_ms);
+    put_ai(AI_PWR_TOTAL_VA, watts / pf, now_ms);
+    put_ai(AI_PWR_TOTAL_PF, pf, now_ms);
+    // Mains frequency wanders in the last decimal, as a real one does.
+    put_ai(AI_PWR_HZ, 50.0f + 0.03f * sinf(t / 37.0f), now_ms);
+
+    // The transfer switch sees the same supply, lightly loaded.
+    put_ai(AI_ATS_V,  ln - 0.5f, now_ms);
+    put_ai(AI_ATS_A,  amps * 0.15f, now_ms);
+    put_ai(AI_ATS_W,  watts * 0.15f, now_ms);
+    put_ai(AI_ATS_HZ, 50.0f + 0.03f * sinf(t / 37.0f), now_ms);
+}
+
 /**
  * @brief Animate the greenhouse payload with plausible, mostly-steady values.
  *
@@ -223,12 +274,23 @@ inline void fill_output(SiteData_t* o, uint32_t now_ms) {
         else                        hold_ms[i] = 0;
         if (on || hold_ms[i] > 0)   debounced |= Botanik::Alarms::alarm_bit(i);
     }
-    // Scatter the debounced bitset into the per-alarm boolean fields (bit i ->
-    // g_alarms[i].offset), the wire form the firmware's AlarmReader gathers. On
-    // hardware the PLC program drives these booleans directly.
-    uint8_t* base = reinterpret_cast<uint8_t*>(o);
-    for (uint8_t i = 0; i < g_alarm_count; i++)
-        base[g_alarms[i].offset] = (uint8_t)((debounced >> i) & 1u);
+    // Scatter the debounced bitset into the variables the alarm table names
+    // (row i -> g_alarms[i].ref), which is where the model reads them. On
+    // hardware a control program drives the same internals.
+    for (uint8_t i = 0; i < g_alarm_count; i++) {
+        const Botanik::Vars::VarRef& r = g_alarms[i].ref;
+        if (r.kind != Botanik::Vars::VAR_INTERNAL_DIGITAL) continue;
+        if (r.index >= ID_COUNT) continue;
+        g_internal_digital_values[r.index].value = ((debounced >> i) & 1u) != 0;
+        g_internal_digital_values[r.index].valid = true;
+    }
+
+    // ---- Field IO ---------------------------------------------------------
+    // Drive the real meter signals, which is what the console, the shell and
+    // telemetry now read. Stamped and marked valid, exactly as a Modbus driver
+    // would: without a timestamp Io::expire_stale() would drop them within the
+    // meter's 5 s timeout and the whole table would read as its defaults.
+    publish_meters(now_ms);
 
     // ---- Config (network / NTP / MQTT / geo) ------------------------------
     // Authoritative config: the coprocessor's NVM stand-in. Config parameters

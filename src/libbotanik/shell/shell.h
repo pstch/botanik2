@@ -13,7 +13,7 @@
 #include "../console/terminal.h"
 #include "../console/editor.h"
 #include "../core/scalar.h"
-#include "../vars/io.h"   // ScalarGroup (status-var table)
+#include "../vars/access.h"   // VarGroup (status-var table), Io
 
 namespace Botanik {
     // loglevel command (set_diagnostics)
@@ -25,7 +25,7 @@ namespace Botanik {
     // config get/set command (set_params)
     namespace Params     { class ParamHandler; }
     // status command (set_status_vars): the status-variable descriptor group
-    // (ScalarGroup) comes in via core/scalar.h, included above.
+    // (Vars::VarGroup) comes in via vars/access.h, included above.
 }
 
 namespace Botanik { namespace Shell {
@@ -100,12 +100,13 @@ namespace Botanik { namespace Shell {
         /** @brief Config backend for the `config` get/set command (set_params). */
         Params::ParamHandler*     _params               = nullptr;
         /** @brief Status-variable table for the `status` command
-         *  (set_status_vars): the site scalar groups + the payload they read. */
-        const ScalarGroup* _status_groups    = nullptr;
+         *  (set_status_vars): the site variable groups. They resolve against
+         *  the same Io the `vars` command walks - there is one live source of
+         *  variable values now, not a table plus a payload pointer. */
+        const Vars::VarGroup* _status_groups    = nullptr;
         /** @brief The variable model, for the `vars` command. */
         Vars::Io*          _vars              = nullptr;
         size_t                  _status_group_count   = 0;
-        const void*             _status_base          = nullptr;
 
         /** @brief Command-history ring: the most-recent submitted lines. */
         char     _history[Config::SHELL_HISTORY_SIZE][Config::SHELL_HISTORY_ENTRY];
@@ -156,14 +157,14 @@ namespace Botanik { namespace Shell {
         /** @brief Wire the config backend the `config` command reads/writes. */
         void set_params(Params::ParamHandler* config) { _params = config; }
 
-        /** @brief Wire the status-variable table the `status` command reads:
-         *  @p groups over @p base (the live PLC payload). Null clears it. */
-        /** @brief Bind the variable model so `vars` can list field IO. */
+        /** @brief Bind the variable model. `vars` lists the field IO through
+         *  it, and `status` resolves its groups against it. */
         void set_vars(Vars::Io* io) { _vars = io; }
 
-        void set_status_vars(const ScalarGroup* groups, size_t count,
-                             const void* base) {
-            _status_groups = groups; _status_group_count = count; _status_base = base;
+        /** @brief Wire the status-variable table the `status` command reads.
+         *  Values come from the Io given to set_vars(). Null clears it. */
+        void set_status_vars(const Vars::VarGroup* groups, size_t count) {
+            _status_groups = groups; _status_group_count = count;
         }
 
         /** @brief Register a site command table, tried after the built-ins.

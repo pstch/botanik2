@@ -38,10 +38,10 @@ namespace {
     // off. Fields: code, desc, offset (0; driven via set_local), on_s, off_s,
     // recent_s, off_delay_s.
     const Alarms::AlarmCondition TABLE[] = {
-        { "AAA", "alarm A", 0, -1, -1, -1, 0 },
-        { "BBB", "alarm B", 0, -1, -1, -1, 0 },
-        { "CCC", "alarm C", 0, -1, -1, -1, 0 },
-        { "DDD", "alarm D", 0, -1, -1, -1, 0 },
+        { "AAA", "alarm A", {}, -1, -1, -1, 0 },
+        { "BBB", "alarm B", {}, -1, -1, -1, 0 },
+        { "CCC", "alarm C", {}, -1, -1, -1, 0 },
+        { "DDD", "alarm D", {}, -1, -1, -1, 0 },
     };
 #pragma GCC diagnostic pop
 

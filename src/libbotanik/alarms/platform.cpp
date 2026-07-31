@@ -15,13 +15,15 @@ namespace Botanik { namespace Alarms {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
     const AlarmCondition PLATFORM_ALARMS[] = {
-        // code        description                       mask  on  off recent latch
-        {"SYS_RST",  "Reset in the last five minutes",   0,   -1,  0},
-        {"CPU_XRUN", "Scheduler overrun (skipped beat)", 0,    0, -1,   0,     0},
-        {"CPU_LOAD", "CPU load over threshold",          0,    5,  5,   0,     300},
-        {"STACK",    "Stack usage over threshold",       0,    5,  5,   0,     300},
-        {"CPU_JITT", "CPU jitter over threshold",        0,    5,  5,   0,     300},
-        {"RX_TORN",  "PLC torn read (handshake violation)", 0, 0, -1,   0,     0},
+        // These name no variable: each is driven locally via set_local(), so
+        // the ref stays zeroed and _site_raw() never reaches for it.
+        // code        description                        var  on  off recent latch
+        {"SYS_RST",  "Reset in the last five minutes",   {},  -1,  0},
+        {"CPU_XRUN", "Scheduler overrun (skipped beat)", {},   0, -1,   0,     0},
+        {"CPU_LOAD", "CPU load over threshold",          {},   5,  5,   0,     300},
+        {"STACK",    "Stack usage over threshold",       {},   5,  5,   0,     300},
+        {"CPU_JITT", "CPU jitter over threshold",        {},   5,  5,   0,     300},
+        {"RX_TORN",  "PLC torn read (handshake violation)", {}, 0, -1,  0,     0},
     };
     const uint8_t PLATFORM_ALARM_COUNT =
         (uint8_t)(sizeof(PLATFORM_ALARMS) / sizeof(PLATFORM_ALARMS[0]));
