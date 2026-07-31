@@ -82,3 +82,33 @@ TEST_CASE("storage: bad keys rejected") {
     size_t n = 0;
     CHECK_FALSE(Storage::get("has/slash", &x, 1, &n));
 }
+
+TEST_CASE("storage: a refused write is counted; a bad key is not") {
+    // fault_count() is what raises FLASH_FLT, so it must track real backend
+    // refusals only. A malformed key is a programming error and must not put
+    // the firmware into a persistent fault.
+    const uint32_t before = Storage::fault_count();
+
+    {   // a well-formed key the backend cannot write
+        StoreEnv env;
+        setenv("BOTANIK_CONFIG_STORE", "/nonexistent-dir-botanik/store", 1);
+        CHECK_FALSE(Storage::set("ok_key", "v", 1));
+        CHECK(Storage::fault_count() == before + 1);
+    }
+
+    {   // a malformed key never reaches the backend
+        StoreEnv env;
+        const uint32_t n = Storage::fault_count();
+        CHECK_FALSE(Storage::set("bad/key", "v", 1));
+        CHECK_FALSE(Storage::set("", "v", 1));
+        CHECK(Storage::fault_count() == n);
+    }
+
+    {   // and a healthy store does not tick it
+        StoreEnv env;
+        const uint32_t n = Storage::fault_count();
+        CHECK(Storage::set("good", "v", 1));
+        CHECK(Storage::remove("good"));
+        CHECK(Storage::fault_count() == n);
+    }
+}

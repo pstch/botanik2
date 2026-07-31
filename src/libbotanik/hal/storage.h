@@ -25,6 +25,7 @@
  */
 
 #include <cstddef>
+#include <cstdint>
 
 namespace Botanik { namespace HAL { namespace Storage {
 
@@ -40,6 +41,15 @@ namespace Botanik { namespace HAL { namespace Storage {
     /** @brief Delete @p key if present (idempotent). @return false only on a
      *  backend error, not on a missing key. */
     bool remove(const char* key);
+
+    /** @brief Backend write failures since boot, monotonic.
+     *
+     *  Counts set() and remove() calls the backend refused - not a bad key
+     *  (a programming error) and not a missing key on get() (routine). The
+     *  HealthMonitor reads this each beat to raise FLASH_FLT, so a store that
+     *  will not accept writes surfaces as a fault rather than as settings that
+     *  quietly revert at the next reboot. */
+    uint32_t fault_count();
 
 }}}  // namespace Botanik::HAL::Storage
 

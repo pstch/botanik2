@@ -62,7 +62,7 @@ namespace Botanik { namespace Params {
             if (!HAL::Storage::set(p.field.name, _image + p.field.out_offset,
                                    param_width(p))) {
                 if (_logger)
-                    _logger->critical(Logs::BOOT, "param '%s' not persisted",
+                    _logger->critical(Logs::STORAGE, "param '%s' not persisted",
                                       p.field.name);
                 return SET_NOT_PERSISTED;
             }
@@ -75,7 +75,7 @@ namespace Botanik { namespace Params {
         void load(const Param& p) override {
             if (!_fits(p)) {
                 if (_logger)
-                    _logger->critical(Logs::BOOT,
+                    _logger->critical(Logs::STORAGE,
                         "param '%s' overruns LOCAL_PARAM_IMAGE_BYTES (%u)",
                         p.field.name, (unsigned)sizeof(_image));
                 return;

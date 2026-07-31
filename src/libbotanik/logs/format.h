@@ -68,6 +68,7 @@ namespace Botanik { namespace Logs {
         case Logs::ALARM_END:      return "alarm_end";
         case Logs::ALARM_FLAP:     return "alarm_flap";
         case Logs::HEALTH:         return "health";
+        case Logs::STORAGE:        return "storage";
         default:                    return "unknown";
     }; }
 

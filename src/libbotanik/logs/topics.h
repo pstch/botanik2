@@ -6,11 +6,10 @@
  * @file topics.h
  * @brief Log severity levels and topics.
  *
- * These are logging primitives, needed even in a PLC-less build, so they live
- * with the logger rather than in the (optional) PLC area. Their values are the
- * wire protocol shared with the PLC, though: the PLC log ring carries them
- * byte-for-byte (see Logs::LogEntry in plcio/vars.h), so changing a value is
- * a coordinated PLC-side change, not a local rename.
+ * These are logging primitives, so they live with the logger. The values were
+ * once a wire protocol shared with the PLC coprocessor; that is gone, so a new
+ * topic is now an ordinary local addition. The numbering is kept as-is rather
+ * than compacted, because it is what sits in already-written log records.
  */
 
 #include <cstdint>
@@ -19,7 +18,7 @@
 
 namespace Botanik { namespace Logs {
 
-    /** @brief Log severity level (wire value shared with the PLC). */
+    /** @brief Log severity level. */
     enum LogLevel : uint8_t {
         LOG_DEBUG = 1,
         LOG_INFO = 2,
@@ -29,10 +28,9 @@ namespace Botanik { namespace Logs {
         LOG_CRITICAL = 32,
     };
 
-    // Values are the wire protocol shared with the PLC, not a sequence; listed
-    // in ascending value order. Changing a value requires a matching PLC-side
-    // change.
-    /** @brief Log topic / category (wire value shared with the PLC). */
+    // Listed in ascending value order; the enum must stay dense from 0, since
+    // LOG_TOPIC_COUNT bounds the logger's per-topic bucket array.
+    /** @brief Log topic / category. */
     enum LogTopic : uint8_t {
         NONE = 0,
         PLC_IO = 1,
@@ -47,6 +45,10 @@ namespace Botanik { namespace Logs {
         // dwell)
         ALARM_FLAP = 9,
         HEALTH = 10,       // HealthMonitor (POST verdict, etc.)
+        // Persistence. Its own topic because a storage failure is a distinct
+        // fault with a distinct fix - it is not a boot problem, and burying it
+        // under BOOT is how it went unnoticed that nothing persisted at all.
+        STORAGE = 11,
     };
 
     // Check that the defined topic count can fit in the LogTopic enum
@@ -57,7 +59,7 @@ namespace Botanik { namespace Logs {
      *  the logger's per-tick scan loops so they cover the real topics instead
      *  of the full wire range; the per-topic bucket array is sized by
      *  LOG_TOPIC_COUNT. */
-    static constexpr uint8_t LOG_TOPIC_COUNT = HEALTH + 1;
+    static constexpr uint8_t LOG_TOPIC_COUNT = STORAGE + 1;
     static_assert(LOG_TOPIC_COUNT <= Config::LOG_TOPIC_MAX, "LOG_TOPIC_COUNT exceeds LOG_TOPIC_MAX");
 
 }}

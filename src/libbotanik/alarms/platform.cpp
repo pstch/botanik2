@@ -24,6 +24,11 @@ namespace Botanik { namespace Alarms {
         {"STACK",    "Stack usage over threshold",       {},   5,  5,   0,     300},
         {"CPU_JITT", "CPU jitter over threshold",        {},   5,  5,   0,     300},
         {"RX_TORN",  "PLC torn read (handshake violation)", {}, 0, -1,  0,     0},
+        // Sticky: a store that refused a write does not heal by itself, and
+        // the consequence (settings silently reverting at the next reboot) is
+        // invisible until it is far too late to connect cause and effect.
+        {"FLASH_FLT","Persistent storage write failed", {}, 0, -1,   0,     0,  0,
+         "settings will not survive a reboot; check the KV region"},
     };
     const uint8_t PLATFORM_ALARM_COUNT =
         (uint8_t)(sizeof(PLATFORM_ALARMS) / sizeof(PLATFORM_ALARMS[0]));

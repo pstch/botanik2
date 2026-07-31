@@ -21,7 +21,21 @@ namespace Botanik { namespace HAL { namespace Storage {
                 if (*p == '/' || *p == '=' || *p == '\n') return false;
             return true;
         }
+
+        /** @brief Backend write failures since boot. Not static-in-function:
+         *  both backend blocks below reopen this namespace and increment it. */
+        uint32_t g_faults = 0;
+
+        /** @brief Tally a backend result. Only wraps calls that have already
+         *  passed key_ok - a malformed key is a programming error, not a
+         *  storage fault, and counting it would raise FLASH_FLT for a typo. */
+        bool note(bool ok) {
+            if (!ok && g_faults != 0xFFFFFFFFu) g_faults++;
+            return ok;
+        }
     }  // namespace
+
+    uint32_t fault_count() { return g_faults; }
 
 }}}  // namespace Botanik::HAL::Storage
 
@@ -60,7 +74,7 @@ namespace Botanik { namespace HAL { namespace Storage {
     bool set(const char* key, const void* buf, size_t len) {
         char full[FULL_KEY_MAX];
         if (!full_key(full, sizeof(full), key)) return false;
-        return kv_set(full, buf, len, 0) == MBED_SUCCESS;
+        return note(kv_set(full, buf, len, 0) == MBED_SUCCESS);
     }
 
     bool get(const char* key, void* buf, size_t cap, size_t* out_len) {
@@ -77,7 +91,7 @@ namespace Botanik { namespace HAL { namespace Storage {
         if (!full_key(full, sizeof(full), key)) return false;
         // Absent is not an error: remove() is documented idempotent.
         const int rc = kv_remove(full);
-        return rc == MBED_SUCCESS || rc == MBED_ERROR_ITEM_NOT_FOUND;
+        return note(rc == MBED_SUCCESS || rc == MBED_ERROR_ITEM_NOT_FOUND);
     }
 
 }}}  // namespace Botanik::HAL::Storage
@@ -172,7 +186,7 @@ namespace Botanik { namespace HAL { namespace Storage {
         char out[STORE_MAX];
         size_t o = copy_without(in, n, key, klen, out, sizeof(out));
         // Append "key=<hex>\n" (a raw record, not a NUL-terminated string).
-        if (o + klen + 1 + 2 * len + 1 > sizeof(out)) return false;
+        if (o + klen + 1 + 2 * len + 1 > sizeof(out)) return note(false);
         for (size_t j = 0; j < klen; j++) out[o++] = key[j];
         out[o++] = '=';
         const uint8_t* v = static_cast<const uint8_t*>(buf);
@@ -181,7 +195,7 @@ namespace Botanik { namespace HAL { namespace Storage {
             out[o++] = hex_digit((unsigned)(v[j] & 0xF));
         }
         out[o++] = '\n';
-        return store(out, o);
+        return note(store(out, o));
     }
 
     bool get(const char* key, void* buf, size_t cap, size_t* out_len) {
@@ -221,7 +235,7 @@ namespace Botanik { namespace HAL { namespace Storage {
         char out[STORE_MAX];
         size_t o = copy_without(in, n, key, klen, out, sizeof(out));
         if (o == n) return true;                        // key absent: idempotent
-        return store(out, o);
+        return note(store(out, o));
     }
 
 }}}  // namespace Botanik::HAL::Storage
