@@ -51,22 +51,19 @@ target_link_libraries(botanik_tests botanik)
 # test_sizes.cpp pins the selected site's payload via BOTANIK_SITE_HEADER, derived
 # from the PUBLIC BOTANIK_SITE define (libbotanik_site.h) inherited from botanik.
 
-# Registered BOTH ways, because the two catch different things.
+# One CTest entry per TEST_CASE: doctest_discover_tests runs the binary at build
+# time with --list-test-cases and emits an add_test() per case, so `ctest` and
+# VS Code's Testing panel can show, run and debug a single case rather than the
+# whole binary as one pass/fail. The module and its helper are vendored next to
+# doctest.h; no fetch, no install.
 #
-# One entry per TEST_CASE (doctest_discover_tests runs the binary at build time
-# with --list-test-cases and emits an add_test() per case) is what makes `ctest`
-# and VS Code's Testing panel able to show, run and debug a single case. The
-# module and its helper are vendored next to doctest.h; no fetch, no install.
+# Note this gives every case a fresh process, so a test that corrupts state for
+# the ones after it stays invisible here (that is how an unbound Bank walking
+# garbage pointers hid - see its value-init). Run the binary directly to catch
+# that class: `./build/tests/botanik_tests` puts all the cases in one process.
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/vendor)
 include(doctest)
 doctest_discover_tests(botanik_tests)
-
-# ...plus one entry running the whole binary in a SINGLE process. Per-case
-# entries hand every case a fresh process to corrupt, which is exactly how a test
-# that walked garbage pointers stayed invisible (see Bank's value-init): its
-# damage never reached the cases after it. This entry is the only one that would
-# have caught that, and it costs one launch.
-add_test(NAME botanik_tests_in_process COMMAND botanik_tests)
 
 # `make check` is the one-shot pre-push gate. Its dependencies build everything
 # the suite needs (`make test`/`ctest` do not) plus the two static gates, then the

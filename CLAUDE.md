@@ -83,9 +83,10 @@ ctest --test-dir build -R pyte --output-on-failure  # just the pyte suite
 - **`botanik_strict`** - a `-Werror` mirror of the library (plain `make` stays
   warning-tolerant; this gate fails on any warning).
 - the **doctest + pyte** suites via `ctest`: one entry per `TEST_CASE` (so a
-  single case is runnable/debuggable from `ctest -R` or an IDE), one more that
-  runs the whole binary in a single process (the only entry that catches a case
-  corrupting state for the ones after it), and one per pyte test file.
+  single case is runnable/debuggable from `ctest -R` or an IDE), plus one per
+  pyte test file. Note each case gets its own process, so a test that corrupts
+  state for later ones hides here - run `./build/tests/botanik_tests` directly
+  to put them all in one process.
 
 **clang-tidy is NOT in the gate** - it is a periodic sweep, not a per-change
 check. Run it when a batch review is due:
