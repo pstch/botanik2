@@ -63,12 +63,12 @@ namespace Botanik { namespace Terminal {
             const Alarms::AlarmCondition& c = alarms->condition(i);
             // Skip ack'd alarms - same filter as unmasked_set() (the dirty
             // signal), so the drawn codes match what triggered the repaint.
-            if (!c.active || c.user_ack || c.code == nullptr) continue;
-            uint16_t clen = (uint16_t)strlen(c.code);
+            if (!c.active || c.user_ack || c.name == nullptr) continue;
+            uint16_t clen = (uint16_t)strlen(c.name);
             // out of room on the row
             if ((uint16_t)(used + clen + 1) > cols) break;
             _t.set_inverted(false);
-            _t.write_chars(c.code, clen);
+            _t.write_chars(c.name, clen);
             _t.set_inverted(true);
             // inverted separator
             _t.write_chars(" ", 1);

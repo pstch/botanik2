@@ -297,7 +297,7 @@ namespace Botanik { namespace Shell {
                 if (!c.active) continue;
                 uint32_t secs = (uint32_t)((now - c.started_ms) / 1000);
                 _emitf(out, sizeof(out), "  %-10s %s%s",
-                    c.code ? c.code : "?",
+                    c.name ? c.name : "?",
                     Utils::format_age(age, sizeof(age), secs, false),
                     c.user_ack ? " [ack]" : "");
             }

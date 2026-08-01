@@ -66,8 +66,8 @@ inline bool chance(float p) { return frand() < p; }
 /** @brief Simulated alarm bit for a table code (0 if undefined).
  *  Resolves through g_alarms so the mock bitset uses the firmware's bit
  *  layout. */
-inline uint64_t abit(const char* code) {
-    int i = Botanik::Alarms::alarm_index(g_alarms, g_alarm_count, code);
+inline uint64_t abit(const char* name) {
+    int i = Botanik::Alarms::alarm_index(g_alarms, g_alarm_count, name);
     return i >= 0 ? Botanik::Alarms::alarm_bit((uint8_t)i) : 0;
 }
 

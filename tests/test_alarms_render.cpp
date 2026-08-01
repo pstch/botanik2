@@ -102,12 +102,12 @@ TEST_CASE("alarms render: unchanged repaint skips the structural rows") {
     f.page.focus();
     std::string first = f.paint();
     CHECK(first.size() > 0);                  // structural rows drawn once
-    CHECK(first.find("CODE") != std::string::npos);   // header was in the first paint
+    CHECK(first.find("VARIABLE") != std::string::npos);   // header was in the first paint
 
     f.page.handle_command(Command::ENTER, 1); // request repaint
     std::string second = f.paint();
     CHECK(second.size() < first.size() / 2);  // only the footer, not the table
-    CHECK(second.find("CODE") == std::string::npos);  // header skipped
+    CHECK(second.find("VARIABLE") == std::string::npos);  // header skipped
     CHECK(second.find("----") == std::string::npos);  // rules skipped
 }
 
@@ -215,7 +215,7 @@ TEST_CASE("alarms render: DOWN moves the selection and scrolls it into view") {
 // with a repaint pending the row still shows the old badge, so a naive
 // "reconciled?" check reads true and demotes it before it is ever drawn.
 TEST_CASE("alarms render: a mode change shows the new mode before the rows") {
-    RenderFixture f(12);                          // short screen: rows overflow
+    RenderFixture f(13);                          // short screen: rows overflow
     step_bits(f.model, 0xF, 1000);
     f.page.focus();
     f.paint();                                    // settle the initial paint

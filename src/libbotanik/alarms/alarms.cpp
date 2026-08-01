@@ -44,7 +44,7 @@ namespace Botanik { namespace Alarms {
         //    fan-out. The OFF side reports a FLAP when no matching ON event
         //    fired this episode.
         uint64_t dwell = now - edge_ms;
-        const char* label = desc ? desc : (code ? code : "");
+        const char* label = desc ? desc : (name ? name : "");
         if (on) {
             if (due(on_sent, on_s, dwell)) {
                 sink.log_start(label);

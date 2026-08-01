@@ -73,7 +73,9 @@ namespace Botanik { namespace Alarms {
         /** @name Static metadata
          *  @{ */
 
-        const char* code;       ///< short code, max 8 chars
+        const char* name;       ///< the variable this reads, by name;
+                        ///< a platform alarm has no variable, so it
+                        ///< carries its own literal instead
         const char* desc;       ///< human-readable description
         /** The variable carrying this condition: the model reads it directly
          *  each step (non-zero = active). Left zeroed for the platform-health
@@ -139,17 +141,13 @@ namespace Botanik { namespace Alarms {
         }
     };
 
-    /** @brief Bit index of the alarm with matching @p code, otherwise -1. */
+    /** @brief Bit index of the alarm named @p name, otherwise -1. */
     inline int alarm_index(const AlarmCondition* table, uint8_t count,
-                           const char* code) {
-
-        // bail if we have no valid pointer to the alarm table or alarm code
-        if (table == nullptr || code == nullptr) return -1;
-        // look for a matching code
+                           const char* name) {
+        if (table == nullptr || name == nullptr) return -1;
         for (uint8_t i = 0; i < count; i++)
-            if (Utils::compare_str(table[i].code, code))
+            if (Utils::compare_str(table[i].name, name))
                 return (int)i;
-        // bail if we couldn't find one
         return -1;
     }
 
@@ -206,7 +204,7 @@ namespace Botanik { namespace Alarms {
             if (_pub == nullptr) return;
             char topic[64];
             snprintf(topic, sizeof(topic), "%s/alarms/%s",
-                     _prefix, a.code ? a.code : "?");
+                     _prefix, a.name ? a.name : "?");
             _pub->publish(topic, state);
         }
     };
@@ -351,16 +349,16 @@ namespace Botanik { namespace Alarms {
         /** @brief Set/clear a local alarm by table code (e.g. "CPU_LOAD");
          *  no-op if the code is absent, so generic firmware needn't depend on
          *  the site defining it. */
-        void set_local(const char* code, bool on) {
-            int i = alarm_index(_conditions, _count, code);
+        void set_local(const char* name, bool on) {
+            int i = alarm_index(_conditions, _count, name);
             if (i >= 0) set_local((uint8_t)i, on);
         }
 
         /** @brief Mark an active condition acknowledged by table code; false if
          *  unknown or inactive. Informational only (cleared on next ON
          *  edge). */
-        bool ack(const char* code) {
-            int i = alarm_index(_conditions, _count, code);
+        bool ack(const char* name) {
+            int i = alarm_index(_conditions, _count, name);
             if (i < 0 || !_conditions[i].active) return false;
             _conditions[i].user_ack = true;
             _conditions[i].ack_ms   = _last_now;
@@ -423,8 +421,8 @@ namespace Botanik { namespace Alarms {
         const AlarmCondition& condition(uint8_t i) const { return _conditions[i]; }
         /** @brief Index of @p code, or -1 (POST uses it to verify set_local
          *  resolves). */
-        int index_of(const char* code) const {
-            return alarm_index(_conditions, _count, code);
+        int index_of(const char* name) const {
+            return alarm_index(_conditions, _count, name);
         }
 
         /** @} */

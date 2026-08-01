@@ -119,34 +119,6 @@ const VarRef g_grp_irrigation[] = {
     { V_IRR_TRAY8 },
 };
 
-/** @brief Alarm conditions. Computed digitals, so the alarms page, the monitor
- *  table and telemetry all read the one set of booleans. */
-const VarRef g_grp_alarms[] = {
-    { V_ALARM_AC_GRID },
-    { V_ALARM_DC_PS1 },
-    { V_ALARM_GEN_FLT },
-    { V_ALARM_AC_LOCAL },
-    { V_ALARM_DC_PS2 },
-    { V_ALARM_DC_UPS },
-    { V_ALARM_DC_LOCAL },
-    { V_ALARM_GEN_BATT },
-    { V_ALARM_PLC_FLT },
-    { V_ALARM_NET_FLT },
-    { V_ALARM_NTP_TIM },
-    { V_ALARM_ACT_FLT },
-    { V_ALARM_SNS_FLT },
-    { V_ALARM_TOO_HOT },
-    { V_ALARM_TOO_COLD },
-    { V_ALARM_TOO_HUM },
-    { V_ALARM_TMP_STR },
-    { V_ALARM_WTR_LK },
-    { V_ALARM_WTR_BAR },
-    { V_ALARM_WTR_CLOG },
-    { V_ALARM_IO_DROP },
-    { V_ALARM_LOG_FLD },
-    { V_ALARM_WH_STORM },
-};
-
 /** @brief Firmware-derived state. */
 const VarRef g_grp_system[] = {
     { V_SYS_SUPPLY_HZ },
@@ -160,7 +132,6 @@ const VarGroup g_status_groups[] = {
     GRP(ats),
     GRP(climate),
     GRP(irrigation),
-    GRP(alarms),
     GRP(system),
 };
 const uint8_t g_status_group_count =

@@ -12,7 +12,7 @@ show live, and the table's row rendering is covered by tests/test_alarms_render.
 import keys
 from helpers import boot, goto
 
-TABLE = "| CODE     | ON | LAST EVENT"
+TABLE = "| VARIABLE                | ON | LAST EVENT"
 
 
 def test_alarms_views(spawn):

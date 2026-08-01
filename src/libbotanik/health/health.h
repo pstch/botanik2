@@ -113,9 +113,9 @@ namespace Botanik { namespace Health {
             // alarm-namespace wiring).
             static const char* const codes[] =
                 { "SYS_RST", "CPU_LOAD", "CPU_JITT", "STACK", "CPU_XRUN" };
-            for (const char* code : codes)
-                if (_model.index_of(code) < 0) {
-                    ok = false; _post_fail("alarm code missing", code);
+            for (const char* name : codes)
+                if (_model.index_of(name) < 0) {
+                    ok = false; _post_fail("alarm missing", name);
                 }
             // A logger with no writers would silently swallow everything.
             if (_logger == nullptr || !_logger->has_writers()) ok = false;
@@ -167,13 +167,13 @@ namespace Botanik { namespace Health {
         /** @brief Hold a momentary "event" alarm active for ALARM_EVENT_HOLD_MS
          *  after its @p counter ticks (latched in the source, not via the
          *  table's off_delay_s). */
-        void _held_event(const char* code, uint32_t counter, uint32_t& last,
+        void _held_event(const char* name, uint32_t counter, uint32_t& last,
                          uint64_t& until_ms, uint64_t now) {
             if (counter != last) {
                 last = counter;
                 until_ms = now + Config::ALARM_EVENT_HOLD_MS;
             }
-            _model.set_local(code, now < until_ms);
+            _model.set_local(name, now < until_ms);
         }
 
         /** @brief Watchdog verdict. The timed escalation existed to reboot both

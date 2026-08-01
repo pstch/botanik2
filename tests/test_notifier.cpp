@@ -42,7 +42,7 @@ TEST_CASE("MqttAlarmNotifier: notify_on/off build the topic + payload and forwar
     n.set_publisher(&pub);
 
     AlarmCondition c = {};
-    c.code = "NET_FLT";
+    c.name = "NET_FLT";
 
     n.notify_on(c);
     CHECK(pub.calls == 1);
@@ -62,7 +62,7 @@ TEST_CASE("MqttAlarmNotifier: notify_on/off build the topic + payload and forwar
 TEST_CASE("MqttAlarmNotifier: with no publisher set it is a safe no-op") {
     MqttAlarmNotifier n("botanik/greenhouse");
     AlarmCondition c = {};
-    c.code = "NET_FLT";
+    c.name = "NET_FLT";
     n.notify_on(c);    // must not crash / dereference null
     n.notify_off(c);
     CHECK(true);

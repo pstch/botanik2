@@ -99,7 +99,7 @@ namespace Botanik { namespace Pages {
          *  Columns: CODE | ON (reverse-video badge when active) | LAST EVENT
          *  (the last transition's timestamp, "YY/MM/DD HH:MM") | DESCRIPTION.
          *  @{ */
-        static constexpr uint16_t CODE_W     = 9;   // content width
+        static constexpr uint16_t NAME_W     = 24;  // the variable's own name
         static constexpr uint16_t STATE_W    = 3;   // "ON" badge / "ON" header
         static constexpr uint16_t EVENT_W    = 15;  // "YY/MM/DD HH:MM"
         static constexpr uint16_t HEADER_ROW = 2;
@@ -109,36 +109,29 @@ namespace Botanik { namespace Pages {
          *  selection cursor, so a selection move patches one small field, not a
          *  whole row; the highlight stops one column short of its right edge
          *  (_code_cell_r()), leaving a plain gap before the border - which is
-         *  safe because codes are at most CODE_W-1 wide. The STATE cell carries
+         *  safe because the highlight stops one short of the cell. The STATE cell carries
          *  its own reverse-video "ON" badge, split out of the row write so there
          *  is no flicker-prone overdraw. */
-        enum { C_CODE = 0, C_STATE, C_EVENT, C_DESC };
+        enum { C_NAME = 0, C_STATE, C_EVENT };
         /** @} */
 
         /** @brief The alarms grid packs its cells (no trailing pad): the width
          *  it saves goes to the description column. */
         bool _pad_cells() const override { return false; }
 
-        /** @brief Description CELL width (its lead pad included): the row
-         *  remainder, clamped. The content is one narrower - see _columns(). */
-        uint16_t _desc_cell_w() const {
-            // 5 rules + fixed cells (each width carries its lead pad)
-            return _flex_width((uint16_t)(2 * MARGIN + 5 + (CODE_W + 1) + (STATE_W + 1)
-                                          + (EVENT_W + 1)), 70);
-        }
-
         uint8_t _columns(Col* out) const override {
-            out[C_CODE]  = Col{ "CODE",        CODE_W   };
-            out[C_STATE] = Col{ "ON",          STATE_W  };
-            out[C_EVENT] = Col{ "LAST EVENT",  EVENT_W  };
-            // Content width: the flexible cell minus its lead pad.
-            out[C_DESC]  = Col{ "DESCRIPTION", (uint16_t)(_desc_cell_w() - 1) };
-            return 4;
+            // No DESCRIPTION column: the name IS the variable, so the row says
+            // what it is, and the sentence explaining it belongs in the panel
+            // where there is room for the whole of it.
+            out[C_NAME]  = Col{ "VARIABLE",   NAME_W  };
+            out[C_STATE] = Col{ "ON",         STATE_W };
+            out[C_EVENT] = Col{ "LAST EVENT", EVENT_W };
+            return 3;
         }
 
         /** @brief Right edge of the selection highlight: one short of the CODE
          *  cell's contents (see the column note above). */
-        uint16_t _code_cell_r() const { return (uint16_t)(_cell_end(C_CODE) - 1); }
+        uint16_t _code_cell_r() const { return (uint16_t)(_cell_end(C_NAME) - 1); }
 
         /** @brief Format the last-event cell: edge_ms as "YY/MM/DD HH:MM", or
          *  empty if it never fired (ON vs OFF is shown by the ON column). */
@@ -183,9 +176,11 @@ namespace Botanik { namespace Pages {
             }
             uint16_t br = _brule_row();
             _blank_line((uint16_t)(br + 1));
-            _panel_field((uint16_t)(br + 2), "Remediation", c ? c->notes : nullptr);
-            _panel_field((uint16_t)(br + 3), "Acknowledged", ack);
-            _blank_line((uint16_t)(br + 4));
+            // Description leads: it was a table column until the name became the
+            // variable's own, which says what the row IS but not what it means.
+            _panel_field((uint16_t)(br + 2), "Description",  c ? c->desc  : nullptr);
+            _panel_field((uint16_t)(br + 3), "Remediation",  c ? c->notes : nullptr);
+            _panel_field((uint16_t)(br + 4), "Acknowledged", ack);
         }
 
         /** @brief True if @p c belongs in RECENT mode: a last event still
@@ -223,7 +218,7 @@ namespace Botanik { namespace Pages {
             for (uint8_t i = 0;
                  i < _model->count() && _nvis < Alarms::ALARM_BITS; i++) {
                 const Alarms::AlarmCondition& c = _model->condition(i);
-                if (c.code == nullptr) continue;             // undefined slot
+                if (c.name == nullptr) continue;             // undefined slot
                 bool include;
                 switch (_mode) {
                     case MODE_RECENT:   include = _is_recent(c, now);     break;
@@ -267,12 +262,12 @@ namespace Botanik { namespace Pages {
         // free row below at rows()-1
         uint16_t _legend_row()  const { return (uint16_t)(_console.rows() - 2); }
         // bottom rule; between it and the legend: blank, Remediation, Acknowledged, blank
-        uint16_t _brule_row()   const { return (uint16_t)(_console.rows() - 7); }
+        uint16_t _brule_row()   const { return (uint16_t)(_console.rows() - 8); }
         /** @brief Number of data rows that fit, or 0 if the screen is too
          *  short. */
         uint16_t _window() const override {
             uint16_t r = _console.rows();
-            return (r >= (uint16_t)(DATA_TOP + 8)) ? (uint16_t)(r - DATA_TOP - 7) : 0;
+            return (r >= (uint16_t)(DATA_TOP + 9)) ? (uint16_t)(r - DATA_TOP - 8) : 0;
         }
         /** @name ScrollTablePage geometry
          *  @{ */
@@ -302,7 +297,7 @@ namespace Botanik { namespace Pages {
          *  for the selection cursor (only the first cell highlights). Leaves the
          *  cursor at CODE_CELL_R. */
         void _write_code_cell(const char* line, bool selected) {
-            const uint16_t l = _cell_col(C_CODE), r = _code_cell_r();
+            const uint16_t l = _cell_col(C_NAME), r = _code_cell_r();
             _terminal.write_chars(line, l);                        // margin + "| "
             if (selected) _terminal.set_inverted(true);
             _terminal.write_chars(line + l, (uint16_t)(r - l));
@@ -317,8 +312,7 @@ namespace Botanik { namespace Pages {
             char ev[16];
             _fmt_event(ev, sizeof(ev), c);
             const char* state = c.active ? "ON" : (c.edge_ms != 0 ? "OFF" : "");
-            const char* cells[4] = { c.code ? c.code : "?", state, ev,
-                                     c.desc ? c.desc : "" };
+            const char* cells[3] = { c.name ? c.name : "?", state, ev };
             char     line[160];
             uint16_t n = _build_row(line, sizeof(line), cells);
             const uint16_t code_r = _code_cell_r(), badge = _cell_col(C_STATE);
@@ -352,7 +346,7 @@ namespace Botanik { namespace Pages {
         void _ack_selected() {
             if (_model == nullptr || _selected >= _nvis) return;
             const Alarms::AlarmCondition& c = _model->condition(_vis[_selected]);
-            if (c.code != nullptr) _model->ack(c.code);
+            if (c.name != nullptr) _model->ack(c.name);
             _dirty = true;   // ack changes the badge / sort
         }
 
