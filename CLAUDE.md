@@ -102,10 +102,12 @@ rm -rf build/clang-tidy        # force a full re-lint next time
 It runs the `bugprone-*` checks from `.clang-tidy` with findings promoted to
 errors, and exists only when `clang-tidy` was found at configure time.
 
-The pyte suite needs its own release sim, which **CTest never builds** (neither
-`ctest` nor `make test` builds anything). `make check` depends on it; otherwise
-run `make -C build pyte-sim` first. A screen test that finds the sim missing now
-fails loudly - it used to skip, which CTest reported as `Passed`.
+The pyte suite needs its own release sim (RELEASE, no sanitizers, built in a
+sub-tree under `build/pyte-sim/`). It is part of `all`, so a plain `make` builds
+it and `make test` / `ctest` then have it - CTest itself never builds anything,
+and CMake's built-in `test` target cannot be given dependencies. A screen test
+that finds the sim missing fails loudly; it used to skip, which CTest reported as
+`Passed`.
 
 ## Architecture
 

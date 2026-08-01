@@ -155,11 +155,14 @@ if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
             DEPENDS ${_pyte_sim_srcs} ${_pyte_sim_dir}/CMakeCache.txt
             COMMENT "Building release botanik_sim for the pyte tests"
             VERBATIM)
-        # Deliberately NOT in ALL: the sub-build's own dependency scan costs
-        # ~15 s, which every ordinary `make` would then pay. `check` depends on
-        # it, and a run that reaches the screen tests without it now fails loudly
-        # (conftest) instead of reporting green having asserted nothing.
-        add_custom_target(pyte-sim DEPENDS ${_pyte_sim_bin})
+        # In ALL, so an ordinary `make` produces it. CTest never builds anything -
+        # `make test` and `ctest` only run - and CMake's built-in `test` target
+        # cannot be given dependencies, so a sim outside the default build is one
+        # the screen tests find missing: `make && make test` failed on a tree that
+        # had just been built. Costs ~0.4 s on a no-op `make` (the sub-build's
+        # dependency scan); after editing a library source it rebuilds the release
+        # sim too, which is the price of `make test` meaning what it says.
+        add_custom_target(pyte-sim ALL DEPENDS ${_pyte_sim_bin})
 
         # One CTest entry per test FILE. Per-function entries needed pytest's node
         # IDs, which meant asking --collect-only for them at configure time and
