@@ -102,9 +102,8 @@ endif()
 #
 # The suite always runs against a dedicated RELEASE, no-sanitizer sim built in a
 # sub-tree: dilated time leaves a ~1ms wall budget per tick, which a debug+ASAN
-# build can't meet (the overrun warning is silenced via BOTANIK_NO_XRUN_WARNING,
-# but the sluggishness and other timing skew remain). BOTANIK_PYTE_TESTS=OFF in
-# that sub-build keeps this block from recursing.
+# build can't meet. BOTANIK_PYTE_TESTS=OFF in that sub-build keeps this block
+# from recursing.
 option(BOTANIK_PYTE_TESTS "Register the pyte screen-assertion tests" ON)
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
