@@ -207,11 +207,17 @@ namespace Botanik { namespace Pages {
          *  rather than as a hint off on the right. The keys move you along that
          *  row, so the row is the thing to look at, and it says where you are and
          *  what is on each side in one glance.
+         *
+         *  The three view fields are CENTRED in equal slots. Their labels are all
+         *  different lengths, so aligning them to an edge left the trio looking
+         *  lopsided and moved the badge - the one thing the eye returns to -
+         *  whenever a neighbour's name changed length. Centring in a fixed slot
+         *  keeps each field in its own region and lets it grow both ways.
          *  @{ */
-        static constexpr uint16_t ML_PREV   = 2;    // previous view, right-aligned
-        static constexpr uint16_t ML_PREV_W = 13;
+        static constexpr uint16_t ML_SLOT_W = 15;   // each view field's slot
+        static constexpr uint16_t ML_PREV   = 2;    // previous view
         static constexpr uint16_t ML_BADGE  = 17;   // "[cur]"
-        static constexpr uint16_t ML_NEXT   = 30;   // "> next", or "(group)"
+        static constexpr uint16_t ML_NEXT   = 32;   // "> next", or "(group)"
         static constexpr uint16_t ML_POS    = 48;   // "first-last / total"
         static constexpr uint16_t ML_DETAIL = 62;   // page-specific extra
         /** @} */
@@ -219,6 +225,21 @@ namespace Botanik { namespace Pages {
         /** @brief Pad @p buf out to column @p col. */
         static void _pad_to(char* buf, uint16_t& w, size_t cap, uint16_t col) {
             while (w < col && w + 1 < cap) buf[w++] = ' ';
+        }
+
+        /** @brief Write @p text centred in the @p slot_w-wide slot at @p col.
+         *  @return the column its first character landed on (the badge needs it
+         *  to know what to invert). */
+        static uint16_t _place_centered(char* buf, uint16_t& w, size_t cap,
+                                        uint16_t col, uint16_t slot_w,
+                                        const char* text) {
+            const uint16_t len = (uint16_t)strlen(text);
+            const uint16_t off = (len < slot_w) ? (uint16_t)((slot_w - len) / 2) : 0;
+            _pad_to(buf, w, cap, (uint16_t)(col + off));
+            const uint16_t at = w;
+            int n = snprintf(buf + w, cap - w, "%s", text);
+            if (n > 0) w = (uint16_t)(w + n);
+            return at;
         }
 
         /** @brief Draw the view's legend line: the neighbouring views either side
@@ -244,35 +265,33 @@ namespace Botanik { namespace Pages {
         void _draw_mode_line(uint16_t row, const char* group, const char* detail) {
             const uint8_t n_modes = _mode_count();
             const bool    in_all  = (group != nullptr && group[0] != '\0');
-            char left[160];
+            char left[160], field[32];
             uint16_t w = 0;
             int n = 0;
 
-            // Previous view, right-aligned so its "<" always lands in one place.
-            // Omitted in an "all" view, which has no meaningful "back".
-            _pad_to(left, w, sizeof(left), ML_PREV);
+            // Previous view. Omitted in an "all" view, which has no meaningful
+            // "back" - it is where back leads.
             if (!in_all && n_modes > 1) {
-                const char* prev = _mode_label((uint8_t)((_mode + n_modes - 1) % n_modes));
-                n = snprintf(left + w, sizeof(left) - w, "%*s <", ML_PREV_W, prev);
-                if (n > 0) w = (uint16_t)(w + n);
+                snprintf(field, sizeof(field), "%s <",
+                         _mode_label((uint8_t)((_mode + n_modes - 1) % n_modes)));
+                _place_centered(left, w, sizeof(left), ML_PREV, ML_SLOT_W, field);
             }
 
-            _pad_to(left, w, sizeof(left), ML_BADGE);
-            const uint16_t badge_at = w;
-            n = snprintf(left + w, sizeof(left) - w, "[%s]", _mode_name());
-            if (n > 0) w = (uint16_t)(w + n);
+            snprintf(field, sizeof(field), "[%s]", _mode_name());
+            const uint16_t badge_at =
+                _place_centered(left, w, sizeof(left), ML_BADGE, ML_SLOT_W, field);
             const uint16_t badge_end = w;
 
-            _pad_to(left, w, sizeof(left), ML_NEXT);
             if (in_all) {
-                n = snprintf(left + w, sizeof(left) - w, "(%s)", group);
+                snprintf(field, sizeof(field), "(%s)", group);
             } else if (n_modes > 1) {
-                n = snprintf(left + w, sizeof(left) - w, "> %s",
-                             _mode_label((uint8_t)((_mode + 1) % n_modes)));
+                snprintf(field, sizeof(field), "> %s",
+                         _mode_label((uint8_t)((_mode + 1) % n_modes)));
             } else {
-                n = 0;
+                field[0] = '\0';
             }
-            if (n > 0) w = (uint16_t)(w + n);
+            if (field[0] != '\0')
+                _place_centered(left, w, sizeof(left), ML_NEXT, ML_SLOT_W, field);
 
             // How much of the set is on screen - every table shows it, since
             // "am I looking at all of this?" is the same question everywhere.
