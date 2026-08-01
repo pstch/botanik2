@@ -1,8 +1,9 @@
-# Scheduler & Performance Monitoring
+# Scheduler and performance monitoring {#dev_scheduler}
 
 How the firmware runs everything from one non-blocking loop at a fixed period,
 and how it measures its own CPU load, scheduling jitter, stack usage, and
-achieved tick rate.
+achieved tick rate. What runs inside a beat, and in what order, is in
+@ref dev_architecture.
 
 ## The loop
 
@@ -13,7 +14,7 @@ exactly once per period, when the work for that beat should run.
 ```
  while (true) {
      if (scheduler.tick()) {     // true once per TASK_PERIOD_MS
-         ...do the work...        // serial, PLC sync, logging, console
+         ...do the work...        // serial, scan, logging, console
      }
  }
 ```
@@ -82,9 +83,9 @@ rotating buckets), both in `utils/filters.h`. All tuning constants live in
 
 `SchedulerContext` holds the CPU-load / loop-time / stack fields, jitter, plus
 `tick_count`, `overruns`, `ticks_per_second`, and the shared per-tick `timestamp_ms`.
-The scheduler writes every field in place (no copy step); consumers (status bar,
-`stats` command, PLC sync timing) all read this one struct via
-`LoopScheduler::context()`.
+The scheduler writes every field in place (no copy step); consumers (the status bar,
+the `stats` command, the health monitor's load/jitter/stack alarms) all read this one
+struct via `LoopScheduler::context()`.
 
 \startuml "SchedulerContext: the metrics struct, read via LoopScheduler::context()"
 class SchedulerContext {

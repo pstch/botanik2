@@ -1,8 +1,9 @@
-# Event Dispatch Architecture
+# Input dispatch {#dev_input}
 
-How input events flow from the hardware serial port to the active terminal page.
-For the pages themselves see [PAGES.md](PAGES.md); for the output side (log entries
-flowing *out* to the pages and serial sinks) see [LOG_FLOW.md](LOG_FLOW.md).
+How input events flow from the hardware serial port to the active terminal page. For
+the pages themselves see @ref dev_pages; for the output side - log entries flowing
+*out* to the pages and serial sinks - see @ref dev_logging. The bytes those pages
+produce are paced by the TX path in @ref dev_screen.
 
 ## Layers
 
@@ -22,7 +23,7 @@ escape sequences. @ref Botanik::Terminal::Console composes one (exposed via
 @ref Botanik::Terminal::Console::step "step()" bootstraps the display on the first call,
 refreshes the row-0 status bar when due and the TX ring has room, dispatches one
 @ref Botanik::Terminal::InputEvent from the parser, and **ticks every page** (not just
-the active one) so each can drain its queued log entries (see [LOG_FLOW.md](LOG_FLOW.md)).
+the active one) so each can drain its queued log entries (see @ref dev_logging).
 
 \startuml "the console layer: Console (a Component) composes the AnsiTerminal device, owns the two bars, and holds the page array"
 class Component
@@ -68,7 +69,7 @@ class InputEvent {
 ### Pages
 
 @ref Botanik::Terminal::Console holds up to 8 @ref Botanik::Pages::Page pointers and
-routes events to the active one. See [PAGES.md](PAGES.md).
+routes events to the active one. See @ref dev_pages.
 
 ## Dispatch flow
 
@@ -86,7 +87,7 @@ routes events to the active one. See [PAGES.md](PAGES.md).
         │                           │
         │                           ▼
         │                  Console intercepts (consumed):
-        │                  Ctrl+L, HOME, Alt+1..0,
+        │                  Ctrl+L, HOME, Alt+1..8,
         │                  TAB / Ctrl+PgUp/PgDn, Ctrl+C
         │                           │ remaining
         ▼                           ▼
@@ -95,7 +96,7 @@ routes events to the active one. See [PAGES.md](PAGES.md).
                       ▼  dispatched to the active page:
    ┌───────────┬──────┴─────┬────────────┐
    ▼           ▼            ▼            ▼
- ShellPage   LogsPage     HomePage    StatusPage
+ ShellPage   LogsPage   AlarmsPage    HomePage ...
    │ ShellPage
    ▼
  InputEditor (TextEditor):  CONTENT → insert,  COMMAND → move/delete
@@ -110,4 +111,4 @@ the one hybrid: the console offers it to the active page first via
 @ref Botanik::Pages::Page::handle_cancel "handle_cancel()", and only if the page
 declines applies the default - quit on the simulator, a **no-op on hardware**
 (a stray Ctrl+C must never reboot the controller). The full intercept list is the
-"Console intercepts" table in [KEYBINDINGS.md](KEYBINDINGS.md).
+"Console intercepts" table in @ref user_console.

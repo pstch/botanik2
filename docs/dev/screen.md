@@ -1,4 +1,4 @@
-# The console screen back-buffer
+# The console TX path {#dev_screen}
 
 How the console gets a whole screen's worth of intent onto a slow serial link:
 one diff, in one place, paced under a per-tick byte budget.
@@ -124,7 +124,7 @@ So a renderer that both reflows and changes its row count has to *compute* where
 the row count actually changed rather than assume it. The line editor is the one
 that does this, in `_find_splice_span()` (`console/editor.cpp`): it diffs the
 pre-edit row layout against the new one for the longest shifted-identical suffix,
-and puts the single IL/DL at that boundary. See EDITOR_RECONCILE.md. A heuristic
+and puts the single IL/DL at that boundary. See @ref dev_editor. A heuristic
 in place of that search handles the clean cases and quietly loses the rest, which
 is why the search stayed.
 
@@ -241,7 +241,7 @@ tables (alarms / monitor / config) share the same shape: a scroll band + a
 selection cursor, redrawn immediate-mode, pared by the diff.
 
 The line editor is the deliberate exception: it keeps a real reconcile pass
-(EDITOR_RECONCILE.md), because it is the one renderer that reflows content across
+(@ref dev_editor), because it is the one renderer that reflows content across
 rows *and* changes its row count in the same edit - the case above. Its per-row
 splicing is byte-neutral against the diff, but the layout diff it does to place
 the IL/DL is not something the back-buffer can infer.

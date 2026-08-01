@@ -1,34 +1,20 @@
-# Log Flow
+# Log flow {#dev_logging}
 
-The output side: how a log entry travels from a call site through rate limiting
-to every registered sink. For the *input* side (key events reaching pages) see
-[EVENT_DISPATCH.md](EVENT_DISPATCH.md); for the pages that double as sinks, see
-[PAGES.md](PAGES.md).
+The output side: how a log entry travels from a call site through rate limiting to
+every registered sink. For the *input* side see @ref dev_input; for the pages that
+double as sinks, see @ref dev_pages. The operator-facing view - levels, topics, the
+monitor port - is @ref user_logging.
 
 ## Sources
 
-An entry enters through @ref Botanik::Logs::Logger, either from:
+An entry enters through @ref Botanik::Logs::Logger when firmware code calls a level
+helper (@ref Botanik::Logs::Logger::info "info()",
+@ref Botanik::Logs::Logger::warning "warning()", …), which builds a timestamped
+record carrying a **level** and a **topic** - the `LogLevel` / `LogTopic` enums in
+`logs/topics.h`.
 
-- **Firmware code** calling a level helper (@ref Botanik::Logs::Logger::info "info()",
-  @ref Botanik::Logs::Logger::warning "warning()", etc.), which builds a timestamped
-  @ref Botanik::PlcIO::LogEntry_t.
-- **The PLC coprocessor**, whose log ring is drained on the main thread by
-  @ref Botanik::PlcIO::PlcLogReader and re-emitted through the same `Logger`.
-
-Every entry carries a **level** (`DEBUG`, `INFO`, `NOTICE`, `WARNING`, `ERROR`,
-`CRITICAL`) and a **topic** (`SHARED_IO`, `BOOT`, `NETWORK`, `TIME`, `STATUS`, and the
-firmware-only `ASSERT`; the `LogTopic` enum in `plcio/vars.h`).
-
-\startuml "LogEntry_t: one log record (PLC-shared wire layout, byte offsets)"
-class LogEntry_t {
-  timestamp : uint32 @0
-  level : LogLevel @4 (uint8)
-  topic : LogTopic @5 (uint8)
-  length : uint16 @6
-  seqNum : uint32 @8
-  message : char[LOG_PLC_MESSAGE_LEN] @12
-}
-\enduml
+@note The topic numbering is deliberately not compacted. It is what sits in
+already-written log records, so a gap stays a gap.
 
 ## Rate limiting
 
@@ -72,15 +58,19 @@ class Logger {
 
 ## Sinks
 
-Entries that pass fan out to every registered @ref Botanik::Logs::LogWriter, of two
+Entries that pass fan out to every registered @ref Botanik::Logs::LogWriter, of three
 kinds:
 
 - **Serial** - @ref Botanik::Logs::SerialLogWriter writes the formatted line to a
-  `BufferedSerial` port. Its @ref Botanik::Logs::MonitorLogWriter variant
-  self-suppresses when the output is an interactive terminal, so it can't garble a
-  shared console.
+  `BufferedSerial` port. Constructed with `drop_if_tty`, it decides **once** at
+  construction whether the port is an interactive terminal and self-suppresses if so,
+  since that means it shares a screen with the UI. This is why the simulator's
+  monitor stream is silent until stderr is redirected.
 - **Page** - @ref Botanik::Pages::ShellPage, @ref Botanik::Pages::LogsPage and
   @ref Botanik::Pages::HomePage surface entries in the UI.
+- **MQTT** - @ref Botanik::Network::MqttLogWriter publishes each entry to the broker
+  under `<prefix>/<log topic>/<level>/<topic>`, best-effort and with its own minimum
+  level (`MQTT_LOG_MIN_LEVEL`).
 
 All derive from @ref Botanik::Logs::BufferedLogWriter, whose `push()` queues into a
 FIFO and `drain()` flushes incrementally across calls so nothing blocks. On overflow a
@@ -121,24 +111,24 @@ edge-triggered (first event instant, then a per-category holdoff) and classed
 ## Pipeline
 
 ```
- firmware code (info/warning/...)      PlcLogReader::step() (PLC ring)
-              └─────────────┬────────────────────┘
+ firmware code (info/warning/...)
+                            │
                             ▼
          Logger  (global + per-topic buckets;
                   pass → push_entry, empty → drop + count)
                             │ fan-out (push_entry)
-        ┌──────────┬────────┴────┬──────────┐
-        ▼          ▼             ▼          ▼
-     Monitor    ShellPage     LogsPage   HomePage
-    (LogWriter)    └───────────┬──────────┘
-        │                      ▼
-        │          page LogWriter drain (per tick):
-        │            active page     → paints to screen
-        │            background page → banks into Scrollback
-        ▼                      ▼
- BufferedSerial          BufferedSerial
- monitor UART            console UART
- (push→FIFO→drain)       (active page paints)
+     ┌──────────┬───────────┼───────────┬──────────┐
+     ▼          ▼           ▼           ▼          ▼
+  Monitor    ShellPage   LogsPage   HomePage   MqttLogWriter
+ (LogWriter)    └──────────┬─────────────┘          │
+     │                     ▼                        ▼
+     │         page LogWriter drain (per tick):   MqttClient
+     │           active page     → paints to screen
+     │           background page → banks into Scrollback
+     ▼                     ▼
+ BufferedSerial      BufferedSerial
+ monitor UART        console UART
+ (push→FIFO→drain)   (active page paints)
 ```
 
 ## Format
