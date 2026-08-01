@@ -122,7 +122,7 @@ class Term:
 
     # -- synchronization -----------------------------------------------------
 
-    def settle(self, quiet=0.15, timeout=5.0):
+    def settle(self, quiet=0.05, timeout=5.0):
         """Drain output until the *normalized* screen has been stable for `quiet`s.
 
         The screen never goes byte-quiet: periodic refreshes (uptime/clock/cpu)
