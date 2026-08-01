@@ -10,17 +10,17 @@
  * overwrites. It is deliberately tiny, because a site is data. Everything
  * declarative lives in the generated files this pulls in through descriptor.h:
  *
- *   payload.h      GENERATED  the PLC payload + its layout asserts
+ *   vars.h         GENERATED  every variable, in one table (parameters included)
  *   status.h       GENERATED  status variables + home-screen readings
- *   params.h       GENERATED  config parameters
  *   alarms.h       GENERATED  alarm conditions
  *   descriptor.h   GENERATED  the SiteDescriptor bundling them
  *   commands.h     hand-written  shell commands (code, not schema)
- *   sim.h          hand-written  the mock PLC: animator + emulator instance
+ *   tasks.h        hand-written  control programs (code, not schema)
+ *   sim.h          hand-written  the simulated field
  *
  * Every site exposes the same surface, so a harness never names the site:
- *   - `BotanikSite`           the firmware type to instantiate
- *   - `Site::simulate()`      the simulated field (sim.h)
+ *   - `BotanikSite`       the firmware type to instantiate
+ *   - `Site::simulate()`  the simulated field (sim.h)
  *   - `dilated_timeout()` sim-only timeout dilation (sim.h)
  *
  * A target selects a site by directory (-DBOTANIK_SITE_DIR, or -DBOTANIK_SITE
@@ -38,10 +38,10 @@
 /**
  * @brief The gh_mlb41 greenhouse firmware.
  *
- * A thin binding of the generic base to this site's PLC payload + descriptor:
- * it declares no pages and overrides no hooks. The base owns every page
+ * A thin binding of the generic base to this site's descriptor: it declares no
+ * pages and overrides no hooks. The base owns every page
  * (home/shell/logs/alarms/params/monitor) and wires the descriptor's tables
- * (alarms, commands, status variables, config parameters) generically, so the
+ * (variables, alarms, commands, status groups, tasks) generically, so the
  * site is data (the generated tables), not code. A site that needs custom
  * per-beat logic or an extra page (e.g. re-adding a STATUS page by subclassing
  * Pages::StatusPage) would override the base's on_step() / register_pages()
@@ -56,9 +56,9 @@ public:
     {}
 };
 
-// The mock PLC (animator + Site::MockPlc). Body compiles only under
-// TARGET_SIMULATOR; near-empty on OPTA, where the real coprocessor plays that
-// role. Included after the payload it animates.
+// The simulated field (Site::simulate()). Body compiles only under
+// TARGET_SIMULATOR; near-empty on OPTA, where the real field plays that role.
+// Included after the variable tables it animates.
 #include "sim.h"
 
 /** @brief The firmware type the harness instantiates for this site. */

@@ -173,21 +173,113 @@ namespace Botanik { namespace Pages {
             _terminal.clear_to_eol();
         }
 
-        /** @brief Draw a dash rule: @p margin blanks, then @p ncols columns of
-         *  '-' with @p join between them and @p end_cap at the outer ends. Each
-         *  @p spans[i] is that column's dash count (the caller includes any cell
-         *  padding). @p end_cap carries the '^' / 'v' hidden-rows marker. */
-        void _draw_rule(uint16_t row, uint16_t margin, const uint16_t* spans,
-                        uint8_t ncols, char join, char end_cap) {
-            char line[160];
-            uint16_t n = 0;
-            for (uint16_t i = 0; i < margin && n < sizeof(line) - 1; i++) line[n++] = ' ';
-            if (n < sizeof(line) - 1) line[n++] = end_cap;
-            for (uint8_t c = 0; c < ncols; c++) {
-                for (uint16_t k = 0; k < spans[c] && n < sizeof(line) - 1; k++) line[n++] = '-';
-                if (n < sizeof(line) - 1) line[n++] = (c + 1 == ncols) ? end_cap : join;
+        /** @}
+         *  @name Column model
+         *
+         *  A subclass declares its columns once (heading + content width, flex
+         *  already resolved) and the base builds the row, the header and the
+         *  rule from that, and derives the screen column each cell's contents
+         *  start at. Before this, each page carried its own snprintf row
+         *  builder plus hand-computed highlight columns that had to be kept in
+         *  step with it by eye.
+         *  @{ */
+
+        /** @brief One table column: its heading and its CONTENT width (the
+         *  cell's border and padding are the base's business). */
+        struct Col {
+            const char* head;
+            uint16_t    width;
+        };
+
+        static constexpr uint8_t  MAX_COLS = 6;
+        /** @brief Blank columns each side of the table. */
+        static constexpr uint16_t MARGIN   = 2;
+
+        /** @brief Fill @p out with this table's columns (flex widths resolved
+         *  against the current display) and return how many. */
+        virtual uint8_t _columns(Col* out) const = 0;
+
+        /** @brief Whether a cell carries a pad column after its contents, so a
+         *  row reads "| a | b |" rather than "| a| b". The alarms grid packs its
+         *  cells (it spends the width on the description instead); the other two
+         *  pad. A per-table property, not a preference - it sets the cell pitch
+         *  every derived column position falls out of. */
+        virtual bool _pad_cells() const { return true; }
+
+        /** @brief Columns one cell occupies on screen: "| " + contents + any
+         *  trailing pad. */
+        uint16_t _cell_pitch(uint16_t width) const {
+            return (uint16_t)(width + (_pad_cells() ? 3 : 2));
+        }
+
+        /** @brief Screen column where column @p i's CONTENTS start - what a
+         *  selection cursor or an in-cell badge inverts from. Derived from the
+         *  same spec that builds the row, so the two cannot drift. */
+        uint16_t _cell_col(uint8_t i) const {
+            Col cols[MAX_COLS];
+            uint8_t n = _columns(cols);
+            uint16_t c = (uint16_t)(MARGIN + 2);          // margin + "| "
+            for (uint8_t j = 0; j < i && j < n; j++) c = (uint16_t)(c + _cell_pitch(cols[j].width));
+            return c;
+        }
+
+        /** @brief One past the last column of column @p i's contents. */
+        uint16_t _cell_end(uint8_t i) const {
+            Col cols[MAX_COLS];
+            uint8_t n = _columns(cols);
+            return (uint16_t)(_cell_col(i) + (i < n ? cols[i].width : 0));
+        }
+
+        /** @brief Build "  | a | b | c |" into @p out from @p cells (one per
+         *  declared column; a null cell renders empty). @return its length. */
+        uint16_t _build_row(char* out, size_t cap, const char* const* cells) const {
+            Col cols[MAX_COLS];
+            uint8_t n = _columns(cols);
+            const bool pad = _pad_cells();
+            uint16_t w = 0;
+            for (uint16_t i = 0; i < MARGIN && w < cap - 1; i++) out[w++] = ' ';
+            for (uint8_t c = 0; c < n; c++) {
+                if (w < cap - 1) out[w++] = '|';
+                const int cw = (int)cols[c].width;
+                int m = snprintf(out + w, cap - w, pad ? " %-*.*s " : " %-*.*s",
+                                 cw, cw, cells[c] != nullptr ? cells[c] : "");
+                if (m < 0) m = 0;
+                w = (uint16_t)(w + m);
+                if (w > cap - 1) { w = (uint16_t)(cap - 1); break; }
             }
-            _draw_line(row, line, n);
+            if (w < cap - 1) out[w++] = '|';               // closing rule
+            return w;
+        }
+
+        /** @brief Draw the heading row from the column spec. */
+        void _draw_header(uint16_t row) {
+            Col cols[MAX_COLS];
+            uint8_t n = _columns(cols);
+            const char* heads[MAX_COLS];
+            for (uint8_t i = 0; i < n; i++) heads[i] = cols[i].head;
+            char line[192];
+            _draw_line(row, line, _build_row(line, sizeof(line), heads));
+        }
+
+        /** @brief Draw the "+----+--+...+" rule under/over the table. @p cap is
+         *  the corner char: '+' plain, or '^' / 'v' to mark rows hidden above /
+         *  below the window. @p join is the inner column mark - the alarms grid
+         *  passes @p cap for it too, so every mark carries the scroll arrow. */
+        void _draw_rule(uint16_t row, char cap, char join = '+') {
+            Col cols[MAX_COLS];
+            uint8_t n = _columns(cols);
+            char line[192];
+            uint16_t w = 0;
+            for (uint16_t i = 0; i < MARGIN && w < sizeof(line) - 1; i++) line[w++] = ' ';
+            if (w < sizeof(line) - 1) line[w++] = cap;
+            for (uint8_t c = 0; c < n; c++) {
+                // The rule spans the whole cell: its contents plus the padding
+                // the row builder puts either side.
+                uint16_t span = (uint16_t)(_cell_pitch(cols[c].width) - 1);
+                for (uint16_t k = 0; k < span && w < sizeof(line) - 1; k++) line[w++] = '-';
+                if (w < sizeof(line) - 1) line[w++] = (c + 1 == n) ? cap : join;
+            }
+            _draw_line(row, line, w);
         }
 
         /** @brief Flexible column width: the display minus @p used, floored at

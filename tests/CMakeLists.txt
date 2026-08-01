@@ -151,53 +151,29 @@ if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
             VERBATIM)
         add_custom_target(pyte-sim DEPENDS ${_pyte_sim_bin})
 
-        # One CTest entry per pytest test function (not the whole suite as a
-        # single pass/fail), mirroring doctest_discover_tests. We ask pytest for
-        # its node IDs at configure time (--collect-only just imports the modules,
-        # so it needs neither the sim nor a build) and emit an add_test() per ID.
-        # Re-run configure to pick up added/removed/renamed tests: the CONFIGURE_DEPENDS
-        # glob refreshes when the file set changes, and CMAKE_CONFIGURE_DEPENDS
-        # re-triggers when an existing file's contents do.
+        # One CTest entry per pytest *file*, not per test function: a pytest
+        # process spends ~1.5 s importing pytest before it runs anything, which
+        # dwarfs a screen test's own ~0.4 s, so per-function entries paid that
+        # toll 25 times over. Per-file keeps useful failure granularity and
+        # parallelism at a fraction of the startup tax - and needs no
+        # --collect-only probe at configure time.
         file(GLOB _pyte_test_files CONFIGURE_DEPENDS ${_pyte_dir}/test_*.py)
-        set_property(DIRECTORY APPEND PROPERTY
-            CMAKE_CONFIGURE_DEPENDS ${_pyte_test_files})
-        execute_process(
-            COMMAND ${Python3_EXECUTABLE} -m pytest --collect-only -q
-                    -p no:cacheprovider
-            WORKING_DIRECTORY ${_pyte_dir}
-            OUTPUT_VARIABLE _pyte_collect
-            RESULT_VARIABLE _pyte_collect_rc
-            ERROR_QUIET)
-        string(REGEX MATCHALL "test_[^ \n]+\\.py::[^ \n]+" _pyte_nodes "${_pyte_collect}")
-        if(_pyte_collect_rc EQUAL 0 AND _pyte_nodes)
-            foreach(_node IN LISTS _pyte_nodes)
-                # The node ID is passed explicitly; WORKING_DIRECTORY is the test
-                # dir so pytest loads its conftest (the --sim option) regardless of
-                # the invocation's CWD.
-                add_test(NAME "pyte:${_node}"
-                    COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider
-                            ${_node} --sim ${_pyte_sim_bin}
-                    WORKING_DIRECTORY ${_pyte_dir})
-                # ctest launches the most expensive test first, but only once it
-                # has timings of its own - and it never gets usable ones here,
-                # since doctest case names contain spaces and its cost file is
-                # whitespace-delimited. Declaring the cost keeps a screen test
-                # (~10s) from starting after 200 sub-second unit tests on a fresh
-                # tree, which is where the -j slots go idle waiting for the tail.
-                set_tests_properties("pyte:${_node}" PROPERTIES COST 10)
-            endforeach()
-            list(LENGTH _pyte_nodes _pyte_count)
-            message(STATUS "pyte: registered ${_pyte_count} screen tests")
-        else()
-            # Collection failed (e.g. a syntax error in a test module): fall back to
-            # a single entry running the whole suite so coverage is never silently
-            # dropped, and the failure surfaces when the test runs.
-            message(WARNING "pyte: --collect-only failed; registering the suite as one test")
-            add_test(NAME pyte
+        foreach(_file IN LISTS _pyte_test_files)
+            # WORKING_DIRECTORY is the test dir so pytest loads its conftest (the
+            # --sim option) regardless of the invocation's CWD.
+            get_filename_component(_name ${_file} NAME)
+            add_test(NAME "pyte:${_name}"
                 COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider
-                        ${_pyte_dir} --sim ${_pyte_sim_bin}
+                        ${_name} --sim ${_pyte_sim_bin}
                 WORKING_DIRECTORY ${_pyte_dir})
-        endif()
+            # ctest launches the most expensive test first, but only once it has
+            # timings of its own - and it never gets usable ones here, since
+            # doctest case names contain spaces and its cost file is
+            # whitespace-delimited. Declaring the cost keeps a screen test from
+            # starting after 200 sub-second unit tests on a fresh tree, which is
+            # where the -j slots go idle waiting for the tail.
+            set_tests_properties("pyte:${_name}" PROPERTIES COST 10)
+        endforeach()
         # ctest/make test don't build; `check` does — make it build the sim too.
         add_dependencies(check pyte-sim)
 

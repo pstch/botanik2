@@ -7,9 +7,9 @@
  * @brief Log severity levels and topics.
  *
  * These are logging primitives, so they live with the logger. The values were
- * once a wire protocol shared with the PLC coprocessor; that is gone, so a new
- * topic is now an ordinary local addition. The numbering is kept as-is rather
- * than compacted, because it is what sits in already-written log records.
+ * once a wire protocol shared with a coprocessor; that is gone, so a new topic
+ * is now an ordinary local addition. The numbering is kept as-is rather than
+ * compacted, because it is what sits in already-written log records.
  */
 
 #include <cstdint>
@@ -33,12 +33,12 @@ namespace Botanik { namespace Logs {
     /** @brief Log topic / category. */
     enum LogTopic : uint8_t {
         NONE = 0,
-        PLC_IO = 1,
+        SHARED_IO = 1,
         BOOT = 2,
         NETWORK = 3,
         TIME = 4,
         STATUS = 5,
-        ASSERT = 6,        // C-side only (PLC never emits these): firmware assertions
+        ASSERT = 6,        // firmware assertions
         ALARM_START = 7,   // alarm went active
         ALARM_END = 8,     // alarm cleared
         // alarm cleared without ever logging a START (toggled too fast to

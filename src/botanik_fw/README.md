@@ -20,8 +20,7 @@ delivered as a library:
 | Imported library | `libbotanik` (delivered as a zip) | The building blocks. Carries no entry point of its own. |
 
 `botanik_setup()`/`botanik_step()` (see `botanik_arduino.h`) are **not** library API -
-defined by the project-root file, called by the sketch. The PLC shared memory is bound
-from `HAL::get_plc_input()/get_plc_output()` rather than allocated locally.
+defined by the project-root file, called by the sketch.
 
 ## Memory map
 
@@ -36,12 +35,12 @@ the **typical** STM32H747 + Axel arrangement for orientation, not a guarantee:
 | `0x0810_0000` | FLASH bank 2 (1 MB) | M4 - Axel PLC runtime + program |
 | `0x2000_0000` | DTCM (128 KB) | M7 stack / hot data |
 | `0x2400_0000` | AXI SRAM, D1 (512 KB) | M7 heap / general |
-| `0x3000_0000` | SRAM1-3, D2 (288 KB) | **M4 data + shared PLC vars** |
+| `0x3000_0000` | SRAM1-3, D2 (288 KB) | M4 data |
 | `0x3800_0000` | SRAM4, D3 (64 KB) | low-power / cross-core |
 | `0x3880_0000` | Backup SRAM (4 KB) | retained |
 
-The shared PLC vars (i.e. `PlcInput<>` / `PlcOutput<>`) sit in the D2 SRAM row above;
-the Axel linker decides where they land.
+Botanik runs entirely on the M7 and shares no memory with the M4: field I/O
+reaches it over Modbus and the OPTA's own channels, not a shared region.
 
 ## Delivering the library
 

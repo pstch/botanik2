@@ -10,8 +10,8 @@
 #include "libbotanik.h"
 
 // Site selected at configure time (-DBOTANIK_SITE); libbotanik_site.h derives
-// BOTANIK_SITE_HEADER -> its site.h, exposing BotanikSite + payload + the
-// sim-only mock-PLC entry.
+// BOTANIK_SITE_HEADER -> its site.h, exposing BotanikSite + the sim-only
+// field simulation entry.
 #include "libbotanik_site.h"
 #include BOTANIK_SITE_HEADER
 
@@ -24,7 +24,7 @@
 #include "libbotanik/hal/platform.h"   // HAL::Env::u32 (BOTANIK_CONSOLE_BAUD)
 
 #include <csignal>
-#include <cstring>   // std::strncpy - seeding the mock PLC config block
+#include <cstring>   // std::strncpy - seeding the simulated config
 
 // The scheduler's stack-usage scan paints the free stack and only works if
 // locals live on the real stack. ASAN's use-after-return check (default on)

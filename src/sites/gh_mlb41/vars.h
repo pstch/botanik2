@@ -255,7 +255,7 @@ const Variable g_vars[] = {
     PBOOL("mqtt_enabled", 1, "Enable MQTT publishing"),
     PU16("mqtt_port", 1883, 1, 65535, "", "Broker TCP port"),
     PU16("mqtt_keepalive_s", 60, 0, 65535, "s", "MQTT keepalive"),
-    PSTR("mqtt_broker", 448, STR_HOST, "", "MQTT broker host"),
+    PSTR("mqtt_broker", 448, STR_HOST, "broker.local", "MQTT broker host"),
     // -- geo (decimal degrees) --
     PSERIAL("geo", "Geo config commit"),
     PF32("geo_latitude", 48.8566f, -90.0f, 90.0f, 4, "deg", "Site latitude, north +"),

@@ -28,7 +28,7 @@
 namespace Botanik { namespace Network {
 
     // Vars::VarGroup / VarRef (the status-variable descriptor table) live in
-    // vars/access.h, so non-network consumers (the shell's `status` command)
+    // vars/access.h, so non-network consumers (the MONITOR page)
     // read them without the MqttSender. Published here.
 
     /** @brief Periodic MQTT telemetry publisher (see file header). */

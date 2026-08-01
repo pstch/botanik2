@@ -48,7 +48,7 @@ namespace Botanik { namespace Network {
         for (size_t i = 0; i < Config::DNS_CACHE_SIZE; ++i) {
             Entry& e = _table[i];
             if (e.state != SLOT_FREE &&
-                strncmp(e.host, host, Config::PLC_HOST_STR_LEN) == 0)
+                strncmp(e.host, host, Config::HOST_STR_LEN) == 0)
                 return &e;
         }
         return nullptr;
@@ -80,6 +80,26 @@ namespace Botanik { namespace Network {
         return stale;
     }
 
+    ResolveStatus NameResolver::_apply_poll(Entry& e, const char* host,
+                                            ResolvedAddr* out) {
+        HAL::Network::Ip4 ip;
+        switch (HAL::Network::dns_poll(e.handle, &ip)) {
+            case HAL::Network::DNS_OK:
+                e.addr     = ip;
+                e.stamp_at = HAL::Clock::uptime_ms();   // TTL base
+                e.state    = SLOT_READY;
+                *out = e.addr;
+                return RESOLVE_OK;
+            case HAL::Network::DNS_FAILED:
+                if (_logger != nullptr)
+                    _logger->error(Logs::NETWORK, "DNS resolve failed: %s", host);
+                e.state = SLOT_FREE;
+                return RESOLVE_FAILED;
+            default:
+                return RESOLVE_PENDING;
+        }
+    }
+
     ResolveStatus NameResolver::resolve(const char* host, ResolvedAddr* out) {
         if (host == nullptr || host[0] == '\0' || out == nullptr) return RESOLVE_FAILED;
 
@@ -95,18 +115,7 @@ namespace Botanik { namespace Network {
                 if (!_expired(*e)) { *out = e->addr; return RESOLVE_OK; }
                 e->state = SLOT_FREE;
             } else if (e->state == SLOT_PENDING) {
-                HAL::Network::Ip4 ip;
-                HAL::Network::DnsResult r = HAL::Network::dns_poll(e->handle, &ip);
-                if (r == HAL::Network::DNS_OK) {
-                    e->addr = ip; e->stamp_at = HAL::Clock::uptime_ms();
-                    e->state = SLOT_READY; *out = e->addr; return RESOLVE_OK;
-                }
-                if (r == HAL::Network::DNS_FAILED) {
-                    if (_logger != nullptr)
-                        _logger->error(Logs::NETWORK, "DNS resolve failed: %s", host);
-                    e->state = SLOT_FREE; return RESOLVE_FAILED;
-                }
-                return RESOLVE_PENDING;
+                return _apply_poll(*e, host, out);
             }
         }
 
@@ -121,29 +130,15 @@ namespace Botanik { namespace Network {
             if (_logger != nullptr) _logger->warning(Logs::NETWORK, "DNS lookup failed to start");
             return RESOLVE_FAILED;
         }
-        strncpy(e->host, host, Config::PLC_HOST_STR_LEN - 1);
-        e->host[Config::PLC_HOST_STR_LEN - 1] = '\0';
+        strncpy(e->host, host, Config::HOST_STR_LEN - 1);
+        e->host[Config::HOST_STR_LEN - 1] = '\0';
         e->handle   = h;
         e->state    = SLOT_PENDING;
         e->stamp_at = HAL::Clock::uptime_ms();   // in-flight age, for _alloc()'s reclaim
 
         // Poll once now: usually PENDING (later resolve() calls drive it), but an
         // OPTA stack-cache hit can land a result immediately.
-        HAL::Network::Ip4 ip;
-        HAL::Network::DnsResult r = HAL::Network::dns_poll(h, &ip);
-        if (r == HAL::Network::DNS_OK) {
-            e->addr = ip;
-            e->stamp_at = HAL::Clock::uptime_ms();
-            e->state = SLOT_READY;
-            *out = e->addr;
-            return RESOLVE_OK;
-        }
-        if (r == HAL::Network::DNS_FAILED) {
-            if (_logger != nullptr)
-                _logger->error(Logs::NETWORK, "DNS resolve failed: %s", host);
-            e->state = SLOT_FREE; return RESOLVE_FAILED;
-        }
-        return RESOLVE_PENDING;
+        return _apply_poll(*e, host, out);
     }
 
 }}

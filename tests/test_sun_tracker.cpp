@@ -2,7 +2,7 @@
  * @file test_sun_tracker.cpp
  * @brief Tests for SunPositionTracker - the geo-config-driven wrapper over the
  *        sun_tracker.h solar-elevation math.
- *        Config is injected through the PlcConfigFixture; the wall clock is the host's
+ *        Config is injected through the params fixture; the wall clock is the host's
  *        real time (so it passes the tracker's validity gate). The elevation math has
  *        its own coverage in test_sun.cpp; here we check the wiring: e7->deg
  *        conversion, "compute once valid", and recompute on a geo change.

@@ -77,7 +77,7 @@ namespace Botanik { namespace Network {
 
         /** @brief One table row: an in-flight request and/or a cached result. */
         struct Entry {
-            char                        host[Config::PLC_HOST_STR_LEN]; ///< name (cache key)
+            char                        host[Config::HOST_STR_LEN]; ///< name (cache key)
             ResolvedAddr                addr;     ///< result           (when SLOT_READY)
             HAL::Network::DnsHandle     handle;   ///< async DNS handle (when SLOT_PENDING)
             uint64_t                    stamp_at; ///< uptime ms the row entered its state
@@ -131,6 +131,13 @@ namespace Botanik { namespace Network {
         /** @brief Reserve a row for a new lookup: a FREE row, else an evictable
          *  READY/ERROR row, else null (every row is PENDING). Never evicts PENDING. */
         Entry* _alloc();
+
+        /** @brief Fold one dns_poll() result into row @p e and turn it into a
+         *  ResolveStatus: OK caches the address into @p out, FAILED logs and
+         *  frees the row, PENDING leaves it in flight. Shared by the two places
+         *  that poll (an already-pending row, and the first poll right after
+         *  dns_begin) so their handling cannot drift apart. */
+        ResolveStatus _apply_poll(Entry& e, const char* host, ResolvedAddr* out);
 
         /** @} */
     };

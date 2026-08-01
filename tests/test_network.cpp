@@ -7,7 +7,7 @@
  *          - NetworkHandler: link comes up on config, idles when config is cleared,
  *          - MqttClient:     never falsely "connected"; connect to TEST-NET-1 never completes,
  *          - NtpClient: stepped as a Component; UDP query to TEST-NET-1 is non-blocking.
- *        Config is injected through PlcConfigFixture.
+ *        Config is injected through the params fixture.
  */
 #include <cstdint>
 #include <cstring>

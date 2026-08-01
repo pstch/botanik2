@@ -24,28 +24,6 @@
 
 namespace Botanik { namespace Vars {
 
-    /** @brief What a set() attempt did.
-     *
-     *  A failed PERSIST is not a rejected EDIT: the value is live either way,
-     *  and telling the operator their input was invalid when the storage
-     *  refused it sends them to fix the wrong thing. */
-    enum SetResult : uint8_t {
-        SET_OK,             ///< applied and persisted
-        SET_INVALID,        ///< rejected - malformed, out of range, read-only
-        SET_NOT_PERSISTED   ///< applied in RAM, but storage refused it
-    };
-
-    /** @brief Where a parameter's value survives a reboot. */
-    struct ParamStore {
-        virtual ~ParamStore() {}
-        /** @brief Load @p d's stored value into @p v (and the pool, for a
-         *  T_STR). @return false when the key is absent, which is not an error:
-         *  the caller keeps the declared default. */
-        virtual bool load(const Variable& d, Value& v, char* pool) = 0;
-        /** @brief Persist @p d's current value. */
-        virtual bool save(const Variable& d, const Value& v, const char* pool) = 0;
-    };
-
     /** @brief A ParamStore over HAL::Storage: one key per parameter, named for
      *  it, holding the narrow value bytes.
      *
@@ -65,11 +43,14 @@ namespace Botanik { namespace Vars {
      * shell a dense 0-based index over just the parameters.
      */
     class Params : public Component {
-        Bank*       _io;
-        ParamStore* _store;
+        Bank* _io;
     public:
+        /** @brief Binds @p store to @p io: the bank is what actually reads and
+         *  writes variables (set() included), so it is what holds the store. */
         Params(Bank* io, ParamStore* store, Logs::Logger* logger)
-            : Component(logger, "Params"), _io(io), _store(store) {}
+            : Component(logger, "Params"), _io(io) {
+            if (_io != nullptr) _io->set_store(store, logger);
+        }
 
         /** @name Access
          *  @{ */
@@ -87,7 +68,9 @@ namespace Botanik { namespace Vars {
         /** @} */
 
         /** @brief Apply an edited value, as display text, then persist it. */
-        SetResult set(Var p, const char* text);
+        SetResult set(Var p, const char* text) {
+            return _io != nullptr ? _io->set(p, text) : SET_INVALID;
+        }
 
     protected:
         /** @brief Load every parameter from the store. */

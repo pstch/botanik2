@@ -1,16 +1,15 @@
 // REVIEW_35: TODO
 # gh_mlb41 site
 
-The reference Botanik **site**: everything specific to one physical greenhouse and
-its PLC program. `libbotanik` stays generic; this directory is the single source of
-truth for the `gh_mlb41` greenhouse.
+The reference Botanik **site**: everything specific to one physical greenhouse.
+`libbotanik` stays generic; this directory is the single source of truth for the
+`gh_mlb41` greenhouse.
 
 | File | Holds |
 |---|---|
 | `site.h` | the `g_site` `SiteDescriptor` bundling every table, and the thin `GreenhouseMLB41` binding. The uniform handle a harness builds against (`BotanikSite`). |
-| `io.h` / `io.cpp` | the variable tables (analog/digital in/out + computed internals) and their RAM value stores. |
+| `vars.h` / `vars.cpp` | every variable in one table (field inputs/outputs, computed internals, parameters) and its RAM value store. |
 | `status.h` | the display groups (`VarGroup[]`) and the home-screen readings (`HomeVar[]`), as VarRefs into those tables. |
-| `data.h` | `GreenhouseConfig_t`: the byte image the config parameters are laid out in - all that is left of the PLC payload. |
 | `alarms.h` | the `g_alarms[]` condition table (one row per alarm: code, description, the VarRef carrying the condition, dwell). |
 | `sim.h` | the header-only simulated field: it writes the variable tables the way a Modbus driver will. Its whole body is `#ifdef TARGET_SIMULATOR`, so it drops out of the hardware build. |
 | `config.h` | build-wide config overrides (`#define BOTANIK_*`); kept separate so CMake includes it before the library defaults. |
@@ -51,24 +50,23 @@ and lists the home-screen readings; `alarms.h` names, per condition, the interna
 digital that carries it. All three are generated from the same source, so their
 indices agree by construction.
 
-The one byte image left is `data.h`: `GreenhouseConfig_t`, the layout the config
-**parameters** are stored in. Folding those into the variable model waits on an
-index-addressed parameter store.
+Parameters are not a separate thing: they are the `ROLE_PARAM` rows of the same
+table, kept contiguous so the parameter pages can address them with a dense
+0-based index.
 
 ## Integrating into an Arduino sketch
 
 The site cross-compiles as an Arduino library. The firmware is one object,
-`GreenhouseMLB41`, bound to the M4 coprocessor's PLC shared memory. Allocate it as a
-**function-local static** (no heap) so it is constructed only after the Arduino core's
-`init()` has brought up the UARTs and the shared-memory region. A minimal sketch:
+`GreenhouseMLB41`. Allocate it as a **function-local static** (no heap) so it is
+constructed only after the Arduino core's `init()` has brought up the UARTs.
+A minimal sketch:
 
 ```cpp
 #include <Arduino.h>
 #include "sites/gh_mlb41/site.h"   // BotanikSite = GreenhouseMLB41
 
-// Constructed on first call - after the core's init(), so the UARTs and the PLC
-// shared region are valid to bind to - and kept in static storage for the whole run.
-// The default constructor binds to the coprocessor's PLC region (via HAL) at the
+// Constructed on first call - after the core's init(), so the UARTs are valid -
+// and kept in static storage for the whole run. The default constructor uses the
 // config-default console baud; pass (cols, rows) to override the 80x24 geometry.
 static BotanikSite& firmware() {
     static BotanikSite fw;

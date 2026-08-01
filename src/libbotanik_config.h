@@ -221,45 +221,26 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint8_t, SITE_ALARMS_MAX);
 
-    /** @brief Rows in any one generated table. Every SiteDescriptor count is a
-     *  uint8_t, so a longer table would wrap its count and publish a prefix. */
-#ifndef BOTANIK_TABLE_ROWS_MAX
-#  define BOTANIK_TABLE_ROWS_MAX 255
-#endif
-    BOTANIK_CFG(uint16_t, TABLE_ROWS_MAX);
-
-
     /** @}
-     *  @name PLC Synchronization
+     *  @name Log message sizing
      *  @{ */
 
-
-    /** @brief Maximum length of a single log message from the PLC.
-     *  @note Must match PLC-side code ! */
+    /** @brief Maximum length of a single log message. */
 #ifndef BOTANIK_LOG_MESSAGE_LEN
 #  define BOTANIK_LOG_MESSAGE_LEN 256
 #endif
     BOTANIK_CFG(size_t, LOG_MESSAGE_LEN);
 
-
-
-
-    /** @brief Grace period after a PLC fault during which the HW watchdog is still kicked.
-     *         A transient fault rides through (logged + alarmed), but a fault that persists
-     *         this long stops the kick, resetting both cores (the deliberate recovery that
-     *         gives the PLC image a fresh start). */
-
     /** @}
-     *  @name PLC configuration variables
+     *  @name Network addressing
      *  @{
      */
 
-    /** @brief Char-buffer length for a network address (hostname or IPv4).
-     *  @note Must be a 4-byte multiple so the config structs stay padding-free. */
-#ifndef BOTANIK_PLC_HOST_STR_LEN
-#  define BOTANIK_PLC_HOST_STR_LEN 64
+    /** @brief Char-buffer length for a network address (hostname or IPv4). */
+#ifndef BOTANIK_HOST_STR_LEN
+#  define BOTANIK_HOST_STR_LEN 64
 #endif
-    BOTANIK_CFG(size_t, PLC_HOST_STR_LEN);
+    BOTANIK_CFG(size_t, HOST_STR_LEN);
 
     /** @}
      *  @name Name resolution
@@ -700,6 +681,20 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, TERMINAL_MAX_COLS);
 
+    /** @brief Which terminal is wired to the console UART - a property of the
+     *  installation, so a site declares it rather than a harness passing it in.
+     *  It selects the one-time setup handshake and is what any
+     *  terminal-specific behaviour branches on.
+     *
+     *  A plain integer here because this header is included by everything and
+     *  must not depend on the console: it is the numeric form of
+     *  Terminal::Ansi::TerminalType, which static_asserts the two agree.
+     *    0 = VT100, 1 = VT102, 2 = Minitel 1B, 3 = Minitel 2 */
+#ifndef BOTANIK_TERMINAL_TYPE
+#  define BOTANIK_TERMINAL_TYPE 1
+#endif
+    BOTANIK_CFG(uint8_t, TERMINAL_TYPE);
+
     // Ensure that the specified editor minimum size can hold the whole input
     // buffer.
     static_assert(EDITOR_MAX_ROWS * (EDITOR_MIN_COLS - EDITOR_PROMPT_MAX) >= SHELL_INPUT_LEN,
@@ -717,13 +712,6 @@ namespace Botanik { namespace Config {
 #  define BOTANIK_SIM_MAIN_CPU_CORE 0
 #endif
     BOTANIK_CFG(int, SIM_MAIN_CPU_CORE);
-
-    /** @brief CPU core the simulator pins the emulator thread to.
-     *  @note Mirrors the PLC runtime running on the other core of the OPTA */
-#ifndef BOTANIK_SIM_EMULATOR_CPU_CORE
-#  define BOTANIK_SIM_EMULATOR_CPU_CORE 1
-#endif
-    BOTANIK_CFG(int, SIM_EMULATOR_CPU_CORE);
 
     /** @brief Max bytes the simulator paints/scans the scan below the loop frame.
      *  @note  The OPTA reads the RTOS watermark instead, so this is sim-only. */

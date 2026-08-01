@@ -63,7 +63,6 @@ null / count 0.
 @code{.cpp}
 const Botanik::SiteDescriptor g_site = {
     Botanik::Config::SITE_NAME,
-    g_params,   g_param_count,          // config parameters (CONFIG page + `config` cmd)
     g_commands, g_command_count,        // site shell commands
     g_status,   g_status_group_count,   // status variables (MONITOR page, telemetry, `status`)
     g_home,     g_home_field_count,     // home-screen readings (3 columns: 6 + 8 + 8)

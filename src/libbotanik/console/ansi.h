@@ -9,6 +9,8 @@
  */
 
 #include <cstdint>
+
+#include "../../libbotanik_config.h"   // Config::TERMINAL_TYPE
 #include "../utils/byte_sink.h"
 
 
@@ -98,14 +100,38 @@ namespace Botanik { namespace Terminal { namespace Ansi {
      *  sequence on the wire that would otherwise swallow the next emit. */
     bool cancel_sequence(ByteSink& _serial);
 
-    /** @brief Emit the one-time Minitel PRO2 handshake (80-col teleinformatique
-     *  + lowercase keyboard + page mode); no-op sequences on a VT100/VT102. */
-    bool minitel_setup(ByteSink& _serial);
+    /** @brief The serial terminals the console knows how to drive.
+     *
+     *  The console emits plain X3.64 to all of them; what the type selects is
+     *  the one-time setup handshake, and it gives any terminal-specific quirk a
+     *  declared place to live rather than a comment (see is_minitel()). */
+    enum class TerminalType : uint8_t {
+        VT100      = 0,  ///< plain X3.64, no setup handshake
+        VT102      = 1,  ///< VT100 plus IRM/DCH - what the editor's splice path wants
+        MINITEL_1B = 2,  ///< Minitel 1B, teleinformatique mode (PRO2 handshake)
+        MINITEL_2  = 3,  ///< Minitel 2, same PRO2 handshake
+    };
 
-    /** @brief One-time VT100/VT102 setup. Currently a no-op (DECAWM-off is
-     *  re-asserted on every screen establish); the symmetric counterpart to
-     *  minitel_setup(). */
-    bool vt102_setup(ByteSink& _serial);
+    /** @brief The terminal this build is wired to (Config::TERMINAL_TYPE, which
+     *  a site sets in its own config.h). The values above are pinned to that
+     *  numbering, since the config header cannot name this enum. */
+    static constexpr TerminalType CONFIGURED_TERMINAL =
+        (TerminalType)Botanik::Config::TERMINAL_TYPE;
+    static_assert(Botanik::Config::TERMINAL_TYPE <= (uint8_t)TerminalType::MINITEL_2,
+                  "BOTANIK_TERMINAL_TYPE is not a TerminalType (0..3)");
+
+    /** @brief True for the Minitel family. The quirks that hang off this: the
+     *  PRO2 handshake below, and never using BS as a cursor-left shortcut (a
+     *  Minitel can treat it as destructive - see move_left()). */
+    constexpr bool is_minitel(TerminalType t) {
+        return t == TerminalType::MINITEL_1B || t == TerminalType::MINITEL_2;
+    }
+
+    /** @brief Emit @p type's one-time setup handshake, once before the first
+     *  render. Minitel: the PRO2 sequences above (80-col teleinformatique +
+     *  lowercase keyboard + page mode). VT100/VT102: nothing, since DECAWM-off
+     *  is re-asserted on every screen establish. */
+    bool terminal_setup(ByteSink& _serial, TerminalType type);
 
     /** @brief Enable or disable terminal auto-wrap (DECAWM, CSI ? 7 h/l). */
     bool set_auto_wrap(ByteSink& _serial, bool enable);

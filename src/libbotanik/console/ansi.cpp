@@ -75,16 +75,12 @@ namespace Botanik { namespace Terminal { namespace Ansi {
                           sizeof(DECTCEM_SET) - 1);
     }
 
-    bool minitel_setup(ByteSink& _serial) {
+    bool terminal_setup(ByteSink& _serial, TerminalType type) {
+        if (!is_minitel(type)) return true;   // VT100/VT102 need no handshake
         if (!can_emit(_serial)) return false;
         _serial.write(MINITEL_TELINFO,   sizeof(MINITEL_TELINFO) - 1);
         _serial.write(MINITEL_LOWERCASE, sizeof(MINITEL_LOWERCASE) - 1);
         _serial.write(MINITEL_PAGE_MODE, sizeof(MINITEL_PAGE_MODE) - 1);
-        return true;
-    }
-
-    bool vt102_setup(ByteSink& _serial) {
-        (void)_serial;
         return true;
     }
 

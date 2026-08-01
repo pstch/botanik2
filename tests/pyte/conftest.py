@@ -22,7 +22,7 @@ from pathlib import Path
 import pyte
 import pytest
 
-from normalize import normalize_lines, meaningful_lines
+from normalize import normalize_lines, meaningful_lines, drop_log_lines
 
 COLS, ROWS = 80, 24                       # matches AnsiTerminal(..., 80, 24, ...) in main.cpp
 GOLDEN_DIR = Path(__file__).parent / "golden"
@@ -128,7 +128,7 @@ class Term:
 
     # -- synchronization -----------------------------------------------------
 
-    def settle(self, quiet=0.15, timeout=5.0):
+    def settle(self, quiet=0.05, timeout=5.0):
         """Drain output until the *normalized* screen has been stable for `quiet`s.
 
         The screen never goes byte-quiet: periodic refreshes (uptime/clock/cpu)
@@ -257,11 +257,15 @@ def assert_screen(request):
         # Golden stores the full screen (readable for review); the compare is on
         # meaningful_lines (volatile fields normalized, overrun/blank noise
         # dropped) so an incidental scroll or stray overrun can't fail a correct
-        # screen.
-        want = meaningful_lines(clip(path.read_text().split("\n")))
+        # screen. Log lines drop out too: every page with a live tail shows
+        # whatever the fast greenhouse logged at that instant, which is a
+        # function of how far the sim has aged, not of what the test exercises.
+        # Pinning them made the goldens depend on the sim being in a particular
+        # steady state - assert log content with wait_for(), as test_logs does.
+        want = drop_log_lines(meaningful_lines(clip(path.read_text().split("\n"))))
         deadline = time.time() + timeout
         while True:
-            if meaningful_lines(clip(term.screen.display)) == want:
+            if drop_log_lines(meaningful_lines(clip(term.screen.display))) == want:
                 return
             if time.time() >= deadline:
                 break

@@ -141,7 +141,7 @@ namespace Botanik { namespace Terminal {
         uint16_t visible = (uint16_t)std::min((int)_t.cols(), mlen);
         if (visible == 0) return;
         uint16_t metrics_col = (uint16_t)(_t.cols() - visible);
-        // The bar is reverse video except the live readings (plc/cpu/stk), drawn
+        // The bar is reverse video except the live readings (cpu/stk), drawn
         // normal: highlight mask inverts all but the value cols.
         uint32_t hi = 0;
         for (uint16_t i = 0; i < visible; ++i)

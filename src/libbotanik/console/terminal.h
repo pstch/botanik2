@@ -145,6 +145,8 @@ namespace Botanik { namespace Terminal {
         bool                _hw_at_eol      = false;    ///< parked at last col (pending wrap)
         bool                _hw_cursor_visible = false; ///< DECTCEM on the wire
         bool                _screen_ready = false;      ///< screen established once
+        /** @brief Which terminal is on the wire (constructor). */
+        Ansi::TerminalType  _type;
 
         /** @}
          *  @name Pacing
@@ -235,10 +237,18 @@ namespace Botanik { namespace Terminal {
         /** @name Lifecycle
          *  @{ */
 
-        AnsiTerminal(BufferedSerial& serial, uint16_t cols, uint16_t rows, uint32_t baud);
+        /** @brief @p type is which terminal is on the wire; it selects the
+         *  setup handshake setup_terminal() emits and is what any
+         *  terminal-specific behaviour branches on. */
+        AnsiTerminal(BufferedSerial& serial, uint16_t cols, uint16_t rows, uint32_t baud,
+                     Ansi::TerminalType type = Ansi::CONFIGURED_TERMINAL);
 
-        void setup_minitel();
-        void setup_vt102();
+        /** @brief Emit the declared terminal's one-time setup handshake. Call
+         *  once before the first render. */
+        void setup_terminal();
+
+        /** @brief Which terminal is on the wire (fixed at construction). */
+        Ansi::TerminalType terminal_type() const { return _type; }
 
         /** @}
          *  @name Cursor & geometry

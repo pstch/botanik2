@@ -6,15 +6,15 @@
  * @file firmware.h
  * @brief BotanikFirmware - the generic firmware base.
  *
- * Owns every long-lived generic component (serials, logger, scheduler, PLC
- * sync, alarm model/reader, terminal, core pages) and the per-tick loop()
- * order, and exposes a reference accessor for each so a site subclass can build
- * its own components on top. A site derives
+ * Owns every long-lived generic component (serials, logger, scheduler, variable
+ * bank, scan driver, health/alarm model, terminal, core pages) and the per-tick
+ * loop() order, and exposes a reference accessor for each so a site subclass can
+ * build its own components on top. A site derives
  * `GreenhouseXXX : BotanikFirmware`, adds its pages as members, and
  * customizes through the register_*() hooks; see docs and CLAUDE.md
  * ("Site-specific code").
  *
- * Target-independent: the shared PLC region is injected by the caller (sim
+ * Target-independent: the site's tables are injected by the caller (site
  * statics). Tunable scalars default
  * from Config and the harness overrides them through a set_*() modifier before
  * setup() (set_console_baud(), set_monitor_baud(), set_hw_watchdog_ms()).
@@ -36,29 +36,32 @@
  * each table generically, so a site subclass is a thin binding of the payload
  * type + the descriptor. Extension surface:
  *
- *  - **Descriptor tables** (SiteDescriptor) - the alarm conditions (each with the
- *    byte offset of its boolean in the PLC payload; the AlarmModel splices in the
- *    generic platform-health alarms from alarms/platform.h), config parameters,
- *    shell commands, and status-variable groups. Pure data; no hook.
+ *  - **Descriptor tables** (SiteDescriptor) - the alarm conditions (each naming
+ *    the boolean variable it reads; the AlarmModel splices in the generic
+ *    platform-health alarms from alarms/platform.h), shell commands,
+ *    status-variable groups, and the variable tables. Pure data; no hook.
  *  - **Pages** - the default register_pages() registers the full set. A site only
  *    overrides it to reorder or splice in an extra page (e.g. re-adding a STATUS
  *    page by subclassing Pages::StatusPage). Page 0 is the boot page.
  *  - **Post-wiring / per-beat** - on_setup() runs once near the end of setup();
- *    on_step(now_ms) runs each beat with fresh PLC data.
+ *    on_step(now_ms) runs each beat with fresh variable data.
  *
  * Worked example (the common case: no custom code, just the descriptor):
  * @code
  * // --- site-static tables (single source of truth for this greenhouse) ---
- * const Alarms::AlarmCondition g_alarms[]  = { ... };  // code, desc, offset, dwell
- * const Vars::VarGroup g_status[]  = { ... };  // status variables
- * const Shell::ShellCommand    g_cmds[]    = { ... };  // site shell commands
+ * const Alarms::AlarmCondition g_alarms[] = { ... };  // code, desc, ref, dwell
+ * const Vars::VarGroup         g_status[] = { ... };  // status variables
+ * const Vars::HomeVar          g_home[]   = { ... };  // home-screen readings
+ * const Shell::ShellCommand    g_cmds[]   = { ... };  // site shell commands
+ * const Scan::Task             g_tasks[]  = { ... };  // control programs
  * const SiteDescriptor g_site = {
  *     Config::SITE_NAME,
- *     nullptr, 0,                          // config parameters (optional)
  *     g_cmds,   1,
  *     g_status, 7,
- *     g_home,   13,                        // home-screen readings (optional)
+ *     g_home,   13,
  *     g_alarms, 23,
+ *     SITE_VAR_TABLES,                     // descriptors + values + string pool
+ *     g_tasks,  2, g_task_stats,
  * };
  *
  * class GreenhouseXXX final : public BotanikFirmware {
@@ -86,19 +89,20 @@
 namespace Botanik {
 
     /**
-     * @brief The declarative description of a site: its name plus the four
-     * generated tables. The firmware base owns every page and wires each table
-     * generically, so a site is data (these tables + its data struct), not code.
+     * @brief The declarative description of a site: its name plus its generated
+     * tables. The firmware base owns every page and wires each table
+     * generically, so a site is data (these tables), not code.
      *
      * The tables are meant to be generated:
-     *   - @c params        - REMOVED: parameters are ROLE_PARAM rows of the
-     *                        variable table now (Params::Param: name, offset,
-     *                        type, scaling, bounds, group).
      *   - @c commands      - site shell commands (Shell::ShellCommand).
      *   - @c status_groups - read-only status variables (Vars::VarGroup: a
      *                        sub-topic plus the VarRefs it publishes).
+     *   - @c home_fields   - home-screen readings (Vars::HomeVar).
      *   - @c alarms        - alarm conditions (Alarms::AlarmCondition: code,
-     *                        desc, data-struct boolean offset, dwell policy).
+     *                        desc, the boolean variable it reads, dwell policy).
+     *   - @c vars          - the variable tables themselves (Vars::VarTables);
+     *                        parameters are the ROLE_PARAM rows within them.
+     *   - @c tasks         - the control programs (Scan::Task) + their stats.
      *
      * Any table may be null / count 0. Every pointer is borrowed and must outlive
      * the firmware (site statics). See core/firmware.h "Extending the base".
@@ -166,9 +170,11 @@ namespace Botanik {
         Vars::KvParamStore             _param_store; ///< one storage key per parameter
         Vars::Params                   _params;      ///< the editable view of the variables
         Scan::Driver                   _scan;        ///< the control programs
-        /** @brief Latched SAFE mode: outputs held at their declared safe state
-         *  and the scan inhibited, until health recovers. */
-        bool                           _safe_mode = false;
+        /** @brief Whether the last beat saw a health fault. Edge tracking only
+         *  - the control state itself lives in the Bank (control_enabled()), so
+         *  an operator's `control disable` is not something the loop can
+         *  silently talk over. */
+        bool                           _health_fault = false;
         Health::HealthMonitor          _health;
         SystemContext                  _sys_ctx;     ///< Filled in the ctor body
 #if BOTANIK_FEATURE_MONITOR
@@ -194,18 +200,21 @@ namespace Botanik {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief Wire up the generic components. @p shared_in / @p shared_out:
-         *  the caller-owned PLC region; @p site: the site's declarative tables +
-         *  name (borrowed). Tunable scalars (baud, watchdog) default from Config;
-         *  override via the set_*() modifiers before setup(). */
+        /** @brief Wire up the generic components. @p site: the site's
+         *  declarative tables + name (borrowed). Tunable scalars (baud,
+         *  watchdog) default from Config; override via the set_*() modifiers
+         *  before setup().
+         *
+         *  The initialiser list follows declaration order exactly (-Wreorder):
+         *  _io must be alive before _params and _scan take its address. */
         explicit BotanikFirmware(const SiteDescriptor& site)
             : _site(site),
               _logger(),
               _scheduler(Config::TASK_PERIOD_MS, &_logger),
-              // No PLC: params come from local storage.
+              _io(site.vars),
+              // Params come from local storage.
               _param_store(),
               _params(&_io, &_param_store, &_logger),
-              _io(site.vars),
               _scan(site.tasks, site.task_count, site.task_stats, &_io, &_logger),
               // Site alarm conditions resolve against the variable tables;
               // platform-health alarms are driven locally either way.
@@ -216,8 +225,8 @@ namespace Botanik {
               , _monitor(&_logger)
 #endif
 #if BOTANIK_FEATURE_NETWORK
-              // Network reads its config from the ParamHandler image (NETWORK
-              // requires PLC); telemetry publishes the live _sys_ctx (read later).
+              // Network reads its config from the variable bank by name;
+              // telemetry publishes the live _sys_ctx (read later).
               , _net(&_io, &_logger, &_sys_ctx)
 #endif
 #if BOTANIK_FEATURE_CONSOLE
@@ -235,6 +244,7 @@ namespace Botanik {
             // Wire the status aggregate now every subsystem address is fixed,
             // then hand a copy to the terminal (it holds SystemContext by value).
             _sys_ctx.scheduler = _scheduler.context();
+            _sys_ctx.vars      = &_io;
 #if BOTANIK_FEATURE_NETWORK
             _sys_ctx.network = &_net.network();
 #endif
@@ -261,7 +271,7 @@ namespace Botanik {
             // route BOTANIK_ASSERT failures to the log
             set_assert_logger(&_logger);
             // Register the site's config parameters (appended after the library
-            // built-ins) so the CONFIG page and the `config` command see them.
+            // built-ins) so the PARAMS page and the `set` command see them.
             // Seed every variable with its declared default, so a value read
             // before any driver has spoken is the default rather than zero.
             _io.init();
@@ -291,13 +301,6 @@ namespace Botanik {
             // Let the shell's loglevel / alarm-ack commands reach the live
             // logger + model.
             _console.shell().set_diagnostics(&_logger, &_health.model());
-            // Let the `config` get/set command reach the config backend.
-            _console.shell().set_params(&_params);
-            // Let the `status` command render the site status-variable table.
-            // Let the `vars` command enumerate the field IO.
-            _console.shell().set_vars(&_io);
-            _console.shell().set_status_vars(_site.status_groups,
-                                             _site.status_group_count);
 #if BOTANIK_FEATURE_NTP
             // Let the `ntpsync` command force a resync on the live client.
             _console.shell().set_ntp(&_net.ntp());
@@ -306,7 +309,7 @@ namespace Botanik {
             register_commands();   // site commands, tried after the built-ins
             // tab order (page 0 = boot page); switch_to(0) records it
             register_pages();
-            _console.terminal().setup_vt102();
+            _console.terminal().setup_terminal();
             _console.terminal().switch_to(0);
 #endif
 
@@ -328,6 +331,13 @@ namespace Botanik {
             on_setup();   // site post-wiring (extra sinks / components)
 
             HAL::Watchdog::start(_hw_watchdog_ms);
+
+            // Bring-up is done: the field is ours to drive. Control starts
+            // disabled (Bank's default), so nothing between power-on and here -
+            // a half-wired component, a site hook that faults - can energise an
+            // actuator on the way past.
+            _io.enable_control();
+
             // One line per UART so neither overflows 80 cols and each gates with
             // its feature (console/monitor dropped when their UART is absent).
             _logger.debug(Logs::BOOT, "boot complete\nHW watchdog %lu ms",
@@ -388,26 +398,33 @@ namespace Botanik {
             _net.step(now_ms);
 #endif
 
-            // SAFE mode is a LATCH, not a per-beat sweep. Sweeping outputs
-            // after the scan would have been a flicker: the next beat's tasks
-            // re-drive the same demands before the sweep runs again. A fault has
-            // to inhibit the scan, so the outputs stay at their safe state until
-            // health actually recovers.
+            // Withdrawing control is a LATCH, not a per-beat sweep. Sweeping
+            // outputs after the scan would have been a flicker: the next beat's
+            // tasks re-drive the same demands before the sweep runs again. So a
+            // fault takes control away and inhibits the scan, and the outputs
+            // stay at their safe state until health actually recovers.
+            //
+            // Edge-triggered on the fault, so an operator who typed `control
+            // disable` is not overruled every beat by a healthy firmware. A
+            // health RECOVERY does re-enable: coming back from a fault is a
+            // strong enough signal to hand control back.
             if (!_health.watchdog_ok()) {
-                if (!_safe_mode) {
-                    _safe_mode = true;
-                    _io.all_outputs_safe();
+                if (!_health_fault) {
+                    _health_fault = true;
+                    _io.disable_control();
                     _logger.critical(Logs::HEALTH,
-                        "SAFE mode: outputs held at their safe state, scan inhibited");
+                        "control disabled: outputs at their safe state, scan inhibited");
                 }
-            } else if (_safe_mode) {
-                _safe_mode = false;
-                _logger.warning(Logs::HEALTH, "SAFE mode cleared, scan resuming");
+            } else if (_health_fault) {
+                _health_fault = false;
+                _io.enable_control();
+                _logger.warning(Logs::HEALTH, "control enabled, scan resuming");
             }
 
             // Execute phase: every control program that has come due. Inhibited
-            // in SAFE mode so nothing can drive an output back out of it.
-            if (!_safe_mode) _scan.step(now_ms);
+            // while control is withheld, so nothing can drive an output back
+            // out of its safe state.
+            if (_io.control_enabled()) _scan.step(now_ms);
 
             on_step(now_ms);   // site per-beat state machines (default no-op)
 
@@ -430,9 +447,14 @@ namespace Botanik {
             _monitor.serial().transmit();
 #endif
 
-            // Kick while healthy; HealthMonitor withholds only once a PLC fault
-            // persists past the grace window (the deliberate reboot).
+            // Kick while healthy; HealthMonitor is what decides that (see
+            // health/health.h). Withholding the kick means we have chosen to let
+            // the hardware watchdog reset us, so the field is dropped to its safe
+            // state FIRST - the reset itself gives no such guarantee, and the gap
+            // between the last kick and the reboot is exactly when an actuator
+            // must not be left energised.
             if (_health.watchdog_ok()) HAL::Watchdog::kick();
+            else                       _io.disable_control();
         }
 
         /** @brief Run loop() forever (the OPTA entry point; the simulator
@@ -453,6 +475,7 @@ namespace Botanik {
 
         /** @brief Override the HW-watchdog period armed by setup(). */
         void set_hw_watchdog_ms(uint32_t ms) { _hw_watchdog_ms = ms; }
+
 
         /** @} */
 
@@ -478,13 +501,9 @@ namespace Botanik {
         Network::MqttSender&            telemetry()       { return _net.telemetry(); }
 #endif
         Health::HealthMonitor&          health()          { return _health; }
-        Alarms::AlarmModel&             alarm_model()     { return _health.model(); }
         Vars::Params&                     params()          { return _params; }
 #if BOTANIK_FEATURE_CONSOLE
         Terminal::Console&              terminal()        { return _console.terminal(); }
-        Pages::ShellPage&               shell_page()      { return _console.shell(); }
-        Pages::LogsPage&                logs_page()       { return _console.logs(); }
-        Pages::AlarmsPage&              alarms_page()     { return _console.alarms(); }
 #endif
 
         /** @} */
@@ -512,7 +531,7 @@ namespace Botanik {
 
         /** @brief Register the site's shell command table (tried after the
          *  built-ins, so a site can't shadow exit/reset). Default: the
-         *  descriptor's commands, reading the live PLC payload as their ctx. */
+         *  descriptor's commands, reading the live variable bank as their ctx. */
         virtual void register_commands() {
             _console.shell().set_commands(_site.commands, _site.command_count,
                                           (void*)&_io);
@@ -533,7 +552,7 @@ namespace Botanik {
          *  nothing. */
         virtual void on_setup() {}
 
-        /** @brief Site per-beat work, run each loop() with fresh PLC data
+        /** @brief Site per-beat work, run each loop() with fresh variable data
          *  (after health, before the logger drains). Named to match the Component
          *  hook (the firmware is the loop driver, not itself a Component).
          *  Default: nothing. */

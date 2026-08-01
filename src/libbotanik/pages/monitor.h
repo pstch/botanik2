@@ -7,7 +7,7 @@
  * @brief MonitorPage - scrollable table of the site's status variables.
  *
  * The read-only sibling of the CONFIG page: it renders the site's status
- * variable table (the VarGroup[] the `status` shell command and MQTT telemetry
+ * variable table (the VarGroup[] MQTT telemetry
  * also read) live off the variable tables, one row per variable, grouped.
  * Generic over any VarGroup[] + Io, so it has no per-variable code.
  *
@@ -50,7 +50,6 @@ namespace Botanik { namespace Pages {
 
         /** @name Layout
          *  @{ */
-        static constexpr uint16_t MARGIN     = 2;    // blank columns each side
         static constexpr uint16_t TOP_ROW    = 1;    // blank top margin
         static constexpr uint16_t HEADER_ROW = 2;
         static constexpr uint16_t TRULE_ROW  = 3;    // top rule
@@ -63,10 +62,8 @@ namespace Botanik { namespace Pages {
         // Detail panel below the table (like the CONFIG page): bottom rule +
         // blank spacer + Description + Notes + Quality + blank spacer.
         static constexpr uint16_t PANEL_H    = 6;
-        /** @brief NAME field span (contents only): the part inverted for the
-         *  selection cursor, leaving the border gap each side. */
-        static constexpr uint16_t NAME_CELL_L = MARGIN + 2 + GROUP_W + 3;   // 19
-        static constexpr uint16_t NAME_CELL_R = NAME_CELL_L + NAME_W;       // 37
+        /** @brief Column order, for the derived cell positions below. */
+        enum { C_GROUP = 0, C_NAME, C_VALUE, C_UNIT };
         /** @} */
 
         /** @name State
@@ -193,13 +190,12 @@ namespace Botanik { namespace Pages {
                                           + 3 + UNIT_W + 2), (uint16_t)(VAL_CAP - 1));
         }
 
-        /** @brief Build a "  | group | name | value | unit |" row into @p out. */
-        uint16_t _row4(char* out, size_t cap, const char* g, const char* nm,
-                       const char* v, const char* u) const {
-            int n = snprintf(out, cap, "%*s| %-*.*s | %-*.*s | %-*.*s | %-*.*s |",
-                             (int)MARGIN, "", GROUP_W, GROUP_W, g, NAME_W, NAME_W, nm,
-                             _value_w(), _value_w(), v, UNIT_W, UNIT_W, u);
-            return (n < 0) ? 0 : (uint16_t)n;
+        uint8_t _columns(Col* out) const override {
+            out[C_GROUP] = Col{ "GROUP",    GROUP_W    };
+            out[C_NAME]  = Col{ "VARIABLE", NAME_W     };
+            out[C_VALUE] = Col{ "VALUE",    _value_w() };
+            out[C_UNIT]  = Col{ "UNIT",     UNIT_W     };
+            return 4;
         }
 
         /** @brief The reference for variable @p r; @p ok is false when @p r is
@@ -237,7 +233,8 @@ namespace Botanik { namespace Pages {
                 if (m->name != nullptr) nm = m->name;
                 if (m->unit != nullptr) un = m->unit;
             }
-            return _row4(out, cap, first ? _groups[gi].topic : "", nm, val, un);
+            const char* cells[4] = { first ? _groups[gi].topic : "", nm, val, un };
+            return _build_row(out, cap, cells);
         }
 
         /** @brief Draw data row @p r at screen @p row, inverting the NAME field for
@@ -246,13 +243,8 @@ namespace Botanik { namespace Pages {
         void _draw_row(uint16_t r, uint16_t row, bool selected) {
             char line[LINE_CAP];
             uint16_t n = _row_text(r, line, sizeof(line));
-            _draw_selected_line(row, line, n, NAME_CELL_L, NAME_CELL_R, selected);
-        }
-
-        void _draw_header() {
-            char line[LINE_CAP];
-            uint16_t n = _row4(line, sizeof(line), "GROUP", "VARIABLE", "VALUE", "UNIT");
-            _draw_line(HEADER_ROW, line, n);
+            _draw_selected_line(row, line, n, _cell_col(C_NAME), _cell_end(C_NAME),
+                                selected);
         }
 
         /** @brief One line saying where a reading comes from. */
@@ -272,13 +264,6 @@ namespace Botanik { namespace Pages {
                     snprintf(out, cap, "computed");
                     break;
             }
-        }
-
-        /** @brief Draw a rule row; @p cap ('^' / 'v' / '+') marks hidden rows. */
-        void _draw_rule(uint16_t row, char cap) {
-            uint16_t spans[4] = { (uint16_t)(GROUP_W + 2), (uint16_t)(NAME_W + 2),
-                                  (uint16_t)(_value_w() + 2), (uint16_t)(UNIT_W + 2) };
-            ScrollTablePage::_draw_rule(row, MARGIN, spans, 4, '+', cap);
         }
 
         /** @brief Draw both rules, capping with '^' / 'v' when rows are hidden
@@ -306,9 +291,17 @@ namespace Botanik { namespace Pages {
             if (have) _describe_binding(h.meta()->bind, bind, sizeof(bind));
             _panel_field((uint16_t)(br + 3), "Source", have ? bind : nullptr);
             // Quality is likewise new: a variable nothing has written reads as
-            // its default, which looks exactly like a real reading otherwise.
-            _panel_field((uint16_t)(br + 4), "Quality",
-                         !have ? nullptr : (h.valid() ? "live" : "no data (showing default)"));
+            // its default, which looks exactly like a real reading otherwise -
+            // and so does one a maintainer forced hours ago, which is why an
+            // override outranks the rest here.
+            const char* quality = nullptr;
+            if (have) {
+                if (h.overridden())   quality = h.valid() ? "OVERRIDDEN (forced by hand)"
+                                                          : "OVERRIDDEN (forced invalid)";
+                else if (h.valid())   quality = "live";
+                else                  quality = "no data (showing default)";
+            }
+            _panel_field((uint16_t)(br + 4), "Quality", quality);
             _blank_line((uint16_t)(br + 5));
         }
 
@@ -326,11 +319,8 @@ namespace Botanik { namespace Pages {
          *  footer carry live state and are drawn separately each tick. */
         void _draw_structure() {
             _blank_line(TOP_ROW);
-            _draw_header();
+            _draw_header(HEADER_ROW);
         }
-
-        // Selection
-        // --------------------------------------------------------------------
 
     };
 

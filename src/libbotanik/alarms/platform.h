@@ -10,8 +10,8 @@
  * CPU load/jitter, stack, overrun).
  *
  * The site-specific AlarmModel appends them at [N..N+M) (after the site's
- * N PLC alarms), in a disjoint namespace, so local platform bits and PLC
- * bits never collide.
+ * N alarms), in a disjoint namespace, so platform bits and site bits never
+ * collide.
  */
 
 #include "alarms.h"
