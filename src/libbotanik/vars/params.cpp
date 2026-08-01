@@ -64,14 +64,7 @@ namespace Botanik { namespace Vars {
     // ---- Params --------------------------------------------------------------
 
     void Params::setup(uint64_t /*now_ms*/) {
-        if (_io == nullptr || _store == nullptr) return;
-        for (uint16_t k = 0; k < count(); k++) {
-            const uint16_t i = _io->tables().param_first + k;
-            const Variable& d = _io->tables().var[i];
-            // A missing key is normal: the parameter keeps the declared default
-            // that init() already seeded.
-            (void)_store->load(d, _io->tables().val[i], _io->pool());
-        }
+        if (_io != nullptr) _io->load_params();
     }
 
     VarRef Params::find(const char* name, uint16_t len) const {
@@ -90,41 +83,6 @@ namespace Botanik { namespace Vars {
                                          char* buf, size_t cap) const {
         if (d.type == T_STR) return "";
         return format_scalar(d.type, v, d.digits, d.str, buf, cap);
-    }
-
-    SetResult Params::set(Var p, const char* text) {
-        const Variable* d = p.meta();
-        if (_io == nullptr || d->role != ROLE_PARAM) return SET_INVALID;
-        if ((d->flags & F_RDONLY) != 0) return SET_INVALID;
-
-        const uint16_t i = _io->find(d->name).index;
-        if (i == VAR_NONE) return SET_INVALID;
-        Value& slot = _io->tables().val[i];
-
-        if (d->type == T_STR) {
-            if (_io->pool() == nullptr || d->str_cap == 0) return SET_INVALID;
-            if (!validate_str(d->kind, text, d->str_cap)) return SET_INVALID;
-            char* dst = _io->pool() + d->str_off;
-            uint16_t n = 0;
-            while (text[n] != 0 && n + 1u < d->str_cap) { dst[n] = text[n]; n++; }
-            dst[n] = 0;
-            slot.valid = true;
-        } else {
-            Scalar parsed;
-            if (parse_scalar(d->type, text, &parsed) != PARSE_OK) return SET_INVALID;
-            if ((d->flags & F_BOUNDED) != 0 &&
-                !in_range(d->type, parsed, d->min, d->max)) return SET_INVALID;
-            slot.v = parsed;
-            slot.valid = true;
-        }
-
-        if (_store == nullptr) return SET_NOT_PERSISTED;
-        if (!_store->save(*d, slot, _io->pool())) {
-            if (_logger)
-                _logger->critical(Logs::STORAGE, "param '%s' not persisted", d->name);
-            return SET_NOT_PERSISTED;
-        }
-        return SET_OK;
     }
 
     // ---- By-name reads -------------------------------------------------------

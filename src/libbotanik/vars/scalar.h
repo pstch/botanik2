@@ -115,7 +115,6 @@ namespace Botanik { namespace Vars {
         return t == T_I8 || t == T_I16 || t == T_I32 || t == T_I64;
     }
     constexpr bool type_real(VarType t) { return t == T_F32; }
-    constexpr bool type_text(VarType t) { return t == T_STR; }
 
     /** @brief Short display name ("bool", "u16", "f32", "enum", "str"). */
     const char* type_name(VarType t);

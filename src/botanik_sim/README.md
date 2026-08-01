@@ -3,7 +3,7 @@
 <!-- REVIEW_35: TODO -->
 
 Runs `libbotanik` as an ordinary Linux process so the full terminal UI, logging,
-scheduler, and PLC sync layer can be exercised without hardware. The hardware
+scheduler, and scan cycle can be exercised without hardware. The hardware
 counterpart is [botanik_fw](../botanik_fw/README.md), which builds the same library
 into a flashable OPTA image.
 
@@ -15,10 +15,10 @@ the main loop. The site's variable tables and the simulated field that animates
 them live under `src/sites/<name>/`, shared verbatim by the simulator and the OPTA
 firmware - the sim writes the same variables the Modbus driver will.
 
-Unlike the OPTA, the simulator owns the PLC shared memory: `main()` allocates it as
-local statics and a generic emulator thread drives the selected
-site's `fill_output()` into it, standing in for the M4 coprocessor. On hardware the
-payload instead mirrors the PLC IDE's generated type.
+Where the OPTA reads real hardware, the simulator calls the site's `simulate()`
+straight from the main loop each beat: it publishes meter readings, drives the
+coils and raises alarms into the very same variable tables the field drivers
+write on hardware, so nothing downstream can tell the difference.
 
 ## Building & running
 
@@ -64,5 +64,5 @@ debug+ASan build is too slow per dilated tick. The pyte test suite uses exactly
 this mechanism; see [tests/pyte/README.md](../../tests/pyte/README.md).
 
 See also the cross-cutting design notes: [PAGES.md](../../docs/PAGES.md),
-[PLC_SYNC.md](../../docs/PLC_SYNC.md), [SCHEDULER_PERF.md](../../docs/SCHEDULER_PERF.md),
-and [LOG_FLOW.md](../../docs/LOG_FLOW.md).
+[SCHEDULER_PERF.md](../../docs/SCHEDULER_PERF.md), and
+[LOG_FLOW.md](../../docs/LOG_FLOW.md).
