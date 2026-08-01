@@ -45,3 +45,14 @@ def test_config_detail_and_edit(spawn):
     term.send(keys.ENTER)
     # The commit round-trips through the store and repaints the row.
     assert term.wait_for("120"), "committed value did not round-trip"
+
+
+def test_notes_row(spawn):
+    """The panel's Notes row, and that an authored note actually reaches it."""
+    term = boot(spawn)
+    goto(term, ALT_6, "PARAMETER")
+    assert term.wait_for("Notes"), "panel has no Notes row"
+    # net_dhcp carries one; the row below Description is where it lands.
+    term.send(keys.DOWN)
+    assert term.wait_for("static net_ip/netmask/gateway rows are ignored"), \
+        "an authored note did not reach the panel"

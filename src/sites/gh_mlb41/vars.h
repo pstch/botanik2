@@ -42,32 +42,42 @@ namespace Site {
 using namespace Botanik;
 using namespace Botanik::Vars;
 
+// Every row macro comes in two forms: the plain one, and an `_N` variant taking
+// a trailing NOTES string right after the description. Notes are what the detail
+// panels show under Description - the longer story a table column has no room
+// for - and most rows do not need one, so the plain form passes nullptr rather
+// than making 116 call sites carry an empty string.
+//
 // A meter reading. Bands are generous on purpose - they exist to catch a dead
 // or unplugged meter reporting a rail, not to police the process. `dgt` is the
 // display precision: a power factor to 0 decimals is useless, a watt to 2 is
 // noise.
-#define MTR(nm, unit, dgt, dev, obj, lo, hi, desc) \
-    { Scalar::F(lo), Scalar::F(hi), Scalar::F(0.0f), nm, unit, desc, nullptr, nullptr, \
+#define MTR_N(nm, unit, dgt, dev, obj, lo, hi, desc, notes) \
+    { Scalar::F(lo), Scalar::F(hi), Scalar::F(0.0f), nm, unit, desc, notes, nullptr, \
       { XP_MODBUS, T_F32, dev, 3, obj, 2, 1.0f, 0.0f }, \
       5000, 0, 0, T_F32, ROLE_INPUT, dgt, STR_NONE, F_BOUNDED, {} }
+#define MTR(nm, unit, dgt, dev, obj, lo, hi, desc) MTR_N(nm, unit, dgt, dev, obj, lo, hi, desc, nullptr)
 
 // A relay coil, written with function code 5.
-#define COIL(nm, dev, coil, desc) \
-    { Scalar::B(false), Scalar::B(true), Scalar::B(false), nm, "", desc, nullptr, nullptr, \
+#define COIL_N(nm, dev, coil, desc, notes) \
+    { Scalar::B(false), Scalar::B(true), Scalar::B(false), nm, "", desc, notes, nullptr, \
       { XP_MODBUS, T_BOOL, dev, 5, coil, 1, 1.0f, 0.0f }, \
       0, 0, 0, T_BOOL, ROLE_OUTPUT, 0, STR_NONE, 0, {} }
+#define COIL(nm, dev, coil, desc) COIL_N(nm, dev, coil, desc, nullptr)
 
 // A computed boolean: an alarm condition or a latched state flag.
-#define IBOOL(nm, desc) \
-    { Scalar::B(false), Scalar::B(true), Scalar::B(false), nm, "", desc, nullptr, nullptr, \
+#define IBOOL_N(nm, desc, notes) \
+    { Scalar::B(false), Scalar::B(true), Scalar::B(false), nm, "", desc, notes, nullptr, \
       { XP_NONE, T_BOOL, 0, 0, 0, 0, 1.0f, 0.0f }, \
       0, 0, 0, T_BOOL, ROLE_INTERNAL, 0, STR_NONE, 0, {} }
+#define IBOOL(nm, desc) IBOOL_N(nm, desc, nullptr)
 
 // A computed real.
-#define IREAL(nm, unit, dgt, desc) \
-    { Scalar::F(0.0f), Scalar::F(0.0f), Scalar::F(0.0f), nm, unit, desc, nullptr, nullptr, \
+#define IREAL_N(nm, unit, dgt, desc, notes) \
+    { Scalar::F(0.0f), Scalar::F(0.0f), Scalar::F(0.0f), nm, unit, desc, notes, nullptr, \
       { XP_NONE, T_F32, 0, 0, 0, 0, 1.0f, 0.0f }, \
       0, 0, 0, T_F32, ROLE_INTERNAL, dgt, STR_NONE, 0, {} }
+#define IREAL(nm, unit, dgt, desc) IREAL_N(nm, unit, dgt, desc, nullptr)
 
 /** @brief Text-parameter capacity, including the NUL. */
 static const uint16_t STR_CAP = 64;
@@ -81,32 +91,37 @@ static const uint16_t STR_POOL_BYTES = 8 * STR_CAP;
 
 /** @brief A group's commit serial: bump it to apply that group's staged edits.
  *  Named after the group, which is how the consuming component finds it. */
-#define PSERIAL(nm, desc) \
-    { Scalar::U(0), Scalar::U(1000000000), Scalar::U(1), nm, "", desc, nullptr, nullptr, \
+#define PSERIAL_N(nm, desc, notes) \
+    { Scalar::U(0), Scalar::U(1000000000), Scalar::U(1), nm, "", desc, notes, nullptr, \
       { XP_NONE, T_U32, 0, 0, 0, 0, 1.0f, 0.0f }, \
       0, 0, 0, T_U32, ROLE_PARAM, 0, STR_NONE, F_BOUNDED, {} }
+#define PSERIAL(nm, desc) PSERIAL_N(nm, desc, nullptr)
 
-#define PBOOL(nm, dflt, desc) \
-    { Scalar::B(false), Scalar::B(true), Scalar::B(dflt), nm, "", desc, nullptr, nullptr, \
+#define PBOOL_N(nm, dflt, desc, notes) \
+    { Scalar::B(false), Scalar::B(true), Scalar::B(dflt), nm, "", desc, notes, nullptr, \
       { XP_NONE, T_BOOL, 0, 0, 0, 0, 1.0f, 0.0f }, \
       0, 0, 0, T_BOOL, ROLE_PARAM, 0, STR_NONE, F_BOUNDED, {} }
+#define PBOOL(nm, dflt, desc) PBOOL_N(nm, dflt, desc, nullptr)
 
-#define PU16(nm, dflt, lo, hi, unit, desc) \
-    { Scalar::U(lo), Scalar::U(hi), Scalar::U(dflt), nm, unit, desc, nullptr, nullptr, \
+#define PU16_N(nm, dflt, lo, hi, unit, desc, notes) \
+    { Scalar::U(lo), Scalar::U(hi), Scalar::U(dflt), nm, unit, desc, notes, nullptr, \
       { XP_NONE, T_U16, 0, 0, 0, 0, 1.0f, 0.0f }, \
       0, 0, 0, T_U16, ROLE_PARAM, 0, STR_NONE, F_BOUNDED, {} }
+#define PU16(nm, dflt, lo, hi, unit, desc) PU16_N(nm, dflt, lo, hi, unit, desc, nullptr)
 
-#define PF32(nm, dflt, lo, hi, dgt, unit, desc) \
-    { Scalar::F(lo), Scalar::F(hi), Scalar::F(dflt), nm, unit, desc, nullptr, nullptr, \
+#define PF32_N(nm, dflt, lo, hi, dgt, unit, desc, notes) \
+    { Scalar::F(lo), Scalar::F(hi), Scalar::F(dflt), nm, unit, desc, notes, nullptr, \
       { XP_NONE, T_F32, 0, 0, 0, 0, 1.0f, 0.0f }, \
       0, 0, 0, T_F32, ROLE_PARAM, dgt, STR_NONE, F_BOUNDED, {} }
+#define PF32(nm, dflt, lo, hi, dgt, unit, desc) PF32_N(nm, dflt, lo, hi, dgt, unit, desc, nullptr)
 
 /** @brief A text parameter. Its live value lives in the string pool at @p off;
  *  `def` carries the factory text, which init() copies into the pool. */
-#define PSTR(nm, off, kind_, dflt, desc) \
-    { Scalar::U(0), Scalar::U(0), Scalar::S(dflt), nm, "", desc, nullptr, nullptr, \
+#define PSTR_N(nm, off, kind_, dflt, desc, notes) \
+    { Scalar::U(0), Scalar::U(0), Scalar::S(dflt), nm, "", desc, notes, nullptr, \
       { XP_NONE, T_STR, 0, 0, 0, 0, 1.0f, 0.0f }, \
       0, off, STR_CAP, T_STR, ROLE_PARAM, 0, kind_, 0, {} }
+#define PSTR(nm, off, kind_, dflt, desc) PSTR_N(nm, off, kind_, dflt, desc, nullptr)
 
 /** @brief Every variable this site declares, in one table.
  *
@@ -237,41 +252,57 @@ const Variable g_vars[] = {
  /** @} */
 
     // -- network --
-    PSERIAL("net_serial", "Network config commit"),
-    PBOOL("net_dhcp", 1, "DHCP (1) or static IP (0)"),
+    PSERIAL_N("net_serial", "Network config commit",
+              "Edits to the net_* parameters only stage; bump this to apply them."),
+    PBOOL_N("net_dhcp", 1, "DHCP (1) or static IP (0)",
+            "With DHCP on, the static net_ip/netmask/gateway rows are ignored."),
     PSTR("net_ip", 0, STR_IPV4, "", "Static IPv4 address"),
     PSTR("net_netmask", 64, STR_IPV4, "", "Static subnet mask"),
     PSTR("net_gateway", 128, STR_IPV4, "", "Default gateway"),
     PSTR("net_dns1", 192, STR_IPV4, "", "Primary DNS server"),
-    PSTR("net_dns2", 256, STR_IPV4_OPT, "", "Secondary DNS server"),
+    PSTR_N("net_dns2", 256, STR_IPV4_OPT, "", "Secondary DNS server",
+           "Optional: leave empty to use net_dns1 alone."),
     // -- NTP --
     PSERIAL("ntp_serial", "NTP config commit"),
     PBOOL("ntp_enabled", 1, "Enable NTP time sync"),
-    PU16("ntp_poll_s", 64, 0, 65535, "s", "NTP poll interval"),
+    PU16_N("ntp_poll_s", 64, 0, 65535, "s", "NTP poll interval",
+           "0 disables polling after the first sync; the RTC then free-runs."),
     PSTR("ntp_server1", 320, STR_HOST, "pool.ntp.org", "Primary NTP server"),
-    PSTR("ntp_server2", 384, STR_HOST_OPT, "", "Secondary NTP server"),
+    PSTR_N("ntp_server2", 384, STR_HOST_OPT, "", "Secondary NTP server",
+           "Tried only after server1 fails; empty means no fallback."),
     // -- MQTT --
     PSERIAL("mqtt_serial", "MQTT config commit"),
     PBOOL("mqtt_enabled", 1, "Enable MQTT publishing"),
     PU16("mqtt_port", 1883, 1, 65535, "", "Broker TCP port"),
-    PU16("mqtt_keepalive_s", 60, 0, 65535, "s", "MQTT keepalive"),
+    PU16_N("mqtt_keepalive_s", 60, 0, 65535, "s", "MQTT keepalive",
+           "Also how long a dead broker goes unnoticed - the `net` command\nshows the age of the last contact."),
     PSTR("mqtt_broker", 448, STR_HOST, "broker.local", "MQTT broker host"),
     // -- geo (decimal degrees) --
     PSERIAL("geo_serial", "Geo config commit"),
-    PF32("geo_latitude", 48.8566f, -90.0f, 90.0f, 4, "deg", "Site latitude, north +"),
+    PF32_N("geo_latitude", 48.8566f, -90.0f, 90.0f, 4, "deg", "Site latitude, north +",
+           "Feeds the solar-elevation math; a wrong sign puts the sun in the\nother hemisphere."),
     PF32("geo_longitude", 2.3522f, -180.0f, 180.0f, 4, "deg", "Site longitude, east +"),
 };
 const uint16_t g_var_count = (uint16_t)(sizeof(g_vars) / sizeof(g_vars[0]));
 
 #undef MTR
+#undef MTR_N
 #undef COIL
+#undef COIL_N
 #undef IBOOL
+#undef IBOOL_N
 #undef IREAL
+#undef IREAL_N
 #undef PSERIAL
+#undef PSERIAL_N
 #undef PBOOL
+#undef PBOOL_N
 #undef PU16
+#undef PU16_N
 #undef PF32
+#undef PF32_N
 #undef PSTR
+#undef PSTR_N
 
 /** @brief Symbolic index per variable. The row order above is the enum order;
  *  a mismatch would silently address the wrong signal, so the count is
