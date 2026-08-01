@@ -60,7 +60,7 @@ on the M4).
 Host-only, SIMULATOR build. There are two suites, both wired into CTest:
 
 - **doctest** C++ unit tests in `tests/` (vendored single header `tests/vendor/doctest.h`),
-  one CTest entry per `TEST_CASE` via `doctest_discover_tests`.
+  one CTest entry for the whole binary (`-tc=<name>` selects a case when debugging).
 - **pyte** Python screen-assertion tests in `tests/pyte/` that drive `botanik_sim` over a
   PTY and assert its rendered ANSI screen against golden captures. Registered only when
   `pytest`+`pyte` are importable; they run against a dedicated RELEASE no-sanitizer sim
@@ -84,12 +84,10 @@ ctest --test-dir build -R pyte --output-on-failure  # just the pyte suite
   (only present when `clang-tidy` was found at configure time). Incremental: one
   stamp per TU under `build/clang-tidy/`, so only sources whose text or included
   headers changed are re-analyzed. Header tracking comes from the Makefile
-  generator's dependency scanner; under Ninja (or without `clang-tidy`, with
-  `run-clang-tidy` present) the target falls back to the full sweep.
-- the **doctest + pyte** suites via `ctest`.
-
-A separate `make -C build cppcheck` target runs cppcheck when installed, and
-`make -C build clang-tidy-all` re-lints the whole tree ignoring the stamps.
+  generator's dependency scanner, so the target exists only under that generator.
+  `rm -rf build/clang-tidy` forces a full re-lint.
+- the **doctest + pyte** suites via `ctest`, one entry for the unit binary and
+  one per pyte test file.
 
 ## Architecture
 

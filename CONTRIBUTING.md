@@ -123,15 +123,12 @@ new entries are silently dropped.
 cmake -B build -DBOTANIK_TARGET=SIMULATOR
 make -C build
 
-# Static analysis (runs automatically as part of the build in SIMULATOR mode)
-make -C build cppcheck
-
 # clang-tidy (uses .clang-tidy + build/compile_commands.json). Incremental: only
 # the TUs whose sources or headers changed since the last run.
 make -C build clang-tidy
 
-# ...and the unconditional sweep over every TU
-make -C build clang-tidy-all
+# ...and the unconditional sweep: drop the stamps, then re-run
+rm -rf build/clang-tidy && make -C build clang-tidy
 ```
 
 ### clang-tidy version

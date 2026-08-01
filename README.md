@@ -61,9 +61,8 @@ sketch does the equivalent).
 ## Building
 
 The default target is the Linux simulator (`SIMULATOR`), which compiles to a
-native executable and is the only target that *runs* end-to-end today (the OPTA
-target compiles but isn't linked into a flashable image yet - see below). Builds
-default to a profiler-friendly `DEBUG` type:
+native executable; the OPTA target cross-compiles and links a flashable image
+(see below). Builds default to a profiler-friendly `DEBUG` type:
 
 ```bash
 cmake -B build-debug -DBOTANIK_TARGET=SIMULATOR
@@ -136,9 +135,9 @@ documents the in-memory footprint of the big UI/PLC structures.
 - [docs/EVENT_DISPATCH.md](docs/EVENT_DISPATCH.md) - terminal input event flow.
 - [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md) - terminal key bindings.
 - API reference - `make -C build-debug docs` regenerates the HTML under
-  `docs/doxygen/html/` (or run `doxygen Doxyfile` directly). `make -C build-debug
-  docs-open` builds the tests + docs, runs the suite, and opens the result in a
-  browser. The generated [Testing](docs/doxygen/html/testing.html) page covers
+  `docs/doxygen/html/` (or run `doxygen Doxyfile` directly), then open
+  `docs/doxygen/html/index.html`. The generated
+  [Testing](docs/doxygen/html/testing.html) page covers
   the test suite and the struct-size table.
 
 ### External
