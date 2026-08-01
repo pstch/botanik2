@@ -61,8 +61,8 @@ namespace Botanik { namespace Network {
         lc.dhcp = Vars::get_int(_cfg, "net_dhcp") != 0;
         if (!lc.dhcp) {
             strncpy(lc.ip,      Vars::get_str(_cfg, "net_ip"),      sizeof(lc.ip) - 1);
-            strncpy(lc.netmask, Vars::get_str(_cfg, "net_netmask"), sizeof(lc.netmask) - 1);
-            strncpy(lc.gateway, Vars::get_str(_cfg, "net_gateway"), sizeof(lc.gateway) - 1);
+            strncpy(lc.netmask, Vars::get_str(_cfg, "net_mask"), sizeof(lc.netmask) - 1);
+            strncpy(lc.gateway, Vars::get_str(_cfg, "net_gw"), sizeof(lc.gateway) - 1);
             strncpy(lc.dns1,    Vars::get_str(_cfg, "net_dns1"),    sizeof(lc.dns1) - 1);
             strncpy(lc.dns2,    Vars::get_str(_cfg, "net_dns2"),    sizeof(lc.dns2) - 1);
         }

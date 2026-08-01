@@ -659,7 +659,7 @@ namespace Botanik { namespace Shell {
             else
                 snprintf(val, sizeof(val), "%s", ntp->status_str());
             _line("NTP ..................", val);
-            const char* s1 = Vars::get_str(_bank(), "ntp_server1");
+            const char* s1 = Vars::get_str(_bank(), "ntp_srv1");
             if (s1[0]) {
                 // Configured hostname, then the resolved IP:port once known.
                 Network::ResolvedAddr sa = ntp->server_addr();
@@ -688,7 +688,7 @@ namespace Botanik { namespace Shell {
                 snprintf(val, sizeof(val), "%s  (no pub yet)", mqt->status_str());
             }
             _line("MQTT .................", val);
-            const char* brk = Vars::get_str(_bank(), "mqtt_broker");
+            const char* brk = Vars::get_str(_bank(), "mqtt_host");
             if (brk[0]) {
                 // Configured hostname, then the resolved IP:port once connected.
                 if (mqt->connected()) {

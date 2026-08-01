@@ -17,13 +17,13 @@ def test_get_and_set(spawn):
     assert term.wait_for("list variables"), "list missing from help"
     assert term.wait_for("edit a parameter"), "set missing from help"
 
-    term.send(b"get ntp_server1" + keys.ENTER)
-    assert term.wait_for("ntp_server1"), "get <name> found nothing"
+    term.send(b"get ntp_srv1" + keys.ENTER)
+    assert term.wait_for("ntp_srv1"), "get <name> found nothing"
 
-    term.send(b"set ntp_poll_s 900" + keys.ENTER)
-    assert term.wait_for("ntp_poll_s = 900"), "set did not apply"
+    term.send(b"set ntp_poll_sec 900" + keys.ENTER)
+    assert term.wait_for("ntp_poll_sec = 900"), "set did not apply"
 
-    term.send(b"get ntp_poll_s" + keys.ENTER)
+    term.send(b"get ntp_poll_sec" + keys.ENTER)
     assert term.wait_for("900"), "set did not round-trip through get"
 
     term.send(b"set nosuchthing 1" + keys.ENTER)
@@ -83,7 +83,9 @@ def test_list_filters_by_prefix(spawn):
 
     # A prefix is how you navigate a few hundred variables: they are named by
     # domain, so `list pwr_` is the subsystem view.
-    term.send(b"list pwr_" + keys.ENTER)
+    # A narrow prefix: `list pwr_` now spans the meters AND the 20 voltage-monitor
+    # parameters, so the head of that listing scrolls off the shell's log area.
+    term.send(b"list pwr_L1_" + keys.ENTER)
     assert term.wait_for("pwr_L1_V"), "prefix list missed a matching variable"
 
     term.send(b"list zzz_nothing" + keys.ENTER)

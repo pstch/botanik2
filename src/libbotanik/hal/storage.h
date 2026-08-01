@@ -18,7 +18,7 @@
  * The `storage` shell command exists to check it with a set / power-cycle / get
  * round-trip.
  *
- * Keys are short identifiers (the flat Param names, e.g. "ntp_poll_s"); they
+ * Keys are short identifiers (the flat Param names, e.g. "ntp_poll_sec"); they
  * must be non-empty and contain no '/', '=' or newline. The OPTA backend
  * prepends Mbed's partition prefix itself. Values are the parameter's raw bytes
  * (scalar width or string capacity).

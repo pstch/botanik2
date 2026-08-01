@@ -20,9 +20,9 @@ def test_config_detail_and_edit(spawn):
     goto(term, ALT_6)
     assert term.wait_for("PARAMETER"), "config table header missing"
     assert term.wait_for("DEFAULT"), "default column header missing"
-    assert term.wait_for("ntp_poll_s"), "config parameter rows missing"
-    # Move the cursor down to ntp_poll_s (table index 9: net, net_dhcp, net_ip,
-    # net_netmask, net_gateway, net_dns1, net_dns2, ntp, ntp_enabled, ntp_poll_s);
+    assert term.wait_for("ntp_poll_sec"), "config parameter rows missing"
+    # Move the cursor down to ntp_poll_sec (table index 9: net_serial, net_dhcp, net_ip,
+    # net_mask, net_dns1, net_dns2, net_gw, ntp_serial, ntp_enable, ntp_poll_sec);
     # the detail panel tracks the selection.
     for _ in range(9):
         term.send(keys.DOWN)
@@ -30,7 +30,7 @@ def test_config_detail_and_edit(spawn):
     # ENTER opens the inline editor on the bottom row; clear, retype, stage.
     # Editing a field only stages it - it commits when the group's serial bumps.
     term.send(keys.ENTER)
-    assert term.wait_for("ntp_poll_s ="), "inline edit did not open"
+    assert term.wait_for("ntp_poll_sec ="), "inline edit did not open"
     term.send(CTRL_U)
     term.send(b"120")
     term.send(keys.ENTER)
@@ -54,5 +54,5 @@ def test_notes_row(spawn):
     assert term.wait_for("Notes"), "panel has no Notes row"
     # net_dhcp carries one; the row below Description is where it lands.
     term.send(keys.DOWN)
-    assert term.wait_for("static net_ip/netmask/gateway rows are ignored"), \
+    assert term.wait_for("static net_ip/mask/gw rows are ignored"), \
         "an authored note did not reach the panel"
