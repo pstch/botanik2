@@ -101,17 +101,19 @@ namespace Botanik { namespace Pages {
         /** @name Input
          *  @{ */
 
-        void handle_text(char c) override {
-            if (!_editing) return;
-            if (c < 0x20 || c == 0x7F) return;           // printable only
-            if (_edit_error) _clear_error();
-            _editor.insert_characters(&c, 1);
-        }
-
         void handle_command(Command cmd, uint16_t count = 1) override {
             if (_editing) { _handle_edit_command(cmd, count); return; }
+            if (_mode_command(cmd)) return;             // LEFT/RIGHT pick the group
             if (_nav_command(cmd)) { _dirty = true; return; }
-            if (cmd == Command::ENTER && _param_count() > 0) { _start_edit(); _dirty = true; }
+            if (cmd == Command::ENTER && _visible_count() > 0) { _start_edit(); _dirty = true; }
+        }
+
+        void handle_text(char c) override {
+            if (!_editing && _mode_text(c)) return;     // SPACE: next group
+            if (!_editing) return;
+            if (c < 0x20 || c == 0x7F) return;          // printable only
+            if (_edit_error) _clear_error();
+            _editor.insert_characters(&c, 1);
         }
 
         bool handle_cancel() override {
@@ -129,7 +131,7 @@ namespace Botanik { namespace Pages {
         void focus() override {
             _editing = false;
             _dirty = true;
-            if (_selected >= _param_count()) _selected = 0;
+            if (_selected >= _visible_count()) _selected = 0;
             _follow_selection();
         }
 
@@ -142,7 +144,7 @@ namespace Botanik { namespace Pages {
             if (!_dirty && now - _last_refresh_ms < Config::PAGE_HOT_MS) return;
             _last_refresh_ms = now;
             _dirty = false;
-            uint16_t n = _param_count();
+            uint16_t n = _visible_count();
             _clamp_selection();
             _follow_selection();
             _draw_structure();
@@ -160,6 +162,85 @@ namespace Botanik { namespace Pages {
 
     private:
         uint16_t _param_count() const { return _params != nullptr ? _params->count() : 0; }
+
+        /** @name Group modes
+         *  A parameter's group IS its name prefix (`net_`, `ntp_`, `mqtt_`) -
+         *  the same prefix that names its commit serial - so the groups are
+         *  discovered from the table rather than declared twice. Mode 0 shows
+         *  every parameter; 1..N show one group each. SPACE / RIGHT step
+         *  forward, LEFT back (scroll_table.h).
+         *  @{ */
+        static constexpr uint8_t GROUPS_MAX = 12;
+
+        /** @brief Distinct group prefixes, in table order. Rebuilt on demand
+         *  because the parameter set is fixed at build time - this walks it once
+         *  per call and the table is short. */
+        uint8_t _groups(const char** out) const {
+            uint8_t n = 0;
+            for (uint16_t i = 0; i < _param_count() && n < GROUPS_MAX; i++) {
+                const char* g = _group_of(*_params->param(i).meta());
+                bool seen = false;
+                for (uint8_t k = 0; k < n; k++)
+                    if (strcmp(out[k], g) == 0) { seen = true; break; }
+                if (!seen) out[n++] = _group_intern(g);
+            }
+            return n;
+        }
+
+        /** @brief _group_of() returns a pointer to its own static scratch, so a
+         *  second call clobbers the first. Copy each distinct group once into a
+         *  table-lifetime store the mode labels can keep pointing at. */
+        static const char* _group_intern(const char* g) {
+            static char pool[GROUPS_MAX][16];
+            static uint8_t used = 0;
+            for (uint8_t i = 0; i < used; i++)
+                if (strcmp(pool[i], g) == 0) return pool[i];
+            if (used >= GROUPS_MAX) return "?";
+            char* dst = pool[used++];
+            size_t n = strlen(g);
+            if (n >= sizeof(pool[0])) n = sizeof(pool[0]) - 1;
+            memcpy(dst, g, n); dst[n] = 0;
+            return dst;
+        }
+
+        uint8_t _mode_count() const override {
+            const char* g[GROUPS_MAX];
+            return (uint8_t)(_groups(g) + 1);
+        }
+        const char* _mode_label(uint8_t i) const override {
+            if (i == 0) return "all";
+            const char* g[GROUPS_MAX];
+            uint8_t n = _groups(g);
+            return (i <= n) ? g[i - 1] : "all";
+        }
+        void _on_mode_changed() override { _editing = false; _dirty = true; }
+        uint16_t _console_rows() const override { return _console.rows(); }
+
+        /** @brief True when parameter @p k belongs to the active view. */
+        bool _in_mode(uint16_t k) const {
+            if (_mode == 0) return true;
+            return strcmp(_group_of(*_params->param(k).meta()), _mode_label(_mode)) == 0;
+        }
+
+        /** @brief Map a visible row to its parameter index (VAR_NONE-ish: the
+         *  count when out of range). */
+        uint16_t _param_at(uint16_t row) const {
+            uint16_t seen = 0;
+            for (uint16_t k = 0; k < _param_count(); k++) {
+                if (!_in_mode(k)) continue;
+                if (seen == row) return k;
+                seen++;
+            }
+            return _param_count();
+        }
+
+        /** @brief Parameters the active view shows. */
+        uint16_t _visible_count() const {
+            uint16_t n = 0;
+            for (uint16_t k = 0; k < _param_count(); k++) if (_in_mode(k)) n++;
+            return n;
+        }
+        /** @} */
 
         /** @brief Row the bottom edit/hint prompt sits on (above the alarm bar). */
         uint16_t _prompt_row() const { return (uint16_t)(_console.rows() - 1); }
@@ -181,7 +262,7 @@ namespace Botanik { namespace Pages {
         /** @name ScrollTablePage geometry @{ */
         uint16_t _data_top()  const override { return DATA_TOP; }
         uint16_t _window()    const override { return _visible_rows(); }
-        uint16_t _row_count() const override { return _param_count(); }
+        uint16_t _row_count() const override { return _visible_count(); }
         /** @} */
 
         // Table rendering (5 columns: name | type | value | default | unit)
@@ -204,7 +285,7 @@ namespace Botanik { namespace Pages {
         }
 
         void _draw_row(uint16_t idx, uint16_t row, bool selected) {
-            Vars::Var p = _params->param(idx);
+            Vars::Var p = _params->param(_param_at(idx));
             const Vars::Variable& d = *p.meta();
             char val[VAL_CAP];
             _params->format(idx, val, sizeof(val));
@@ -272,11 +353,11 @@ namespace Botanik { namespace Pages {
             uint16_t r = _panel_top();
             _draw_separator(r);
             _blank_line((uint16_t)(r + 1));
-            if (_param_count() == 0) {
+            if (_visible_count() == 0) {
                 for (uint16_t i = 2; i < PANEL_H; i++) _blank_line((uint16_t)(r + i));
                 return;
             }
-            Vars::Var p = _params->param(_selected);
+            Vars::Var p = _params->param(_param_at(_selected));
             const Vars::Variable& d = *p.meta();
             char b[24];
             _panel_field((uint16_t)(r + 2), "Minimum",     _fmt_bound(b, sizeof(b), d, d.min));
@@ -339,8 +420,8 @@ namespace Botanik { namespace Pages {
         // --------------------------------------------------------------------
 
         void _start_edit() {
-            if (_selected >= _param_count()) return;
-            _edit_index = _selected;
+            if (_selected >= _visible_count()) return;
+            _edit_index = _param_at(_selected);   // absolute, so a view change cannot move it
             _draw_panel();            // pin the panel to the parameter being edited
             uint16_t row = _prompt_row();
             char label[48];
@@ -355,7 +436,7 @@ namespace Botanik { namespace Pages {
             _draw_label();
 
             char val[80];
-            const char* fv = _params->format(_selected, val, sizeof(val));
+            const char* fv = _params->format(_edit_index, val, sizeof(val));
             const int n = (int)strlen(fv);
             if (fv != val) { strncpy(val, fv, sizeof(val) - 1); val[sizeof(val) - 1] = 0; }
             if (n > 0) _editor.insert_characters(val, (uint16_t)n);

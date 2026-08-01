@@ -14,7 +14,7 @@
  * Layout (row 0 is the terminal status bar, the bottom row the alarm bar); the
  * same bordered shape as the other tables:
  *   row 1            blank top margin
- *   row 2            header  (| GROUP | VARIABLE | VALUE |)
+ *   row 2            header  (| SCOPE | VARIABLE | VALUE | UNIT |)
  *   row 3            top rule (corners cap to '^' when rows are hidden above)
  *   rows 4..N-3      one row per status variable (window into the full set)
  *   row N-2          bottom rule (corners cap to 'v' when hidden below)
@@ -54,7 +54,7 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t HEADER_ROW = 2;
         static constexpr uint16_t TRULE_ROW  = 3;    // top rule
         static constexpr uint16_t DATA_TOP   = 4;    // first variable row
-        static constexpr uint16_t GROUP_W    = 12;   // group-topic column
+        static constexpr uint16_t SCOPE_W    = 8;    // where the value lives
         static constexpr uint16_t NAME_W     = 18;   // variable-name column
         static constexpr uint16_t UNIT_W     = 6;    // physical-unit column
         static constexpr uint16_t VAL_CAP    = 48;   // formatted value buffer
@@ -63,7 +63,7 @@ namespace Botanik { namespace Pages {
         // blank spacer + Description + Notes + Quality + blank spacer.
         static constexpr uint16_t PANEL_H    = 6;
         /** @brief Column order, for the derived cell positions below. */
-        enum { C_GROUP = 0, C_NAME, C_VALUE, C_UNIT };
+        enum { C_SCOPE = 0, C_NAME, C_VALUE, C_UNIT };
         /** @} */
 
         /** @name State
@@ -93,11 +93,12 @@ namespace Botanik { namespace Pages {
         /** @name Input
          *  @{ */
 
-        void handle_text(char /*c*/) override {}   // read-only: no text entry
-
         void handle_command(Command cmd, uint16_t = 1) override {
+            if (_mode_command(cmd)) return;         // LEFT/RIGHT pick the group
             if (_nav_command(cmd)) _dirty = true;   // redraw next tick, not the cadence
         }
+
+        void handle_text(char c) override { (void)_mode_text(c); }   // SPACE: next group
 
         /** @} */
 
@@ -141,9 +142,28 @@ namespace Botanik { namespace Pages {
         // Model
         // --------------------------------------------------------------------
 
+        /** @name Group modes
+         *  Mode 0 shows every group; modes 1..N show one each. The site already
+         *  groups its variables for the monitor table and telemetry, so this is
+         *  the grouping it declared, surfaced as a view rather than a second
+         *  concept. SPACE / RIGHT step forward, LEFT back (scroll_table.h).
+         *  @{ */
+        uint8_t _mode_count() const override { return (uint8_t)(_group_count + 1); }
+        const char* _mode_label(uint8_t i) const override {
+            if (i == 0) return "all";
+            return (i <= _group_count) ? _groups[i - 1].topic : "all";
+        }
+        void _on_mode_changed() override { _dirty = true; }
+        uint16_t _console_rows() const override { return _console.rows(); }
+
+        /** @brief First and one-past-last group index the active mode shows. */
+        size_t _first_group() const { return _mode == 0 ? 0 : (size_t)(_mode - 1); }
+        size_t _last_group() const  { return _mode == 0 ? _group_count : (size_t)_mode; }
+        /** @} */
+
         uint16_t _total() const {
             size_t t = 0;
-            for (size_t g = 0; g < _group_count; g++) t += _groups[g].count;
+            for (size_t g = _first_group(); g < _last_group(); g++) t += _groups[g].count;
             return (uint16_t)t;
         }
 
@@ -151,7 +171,7 @@ namespace Botanik { namespace Pages {
          *  it leads its group (so the group column prints once). */
         bool _at(uint16_t r, size_t& gi, size_t& fi, bool& first) const {
             size_t acc = 0;
-            for (size_t g = 0; g < _group_count; g++) {
+            for (size_t g = _first_group(); g < _last_group(); g++) {
                 if (r < acc + _groups[g].count) {
                     gi = g; fi = (size_t)(r - acc); first = (fi == 0);
                     return true;
@@ -186,12 +206,12 @@ namespace Botanik { namespace Pages {
          *  | unit): the display minus the three fixed columns and every border,
          *  floored at 8 and capped at VAL_CAP-1. */
         uint16_t _value_w() const {
-            return _flex_width((uint16_t)(2 * MARGIN + 2 + GROUP_W + 3 + NAME_W + 3
+            return _flex_width((uint16_t)(2 * MARGIN + 2 + SCOPE_W + 3 + NAME_W + 3
                                           + 3 + UNIT_W + 2), (uint16_t)(VAL_CAP - 1));
         }
 
         uint8_t _columns(Col* out) const override {
-            out[C_GROUP] = Col{ "GROUP",    GROUP_W    };
+            out[C_SCOPE] = Col{ "SCOPE",    SCOPE_W    };
             out[C_NAME]  = Col{ "VARIABLE", NAME_W     };
             out[C_VALUE] = Col{ "VALUE",    _value_w() };
             out[C_UNIT]  = Col{ "UNIT",     UNIT_W     };
@@ -227,13 +247,18 @@ namespace Botanik { namespace Pages {
             Vars::VarRef ref = _ref_at(r, ok);
             char val[VAL_CAP];
             _value_text(r, val, sizeof(val));
-            const char* nm = "", *un = "";
+            const char* nm = "", *un = "", *sc = "";
             if (_io != nullptr) {
                 const Vars::Variable* m = _io->var(ref).meta();
                 if (m->name != nullptr) nm = m->name;
                 if (m->unit != nullptr) un = m->unit;
+                // Scope, not the group: the group is the VIEW now (SPACE/LEFT/
+                // RIGHT), so repeating it down a column said the same thing on
+                // every row. Where a reading comes from does not.
+                sc = Vars::var_scope(*m);
             }
-            const char* cells[4] = { first ? _groups[gi].topic : "", nm, val, un };
+            (void)first;
+            const char* cells[4] = { sc, nm, val, un };
             return _build_row(out, cap, cells);
         }
 
@@ -310,7 +335,8 @@ namespace Botanik { namespace Pages {
             uint16_t last  = (uint16_t)(_top + (win < total ? win : total));
             char line[LINE_CAP];
             int n = snprintf(line, sizeof(line),
-                             " UP/DOWN select   PAGE UP/DOWN page      %u-%u / %u",
+                             " UP/DOWN select   <-/->/SPACE: %-12s  %u-%u / %u",
+                             _next_mode_name(),
                              (unsigned)(total ? _top + 1 : 0), (unsigned)last, (unsigned)total);
             _draw_line(_footer_row(), line, (n < 0) ? 0 : (uint16_t)n);
         }

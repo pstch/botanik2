@@ -43,6 +43,32 @@ namespace Botanik { namespace Vars {
         VarRef      ref;
     };
 
+    /** @brief Where a variable physically lives, as a short column label.
+     *
+     *  Transport and role together, because neither alone answers the question
+     *  an operator is asking ("is this a reading, a thing I drive, or a number
+     *  the firmware made up?"): XP_MODBUS says how it travels but not which way,
+     *  and ROLE_INPUT says which way but not over what.
+     *
+     *  Kept to 8 columns so it fits the monitor table beside the name. */
+    inline const char* var_scope(const Variable& d) {
+        const bool in = (d.role == ROLE_INPUT);
+        switch (d.bind.transport) {
+            case XP_MODBUS:        return in ? "mb in"  : "mb out";
+            case XP_LOCAL_ANALOG:  return in ? "ana in" : "ana out";
+            case XP_LOCAL_DIGITAL: return in ? "dig in" : "relay";
+            default: break;
+        }
+        // Nothing drives it from the field: it is either configuration or a
+        // number the control programs computed.
+        switch (d.role) {
+            case ROLE_PARAM:    return "param";
+            case ROLE_OUTPUT:   return "demand";
+            case ROLE_INPUT:    return "unbound";
+            default:            return "computed";
+        }
+    }
+
     /** @brief Render @p h's current value into @p buf. Returns the text - an
      *  enum's static string, a T_STR's pool text, or @p buf. */
     inline const char* var_format(const Bank& io, Var h, char* buf, size_t cap) {

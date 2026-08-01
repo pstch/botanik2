@@ -137,6 +137,87 @@ namespace Botanik { namespace Pages {
         }
 
         /** @}
+         *  @name View modes
+         *
+         *  A table usually has more than one useful view of its rows: the alarms
+         *  filter (recent / all / active / unmasked), the monitor's variable
+         *  groups (all / power / environment / ...). Both are the same thing -
+         *  a small ordered set of named views, one active at a time - so it lives
+         *  here rather than being re-invented per page.
+         *
+         *  Keys: SPACE and RIGHT step forward, LEFT steps back. NOT Shift+SPACE:
+         *  a terminal sends 0x20 for both Space and Shift+Space, so the two are
+         *  indistinguishable on the wire and a "shift to go back" binding would
+         *  simply never fire. LEFT/RIGHT are free (the row cursor uses UP/DOWN)
+         *  and read as "move the view" against "move within it".
+         *  @{ */
+
+        /** @brief Active view. Always < _mode_count() (or 0 when there are none). */
+        uint8_t _mode = 0;
+
+        /** @brief How many views this table has; 0 (the default) means the page
+         *  has none and the mode keys fall through to it. */
+        virtual uint8_t _mode_count() const { return 0; }
+
+        /** @brief Short label for view @p i, for the footer badge. */
+        virtual const char* _mode_label(uint8_t /*i*/) const { return ""; }
+
+        /** @brief Called after the view changed, before the redraw: the page
+         *  re-collects whatever the new view shows. */
+        virtual void _on_mode_changed() {}
+
+        /** @brief Label of the active view / the one SPACE would move to. */
+        const char* _mode_name() const { return _mode_label(_mode); }
+        const char* _next_mode_name() const {
+            uint8_t n = _mode_count();
+            return n ? _mode_label((uint8_t)((_mode + 1) % n)) : "";
+        }
+
+        /** @brief Step the view by @p dir, wrapping, and reset the cursor to the
+         *  top of the new set.
+         *
+         *  Deliberately does NOT blank the band first. The badge already reaches
+         *  the wire ahead of the rows, because the footer row is declared
+         *  PRIO_CHROME and present() walks rows by priority class - so one tick
+         *  after the keypress the new mode is on screen and the table follows
+         *  under the byte budget. Clearing would instead queue a band scroll,
+         *  which present() emits BEFORE the diff and outside that pacing: the
+         *  first frame then carries a table's worth of bytes (measured 320 vs
+         *  106) and data rows land with the badge rather than after it. The
+         *  keypress feels acknowledged because of the priority, not in spite of
+         *  the rows. See the "mode change shows the new mode before the rows"
+         *  case in test_alarms_render.cpp, which pins exactly this. */
+        void _cycle_mode(int dir) {
+            uint8_t n = _mode_count();
+            if (n <= 1) return;
+            _mode     = (uint8_t)(((int)_mode + dir + (int)n) % (int)n);
+            _top      = 0;
+            _selected = 0;
+            _on_mode_changed();
+        }
+
+        /** @brief Handle the mode nav keys. @return true if @p cmd was one. */
+        bool _mode_command(Command cmd) {
+            if (_mode_count() <= 1) return false;
+            if (cmd == Command::RIGHT) { _cycle_mode(+1); return true; }
+            if (cmd == Command::LEFT)  { _cycle_mode(-1); return true; }
+            return false;
+        }
+
+        /** @brief SPACE steps forward (it is a printable byte, so it arrives
+         *  through handle_text rather than as a command). */
+        bool _mode_text(char c) {
+            if (c != ' ' || _mode_count() <= 1) return false;
+            _cycle_mode(+1);
+            return true;
+        }
+
+        /** @brief Last screen row the page may use. A table reserves rows below
+         *  its band for a panel/footer, so the subclass says where the page
+         *  ends; the default is the terminal's own last row. */
+        virtual uint16_t _console_rows() const { return _terminal.rows_total(); }
+
+        /** @}
          *  @name Bordered-table rendering
          *  @{ */
 

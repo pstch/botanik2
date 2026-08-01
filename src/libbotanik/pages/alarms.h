@@ -62,9 +62,6 @@ namespace Botanik { namespace Pages {
         /** @brief Alarm source (may be null). Non-const: the `a` key acks the
          *  selected condition through it. */
         Alarms::AlarmModel*       _model;
-        /** @brief Filter mode, cycled by SPACE (see MODE_*). Defaults to
-         *  RECENT. */
-        uint8_t                   _mode     = MODE_RECENT;
         /** @brief A nav / mode / ack happened: redraw on the next tick rather
          *  than waiting for the value cadence, so the keypress feels immediate. */
         bool                      _dirty = true;
@@ -78,7 +75,8 @@ namespace Botanik { namespace Pages {
         /** @} */
 
         /** @name Filter modes
-         *  (SPACE cycles recent -> all -> active -> unmasked)
+         *  The base's view-mode machinery (scroll_table.h): SPACE / RIGHT step
+         *  forward, LEFT steps back.
          *  @{ */
         static constexpr uint8_t MODE_RECENT   = 0;  // last event, within window
         static constexpr uint8_t MODE_ALL      = 1;  // every defined alarm
@@ -86,12 +84,15 @@ namespace Botanik { namespace Pages {
         static constexpr uint8_t MODE_UNMASKED = 3;  // active and not masked
         static constexpr uint8_t MODE_COUNT    = 4;
 
-        /** @brief Short label for the current filter mode. */
-        static const char* _mode_label(uint8_t mode) {
+        uint8_t _mode_count() const override { return MODE_COUNT; }
+        const char* _mode_label(uint8_t i) const override {
             static const char* const labels[MODE_COUNT] =
                 {"recent", "all", "active", "unmasked"};
-            return mode < MODE_COUNT ? labels[mode] : "all";
+            return i < MODE_COUNT ? labels[i] : "all";
         }
+        /** @brief A new filter shows a different set, so re-collect and repaint. */
+        void _on_mode_changed() override { _collect(); _dirty = true; }
+        uint16_t _console_rows() const override { return _console.rows(); }
         /** @} */
 
         /** @name Layout
@@ -155,8 +156,8 @@ namespace Botanik { namespace Pages {
          *  terminal's back-buffer diff repaints it only on an actual mode / count
          *  change. */
         void _draw_footer(uint16_t row, uint8_t nvis, uint8_t active) {
-            const char* mode = _mode_label(_mode);
-            const char* next = _mode_label((uint8_t)((_mode + 1) % MODE_COUNT));
+            const char* mode = _mode_name();
+            const char* next = _next_mode_name();
 
             char left[64];
             int ln = snprintf(left, sizeof(left), "  [%s]   %u listed   %u active",
@@ -167,8 +168,8 @@ namespace Botanik { namespace Pages {
             uint16_t ml = (uint16_t)strlen(mode);
             if ((uint16_t)(3 + ml) > llen) ml = (llen > 3) ? (uint16_t)(llen - 3) : 0;
 
-            char right[32];
-            int rn = snprintf(right, sizeof(right), "a:ack  SPACE: %s", next);
+            char right[40];
+            int rn = snprintf(right, sizeof(right), "a:ack  <-/->/SPACE: %s", next);
             if (rn < 0) rn = 0;
             uint16_t cols = _terminal.cols();
             uint16_t rcol = (cols > (uint16_t)(rn + 2)) ? (uint16_t)(cols - rn - 2) : 0;
@@ -404,20 +405,15 @@ namespace Botanik { namespace Pages {
         const char* name() const override { return "ALARMS"; }
 
         void handle_text(char c) override {
-            if (c == ' ') {                 // cycle filter mode
-                _mode = (uint8_t)((_mode + 1) % MODE_COUNT);
-                _top  = 0;
-                _selected = 0;
-                _dirty = true;              // reorders the list + legend
-                // The legend row already outranks the table (declared in
-                // focus()), so the badge goes out ahead of the repaint this same
-                // keypress triggered.
-            } else if (c == 'a' || c == 'A') {   // ack the selected condition
-                _ack_selected();
-            }
+            // SPACE cycles the filter (base); the legend row already outranks the
+            // table rows (declared in focus()), so the badge reaches the wire
+            // ahead of the repaint the same keypress triggered.
+            if (_mode_text(c)) return;
+            if (c == 'a' || c == 'A') _ack_selected();   // ack the selected condition
         }
 
         void handle_command(Command cmd, uint16_t = 1) override {
+            if (_mode_command(cmd)) return;              // LEFT/RIGHT change filter
             if (_nav_command(cmd)) { _dirty = true; return; }
             if (cmd == Command::ENTER) { _top = 0; _selected = 0; _dirty = true; }  // jump to top
         }
