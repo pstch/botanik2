@@ -228,13 +228,27 @@ namespace Botanik { namespace HAL { namespace Network {
             memcpy(&s.sin_addr, a.b, 4);
             return s;
         }
-        bool is_loopback(const Ip4& a) { return a.b[0] == 127; }
         bool set4(Ip4* out, uint8_t a, uint8_t b, uint8_t c, uint8_t d) {
             if (out == 0) return false;
             out->b[0] = a; out->b[1] = b; out->b[2] = c; out->b[3] = d;
             return true;
         }
     }  // namespace
+
+    /** @brief Where a packet actually goes, whatever address the firmware aimed
+     *  at: the in-process responder.
+     *
+     *  Refusing a non-loopback address kept the sim hermetic, but it also made
+     *  the shipped configuration untestable - the moment the site declared its
+     *  real broker (an IP literal, which no mock resolver ever sees) nothing
+     *  connected. Diverting keeps the guarantee (the real address is never
+     *  contacted) and lets the sim run the config the hardware will run.
+     *
+     *  It must be mock_loopback_ip(), not 127.0.0.1: the responder binds a
+     *  PID-derived 127/8 address so two sims cannot fight over the shared mock
+     *  ports, and a packet sent to .0.1 lands nowhere. */
+    Ip4 mock_loopback_ip();
+    namespace { Ip4 to_mock_peer(const Ip4&) { return mock_loopback_ip(); } }
 
     Ip4 mock_loopback_ip() {
         // 127/8 is all loopback on Linux: spread the PID across the low octets so
@@ -329,10 +343,11 @@ namespace Botanik { namespace HAL { namespace Network {
     }
     bool udp_sendto(UdpSocket s, const Ip4& a, uint16_t port, const void* buf, size_t len) {
         if (s < 0) return false;
-        if (!is_loopback(a)) return false;     // hermetic: never send off-host (see below)
-        // No privileged ports in the sim: route the well-known NTP port to the responder.
+        // Hermetic: whatever the site aims at, the packet goes to the in-process
+        // responder (see to_mock_peer) - and no privileged ports in the sim, so
+        // the well-known NTP port is routed too.
         if (port == 123) port = NTP_MOCK_PORT;
-        sockaddr_in sin = make_sin(a, port);
+        sockaddr_in sin = make_sin(to_mock_peer(a), port);
         ssize_t n = ::sendto(s, buf, len, 0, reinterpret_cast<sockaddr*>(&sin), sizeof(sin));
         return n == (ssize_t)len;
     }
@@ -353,11 +368,12 @@ namespace Botanik { namespace HAL { namespace Network {
     }
     int tcp_connect(TcpSocket s, const Ip4& a, uint16_t port) {
         if (s < 0) return -1;
-        if (!is_loopback(a)) return -1;        // hermetic: never connect off-host (see below)
-        // Same routing as udp_sendto's NTP case: the well-known broker port goes
-        // to the mock responder, so the site keeps its real-world 1883 default.
-        if (port == 1883) port = MQTT_MOCK_PORT;
-        sockaddr_in sin = make_sin(a, port);
+        // Hermetic, exactly as udp_sendto: any peer and any port land on the
+        // in-process broker. Matching one well-known port tied the sim to
+        // whatever the site happened to configure, which broke the moment the
+        // site declared its real broker (192.168.1.43:58443).
+        port = MQTT_MOCK_PORT;
+        sockaddr_in sin = make_sin(to_mock_peer(a), port);
         int r = ::connect(s, reinterpret_cast<sockaddr*>(&sin), sizeof(sin));
         if (r == 0) return 1;                              // connected at once (loopback)
         if (errno == EINPROGRESS || errno == EALREADY) return 0;

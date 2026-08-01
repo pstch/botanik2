@@ -65,19 +65,27 @@ TEST_CASE("HAL::Network sim: TCP connect to a dead loopback port never reports c
     Network::tcp_close(s);
 }
 
-TEST_CASE("HAL::Network sim: off-host destinations are refused (hermetic loopback-only)") {
-    // The sim must never send a packet off the local host, whatever address it is
-    // handed (e.g. a non-loopback IPv4 literal that bypasses DNS).
+TEST_CASE("HAL::Network sim: an off-host destination is diverted, never contacted") {
+    // The sim must never put a packet on the wire, whatever address it is handed
+    // - including a non-loopback IPv4 literal that bypasses DNS, which is what a
+    // site's real broker address is.
+    //
+    // It used to REFUSE those outright. That kept the guarantee but made the
+    // shipped configuration untestable: the moment the site declared its actual
+    // broker (192.168.1.43:58443) the sim could not connect to anything, so the
+    // MQTT state machine never ran. Diverting to the in-process responder keeps
+    // the same guarantee - the real address is never contacted - while letting
+    // the sim exercise the config the hardware will run.
     Network::Ip4 ext = {{8, 8, 8, 8}};              // clearly off-host
     uint8_t pkt[4] = {0};
 
     Network::UdpSocket u = Network::udp_open();
     REQUIRE(u >= 0);
-    CHECK_FALSE(Network::udp_sendto(u, ext, 123, pkt, sizeof(pkt)));   // refused, nothing sent
+    CHECK(Network::udp_sendto(u, ext, 123, pkt, sizeof(pkt)));   // diverted, not refused
     Network::udp_close(u);
 
     Network::TcpSocket t = Network::tcp_open();
     REQUIRE(t >= 0);
-    CHECK(Network::tcp_connect(t, ext, 1883) < 0);                     // refused, no connect
+    CHECK(Network::tcp_connect(t, ext, 58443) >= 0);             // diverted to the mock broker
     Network::tcp_close(t);
 }
