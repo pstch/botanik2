@@ -50,14 +50,16 @@ target_link_libraries(botanik_tests botanik)
 # test_sizes.cpp pins the selected site's payload via BOTANIK_SITE_HEADER, derived
 # from the PUBLIC BOTANIK_SITE define (libbotanik_site.h) inherited from botanik.
 
-# Register with CTest, one entry per TEST_CASE. doctest_discover_tests runs the
-# binary at build time with --list-test-cases and emits an add_test() per case,
-# so `ctest` and VS Code's Testing panel show/run/debug each case individually
-# (rather than the whole binary as a single pass/fail). The module + its helper
-# are vendored next to doctest.h; no fetch or install needed.
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/vendor)
-include(doctest)
-doctest_discover_tests(botanik_tests)
+# One CTest entry for the whole binary. Per-TEST_CASE entries (via the vendored
+# doctest_discover_tests) cost a process launch each: 207 of them take ~30 s
+# where the binary runs the lot in ~1 s, and the module plus its helper were 309
+# lines of vendored CMake to buy that. doctest's own -tc= still selects a single
+# case when debugging, which is what the per-case entries were really for.
+#
+# A single process is also the stricter gate: per-case isolation hid a test that
+# corrupted the stack for every case after it (see Bank's value-init), because
+# each case got a fresh process to be wrong in.
+add_test(NAME botanik_tests COMMAND botanik_tests)
 
 # `make check` is the one-shot pre-push gate. Its dependencies build everything
 # the suite needs (`make test`/`ctest` do not) plus the two static gates, then the
@@ -150,53 +152,29 @@ if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
             VERBATIM)
         add_custom_target(pyte-sim DEPENDS ${_pyte_sim_bin})
 
-        # One CTest entry per pytest test function (not the whole suite as a
-        # single pass/fail), mirroring doctest_discover_tests. We ask pytest for
-        # its node IDs at configure time (--collect-only just imports the modules,
-        # so it needs neither the sim nor a build) and emit an add_test() per ID.
-        # Re-run configure to pick up added/removed/renamed tests: the CONFIGURE_DEPENDS
-        # glob refreshes when the file set changes, and CMAKE_CONFIGURE_DEPENDS
-        # re-triggers when an existing file's contents do.
+        # One CTest entry per test FILE. Per-function entries needed pytest's node
+        # IDs, which meant asking --collect-only for them at configure time and
+        # regex-parsing the reply - and each entry then paid ~1.5 s importing
+        # pytest to run ~0.4 s of test. Per-file keeps failures attributable and
+        # the -j slots busy for a fraction of that startup tax; measured 2.5x
+        # faster on 4 cores. A glob needs no probe and no fallback branch.
         file(GLOB _pyte_test_files CONFIGURE_DEPENDS ${_pyte_dir}/test_*.py)
-        set_property(DIRECTORY APPEND PROPERTY
-            CMAKE_CONFIGURE_DEPENDS ${_pyte_test_files})
-        execute_process(
-            COMMAND ${Python3_EXECUTABLE} -m pytest --collect-only -q
-                    -p no:cacheprovider
-            WORKING_DIRECTORY ${_pyte_dir}
-            OUTPUT_VARIABLE _pyte_collect
-            RESULT_VARIABLE _pyte_collect_rc
-            ERROR_QUIET)
-        string(REGEX MATCHALL "test_[^ \n]+\\.py::[^ \n]+" _pyte_nodes "${_pyte_collect}")
-        if(_pyte_collect_rc EQUAL 0 AND _pyte_nodes)
-            foreach(_node IN LISTS _pyte_nodes)
-                # The node ID is passed explicitly; WORKING_DIRECTORY is the test
-                # dir so pytest loads its conftest (the --sim option) regardless of
-                # the invocation's CWD.
-                add_test(NAME "pyte:${_node}"
-                    COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider
-                            ${_node} --sim ${_pyte_sim_bin}
-                    WORKING_DIRECTORY ${_pyte_dir})
-                # ctest launches the most expensive test first, but only once it
-                # has timings of its own - and it never gets usable ones here,
-                # since doctest case names contain spaces and its cost file is
-                # whitespace-delimited. Declaring the cost keeps a screen test
-                # (~10s) from starting after 200 sub-second unit tests on a fresh
-                # tree, which is where the -j slots go idle waiting for the tail.
-                set_tests_properties("pyte:${_node}" PROPERTIES COST 10)
-            endforeach()
-            list(LENGTH _pyte_nodes _pyte_count)
-            message(STATUS "pyte: registered ${_pyte_count} screen tests")
-        else()
-            # Collection failed (e.g. a syntax error in a test module): fall back to
-            # a single entry running the whole suite so coverage is never silently
-            # dropped, and the failure surfaces when the test runs.
-            message(WARNING "pyte: --collect-only failed; registering the suite as one test")
-            add_test(NAME pyte
+        foreach(_file IN LISTS _pyte_test_files)
+            get_filename_component(_name ${_file} NAME)
+            # WORKING_DIRECTORY is the test dir so pytest loads its conftest (the
+            # --sim option) regardless of the invocation's CWD.
+            add_test(NAME "pyte:${_name}"
                 COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider
-                        ${_pyte_dir} --sim ${_pyte_sim_bin}
+                        ${_name} --sim ${_pyte_sim_bin}
                 WORKING_DIRECTORY ${_pyte_dir})
-        endif()
+            # ctest launches the most expensive test first, but only once it has
+            # timings of its own. Declaring the cost keeps a screen test from
+            # starting after the unit binary on a fresh tree, which is where the
+            # -j slots go idle waiting for the tail.
+            set_tests_properties("pyte:${_name}" PROPERTIES COST 10)
+        endforeach()
+        list(LENGTH _pyte_test_files _pyte_count)
+        message(STATUS "pyte: registered ${_pyte_count} screen test files")
         # ctest/make test don't build; `check` does — make it build the sim too.
         add_dependencies(check pyte-sim)
 
