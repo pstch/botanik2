@@ -156,40 +156,11 @@ namespace Botanik { namespace Pages {
          *  terminal's back-buffer diff repaints it only on an actual mode / count
          *  change. */
         void _draw_footer(uint16_t row, uint8_t nvis, uint8_t active) {
-            const char* mode = _mode_name();
-            const char* next = _next_mode_name();
-
-            char left[64];
-            int ln = snprintf(left, sizeof(left), "  [%s]   %u listed   %u active",
-                              mode, (unsigned)nvis, (unsigned)active);
-            if (ln < 0) ln = 0;
-            uint16_t llen = (uint16_t)std::min((size_t)ln, sizeof(left) - 1);
-
-            uint16_t ml = (uint16_t)strlen(mode);
-            if ((uint16_t)(3 + ml) > llen) ml = (llen > 3) ? (uint16_t)(llen - 3) : 0;
-
-            char right[40];
-            int rn = snprintf(right, sizeof(right), "a:ack  <-/->/SPACE: %s", next);
-            if (rn < 0) rn = 0;
-            uint16_t cols = _terminal.cols();
-            uint16_t rcol = (cols > (uint16_t)(rn + 2)) ? (uint16_t)(cols - rn - 2) : 0;
-
-            // One pass with the mode label (col 3, inside the brackets)
-            // reverse-video, so it reads as a badge without a flicker-prone
-            // normal-then-inverted overdraw.
-            _terminal.move_to({row, 0});
-            _terminal.set_inverted(false);
-            _terminal.write_chars(left, 3);                       // "  ["
-            _terminal.set_inverted(true);
-            _terminal.write_chars(left + 3, ml);                  // mode badge
-            _terminal.set_inverted(false);
-            _terminal.write_chars(left + 3 + ml, (uint16_t)(llen - 3 - ml));
-            _terminal.clear_to_eol();
-            // Right-aligned hint (ack + next filter), when it clears the left.
-            if (rcol > llen + 2) {
-                _terminal.move_to({row, rcol});
-                _terminal.write_chars(right, (uint16_t)rn);
-            }
+            char detail[48], hint[40];
+            snprintf(detail, sizeof(detail), "%u listed   %u active",
+                     (unsigned)nvis, (unsigned)active);
+            snprintf(hint, sizeof(hint), "a:ack  <-/->/SPACE: %s", _next_mode_name());
+            _draw_mode_line(row, detail, hint);
         }
 
         /** @brief Detail panel between the bottom rule and the legend, spaced by
@@ -424,7 +395,7 @@ namespace Botanik { namespace Pages {
             // The legend carries the mode badge, which acknowledges a keypress and
             // so must beat the table rows it sits under. Declared here because the
             // Console hands the content band back on every page switch.
-            _terminal.set_row_priority(_legend_row(), Terminal::PRIO_CHROME);
+            _claim_mode_row(_legend_row());
             _dirty = true;   // draw the whole page fresh (the terminal diff pares it)
         }
 

@@ -57,7 +57,8 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t HEADER_ROW = 2;
         static constexpr uint16_t RULE_ROW   = 3;
         static constexpr uint16_t DATA_TOP   = 4;    // first parameter row
-        static constexpr uint16_t NAME_W     = 18;   // parameter-name column
+        // Wide enough for the longest name today plus headroom (see monitor.h).
+        static constexpr uint16_t NAME_W     = 24;   // parameter-name column
         static constexpr uint16_t TYPE_W     = 4;    // data-type column (u16/enum/f32/b)
         static constexpr uint16_t DEFAULT_W  = 12;   // default-value column
         static constexpr uint16_t UNIT_W     = 5;    // physical-unit column
@@ -66,6 +67,8 @@ namespace Botanik { namespace Pages {
         // Detail panel below the table: a separator rule, a blank spacer, then
         // Minimum / Maximum / Description / Notes for the selected parameter, and
         // a trailing blank spacer (default + unit are already table columns).
+        // ... then a blank, the [group] legend, and a blank - the same framing
+        // the ALARMS table gives its mode badge.
         static constexpr uint16_t PANEL_H    = 7;
         /** @brief Column order; the selection cursor inverts C_NAME's cell. */
         enum { C_NAME = 0, C_TYPE, C_VALUE, C_DEFAULT, C_UNIT };
@@ -129,6 +132,9 @@ namespace Botanik { namespace Pages {
         void deactivate() override {}
 
         void focus() override {
+            // The group badge acknowledges a keypress, so its row outranks the
+            // table (re-declared here: the Console resets the band on a switch).
+            _claim_mode_row(_mode_row());
             _editing = false;
             _dirty = true;
             if (_selected >= _visible_count()) _selected = 0;
@@ -245,6 +251,19 @@ namespace Botanik { namespace Pages {
         /** @brief Row the bottom edit/hint prompt sits on (above the alarm bar). */
         uint16_t _prompt_row() const { return (uint16_t)(_console.rows() - 1); }
 
+        /** @brief The group badge sits on the panel's trailing spacer, one row
+         *  above the prompt - so an open editor, which owns the prompt row,
+         *  never covers it. */
+        uint16_t _mode_row() const { return (uint16_t)(_panel_top() + PANEL_H - 2); }
+        /** @brief Column the panel's second field starts at (Minimum | Maximum). */
+        static constexpr uint16_t PANEL_COL2 = 38;
+
+        const char* _mode_hint() const {
+            static char hint[40];
+            snprintf(hint, sizeof(hint), "<-/->/SPACE: %s", _next_mode_name());
+            return hint;
+        }
+
         /** @brief First row of the detail panel (separator), reserving PANEL_H
          *  rows above the prompt. */
         uint16_t _panel_top() const {
@@ -354,17 +373,29 @@ namespace Botanik { namespace Pages {
             _draw_separator(r);
             _blank_line((uint16_t)(r + 1));
             if (_visible_count() == 0) {
-                for (uint16_t i = 2; i < PANEL_H; i++) _blank_line((uint16_t)(r + i));
+                for (uint16_t i = 2; i < PANEL_H; i++)
+                    if ((uint16_t)(r + i) != _mode_row()) _blank_line((uint16_t)(r + i));
+                _draw_mode_line(_mode_row(), nullptr, _mode_hint());
                 return;
             }
             Vars::Var p = _params->param(_param_at(_selected));
             const Vars::Variable& d = *p.meta();
             char b[24];
-            _panel_field((uint16_t)(r + 2), "Minimum",     _fmt_bound(b, sizeof(b), d, d.min));
-            _panel_field((uint16_t)(r + 3), "Maximum",     _fmt_bound(b, sizeof(b), d, d.max));
-            _panel_field((uint16_t)(r + 4), "Description", d.desc);
-            _panel_field((uint16_t)(r + 5), "Group",       _group_of(d));
-            _blank_line((uint16_t)(r + 6));
+            // The band is one fact, so it costs one row - and the row that buys
+            // back is a row of the table.
+            char b2[24];
+            _panel_field2((uint16_t)(r + 2),
+                          "Minimum", _fmt_bound(b,  sizeof(b),  d, d.min),
+                          PANEL_COL2,
+                          "Maximum", _fmt_bound(b2, sizeof(b2), d, d.max));
+            _panel_field((uint16_t)(r + 3), "Description", d.desc);
+            _blank_line((uint16_t)(r + 4));                     // blank above the legend
+            // The group is on the legend line instead of costing a panel row -
+            // and only in the "all" view, where it is the one thing the badge
+            // does not already say.
+            _draw_mode_line(_mode_row(), _mode == 0 ? _group_of(d) : nullptr,
+                            _mode_hint());
+            _blank_line((uint16_t)(r + PANEL_H - 1));           // blank below it
         }
 
         // Bottom prompt row: inline edit field or hint

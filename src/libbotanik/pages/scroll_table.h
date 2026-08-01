@@ -24,6 +24,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 
 #include "page.h"
 #include "../console/terminal.h"
@@ -194,6 +195,60 @@ namespace Botanik { namespace Pages {
             _top      = 0;
             _selected = 0;
             _on_mode_changed();
+        }
+
+        /** @brief Draw the view's legend line: a reverse-video badge naming the
+         *  active view, then @p detail, and @p hint right-aligned.
+         *
+         *  Every table gets the same line because every table now has views, and
+         *  the badge is the only thing that tells an operator the keypress
+         *  landed - the rows themselves arrive over the following ticks under the
+         *  byte budget. Painted in ONE pass with the badge split out rather than
+         *  drawn normal-then-inverted, which would flicker.
+         *
+         *  Pair it with _claim_mode_row(): the line is only fast because its row
+         *  outranks the table. */
+        void _draw_mode_line(uint16_t row, const char* detail, const char* hint) {
+            const char* mode = _mode_name();
+            char left[96];
+            int ln = snprintf(left, sizeof(left), "  [%s]   %s", mode,
+                              detail != nullptr ? detail : "");
+            if (ln < 0) ln = 0;
+            uint16_t llen = (uint16_t)((size_t)ln < sizeof(left) - 1
+                                       ? (size_t)ln : sizeof(left) - 1);
+            // Badge span: the label sits at column 3, inside the brackets.
+            uint16_t ml = (uint16_t)strlen(mode);
+            if ((uint16_t)(3 + ml) > llen) ml = (llen > 3) ? (uint16_t)(llen - 3) : 0;
+
+            _terminal.move_to({row, 0});
+            _terminal.set_inverted(false);
+            _terminal.write_chars(left, 3);                        // "  ["
+            _terminal.set_inverted(true);
+            _terminal.write_chars(left + 3, ml);                   // the badge
+            _terminal.set_inverted(false);
+            _terminal.write_chars(left + 3 + ml, (uint16_t)(llen - 3 - ml));
+            _terminal.clear_to_eol();
+
+            if (hint == nullptr) return;
+            uint16_t hn   = (uint16_t)strlen(hint);
+            uint16_t cols = _terminal.cols();
+            uint16_t hcol = (cols > (uint16_t)(hn + 2)) ? (uint16_t)(cols - hn - 2) : 0;
+            if (hcol > (uint16_t)(llen + 2)) {                     // only if it clears the left
+                _terminal.move_to({row, hcol});
+                _terminal.write_chars(hint, hn);
+            }
+        }
+
+        /** @brief Declare @p row as this table's mode line: PRIO_CHROME, so
+         *  present() puts it on the wire ahead of the table rows and the new
+         *  badge shows up the tick after the keypress.
+         *
+         *  Call it from focus(), not around a draw: the Console hands the content
+         *  band back as plain structure on every page switch, so the claim has to
+         *  be re-made, and it is a standing property of the row rather than
+         *  something raised for one paint. */
+        void _claim_mode_row(uint16_t row) {
+            _terminal.set_row_priority(row, Terminal::PRIO_CHROME);
         }
 
         /** @brief Handle the mode nav keys. @return true if @p cmd was one. */
@@ -383,6 +438,25 @@ namespace Botanik { namespace Pages {
             int n = snprintf(buf, sizeof(buf), " %-12s : %s", label,
                              (value && value[0]) ? value : "-");
             _draw_line(row, buf, (n < 0) ? 0 : (uint16_t)n);
+        }
+
+        /** @brief Two panel fields on one row, for a pair that reads naturally
+         *  side by side (a min/max band). Each row a panel spends is a row the
+         *  table loses, so a pair that is really one fact should cost one. */
+        void _panel_field2(uint16_t row, const char* l1, const char* v1,
+                           uint16_t col2, const char* l2, const char* v2) {
+            char buf[192];
+            int n = snprintf(buf, sizeof(buf), " %-12s : %s", l1,
+                             (v1 && v1[0]) ? v1 : "-");
+            if (n < 0) n = 0;
+            uint16_t w = (uint16_t)((size_t)n < sizeof(buf) - 1 ? (size_t)n
+                                                                : sizeof(buf) - 1);
+            while (w < col2 && w < sizeof(buf) - 1) buf[w++] = ' ';   // pad to col2
+            int m = snprintf(buf + w, sizeof(buf) - w, "%-12s : %s", l2,
+                             (v2 && v2[0]) ? v2 : "-");
+            if (m > 0) w = (uint16_t)(w + m);
+            if (w > sizeof(buf) - 1) w = (uint16_t)(sizeof(buf) - 1);
+            _draw_line(row, buf, w);
         }
 
         /** @} */

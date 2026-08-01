@@ -14,11 +14,12 @@
  * Layout (row 0 is the terminal status bar, the bottom row the alarm bar); the
  * same bordered shape as the other tables:
  *   row 1            blank top margin
- *   row 2            header  (| SCOPE | VARIABLE | VALUE | UNIT |)
+ *   row 2            header  (| SCOPE | VARIABLE | VALUE | UNIT | OVERRIDE |)
  *   row 3            top rule (corners cap to '^' when rows are hidden above)
  *   rows 4..N-3      one row per status variable (window into the full set)
- *   row N-2          bottom rule (corners cap to 'v' when hidden below)
- *   row N-1          footer: nav hint + position
+ *   row N-8          bottom rule (corners cap to 'v' when hidden below)
+ *   rows N-7..N-3    detail panel for the selected variable
+ *   row N-2          legend: [group] badge + position + hint, blank each side
  *
  * UP/DOWN move a selection cursor (the selected variable's NAME is drawn
  * inverted), auto-scrolling the window when the cursor would leave it;
@@ -55,15 +56,19 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t TRULE_ROW  = 3;    // top rule
         static constexpr uint16_t DATA_TOP   = 4;    // first variable row
         static constexpr uint16_t SCOPE_W    = 8;    // where the value lives
-        static constexpr uint16_t NAME_W     = 18;   // variable-name column
+        // Wide enough for the longest site name today (18) plus headroom, since
+        // the generated tables keep growing and a clipped name is unusable.
+        static constexpr uint16_t NAME_W     = 24;   // variable-name column
         static constexpr uint16_t UNIT_W     = 6;    // physical-unit column
+        static constexpr uint16_t OVR_W      = 9;    // forced value, or "-"
         static constexpr uint16_t VAL_CAP    = 48;   // formatted value buffer
         static constexpr uint16_t LINE_CAP   = 192;  // row string buffer
-        // Detail panel below the table (like the CONFIG page): bottom rule +
-        // blank spacer + Description + Notes + Quality + blank spacer.
+        // Detail panel below the table: bottom rule + blank spacer +
+        // Description + Source + Quality + blank spacer, then the legend and its
+        // own trailing blank (see _footer_row()).
         static constexpr uint16_t PANEL_H    = 6;
         /** @brief Column order, for the derived cell positions below. */
-        enum { C_SCOPE = 0, C_NAME, C_VALUE, C_UNIT };
+        enum { C_SCOPE = 0, C_NAME, C_VALUE, C_UNIT, C_OVR };
         /** @} */
 
         /** @name State
@@ -108,6 +113,9 @@ namespace Botanik { namespace Pages {
         void deactivate() override {}
 
         void focus() override {
+            // The footer carries the group badge, which acknowledges a keypress,
+            // so it must beat the table rows it sits under.
+            _claim_mode_row(_footer_row());
             _clamp_selection();
             _follow_selection();
             _dirty = true;
@@ -181,9 +189,12 @@ namespace Botanik { namespace Pages {
             return false;
         }
 
-        /** @brief Footer row (position line) and bottom rule row. The bottom rule
-         *  sits PANEL_H rows above the footer, reserving the detail panel. */
-        uint16_t _footer_row() const { return (uint16_t)(_console.rows() - 1); }
+        /** @brief Legend row and bottom rule row. The legend sits one row up
+         *  from the bottom so it has a blank line each side, the same framing the
+         *  ALARMS table gives its own - a badge reads as a badge when it is not
+         *  jammed against the alarm bar. The bottom rule sits PANEL_H rows above
+         *  it, reserving the detail panel. */
+        uint16_t _footer_row() const { return (uint16_t)(_console.rows() - 2); }
         uint16_t _brule_row() const {
             uint16_t f = _footer_row();
             return (f > (uint16_t)(DATA_TOP + PANEL_H)) ? (uint16_t)(f - PANEL_H) : DATA_TOP;
@@ -207,7 +218,8 @@ namespace Botanik { namespace Pages {
          *  floored at 8 and capped at VAL_CAP-1. */
         uint16_t _value_w() const {
             return _flex_width((uint16_t)(2 * MARGIN + 2 + SCOPE_W + 3 + NAME_W + 3
-                                          + 3 + UNIT_W + 2), (uint16_t)(VAL_CAP - 1));
+                                          + 3 + UNIT_W + 3 + OVR_W + 2),
+                               (uint16_t)(VAL_CAP - 1));
         }
 
         uint8_t _columns(Col* out) const override {
@@ -215,7 +227,11 @@ namespace Botanik { namespace Pages {
             out[C_NAME]  = Col{ "VARIABLE", NAME_W     };
             out[C_VALUE] = Col{ "VALUE",    _value_w() };
             out[C_UNIT]  = Col{ "UNIT",     UNIT_W     };
-            return 4;
+            // A forced reading is indistinguishable from a real one in the VALUE
+            // column - that is the whole hazard of an override - so the table
+            // says so per row rather than only in the detail panel.
+            out[C_OVR]   = Col{ "OVERRIDE", OVR_W      };
+            return 5;
         }
 
         /** @brief The reference for variable @p r; @p ok is false when @p r is
@@ -248,17 +264,24 @@ namespace Botanik { namespace Pages {
             char val[VAL_CAP];
             _value_text(r, val, sizeof(val));
             const char* nm = "", *un = "", *sc = "";
+            char ovr[VAL_CAP]; ovr[0] = '-'; ovr[1] = 0;
             if (_io != nullptr) {
-                const Vars::Variable* m = _io->var(ref).meta();
+                Vars::Var h = _io->var(ref);
+                const Vars::Variable* m = h.meta();
                 if (m->name != nullptr) nm = m->name;
                 if (m->unit != nullptr) un = m->unit;
                 // Scope, not the group: the group is the VIEW now (SPACE/LEFT/
                 // RIGHT), so repeating it down a column said the same thing on
                 // every row. Where a reading comes from does not.
                 sc = Vars::var_scope(*m);
+                if (h.overridden()) {
+                    const char* o = Vars::var_format(*_io, h, ovr, sizeof(ovr));
+                    if (o != ovr) { std::strncpy(ovr, o, sizeof(ovr) - 1);
+                                    ovr[sizeof(ovr) - 1] = 0; }
+                }
             }
             (void)first;
-            const char* cells[4] = { sc, nm, val, un };
+            const char* cells[5] = { sc, nm, val, un, ovr };
             return _build_row(out, cap, cells);
         }
 
@@ -333,12 +356,20 @@ namespace Botanik { namespace Pages {
         void _draw_footer() {
             uint16_t total = _total(), win = _window();
             uint16_t last  = (uint16_t)(_top + (win < total ? win : total));
-            char line[LINE_CAP];
-            int n = snprintf(line, sizeof(line),
-                             " UP/DOWN select   <-/->/SPACE: %-12s  %u-%u / %u",
-                             _next_mode_name(),
-                             (unsigned)(total ? _top + 1 : 0), (unsigned)last, (unsigned)total);
-            _draw_line(_footer_row(), line, (n < 0) ? 0 : (uint16_t)n);
+            char detail[64], hint[48];
+            // In the "all" view the badge does not say which group the cursor is
+            // sitting in, so the legend does; in a single-group view it would
+            // just repeat the badge.
+            const char* grp = "";
+            if (_mode == 0) {
+                size_t gi = 0, fi = 0; bool first = false;
+                if (_at(_selected, gi, fi, first)) grp = _groups[gi].topic;
+            }
+            snprintf(detail, sizeof(detail), "%-12s %u-%u / %u", grp,
+                     (unsigned)(total ? _top + 1 : 0), (unsigned)last, (unsigned)total);
+            snprintf(hint, sizeof(hint), "UP/DOWN  <-/->/SPACE: %s", _next_mode_name());
+            _draw_mode_line(_footer_row(), detail, hint);
+            _blank_line((uint16_t)(_footer_row() + 1));   // blank below the legend
         }
 
         /** @brief Draw the static chrome (blank top margin + header); the rules and
