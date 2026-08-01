@@ -197,8 +197,11 @@ namespace Botanik { namespace Terminal {
         /** @brief Reconcile @p row as a horizontal shift (SM4/RM4 insert or DCH)
          *  when its cells merely slid sideways, which the per-cell diff would
          *  otherwise rewrite in full. @return bytes emitted, 0 if not applicable
-         *  or not cheaper than a rewrite. */
-        uint16_t _shift_row(uint16_t row, uint16_t budget);
+         *  or not cheaper than a rewrite. Sets @p defer when the shift applies
+         *  and only the tick's budget (or the ring) stood in its way: the row is
+         *  then owed the next tick rather than the full rewrite it would fall
+         *  through to. */
+        uint16_t _shift_row(uint16_t row, uint16_t budget, bool& defer);
         /** @brief Smallest changed span worth expressing as a shift, and the
          *  widest slide still plausibly a slide rather than new content. */
         static constexpr uint16_t SHIFT_MIN_SPAN   = 12;

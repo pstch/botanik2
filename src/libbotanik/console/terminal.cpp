@@ -343,7 +343,8 @@ namespace Botanik { namespace Terminal {
         _nscrolls = 0;
     }
 
-    uint16_t AnsiTerminal::_shift_row(uint16_t row, uint16_t budget) {
+    uint16_t AnsiTerminal::_shift_row(uint16_t row, uint16_t budget, bool& defer) {
+        defer = false;
         // A row whose content slid sideways (the line editor inserting or deleting
         // characters, a column widening) differs from BACK at every column past
         // the edit, so the plain run diff rewrites the whole tail. The terminal
@@ -423,7 +424,14 @@ namespace Botanik { namespace Terminal {
         if (cost_right <= cost_left) left = 0; else right = 0;
         uint16_t cost = right ? cost_right : cost_left;
         if (cost >= plain) return 0;
-        if (_serial.availableForWrite() < cost || cost > budget) return 0;
+        if (_serial.availableForWrite() < cost) { defer = true; return 0; }
+        // A shift the tick's budget cannot hold is owed the next tick, not the
+        // fallback: the run loop would rewrite the row whole, and that run -
+        // being oversized - takes the escape past the very budget the shift was
+        // just refused for. Only a slide too wide to ever fit a whole budget
+        // takes that escape itself.
+        bool oversized = cost >= _tx_cold_depth;
+        if (oversized ? (budget == 0) : (cost > budget)) { defer = true; return 0; }
 
         uint16_t before = tx_used();
         if (!_go({row, a})) return 0;
@@ -465,7 +473,9 @@ namespace Botanik { namespace Terminal {
         // A sideways slide is one escape; try that before rewriting cells. It may
         // leave a remainder (the cells it could not express), which the run loop
         // below then reconciles normally.
-        uint16_t moved = _shift_row(row, budget);
+        bool defer = false;
+        uint16_t moved = _shift_row(row, budget, defer);
+        if (defer) return false;      // owed the next tick, not a full rewrite
         budget = (moved < budget) ? (uint16_t)(budget - moved) : 0;
         if (moved != 0 && budget == 0) return false;
         uint16_t col = 0;

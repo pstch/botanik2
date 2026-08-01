@@ -38,8 +38,8 @@ namespace {
         Terminal::Console     console;
         Terminal::TextEditor  editor;
 
-        EditorBytes()
-            : serial(&raw), console(serial, 80, 24, &now, 4000000u), editor(&console) {
+        explicit EditorBytes(uint32_t baud = 4000000u)
+            : serial(&raw), console(serial, 80, 24, &now, baud), editor(&console) {
             REQUIRE(::pipe(fds) == 0);
             ::fcntl(fds[0], F_SETFL, O_NONBLOCK);
             raw.set_fds(fds[0], fds[1]);
@@ -222,6 +222,33 @@ TEST_CASE("editor bytes: a hard break still slides the rows below it") {
     CHECK(cost <= 60);                        // an IL plus the split row, not 3 rows
     // The rows that merely slid were not re-sent.
     CHECK(f.flush().empty());                 // and it converged
+}
+
+// The same head edit at the link baud the sim (and the installation) actually
+// runs at. Every case above uses a baud high enough that present()'s per-tick
+// budget never binds, which is exactly what hid this: a shift refused for want
+// of budget used to fall through to the run loop, whose oversized-run escape
+// then emitted the full-row rewrite past the same budget - so the tail was
+// repainted per keystroke precisely when bytes were scarcest. A refused shift
+// now defers the row to the next tick, where the escape fits.
+TEST_CASE("editor bytes: a paced link still shifts rows rather than rewriting them") {
+    const char* ROW = "0123456789abcdefghijklmnopqrstuvwxyz0123456789"
+                      "ABCDEFGHIJKLMNOPQRSTUVWXYZ01234567";   // 80 cols
+    EditorBytes f(4800u);                       // the simulator's console baud
+    for (int i = 0; i < 4; i++) f.type(ROW);
+    f.flush();
+    uint16_t len = f.editor.buffer_len();
+    for (uint16_t i = 0; i < len; i++) f.editor.move_left();
+    f.flush();
+
+    size_t ins = f.cost_of_type("Z");
+    CHECK(ins > 0);
+    CHECK(ins <= 100);                          // was 148: one row rewritten whole
+
+    f.editor.delete_forward(1);
+    size_t del = f.flush().size();
+    CHECK(del > 0);
+    CHECK(del <= 100);                          // was 153
 }
 
 // A bulk edit (a paste, a yank, coalesced fast typing) slides a row by many

@@ -112,6 +112,16 @@ This is the *only* structural op the diff infers. Vertical slides can't be
 inferred the same way (a renderer's intent is ambiguous across rows), which is
 why `scroll_region()` stays an explicit call.
 
+**A refused shift defers the row, it does not fall back.** The shift is checked
+against the tick's remaining budget like anything else, but the run loop behind
+it lets an *oversized* run (one no whole budget could hold) through regardless -
+so a shift refused for want of 17 bytes used to be replaced by the 88-byte row
+rewrite it existed to avoid, and the tail everyone can see got repainted on
+every keystroke once the chrome had eaten the budget. A shift that applies and
+only missed the budget therefore ends the tick for that row instead: next tick
+the budget is whole and the escape fits. Only a slide too wide to ever fit a
+budget takes the oversized escape itself.
+
 **The trap: a row that moves *and* slides.** The shift test compares a row
 against *the same row* in BACK, so a row that also moved vertically never matches
 and gets rewritten in full. That makes an announced scroll's **placement**
