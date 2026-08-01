@@ -330,7 +330,11 @@ namespace Botanik { namespace Vars {
          *  store refused (see set()). May be null. */
         Logs::Logger* _logger = nullptr;
     public:
-        Bank() {}
+        /** VarTables is a bare aggregate (no member initializers, so a site's
+         *  descriptor stays in flash), so value-initialize it here: without the
+         *  `()` an unbound bank starts on indeterminate pointers and init()
+         *  walks them. */
+        Bank() : _t() {}
         explicit Bank(const VarTables& t) : _t(t) {}
 
         /** @brief Bind the parameter store and the log a refused write goes to.

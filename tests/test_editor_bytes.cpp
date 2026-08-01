@@ -98,11 +98,22 @@ TEST_CASE("editor bytes: inserting at the line head repaints one row, not the sc
     CHECK(cost <= 28);          // a DCH/insert-mode shift, not a row rewrite
 }
 
-// A soft-wrap growing the editor by a row exercises both shifts at once: the IL
-// slides the rows below, and each reflowed row slides one column sideways. The
-// budget proves both are being used - repainting the wrapped body outright costs
-// several hundred bytes.
-TEST_CASE("editor bytes: growing by a wrapped row rides a scroll, not a repaint") {
+// A head insert that also grows the editor by a soft-wrapped row: every row
+// below reflows one column sideways, and the body gains a row.
+//
+// This case does NOT ride a band scroll, despite what this test used to be
+// called. _grow_editor() asks for one, but present() only emits a DL/IL when
+// that beats repainting the band, and here it does not: the frame is one IRM
+// shift per reflowed row (ESC[4h/ESC[4l) and no scroll escape at all.
+//
+// Nor can the budget pin the scroll. Removing the scroll_region() call outright
+// makes this frame CHEAPER, not dearer - 43 bytes against 59 - because the
+// editor then renders from a stale origin instead of paying for the shift. An
+// upper bound passes the broken case by construction. What survives is the
+// honest claim: a head insert into a multi-row editor costs a per-row shift,
+// not a body rewrite (which runs to several hundred bytes). The rendered result
+// is pinned where it can be seen, by the pyte reconcile scenarios.
+TEST_CASE("editor bytes: a head insert that grows the editor shifts rows, not rewrites them") {
     EditorBytes f;
     // Fill well past one row (80 cols) so the editor is several rows tall.
     for (int i = 0; i < 5; i++)
@@ -117,7 +128,7 @@ TEST_CASE("editor bytes: growing by a wrapped row rides a scroll, not a repaint"
 
     size_t cost = f.cost_of_type("Z");
     CHECK(cost > 0);
-    CHECK(cost <= 90);
+    CHECK(cost <= 70);          // four reflowed rows; a body rewrite is 300+
 }
 
 // Deleting the char that un-wraps a row shrinks the editor: the DL closes the

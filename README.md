@@ -61,9 +61,8 @@ sketch does the equivalent).
 ## Building
 
 The default target is the Linux simulator (`SIMULATOR`), which compiles to a
-native executable and is the only target that *runs* end-to-end today (the OPTA
-target compiles but isn't linked into a flashable image yet - see below). Builds
-default to a profiler-friendly `DEBUG` type:
+native executable; the OPTA target cross-compiles and links a flashable image
+(see below). Builds default to a profiler-friendly `DEBUG` type:
 
 ```bash
 cmake -B build-debug -DBOTANIK_TARGET=SIMULATOR
@@ -89,11 +88,9 @@ cmake -B build-opta -DBOTANIK_TARGET=OPTA
 make -C build-opta
 ```
 
-This builds `libbotanik` plus the `botanik_fw` reference firmware into static
-archives - an ABI / size / LTO sanity check for the target, **not** a flashable
-image. The final link (with the startup code and the PLC IDE's generated types)
-happens in the Arduino / Axel PLC IDE; see
-[src/botanik_fw](src/botanik_fw/README.md) for how the pieces map. The Mbed
+This builds `libbotanik` and links `botanik_opta`, the flashable M7 image; the
+entry wiring it compiles lives in
+[src/botanik_fw](src/botanik_fw/README.md). The Mbed
 headers and ARM toolchain come from the core that `arduino-cli` installs under
 `~/.arduino15`; the build auto-discovers the highest installed version (override
 with `-DMBED_CORE_ROOT=...` or the `ARDUINO_DATA_DIR` env var).
@@ -138,9 +135,9 @@ documents the in-memory footprint of the big UI/PLC structures.
 - [docs/EVENT_DISPATCH.md](docs/EVENT_DISPATCH.md) - terminal input event flow.
 - [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md) - terminal key bindings.
 - API reference - `make -C build-debug docs` regenerates the HTML under
-  `docs/doxygen/html/` (or run `doxygen Doxyfile` directly). `make -C build-debug
-  docs-open` builds the tests + docs, runs the suite, and opens the result in a
-  browser. The generated [Testing](docs/doxygen/html/testing.html) page covers
+  `docs/doxygen/html/` (or run `doxygen Doxyfile` directly), then open
+  `docs/doxygen/html/index.html`. The generated
+  [Testing](docs/doxygen/html/testing.html) page covers
   the test suite and the struct-size table.
 
 ### External

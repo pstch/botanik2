@@ -1,12 +1,16 @@
 """Field-level normalization of volatile screen content before comparison.
 
 The firmware paints a few cells whose value changes every run or every tick:
-the wall clock, uptime, serial-buffer depths, CPU/stack load, and log/MARK
-timestamps. We rewrite each to a fixed token so a golden captures
-the *layout and stable text* without pinning a moment in time. Formats mirror:
+the wall clock, uptime, CPU/stack load, the live site readings, and log/MARK
+timestamps. We rewrite each to a fixed token so an expected screen pins the
+*layout and stable text* without pinning a moment in time. Formats mirror:
   - status bar metrics : status_bar.cpp build_metrics  "cpu:%3u%% stk:%3u%% "
-  - status hot fields  : pages/status.h draw_hot       clock / uptime / console TX
+  - home fields        : pages/home.h                  label + live value
   - log + MARK stamps  : utils/time.cpp format_ms_timestamp  "DD/MM/YY HH:MM:SS.mmm"
+
+Only add a mask for a cell some test actually asserts on. Masks for screens no
+test visits are invisible dead weight: this file once carried 25 of them for the
+StatusPage, which is a building block no site registers.
 """
 
 import re
@@ -24,63 +28,12 @@ _SUBS = [
     (re.compile(r"\b\d{2}:\d{2}:\d{2}\b"), "<TIME>"),                          # status-bar clock HH:MM:SS
     (re.compile(r"cpu:\s*\d+%"), "cpu:<C>"),                                   # CPU load
     (re.compile(r"stk:\s*\d+%"), "stk:<S>"),                                   # stack high-water
-    (re.compile(r"skipped \d+ beat\(s\)"), "skipped <N> beat(s)"),             # overrun beat count
-    # Status page (pages/status.h) volatile fields. Values are right-justified, so
-    # each label's \s+ absorbs the variable leading padding; the perf metrics are
-    # inherently variable (and dilated-time skews them further), and the network /
-    # NTP state settles on a timing-dependent tick.
-    (re.compile(r"CPU load\s+[\d.]+%\s*\(peak\s+[\d.]+ms\)"), "CPU load <CPU>"),
-    (re.compile(r"CPU jitter\s+[\d.]+%\s*\(peak\s+[\d.]+ms\)"), "CPU jitter <JIT>"),
-    (re.compile(r"Stack\s+[\d.]+%\s*\(\d+ [KMG]?B free\)"), "Stack <STK>"),
-    (re.compile(r"Task period\s+\d+ms \(\d+ RTPS\)"), "Task period <TASK>"),
-    (re.compile(r"Console TX\s+\d+/\d+ \(drops: \d+\)"), "Console TX <TX>"),
-    # Network band: link state / IP / NTP / MQTT come from the live components,
-    # so they settle on a timing-dependent tick. The status values are
-    # right-justified with wide padding (>=2 spaces), so \s{2,} avoids matching
-    # the single-spaced alarm-table descriptions ("Network error", ...).
-    # "Network IP" before "Network".
-    (re.compile(r"Network IP\s{2,}(?:\d+\.\d+\.\d+\.\d+|no link)"), "Network IP <NETIP>"),
-    (re.compile(r"Network\s{2,}(?:down|setup|online|error)"), "Network <NET>"),
-    (re.compile(r"NTP sync\s{2,}(?:synced \([-\d.]+ s\)|off|resolving|querying|error)"),
-     "NTP sync <NTP>"),
-    # MQTT shows the state plus an optional "(age)" since last broker contact
-    # (format_age, e.g. "ready (  3 s)"); the age is volatile, so absorb it.
-    (re.compile(r"MQTT\s{2,}(?:off|(?:resolving|connecting|handshake|ready|error)"
-                r"(?: \(\s*\d+ [smhdy]\))?)"),
-     "MQTT <MQTT>"),
-    # Site variable readings. The simulated field animates these and its PRNG
-    # draw depends on how many beats have run, so the values are volatile.
-    # Normalizing the values (not the labels/units) makes the golden match
-    # either way - the screen test asserts layout, not the mock's data. 4-field
-    # actuators before the 2-field one so the latter can't bite into a
-    # Windows/Blowers row.
-    (re.compile(r"[\d.]+ V \([\d.]+ Hz\)"), "<PWR>"),                          # Grid AC
-    (re.compile(r"[\d.]+ V \(A \S+ B \S+\)"), "<PWR>"),                        # DC bus
-    (re.compile(r"[\d.]+ V \(gen [\d.]+V\)"), "<PWR>"),                        # Battery
-    (re.compile(r"(UPS\s+:\s+)\w+"), r"\g<1><UPS>"),
-    (re.compile(r"[\d.]+ C  RH [\d.]+%"), "<CLIMATE>"),                        # temp/RH zones
-    # Collapse the post-colon padding (\s* OUTSIDE the kept group): the rain age
-    # is right-justified in a fixed field, so a wider value (more sim days at high
-    # scale) trades leading spaces for digits. Pinning the padding would make the
-    # golden scale-dependent; a single space is scale-invariant.
-    (re.compile(r"(Last rain\s*:)\s*\d+ \w+ \(wind \d+km/h\)"), r"\g<1> <RAIN>"),
-    (re.compile(r"\d{2}:\d{2} / \d{2}:\d{2}"), "<SUN>"),
-    (re.compile(r"\d+ \d+ L / \d+ Lpm"), "<WATER>"),
-    (re.compile(r"(Tray\s+:\s+)(?:Tray \d+|N/A)"), r"\g<1><TRAY>"),
-    (re.compile(r"(Status\s+:\s+)\S+"), r"\g<1><TRAYST>"),
-    (re.compile(r"A\s*\d+% B\s*\d+% C\s*\d+% D\s*\d+%"), "<ACT4>"),            # windows / blowers
-    (re.compile(r"A\s*\d+% B\s*\d+%"), "<ACT2>"),                             # extractors
-    (re.compile(r"(Humidif\.\s*:\s+)\w+"), r"\g<1><HUMID>"),
-    (re.compile(r"(Screen\s+:\s+)[\d.]+%"), r"\g<1><SCREEN>"),
     # Home page firmware-identity block (top-right): version and build commit change
     # with the build (the commit hash every commit), so mask the values and keep the
     # labels/leaders - the test asserts the block's layout, not the build it ran. The
     # site name is deterministic per site, so it stays.
     (re.compile(r"(Version \.+ : )\S+"), r"\g<1><VERSION>"),
     (re.compile(r"(Commit \.+ : )\S+"), r"\g<1><COMMIT>"),
-    # Same volatile version in the boot-log banner ("BOOT: Botanik v<ver>"); its
-    # "> Running on :" platform line is deterministic, so only the version masks.
-    (re.compile(r"(BOOT: Botanik v)\S+"), r"\g<1><VERSION>"),
     # Boot detail line "> console 4800 baud, HW watchdog N ms": the watchdog
     # timeout is dilated by BOTANIK_TIME_SCALE, so its value differs between the
     # assert suite and a faster golden regen. Mask it (the baud is fixed).
@@ -141,23 +94,16 @@ _SUBS += [(re.compile("(" + re.escape(label) + r"\s+)(-?[\d.]+" + unit + r"\s*)"
            _mask_home_value)
           for label, unit in _HOME_FIELDS]
 
-# Timing-noise log lines: the scheduler logs an overrun whenever a tick misses
-# its period, which under time dilation happens at load-dependent moments. The
-# same load also trips the CPU_XRUN/LOAD/JITT health alarms, whose START/END
-# lines come and go with the host. Their count and placement vary run to run and
-# scroll the log-writer pages, so they are dropped entirely (see meaningful_lines)
-# rather than asserted on - the tests stay resilient to load instead of pinning it.
+# Timing-noise log lines. The fast greenhouse trips site conditions (temp, PS
+# volts, storm, network) in and out constantly, so alarm transitions flood the
+# log tail run to run - their count and placement vary with the host and scroll
+# the log-writer pages. Nothing asserts one, so drop them all (see
+# meaningful_lines); alarm state is asserted via the alarms page instead.
 #
 # (The boot-time privilege warnings - mlockall / SCHED_FIFO / CPU affinity - are
-# host-dependent too, but the harness now silences them at the source via
-# BOTANIK_NO_RT_WARNING, so boot output is deterministic and they need no drop
-# here. The version banner that used to scroll with them is asserted normally.)
-_NOISE = re.compile(
-    # Every alarm transition (START/END/FLAP), not just the CPU/overrun ones: the
-    # fast greenhouse trips site conditions (temp, PS volts, storm, network) in and
-    # out constantly, flooding the log tail run to run. No golden pins one, so drop
-    # them all; alarm state is still asserted via the alarms page table.
-    r"scheduler overrun|ALARM_(?:START|END|FLAP):")
+# host-dependent too, but the harness silences them at the source via
+# BOTANIK_NO_RT_WARNING, so boot output is deterministic and they need no drop.)
+_NOISE = re.compile(r"ALARM_(?:START|END|FLAP):")
 
 
 def normalize_lines(lines):

@@ -189,13 +189,17 @@ namespace Botanik { namespace Network {
         pthread_join(_netd_thread(), nullptr);
     }
 
-    /** @brief Thread entry point: bind the loopback endpoints and service them
-     *  until stopped. A background peer (not realtime); the clients retry, so it
-     *  need not race the main loop. */
+    /** @brief The listening sockets, bound by start_mock_netd() before the
+     *  thread exists (see there). [0] NTP/UDP, [1] MQTT/TCP. */
+    inline int* _netd_fds() { static int fd[2] = { -1, -1 }; return fd; }
+
+    /** @brief Thread entry point: service the loopback endpoints until stopped.
+     *  A background peer (not realtime); the clients retry, so it need not race
+     *  the main loop. */
     inline void* _netd_main(void*) {
         const int MAX_CLIENTS = 4;
-        int udp = detail::netd_bind(HAL::Network::NTP_MOCK_PORT,  /*dgram=*/true);
-        int tcp = detail::netd_bind(HAL::Network::MQTT_MOCK_PORT, /*dgram=*/false);
+        int udp = _netd_fds()[0];
+        int tcp = _netd_fds()[1];
         detail::MqttConn client[MAX_CLIENTS];
 
         while (_netd_running()) {
@@ -231,6 +235,11 @@ namespace Botanik { namespace Network {
      *  HAL::System::reset(). Start it before the process locks memory (mlockall
      *  MCL_FUTURE), like the emulator. */
     inline void start_mock_netd(Logs::Logger* logger = nullptr) {
+        // Bind here rather than in the thread: the firmware's first NTP/MQTT
+        // query goes out ~2 ms after we return, and losing that race cost a
+        // whole retry backoff (60 s of sim time) plus two bogus boot errors.
+        _netd_fds()[0] = detail::netd_bind(HAL::Network::NTP_MOCK_PORT,  /*dgram=*/true);
+        _netd_fds()[1] = detail::netd_bind(HAL::Network::MQTT_MOCK_PORT, /*dgram=*/false);
         _netd_running() = true;
         HAL::Memory::dsb();
         if (pthread_create(&_netd_thread(), nullptr, &_netd_main, nullptr) != 0) {
