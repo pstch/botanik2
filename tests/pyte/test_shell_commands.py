@@ -13,9 +13,9 @@ from helpers import shell
 def test_get_and_set(spawn):
     term = shell(spawn)
     term.send(b"help" + keys.ENTER)
-    assert term.wait_for("read variables"), "get missing from help"
+    assert term.wait_for("read a variable"), "get missing from help"
+    assert term.wait_for("list variables"), "list missing from help"
     assert term.wait_for("edit a parameter"), "set missing from help"
-    assert term.wait_for("force one"), "override missing from help"
 
     term.send(b"get ntp_server1" + keys.ENTER)
     assert term.wait_for("ntp_server1"), "get <name> found nothing"
@@ -34,7 +34,7 @@ def test_override(spawn):
     term = shell(spawn)
 
     # Nothing forced on a fresh boot.
-    term.send(b"override" + keys.ENTER)
+    term.send(b"override list" + keys.ENTER)
     assert term.wait_for("none active"), "fresh boot reported an override"
 
     # Force a live sensor reading and read it back through `get`.
@@ -45,13 +45,13 @@ def test_override(spawn):
     assert term.wait_for("123.5"), "override value did not reach the reading"
 
     # A forgotten override must be one command away.
-    term.send(b"override" + keys.ENTER)
+    term.send(b"override list" + keys.ENTER)
     assert term.wait_for("do NOT survive a reboot"), "override list missing"
 
     # Release it; the live value takes over again.
     term.send(b"override pwr_L1_V off" + keys.ENTER)
     assert term.wait_for("override off"), "override was not released"
-    term.send(b"override" + keys.ENTER)
+    term.send(b"override list" + keys.ENTER)
     assert term.wait_for("none active"), "override still listed after off"
 
 
@@ -76,3 +76,19 @@ def test_control(spawn):
 
     term.send(b"control enable" + keys.ENTER)
     assert term.wait_for("control: enabled"), "control could not be re-enabled"
+
+
+def test_list_filters_by_prefix(spawn):
+    term = shell(spawn)
+
+    # A prefix is how you navigate a few hundred variables: they are named by
+    # domain, so `list pwr_` is the subsystem view.
+    term.send(b"list pwr_" + keys.ENTER)
+    assert term.wait_for("pwr_L1_V"), "prefix list missed a matching variable"
+
+    term.send(b"list zzz_nothing" + keys.ENTER)
+    assert term.wait_for("nothing matches"), "a prefix matching nothing said otherwise"
+
+    # `get` is now strictly one variable; it points at `list` to browse.
+    term.send(b"get" + keys.ENTER)
+    assert term.wait_for("usage: get"), "bare get did not show usage"

@@ -84,15 +84,15 @@ namespace Botanik { namespace Shell {
             { "clear",      "clear the screen",               &CommandShell::_cmd_clear      },
             { "logs",       "[on|off]  live log output",      &CommandShell::_cmd_logs       },
             { "stats",      "scheduler / system metrics",     &CommandShell::_cmd_stats      },
-            { "uptime",     "time since boot",                &CommandShell::_cmd_uptime     },
             { "net",        "network / NTP / MQTT status",     &CommandShell::_cmd_net        },
             { "ntpsync",    "force an NTP resync now",         &CommandShell::_cmd_ntpsync    },
             { "alarms",     "[list|ack <code|all>] alarms",   &CommandShell::_cmd_alarms     },
-            { "get",        "[<name>] read variables",        &CommandShell::_cmd_get        },
+            { "list",       "[<prefix>] list variables",      &CommandShell::_cmd_list       },
+            { "get",        "<name>  read a variable",        &CommandShell::_cmd_get        },
             { "set",        "<name> <value>  edit a parameter", &CommandShell::_cmd_set       },
-            { "override",   "[<name> [off|<value>]] force one", &CommandShell::_cmd_override  },
+            { "override",   "list|<name> [off|<value>]",      &CommandShell::_cmd_override   },
             { "control",    "[enable|disable] drive the field", &CommandShell::_cmd_control   },
-            { "storage",    "get|set|del <key> [<text>]",     &CommandShell::_cmd_storage    },
+            { "storage",    "raw flash keys: get|set|del",    &CommandShell::_cmd_storage    },
             { "loglevel",   "[debug|info|..|critical] filter",&CommandShell::_cmd_loglevel   },
             { "version",    "firmware version",               &CommandShell::_cmd_version    },
             { "breakpoint", "trap into an attached debugger", &CommandShell::_cmd_breakpoint },
@@ -308,38 +308,57 @@ namespace Botanik { namespace Shell {
         _emitf(out, sizeof(out), "alarms: %u active", m->active_count());
     }
 
+    // Render one variable's row, shared by `get` and `list` so a name shown by
+    // one is formatted identically by the other.
+    void CommandShell::_emit_var(const Vars::Bank& io, Vars::Var h) {
+        char out[128], val[48];
+        const char* s = Vars::var_format(io, h, val, sizeof(val));
+        const char* u = h.meta()->unit;
+        // Flag the three things a bare number hides: that a row is a writable
+        // parameter, that it is being forced by hand, and that a reading is
+        // really its default because nothing has written it (the trap - it looks
+        // like a perfectly reasonable measurement).
+        _emitf(out, sizeof(out), "  %-20s %-12s %-4s %s%s%s", h.meta()->name, s,
+               (u && u[0]) ? u : "",
+               h.role() == Vars::ROLE_PARAM ? "(param)" : "",
+               h.overridden() ? " OVERRIDDEN" : "",
+               h.valid() ? "" : " (default: nothing has written it)");
+    }
+
     void CommandShell::_cmd_get(const char* args, uint16_t alen) {
         Vars::Bank* io = _bank();
         if (io == nullptr) { _println("get: no variables"); return; }
         uint16_t wn = 0;
         const char* nm = arg_next(args, alen, wn);
+        if (nm == nullptr) { _println("usage: get <name>   (list [<prefix>] to browse)"); return; }
 
-        // One table, so one loop. This replaced three commands (params/status/
-        // vars) that each walked the same rows through a different lens; since
-        // a parameter is just a ROLE_PARAM variable, the lens was the only
-        // difference and it belongs in a column, not in a command.
-        char out[128], val[48];
-        bool found = false;
+        const Vars::VarRef r = io->find(nm, wn);
+        if (r.index == Vars::VAR_NONE) { _println("get: unknown variable"); return; }
+        _emit_var(*io, io->var(r));
+    }
+
+    void CommandShell::_cmd_list(const char* args, uint16_t alen) {
+        Vars::Bank* io = _bank();
+        if (io == nullptr) { _println("list: no variables"); return; }
+        uint16_t wp = 0;
+        const char* prefix = arg_next(args, alen, wp);
+
+        // One table, so one loop. A prefix is how you actually navigate a few
+        // hundred variables: they are named by domain (`pwr_`, `env_`), so
+        // `list pwr_` is the subsystem view without needing a grouping concept
+        // in the command.
+        uint16_t n = 0;
         for (uint16_t i = 0; i < io->count(); i++) {
             Vars::Var h = io->var(i);
             const char* name = h.meta()->name;
             if (name == nullptr) continue;
-            if (nm != nullptr && !arg_eq(nm, wn, name)) continue;
-            const char* s = Vars::var_format(*io, h, val, sizeof(val));
-            const char* u = h.meta()->unit;
-            // Flag the three things a bare number hides: that a row is a
-            // writable parameter, that it is being forced by hand, and that a
-            // reading is really its default because nothing has written it (the
-            // trap - it looks like a perfectly reasonable measurement).
-            _emitf(out, sizeof(out), "  %-20s %-12s %-4s %s%s%s", name, s,
-                   (u && u[0]) ? u : "",
-                   h.role() == Vars::ROLE_PARAM ? "(param)" : "",
-                   h.overridden() ? " OVERRIDDEN" : "",
-                   h.valid() ? "" : " (default: nothing has written it)");
-            found = true;
+            if (prefix != nullptr && strncmp(name, prefix, wp) != 0) continue;
+            _emit_var(*io, h);
+            n++;
         }
-        if (!found) _println(nm != nullptr ? "get: unknown variable"
-                                           : "get: no variables declared");
+        char out[96];
+        if (n == 0) _println("list: nothing matches");
+        else        _emitf(out, sizeof(out), "  %u variable(s)", n);
     }
 
     void CommandShell::_cmd_set(const char* args, uint16_t alen) {
@@ -393,10 +412,11 @@ namespace Botanik { namespace Shell {
         uint16_t wn = 0;
         const char* nm = arg_next(args, alen, wn);
 
-        // No argument: list what is forced. An override outlives the session
-        // that set it and explains behaviour nothing else accounts for, so it
-        // must be one command away, not something you have to remember.
-        if (nm == nullptr) {
+        // `override list` (or a bare `override`): what is forced right now. An
+        // override outlives the session that set it and explains behaviour
+        // nothing else accounts for, so it must be one command away, not
+        // something you have to remember to look for.
+        if (nm == nullptr || arg_eq(nm, wn, "list")) {
             char val[48];
             uint16_t n = 0;
             for (uint16_t i = 0; i < io->count(); i++) {
@@ -496,16 +516,22 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_cmd_storage(const char* args, uint16_t alen) {
-        // Raw access to HAL::Storage. Exists so the OPTA's KV backend can be
-        // brought up with a set / power-cycle / get round-trip instead of a
-        // firmware rebuild per hypothesis - where the Mbed KV region actually
-        // lands is a config decision we do not make and cannot check from here.
+        // Raw HAL::Storage keys - a DIFFERENT layer from get/set, despite the
+        // shared verbs. get/set work on variables; this works on the bytes under
+        // them, and most keys here are not variables at all. It exists so the
+        // OPTA's KV backend can be brought up with a set / power-cycle / get
+        // round-trip instead of a firmware rebuild per hypothesis: where the Mbed
+        // KV region actually lands is a config decision we do not make and cannot
+        // check from here. It is also how you confirm a parameter really reached
+        // flash - KvParamStore keys each one by its own name, so
+        // `storage get ntp_poll_s` reads the persisted bytes behind
+        // `get ntp_poll_s`.
         uint16_t w = 0;
         const char* op = arg_next(args, alen, w);
         uint16_t kw = 0;
         const char* key = arg_next(args, alen, kw);
         if (op == nullptr || key == nullptr) {
-            _println("usage: storage get|set|del <key> [<text>]");
+            _println("usage: storage get|set|del <key> [<text>]   (raw flash, not variables)");
             return;
         }
         // The key must be NUL-terminated for the HAL; arg_next hands back a
@@ -533,7 +559,7 @@ namespace Botanik { namespace Shell {
             _emitf(out, sizeof(out), "storage: %s",
                    HAL::Storage::remove(k) ? "ok" : "FAILED");
         } else {
-            _println("usage: storage get|set|del <key> [<text>]");
+            _println("usage: storage get|set|del <key> [<text>]   (raw flash, not variables)");
         }
     }
 
@@ -564,12 +590,6 @@ namespace Botanik { namespace Shell {
         _println("usage: loglevel [debug|info|notice|warning|error|critical]");
     }
 
-    void CommandShell::_cmd_uptime(const char*, uint16_t) {
-        char buf[16], out[48];
-        uint32_t secs = (uint32_t)(HAL::Clock::uptime_ms() / 1000);
-        _emitf(out, sizeof(out), "uptime: %s",
-               Utils::format_age(buf, sizeof(buf), secs, false));
-    }
 
     void CommandShell::_cmd_net(const char*, uint16_t) {
 #if !BOTANIK_FEATURE_NETWORK

@@ -292,11 +292,14 @@ namespace Botanik { namespace Pages {
             return w;
         }
 
-        /** @brief " Label       : value" panel line (clear_to_eol wipes the old
-         *  value's tail when the selection moves to a shorter one). */
+        /** @brief " Label        : value" panel line (clear_to_eol wipes the old
+         *  value's tail when the selection moves to a shorter one). The label
+         *  field is 12 wide because that is the longest label any panel uses
+         *  ("Acknowledged"); a longer one would shove its own colon right and
+         *  break the column the panels share. */
         void _panel_field(uint16_t row, const char* label, const char* value) {
             char buf[192];
-            int n = snprintf(buf, sizeof(buf), " %-11s : %s", label,
+            int n = snprintf(buf, sizeof(buf), " %-12s : %s", label,
                              (value && value[0]) ? value : "-");
             _draw_line(row, buf, (n < 0) ? 0 : (uint16_t)n);
         }

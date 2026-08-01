@@ -211,7 +211,7 @@ namespace Botanik { namespace Pages {
             uint16_t br = _brule_row();
             _blank_line((uint16_t)(br + 1));
             _panel_field((uint16_t)(br + 2), "Remediation", c ? c->notes : nullptr);
-            _panel_field((uint16_t)(br + 3), "Ack'd", ack);
+            _panel_field((uint16_t)(br + 3), "Acknowledged", ack);
             _blank_line((uint16_t)(br + 4));
         }
 
@@ -287,13 +287,13 @@ namespace Botanik { namespace Pages {
 
         /** @name Window geometry
          *  Bottom-anchored on the content area. From the bottom up: free row,
-         *  legend, blank, Ack'd line, Remediation line, blank, bottom rule, then
+         *  legend, blank, Acknowledged line, Remediation line, blank, bottom rule, then
          *  the data band up to the top rule. The rules carry the scroll arrows
          *  (see _draw_rules()).
          *  @{ */
         // free row below at rows()-1
         uint16_t _legend_row()  const { return (uint16_t)(_console.rows() - 2); }
-        // bottom rule; between it and the legend: blank, Remediation, Ack'd, blank
+        // bottom rule; between it and the legend: blank, Remediation, Acknowledged, blank
         uint16_t _brule_row()   const { return (uint16_t)(_console.rows() - 7); }
         /** @brief Number of data rows that fit, or 0 if the screen is too
          *  short. */

@@ -224,10 +224,10 @@ namespace Botanik { namespace Shell {
         void _cmd_stats(const char* args, uint16_t alen);
         void _cmd_version(const char* args, uint16_t alen);
         void _cmd_alarms(const char* args, uint16_t alen);
-        void _cmd_uptime(const char* args, uint16_t alen);
         void _cmd_net(const char* args, uint16_t alen);
         void _cmd_ntpsync(const char* args, uint16_t alen);
         void _cmd_loglevel(const char* args, uint16_t alen);
+        void _cmd_list(const char* args, uint16_t alen);
         void _cmd_get(const char* args, uint16_t alen);
         void _cmd_set(const char* args, uint16_t alen);
         void _cmd_override(const char* args, uint16_t alen);
@@ -239,8 +239,13 @@ namespace Botanik { namespace Shell {
          *  and wipe the screen, since the loop will not run again. */
         void _leave_running();
 
+        /** @brief Emit one variable's row (name, value, unit, and the flags a
+         *  bare number hides). Shared by `get` and `list` so the same variable
+         *  reads identically whichever showed it. */
+        void _emit_var(const Vars::Bank& io, Vars::Var h);
+
         /** @brief The variables, from the shared SystemContext (null when the
-         *  firmware wired none). One lookup point for the three commands. */
+         *  firmware wired none). One lookup point for the variable commands. */
         Vars::Bank* _bank() const { return _console.context().vars; }
         void _cmd_storage(const char* args, uint16_t alen);
         /** @brief Handle an unrecognised command (echoes "Unknown command:
