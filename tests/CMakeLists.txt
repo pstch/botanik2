@@ -38,6 +38,7 @@ add_executable(botanik_tests
     test_hal_net.cpp
     test_notifier.cpp
     test_mqtt_log.cpp
+    test_hal_memory.cpp
 )
 
 # vendor/ for doctest.h; src/ for the library and the simulator's site payloads.
