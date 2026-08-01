@@ -2,9 +2,9 @@
 
 These tests drive the real `botanik_sim` firmware over a **PTY** and replay its
 ANSI output through [pyte](https://github.com/selectel/pyte) to reconstruct the
-80x24 screen, then assert it against committed golden fixtures. They catch
-terminal-rendering regressions (cursor moves, insert/delete, IL/DL, the line
-editor's reconciliation) that a source diff can't.
+80x24 screen, then assert on that screen. They catch terminal-rendering
+regressions (cursor moves, insert/delete, IL/DL, the line editor's
+reconciliation) that a source diff can't.
 
 ## Why a PTY, and why time dilation
 
@@ -15,8 +15,8 @@ editor's reconciliation) that a source diff can't.
   for smoketesting - it drives both the simulated UART's write throttle and
   `present()`'s per-tick byte budget. The suite deliberately does *not* use it
   (see the next bullet): changing the baud changes the byte/event ratios the
-  goldens were captured at, whereas time dilation does not. Reach for it when
-  hand-driving `botanik_sim`, not when writing a test. 0 or junk keeps 4800.
+  expected screens were captured at, whereas time dilation does not. Reach for
+  it when hand-driving `botanik_sim`, not when writing a test. 0/junk keeps 4800.
 - **Speed via `BOTANIK_TIME_SCALE` (not a higher baud):** the simulator's clock
   runs N times faster than wall-clock (default scale 50). Every byte/event ratio
   is identical to a real 4800-baud run; only wall time is compressed. See
@@ -28,23 +28,23 @@ editor's reconciliation) that a source diff can't.
   windows its state drifts - alarms cycle, `SYS_RST` clears, the boot log scrolls
   under the alarm flood, mock values move. The assertions treat that as volatile:
   `normalize.py` masks the live alarm bar / active count / drifting fields and
-  drops `ALARM_*` log spam; `assert_screen(rows=(a,b))` compares only the region a
+  drops `ALARM_*` log spam; a `rows=`/`clip=` band compares only the region a
   test is about (home tests assert the widget, not the live log tail); the
   log/alarm-catalog tests assert behaviour/structure rather than pinning churn.
 - **Determinism vs. async boot chatter:** the network handshake (DNS -> NTP ->
   MQTT, which retries on a missed reply) logs at timing-dependent moments. If it
   is still in flight when a test leaves the Home page, a late line lands in the
-  Shell page's live log tail and breaks that (blank-tail) golden. `boot()` waits
-  for the handshake's final markers before returning (`helpers.py`), which is
+  Shell page's live log tail. `boot()` waits for the handshake's final markers
+  before returning (`helpers.py`), which is
   what makes high scales flake-free; a plain `settle()` quiet window is not
   enough (it can return in a gap mid-handshake).
 - **Release sim only:** the tests run against a release, no-sanitizer
   `botanik_sim` (the CMake target builds one in a sub-tree). A debug+ASAN build
   is too slow per dilated tick.
-- **`BOTANIK_NO_XRUN_WARNING`:** the harness sets this so the scheduler's
-  load-dependent overrun warning (which dilated time provokes) doesn't pollute
-  the log-writer pages. Screens are compared on `meaningful_lines` (volatile
-  fields normalized, overrun/blank noise dropped) for extra resilience.
+- **Comparison, not equality:** screens are compared on `meaningful_lines`
+  (volatile fields normalized, blank and alarm-transition rows dropped) and, for
+  a whole-screen assert, with the live log tail dropped on top of that. A stray
+  repaint or an unrelated log line then cannot fail a correct screen.
 
 ## Dependencies (manual - the build never installs anything)
 
@@ -111,7 +111,7 @@ content that appears (a log line, a table header) rather than a whole screen.
 
 - `conftest.py`  - the PTY/pyte `Term`, the `spawn` and `assert_screen` fixtures.
 - `normalize.py` - field-level regex that masks volatile cells (clock, uptime,
-  TX/RX depths, cpu/stk, log timestamps) before comparison.
+  cpu/stk, home readings, log timestamps) before comparison.
 - `keys.py`      - input byte sequences matching `console/parser.cpp`.
 - `helpers.py`   - boot / page-switch helpers, and `assert_editor`.
 - `test_*.py`    - home, logs, alarms, monitor, params, shell commands, and the

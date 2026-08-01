@@ -47,11 +47,10 @@ class Term:
     # (env, honored through pytest/ctest/make alike). Use a release/no-sanitizer
     # sim; a debug+ASAN build is much slower per tick. BOTANIK_NO_XRUN_WARNING (set
     # below) silences the load-dependent overrun logs.
-    def __init__(self, binary, time_scale=50, page=None, watch=(), store=None):
+    def __init__(self, binary, time_scale=50, watch=(), store=None):
         time_scale = int(os.environ.get("PYTE_TIME_SCALE", time_scale))  # tunable knob
         env = dict(os.environ)
         env["BOTANIK_TIME_SCALE"] = str(time_scale)
-        env["BOTANIK_NO_XRUN_WARNING"] = "1"   # silence load-dependent overrun logs
         # Silence the boot-time privilege warnings (mlockall / SCHED_FIFO / CPU
         # affinity): which a host denies varies, so they're host-dependent boot
         # noise. Suppressing at the source keeps the rendered screen deterministic.
@@ -67,11 +66,6 @@ class Term:
         # storage.cpp documents $BOTANIK_CONFIG_STORE as exactly this override.
         if store is not None:
             env["BOTANIK_CONFIG_STORE"] = str(store)
-        # main.cpp always boots to Home (switch_to(0)) and ignores BOTANIK_PAGE,
-        # but clear it so a stale value from the parent env can never matter.
-        env.pop("BOTANIK_PAGE", None)
-        if page is not None:
-            env["BOTANIK_PAGE"] = str(page)
 
         self.master, slave = pty.openpty()
         self.proc = subprocess.Popen(
