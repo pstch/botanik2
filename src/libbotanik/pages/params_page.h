@@ -21,8 +21,9 @@
  * detail panel tracks it. ENTER opens an inline edit on the bottom prompt line:
  * a static " name = " label and a single-line TextEditor (anchored to the
  * bottom row) render the value, seeded with the row's current text. ENTER
- * commits (parse + validate through ParamHandler::set, which persists + bumps
- * the group serial); ESC/Ctrl+C cancels. An invalid value is rejected and
+ * commits (parse + validate through Params::set, which persists it; applying a
+ * config group still means bumping that group's commit serial by hand);
+ * ESC/Ctrl+C cancels. An invalid value is rejected and
  * flagged, leaving edit mode open. Rows repaint only on a change, so a steady
  * screen spends no TX budget.
  */
