@@ -52,7 +52,6 @@ namespace Botanik { namespace Pages {
         /** @name Layout
          *  @{ Bordered table with the same shape as AlarmsPage: a blank top
          *  margin row, MARGIN blank columns each side, widened to the display. */
-        static constexpr uint16_t MARGIN     = 2;    // blank columns each side
         static constexpr uint16_t TOP_ROW    = 1;    // blank top margin
         static constexpr uint16_t HEADER_ROW = 2;
         static constexpr uint16_t RULE_ROW   = 3;
@@ -67,9 +66,8 @@ namespace Botanik { namespace Pages {
         // Minimum / Maximum / Description / Notes for the selected parameter, and
         // a trailing blank spacer (default + unit are already table columns).
         static constexpr uint16_t PANEL_H    = 7;
-        // Selected-row highlight covers only the name field's contents.
-        static constexpr uint16_t NAME_CELL_L = MARGIN + 2;            // "| " skipped
-        static constexpr uint16_t NAME_CELL_R = MARGIN + 2 + NAME_W;   // name field end
+        /** @brief Column order; the selection cursor inverts C_NAME's cell. */
+        enum { C_NAME = 0, C_TYPE, C_VALUE, C_DEFAULT, C_UNIT };
         /** @} */
 
         /** @name State
@@ -195,15 +193,13 @@ namespace Botanik { namespace Pages {
                                           + DEFAULT_W + 3 + UNIT_W + 2), (uint16_t)(VAL_CAP - 1));
         }
 
-        /** @brief Build the "  | name | type | value | default | unit |" row. */
-        uint16_t _row5(char* out, size_t cap, const char* name_, const char* type_,
-                       const char* val, const char* deflt, const char* unit) const {
-            int n = snprintf(out, cap, "%*s| %-*.*s | %-*.*s | %-*.*s | %-*.*s | %-*.*s |",
-                             (int)MARGIN, "",
-                             NAME_W, NAME_W, name_, TYPE_W, TYPE_W, type_,
-                             _value_w(), _value_w(), val,
-                             DEFAULT_W, DEFAULT_W, deflt, UNIT_W, UNIT_W, unit);
-            return (n < 0) ? 0 : (uint16_t)n;
+        uint8_t _columns(Col* out) const override {
+            out[C_NAME]    = Col{ "PARAMETER", NAME_W     };
+            out[C_TYPE]    = Col{ "TYPE",      TYPE_W     };
+            out[C_VALUE]   = Col{ "VALUE",     _value_w() };
+            out[C_DEFAULT] = Col{ "DEFAULT",   DEFAULT_W  };
+            out[C_UNIT]    = Col{ "UNIT",      UNIT_W     };
+            return 5;
         }
 
         void _draw_row(uint16_t idx, uint16_t row, bool selected) {
@@ -214,30 +210,20 @@ namespace Botanik { namespace Pages {
             char line[LINE_CAP];
             char dflt[VAL_CAP];
             _params->format_scalar_of(d, d.def, dflt, sizeof(dflt));
-            uint16_t n = _row5(line, sizeof(line), d.name, Vars::type_name(d.type), val,
-                               (d.type == Vars::T_STR && d.def.s) ? d.def.s : dflt,
-                               d.unit ? d.unit : "");
-            _draw_selected_line(row, line, n, NAME_CELL_L, NAME_CELL_R, selected);
-        }
-
-        void _draw_header() {
-            char line[LINE_CAP];
-            uint16_t n = _row5(line, sizeof(line), "PARAMETER", "TYPE", "VALUE",
-                               "DEFAULT", "UNIT");
-            _draw_line(HEADER_ROW, line, n);
-        }
-
-        void _draw_rule() {
-            uint16_t spans[5] = { (uint16_t)(NAME_W + 2), (uint16_t)(TYPE_W + 2),
-                                  (uint16_t)(_value_w() + 2), (uint16_t)(DEFAULT_W + 2),
-                                  (uint16_t)(UNIT_W + 2) };
-            ScrollTablePage::_draw_rule(RULE_ROW, MARGIN, spans, 5, '+', '+');
+            const char* cells[5] = {
+                d.name, Vars::type_name(d.type), val,
+                (d.type == Vars::T_STR && d.def.s) ? d.def.s : dflt,
+                d.unit ? d.unit : ""
+            };
+            uint16_t n = _build_row(line, sizeof(line), cells);
+            _draw_selected_line(row, line, n, _cell_col(C_NAME), _cell_end(C_NAME),
+                                selected);
         }
 
         void _draw_structure() {
             _blank_line(TOP_ROW);
-            _draw_header();
-            _draw_rule();
+            _draw_header(HEADER_ROW);
+            _draw_rule(RULE_ROW, '+');
         }
 
         // Detail panel (selected parameter's min/max/description/notes)
