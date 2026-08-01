@@ -43,18 +43,17 @@ once at startup.
 | Variable | Effect |
 |---|---|
 | `BOTANIK_TIME_SCALE` | Runs the sim clocks (and the baud throttle) N times faster. Default 1, clamped to >= 1. See `hal/simulator.h`. |
-| `BOTANIK_NO_XRUN_WARNING` | Silences the scheduler's overrun (xrun) warning, whose count/placement are load-dependent. Set it to any value (presence is what matters). See `scheduler/scheduler.cpp`. |
 | `BOTANIK_NO_LOAD_ALARMS` | Holds the CPU_* load alarms (CPU_LOAD / CPU_JITT / CPU_XRUN) cleared, so the active-alarm set is deterministic for screen goldens. Set it to a non-zero value. No effect on OPTA (no environment). See `health/health.h`. |
 
 `BOTANIK_TIME_SCALE=N` dilates time uniformly: every byte/event ratio matches a normal
 run, only wall time is divided by N, so you reach a given iteration count ~N times
 sooner. Pushing it very high starves the per-tick budget (input/render race at the
-~1 ms floor around scale >= 5), so raise it until ticks overrun, then back off. Dilated
-time also provokes the load-dependent xrun warning; pair the two to run hot and quiet:
+~1 ms floor around scale >= 5), so raise it until ticks overrun, then back off. Overruns under dilation are counted, not logged (the CPU_XRUN alarm and the
+`stats` overrun count carry them), so a hot run stays quiet:
 
 ```bash
 # Hammer the scheduler ~10x faster, without overrun-warning spam.
-BOTANIK_TIME_SCALE=10 BOTANIK_NO_XRUN_WARNING=1 ./build-debug/botanik_sim 2> sim.log
+BOTANIK_TIME_SCALE=10 ./build-debug/botanik_sim 2> sim.log
 ```
 
 For an unattended high-iteration soak, build the release (no-sanitizer) sim - a

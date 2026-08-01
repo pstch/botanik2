@@ -45,8 +45,8 @@ class Term:
     # notes in helpers.py / test_*.py); the suite stays green at far higher scales
     # too (verified 19/19 at scale 500). Override per-run with PYTE_TIME_SCALE=N
     # (env, honored through pytest/ctest/make alike). Use a release/no-sanitizer
-    # sim; a debug+ASAN build is much slower per tick. BOTANIK_NO_XRUN_WARNING (set
-    # below) silences the load-dependent overrun logs.
+    # sim; a debug+ASAN build is much slower per tick. Overruns are counted, not
+    # logged, so dilation adds no log noise to mask.
     def __init__(self, binary, time_scale=50, watch=(), store=None):
         time_scale = int(os.environ.get("PYTE_TIME_SCALE", time_scale))  # tunable knob
         env = dict(os.environ)
