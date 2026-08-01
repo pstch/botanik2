@@ -108,6 +108,11 @@ namespace Botanik { namespace Vars {
         const char* name;      ///< symbolic name; the telemetry leaf; the storage key
         const char* unit;      ///< "C", "%", "" for none
         const char* desc;
+        /** @brief The longer story: what to check when this reading looks wrong,
+         *  what a parameter actually affects. Separate from @c desc because the
+         *  tables show desc on every row and this only in the detail panel - one
+         *  has to fit a column, the other does not. Null renders as "-". */
+        const char* notes;
         /** @brief T_ENUM renderer; null for a plain number. */
         const char* (*str)(uint64_t);
         Binding     bind;

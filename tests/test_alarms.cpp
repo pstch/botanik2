@@ -147,7 +147,7 @@ TEST_CASE("alarm: a normal episode logs START then END (not FLAP)") {
 TEST_CASE("alarm reader: model reads each condition's variable") {
     // Three alarm conditions, each naming a computed digital by index.
     #define IB(nm) { Vars::Scalar::B(false), Vars::Scalar::B(true), Vars::Scalar::B(false), \
-                     nm, "", "", nullptr, { Vars::XP_NONE, Vars::T_BOOL, 0, 0, 0, 0, 1.0f, 0.0f }, \
+                     nm, "", "", nullptr, nullptr, { Vars::XP_NONE, Vars::T_BOOL, 0, 0, 0, 0, 1.0f, 0.0f }, \
                      0, 0, 0, Vars::T_BOOL, Vars::ROLE_INTERNAL, 0, Vars::STR_NONE, 0, {} }
     const Vars::Variable VARS[] = { IB("alarm_a"), IB("alarm_b"), IB("alarm_c") };
     #undef IB

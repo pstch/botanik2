@@ -18,7 +18,7 @@
  *   row 3            top rule (corners cap to '^' when rows are hidden above)
  *   rows 4..N-3      one row per status variable (window into the full set)
  *   row N-8          bottom rule (corners cap to 'v' when hidden below)
- *   rows N-7..N-3    detail panel for the selected variable
+ *   rows N-7..N-3    detail panel: Description / Notes / Source / Quality
  *   row N-2          legend: [group] badge + position + hint, blank each side
  *
  * UP/DOWN move a selection cursor (the selected variable's NAME is drawn
@@ -326,12 +326,14 @@ namespace Botanik { namespace Pages {
          *  blank for the selected variable. */
         void _draw_panel() {
             uint16_t br = _brule_row();
-            _blank_line((uint16_t)(br + 1));
+            // No blank under the rule - the rule separates already, and the row
+            // it saves is what the Notes line costs.
             bool ok = false;
             Vars::VarRef ref = _ref_at(_selected, ok);
             const bool have = ok && _io != nullptr;
             Vars::Var h = have ? _io->var(ref) : Vars::Var(nullptr, nullptr);
-            _panel_field((uint16_t)(br + 2), "Description", have ? h.meta()->desc : nullptr);
+            _panel_field((uint16_t)(br + 1), "Description", have ? h.meta()->desc : nullptr);
+            _panel_field((uint16_t)(br + 2), "Notes",       have ? h.meta()->notes : nullptr);
             // The binding, which the byte-offset model had nowhere to put: where
             // this reading physically comes from is the first thing you want
             // when one looks wrong.

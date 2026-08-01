@@ -47,25 +47,25 @@ using namespace Botanik::Vars;
 // display precision: a power factor to 0 decimals is useless, a watt to 2 is
 // noise.
 #define MTR(nm, unit, dgt, dev, obj, lo, hi, desc) \
-    { Scalar::F(lo), Scalar::F(hi), Scalar::F(0.0f), nm, unit, desc, nullptr, \
+    { Scalar::F(lo), Scalar::F(hi), Scalar::F(0.0f), nm, unit, desc, nullptr, nullptr, \
       { XP_MODBUS, T_F32, dev, 3, obj, 2, 1.0f, 0.0f }, \
       5000, 0, 0, T_F32, ROLE_INPUT, dgt, STR_NONE, F_BOUNDED, {} }
 
 // A relay coil, written with function code 5.
 #define COIL(nm, dev, coil, desc) \
-    { Scalar::B(false), Scalar::B(true), Scalar::B(false), nm, "", desc, nullptr, \
+    { Scalar::B(false), Scalar::B(true), Scalar::B(false), nm, "", desc, nullptr, nullptr, \
       { XP_MODBUS, T_BOOL, dev, 5, coil, 1, 1.0f, 0.0f }, \
       0, 0, 0, T_BOOL, ROLE_OUTPUT, 0, STR_NONE, 0, {} }
 
 // A computed boolean: an alarm condition or a latched state flag.
 #define IBOOL(nm, desc) \
-    { Scalar::B(false), Scalar::B(true), Scalar::B(false), nm, "", desc, nullptr, \
+    { Scalar::B(false), Scalar::B(true), Scalar::B(false), nm, "", desc, nullptr, nullptr, \
       { XP_NONE, T_BOOL, 0, 0, 0, 0, 1.0f, 0.0f }, \
       0, 0, 0, T_BOOL, ROLE_INTERNAL, 0, STR_NONE, 0, {} }
 
 // A computed real.
 #define IREAL(nm, unit, dgt, desc) \
-    { Scalar::F(0.0f), Scalar::F(0.0f), Scalar::F(0.0f), nm, unit, desc, nullptr, \
+    { Scalar::F(0.0f), Scalar::F(0.0f), Scalar::F(0.0f), nm, unit, desc, nullptr, nullptr, \
       { XP_NONE, T_F32, 0, 0, 0, 0, 1.0f, 0.0f }, \
       0, 0, 0, T_F32, ROLE_INTERNAL, dgt, STR_NONE, 0, {} }
 
@@ -82,29 +82,29 @@ static const uint16_t STR_POOL_BYTES = 8 * STR_CAP;
 /** @brief A group's commit serial: bump it to apply that group's staged edits.
  *  Named after the group, which is how the consuming component finds it. */
 #define PSERIAL(nm, desc) \
-    { Scalar::U(0), Scalar::U(1000000000), Scalar::U(1), nm, "", desc, nullptr, \
+    { Scalar::U(0), Scalar::U(1000000000), Scalar::U(1), nm, "", desc, nullptr, nullptr, \
       { XP_NONE, T_U32, 0, 0, 0, 0, 1.0f, 0.0f }, \
       0, 0, 0, T_U32, ROLE_PARAM, 0, STR_NONE, F_BOUNDED, {} }
 
 #define PBOOL(nm, dflt, desc) \
-    { Scalar::B(false), Scalar::B(true), Scalar::B(dflt), nm, "", desc, nullptr, \
+    { Scalar::B(false), Scalar::B(true), Scalar::B(dflt), nm, "", desc, nullptr, nullptr, \
       { XP_NONE, T_BOOL, 0, 0, 0, 0, 1.0f, 0.0f }, \
       0, 0, 0, T_BOOL, ROLE_PARAM, 0, STR_NONE, F_BOUNDED, {} }
 
 #define PU16(nm, dflt, lo, hi, unit, desc) \
-    { Scalar::U(lo), Scalar::U(hi), Scalar::U(dflt), nm, unit, desc, nullptr, \
+    { Scalar::U(lo), Scalar::U(hi), Scalar::U(dflt), nm, unit, desc, nullptr, nullptr, \
       { XP_NONE, T_U16, 0, 0, 0, 0, 1.0f, 0.0f }, \
       0, 0, 0, T_U16, ROLE_PARAM, 0, STR_NONE, F_BOUNDED, {} }
 
 #define PF32(nm, dflt, lo, hi, dgt, unit, desc) \
-    { Scalar::F(lo), Scalar::F(hi), Scalar::F(dflt), nm, unit, desc, nullptr, \
+    { Scalar::F(lo), Scalar::F(hi), Scalar::F(dflt), nm, unit, desc, nullptr, nullptr, \
       { XP_NONE, T_F32, 0, 0, 0, 0, 1.0f, 0.0f }, \
       0, 0, 0, T_F32, ROLE_PARAM, dgt, STR_NONE, F_BOUNDED, {} }
 
 /** @brief A text parameter. Its live value lives in the string pool at @p off;
  *  `def` carries the factory text, which init() copies into the pool. */
 #define PSTR(nm, off, kind_, dflt, desc) \
-    { Scalar::U(0), Scalar::U(0), Scalar::S(dflt), nm, "", desc, nullptr, \
+    { Scalar::U(0), Scalar::U(0), Scalar::S(dflt), nm, "", desc, nullptr, nullptr, \
       { XP_NONE, T_STR, 0, 0, 0, 0, 1.0f, 0.0f }, \
       0, off, STR_CAP, T_STR, ROLE_PARAM, 0, kind_, 0, {} }
 

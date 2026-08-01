@@ -367,9 +367,8 @@ namespace Botanik { namespace Pages {
         void _draw_panel() {
             uint16_t r = _panel_top();
             _draw_separator(r);
-            _blank_line((uint16_t)(r + 1));
             if (_visible_count() == 0) {
-                for (uint16_t i = 2; i < PANEL_H; i++)
+                for (uint16_t i = 1; i < PANEL_H; i++)
                     if ((uint16_t)(r + i) != _mode_row()) _blank_line((uint16_t)(r + i));
                 _draw_mode_line(_mode_row(), nullptr, nullptr);
                 return;
@@ -380,11 +379,14 @@ namespace Botanik { namespace Pages {
             // The band is one fact, so it costs one row - and the row that buys
             // back is a row of the table.
             char b2[24];
-            _panel_field2((uint16_t)(r + 2),
+            // The blank that used to sit under the separator paid for the Notes
+            // row: the separator already separates, so the table keeps its row.
+            _panel_field2((uint16_t)(r + 1),
                           "Minimum", _fmt_bound(b,  sizeof(b),  d, d.min),
                           PANEL_COL2,
                           "Maximum", _fmt_bound(b2, sizeof(b2), d, d.max));
-            _panel_field((uint16_t)(r + 3), "Description", d.desc);
+            _panel_field((uint16_t)(r + 2), "Description", d.desc);
+            _panel_field((uint16_t)(r + 3), "Notes",       d.notes);
             _blank_line((uint16_t)(r + 4));                     // blank above the legend
             // The group is on the legend line instead of costing a panel row -
             // and only in the "all" view, where it is the one thing the badge

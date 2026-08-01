@@ -22,21 +22,21 @@ namespace {
     const uint16_t CAP = 32;
 
     #define P_NUM(nm, t, lo, hi, dflt) \
-        { Scalar::U(lo), Scalar::U(hi), Scalar::U(dflt), nm, "", "", nullptr, \
+        { Scalar::U(lo), Scalar::U(hi), Scalar::U(dflt), nm, "", "", nullptr, nullptr, \
           { XP_NONE, t, 0, 0, 0, 0, 1.0f, 0.0f }, \
           0, 0, 0, t, ROLE_PARAM, 0, STR_NONE, F_BOUNDED, {} }
 
     const Variable PARAMS[] = {
         P_NUM("p_bool", T_BOOL, 0, 1, 1),
         P_NUM("p_u16",  T_U16,  0, 3600, 64),
-        { Scalar::I(-5000), Scalar::I(5000), Scalar::I(-7), "p_i32", "", "", nullptr,
+        { Scalar::I(-5000), Scalar::I(5000), Scalar::I(-7), "p_i32", "", "", nullptr, nullptr,
           { XP_NONE, T_I32, 0, 0, 0, 0, 1.0f, 0.0f },
           0, 0, 0, T_I32, ROLE_PARAM, 0, STR_NONE, F_BOUNDED, {} },
         // A fractional band, which int32 bounds could not express at all.
-        { Scalar::F(-90.0f), Scalar::F(90.0f), Scalar::F(48.8566f), "p_f32", "deg", "", nullptr,
+        { Scalar::F(-90.0f), Scalar::F(90.0f), Scalar::F(48.8566f), "p_f32", "deg", "", nullptr, nullptr,
           { XP_NONE, T_F32, 0, 0, 0, 0, 1.0f, 0.0f },
           0, 0, 0, T_F32, ROLE_PARAM, 4, STR_NONE, F_BOUNDED, {} },
-        { Scalar::U(0), Scalar::U(0), Scalar::S("pool.ntp.org"), "p_str", "", "", nullptr,
+        { Scalar::U(0), Scalar::U(0), Scalar::S("pool.ntp.org"), "p_str", "", "", nullptr, nullptr,
           { XP_NONE, T_STR, 0, 0, 0, 0, 1.0f, 0.0f },
           0, 0, CAP, T_STR, ROLE_PARAM, 0, STR_HOST, 0, {} },
     };

@@ -18,7 +18,7 @@ namespace Botanik { namespace Vars {
     // Named so a bad index is obvious in a log or a debugger.
     const Variable Bank::_sink_d = {
         Scalar::U(0), Scalar::U(0), Scalar::U(0),
-        "<none>", "", "", nullptr,
+        "<none>", "", "", nullptr, nullptr,
         { XP_NONE, T_U8, 0, 0, 0, 0, 1.0f, 0.0f },
         0, 0, 0, T_U8, ROLE_INTERNAL, 0, STR_NONE, 0, {}
     };
