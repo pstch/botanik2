@@ -38,10 +38,10 @@ namespace {
     // off. Fields: code, desc, offset (0; driven via set_local), on_s, off_s,
     // recent_s, off_delay_s.
     const Alarms::AlarmCondition TABLE[] = {
-        { "AAA", "alarm A", {}, -1, -1, -1, 0 },
-        { "BBB", "alarm B", {}, -1, -1, -1, 0 },
-        { "CCC", "alarm C", {}, -1, -1, -1, 0 },
-        { "DDD", "alarm D", {}, -1, -1, -1, 0 },
+        { "AAA", "aaa", "alarm A", {}, -1, -1, -1, 0 },
+        { "BBB", "bbb", "alarm B", {}, -1, -1, -1, 0 },
+        { "CCC", "ccc", "alarm C", {}, -1, -1, -1, 0 },
+        { "DDD", "ddd", "alarm D", {}, -1, -1, -1, 0 },
     };
 #pragma GCC diagnostic pop
 
@@ -129,7 +129,7 @@ TEST_CASE("alarms render: a same-alarm state change patches its cells, skips the
     f.page.focus();
     f.paint();                                   // initial full paint; discard
 
-    CHECK(f.model.ack("BBB") == true);           // BBB (row1) active+unack -> active+ack
+    CHECK(f.model.ack("bbb") == true);           // BBB (row1) active+unack -> active+ack
     f.page.handle_command(Command::ENTER, 1);    // repaint, selection still at row0
     std::string out = f.paint();
 

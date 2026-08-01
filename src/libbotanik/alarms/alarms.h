@@ -73,9 +73,15 @@ namespace Botanik { namespace Alarms {
         /** @name Static metadata
          *  @{ */
 
-        const char* name;       ///< the variable this reads, by name;
-                        ///< a platform alarm has no variable, so it
-                        ///< carries its own literal instead
+        /** @brief Short display code (max 8 chars), for the table's first column
+         *  and the alarm bar - places where the full variable name is more than
+         *  the space is worth. Identity still belongs to @c name; this is a
+         *  label. */
+        const char* code;
+        /** @brief The variable this reads, by name. It is what ack() and
+         *  set_local() key on, and a platform alarm - which has no variable -
+         *  carries its own literal here instead. */
+        const char* name;
         const char* desc;       ///< human-readable description
         /** The variable carrying this condition: the model reads it directly
          *  each step (non-zero = active). Left zeroed for the platform-health

@@ -99,7 +99,14 @@ namespace Botanik { namespace Pages {
          *  Columns: CODE | ON (reverse-video badge when active) | LAST EVENT
          *  (the last transition's timestamp, "YY/MM/DD HH:MM") | DESCRIPTION.
          *  @{ */
-        static constexpr uint16_t NAME_W     = 24;  // the variable's own name
+        static constexpr uint16_t CODE_W     = 9;   // short display code
+        /** @brief The VARIABLE column is the flexible one: it absorbs whatever
+         *  the fixed columns leave, so the table spans the display instead of
+         *  stopping short of it. */
+        uint16_t _name_w() const {
+            return _flex_width((uint16_t)(2 * MARGIN + (CODE_W + 2) + 2
+                                          + (STATE_W + 2) + (EVENT_W + 2) + 1), 60);
+        }
         static constexpr uint16_t STATE_W    = 3;   // "ON" badge / "ON" header
         static constexpr uint16_t EVENT_W    = 15;  // "YY/MM/DD HH:MM"
         static constexpr uint16_t HEADER_ROW = 2;
@@ -112,7 +119,7 @@ namespace Botanik { namespace Pages {
          *  safe because the highlight stops one short of the cell. The STATE cell carries
          *  its own reverse-video "ON" badge, split out of the row write so there
          *  is no flicker-prone overdraw. */
-        enum { C_NAME = 0, C_STATE, C_EVENT };
+        enum { C_CODE = 0, C_NAME, C_STATE, C_EVENT };
         /** @} */
 
         /** @brief The alarms grid packs its cells (no trailing pad): the width
@@ -123,15 +130,16 @@ namespace Botanik { namespace Pages {
             // No DESCRIPTION column: the name IS the variable, so the row says
             // what it is, and the sentence explaining it belongs in the panel
             // where there is room for the whole of it.
-            out[C_NAME]  = Col{ "VARIABLE",   NAME_W  };
+            out[C_CODE]  = Col{ "CODE",       CODE_W  };
+            out[C_NAME]  = Col{ "VARIABLE",   _name_w() };
             out[C_STATE] = Col{ "ON",         STATE_W };
             out[C_EVENT] = Col{ "LAST EVENT", EVENT_W };
-            return 3;
+            return 4;
         }
 
         /** @brief Right edge of the selection highlight: one short of the CODE
          *  cell's contents (see the column note above). */
-        uint16_t _code_cell_r() const { return (uint16_t)(_cell_end(C_NAME) - 1); }
+        uint16_t _code_cell_r() const { return (uint16_t)(_cell_end(C_CODE) - 1); }
 
         /** @brief The name as the table shows it: the variable's own name minus
          *  the `alarm_` prefix every one of them carries.
@@ -312,7 +320,7 @@ namespace Botanik { namespace Pages {
          *  for the selection cursor (only the first cell highlights). Leaves the
          *  cursor at CODE_CELL_R. */
         void _write_code_cell(const char* line, bool selected) {
-            const uint16_t l = _cell_col(C_NAME), r = _code_cell_r();
+            const uint16_t l = _cell_col(C_CODE), r = _code_cell_r();
             _terminal.write_chars(line, l);                        // margin + "| "
             if (selected) _terminal.set_inverted(true);
             _terminal.write_chars(line + l, (uint16_t)(r - l));
@@ -327,7 +335,8 @@ namespace Botanik { namespace Pages {
             char ev[16];
             _fmt_event(ev, sizeof(ev), c);
             const char* state = c.active ? "ON" : (c.edge_ms != 0 ? "OFF" : "");
-            const char* cells[3] = { _display_name(c.name), state, ev };
+            const char* cells[4] = { c.code ? c.code : "?",
+                                     _display_name(c.name), state, ev };
             char     line[160];
             uint16_t n = _build_row(line, sizeof(line), cells);
             const uint16_t code_r = _code_cell_r(), badge = _cell_col(C_STATE);

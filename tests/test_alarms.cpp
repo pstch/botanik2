@@ -33,17 +33,17 @@ namespace {
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
     // Two unmasked, unlatched conditions (announce disabled) at bits 0 and 1.
     const Alarms::AlarmCondition TABLE[] = {
-        { "AAA", "alarm A", {}, -1, -1, 0, 0 },
-        { "BBB", "alarm B", {}, -1, -1, 0, 0 },
+        { "AAA", "aaa", "alarm A", {}, -1, -1, 0, 0 },
+        { "BBB", "bbb", "alarm B", {}, -1, -1, 0, 0 },
     };
     // One condition with a 5 s minimum-ON hold (announce disabled).
     const Alarms::AlarmCondition MIN_ON_TABLE[] = {
-        { "MIN", "min on", {}, -1, -1, 0, 0, 5 },
+        { "MIN", "min", "min on", {}, -1, -1, 0, 0, 5 },
     };
     // One condition that announces a START only after a 2 s dwell, and an END as
     // soon as it clears (off_s 0). A brief blip clears before the START dwell -> FLAP.
     const Alarms::AlarmCondition FLAP_TABLE[] = {
-        { "FLP", "flap", {}, 2, 0, 0, 0 },
+        { "FLP", "flp", "flap", {}, 2, 0, 0, 0 },
     };
 #pragma GCC diagnostic pop
 
@@ -67,16 +67,16 @@ TEST_CASE("alarm: ack marks an active condition, ignores inactive / unknown") {
     step_bits(m, 0x1, 1000);                              // raise A (bit 0)
     CHECK(m.active_count() == 1);
     CHECK(m.condition(0).user_ack == false);
-    CHECK(m.ack("AAA") == true);
+    CHECK(m.ack("aaa") == true);
     CHECK(m.condition(0).user_ack == true);
-    CHECK(m.ack("BBB") == false);                   // B is not active
-    CHECK(m.ack("ZZZ") == false);                   // unknown code
+    CHECK(m.ack("bbb") == false);                   // B is not active
+    CHECK(m.ack("zzz") == false);                   // unknown code
 }
 
 TEST_CASE("alarm: ack clears on the next ON edge (a fresh episode is unacknowledged)") {
     Alarms::AlarmModel m(TABLE, 2, nullptr);
     step_bits(m, 0x1, 1000);
-    m.ack("AAA");
+    m.ack("aaa");
     CHECK(m.condition(0).user_ack == true);
     step_bits(m, 0x0, 2000);                              // A clears
     step_bits(m, 0x1, 3000);                              // A re-fires
@@ -131,7 +131,7 @@ TEST_CASE("alarm: a normal episode logs START then END (not FLAP)") {
     // on_s 0 so the START is announced at once.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-    const Alarms::AlarmCondition tbl[] = { { "NRM", "normal", {}, 0, 0, 0, 0 } };
+    const Alarms::AlarmCondition tbl[] = { { "NRM", "nrm", "normal", {}, 0, 0, 0, 0 } };
 #pragma GCC diagnostic pop
     Alarms::AlarmModel m(tbl, 1, &logger);
 
@@ -161,9 +161,9 @@ TEST_CASE("alarm reader: model reads each condition's variable") {
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
     // code, desc, ref, on_s, off_s, ... - announce off.
     const Alarms::AlarmCondition tbl[] = {
-        { "AAA", "a", { 0 }, -1, -1 },
-        { "BBB", "b", { 1 }, -1, -1 },
-        { "CCC", "c", { 2 }, -1, -1 },
+        { "AAA", "aaa", "a", { 0 }, -1, -1 },
+        { "BBB", "bbb", "b", { 1 }, -1, -1 },
+        { "CCC", "ccc", "c", { 2 }, -1, -1 },
     };
 #pragma GCC diagnostic pop
 
@@ -194,7 +194,7 @@ TEST_CASE("alarm reader: a condition naming no variable rests on set_local") {
     io.init();
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-    const Alarms::AlarmCondition tbl[] = { { "PLT", "platform", { Vars::VAR_NONE }, -1, -1 } };
+    const Alarms::AlarmCondition tbl[] = { { "PLT", "plt", "platform", { Vars::VAR_NONE }, -1, -1 } };
 #pragma GCC diagnostic pop
     Logs::Logger logger;
     Alarms::AlarmModel m(tbl, 1, &logger, nullptr, 0, &io);
