@@ -2,24 +2,28 @@
 @mainpage Botanik
 
 @brief @c libbotanik - greenhouse-control firmware for the Arduino OPTA PLC
-       (STM32H747 dual-core ARM).
+       (STM32H747, Cortex-M7).
 
-Botanik runs on the OPTA's application core (the **M7**), alongside the PLC program
-on the coprocessor (the **M4**): the PLC drives the I/O and control loop, Botanik
-adds the operator-facing layer - a serial terminal UI, logging, health monitoring,
-and the shared-memory link that ties the two cores together. The C++11 library at
-its core, `libbotanik`, is platform-agnostic; the same code builds as a Linux
-simulator or for the OPTA hardware.
+Botanik is a complete controller: it reads the field over Modbus, runs the control
+programs, drives the outputs, and presents the whole of it over a serial terminal -
+pages, a shell, logging, alarms and health supervision. Its core, `libbotanik`, is a
+platform-agnostic C++11 library; the same code builds as a Linux simulator or for the
+OPTA hardware.
 
-This documentation is organised into four parts:
+Everything specific to one physical greenhouse - its variables, alarms and control
+programs - is a **site**: a directory of declarative tables plus a few pages of code.
+The library never knows which greenhouse it is running.
 
-- @subpage introduction - what Botanik is, how the firmware is layered
-  (sketch / site / base library), and how to stand up a new project.
-- @subpage manual - operating a running unit over its serial terminal: the pages,
-  the shell, and (later) the wiring and PLC-side setup.
-- @subpage library - the engineering reference: subsystems, key concepts, the
-  architecture deep-dives, the build targets, and the test suites. The full API
-  surface is in the **Namespaces** and **Classes** tabs.
-- @subpage reference - the `gh_mlb41` greenhouse, the reference site that every
-  example here is drawn from.
+This documentation is in three parts, by who you are:
+
+- @subpage manual - **User manual.** Operating a running unit: the console and its
+  pages, the shell, settings, alarms, logs, and control authority.
+- @subpage integration - **Integration manual.** Building your own product on
+  `libbotanik`: declaring a site, its tables, its control programs, and the config
+  surface.
+- @subpage development - **Developer manual.** Working on the library itself: the
+  architecture, the console TX path, and the other mechanisms worth knowing before
+  you change them.
+
+The full API surface is in the **Namespaces** and **Classes** tabs.
 */

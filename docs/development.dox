@@ -1,0 +1,67 @@
+/**
+@page development Developer manual
+
+@brief Working on @c libbotanik itself - the mechanisms, and why they are the way
+       they are.
+
+This part is for changing the library, not using it. Each page takes one mechanism
+and explains how it actually works; read @ref dev_architecture first, then whichever
+subsystem you are touching.
+
+@section dev_metrics At a glance
+
+Regenerated on every docs build by `scripts/code_charts.py`, broken down by code area
+(the folder under `src/`). The first sizes each area; the second shows where recent
+work has gone.
+
+@htmlonly
+<div class="code-charts">
+  <figure>
+    <img src="code_loc.svg" alt="Lines of code by area"/>
+    <figcaption>Lines of code by area (code lines only, via cloc)</figcaption>
+  </figure>
+  <figure>
+    <img src="code_churn.svg" alt="Churn by area"/>
+    <figcaption>Churn by area over the last 12 months: lines changed and commits touched</figcaption>
+  </figure>
+</div>
+@endhtmlonly
+
+@section dev_core Core
+
+- @subpage dev_architecture - the layers, the subsystem map, and the per-tick loop
+  order.
+- @subpage dev_concurrency - one cooperative loop, the async boundaries, and why
+  there is no `std::atomic`.
+- @subpage dev_scheduler - the fixed-period driver, overrun handling, and the
+  self-instrumented metrics.
+- @subpage dev_vars - the variable model: descriptors, value slots, the sink, and
+  where overrides are applied.
+
+@section dev_console Console
+
+The console is the subsystem with the most non-obvious machinery, because it drives
+a 4800-baud link and every byte is budgeted.
+
+- @subpage dev_input - raw bytes to input events to the active page.
+- @subpage dev_pages - the page interface, the render contract, and `Scrollback`.
+- @subpage dev_screen - **the TX path.** The screen back-buffer: how a whole
+  screen's worth of intent becomes the minimal paced ANSI on a slow link.
+- @subpage dev_editor - **editor reconciliation.** The one renderer that still
+  reasons about the screen itself, and why it earns the exception.
+
+@section dev_services Services
+
+- @subpage dev_logging - a log entry from call site through rate limiting to every
+  sink.
+- @subpage dev_health - the power-on self-test, the platform alarms, and the
+  watchdog verdict.
+- @subpage dev_network - the optional config-driven network stack.
+
+@section dev_platform Platform
+
+- @subpage dev_build - the two build targets, the build options, and the test
+  suites.
+- @subpage dev_porting - what a third target needs: one new HAL implementation.
+- @subpage testing - the test suites in detail.
+*/

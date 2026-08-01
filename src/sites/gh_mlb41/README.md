@@ -1,18 +1,21 @@
-// REVIEW_35: TODO
 # gh_mlb41 site
 
 The reference Botanik **site**: everything specific to one physical greenhouse.
 `libbotanik` stays generic; this directory is the single source of truth for the
 `gh_mlb41` greenhouse.
 
-| File | Holds |
-|---|---|
-| `site.h` | the `g_site` `SiteDescriptor` bundling every table, and the thin `GreenhouseMLB41` binding. The uniform handle a harness builds against (`BotanikSite`). |
-| `vars.h` / `vars.cpp` | every variable in one table (field inputs/outputs, computed internals, parameters) and its RAM value store. |
-| `status.h` | the display groups (`VarGroup[]`) and the home-screen readings (`HomeVar[]`), as VarRefs into those tables. |
-| `alarms.h` | the `g_alarms[]` condition table (one row per alarm: code, description, the VarRef carrying the condition, dwell). |
-| `sim.h` | the header-only simulated field: it writes the variable tables the way a Modbus driver will. Its whole body is `#ifdef TARGET_SIMULATOR`, so it drops out of the hardware build. |
-| `config.h` | build-wide config overrides (`#define BOTANIK_*`); kept separate so CMake includes it before the library defaults. |
+| File | Origin | Holds |
+|---|---|---|
+| `botanik.h` | generated | the only file that knows where `libbotanik` sits, so the directory is relocatable |
+| `vars.h` / `vars.cpp` | generated | every variable in one table (field inputs/outputs, computed internals, parameters), plus its RAM value store and string pool |
+| `status.h` | generated | the display groups (`VarGroup[]`) and the home-screen readings (`HomeVar[]`), as `VarRef`s |
+| `alarms.h` | generated | the `g_alarms[]` condition table: code, description, the `VarRef` carrying the condition, dwell, remediation |
+| `descriptor.h` | generated | the one `g_site` `SiteDescriptor` bundling every table |
+| `config.h` | generated | build-wide config overrides (`#define BOTANIK_*`); kept separate so CMake includes it before the library defaults |
+| `commands.h` | hand-written | the site's shell commands |
+| `tasks.h` | hand-written | the control programs |
+| `sim.h` | hand-written | the simulated field: it writes the variable tables the way a Modbus driver will. Its whole body is `#ifdef TARGET_SIMULATOR`, so it drops out of the hardware build |
+| `site.h` | hand-written | the thin `GreenhouseMLB41` binding and the uniform `BotanikSite` handle |
 
 `GreenhouseMLB41` derives `BotanikFirmware` and just
 passes `g_site` to the base constructor - it declares no pages and overrides no hooks.
@@ -24,13 +27,13 @@ per-beat logic or an extra page (e.g. re-adding a STATUS page by subclassing
 
 ## Data model
 
-Everything the site exposes is a **variable**, declared in `io.h` and addressed by
-table and index. There is no payload struct: nothing carries a byte offset any
-more, so re-ordering a table cannot silently re-point a status row, an alarm or a
-home field at its neighbour.
+Everything the site exposes is a **variable**, declared in `vars.h` and addressed by
+index. There is no payload struct: nothing carries a byte offset, so re-ordering a
+table cannot silently re-point a status row, an alarm or a home field at its
+neighbour.
 
 \startuml "gh_mlb41 variables: what the site declares"
-class "io.h" as IO {
+class "vars.h" as IO {
   analog in (43) : SDM630 three-phase meter (37) + MCT1-140 transfer switch (6)
   analog out (0) : AO-1 module wired but unmapped
   digital in (0) : AI-1 module wired but unmapped
@@ -84,11 +87,8 @@ void loop() {
 
 Notes:
 
-- **Console baud / geometry.** The HAL constructor uses `BOTANIK_CONSOLE_BAUD` and
-  80x24; pass `BotanikSite fw(cols, rows)` to change the geometry. The simulator passes
-  an explicit low baud through the region constructor instead.
+- **Console baud.** Defaults to `BOTANIK_CONSOLE_BAUD`; call `set_console_baud()`
+  before `setup()` to change it, as the simulator harness does.
 - **No simulated field on hardware.** `sim.h` compiles to nothing without
   `TARGET_SIMULATOR`; the Modbus driver fills the same variables instead.
-- The `botanik_fw` target and its C-callable hooks in `src/botanik_fw/` are the
-  canonical examples of this wiring (the Axel runtime drives the hooks, not a bare
-  `loop()`).
+- `src/botanik_fw/` is the canonical example of this wiring.

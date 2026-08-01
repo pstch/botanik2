@@ -7,9 +7,9 @@
  * Botanik is verified at three levels, from the firmware checking itself to host
  * suites that drive the real simulator:
  *
- * - @subpage md_docs_2POST - **Built-in self-tests and asserts.** The power-on
- *   self-test that validates structural invariants at every boot, and the
- *   debug-only `BOTANIK_ASSERT`. These ship inside the firmware.
+ * - @ref dev_health - **Built-in self-tests and asserts.** The power-on self-test
+ *   that validates structural invariants at every boot, and the debug-only
+ *   `BOTANIK_ASSERT`. These ship inside the firmware.
  * - @subpage cpptests - **C++ tests.** A native [doctest](https://github.com/doctest/doctest)
  *   suite over the host-runnable logic (formatting, time math, object sizes, and
  *   the parser/logger/shell units).
@@ -20,7 +20,7 @@
  * @section testing_coverage Coverage at a glance
  *
  * Regenerated on every docs build (`scripts/code_charts.py`), broken down by code
- * area - a companion to the LoC / churn charts on the @ref library page.
+ * area - a companion to the LoC / churn charts on the @ref development page.
  *
  * @htmlonly
  * <div class="code-charts">

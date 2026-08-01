@@ -1,9 +1,12 @@
-# Pages
+# The page framework {#dev_pages}
 
-A *page* is a full-screen view multiplexed by @ref Botanik::Terminal::Console.
-Every page implements the @ref Botanik::Pages::Page interface; the terminal holds
-up to 8 of them, routes input to the active one (see
-[EVENT_DISPATCH.md](EVENT_DISPATCH.md)), and ticks all of them each loop.
+A *page* is a full-screen view multiplexed by @ref Botanik::Terminal::Console. Every
+page implements the @ref Botanik::Pages::Page interface; the console holds up to 8 of
+them, routes input to the active one (see @ref dev_input), and ticks all of them each
+loop.
+
+What each shipped page shows and how an operator drives it is in @ref user_pages;
+this page is the framework behind them.
 
 ## Screen contract
 
@@ -25,11 +28,9 @@ with no alarms it reverts to the page, so a page reads its usable row count from
 terminal rather than assuming a fixed height. The terminal clears the content area on
 every page switch, so `focus()` always paints onto a blank canvas.
 
-## Status contexts
-
-The status bar, the `stats` command, and the metric pages read one
-borrowed-pointer aggregate, @ref Botanik::SystemContext, rather than reaching
-into each subsystem - see @ref md_docs_2CONTEXTS "Contexts".
+The status bar, the `stats` command and the metric pages read one borrowed-pointer
+aggregate, @ref Botanik::SystemContext, rather than reaching into each subsystem -
+see @ref dev_architecture.
 
 ## The Page interface
 
@@ -47,23 +48,25 @@ into each subsystem - see @ref md_docs_2CONTEXTS "Contexts".
 
 `tick(active)` running for background pages too is the key to the log path:
 an inactive page banks queued entries without drawing (see
-[LOG_FLOW.md](LOG_FLOW.md)).
+@ref dev_logging).
 
 ## Hierarchy
 
-\startuml "the page class hierarchy: site pages (Greenhouse*) derive the templated library pages; some pages are also log/shell writers"
+\startuml "the page class hierarchy: every page is library-owned and site-independent; three of them double as log writers"
 hide members
 hide circle
 Page <|-- ShellPage
 Page <|-- LogsPage
 Page <|-- MetricPage
-MetricPage <|-- "HomePage<T>"
+Page <|-- ScrollTablePage
+MetricPage <|-- HomePage
 MetricPage <|-- "StatusPage<T>"
-"HomePage<T>" <|-- GreenhouseHomePage
-"StatusPage<T>" <|-- GreenhouseStatusPage
+ScrollTablePage <|-- AlarmsPage
+ScrollTablePage <|-- ParamsPage
+ScrollTablePage <|-- MonitorPage
 LogWriter <|-- ShellPage
 LogWriter <|-- LogsPage
-LogWriter <|-- "HomePage<T>"
+LogWriter <|-- HomePage
 ShellWriter <|-- ShellPage
 \enduml
 
@@ -79,11 +82,21 @@ ShellWriter <|-- ShellPage
   and only to spot *which* values changed for the `watch -d`-style highlight - a
   question about the data, which the diff cannot answer (it knows which cells
   differ, not why).
-  - @ref Botanik::Pages::HomePage "HomePage<T>" - landing page (also a `LogWriter`).
-  - @ref Botanik::Pages::StatusPage "StatusPage<T>" - full runtime/health display.
+  - @ref Botanik::Pages::HomePage - landing page (also a `LogWriter`).
+  - @ref Botanik::Pages::StatusPage "StatusPage<T>" - a two-column health grid,
+    templated on a site data struct. Shipped but **not** in the default tab order; a
+    site re-adds it by subclassing and overriding `register_pages()`.
+- @ref Botanik::Pages::ScrollTablePage - base for the scrollable tables: it owns the
+  scroll offset, the selection cursor, the shared navigation keys and the `^`/`v`
+  hidden-row marks, and leaves the column layout and the detail panel to the
+  subclass.
+  - @ref Botanik::Pages::AlarmsPage, @ref Botanik::Pages::ParamsPage,
+    @ref Botanik::Pages::MonitorPage.
 
-Both metric pages are templated on the site PLC output payload; the concrete
-`GreenhouseHomePage` / `GreenhouseStatusPage` fill in the site-specific readings.
+Every page is library-owned and site-independent. Sites contribute **data** - the
+home fields, the status groups, the alarm table - not page classes. `HomePage` and
+`MonitorPage` resolve their content generically from `VarRef`s at render time, which
+is why adding a reading to a site needs no code at all.
 
 ## Scrollback
 
@@ -101,7 +114,7 @@ replay is a straight row-by-row blit; oldest rows fall off as new ones arrive.
 
 It serves three jobs. None of them meters the wire itself: they draw into the
 terminal's FRONT grid and `present()` paces what that costs (see
-@ref md_docs_2SCREEN__BACKBUFFER). What they do bound is how much *work* a beat
+@ref dev_screen). What they do bound is how much *work* a beat
 does, so a burst never stalls the loop:
 
 - **Live tail.** While the page is active, a new line is banked and `drain_tail()`
@@ -115,31 +128,32 @@ does, so a burst never stalls the loop:
   time, painting only newly exposed rows. While scrolled up the live tail is **frozen**
   so incoming lines don't yank the view; `scroll_to_bottom()` releases it.
 
-## Alarms
+## AlarmCondition
 
-@ref Botanik::Pages::AlarmsPage renders the alarm-condition table as a scrollable view
-(filter modes: recent / all / active / unmasked). Each row is one
-@ref Botanik::Alarms::AlarmCondition - a **static** metadata prefix the site defines by
-aggregate-init (the row index is the alarm's bit index) followed by a **dynamic** suffix
-the @ref Botanik::Alarms::AlarmModel owns and drives (left zeroed at init). A threshold
+Each row of @ref Botanik::Pages::AlarmsPage is one
+@ref Botanik::Alarms::AlarmCondition - a **static** metadata prefix the site defines
+by aggregate-init, followed by a **dynamic** suffix the
+@ref Botanik::Alarms::AlarmModel owns and drives (left zeroed at init). A threshold
 of `-1` disables that action; dwell fields are in seconds.
 
 \startuml "AlarmCondition: site-defined static metadata + model-owned dynamic state"
 class AlarmCondition {
   code : const char* - short code (<= 8 chars)
   desc : const char* - human description
-  masked_by : uint64 - alarms that suppress this one
+  ref : VarRef - the boolean variable carrying the condition
   on_s : int32 - ON dwell before announce (-1 off)
   off_s : int32 - OFF dwell before announce (-1 off)
-  recent_s : int32 - "recent" window (-1 forever)
+  recent_s : int32 - "recent" window (0 = a week, <0 forever)
   off_delay_s : int32 - hold ON after raw clears
   min_on_s : int32 - minimum ON latch from onset
+  notes : const char* - remediation text (may be null)
   --
+  local_raw : bool - locally asserted, OR'd with ref
   active : bool - active or latched
-  unmasked : bool - active and not masked
   on_sent : bool - ON transition announced
   off_sent : bool - OFF transition announced
   user_ack : bool - acknowledged by the user
+  ack_ms : uint64 - when it was acknowledged
   edge_ms : uint64 - since last transition
   started_ms : uint64 - since last ON transition
   off_delay_rem_ms : uint32 - off-delay countdown
@@ -147,6 +161,11 @@ class AlarmCondition {
 }
 \enduml
 
-The `--` separator splits the site-owned static metadata (above) from the model-owned
-dynamic state (below); @ref Botanik::Alarms::AlarmCondition::step "step()" advances the
-countdowns and announces due ON/OFF transitions each tick.
+The `--` separator splits the site-owned static metadata from the model-owned dynamic
+state; `step()` advances the countdowns and announces due ON/OFF transitions each
+tick.
+
+There is **no aggregate bitset**. Each condition names the `VarRef` of the boolean
+that carries it and the model reads that variable per condition, OR'd with a local
+override for the platform alarms. `notes` is last in the static block so a row that
+stops earlier still zero-initialises it.

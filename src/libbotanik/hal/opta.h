@@ -121,11 +121,61 @@ namespace Botanik { namespace HAL {
         __DMB();
     }
 
+    // @warning dst and src must not alias: ARM_MPU_OrderedMemcpy declares src
+    // __RESTRICT, so an in-place/overlapping copy is UB on the optimized path.
+    template <typename T>
+    inline void ordered_copy(T* dst, const T* src) {
+        // ARM_MPU_OrderedMemcpy counts 32-bit words, not bytes.
+        static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
+                      "ordered_copy needs a word-multiple T");
+        if (std::is_empty<T>::value) return;   // empty payload carries no data
+#if defined(DEBUG)
+        assert((const void*)dst != (const void*)src);   // no aliasing (see @warning)
+#endif
+        ARM_MPU_OrderedMemcpy((volatile uint32_t*)dst, (const uint32_t*)src,
+                              sizeof(T) / sizeof(uint32_t));
+        __DSB();
+    }
+
+    template <typename T>
+    inline void ordered_move(T* dst, T src) {
+        static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
+                      "ordered_move needs a word-multiple T");
+        if (std::is_empty<T>::value) return;   // empty payload carries no data
+        *dst = src;
+        __DSB();
+    }
+
     template <typename T>
     inline T ordered_read(const volatile T* src) {
         T value = *src;   // volatile load: the compiler must re-read it
         __DMB();          // acquire: order later accesses after this read
         return value;
+    }
+
+    // Cache discipline for a cross-core shared region. clean (write-back) is
+    // always safe - it rounds to whole lines and only ever writes back, losing
+    // nothing. invalidate DISCARDS whole lines, so it is safe ONLY on a region
+    // we treat as read-only: invalidate what the other core produces, clean
+    // what we produce. Sub-region calls are fine - they round to that region's
+    // own lines - provided the two regions never share one (align each to 32).
+    // @warning never invalidate a line holding data we wrote; that write is
+    // silently dropped.
+    inline void cache_clean(const void* addr, size_t len) {
+    #if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
+        // CMSIS rounds to lines
+        SCB_CleanDCache_by_Addr((void*)addr, (int32_t)len);
+    #else
+        (void)addr; (void)len;
+    #endif
+    }
+
+    inline void cache_invalidate(const void* addr, size_t len) {
+    #if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
+        SCB_InvalidateDCache_by_Addr((void*)addr, (int32_t)len);
+    #else
+        (void)addr; (void)len;
+    #endif
     }
 
     }  // namespace Memory

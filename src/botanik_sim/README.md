@@ -1,7 +1,5 @@
 # botanik_sim - Linux simulator
 
-<!-- REVIEW_35: TODO -->
-
 Runs `libbotanik` as an ordinary Linux process so the full terminal UI, logging,
 scheduler, and scan cycle can be exercised without hardware. The hardware
 counterpart is [botanik_fw](../botanik_fw/README.md), which builds the same library
@@ -63,6 +61,6 @@ For an unattended high-iteration soak, build the release (no-sanitizer) sim - a
 debug+ASan build is too slow per dilated tick. The pyte test suite uses exactly
 this mechanism; see [tests/pyte/README.md](../../tests/pyte/README.md).
 
-See also the cross-cutting design notes: [PAGES.md](../../docs/PAGES.md),
-[SCHEDULER_PERF.md](../../docs/SCHEDULER_PERF.md), and
-[LOG_FLOW.md](../../docs/LOG_FLOW.md).
+See also the developer manual: [the page framework](../../docs/dev/pages.md),
+[the scheduler](../../docs/dev/scheduler.md), and
+[log flow](../../docs/dev/logging.md).

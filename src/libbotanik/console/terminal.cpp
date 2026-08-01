@@ -510,7 +510,7 @@ namespace Botanik { namespace Terminal {
             // order - lines of output, and the rows of a freshly drawn page,
             // read top-down and have to arrive that way. Advancing the cursor
             // past budget-hungry upper rows is also what stops them winning the
-            // budget every tick. See docs/SCREEN_BACKBUFFER.md.
+            // budget every tick. See docs/dev/screen.md.
             uint16_t start = _resume[prio];
             for (uint16_t row = start; row < _rows; row++) {
                 if (_row_prio[row] != prio) continue;

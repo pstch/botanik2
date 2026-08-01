@@ -531,9 +531,10 @@ namespace Botanik {
             _console.terminal().add_page(&_monitor_page);
         }
 
-        /** @brief Register the site's shell command table (tried after the
-         *  built-ins, so a site can't shadow exit/reset). Default: the
-         *  descriptor's commands, reading the live variable bank as their ctx. */
+        /** @brief Register the site's shell command table (tried BEFORE the
+         *  built-ins, so the table can shadow one - avoid reusing exit/reset).
+         *  Default: the descriptor's commands, reading the live variable bank
+         *  as their ctx. */
         virtual void register_commands() {
             _console.shell().set_commands(_site.commands, _site.command_count,
                                           (void*)&_io);

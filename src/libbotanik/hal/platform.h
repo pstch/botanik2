@@ -95,10 +95,53 @@ namespace Botanik { namespace HAL {
          *  waiting for completion. Used for cross-core counter polls. */
         inline void dmb();
 
+        /** @brief Copy a block of memory with hardware-enforced ordering, then
+         *  fence. @p T must be a word multiple, and @p dst / @p src must not
+         *  alias (the OPTA path declares src __RESTRICT, so an overlapping copy
+         *  is UB there).
+         *
+         *  @note Currently unused. Kept for the M4 core: publishing a block to
+         *  a second core is what this is for, and it is the kind of primitive
+         *  that must be right rather than rewritten in a hurry. Do not remove
+         *  it as dead code. */
+        template <typename T>
+        inline void ordered_copy(T* dst, const T* src);
+
+        /** @brief Push a single value into a memory location, then fence - the
+         *  scalar counterpart of ordered_copy().
+         *
+         *  @note Currently unused; kept for the M4 core. See ordered_copy(). */
+        template <typename T>
+        inline void ordered_move(T* dst, T src);
+
         /** @brief Read a value the other core may be writing: a volatile load
          *  (never cached in a register) plus dmb() for acquire ordering. */
         template <typename T>
         inline T ordered_read(const volatile T* src);
+
+        /** @brief Clean (write back) the D-cache over [addr, addr+len) after
+         *  writing a shared region, so the other core sees the data in SRAM.
+         *  Rounds to whole cache lines. No-op without a D-cache (the simulator,
+         *  or a Cortex-M4).
+         *
+         *  Always safe: it only ever writes back, so a rounded-up line loses
+         *  nothing.
+         *
+         *  @note Currently unused; kept for the M4 core. See ordered_copy(). */
+        inline void cache_clean(const void* addr, size_t len);
+
+        /** @brief Invalidate the D-cache over [addr, addr+len) before reading a
+         *  shared region, so a stale cached copy cannot hide the other core's
+         *  writes. Rounds to whole cache lines. No-op without a D-cache.
+         *
+         *  @warning Unlike cache_clean(), this DISCARDS whole lines. It is safe
+         *  only on a region we treat as read-only. Invalidating a line that
+         *  holds something we wrote silently drops that write - so pair the two
+         *  by direction: invalidate what the other core produces, clean what we
+         *  produce, and keep the two regions on separate cache lines.
+         *
+         *  @note Currently unused; kept for the M4 core. See ordered_copy(). */
+        inline void cache_invalidate(const void* addr, size_t len);
 
     }  // namespace Memory
 

@@ -1,4 +1,4 @@
-# Editor Reconcile
+# Editor reconciliation {#dev_editor}
 
 How `TextEditor` (`console/editor.h`) repaints a multi-row line after an edit
 while emitting the **fewest possible bytes** over the serial link. The UI drives a
@@ -7,7 +7,7 @@ acceptable.
 
 **Where this sits.** The editor does not write to the wire. Its ops paint into the
 terminal's FRONT grid, and `present()` diffs that against what is on the wire and
-paces the result (see @ref md_docs_2SCREEN__BACKBUFFER). So the per-row splicing
+paces the result (see @ref dev_screen). So the per-row splicing
 below is byte-neutral on its own - a spliced row and a fully repainted row leave
 FRONT identical, and the diff emits the same either way.
 
@@ -89,7 +89,7 @@ contiguous edit changes the screen in a very constrained way, which it exploits:
 Typing one character mid-line emits roughly *one insert char + one cursor move*,
 not a row (or screen) repaint. The byte cost scales with what actually changed,
 not with the buffer size - the whole point on a serial link measured in hundreds
-of baud. See @ref md_docs_2EVENT__DISPATCH for how the bytes that *trigger* an
+of baud. See @ref dev_input for how the bytes that *trigger* an
 edit arrive in the first place.
 
 ## Bottom-pinned geometry

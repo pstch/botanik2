@@ -1,4 +1,4 @@
-/* Layout for the code charts at the top of the Library page (docs/library.dox).
+/* Layout for the code charts at the top of the developer manual.
    Two figures that sit side by side when the content column is wide enough and
    wrap to a stack when it is not. flex-basis sets the side-by-side threshold:
    both fit only when the column can hold two ~340px columns plus the gap. */

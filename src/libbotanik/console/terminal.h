@@ -26,7 +26,7 @@
  * back-buffer, so the pages are written against it deliberately and must not be
  * rewritten to track their own dirty regions or diff by hand. The one measured
  * exception is the line editor, which reconciles its own row (docs/
- * EDITOR_RECONCILE.md); see also docs/SCREEN_BACKBUFFER.md.
+ * dev/editor.md); see also docs/dev/screen.md.
  */
 
 #include <cstdint>
