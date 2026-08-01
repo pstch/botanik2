@@ -10,7 +10,7 @@
  * registered after the library built-ins, so they cannot shadow exit/reset.
  *
  * The ctx passed to each handler is the live `const Vars::Io*` (wired by
- * the firmware base from the descriptor), so a command reads fresh PLC data
+ * the firmware base from the descriptor), so a command reads fresh variable data
  * without holding any state of its own.
  */
 

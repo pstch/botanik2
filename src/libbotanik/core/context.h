@@ -11,6 +11,7 @@
 
 // Forward-declare pointer types for context members
 namespace Botanik { namespace Scheduler { struct SchedulerContext;  } }
+namespace Botanik { namespace Vars      {  class Bank;              } }
 
 
 #if BOTANIK_FEATURE_NETWORK
@@ -34,6 +35,12 @@ namespace Botanik {
     struct SystemContext {
 
         Scheduler::SchedulerContext*   scheduler = nullptr; ///< Performance snapshots
+
+        /** @brief The variables - THE object to get, set and override anything
+         *  the firmware exposes. Non-const: `set` and `override` write through
+         *  it. Consumers reach it here rather than being handed their own
+         *  pointer, so there is one wiring point instead of one per consumer. */
+        Vars::Bank*                    vars      = nullptr;
 
 
 #if BOTANIK_FEATURE_NETWORK

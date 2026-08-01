@@ -57,7 +57,7 @@ namespace Botanik { namespace Terminal {
          *  @{ */
 
         /** @brief Subsystem status contexts for the status bar and `stats`
-         *  (scheduler + PLC; members may be null). */
+         *  (scheduler, network, ...; members may be null). */
         SystemContext                _ctx    = {};
         /** @brief Alarm source feeding the bar (may be null). When null there is
          *  no bar, _reserved_bottom stays 0, and the bottom row belongs to pages. */
@@ -89,17 +89,17 @@ namespace Botanik { namespace Terminal {
                 const uint64_t* timestamp_ms, uint32_t baud,
                 const SystemContext& ctx = {},
                 const Alarms::AlarmModel* alarms = nullptr,
-                Logs::Logger* logger = nullptr);
+                Logs::Logger* logger = nullptr,
+                Ansi::TerminalType type = Ansi::CONFIGURED_TERMINAL);
 
         /** @brief The VT device: renderers (pages, editor, bars) paint through
          *  this reference. */
         AnsiTerminal&       terminal()       { return _term; }
         const AnsiTerminal& terminal() const { return _term; }
 
-        /** @brief Select the terminal type (forwarded to the device); call once
-         *  before the first render. */
-        void setup_minitel() { _term.setup_minitel(); }
-        void setup_vt102()   { _term.setup_vt102();   }
+        /** @brief Emit the terminal's setup handshake (forwarded to the
+         *  device); call once before the first render. */
+        void setup_terminal() { _term.setup_terminal(); }
 
         /** @}
          *  @name Content-area geometry & scrolling

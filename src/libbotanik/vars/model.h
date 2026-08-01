@@ -46,6 +46,8 @@
 
 #include "scalar.h"
 
+namespace Botanik { namespace Logs { class Logger; } }
+
 namespace Botanik { namespace Vars {
 
     /** @name Descriptor
@@ -123,13 +125,37 @@ namespace Botanik { namespace Vars {
     /** @brief One value slot, parallel to the descriptor table.
      *
      *  No `def` here: the default is a typed literal in flash, so an invalid
-     *  read falls back to it without a per-slot copy. */
+     *  read falls back to it without a per-slot copy.
+     *
+     *  @section value_override The override
+     *
+     *  A slot carries a second value that, while @c ovr_on, is what every
+     *  reader sees instead of @c v - a maintenance tool: force a sensor to test
+     *  the logic above it, freeze a computed value, or drive an actuator by
+     *  hand. It shadows rather than replaces: the driver keeps publishing into
+     *  @c v underneath, so clearing the override snaps straight back to the live
+     *  reading with no gap and nothing to restore.
+     *
+     *  @c ovr_valid is separate because "force this to 20 C" and "make this read
+     *  as a dead sensor" are both things you need, and quality is what tells
+     *  them apart.
+     *
+     *  Deliberately RAM-only and never persisted: an override left on across a
+     *  reboot is a fault waiting to happen, and a reboot is exactly what an
+     *  operator reaches for when a machine is behaving strangely. */
     struct Value {
         Scalar   v;
+        Scalar   ovr;        ///< forced value, while ovr_on
         uint64_t stamp_ms;   ///< uptime ms of the last good update
         bool     valid;
-        uint8_t  _rsv[7];
+        bool     ovr_on;     ///< an override is in force
+        bool     ovr_valid;  ///< what valid() reports while overridden
+        uint8_t  _rsv[5];
     };
+    // The override costs 8 bytes per variable, in RAM, on every site whether it
+    // uses one or not - so it is pinned here rather than left to drift. Adding a
+    // field means spending another 8 across the whole table; say so out loud.
+    static_assert(sizeof(Value) == 32, "Value must stay 32 bytes (RAM per variable)");
 
     /** @brief A reference to any variable: a bare index into the one table.
      *
@@ -168,15 +194,44 @@ namespace Botanik { namespace Vars {
          *  An invalid variable reads as its declared default, so control logic
          *  that does not care about quality still gets a sane number, and logic
          *  that does care asks valid().
+         *
+         *  An override is applied HERE, at the one place every reader goes
+         *  through, so forcing a variable reaches control logic, the console,
+         *  telemetry and the alarm model alike - there is no path that sees
+         *  around it.
          *  @{ */
-        Scalar   raw()   const { return _v->valid ? _v->v : _d->def; }
+        Scalar   raw()   const { return _v->ovr_on ? _v->ovr
+                                                   : (_v->valid ? _v->v : _d->def); }
         /** @brief As a float; a digital reads 0/1, so a consumer that only
          *  displays or publishes never branches on the type. */
         float    value() const { return as_f32(_d->type, raw()); }
         bool     b()     const { return as_bool(_d->type, raw()); }
         int64_t  i()     const { return as_i64(_d->type, raw()); }
-        bool     valid() const { return _v->valid; }
+        bool     valid() const { return _v->ovr_on ? _v->ovr_valid : _v->valid; }
         uint64_t stamp() const { return _v->stamp_ms; }
+        /** @} */
+
+        /** @name Override (maintenance)
+         *  See Value's override note. Writes keep landing in the underlying
+         *  slot while one is in force, so clearing it resumes the live value.
+         *  @{ */
+
+        /** @brief True while this variable is forced. */
+        bool overridden() const { return _v->ovr_on; }
+
+        /** @brief Force the variable to @p v, reading as @p valid. */
+        void override_set(Scalar v, bool valid = true) {
+            _v->ovr = v; _v->ovr_valid = valid; _v->ovr_on = true;
+        }
+
+        /** @brief Freeze the variable at whatever it reads right now - the
+         *  no-value form of the console's `override` command, for pinning a
+         *  signal while you work on what depends on it. */
+        void override_freeze() { override_set(raw(), valid()); }
+
+        /** @brief Release the override; the live value takes over again. */
+        void override_clear() { _v->ovr_on = false; }
+
         /** @} */
 
         /** @name Write
@@ -230,6 +285,30 @@ namespace Botanik { namespace Vars {
         uint16_t        param_count;
     };
 
+    /** @brief What a write attempt did.
+     *
+     *  A failed PERSIST is not a rejected EDIT: the value is live either way,
+     *  and telling the operator their input was invalid when the storage
+     *  refused it sends them to fix the wrong thing. */
+    enum SetResult : uint8_t {
+        SET_OK,             ///< applied and persisted
+        SET_INVALID,        ///< rejected - malformed, out of range, read-only
+        SET_NOT_PERSISTED   ///< applied in RAM, but storage refused it
+    };
+
+    /** @brief Where a parameter's value survives a reboot. The implementation
+     *  over HAL::Storage lives in params.h; the Bank only needs the interface,
+     *  so a test can hand it a stub. */
+    struct ParamStore {
+        virtual ~ParamStore() {}
+        /** @brief Load @p d's stored value into @p v (and the pool, for a
+         *  T_STR). @return false when the key is absent, which is not an error:
+         *  the caller keeps the declared default. */
+        virtual bool load(const Variable& d, Value& v, char* pool) = 0;
+        /** @brief Persist @p d's current value. */
+        virtual bool save(const Variable& d, const Value& v, const char* pool) = 0;
+    };
+
     /**
      * @brief What everything is handed to reach the variables.
      *
@@ -240,14 +319,34 @@ namespace Botanik { namespace Vars {
      * as a signal that never moves instead of the wrong actuator firing.
      */
     class Bank {
-        VarTables _t;
+        VarTables   _t;
+        /** @brief Where ROLE_PARAM writes are persisted (null -> RAM only, and
+         *  set() reports SET_NOT_PERSISTED). */
+        ParamStore*   _store  = nullptr;
+        /** @brief The holds currently in force. Starts held by the system:
+         *  outputs are not ours to move until bring-up says so. */
+        uint8_t       _inhibits = (uint8_t)INHIBIT_HEALTH;
+        /** @brief For the one thing the bank must not swallow: a write the
+         *  store refused (see set()). May be null. */
+        Logs::Logger* _logger = nullptr;
     public:
         Bank() {}
         explicit Bank(const VarTables& t) : _t(t) {}
 
+        /** @brief Bind the parameter store and the log a refused write goes to.
+         *  Wired once at bring-up, before load_params(). */
+        void set_store(ParamStore* s, Logs::Logger* logger = nullptr) {
+            _store = s; _logger = logger;
+        }
+
         /** @brief Seed every slot from its declared default, copy string
-         *  defaults into the pool, and set the initial validity per role. */
+         *  defaults into the pool, set the initial validity per role, and clear
+         *  every override. */
         void init();
+
+        /** @brief Load every ROLE_PARAM from the store, over the defaults
+         *  init() seeded. A missing key is normal (the default stands). */
+        void load_params();
 
         const VarTables& tables() const { return _t; }
         char*            pool() const   { return _t.pool; }
@@ -272,18 +371,98 @@ namespace Botanik { namespace Vars {
          *  NUL-terminated. */
         VarRef find(const char* name, uint16_t len) const;
 
-        /** @brief Drop every ROLE_OUTPUT to its declared safe state.
+        /** @name Control authority
+         *
+         *  Whether the firmware is allowed to drive the field at all.
+         *
+         *  Two INDEPENDENT sources can hold it down, and control returns only
+         *  when both have let go. That is the whole reason this is a set rather
+         *  than a flag: an operator who disabled control at the console must
+         *  still be disabled after a health fault comes and goes, and a firmware
+         *  that has just recovered must not quietly talk over them.
+         *
+         *  It starts held by INHIBIT_HEALTH, so a half-constructed firmware
+         *  cannot energise an actuator between power-on and the point bring-up
+         *  says it is ready.
+         *  @{ */
+
+        /** @brief Who is holding control down. Control is enabled only when the
+         *  set is empty. */
+        enum ControlInhibit : uint8_t {
+            INHIBIT_OPERATOR = 1u << 0,  ///< `control disable` at the console
+            INHIBIT_HEALTH   = 1u << 1,  ///< not yet brought up, health fault,
+                                         ///< or a reset we have decided to take
+        };
+
+        /** @brief Release @p source's hold. The field becomes drivable again
+         *  only if nothing else is still holding it. */
+        void enable_control(ControlInhibit source = INHIBIT_OPERATOR);
+
+        /** @brief Have @p source withhold control: drop every ROLE_OUTPUT to its
+         *  declared safe state, release any override holding one, and refuse to
+         *  take new ones until control returns.
+         *
+         *  This outranks a maintenance override, never the other way round: an
+         *  override is for a machine someone is standing at and watching, while
+         *  this runs when the firmware can no longer reason about what it is
+         *  driving (or is about to stop running at all). An actuator held
+         *  energised by hand through that is the one outcome the safe state
+         *  exists to prevent.
          *
          *  Outputs only. An internal is derived state - an alarm condition, a
          *  latched interlock - and clearing it would erase the very diagnosis
-         *  that put the firmware into safe mode. A parameter is configuration
-         *  and sweeping it would revert the network settings on a scan overrun. */
-        void all_outputs_safe();
+         *  that got us here. A parameter is configuration, and sweeping it would
+         *  revert the network settings on a scan overrun. */
+        void disable_control(ControlInhibit source = INHIBIT_OPERATOR);
+
+        /** @brief Whether the field may be driven (the scan is gated on it). */
+        bool control_enabled() const { return _inhibits == 0; }
+
+        /** @brief True while @p source is one of the holds in force - what lets
+         *  the console say WHY control is off, so an operator whose `control
+         *  enable` did not bring it back is told what else is holding it. */
+        bool control_inhibited_by(ControlInhibit source) const {
+            return (_inhibits & (uint8_t)source) != 0;
+        }
+
+        /** @} */
 
         /** @brief Invalidate ROLE_INPUTs whose last good read is older than
          *  their declared timeout. A timeout of 0 never expires, for a value a
          *  driver publishes only on change. */
         void expire_stale(uint64_t now_ms);
+
+        /** @name Writing
+         *
+         *  The two ways a human changes a variable, and they are deliberately
+         *  different things. set() edits a PARAMETER: validated against its
+         *  declared band and persisted, because it is configuration. override()
+         *  forces ANY variable: volatile, and range-checked against the type
+         *  only - forcing a reading outside its plausibility band is precisely
+         *  how you exercise the alarm that watches for it.
+         *  @{ */
+
+        /** @brief Apply @p text to parameter @p h and persist it. Rejects a
+         *  non-parameter (SET_INVALID): writing a sensor or an output here would
+         *  be overwritten by the next scan, which is what override() is for. */
+        SetResult set(Var h, const char* text);
+
+        /** @brief Force @p h to @p text until override_clear(). T_STR is
+         *  refused (a hostname is configuration, not a field signal), and so is
+         *  a ROLE_OUTPUT while control is disabled - accepting one there would
+         *  quietly stage an actuator command to fire the moment control
+         *  returned. */
+        SetResult override_set(Var h, const char* text);
+
+        /** @brief Release every override in one go (what a maintainer wants
+         *  after a session, and what init() does). @return how many were on. */
+        uint16_t clear_overrides();
+
+        /** @brief Variables currently overridden - surfaced so a forgotten
+         *  override cannot hide. */
+        uint16_t override_count() const;
+
+        /** @} */
 
     private:
         /** @brief The inert sink a bad index resolves to. Reset on every such

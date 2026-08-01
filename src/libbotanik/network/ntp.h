@@ -4,7 +4,7 @@
 
 /**
  * @file ntp.h
- * @brief NtpClient - PLC-config-driven SNTP client that disciplines the RTC.
+ * @brief NtpClient - parameter-driven SNTP client that disciplines the RTC.
  *
  * Derives Component (config-serial machinery), so it restarts when the `ntp`
  * config block's serial bumps. Resolves a server through the shared
@@ -38,7 +38,7 @@ namespace Botanik { namespace Network {
         return unix_s * 1000ull + ms;
     }
 
-    /** @brief NTP client driven by the PLC `ntp` config block: resolves a
+    /** @brief NTP client driven by the `ntp` parameter group: resolves a
      *  server via the NameResolver, runs a non-blocking SNTP exchange over
      *  HAL::Net UDP, and disciplines the RTC. Gated on NetworkHandler::is_up().
      *  Restarts on a config change; falls back to the second server and backs

@@ -119,7 +119,7 @@ misplaced offset silently reads a neighbouring field. Emit every field explicitl
 
 Fields are collected into `ScalarGroup { topic, fields, count }`, and the groups
 into `g_status_groups[]` + `g_status_group_count`. One table feeds three
-consumers: the MONITOR page, the shell `status` command, and MQTT telemetry under
+consumers: the MONITOR page, the shell `get` command, and MQTT telemetry under
 `<prefix>/telemetry/<topic>/<name>`. Leaf names therefore drop the group prefix:
 `ac_supply/grid_v`, not `ac_supply/grid_ac_v`.
 

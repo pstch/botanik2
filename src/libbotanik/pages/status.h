@@ -6,7 +6,8 @@
  * @file status.h
  * @brief StatusPage - full-screen runtime status display (template base).
  *
- * Templated on the site PLC output payload for type-safe data() access. The
+ * Templated on whatever site data struct the derived page wants typed access to
+ * through data(); pass Empty for none. The
  * base renders system health as a two-column grid (rows 3..6): left CPU load /
  * jitter / stack, right wall clock / uptime / task period / console
  * TX. Values are right-aligned so label and value read as separate sub-columns.
@@ -47,7 +48,7 @@ namespace Botanik { namespace Pages {
         /** @name State
          *  @{ */
 
-        /** @brief Typed PLC output payload (may be null). */
+        /** @brief Typed site data struct (may be null). */
         const OutputData* _data;
 
         /** @} */
@@ -224,14 +225,14 @@ namespace Botanik { namespace Pages {
          *  no-op. */
         virtual void draw_payload_dynamic() {}
 
-        /** @brief Typed PLC output payload for derived rendering (may be
+        /** @brief Typed site data for derived rendering (may be
          *  null). */
         const OutputData* data() const { return _data; }
 
         /** @} */
 
     public:
-        /** @brief Bind to a terminal and PLC payload. */
+        /** @brief Bind to a terminal and site data struct. */
         StatusPage(Console& console, const OutputData* data)
             : MetricPage(console), _data(data) {
             // wall clock + uptime tick per second

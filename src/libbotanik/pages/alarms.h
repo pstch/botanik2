@@ -65,25 +65,11 @@ namespace Botanik { namespace Pages {
         /** @brief Filter mode, cycled by SPACE (see MODE_*). Defaults to
          *  RECENT. */
         uint8_t                   _mode     = MODE_RECENT;
-        /** @brief A nav / mode / ack / set-change happened: the next tick
-         *  recollects and redraws the table (the terminal diff pares the bytes). */
-        bool                      _dirty = false;
-        /** @brief Uptime of the last once-a-second alarm-set re-check (see
-         *  tick()). */
+        /** @brief A nav / mode / ack happened: redraw on the next tick rather
+         *  than waiting for the value cadence, so the keypress feels immediate. */
+        bool                      _dirty = true;
+        /** @brief Uptime of the last cadence rebuild (see tick()). */
         uint64_t                  _last_refresh_ms = 0;
-        /** @brief Effective-active set at the last repaint. Badge / last-event
-         *  / order change only on an effective transition, so this gates the
-         *  repaint - except RECENT membership, which also expires on time (see
-         *  _last_recent_sig). */
-        uint64_t                  _last_active_sig = 0;
-        /** @brief Conditions in their RECENT window at the last repaint. In
-         *  RECENT mode an alarm can age out with no raw transition, so a change
-         *  here is the only signal the list must refresh. */
-        uint64_t                  _last_recent_sig = 0;
-        /** @brief Acknowledged set at the last repaint. An ack changes the
-         *  sort/badge without moving the active set, so it gates the repaint
-         *  too. */
-        uint64_t                  _last_acked_sig = 0;
         /** @brief Visible alarm indices (table order), filled by _collect(). */
         uint8_t                   _vis[Alarms::ALARM_BITS];
         /** @brief Number of visible entries in _vis. */
@@ -112,35 +98,46 @@ namespace Botanik { namespace Pages {
          *  Columns: CODE | ON (reverse-video badge when active) | LAST EVENT
          *  (the last transition's timestamp, "YY/MM/DD HH:MM") | DESCRIPTION.
          *  @{ */
-        static constexpr uint16_t MARGIN     = 2;   // blank columns each side
-        static constexpr uint16_t CODE_W     = 10;  // cell inner width (1 pad)
-        static constexpr uint16_t STATE_W    = 4;   // " ON" badge / "ON" header
-        static constexpr uint16_t EVENT_W    = 16;  // " YY/MM/DD HH:MM"
+        static constexpr uint16_t CODE_W     = 9;   // content width
+        static constexpr uint16_t STATE_W    = 3;   // "ON" badge / "ON" header
+        static constexpr uint16_t EVENT_W    = 15;  // "YY/MM/DD HH:MM"
         static constexpr uint16_t HEADER_ROW = 2;
         static constexpr uint16_t RULE_ROW   = 3;
         static constexpr uint16_t DATA_TOP   = 4;
-        /** @brief Screen column where the state cell's text starts, tracking
-         *  the layout _draw_grid_row() emits: margin + "| " + CODE(inner) +
-         *  "| ". The "ON" badge starts here; _draw_data_row() splits the row
-         *  write at this column so only those two chars are reverse-video (no
-         *  flicker-prone overdraw). */
-        static constexpr uint16_t STATE_TEXT_COL = MARGIN + 2 + (CODE_W - 1) + 2;
-        /** @brief CODE field span (contents only, no "| " border): the only part
-         *  inverted for the selection cursor, so a selection move patches one
-         *  small field, not a whole row. The span stops one column short of the
-         *  right border, leaving the cell's trailing pad plain - so the highlight
-         *  reads as a bordered cell with a gap each side (mirrors the CONFIG page),
-         *  not a block butting the "|". Safe because codes are at most CODE_W-2
-         *  wide, so that last column is always padding. */
-        static constexpr uint16_t CODE_CELL_L    = MARGIN + 2;             // 4
-        static constexpr uint16_t CODE_CELL_R    = MARGIN + 2 + CODE_W - 2;// 12
+        /** @brief Column order. The CODE cell is the only part inverted for the
+         *  selection cursor, so a selection move patches one small field, not a
+         *  whole row; the highlight stops one column short of its right edge
+         *  (_code_cell_r()), leaving a plain gap before the border - which is
+         *  safe because codes are at most CODE_W-1 wide. The STATE cell carries
+         *  its own reverse-video "ON" badge, split out of the row write so there
+         *  is no flicker-prone overdraw. */
+        enum { C_CODE = 0, C_STATE, C_EVENT, C_DESC };
         /** @} */
 
-        /** @brief Description-column width: the row remainder, clamped. */
-        uint16_t _desc_w() const {
-            // 5 rules + fixed cells
-            return _flex_width((uint16_t)(2 * MARGIN + 5 + CODE_W + STATE_W + EVENT_W), 70);
+        /** @brief The alarms grid packs its cells (no trailing pad): the width
+         *  it saves goes to the description column. */
+        bool _pad_cells() const override { return false; }
+
+        /** @brief Description CELL width (its lead pad included): the row
+         *  remainder, clamped. The content is one narrower - see _columns(). */
+        uint16_t _desc_cell_w() const {
+            // 5 rules + fixed cells (each width carries its lead pad)
+            return _flex_width((uint16_t)(2 * MARGIN + 5 + (CODE_W + 1) + (STATE_W + 1)
+                                          + (EVENT_W + 1)), 70);
         }
+
+        uint8_t _columns(Col* out) const override {
+            out[C_CODE]  = Col{ "CODE",        CODE_W   };
+            out[C_STATE] = Col{ "ON",          STATE_W  };
+            out[C_EVENT] = Col{ "LAST EVENT",  EVENT_W  };
+            // Content width: the flexible cell minus its lead pad.
+            out[C_DESC]  = Col{ "DESCRIPTION", (uint16_t)(_desc_cell_w() - 1) };
+            return 4;
+        }
+
+        /** @brief Right edge of the selection highlight: one short of the CODE
+         *  cell's contents (see the column note above). */
+        uint16_t _code_cell_r() const { return (uint16_t)(_cell_end(C_CODE) - 1); }
 
         /** @brief Format the last-event cell: edge_ms as "YY/MM/DD HH:MM", or
          *  empty if it never fired (ON vs OFF is shown by the ON column). */
@@ -152,53 +149,6 @@ namespace Botanik { namespace Pages {
                      (unsigned)t.hour, (unsigned)t.minute);
         }
 
-        /** @brief Build a '|'-ruled grid row into @p line, returning its
-         *  length. */
-        uint16_t _build_grid_row(char* line, size_t cap, const char* c0,
-                                 const char* c1, const char* c2, const char* c3) {
-            const char* cell[4] = { c0, c1, c2, c3 };
-            uint16_t    w[4]    = { CODE_W, STATE_W, EVENT_W, _desc_w() };
-            uint16_t n = 0;
-            line[n++] = ' '; line[n++] = ' ';                // left margin
-            for (uint8_t i = 0; i < 4; i++) {
-                if (n < cap - 1) line[n++] = '|';
-                int cw = (int)w[i] - 1;
-                int m  = snprintf(line + n, cap - n, " %-*.*s", cw, cw,
-                                  cell[i] ? cell[i] : "");
-                if (m < 0) m = 0;
-                n = (uint16_t)(n + m);
-                if (n > cap - 1) { n = (uint16_t)(cap - 1); break; }
-            }
-            if (n < cap - 1) line[n++] = '|';                 // closing rule
-            return n;
-        }
-
-        /** @brief Draw a structural row (all normal video); the terminal's diff
-         *  drops it when unchanged. */
-        void _emit(uint16_t row, const char* line, uint16_t n) {
-            _draw_line(row, line, n);   // shared bordered-table line painter
-        }
-
-        /** @brief Draw a '|'-ruled grid row (all normal video). */
-        void _draw_grid_row(uint16_t row, const char* c0, const char* c1,
-                            const char* c2, const char* c3) {
-            char     line[160];
-            uint16_t n = _build_grid_row(line, sizeof(line), c0, c1, c2, c3);
-            _emit(row, line, n);
-        }
-
-        /** @brief Draw a horizontal rule "+----+--+...+". @p sep is the
-         *  corner/separator char: '+' plain, or '^'/'v' to cap the edge with
-         *  scroll arrows when alarms are hidden above / below. */
-        void _draw_rule(uint16_t row, char sep = '+') {
-            // The alarms grid's column widths already include the cell padding,
-            // so the spans go in as-is (unlike MONITOR/CONFIG's +2).
-            uint16_t spans[4] = { CODE_W, STATE_W, EVENT_W, _desc_w() };
-            ScrollTablePage::_draw_rule(row, MARGIN, spans, 4, sep, sep);
-        }
-
-        /** @brief Blank a structural row. */
-        void _clear_row(uint16_t row) { _emit(row, "", 0); }
 
         /** @brief Draw the footer legend: reverse-video mode badge + counts on
          *  the left, SPACE-cycles-mode hint on the right. Drawn immediate-mode; the
@@ -335,58 +285,6 @@ namespace Botanik { namespace Pages {
             _clamp_selection();
         }
 
-        /** @brief Bitmask of conditions whose effective (latched) state is
-         *  active - what the table shows, so it (not raw()) gates the repaint:
-         *  a latched alarm whose raw bit pulses keeps a steady effective state,
-         *  so the badges don't flicker. */
-        uint64_t _active_sig() const {
-            if (_model == nullptr) return 0;
-            uint64_t m = 0;
-            for (uint8_t i = 0; i < _model->count(); i++)
-                if (_model->condition(i).active) m |= Alarms::alarm_bit(i);
-            return m;
-        }
-
-        /** @brief Bitmask of conditions within their RECENT window, to detect a
-         *  time-based expiry that leaves the active set unchanged. */
-        uint64_t _recent_sig() const {
-            if (_model == nullptr) return 0;
-            uint64_t now = HAL::Clock::uptime_ms(), m = 0;
-            for (uint8_t i = 0; i < _model->count(); i++) {
-                const Alarms::AlarmCondition& c = _model->condition(i);
-                if (c.code != nullptr && _is_recent(c, now)) m |= Alarms::alarm_bit(i);
-            }
-            return m;
-        }
-
-        /** @brief Bitmask of acknowledged conditions, to detect an ack that
-         *  changes the sort/badge without moving the active set. */
-        uint64_t _acked_sig() const {
-            if (_model == nullptr) return 0;
-            uint64_t m = 0;
-            for (uint8_t i = 0; i < _model->count(); i++)
-                if (_model->condition(i).user_ack) m |= Alarms::alarm_bit(i);
-            return m;
-        }
-
-        /** @brief Snapshot the change signature after a repaint. */
-        void _snapshot() {
-            _last_active_sig = _active_sig();
-            _last_recent_sig = _recent_sig();
-            _last_acked_sig  = _acked_sig();
-        }
-
-        /** @brief True if the displayed set moved since the last repaint (so a
-         *  steady, scrolled view is left untouched). The active set covers
-         *  badge/last-event/order; in RECENT mode a row can also expire on
-         *  time, so recent membership is compared. */
-        bool _changed() const {
-            if (_model == nullptr) return false;
-            if (_active_sig() != _last_active_sig) return true;
-            if (_acked_sig()  != _last_acked_sig)  return true;
-            return _mode == MODE_RECENT && _recent_sig() != _last_recent_sig;
-        }
-
         /** @name Window geometry
          *  Bottom-anchored on the content area. From the bottom up: free row,
          *  legend, blank, Ack'd line, Remediation line, blank, bottom rule, then
@@ -418,8 +316,12 @@ namespace Botanik { namespace Pages {
         /** @brief Redraw the top/bottom rules, capping with '^'/'v' when alarms
          *  are hidden above / below the window. */
         void _draw_rules(uint16_t window) {
-            _draw_rule(RULE_ROW,     _hidden_above()       ? '^' : '+');
-            _draw_rule(_brule_row(), _hidden_below(window) ? 'v' : '+');
+            // The alarms rules carry the arrow on EVERY column mark, not just
+            // the outer caps - hence the join argument.
+            char top = _hidden_above() ? '^' : '+';
+            char bot = _hidden_below(window) ? 'v' : '+';
+            _draw_rule(RULE_ROW,     top, top);
+            _draw_rule(_brule_row(), bot, bot);
         }
         /** @} */
 
@@ -427,9 +329,10 @@ namespace Botanik { namespace Pages {
          *  for the selection cursor (only the first cell highlights). Leaves the
          *  cursor at CODE_CELL_R. */
         void _write_code_cell(const char* line, bool selected) {
-            _terminal.write_chars(line, CODE_CELL_L);              // margin + "| "
+            const uint16_t l = _cell_col(C_CODE), r = _code_cell_r();
+            _terminal.write_chars(line, l);                        // margin + "| "
             if (selected) _terminal.set_inverted(true);
-            _terminal.write_chars(line + CODE_CELL_L, (uint16_t)(CODE_CELL_R - CODE_CELL_L));
+            _terminal.write_chars(line + l, (uint16_t)(r - l));
             if (selected) _terminal.set_inverted(false);
         }
 
@@ -441,23 +344,23 @@ namespace Botanik { namespace Pages {
             char ev[16];
             _fmt_event(ev, sizeof(ev), c);
             const char* state = c.active ? "ON" : (c.edge_ms != 0 ? "OFF" : "");
+            const char* cells[4] = { c.code ? c.code : "?", state, ev,
+                                     c.desc ? c.desc : "" };
             char     line[160];
-            uint16_t n = _build_grid_row(line, sizeof(line), c.code ? c.code : "?",
-                                         state, ev, c.desc ? c.desc : "");
+            uint16_t n = _build_row(line, sizeof(line), cells);
+            const uint16_t code_r = _code_cell_r(), badge = _cell_col(C_STATE);
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
             _write_code_cell(line, selected);
-            if (c.active && !c.user_ack && n > (uint16_t)(STATE_TEXT_COL + 2)) {
-                // "ON" sits at STATE_TEXT_COL: split so only it inverts.
-                _terminal.write_chars(line + CODE_CELL_R,
-                                      (uint16_t)(STATE_TEXT_COL - CODE_CELL_R));
+            if (c.active && !c.user_ack && n > (uint16_t)(badge + 2)) {
+                // "ON" leads the STATE cell: split so only it inverts.
+                _terminal.write_chars(line + code_r, (uint16_t)(badge - code_r));
                 _terminal.set_inverted(true);
-                _terminal.write_chars(line + STATE_TEXT_COL, 2);
+                _terminal.write_chars(line + badge, 2);
                 _terminal.set_inverted(false);
-                _terminal.write_chars(line + STATE_TEXT_COL + 2,
-                                      (uint16_t)(n - STATE_TEXT_COL - 2));
+                _terminal.write_chars(line + badge + 2, (uint16_t)(n - badge - 2));
             } else {
-                _terminal.write_chars(line + CODE_CELL_R, (uint16_t)(n - CODE_CELL_R));
+                _terminal.write_chars(line + code_r, (uint16_t)(n - code_r));
             }
             _terminal.clear_to_eol();
         }
@@ -466,7 +369,7 @@ namespace Botanik { namespace Pages {
          *  row when it holds an alarm, else a blanked row (past the set). Drawn every
          *  time; the terminal's back-buffer diff drops the cells that did not move. */
         void _draw_data_row(uint16_t row, uint16_t vi) {
-            if (vi >= _nvis) { _clear_row(row); return; }     // past the set: blank it
+            if (vi >= _nvis) { _blank_line(row); return; }    // past the set: blank it
             const Alarms::AlarmCondition& c = _model->condition(_vis[vi]);
             _draw_full_row(row, c, vi == _selected);
         }
@@ -484,10 +387,10 @@ namespace Botanik { namespace Pages {
          *  rows around the legend. */
         void _draw_structure() {
             uint16_t legend = _legend_row();
-            _clear_row(1);                                      // top margin
-            _draw_grid_row(HEADER_ROW, "CODE", "ON", "LAST EVENT", "DESCRIPTION");
-            _clear_row((uint16_t)(legend - 1));                 // blank above legend
-            _clear_row((uint16_t)(legend + 1));                 // blank below legend
+            _blank_line(1);                                     // top margin
+            _draw_header(HEADER_ROW);
+            _blank_line((uint16_t)(legend - 1));                // blank above legend
+            _blank_line((uint16_t)(legend + 1));                // blank below legend
         }
 
     public:
@@ -531,16 +434,18 @@ namespace Botanik { namespace Pages {
 
         void tick(bool active) override {
             if (!active) return;
-            // Re-check the set on a slow cadence (alarms move slowly); mark dirty
-            // only when the displayed set actually moved.
+            // Rebuild on the value cadence (or immediately after a nav), exactly
+            // as the MONITOR and PARAMS tables do. This page used to carry three
+            // 64-bit signatures of the alarm set to decide whether a repaint was
+            // needed at all; that is the terminal back-buffer's job, and it does
+            // it per cell. What is left is the cheap guard the other tables use:
+            // don't re-collect and re-format twenty rows every single beat.
             uint64_t now = HAL::Clock::uptime_ms();
-            if (now - _last_refresh_ms >= Config::PAGE_HOT_MS) {
-                _last_refresh_ms = now;
-                if (_changed()) _dirty = true;
-            }
-            if (!_dirty) return;
+            if (!_dirty && now - _last_refresh_ms < Config::PAGE_HOT_MS) return;
+            _last_refresh_ms = now;
+            _dirty = false;
             uint16_t window = _window();
-            if (window == 0) { _snapshot(); _dirty = false; return; }
+            if (window == 0) return;
             // Rebuild the view set and re-clamp the window, then redraw the whole
             // table immediate-mode: the terminal's back-buffer diff emits only the
             // cells that actually changed, so the page keeps no paint shadow.
@@ -553,8 +458,6 @@ namespace Botanik { namespace Pages {
             _draw_footer(_legend_row(), _nvis, _model ? _model->active_count() : 0);
             for (uint16_t vi = 0; vi < window; vi++)
                 _draw_data_row((uint16_t)(DATA_TOP + vi), (uint16_t)(_top + vi));
-            _snapshot();
-            _dirty = false;
         }
 
         /** @} */

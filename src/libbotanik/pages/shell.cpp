@@ -84,11 +84,6 @@ namespace Botanik { namespace Pages {
             case Command::DOWN:
             case Command::CTRL_N:     _shell.history_next();        break;
 
-            // Selection / mark
-            case Command::CTRL_SPACE: _editor.set_mark_toggle();    break;
-            case Command::ESC:
-            case Command::CTRL_G:     _editor.deselect();           break;
-
             // Stubs
             case Command::CTRL_R:     /* TODO: history search */     break;
             case Command::TAB:        /* TODO: completion */          break;

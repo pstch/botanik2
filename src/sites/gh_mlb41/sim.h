@@ -3,8 +3,8 @@
 
 /**
  * @file sim.h
- * @brief HAND-WRITTEN - the gh_mlb41 mock PLC: the data animator, the emulator
- *        instance the simulator runs, and the timeout dilation.
+ * @brief HAND-WRITTEN - the gh_mlb41 simulated field: the data animator the
+ *        simulator runs, and the timeout dilation.
  *
  * Not generated: how a greenhouse *behaves* is judgement, not schema, so this
  * file is yours. What matters for the interface is that it animates THIS site's
@@ -12,8 +12,8 @@
  * offsets the hardware will.
  *
  * Header-only; the whole body is guarded by TARGET_SIMULATOR, so it is a
- * near-empty include on the OPTA / Arduino build, where the real M4 coprocessor
- * plays this role. The floats here only shape the mock signal.
+ * near-empty include on the OPTA / Arduino build, where the real field plays
+ * this role. The floats here only shape the mock signal.
  */
 
 #ifdef TARGET_SIMULATOR
@@ -29,11 +29,10 @@
 #include "alarms.h"                     // g_alarms - the one alarm definition
 
 /**
- * @brief Grow a base PLC link timeout (ms) by time-dilation factor S, so jitter
+ * @brief Grow a base timeout (ms) by time-dilation factor S, so jitter
  * (amplified by a high BOTANIK_TIME_SCALE) can't false-trip the link. Clamped
  * below 2^31 to keep the 32-bit elapsed compares rollover-safe. No-op when
- * S == 1. Called from main.cpp and the emulator thread (forward-declared in
- * botanik_sim/emulator.h).
+ * S == 1.
  */
 inline uint32_t dilated_timeout(uint32_t base_ms) {
     uint32_t s = Botanik::HAL::_time_scale();
@@ -64,7 +63,7 @@ inline float drift(float v, float step, float lo, float hi, float p) {
 /// True with probability p - for rare discrete events (rain, bus dropouts).
 inline bool chance(float p) { return frand() < p; }
 
-/** @brief Mock-PLC alarm bit for a table code (0 if undefined).
+/** @brief Simulated alarm bit for a table code (0 if undefined).
  *  Resolves through g_alarms so the mock bitset uses the firmware's bit
  *  layout. */
 inline uint64_t abit(const char* code) {
@@ -238,9 +237,9 @@ inline void publish_alarms(Vars::Bank& io, uint32_t now_ms) {
  * @brief Stand in for the field: publish meter readings, drive the coils, and
  * raise alarms.
  *
- * What the mock PLC coprocessor used to do from its own thread, now called
- * straight from the sim harness. It writes the variable tables - the same ones
- * a Modbus driver will write - so nothing downstream can tell the difference.
+ * Called straight from the sim harness. It writes the variable tables - the
+ * same ones a Modbus driver will write - so nothing downstream can tell the
+ * difference.
  */
 inline void simulate(Vars::Bank& io, uint32_t now_ms) {
     publish_meters(io, now_ms);

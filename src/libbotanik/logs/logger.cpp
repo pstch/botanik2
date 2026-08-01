@@ -54,16 +54,6 @@ namespace Botanik { namespace Logs {
         return true;
     }
 
-    bool Logger::remove_writer(LogWriter* writer) {
-        if (writer == nullptr || _writerCount == 0) return false;
-        uint8_t i = 0;
-        while (i < _writerCount && _writers[i] != writer) i++;
-        if (i == _writerCount) return false;
-        for (uint8_t j = i; j < _writerCount - 1; ++j) _writers[j] = _writers[j + 1];
-        _writers[--_writerCount] = nullptr;
-        return true;
-    }
-
     // Dispatch
     // ------------------------------------------------------------------------
 

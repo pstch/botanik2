@@ -88,9 +88,10 @@ namespace Botanik { namespace Shell {
             { "net",        "network / NTP / MQTT status",     &CommandShell::_cmd_net        },
             { "ntpsync",    "force an NTP resync now",         &CommandShell::_cmd_ntpsync    },
             { "alarms",     "[list|ack <code|all>] alarms",   &CommandShell::_cmd_alarms     },
-            { "params",     "[get <n>|set <n> <v>] a parameter", &CommandShell::_cmd_params     },
-            { "status",     "[get <name>] status variables",  &CommandShell::_cmd_status     },
-            { "vars",       "[<name>] field IO variables",    &CommandShell::_cmd_vars       },
+            { "get",        "[<name>] read variables",        &CommandShell::_cmd_get        },
+            { "set",        "<name> <value>  edit a parameter", &CommandShell::_cmd_set       },
+            { "override",   "[<name> [off|<value>]] force one", &CommandShell::_cmd_override  },
+            { "control",    "[enable|disable] drive the field", &CommandShell::_cmd_control   },
             { "storage",    "get|set|del <key> [<text>]",     &CommandShell::_cmd_storage    },
             { "loglevel",   "[debug|info|..|critical] filter",&CommandShell::_cmd_loglevel   },
             { "version",    "firmware version",               &CommandShell::_cmd_version    },
@@ -142,7 +143,7 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_line(const char* label, const char* val) {
-        char out[2 * Config::PLC_HOST_STR_LEN + 32];
+        char out[2 * Config::HOST_STR_LEN + 32];
         _emitf(out, sizeof(out), "%-22s : %s", label, val);
     }
 
@@ -179,16 +180,25 @@ namespace Botanik { namespace Shell {
 
     void CommandShell::_cmd_breakpoint(const char*, uint16_t) { HAL::Debug::breakpoint(); }
 
-    // Wipe the screen (flushed straight to the wire) before leaving: the main
-    // loop won't run again to drain the TX ring, and neither reset() nor
-    // shutdown() returns.
-    void CommandShell::_cmd_reset(const char*, uint16_t) {
+    // Drop the field to its safe state before a deliberate restart: neither
+    // reset() nor shutdown() promises anything about the outputs, and the gap
+    // across a reboot is exactly when an actuator must not be left energised.
+    void CommandShell::_leave_running() {
+        // The system's hold, not the operator's: this is the firmware deciding
+        // to stop running, not someone turning control off.
+        if (Vars::Bank* io = _bank()) io->disable_control(Vars::Bank::INHIBIT_HEALTH);
+        // Wipe the screen (flushed straight to the wire) before leaving: the
+        // main loop won't run again to drain the TX ring.
         _terminal.clear_screen_now();
+    }
+
+    void CommandShell::_cmd_reset(const char*, uint16_t) {
+        _leave_running();
         HAL::System::reset();      // reboots; does not return
     }
 
     void CommandShell::_cmd_exit(const char*, uint16_t) {
-        _terminal.clear_screen_now();
+        _leave_running();
         HAL::System::shutdown();   // sim: exit(0); OPTA: reboots
     }
 
@@ -298,90 +308,192 @@ namespace Botanik { namespace Shell {
         _emitf(out, sizeof(out), "alarms: %u active", m->active_count());
     }
 
-    void CommandShell::_cmd_params(const char* args, uint16_t alen) {
-        if (_params == nullptr) { _println("params: unavailable"); return; }
-        char out[128];
-        uint16_t w0; const char* a0 = arg_next(args, alen, w0);
-
-        // "config" with no args: list every parameter and its value.
-        if (a0 == nullptr) {
-            char val[40];
-            for (uint16_t i = 0; i < _params->count(); i++) {
-                const char* v = _params->format(i, val, sizeof(val));
-                _emitf(out, sizeof(out), "  %-18s %s",
-                       _params->param(i).meta()->name, v);
-            }
-            return;
-        }
-
-        // "config set <name> <value>"
-        if (arg_eq(a0, w0, "set")) {
-            uint16_t wn; const char* nm = arg_next(args, alen, wn);
-            uint16_t wv; const char* v  = arg_next(args, alen, wv);
-            if (nm == nullptr || v == nullptr) {
-                _println("usage: params set <name> <value>"); return;
-            }
-            const Vars::VarRef r = _params->find(nm, wn);
-            if (r.index == Vars::VAR_NONE) { _println("params: unknown parameter"); return; }
-            Vars::Var p = _vars->var(r);
-            char val[96];
-            uint16_t vc = std::min(wv, (uint16_t)(sizeof(val) - 1));
-            memcpy(val, v, vc); val[vc] = '\0';
-            switch (_params->set(p, val)) {
-                case Vars::SET_OK:
-                    _emitf(out, sizeof(out), "%s = %s", p.meta()->name, val);
-                    break;
-                case Vars::SET_NOT_PERSISTED:
-                    // Live, but it dies at the next reboot - say which of the
-                    // two failed, since the fixes are entirely different.
-                    _emitf(out, sizeof(out), "%s = %s  (NOT SAVED: storage refused it)",
-                           p.meta()->name, val);
-                    break;
-                default:
-                    _emitf(out, sizeof(out), "params: invalid value for %s", p.meta()->name);
-                    break;
-            }
-            return;
-        }
-
-        // "config get <name>" or "config <name>"
-        const char* nm = a0; uint16_t wn = w0;
-        if (arg_eq(a0, w0, "get")) nm = arg_next(args, alen, wn);
-        if (nm == nullptr) { _println("usage: params get <name>"); return; }
-        const Vars::VarRef r = _params->find(nm, wn);
-        if (r.index == Vars::VAR_NONE) { _println("params: unknown parameter"); return; }
-        char val[40];
-        Vars::Var p = _vars->var(r);
-        const char* fv = Vars::var_format(*_vars, p, val, sizeof(val));
-        _emitf(out, sizeof(out), "%s = %s", p.meta()->name, fv);
-    }
-
-    void CommandShell::_cmd_vars(const char* args, uint16_t alen) {
-        if (_vars == nullptr) { _println("vars: unavailable"); return; }
+    void CommandShell::_cmd_get(const char* args, uint16_t alen) {
+        Vars::Bank* io = _bank();
+        if (io == nullptr) { _println("get: no variables"); return; }
         uint16_t wn = 0;
         const char* nm = arg_next(args, alen, wn);
 
-        // One table, so one loop. The old version carried a hand-maintained
-        // pair of kind/count arrays and a literal bound of 6, and silently
-        // omitted whatever it had not been told about.
+        // One table, so one loop. This replaced three commands (params/status/
+        // vars) that each walked the same rows through a different lens; since
+        // a parameter is just a ROLE_PARAM variable, the lens was the only
+        // difference and it belongs in a column, not in a command.
         char out[128], val[48];
         bool found = false;
-        for (uint16_t i = 0; i < _vars->count(); i++) {
-            Vars::Var h = _vars->var(i);
+        for (uint16_t i = 0; i < io->count(); i++) {
+            Vars::Var h = io->var(i);
             const char* name = h.meta()->name;
             if (name == nullptr) continue;
             if (nm != nullptr && !arg_eq(nm, wn, name)) continue;
-            const char* s = Vars::var_format(*_vars, h, val, sizeof(val));
+            const char* s = Vars::var_format(*io, h, val, sizeof(val));
             const char* u = h.meta()->unit;
-            // A variable reading its default is worth marking: the number looks
-            // perfectly reasonable, which is exactly the trap.
-            _emitf(out, sizeof(out), "  %-20s %-10s %-4s %s", name, s,
+            // Flag the three things a bare number hides: that a row is a
+            // writable parameter, that it is being forced by hand, and that a
+            // reading is really its default because nothing has written it (the
+            // trap - it looks like a perfectly reasonable measurement).
+            _emitf(out, sizeof(out), "  %-20s %-12s %-4s %s%s%s", name, s,
                    (u && u[0]) ? u : "",
-                   h.valid() ? "" : "(default: nothing has written it)");
+                   h.role() == Vars::ROLE_PARAM ? "(param)" : "",
+                   h.overridden() ? " OVERRIDDEN" : "",
+                   h.valid() ? "" : " (default: nothing has written it)");
             found = true;
         }
-        if (!found) _println(nm != nullptr ? "vars: unknown variable"
-                                           : "vars: no variables declared");
+        if (!found) _println(nm != nullptr ? "get: unknown variable"
+                                           : "get: no variables declared");
+    }
+
+    void CommandShell::_cmd_set(const char* args, uint16_t alen) {
+        Vars::Bank* io = _bank();
+        if (io == nullptr) { _println("set: no variables"); return; }
+        uint16_t wn; const char* nm = arg_next(args, alen, wn);
+        uint16_t wv; const char* v  = arg_next(args, alen, wv);
+        if (nm == nullptr || v == nullptr) {
+            _println("usage: set <parameter> <value>"); return;
+        }
+        char out[128];
+        const Vars::VarRef r = io->find(nm, wn);
+        if (r.index == Vars::VAR_NONE) { _println("set: unknown variable"); return; }
+        Vars::Var p = io->var(r);
+        // Point at `override` rather than failing flatly: writing a sensor or an
+        // output here is a reasonable thing to WANT, it is just not what `set`
+        // does - the next scan would put the value straight back.
+        if (p.role() != Vars::ROLE_PARAM) {
+            _emitf(out, sizeof(out),
+                   "set: %s is not a parameter (override %s <value> to force it)",
+                   p.meta()->name, p.meta()->name);
+            return;
+        }
+
+        char val[96];
+        uint16_t vc = std::min(wv, (uint16_t)(sizeof(val) - 1));
+        memcpy(val, v, vc); val[vc] = '\0';
+
+        switch (io->set(p, val)) {
+            case Vars::SET_OK:
+                _emitf(out, sizeof(out), "%s = %s", p.meta()->name, val);
+                break;
+            case Vars::SET_NOT_PERSISTED:
+                // Live, but it dies at the next reboot - say which of the two
+                // failed, since the fixes are entirely different.
+                _emitf(out, sizeof(out), "%s = %s  (NOT SAVED: storage refused it)",
+                       p.meta()->name, val);
+                break;
+            default:
+                _emitf(out, sizeof(out), "set: invalid value for %s",
+                       p.meta()->name);
+                break;
+        }
+    }
+
+    void CommandShell::_cmd_override(const char* args, uint16_t alen) {
+        Vars::Bank* io = _bank();
+        if (io == nullptr) { _println("override: no variables"); return; }
+
+        char out[128];
+        uint16_t wn = 0;
+        const char* nm = arg_next(args, alen, wn);
+
+        // No argument: list what is forced. An override outlives the session
+        // that set it and explains behaviour nothing else accounts for, so it
+        // must be one command away, not something you have to remember.
+        if (nm == nullptr) {
+            char val[48];
+            uint16_t n = 0;
+            for (uint16_t i = 0; i < io->count(); i++) {
+                Vars::Var h = io->var(i);
+                if (!h.overridden()) continue;
+                const char* s = Vars::var_format(*io, h, val, sizeof(val));
+                _emitf(out, sizeof(out), "  %-20s %-12s %s",
+                       h.meta()->name, s, h.valid() ? "" : "(reading as invalid)");
+                n++;
+            }
+            if (n == 0) _println("override: none active");
+            else _emitf(out, sizeof(out),
+                        "%u override(s) active - they do NOT survive a reboot", n);
+            return;
+        }
+
+        // "override off" clears the lot, so a maintainer can hand the machine
+        // back without walking the list.
+        if (arg_eq(nm, wn, "off")) {
+            _emitf(out, sizeof(out), "override: cleared %u",
+                   io->clear_overrides());
+            return;
+        }
+
+        const Vars::VarRef r = io->find(nm, wn);
+        if (r.index == Vars::VAR_NONE) { _println("override: unknown variable"); return; }
+        Vars::Var h = io->var(r);
+
+        uint16_t wa = 0;
+        const char* a = arg_next(args, alen, wa);
+
+        if (a != nullptr && arg_eq(a, wa, "off")) {
+            h.override_clear();
+            _emitf(out, sizeof(out), "%s: override off", h.meta()->name);
+            return;
+        }
+        // "on" is optional sugar: "override x 20" and "override x on 20" are
+        // the same thing, and a bare name freezes.
+        if (a != nullptr && arg_eq(a, wa, "on")) a = arg_next(args, alen, wa);
+
+        char val[48];
+        if (a == nullptr) {                       // freeze at the current value
+            h.override_freeze();
+            const char* s = Vars::var_format(*io, h, val, sizeof(val));
+            _emitf(out, sizeof(out), "%s: frozen at %s", h.meta()->name, s);
+            return;
+        }
+
+        char text[64];
+        uint16_t vc = std::min(wa, (uint16_t)(sizeof(text) - 1));
+        memcpy(text, a, vc); text[vc] = '\0';
+        if (io->override_set(h, text) != Vars::SET_OK) {
+            _emitf(out, sizeof(out), "override: invalid value for %s",
+                   h.meta()->name);
+            return;
+        }
+        const char* s = Vars::var_format(*io, h, val, sizeof(val));
+        _emitf(out, sizeof(out), "%s: forced to %s", h.meta()->name, s);
+    }
+
+    void CommandShell::_cmd_control(const char* args, uint16_t alen) {
+        Vars::Bank* io = _bank();
+        if (io == nullptr) { _println("control: no variables"); return; }
+        char out[128];
+        uint16_t w = 0;
+        const char* a = arg_next(args, alen, w);
+
+        if (a == nullptr) { _report_control(io); return; }
+
+        if (arg_eq(a, w, "enable")) {
+            io->enable_control();          // releases the operator's hold only
+            _report_control(io);           // ...which may not be the only one
+            return;
+        }
+        if (arg_eq(a, w, "disable")) {
+            // Says what it actually did: the sweep releases output overrides
+            // too, and someone who set one deserves to be told it is gone.
+            io->disable_control();
+            _println("control: DISABLED - outputs at their safe state, "
+                     "output overrides released");
+            return;
+        }
+        _println("usage: control [enable|disable]");
+    }
+
+    // Two independent holds, so "why is it still off?" has to be answerable -
+    // otherwise `control enable` that changes nothing looks like a broken
+    // command rather than a health fault still in force.
+    void CommandShell::_report_control(Vars::Bank* io) {
+        if (io->control_enabled()) { _println("control: enabled"); return; }
+        const bool op  = io->control_inhibited_by(Vars::Bank::INHIBIT_OPERATOR);
+        const bool sys = io->control_inhibited_by(Vars::Bank::INHIBIT_HEALTH);
+        char out[128];
+        _emitf(out, sizeof(out), "control: DISABLED by %s%s%s",
+               op  ? "the operator" : "",
+               (op && sys) ? " and " : "",
+               sys ? "the system (bring-up, health, or a pending reset)" : "");
     }
 
     void CommandShell::_cmd_storage(const char* args, uint16_t alen) {
@@ -424,36 +536,6 @@ namespace Botanik { namespace Shell {
         } else {
             _println("usage: storage get|set|del <key> [<text>]");
         }
-    }
-
-    void CommandShell::_cmd_status(const char* args, uint16_t alen) {
-        if (_status_groups == nullptr || _vars == nullptr) {
-            _println("status: unavailable"); return;
-        }
-        char out[128], val[64];
-        uint16_t w0; const char* a0 = arg_next(args, alen, w0);
-        const char* nm = a0; uint16_t wn = w0;
-        if (a0 != nullptr && arg_eq(a0, w0, "get")) nm = arg_next(args, alen, wn);
-
-        bool found = false;
-        for (size_t gi = 0; gi < _status_group_count; ++gi) {
-            const Vars::VarGroup& g = _status_groups[gi];
-            for (size_t i = 0; i < g.count; ++i) {
-                Vars::Var h = _vars->var(g.refs[i]);
-                const char* name = h.meta()->name;
-                if (name == nullptr) continue;
-                if (nm != nullptr && !arg_eq(nm, wn, name)) continue;
-                const char* s = Vars::var_format(*_vars, h, val, sizeof(val));
-                const char* u = h.meta()->unit;
-                // Append the physical unit when the variable carries one, and
-                // flag a reading nothing has written - it is showing a default.
-                _emitf(out, sizeof(out), "  %-18s %s%s%s%s", name, s,
-                       (u && u[0]) ? " " : "", (u && u[0]) ? u : "",
-                       h.valid() ? "" : "   (no data)");
-                found = true;
-            }
-        }
-        if (nm != nullptr && !found) _println("status: unknown variable");
     }
 
     void CommandShell::_cmd_loglevel(const char* args, uint16_t alen) {
@@ -510,10 +592,10 @@ namespace Botanik { namespace Shell {
         const Network::MqttClient*      mqt = nullptr;    // _MQTT off: not built
 #endif
         // Config values are read by name off the config handler (null-safe).
-        // Same dotted-leader "label .... : value" lines as `plc`. Sized to hold
+        // Dotted-leader "label .... : value" lines. Sized to hold
         // a pair of host strings (DNS / NTP servers); the scrollback soft-wraps
         // if a long pair overruns 80 cols.
-        char val[2 * Config::PLC_HOST_STR_LEN + 8];
+        char val[2 * Config::HOST_STR_LEN + 8];
 
         // Format an address into a small static scratch (one at a time;
         // sequential use is fine).
@@ -523,7 +605,7 @@ namespace Botanik { namespace Shell {
         };
 
         // --- Link --------------------------------------------------------
-        const char* mode = Vars::get_int(_vars, "net_dhcp") ? "DHCP" : "static";
+        const char* mode = Vars::get_int(_bank(), "net_dhcp") ? "DHCP" : "static";
         snprintf(val, sizeof(val), "%s  (%s)", net->status_str(), mode);
         _line("Network ..............", val);
 
@@ -558,7 +640,7 @@ namespace Botanik { namespace Shell {
             else
                 snprintf(val, sizeof(val), "%s", ntp->status_str());
             _line("NTP ..................", val);
-            const char* s1 = Vars::get_str(_vars, "ntp_server1");
+            const char* s1 = Vars::get_str(_bank(), "ntp_server1");
             if (s1[0]) {
                 // Configured hostname, then the resolved IP:port once known.
                 Network::ResolvedAddr sa = ntp->server_addr();
@@ -587,7 +669,7 @@ namespace Botanik { namespace Shell {
                 snprintf(val, sizeof(val), "%s  (no pub yet)", mqt->status_str());
             }
             _line("MQTT .................", val);
-            const char* brk = Vars::get_str(_vars, "mqtt_broker");
+            const char* brk = Vars::get_str(_bank(), "mqtt_broker");
             if (brk[0]) {
                 // Configured hostname, then the resolved IP:port once connected.
                 if (mqt->connected()) {

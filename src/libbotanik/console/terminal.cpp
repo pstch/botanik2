@@ -23,10 +23,12 @@ namespace Botanik { namespace Terminal {
     // Lifecycle
 
     AnsiTerminal::AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols,
-                               uint16_t rows, uint32_t baud) :
+                               uint16_t rows, uint32_t baud,
+                               Ansi::TerminalType type) :
         _serial(serial),
         _cols(cols ? (cols < GRID_COLS ? cols : GRID_COLS) : 1),
-        _rows(rows ? (rows < GRID_ROWS ? rows : GRID_ROWS) : 1)
+        _rows(rows ? (rows < GRID_ROWS ? rows : GRID_ROWS) : 1),
+        _type(type)
     {
         _tx_cold_depth = depth_for_baud(baud, Config::TX_COLD_TARGET_MS);
         for (uint16_t i = 0; i < GRID_CELLS; i++) { _front[i] = CELL_BLANK; _back[i] = CELL_BLANK; }
@@ -234,8 +236,7 @@ namespace Botanik { namespace Terminal {
         _draw_row = _draw_col = 0; _draw_inv = false;
     }
 
-    void AnsiTerminal::setup_vt102()   { Ansi::vt102_setup(_serial); }
-    void AnsiTerminal::setup_minitel() { Ansi::minitel_setup(_serial); }
+    void AnsiTerminal::setup_terminal() { Ansi::terminal_setup(_serial, _type); }
 
     // present() - reconcile FRONT to the wire
     // ------------------------------------------------------------------------

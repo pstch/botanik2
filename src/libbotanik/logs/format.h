@@ -61,7 +61,7 @@ namespace Botanik { namespace Logs {
         default:                    return "unknown";
     }; }
 
-    /** @brief Lowercase topic word, for MQTT topic segments (PLC_IO -> "shared_io",
+    /** @brief Lowercase topic word, for MQTT topic segments (SHARED_IO -> "shared_io",
      *  matching the SHARED_IO display label). */
     inline const char* format_log_topic_name(Logs::LogTopic topic) {
         return topic < Logs::LOG_TOPIC_COUNT ? TOPIC_NAMES[topic][1] : "unknown";

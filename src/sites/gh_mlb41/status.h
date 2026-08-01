@@ -9,7 +9,7 @@
  * Generated from the site's IO map. Regenerating overwrites this file.
  *
  * One table, three consumers, no per-variable code: the MONITOR page, the
- * shell `status` command and MQTT telemetry all resolve these generically
+ * shell `get` command and MQTT telemetry all resolve these generically
  * against the live variable tables. Each group is published under
  * "<prefix>/telemetry/<group>/<name>", where the leaf is the variable's own
  * name from vars.h - there is no second place to keep names in sync.

@@ -2,7 +2,7 @@
  * @file test_sizes.cpp
  * @brief Living documentation of the in-memory footprint of the "big" objects.
  *
- * The OPTA core is RAM-constrained, so the size of the long-lived UI and PLC
+ * The OPTA core is RAM-constrained, so the size of the long-lived UI and site
  * objects is a number worth watching. This suite does not pin exact byte counts
  * (they differ between the x86-64 host build and the ARM target) — it prints a
  * size table on every run and fails only if a structure grows past a generous
@@ -21,11 +21,11 @@
 #include "libbotanik_site.h"       // BOTANIK_SITE -> BOTANIK_SITE_HEADER
 #include BOTANIK_SITE_HEADER       // selected site: its tables + parameter image
 
-// Concrete instantiations of the templated pages/PLC structs, matching what the
+// Concrete instantiations of the templated pages, matching what the
 // simulator actually builds (see botanik_sim/main.cpp).
 using HomePage_t   = Botanik::Pages::HomePage;
 // StatusPage is an unregistered building block; its template parameter is what
-// a site subclass draws in its own payload rows. Nothing at this site has one
+// a site subclass draws in its own data rows. Nothing at this site has one
 // any more - variables are reached through the bank - so it is sized here on a
 // stand-in, and the parameter is arguably vestigial now.
 struct StatusPayloadStandIn { uint32_t whatever; };

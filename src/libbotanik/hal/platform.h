@@ -7,8 +7,8 @@
  * @brief Unified hardware abstraction layer (HAL) interface.
  *
  * Declares the platform-independent surface that the rest of the codebase
- * builds on: hardware identity, stack introspection, PLC shared memory, timing
- * clocks, memory-ordering primitives, and serial access. Exactly one backend
+ * builds on: hardware identity, stack introspection, timing clocks,
+ * memory-ordering primitives, and serial access. Exactly one backend
  * implements it, selected at compile time below: opta.h for the Arduino OPTA
  * hardware, simulator.h for the Linux host build.
  *
@@ -135,11 +135,9 @@ namespace Botanik { namespace HAL {
     namespace Watchdog {
 
         /** @brief Start the hardware watchdog: not kicked within @p timeout_ms
-         *  -> the firmware resets. Distinct from the PLC software watchdog
-         *  which guards comms liveness, not the whole firmware.
-         *  OPTA: the MCU's independent watchdog peripheral. Sim: serviced from
-         *  the emulator thread (independent of the main loop, so a wedged loop
-         *  still trips it). */
+         *  -> the firmware resets. OPTA: the MCU's independent watchdog
+         *  peripheral. Sim: serviced from its own thread (independent of the
+         *  main loop, so a wedged loop still trips it). */
         inline void start(uint32_t timeout_ms);
 
         /** @brief Reset the watchdog countdown; call once per healthy

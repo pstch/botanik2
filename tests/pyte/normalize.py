@@ -48,12 +48,12 @@ _SUBS = [
     (re.compile(r"MQTT\s{2,}(?:off|(?:resolving|connecting|handshake|ready|error)"
                 r"(?: \(\s*\d+ [smhdy]\))?)"),
      "MQTT <MQTT>"),
-    # Site payload values (botanik_sim GreenhouseStatusPage). The mock PLC emulator
-    # animates these, and it only spawns where the host permits a realtime thread:
-    # on a constrained gate it never starts, so the payload reads all-zero instead.
-    # Normalizing the values (not the labels/units) makes the golden match either
-    # way - the screen test asserts layout, not the mock's data. 4-field actuators
-    # before the 2-field one so the latter can't bite into a Windows/Blowers row.
+    # Site variable readings. The simulated field animates these and its PRNG
+    # draw depends on how many beats have run, so the values are volatile.
+    # Normalizing the values (not the labels/units) makes the golden match
+    # either way - the screen test asserts layout, not the mock's data. 4-field
+    # actuators before the 2-field one so the latter can't bite into a
+    # Windows/Blowers row.
     (re.compile(r"[\d.]+ V \([\d.]+ Hz\)"), "<PWR>"),                          # Grid AC
     (re.compile(r"[\d.]+ V \(A \S+ B \S+\)"), "<PWR>"),                        # DC bus
     (re.compile(r"[\d.]+ V \(gen [\d.]+V\)"), "<PWR>"),                        # Battery
@@ -157,12 +157,7 @@ _NOISE = re.compile(
     # fast greenhouse trips site conditions (temp, PS volts, storm, network) in and
     # out constantly, flooding the log tail run to run. No golden pins one, so drop
     # them all; alarm state is still asserted via the alarms page table.
-    r"scheduler overrun|ALARM_(?:START|END|FLAP):"
-    # The PLC-link-up log (driven by the sim's PLC emulator thread) and the
-    # network bring-up block are logged in a non-deterministic order at boot, so
-    # the SHARED_IO line lands on either side of the NETWORK lines run to run.
-    # Drop it - the link state is still asserted via the status bar / home widget.
-    r"|SHARED_IO: PLC link")
+    r"scheduler overrun|ALARM_(?:START|END|FLAP):")
 
 
 def normalize_lines(lines):
@@ -184,3 +179,20 @@ def meaningful_lines(lines):
     can't change the result.
     """
     return [ln for ln in normalize_lines(lines) if ln and not _NOISE.search(ln)]
+
+
+# A normalized log line: normalize_lines() has already collapsed the stamp to
+# <TS>, so every log entry starts with it and nothing else does.
+_LOG_LINE = re.compile(r"^<TS> ")
+
+
+def drop_log_lines(lines):
+    """Drop log entries from a normalized screen.
+
+    A page's live log tail shows whatever the greenhouse logged at that instant,
+    which is a function of how far the sim has aged rather than of what a test
+    exercises - so a golden that pins one only holds while the sim reaches the
+    assertion at the same age. Assert log content with wait_for() instead (see
+    test_logs.py), and let the goldens speak for the widget rows.
+    """
+    return [ln for ln in lines if not _LOG_LINE.match(ln)]

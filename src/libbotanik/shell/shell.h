@@ -13,7 +13,7 @@
 #include "../console/terminal.h"
 #include "../console/editor.h"
 #include "../vars/access.h"   // VarGroup (status-var table), Bank
-#include "../vars/params.h"   // Vars::Params (the `params` command)
+#include "../vars/params.h"   // Vars::Params (the `set` command)
 
 namespace Botanik {
     // loglevel command (set_diagnostics)
@@ -22,10 +22,7 @@ namespace Botanik {
     namespace Alarms  { class AlarmModel; }
     // ntpsync command (set_ntp); null when the NTP feature is off
     namespace Network { class NtpClient;  }
-    // config get/set command (set_params)
-    namespace Params     { class ParamHandler; }
-    // status command (set_status_vars): the status-variable descriptor group
-    // (Vars::VarGroup) comes in via vars/access.h, included above.
+    // get / set / override commands: the variables come from SystemContext.
 }
 
 namespace Botanik { namespace Shell {
@@ -97,16 +94,6 @@ namespace Botanik { namespace Shell {
         /** @brief NTP client for the `ntpsync` command; null until set_ntp()
          *  wires it (off when the NTP feature is absent). */
         Network::NtpClient*     _ntp_client           = nullptr;
-        /** @brief Config backend for the `config` get/set command (set_params). */
-        Vars::Params*     _params               = nullptr;
-        /** @brief Status-variable table for the `status` command
-         *  (set_status_vars): the site variable groups. They resolve against
-         *  the same Io the `vars` command walks - there is one live source of
-         *  variable values now, not a table plus a payload pointer. */
-        const Vars::VarGroup* _status_groups    = nullptr;
-        /** @brief The variable model, for the `vars` command. */
-        Vars::Bank*          _vars              = nullptr;
-        size_t                  _status_group_count   = 0;
 
         /** @brief Command-history ring: the most-recent submitted lines. */
         char     _history[Config::SHELL_HISTORY_SIZE][Config::SHELL_HISTORY_ENTRY];
@@ -153,19 +140,6 @@ namespace Botanik { namespace Shell {
          *  firmware passes it when the NTP feature is on; left null otherwise,
          *  so the command reports "unavailable"). */
         void set_ntp(Network::NtpClient* ntp) { _ntp_client = ntp; }
-
-        /** @brief Wire the config backend the `config` command reads/writes. */
-        void set_params(Vars::Params* config) { _params = config; }
-
-        /** @brief Bind the variable model. `vars` lists the field IO through
-         *  it, and `status` resolves its groups against it. */
-        void set_vars(Vars::Bank* io) { _vars = io; }
-
-        /** @brief Wire the status-variable table the `status` command reads.
-         *  Values come from the Io given to set_vars(). Null clears it. */
-        void set_status_vars(const Vars::VarGroup* groups, size_t count) {
-            _status_groups = groups; _status_group_count = count;
-        }
 
         /** @brief Register a site command table, tried before the built-ins.
          *  @p table must outlive the shell (typically a static at the site).
@@ -254,9 +228,20 @@ namespace Botanik { namespace Shell {
         void _cmd_net(const char* args, uint16_t alen);
         void _cmd_ntpsync(const char* args, uint16_t alen);
         void _cmd_loglevel(const char* args, uint16_t alen);
-        void _cmd_params(const char* args, uint16_t alen);
-        void _cmd_status(const char* args, uint16_t alen);
-        void _cmd_vars(const char* args, uint16_t alen);
+        void _cmd_get(const char* args, uint16_t alen);
+        void _cmd_set(const char* args, uint16_t alen);
+        void _cmd_override(const char* args, uint16_t alen);
+        void _cmd_control(const char* args, uint16_t alen);
+        /** @brief Report control state, naming every hold still in force. */
+        void _report_control(Vars::Bank* io);
+
+        /** @brief Shared tail of reset / exit: drop the field to its safe state
+         *  and wipe the screen, since the loop will not run again. */
+        void _leave_running();
+
+        /** @brief The variables, from the shared SystemContext (null when the
+         *  firmware wired none). One lookup point for the three commands. */
+        Vars::Bank* _bank() const { return _console.context().vars; }
         void _cmd_storage(const char* args, uint16_t alen);
         /** @brief Handle an unrecognised command (echoes "Unknown command:
          *  ..."). */
@@ -267,7 +252,7 @@ namespace Botanik { namespace Shell {
          *  clamped to the buffer; empty / encoding-error output is dropped. */
         void _emitf(char* buf, size_t cap, const char* fmt, ...)
             __attribute__((format(printf, 4, 5)));
-        /** @brief Emit a dotted-leader "label : value" status line (plc/net). */
+        /** @brief Emit a dotted-leader "label : value" status line. */
         void _line(const char* label, const char* val);
         /** @} */
 

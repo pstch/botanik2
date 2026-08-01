@@ -214,13 +214,6 @@ namespace Botanik { namespace Terminal {
         /** @brief Move the cursor one word to the right */
         void move_word_right();
 
-        /** @brief Toggle the mark - stub for parity with InputEditor (selection
-         *         features are deferred). */
-        void set_mark_toggle() {}
-
-        /** @brief Clear the active mark/selection - stub for parity. */
-        void deselect() {}
-
         /** @} */
 
         /**
