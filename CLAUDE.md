@@ -26,7 +26,9 @@ cmake -B build -DBOTANIK_TARGET=OPTA
 make -C build
 ```
 
-The repo ships a `.envrc` that exports `MAKEFLAGS=-j4`, so `make` builds in
+The repo ships a `.envrc` that exports `MAKEFLAGS=-j4` and `CTEST_PARALLEL_LEVEL`
+(so a bare `ctest` runs cases concurrently - serial it is ~14 s, parallel ~6 s),
+so `make` builds in
 parallel by default once [direnv](https://direnv.net) loads it (`direnv allow`).
 Without direnv, either `export MAKEFLAGS=-j4` in your shell or pass `-j` per build
 (`make -C build -j$(nproc)`); a bare `make` is otherwise single-threaded.
@@ -80,14 +82,29 @@ ctest --test-dir build -R pyte --output-on-failure  # just the pyte suite
 `make check` is the pre-push gate; it fails on the first problem:
 - **`botanik_strict`** - a `-Werror` mirror of the library (plain `make` stays
   warning-tolerant; this gate fails on any warning).
-- **clang-tidy** - the `bugprone-*` checks from `.clang-tidy`, promoted to errors
-  (only present when `clang-tidy` was found at configure time). Incremental: one
-  stamp per TU under `build/clang-tidy/`, so only sources whose text or included
-  headers changed are re-analyzed. Header tracking comes from the Makefile
-  generator's dependency scanner, so the target exists only under that generator.
-  `rm -rf build/clang-tidy` forces a full re-lint.
-- the **doctest + pyte** suites via `ctest`, one entry for the unit binary and
-  one per pyte test file.
+- the **doctest + pyte** suites via `ctest`: one entry per `TEST_CASE` (so a
+  single case is runnable/debuggable from `ctest -R` or an IDE), one more that
+  runs the whole binary in a single process (the only entry that catches a case
+  corrupting state for the ones after it), and one per pyte test file.
+
+**clang-tidy is NOT in the gate** - it is a periodic sweep, not a per-change
+check. Run it when a batch review is due:
+
+```bash
+make -C build clang-tidy       # incremental: one stamp per TU under build/clang-tidy/,
+                               # so only sources whose text or included headers changed
+                               # are re-analyzed (Makefile generator only)
+make -C build clang-tidy-all   # the whole tree, ignoring the stamps
+rm -rf build/clang-tidy        # force a full re-lint next time
+```
+
+It runs the `bugprone-*` checks from `.clang-tidy` with findings promoted to
+errors, and exists only when `clang-tidy` was found at configure time.
+
+The pyte suite needs its own release sim, which **CTest never builds** (neither
+`ctest` nor `make test` builds anything). `make check` depends on it; otherwise
+run `make -C build pyte-sim` first. A screen test that finds the sim missing now
+fails loudly - it used to skip, which CTest reported as `Passed`.
 
 ## Architecture
 

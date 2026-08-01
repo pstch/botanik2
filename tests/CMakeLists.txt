@@ -51,16 +51,22 @@ target_link_libraries(botanik_tests botanik)
 # test_sizes.cpp pins the selected site's payload via BOTANIK_SITE_HEADER, derived
 # from the PUBLIC BOTANIK_SITE define (libbotanik_site.h) inherited from botanik.
 
-# One CTest entry for the whole binary. Per-TEST_CASE entries (via the vendored
-# doctest_discover_tests) cost a process launch each: 207 of them take ~30 s
-# where the binary runs the lot in ~1 s, and the module plus its helper were 309
-# lines of vendored CMake to buy that. doctest's own -tc= still selects a single
-# case when debugging, which is what the per-case entries were really for.
+# Registered BOTH ways, because the two catch different things.
 #
-# A single process is also the stricter gate: per-case isolation hid a test that
-# corrupted the stack for every case after it (see Bank's value-init), because
-# each case got a fresh process to be wrong in.
-add_test(NAME botanik_tests COMMAND botanik_tests)
+# One entry per TEST_CASE (doctest_discover_tests runs the binary at build time
+# with --list-test-cases and emits an add_test() per case) is what makes `ctest`
+# and VS Code's Testing panel able to show, run and debug a single case. The
+# module and its helper are vendored next to doctest.h; no fetch, no install.
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/vendor)
+include(doctest)
+doctest_discover_tests(botanik_tests)
+
+# ...plus one entry running the whole binary in a SINGLE process. Per-case
+# entries hand every case a fresh process to corrupt, which is exactly how a test
+# that walked garbage pointers stayed invisible (see Bank's value-init): its
+# damage never reached the cases after it. This entry is the only one that would
+# have caught that, and it costs one launch.
+add_test(NAME botanik_tests_in_process COMMAND botanik_tests)
 
 # `make check` is the one-shot pre-push gate. Its dependencies build everything
 # the suite needs (`make test`/`ctest` do not) plus the two static gates, then the
@@ -68,9 +74,13 @@ add_test(NAME botanik_tests COMMAND botanik_tests)
 #   - botanik_tests : the doctest binary (links the normal library)
 #   - botanik_strict : warning-clean compile gate — the -Werror mirror fails the
 #                      build on any compiler warning
-#   - clang-tidy     : bugprone static analysis, findings promoted to errors
-# clang-tidy is added conditionally since the target only exists when
-# run-clang-tidy was found at configure time.
+#
+# clang-tidy is deliberately NOT here. It is a sweep, not a per-change check: it
+# re-lints on any touched header, so it dominated a gate meant to run after every
+# edit, and its bugprone-* findings are the kind you review in a batch rather
+# than react to one at a time. Run it on its own when that batch is due:
+#     make clang-tidy        # incremental, one stamp per TU
+#     make clang-tidy-all    # the whole tree, ignoring stamps
 #
 # The gate runs ctest in parallel (-j): the doctest cases and, now, the per-test
 # pyte entries are independent, so a multi-core host clears the suite far faster.
@@ -88,12 +98,9 @@ add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j ${BOTANIK_CTEST_JOBS}
     DEPENDS botanik_tests botanik_strict
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    COMMENT "Pre-push gate: warning-clean build + clang-tidy + unit tests"
+    COMMENT "Pre-push gate: warning-clean build + unit tests"
     VERBATIM
 )
-if(TARGET clang-tidy)
-    add_dependencies(check clang-tidy)
-endif()
 
 # pyte screen-assertion tests (Python) — host-only, joined to the same CTest
 # ============================================================================
@@ -151,6 +158,10 @@ if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
             DEPENDS ${_pyte_sim_srcs} ${_pyte_sim_dir}/CMakeCache.txt
             COMMENT "Building release botanik_sim for the pyte tests"
             VERBATIM)
+        # Deliberately NOT in ALL: the sub-build's own dependency scan costs
+        # ~15 s, which every ordinary `make` would then pay. `check` depends on
+        # it, and a run that reaches the screen tests without it now fails loudly
+        # (conftest) instead of reporting green having asserted nothing.
         add_custom_target(pyte-sim DEPENDS ${_pyte_sim_bin})
 
         # One CTest entry per test FILE. Per-function entries needed pytest's node
@@ -169,14 +180,17 @@ if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
                         ${_name} --sim ${_pyte_sim_bin}
                 WORKING_DIRECTORY ${_pyte_dir})
             # ctest launches the most expensive test first, but only once it has
-            # timings of its own. Declaring the cost keeps a screen test from
-            # starting after the unit binary on a fresh tree, which is where the
-            # -j slots go idle waiting for the tail.
+            # timings of its own - and it never gets usable ones here, since
+            # doctest case names contain spaces and its cost file is
+            # whitespace-delimited. Declaring the cost keeps a screen test from
+            # starting after a few hundred sub-second unit cases on a fresh tree,
+            # which is where the -j slots go idle waiting for the tail.
             set_tests_properties("pyte:${_name}" PROPERTIES COST 10)
         endforeach()
         list(LENGTH _pyte_test_files _pyte_count)
         message(STATUS "pyte: registered ${_pyte_count} screen test files")
-        # ctest/make test don't build; `check` does — make it build the sim too.
+        # `check` names it explicitly too, so the gate does not depend on ALL
+        # having been run first.
         add_dependencies(check pyte-sim)
 
         # Opt-in golden regeneration (NOT part of check/test, so the gate never

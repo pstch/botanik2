@@ -197,9 +197,16 @@ def spawn(request, tmp_path):
     """Factory that launches botanik_sim instances and tears them down."""
     sim = request.config.getoption("--sim") or os.environ.get("BOTANIK_SIM")
     if not sim:
+        # Nobody said where the sim is - a bare `pytest` run, so there is nothing
+        # to test and skipping is honest.
         pytest.skip("no simulator binary: pass --sim or set BOTANIK_SIM")
     if not Path(sim).exists():
-        pytest.skip(f"simulator binary not found: {sim}")
+        # But a path that was NAMED and is not there means the sim was not built,
+        # which is a broken run, not an absent capability. Skipping here made the
+        # whole screen suite report green having asserted nothing - `ctest` on a
+        # fresh tree printed seven Passed lines in 0.3 s each.
+        pytest.fail(f"simulator binary not built: {sim}\n"
+                    f"build it with: make -C <build> pyte-sim")
 
     instances = []
 
