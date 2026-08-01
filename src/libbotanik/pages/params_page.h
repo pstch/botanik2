@@ -69,7 +69,7 @@ namespace Botanik { namespace Pages {
         // a trailing blank spacer (default + unit are already table columns).
         // ... then a blank, the [group] legend, and a blank - the same framing
         // the ALARMS table gives its mode badge.
-        static constexpr uint16_t PANEL_H    = 7;
+        static constexpr uint16_t PANEL_H    = 6;
         /** @brief Column order; the selection cursor inverts C_NAME's cell. */
         enum { C_NAME = 0, C_TYPE, C_VALUE, C_DEFAULT, C_UNIT };
         /** @} */
@@ -254,15 +254,11 @@ namespace Botanik { namespace Pages {
         /** @brief The group badge sits on the panel's trailing spacer, one row
          *  above the prompt - so an open editor, which owns the prompt row,
          *  never covers it. */
-        uint16_t _mode_row() const { return (uint16_t)(_panel_top() + PANEL_H - 2); }
+        uint16_t _mode_row() const { return (uint16_t)(_panel_top() + PANEL_H - 1); }
         /** @brief Column the panel's second field starts at (Minimum | Maximum). */
         static constexpr uint16_t PANEL_COL2 = 38;
 
-        const char* _mode_hint() const {
-            static char hint[40];
-            snprintf(hint, sizeof(hint), "SPACE: %s", _next_mode_name());
-            return hint;
-        }
+
 
         /** @brief First row of the detail panel (separator), reserving PANEL_H
          *  rows above the prompt. */
@@ -375,7 +371,7 @@ namespace Botanik { namespace Pages {
             if (_visible_count() == 0) {
                 for (uint16_t i = 2; i < PANEL_H; i++)
                     if ((uint16_t)(r + i) != _mode_row()) _blank_line((uint16_t)(r + i));
-                _draw_mode_line(_mode_row(), nullptr, nullptr, _mode_hint());
+                _draw_mode_line(_mode_row(), nullptr, nullptr);
                 return;
             }
             Vars::Var p = _params->param(_param_at(_selected));
@@ -392,10 +388,9 @@ namespace Botanik { namespace Pages {
             _blank_line((uint16_t)(r + 4));                     // blank above the legend
             // The group is on the legend line instead of costing a panel row -
             // and only in the "all" view, where it is the one thing the badge
-            // does not already say.
-            _draw_mode_line(_mode_row(), _mode == 0 ? _group_of(d) : nullptr,
-                            nullptr, _mode_hint());
-            _blank_line((uint16_t)(r + PANEL_H - 1));           // blank below it
+            // does not already say. The prompt row below is the legend's blank
+            // frame while nothing is being edited.
+            _draw_mode_line(_mode_row(), _mode == 0 ? _group_of(d) : nullptr, nullptr);
         }
 
         // Bottom prompt row: inline edit field or hint
@@ -427,9 +422,11 @@ namespace Botanik { namespace Pages {
                 return;
             }
             _terminal.set_cursor_visible(false);
+            // No key legend: UP/DOWN/ENTER/ESC on a table are not worth a
+            // permanent row. Only the one thing an operator cannot infer stays -
+            // that a value they just set did not reach storage.
             const char* hint = _not_persisted
-                ? " NOT SAVED - value is live but storage refused it"
-                : " UP/DOWN select   ENTER edit   ESC cancel";
+                ? " NOT SAVED - value is live but storage refused it" : "";
             _draw_line(row, hint, (uint16_t)strlen(hint));
         }
 

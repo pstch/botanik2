@@ -157,12 +157,11 @@ namespace Botanik { namespace Pages {
          *  change. */
         void _draw_footer(uint16_t row, uint8_t nvis, uint8_t active) {
             (void)nvis;                       // the base's position counter says it
-            char detail[24], hint[40];
-            snprintf(detail, sizeof(detail), "%u active", (unsigned)active);
-            snprintf(hint, sizeof(hint), "a:ack  SPACE: %s", _next_mode_name());
-            // No group: the alarms table's views ARE its modes, so the badge
-            // already names what a group column would have.
-            _draw_mode_line(row, nullptr, detail, hint);
+            char detail[32];
+            snprintf(detail, sizeof(detail), "%u active   a:ack", (unsigned)active);
+            // No group: the alarms table's views ARE its modes, so the badge and
+            // its neighbours already say everything a group field would.
+            _draw_mode_line(row, nullptr, detail);
         }
 
         /** @brief Detail panel between the bottom rule and the legend, spaced by

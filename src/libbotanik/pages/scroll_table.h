@@ -202,11 +202,18 @@ namespace Botanik { namespace Pages {
          *  table and on every redraw. Free-form padding drifted the moment a
          *  label changed length, which made the eye re-find the position counter
          *  each time a group was cycled.
+         *
+         *  The neighbours sit either side of the badge - "prev < [cur] > next" -
+         *  rather than as a hint off on the right. The keys move you along that
+         *  row, so the row is the thing to look at, and it says where you are and
+         *  what is on each side in one glance.
          *  @{ */
-        static constexpr uint16_t ML_BADGE  = 2;    // "[mode]"
-        static constexpr uint16_t ML_GROUP  = 14;   // "(group)", when shown
-        static constexpr uint16_t ML_POS    = 24;   // "first-last / total"
-        static constexpr uint16_t ML_DETAIL = 40;   // page-specific extra
+        static constexpr uint16_t ML_PREV   = 2;    // previous view, right-aligned
+        static constexpr uint16_t ML_PREV_W = 13;
+        static constexpr uint16_t ML_BADGE  = 17;   // "[cur]"
+        static constexpr uint16_t ML_NEXT   = 30;   // "> next", or "(group)"
+        static constexpr uint16_t ML_POS    = 48;   // "first-last / total"
+        static constexpr uint16_t ML_DETAIL = 62;   // page-specific extra
         /** @} */
 
         /** @brief Pad @p buf out to column @p col. */
@@ -214,16 +221,19 @@ namespace Botanik { namespace Pages {
             while (w < col && w + 1 < cap) buf[w++] = ' ';
         }
 
-        /** @brief Draw the view's legend line: a reverse-video badge naming the
-         *  active view, the selected row's @p group in parentheses when the page
-         *  passes one, how much of the set is on screen, @p detail, and @p hint
-         *  right-aligned.
+        /** @brief Draw the view's legend line: the neighbouring views either side
+         *  of a reverse-video badge naming the active one, how much of the set is
+         *  on screen, and @p detail.
          *
-         *  Every table gets the same line because every table now has views, and
-         *  the badge is the only thing that tells an operator the keypress
-         *  landed - the rows themselves arrive over the following ticks under the
-         *  byte budget. Painted in ONE pass with the badge split out rather than
-         *  drawn normal-then-inverted, which would flicker.
+         *  When the page passes a @p group - which it does only in an "all" view,
+         *  where the badge cannot say which group the cursor is in - that takes
+         *  the place of the forward neighbour: in "all" the useful thing to show
+         *  is where you ARE, not where SPACE would take you.
+         *
+         *  The badge is the only thing that tells an operator the keypress
+         *  landed, since the rows themselves arrive over the following ticks
+         *  under the byte budget. Painted in ONE pass with the badge split out
+         *  rather than drawn normal-then-inverted, which would flicker.
          *
          *  The position counter is computed here rather than passed in: _top,
          *  _window() and _row_count() are the base's own state, so a page could
@@ -231,22 +241,38 @@ namespace Botanik { namespace Pages {
          *
          *  Pair it with _claim_mode_row(): the line is only fast because its row
          *  outranks the table. */
-        void _draw_mode_line(uint16_t row, const char* group, const char* detail,
-                             const char* hint) {
+        void _draw_mode_line(uint16_t row, const char* group, const char* detail) {
+            const uint8_t n_modes = _mode_count();
+            const bool    in_all  = (group != nullptr && group[0] != '\0');
             char left[160];
             uint16_t w = 0;
+            int n = 0;
+
+            // Previous view, right-aligned so its "<" always lands in one place.
+            // Omitted in an "all" view, which has no meaningful "back".
+            _pad_to(left, w, sizeof(left), ML_PREV);
+            if (!in_all && n_modes > 1) {
+                const char* prev = _mode_label((uint8_t)((_mode + n_modes - 1) % n_modes));
+                n = snprintf(left + w, sizeof(left) - w, "%*s <", ML_PREV_W, prev);
+                if (n > 0) w = (uint16_t)(w + n);
+            }
 
             _pad_to(left, w, sizeof(left), ML_BADGE);
             const uint16_t badge_at = w;
-            int n = snprintf(left + w, sizeof(left) - w, "[%s]", _mode_name());
+            n = snprintf(left + w, sizeof(left) - w, "[%s]", _mode_name());
             if (n > 0) w = (uint16_t)(w + n);
             const uint16_t badge_end = w;
 
-            if (group != nullptr && group[0] != '\0') {
-                _pad_to(left, w, sizeof(left), ML_GROUP);
+            _pad_to(left, w, sizeof(left), ML_NEXT);
+            if (in_all) {
                 n = snprintf(left + w, sizeof(left) - w, "(%s)", group);
-                if (n > 0) w = (uint16_t)(w + n);
+            } else if (n_modes > 1) {
+                n = snprintf(left + w, sizeof(left) - w, "> %s",
+                             _mode_label((uint8_t)((_mode + 1) % n_modes)));
+            } else {
+                n = 0;
             }
+            if (n > 0) w = (uint16_t)(w + n);
 
             // How much of the set is on screen - every table shows it, since
             // "am I looking at all of this?" is the same question everywhere.
@@ -274,15 +300,6 @@ namespace Botanik { namespace Pages {
             _terminal.set_inverted(false);
             _terminal.write_chars(left + badge_end, (uint16_t)(w - badge_end));
             _terminal.clear_to_eol();
-
-            if (hint == nullptr) return;
-            uint16_t hn   = (uint16_t)strlen(hint);
-            uint16_t cols = _terminal.cols();
-            uint16_t hcol = (cols > (uint16_t)(hn + 2)) ? (uint16_t)(cols - hn - 2) : 0;
-            if (hcol > (uint16_t)(w + 1)) {          // only if it clears the left
-                _terminal.move_to({row, hcol});
-                _terminal.write_chars(hint, hn);
-            }
         }
 
         /** @brief Declare @p row as this table's mode line: PRIO_CHROME, so

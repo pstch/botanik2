@@ -362,9 +362,7 @@ namespace Botanik { namespace Pages {
                 size_t gi = 0, fi = 0; bool first = false;
                 if (_at(_selected, gi, fi, first)) grp = _groups[gi].topic;
             }
-            char hint[40];
-            snprintf(hint, sizeof(hint), "SPACE: %s", _next_mode_name());
-            _draw_mode_line(_footer_row(), grp, nullptr, hint);
+            _draw_mode_line(_footer_row(), grp, nullptr);
             _blank_line((uint16_t)(_footer_row() + 1));   // blank below the legend
         }
 
