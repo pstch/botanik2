@@ -12,17 +12,13 @@ HOME_WIDGET = (0, 16)
 
 
 def test_home_on_boot(spawn, assert_screen):
-    """The home widget on the landing screen after boot (volatile fields normalized)."""
+    """The home widget on the landing screen after boot (volatile fields normalized).
+
+    boot() already spans several HOME_REFRESH_MS cycles (5s sim = 0.1s wall at
+    scale 50), so this covers the periodic repaint too - no separate delay test.
+    """
     term = boot(spawn)
     assert_screen(term, "home_boot", rows=HOME_WIDGET)
-
-
-def test_home_after_delay(spawn, assert_screen):
-    """Home widget stays correct across a refresh cycle; only volatile fields move."""
-    term = boot(spawn)
-    # Let at least one HOME_REFRESH_MS (5s sim -> 0.5s wall at scale 10) elapse.
-    term.settle(quiet=0.6, timeout=3.0)
-    assert_screen(term, "home_after_delay", rows=HOME_WIDGET)
 
 
 def test_home_after_reset(spawn, assert_screen):
@@ -30,11 +26,12 @@ def test_home_after_reset(spawn, assert_screen):
 
     HAL::reset() execve's /proc/self/exe and the PTY fds survive, so we observe
     the screen clear and redraw to the freshly-booted Home (main.cpp always
-    switch_to(0) on boot).
+    switch_to(0) on boot). A reboot lands on the same screen as a cold boot, so
+    it asserts against the same golden.
     """
     term = boot(spawn)
     goto(term, keys.ALT_2)               # SHELL
     term.send(keys.text("reset"))
     term.send(keys.ENTER)
     term.settle(timeout=6.0)             # allow for the re-exec + reboot redraw
-    assert_screen(term, "home_after_reset", rows=HOME_WIDGET)
+    assert_screen(term, "home_boot", rows=HOME_WIDGET)
