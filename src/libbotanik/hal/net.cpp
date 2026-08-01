@@ -354,6 +354,9 @@ namespace Botanik { namespace HAL { namespace Network {
     int tcp_connect(TcpSocket s, const Ip4& a, uint16_t port) {
         if (s < 0) return -1;
         if (!is_loopback(a)) return -1;        // hermetic: never connect off-host (see below)
+        // Same routing as udp_sendto's NTP case: the well-known broker port goes
+        // to the mock responder, so the site keeps its real-world 1883 default.
+        if (port == 1883) port = MQTT_MOCK_PORT;
         sockaddr_in sin = make_sin(a, port);
         int r = ::connect(s, reinterpret_cast<sockaddr*>(&sin), sizeof(sin));
         if (r == 0) return 1;                              // connected at once (loopback)
