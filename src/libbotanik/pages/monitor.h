@@ -189,13 +189,8 @@ namespace Botanik { namespace Pages {
          *  | unit): the display minus the three fixed columns and every border,
          *  floored at 8 and capped at VAL_CAP-1. */
         uint16_t _value_w() const {
-            uint16_t used = (uint16_t)(2 * MARGIN + 2 + GROUP_W + 3 + NAME_W + 3
-                                       + 3 + UNIT_W + 2);
-            uint16_t cols = _terminal.cols();
-            uint16_t w = (cols > used) ? (uint16_t)(cols - used) : 8;
-            if (w < 8) w = 8;
-            if (w > (uint16_t)(VAL_CAP - 1)) w = (uint16_t)(VAL_CAP - 1);
-            return w;
+            return _flex_width((uint16_t)(2 * MARGIN + 2 + GROUP_W + 3 + NAME_W + 3
+                                          + 3 + UNIT_W + 2), (uint16_t)(VAL_CAP - 1));
         }
 
         /** @brief Build a "  | group | name | value | unit |" row into @p out. */
@@ -292,15 +287,6 @@ namespace Botanik { namespace Pages {
             uint16_t win = _window(), total = _total();
             _draw_rule(TRULE_ROW, _top > 0 ? '^' : '+');
             _draw_rule(_brule_row(), (uint16_t)(_top + win) < total ? 'v' : '+');
-        }
-
-        /** @brief " Label       : value" panel line (clear_to_eol wipes the old
-         *  value's tail when the selection moves to a shorter one). */
-        void _panel_field(uint16_t row, const char* label, const char* value) {
-            char buf[LINE_CAP];
-            int n = snprintf(buf, sizeof(buf), " %-11s : %s", label,
-                             (value && value[0]) ? value : "-");
-            _draw_line(row, buf, (n < 0) ? 0 : (uint16_t)n);
         }
 
         /** @brief Detail panel below the bottom rule: blank, Description, Notes,

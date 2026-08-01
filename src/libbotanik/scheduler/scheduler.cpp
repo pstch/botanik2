@@ -1,6 +1,6 @@
 // REVIEW_35: TODO
-// TODO: AnsiTerminal still reads the concrete SchedulerContext/PlcSyncContext;
-// a future unified Context wrapper could decouple it from both. See TODO.md.
+// TODO: AnsiTerminal still reads the concrete SchedulerContext; a future
+// unified Context wrapper could decouple it. See TODO.md.
 /**
  * @file scheduler.cpp
  * @brief LoopScheduler implementation - tick timing, overrun reporting, and the
@@ -22,7 +22,7 @@
 #include "../hal/platform.h"
 #include "../logs/logger.h"
 #include "../logs/topics.h"
-#include "../utils/text.h"   // env_u8 (BOTANIK_NO_RT_WARNING)
+
 
 namespace Botanik { namespace Scheduler {
 
@@ -41,50 +41,17 @@ namespace Botanik { namespace Scheduler {
         _cpu_loop_us_window.configure(Config::LOAD_METRIC_WINDOW);
         _jitter_window.configure(Config::LOAD_METRIC_WINDOW);
 
-        reset();
+        // Everything else starts at its in-class initializer; only the anchor
+        // and the stack fields need the runtime values.
+        _next_tick_ms             = HAL::Clock::uptime_ms() + _period_ms;
+        _context.stack_bytes_free = _stack_depth;   // nothing used yet
+        _context.stack_depth      = _stack_depth;
     }
 
     void LoopScheduler::_announce() {
 #ifdef DEBUG
         if (_logger != nullptr) _logger->debug(Logs::BOOT, "LoopScheduler initialized");
 #endif
-    }
-
-    void LoopScheduler::reset() {
-        _next_tick_ms = HAL::Clock::uptime_ms() + _period_ms;
-
-        _cpu_load.reset();
-        _slept_us = 0;
-        _last_release_us = 0;
-
-        _measuring       = false;
-        _cpu_loop_us_max = 0;
-        _cpu_loop_us_window.reset();
-
-        _jitter.reset();
-        _jitter_window.reset();
-        _jitter_us_max = 0;
-
-        _stack_bytes_max  = 0;
-        _stack_slice_tick = 0;
-        _repaint_pending  = true;
-
-        _tps_anchor_ms    = 0;
-        _tps_anchor_count = 0;
-
-        // clear the published metric fields (leave
-        // tick_count/overruns/timestamp)
-        _context.ticks_per_second     = 0;
-        _context.cpu_load_ema         = 0.0f;
-        _context.cpu_loop_us_recent   = 0;
-        _context.cpu_loop_us_max      = 0;
-        _context.cpu_jitter_ema       = 0.0f;
-        _context.cpu_jitter_us_recent = 0;
-        _context.cpu_jitter_us_max    = 0;
-        _context.stack_usage          = 0.0f;
-        // nothing used yet: all free
-        _context.stack_bytes_free     = _stack_depth;
-        _context.stack_depth          = _stack_depth;
     }
 
     // Tick
@@ -279,7 +246,7 @@ namespace Botanik { namespace Scheduler {
     // denies varies, so the warnings are host-dependent noise the screen
     // goldens silence. The call itself still runs either way.
     static bool _rt_warn(Logs::Logger* logger) {
-        return logger != nullptr && Utils::env_u8("BOTANIK_NO_RT_WARNING", 0) == 0;
+        return logger != nullptr && HAL::Env::u8("BOTANIK_NO_RT_WARNING", 0) == 0;
     }
 
     void lock_process_memory(Logs::Logger* logger) {

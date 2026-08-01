@@ -115,3 +115,28 @@ NOTE: all screen interactions done by Page classes should always go through Ansi
   shrink the surface where practical - prefer the in-house `utils/text` helpers and
   bounded equivalents, so the firmware leans on as little of the C library as
   possible. (No known bugs; the hand-rolled parsing is already bounds-checked.)
+
+- **Repair the HAL porting spec** (`docs/porting.dox:36-45`): it documents a
+  pre-namespace HAL (`wall_clock_ms`, `wall_clock_set`, `get_plc_input`,
+  `get_plc_output`, `debug_break`, `watchdog_start`, `get_stack_base`) - none of
+  those names exist. As written the page cannot be used to port the HAL.
+
+- **`Memory::ordered_move` is documented but does not exist.** Named in
+  `CLAUDE.md`, `docs/porting.dox` and `docs/CONCURRENCY.md` as part of the HAL
+  interface; there is no such function. Either add it or drop it from all three.
+
+- **Docs still describe the removed PLC interface.** `docs/CONTEXTS.md` (the
+  `PlcSyncContext` class + its `SystemContext` edge), `docs/LOG_FLOW.md`
+  (`PlcLogReader`, "the `LogTopic` enum in `plcio/vars.h`"), `docs/CONCURRENCY.md`
+  (steps 3-4 of the loop order), `docs/library.dox` (the `plcio/` subsystem row
+  and the whole `BOTANIK_FEATURE_PLC` section - that flag no longer exists).
+
+- **CLAUDE.md drift.** Documents `AlarmReader<OutputData>` and a remote/local
+  bitset merge (neither exists), `solar_elevation()` (it is `solar_position()`,
+  also wrong in `docs/library.dox`), and says `HAL::Storage` is "one-file-per-key
+  on the sim" when the backend is a single `key=hex` file.
+
+- **Telemetry topic shape.** `vars/access.h` documents
+  `<prefix>/telemetry/<topic>/<name>`; `network/telemetry.cpp` builds
+  `<prefix>/<MQTT_TELEMETRY_TOPIC>/<group>/<name>`, where the config default is
+  `"status"`.

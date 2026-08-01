@@ -47,7 +47,7 @@ namespace Botanik { namespace Network {
     void NetworkHandler::on_param_changed(uint64_t now_ms) {
         // Clear the resolver cache, then re-bring-up (or idle).
         _unwire_resolver();
-        if (Vars::group_serial(_cfg, "net") == 0) {
+        if (applied_serial() == 0) {   // net not configured
             HAL::Network::link_disconnect();
             _enter(NET_IDLE, now_ms);
             return;

@@ -71,7 +71,7 @@ namespace Botanik { namespace Pages {
 
         ShellPage(Terminal::Console& console);
 
-        /** @brief Register a site command table (tried after the built-ins). */
+        /** @brief Register a site command table (tried before the built-ins). */
         void set_commands(const Shell::ShellCommand* table, size_t count, void* ctx = nullptr) {
             _shell.set_commands(table, count, ctx);
         }
@@ -88,10 +88,10 @@ namespace Botanik { namespace Pages {
         /** @brief Wire the config backend for the `config` get/set command. */
         void set_params(Vars::Params* config) { _shell.set_params(config); }
 
-        /** @brief Wire the status-variable table for the `status` command. */
         /** @brief Forward the variable model to the shell (`vars`). */
         void set_vars(Vars::Bank* io) { _shell.set_vars(io); }
 
+        /** @brief Wire the status-variable table for the `status` command. */
         void set_status_vars(const Vars::VarGroup* groups, size_t count) {
             _shell.set_status_vars(groups, count);
         }
@@ -119,7 +119,6 @@ namespace Botanik { namespace Pages {
 
         // One implementation serves both base interfaces.
         void   push(const Logs::LogEntry* entry) override;
-        size_t format(const Logs::LogEntry* entry, char* buf, size_t len) override;
         size_t write(const char* buf, size_t len) override;
         void   write_lines(const char* buf, uint16_t len) override;
         void   drain() override;
@@ -137,13 +136,14 @@ namespace Botanik { namespace Pages {
         /** @brief Repaint the whole page (header, log area, editor). */
         void _full_redraw();
 
-        /** @brief Submit the editor line: echo into the scrollback, advance to
-         *  a fresh prompt, dispatch to the shell. Assumes
-         *  suppress_redraw(true); clears it. */
         /** @brief Snapshot the current line into @p line, echo it to history and
          *  reset to a fresh prompt. @return the line length. Shared by submit and
          *  cancel. */
         uint16_t _echo_and_reset(char* line, uint16_t cap);
+
+        /** @brief Submit the editor line: echo into the scrollback, advance to
+         *  a fresh prompt, dispatch to the shell. Assumes
+         *  suppress_redraw(true); clears it. */
         void _submit_command();
 
         /** @brief Cancel the editor line (Ctrl-C): like submit but runs

@@ -53,7 +53,7 @@ namespace Botanik { namespace Terminal {
     }
 
 
-    // Text handling helpers
+    // Text handlingg helpers
     // ------------------------------------------------------------------------
 
     void InputParser::_store_text(uint8_t b) {
@@ -84,7 +84,7 @@ namespace Botanik { namespace Terminal {
     // Flush policy
     // ------------------------------------------------------------------------
 
-    bool InputParser::_backpressure_holds(uint32_t start_ms) const {
+    bool InputParser::_backpressure_holds(uint64_t start_ms) const {
         // Hold a pending batch while the TX ring drains, so per-byte flushes
         // collapse into one reconcile. The timeout (from batch start, not last
         // byte) breaks the deadlock if TX never drains.
@@ -188,8 +188,6 @@ namespace Botanik { namespace Terminal {
             case 0x15: return Command::CTRL_U;
             case 0x17: return Command::CTRL_W;
             case 0x19: return Command::CTRL_Y;
-            // unreachable: ESC is intercepted in _handle_idle
-            case 0x1B: return Command::ESC;
             case 0x7F: return Command::BACKSPACE;
             default:   return Command::NONE;
         }

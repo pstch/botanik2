@@ -38,19 +38,3 @@ uint32_t arm_random_seed_get(void) {
 void arm_random_module_init(void) {}
 
 }  // extern "C"
-
-/*
- * TEMPORARY - deleted in phase 1.
- *
- * The Axel PLC runtime used to place these two shared-memory buffers, and
- * HAL::PlcIO::input()/output() still reference them. Phase 1 removes the PLC
- * interface entirely, taking these with it; until then they are backed here so
- * the image links. Sized to the 512 B the Axel setup allowed, and deliberately
- * not placed in the inter-core region: nothing on the far side writes them.
- */
-extern "C" {
-static uint8_t s_plc_in_buf[512]  __attribute__((aligned(32)));
-static uint8_t s_plc_out_buf[512] __attribute__((aligned(32)));
-void* m_PLCSharedVarsInputBuf  = s_plc_in_buf;
-void* m_PLCSharedVarsOutputBuf = s_plc_out_buf;
-}

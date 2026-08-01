@@ -7,9 +7,9 @@
  * @brief Generic platform-health alarm table.
  *
  * Defines the platform-level alarms, raised from the scheduler metrics.
- * CPU load/jitter, stack, overrun). 
- * 
- * The site-specific AlarmModel appends them at [N..N+M) (after the site's 
+ * CPU load/jitter, stack, overrun).
+ *
+ * The site-specific AlarmModel appends them at [N..N+M) (after the site's
  * N PLC alarms), in a disjoint namespace, so local platform bits and PLC
  * bits never collide.
  */

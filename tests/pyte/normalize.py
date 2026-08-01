@@ -1,10 +1,10 @@
 """Field-level normalization of volatile screen content before comparison.
 
 The firmware paints a few cells whose value changes every run or every tick:
-the wall clock, uptime, serial-buffer depths, CPU/stack load, PLC link state,
-and log/MARK timestamps. We rewrite each to a fixed token so a golden captures
+the wall clock, uptime, serial-buffer depths, CPU/stack load, and log/MARK
+timestamps. We rewrite each to a fixed token so a golden captures
 the *layout and stable text* without pinning a moment in time. Formats mirror:
-  - status bar metrics : terminal.cpp _build_metrics  "PLC:%s cpu:%3u%% stk:%3u%% "
+  - status bar metrics : status_bar.cpp build_metrics  "cpu:%3u%% stk:%3u%% "
   - status hot fields  : pages/status.h draw_hot       clock / uptime / console TX
   - log + MARK stamps  : utils/time.cpp format_ms_timestamp  "DD/MM/YY HH:MM:SS.mmm"
 """
@@ -24,13 +24,11 @@ _SUBS = [
     (re.compile(r"\b\d{2}:\d{2}:\d{2}\b"), "<TIME>"),                          # status-bar clock HH:MM:SS
     (re.compile(r"cpu:\s*\d+%"), "cpu:<C>"),                                   # CPU load
     (re.compile(r"stk:\s*\d+%"), "stk:<S>"),                                   # stack high-water
-    (re.compile(r"PLC:\S+"), "PLC:<P>"),                                       # status-bar PLC state
     (re.compile(r"skipped \d+ beat\(s\)"), "skipped <N> beat(s)"),             # overrun beat count
     # Status page (pages/status.h) volatile fields. Values are right-justified, so
     # each label's \s+ absorbs the variable leading padding; the perf metrics are
     # inherently variable (and dilated-time skews them further), and the network /
     # NTP state settles on a timing-dependent tick.
-    (re.compile(r"PLC link\s+\w+"), "PLC link <P>"),                           # UNKNOWN/RUNNING/...
     (re.compile(r"CPU load\s+[\d.]+%\s*\(peak\s+[\d.]+ms\)"), "CPU load <CPU>"),
     (re.compile(r"CPU jitter\s+[\d.]+%\s*\(peak\s+[\d.]+ms\)"), "CPU jitter <JIT>"),
     (re.compile(r"Stack\s+[\d.]+%\s*\(\d+ [KMG]?B free\)"), "Stack <STK>"),

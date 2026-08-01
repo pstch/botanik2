@@ -33,6 +33,30 @@
 
 namespace Botanik { namespace Shell {
 
+    namespace {
+    /** @brief Extract the next whitespace-delimited word from [@p args, @p
+     *  args+alen). Returns the word start (nullptr if none) and sets @p wlen to
+     *  its length, advancing @p args / @p alen past the word (leading spaces
+     *  are skipped first). */
+    inline const char* arg_next(const char*& args, uint16_t& alen, uint16_t& wlen) {
+        while (alen > 0 && *args == ' ') { args++; alen--; }
+        if (alen == 0) { wlen = 0; return nullptr; }
+        const char* w = args;
+        wlen = 0;
+        while (alen > 0 && *args != ' ') { args++; alen--; wlen++; }
+        return w;
+    }
+
+    /** @brief True if word [@p w, @p w+wlen) equals the NUL-terminated literal
+     *  @p lit. */
+    inline bool arg_eq(const char* w, uint16_t wlen, const char* lit) {
+        for (uint16_t i = 0; i < wlen; i++)
+            if (lit[i] == '\0' || w[i] != lit[i]) return false;
+        return lit[wlen] == '\0';
+    }
+    }  // namespace
+
+
     // Lifecycle
     // ------------------------------------------------------------------------
 
@@ -61,7 +85,6 @@ namespace Botanik { namespace Shell {
             { "logs",       "[on|off]  live log output",      &CommandShell::_cmd_logs       },
             { "stats",      "scheduler / system metrics",     &CommandShell::_cmd_stats      },
             { "uptime",     "time since boot",                &CommandShell::_cmd_uptime     },
-            { "plc",        "PLC link status",                &CommandShell::_cmd_plc        },
             { "net",        "network / NTP / MQTT status",     &CommandShell::_cmd_net        },
             { "ntpsync",    "force an NTP resync now",         &CommandShell::_cmd_ntpsync    },
             { "alarms",     "[list|ack <code|all>] alarms",   &CommandShell::_cmd_alarms     },
@@ -82,7 +105,7 @@ namespace Botanik { namespace Shell {
     void CommandShell::_dispatch(const char* cmd, uint16_t len) {
         // First word = command name (leading spaces skipped); the rest = args.
         const char* args = cmd; uint16_t alen = len, wlen;
-        const char* name = Utils::arg_next(args, alen, wlen);
+        const char* name = arg_next(args, alen, wlen);
         if (name == nullptr) return;   // blank / all-spaces line
         // trim to arg slice
         while (alen > 0 && *args == ' ') { args++; alen--; }
@@ -93,14 +116,14 @@ namespace Botanik { namespace Shell {
         for (size_t i = 0; i < _command_count; i++) {
             const ShellCommand& c = _commands[i];
             if (c.name != nullptr && c.fn != nullptr &&
-                Utils::arg_eq(name, wlen, c.name)) {
+                arg_eq(name, wlen, c.name)) {
                 c.fn(_output, args, alen, _command_ctx);
                 return;
             }
         }
         uint8_t bcount; const Builtin* B = _builtins(bcount);
         for (uint8_t i = 0; i < bcount; i++)
-            if (Utils::arg_eq(name, wlen, B[i].name)) {
+            if (arg_eq(name, wlen, B[i].name)) {
                 (this->*B[i].fn)(args, alen); return;
             }
 
@@ -141,14 +164,14 @@ namespace Botanik { namespace Shell {
     void CommandShell::_cmd_clear(const char*, uint16_t) { _output.clear(); }
 
     void CommandShell::_cmd_logs(const char* args, uint16_t alen) {
-        uint16_t wlen; const char* w = Utils::arg_next(args, alen, wlen);
+        uint16_t wlen; const char* w = arg_next(args, alen, wlen);
         if (w == nullptr)
             _println(_output.logs_enabled() ? "logs: output enabled"
                                             : "logs: output disabled");
-        else if (Utils::arg_eq(w, wlen, "on")) {
+        else if (arg_eq(w, wlen, "on")) {
             _output.set_logs_enabled(true);  _println("logs: output enabled");
         }
-        else if (Utils::arg_eq(w, wlen, "off")) {
+        else if (arg_eq(w, wlen, "off")) {
             _output.set_logs_enabled(false); _println("logs: output disabled");
         }
         else _println("usage: logs [on|off]");
@@ -224,20 +247,20 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_cmd_alarms(const char* args, uint16_t alen) {
-        uint16_t wlen; const char* sub = Utils::arg_next(args, alen, wlen);
+        uint16_t wlen; const char* sub = arg_next(args, alen, wlen);
         char out[80];
 
         // "alarms ack <code|all>" - mutates, so it needs the model wired via
         // set_diagnostics.
-        if (sub && Utils::arg_eq(sub, wlen, "ack")) {
+        if (sub && arg_eq(sub, wlen, "ack")) {
             if (_alarm_model == nullptr) {
                 _println("alarms: model unavailable"); return;
             }
-            uint16_t tlen; const char* tgt = Utils::arg_next(args, alen, tlen);
+            uint16_t tlen; const char* tgt = arg_next(args, alen, tlen);
             if (tgt == nullptr) {
                 _println("usage: alarms ack <code|all>"); return;
             }
-            if (Utils::arg_eq(tgt, tlen, "all")) {
+            if (arg_eq(tgt, tlen, "all")) {
                 _emitf(out, sizeof(out), "acknowledged %u active alarm(s)",
                        _alarm_model->ack_all());
             } else {
@@ -255,7 +278,7 @@ namespace Botanik { namespace Shell {
 
         // "alarms list" - one paced line per active condition: code, age,
         // flags.
-        if (sub && Utils::arg_eq(sub, wlen, "list")) {
+        if (sub && arg_eq(sub, wlen, "list")) {
             if (m->active_count() == 0) { _println("no active alarms"); return; }
             char age[16];
             uint64_t now = HAL::Clock::uptime_ms();
@@ -278,7 +301,7 @@ namespace Botanik { namespace Shell {
     void CommandShell::_cmd_params(const char* args, uint16_t alen) {
         if (_params == nullptr) { _println("params: unavailable"); return; }
         char out[128];
-        uint16_t w0; const char* a0 = Utils::arg_next(args, alen, w0);
+        uint16_t w0; const char* a0 = arg_next(args, alen, w0);
 
         // "config" with no args: list every parameter and its value.
         if (a0 == nullptr) {
@@ -292,9 +315,9 @@ namespace Botanik { namespace Shell {
         }
 
         // "config set <name> <value>"
-        if (Utils::arg_eq(a0, w0, "set")) {
-            uint16_t wn; const char* nm = Utils::arg_next(args, alen, wn);
-            uint16_t wv; const char* v  = Utils::arg_next(args, alen, wv);
+        if (arg_eq(a0, w0, "set")) {
+            uint16_t wn; const char* nm = arg_next(args, alen, wn);
+            uint16_t wv; const char* v  = arg_next(args, alen, wv);
             if (nm == nullptr || v == nullptr) {
                 _println("usage: params set <name> <value>"); return;
             }
@@ -323,7 +346,7 @@ namespace Botanik { namespace Shell {
 
         // "config get <name>" or "config <name>"
         const char* nm = a0; uint16_t wn = w0;
-        if (Utils::arg_eq(a0, w0, "get")) nm = Utils::arg_next(args, alen, wn);
+        if (arg_eq(a0, w0, "get")) nm = arg_next(args, alen, wn);
         if (nm == nullptr) { _println("usage: params get <name>"); return; }
         const Vars::VarRef r = _params->find(nm, wn);
         if (r.index == Vars::VAR_NONE) { _println("params: unknown parameter"); return; }
@@ -336,7 +359,7 @@ namespace Botanik { namespace Shell {
     void CommandShell::_cmd_vars(const char* args, uint16_t alen) {
         if (_vars == nullptr) { _println("vars: unavailable"); return; }
         uint16_t wn = 0;
-        const char* nm = Utils::arg_next(args, alen, wn);
+        const char* nm = arg_next(args, alen, wn);
 
         // One table, so one loop. The old version carried a hand-maintained
         // pair of kind/count arrays and a literal bound of 6, and silently
@@ -347,7 +370,7 @@ namespace Botanik { namespace Shell {
             Vars::Var h = _vars->var(i);
             const char* name = h.meta()->name;
             if (name == nullptr) continue;
-            if (nm != nullptr && !Utils::arg_eq(nm, wn, name)) continue;
+            if (nm != nullptr && !arg_eq(nm, wn, name)) continue;
             const char* s = Vars::var_format(*_vars, h, val, sizeof(val));
             const char* u = h.meta()->unit;
             // A variable reading its default is worth marking: the number looks
@@ -367,9 +390,9 @@ namespace Botanik { namespace Shell {
         // firmware rebuild per hypothesis - where the Mbed KV region actually
         // lands is a config decision we do not make and cannot check from here.
         uint16_t w = 0;
-        const char* op = Utils::arg_next(args, alen, w);
+        const char* op = arg_next(args, alen, w);
         uint16_t kw = 0;
-        const char* key = Utils::arg_next(args, alen, kw);
+        const char* key = arg_next(args, alen, kw);
         if (op == nullptr || key == nullptr) {
             _println("usage: storage get|set|del <key> [<text>]");
             return;
@@ -381,7 +404,7 @@ namespace Botanik { namespace Shell {
         memcpy(k, key, kw); k[kw] = 0;
 
         char out[128];
-        if (Utils::arg_eq(op, w, "get")) {
+        if (arg_eq(op, w, "get")) {
             char val[96]; size_t n = 0;
             if (!HAL::Storage::get(k, val, sizeof(val) - 1, &n)) {
                 _emitf(out, sizeof(out), "storage: '%s' not found", k);
@@ -389,13 +412,13 @@ namespace Botanik { namespace Shell {
             }
             val[n] = 0;
             _emitf(out, sizeof(out), "  %s = %s (%u bytes)", k, val, (unsigned)n);
-        } else if (Utils::arg_eq(op, w, "set")) {
+        } else if (arg_eq(op, w, "set")) {
             uint16_t vw = 0;
-            const char* val = Utils::arg_next(args, alen, vw);
+            const char* val = arg_next(args, alen, vw);
             if (val == nullptr) { _println("storage: set needs a value"); return; }
             _emitf(out, sizeof(out), "storage: %s",
                    HAL::Storage::set(k, val, vw) ? "ok" : "FAILED");
-        } else if (Utils::arg_eq(op, w, "del")) {
+        } else if (arg_eq(op, w, "del")) {
             _emitf(out, sizeof(out), "storage: %s",
                    HAL::Storage::remove(k) ? "ok" : "FAILED");
         } else {
@@ -408,9 +431,9 @@ namespace Botanik { namespace Shell {
             _println("status: unavailable"); return;
         }
         char out[128], val[64];
-        uint16_t w0; const char* a0 = Utils::arg_next(args, alen, w0);
+        uint16_t w0; const char* a0 = arg_next(args, alen, w0);
         const char* nm = a0; uint16_t wn = w0;
-        if (a0 != nullptr && Utils::arg_eq(a0, w0, "get")) nm = Utils::arg_next(args, alen, wn);
+        if (a0 != nullptr && arg_eq(a0, w0, "get")) nm = arg_next(args, alen, wn);
 
         bool found = false;
         for (size_t gi = 0; gi < _status_group_count; ++gi) {
@@ -419,7 +442,7 @@ namespace Botanik { namespace Shell {
                 Vars::Var h = _vars->var(g.refs[i]);
                 const char* name = h.meta()->name;
                 if (name == nullptr) continue;
-                if (nm != nullptr && !Utils::arg_eq(nm, wn, name)) continue;
+                if (nm != nullptr && !arg_eq(nm, wn, name)) continue;
                 const char* s = Vars::var_format(*_vars, h, val, sizeof(val));
                 const char* u = h.meta()->unit;
                 // Append the physical unit when the variable carries one, and
@@ -443,7 +466,7 @@ namespace Botanik { namespace Shell {
             { "error",  Logs::LOG_ERROR   }, { "critical",Logs::LOG_CRITICAL},
         };
         char out[48];
-        uint16_t wlen; const char* w = Utils::arg_next(args, alen, wlen);
+        uint16_t wlen; const char* w = arg_next(args, alen, wlen);
         if (w == nullptr) {   // report current threshold
             const char* cur = "?";
             for (const auto& L : LEVELS)
@@ -452,7 +475,7 @@ namespace Botanik { namespace Shell {
             return;
         }
         for (const auto& L : LEVELS)
-            if (Utils::arg_eq(w, wlen, L.name)) {
+            if (arg_eq(w, wlen, L.name)) {
                 _logger->set_min_level(L.lvl);
                 _emitf(out, sizeof(out), "loglevel: %s", L.name);
                 return;
@@ -465,10 +488,6 @@ namespace Botanik { namespace Shell {
         uint32_t secs = (uint32_t)(HAL::Clock::uptime_ms() / 1000);
         _emitf(out, sizeof(out), "uptime: %s",
                Utils::format_age(buf, sizeof(buf), secs, false));
-    }
-
-    void CommandShell::_cmd_plc(const char*, uint16_t) {
-        _println("plc: PLC link disabled");
     }
 
     void CommandShell::_cmd_net(const char*, uint16_t) {

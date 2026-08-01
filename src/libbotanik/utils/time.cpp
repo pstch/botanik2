@@ -1,8 +1,8 @@
 // REVIEW_35: DONE
 /**
  * @file time.cpp
- * @brief Time utility implementations - rollover projection, calendar/UNIX
- *        conversion, and timestamp formatting.
+ * @brief Time utility implementations - calendar/UNIX conversion and timestamp
+ *        formatting.
  */
 #include <cstddef>
 #include <cstdint>
@@ -13,20 +13,32 @@
 
 namespace Botanik { namespace Utils {
 
-    // Rollover projection
-    // ------------------------------------------------------------------------
-
-
-
-
     // Calendar conversion & formatting
     // ------------------------------------------------------------------------
 
-    // Wall-clock epoch as UNIX ms at uptime 0, captured once. `wall_now -
-    // uptime_now` is invariant (both advance together), so sampling it lazily
-    // is fine.
+    // Wall-clock epoch as UNIX ms at uptime 0. `wall_now - uptime_now` is
+    // invariant while the RTC free-runs, so it is sampled lazily and cached -
+    // but an NTP sync *steps* the RTC, which moves it. Latching once would peg
+    // every timestamp to the pre-sync epoch (the first sample happens at t~0,
+    // long before NTP), so the cache is re-checked and re-latched on a step.
+    static const int64_t  EPOCH_STEP_MS  = 2000;   // > wall_ms()'s 1 s granularity
+    static const uint64_t EPOCH_RECHECK_MS = 1000; // bound the RTC reads per beat
+
     static int64_t _boot_epoch_ms() {
-        static const int64_t epoch = (int64_t)HAL::Clock::wall_ms() - (int64_t)HAL::Clock::uptime_ms();
+        static int64_t  epoch      = 0;
+        static uint64_t checked_at = 0;
+        static bool     latched    = false;
+
+        const uint64_t up = HAL::Clock::uptime_ms();
+        if (latched && (up - checked_at) < EPOCH_RECHECK_MS) return epoch;
+
+        const int64_t observed = (int64_t)HAL::Clock::wall_ms() - (int64_t)up;
+        checked_at = up;
+        if (!latched) { epoch = observed; latched = true; return epoch; }
+
+        int64_t drift = observed - epoch;
+        if (drift < 0) drift = -drift;
+        if (drift > EPOCH_STEP_MS) epoch = observed;   // the RTC was stepped
         return epoch;
     }
 

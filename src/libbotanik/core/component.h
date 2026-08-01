@@ -41,6 +41,12 @@ namespace Botanik {
         /** @} */
 
     protected:
+        /** @brief The group serial step() last acted on. Resolving it costs a
+         *  linear name scan of the parameter table, and step() already paid for
+         *  it this beat - so a hook asking "is my group configured?" reads this
+         *  instead of scanning again. */
+        uint32_t applied_serial() const { return _applied_serial; }
+
         /** @name Wiring (accessible to the derived component)
          *  @{ */
 

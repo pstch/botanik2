@@ -7,9 +7,9 @@
  * @brief The file contains the transport interface for external alarm notifications, for
  * example through MQTT.
  *
- * Used to decouple alarm notification handlin (in alarms/) 
+ * Used to decouple alarm notification handling (in alarms/)
  * from the network stack (in network/).
- * 
+ *
  */
 
 namespace Botanik { namespace Alarms {

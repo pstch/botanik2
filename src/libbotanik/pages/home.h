@@ -297,7 +297,7 @@ namespace Botanik { namespace Pages {
          *  screen). */
         HomePage(Console& console, const Vars::HomeVar* fields = nullptr,
                  uint8_t count = 0, const Vars::Bank* io = nullptr)
-            : MetricPage(console, 14),
+            : MetricPage(console),
               _fields(fields), _field_count(count), _io(io) {
             // cold-field redraw cadence
             _refresh_ms = Config::HOME_REFRESH_MS;
@@ -345,10 +345,6 @@ namespace Botanik { namespace Pages {
     private:
         /** @name BufferedLogWriter interface
          *  @{ */
-
-        size_t format(const Logs::LogEntry* entry, char* buf, size_t len) override {
-            return Logs::format_log_entry(entry, buf, len);
-        }
 
         size_t write(const char* buf, size_t len) override {
             // Store-only: bank the entry, mark pending when active for the

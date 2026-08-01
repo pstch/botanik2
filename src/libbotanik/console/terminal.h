@@ -48,11 +48,11 @@ namespace Botanik { namespace Terminal {
     enum RowPriority : uint8_t {
         PRIO_INPUT  = 0,  /**< Keystroke echo and the edit point: must feel instant. */
         PRIO_CHROME = 1,  /**< The frame around the page - the status bar and the
-                           *   alarm strip, while they are being drawn in full. It
-                           *   outranks the page because a frame that arrives after
-                           *   what it frames looks like a fault, and the alarm bar
-                           *   is the bottom row, so top-down order alone would put
-                           *   it behind every page row. Demoted once drawn. */
+                           *   alarm strip. It outranks the page because a frame
+                           *   arriving after what it frames reads as a fault, and
+                           *   the alarm bar is the bottom row, so top-down order
+                           *   alone would put it behind every page row. A standing
+                           *   property, not a claim raised around a draw. */
         PRIO_STRUCT = 2,  /**< Page structure and fresh content: drawn once, and a
                            *   page that only half-arrives looks broken. Also the
                            *   resting class of every row nobody has claimed. */
@@ -309,7 +309,6 @@ namespace Botanik { namespace Terminal {
          *  blanking the freed cells at the right edge (grid-only). */
         void delete_chars(uint16_t len);
         void clear_to_eol();
-        void clear_to_eos();
         void clear_screen();
         void clear_screen_now();
         void scroll_region(uint16_t top, uint16_t bottom, bool up, uint16_t n = 1);
@@ -327,9 +326,6 @@ namespace Botanik { namespace Terminal {
 
         void establish_screen();
 
-        /** @brief Abort a half-sent control sequence on the wire, returning the
-         *  terminal parser to ground state. */
-        void cancel_sequence();
 
         /** @}
          *  @name Serial / TX

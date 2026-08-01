@@ -24,7 +24,6 @@ namespace Botanik { namespace Alarms {
         {"CPU_LOAD", "CPU load over threshold",          {Vars::VAR_NONE},   5,  5,   0,     300},
         {"STACK",    "Stack usage over threshold",       {Vars::VAR_NONE},   5,  5,   0,     300},
         {"CPU_JITT", "CPU jitter over threshold",        {Vars::VAR_NONE},   5,  5,   0,     300},
-        {"RX_TORN",  "PLC torn read (handshake violation)", {Vars::VAR_NONE}, 0, -1,  0,     0},
         // Sticky: a store that refused a write does not heal by itself, and
         // the consequence (settings silently reverting at the next reboot) is
         // invisible until it is far too late to connect cause and effect.

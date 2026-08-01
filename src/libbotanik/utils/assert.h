@@ -12,7 +12,7 @@
  *   - if there is a debugger, traps into the attached debugger
  *   - if we are on the simulator, abort()s on the simulator
  *   - otherwise, just keeps running.
- * 
+ *
  */
 
 #include <cstdlib>   // abort
@@ -20,7 +20,7 @@
 #include "../hal/platform.h"
 #include "../logs/logger.h"
 
-// Assertion handling (and logging)
+// Assertion handlingg (and logging)
 // ===========================================================================
 
 namespace Botanik {
@@ -32,7 +32,7 @@ namespace Botanik {
     }
 
     /** @brief Set the global assertion logger.  */
-    inline void set_assert_logger(Logs::Logger* logger) { 
+    inline void set_assert_logger(Logs::Logger* logger) {
         get_assert_logger() = logger;
     }
 
@@ -47,8 +47,8 @@ namespace Botanik {
                              expr, file, line);
 
         // Break for the debugger.
-        if (HAL::Debug::under_debugger()) { 
-            HAL::Debug::breakpoint(); 
+        if (HAL::Debug::under_debugger()) {
+            HAL::Debug::breakpoint();
             return;
         }
 

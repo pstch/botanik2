@@ -21,7 +21,7 @@
 #include "botanik_sim/network.h"
 #endif
 
-#include "libbotanik/utils/text.h"   // env_u32 (BOTANIK_CONSOLE_BAUD)
+#include "libbotanik/hal/platform.h"   // HAL::Env::u32 (BOTANIK_CONSOLE_BAUD)
 
 #include <csignal>
 #include <cstring>   // std::strncpy - seeding the mock PLC config block
@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
     // 0 is rejected rather than honoured: it switches the sim UART's throttle off
     // while pinning present()'s budget at its 8-byte floor, which reads as "the
     // console is broken" rather than "the console is fast".
-    uint32_t console_baud = Utils::env_u32("BOTANIK_CONSOLE_BAUD", 4800);
+    uint32_t console_baud = HAL::Env::u32("BOTANIK_CONSOLE_BAUD", 4800);
     if (console_baud == 0) console_baud = 4800;
     const uint32_t CONSOLE_BAUD = console_baud;
 
@@ -105,6 +105,13 @@ int main(int argc, char** argv) {
     // (mlockall MCL_FUTURE), like any other thread we create.
     Network::start_mock_netd(&greenhouse.logger());
 #endif
+
+    // Real-time posture for the beat: pages locked in RAM and the loop thread on
+    // SCHED_FIFO, pinned to its own core, so the scheduler's jitter figures
+    // measure the firmware rather than the host's scheduler. Both warn and carry
+    // on without privileges (BOTANIK_NO_RT_WARNING silences that).
+    Scheduler::lock_process_memory(&greenhouse.logger());
+    Scheduler::make_thread_realtime(Config::SIM_MAIN_CPU_CORE, &greenhouse.logger());
 
 
     // Drive the firmware until a shutdown signal flips the run flag. SIGUSR1

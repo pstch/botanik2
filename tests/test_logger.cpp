@@ -124,18 +124,16 @@ TEST_CASE("logger: sink-drop report is edge-triggered, critical, held off") {
 // Token-bucket mechanics (direct)
 // ----------------------------------------------------------------------------
 
-TEST_CASE("bucket: _try_bucket consumes a token and counts, then suppresses") {
+TEST_CASE("bucket: _try_bucket consumes a token, then suppresses") {
     TestLogger lg;
     Logs::LogBucket_t b;
     b.state = 2;
     CHECK(lg._try_bucket(&b));                   // 2 -> 1
     CHECK(lg._try_bucket(&b));                   // 1 -> 0
     CHECK(b.state == 0);
-    CHECK(b.count == 2);
     CHECK_FALSE(lg._try_bucket(&b));             // empty now
     CHECK_FALSE(lg._try_bucket(&b));
     CHECK(b.suppressed == 2);                    // drops are tallied
-    CHECK(b.count == 2);                         // count untouched while suppressing
 }
 
 TEST_CASE("bucket: the suppressed counter saturates instead of wrapping") {

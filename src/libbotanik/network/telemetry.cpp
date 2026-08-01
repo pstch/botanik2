@@ -5,6 +5,7 @@
  */
 #include "telemetry.h"
 
+#include <cstddef>   // offsetof
 #include <cstdio>
 #include <cstring>
 
@@ -15,70 +16,56 @@
 namespace Botanik { namespace Network {
 
     namespace {
-        // Base-field formatters. ctx is the SystemContext; a field returns false
-        // to skip when its source is absent (a null sub-context).
+        // Base fields. All but uptime read one SchedulerContext member, so they
+        // are one formatter over an offset table rather than eight near-copies.
+        // SchedulerContext is standard-layout, so offsetof is well-defined.
+        struct SchedField {
+            const char* name;
+            size_t      off;
+            bool        pct;    ///< a 0..1 float shown as a percentage
+        };
+        const SchedField SCHED[] = {
+            { "cpu_load",      offsetof(Scheduler::SchedulerContext, cpu_load_ema),       true  },
+            { "cpu_jitter",    offsetof(Scheduler::SchedulerContext, cpu_jitter_ema),     true  },
+            { "loop_us",       offsetof(Scheduler::SchedulerContext, cpu_loop_us_recent), false },
+            { "ticks_per_sec", offsetof(Scheduler::SchedulerContext, ticks_per_second),   false },
+            { "overruns",      offsetof(Scheduler::SchedulerContext, overruns),           false },
+            { "stack",         offsetof(Scheduler::SchedulerContext, stack_usage),        true  },
+            { "stack_free_b",  offsetof(Scheduler::SchedulerContext, stack_bytes_free),   false },
+        };
+
+        // ctx is the SystemContext; a field returns false to skip when its
+        // source is absent (a null sub-context).
         bool fmt_uptime(char* buf, size_t cap, void* ctx) {
             (void)ctx;
-            Utils::format_uint(buf, cap, (unsigned long)(HAL::Clock::uptime_ms() / 1000));
+            Utils::format_int(buf, cap, (long long)(HAL::Clock::uptime_ms() / 1000));
             return true;
         }
-        bool fmt_cpu_load(char* buf, size_t cap, void* ctx) {
+
+        bool fmt_sched(char* buf, size_t cap, void* ctx, const SchedField& f) {
             const SystemContext* s = static_cast<const SystemContext*>(ctx);
             if (s->scheduler == nullptr) return false;
-            Utils::format_float(buf, cap, s->scheduler->cpu_load_ema * 100.0f, 1);
-            return true;
-        }
-        bool fmt_cpu_jitter(char* buf, size_t cap, void* ctx) {
-            const SystemContext* s = static_cast<const SystemContext*>(ctx);
-            if (s->scheduler == nullptr) return false;
-            Utils::format_float(buf, cap, s->scheduler->cpu_jitter_ema * 100.0f, 1);
-            return true;
-        }
-        bool fmt_stack(char* buf, size_t cap, void* ctx) {
-            const SystemContext* s = static_cast<const SystemContext*>(ctx);
-            if (s->scheduler == nullptr) return false;
-            Utils::format_float(buf, cap, s->scheduler->stack_usage * 100.0f, 1);
-            return true;
-        }
-        bool fmt_loop_us(char* buf, size_t cap, void* ctx) {
-            const SystemContext* s = static_cast<const SystemContext*>(ctx);
-            if (s->scheduler == nullptr) return false;
-            Utils::format_uint(buf, cap, (unsigned long)s->scheduler->cpu_loop_us_recent);
-            return true;
-        }
-        bool fmt_ticks(char* buf, size_t cap, void* ctx) {
-            const SystemContext* s = static_cast<const SystemContext*>(ctx);
-            if (s->scheduler == nullptr) return false;
-            Utils::format_uint(buf, cap, (unsigned long)s->scheduler->ticks_per_second);
-            return true;
-        }
-        bool fmt_overruns(char* buf, size_t cap, void* ctx) {
-            const SystemContext* s = static_cast<const SystemContext*>(ctx);
-            if (s->scheduler == nullptr) return false;
-            Utils::format_uint(buf, cap, (unsigned long)s->scheduler->overruns);
-            return true;
-        }
-        bool fmt_stack_free(char* buf, size_t cap, void* ctx) {
-            const SystemContext* s = static_cast<const SystemContext*>(ctx);
-            if (s->scheduler == nullptr) return false;
-            Utils::format_uint(buf, cap, (unsigned long)s->scheduler->stack_bytes_free);
+            const char* base = reinterpret_cast<const char*>(s->scheduler);
+            if (f.pct) {
+                float v;
+                memcpy(&v, base + f.off, sizeof(v));
+                Utils::format_float(buf, cap, v * 100.0f, 1);
+            } else {
+                uint32_t v;
+                memcpy(&v, base + f.off, sizeof(v));
+                Utils::format_int(buf, cap, (long long)v);
+            }
             return true;
         }
     }  // namespace
 
-    const TelemetryField* MqttSender::_base_fields(size_t& count) {
-        static const TelemetryField TABLE[] = {
-            { "uptime_s",      &fmt_uptime     },
-            { "cpu_load",      &fmt_cpu_load   },
-            { "cpu_jitter",    &fmt_cpu_jitter },
-            { "loop_us",       &fmt_loop_us    },
-            { "ticks_per_sec", &fmt_ticks      },
-            { "overruns",      &fmt_overruns   },
-            { "stack",         &fmt_stack      },
-            { "stack_free_b",  &fmt_stack_free },
-        };
-        count = sizeof(TABLE) / sizeof(TABLE[0]);
-        return TABLE;
+    void MqttSender::_publish_base(const SystemContext* sys) {
+        char payload[64];
+        if (fmt_uptime(payload, sizeof(payload), (void*)sys))
+            _emit("system", "uptime_s", payload);
+        for (const SchedField& f : SCHED)
+            if (fmt_sched(payload, sizeof(payload), (void*)sys, f))
+                _emit("system", f.name, payload);
     }
 
     void MqttSender::step(uint64_t now_ms) {
@@ -89,23 +76,8 @@ namespace Botanik { namespace Network {
         if (_last_ms != 0 && now_ms - _last_ms < period) return;
         _last_ms = now_ms;
 
-        size_t base_n = 0;
-        const TelemetryField* base = _base_fields(base_n);
-        _publish_table("system", base, base_n, (void*)_sys);   // library status
-        _publish_table(nullptr, _site, _site_count, _site_ctx); // site computed
-        _publish_scalars();                                     // site scalars
-    }
-
-    void MqttSender::_publish_table(const char* group, const TelemetryField* table,
-                                       size_t count, void* ctx) {
-        if (table == nullptr) return;
-        char payload[64];
-        for (size_t i = 0; i < count; ++i) {
-            const TelemetryField& f = table[i];
-            if (f.name == nullptr || f.format == nullptr) continue;
-            if (!f.format(payload, sizeof(payload), ctx)) continue;   // skipped
-            _emit(group, f.name, payload);
-        }
+        _publish_base(_sys);        // library status
+        _publish_scalars();         // site variables
     }
 
     void MqttSender::_publish_scalars() {

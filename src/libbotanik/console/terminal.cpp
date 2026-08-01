@@ -10,11 +10,8 @@
 #include <cstdint>
 #include <cstring>
 #include <algorithm>
-#ifdef TARGET_SIMULATOR
-#include <cstdlib>   // getenv, for the BOTANIK_SHOW_CURSOR dev override
-#endif
-
 #include "../../libbotanik_config.h"
+#include "../hal/platform.h"   // HAL::Env
 
 #include "../utils/serial.h"
 #include "terminal.h"
@@ -97,7 +94,7 @@ namespace Botanik { namespace Terminal {
         // Dev override: BOTANIK_SHOW_CURSOR keeps the cursor visible everywhere
         // (handy for eyeballing where a paint leaves it in the sim). Read once -
         // the environment cannot change mid-run.
-        static const bool force_visible = getenv("BOTANIK_SHOW_CURSOR") != nullptr;
+        static const bool force_visible = HAL::Env::u8("BOTANIK_SHOW_CURSOR", 0) != 0;
         if (force_visible) show = true;
 #endif
         _want_cursor_visible = show;   // present() reconciles the wire state
@@ -129,14 +126,6 @@ namespace Botanik { namespace Terminal {
             _front[_idx(_draw_row, c)] = (uint8_t)(CELL_BLANK | pen);
     }
 
-    void AnsiTerminal::clear_to_eos() {
-        if (_draw_row >= _rows) return;
-        uint8_t pen = _draw_inv ? CELL_INV : 0;
-        uint16_t c0 = (_draw_col < _cols) ? _draw_col : 0;
-        for (uint16_t c = c0; c < _cols; c++) _front[_idx(_draw_row, c)] = (uint8_t)(CELL_BLANK | pen);
-        for (uint16_t r = (uint16_t)(_draw_row + 1); r < _rows; r++)
-            for (uint16_t c = 0; c < _cols; c++) _front[_idx(r, c)] = (uint8_t)(CELL_BLANK | pen);
-    }
 
     void AnsiTerminal::_shift_grid(uint8_t* g, uint16_t top, uint16_t bottom,
                                    bool up, uint16_t n) {
@@ -247,7 +236,6 @@ namespace Botanik { namespace Terminal {
 
     void AnsiTerminal::setup_vt102()   { Ansi::vt102_setup(_serial); }
     void AnsiTerminal::setup_minitel() { Ansi::minitel_setup(_serial); }
-    void AnsiTerminal::cancel_sequence() { Ansi::cancel_sequence(_serial); }
 
     // present() - reconcile FRONT to the wire
     // ------------------------------------------------------------------------

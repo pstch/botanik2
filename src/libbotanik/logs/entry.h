@@ -5,12 +5,7 @@
  * @file entry.h
  * @brief LogEntry - the one log record the whole firmware passes around.
  *
- * This used to live in plcio/vars.h as LogEntry_t, because it doubled as the
- * PLC log ring's wire format. That made a wire constant (the message width) an
- * ABI-critical macro every translation unit had to agree on, and made the
- * logging subsystem depend on the PLC header. With the PLC interface gone it is
- * simply the host's log record: a plain struct, sized by one Config value, with
- * no external contract to honour.
+ * Plain POD, sized by Config::LOG_MESSAGE_LEN; no wire contract to honour.
  */
 
 #include <cstdint>
@@ -28,7 +23,6 @@ namespace Botanik { namespace Logs {
         LogLevel  level;
         LogTopic  topic;
         uint16_t  length;       ///< bytes used in message, excluding the NUL
-        uint32_t  seqNum;       ///< monotonic; gaps mean entries were dropped
         char      message[Config::LOG_MESSAGE_LEN];
     };
 

@@ -4,8 +4,8 @@
 
 /**
  * @file time.h
- * @brief Time utilities - project rolling 32-bit uptime counters into absolute
- *        64-bit time, convert to calendar/UNIX time, and format timestamps.
+ * @brief Time utilities - uptime <-> UNIX/calendar conversion and timestamp
+ *        formatting.
  */
 
 #include <cstddef>
@@ -13,16 +13,12 @@
 
 namespace Botanik { namespace Utils {
 
-    // We use three time representations: 
-    //  - UNIX timestamps (uint64), 
-    //  - absolute ms/us uptime (uint64)
-    //  - rolling-over 32-bit ms/us uptime. 
-    // 
+    // Two representations, both uint64: UNIX timestamps, and ms/us uptime.
 
     /** @name Types
      *  @{ */
 
-    
+
     /** @brief Calendar time, without the tm struct's idiosyncrasies and with
      *  extra total-days / -seconds fields. */
     struct CalendarTime {
@@ -38,14 +34,6 @@ namespace Botanik { namespace Utils {
         uint32_t    unixDays;           ///< Days since the UNIX epoch
         uint64_t    unixSeconds;        ///< Seconds since the UNIX epoch
     };
-
-    /** @} */
-
-    /** @name Rollover projection
-     *  @{ */
-
-
-
 
     /** @} */
 

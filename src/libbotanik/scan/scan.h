@@ -61,15 +61,13 @@ namespace Botanik { namespace Scan {
         void      (*run)(ScanContext&);
     };
 
-    /** @brief Per-task diagnostics, surfaced by the `stats` command and the
-     *  MONITOR page. A task whose peak duration approaches its period is the
-     *  thing you want to see before it becomes an overrun. */
+    /** @brief Per-task scheduling state. RAM-resident, so the NSDMIs are fine
+     *  here (unlike the flash-resident descriptor tables).
+     *  @note Duration/overrun telemetry lived here but nothing ever read it; the
+     *  per-run `missed` count the task itself receives is in ScanContext. */
     struct TaskStats {
         uint64_t last_run_ms   = 0;   ///< when it last ran (0 = never)
-        uint32_t last_us       = 0;   ///< duration of the last run
-        uint32_t peak_us       = 0;   ///< worst duration seen
         uint32_t runs          = 0;
-        uint32_t missed_total  = 0;   ///< activations dropped, cumulative
     };
 
     /** @brief Runs the site's tasks at their declared rates.
@@ -100,15 +98,6 @@ namespace Botanik { namespace Scan {
                Vars::Bank* io, Logs::Logger* logger = nullptr)
             : Component(logger, "Scan"), _tasks(tasks), _count(count),
               _stats(stats), _io(io) {}
-
-        /** @} */
-
-        /** @name Queries
-         *  @{ */
-
-        uint8_t          count() const { return _count; }
-        const Task&      task(uint8_t i) const { return _tasks[i]; }
-        const TaskStats& stats(uint8_t i) const { return _stats[i]; }
 
         /** @} */
 

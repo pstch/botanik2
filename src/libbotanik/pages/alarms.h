@@ -62,7 +62,6 @@ namespace Botanik { namespace Pages {
         /** @brief Alarm source (may be null). Non-const: the `a` key acks the
          *  selected condition through it. */
         Alarms::AlarmModel*       _model;
-        /** @brief Mirrors tick(active). */
         /** @brief Filter mode, cycled by SPACE (see MODE_*). Defaults to
          *  RECENT. */
         uint8_t                   _mode     = MODE_RECENT;
@@ -139,14 +138,8 @@ namespace Botanik { namespace Pages {
 
         /** @brief Description-column width: the row remainder, clamped. */
         uint16_t _desc_w() const {
-            uint16_t cols  = _terminal.cols();
             // 5 rules + fixed cells
-            uint16_t fixed = (uint16_t)(5 + CODE_W + STATE_W + EVENT_W);
-            uint16_t avail = (cols > (uint16_t)(2 * MARGIN + fixed))
-                                 ? (uint16_t)(cols - 2 * MARGIN - fixed) : 8;
-            if (avail < 8)  avail = 8;
-            if (avail > 70) avail = 70;
-            return avail;
+            return _flex_width((uint16_t)(2 * MARGIN + 5 + CODE_W + STATE_W + EVENT_W), 70);
         }
 
         /** @brief Format the last-event cell: edge_ms as "YY/MM/DD HH:MM", or
@@ -246,14 +239,6 @@ namespace Botanik { namespace Pages {
                 _terminal.move_to({row, rcol});
                 _terminal.write_chars(right, (uint16_t)rn);
             }
-        }
-
-        /** @brief " Label       : value" panel line. */
-        void _panel_field(uint16_t row, const char* label, const char* value) {
-            char buf[192];
-            int n = snprintf(buf, sizeof(buf), " %-11s : %s", label,
-                             (value && value[0]) ? value : "-");
-            _draw_line(row, buf, (n < 0) ? 0 : (uint16_t)n);
         }
 
         /** @brief Detail panel between the bottom rule and the legend, spaced by

@@ -71,7 +71,6 @@ TEST_CASE("scan: a late task runs once and reports the real elapsed time") {
     REQUIRE(g_fast.size() == 1);            // ran ONCE, no catch-up burst
     CHECK(g_fast[0].dt == 1000);            // and dt is the real gap, not 100
     CHECK(g_fast[0].missed == 9);
-    CHECK(stats[0].missed_total == 9);
 }
 
 TEST_CASE("scan: period 0 runs every beat") {

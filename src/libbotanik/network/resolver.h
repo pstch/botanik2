@@ -80,7 +80,8 @@ namespace Botanik { namespace Network {
             char                        host[Config::PLC_HOST_STR_LEN]; ///< name (cache key)
             ResolvedAddr                addr;     ///< result           (when SLOT_READY)
             HAL::Network::DnsHandle     handle;   ///< async DNS handle (when SLOT_PENDING)
-            uint64_t                    ready_at; ///< uptime ms the row became READY (TTL base)
+            uint64_t                    stamp_at; ///< uptime ms the row entered its state
+                                                  ///< (TTL base when READY, in-flight age when PENDING)
             SlotState                   state;    ///< current state of the slot
         };
 

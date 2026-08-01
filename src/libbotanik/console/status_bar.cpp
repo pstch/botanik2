@@ -20,13 +20,12 @@
 
 namespace Botanik { namespace Terminal {
 
-    // Value-cell columns in "PLC:xxx cpu:nnn% stk:nnn% " - drawn normal-video
-    // against the reverse-video bar. One place tied to the build_metrics()
-    // format so the layout and the highlight can't drift apart.
+    // Value-cell columns in "cpu:nnn% stk:nnn% " - drawn normal-video against
+    // the reverse-video bar. One place tied to the build_metrics() format so
+    // the layout and the highlight can't drift apart.
     static bool metric_value_col(int c) {
-        return (c >= 4 && c <= 6)      // PLC status
-            || (c >= 12 && c <= 15)    // cpu value + '%'
-            || (c >= 21 && c <= 24);   // stk value + '%'
+        return (c >= 4  && c <= 7)     // cpu value + '%'
+            || (c >= 13 && c <= 16);   // stk value + '%'
     }
 
     StatusBar::StatusBar(Console& console)
@@ -67,7 +66,7 @@ namespace Botanik { namespace Terminal {
         _t.set_inverted(true);
 
         // Compact tab strip: "1 2 3:LOGS 4 5" - only the active page shows its
-        // name. Records the strip extent for draw_tabs()'s shrink handling.
+        // name. Records the strip extent for draw_tabs()'s shrink handlingg.
         _tabs_end_col = draw_tab_strip();
         _t.set_inverted(true);
 
@@ -172,9 +171,6 @@ namespace Botanik { namespace Terminal {
 
     int StatusBar::build_metrics(char* buf, size_t cap) const {
         const SystemContext& ctx = _c.context();
-        // No PLC context wired: show a "---" placeholder rather than a blank
-        // field.
-        const char* plc_str = "---";
         // The scheduler context may be absent (a site can wire a terminal
         // without one); show 0% rather than dereferencing null.
         unsigned cpu = 0, stk = 0;
@@ -184,7 +180,7 @@ namespace Botanik { namespace Terminal {
         }
         if (cpu > 999) cpu = 999;
         if (stk > 999) stk = 999;
-        return snprintf(buf, cap, "PLC:%s cpu:%3u%% stk:%3u%% ", plc_str, cpu, stk);
+        return snprintf(buf, cap, "cpu:%3u%% stk:%3u%% ", cpu, stk);
     }
 
 }}

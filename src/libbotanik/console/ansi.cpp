@@ -11,8 +11,10 @@
  * redraw.
  */
 #include <cstdint>
+#include <cstring>   // strlen
 
 #include "ansi.h"
+#include "../utils/text.h"   // format_int
 
 namespace Botanik { namespace Terminal { namespace Ansi {
 
@@ -32,14 +34,9 @@ namespace Botanik { namespace Terminal { namespace Ansi {
 
     // write @p val to @p _serial in decimal format
     void write_uint16(ByteSink& _serial, uint16_t val) {
-        char buf[5];
-        int8_t i = 4;
-        if (val == 0) { _serial.write("0", 1); return; }
-        while (val > 0 && i >= 0) {
-            buf[i--] = (char)('0' + val % 10);
-            val /= 10;
-        }
-        _serial.write(&buf[i + 1], 4 - i);
+        char b[8];
+        const char* s = Utils::format_int(b, sizeof(b), (long long)val);
+        _serial.write(s, (uint16_t)std::strlen(s));
     }
 
     // emit a CSI quantified command (<CSI> <count> <byte>)
@@ -52,7 +49,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         _serial.write(final_byte, fn);                  // write given final byte
         return true;
     }
-    
+
     // State management
     // ------------------------------------------------------------------------
 

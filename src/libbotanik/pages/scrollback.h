@@ -223,9 +223,6 @@ namespace Botanik { namespace Pages {
             return n;
         }
 
-        /** @brief Lines stored but not yet painted to the live tail. */
-        uint16_t pending() const { return _pending; }
-
         /** @brief Paint up to LOG_ROWS_PER_TICK pending lines into the live-tail
          *  window, oldest first. The per-tick cap keeps the tail animating a few
          *  rows at a time (rather than jumping to the newest window on a burst);

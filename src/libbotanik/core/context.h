@@ -29,7 +29,7 @@ namespace Botanik {
 
     /** @brief Aggregate of subsystem context structs and pointers to the
      *  optional network components; used by reporting commands and metric pages.
-     *  Every member may be null when its subsystem is absent at runtime. 
+     *  Every member may be null when its subsystem is absent at runtime.
      * @warning Consumers should be gated under the matching `#if BOTANIK_FEATURE_*`. */
     struct SystemContext {
 

@@ -103,6 +103,10 @@ namespace Botanik { namespace Logs {
     // Channel implementation
     // ------------------------------------------------------------------------
 
+    size_t BufferedLogWriter::format(const Logs::LogEntry* entry, char* buf, size_t len) {
+        return format_log_entry(entry, buf, len);
+    }
+
     size_t SerialLogWriter::format(const Logs::LogEntry* entry, char* buf, size_t len) {
         // The shared formatter emits no terminator; on a serial sink,
         // newline-terminate each entry so they don't run together. Format into

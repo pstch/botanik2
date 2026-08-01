@@ -27,21 +27,28 @@ namespace Botanik { namespace Logs {
         default:                    return "[?]";
     }; }
 
+    /** @brief Per-topic strings, indexed by LogTopic (dense 0..STORAGE):
+     *  { display label, lowercase MQTT segment }. One table, so the two can no
+     *  longer drift apart. */
+    static const char* const TOPIC_NAMES[Logs::LOG_TOPIC_COUNT][2] = {
+        { "",            "none"        },
+        { "SHARED_IO",   "shared_io"   },
+        { "BOOT",        "boot"        },
+        { "NETWORK",     "network"     },
+        { "TIME",        "time"        },
+        { "STATUS",      "status"      },
+        { "ASSERT",      "assert"      },
+        { "ALARM_START", "alarm_start" },
+        { "ALARM_END",   "alarm_end"   },
+        { "ALARM_FLAP",  "alarm_flap"  },
+        { "HEALTH",      "health"      },
+        { "STORAGE",     "storage"     },
+    };
+
     /** @brief Format a log topic into its actual name. */
-    inline const char* format_log_topic(Logs::LogTopic topic) { switch (topic) {
-        case Logs::NONE:           return "";
-        case Logs::BOOT:           return "BOOT";
-        case Logs::NETWORK:        return "NETWORK";
-        case Logs::TIME:           return "TIME";
-        case Logs::STATUS:         return "STATUS";
-        case Logs::PLC_IO:         return "SHARED_IO";
-        case Logs::ASSERT:         return "ASSERT";
-        case Logs::ALARM_START:    return "ALARM_START";
-        case Logs::ALARM_END:      return "ALARM_END";
-        case Logs::ALARM_FLAP:     return "ALARM_FLAP";
-        case Logs::HEALTH:         return "HEALTH";
-        default:                    return "";
-    }; }
+    inline const char* format_log_topic(Logs::LogTopic topic) {
+        return topic < Logs::LOG_TOPIC_COUNT ? TOPIC_NAMES[topic][0] : "";
+    }
 
     /** @brief Lowercase level word, for MQTT topic segments. */
     inline const char* format_log_level_name(Logs::LogLevel level) { switch (level) {
@@ -56,21 +63,9 @@ namespace Botanik { namespace Logs {
 
     /** @brief Lowercase topic word, for MQTT topic segments (PLC_IO -> "shared_io",
      *  matching the SHARED_IO display label). */
-    inline const char* format_log_topic_name(Logs::LogTopic topic) { switch (topic) {
-        case Logs::NONE:           return "none";
-        case Logs::PLC_IO:         return "shared_io";
-        case Logs::BOOT:           return "boot";
-        case Logs::NETWORK:        return "network";
-        case Logs::TIME:           return "time";
-        case Logs::STATUS:         return "status";
-        case Logs::ASSERT:         return "assert";
-        case Logs::ALARM_START:    return "alarm_start";
-        case Logs::ALARM_END:      return "alarm_end";
-        case Logs::ALARM_FLAP:     return "alarm_flap";
-        case Logs::HEALTH:         return "health";
-        case Logs::STORAGE:        return "storage";
-        default:                    return "unknown";
-    }; }
+    inline const char* format_log_topic_name(Logs::LogTopic topic) {
+        return topic < Logs::LOG_TOPIC_COUNT ? TOPIC_NAMES[topic][1] : "unknown";
+    }
 
     /** @brief Format a complete log entry as `TIMESTAMP LEVEL TOPIC MESSAGE`.
      *  @return Bytes written, clamped to @p len; 0 on encoding error. */

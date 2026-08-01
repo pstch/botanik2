@@ -13,7 +13,8 @@
  * hardware, simulator.h for the Linux host build.
  *
  * The surface is grouped into nested namespaces by concern (Clock, Memory,
- * Stack, PlcIO, Debug, System, Watchdog, Serial, plus Network in net.h). All
+ * Stack, Debug, System, Watchdog, Serial, plus Storage (storage.h) and
+ * Network (net.h)). All
  * other code must go through this interface; never reach for raw <time.h> or
  * platform-specific calls directly.
  */
@@ -50,14 +51,6 @@ namespace Botanik { namespace HAL {
         inline uint32_t high();
 
     }  // namespace Stack
-
-    /** @brief PLC coprocessor shared-memory regions (null when absent). */
-    namespace PlcIO {
-
-        inline void* input();
-        inline void* output();
-
-    }  // namespace PlcIO
 
     /** @brief Timing and clocks. */
     namespace Clock {
@@ -102,25 +95,10 @@ namespace Botanik { namespace HAL {
          *  waiting for completion. Used for cross-core counter polls. */
         inline void dmb();
 
-        /** @brief Copy a block of memory with hardware-enforced ordering. */
-        template <typename T>
-        inline void ordered_copy(T* dst, const T* src);
-
         /** @brief Read a value the other core may be writing: a volatile load
          *  (never cached in a register) plus dmb() for acquire ordering. */
         template <typename T>
         inline T ordered_read(const volatile T* src);
-
-        /** @brief Clean (write back) the D-cache over [addr, addr+len) after
-         *  writing a shared region, so the other core sees the data in SRAM.
-         *  No-op without a D-cache (simulator, or a Cortex-M4). Rounds to whole
-         *  cache lines. */
-        inline void cache_clean(const void* addr, size_t len);
-
-        /** @brief Invalidate the D-cache over [addr, addr+len) before reading a
-         *  shared region, so a stale cached copy can't hide the other core's
-         *  writes. No-op without a D-cache. Rounds to whole cache lines. */
-        inline void cache_invalidate(const void* addr, size_t len);
 
     }  // namespace Memory
 
@@ -158,7 +136,7 @@ namespace Botanik { namespace HAL {
 
         /** @brief Start the hardware watchdog: not kicked within @p timeout_ms
          *  -> the firmware resets. Distinct from the PLC software watchdog
-         *  (plcio/sync.h), which guards comms liveness, not the whole firmware.
+         *  which guards comms liveness, not the whole firmware.
          *  OPTA: the MCU's independent watchdog peripheral. Sim: serviced from
          *  the emulator thread (independent of the main loop, so a wedged loop
          *  still trips it). */
@@ -172,6 +150,21 @@ namespace Botanik { namespace HAL {
         inline void stop();
 
     }  // namespace Watchdog
+
+    /** @brief Process environment. Host-only in practice: the OPTA backend has
+     *  no environment and always yields the fallback. Lives here rather than in
+     *  utils/ because reading it is a platform call. */
+    namespace Env {
+
+        /** @brief Environment variable @p name as a uint32.
+         *  @returns @p fallback if unset, empty, unparseable or out of range. */
+        uint32_t u32(const char* name, uint32_t fallback = 0);
+
+        /** @brief Environment variable @p name as a uint8.
+         *  @returns @p fallback if unset or it does not fit a byte. */
+        uint8_t  u8(const char* name, uint8_t fallback = 0);
+
+    }  // namespace Env
 
     /** @brief Serial access (Serial::Raw, Serial::get(), ports) is
      *  intentionally *not* re-declared here: the types and (host-only)

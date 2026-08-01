@@ -22,18 +22,9 @@
 #include "mbed.h"
 #include "USBSerial.h"    // MONITOR transport (USB CDC)
 
-struct PLCSharedVarsInput_t;
-struct PLCSharedVarsOutput_t;
-
 /// Linker symbol for the top of the MSP/ISR stack (the ~1KB exception stack,
-/// NOT the RTOS thread stack the firmware runs on - kept only to satisfy the
-/// interface).
+/// NOT the RTOS thread stack the firmware runs on).
 extern "C" char _estack;
-
-/// Shared-memory buffers exchanged with the PLC coprocessor (M4 core).
-extern "C" void* m_PLCSharedVarsInputBuf;
-extern "C" void* m_PLCSharedVarsOutputBuf;
-
 
 
 namespace Botanik { namespace HAL {
@@ -75,19 +66,6 @@ namespace Botanik { namespace HAL {
 
     }  // namespace Stack
 
-    /** @brief PLC coprocessor shared memory. */
-    namespace PlcIO {
-
-    inline void* input() {
-        return static_cast<PLCSharedVarsInput_t*>(m_PLCSharedVarsInputBuf);
-    }
-
-    inline void* output() {
-        return static_cast<PLCSharedVarsOutput_t*>(m_PLCSharedVarsOutputBuf);
-    }
-
-    }  // namespace PlcIO
-
     /** @brief Timing and clocks. */
     namespace Clock {
 
@@ -114,16 +92,16 @@ namespace Botanik { namespace HAL {
     inline uint64_t wall_ms() {
         // TODO [WALLCLOCK-WRAP-2038]: time() returns time_t, which is 32-bit on
         // this newlib and WRAPS in Jan 2038 before the widening cast - this
-        // must be sourced from a 64-bit RTC read once the NtpClient/RTC path
-        // lands (it also only resolves whole seconds today; read the RTC
-        // sub-second register for ms).
+        // must be sourced from a 64-bit RTC read (it also only resolves whole
+        // seconds; read the RTC sub-second register for ms).
         return (uint64_t)time(NULL) * 1000;
     }
 
     inline void set_wall_ms(uint64_t unix_ms) {
-        // TODO: program the STM32 RTC (set_time / RTC date+time registers) from
-        // unix_ms once NTP sync lands. Reasoned-only; no RTC write wired yet.
-        (void)unix_ms;
+        // Programs the STM32 RTC, which is what time() reads back. Whole
+        // seconds only: Mbed's set_time() takes a time_t, so the sub-second
+        // part of an NTP sync is dropped (see WALLCLOCK-WRAP-2038).
+        set_time((time_t)(unix_ms / 1000u));
     }
 
     inline void sleep_ms(uint32_t ms) {
@@ -143,55 +121,11 @@ namespace Botanik { namespace HAL {
         __DMB();
     }
 
-    // @warning dst and src must not alias: ARM_MPU_OrderedMemcpy declares src
-    // __RESTRICT, so an in-place/overlapping copy is UB on the optimized path.
-    // Our PLC regions are always disjoint (PlcInput vs PlcOutput, or a local
-    // buffer vs the shared region).
-    template <typename T>
-    inline void ordered_copy(T* dst, const T* src) {
-        // ARM_MPU_OrderedMemcpy counts 32-bit words, not bytes.
-        static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
-                      "ordered_copy needs a word-multiple T");
-        if (std::is_empty<T>::value) return;   // empty payload carries no data
-#if defined(DEBUG)
-        // no aliasing (see @warning)
-        assert((const void*)dst != (const void*)src);
-#endif
-        ARM_MPU_OrderedMemcpy((volatile uint32_t*)dst, (const uint32_t*)src,
-                              sizeof(T) / sizeof(uint32_t));
-        __DSB();
-    }
-
     template <typename T>
     inline T ordered_read(const volatile T* src) {
         T value = *src;   // volatile load: the compiler must re-read it
         __DMB();          // acquire: order later accesses after this read
         return value;
-    }
-
-    // Cache discipline for the two PLC regions (each alignas(32), so they never
-    // share a line). clean (write-back) is always safe - it rounds to whole
-    // lines and only ever writes back, losing nothing. invalidate DISCARDS
-    // whole lines, so it is safe ONLY on a region we treat as read-only:
-    // invalidate the PLC-OUTPUT region (we never write it) and clean the
-    // PLC-INPUT region (we write it). Sub-region calls within one region are
-    // fine - they round to that region's own lines. @warning never invalidate a
-    // line that holds data we wrote, or that write is silently dropped.
-    inline void cache_clean(const void* addr, size_t len) {
-    #if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
-        // CMSIS rounds to lines
-        SCB_CleanDCache_by_Addr((void*)addr, (int32_t)len);
-    #else
-        (void)addr; (void)len;
-    #endif
-    }
-
-    inline void cache_invalidate(const void* addr, size_t len) {
-    #if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
-        SCB_InvalidateDCache_by_Addr((void*)addr, (int32_t)len);
-    #else
-        (void)addr; (void)len;
-    #endif
     }
 
     }  // namespace Memory

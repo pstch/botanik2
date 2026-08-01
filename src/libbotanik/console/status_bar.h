@@ -8,7 +8,7 @@
  *
  * Three fields on the reverse-video top row: page tabs (left), a centred
  * HH:MM:SS clock, and a right-aligned "PLC:xxx cpu:nnn% stk:nnn%" metrics field.
- * Owned by AnsiTerminal. The clock and metrics rebuild on their own cadence and
+ * Owned by Console. The clock and metrics rebuild on their own cadence and
  * repaint their whole field; the terminal's back-buffer diff emits only the cells
  * that actually changed, so the bar keeps no diff cache.
  */
@@ -36,8 +36,8 @@ namespace Botanik { namespace Terminal {
         /** @brief Last clock refresh (uptime ms). */
         uint64_t            _clock_last_ms = 0;
 
-        /** @brief Visible width (+NUL) of "PLC:xxx cpu:nnn% stk:nnn% ". */
-        static constexpr uint16_t METRICS_LEN = 27;
+        /** @brief Visible width (+NUL) of "cpu:nnn% stk:nnn% ". */
+        static constexpr uint16_t METRICS_LEN = 19;
         /** @brief HH:MM:SS field width (no NUL). */
         static constexpr uint16_t CLOCK_LEN = 8;
         /** @brief Column just past the last-drawn tab strip. The active tab is

@@ -26,10 +26,8 @@ from `HAL::get_plc_input()/get_plc_output()` rather than allocated locally.
 ## Memory map
 
 The OPTA is a dual-core STM32H747: the **M7** runs Botanik (with Mbed OS), the **M4**
-runs the Axel PLC runtime, and the two communicate only through a shared RAM region.
-Botanik names exactly one address - the shared PLC vars, via the
-`m_PLCSharedVarsInputBuf` / `m_PLCSharedVarsOutputBuf` symbols (`hal/opta.h`); every
-other placement is the Axel PLC IDE's linker config, not this repo. The map below is
+runs the Axel PLC runtime. Botanik no longer names any shared-memory address: every
+placement is the Axel PLC IDE's linker config, not this repo. The map below is
 the **typical** STM32H747 + Axel arrangement for orientation, not a guarantee:
 
 | Address | Region | Use |

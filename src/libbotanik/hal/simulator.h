@@ -154,15 +154,6 @@ namespace Botanik { namespace HAL {
 
     }  // namespace Stack
 
-    /** @brief PLC coprocessor shared memory. */
-    namespace PlcIO {
-
-    /// No PLC coprocessor exists on the host; the regions are absent.
-    inline void* input()  { return nullptr; }
-    inline void* output() { return nullptr; }
-
-    }  // namespace PlcIO
-
     /** @brief Timing and clocks. */
     namespace Clock {
 
@@ -216,32 +207,11 @@ namespace Botanik { namespace HAL {
     }
 
     template <typename T>
-    inline void ordered_copy(T* dst, const T* src) {
-        // Match the OPTA backend's word-multiple + no-alias contract so the sim
-        // build (where DEBUG + tests run) catches violations the hardware can't
-        // surface.
-        static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
-                      "ordered_copy needs a word-multiple T");
-        if (std::is_empty<T>::value) return;   // empty payload carries no data
-#if defined(DEBUG)
-        // no aliasing (ARM_MPU __RESTRICT)
-        assert((const void*)dst != (const void*)src);
-#endif
-        std::memcpy((void*)dst, (const void*)src, sizeof(T));
-        dsb();
-    }
-
-    template <typename T>
     inline T ordered_read(const volatile T* src) {
         T value = *src;
         dmb();
         return value;
     }
-
-    /// No D-cache on the host; the PLC region is plain memory (see opta.h for
-    /// the clean/invalidate discipline these mirror).
-    inline void cache_clean(const void* addr, size_t len)      { (void)addr; (void)len; }
-    inline void cache_invalidate(const void* addr, size_t len) { (void)addr; (void)len; }
 
     }  // namespace Memory
 

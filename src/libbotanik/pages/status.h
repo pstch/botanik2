@@ -7,8 +7,8 @@
  * @brief StatusPage - full-screen runtime status display (template base).
  *
  * Templated on the site PLC output payload for type-safe data() access. The
- * base renders system health as a two-column grid (rows 3..6): left PLC link /
- * CPU load / jitter / stack, right wall clock / uptime / task period / console
+ * base renders system health as a two-column grid (rows 3..6): left CPU load /
+ * jitter / stack, right wall clock / uptime / task period / console
  * TX. Values are right-aligned so label and value read as separate sub-columns.
  * Rows 7..8 (network / NTP / MQTT) are rendered generically from the live
  * network components (via SystemContext) when BOTANIK_FEATURE_NETWORK is set;
@@ -66,8 +66,8 @@ namespace Botanik { namespace Pages {
 
         /** @brief Diff-cache slots for the base cells, disjoint from the
          *  payload slots a derived page uses. Slots 6, 7, 9, 31 carry the
-         *  network band (below); 1, 2 stay free. */
-        static constexpr uint16_t SLOT_PLC = 3, SLOT_CPU = 4, SLOT_JITTER = 5,
+         *  network band (below); 1, 2, 3 stay free. */
+        static constexpr uint16_t SLOT_CPU = 4, SLOT_JITTER = 5,
                                   SLOT_STACK = 8;
         static constexpr uint16_t SLOT_WALL = 27, SLOT_UPTIME = 28, SLOT_TASK = 29,
                                   SLOT_CONSOLE = 30;
@@ -90,12 +90,11 @@ namespace Botanik { namespace Pages {
         void draw_static() override {
             // Row 1 blank separator above the header.
             _header(2, 2, "SYSTEM STATUS", 76);
-            // Left column: PLC link + platform health. _label_at (no
-            // clear-to-eol) so it never wipes the right column on the same row.
-            _label_at(3, L_LBL, "PLC link");
-            _label_at(4, L_LBL, "CPU load");
-            _label_at(5, L_LBL, "CPU jitter");
-            _label_at(6, L_LBL, "Stack");
+            // Left column: platform health. _label_at (no clear-to-eol) so it
+            // never wipes the right column on the same row.
+            _label_at(3, L_LBL, "CPU load");
+            _label_at(4, L_LBL, "CPU jitter");
+            _label_at(5, L_LBL, "Stack");
             // Right column: scheduler/runtime stats.
             _label_at(3, R_LBL, "Wall clock");
             _label_at(4, R_LBL, "Uptime");
@@ -117,18 +116,13 @@ namespace Botanik { namespace Pages {
             char fa[12];
 
             // Cold fields only - EMAs and clocks are hot (see draw_hot()).
-            _cell(SLOT_PLC, 3, L_VAL,
-                  rjust(fld, sizeof(fld), L_W,
-                        "n/a"
-                        ), L_W);
-
             if (ctx.scheduler) {
                 // Stack: EMA leads, all-time peak free in parens.
                 char fs[12];
                 snprintf(val, sizeof(val), "%5s%% (%s free)",
                          Utils::format_float(fa, sizeof(fa), ctx.scheduler->stack_usage * 100.0f, 1),
                          Utils::format_size(fs, sizeof(fs), ctx.scheduler->stack_bytes_free));
-                _cell(SLOT_STACK, 6, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W);
+                _cell(SLOT_STACK, 5, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W);
                 // Task period: nominal loop period + real tick rate (RTPS =
                 // ticks per real second; under sim dilation shows sustain).
                 // Count width-padded so " RTPS)" never shifts.
@@ -206,11 +200,11 @@ namespace Botanik { namespace Pages {
                 snprintf(val, sizeof(val), "%5s%% (peak %5sms)",
                          Utils::format_float(fa, sizeof(fa), ctx.scheduler->cpu_load_ema * 100.0f, 1),
                          Utils::format_float(fb, sizeof(fb), ctx.scheduler->cpu_loop_us_max / 1000.0, 2));
-                _cell(SLOT_CPU, 4, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W, false);
+                _cell(SLOT_CPU, 3, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W, false);
                 snprintf(val, sizeof(val), "%5s%% (peak %5sms)",
                          Utils::format_float(fa, sizeof(fa), ctx.scheduler->cpu_jitter_ema * 100.0f, 1),
                          Utils::format_float(fb, sizeof(fb), ctx.scheduler->cpu_jitter_us_max / 1000.0, 2));
-                _cell(SLOT_JITTER, 5, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W, false);
+                _cell(SLOT_JITTER, 4, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W, false);
             }
 
             // Console TX (right): ring depth / capacity + cumulative drops.
@@ -239,7 +233,7 @@ namespace Botanik { namespace Pages {
     public:
         /** @brief Bind to a terminal and PLC payload. */
         StatusPage(Console& console, const OutputData* data)
-            : MetricPage(console, 16), _data(data) {
+            : MetricPage(console), _data(data) {
             // wall clock + uptime tick per second
             _hot_ms = Config::PAGE_HOT_MS;
         }

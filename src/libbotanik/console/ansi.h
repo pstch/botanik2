@@ -73,7 +73,6 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     static constexpr char IL[]  = "L";  // Insert Line
     static constexpr char DL[]  = "M";  // Delete Line
     static constexpr char DCH[] = "P";  // Delete Character
-    static constexpr char EL[]  = "K";  // Erase in Line (Cursor to EOL)
 
     /** @}
      *  @name Generic utilities

@@ -33,6 +33,10 @@ namespace Botanik { namespace Logs { class Logger; } }
 
 namespace Botanik { namespace Scheduler {
 
+    /** @brief The rolling-max window the per-beat metrics use. Bound here, not
+     *  in utils/filters.h: the bucket count is a scheduler tuning knob. */
+    typedef Utils::WindowedMax<Config::LOAD_METRIC_BUCKETS> MetricWindow;
+
     /** @brief Stable metrics snapshot consumed by AnsiTerminal.
      *  @note Written by LoopScheduler, read by other components. */
     struct SchedulerContext {
@@ -51,14 +55,13 @@ namespace Botanik { namespace Scheduler {
         uint32_t cpu_jitter_us_max    = 0;      ///< All-time peak CPU jitter, us
         uint32_t tick_count      = 0;           ///< Tick count since init
         uint32_t overruns        = 0;           ///< Cumulative beats skipped to overruns
-        
-        /** @brief Loop "now" (uptime ms), republished by tick() when the work window opens.
-         *  @warning 32-bit, wraps every ~49 days. */
+
+        /** @brief Loop "now" (uptime ms), republished by tick() when the work window opens. */
         uint64_t timestamp_ms    = 0;
     };
 
     /** @class LoopScheduler
-     *  @brief Non-blocking fixed-period loop driver: releases ticks at the 
+     *  @brief Non-blocking fixed-period loop driver: releases ticks at the
      *         configured period, absorbs overruns, and measures its own per-beat
      *         performance (jitter, CPU duty cycle, work duration, stack usage),
      *         publishing everything into the SchedulerContext.
@@ -91,18 +94,16 @@ namespace Botanik { namespace Scheduler {
          *  @{ */
 
         Utils::ExpMovingAverage _jitter;          ///< EMA (fraction of tick interval)
-        Utils::MetricWindow     _jitter_window;   ///< windowed peak, us
+        MetricWindow     _jitter_window;   ///< windowed peak, us
         uint32_t                _jitter_us_max = 0;   ///< all-time peak, us
 
         /** @} */
 
         /** @name CPU-load (duty cycle) metrics
-         *  @brief Load is the active fraction of each beat:
-         *  (elapsed - slept)/elapsed, so it counts the work plus the
-         *  loop/scheduler overhead and the busy-wait, and excludes only the
-         *  real sleep. Both terms are measured from actual uptime deltas (not
-         *  the requested sleep), so an overrunning sleep or a skipped beat
-         *  self-normalizes instead of inflating the figure.
+         *  @brief Load is a beat's active (non-slept) time over the nominal
+         *  period, so it counts work plus loop overhead plus the busy-wait, and
+         *  an overrunning beat reads past 100%. Both terms come from actual
+         *  uptime deltas, not the requested sleep.
          *  @{ */
 
         Utils::ExpMovingAverage _cpu_load;   ///< EMA of CPU duty cycle
@@ -119,7 +120,7 @@ namespace Botanik { namespace Scheduler {
         bool              _measuring     = false;
         uint64_t          _work_start_us = 0;        ///< work-window open time, us
         uint32_t          _cpu_loop_us_max = 0;      ///< all-time peak, us
-        Utils::MetricWindow _cpu_loop_us_window;     ///< windowed peak, us
+        MetricWindow _cpu_loop_us_window;     ///< windowed peak, us
 
         /** @} */
 
@@ -164,10 +165,6 @@ namespace Botanik { namespace Scheduler {
          *  @param logger    Optional logger for startup and periodic load
          *                   reports. */
         LoopScheduler(uint32_t period_ms = Config::TASK_PERIOD_MS, Logs::Logger* logger = nullptr);
-
-        /** @brief Reset the anchor to the current uptime and clear all
-         *  metrics/filters. */
-        void reset();
 
         /** @} */
 
@@ -218,7 +215,7 @@ namespace Botanik { namespace Scheduler {
                 return false;   // busy-wait the last ms; defer work
             }
             // publish the loop "now" so consumers share one timestamp per tick
-            _context.timestamp_ms = (uint32_t)now_ms;
+            _context.timestamp_ms = now_ms;
             _skip_beats(now_ms);   // no log; surfaced via CPU_XRUN + stats
             // Clamp grid-relative lateness at 0: _skip_beats keeps now >= grid
             // so it shouldn't underflow, but one wrapped sample would poison
@@ -266,13 +263,14 @@ namespace Botanik { namespace Scheduler {
         /** @brief Advance the next-tick anchor to skip missed beats when the
          *  loop falls behind. */
         void _skip_beats(uint64_t now);
-        /** @brief Filter a beat's scheduling jitter and publish it into the
-         *  context. */
         /** @brief @p us as a fraction of the nominal tick period (0 if the
-         *  period is unset). Single-precision - this file is -Wdouble-promotion. */
+         *  period is unset). Single-precision: the metric math must not promote
+         *  (no double FPU on the M4). */
         float _fraction_of_period(uint64_t us) const {
             return (_period_ms > 0) ? (float)us / (float)(_period_ms * 1000u) : 0.0f;
         }
+        /** @brief Filter a beat's scheduling jitter and publish it into the
+         *  context. */
         void _record_jitter(uint32_t jitter_us);
         /** @brief Compute the beat's CPU duty cycle (active fraction of the
          *  elapsed beat) from the actual slept time and publish it. */

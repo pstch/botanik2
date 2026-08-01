@@ -17,7 +17,7 @@ namespace Botanik { namespace Utils {
     /** @name String comparison
      *  @{ */
 
-    /** @brief Null-safe equality of two NUL-terminated strings 
+    /** @brief Null-safe equality of two NUL-terminated strings
      *  @returns True when both pointers are non-null and contain the same text. */
     inline bool compare_str(const char* a, const char* b) {
         return a != nullptr && b != nullptr && std::strcmp(a, b) == 0;
@@ -37,30 +37,9 @@ namespace Botanik { namespace Utils {
         return take;
     }
 
-    /** @} 
-     *  @name Argument parsing helpers (for the shell) 
+    /** @}
+     *  @name Numeric parsing
      *  @{ */
-
-    /** @brief Extract the next whitespace-delimited word from [@p args, @p
-     *  args+alen). Returns the word start (nullptr if none) and sets @p wlen to
-     *  its length, advancing @p args / @p alen past the word (leading spaces
-     *  are skipped first). */
-    inline const char* arg_next(const char*& args, uint16_t& alen, uint16_t& wlen) {
-        while (alen > 0 && *args == ' ') { args++; alen--; }
-        if (alen == 0) { wlen = 0; return nullptr; }
-        const char* w = args;
-        wlen = 0;
-        while (alen > 0 && *args != ' ') { args++; alen--; wlen++; }
-        return w;
-    }
-
-    /** @brief True if word [@p w, @p w+wlen) equals the NUL-terminated literal
-     *  @p lit. */
-    inline bool arg_eq(const char* w, uint16_t wlen, const char* lit) {
-        for (uint16_t i = 0; i < wlen; i++)
-            if (lit[i] == '\0' || w[i] != lit[i]) return false;
-        return lit[wlen] == '\0';
-    }
 
     /** @brief Parse [@p s, @p s+len) as a decimal uint32 into @p out. Returns
      *  false on an empty string, a non-digit, or overflow. */
@@ -78,7 +57,7 @@ namespace Botanik { namespace Utils {
         return true;
     }
 
-    /** @} 
+    /** @}
      *  @name Number formatting
      *  @{ */
 
@@ -99,31 +78,21 @@ namespace Botanik { namespace Utils {
      *  @note Non-finite inputs render "nan" / "inf" / "-inf"; NUL-terminated
      *  when cap > 0. */
     const char* format_float(char* buf, size_t cap, double value,
-                             uint8_t decimals = 1, uint8_t width = 0);
-
-    /** @brief Format @p value as an unsigned decimal into @p buf (the `%lu`
-     *  stand-in), and return @p buf for inline use. Digits are peeled with
-     *  integer math, so it carries no libc/`%f` baggage.
-     *  @param width  Min field width, zero-padded (0 = none).
-     *  @note NUL-terminated when @p cap > 0. */
-    const char* format_uint(char* buf, size_t cap, unsigned long value,
-                            uint8_t width = 0);
+                             uint8_t decimals = 1);
 
     /** @brief Format @p value as a signed decimal into @p buf (the `%lld`
      *  stand-in), and return @p buf for inline use. Takes @c long @c long so
-     *  callers pass any signed integer without a magnitude concern.
-     *  @param width  Min field width, zero-padded after the sign (0 = none).
+     *  callers pass any integer, signed or not, without a magnitude concern.
      *  @note NUL-terminated when @p cap > 0; the negation is done on the
      *  unsigned magnitude, so @c LLONG_MIN is handled without overflow. */
-    const char* format_int(char* buf, size_t cap, long long value,
-                           uint8_t width = 0);
+    const char* format_int(char* buf, size_t cap, long long value);
 
     /** @brief Format @p bytes into @p buf as "<n> B" below 32 KiB, or "<n> KB"
      *  (rounded to the nearest KiB) at or above it. Returns @p buf for inline
      *  use. */
     const char* format_size(char* buf, size_t cap, uint32_t bytes);
 
-    /** @} 
+    /** @}
      *  @name Duration formatting
      *  @{ */
 
@@ -135,20 +104,6 @@ namespace Botanik { namespace Utils {
      *  Floor the unit at minutes (sub-minute reads "0 m"). */
     const char* format_age(char* buf, size_t cap, uint32_t secs,
                            bool ago = true, bool floor_min = false);
-
-    /** @}
-     *  @name Environment
-     *  @{ */
-
-    /** @brief Read environment variable @p name as an unsigned 32-bit integer.
-     *  @returns @p fallback if unset, empty, unparseable or out of range.
-     *  @note This is only for the simulator, on other targets we just return @p fallback . */
-    uint32_t env_u32(const char* name, uint32_t fallback = 0);
-
-    /** @brief Read environment variable @p name as an unsigned 8-bit integer.
-     *  @returns @p fallback if unset, otherwise parsed uint8_t value.
-     *  @note This is only for the simulator, on other targets we just return @p fallback . */
-    uint8_t env_u8(const char* name, uint8_t fallback = 0);
 
     /** @} */
 
