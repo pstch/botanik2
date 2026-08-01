@@ -13,34 +13,24 @@ SHIFT_ENTER = ESC + b"\n"
 
 # Page switch: Alt+digit. ALT_1 -> page 0 (HOME), ALT_2 -> SHELL, ALT_3 -> LOGS,
 # ALT_4 -> ALARMS, ALT_5 -> CONFIG, ALT_6 -> MONITOR (terminal.cpp routes ALT_n
-# to switch_to(n-1)). STATUS was removed from the tab order.
-ALT_1 = ESC + b"1"
+# to switch_to(n-1)). STATUS was removed from the tab order. Only the ones some
+# test presses are named here; the rest are ESC + the digit.
 ALT_2 = ESC + b"2"
 ALT_3 = ESC + b"3"
 ALT_4 = ESC + b"4"
-ALT_5 = ESC + b"5"
-HOME_PAGE = ALT_1            # also reachable via the Home key (CSI H)
 
 # Cursor / editing keys (CSI forms).
 UP = ESC + b"[A"
 DOWN = ESC + b"[B"
 RIGHT = ESC + b"[C"
 LEFT = ESC + b"[D"
-HOME_KEY = ESC + b"[H"
 END_KEY = ESC + b"[F"
 DELETE = ESC + b"[3~"
 
 # Control bytes.
 BACKSPACE = b"\x7f"
-TAB = b"\t"
 CTRL_A = b"\x01"             # line start
-CTRL_E = b"\x05"             # line end
-CTRL_C = b"\x03"             # clear input
 CTRL_U = b"\x15"             # clear input
-CTRL_D = b"\x04"             # delete forward
-CTRL_L = b"\x0c"             # redraw
-ALT_B = ESC + b"b"           # word left
-ALT_F = ESC + b"f"           # word right
 
 SPACE = b" "
 
