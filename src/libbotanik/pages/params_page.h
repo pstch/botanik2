@@ -188,7 +188,7 @@ namespace Botanik { namespace Pages {
                 bool seen = false;
                 for (uint8_t k = 0; k < n; k++)
                     if (strcmp(out[k], g) == 0) { seen = true; break; }
-                if (!seen) out[n++] = _group_intern(g);
+                if (!seen) out[n++] = g;
             }
             return n;
         }
@@ -332,13 +332,19 @@ namespace Botanik { namespace Pages {
         /** @brief The config group a parameter belongs to: the prefix of its
          *  name, which is also the name of the group's commit serial. */
         static const char* _group_of(const Vars::Variable& d) {
-            static char g[16];
             const char* u = strchr(d.name, '_');
             if (u == nullptr) return d.name;          // the serial itself
+            char g[16];
             size_t n = (size_t)(u - d.name);
             if (n >= sizeof(g)) n = sizeof(g) - 1;
             memcpy(g, d.name, n); g[n] = 0;
-            return g;
+            // Interned, NOT a pointer into a shared static: the legend passes
+            // the selected row's group to _draw_mode_line, which then asks for
+            // the neighbouring view names - and that walks every parameter
+            // through here. A shared buffer was overwritten mid-call, so the
+            // legend always showed the LAST group in the table whatever was
+            // selected.
+            return _group_intern(g);
         }
 
         /** @brief Format a bound, in the parameter's OWN type - so a real

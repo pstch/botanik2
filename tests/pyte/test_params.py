@@ -56,3 +56,19 @@ def test_notes_row(spawn):
     term.send(keys.DOWN)
     assert term.wait_for("static net_ip/mask/gw rows are ignored"), \
         "an authored note did not reach the panel"
+
+
+def test_group_follows_selection(spawn):
+    """The legend's (group) must track the cursor.
+
+    It did not: _group_of() returned a pointer into one shared static, and
+    drawing the legend re-entered it to name the neighbouring views - which
+    walks every parameter. The group shown was whichever came last in the
+    table, for every row.
+    """
+    term = boot(spawn)
+    goto(term, ALT_6, "PARAMETER")
+    assert term.wait_for("(net)"), "first row is a net_* parameter"
+    for _ in range(8):
+        term.send(keys.DOWN)
+    assert term.wait_for("(ntp)"), "group did not follow the cursor into ntp_*"
