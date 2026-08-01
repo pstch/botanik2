@@ -38,14 +38,14 @@ TEST_CASE("NetworkHandler: sim path comes up on net config and idles when it is 
 
     // HAL::Network::link_status() returns LINK_UP immediately on the simulator,
     // so one step() promotes SETUP to RUNNING.
-    fx.set_num("net", 1);
+    fx.set_num("net_serial", 1);
     fx.set_num("net_dhcp", 1);
     fx.publish();
     net.step(HAL::Clock::uptime_ms());
     CHECK(net.is_up());
 
     // Serial back to 0 (config removed) -> back to idle.
-    fx.set_num("net", 0);
+    fx.set_num("net_serial", 0);
     fx.publish();
     net.step(HAL::Clock::uptime_ms());
     CHECK_FALSE(net.is_up());
@@ -60,10 +60,10 @@ TEST_CASE("MqttClient: never reports connected to a dead broker, publish gated o
     CHECK_FALSE(mqtt.connected());
     CHECK_FALSE(mqtt.publish("botanik/alarms/X", "ON"));
 
-    fx.set_num("net", 1); fx.set_num("net_dhcp", 1); fx.publish();
+    fx.set_num("net_serial", 1); fx.set_num("net_dhcp", 1); fx.publish();
     net.step(HAL::Clock::uptime_ms());                 // sim link up
 
-    fx.set_num("mqtt", 1);
+    fx.set_num("mqtt_serial", 1);
     fx.set_num("mqtt_enabled", 1);
     // Off-host literal: the hermetic sim refuses any non-loopback destination, so the
     // connect can never complete.
@@ -87,10 +87,10 @@ TEST_CASE("NtpClient: stepped as a Component (announces once), query is non-bloc
     NtpClient ts(&fx.bank(), &log, &resolver, &net);
 
     // Bring the (sim) link up so the time sync can proceed past the link gate.
-    fx.set_num("net", 1); fx.set_num("net_dhcp", 1); fx.publish();
+    fx.set_num("net_serial", 1); fx.set_num("net_dhcp", 1); fx.publish();
     net.step(HAL::Clock::uptime_ms());
 
-    fx.set_num("ntp", 1);
+    fx.set_num("ntp_serial", 1);
     fx.set_num("ntp_enabled", 1);
     // Off-host literal: the hermetic sim refuses the send, so no reply arrives and the
     // query stays non-blocking (no sync).

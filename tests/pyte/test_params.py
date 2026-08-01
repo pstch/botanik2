@@ -34,12 +34,12 @@ def test_config_detail_and_edit(spawn):
     term.send(CTRL_U)
     term.send(b"120")
     term.send(keys.ENTER)
-    # Commit: move up to the "ntp" group serial (index 7) and bump it. That
+    # Commit: move up to the "ntp_serial" group serial (index 7) and bump it. That
     # ships the staged group, and the group's owner picks it up.
     for _ in range(2):
         term.send(keys.UP)
     term.send(keys.ENTER)
-    assert term.wait_for("ntp ="), "inline edit did not open on the serial"
+    assert term.wait_for("ntp_serial ="), "inline edit did not open on the serial"
     term.send(CTRL_U)
     term.send(b"2")
     term.send(keys.ENTER)

@@ -88,8 +88,8 @@ namespace Botanik { namespace Vars {
     /** @brief A text parameter's live text ("" if absent). Valid for the bank's
      *  lifetime - it points into the string pool. */
     const char* get_str(const Bank* io, const char* name);
-    /** @brief A config group's commit serial: the parameter named after the
-     *  group. A component re-applies its group when this changes. */
+    /** @brief A config group's commit serial: the parameter named
+     *  "<group>_serial". A component re-applies its group when this changes. */
     uint32_t    group_serial(const Bank* io, const char* group);
 
     /** @} */

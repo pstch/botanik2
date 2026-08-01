@@ -30,7 +30,7 @@ TEST_CASE("SunPositionTracker: computes elevation from geo config") {
     botanik_test::ParamFixture fx;
     const int32_t LAT = 488566000;   // Paris 48.8566 N
     const int32_t LON =  23522000;   //       2.3522 E
-    fx.set_num("geo", 1);
+    fx.set_num("geo_serial", 1);
     fx.set_num("geo_latitude", (float)deg(LAT));
     fx.set_num("geo_longitude", (float)deg(LON));
     fx.publish();
@@ -50,7 +50,7 @@ TEST_CASE("SunPositionTracker: exposes peak, ratio and rising from the same samp
     botanik_test::ParamFixture fx;
     const int32_t LAT = 488566000;   // Paris 48.8566 N
     const int32_t LON =  23522000;   //       2.3522 E
-    fx.set_num("geo", 1);
+    fx.set_num("geo_serial", 1);
     fx.set_num("geo_latitude", (float)deg(LAT));
     fx.set_num("geo_longitude", (float)deg(LON));
     fx.publish();
@@ -74,7 +74,7 @@ TEST_CASE("SunPositionTracker: throttles recomputation between cadence ticks") {
     botanik_test::ParamFixture fx;
     const int32_t LAT = 488566000;   // Paris
     const int32_t LON =  23522000;
-    fx.set_num("geo", 1);
+    fx.set_num("geo_serial", 1);
     fx.set_num("geo_latitude", (float)deg(LAT));
     fx.set_num("geo_longitude", (float)deg(LON));
     fx.publish();
@@ -98,7 +98,7 @@ TEST_CASE("SunPositionTracker: throttles recomputation between cadence ticks") {
 
 TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial changes") {
     botanik_test::ParamFixture fx;
-    fx.set_num("geo", 1);
+    fx.set_num("geo_serial", 1);
     fx.set_num("geo_latitude", 48.8566f);   // Paris
     fx.set_num("geo_longitude", 2.3522f);
     fx.publish();
@@ -111,7 +111,7 @@ TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial cha
     // Move far away (Sydney, southern hemisphere) and bump the serial.
     const int32_t LAT = -338700000;   // -33.87
     const int32_t LON = 1512100000;   // 151.21 E
-    fx.set_num("geo", 2);
+    fx.set_num("geo_serial", 2);
     fx.set_num("geo_latitude", (float)deg(LAT));
     fx.set_num("geo_longitude", (float)deg(LON));
     fx.publish();

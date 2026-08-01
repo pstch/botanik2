@@ -44,12 +44,12 @@ namespace botanik_test {
         static const Botanik::Vars::Variable* table(uint16_t* n) {
             using namespace Botanik::Vars;
             static const Variable v[] = {
-                FX_NUM("net", T_U32, 0), FX_NUM("net_dhcp", T_BOOL, 1), FX_STR("net_ip", 0),
-                FX_NUM("ntp", T_U32, 0), FX_NUM("ntp_enabled", T_BOOL, 1),
+                FX_NUM("net_serial", T_U32, 0), FX_NUM("net_dhcp", T_BOOL, 1), FX_STR("net_ip", 0),
+                FX_NUM("ntp_serial", T_U32, 0), FX_NUM("ntp_enabled", T_BOOL, 1),
                 FX_NUM("ntp_poll_s", T_U16, 64), FX_STR("ntp_server1", CAP),
-                FX_NUM("mqtt", T_U32, 0), FX_NUM("mqtt_enabled", T_BOOL, 1),
+                FX_NUM("mqtt_serial", T_U32, 0), FX_NUM("mqtt_enabled", T_BOOL, 1),
                 FX_NUM("mqtt_port", T_U16, 1883), FX_STR("mqtt_broker", 2 * CAP),
-                FX_NUM("geo", T_U32, 0), FX_F32("geo_latitude"), FX_F32("geo_longitude"),
+                FX_NUM("geo_serial", T_U32, 0), FX_F32("geo_latitude"), FX_F32("geo_longitude"),
             };
             *n = (uint16_t)(sizeof(v) / sizeof(v[0]));
             return v;

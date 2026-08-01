@@ -118,7 +118,17 @@ namespace Botanik { namespace Vars {
     }
 
     uint32_t group_serial(const Bank* io, const char* group) {
-        return (uint32_t)get_int(io, group, 0);
+        // "<group>_serial". The suffix matters: without it the serial was named
+        // bare after its group, so it was the one parameter whose name carried no
+        // group prefix - it sorted apart from the group it belongs to and read
+        // like a stray in any listing.
+        char key[32];
+        if (group == nullptr) return 0;
+        size_t n = strlen(group);
+        if (n + 8 >= sizeof(key)) return 0;      // "_serial" + NUL
+        memcpy(key, group, n);
+        memcpy(key + n, "_serial", 8);           // copies the NUL too
+        return (uint32_t)get_int(io, key, 0);
     }
 
 }}  // namespace Botanik::Vars

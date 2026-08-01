@@ -237,7 +237,7 @@ const Variable g_vars[] = {
  /** @} */
 
     // -- network --
-    PSERIAL("net", "Network config commit"),
+    PSERIAL("net_serial", "Network config commit"),
     PBOOL("net_dhcp", 1, "DHCP (1) or static IP (0)"),
     PSTR("net_ip", 0, STR_IPV4, "", "Static IPv4 address"),
     PSTR("net_netmask", 64, STR_IPV4, "", "Static subnet mask"),
@@ -245,19 +245,19 @@ const Variable g_vars[] = {
     PSTR("net_dns1", 192, STR_IPV4, "", "Primary DNS server"),
     PSTR("net_dns2", 256, STR_IPV4_OPT, "", "Secondary DNS server"),
     // -- NTP --
-    PSERIAL("ntp", "NTP config commit"),
+    PSERIAL("ntp_serial", "NTP config commit"),
     PBOOL("ntp_enabled", 1, "Enable NTP time sync"),
     PU16("ntp_poll_s", 64, 0, 65535, "s", "NTP poll interval"),
     PSTR("ntp_server1", 320, STR_HOST, "pool.ntp.org", "Primary NTP server"),
     PSTR("ntp_server2", 384, STR_HOST_OPT, "", "Secondary NTP server"),
     // -- MQTT --
-    PSERIAL("mqtt", "MQTT config commit"),
+    PSERIAL("mqtt_serial", "MQTT config commit"),
     PBOOL("mqtt_enabled", 1, "Enable MQTT publishing"),
     PU16("mqtt_port", 1883, 1, 65535, "", "Broker TCP port"),
     PU16("mqtt_keepalive_s", 60, 0, 65535, "s", "MQTT keepalive"),
     PSTR("mqtt_broker", 448, STR_HOST, "broker.local", "MQTT broker host"),
     // -- geo (decimal degrees) --
-    PSERIAL("geo", "Geo config commit"),
+    PSERIAL("geo_serial", "Geo config commit"),
     PF32("geo_latitude", 48.8566f, -90.0f, 90.0f, 4, "deg", "Site latitude, north +"),
     PF32("geo_longitude", 2.3522f, -180.0f, 180.0f, 4, "deg", "Site longitude, east +"),
 };
