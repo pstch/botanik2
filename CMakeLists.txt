@@ -287,26 +287,6 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     # (Target property is honored on CMake >= 3.20; older versions ignore it.)
     set_target_properties(botanik_strict PROPERTIES EXPORT_COMPILE_COMMANDS OFF)
 
-    # cppcheck static analysis target
-    find_program(CPPCHECK cppcheck)
-    if(CPPCHECK)
-        add_custom_target(cppcheck
-            COMMAND ${CPPCHECK}
-                --project=${CMAKE_BINARY_DIR}/compile_commands.json
-                --enable=warning,performance,portability
-                --std=c++11
-                --suppress=missingIncludeSystem
-                --suppress=unmatchedSuppression
-                --inline-suppr
-                --quiet
-                --error-exitcode=1
-            COMMENT "Running cppcheck (SIMULATOR)"
-            VERBATIM
-        )
-    else()
-        message(STATUS "cppcheck not found — skipping cppcheck target")
-    endif()
-
     # clang-tidy static analysis over our own src/ tree. The check set and header
     # filter live in .clang-tidy, with bugprone-* promoted to errors there so a
     # finding makes the target (and `make check`) fail.
@@ -316,15 +296,14 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     # of src/ on every run. That full sweep cost ~130s here and was pure waste on
     # an unchanged tree, since a bare custom target has no outputs to compare.
     # Header tracking comes from IMPLICIT_DEPENDS, i.e. the Makefile generator's
-    # own dependency scanner. Ninja and the IDE generators ignore it, so they
-    # keep the always-run full sweep (correct, just slower). Re-generating
-    # compile_commands.json (any re-configure) or editing .clang-tidy invalidates
-    # every stamp: the lint depends on the exact compile flags and check set, not
-    # only on the source text.
+    # own dependency scanner, so the target exists only there; every tree here is
+    # a Makefile one. Re-generating compile_commands.json (any re-configure) or
+    # editing .clang-tidy invalidates every stamp: the lint depends on the exact
+    # compile flags and check set, not only on the source text. To re-lint the
+    # whole tree, `rm -rf build/clang-tidy` first.
     set(_tidy_sources ${LIB_SOURCES} ${BOTANIK_SITE_SOURCES}
                       "${CMAKE_CURRENT_SOURCE_DIR}/src/botanik_sim/main.cpp")
     find_program(CLANG_TIDY NAMES clang-tidy)
-    find_program(RUN_CLANG_TIDY NAMES run-clang-tidy run-clang-tidy.py)
     if(CLANG_TIDY AND CMAKE_GENERATOR MATCHES "Make")
         set(_tidy_stamp_dir "${CMAKE_BINARY_DIR}/clang-tidy")
         file(MAKE_DIRECTORY "${_tidy_stamp_dir}")
@@ -345,30 +324,8 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
             list(APPEND _tidy_stamps "${_tidy_stamp}")
         endforeach()
         add_custom_target(clang-tidy DEPENDS ${_tidy_stamps})
-    elseif(RUN_CLANG_TIDY)
-        add_custom_target(clang-tidy
-            COMMAND ${RUN_CLANG_TIDY}
-                -p ${CMAKE_BINARY_DIR}
-                -quiet
-                "${CMAKE_SOURCE_DIR}/src/.*"
-            COMMENT "Running clang-tidy (SIMULATOR)"
-            VERBATIM
-        )
     else()
-        message(STATUS "clang-tidy not found - skipping clang-tidy target")
-    endif()
-
-    # The unconditional sweep, kept as its own target: same checks, every TU, no
-    # stamps consulted. For CI, or to re-validate the whole tree on demand.
-    if(RUN_CLANG_TIDY)
-        add_custom_target(clang-tidy-all
-            COMMAND ${RUN_CLANG_TIDY}
-                -p ${CMAKE_BINARY_DIR}
-                -quiet
-                "${CMAKE_SOURCE_DIR}/src/.*"
-            COMMENT "Running clang-tidy over all of src/ (SIMULATOR)"
-            VERBATIM
-        )
+        message(STATUS "clang-tidy not found (or non-Make generator) - skipping the target")
     endif()
 
     # doctest unit tests (host-only, so SIMULATOR-only). enable_testing() here
@@ -596,25 +553,10 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     # tell CMake to compile the objects without trying to create a final binary
     set_target_properties(botanik PROPERTIES LINKER_LANGUAGE CXX)
 
-    # Firmware application: the BotanikFirmware wiring plus its main() entry. The
-    # OPTA counterpart of botanik_sim, but archived as a static lib rather than
-    # linked into an executable - the startup code, linker script, and PLC objects
-    # that produce the flashable image live in the Arduino build, not here. Linking
-    # botanik PUBLIC inherits its include dirs, defines, and -Os/-flto options;
-    # LINKER_LANGUAGE skips the final link (no entry point in this build) and the
-    # C++14 standard matches botanik (Mbed headers need it).
     # The selected site (payload + tables + alarm table) compiles into the firmware
     # alongside the entry wiring; gh_mlb41 is header-only, so this glob is empty.
     # It stays for sites that ship their own .cpp.
     file(GLOB BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS "${_site_dir}/*.cpp")
-    add_library(botanik_fw STATIC
-        "src/botanik_fw/firmware.cpp"
-        "src/botanik_fw/main.cpp"
-        ${BOTANIK_SITE_SOURCES})
-    target_link_libraries(botanik_fw PUBLIC botanik)
-    set_target_properties(botanik_fw PROPERTIES
-        LINKER_LANGUAGE CXX
-        CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
 
     # ------------------------------------------------------------------
     # botanik_opta - the flashable M7 image
@@ -712,27 +654,7 @@ if(DOXYGEN)
         "${CMAKE_SOURCE_DIR}/docs/doxygen"
         "${CMAKE_SOURCE_DIR}/docs/generated")
 
-    # Convenience target: build the tests + docs, run the suite, then open the
-    # generated HTML in a browser. Opt-in (not folded into `docs`) so a plain
-    # `make docs` stays safe in CI / over SSH. Uses xdg-open on Linux, open on
-    # macOS.
-    find_program(OPEN_CMD NAMES xdg-open open)
-    if(OPEN_CMD)
-        add_custom_target(docs-open
-            COMMAND ${OPEN_CMD} ${CMAKE_SOURCE_DIR}/docs/doxygen/html/index.html
-            DEPENDS docs
-            COMMENT "Opening API documentation in browser"
-            VERBATIM
-        )
-        # In a SIMULATOR tree the unit tests exist (`check` builds + runs them);
-        # chain them in so the docs open alongside a validated, green suite — the
-        # size table in the Testing page then reflects a passing run.
-        if(TARGET check)
-            add_dependencies(docs-open check)
-        endif()
-    else()
-        message(STATUS "no xdg-open/open found — skipping docs-open target")
-    endif()
+    # To read them: xdg-open docs/doxygen/html/index.html
 else()
     message(STATUS "doxygen not found — skipping docs target")
 endif()

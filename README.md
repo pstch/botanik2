@@ -89,11 +89,9 @@ cmake -B build-opta -DBOTANIK_TARGET=OPTA
 make -C build-opta
 ```
 
-This builds `libbotanik` plus the `botanik_fw` reference firmware into static
-archives - an ABI / size / LTO sanity check for the target, **not** a flashable
-image. The final link (with the startup code and the PLC IDE's generated types)
-happens in the Arduino / Axel PLC IDE; see
-[src/botanik_fw](src/botanik_fw/README.md) for how the pieces map. The Mbed
+This builds `libbotanik` and links `botanik_opta`, the flashable M7 image; the
+entry wiring it compiles lives in
+[src/botanik_fw](src/botanik_fw/README.md). The Mbed
 headers and ARM toolchain come from the core that `arduino-cli` installs under
 `~/.arduino15`; the build auto-discovers the highest installed version (override
 with `-DMBED_CORE_ROOT=...` or the `ARDUINO_DATA_DIR` env var).
