@@ -118,7 +118,6 @@ inline void publish_meters(Vars::Bank& io, uint32_t now_ms) {
     // The transfer switch sees the same supply, lightly loaded.
     put(io, V_ATS_V,  ln - 0.5f, now_ms);
     put(io, V_ATS_A,  amps * 0.15f, now_ms);
-    put(io, V_ATS_W,  watts * 0.15f, now_ms);
     put(io, V_ATS_HZ, 50.0f + 0.03f * sinf(t / 37.0f), now_ms);
 }
 

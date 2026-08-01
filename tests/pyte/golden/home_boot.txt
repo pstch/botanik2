@@ -7,18 +7,18 @@
 
   Uptime     <UPTIME>  L1 V       <HF>           ATS V      <HF>
                             L2 V       <HF>           ATS A      <HF>
-  Line V     <HF>           L3 V       <HF>           ATS W      <HF>
-  Line-line  <HF>           L1 A       <HF>           ATS Hz     <HF>
-  Line Hz    <HF>           L2 A       <HF>           Supply Hz  <HF>
-  Current    <HF>           L3 A       <HF>           Lockout    <HF>
-  Power      <HF>           Neutral A  <HF>           Screen     <HF>
-  Pwr factor <HF>           THD L-N    <HF>           Skirt      <HF>
+  Line V     <HF>           L3 V       <HF>           ATS Hz     <HF>
+  Line-line  <HF>           L1 A       <HF>           Supply Hz  <HF>
+  Line Hz    <HF>           L2 A       <HF>           Lockout    <HF>
+  Current    <HF>           L3 A       <HF>           Screen     <HF>
+  Power      <HF>           Neutral A  <HF>           Skirt      <HF>
+  Pwr factor <HF>           THD L-N    <HF>
 
     LOGS
-<TS> [*] NETWORK: MQTT connection lost
+<TS> [~] BOOT: MqttClient initialized
 <TS> [~] BOOT: Scan initialized
 <TS> [~] BOOT: Console initialized
 <TS> [~] BOOT: MonitorWriter initialized
 <TS> [+] TIME: NTP synced
-<TS> [*] NETWORK: MQTT connection lost
+<TS> [+] NETWORK: MQTT connected
  ALARMS :<BAR>

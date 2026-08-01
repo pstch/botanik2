@@ -78,7 +78,6 @@ const VarRef g_grp_power[] = {
 const VarRef g_grp_ats[] = {
     { V_ATS_V },
     { V_ATS_A },
-    { V_ATS_W },
     { V_ATS_VAR },
     { V_ATS_VA },
     { V_ATS_HZ },
@@ -198,7 +197,6 @@ const HomeVar g_home_fields[] = {
     // column 3 (8): the transfer switch, then derived state
     { "ATS V",     { V_ATS_V } },
     { "ATS A",     { V_ATS_A } },
-    { "ATS W",     { V_ATS_W } },
     { "ATS Hz",    { V_ATS_HZ } },
     { "Supply Hz", { V_SYS_SUPPLY_HZ } },
     { "Lockout",   { V_SYS_SUPPLY_LOCKOUT } },
