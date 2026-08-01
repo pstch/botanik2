@@ -15,8 +15,6 @@
  *
  * Which physical device backs the OPTA store - internal flash or the QSPI - is
  * an Mbed config decision, not ours, and has not been confirmed on hardware.
- * The `storage` shell command exists to check it with a set / power-cycle / get
- * round-trip.
  *
  * Keys are short identifiers (the flat Param names, e.g. "ntp_poll_sec"); they
  * must be non-empty and contain no '/', '=' or newline. The OPTA backend

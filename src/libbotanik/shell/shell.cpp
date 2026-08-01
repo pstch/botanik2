@@ -92,7 +92,6 @@ namespace Botanik { namespace Shell {
             { "set",        "<name> <value>  edit a parameter", &CommandShell::_cmd_set       },
             { "override",   "list|<name> [off|<value>]",      &CommandShell::_cmd_override   },
             { "control",    "[enable|disable] drive the field", &CommandShell::_cmd_control   },
-            { "storage",    "raw flash keys: get|set|del",    &CommandShell::_cmd_storage    },
             { "loglevel",   "[debug|info|..|critical] filter",&CommandShell::_cmd_loglevel   },
             { "version",    "firmware version",               &CommandShell::_cmd_version    },
             { "breakpoint", "trap into an attached debugger", &CommandShell::_cmd_breakpoint },
@@ -513,54 +512,6 @@ namespace Botanik { namespace Shell {
                op  ? "the operator" : "",
                (op && sys) ? " and " : "",
                sys ? "the system (bring-up, health, or a pending reset)" : "");
-    }
-
-    void CommandShell::_cmd_storage(const char* args, uint16_t alen) {
-        // Raw HAL::Storage keys - a DIFFERENT layer from get/set, despite the
-        // shared verbs. get/set work on variables; this works on the bytes under
-        // them, and most keys here are not variables at all. It exists so the
-        // OPTA's KV backend can be brought up with a set / power-cycle / get
-        // round-trip instead of a firmware rebuild per hypothesis: where the Mbed
-        // KV region actually lands is a config decision we do not make and cannot
-        // check from here. It is also how you confirm a parameter really reached
-        // flash - KvParamStore keys each one by its own name, so
-        // `storage get ntp_poll_s` reads the persisted bytes behind
-        // `get ntp_poll_s`.
-        uint16_t w = 0;
-        const char* op = arg_next(args, alen, w);
-        uint16_t kw = 0;
-        const char* key = arg_next(args, alen, kw);
-        if (op == nullptr || key == nullptr) {
-            _println("usage: storage get|set|del <key> [<text>]   (raw flash, not variables)");
-            return;
-        }
-        // The key must be NUL-terminated for the HAL; arg_next hands back a
-        // span into the input line.
-        char k[64];
-        if (kw >= sizeof(k)) { _println("storage: key too long"); return; }
-        memcpy(k, key, kw); k[kw] = 0;
-
-        char out[128];
-        if (arg_eq(op, w, "get")) {
-            char val[96]; size_t n = 0;
-            if (!HAL::Storage::get(k, val, sizeof(val) - 1, &n)) {
-                _emitf(out, sizeof(out), "storage: '%s' not found", k);
-                return;
-            }
-            val[n] = 0;
-            _emitf(out, sizeof(out), "  %s = %s (%u bytes)", k, val, (unsigned)n);
-        } else if (arg_eq(op, w, "set")) {
-            uint16_t vw = 0;
-            const char* val = arg_next(args, alen, vw);
-            if (val == nullptr) { _println("storage: set needs a value"); return; }
-            _emitf(out, sizeof(out), "storage: %s",
-                   HAL::Storage::set(k, val, vw) ? "ok" : "FAILED");
-        } else if (arg_eq(op, w, "del")) {
-            _emitf(out, sizeof(out), "storage: %s",
-                   HAL::Storage::remove(k) ? "ok" : "FAILED");
-        } else {
-            _println("usage: storage get|set|del <key> [<text>]   (raw flash, not variables)");
-        }
     }
 
     void CommandShell::_cmd_loglevel(const char* args, uint16_t alen) {
