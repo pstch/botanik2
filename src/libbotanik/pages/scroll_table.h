@@ -224,7 +224,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief Pad @p buf out to column @p col. */
         static void _pad_to(char* buf, uint16_t& w, size_t cap, uint16_t col) {
-            while (w < col && w + 1 < cap) buf[w++] = ' ';
+            while (w < col && (size_t)(w + 1) < cap) buf[w++] = ' ';
         }
 
         /** @brief Write @p text centred in the @p slot_w-wide slot at @p col.
