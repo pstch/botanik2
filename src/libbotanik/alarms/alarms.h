@@ -346,7 +346,7 @@ namespace Botanik { namespace Alarms {
             _conditions[id].local_raw = on;
         }
 
-        /** @brief Set/clear a local alarm by table code (e.g. "CPU_LOAD");
+        /** @brief Set/clear a local alarm by table code (e.g. "alarm_cpu_load");
          *  no-op if the code is absent, so generic firmware needn't depend on
          *  the site defining it. */
         void set_local(const char* name, bool on) {

@@ -19,15 +19,15 @@ namespace Botanik { namespace Alarms {
         // VAR_NONE, not {}: a bare index of 0 is a REAL row, so a zeroed ref
         // would quietly make a platform alarm track the first variable.
         // code        description                        var  on  off recent latch
-        {"SYS_RST",  "Reset in the last five minutes",   {Vars::VAR_NONE},  -1,  0},
-        {"CPU_XRUN", "Scheduler overrun (skipped beat)", {Vars::VAR_NONE},   0, -1,   0,     0},
-        {"CPU_LOAD", "CPU load over threshold",          {Vars::VAR_NONE},   5,  5,   0,     300},
-        {"STACK",    "Stack usage over threshold",       {Vars::VAR_NONE},   5,  5,   0,     300},
-        {"CPU_JITT", "CPU jitter over threshold",        {Vars::VAR_NONE},   5,  5,   0,     300},
+        {"alarm_system_reset",  "Reset in the last five minutes",   {Vars::VAR_NONE},  -1,  0},
+        {"alarm_cpu_xrun", "Scheduler overrun (skipped beat)", {Vars::VAR_NONE},   0, -1,   0,     0},
+        {"alarm_cpu_load", "CPU load over threshold",          {Vars::VAR_NONE},   5,  5,   0,     300},
+        {"alarm_stack",    "Stack usage over threshold",       {Vars::VAR_NONE},   5,  5,   0,     300},
+        {"alarm_cpu_jitter", "CPU jitter over threshold",        {Vars::VAR_NONE},   5,  5,   0,     300},
         // Sticky: a store that refused a write does not heal by itself, and
         // the consequence (settings silently reverting at the next reboot) is
         // invisible until it is far too late to connect cause and effect.
-        {"FLASH_FLT","Persistent storage write failed", {Vars::VAR_NONE}, 0, -1,   0,     0,  0,
+        {"alarm_flash_error","Persistent storage write failed", {Vars::VAR_NONE}, 0, -1,   0,     0,  0,
          "settings will not survive a reboot; check the KV region"},
     };
     const uint8_t PLATFORM_ALARM_COUNT =

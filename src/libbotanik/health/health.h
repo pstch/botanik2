@@ -112,7 +112,7 @@ namespace Botanik { namespace Health {
             // merged table, or set_local() would silently no-op (guards the
             // alarm-namespace wiring).
             static const char* const codes[] =
-                { "SYS_RST", "CPU_LOAD", "CPU_JITT", "STACK", "CPU_XRUN" };
+                { "alarm_system_reset", "alarm_cpu_load", "alarm_cpu_jitter", "alarm_stack", "alarm_cpu_xrun" };
             for (const char* name : codes)
                 if (_model.index_of(name) < 0) {
                     ok = false; _post_fail("alarm missing", name);
@@ -138,30 +138,30 @@ namespace Botanik { namespace Health {
          *  STACK are level-driven; CPU_XRUN held for a window after an
          *  overrun. */
         void _assert_platform_alarms(uint64_t now) {
-            _model.set_local("SYS_RST", now < 300000);
+            _model.set_local("alarm_system_reset", now < 300000);
             // Sticky by construction: the counter only ever rises, so once a
             // write has been refused the alarm stays up until a reboot. That is
             // the honest shape - a store that will not take writes does not
             // recover on its own, and the damage (settings reverting) is only
             // visible long after the fact.
-            _model.set_local("FLASH_FLT", HAL::Storage::fault_count() > 0);
+            _model.set_local("alarm_flash_error", HAL::Storage::fault_count() > 0);
             if (_sched == nullptr) return;
             const uint32_t period_us = Config::TASK_PERIOD_MS * 1000u;
             // Under BOTANIK_NO_LOAD_ALARMS hold the CPU_* load alarms cleared
             // so the active set is stable for screen goldens (SYS_RST / STACK
             // unaffected).
             const bool load = !_no_load_alarms;
-            _model.set_local("CPU_LOAD", load &&
+            _model.set_local("alarm_cpu_load", load &&
                 (uint64_t)_sched->cpu_loop_us_recent * 100u
                     > (uint64_t)period_us * Config::ALARM_CPU_LOAD_PCT);
-            _model.set_local("CPU_JITT", load &&
+            _model.set_local("alarm_cpu_jitter", load &&
                 (uint64_t)_sched->cpu_jitter_us_recent * 100u
                     > (uint64_t)period_us * Config::ALARM_CPU_JITTER_PCT);
-            _model.set_local("STACK",
+            _model.set_local("alarm_stack",
                 _sched->stack_usage * 100.0f > (float)Config::ALARM_STACK_PCT);
-            if (load) _held_event("CPU_XRUN", _sched->overruns, _xrun_last,
+            if (load) _held_event("alarm_cpu_xrun", _sched->overruns, _xrun_last,
                                   _xrun_until_ms, now);
-            else      _model.set_local("CPU_XRUN", false);
+            else      _model.set_local("alarm_cpu_xrun", false);
         }
 
         /** @brief Hold a momentary "event" alarm active for ALARM_EVENT_HOLD_MS
