@@ -207,11 +207,40 @@ namespace Botanik { namespace HAL {
     }
 
     template <typename T>
+    inline void ordered_copy(T* dst, const T* src) {
+        // Match the OPTA backend's word-multiple + no-alias contract, so the sim
+        // build (where DEBUG and the tests run) catches violations the hardware
+        // cannot surface.
+        static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
+                      "ordered_copy needs a word-multiple T");
+        if (std::is_empty<T>::value) return;   // empty payload carries no data
+#if defined(DEBUG)
+        assert((const void*)dst != (const void*)src);   // no aliasing
+#endif
+        std::memcpy((void*)dst, (const void*)src, sizeof(T));
+        dsb();
+    }
+
+    template <typename T>
+    inline void ordered_move(T* dst, T src) {
+        static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
+                      "ordered_move needs a word-multiple T");
+        if (std::is_empty<T>::value) return;   // empty payload carries no data
+        *dst = src;
+        dsb();
+    }
+
+    template <typename T>
     inline T ordered_read(const volatile T* src) {
         T value = *src;
         dmb();
         return value;
     }
+
+    /// No D-cache on the host; a shared region is plain memory. See opta.h for
+    /// the clean/invalidate discipline these mirror.
+    inline void cache_clean(const void* addr, size_t len)      { (void)addr; (void)len; }
+    inline void cache_invalidate(const void* addr, size_t len) { (void)addr; (void)len; }
 
     }  // namespace Memory
 
