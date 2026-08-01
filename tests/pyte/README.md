@@ -83,10 +83,12 @@ loads this `conftest.py` (and the `--sim`/`--update` options) regardless of CWD:
 pytest tests/pyte --sim build-debug/pyte-sim/botanik_sim   # or set BOTANIK_SIM
 ```
 
-## Golden fixtures
+## Expectations: goldens, and when not to use one
 
-Expected screens live in `golden/*.txt`. Regenerate them after an intentional UI
-change, **review the diff**, and commit:
+A golden earns its keep only where the expected screen is genuinely a *picture*
+- a lot of stable text no one would want to hand-write. That is the Home widget,
+and it is the only golden left (`golden/home_boot.txt`). Regenerate it after an
+intentional UI change, **review the diff**, and commit:
 
 ```sh
 make -C build-debug pytest-update
@@ -95,11 +97,22 @@ make -C build-debug pytest-update
 This runs the suite with `--update`, which rewrites the goldens from live output
 instead of asserting. It is deliberately separate from `check`/`test`.
 
+Everywhere else, assert inline. Once `normalize.py` has masked the volatile
+cells and `meaningful_lines` has dropped the blank and log rows, most screens
+reduce to two rows of chrome plus one to three rows of payload - so a 24-line
+fixture spent 23 lines restating the same constants to pin the row the test was
+actually about, and every unrelated UI tweak dragged all of them through a
+regen. The shell reconciliation tests use `helpers.assert_editor(term, *rows)`
+instead: the expected rows are spelled out in the test, next to the input that
+produced them. Prefer that. Reach for `wait_for()` when the assertion is about
+content that appears (a log line, a table header) rather than a whole screen.
+
 ## Layout
 
 - `conftest.py`  - the PTY/pyte `Term`, the `spawn` and `assert_screen` fixtures.
 - `normalize.py` - field-level regex that masks volatile cells (clock, uptime,
   TX/RX depths, cpu/stk, log timestamps) before comparison.
 - `keys.py`      - input byte sequences matching `console/parser.cpp`.
-- `helpers.py`   - boot / page-switch helpers.
-- `test_*.py`    - home, status, logs, and the shell reconciliation scenarios.
+- `helpers.py`   - boot / page-switch helpers, and `assert_editor`.
+- `test_*.py`    - home, logs, alarms, monitor, params, shell commands, and the
+  shell reconciliation scenarios.
