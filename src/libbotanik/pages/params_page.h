@@ -260,7 +260,7 @@ namespace Botanik { namespace Pages {
 
         const char* _mode_hint() const {
             static char hint[40];
-            snprintf(hint, sizeof(hint), "<-/->/SPACE: %s", _next_mode_name());
+            snprintf(hint, sizeof(hint), "SPACE: %s", _next_mode_name());
             return hint;
         }
 
@@ -375,7 +375,7 @@ namespace Botanik { namespace Pages {
             if (_visible_count() == 0) {
                 for (uint16_t i = 2; i < PANEL_H; i++)
                     if ((uint16_t)(r + i) != _mode_row()) _blank_line((uint16_t)(r + i));
-                _draw_mode_line(_mode_row(), nullptr, _mode_hint());
+                _draw_mode_line(_mode_row(), nullptr, nullptr, _mode_hint());
                 return;
             }
             Vars::Var p = _params->param(_param_at(_selected));
@@ -394,7 +394,7 @@ namespace Botanik { namespace Pages {
             // and only in the "all" view, where it is the one thing the badge
             // does not already say.
             _draw_mode_line(_mode_row(), _mode == 0 ? _group_of(d) : nullptr,
-                            _mode_hint());
+                            nullptr, _mode_hint());
             _blank_line((uint16_t)(r + PANEL_H - 1));           // blank below it
         }
 

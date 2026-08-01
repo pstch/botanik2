@@ -354,21 +354,17 @@ namespace Botanik { namespace Pages {
         }
 
         void _draw_footer() {
-            uint16_t total = _total(), win = _window();
-            uint16_t last  = (uint16_t)(_top + (win < total ? win : total));
-            char detail[64], hint[48];
             // In the "all" view the badge does not say which group the cursor is
             // sitting in, so the legend does; in a single-group view it would
             // just repeat the badge.
-            const char* grp = "";
+            const char* grp = nullptr;
             if (_mode == 0) {
                 size_t gi = 0, fi = 0; bool first = false;
                 if (_at(_selected, gi, fi, first)) grp = _groups[gi].topic;
             }
-            snprintf(detail, sizeof(detail), "%-12s %u-%u / %u", grp,
-                     (unsigned)(total ? _top + 1 : 0), (unsigned)last, (unsigned)total);
-            snprintf(hint, sizeof(hint), "UP/DOWN  <-/->/SPACE: %s", _next_mode_name());
-            _draw_mode_line(_footer_row(), detail, hint);
+            char hint[40];
+            snprintf(hint, sizeof(hint), "SPACE: %s", _next_mode_name());
+            _draw_mode_line(_footer_row(), grp, nullptr, hint);
             _blank_line((uint16_t)(_footer_row() + 1));   // blank below the legend
         }
 

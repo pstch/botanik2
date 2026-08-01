@@ -197,8 +197,27 @@ namespace Botanik { namespace Pages {
             _on_mode_changed();
         }
 
+        /** @name Mode-line layout
+         *  Fixed columns, so the four fields sit in the same place on every
+         *  table and on every redraw. Free-form padding drifted the moment a
+         *  label changed length, which made the eye re-find the position counter
+         *  each time a group was cycled.
+         *  @{ */
+        static constexpr uint16_t ML_BADGE  = 2;    // "[mode]"
+        static constexpr uint16_t ML_GROUP  = 14;   // "(group)", when shown
+        static constexpr uint16_t ML_POS    = 24;   // "first-last / total"
+        static constexpr uint16_t ML_DETAIL = 40;   // page-specific extra
+        /** @} */
+
+        /** @brief Pad @p buf out to column @p col. */
+        static void _pad_to(char* buf, uint16_t& w, size_t cap, uint16_t col) {
+            while (w < col && w + 1 < cap) buf[w++] = ' ';
+        }
+
         /** @brief Draw the view's legend line: a reverse-video badge naming the
-         *  active view, then @p detail, and @p hint right-aligned.
+         *  active view, the selected row's @p group in parentheses when the page
+         *  passes one, how much of the set is on screen, @p detail, and @p hint
+         *  right-aligned.
          *
          *  Every table gets the same line because every table now has views, and
          *  the badge is the only thing that tells an operator the keypress
@@ -206,34 +225,61 @@ namespace Botanik { namespace Pages {
          *  byte budget. Painted in ONE pass with the badge split out rather than
          *  drawn normal-then-inverted, which would flicker.
          *
+         *  The position counter is computed here rather than passed in: _top,
+         *  _window() and _row_count() are the base's own state, so a page could
+         *  only have got it wrong.
+         *
          *  Pair it with _claim_mode_row(): the line is only fast because its row
          *  outranks the table. */
-        void _draw_mode_line(uint16_t row, const char* detail, const char* hint) {
-            const char* mode = _mode_name();
-            char left[96];
-            int ln = snprintf(left, sizeof(left), "  [%s]   %s", mode,
-                              detail != nullptr ? detail : "");
-            if (ln < 0) ln = 0;
-            uint16_t llen = (uint16_t)((size_t)ln < sizeof(left) - 1
-                                       ? (size_t)ln : sizeof(left) - 1);
-            // Badge span: the label sits at column 3, inside the brackets.
-            uint16_t ml = (uint16_t)strlen(mode);
-            if ((uint16_t)(3 + ml) > llen) ml = (llen > 3) ? (uint16_t)(llen - 3) : 0;
+        void _draw_mode_line(uint16_t row, const char* group, const char* detail,
+                             const char* hint) {
+            char left[160];
+            uint16_t w = 0;
 
+            _pad_to(left, w, sizeof(left), ML_BADGE);
+            const uint16_t badge_at = w;
+            int n = snprintf(left + w, sizeof(left) - w, "[%s]", _mode_name());
+            if (n > 0) w = (uint16_t)(w + n);
+            const uint16_t badge_end = w;
+
+            if (group != nullptr && group[0] != '\0') {
+                _pad_to(left, w, sizeof(left), ML_GROUP);
+                n = snprintf(left + w, sizeof(left) - w, "(%s)", group);
+                if (n > 0) w = (uint16_t)(w + n);
+            }
+
+            // How much of the set is on screen - every table shows it, since
+            // "am I looking at all of this?" is the same question everywhere.
+            _pad_to(left, w, sizeof(left), ML_POS);
+            const uint16_t total = _row_count(), win = _window();
+            const uint16_t last  = (uint16_t)(_top + (win < total ? win : total));
+            n = snprintf(left + w, sizeof(left) - w, "%u-%u / %u",
+                         (unsigned)(total ? _top + 1 : 0), (unsigned)last,
+                         (unsigned)total);
+            if (n > 0) w = (uint16_t)(w + n);
+
+            if (detail != nullptr && detail[0] != '\0') {
+                _pad_to(left, w, sizeof(left), ML_DETAIL);
+                n = snprintf(left + w, sizeof(left) - w, "%s", detail);
+                if (n > 0) w = (uint16_t)(w + n);
+            }
+            if (w > sizeof(left) - 1) w = (uint16_t)(sizeof(left) - 1);
+
+            // One pass: plain up to the badge, inverted through it, plain after.
             _terminal.move_to({row, 0});
             _terminal.set_inverted(false);
-            _terminal.write_chars(left, 3);                        // "  ["
+            _terminal.write_chars(left, badge_at);
             _terminal.set_inverted(true);
-            _terminal.write_chars(left + 3, ml);                   // the badge
+            _terminal.write_chars(left + badge_at, (uint16_t)(badge_end - badge_at));
             _terminal.set_inverted(false);
-            _terminal.write_chars(left + 3 + ml, (uint16_t)(llen - 3 - ml));
+            _terminal.write_chars(left + badge_end, (uint16_t)(w - badge_end));
             _terminal.clear_to_eol();
 
             if (hint == nullptr) return;
             uint16_t hn   = (uint16_t)strlen(hint);
             uint16_t cols = _terminal.cols();
             uint16_t hcol = (cols > (uint16_t)(hn + 2)) ? (uint16_t)(cols - hn - 2) : 0;
-            if (hcol > (uint16_t)(llen + 2)) {                     // only if it clears the left
+            if (hcol > (uint16_t)(w + 1)) {          // only if it clears the left
                 _terminal.move_to({row, hcol});
                 _terminal.write_chars(hint, hn);
             }
@@ -256,6 +302,12 @@ namespace Botanik { namespace Pages {
             if (_mode_count() <= 1) return false;
             if (cmd == Command::RIGHT) { _cycle_mode(+1); return true; }
             if (cmd == Command::LEFT)  { _cycle_mode(-1); return true; }
+            // Getting back to the whole set should not mean cycling through
+            // every group to reach it.
+            if (cmd == Command::BACKSPACE) {
+                if (_mode != 0) _cycle_mode(-(int)_mode);
+                return true;
+            }
             return false;
         }
 

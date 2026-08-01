@@ -40,4 +40,10 @@ def test_monitor_group_modes(spawn):
     assert term.wait_for("pwr_L1_V"), "group view lost its variables"
 
     term.send(keys.LEFT)                  # back to "all"
-    assert term.wait_for("power"), "LEFT did not return to the all-groups view"
+    assert term.wait_for("[all]"), "LEFT did not return to the all-groups view"
+
+    # BACKSPACE is the way back to the whole set without cycling every group.
+    term.send(b" ")
+    assert term.wait_for("[power]"), "SPACE did not enter a group"
+    term.send(keys.BACKSPACE)
+    assert term.wait_for("[all]"), "BACKSPACE did not reset to the all-groups view"

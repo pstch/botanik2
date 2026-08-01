@@ -156,11 +156,13 @@ namespace Botanik { namespace Pages {
          *  terminal's back-buffer diff repaints it only on an actual mode / count
          *  change. */
         void _draw_footer(uint16_t row, uint8_t nvis, uint8_t active) {
-            char detail[48], hint[40];
-            snprintf(detail, sizeof(detail), "%u listed   %u active",
-                     (unsigned)nvis, (unsigned)active);
-            snprintf(hint, sizeof(hint), "a:ack  <-/->/SPACE: %s", _next_mode_name());
-            _draw_mode_line(row, detail, hint);
+            (void)nvis;                       // the base's position counter says it
+            char detail[24], hint[40];
+            snprintf(detail, sizeof(detail), "%u active", (unsigned)active);
+            snprintf(hint, sizeof(hint), "a:ack  SPACE: %s", _next_mode_name());
+            // No group: the alarms table's views ARE its modes, so the badge
+            // already names what a group column would have.
+            _draw_mode_line(row, nullptr, detail, hint);
         }
 
         /** @brief Detail panel between the bottom rule and the legend, spaced by

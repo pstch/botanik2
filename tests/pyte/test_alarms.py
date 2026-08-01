@@ -18,7 +18,9 @@ TABLE = "| CODE     | ON | LAST EVENT"
 def test_alarms_views(spawn):
     term = boot(spawn)
     goto(term, keys.ALT_4)          # switch to ALARMS (page 4), RECENT by default
-    assert term.wait_for((TABLE, "listed", "SPACE: all")), \
+    # The legend is a fixed-column line: [mode] badge, the position counter every
+    # table now carries, then the active count and the next-view hint.
+    assert term.wait_for((TABLE, "[recent]", "active", "SPACE: all")), \
         "RECENT view did not render its table chrome"
     term.send(keys.SPACE)           # RECENT -> ALL (lists the full catalog)
     assert term.wait_for("SPACE: active"), "SPACE did not cycle RECENT -> ALL"
