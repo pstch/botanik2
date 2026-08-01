@@ -141,21 +141,6 @@ namespace Botanik { namespace Pages {
          *  cell's contents (see the column note above). */
         uint16_t _code_cell_r() const { return (uint16_t)(_cell_end(C_CODE) - 1); }
 
-        /** @brief The name as the table shows it: the variable's own name minus
-         *  the `alarm_` prefix every one of them carries.
-         *
-         *  The prefix earns its keep in the variable table, where it groups the
-         *  conditions and keeps them clear of the signals they watch. Here every
-         *  row would carry it, so it is eight columns saying the same thing on
-         *  each - the page is already called ALARMS. */
-        static const char* _display_name(const char* name) {
-            if (name == nullptr) return "?";
-            const char* p = name;
-            const char* pre = "alarm_";
-            while (*pre != '\0' && *p == *pre) { ++p; ++pre; }
-            return (*pre == '\0' && *p != '\0') ? p : name;
-        }
-
         /** @brief Format the last-event cell: edge_ms as "YY/MM/DD HH:MM", or
          *  empty if it never fired (ON vs OFF is shown by the ON column). */
         static void _fmt_event(char* buf, size_t cap, const Alarms::AlarmCondition& c) {
@@ -335,8 +320,12 @@ namespace Botanik { namespace Pages {
             char ev[16];
             _fmt_event(ev, sizeof(ev), c);
             const char* state = c.active ? "ON" : (c.edge_ms != 0 ? "OFF" : "");
+            // The full variable name, prefix and all: it is what `get` and
+            // `override` want typed at them, so showing a trimmed form here
+            // would be handing out a name that does not resolve. The CODE
+            // column is where the short label lives.
             const char* cells[4] = { c.code ? c.code : "?",
-                                     _display_name(c.name), state, ev };
+                                     c.name ? c.name : "?", state, ev };
             char     line[160];
             uint16_t n = _build_row(line, sizeof(line), cells);
             const uint16_t code_r = _code_cell_r(), badge = _cell_col(C_STATE);
