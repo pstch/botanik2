@@ -14,9 +14,9 @@
  * responder answers there and on MQTT_MOCK_PORT (the sim's broker port).
  *
  * The NTP/MQTT wire knowledge (the SNTP reply, the CONNACK/PINGRESP) lives here,
- * above the HAL - the HAL transport stays protocol-agnostic. The thread lifecycle
- * mirrors PlcEmulator (botanik_sim/emulator.h): a volatile run flag published with
- * HAL::Memory::dsb(), torn down through HAL::System::on_reset().
+ * above the HAL - the HAL transport stays protocol-agnostic. The thread lifecycle is
+ * a volatile run flag published with HAL::Memory::dsb(), torn down through
+ * HAL::System::on_reset().
  */
 
 #ifdef TARGET_SIMULATOR

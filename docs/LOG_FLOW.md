@@ -16,7 +16,7 @@ An entry enters through @ref Botanik::Logs::Logger, either from:
   @ref Botanik::PlcIO::PlcLogReader and re-emitted through the same `Logger`.
 
 Every entry carries a **level** (`DEBUG`, `INFO`, `NOTICE`, `WARNING`, `ERROR`,
-`CRITICAL`) and a **topic** (`PLC_IO`, `BOOT`, `NETWORK`, `TIME`, `STATUS`, and the
+`CRITICAL`) and a **topic** (`SHARED_IO`, `BOOT`, `NETWORK`, `TIME`, `STATUS`, and the
 firmware-only `ASSERT`; the `LogTopic` enum in `plcio/vars.h`).
 
 \startuml "LogEntry_t: one log record (PLC-shared wire layout, byte offsets)"
@@ -145,5 +145,5 @@ edge-triggered (first event instant, then a per-category holdoff) and classed
 
 A formatted line is `TIMESTAMP LEVEL TOPIC MESSAGE` (see
 @ref Botanik::Logs::format_log_entry). Levels render as short glyphs (`[-]`
-info, `[!]` warning, `[*]` error, `[@]` critical, ...) and `PLC_IO` prints as
-`SHARED_IO`.
+info, `[!]` warning, `[*]` error, `[@]` critical, ...) and each topic prints as
+its display label (see @ref Botanik::Logs::TOPIC_NAMES).

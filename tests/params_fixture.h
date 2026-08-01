@@ -95,7 +95,7 @@ namespace botanik_test {
         /** @} */
 
         /** @brief No-op: edits take effect immediately. Kept so the tests read
-         *  the way they did against the PLC fixture. */
+         *  the way they did against the old fixture. */
         void publish() {}
     };
 

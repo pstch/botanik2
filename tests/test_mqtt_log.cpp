@@ -47,7 +47,7 @@ TEST_CASE("mqtt log: lowercase level names") {
 }
 
 TEST_CASE("mqtt log: lowercase topic names") {
-    CHECK(std::strcmp(Logs::format_log_topic_name(Logs::PLC_IO),      "shared_io")   == 0);
+    CHECK(std::strcmp(Logs::format_log_topic_name(Logs::SHARED_IO),      "shared_io")   == 0);
     CHECK(std::strcmp(Logs::format_log_topic_name(Logs::BOOT),        "boot")        == 0);
     CHECK(std::strcmp(Logs::format_log_topic_name(Logs::NETWORK),     "network")     == 0);
     CHECK(std::strcmp(Logs::format_log_topic_name(Logs::TIME),        "time")        == 0);
@@ -61,7 +61,7 @@ TEST_CASE("mqtt log: lowercase topic names") {
 
 TEST_CASE("mqtt log: topic assembly") {
     char buf[96];
-    size_t n = TestSink::build_topic(buf, sizeof(buf), Logs::LOG_DEBUG, Logs::PLC_IO);
+    size_t n = TestSink::build_topic(buf, sizeof(buf), Logs::LOG_DEBUG, Logs::SHARED_IO);
     CHECK(n > 0);
     // "<prefix>/<segment>/<level>/<topic>", both segments from config.
     std::string want = std::string(Config::MQTT_TOPIC_PREFIX) + "/"

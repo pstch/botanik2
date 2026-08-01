@@ -36,7 +36,7 @@ namespace Site {
 const Botanik::SiteDescriptor g_site = {
     Botanik::Config::SITE_NAME,
     g_commands,      g_command_count,        // site shell commands
-    g_status_groups, g_status_group_count,   // monitor page, telemetry, `status`
+    g_status_groups, g_status_group_count,   // monitor page + telemetry
     g_home_fields,   g_home_field_count,     // home-screen readings
     g_alarms,        g_alarm_count,          // alarm conditions
     SITE_VAR_TABLES,                         // every variable, values, string pool

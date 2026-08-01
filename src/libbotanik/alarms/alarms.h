@@ -256,7 +256,7 @@ namespace Botanik { namespace Alarms {
         /** @name State
          *  @{ */
         AlarmCondition  _conditions[ALARM_BITS]; // model-owned working array
-        uint8_t         _plc_count;      // N: PLC/site conditions at [0..N)
+        uint8_t         _site_count;      // N: site conditions at [0..N)
         uint8_t         _count;          // N + M: total conditions scanned
         /** the variable tables the site alarm refs resolve against (may be
          *  null -> site alarms rest on their local override only) */
@@ -272,7 +272,7 @@ namespace Botanik { namespace Alarms {
         /** @} */
 
     public:
-        /** @brief Bind to the site PLC table (@p site_count at [0..N)) and the
+        /** @brief Bind to the site alarm table (@p site_count at [0..N)) and the
          *  optional platform-health table (@p platform_count appended at
          *  [N..N+M)). Both const, copied in; N + M <= ALARM_BITS. @p io is what
          *  the site alarm refs resolve against (null = none). Alarms start
@@ -284,7 +284,7 @@ namespace Botanik { namespace Alarms {
                    uint8_t platform_count = 0,
                    const Vars::Bank* io = nullptr)
             : Component(logger, "AlarmModel"),
-              _plc_count(0), _count(0), _io(io),
+              _site_count(0), _count(0), _io(io),
               _notifier_count(0),
               _last_now(0), _first_step(true),
               _active_count(0) {
@@ -299,7 +299,7 @@ namespace Botanik { namespace Alarms {
                 _conditions[i] = site_table[i];
             for (uint8_t j = 0; j < platform_count; j++)
                 _conditions[site_count + j] = platform[j];
-            _plc_count = site_count;
+            _site_count = site_count;
             _count     = (uint8_t)(site_count + platform_count);
             for (uint8_t i = 0; i < _count; i++)     // boot state: settled OFF
                 _conditions[i].off_sent = true;
@@ -404,9 +404,9 @@ namespace Botanik { namespace Alarms {
 
     private:
         /** @brief This site condition's variable, as a boolean. False for the
-         *  platform-health range (i >= _plc_count) or with no tables bound. */
+         *  platform-health range (i >= _site_count) or with no tables bound. */
         bool _site_raw(uint8_t i) const {
-            if (i >= _plc_count || _io == nullptr) return false;
+            if (i >= _site_count || _io == nullptr) return false;
             return _io->var(_conditions[i].ref).b();
         }
 

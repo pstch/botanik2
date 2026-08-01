@@ -1,9 +1,9 @@
 """CONFIG page: the parameter table, the selected-row detail panel, and an
 inline value edit.
 
-Content checks (not a full-screen golden): the values are PLC-config-driven and
-an edit round-trips asynchronously through the emulated PLC, so a content check
-is the scale-invariant assertion here (cf. test_logs.py).
+Content checks (not a full-screen golden): the values come from the live
+parameter store and an edit round-trips through it, so a content check is the
+scale-invariant assertion here (cf. test_logs.py).
 """
 
 import keys
@@ -38,8 +38,8 @@ def test_config_detail_and_edit(spawn):
     term.send(CTRL_U)
     term.send(b"120")
     term.send(keys.ENTER)
-    # Commit: move up to the "ntp" group serial (index 7) and bump it. That ships
-    # the staged group; the emulated PLC latches it and reflects it back.
+    # Commit: move up to the "ntp" group serial (index 7) and bump it. That
+    # ships the staged group, and the group's owner picks it up.
     for _ in range(2):
         term.send(keys.UP)
     term.send(keys.ENTER)
@@ -47,5 +47,5 @@ def test_config_detail_and_edit(spawn):
     term.send(CTRL_U)
     term.send(b"2")
     term.send(keys.ENTER)
-    # The commit round-trips through the PLC write-back and repaints the row.
+    # The commit round-trips through the store and repaints the row.
     assert term.wait_for("120"), "committed value did not round-trip"

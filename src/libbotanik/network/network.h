@@ -4,7 +4,7 @@
 
 /**
  * @file network.h
- * @brief NetworkHandler - PLC-config-driven state machine that brings up the
+ * @brief NetworkHandler - parameter-driven state machine that brings up the
  *        link.
  *
  * Derives Component (config-serial machinery), so it restarts when its config
@@ -22,7 +22,7 @@
 namespace Botanik { namespace Network {
 
     /** @brief Owns the link (via HAL::Net bring-up); is_up() is authoritative.
-     *  Drives the link state machine from the PLC `net` config block,
+     *  Drives the link state machine from the `net` parameter group,
      *  restarting on a config change. Clears the NameResolver cache on
      *  reconfiguration / link loss. */
     class NetworkHandler : public Component {
@@ -90,7 +90,7 @@ namespace Botanik { namespace Network {
          *  @{ */
         /** @brief Enter a state and stamp the entry time. */
         void _enter(State s, uint64_t now_ms);
-        /** @brief Configure the link from the PLC net block and move to
+        /** @brief Configure the link from the `net` parameters and move to
          *  NET_SETUP. */
         void _begin_setup(uint64_t now_ms);
         /** @brief Clear the resolver's cache on reconfiguration / link loss. */

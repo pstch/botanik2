@@ -4,24 +4,22 @@
 
 /**
  * @file firmware.h
- * @brief OPTA firmware: the site firmware bound to the coprocessor's PLC
- *        shared memory.
+ * @brief OPTA firmware: the selected site, built for the hardware.
  *
  * Hardware counterpart of botanik_sim: same site, plain Config timeouts (the
  * simulator dilates them).
  */
 
 // Site selected at configure time (-DBOTANIK_SITE); libbotanik_site.h derives
-// BOTANIK_SITE_HEADER -> its site.h, exposing BotanikSite + the payload.
+// BOTANIK_SITE_HEADER -> its site.h, exposing BotanikSite.
 #include "libbotanik_site.h"
 #include BOTANIK_SITE_HEADER
 
 namespace Botanik { namespace Firmware {
 
-/** @brief The OPTA firmware singleton: the selected site bound to the PLC
- *  region. A function-local static, first constructed on the first call -
- *  deferred until after the Arduino core's init() has validated the UARTs and
- *  shared memory. */
+/** @brief The OPTA firmware singleton. A function-local static, first
+ *  constructed on the first call - deferred until after the Arduino core's
+ *  init() has validated the UARTs. */
 ::BotanikSite& instance();
 
 }}  // namespace Botanik::Firmware

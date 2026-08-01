@@ -4,7 +4,7 @@
 
 /**
  * @file storage.h
- * @brief Minimal HAL key-value persistence for configuration held off the PLC.
+ * @brief Minimal HAL key-value persistence for configuration parameters.
  *
  * Per-key raw-byte blobs that survive a reboot; this is where the config
  * parameters live. The two backends are in storage.cpp: the Mbed global KV

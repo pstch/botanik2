@@ -11,13 +11,11 @@
  * and advances the model. It also produces the watchdog verdict - the one
  * principled "should we keep kicking" input:
  *
- *   - our loop is alive (we reach watchdog_ok() every beat) -> keep kicking;
- *   - a PLC fault is transient -> keep kicking (the fault is logged + alarmed),
- *   - a PLC fault persists past the grace -> withhold the kick, letting the HW
- *     watchdog reset BOTH cores - the deliberate recovery that gives the PLC
- *     image a fresh start.
+ *   - our loop is alive (we reach watchdog_ok() every beat) -> keep kicking.
  *
- * Non-templated: the remote alarm bitset is passed into step() by the firmware.
+ * That is the whole verdict today: with no coprocessor link to lose, nothing
+ * else can justify letting the hardware watchdog fire. Control-side fault
+ * escalation belongs to the scan cycle, not here.
  */
 
 #include <cstdint>
@@ -82,13 +80,6 @@ namespace Botanik { namespace Health {
         void set_alarm_publisher(Alarms::Publisher* pub) {
             _notifier.set_publisher(pub);
         }
-        /** @brief Register an extra alarm-transition sink beyond the built-in
-         *  MQTT notifier (fans out to all; false if the list is full). */
-        bool add_alarm_notifier(Alarms::AlarmNotifier* n) {
-            return _model.add_notifier(n);
-        }
-        /** @brief Result of the boot POST (run in setup() on the first step()). */
-        bool                post_ok()  const { return _post_ok; }
         /** @brief Whether the HW watchdog should be kicked this beat (see
          *  file header). */
         bool                watchdog_ok() const { return _watchdog_ok; }
@@ -102,20 +93,19 @@ namespace Botanik { namespace Health {
 
         /** @brief Per beat: assert the platform alarms, update the watchdog
          *  verdict, and advance the model (which reads each site alarm's boolean
-         *  from the PLC output payload directly). The torn count is read live
-         *  through the stored pointer (null-safe). @p now is uptime in ms. */
+         *  from its variable directly). @p now is uptime in ms. */
         void on_step(uint64_t now) override {
             _assert_platform_alarms(now);
             _update_watchdog(now);
-            // The model reads each site alarm's boolean from the payload itself.
+            // The model reads each site alarm's boolean variable itself.
             _model.step(now);
         }
 
     private:
         /** @brief Power-on self-test, run once on the first step() (sinks
          *  registered, so the verdict is logged). Validates cheap structural
-         *  invariants over the PLC regions. A failure is loud (CRITICAL) but
-         *  does NOT withhold the watchdog. */
+         *  invariants. A failure is loud (CRITICAL) but does NOT withhold the
+         *  watchdog. */
         void _post() {
             bool ok = true;
             // The platform codes the firmware asserts must resolve in the
@@ -187,9 +177,9 @@ namespace Botanik { namespace Health {
         }
 
         /** @brief Watchdog verdict. The timed escalation existed to reboot both
-         *  cores when the PLC link stayed faulted; with no link to lose, we kick
-         *  while the loop is alive. Control-side fault escalation belongs to the
-         *  scan cycle, not here. */
+         *  cores when the coprocessor link stayed faulted; with no link to lose,
+         *  we kick while the loop is alive. Control-side fault escalation
+         *  belongs to the scan cycle, not here. */
         void _update_watchdog(uint64_t /*now*/) {
             _watchdog_ok = true;
         }

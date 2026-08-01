@@ -89,14 +89,14 @@ TEST_CASE("logger: min_level drops sub-threshold entries, criticals always pass"
     lg.set_min_level(Logs::LOG_WARNING);
     CHECK(lg.min_level() == Logs::LOG_WARNING);
 
-    lg.push_entry(info_on(Logs::PLC_IO));          // LOG_INFO < WARNING -> dropped
+    lg.push_entry(info_on(Logs::SHARED_IO));          // LOG_INFO < WARNING -> dropped
     CHECK(w.pushes == 0);
 
-    Logs::LogEntry warn = info_on(Logs::PLC_IO); warn.level = Logs::LOG_WARNING;
+    Logs::LogEntry warn = info_on(Logs::SHARED_IO); warn.level = Logs::LOG_WARNING;
     lg.push_entry(warn);                            // == threshold -> passes
     CHECK(w.pushes == 1);
 
-    Logs::LogEntry crit = info_on(Logs::PLC_IO); crit.level = Logs::LOG_CRITICAL;
+    Logs::LogEntry crit = info_on(Logs::SHARED_IO); crit.level = Logs::LOG_CRITICAL;
     lg.push_entry(crit);                            // critical (max level) always passes
     CHECK(w.pushes == 2);
 }
@@ -166,7 +166,7 @@ TEST_CASE("bucket: _report_suppressed emits a critical summary and clears the ta
     lg.add_writer(&w);
     Logs::LogBucket_t b;
     b.suppressed = 5;
-    lg._report_suppressed(&b, Logs::PLC_IO, 1234);
+    lg._report_suppressed(&b, Logs::SHARED_IO, 1234);
     CHECK(w.pushes == 1);
     CHECK(w.last_level == Logs::LOG_CRITICAL);   // critical so the writer can't drop it
     CHECK(std::string(w.last_msg).find("5") != std::string::npos);
@@ -179,7 +179,7 @@ TEST_CASE("bucket: _report_suppressed with nothing suppressed emits nothing") {
     RecordingWriter w;
     lg.add_writer(&w);
     Logs::LogBucket_t b;                          // suppressed == 0
-    lg._report_suppressed(&b, Logs::PLC_IO, 1);
+    lg._report_suppressed(&b, Logs::SHARED_IO, 1);
     CHECK(w.pushes == 0);
 }
 
@@ -195,7 +195,7 @@ TEST_CASE("rate limit: a flooded topic passes up to the burst, then drops") {
     const int gburst = Config::LOG_GLOBAL_BUCKET_BURST;
     const int tburst = Config::LOG_PERTOPIC_BUCKET_BURST;
     const int cap = gburst < tburst ? gburst : tburst;
-    Logs::LogEntry e = info_on(Logs::PLC_IO);
+    Logs::LogEntry e = info_on(Logs::SHARED_IO);
     for (int i = 0; i < cap + 10; ++i) lg.push_entry(e);
     CHECK(w.pushes == cap);
 }
@@ -209,7 +209,7 @@ TEST_CASE("rate limit: the global bucket caps total throughput across topics") {
     // it, so the total is the global burst. (Assumes tburst <= gburst <= 2*tburst.)
     const int gburst = Config::LOG_GLOBAL_BUCKET_BURST;
     const int tburst = Config::LOG_PERTOPIC_BUCKET_BURST;
-    Logs::LogEntry a = info_on(Logs::PLC_IO);
+    Logs::LogEntry a = info_on(Logs::SHARED_IO);
     Logs::LogEntry b = info_on(Logs::BOOT);
     for (int i = 0; i < tburst; ++i) lg.push_entry(a);   // A's topic bucket -> 0, global -= tburst
     for (int i = 0; i < tburst; ++i) lg.push_entry(b);   // B has topic tokens, global (gburst-tburst) gates it
