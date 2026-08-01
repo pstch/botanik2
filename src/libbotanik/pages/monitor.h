@@ -66,7 +66,7 @@ namespace Botanik { namespace Pages {
         // Detail panel below the table: bottom rule + blank spacer +
         // Description + Source + Quality + blank spacer, then the legend and its
         // own trailing blank (see _footer_row()).
-        static constexpr uint16_t PANEL_H    = 6;
+        static constexpr uint16_t PANEL_H    = 7;
         /** @brief Column order, for the derived cell positions below. */
         enum { C_SCOPE = 0, C_NAME, C_VALUE, C_UNIT, C_OVR };
         /** @} */
@@ -326,20 +326,19 @@ namespace Botanik { namespace Pages {
          *  blank for the selected variable. */
         void _draw_panel() {
             uint16_t br = _brule_row();
-            // No blank under the rule - the rule separates already, and the row
-            // it saves is what the Notes line costs.
+            _blank_line((uint16_t)(br + 1));    // breathe under the table
             bool ok = false;
             Vars::VarRef ref = _ref_at(_selected, ok);
             const bool have = ok && _io != nullptr;
             Vars::Var h = have ? _io->var(ref) : Vars::Var(nullptr, nullptr);
-            _panel_field((uint16_t)(br + 1), "Description", have ? h.meta()->desc : nullptr);
-            _panel_field((uint16_t)(br + 2), "Notes",       have ? h.meta()->notes : nullptr);
+            _panel_field((uint16_t)(br + 2), "Description", have ? h.meta()->desc : nullptr);
+            _panel_field((uint16_t)(br + 3), "Notes",       have ? h.meta()->notes : nullptr);
             // The binding, which the byte-offset model had nowhere to put: where
             // this reading physically comes from is the first thing you want
             // when one looks wrong.
             char bind[48];
             if (have) _describe_binding(h.meta()->bind, bind, sizeof(bind));
-            _panel_field((uint16_t)(br + 3), "Source", have ? bind : nullptr);
+            _panel_field((uint16_t)(br + 4), "Source", have ? bind : nullptr);
             // Quality is likewise new: a variable nothing has written reads as
             // its default, which looks exactly like a real reading otherwise -
             // and so does one a maintainer forced hours ago, which is why an
@@ -351,8 +350,8 @@ namespace Botanik { namespace Pages {
                 else if (h.valid())   quality = "live";
                 else                  quality = "no data (showing default)";
             }
-            _panel_field((uint16_t)(br + 4), "Quality", quality);
-            _blank_line((uint16_t)(br + 5));
+            _panel_field((uint16_t)(br + 5), "Quality", quality);
+            _blank_line((uint16_t)(br + 6));
         }
 
         void _draw_footer() {

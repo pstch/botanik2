@@ -69,7 +69,7 @@ namespace Botanik { namespace Pages {
         // a trailing blank spacer (default + unit are already table columns).
         // ... then a blank, the [group] legend, and a blank - the same framing
         // the ALARMS table gives its mode badge.
-        static constexpr uint16_t PANEL_H    = 6;
+        static constexpr uint16_t PANEL_H    = 7;
         /** @brief Column order; the selection cursor inverts C_NAME's cell. */
         enum { C_NAME = 0, C_TYPE, C_VALUE, C_DEFAULT, C_UNIT };
         /** @} */
@@ -300,16 +300,19 @@ namespace Botanik { namespace Pages {
         }
 
         void _draw_row(uint16_t idx, uint16_t row, bool selected) {
-            Vars::Var p = _params->param(_param_at(idx));
+            const uint16_t k = _param_at(idx);
+            Vars::Var p = _params->param(k);
             const Vars::Variable& d = *p.meta();
-            char val[VAL_CAP];
-            _params->format(idx, val, sizeof(val));
-            char line[LINE_CAP];
-            char dflt[VAL_CAP];
-            _params->format_scalar_of(d, d.def, dflt, sizeof(dflt));
+            char val[VAL_CAP], dflt[VAL_CAP], line[LINE_CAP];
+            // Use what format() RETURNS, not the buffer: a T_STR's live text
+            // lives in the pool and a T_ENUM's in flash, so neither writes into
+            // val - and reading val anyway showed the previous row's text, which
+            // is only visible once a string parameter sits under a numeric one.
+            const char* v = _params->format(k, val, sizeof(val));
+            const char* dv = _params->format_scalar_of(d, d.def, dflt, sizeof(dflt));
             const char* cells[5] = {
-                d.name, Vars::type_name(d.type), val,
-                (d.type == Vars::T_STR && d.def.s) ? d.def.s : dflt,
+                d.name, Vars::type_name(d.type), v,
+                (d.type == Vars::T_STR && d.def.s) ? d.def.s : dv,
                 d.unit ? d.unit : ""
             };
             uint16_t n = _build_row(line, sizeof(line), cells);
@@ -367,8 +370,9 @@ namespace Botanik { namespace Pages {
         void _draw_panel() {
             uint16_t r = _panel_top();
             _draw_separator(r);
+            _blank_line((uint16_t)(r + 1));     // breathe under the table
             if (_visible_count() == 0) {
-                for (uint16_t i = 1; i < PANEL_H; i++)
+                for (uint16_t i = 2; i < PANEL_H; i++)
                     if ((uint16_t)(r + i) != _mode_row()) _blank_line((uint16_t)(r + i));
                 _draw_mode_line(_mode_row(), nullptr, nullptr);
                 return;
@@ -381,13 +385,13 @@ namespace Botanik { namespace Pages {
             char b2[24];
             // The blank that used to sit under the separator paid for the Notes
             // row: the separator already separates, so the table keeps its row.
-            _panel_field2((uint16_t)(r + 1),
+            _panel_field2((uint16_t)(r + 2),
                           "Minimum", _fmt_bound(b,  sizeof(b),  d, d.min),
                           PANEL_COL2,
                           "Maximum", _fmt_bound(b2, sizeof(b2), d, d.max));
-            _panel_field((uint16_t)(r + 2), "Description", d.desc);
-            _panel_field((uint16_t)(r + 3), "Notes",       d.notes);
-            _blank_line((uint16_t)(r + 4));                     // blank above the legend
+            _panel_field((uint16_t)(r + 3), "Description", d.desc);
+            _panel_field((uint16_t)(r + 4), "Notes",       d.notes);
+            _blank_line((uint16_t)(r + 5));                     // blank above the legend
             // The group is on the legend line instead of costing a panel row -
             // and only in the "all" view, where it is the one thing the badge
             // does not already say. The prompt row below is the legend's blank
