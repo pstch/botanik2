@@ -34,9 +34,9 @@ def test_monitor_group_modes(spawn):
     goto(term, ALT_7, "SCOPE")
     # The footer names the view SPACE would move to, so it is what shows the
     # cycle actually moved. "all" is mode 0, so the first named group is next.
-    assert term.wait_for("power"), "footer did not offer the first group"
+    assert term.wait_for("grid"), "footer did not offer the first group"
 
-    term.send(b" ")                       # -> the power group
+    term.send(b" ")                       # -> the grid group
     assert term.wait_for("pwr_L1_V"), "group view lost its variables"
 
     term.send(keys.LEFT)                  # back to "all"
@@ -44,6 +44,6 @@ def test_monitor_group_modes(spawn):
 
     # BACKSPACE is the way back to the whole set without cycling every group.
     term.send(b" ")
-    assert term.wait_for("[power]"), "SPACE did not enter a group"
+    assert term.wait_for("[grid]"), "SPACE did not enter a group"
     term.send(keys.BACKSPACE)
     assert term.wait_for("[all]"), "BACKSPACE did not reset to the all-groups view"

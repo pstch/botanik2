@@ -33,8 +33,8 @@ using namespace Botanik::Vars;
 /** @name Status groups
  *  @{ */
 
-/** @brief Three-phase power meter (SDM630). */
-const VarRef g_grp_power[] = {
+/** @brief Incoming grid supply: the three-phase meter (SDM630). */
+const VarRef g_grp_grid[] = {
     { V_PWR_L1_V },
     { V_PWR_L2_V },
     { V_PWR_L3_V },
@@ -128,7 +128,7 @@ const VarRef g_grp_system[] = {
 #define GRP(nm) { #nm, g_grp_##nm, (uint16_t)(sizeof(g_grp_##nm) / sizeof(g_grp_##nm[0])) }
 
 const VarGroup g_status_groups[] = {
-    GRP(power),
+    GRP(grid),
     GRP(ats),
     GRP(climate),
     GRP(irrigation),
