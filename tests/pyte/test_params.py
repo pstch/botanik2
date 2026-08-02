@@ -54,7 +54,7 @@ def test_notes_row(spawn):
     assert term.wait_for("Notes"), "panel has no Notes row"
     # net_dhcp carries one; the row below Description is where it lands.
     term.send(keys.DOWN)
-    assert term.wait_for("static net_ip/mask/gw rows are ignored"), \
+    assert term.wait_for("ignores the static ip/mask/gw rows"), \
         "an authored note did not reach the panel"
 
 

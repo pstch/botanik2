@@ -141,292 +141,172 @@ const Variable g_vars[] = {
 /** @name Parameters - persisted and editable; the PARAMS page and `set` write these
  *  @{ */
     //      name           description              notes
-    PSERIAL("net_serial",  "Network config commit", "Edits to the net_* parameters only stage; bump this to apply them."),
+    PSERIAL("net_serial",  "Network config commit", "bump to apply staged net_* edits"),
 
-    //    name                  dflt  description                                   notes
-    PBOOL("net_dhcp",           0,    "Enable DHCP IP configuration",               "With DHCP on, the static net_ip/mask/gw rows are ignored."),
+    //      name                  dflt  description                                   notes
+    PBOOL  ("net_dhcp",           0,    "Enable DHCP IP configuration",               "ignores the static ip/mask/gw rows"),
 
-    //   name         off  kind          dflt                 description              notes
-    PSTR("net_ip",    0,   STR_IPV4,     "192.168.1.42",      "Static IP address",     ""),
-    PSTR("net_mask",  64,  STR_IPV4,     "255.255.255.0",     "Static IP netmask",     ""),
-    PSTR("net_dns1",  128, STR_IPV4,     "8.8.8.8",           "Static DNS resolver 1", ""),
-    PSTR("net_dns2",  192, STR_IPV4_OPT, "4.4.4.4",           "Static DNS resolver 2", "Optional: leave empty to use net_dns1 alone."),
-    PSTR("net_gw",    256, STR_IPV4,     "192.168.1.1",       "Static IP gateway",     ""),
-
-    //      name           description              notes
+    //      name         off  kind          dflt                 description              notes
+    PSTR   ("net_ip",    0,   STR_IPV4,     "192.168.1.42",      "Static IP address",     ""),
+    PSTR   ("net_mask",  64,  STR_IPV4,     "255.255.255.0",     "Static IP netmask",     ""),
+    PSTR   ("net_dns1",  128, STR_IPV4,     "8.8.8.8",           "Static DNS resolver 1", ""),
+    PSTR   ("net_dns2",  192, STR_IPV4_OPT, "4.4.4.4",           "Static DNS resolver 2", "empty = use dns1 alone"),
+    PSTR   ("net_gw",    256, STR_IPV4,     "192.168.1.1",       "Static IP gateway",     ""),
     PSERIAL("ntp_serial",  "NTP config commit",     ""),
+    PBOOL  ("ntp_enable",         1,    "Enable NTP time synchronization",            ""),
 
-    //    name                  dflt  description                                   notes
-    PBOOL("ntp_enable",         1,    "Enable NTP time synchronization",            ""),
-
-    //   name              dflt  lo  hi      unit    description                              notes
-    PU32("ntp_poll_sec",   3600, 10, 86400,  "sec",  "NTP poll interval, in seconds",         ""),
-
-    //   name         off  kind          dflt                 description              notes
-    PSTR("ntp_srv1",  320, STR_HOST,     "0.fr.pool.ntp.org", "NTP server 1",          ""),
-    PSTR("ntp_srv2",  384, STR_HOST_OPT, "1.fr.pool.ntp.org", "NTP server 2",          "Tried only after srv1 fails; empty means no fallback."),
-
-    //      name           description              notes
+    //      name              dflt  lo  hi      unit    description                              notes
+    PU32   ("ntp_poll_sec",   3600, 10, 86400,  "sec",  "NTP poll interval, in seconds",         ""),
+    PSTR   ("ntp_srv1",  320, STR_HOST,     "0.fr.pool.ntp.org", "NTP server 1",          ""),
+    PSTR   ("ntp_srv2",  384, STR_HOST_OPT, "1.fr.pool.ntp.org", "NTP server 2",          "empty = no fallback"),
     PSERIAL("mqtt_serial", "MQTT config commit",    ""),
+    PBOOL  ("mqtt_enable",        1,    "Enable MQTT",                                ""),
+    PSTR   ("mqtt_host", 448, STR_HOST,     "192.168.1.43",      "MQTT broker host",      ""),
 
-    //    name                  dflt  description                                   notes
-    PBOOL("mqtt_enable",        1,    "Enable MQTT",                                ""),
-
-    //   name         off  kind          dflt                 description              notes
-    PSTR("mqtt_host", 448, STR_HOST,     "192.168.1.43",      "MQTT broker host",      ""),
-
-    //   name                        dflt   lo   hi     unit    description                                                notes
-    PU16("mqtt_port",                58443, 0,   65535, "",     "MQTT broker port",                                        ""),
-    PU16("mqtt_ka_sec",              20,    10,  1800,  "sec",  "MQTT keep-alive interval",                                "Also how long a dead broker goes unnoticed - `net` shows the age\nof the last contact."),
-
-    //      name           description              notes
+    //      name                        dflt   lo   hi     unit    description                                                notes
+    PU16   ("mqtt_port",                58443, 0,   65535, "",     "MQTT broker port",                                        ""),
+    PU16   ("mqtt_ka_sec",              20,    10,  1800,  "sec",  "MQTT keep-alive interval",                                "also the dead-broker detection window"),
     PSERIAL("geo_serial",  "Geo config commit",     ""),
 
-    //   name                       dflt      lo       hi        dgt  unit    description                                                            notes
-    PF32("geo_lat_deg",             48.07f,   -90.0f,  90.0f,    2,   "deg",  "Geographical latitude, in degrees",                                   "Set according to location"),
-    PF32("geo_lon_deg",             1.32f,    -180.0f, 180.0f,   2,   "deg",  "Geographical longitude, in degrees",                                  "Set according to location"),
-    PF32("cli_coldBankOffset_degC", 6.0f,     0.0f,    15.0f,    1,   "degC", "How much cooler to run before a hot day",                             ""),
-    PF32("cli_heatBankOffset_degC", 7.0f,     0.0f,    15.0f,    1,   "degC", "How much warmer to run before cold night",                            ""),
-    PF32("cli_heatBankTrig_degC",   10.0f,    6.0f,    18.0f,    1,   "degC", "If yesterday's lowest temp below this, we bank heat before sunset",   ""),
-    PF32("cli_coldBankTrig_degC",   24.0f,    12.0f,   40.0f,    1,   "degC", "If yesterday's highest temp above this, we pre-chill before sunrise", ""),
-    PF32("cli_coolOn_degC",         20.0f,    10.0f,   30.0f,    1,   "degC", "Base cooling target temperature",                                     "All cooling is based on this target temperature."),
-    PF32("cli_coolKp",              0.08f,    0.0f,    1.0f,     2,   "",     "Cooling PID proportional factor",                                     "Leave as set"),
-    PF32("cli_coolTi_sec",          200.0f,   0.0f,    3600.0f,  0,   "sec",  "Cooling PID integral factor",                                         "Leave as set"),
-    PF32("cli_coolTd_sec",          0.0f,     0.0f,    10.0f,    0,   "sec",  "Cooling PID derivative factor",                                       "Leave at zero unless you're completely crazy"),
-    PF32("cli_ventMargin_degC",     1.0f,     0.0f,    15.0f,    1,   "degC", "Intake air must be this much cooler",                                 ""),
-    PF32("cli_skirtAvail_degC",     4.0f,     0.0f,    10.0f,    1,   "degC", "Air must be this dry for the pad to cool",                            ""),
-    PF32("cli_thermalScreenDem",    -0.2f,    -1.0f,   0.0f,     2,   "",     "Cooling effort at which we deploy the thermal screen",                "Negative demand; effect is heating"),
-    PF32("cli_groundHeatDem",       -0.1f,    -1.0f,   0.0f,     2,   "",     "Cooling effort at which we try to take hot air from below",           "Negative demand; effect is heating"),
-    PF32("cli_winOpenDem",          0.1f,     0.0f,    1.0f,     2,   "",     "Cooling effort where we begin opening windows",                       ""),
-    PF32("cli_intakeStartDem",      0.3f,     0.0f,    1.0f,     2,   "",     "Cooling effort where intake fans start",                              ""),
-    PF32("cli_winFullDem",          0.5f,     0.0f,    1.0f,     2,   "",     "Cooling effort at fully open windows",                                ""),
-    PF32("cli_skirtEnableDem",      0.7f,     0.0f,    1.0f,     2,   "",     "Cooling effort where the wet skirt starts",                           ""),
-    PF32("cli_fanDemLow",           0.2f,     0.0f,    1.0f,     2,   "",     "Cooling effort for fan speed 1",                                      ""),
-    PF32("cli_fanDemMed",           0.4f,     0.0f,    1.0f,     2,   "",     "Cooling effort for fan speed 2",                                      "Must stay above cli_fanDemLow."),
-    PF32("cli_fanDemHigh",          0.8f,     0.0f,    1.0f,     2,   "",     "Cooling effort for fan speed 3",                                      "Must stay above cli_fanDemMed."),
-    PF32("cli_intakeFullDem",       0.9f,     0.0f,    1.0f,     2,   "",     "Cooling effort at full speed intake fans",                            ""),
-    PF32("cli_dTStratLo_degC",      2.0f,     0.0f,    10.0f,    1,   "degC", "Top-to-bottom stratification for fan speed 1",                        ""),
-    PF32("cli_dTStratMed_degC",     4.0f,     0.0f,    10.0f,    1,   "degC", "Top-to-bottom stratification for fan speed 2",                        ""),
-    PF32("cli_dTStratHi_degC",      6.0f,     0.0f,    10.0f,    1,   "degC", "Top-to-bottom stratification for fan speed 3",                        ""),
-    PF32("cli_dTStratHyst_degC",    2.0f,     0.5f,    5.0f,     1,   "degC", "Gap change needed to switch fan speed",                               ""),
-    PF32("cli_rot_dpLow_degC",      3.0f,     0.0f,    10.0f,    1,   "degC", "Dryness margin where dehumidifying is fully activated",               ""),
-    PF32("cli_rot_dpHigh_degC",     4.5f,     0.0f,    10.0f,    1,   "degC", "Dryness margin where dehumidifying starts",                           "Must stay above cli_rot_dpLow_degC."),
-    PF32("cli_humidLo_degC",        18.0f,    0.0f,    30.0f,    1,   "degC", "Dryness margin where humidifying starts",                             "Must stay above cli_rot_dpHigh_degC."),
-    PF32("cli_humidHi_degC",        28.0f,    0.0f,    40.0f,    1,   "degC", "Dryness margin where humidifying is fully activated",                 "Must stay above cli_humidLo_degC."),
-    PF32("cli_humidSkirtDem",       0.5f,     0.0f,    1.0f,     2,   "",     "Dryness level where we humidify through the skirt",                   ""),
-    PF32("cli_rhCap",               0.6f,     0.0f,    1.0f,     2,   "",     "Humidity that also starts rot defence",                               ""),
-    PF32("cli_dpVentMargin_degC",   1.0f,     0.0f,    5.0f,     1,   "degC", "Outside air must be this much drier to vent",                         ""),
-    PF32("cli_tooCold_degC",        4.0f,     0.0f,    10.0f,    1,   "degC", "Alarm: greenhouse is dangerously cold",                               "Set according to gas-heater thermostat setting"),
-    PF32("cli_tooHot_degC",         35.0f,    20.0f,   50.0f,    1,   "degC", "Alarm: greenhouse is dangerously hot",                                ""),
-    PF32("cli_rotFlt_degC",         1.0f,     0.0f,    5.0f,     1,   "degC", "Alarm: greenhouse is dangerously humid",                              "Set according to autonomous dehumidifier setting"),
-    PF32("cli_intractor_rawMin_mV", 0.0f,     0.0f,    24000.0f, 0,   "mV",   "Intractor raw low-end value (zero flow)",                             "Set according to intractor characteristics"),
-    PF32("cli_intractor_rawMax_mV", 10000.0f, 0.0f,    24000.0f, 0,   "mV",   "Intractor raw high-end value (max flow)",                             "Set according to intractor characteristics"),
-    PF32("cli_intractor_engMin",    0.0f,     0.0f,    1.0f,     2,   "",     "Intractor speed at the low-end of the range",                         "Set according to intractor characteristics"),
-    PF32("cli_intractor_engMax",    1.0f,     0.0f,    1.0f,     2,   "",     "Intractor speed at the high-end of the range",                        ""),
-    PF32("cli_windLockout_mps",     5.0f,     0.0f,    50.0f,    1,   "mps",  "Wind speed that forces windows shut",                                 ""),
+    //      name                       dflt      lo       hi        dgt  unit    description                                                            notes
+    PF32   ("geo_lat_deg",             48.07f,   -90.0f,  90.0f,    2,   "deg",  "Geographical latitude, in degrees",                                   "per site location"),
+    PF32   ("geo_lon_deg",             1.32f,    -180.0f, 180.0f,   2,   "deg",  "Geographical longitude, in degrees",                                  "per site location"),
+    PF32   ("cli_coldBankOffset_degC", 6.0f,     0.0f,    15.0f,    1,   "degC", "How much cooler to run before a hot day",                             ""),
+    PF32   ("cli_heatBankOffset_degC", 7.0f,     0.0f,    15.0f,    1,   "degC", "How much warmer to run before cold night",                            ""),
+    PF32   ("cli_heatBankTrig_degC",   10.0f,    6.0f,    18.0f,    1,   "degC", "If yesterday's lowest temp below this, we bank heat before sunset",   ""),
+    PF32   ("cli_coldBankTrig_degC",   24.0f,    12.0f,   40.0f,    1,   "degC", "If yesterday's highest temp above this, we pre-chill before sunrise", ""),
+    PF32   ("cli_coolOn_degC",         20.0f,    10.0f,   30.0f,    1,   "degC", "Base cooling target temperature",                                     "every cooling stage keys off this"),
+    PF32   ("cli_coolKp",              0.08f,    0.0f,    1.0f,     2,   "",     "Cooling PID proportional factor",                                     "Leave as set"),
+    PF32   ("cli_coolTi_sec",          200.0f,   0.0f,    3600.0f,  0,   "sec",  "Cooling PID integral factor",                                         "Leave as set"),
+    PF32   ("cli_coolTd_sec",          0.0f,     0.0f,    10.0f,    0,   "sec",  "Cooling PID derivative factor",                                       "leave at zero"),
+    PF32   ("cli_ventMargin_degC",     1.0f,     0.0f,    15.0f,    1,   "degC", "Intake air must be this much cooler",                                 ""),
+    PF32   ("cli_skirtAvail_degC",     4.0f,     0.0f,    10.0f,    1,   "degC", "Air must be this dry for the pad to cool",                            ""),
+    PF32   ("cli_thermalScreenDem",    -0.2f,    -1.0f,   0.0f,     2,   "",     "Cooling effort at which we deploy the thermal screen",                "negative demand = heating"),
+    PF32   ("cli_groundHeatDem",       -0.1f,    -1.0f,   0.0f,     2,   "",     "Cooling effort at which we try to take hot air from below",           "negative demand = heating"),
+    PF32   ("cli_winOpenDem",          0.1f,     0.0f,    1.0f,     2,   "",     "Cooling effort where we begin opening windows",                       ""),
+    PF32   ("cli_intakeStartDem",      0.3f,     0.0f,    1.0f,     2,   "",     "Cooling effort where intake fans start",                              ""),
+    PF32   ("cli_winFullDem",          0.5f,     0.0f,    1.0f,     2,   "",     "Cooling effort at fully open windows",                                ""),
+    PF32   ("cli_skirtEnableDem",      0.7f,     0.0f,    1.0f,     2,   "",     "Cooling effort where the wet skirt starts",                           ""),
+    PF32   ("cli_fanDemLow",           0.2f,     0.0f,    1.0f,     2,   "",     "Cooling effort for fan speed 1",                                      ""),
+    PF32   ("cli_fanDemMed",           0.4f,     0.0f,    1.0f,     2,   "",     "Cooling effort for fan speed 2",                                      "> cli_fanDemLow"),
+    PF32   ("cli_fanDemHigh",          0.8f,     0.0f,    1.0f,     2,   "",     "Cooling effort for fan speed 3",                                      "> cli_fanDemMed"),
+    PF32   ("cli_intakeFullDem",       0.9f,     0.0f,    1.0f,     2,   "",     "Cooling effort at full speed intake fans",                            ""),
+    PF32   ("cli_dTStratLo_degC",      2.0f,     0.0f,    10.0f,    1,   "degC", "Top-to-bottom stratification for fan speed 1",                        ""),
+    PF32   ("cli_dTStratMed_degC",     4.0f,     0.0f,    10.0f,    1,   "degC", "Top-to-bottom stratification for fan speed 2",                        ""),
+    PF32   ("cli_dTStratHi_degC",      6.0f,     0.0f,    10.0f,    1,   "degC", "Top-to-bottom stratification for fan speed 3",                        ""),
+    PF32   ("cli_dTStratHyst_degC",    2.0f,     0.5f,    5.0f,     1,   "degC", "Gap change needed to switch fan speed",                               ""),
+    PF32   ("cli_rot_dpLow_degC",      3.0f,     0.0f,    10.0f,    1,   "degC", "Dryness margin where dehumidifying is fully activated",               ""),
+    PF32   ("cli_rot_dpHigh_degC",     4.5f,     0.0f,    10.0f,    1,   "degC", "Dryness margin where dehumidifying starts",                           "> cli_rot_dpLow_degC"),
+    PF32   ("cli_humidLo_degC",        18.0f,    0.0f,    30.0f,    1,   "degC", "Dryness margin where humidifying starts",                             "> cli_rot_dpHigh_degC"),
+    PF32   ("cli_humidHi_degC",        28.0f,    0.0f,    40.0f,    1,   "degC", "Dryness margin where humidifying is fully activated",                 "> cli_humidLo_degC"),
+    PF32   ("cli_humidSkirtDem",       0.5f,     0.0f,    1.0f,     2,   "",     "Dryness level where we humidify through the skirt",                   ""),
+    PF32   ("cli_rhCap",               0.6f,     0.0f,    1.0f,     2,   "",     "Humidity that also starts rot defence",                               ""),
+    PF32   ("cli_dpVentMargin_degC",   1.0f,     0.0f,    5.0f,     1,   "degC", "Outside air must be this much drier to vent",                         ""),
+    PF32   ("cli_tooCold_degC",        4.0f,     0.0f,    10.0f,    1,   "degC", "Alarm: greenhouse is dangerously cold",                               "match the gas-heater thermostat"),
+    PF32   ("cli_tooHot_degC",         35.0f,    20.0f,   50.0f,    1,   "degC", "Alarm: greenhouse is dangerously hot",                                ""),
+    PF32   ("cli_rotFlt_degC",         1.0f,     0.0f,    5.0f,     1,   "degC", "Alarm: greenhouse is dangerously humid",                              "match the dehumidifier setting"),
+    PF32   ("cli_intractor_rawMin_mV", 0.0f,     0.0f,    24000.0f, 0,   "mV",   "Intractor raw low-end value (zero flow)",                             "per intractor datasheet"),
+    PF32   ("cli_intractor_rawMax_mV", 10000.0f, 0.0f,    24000.0f, 0,   "mV",   "Intractor raw high-end value (max flow)",                             "per intractor datasheet"),
+    PF32   ("cli_intractor_engMin",    0.0f,     0.0f,    1.0f,     2,   "",     "Intractor speed at the low-end of the range",                         "per intractor datasheet"),
+    PF32   ("cli_intractor_engMax",    1.0f,     0.0f,    1.0f,     2,   "",     "Intractor speed at the high-end of the range",                        ""),
+    PF32   ("cli_windLockout_mps",     5.0f,     0.0f,    50.0f,    1,   "mps",  "Wind speed that forces windows shut",                                 ""),
+    PU16   ("cli_windowTravel_sec",     15,    1,   60,    "sec",  "Nominal time to fully open/close a window",               "per actuator datasheet"),
+    PU16   ("cli_windowTimeout_sec",    20,    1,   90,    "sec",  "Safe time to fully open/close a window",                  "per actuator datasheet"),
+    PU16   ("cli_screenTravel_sec",     60,    1,   300,   "sec",  "Nominal time to deploy/remove the thermal screen",        "per actuator datasheet"),
+    PU16   ("cli_screenTimeout_sec",    80,    1,   400,   "sec",  "Safe time to deploy/remove the thermal screen",           "per actuator datasheet"),
+    PU16   ("cli_rainLockout_sec",      900,   0,   3600,  "sec",  "Keep windows shut this long after rain",                  ""),
+    PU16   ("cli_skirtValvePeriod_sec", 60,    10,  600,   "sec",  "Period for the skirt humidifier valve modulation",        ""),
+    PU16   ("cli_skirtValveMinOn_sec",  10,    1,   600,   "sec",  "Shortest allowed pulse length for the skirt humidifier",  "<= cli_skirtValvePeriod_sec"),
+    PF32   ("cli_screenDeploy_degC",   13.0f,    0.0f,    50.0f,    1,   "degC", "Night temperature that deploys the thermal screens",                  ""),
 
-    //   name                        dflt   lo   hi     unit    description                                                notes
-    PU16("cli_windowTravel_sec",     15,    1,   60,    "sec",  "Nominal time to fully open/close a window",               "Set according to actuator characteristics"),
-    PU16("cli_windowTimeout_sec",    20,    1,   90,    "sec",  "Safe time to fully open/close a window",                  "Set according to actuator characteristics"),
-    PU16("cli_screenTravel_sec",     60,    1,   300,   "sec",  "Nominal time to deploy/remove the thermal screen",        "Set according to actuator characteristics"),
-    PU16("cli_screenTimeout_sec",    80,    1,   400,   "sec",  "Safe time to deploy/remove the thermal screen",           "Set according to actuator characteristics"),
-    PU16("cli_rainLockout_sec",      900,   0,   3600,  "sec",  "Keep windows shut this long after rain",                  ""),
-    PU16("cli_skirtValvePeriod_sec", 60,    10,  600,   "sec",  "Period for the skirt humidifier valve modulation",        ""),
-    PU16("cli_skirtValveMinOn_sec",  10,    1,   600,   "sec",  "Shortest allowed pulse length for the skirt humidifier",  "Upper bound is cli_skirtValvePeriod_sec."),
+    //      name                         dflt  lo    hi   unit   description                                           notes
+    PI16   ("sol_coldBankSunrise_min",   -30,  -180, 60,  "min", "Begin time of cold banking, minutes from sunrise",   ""),
+    PI16   ("sol_dawnBreezeSunrise_min", 30,   -60,  180, "min", "Begin time of dawn breeze, minutes from sunrise",    ""),
+    PI16   ("sol_daySunrise_min",        60,   0,    180, "min", "Begin time of day operation, minutes from sunrise",  ""),
+    PI16   ("sol_heatBankSunset_min",    -180, -300, 0,   "min", "Begin time of heat banking, minutes from sunset",    ""),
+    PI16   ("sol_nightSunset_min",       30,   0,    180, "min", "Begin time of night operation, minutes from sunset", ""),
+    PBOOL  ("irr_forceNow",       0,    "Run a watering cycle immediately, once",     ""),
+    PU16   ("irr_liters_tray1",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
 
-    //   name                       dflt      lo       hi        dgt  unit    description                                                            notes
-    PF32("cli_screenDeploy_degC",   13.0f,    0.0f,    50.0f,    1,   "degC", "Night temperature that deploys the thermal screens",                  ""),
-
-    //   name                         dflt  lo    hi   unit   description                                           notes
-    PI16("sol_coldBankSunrise_min",   -30,  -180, 60,  "min", "Begin time of cold banking, minutes from sunrise",   ""),
-    PI16("sol_dawnBreezeSunrise_min", 30,   -60,  180, "min", "Begin time of dawn breeze, minutes from sunrise",    ""),
-    PI16("sol_daySunrise_min",        60,   0,    180, "min", "Begin time of day operation, minutes from sunrise",  ""),
-    PI16("sol_heatBankSunset_min",    -180, -300, 0,   "min", "Begin time of heat banking, minutes from sunset",    ""),
-    PI16("sol_nightSunset_min",       30,   0,    180, "min", "Begin time of night operation, minutes from sunset", ""),
-
-    //    name                  dflt  description                                   notes
-    PBOOL("irr_forceNow",       0,    "Run a watering cycle immediately, once",     ""),
-
-    //   name                        dflt   lo   hi     unit    description                                                notes
-    PU16("irr_liters_tray1",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
-
-    //  name              dflt  lo  hi  unit    description                         notes
-    PU8("irr_days_tray1", 14,   1,  60, "days", "Days between waterings in summer", ""),
-
-    //   name              dflt  lo  hi      unit    description                              notes
-    PU32("irr_last_tray1", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
-
-    //    name                  dflt  description                                   notes
-    PBOOL("irr_forceOn_tray1",  0,    "Force watering this tray at the next cycle", ""),
-    PBOOL("irr_forceOff_tray1", 0,    "Force skipping this tray at the next cycle", ""),
-
-    //   name                        dflt   lo   hi     unit    description                                                notes
-    PU16("irr_liters_tray2",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
-
-    //  name              dflt  lo  hi  unit    description                         notes
-    PU8("irr_days_tray2", 14,   1,  60, "days", "Days between waterings in summer", ""),
-
-    //   name              dflt  lo  hi      unit    description                              notes
-    PU32("irr_last_tray2", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
-
-    //    name                  dflt  description                                   notes
-    PBOOL("irr_forceOn_tray2",  0,    "Force watering this tray at the next cycle", ""),
-    PBOOL("irr_forceOff_tray2", 0,    "Force skipping this tray at the next cycle", ""),
-
-    //   name                        dflt   lo   hi     unit    description                                                notes
-    PU16("irr_liters_tray3",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
-
-    //  name              dflt  lo  hi  unit    description                         notes
-    PU8("irr_days_tray3", 14,   1,  60, "days", "Days between waterings in summer", ""),
-
-    //   name              dflt  lo  hi      unit    description                              notes
-    PU32("irr_last_tray3", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
-
-    //    name                  dflt  description                                   notes
-    PBOOL("irr_forceOn_tray3",  0,    "Force watering this tray at the next cycle", ""),
-    PBOOL("irr_forceOff_tray3", 0,    "Force skipping this tray at the next cycle", ""),
-
-    //   name                        dflt   lo   hi     unit    description                                                notes
-    PU16("irr_liters_tray4",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
-
-    //  name              dflt  lo  hi  unit    description                         notes
-    PU8("irr_days_tray4", 14,   1,  60, "days", "Days between waterings in summer", ""),
-
-    //   name              dflt  lo  hi      unit    description                              notes
-    PU32("irr_last_tray4", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
-
-    //    name                  dflt  description                                   notes
-    PBOOL("irr_forceOn_tray4",  0,    "Force watering this tray at the next cycle", ""),
-    PBOOL("irr_forceOff_tray4", 0,    "Force skipping this tray at the next cycle", ""),
-
-    //   name                        dflt   lo   hi     unit    description                                                notes
-    PU16("irr_liters_tray5",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
-
-    //  name              dflt  lo  hi  unit    description                         notes
-    PU8("irr_days_tray5", 14,   1,  60, "days", "Days between waterings in summer", ""),
-
-    //   name              dflt  lo  hi      unit    description                              notes
-    PU32("irr_last_tray5", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
-
-    //    name                  dflt  description                                   notes
-    PBOOL("irr_forceOn_tray5",  0,    "Force watering this tray at the next cycle", ""),
-    PBOOL("irr_forceOff_tray5", 0,    "Force skipping this tray at the next cycle", ""),
-
-    //   name                        dflt   lo   hi     unit    description                                                notes
-    PU16("irr_liters_tray6",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
-
-    //  name              dflt  lo  hi  unit    description                         notes
-    PU8("irr_days_tray6", 14,   1,  60, "days", "Days between waterings in summer", ""),
-
-    //   name              dflt  lo  hi      unit    description                              notes
-    PU32("irr_last_tray6", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
-
-    //    name                  dflt  description                                   notes
-    PBOOL("irr_forceOn_tray6",  0,    "Force watering this tray at the next cycle", ""),
-    PBOOL("irr_forceOff_tray6", 0,    "Force skipping this tray at the next cycle", ""),
-
-    //   name                        dflt   lo   hi     unit    description                                                notes
-    PU16("irr_liters_tray7",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
-
-    //  name              dflt  lo  hi  unit    description                         notes
-    PU8("irr_days_tray7", 14,   1,  60, "days", "Days between waterings in summer", ""),
-
-    //   name              dflt  lo  hi      unit    description                              notes
-    PU32("irr_last_tray7", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
-
-    //    name                  dflt  description                                   notes
-    PBOOL("irr_forceOn_tray7",  0,    "Force watering this tray at the next cycle", ""),
-    PBOOL("irr_forceOff_tray7", 0,    "Force skipping this tray at the next cycle", ""),
-
-    //   name                        dflt   lo   hi     unit    description                                                notes
-    PU16("irr_liters_tray8",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
-
-    //  name              dflt  lo  hi  unit    description                         notes
-    PU8("irr_days_tray8", 14,   1,  60, "days", "Days between waterings in summer", ""),
-
-    //   name              dflt  lo  hi      unit    description                              notes
-    PU32("irr_last_tray8", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
-
-    //    name                  dflt  description                                   notes
-    PBOOL("irr_forceOn_tray8",  0,    "Force watering this tray at the next cycle", ""),
-    PBOOL("irr_forceOff_tray8", 0,    "Force skipping this tray at the next cycle", ""),
-
-    //   name                        dflt   lo   hi     unit    description                                                notes
-    PU16("irr_dryEwmaDays",          3,     1,   30,    "days", "Days of dryness history to modulate the watering",        "Recorded every 2 hours"),
-
-    //   name                       dflt      lo       hi        dgt  unit    description                                                            notes
-    PF32("irr_dryLo_kPa",           0.15f,    0.0f,    2.0f,     2,   "kPa",  "Air dryness giving the least watering",                               ""),
-    PF32("irr_dryHi_kPa",           1.2f,     0.0f,    5.0f,     2,   "kPa",  "Air dryness giving the most watering",                                "Must stay above irr_dryLo_kPa."),
-    PF32("irr_modMin",              0.25f,    0.1f,    1.0f,     2,   "",     "Minimum fraction of water given in very humid weather",               "The dullest air still gets this share of the summer dose"),
-    PF32("irr_modGamma",            1.0f,     1.0f,    4.0f,     2,   "",     "How fast watering ramps up with dryness",                             ""),
-    PF32("irr_volFreqSplit",        0.5f,     0.0f,    1.0f,     2,   "",     "Whether we reduce volume or increase period",                         "0 = only period, 1 = only volume"),
-
-    //   name                        dflt   lo   hi     unit    description                                                notes
-    PU16("irr_traysPerDay",          2,     1,   5,     "",     "Most trays watered in one day",                           ""),
-
-    //   name                       dflt      lo       hi        dgt  unit    description                                                            notes
-    PF32("irr_dawnGate_degC",       12.0f,    5.0f,    30.0f,    1,   "degC", "Skip pre-dawn watering below this temp",                              ""),
-
-    //   name                        dflt   lo   hi     unit    description                                                notes
-    PU16("irr_maxFill_sec",          300,   100, 1800,  "sec",  "Alarm if a tray takes longer to fill",                    ""),
-    PU16("irr_drainWindow_sec",      300,   100, 1800,  "sec",  "Time allowed for a tray to drain",                        ""),
-
-    //   name                       dflt      lo       hi        dgt  unit    description                                                            notes
-    PF32("irr_expDrainFrac",        0.6f,     0.0f,    1.0f,     2,   "",     "How far below expected drain fraction is a fault",                    ""),
-    PF32("irr_drainMargin",         0.3f,     0.0f,    1.0f,     2,   "",     "Drain volume fraction below which we trigger a drain fault",          ""),
-
-    //   name                        dflt   lo   hi     unit    description                                                notes
-    PU16("irr_flush_sec",            10,    5,   300,   "sec",  "Duration of the flush after/before the irrigation cycle", ""),
-
-    //   name                       dflt      lo       hi        dgt  unit    description                                                            notes
-    PF32("irr_input_qtyPerImp",     1.0f,     0.01f,   10.0f,    2,   "L",    "Litres per pulse from the water meter",                               "Set according to meter characteristics"),
-
-    //   name                        dflt   lo   hi     unit    description                                                notes
-    PU16("irr_output_rawMin_uA",     0,     0,   24000, "uA",   "uA at zero output flow",                                  "Set according to output meter characteristics"),
-    PU16("irr_output_rawMax_uA",     10000, 0,   24000, "uA",   "uA at full output scale",                                 "Set according to output meter characteristics"),
-
-    //   name                       dflt      lo       hi        dgt  unit    description                                                            notes
-    PF32("irr_output_engMin_Lpm",   0.0f,     0.0f,    500.0f,   1,   "Lpm",  "Output litres/min at zero signal",                                    "Set according to output meter characteristics"),
-    PF32("irr_output_engMax_Lpm",   50.0f,    0.0f,    500.0f,   1,   "Lpm",  "Output litres/min at full scale",                                     "Set according to output meter characteristics"),
-
-    //   name                        dflt   lo   hi     unit    description                                                notes
-    PU16("irr_output_avgTime_ms",    200,   0,   10000, "ms",   "Rolling average for filtering this flow meter's output",  "Set according to output meter characteristics"),
-    PU16("pwr_dc1_rawMin_mV",        4000,  0,   10000, "mV",   "Low-end of the raw measurement",                          "Set according to voltage divider setup"),
-    PU16("pwr_dc1_rawMax_mV",        6000,  0,   10000, "mV",   "High-end of the raw measurement",                         "Set according to voltage divider setup"),
-
-    //   name                       dflt      lo       hi        dgt  unit    description                                                            notes
-    PF32("pwr_dc1_engMin_V",        20.0f,    0.0f,    48.0f,    1,   "V",    "Low-end of the actual DC voltage band",                               "Set according to voltage divider setup"),
-    PF32("pwr_dc1_engMax_V",        30.0f,    0.0f,    48.0f,    1,   "V",    "High-end of the actual DC voltage band",                              "Set according to voltage divider setup"),
-
-    //   name                        dflt   lo   hi     unit    description                                                notes
-    PU16("pwr_dc1_avgTime_ms",       1000,  10,  10000, "ms",   "Rolling average for filtering this DC bus voltage",       "Set according to voltage divider setup"),
-    PU16("pwr_dc2_rawMin_mV",        4000,  0,   10000, "mV",   "Low-end of the raw measurement",                          "Set according to voltage divider setup"),
-    PU16("pwr_dc2_rawMax_mV",        6000,  0,   10000, "mV",   "High-end of the raw measurement",                         "Set according to voltage divider setup"),
-
-    //   name                       dflt      lo       hi        dgt  unit    description                                                            notes
-    PF32("pwr_dc2_engMin_V",        20.0f,    0.0f,    48.0f,    1,   "V",    "Low-end of the actual DC voltage band",                               "Set according to voltage divider setup"),
-    PF32("pwr_dc2_engMax_V",        30.0f,    0.0f,    48.0f,    1,   "V",    "High-end of the actual DC voltage band",                              "Set according to voltage divider setup"),
-
-    //   name                        dflt   lo   hi     unit    description                                                notes
-    PU16("pwr_dc2_avgTime_ms",       1000,  10,  10000, "ms",   "Rolling average for filtering this DC bus voltage",       "Set according to voltage divider setup"),
-    PU16("pwr_ups_bat_rawMin_mV",    4000,  0,   10000, "mV",   "Low-end of the raw measurement",                          "Set according to voltage divider setup"),
-    PU16("pwr_ups_bat_rawMax_mV",    6000,  0,   10000, "mV",   "High-end of the raw measurement",                         "Set according to voltage divider setup"),
-
-    //   name                       dflt      lo       hi        dgt  unit    description                                                            notes
-    PF32("pwr_ups_bat_engMin_V",    20.0f,    0.0f,    48.0f,    1,   "V",    "Low-end of the actual DC voltage band",                               "Set according to voltage divider setup"),
-    PF32("pwr_ups_bat_engMax_V",    30.0f,    0.0f,    48.0f,    1,   "V",    "High-end of the actual DC voltage band",                              "Set according to voltage divider setup"),
-
-    //   name                        dflt   lo   hi     unit    description                                                notes
-    PU16("pwr_ups_bat_avgTime_ms",   1000,  10,  10000, "ms",   "Rolling average for filtering this DC bus voltage",       "Set according to voltage divider setup"),
-    PU16("pwr_gen_bat_rawMin_mV",    5000,  0,   10000, "mV",   "Low-end of the raw measurement",                          "Set according to voltage divider setup"),
-    PU16("pwr_gen_bat_rawMax_mV",    7500,  0,   10000, "mV",   "High-end of the raw measurement",                         "Set according to voltage divider setup"),
-
-    //   name                       dflt      lo       hi        dgt  unit    description                                                            notes
-    PF32("pwr_gen_bat_engMin_V",    20.0f,    10.0f,   48.0f,    1,   "V",    "Low-end of the actual DC voltage band",                               "Set according to voltage divider setup"),
-    PF32("pwr_gen_bat_engMax_V",    30.0f,    15.0f,   48.0f,    1,   "V",    "High-end of the actual DC voltage band",                              "Set according to voltage divider setup"),
-
-    //   name                        dflt   lo   hi     unit    description                                                notes
-    PU16("pwr_gen_bat_avgTime_ms",   1000,  10,  10000, "ms",   "Rolling average for filtering this DC bus voltage",       "Set according to voltage divider setup"),
+    //      name              dflt  lo  hi  unit    description                         notes
+    PU8    ("irr_days_tray1", 14,   1,  60, "days", "Days between waterings in summer", ""),
+    PU32   ("irr_last_tray1", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
+    PBOOL  ("irr_forceOn_tray1",  0,    "Force watering this tray at the next cycle", ""),
+    PBOOL  ("irr_forceOff_tray1", 0,    "Force skipping this tray at the next cycle", ""),
+    PU16   ("irr_liters_tray2",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
+    PU8    ("irr_days_tray2", 14,   1,  60, "days", "Days between waterings in summer", ""),
+    PU32   ("irr_last_tray2", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
+    PBOOL  ("irr_forceOn_tray2",  0,    "Force watering this tray at the next cycle", ""),
+    PBOOL  ("irr_forceOff_tray2", 0,    "Force skipping this tray at the next cycle", ""),
+    PU16   ("irr_liters_tray3",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
+    PU8    ("irr_days_tray3", 14,   1,  60, "days", "Days between waterings in summer", ""),
+    PU32   ("irr_last_tray3", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
+    PBOOL  ("irr_forceOn_tray3",  0,    "Force watering this tray at the next cycle", ""),
+    PBOOL  ("irr_forceOff_tray3", 0,    "Force skipping this tray at the next cycle", ""),
+    PU16   ("irr_liters_tray4",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
+    PU8    ("irr_days_tray4", 14,   1,  60, "days", "Days between waterings in summer", ""),
+    PU32   ("irr_last_tray4", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
+    PBOOL  ("irr_forceOn_tray4",  0,    "Force watering this tray at the next cycle", ""),
+    PBOOL  ("irr_forceOff_tray4", 0,    "Force skipping this tray at the next cycle", ""),
+    PU16   ("irr_liters_tray5",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
+    PU8    ("irr_days_tray5", 14,   1,  60, "days", "Days between waterings in summer", ""),
+    PU32   ("irr_last_tray5", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
+    PBOOL  ("irr_forceOn_tray5",  0,    "Force watering this tray at the next cycle", ""),
+    PBOOL  ("irr_forceOff_tray5", 0,    "Force skipping this tray at the next cycle", ""),
+    PU16   ("irr_liters_tray6",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
+    PU8    ("irr_days_tray6", 14,   1,  60, "days", "Days between waterings in summer", ""),
+    PU32   ("irr_last_tray6", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
+    PBOOL  ("irr_forceOn_tray6",  0,    "Force watering this tray at the next cycle", ""),
+    PBOOL  ("irr_forceOff_tray6", 0,    "Force skipping this tray at the next cycle", ""),
+    PU16   ("irr_liters_tray7",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
+    PU8    ("irr_days_tray7", 14,   1,  60, "days", "Days between waterings in summer", ""),
+    PU32   ("irr_last_tray7", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
+    PBOOL  ("irr_forceOn_tray7",  0,    "Force watering this tray at the next cycle", ""),
+    PBOOL  ("irr_forceOff_tray7", 0,    "Force skipping this tray at the next cycle", ""),
+    PU16   ("irr_liters_tray8",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
+    PU8    ("irr_days_tray8", 14,   1,  60, "days", "Days between waterings in summer", ""),
+    PU32   ("irr_last_tray8", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
+    PBOOL  ("irr_forceOn_tray8",  0,    "Force watering this tray at the next cycle", ""),
+    PBOOL  ("irr_forceOff_tray8", 0,    "Force skipping this tray at the next cycle", ""),
+    PU16   ("irr_dryEwmaDays",          3,     1,   30,    "days", "Days of dryness history to modulate the watering",        "sampled every 2 h"),
+    PF32   ("irr_dryLo_kPa",           0.15f,    0.0f,    2.0f,     2,   "kPa",  "Air dryness giving the least watering",                               ""),
+    PF32   ("irr_dryHi_kPa",           1.2f,     0.0f,    5.0f,     2,   "kPa",  "Air dryness giving the most watering",                                "> irr_dryLo_kPa"),
+    PF32   ("irr_modMin",              0.25f,    0.1f,    1.0f,     2,   "",     "Minimum fraction of water given in very humid weather",               "the floor even in still, humid air"),
+    PF32   ("irr_modGamma",            1.0f,     1.0f,    4.0f,     2,   "",     "How fast watering ramps up with dryness",                             ""),
+    PF32   ("irr_volFreqSplit",        0.5f,     0.0f,    1.0f,     2,   "",     "Whether we reduce volume or increase period",                         "0 = period, 1 = volume"),
+    PU16   ("irr_traysPerDay",          2,     1,   5,     "",     "Most trays watered in one day",                           ""),
+    PF32   ("irr_dawnGate_degC",       12.0f,    5.0f,    30.0f,    1,   "degC", "Skip pre-dawn watering below this temp",                              ""),
+    PU16   ("irr_maxFill_sec",          300,   100, 1800,  "sec",  "Alarm if a tray takes longer to fill",                    ""),
+    PU16   ("irr_drainWindow_sec",      300,   100, 1800,  "sec",  "Time allowed for a tray to drain",                        ""),
+    PF32   ("irr_expDrainFrac",        0.6f,     0.0f,    1.0f,     2,   "",     "How far below expected drain fraction is a fault",                    ""),
+    PF32   ("irr_drainMargin",         0.3f,     0.0f,    1.0f,     2,   "",     "Drain volume fraction below which we trigger a drain fault",          ""),
+    PU16   ("irr_flush_sec",            10,    5,   300,   "sec",  "Duration of the flush after/before the irrigation cycle", ""),
+    PF32   ("irr_input_qtyPerImp",     1.0f,     0.01f,   10.0f,    2,   "L",    "Litres per pulse from the water meter",                               "per meter datasheet"),
+    PU16   ("irr_output_rawMin_uA",     0,     0,   24000, "uA",   "uA at zero output flow",                                  "per output-meter datasheet"),
+    PU16   ("irr_output_rawMax_uA",     10000, 0,   24000, "uA",   "uA at full output scale",                                 "per output-meter datasheet"),
+    PF32   ("irr_output_engMin_Lpm",   0.0f,     0.0f,    500.0f,   1,   "Lpm",  "Output litres/min at zero signal",                                    "per output-meter datasheet"),
+    PF32   ("irr_output_engMax_Lpm",   50.0f,    0.0f,    500.0f,   1,   "Lpm",  "Output litres/min at full scale",                                     "per output-meter datasheet"),
+    PU16   ("irr_output_avgTime_ms",    200,   0,   10000, "ms",   "Rolling average for filtering this flow meter's output",  "per output-meter datasheet"),
+    PU16   ("pwr_dc1_rawMin_mV",        4000,  0,   10000, "mV",   "Low-end of the raw measurement",                          "per divider setup"),
+    PU16   ("pwr_dc1_rawMax_mV",        6000,  0,   10000, "mV",   "High-end of the raw measurement",                         "per divider setup"),
+    PF32   ("pwr_dc1_engMin_V",        20.0f,    0.0f,    48.0f,    1,   "V",    "Low-end of the actual DC voltage band",                               "per divider setup"),
+    PF32   ("pwr_dc1_engMax_V",        30.0f,    0.0f,    48.0f,    1,   "V",    "High-end of the actual DC voltage band",                              "per divider setup"),
+    PU16   ("pwr_dc1_avgTime_ms",       1000,  10,  10000, "ms",   "Rolling average for filtering this DC bus voltage",       "per divider setup"),
+    PU16   ("pwr_dc2_rawMin_mV",        4000,  0,   10000, "mV",   "Low-end of the raw measurement",                          "per divider setup"),
+    PU16   ("pwr_dc2_rawMax_mV",        6000,  0,   10000, "mV",   "High-end of the raw measurement",                         "per divider setup"),
+    PF32   ("pwr_dc2_engMin_V",        20.0f,    0.0f,    48.0f,    1,   "V",    "Low-end of the actual DC voltage band",                               "per divider setup"),
+    PF32   ("pwr_dc2_engMax_V",        30.0f,    0.0f,    48.0f,    1,   "V",    "High-end of the actual DC voltage band",                              "per divider setup"),
+    PU16   ("pwr_dc2_avgTime_ms",       1000,  10,  10000, "ms",   "Rolling average for filtering this DC bus voltage",       "per divider setup"),
+    PU16   ("pwr_ups_bat_rawMin_mV",    4000,  0,   10000, "mV",   "Low-end of the raw measurement",                          "per divider setup"),
+    PU16   ("pwr_ups_bat_rawMax_mV",    6000,  0,   10000, "mV",   "High-end of the raw measurement",                         "per divider setup"),
+    PF32   ("pwr_ups_bat_engMin_V",    20.0f,    0.0f,    48.0f,    1,   "V",    "Low-end of the actual DC voltage band",                               "per divider setup"),
+    PF32   ("pwr_ups_bat_engMax_V",    30.0f,    0.0f,    48.0f,    1,   "V",    "High-end of the actual DC voltage band",                              "per divider setup"),
+    PU16   ("pwr_ups_bat_avgTime_ms",   1000,  10,  10000, "ms",   "Rolling average for filtering this DC bus voltage",       "per divider setup"),
+    PU16   ("pwr_gen_bat_rawMin_mV",    5000,  0,   10000, "mV",   "Low-end of the raw measurement",                          "per divider setup"),
+    PU16   ("pwr_gen_bat_rawMax_mV",    7500,  0,   10000, "mV",   "High-end of the raw measurement",                         "per divider setup"),
+    PF32   ("pwr_gen_bat_engMin_V",    20.0f,    10.0f,   48.0f,    1,   "V",    "Low-end of the actual DC voltage band",                               "per divider setup"),
+    PF32   ("pwr_gen_bat_engMax_V",    30.0f,    15.0f,   48.0f,    1,   "V",    "High-end of the actual DC voltage band",                              "per divider setup"),
+    PU16   ("pwr_gen_bat_avgTime_ms",   1000,  10,  10000, "ms",   "Rolling average for filtering this DC bus voltage",       "per divider setup"),
 /** @} */
 
 /** @name Sensor inputs - read from the field, invalid past their timeout
