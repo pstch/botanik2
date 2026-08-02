@@ -45,7 +45,7 @@ inline void supply_watch(ScanContext& c) {
     // A meter that has stopped answering reads as its default (0 V), which is
     // out of band and therefore unhealthy - the fallback does the right thing
     // here without the program testing valid() at all.
-    float ln = c.io.var(V_PWR_LN_V).value();
+    float ln = c.io.var(V_GRID_LN_V).value();
     bool  unhealthy = (ln < 200.0f) || (ln > 260.0f);
 
     // Reset-dominant: recovery wins, so the lockout cannot stick once the
@@ -73,7 +73,7 @@ inline void supply_watch(ScanContext& c) {
  */
 inline void supply_report(ScanContext& c) {
     static Scan::Deadband hz;
-    c.io.var(V_SYS_SUPPLY_HZ).set(hz(c.io.var(V_PWR_HZ).value(), 0.05f));
+    c.io.var(V_SYS_SUPPLY_HZ).set(hz(c.io.var(V_GRID_HZ).value(), 0.05f));
 }
 
 /** @brief The site's control programs, in execution order. */

@@ -99,21 +99,21 @@ inline void publish_meters(Vars::Bank& io, uint32_t now_ms) {
     const float pf = 0.88f + 0.10f * load;
     const float watts = ln * amps * pf * 3.0f;
 
-    put(io, V_PWR_L1_V, ln + 1.2f, now_ms);
-    put(io, V_PWR_L2_V, ln - 0.8f, now_ms);
-    put(io, V_PWR_L3_V, ln + 0.3f, now_ms);
-    put(io, V_PWR_LN_V, ln, now_ms);
-    put(io, V_PWR_LL_V, ln * 1.732f, now_ms);
-    put(io, V_PWR_L1_A, amps / 3.0f, now_ms);
-    put(io, V_PWR_L2_A, amps / 3.0f, now_ms);
-    put(io, V_PWR_L3_A, amps / 3.0f, now_ms);
-    put(io, V_PWR_AVG_A, amps / 3.0f, now_ms);
-    put(io, V_PWR_TOTAL_A, amps, now_ms);
-    put(io, V_PWR_TOTAL_W, watts, now_ms);
-    put(io, V_PWR_TOTAL_VA, watts / pf, now_ms);
-    put(io, V_PWR_TOTAL_PF, pf, now_ms);
+    put(io, V_GRID_L1_V, ln + 1.2f, now_ms);
+    put(io, V_GRID_L2_V, ln - 0.8f, now_ms);
+    put(io, V_GRID_L3_V, ln + 0.3f, now_ms);
+    put(io, V_GRID_LN_V, ln, now_ms);
+    put(io, V_GRID_LL_V, ln * 1.732f, now_ms);
+    put(io, V_GRID_L1_A, amps / 3.0f, now_ms);
+    put(io, V_GRID_L2_A, amps / 3.0f, now_ms);
+    put(io, V_GRID_L3_A, amps / 3.0f, now_ms);
+    put(io, V_GRID_AVG_A, amps / 3.0f, now_ms);
+    put(io, V_GRID_TOTAL_A, amps, now_ms);
+    put(io, V_GRID_TOTAL_W, watts, now_ms);
+    put(io, V_GRID_TOTAL_VA, watts / pf, now_ms);
+    put(io, V_GRID_TOTAL_PF, pf, now_ms);
     // Mains frequency wanders in the last decimal, as a real one does.
-    put(io, V_PWR_HZ, 50.0f + 0.03f * sinf(t / 37.0f), now_ms);
+    put(io, V_GRID_HZ, 50.0f + 0.03f * sinf(t / 37.0f), now_ms);
 
     // The transfer switch sees the same supply, lightly loaded.
     put(io, V_ATS_V,  ln - 0.5f, now_ms);
@@ -181,9 +181,9 @@ inline void publish_alarms(Vars::Bank& io, uint32_t now_ms) {
     uint64_t raw = 0;
 
     // Real causes, read back through the variable tables.
-    const float ln  = io.var(V_PWR_LN_V).value();
-    const float pf  = io.var(V_PWR_TOTAL_PF).value();
-    const float hz  = io.var(V_PWR_HZ).value();
+    const float ln  = io.var(V_GRID_LN_V).value();
+    const float pf  = io.var(V_GRID_TOTAL_PF).value();
+    const float hz  = io.var(V_GRID_HZ).value();
     if (ln < 226.0f || ln > 234.0f)  raw |= abit("AC_GRID");
     if (hz < 49.9f  || hz > 50.1f)   raw |= abit("AC_LOCAL");
     if (pf < 0.90f)                  raw |= abit("DC_PS1");

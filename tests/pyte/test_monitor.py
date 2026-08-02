@@ -16,7 +16,7 @@ def test_monitor_renders_and_scrolls(spawn):
     term = boot(spawn)
     goto(term, ALT_7, "SCOPE")
     assert term.wait_for("SCOPE"), "monitor table header missing"
-    assert term.wait_for("pwr_L1_V"), "status variable rows missing"
+    assert term.wait_for("grid_L1_V"), "status variable rows missing"
     # The SCOPE column says where a reading lives, which the group column (now
     # the view) never did.
     assert term.wait_for("mb in"), "scope column did not classify a Modbus input"
@@ -37,7 +37,7 @@ def test_monitor_group_modes(spawn):
     assert term.wait_for("grid"), "footer did not offer the first group"
 
     term.send(b" ")                       # -> the grid group
-    assert term.wait_for("pwr_L1_V"), "group view lost its variables"
+    assert term.wait_for("grid_L1_V"), "group view lost its variables"
 
     term.send(keys.LEFT)                  # back to "all"
     assert term.wait_for("[all]"), "LEFT did not return to the all-groups view"

@@ -48,9 +48,15 @@ namespace Botanik { namespace Network {
         uint64_t ts = entry->timestamp;
         char time_buf[Utils::TIMESTAMP_LEN];
         Utils::format_ms_timestamp(ts, time_buf, sizeof(time_buf));
-        int written = snprintf(buf, len, "%s %s", time_buf, entry->message);
-        if (written < 0) return 0;
-        return std::min((size_t)written, len - 1);
+        // "<timestamp> <message>", truncated to fit. Built by hand rather than
+        // with snprintf's %s: losing the tail of an over-long line is the
+        // intent here, and there is no way to say so to -Wformat-truncation.
+        size_t n = 0;
+        for (const char* p = time_buf; *p != 0 && n + 1 < len; ++p) buf[n++] = *p;
+        if (n + 1 < len) buf[n++] = ' ';
+        for (const char* p = entry->message; *p != 0 && n + 1 < len; ++p) buf[n++] = *p;
+        buf[n] = '\0';
+        return n;
     }
 
     size_t MqttLogWriter::build_topic(char* buf, size_t len,

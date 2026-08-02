@@ -167,7 +167,11 @@ namespace Botanik { namespace Terminal {
     }
 
     void Console::switch_to(uint8_t index) {
-        if (index >= _pages_len || _pages[index] == nullptr) return;
+        // Both bounds: _pages_len is what is registered, MAX_PAGES what the
+        // array holds. The compiler only knows the second one, and Alt+<digit>
+        // can name a slot past it.
+        if (index >= _pages_len || index >= MAX_PAGES ||
+            _pages[index] == nullptr) return;
         if (!_term.screen_ready()) {
             // Establish is deferred to the first step(); drawing here would be
             // wiped by that clear, so just record the target page.

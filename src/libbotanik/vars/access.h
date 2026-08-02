@@ -37,7 +37,7 @@ namespace Botanik { namespace Vars {
     /** @brief A home-screen reading: a display @p label paired with the
      *  variable whose live value it shows. The label is separate from the
      *  variable's own name because the home screen wants "Line V" where the
-     *  monitor table wants "pwr_LN_V". */
+     *  monitor table wants "grid_LN_V". */
     struct HomeVar {
         const char* label;
         VarRef      ref;

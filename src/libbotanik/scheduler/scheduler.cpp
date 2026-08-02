@@ -226,7 +226,12 @@ namespace Botanik { namespace Scheduler {
         // that re-reads now-clobbered local bounds each iteration.
         volatile uint8_t marker = 0;
         const ptrdiff_t MARGIN = 512;
-        uint8_t* paint_top  = const_cast<uint8_t*>(&marker) - MARGIN;
+        // Through uintptr_t deliberately: this walks the stack, it does not
+        // index `marker`, and pointer arithmetic off a one-byte object is
+        // exactly what -Warray-bounds is there to catch everywhere else.
+        uint8_t* paint_top = reinterpret_cast<uint8_t*>(
+            reinterpret_cast<uintptr_t>(const_cast<uint8_t*>(&marker))
+                - (uintptr_t)MARGIN);
         uint8_t* abs_bottom =
             reinterpret_cast<uint8_t*>(_stack_base - _stack_depth);
         if (paint_top <= abs_bottom) return;
