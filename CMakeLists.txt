@@ -314,6 +314,11 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
             set(_tidy_stamp "${_tidy_stamp_dir}/${_tidy_stamp}.stamp")
             add_custom_command(
                 OUTPUT "${_tidy_stamp}"
+                # Re-create the stamp dir here, not only at configure time: the
+                # documented way to force a full re-lint is to delete it, and
+                # the touch below then had nothing to write into - the sweep
+                # failed on every TU with a cmake error instead of running.
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${_tidy_stamp_dir}"
                 COMMAND ${CLANG_TIDY} -p ${CMAKE_BINARY_DIR} --quiet "${_tidy_src}"
                 COMMAND ${CMAKE_COMMAND} -E touch "${_tidy_stamp}"
                 DEPENDS "${_tidy_src}" "${CMAKE_SOURCE_DIR}/.clang-tidy"

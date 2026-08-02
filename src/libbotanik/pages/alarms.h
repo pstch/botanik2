@@ -312,7 +312,10 @@ namespace Botanik { namespace Pages {
          *  its own reverse-video "ON" badge while active and unacked. The terminal's
          *  back-buffer diff pares this to the cells that actually moved. */
         void _draw_full_row(uint16_t row, const Alarms::AlarmCondition& c, bool selected) {
-            char ev[16];
+            // 15 for "YY/MM/DD HH:MM" + NUL, rounded up to what a field that
+            // decoded oddly would need: the cell clips to EVENT_W either way,
+            // and a truncating snprintf is not something to leave to chance.
+            char ev[24];
             _fmt_event(ev, sizeof(ev), c);
             const char* state = c.active ? "ON" : (c.edge_ms != 0 ? "OFF" : "");
             // The full variable name, prefix and all: it is what `get` and

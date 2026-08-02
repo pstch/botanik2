@@ -126,6 +126,9 @@ namespace Botanik { namespace Vars {
         if (group == nullptr) return 0;
         size_t n = strlen(group);
         if (n + 8 >= sizeof(key)) return 0;      // "_serial" + NUL
+        // The suffix copy below is what terminates the key: it carries
+        // "_serial" AND its NUL, which the checker cannot see from here.
+        // NOLINTNEXTLINE(bugprone-not-null-terminated-result)
         memcpy(key, group, n);
         memcpy(key + n, "_serial", 8);           // copies the NUL too
         return (uint32_t)get_int(io, key, 0);
