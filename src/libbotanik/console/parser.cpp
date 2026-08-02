@@ -53,7 +53,7 @@ namespace Botanik { namespace Terminal {
     }
 
 
-    // Text handlingg helpers
+    // Text handling helpers
     // ------------------------------------------------------------------------
 
     void InputParser::_store_text(uint8_t b) {
@@ -115,8 +115,8 @@ namespace Botanik { namespace Terminal {
         return State::IDLE;
     }
     InputParser::State InputParser::_handle_idle(uint8_t b) {
-        if (b == (uint8_t)(*Ansi::ESC))  return State::IN_ESC;
-        if (b == (uint8_t)(*Ansi::SEP))  return State::IN_SEP;
+        if (b == (uint8_t)Ansi::ESC[0])  return State::IN_ESC;
+        if (b == (uint8_t)Ansi::SEP[0])  return State::IN_SEP;
         if (Ansi::is_printable(b))       return _append_text(b);
         return _set_command(_map_control_char(b));
     }
@@ -131,9 +131,11 @@ namespace Botanik { namespace Terminal {
     }
 
     InputParser::State InputParser::_handle_csi(uint8_t b) {
+        constexpr uint8_t MAX_PARAMS =
+            (uint8_t)(sizeof(_event.params) / sizeof(_event.params[0]));
         if (b >= '0' && b <= '9') {
             uint8_t idx = _event.param_count;
-            if (idx < 8) {
+            if (idx < MAX_PARAMS) {
                 // Saturate rather than wrap: a long digit run on a noisy line
                 // must not roll over into a small value that spuriously matches
                 // a command.
@@ -144,7 +146,7 @@ namespace Botanik { namespace Terminal {
         }
 
         if (b == ';' || b == ':') {
-            if (_event.param_count < 7) _event.param_count++;
+            if (_event.param_count + 1 < MAX_PARAMS) _event.param_count++;
             return State::IN_CSI;
         }
 

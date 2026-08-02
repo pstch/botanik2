@@ -11,7 +11,6 @@
 #include <cstdint>
 #include <cstring>
 #include <algorithm>
-#include <string.h>
 
 #include "../core/component.h"
 #include "../hal/platform.h"
@@ -19,10 +18,9 @@
 
 namespace Botanik { namespace Utils {
 
-    namespace {
-        constexpr bool is_power_of_two(uint16_t n) {
-            return (n > 0) && ((n & (n - 1)) == 0);
-        }
+    /** @brief Ring sizes must be powers of two (the wrap is a mask). */
+    constexpr bool is_power_of_two(uint16_t n) {
+        return (n > 0) && ((n & (n - 1)) == 0);
     }
 
     /** @class BufferedSerial

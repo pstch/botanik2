@@ -3,7 +3,7 @@
 #define PAGES_PARAMS_PAGE_H
 
 /**
- * @file config_page.h
+ * @file params_page.h
  * @brief ParamsPage - interactive table of configuration parameters.
  *
  * Layout (row 0 is the terminal status bar, the bottom row the alarm bar); the

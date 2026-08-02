@@ -29,7 +29,7 @@
  * lives in the library tree or in a consumer's project.
  */
 
-#include "descriptor.h"   // Site::g_site + every generated table (and payload.h)
+#include "descriptor.h"   // Site::g_site + every generated table
 
 // ===========================================================================
 // GreenhouseMLB41 - the gh_mlb41 site firmware (derives BotanikFirmware)

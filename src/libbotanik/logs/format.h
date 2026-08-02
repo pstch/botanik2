@@ -25,7 +25,7 @@ namespace Botanik { namespace Logs {
         case Logs::LOG_ERROR:      return "[*]";
         case Logs::LOG_CRITICAL:   return "[@]";
         default:                    return "[?]";
-    }; }
+    } }
 
     /** @brief Per-topic strings, indexed by LogTopic (dense 0..STORAGE):
      *  { display label, lowercase MQTT segment }. One table, so the two can no
@@ -59,7 +59,7 @@ namespace Botanik { namespace Logs {
         case Logs::LOG_ERROR:      return "error";
         case Logs::LOG_CRITICAL:   return "critical";
         default:                    return "unknown";
-    }; }
+    } }
 
     /** @brief Lowercase topic word, for MQTT topic segments (SHARED_IO -> "shared_io",
      *  matching the SHARED_IO display label). */
@@ -86,7 +86,7 @@ namespace Botanik { namespace Logs {
         // return the written bytes, or 0 on encoding error
         if (written < 0) return 0;
         return std::min((size_t)written, len);
-    };
+    }
 
 }}
 

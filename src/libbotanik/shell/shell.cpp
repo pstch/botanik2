@@ -542,11 +542,12 @@ namespace Botanik { namespace Shell {
     }
 
 
-    void CommandShell::_cmd_net(const char*, uint16_t) {
 #if !BOTANIK_FEATURE_NETWORK
+    void CommandShell::_cmd_net(const char*, uint16_t) {
         _println("net: networking disabled");
     }
 #else
+    void CommandShell::_cmd_net(const char*, uint16_t) {
         const SystemContext&           ctx = _console.context();
         const Network::NetworkHandler* net = ctx.network;
         // Report and bail if the link never came up (config absent / offline).
@@ -654,8 +655,8 @@ namespace Botanik { namespace Shell {
         } else {
             _line("MQTT .................", "disabled");
         }
-#endif  // BOTANIK_FEATURE_NETWORK
     }
+#endif  // BOTANIK_FEATURE_NETWORK
 
     void CommandShell::_cmd_ntpsync(const char*, uint16_t) {
         if (_ntp_client == nullptr) { _println("ntpsync: NTP unavailable"); return; }

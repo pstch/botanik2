@@ -24,7 +24,6 @@ namespace Botanik { namespace Logs {
      *  format() and write(); the standard implementation is
      *  @ref BufferedLogWriter. */
     class LogWriter {
-    private:
     public:
         /** @name Queue interface
          *  @{ */
@@ -183,9 +182,9 @@ namespace Botanik { namespace Logs {
          *  @{ */
 
         /** @brief Format a log entry into @p buf; returns the bytes written */
-        size_t format(const Logs::LogEntry* entry, char* buf, size_t len);
+        size_t format(const Logs::LogEntry* entry, char* buf, size_t len) override;
         /** @brief Write @p len bytes to the bound serial port (never blocks) */
-        size_t write(const char* buf, size_t len);
+        size_t write(const char* buf, size_t len) override;
 
         /** @} */
     };

@@ -115,10 +115,9 @@ namespace Botanik { namespace Logs {
         LogBucket_t* topic_bucket = &_perTopic_buckets[topic];
         // Per-topic filter first so a per-topic-suppressed msg doesn't drain
         // global.
-        if (topic == LogTopic::NONE || _try_bucket(topic_bucket))
-            if (_try_bucket(&_global_bucket))
-                for (uint8_t i = 0; i < _writerCount; i++)
-                    _writers[i]->push(&entry);
+        if (topic != LogTopic::NONE && !_try_bucket(topic_bucket)) return;
+        if (!_try_bucket(&_global_bucket)) return;
+        for (uint8_t i = 0; i < _writerCount; i++) _writers[i]->push(&entry);
     }
 
     // Level helpers

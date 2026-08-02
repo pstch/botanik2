@@ -8,7 +8,7 @@
  *
  * Layout (row 0 is the terminal status bar):
  *   row 1            blank top margin
- *   row 2            table header  (| CODE | ON | LAST EVENT | DESCRIPTION |)
+ *   row 2            table header  (| CODE | VARIABLE | ON | LAST EVENT |)
  *   row 3            top rule (+----+...+); its corners cap to '^' when more above
  *   rows 4..N-5      data rows
  *   row N-4          bottom rule; corners cap to 'v' when more below
@@ -165,8 +165,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief Detail panel between the bottom rule and the legend, spaced by
          *  a blank row each side: the selected alarm's Remediation (its notes -
-         *  what to do while it is up) and the time it was acknowledged (if any).
-         *  Description is already a table column. */
+         *  what to do while it is up) and the time it was acknowledged (if any). */
         void _draw_notes() {
             const Alarms::AlarmCondition* c =
                 (_model != nullptr && _selected < _nvis)

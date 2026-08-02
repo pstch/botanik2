@@ -96,6 +96,8 @@ namespace Botanik { namespace Terminal {
                 switch_to((uint8_t)((uint16_t)ev.command - (uint16_t)Command::ALT_1));
                 break;
             }
+            // Alt+0 is the tenth page by the usual convention; switch_to()
+            // ignores it while fewer are registered.
             if (ev.command == Command::ALT_0) { switch_to(9); break; }
             if (ev.command == Command::CTRL_PAGE_UP ||
                 ev.command == Command::CTRL_PAGE_DOWN ||
@@ -118,7 +120,7 @@ namespace Botanik { namespace Terminal {
                 }
                 break;
             }
-            // Light page command (edit/cursor/etc.): keep handlingg more this tick.
+            // Light page command (edit/cursor/etc.): keep handling more this tick.
             page->handle_command(ev.command, ev.count);
         }
     }
@@ -151,7 +153,7 @@ namespace Botanik { namespace Terminal {
     // Pages
 
     int8_t Console::add_page(Pages::Page* page) {
-        if (page == nullptr || _pages_len >= 8) return -1;
+        if (page == nullptr || _pages_len >= MAX_PAGES) return -1;
         _pages[_pages_len] = page;
         return (int8_t)(_pages_len++);
     }

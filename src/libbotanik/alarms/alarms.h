@@ -386,6 +386,23 @@ namespace Botanik { namespace Alarms {
 
         /** @} */
 
+        /** @name Queries
+         *  @{ */
+
+        /** @brief Number of table entries scanned. */
+        uint8_t  count() const { return _count; }
+        /** @brief Active conditions this step. */
+        uint8_t  active_count() const { return _active_count; }
+        /** @brief Condition @p i (0 <= i < count()). */
+        const AlarmCondition& condition(uint8_t i) const { return _conditions[i]; }
+        /** @brief Index of @p code, or -1 (POST uses it to verify set_local
+         *  resolves). */
+        int index_of(const char* name) const {
+            return alarm_index(_conditions, _count, name);
+        }
+
+        /** @} */
+
     protected:
         /** @brief Read each condition's raw input (site payload boolean OR its
          *  local override) and advance it, raising due log lines / notifications.
@@ -413,25 +430,6 @@ namespace Botanik { namespace Alarms {
             if (i >= _site_count || _io == nullptr) return false;
             return _io->var(_conditions[i].ref).b();
         }
-
-    public:
-
-        /** @name Queries
-         *  @{ */
-
-        /** @brief Number of table entries scanned. */
-        uint8_t  count() const { return _count; }
-        /** @brief Active conditions this step. */
-        uint8_t  active_count() const { return _active_count; }
-        /** @brief Condition @p i (0 <= i < count()). */
-        const AlarmCondition& condition(uint8_t i) const { return _conditions[i]; }
-        /** @brief Index of @p code, or -1 (POST uses it to verify set_local
-         *  resolves). */
-        int index_of(const char* name) const {
-            return alarm_index(_conditions, _count, name);
-        }
-
-        /** @} */
     };
 
 }}

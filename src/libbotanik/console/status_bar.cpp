@@ -66,7 +66,7 @@ namespace Botanik { namespace Terminal {
         _t.set_inverted(true);
 
         // Compact tab strip: "1 2 3:LOGS 4 5" - only the active page shows its
-        // name. Records the strip extent for draw_tabs()'s shrink handlingg.
+        // name. Records the strip extent for draw_tabs()'s shrink handling.
         _tabs_end_col = draw_tab_strip();
         _t.set_inverted(true);
 

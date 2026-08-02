@@ -20,7 +20,7 @@
 #include "../hal/platform.h"
 #include "../logs/logger.h"
 
-// Assertion handlingg (and logging)
+// Assertion handling (and logging)
 // ===========================================================================
 
 namespace Botanik {

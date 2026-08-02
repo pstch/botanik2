@@ -190,7 +190,7 @@ namespace Botanik { namespace Terminal {
         uint16_t bottom = (uint16_t)(rows - 1);
         // Release the content band, then claim exactly the rows occupied now -
         // not everything below _origin, because the editor is not always at the
-        // bottom of the screen (the CONFIG page edits a row mid-table, and the
+        // bottom of the screen (the PARAMS page edits a row mid-table, and the
         // rows under it belong to the table).
         //
         // Releasing the whole band is only safe while no page keeps a class of

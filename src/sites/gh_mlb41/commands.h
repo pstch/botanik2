@@ -10,7 +10,7 @@
  * matched BEFORE the library built-ins, so a name reused here shadows one -
  * avoid exit/reset.
  *
- * The ctx passed to each handler is the live `const Vars::Io*` (wired by
+ * The ctx passed to each handler is the live `const Vars::Bank*` (wired by
  * the firmware base from the descriptor), so a command reads fresh variable data
  * without holding any state of its own.
  */

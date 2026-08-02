@@ -57,17 +57,14 @@ namespace Botanik { namespace Terminal {
          *  the reserved row). */
         void mark_dirty() { _dirty = true; }
 
-    private:
-        /** @brief The physical last row, reserved for the strip. */
-        uint16_t _row() const;
-
-    public:
-
         /** @} */
 
     private:
         /** @name Internals
          *  @{ */
+
+        /** @brief The physical last row, reserved for the strip. */
+        uint16_t _row() const;
 
         /** @brief Bitset of currently-unmasked, un-ack'd alarms (the bar's
          *  listed set), used as the change signature gating a repaint. Zero when

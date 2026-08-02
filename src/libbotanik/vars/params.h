@@ -39,7 +39,7 @@ namespace Botanik { namespace Vars {
      * @brief The parameter surface: the editable view of the ROLE_PARAM block.
      *
      * Holds no registry of its own - the variables are the registry. It exists
-     * to own the store, run the boot load, and give the CONFIG page and the
+     * to own the store, run the boot load, and give the PARAMS page and the
      * shell a dense 0-based index over just the parameters.
      */
     class Params : public Component {

@@ -27,7 +27,7 @@
 
 #include "../../libbotanik.h"                    // the umbrella public API
 #include "../../libbotanik/core/firmware.h"      // BotanikFirmware + SiteDescriptor
-#include "../../libbotanik/vars/params.h"        // Params::Param / ParamMeta
+#include "../../libbotanik/vars/params.h"        // Vars::Params + the by-name reads
 #include "../../libbotanik/vars/access.h"        // VarRef / VarGroup / HomeVar
 #include "../../libbotanik/alarms/alarms.h"      // Alarms::AlarmCondition
 #include "../../libbotanik/shell/shell.h"        // Shell::ShellCommand

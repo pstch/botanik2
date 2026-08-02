@@ -6,10 +6,10 @@
  * @file monitor.h
  * @brief MonitorPage - scrollable table of the site's status variables.
  *
- * The read-only sibling of the CONFIG page: it renders the site's status
+ * The read-only sibling of the PARAMS page: it renders the site's status
  * variable table (the VarGroup[] MQTT telemetry
  * also read) live off the variable tables, one row per variable, grouped.
- * Generic over any VarGroup[] + Io, so it has no per-variable code.
+ * Generic over any VarGroup[] + Bank, so it has no per-variable code.
  *
  * Layout (row 0 is the terminal status bar, the bottom row the alarm bar); the
  * same bordered shape as the other tables:

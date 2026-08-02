@@ -47,8 +47,10 @@ namespace Botanik { namespace Terminal {
          *  @{ */
 
         InputParser         _parser;
-        /** @brief Child pages multiplexed onto the display. */
-        Pages::Page*        _pages[8];
+        /** @brief Child pages multiplexed onto the display. Alt+<digit> selects
+         *  one, so the tail digits only bind once this many pages exist. */
+        static constexpr uint8_t MAX_PAGES = 8;
+        Pages::Page*        _pages[MAX_PAGES];
         uint8_t             _pages_len  = 0;
         uint8_t             _page_index = 0;
 
