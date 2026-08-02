@@ -87,47 +87,25 @@ static const uint16_t STR_POOL_BYTES = 8 * STR_CAP;
 
 /** @brief A group's commit serial: bump it to apply that group's staged edits.
  *  Named after the group, which is how the consuming component finds it. */
-#define PSERIAL(nm, desc, notes) \
-    { Scalar::U(0), Scalar::U(1000000000), Scalar::U(1), nm, "", desc, notes, nullptr, \
-      { XP_NONE, T_U32, 0, 0, 0, 0, 1.0f, 0.0f }, \
-      0, 0, 0, T_U32, ROLE_PARAM, 0, STR_NONE, F_BOUNDED, {} }
+/** @brief Every parameter, one shape. The eight type-specific macros it
+ *  replaced each had their own column set, so the block could not be read as a
+ *  single table and every row type needed its own heading.
+ *
+ *  Columns that do not apply to a type are still written: `dgt` is display
+ *  decimals (T_F32 only), `off`/`kind` are the string pool slot and its edit
+ *  validation (T_STR only). They cost a literal each and buy one layout.
+ *
+ *  PU/PI/PF/PS build the typed Scalar - a bare literal cannot, since the union
+ *  takes uint64/int64/float/const char* equally well. */
+#define PU(v) Scalar::U(v)
+#define PI(v) Scalar::I(v)
+#define PF(v) Scalar::F(v)
+#define PS(v) Scalar::S(v)
+#define PARAM(nm, ty, dflt, lo, hi, dgt, unit, off, kind, desc, notes) \
+    { lo, hi, dflt, nm, unit, desc, notes, nullptr, \
+      { XP_NONE, ty, 0, 0, 0, 0, 1.0f, 0.0f }, \
+      0, off, STR_CAP, ty, ROLE_PARAM, dgt, kind, F_BOUNDED, {} }
 
-#define PBOOL(nm, dflt, desc, notes) \
-    { Scalar::B(false), Scalar::B(true), Scalar::B(dflt), nm, "", desc, notes, nullptr, \
-      { XP_NONE, T_BOOL, 0, 0, 0, 0, 1.0f, 0.0f }, \
-      0, 0, 0, T_BOOL, ROLE_PARAM, 0, STR_NONE, F_BOUNDED, {} }
-
-#define PU16(nm, dflt, lo, hi, unit, desc, notes) \
-    { Scalar::U(lo), Scalar::U(hi), Scalar::U(dflt), nm, unit, desc, notes, nullptr, \
-      { XP_NONE, T_U16, 0, 0, 0, 0, 1.0f, 0.0f }, \
-      0, 0, 0, T_U16, ROLE_PARAM, 0, STR_NONE, F_BOUNDED, {} }
-
-#define PU32(nm, dflt, lo, hi, unit, desc, notes) \
-    { Scalar::U(lo), Scalar::U(hi), Scalar::U(dflt), nm, unit, desc, notes, nullptr, \
-      { XP_NONE, T_U32, 0, 0, 0, 0, 1.0f, 0.0f }, \
-      0, 0, 0, T_U32, ROLE_PARAM, 0, STR_NONE, F_BOUNDED, {} }
-
-#define PU8(nm, dflt, lo, hi, unit, desc, notes) \
-    { Scalar::U(lo), Scalar::U(hi), Scalar::U(dflt), nm, unit, desc, notes, nullptr, \
-      { XP_NONE, T_U8, 0, 0, 0, 0, 1.0f, 0.0f }, \
-      0, 0, 0, T_U8, ROLE_PARAM, 0, STR_NONE, F_BOUNDED, {} }
-
-#define PI16(nm, dflt, lo, hi, unit, desc, notes) \
-    { Scalar::I(lo), Scalar::I(hi), Scalar::I(dflt), nm, unit, desc, notes, nullptr, \
-      { XP_NONE, T_I16, 0, 0, 0, 0, 1.0f, 0.0f }, \
-      0, 0, 0, T_I16, ROLE_PARAM, 0, STR_NONE, F_BOUNDED, {} }
-
-#define PF32(nm, dflt, lo, hi, dgt, unit, desc, notes) \
-    { Scalar::F(lo), Scalar::F(hi), Scalar::F(dflt), nm, unit, desc, notes, nullptr, \
-      { XP_NONE, T_F32, 0, 0, 0, 0, 1.0f, 0.0f }, \
-      0, 0, 0, T_F32, ROLE_PARAM, dgt, STR_NONE, F_BOUNDED, {} }
-
-/** @brief A text parameter. Its live value lives in the string pool at @p off;
- *  `def` carries the factory text, which init() copies into the pool. */
-#define PSTR(nm, off, kind_, dflt, desc, notes) \
-    { Scalar::U(0), Scalar::U(0), Scalar::S(dflt), nm, "", desc, notes, nullptr, \
-      { XP_NONE, T_STR, 0, 0, 0, 0, 1.0f, 0.0f }, \
-      0, off, STR_CAP, T_STR, ROLE_PARAM, 0, kind_, 0, {} }
 
 /** @brief Every variable this site declares, in one table.
  *
@@ -140,173 +118,159 @@ const Variable g_vars[] = {
 
 /** @name Parameters - persisted and editable; the PARAMS page and `set` write these
  *  @{ */
-    //      name           description              notes
-    PSERIAL("net_serial",  "Network config commit", "bump to apply staged net_* edits"),
-
-    //      name                  dflt  description                                   notes
-    PBOOL  ("net_dhcp",           0,    "Enable DHCP IP configuration",               "ignores the static ip/mask/gw rows"),
-
-    //      name         off  kind          dflt                 description              notes
-    PSTR   ("net_ip",    0,   STR_IPV4,     "192.168.1.42",      "Static IP address",     ""),
-    PSTR   ("net_mask",  64,  STR_IPV4,     "255.255.255.0",     "Static IP netmask",     ""),
-    PSTR   ("net_dns1",  128, STR_IPV4,     "8.8.8.8",           "Static DNS resolver 1", ""),
-    PSTR   ("net_dns2",  192, STR_IPV4_OPT, "4.4.4.4",           "Static DNS resolver 2", "empty = use dns1 alone"),
-    PSTR   ("net_gw",    256, STR_IPV4,     "192.168.1.1",       "Static IP gateway",     ""),
-    PSERIAL("ntp_serial",  "NTP config commit",     ""),
-    PBOOL  ("ntp_enable",         1,    "Enable NTP time synchronization",            ""),
-
-    //      name              dflt  lo  hi      unit    description                              notes
-    PU32   ("ntp_poll_sec",   3600, 10, 86400,  "sec",  "NTP poll interval, in seconds",         ""),
-    PSTR   ("ntp_srv1",  320, STR_HOST,     "0.fr.pool.ntp.org", "NTP server 1",          ""),
-    PSTR   ("ntp_srv2",  384, STR_HOST_OPT, "1.fr.pool.ntp.org", "NTP server 2",          "empty = no fallback"),
-    PSERIAL("mqtt_serial", "MQTT config commit",    ""),
-    PBOOL  ("mqtt_enable",        1,    "Enable MQTT",                                ""),
-    PSTR   ("mqtt_host", 448, STR_HOST,     "192.168.1.43",      "MQTT broker host",      ""),
-
-    //      name                        dflt   lo   hi     unit    description                                                notes
-    PU16   ("mqtt_port",                58443, 0,   65535, "",     "MQTT broker port",                                        ""),
-    PU16   ("mqtt_ka_sec",              20,    10,  1800,  "sec",  "MQTT keep-alive interval",                                "also the dead-broker detection window"),
-    PSERIAL("geo_serial",  "Geo config commit",     ""),
-
-    //      name                       dflt      lo       hi        dgt  unit    description                                                            notes
-    PF32   ("geo_lat_deg",             48.07f,   -90.0f,  90.0f,    2,   "deg",  "Geographical latitude, in degrees",                                   "per site location"),
-    PF32   ("geo_lon_deg",             1.32f,    -180.0f, 180.0f,   2,   "deg",  "Geographical longitude, in degrees",                                  "per site location"),
-    PF32   ("cli_coldBankOffset_degC", 6.0f,     0.0f,    15.0f,    1,   "degC", "How much cooler to run before a hot day",                             ""),
-    PF32   ("cli_heatBankOffset_degC", 7.0f,     0.0f,    15.0f,    1,   "degC", "How much warmer to run before cold night",                            ""),
-    PF32   ("cli_heatBankTrig_degC",   10.0f,    6.0f,    18.0f,    1,   "degC", "If yesterday's lowest temp below this, we bank heat before sunset",   ""),
-    PF32   ("cli_coldBankTrig_degC",   24.0f,    12.0f,   40.0f,    1,   "degC", "If yesterday's highest temp above this, we pre-chill before sunrise", ""),
-    PF32   ("cli_coolOn_degC",         20.0f,    10.0f,   30.0f,    1,   "degC", "Base cooling target temperature",                                     "every cooling stage keys off this"),
-    PF32   ("cli_coolKp",              0.08f,    0.0f,    1.0f,     2,   "",     "Cooling PID proportional factor",                                     "Leave as set"),
-    PF32   ("cli_coolTi_sec",          200.0f,   0.0f,    3600.0f,  0,   "sec",  "Cooling PID integral factor",                                         "Leave as set"),
-    PF32   ("cli_coolTd_sec",          0.0f,     0.0f,    10.0f,    0,   "sec",  "Cooling PID derivative factor",                                       "leave at zero"),
-    PF32   ("cli_ventMargin_degC",     1.0f,     0.0f,    15.0f,    1,   "degC", "Intake air must be this much cooler",                                 ""),
-    PF32   ("cli_skirtAvail_degC",     4.0f,     0.0f,    10.0f,    1,   "degC", "Air must be this dry for the pad to cool",                            ""),
-    PF32   ("cli_thermalScreenDem",    -0.2f,    -1.0f,   0.0f,     2,   "",     "Cooling effort at which we deploy the thermal screen",                "negative demand = heating"),
-    PF32   ("cli_groundHeatDem",       -0.1f,    -1.0f,   0.0f,     2,   "",     "Cooling effort at which we try to take hot air from below",           "negative demand = heating"),
-    PF32   ("cli_winOpenDem",          0.1f,     0.0f,    1.0f,     2,   "",     "Cooling effort where we begin opening windows",                       ""),
-    PF32   ("cli_intakeStartDem",      0.3f,     0.0f,    1.0f,     2,   "",     "Cooling effort where intake fans start",                              ""),
-    PF32   ("cli_winFullDem",          0.5f,     0.0f,    1.0f,     2,   "",     "Cooling effort at fully open windows",                                ""),
-    PF32   ("cli_skirtEnableDem",      0.7f,     0.0f,    1.0f,     2,   "",     "Cooling effort where the wet skirt starts",                           ""),
-    PF32   ("cli_fanDemLow",           0.2f,     0.0f,    1.0f,     2,   "",     "Cooling effort for fan speed 1",                                      ""),
-    PF32   ("cli_fanDemMed",           0.4f,     0.0f,    1.0f,     2,   "",     "Cooling effort for fan speed 2",                                      "> cli_fanDemLow"),
-    PF32   ("cli_fanDemHigh",          0.8f,     0.0f,    1.0f,     2,   "",     "Cooling effort for fan speed 3",                                      "> cli_fanDemMed"),
-    PF32   ("cli_intakeFullDem",       0.9f,     0.0f,    1.0f,     2,   "",     "Cooling effort at full speed intake fans",                            ""),
-    PF32   ("cli_dTStratLo_degC",      2.0f,     0.0f,    10.0f,    1,   "degC", "Top-to-bottom stratification for fan speed 1",                        ""),
-    PF32   ("cli_dTStratMed_degC",     4.0f,     0.0f,    10.0f,    1,   "degC", "Top-to-bottom stratification for fan speed 2",                        ""),
-    PF32   ("cli_dTStratHi_degC",      6.0f,     0.0f,    10.0f,    1,   "degC", "Top-to-bottom stratification for fan speed 3",                        ""),
-    PF32   ("cli_dTStratHyst_degC",    2.0f,     0.5f,    5.0f,     1,   "degC", "Gap change needed to switch fan speed",                               ""),
-    PF32   ("cli_rot_dpLow_degC",      3.0f,     0.0f,    10.0f,    1,   "degC", "Dryness margin where dehumidifying is fully activated",               ""),
-    PF32   ("cli_rot_dpHigh_degC",     4.5f,     0.0f,    10.0f,    1,   "degC", "Dryness margin where dehumidifying starts",                           "> cli_rot_dpLow_degC"),
-    PF32   ("cli_humidLo_degC",        18.0f,    0.0f,    30.0f,    1,   "degC", "Dryness margin where humidifying starts",                             "> cli_rot_dpHigh_degC"),
-    PF32   ("cli_humidHi_degC",        28.0f,    0.0f,    40.0f,    1,   "degC", "Dryness margin where humidifying is fully activated",                 "> cli_humidLo_degC"),
-    PF32   ("cli_humidSkirtDem",       0.5f,     0.0f,    1.0f,     2,   "",     "Dryness level where we humidify through the skirt",                   ""),
-    PF32   ("cli_rhCap",               0.6f,     0.0f,    1.0f,     2,   "",     "Humidity that also starts rot defence",                               ""),
-    PF32   ("cli_dpVentMargin_degC",   1.0f,     0.0f,    5.0f,     1,   "degC", "Outside air must be this much drier to vent",                         ""),
-    PF32   ("cli_tooCold_degC",        4.0f,     0.0f,    10.0f,    1,   "degC", "Alarm: greenhouse is dangerously cold",                               "match the gas-heater thermostat"),
-    PF32   ("cli_tooHot_degC",         35.0f,    20.0f,   50.0f,    1,   "degC", "Alarm: greenhouse is dangerously hot",                                ""),
-    PF32   ("cli_rotFlt_degC",         1.0f,     0.0f,    5.0f,     1,   "degC", "Alarm: greenhouse is dangerously humid",                              "match the dehumidifier setting"),
-    PF32   ("cli_intractor_rawMin_mV", 0.0f,     0.0f,    24000.0f, 0,   "mV",   "Intractor raw low-end value (zero flow)",                             "per intractor datasheet"),
-    PF32   ("cli_intractor_rawMax_mV", 10000.0f, 0.0f,    24000.0f, 0,   "mV",   "Intractor raw high-end value (max flow)",                             "per intractor datasheet"),
-    PF32   ("cli_intractor_engMin",    0.0f,     0.0f,    1.0f,     2,   "",     "Intractor speed at the low-end of the range",                         "per intractor datasheet"),
-    PF32   ("cli_intractor_engMax",    1.0f,     0.0f,    1.0f,     2,   "",     "Intractor speed at the high-end of the range",                        ""),
-    PF32   ("cli_windLockout_mps",     5.0f,     0.0f,    50.0f,    1,   "mps",  "Wind speed that forces windows shut",                                 ""),
-    PU16   ("cli_windowTravel_sec",     15,    1,   60,    "sec",  "Nominal time to fully open/close a window",               "per actuator datasheet"),
-    PU16   ("cli_windowTimeout_sec",    20,    1,   90,    "sec",  "Safe time to fully open/close a window",                  "per actuator datasheet"),
-    PU16   ("cli_screenTravel_sec",     60,    1,   300,   "sec",  "Nominal time to deploy/remove the thermal screen",        "per actuator datasheet"),
-    PU16   ("cli_screenTimeout_sec",    80,    1,   400,   "sec",  "Safe time to deploy/remove the thermal screen",           "per actuator datasheet"),
-    PU16   ("cli_rainLockout_sec",      900,   0,   3600,  "sec",  "Keep windows shut this long after rain",                  ""),
-    PU16   ("cli_skirtValvePeriod_sec", 60,    10,  600,   "sec",  "Period for the skirt humidifier valve modulation",        ""),
-    PU16   ("cli_skirtValveMinOn_sec",  10,    1,   600,   "sec",  "Shortest allowed pulse length for the skirt humidifier",  "<= cli_skirtValvePeriod_sec"),
-    PF32   ("cli_screenDeploy_degC",   13.0f,    0.0f,    50.0f,    1,   "degC", "Night temperature that deploys the thermal screens",                  ""),
-
-    //      name                         dflt  lo    hi   unit   description                                           notes
-    PI16   ("sol_coldBankSunrise_min",   -30,  -180, 60,  "min", "Begin time of cold banking, minutes from sunrise",   ""),
-    PI16   ("sol_dawnBreezeSunrise_min", 30,   -60,  180, "min", "Begin time of dawn breeze, minutes from sunrise",    ""),
-    PI16   ("sol_daySunrise_min",        60,   0,    180, "min", "Begin time of day operation, minutes from sunrise",  ""),
-    PI16   ("sol_heatBankSunset_min",    -180, -300, 0,   "min", "Begin time of heat banking, minutes from sunset",    ""),
-    PI16   ("sol_nightSunset_min",       30,   0,    180, "min", "Begin time of night operation, minutes from sunset", ""),
-    PBOOL  ("irr_forceNow",       0,    "Run a watering cycle immediately, once",     ""),
-    PU16   ("irr_liters_tray1",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
-
-    //      name              dflt  lo  hi  unit    description                         notes
-    PU8    ("irr_days_tray1", 14,   1,  60, "days", "Days between waterings in summer", ""),
-    PU32   ("irr_last_tray1", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
-    PBOOL  ("irr_forceOn_tray1",  0,    "Force watering this tray at the next cycle", ""),
-    PBOOL  ("irr_forceOff_tray1", 0,    "Force skipping this tray at the next cycle", ""),
-    PU16   ("irr_liters_tray2",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
-    PU8    ("irr_days_tray2", 14,   1,  60, "days", "Days between waterings in summer", ""),
-    PU32   ("irr_last_tray2", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
-    PBOOL  ("irr_forceOn_tray2",  0,    "Force watering this tray at the next cycle", ""),
-    PBOOL  ("irr_forceOff_tray2", 0,    "Force skipping this tray at the next cycle", ""),
-    PU16   ("irr_liters_tray3",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
-    PU8    ("irr_days_tray3", 14,   1,  60, "days", "Days between waterings in summer", ""),
-    PU32   ("irr_last_tray3", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
-    PBOOL  ("irr_forceOn_tray3",  0,    "Force watering this tray at the next cycle", ""),
-    PBOOL  ("irr_forceOff_tray3", 0,    "Force skipping this tray at the next cycle", ""),
-    PU16   ("irr_liters_tray4",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
-    PU8    ("irr_days_tray4", 14,   1,  60, "days", "Days between waterings in summer", ""),
-    PU32   ("irr_last_tray4", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
-    PBOOL  ("irr_forceOn_tray4",  0,    "Force watering this tray at the next cycle", ""),
-    PBOOL  ("irr_forceOff_tray4", 0,    "Force skipping this tray at the next cycle", ""),
-    PU16   ("irr_liters_tray5",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
-    PU8    ("irr_days_tray5", 14,   1,  60, "days", "Days between waterings in summer", ""),
-    PU32   ("irr_last_tray5", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
-    PBOOL  ("irr_forceOn_tray5",  0,    "Force watering this tray at the next cycle", ""),
-    PBOOL  ("irr_forceOff_tray5", 0,    "Force skipping this tray at the next cycle", ""),
-    PU16   ("irr_liters_tray6",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
-    PU8    ("irr_days_tray6", 14,   1,  60, "days", "Days between waterings in summer", ""),
-    PU32   ("irr_last_tray6", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
-    PBOOL  ("irr_forceOn_tray6",  0,    "Force watering this tray at the next cycle", ""),
-    PBOOL  ("irr_forceOff_tray6", 0,    "Force skipping this tray at the next cycle", ""),
-    PU16   ("irr_liters_tray7",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
-    PU8    ("irr_days_tray7", 14,   1,  60, "days", "Days between waterings in summer", ""),
-    PU32   ("irr_last_tray7", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
-    PBOOL  ("irr_forceOn_tray7",  0,    "Force watering this tray at the next cycle", ""),
-    PBOOL  ("irr_forceOff_tray7", 0,    "Force skipping this tray at the next cycle", ""),
-    PU16   ("irr_liters_tray8",         150,   0,   500,   "L",    "Litres to flood this tray in summer",                     ""),
-    PU8    ("irr_days_tray8", 14,   1,  60, "days", "Days between waterings in summer", ""),
-    PU32   ("irr_last_tray8", 0,    0,  100000, "days", "Last watering (days since 1 Jan 1970)", ""),
-    PBOOL  ("irr_forceOn_tray8",  0,    "Force watering this tray at the next cycle", ""),
-    PBOOL  ("irr_forceOff_tray8", 0,    "Force skipping this tray at the next cycle", ""),
-    PU16   ("irr_dryEwmaDays",          3,     1,   30,    "days", "Days of dryness history to modulate the watering",        "sampled every 2 h"),
-    PF32   ("irr_dryLo_kPa",           0.15f,    0.0f,    2.0f,     2,   "kPa",  "Air dryness giving the least watering",                               ""),
-    PF32   ("irr_dryHi_kPa",           1.2f,     0.0f,    5.0f,     2,   "kPa",  "Air dryness giving the most watering",                                "> irr_dryLo_kPa"),
-    PF32   ("irr_modMin",              0.25f,    0.1f,    1.0f,     2,   "",     "Minimum fraction of water given in very humid weather",               "the floor even in still, humid air"),
-    PF32   ("irr_modGamma",            1.0f,     1.0f,    4.0f,     2,   "",     "How fast watering ramps up with dryness",                             ""),
-    PF32   ("irr_volFreqSplit",        0.5f,     0.0f,    1.0f,     2,   "",     "Whether we reduce volume or increase period",                         "0 = period, 1 = volume"),
-    PU16   ("irr_traysPerDay",          2,     1,   5,     "",     "Most trays watered in one day",                           ""),
-    PF32   ("irr_dawnGate_degC",       12.0f,    5.0f,    30.0f,    1,   "degC", "Skip pre-dawn watering below this temp",                              ""),
-    PU16   ("irr_maxFill_sec",          300,   100, 1800,  "sec",  "Alarm if a tray takes longer to fill",                    ""),
-    PU16   ("irr_drainWindow_sec",      300,   100, 1800,  "sec",  "Time allowed for a tray to drain",                        ""),
-    PF32   ("irr_expDrainFrac",        0.6f,     0.0f,    1.0f,     2,   "",     "How far below expected drain fraction is a fault",                    ""),
-    PF32   ("irr_drainMargin",         0.3f,     0.0f,    1.0f,     2,   "",     "Drain volume fraction below which we trigger a drain fault",          ""),
-    PU16   ("irr_flush_sec",            10,    5,   300,   "sec",  "Duration of the flush after/before the irrigation cycle", ""),
-    PF32   ("irr_input_qtyPerImp",     1.0f,     0.01f,   10.0f,    2,   "L",    "Litres per pulse from the water meter",                               "per meter datasheet"),
-    PU16   ("irr_output_rawMin_uA",     0,     0,   24000, "uA",   "uA at zero output flow",                                  "per output-meter datasheet"),
-    PU16   ("irr_output_rawMax_uA",     10000, 0,   24000, "uA",   "uA at full output scale",                                 "per output-meter datasheet"),
-    PF32   ("irr_output_engMin_Lpm",   0.0f,     0.0f,    500.0f,   1,   "Lpm",  "Output litres/min at zero signal",                                    "per output-meter datasheet"),
-    PF32   ("irr_output_engMax_Lpm",   50.0f,    0.0f,    500.0f,   1,   "Lpm",  "Output litres/min at full scale",                                     "per output-meter datasheet"),
-    PU16   ("irr_output_avgTime_ms",    200,   0,   10000, "ms",   "Rolling average for filtering this flow meter's output",  "per output-meter datasheet"),
-    PU16   ("pwr_dc1_rawMin_mV",        4000,  0,   10000, "mV",   "Low-end of the raw measurement",                          "per divider setup"),
-    PU16   ("pwr_dc1_rawMax_mV",        6000,  0,   10000, "mV",   "High-end of the raw measurement",                         "per divider setup"),
-    PF32   ("pwr_dc1_engMin_V",        20.0f,    0.0f,    48.0f,    1,   "V",    "Low-end of the actual DC voltage band",                               "per divider setup"),
-    PF32   ("pwr_dc1_engMax_V",        30.0f,    0.0f,    48.0f,    1,   "V",    "High-end of the actual DC voltage band",                              "per divider setup"),
-    PU16   ("pwr_dc1_avgTime_ms",       1000,  10,  10000, "ms",   "Rolling average for filtering this DC bus voltage",       "per divider setup"),
-    PU16   ("pwr_dc2_rawMin_mV",        4000,  0,   10000, "mV",   "Low-end of the raw measurement",                          "per divider setup"),
-    PU16   ("pwr_dc2_rawMax_mV",        6000,  0,   10000, "mV",   "High-end of the raw measurement",                         "per divider setup"),
-    PF32   ("pwr_dc2_engMin_V",        20.0f,    0.0f,    48.0f,    1,   "V",    "Low-end of the actual DC voltage band",                               "per divider setup"),
-    PF32   ("pwr_dc2_engMax_V",        30.0f,    0.0f,    48.0f,    1,   "V",    "High-end of the actual DC voltage band",                              "per divider setup"),
-    PU16   ("pwr_dc2_avgTime_ms",       1000,  10,  10000, "ms",   "Rolling average for filtering this DC bus voltage",       "per divider setup"),
-    PU16   ("pwr_ups_bat_rawMin_mV",    4000,  0,   10000, "mV",   "Low-end of the raw measurement",                          "per divider setup"),
-    PU16   ("pwr_ups_bat_rawMax_mV",    6000,  0,   10000, "mV",   "High-end of the raw measurement",                         "per divider setup"),
-    PF32   ("pwr_ups_bat_engMin_V",    20.0f,    0.0f,    48.0f,    1,   "V",    "Low-end of the actual DC voltage band",                               "per divider setup"),
-    PF32   ("pwr_ups_bat_engMax_V",    30.0f,    0.0f,    48.0f,    1,   "V",    "High-end of the actual DC voltage band",                              "per divider setup"),
-    PU16   ("pwr_ups_bat_avgTime_ms",   1000,  10,  10000, "ms",   "Rolling average for filtering this DC bus voltage",       "per divider setup"),
-    PU16   ("pwr_gen_bat_rawMin_mV",    5000,  0,   10000, "mV",   "Low-end of the raw measurement",                          "per divider setup"),
-    PU16   ("pwr_gen_bat_rawMax_mV",    7500,  0,   10000, "mV",   "High-end of the raw measurement",                         "per divider setup"),
-    PF32   ("pwr_gen_bat_engMin_V",    20.0f,    10.0f,   48.0f,    1,   "V",    "Low-end of the actual DC voltage band",                               "per divider setup"),
-    PF32   ("pwr_gen_bat_engMax_V",    30.0f,    15.0f,   48.0f,    1,   "V",    "High-end of the actual DC voltage band",                              "per divider setup"),
-    PU16   ("pwr_gen_bat_avgTime_ms",   1000,  10,  10000, "ms",   "Rolling average for filtering this DC bus voltage",       "per divider setup"),
+    //     name                         type    dflt                     lo           hi              dgt  unit    off  kind          description                                                            notes
+    PARAM("net_serial",                T_U32,  PU(1),                   PU(0),       PU(1000000000), 0,   "",     0,   STR_NONE,     "Network config commit",                                               "bump to apply staged net_* edits"),
+    PARAM("net_dhcp",                  T_BOOL, PU(0),                   PU(0),       PU(1),          0,   "",     0,   STR_NONE,     "Enable DHCP IP configuration",                                        "ignores the static ip/mask/gw rows"),
+    PARAM("net_ip",                    T_STR,  PS("192.168.1.42"),      PU(0),       PU(0),          0,   "",     0,   STR_IPV4,     "Static IP address",                                                   ""),
+    PARAM("net_mask",                  T_STR,  PS("255.255.255.0"),     PU(0),       PU(0),          0,   "",     64,  STR_IPV4,     "Static IP netmask",                                                   ""),
+    PARAM("net_dns1",                  T_STR,  PS("8.8.8.8"),           PU(0),       PU(0),          0,   "",     128, STR_IPV4,     "Static DNS resolver 1",                                               ""),
+    PARAM("net_dns2",                  T_STR,  PS("4.4.4.4"),           PU(0),       PU(0),          0,   "",     192, STR_IPV4_OPT, "Static DNS resolver 2",                                               "empty = use dns1 alone"),
+    PARAM("net_gw",                    T_STR,  PS("192.168.1.1"),       PU(0),       PU(0),          0,   "",     256, STR_IPV4,     "Static IP gateway",                                                   ""),
+    PARAM("ntp_serial",                T_U32,  PU(1),                   PU(0),       PU(1000000000), 0,   "",     0,   STR_NONE,     "NTP config commit",                                                   ""),
+    PARAM("ntp_enable",                T_BOOL, PU(1),                   PU(0),       PU(1),          0,   "",     0,   STR_NONE,     "Enable NTP time synchronization",                                     ""),
+    PARAM("ntp_poll_sec",              T_U32,  PU(3600),                PU(10),      PU(86400),      0,   "sec",  0,   STR_NONE,     "NTP poll interval, in seconds",                                       ""),
+    PARAM("ntp_srv1",                  T_STR,  PS("0.fr.pool.ntp.org"), PU(0),       PU(0),          0,   "",     320, STR_HOST,     "NTP server 1",                                                        ""),
+    PARAM("ntp_srv2",                  T_STR,  PS("1.fr.pool.ntp.org"), PU(0),       PU(0),          0,   "",     384, STR_HOST_OPT, "NTP server 2",                                                        "empty = no fallback"),
+    PARAM("mqtt_serial",               T_U32,  PU(1),                   PU(0),       PU(1000000000), 0,   "",     0,   STR_NONE,     "MQTT config commit",                                                  ""),
+    PARAM("mqtt_enable",               T_BOOL, PU(1),                   PU(0),       PU(1),          0,   "",     0,   STR_NONE,     "Enable MQTT",                                                         ""),
+    PARAM("mqtt_host",                 T_STR,  PS("192.168.1.43"),      PU(0),       PU(0),          0,   "",     448, STR_HOST,     "MQTT broker host",                                                    ""),
+    PARAM("mqtt_port",                 T_U16,  PU(58443),               PU(0),       PU(65535),      0,   "",     0,   STR_NONE,     "MQTT broker port",                                                    ""),
+    PARAM("mqtt_ka_sec",               T_U16,  PU(20),                  PU(10),      PU(1800),       0,   "sec",  0,   STR_NONE,     "MQTT keep-alive interval",                                            "also the dead-broker detection window"),
+    PARAM("geo_serial",                T_U32,  PU(1),                   PU(0),       PU(1000000000), 0,   "",     0,   STR_NONE,     "Geo config commit",                                                   ""),
+    PARAM("geo_lat_deg",               T_F32,  PF(48.07f),              PF(-90.0f),  PF(90.0f),      2,   "deg",  0,   STR_NONE,     "Geographical latitude, in degrees",                                   "per site location"),
+    PARAM("geo_lon_deg",               T_F32,  PF(1.32f),               PF(-180.0f), PF(180.0f),     2,   "deg",  0,   STR_NONE,     "Geographical longitude, in degrees",                                  "per site location"),
+    PARAM("cli_coldBankOffset_degC",   T_F32,  PF(6.0f),                PF(0.0f),    PF(15.0f),      1,   "degC", 0,   STR_NONE,     "How much cooler to run before a hot day",                             ""),
+    PARAM("cli_heatBankOffset_degC",   T_F32,  PF(7.0f),                PF(0.0f),    PF(15.0f),      1,   "degC", 0,   STR_NONE,     "How much warmer to run before cold night",                            ""),
+    PARAM("cli_heatBankTrig_degC",     T_F32,  PF(10.0f),               PF(6.0f),    PF(18.0f),      1,   "degC", 0,   STR_NONE,     "If yesterday's lowest temp below this, we bank heat before sunset",   ""),
+    PARAM("cli_coldBankTrig_degC",     T_F32,  PF(24.0f),               PF(12.0f),   PF(40.0f),      1,   "degC", 0,   STR_NONE,     "If yesterday's highest temp above this, we pre-chill before sunrise", ""),
+    PARAM("cli_coolOn_degC",           T_F32,  PF(20.0f),               PF(10.0f),   PF(30.0f),      1,   "degC", 0,   STR_NONE,     "Base cooling target temperature",                                     "every cooling stage keys off this"),
+    PARAM("cli_coolKp",                T_F32,  PF(0.08f),               PF(0.0f),    PF(1.0f),       2,   "",     0,   STR_NONE,     "Cooling PID proportional factor",                                     "Leave as set"),
+    PARAM("cli_coolTi_sec",            T_F32,  PF(200.0f),              PF(0.0f),    PF(3600.0f),    0,   "sec",  0,   STR_NONE,     "Cooling PID integral factor",                                         "Leave as set"),
+    PARAM("cli_coolTd_sec",            T_F32,  PF(0.0f),                PF(0.0f),    PF(10.0f),      0,   "sec",  0,   STR_NONE,     "Cooling PID derivative factor",                                       "leave at zero"),
+    PARAM("cli_ventMargin_degC",       T_F32,  PF(1.0f),                PF(0.0f),    PF(15.0f),      1,   "degC", 0,   STR_NONE,     "Intake air must be this much cooler",                                 ""),
+    PARAM("cli_skirtAvail_degC",       T_F32,  PF(4.0f),                PF(0.0f),    PF(10.0f),      1,   "degC", 0,   STR_NONE,     "Air must be this dry for the pad to cool",                            ""),
+    PARAM("cli_thermalScreenDem",      T_F32,  PF(-0.2f),               PF(-1.0f),   PF(0.0f),       2,   "",     0,   STR_NONE,     "Cooling effort at which we deploy the thermal screen",                "negative demand = heating"),
+    PARAM("cli_groundHeatDem",         T_F32,  PF(-0.1f),               PF(-1.0f),   PF(0.0f),       2,   "",     0,   STR_NONE,     "Cooling effort at which we try to take hot air from below",           "negative demand = heating"),
+    PARAM("cli_winOpenDem",            T_F32,  PF(0.1f),                PF(0.0f),    PF(1.0f),       2,   "",     0,   STR_NONE,     "Cooling effort where we begin opening windows",                       ""),
+    PARAM("cli_intakeStartDem",        T_F32,  PF(0.3f),                PF(0.0f),    PF(1.0f),       2,   "",     0,   STR_NONE,     "Cooling effort where intake fans start",                              ""),
+    PARAM("cli_winFullDem",            T_F32,  PF(0.5f),                PF(0.0f),    PF(1.0f),       2,   "",     0,   STR_NONE,     "Cooling effort at fully open windows",                                ""),
+    PARAM("cli_skirtEnableDem",        T_F32,  PF(0.7f),                PF(0.0f),    PF(1.0f),       2,   "",     0,   STR_NONE,     "Cooling effort where the wet skirt starts",                           ""),
+    PARAM("cli_fanDemLow",             T_F32,  PF(0.2f),                PF(0.0f),    PF(1.0f),       2,   "",     0,   STR_NONE,     "Cooling effort for fan speed 1",                                      ""),
+    PARAM("cli_fanDemMed",             T_F32,  PF(0.4f),                PF(0.0f),    PF(1.0f),       2,   "",     0,   STR_NONE,     "Cooling effort for fan speed 2",                                      "> cli_fanDemLow"),
+    PARAM("cli_fanDemHigh",            T_F32,  PF(0.8f),                PF(0.0f),    PF(1.0f),       2,   "",     0,   STR_NONE,     "Cooling effort for fan speed 3",                                      "> cli_fanDemMed"),
+    PARAM("cli_intakeFullDem",         T_F32,  PF(0.9f),                PF(0.0f),    PF(1.0f),       2,   "",     0,   STR_NONE,     "Cooling effort at full speed intake fans",                            ""),
+    PARAM("cli_dTStratLo_degC",        T_F32,  PF(2.0f),                PF(0.0f),    PF(10.0f),      1,   "degC", 0,   STR_NONE,     "Top-to-bottom stratification for fan speed 1",                        ""),
+    PARAM("cli_dTStratMed_degC",       T_F32,  PF(4.0f),                PF(0.0f),    PF(10.0f),      1,   "degC", 0,   STR_NONE,     "Top-to-bottom stratification for fan speed 2",                        ""),
+    PARAM("cli_dTStratHi_degC",        T_F32,  PF(6.0f),                PF(0.0f),    PF(10.0f),      1,   "degC", 0,   STR_NONE,     "Top-to-bottom stratification for fan speed 3",                        ""),
+    PARAM("cli_dTStratHyst_degC",      T_F32,  PF(2.0f),                PF(0.5f),    PF(5.0f),       1,   "degC", 0,   STR_NONE,     "Gap change needed to switch fan speed",                               ""),
+    PARAM("cli_rot_dpLow_degC",        T_F32,  PF(3.0f),                PF(0.0f),    PF(10.0f),      1,   "degC", 0,   STR_NONE,     "Dryness margin where dehumidifying is fully activated",               ""),
+    PARAM("cli_rot_dpHigh_degC",       T_F32,  PF(4.5f),                PF(0.0f),    PF(10.0f),      1,   "degC", 0,   STR_NONE,     "Dryness margin where dehumidifying starts",                           "> cli_rot_dpLow_degC"),
+    PARAM("cli_humidLo_degC",          T_F32,  PF(18.0f),               PF(0.0f),    PF(30.0f),      1,   "degC", 0,   STR_NONE,     "Dryness margin where humidifying starts",                             "> cli_rot_dpHigh_degC"),
+    PARAM("cli_humidHi_degC",          T_F32,  PF(28.0f),               PF(0.0f),    PF(40.0f),      1,   "degC", 0,   STR_NONE,     "Dryness margin where humidifying is fully activated",                 "> cli_humidLo_degC"),
+    PARAM("cli_humidSkirtDem",         T_F32,  PF(0.5f),                PF(0.0f),    PF(1.0f),       2,   "",     0,   STR_NONE,     "Dryness level where we humidify through the skirt",                   ""),
+    PARAM("cli_rhCap",                 T_F32,  PF(0.6f),                PF(0.0f),    PF(1.0f),       2,   "",     0,   STR_NONE,     "Humidity that also starts rot defence",                               ""),
+    PARAM("cli_dpVentMargin_degC",     T_F32,  PF(1.0f),                PF(0.0f),    PF(5.0f),       1,   "degC", 0,   STR_NONE,     "Outside air must be this much drier to vent",                         ""),
+    PARAM("cli_tooCold_degC",          T_F32,  PF(4.0f),                PF(0.0f),    PF(10.0f),      1,   "degC", 0,   STR_NONE,     "Alarm: greenhouse is dangerously cold",                               "match the gas-heater thermostat"),
+    PARAM("cli_tooHot_degC",           T_F32,  PF(35.0f),               PF(20.0f),   PF(50.0f),      1,   "degC", 0,   STR_NONE,     "Alarm: greenhouse is dangerously hot",                                ""),
+    PARAM("cli_rotFlt_degC",           T_F32,  PF(1.0f),                PF(0.0f),    PF(5.0f),       1,   "degC", 0,   STR_NONE,     "Alarm: greenhouse is dangerously humid",                              "match the dehumidifier setting"),
+    PARAM("cli_intractor_rawMin_mV",   T_F32,  PF(0.0f),                PF(0.0f),    PF(24000.0f),   0,   "mV",   0,   STR_NONE,     "Intractor raw low-end value (zero flow)",                             "per intractor datasheet"),
+    PARAM("cli_intractor_rawMax_mV",   T_F32,  PF(10000.0f),            PF(0.0f),    PF(24000.0f),   0,   "mV",   0,   STR_NONE,     "Intractor raw high-end value (max flow)",                             "per intractor datasheet"),
+    PARAM("cli_intractor_engMin",      T_F32,  PF(0.0f),                PF(0.0f),    PF(1.0f),       2,   "",     0,   STR_NONE,     "Intractor speed at the low-end of the range",                         "per intractor datasheet"),
+    PARAM("cli_intractor_engMax",      T_F32,  PF(1.0f),                PF(0.0f),    PF(1.0f),       2,   "",     0,   STR_NONE,     "Intractor speed at the high-end of the range",                        ""),
+    PARAM("cli_windLockout_mps",       T_F32,  PF(5.0f),                PF(0.0f),    PF(50.0f),      1,   "mps",  0,   STR_NONE,     "Wind speed that forces windows shut",                                 ""),
+    PARAM("cli_windowTravel_sec",      T_U16,  PU(15),                  PU(1),       PU(60),         0,   "sec",  0,   STR_NONE,     "Nominal time to fully open/close a window",                           "per actuator datasheet"),
+    PARAM("cli_windowTimeout_sec",     T_U16,  PU(20),                  PU(1),       PU(90),         0,   "sec",  0,   STR_NONE,     "Safe time to fully open/close a window",                              "per actuator datasheet"),
+    PARAM("cli_screenTravel_sec",      T_U16,  PU(60),                  PU(1),       PU(300),        0,   "sec",  0,   STR_NONE,     "Nominal time to deploy/remove the thermal screen",                    "per actuator datasheet"),
+    PARAM("cli_screenTimeout_sec",     T_U16,  PU(80),                  PU(1),       PU(400),        0,   "sec",  0,   STR_NONE,     "Safe time to deploy/remove the thermal screen",                       "per actuator datasheet"),
+    PARAM("cli_rainLockout_sec",       T_U16,  PU(900),                 PU(0),       PU(3600),       0,   "sec",  0,   STR_NONE,     "Keep windows shut this long after rain",                              ""),
+    PARAM("cli_skirtValvePeriod_sec",  T_U16,  PU(60),                  PU(10),      PU(600),        0,   "sec",  0,   STR_NONE,     "Period for the skirt humidifier valve modulation",                    ""),
+    PARAM("cli_skirtValveMinOn_sec",   T_U16,  PU(10),                  PU(1),       PU(600),        0,   "sec",  0,   STR_NONE,     "Shortest allowed pulse length for the skirt humidifier",              "<= cli_skirtValvePeriod_sec"),
+    PARAM("cli_screenDeploy_degC",     T_F32,  PF(13.0f),               PF(0.0f),    PF(50.0f),      1,   "degC", 0,   STR_NONE,     "Night temperature that deploys the thermal screens",                  ""),
+    PARAM("sol_coldBankSunrise_min",   T_I16,  PI(-30),                 PI(-180),    PI(60),         0,   "min",  0,   STR_NONE,     "Begin time of cold banking, minutes from sunrise",                    ""),
+    PARAM("sol_dawnBreezeSunrise_min", T_I16,  PI(30),                  PI(-60),     PI(180),        0,   "min",  0,   STR_NONE,     "Begin time of dawn breeze, minutes from sunrise",                     ""),
+    PARAM("sol_daySunrise_min",        T_I16,  PI(60),                  PI(0),       PI(180),        0,   "min",  0,   STR_NONE,     "Begin time of day operation, minutes from sunrise",                   ""),
+    PARAM("sol_heatBankSunset_min",    T_I16,  PI(-180),                PI(-300),    PI(0),          0,   "min",  0,   STR_NONE,     "Begin time of heat banking, minutes from sunset",                     ""),
+    PARAM("sol_nightSunset_min",       T_I16,  PI(30),                  PI(0),       PI(180),        0,   "min",  0,   STR_NONE,     "Begin time of night operation, minutes from sunset",                  ""),
+    PARAM("irr_forceNow",              T_BOOL, PU(0),                   PU(0),       PU(1),          0,   "",     0,   STR_NONE,     "Run a watering cycle immediately, once",                              ""),
+    PARAM("irr_liters_tray1",          T_U16,  PU(150),                 PU(0),       PU(500),        0,   "L",    0,   STR_NONE,     "Litres to flood this tray in summer",                                 ""),
+    PARAM("irr_days_tray1",            T_U8,   PU(14),                  PU(1),       PU(60),         0,   "days", 0,   STR_NONE,     "Days between waterings in summer",                                    ""),
+    PARAM("irr_last_tray1",            T_U32,  PU(0),                   PU(0),       PU(100000),     0,   "days", 0,   STR_NONE,     "Last watering (days since 1 Jan 1970)",                               ""),
+    PARAM("irr_forceOn_tray1",         T_BOOL, PU(0),                   PU(0),       PU(1),          0,   "",     0,   STR_NONE,     "Force watering this tray at the next cycle",                          ""),
+    PARAM("irr_forceOff_tray1",        T_BOOL, PU(0),                   PU(0),       PU(1),          0,   "",     0,   STR_NONE,     "Force skipping this tray at the next cycle",                          ""),
+    PARAM("irr_liters_tray2",          T_U16,  PU(150),                 PU(0),       PU(500),        0,   "L",    0,   STR_NONE,     "Litres to flood this tray in summer",                                 ""),
+    PARAM("irr_days_tray2",            T_U8,   PU(14),                  PU(1),       PU(60),         0,   "days", 0,   STR_NONE,     "Days between waterings in summer",                                    ""),
+    PARAM("irr_last_tray2",            T_U32,  PU(0),                   PU(0),       PU(100000),     0,   "days", 0,   STR_NONE,     "Last watering (days since 1 Jan 1970)",                               ""),
+    PARAM("irr_forceOn_tray2",         T_BOOL, PU(0),                   PU(0),       PU(1),          0,   "",     0,   STR_NONE,     "Force watering this tray at the next cycle",                          ""),
+    PARAM("irr_forceOff_tray2",        T_BOOL, PU(0),                   PU(0),       PU(1),          0,   "",     0,   STR_NONE,     "Force skipping this tray at the next cycle",                          ""),
+    PARAM("irr_liters_tray3",          T_U16,  PU(150),                 PU(0),       PU(500),        0,   "L",    0,   STR_NONE,     "Litres to flood this tray in summer",                                 ""),
+    PARAM("irr_days_tray3",            T_U8,   PU(14),                  PU(1),       PU(60),         0,   "days", 0,   STR_NONE,     "Days between waterings in summer",                                    ""),
+    PARAM("irr_last_tray3",            T_U32,  PU(0),                   PU(0),       PU(100000),     0,   "days", 0,   STR_NONE,     "Last watering (days since 1 Jan 1970)",                               ""),
+    PARAM("irr_forceOn_tray3",         T_BOOL, PU(0),                   PU(0),       PU(1),          0,   "",     0,   STR_NONE,     "Force watering this tray at the next cycle",                          ""),
+    PARAM("irr_forceOff_tray3",        T_BOOL, PU(0),                   PU(0),       PU(1),          0,   "",     0,   STR_NONE,     "Force skipping this tray at the next cycle",                          ""),
+    PARAM("irr_liters_tray4",          T_U16,  PU(150),                 PU(0),       PU(500),        0,   "L",    0,   STR_NONE,     "Litres to flood this tray in summer",                                 ""),
+    PARAM("irr_days_tray4",            T_U8,   PU(14),                  PU(1),       PU(60),         0,   "days", 0,   STR_NONE,     "Days between waterings in summer",                                    ""),
+    PARAM("irr_last_tray4",            T_U32,  PU(0),                   PU(0),       PU(100000),     0,   "days", 0,   STR_NONE,     "Last watering (days since 1 Jan 1970)",                               ""),
+    PARAM("irr_forceOn_tray4",         T_BOOL, PU(0),                   PU(0),       PU(1),          0,   "",     0,   STR_NONE,     "Force watering this tray at the next cycle",                          ""),
+    PARAM("irr_forceOff_tray4",        T_BOOL, PU(0),                   PU(0),       PU(1),          0,   "",     0,   STR_NONE,     "Force skipping this tray at the next cycle",                          ""),
+    PARAM("irr_liters_tray5",          T_U16,  PU(150),                 PU(0),       PU(500),        0,   "L",    0,   STR_NONE,     "Litres to flood this tray in summer",                                 ""),
+    PARAM("irr_days_tray5",            T_U8,   PU(14),                  PU(1),       PU(60),         0,   "days", 0,   STR_NONE,     "Days between waterings in summer",                                    ""),
+    PARAM("irr_last_tray5",            T_U32,  PU(0),                   PU(0),       PU(100000),     0,   "days", 0,   STR_NONE,     "Last watering (days since 1 Jan 1970)",                               ""),
+    PARAM("irr_forceOn_tray5",         T_BOOL, PU(0),                   PU(0),       PU(1),          0,   "",     0,   STR_NONE,     "Force watering this tray at the next cycle",                          ""),
+    PARAM("irr_forceOff_tray5",        T_BOOL, PU(0),                   PU(0),       PU(1),          0,   "",     0,   STR_NONE,     "Force skipping this tray at the next cycle",                          ""),
+    PARAM("irr_liters_tray6",          T_U16,  PU(150),                 PU(0),       PU(500),        0,   "L",    0,   STR_NONE,     "Litres to flood this tray in summer",                                 ""),
+    PARAM("irr_days_tray6",            T_U8,   PU(14),                  PU(1),       PU(60),         0,   "days", 0,   STR_NONE,     "Days between waterings in summer",                                    ""),
+    PARAM("irr_last_tray6",            T_U32,  PU(0),                   PU(0),       PU(100000),     0,   "days", 0,   STR_NONE,     "Last watering (days since 1 Jan 1970)",                               ""),
+    PARAM("irr_forceOn_tray6",         T_BOOL, PU(0),                   PU(0),       PU(1),          0,   "",     0,   STR_NONE,     "Force watering this tray at the next cycle",                          ""),
+    PARAM("irr_forceOff_tray6",        T_BOOL, PU(0),                   PU(0),       PU(1),          0,   "",     0,   STR_NONE,     "Force skipping this tray at the next cycle",                          ""),
+    PARAM("irr_liters_tray7",          T_U16,  PU(150),                 PU(0),       PU(500),        0,   "L",    0,   STR_NONE,     "Litres to flood this tray in summer",                                 ""),
+    PARAM("irr_days_tray7",            T_U8,   PU(14),                  PU(1),       PU(60),         0,   "days", 0,   STR_NONE,     "Days between waterings in summer",                                    ""),
+    PARAM("irr_last_tray7",            T_U32,  PU(0),                   PU(0),       PU(100000),     0,   "days", 0,   STR_NONE,     "Last watering (days since 1 Jan 1970)",                               ""),
+    PARAM("irr_forceOn_tray7",         T_BOOL, PU(0),                   PU(0),       PU(1),          0,   "",     0,   STR_NONE,     "Force watering this tray at the next cycle",                          ""),
+    PARAM("irr_forceOff_tray7",        T_BOOL, PU(0),                   PU(0),       PU(1),          0,   "",     0,   STR_NONE,     "Force skipping this tray at the next cycle",                          ""),
+    PARAM("irr_liters_tray8",          T_U16,  PU(150),                 PU(0),       PU(500),        0,   "L",    0,   STR_NONE,     "Litres to flood this tray in summer",                                 ""),
+    PARAM("irr_days_tray8",            T_U8,   PU(14),                  PU(1),       PU(60),         0,   "days", 0,   STR_NONE,     "Days between waterings in summer",                                    ""),
+    PARAM("irr_last_tray8",            T_U32,  PU(0),                   PU(0),       PU(100000),     0,   "days", 0,   STR_NONE,     "Last watering (days since 1 Jan 1970)",                               ""),
+    PARAM("irr_forceOn_tray8",         T_BOOL, PU(0),                   PU(0),       PU(1),          0,   "",     0,   STR_NONE,     "Force watering this tray at the next cycle",                          ""),
+    PARAM("irr_forceOff_tray8",        T_BOOL, PU(0),                   PU(0),       PU(1),          0,   "",     0,   STR_NONE,     "Force skipping this tray at the next cycle",                          ""),
+    PARAM("irr_dryEwmaDays",           T_U16,  PU(3),                   PU(1),       PU(30),         0,   "days", 0,   STR_NONE,     "Days of dryness history to modulate the watering",                    "sampled every 2 h"),
+    PARAM("irr_dryLo_kPa",             T_F32,  PF(0.15f),               PF(0.0f),    PF(2.0f),       2,   "kPa",  0,   STR_NONE,     "Air dryness giving the least watering",                               ""),
+    PARAM("irr_dryHi_kPa",             T_F32,  PF(1.2f),                PF(0.0f),    PF(5.0f),       2,   "kPa",  0,   STR_NONE,     "Air dryness giving the most watering",                                "> irr_dryLo_kPa"),
+    PARAM("irr_modMin",                T_F32,  PF(0.25f),               PF(0.1f),    PF(1.0f),       2,   "",     0,   STR_NONE,     "Minimum fraction of water given in very humid weather",               "the floor even in still, humid air"),
+    PARAM("irr_modGamma",              T_F32,  PF(1.0f),                PF(1.0f),    PF(4.0f),       2,   "",     0,   STR_NONE,     "How fast watering ramps up with dryness",                             ""),
+    PARAM("irr_volFreqSplit",          T_F32,  PF(0.5f),                PF(0.0f),    PF(1.0f),       2,   "",     0,   STR_NONE,     "Whether we reduce volume or increase period",                         "0 = period, 1 = volume"),
+    PARAM("irr_traysPerDay",           T_U16,  PU(2),                   PU(1),       PU(5),          0,   "",     0,   STR_NONE,     "Most trays watered in one day",                                       ""),
+    PARAM("irr_dawnGate_degC",         T_F32,  PF(12.0f),               PF(5.0f),    PF(30.0f),      1,   "degC", 0,   STR_NONE,     "Skip pre-dawn watering below this temp",                              ""),
+    PARAM("irr_maxFill_sec",           T_U16,  PU(300),                 PU(100),     PU(1800),       0,   "sec",  0,   STR_NONE,     "Alarm if a tray takes longer to fill",                                ""),
+    PARAM("irr_drainWindow_sec",       T_U16,  PU(300),                 PU(100),     PU(1800),       0,   "sec",  0,   STR_NONE,     "Time allowed for a tray to drain",                                    ""),
+    PARAM("irr_expDrainFrac",          T_F32,  PF(0.6f),                PF(0.0f),    PF(1.0f),       2,   "",     0,   STR_NONE,     "How far below expected drain fraction is a fault",                    ""),
+    PARAM("irr_drainMargin",           T_F32,  PF(0.3f),                PF(0.0f),    PF(1.0f),       2,   "",     0,   STR_NONE,     "Drain volume fraction below which we trigger a drain fault",          ""),
+    PARAM("irr_flush_sec",             T_U16,  PU(10),                  PU(5),       PU(300),        0,   "sec",  0,   STR_NONE,     "Duration of the flush after/before the irrigation cycle",             ""),
+    PARAM("irr_input_qtyPerImp",       T_F32,  PF(1.0f),                PF(0.01f),   PF(10.0f),      2,   "L",    0,   STR_NONE,     "Litres per pulse from the water meter",                               "per meter datasheet"),
+    PARAM("irr_output_rawMin_uA",      T_U16,  PU(0),                   PU(0),       PU(24000),      0,   "uA",   0,   STR_NONE,     "uA at zero output flow",                                              "per output-meter datasheet"),
+    PARAM("irr_output_rawMax_uA",      T_U16,  PU(10000),               PU(0),       PU(24000),      0,   "uA",   0,   STR_NONE,     "uA at full output scale",                                             "per output-meter datasheet"),
+    PARAM("irr_output_engMin_Lpm",     T_F32,  PF(0.0f),                PF(0.0f),    PF(500.0f),     1,   "Lpm",  0,   STR_NONE,     "Output litres/min at zero signal",                                    "per output-meter datasheet"),
+    PARAM("irr_output_engMax_Lpm",     T_F32,  PF(50.0f),               PF(0.0f),    PF(500.0f),     1,   "Lpm",  0,   STR_NONE,     "Output litres/min at full scale",                                     "per output-meter datasheet"),
+    PARAM("irr_output_avgTime_ms",     T_U16,  PU(200),                 PU(0),       PU(10000),      0,   "ms",   0,   STR_NONE,     "Rolling average for filtering this flow meter's output",              "per output-meter datasheet"),
+    PARAM("pwr_dc1_rawMin_mV",         T_U16,  PU(4000),                PU(0),       PU(10000),      0,   "mV",   0,   STR_NONE,     "Low-end of the raw measurement",                                      "per divider setup"),
+    PARAM("pwr_dc1_rawMax_mV",         T_U16,  PU(6000),                PU(0),       PU(10000),      0,   "mV",   0,   STR_NONE,     "High-end of the raw measurement",                                     "per divider setup"),
+    PARAM("pwr_dc1_engMin_V",          T_F32,  PF(20.0f),               PF(0.0f),    PF(48.0f),      1,   "V",    0,   STR_NONE,     "Low-end of the actual DC voltage band",                               "per divider setup"),
+    PARAM("pwr_dc1_engMax_V",          T_F32,  PF(30.0f),               PF(0.0f),    PF(48.0f),      1,   "V",    0,   STR_NONE,     "High-end of the actual DC voltage band",                              "per divider setup"),
+    PARAM("pwr_dc1_avgTime_ms",        T_U16,  PU(1000),                PU(10),      PU(10000),      0,   "ms",   0,   STR_NONE,     "Rolling average for filtering this DC bus voltage",                   "per divider setup"),
+    PARAM("pwr_dc2_rawMin_mV",         T_U16,  PU(4000),                PU(0),       PU(10000),      0,   "mV",   0,   STR_NONE,     "Low-end of the raw measurement",                                      "per divider setup"),
+    PARAM("pwr_dc2_rawMax_mV",         T_U16,  PU(6000),                PU(0),       PU(10000),      0,   "mV",   0,   STR_NONE,     "High-end of the raw measurement",                                     "per divider setup"),
+    PARAM("pwr_dc2_engMin_V",          T_F32,  PF(20.0f),               PF(0.0f),    PF(48.0f),      1,   "V",    0,   STR_NONE,     "Low-end of the actual DC voltage band",                               "per divider setup"),
+    PARAM("pwr_dc2_engMax_V",          T_F32,  PF(30.0f),               PF(0.0f),    PF(48.0f),      1,   "V",    0,   STR_NONE,     "High-end of the actual DC voltage band",                              "per divider setup"),
+    PARAM("pwr_dc2_avgTime_ms",        T_U16,  PU(1000),                PU(10),      PU(10000),      0,   "ms",   0,   STR_NONE,     "Rolling average for filtering this DC bus voltage",                   "per divider setup"),
+    PARAM("pwr_ups_bat_rawMin_mV",     T_U16,  PU(4000),                PU(0),       PU(10000),      0,   "mV",   0,   STR_NONE,     "Low-end of the raw measurement",                                      "per divider setup"),
+    PARAM("pwr_ups_bat_rawMax_mV",     T_U16,  PU(6000),                PU(0),       PU(10000),      0,   "mV",   0,   STR_NONE,     "High-end of the raw measurement",                                     "per divider setup"),
+    PARAM("pwr_ups_bat_engMin_V",      T_F32,  PF(20.0f),               PF(0.0f),    PF(48.0f),      1,   "V",    0,   STR_NONE,     "Low-end of the actual DC voltage band",                               "per divider setup"),
+    PARAM("pwr_ups_bat_engMax_V",      T_F32,  PF(30.0f),               PF(0.0f),    PF(48.0f),      1,   "V",    0,   STR_NONE,     "High-end of the actual DC voltage band",                              "per divider setup"),
+    PARAM("pwr_ups_bat_avgTime_ms",    T_U16,  PU(1000),                PU(10),      PU(10000),      0,   "ms",   0,   STR_NONE,     "Rolling average for filtering this DC bus voltage",                   "per divider setup"),
+    PARAM("pwr_gen_bat_rawMin_mV",     T_U16,  PU(5000),                PU(0),       PU(10000),      0,   "mV",   0,   STR_NONE,     "Low-end of the raw measurement",                                      "per divider setup"),
+    PARAM("pwr_gen_bat_rawMax_mV",     T_U16,  PU(7500),                PU(0),       PU(10000),      0,   "mV",   0,   STR_NONE,     "High-end of the raw measurement",                                     "per divider setup"),
+    PARAM("pwr_gen_bat_engMin_V",      T_F32,  PF(20.0f),               PF(10.0f),   PF(48.0f),      1,   "V",    0,   STR_NONE,     "Low-end of the actual DC voltage band",                               "per divider setup"),
+    PARAM("pwr_gen_bat_engMax_V",      T_F32,  PF(30.0f),               PF(15.0f),   PF(48.0f),      1,   "V",    0,   STR_NONE,     "High-end of the actual DC voltage band",                              "per divider setup"),
+    PARAM("pwr_gen_bat_avgTime_ms",    T_U16,  PU(1000),                PU(10),      PU(10000),      0,   "ms",   0,   STR_NONE,     "Rolling average for filtering this DC bus voltage",                   "per divider setup"),
 /** @} */
 
 /** @name Sensor inputs - read from the field, invalid past their timeout
@@ -432,14 +396,11 @@ const uint16_t g_var_count = (uint16_t)(sizeof(g_vars) / sizeof(g_vars[0]));
 #undef COIL
 #undef IBOOL
 #undef IREAL
-#undef PSERIAL
-#undef PBOOL
-#undef PU16
-#undef PF32
-#undef PU32
-#undef PU8
-#undef PI16
-#undef PSTR
+#undef PARAM
+#undef PU
+#undef PI
+#undef PF
+#undef PS
 
 /** @brief Symbolic index per variable. The row order above is the enum order;
  *  a mismatch would silently address the wrong signal, so the count is
