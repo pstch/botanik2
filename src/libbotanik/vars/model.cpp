@@ -140,9 +140,12 @@ namespace Botanik { namespace Vars {
         if (text == nullptr || d->role != ROLE_PARAM) return SET_INVALID;
         if ((d->flags & F_RDONLY) != 0) return SET_INVALID;
 
-        const uint16_t i = find(d->name).index;
-        if (i >= _t.count) return SET_INVALID;
-        Value& slot = _t.val[i];
+        // The handle already points INTO the table, so its row is the offset -
+        // no name scan. (It may instead point at the sink, which is what the
+        // range check rejects; a Var is only ever one or the other.)
+        if (_t.var == nullptr || d < _t.var || d >= _t.var + _t.count)
+            return SET_INVALID;
+        Value& slot = _t.val[d - _t.var];
 
         if (d->type == T_STR) {
             if (_t.pool == nullptr || d->str_cap == 0) return SET_INVALID;

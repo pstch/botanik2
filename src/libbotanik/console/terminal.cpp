@@ -331,12 +331,14 @@ namespace Botanik { namespace Terminal {
             bool restore = (s.bottom < (uint16_t)(_rows - 1));
             uint16_t back = (uint16_t)(s.bottom - s.n + 1);
             bool ok;
+            // A DL/IL that did not fit the ring leaves BACK unshifted, so the
+            // cell diff repaints the band instead - more bytes, but correct.
             if (s.up) {
-                ok = _go({s.top, 0}) && delete_rows_wire(s.n);
-                if (ok && restore) ok = _go({back, 0}) && insert_rows_wire(s.n);
+                ok = _go({s.top, 0}) && Ansi::delete_rows(_serial, s.n);
+                if (ok && restore) ok = _go({back, 0}) && Ansi::insert_rows(_serial, s.n);
             } else {
-                ok = !restore || (_go({back, 0}) && delete_rows_wire(s.n));
-                if (ok) ok = _go({s.top, 0}) && insert_rows_wire(s.n);
+                ok = !restore || (_go({back, 0}) && Ansi::delete_rows(_serial, s.n));
+                if (ok) ok = _go({s.top, 0}) && Ansi::insert_rows(_serial, s.n);
             }
             if (ok) _shift_grid(_back, s.top, s.bottom, s.up, s.n);   // mirror the wire
         }
@@ -555,9 +557,5 @@ namespace Botanik { namespace Terminal {
         if (_hw_cursor_visible) _go(_live_cursor_pos);
         else                    _go({(uint16_t)(_rows - 1), (uint16_t)(_cols - 1)});
     }
-
-    // Wire-side row shifts used only by present() for the scroll DL/IL.
-    bool AnsiTerminal::delete_rows_wire(uint16_t count) { return Ansi::delete_rows(_serial, count); }
-    bool AnsiTerminal::insert_rows_wire(uint16_t count) { return Ansi::insert_rows(_serial, count); }
 
 }}

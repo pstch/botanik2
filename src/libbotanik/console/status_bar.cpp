@@ -127,13 +127,6 @@ namespace Botanik { namespace Terminal {
 
     // Field painters
 
-    void StatusBar::submit_field(uint16_t col, const char* field, uint16_t len,
-                                 uint32_t hi) {
-        // Paint the whole field (all cells); the terminal's diff drops the ones
-        // that did not move. hi segments the reverse-video runs.
-        _t.paint_field_runs(0, col, field, len, hi);
-    }
-
     void StatusBar::update_metrics() {
         char metrics[METRICS_LEN];
         int mlen = build_metrics(metrics, sizeof(metrics));
@@ -146,7 +139,9 @@ namespace Botanik { namespace Terminal {
         uint32_t hi = 0;
         for (uint16_t i = 0; i < visible; ++i)
             if (!metric_value_col(i)) hi |= (1u << i);
-        submit_field(metrics_col, metrics, visible, hi);
+        // Paint the whole field; the terminal's diff drops the cells that did
+        // not move. hi segments the reverse-video runs.
+        _t.paint_field_runs(0, metrics_col, metrics, visible, hi);
     }
 
     void StatusBar::update_clock() {
@@ -166,7 +161,7 @@ namespace Botanik { namespace Terminal {
         if ((uint16_t)(clock_col + CLOCK_LEN) > metrics_col) return;
 
         // hi = 0: normal video, so the digits stand out against the reverse bar.
-        submit_field(clock_col, clk, CLOCK_LEN, 0u);
+        _t.paint_field_runs(0, clock_col, clk, CLOCK_LEN, 0u);
     }
 
     int StatusBar::build_metrics(char* buf, size_t cap) const {

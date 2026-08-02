@@ -178,19 +178,30 @@ namespace Botanik { namespace Pages {
          *  @{ */
         static constexpr uint8_t GROUPS_MAX = 12;
 
-        /** @brief Distinct group prefixes, in table order. Rebuilt on demand
-         *  because the parameter set is fixed at build time - this walks it once
-         *  per call and the table is short. */
-        uint8_t _groups(const char** out) const {
-            uint8_t n = 0;
-            for (uint16_t i = 0; i < _param_count() && n < GROUPS_MAX; i++) {
+        /** @brief Distinct group prefixes, in table order, discovered ONCE.
+         *
+         *  The parameter table is fixed at build time, so the group set cannot
+         *  move - but this used to be rebuilt inside _mode_label(), which
+         *  _in_mode() calls per parameter, which _visible_count() calls per
+         *  parameter. That is a walk of the whole table squared, on every
+         *  repaint, and the table is now 148 rows. Mutable because the query
+         *  side is const and this is a cache, not state. */
+        mutable const char* _group_name[GROUPS_MAX];
+        mutable uint8_t     _group_n      = 0;
+        mutable bool        _groups_ready = false;
+
+        void _ensure_groups() const {
+            if (_groups_ready) return;
+            _groups_ready = true;
+            _group_n = 0;
+            for (uint16_t i = 0; i < _param_count() && _group_n < GROUPS_MAX; i++) {
+                // Interned by _group_of(), so the pointer outlives the call.
                 const char* g = _group_of(*_params->param(i).meta());
                 bool seen = false;
-                for (uint8_t k = 0; k < n; k++)
-                    if (strcmp(out[k], g) == 0) { seen = true; break; }
-                if (!seen) out[n++] = g;
+                for (uint8_t k = 0; k < _group_n; k++)
+                    if (strcmp(_group_name[k], g) == 0) { seen = true; break; }
+                if (!seen) _group_name[_group_n++] = g;
             }
-            return n;
         }
 
         /** @brief _group_of() returns a pointer to its own static scratch, so a
@@ -210,16 +221,19 @@ namespace Botanik { namespace Pages {
         }
 
         uint8_t _mode_count() const override {
-            const char* g[GROUPS_MAX];
-            return (uint8_t)(_groups(g) + 1);
+            _ensure_groups();
+            return (uint8_t)(_group_n + 1);
         }
         const char* _mode_label(uint8_t i) const override {
             if (i == 0) return "all";
-            const char* g[GROUPS_MAX];
-            uint8_t n = _groups(g);
-            return (i <= n) ? g[i - 1] : "all";
+            _ensure_groups();
+            return (i <= _group_n) ? _group_name[i - 1] : "all";
         }
-        void _on_mode_changed() override { _editing = false; _dirty = true; }
+        void _on_mode_changed() override {
+            _editing = false;
+            _dirty = true;
+            _vis_ready = false;   // a different view shows a different count
+        }
 
         /** @brief True when parameter @p k belongs to the active view. */
         bool _in_mode(uint16_t k) const {
@@ -230,6 +244,9 @@ namespace Botanik { namespace Pages {
         /** @brief Map a visible row to its parameter index (VAR_NONE-ish: the
          *  count when out of range). */
         uint16_t _param_at(uint16_t row) const {
+            // In "all" the visible row IS the parameter index; the scan below
+            // would walk the whole table per drawn row to rediscover that.
+            if (_mode == 0) return (row < _param_count()) ? row : _param_count();
             uint16_t seen = 0;
             for (uint16_t k = 0; k < _param_count(); k++) {
                 if (!_in_mode(k)) continue;
@@ -239,10 +256,17 @@ namespace Botanik { namespace Pages {
             return _param_count();
         }
 
-        /** @brief Parameters the active view shows. */
+        /** @brief Parameters the active view shows. Cached: a parameter's group
+         *  is its name prefix, so membership is fixed for the life of the build
+         *  and only a view change can move this. */
+        mutable uint16_t _vis_count = 0;
+        mutable bool     _vis_ready = false;
         uint16_t _visible_count() const {
+            if (_vis_ready) return _vis_count;
             uint16_t n = 0;
             for (uint16_t k = 0; k < _param_count(); k++) if (_in_mode(k)) n++;
+            _vis_count = n;
+            _vis_ready = true;
             return n;
         }
         /** @} */

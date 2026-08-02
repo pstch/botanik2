@@ -279,9 +279,7 @@ namespace Botanik { namespace Pages {
         uint16_t _data_top()  const override { return DATA_TOP; }
         uint16_t _row_count() const override { return _nvis; }
         /** @} */
-        /** @brief Entries scrolled off the top / bottom of the visible
-         *  window. */
-        uint16_t _hidden_above() const { return _top; }
+        /** @brief Entries scrolled off the bottom of the visible window. */
         uint16_t _hidden_below(uint16_t window) const {
             uint16_t end = (uint16_t)(_top + window);
             return (_nvis > end) ? (uint16_t)(_nvis - end) : 0;
@@ -291,7 +289,7 @@ namespace Botanik { namespace Pages {
         void _draw_rules(uint16_t window) {
             // The alarms rules carry the arrow on EVERY column mark, not just
             // the outer caps - hence the join argument.
-            char top = _hidden_above() ? '^' : '+';
+            char top = _top ? '^' : '+';
             char bot = _hidden_below(window) ? 'v' : '+';
             _draw_rule(RULE_ROW,     top, top);
             _draw_rule(_brule_row(), bot, bot);

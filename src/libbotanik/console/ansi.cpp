@@ -10,6 +10,7 @@
  * keeps an escape from ever being split mid-sequence. Callers retry on a later
  * redraw.
  */
+#include <cstddef>   // size_t
 #include <cstdint>
 #include <cstring>   // strlen
 
@@ -39,14 +40,16 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         _serial.write(s, (uint16_t)std::strlen(s));
     }
 
-    // emit a CSI quantified command (<CSI> <count> <byte>)
-    bool _csi_count(ByteSink& _serial, const char* final_byte,
-                    uint16_t fn, uint16_t count = 1) {
+    // Emit a CSI quantified command (<CSI> <count> <tail>). The tail is taken
+    // as the literal it always is, so its length comes from the array rather
+    // than from a sizeof spelled out again at every call site.
+    template <size_t N>
+    bool _csi_count(ByteSink& _serial, const char (&tail)[N], uint16_t count = 1) {
         if (count == 0) return true;                    // return early if count is zero
         if (!can_emit(_serial)) return false;           // bail if not enough TX space
         _serial.write(CSI, sizeof(CSI) - 1);            // write CSI header
         if (count > 1) write_uint16(_serial, count);    // write count parameter
-        _serial.write(final_byte, fn);                  // write given final byte
+        _serial.write(tail, (uint16_t)(N - 1));         // write the final byte(s)
         return true;
     }
 
@@ -54,8 +57,8 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     // ------------------------------------------------------------------------
 
     bool set_insert_mode(ByteSink& _serial, bool active) {
-        // SM4/RM4 same length
-        return _csi_count(_serial, active ? SM4 : RM4, sizeof(SM4) - 1);
+        // SM4/RM4 are the same length, so one instantiation covers both.
+        return active ? _csi_count(_serial, SM4) : _csi_count(_serial, RM4);
     }
 
     bool cancel_sequence(ByteSink& _serial) {
@@ -65,14 +68,13 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     bool set_auto_wrap(ByteSink& _serial, bool enable) {
-        // DECAWM_SET / _RESET are equal length, so one sizeof covers both.
-        return _csi_count(_serial, enable ? DECAWM_SET : DECAWM_RESET,
-                          sizeof(DECAWM_SET) - 1);
+        return enable ? _csi_count(_serial, DECAWM_SET)
+                      : _csi_count(_serial, DECAWM_RESET);
     }
 
     bool set_cursor_visible(ByteSink& _serial, bool show) {
-        return _csi_count(_serial, show ? DECTCEM_SET : DECTCEM_RESET,
-                          sizeof(DECTCEM_SET) - 1);
+        return show ? _csi_count(_serial, DECTCEM_SET)
+                    : _csi_count(_serial, DECTCEM_RESET);
     }
 
     bool terminal_setup(ByteSink& _serial, TerminalType type) {
@@ -101,19 +103,19 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         // Always the explicit CUB form, never the BS (\b) shortcut: BS is
         // harmless on a VT100/VT102 but a Minitel can treat it as a destructive
         // backspace.
-        return _csi_count(_serial, CUB, sizeof(CUB) - 1, count);
+        return _csi_count(_serial, CUB, count);
     }
 
     bool move_right(ByteSink& _serial, uint16_t count) {
-        return _csi_count(_serial, CUF, sizeof(CUF) - 1, count);
+        return _csi_count(_serial, CUF, count);
     }
 
     bool move_up(ByteSink& _serial, uint16_t count) {
-        return _csi_count(_serial, CUU, sizeof(CUU) - 1, count);
+        return _csi_count(_serial, CUU, count);
     }
 
     bool move_down(ByteSink& _serial, uint16_t count) {
-        return _csi_count(_serial, CUD, sizeof(CUD) - 1, count);
+        return _csi_count(_serial, CUD, count);
     }
 
     bool move_row_start(ByteSink& _serial) {
@@ -136,15 +138,15 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     // ------------------------------------------------------------------------
 
     bool insert_rows(ByteSink& _serial, uint16_t count) {
-        return _csi_count(_serial, IL, sizeof(IL) - 1, count);
+        return _csi_count(_serial, IL, count);
     }
 
     bool delete_rows(ByteSink& _serial, uint16_t count) {
-        return _csi_count(_serial, DL, sizeof(DL) - 1, count);
+        return _csi_count(_serial, DL, count);
     }
 
     bool delete_chars(ByteSink& _serial, uint16_t count) {
-        return _csi_count(_serial, DCH, sizeof(DCH) - 1, count);
+        return _csi_count(_serial, DCH, count);
     }
 
     // Content clearing

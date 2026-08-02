@@ -228,12 +228,6 @@ namespace Botanik { namespace Terminal {
         void _park_cursor();
         /** @} */
 
-        /** @brief Wire-side DL/IL, used only by present() to emit a band scroll. */
-        /** @return false if the escape did not fit the ring, in which case
-         *  nothing was emitted and BACK must NOT be shifted to match. */
-        bool delete_rows_wire(uint16_t count);
-        bool insert_rows_wire(uint16_t count);
-
         /** @} */
 
     public:

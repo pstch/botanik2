@@ -96,10 +96,6 @@ namespace Botanik { namespace Terminal {
          *  so a byte index maps to a fixed column); returns its length. */
         int build_metrics(char* buf, size_t cap) const;
 
-        /** @brief Paint the whole @p field (@p hi inverted mask) at (row 0,
-         *  @p col); the terminal diff drops the cells that did not move. */
-        void submit_field(uint16_t col, const char* field, uint16_t len, uint32_t hi);
-
         /** @} */
     };
 
