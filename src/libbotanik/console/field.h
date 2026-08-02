@@ -17,15 +17,13 @@
 namespace Botanik { namespace Terminal { namespace Field {
 
     /** @brief Render @p s into @p cf as a @p width-column, space-padded (and
-     *  NUL-terminated at [width]) field, truncating an over-long value. Returns
-     *  the printed length before padding, which a whole-value highlight uses to
-     *  light only the glyphs. @p cf must hold width+1 bytes. */
-    inline uint16_t render(char* cf, const char* s, uint16_t width) {
+     *  NUL-terminated at [width]) field, truncating an over-long value.
+     *  @p cf must hold width+1 bytes. */
+    inline void render(char* cf, const char* s, uint16_t width) {
         uint16_t vlen = 0;
         for (const char* p = s; *p && vlen < width; ++p) cf[vlen++] = *p;
         for (uint16_t i = vlen; i < width; ++i) cf[i] = ' ';
         cf[width] = '\0';
-        return vlen;
     }
 
     /** @brief Per-column change mask (bit i set = column i differs) of @p cf vs

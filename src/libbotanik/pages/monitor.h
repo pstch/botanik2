@@ -162,7 +162,6 @@ namespace Botanik { namespace Pages {
             return (i <= _group_count) ? _groups[i - 1].topic : "all";
         }
         void _on_mode_changed() override { _dirty = true; }
-        uint16_t _console_rows() const override { return _console.rows(); }
 
         /** @brief First and one-past-last group index the active mode shows. */
         size_t _first_group() const { return _mode == 0 ? 0 : (size_t)(_mode - 1); }
@@ -175,13 +174,12 @@ namespace Botanik { namespace Pages {
             return (uint16_t)t;
         }
 
-        /** @brief Resolve variable index @p r to its group + field, and whether
-         *  it leads its group (so the group column prints once). */
-        bool _at(uint16_t r, size_t& gi, size_t& fi, bool& first) const {
+        /** @brief Resolve variable index @p r to its group + field. */
+        bool _at(uint16_t r, size_t& gi, size_t& fi) const {
             size_t acc = 0;
             for (size_t g = _first_group(); g < _last_group(); g++) {
                 if (r < acc + _groups[g].count) {
-                    gi = g; fi = (size_t)(r - acc); first = (fi == 0);
+                    gi = g; fi = (size_t)(r - acc);
                     return true;
                 }
                 acc += _groups[g].count;
@@ -237,8 +235,8 @@ namespace Botanik { namespace Pages {
         /** @brief The reference for variable @p r; @p ok is false when @p r is
          *  past the end. */
         Vars::VarRef _ref_at(uint16_t r, bool& ok) const {
-            size_t gi = 0, fi = 0; bool first = false;
-            ok = _at(r, gi, fi, first);
+            size_t gi = 0, fi = 0;
+            ok = _at(r, gi, fi);
             if (!ok) { Vars::VarRef none = { Vars::VAR_NONE }; return none; }
             return _groups[gi].refs[fi];
         }
@@ -246,25 +244,22 @@ namespace Botanik { namespace Pages {
         // Rendering
         // --------------------------------------------------------------------
 
-        /** @brief Format variable @p r's value into @p out. */
-        void _value_text(uint16_t r, char* out, size_t cap) const {
-            bool ok = false;
-            Vars::VarRef ref = _ref_at(r, ok);
-            if (!ok || _io == nullptr) { if (cap) out[0] = 0; return; }
-            const char* s = Vars::var_format(*_io, ref, out, cap);
+        /** @brief Copy @p s into @p out unless it already IS @p out (var_format
+         *  returns flash / pool text for an enum or a string). */
+        static void _adopt(char* out, size_t cap, const char* s) {
             if (s != out) { std::strncpy(out, s, cap - 1); out[cap - 1] = 0; }
         }
 
-        /** @brief Build the full "  | group | name | value | unit |" row. */
+        /** @brief Build the full "  | scope | name | value | unit | override |"
+         *  row. Resolves the variable ONCE: the row is drawn per visible line
+         *  every refresh, and _at() is a walk over the group table. */
         uint16_t _row_text(uint16_t r, char* out, size_t cap) const {
-            size_t gi = 0, fi = 0; bool first = false;
-            if (!_at(r, gi, fi, first)) { if (cap) out[0] = 0; return 0; }
             bool ok = false;
             Vars::VarRef ref = _ref_at(r, ok);
-            char val[VAL_CAP];
-            _value_text(r, val, sizeof(val));
-            const char* nm = "", *un = "", *sc = "";
+            if (!ok) { if (cap) out[0] = 0; return 0; }
+            char val[VAL_CAP]; val[0] = 0;
             char ovr[VAL_CAP]; ovr[0] = '-'; ovr[1] = 0;
+            const char* nm = "", *un = "", *sc = "";
             if (_io != nullptr) {
                 Vars::Var h = _io->var(ref);
                 const Vars::Variable* m = h.meta();
@@ -274,13 +269,10 @@ namespace Botanik { namespace Pages {
                 // RIGHT), so repeating it down a column said the same thing on
                 // every row. Where a reading comes from does not.
                 sc = Vars::var_scope(*m);
-                if (h.overridden()) {
-                    const char* o = Vars::var_format(*_io, h, ovr, sizeof(ovr));
-                    if (o != ovr) { std::strncpy(ovr, o, sizeof(ovr) - 1);
-                                    ovr[sizeof(ovr) - 1] = 0; }
-                }
+                _adopt(val, sizeof(val), Vars::var_format(*_io, h, val, sizeof(val)));
+                if (h.overridden())
+                    _adopt(ovr, sizeof(ovr), Vars::var_format(*_io, h, ovr, sizeof(ovr)));
             }
-            (void)first;
             const char* cells[5] = { sc, nm, val, un, ovr };
             return _build_row(out, cap, cells);
         }
@@ -360,8 +352,8 @@ namespace Botanik { namespace Pages {
             // just repeat the badge.
             const char* grp = nullptr;
             if (_mode == 0) {
-                size_t gi = 0, fi = 0; bool first = false;
-                if (_at(_selected, gi, fi, first)) grp = _groups[gi].topic;
+                size_t gi = 0, fi = 0;
+                if (_at(_selected, gi, fi)) grp = _groups[gi].topic;
             }
             _draw_mode_line(_footer_row(), grp, nullptr);
             _blank_line((uint16_t)(_footer_row() + 1));   // blank below the legend

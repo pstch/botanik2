@@ -81,7 +81,6 @@
 #include "../scan/scan.h"     // Scan::Driver / Task
 #include "../vars/access.h"  // VarGroup / HomeVar (status vars)
 #include "stacks.h"      // Monitor/Console/NetworkStack composition
-#include "libbotanik/vars/params.h"  // LocalParamStore (flash/file params)
 
 #include <cstddef>
 #include <cstdint>

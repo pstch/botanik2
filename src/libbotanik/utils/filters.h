@@ -125,8 +125,6 @@ namespace Botanik { namespace Utils {
         }
     };
 
-    /** @brief Windowed-max sized to the load-metric bucket count. */
-
     /** @} */
 
 }}

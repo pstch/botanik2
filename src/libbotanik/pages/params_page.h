@@ -220,7 +220,6 @@ namespace Botanik { namespace Pages {
             return (i <= n) ? g[i - 1] : "all";
         }
         void _on_mode_changed() override { _editing = false; _dirty = true; }
-        uint16_t _console_rows() const override { return _console.rows(); }
 
         /** @brief True when parameter @p k belongs to the active view. */
         bool _in_mode(uint16_t k) const {

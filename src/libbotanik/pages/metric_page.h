@@ -48,9 +48,6 @@ namespace Botanik { namespace Pages {
         Console&      _console;
         /** @brief The VT device it paints through (cached _console.terminal()). */
         AnsiTerminal& _terminal;
-        /** @brief Column at which values are written (labels start at column
-         *  2). */
-        /** @brief True while this page owns the screen. */
         /** @brief Last dynamic refresh (uptime ms). */
         uint64_t      _refresh_last_ms = 0;
         /** @brief Interval between full dynamic refreshes (ms); a subclass may
@@ -136,24 +133,16 @@ namespace Botanik { namespace Pages {
             _terminal.write_chars(s, (uint16_t)strlen(s));
         }
 
-        /** @brief Diff-rendered value cell for column layouts: write @p s
-         *  padded/truncated to @p width (never touching an adjacent column).
-         *  Cached by @p slot. */
+        /** @brief Render @p s as a fixed @p width-column value cell at (@p row,
+         *  @p col), cached under @p slot, with watch(1) -d change highlighting.
+         *  Space-padded (so it never touches an adjacent column) and diffed
+         *  against the previous draw. Highlighting is per subfield: each digit
+         *  run lights when any of its digits changed, cleared once it settles
+         *  (first paint after a clear is never lit). The whole field is painted
+         *  with the highlight mask; the terminal's back-buffer diff emits only
+         *  the cells that actually moved. */
         void _cell(uint16_t slot, uint16_t row, uint16_t col, const char* s,
                    uint16_t width, bool highlight = true) {
-            _field(slot, row, col, s, width, highlight);
-        }
-
-        /** @brief Render @p s as a fixed @p width-column field, cached under
-         *  @p slot, with watch(1) -d change highlighting. Space-padded, diffed
-         *  against the previous draw so only changed bytes re-emit.
-         *  Highlighting is per subfield: each digit run lights when any of its
-         *  digits changed, cleared once it settles (first paint after a clear is
-         *  never lit). @p invert instead lights the whole value as a block on any
-         *  change. The whole field is painted with the highlight mask; the
-         *  terminal's back-buffer diff emits only the cells that actually moved. */
-        void _field(uint16_t slot, uint16_t row, uint16_t col, const char* s,
-                    uint16_t width, bool highlight = true, bool invert = false) {
             if (row >= _console.rows() || width == 0) return;
             // A slot past the cache renders uncached (no highlight): assert so a
             // site catches the overflow at bring-up. Hard cell limit is
@@ -165,8 +154,8 @@ namespace Botanik { namespace Pages {
             const uint32_t bit    = cached ? (1u << slot) : 0u;
 
             // Render into the fixed-width, space-padded field.
-            char     cf[CACHE_COLS];
-            uint16_t vlen = Terminal::Field::render(cf, s, width);
+            char cf[CACHE_COLS];
+            Terminal::Field::render(cf, s, width);
 
             const bool  fresh = !cached || (_vfresh & bit) != 0;
             const char* prev  = cached ? _vcache[slot] : "";
@@ -175,18 +164,13 @@ namespace Botanik { namespace Pages {
             // lights if any of its digits moved.
             uint32_t chg = Terminal::Field::changed(cf, prev, width, fresh), newhi = 0;
             if (!fresh && highlight) {
-                if (invert) {
-                    // Whole-value invert: light the printed glyphs ([0, vlen)).
-                    if (chg) newhi = (vlen >= 32) ? ~0u : ((1u << vlen) - 1u);
-                } else {
-                    for (uint16_t i = 0; i < width; ) {
-                        if (cf[i] < '0' || cf[i] > '9') { ++i; continue; }
-                        uint16_t a = i;
-                        while (i < width && cf[i] >= '0' && cf[i] <= '9') ++i;
-                        uint32_t run =
-                            (((i - a) >= 32) ? ~0u : ((1u << (i - a)) - 1u)) << a;
-                        if (chg & run) newhi |= run;   // any digit changed -> lit
-                    }
+                for (uint16_t i = 0; i < width; ) {
+                    if (cf[i] < '0' || cf[i] > '9') { ++i; continue; }
+                    uint16_t a = i;
+                    while (i < width && cf[i] >= '0' && cf[i] <= '9') ++i;
+                    uint32_t run =
+                        (((i - a) >= 32) ? ~0u : ((1u << (i - a)) - 1u)) << a;
+                    if (chg & run) newhi |= run;   // any digit changed -> lit
                 }
             }
 

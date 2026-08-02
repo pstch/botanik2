@@ -92,7 +92,6 @@ namespace Botanik { namespace Pages {
         }
         /** @brief A new filter shows a different set, so re-collect and repaint. */
         void _on_mode_changed() override { _collect(); _dirty = true; }
-        uint16_t _console_rows() const override { return _console.rows(); }
         /** @} */
 
         /** @name Layout
@@ -156,8 +155,7 @@ namespace Botanik { namespace Pages {
          *  the left, SPACE-cycles-mode hint on the right. Drawn immediate-mode; the
          *  terminal's back-buffer diff repaints it only on an actual mode / count
          *  change. */
-        void _draw_footer(uint16_t row, uint8_t nvis, uint8_t active) {
-            (void)nvis;                       // the base's position counter says it
+        void _draw_footer(uint16_t row, uint8_t active) {
             char detail[32];
             snprintf(detail, sizeof(detail), "%u active   a:ack", (unsigned)active);
             // No group: the alarms table's views ARE its modes, so the badge and
@@ -430,7 +428,7 @@ namespace Botanik { namespace Pages {
             _draw_structure();
             _draw_rules(window);
             _draw_notes();
-            _draw_footer(_legend_row(), _nvis, _model ? _model->active_count() : 0);
+            _draw_footer(_legend_row(), _model ? _model->active_count() : 0);
             for (uint16_t vi = 0; vi < window; vi++)
                 _draw_data_row((uint16_t)(DATA_TOP + vi), (uint16_t)(_top + vi));
         }

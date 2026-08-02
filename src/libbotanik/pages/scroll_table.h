@@ -167,12 +167,8 @@ namespace Botanik { namespace Pages {
          *  re-collects whatever the new view shows. */
         virtual void _on_mode_changed() {}
 
-        /** @brief Label of the active view / the one SPACE would move to. */
+        /** @brief Label of the active view. */
         const char* _mode_name() const { return _mode_label(_mode); }
-        const char* _next_mode_name() const {
-            uint8_t n = _mode_count();
-            return n ? _mode_label((uint8_t)((_mode + 1) % n)) : "";
-        }
 
         /** @brief Step the view by @p dir, wrapping, and reset the cursor to the
          *  top of the new set.
@@ -354,11 +350,6 @@ namespace Botanik { namespace Pages {
             _cycle_mode(+1);
             return true;
         }
-
-        /** @brief Last screen row the page may use. A table reserves rows below
-         *  its band for a panel/footer, so the subclass says where the page
-         *  ends; the default is the terminal's own last row. */
-        virtual uint16_t _console_rows() const { return _terminal.rows_total(); }
 
         /** @}
          *  @name Bordered-table rendering
