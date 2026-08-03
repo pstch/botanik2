@@ -139,10 +139,10 @@ TEST_CASE("alarm: an END with no matching START is logged as a FLAP") {
 
     // A blip shorter than the 2 s START dwell: clears before any START is logged.
     step_bits(m, 0x1, 1000);                             // on (dwell 0 < on_s 2 s)
-    logger.step();
+    logger.refill();
     CHECK(rec.has(Logs::ALARM_START) == false);   // too brief to announce a START
     step_bits(m, 0x0, 1500);                             // off -> END with no START = FLAP
-    logger.step();
+    logger.refill();
     CHECK(rec.has(Logs::ALARM_FLAP) == true);
     CHECK(rec.has(Logs::ALARM_END) == false);
 }
@@ -155,10 +155,10 @@ TEST_CASE("alarm: a normal episode logs START then END (not FLAP)") {
     Alarms::AlarmModel m(&f.bank, &logger);
 
     step_bits(m, 0x1, 1000);                             // on, START logged immediately
-    logger.step();
+    logger.refill();
     CHECK(rec.has(Logs::ALARM_START) == true);
     step_bits(m, 0x0, 2000);                             // off -> END (START was logged)
-    logger.step();
+    logger.refill();
     CHECK(rec.has(Logs::ALARM_END) == true);
     CHECK(rec.has(Logs::ALARM_FLAP) == false);
 }

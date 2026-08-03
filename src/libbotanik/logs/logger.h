@@ -123,11 +123,17 @@ namespace Botanik { namespace Logs {
         /** @name Dispatch
          *  @{ */
 
-        /** @brief Refill rate-limiting token buckets (call once per main-loop
-         *  period). Not driven through Component::step(): the Logger is a
-         *  Component for uniformity (and to break the Logger/Component include
-         *  cycle), stepped with no timestamp and never announced. */
-        void step();
+        /** @brief Refill the rate-limiting token buckets, and emit the
+         *  edge-triggered report of what got suppressed. Call once per main-loop
+         *  period.
+         *
+         *  NOT Component::step(), and deliberately not named like it: the Logger
+         *  is a Component for uniformity (and to break the Logger/Component
+         *  include cycle) but is driven with no timestamp and never announced,
+         *  so a step() here would only hide the base one. It reads the clock
+         *  itself and refills by elapsed time, which makes it rate-independent
+         *  already - calling it less often fills more tokens at once. */
+        void refill();
         /** @brief Healthy while at least one writer is registered (a writerless
          *  logger silently swallows everything). */
         bool healthy() const override { return has_writers(); }

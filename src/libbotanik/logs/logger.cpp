@@ -57,7 +57,7 @@ namespace Botanik { namespace Logs {
     // Dispatch
     // ------------------------------------------------------------------------
 
-    void Logger::step() {
+    void Logger::refill() {
         uint32_t now_ms         = HAL::Clock::current_ms();
 
         // refill the global bucket

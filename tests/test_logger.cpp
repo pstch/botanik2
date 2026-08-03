@@ -106,18 +106,18 @@ TEST_CASE("logger: sink-drop report is edge-triggered, critical, held off") {
     RecordingWriter w;
     logger.add_writer(&w);
 
-    logger.step();                              // no loss yet -> nothing reported
+    logger.refill();                              // no loss yet -> nothing reported
     int base = w.pushes;
 
     w.loss = 7;
-    logger.step();                              // first loss reports instantly
+    logger.refill();                              // first loss reports instantly
     CHECK(w.pushes == base + 1);
     CHECK(w.last_level == Logs::LOG_CRITICAL);
     CHECK(std::string(w.last_msg).find("7") != std::string::npos);
     CHECK(std::string(w.last_msg).find("dropped at sink") != std::string::npos);
 
     w.loss = 12;
-    logger.step();                              // within the holdoff -> no new report
+    logger.refill();                              // within the holdoff -> no new report
     CHECK(w.pushes == base + 1);
 }
 
