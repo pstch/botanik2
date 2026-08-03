@@ -24,6 +24,7 @@ add_executable(botanik_tests
     test_scalar.cpp
     test_model.cpp
     test_scan.cpp
+    test_task_timer.cpp
     test_alarms_render.cpp
     test_terminal_present.cpp
     test_editor_bytes.cpp

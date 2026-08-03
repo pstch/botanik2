@@ -32,6 +32,7 @@
 #include <cstdint>
 
 #include "../core/component.h"
+#include "../scheduler/task_timer.h"
 #include "../vars/model.h"
 
 namespace Botanik { namespace Scan {
@@ -61,14 +62,14 @@ namespace Botanik { namespace Scan {
         void      (*run)(ScanContext&);
     };
 
-    /** @brief Per-task scheduling state. RAM-resident, so the NSDMIs are fine
-     *  here (unlike the flash-resident descriptor tables).
-     *  @note Duration/overrun telemetry lived here but nothing ever read it; the
-     *  per-run `missed` count the task itself receives is in ScanContext. */
-    struct TaskStats {
-        uint64_t last_run_ms   = 0;   ///< when it last ran (0 = never)
-        uint32_t runs          = 0;
-    };
+    /** @brief Per-task scheduling state, one per entry in the site's table.
+     *
+     *  The scan cycle's own struct until the lateness rule it carried turned out
+     *  to be the scheduler's, not the scan's: it is Scheduler::TaskTimer now, and
+     *  the name stays so a site's `TaskStats stats[N]` reads as what it is. The
+     *  two fields are the same two; `runs` and `last_run_ms` are accessors
+     *  rather than members. */
+    typedef Scheduler::TaskTimer TaskStats;
 
     /** @brief Runs the site's tasks at their declared rates.
      *

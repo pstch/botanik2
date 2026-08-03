@@ -12,6 +12,7 @@
 
 #include "libbotanik/core/context.h"
 #include "libbotanik/scheduler/scheduler.h"
+#include "libbotanik/scheduler/task_timer.h"
 
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/logs/writer.h"

@@ -44,7 +44,7 @@ TEST_CASE("scan: each task runs at its own rate") {
     CHECK(g_fast.size() <= 21);
     CHECK(g_slow.size() >= 2);
     CHECK(g_slow.size() <= 3);
-    CHECK(stats[0].runs == g_fast.size());
+    CHECK(stats[0].runs() == g_fast.size());
 }
 
 TEST_CASE("scan: dt_ms is the nominal period when on time") {
@@ -94,5 +94,5 @@ TEST_CASE("scan: a null table or null run pointer is inert") {
     const Task holey[] = { { "nop", 0, nullptr } };
     Driver d(holey, 1, stats, &io);
     d.step(0);
-    CHECK(stats[0].runs == 0);
+    CHECK(stats[0].runs() == 0);
 }

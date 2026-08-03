@@ -17,34 +17,17 @@ namespace Botanik { namespace Scan {
             TaskStats&  s = _stats[i];
             if (t.run == nullptr) continue;
 
+            // Due, how late, and how many activations were dropped: one rule,
+            // shared with every other multi-rate caller (scheduler/task_timer.h).
             uint32_t dt     = 0;
             uint16_t missed = 0;
-
-            if (s.runs == 0) {
-                // First activation: run now, and report the nominal period as
-                // dt. Handing a timer "everything since boot" on its first scan
-                // would fire it immediately.
-                dt = t.period_ms;
-            } else {
-                uint64_t elapsed = now_ms - s.last_run_ms;
-                if (t.period_ms != 0 && elapsed < t.period_ms) continue;
-
-                // Run once however late we are: dropped activations are counted,
-                // never caught up (see scan.h). dt is the REAL elapsed time, so a
-                // task that ran late does not lose the time it was late by.
-                dt = (elapsed > 0xFFFFFFFFull) ? 0xFFFFFFFFu : (uint32_t)elapsed;
-                if (t.period_ms != 0 && elapsed >= 2ull * t.period_ms) {
-                    uint64_t skipped = (elapsed / t.period_ms) - 1;
-                    missed = (skipped > 0xFFFF) ? 0xFFFF : (uint16_t)skipped;
-                }
-            }
+            if (!s.due(now_ms, t.period_ms, dt, missed)) continue;
 
             ScanContext ctx = { now_ms, dt, missed, *_io };
 
             t.run(ctx);
 
-            s.last_run_ms = now_ms;
-            s.runs++;
+            s.ran(now_ms);
         }
     }
 
