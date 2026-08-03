@@ -1,0 +1,150 @@
+#ifndef SCAN_BLOCKS_ANALOG_H
+#define SCAN_BLOCKS_ANALOG_H
+
+/**
+ * @file analog.h
+ * @brief Thresholding and shaping of a continuous reading: hysteresis (two- and
+ *        three-band), rate limit, deadband.
+ */
+
+#include <cstdint>
+
+namespace Botanik { namespace Scan {
+
+    /** @name Thresholds
+     *  @{ */
+
+    /** @brief Threshold with hysteresis. Goes true at or above @p high, false
+     *  at or below @p low, and holds its state between them. What stops an
+     *  actuator chattering when a reading sits on the setpoint. */
+    class Hysteresis {
+
+        /** @name State
+         *  @{ */
+
+        bool _q = false;
+
+        /** @} */
+
+    public:
+        /** @name Operation
+         *  @{ */
+
+        bool operator()(float value, float low, float high);
+        bool q() const { return _q; }
+        /** @brief Declare the current state without a reading, for a cold start
+         *  that knows better than "false". */
+        void preset(bool q) { _q = q; }
+        void reset() { _q = false; }
+
+        /** @} */
+    };
+
+    /**
+     * @brief Three-band threshold: below, between, above - each edge with its
+     * own hysteresis.
+     *
+     * The shape a comfort band actually needs. One Hysteresis answers "is it
+     * too warm"; a greenhouse asks "too cold, right, or too warm", and wants a
+     * neutral middle where NOTHING runs. Built from two Hysteresis blocks, so
+     * each boundary behaves exactly as the two-band one does, and leaving a
+     * band always costs @p hyst of travel:
+     *
+     *   - BAND_LOW at or below @p low, left at @p low + @p hyst
+     *   - BAND_HIGH at or above @p high, left at @p high - @p hyst
+     *   - BAND_MID in between
+     *
+     * The first call seeds from the raw thresholds, so a block starting in the
+     * middle of a band reports that band rather than waiting for an edge it may
+     * never see.
+     *
+     * @warning @p hyst must be smaller than half of (@p high - @p low), or the
+     *  bands overlap; HIGH then wins over LOW and MID can vanish.
+     */
+    class Hysteresis3 {
+    public:
+        /** @brief Which band the reading is in. */
+        enum Band { BAND_LOW = 0, BAND_MID = 1, BAND_HIGH = 2 };
+
+    private:
+        /** @name State
+         *  @{ */
+
+        Hysteresis _clear_low;   ///< true once the reading is clear of the low band
+        Hysteresis _in_high;
+        uint8_t    _band = BAND_MID;
+        bool       _seed = false;
+
+        /** @} */
+
+    public:
+        /** @name Operation
+         *  @{ */
+
+        Band operator()(float value, float low, float high, float hyst);
+        Band band() const { return (Band)_band; }
+        bool low() const  { return _band == BAND_LOW; }
+        bool mid() const  { return _band == BAND_MID; }
+        bool high() const { return _band == BAND_HIGH; }
+        void reset();
+
+        /** @} */
+    };
+
+    /** @}
+     *  @name Shaping
+     *  @{ */
+
+    /** @brief Rate limiter. Moves the output toward @p target by at most
+     *  @p rate_per_s, so a step demand becomes a ramp the mechanics can
+     *  follow. */
+    class Ramp {
+
+        /** @name State
+         *  @{ */
+
+        float _out  = 0.0f;
+        bool  _seed = false;
+
+        /** @} */
+
+    public:
+        /** @name Operation
+         *  @{ */
+
+        float operator()(float target, float rate_per_s, uint32_t dt_ms);
+        float value() const { return _out; }
+        /** @brief Jump to @p v without ramping (mode changes, first enable). */
+        void preset(float v) { _out = v; _seed = true; }
+
+        /** @} */
+    };
+
+    /** @brief Deadband: reports @p value only once it has moved more than
+     *  @p band from the last reported figure. Suppresses jitter on a noisy
+     *  reading without lagging a real change. */
+    class Deadband {
+
+        /** @name State
+         *  @{ */
+
+        float _held = 0.0f;
+        bool  _seed = false;
+
+        /** @} */
+
+    public:
+        /** @name Operation
+         *  @{ */
+
+        float operator()(float value, float band);
+        float value() const { return _held; }
+
+        /** @} */
+    };
+
+    /** @} */
+
+}}  // namespace Botanik::Scan
+
+#endif // SCAN_BLOCKS_ANALOG_H

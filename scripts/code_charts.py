@@ -46,12 +46,15 @@ def area_for(path):
 # the area verbatim, e.g. test_serial -> utils). Add a row when a test file is
 # added; unmapped files fall into "other" so they stay visible.
 TEST_AREA = {
+    "test_actuator":       "scan",
     "test_alarms":         "alarms",
+    "test_blocks":         "scan",
     "test_config_handler": "core",
     "test_filters":        "logs",
     "test_line_buffer":    "pages",
     "test_logger":         "logs",
     "test_parser":         "console",
+    "test_pid":            "scan",
     "test_terminal_present": "console",
     "test_editor_bytes":   "console",
     "test_resolver":       "network",

@@ -26,7 +26,7 @@
 #include "libbotanik/vars/access.h"
 
 #include "libbotanik/scan/scan.h"
-#include "libbotanik/scan/blocks.h"
+#include "libbotanik/scan/blocks/blocks.h"
 #include "libbotanik/alarms/alarms.h"
 
 
