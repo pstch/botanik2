@@ -57,6 +57,8 @@ a 4800-baud link and every byte is budgeted.
 - @subpage dev_health - the power-on self-test, the platform alarms, and the
   watchdog verdict.
 - @subpage dev_network - the optional config-driven network stack.
+- @subpage dev_modbus - the field bus: what a transaction costs, the poll-group
+  budget, and why single-register reads are not an option.
 
 @section dev_platform Platform
 
