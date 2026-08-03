@@ -7,11 +7,24 @@
  * @brief Component - uniform lifecycle base for the long-lived main objects.
  *
  * A Component is stepped once per beat (by the main loop or by another
- * component). The non-virtual step() fixes the order: on the first step it runs
- * setup() then announce(); every step it dispatches on_param_changed() when the
- * watched config serial changes, then runs on_step(). Sites/subsystems customize
- * only through the protected hooks. healthy() is a common liveness query (default
- * true) a future dynamic scheduler can poll.
+ * component). The non-virtual step() fixes the order: it checks whether the
+ * component is due, then on the first step runs setup() then announce(); every
+ * due step it dispatches on_param_changed() when the watched config serial
+ * changes, then runs on_step(). Sites/subsystems customize only through the
+ * protected hooks. healthy() is a common liveness query (default true).
+ *
+ * @section component_rate Rate
+ *
+ * A component may run slower than the beat: set_period(ms), and step() sits out
+ * the beats in between. The default period of 0 means every beat, so a component
+ * that never sets one is unaffected. The loop keeps calling step() every beat
+ * either way - the fixed loop ORDER in core/firmware.h is load-bearing and stays
+ * written out as code; only the RATE moves into the component.
+ *
+ * Anything a hook does that is per-unit-time must therefore read dt_ms() rather
+ * than assume the beat period, or it silently rescales itself when its period
+ * changes. See docs/dev/scheduler.md for what each component's rate should be
+ * and what sets it.
  *
  * Dependency-light on purpose: Logs::Logger is only forward-declared here (so
  * even Logger can derive Component); announce()'s body lives in component.cpp,
@@ -22,6 +35,8 @@
  */
 
 #include <cstdint>
+
+#include "../scheduler/task_timer.h"
 
 // Forward-declared, NOT included: keeps Component free of the Logger include so
 // Logger itself can derive it (the body of announce() lives in component.cpp).
@@ -38,6 +53,22 @@ namespace Botanik {
          *  block, so a never-configured block never triggers a change). */
         uint32_t      _applied_serial = 0;
 
+        /** @}
+         *  @name Rate
+         *  @brief What makes a component multi-rate. The loop still calls step()
+         *  every beat; the component decides whether it is due, so the fixed
+         *  loop ORDER (which is load-bearing - see core/firmware.h) stays
+         *  written out as code and only the RATE becomes a property of the
+         *  component.
+         *  @{ */
+
+        /** @brief Run interval in ms; 0 (the default) means every beat, so a
+         *  component that never calls set_period() behaves exactly as before. */
+        uint32_t             _period_ms = 0;
+        Scheduler::TaskTimer _timer;              ///< the due/late/dropped rule
+        uint32_t             _dt_ms  = 0;         ///< real ms since the last run
+        uint16_t             _missed = 0;         ///< activations dropped
+
         /** @} */
 
     protected:
@@ -46,6 +77,19 @@ namespace Botanik {
          *  it this beat - so a hook asking "is my group configured?" reads this
          *  instead of scanning again. */
         uint32_t applied_serial() const { return _applied_serial; }
+
+        /** @brief ACTUAL ms since this component last ran, never its nominal
+         *  period. An accessor rather than an on_step() argument for the same
+         *  reason applied_serial() is one: the hook that wants it reads it, and
+         *  every component that does not stays untouched.
+         *
+         *  Anything holding a per-tick budget or integrating over time must use
+         *  this rather than assuming the beat, or it silently rescales itself
+         *  the moment its period moves. */
+        uint32_t dt_ms() const { return _dt_ms; }
+        /** @brief Activations dropped since the last run; 0 normally. Late runs
+         *  happen ONCE - see Scheduler::TaskTimer. */
+        uint16_t missed() const { return _missed; }
 
         /** @name Wiring (accessible to the derived component)
          *  @{ */
@@ -64,11 +108,27 @@ namespace Botanik {
             : _logger(logger), _name(name) {}
         virtual ~Component() {}
 
+        /** @brief Set the run interval; 0 means every beat. Call it during
+         *  wiring, before the loop starts.
+         *  @note A period should be an integer multiple of the beat, or the
+         *  component fires at the next beat boundary past it (a 100 ms period on
+         *  a 30 ms beat runs every 120 ms). */
+        void set_period(uint32_t period_ms) { _period_ms = period_ms; }
+        /** @brief The configured run interval; 0 = every beat. */
+        uint32_t period_ms() const { return _period_ms; }
+
         /** @brief Advance one beat with the cycle timestamp. Non-virtual so the
-         *  order can't be reordered: first step runs setup() then announce();
-         *  then, if param_serial() changed from the applied value,
-         *  on_param_changed(); then on_step(). */
+         *  order can't be reordered: due check first, then on the first step
+         *  setup() and announce(); then, if param_serial() changed from the
+         *  applied value, on_param_changed(); then on_step().
+         *
+         *  The due check gates the whole body, so a component with a period does
+         *  not poll its config serial on the beats it sits out either. It never
+         *  gates the FIRST step: TaskTimer is always due on its first call, so
+         *  setup() still runs on the first beat whatever the period. */
         void step(uint64_t now_ms) {
+            if (!_timer.due(now_ms, _period_ms, _dt_ms, _missed)) return;
+            _timer.ran(now_ms);
             if (!_started) { _started = true; setup(now_ms); announce(); }
             uint32_t serial = param_serial();
             // Fire on any change from the applied serial. _applied_serial starts
