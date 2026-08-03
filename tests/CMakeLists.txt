@@ -15,6 +15,7 @@ add_executable(botanik_tests
     test_time.cpp
     test_sun.cpp
     test_sizes.cpp
+    test_site_names.cpp
     test_logger.cpp
     test_alarms.cpp
     test_blocks.cpp

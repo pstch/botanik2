@@ -6,10 +6,11 @@
  * @file monitor.h
  * @brief MonitorPage - scrollable table of the site's status variables.
  *
- * The read-only sibling of the PARAMS page: it renders the site's status
- * variable table (the VarGroup[] MQTT telemetry
- * also read) live off the variable tables, one row per variable, grouped.
- * Generic over any VarGroup[] + Bank, so it has no per-variable code.
+ * The read-only sibling of the PARAMS page: every variable except the two kinds
+ * that have a page of their own (parameters, alarms), live off the variable
+ * table, one row per variable, grouped by the prefix of its name. Nothing is
+ * declared per site - naming a variable is what files it - so the page has no
+ * per-variable code and no table to fall out of step with.
  *
  * Layout (row 0 is the terminal status bar, the bottom row the alarm bar); the
  * same bordered shape as the other tables:
@@ -74,8 +75,12 @@ namespace Botanik { namespace Pages {
         /** @name State
          *  @{ */
         Console&            _console;
-        const Vars::VarGroup* _groups;
-        size_t              _group_count;
+        /** @brief Distinct groups discovered from the published rows' names,
+         *  interned so the mode labels can keep pointing at them. Built once,
+         *  lazily: the table does not change after boot. */
+        mutable const char* _group_name[Vars::VAR_GROUPS_MAX] = {};
+        mutable uint8_t     _group_n = 0;
+        mutable bool        _groups_built = false;
         const Vars::Bank*     _io;
         /** @brief A nav happened: redraw on the next tick rather than waiting for
          *  the value cadence, so scrolling/selection feels immediate. */
@@ -85,13 +90,12 @@ namespace Botanik { namespace Pages {
         /** @} */
 
     public:
-        /** @brief @p console owns the content geometry; @p groups names the
-         *  variables to show and @p io is what resolves them (any may be
-         *  null/0 -> empty table). */
-        MonitorPage(Console& console, const Vars::VarGroup* groups, size_t group_count,
+        /** @brief @p console owns the content geometry; @p io is the variable
+         *  table this shows (null -> empty page). */
+        MonitorPage(Console& console,
                     const Vars::Bank* io)
             : ScrollTablePage(console.terminal()), _console(console),
-              _groups(groups), _group_count(group_count), _io(io) {}
+              _io(io) {}
 
         const char* name() const override { return "MONITOR"; }
 
@@ -156,35 +160,44 @@ namespace Botanik { namespace Pages {
          *  the grouping it declared, surfaced as a view rather than a second
          *  concept. SPACE / RIGHT step forward, LEFT back (scroll_table.h).
          *  @{ */
-        uint8_t _mode_count() const override { return (uint8_t)(_group_count + 1); }
+        /** @brief Discover the distinct groups, in table order. */
+        void _ensure_groups() const {
+            if (_groups_built || _io == nullptr) return;
+            _groups_built = true;
+            for (uint16_t i = 0; i < _io->count() && _group_n < Vars::VAR_GROUPS_MAX; i++) {
+                const Vars::Variable& d = *_io->var(i).meta();
+                if (!Vars::var_published(d)) continue;
+                const char* g = Vars::var_group(d);
+                bool seen = false;
+                for (uint8_t k = 0; k < _group_n; k++)
+                    if (std::strcmp(_group_name[k], g) == 0) { seen = true; break; }
+                if (!seen) _group_name[_group_n++] = g;
+            }
+        }
+
+        uint8_t _mode_count() const override { _ensure_groups(); return (uint8_t)(_group_n + 1); }
         const char* _mode_label(uint8_t i) const override {
-            if (i == 0) return "all";
-            return (i <= _group_count) ? _groups[i - 1].topic : "all";
+            _ensure_groups();
+            if (i == 0 || i > _group_n) return "all";
+            return _group_name[i - 1];
         }
         void _on_mode_changed() override { _dirty = true; }
-
-        /** @brief First and one-past-last group index the active mode shows. */
-        size_t _first_group() const { return _mode == 0 ? 0 : (size_t)(_mode - 1); }
-        size_t _last_group() const  { return _mode == 0 ? _group_count : (size_t)_mode; }
         /** @} */
 
-        uint16_t _total() const {
-            size_t t = 0;
-            for (size_t g = _first_group(); g < _last_group(); g++) t += _groups[g].count;
-            return (uint16_t)t;
+        /** @brief Whether row @p i is in the table at all, and in the active
+         *  view. Mode 0 is every published row; mode k is one group. */
+        bool _in_mode(uint16_t i) const {
+            const Vars::Variable& d = *_io->var(i).meta();
+            if (!Vars::var_published(d)) return false;
+            if (_mode == 0) return true;
+            return std::strcmp(Vars::var_group(d), _mode_label(_mode)) == 0;
         }
 
-        /** @brief Resolve variable index @p r to its group + field. */
-        bool _at(uint16_t r, size_t& gi, size_t& fi) const {
-            size_t acc = 0;
-            for (size_t g = _first_group(); g < _last_group(); g++) {
-                if (r < acc + _groups[g].count) {
-                    gi = g; fi = (size_t)(r - acc);
-                    return true;
-                }
-                acc += _groups[g].count;
-            }
-            return false;
+        uint16_t _total() const {
+            if (_io == nullptr) return 0;
+            uint16_t t = 0;
+            for (uint16_t i = 0; i < _io->count(); i++) if (_in_mode(i)) t++;
+            return t;
         }
 
         /** @brief Legend row and bottom rule row. The legend sits one row up
@@ -235,10 +248,17 @@ namespace Botanik { namespace Pages {
         /** @brief The reference for variable @p r; @p ok is false when @p r is
          *  past the end. */
         Vars::VarRef _ref_at(uint16_t r, bool& ok) const {
-            size_t gi = 0, fi = 0;
-            ok = _at(r, gi, fi);
-            if (!ok) { Vars::VarRef none = { Vars::VAR_NONE }; return none; }
-            return _groups[gi].refs[fi];
+            if (_io != nullptr) {
+                uint16_t n = 0;
+                for (uint16_t i = 0; i < _io->count(); i++) {
+                    if (!_in_mode(i)) continue;
+                    if (n == r) { ok = true; Vars::VarRef v = { i }; return v; }
+                    n++;
+                }
+            }
+            ok = false;
+            Vars::VarRef none = { Vars::VAR_NONE };
+            return none;
         }
 
         // Rendering
@@ -294,11 +314,12 @@ namespace Botanik { namespace Pages {
                     snprintf(out, cap, "Modbus dev %u fc %u reg %u",
                              (unsigned)b.device, (unsigned)b.fc, (unsigned)b.reg);
                     break;
-                case Vars::XP_LOCAL_ANALOG:
-                    snprintf(out, cap, "analog channel %u", (unsigned)b.reg);
-                    break;
-                case Vars::XP_LOCAL_DIGITAL:
-                    snprintf(out, cap, "digital channel %u", (unsigned)b.reg);
+                case Vars::XP_LOCAL:
+                    // The wire type is what makes a local channel analog or
+                    // digital; the transport only says it is not Modbus.
+                    snprintf(out, cap, "%s channel %u",
+                             (b.wire == Vars::T_BOOL) ? "digital" : "analog",
+                             (unsigned)b.reg);
                     break;
                 default:
                     snprintf(out, cap, "computed");
@@ -352,8 +373,9 @@ namespace Botanik { namespace Pages {
             // just repeat the badge.
             const char* grp = nullptr;
             if (_mode == 0) {
-                size_t gi = 0, fi = 0;
-                if (_at(_selected, gi, fi)) grp = _groups[gi].topic;
+                bool ok = false;
+                const Vars::VarRef r = _ref_at(_selected, ok);
+                if (ok && _io != nullptr) grp = Vars::var_group(*_io->var(r).meta());
             }
             _draw_mode_line(_footer_row(), grp, nullptr);
             _blank_line((uint16_t)(_footer_row() + 1));   // blank below the legend

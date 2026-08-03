@@ -74,10 +74,28 @@ Writes keep landing in `v` underneath while an override is in force, so the over
 *shadows* rather than replaces: clearing it resumes the live value with no gap and
 nothing to restore. `ovr_valid` is separate because "force this to 20 C" and "make
 this read as a dead sensor" are both needed, and quality is what distinguishes them.
+Set it from the console with `override <name> [<value>] [valid|invalid]`. Note what it
+does not do: the forced value is still what `raw()` returns, so a consumer gating on
+`valid()` sees bad data while one that does not still reads the number. Forcing the
+quality is not the same as simulating the timeout fallback, which substitutes `def`.
 
-Overrides are RAM-only and never persisted, deliberately: one left on across a reboot
-is a fault waiting to happen, and a reboot is exactly what an operator reaches for
-when a machine misbehaves.
+Overrides **are persisted**, under an `ovr.<name>` key of their own so the override and
+the parameter setting beneath it stay separate facts - clearing one leaves the other
+untouched. `Bank::load_overrides()` restores them after `load_params()`, and a restored
+override is announced as a CRITICAL at boot.
+
+That is a deliberate trade, and it cuts the other way too: a maintainer who forced a
+signal to work on the plant should not lose it to a power cut, but a forgotten one now
+survives the reboot someone reaches for when a machine misbehaves. Three things keep
+that honest - the boot CRITICAL, `override list` saying plainly that they survive, and
+`override off` clearing the lot in one command.
+
+@warning `ROLE_OUTPUT` is excluded outright. Control starts disabled, so a restored
+actuator override would sit armed until bring-up enabled control and then fire, from a
+console session long since walked away from - the very hazard `disable_control()`
+releases overrides to avoid. `load_overrides()` drops any stored one rather than
+restoring it, and every release path (`override_clear()`, `clear_overrides()`, a
+control withdrawal) wipes the stored copy in the same breath.
 
 ## `Bank`: the one writer
 
@@ -86,7 +104,8 @@ from the context; nothing gets its own pointer.
 
 | | |
 |---|---|
-| `init()` | seed every variable with its declared default; clear overrides |
+| `init()` | seed every variable with its declared default; clear overrides in RAM (the stored ones survive, for `load_overrides()`) |
+| `load_overrides()` | restore the overrides in force at the last shutdown; skips `ROLE_OUTPUT` |
 | `expire_stale(now_ms)` | invalidate `ROLE_INPUT` rows past their `timeout_ms` |
 | `var(ref)` | make a handle |
 | `find(name, len)` | resolve a name to a `VarRef` |
@@ -126,9 +145,10 @@ That third result matters: a refused *persist* is not a rejected *edit*. The val
 live; it just will not survive a reboot, and the caller must say so rather than
 pretend either success or failure.
 
-`KvParamStore` is one `HAL::Storage` key per parameter, named after the parameter.
-There is no layout to version, so adding, removing or reordering settings cannot
-invalidate the others.
+`KvParamStore` is one `HAL::Storage` key per parameter, named after the parameter, plus
+one `ovr.<name>` key per persisted override. There is no layout to version, so adding,
+removing or reordering settings cannot invalidate the others. The `ovr.` prefix cannot
+collide with a parameter name, because no identifier carries a dot.
 
 Config-driven components read by name (`Vars::get_int` / `get_f32` / `get_str`) and
 re-apply their whole group when its commit serial changes - `group_serial(io, "net")`
@@ -142,6 +162,15 @@ edit would restart the interface through states that were never meant to exist. 
 
 ## Access tables
 
-`vars/access.h` holds the display-side types: `VarGroup` (a sub-topic plus the
-`VarRef`s under it - the unit shared by the MONITOR page, the `get` command and MQTT
-telemetry), `HomeVar` (a home-screen label and ref), and `var_format()`.
+`vars/access.h` holds the display-side rules. There used to be a `VarGroup[]` table
+per site listing which variables belonged to which sub-topic; two properties of the
+row replaced it:
+
+| | |
+|---|---|
+| `var_group(d)` | the group: the variable's name up to the first `_`, interned |
+| `var_published(d)` | on the MONITOR page and in telemetry unless its scope is `P` or `A` |
+
+Naming a variable is what files it, so there is no table to add it to and none to
+forget. What is left declarative is `HomeVar` (a home-screen label and a name - no
+rule derives a caption), and `var_format()` renders any row's value.

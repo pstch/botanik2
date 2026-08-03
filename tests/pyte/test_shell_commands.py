@@ -44,12 +44,20 @@ def test_override(spawn):
     assert term.wait_for("OVERRIDDEN"), "get did not flag the override"
     assert term.wait_for("123.5"), "override value did not reach the reading"
 
-    # A forgotten override must be one command away.
+    # A forgotten override must be one command away, and the listing has to say
+    # that it outlives the session AND the reboot.
     term.send(b"override list" + keys.ENTER)
-    assert term.wait_for("do NOT survive a reboot"), "override list missing"
+    assert term.wait_for("SURVIVE a reboot"), "override list missing"
+
+    # Forcing a variable to read as a dead sensor is a separate job from forcing
+    # its value, and both have to be sayable.
+    term.send(b"override grid_L2_V 99 invalid" + keys.ENTER)
+    assert term.wait_for("reading as invalid"), "validity was not honoured"
 
     # Release it; the live value takes over again.
     term.send(b"override grid_L1_V off" + keys.ENTER)
+    assert term.wait_for("override off"), "override was not released"
+    term.send(b"override grid_L2_V off" + keys.ENTER)
     assert term.wait_for("override off"), "override was not released"
     term.send(b"override list" + keys.ENTER)
     assert term.wait_for("none active"), "override still listed after off"

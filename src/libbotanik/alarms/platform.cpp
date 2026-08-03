@@ -15,19 +15,19 @@ namespace Botanik { namespace Alarms {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
     const AlarmCondition PLATFORM_ALARMS[] = {
-        // These name no variable: each is driven locally via set_local().
-        // VAR_NONE, not {}: a bare index of 0 is a REAL row, so a zeroed ref
-        // would quietly make a platform alarm track the first variable.
-        // code        description                        var  on  off recent latch
-        {"SYS_RST", "alarm_system_reset",  "Reset in the last five minutes",   {Vars::VAR_NONE},  -1,  0},
-        {"CPU_XRUN", "alarm_cpu_xrun", "Scheduler overrun (skipped beat)", {Vars::VAR_NONE},   0, -1,   0,     0},
-        {"CPU_LOAD", "alarm_cpu_load", "CPU load over threshold",          {Vars::VAR_NONE},   5,  5,   0,     300},
-        {"STACK", "alarm_stack",    "Stack usage over threshold",       {Vars::VAR_NONE},   5,  5,   0,     300},
-        {"CPU_JITT", "alarm_cpu_jitter", "CPU jitter over threshold",        {Vars::VAR_NONE},   5,  5,   0,     300},
+        // These read no variable: each is driven locally via set_local(),
+        // and the model leaves their resolved ref at VAR_NONE. The name is
+        // still their identity - it is what `alarms ack` and the pages key on.
+        // code         variable                description                            on  off  rec latch
+        {"SYS_RST",   "alarm_system_reset", "Reset in the last five minutes",    -1,  0},
+        {"CPU_XRUN",  "alarm_cpu_xrun",     "Scheduler overrun (skipped beat)",   0, -1,   0,   0},
+        {"CPU_LOAD",  "alarm_cpu_load",     "CPU load over threshold",            5,  5,   0, 300},
+        {"STACK",     "alarm_stack",        "Stack usage over threshold",         5,  5,   0, 300},
+        {"CPU_JITT",  "alarm_cpu_jitter",   "CPU jitter over threshold",          5,  5,   0, 300},
         // Sticky: a store that refused a write does not heal by itself, and
         // the consequence (settings silently reverting at the next reboot) is
         // invisible until it is far too late to connect cause and effect.
-        {"FLASH_FLT", "alarm_flash_error","Persistent storage write failed", {Vars::VAR_NONE}, 0, -1,   0,     0,  0,
+        {"FLASH_FLT", "alarm_flash_error",  "Persistent storage write failed",    0, -1,   0,   0, 0,
          "settings will not survive a reboot; check the KV region"},
     };
     const uint8_t PLATFORM_ALARM_COUNT =

@@ -15,6 +15,8 @@
 
 #include "doctest.h"
 
+#include "libbotanik/vars/declare.h"
+
 #include "libbotanik/alarms/alarms.h"
 #include "libbotanik/pages/alarms.h"
 #include "libbotanik/console/terminal.h"
@@ -32,18 +34,22 @@ namespace {
         m.step(now);
     }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-    // Four always-recent conditions (recent_s < 0 never expires), logging/notify
-    // off. Fields: code, desc, offset (0; driven via set_local), on_s, off_s,
-    // recent_s, off_delay_s.
-    const Alarms::AlarmCondition TABLE[] = {
-        { "AAA", "aaa", "alarm A", {}, -1, -1, -1, 0 },
-        { "BBB", "bbb", "alarm B", {}, -1, -1, -1, 0 },
-        { "CCC", "ccc", "alarm C", {}, -1, -1, -1, 0 },
-        { "DDD", "ddd", "alarm D", {}, -1, -1, -1, 0 },
+    // Four always-recent alarms (recent_s < 0 never expires), logging/notify
+    // off. Declared as SCOPE_A rows, the way a site declares one; the model
+    // finds them by scanning the bank. Driven here via set_local().
+    const Vars::Variable TABLE[] = {
+        Vars::A("aaa", "AAA", -1, -1, -1, 0, 0, "alarm A", ""),
+        Vars::A("bbb", "BBB", -1, -1, -1, 0, 0, "alarm B", ""),
+        Vars::A("ccc", "CCC", -1, -1, -1, 0, 0, "alarm C", ""),
+        Vars::A("ddd", "DDD", -1, -1, -1, 0, 0, "alarm D", ""),
     };
-#pragma GCC diagnostic pop
+
+    /** @brief Bind a row table to a value store, as a site's descriptor does. */
+    inline Vars::VarTables make_tables(const Vars::Variable* v, Vars::Value* val, uint16_t n) {
+        Vars::VarTables t = {};
+        t.var = v; t.val = val; t.count = n;
+        return t;
+    }
 
     // AnsiTerminal + AlarmModel over a pipe; drains TX into a captured string.
     struct RenderFixture {
@@ -52,6 +58,8 @@ namespace {
         Utils::BufferedSerial  serial;
         uint64_t               now = 0;
         Terminal::Console      console;
+        Vars::Value            vals[4]{};
+        Vars::Bank             bank;
         Alarms::AlarmModel     model;
         Pages::AlarmsPage      page;
 
@@ -61,7 +69,8 @@ namespace {
             : serial(&raw),
               // Very high baud so the cooperative TX floor never throttles a paint.
               console(serial, 80, rows, &now, 4000000u),
-              model(TABLE, 4, nullptr),
+              bank(make_tables(TABLE, vals, 4)),
+              model(&bank, nullptr),
               page(console, &model) {
             REQUIRE(::pipe(fds) == 0);
             ::fcntl(fds[0], F_SETFL, O_NONBLOCK);   // read end never blocks

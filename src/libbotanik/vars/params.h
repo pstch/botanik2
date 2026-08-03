@@ -24,15 +24,18 @@
 
 namespace Botanik { namespace Vars {
 
-    /** @brief A ParamStore over HAL::Storage: one key per parameter, named for
+    /** @brief A VarStore over HAL::Storage: one key per parameter, named for
      *  it, holding the narrow value bytes.
      *
      *  Per key rather than one blob so that adding, removing or reordering a
      *  parameter cannot invalidate the others - there is no layout to version. */
-    class KvParamStore : public ParamStore {
+    class KvParamStore : public VarStore {
     public:
         bool load(const Variable& d, Value& v, char* pool) override;
         bool save(const Variable& d, const Value& v, const char* pool) override;
+        bool load_override(const Variable& d, Value& v) override;
+        bool save_override(const Variable& d, const Value& v) override;
+        bool clear_override(const Variable& d) override;
     };
 
     /**
@@ -47,13 +50,16 @@ namespace Botanik { namespace Vars {
     public:
         /** @brief Binds @p store to @p io: the bank is what actually reads and
          *  writes variables (set() included), so it is what holds the store. */
-        Params(Bank* io, ParamStore* store, Logs::Logger* logger)
+        Params(Bank* io, VarStore* store, Logs::Logger* logger)
             : Component(logger, "Params"), _io(io) {
             if (_io != nullptr) _io->set_store(store, logger);
         }
 
         /** @name Access
          *  @{ */
+        /** @brief The bank behind this view - what resolves a calibration's
+         *  parameter names. May be null. */
+        const Bank* bank() const { return _io; }
         uint16_t count() const { return _io != nullptr ? _io->param_count() : 0; }
         /** @brief The @p k-th parameter, 0-based over the block. */
         Var      param(uint16_t k) const { return _io->param(k); }
@@ -91,6 +97,63 @@ namespace Botanik { namespace Vars {
     /** @brief A config group's commit serial: the parameter named
      *  "<group>_serial". A component re-applies its group when this changes. */
     uint32_t    group_serial(const Bank* io, const char* group);
+
+    /** @} */
+
+    /** @name Analog calibration
+     *
+     *  Resolving an AnalogCal needs the bank, because most of its fields name a
+     *  parameter. That is why it lives here rather than beside the declaration:
+     *  declaring a calibration and reading one are different jobs.
+     *  @{ */
+
+    /** @brief One tunable's live value: its constant, or the parameter it names
+     *  (falling back to that constant when the parameter is absent). */
+    float tunable(const Bank* io, const Tunable& t);
+
+    /** @brief An analog channel's six numbers, resolved now.
+     *
+     *  Read them together rather than one at a time: they are used together,
+     *  and a driver that re-read each field per sample would pay six name
+     *  lookups where one call pays six. */
+    struct AnalogValues {
+        float raw_min, raw_max;
+        float eng_min, eng_max;
+        float min, max;
+        /** @brief Slope of the raw-to-engineering conversion. 0 for a degenerate
+         *  calibration (both raw endpoints equal), which would otherwise divide
+         *  by zero and hand the control programs an infinity. */
+        float scale() const {
+            const float span = raw_max - raw_min;
+            return (span == 0.0f) ? 0.0f : (eng_max - eng_min) / span;
+        }
+        /** @brief Intercept, so `eng = raw * scale() + offset()`. */
+        float offset() const { return eng_min - raw_min * scale(); }
+        /** @brief Convert a raw wire reading to engineering units. */
+        float to_eng(float raw) const { return raw * scale() + offset(); }
+        /** @brief The inverse, for an analog OUTPUT: engineering units to the
+         *  raw count to write. Returns raw_min for a degenerate calibration. */
+        float to_raw(float eng) const {
+            const float sc = scale();
+            return (sc == 0.0f) ? raw_min : (eng - offset()) / sc;
+        }
+        /** @brief Whether @p eng is inside the plausibility band. */
+        bool plausible(float eng) const { return eng >= min && eng <= max; }
+    };
+
+    /** @brief Resolve @p c against @p io. A null block reads as all zeros, so a
+     *  caller that forgot to check gets an inert calibration rather than
+     *  garbage. */
+    AnalogValues analog_values(const Bank* io, const AnalogCal* c);
+
+    /** @brief @p d's live min/max, whatever kind of row it is: an analog row's
+     *  band comes from its calibration (and may be operator-editable), every
+     *  other row's from the flash constants.
+     *
+     *  Everything that DISPLAYS a band must come through here. Reading
+     *  num_band() directly would show an analog row the firmware defaults while
+     *  the operator is looking at the numbers they just changed. */
+    NumBand var_band(const Bank* io, const Variable& d);
 
     /** @} */
 

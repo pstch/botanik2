@@ -33,6 +33,10 @@
 
 #include "libbotanik_site.h"     // BOTANIK_SITE -> BOTANIK_SITE_CONFIG/HEADER
 
+// The site's config.h, pulled in before the defaults below so a site can override
+// any of them build-wide. It is included here with NONE of the library in scope,
+// which is exactly why it is its own small file and not part of the site's
+// site.h: that one needs the library types, and this one cannot have them.
 #if defined(BOTANIK_SITE_CONFIG)
 #  include BOTANIK_SITE_CONFIG   // #define BOTANIK_* before the defaults
 #endif

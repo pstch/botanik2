@@ -11,7 +11,7 @@
  * Config::MQTT_TELEMETRY_TOPIC, prefix supplied at construction). Each cycle
  * publishes the library base set (uptime, CPU load/jitter, stack - read from
  * the SystemContext) under "system", then every site variable group registered
- * through set_site_scalar_groups(), resolved against the variable model.
+ * through set_variables(), grouped by the prefix of each name.
  *
  * Non-blocking: a cycle that the link can't absorb is simply skipped (the next
  * one retries); nothing is queued.
@@ -27,7 +27,7 @@
 
 namespace Botanik { namespace Network {
 
-    // Vars::VarGroup / VarRef (the status-variable descriptor table) live in
+    // Vars::var_published / var_group (what goes out, and under what) live in
     // vars/access.h, so non-network consumers (the MONITOR page)
     // read them without the MqttSender. Published here.
 
@@ -42,12 +42,11 @@ namespace Botanik { namespace Network {
         const char*           _prefix;
         /** @brief Live system status the base fields read. */
         const SystemContext*  _sys;
-        /** @brief Site variable groups (set_site_scalar_groups), each published
-         *  under its own sub-topic, resolved against _io; null until a site
-         *  registers them. */
-        const Vars::VarGroup* _groups       = nullptr;
-        size_t                _group_count  = 0;
-        const Vars::Bank*       _io           = nullptr;
+        /** @brief The variable table this publishes from; null until a site
+         *  registers it. Which rows go out, and under what sub-topic, are
+         *  properties of the rows themselves - see Vars::var_published() and
+         *  Vars::var_group(). */
+        const Vars::Bank*     _io          = nullptr;
         /** @brief Last publish cycle (uptime ms); 0 = none yet. */
         uint64_t              _last_ms     = 0;
 
@@ -59,16 +58,11 @@ namespace Botanik { namespace Network {
         MqttSender(MqttClient* mqtt, const SystemContext* sys, const char* prefix)
             : _mqtt(mqtt), _prefix(prefix), _sys(sys) {}
 
-        /** @brief Register the site's variable groups, each published under its
-         *  own sub-topic and rendered generically by resolving its VarRefs
-         *  against @p io. Both must outlive the firmware. Pass count 0 (or
-         *  null) to clear. */
-        void set_site_scalar_groups(const Vars::VarGroup* groups, size_t count,
-                                    const Vars::Bank* io) {
-            _groups      = groups;
-            _group_count = (groups != nullptr) ? count : 0;
-            _io          = io;
-        }
+        /** @brief Register the variable table to publish from. It must outlive
+         *  the firmware; null clears. Every published row goes out under
+         *  "<prefix>/telemetry/<group>/<name>", where the group is the prefix of
+         *  the name - there is no per-site list to register or to forget. */
+        void set_variables(const Vars::Bank* io) { _io = io; }
 
         /** @brief Publish every base + site field once
          *  Config::MQTT_TELEMETRY_PERIOD_MS has elapsed and the link is

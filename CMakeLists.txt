@@ -132,10 +132,10 @@ set_source_files_properties(
     PROPERTIES COMPILE_FLAGS "-Wdouble-promotion")
 
 # Site resolution: the site DIRECTORY is the single source of truth. We resolve it
-# to two absolute paths and forward those PUBLIC on the library, so the site's files
-# are found by full path and nothing has to sit on the include path (a flat site dir
-# carries names like config.h / status.h / alarms.h, which we must not let shadow
-# anyone else's headers - notably Mbed's on the OPTA build).
+# to an absolute path and forward it PUBLIC on the library, so the site's files are
+# found by full path and nothing has to sit on the include path (a flat site dir
+# carries names like config.h / vars.h, which we must not let shadow anyone else's
+# headers - notably Mbed's on the OPTA build).
 #
 # Site-internal includes are RELATIVE ("payload.h", not "sites/<name>/payload.h"),
 # which is what makes an out-of-tree site work: a quoted include resolves against
@@ -144,7 +144,8 @@ set_source_files_properties(
 #
 # config.h carries the build-wide Config overrides libbotanik_config.h #includes
 # before its #ifndef defaults, so libbotanik's own TUs and every consumer compile
-# against the same values.
+# against the same values. It is separate from site.h because it is read with none
+# of the library in scope.
 # ABI guard: any TU that includes libbotanik_config.h MUST link `botanik` so it picks
 # up these PUBLIC defines transitively; a TU that includes the header without linking
 # the library would silently compile against the un-overridden defaults and mismatch

@@ -16,6 +16,7 @@
 
 #include "libbotanik/vars/model.h"
 #include "libbotanik/vars/params.h"
+#include "libbotanik/vars/declare.h"
 
 namespace botanik_test {
 
@@ -23,23 +24,11 @@ namespace botanik_test {
         static const uint16_t CAP = 64;
 
         #define FX_NUM(nm, t, dflt) \
-            { Botanik::Vars::Scalar::U(0), Botanik::Vars::Scalar::U(1000000000), \
-              Botanik::Vars::Scalar::U(dflt), nm, "", "", nullptr, nullptr, \
-              { Botanik::Vars::XP_NONE, t, 0, 0, 0, 0, 1.0f, 0.0f }, \
-              0, 0, 0, t, Botanik::Vars::ROLE_PARAM, 0, Botanik::Vars::STR_NONE, \
-              Botanik::Vars::F_BOUNDED, {} }
-        #define FX_STR(nm, off) \
-            { Botanik::Vars::Scalar::U(0), Botanik::Vars::Scalar::U(0), \
-              Botanik::Vars::Scalar::S(""), nm, "", "", nullptr, nullptr, \
-              { Botanik::Vars::XP_NONE, Botanik::Vars::T_STR, 0, 0, 0, 0, 1.0f, 0.0f }, \
-              0, off, CAP, Botanik::Vars::T_STR, Botanik::Vars::ROLE_PARAM, 0, \
-              Botanik::Vars::STR_NONE, 0, {} }
+            Botanik::Vars::P(nm, t, dflt, 0, 1000000000, 0, "", 0, "", "")
+        #define FX_STR(nm, slot) \
+            Botanik::Vars::PS(nm, "", CAP, Botanik::Vars::STR_NONE, slot, "", "")
         #define FX_F32(nm) \
-            { Botanik::Vars::Scalar::F(-180.0f), Botanik::Vars::Scalar::F(180.0f), \
-              Botanik::Vars::Scalar::F(0.0f), nm, "deg", "", nullptr, nullptr, \
-              { Botanik::Vars::XP_NONE, Botanik::Vars::T_F32, 0, 0, 0, 0, 1.0f, 0.0f }, \
-              0, 0, 0, Botanik::Vars::T_F32, Botanik::Vars::ROLE_PARAM, 4, \
-              Botanik::Vars::STR_NONE, Botanik::Vars::F_BOUNDED, {} }
+            Botanik::Vars::P(nm, Botanik::Vars::T_F32, 0, -180, 180, 4, "deg", 0, "", "")
 
         static const Botanik::Vars::Variable* table(uint16_t* n) {
             using namespace Botanik::Vars;
@@ -70,7 +59,6 @@ namespace botanik_test {
             VarTables t = {};
             t.var = v; t.val = _vals; t.count = n;
             t.pool = _pool; t.pool_bytes = (uint16_t)sizeof(_pool);
-            t.param_first = 0; t.param_count = n;
             _bank = Bank(t);
             _bank.init();
         }
@@ -88,9 +76,11 @@ namespace botanik_test {
             using namespace Botanik::Vars;
             const VarRef r = _bank.find(name);
             if (r.index == VAR_NONE) return;
-            const Variable* d = _bank.var(r).meta();
-            std::strncpy(_pool + d->str_off, text, CAP - 1);
-            _pool[d->str_off + CAP - 1] = 0;
+            // Where the slot sits is Bank::init()'s business now, so ask the
+            // handle rather than the descriptor.
+            const uint16_t off = _bank.var(r).str_off();
+            std::strncpy(_pool + off, text, CAP - 1);
+            _pool[off + CAP - 1] = 0;
         }
         /** @} */
 

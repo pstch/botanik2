@@ -8,32 +8,45 @@ target.
 
 | File | Origin | Holds |
 |---|---|---|
-| `botanik.h` | generated | the only file that knows where `libbotanik` sits |
-| `vars.h`, `vars.cpp` | generated | every variable in one table, plus its value store and string pool |
-| `status.h` | generated | display groups and home-screen readings |
-| `alarms.h` | generated | the alarm-condition table |
-| `descriptor.h` | generated | the one `SiteDescriptor` bundling them |
-| `config.h` | generated or hand-written | `#define BOTANIK_*` build-wide overrides |
-| `commands.h` | hand-written | extra shell commands |
+| `vars.h` | generated | everything declarative: every variable in one table, the analog calibration blocks, the home-screen readings, and the value store + string pool |
 | `tasks.h` | hand-written | the control programs |
 | `sim.h` | hand-written | the simulated field, for the simulator |
-| `site.h` | hand-written | the firmware binding and the uniform handle |
+| `config.h` | hand-written | `#define BOTANIK_*` build-wide overrides |
+| `site.h` | hand-written | the shell commands, the `SiteDescriptor` bundling every table, the firmware binding and the uniform handle |
 
-The generated half is schema; the hand-written half is code. Only four files are
-yours to write, and `site.h` is a dozen lines.
+The generated half is schema; the hand-written half is code. Four files are yours to
+write.
 
-@warning **All intra-site includes are bare sibling names**, and the library is
-reached only through `botanik.h`. This is load-bearing, not style: the Arduino PLC
-IDE adds no include directory inside a sketch folder, so quoted-relative resolution
-is the only mechanism that works there. `botanik.h` is the single file to
-regenerate if you relocate the directory.
+@note A site is **five files**: `vars.h` (everything declarative), `site.h` (the
+commands, the descriptor and the binding), `tasks.h` and `sim.h` (the behaviour), and
+`config.h`. Everything else that used to be its own file has folded in - the alarm
+table (an alarm is a `SCOPE_A` row), the status groups (a group is a name prefix), the
+home fields, the value store, the descriptor and the commands.
+
+`config.h` stays separate, and the reason is ordering rather than content:
+`libbotanik_config.h` reads it before its own `#ifndef` defaults, with none of the
+library in scope. It can be folded into `site.h` behind a pass macro so the same file
+answers both questions, but a header that is deliberately enterable twice is a lot of
+machinery for five `#define`s.
+
+@warning Intra-site includes are bare sibling names (`vars.h`, `tasks.h`); the
+library is reached as `libbotanik.h`, which resolves against the build's include
+root. The sibling rule is load-bearing rather than style: the Arduino PLC IDE adds
+no include directory inside a sketch folder, so quoted-relative resolution is the
+only mechanism that works there for the site's own files.
 
 ## The binding
 
 `site.h` is the whole firmware class:
 
 ```cpp
-#include "descriptor.h"
+const Botanik::SiteDescriptor g_site = {
+    Botanik::Config::SITE_NAME,
+    g_commands,    g_command_count,
+    g_home_fields, g_home_field_count, g_home_refs,
+    SITE_VAR_TABLES,
+    g_tasks,       g_task_count,       g_task_stats,
+};
 
 class GreenhouseXXX final : public Botanik::BotanikFirmware {
 public:
@@ -118,7 +131,7 @@ target_compile_definitions(botanik PUBLIC
 ```
 
 Nothing is added to the include path. That is deliberate: flat site filenames like
-`config.h` and `status.h` must not be able to shadow the platform's own headers.
+`config.h` must not be able to shadow the platform's own headers.
 
 @warning Those defines are `PUBLIC` for a reason. **Any target that includes
 `libbotanik_config.h` must link `botanik`**, or it silently compiles against

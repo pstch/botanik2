@@ -11,19 +11,15 @@ The whole handoff to the library. Field order:
 |---|---|---|
 | 1 | `name` | `const char*` - must equal `Config::SITE_NAME` |
 | 2-3 | `commands`, `command_count` | `const Shell::ShellCommand*`, `uint8_t` |
-| 4-5 | `status_groups`, `status_group_count` | `const Vars::VarGroup*`, `uint8_t` |
-| 6-7 | `home_fields`, `home_field_count` | `const Vars::HomeVar*`, `uint8_t` |
-| 8-9 | `alarms`, `alarm_count` | `const Alarms::AlarmCondition*`, `uint8_t` |
-| 10 | `vars` | `Vars::VarTables` - **by value** |
-| 11-13 | `tasks`, `task_count`, `task_stats` | `const Scan::Task*`, `uint8_t`, `Scan::TaskStats*` |
+| 6-8 | `home_fields`, `home_field_count`, `home_refs` | `const Vars::HomeVar*`, `uint8_t`, `Vars::VarRef*` |
+| 9 | `vars` | `Vars::VarTables` - **by value**; alarms are `SCOPE_A` rows in here |
+| 10-12 | `tasks`, `task_count`, `task_stats` | `const Scan::Task*`, `uint8_t`, `Scan::TaskStats*` |
 
 ```cpp
 const Botanik::SiteDescriptor g_site = {
     Botanik::Config::SITE_NAME,
     g_commands,      g_command_count,
-    g_status_groups, g_status_group_count,
-    g_home_fields,   g_home_field_count,
-    g_alarms,        g_alarm_count,
+    g_home_fields,   g_home_field_count,   g_home_refs,
     SITE_VAR_TABLES,
     g_tasks,         g_task_count,   g_task_stats,
 };
@@ -36,72 +32,84 @@ the firmware - site statics, not locals.
 would stop it being a C++11 aggregate, and the descriptor would no longer
 constant-initialise into flash.
 
-## Status groups and home fields
+## Home fields
 
 ```cpp
-struct VarGroup { const char* topic; const VarRef* refs; uint16_t count; };
-struct HomeVar  { const char* label; VarRef ref; };
+struct HomeVar { const char* label; const char* name; };
 ```
 
-One `VarGroup` table, three consumers: the MONITOR page, the shell's `get`, and MQTT
-telemetry (published as `<prefix>/<telemetry>/<topic>/<name>`, where the leaf is the
-variable's own `name`). There is no second place where names must be kept in sync.
+The **only** declarative variable table left, because it is the only one no rule
+derives: "Line V" is a caption a person chose for `grid_LN_V`, and nothing in the name
+says the row belongs on the landing page or where.
 
 ```cpp
-const VarRef g_grp_power[] = { {V_PWR_LN_V}, {V_PWR_LL_V}, {V_PWR_HZ}, ... };
-
-#define GRP(nm) { #nm, g_grp_##nm, sizeof(g_grp_##nm)/sizeof(g_grp_##nm[0]) }
-const VarGroup g_status_groups[] = { GRP(power), GRP(ats), GRP(climate), ... };
-```
-
-Home fields are the landing-page readings, laid out in three columns of eight,
-filled column-major. Column 1 holds only six - its top two cells go to the uptime
-readout and a spacer - so the cap is **22**. Labels are truncated at 11 characters,
-values at 13.
-
-```cpp
-const HomeVar g_home_fields[] = { { "Line V", { V_PWR_LN_V } }, ... };
+const HomeVar g_home_fields[] = { { "Line V", "grid_LN_V" }, ... };
+extern VarRef g_home_refs[];   // defined in vars.cpp, resolved at bring-up
 
 static_assert(g_home_field_count <= Config::HOME_FIELDS_MAX,
               "too many home fields: the extras would be silently dropped");
 ```
 
+Laid out in three columns of eight, filled column-major. Column 1 holds only six - its
+top two cells go to the uptime readout and a spacer - so the cap is **22**. Labels are
+truncated at 11 characters, values at 13.
+
+## Status groups: there aren't any
+
+There used to be a `VarGroup[]` per site: one `VarRef[]` per domain plus a table
+listing them. It was 72 rows restating what the names already said, and forgetting to
+add a new variable to its group meant it silently never appeared on the MONITOR page
+or in telemetry.
+
+Two rules replace it, both properties of the row:
+
+| | |
+|---|---|
+| `Vars::var_group(d)` | the variable's group: its name up to the first `_`. `grid_LN_V` is in `grid`. |
+| `Vars::var_published(d)` | whether it is on the MONITOR page and in MQTT telemetry: true unless its scope is `P` (the PARAMS page owns it) or `A` (the ALARMS page does). |
+
+So naming a variable is what files it. MQTT publishes to
+`<prefix>/telemetry/<group>/<name>`, and a new variable is on the broker as soon as it
+exists. The failure mode inverts too: a row shows up uninvited, which someone notices,
+rather than never appearing, which nobody does.
+
+@note The MONITOR table's rows follow the **variable table's own order** now that no
+group table imposes one. Groups stay contiguous because the table is grouped by role,
+but their order is the table's.
+
 ## Alarm conditions
 
-Each condition names the boolean variable that carries it. The model reads that
-variable each beat, applies the dwell policy, and announces transitions - there is no
-aggregate bitset anywhere.
-
-The static metadata a site fills, in order:
-
-| # | Field | Type | Meaning |
-|---|---|---|---|
-| 1 | `code` | `const char*` | short code, max 8 chars |
-| 2 | `desc` | `const char*` | human-readable description |
-| 3 | `ref` | `Vars::VarRef` | the boolean carrying the condition |
-| 4 | `on_s` | `int32_t` | seconds ON before announcing (-1 disables) |
-| 5 | `off_s` | `int32_t` | seconds OFF before announcing (-1 disables) |
-| 6 | `recent_s` | `int32_t` | the "recent" filter window (0 = one week, <0 = never expires) |
-| 7 | `off_delay_s` | `int32_t` | hold ON this long after the raw signal clears |
-| 8 | `min_on_s` | `int32_t` | minimum ON time from onset |
-| 9 | `notes` | `const char*` | remediation text, may be null |
+There is no alarm table. An alarm is a **row in the variable table**, declared with
+`A()`, carrying both the boolean that raises it and the policy the model runs it on:
 
 ```cpp
-{"AC_GRID", "Grid AC out-of-spec/offline", {V_ALARM_AC_GRID}, 2, 2, 0, 0, 10,
- "check mains breaker / utility feed"},
+//name              code        on off recent delay minOn description                    remediation
+A("alarm_ac_grid",  "AC_GRID",  2, 2,  0,     0,    10,   "Grid AC out-of-spec/offline", "check mains breaker"),
+A("alarm_too_hot",  "TOO_HOT",  3, 3,  0,     0,    15,   "Inside temperature too high", "increase ventilation"),
 ```
 
-A dynamic suffix follows, which the model owns and the site leaves zeroed - hence
-the `-Wmissing-field-initializers` suppression around the table. `notes` is last in
-the static block precisely so rows that stop earlier still zero-initialise it.
+| Argument | Meaning |
+|---|---|
+| `name` | the variable; a control program drives it, the model reads it |
+| `code` | short display code, max 8 chars - the ALARMS table's first column and the alarm bar |
+| `on_s` / `off_s` | dwell before a START / END is announced; `-1` never announces that edge |
+| `recent_s` | RECENT filter window (0 = the default week, `<0` = never expires) |
+| `off_delay_s` | hold ON this long after the raw bit clears |
+| `min_on_s` | minimum ON time from onset |
+| `desc` | shown in the ALARMS table |
+| `notes` | the remediation line, shown under the table when the alarm is selected. Write it - it is the one place to say something specific to the real installation |
 
-Write the `notes`. It is what the operator reads on the ALARMS page when the alarm
-fires, and it is the one place to say something specific to the real installation.
+`AlarmModel` builds its working conditions by scanning the bank for `SCOPE_A` rows
+**in table order**, so condition *i* reads row *i*. That removes the whole class of
+drift where an alarm table's row order and the variable it named had to be kept in
+step by hand.
 
-```cpp
-static_assert(g_alarm_count <= Config::SITE_ALARMS_MAX,
-              "too many site alarms: the tail would be clamped and never fire");
-```
+The policy lives in the `Payload` union's alarm arm, which fits inside the 16 bytes
+a numeric band already costs - so carrying it on the row is free.
+
+@note The generic platform-health alarms (`alarms/platform.h`) stay a separate const
+table, appended after the site's. They name no variable at all - they are driven by
+`set_local()` from the scheduler metrics - so there is no site row to put them in.
 
 ## Shell commands
 

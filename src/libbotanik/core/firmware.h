@@ -49,17 +49,13 @@
  * Worked example (the common case: no custom code, just the descriptor):
  * @code
  * // --- site-static tables (single source of truth for this greenhouse) ---
- * const Alarms::AlarmCondition g_alarms[] = { ... };  // code, desc, ref, dwell
- * const Vars::VarGroup         g_status[] = { ... };  // status variables
  * const Vars::HomeVar          g_home[]   = { ... };  // home-screen readings
  * const Shell::ShellCommand    g_cmds[]   = { ... };  // site shell commands
  * const Scan::Task             g_tasks[]  = { ... };  // control programs
  * const SiteDescriptor g_site = {
  *     Config::SITE_NAME,
  *     g_cmds,   1,
- *     g_status, 7,
  *     g_home,   13,
- *     g_alarms, 23,
  *     SITE_VAR_TABLES,                     // descriptors + values + string pool
  *     g_tasks,  2, g_task_stats,
  * };
@@ -94,11 +90,9 @@ namespace Botanik {
      *
      * The tables are meant to be generated:
      *   - @c commands      - site shell commands (Shell::ShellCommand).
-     *   - @c status_groups - read-only status variables (Vars::VarGroup: a
-     *                        sub-topic plus the VarRefs it publishes).
      *   - @c home_fields   - home-screen readings (Vars::HomeVar).
-     *   - @c alarms        - alarm conditions (Alarms::AlarmCondition: code,
-     *                        desc, the boolean variable it reads, dwell policy).
+     *   - alarms are NOT a table here: each is a SCOPE_A row in @c vars,
+     *     carrying its code and dwell policy, and the AlarmModel scans for them.
      *   - @c vars          - the variable tables themselves (Vars::VarTables);
      *                        parameters are the ROLE_PARAM rows within them.
      *   - @c tasks         - the control programs (Scan::Task) + their stats.
@@ -110,12 +104,12 @@ namespace Botanik {
         const char*                   name;                ///< == Config::SITE_NAME
         const Shell::ShellCommand*    commands;            ///< site shell commands
         uint8_t                       command_count;
-        const Vars::VarGroup* status_groups;       ///< status-variable table
-        uint8_t                       status_group_count;
         const Vars::HomeVar* home_fields;         ///< home-screen readings
         uint8_t                       home_field_count;
-        const Alarms::AlarmCondition* alarms;              ///< alarm-condition table
-        uint8_t                       alarm_count;
+        /** @brief Where the home fields' names resolve to, filled at bring-up.
+         *  Site-owned and must hold @c home_field_count entries. Parallel to
+         *  the table above so the labels stay in flash. */
+        Vars::VarRef*                 home_refs;
         /** @brief Field IO: the variable tables bound to their value stores.
          *  A site with no variables passes a default-constructed VarTables.
          *  (No default member initialisers here: in C++11 an NSDMI would stop
@@ -215,10 +209,9 @@ namespace Botanik {
               _param_store(),
               _params(&_io, &_param_store, &_logger),
               _scan(site.tasks, site.task_count, site.task_stats, &_io, &_logger),
-              // Site alarm conditions resolve against the variable tables;
-              // platform-health alarms are driven locally either way.
-              _health(_site.alarms, _site.alarm_count, &_logger,
-                      _scheduler.context(), &_io)
+              // The alarm model scans the variable table for SCOPE_A rows;
+              // platform-health alarms are appended and driven locally.
+              _health(&_logger, _scheduler.context(), &_io)
               , _sys_ctx()   // fields wired in the body, once addresses are known
 #if BOTANIK_FEATURE_MONITOR
               , _monitor(&_logger)
@@ -234,10 +227,9 @@ namespace Botanik {
                          &_health.model(), &_logger)
               // Base-owned pages, built from the descriptor + the live payload.
               , _home_page(_console.terminal(), _site.home_fields,
-                           _site.home_field_count, &_io)
+                           _site.home_field_count, &_io, _site.home_refs)
               , _params_page(_console.terminal(), &_params)
-              , _monitor_page(_console.terminal(), _site.status_groups,
-                              _site.status_group_count, &_io)
+              , _monitor_page(_console.terminal(), &_io)
 #endif
         {
             // Wire the status aggregate now every subsystem address is fixed,
@@ -274,6 +266,13 @@ namespace Botanik {
             // Seed every variable with its declared default, so a value read
             // before any driver has spoken is the default rather than zero.
             _io.init();
+            // Bind the site's declarative tables to the variable table. They
+            // name their rows rather than indexing them, so this is where a
+            // name becomes an index - once, here, because the lookup is a
+            // linear scan and no renderer should pay for it per frame. A name
+            // with no row lands on the sink and is counted (and logged) by the
+            // bank, which is what the site test asserts is zero.
+            _resolve_site_refs();
 #if BOTANIK_FEATURE_CONSOLE
             HAL::Serial::get(HAL::Serial::CONSOLE)->begin(_console_baud);
 #endif
@@ -545,8 +544,7 @@ namespace Botanik {
          *  base set each cycle. Default: the descriptor's status-variable
          *  groups, resolved generically against the live variable tables. */
         virtual void register_telemetry() {
-            telemetry().set_site_scalar_groups(_site.status_groups,
-                                                _site.status_group_count, &_io);
+            telemetry().set_variables(&_io);
         }
 #endif
 
@@ -561,6 +559,16 @@ namespace Botanik {
         virtual void on_step(uint64_t now_ms) { (void)now_ms; }
 
         /** @} */
+
+    private:
+        /** @brief Resolve every name the site's tables declare into the ref
+         *  arrays they carry alongside. The alarm table binds itself when the
+         *  model copies it, so it is not repeated here. */
+        void _resolve_site_refs() {
+            if (_site.home_refs != nullptr && _site.home_fields != nullptr)
+                for (uint8_t i = 0; i < _site.home_field_count; i++)
+                    _site.home_refs[i] = _io.find(_site.home_fields[i].name);
+        }
     };
 
 }  // namespace Botanik

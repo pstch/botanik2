@@ -10,44 +10,30 @@
 
 #include "libbotanik/utils/text.h"
 #include "libbotanik/vars/model.h"
+#include "libbotanik/vars/declare.h"
 
 using namespace Botanik;
 using namespace Botanik::Vars;
 
 namespace {
-    // Shorthands so a row reads like the generated tables will.
-    #define BIND_NONE   { XP_NONE, T_U8, 0, 0, 0, 0, 1.0f, 0.0f }
-    #define BIND_MODBUS { XP_MODBUS, T_F32, 5, 3, 18, 2, 1.0f, 0.0f }
-    #define BIND_COIL   { XP_LOCAL_DIGITAL, T_BOOL, 31, 5, 0, 1, 1.0f, 0.0f }
-
     enum Id : uint16_t {
         V_EXT_TEMP, V_NO_TIMEOUT, V_VALVE, V_ALARM_HOT, V_SETPOINT,
         V_NTP_POLL, V_NTP_SERVER, V_COUNT
     };
 
-    // One table, every role and several types - the shape the site will have.
+    // One table, every scope and several types - the shape a site has. Each row
+    // is the factory for its scope, so a row cannot carry a field its kind has
+    // no use for.
     const Variable VARS[] = {
-        { Scalar::F(-40.0f), Scalar::F(85.0f), Scalar::F(20.5f),
-          "ext_temp", "C", "outside", nullptr, nullptr, BIND_MODBUS,
-          5000, 0, 0, T_F32, ROLE_INPUT, 1, STR_NONE, F_BOUNDED, {} },
-        { Scalar::F(0.0f), Scalar::F(100.0f), Scalar::F(1.5f),
-          "no_timeout", "C", "", nullptr, nullptr, BIND_MODBUS,
-          0, 0, 0, T_F32, ROLE_INPUT, 1, STR_NONE, F_BOUNDED, {} },
-        { Scalar::B(false), Scalar::B(true), Scalar::B(true),
-          "valve", "", "drain valve", nullptr, nullptr, BIND_COIL,
-          0, 0, 0, T_BOOL, ROLE_OUTPUT, 0, STR_NONE, 0, {} },
-        { Scalar::B(false), Scalar::B(true), Scalar::B(false),
-          "alarm_hot", "", "over temperature", nullptr, nullptr, BIND_NONE,
-          0, 0, 0, T_BOOL, ROLE_INTERNAL, 0, STR_NONE, 0, {} },
-        { Scalar::F(0.0f), Scalar::F(40.0f), Scalar::F(18.0f),
-          "setpoint", "C", "target temp", nullptr, nullptr, BIND_NONE,
-          0, 0, 0, T_F32, ROLE_INTERNAL, 1, STR_NONE, F_BOUNDED, {} },
-        { Scalar::U(0), Scalar::U(3600), Scalar::U(64),
-          "ntp_poll_s", "s", "NTP poll interval", nullptr, nullptr, BIND_NONE,
-          0, 0, 0, T_U16, ROLE_PARAM, 0, STR_NONE, F_BOUNDED, {} },
-        { Scalar::U(0), Scalar::U(0), Scalar::S("ntp.example.org"),
-          "ntp_server1", "", "primary NTP server", nullptr, nullptr, BIND_NONE,
-          0, 0, 32, T_STR, ROLE_PARAM, 0, STR_HOST, 0, {} },
+        MI("ext_temp",    T_F32, 5, 3, 18, 2, SF(-40.0f), SF(85.0f), SF(20.5f), 5000, 1,
+                          "C", "outside", ""),
+        MI("no_timeout",  T_F32, 5, 3, 18, 2, SF(0.0f), SF(100.0f), SF(1.5f), 0, 1,
+                          "C", "", ""),
+        RO("valve",       31, 0, true, false, "drain valve", ""),
+        A("alarm_hot",    "HOT", 2, 2, 0, 0, 0, "over temperature", ""),
+        G ("setpoint",    T_F32, SF(18.0f), 1, "C", "target temp", ""),
+        P("ntp_poll_s",   T_U16, 64, 0, 3600, 0, "s", 1, "NTP poll interval", ""),
+        PS("ntp_server1", "ntp.example.org", 32, STR_HOST, 2, "primary NTP server", ""),
     };
 
     struct Fixture {
@@ -58,7 +44,6 @@ namespace {
             VarTables t = {};
             t.var = VARS; t.val = values; t.count = V_COUNT;
             t.pool = pool; t.pool_bytes = sizeof(pool);
-            t.param_first = V_NTP_POLL; t.param_count = 2;
             bank = Bank(t);
             bank.init();
         }

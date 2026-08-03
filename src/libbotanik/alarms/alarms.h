@@ -83,11 +83,6 @@ namespace Botanik { namespace Alarms {
          *  carries its own literal here instead. */
         const char* name;
         const char* desc;       ///< human-readable description
-        /** The variable carrying this condition: the model reads it directly
-         *  each step (non-zero = active). Left zeroed for the platform-health
-         *  alarms, which are driven locally via set_local() and never read a
-         *  variable. */
-        Vars::VarRef ref;
 
         int32_t     on_s;       ///< time ON  before announcing (log + notify; -1: off)
         int32_t     off_s;      ///< time OFF before announcing (log + notify; -1: off)
@@ -103,6 +98,15 @@ namespace Botanik { namespace Alarms {
 
         /** @name Dynamic state
          *  @{ */
+        /** The variable carrying this condition, resolved from @c name when the
+         *  model copies the site table. The model reads it directly each step
+         *  (non-zero = active). Stays VAR_NONE for the platform-health alarms,
+         *  which are driven locally via set_local() and never read a variable.
+         *
+         *  Runtime state rather than metadata on purpose: the site's table
+         *  declares only the name, so there is no index in flash to fall out of
+         *  step with the row order in vars.h. */
+        Vars::VarRef ref;
         /** local override raw: the runtime-sourced input for platform-health
          *  alarms (set_local); OR'd with the payload boolean for site alarms. */
         bool        local_raw;
@@ -276,35 +280,62 @@ namespace Botanik { namespace Alarms {
         /** @} */
 
     public:
-        /** @brief Bind to the site alarm table (@p site_count at [0..N)) and the
-         *  optional platform-health table (@p platform_count appended at
-         *  [N..N+M)). Both const, copied in; N + M <= ALARM_BITS. @p io is what
-         *  the site alarm refs resolve against (null = none). Alarms start
-         *  "settled OFF" so a never-active one never announces an END it never
-         *  started. */
-        AlarmModel(const AlarmCondition* site_table, uint8_t site_count,
-                   Logs::Logger* logger,
+        /** @brief Build the site conditions by SCANNING @p io for SCOPE_A rows,
+         *  in table order, and append the optional platform-health table at
+         *  [N..N+M).
+         *
+         *  There is no site alarm table to pass: an alarm is declared once, as
+         *  a row in the variable table, carrying both the boolean that raises it
+         *  and the policy it runs on. That removes the whole class of drift
+         *  where the alarm table's row order and the variable it named had to be
+         *  kept in step by hand.
+         *
+         *  The platform alarms stay a separate const table because they name no
+         *  variable at all - they are driven by set_local() from the scheduler
+         *  metrics, and the library has no row in a site's table to put them in.
+         *
+         *  Alarms start "settled OFF" so a never-active one never announces an
+         *  END it never started. N + M <= ALARM_BITS. */
+        AlarmModel(const Vars::Bank* io, Logs::Logger* logger,
                    const AlarmCondition* platform = nullptr,
-                   uint8_t platform_count = 0,
-                   const Vars::Bank* io = nullptr)
+                   uint8_t platform_count = 0)
             : Component(logger, "AlarmModel"),
               _site_count(0), _count(0), _io(io),
               _notifier_count(0),
               _last_now(0), _first_step(true),
               _active_count(0) {
-            BOTANIK_ASSERT(site_count + platform_count <= ALARM_BITS);
-            // Clamp defensively so a too-large count can't overflow the array.
-            if (site_count > ALARM_BITS) site_count = ALARM_BITS;
-            if (platform_count > (uint8_t)(ALARM_BITS - site_count))
-                platform_count = (uint8_t)(ALARM_BITS - site_count);
             std::memset(_conditions, 0, sizeof(_conditions));
-            // Site alarms [0..N), platform alarms [N..N+M): disjoint ranges.
-            for (uint8_t i = 0; i < site_count; i++)
-                _conditions[i] = site_table[i];
-            for (uint8_t j = 0; j < platform_count; j++)
-                _conditions[site_count + j] = platform[j];
-            _site_count = site_count;
-            _count     = (uint8_t)(site_count + platform_count);
+            uint8_t n = 0;
+            if (io != nullptr) {
+                for (uint16_t i = 0; i < io->count() && n < ALARM_BITS; i++) {
+                    const Vars::Variable& d = *io->var(i).meta();
+                    if (d.scope != Vars::SCOPE_A) continue;
+                    const Vars::AlarmSpec sp = Vars::alarm_spec(d);
+                    AlarmCondition& c = _conditions[n];
+                    c.code        = sp.code;
+                    c.name        = d.name;
+                    c.desc        = d.desc;
+                    c.notes       = d.notes;
+                    c.on_s        = sp.on_s;
+                    c.off_s       = sp.off_s;
+                    c.recent_s    = sp.recent_s;
+                    c.off_delay_s = sp.off_delay_s;
+                    c.min_on_s    = sp.min_on_s;
+                    // The row IS the variable, so there is nothing to resolve.
+                    c.ref.index   = i;
+                    n++;
+                }
+            }
+            BOTANIK_ASSERT(n + platform_count <= ALARM_BITS);
+            if (platform_count > (uint8_t)(ALARM_BITS - n))
+                platform_count = (uint8_t)(ALARM_BITS - n);
+            for (uint8_t j = 0; j < platform_count; j++) {
+                _conditions[n + j] = platform[j];
+                // Driven by set_local(); they read no variable.
+                _conditions[n + j].ref.index = Vars::VAR_NONE;
+            }
+            _site_count = n;
+            _count      = (uint8_t)(n + platform_count);
             for (uint8_t i = 0; i < _count; i++)     // boot state: settled OFF
                 _conditions[i].off_sent = true;
         }

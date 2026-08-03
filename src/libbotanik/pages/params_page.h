@@ -414,10 +414,15 @@ namespace Botanik { namespace Pages {
             char b2[24];
             // The blank that used to sit under the separator paid for the Notes
             // row: the separator already separates, so the table keeps its row.
+            // Through var_band(), not num_band(): an analog row's band can live
+            // in parameters, and showing the firmware defaults while the
+            // operator edits the real ones is the worst of both.
+            const Vars::NumBand band =
+                Vars::var_band(_params != nullptr ? _params->bank() : nullptr, d);
             _panel_field2((uint16_t)(r + 2),
-                          "Minimum", _fmt_bound(b,  sizeof(b),  d, d.min),
+                          "Minimum", _fmt_bound(b,  sizeof(b),  d, band.min),
                           PANEL_COL2,
-                          "Maximum", _fmt_bound(b2, sizeof(b2), d, d.max));
+                          "Maximum", _fmt_bound(b2, sizeof(b2), d, band.max));
             _panel_field((uint16_t)(r + 3), "Description", d.desc);
             _panel_field((uint16_t)(r + 4), "Notes",       d.notes);
             _blank_line((uint16_t)(r + 5));                     // blank above the legend

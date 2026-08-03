@@ -21,11 +21,12 @@ namespace Botanik { namespace Vars {
 
     bool KvParamStore::load(const Variable& d, Value& v, char* pool) {
         if (d.type == T_STR) {
-            if (pool == nullptr || d.str_cap == 0) return false;
+            const TextSlot slot = text_slot(d);
+            if (pool == nullptr || slot.cap == 0) return false;
             size_t n = 0;
-            if (!HAL::Storage::get(d.name, pool + d.str_off, d.str_cap, &n)) return false;
+            if (!HAL::Storage::get(d.name, pool + v.str_off, slot.cap, &n)) return false;
             // A stored value that filled the slot leaves no room for the NUL.
-            pool[d.str_off + (n < d.str_cap ? n : (size_t)d.str_cap - 1)] = 0;
+            pool[v.str_off + (n < slot.cap ? n : (size_t)slot.cap - 1)] = 0;
             v.valid = true;
             return true;
         }
@@ -50,8 +51,9 @@ namespace Botanik { namespace Vars {
 
     bool KvParamStore::save(const Variable& d, const Value& v, const char* pool) {
         if (d.type == T_STR) {
-            if (pool == nullptr || d.str_cap == 0) return false;
-            return HAL::Storage::set(d.name, pool + d.str_off, d.str_cap);
+            const TextSlot slot = text_slot(d);
+            if (pool == nullptr || slot.cap == 0) return false;
+            return HAL::Storage::set(d.name, pool + v.str_off, slot.cap);
         }
         const uint8_t w = type_width(d.type);
         if (w == 0) return false;
@@ -61,10 +63,75 @@ namespace Botanik { namespace Vars {
         return HAL::Storage::set(d.name, &raw, w);
     }
 
+    namespace {
+        /** @brief An override's storage key: the variable's name behind a prefix
+         *  no identifier can carry, so it can never collide with the parameter
+         *  key of the same row - the setting and the override are two facts
+         *  about one variable and must not overwrite each other. */
+        bool override_key(const Variable& d, char* out, size_t cap) {
+            if (d.name == nullptr) return false;
+            const int n = snprintf(out, cap, "ovr.%s", d.name);
+            return n > 0 && (size_t)n < cap;
+        }
+    }  // namespace
+
+    bool KvParamStore::load_override(const Variable& d, Value& v) {
+        char key[48];
+        if (!override_key(d, key, sizeof(key))) return false;
+        const uint8_t w = type_width(d.type);
+        if (w == 0) return false;
+        // Value bytes then the validity byte: an override records BOTH what the
+        // variable reads and whether it reads as good data, because "force this
+        // to 20 C" and "make this read as a dead sensor" are different jobs.
+        uint8_t buf[sizeof(uint64_t) + 1] = {};
+        size_t n = 0;
+        if (!HAL::Storage::get(key, buf, (size_t)w + 1, &n)) return false;
+        if (n != (size_t)w + 1) return false;
+        uint64_t raw = 0;
+        memcpy(&raw, buf, w);
+        if (type_real(d.type))        { float f; memcpy(&f, &raw, 4); v.ovr = Scalar::F(f); }
+        else if (type_signed(d.type)) {
+            const int64_t x = (int64_t)raw;
+            const unsigned shift = (unsigned)(64 - 8 * w);
+            v.ovr = Scalar::I((int64_t)((x << shift) >> shift));
+        }
+        else                          { v.ovr = Scalar::U(raw); }
+        v.ovr_valid = (buf[w] != 0);
+        return true;
+    }
+
+    bool KvParamStore::save_override(const Variable& d, const Value& v) {
+        char key[48];
+        if (!override_key(d, key, sizeof(key))) return false;
+        const uint8_t w = type_width(d.type);
+        if (w == 0) return false;
+        uint8_t buf[sizeof(uint64_t) + 1] = {};
+        uint64_t raw = 0;
+        if (type_real(d.type)) { const float f = v.ovr.f; memcpy(&raw, &f, 4); }
+        else                   { raw = v.ovr.u; }
+        memcpy(buf, &raw, w);
+        buf[w] = v.ovr_valid ? 1 : 0;
+        return HAL::Storage::set(key, buf, (size_t)w + 1);
+    }
+
+    bool KvParamStore::clear_override(const Variable& d) {
+        char key[48];
+        if (!override_key(d, key, sizeof(key))) return false;
+        return HAL::Storage::remove(key);
+    }
+
     // ---- Params --------------------------------------------------------------
 
     void Params::setup(uint64_t /*now_ms*/) {
-        if (_io != nullptr) _io->load_params();
+        if (_io == nullptr) return;
+        _io->load_params();
+        // After the parameters, so a restored override shadows the setting it is
+        // meant to shadow rather than being loaded over.
+        const uint16_t n = _io->load_overrides();
+        if (n != 0 && _logger != nullptr)
+            _logger->critical(Logs::BOOT,
+                              "%u override(s) restored from storage - the field is "
+                              "not being read or driven normally", (unsigned)n);
     }
 
     VarRef Params::find(const char* name, uint16_t len) const {
@@ -114,7 +181,30 @@ namespace Botanik { namespace Vars {
         Var h(nullptr, nullptr);
         if (!lookup(io, name, &h)) return "";
         if (h.meta()->type != T_STR || io->pool() == nullptr) return "";
-        return io->pool() + h.meta()->str_off;
+        return io->pool() + h.str_off();
+    }
+
+    float tunable(const Bank* io, const Tunable& t) {
+        return (t.param == nullptr) ? t.k : get_f32(io, t.param, t.k);
+    }
+
+    AnalogValues analog_values(const Bank* io, const AnalogCal* c) {
+        AnalogValues v = {};
+        if (c == nullptr) return v;
+        v.raw_min = tunable(io, c->raw_min);
+        v.raw_max = tunable(io, c->raw_max);
+        v.eng_min = tunable(io, c->eng_min);
+        v.eng_max = tunable(io, c->eng_max);
+        v.min     = tunable(io, c->min);
+        v.max     = tunable(io, c->max);
+        return v;
+    }
+
+    NumBand var_band(const Bank* io, const Variable& d) {
+        const AnalogCal* c = analog_cal(d);
+        if (c == nullptr) return num_band(d);
+        const AnalogValues v = analog_values(io, c);
+        return NumBand{Scalar::F(v.min), Scalar::F(v.max)};
     }
 
     uint32_t group_serial(const Bank* io, const char* group) {

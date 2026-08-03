@@ -21,10 +21,11 @@ def test_config_detail_and_edit(spawn):
     assert term.wait_for("PARAMETER"), "config table header missing"
     assert term.wait_for("DEFAULT"), "default column header missing"
     assert term.wait_for("ntp_poll_sec"), "config parameter rows missing"
-    # Move the cursor down to ntp_poll_sec (table index 9: net_serial, net_dhcp, net_ip,
-    # net_mask, net_dns1, net_dns2, net_gw, ntp_serial, ntp_enable, ntp_poll_sec);
-    # the detail panel tracks the selection.
-    for _ in range(9):
+    # Move the cursor down to ntp_poll_sec (table index 4: net_serial, net_dhcp,
+    # ntp_serial, ntp_enable, ntp_poll_sec - the text parameters are their own
+    # block at the end now, so they no longer sit between these); the detail
+    # panel tracks the selection.
+    for _ in range(4):
         term.send(keys.DOWN)
     assert term.wait_for("NTP poll interval"), "detail panel did not follow selection"
     # ENTER opens the inline editor on the bottom row; clear, retype, stage.
@@ -69,6 +70,8 @@ def test_group_follows_selection(spawn):
     term = boot(spawn)
     goto(term, ALT_6, "PARAMETER")
     assert term.wait_for("(net)"), "first row is a net_* parameter"
-    for _ in range(8):
+    # Two net_* scalars lead the block; the third row is already ntp_*, since
+    # the net_* text parameters sit in their own block further down.
+    for _ in range(3):
         term.send(keys.DOWN)
     assert term.wait_for("(ntp)"), "group did not follow the cursor into ntp_*"

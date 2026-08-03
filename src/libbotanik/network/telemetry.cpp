@@ -81,20 +81,22 @@ namespace Botanik { namespace Network {
     }
 
     void MqttSender::_publish_scalars() {
-        if (_groups == nullptr || _io == nullptr) return;
+        if (_io == nullptr) return;
         char payload[64];
-        for (size_t gi = 0; gi < _group_count; ++gi) {
-            const Vars::VarGroup& g = _groups[gi];
-            for (size_t i = 0; i < g.count; ++i) {
-                Vars::Var h = _io->var(g.refs[i]);
-                if (h.meta()->name == nullptr) continue;
-                // Publish only what has actually been read: a default value on
-                // the broker is indistinguishable from a measurement, and a
-                // subscriber cannot tell the sensor died.
-                if (!h.valid()) continue;
-                const char* out = Vars::var_format(*_io, h, payload, sizeof(payload));
-                _emit(g.topic, h.meta()->name, out);
-            }
+        // Straight down the variable table: what gets published is a property of
+        // the row (its scope), and its sub-topic is the prefix of its name. No
+        // site table selects them, so a new variable is on the broker as soon as
+        // it exists rather than when someone remembers to list it.
+        for (uint16_t i = 0; i < _io->count(); ++i) {
+            Vars::Var h = _io->var(i);
+            const Vars::Variable& d = *h.meta();
+            if (d.name == nullptr || !Vars::var_published(d)) continue;
+            // Publish only what has actually been read: a default value on the
+            // broker is indistinguishable from a measurement, and a subscriber
+            // cannot tell the sensor died.
+            if (!h.valid()) continue;
+            const char* out = Vars::var_format(*_io, h, payload, sizeof(payload));
+            _emit(Vars::var_group(d), d.name, out);
         }
     }
 

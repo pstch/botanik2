@@ -19,13 +19,15 @@ def test_monitor_renders_and_scrolls(spawn):
     assert term.wait_for("grid_L1_V"), "status variable rows missing"
     # The SCOPE column says where a reading lives, which the group column (now
     # the view) never did.
-    assert term.wait_for("mb in"), "scope column did not classify a Modbus input"
+    assert term.wait_for("MI"), "scope column did not classify a direct Modbus input"
     # A few DOWNs move the selection cursor; END jumps it to the last variable,
-    # auto-scrolling the window so a late-group variable comes into view.
+    # auto-scrolling the window so a late-group variable comes into view. Rows
+    # follow the variable table's own order now that no group table imposes one,
+    # so the last of them is the last actuator.
     for _ in range(3):
         term.send(keys.DOWN)
     term.send(keys.END_KEY)
-    assert term.wait_for("sys_supply_lockout"), "did not scroll to the last group"
+    assert term.wait_for("irr_tray8"), "did not scroll to the last group"
 
 
 def test_monitor_group_modes(spawn):

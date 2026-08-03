@@ -6,75 +6,117 @@
  * @brief Grouping variables for display, and resolving a reference for the
  *        consumers that only observe one.
  *
- * Control programs address their signals by index through the handle in
- * model.h - they know exactly which variable they mean. Everything that merely
- * *observes* one does not: the monitor page, the shell, MQTT telemetry, the
- * home screen and the alarm reader all want "whatever this reference points at,
- * read it and render it".
+ * Control programs name the signal they mean and the bank resolves it. What is
+ * left over is everything that merely *observes* a variable without knowing
+ * which: the monitor page, the shell, MQTT telemetry, the home screen and the
+ * alarm reader all want "whatever this reference points at, read it and render
+ * it".
  *
- * There is very little left here. Resolving used to be a seven-case switch over
- * six tables; with one table it is an array index, so what remains is the
- * grouping types and a rendering convenience.
+ * There is very little left here, and less each time. Resolving used to be a
+ * seven-case switch over six tables; grouping used to be a declared table per
+ * site. Both are now rules over the one variable table - a group is a name
+ * prefix, and what gets published is a scope - so what remains is those rules,
+ * the home-screen row (the one thing no rule derives) and a rendering
+ * convenience.
  */
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 #include "model.h"
+#include "declare.h"   // scope_label
 
 namespace Botanik { namespace Vars {
 
-    /** @brief A named set of variables under a shared sub-topic. A site
-     *  declares one VarRef[] per domain (power, environment, ...) and lists
-     *  them as a VarGroup[]; telemetry publishes each as
-     *  "<prefix>/telemetry/<topic>/<name>". */
-    struct VarGroup {
-        const char*   topic;
-        const VarRef* refs;
-        uint16_t      count;
-    };
-
-    /** @brief A home-screen reading: a display @p label paired with the
-     *  variable whose live value it shows. The label is separate from the
+    /** @brief A home-screen reading: a display @p label paired with the name of
+     *  the variable whose live value it shows. The label is separate from the
      *  variable's own name because the home screen wants "Line V" where the
-     *  monitor table wants "grid_LN_V". */
+     *  monitor table wants "grid_LN_V", and no rule derives one from the
+     *  other - which is why this is the one declarative table left. */
     struct HomeVar {
         const char* label;
-        VarRef      ref;
+        const char* name;
     };
 
-    /** @brief Where a variable physically lives, as a short column label.
+    /** @name Grouping
      *
-     *  Transport and role together, because neither alone answers the question
-     *  an operator is asking ("is this a reading, a thing I drive, or a number
-     *  the firmware made up?"): XP_MODBUS says how it travels but not which way,
-     *  and ROLE_INPUT says which way but not over what.
+     *  A variable's group is the prefix of its name, up to the first underscore.
+     *  It used to be a declared table per site - one VarRef[] per domain, plus a
+     *  VarGroup[] listing them - which was 72 rows of pure restatement: every
+     *  grid_* variable in the grid group, every cli_* in climate. Adding a
+     *  variable meant remembering to add it to its group, and forgetting meant
+     *  it silently never appeared on the monitor page or in telemetry.
      *
-     *  Kept to 8 columns so it fits the monitor table beside the name. */
-    inline const char* var_scope(const Variable& d) {
-        const bool in = (d.role == ROLE_INPUT);
-        switch (d.bind.transport) {
-            case XP_MODBUS:        return in ? "mb in"  : "mb out";
-            case XP_LOCAL_ANALOG:  return in ? "ana in" : "ana out";
-            case XP_LOCAL_DIGITAL: return in ? "dig in" : "relay";
-            default: break;
-        }
-        // Nothing drives it from the field: it is either configuration or a
-        // number the control programs computed.
-        switch (d.role) {
-            case ROLE_PARAM:    return "param";
-            case ROLE_OUTPUT:   return "demand";
-            case ROLE_INPUT:    return "unbound";
-            default:            return "computed";
-        }
+     *  Naming a variable now IS filing it. The PARAMS page already worked this
+     *  way for the config groups; this is the same rule applied to the rest.
+     *  @{ */
+
+    /** @brief Distinct group names a site may have. Both tables' view modes are
+     *  built from this, so it bounds the mode line as well. */
+    static const uint8_t VAR_GROUPS_MAX = 16;
+
+    /** @brief Intern @p g so the pointer outlives the call.
+     *
+     *  var_group() has to return storage of its own, and a shared scratch buffer
+     *  is not enough: the table legend passes the selected row's group to the
+     *  mode line, which then walks every row asking for ITS group - so the
+     *  buffer was overwritten mid-call and the legend always showed whatever
+     *  came last. */
+    inline const char* group_intern(const char* g) {
+        static char pool[VAR_GROUPS_MAX][16];
+        static uint8_t used = 0;
+        for (uint8_t i = 0; i < used; i++)
+            if (strcmp(pool[i], g) == 0) return pool[i];
+        if (used >= VAR_GROUPS_MAX) return "?";
+        char* dst = pool[used++];
+        size_t n = strlen(g);
+        if (n >= sizeof(pool[0])) n = sizeof(pool[0]) - 1;
+        memcpy(dst, g, n); dst[n] = 0;
+        return dst;
     }
+
+    /** @brief @p d's group: its name up to the first underscore. A name with no
+     *  underscore is its own group, which is what a config group's commit serial
+     *  is (`net`, `ntp`). */
+    inline const char* var_group(const Variable& d) {
+        if (d.name == nullptr) return "?";
+        const char* u = strchr(d.name, '_');
+        if (u == nullptr) return group_intern(d.name);
+        char g[16];
+        size_t n = (size_t)(u - d.name);
+        if (n >= sizeof(g)) n = sizeof(g) - 1;
+        memcpy(g, d.name, n); g[n] = 0;
+        return group_intern(g);
+    }
+
+    /** @brief Whether @p d belongs on the MONITOR page and in MQTT telemetry.
+     *
+     *  Everything except the two kinds of row that have a page of their own: a
+     *  parameter is the PARAMS page's, an alarm is the ALARMS page's. Declared
+     *  by scope rather than by listing the survivors, so a new row is published
+     *  by default - the failure mode is a variable that shows up uninvited,
+     *  which someone notices, rather than one that silently never appears. */
+    inline bool var_published(const Variable& d) {
+        return d.scope != SCOPE_P && d.scope != SCOPE_A;
+    }
+
+    /** @} */
+
+    /** @brief What kind of row this is, as a short column label.
+     *
+     *  One field lookup now that the scope is declared. It used to be
+     *  reconstructed here from (transport, role, type), which meant this
+     *  function had to agree with three others about what a row was, and a new
+     *  kind of row was a new case in each of them. */
+    inline const char* var_scope(const Variable& d) { return scope_label(d.scope); }
 
     /** @brief Render @p h's current value into @p buf. Returns the text - an
      *  enum's static string, a T_STR's pool text, or @p buf. */
     inline const char* var_format(const Bank& io, Var h, char* buf, size_t cap) {
         const Variable* d = h.meta();
         if (d->type == T_STR)
-            return (io.pool() != nullptr) ? io.pool() + d->str_off : "";
+            return (io.pool() != nullptr) ? io.pool() + h.str_off() : "";
         return format_scalar(d->type, h.raw(), d->digits, d->str, buf, cap);
     }
     inline const char* var_format(const Bank& io, VarRef r, char* buf, size_t cap) {

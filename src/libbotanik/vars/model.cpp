@@ -17,10 +17,10 @@ namespace Botanik { namespace Vars {
 
     // Named so a bad index is obvious in a log or a debugger.
     const Variable Bank::_sink_d = {
-        Scalar::U(0), Scalar::U(0), Scalar::U(0),
-        "<none>", "", "", nullptr, nullptr,
+        Scalar::U(0), "<none>", "", "", "",
+        Payload(),
         { XP_NONE, T_U8, 0, 0, 0, 0, 1.0f, 0.0f },
-        0, 0, 0, T_U8, ROLE_INTERNAL, 0, STR_NONE, 0, {}
+        0, nullptr, T_U8, ROLE_COMPUTED, SCOPE_G, 0, 0, {}
     };
     Value Bank::_sink_v = {};
 
@@ -36,6 +36,27 @@ namespace Botanik { namespace Vars {
     }  // namespace
 
     void Bank::init() {
+        // Text rows are laid out first, in table order, so a slot's position is
+        // derived rather than declared. Inserting a text parameter used to mean
+        // re-typing every offset after it, and getting one wrong overlapped two
+        // settings silently.
+        _pool_used = 0;
+        for (uint16_t i = 0; i < _t.count; i++) {
+            const uint16_t cap = text_slot(_t.var[i]).cap;
+            if (cap == 0) { _t.val[i].str_off = 0; continue; }
+            if ((uint32_t)_pool_used + cap > _t.pool_bytes) {
+                // Out of pool: leave the row with no slot rather than one that
+                // runs off the end. cap is in the descriptor, so the row still
+                // claims a slot - which is why the overflow is counted and the
+                // site test asserts it is zero.
+                _t.val[i].str_off = 0;
+                _pool_overflow++;
+                continue;
+            }
+            _t.val[i].str_off = _pool_used;
+            _pool_used = (uint16_t)(_pool_used + cap);
+        }
+
         for (uint16_t i = 0; i < _t.count; i++) {
             const Variable& d = _t.var[i];
             _t.val[i].v        = d.def;
@@ -49,10 +70,20 @@ namespace Botanik { namespace Vars {
             // default as a measurement.
             _t.val[i].valid    = (d.role == ROLE_PARAM);
 
-            if (d.type == T_STR && _t.pool != nullptr && d.str_cap != 0 &&
-                (uint32_t)d.str_off + d.str_cap <= _t.pool_bytes) {
-                copy_bounded(_t.pool + d.str_off, d.str_cap, d.def.s);
-            }
+            const TextSlot slot = text_slot(d);
+            if (_t.pool != nullptr && slot.cap != 0)
+                copy_bounded(_t.pool + _t.val[i].str_off, slot.cap, d.def.s);
+        }
+    }
+
+    void Bank::_find_param_block() {
+        _param_first = 0;
+        _param_count = 0;
+        for (uint16_t i = 0; i < _t.count; i++) {
+            if (_t.var[i].role != ROLE_PARAM) continue;
+            _param_first = i;
+            while (i < _t.count && _t.var[i].role == ROLE_PARAM) { _param_count++; i++; }
+            return;
         }
     }
 
@@ -63,6 +94,11 @@ namespace Botanik { namespace Vars {
             const char* n = _t.var[i].name;
             if (n != nullptr && strcmp(n, name) == 0) { r.index = i; return r; }
         }
+        // Nothing addresses a row by number any more, so a miss here is a name
+        // that exists in a table or a program but not in vars.h. Count it (and
+        // say which) rather than letting it read as a dead variable forever.
+        if (_unresolved < 0xFFFFu) _unresolved++;
+        if (_logger != nullptr) _logger->error(Logs::BOOT, "unknown variable '%s'", name);
         return r;
     }
 
@@ -79,8 +115,8 @@ namespace Botanik { namespace Vars {
 
     void Bank::load_params() {
         if (_store == nullptr) return;
-        for (uint16_t k = 0; k < _t.param_count; k++) {
-            const uint16_t i = (uint16_t)(_t.param_first + k);
+        for (uint16_t k = 0; k < _param_count; k++) {
+            const uint16_t i = (uint16_t)(_param_first + k);
             // A missing key is normal: the parameter keeps the declared default
             // that init() already seeded.
             (void)_store->load(_t.var[i], _t.val[i], _t.pool);
@@ -104,7 +140,10 @@ namespace Botanik { namespace Vars {
             if (_t.var[i].role != ROLE_OUTPUT) continue;
             // Released, not merely ignored: an override left staged here would
             // fire the instant control came back, which is the last thing anyone
-            // wants after whatever took control away in the first place.
+            // wants after whatever took control away in the first place. Wipe
+            // the stored copy too, so a reboot cannot reopen the same hole.
+            if (_t.val[i].ovr_on && _store != nullptr)
+                (void)_store->clear_override(_t.var[i]);
             _t.val[i].ovr_on = false;
             _t.val[i].valid  = false;
         }
@@ -128,9 +167,10 @@ namespace Botanik { namespace Vars {
          *  differ only in whether the band applies. */
         SetResult parse_for(const Variable& d, const char* text, bool bounded,
                             Scalar* out) {
+            const NumBand band = num_band(d);
             if (parse_scalar(d.type, text, out) != PARSE_OK) return SET_INVALID;
             if (bounded && (d.flags & F_BOUNDED) != 0 &&
-                !in_range(d.type, *out, d.min, d.max)) return SET_INVALID;
+                !in_range(d.type, *out, band.min, band.max)) return SET_INVALID;
             return SET_OK;
         }
     }  // namespace
@@ -148,9 +188,10 @@ namespace Botanik { namespace Vars {
         Value& slot = _t.val[d - _t.var];
 
         if (d->type == T_STR) {
-            if (_t.pool == nullptr || d->str_cap == 0) return SET_INVALID;
-            if (!validate_str(d->kind, text, d->str_cap)) return SET_INVALID;
-            copy_bounded(_t.pool + d->str_off, d->str_cap, text);
+            const TextSlot ts = text_slot(*d);
+            if (_t.pool == nullptr || ts.cap == 0) return SET_INVALID;
+            if (!validate_str(ts.kind, text, ts.cap)) return SET_INVALID;
+            copy_bounded(_t.pool + slot.str_off, ts.cap, text);
             slot.valid = true;
         } else {
             Scalar parsed;
@@ -170,7 +211,7 @@ namespace Botanik { namespace Vars {
         return SET_OK;
     }
 
-    SetResult Bank::override_set(Var h, const char* text) {
+    SetResult Bank::override_set(Var h, const char* text, bool valid) {
         const Variable* d = h.meta();
         // A T_STR's live text lives in the pool, not the slot, so there is
         // nothing for an override to shadow - and a hostname is configuration
@@ -183,14 +224,71 @@ namespace Botanik { namespace Vars {
         Scalar parsed;
         // Band deliberately NOT applied - see the header note.
         if (parse_for(*d, text, /*bounded=*/false, &parsed) != SET_OK) return SET_INVALID;
-        h.override_set(parsed);
+        h.override_set(parsed, valid);
+        _persist_override(h);
         return SET_OK;
+    }
+
+    void Bank::override_freeze(Var h) {
+        h.override_freeze();
+        _persist_override(h);
+    }
+
+    void Bank::override_clear(Var h) {
+        h.override_clear();
+        // Forget the stored copy in the same breath. A release that only cleared
+        // RAM would come back at the next boot, which is the opposite of what
+        // "override off" means.
+        if (_store != nullptr && _row_of(h) != VAR_NONE)
+            (void)_store->clear_override(*h.meta());
+    }
+
+    uint16_t Bank::_row_of(Var h) const {
+        const Variable* d = h.meta();
+        if (_t.var == nullptr || d < _t.var || d >= _t.var + _t.count) return VAR_NONE;
+        return (uint16_t)(d - _t.var);
+    }
+
+    void Bank::_persist_override(Var h) {
+        if (_store == nullptr || _row_of(h) == VAR_NONE) return;
+        const Variable* d = h.meta();
+        // An actuator override is deliberately never written: see
+        // load_overrides(). Nothing would restore it, so storing it would only
+        // leave a stale record to puzzle over.
+        if (d->role == ROLE_OUTPUT) return;
+        if (!_store->save_override(*d, _t.val[_row_of(h)]) && _logger != nullptr)
+            _logger->critical(Logs::STORAGE, "override on '%s' not persisted", d->name);
+    }
+
+    uint16_t Bank::load_overrides() {
+        if (_store == nullptr) return 0;
+        uint16_t n = 0;
+        for (uint16_t i = 0; i < _t.count; i++) {
+            const Variable& d = _t.var[i];
+            if (d.role == ROLE_OUTPUT) {
+                // Drop rather than restore - and drop even if none is stored,
+                // which is cheap and keeps a record written by an older build
+                // from surviving indefinitely.
+                (void)_store->clear_override(d);
+                continue;
+            }
+            if (!_store->load_override(d, _t.val[i])) continue;
+            _t.val[i].ovr_on = true;
+            n++;
+            if (_logger != nullptr)
+                _logger->warning(Logs::BOOT, "override restored on '%s'", d.name);
+        }
+        return n;
     }
 
     uint16_t Bank::clear_overrides() {
         uint16_t n = 0;
-        for (uint16_t i = 0; i < _t.count; i++)
-            if (_t.val[i].ovr_on) { _t.val[i].ovr_on = false; n++; }
+        for (uint16_t i = 0; i < _t.count; i++) {
+            if (!_t.val[i].ovr_on) continue;
+            _t.val[i].ovr_on = false;
+            if (_store != nullptr) (void)_store->clear_override(_t.var[i]);
+            n++;
+        }
         return n;
     }
 

@@ -6,7 +6,7 @@
  * @brief HAND-WRITTEN - the gh_mlb41 control programs.
  *
  * Not generated: this is the one place a site expresses *behaviour* rather than
- * schema, so it sits with commands.h and sim.h rather than with the tables.
+ * schema, so it sits with site.h and sim.h rather than with the tables.
  *
  * A program is a plain function handed a ScanContext. It reads and drives
  * variables through typed handles, and keeps whatever state it needs in statics
@@ -21,7 +21,7 @@
 
 #include <cstdint>
 
-#include "botanik.h"
+#include "libbotanik.h"
 
 #include "vars.h"
 
@@ -45,7 +45,7 @@ inline void supply_watch(ScanContext& c) {
     // A meter that has stopped answering reads as its default (0 V), which is
     // out of band and therefore unhealthy - the fallback does the right thing
     // here without the program testing valid() at all.
-    float ln = c.io.var(V_GRID_LN_V).value();
+    float ln = c.io.var("grid_LN_V").value();
     bool  unhealthy = (ln < 200.0f) || (ln > 260.0f);
 
     // Reset-dominant: recovery wins, so the lockout cannot stick once the
@@ -55,13 +55,13 @@ inline void supply_watch(ScanContext& c) {
     // Publish the decision as an internal, so the console, the shell and
     // telemetry can all see WHY the windows are held - a coil reading 0 does
     // not distinguish "not commanded" from "locked out".
-    c.io.var(V_SYS_SUPPLY_LOCKOUT).set(lockout.q());
+    c.io.var("sys_supply_lockout").set(lockout.q());
 
     if (lockout.q()) {
-        c.io.var(V_CLI_WINDOW1_OPN).set(false);
-        c.io.var(V_CLI_WINDOW2_OPN).set(false);
-        c.io.var(V_CLI_WINDOW3_OPN).set(false);
-        c.io.var(V_CLI_WINDOW4_OPN).set(false);
+        c.io.var("cli_window1_opn").set(false);
+        c.io.var("cli_window2_opn").set(false);
+        c.io.var("cli_window3_opn").set(false);
+        c.io.var("cli_window4_opn").set(false);
     }
 }
 
@@ -73,7 +73,7 @@ inline void supply_watch(ScanContext& c) {
  */
 inline void supply_report(ScanContext& c) {
     static Scan::Deadband hz;
-    c.io.var(V_SYS_SUPPLY_HZ).set(hz(c.io.var(V_GRID_HZ).value(), 0.05f));
+    c.io.var("sys_supply_hz").set(hz(c.io.var("grid_Hz").value(), 0.05f));
 }
 
 /** @brief The site's control programs, in execution order. */
@@ -85,11 +85,19 @@ const uint8_t g_task_count = (uint8_t)(sizeof(g_tasks) / sizeof(g_tasks[0]));
 
 /** @brief Per-task diagnostics; one entry per row above.
  *
- *  Declared, not defined: this is mutable state, so a definition in the header
- *  would give every including TU its own copy and break the link the moment two
- *  of them exist (the sim has one, the firmware has two). Defined in vars.cpp
- *  alongside the other site value stores. */
-extern Botanik::Scan::TaskStats g_task_stats[];
+ *  Mutable state in a header, so it uses the same vague-linkage trick as the
+ *  value store in vars.h: a class template's static member is emitted per TU and
+ *  folded by the linker, where a plain definition here would be a duplicate
+ *  symbol the moment two TUs included this. It cannot simply live in vars.h's
+ *  store - tasks.h includes vars.h, so it is vars.h that must not know about
+ *  tasks. */
+template <typename Tag>
+struct TaskStore { static Botanik::Scan::TaskStats stats[g_task_count]; };
+template <typename Tag>
+Botanik::Scan::TaskStats TaskStore<Tag>::stats[g_task_count] = {};
+
+/** @brief The one instantiation, matching Store in vars.h. */
+using Tasks = TaskStore<void>;
 
 }  // namespace Site
 

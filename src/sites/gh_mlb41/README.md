@@ -6,13 +6,9 @@ The reference Botanik **site**: everything specific to one physical greenhouse.
 
 | File | Origin | Holds |
 |---|---|---|
-| `botanik.h` | generated | the only file that knows where `libbotanik` sits, so the directory is relocatable |
-| `vars.h` / `vars.cpp` | generated | every variable in one table (field inputs/outputs, computed internals, parameters), plus its RAM value store and string pool |
-| `status.h` | generated | the display groups (`VarGroup[]`) and the home-screen readings (`HomeVar[]`), as `VarRef`s |
-| `alarms.h` | generated | the `g_alarms[]` condition table: code, description, the `VarRef` carrying the condition, dwell, remediation |
-| `descriptor.h` | generated | the one `g_site` `SiteDescriptor` bundling every table |
-| `config.h` | generated | build-wide config overrides (`#define BOTANIK_*`); kept separate so CMake includes it before the library defaults |
-| `commands.h` | hand-written | the site's shell commands |
+| `vars.h` | generated | everything declarative: every variable in one table (parameters, alarms, field IO, computed and status values), the analog calibration blocks, the home-screen readings, and the RAM value store + string pool behind them |
+| `site.h` | hand-written | the shell commands, the `g_site` `SiteDescriptor`, and the `GreenhouseMLB41` binding |
+| `config.h` | hand-written | build-wide config overrides (`#define BOTANIK_*`); separate because it is read with none of the library in scope |
 | `tasks.h` | hand-written | the control programs |
 | `sim.h` | hand-written | the simulated field: it writes the variable tables the way a Modbus driver will. Its whole body is `#ifdef TARGET_SIMULATOR`, so it drops out of the hardware build |
 | `site.h` | hand-written | the thin `GreenhouseMLB41` binding and the uniform `BotanikSite` handle |
@@ -48,10 +44,14 @@ precision and - the load-bearing one - a **default**, which does three jobs: an
 input's substitute when a read is invalid, an output's safe state on a fault, and
 a parameter's factory value.
 
-`status.h` groups those variables for display (`VarGroup[]`, one sub-topic each)
-and lists the home-screen readings; `alarms.h` names, per condition, the internal
-digital that carries it. All three are generated from the same source, so their
-indices agree by construction.
+The home-screen readings are the only declarative variable table left, and they
+live in `vars.h` with everything else. Grouping for the MONITOR page and
+telemetry is derived: a variable's group is the prefix of its name, and whether
+it is published is its scope. Naming a variable files it.
+
+Alarms are not a separate table either: an `A()` row carries the boolean that
+raises the alarm and the policy the `AlarmModel` runs it on, and the model finds
+them by scanning for `SCOPE_A`.
 
 Parameters are not a separate thing: they are the `ROLE_PARAM` rows of the same
 table, kept contiguous so the parameter pages can address them with a dense

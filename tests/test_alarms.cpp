@@ -8,6 +8,8 @@
 
 #include "doctest.h"
 
+#include "libbotanik/vars/declare.h"
+
 #include "libbotanik/alarms/alarms.h"
 #include "libbotanik/logs/logger.h"
 
@@ -25,27 +27,42 @@ namespace {
         m.step(now);
     }
 
-    // Static-prefix fields, in order: code, desc, ref (the variable carrying
-    // the condition; {} here - these tests drive conditions via set_local),
-    // on_s, off_s, recent_s, off_delay_s, min_on_s. The dynamic suffix is left
-    // zero-initialized (the pragma silences the pedantic field-init warning).
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+    // An alarm is a SCOPE_A row in a variable table now, so these read exactly
+    // the way a site declares one: A(name, code, on_s, off_s, recent_s,
+    // off_delay_s, min_on_s, desc, notes). The model finds them by scanning.
+
     // Two unmasked, unlatched conditions (announce disabled) at bits 0 and 1.
-    const Alarms::AlarmCondition TABLE[] = {
-        { "AAA", "aaa", "alarm A", {}, -1, -1, 0, 0 },
-        { "BBB", "bbb", "alarm B", {}, -1, -1, 0, 0 },
+    const Vars::Variable TABLE[] = {
+        Vars::A("aaa", "AAA", -1, -1, 0, 0, 0, "alarm A", ""),
+        Vars::A("bbb", "BBB", -1, -1, 0, 0, 0, "alarm B", ""),
     };
     // One condition with a 5 s minimum-ON hold (announce disabled).
-    const Alarms::AlarmCondition MIN_ON_TABLE[] = {
-        { "MIN", "min", "min on", {}, -1, -1, 0, 0, 5 },
+    const Vars::Variable MIN_ON_TABLE[] = {
+        Vars::A("min", "MIN", -1, -1, 0, 0, 5, "min on", ""),
     };
     // One condition that announces a START only after a 2 s dwell, and an END as
     // soon as it clears (off_s 0). A brief blip clears before the START dwell -> FLAP.
-    const Alarms::AlarmCondition FLAP_TABLE[] = {
-        { "FLP", "flp", "flap", {}, 2, 0, 0, 0 },
+    const Vars::Variable FLAP_TABLE[] = {
+        Vars::A("flp", "FLP", 2, 0, 0, 0, 0, "flap", ""),
     };
-#pragma GCC diagnostic pop
+    // on_s 0 so the START is announced at once.
+    const Vars::Variable NORMAL_TABLE[] = {
+        Vars::A("nrm", "NRM", 0, 0, 0, 0, 0, "normal", ""),
+    };
+
+    /** @brief A bank over one of the tables above - what the model scans. */
+    struct AlarmBank {
+        Vars::Value      vals[4];
+        Vars::Bank       bank;
+        AlarmBank(const Vars::Variable* v, uint16_t n) : vals(), bank(make(v, vals, n)) {
+            bank.init();
+        }
+        static Vars::VarTables make(const Vars::Variable* v, Vars::Value* val, uint16_t n) {
+            Vars::VarTables t = {};
+            t.var = v; t.val = val; t.count = n;
+            return t;
+        }
+    };
 
     // Records the topic of every entry the logger forwards, for the FLAP tests.
     struct TopicRecorder : Logs::LogWriter {
@@ -63,7 +80,8 @@ namespace {
 }
 
 TEST_CASE("alarm: ack marks an active condition, ignores inactive / unknown") {
-    Alarms::AlarmModel m(TABLE, 2, nullptr);
+    AlarmBank f(TABLE, 2);
+    Alarms::AlarmModel m(&f.bank, nullptr);
     step_bits(m, 0x1, 1000);                              // raise A (bit 0)
     CHECK(m.active_count() == 1);
     CHECK(m.condition(0).user_ack == false);
@@ -74,7 +92,8 @@ TEST_CASE("alarm: ack marks an active condition, ignores inactive / unknown") {
 }
 
 TEST_CASE("alarm: ack clears on the next ON edge (a fresh episode is unacknowledged)") {
-    Alarms::AlarmModel m(TABLE, 2, nullptr);
+    AlarmBank f(TABLE, 2);
+    Alarms::AlarmModel m(&f.bank, nullptr);
     step_bits(m, 0x1, 1000);
     m.ack("aaa");
     CHECK(m.condition(0).user_ack == true);
@@ -84,20 +103,23 @@ TEST_CASE("alarm: ack clears on the next ON edge (a fresh episode is unacknowled
 }
 
 TEST_CASE("alarm: ack_all acknowledges every active condition and counts them") {
-    Alarms::AlarmModel m(TABLE, 2, nullptr);
+    AlarmBank f(TABLE, 2);
+    Alarms::AlarmModel m(&f.bank, nullptr);
     step_bits(m, 0x3, 1000);                              // both active
     CHECK(m.ack_all() == 2);
     CHECK(m.condition(0).user_ack == true);
     CHECK(m.condition(1).user_ack == true);
 
-    Alarms::AlarmModel m2(TABLE, 2, nullptr);
+    AlarmBank f2(TABLE, 2);
+    Alarms::AlarmModel m2(&f2.bank, nullptr);
     step_bits(m2, 0x2, 1000);                             // only B active
     CHECK(m2.ack_all() == 1);
     CHECK(m2.condition(1).user_ack == true);
 }
 
 TEST_CASE("alarm: min_on_s holds a condition active after the raw bit clears") {
-    Alarms::AlarmModel m(MIN_ON_TABLE, 1, nullptr);
+    AlarmBank f(MIN_ON_TABLE, 1);
+    Alarms::AlarmModel m(&f.bank, nullptr);
     step_bits(m, 0x1, 1000);                              // raise (seeds the 5 s min-on hold)
     CHECK(m.condition(0).active == true);
     step_bits(m, 0x0, 2000);                              // raw clears 1 s in: still held
@@ -112,7 +134,8 @@ TEST_CASE("alarm: an END with no matching START is logged as a FLAP") {
     Logs::Logger logger;
     TopicRecorder rec;
     logger.add_writer(&rec);
-    Alarms::AlarmModel m(FLAP_TABLE, 1, &logger);
+    AlarmBank f(FLAP_TABLE, 1);
+    Alarms::AlarmModel m(&f.bank, &logger);
 
     // A blip shorter than the 2 s START dwell: clears before any START is logged.
     step_bits(m, 0x1, 1000);                             // on (dwell 0 < on_s 2 s)
@@ -128,12 +151,8 @@ TEST_CASE("alarm: a normal episode logs START then END (not FLAP)") {
     Logs::Logger logger;
     TopicRecorder rec;
     logger.add_writer(&rec);
-    // on_s 0 so the START is announced at once.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-    const Alarms::AlarmCondition tbl[] = { { "NRM", "nrm", "normal", {}, 0, 0, 0, 0 } };
-#pragma GCC diagnostic pop
-    Alarms::AlarmModel m(tbl, 1, &logger);
+    AlarmBank f(NORMAL_TABLE, 1);
+    Alarms::AlarmModel m(&f.bank, &logger);
 
     step_bits(m, 0x1, 1000);                             // on, START logged immediately
     logger.step();
@@ -145,30 +164,18 @@ TEST_CASE("alarm: a normal episode logs START then END (not FLAP)") {
 }
 
 TEST_CASE("alarm reader: model reads each condition's variable") {
-    // Three alarm conditions, each naming a computed digital by index.
-    #define IB(nm) { Vars::Scalar::B(false), Vars::Scalar::B(true), Vars::Scalar::B(false), \
-                     nm, "", "", nullptr, nullptr, { Vars::XP_NONE, Vars::T_BOOL, 0, 0, 0, 0, 1.0f, 0.0f }, \
-                     0, 0, 0, Vars::T_BOOL, Vars::ROLE_INTERNAL, 0, Vars::STR_NONE, 0, {} }
-    const Vars::Variable VARS[] = { IB("alarm_a"), IB("alarm_b"), IB("alarm_c") };
-    #undef IB
-    Vars::Value vals[3]{};
-    Vars::VarTables t = {};
-    t.var = VARS; t.val = vals; t.count = 3;
-    Vars::Bank io(t);
-    io.init();
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-    // code, desc, ref, on_s, off_s, ... - announce off.
-    const Alarms::AlarmCondition tbl[] = {
-        { "AAA", "aaa", "a", { 0 }, -1, -1 },
-        { "BBB", "bbb", "b", { 1 }, -1, -1 },
-        { "CCC", "ccc", "c", { 2 }, -1, -1 },
+    // Three alarm rows. The row IS the condition, so there is no second table
+    // and nothing to keep in step: condition i reads variable i.
+    const Vars::Variable VARS[] = {
+        Vars::A("alarm_a", "AAA", -1, -1, 0, 0, 0, "a", ""),
+        Vars::A("alarm_b", "BBB", -1, -1, 0, 0, 0, "b", ""),
+        Vars::A("alarm_c", "CCC", -1, -1, 0, 0, 0, "c", ""),
     };
-#pragma GCC diagnostic pop
+    AlarmBank f(VARS, 3);
+    Vars::Bank& io = f.bank;
 
     Logs::Logger logger;
-    Alarms::AlarmModel m(tbl, 3, &logger, nullptr, 0, &io);
+    Alarms::AlarmModel m(&io, &logger);
 
     m.step(1000);
     CHECK(m.condition(0).active == false);
@@ -187,17 +194,19 @@ TEST_CASE("alarm reader: model reads each condition's variable") {
 }
 
 TEST_CASE("alarm reader: a condition naming no variable rests on set_local") {
-    // The platform-health alarms are in exactly this shape. VAR_NONE, not a
-    // zeroed ref: with a bare index, 0 is a REAL variable, so a zeroed ref
+    // The platform-health alarms are in exactly this shape: passed as the
+    // PLATFORM table, which the model never resolves, so the row keeps
+    // VAR_NONE. Not a zeroed ref - index 0 is a REAL variable, and a zeroed ref
     // would quietly make a platform alarm track the first row.
     Vars::Bank io;
     io.init();
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-    const Alarms::AlarmCondition tbl[] = { { "PLT", "plt", "platform", { Vars::VAR_NONE }, -1, -1 } };
+    const Alarms::AlarmCondition tbl[] = { { "PLT", "plt", "platform", -1, -1 } };
 #pragma GCC diagnostic pop
     Logs::Logger logger;
-    Alarms::AlarmModel m(tbl, 1, &logger, nullptr, 0, &io);
+    Alarms::AlarmModel m(&io, &logger, tbl, 1);
+    CHECK(m.condition(0).ref.index == Vars::VAR_NONE);
 
     m.step(1000);
     CHECK(m.condition(0).active == false);

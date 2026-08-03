@@ -56,6 +56,9 @@ namespace Botanik { namespace Pages {
         /** @brief Site home-field table (label + status variable) + the payload
          *  they read. Up to COLS * COL_MAX shown; extras ignored. */
         const Vars::HomeVar* _fields      = nullptr;
+        /** @brief The rows' resolved indices, filled at bring-up (the table
+         *  above names its variables rather than indexing them). */
+        const Vars::VarRef*  _refs        = nullptr;
         uint8_t                   _field_count = 0;
         const Vars::Bank*           _io          = nullptr;
 
@@ -266,11 +269,14 @@ namespace Botanik { namespace Pages {
         void draw_dynamic() override {
             // Cold fields only: the uptime counter is hot (see draw_hot()).
             // Site home-field values (formatted off the live payload + unit).
-            if (_io == nullptr) return;
+            // No refs means bring-up has not resolved the names yet, so there
+            // is nothing to read: the labels stand alone rather than every row
+            // showing the first variable.
+            if (_io == nullptr || _refs == nullptr) return;
             for (uint8_t i = 0; i < _field_count; i++) {
                 uint16_t row, lbl, val, w, slot;
                 if (!_field_place(i, row, lbl, val, w, slot)) break;
-                Vars::Var h = _io->var(_fields[i].ref);
+                Vars::Var h = _io->var(_refs[i]);
                 char vb[32], buf[40];
                 const char* s = Vars::var_format(*_io, h, vb, sizeof(vb));
                 const char* u = h.meta()->unit;
@@ -292,13 +298,14 @@ namespace Botanik { namespace Pages {
         /** @} */
 
     public:
-        /** @brief @p fields (+ @p count) is the site home-field table and @p io
-         *  what resolves them (all borrowed; may be null/0 for a bare home
-         *  screen). */
+        /** @brief @p fields (+ @p count) is the site home-field table, @p io
+         *  what resolves them and @p refs where their names were resolved at
+         *  bring-up (all borrowed; may be null/0 for a bare home screen). */
         HomePage(Console& console, const Vars::HomeVar* fields = nullptr,
-                 uint8_t count = 0, const Vars::Bank* io = nullptr)
+                 uint8_t count = 0, const Vars::Bank* io = nullptr,
+                 const Vars::VarRef* refs = nullptr)
             : MetricPage(console),
-              _fields(fields), _field_count(count), _io(io) {
+              _fields(fields), _refs(refs), _field_count(count), _io(io) {
             // cold-field redraw cadence
             _refresh_ms = Config::HOME_REFRESH_MS;
             // uptime ticks every second

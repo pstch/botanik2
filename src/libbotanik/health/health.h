@@ -55,17 +55,16 @@ namespace Botanik { namespace Health {
         /** @} */
 
     public:
-        /** @brief Build the notifier + model around the site alarm table (the
-         *  model appends the platform-health alarms). @p io resolves each site
-         *  condition's variable. */
-        HealthMonitor(const Alarms::AlarmCondition* table, uint8_t count,
-                      Logs::Logger* logger,
+        /** @brief Build the notifier + model. The model finds the site's alarms
+         *  by scanning @p io for SCOPE_A rows and appends the platform-health
+         *  ones after them; there is no alarm table to pass. */
+        HealthMonitor(Logs::Logger* logger,
                       const Scheduler::SchedulerContext* sched,
                       const Vars::Bank* io = nullptr)
             : Component(logger, "HealthMonitor"),
               _notifier(Config::MQTT_TOPIC_PREFIX),
-              _model(table, count, logger,
-                     Alarms::PLATFORM_ALARMS, Alarms::PLATFORM_ALARM_COUNT, io),
+              _model(io, logger,
+                     Alarms::PLATFORM_ALARMS, Alarms::PLATFORM_ALARM_COUNT),
               _sched(sched) {
             _model.add_notifier(&_notifier);   // the built-in MQTT sink
         }

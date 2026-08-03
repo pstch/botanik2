@@ -90,7 +90,7 @@ namespace Botanik { namespace Shell {
             { "list",       "[<prefix>] list variables",      &CommandShell::_cmd_list       },
             { "get",        "<name>  read a variable",        &CommandShell::_cmd_get        },
             { "set",        "<name> <value>  edit a parameter", &CommandShell::_cmd_set       },
-            { "override",   "list|<name> [off|<value>]",      &CommandShell::_cmd_override   },
+            { "override",   "list|<name> [off|<value>] [valid|invalid]", &CommandShell::_cmd_override },
             { "control",    "[enable|disable] drive the field", &CommandShell::_cmd_control   },
             { "loglevel",   "[debug|info|..|critical] filter",&CommandShell::_cmd_loglevel   },
             { "version",    "firmware version",               &CommandShell::_cmd_version    },
@@ -428,7 +428,8 @@ namespace Botanik { namespace Shell {
             }
             if (n == 0) _println("override: none active");
             else _emitf(out, sizeof(out),
-                        "%u override(s) active - they do NOT survive a reboot", n);
+                        "%u override(s) active - these SURVIVE a reboot; "
+                        "`override off` clears them", n);
             return;
         }
 
@@ -448,7 +449,10 @@ namespace Botanik { namespace Shell {
         const char* a = arg_next(args, alen, wa);
 
         if (a != nullptr && arg_eq(a, wa, "off")) {
-            h.override_clear();
+            // Through the bank, not the handle: the handle cannot reach the
+            // store, and a release that left the stored copy behind would come
+            // back at the next boot.
+            io->override_clear(h);
             _emitf(out, sizeof(out), "%s: override off", h.meta()->name);
             return;
         }
@@ -457,23 +461,45 @@ namespace Botanik { namespace Shell {
         if (a != nullptr && arg_eq(a, wa, "on")) a = arg_next(args, alen, wa);
 
         char val[48];
+        // A trailing `valid` / `invalid` says what the forced value READS as.
+        // "invalid" is how you stand a variable up as a dead sensor without
+        // touching what it reports, which is the only way to exercise the code
+        // that watches for one.
+        bool valid = true, said_validity = false;
+        if (a != nullptr && (arg_eq(a, wa, "invalid") || arg_eq(a, wa, "valid"))) {
+            valid = arg_eq(a, wa, "valid");
+            said_validity = true;
+            a = arg_next(args, alen, wa);          // may be null: no value given
+        }
+
         if (a == nullptr) {                       // freeze at the current value
-            h.override_freeze();
+            io->override_freeze(h);
+            if (said_validity) h.override_set(h.raw(), valid);
             const char* s = Vars::var_format(*io, h, val, sizeof(val));
-            _emitf(out, sizeof(out), "%s: frozen at %s", h.meta()->name, s);
+            _emitf(out, sizeof(out), "%s: frozen at %s%s", h.meta()->name, s,
+                   h.valid() ? "" : " (reading as invalid)");
             return;
         }
 
         char text[64];
         uint16_t vc = std::min(wa, (uint16_t)(sizeof(text) - 1));
         memcpy(text, a, vc); text[vc] = '\0';
-        if (io->override_set(h, text) != Vars::SET_OK) {
+
+        // The validity word is also accepted after the value, which is how it
+        // reads most naturally: `override ext_temp 20 invalid`.
+        uint16_t wt = 0;
+        const char* t = arg_next(args, alen, wt);
+        if (t != nullptr && (arg_eq(t, wt, "invalid") || arg_eq(t, wt, "valid")))
+            valid = arg_eq(t, wt, "valid");
+
+        if (io->override_set(h, text, valid) != Vars::SET_OK) {
             _emitf(out, sizeof(out), "override: invalid value for %s",
                    h.meta()->name);
             return;
         }
         const char* s = Vars::var_format(*io, h, val, sizeof(val));
-        _emitf(out, sizeof(out), "%s: forced to %s", h.meta()->name, s);
+        _emitf(out, sizeof(out), "%s: forced to %s%s", h.meta()->name, s,
+               valid ? "" : " (reading as invalid)");
     }
 
     void CommandShell::_cmd_control(const char* args, uint16_t alen) {

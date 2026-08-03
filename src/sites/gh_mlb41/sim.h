@@ -24,9 +24,8 @@
 #include <random>
 
 
-#include "botanik.h"
+#include "libbotanik.h"
 
-#include "alarms.h"                     // g_alarms - the one alarm definition
 
 /**
  * @brief Grow a base timeout (ms) by time-dilation factor S, so jitter
@@ -63,19 +62,33 @@ inline float drift(float v, float step, float lo, float hi, float p) {
 /// True with probability p - for rare discrete events (rain, bus dropouts).
 inline bool chance(float p) { return frand() < p; }
 
-/** @brief Simulated alarm bit for a table code (0 if undefined).
- *  Resolves through g_alarms so the mock bitset uses the firmware's bit
+/** @brief Simulated alarm bit for an alarm variable name (0 if undefined).
+ *  Resolves through the variable table so the mock bitset uses the firmware's bit
  *  layout. */
+inline uint8_t alarm_slot(const char* name) {
+    uint8_t slot = 0;
+    for (uint16_t i = 0; i < VAR_TOTAL; i++) {
+        if (g_vars[i].scope != SCOPE_A) continue;
+        if (Botanik::Utils::compare_str(g_vars[i].name, name)) return slot;
+        slot++;
+    }
+    return 0xFF;
+}
+inline uint8_t alarm_slots() {
+    uint8_t n = 0;
+    for (uint16_t i = 0; i < VAR_TOTAL; i++) if (g_vars[i].scope == SCOPE_A) n++;
+    return n;
+}
 inline uint64_t abit(const char* name) {
-    int i = Botanik::Alarms::alarm_index(g_alarms, g_alarm_count, name);
-    return i >= 0 ? Botanik::Alarms::alarm_bit((uint8_t)i) : 0;
+    const uint8_t slot = alarm_slot(name);
+    return slot == 0xFF ? 0 : Botanik::Alarms::alarm_bit(slot);
 }
 
 /** @brief Publish one reading as a driver would: value, timestamp, valid in
  *  one step. Through the handle, not the value array - writing the array
  *  directly is how the simulated field silently drifted out of step with the
  *  model, since it would not fail to compile when the model changed. */
-inline void put(Vars::Bank& io, uint16_t id, float v, uint32_t now_ms) {
+inline void put(Vars::Bank& io, const char* id, float v, uint32_t now_ms) {
     io.var(id).publish(Scalar::F(v), now_ms);
 }
 
@@ -99,26 +112,26 @@ inline void publish_meters(Vars::Bank& io, uint32_t now_ms) {
     const float pf = 0.88f + 0.10f * load;
     const float watts = ln * amps * pf * 3.0f;
 
-    put(io, V_GRID_L1_V, ln + 1.2f, now_ms);
-    put(io, V_GRID_L2_V, ln - 0.8f, now_ms);
-    put(io, V_GRID_L3_V, ln + 0.3f, now_ms);
-    put(io, V_GRID_LN_V, ln, now_ms);
-    put(io, V_GRID_LL_V, ln * 1.732f, now_ms);
-    put(io, V_GRID_L1_A, amps / 3.0f, now_ms);
-    put(io, V_GRID_L2_A, amps / 3.0f, now_ms);
-    put(io, V_GRID_L3_A, amps / 3.0f, now_ms);
-    put(io, V_GRID_AVG_A, amps / 3.0f, now_ms);
-    put(io, V_GRID_TOTAL_A, amps, now_ms);
-    put(io, V_GRID_TOTAL_W, watts, now_ms);
-    put(io, V_GRID_TOTAL_VA, watts / pf, now_ms);
-    put(io, V_GRID_TOTAL_PF, pf, now_ms);
+    put(io, "grid_L1_V", ln + 1.2f, now_ms);
+    put(io, "grid_L2_V", ln - 0.8f, now_ms);
+    put(io, "grid_L3_V", ln + 0.3f, now_ms);
+    put(io, "grid_LN_V", ln, now_ms);
+    put(io, "grid_LL_V", ln * 1.732f, now_ms);
+    put(io, "grid_L1_A", amps / 3.0f, now_ms);
+    put(io, "grid_L2_A", amps / 3.0f, now_ms);
+    put(io, "grid_L3_A", amps / 3.0f, now_ms);
+    put(io, "grid_avg_A", amps / 3.0f, now_ms);
+    put(io, "grid_total_A", amps, now_ms);
+    put(io, "grid_total_W", watts, now_ms);
+    put(io, "grid_total_VA", watts / pf, now_ms);
+    put(io, "grid_total_PF", pf, now_ms);
     // Mains frequency wanders in the last decimal, as a real one does.
-    put(io, V_GRID_HZ, 50.0f + 0.03f * sinf(t / 37.0f), now_ms);
+    put(io, "grid_Hz", 50.0f + 0.03f * sinf(t / 37.0f), now_ms);
 
     // The transfer switch sees the same supply, lightly loaded.
-    put(io, V_ATS_V,  ln - 0.5f, now_ms);
-    put(io, V_ATS_A,  amps * 0.15f, now_ms);
-    put(io, V_ATS_HZ, 50.0f + 0.03f * sinf(t / 37.0f), now_ms);
+    put(io, "ats_V",  ln - 0.5f, now_ms);
+    put(io, "ats_A",  amps * 0.15f, now_ms);
+    put(io, "ats_Hz", 50.0f + 0.03f * sinf(t / 37.0f), now_ms);
 }
 
 /**
@@ -138,34 +151,34 @@ inline void drive_coils(Vars::Bank& io, uint32_t now_ms) {
     const bool opening = thermal > 0.35f;
     const bool closing = thermal < -0.35f;
 
-    const uint16_t opn[] = { V_CLI_WINDOW1_OPN, V_CLI_WINDOW2_OPN,
-                             V_CLI_WINDOW3_OPN, V_CLI_WINDOW4_OPN };
-    const uint16_t clo[] = { V_CLI_WINDOW1_CLO, V_CLI_WINDOW2_CLO,
-                             V_CLI_WINDOW3_CLO, V_CLI_WINDOW4_CLO };
+    const char* const opn[] = { "cli_window1_opn", "cli_window2_opn",
+                             "cli_window3_opn", "cli_window4_opn" };
+    const char* const clo[] = { "cli_window1_clo", "cli_window2_clo",
+                             "cli_window3_clo", "cli_window4_clo" };
     for (uint8_t i = 0; i < 4; i++) {
         io.var(opn[i]).set(opening);
         io.var(clo[i]).set(closing);
     }
 
     // Destratification fans step up with the thermal load.
-    const uint16_t fans[] = { V_CLI_DESTRAT1_SPEED1, V_CLI_DESTRAT1_SPEED2,
-                              V_CLI_DESTRAT1_SPEED3 };
+    const char* const fans[] = { "cli_destrat1_speed1", "cli_destrat1_speed2",
+                              "cli_destrat1_speed3" };
     const int speed = (thermal > 0.6f) ? 3 : (thermal > 0.2f) ? 2 : (thermal > -0.2f) ? 1 : 0;
     for (uint8_t i = 0; i < 3; i++) {
         io.var(fans[i]).set((speed == (int)i + 1));
     }
 
-    io.var(V_CLI_SCREEN).set(thermal < -0.5f);
+    io.var("cli_screen").set(thermal < -0.5f);
 
     // Irrigation walks the trays, one at a time, ~40 s each.
-    const uint16_t trays[] = { V_IRR_TRAY1, V_IRR_TRAY2, V_IRR_TRAY3, V_IRR_TRAY4,
-                               V_IRR_TRAY5, V_IRR_TRAY6, V_IRR_TRAY7, V_IRR_TRAY8 };
+    const char* const trays[] = { "irr_tray1", "irr_tray2", "irr_tray3", "irr_tray4",
+                               "irr_tray5", "irr_tray6", "irr_tray7", "irr_tray8" };
     const int active = ((int)(t / 40.0f)) % 8;
     for (uint8_t i = 0; i < 8; i++) {
         io.var(trays[i]).set(((int)i == active));
     }
-    io.var(V_IRR_INPUT_RO1).set((active < 4));
-    io.var(V_IRR_OUTPUT_RO1).set((active >= 4));
+    io.var("irr_input_ro1").set((active < 4));
+    io.var("irr_output_ro1").set((active >= 4));
 }
 
 /**
@@ -181,9 +194,9 @@ inline void publish_alarms(Vars::Bank& io, uint32_t now_ms) {
     uint64_t raw = 0;
 
     // Real causes, read back through the variable tables.
-    const float ln  = io.var(V_GRID_LN_V).value();
-    const float pf  = io.var(V_GRID_TOTAL_PF).value();
-    const float hz  = io.var(V_GRID_HZ).value();
+    const float ln  = io.var("grid_LN_V").value();
+    const float pf  = io.var("grid_total_PF").value();
+    const float hz  = io.var("grid_Hz").value();
     if (ln < 226.0f || ln > 234.0f)  raw |= abit("AC_GRID");
     if (hz < 49.9f  || hz > 50.1f)   raw |= abit("AC_LOCAL");
     if (pf < 0.90f)                  raw |= abit("DC_PS1");
@@ -221,11 +234,15 @@ inline void publish_alarms(Vars::Bank& io, uint32_t now_ms) {
         if (on || hold_ms[i] > 0)   debounced |= Botanik::Alarms::alarm_bit(i);
     }
 
-    // Scatter the debounced bitset into the variables the alarm table names
-    // (row i -> g_alarms[i].ref), which is where the model reads them. On
-    // hardware a control program drives the same internals.
-    for (uint8_t i = 0; i < g_alarm_count; i++)
-        io.var(g_alarms[i].ref).set(((debounced >> i) & 1u) != 0);
+    // Scatter the debounced bitset into the alarm rows themselves, in table
+    // order - the same order the model numbered its conditions in. On hardware
+    // a control program drives the same variables.
+    uint8_t slot = 0;
+    for (uint16_t i = 0; i < VAR_TOTAL; i++) {
+        if (g_vars[i].scope != SCOPE_A) continue;
+        io.var(i).set(((debounced >> slot) & 1u) != 0);
+        slot++;
+    }
 }
 
 // ---------------------------------------------------------------------------

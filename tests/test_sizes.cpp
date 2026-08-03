@@ -79,8 +79,8 @@ TEST_CASE("sizeof: the site's variable table and value store") {
     // values are the only RAM cost.
     REPORT_SIZE(Botanik::Vars::Variable, 128);
     REPORT_SIZE(Botanik::Vars::Value, 32);
-    MESSAGE("site variables = " << (int)Site::V_COUNT);
+    MESSAGE("site variables = " << (int)Site::VAR_TOTAL);
     MESSAGE("descriptor table = " << sizeof(Site::g_vars) << " bytes (flash)");
-    MESSAGE("value store = " << sizeof(Site::g_var_values) << " bytes (RAM)");
+    MESSAGE("value store = " << sizeof(Site::Store::values) << " bytes (RAM)");
     CHECK(sizeof(Site::g_vars) > 0);
 }
