@@ -104,3 +104,114 @@ class SchedulerContext {
   timestamp_ms : uint32 - shared per-tick now (wraps ~49 days)
 }
 \enduml
+
+## Multi-rate tasks
+
+Today every component in the loop is stepped on every beat, at
+`TASK_PERIOD_MS` = 10 ms. Most of them do not need it, and one of them (the
+console) is oversampled by more than an order of magnitude. This section is the
+budget for giving each one its own period; the mechanism is `Scheduler::TaskTimer`
+(below), the rates are not wired up yet.
+
+`Scan::Driver` (@ref int_tasks) is the exception that already works this way: a
+control program declares a `period_ms` and runs when it comes due. The rest of
+the loop should reach the same place.
+
+### What sets a rate
+
+Whichever of four constraints binds first:
+
+| Constraint | Reads as |
+|---|---|
+| **Buffer** | a ring must be drained before it fills |
+| **Perception** | a human must not notice the lag |
+| **Physics** | the process time constant |
+| **Protocol** | a dwell or timeout it has to resolve |
+
+Anything faster than the binding constraint is waste. Two measurements carry most
+of the argument:
+
+- **`Bank::expire_stale()` is a full linear scan of all 259 rows**
+  (`vars/model.cpp`), run every beat, to detect timeouts measured in *seconds*.
+  About 25,900 row-visits per second to resolve a 3 s deadline.
+- **The console link is 4800 baud.** It carries **4.4 bytes per 10 ms beat**. One
+  80-column line is **206 ms** of wire time; a full 80x24 screen is **4.4 s**.
+  Diffing a 1920-cell grid at 100 Hz to feed that is ~20x oversampled.
+
+### The rates
+
+| Task | Binding constraint | Now | Target | Cut |
+|---|---|---|---|---|
+| `console.serial().receive()` | 4800 baud fills the 255-byte ring in 585 ms; echo | 10 ms | 20 ms | 2x |
+| `monitor.serial().receive()` | 115200 fills the ring in **24 ms** | 10 ms | 10 ms | - |
+| `params.step()` | human edit latency | 10 ms | 100 ms | 10x |
+| `io.expire_stale()` | timeouts are 3x group period, so 3 - 180 s | 10 ms | 250 ms | 25x |
+| `health.step()` | alarm dwell (`on_s`/`off_s`) is in seconds | 10 ms | 100 ms | 10x |
+| `net.step()` | MQTT keepalive 60 s, telemetry 30 s; TCP drain | 10 ms | 20 ms | 2x |
+| `scan.step()` | must **divide** the fastest task period (100 ms) | 10 ms | 10 ms | - |
+| `logger.step()` | queue drain against the boot burst; eviction risk | 10 ms | 10 ms | - |
+| `console.step()` (render) | 4800 baud = 4.4 bytes/beat; echo perception | 10 ms | 50 ms | 5x |
+| `console.serial().transmit()` | paired with the render | 10 ms | 50 ms | 5x |
+| Watchdog kick | HW period is seconds, and it is the safety net | 10 ms | 10 ms | - |
+| *Modbus client* (@ref dev_modbus) | ring fills in 146 ms @19200, **24 ms** @115200 | - | 10 ms | - |
+
+The two wins are `expire_stale` (25x) and the console render (5x, and the most
+expensive item per invocation). `scan`, `logger` and the watchdog kick stay on the
+beat deliberately: the scan's not-due path is two comparisons per task, and the
+other two are safety-critical.
+
+### Three couplings a period alone does not fix
+
+**The terminal's TX byte budget is derived from `baud x tick period`** (@ref
+dev_screen). Moving the render to 50 ms without rescaling that budget by 5x cuts
+console throughput to a fifth. `LOG_ROWS_PER_TICK` has the same shape: it paces
+the log scrollback *per tick*, so at 50 ms it drains 5x slower. Both have to
+become per-elapsed-ms, which is exactly what a real `dt_ms` handed to `on_step()`
+provides.
+
+**Periods must be integer multiples of the beat.** A 100 ms task on a 30 ms beat
+fires at 120 ms. Harmless while the beat is 10 ms and every period above divides
+by it; sharp the moment the beat moves.
+
+**`health.step()` at 100 ms makes `watchdog_ok()` up to 100 ms stale**, and the
+loop reads it every beat. Harmless against a hardware watchdog measured in
+seconds, but it should be a decision rather than a surprise.
+
+### Lowering the beat
+
+Sub-10 ms dispatch is not a task-period feature: a 10 ms beat cannot release
+anything at 4 ms. It needs `TASK_PERIOD_MS` itself lowered, gated on three
+things.
+
+1. **Per-component periods must land first.** Dropping 10 ms to 2 ms multiplies
+   every component's work by 5. Do it after the rates above are in force and the
+   two roughly cancel.
+2. **The beat can never be shorter than `cpu_loop_us_max`**, the worst-case
+   single-beat work time. It is already measured and published; read it from
+   `stats` before choosing a period.
+3. **The sleep/spin split has to go to microseconds.** `tick()` busy-waits the
+   last ~1 ms, so a 2 ms beat would spend 50 % of the CPU spinning against 10 %
+   today - which is what `static_assert(TASK_PERIOD_MS >= 2)` is there to flag.
+
+The only sub-beat consumer identified so far is a Modbus link at 115200 wanting
+5 ms; at 19200 the RX ring gives 146 ms of slack and needs nothing. Greenhouse
+physics asks for nothing below 100 ms.
+
+### TaskTimer
+
+The due/late/dropped decision is one rule, shared rather than reimplemented per
+call site. `Scheduler::TaskTimer` (`scheduler/task_timer.h`) holds the two fields
+of per-task state and answers it:
+
+- **Due** when `period_ms` is 0 (every beat), on the first ever call, or once
+  `now_ms - last_run_ms >= period_ms`.
+- **`dt_ms` is the ACTUAL elapsed time** since that task last ran, never the
+  nominal period, so a task that ran late does not lose the time it was late by.
+  The first run reports the nominal period instead - handing a timer "everything
+  since boot" would fire it immediately.
+- **`missed` counts dropped activations.** A task due late runs ONCE; missed
+  activations are dropped, never caught up, because a burst of catch-up runs
+  lands exactly when the system is already behind.
+
+`due()` is a pure query and `ran()` commits, so a caller that decides not to run
+(the scan while control is withheld) does not silently consume the activation.
