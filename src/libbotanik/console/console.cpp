@@ -11,6 +11,15 @@
 
 namespace Botanik { namespace Terminal {
 
+    // The render rate against the TX pacing. present() tops the ring back up to
+    // TX_COLD_TARGET_MS of wire time however often it runs, so a slower render
+    // costs no throughput - right up until the ring drains empty between two of
+    // them, at which point the wire idles and the pacing model breaks. Half the
+    // target keeps a 2x margin on that.
+    static_assert(Config::CONSOLE_RENDER_PERIOD_MS * 2 <= Config::TX_COLD_TARGET_MS,
+                  "CONSOLE_RENDER_PERIOD_MS must stay under half TX_COLD_TARGET_MS, "
+                  "or the TX ring drains between renders and the link idles");
+
     // Lifecycle
 
     Console::Console(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,

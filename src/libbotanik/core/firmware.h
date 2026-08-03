@@ -168,6 +168,10 @@ namespace Botanik {
          *  an operator's `control disable` is not something the loop can
          *  silently talk over. */
         bool                           _health_fault = false;
+        /** @brief Rate for the input-expiry sweep. The Bank is not a Component
+         *  (it is the data, not a stepped subsystem), so the loop times this one
+         *  itself rather than the sweep gating from inside. */
+        Scheduler::TaskTimer           _expiry_timer;
         Health::HealthMonitor          _health;
         SystemContext                  _sys_ctx;     ///< Filled in the ctor body
 #if BOTANIK_FEATURE_MONITOR
@@ -273,6 +277,22 @@ namespace Botanik {
             // with no row lands on the sink and is counted (and logged) by the
             // bank, which is what the site test asserts is zero.
             _resolve_site_refs();
+
+            // How often each component runs on the beat. The loop below still
+            // calls step() on every one every beat - the ORDER there is
+            // load-bearing and stays code - but a component whose work resolves
+            // something measured in seconds need not pay 100 Hz for it. The scan
+            // driver and the logger keep the beat deliberately: the scan's
+            // not-due path is two comparisons per task, and the logger drains a
+            // queue that evicts under pressure.
+            _params.set_period(Config::PARAMS_PERIOD_MS);
+            _health.set_period(Config::HEALTH_PERIOD_MS);
+#if BOTANIK_FEATURE_CONSOLE
+            // The Console is the Component here, not the stack around it: the
+            // stack's serial pump is stepped separately and stays on the beat.
+            _console.terminal().set_period(Config::CONSOLE_RENDER_PERIOD_MS);
+#endif
+
 #if BOTANIK_FEATURE_CONSOLE
             HAL::Serial::get(HAL::Serial::CONSOLE)->begin(_console_baud);
 #endif
@@ -383,7 +403,17 @@ namespace Botanik {
 
             // Read phase: age out readings past their timeout, so one beat is
             // coherent. Field drivers slot in here, before anything reads.
-            _io.expire_stale(now_ms);
+            //
+            // Rated, not per-beat: the sweep is a full linear scan of the
+            // variable table and the timeouts it resolves are measured in
+            // seconds, so running it at 100 Hz spends ~26k row-visits a second
+            // to notice something up to 250 ms sooner than anything cares.
+            uint32_t expiry_dt = 0; uint16_t expiry_missed = 0;
+            if (_expiry_timer.due(now_ms, Config::EXPIRE_STALE_PERIOD_MS,
+                                  expiry_dt, expiry_missed)) {
+                _expiry_timer.ran(now_ms);
+                _io.expire_stale(now_ms);
+            }
 
             // Health before the logger drains, so an alarm START/END lands this beat.
             _health.step(now_ms);
@@ -428,7 +458,7 @@ namespace Botanik {
 
             on_step(now_ms);   // site per-beat state machines (default no-op)
 
-            _logger.step();
+            _logger.refill();
 
             // Middle logic: terminal render + monitor log-queue drain.
 #if BOTANIK_FEATURE_CONSOLE

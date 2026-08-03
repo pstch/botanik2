@@ -105,6 +105,45 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, TASK_PERIOD_MS);
 
+    /** @brief Per-component run intervals (ms). The beat above is the loop rate;
+     *  these are how often each component actually runs on it, so a component
+     *  need not pay 100 Hz to resolve something measured in seconds. Each should
+     *  be an integer multiple of TASK_PERIOD_MS. See docs/dev/scheduler.md for
+     *  what sets each one; 0 means every beat.
+     *  @{ */
+
+    /** @brief Parameter commit + storage load. Bounded by human edit latency. */
+#ifndef BOTANIK_PARAMS_PERIOD_MS
+#  define BOTANIK_PARAMS_PERIOD_MS 100
+#endif
+    BOTANIK_CFG(uint32_t, PARAMS_PERIOD_MS);
+
+    /** @brief Alarm dwell + platform health. Alarm on_s/off_s are in SECONDS, so
+     *  100 ms resolves the shortest dwell ten times over. */
+#ifndef BOTANIK_HEALTH_PERIOD_MS
+#  define BOTANIK_HEALTH_PERIOD_MS 100
+#endif
+    BOTANIK_CFG(uint32_t, HEALTH_PERIOD_MS);
+
+    /** @brief Console render. The wire, not the eye, is the ceiling: at 4800 baud
+     *  a beat carries 4.4 bytes and one 80-column line takes 206 ms to send, so a
+     *  100 Hz diff of a 1920-cell grid is ~20x oversampled. Held under
+     *  TX_COLD_TARGET_MS (asserted in console.cpp) so the TX ring is topped up
+     *  again before it drains and the wire never idles. */
+#ifndef BOTANIK_CONSOLE_RENDER_PERIOD_MS
+#  define BOTANIK_CONSOLE_RENDER_PERIOD_MS 50
+#endif
+    BOTANIK_CFG(uint32_t, CONSOLE_RENDER_PERIOD_MS);
+
+    /** @brief Input-expiry sweep. A full linear scan of the variable table, run
+     *  to resolve timeouts measured in seconds (3x the poll group's period). */
+#ifndef BOTANIK_EXPIRE_STALE_PERIOD_MS
+#  define BOTANIK_EXPIRE_STALE_PERIOD_MS 250
+#endif
+    BOTANIK_CFG(uint32_t, EXPIRE_STALE_PERIOD_MS);
+
+    /** @} */
+
     /** @brief Hardware watchdog timeout */
 #ifndef BOTANIK_HW_WATCHDOG_MS
 #  define BOTANIK_HW_WATCHDOG_MS 10000

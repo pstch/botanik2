@@ -162,12 +162,23 @@ other two are safety-critical.
 
 ### Three couplings a period alone does not fix
 
-**The terminal's TX byte budget is derived from `baud x tick period`** (@ref
-dev_screen). Moving the render to 50 ms without rescaling that budget by 5x cuts
-console throughput to a fifth. `LOG_ROWS_PER_TICK` has the same shape: it paces
-the log scrollback *per tick*, so at 50 ms it drains 5x slower. Both have to
-become per-elapsed-ms, which is exactly what a real `dt_ms` handed to `on_step()`
-provides.
+**The terminal's TX pacing is a ring DEPTH FLOOR, not a per-tick allowance**
+(@ref dev_screen). `present()` computes `budget = _tx_cold_depth - tx_used()`
+(`console/terminal.cpp`), where `_tx_cold_depth` is `depth_for_baud(baud,
+TX_COLD_TARGET_MS)` - 128 ms of wire time, 61 bytes at 4800 baud. So it tops the
+ring back up to a fixed latency target however often it runs: period-independent,
+and slowing the render does **not** cut throughput.
+
+What it does impose is a ceiling: **the render period must stay well under
+`TX_COLD_TARGET_MS`**, or the ring drains empty between renders and the wire
+idles. 50 ms against 128 ms leaves 2.5x of margin; anything past ~64 ms starts
+eating it.
+
+**`LOG_ROWS_PER_TICK` is genuinely per-tick**, and it is the one quantity that
+does scale with the render rate: 2 rows per tick is 200 rows/s at 10 ms and
+40 rows/s at 50 ms. Not binding at 4800 baud, where the wire ceiling is ~4.4
+lines/s and 40 stays 9x clear of it - but it becomes the limit on a site that
+runs a fast console link, and it wants rescaling there.
 
 **Periods must be integer multiples of the beat.** A 100 ms task on a 30 ms beat
 fires at 120 ms. Harmless while the beat is 10 ms and every period above divides
