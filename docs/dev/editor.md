@@ -26,7 +26,7 @@ Every edit runs the same three steps:
 
 ```
  1. mutate     edit the byte buffer (_buf) in place
- 2. lay out    _pre = _layout              (snapshot the old layout)
+ 2. lay out    _snapshot_pre()             (snapshot the old layout)
                _rebuild_layout()           (recompute rows from _buf)
  3. reconcile  diff _pre against _layout, emit minimal terminal ops
 ```
@@ -47,7 +47,7 @@ class RowView {
   hard_break : bool - row closed by a literal newline
 }
 class TextView {
-  rows : RowView[EDITOR_MAX_ROWS]
+  rows : RowView* - borrowed, owner-supplied (EditorStorage)
   count : uint16_t
 }
 TextView *-- "rows" RowView
@@ -135,7 +135,7 @@ same as "in the layout": after a DL, the rows sliding up into the bottom of the 
 came from **below** it, so the screen row is blank, not stale. Splicing against glyphs it
 never had corrupts it.
 
-`_was_visible()` (against the pre-edit `_pre_view_top` / `_pre_view_rows`, snapshotted with
+`_was_visible()` (against the pre-edit `_pre_view_top` / `_pre_view_height`, snapshotted with
 the layout) is the guard. A row that fails it drops to `_new_row()` - a repaint, which is
 what it needed anyway.
 
