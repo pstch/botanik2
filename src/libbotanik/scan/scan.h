@@ -48,7 +48,13 @@ namespace Botanik { namespace Scan {
      * and the output write. Holds a borrowed array of borrowed program
      * pointers; every scrap of per-program state lives in the program itself,
      * so the driver owns nothing - which is what removed the parallel stats
-     * array a site used to declare alongside its task table. */
+     * array a site used to declare alongside its task table.
+     *
+     * The dispatch arithmetic is not here either: a Plc::Program is a Component,
+     * so "is it due, how late, how many were dropped" is the one implementation
+     * every other component uses. What is left in this class is what is
+     * genuinely the scan cycle's own - the order, and the control-authority
+     * gate with its two edges. */
     class Driver : public Component {
 
         /** @name State
@@ -80,13 +86,11 @@ namespace Botanik { namespace Scan {
         /** @} */
 
     protected:
-        /** @brief Bind every program to the variable bank, and spread the
-         *  programs across beats by table index, before any of them runs.
-         *
-         *  Binding here rather than in the firmware's setup() is deliberate:
-         *  this runs on the first beat, by which point the bank has its
-         *  defaults and its stored parameters, so a program resolving names
-         *  sees the table it will actually read.
+        /** @brief Hand each program the bank, stagger it, and run its one-shot
+         *  setup - all of it inside BotanikFirmware::setup(), since that is
+         *  where the task registry calls this, not on the first beat. Binding
+         *  here rather than lazily on first step keeps the name resolution off
+         *  the beat entirely, and ahead of the watchdog being armed.
          *
          *  Without the stagger every program seeds its timer on the same first
          *  beat and they stay phase-locked to boot, so two 100 ms programs

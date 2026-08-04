@@ -5,7 +5,7 @@
  * @file timers.h
  * @brief The three PLC timers: on-delay, off-delay, pulse.
  *
- * Each takes @p dt_ms (ScanContext::dt_ms), the ACTUAL elapsed time since the
+ * Each takes @p dt_ms (Plc::Context::dt_ms), the ACTUAL elapsed time since the
  * task last ran, rather than reading a clock: a task that ran late must not
  * lose the time it was late by.
  */

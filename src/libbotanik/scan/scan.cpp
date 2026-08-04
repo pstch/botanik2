@@ -11,27 +11,20 @@
 namespace Botanik { namespace Scan {
 
     void Driver::on_setup(uint64_t now_ms) {
-        (void)now_ms;
         if (_programs == nullptr || _io == nullptr) return;
 
         for (uint8_t i = 0; i < _count; i++) {
             Plc::Program* p = _programs[i];
             if (p == nullptr) continue;
 
-            // Names into VarRefs, once. A program that skipped this would still
-            // work - Bank::var(name) resolves on every call - but at the cost of
-            // a linear walk of the whole table per named access per activation.
-            p->bind(*_io);
-
-            if (Config::SCAN_STAGGER_MS == 0) continue;
-            // An every-beat program has no interval to shift inside, and the
-            // modulo would divide by zero.
-            if (p->period_ms() == 0) continue;
-            // Wrapped into the period: an offset at or past it would skip a
-            // whole activation rather than shifting one, and with enough
-            // programs the raw i*step runs past the shorter periods.
-            p->_timer.set_offset((uint32_t)i * Config::SCAN_STAGGER_MS
-                                 % p->period_ms());
+            p->attach(*_io, _logger);
+            p->set_offset(Scheduler::stagger_offset(i, Config::SCAN_STAGGER_MS,
+                                                    p->period_ms()));
+            // Resolve its names now rather than letting step() do it lazily on
+            // the first beat: this runs inside BotanikFirmware::setup(), before
+            // the watchdog is armed, which is where the rest of the firmware's
+            // one-shot work already sits.
+            p->setup(now_ms);
         }
     }
 
@@ -63,32 +56,20 @@ namespace Botanik { namespace Scan {
             // control returns, which is the one thing a withdrawal exists to
             // prevent.
             //
-            // Only a program that has ALREADY run: one that has not is at its
-            // first activation, which is due immediately by design and must not
-            // be spent here. That also covers bring-up, where control goes from
-            // withheld to held with nothing having run yet.
+            // reseed() leaves a program that has never run alone: its first
+            // activation is due immediately by design and must not be spent
+            // here. That also covers bring-up, where control goes from withheld
+            // to held with nothing having run yet.
             _enabled = true;
             for (uint8_t i = 0; i < _count; i++)
-                if (_programs[i] != nullptr && _programs[i]->runs() > 0)
-                    _programs[i]->_timer.ran(now_ms);
+                if (_programs[i] != nullptr) _programs[i]->reseed(now_ms);
         }
 
-        for (uint8_t i = 0; i < _count; i++) {
-            Plc::Program* p = _programs[i];
-            if (p == nullptr) continue;
-
-            // Due, how late, and how many activations were dropped: one rule,
-            // shared with every other multi-rate caller (scheduler/task_timer.h).
-            uint32_t dt     = 0;
-            uint16_t missed = 0;
-            if (!p->_timer.due(now_ms, p->period_ms(), dt, missed)) continue;
-
-            Plc::Context ctx = { now_ms, dt, missed, *_io };
-
-            p->run(ctx);
-
-            p->_timer.ran(now_ms);
-        }
+        // Due, how late, and how many activations were dropped is Component's
+        // arithmetic, the same for a control program as for any other component
+        // that runs at its own rate; step() is what applies it.
+        for (uint8_t i = 0; i < _count; i++)
+            if (_programs[i] != nullptr) _programs[i]->step(now_ms);
     }
 
 }}  // namespace Botanik::Scan

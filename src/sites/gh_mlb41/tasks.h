@@ -62,6 +62,15 @@ class SupplyWatch : public Plc::Program {
 public:
     SupplyWatch() : Program("supply_watch", 100) {}
 
+    /** @brief Both blocks are a claim about the supply over TIME, and the scan
+     *  stopping means we stopped watching it. Start the debounce again rather
+     *  than resuming a dwell that was counting an outage we did not see. */
+    void reset() override {
+        _bad_for.reset();
+        _lockout.reset();
+    }
+
+protected:
     void bind(Vars::Bank& io) override {
         _ln     = io.find("grid_LN_V");
         _locked = io.find("sys_supply_lockout");
@@ -92,13 +101,6 @@ public:
         }
     }
 
-    /** @brief Both blocks are a claim about the supply over TIME, and the scan
-     *  stopping means we stopped watching it. Start the debounce again rather
-     *  than resuming a dwell that was counting an outage we did not see. */
-    void reset() override {
-        _bad_for.reset();
-        _lockout.reset();
-    }
 };
 
 /**
@@ -126,6 +128,7 @@ class SupplyReport : public Plc::Program {
 public:
     SupplyReport() : Program("supply_report", 1000) {}
 
+protected:
     void bind(Vars::Bank& io) override {
         _out = io.find("sys_supply_hz");
         _raw = io.find("grid_Hz");
@@ -140,32 +143,15 @@ public:
     // dangerous in the meantime.
 };
 
-/** @brief The program instances.
- *
- *  Mutable state in a header, so it uses the same vague-linkage trick as the
- *  value store in vars.h: a class template's static member is emitted per TU
- *  and folded by the linker, where a plain definition here would be a duplicate
- *  symbol the moment two TUs included this. It cannot simply live in vars.h's
- *  store - tasks.h includes vars.h, so it is vars.h that must not know about
- *  the programs. */
-template <typename Tag>
-struct ProgramStore {
-    static SupplyWatch  supply_watch;
-    static SupplyReport supply_report;
-};
-template <typename Tag> SupplyWatch  ProgramStore<Tag>::supply_watch;
-template <typename Tag> SupplyReport ProgramStore<Tag>::supply_report;
-
-/** @brief The one instantiation, matching Store in vars.h. */
-using Programs = ProgramStore<void>;
-
 /** @brief The site's control programs, in execution order.
  *
  *  Pointers, so the table itself stays const and flash-resident even though
- *  what it points at is RAM. */
+ *  what it points at is RAM. Plc::Instance holds the one static of each - a
+ *  program is mutable state named from a header, and that is the library's
+ *  trick to reproduce, not the site's. */
 Plc::Program* const g_programs[] = {
-    &Programs::supply_watch,
-    &Programs::supply_report,
+    &Plc::Instance<SupplyWatch>::obj,
+    &Plc::Instance<SupplyReport>::obj,
 };
 const uint8_t g_program_count =
     (uint8_t)(sizeof(g_programs) / sizeof(g_programs[0]));

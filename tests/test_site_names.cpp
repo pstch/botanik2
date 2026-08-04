@@ -158,15 +158,14 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
 #ifdef TARGET_SIMULATOR
     Site::simulate(f.bank, 1000);
 #endif
-    // bind() is where a program resolves its names, so it is what has to run
-    // for an unknown one to be counted; run() then catches anything still
-    // resolved by name from inside the program body.
+    // step() is setup() (which binds the names) then one activation - the same
+    // two things the driver does, said the same way, so this cannot drift from
+    // the driver's contract the way a hand-rolled bind+run pair would.
     for (uint8_t t = 0; t < site().program_count; t++) {
         Plc::Program* p = site().programs[t];
         REQUIRE(p != nullptr);
-        p->bind(f.bank);
-        Plc::Context c = { 1000, p->period_ms(), 0, f.bank };
-        p->run(c);
+        p->attach(f.bank);
+        p->step(1000);
     }
 
     INFO("a non-zero count means a table or a control program names a variable "

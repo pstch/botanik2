@@ -18,6 +18,17 @@
  * repeats every scan, and nothing can reach into it to reset it. All four are
  * the same missing thing: an object.
  *
+ * @section plc_program_component Why it is a Component
+ *
+ * "A named thing that runs at its own rate, carries its own timer, and gets a
+ * one-shot init" is Component, and the library already had it. Deriving means
+ * the lateness contract, the multi-rate dispatch and the stagger live in ONE
+ * place for the whole firmware rather than being reimplemented per runner: the
+ * driver just calls step(), and Component does the due/late/dropped arithmetic
+ * it does for every other component. A program also inherits the two hooks that
+ * come with it - on_param_changed() (re-read tuning when its parameter group
+ * commits) and healthy() - which a bespoke base would have had to grow.
+ *
  * @section plc_program_bind Resolving names once
  *
  * bind() runs once at bring-up, and is where a program turns the names it uses
@@ -25,7 +36,8 @@
  * alarm table, the home fields, the status groups all resolve at bring-up - and
  * control programs were the last consumers still walking the table by strcmp on
  * every activation. A program that names six variables at 10 Hz was doing sixty
- * linear searches of a 249-row table per second to learn what it already knew.
+ * linear searches of the whole variable table per second to learn what it
+ * already knew.
  *
  * @section plc_program_reset Resetting on a control withdrawal
  *
@@ -44,14 +56,10 @@
 
 #include <cstdint>
 
-#include "../scheduler/task_timer.h"
+#include "../core/component.h"
 #include "../vars/model.h"
 
-namespace Botanik {
-
-    namespace Scan { class Driver; }   // runs programs; owns their timers
-
-    namespace Plc {
+namespace Botanik { namespace Plc {
 
     /** @brief What a program is handed each time it runs.
      *
@@ -81,10 +89,11 @@ namespace Botanik {
      * class SupplyWatch : public Plc::Program {
      *     Plc::Ton     _bad_for;
      *     Plc::Sr      _lockout;
-     *     Vars::VarRef _ln, _out;
+     *     Vars::VarRef _ln = { Vars::VAR_NONE }, _out = { Vars::VAR_NONE };
      * public:
      *     SupplyWatch() : Program("supply_watch", 100) {}
      *
+     * protected:
      *     void bind(Vars::Bank& io) override {
      *         _ln  = io.find("grid_LN_V");
      *         _out = io.find("sys_supply_lockout");
@@ -102,26 +111,15 @@ namespace Botanik {
      * POINTERS, which stays in flash: the pointer values are link-time
      * constants even though the objects they name are in RAM.
      */
-    class Program {
+    class Program : public Component {
 
-        /** @name Identity and rate
+        /** @name Wiring
          *  @{ */
 
-        const char* _name;
-        uint32_t    _period_ms;
-
-        /** @} */
-        /** @name Scheduling state
-         *  @{ */
-
-        /** @brief When this program last ran, and how often. Private, and the
-         *  driver is the only thing that may move it: a program that could
-         *  stamp its own timer could silently skip its next activation. It used
-         *  to be a parallel TaskStats[] the site had to declare and keep the
-         *  same length as its task table. */
-        Scheduler::TaskTimer _timer;
-
-        friend class Scan::Driver;
+        /** @brief Borrowed; the firmware owns it. Held rather than passed to
+         *  every call because Component::step() takes only a timestamp - the
+         *  Context is built from it and the timer's own dt. */
+        Vars::Bank* _io = nullptr;
 
         /** @} */
 
@@ -129,10 +127,35 @@ namespace Botanik {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief @p name for logs and the TASKS page; @p period_ms is the run
-         *  interval, 0 meaning every beat. Both are borrowed constants. */
+        /** @brief @p name for the boot announce and diagnostics; @p period_ms
+         *  is the run interval, 0 meaning every beat. Both are borrowed
+         *  constants. */
         Program(const char* name, uint32_t period_ms)
-            : _name(name), _period_ms(period_ms) {}
+            : Component(nullptr, name) {
+            set_period(period_ms);
+        }
+
+        /** @brief Hand the program the field it drives, before it is stepped.
+         *  The driver does this for every program in the site's table; a test
+         *  driving one directly does it itself. */
+        void attach(Vars::Bank& io, Logs::Logger* logger = nullptr) {
+            _io = &io;
+            if (logger != nullptr) _logger = logger;
+        }
+
+        /** @brief Drop state that control authority going away has made stale.
+         *  Default: nothing is. See @ref plc_program_reset.
+         *
+         *  Public because it is the DRIVER's to call, on an edge the program
+         *  cannot see - unlike bind() and run(), which are the program's own
+         *  side of the contract. */
+        virtual void reset() {}
+
+        /** @} */
+
+    protected:
+        /** @name Hooks (implemented by the program)
+         *  @{ */
 
         /** @brief Resolve the variable names this program uses, once, at
          *  bring-up. Default: nothing to resolve. */
@@ -141,32 +164,56 @@ namespace Botanik {
         /** @brief One activation. The only required override. */
         virtual void run(Context& c) = 0;
 
-        /** @brief Drop state that control authority going away has made stale.
-         *  Default: nothing is. See @ref plc_program_reset. */
-        virtual void reset() {}
-
         /** @} */
-        /** @name Identity
+        /** @name Component plumbing
          *  @{ */
 
-        const char* name() const { return _name; }
-        uint32_t period_ms() const { return _period_ms; }
-        /** @brief Completed activations; 0 until the first. Diagnostics only -
-         *  the timer itself is the driver's. */
-        uint32_t runs() const { return _timer.runs(); }
-        /** @brief When it last ran. Meaningless while runs() is 0. */
-        uint64_t last_run_ms() const { return _timer.last_run_ms(); }
+        /** @brief Component's one-shot init: bind the names. */
+        void on_setup(uint64_t now_ms) override {
+            (void)now_ms;
+            if (_io != nullptr) bind(*_io);
+        }
+
+        /** @brief Component's per-activation hook: assemble the Context from
+         *  the timer's own reading of how late this activation is, and run. */
+        void on_step(uint64_t now_ms) override {
+            if (_io == nullptr) return;
+            Context c = { now_ms, dt_ms(), missed(), *_io };
+            run(c);
+        }
 
         /** @} */
-
-    protected:
-        /** @brief Non-virtual and protected: programs are site statics, never
-         *  deleted, and least of all through this base. Saves the vtable slot a
-         *  virtual destructor would cost every program class. */
-        ~Program() {}
     };
 
-    }  // namespace Plc
-}  // namespace Botanik
+    /**
+     * @brief One statically-allocated @p T, safe to name from a header.
+     *
+     * A program instance is mutable state, and a site declares its programs in
+     * a header that several translation units include - so a plain definition
+     * would be a duplicate symbol at link time. A class template's static
+     * member has vague linkage: emitted per TU and folded by the linker.
+     *
+     * It costs one guard byte, tested once during static initialisation so the
+     * folded copies do not each run the constructor. That is not a
+     * function-local static, which tests its guard on EVERY access and pulls in
+     * __cxa_guard_acquire/release to do it.
+     *
+     * It lives here so a site never reproduces the trick:
+     *
+     * @code
+     * Plc::Program* const g_programs[] = {
+     *     &Plc::Instance<SupplyWatch>::obj,
+     *     &Plc::Instance<SupplyReport>::obj,
+     * };
+     * @endcode
+     *
+     * @tparam Tag distinguishes two instances of the same program class - two
+     *  irrigation zones running the same logic. Default: the only one.
+     */
+    template <typename T, typename Tag = void>
+    struct Instance { static T obj; };
+    template <typename T, typename Tag> T Instance<T, Tag>::obj;
+
+}}  // namespace Botanik::Plc
 
 #endif // PLC_PROGRAM_H

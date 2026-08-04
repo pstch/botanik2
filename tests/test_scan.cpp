@@ -32,11 +32,13 @@ namespace {
 
         Recorder(const char* name, uint32_t period_ms) : Program(name, period_ms) {}
 
+        void reset() override { resets++; }
+
+    protected:
         void bind(Botanik::Vars::Bank& io) override { (void)io; binds++; }
         void run(Context& c) override {
             runs_seen.push_back({ c.dt_ms, c.missed, c.now_ms });
         }
-        void reset() override { resets++; }
     };
 
     /** @brief Bank with control granted, which is what bring-up does. */
@@ -59,7 +61,6 @@ TEST_CASE("scan: each program runs at its own rate") {
     CHECK(fast.runs_seen.size() <= 21);
     CHECK(slow.runs_seen.size() >= 2);
     CHECK(slow.runs_seen.size() <= 3);
-    CHECK(fast.runs() == fast.runs_seen.size());
 }
 
 TEST_CASE("scan: dt_ms is the nominal period when on time") {
@@ -106,7 +107,7 @@ TEST_CASE("scan: bind runs once, before the first activation") {
     CHECK(p.binds == 0);
     for (uint64_t t = 0; t < 50; t += 10) d.step(t);
     CHECK(p.binds == 1);                       // once, not once per beat
-    CHECK(p.runs() == 5);
+    CHECK(p.runs_seen.size() == 5);
 }
 
 TEST_CASE("scan: same-period programs are spread across beats, not piled up") {
@@ -206,5 +207,5 @@ TEST_CASE("scan: a null table or a null program is inert") {
     Program* const holey[] = { nullptr, &p };
     Driver d(holey, 2, &f.io);
     d.step(0);
-    CHECK(p.runs() == 1);               // the live one still runs
+    CHECK(p.runs_seen.size() == 1);     // the live one still runs
 }
