@@ -117,6 +117,16 @@ namespace Botanik {
         /** @brief The configured run interval; 0 = every beat. */
         uint32_t period_ms() const { return _period_ms; }
 
+        /** @brief Offset this component from others sharing its period, so the
+         *  periodic work spreads across beats instead of piling onto one.
+         *
+         *  Without it every period is phase-locked to boot (everything first
+         *  runs on the same beat and seeds from it), so a rate cuts the mean
+         *  work per beat and leaves the PEAK untouched - and the peak is what
+         *  decides the shortest beat the loop can hold. Set it beside the
+         *  period, before the loop starts; keep it under the period. */
+        void set_offset(uint32_t offset_ms) { _timer.set_offset(offset_ms); }
+
         /** @brief Advance one beat with the cycle timestamp. Non-virtual so the
          *  order can't be reordered: due check first, then on the first step
          *  setup() and announce(); then, if param_serial() changed from the

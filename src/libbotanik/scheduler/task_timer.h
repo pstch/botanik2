@@ -20,6 +20,21 @@
  * due() is const. A caller that decides not to run a due task - the scan cycle
  * while control is withheld - must not silently consume the activation, so
  * nothing moves until ran() says it did.
+ *
+ * @section timer_offset Why there is an offset
+ *
+ * Every timer seeds itself on its first run, and everything runs on the first
+ * beat, so without an offset every period is phase-locked to boot: two 100 ms
+ * components come due on the same beat forever, and a 1000 ms one joins them
+ * every second. Rates cut the MEAN work per beat and leave the PEAK exactly
+ * where it was - one beat that still does the lot - and the peak is what sets
+ * the shortest beat the loop can hold (see docs/dev/scheduler.md).
+ *
+ * The offset is a one-shot delay on the first interval only: a task with
+ * offset 30 waits period+30 for its second activation and period thereafter, so
+ * it runs 30 ms out of step with an unoffset task of the same period, for good.
+ * Keep it under the period, and prefer a multiple of the beat (an offset the
+ * beat grid cannot express just rounds up to the next beat).
  */
 
 #include <cstdint>
@@ -37,6 +52,9 @@ namespace Botanik { namespace Scheduler {
 
         uint64_t _last_run_ms = 0;   ///< when it last ran (meaningless until _runs > 0)
         uint32_t _runs        = 0;   ///< completed runs; 0 = never
+        /** @brief One-shot extra delay on the first interval, spent once the
+         *  second activation lands. See @ref timer_offset. */
+        uint32_t _offset_ms   = 0;
 
         /** @} */
 
@@ -76,7 +94,10 @@ namespace Botanik { namespace Scheduler {
             }
 
             uint64_t elapsed = now_ms - _last_run_ms;
-            if (period_ms != 0 && elapsed < period_ms) return false;
+            // The offset stretches the FIRST interval only, which is what puts
+            // this task permanently out of step with an unoffset one of the same
+            // period. It is spent in ran(), so it never distorts the rate.
+            if (period_ms != 0 && elapsed < (uint64_t)period_ms + _offset_ms) return false;
 
             dt_ms = (elapsed > 0xFFFFFFFFull) ? 0xFFFFFFFFu : (uint32_t)elapsed;
             if (period_ms != 0 && elapsed >= 2ull * period_ms) {
@@ -96,8 +117,19 @@ namespace Botanik { namespace Scheduler {
         /** @name Commit
          *  @{ */
 
-        /** @brief Record that the task ran at @p now_ms. The only mutator. */
-        void ran(uint64_t now_ms) { _last_run_ms = now_ms; _runs++; }
+        /** @brief Record that the task ran at @p now_ms. The only mutator.
+         *  Spends the offset on the second activation, so the rate is nominal
+         *  from there on. */
+        void ran(uint64_t now_ms) {
+            _last_run_ms = now_ms;
+            _runs++;
+            if (_runs >= 2) _offset_ms = 0;
+        }
+
+        /** @brief Put this task out of step with others of the same period, by
+         *  delaying its first interval by @p offset_ms. Set it before the first
+         *  run; keep it under the period. See @ref timer_offset. */
+        void set_offset(uint32_t offset_ms) { _offset_ms = offset_ms; }
 
         /** @} */
     };

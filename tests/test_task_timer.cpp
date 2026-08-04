@@ -95,6 +95,60 @@ TEST_CASE("task timer: the missed count saturates instead of wrapping") {
     CHECK(missed == 0xFFFF);
 }
 
+TEST_CASE("task timer: an offset delays the first interval and only that one") {
+    TaskTimer t;
+    uint32_t dt = 0; uint16_t missed = 0;
+    t.set_offset(30);
+    REQUIRE(t.due(0, 100, dt, missed));   // first activation is never delayed
+    t.ran(0);
+
+    CHECK_FALSE(t.due(100, 100, dt, missed));   // held off by the offset
+    REQUIRE(t.due(130, 100, dt, missed));
+    t.ran(130);
+
+    // Offset spent: the rate is nominal from here on, not 130.
+    CHECK_FALSE(t.due(229, 100, dt, missed));
+    CHECK(t.due(230, 100, dt, missed));
+}
+
+TEST_CASE("task timer: offset timers of one period never share a beat again") {
+    // The property the offset exists for: same period, different offsets, so
+    // the periodic work spreads over beats instead of piling onto one.
+    TaskTimer a, b;
+    uint32_t dt = 0; uint16_t missed = 0;
+    a.set_offset(0);
+    b.set_offset(40);
+
+    int shared = 0, a_runs = 0, b_runs = 0;
+    for (uint64_t now = 0; now <= 2000; now += 10) {
+        bool ra = a.due(now, 100, dt, missed); if (ra) a.ran(now);
+        bool rb = b.due(now, 100, dt, missed); if (rb) b.ran(now);
+        if (ra && rb && now > 0) shared++;
+        if (ra) a_runs++;
+        if (rb) b_runs++;
+    }
+
+    CHECK(shared == 0);            // never coincide after boot
+    // Same rate, not the same count: b's activations sit 40 ms later, so its
+    // last one falls past the window edge rather than being lost.
+    CHECK(a_runs == 21);           // 0, 100 .. 2000
+    CHECK(b_runs == 20);           // 0, 140 .. 1940
+}
+
+TEST_CASE("task timer: no offset means they collide on every activation") {
+    // The behaviour the offset corrects, pinned so it cannot creep back.
+    TaskTimer a, b;
+    uint32_t dt = 0; uint16_t missed = 0;
+
+    int shared = 0;
+    for (uint64_t now = 0; now <= 1000; now += 10) {
+        bool ra = a.due(now, 100, dt, missed); if (ra) a.ran(now);
+        bool rb = b.due(now, 100, dt, missed); if (rb) b.ran(now);
+        if (ra && rb) shared++;
+    }
+    CHECK(shared == 11);           // every single activation, boot included
+}
+
 TEST_CASE("task timer: dt saturates instead of truncating past 32 bits") {
     TaskTimer t;
     uint32_t dt = 0; uint16_t missed = 0;

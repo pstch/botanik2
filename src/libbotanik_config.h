@@ -142,6 +142,43 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, EXPIRE_STALE_PERIOD_MS);
 
+    /** @brief Phase offsets, so the rated work above lands on DIFFERENT beats.
+     *
+     *  Everything first runs on the first beat and seeds its timer from it, so
+     *  without these every period is phase-locked to boot and the four coincide
+     *  every 100 ms - which cuts the mean work per beat and leaves the PEAK
+     *  exactly where it was. The peak is what decides the shortest beat the loop
+     *  can hold, so spreading it is the whole point.
+     *
+     *  The values are chosen to not collide, given the periods above (mod 100 ms:
+     *  console 0/50, params 20, expiry 30/80, health 40). Retune them together
+     *  with a period; each must stay UNDER its own period. The first beat is the
+     *  one unavoidable pile-up, since a component's first activation is what runs
+     *  its setup().
+     *  @{ */
+
+#ifndef BOTANIK_PARAMS_OFFSET_MS
+#  define BOTANIK_PARAMS_OFFSET_MS 20
+#endif
+    BOTANIK_CFG(uint32_t, PARAMS_OFFSET_MS);
+
+#ifndef BOTANIK_HEALTH_OFFSET_MS
+#  define BOTANIK_HEALTH_OFFSET_MS 40
+#endif
+    BOTANIK_CFG(uint32_t, HEALTH_OFFSET_MS);
+
+#ifndef BOTANIK_CONSOLE_RENDER_OFFSET_MS
+#  define BOTANIK_CONSOLE_RENDER_OFFSET_MS 0
+#endif
+    BOTANIK_CFG(uint32_t, CONSOLE_RENDER_OFFSET_MS);
+
+#ifndef BOTANIK_EXPIRE_STALE_OFFSET_MS
+#  define BOTANIK_EXPIRE_STALE_OFFSET_MS 30
+#endif
+    BOTANIK_CFG(uint32_t, EXPIRE_STALE_OFFSET_MS);
+
+    /** @} */
+
     /** @} */
 
     /** @brief Hardware watchdog timeout */

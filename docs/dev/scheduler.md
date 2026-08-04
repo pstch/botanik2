@@ -188,18 +188,51 @@ by it; sharp the moment the beat moves.
 loop reads it every beat. Harmless against a hardware watchdog measured in
 seconds, but it should be a decision rather than a surprise.
 
+### Phase offsets: rates cut the mean, offsets cut the peak
+
+A period alone buys less than it looks. Every component first runs on the first
+beat and seeds its timer from it, so **unoffset periods stay phase-locked to boot
+forever**: params and health, both 100 ms, come due on the same beat every time,
+the console joins them every 100 ms, and the expiry sweep and the site's 1000 ms
+control program join every second.
+
+So the rates above cut the **mean** work per beat and leave the **peak** exactly
+where it was - one beat that still does the lot. Which matters, because the peak
+is what `cpu_loop_us_max` records and what decides the shortest beat the loop can
+hold. Rates alone buy CPU; they buy no headroom.
+
+`TaskTimer::set_offset()` fixes it, as a one-shot delay on the first interval
+only: a task offset by 30 ms waits `period + 30` for its second activation and
+the nominal period thereafter, so it runs permanently out of step with an
+unoffset task of the same period. The defaults are picked to not collide at all,
+given the periods above:
+
+| Task | Period | Offset | Fires at (mod 100 ms) |
+|---|---|---|---|
+| Console render | 50 ms | 0 ms | 0, 50 |
+| `params` | 100 ms | 20 ms | 20 |
+| `expire_stale` | 250 ms | 30 ms | 30, 80 |
+| `health` | 100 ms | 40 ms | 40 |
+
+Retune an offset with its period, and keep each under its own period. The first
+beat is the one unavoidable pile-up: a component's first activation is what runs
+its `setup()`, so nothing can be deferred past it.
+
 ### Lowering the beat
 
 Sub-10 ms dispatch is not a task-period feature: a 10 ms beat cannot release
 anything at 4 ms. It needs `TASK_PERIOD_MS` itself lowered, gated on three
 things.
 
-1. **Per-component periods must land first.** Dropping 10 ms to 2 ms multiplies
-   every component's work by 5. Do it after the rates above are in force and the
-   two roughly cancel.
-2. **The beat can never be shorter than `cpu_loop_us_max`**, the worst-case
-   single-beat work time. It is already measured and published; read it from
-   `stats` before choosing a period.
+1. **Periods AND offsets must land first.** Dropping 10 ms to 2 ms multiplies
+   every component's work by 5, which the rates undo - but only the offsets bring
+   the peak down, and it is the peak that has to fit inside the shorter beat.
+2. **The beat can never be shorter than the worst-case single-beat work.** Read
+   it from `stats` before choosing a period, and size against
+   `cpu_loop_us_recent` (the windowed peak) rather than `cpu_loop_us_max`: the
+   all-time max never decays, so one outlier - a debugger pause, a preempted
+   sim - pins it for the life of the boot. Use `max` as the separate "has this
+   ever gone catastrophically long" check.
 3. **The sleep/spin split has to go to microseconds.** `tick()` busy-waits the
    last ~1 ms, so a 2 ms beat would spend 50 % of the CPU spinning against 10 %
    today - which is what `static_assert(TASK_PERIOD_MS >= 2)` is there to flag.

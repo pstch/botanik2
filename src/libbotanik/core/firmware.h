@@ -285,12 +285,21 @@ namespace Botanik {
             // driver and the logger keep the beat deliberately: the scan's
             // not-due path is two comparisons per task, and the logger drains a
             // queue that evicts under pressure.
+            // The offset beside each period is what keeps them off the SAME
+            // beat. Everything first runs on beat one and seeds its timer there,
+            // so unoffset periods stay phase-locked to boot forever: a rate then
+            // cuts the mean work per beat and leaves the peak untouched, and the
+            // peak is what decides the shortest beat the loop can hold.
             _params.set_period(Config::PARAMS_PERIOD_MS);
+            _params.set_offset(Config::PARAMS_OFFSET_MS);
             _health.set_period(Config::HEALTH_PERIOD_MS);
+            _health.set_offset(Config::HEALTH_OFFSET_MS);
+            _expiry_timer.set_offset(Config::EXPIRE_STALE_OFFSET_MS);
 #if BOTANIK_FEATURE_CONSOLE
             // The Console is the Component here, not the stack around it: the
             // stack's serial pump is stepped separately and stays on the beat.
             _console.terminal().set_period(Config::CONSOLE_RENDER_PERIOD_MS);
+            _console.terminal().set_offset(Config::CONSOLE_RENDER_OFFSET_MS);
 #endif
 
 #if BOTANIK_FEATURE_CONSOLE
