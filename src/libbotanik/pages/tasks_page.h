@@ -56,17 +56,25 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t HEADER_ROW = 2;
         static constexpr uint16_t RULE_ROW   = 3;
         static constexpr uint16_t DATA_TOP   = 4;    // first task row
-        static constexpr uint16_t NAME_W     = 16;   // task-name column
+        static constexpr uint16_t NAME_CAP   = 24;   // task-name column cap (flex)
         static constexpr uint16_t GROUP_W    = 5;    // "bkgnd"
-        static constexpr uint16_t PERIOD_W   = 6;    // the group's period, ms
+        // Wide enough for its own heading: _build_row truncates a head to the
+        // column width, so a narrower column would silently drop the unit.
+        static constexpr uint16_t PERIOD_W   = 8;    // the group's period, ms
         static constexpr uint16_t PHASE_W    = 7;    // "service"
         static constexpr uint16_t MEAN_W     = 8;    // mean us
+        static constexpr uint16_t PEAK_W     = 8;    // all-time peak us
         static constexpr uint16_t CELL_CAP   = 24;   // one formatted cell
         static constexpr uint16_t LINE_CAP   = 200;  // row string buffer
         /** @brief Separator, spacer, two detail rows, spacer, hint framing. */
         static constexpr uint16_t PANEL_H    = 6;
+        /** @brief How often the table repaints. Slower than PAGE_HOT_MS: these
+         *  are smoothed aggregates, not a live trace, and a whole table of digits
+         *  churning once a second is both unreadable and a standing charge on the
+         *  console's byte budget. */
+        static constexpr uint32_t REFRESH_MS = 2000;
         /** @brief Column order; the selection cursor inverts C_NAME's cell. */
-        enum { C_NAME = 0, C_GROUP, C_PERIOD, C_PHASE, C_LAST, C_MEAN };
+        enum { C_NAME = 0, C_GROUP, C_PERIOD, C_PHASE, C_MEAN, C_PEAK };
         /** @} */
 
         /** @name State
@@ -77,6 +85,15 @@ namespace Botanik { namespace Pages {
         const Scheduler::Registry*   _reg = nullptr;
         bool                         _dirty = true;
         uint64_t                     _last_refresh_ms = 0;
+        /** @brief Row order: task indices sorted by name.
+         *
+         *  Registration order is the order the beat runs them, which is the more
+         *  informative default - but it makes finding one task a scan of the
+         *  whole table, and PHASE already carries the ordering. Built once; the
+         *  registry is frozen after bring-up, so a changed count is the only
+         *  thing that can invalidate it. */
+        mutable uint8_t              _order[Config::MAX_TASKS] = {};
+        mutable uint8_t              _order_n = 0;
         /** @} */
 
     public:
@@ -117,7 +134,7 @@ namespace Botanik { namespace Pages {
             // The costs move every beat, so this is a live page - but repainting
             // a whole table at the beat rate would spend the console's entire
             // byte budget on digits nobody can read that fast.
-            if (!_dirty && now - _last_refresh_ms < Config::PAGE_HOT_MS) return;
+            if (!_dirty && now - _last_refresh_ms < REFRESH_MS) return;
             _last_refresh_ms = now;
             _dirty = false;
             uint16_t n = _count();
@@ -140,6 +157,36 @@ namespace Botanik { namespace Pages {
             return (_reg != nullptr) ? _reg->count() : 0;
         }
 
+        /** @brief Build the name-sorted index, once. Insertion sort: the table is
+         *  a couple of dozen entries and this runs at most once a boot. */
+        void _ensure_order() const {
+            const uint8_t n = (uint8_t)_count();
+            if (_order_n == n) return;               // already built for this table
+            for (uint8_t i = 0; i < n; i++) _order[i] = i;
+            for (uint8_t i = 1; i < n; i++) {
+                const uint8_t v = _order[i];
+                const char* vn = _reg->task(v).name;
+                uint8_t j = i;
+                while (j > 0 && std::strcmp(_name_of(_order[j - 1]), vn ? vn : "") > 0) {
+                    _order[j] = _order[j - 1];
+                    j--;
+                }
+                _order[j] = v;
+            }
+            _order_n = n;
+        }
+
+        const char* _name_of(uint8_t i) const {
+            const char* n = _reg->task(i).name;
+            return n != nullptr ? n : "";
+        }
+
+        /** @brief The task shown on display row @p r. */
+        const Scheduler::Task& _row(uint16_t r) const {
+            _ensure_order();
+            return _reg->task(_order[r < _order_n ? r : 0]);
+        }
+
         /** @name ScrollTablePage geometry
          *  @{ */
         uint16_t _data_top()  const override { return DATA_TOP; }
@@ -158,21 +205,22 @@ namespace Botanik { namespace Pages {
             return (pt > DATA_TOP) ? (uint16_t)(pt - DATA_TOP) : 0;
         }
 
-        /** @brief Flexible LAST width: the display minus the five fixed columns
-         *  and every border. */
-        uint16_t _last_w() const {
-            return _flex_width((uint16_t)(2 * MARGIN + 2 + NAME_W + 3 + GROUP_W + 3
-                                          + PERIOD_W + 3 + PHASE_W + 3 + 3
-                                          + MEAN_W + 2), (uint16_t)(CELL_CAP - 1));
+        /** @brief Flexible TASK width: the display minus the four fixed columns
+         *  and every border. The name is what a reader scans, so it gets the
+         *  slack rather than the numbers. */
+        uint16_t _name_w() const {
+            return _flex_width((uint16_t)(2 * MARGIN + 2 + 3 + GROUP_W + 3
+                                          + PERIOD_W + 3 + PHASE_W + 3
+                                          + MEAN_W + 3 + PEAK_W + 2), NAME_CAP);
         }
 
         uint8_t _columns(Col* out) const override {
-            out[C_NAME]   = Col{ "TASK",  NAME_W    };
-            out[C_GROUP]  = Col{ "GROUP", GROUP_W   };
-            out[C_PERIOD] = Col{ "ms",    PERIOD_W  };
-            out[C_PHASE]  = Col{ "PHASE", PHASE_W   };
-            out[C_LAST]   = Col{ "LAST",  _last_w() };
-            out[C_MEAN]   = Col{ "MEAN",  MEAN_W    };
+            out[C_NAME]   = Col{ "TASK",      _name_w() };
+            out[C_GROUP]  = Col{ "GROUP",     GROUP_W   };
+            out[C_PERIOD] = Col{ "EVERY ms",  PERIOD_W  };
+            out[C_PHASE]  = Col{ "PHASE",     PHASE_W   };
+            out[C_MEAN]   = Col{ "MEAN us",   MEAN_W    };
+            out[C_PEAK]   = Col{ "PEAK us",   PEAK_W    };
             return 6;
         }
 
@@ -186,8 +234,8 @@ namespace Botanik { namespace Pages {
         }
 
         void _draw_row(uint16_t idx, uint16_t row, bool selected) {
-            const Scheduler::Task& t = _reg->task((uint8_t)idx);
-            char per[CELL_CAP], last[CELL_CAP], mean[CELL_CAP], line[LINE_CAP];
+            const Scheduler::Task& t = _row(idx);
+            char per[CELL_CAP], mean[CELL_CAP], peak[CELL_CAP], line[LINE_CAP];
             snprintf(per, sizeof(per), "%lu",
                      (unsigned long)Scheduler::group_period_ms(t.group));
             const char* cells[6] = {
@@ -195,8 +243,8 @@ namespace Botanik { namespace Pages {
                 Scheduler::group_name(t.group),
                 per,
                 Scheduler::phase_name(t.phase),
-                _us(last, sizeof(last), t.cost.us_last, t.cost.runs),
                 _us(mean, sizeof(mean), t.cost.us_mean(), t.cost.runs),
+                _us(peak, sizeof(peak), t.cost.us_max,  t.cost.runs),
             };
             uint16_t n = _build_row(line, sizeof(line), cells);
             _draw_selected_line(row, line, n, _cell_col(C_NAME), _cell_end(C_NAME),
@@ -231,9 +279,9 @@ namespace Botanik { namespace Pages {
                 for (uint16_t i = 2; i < PANEL_H; i++) _blank_line((uint16_t)(r + i));
                 return;
             }
-            const Scheduler::Task& t = _reg->task((uint8_t)_selected);
-            char peak[CELL_CAP], runs[CELL_CAP], duty[CELL_CAP];
-            _us(peak, sizeof(peak), t.cost.us_max, t.cost.runs);
+            const Scheduler::Task& t = _row(_selected);
+            char last[CELL_CAP], runs[CELL_CAP], duty[CELL_CAP];
+            _us(last, sizeof(last), t.cost.us_last, t.cost.runs);
             snprintf(runs, sizeof(runs), "%lu", (unsigned long)t.cost.runs);
 
             const uint32_t period = Scheduler::group_period_ms(t.group);
@@ -246,7 +294,7 @@ namespace Botanik { namespace Pages {
                 snprintf(duty, sizeof(duty), "%lu.%lu %%",
                          (unsigned long)(permille / 10), (unsigned long)(permille % 10));
             }
-            _panel_field((uint16_t)(r + 2), "Peak us", peak);
+            _panel_field((uint16_t)(r + 2), "Last us", last);
             _panel_field((uint16_t)(r + 3), "Runs", runs);
             _panel_field((uint16_t)(r + 4), "Of period", duty);
             _blank_line((uint16_t)(r + 5));
