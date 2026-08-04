@@ -39,6 +39,7 @@
 #include "libbotanik/pages/alarms.h"
 #include "libbotanik/pages/params_page.h"
 #include "libbotanik/pages/monitor.h"
+#include "libbotanik/pages/notes.h"
 #include "libbotanik/pages/status.h"
 
 #include "libbotanik/console/terminal.h"

@@ -47,6 +47,12 @@
 #  define BOTANIK_FEATURE_MONITOR 1
 #endif
 
+/** @brief Operator notes: a full-screen text editor page, persisted to flash.
+ *  @note Requires BOTANIK_FEATURE_CONSOLE (it is a console page). */
+#ifndef BOTANIK_FEATURE_NOTES
+#  define BOTANIK_FEATURE_NOTES 1
+#endif
+
 // Dependency rules
 // ===========================================================================
 
@@ -55,6 +61,9 @@
 #endif
 #if BOTANIK_FEATURE_MQTT && !BOTANIK_FEATURE_NETWORK
 #  error "BOTANIK_FEATURE_MQTT requires BOTANIK_FEATURE_NETWORK"
+#endif
+#if BOTANIK_FEATURE_NOTES && !BOTANIK_FEATURE_CONSOLE
+#  error "BOTANIK_FEATURE_NOTES requires BOTANIK_FEATURE_CONSOLE"
 #endif
 
 #endif // LIBBOTANIK_FEATURES_H

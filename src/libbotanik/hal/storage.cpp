@@ -42,11 +42,11 @@ namespace Botanik { namespace HAL { namespace Storage {
 #ifdef TARGET_OPTA
 // ---- OPTA: the Mbed global KV store ------------------------------------------
 // kv_set/kv_get/kv_remove resolve to the configured default kvstore, a TDBStore
-// over BlockDevice::get_default_instance(). Which device that is - internal
-// flash or the QSPI - is decided by the Mbed config, not by us; the variant
-// ships STORAGE_TYPE=default with the TDB region base and size both 0, so Mbed
-// places it. Confirm the placement on hardware before trusting it: the `storage`
-// shell command exists for exactly that.
+// over BlockDevice::get_default_instance(). On the OPTA that is the external
+// QSPI NOR (Arduino's PlatformStorage builds a QSPIFBlockDevice), and the
+// variant's COMPONENT_QSPIF + STORAGE_TYPE=default picks TDB_EXTERNAL. The
+// region base and size are both 0, so Mbed places it over the whole device -
+// see the warning in storage.h. Confirm the placement on hardware.
 #include "platform/mbed_error.h"
 #include "kvstore_global_api/kvstore_global_api.h"
 
@@ -102,15 +102,18 @@ namespace Botanik { namespace HAL { namespace Storage {
 // key). It lives at a stable path so config persists across sim runs, like the
 // real NVM; override with $BOTANIK_CONFIG_STORE (used by tests). Values are hex
 // so arbitrary bytes survive a line-based text file. The whole store is small
-// (a handful of config parameters), so each op rewrites it in full.
+// (a handful of config parameters plus the operator's note), so each op
+// rewrites it in full.
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 
+#include "../../libbotanik_config.h"
+
 namespace Botanik { namespace HAL { namespace Storage {
 
     namespace {
-        constexpr size_t STORE_MAX = 8192;   // whole-file cap (config is tiny)
+        constexpr size_t STORE_MAX = Config::STORE_MAX_BYTES;  // whole-file cap
 
         const char* store_path() {
             const char* env = getenv("BOTANIK_CONFIG_STORE");
@@ -181,9 +184,12 @@ namespace Botanik { namespace HAL { namespace Storage {
     bool set(const char* key, const void* buf, size_t len) {
         if (!key_ok(key)) return false;
         size_t klen = strlen(key);
-        char in[STORE_MAX];
+        // Static, not automatic: the store is sized for the largest value it
+        // holds (a note is kilobytes, hex-doubled), and two of these on the
+        // stack of a main-loop call is not a trade worth making.
+        static char in[STORE_MAX];
+        static char out[STORE_MAX];
         size_t n = load(in, sizeof(in));
-        char out[STORE_MAX];
         size_t o = copy_without(in, n, key, klen, out, sizeof(out));
         // Append "key=<hex>\n" (a raw record, not a NUL-terminated string).
         if (o + klen + 1 + 2 * len + 1 > sizeof(out)) return note(false);
@@ -201,7 +207,7 @@ namespace Botanik { namespace HAL { namespace Storage {
     bool get(const char* key, void* buf, size_t cap, size_t* out_len) {
         if (!key_ok(key)) return false;
         size_t klen = strlen(key);
-        char in[STORE_MAX];
+        static char in[STORE_MAX];
         size_t n = load(in, sizeof(in));
         size_t i = 0;
         while (i < n) {
@@ -229,10 +235,10 @@ namespace Botanik { namespace HAL { namespace Storage {
     bool remove(const char* key) {
         if (!key_ok(key)) return false;
         size_t klen = strlen(key);
-        char in[STORE_MAX];
+        static char in[STORE_MAX];
         size_t n = load(in, sizeof(in));
         if (n == 0) return true;                       // nothing stored
-        char out[STORE_MAX];
+        static char out[STORE_MAX];
         size_t o = copy_without(in, n, key, klen, out, sizeof(out));
         if (o == n) return true;                        // key absent: idempotent
         return note(store(out, o));

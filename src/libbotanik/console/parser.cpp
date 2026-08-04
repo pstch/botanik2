@@ -185,6 +185,9 @@ namespace Botanik { namespace Terminal {
             case 0x0C: return Command::CTRL_L;
             case 0x0D: return Command::ENTER;
             case 0x0E: return Command::CTRL_N;
+            // 0x0F: nano's WriteOut. Not 0x13 (^S) for save - that is XOFF, and
+            // this runs over a serial link that may still use flow control.
+            case 0x0F: return Command::CTRL_O;
             case 0x10: return Command::CTRL_P;
             case 0x12: return Command::CTRL_R;
             case 0x15: return Command::CTRL_U;
