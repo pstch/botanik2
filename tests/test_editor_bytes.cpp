@@ -53,13 +53,13 @@ namespace {
         }
 
         /** @brief Re-pin as a top-anchored viewport `rows` tall at row 1, with
-         *  no prompt: the NOTES geometry. Call before typing anything. */
+         *  the NOTES gutter ("> " on a row the operator started, "  " on its
+         *  wrapped tail). Call before typing anything. */
         void as_viewport(uint16_t rows) {
-            static const char NONE[] = "";
             editor.set_anchor(Terminal::Anchor::TOP);
-            editor.set_ps1(NONE, 0);
-            editor.set_ps2(NONE, 0);
-            editor.set_ps3(NONE, 0);
+            editor.set_ps1("> ", 2);
+            editor.set_ps2("  ", 2);
+            editor.set_ps3("> ", 2);
             editor.set_origin(1);
             editor.set_view_rows(rows);
             editor.reset();

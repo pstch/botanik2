@@ -189,9 +189,6 @@ namespace Botanik {
         Pages::HomePage                _home_page;
         Pages::ParamsPage              _params_page;
         Pages::MonitorPage             _monitor_page;
-#if BOTANIK_FEATURE_NOTES
-        Pages::NotesPage               _notes_page;  ///< operator's free-text note
-#endif
 #endif
 
         /** @} */
@@ -237,9 +234,6 @@ namespace Botanik {
                            _site.home_field_count, &_io, _site.home_refs)
               , _params_page(_console.terminal(), &_params)
               , _monitor_page(_console.terminal(), &_io)
-#if BOTANIK_FEATURE_NOTES
-              , _notes_page(_console.terminal(), &_logger)
-#endif
 #endif
         {
             // Wire the status aggregate now every subsystem address is fixed,
@@ -564,7 +558,7 @@ namespace Botanik {
             _console.terminal().add_page(&_params_page);
             _console.terminal().add_page(&_monitor_page);
 #if BOTANIK_FEATURE_NOTES
-            _console.terminal().add_page(&_notes_page);
+            _console.terminal().add_page(&_console.notes());
 #endif
         }
 

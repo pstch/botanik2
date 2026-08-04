@@ -58,9 +58,8 @@ namespace Botanik { namespace Terminal {
      *  value would alias them, which is why the editor snapshots through
      *  `_snapshot_pre()` rather than assigning. */
     struct TextView {
-        RowView* rows  = nullptr; /**< Borrowed row array, `cap` entries. */
+        RowView* rows  = nullptr; /**< Borrowed row array (see EditorStorage). */
         uint16_t count = 0;       /**< Rows laid out right now. */
-        uint16_t cap   = 0;       /**< Capacity of `rows`. */
     };
 
     /** @brief The buffers a TextEditor works over, owned by whoever built it.
@@ -122,6 +121,7 @@ namespace Botanik { namespace Terminal {
 
         char*    _buf;                 /**< Editor buffer (borrowed). */
         uint16_t _buf_cap;             /**< Capacity of _buf, NUL included. */
+        uint16_t _max_rows;            /**< Capacity of both row arrays. */
         uint16_t _len    = 0;          /**< Bytes in _buf. */
         uint16_t _pos    = 0;          /**< Cursor offset in _buf. */
         uint16_t _origin = 0;          /**< Prompt's top row on screen. */
@@ -142,8 +142,8 @@ namespace Botanik { namespace Terminal {
         /** @brief The viewport as it was before the current edit. The reconcile
          *  needs it to know which pre rows are physically on screen: one that
          *  was not has no glyphs to splice, however well its slice matches. */
-        uint16_t _pre_view_top  = 0;
-        uint16_t _pre_view_rows = 0;
+        uint16_t _pre_view_top    = 0;
+        uint16_t _pre_view_height = 0;
         /** @brief Which edge the editor is pinned to. */
         Anchor   _anchor = Anchor::BOTTOM;
 
@@ -153,10 +153,6 @@ namespace Botanik { namespace Terminal {
          *  short line's end. Any horizontal motion or edit drops it. */
         uint16_t _goal_col   = 0;
         bool     _goal_valid = false;
-
-        /** @brief Set when the last layout ran out of rows before it ran out of
-         *  buffer. The text past that point cannot be shown or reached. */
-        bool     _layout_overflow = false;
 
         /** @brief Set by every edit, cleared by the owner once it has saved. */
         bool     _dirty = false;
@@ -327,12 +323,20 @@ namespace Botanik { namespace Terminal {
          * @{
          */
 
-        /** @brief Replace the whole buffer and repaint, without running an
-         *  edit (and a reconcile) per byte. Clears the dirty flag: this is the
-         *  stored text, not an edit of it.
-         *  @return false if @p len did not fit - either past the buffer or past
-         *  what the row cap can lay out - in which case the tail was dropped.
-         */
+        /** @brief Writable buffer to read stored text straight into, and how
+         *  many bytes of it are usable. Pair with commit_loaded() - it saves a
+         *  caller staging a second full-size copy of the text. */
+        char*    load_buffer()         { return _buf; }
+        uint16_t load_capacity() const { return (uint16_t)(_buf_cap - 1); }
+
+        /** @brief Adopt @p len bytes already written into load_buffer() and
+         *  repaint, without running an edit (and a reconcile) per byte. Clears
+         *  the dirty flag: this is the stored text, not an edit of it.
+         *  @return false if the text did not fit - past the buffer, or past what
+         *  the row cap can lay out - in which case the tail was dropped. */
+        bool commit_loaded(uint16_t len);
+
+        /** @brief commit_loaded() for text the caller already holds. */
         bool load(const char* buf, uint16_t len);
 
         /** @brief Whether the buffer has changed since the last load() /
@@ -394,13 +398,20 @@ namespace Botanik { namespace Terminal {
          *  capacity. */
         RowView _scan_row(uint16_t pos, uint16_t cap) const;
 
-        /** @brief Rebuild the whole row layout from the buffer. */
-        void _rebuild_layout();
+        /** @brief Rebuild the whole row layout from the buffer.
+         *  @return true if it ran out of rows before it ran out of buffer - the
+         *  text past that point cannot be shown or reached. */
+        bool _rebuild_layout();
 
         /** @brief Copy `_layout` into `_pre` ahead of a rebuild. Not `_pre =
          *  _layout`: the two views borrow distinct row arrays, and assigning
          *  would alias them so the reconcile diffed a layout against itself. */
         void _snapshot_pre();
+
+        /** @brief Put `_pre` back as the current layout, for an edit that was
+         *  laid out and then refused. Cheaper and exacter than re-deriving it:
+         *  `_pre` IS the pre-edit layout. */
+        void _restore_pre();
 
         /** @brief Clear the buffer/cursor; reset to one empty row pinned at the
          *  bottom of the screen. */
@@ -432,6 +443,11 @@ namespace Botanik { namespace Terminal {
          * @{
          */
 
+        /** @brief Content-area height. Out of line on purpose: `Console` is only
+         *  forward-declared here (it owns pages, which own editors), so the
+         *  inlines below cannot reach `_console->rows()` directly. */
+        uint16_t _console_rows() const;
+
         /** @brief Screen rows the viewport spans right now. */
         uint16_t _view_height() const {
             if (_view_rows != 0) return _view_rows;
@@ -454,14 +470,18 @@ namespace Botanik { namespace Terminal {
             return i >= _view_top && (uint16_t)(i - _view_top) < _view_height();
         }
 
+        /** @brief One past the last layout row on screen: the viewport's bottom
+         *  or the end of the text, whichever comes first. */
+        uint16_t _visible_end() const {
+            uint16_t e = (uint16_t)(_view_top + _view_height());
+            return e > _layout.count ? _layout.count : e;
+        }
+
         /** @brief Whether layout row @p i of the PRE-edit layout was on screen,
          *  i.e. whether the physical row still shows its glyphs. */
         bool _was_visible(uint16_t i) const {
-            return i >= _pre_view_top && (uint16_t)(i - _pre_view_top) < _pre_view_rows;
+            return i >= _pre_view_top && (uint16_t)(i - _pre_view_top) < _pre_view_height;
         }
-
-        /** @brief Content-area height, guarded against a zero-row console. */
-        uint16_t _console_rows() const;
 
         /** @brief Scroll the viewport if the cursor left it, painting only the
          *  rows the scroll revealed. Returns true if the viewport moved.

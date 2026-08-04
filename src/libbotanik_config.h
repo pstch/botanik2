@@ -769,20 +769,22 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(const char*, NOTES_STORAGE_KEY);
 
-    // The notes editor draws no prompt, so a row holds a full EDITOR_MIN_COLS.
-    static_assert(NOTES_MAX_ROWS * EDITOR_MIN_COLS >= NOTES_LEN,
+    // Same bound as SHELL_INPUT_LEN above: a row carries a prompt, so its worst
+    // case is the narrowest screen minus the widest gutter.
+    static_assert(NOTES_MAX_ROWS * (EDITOR_MIN_COLS - EDITOR_PROMPT_MAX) >= NOTES_LEN,
                   "NOTES_MAX_ROWS too small to lay out NOTES_LEN at EDITOR_MIN_COLS");
 
     /** @}
-     *  @name Persistent storage
+     *  @name Simulator settings
      *  @{ */
 
+#ifdef TARGET_SIMULATOR
+
     /** @brief Cap on the simulator's whole key-value store file (bytes).
-     *
-     *  Sim-only: the OPTA's KVStore is a TDBStore on the external QSPI flash and
-     *  is bounded by its region, not by this. The sim file holds every key at
-     *  once and hex-encodes values, so it needs twice the largest value plus
-     *  room for every parameter. */
+     *  @note The OPTA's KVStore is a TDBStore on the external QSPI flash, bounded
+     *        by its region and not by this, so this is sim-only. The sim file
+     *        holds every key at once and hex-encodes values, so it needs twice
+     *        the largest value plus room for every parameter. */
 #ifndef BOTANIK_STORE_MAX_BYTES
 #  define BOTANIK_STORE_MAX_BYTES 16384
 #endif
@@ -790,12 +792,6 @@ namespace Botanik { namespace Config {
 
     static_assert(2 * (uint32_t)NOTES_LEN + 1024 <= STORE_MAX_BYTES,
                   "STORE_MAX_BYTES too small for a hex-encoded NOTES_LEN plus the parameters");
-
-    /** @}
-     *  @name Simulator settings
-     *  @{ */
-
-#ifdef TARGET_SIMULATOR
 
     /** @brief CPU core the simulator pins the main thread to.
      *  @note Mirrors the main loop running on one core of the OPTA. */

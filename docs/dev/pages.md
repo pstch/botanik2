@@ -81,7 +81,10 @@ ShellWriter <|-- ShellPage
 - @ref Botanik::Pages::NotesPage - the operator's free-text note, behind
   `BOTANIK_FEATURE_NOTES`. The same @ref Botanik::Terminal::TextEditor as the shell,
   but top-anchored over the content area with a viewport that scrolls once the note
-  is taller than the screen (see @ref dev_editor). Persisted under its own
+  is taller than the screen (see @ref dev_editor). It drives the same PS1/PS2/PS3
+  gutter the shell does: `"> "` on a row the operator started (PS1, and PS3 after
+  a hard `\n`), `"  "` on a soft-wrapped tail (PS2) - so a wrapped line reads as
+  a continuation rather than a new one. Persisted under its own
   `HAL::Storage` key: `^O` writes, and leaving the page flushes anything unsaved.
   Up/down are cursor motion here - history belongs to `CommandShell`, and there is
   none under this page.

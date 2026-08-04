@@ -58,9 +58,10 @@ namespace Botanik {
 
 #if BOTANIK_FEATURE_CONSOLE
     /** @brief The interactive console: the console UART, the AnsiTerminal, and
-     *  the three built-in pages (shell / logs / alarms). The terminal's
-     *  SystemContext is wired after construction (set_context) once every
-     *  subsystem address is known. */
+     *  the built-in pages that need nothing but it (shell / logs / alarms, and
+     *  the notes editor when that feature is on). The terminal's SystemContext
+     *  is wired after construction (set_context) once every subsystem address is
+     *  known. */
     class ConsoleStack {
 
         Utils::BufferedSerial   _serial;
@@ -68,6 +69,9 @@ namespace Botanik {
         Pages::ShellPage        _shell;
         Pages::LogsPage         _logs;
         Pages::AlarmsPage       _alarms;
+#if BOTANIK_FEATURE_NOTES
+        Pages::NotesPage        _notes;
+#endif
 
     public:
         /** @param cols/rows terminal geometry; @param timestamp_ms the shared
@@ -82,13 +86,20 @@ namespace Botanik {
                         SystemContext(), alarms, logger),
               _shell(_terminal),
               _logs(_terminal),
-              _alarms(_terminal, alarms) {}
+              _alarms(_terminal, alarms)
+#if BOTANIK_FEATURE_NOTES
+            , _notes(_terminal, logger)
+#endif
+        {}
 
         Utils::BufferedSerial&  serial()   { return _serial; }
         Terminal::Console&      terminal() { return _terminal; }
         Pages::ShellPage&       shell()    { return _shell; }
         Pages::LogsPage&        logs()     { return _logs; }
         Pages::AlarmsPage&      alarms()   { return _alarms; }
+#if BOTANIK_FEATURE_NOTES
+        Pages::NotesPage&       notes()    { return _notes; }
+#endif
 
         /** @brief Terminal logic step (the serial pump is stepped separately by
          *  the firmware via serial()). */

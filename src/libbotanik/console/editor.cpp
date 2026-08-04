@@ -18,11 +18,9 @@ namespace Botanik { namespace Terminal {
 
     TextEditor::TextEditor(Console* console, const EditorStorage& store)
         : _console(console), _terminal(&console->terminal()),
-          _buf(store.buf), _buf_cap(store.buf_cap) {
+          _buf(store.buf), _buf_cap(store.buf_cap), _max_rows(store.max_rows) {
         _layout.rows = store.layout;
-        _layout.cap  = store.max_rows;
         _pre.rows    = store.pre;
-        _pre.cap     = store.max_rows;
         _buf[0] = '\0';
         _layout.rows[0] = {0, 0, false};
         _layout.count = 1;
@@ -57,11 +55,11 @@ namespace Botanik { namespace Terminal {
         return RowView { pos, len, hard_break };
     }
 
-    void TextEditor::_rebuild_layout() {
+    bool TextEditor::_rebuild_layout() {
         uint16_t pos  = 0;
         bool     done = false;
         _layout.count = 0;
-        while (_layout.count < _layout.cap) {
+        while (_layout.count < _max_rows) {
             uint16_t cap = _row_cap(_layout.count);
             RowView  row = _scan_row(pos, cap);
             _layout.rows[_layout.count++] = row;
@@ -73,15 +71,23 @@ namespace Botanik { namespace Terminal {
         }
         // Ran out of rows before running out of buffer: whatever follows cannot
         // be laid out, so it cannot be shown or reached.
-        _layout_overflow = !done;
+        return !done;
     }
 
     void TextEditor::_snapshot_pre() {
-        _pre.count     = _layout.count;
-        _pre_view_top  = _view_top;
-        _pre_view_rows = _view_height();
+        _pre.count       = _layout.count;
+        _pre_view_top    = _view_top;
+        _pre_view_height = _view_height();
         if (_layout.count > 0)
             memcpy(_pre.rows, _layout.rows, (size_t)_layout.count * sizeof(RowView));
+    }
+
+    uint16_t TextEditor::_console_rows() const { return _console->rows(); }
+
+    void TextEditor::_restore_pre() {
+        _layout.count = _pre.count;
+        if (_pre.count > 0)
+            memcpy(_layout.rows, _pre.rows, (size_t)_pre.count * sizeof(RowView));
     }
 
     CursorPos TextEditor::_map_cursor_pos(uint16_t pos) const {
@@ -94,10 +100,8 @@ namespace Botanik { namespace Terminal {
     // viewport
     // ------------------------------------------------------------------------
 
-    uint16_t TextEditor::_console_rows() const { return _console->rows(); }
-
     uint16_t TextEditor::_view_bottom_hw() const {
-        uint16_t rows = _console_rows();
+        uint16_t rows = _console->rows();
         if (rows == 0) return 0;
         uint16_t bottom = (uint16_t)(rows - 1);
         uint16_t h      = _view_height();
@@ -156,12 +160,11 @@ namespace Botanik { namespace Terminal {
         // Bottom-anchored, the origin is derived, so re-pin it. Top-anchored it
         // is the caller's (set_origin()) and must survive a reset.
         if (_anchor == Anchor::BOTTOM)
-            _origin = (uint16_t)(_console_rows() - 1);
+            _origin = (uint16_t)(_console->rows() - 1);
         _view_top   = 0;
         _goal_valid = false;
         _layout.rows[0]   = {0, 0, false};
         _layout.count = 1;
-        _layout_overflow  = false;
     }
 
     void TextEditor::reset() {
@@ -196,8 +199,7 @@ namespace Botanik { namespace Terminal {
     void TextEditor::redraw() {
         _place_rows();          // a page switch handed the band back; reclaim it
         // Destination rows assumed already blank; only write prompt + content.
-        uint16_t last = (uint16_t)(_view_top + _view_height());
-        if (last > _layout.count) last = _layout.count;
+        uint16_t last = _visible_end();
         for (uint16_t i = _view_top; i < last; i++) {
             _terminal->move_to({_hw_row(i), _indent});
             _write_prompt(i);
@@ -238,17 +240,17 @@ namespace Botanik { namespace Terminal {
         _pos += len;
 
         _snapshot_pre();
-        _rebuild_layout();
 
-        if (_layout_overflow) {
+        if (_rebuild_layout()) {
             // More rows than the layout can hold: the tail would be text the
             // operator can neither see nor reach. Refuse the keystroke instead,
-            // the way _single_line refuses one past the row end.
+            // the way _single_line refuses one past the row end. Nothing has
+            // reached the wire yet - the reconcile below is what emits.
             memmove(&_buf[pos], &_buf[pos + len], (size_t)(_len - (pos + len)));
             _len -= len;
             _buf[_len] = '\0';
             _pos = pos;
-            _rebuild_layout();
+            _restore_pre();          // _pre is the pre-edit layout, exactly
             return;
         }
 
@@ -278,19 +280,25 @@ namespace Botanik { namespace Terminal {
     }
 
     bool TextEditor::load(const char* buf, uint16_t len) {
+        uint16_t cap = load_capacity();
+        if (len > cap) len = cap;                 // commit_loaded reports the drop
+        if (len > 0) memmove(_buf, buf, len);
+        return commit_loaded(len);
+    }
+
+    bool TextEditor::commit_loaded(uint16_t len) {
         bool fitted = true;
-        if (len > (uint16_t)(_buf_cap - 1)) { len = (uint16_t)(_buf_cap - 1); fitted = false; }
-        if (len > 0) memcpy(_buf, buf, len);
+        if (len > load_capacity()) { len = load_capacity(); fitted = false; }
         _len = len;
         _buf[_len] = '\0';
         _pos = _view_top = 0;
         _goal_valid = false;
-        _rebuild_layout();
+        bool overflow = _rebuild_layout();
 
         // Drop what the row cap could not lay out rather than carry text the
         // operator cannot see: an invisible tail that a later save writes back
         // truncated is the worse failure.
-        if (_layout_overflow) {
+        if (overflow) {
             const RowView& last = _layout.rows[_layout.count - 1];
             _len = (uint16_t)(last.buf_start + last.buf_len);
             _buf[_len] = '\0';
@@ -308,7 +316,7 @@ namespace Botanik { namespace Terminal {
     // ------------------------------------------------------------------------
 
     void TextEditor::_place_rows() {
-        uint16_t rows = _console_rows();
+        uint16_t rows = _console->rows();
         if (rows == 0) return;
 
         if (_anchor == Anchor::TOP) {
@@ -345,7 +353,7 @@ namespace Botanik { namespace Terminal {
 
         // Bottom-pinned origin: pull the top up by the rows the editor grew,
         // clamped at the screen top.
-        uint16_t scr_rows = _console_rows();
+        uint16_t scr_rows = _console->rows();
         uint16_t new_origin;
         if (scr_rows >= _layout.count) new_origin = (uint16_t)(scr_rows - _layout.count);
         else                           new_origin = 0;
@@ -549,8 +557,7 @@ namespace Botanik { namespace Terminal {
         // content). Rows carry no state across iterations - each is spliced from
         // its own `_pre`/`_layout` pair - so skipping ones off screen is safe.
         uint16_t walk_from = span.edit_row > _view_top ? span.edit_row : _view_top;
-        uint16_t walk_to   = (uint16_t)(_view_top + _view_height());
-        if (walk_to > _layout.count) walk_to = _layout.count;
+        uint16_t walk_to   = _visible_end();
         for (uint16_t i = walk_from; i < walk_to; i++) {
             const RowView& want  = _layout.rows[i];
             uint16_t want_prompt = _prompt_len(_row_prompt(i));

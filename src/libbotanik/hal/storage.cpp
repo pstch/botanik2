@@ -115,6 +115,14 @@ namespace Botanik { namespace HAL { namespace Storage {
     namespace {
         constexpr size_t STORE_MAX = Config::STORE_MAX_BYTES;  // whole-file cap
 
+        // One scratch pair for the whole backend. The store is sized for the
+        // largest value it holds (a note is kilobytes, hex-doubled), so these do
+        // not belong on the stack of a main-loop call - and there is no reason
+        // for each of set/get/remove to own its own copy. Main-loop only, never
+        // re-entrant, nothing live across calls.
+        char g_in[STORE_MAX];
+        char g_out[STORE_MAX];
+
         const char* store_path() {
             const char* env = getenv("BOTANIK_CONFIG_STORE");
             if (env != nullptr && env[0] != 0) return env;
@@ -184,45 +192,39 @@ namespace Botanik { namespace HAL { namespace Storage {
     bool set(const char* key, const void* buf, size_t len) {
         if (!key_ok(key)) return false;
         size_t klen = strlen(key);
-        // Static, not automatic: the store is sized for the largest value it
-        // holds (a note is kilobytes, hex-doubled), and two of these on the
-        // stack of a main-loop call is not a trade worth making.
-        static char in[STORE_MAX];
-        static char out[STORE_MAX];
-        size_t n = load(in, sizeof(in));
-        size_t o = copy_without(in, n, key, klen, out, sizeof(out));
+        size_t n = load(g_in, sizeof(g_in));
+        size_t o = copy_without(g_in, n, key, klen, g_out, sizeof(g_out));
         // Append "key=<hex>\n" (a raw record, not a NUL-terminated string).
-        if (o + klen + 1 + 2 * len + 1 > sizeof(out)) return note(false);
-        for (size_t j = 0; j < klen; j++) out[o++] = key[j];
-        out[o++] = '=';
+        if (o + klen + 1 + 2 * len + 1 > sizeof(g_out)) return note(false);
+        for (size_t j = 0; j < klen; j++) g_out[o++] = key[j];
+        g_out[o++] = '=';
         const uint8_t* v = static_cast<const uint8_t*>(buf);
         for (size_t j = 0; j < len; j++) {
-            out[o++] = hex_digit((unsigned)(v[j] >> 4));
-            out[o++] = hex_digit((unsigned)(v[j] & 0xF));
+            g_out[o++] = hex_digit((unsigned)(v[j] >> 4));
+            g_out[o++] = hex_digit((unsigned)(v[j] & 0xF));
         }
-        out[o++] = '\n';
-        return note(store(out, o));
+        g_out[o++] = '\n';
+        return note(store(g_out, o));
     }
 
     bool get(const char* key, void* buf, size_t cap, size_t* out_len) {
         if (!key_ok(key)) return false;
         size_t klen = strlen(key);
-        static char in[STORE_MAX];
-        size_t n = load(in, sizeof(in));
+        size_t n = load(g_in, sizeof(g_in));
         size_t i = 0;
         while (i < n) {
             size_t ls = i;
-            while (i < n && in[i] != '\n') i++;
+            while (i < n && g_in[i] != '\n') i++;
             size_t le = i;
             if (i < n) i++;
-            if (!line_is_key(in, ls, le, key, klen)) continue;
+            if (!line_is_key(g_in, ls, le, key, klen)) continue;
             size_t hs = ls + klen + 1, hlen = le - hs;
             if (hlen % 2 != 0) return false;           // malformed record
             size_t vlen = hlen / 2;
             if (vlen > cap) return false;              // caller's buffer too small
             uint8_t* dst = static_cast<uint8_t*>(buf);
             for (size_t j = 0; j < vlen; j++) {
-                int hi = hex_val(in[hs + 2 * j]), lo = hex_val(in[hs + 2 * j + 1]);
+                int hi = hex_val(g_in[hs + 2 * j]), lo = hex_val(g_in[hs + 2 * j + 1]);
                 if (hi < 0 || lo < 0) return false;
                 dst[j] = (uint8_t)((hi << 4) | lo);
             }
@@ -235,13 +237,11 @@ namespace Botanik { namespace HAL { namespace Storage {
     bool remove(const char* key) {
         if (!key_ok(key)) return false;
         size_t klen = strlen(key);
-        static char in[STORE_MAX];
-        size_t n = load(in, sizeof(in));
+        size_t n = load(g_in, sizeof(g_in));
         if (n == 0) return true;                       // nothing stored
-        static char out[STORE_MAX];
-        size_t o = copy_without(in, n, key, klen, out, sizeof(out));
+        size_t o = copy_without(g_in, n, key, klen, g_out, sizeof(g_out));
         if (o == n) return true;                        // key absent: idempotent
-        return note(store(out, o));
+        return note(store(g_out, o));
     }
 
 }}}  // namespace Botanik::HAL::Storage

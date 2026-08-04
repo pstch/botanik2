@@ -41,15 +41,17 @@ def test_notes_wraps_and_reports_state(spawn):
     assert term.wait_for("0/2047 bytes"), "status row missing on an empty note"
     assert term.wait_for("saved"), "an untouched note should not read as modified"
 
-    # 89 chars over an 80-column screen. The editor owns the wrapping (the
-    # terminal's autowrap is off), so assert where the break actually falls:
-    # row 1 holds exactly a screenful and the remainder starts row 2, mid-word.
+    # 89 chars over an 80-column screen with a 2-column gutter, so a row holds
+    # 78. The editor owns the wrapping (the terminal's autowrap is off), so
+    # assert where the break actually falls - and that the gutter marks the row
+    # the operator started but not its wrapped tail, which is the whole point of
+    # having one.
     line = "the tank three valve sticks when it is cold, tap it before blaming the level sensor again"
     term.send(keys.text(line))
-    assert term.wait_for(line[60:80]), "typed text never reached the row end"
+    assert term.wait_for(line[58:78]), "typed text never reached the row end"
     term.settle()
-    assert term.screen.display[1].rstrip() == line[:80], "first row is not a full 80 columns"
-    assert term.screen.display[2].rstrip() == line[80:], "remainder did not wrap onto the next row"
+    assert term.screen.display[1].rstrip() == "> " + line[:78], "first row is not a full gutter + 78 columns"
+    assert term.screen.display[2].rstrip() == "  " + line[78:], "wrapped tail is not gutter-blanked"
     assert term.wait_for("modified"), "edits did not mark the note dirty"
 
     term.send(keys.CTRL_O)
@@ -68,6 +70,7 @@ def test_notes_scrolls_when_taller_than_the_screen(spawn):
     # is 21 rows once the status bar, the alarm bar and our status row are out).
     assert term.wait_for("line%02d" % last), "the line being typed is not in view"
     assert "line00" not in term.screen.display[1], "the head should have scrolled away"
+    assert term.screen.display[1].startswith("> "), "each note line carries the gutter"
 
     # Page back to the top. One press only moves a screenful, and the last lands
     # on the first row rather than scrolling past it.

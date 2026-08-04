@@ -35,6 +35,11 @@ A **layout** (`TextView`) is the buffer sliced into screen rows (one `RowView` e
 Three prompt classes start a row: **PS1** (first row), **PS2** (after a soft wrap),
 **PS3** (after a hard `\n`). Auto-wrap is off - the editor owns all wrapping.
 
+The split is what lets a renderer distinguish a line the operator started from its
+overflow: the shell uses it for `botanik> ` / `> ` / `...> `, NOTES for `"> "` on
+PS1+PS3 and `"  "` on PS2. Widths must match across the three, or the wrap column
+would move between rows (`_row_cap()` subtracts the prompt).
+
 \startuml "TextView: the buffer sliced into screen rows (one RowView per row)"
 class RowView {
   buf_start : uint16_t - offset of the slice in the buffer
