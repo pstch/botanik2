@@ -8,15 +8,17 @@
  * Not generated: this is the one place a site expresses *behaviour* rather than
  * schema, so it sits with site.h and sim.h rather than with the tables.
  *
- * A program is a plain function handed a ScanContext. It reads and drives
- * variables through typed handles, and keeps whatever state it needs in statics
- * or function blocks. Two rules the scaffolding guarantees, and which the
- * programs below rely on:
+ * A program is a Plc::Program subclass. It holds its function blocks and its
+ * resolved variable references as members, resolves the names it uses once in
+ * bind(), and reads and drives variables in run(). Three rules the scaffolding
+ * guarantees, and which the programs below rely on:
  *
- *  - every task in a beat sees the same instant (inputs refresh once, before
+ *  - every program in a beat sees the same instant (inputs refresh once, before
  *    any of them runs)
- *  - @c dt_ms is the REAL time since this task last ran, so a timer keeps
+ *  - @c dt_ms is the REAL time since this program last ran, so a timer keeps
  *    correct time even when the scan was late
+ *  - nothing runs at all while control authority is withheld, and reset() is
+ *    called on the way down so no program resumes on stale state
  */
 
 #include <cstdint>
@@ -28,7 +30,6 @@
 namespace Site {
 
 using namespace Botanik;
-using Botanik::Scan::ScanContext;
 
 /**
  * @brief Supply watchdog: hold the windows shut while the incoming mains is
@@ -36,44 +37,69 @@ using Botanik::Scan::ScanContext;
  *
  * A worked example of the intended shape rather than the final control law.
  * Note what it does NOT do: no clock reads, no direct IO, no knowledge of
- * Modbus. It reads two variables, applies a debounce, and drives four coils.
+ * Modbus, and no variable lookup by name once it is running. It reads two
+ * variables, applies a debounce, and drives four coils.
  */
-inline void supply_watch(ScanContext& c) {
-    static Plc::Ton  bad_for;      // debounce: ignore a momentary dropout
-    static Plc::Sr   lockout;
+class SupplyWatch : public Plc::Program {
 
-    // Names resolved ONCE, into the same function-local statics the blocks
-    // above live in. Bank::var(const char*) is a linear strcmp scan of the whole
-    // table and every row shares a prefix, so each comparison matches several
-    // bytes before diverging: resolving per activation was ~99% of this
-    // program's cost (@ref dev_tasks). A VarRef is a bare index - the lookup is
-    // the expensive half, and it is the half that cannot change.
-    static const Vars::VarRef r_ln      = c.io.find("grid_LN_V");
-    static const Vars::VarRef r_lockout = c.io.find("sys_supply_lockout");
-    static const Vars::VarRef r_win[]   = { c.io.find("cli_window1_opn"),
-                                            c.io.find("cli_window2_opn"),
-                                            c.io.find("cli_window3_opn"),
-                                            c.io.find("cli_window4_opn") };
+    /** @name Blocks
+     *  @{ */
 
-    // A meter that has stopped answering reads as its default (0 V), which is
-    // out of band and therefore unhealthy - the fallback does the right thing
-    // here without the program testing valid() at all.
-    float ln = c.io.var(r_ln).value();
-    bool  unhealthy = (ln < 200.0f) || (ln > 260.0f);
+    Plc::Ton _bad_for;    ///< debounce: ignore a momentary dropout
+    Plc::Sr  _lockout;
 
-    // Reset-dominant: recovery wins, so the lockout cannot stick once the
-    // supply is good again.
-    lockout(bad_for(unhealthy, 5000, c.dt_ms), !unhealthy);
+    /** @} */
+    /** @name Variables
+     *  @{ */
 
-    // Publish the decision as an internal, so the console, the shell and
-    // telemetry can all see WHY the windows are held - a coil reading 0 does
-    // not distinguish "not commanded" from "locked out".
-    c.io.var(r_lockout).set(lockout.q());
+    Vars::VarRef _ln      = { Vars::VAR_NONE };
+    Vars::VarRef _locked  = { Vars::VAR_NONE };
+    Vars::VarRef _win[4]  = { { Vars::VAR_NONE }, { Vars::VAR_NONE },
+                              { Vars::VAR_NONE }, { Vars::VAR_NONE } };
 
-    if (lockout.q()) {
-        for (const Vars::VarRef& w : r_win) c.io.var(w).set(false);
+    /** @} */
+
+public:
+    SupplyWatch() : Program("supply_watch", 100) {}
+
+    void bind(Vars::Bank& io) override {
+        _ln     = io.find("grid_LN_V");
+        _locked = io.find("sys_supply_lockout");
+        _win[0] = io.find("cli_window1_opn");
+        _win[1] = io.find("cli_window2_opn");
+        _win[2] = io.find("cli_window3_opn");
+        _win[3] = io.find("cli_window4_opn");
     }
-}
+
+    void run(Plc::Context& c) override {
+        // A meter that has stopped answering reads as its default (0 V), which
+        // is out of band and therefore unhealthy - the fallback does the right
+        // thing here without the program testing valid() at all.
+        const bool unhealthy = !Plc::in_range(c.io.var(_ln).value(),
+                                              200.0f, 260.0f);
+
+        // Reset-dominant: recovery wins, so the lockout cannot stick once the
+        // supply is good again.
+        _lockout(_bad_for(unhealthy, 5000, c.dt_ms), !unhealthy);
+
+        // Publish the decision as an internal, so the console, the shell and
+        // telemetry can all see WHY the windows are held - a coil reading 0
+        // does not distinguish "not commanded" from "locked out".
+        c.io.var(_locked).set(_lockout.q());
+
+        if (_lockout.q()) {
+            for (const Vars::VarRef& w : _win) c.io.var(w).set(false);
+        }
+    }
+
+    /** @brief Both blocks are a claim about the supply over TIME, and the scan
+     *  stopping means we stopped watching it. Start the debounce again rather
+     *  than resuming a dwell that was counting an outage we did not see. */
+    void reset() override {
+        _bad_for.reset();
+        _lockout.reset();
+    }
+};
 
 /**
  * @brief Report the incoming supply frequency as a slow, deadbanded reading.
@@ -81,35 +107,68 @@ inline void supply_watch(ScanContext& c) {
  * Exists mostly to show a second rate: it runs a tenth as often as the supply
  * watchdog, and the scan drives both from the same table.
  */
-inline void supply_report(ScanContext& c) {
-    static Plc::Deadband hz;
-    static const Vars::VarRef r_hz  = c.io.find("sys_supply_hz");
-    static const Vars::VarRef r_raw = c.io.find("grid_Hz");
-    c.io.var(r_hz).set(hz(c.io.var(r_raw).value(), 0.05f));
-}
+class SupplyReport : public Plc::Program {
 
-/** @brief The site's control programs, in execution order. */
-const Scan::Task g_tasks[] = {
-    { "supply_watch",  100,  &supply_watch  },
-    { "supply_report", 1000, &supply_report },
+    /** @name Blocks
+     *  @{ */
+
+    Plc::Deadband _hz;
+
+    /** @} */
+    /** @name Variables
+     *  @{ */
+
+    Vars::VarRef _out = { Vars::VAR_NONE };
+    Vars::VarRef _raw = { Vars::VAR_NONE };
+
+    /** @} */
+
+public:
+    SupplyReport() : Program("supply_report", 1000) {}
+
+    void bind(Vars::Bank& io) override {
+        _out = io.find("sys_supply_hz");
+        _raw = io.find("grid_Hz");
+    }
+
+    void run(Plc::Context& c) override {
+        c.io.var(_out).set(_hz(c.io.var(_raw).value(), 0.05f));
+    }
+
+    // No reset(): the deadband holds the last REPORTED reading, and a stale
+    // frequency reading is corrected by the next activation rather than being
+    // dangerous in the meantime.
 };
-const uint8_t g_task_count = (uint8_t)(sizeof(g_tasks) / sizeof(g_tasks[0]));
 
-/** @brief Per-task diagnostics; one entry per row above.
+/** @brief The program instances.
  *
  *  Mutable state in a header, so it uses the same vague-linkage trick as the
- *  value store in vars.h: a class template's static member is emitted per TU and
- *  folded by the linker, where a plain definition here would be a duplicate
+ *  value store in vars.h: a class template's static member is emitted per TU
+ *  and folded by the linker, where a plain definition here would be a duplicate
  *  symbol the moment two TUs included this. It cannot simply live in vars.h's
  *  store - tasks.h includes vars.h, so it is vars.h that must not know about
- *  tasks. */
+ *  the programs. */
 template <typename Tag>
-struct TaskStore { static Botanik::Scan::TaskStats stats[g_task_count]; };
-template <typename Tag>
-Botanik::Scan::TaskStats TaskStore<Tag>::stats[g_task_count] = {};
+struct ProgramStore {
+    static SupplyWatch  supply_watch;
+    static SupplyReport supply_report;
+};
+template <typename Tag> SupplyWatch  ProgramStore<Tag>::supply_watch;
+template <typename Tag> SupplyReport ProgramStore<Tag>::supply_report;
 
 /** @brief The one instantiation, matching Store in vars.h. */
-using Tasks = TaskStore<void>;
+using Programs = ProgramStore<void>;
+
+/** @brief The site's control programs, in execution order.
+ *
+ *  Pointers, so the table itself stays const and flash-resident even though
+ *  what it points at is RAM. */
+Plc::Program* const g_programs[] = {
+    &Programs::supply_watch,
+    &Programs::supply_report,
+};
+const uint8_t g_program_count =
+    (uint8_t)(sizeof(g_programs) / sizeof(g_programs[0]));
 
 }  // namespace Site
 

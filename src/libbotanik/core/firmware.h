@@ -51,13 +51,13 @@
  * // --- site-static tables (single source of truth for this greenhouse) ---
  * const Vars::HomeVar          g_home[]   = { ... };  // home-screen readings
  * const Shell::ShellCommand    g_cmds[]   = { ... };  // site shell commands
- * const Scan::Task             g_tasks[]  = { ... };  // control programs
+ * Plc::Program* const          g_programs[] = { ... };  // control programs
  * const SiteDescriptor g_site = {
  *     Config::SITE_NAME,
  *     g_cmds,   1,
  *     g_home,   13,
  *     SITE_VAR_TABLES,                     // descriptors + values + string pool
- *     g_tasks,  2, g_task_stats,
+ *     g_programs, 2,
  * };
  *
  * class GreenhouseXXX final : public BotanikFirmware {
@@ -74,7 +74,8 @@
 #include "libbotanik/vars/params.h"   // Vars::Params (the editable variables)
 #include "../shell/shell.h"
 #include "../vars/model.h"      // Vars::Bank / VarTables
-#include "../scan/scan.h"     // Scan::Driver / Task
+#include "../scan/scan.h"     // Scan::Driver
+#include "../plc/program.h"   // Plc::Program (the site's control programs)
 #include "../scheduler/tasks.h"   // Scheduler::Registry / GroupId / Phase
 #include "../vars/access.h"  // VarGroup / HomeVar (status vars)
 #include "stacks.h"      // Monitor/Console/NetworkStack composition
@@ -96,7 +97,8 @@ namespace Botanik {
      *     carrying its code and dwell policy, and the AlarmModel scans for them.
      *   - @c vars          - the variable tables themselves (Vars::VarTables);
      *                        parameters are the ROLE_PARAM rows within them.
-     *   - @c tasks         - the control programs (Scan::Task) + their stats.
+     *   - @c programs      - the control programs (Plc::Program), which carry
+     *                        their own scheduling state.
      *
      * Any table may be null / count 0. Every pointer is borrowed and must outlive
      * the firmware (site statics). See core/firmware.h "Extending the base".
@@ -116,11 +118,12 @@ namespace Botanik {
          *  (No default member initialisers here: in C++11 an NSDMI would stop
          *  SiteDescriptor being an aggregate, and every site brace-inits it.) */
         Vars::VarTables               vars;
-        /** @brief Control programs and their per-task diagnostics. The stats
-         *  array is site-owned and must hold @c task_count entries. */
-        const Scan::Task*             tasks;
-        uint8_t                       task_count;
-        Scan::TaskStats*              task_stats;
+        /** @brief Control programs, in execution order. The array is const
+         *  (flash) and the programs it points at are site-owned statics; each
+         *  carries its own scheduling state, so there is no parallel array to
+         *  keep the same length as this one. */
+        Plc::Program* const*          programs;
+        uint8_t                       program_count;
     };
 
     /** @brief Generic firmware base: owns the generic components + the loop
@@ -213,7 +216,7 @@ namespace Botanik {
               // Params come from local storage.
               _param_store(),
               _params(&_io, &_param_store, &_logger),
-              _scan(site.tasks, site.task_count, site.task_stats, &_io, &_logger),
+              _scan(site.programs, site.program_count, &_io, &_logger),
               // The alarm model scans the variable table for SCOPE_A rows;
               // platform-health alarms are appended and driven locally.
               _health(&_logger, _scheduler.context(), &_io)

@@ -1,7 +1,8 @@
 /**
  * @file test_scan.cpp
  * @brief The scan driver (scan/scan.h): multi-rate dispatch, the no-catch-up
- *        rule, and that dt_ms reports the real elapsed time.
+ *        rule, that dt_ms reports the real elapsed time, and the two control
+ *        authority edges.
  */
 #include <cstddef>
 #include <cstdint>
@@ -12,174 +13,198 @@
 #include "libbotanik/scan/scan.h"
 
 using Botanik::Vars::Bank;
+using Botanik::Plc::Program;
+using Botanik::Plc::Context;
 
 using namespace Botanik::Scan;
 
 namespace {
-    // Programs are plain functions, so the recording state is a file static.
     struct Rec { uint32_t dt; uint16_t missed; uint64_t now; };
-    std::vector<Rec> g_fast, g_slow;
 
-    void fast(ScanContext& c) { g_fast.push_back({c.dt_ms, c.missed, c.now_ms}); }
-    void slow(ScanContext& c) { g_slow.push_back({c.dt_ms, c.missed, c.now_ms}); }
+    /** @brief A program that records every activation. Its state is its own -
+     *  which is the point of the base class - so a test case owns its
+     *  recording instead of sharing a file static with every other case. */
+    class Recorder : public Program {
+    public:
+        std::vector<Rec> runs_seen;
+        int              binds  = 0;
+        int              resets = 0;
 
-    const Task TASKS[] = {
-        { "fast", 100,  &fast },
-        { "slow", 1000, &slow },
+        Recorder(const char* name, uint32_t period_ms) : Program(name, period_ms) {}
+
+        void bind(Botanik::Vars::Bank& io) override { (void)io; binds++; }
+        void run(Context& c) override {
+            runs_seen.push_back({ c.dt_ms, c.missed, c.now_ms });
+        }
+        void reset() override { resets++; }
     };
 
-    void reset() { g_fast.clear(); g_slow.clear(); }
+    /** @brief Bank with control granted, which is what bring-up does. */
+    struct Live {
+        Bank io;
+        Live() { io.enable_control(Bank::INHIBIT_HEALTH); }
+    };
 }
 
-TEST_CASE("scan: each task runs at its own rate") {
-    reset();
-    TaskStats stats[2];
-    Bank io;
-    io.enable_control(Bank::INHIBIT_HEALTH);   // what bring-up does
-    Driver d(TASKS, 2, stats, &io);
+TEST_CASE("scan: each program runs at its own rate") {
+    Recorder fast("fast", 100), slow("slow", 1000);
+    Program* const progs[] = { &fast, &slow };
+    Live f;
+    Driver d(progs, 2, &f.io);
     for (uint64_t t = 0; t <= 2000; t += 10) d.step(t);
 
     // ~20 fast runs per 2 s, ~2 slow. Exact counts depend on the first-run
     // seeding, so assert the ratio holds rather than pinning both.
-    CHECK(g_fast.size() >= 19);
-    CHECK(g_fast.size() <= 21);
-    CHECK(g_slow.size() >= 2);
-    CHECK(g_slow.size() <= 3);
-    CHECK(stats[0].runs() == g_fast.size());
+    CHECK(fast.runs_seen.size() >= 19);
+    CHECK(fast.runs_seen.size() <= 21);
+    CHECK(slow.runs_seen.size() >= 2);
+    CHECK(slow.runs_seen.size() <= 3);
+    CHECK(fast.runs() == fast.runs_seen.size());
 }
 
 TEST_CASE("scan: dt_ms is the nominal period when on time") {
-    reset();
-    TaskStats stats[2];
-    Bank io;
-    io.enable_control(Bank::INHIBIT_HEALTH);   // what bring-up does
-    Driver d(TASKS, 2, stats, &io);
+    Recorder fast("fast", 100);
+    Program* const progs[] = { &fast };
+    Live f;
+    Driver d(progs, 1, &f.io);
     for (uint64_t t = 0; t <= 1000; t += 10) d.step(t);
-    REQUIRE(g_fast.size() >= 3);
-    for (size_t i = 1; i < g_fast.size(); i++) CHECK(g_fast[i].dt == 100);
+    REQUIRE(fast.runs_seen.size() >= 3);
+    for (size_t i = 1; i < fast.runs_seen.size(); i++)
+        CHECK(fast.runs_seen[i].dt == 100);
 }
 
-TEST_CASE("scan: a late task runs once and reports the real elapsed time") {
-    reset();
-    TaskStats stats[2];
-    Bank io;
-    io.enable_control(Bank::INHIBIT_HEALTH);   // what bring-up does
-    Driver d(TASKS, 2, stats, &io);
+TEST_CASE("scan: a late program runs once and reports the real elapsed time") {
+    Recorder fast("fast", 100);
+    Program* const progs[] = { &fast };
+    Live f;
+    Driver d(progs, 1, &f.io);
     d.step(0);        // first run seeds
-    g_fast.clear();
+    fast.runs_seen.clear();
 
     // A 950 ms stall: nine 100 ms activations were missed.
     d.step(1000);
 
-    REQUIRE(g_fast.size() == 1);            // ran ONCE, no catch-up burst
-    CHECK(g_fast[0].dt == 1000);            // and dt is the real gap, not 100
-    CHECK(g_fast[0].missed == 9);
+    REQUIRE(fast.runs_seen.size() == 1);       // ran ONCE, no catch-up burst
+    CHECK(fast.runs_seen[0].dt == 1000);       // and dt is the real gap, not 100
+    CHECK(fast.runs_seen[0].missed == 9);
 }
 
 TEST_CASE("scan: period 0 runs every beat") {
-    reset();
-    static std::vector<uint64_t> beats;
-    beats.clear();
-    struct H { static void run(ScanContext& c) { beats.push_back(c.now_ms); } };
-    const Task every[] = { { "every", 0, &H::run } };
-    TaskStats stats[1];
-    Bank io;
-    io.enable_control(Bank::INHIBIT_HEALTH);   // what bring-up does
-    Driver d(every, 1, stats, &io);
+    Recorder every("every", 0);
+    Program* const progs[] = { &every };
+    Live f;
+    Driver d(progs, 1, &f.io);
     for (uint64_t t = 0; t < 50; t += 10) d.step(t);
-    CHECK(beats.size() == 5);
+    CHECK(every.runs_seen.size() == 5);
+}
+
+TEST_CASE("scan: bind runs once, before the first activation") {
+    Recorder p("p", 0);
+    Program* const progs[] = { &p };
+    Live f;
+    Driver d(progs, 1, &f.io);
+    CHECK(p.binds == 0);
+    for (uint64_t t = 0; t < 50; t += 10) d.step(t);
+    CHECK(p.binds == 1);                       // once, not once per beat
+    CHECK(p.runs() == 5);
 }
 
 TEST_CASE("scan: same-period programs are spread across beats, not piled up") {
     // Two programs at one rate: without the stagger they would share every beat
     // forever, which is what puts the peak work per beat back where it started.
-    static std::vector<uint64_t> a_beats, b_beats;
-    a_beats.clear(); b_beats.clear();
-    struct H {
-        static void a(ScanContext& c) { a_beats.push_back(c.now_ms); }
-        static void b(ScanContext& c) { b_beats.push_back(c.now_ms); }
-    };
-    const Task pair[] = { { "a", 100, &H::a }, { "b", 100, &H::b } };
-    TaskStats stats[2];
-    Bank io;
-    io.enable_control(Bank::INHIBIT_HEALTH);   // what bring-up does
-    Driver d(pair, 2, stats, &io);
+    Recorder a("a", 100), b("b", 100);
+    Program* const progs[] = { &a, &b };
+    Live f;
+    Driver d(progs, 2, &f.io);
     for (uint64_t t = 0; t <= 1000; t += 10) d.step(t);
 
     // Both ran at their declared rate...
-    CHECK(a_beats.size() >= 9);
-    CHECK(b_beats.size() >= 9);
+    CHECK(a.runs_seen.size() >= 9);
+    CHECK(b.runs_seen.size() >= 9);
     // ...but only ever together on the first beat, which is unavoidable: a
     // program's first activation is what seeds its timer.
     size_t shared = 0;
-    for (size_t i = 0; i < a_beats.size(); i++)
-        for (size_t j = 0; j < b_beats.size(); j++)
-            if (a_beats[i] == b_beats[j]) shared++;
+    for (size_t i = 0; i < a.runs_seen.size(); i++)
+        for (size_t j = 0; j < b.runs_seen.size(); j++)
+            if (a.runs_seen[i].now == b.runs_seen[j].now) shared++;
     CHECK(shared == 1);
-    CHECK(a_beats[0] == 0);
-    CHECK(b_beats[0] == 0);
+    CHECK(a.runs_seen[0].now == 0);
+    CHECK(b.runs_seen[0].now == 0);
 }
 
 TEST_CASE("scan: an every-beat program is left alone by the stagger") {
     // period 0 has no interval to shift inside; it must keep running every beat.
-    static std::vector<uint64_t> beats;
-    beats.clear();
-    struct H { static void run(ScanContext& c) { beats.push_back(c.now_ms); } };
-    const Task mixed[] = { { "slow", 100, &H::run }, { "every", 0, &H::run } };
-    TaskStats stats[2];
-    Bank io;
-    io.enable_control(Bank::INHIBIT_HEALTH);   // what bring-up does
-    Driver d(mixed, 2, stats, &io);
+    Recorder slow("slow", 100), every("every", 0);
+    Program* const progs[] = { &slow, &every };
+    Live f;
+    Driver d(progs, 2, &f.io);
     for (uint64_t t = 0; t < 50; t += 10) d.step(t);
 
-    // 5 beats of "every" + the one first-beat run of "slow".
-    CHECK(beats.size() == 6);
+    CHECK(every.runs_seen.size() == 5);
+    CHECK(slow.runs_seen.size() == 1);   // just the first-beat run
 }
 
 TEST_CASE("scan: programs are inhibited while control is withheld") {
-    reset();
-    TaskStats stats[2];
-    Bank io;                                  // starts at INHIBIT_HEALTH
-    Driver d(TASKS, 2, stats, &io);
+    Recorder fast("fast", 100);
+    Program* const progs[] = { &fast };
+    Bank io;                                   // starts at INHIBIT_HEALTH
+    Driver d(progs, 1, &io);
     for (uint64_t t = 0; t <= 500; t += 10) d.step(t);
 
-    CHECK(g_fast.empty());                    // nothing drives the field
-    CHECK(g_slow.empty());
+    CHECK(fast.runs_seen.empty());             // nothing drives the field
+    // Nothing was ever driving, so there is nothing stale to drop either.
+    CHECK(fast.resets == 0);
+}
+
+TEST_CASE("scan: control being withdrawn resets the programs, once") {
+    Recorder fast("fast", 100);
+    Program* const progs[] = { &fast };
+    Live f;
+    Driver d(progs, 1, &f.io);
+    d.step(0);
+    REQUIRE(fast.resets == 0);
+
+    f.io.disable_control(Bank::INHIBIT_OPERATOR);
+    for (uint64_t t = 10; t <= 500; t += 10) d.step(t);
+
+    // On the withdrawal edge, not on every beat it stays withdrawn: from here
+    // the process moves without us, and what a program remembered about the
+    // field is stale.
+    CHECK(fast.resets == 1);
 }
 
 TEST_CASE("scan: control returning does not hand a program the whole outage") {
-    reset();
-    TaskStats stats[2];
-    Bank io;
-    io.enable_control(Bank::INHIBIT_HEALTH);
-    Driver d(TASKS, 2, stats, &io);
-    d.step(0);                                // one activation, seeds the timers
-    g_fast.clear();
+    Recorder fast("fast", 100);
+    Program* const progs[] = { &fast };
+    Live f;
+    Driver d(progs, 1, &f.io);
+    d.step(0);                                // one activation, seeds the timer
+    fast.runs_seen.clear();
 
-    io.disable_control(Bank::INHIBIT_OPERATOR);
+    f.io.disable_control(Bank::INHIBIT_OPERATOR);
     for (uint64_t t = 10; t <= 60000; t += 10) d.step(t);
-    REQUIRE(g_fast.empty());                  // inhibited throughout
+    REQUIRE(fast.runs_seen.empty());          // inhibited throughout
 
-    io.enable_control(Bank::INHIBIT_OPERATOR);
+    f.io.enable_control(Bank::INHIBIT_OPERATOR);
     d.step(60010);                            // the reseed beat: nothing runs yet
     d.step(60110);
 
-    REQUIRE(g_fast.size() == 1);
+    REQUIRE(fast.runs_seen.size() == 1);
     // The nominal period, NOT the 60 s outage. A Ton holding 5 s handed an hour
     // of dt fires the moment control returns, which is what a withdrawal exists
     // to prevent.
-    CHECK(g_fast[0].dt == 100);
-    CHECK(g_fast[0].missed == 0);
+    CHECK(fast.runs_seen[0].dt == 100);
+    CHECK(fast.runs_seen[0].missed == 0);
 }
 
-TEST_CASE("scan: a null table or null run pointer is inert") {
-    TaskStats stats[1];
-    Bank io;
-    io.enable_control(Bank::INHIBIT_HEALTH);   // what bring-up does
-    Driver none(nullptr, 0, nullptr, &io);
+TEST_CASE("scan: a null table or a null program is inert") {
+    Live f;
+    Driver none(nullptr, 0, &f.io);
     none.step(0);                       // must not fault
-    const Task holey[] = { { "nop", 0, nullptr } };
-    Driver d(holey, 1, stats, &io);
+
+    Recorder p("p", 0);
+    Program* const holey[] = { nullptr, &p };
+    Driver d(holey, 2, &f.io);
     d.step(0);
-    CHECK(stats[0].runs() == 0);
+    CHECK(p.runs() == 1);               // the live one still runs
 }

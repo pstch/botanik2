@@ -158,9 +158,15 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
 #ifdef TARGET_SIMULATOR
     Site::simulate(f.bank, 1000);
 #endif
-    for (uint8_t t = 0; t < site().task_count; t++) {
-        Scan::ScanContext c = { 1000, site().tasks[t].period_ms, 0, f.bank };
-        site().tasks[t].run(c);
+    // bind() is where a program resolves its names, so it is what has to run
+    // for an unknown one to be counted; run() then catches anything still
+    // resolved by name from inside the program body.
+    for (uint8_t t = 0; t < site().program_count; t++) {
+        Plc::Program* p = site().programs[t];
+        REQUIRE(p != nullptr);
+        p->bind(f.bank);
+        Plc::Context c = { 1000, p->period_ms(), 0, f.bank };
+        p->run(c);
     }
 
     INFO("a non-zero count means a table or a control program names a variable "
