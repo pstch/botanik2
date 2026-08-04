@@ -224,9 +224,13 @@ namespace Botanik { namespace Vars {
         Scalar parsed;
         // Band deliberately NOT applied - see the header note.
         if (parse_for(*d, text, /*bounded=*/false, &parsed) != SET_OK) return SET_INVALID;
-        h.override_set(parsed, valid);
-        _persist_override(h);
+        override_set(h, parsed, valid);
         return SET_OK;
+    }
+
+    void Bank::override_set(Var h, Scalar v, bool valid) {
+        h.override_set(v, valid);
+        _persist_override(h);
     }
 
     void Bank::override_freeze(Var h) {
@@ -250,13 +254,14 @@ namespace Botanik { namespace Vars {
     }
 
     void Bank::_persist_override(Var h) {
-        if (_store == nullptr || _row_of(h) == VAR_NONE) return;
+        const uint16_t row = _row_of(h);
+        if (_store == nullptr || row == VAR_NONE) return;
         const Variable* d = h.meta();
         // An actuator override is deliberately never written: see
         // load_overrides(). Nothing would restore it, so storing it would only
         // leave a stale record to puzzle over.
         if (d->role == ROLE_OUTPUT) return;
-        if (!_store->save_override(*d, _t.val[_row_of(h)]) && _logger != nullptr)
+        if (!_store->save_override(*d, _t.val[row]) && _logger != nullptr)
             _logger->critical(Logs::STORAGE, "override on '%s' not persisted", d->name);
     }
 
@@ -265,14 +270,16 @@ namespace Botanik { namespace Vars {
         uint16_t n = 0;
         for (uint16_t i = 0; i < _t.count; i++) {
             const Variable& d = _t.var[i];
+            if (!_store->load_override(d, _t.val[i])) continue;
             if (d.role == ROLE_OUTPUT) {
-                // Drop rather than restore - and drop even if none is stored,
-                // which is cheap and keeps a record written by an older build
-                // from surviving indefinitely.
+                // Found one on an actuator: drop it rather than restore it, so
+                // it cannot fire when bring-up hands control back. Only reached
+                // when a record actually exists - an unconditional remove per
+                // output row was a flash transaction each boot for nothing.
                 (void)_store->clear_override(d);
+                _t.val[i].ovr_on = false;
                 continue;
             }
-            if (!_store->load_override(d, _t.val[i])) continue;
             _t.val[i].ovr_on = true;
             n++;
             if (_logger != nullptr)

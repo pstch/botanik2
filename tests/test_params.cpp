@@ -324,3 +324,43 @@ TEST_CASE("override: a parameter override shadows without disturbing the setting
         CHECK(f.bank.var("setting").i() == 100);       // the setting was untouched
     }
 }
+
+TEST_CASE("override: forcing only the quality persists the quality") {
+    // Regression. `override <name> invalid` froze through the bank (persisting
+    // the CURRENT quality) and then forced the new quality through the HANDLE,
+    // which cannot reach the store - so the reboot handed back the old one.
+    StoreEnv env("/tmp/botanik_test_ovr_q");
+    {
+        OvrFx f;
+        f.bank.var("sensor").publish(Scalar::F(21.0f), 1000);
+        REQUIRE(f.bank.var("sensor").valid());
+        f.bank.override_freeze(f.bank.var("sensor"));
+        f.bank.override_set(f.bank.var("sensor"), f.bank.var("sensor").raw(), false);
+        CHECK_FALSE(f.bank.var("sensor").valid());
+    }
+    {
+        OvrFx f;
+        CHECK(f.bank.var("sensor").overridden());
+        CHECK_FALSE(f.bank.var("sensor").valid());
+        CHECK(f.bank.var("sensor").value() == doctest::Approx(21.0f));
+    }
+}
+
+TEST_CASE("override: every release path also forgets the stored copy") {
+    // Regression. Var's mutators were public and cleared RAM only, so a release
+    // through the handle left the record behind and the override came back at
+    // the next boot. They are Bank's now, which is why this can only be spelled
+    // one way.
+    StoreEnv env("/tmp/botanik_test_ovr_r");
+    {
+        OvrFx f;
+        REQUIRE(f.bank.override_set(f.bank.var("sensor"), "9") == SET_OK);
+        f.bank.override_clear(f.bank.var("sensor"));
+        CHECK_FALSE(f.bank.var("sensor").overridden());
+    }
+    {
+        OvrFx f;
+        CHECK_FALSE(f.bank.var("sensor").overridden());
+        CHECK(f.bank.override_count() == 0);
+    }
+}

@@ -442,19 +442,6 @@ namespace Botanik { namespace Vars {
         /** @brief True while this variable is forced. */
         bool overridden() const { return _v->ovr_on; }
 
-        /** @brief Force the variable to @p v, reading as @p valid. */
-        void override_set(Scalar v, bool valid = true) {
-            _v->ovr = v; _v->ovr_valid = valid; _v->ovr_on = true;
-        }
-
-        /** @brief Freeze the variable at whatever it reads right now - the
-         *  no-value form of the console's `override` command, for pinning a
-         *  signal while you work on what depends on it. */
-        void override_freeze() { override_set(raw(), valid()); }
-
-        /** @brief Release the override; the live value takes over again. */
-        void override_clear() { _v->ovr_on = false; }
-
         /** @} */
 
         /** @name Write
@@ -480,6 +467,29 @@ namespace Botanik { namespace Vars {
         const char*     unit() const { return _d->unit; }
         VarType         type() const { return _d->type; }
         VarRole         role() const { return _d->role; }
+
+    private:
+        /** @name Override mutation - Bank's, not yours
+         *
+         *  Private, and it is load-bearing. An override is PERSISTED, so every
+         *  one of these has a storage side to it that only the Bank can reach:
+         *  a set that skipped the store would vanish at the next boot, and a
+         *  clear that skipped it would come BACK at the next boot. Both of those
+         *  were real bugs here, caused by exactly one caller reaching past the
+         *  bank because it could. The rule was written in a comment; now it is
+         *  written in the access specifier.
+         *  @{ */
+        friend class Bank;
+
+        /** @brief Force the variable to @p v, reading as @p valid. */
+        void override_set(Scalar v, bool valid = true) {
+            _v->ovr = v; _v->ovr_valid = valid; _v->ovr_on = true;
+        }
+        /** @brief Freeze at whatever it reads right now, keeping its quality. */
+        void override_freeze() { override_set(raw(), valid()); }
+        /** @brief Release the override; the live value takes over again. */
+        void override_clear() { _v->ovr_on = false; }
+        /** @} */
     };
 
     /** @} */
@@ -754,6 +764,12 @@ namespace Botanik { namespace Vars {
          *  quietly stage an actuator command to fire the moment control
          *  returned. */
         SetResult override_set(Var h, const char* text, bool valid = true);
+
+        /** @brief The same, with the value already typed - for a caller that has
+         *  a Scalar rather than text to parse. Forcing only the QUALITY is
+         *  `override_set(h, h.raw(), false)`: it goes through here so the
+         *  changed quality is persisted like any other override. */
+        void override_set(Var h, Scalar v, bool valid = true);
 
         /** @brief Force @p h to whatever it reads right now, keeping its current
          *  validity - for pinning a signal while you work on what depends on

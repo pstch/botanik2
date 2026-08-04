@@ -90,6 +90,10 @@ survives the reboot someone reaches for when a machine misbehaves. Three things 
 that honest - the boot CRITICAL, `override list` saying plainly that they survive, and
 `override off` clearing the lot in one command.
 
+@note The three mutators live on `Bank`, not on the `Var` handle - the handle's
+are private to it. Each has a storage side, so a caller that reached past the bank
+got RAM-only behaviour that looked right until the next boot.
+
 @warning `ROLE_OUTPUT` is excluded outright. Control starts disabled, so a restored
 actuator override would sit armed until bring-up enabled control and then fire, from a
 console session long since walked away from - the very hazard `disable_control()`

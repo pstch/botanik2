@@ -464,17 +464,25 @@ namespace Botanik { namespace Shell {
         // A trailing `valid` / `invalid` says what the forced value READS as.
         // "invalid" is how you stand a variable up as a dead sensor without
         // touching what it reports, which is the only way to exercise the code
-        // that watches for one.
+        // that watches for one. Accepted either side of the value, since
+        // `override x invalid` and `override x 20 invalid` both read naturally.
         bool valid = true, said_validity = false;
-        if (a != nullptr && (arg_eq(a, wa, "invalid") || arg_eq(a, wa, "valid"))) {
-            valid = arg_eq(a, wa, "valid");
+        auto take_validity = [&](const char* w, uint16_t wl) {
+            if (w == nullptr) return false;
+            if (!arg_eq(w, wl, "valid") && !arg_eq(w, wl, "invalid")) return false;
+            valid = arg_eq(w, wl, "valid");
             said_validity = true;
-            a = arg_next(args, alen, wa);          // may be null: no value given
-        }
+            return true;
+        };
 
-        if (a == nullptr) {                       // freeze at the current value
+        if (take_validity(a, wa)) a = arg_next(args, alen, wa);   // may be null
+
+        if (a == nullptr) {
+            // No value: freeze where it is. Through the bank in BOTH steps -
+            // the handle cannot reach the store, so forcing the quality that
+            // way persisted the old one and the reboot undid it.
             io->override_freeze(h);
-            if (said_validity) h.override_set(h.raw(), valid);
+            if (said_validity) io->override_set(h, h.raw(), valid);
             const char* s = Vars::var_format(*io, h, val, sizeof(val));
             _emitf(out, sizeof(out), "%s: frozen at %s%s", h.meta()->name, s,
                    h.valid() ? "" : " (reading as invalid)");
@@ -485,12 +493,12 @@ namespace Botanik { namespace Shell {
         uint16_t vc = std::min(wa, (uint16_t)(sizeof(text) - 1));
         memcpy(text, a, vc); text[vc] = '\0';
 
-        // The validity word is also accepted after the value, which is how it
-        // reads most naturally: `override ext_temp 20 invalid`.
+        // Sequenced deliberately: arg_next() WRITES wt, and passing both to one
+        // call left the read of wt unordered against it - which is how the word
+        // after the value stopped being seen.
         uint16_t wt = 0;
         const char* t = arg_next(args, alen, wt);
-        if (t != nullptr && (arg_eq(t, wt, "invalid") || arg_eq(t, wt, "valid")))
-            valid = arg_eq(t, wt, "valid");
+        (void)take_validity(t, wt);
 
         if (io->override_set(h, text, valid) != Vars::SET_OK) {
             _emitf(out, sizeof(out), "override: invalid value for %s",

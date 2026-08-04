@@ -204,7 +204,7 @@ TEST_CASE("override: shadows the live value, and clearing snaps straight back") 
     CHECK(h.value() == doctest::Approx(20.0f));
     CHECK_FALSE(h.overridden());
 
-    h.override_set(Scalar::F(35.0f));
+    f.bank.override_set(h, Scalar::F(35.0f));
     CHECK(h.overridden());
     CHECK(h.value() == doctest::Approx(35.0f));
     CHECK(h.valid());
@@ -214,7 +214,7 @@ TEST_CASE("override: shadows the live value, and clearing snaps straight back") 
     CHECK(h.value() == doctest::Approx(35.0f));
 
     // ...and clearing it resumes the live reading, with nothing to restore.
-    h.override_clear();
+    f.bank.override_clear(h);
     CHECK_FALSE(h.overridden());
     CHECK(h.value() == doctest::Approx(21.0f));
 }
@@ -224,7 +224,7 @@ TEST_CASE("override: can force the quality, not just the value") {
     Var h = f.bank.var(V_EXT_TEMP);
     h.publish(Scalar::F(20.0f), 1000);
 
-    h.override_set(Scalar::F(20.0f), /*valid=*/false);
+    f.bank.override_set(h, Scalar::F(20.0f), /*valid=*/false);
     CHECK(h.overridden());
     CHECK_FALSE(h.valid());                        // reads as a dead sensor...
     CHECK(h.value() == doctest::Approx(20.0f));    // ...at a known value
@@ -235,7 +235,7 @@ TEST_CASE("override: freezing pins the value the variable had at that moment") {
     Var h = f.bank.var(V_EXT_TEMP);
     h.publish(Scalar::F(7.5f), 1000);
 
-    h.override_freeze();
+    f.bank.override_freeze(h);
     h.publish(Scalar::F(99.0f), 2000);
     CHECK(h.value() == doctest::Approx(7.5f));
 }
@@ -244,7 +244,7 @@ TEST_CASE("override: an expired input still reads its forced value") {
     Fixture f;
     Var h = f.bank.var(V_EXT_TEMP);
     h.publish(Scalar::F(20.0f), 1000);
-    h.override_set(Scalar::F(20.0f));
+    f.bank.override_set(h, Scalar::F(20.0f));
 
     // Well past the declared timeout: the underlying slot expires, but what a
     // reader sees is the override - which is the whole point of forcing one.
@@ -259,7 +259,7 @@ TEST_CASE("control: disabling releases a forced output, and outranks it") {
     REQUIRE(f.bank.control_enabled());
     Var h = f.bank.var(V_VALVE);
     h.set(true);
-    h.override_set(Scalar::B(true));
+    f.bank.override_set(h, Scalar::B(true));
     CHECK(h.overridden());
 
     // Control wins: an override is for a machine someone is watching, and this
@@ -273,7 +273,7 @@ TEST_CASE("control: disabling releases a forced output, and outranks it") {
 
     // An input's override is untouched - the sweep is outputs only.
     Var in = f.bank.var(V_EXT_TEMP);
-    in.override_set(Scalar::F(5.0f));
+    f.bank.override_set(in, Scalar::F(5.0f));
     f.bank.disable_control();
     CHECK(in.overridden());
 }
@@ -340,22 +340,22 @@ TEST_CASE("control: a second hold arriving does not re-sweep") {
 
     // An input override set to diagnose the fault survives health piling on:
     // the sweep already ran, and the outputs cannot have moved since.
-    in.override_set(Scalar::F(5.0f));
+    f.bank.override_set(in, Scalar::F(5.0f));
     f.bank.disable_control(Bank::INHIBIT_HEALTH);
     CHECK(in.overridden());
 }
 
 TEST_CASE("override: init and clear_overrides drop every one of them") {
     Fixture f;
-    f.bank.var(V_EXT_TEMP).override_set(Scalar::F(1.0f));
-    f.bank.var(V_VALVE).override_set(Scalar::B(true));
+    f.bank.override_set(f.bank.var(V_EXT_TEMP), Scalar::F(1.0f));
+    f.bank.override_set(f.bank.var(V_VALVE), Scalar::B(true));
     CHECK(f.bank.override_count() == 2);
 
     CHECK(f.bank.clear_overrides() == 2);
     CHECK(f.bank.override_count() == 0);
 
     // A reboot re-seeds the table: an override must never be waiting there.
-    f.bank.var(V_EXT_TEMP).override_set(Scalar::F(1.0f));
+    f.bank.override_set(f.bank.var(V_EXT_TEMP), Scalar::F(1.0f));
     f.bank.init();
     CHECK(f.bank.override_count() == 0);
 }
