@@ -73,7 +73,8 @@ namespace Botanik { namespace Terminal {
     }
 
     void TextEditor::_snapshot_pre() {
-        _pre.count = _layout.count;
+        _pre.count    = _layout.count;
+        _pre_view_top = _view_top;
         if (_layout.count > 0)
             memcpy(_pre.rows, _layout.rows, (size_t)_layout.count * sizeof(RowView));
     }
@@ -82,7 +83,22 @@ namespace Botanik { namespace Terminal {
         uint16_t i      = _owner_row(pos, _layout);
         uint16_t prompt = _prompt_len(_row_prompt(i));
         uint16_t col    = (uint16_t)(_indent + prompt + (pos - _layout.rows[i].buf_start));
-        return { (uint16_t)(_origin + i), col };
+        return { _hw_row(i), col };
+    }
+
+    // viewport
+    // ------------------------------------------------------------------------
+
+    uint16_t TextEditor::_console_rows() const { return _console->rows(); }
+
+    uint16_t TextEditor::_view_bottom_hw() const {
+        uint16_t rows = _console_rows();
+        if (rows == 0) return 0;
+        uint16_t bottom = (uint16_t)(rows - 1);
+        uint16_t h      = _view_height();
+        if (h == 0) return bottom;
+        uint16_t last = (uint16_t)(_origin + h - 1);
+        return last < bottom ? last : bottom;
     }
 
     // lifecycle
@@ -128,10 +144,10 @@ namespace Botanik { namespace Terminal {
     void TextEditor::redraw() {
         _place_rows();          // a page switch handed the band back; reclaim it
         // Destination rows assumed already blank; only write prompt + content.
-        for (uint16_t i = 0; i < _layout.count; i++) {
-            uint16_t hw_row = _origin + i;
-            if (hw_row >= _console->rows()) break;
-            _terminal->move_to({hw_row, _indent});
+        uint16_t last = (uint16_t)(_view_top + _view_height());
+        if (last > _layout.count) last = _layout.count;
+        for (uint16_t i = _view_top; i < last; i++) {
+            _terminal->move_to({_hw_row(i), _indent});
             _write_prompt(i);
             if (_layout.rows[i].buf_len > 0)
                 _terminal->write_chars(&_buf[_layout.rows[i].buf_start], _layout.rows[i].buf_len);
@@ -262,14 +278,15 @@ namespace Botanik { namespace Terminal {
     void TextEditor::_splice_row(uint16_t post_idx, uint16_t col, int32_t amount,
                                  uint16_t shown_len, uint16_t shown_prompt_l,
                                   const RowView& want) {
-        uint16_t hw     = (uint16_t)(_origin + post_idx);
+        if (!_visible(post_idx)) return;
+        uint16_t hw     = _hw_row(post_idx);
         uint16_t prompt = _prompt_len(_row_prompt(post_idx));
         uint16_t cap    = _row_cap(post_idx);
 
         // Prompt-class flip (PS2<->PS3): rewrite the gutter. A longer prompt's
         // push drops trailing content off the right edge, so shrink shown_len
         // accordingly before the length-align below.
-        if (shown_prompt_l != prompt && hw < _console->rows()) {
+        if (shown_prompt_l != prompt) {
             RowPrompt p = _row_prompt(post_idx);
             _terminal->move_to({hw, _indent});
             if (prompt <= shown_prompt_l) {
@@ -312,10 +329,9 @@ namespace Botanik { namespace Terminal {
     }
 
     void TextEditor::_new_row(uint16_t post_idx) {
-        uint16_t hw = (uint16_t)(_origin + post_idx);
-        if (hw >= _console->rows()) return;
+        if (!_visible(post_idx)) return;
         const RowView& want = _layout.rows[post_idx];
-        _terminal->move_to({hw, _indent});
+        _terminal->move_to({_hw_row(post_idx), _indent});
         _write_prompt(post_idx);
         if (want.buf_len > 0)
             _terminal->write_chars(&_buf[want.buf_start], want.buf_len);
@@ -356,8 +372,7 @@ namespace Botanik { namespace Terminal {
         return { edit_row, absorbed_post, absorbed_pre };
     }
 
-    void TextEditor::_reposition_tail(const SpliceSpan& span, int32_t row_delta,
-                                      uint16_t scr_rows) {
+    void TextEditor::_reposition_tail(const SpliceSpan& span, int32_t row_delta) {
         // A single contiguous edit needs at most one IL/DL: it slides the
         // absorbed tail (and opens the blank rows inserted content paints
         // into). Nothing to do when there is no tail or no row-count change.
@@ -368,13 +383,17 @@ namespace Botanik { namespace Terminal {
         else               at = span.absorbed_post;
         uint16_t n = (uint16_t)(row_delta > 0 ? row_delta : -row_delta);
 
-        uint16_t row = (uint16_t)(_origin + at);
-        if (row >= scr_rows) return;
+        // The tail begins at or below the edit row, and the edit row is the
+        // cursor's, which the viewport always contains - so `at` is normally
+        // inside it. Clamp anyway rather than scroll from a negative row.
+        uint16_t bottom = _view_bottom_hw();
+        uint16_t row    = at >= _view_top ? _hw_row(at) : _origin;
+        if (row > bottom) return;               // tail lies entirely below the view
         // Slide the absorbed tail to its new rows (insert also opens the blank
-        // rows the forward walk paints inserted content into). Bounded to
-        // [row..content bottom] so rows below the editor are left untouched.
-        // Grow (row_delta > 0) scrolls the tail down; shrink scrolls it up.
-        _terminal->scroll_region(row, (uint16_t)(scr_rows - 1), /*up=*/row_delta < 0, n);
+        // rows the forward walk paints inserted content into). Bounded to the
+        // viewport, so nothing outside the editor moves. Grow (row_delta > 0)
+        // scrolls the tail down; shrink scrolls it up.
+        _terminal->scroll_region(row, bottom, /*up=*/row_delta < 0, n);
     }
 
     void TextEditor::_reconcile(uint16_t span_start, uint16_t span_len, bool is_insert) {
@@ -388,7 +407,6 @@ namespace Botanik { namespace Terminal {
         else           l_shift = -(int32_t)span_len;
 
         int32_t  row_delta = (int32_t)_layout.count - (int32_t)_pre.count;
-        uint16_t scr_rows  = _console->rows();
 
         // Scroll up if the editor grew, so the added rows fit.
         uint16_t new_origin = _grow_editor();
@@ -400,7 +418,7 @@ namespace Botanik { namespace Terminal {
 
         // One IL/DL slides that tail to its new rows (and, on insert, opens the
         // blank rows the forward walk paints the new content into).
-        _reposition_tail(span, row_delta, scr_rows);
+        _reposition_tail(span, row_delta);
 
         // Edit-row splice geometry, computed once (the walk's first row is the
         // edit row): the cursor column, and the signed count of content chars
@@ -412,10 +430,15 @@ namespace Botanik { namespace Terminal {
         int32_t  edit_amount = _edit_row_amount(span_start, span_len, is_insert,
                                                 edit_post, edit_pre);
 
-        // Forward walk from the edit row. Each row maps to the pre row now
-        // physically present (or is fresh: an IL-opened blank, or a row whose
-        // old glyphs are unrelated to the wanted content).
-        for (uint16_t i = span.edit_row; i < _layout.count; i++) {
+        // Forward walk from the edit row, bounded to the viewport. Each row maps
+        // to the pre row now physically present (or is fresh: an IL-opened
+        // blank, or a row whose old glyphs are unrelated to the wanted
+        // content). Rows carry no state across iterations - each is spliced from
+        // its own `_pre`/`_layout` pair - so skipping ones off screen is safe.
+        uint16_t walk_from = span.edit_row > _view_top ? span.edit_row : _view_top;
+        uint16_t walk_to   = (uint16_t)(_view_top + _view_height());
+        if (walk_to > _layout.count) walk_to = _layout.count;
+        for (uint16_t i = walk_from; i < walk_to; i++) {
             const RowView& want  = _layout.rows[i];
             uint16_t want_prompt = _prompt_len(_row_prompt(i));
 

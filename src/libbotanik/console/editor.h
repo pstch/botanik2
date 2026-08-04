@@ -119,6 +119,17 @@ namespace Botanik { namespace Terminal {
                                         *   insert past the row end, so the
                                         *   editor stays exactly one row. */
 
+        /** @brief First VISIBLE layout row. Rows before it are scrolled off the
+         *  top of the viewport and paint nothing. */
+        uint16_t _view_top = 0;
+        /** @brief Screen rows the editor may paint into, starting at _origin.
+         *  0 means "everything from _origin to the content bottom", which is
+         *  what a bottom-anchored editor wants. */
+        uint16_t _view_rows = 0;
+        /** @brief `_view_top` as it was before the current edit. The reconcile
+         *  needs it to know which pre rows were physically on screen. */
+        uint16_t _pre_view_top = 0;
+
         TextView _layout{};            /**< Current/target row layout. */
         /** Pre-edit layout (snapshotted before rebuild). */
         TextView _pre{};
@@ -332,6 +343,49 @@ namespace Botanik { namespace Terminal {
         /** @brief Buffer-position-to-screen-position map. O(_layout.count). */
         CursorPos _map_cursor_pos(uint16_t pos) const;
 
+        /**
+         * @name Viewport
+         *
+         * The window of layout rows currently on screen. A bottom-anchored
+         * editor is the degenerate case - `_view_top` 0 and a height that runs
+         * to the content bottom - so these subsume what used to be a bare
+         * `_origin + i` and a clip against `_console->rows()`.
+         * @{
+         */
+
+        /** @brief Screen rows the viewport spans right now. */
+        uint16_t _view_height() const {
+            if (_view_rows != 0) return _view_rows;
+            uint16_t rows = _console_rows();
+            return rows > _origin ? (uint16_t)(rows - _origin) : 0;
+        }
+
+        /** @brief Last screen row the editor may paint, never below the content
+         *  area (so the reserved alarm bar stays untouched). */
+        uint16_t _view_bottom_hw() const;
+
+        /** @brief Screen row showing layout row @p i. Only meaningful when
+         *  `_visible(i)`. */
+        uint16_t _hw_row(uint16_t i) const {
+            return (uint16_t)(_origin + (i - _view_top));
+        }
+
+        /** @brief Whether layout row @p i is inside the viewport. */
+        bool _visible(uint16_t i) const {
+            return i >= _view_top && (uint16_t)(i - _view_top) < _view_height();
+        }
+
+        /** @brief Whether layout row @p i of the PRE-edit layout was on screen,
+         *  i.e. whether the physical row still shows its glyphs. */
+        bool _was_visible(uint16_t i) const {
+            return i >= _pre_view_top && (uint16_t)(i - _pre_view_top) < _view_height();
+        }
+
+        /** @brief Content-area height, guarded against a zero-row console. */
+        uint16_t _console_rows() const;
+
+        /** @} */
+
         /** @brief Declare which rows the editor occupies now. Called whenever the
          *  extent may have moved. */
         void _place_rows();
@@ -369,9 +423,9 @@ namespace Botanik { namespace Terminal {
                                      int32_t row_delta) const;
 
         /** @brief Emit the single IL/DL that repositions the absorbed tail and
-         *  opens the blank rows inserted content paints into. */
-        void _reposition_tail(const SpliceSpan& span, int32_t row_delta,
-                              uint16_t scr_rows);
+         *  opens the blank rows inserted content paints into. Bounded to the
+         *  viewport, so rows outside it are neither scrolled nor rewritten. */
+        void _reposition_tail(const SpliceSpan& span, int32_t row_delta);
 
         /** @brief Reconcile the screen to `_layout` after an edit of `span_len`
          *  bytes at offset `span_start`. See the class-level note for the
