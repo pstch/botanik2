@@ -12,13 +12,14 @@ ENTER = b"\r"
 SHIFT_ENTER = ESC + b"\n"
 
 # Page switch: Alt+digit. ALT_1 -> page 0 (HOME), ALT_2 -> SHELL, ALT_3 -> LOGS,
-# ALT_4 -> ALARMS, ALT_5 -> CONFIG, ALT_6 -> MONITOR (terminal.cpp routes ALT_n
-# to switch_to(n-1)). STATUS was removed from the tab order. Only the ones some
-# test presses are named here; the rest are ESC + the digit.
+# ALT_4 -> ALARMS, ALT_5 -> CONFIG, ALT_6 -> MONITOR, ALT_7 -> TASKS,
+# ALT_8 -> NOTES (terminal.cpp routes ALT_n to switch_to(n-1)). STATUS was
+# removed from the tab order. Only the ones some test presses are named here;
+# the rest are ESC + the digit.
 ALT_2 = ESC + b"2"
 ALT_3 = ESC + b"3"
 ALT_4 = ESC + b"4"
-ALT_7 = ESC + b"7"           # NOTES
+ALT_8 = ESC + b"8"           # NOTES
 
 # Cursor / editing keys (CSI forms).
 UP = ESC + b"[A"

@@ -13,7 +13,7 @@ from helpers import boot, goto
 def notes(spawn, **kwargs):
     """Boot and switch to the NOTES page."""
     term = boot(spawn, **kwargs)
-    goto(term, keys.ALT_7, marker="^O save")
+    goto(term, keys.ALT_8, marker="^O save")
     return term
 
 
