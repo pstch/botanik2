@@ -26,8 +26,9 @@
 #include "libbotanik/vars/params.h"
 #include "libbotanik/vars/access.h"
 
+#include "libbotanik/plc/functions/functions.h"
+#include "libbotanik/plc/blocks/blocks.h"
 #include "libbotanik/scan/scan.h"
-#include "libbotanik/scan/blocks/blocks.h"
 #include "libbotanik/alarms/alarms.h"
 
 

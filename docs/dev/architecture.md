@@ -31,7 +31,8 @@ Under `src/libbotanik/`:
 | `core/` | `BotanikFirmware`, `Component`, `SystemContext`, the feature-gated stacks | this page |
 | `scheduler/` | `LoopScheduler`: the fixed-period driver and its self-instrumentation | @ref dev_scheduler |
 | `vars/` | the variable model: descriptors, value slots, `Bank`, parameters | @ref dev_vars |
-| `scan/` | `Scan::Driver` and the function-block library | @ref int_tasks |
+| `scan/` | `Scan::Driver`: which control program is due, and running it | @ref int_tasks |
+| `plc/` | the POU library the programs are written in: `functions/` (stateless) and `blocks/` (stateful) | @ref int_tasks |
 | `alarms/` | `AlarmModel`, one condition per site-declared alarm, plus the platform set | @ref dev_health |
 | `health/` | `HealthMonitor`: POST, the platform alarms, the watchdog verdict | @ref dev_health |
 | `logs/` | `Logger`, its rate limiter, and the `LogWriter` sinks | @ref dev_logging |

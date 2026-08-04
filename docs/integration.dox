@@ -18,8 +18,8 @@ the simulated field are hand-written.
   through.
 - @subpage int_tables - the declarative tables and the `SiteDescriptor` that
   bundles them.
-- @subpage int_tasks - control programs: the scan cycle and the function-block
-  library.
+- @subpage int_tasks - control programs: the scan cycle, and the PLC function
+  and function-block libraries they are written with.
 - @subpage int_extending - the extension hooks: custom commands, custom pages,
   per-beat logic.
 - @subpage int_config - the compile-time config and feature flags.

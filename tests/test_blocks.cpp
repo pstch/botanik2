@@ -7,9 +7,9 @@
 
 #include "doctest.h"
 
-#include "libbotanik/scan/blocks/blocks.h"
+#include "libbotanik/plc/blocks/blocks.h"
 
-using namespace Botanik::Scan;
+using namespace Botanik::Plc;
 
 TEST_CASE("Ton: delays the rise, drops immediately") {
     Ton t;

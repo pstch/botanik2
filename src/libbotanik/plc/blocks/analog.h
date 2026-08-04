@@ -1,5 +1,5 @@
-#ifndef SCAN_BLOCKS_ANALOG_H
-#define SCAN_BLOCKS_ANALOG_H
+#ifndef PLC_BLOCKS_ANALOG_H
+#define PLC_BLOCKS_ANALOG_H
 
 /**
  * @file analog.h
@@ -9,7 +9,7 @@
 
 #include <cstdint>
 
-namespace Botanik { namespace Scan {
+namespace Botanik { namespace Plc {
 
     /** @name Thresholds
      *  @{ */
@@ -145,6 +145,6 @@ namespace Botanik { namespace Scan {
 
     /** @} */
 
-}}  // namespace Botanik::Scan
+}}  // namespace Botanik::Plc
 
-#endif // SCAN_BLOCKS_ANALOG_H
+#endif // PLC_BLOCKS_ANALOG_H

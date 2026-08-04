@@ -18,6 +18,7 @@ add_executable(botanik_tests
     test_site_names.cpp
     test_logger.cpp
     test_alarms.cpp
+    test_functions.cpp
     test_blocks.cpp
     test_pid.cpp
     test_actuator.cpp

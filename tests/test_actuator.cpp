@@ -7,9 +7,9 @@
 
 #include "doctest.h"
 
-#include "libbotanik/scan/blocks/actuator.h"
+#include "libbotanik/plc/blocks/actuator.h"
 
-using namespace Botanik::Scan;
+using namespace Botanik::Plc;
 
 namespace {
 

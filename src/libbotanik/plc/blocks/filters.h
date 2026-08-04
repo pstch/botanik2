@@ -1,5 +1,5 @@
-#ifndef SCAN_BLOCKS_FILTERS_H
-#define SCAN_BLOCKS_FILTERS_H
+#ifndef PLC_BLOCKS_FILTERS_H
+#define PLC_BLOCKS_FILTERS_H
 
 /**
  * @file filters.h
@@ -14,7 +14,7 @@
 
 #include <cstdint>
 
-namespace Botanik { namespace Scan {
+namespace Botanik { namespace Plc {
 
     /**
      * @brief Exponentially weighted moving average with a time constant.
@@ -132,6 +132,6 @@ namespace Botanik { namespace Scan {
         /** @} */
     };
 
-}}  // namespace Botanik::Scan
+}}  // namespace Botanik::Plc
 
-#endif // SCAN_BLOCKS_FILTERS_H
+#endif // PLC_BLOCKS_FILTERS_H

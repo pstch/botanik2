@@ -46,15 +46,16 @@ def area_for(path):
 # the area verbatim, e.g. test_serial -> utils). Add a row when a test file is
 # added; unmapped files fall into "other" so they stay visible.
 TEST_AREA = {
-    "test_actuator":       "scan",
+    "test_actuator":       "plc",
     "test_alarms":         "alarms",
-    "test_blocks":         "scan",
+    "test_blocks":         "plc",
+    "test_functions":      "plc",
     "test_config_handler": "core",
     "test_filters":        "logs",
     "test_line_buffer":    "pages",
     "test_logger":         "logs",
     "test_parser":         "console",
-    "test_pid":            "scan",
+    "test_pid":            "plc",
     "test_terminal_present": "console",
     "test_editor_bytes":   "console",
     "test_resolver":       "network",
@@ -90,6 +91,9 @@ PATH_ALIASES = (
     ("src/libbotanik/plcio/emulator.h",   "src/botanik_sim/emulator.h"),
     ("src/libbotanik/plcio/emulator.cpp", "src/botanik_sim/emulator.cpp"),
     ("src/libbotanik/network/sim_netd.h", "src/botanik_sim/network.h"),
+    # the POU library moved out of the scan cycle: scan/ runs programs, plc/ is
+    # what they are written in
+    ("src/libbotanik/scan/blocks/", "src/libbotanik/plc/blocks/"),
 )
 
 

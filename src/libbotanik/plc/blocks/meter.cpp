@@ -5,9 +5,9 @@
 
 #include "meter.h"
 
-#include "common.h"
+#include "../functions/time.h"
 
-namespace Botanik { namespace Scan {
+namespace Botanik { namespace Plc {
 
     float Integral::operator()(float rate_per_s, uint32_t dt_ms, float cutoff) {
         float rate = rate_per_s;
@@ -46,4 +46,4 @@ namespace Botanik { namespace Scan {
         _seed = false;
     }
 
-}}  // namespace Botanik::Scan
+}}  // namespace Botanik::Plc
