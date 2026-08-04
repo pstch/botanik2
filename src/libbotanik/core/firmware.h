@@ -460,10 +460,13 @@ namespace Botanik {
                     : "health recovered, but control is still disabled by the operator");
             }
 
-            // Execute phase: every control program that has come due. Inhibited
-            // while control is withheld, so nothing can drive an output back
-            // out of its safe state.
-            if (_io.control_enabled()) _scan.step(now_ms);
+            // Execute phase: every control program that has come due. The
+            // driver inhibits them itself while control is withheld (it holds
+            // the Bank), so it is stepped unconditionally here - it still has to
+            // announce at boot, when control is withheld by definition, and a
+            // future output-collect phase must run during a withdrawal rather
+            // than be skipped with it.
+            _scan.step(now_ms);
 
             on_step(now_ms);   // site per-beat state machines (default no-op)
 

@@ -35,6 +35,7 @@ TEST_CASE("scan: each task runs at its own rate") {
     reset();
     TaskStats stats[2];
     Bank io;
+    io.enable_control(Bank::INHIBIT_HEALTH);   // what bring-up does
     Driver d(TASKS, 2, stats, &io);
     for (uint64_t t = 0; t <= 2000; t += 10) d.step(t);
 
@@ -51,6 +52,7 @@ TEST_CASE("scan: dt_ms is the nominal period when on time") {
     reset();
     TaskStats stats[2];
     Bank io;
+    io.enable_control(Bank::INHIBIT_HEALTH);   // what bring-up does
     Driver d(TASKS, 2, stats, &io);
     for (uint64_t t = 0; t <= 1000; t += 10) d.step(t);
     REQUIRE(g_fast.size() >= 3);
@@ -61,6 +63,7 @@ TEST_CASE("scan: a late task runs once and reports the real elapsed time") {
     reset();
     TaskStats stats[2];
     Bank io;
+    io.enable_control(Bank::INHIBIT_HEALTH);   // what bring-up does
     Driver d(TASKS, 2, stats, &io);
     d.step(0);        // first run seeds
     g_fast.clear();
@@ -81,6 +84,7 @@ TEST_CASE("scan: period 0 runs every beat") {
     const Task every[] = { { "every", 0, &H::run } };
     TaskStats stats[1];
     Bank io;
+    io.enable_control(Bank::INHIBIT_HEALTH);   // what bring-up does
     Driver d(every, 1, stats, &io);
     for (uint64_t t = 0; t < 50; t += 10) d.step(t);
     CHECK(beats.size() == 5);
@@ -98,6 +102,7 @@ TEST_CASE("scan: same-period programs are spread across beats, not piled up") {
     const Task pair[] = { { "a", 100, &H::a }, { "b", 100, &H::b } };
     TaskStats stats[2];
     Bank io;
+    io.enable_control(Bank::INHIBIT_HEALTH);   // what bring-up does
     Driver d(pair, 2, stats, &io);
     for (uint64_t t = 0; t <= 1000; t += 10) d.step(t);
 
@@ -123,6 +128,7 @@ TEST_CASE("scan: an every-beat program is left alone by the stagger") {
     const Task mixed[] = { { "slow", 100, &H::run }, { "every", 0, &H::run } };
     TaskStats stats[2];
     Bank io;
+    io.enable_control(Bank::INHIBIT_HEALTH);   // what bring-up does
     Driver d(mixed, 2, stats, &io);
     for (uint64_t t = 0; t < 50; t += 10) d.step(t);
 
@@ -130,9 +136,46 @@ TEST_CASE("scan: an every-beat program is left alone by the stagger") {
     CHECK(beats.size() == 6);
 }
 
+TEST_CASE("scan: programs are inhibited while control is withheld") {
+    reset();
+    TaskStats stats[2];
+    Bank io;                                  // starts at INHIBIT_HEALTH
+    Driver d(TASKS, 2, stats, &io);
+    for (uint64_t t = 0; t <= 500; t += 10) d.step(t);
+
+    CHECK(g_fast.empty());                    // nothing drives the field
+    CHECK(g_slow.empty());
+}
+
+TEST_CASE("scan: control returning does not hand a program the whole outage") {
+    reset();
+    TaskStats stats[2];
+    Bank io;
+    io.enable_control(Bank::INHIBIT_HEALTH);
+    Driver d(TASKS, 2, stats, &io);
+    d.step(0);                                // one activation, seeds the timers
+    g_fast.clear();
+
+    io.disable_control(Bank::INHIBIT_OPERATOR);
+    for (uint64_t t = 10; t <= 60000; t += 10) d.step(t);
+    REQUIRE(g_fast.empty());                  // inhibited throughout
+
+    io.enable_control(Bank::INHIBIT_OPERATOR);
+    d.step(60010);                            // the reseed beat: nothing runs yet
+    d.step(60110);
+
+    REQUIRE(g_fast.size() == 1);
+    // The nominal period, NOT the 60 s outage. A Ton holding 5 s handed an hour
+    // of dt fires the moment control returns, which is what a withdrawal exists
+    // to prevent.
+    CHECK(g_fast[0].dt == 100);
+    CHECK(g_fast[0].missed == 0);
+}
+
 TEST_CASE("scan: a null table or null run pointer is inert") {
     TaskStats stats[1];
     Bank io;
+    io.enable_control(Bank::INHIBIT_HEALTH);   // what bring-up does
     Driver none(nullptr, 0, nullptr, &io);
     none.step(0);                       // must not fault
     const Task holey[] = { { "nop", 0, nullptr } };

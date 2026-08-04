@@ -86,6 +86,11 @@ namespace Botanik { namespace Scan {
         uint8_t     _count = 0;
         TaskStats*  _stats = nullptr;   ///< caller-owned, _count entries
         Vars::Bank*   _io    = nullptr;   ///< borrowed; the firmware owns it
+        /** @brief Whether control was held on the previous step. Edge tracking
+         *  only, so the timers can be reseeded when it returns; the authority
+         *  itself lives in the Bank. Starts false because control starts
+         *  withheld. */
+        bool        _enabled = false;
 
         /** @} */
 

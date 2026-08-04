@@ -30,6 +30,33 @@ namespace Botanik { namespace Scan {
     void Driver::on_step(uint64_t now_ms) {
         if (_tasks == nullptr || _stats == nullptr || _io == nullptr) return;
 
+        // Control authority gates the programs, and it lives here rather than at
+        // the call site: the driver already holds the Bank, and the phase around
+        // it must NOT be gated with it - the collector still has to carry the
+        // safe states this withdrawal just wrote into the image out to the
+        // field (see docs/dev/scan.md).
+        if (!_io->control_enabled()) {
+            _enabled = false;
+            return;
+        }
+        if (!_enabled) {
+            // Control just came back. Reseed every program's timer so the first
+            // activation reports its nominal period instead of the whole
+            // outage: a Ton holding 5 s handed an hour of dt fires the instant
+            // control returns, which is the one thing a withdrawal exists to
+            // prevent. Programs still need their own state reset to resume
+            // truly cleanly - dt alone cannot express "the process moved while
+            // you were not looking".
+            //
+            // Only a program that has ALREADY run: one that has not is at its
+            // first activation, which is due immediately by design and must not
+            // be spent here. That also covers bring-up, where control goes from
+            // withheld to held with nothing having run yet.
+            _enabled = true;
+            for (uint8_t i = 0; i < _count; i++)
+                if (_stats[i].runs() > 0) _stats[i].ran(now_ms);
+        }
+
         for (uint8_t i = 0; i < _count; i++) {
             const Task& t = _tasks[i];
             TaskStats&  s = _stats[i];
