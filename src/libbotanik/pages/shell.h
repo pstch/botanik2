@@ -45,6 +45,10 @@ namespace Botanik { namespace Pages {
         Console&           _console;
         /** @brief The VT device it paints through (cached _console.terminal()). */
         AnsiTerminal&      _terminal;
+        /** @brief Buffers the line editor works over. Declared before it: the
+         *  editor borrows them in its constructor. */
+        Terminal::EditorBuffers<Config::SHELL_INPUT_LEN,
+                                Config::EDITOR_MAX_ROWS> _editor_bufs;
         /** @brief Bottom-row line editor. */
         InputEditor        _editor;
         /** @brief Command interpreter fed by the editor. */

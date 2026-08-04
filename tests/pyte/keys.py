@@ -18,6 +18,7 @@ SHIFT_ENTER = ESC + b"\n"
 ALT_2 = ESC + b"2"
 ALT_3 = ESC + b"3"
 ALT_4 = ESC + b"4"
+ALT_7 = ESC + b"7"           # NOTES
 
 # Cursor / editing keys (CSI forms).
 UP = ESC + b"[A"
@@ -26,10 +27,13 @@ RIGHT = ESC + b"[C"
 LEFT = ESC + b"[D"
 END_KEY = ESC + b"[F"
 DELETE = ESC + b"[3~"
+PAGE_UP = ESC + b"[5~"
+PAGE_DOWN = ESC + b"[6~"
 
 # Control bytes.
 BACKSPACE = b"\x7f"
 CTRL_A = b"\x01"             # line start
+CTRL_O = b"\x0f"             # NOTES: write the note out (nano's key, not ^S/XOFF)
 CTRL_U = b"\x15"             # clear input
 
 SPACE = b" "

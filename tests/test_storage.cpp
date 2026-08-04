@@ -12,9 +12,11 @@
 
 #include "doctest.h"
 
+#include "libbotanik_config.h"
 #include "libbotanik/hal/storage.h"
 
 using namespace Botanik::HAL;
+namespace Config = Botanik::Config;
 
 namespace {
     struct StoreEnv {
@@ -51,6 +53,47 @@ TEST_CASE("storage: set/get round-trip and missing key") {
 
     // Missing key.
     CHECK_FALSE(Storage::get("k_gone", sb, sizeof(sb), &n));
+}
+
+// The operator's note is kilobytes, an order of magnitude past anything the
+// store used to be asked for, and the sim backend hex-encodes into one file - so
+// a note has to fit alongside every parameter, twice over.
+TEST_CASE("storage: a note-sized value survives the round-trip") {
+    StoreEnv env;
+
+    static uint8_t note[Config::NOTES_LEN];
+    for (size_t i = 0; i < sizeof(note); i++) note[i] = (uint8_t)(i * 31 + 7);
+    CHECK(Storage::set("notes", note, sizeof(note)));
+
+    // A parameter written afterwards must not evict it, nor be evicted by it.
+    uint32_t p = 0x12345678;
+    CHECK(Storage::set("ntp_poll_sec", &p, sizeof(p)));
+
+    static uint8_t back[Config::NOTES_LEN];
+    size_t n = 0;
+    CHECK(Storage::get("notes", back, sizeof(back), &n));
+    CHECK(n == sizeof(note));
+    CHECK(memcmp(back, note, sizeof(note)) == 0);
+
+    uint32_t pback = 0;
+    CHECK(Storage::get("ntp_poll_sec", &pback, sizeof(pback), &n));
+    CHECK(pback == p);
+}
+
+// Past the file cap the write is refused rather than truncated, and counted, so
+// FLASH_FLT tells the operator the note did not reach flash.
+TEST_CASE("storage: a value past the store cap is refused and counted") {
+    StoreEnv env;
+
+    static uint8_t huge[Config::STORE_MAX_BYTES];
+    memset(huge, 0xA5, sizeof(huge));
+
+    uint32_t before = Storage::fault_count();
+    CHECK_FALSE(Storage::set("k_huge", huge, sizeof(huge)));   // hex doubles it
+    CHECK(Storage::fault_count() == before + 1);
+
+    size_t n = 0;
+    CHECK_FALSE(Storage::get("k_huge", huge, sizeof(huge), &n));
 }
 
 TEST_CASE("storage: value larger than the caller buffer fails cleanly") {

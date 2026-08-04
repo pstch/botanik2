@@ -44,7 +44,8 @@ namespace Botanik { namespace Terminal {
 
             // Physical Control Combinations
             CTRL_A, CTRL_B, CTRL_C, CTRL_D, CTRL_E, CTRL_F, CTRL_G,
-            CTRL_K, CTRL_L, CTRL_N, CTRL_P, CTRL_R, CTRL_U, CTRL_W, CTRL_Y,
+            CTRL_K, CTRL_L, CTRL_N, CTRL_O, CTRL_P, CTRL_R, CTRL_U, CTRL_W,
+            CTRL_Y,
             CTRL_SPACE,
 
             // Shift Combinations

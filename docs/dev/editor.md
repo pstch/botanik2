@@ -26,7 +26,7 @@ Every edit runs the same three steps:
 
 ```
  1. mutate     edit the byte buffer (_buf) in place
- 2. lay out    _pre = _layout              (snapshot the old layout)
+ 2. lay out    _snapshot_pre()             (snapshot the old layout)
                _rebuild_layout()           (recompute rows from _buf)
  3. reconcile  diff _pre against _layout, emit minimal terminal ops
 ```
@@ -35,6 +35,11 @@ A **layout** (`TextView`) is the buffer sliced into screen rows (one `RowView` e
 Three prompt classes start a row: **PS1** (first row), **PS2** (after a soft wrap),
 **PS3** (after a hard `\n`). Auto-wrap is off - the editor owns all wrapping.
 
+The split is what lets a renderer distinguish a line the operator started from its
+overflow: the shell uses it for `botanik> ` / `> ` / `...> `, NOTES for `"> "` on
+PS1+PS3 and `"  "` on PS2. Widths must match across the three, or the wrap column
+would move between rows (`_row_cap()` subtracts the prompt).
+
 \startuml "TextView: the buffer sliced into screen rows (one RowView per row)"
 class RowView {
   buf_start : uint16_t - offset of the slice in the buffer
@@ -42,7 +47,7 @@ class RowView {
   hard_break : bool - row closed by a literal newline
 }
 class TextView {
-  rows : RowView[EDITOR_MAX_ROWS]
+  rows : RowView* - borrowed, owner-supplied (EditorStorage)
   count : uint16_t
 }
 TextView *-- "rows" RowView
@@ -92,11 +97,53 @@ not with the buffer size - the whole point on a serial link measured in hundreds
 of baud. See @ref dev_input for how the bytes that *trigger* an
 edit arrive in the first place.
 
-## Bottom-pinned geometry
+## Geometry: anchor and viewport
 
-The editor sits at the bottom of the screen so log output can scroll above it. When an
-edit grows or shrinks the row count, `_grow_editor()` / `_shrink_editor()` scroll the
-editor block and re-pin `_origin`, keeping the prompt's first row anchored to the
-bottom. Layout is capped at `Config::EDITOR_MAX_ROWS`; a `static_assert` guarantees the
-buffer always fits by soft-wrap at the minimum width, so the cap is only reachable
-through hard `\n` breaks.
+Where the editor's rows land on screen is two settings, not two editors.
+
+**`Anchor::BOTTOM`** (the shell prompt) pins the LAST row to the content bottom, so log
+output scrolls above it. An edit that changes the row count scrolls the whole content
+band: `_grow_editor()` / `_shrink_editor()` move `_origin` and scroll rows `1..bottom` to
+match. The text pushes the screen around.
+
+**`Anchor::TOP`** (the NOTES page) fixes `_origin` and lets the **viewport** move
+instead. The text stays put and a window slides over it.
+
+The viewport is `_view_top` (the first layout row on screen) plus `_view_rows` (how many
+rows of screen it may use, from `_origin`). Every paint site maps through them:
+
+```
+ _hw_row(i)  = _origin + (i - _view_top)     screen row showing layout row i
+ _visible(i) = _view_top <= i < _view_top + _view_height()
+```
+
+Bottom-anchored is the degenerate case: `_view_top` is 0 and the height runs to the
+content bottom, which makes `_hw_row(i)` exactly `_origin + i` and `_visible(i)` exactly
+the old clip against `rows()`. One code path, two behaviours.
+
+`_follow_cursor()` is what moves the window, and only under `Anchor::TOP` - bottom-anchored,
+`_grow_editor()` already moves the text, and doing both would double up. When the cursor
+leaves the window it emits **one scroll plus the rows that scroll uncovered**; a jump
+further than the window height clears and repaints instead, since nothing on screen
+survives it either way.
+
+### The pre-visibility rule
+
+The forward walk maps post row *i* onto the pre row physically present after the IL/DL,
+and splices against what that row *shows*. Once the window can move, "present" is not the
+same as "in the layout": after a DL, the rows sliding up into the bottom of the window
+came from **below** it, so the screen row is blank, not stale. Splicing against glyphs it
+never had corrupts it.
+
+`_was_visible()` (against the pre-edit `_pre_view_top` / `_pre_view_height`, snapshotted with
+the layout) is the guard. A row that fails it drops to `_new_row()` - a repaint, which is
+what it needed anyway.
+
+### Capacity
+
+Buffer and row array are supplied by the owner (`EditorStorage` / `EditorBuffers<BUF,ROWS>`),
+so a shell prompt and a notes page are sized separately rather than both paying for the
+larger. A `static_assert` per instantiation guarantees the buffer fits by soft-wrap at the
+minimum width, so the row cap is only reachable through hard `\n` breaks - and an insert
+that would cross it is **refused**, because rows past the cap are text nobody can see or
+reach.

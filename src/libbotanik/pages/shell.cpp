@@ -19,7 +19,7 @@ namespace Botanik { namespace Pages {
     ShellPage::ShellPage(Terminal::Console& console) :
         _console(console),
         _terminal(console.terminal()),
-        _editor(&console),
+        _editor(&console, _editor_bufs.storage()),
         _shell(console, _editor, *this)
     {
     }

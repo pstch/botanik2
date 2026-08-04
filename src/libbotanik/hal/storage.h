@@ -13,8 +13,19 @@
  * header; the TARGET_OPTA / TARGET_SIMULATOR split is legal here (this file is
  * the HAL).
  *
- * Which physical device backs the OPTA store - internal flash or the QSPI - is
- * an Mbed config decision, not ours, and has not been confirmed on hardware.
+ * On the OPTA the store is a TDBStore on the EXTERNAL QSPI NOR flash. Arduino's
+ * PlatformStorage defines BlockDevice::get_default_instance() as a
+ * QSPIFBlockDevice, and the variant builds with COMPONENT_QSPIF and
+ * STORAGE_TYPE=default, which selects TDB_EXTERNAL. So erase granularity is the
+ * NOR's subsector, not the H747's 128 KB internal sector, and a value is bounded
+ * by the region rather than by any per-key cap.
+ *
+ * @warning Placement is Mbed's default and has not been confirmed on hardware:
+ * TDB_EXTERNAL_EXTERNAL_BASE_ADDRESS and _SIZE are both 0, so the store covers
+ * the whole QSPI from offset 0 - the same flash Arduino's tooling partitions for
+ * the WiFi firmware, OTA and a LittleFS user area. Pinning it needs an override
+ * of the weak kv_init_storage_config(); the MBED_CONF_* macros are baked into
+ * the prebuilt kv_config.o, so -D does nothing.
  *
  * Keys are short identifiers (the flat Param names, e.g. "ntp_poll_sec"); they
  * must be non-empty and contain no '/', '=' or newline. The OPTA backend

@@ -30,6 +30,8 @@ namespace {
         Utils::BufferedSerial          serial;
         uint64_t                       now = 0;
         Terminal::Console              console;
+        Terminal::EditorBuffers<Config::SHELL_INPUT_LEN,
+                                Config::EDITOR_MAX_ROWS> bufs;
         Terminal::TextEditor           editor;
         NullWriter                     writer;
         Shell::CommandShell            shell;
@@ -37,7 +39,7 @@ namespace {
         ShellFixture()
             : serial(&raw),
               console(serial, 80, 24, &now, 115200),
-              editor(&console),
+              editor(&console, bufs.storage()),
               shell(console, editor, writer) {
             REQUIRE(::pipe(pipe_fds) == 0);
             raw.set_fds(pipe_fds[0], pipe_fds[1]);
