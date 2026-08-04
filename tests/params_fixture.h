@@ -76,11 +76,13 @@ namespace botanik_test {
             using namespace Botanik::Vars;
             const VarRef r = _bank.find(name);
             if (r.index == VAR_NONE) return;
-            // Where the slot sits is Bank::init()'s business now, so ask the
-            // handle rather than the descriptor.
-            const uint16_t off = _bank.var(r).str_off();
-            std::strncpy(_pool + off, text, CAP - 1);
-            _pool[off + CAP - 1] = 0;
+            // The bank is the only thing that hands out a pool pointer, and it
+            // is the only thing that can prove the pointer is inside the pool.
+            uint16_t cap = 0;
+            char* dst = _bank.text_at(_bank.var(r), &cap);
+            if (dst == nullptr) return;
+            std::strncpy(dst, text, cap - 1);
+            dst[cap - 1] = 0;
         }
         /** @} */
 

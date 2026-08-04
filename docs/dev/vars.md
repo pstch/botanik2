@@ -94,6 +94,13 @@ that honest - the boot CRITICAL, `override list` saying plainly that they surviv
 are private to it. Each has a storage side, so a caller that reached past the bank
 got RAM-only behaviour that looked right until the next boot.
 
+@note **This is a deliberate deviation from IEC 61131.** Forcing there is volatile by
+design: a power cycle clears every force, so power-cycling is a reliable way back to
+normal operation. Here it is not. The trade was made knowingly - a maintainer who forced
+a signal to work on the plant should not lose it to a power cut - and it is mitigated by
+the boot CRITICAL, by `override list` saying so in as many words, and by `override off`
+clearing the lot in one command. Anyone arriving with PLC habits should be told.
+
 @warning `ROLE_OUTPUT` is excluded outright. Control starts disabled, so a restored
 actuator override would sit armed until bring-up enabled control and then fire, from a
 console session long since walked away from - the very hazard `disable_control()`

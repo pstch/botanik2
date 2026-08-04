@@ -12,6 +12,7 @@
 
 #include <cstdlib>   // strtoll / strtoull / strtod
 #include <cstring>
+#include <cerrno>
 
 #include "../utils/text.h"   // format_float / format_int
 
@@ -115,15 +116,22 @@ namespace Botanik { namespace Vars {
         if (t == T_STR) return PARSE_MALFORMED;   // not a scalar; see validate_str
 
         char* end = nullptr;
+        // strto* SATURATE on overflow rather than failing, so a literal too big
+        // for the type arrives as a perfectly plausible maximum. For the narrow
+        // types in_range catches it; for the widest it would not, which is the
+        // one place a malformed input could pass as a real setting.
+        errno = 0;
         if (type_real(t)) {
             const double d = strtod(text, &end);
             if (end == text || !only_spaces_left(end)) return PARSE_MALFORMED;
+            if (errno == ERANGE) return PARSE_RANGE;
             *out = Scalar::F((float)d);
             return PARSE_OK;
         }
         if (type_signed(t)) {
             const long long v = strtoll(text, &end, 10);
             if (end == text || !only_spaces_left(end)) return PARSE_MALFORMED;
+            if (errno == ERANGE) return PARSE_RANGE;
             Scalar s = Scalar::I((int64_t)v);
             if (!in_range(t, s, type_min(t), type_max(t))) return PARSE_RANGE;
             *out = s;
@@ -138,6 +146,7 @@ namespace Botanik { namespace Vars {
         }
         const unsigned long long v = strtoull(text, &end, 10);
         if (end == text || !only_spaces_left(end)) return PARSE_MALFORMED;
+        if (errno == ERANGE) return PARSE_RANGE;
         Scalar s = Scalar::U((uint64_t)v);
         if (!in_range(t, s, type_min(t), type_max(t))) return PARSE_RANGE;
         *out = s;

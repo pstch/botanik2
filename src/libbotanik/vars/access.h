@@ -115,8 +115,10 @@ namespace Botanik { namespace Vars {
      *  enum's static string, a T_STR's pool text, or @p buf. */
     inline const char* var_format(const Bank& io, Var h, char* buf, size_t cap) {
         const Variable* d = h.meta();
-        if (d->type == T_STR)
-            return (io.pool() != nullptr) ? io.pool() + h.str_off() : "";
+        if (d->type == T_STR) {
+            const char* t = io.text_at(h);
+            return (t != nullptr) ? t : "";
+        }
         return format_scalar(d->type, h.raw(), d->digits, d->str, buf, cap);
     }
     inline const char* var_format(const Bank& io, VarRef r, char* buf, size_t cap) {

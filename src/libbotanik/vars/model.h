@@ -362,10 +362,11 @@ namespace Botanik { namespace Vars {
         Scalar   v;
         Scalar   ovr;        ///< forced value, while ovr_on
         uint64_t stamp_ms;   ///< uptime ms of the last good update
-        /** @brief T_STR only: where this row's text sits in the site's pool.
-         *  Assigned by Bank::init(), never declared - see TextSlot. Ahead of
-         *  the bools because it needs 2-byte alignment, and behind them it
-         *  bought a pad byte that pushed the row past 32. */
+        /** @brief T_STR only: where this row's text sits in the site's pool, or
+         *  STR_NO_SLOT when it did not fit. Assigned by Bank::init(), never
+         *  declared - see TextSlot. Ahead of the bools because it needs 2-byte
+         *  alignment, and behind them it bought a pad byte that pushed the row
+         *  past 32. */
         uint16_t str_off;
         bool     valid;
         bool     ovr_on;     ///< an override is in force
@@ -387,6 +388,15 @@ namespace Botanik { namespace Vars {
      *  VarRef - which is how the platform-health alarms spell "this one reads no
      *  variable" - must not alias the first real row. */
     static const uint16_t VAR_NONE = 0xFFFFu;
+
+    /** @brief A text row that found no room in the pool.
+     *
+     *  Not 0, which is a REAL slot - the first text row's. An overflow used to
+     *  leave the row at offset 0 while its declared capacity stayed non-zero,
+     *  so every writer wrote a full slot's worth on top of that row, and a pool
+     *  smaller than a single slot ran off the end of the array entirely. "No
+     *  slot" has to be sayable for a writer to be able to refuse. */
+    static const uint16_t STR_NO_SLOT = 0xFFFFu;
 
     /** @} */
 
@@ -535,12 +545,19 @@ namespace Botanik { namespace Vars {
      *  else, and clearing the override must not disturb the setting under it. */
     struct VarStore {
         virtual ~VarStore() {}
-        /** @brief Load @p d's stored value into @p v (and the pool, for a
-         *  T_STR). @return false when the key is absent, which is not an error:
-         *  the caller keeps the declared default. */
-        virtual bool load(const Variable& d, Value& v, char* pool) = 0;
+        /** @brief Load @p d's stored value into @p v, or into @p text for a
+         *  T_STR. @return false when the key is absent, which is not an error:
+         *  the caller keeps the declared default.
+         *
+         *  @p text / @p cap is the row's slot, already resolved and bounded by
+         *  the bank - null and 0 for a row that has none. The store is handed a
+         *  buffer rather than the pool and an offset on purpose: it has no way
+         *  to know how big the pool is, so it had no way to prove its own
+         *  arithmetic landed inside it. */
+        virtual bool load(const Variable& d, Value& v, char* text, uint16_t cap) = 0;
         /** @brief Persist @p d's current value. */
-        virtual bool save(const Variable& d, const Value& v, const char* pool) = 0;
+        virtual bool save(const Variable& d, const Value& v,
+                          const char* text, uint16_t cap) = 0;
 
         /** @brief Load @p d's stored OVERRIDE into @p v (value + the validity it
          *  reads as). @return false when none is stored, which is the normal
@@ -661,6 +678,15 @@ namespace Botanik { namespace Vars {
          *  none). */
         uint16_t param_first() const     { return _param_first; }
 
+        /** @brief Where @p h's text lives in the pool, or null when it has none
+         *  - not a T_STR, no pool bound, or the row found no room at init().
+         *
+         *  The ONLY way to reach a row's text. Four writers used to compute
+         *  `pool + off` themselves and gate on the declared capacity, which is
+         *  in flash and says nothing about whether the row actually got a slot.
+         *  @p cap_out receives the usable capacity (0 when there is no slot). */
+        char* text_at(Var h, uint16_t* cap_out = nullptr) const;
+
         /** @brief Find a variable by name. Returns VAR_NONE when absent, which
          *  resolves to the sink, so a caller may skip the check - at the cost
          *  of a silent miss, which is what unresolved_count() surfaces. */
@@ -742,6 +768,26 @@ namespace Botanik { namespace Vars {
          *  their declared timeout. A timeout of 0 never expires, for a value a
          *  driver publishes only on change. */
         void expire_stale(uint64_t now_ms);
+
+        /** @brief Invalidate any ROLE_INPUT whose reading has left its declared
+         *  plausibility band, and any T_F32 that has gone non-finite.
+         *
+         *  This is what F_BOUNDED was declared FOR on an input, and it went
+         *  years unenforced: a shorted 4-20 mA loop reads full scale, which is a
+         *  perfectly well-formed number, and every consumer treated it as a
+         *  measurement. Marking it invalid instead is what makes the declared
+         *  band worth writing - and what makes `def` do its documented job, so a
+         *  control program reads the fallback without testing valid() at all.
+         *
+         *  Non-finite is the same argument in a nastier form: a NaN compares
+         *  false against everything, so it does not trip a band, and it makes
+         *  every downstream hysteresis and deadband behave oddly rather than
+         *  fault. A driver that produces one has failed, so the reading has.
+         *
+         *  Analog rows are skipped here: their band is operator-editable and
+         *  needs the parameter table to resolve, which the bank has no route to.
+         *  @return how many readings this pass rejected. */
+        uint16_t reject_implausible();
 
         /** @name Writing
          *

@@ -393,3 +393,110 @@ TEST_CASE("set: holds a parameter to its declared band") {
     CHECK(f.bank.set(f.bank.var(V_NTP_POLL), "3601") == SET_INVALID);  // max 3600
     CHECK(f.bank.var(V_NTP_POLL).i() == 64);                           // untouched
 }
+
+// ---- String pool: a row that does not fit must not land on another ----------
+
+TEST_CASE("pool: a row that does not fit gets no slot, not row 0's") {
+    // Two 32-byte slots into a 40-byte pool: the second cannot fit. It used to
+    // be parked at offset 0 with its declared capacity intact, so every writer
+    // wrote a full slot on top of the FIRST row - and with a pool smaller than
+    // one slot, past the end of the array entirely.
+    const Variable V[] = {
+        PS("a", "first", 32, STR_NONE, 1, "", ""),
+        PS("b", "second", 32, STR_NONE, 2, "", ""),
+    };
+    Value vals[2]{};
+    char  pool[40]{};
+    VarTables t = {};
+    t.var = V; t.val = vals; t.count = 2;
+    t.pool = pool; t.pool_bytes = sizeof(pool);
+    Bank bank(t);
+    bank.init();
+
+    CHECK(bank.pool_overflow() == 1);
+    CHECK(vals[1].str_off == STR_NO_SLOT);
+    // The row that did fit still reads its own default, unclobbered.
+    CHECK(bank.text_at(bank.var((uint16_t)0)) != nullptr);
+    CHECK(std::strcmp(bank.text_at(bank.var((uint16_t)0)), "first") == 0);
+    // The row that did not gets no pointer at all, so nothing can write it.
+    CHECK(bank.text_at(bank.var((uint16_t)1)) == nullptr);
+    CHECK(bank.set(bank.var((uint16_t)1), "anything") == SET_INVALID);
+    CHECK(std::strcmp(bank.text_at(bank.var((uint16_t)0)), "first") == 0);
+}
+
+TEST_CASE("pool: a pool smaller than a single slot writes nothing") {
+    // The out-of-bounds case: offset 0 + a 32-byte capacity into 8 bytes.
+    // ASan is what makes this test worth having.
+    const Variable V[] = { PS("a", "aaaaaaaaaaaaaaaaaaaaaaaaaaaa", 32, STR_NONE, 1, "", "") };
+    Value vals[1]{};
+    char  pool[8]{};
+    VarTables t = {};
+    t.var = V; t.val = vals; t.count = 1;
+    t.pool = pool; t.pool_bytes = sizeof(pool);
+    Bank bank(t);
+    bank.init();
+
+    CHECK(bank.pool_overflow() == 1);
+    CHECK(bank.text_at(bank.var((uint16_t)0)) == nullptr);
+    CHECK(bank.set(bank.var((uint16_t)0), "x") == SET_INVALID);
+}
+
+// ---- Implausible readings --------------------------------------------------
+
+TEST_CASE("plausibility: a reading outside its declared band goes invalid") {
+    // What F_BOUNDED was declared FOR on an input, and what nothing enforced:
+    // a shorted 4-20 mA loop reads full scale, which no timeout catches.
+    Fixture f;
+    Var h = f.bank.var(V_EXT_TEMP);          // band -40..85, def 20.5
+
+    h.publish(Scalar::F(20.0f), 1000);
+    CHECK(f.bank.reject_implausible() == 0);
+    CHECK(h.valid());
+
+    h.publish(Scalar::F(500.0f), 2000);      // fresh, well-formed, impossible
+    CHECK(f.bank.reject_implausible() == 1);
+    CHECK_FALSE(h.valid());
+    // ...and it reads its declared fallback, which is what lets a control
+    // program lean on `def` instead of testing valid().
+    CHECK(h.value() == doctest::Approx(20.5f));
+}
+
+TEST_CASE("plausibility: a non-finite reading is a failed read") {
+    // A NaN compares false against everything, so it trips no band - and it
+    // makes every downstream hysteresis and deadband misbehave quietly.
+    Fixture f;
+    Var h = f.bank.var(V_EXT_TEMP);
+    const float nan = 0.0f / 0.0f, inf = 1.0f / 0.0f;
+
+    h.publish(Scalar::F(nan), 1000);
+    CHECK(f.bank.reject_implausible() == 1);
+    CHECK_FALSE(h.valid());
+
+    h.publish(Scalar::F(inf), 2000);
+    CHECK(f.bank.reject_implausible() == 1);
+    CHECK_FALSE(h.valid());
+}
+
+TEST_CASE("plausibility: an override is exempt") {
+    // Pushing a reading past its band is precisely what an override is for -
+    // it is how you exercise the alarm watching for one.
+    Fixture f;
+    Var h = f.bank.var(V_EXT_TEMP);
+    h.publish(Scalar::F(20.0f), 1000);
+    f.bank.override_set(h, Scalar::F(9999.0f));
+
+    CHECK(f.bank.reject_implausible() == 0);
+    CHECK(h.valid());
+    CHECK(h.value() == doctest::Approx(9999.0f));
+}
+
+TEST_CASE("plausibility: an unbounded row is left alone") {
+    // No F_BOUNDED means min/max are not a band, so there is nothing to judge.
+    Fixture f;
+    Var h = f.bank.var(V_NO_TIMEOUT);        // bounded 0..100
+    Var g = f.bank.var(V_SETPOINT);          // ROLE_COMPUTED: not an input
+    g.set(1e6f);
+    h.publish(Scalar::F(50.0f), 1000);
+    CHECK(f.bank.reject_implausible() == 0);
+    CHECK(g.valid());                        // computed rows are never swept
+}

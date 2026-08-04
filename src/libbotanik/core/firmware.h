@@ -409,6 +409,12 @@ namespace Botanik {
             _tasks.add("expire_stale", GROUP_BACKGROUND, PHASE_INPUT,
                 [](void* s, uint64_t now) { static_cast<Vars::Bank*>(s)->expire_stale(now); },
                 &_io);
+            // Beside it, and for the same reason: a reading can be fresh and
+            // still be nonsense. A dead 4-20 mA loop reads full scale, which no
+            // timeout catches - the declared plausibility band does.
+            _tasks.add("reject_implausible", GROUP_BACKGROUND, PHASE_INPUT,
+                [](void* s, uint64_t) { (void)static_cast<Vars::Bank*>(s)->reject_implausible(); },
+                &_io);
 
             // --- CONFIG: the image every config-driven component reads below ---
             _tasks.add_component("params", GROUP_SLOW, PHASE_CONFIG, _params);

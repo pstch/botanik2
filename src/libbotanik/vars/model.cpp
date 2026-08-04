@@ -45,11 +45,12 @@ namespace Botanik { namespace Vars {
             const uint16_t cap = text_slot(_t.var[i]).cap;
             if (cap == 0) { _t.val[i].str_off = 0; continue; }
             if ((uint32_t)_pool_used + cap > _t.pool_bytes) {
-                // Out of pool: leave the row with no slot rather than one that
-                // runs off the end. cap is in the descriptor, so the row still
-                // claims a slot - which is why the overflow is counted and the
-                // site test asserts it is zero.
-                _t.val[i].str_off = 0;
+                // Out of pool. STR_NO_SLOT, not 0: offset 0 is the first text
+                // row's slot, so parking an overflowed row there made the two
+                // share bytes, and a pool smaller than one slot wrote past the
+                // end of the array. text_at() refuses on the sentinel, so the
+                // row reads empty and every write bounces.
+                _t.val[i].str_off = STR_NO_SLOT;
                 _pool_overflow++;
                 continue;
             }
@@ -70,9 +71,9 @@ namespace Botanik { namespace Vars {
             // default as a measurement.
             _t.val[i].valid    = (d.role == ROLE_PARAM);
 
-            const TextSlot slot = text_slot(d);
-            if (_t.pool != nullptr && slot.cap != 0)
-                copy_bounded(_t.pool + _t.val[i].str_off, slot.cap, d.def.s);
+            uint16_t cap = 0;
+            char* text = text_at(Var(&d, &_t.val[i]), &cap);
+            if (text != nullptr) copy_bounded(text, cap, d.def.s);
         }
     }
 
@@ -85,6 +86,19 @@ namespace Botanik { namespace Vars {
             while (i < _t.count && _t.var[i].role == ROLE_PARAM) { _param_count++; i++; }
             return;
         }
+    }
+
+    char* Bank::text_at(Var h, uint16_t* cap_out) const {
+        if (cap_out != nullptr) *cap_out = 0;
+        const uint16_t cap = text_slot(*h.meta()).cap;
+        const uint16_t off = h.str_off();
+        if (_t.pool == nullptr || cap == 0 || off == STR_NO_SLOT) return nullptr;
+        // Belt and braces: init() already bounded this, but this is the one
+        // place a pool pointer is handed out, so it is the one place worth
+        // proving it lands inside the array.
+        if ((uint32_t)off + cap > _t.pool_bytes) return nullptr;
+        if (cap_out != nullptr) *cap_out = cap;
+        return _t.pool + off;
     }
 
     VarRef Bank::find(const char* name) const {
@@ -119,7 +133,9 @@ namespace Botanik { namespace Vars {
             const uint16_t i = (uint16_t)(_param_first + k);
             // A missing key is normal: the parameter keeps the declared default
             // that init() already seeded.
-            (void)_store->load(_t.var[i], _t.val[i], _t.pool);
+            uint16_t cap = 0;
+            char* text = text_at(var(i), &cap);
+            (void)_store->load(_t.var[i], _t.val[i], text, cap);
         }
     }
 
@@ -158,6 +174,34 @@ namespace Botanik { namespace Vars {
         }
     }
 
+    uint16_t Bank::reject_implausible() {
+        uint16_t n = 0;
+        for (uint16_t i = 0; i < _t.count; i++) {
+            const Variable& d = _t.var[i];
+            if (d.role != ROLE_INPUT || !_t.val[i].valid) continue;
+            // An override is a maintainer deliberately pushing a reading past
+            // its band to exercise what watches for it - the one case where an
+            // implausible value is the point.
+            if (_t.val[i].ovr_on) continue;
+
+            bool bad = false;
+            if (type_real(d.type)) {
+                const float f = _t.val[i].v.f;
+                bad = !(f == f) || f > 3.402823466e+38f || f < -3.402823466e+38f;
+            }
+            // SCOPE_AI/AO carry their band in parameters, not here; num_band()
+            // returns unset for them, which would reject everything.
+            if (!bad && (d.flags & F_BOUNDED) != 0 && payload_arm(d) == PAY_NUM) {
+                const NumBand b = num_band(d);
+                bad = !in_range(d.type, _t.val[i].v, b.min, b.max);
+            }
+            if (!bad) continue;
+            _t.val[i].valid = false;
+            n++;
+        }
+        return n;
+    }
+
     // Writing
     // ------------------------------------------------------------------------
 
@@ -188,10 +232,11 @@ namespace Botanik { namespace Vars {
         Value& slot = _t.val[d - _t.var];
 
         if (d->type == T_STR) {
-            const TextSlot ts = text_slot(*d);
-            if (_t.pool == nullptr || ts.cap == 0) return SET_INVALID;
-            if (!validate_str(ts.kind, text, ts.cap)) return SET_INVALID;
-            copy_bounded(_t.pool + slot.str_off, ts.cap, text);
+            uint16_t cap = 0;
+            char* dst = text_at(h, &cap);
+            if (dst == nullptr) return SET_INVALID;
+            if (!validate_str(text_slot(*d).kind, text, cap)) return SET_INVALID;
+            copy_bounded(dst, cap, text);
             slot.valid = true;
         } else {
             Scalar parsed;
@@ -201,7 +246,9 @@ namespace Botanik { namespace Vars {
         }
 
         if (_store == nullptr) return SET_NOT_PERSISTED;
-        if (!_store->save(*d, slot, _t.pool)) {
+        uint16_t save_cap = 0;
+        char* save_text = text_at(h, &save_cap);
+        if (!_store->save(*d, slot, save_text, save_cap)) {
             // Loud: the value is live, so nothing looks wrong until the reboot
             // that quietly reverts it.
             if (_logger != nullptr)

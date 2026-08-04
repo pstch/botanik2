@@ -19,14 +19,13 @@ namespace Botanik { namespace Vars {
     // u32/f32 key, and HAL::Storage::get rejects an oversized value, so the
     // whole configuration would quietly revert to factory on the next boot.
 
-    bool KvParamStore::load(const Variable& d, Value& v, char* pool) {
+    bool KvParamStore::load(const Variable& d, Value& v, char* text, uint16_t cap) {
         if (d.type == T_STR) {
-            const TextSlot slot = text_slot(d);
-            if (pool == nullptr || slot.cap == 0) return false;
+            if (text == nullptr || cap == 0) return false;
             size_t n = 0;
-            if (!HAL::Storage::get(d.name, pool + v.str_off, slot.cap, &n)) return false;
+            if (!HAL::Storage::get(d.name, text, cap, &n)) return false;
             // A stored value that filled the slot leaves no room for the NUL.
-            pool[v.str_off + (n < slot.cap ? n : (size_t)slot.cap - 1)] = 0;
+            text[n < cap ? n : (size_t)cap - 1] = 0;
             v.valid = true;
             return true;
         }
@@ -49,11 +48,11 @@ namespace Botanik { namespace Vars {
         return true;
     }
 
-    bool KvParamStore::save(const Variable& d, const Value& v, const char* pool) {
+    bool KvParamStore::save(const Variable& d, const Value& v,
+                            const char* text, uint16_t cap) {
         if (d.type == T_STR) {
-            const TextSlot slot = text_slot(d);
-            if (pool == nullptr || slot.cap == 0) return false;
-            return HAL::Storage::set(d.name, pool + v.str_off, slot.cap);
+            if (text == nullptr || cap == 0) return false;
+            return HAL::Storage::set(d.name, text, cap);
         }
         const uint8_t w = type_width(d.type);
         if (w == 0) return false;
@@ -181,7 +180,8 @@ namespace Botanik { namespace Vars {
         Var h(nullptr, nullptr);
         if (!lookup(io, name, &h)) return "";
         if (h.meta()->type != T_STR || io->pool() == nullptr) return "";
-        return io->pool() + h.str_off();
+        const char* t = io->text_at(h);
+        return (t != nullptr) ? t : "";
     }
 
     float tunable(const Bank* io, const Tunable& t) {

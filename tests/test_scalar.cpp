@@ -165,3 +165,16 @@ TEST_CASE("scalar: a const table of Scalars needs no runtime initialiser") {
     CHECK(TABLE[2].min.i == -5000);
     CHECK(Utils::compare_str(TABLE[4].def.s, "ntp.example"));
 }
+
+TEST_CASE("parse: a literal too big for the type is a range error, not a maximum") {
+    // strto* SATURATE rather than fail, so an overflowing literal used to
+    // arrive as a perfectly plausible type maximum. in_range catches that for
+    // the narrow types; for the widest it did not.
+    Scalar out;
+    CHECK(parse_scalar(T_U64, "99999999999999999999999", &out) == PARSE_RANGE);
+    CHECK(parse_scalar(T_I64, "-99999999999999999999999", &out) == PARSE_RANGE);
+    CHECK(parse_scalar(T_F32, "1e400", &out) == PARSE_RANGE);
+    // And the ordinary cases still parse.
+    CHECK(parse_scalar(T_U64, "12345", &out) == PARSE_OK);
+    CHECK(out.u == 12345u);
+}
