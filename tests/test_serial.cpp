@@ -11,6 +11,7 @@
 
 #include "doctest.h"
 
+#include "libbotanik_config.h"
 #include "libbotanik/utils/serial.h"
 
 using Botanik::Utils::BufferedSerial;
@@ -146,4 +147,29 @@ TEST_CASE("serial TX: transmit() drains the ring to the device") {
     char got[8] = {0};
     CHECK(::read(out.r(), got, 5) == 5);
     CHECK(std::memcmp(got, "hello", 5) == 0);
+}
+
+TEST_CASE("serial TX: transmit() is bounded per activation, and resumes") {
+    // The drain used to run until the ring emptied or the device refused. A
+    // UART bounds itself through availableForWrite(); USB CDC with no host
+    // answers 1 forever, so one activation pushed the whole 4095-byte ring.
+    Pipe out;
+    Botanik::HAL::Serial::Raw raw;
+    raw.set_fds(-1, out.w());
+    BufferedSerial bs(&raw);
+
+    const uint16_t cap = Botanik::Config::SERIAL_TX_PER_STEP;
+    REQUIRE(cap > 0);                       // 0 would mean the cap is disabled
+
+    // Queue half a beat's worth more than the cap allows.
+    const uint16_t n = (uint16_t)(cap + 64);
+    char blob[BufferedSerial::tx_capacity()];
+    std::memset(blob, 'x', sizeof(blob));
+    REQUIRE(bs.write(blob, n) == n);
+
+    CHECK(bs.transmit() == cap);            // capped, not drained
+    CHECK_FALSE(bs.tx_empty());             // the rest is still owed
+
+    CHECK(bs.transmit() == 64);             // and goes out next activation
+    CHECK(bs.tx_empty());                   // nothing lost
 }

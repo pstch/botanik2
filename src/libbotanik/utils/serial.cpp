@@ -6,6 +6,7 @@
  */
 #include <cstdint>
 
+#include "../../libbotanik_config.h"
 #include "serial.h"
 
 namespace Botanik { namespace Utils {
@@ -100,7 +101,16 @@ namespace Botanik { namespace Utils {
     uint16_t BufferedSerial::transmit() {
         uint16_t sent = 0;
         if (!_serial) return sent;
+        // Bounded per activation. A UART bounds itself - availableForWrite()
+        // reflects a real FIFO, so the loop stops when the hardware is full -
+        // but USB CDC with no host attached answers 1 forever, and this drained
+        // the whole 4095-byte ring in one beat. With a host it is worse: the
+        // send blocks per byte. So the cap is what makes the WORST case a
+        // property of the code rather than of whatever is plugged in.
+        // Whatever is left goes out next beat; the ring keeps it.
+        const uint16_t cap = Config::SERIAL_TX_PER_STEP;
         while (_tx_head != _tx_tail && _serial->availableForWrite() > 0) {
+            if (cap != 0 && sent >= cap) break;
             if (_serial->write(static_cast<uint8_t>(_tx_buf[_tx_tail])) == 0) break;  // full: yield
             _tx_tail = (_tx_tail + 1) & (TX_BUF_SIZE - 1);
             sent++;
