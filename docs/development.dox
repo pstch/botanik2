@@ -37,6 +37,8 @@ work has gone.
   self-instrumented metrics.
 - @subpage dev_scan - the scan cycle: rate against phase, what a program is
   guaranteed to see, and where the field bus commits and collects.
+- @subpage dev_tasks - what the beat costs: every task's estimated cycle budget,
+  and which spikes are worth bounding.
 - @subpage dev_vars - the variable model: descriptors, value slots, the sink, and
   where overrides are applied.
 
