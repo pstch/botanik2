@@ -450,7 +450,7 @@ namespace Botanik {
 #if BOTANIK_FEATURE_CONSOLE
             // The Console is the Component, not the stack around it: the stack's
             // serial pump is registered separately, at its own phases.
-            _tasks.add_component("console", GROUP_MAIN, PHASE_PRESENT, _console.terminal());
+            _tasks.add_component("console", GROUP_SLOW, PHASE_PRESENT, _console.terminal());
 #endif
 #if BOTANIK_FEATURE_MONITOR
             _tasks.add_component("monitor_log", GROUP_FAST, PHASE_PRESENT, _monitor.writer());

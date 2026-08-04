@@ -14,11 +14,16 @@ namespace Botanik { namespace Terminal {
     // The render rate against the TX pacing. present() tops the ring back up to
     // TX_COLD_TARGET_MS of wire time however often it runs, so a slower render
     // costs no throughput - right up until the ring drains empty between two of
-    // them, at which point the wire idles and the pacing model breaks. Half the
-    // target keeps a 2x margin on that.
-    static_assert(Config::GROUP_MAIN_MS * 2 <= Config::TX_COLD_TARGET_MS,
-                  "GROUP_MAIN_MS must stay under half TX_COLD_TARGET_MS, or the "
-                  "TX ring drains between renders and the link idles");
+    // them, at which point the wire idles and the pacing model breaks.
+    //
+    // The render is registered in GROUP_SLOW (core/firmware.h). At 100 ms against
+    // a 128 ms depth the ring still holds ~28 ms of wire when the next render
+    // arrives, so the link never idles - but that is the whole margin, and a
+    // render delayed past 128 ms by jitter or an overrun WILL idle it. Raise
+    // TX_COLD_TARGET_MS before slowing the render further.
+    static_assert(Config::GROUP_SLOW_MS < Config::TX_COLD_TARGET_MS,
+                  "the console's group period must stay under TX_COLD_TARGET_MS, "
+                  "or the TX ring drains between renders and the link idles");
 
     // Lifecycle
 
