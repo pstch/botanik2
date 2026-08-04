@@ -42,10 +42,23 @@ inline void supply_watch(ScanContext& c) {
     static Plc::Ton  bad_for;      // debounce: ignore a momentary dropout
     static Plc::Sr   lockout;
 
+    // Names resolved ONCE, into the same function-local statics the blocks
+    // above live in. Bank::var(const char*) is a linear strcmp scan of the whole
+    // table and every row shares a prefix, so each comparison matches several
+    // bytes before diverging: resolving per activation was ~99% of this
+    // program's cost (@ref dev_tasks). A VarRef is a bare index - the lookup is
+    // the expensive half, and it is the half that cannot change.
+    static const Vars::VarRef r_ln      = c.io.find("grid_LN_V");
+    static const Vars::VarRef r_lockout = c.io.find("sys_supply_lockout");
+    static const Vars::VarRef r_win[]   = { c.io.find("cli_window1_opn"),
+                                            c.io.find("cli_window2_opn"),
+                                            c.io.find("cli_window3_opn"),
+                                            c.io.find("cli_window4_opn") };
+
     // A meter that has stopped answering reads as its default (0 V), which is
     // out of band and therefore unhealthy - the fallback does the right thing
     // here without the program testing valid() at all.
-    float ln = c.io.var("grid_LN_V").value();
+    float ln = c.io.var(r_ln).value();
     bool  unhealthy = (ln < 200.0f) || (ln > 260.0f);
 
     // Reset-dominant: recovery wins, so the lockout cannot stick once the
@@ -55,13 +68,10 @@ inline void supply_watch(ScanContext& c) {
     // Publish the decision as an internal, so the console, the shell and
     // telemetry can all see WHY the windows are held - a coil reading 0 does
     // not distinguish "not commanded" from "locked out".
-    c.io.var("sys_supply_lockout").set(lockout.q());
+    c.io.var(r_lockout).set(lockout.q());
 
     if (lockout.q()) {
-        c.io.var("cli_window1_opn").set(false);
-        c.io.var("cli_window2_opn").set(false);
-        c.io.var("cli_window3_opn").set(false);
-        c.io.var("cli_window4_opn").set(false);
+        for (const Vars::VarRef& w : r_win) c.io.var(w).set(false);
     }
 }
 
@@ -73,7 +83,9 @@ inline void supply_watch(ScanContext& c) {
  */
 inline void supply_report(ScanContext& c) {
     static Plc::Deadband hz;
-    c.io.var("sys_supply_hz").set(hz(c.io.var("grid_Hz").value(), 0.05f));
+    static const Vars::VarRef r_hz  = c.io.find("sys_supply_hz");
+    static const Vars::VarRef r_raw = c.io.find("grid_Hz");
+    c.io.var(r_hz).set(hz(c.io.var(r_raw).value(), 0.05f));
 }
 
 /** @brief The site's control programs, in execution order. */

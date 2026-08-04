@@ -52,6 +52,17 @@ namespace Botanik { namespace Health {
         // BOTANIK_NO_LOAD_ALARMS: hold the CPU_* load alarms cleared for
         // deterministic screen goldens (sim/test only; reads 0 on OPTA).
         bool     _no_load_alarms   = HAL::Env::u8("BOTANIK_NO_LOAD_ALARMS", 0) != 0;
+
+        /** @brief The platform alarms' indices in the merged condition table,
+         *  resolved once by on_setup(); -1 if the code is absent.
+         *
+         *  These used to be looked up by name on every activation. set_local()'s
+         *  name form is a linear strcmp scan of the whole table, and every code
+         *  in it starts with "alarm_", so each comparison matched six bytes
+         *  before diverging: six calls cost 159 comparisons a beat to re-resolve
+         *  six names that cannot change (@ref dev_tasks). */
+        int16_t  _ix_reset = -1, _ix_flash = -1, _ix_load = -1;
+        int16_t  _ix_jitter = -1, _ix_stack = -1, _ix_xrun = -1;
         /** @} */
 
     public:
@@ -88,7 +99,11 @@ namespace Botanik { namespace Health {
 
     protected:
         /** @brief POST runs once on the first step() (sinks now registered). */
-        void on_setup(uint64_t now) override { (void)now; _post(); }
+        void on_setup(uint64_t now) override {
+            (void)now;
+            _resolve_platform_alarms();
+            _post();
+        }
 
         /** @brief Per beat: assert the platform alarms, update the watchdog
          *  verdict, and advance the model (which reads each site alarm's boolean
@@ -132,47 +147,66 @@ namespace Botanik { namespace Health {
             if (_logger) _logger->critical(Logs::HEALTH, "POST: %s %s", what, detail);
         }
 
+        /** @brief Resolve the platform alarm codes to indices, once. The model's
+         *  table is built at construction and never changes, so a name here is a
+         *  constant - it just was not being treated as one. */
+        void _resolve_platform_alarms() {
+            _ix_reset  = (int16_t)_model.index_of("alarm_system_reset");
+            _ix_flash  = (int16_t)_model.index_of("alarm_flash_error");
+            _ix_load   = (int16_t)_model.index_of("alarm_cpu_load");
+            _ix_jitter = (int16_t)_model.index_of("alarm_cpu_jitter");
+            _ix_stack  = (int16_t)_model.index_of("alarm_stack");
+            _ix_xrun   = (int16_t)_model.index_of("alarm_cpu_xrun");
+        }
+
+        /** @brief set_local() by resolved index, skipping an absent code the way
+         *  the name form's no-op did - generic firmware must not require a site
+         *  to declare every platform alarm. */
+        void _set(int16_t ix, bool on) {
+            if (ix >= 0) _model.set_local((uint8_t)ix, on);
+        }
+
         /** @brief Raise/clear the platform alarms from the scheduler metrics.
          *  SYS_RST holds for the first five minutes; CPU_LOAD / CPU_JITT /
          *  STACK are level-driven; CPU_XRUN held for a window after an
          *  overrun. */
         void _assert_platform_alarms(uint64_t now) {
-            _model.set_local("alarm_system_reset", now < 300000);
+            _set(_ix_reset, now < 300000);
             // Sticky by construction: the counter only ever rises, so once a
             // write has been refused the alarm stays up until a reboot. That is
             // the honest shape - a store that will not take writes does not
             // recover on its own, and the damage (settings reverting) is only
             // visible long after the fact.
-            _model.set_local("alarm_flash_error", HAL::Storage::fault_count() > 0);
+            _set(_ix_flash, HAL::Storage::fault_count() > 0);
             if (_sched == nullptr) return;
             const uint32_t period_us = Config::TASK_PERIOD_MS * 1000u;
             // Under BOTANIK_NO_LOAD_ALARMS hold the CPU_* load alarms cleared
             // so the active set is stable for screen goldens (SYS_RST / STACK
             // unaffected).
             const bool load = !_no_load_alarms;
-            _model.set_local("alarm_cpu_load", load &&
+            _set(_ix_load, load &&
                 (uint64_t)_sched->cpu_loop_us_recent * 100u
                     > (uint64_t)period_us * Config::ALARM_CPU_LOAD_PCT);
-            _model.set_local("alarm_cpu_jitter", load &&
+            _set(_ix_jitter, load &&
                 (uint64_t)_sched->cpu_jitter_us_recent * 100u
                     > (uint64_t)period_us * Config::ALARM_CPU_JITTER_PCT);
-            _model.set_local("alarm_stack",
+            _set(_ix_stack,
                 _sched->stack_usage * 100.0f > (float)Config::ALARM_STACK_PCT);
-            if (load) _held_event("alarm_cpu_xrun", _sched->overruns, _xrun_last,
+            if (load) _held_event(_ix_xrun, _sched->overruns, _xrun_last,
                                   _xrun_until_ms, now);
-            else      _model.set_local("alarm_cpu_xrun", false);
+            else      _set(_ix_xrun, false);
         }
 
         /** @brief Hold a momentary "event" alarm active for ALARM_EVENT_HOLD_MS
          *  after its @p counter ticks (latched in the source, not via the
          *  table's off_delay_s). */
-        void _held_event(const char* name, uint32_t counter, uint32_t& last,
+        void _held_event(int16_t ix, uint32_t counter, uint32_t& last,
                          uint64_t& until_ms, uint64_t now) {
             if (counter != last) {
                 last = counter;
                 until_ms = now + Config::ALARM_EVENT_HOLD_MS;
             }
-            _model.set_local(name, now < until_ms);
+            _set(ix, now < until_ms);
         }
 
         /** @brief Watchdog verdict. The timed escalation existed to reboot both
