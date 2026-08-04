@@ -81,6 +81,23 @@ namespace Botanik { namespace Pages {
         mutable const char* _group_name[Vars::VAR_GROUPS_MAX] = {};
         mutable uint8_t     _group_n = 0;
         mutable bool        _groups_built = false;
+        /** @brief Sequential-scan memo for _ref_at(), and the cached row total.
+         *
+         *  Both _ref_at() and _total() walk the whole table applying _in_mode(),
+         *  which is a strcmp per row. _ref_at() is called once per DRAWN row, so
+         *  a 12-row window over a 259-row table cost ~3100 comparisons a refresh
+         *  to answer a question whose answer only changes with the mode.
+         *
+         *  Rows are drawn top to bottom, so remembering the last (row -> index)
+         *  pair turns the walk into a resume: the first row of a window pays the
+         *  scan, every row after it advances by one. Invalidated by
+         *  _on_mode_changed(), which is the only thing that moves the mapping -
+         *  the table's rows and scopes are fixed at build time. */
+        mutable uint16_t    _memo_row  = 0;
+        mutable uint16_t    _memo_idx  = 0;
+        mutable bool        _memo_ok   = false;
+        mutable uint16_t    _total_n   = 0;
+        mutable bool        _total_ok  = false;
         const Vars::Bank*     _io;
         /** @brief A nav happened: redraw on the next tick rather than waiting for
          *  the value cadence, so scrolling/selection feels immediate. */
@@ -181,7 +198,11 @@ namespace Botanik { namespace Pages {
             if (i == 0 || i > _group_n) return "all";
             return _group_name[i - 1];
         }
-        void _on_mode_changed() override { _dirty = true; }
+        void _on_mode_changed() override {
+            _dirty = true;
+            _memo_ok = false;      // the row -> index mapping just moved
+            _total_ok = false;
+        }
         /** @} */
 
         /** @brief Whether row @p i is in the table at all, and in the active
@@ -195,8 +216,11 @@ namespace Botanik { namespace Pages {
 
         uint16_t _total() const {
             if (_io == nullptr) return 0;
+            if (_total_ok) return _total_n;
             uint16_t t = 0;
             for (uint16_t i = 0; i < _io->count(); i++) if (_in_mode(i)) t++;
+            _total_n = t;
+            _total_ok = true;
             return t;
         }
 
@@ -249,10 +273,20 @@ namespace Botanik { namespace Pages {
          *  past the end. */
         Vars::VarRef _ref_at(uint16_t r, bool& ok) const {
             if (_io != nullptr) {
-                uint16_t n = 0;
-                for (uint16_t i = 0; i < _io->count(); i++) {
+                // Resume from the last answer when the caller is walking
+                // forward, which is what drawing a window does. Only ever
+                // forward: a memo for a LATER row says nothing about an earlier
+                // one without re-counting from the top.
+                uint16_t n = 0, i = 0;
+                if (_memo_ok && r >= _memo_row) { n = _memo_row; i = _memo_idx; }
+                for (; i < _io->count(); i++) {
                     if (!_in_mode(i)) continue;
-                    if (n == r) { ok = true; Vars::VarRef v = { i }; return v; }
+                    if (n == r) {
+                        ok = true;
+                        _memo_row = r; _memo_idx = i; _memo_ok = true;
+                        Vars::VarRef v = { i };
+                        return v;
+                    }
                     n++;
                 }
             }

@@ -71,24 +71,44 @@ namespace Botanik { namespace Network {
     void MqttSender::step(uint64_t now_ms) {
         const uint32_t period = Config::MQTT_TELEMETRY_PERIOD_MS;
         if (period == 0) return;                       // telemetry disabled
-        if (_mqtt == nullptr || !_mqtt->connected()) return;
+        if (_mqtt == nullptr || !_mqtt->connected()) {
+            _sweeping = false;                         // a sweep cannot outlive the link
+            return;
+        }
+
+        // Mid-sweep: hand out the next slice and nothing else. The cadence below
+        // cannot restart one while this is true, so a slow sweep delays the next
+        // cadence rather than overlapping with it.
+        if (_sweeping) { _publish_scalars(); return; }
+
         // First call after a (re)connect publishes immediately, then on cadence.
         if (_last_ms != 0 && now_ms - _last_ms < period) return;
         _last_ms = now_ms;
 
+        // The base fields are a fixed handful and they describe the beat itself,
+        // so they go out whole, at the head of the sweep.
         _publish_base(_sys);        // library status
-        _publish_scalars();         // site variables
+        _cursor   = 0;
+        _sweeping = true;
+        _publish_scalars();         // site variables, paced from here
     }
 
     void MqttSender::_publish_scalars() {
-        if (_io == nullptr) return;
+        if (_io == nullptr) { _sweeping = false; return; }
         char payload[64];
         // Straight down the variable table: what gets published is a property of
         // the row (its scope), and its sub-topic is the prefix of its name. No
         // site table selects them, so a new variable is on the broker as soon as
         // it exists rather than when someone remembers to list it.
-        for (uint16_t i = 0; i < _io->count(); ++i) {
-            Vars::Var h = _io->var(i);
+        //
+        // Resumed from _cursor and capped per activation - the scan of skipped
+        // rows is cheap, the publish is not, so the budget counts topics SENT
+        // rather than rows visited.
+        const uint16_t budget = Config::MQTT_TELEMETRY_PER_STEP;
+        uint16_t sent = 0;
+        for (; _cursor < _io->count(); ++_cursor) {
+            if (budget != 0 && sent >= budget) return;   // resume next beat
+            Vars::Var h = _io->var(_cursor);
             const Vars::Variable& d = *h.meta();
             if (d.name == nullptr || !Vars::var_published(d)) continue;
             // Publish only what has actually been read: a default value on the
@@ -97,7 +117,9 @@ namespace Botanik { namespace Network {
             if (!h.valid()) continue;
             const char* out = Vars::var_format(*_io, h, payload, sizeof(payload));
             _emit(Vars::var_group(d), d.name, out);
+            sent++;
         }
+        _sweeping = false;          // table exhausted: the sweep is done
     }
 
     void MqttSender::_emit(const char* group, const char* name, const char* payload) {

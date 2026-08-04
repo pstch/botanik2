@@ -430,6 +430,19 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, MQTT_TELEMETRY_PERIOD_MS);
 
+    /** @brief Topics published per activation while a telemetry sweep is in
+     *  progress. 0 publishes the whole table in one go (the old behaviour).
+     *
+     *  Each topic is its own snprintf and its own tcp_send - MQTT 3.1.1 has no
+     *  multi-topic PUBLISH - so a full sweep in one beat was 38-80 of them,
+     *  0.8-1.9 ms against a 10 ms budget. Pacing spreads that over as many beats
+     *  as it takes; 8 clears a typical table in well under a second, against a
+     *  cadence measured in tens of seconds. */
+#ifndef BOTANIK_MQTT_TELEMETRY_PER_STEP
+#  define BOTANIK_MQTT_TELEMETRY_PER_STEP 8
+#endif
+    BOTANIK_CFG(uint16_t, MQTT_TELEMETRY_PER_STEP);
+
     /** @brief MQTT topic segment between the prefix and the field name. */
 #ifndef BOTANIK_MQTT_TELEMETRY_TOPIC
 #  define BOTANIK_MQTT_TELEMETRY_TOPIC "status"

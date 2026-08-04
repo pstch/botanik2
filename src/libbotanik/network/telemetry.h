@@ -49,6 +49,22 @@ namespace Botanik { namespace Network {
         const Vars::Bank*     _io          = nullptr;
         /** @brief Last publish cycle (uptime ms); 0 = none yet. */
         uint64_t              _last_ms     = 0;
+        /** @brief Where the current sweep has reached in the variable table, and
+         *  whether one is in progress.
+         *
+         *  A sweep used to publish every eligible row in ONE activation: 38-80
+         *  topics, each its own snprintf and its own tcp_send, for 0.8-1.9 ms
+         *  inside a 10 ms beat - a 100-300x spike over steady state, once per
+         *  cadence. MQTT 3.1.1 has no multi-topic PUBLISH, so the fix is not to
+         *  batch but to PACE: hand out MQTT_TELEMETRY_PER_STEP topics per beat
+         *  and carry the cursor, the way the log rows and the terminal's byte
+         *  budget already bound their own work per tick.
+         *
+         *  The cadence still starts on time; it just no longer lands all at
+         *  once. A value published a few beats into a 30 s sweep is not less
+         *  true. */
+        uint16_t              _cursor      = 0;
+        bool                  _sweeping    = false;
 
         /** @} */
 

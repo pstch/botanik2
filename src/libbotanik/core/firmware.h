@@ -189,6 +189,7 @@ namespace Botanik {
         Pages::HomePage                _home_page;
         Pages::ParamsPage              _params_page;
         Pages::MonitorPage             _monitor_page;
+        Pages::TasksPage               _tasks_page;
 #endif
 
         /** @} */
@@ -234,6 +235,7 @@ namespace Botanik {
                            _site.home_field_count, &_io, _site.home_refs)
               , _params_page(_console.terminal(), &_params)
               , _monitor_page(_console.terminal(), &_io)
+              , _tasks_page(_console.terminal(), &_tasks)
 #endif
         {
             // Wire the status aggregate now every subsystem address is fixed,
@@ -599,7 +601,7 @@ namespace Botanik {
 #if BOTANIK_FEATURE_CONSOLE
         /** @brief Register the pages in tab order (page 0 = boot page); the
          *  add_page() call order IS the tab order. Default: the full set -
-         *  home / shell / logs / alarms / config / monitor. A site override can
+         *  home / shell / logs / alarms / config / monitor / tasks. A site override can
          *  reorder them or splice in its own (e.g. re-add a STATUS page by
          *  subclassing Pages::StatusPage and add_page()-ing it here). */
         virtual void register_pages() {
@@ -609,6 +611,7 @@ namespace Botanik {
             _console.terminal().add_page(&_console.alarms());
             _console.terminal().add_page(&_params_page);
             _console.terminal().add_page(&_monitor_page);
+            _console.terminal().add_page(&_tasks_page);
         }
 
         /** @brief Register the site's shell command table (tried BEFORE the
