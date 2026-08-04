@@ -72,14 +72,14 @@ namespace Botanik { namespace Network {
         const uint32_t period = Config::MQTT_TELEMETRY_PERIOD_MS;
         if (period == 0) return;                       // telemetry disabled
         if (_mqtt == nullptr || !_mqtt->connected()) {
-            _sweeping = false;                         // a sweep cannot outlive the link
+            _cursor = SWEEP_IDLE;                      // a sweep cannot outlive the link
             return;
         }
 
         // Mid-sweep: hand out the next slice and nothing else. The cadence below
         // cannot restart one while this is true, so a slow sweep delays the next
         // cadence rather than overlapping with it.
-        if (_sweeping) { _publish_scalars(); return; }
+        if (_sweeping()) { _publish_scalars(); return; }
 
         // First call after a (re)connect publishes immediately, then on cadence.
         if (_last_ms != 0 && now_ms - _last_ms < period) return;
@@ -88,13 +88,12 @@ namespace Botanik { namespace Network {
         // The base fields are a fixed handful and they describe the beat itself,
         // so they go out whole, at the head of the sweep.
         _publish_base(_sys);        // library status
-        _cursor   = 0;
-        _sweeping = true;
+        _cursor = 0;
         _publish_scalars();         // site variables, paced from here
     }
 
     void MqttSender::_publish_scalars() {
-        if (_io == nullptr) { _sweeping = false; return; }
+        if (_io == nullptr) { _cursor = SWEEP_IDLE; return; }
         char payload[64];
         // Straight down the variable table: what gets published is a property of
         // the row (its scope), and its sub-topic is the prefix of its name. No
@@ -119,7 +118,7 @@ namespace Botanik { namespace Network {
             _emit(Vars::var_group(d), d.name, out);
             sent++;
         }
-        _sweeping = false;          // table exhausted: the sweep is done
+        _cursor = SWEEP_IDLE;       // table exhausted: the sweep is done
     }
 
     void MqttSender::_emit(const char* group, const char* name, const char* payload) {

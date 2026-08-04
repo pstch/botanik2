@@ -235,7 +235,7 @@ namespace Botanik {
                            _site.home_field_count, &_io, _site.home_refs)
               , _params_page(_console.terminal(), &_params)
               , _monitor_page(_console.terminal(), &_io)
-              , _tasks_page(_console.terminal(), &_tasks)
+              , _tasks_page(_console.terminal(), _tasks)
 #endif
         {
             // Wire the status aggregate now every subsystem address is fixed,

@@ -35,6 +35,25 @@ namespace Botanik { namespace Health {
      *  runs the self-test, and gates the watchdog kick (see file header). */
     class HealthMonitor : public Component {
     private:
+        /** @brief The platform-health alarms this class drives, in the order the
+         *  one code list below declares them. Nothing outside here depends on
+         *  the order - the codes are resolved by name - so this is an index, not
+         *  a layout. */
+        enum PlatformAlarm {
+            PA_RESET = 0, PA_FLASH, PA_LOAD, PA_JITTER, PA_STACK, PA_XRUN, PA_COUNT
+        };
+
+        /** @brief The one list of platform codes: what on_setup() resolves and
+         *  what POST verifies resolved. A function-local static so the header
+         *  stays self-contained and every TU shares one copy. */
+        static const char* const* _codes() {
+            static const char* const c[PA_COUNT] = {
+                "alarm_system_reset", "alarm_flash_error", "alarm_cpu_load",
+                "alarm_cpu_jitter",   "alarm_stack",       "alarm_cpu_xrun",
+            };
+            return c;
+        }
+
         /** @name State
          *  @{ */
         Alarms::MqttAlarmNotifier          _notifier; ///< MQTT transition sink
@@ -53,16 +72,20 @@ namespace Botanik { namespace Health {
         // deterministic screen goldens (sim/test only; reads 0 on OPTA).
         bool     _no_load_alarms   = HAL::Env::u8("BOTANIK_NO_LOAD_ALARMS", 0) != 0;
 
-        /** @brief The platform alarms' indices in the merged condition table,
+        /** @brief Where each PA_* code sits in the merged condition table,
          *  resolved once by on_setup(); -1 if the code is absent.
          *
          *  These used to be looked up by name on every activation. set_local()'s
          *  name form is a linear strcmp scan of the whole table, and every code
          *  in it starts with "alarm_", so each comparison matched six bytes
          *  before diverging: six calls cost 159 comparisons a beat to re-resolve
-         *  six names that cannot change (@ref dev_tasks). */
-        int16_t  _ix_reset = -1, _ix_flash = -1, _ix_load = -1;
-        int16_t  _ix_jitter = -1, _ix_stack = -1, _ix_xrun = -1;
+         *  six names that cannot change (@ref dev_tasks).
+         *
+         *  Indexed by PlatformAlarm off the one code list, rather than six named
+         *  members beside a second hand-written list: POST used to carry its own
+         *  copy of the names and had already drifted from this one (it checked
+         *  five of the six, silently not verifying FLASH_FLT). */
+        int16_t  _ix[PA_COUNT] = {};
         /** @} */
 
     public:
@@ -122,15 +145,12 @@ namespace Botanik { namespace Health {
          *  watchdog. */
         void _post() {
             bool ok = true;
-            // The platform codes the firmware asserts must resolve in the
-            // merged table, or set_local() would silently no-op (guards the
-            // alarm-namespace wiring).
-            static const char* const codes[] =
-                { "alarm_system_reset", "alarm_cpu_load", "alarm_cpu_jitter", "alarm_stack", "alarm_cpu_xrun" };
-            for (const char* name : codes)
-                if (_model.index_of(name) < 0) {
-                    ok = false; _post_fail("alarm missing", name);
-                }
+            // Every platform code the firmware asserts must resolve in the
+            // merged table, or _set() would silently no-op (guards the
+            // alarm-namespace wiring). Reads the indices on_setup() just
+            // resolved, so there is nothing here to drift from them.
+            for (uint8_t i = 0; i < PA_COUNT; i++)
+                if (_ix[i] < 0) { ok = false; _post_fail("alarm missing", _codes()[i]); }
             // A logger with no writers would silently swallow everything.
             if (_logger == nullptr || !_logger->has_writers()) ok = false;
             _post_ok = ok;
@@ -151,12 +171,8 @@ namespace Botanik { namespace Health {
          *  table is built at construction and never changes, so a name here is a
          *  constant - it just was not being treated as one. */
         void _resolve_platform_alarms() {
-            _ix_reset  = (int16_t)_model.index_of("alarm_system_reset");
-            _ix_flash  = (int16_t)_model.index_of("alarm_flash_error");
-            _ix_load   = (int16_t)_model.index_of("alarm_cpu_load");
-            _ix_jitter = (int16_t)_model.index_of("alarm_cpu_jitter");
-            _ix_stack  = (int16_t)_model.index_of("alarm_stack");
-            _ix_xrun   = (int16_t)_model.index_of("alarm_cpu_xrun");
+            for (uint8_t i = 0; i < PA_COUNT; i++)
+                _ix[i] = (int16_t)_model.index_of(_codes()[i]);
         }
 
         /** @brief set_local() by resolved index, skipping an absent code the way
@@ -171,30 +187,30 @@ namespace Botanik { namespace Health {
          *  STACK are level-driven; CPU_XRUN held for a window after an
          *  overrun. */
         void _assert_platform_alarms(uint64_t now) {
-            _set(_ix_reset, now < 300000);
+            _set(_ix[PA_RESET], now < 300000);
             // Sticky by construction: the counter only ever rises, so once a
             // write has been refused the alarm stays up until a reboot. That is
             // the honest shape - a store that will not take writes does not
             // recover on its own, and the damage (settings reverting) is only
             // visible long after the fact.
-            _set(_ix_flash, HAL::Storage::fault_count() > 0);
+            _set(_ix[PA_FLASH], HAL::Storage::fault_count() > 0);
             if (_sched == nullptr) return;
             const uint32_t period_us = Config::TASK_PERIOD_MS * 1000u;
             // Under BOTANIK_NO_LOAD_ALARMS hold the CPU_* load alarms cleared
             // so the active set is stable for screen goldens (SYS_RST / STACK
             // unaffected).
             const bool load = !_no_load_alarms;
-            _set(_ix_load, load &&
+            _set(_ix[PA_LOAD], load &&
                 (uint64_t)_sched->cpu_loop_us_recent * 100u
                     > (uint64_t)period_us * Config::ALARM_CPU_LOAD_PCT);
-            _set(_ix_jitter, load &&
+            _set(_ix[PA_JITTER], load &&
                 (uint64_t)_sched->cpu_jitter_us_recent * 100u
                     > (uint64_t)period_us * Config::ALARM_CPU_JITTER_PCT);
-            _set(_ix_stack,
+            _set(_ix[PA_STACK],
                 _sched->stack_usage * 100.0f > (float)Config::ALARM_STACK_PCT);
-            if (load) _held_event(_ix_xrun, _sched->overruns, _xrun_last,
+            if (load) _held_event(_ix[PA_XRUN], _sched->overruns, _xrun_last,
                                   _xrun_until_ms, now);
-            else      _set(_ix_xrun, false);
+            else      _set(_ix[PA_XRUN], false);
         }
 
         /** @brief Hold a momentary "event" alarm active for ALARM_EVENT_HOLD_MS

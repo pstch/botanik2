@@ -507,6 +507,19 @@ namespace Botanik { namespace Pages {
             return w;
         }
 
+        /** @brief A full-width dashed separator, for a page that puts a detail
+         *  panel under its table. Chrome, so it lives here beside _draw_rule()
+         *  and _panel_field() rather than being re-derived per page. */
+        void _draw_separator(uint16_t row) {
+            char buf[192];
+            uint16_t n = 0;
+            for (uint16_t i = 0; i < MARGIN && n < sizeof(buf) - 1; i++) buf[n++] = ' ';
+            uint16_t cols = _terminal.cols();
+            uint16_t w = (cols > (uint16_t)(2 * MARGIN)) ? (uint16_t)(cols - 2 * MARGIN) : 0;
+            for (uint16_t i = 0; i < w && n < sizeof(buf) - 1; i++) buf[n++] = '-';
+            _draw_line(row, buf, n);
+        }
+
         /** @brief " Label        : value" panel line (clear_to_eol wipes the old
          *  value's tail when the selection moves to a shorter one). The label
          *  field is 12 wide because that is the longest label any panel uses

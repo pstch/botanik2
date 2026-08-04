@@ -33,7 +33,7 @@ namespace Botanik { namespace Scheduler {
      *  so a rate is retuned in one place for everything that shares it. */
     enum GroupId {
         GROUP_FAST = 0,    ///< every beat: the field bus, the log drain, the pumps
-        GROUP_MAIN,        ///< the operator-facing rate: the console render
+        GROUP_MAIN,        ///< the operator-facing rate (unused since the console moved to SLOW)
         GROUP_SLOW,        ///< dwell and config: health, parameters
         GROUP_BACKGROUND,  ///< housekeeping measured in seconds
         GROUP_COUNT

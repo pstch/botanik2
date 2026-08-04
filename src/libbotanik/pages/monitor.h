@@ -97,7 +97,11 @@ namespace Botanik { namespace Pages {
         mutable uint16_t    _memo_idx  = 0;
         mutable bool        _memo_ok   = false;
         mutable uint16_t    _total_n   = 0;
-        mutable bool        _total_ok  = false;
+        /** @brief Which mode _total_n was counted for; 0xFF = none yet. Holding
+         *  the mode rather than a valid/invalid flag makes the invalidation
+         *  structural - a future path that moves _mode without going through
+         *  _on_mode_changed() cannot leave a stale count behind. */
+        mutable uint8_t     _total_mode = 0xFF;
         const Vars::Bank*     _io;
         /** @brief A nav happened: redraw on the next tick rather than waiting for
          *  the value cadence, so scrolling/selection feels immediate. */
@@ -157,12 +161,19 @@ namespace Botanik { namespace Pages {
             _follow_selection();
             _draw_structure();
             _draw_rules();
-            _draw_panel();
-            _draw_footer();
+            // The band goes out BEFORE the panel and footer, which is not
+            // cosmetic: both of those resolve _selected, and doing it first
+            // parked _ref_at()'s memo past the band's first row - so the band
+            // rescanned from the top, and the panel had already paid a scan of
+            // its own to get there. Rows first seeds the memo at _top and walks
+            // forward; _selected is inside the band, so the two trailing lookups
+            // then resume instead of scanning. One walk per refresh, not three.
             for (uint16_t vi = 0; vi < win; vi++) {
                 uint16_t r = (uint16_t)(_top + vi);
                 _draw_row(r, (uint16_t)(DATA_TOP + vi), r == _selected);
             }
+            _draw_panel();
+            _draw_footer();
         }
 
         /** @} */
@@ -201,7 +212,6 @@ namespace Botanik { namespace Pages {
         void _on_mode_changed() override {
             _dirty = true;
             _memo_ok = false;      // the row -> index mapping just moved
-            _total_ok = false;
         }
         /** @} */
 
@@ -211,16 +221,19 @@ namespace Botanik { namespace Pages {
             const Vars::Variable& d = *_io->var(i).meta();
             if (!Vars::var_published(d)) return false;
             if (_mode == 0) return true;
-            return std::strcmp(Vars::var_group(d), _mode_label(_mode)) == 0;
+            // Both sides come out of group_intern(), so one pointer per distinct
+            // group: identity IS equality here, and it costs a compare instead
+            // of a strcmp.
+            return Vars::var_group(d) == _mode_label(_mode);
         }
 
         uint16_t _total() const {
             if (_io == nullptr) return 0;
-            if (_total_ok) return _total_n;
+            if (_total_mode == _mode) return _total_n;
             uint16_t t = 0;
             for (uint16_t i = 0; i < _io->count(); i++) if (_in_mode(i)) t++;
             _total_n = t;
-            _total_ok = true;
+            _total_mode = _mode;
             return t;
         }
 

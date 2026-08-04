@@ -48,9 +48,13 @@ namespace Botanik { namespace Network {
          *  Vars::var_group(). */
         const Vars::Bank*     _io          = nullptr;
         /** @brief Last publish cycle (uptime ms); 0 = none yet. */
+        /** @brief _cursor value meaning "no sweep in progress". */
+        static const uint16_t SWEEP_IDLE = 0xFFFF;
         uint64_t              _last_ms     = 0;
-        /** @brief Where the current sweep has reached in the variable table, and
-         *  whether one is in progress.
+        /** @brief Where the current sweep has reached in the variable table.
+         *  SWEEP_IDLE when none is in progress - a sentinel rather than a
+         *  companion bool, because "sweeping" is exactly "the cursor is inside
+         *  the table" and two fields encoding one fact can disagree.
          *
          *  A sweep used to publish every eligible row in ONE activation: 38-80
          *  topics, each its own snprintf and its own tcp_send, for 0.8-1.9 ms
@@ -63,8 +67,7 @@ namespace Botanik { namespace Network {
          *  The cadence still starts on time; it just no longer lands all at
          *  once. A value published a few beats into a 30 s sweep is not less
          *  true. */
-        uint16_t              _cursor      = 0;
-        bool                  _sweeping    = false;
+        uint16_t              _cursor      = SWEEP_IDLE;
 
         /** @} */
 
@@ -92,6 +95,8 @@ namespace Botanik { namespace Network {
         /** @brief Publish every registered site variable group, each under its
          *  own sub-topic, resolved against _io. */
         void _publish_scalars();
+        /** @brief Whether a sweep is mid-flight. Derived, not stored. */
+        bool _sweeping() const { return _cursor != SWEEP_IDLE; }
         /** @brief Build the field topic ("<prefix>/<root>[/<group>]/<name>") and
          *  publish @p payload (best-effort). */
         void _emit(const char* group, const char* name, const char* payload);

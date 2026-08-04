@@ -118,11 +118,13 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, GROUP_FAST_MS);
 
-    /** @brief The operator-facing rate. The wire, not the eye, is the ceiling:
-     *  at 4800 baud a beat carries 4.4 bytes and one 80-column line takes 206 ms
-     *  to send, so a 100 Hz diff of a 1920-cell grid is ~20x oversampled. Held
-     *  under TX_COLD_TARGET_MS (asserted in console.cpp) so the TX ring is topped
-     *  up again before it drains and the link never idles. */
+    /** @brief The operator-facing rate.
+     *
+     *  @note Currently has NO members: the console render, which this class was
+     *  named for, now runs in GROUP_SLOW. Kept because a rate between "every
+     *  beat" and "dwell" is the obvious home for the next interactive thing -
+     *  but changing it presently affects nothing, so check tasks.h before
+     *  tuning it. */
 #ifndef BOTANIK_GROUP_MAIN_MS
 #  define BOTANIK_GROUP_MAIN_MS 50
 #endif
@@ -628,6 +630,13 @@ namespace Botanik { namespace Config {
 
     /** @brief Refresh interval (ms) for a metric page's hot fields.
      *  @note Time-based (refresh rate independent of the tick interval) */
+/** @brief TASKS table repaint cadence. Slower than PAGE_HOT_MS: the costs it
+ *  shows are smoothed aggregates, not a live trace. */
+#ifndef BOTANIK_PAGE_TASKS_MS
+#  define BOTANIK_PAGE_TASKS_MS 2000
+#endif
+    BOTANIK_CFG(uint32_t, PAGE_TASKS_MS);
+
 #ifndef BOTANIK_PAGE_HOT_MS
 #  define BOTANIK_PAGE_HOT_MS 1000
 #endif

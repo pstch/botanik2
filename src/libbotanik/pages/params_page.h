@@ -383,16 +383,6 @@ namespace Botanik { namespace Pages {
             return buf;
         }
 
-        /** @brief A full-width dashed separator between the table and the panel. */
-        void _draw_separator(uint16_t row) {
-            char buf[LINE_CAP];
-            uint16_t n = 0;
-            for (uint16_t i = 0; i < MARGIN && n < LINE_CAP - 1; i++) buf[n++] = ' ';
-            uint16_t cols = _terminal.cols();
-            uint16_t w = (cols > (uint16_t)(2 * MARGIN)) ? (uint16_t)(cols - 2 * MARGIN) : 0;
-            for (uint16_t i = 0; i < w && n < LINE_CAP - 1; i++) buf[n++] = '-';
-            _draw_line(row, buf, n);
-        }
 
         /** @brief Draw the detail panel for the selected parameter: a separator,
          *  a blank spacer, the four detail rows, and a trailing blank spacer. */
