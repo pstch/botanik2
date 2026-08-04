@@ -35,6 +35,8 @@ work has gone.
   there is no `std::atomic`.
 - @subpage dev_scheduler - the fixed-period driver, overrun handling, and the
   self-instrumented metrics.
+- @subpage dev_scan - the scan cycle: rate against phase, what a program is
+  guaranteed to see, and where the field bus commits and collects.
 - @subpage dev_vars - the variable model: descriptors, value slots, the sink, and
   where overrides are applied.
 
