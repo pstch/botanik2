@@ -82,6 +82,9 @@ namespace Botanik { namespace Pages {
         uint64_t            _last_refresh_ms = 0; ///< last cadence rebuild
 
         /** @name Edit sub-state (bottom-row inline editor) @{ */
+        /** buffers the editor borrows; declared before it */
+        Terminal::EditorBuffers<Config::SHELL_INPUT_LEN,
+                                Config::EDITOR_MAX_ROWS> _editor_bufs;
         InputEditor         _editor;                 ///< single-line value editor
         bool                _editing    = false;
         uint16_t _edit_index = 0;   ///< the parameter being edited
@@ -97,7 +100,7 @@ namespace Botanik { namespace Pages {
          *  the table reads/writes (may be null -> empty table). */
         ParamsPage(Console& console, Vars::Params* config)
             : ScrollTablePage(console.terminal()), _console(console), _params(config),
-              _editor(&console) {}
+              _editor(&console, _editor_bufs.storage()) {}
 
         const char* name() const override { return "PARAMS"; }
 

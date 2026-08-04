@@ -16,8 +16,13 @@
 
 namespace Botanik { namespace Terminal {
 
-    TextEditor::TextEditor(Console* console)
-        : _console(console), _terminal(&console->terminal()) {
+    TextEditor::TextEditor(Console* console, const EditorStorage& store)
+        : _console(console), _terminal(&console->terminal()),
+          _buf(store.buf), _buf_cap(store.buf_cap) {
+        _layout.rows = store.layout;
+        _layout.cap  = store.max_rows;
+        _pre.rows    = store.pre;
+        _pre.cap     = store.max_rows;
         _buf[0] = '\0';
         _layout.rows[0] = {0, 0, false};
         _layout.count = 1;
@@ -55,7 +60,7 @@ namespace Botanik { namespace Terminal {
     void TextEditor::_rebuild_layout() {
         uint16_t pos = 0;
         _layout.count = 0;
-        while (_layout.count < Config::EDITOR_MAX_ROWS) {
+        while (_layout.count < _layout.cap) {
             uint16_t cap = _row_cap(_layout.count);
             RowView  row = _scan_row(pos, cap);
             _layout.rows[_layout.count++] = row;
@@ -65,6 +70,12 @@ namespace Botanik { namespace Terminal {
             if (pos >= _len && !row.hard_break) break;
             if (pos > _len) break;
         }
+    }
+
+    void TextEditor::_snapshot_pre() {
+        _pre.count = _layout.count;
+        if (_layout.count > 0)
+            memcpy(_pre.rows, _layout.rows, (size_t)_layout.count * sizeof(RowView));
     }
 
     CursorPos TextEditor::_map_cursor_pos(uint16_t pos) const {
@@ -132,11 +143,11 @@ namespace Botanik { namespace Terminal {
     // ------------------------------------------------------------------------
 
     void TextEditor::insert_characters(const char* buf, uint16_t len) {
-        // One byte is reserved for the NUL, so usable content is
-        // sizeof(_buf)-1: the layout asserts size rows against the full
-        // SHELL_INPUT_LEN, one byte of slack.
-        if (len == 0 || (size_t)_len + 1 >= sizeof(_buf)) return;
-        if ((uint32_t)_len + len >= sizeof(_buf)) len = (uint16_t)(sizeof(_buf) - _len - 1);
+        // One byte is reserved for the NUL, so usable content is _buf_cap-1:
+        // the layout asserts size rows against the full buffer capacity, one
+        // byte of slack.
+        if (len == 0 || (uint32_t)_len + 1 >= _buf_cap) return;
+        if ((uint32_t)_len + len >= _buf_cap) len = (uint16_t)(_buf_cap - _len - 1);
         if (len == 0) return;
 
         if (_single_line) {
@@ -158,7 +169,7 @@ namespace Botanik { namespace Terminal {
         _buf[_len] = '\0';
         _pos += len;
 
-        _pre = _layout;
+        _snapshot_pre();
         _rebuild_layout();
         _reconcile(pos, len, /*is_insert=*/true);
         _place_cursor(_map_cursor_pos(_pos));
@@ -175,7 +186,7 @@ namespace Botanik { namespace Terminal {
         _len -= len;
         _buf[_len] = '\0';
 
-        _pre = _layout;
+        _snapshot_pre();
         _rebuild_layout();
         _reconcile(pos, len, false);
         _place_cursor(_map_cursor_pos(_pos));

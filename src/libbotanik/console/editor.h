@@ -41,10 +41,46 @@ namespace Botanik { namespace Terminal {
     };
 
     /** @brief A laid-out view of the buffer: the row slices plus their count.
-     *  Used for both `_layout` (current/target) and `_pre` (pre-edit). */
+     *  Used for both `_layout` (current/target) and `_pre` (pre-edit).
+     *
+     *  @note `rows` is BORROWED, not owned - the two views point at distinct
+     *  arrays supplied by the owner (see EditorStorage). Copying a TextView by
+     *  value would alias them, which is why the editor snapshots through
+     *  `_snapshot_pre()` rather than assigning. */
     struct TextView {
-        RowView  rows[Config::EDITOR_MAX_ROWS];
-        uint16_t count;
+        RowView* rows  = nullptr; /**< Borrowed row array, `cap` entries. */
+        uint16_t count = 0;       /**< Rows laid out right now. */
+        uint16_t cap   = 0;       /**< Capacity of `rows`. */
+    };
+
+    /** @brief The buffers a TextEditor works over, owned by whoever built it.
+     *
+     *  Kept external so each editor is sized for its job: a shell prompt and a
+     *  PARAMS value field want a few hundred bytes, a full-screen notes editor
+     *  wants kilobytes, and none of them should pay for the largest. */
+    struct EditorStorage {
+        char*    buf;      /**< Text buffer, `buf_cap` bytes (one reserved for NUL). */
+        uint16_t buf_cap;
+        RowView* layout;   /**< Row array for the current layout, `max_rows` entries. */
+        RowView* pre;      /**< Row array for the pre-edit layout, same size. */
+        uint16_t max_rows;
+    };
+
+    /** @brief Inline storage for a TextEditor, sized at compile time.
+     *
+     *  Declare one next to (and BEFORE) the editor it feeds:
+     *  @code
+     *  EditorBuffers<Config::SHELL_INPUT_LEN, Config::EDITOR_MAX_ROWS> _bufs;
+     *  TextEditor _editor{&console, _bufs.storage()};
+     *  @endcode */
+    template <uint16_t BUF, uint16_t ROWS>
+    struct EditorBuffers {
+        char    buf[BUF];
+        RowView layout[ROWS];
+        RowView pre[ROWS];
+
+        /** @brief Descriptor to hand the editor's constructor. */
+        EditorStorage storage() { return EditorStorage{ buf, BUF, layout, pre, ROWS }; }
     };
 
     /**
@@ -71,7 +107,8 @@ namespace Botanik { namespace Terminal {
         Console*      _console;        /**< Owning console (content-area rows()). */
         AnsiTerminal* _terminal;       /**< VT device (cached _console->terminal()). */
 
-        char     _buf[Config::SHELL_INPUT_LEN]; /**< Editor buffer. */
+        char*    _buf;                 /**< Editor buffer (borrowed). */
+        uint16_t _buf_cap;             /**< Capacity of _buf, NUL included. */
         uint16_t _len    = 0;          /**< Bytes in _buf. */
         uint16_t _pos    = 0;          /**< Cursor offset in _buf. */
         uint16_t _origin = 0;          /**< Prompt's top row on screen. */
@@ -83,7 +120,7 @@ namespace Botanik { namespace Terminal {
                                         *   editor stays exactly one row. */
 
         TextView _layout{};            /**< Current/target row layout. */
-        /** Pre-edit layout (copied before rebuild). */
+        /** Pre-edit layout (snapshotted before rebuild). */
         TextView _pre{};
 
         /** @brief Prompt buffers and lengths, indexed by RowPrompt
@@ -99,8 +136,9 @@ namespace Botanik { namespace Terminal {
 
     public:
 
-        /** @brief Construct a TextEditor bound to the given console */
-        explicit TextEditor(Console* console);
+        /** @brief Construct a TextEditor bound to @p console, working over the
+         *  caller-owned buffers in @p store (which must outlive it). */
+        TextEditor(Console* console, const EditorStorage& store);
 
         /**
          * @name Prompts
@@ -268,6 +306,11 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Rebuild the whole row layout from the buffer. */
         void _rebuild_layout();
+
+        /** @brief Copy `_layout` into `_pre` ahead of a rebuild. Not `_pre =
+         *  _layout`: the two views borrow distinct row arrays, and assigning
+         *  would alias them so the reconcile diffed a layout against itself. */
+        void _snapshot_pre();
 
         /** @brief Clear the buffer/cursor; reset to one empty row pinned at the
          *  bottom of the screen. */

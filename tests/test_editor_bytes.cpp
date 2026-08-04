@@ -36,10 +36,13 @@ namespace {
         Utils::BufferedSerial serial;
         uint64_t              now = 0;
         Terminal::Console     console;
+        Terminal::EditorBuffers<Config::SHELL_INPUT_LEN,
+                                Config::EDITOR_MAX_ROWS> bufs;
         Terminal::TextEditor  editor;
 
         explicit EditorBytes(uint32_t baud = 4000000u)
-            : serial(&raw), console(serial, 80, 24, &now, baud), editor(&console) {
+            : serial(&raw), console(serial, 80, 24, &now, baud),
+              editor(&console, bufs.storage()) {
             REQUIRE(::pipe(fds) == 0);
             ::fcntl(fds[0], F_SETFL, O_NONBLOCK);
             raw.set_fds(fds[0], fds[1]);

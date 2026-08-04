@@ -50,8 +50,18 @@ TEST_CASE("sizeof: terminal & input objects") {
     // grids (front + back, ~8 KB) diffed by present(); its size tracks the grid
     // dimensions, not the VT device state (~100 B).
     REPORT_SIZE(Botanik::Terminal::AnsiTerminal, 12288);
-    REPORT_SIZE(Botanik::Terminal::TextEditor,   2048);
+    // The editor borrows its text buffer and row arrays, so it is just cursor
+    // and layout state; the bytes live in whatever EditorBuffers fed it.
+    REPORT_SIZE(Botanik::Terminal::TextEditor,    256);
     REPORT_SIZE(Botanik::Terminal::InputParser,   512);
+}
+
+// The editors' actual footprint, one instantiation per job. These are the sizes
+// that move when SHELL_INPUT_LEN / EDITOR_MAX_ROWS / NOTES_* change.
+TEST_CASE("sizeof: editor buffers") {
+    using ShellBufs = Botanik::Terminal::EditorBuffers<Botanik::Config::SHELL_INPUT_LEN,
+                                                       Botanik::Config::EDITOR_MAX_ROWS>;
+    REPORT_SIZE(ShellBufs, 2048);
 }
 
 TEST_CASE("sizeof: pages") {
