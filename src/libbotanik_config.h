@@ -177,6 +177,18 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, EXPIRE_STALE_OFFSET_MS);
 
+    /** @brief Phase step between control programs, applied by table index, so
+     *  the scan's own tasks spread over beats for the same reason the components
+     *  above do. Task @e i is offset by `i * this` (wrapped into its period), so
+     *  one beat step puts consecutive tasks on consecutive beats.
+     *
+     *  Set to 0 to disable and have every program stay phase-locked to boot -
+     *  the escape hatch for a site whose programs must share a beat. */
+#ifndef BOTANIK_SCAN_STAGGER_MS
+#  define BOTANIK_SCAN_STAGGER_MS BOTANIK_TASK_PERIOD_MS
+#endif
+    BOTANIK_CFG(uint32_t, SCAN_STAGGER_MS);
+
     /** @} */
 
     /** @} */

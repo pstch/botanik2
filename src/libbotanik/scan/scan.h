@@ -103,6 +103,13 @@ namespace Botanik { namespace Scan {
         /** @} */
 
     protected:
+        /** @brief Spread the programs across beats, by table index, before any
+         *  of them runs. Without it every program seeds its timer on the same
+         *  first beat and they stay phase-locked to boot, so two 100 ms programs
+         *  share a beat forever - which leaves the PEAK work per beat exactly
+         *  where it would be with no rates at all. SCAN_STAGGER_MS = 0 turns it
+         *  off for a site whose programs must share a beat. */
+        void setup(uint64_t now_ms) override;
         /** @brief Run every task that has come due, in table order. */
         void on_step(uint64_t now_ms) override;
     };

@@ -218,6 +218,13 @@ Retune an offset with its period, and keep each under its own period. The first
 beat is the one unavoidable pile-up: a component's first activation is what runs
 its `setup()`, so nothing can be deferred past it.
 
+The control programs get the same treatment, but derived rather than declared:
+`Scan::Driver::setup()` offsets task *i* by `i * SCAN_STAGGER_MS` (one beat by
+default), wrapped into that task's own period. A site writes nothing, and adding
+a program re-spreads the table. An every-beat program (`period_ms` 0) is left
+alone - it has no interval to shift inside. `SCAN_STAGGER_MS = 0` disables it
+outright, for a site whose programs must share a beat.
+
 ### Lowering the beat
 
 Sub-10 ms dispatch is not a task-period feature: a 10 ms beat cannot release

@@ -5,9 +5,27 @@
 
 #include "scan.h"
 
+#include "../../libbotanik_config.h"
 #include "../hal/platform.h"
 
 namespace Botanik { namespace Scan {
+
+    void Driver::setup(uint64_t now_ms) {
+        (void)now_ms;
+        if (_tasks == nullptr || _stats == nullptr) return;
+        if (Config::SCAN_STAGGER_MS == 0) return;
+
+        for (uint8_t i = 0; i < _count; i++) {
+            // An every-beat program has no interval to shift inside, and the
+            // modulo would divide by zero.
+            if (_tasks[i].period_ms == 0) continue;
+            // Wrapped into the period: an offset at or past it would skip a whole
+            // activation rather than shifting one, and with enough programs the
+            // raw i*step runs past the shorter periods.
+            _stats[i].set_offset((uint32_t)i * Config::SCAN_STAGGER_MS
+                                 % _tasks[i].period_ms);
+        }
+    }
 
     void Driver::on_step(uint64_t now_ms) {
         if (_tasks == nullptr || _stats == nullptr || _io == nullptr) return;

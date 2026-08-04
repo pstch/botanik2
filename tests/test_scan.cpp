@@ -86,6 +86,50 @@ TEST_CASE("scan: period 0 runs every beat") {
     CHECK(beats.size() == 5);
 }
 
+TEST_CASE("scan: same-period programs are spread across beats, not piled up") {
+    // Two programs at one rate: without the stagger they would share every beat
+    // forever, which is what puts the peak work per beat back where it started.
+    static std::vector<uint64_t> a_beats, b_beats;
+    a_beats.clear(); b_beats.clear();
+    struct H {
+        static void a(ScanContext& c) { a_beats.push_back(c.now_ms); }
+        static void b(ScanContext& c) { b_beats.push_back(c.now_ms); }
+    };
+    const Task pair[] = { { "a", 100, &H::a }, { "b", 100, &H::b } };
+    TaskStats stats[2];
+    Bank io;
+    Driver d(pair, 2, stats, &io);
+    for (uint64_t t = 0; t <= 1000; t += 10) d.step(t);
+
+    // Both ran at their declared rate...
+    CHECK(a_beats.size() >= 9);
+    CHECK(b_beats.size() >= 9);
+    // ...but only ever together on the first beat, which is unavoidable: a
+    // program's first activation is what seeds its timer.
+    size_t shared = 0;
+    for (size_t i = 0; i < a_beats.size(); i++)
+        for (size_t j = 0; j < b_beats.size(); j++)
+            if (a_beats[i] == b_beats[j]) shared++;
+    CHECK(shared == 1);
+    CHECK(a_beats[0] == 0);
+    CHECK(b_beats[0] == 0);
+}
+
+TEST_CASE("scan: an every-beat program is left alone by the stagger") {
+    // period 0 has no interval to shift inside; it must keep running every beat.
+    static std::vector<uint64_t> beats;
+    beats.clear();
+    struct H { static void run(ScanContext& c) { beats.push_back(c.now_ms); } };
+    const Task mixed[] = { { "slow", 100, &H::run }, { "every", 0, &H::run } };
+    TaskStats stats[2];
+    Bank io;
+    Driver d(mixed, 2, stats, &io);
+    for (uint64_t t = 0; t < 50; t += 10) d.step(t);
+
+    // 5 beats of "every" + the one first-beat run of "slow".
+    CHECK(beats.size() == 6);
+}
+
 TEST_CASE("scan: a null table or null run pointer is inert") {
     TaskStats stats[1];
     Bank io;
