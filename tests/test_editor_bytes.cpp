@@ -13,6 +13,7 @@
  * splice belongs), not to freeze the escape-code tuning.
  */
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <fcntl.h>
 #include <string>
@@ -49,6 +50,31 @@ namespace {
             console.terminal().establish_screen();
             editor.reset();
             flush();                 // discard bring-up + the initial prompt
+        }
+
+        /** @brief Re-pin as a top-anchored viewport `rows` tall at row 1, with
+         *  no prompt: the NOTES geometry. Call before typing anything. */
+        void as_viewport(uint16_t rows) {
+            static const char NONE[] = "";
+            editor.set_anchor(Terminal::Anchor::TOP);
+            editor.set_ps1(NONE, 0);
+            editor.set_ps2(NONE, 0);
+            editor.set_ps3(NONE, 0);
+            editor.set_origin(1);
+            editor.set_view_rows(rows);
+            editor.reset();
+            flush();
+        }
+
+        /** @brief Type `n` hard-broken rows "lineNN", flushing as we go. */
+        void fill_rows(int n) {
+            for (int i = 0; i < n; i++) {
+                if (i) editor.insert_characters("\n", 1);
+                char row[8];
+                snprintf(row, sizeof(row), "line%02d", i);
+                type(row);
+            }
+            flush();
         }
         ~EditorBytes() { ::close(fds[0]); ::close(fds[1]); }
 
@@ -284,4 +310,100 @@ TEST_CASE("editor bytes: a wide slide is still one escape") {
         CHECK(cost > 0);
         CHECK(cost <= 110);                             // was 269
     }
+}
+
+// Top-anchored viewport (the NOTES geometry)
+// ----------------------------------------------------------------------------
+//
+// Same reconcile, but the text is now taller than the window and the window is
+// what moves. Two things that could go wrong and cost a screen each: a row
+// scrolled in from outside the window being spliced against glyphs it never
+// had, and a viewport scroll repainting the whole band instead of the rows the
+// scroll uncovered. The budgets below are what pins them.
+
+// The editor is 8 rows over 20 rows of text, so most of the note is off screen.
+// Typing into the middle must still cost a splice - the rows below it are the
+// same rows, just shown through a smaller hole.
+TEST_CASE("editor bytes: a mid-document insert splices, viewport or not") {
+    EditorBytes f;
+    f.as_viewport(8);
+    f.fill_rows(20);
+
+    for (int i = 0; i < 6; i++) f.editor.move_up();     // into the middle of the window
+    f.editor.move_to_line_start();
+    f.flush();
+
+    size_t cost = f.cost_of_type("X");
+    CHECK(cost > 0);
+    CHECK(cost <= 28);          // an insert-mode shift on one row
+}
+
+// A hard break in the middle pushes every row below it down one. Inside a
+// viewport that also drops a row off the bottom edge - which must cost nothing,
+// because it is no longer on screen.
+TEST_CASE("editor bytes: a hard break in a viewport slides rows, none below it") {
+    EditorBytes f;
+    f.as_viewport(8);
+    f.fill_rows(20);
+
+    for (int i = 0; i < 4; i++) f.editor.move_up();
+    f.editor.move_to_line_end();
+    f.flush();
+
+    size_t cost = f.cost_of_type("\n");
+    CHECK(cost > 0);
+    CHECK(cost <= 60);          // one IL plus the row it opened; a band is 300+
+}
+
+// The reverse: joining two rows pulls the tail up, and a row that was BELOW the
+// window slides into its last line. That row has no glyphs on screen, so the
+// walk must repaint it rather than splice it - and repaint only it.
+TEST_CASE("editor bytes: a join repaints just the row the viewport uncovers") {
+    EditorBytes f;
+    f.as_viewport(8);
+    f.fill_rows(20);
+
+    for (int i = 0; i < 4; i++) f.editor.move_up();
+    f.editor.move_to_line_start();
+    f.flush();
+
+    f.editor.backspace(1);                              // eat the newline above
+    size_t cost = f.flush().size();
+    CHECK(cost > 0);
+    CHECK(cost <= 70);          // one DL, one uncovered row, one merged row
+}
+
+// Walking off the TOP edge scrolls the window by one. That is a scroll plus the
+// single row it revealed - not a repaint of the eight rows on screen.
+TEST_CASE("editor bytes: the viewport follows the cursor by scrolling one row") {
+    EditorBytes f;
+    f.as_viewport(8);
+    f.fill_rows(20);
+    f.console.terminal().set_cursor_visible(true);
+
+    for (int i = 0; i < 7; i++) f.editor.move_up();     // up to the top edge
+    f.flush();
+
+    f.editor.move_up();                                 // one row past it
+    size_t cost = f.flush().size();
+    CHECK(cost > 0);
+    CHECK(cost <= 40);          // a scroll and the one row it uncovered
+}
+
+// A jump longer than the window is the case where scrolling buys nothing: no row
+// on screen survives it. The cost is a repaint of the WINDOW - bounded by the
+// eight rows on screen, never by the sixty in the note.
+TEST_CASE("editor bytes: a long jump repaints the window, not the note") {
+    EditorBytes f;
+    f.as_viewport(8);
+    f.fill_rows(60);
+    f.console.terminal().set_cursor_visible(true);
+
+    f.editor.move_to_start();
+    f.flush();
+
+    f.editor.move_to_end();                             // 52 rows away
+    size_t cost = f.flush().size();
+    CHECK(cost > 0);
+    CHECK(cost <= 220);         // eight rows; the note is sixty
 }

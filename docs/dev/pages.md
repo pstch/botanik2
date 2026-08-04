@@ -16,16 +16,17 @@ this page is the framework behind them.
 ├────────────────────────────────────────────────────┤
 │          page content area (rows 1 .. N-2)         │ ← active page
 ├────────────────────────────────────────────────────┤
-│ Row N-1  alarm bar (only while alarms active)      │ ← Console
+│ Row N-1  alarm bar (reserved when alarms are wired)│ ← Console
 └────────────────────────────────────────────────────┘
 ```
 
 The inverted **status bar** on row 0 (page tabs left, live metrics right) and the
 **alarm bar** on the bottom row both belong to the terminal, which repaints them over
 every page. A page owns the rows between them and draws there only while active. The
-alarm-bar row is reserved only while at least one alarm is active (`_reserved_bottom`);
-with no alarms it reverts to the page, so a page reads its usable row count from the
-terminal rather than assuming a fixed height. The terminal clears the content area on
+alarm-bar row is reserved when an `AlarmModel` was wired at construction
+(`_reserved_bottom`) - a static property of the build, not something that comes and goes
+with active alarms. A page still reads its usable row count from the terminal rather than
+assuming a fixed height. The terminal clears the content area on
 every page switch, so `focus()` always paints onto a blank canvas.
 
 The status bar, the `stats` command and the metric pages read one borrowed-pointer
@@ -57,6 +58,7 @@ hide members
 hide circle
 Page <|-- ShellPage
 Page <|-- LogsPage
+Page <|-- NotesPage
 Page <|-- MetricPage
 Page <|-- ScrollTablePage
 MetricPage <|-- HomePage
@@ -76,6 +78,13 @@ ShellWriter <|-- ShellPage
   output above. Also a `LogWriter` and `ShellWriter`.
 - @ref Botanik::Pages::LogsPage - the full scrolling log; a `LogWriter` that replays
   its @ref Botanik::Pages::LogsScrollback on focus.
+- @ref Botanik::Pages::NotesPage - the operator's free-text note, behind
+  `BOTANIK_FEATURE_NOTES`. The same @ref Botanik::Terminal::TextEditor as the shell,
+  but top-anchored over the content area with a viewport that scrolls once the note
+  is taller than the screen (see @ref dev_editor). Persisted under its own
+  `HAL::Storage` key: `^O` writes, and leaving the page flushes anything unsaved.
+  Up/down are cursor motion here - history belongs to `CommandShell`, and there is
+  none under this page.
 - @ref Botanik::Pages::MetricPage - base for read-only metric displays. Repaints
   its fields whole; the terminal's back-buffer diff drops whatever did not move, so
   a refresh never saturates the low-baud link. It keeps one value cache of its own,
