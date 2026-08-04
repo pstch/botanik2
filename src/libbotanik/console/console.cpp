@@ -16,9 +16,9 @@ namespace Botanik { namespace Terminal {
     // costs no throughput - right up until the ring drains empty between two of
     // them, at which point the wire idles and the pacing model breaks. Half the
     // target keeps a 2x margin on that.
-    static_assert(Config::CONSOLE_RENDER_PERIOD_MS * 2 <= Config::TX_COLD_TARGET_MS,
-                  "CONSOLE_RENDER_PERIOD_MS must stay under half TX_COLD_TARGET_MS, "
-                  "or the TX ring drains between renders and the link idles");
+    static_assert(Config::GROUP_MAIN_MS * 2 <= Config::TX_COLD_TARGET_MS,
+                  "GROUP_MAIN_MS must stay under half TX_COLD_TARGET_MS, or the "
+                  "TX ring drains between renders and the link idles");
 
     // Lifecycle
 

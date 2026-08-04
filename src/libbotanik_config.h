@@ -105,82 +105,54 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, TASK_PERIOD_MS);
 
-    /** @brief Per-component run intervals (ms). The beat above is the loop rate;
-     *  these are how often each component actually runs on it, so a component
-     *  need not pay 100 Hz to resolve something measured in seconds. Each should
-     *  be an integer multiple of TASK_PERIOD_MS. See docs/dev/scheduler.md for
-     *  what sets each one; 0 means every beat.
+    /** @brief The scheduler's rate classes. The beat above is the loop rate;
+     *  a task names one of these instead of carrying a raw period, so a rate is
+     *  retuned in one place for everything that shares it. Each must be an
+     *  integer multiple of TASK_PERIOD_MS. See docs/dev/scheduler.md for what
+     *  sets each one.
      *  @{ */
 
-    /** @brief Parameter commit + storage load. Bounded by human edit latency. */
-#ifndef BOTANIK_PARAMS_PERIOD_MS
-#  define BOTANIK_PARAMS_PERIOD_MS 100
+    /** @brief Every beat: the field bus, the log drain, the serial pumps. */
+#ifndef BOTANIK_GROUP_FAST_MS
+#  define BOTANIK_GROUP_FAST_MS BOTANIK_TASK_PERIOD_MS
 #endif
-    BOTANIK_CFG(uint32_t, PARAMS_PERIOD_MS);
+    BOTANIK_CFG(uint32_t, GROUP_FAST_MS);
 
-    /** @brief Alarm dwell + platform health. Alarm on_s/off_s are in SECONDS, so
-     *  100 ms resolves the shortest dwell ten times over. */
-#ifndef BOTANIK_HEALTH_PERIOD_MS
-#  define BOTANIK_HEALTH_PERIOD_MS 100
+    /** @brief The operator-facing rate. The wire, not the eye, is the ceiling:
+     *  at 4800 baud a beat carries 4.4 bytes and one 80-column line takes 206 ms
+     *  to send, so a 100 Hz diff of a 1920-cell grid is ~20x oversampled. Held
+     *  under TX_COLD_TARGET_MS (asserted in console.cpp) so the TX ring is topped
+     *  up again before it drains and the link never idles. */
+#ifndef BOTANIK_GROUP_MAIN_MS
+#  define BOTANIK_GROUP_MAIN_MS 50
 #endif
-    BOTANIK_CFG(uint32_t, HEALTH_PERIOD_MS);
+    BOTANIK_CFG(uint32_t, GROUP_MAIN_MS);
 
-    /** @brief Console render. The wire, not the eye, is the ceiling: at 4800 baud
-     *  a beat carries 4.4 bytes and one 80-column line takes 206 ms to send, so a
-     *  100 Hz diff of a 1920-cell grid is ~20x oversampled. Held under
-     *  TX_COLD_TARGET_MS (asserted in console.cpp) so the TX ring is topped up
-     *  again before it drains and the wire never idles. */
-#ifndef BOTANIK_CONSOLE_RENDER_PERIOD_MS
-#  define BOTANIK_CONSOLE_RENDER_PERIOD_MS 50
+    /** @brief Dwell and config: alarm on_s/off_s are in SECONDS, and a parameter
+     *  edit is bounded by how fast a human types. */
+#ifndef BOTANIK_GROUP_SLOW_MS
+#  define BOTANIK_GROUP_SLOW_MS 100
 #endif
-    BOTANIK_CFG(uint32_t, CONSOLE_RENDER_PERIOD_MS);
+    BOTANIK_CFG(uint32_t, GROUP_SLOW_MS);
 
-    /** @brief Input-expiry sweep. A full linear scan of the variable table, run
-     *  to resolve timeouts measured in seconds (3x the poll group's period). */
-#ifndef BOTANIK_EXPIRE_STALE_PERIOD_MS
-#  define BOTANIK_EXPIRE_STALE_PERIOD_MS 250
+    /** @brief Housekeeping measured in seconds - the input-expiry sweep, which
+     *  is a full linear scan of the variable table run to resolve timeouts of
+     *  3x a poll group's period. */
+#ifndef BOTANIK_GROUP_BACKGROUND_MS
+#  define BOTANIK_GROUP_BACKGROUND_MS 500
 #endif
-    BOTANIK_CFG(uint32_t, EXPIRE_STALE_PERIOD_MS);
+    BOTANIK_CFG(uint32_t, GROUP_BACKGROUND_MS);
 
-    /** @brief Phase offsets, so the rated work above lands on DIFFERENT beats.
-     *
-     *  Everything first runs on the first beat and seeds its timer from it, so
-     *  without these every period is phase-locked to boot and the four coincide
-     *  every 100 ms - which cuts the mean work per beat and leaves the PEAK
-     *  exactly where it was. The peak is what decides the shortest beat the loop
-     *  can hold, so spreading it is the whole point.
-     *
-     *  The values are chosen to not collide, given the periods above (mod 100 ms:
-     *  console 0/50, params 20, expiry 30/80, health 40). Retune them together
-     *  with a period; each must stay UNDER its own period. The first beat is the
-     *  one unavoidable pile-up, since a component's first activation is what runs
-     *  its setup().
-     *  @{ */
-
-#ifndef BOTANIK_PARAMS_OFFSET_MS
-#  define BOTANIK_PARAMS_OFFSET_MS 20
+    /** @brief Capacity of the scheduler's task table. Fixed, no allocation;
+     *  registrations past it are refused and counted, never silently dropped. */
+#ifndef BOTANIK_MAX_TASKS
+#  define BOTANIK_MAX_TASKS 24
 #endif
-    BOTANIK_CFG(uint32_t, PARAMS_OFFSET_MS);
-
-#ifndef BOTANIK_HEALTH_OFFSET_MS
-#  define BOTANIK_HEALTH_OFFSET_MS 40
-#endif
-    BOTANIK_CFG(uint32_t, HEALTH_OFFSET_MS);
-
-#ifndef BOTANIK_CONSOLE_RENDER_OFFSET_MS
-#  define BOTANIK_CONSOLE_RENDER_OFFSET_MS 0
-#endif
-    BOTANIK_CFG(uint32_t, CONSOLE_RENDER_OFFSET_MS);
-
-#ifndef BOTANIK_EXPIRE_STALE_OFFSET_MS
-#  define BOTANIK_EXPIRE_STALE_OFFSET_MS 30
-#endif
-    BOTANIK_CFG(uint32_t, EXPIRE_STALE_OFFSET_MS);
+    BOTANIK_CFG(uint8_t, MAX_TASKS);
 
     /** @brief Phase step between control programs, applied by table index, so
-     *  the scan's own tasks spread over beats for the same reason the components
-     *  above do. Task @e i is offset by `i * this` (wrapped into its period), so
-     *  one beat step puts consecutive tasks on consecutive beats.
+     *  the scan's own programs spread over beats the way the registry's tasks
+     *  do. Program @e i is offset by `i * this` (wrapped into its period).
      *
      *  Set to 0 to disable and have every program stay phase-locked to boot -
      *  the escape hatch for a site whose programs must share a beat. */
@@ -188,8 +160,6 @@ namespace Botanik { namespace Config {
 #  define BOTANIK_SCAN_STAGGER_MS BOTANIK_TASK_PERIOD_MS
 #endif
     BOTANIK_CFG(uint32_t, SCAN_STAGGER_MS);
-
-    /** @} */
 
     /** @} */
 

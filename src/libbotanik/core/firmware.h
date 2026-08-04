@@ -75,6 +75,7 @@
 #include "../shell/shell.h"
 #include "../vars/model.h"      // Vars::Bank / VarTables
 #include "../scan/scan.h"     // Scan::Driver / Task
+#include "../scheduler/tasks.h"   // Scheduler::Registry / GroupId / Phase
 #include "../vars/access.h"  // VarGroup / HomeVar (status vars)
 #include "stacks.h"      // Monitor/Console/NetworkStack composition
 
@@ -168,10 +169,9 @@ namespace Botanik {
          *  an operator's `control disable` is not something the loop can
          *  silently talk over. */
         bool                           _health_fault = false;
-        /** @brief Rate for the input-expiry sweep. The Bank is not a Component
-         *  (it is the data, not a stepped subsystem), so the loop times this one
-         *  itself rather than the sweep gating from inside. */
-        Scheduler::TaskTimer           _expiry_timer;
+        /** @brief The beat's task table: what runs, how often, and in which
+         *  phase. Filled by _register_tasks() during setup(); frozen after. */
+        Scheduler::Registry            _tasks;
         Health::HealthMonitor          _health;
         SystemContext                  _sys_ctx;     ///< Filled in the ctor body
 #if BOTANIK_FEATURE_MONITOR
@@ -285,22 +285,7 @@ namespace Botanik {
             // driver and the logger keep the beat deliberately: the scan's
             // not-due path is two comparisons per task, and the logger drains a
             // queue that evicts under pressure.
-            // The offset beside each period is what keeps them off the SAME
-            // beat. Everything first runs on beat one and seeds its timer there,
-            // so unoffset periods stay phase-locked to boot forever: a rate then
-            // cuts the mean work per beat and leaves the peak untouched, and the
-            // peak is what decides the shortest beat the loop can hold.
-            _params.set_period(Config::PARAMS_PERIOD_MS);
-            _params.set_offset(Config::PARAMS_OFFSET_MS);
-            _health.set_period(Config::HEALTH_PERIOD_MS);
-            _health.set_offset(Config::HEALTH_OFFSET_MS);
-            _expiry_timer.set_offset(Config::EXPIRE_STALE_OFFSET_MS);
-#if BOTANIK_FEATURE_CONSOLE
-            // The Console is the Component here, not the stack around it: the
-            // stack's serial pump is stepped separately and stays on the beat.
-            _console.terminal().set_period(Config::CONSOLE_RENDER_PERIOD_MS);
-            _console.terminal().set_offset(Config::CONSOLE_RENDER_OFFSET_MS);
-#endif
+            _register_tasks();
 
 #if BOTANIK_FEATURE_CONSOLE
             HAL::Serial::get(HAL::Serial::CONSOLE)->begin(_console_baud);
@@ -377,74 +362,105 @@ namespace Botanik {
 #endif
         }
 
-        /** @brief One main-loop iteration. tick() gates a beat and republishes
-         *  the display "now" (`SchedulerContext::timestamp_ms`) the render path
-         *  shares.
-         *  The order is load-bearing (see CONCURRENCY.md):
-         *    tick -> serial.receive -> params -> io.expire_stale -> health -> net
-         *         -> scan -> on_step -> logger -> terminal/drain
-         *         -> serial.transmit -> watchdog_kick
-         *  Every stepped unit is a Component driven by step(now_ms) with a fresh
-         *  HAL::Clock::uptime_ms(). Non-virtual so the order can't be reordered;
-         *  a site adds per-beat work via on_step(). */
-        void loop() {
-            if (!_scheduler.tick()) return;   // driver: gates the beat, produces the clock
+        /** @brief Build the task table: what runs, at which rate, in which phase.
+         *
+         *  Registration order is the order within a phase, and the phase order
+         *  is the data flow (@ref dev_scan) - so this reads top to bottom as the
+         *  beat does. The RATE of anything here is a tuning knob (its group); the
+         *  PHASE is not, because it encodes what has to happen before what.
+         *
+         *  Every entry is named, because the TASKS page and the `stats` command
+         *  report per-task cost and an unnamed row is not a diagnosis. */
+        void _register_tasks() {
+            using namespace Scheduler;
 
-            // One 64-bit "now" for every Component stepped this beat.
-            uint64_t now_ms = HAL::Clock::uptime_ms();
-
-            // Serial RX at the top: fresh input before processing. BufferedSerial
-            // is a Component (step() == receive()+transmit()), but the loop drives
-            // its two halves at the phases they belong - RX here, TX after the
-            // render below. Stepping the full pump at both ends would cost an extra
-            // read() syscall each beat and split the console's cooperative,
-            // baud-paced TX across the render, perturbing throughput.
+            // --- INPUT: fresh bytes and fresh field, before anything reads ---
 #if BOTANIK_FEATURE_CONSOLE
-            _console.serial().receive();
+            // BufferedSerial is one Component whose halves belong at opposite
+            // ends of the beat - RX here, TX after the render. Stepping the
+            // whole pump at both ends would cost an extra read() each beat and
+            // split the console's baud-paced TX across the render.
+            _tasks.add("console_rx", GROUP_FAST, PHASE_INPUT,
+                [](void* s, uint64_t) { static_cast<Utils::BufferedSerial*>(s)->receive(); },
+                &_console.serial());
 #endif
 #if BOTANIK_FEATURE_MONITOR
-            _monitor.serial().receive();
+            _tasks.add("monitor_rx", GROUP_FAST, PHASE_INPUT,
+                [](void* s, uint64_t) { static_cast<Utils::BufferedSerial*>(s)->receive(); },
+                &_monitor.serial());
 #endif
+            // A full linear scan of the variable table, resolving timeouts
+            // measured in seconds. The field driver's commit will slot in here
+            // too, ahead of it.
+            _tasks.add("expire_stale", GROUP_BACKGROUND, PHASE_INPUT,
+                [](void* s, uint64_t now) { static_cast<Vars::Bank*>(s)->expire_stale(now); },
+                &_io);
 
-            // Params first: the config-driven Components (net/sun) read the
-            // image below. Loads local storage on the first step.
-            _params.step(now_ms);
+            // --- CONFIG: the image every config-driven component reads below ---
+            _tasks.add_component("params", GROUP_SLOW, PHASE_CONFIG, _params);
 
-            // Read phase: age out readings past their timeout, so one beat is
-            // coherent. Field drivers slot in here, before anything reads.
-            //
-            // Rated, not per-beat: the sweep is a full linear scan of the
-            // variable table and the timeouts it resolves are measured in
-            // seconds, so running it at 100 Hz spends ~26k row-visits a second
-            // to notice something up to 250 ms sooner than anything cares.
-            uint32_t expiry_dt = 0; uint16_t expiry_missed = 0;
-            if (_expiry_timer.due(now_ms, Config::EXPIRE_STALE_PERIOD_MS,
-                                  expiry_dt, expiry_missed)) {
-                _expiry_timer.ran(now_ms);
-                _io.expire_stale(now_ms);
-            }
-
-            // Health before the logger drains, so an alarm START/END lands this beat.
-            _health.step(now_ms);
-
+            // --- SERVICE: supervision and the background state machines ---
+            // Health before the logger drains, so an alarm START/END lands this
+            // beat, and before EXECUTE, so a fault inhibits this beat's programs.
+            _tasks.add_component("health", GROUP_SLOW, PHASE_SERVICE, _health);
+            _tasks.add("control_latch", GROUP_FAST, PHASE_SERVICE,
+                [](void* s, uint64_t) { static_cast<BotanikFirmware*>(s)->_latch_control(); },
+                this);
 #if BOTANIK_FEATURE_NETWORK
-            // Config-driven network services (resolver/network/ntp/mqtt +
-            // telemetry). On the simulator these talk over loopback to an
-            // in-process mock responder (botanik_sim/network.h); no public
-            // network I/O.
-            _net.step(now_ms);
+            _tasks.add_component("net", GROUP_FAST, PHASE_SERVICE, _net);
 #endif
 
-            // Withdrawing control is a LATCH, not a per-beat sweep. Sweeping
-            // outputs after the scan would have been a flicker: the next beat's
-            // tasks re-drive the same demands before the sweep runs again. So a
-            // fault takes control away and inhibits the scan, and the outputs
-            // stay at their safe state until health actually recovers.
-            //
-            // Health holds its OWN inhibit, so recovering releases only that
-            // one: an operator who typed `control disable` stays in force across
-            // a fault that came and went, which is the only reading of "I turned
-            // control off" that is worth anything.
+            // --- EXECUTE: the control programs ---
+            // Unconditional: the driver holds the Bank and inhibits the programs
+            // itself while control is withheld, so it still announces at boot
+            // (when control is withheld by definition) and a future
+            // output-collect phase runs DURING a withdrawal rather than being
+            // skipped with it.
+            _tasks.add_component("scan", GROUP_FAST, PHASE_EXECUTE, _scan);
+            _tasks.add("site", GROUP_FAST, PHASE_EXECUTE,
+                [](void* s, uint64_t now) { static_cast<BotanikFirmware*>(s)->on_step(now); },
+                this);
+
+            // --- PRESENT: report what just happened ---
+            _tasks.add("logger", GROUP_FAST, PHASE_PRESENT,
+                [](void* s, uint64_t) { static_cast<Logs::Logger*>(s)->refill(); },
+                &_logger);
+#if BOTANIK_FEATURE_CONSOLE
+            // The Console is the Component, not the stack around it: the stack's
+            // serial pump is registered separately, at its own phases.
+            _tasks.add_component("console", GROUP_MAIN, PHASE_PRESENT, _console.terminal());
+#endif
+#if BOTANIK_FEATURE_MONITOR
+            _tasks.add_component("monitor_log", GROUP_FAST, PHASE_PRESENT, _monitor.writer());
+#endif
+#if BOTANIK_FEATURE_CONSOLE
+            _tasks.add("console_tx", GROUP_FAST, PHASE_PRESENT,
+                [](void* s, uint64_t) { static_cast<Utils::BufferedSerial*>(s)->transmit(); },
+                &_console.serial());
+#endif
+#if BOTANIK_FEATURE_MONITOR
+            _tasks.add("monitor_tx", GROUP_FAST, PHASE_PRESENT,
+                [](void* s, uint64_t) { static_cast<Utils::BufferedSerial*>(s)->transmit(); },
+                &_monitor.serial());
+#endif
+
+            if (_tasks.overflow() != 0)
+                _logger.critical(Logs::BOOT, "%u task(s) refused: MAX_TASKS is %u",
+                                 (unsigned)_tasks.overflow(), (unsigned)Config::MAX_TASKS);
+        }
+
+        /** @brief Track the health verdict against control authority.
+         *
+         *  Withdrawing control is a LATCH, not a per-beat sweep: sweeping outputs
+         *  after the scan would flicker, since the next beat's programs re-drive
+         *  the same demands before the sweep runs again. So a fault takes control
+         *  away and the outputs stay safe until health actually recovers.
+         *
+         *  Health holds its OWN inhibit, so recovering releases only that one: an
+         *  operator who typed `control disable` stays in force across a fault
+         *  that came and went, which is the only reading of "I turned control
+         *  off" worth anything. */
+        void _latch_control() {
             if (!_health.watchdog_ok()) {
                 if (!_health_fault) {
                     _health_fault = true;
@@ -459,35 +475,39 @@ namespace Botanik {
                     ? "health recovered, control enabled, scan resuming"
                     : "health recovered, but control is still disabled by the operator");
             }
+        }
 
-            // Execute phase: every control program that has come due. The
-            // driver inhibits them itself while control is withheld (it holds
-            // the Bank), so it is stepped unconditionally here - it still has to
-            // announce at boot, when control is withheld by definition, and a
-            // future output-collect phase must run during a withdrawal rather
-            // than be skipped with it.
-            _scan.step(now_ms);
+    public:
+        /** @brief The task table, for the TASKS page and the `stats` command. */
+        const Scheduler::Registry& tasks() const { return _tasks; }
 
-            on_step(now_ms);   // site per-beat state machines (default no-op)
+        /** @brief One main-loop iteration. tick() gates a beat and republishes
+         *  the display "now" (`SchedulerContext::timestamp_ms`) the render path
+         *  shares.
+         *
+         *  The beat is phase-major: each phase runs the tasks registered to it
+         *  whose group has come due (_register_tasks()). The PHASE order below is
+         *  load-bearing and stays written out here as code; a task's RATE is a
+         *  property of the task. Letting a group imply an order would mean
+         *  retuning a rate silently reordered the cycle.
+         *
+         *  Non-virtual, so the order can't be overridden; a site adds per-beat
+         *  work via on_step(), which is registered as the "site" task. */
+        void loop() {
+            if (!_scheduler.tick()) return;   // driver: gates the beat, produces the clock
 
-            _logger.refill();
+            // One 64-bit "now" for every Component stepped this beat.
+            uint64_t now_ms = HAL::Clock::uptime_ms();
 
-            // Middle logic: terminal render + monitor log-queue drain.
-#if BOTANIK_FEATURE_CONSOLE
-            _console.step(now_ms);
-#endif
-#if BOTANIK_FEATURE_MONITOR
-            _monitor.writer().step(now_ms);
-#endif
-
-            // Serial TX at the bottom: push this beat's rendered output out after
-            // everything drew.
-#if BOTANIK_FEATURE_CONSOLE
-            _console.serial().transmit();
-#endif
-#if BOTANIK_FEATURE_MONITOR
-            _monitor.serial().transmit();
-#endif
+            // Phase-major dispatch: each phase runs the tasks registered to
+            // it whose group has come due. The order of these calls IS the data
+            // flow, and it is the part that must not become configurable.
+            _tasks.run_phase(Scheduler::PHASE_INPUT,   now_ms);
+            _tasks.run_phase(Scheduler::PHASE_CONFIG,  now_ms);
+            _tasks.run_phase(Scheduler::PHASE_SERVICE, now_ms);
+            _tasks.run_phase(Scheduler::PHASE_EXECUTE, now_ms);
+            _tasks.run_phase(Scheduler::PHASE_OUTPUT,  now_ms);
+            _tasks.run_phase(Scheduler::PHASE_PRESENT, now_ms);
 
             // Kick while healthy; HealthMonitor is what decides that (see
             // health/health.h). Withholding the kick means we have chosen to let
