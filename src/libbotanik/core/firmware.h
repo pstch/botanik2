@@ -259,8 +259,10 @@ namespace Botanik {
 
         /** @brief Bring-up in a fixed, non-overridable order: begin the UARTs,
          *  register the core sinks, register the pages (register_pages()),
-         *  select the terminal type, show the banner, arm the watchdog. POST
-         *  runs on HealthMonitor's first step() once loop() starts. A site
+         *  select the terminal type, show the banner, run every registered task's
+         *  one-time init (Registry::setup(), which is where POST and the
+         *  parameter load happen), arm the watchdog. Nothing here runs on a beat:
+         *  by the time loop() first ticks, every component is already up. A site
          *  customizes via the hooks, never setup(). */
         void setup() {
             // route BOTANIK_ASSERT failures to the log

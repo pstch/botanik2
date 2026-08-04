@@ -73,13 +73,20 @@ The console UART was never exposed to this: its `availableForWrite()` reflects a
 real hardware FIFO, and `present()` self-caps the TX ring at `_tx_cold_depth`
 (61 bytes at 4800 baud) anyway.
 
-**The boot beat does 423 flash reads.** `Params::setup()` runs `load_params()`
-(164 keys) and `load_overrides()` (259 - every row, not just the parameters), and
-because `setup()` is the `Component` hook it runs on the first `PHASE_CONFIG`
-dispatch, i.e. **inside the first beat of `loop()`**, not during
-`BotanikFirmware::setup()`. At 50 - 300 us per Mbed TDBStore read that is
-20 - 130 ms in one beat. No watchdog risk at a 10 s timeout, but it is the
-largest single stall in the firmware and it registers as a boot overrun.
+**Bring-up does 423 flash reads, and they no longer land in a beat.**
+`Params::on_setup()` runs `load_params()` (164 keys) and `load_overrides()` (259
+- every row, not just the parameters). At 50 - 300 us per Mbed TDBStore read that
+is 20 - 130 ms, the largest single stall in the firmware.
+
+It used to happen on the first `PHASE_CONFIG` dispatch, because init was driven
+lazily from a component's first `step()` - so it sat inside the first beat and
+read as a boot overrun against a 10 ms budget. `Registry::setup()` now runs every
+registered task's init from `BotanikFirmware::setup()`, before the loop exists.
+The 423 reads are unchanged; what changed is that they are no longer measured
+against a beat that had not started.
+
+The count is still worth reducing: `load_overrides()` probes a storage key for
+every row in the table, not just the ones that can hold an override.
 
 **Telemetry sends one TCP packet per topic.** 38 - 80 topics x ~20 us once per
 30 s. MQTT 3.1.1 has no multi-topic PUBLISH, so the fix is either pacing (a
