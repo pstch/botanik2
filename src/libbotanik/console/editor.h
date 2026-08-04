@@ -33,6 +33,16 @@ namespace Botanik { namespace Terminal {
         PS3, /**< Row that follows a hard `\\n` */
     };
 
+    /** @brief Which edge of its band the editor is pinned to. */
+    enum class Anchor : uint8_t {
+        BOTTOM, /**< Last row nailed to the content bottom; growing the text
+                 *   scrolls the band up so output above it scrolls away. What a
+                 *   shell prompt wants. */
+        TOP,    /**< Origin fixed. The text does not push the screen around -
+                 *   the viewport scrolls over it instead. What a full-screen
+                 *   editor wants. */
+    };
+
     /** @brief Geometry of a contiguous slice of the editor buffer (a row). */
     struct RowView {
         uint16_t buf_start;  /**< Offset of the slice in the buffer */
@@ -91,11 +101,14 @@ namespace Botanik { namespace Terminal {
      * the screen by diffing `_pre` against `_layout`: one IL/DL for the
      * row-count change, then a forward per-row splice walk from the edit row.
      *
-     * @note Layout is capped at `Config::EDITOR_MAX_ROWS`. At >=
-     * `EDITOR_MIN_COLS` the buffer always fits by soft-wrap (static_assert in
-     * config), so the cap is only hit by hard `\n` breaks; excess rows truncate
-     * and the cursor folds onto the last row - a visual artifact only, never an
-     * overflow.
+     * @note Layout is capped at the row array the owner supplied. At >=
+     * `EDITOR_MIN_COLS` the buffer always fits by soft-wrap (static_asserts in
+     * config), so the cap is only reachable through hard `\n` breaks - and an
+     * insert that would cross it is refused rather than laid out short, since
+     * the rows past the cap are text nobody can see or reach.
+     *
+     * @note Text taller than the viewport is not a special case: the window
+     * scrolls over it (see Anchor and set_view_rows()).
      */
     class TextEditor {
 
@@ -126,9 +139,27 @@ namespace Botanik { namespace Terminal {
          *  0 means "everything from _origin to the content bottom", which is
          *  what a bottom-anchored editor wants. */
         uint16_t _view_rows = 0;
-        /** @brief `_view_top` as it was before the current edit. The reconcile
-         *  needs it to know which pre rows were physically on screen. */
-        uint16_t _pre_view_top = 0;
+        /** @brief The viewport as it was before the current edit. The reconcile
+         *  needs it to know which pre rows are physically on screen: one that
+         *  was not has no glyphs to splice, however well its slice matches. */
+        uint16_t _pre_view_top  = 0;
+        uint16_t _pre_view_rows = 0;
+        /** @brief Which edge the editor is pinned to. */
+        Anchor   _anchor = Anchor::BOTTOM;
+
+        /** @brief Column vertical motion aims for, as an offset into the row's
+         *  content. Walking down through a short line and out the other side
+         *  returns to the column you started in, rather than sticking to the
+         *  short line's end. Any horizontal motion or edit drops it. */
+        uint16_t _goal_col   = 0;
+        bool     _goal_valid = false;
+
+        /** @brief Set when the last layout ran out of rows before it ran out of
+         *  buffer. The text past that point cannot be shown or reached. */
+        bool     _layout_overflow = false;
+
+        /** @brief Set by every edit, cleared by the owner once it has saved. */
+        bool     _dirty = false;
 
         TextView _layout{};            /**< Current/target row layout. */
         /** Pre-edit layout (snapshotted before rebuild). */
@@ -212,8 +243,20 @@ namespace Botanik { namespace Terminal {
         /** @brief Number of screen rows occupied by the editor right now */
         uint16_t occupied_rows() const { return _layout.count; }
 
-        /** @brief Pin the prompt's top row to a specific screen row */
+        /** @brief Pin the prompt's top row to a specific screen row.
+         *  @note Under Anchor::BOTTOM this is advisory - reset() and commit()
+         *  re-pin the origin to the content bottom. Under Anchor::TOP it
+         *  stands. */
         void set_origin(uint16_t row);
+
+        /** @brief Which edge the editor is pinned to (default BOTTOM). */
+        void set_anchor(Anchor a) { _anchor = a; }
+
+        /** @brief Screen rows the editor may paint into, starting at the
+         *  origin. 0 (the default) means everything down to the content bottom;
+         *  a page that keeps a row of its own below the editor passes the
+         *  smaller count. Text taller than this scrolls under the viewport. */
+        void set_view_rows(uint16_t n) { _view_rows = n; }
 
         /** @brief Reserve `col` columns at the left for a caller-drawn label;
          *  the editor renders its prompt + content starting at that column.
@@ -262,6 +305,42 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Move the cursor one word to the right */
         void move_word_right();
+
+        /** @brief Move the cursor one display row up / down, holding the goal
+         *  column. On the first/last row it falls to the start/end of the
+         *  buffer. */
+        void move_up();
+        void move_down();
+
+        /** @brief Move the cursor one viewport height up / down. */
+        void page_up();
+        void page_down();
+
+        /** @brief Move the cursor to the start / end of the buffer. */
+        void move_to_start();
+        void move_to_end();
+
+        /** @} */
+
+        /**
+         * @name Bulk content
+         * @{
+         */
+
+        /** @brief Replace the whole buffer and repaint, without running an
+         *  edit (and a reconcile) per byte. Clears the dirty flag: this is the
+         *  stored text, not an edit of it.
+         *  @return false if @p len did not fit - either past the buffer or past
+         *  what the row cap can lay out - in which case the tail was dropped.
+         */
+        bool load(const char* buf, uint16_t len);
+
+        /** @brief Whether the buffer has changed since the last load() /
+         *  clear_dirty(). */
+        bool dirty() const { return _dirty; }
+
+        /** @brief Declare the buffer saved. */
+        void clear_dirty() { _dirty = false; }
 
         /** @} */
 
@@ -378,11 +457,31 @@ namespace Botanik { namespace Terminal {
         /** @brief Whether layout row @p i of the PRE-edit layout was on screen,
          *  i.e. whether the physical row still shows its glyphs. */
         bool _was_visible(uint16_t i) const {
-            return i >= _pre_view_top && (uint16_t)(i - _pre_view_top) < _view_height();
+            return i >= _pre_view_top && (uint16_t)(i - _pre_view_top) < _pre_view_rows;
         }
 
         /** @brief Content-area height, guarded against a zero-row console. */
         uint16_t _console_rows() const;
+
+        /** @brief Scroll the viewport if the cursor left it, painting only the
+         *  rows the scroll revealed. Returns true if the viewport moved.
+         *  @note A jump further than the window height cannot reuse anything, so
+         *  it clears and repaints rather than scrolling by a whole screen. */
+        bool _follow_cursor();
+
+        /** @brief Bring the cursor back into view, then home the terminal at it.
+         *  What every motion ends with. Drops the goal column unless @p
+         *  keep_goal - only vertical motion holds on to it. */
+        void _settle_cursor(bool keep_goal = false) {
+            if (!keep_goal) _goal_valid = false;
+            _follow_cursor();
+            _place_cursor(_map_cursor_pos(_pos));
+        }
+
+        /** @brief Move the cursor @p delta display rows, holding the goal
+         *  column. Clamped to the layout; a move that cannot go further falls
+         *  to the buffer start/end instead. */
+        void _move_row(int32_t delta);
 
         /** @} */
 
