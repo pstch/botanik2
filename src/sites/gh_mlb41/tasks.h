@@ -39,8 +39,8 @@ using Botanik::Scan::ScanContext;
  * Modbus. It reads two variables, applies a debounce, and drives four coils.
  */
 inline void supply_watch(ScanContext& c) {
-    static Scan::Ton  bad_for;      // debounce: ignore a momentary dropout
-    static Scan::Sr   lockout;
+    static Plc::Ton  bad_for;      // debounce: ignore a momentary dropout
+    static Plc::Sr   lockout;
 
     // A meter that has stopped answering reads as its default (0 V), which is
     // out of band and therefore unhealthy - the fallback does the right thing
@@ -72,7 +72,7 @@ inline void supply_watch(ScanContext& c) {
  * watchdog, and the scan drives both from the same table.
  */
 inline void supply_report(ScanContext& c) {
-    static Scan::Deadband hz;
+    static Plc::Deadband hz;
     c.io.var("sys_supply_hz").set(hz(c.io.var("grid_Hz").value(), 0.05f));
 }
 

@@ -5,9 +5,9 @@
 
 #include "filters.h"
 
-#include "common.h"
+#include "../functions/time.h"
 
-namespace Botanik { namespace Scan {
+namespace Botanik { namespace Plc {
 
     float Ewma::operator()(float x, float tau_s, uint32_t dt_ms) {
         if (!_seed) { _value = x; _seed = true; return _value; }
@@ -46,4 +46,4 @@ namespace Botanik { namespace Scan {
         return (b <= c) ? c : b;
     }
 
-}}  // namespace Botanik::Scan
+}}  // namespace Botanik::Plc

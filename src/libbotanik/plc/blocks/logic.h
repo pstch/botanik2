@@ -1,5 +1,5 @@
-#ifndef SCAN_BLOCKS_LOGIC_H
-#define SCAN_BLOCKS_LOGIC_H
+#ifndef PLC_BLOCKS_LOGIC_H
+#define PLC_BLOCKS_LOGIC_H
 
 /**
  * @file logic.h
@@ -10,7 +10,7 @@
 
 #include <cstdint>
 
-namespace Botanik { namespace Scan {
+namespace Botanik { namespace Plc {
 
     /** @name Edges
      *  @{ */
@@ -143,6 +143,6 @@ namespace Botanik { namespace Scan {
 
     /** @} */
 
-}}  // namespace Botanik::Scan
+}}  // namespace Botanik::Plc
 
-#endif // SCAN_BLOCKS_LOGIC_H
+#endif // PLC_BLOCKS_LOGIC_H

@@ -51,8 +51,8 @@ stall silently loses the time it was late by. Always pass `c.dt_ms`.
 
 ```cpp
 inline void supply_watch(ScanContext& c) {
-    static Scan::Ton bad_for;    // debounce
-    static Scan::Sr  lockout;
+    static Plc::Ton bad_for;     // debounce
+    static Plc::Sr  lockout;
 
     float ln = c.io.var(V_PWR_LN_V).value();
     bool  unhealthy = (ln < 200.0f) || (ln > 260.0f);
@@ -79,9 +79,51 @@ It reads variables, applies blocks, and drives variables. Two idioms worth copyi
   console, shell and telemetry can see *why* the windows are held. A coil reading 0
   does not distinguish "not commanded" from "locked out".
 
-## The function-block library
+## The POU library
 
-`scan/blocks/`, one header per family and `blocks.h` pulling in the lot (which
+A program is written out of two kinds of piece, and `plc/` keeps them apart the
+way IEC 61131-3 does:
+
+| POU | Here | Has |
+|---|---|---|
+| FUNCTION | `plc/functions/` | nothing. Same inputs, same output, always |
+| FUNCTION_BLOCK | `plc/blocks/` | instance state, carried between scans |
+| PROGRAM | the site's `tasks.h` | blocks, and the field |
+
+The line between the first two is mechanical rather than a judgement call: **a
+function is a single expression in a header, and a block needs a `.cpp`.** If it
+has to remember something it is a block; if it does not, it is a function, and it
+is `constexpr` so the compiler folds it into the caller.
+
+`scan/` is not in that table on purpose. It is the *cycle* - which program is due,
+how late, and running it - not the vocabulary programs are written in.
+
+### PLC functions
+
+`plc/functions/`, header-only.
+
+| Header | Functions |
+|---|---|
+| `math.h` | `limit` `in_range` `deadzone` `scale` `lerp` `sel` |
+| `time.h` | `seconds` `accumulate` `countdown` |
+
+`limit(v, lo, hi)` is IEC's LIMIT with `std::clamp`'s argument order.
+`in_range(ln, 200, 260)` is the plausibility test a program otherwise writes as a
+pair of comparisons whose bounds have to be read twice to be trusted.
+`deadzone(v, band)` is zero inside the band and *continuous* outside it - it
+reports the excursion, so acting on it is not a step; it is the stateless cousin
+of the `Deadband` block, which suppresses reports of small moves rather than
+ignoring a small error. `scale()` reads as the low end when handed a degenerate
+input span, because a misconfigured span must give a dull answer rather than an
+infinity that propagates into an output.
+
+`accumulate` / `countdown` take a reference to the caller's counter (IEC's
+VAR_IN_OUT), which is why they are functions despite writing something: the state
+belongs to the block that owns it, not to them.
+
+### PLC function blocks
+
+`plc/blocks/`, one header per family and `blocks.h` pulling in the lot (which
 `libbotanik.h` already does). Ordinary RAM classes, declared `static` inside a task
 or as members. Every timed block takes `dt_ms` explicitly rather than reading a
 clock - which is what makes a late task correct, and a block testable without a

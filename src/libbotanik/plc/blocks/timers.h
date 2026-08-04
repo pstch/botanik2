@@ -1,5 +1,5 @@
-#ifndef SCAN_BLOCKS_TIMERS_H
-#define SCAN_BLOCKS_TIMERS_H
+#ifndef PLC_BLOCKS_TIMERS_H
+#define PLC_BLOCKS_TIMERS_H
 
 /**
  * @file timers.h
@@ -12,7 +12,7 @@
 
 #include <cstdint>
 
-namespace Botanik { namespace Scan {
+namespace Botanik { namespace Plc {
 
     /** @brief On-delay. Output goes true once the input has been continuously
      *  true for @p delay_ms, and false immediately when the input drops. The
@@ -89,6 +89,6 @@ namespace Botanik { namespace Scan {
         /** @} */
     };
 
-}}  // namespace Botanik::Scan
+}}  // namespace Botanik::Plc
 
-#endif // SCAN_BLOCKS_TIMERS_H
+#endif // PLC_BLOCKS_TIMERS_H

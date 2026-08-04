@@ -5,9 +5,9 @@
 
 #include "timers.h"
 
-#include "common.h"
+#include "../functions/time.h"
 
-namespace Botanik { namespace Scan {
+namespace Botanik { namespace Plc {
 
     bool Ton::operator()(bool in, uint32_t delay_ms, uint32_t dt_ms) {
         if (!in) { _elapsed = 0; _q = false; return false; }
@@ -34,4 +34,4 @@ namespace Botanik { namespace Scan {
         return _q;
     }
 
-}}  // namespace Botanik::Scan
+}}  // namespace Botanik::Plc

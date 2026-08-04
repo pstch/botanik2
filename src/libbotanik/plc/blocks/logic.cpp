@@ -5,7 +5,7 @@
 
 #include "logic.h"
 
-namespace Botanik { namespace Scan {
+namespace Botanik { namespace Plc {
 
     /** @name Edges
      *  @{ */
@@ -97,4 +97,4 @@ namespace Botanik { namespace Scan {
 
     /** @} */
 
-}}  // namespace Botanik::Scan
+}}  // namespace Botanik::Plc

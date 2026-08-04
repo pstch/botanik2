@@ -5,9 +5,9 @@
  */
 #include "doctest.h"
 
-#include "libbotanik/scan/blocks/pid.h"
+#include "libbotanik/plc/blocks/pid.h"
 
-using namespace Botanik::Scan;
+using namespace Botanik::Plc;
 
 namespace {
 

@@ -1,20 +1,21 @@
-#ifndef SCAN_BLOCKS_H
-#define SCAN_BLOCKS_H
+#ifndef PLC_BLOCKS_H
+#define PLC_BLOCKS_H
 
 /**
  * @file blocks.h
- * @brief Function blocks: the small stateful primitives control programs are
- *        built from. Umbrella header for the whole library.
+ * @brief Function blocks: the STATEFUL half of the POU library. Umbrella
+ *        header.
  *
  * These are the PLC idioms - on-delay, edge, latch, hysteresis, PID - as
- * ordinary C++ objects. A program declares them as statics or members and calls
- * them each scan; they hold their own state and nothing else needs to know
- * about it.
+ * ordinary C++ objects. A program declares them as members and calls them each
+ * scan; they hold their own state and nothing else needs to know about it.
+ * That state is the whole distinction from plc/functions/, which holds the
+ * things that remember nothing (see @ref plc_functions).
  *
- * Every timed block takes @p dt_ms (ScanContext::dt_ms), the ACTUAL elapsed
- * time since that task last ran, rather than reading a clock itself. Two
- * reasons: a task that ran late must not lose the time it was late by, and a
- * block driven purely by its inputs is trivially testable without a clock.
+ * Every timed block takes @p dt_ms, the ACTUAL elapsed time since that program
+ * last ran, rather than reading a clock itself. Two reasons: a program that ran
+ * late must not lose the time it was late by, and a block driven purely by its
+ * inputs is trivially testable without a clock.
  *
  * All state is RAM; unlike the descriptor tables there is no flash-residency
  * constraint here, so these are ordinary classes.
@@ -33,7 +34,7 @@
  * unit only needs its corner.
  */
 
-#include "common.h"
+#include "../functions/functions.h"
 
 #include "timers.h"
 #include "logic.h"
@@ -43,4 +44,4 @@
 #include "pid.h"
 #include "actuator.h"
 
-#endif // SCAN_BLOCKS_H
+#endif // PLC_BLOCKS_H

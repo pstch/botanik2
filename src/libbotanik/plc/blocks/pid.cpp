@@ -5,9 +5,10 @@
 
 #include "pid.h"
 
-#include "common.h"
+#include "../functions/math.h"
+#include "../functions/time.h"
 
-namespace Botanik { namespace Scan {
+namespace Botanik { namespace Plc {
 
     float Pid::operator()(float sp, float pv, const PidTuning& t,
                           uint32_t dt_ms) {
@@ -43,13 +44,13 @@ namespace Botanik { namespace Scan {
                               || (unsat <= t.out_min && _error < 0.0f);
             if (!winding) {
                 _integral += t.ki * _error * dt;
-                _integral = clampf(_integral, t.out_min, t.out_max);
+                _integral = limit(_integral, t.out_min, t.out_max);
             }
         }
 
         const float raw_out = p_term + _integral + d_term;
         _sat = (raw_out > t.out_max) || (raw_out < t.out_min);
-        _out = clampf(raw_out, t.out_min, t.out_max);
+        _out = limit(raw_out, t.out_min, t.out_max);
         return _out;
     }
 
@@ -71,4 +72,4 @@ namespace Botanik { namespace Scan {
         _sat      = false;
     }
 
-}}  // namespace Botanik::Scan
+}}  // namespace Botanik::Plc

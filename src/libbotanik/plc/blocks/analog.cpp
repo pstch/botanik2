@@ -5,9 +5,9 @@
 
 #include "analog.h"
 
-#include "common.h"
+#include "../functions/time.h"
 
-namespace Botanik { namespace Scan {
+namespace Botanik { namespace Plc {
 
     bool Hysteresis::operator()(float value, float low, float high) {
         if (value >= high)      _q = true;
@@ -62,4 +62,4 @@ namespace Botanik { namespace Scan {
         return _held;
     }
 
-}}  // namespace Botanik::Scan
+}}  // namespace Botanik::Plc

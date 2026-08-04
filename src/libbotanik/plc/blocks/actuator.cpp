@@ -5,13 +5,14 @@
 
 #include "actuator.h"
 
-#include "common.h"
+#include "../functions/math.h"
+#include "../functions/time.h"
 
-namespace Botanik { namespace Scan {
+namespace Botanik { namespace Plc {
 
     void Actuator::step(float target, const ActuatorConfig& cfg,
                         uint32_t dt_ms) {
-        target = clampf(target, 0.0f, 1.0f);
+        target = limit(target, 0.0f, 1.0f);
         _reverse_ms = cfg.reverse_ms;
 
         if (_run_ms > 0) {
@@ -65,7 +66,7 @@ namespace Botanik { namespace Scan {
         // A zero travel time is a misconfiguration, not a divide: treat the
         // actuator as instant rather than producing an infinity.
         const float d = (span > 0) ? ((float)ran / (float)span) : 1.0f;
-        _pos = clampf(_pos + ((_dir == D_OPEN) ? d : -d), 0.0f, 1.0f);
+        _pos = limit(_pos + ((_dir == D_OPEN) ? d : -d), 0.0f, 1.0f);
     }
 
     void Actuator::start(float target, const ActuatorConfig& cfg) {
@@ -152,8 +153,8 @@ namespace Botanik { namespace Scan {
 
     void Actuator::preset(float pos) {
         stop();
-        _pos = clampf(pos, 0.0f, 1.0f);
+        _pos = limit(pos, 0.0f, 1.0f);
         settle();
     }
 
-}}  // namespace Botanik::Scan
+}}  // namespace Botanik::Plc

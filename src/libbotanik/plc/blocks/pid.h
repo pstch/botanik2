@@ -1,5 +1,5 @@
-#ifndef SCAN_BLOCKS_PID_H
-#define SCAN_BLOCKS_PID_H
+#ifndef PLC_BLOCKS_PID_H
+#define PLC_BLOCKS_PID_H
 
 /**
  * @file pid.h
@@ -8,7 +8,7 @@
 
 #include <cstdint>
 
-namespace Botanik { namespace Scan {
+namespace Botanik { namespace Plc {
 
     /**
      * @brief What a Pid is tuned with: gains, output span, action.
@@ -126,6 +126,6 @@ namespace Botanik { namespace Scan {
         /** @} */
     };
 
-}}  // namespace Botanik::Scan
+}}  // namespace Botanik::Plc
 
-#endif // SCAN_BLOCKS_PID_H
+#endif // PLC_BLOCKS_PID_H

@@ -1,5 +1,5 @@
-#ifndef SCAN_BLOCKS_METER_H
-#define SCAN_BLOCKS_METER_H
+#ifndef PLC_BLOCKS_METER_H
+#define PLC_BLOCKS_METER_H
 
 /**
  * @file meter.h
@@ -20,7 +20,7 @@
 
 #include <cstdint>
 
-namespace Botanik { namespace Scan {
+namespace Botanik { namespace Plc {
 
     /**
      * @brief Integrates a rate into a running quantity: the totalizer.
@@ -120,6 +120,6 @@ namespace Botanik { namespace Scan {
         /** @} */
     };
 
-}}  // namespace Botanik::Scan
+}}  // namespace Botanik::Plc
 
-#endif // SCAN_BLOCKS_METER_H
+#endif // PLC_BLOCKS_METER_H

@@ -1,5 +1,5 @@
-#ifndef SCAN_BLOCKS_ACTUATOR_H
-#define SCAN_BLOCKS_ACTUATOR_H
+#ifndef PLC_BLOCKS_ACTUATOR_H
+#define PLC_BLOCKS_ACTUATOR_H
 
 /**
  * @file actuator.h
@@ -9,7 +9,7 @@
 
 #include <cstdint>
 
-namespace Botanik { namespace Scan {
+namespace Botanik { namespace Plc {
 
     /**
      * @brief The mechanics of one actuator: travel times and how finely it is
@@ -173,6 +173,6 @@ namespace Botanik { namespace Scan {
         /** @} */
     };
 
-}}  // namespace Botanik::Scan
+}}  // namespace Botanik::Plc
 
-#endif // SCAN_BLOCKS_ACTUATOR_H
+#endif // PLC_BLOCKS_ACTUATOR_H
