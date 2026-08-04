@@ -26,7 +26,7 @@ namespace {
         Spy() : Component(nullptr, "spy") {}
 
     protected:
-        void setup(uint64_t) override { setups++; }
+        void on_setup(uint64_t) override { setups++; }
         void on_step(uint64_t now_ms) override {
             ran.push_back(now_ms);
             dts.push_back(dt_ms());
@@ -56,7 +56,7 @@ TEST_CASE("component: a period makes it sit out the beats in between") {
     CHECK(s.ran[4] == 200);
 }
 
-TEST_CASE("component: setup() still runs on the first beat, whatever the period") {
+TEST_CASE("component: on_setup() still runs on the first beat, whatever the period") {
     Spy s;
     s.set_period(1000);          // far longer than the run below
     for (uint64_t t = 0; t < 100; t += 10) s.step(t);

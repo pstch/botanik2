@@ -88,7 +88,7 @@ namespace Botanik { namespace Health {
 
     protected:
         /** @brief POST runs once on the first step() (sinks now registered). */
-        void setup(uint64_t now) override { (void)now; _post(); }
+        void on_setup(uint64_t now) override { (void)now; _post(); }
 
         /** @brief Per beat: assert the platform alarms, update the watchdog
          *  verdict, and advance the model (which reads each site alarm's boolean

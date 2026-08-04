@@ -10,7 +10,7 @@
 
 namespace Botanik { namespace Scan {
 
-    void Driver::setup(uint64_t now_ms) {
+    void Driver::on_setup(uint64_t now_ms) {
         (void)now_ms;
         if (_tasks == nullptr || _stats == nullptr) return;
         if (Config::SCAN_STAGGER_MS == 0) return;

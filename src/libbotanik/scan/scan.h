@@ -114,7 +114,7 @@ namespace Botanik { namespace Scan {
          *  share a beat forever - which leaves the PEAK work per beat exactly
          *  where it would be with no rates at all. SCAN_STAGGER_MS = 0 turns it
          *  off for a site whose programs must share a beat. */
-        void setup(uint64_t now_ms) override;
+        void on_setup(uint64_t now_ms) override;
         /** @brief Run every task that has come due, in table order. */
         void on_step(uint64_t now_ms) override;
     };

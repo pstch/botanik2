@@ -112,6 +112,64 @@ TEST_CASE("tasks: a null dispatch is refused rather than called") {
     r.run_phase(PHASE_SERVICE, 0);   // must not fault
 }
 
+TEST_CASE("tasks: setup() runs before any beat, exactly once") {
+    // Setup used to happen lazily on a component's first step(), which put the
+    // parameter load's 423 storage reads inside the first beat.
+    struct Spy : public Botanik::Component {
+        uint32_t setups = 0, steps = 0;
+        Spy() : Component(nullptr, "spy") {}
+    protected:
+        void on_setup(uint64_t) override { setups++; }
+        void on_step(uint64_t) override { steps++; }
+    };
+    Spy a, b;
+    Registry r;
+    r.add_component("a", GROUP_FAST, PHASE_INPUT,  a);
+    r.add_component("b", GROUP_SLOW, PHASE_PRESENT, b);
+
+    r.setup(0);
+    CHECK(a.setups == 1);
+    CHECK(b.setups == 1);
+    CHECK(a.steps == 0);          // init, not a beat
+    CHECK(b.steps == 0);
+
+    // The lazy path in step() must not run it a second time.
+    r.run_phase(PHASE_INPUT, 0);
+    r.run_phase(PHASE_PRESENT, 0);
+    CHECK(a.setups == 1);
+    CHECK(b.setups == 1);
+    CHECK(a.steps == 1);
+    CHECK(b.steps == 1);
+}
+
+TEST_CASE("tasks: a component the registry never set up still self-inits") {
+    // The fallback the network stack's children rely on: nested components have
+    // no registration to be set up from, so step() still does it.
+    struct Spy : public Botanik::Component {
+        uint32_t setups = 0;
+        Spy() : Component(nullptr, "spy") {}
+    protected:
+        void on_setup(uint64_t) override { setups++; }
+    };
+    Spy s;
+    CHECK_FALSE(s.started());
+    s.step(0);
+    CHECK(s.setups == 1);
+    CHECK(s.started());
+    s.step(10);
+    CHECK(s.setups == 1);
+}
+
+TEST_CASE("tasks: setup() skips a task with no setup, and does not fault") {
+    g_log.clear();
+    Registry r;
+    r.add("plain", GROUP_FAST, PHASE_SERVICE, &note, A);   // no setup fn
+    r.setup(0);
+    CHECK(g_log.empty());          // setup is not run(); nothing was dispatched
+    r.run_phase(PHASE_SERVICE, 0);
+    CHECK(g_log.size() == 1);
+}
+
 TEST_CASE("tasks: a Component registers and is stepped through the registry") {
     struct Spy : public Botanik::Component {
         uint32_t steps = 0;

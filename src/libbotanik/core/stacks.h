@@ -141,6 +141,23 @@ namespace Botanik {
         Network::MqttLogWriter&  mqtt_log()  { return _mqtt_log; }
 #endif
 
+        /** @brief One-time init for every enabled service, mirroring step().
+         *
+         *  The stack is a bundle, not a Component, so the scheduler cannot set up
+         *  its members for it - it only knows the bundle. Without this their
+         *  setup() and announce() would run lazily on their first step(), inside
+         *  the first beat, which is the thing Registry::setup() exists to stop. */
+        void setup(uint64_t now_ms) {
+            _network.setup(now_ms);
+#if BOTANIK_FEATURE_NTP
+            _ntp.setup(now_ms);
+#endif
+#if BOTANIK_FEATURE_MQTT
+            _mqtt.setup(now_ms);
+            // _telemetry is not a Component - no setup, nothing to announce.
+#endif
+        }
+
         /** @brief Advance every enabled service for this beat. */
         void step(uint64_t now_ms) {
             _network.step(now_ms);

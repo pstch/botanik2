@@ -342,6 +342,18 @@ namespace Botanik {
 
             on_setup();   // site post-wiring (extra sinks / components)
 
+            // Every registered task's one-time init, before the loop exists.
+            // Deliberately HERE and not beside _register_tasks(): this is what
+            // runs each component's announce() and HealthMonitor's POST, and
+            // before the sinks above were registered every one of those lines
+            // would have gone nowhere. After on_setup() too, so a site's own
+            // sinks catch them.
+            //
+            // It also takes the parameter load - 423 storage reads, tens of ms
+            // of flash - out of the first beat, where it read as a boot overrun
+            // against a 10 ms budget (@ref dev_tasks).
+            _tasks.setup(HAL::Clock::uptime_ms());
+
             HAL::Watchdog::start(_hw_watchdog_ms);
 
             // Bring-up is done: the system's hold on control is released, so

@@ -42,8 +42,16 @@ namespace Botanik { namespace Scheduler {
         }
     }
 
+    void Registry::setup(uint64_t now_ms) {
+        for (uint8_t p = 0; p < PHASE_COUNT; p++)
+            for (uint8_t i = 0; i < _count; i++)
+                if (_tasks[i].phase == (Phase)p && _tasks[i].setup != nullptr)
+                    _tasks[i].setup(_tasks[i].self, now_ms);
+    }
+
     bool Registry::add(const char* name, GroupId group, Phase phase,
-                       void (*run)(void* self, uint64_t now_ms), void* self) {
+                       void (*run)(void* self, uint64_t now_ms), void* self,
+                       void (*setup)(void* self, uint64_t now_ms)) {
         if (_count >= Config::MAX_TASKS || run == nullptr) {
             if (_overflow < 0xFF) _overflow++;
             return false;
@@ -64,6 +72,7 @@ namespace Botanik { namespace Scheduler {
         t.group = group;
         t.phase = phase;
         t.run   = run;
+        t.setup = setup;
         t.self  = self;
 
         const uint32_t period = group_period_ms(group);

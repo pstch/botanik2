@@ -127,6 +127,33 @@ namespace Botanik {
          *  period, before the loop starts; keep it under the period. */
         void set_offset(uint32_t offset_ms) { _timer.set_offset(offset_ms); }
 
+        /** @brief Run this component's one-time init: on_setup() then
+         *  announce().
+         *
+         *  The public driver for the protected on_setup() hook, exactly as
+         *  step() is the driver for on_step(). **Idempotent** - the second call
+         *  does nothing - which is what lets the two ways in coexist:
+         *
+         *   - the scheduler calls it for every registered task during
+         *     BotanikFirmware::setup(), so a component that reads storage or runs
+         *     a self-test does it BEFORE the loop starts rather than inside the
+         *     first beat;
+         *   - step() still calls it lazily for anything the scheduler does not
+         *     own - a component stepped by another component (the network stack's
+         *     children) has no registration to be begun from.
+         *
+         *  @note Only call it once the log sinks are registered. announce(), and
+         *  anything setup() logs (HealthMonitor's POST), goes nowhere before
+         *  that. */
+        void setup(uint64_t now_ms) {
+            if (_started) return;
+            _started = true;
+            on_setup(now_ms);
+            announce();
+        }
+        /** @brief Whether setup() has run. */
+        bool started() const { return _started; }
+
         /** @brief Advance one beat with the cycle timestamp. Non-virtual so the
          *  order can't be reordered: due check first, then on the first step
          *  setup() and announce(); then, if param_serial() changed from the
@@ -139,7 +166,7 @@ namespace Botanik {
         void step(uint64_t now_ms) {
             if (!_timer.due(now_ms, _period_ms, _dt_ms, _missed)) return;
             _timer.ran(now_ms);
-            if (!_started) { _started = true; setup(now_ms); announce(); }
+            setup(now_ms);   // idempotent: a no-op once the scheduler has set us up
             uint32_t serial = param_serial();
             // Fire on any change from the applied serial. _applied_serial starts
             // at 0, so an unset block (serial 0) never fires at boot, but a
@@ -166,9 +193,8 @@ namespace Botanik {
          *  when DEBUG is undefined. */
         void announce();
 
-        /** @brief One-time init on the first step(), with the cycle timestamp.
-         *  Default: nothing. */
-        virtual void setup(uint64_t now_ms) { (void)now_ms; }
+        /** @brief One-time init, run by setup(). Default: nothing. */
+        virtual void on_setup(uint64_t now_ms) { (void)now_ms; }
         /** @brief Advance the component's state one tick. Default: nothing. */
         virtual void on_step(uint64_t now_ms) { (void)now_ms; }
         /** @brief Serial of the watched config block (0 = none / not

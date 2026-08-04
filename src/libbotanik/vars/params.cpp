@@ -122,7 +122,7 @@ namespace Botanik { namespace Vars {
 
     // ---- Params --------------------------------------------------------------
 
-    void Params::setup(uint64_t /*now_ms*/) {
+    void Params::on_setup(uint64_t /*now_ms*/) {
         if (_io == nullptr) return;
         _io->load_params();
         // After the parameters, so a restored override shadows the setting it is

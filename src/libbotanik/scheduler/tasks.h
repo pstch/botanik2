@@ -96,6 +96,9 @@ namespace Botanik { namespace Scheduler {
         GroupId     group    = GROUP_FAST;
         Phase       phase    = PHASE_SERVICE;
         void      (*run)(void* self, uint64_t now_ms) = nullptr;
+        /** @brief One-time init, run by Registry::setup() before the loop starts.
+         *  Optional: null for a task with nothing to set up. */
+        void      (*setup)(void* self, uint64_t now_ms) = nullptr;
         void*       self     = nullptr;
         TaskTimer   timer;                ///< period from the group, own offset
         TaskCost    cost;
@@ -139,20 +142,41 @@ namespace Botanik { namespace Scheduler {
          * @return false if the table is full (counted in overflow()).
          */
         bool add(const char* name, GroupId group, Phase phase,
-                 void (*run)(void* self, uint64_t now_ms), void* self);
+                 void (*run)(void* self, uint64_t now_ms), void* self,
+                 void (*setup)(void* self, uint64_t now_ms) = nullptr);
 
-        /** @brief Register a Component, dispatching its step(). */
+        /** @brief Register a Component: step() per activation, setup() once. */
         template <typename C>
         bool add_component(const char* name, GroupId group, Phase phase, C& c) {
             return add(name, group, phase,
                        [](void* s, uint64_t now) { static_cast<C*>(s)->step(now); },
-                       &c);
+                       &c,
+                       [](void* s, uint64_t now) { static_cast<C*>(s)->setup(now); });
         }
 
         /** @} */
 
         /** @name Dispatch
          *  @{ */
+
+        /**
+         * @brief Run every registered task's one-time init, phase-major, before
+         *        the loop starts.
+         *
+         * Setup used to happen lazily, on a component's first step(), which put
+         * it inside the first beat: the parameter load alone is 423 storage
+         * reads (@ref dev_tasks), i.e. tens of milliseconds of flash inside a
+         * 10 ms budget, reported as a boot overrun. It belongs before the beat
+         * exists.
+         *
+         * Phase-major, like run_phase(), so init obeys the same data-flow order
+         * the beat does - parameters are loaded before anything reads config.
+         *
+         * @warning Call this LATE in BotanikFirmware::setup(), after the log
+         * sinks are registered: it is what runs each component's announce(), and
+         * HealthMonitor's POST logs its verdict from here.
+         */
+        void setup(uint64_t now_ms);
 
         /** @brief Run every task in @p phase whose group has come due, in
          *  registration order, timing each one into its TaskCost. */

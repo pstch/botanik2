@@ -31,8 +31,9 @@ namespace Botanik { namespace Vars {
      *  parameter cannot invalidate the others - there is no layout to version. */
     class KvParamStore : public VarStore {
     public:
-        bool load(const Variable& d, Value& v, char* pool) override;
-        bool save(const Variable& d, const Value& v, const char* pool) override;
+        bool load(const Variable& d, Value& v, char* text, uint16_t cap) override;
+        bool save(const Variable& d, const Value& v,
+                  const char* text, uint16_t cap) override;
         bool load_override(const Variable& d, Value& v) override;
         bool save_override(const Variable& d, const Value& v) override;
         bool clear_override(const Variable& d) override;
@@ -80,7 +81,7 @@ namespace Botanik { namespace Vars {
 
     protected:
         /** @brief Load every parameter from the store. */
-        void setup(uint64_t now_ms) override;
+        void on_setup(uint64_t now_ms) override;
     };
 
     /** @name Read parameters by name (null-safe)
