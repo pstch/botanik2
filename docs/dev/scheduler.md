@@ -107,15 +107,30 @@ class SchedulerContext {
 
 ## Multi-rate tasks
 
-Today every component in the loop is stepped on every beat, at
-`TASK_PERIOD_MS` = 10 ms. Most of them do not need it, and one of them (the
-console) is oversampled by more than an order of magnitude. This section is the
-budget for giving each one its own period; the mechanism is `Scheduler::TaskTimer`
-(below), the rates are not wired up yet.
+The beat is a **task table**. Each entry names what runs, the rate **group** it
+belongs to, and the **phase** of the beat it sits in; `Scheduler::Registry`
+(`scheduler/tasks.h`) holds them and `BotanikFirmware::loop()` dispatches
+phase-major. Which task goes where is `_register_tasks()`, and it reads top to
+bottom as the beat does.
 
-`Scan::Driver` (@ref int_tasks) is the exception that already works this way: a
-control program declares a `period_ms` and runs when it comes due. The rest of
-the loop should reach the same place.
+Rate and phase are independent, and conflating them is the mistake to avoid. Rate
+is a tuning knob; phase is a correctness property, because it encodes the data
+flow (@ref dev_scan). So the phase order stays written out as code and only the
+rate is a property of the task - a group that implied an order would mean
+retuning a rate silently reordered the cycle.
+
+There is deliberately **no priority**. Priority means preemption and there is
+none here: one cooperative loop, every step runs to completion
+(@ref dev_concurrency). The only meaningful reading would be a load-shedding
+policy, and shedding a control program is not something that should happen
+automatically.
+
+| Group | Period | For |
+|---|---|---|
+| `fast` | `TASK_PERIOD_MS` (10 ms) | the field bus, the serial pumps, the log drain, the scan driver |
+| `main` | 50 ms | the operator-facing rate: the console render |
+| `slow` | 100 ms | dwell and config: health, parameters |
+| `background` | 500 ms | housekeeping measured in seconds: the expiry sweep |
 
 ### What sets a rate
 
@@ -140,25 +155,35 @@ of the argument:
 
 ### The rates
 
-| Task | Binding constraint | Now | Target | Cut |
-|---|---|---|---|---|
-| `console.serial().receive()` | 4800 baud fills the 255-byte ring in 585 ms; echo | 10 ms | 20 ms | 2x |
-| `monitor.serial().receive()` | 115200 fills the ring in **24 ms** | 10 ms | 10 ms | - |
-| `params.step()` | human edit latency | 10 ms | 100 ms | 10x |
-| `io.expire_stale()` | timeouts are 3x group period, so 3 - 180 s | 10 ms | 250 ms | 25x |
-| `health.step()` | alarm dwell (`on_s`/`off_s`) is in seconds | 10 ms | 100 ms | 10x |
-| `net.step()` | MQTT keepalive 60 s, telemetry 30 s; TCP drain | 10 ms | 20 ms | 2x |
-| `scan.step()` | must **divide** the fastest task period (100 ms) | 10 ms | 10 ms | - |
-| `logger.step()` | queue drain against the boot burst; eviction risk | 10 ms | 10 ms | - |
-| `console.step()` (render) | 4800 baud = 4.4 bytes/beat; echo perception | 10 ms | 50 ms | 5x |
-| `console.serial().transmit()` | paired with the render | 10 ms | 50 ms | 5x |
-| Watchdog kick | HW period is seconds, and it is the safety net | 10 ms | 10 ms | - |
-| *Modbus client* (@ref dev_modbus) | ring fills in 146 ms @19200, **24 ms** @115200 | - | 10 ms | - |
+Why each task sits in the group it does. "Before" is the flat 10 ms every task
+paid when the loop was a fixed call sequence.
 
-The two wins are `expire_stale` (25x) and the console render (5x, and the most
-expensive item per invocation). `scan`, `logger` and the watchdog kick stay on the
-beat deliberately: the scan's not-due path is two comparisons per task, and the
-other two are safety-critical.
+| Task | Phase | Group | Binding constraint | Cut |
+|---|---|---|---|---|
+| `console_rx` | input | fast | 4800 baud fills the 255-byte ring in 585 ms; echo latency | - |
+| `monitor_rx` | input | fast | 115200 fills the ring in **24 ms** | - |
+| `expire_stale` | input | background | timeouts are 3x a poll group's period, so 3 - 180 s | 50x |
+| `params` | config | slow | human edit latency | 10x |
+| `health` | service | slow | alarm dwell (`on_s`/`off_s`) is in seconds | 10x |
+| `control_latch` | service | fast | must see a health fault before the programs run | - |
+| `net` | service | fast | MQTT keepalive 60 s, telemetry 30 s; TCP drain | - |
+| `scan` | execute | fast | must **divide** the fastest control program (100 ms) | - |
+| `site` | execute | fast | the site's own per-beat hook | - |
+| `logger` | present | fast | queue drain against the boot burst; eviction risk | - |
+| `console` | present | main | 4800 baud = 4.4 bytes/beat; echo perception | 5x |
+| `monitor_log` | present | fast | log queue drain | - |
+| `console_tx` / `monitor_tx` | present | fast | keep the UART fed | - |
+| *Modbus commit / collect* (@ref dev_modbus) | input / output | fast | ring fills in 146 ms @19200, **24 ms** @115200 | - |
+
+The two wins are `expire_stale` (50x) and the console render (5x, and the most
+expensive item per invocation). `scan`, `logger`, the serial pumps and the
+watchdog kick stay on the beat deliberately: the scan's not-due path is two
+comparisons per program, and the others are safety- or latency-critical.
+
+The watchdog kick is not in the table. It stays inline at the very bottom of
+`loop()`, after every phase, because it must reflect that this beat completed -
+a kick that could itself be rated is a kick that can outlive the work it vouches
+for.
 
 ### Three couplings a period alone does not fix
 
@@ -184,7 +209,7 @@ runs a fast console link, and it wants rescaling there.
 fires at 120 ms. Harmless while the beat is 10 ms and every period above divides
 by it; sharp the moment the beat moves.
 
-**`health.step()` at 100 ms makes `watchdog_ok()` up to 100 ms stale**, and the
+**`health` in the slow group makes `watchdog_ok()` up to 100 ms stale**, and the
 loop reads it every beat. Harmless against a hardware watchdog measured in
 seconds, but it should be a decision rather than a surprise.
 
@@ -204,19 +229,17 @@ hold. Rates alone buy CPU; they buy no headroom.
 `TaskTimer::set_offset()` fixes it, as a one-shot delay on the first interval
 only: a task offset by 30 ms waits `period + 30` for its second activation and
 the nominal period thereafter, so it runs permanently out of step with an
-unoffset task of the same period. The defaults are picked to not collide at all,
-given the periods above:
+unoffset task of the same period.
 
-| Task | Period | Offset | Fires at (mod 100 ms) |
-|---|---|---|---|
-| Console render | 50 ms | 0 ms | 0, 50 |
-| `params` | 100 ms | 20 ms | 20 |
-| `expire_stale` | 250 ms | 30 ms | 30, 80 |
-| `health` | 100 ms | 40 ms | 40 |
+The offsets are **derived, not declared**. `Registry::add()` counts how many
+members a group already has and places each new one a beat further along, wrapped
+into the group's period. A site writes nothing, and adding a task re-spreads the
+group. When a group has more members than its period has beats they start to
+share slots again, which is no worse than the phase-locked default.
 
-Retune an offset with its period, and keep each under its own period. The first
-beat is the one unavoidable pile-up: a component's first activation is what runs
-its `setup()`, so nothing can be deferred past it.
+Retune nothing here; retune the group's period and the spread follows. The first
+beat is the one unavoidable pile-up: a task's first activation is what runs its
+`setup()`, so nothing can be deferred past it.
 
 The control programs get the same treatment, but derived rather than declared:
 `Scan::Driver::setup()` offsets task *i* by `i * SCAN_STAGGER_MS` (one beat by
