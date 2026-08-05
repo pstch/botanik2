@@ -48,9 +48,13 @@
 #endif
 
 /** @brief Operator notes: a full-screen text editor page, persisted to flash.
- *  @note Requires BOTANIK_FEATURE_CONSOLE (it is a console page). */
+ *  @note Requires BOTANIK_FEATURE_CONSOLE (it is a console page), so it
+ *  defaults to CONSOLE rather than to 1: a headless build never asked for a
+ *  notes page, and defaulting it on made -DBOTANIK_FEATURE_CONSOLE=OFF trip the
+ *  dependency rule below on a contradiction nobody had actually written.
+ *  Asking for NOTES=1 with CONSOLE=0 IS a contradiction, and still fails. */
 #ifndef BOTANIK_FEATURE_NOTES
-#  define BOTANIK_FEATURE_NOTES 1
+#  define BOTANIK_FEATURE_NOTES BOTANIK_FEATURE_CONSOLE
 #endif
 
 // Dependency rules
