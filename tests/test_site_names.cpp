@@ -43,6 +43,26 @@ namespace {
 
 }  // namespace
 
+TEST_CASE("site: the table fits the name index") {
+    // Every lookup goes through Bank::find(), several of them per beat once the
+    // field animator and the config readers are counted. A table that outgrew
+    // Config::VAR_HASH_SLOTS still resolves - by walking all of it - so nothing
+    // breaks visibly and the cost just sits there. Say so here instead.
+    SiteBank f;
+    INFO("raise BOTANIK_VAR_HASH_SLOTS to the next power of two: "
+         << f.bank.count() << " rows need it over "
+         << (int)Config::VAR_HASH_SLOTS * 3 / 4);
+    CHECK(f.bank.name_index_built());
+
+    // ...and it has to resolve the same rows the scan did.
+    for (uint16_t i = 0; i < f.bank.count(); i++) {
+        const char* n = f.bank.var(i).meta()->name;
+        INFO("row " << i << " '" << n << "'");
+        CHECK(f.bank.find(n).index == i);
+    }
+    CHECK(f.bank.find("no_such_variable_at_all").index == Vars::VAR_NONE);
+}
+
 TEST_CASE("site: every published variable lands in a sensible group") {
     // Groups are derived from the name now, so there is no table to check - but
     // the derivation has to hold: a published row with no prefix would file

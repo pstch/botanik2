@@ -25,6 +25,30 @@ namespace Botanik { namespace Vars {
     Value Bank::_sink_v = {};
 
     namespace {
+        /** @brief FNV-1a over a NUL-terminated name. Small, no table, and it
+         *  spreads the shared prefixes a variable table is full of ("grid_",
+         *  "cli_", "alarm_") - which is exactly what the strcmp scan it replaces
+         *  was worst at. */
+        uint32_t name_hash(const char* s) {
+            uint32_t h = 2166136261u;
+            while (*s != 0) { h ^= (uint8_t)*s++; h *= 16777619u; }
+            return h;
+        }
+        /** @brief The same over @p len bytes, for a shell word with no NUL.
+         *  Must agree with the form above on the same characters. */
+        uint32_t name_hash(const char* s, uint16_t len) {
+            uint32_t h = 2166136261u;
+            for (uint16_t i = 0; i < len; i++) { h ^= (uint8_t)s[i]; h *= 16777619u; }
+            return h;
+        }
+        /** @brief Whether row name @p n is @p name (bounded to @p len when
+         *  @p len is non-zero). */
+        bool name_eq(const char* n, const char* name, uint16_t len) {
+            if (n == nullptr) return false;
+            if (len == 0) return strcmp(n, name) == 0;
+            return strncmp(n, name, len) == 0 && n[len] == 0;
+        }
+
         /** @brief Copy @p src into @p dst, always NUL-terminating. */
         void copy_bounded(char* dst, uint16_t cap, const char* src) {
             if (dst == nullptr || cap == 0) return;
@@ -101,13 +125,55 @@ namespace Botanik { namespace Vars {
         return _t.pool + off;
     }
 
+    void Bank::_build_index() {
+        _hashed = false;
+        // Open addressing degrades badly as it fills, so keep real headroom: a
+        // table past three quarters full is not worth indexing, and falling back
+        // to the scan is at least honest about it (name_index_built() says so).
+        if (_t.var == nullptr || _t.count == 0) return;
+        if ((uint32_t)_t.count * 4u > (uint32_t)HASH_SLOTS * 3u) return;
+
+        for (uint16_t s = 0; s < HASH_SLOTS; s++) _hash[s] = VAR_NONE;
+        const uint16_t mask = (uint16_t)(HASH_SLOTS - 1);
+        for (uint16_t i = 0; i < _t.count; i++) {
+            const char* n = _t.var[i].name;
+            if (n == nullptr) continue;
+            uint16_t slot = (uint16_t)(name_hash(n) & mask);
+            // The first row of a duplicated name wins, which is what the linear
+            // scan did - a site with two rows of one name is a defect either
+            // way, but it must not resolve differently depending on the index.
+            while (_hash[slot] != VAR_NONE &&
+                   !name_eq(_t.var[_hash[slot]].name, n, 0))
+                slot = (uint16_t)((slot + 1) & mask);
+            if (_hash[slot] == VAR_NONE) _hash[slot] = i;
+        }
+        _hashed = true;
+    }
+
+    uint16_t Bank::_lookup(const char* name, uint16_t len) const {
+        if (!_hashed) {
+            for (uint16_t i = 0; i < _t.count; i++)
+                if (name_eq(_t.var[i].name, name, len)) return i;
+            return VAR_NONE;
+        }
+        const uint16_t mask = (uint16_t)(HASH_SLOTS - 1);
+        const uint32_t h = (len == 0) ? name_hash(name) : name_hash(name, len);
+        for (uint16_t k = 0; k < HASH_SLOTS; k++) {
+            const uint16_t i = _hash[(uint16_t)((h + k) & mask)];
+            // An empty slot ends the probe: the index is never full (the load
+            // factor above guarantees it), so a run of collisions is all a miss
+            // ever costs.
+            if (i == VAR_NONE) break;
+            if (name_eq(_t.var[i].name, name, len)) return i;
+        }
+        return VAR_NONE;
+    }
+
     VarRef Bank::find(const char* name) const {
         VarRef r = { VAR_NONE };
         if (name == nullptr) return r;
-        for (uint16_t i = 0; i < _t.count; i++) {
-            const char* n = _t.var[i].name;
-            if (n != nullptr && strcmp(n, name) == 0) { r.index = i; return r; }
-        }
+        r.index = _lookup(name, 0);
+        if (r.index != VAR_NONE) return r;
         // Nothing addresses a row by number any more, so a miss here is a name
         // that exists in a table or a program but not in vars.h. Count it (and
         // say which) rather than letting it read as a dead variable forever.
@@ -119,11 +185,7 @@ namespace Botanik { namespace Vars {
     VarRef Bank::find(const char* name, uint16_t len) const {
         VarRef r = { VAR_NONE };
         if (name == nullptr || len == 0) return r;
-        for (uint16_t i = 0; i < _t.count; i++) {
-            const char* n = _t.var[i].name;
-            if (n == nullptr) continue;
-            if (strncmp(n, name, len) == 0 && n[len] == 0) { r.index = i; return r; }
-        }
+        r.index = _lookup(name, len);
         return r;
     }
 
@@ -146,22 +208,33 @@ namespace Botanik { namespace Vars {
     }
 
     void Bank::disable_control(ControlInhibit source) {
-        const bool was_enabled = control_enabled();
+        const uint8_t before = _inhibits;
         _inhibits |= (uint8_t)source;
-        // The sweep runs on the transition only: if control was already
-        // withheld the outputs are at their safe state and nothing has been able
-        // to move them since.
-        if (!was_enabled) return;
+        // Nothing new: this hold was already in force. Worth the early exit -
+        // the loop's caller is the per-beat watchdog path, which re-asserts the
+        // health hold every beat for as long as the fault lasts.
+        if (before == _inhibits) return;
+
+        // Drop to safe on the transition only. Control was live until now, so
+        // this is the one moment the outputs need putting somewhere known; a
+        // second inhibit arriving on top finds them already there.
+        const bool to_safe = (before == 0);
+        // Only the SYSTEM's withdrawal releases a hand-held output. The
+        // operator's is how you take the plant by hand, and wiping the overrides
+        // would leave nothing able to move an actuator at all - see the header.
+        const bool release = (source == INHIBIT_HEALTH);
+        if (!to_safe && !release) return;
+
         for (uint16_t i = 0; i < _t.count; i++) {
             if (_t.var[i].role != ROLE_OUTPUT) continue;
-            // Released, not merely ignored: an override left staged here would
-            // fire the instant control came back, which is the last thing anyone
-            // wants after whatever took control away in the first place. Wipe
-            // the stored copy too, so a reboot cannot reopen the same hole.
-            if (_t.val[i].ovr_on && _store != nullptr)
-                (void)_store->clear_override(_t.var[i]);
-            _t.val[i].ovr_on = false;
-            _t.val[i].valid  = false;
+            if (release && _t.val[i].ovr_on) {
+                // Wipe the stored copy too. An output override is not persisted
+                // today, so this is belt and braces against one written by an
+                // older build coming back at the next boot.
+                if (_store != nullptr) (void)_store->clear_override(_t.var[i]);
+                _t.val[i].ovr_on = false;
+            }
+            if (to_safe) _t.val[i].valid = false;
         }
     }
 
@@ -264,10 +337,12 @@ namespace Botanik { namespace Vars {
         // nothing for an override to shadow - and a hostname is configuration
         // anyway, which is set()'s business.
         if (text == nullptr || d->type == T_STR) return SET_INVALID;
-        // Control disabled: refuse to arm an actuator. The alternative - accept
-        // it and hold it - is a command that fires later, from a console session
-        // long since walked away from.
-        if (d->role == ROLE_OUTPUT && !control_enabled()) return SET_INVALID;
+        // An output is deliberately NOT refused while control is disabled: that
+        // is the state in which the control programs have stopped deciding, so
+        // an override is the only way left to command an actuator - which is
+        // what `control disable` is for. It is live immediately, not staged, and
+        // it is never persisted (see _persist_override), so there is no session
+        // it can outlive.
         Scalar parsed;
         // Band deliberately NOT applied - see the header note.
         if (parse_for(*d, text, /*bounded=*/false, &parsed) != SET_OK) return SET_INVALID;
@@ -319,10 +394,11 @@ namespace Botanik { namespace Vars {
             const Variable& d = _t.var[i];
             if (!_store->load_override(d, _t.val[i])) continue;
             if (d.role == ROLE_OUTPUT) {
-                // Found one on an actuator: drop it rather than restore it, so
-                // it cannot fire when bring-up hands control back. Only reached
-                // when a record actually exists - an unconditional remove per
-                // output row was a flash transaction each boot for nothing.
+                // Found one on an actuator: drop it rather than restore it - it
+                // would be driving the plant from power-on, out of a session
+                // nobody is standing at any more. Only reached when a record
+                // actually exists - an unconditional remove per output row was a
+                // flash transaction each boot for nothing.
                 (void)_store->clear_override(d);
                 _t.val[i].ovr_on = false;
                 continue;

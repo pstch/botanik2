@@ -44,6 +44,7 @@
 
 #include <cstdint>
 
+#include "../../libbotanik_config.h"   // VAR_HASH_SLOTS (the name index)
 #include "scalar.h"
 
 namespace Botanik { namespace Logs { class Logger; } }
@@ -353,11 +354,7 @@ namespace Botanik { namespace Vars {
      *  and the cost is that a forgotten one survives the reboot someone reaches
      *  for when the machine behaves strangely. That is why a restored override
      *  is announced as a CRITICAL at boot and why `override list` says so.
-     *  ROLE_OUTPUT is excluded outright - see Bank::load_overrides().
-     *
-     *  Deliberately RAM-only and never persisted: an override left on across a
-     *  reboot is a fault waiting to happen, and a reboot is exactly what an
-     *  operator reaches for when a machine is behaving strangely. */
+     *  ROLE_OUTPUT is excluded outright - see Bank::load_overrides(). */
     struct Value {
         Scalar   v;
         Scalar   ovr;        ///< forced value, while ovr_on
@@ -438,6 +435,18 @@ namespace Botanik { namespace Vars {
         bool     b()     const { return as_bool(_d->type, raw()); }
         int64_t  i()     const { return as_i64(_d->type, raw()); }
         bool     valid() const { return _v->ovr_on ? _v->ovr_valid : _v->valid; }
+        /** @name Under the override
+         *
+         *  What the row would read with nothing forced: the driver's last value
+         *  (or the declared default, when nothing has written it) and its real
+         *  quality. Diagnostics only - control logic reads raw()/valid() and is
+         *  meant to see the forced value. It exists so `get` can show BOTH, since
+         *  "the sensor now reads sane again" is exactly what you want to know
+         *  before releasing an override.
+         *  @{ */
+        Scalar   live()       const { return _v->valid ? _v->v : _d->def; }
+        bool     live_valid() const { return _v->valid; }
+        /** @} */
         /** @brief Where this row's text sits in the pool (T_STR only; 0
          *  otherwise, and text_slot().cap is 0 there so nothing writes). */
         uint16_t str_off() const { return _v->str_off; }
@@ -609,6 +618,29 @@ namespace Botanik { namespace Vars {
          *  Mutable because find() is const and this is diagnostics, not
          *  state. */
         mutable uint16_t _unresolved = 0;
+        /** @name Name index
+         *
+         *  find() is the ONE way anything addresses a row, and it used to be a
+         *  strcmp down the whole table - 277 of them per miss at the reference
+         *  site, several times a beat once the field animator and the config
+         *  readers are counted. This is the obvious fix: open addressing with
+         *  linear probing over an FNV-1a of the name, built once from the table
+         *  (which never changes) at construction.
+         *
+         *  @c _hashed is what says the index is usable. A table too big for the
+         *  slots leaves it false and find() walks the table as before, so the
+         *  bank stays correct on a site that outgrew VAR_HASH_SLOTS - just slow,
+         *  and name_index_built() is how the site test catches that.
+         *  @{ */
+        static const uint16_t HASH_SLOTS = Config::VAR_HASH_SLOTS;
+        static_assert((HASH_SLOTS & (HASH_SLOTS - 1)) == 0 && HASH_SLOTS > 0,
+                      "VAR_HASH_SLOTS must be a power of two (the probe masks)");
+        /** @brief Row index per slot, VAR_NONE for an empty one - which is also
+         *  the probe's stop condition, so a miss costs one run of collisions and
+         *  not a full table walk. */
+        uint16_t      _hash[HASH_SLOTS] = {};
+        bool          _hashed = false;
+        /** @} */
         /** @name String pool
          *  Filled by init(), which lays the T_STR slots out in table order.
          *  @{ */
@@ -624,7 +656,13 @@ namespace Botanik { namespace Vars {
          *  `()` an unbound bank starts on indeterminate pointers and init()
          *  walks them. */
         Bank() : _t() {}
-        explicit Bank(const VarTables& t) : _t(t) { _find_param_block(); }
+        explicit Bank(const VarTables& t) : _t(t) {
+            _find_param_block();
+            // The table is const and never grows, so the index is built here
+            // rather than in init(): a find() before init() (a site test, a
+            // fixture) then gets the fast path too.
+            _build_index();
+        }
 
         /** @brief Bind the parameter store and the log a refused write goes to.
          *  Wired once at bring-up, before load_params(). */
@@ -644,11 +682,11 @@ namespace Botanik { namespace Vars {
         /** @brief Restore the overrides that were in force at the last shutdown.
          *
          *  ROLE_OUTPUT rows are deliberately NOT restored, and any stored one is
-         *  dropped: control starts disabled, so a restored actuator override
-         *  would sit armed until bring-up enabled control and then fire, from a
-         *  console session long since walked away from. That is the same hazard
-         *  disable_control() releases overrides to avoid, and a reboot must not
-         *  reopen it.
+         *  dropped. An output override drives the actuator the moment it is in
+         *  force, control authority or not, so a restored one would be
+         *  commanding the plant from power-on out of a console session long
+         *  since walked away from. Commanding an actuator by hand is a thing you
+         *  do while standing at the machine; it does not survive the reboot.
          *
          *  @return how many were restored. Non-zero deserves to be said out
          *  loud: an override explains behaviour nothing else accounts for, and
@@ -701,6 +739,11 @@ namespace Botanik { namespace Vars {
          *  every table and running every control program. */
         uint16_t unresolved_count() const { return _unresolved; }
 
+        /** @brief Whether the name index is in use. False means the table
+         *  outgrew Config::VAR_HASH_SLOTS and every find() is a full scan -
+         *  correct, but the cost this exists to avoid. */
+        bool name_index_built() const { return _hashed; }
+
         /** @brief Pool bytes the text rows actually claimed, and how many rows
          *  found none left. The second must be zero; the site test asserts it,
          *  because a row with no slot reads empty and silently refuses to be
@@ -736,15 +779,23 @@ namespace Botanik { namespace Vars {
         void enable_control(ControlInhibit source = INHIBIT_OPERATOR);
 
         /** @brief Have @p source withhold control: drop every ROLE_OUTPUT to its
-         *  declared safe state, release any override holding one, and refuse to
-         *  take new ones until control returns.
+         *  declared safe state and stop the scan re-driving it.
          *
-         *  This outranks a maintenance override, never the other way round: an
-         *  override is for a machine someone is standing at and watching, while
-         *  this runs when the firmware can no longer reason about what it is
-         *  driving (or is about to stop running at all). An actuator held
-         *  energised by hand through that is the one outcome the safe state
-         *  exists to prevent.
+         *  @section ctl_override What happens to an override depends on WHO
+         *
+         *  The two inhibits mean different things, so they treat a hand-held
+         *  output differently:
+         *
+         *  - **INHIBIT_OPERATOR** leaves overrides alone. `control disable` is
+         *    how you take the plant by hand: the programs stop deciding, and an
+         *    override is then the only thing that can move an actuator. Wiping
+         *    them would leave no way to command one at all, which is the
+         *    opposite of what an operator standing at the machine wants.
+         *  - **INHIBIT_HEALTH** releases them, stored copy included. This one
+         *    runs when the firmware can no longer reason about what it is
+         *    driving, or is about to stop running altogether - and an actuator
+         *    held energised by hand through that is the one outcome the safe
+         *    state exists to prevent. Nobody is necessarily watching.
          *
          *  Outputs only. An internal is derived state - an alarm condition, a
          *  latched interlock - and clearing it would erase the very diagnosis
@@ -804,11 +855,12 @@ namespace Botanik { namespace Vars {
          *  be overwritten by the next scan, which is what override() is for. */
         SetResult set(Var h, const char* text);
 
-        /** @brief Force @p h to @p text until override_clear(). T_STR is
-         *  refused (a hostname is configuration, not a field signal), and so is
-         *  a ROLE_OUTPUT while control is disabled - accepting one there would
-         *  quietly stage an actuator command to fire the moment control
-         *  returned. */
+        /** @brief Force @p h to @p text until override_clear(). T_STR is refused
+         *  (a hostname is configuration, not a field signal); everything else,
+         *  ROLE_OUTPUT included, is fair game whatever control authority says -
+         *  driving an actuator by hand with the programs stopped is the point of
+         *  `control disable`. An output override is never persisted, so it dies
+         *  with the session rather than coming back armed at the next boot. */
         SetResult override_set(Var h, const char* text, bool valid = true);
 
         /** @brief The same, with the value already typed - for a caller that has
@@ -837,6 +889,15 @@ namespace Botanik { namespace Vars {
         /** @} */
 
     private:
+        /** @brief Fill _hash from the table, or leave _hashed false when the
+         *  table is too big for the slots. */
+        void _build_index();
+        /** @brief The one lookup both find() overloads run. @p len 0 means
+         *  "@p name is NUL-terminated"; anything else bounds the comparison.
+         *  @return the row index, or VAR_NONE. Does not count a miss - that is
+         *  the caller's call, since a shell typo is not a build defect. */
+        uint16_t _lookup(const char* name, uint16_t len) const;
+
         /** @brief @p h's row index, or VAR_NONE when it points at the sink. */
         uint16_t _row_of(Var h) const;
         /** @brief Write @p h's override through to the store (never for a
