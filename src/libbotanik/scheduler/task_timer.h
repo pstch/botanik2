@@ -41,6 +41,23 @@
 
 namespace Botanik { namespace Scheduler {
 
+    /** @brief The offset that puts member @p index of a set out of step with
+     *  the rest: one @p step_ms per index, wrapped into @p period_ms.
+     *
+     *  Wrapped because an offset at or past the period would skip a whole
+     *  activation rather than shift one, and a set with more members than beats
+     *  in its period runs out of distinct slots (they then share, which is no
+     *  worse than the phase-locked default). A period of 0 - every beat - has no
+     *  interval to shift inside and gets no offset.
+     *
+     *  One rule, because there are two callers deriving the same thing: the
+     *  beat's task registry (by rank within a group) and the scan cycle (by
+     *  index in the site's program table). See @ref timer_offset. */
+    constexpr uint32_t stagger_offset(uint32_t index, uint32_t step_ms,
+                                      uint32_t period_ms) {
+        return (period_ms == 0) ? 0 : (index * step_ms) % period_ms;
+    }
+
     /** @brief Per-task scheduling state: when it last ran, and how often.
      *
      * RAM-resident (the task descriptor it pairs with is flash-resident and
@@ -124,6 +141,21 @@ namespace Botanik { namespace Scheduler {
             _last_run_ms = now_ms;
             _runs++;
             if (_runs >= 2) _offset_ms = 0;
+        }
+
+        /** @brief Move the reference point to @p now_ms WITHOUT counting a
+         *  run, so the next activation is a full period away.
+         *
+         *  For a gap the caller deliberately did not step across - the scan
+         *  cycle while control authority is withheld - where handing the task
+         *  the whole outage as dt would be worse than dropping it. A task that
+         *  has never run is left alone: its first activation is due immediately
+         *  by design, and spending it here would delay bring-up by a period.
+         *
+         *  Distinct from ran() precisely because nothing ran: counting it would
+         *  inflate runs() and make the rate readings lie. */
+        void reseed(uint64_t now_ms) {
+            if (_runs > 0) _last_run_ms = now_ms;
         }
 
         /** @brief Put this task out of step with others of the same period, by

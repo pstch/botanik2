@@ -58,11 +58,8 @@ namespace Botanik { namespace Scheduler {
         }
 
         // Derive the offset from how many members this group already has, so
-        // each one lands a beat further along. Wrapped into the period: an
-        // offset at or past it would skip a whole activation rather than shift
-        // one, and a group with more members than beats in its period runs out
-        // of distinct slots (they then share, which is no worse than the
-        // phase-locked default).
+        // each one lands a beat further along (stagger_offset() holds the rule,
+        // shared with the scan cycle).
         uint8_t rank = 0;
         for (uint8_t i = 0; i < _count; i++)
             if (_tasks[i].group == group) rank++;
@@ -75,9 +72,8 @@ namespace Botanik { namespace Scheduler {
         t.setup = setup;
         t.self  = self;
 
-        const uint32_t period = group_period_ms(group);
-        if (period != 0)
-            t.timer.set_offset((uint32_t)rank * Config::TASK_PERIOD_MS % period);
+        t.timer.set_offset(stagger_offset(rank, Config::TASK_PERIOD_MS,
+                                          group_period_ms(group)));
 
         return true;
     }

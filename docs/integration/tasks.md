@@ -1,33 +1,42 @@
 # Control programs {#int_tasks}
 
-Control logic lives in the **scan cycle**: a table of tasks, each with a declared
-rate, run by `Scan::Driver` once per beat between the input refresh and the output
-write.
+Control logic lives in the **scan cycle**: a table of programs, each with a
+declared rate, run by `Scan::Driver` once per beat between the input refresh and
+the output write.
+
+A program is a `Plc::Program` subclass. It holds its function blocks and its
+resolved variable references as members, and overrides one method:
 
 ```cpp
-struct Task {
-    const char* name;
-    uint32_t    period_ms;      // 0 = every beat
-    void      (*run)(ScanContext&);
-};
+class Program {
+public:
+    Program(const char* name, uint32_t period_ms);   // 0 = every beat
 
-const Scan::Task g_tasks[] = {
-    { "supply_watch",  100,  &supply_watch  },
-    { "supply_report", 1000, &supply_report },
+    virtual void bind(Vars::Bank& io) {}    // bring-up: names -> VarRefs, once
+    virtual void run(Context& c) = 0;       // one activation
+    virtual void reset() {}                 // control withdrawn: drop stale state
 };
 ```
 
-The table is const and flash-resident; a parallel `Scan::TaskStats[]` of the same
-length holds the mutable scheduling state and must be **defined in a `.cpp`** (a
-header definition breaks the link the moment two translation units include the
-site).
-
-## What a task gets
+The site's table is an array of **pointers**, so it stays const and
+flash-resident even though the programs it names live in RAM:
 
 ```cpp
-struct ScanContext {
-    uint64_t    now_ms;   // beat timestamp; identical for every task this beat
-    uint32_t    dt_ms;    // ACTUAL ms since THIS task last ran
+Plc::Program* const g_programs[] = {
+    &Programs::supply_watch,
+    &Programs::supply_report,
+};
+```
+
+There is no parallel array to keep in step with it: each program carries its own
+scheduling state.
+
+## What a program gets
+
+```cpp
+struct Context {
+    uint64_t    now_ms;   // beat timestamp; identical for every program this beat
+    uint32_t    dt_ms;    // ACTUAL ms since THIS program last ran
     uint16_t    missed;   // activations dropped since the last run; normally 0
     Vars::Bank& io;       // the variables to read and drive
 };
@@ -35,47 +44,58 @@ struct ScanContext {
 
 Two guarantees the scaffolding provides, and that programs rely on:
 
-**Coherency.** Inputs refresh once per beat, before any task runs, so every task in a
-beat sees the same instant. There are no per-task snapshots: tasks run sequentially
-in one thread and never span a beat.
+**Coherency.** Inputs refresh once per beat, before any program runs, so every
+program in a beat sees the same instant. There are no per-program snapshots:
+programs run sequentially in one thread and never span a beat.
 
-**Lateness.** A task that comes due late runs **once** - missed activations are
+**Lateness.** A program that comes due late runs **once** - missed activations are
 dropped, not caught up, because a catch-up burst arrives exactly when the system is
 already behind. `missed` carries the dropped count for logic that cares.
 
-@warning `dt_ms` is therefore the **actual** elapsed time since that task last ran,
-never the nominal period. A timer or integrator handed the nominal period after a
-stall silently loses the time it was late by. Always pass `c.dt_ms`.
+@warning `dt_ms` is therefore the **actual** elapsed time since that program last
+ran, never the nominal period. A timer or integrator handed the nominal period after
+a stall silently loses the time it was late by. Always pass `c.dt_ms`.
 
 ## Writing one
 
 ```cpp
-inline void supply_watch(ScanContext& c) {
-    static Plc::Ton bad_for;     // debounce
-    static Plc::Sr  lockout;
+class SupplyWatch : public Plc::Program {
+    Plc::Ton     _bad_for;    // debounce
+    Plc::Sr      _lockout;
+    Vars::VarRef _ln = { Vars::VAR_NONE }, _locked = { Vars::VAR_NONE };
 
-    float ln = c.io.var(V_PWR_LN_V).value();
-    bool  unhealthy = (ln < 200.0f) || (ln > 260.0f);
+public:
+    SupplyWatch() : Program("supply_watch", 100) {}
 
-    // reset-dominant: recovery wins, so the lockout cannot stick
-    lockout(bad_for(unhealthy, 5000, c.dt_ms), !unhealthy);
-
-    c.io.var(V_SYS_SUPPLY_LOCKOUT).set(lockout.q());
-
-    if (lockout.q()) {
-        c.io.var(V_CLI_WINDOW1_OPN).set(false);
-        c.io.var(V_CLI_WINDOW2_OPN).set(false);
+    void bind(Vars::Bank& io) override {
+        _ln     = io.find("grid_LN_V");
+        _locked = io.find("sys_supply_lockout");
     }
-}
+
+    void run(Plc::Context& c) override {
+        const bool unhealthy = !Plc::in_range(c.io.var(_ln).value(), 200.0f, 260.0f);
+
+        // reset-dominant: recovery wins, so the lockout cannot stick
+        _lockout(_bad_for(unhealthy, 5000, c.dt_ms), !unhealthy);
+
+        c.io.var(_locked).set(_lockout.q());
+    }
+
+    void reset() override { _bad_for.reset(); _lockout.reset(); }
+};
 ```
 
 Note what it does **not** do: no clock reads, no direct I/O, no knowledge of Modbus.
-It reads variables, applies blocks, and drives variables. Two idioms worth copying:
+It reads variables, applies blocks, and drives variables. Three idioms worth copying:
 
 - **Let the default do the work.** A meter that has stopped answering reads as its
   declared `def` (0 V here), which is outside the healthy band - so the program
   handles a dead sensor correctly without ever testing `valid()`.
-- **Publish the decision, not just the effect.** `V_SYS_SUPPLY_LOCKOUT` exists so the
+- **Resolve names in `bind()`, not in `run()`.** `Bank::find()` is a linear walk of
+  the whole variable table. Done once at bring-up it costs nothing; done per
+  activation it is the same search repeated forever to learn what the program
+  already knew.
+- **Publish the decision, not just the effect.** `sys_supply_lockout` exists so the
   console, shell and telemetry can see *why* the windows are held. A coil reading 0
   does not distinguish "not commanded" from "locked out".
 
@@ -124,9 +144,9 @@ belongs to the block that owns it, not to them.
 ### PLC function blocks
 
 `plc/blocks/`, one header per family and `blocks.h` pulling in the lot (which
-`libbotanik.h` already does). Ordinary RAM classes, declared `static` inside a task
-or as members. Every timed block takes `dt_ms` explicitly rather than reading a
-clock - which is what makes a late task correct, and a block testable without a
+`libbotanik.h` already does). Ordinary RAM classes, held as members of the program
+that uses them. Every timed block takes `dt_ms` explicitly rather than reading a
+clock - which is what makes a late program correct, and a block testable without a
 clock at all.
 
 | Header | Blocks |
@@ -330,9 +350,23 @@ withdrawn.
 All blocks expose `q()` or `value()` for the current state and `reset()` where it
 makes sense.
 
-## When tasks run
+## When programs run
 
 The scan is stepped once per beat, **only while control authority is enabled**. When
 control is withdrawn the scan is inhibited entirely and outputs sit at their safe
 state - see @ref user_control for the operator's view and @ref dev_architecture for
 where in the loop this sits.
+
+Both edges of that gate reach the programs:
+
+- **Withdrawn.** The driver calls `reset()` on every program, once, on the edge.
+  From that moment the process moves without us - a vent creeps shut, a tank
+  drains, a room cools - so anything a program remembered about the field is
+  stale. Override `reset()` to drop what has gone stale; it is deliberately not
+  "clear everything", because a dwell timer is stale but a totalizer holding the
+  litres delivered today is a *record*, and zeroing it would be data loss.
+- **Returned.** Every program's timer is reseeded, so its first activation back
+  reports its nominal period rather than the whole outage. A `Ton` holding 5 s
+  handed an hour of `dt` fires the instant control returns, which is the one thing
+  a withdrawal exists to prevent. `dt` alone cannot express "the process moved
+  while you were not looking" - that is what `reset()` is for.

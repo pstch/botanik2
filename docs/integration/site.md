@@ -45,7 +45,7 @@ const Botanik::SiteDescriptor g_site = {
     g_commands,    g_command_count,
     g_home_fields, g_home_field_count, g_home_refs,
     SITE_VAR_TABLES,
-    g_tasks,       g_task_count,       g_task_stats,
+    g_programs,    g_program_count,
 };
 
 class GreenhouseXXX final : public Botanik::BotanikFirmware {

@@ -13,7 +13,7 @@ The whole handoff to the library. Field order:
 | 2-3 | `commands`, `command_count` | `const Shell::ShellCommand*`, `uint8_t` |
 | 6-8 | `home_fields`, `home_field_count`, `home_refs` | `const Vars::HomeVar*`, `uint8_t`, `Vars::VarRef*` |
 | 9 | `vars` | `Vars::VarTables` - **by value**; alarms are `SCOPE_A` rows in here |
-| 10-12 | `tasks`, `task_count`, `task_stats` | `const Scan::Task*`, `uint8_t`, `Scan::TaskStats*` |
+| 10-11 | `programs`, `program_count` | `Plc::Program* const*`, `uint8_t` |
 
 ```cpp
 const Botanik::SiteDescriptor g_site = {
@@ -21,7 +21,7 @@ const Botanik::SiteDescriptor g_site = {
     g_commands,      g_command_count,
     g_home_fields,   g_home_field_count,   g_home_refs,
     SITE_VAR_TABLES,
-    g_tasks,         g_task_count,   g_task_stats,
+    g_programs,      g_program_count,
 };
 ```
 
@@ -138,7 +138,7 @@ const Shell::ShellCommand g_commands[] = {
 @warning Site commands are matched **before** the built-ins, so a site table can
 shadow `exit` or `reset`. Do not reuse a built-in name.
 
-Control programs (`Scan::Task`) are covered in @ref int_tasks.
+Control programs (`Plc::Program`) are covered in @ref int_tasks.
 
 ## Capacity limits
 

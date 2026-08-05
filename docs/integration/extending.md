@@ -71,9 +71,10 @@ void on_step(uint64_t now_ms) override {
 @warning It must be **non-blocking and bounded**, like everything else in the loop.
 Blocking here stalls the RTOS and trips the hardware watchdog.
 
-Control logic belongs in a `Scan::Task` instead (@ref int_tasks): tasks get
-multi-rate scheduling, correct `dt_ms` handling, and are inhibited automatically when
-control authority is withdrawn. `on_step()` gets none of that.
+Control logic belongs in a `Plc::Program` instead (@ref int_tasks): programs get
+multi-rate scheduling, correct `dt_ms` handling, their variable names resolved once
+at bring-up, and are inhibited automatically when control authority is withdrawn (and
+reset on the way down). `on_step()` gets none of that.
 
 ## Post-wiring
 

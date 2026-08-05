@@ -164,11 +164,13 @@ The accounting unit is the **task**, not the group: "the slow group cost 3 ms"
 does not say which of its five members to look at. Roll up to the group for the
 summary.
 
-`TaskStats` grows `us_last` and a windowed peak, measured with two
-`HAL::Clock::uptime_us()` reads around the call, and the group owns the
-`Task[]` / `TaskStats[]` pair exactly as `Scan::Driver` owns them today. That is
-also what makes a registry unnecessary - the group *is* the registry, so there is
-no intrusive list and no static-init-order hazard.
+`Scheduler::TaskCost` already holds exactly this (`us_last`, `us_max`,
+`us_total`, `runs`, `us_mean()`); what is missing is a `Plc::Program` carrying
+one, measured with two `HAL::Clock::uptime_us()` reads around `step()`. The
+program already owns its timer, so the cost belongs beside it rather than in a
+parallel array - which is also what makes a registry unnecessary here: the
+program *is* the record, so there is no intrusive list and no static-init-order
+hazard.
 
 Report a windowed peak and a mean. An all-time max never decays, so one outlier
 pins it for the life of the boot (see @ref dev_scheduler).

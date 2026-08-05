@@ -69,7 +69,7 @@ const Botanik::SiteDescriptor g_site = {
     g_commands,      g_command_count,                    // site shell commands
     g_home_fields,   g_home_field_count,  Store::home_refs,  // home-screen readings
     SITE_VAR_TABLES,                                     // variables + values + string pool
-    g_tasks,         g_task_count,        Tasks::stats,      // control programs
+    g_programs,      g_program_count,                     // control programs
 };
 
 }  // namespace Site

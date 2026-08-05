@@ -127,6 +127,16 @@ namespace Botanik {
          *  period, before the loop starts; keep it under the period. */
         void set_offset(uint32_t offset_ms) { _timer.set_offset(offset_ms); }
 
+        /** @brief Treat this component as having just run at @p now_ms without
+         *  running it, so its next activation is a full period away rather than
+         *  immediate.
+         *
+         *  For a gap the caller deliberately did not step it across: the scan
+         *  cycle does this to every control program when control authority
+         *  returns, since handing one the whole outage as dt fires every timer
+         *  it holds. Does not count as a run - see Scheduler::TaskTimer. */
+        void reseed(uint64_t now_ms) { _timer.reseed(now_ms); }
+
         /** @brief Run this component's one-time init: on_setup() then
          *  announce().
          *

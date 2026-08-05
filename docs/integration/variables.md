@@ -180,13 +180,12 @@ resolved index back out of the flash table it was declared in.
 
 ## Binding the table
 
-Three arrays and one macro:
+Two arrays and one macro:
 
 ```cpp
 // vars.cpp - defined exactly once, or a second TU including the site breaks the link
-Value    g_var_values[VAR_TOTAL];
-char     g_str_pool[STR_POOL_BYTES];
-TaskStats g_task_stats[g_task_count];
+Value g_var_values[VAR_TOTAL];
+char  g_str_pool[STR_POOL_BYTES];
 ```
 
 ```cpp
