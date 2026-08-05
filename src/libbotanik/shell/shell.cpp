@@ -265,8 +265,8 @@ namespace Botanik { namespace Shell {
         // compiled out reads exactly like a broker that will not connect).
         // Expanded from BOTANIK_FEATURE_LIST, so this is not a second roster
         // to keep in step - a flag added to the header is reported here without
-        // anyone remembering to come back. The lower-cased name is what an
-        // operator types into a config, minus the prefix.
+        // anyone remembering to come back. Names carry the macro spelling and
+        // are lower-cased for display below.
 #define BOTANIK_FEAT_ROW(f) { #f, BOTANIK_FEATURE_##f != 0 },
         static const struct { const char* name; bool on; } FEATURES[] = {
             BOTANIK_FEATURE_LIST(BOTANIK_FEAT_ROW)
@@ -275,23 +275,44 @@ namespace Botanik { namespace Shell {
 
         // Partitioned rather than one line per flag: two dozen booleans is a
         // glance, and every line costs the same 4800-baud budget the rest of the
-        // UI is fighting over.
+        // UI is fighting over. Wrapped rather than truncated - two dozen names
+        // do not fit 80 columns, and a silently clipped list is worse than no
+        // list, since the flag you cannot see reads as absent.
+        // The shell has no terminal handle, so this is the conventional 80
+        // columns minus the label, not a measured width. Wrapping short is
+        // harmless; wrapping long would clip.
+        static const size_t WRAP_W = 72;
         char out[Config::LOG_FORMATTED_LEN];
         for (uint8_t pass = 0; pass < 2; pass++) {
             const bool want = (pass == 0);
-            char list[320];
+            char list[96];
             size_t n = 0;
+            bool first_line = true, any = false;
             list[0] = '\0';
+
             for (const auto& f : FEATURES) {
                 if (f.on != want) continue;
-                const int w = snprintf(list + n, sizeof(list) - n, "%s%s",
-                                       n != 0 ? " " : "", f.name);
-                if (w < 0) break;
-                n += (size_t)w;
-                if (n >= sizeof(list)) { n = sizeof(list) - 1; break; }
+                any = true;
+                const size_t len = strlen(f.name);
+                // Flush before overflowing, so a name is never split.
+                if (n != 0 && n + 1 + len > WRAP_W) {
+                    _emitf(out, sizeof(out), "%-3s %s %s",
+                           first_line ? (want ? "on" : "off") : "", 
+                           first_line ? ":" : " ", list);
+                    first_line = false;
+                    n = 0; list[0] = '\0';
+                }
+                if (n != 0) list[n++] = ' ';
+                for (size_t i = 0; i < len && n < sizeof(list) - 1; i++) {
+                    const char c = f.name[i];
+                    list[n++] = (c >= 'A' && c <= 'Z') ? (char)(c + 32) : c;
+                }
+                list[n] = '\0';
             }
-            _emitf(out, sizeof(out), "%-3s : %s", want ? "on" : "off",
-                   n != 0 ? list : "(none)");
+            if (n != 0 || !any)
+                _emitf(out, sizeof(out), "%-3s %s %s",
+                       first_line ? (want ? "on" : "off") : "",
+                       first_line ? ":" : " ", any ? list : "(none)");
         }
     }
 

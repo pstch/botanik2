@@ -66,9 +66,15 @@ namespace Botanik {
 
         Utils::BufferedSerial   _serial;
         Terminal::Console       _terminal;
+#if BOTANIK_FEATURE_SHELL_PAGE
         Pages::ShellPage        _shell;
+#endif
+#if BOTANIK_FEATURE_LOGS_PAGE
         Pages::LogsPage         _logs;
+#endif
+#if BOTANIK_FEATURE_ALARMS_PAGE
         Pages::AlarmsPage       _alarms;
+#endif
 #if BOTANIK_FEATURE_NOTES_PAGE
         Pages::NotesPage        _notes;
 #endif
@@ -82,11 +88,19 @@ namespace Botanik {
                      uint32_t baud, Alarms::AlarmController* alarms,
                      Logs::Logger* logger)
             : _serial(HAL::Serial::get(HAL::Serial::CONSOLE), logger, "ConsoleSerial"),
+              // Leading commas from here down, so any of the optional pages can
+              // drop out without stranding a separator.
               _terminal(_serial, cols, rows, timestamp_ms, baud,
-                        SystemContext(), alarms, logger),
-              _shell(_terminal),
-              _logs(_terminal),
-              _alarms(_terminal, alarms)
+                        SystemContext(), alarms, logger)
+#if BOTANIK_FEATURE_SHELL_PAGE
+            , _shell(_terminal)
+#endif
+#if BOTANIK_FEATURE_LOGS_PAGE
+            , _logs(_terminal)
+#endif
+#if BOTANIK_FEATURE_ALARMS_PAGE
+            , _alarms(_terminal, alarms)
+#endif
 #if BOTANIK_FEATURE_NOTES_PAGE
             , _notes(_terminal, logger)
 #endif
@@ -94,9 +108,15 @@ namespace Botanik {
 
         Utils::BufferedSerial&  serial()   { return _serial; }
         Terminal::Console&      terminal() { return _terminal; }
+#if BOTANIK_FEATURE_SHELL_PAGE
         Pages::ShellPage&       shell()    { return _shell; }
+#endif
+#if BOTANIK_FEATURE_LOGS_PAGE
         Pages::LogsPage&        logs()     { return _logs; }
+#endif
+#if BOTANIK_FEATURE_ALARMS_PAGE
         Pages::AlarmsPage&      alarms()   { return _alarms; }
+#endif
 #if BOTANIK_FEATURE_NOTES_PAGE
         Pages::NotesPage&       notes()    { return _notes; }
 #endif

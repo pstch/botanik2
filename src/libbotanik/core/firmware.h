@@ -189,10 +189,18 @@ namespace Botanik {
         // terminal() is live): the landing page, the editable CONFIG table over
         // the config backend, and the read-only MONITOR table over the site's
         // status-variable groups.
+#if BOTANIK_FEATURE_HOME_PAGE
         Pages::HomePage                _home_page;
+#endif
+#if BOTANIK_FEATURE_PARAMS_PAGE
         Pages::ParamsPage              _params_page;
+#endif
+#if BOTANIK_FEATURE_MONITOR_PAGE
         Pages::MonitorPage             _monitor_page;
+#endif
+#if BOTANIK_FEATURE_TASKS_PAGE
         Pages::TasksPage               _tasks_page;
+#endif
 #endif
 
         /** @} */
@@ -234,11 +242,19 @@ namespace Botanik {
                          &_scheduler.context()->timestamp_ms, _console_baud,
                          &_health.alarm_model(), &_logger)
               // Base-owned pages, built from the descriptor + the live payload.
+#if BOTANIK_FEATURE_HOME_PAGE
               , _home_page(_console.terminal(), _site.home_fields,
                            _site.home_field_count, &_io, _site.home_refs)
+#endif
+#if BOTANIK_FEATURE_PARAMS_PAGE
               , _params_page(_console.terminal(), &_params)
+#endif
+#if BOTANIK_FEATURE_MONITOR_PAGE
               , _monitor_page(_console.terminal(), &_io)
+#endif
+#if BOTANIK_FEATURE_TASKS_PAGE
               , _tasks_page(_console.terminal(), _tasks)
+#endif
 #endif
         {
             // Wire the status aggregate now every subsystem address is fixed,
@@ -309,14 +325,21 @@ namespace Botanik {
             _logger.watch_tx(&_monitor.serial());
 #endif
 #if BOTANIK_FEATURE_CONSOLE
+#if BOTANIK_FEATURE_SHELL_PAGE
             _logger.add_writer(&_console.shell());
+#endif
+#if BOTANIK_FEATURE_LOGS_PAGE
             _logger.add_writer(&_console.logs());
+#endif
             // The home page sinks the log stream into its bottom log-tail band.
+#if BOTANIK_FEATURE_HOME_PAGE
             _logger.add_writer(&_home_page);
+#endif
             _logger.watch_tx(&_console.serial());
 #endif
 
 #if BOTANIK_FEATURE_CONSOLE
+#if BOTANIK_FEATURE_SHELL_PAGE
             // Let the shell's loglevel / alarm-ack commands reach the live
             // logger + model.
             _console.shell().set_diagnostics(&_logger, &_health.alarm_model());
@@ -326,6 +349,7 @@ namespace Botanik {
 #endif
 
             register_commands();   // site commands, tried after the built-ins
+#endif
             // tab order (page 0 = boot page); switch_to(0) records it
             register_pages();
             _console.terminal().setup_terminal();
@@ -609,26 +633,48 @@ namespace Botanik {
          *  reorder them or splice in its own (e.g. re-add a STATUS page by
          *  subclassing Pages::StatusPage and add_page()-ing it here). */
         virtual void register_pages() {
-            _console.terminal().add_page(&_home_page);       // page 0 (boot page)
+            // Whichever page registers FIRST is page 0, the boot page. That is
+            // positional, not a property of HOME: with HOME_PAGE off the boot
+            // page is simply the next one that exists.
+#if BOTANIK_FEATURE_HOME_PAGE
+            _console.terminal().add_page(&_home_page);
+#endif
+#if BOTANIK_FEATURE_SHELL_PAGE
             _console.terminal().add_page(&_console.shell());
+#endif
+#if BOTANIK_FEATURE_LOGS_PAGE
             _console.terminal().add_page(&_console.logs());
+#endif
+#if BOTANIK_FEATURE_ALARMS_PAGE
             _console.terminal().add_page(&_console.alarms());
+#endif
+#if BOTANIK_FEATURE_PARAMS_PAGE
             _console.terminal().add_page(&_params_page);
+#endif
+#if BOTANIK_FEATURE_MONITOR_PAGE
             _console.terminal().add_page(&_monitor_page);
+#endif
+#if BOTANIK_FEATURE_TASKS_PAGE
             _console.terminal().add_page(&_tasks_page);
+#endif
 #if BOTANIK_FEATURE_NOTES_PAGE
             _console.terminal().add_page(&_console.notes());
 #endif
         }
 
+#if BOTANIK_FEATURE_SHELL_PAGE
         /** @brief Register the site's shell command table (tried BEFORE the
          *  built-ins, so the table can shadow one - avoid reusing exit/reset).
          *  Default: the descriptor's commands, reading the live variable bank
-         *  as their ctx. */
+         *  as their ctx.
+         *
+         *  Gated on SHELL_PAGE, not CONSOLE: ShellPage owns the CommandShell, so
+         *  without the page there is nothing to register commands on. */
         virtual void register_commands() {
             _console.shell().set_commands(_site.commands, _site.command_count,
                                           (void*)&_io);
         }
+#endif
 #endif
 
 #if BOTANIK_FEATURE_MQTT
