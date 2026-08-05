@@ -48,16 +48,24 @@ namespace Botanik { namespace Logs {
     // ------------------------------------------------------------------------
 
     bool Logger::add_writer(LogWriter* writer) {
+#if !BOTANIK_FEATURE_LOGGING
+        (void)writer;
+        return false;               // nothing to fan out to
+#else
         if (writer == nullptr || _writerCount >= Config::LOG_WRITERS_MAX) return false;
         for (uint8_t i = 0; i < _writerCount; i++) if (_writers[i] == writer) return true;
         _writers[_writerCount++] = writer;
         return true;
+#endif
     }
 
     // Dispatch
     // ------------------------------------------------------------------------
 
     void Logger::refill() {
+#if !BOTANIK_FEATURE_LOGGING
+        return;                     // no buckets to refill, nothing suppressed
+#else
         uint32_t now_ms         = HAL::Clock::current_ms();
 
         // refill the global bucket
@@ -98,6 +106,7 @@ namespace Botanik { namespace Logs {
         if (_watched_tx_count > 0)
             _report_loss(_tx_loss, tx_total, Config::LOG_TX_DROP_REPORT_PERIOD_MS,
                          now_ms, "serial bytes dropped (TX full)");
+#endif
     }
 
     // Two-stage drop policy: the rate limiter applies to EVERY level (a flood
@@ -205,9 +214,18 @@ namespace Botanik { namespace Logs {
 
     void Logger::_emit(Logs::LogLevel level, Logs::LogTopic topic,
                        const char* fmt, va_list ap) {
+#if !BOTANIK_FEATURE_LOGGING
+        // The one funnel every level helper reaches, and where the vsnprintf
+        // happens - so returning here is what actually makes a logging-off build
+        // cheap. The helpers keep their signatures, so the ~31 call sites and
+        // the 19 headers that hold a Logger* need no change at all.
+        (void)level; (void)topic; (void)fmt; (void)ap;
+        return;
+#else
         Logs::LogEntry entry = {};
         _build_entry(entry, level, topic, HAL::Clock::current_ms(), fmt, ap);
         push_entry(entry);
+#endif
     }
 
 }}

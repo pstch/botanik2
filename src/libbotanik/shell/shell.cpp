@@ -610,6 +610,13 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_cmd_loglevel(const char* args, uint16_t alen) {
+#if !BOTANIK_FEATURE_LOGGING
+        // The Logger object still exists (an inert shell), so a null check would
+        // not catch this and the command would silently appear to work.
+        (void)args; (void)alen;
+        _println("loglevel: logging is compiled out (see `features`)");
+        return;
+#else
         if (_logger == nullptr) {
             _println("loglevel: logger unavailable"); return;
         }
@@ -634,6 +641,7 @@ namespace Botanik { namespace Shell {
                 return;
             }
         _println("usage: loglevel [debug|info|notice|warning|error|critical]");
+#endif
     }
 
 

@@ -159,8 +159,13 @@ namespace Botanik { namespace Health {
             // resolved, so there is nothing here to drift from them.
             for (uint8_t i = 0; i < PA_COUNT; i++)
                 if (_ix[i] < 0) { ok = false; _post_fail("alarm missing", _codes()[i]); }
-            // A logger with no writers would silently swallow everything.
+#if BOTANIK_FEATURE_LOGGING
+            // A logger with no writers would silently swallow everything. Only
+            // a defect when logging was asked for: a LOGGING=OFF build has no
+            // writers BY CONSTRUCTION, and failing POST for it would report the
+            // build's own configuration as a fault.
             if (_logger == nullptr || !_logger->has_writers()) ok = false;
+#endif
             _post_ok = ok;
             if (_logger) {
                 if (ok) _logger->info(Logs::HEALTH, "POST ok (site %s)",

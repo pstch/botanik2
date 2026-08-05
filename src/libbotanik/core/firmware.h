@@ -483,9 +483,11 @@ namespace Botanik {
                 this);
 
             // --- PRESENT: report what just happened ---
+#if BOTANIK_FEATURE_LOGGING
             _tasks.add("logger", GROUP_FAST, PHASE_PRESENT,
                 [](void* s, uint64_t) { static_cast<Logs::Logger*>(s)->refill(); },
                 &_logger);
+#endif
 #if BOTANIK_FEATURE_CONSOLE
             // The Console is the Component, not the stack around it: the stack's
             // serial pump is registered separately, at its own phases.
