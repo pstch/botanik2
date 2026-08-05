@@ -14,7 +14,7 @@
 #include "../core/component.h"
 #include "libbotanik/vars/params.h"     // Vars::Bank + cfg_* name getters
 
-#if BOTANIK_FEATURE_SUN
+#if BOTANIK_FEATURE_SUN_TRACKER
 
 namespace Botanik { namespace Sun {
 
@@ -105,6 +105,6 @@ namespace Botanik { namespace Sun {
 
 }}
 
-#endif // BOTANIK_FEATURE_SUN
+#endif // BOTANIK_FEATURE_SUN_TRACKER
 
 #endif // SUN_SUN_TRACKER_H

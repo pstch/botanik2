@@ -5,60 +5,213 @@
 /** @file libbotanik_features.h
  *  @brief Compile-time feature flags for the Botanik library.
  *
- *  Each `BOTANIK_FEATURE_<X>` toggles one optional subsystem. They are usually
- *  set in the site-specific config.h (`#define BOTANIK_FEATURE_XXX 0`).
+ *  Each `BOTANIK_FEATURE_<X>` toggles one optional subsystem. Precedence is
+ *  command line > site `config.h` > the default here: CMake puts a `-D` on the
+ *  compile line before this header is read, and a site guards its own `#define`
+ *  with `#ifndef`.
  *
- *  We then use these preprocessor variables to gate code using `#if`. */
+ *  Gate code with `#if BOTANIK_FEATURE_<X>`, never `#ifdef` - every flag is
+ *  defined by the time this header ends, so `#ifdef` is always true. The
+ *  preprocessor rather than `constexpr`, because a flag must be able to drop a
+ *  member declaration and a constructor-init entry, and C++11 has no
+ *  `if constexpr`.
+ *
+ *  @section feat_list One list, three consumers
+ *
+ *  BOTANIK_FEATURE_LIST is the single source of truth for which flags EXIST. The
+ *  `features` shell command expands it, so a new flag is reported without
+ *  touching the shell; CMake discovers `-D`s by prefix rather than from a list,
+ *  so a new flag cannot be half-wired. Both of those used to be hand-maintained
+ *  copies, and the CMake one silently ignored the `-D` of any flag missing from
+ *  it - which is exactly what happened when NOTES was added.
+ *
+ *  Adding a flag: one `X()` entry, one `#ifndef` default, any dependency rule,
+ *  and a row in docs/integration/config.md.
+ */
 
-// Features flags
+// The flag roster
 // ===========================================================================
+
+/** @brief Every flag, for anything that needs to enumerate them. */
+#define BOTANIK_FEATURE_LIST(X) \
+    X(CONSOLE)            \
+    X(LOGGING)            \
+    X(NETWORK)            \
+    X(NTP)                \
+    X(MQTT)               \
+    X(SUN_TRACKER)        \
+    X(HOME_PAGE)          \
+    X(SHELL_PAGE)         \
+    X(LOGS_PAGE)          \
+    X(ALARMS_PAGE)        \
+    X(PARAMS_PAGE)        \
+    X(MONITOR_PAGE)       \
+    X(TASKS_PAGE)         \
+    X(NOTES_PAGE)         \
+    X(LOGS_PUBLISH)       \
+    X(ALARMS_PUBLISH)     \
+    X(LOGS_MONITOR)       \
+    X(PLC_SCAN)           \
+    X(PLC_BLK_BASE)       \
+    X(PLC_BLK_FILTERS)    \
+    X(MODBUS_TCP_SERVER)  \
+    X(MODBUS_RTU_CLIENT)
+
+// Defaults
+// ===========================================================================
+// Minimal core, opt in: a build that sets nothing gets a console with a home
+// screen and a shell, logging, and the scan cycle. Everything else - the other
+// pages, the network, the field bus, the block library - is something a site
+// asks for. src/sites/gh_mlb41/config.h is the worked full profile.
+
+/** @brief Interactive ANSI console: the terminal, the console UART, and the
+ *  register_pages() / register_commands() hooks. Off -> headless. */
+#ifndef BOTANIK_FEATURE_CONSOLE
+#  define BOTANIK_FEATURE_CONSOLE 1
+#endif
+
+/** @brief Log writers, the rate limiter and the queue.
+ *  @note Off leaves `Logs::Logger` in place as an inert shell, so the headers
+ *  that take a `Logger*` need no change and the emit sites - all already
+ *  null-guarded - simply reach nothing. */
+#ifndef BOTANIK_FEATURE_LOGGING
+#  define BOTANIK_FEATURE_LOGGING 1
+#endif
 
 /** @brief Network stack (NetworkHandler / NameResolver). */
 #ifndef BOTANIK_FEATURE_NETWORK
 #  define BOTANIK_FEATURE_NETWORK 0
 #endif
 
-/** @brief NTP time sync.
- *  @note Requires BOTANIK_FEATURE_NETWORK */
+/** @brief NTP time sync. */
 #ifndef BOTANIK_FEATURE_NTP
 #  define BOTANIK_FEATURE_NTP 0
 #endif
 
-/** @brief MQTT client & notifier.
- *  @note Requires BOTANIK_FEATURE_NETWORK */
+/** @brief MQTT client. */
 #ifndef BOTANIK_FEATURE_MQTT
 #  define BOTANIK_FEATURE_MQTT 0
 #endif
 
-/** @brief Sun altitude tracking. Off by default: the tracker is standalone
- *  (BotanikFirmware does not instantiate it), so a site that wants it turns it
- *  on in its own config.h and owns the instance. */
-#ifndef BOTANIK_FEATURE_SUN
-#  define BOTANIK_FEATURE_SUN 0
+/** @brief Solar-position tracker. Standalone: BotanikFirmware does not
+ *  instantiate it, so a site that wants it turns it on and owns the instance. */
+#ifndef BOTANIK_FEATURE_SUN_TRACKER
+#  define BOTANIK_FEATURE_SUN_TRACKER 0
 #endif
 
-/** @brief Interactive ANSI console. */
-#ifndef BOTANIK_FEATURE_CONSOLE
-#  define BOTANIK_FEATURE_CONSOLE 1
+// --- Console pages -------------------------------------------------------
+// HOME and SHELL default to CONSOLE's value rather than to a literal, so a
+// headless build drops them without anyone having written the contradiction the
+// dependency rules would then reject. The rest default off: they are the ones a
+// site chooses.
+
+/** @brief HOME: logo, identity, uptime, log tail, site home fields. */
+#ifndef BOTANIK_FEATURE_HOME_PAGE
+#  define BOTANIK_FEATURE_HOME_PAGE BOTANIK_FEATURE_CONSOLE
 #endif
 
-/** @brief UART log monitor. */
-#ifndef BOTANIK_FEATURE_MONITOR
-#  define BOTANIK_FEATURE_MONITOR 1
+/** @brief SHELL - and with it the whole command interpreter. `ShellPage` owns
+ *  `Shell::CommandShell`, so this also gates `register_commands()`,
+ *  `set_diagnostics()` and `set_ntp()`. Off means no shell at all, not a shell
+ *  without a page. */
+#ifndef BOTANIK_FEATURE_SHELL_PAGE
+#  define BOTANIK_FEATURE_SHELL_PAGE BOTANIK_FEATURE_CONSOLE
 #endif
 
-/** @brief Operator notes: a full-screen text editor page, persisted to flash.
- *  @note Requires BOTANIK_FEATURE_CONSOLE (it is a console page), so it
- *  defaults to CONSOLE rather than to 1: a headless build never asked for a
- *  notes page, and defaulting it on made -DBOTANIK_FEATURE_CONSOLE=OFF trip the
- *  dependency rule below on a contradiction nobody had actually written.
- *  Asking for NOTES=1 with CONSOLE=0 IS a contradiction, and still fails. */
-#ifndef BOTANIK_FEATURE_NOTES
-#  define BOTANIK_FEATURE_NOTES BOTANIK_FEATURE_CONSOLE
+/** @brief LOGS: the scrollback page. */
+#ifndef BOTANIK_FEATURE_LOGS_PAGE
+#  define BOTANIK_FEATURE_LOGS_PAGE 0
+#endif
+
+/** @brief ALARMS: the condition table. The alarm CONTROLLER is unconditional -
+ *  the bottom alarm bar reads it whether or not this page exists. */
+#ifndef BOTANIK_FEATURE_ALARMS_PAGE
+#  define BOTANIK_FEATURE_ALARMS_PAGE 0
+#endif
+
+/** @brief PARAMS: the editable parameter table. */
+#ifndef BOTANIK_FEATURE_PARAMS_PAGE
+#  define BOTANIK_FEATURE_PARAMS_PAGE 0
+#endif
+
+/** @brief MONITOR: every published variable. Not to be confused with
+ *  LOGS_MONITOR, which is a serial log sink and a different subsystem. */
+#ifndef BOTANIK_FEATURE_MONITOR_PAGE
+#  define BOTANIK_FEATURE_MONITOR_PAGE 0
+#endif
+
+/** @brief TASKS: the scheduler's task table and its per-task cost. */
+#ifndef BOTANIK_FEATURE_TASKS_PAGE
+#  define BOTANIK_FEATURE_TASKS_PAGE 0
+#endif
+
+/** @brief NOTES: a full-screen editor over the operator's note, persisted to
+ *  flash. Costs NOTES_LEN + 2 * NOTES_MAX_ROWS row slots of RAM. */
+#ifndef BOTANIK_FEATURE_NOTES_PAGE
+#  define BOTANIK_FEATURE_NOTES_PAGE 0
+#endif
+
+// --- Log and alarm transports --------------------------------------------
+
+/** @brief Publish log entries to the MQTT broker (`MqttLogWriter`). */
+#ifndef BOTANIK_FEATURE_LOGS_PUBLISH
+#  define BOTANIK_FEATURE_LOGS_PUBLISH 0
+#endif
+
+/** @brief Publish alarm transitions to the MQTT broker
+ *  (`Alarms::MqttAlarmNotifier`). */
+#ifndef BOTANIK_FEATURE_ALARMS_PUBLISH
+#  define BOTANIK_FEATURE_ALARMS_PUBLISH 0
+#endif
+
+/** @brief Raw log output on the secondary MONITOR serial port. */
+#ifndef BOTANIK_FEATURE_LOGS_MONITOR
+#  define BOTANIK_FEATURE_LOGS_MONITOR 0
+#endif
+
+// --- PLC -----------------------------------------------------------------
+
+/** @brief The scan cycle: `Scan::Driver` running the site's control programs at
+ *  their declared rates. Off does NOT remove control authority - the Bank's
+ *  enable/disable latch has consumers of its own (the `control` command, the
+ *  health withdrawal) that outlive the scan. */
+#ifndef BOTANIK_FEATURE_PLC_SCAN
+#  define BOTANIK_FEATURE_PLC_SCAN 1
+#endif
+
+/** @brief The base function blocks: timers, logic, analog, meter, pid,
+ *  actuator. Header-only `plc/functions/` is never gated - it costs nothing
+ *  unless included. */
+#ifndef BOTANIK_FEATURE_PLC_BLK_BASE
+#  define BOTANIK_FEATURE_PLC_BLK_BASE 0
+#endif
+
+/** @brief The filter blocks: Ewma, MedianOf3, MovingAverage. Distinct from
+ *  `utils/filters.h`, the scheduler's metric filter, which is unconditional. */
+#ifndef BOTANIK_FEATURE_PLC_BLK_FILTERS
+#  define BOTANIK_FEATURE_PLC_BLK_FILTERS 0
+#endif
+
+// --- Field bus -----------------------------------------------------------
+// RESERVED. Declared so a site can state intent and the dependency rules are
+// settled, but there is no Modbus implementation yet - docs/dev/modbus.md is the
+// design ahead of the code. Turning either on today gates nothing.
+
+/** @brief Modbus TCP slave, exposing parameters and status values. */
+#ifndef BOTANIK_FEATURE_MODBUS_TCP_SERVER
+#  define BOTANIK_FEATURE_MODBUS_TCP_SERVER 0
+#endif
+
+/** @brief Modbus RTU master, filling the process image from the field. */
+#ifndef BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+#  define BOTANIK_FEATURE_MODBUS_RTU_CLIENT 0
 #endif
 
 // Dependency rules
 // ===========================================================================
+// A contradiction is a build error, not a silent no-op: asking for a subsystem
+// whose substrate is off is a mistake in the asking, and the alternative is a
+// binary quietly missing what was requested.
 
 #if BOTANIK_FEATURE_NTP && !BOTANIK_FEATURE_NETWORK
 #  error "BOTANIK_FEATURE_NTP requires BOTANIK_FEATURE_NETWORK"
@@ -66,8 +219,59 @@
 #if BOTANIK_FEATURE_MQTT && !BOTANIK_FEATURE_NETWORK
 #  error "BOTANIK_FEATURE_MQTT requires BOTANIK_FEATURE_NETWORK"
 #endif
-#if BOTANIK_FEATURE_NOTES && !BOTANIK_FEATURE_CONSOLE
-#  error "BOTANIK_FEATURE_NOTES requires BOTANIK_FEATURE_CONSOLE"
+
+#if BOTANIK_FEATURE_HOME_PAGE && !BOTANIK_FEATURE_CONSOLE
+#  error "BOTANIK_FEATURE_HOME_PAGE requires BOTANIK_FEATURE_CONSOLE"
+#endif
+#if BOTANIK_FEATURE_SHELL_PAGE && !BOTANIK_FEATURE_CONSOLE
+#  error "BOTANIK_FEATURE_SHELL_PAGE requires BOTANIK_FEATURE_CONSOLE"
+#endif
+#if BOTANIK_FEATURE_LOGS_PAGE && !BOTANIK_FEATURE_CONSOLE
+#  error "BOTANIK_FEATURE_LOGS_PAGE requires BOTANIK_FEATURE_CONSOLE"
+#endif
+#if BOTANIK_FEATURE_LOGS_PAGE && !BOTANIK_FEATURE_LOGGING
+#  error "BOTANIK_FEATURE_LOGS_PAGE requires BOTANIK_FEATURE_LOGGING"
+#endif
+#if BOTANIK_FEATURE_ALARMS_PAGE && !BOTANIK_FEATURE_CONSOLE
+#  error "BOTANIK_FEATURE_ALARMS_PAGE requires BOTANIK_FEATURE_CONSOLE"
+#endif
+#if BOTANIK_FEATURE_PARAMS_PAGE && !BOTANIK_FEATURE_CONSOLE
+#  error "BOTANIK_FEATURE_PARAMS_PAGE requires BOTANIK_FEATURE_CONSOLE"
+#endif
+#if BOTANIK_FEATURE_MONITOR_PAGE && !BOTANIK_FEATURE_CONSOLE
+#  error "BOTANIK_FEATURE_MONITOR_PAGE requires BOTANIK_FEATURE_CONSOLE"
+#endif
+#if BOTANIK_FEATURE_TASKS_PAGE && !BOTANIK_FEATURE_CONSOLE
+#  error "BOTANIK_FEATURE_TASKS_PAGE requires BOTANIK_FEATURE_CONSOLE"
+#endif
+#if BOTANIK_FEATURE_NOTES_PAGE && !BOTANIK_FEATURE_CONSOLE
+#  error "BOTANIK_FEATURE_NOTES_PAGE requires BOTANIK_FEATURE_CONSOLE"
+#endif
+
+#if BOTANIK_FEATURE_LOGS_PUBLISH && !BOTANIK_FEATURE_LOGGING
+#  error "BOTANIK_FEATURE_LOGS_PUBLISH requires BOTANIK_FEATURE_LOGGING"
+#endif
+#if BOTANIK_FEATURE_LOGS_PUBLISH && !BOTANIK_FEATURE_MQTT
+#  error "BOTANIK_FEATURE_LOGS_PUBLISH requires BOTANIK_FEATURE_MQTT"
+#endif
+#if BOTANIK_FEATURE_ALARMS_PUBLISH && !BOTANIK_FEATURE_LOGGING
+#  error "BOTANIK_FEATURE_ALARMS_PUBLISH requires BOTANIK_FEATURE_LOGGING"
+#endif
+#if BOTANIK_FEATURE_ALARMS_PUBLISH && !BOTANIK_FEATURE_MQTT
+#  error "BOTANIK_FEATURE_ALARMS_PUBLISH requires BOTANIK_FEATURE_MQTT"
+#endif
+#if BOTANIK_FEATURE_LOGS_MONITOR && !BOTANIK_FEATURE_LOGGING
+#  error "BOTANIK_FEATURE_LOGS_MONITOR requires BOTANIK_FEATURE_LOGGING"
+#endif
+
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER && !BOTANIK_FEATURE_NETWORK
+#  error "BOTANIK_FEATURE_MODBUS_TCP_SERVER requires BOTANIK_FEATURE_NETWORK"
+#endif
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER && !BOTANIK_FEATURE_PLC_SCAN
+#  error "BOTANIK_FEATURE_MODBUS_TCP_SERVER requires BOTANIK_FEATURE_PLC_SCAN"
+#endif
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT && !BOTANIK_FEATURE_PLC_SCAN
+#  error "BOTANIK_FEATURE_MODBUS_RTU_CLIENT requires BOTANIK_FEATURE_PLC_SCAN"
 #endif
 
 #endif // LIBBOTANIK_FEATURES_H

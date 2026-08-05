@@ -16,7 +16,7 @@
 
 #include "sun_tracker.h"
 
-#if BOTANIK_FEATURE_SUN
+#if BOTANIK_FEATURE_SUN_TRACKER
 
 namespace Botanik { namespace Sun {
 
@@ -184,4 +184,4 @@ namespace Botanik { namespace Sun {
 
 }}
 
-#endif // BOTANIK_FEATURE_SUN
+#endif // BOTANIK_FEATURE_SUN_TRACKER

@@ -15,7 +15,7 @@
 #include "libbotanik/sun/sun_tracker.h"
 #include "libbotanik/hal/platform.h"
 
-#if BOTANIK_FEATURE_SUN
+#if BOTANIK_FEATURE_SUN_TRACKER
 
 using namespace Botanik;
 using namespace Botanik::Sun;
@@ -129,4 +129,4 @@ TEST_CASE("SunPositionTracker: stays idle with no geo config") {
     CHECK_FALSE(sun.ready());
 }
 
-#endif // BOTANIK_FEATURE_SUN
+#endif // BOTANIK_FEATURE_SUN_TRACKER

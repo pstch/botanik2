@@ -170,20 +170,27 @@ target_compile_definitions(botanik PUBLIC
 message(STATUS "Site: ${_site_dir}")
 
 # Optional-subsystem feature flags (libbotanik_features.h), which is where each
-# one's default lives; pass -DBOTANIK_FEATURE_<X>=ON/OFF to override. We forward
-# only the flags explicitly set on the command line, as a PUBLIC define on
-# `botanik` so the whole build agrees (same ABI discipline as
-# BOTANIK_SITE_CONFIG above). Keep this list in step with the header: a flag
-# missing here is one whose -D is silently ignored.
-foreach(_feat NETWORK NTP MQTT CONSOLE MONITOR NOTES SUN)
-    if(DEFINED BOTANIK_FEATURE_${_feat})
-        if(BOTANIK_FEATURE_${_feat})
+# one's default lives; pass -DBOTANIK_FEATURE_<X>=ON/OFF to override. Forwarded
+# as a PUBLIC define on `botanik` so the whole build agrees (same ABI discipline
+# as BOTANIK_SITE_CONFIG above). Only flags actually given on the command line
+# are forwarded - an unset one is absent from the compile line and falls through
+# to the site config, then the header default.
+#
+# Discovered, not listed. This used to be a hand-written `foreach(_feat NETWORK
+# NTP ...)` that had to be kept in step with the header, and a flag missing from
+# it had its -D SILENTLY ignored - which is exactly what happened when NOTES was
+# added. Sweeping the cache for the prefix means a new flag needs no edit here at
+# all, and cannot be half-wired.
+get_cmake_property(_all_vars VARIABLES)
+foreach(_v ${_all_vars})
+    if(_v MATCHES "^BOTANIK_FEATURE_[A-Z0-9_]+$")
+        if(${_v})
             set(_feat_val 1)
         else()
             set(_feat_val 0)
         endif()
-        target_compile_definitions(botanik PUBLIC BOTANIK_FEATURE_${_feat}=${_feat_val})
-        message(STATUS "Feature ${_feat}: ${_feat_val}")
+        target_compile_definitions(botanik PUBLIC ${_v}=${_feat_val})
+        message(STATUS "Feature ${_v}: ${_feat_val}")
     endif()
 endforeach()
 

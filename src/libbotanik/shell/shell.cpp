@@ -263,23 +263,23 @@ namespace Botanik { namespace Shell {
         // version can differ here, and an absent subsystem is otherwise
         // indistinguishable from a broken one (no `net` output because MQTT was
         // compiled out reads exactly like a broker that will not connect).
+        // Expanded from BOTANIK_FEATURE_LIST, so this is not a second roster
+        // to keep in step - a flag added to the header is reported here without
+        // anyone remembering to come back. The lower-cased name is what an
+        // operator types into a config, minus the prefix.
+#define BOTANIK_FEAT_ROW(f) { #f, BOTANIK_FEATURE_##f != 0 },
         static const struct { const char* name; bool on; } FEATURES[] = {
-            { "console", BOTANIK_FEATURE_CONSOLE != 0 },
-            { "monitor", BOTANIK_FEATURE_MONITOR != 0 },
-            { "notes",   BOTANIK_FEATURE_NOTES   != 0 },
-            { "network", BOTANIK_FEATURE_NETWORK != 0 },
-            { "ntp",     BOTANIK_FEATURE_NTP     != 0 },
-            { "mqtt",    BOTANIK_FEATURE_MQTT    != 0 },
-            { "sun",     BOTANIK_FEATURE_SUN     != 0 },
+            BOTANIK_FEATURE_LIST(BOTANIK_FEAT_ROW)
         };
+#undef BOTANIK_FEAT_ROW
 
-        // Partitioned rather than one line per flag: seven booleans is a glance,
-        // and every line costs the same 4800-baud budget the rest of the UI is
-        // fighting over.
+        // Partitioned rather than one line per flag: two dozen booleans is a
+        // glance, and every line costs the same 4800-baud budget the rest of the
+        // UI is fighting over.
         char out[Config::LOG_FORMATTED_LEN];
         for (uint8_t pass = 0; pass < 2; pass++) {
             const bool want = (pass == 0);
-            char list[96];
+            char list[320];
             size_t n = 0;
             list[0] = '\0';
             for (const auto& f : FEATURES) {

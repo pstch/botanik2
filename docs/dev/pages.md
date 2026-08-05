@@ -80,7 +80,7 @@ ShellWriter <|-- ShellPage
 - @ref Botanik::Pages::LogsPage - the full scrolling log; a `LogWriter` that replays
   its @ref Botanik::Pages::LogsScrollback on focus.
 - @ref Botanik::Pages::NotesPage - the operator's free-text note, behind
-  `BOTANIK_FEATURE_NOTES`. The same @ref Botanik::Terminal::TextEditor as the shell,
+  `BOTANIK_FEATURE_NOTES_PAGE`. The same @ref Botanik::Terminal::TextEditor as the shell,
   but top-anchored over the content area with a viewport that scrolls once the note
   is taller than the screen (see @ref dev_editor). It drives the same PS1/PS2/PS3
   gutter the shell does: `"> "` on a row the operator started (PS1, and PS3 after

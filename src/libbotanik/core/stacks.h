@@ -35,7 +35,7 @@
 
 namespace Botanik {
 
-#if BOTANIK_FEATURE_MONITOR
+#if BOTANIK_FEATURE_LOGS_MONITOR
     /** @brief The MONITOR diagnostic path: a dedicated UART and the
      *  SerialLogWriter that drains the logger onto it. Independent of the
      *  console (a headless build can still keep it). */
@@ -69,7 +69,7 @@ namespace Botanik {
         Pages::ShellPage        _shell;
         Pages::LogsPage         _logs;
         Pages::AlarmsPage       _alarms;
-#if BOTANIK_FEATURE_NOTES
+#if BOTANIK_FEATURE_NOTES_PAGE
         Pages::NotesPage        _notes;
 #endif
 
@@ -87,7 +87,7 @@ namespace Botanik {
               _shell(_terminal),
               _logs(_terminal),
               _alarms(_terminal, alarms)
-#if BOTANIK_FEATURE_NOTES
+#if BOTANIK_FEATURE_NOTES_PAGE
             , _notes(_terminal, logger)
 #endif
         {}
@@ -97,7 +97,7 @@ namespace Botanik {
         Pages::ShellPage&       shell()    { return _shell; }
         Pages::LogsPage&        logs()     { return _logs; }
         Pages::AlarmsPage&      alarms()   { return _alarms; }
-#if BOTANIK_FEATURE_NOTES
+#if BOTANIK_FEATURE_NOTES_PAGE
         Pages::NotesPage&       notes()    { return _notes; }
 #endif
 

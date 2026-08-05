@@ -44,12 +44,12 @@ the build log. Guard every feature flag a site pins.
 | Flag | Default | Gates |
 |---|---|---|
 | `BOTANIK_FEATURE_CONSOLE` | **on** | the interactive ANSI UI: the terminal, the built-in pages, the console UART, and the `register_pages()` / `register_commands()` hooks. Off = headless |
-| `BOTANIK_FEATURE_MONITOR` | **on** | the secondary monitor UART and its log sink |
-| `BOTANIK_FEATURE_NOTES` | = `CONSOLE` | the NOTES page: a full-screen editor over the operator's note, persisted to flash. Requires `CONSOLE`, so it defaults to whatever `CONSOLE` is - on for a normal build, off for a headless one, which never asked for a page. Costs `NOTES_LEN` bytes plus 2 x `NOTES_MAX_ROWS` row slots of RAM |
+| `BOTANIK_FEATURE_LOGS_MONITOR` | **on** | the secondary monitor UART and its log sink |
+| `BOTANIK_FEATURE_NOTES_PAGE` | = `CONSOLE` | the NOTES page: a full-screen editor over the operator's note, persisted to flash. Requires `CONSOLE`, so it defaults to whatever `CONSOLE` is - on for a normal build, off for a headless one, which never asked for a page. Costs `NOTES_LEN` bytes plus 2 x `NOTES_MAX_ROWS` row slots of RAM |
 | `BOTANIK_FEATURE_NETWORK` | off | the network stack: device bring-up and the DNS resolver |
 | `BOTANIK_FEATURE_NTP` | off | the NTP client. Requires `NETWORK` |
 | `BOTANIK_FEATURE_MQTT` | off | the MQTT client, log sink and alarm notifier. Requires `NETWORK` |
-| `BOTANIK_FEATURE_SUN` | off | the solar-position tracker. Standalone - `BotanikFirmware` does not instantiate it, so a site that wants it turns it on and owns the instance |
+| `BOTANIK_FEATURE_SUN_TRACKER` | off | the solar-position tracker. Standalone - `BotanikFirmware` does not instantiate it, so a site that wants it turns it on and owns the instance |
 
 Dependency rules are enforced by `#error`. `CONSOLE` and `MONITOR` are independent:
 a headless build can keep the monitor for diagnostics, an interactive one can drop

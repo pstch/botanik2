@@ -22,7 +22,7 @@
  *
  * Console-optional (BOTANIK_FEATURE_CONSOLE, default on): the interactive ANSI
  * UI (AnsiTerminal, the built-in pages, the console UART, the register_*()
- * hooks). Off -> headless. Monitor-optional (BOTANIK_FEATURE_MONITOR, default
+ * hooks). Off -> headless. Monitor-optional (BOTANIK_FEATURE_LOGS_MONITOR, default
  * on): the secondary MONITOR UART and its SerialLogWriter sink. The two are
  * independent; a fully headless build turns both off (logs still reach any
  * site-registered sink). The site extension below assumes the console is
@@ -177,7 +177,7 @@ namespace Botanik {
         Scheduler::Registry            _tasks;
         Health::HealthMonitor          _health;
         SystemContext                  _sys_ctx;     ///< Filled in the ctor body
-#if BOTANIK_FEATURE_MONITOR
+#if BOTANIK_FEATURE_LOGS_MONITOR
         MonitorStack                   _monitor;     ///< MONITOR UART + log sink
 #endif
 #if BOTANIK_FEATURE_NETWORK
@@ -221,7 +221,7 @@ namespace Botanik {
               // platform-health alarms are appended and driven locally.
               _health(&_logger, _scheduler.context(), &_io)
               , _sys_ctx()   // fields wired in the body, once addresses are known
-#if BOTANIK_FEATURE_MONITOR
+#if BOTANIK_FEATURE_LOGS_MONITOR
               , _monitor(&_logger)
 #endif
 #if BOTANIK_FEATURE_NETWORK
@@ -297,14 +297,14 @@ namespace Botanik {
 #if BOTANIK_FEATURE_CONSOLE
             HAL::Serial::get(HAL::Serial::CONSOLE)->begin(_console_baud);
 #endif
-#if BOTANIK_FEATURE_MONITOR
+#if BOTANIK_FEATURE_LOGS_MONITOR
             HAL::Serial::get(HAL::Serial::MONITOR)->begin(_monitor_baud);
 #endif
 
             // Core sinks: monitor + (with the UI) shell/logs pages, plus a
             // TX-drop watch on each live UART. A site adds its own in
             // on_setup().
-#if BOTANIK_FEATURE_MONITOR
+#if BOTANIK_FEATURE_LOGS_MONITOR
             _logger.add_writer(&_monitor.writer());
             _logger.watch_tx(&_monitor.serial());
 #endif
@@ -376,7 +376,7 @@ namespace Botanik {
 #if BOTANIK_FEATURE_CONSOLE
             _logger.debug(Logs::BOOT, "console %lu baud", (unsigned long)_console_baud);
 #endif
-#if BOTANIK_FEATURE_MONITOR
+#if BOTANIK_FEATURE_LOGS_MONITOR
             _logger.debug(Logs::BOOT, "monitor %lu baud", (unsigned long)_monitor_baud);
 #endif
         }
@@ -403,7 +403,7 @@ namespace Botanik {
                 [](void* s, uint64_t) { static_cast<Utils::BufferedSerial*>(s)->receive(); },
                 &_console.serial());
 #endif
-#if BOTANIK_FEATURE_MONITOR
+#if BOTANIK_FEATURE_LOGS_MONITOR
             _tasks.add("monitor_rx", GROUP_FAST, PHASE_INPUT,
                 [](void* s, uint64_t) { static_cast<Utils::BufferedSerial*>(s)->receive(); },
                 &_monitor.serial());
@@ -455,7 +455,7 @@ namespace Botanik {
             // serial pump is registered separately, at its own phases.
             _tasks.add_component("console", GROUP_SLOW, PHASE_PRESENT, _console.terminal());
 #endif
-#if BOTANIK_FEATURE_MONITOR
+#if BOTANIK_FEATURE_LOGS_MONITOR
             _tasks.add_component("monitor_log", GROUP_FAST, PHASE_PRESENT, _monitor.writer());
 #endif
 #if BOTANIK_FEATURE_CONSOLE
@@ -463,7 +463,7 @@ namespace Botanik {
                 [](void* s, uint64_t) { static_cast<Utils::BufferedSerial*>(s)->transmit(); },
                 &_console.serial());
 #endif
-#if BOTANIK_FEATURE_MONITOR
+#if BOTANIK_FEATURE_LOGS_MONITOR
             _tasks.add("monitor_tx", GROUP_FAST, PHASE_PRESENT,
                 [](void* s, uint64_t) { static_cast<Utils::BufferedSerial*>(s)->transmit(); },
                 &_monitor.serial());
@@ -605,7 +605,7 @@ namespace Botanik {
         /** @brief Register the pages in tab order (page 0 = boot page); the
          *  add_page() call order IS the tab order. Default: the full set -
          *  home / shell / logs / alarms / config / monitor / tasks, and notes
-         *  last when BOTANIK_FEATURE_NOTES is on. A site override can
+         *  last when BOTANIK_FEATURE_NOTES_PAGE is on. A site override can
          *  reorder them or splice in its own (e.g. re-add a STATUS page by
          *  subclassing Pages::StatusPage and add_page()-ing it here). */
         virtual void register_pages() {
@@ -616,7 +616,7 @@ namespace Botanik {
             _console.terminal().add_page(&_params_page);
             _console.terminal().add_page(&_monitor_page);
             _console.terminal().add_page(&_tasks_page);
-#if BOTANIK_FEATURE_NOTES
+#if BOTANIK_FEATURE_NOTES_PAGE
             _console.terminal().add_page(&_console.notes());
 #endif
         }

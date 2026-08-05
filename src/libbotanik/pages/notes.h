@@ -14,7 +14,7 @@
 #include "../../libbotanik_config.h"
 #include "../../libbotanik_features.h"
 
-#if BOTANIK_FEATURE_NOTES
+#if BOTANIK_FEATURE_NOTES_PAGE
 
 #include "page.h"
 #include "../console/console.h"
@@ -269,5 +269,5 @@ namespace Botanik { namespace Pages {
 
 }}
 
-#endif // BOTANIK_FEATURE_NOTES
+#endif // BOTANIK_FEATURE_NOTES_PAGE
 #endif // PAGES_NOTES_H

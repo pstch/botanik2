@@ -22,7 +22,7 @@
 #include "libbotanik/sun/sun_tracker.h"
 #include "libbotanik/utils/time.h"
 
-#if BOTANIK_FEATURE_SUN
+#if BOTANIK_FEATURE_SUN_TRACKER
 
 using namespace Botanik::Sun;
 using Botanik::Utils::uptime_ms_from_unix_ms;
@@ -161,4 +161,4 @@ TEST_CASE("solar_position: equator is ~12 h year round, poles saturate") {
     CHECK(pole_dec.day_length_h == doctest::Approx(0.0));
 }
 
-#endif // BOTANIK_FEATURE_SUN
+#endif // BOTANIK_FEATURE_SUN_TRACKER
