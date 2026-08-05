@@ -49,13 +49,7 @@
 #include "libbotanik/console/parser.h"
 #include "libbotanik/console/editor.h"
 
-
-// firmware.h goes LAST, and it is load-bearing rather than tidiness: it owns a
-// page of every kind as a member, and it includes THIS file back to get them.
-// The include guard makes that back-include a no-op, so anything firmware.h
-// needs must already be declared by the time we reach it. Moved up, it compiles
-// against an empty Pages namespace and every member declaration fails.
+// NOTE: needs to be at the end of the list
 #include "libbotanik/core/firmware.h"
-
 
 #endif // LIBBOTANIK_H
