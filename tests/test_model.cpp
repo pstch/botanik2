@@ -253,7 +253,7 @@ TEST_CASE("override: an expired input still reads its forced value") {
     CHECK(h.value() == doctest::Approx(20.0f));
 }
 
-TEST_CASE("control: disabling releases a forced output, and outranks it") {
+TEST_CASE("control: an operator disable leaves a forced output driving") {
     Fixture f;
     f.bank.enable_control(Bank::INHIBIT_HEALTH);   // bring-up finished
     REQUIRE(f.bank.control_enabled());
@@ -262,11 +262,32 @@ TEST_CASE("control: disabling releases a forced output, and outranks it") {
     f.bank.override_set(h, Scalar::B(true));
     CHECK(h.overridden());
 
-    // Control wins: an override is for a machine someone is watching, and this
-    // runs when the firmware can no longer reason about what it drives.
-    // Released, not merely ignored - a staged override would fire the moment
-    // control came back.
-    f.bank.disable_control();
+    // `control disable` is how you take the plant by hand: the programs stop
+    // deciding, and the override is then the only thing that can move an
+    // actuator. Releasing it here would leave no way to command one at all.
+    f.bank.disable_control(Bank::INHIBIT_OPERATOR);
+    CHECK(h.overridden());
+    CHECK(h.b() == true);
+
+    // ...and one can still be TAKEN in that state, which is the point.
+    f.bank.override_clear(h);
+    CHECK(f.bank.override_set(h, "1") == SET_OK);
+    CHECK(h.overridden());
+}
+
+TEST_CASE("control: the system's own withdrawal releases a forced output") {
+    Fixture f;
+    f.bank.enable_control(Bank::INHIBIT_HEALTH);
+    REQUIRE(f.bank.control_enabled());
+    Var h = f.bank.var(V_VALVE);
+    h.set(true);
+    f.bank.override_set(h, Scalar::B(true));
+
+    // The other inhibit means something else entirely: the firmware can no
+    // longer reason about what it is driving, or is about to stop running, and
+    // nobody is necessarily watching. An actuator held energised by hand through
+    // that is what the safe state exists to prevent.
+    f.bank.disable_control(Bank::INHIBIT_HEALTH);
     CHECK_FALSE(h.overridden());
     CHECK_FALSE(h.valid());
     CHECK(h.b() == true);      // reads its declared safe state (def = true here)
@@ -274,29 +295,38 @@ TEST_CASE("control: disabling releases a forced output, and outranks it") {
     // An input's override is untouched - the sweep is outputs only.
     Var in = f.bank.var(V_EXT_TEMP);
     f.bank.override_set(in, Scalar::F(5.0f));
-    f.bank.disable_control();
+    f.bank.disable_control(Bank::INHIBIT_HEALTH);
     CHECK(in.overridden());
 }
 
-TEST_CASE("control: starts disabled, and refuses to arm an output while it is") {
+TEST_CASE("control: health arriving on top of an operator hold still releases") {
+    Fixture f;
+    f.bank.enable_control(Bank::INHIBIT_HEALTH);
+    Var h = f.bank.var(V_VALVE);
+    f.bank.disable_control(Bank::INHIBIT_OPERATOR);   // taken by hand...
+    f.bank.override_set(h, Scalar::B(true));          // ...and commanded
+
+    // The safe-state sweep already ran, so the release is the only thing left to
+    // do - and it must still happen, or the "was control already off?" early
+    // exit would let a hand-held actuator ride through a health fault.
+    f.bank.disable_control(Bank::INHIBIT_HEALTH);
+    CHECK_FALSE(h.overridden());
+}
+
+TEST_CASE("control: starts disabled, and an output is forceable while it is") {
     Fixture f;
     // Nothing may drive the field between power-on and the point bring-up says
     // it is ready - the system holds control until then.
     CHECK_FALSE(f.bank.control_enabled());
     CHECK(f.bank.control_inhibited_by(Bank::INHIBIT_HEALTH));
 
+    // An override is live immediately rather than staged, so there is nothing to
+    // fire later and nothing to refuse.
     Var valve = f.bank.var(V_VALVE);
-    CHECK(f.bank.override_set(valve, "1") == SET_INVALID);
-    CHECK_FALSE(valve.overridden());
-
-    // An input is still forceable - troubleshooting a reading does not move an
-    // actuator.
-    CHECK(f.bank.override_set(f.bank.var(V_EXT_TEMP), "12.5") == SET_OK);
-
-    f.bank.enable_control(Bank::INHIBIT_HEALTH);
-    CHECK(f.bank.control_enabled());
     CHECK(f.bank.override_set(valve, "1") == SET_OK);
     CHECK(valve.overridden());
+
+    CHECK(f.bank.override_set(f.bank.var(V_EXT_TEMP), "12.5") == SET_OK);
 }
 
 TEST_CASE("control: an operator disable survives a health fault coming and going") {

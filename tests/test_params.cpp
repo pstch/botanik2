@@ -259,7 +259,7 @@ TEST_CASE("override: releasing one stops it coming back") {
     }
 }
 
-TEST_CASE("override: `override off` clears the stored copies too") {
+TEST_CASE("override: `override clear` clears the stored copies too") {
     StoreEnv env("/tmp/botanik_test_ovr_d");
     {
         OvrFx f;
@@ -274,9 +274,9 @@ TEST_CASE("override: `override off` clears the stored copies too") {
 }
 
 TEST_CASE("override: an actuator override is never restored") {
-    // The safety case. Control starts DISABLED at boot, so a restored actuator
-    // override would sit armed until bring-up enabled control and then fire,
-    // from a session long since walked away from.
+    // The safety case. An output override drives the actuator the moment it is
+    // in force, control authority or not, so a restored one would be commanding
+    // the plant from power-on out of a session long since walked away from.
     StoreEnv env("/tmp/botanik_test_ovr_e");
     {
         OvrFx f;
@@ -290,9 +290,9 @@ TEST_CASE("override: an actuator override is never restored") {
     }
 }
 
-TEST_CASE("override: withdrawing control wipes the stored copy") {
-    // disable_control() releases output overrides so none is staged when control
-    // returns. A stored copy would reopen that hole at the next boot.
+TEST_CASE("override: the system withdrawing control wipes the stored copy") {
+    // A health withdrawal releases output overrides; a stored copy would hand
+    // one back at the next boot, which is the hole the release exists to shut.
     StoreEnv env("/tmp/botanik_test_ovr_f");
     {
         OvrFx f;
