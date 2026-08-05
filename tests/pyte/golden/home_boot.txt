@@ -16,7 +16,7 @@
 
     LOGS
 <TS> [~] BOOT: LoopScheduler initialized
-<TS> [~] BOOT: AlarmModel initialized
+<TS> [~] BOOT: AlarmController initialized
 <TS> [-] NETWORK: network bring-up (static)
 <TS> [+] NETWORK: network up: 127.0.0.1
 <TS> [+] TIME: NTP synced

@@ -37,7 +37,7 @@
  * type + the descriptor. Extension surface:
  *
  *  - **Descriptor tables** (SiteDescriptor) - the alarm conditions (each naming
- *    the boolean variable it reads; the AlarmModel splices in the generic
+ *    the boolean variable it reads; the AlarmController splices in the generic
  *    platform-health alarms from alarms/platform.h), shell commands,
  *    status-variable groups, and the variable tables. Pure data; no hook.
  *  - **Pages** - the default register_pages() registers the full set. A site only
@@ -93,7 +93,7 @@ namespace Botanik {
      *   - @c commands      - site shell commands (Shell::ShellCommand).
      *   - @c home_fields   - home-screen readings (Vars::HomeVar).
      *   - alarms are NOT a table here: each is a SCOPE_A row in @c vars,
-     *     carrying its code and dwell policy, and the AlarmModel scans for them.
+     *     carrying its code and dwell policy, and the AlarmController scans for them.
      *   - @c vars          - the variable tables themselves (Vars::VarTables);
      *                        parameters are the ROLE_PARAM rows within them.
      *   - @c tasks         - the control programs (Scan::Task) + their stats.

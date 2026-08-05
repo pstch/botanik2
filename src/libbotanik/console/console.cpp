@@ -29,7 +29,7 @@ namespace Botanik { namespace Terminal {
 
     Console::Console(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
                      const uint64_t* timestamp_ms, uint32_t baud,
-                     const SystemContext& ctx, const Alarms::AlarmModel* alarms,
+                     const SystemContext& ctx, const Alarms::AlarmController* alarms,
                      Logs::Logger* logger, Ansi::TerminalType type) :
         Component(logger, "Console"),
         _term(serial, cols, rows, baud, type),

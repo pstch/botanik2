@@ -28,7 +28,7 @@ using Command = Terminal::InputEvent::Command;
 namespace {
     // Drive a model without a PLC payload: set each condition's local override
     // from @p bits (bit i -> condition i), then step.
-    void step_bits(Alarms::AlarmModel& m, uint64_t bits, uint64_t now) {
+    void step_bits(Alarms::AlarmController& m, uint64_t bits, uint64_t now) {
         for (uint8_t i = 0; i < m.count(); i++)
             m.set_local(i, ((bits >> i) & 1u) != 0);
         m.step(now);
@@ -51,7 +51,7 @@ namespace {
         return t;
     }
 
-    // AnsiTerminal + AlarmModel over a pipe; drains TX into a captured string.
+    // AnsiTerminal + AlarmController over a pipe; drains TX into a captured string.
     struct RenderFixture {
         int                    fds[2];
         HAL::Serial::Raw         raw;
@@ -60,7 +60,7 @@ namespace {
         Terminal::Console      console;
         Vars::Value            vals[4]{};
         Vars::Bank             bank;
-        Alarms::AlarmModel     model;
+        Alarms::AlarmController     model;
         Pages::AlarmsPage      page;
 
         // @p rows lets a test pick a short screen so the 4-alarm set overflows the

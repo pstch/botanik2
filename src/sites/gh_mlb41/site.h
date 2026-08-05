@@ -62,7 +62,7 @@ const uint8_t g_command_count = 0;
  *  order matches Botanik::SiteDescriptor; any table may be null / count 0.
  *
  *  Alarms are not here - each is a SCOPE_A row in vars.h carrying its own code
- *  and dwell policy, and the AlarmModel finds them by scanning. Neither are the
+ *  and dwell policy, and the AlarmController finds them by scanning. Neither are the
  *  status groups - a variable's group is the prefix of its name. */
 const Botanik::SiteDescriptor g_site = {
     Botanik::Config::SITE_NAME,

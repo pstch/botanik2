@@ -9,7 +9,7 @@
  * Defines the platform-level alarms, raised from the scheduler metrics.
  * CPU load/jitter, stack, overrun).
  *
- * The site-specific AlarmModel appends them at [N..N+M) (after the site's
+ * The site-specific AlarmController appends them at [N..N+M) (after the site's
  * N alarms), in a disjoint namespace, so platform bits and site bits never
  * collide.
  */

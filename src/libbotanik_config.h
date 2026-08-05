@@ -212,7 +212,7 @@ namespace Botanik { namespace Config {
     /** @brief Platform-health alarm thresholds: CPU_LOAD / CPU_JITT fire when
      *  the rolling-peak load / jitter exceeds this percent of the task period;
      *  STACK fires above this percent stack usage. Per-alarm latch is in the
-     *  site table (off_delay_s). */
+     *  site table (hold_on_s). */
 #ifndef BOTANIK_ALARM_CPU_LOAD_PCT
 #  define BOTANIK_ALARM_CPU_LOAD_PCT 50
 #endif
@@ -228,7 +228,7 @@ namespace Botanik { namespace Config {
     /** @brief How long a momentary-event alarm (CPU_XRUN) stays held
      *  active after its counter ticks. HealthMonitor latches this in source (a
      *  proper held state, not a one-beat pulse), independent of the table's
-     *  off_delay_s. */
+     *  hold_on_s. */
 #ifndef BOTANIK_ALARM_EVENT_HOLD_MS
 #  define BOTANIK_ALARM_EVENT_HOLD_MS 300000
 #endif
@@ -239,6 +239,14 @@ namespace Botanik { namespace Config {
 #  define BOTANIK_ALARM_NOTIFIERS_MAX 4
 #endif
     BOTANIK_CFG(uint8_t, ALARM_NOTIFIERS_MAX);
+
+    /** @brief How long a cleared alarm stays in the ALARMS page's RECENT view
+     *  (s). A condition's own recent_s overrides it (0 = this default, < 0 =
+     *  never expires). */
+#ifndef BOTANIK_ALARM_RECENT_S
+#  define BOTANIK_ALARM_RECENT_S (7 * 24 * 3600)
+#endif
+    BOTANIK_CFG(int32_t, ALARM_RECENT_S);
 
     /** @brief CPU-load EMA response time attack constant (ms). */
 #ifndef BOTANIK_CPU_LOAD_EMA_ATTACK_MS
@@ -271,9 +279,9 @@ namespace Botanik { namespace Config {
      *  silent runtime truncation (home fields past the three columns ignored, an
      *  over-long alarm table clamped with its tail dropped, a table count past
      *  its uint8_t counter wrapped, a byte offset past ScalarField's int16_t
-     *  field truncated). Each limit's authoritative source (Alarms::ALARM_BITS,
-     *  HomePage geometry, ScalarField's offset type) static_asserts it still
-     *  agrees, so the two can never drift.
+     *  field truncated). Each limit's authoritative source (HomePage geometry,
+     *  ScalarField's offset type) static_asserts it still agrees, so the two
+     *  can never drift.
      *  @{ */
 
     /** @brief Home-screen readings the HomePage lays out (its three columns
@@ -283,8 +291,9 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint8_t, HOME_FIELDS_MAX);
 
-    /** @brief Total alarm slots in the model's working array. Pinned against
-     *  Alarms::ALARM_BITS in alarms/alarms.h. */
+    /** @brief Total alarm slots in the model's working array (site conditions
+     *  plus the platform ones): what AlarmController sizes itself on, and what
+     *  a site table overrunning its share is clamped to. */
 #ifndef BOTANIK_ALARM_SLOTS
 #  define BOTANIK_ALARM_SLOTS 64
 #endif

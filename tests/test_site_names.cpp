@@ -118,7 +118,7 @@ TEST_CASE("site: the alarm model finds every alarm row, in table order") {
     Logs::Logger logger;
     // Exactly how the firmware builds it: scan the bank, then splice the
     // platform-health alarms in after.
-    Alarms::AlarmModel m(&f.bank, &logger,
+    Alarms::AlarmController m(&f.bank, &logger,
                          Alarms::PLATFORM_ALARMS, Alarms::PLATFORM_ALARM_COUNT);
     uint8_t slot = 0;
     for (uint16_t i = 0; i < f.bank.count(); i++) {
@@ -148,7 +148,7 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
         (void)f.bank.find(site().home_fields[i].name);
 
     Logs::Logger logger;
-    Alarms::AlarmModel m(&f.bank, &logger,
+    Alarms::AlarmController m(&f.bank, &logger,
                          Alarms::PLATFORM_ALARMS, Alarms::PLATFORM_ALARM_COUNT);
     (void)m;
 

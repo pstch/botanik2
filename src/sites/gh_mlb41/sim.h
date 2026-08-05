@@ -220,13 +220,13 @@ inline void publish_alarms(Vars::Bank& io, uint32_t now_ms) {
     // Debounce: hold each raw bit ON for a minimum dwell so a signal hovering
     // at its threshold cannot strobe the ribbon. The firmware's per-alarm
     // min_on_s is the further local net.
-    static uint32_t hold_ms[Botanik::Alarms::ALARM_BITS] = {0};
+    static uint32_t hold_ms[Botanik::Config::ALARM_SLOTS] = {0};
     static uint32_t prev_ms = 0;
     uint32_t dt = (prev_ms == 0) ? 0 : (now_ms - prev_ms);
     prev_ms = now_ms;
     const uint32_t MIN_HOLD_MS = 10000;   // ~10 s minimum visible dwell
     uint64_t debounced = 0;
-    for (uint8_t i = 0; i < Botanik::Alarms::ALARM_BITS; i++) {
+    for (uint8_t i = 0; i < Botanik::Config::ALARM_SLOTS; i++) {
         bool on = ((raw >> i) & 1u) != 0;
         if (on)                     hold_ms[i] = MIN_HOLD_MS;
         else if (hold_ms[i] > dt)   hold_ms[i] -= dt;

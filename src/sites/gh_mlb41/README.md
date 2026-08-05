@@ -50,7 +50,7 @@ telemetry is derived: a variable's group is the prefix of its name, and whether
 it is published is its scope. Naming a variable files it.
 
 Alarms are not a separate table either: an `A()` row carries the boolean that
-raises the alarm and the policy the `AlarmModel` runs it on, and the model finds
+raises the alarm and the policy the `AlarmController` runs it on, and the model finds
 them by scanning for `SCOPE_A`.
 
 Parameters are not a separate thing: they are the `ROLE_PARAM` rows of the same

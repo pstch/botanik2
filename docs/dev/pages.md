@@ -23,7 +23,7 @@ this page is the framework behind them.
 The inverted **status bar** on row 0 (page tabs left, live metrics right) and the
 **alarm bar** on the bottom row both belong to the terminal, which repaints them over
 every page. A page owns the rows between them and draws there only while active. The
-alarm-bar row is reserved when an `AlarmModel` was wired at construction
+alarm-bar row is reserved when an `AlarmController` was wired at construction
 (`_reserved_bottom`) - a static property of the build, not something that comes and goes
 with active alarms. A page still reads its usable row count from the terminal rather than
 assuming a fixed height. The terminal clears the content area on
@@ -152,21 +152,22 @@ does, so a burst never stalls the loop:
 Each row of @ref Botanik::Pages::AlarmsPage is one
 @ref Botanik::Alarms::AlarmCondition - a **static** metadata prefix the site defines
 by aggregate-init, followed by a **dynamic** suffix the
-@ref Botanik::Alarms::AlarmModel owns and drives (left zeroed at init). A threshold
+@ref Botanik::Alarms::AlarmController owns and drives (left zeroed at init). A threshold
 of `-1` disables that action; dwell fields are in seconds.
 
 \startuml "AlarmCondition: site-defined static metadata + model-owned dynamic state"
 class AlarmCondition {
   code : const char* - short code (<= 8 chars)
+  name : const char* - the variable it reads, by name
   desc : const char* - human description
-  ref : VarRef - the boolean variable carrying the condition
+  notes : const char* - remediation text (may be null)
   on_s : int32 - ON dwell before announce (-1 off)
   off_s : int32 - OFF dwell before announce (-1 off)
   recent_s : int32 - "recent" window (0 = a week, <0 forever)
-  off_delay_s : int32 - hold ON after raw clears
+  hold_on_s : int32 - hold ON after raw clears
   min_on_s : int32 - minimum ON latch from onset
-  notes : const char* - remediation text (may be null)
   --
+  ref : VarRef - the boolean variable carrying the condition
   local_raw : bool - locally asserted, OR'd with ref
   active : bool - active or latched
   on_sent : bool - ON transition announced
@@ -175,7 +176,7 @@ class AlarmCondition {
   ack_ms : uint64 - when it was acknowledged
   edge_ms : uint64 - since last transition
   started_ms : uint64 - since last ON transition
-  off_delay_rem_ms : uint32 - off-delay countdown
+  hold_on_rem_ms : uint32 - hold-on countdown
   min_on_rem_ms : uint32 - minimum-ON countdown
 }
 \enduml
@@ -186,5 +187,5 @@ tick.
 
 There is **no aggregate bitset**. Each condition names the `VarRef` of the boolean
 that carries it and the model reads that variable per condition, OR'd with a local
-override for the platform alarms. `notes` is last in the static block so a row that
-stops earlier still zero-initialises it.
+override for the platform alarms. A row written out positionally (the platform
+table) gives all four text fields, `notes` included, before the dwell numbers.

@@ -19,7 +19,7 @@ using namespace Botanik::Alarms;
 namespace {
     // Drive a model without a PLC payload: set each condition's local override
     // from @p bits (bit i -> condition i), then step.
-    void step_bits(AlarmModel& m, uint64_t bits, uint64_t now) {
+    void step_bits(AlarmController& m, uint64_t bits, uint64_t now) {
         for (uint8_t i = 0; i < m.count(); i++)
             m.set_local(i, ((bits >> i) & 1u) != 0);
         m.step(now);
@@ -80,7 +80,7 @@ namespace {
     };
 }
 
-TEST_CASE("AlarmModel: a transition fans out to every registered notifier") {
+TEST_CASE("AlarmController: a transition fans out to every registered notifier") {
     // announce ON/OFF at once (on_s = off_s = 0).
     const Vars::Variable TABLE[] = { Vars::A("x", "X", 0, 0, 0, 0, 0, "", "") };
     Vars::Value vals[1]{};
@@ -88,7 +88,7 @@ TEST_CASE("AlarmModel: a transition fans out to every registered notifier") {
     t.var = TABLE; t.val = vals; t.count = 1;
     Vars::Bank bank(t);
     bank.init();
-    AlarmModel m(&bank, nullptr);
+    AlarmController m(&bank, nullptr);
     CountingNotifier a, b;
     CHECK(m.add_notifier(&a));
     CHECK(m.add_notifier(&b));

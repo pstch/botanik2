@@ -19,7 +19,7 @@ namespace Botanik {
     // loglevel command (set_diagnostics)
     namespace Logs    { class Logger;     }
     // alarm list/ack command (set_diagnostics)
-    namespace Alarms  { class AlarmModel; }
+    namespace Alarms  { class AlarmController; }
     // ntpsync command (set_ntp); null when the NTP feature is off
     namespace Network { class NtpClient;  }
     // get / set / override commands: the variables come from SystemContext.
@@ -90,7 +90,7 @@ namespace Botanik { namespace Shell {
          *  commands; null until set_diagnostics() wires them (commands then
          *  report "unavailable"). */
         Logs::Logger*           _logger        = nullptr;
-        Alarms::AlarmModel*     _alarm_model   = nullptr;
+        Alarms::AlarmController*     _alarm_model   = nullptr;
         /** @brief NTP client for the `ntpsync` command; null until set_ntp()
          *  wires it (off when the NTP feature is absent). */
         Network::NtpClient*     _ntp_client           = nullptr;
@@ -132,7 +132,7 @@ namespace Botanik { namespace Shell {
 
         /** @brief Wire the mutable diagnostics targets the loglevel / alarm-ack
          *  commands act on (the firmware passes its logger and alarm model). */
-        void set_diagnostics(Logs::Logger* logger, Alarms::AlarmModel* alarms) {
+        void set_diagnostics(Logs::Logger* logger, Alarms::AlarmController* alarms) {
             _logger = logger; _alarm_model = alarms;
         }
 

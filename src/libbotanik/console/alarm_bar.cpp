@@ -29,7 +29,7 @@ namespace Botanik { namespace Terminal {
 
     uint64_t AlarmBar::unmasked_set() const {
         uint64_t m = 0;
-        const Alarms::AlarmModel* alarms = _c.alarms();
+        const Alarms::AlarmController* alarms = _c.alarms();
         if (alarms)
             for (uint8_t i = 0; i < alarms->count(); i++) {
                 const Alarms::AlarmCondition& c = alarms->condition(i);
@@ -43,7 +43,7 @@ namespace Botanik { namespace Terminal {
     }
 
     void AlarmBar::draw() {
-        const Alarms::AlarmModel* alarms = _c.alarms();
+        const Alarms::AlarmController* alarms = _c.alarms();
         if (alarms == nullptr || _t.rows_total() == 0 || _t.cols() == 0) return;
         // physical last row (reserved for us)
         uint16_t row  = _row();

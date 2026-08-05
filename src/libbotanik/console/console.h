@@ -26,7 +26,7 @@
 #include "../logs/logger.h"         // Logs::Logger
 #include "../pages/page.h"
 
-namespace Botanik { namespace Alarms { class AlarmModel; } }
+namespace Botanik { namespace Alarms { class AlarmController; } }
 
 namespace Botanik { namespace Terminal {
 
@@ -63,7 +63,7 @@ namespace Botanik { namespace Terminal {
         SystemContext                _ctx    = {};
         /** @brief Alarm source feeding the bar (may be null). When null there is
          *  no bar, _reserved_bottom stays 0, and the bottom row belongs to pages. */
-        const Alarms::AlarmModel*    _alarms = nullptr;
+        const Alarms::AlarmController*    _alarms = nullptr;
         /** @brief Rows reserved at the screen bottom for the alarm bar: 1 when
          *  _alarms is set, else 0. Subtracted by rows() / _content_bottom(). */
         uint16_t                     _reserved_bottom = 0;
@@ -90,7 +90,7 @@ namespace Botanik { namespace Terminal {
         Console(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
                 const uint64_t* timestamp_ms, uint32_t baud,
                 const SystemContext& ctx = {},
-                const Alarms::AlarmModel* alarms = nullptr,
+                const Alarms::AlarmController* alarms = nullptr,
                 Logs::Logger* logger = nullptr,
                 Ansi::TerminalType type = Ansi::CONFIGURED_TERMINAL);
 
@@ -165,7 +165,7 @@ namespace Botanik { namespace Terminal {
         /** @brief The attached alarm model, or null when none was supplied
          *  (drives the bottom alarm bar; also read by the shell's "alarms"
          *  command). */
-        const Alarms::AlarmModel* alarms() const { return _alarms; }
+        const Alarms::AlarmController* alarms() const { return _alarms; }
 
         /** @} */
 

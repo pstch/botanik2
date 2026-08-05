@@ -66,7 +66,7 @@ diagnostic.
 
 | Check | Why it matters |
 |---|---|
-| Every platform-health alarm code the firmware asserts (`SYS_RST`, `CPU_LOAD`, `CPU_JITT`, `STACK`, `CPU_XRUN`) resolves in the merged alarm table | A missing code would make `AlarmModel::set_local(code)` silently no-op, so a real condition would never raise. Guards the alarm-namespace wiring: site conditions at the low end, the platform set appended after. |
+| Every platform-health alarm code the firmware asserts (`SYS_RST`, `CPU_LOAD`, `CPU_JITT`, `STACK`, `CPU_XRUN`) resolves in the merged alarm table | A missing code would make `AlarmController::set_local(code)` silently no-op, so a real condition would never raise. Guards the alarm-namespace wiring: site conditions at the low end, the platform set appended after. |
 | The logger has at least one registered writer | A logger with no sinks swallows everything, including this very report. |
 
 ### Result

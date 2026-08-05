@@ -83,7 +83,7 @@ There is no alarm table. An alarm is a **row in the variable table**, declared w
 `A()`, carrying both the boolean that raises it and the policy the model runs it on:
 
 ```cpp
-//name              code        on off recent delay minOn description                    remediation
+//name              code        on off recent hold  minOn description                    remediation
 A("alarm_ac_grid",  "AC_GRID",  2, 2,  0,     0,    10,   "Grid AC out-of-spec/offline", "check mains breaker"),
 A("alarm_too_hot",  "TOO_HOT",  3, 3,  0,     0,    15,   "Inside temperature too high", "increase ventilation"),
 ```
@@ -94,12 +94,12 @@ A("alarm_too_hot",  "TOO_HOT",  3, 3,  0,     0,    15,   "Inside temperature to
 | `code` | short display code, max 8 chars - the ALARMS table's first column and the alarm bar |
 | `on_s` / `off_s` | dwell before a START / END is announced; `-1` never announces that edge |
 | `recent_s` | RECENT filter window (0 = the default week, `<0` = never expires) |
-| `off_delay_s` | hold ON this long after the raw bit clears |
+| `hold_on_s` | hold ON this long after the raw bit clears |
 | `min_on_s` | minimum ON time from onset |
 | `desc` | shown in the ALARMS table |
 | `notes` | the remediation line, shown under the table when the alarm is selected. Write it - it is the one place to say something specific to the real installation |
 
-`AlarmModel` builds its working conditions by scanning the bank for `SCOPE_A` rows
+`AlarmController` builds its working conditions by scanning the bank for `SCOPE_A` rows
 **in table order**, so condition *i* reads row *i*. That removes the whole class of
 drift where an alarm table's row order and the variable it named had to be kept in
 step by hand.

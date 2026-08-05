@@ -145,7 +145,7 @@ const uint8_t g_analog_cal_count =
  *  which is what the tables filter on.
  *
  *  Alarms live here too, and only here: an A() row carries the boolean that
- *  raises the alarm AND the policy the AlarmModel runs it on, and the model
+ *  raises the alarm AND the policy the AlarmController runs it on, and the model
  *  finds them by scanning for SCOPE_A. There is no second alarm table whose row
  *  order has to be kept in step with anything.
  *

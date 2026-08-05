@@ -322,7 +322,7 @@ namespace Botanik { namespace Shell {
             return;
         }
 
-        const Alarms::AlarmModel* m = _console.alarms();
+        const Alarms::AlarmController* m = _console.alarms();
         if (m == nullptr) { _println("alarms: model unavailable"); return; }
 
         // "alarms list" - one paced line per active condition: code, age,

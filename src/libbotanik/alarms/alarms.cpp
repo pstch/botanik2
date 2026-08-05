@@ -14,15 +14,15 @@ namespace Botanik { namespace Alarms {
     void AlarmCondition::step(bool raw_on, uint32_t dt, uint64_t now,
                               const AlarmSink& sink) {
         // 1. Drain the two wrap-immune latch countdowns, then refresh the
-        //    off-delay while the raw bit is set: the off-delay holds active for
-        //    off_delay_s after the raw bit clears, the minimum-ON hold keeps it
+        //    hold-on delay while the raw bit is set: it holds active for
+        //    hold_on_s after the raw bit clears, the minimum-ON hold keeps it
         //    active >= min_on_s from onset (anti-flicker). `on` holds until the
         //    raw bit and both latches are clear.
-        off_delay_rem_ms = drain_ms(off_delay_rem_ms, dt);
-        min_on_rem_ms    = drain_ms(min_on_rem_ms, dt);
-        if (raw_on && off_delay_s > 0)
-            off_delay_rem_ms = (uint32_t)off_delay_s * 1000u;
-        bool on = raw_on || off_delay_rem_ms > 0 || min_on_rem_ms > 0;
+        hold_on_rem_ms = drain_ms(hold_on_rem_ms, dt);
+        min_on_rem_ms  = drain_ms(min_on_rem_ms, dt);
+        if (raw_on && hold_on_s > 0)
+            hold_on_rem_ms = (uint32_t)hold_on_s * 1000u;
+        bool on = raw_on || hold_on_rem_ms > 0 || min_on_rem_ms > 0;
 
         // 2. On a transition, stamp the edge and reset the per-episode
         //    bookkeeping. The *_on_sent flags reset on the ON edge (not OFF) so
@@ -46,15 +46,18 @@ namespace Botanik { namespace Alarms {
         uint64_t dwell = now - edge_ms;
         const char* label = desc ? desc : (name ? name : "");
         if (on) {
-            if (due(on_sent, on_s, dwell)) {
+            if (due_on(dwell)) {
                 sink.log_start(label);
                 sink.notify_on(*this);
                 on_sent = true;
             }
         } else {
-            if (due(off_sent, off_s, dwell)) {
-                if (is_flap(on_sent, on_s)) { sink.log_flap(label); sink.notify_flap(*this); }
-                else                        { sink.log_end(label);  sink.notify_off(*this); }
+            if (due_off(dwell)) {
+                // no matching ON was announced this episode, though raising one
+                // was enabled (on_s >= 0): a flap, not a clean end. Where ON is
+                // disabled by design (-1, e.g. SYS_RST) an OFF is always an end.
+                if (!on_sent && on_s >= 0) { sink.log_flap(label); sink.notify_flap(*this); }
+                else                       { sink.log_end(label);  sink.notify_off(*this); }
                 off_sent = true;
             }
         }

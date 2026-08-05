@@ -112,6 +112,7 @@ The reference site turns `NETWORK`, `NTP` and `MQTT` on in its own `config.h`.
 | `ALARM_STACK_PCT` | 80 | `STACK` alarm threshold |
 | `ALARM_EVENT_HOLD_MS` | 300000 | how long an event-style alarm stays active |
 | `ALARM_NOTIFIERS_MAX` | 4 | |
+| `ALARM_RECENT_S` | 604800 | RECENT window a cleared alarm stays listed for (a row's own `recent_s` wins) |
 | `CPU_LOAD_EMA_ATTACK_MS` / `_DECAY_MS` | 0 / 2000 | asymmetric smoothing: rise instantly, fall slowly |
 | `CPU_JITTER_EMA_ATTACK_MS` / `_DECAY_MS` | 0 / 5000 | |
 

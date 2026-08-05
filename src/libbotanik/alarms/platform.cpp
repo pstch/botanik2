@@ -4,8 +4,9 @@
  * @brief The generic platform-health alarm table (see platform.h).
  *
  * Codes match those BotanikFirmware::loop() asserts via
- * AlarmModel::set_local().
- * Suffix: dwell thresholds (s; -1 disables), recent_s (0 = default), off_delay_s.
+ * AlarmController::set_local().
+ * Suffix: dwell thresholds (s; -1 disables), recent_s (0 = default), hold_on_s.
+ * The notes column sits before them, as in AlarmCondition itself.
  */
 
 #include "platform.h"
@@ -18,17 +19,17 @@ namespace Botanik { namespace Alarms {
         // These read no variable: each is driven locally via set_local(),
         // and the model leaves their resolved ref at VAR_NONE. The name is
         // still their identity - it is what `alarms ack` and the pages key on.
-        // code         variable                description                            on  off  rec latch
-        {"SYS_RST",   "alarm_system_reset", "Reset in the last five minutes",    -1,  0},
-        {"CPU_XRUN",  "alarm_cpu_xrun",     "Scheduler overrun (skipped beat)",   0, -1,   0,   0},
-        {"CPU_LOAD",  "alarm_cpu_load",     "CPU load over threshold",            5,  5,   0, 300},
-        {"STACK",     "alarm_stack",        "Stack usage over threshold",         5,  5,   0, 300},
-        {"CPU_JITT",  "alarm_cpu_jitter",   "CPU jitter over threshold",          5,  5,   0, 300},
+        // code         variable                description                          notes    on  off  rec latch
+        {"SYS_RST",   "alarm_system_reset", "Reset in the last five minutes",    nullptr, -1,  0},
+        {"CPU_XRUN",  "alarm_cpu_xrun",     "Scheduler overrun (skipped beat)",  nullptr,  0, -1,   0,   0},
+        {"CPU_LOAD",  "alarm_cpu_load",     "CPU load over threshold",           nullptr,  5,  5,   0, 300},
+        {"STACK",     "alarm_stack",        "Stack usage over threshold",        nullptr,  5,  5,   0, 300},
+        {"CPU_JITT",  "alarm_cpu_jitter",   "CPU jitter over threshold",         nullptr,  5,  5,   0, 300},
         // Sticky: a store that refused a write does not heal by itself, and
         // the consequence (settings silently reverting at the next reboot) is
         // invisible until it is far too late to connect cause and effect.
-        {"FLASH_FLT", "alarm_flash_error",  "Persistent storage write failed",    0, -1,   0,   0, 0,
-         "settings will not survive a reboot; check the KV region"},
+        {"FLASH_FLT", "alarm_flash_error",  "Persistent storage write failed",
+         "settings will not survive a reboot; check the KV region",              0, -1,   0,   0, 0},
     };
     const uint8_t PLATFORM_ALARM_COUNT =
         (uint8_t)(sizeof(PLATFORM_ALARMS) / sizeof(PLATFORM_ALARMS[0]));

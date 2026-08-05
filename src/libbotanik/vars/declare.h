@@ -106,7 +106,7 @@ namespace Botanik { namespace Vars {
     constexpr Transport xp_of(uint8_t device) { return device == 0 ? XP_LOCAL : XP_MODBUS; }
 
     /** @brief An **alarm**: the boolean carrying the condition, AND the policy
-     *  the AlarmModel runs it on. There is no second alarm table - the model
+     *  the AlarmController runs it on. There is no second alarm table - the model
      *  builds its working conditions by scanning the variable table for
      *  SCOPE_A rows, in table order, so an alarm is declared once.
      *
@@ -114,7 +114,7 @@ namespace Botanik { namespace Vars {
      *  column and the alarm bar show; identity still belongs to @p name.
      *  @p on_s / @p off_s are the dwell before a START / END is announced, -1
      *  to never announce that edge. @p recent_s is the RECENT filter window
-     *  (0 = the default week, <0 = never expires). @p off_delay_s holds the
+     *  (0 = the default week, <0 = never expires). @p hold_on_s holds the
      *  alarm ON that long after the raw bit clears, and @p min_on_s is the
      *  minimum ON time from onset - both anti-flicker, in seconds.
      *
@@ -122,10 +122,10 @@ namespace Botanik { namespace Vars {
      *  program and read by the alarm model, and that is all. */
     constexpr Variable A(const char* name, const char* code,
                          int16_t on_s, int16_t off_s, int16_t recent_s,
-                         int16_t off_delay_s, int16_t min_on_s,
+                         int16_t hold_on_s, int16_t min_on_s,
                          const char* desc, const char* notes) {
         return Variable{ Scalar::B(false), name, "", desc, notes,
-                         Payload(code, on_s, off_s, recent_s, off_delay_s, min_on_s),
+                         Payload(code, on_s, off_s, recent_s, hold_on_s, min_on_s),
                          { XP_NONE, T_BOOL, 0, 0, 0, 0, 1.0f, 0.0f }, 0, nullptr,
                          T_BOOL, ROLE_COMPUTED, SCOPE_A, 0, 0, {} };
     }

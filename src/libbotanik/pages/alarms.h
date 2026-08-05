@@ -61,14 +61,14 @@ namespace Botanik { namespace Pages {
         Console&                  _console;
         /** @brief Alarm source (may be null). Non-const: the `a` key acks the
          *  selected condition through it. */
-        Alarms::AlarmModel*       _model;
+        Alarms::AlarmController*       _model;
         /** @brief A nav / mode / ack happened: redraw on the next tick rather
          *  than waiting for the value cadence, so the keypress feels immediate. */
         bool                      _dirty = true;
         /** @brief Uptime of the last cadence rebuild (see tick()). */
         uint64_t                  _last_refresh_ms = 0;
         /** @brief Visible alarm indices (table order), filled by _collect(). */
-        uint8_t                   _vis[Alarms::ALARM_BITS];
+        uint8_t                   _vis[Config::ALARM_SLOTS];
         /** @brief Number of visible entries in _vis. */
         uint8_t                   _nvis     = 0;
 
@@ -190,13 +190,13 @@ namespace Botanik { namespace Pages {
 
         /** @brief True if @p c belongs in RECENT mode: a last event still
          *  within its window. Active = always recent; inactive expires
-         *  recent_s after it cleared (0 = DEFAULT_RECENT_S, <0 = never). */
+         *  recent_s after it cleared (0 = Config::ALARM_RECENT_S, <0 = never). */
         bool _is_recent(const Alarms::AlarmCondition& c, uint64_t now) const {
             if (c.edge_ms == 0) return false;     // never fired -> no event
             if (c.active)       return true;      // on -> always recent
             if (c.recent_s < 0) return true;      // never expires
-            uint64_t window_ms = (uint64_t)(c.recent_s == 0 ? Alarms::DEFAULT_RECENT_S
-                                                            : c.recent_s) * 1000u;
+            uint64_t window_ms = (uint64_t)(c.recent_s == 0 ? Config::ALARM_RECENT_S
+                                                           : c.recent_s) * 1000u;
             return (now - c.edge_ms) <= window_ms;
         }
 
@@ -221,7 +221,7 @@ namespace Botanik { namespace Pages {
             if (_model == nullptr) return;
             uint64_t now = HAL::Clock::uptime_ms();
             for (uint8_t i = 0;
-                 i < _model->count() && _nvis < Alarms::ALARM_BITS; i++) {
+                 i < _model->count() && _nvis < Config::ALARM_SLOTS; i++) {
                 const Alarms::AlarmCondition& c = _model->condition(i);
                 if (c.name == nullptr) continue;             // undefined slot
                 bool include;
@@ -373,7 +373,7 @@ namespace Botanik { namespace Pages {
 
     public:
         /** @brief Bind to a terminal and alarm model. */
-        AlarmsPage(Console& console, Alarms::AlarmModel* model)
+        AlarmsPage(Console& console, Alarms::AlarmController* model)
             : ScrollTablePage(console.terminal()), _console(console), _model(model) {}
 
         /** @name Page interface

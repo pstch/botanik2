@@ -16,7 +16,7 @@
 
 #include <cstdint>
 
-namespace Botanik { namespace Alarms { class AlarmModel; } }
+namespace Botanik { namespace Alarms { class AlarmController; } }
 
 namespace Botanik { namespace Terminal {
 

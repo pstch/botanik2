@@ -1,6 +1,6 @@
 /**
  * @file test_alarms.cpp
- * @brief AlarmModel behaviour: ack / ack_all and the reset-on-ON-edge (a fresh
+ * @brief AlarmController behaviour: ack / ack_all and the reset-on-ON-edge (a fresh
  *        episode is unacknowledged), the minimum-ON hold (min_on_s anti-flicker),
  *        and the END-vs-FLAP distinction (an END with no matching START is a FLAP).
  */
@@ -21,7 +21,7 @@ namespace {
     // Drive a model without a PLC payload: set each condition's local override
     // from @p bits (bit i -> condition i), then step. Mirrors how the old bitset
     // step() raised/cleared conditions, keeping the tests terse.
-    void step_bits(Alarms::AlarmModel& m, uint64_t bits, uint64_t now) {
+    void step_bits(Alarms::AlarmController& m, uint64_t bits, uint64_t now) {
         for (uint8_t i = 0; i < m.count(); i++)
             m.set_local(i, ((bits >> i) & 1u) != 0);
         m.step(now);
@@ -29,7 +29,7 @@ namespace {
 
     // An alarm is a SCOPE_A row in a variable table now, so these read exactly
     // the way a site declares one: A(name, code, on_s, off_s, recent_s,
-    // off_delay_s, min_on_s, desc, notes). The model finds them by scanning.
+    // hold_on_s, min_on_s, desc, notes). The model finds them by scanning.
 
     // Two unmasked, unlatched conditions (announce disabled) at bits 0 and 1.
     const Vars::Variable TABLE[] = {
@@ -81,7 +81,7 @@ namespace {
 
 TEST_CASE("alarm: ack marks an active condition, ignores inactive / unknown") {
     AlarmBank f(TABLE, 2);
-    Alarms::AlarmModel m(&f.bank, nullptr);
+    Alarms::AlarmController m(&f.bank, nullptr);
     step_bits(m, 0x1, 1000);                              // raise A (bit 0)
     CHECK(m.active_count() == 1);
     CHECK(m.condition(0).user_ack == false);
@@ -93,7 +93,7 @@ TEST_CASE("alarm: ack marks an active condition, ignores inactive / unknown") {
 
 TEST_CASE("alarm: ack clears on the next ON edge (a fresh episode is unacknowledged)") {
     AlarmBank f(TABLE, 2);
-    Alarms::AlarmModel m(&f.bank, nullptr);
+    Alarms::AlarmController m(&f.bank, nullptr);
     step_bits(m, 0x1, 1000);
     m.ack("aaa");
     CHECK(m.condition(0).user_ack == true);
@@ -104,14 +104,14 @@ TEST_CASE("alarm: ack clears on the next ON edge (a fresh episode is unacknowled
 
 TEST_CASE("alarm: ack_all acknowledges every active condition and counts them") {
     AlarmBank f(TABLE, 2);
-    Alarms::AlarmModel m(&f.bank, nullptr);
+    Alarms::AlarmController m(&f.bank, nullptr);
     step_bits(m, 0x3, 1000);                              // both active
     CHECK(m.ack_all() == 2);
     CHECK(m.condition(0).user_ack == true);
     CHECK(m.condition(1).user_ack == true);
 
     AlarmBank f2(TABLE, 2);
-    Alarms::AlarmModel m2(&f2.bank, nullptr);
+    Alarms::AlarmController m2(&f2.bank, nullptr);
     step_bits(m2, 0x2, 1000);                             // only B active
     CHECK(m2.ack_all() == 1);
     CHECK(m2.condition(1).user_ack == true);
@@ -119,7 +119,7 @@ TEST_CASE("alarm: ack_all acknowledges every active condition and counts them") 
 
 TEST_CASE("alarm: min_on_s holds a condition active after the raw bit clears") {
     AlarmBank f(MIN_ON_TABLE, 1);
-    Alarms::AlarmModel m(&f.bank, nullptr);
+    Alarms::AlarmController m(&f.bank, nullptr);
     step_bits(m, 0x1, 1000);                              // raise (seeds the 5 s min-on hold)
     CHECK(m.condition(0).active == true);
     step_bits(m, 0x0, 2000);                              // raw clears 1 s in: still held
@@ -135,7 +135,7 @@ TEST_CASE("alarm: an END with no matching START is logged as a FLAP") {
     TopicRecorder rec;
     logger.add_writer(&rec);
     AlarmBank f(FLAP_TABLE, 1);
-    Alarms::AlarmModel m(&f.bank, &logger);
+    Alarms::AlarmController m(&f.bank, &logger);
 
     // A blip shorter than the 2 s START dwell: clears before any START is logged.
     step_bits(m, 0x1, 1000);                             // on (dwell 0 < on_s 2 s)
@@ -152,7 +152,7 @@ TEST_CASE("alarm: a normal episode logs START then END (not FLAP)") {
     TopicRecorder rec;
     logger.add_writer(&rec);
     AlarmBank f(NORMAL_TABLE, 1);
-    Alarms::AlarmModel m(&f.bank, &logger);
+    Alarms::AlarmController m(&f.bank, &logger);
 
     step_bits(m, 0x1, 1000);                             // on, START logged immediately
     logger.refill();
@@ -175,7 +175,7 @@ TEST_CASE("alarm reader: model reads each condition's variable") {
     Vars::Bank& io = f.bank;
 
     Logs::Logger logger;
-    Alarms::AlarmModel m(&io, &logger);
+    Alarms::AlarmController m(&io, &logger);
 
     m.step(1000);
     CHECK(m.condition(0).active == false);
@@ -202,10 +202,12 @@ TEST_CASE("alarm reader: a condition naming no variable rests on set_local") {
     io.init();
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-    const Alarms::AlarmCondition tbl[] = { { "PLT", "plt", "platform", -1, -1 } };
+    const Alarms::AlarmCondition tbl[] = {
+        { "PLT", "plt", "platform", nullptr, -1, -1 }
+    };
 #pragma GCC diagnostic pop
     Logs::Logger logger;
-    Alarms::AlarmModel m(&io, &logger, tbl, 1);
+    Alarms::AlarmController m(&io, &logger, tbl, 1);
     CHECK(m.condition(0).ref.index == Vars::VAR_NONE);
 
     m.step(1000);

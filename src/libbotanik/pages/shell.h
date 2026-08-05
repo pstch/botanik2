@@ -82,7 +82,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief Wire diagnostics targets (logger, alarm model) for the
          *  loglevel / alarm-ack commands. */
-        void set_diagnostics(Logs::Logger* logger, Alarms::AlarmModel* alarms) {
+        void set_diagnostics(Logs::Logger* logger, Alarms::AlarmController* alarms) {
             _shell.set_diagnostics(logger, alarms);
         }
 

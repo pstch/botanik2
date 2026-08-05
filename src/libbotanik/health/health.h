@@ -57,7 +57,7 @@ namespace Botanik { namespace Health {
         /** @name State
          *  @{ */
         Alarms::MqttAlarmNotifier          _notifier; ///< MQTT transition sink
-        Alarms::AlarmModel                 _model;
+        Alarms::AlarmController                 _model;
         /** perf metrics (may be null) */
         const Scheduler::SchedulerContext* _sched;
 
@@ -107,7 +107,7 @@ namespace Botanik { namespace Health {
          *  @{ */
         /** @brief The alarm model (terminal / AlarmsPage / shell bind to
          *  this). */
-        Alarms::AlarmModel& model()      { return _model; }
+        Alarms::AlarmController& model()      { return _model; }
         /** @brief Wire the alarm notifier's transport (the firmware passes the
          *  MQTT client once it exists). Until then the notifier is a no-op. */
         void set_alarm_publisher(Alarms::Publisher* pub) {
@@ -215,7 +215,7 @@ namespace Botanik { namespace Health {
 
         /** @brief Hold a momentary "event" alarm active for ALARM_EVENT_HOLD_MS
          *  after its @p counter ticks (latched in the source, not via the
-         *  table's off_delay_s). */
+         *  table's hold_on_s). */
         void _held_event(int16_t ix, uint32_t counter, uint32_t& last,
                          uint64_t& until_ms, uint64_t now) {
             if (counter != last) {

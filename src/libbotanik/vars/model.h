@@ -164,7 +164,7 @@ namespace Botanik { namespace Vars {
     };
 
     /** @brief An alarm row's announce policy: the short display code plus the
-     *  dwell thresholds the AlarmModel runs it on.
+     *  dwell thresholds the AlarmController runs it on.
      *
      *  Seconds as int16 rather than int32 because that is what fits: it keeps
      *  the arm inside the 16 bytes NumBand already costs, so carrying the alarm
@@ -176,7 +176,7 @@ namespace Botanik { namespace Vars {
         int16_t     on_s;         ///< time ON before announcing (-1: off)
         int16_t     off_s;        ///< time OFF before announcing (-1: off)
         int16_t     recent_s;     ///< RECENT window (0: default, <0: forever)
-        int16_t     off_delay_s;  ///< hold ON this long after the raw clears
+        int16_t     hold_on_s;  ///< hold ON this long after the raw clears
         int16_t     min_on_s;     ///< minimum ON time from onset
     };
 
@@ -253,8 +253,8 @@ namespace Botanik { namespace Vars {
         constexpr Payload(Scalar lo, Scalar hi) : num{lo, hi} {}
         constexpr Payload(uint16_t cap, StrKind kind) : text{cap, kind} {}
         constexpr Payload(const char* code, int16_t on_s, int16_t off_s, int16_t recent_s,
-                          int16_t off_delay_s, int16_t min_on_s)
-            : alarm{code, on_s, off_s, recent_s, off_delay_s, min_on_s} {}
+                          int16_t hold_on_s, int16_t min_on_s)
+            : alarm{code, on_s, off_s, recent_s, hold_on_s, min_on_s} {}
         constexpr Payload(const AnalogCal* c) : cal(c) {}
     };
 

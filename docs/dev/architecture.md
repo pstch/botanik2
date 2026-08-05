@@ -33,7 +33,7 @@ Under `src/libbotanik/`:
 | `vars/` | the variable model: descriptors, value slots, `Bank`, parameters | @ref dev_vars |
 | `scan/` | `Scan::Driver`: which control program is due, and running it | @ref int_tasks |
 | `plc/` | the POU library the programs are written in: `functions/` (stateless) and `blocks/` (stateful) | @ref int_tasks |
-| `alarms/` | `AlarmModel`, one condition per site-declared alarm, plus the platform set | @ref dev_health |
+| `alarms/` | `AlarmController`, one condition per site-declared alarm, plus the platform set | @ref dev_health |
 | `health/` | `HealthMonitor`: POST, the platform alarms, the watchdog verdict | @ref dev_health |
 | `logs/` | `Logger`, its rate limiter, and the `LogWriter` sinks | @ref dev_logging |
 | `console/` | the VT device, the screen back-buffer, input parsing, the line editor | @ref dev_screen |
