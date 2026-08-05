@@ -5,6 +5,9 @@
 
 #include "logic.h"
 
+#include "../../../libbotanik_config.h"
+#if BOTANIK_FEATURE_PLC_BLK_BASE
+
 namespace Botanik { namespace Plc {
 
     /** @name Edges
@@ -98,3 +101,5 @@ namespace Botanik { namespace Plc {
     /** @} */
 
 }}  // namespace Botanik::Plc
+
+#endif // BOTANIK_FEATURE_PLC_BLK_BASE

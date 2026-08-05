@@ -56,7 +56,9 @@ namespace Botanik { namespace Health {
 
         /** @name State
          *  @{ */
+#if BOTANIK_FEATURE_ALARMS_PUBLISH
         Alarms::MqttAlarmNotifier          _notifier; ///< MQTT transition sink
+#endif
         Alarms::AlarmController                 _model;
         /** perf metrics (may be null) */
         const Scheduler::SchedulerContext* _sched;
@@ -96,11 +98,15 @@ namespace Botanik { namespace Health {
                       const Scheduler::SchedulerContext* sched,
                       const Vars::Bank* io = nullptr)
             : Component(logger, "HealthMonitor"),
+#if BOTANIK_FEATURE_ALARMS_PUBLISH
               _notifier(Config::MQTT_TOPIC_PREFIX),
+#endif
               _model(io, logger,
                      Alarms::PLATFORM_ALARMS, Alarms::PLATFORM_ALARM_COUNT),
               _sched(sched) {
+#if BOTANIK_FEATURE_ALARMS_PUBLISH
             _model.add_notifier(&_notifier);   // the built-in MQTT sink
+#endif
         }
 
         /** @name Queries
@@ -108,11 +114,13 @@ namespace Botanik { namespace Health {
         /** @brief The alarm controller (terminal / AlarmsPage / shell bind to
          *  this). */
         Alarms::AlarmController& alarm_model() { return _model; }
+#if BOTANIK_FEATURE_ALARMS_PUBLISH
         /** @brief Wire the alarm notifier's transport (the firmware passes the
          *  MQTT client once it exists). Until then the notifier is a no-op. */
         void set_alarm_publisher(Alarms::Publisher* pub) {
             _notifier.set_publisher(pub);
         }
+#endif
         /** @brief Whether the HW watchdog should be kicked this beat (see
          *  file header). */
         bool                watchdog_ok() const { return _watchdog_ok; }

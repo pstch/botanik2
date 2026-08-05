@@ -74,7 +74,9 @@
 #include "libbotanik/vars/params.h"   // Vars::Params (the editable variables)
 #include "../shell/shell.h"
 #include "../vars/model.h"      // Vars::Bank / VarTables
+#if BOTANIK_FEATURE_PLC_SCAN
 #include "../scan/scan.h"     // Scan::Driver
+#endif
 #include "../plc/program.h"   // Plc::Program (the site's control programs)
 #include "../scheduler/tasks.h"   // Scheduler::Registry / GroupId / Phase
 #include "../vars/access.h"  // VarGroup / HomeVar (status vars)
@@ -166,7 +168,9 @@ namespace Botanik {
         Vars::Bank                       _io;          ///< the site's variables
         Vars::KvParamStore             _param_store; ///< one storage key per parameter
         Vars::Params                   _params;      ///< the editable view of the variables
+#if BOTANIK_FEATURE_PLC_SCAN
         Scan::Driver                   _scan;        ///< the control programs
+#endif
         /** @brief Whether the last beat saw a health fault. Edge tracking only
          *  - the control state itself lives in the Bank (control_enabled()), so
          *  an operator's `control disable` is not something the loop can
@@ -224,7 +228,9 @@ namespace Botanik {
               // Params come from local storage.
               _param_store(),
               _params(&_io, &_param_store, &_logger),
+#if BOTANIK_FEATURE_PLC_SCAN
               _scan(site.programs, site.program_count, &_io, &_logger),
+#endif
               // The alarm model scans the variable table for SCOPE_A rows;
               // platform-health alarms are appended and driven locally.
               _health(&_logger, _scheduler.context(), &_io)
@@ -361,13 +367,17 @@ namespace Botanik {
             _logger.info(Logs::BOOT, "Botanik v%s\nRunning on : %s",
                          Config::FIRMWARE_VERSION, HAL::hardware_description());
 
-#if BOTANIK_FEATURE_MQTT
+#if BOTANIK_FEATURE_ALARMS_PUBLISH
             // Route alarm transitions out through the MQTT client (it is an
             // Alarms::Publisher). Until now the notifier was a no-op.
             _health.set_alarm_publisher(&_net.mqtt());
+#endif
+#if BOTANIK_FEATURE_LOGS_PUBLISH
             // Stream log entries out to the broker (best-effort, own min level).
             _net.mqtt_log().set_publisher(&_net.mqtt());
             _logger.add_writer(&_net.mqtt_log());
+#endif
+#if BOTANIK_FEATURE_MQTT
             register_telemetry();   // site telemetry fields (base set always on)
 #endif
 
@@ -465,7 +475,9 @@ namespace Botanik {
             // (when control is withheld by definition) and a future
             // output-collect phase runs DURING a withdrawal rather than being
             // skipped with it.
+#if BOTANIK_FEATURE_PLC_SCAN
             _tasks.add_component("scan", GROUP_FAST, PHASE_EXECUTE, _scan);
+#endif
             _tasks.add("site", GROUP_FAST, PHASE_EXECUTE,
                 [](void* s, uint64_t now) { static_cast<BotanikFirmware*>(s)->on_step(now); },
                 this);

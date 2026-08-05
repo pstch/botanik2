@@ -20,6 +20,9 @@
 
 #include <cstdint>
 
+#include "../../../libbotanik_config.h"
+#if BOTANIK_FEATURE_PLC_BLK_BASE
+
 namespace Botanik { namespace Plc {
 
     /**
@@ -121,5 +124,7 @@ namespace Botanik { namespace Plc {
     };
 
 }}  // namespace Botanik::Plc
+
+#endif // BOTANIK_FEATURE_PLC_BLK_BASE
 
 #endif // PLC_BLOCKS_METER_H

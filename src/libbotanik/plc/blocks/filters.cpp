@@ -7,6 +7,9 @@
 
 #include "../functions/time.h"
 
+#include "../../../libbotanik_config.h"
+#if BOTANIK_FEATURE_PLC_BLK_FILTERS
+
 namespace Botanik { namespace Plc {
 
     float Ewma::operator()(float x, float tau_s, uint32_t dt_ms) {
@@ -47,3 +50,5 @@ namespace Botanik { namespace Plc {
     }
 
 }}  // namespace Botanik::Plc
+
+#endif // BOTANIK_FEATURE_PLC_BLK_FILTERS

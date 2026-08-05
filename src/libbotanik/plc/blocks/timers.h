@@ -12,6 +12,9 @@
 
 #include <cstdint>
 
+#include "../../../libbotanik_config.h"
+#if BOTANIK_FEATURE_PLC_BLK_BASE
+
 namespace Botanik { namespace Plc {
 
     /** @brief On-delay. Output goes true once the input has been continuously
@@ -90,5 +93,7 @@ namespace Botanik { namespace Plc {
     };
 
 }}  // namespace Botanik::Plc
+
+#endif // BOTANIK_FEATURE_PLC_BLK_BASE
 
 #endif // PLC_BLOCKS_TIMERS_H

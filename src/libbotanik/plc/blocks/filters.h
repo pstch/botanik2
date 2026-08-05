@@ -14,6 +14,9 @@
 
 #include <cstdint>
 
+#include "../../../libbotanik_config.h"
+#if BOTANIK_FEATURE_PLC_BLK_FILTERS
+
 namespace Botanik { namespace Plc {
 
     /**
@@ -133,5 +136,7 @@ namespace Botanik { namespace Plc {
     };
 
 }}  // namespace Botanik::Plc
+
+#endif // BOTANIK_FEATURE_PLC_BLK_FILTERS
 
 #endif // PLC_BLOCKS_FILTERS_H

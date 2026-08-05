@@ -8,6 +8,9 @@
 #include "../functions/math.h"
 #include "../functions/time.h"
 
+#include "../../../libbotanik_config.h"
+#if BOTANIK_FEATURE_PLC_BLK_BASE
+
 namespace Botanik { namespace Plc {
 
     float Pid::operator()(float sp, float pv, const PidTuning& t,
@@ -73,3 +76,5 @@ namespace Botanik { namespace Plc {
     }
 
 }}  // namespace Botanik::Plc
+
+#endif // BOTANIK_FEATURE_PLC_BLK_BASE

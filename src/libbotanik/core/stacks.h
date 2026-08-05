@@ -25,9 +25,11 @@
 #if BOTANIK_FEATURE_NTP
 #include "../network/ntp.h"       // NtpClient
 #endif
+#if BOTANIK_FEATURE_LOGS_PUBLISH
+#include "../network/mqtt_log.h"  // MqttLogWriter
+#endif
 #if BOTANIK_FEATURE_MQTT
 #include "../network/mqtt.h"      // MqttClient
-#include "../network/mqtt_log.h"  // MqttLogWriter
 #include "../network/telemetry.h" // MqttSender
 #endif
 
@@ -141,6 +143,8 @@ namespace Botanik {
 #if BOTANIK_FEATURE_MQTT
         Network::MqttClient     _mqtt;
         Network::MqttSender     _telemetry;
+#endif
+#if BOTANIK_FEATURE_LOGS_PUBLISH
         Network::MqttLogWriter  _mqtt_log;
 #endif
 
@@ -169,6 +173,8 @@ namespace Botanik {
 #if BOTANIK_FEATURE_MQTT
         Network::MqttClient&     mqtt()      { return _mqtt; }
         Network::MqttSender&     telemetry() { return _telemetry; }
+#endif
+#if BOTANIK_FEATURE_LOGS_PUBLISH
         Network::MqttLogWriter&  mqtt_log()  { return _mqtt_log; }
 #endif
 

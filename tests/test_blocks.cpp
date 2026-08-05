@@ -9,7 +9,12 @@
 
 #include "libbotanik/plc/blocks/blocks.h"
 
+// Compiles to an empty TU when the blocks are off - the namespace
+// itself is gated, so this must sit ABOVE the using-directive.
+#if BOTANIK_FEATURE_PLC_BLK_BASE && BOTANIK_FEATURE_PLC_BLK_FILTERS
+
 using namespace Botanik::Plc;
+
 
 TEST_CASE("Ton: delays the rise, drops immediately") {
     Ton t;
@@ -256,3 +261,5 @@ TEST_CASE("Integral and Derivative are inverses") {
     }
     CHECK(rate.value() == doctest::Approx(3.0f).epsilon(0.01));
 }
+
+#endif

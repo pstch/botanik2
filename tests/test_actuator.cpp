@@ -9,7 +9,12 @@
 
 #include "libbotanik/plc/blocks/actuator.h"
 
+// Compiles to an empty TU when the blocks are off - the namespace
+// itself is gated, so this must sit ABOVE the using-directive.
+#if BOTANIK_FEATURE_PLC_BLK_BASE
+
 using namespace Botanik::Plc;
+
 
 namespace {
 
@@ -178,3 +183,5 @@ TEST_CASE("Actuator: state_name covers all five") {
     drive(a, 0.0f, 10000);
     CHECK(std::string(a.state_name()) == "CLOSED");
 }
+
+#endif

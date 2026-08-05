@@ -7,6 +7,9 @@
 
 #include "../functions/time.h"
 
+#include "../../../libbotanik_config.h"
+#if BOTANIK_FEATURE_PLC_BLK_BASE
+
 namespace Botanik { namespace Plc {
 
     float Integral::operator()(float rate_per_s, uint32_t dt_ms, float cutoff) {
@@ -47,3 +50,5 @@ namespace Botanik { namespace Plc {
     }
 
 }}  // namespace Botanik::Plc
+
+#endif // BOTANIK_FEATURE_PLC_BLK_BASE

@@ -7,7 +7,12 @@
 
 #include "libbotanik/plc/blocks/pid.h"
 
+// Compiles to an empty TU when the blocks are off - the namespace
+// itself is gated, so this must sit ABOVE the using-directive.
+#if BOTANIK_FEATURE_PLC_BLK_BASE
+
 using namespace Botanik::Plc;
+
 
 namespace {
 
@@ -134,3 +139,5 @@ TEST_CASE("Pid: a zero dt scan is harmless") {
     const float again  = p(30.0f, 20.0f, t, 0);   // no integration, no divide
     CHECK(again == doctest::Approx(before));
 }
+
+#endif
