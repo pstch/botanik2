@@ -95,6 +95,32 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, MONITOR_BAUD);
 
+    /** @brief BufferedSerial ring sizes, per port. Both must be a power of two
+     *  (BufferedSerial static_asserts it); usable depth is size-1, so the TX
+     *  ring below carries 4095 bytes - the figure SERIAL_TX_PER_STEP's note
+     *  quotes. Costs RX+TX bytes of RAM for every port a build opens. */
+#ifndef BOTANIK_SERIAL_RX_BUF
+#  define BOTANIK_SERIAL_RX_BUF 256
+#endif
+    BOTANIK_CFG(uint16_t, SERIAL_RX_BUF);
+#ifndef BOTANIK_SERIAL_TX_BUF
+#  define BOTANIK_SERIAL_TX_BUF 4096
+#endif
+    BOTANIK_CFG(uint16_t, SERIAL_TX_BUF);
+
+    /** @brief Geometry of the terminal actually on the console wire. A property
+     *  of the installation, like TERMINAL_TYPE: there is no resize handshake, so
+     *  what is declared here is what the pages lay themselves out for. Bounded
+     *  by TERMINAL_MAX_COLS / _ROWS, which size the screen back-buffer. */
+#ifndef BOTANIK_CONSOLE_COLS
+#  define BOTANIK_CONSOLE_COLS 80
+#endif
+    BOTANIK_CFG(uint16_t, CONSOLE_COLS);
+#ifndef BOTANIK_CONSOLE_ROWS
+#  define BOTANIK_CONSOLE_ROWS 24
+#endif
+    BOTANIK_CFG(uint16_t, CONSOLE_ROWS);
+
     /** @}
      *  @name Scheduling & performance monitoring
      *  @{ */
@@ -234,6 +260,15 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, ALARM_EVENT_HOLD_MS);
 
+    /** @brief How long after boot the SYS_RST alarm stays asserted, i.e. the
+     *  window in which "this unit has recently reset" is still news. Read by
+     *  HealthMonitor and by the SYS_RST description text, so the duration is
+     *  stated once rather than in the code and the operator's string both. */
+#ifndef BOTANIK_HEALTH_RESET_WINDOW_MS
+#  define BOTANIK_HEALTH_RESET_WINDOW_MS 300000
+#endif
+    BOTANIK_CFG(uint32_t, HEALTH_RESET_WINDOW_MS);
+
     /** @brief Maximum number of alarm notifiers the model fans out to. */
 #ifndef BOTANIK_ALARM_NOTIFIERS_MAX
 #  define BOTANIK_ALARM_NOTIFIERS_MAX 4
@@ -314,6 +349,24 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint8_t, SITE_ALARMS_MAX);
 
+    /** @brief Distinct variable groups a site may have. A group is the prefix of
+     *  a variable's name up to the first '_' (vars/access.h), interned into a
+     *  small pool: naming a variable is what files it, so this bounds how many
+     *  domains a table may span. Past it, var_group() answers "?" and the
+     *  MONITOR / PARAMS view modes stop gaining rows. */
+#ifndef BOTANIK_VAR_GROUPS_MAX
+#  define BOTANIK_VAR_GROUPS_MAX 16
+#endif
+    BOTANIK_CFG(uint8_t, VAR_GROUPS_MAX);
+
+    /** @brief Bytes one interned group name may occupy, NUL included, so a
+     *  prefix longer than this truncates. Sizes the intern pools in both the
+     *  variable table and the pages that group over it. */
+#ifndef BOTANIK_VAR_GROUP_NAME_LEN
+#  define BOTANIK_VAR_GROUP_NAME_LEN 16
+#endif
+    BOTANIK_CFG(size_t, VAR_GROUP_NAME_LEN);
+
     /** @}
      *  @name Log message sizing
      *  @{ */
@@ -335,6 +388,19 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(size_t, HOST_STR_LEN);
 
+    /** @brief Sockets HAL::Network keeps, per kind. These are the hard ceiling
+     *  on how many network clients a site may run at once: NTP takes one UDP,
+     *  MQTT one TCP, so the defaults leave nothing spare - a second publisher or
+     *  a syslog client needs this raised, and gets a refused socket otherwise. */
+#ifndef BOTANIK_NET_MAX_UDP
+#  define BOTANIK_NET_MAX_UDP 2
+#endif
+    BOTANIK_CFG(int, NET_MAX_UDP);
+#ifndef BOTANIK_NET_MAX_TCP
+#  define BOTANIK_NET_MAX_TCP 2
+#endif
+    BOTANIK_CFG(int, NET_MAX_TCP);
+
     /** @}
      *  @name Name resolution
      *  @{ */
@@ -345,6 +411,16 @@ namespace Botanik { namespace Config {
 #  define BOTANIK_DNS_CACHE_SIZE 8
 #endif
     BOTANIK_CFG(size_t, DNS_CACHE_SIZE);
+
+    /** @brief Async DNS lookups the HAL can have in flight. Defaults to
+     *  DNS_CACHE_SIZE because that is how many rows NameResolver can leave
+     *  PENDING at once (_alloc() handles every row being in flight), and a
+     *  shortfall shows up as lookups that fail only once enough are concurrent.
+     *  hal/net.cpp static_asserts the relation rather than trusting it. */
+#ifndef BOTANIK_NET_MAX_DNS
+#  define BOTANIK_NET_MAX_DNS BOTANIK_DNS_CACHE_SIZE
+#endif
+    BOTANIK_CFG(int, NET_MAX_DNS);
 
     /** @brief Max age (ms) a resolved entry is served from the cache before it is
      *  re-resolved. The HAL DNS API exposes no record TTL, so this bounds
@@ -398,6 +474,13 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, NTP_POLL_DEFAULT_S);
 
+    /** @brief Server UDP port the SNTP query goes to. The well-known 123 unless
+     *  the installation reaches its time source through a proxy on another. */
+#ifndef BOTANIK_NTP_PORT
+#  define BOTANIK_NTP_PORT 123
+#endif
+    BOTANIK_CFG(uint16_t, NTP_PORT);
+
     /** @}
      *  @name MQTT client
      *  @{ */
@@ -432,6 +515,29 @@ namespace Botanik { namespace Config {
 #  define BOTANIK_MQTT_TX_BUF 256
 #endif
     BOTANIK_CFG(size_t, MQTT_TX_BUF);
+
+    /** @brief Buffer every publisher formats its topic in. One bound for the
+     *  three of them (telemetry, logs, alarms), because all three build
+     *  "<MQTT_TOPIC_PREFIX>/<segment>/<name>" from the same configurable prefix
+     *  - sized apart, whichever was smallest truncated first. */
+#ifndef BOTANIK_MQTT_TOPIC_LEN
+#  define BOTANIK_MQTT_TOPIC_LEN 96
+#endif
+    BOTANIK_CFG(size_t, MQTT_TOPIC_LEN);
+
+    /** @brief Buffer a single telemetry value is formatted into; caps the width
+     *  of any published reading. */
+#ifndef BOTANIK_MQTT_PAYLOAD_LEN
+#  define BOTANIK_MQTT_PAYLOAD_LEN 64
+#endif
+    BOTANIK_CFG(size_t, MQTT_PAYLOAD_LEN);
+
+    /** @brief Socket reads MqttClient drains per activation. The per-beat bound
+     *  on its RX work, like MQTT_TELEMETRY_PER_STEP on the TX side. */
+#ifndef BOTANIK_MQTT_RX_PER_STEP
+#  define BOTANIK_MQTT_RX_PER_STEP 8
+#endif
+    BOTANIK_CFG(uint8_t, MQTT_RX_PER_STEP);
 
     /** @brief Period between MQTT telemetry publish cycles (ms).
      *  @note 0 disables telemetry.
@@ -481,6 +587,13 @@ namespace Botanik { namespace Config {
 #  define BOTANIK_MQTT_LOG_MIN_LEVEL 4   /* Logs::LOG_NOTICE */
 #endif
     BOTANIK_CFG(uint8_t, MQTT_LOG_MIN_LEVEL);
+
+    /** @brief MQTT topic segment for alarm transitions: each publishes under
+     *  "<MQTT_TOPIC_PREFIX>/<MQTT_ALARM_TOPIC>/<CODE>". */
+#ifndef BOTANIK_MQTT_ALARM_TOPIC
+#  define BOTANIK_MQTT_ALARM_TOPIC "alarms"
+#endif
+    BOTANIK_CFG(const char*, MQTT_ALARM_TOPIC);
 
     /** @}
      *  @name Sun position tracking
@@ -651,6 +764,24 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, PAGE_HOT_MS);
 
+    /** @brief Pages the Console multiplexes over. Registration past it is
+     *  refused, so the tab order simply stops gaining pages. Cannot exceed 10:
+     *  a page is also reachable by Alt+<digit>, and there are ten digits. */
+#ifndef BOTANIK_CONSOLE_PAGES_MAX
+#  define BOTANIK_CONSOLE_PAGES_MAX 8
+#endif
+    BOTANIK_CFG(uint8_t, CONSOLE_PAGES_MAX);
+
+    /** @brief Buffer one rendered table row is assembled in, before the
+     *  terminal clips it to the screen width. Shared by every scrolling table
+     *  (PARAMS, MONITOR, TASKS, ALARMS) and the ScrollTable framework under
+     *  them: wide enough for a full-width row plus the escapes and separators
+     *  the cells carry. */
+#ifndef BOTANIK_TABLE_LINE_LEN
+#  define BOTANIK_TABLE_LINE_LEN 200
+#endif
+    BOTANIK_CFG(uint16_t, TABLE_LINE_LEN);
+
     /** @brief Log lines the Home page keeps in its bottom log tail.
      *  @note Small on purpose: a live "last few entries" widget,
      *        not a full scrollback like the Logs page. */
@@ -676,6 +807,14 @@ namespace Botanik { namespace Config {
 #  define BOTANIK_TX_COLD_TARGET_MS 128
 #endif
     BOTANIK_CFG(uint32_t, TX_COLD_TARGET_MS);
+
+    /** @brief TX ring headroom the depth floor always leaves free, so a single
+     *  oversized run still has somewhere to land rather than being deferred
+     *  forever. Must stay comfortably under SERIAL_TX_BUF. */
+#ifndef BOTANIK_TX_HEADROOM_BYTES
+#  define BOTANIK_TX_HEADROOM_BYTES 256
+#endif
+    BOTANIK_CFG(uint16_t, TX_HEADROOM_BYTES);
 
     /** @brief Max log/command rows painted per tick per page.
      *  @note At low baud the wire is the real ceiling (4800 baud ~= 4.4 lines/s), so a
@@ -786,13 +925,21 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, EDITOR_MIN_COLS);
 
-    /** @brief Widest terminal width the UI supports, a sanity bound on
-     *         full-width fills (e.g. the Home log-header bar) so a bogus column count
-     *         can't drive an unbounded paint. */
+    /** @brief Largest terminal the UI supports. These size the screen
+     *  back-buffer (AnsiTerminal keeps two cell grids of COLS x ROWS bytes, so
+     *  the pair costs 2 x their product in RAM) and clamp the console geometry
+     *  at construction; they are also the sanity bound on full-width fills like
+     *  the Home log-header bar, so a bogus column count cannot drive an
+     *  unbounded paint. 132x32 is a wide VT with room to spare over the 80x24
+     *  the pages actually lay out for. */
 #ifndef BOTANIK_TERMINAL_MAX_COLS
-#  define BOTANIK_TERMINAL_MAX_COLS 256
+#  define BOTANIK_TERMINAL_MAX_COLS 132
 #endif
     BOTANIK_CFG(uint16_t, TERMINAL_MAX_COLS);
+#ifndef BOTANIK_TERMINAL_MAX_ROWS
+#  define BOTANIK_TERMINAL_MAX_ROWS 32
+#endif
+    BOTANIK_CFG(uint16_t, TERMINAL_MAX_ROWS);
 
     /** @brief Which terminal is wired to the console UART - a property of the
      *  installation, so a site declares it rather than a harness passing it in.
@@ -843,6 +990,21 @@ namespace Botanik { namespace Config {
     // case is the narrowest screen minus the widest gutter.
     static_assert(NOTES_MAX_ROWS * (EDITOR_MIN_COLS - EDITOR_PROMPT_MAX) >= NOTES_LEN,
                   "NOTES_MAX_ROWS too small to lay out NOTES_LEN at EDITOR_MIN_COLS");
+
+    /** @}
+     *  @name Persistent storage
+     *  @{ */
+
+    /** @brief Longest HAL::Storage key, NUL included, counting the partition
+     *  prefix the backend adds. The platform sets it - Mbed's KVStore takes 128
+     *  characters - and every caller that formats a key ("ovr.<name>",
+     *  "<name>_serial", ...) sizes its scratch from this one number, so a long
+     *  variable name cannot truncate differently depending on which path wrote
+     *  it. */
+#ifndef BOTANIK_STORAGE_KEY_MAX
+#  define BOTANIK_STORAGE_KEY_MAX 129
+#endif
+    BOTANIK_CFG(size_t, STORAGE_KEY_MAX);
 
     /** @}
      *  @name Simulator settings

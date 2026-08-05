@@ -130,7 +130,8 @@ The reference site turns `NETWORK`, `NTP` and `MQTT` on in its own `config.h`.
 | `CONSOLE_BAUD` | 4800 | also sizes the terminal's per-render TX budget |
 | `MONITOR_BAUD` | 115200 | |
 | `SERIAL_TX_PER_STEP` | 256 | bytes one `transmit()` may push, so a fast port (USB CDC) cannot eat a whole beat |
-| `STORE_MAX_BYTES` | 16384 | cap on the simulator's key-value store file |
+| `SERIAL_RX_BUF` / `SERIAL_TX_BUF` | 256 / 4096 | the two rings, per port. Powers of two (`static_assert`ed); usable depth is size-1 |
+| `CONSOLE_COLS` / `CONSOLE_ROWS` | 80 / 24 | geometry of the terminal on the wire. Fixed at construction, bounded by `TERMINAL_MAX_COLS` / `_ROWS` |
 
 ### Scheduling and health thresholds
 
@@ -152,6 +153,7 @@ The reference site turns `NETWORK`, `NTP` and `MQTT` on in its own `config.h`.
 | `ALARM_EVENT_HOLD_MS` | 300000 | how long an event-style alarm stays active |
 | `ALARM_NOTIFIERS_MAX` | 4 | |
 | `ALARM_RECENT_S` | 604800 | RECENT window a cleared alarm stays listed for (a row's own `recent_s` wins) |
+| `HEALTH_RESET_WINDOW_MS` | 300000 | how long after boot `SYS_RST` stays asserted |
 | `CPU_LOAD_EMA_ATTACK_MS` / `_DECAY_MS` | 0 / 2000 | asymmetric smoothing: rise instantly, fall slowly |
 | `CPU_JITTER_EMA_ATTACK_MS` / `_DECAY_MS` | 0 / 5000 | |
 
@@ -159,6 +161,11 @@ The reference site turns `NETWORK`, `NTP` and `MQTT` on in its own `config.h`.
 
 `HOME_FIELDS_MAX` 22, `ALARM_SLOTS` 64, `PLATFORM_ALARMS_RESERVED` 8,
 `SITE_ALARMS_MAX` 56. See @ref int_tables.
+
+| Macro | Default | |
+|---|---|---|
+| `VAR_GROUPS_MAX` | 16 | distinct variable groups a site may have. A group is a name prefix, so this bounds how many domains one table spans; past it `var_group()` answers `?` |
+| `VAR_GROUP_NAME_LEN` | 16 | bytes one interned group name may take, NUL included |
 
 ### Networking
 
@@ -168,29 +175,36 @@ The reference site turns `NETWORK`, `NTP` and `MQTT` on in its own `config.h`.
 | `DNS_CACHE_SIZE` | 8 | |
 | `DNS_CACHE_TTL_MS` | 3600000 | 0 disables expiry |
 | `DNS_PENDING_MAX_MS` | 30000 | caps an abandoned lookup, so a slot cannot leak |
+| `NET_MAX_UDP` / `NET_MAX_TCP` | 2 / 2 | HAL socket tables. NTP takes one UDP and MQTT one TCP, so a further client needs these raised |
+| `NET_MAX_DNS` | = `DNS_CACHE_SIZE` | async lookups the HAL can have in flight. `hal/net.cpp` `static_assert`s it is not below `DNS_CACHE_SIZE`, which is how many rows the resolver can leave pending |
 | `NET_SETUP_TIMEOUT_MS` | 30000 | |
 | `NET_RETRY_MS` | 10000 | |
 | `NTP_QUERY_TIMEOUT_MS` | 5000 | |
 | `NTP_RETRY_MS` | 60000 | |
 | `NTP_POLL_DEFAULT_S` | 3600 | |
+| `NTP_PORT` | 123 | server UDP port, for a time source reached through a proxy |
 | `MQTT_PORT_DEFAULT` | 1883 | |
 | `MQTT_KEEPALIVE_DEFAULT_S` | 60 | |
 | `MQTT_CONNECT_TIMEOUT_MS` | 10000 | |
 | `MQTT_RETRY_MS` | 30000 | |
 | `MQTT_TX_BUF` | 256 | bounds topic + payload of one publish |
+| `MQTT_TOPIC_LEN` | 96 | topic buffer shared by all three publishers, so a long `MQTT_TOPIC_PREFIX` truncates the same way everywhere |
+| `MQTT_PAYLOAD_LEN` | 64 | caps a published telemetry value's formatted width |
+| `MQTT_RX_PER_STEP` | 8 | socket reads drained per activation, the RX-side twin of `MQTT_TELEMETRY_PER_STEP` |
 | `MQTT_TELEMETRY_PERIOD_MS` | 30000 | 0 disables telemetry |
 | `MQTT_TELEMETRY_PER_STEP` | 8 | fields published per step, so one cycle cannot eat a beat |
 | `MQTT_TELEMETRY_TOPIC` | `"status"` | |
 | `MQTT_TELEMETRY_RETAIN` | 1 | |
 | `MQTT_LOG_TOPIC` | `"logs"` | |
 | `MQTT_LOG_MIN_LEVEL` | 4 (notice) | the MQTT sink's own threshold |
+| `MQTT_ALARM_TOPIC` | `"alarms"` | segment alarm transitions publish under |
 | `SUN_RECOMPUTE_MS` | 60000 | |
 
 ### Logging
 
 | Macro | Default | |
 |---|---|---|
-| `LOG_MIN_LEVEL` | 2 (info) | the initial `loglevel` |
+| `LOG_MIN_LEVEL` | 2 (info) | the initial `loglevel`. SIMULATOR builds force it to 1 (debug) from `CMakeLists.txt`, so the sim never shows this default |
 | `LOG_MESSAGE_LEN` | 256 | |
 | `LOG_FORMATTED_LEN` | 256 | |
 | `LOG_GLOBAL_BUCKET_BURST` / `_PERIOD_MS` | 32 / 1000 | sized to absorb the boot burst |
@@ -208,7 +222,9 @@ The reference site turns `NETWORK`, `NTP` and `MQTT` on in its own `config.h`.
 | Macro | Default | |
 |---|---|---|
 | `TERMINAL_TYPE` | 1 | 0 = VT100, 1 = VT102, 2 = Minitel 1B, 3 = Minitel 2. A plain integer, because this header is included everywhere and must not depend on the console |
-| `TERMINAL_MAX_COLS` | 256 | |
+| `TERMINAL_MAX_COLS` / `_ROWS` | 132 / 32 | largest terminal supported. They size the screen back-buffer (two cell grids, so 2 x their product in RAM) and clamp `CONSOLE_COLS` / `_ROWS` |
+| `CONSOLE_PAGES_MAX` | 8 | pages the Console multiplexes. At most 10, since a page is also reachable by Alt+`<digit>` |
+| `TABLE_LINE_LEN` | 200 | buffer one rendered table row is assembled in, shared by every scrolling table |
 | `ANSI_INPUT_BATCH_SIZE` | 32 | |
 | `ANSI_INPUT_BATCH_TIMEOUT_MS` | 1000 | |
 | `ANSI_CMD_TIMEOUT_MS` | 100 | how long a lone `ESC` waits for a sequence |
@@ -219,6 +235,7 @@ The reference site turns `NETWORK`, `NTP` and `MQTT` on in its own `config.h`.
 | `PAGE_TASKS_MS` | 2000 | the TASKS page's cost columns |
 | `PAGE_HOT_MS` | 1000 | clock and uptime |
 | `TX_COLD_TARGET_MS` | 128 | the per-render byte budget target |
+| `TX_HEADROOM_BYTES` | 256 | ring space the depth floor always leaves free, so one oversized run is not deferred forever |
 | `LOG_ROWS_PER_TICK` | 2 | |
 | `INPUT_EVENTS_PER_TICK` | 4 | |
 
@@ -253,10 +270,17 @@ The reference site turns `NETWORK`, `NTP` and `MQTT` on in its own `config.h`.
 The editor's buffers are supplied by their owner, so these size the NOTES page alone
 and are independent of the `EDITOR_*` values the shell prompt uses.
 
+### Persistent storage
+
+| Macro | Default | |
+|---|---|---|
+| `STORAGE_KEY_MAX` | 129 | longest `HAL::Storage` key, NUL and partition prefix included. Mbed's KVStore sets it; every caller that formats a key (`ovr.<name>`, `<name>_serial`) sizes its scratch from this one number |
+
 ### Simulator only
 
 `SIM_MAIN_CPU_CORE` 0, `STACK_SCAN_LIMIT` 65536, `STACK_PAINT_BYTE` 0xCD,
-`STACK_SLICE_TICKS` (derived). Guarded by `TARGET_SIMULATOR`.
+`STACK_SLICE_TICKS` (derived), `STORE_MAX_BYTES` 16384 (cap on the key-value store
+file). Guarded by `TARGET_SIMULATOR`.
 
 @note These per-parameter `#ifndef` guards cannot be collapsed into a helper macro:
 the C++11 preprocessor has no way to conditionally define a macro whose name it
