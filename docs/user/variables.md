@@ -8,10 +8,14 @@ What differs is what a variable is *for*:
 
 | Role | Behaviour |
 |---|---|
-| input | comes from the field; goes invalid if the driver stops refreshing it |
+| input | comes from the field; goes invalid if the driver stops refreshing it, or if the reading leaves its declared band |
 | output | drives the field; drops to its safe state when control is withdrawn |
-| internal | computed by the control programs; never expires |
+| computed | worked out by the control programs; never expires |
 | parameter | a setting: editable and persisted (see @ref user_settings) |
+
+An input is invalidated two ways, and the second one matters more than it sounds: a
+reading can be perfectly fresh and still be nonsense. A dead 4-20 mA loop reads full
+scale forever, which no timeout catches - the plausibility band does.
 
 ## Reading one
 
@@ -41,14 +45,15 @@ a sensor to exercise the logic watching it, freeze a computed value, or drive an
 actuator by hand.
 
 ```
-botanik> override temp_zone1 35.0     # force a value
-botanik> override temp_zone1          # freeze it at whatever it reads now
-botanik> override temp_zone1 off      # release it
-botanik> override                     # list everything currently forced
-botanik> override off                 # release everything
+botanik> override temp_zone1 35.0       # force a value
+botanik> override temp_zone1            # freeze it at whatever it reads now
+botanik> override temp_zone1 35.0 invalid   # force the value AND make it read as dead
+botanik> override temp_zone1 off        # release it
+botanik> override list                  # list everything currently forced
+botanik> override off                   # release everything
 ```
 
-Three things are worth understanding:
+Four things are worth understanding:
 
 **An override is seen by everything.** It is applied at the single point every
 reader goes through, so the control programs, the console, the alarm model and MQTT
@@ -59,19 +64,29 @@ control programs act on it. That is the point, and it is also the risk.
 the override snaps straight back to the live reading, with no gap and nothing to
 restore.
 
-**It never survives a reboot.** Overrides are held in RAM only, deliberately - a
-forced value outliving a restart is a trap, and a restart is exactly what someone
-reaches for when a machine is behaving strangely. `override` says so when it lists
-them.
+**It survives a reboot.** Each override is persisted under its own storage key,
+separate from any parameter setting underneath it, so clearing one leaves the other
+alone. This is the opposite of what you might expect, and it is the safer of the two:
+an override explains behaviour nothing else accounts for, and after a reboot nobody
+remembers setting it. So the firmware announces restored overrides as a **critical**
+at boot, `override list` says they survive a reboot, and `override off` clears the
+lot - the stored copy included, so nothing comes back.
+
+@note **Outputs are the exception.** A restored override on an output is *not*
+reapplied. Control authority starts disabled at power-on, so a restored actuator
+override would sit armed until bring-up enabled control and then fire from a session
+long since walked away from.
+
+**It can force the reading's quality too.** A trailing `valid` / `invalid` says what
+the forced value reads as, so "force this to 20 C" and "make this read as a dead
+sensor" are both expressible. MONITOR reports the second as
+`OVERRIDDEN (forced invalid)` and `override list` flags it as `(reading as invalid)`.
+The forced value is still what a reader gets, so this is not the same as simulating
+the timeout fallback.
 
 Unlike `set`, an override is checked only against the variable's *type*, not its
 declared plausibility band - so you can push a reading past what the site considers
 possible, which is usually the whole reason for forcing it.
-
-An override can also make a variable read as a **dead sensor** rather than as a
-value - MONITOR reports that as `OVERRIDDEN (forced invalid)` and `override` flags it
-as `(reading as invalid)`. The shell only sets value overrides; this form comes from
-site code.
 
 @note Control authority outranks an override. Disabling control releases any
 override holding an output, and while control is off an override on an output is

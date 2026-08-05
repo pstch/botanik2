@@ -10,7 +10,7 @@ Two equivalent routes:
 
 - **PARAMS page** - select, `ENTER`, type, `ENTER`. The panel shows the minimum,
   maximum and description before you commit. See @ref user_pages.
-- **`set` from the shell** - `set ntp_poll_s 128`.
+- **`set` from the shell** - `set ntp_poll_sec 1800`.
 
 Either way the value is parsed, checked against the parameter's declared band, and
 written to persistent storage. Three outcomes:
@@ -34,9 +34,9 @@ settings never invalidates the others.
 ## Applying a group of settings
 
 Network, NTP, MQTT and geo settings are grouped, and each group has a **commit
-serial** - a parameter named after the group itself (`net`, `ntp`, `mqtt`, `geo`).
-The component that consumes a group re-reads all of it, and restarts, when that
-serial changes.
+serial** - a parameter named `<group>_serial`, so it files under its own group like
+every other row in it. The component that consumes a group re-reads all of it, and
+restarts, when that serial changes.
 
 @warning Editing a parameter does **not** apply it. The value is saved immediately,
 but the component keeps running on what it read last. You must bump the group's
@@ -47,10 +47,10 @@ So a change is always two steps: edit, then commit.
 ```
 botanik> set net_dhcp 0
 botanik> set net_ip 192.168.1.40
-botanik> set net_netmask 255.255.255.0
-botanik> set net_gateway 192.168.1.1
+botanik> set net_mask 255.255.255.0
+botanik> set net_gw 192.168.1.1
 botanik> set net_dns1 192.168.1.1
-botanik> set net 2                  # <- apply the whole group
+botanik> set net_serial 2           # <- apply the whole group
 ```
 
 Any new value will do, as long as it differs from the current one; incrementing is
@@ -58,17 +58,22 @@ the convention. Staging the whole group before committing is the point of the de
 a static IP block is only coherent once every field is set, and this way the interface
 restarts once rather than five times on its way through a half-configured state.
 
+The four groups below are the ones the library's own components consume. The names
+are fixed, but every **default** is the site's - the values shown are the reference
+site `gh_mlb41`'s. `list net_` and the PARAMS page always report what your unit
+actually ships with.
+
 ## Network settings
 
 | Parameter | Type | Default | Meaning |
 |---|---|---|---|
-| `net` | u32 | 1 | commit serial - bump to re-apply the group |
-| `net_dhcp` | bool | 1 | 1 = DHCP, 0 = static |
-| `net_ip` | str | | static IPv4 address |
-| `net_netmask` | str | | static subnet mask |
-| `net_gateway` | str | | default gateway |
-| `net_dns1` | str | | primary DNS server |
-| `net_dns2` | str | | secondary DNS server (may be empty) |
+| `net_serial` | u32 | 1 | commit serial - bump to re-apply the group |
+| `net_dhcp` | bool | 0 | 1 = DHCP, 0 = static |
+| `net_ip` | str | `192.168.1.42` | static IPv4 address |
+| `net_mask` | str | `255.255.255.0` | static subnet mask |
+| `net_gw` | str | `192.168.1.1` | default gateway |
+| `net_dns1` | str | `8.8.8.8` | primary DNS server |
+| `net_dns2` | str | `4.4.4.4` | secondary DNS server (may be empty) |
 
 The static fields are ignored while `net_dhcp` is 1. `net` reports what the
 interface actually ended up with, which is how you confirm a lease.
@@ -77,11 +82,11 @@ interface actually ended up with, which is how you confirm a lease.
 
 | Parameter | Type | Default | Meaning |
 |---|---|---|---|
-| `ntp` | u32 | 1 | commit serial |
-| `ntp_enabled` | bool | 1 | enable time sync |
-| `ntp_poll_s` | u16 | 64 s | poll interval |
-| `ntp_server1` | str | `pool.ntp.org` | primary server (host or IP) |
-| `ntp_server2` | str | | secondary server (may be empty) |
+| `ntp_serial` | u32 | 1 | commit serial |
+| `ntp_enable` | bool | 1 | enable time sync |
+| `ntp_poll_sec` | u32 | 3600 s | poll interval |
+| `ntp_srv1` | str | `0.fr.pool.ntp.org` | primary server (host or IP) |
+| `ntp_srv2` | str | `1.fr.pool.ntp.org` | secondary server (empty = no fallback) |
 
 `ntpsync` forces a resync without waiting for the next poll. The status-bar clock
 and every log timestamp follow this.
@@ -90,11 +95,11 @@ and every log timestamp follow this.
 
 | Parameter | Type | Default | Meaning |
 |---|---|---|---|
-| `mqtt` | u32 | 1 | commit serial |
-| `mqtt_enabled` | bool | 1 | enable publishing |
-| `mqtt_broker` | str | `broker.local` | broker host |
-| `mqtt_port` | u16 | 1883 | broker TCP port |
-| `mqtt_keepalive_s` | u16 | 60 s | keepalive interval |
+| `mqtt_serial` | u32 | 1 | commit serial |
+| `mqtt_enable` | bool | 1 | enable publishing |
+| `mqtt_host` | str | `192.168.1.43` | broker host |
+| `mqtt_port` | u16 | 58443 | broker TCP port |
+| `mqtt_ka_sec` | u16 | 20 s | keepalive interval, and the dead-broker detection |
 
 When enabled the unit publishes status variables and log entries under a topic
 prefix fixed at build time. Broker credentials and TLS are not supported.
@@ -103,9 +108,9 @@ prefix fixed at build time. Broker credentials and TLS are not supported.
 
 | Parameter | Type | Default | Meaning |
 |---|---|---|---|
-| `geo` | u32 | 1 | commit serial |
-| `geo_latitude` | f32 | 48.8566 deg | north positive |
-| `geo_longitude` | f32 | 2.3522 deg | east positive |
+| `geo_serial` | u32 | 1 | commit serial |
+| `geo_lat_deg` | f32 | 48.07 deg | north positive |
+| `geo_lon_deg` | f32 | 1.32 deg | east positive |
 
 Used for solar-position tracking where a site enables it. Set these to the actual
 installation, not the nearest city.

@@ -1,8 +1,19 @@
 # Alarms {#user_alarms}
 
-An alarm is a named condition the site declared and the firmware watches
-continuously. Each has a short **code**, a description, a **remediation note**, and a
-dwell policy that decides how long the condition must hold before it counts.
+An alarm **is a variable**. It is a boolean row in the same table as everything else
+(@ref user_variables), declared with the alarm scope, and what makes it an alarm is
+the dwell policy it carries alongside the boolean. There is no separate alarm list to
+keep in step.
+
+Two consequences worth having:
+
+- an alarm is readable and forcible by name like any other variable - `get
+  alarm_dc_ups`, or `override alarm_dc_ups 1` to exercise whatever watches it;
+- the ALARMS page shows that variable name beside the code, so what you see on screen
+  is what you type at the prompt (the `alarm_` prefix is stripped on screen).
+
+Each alarm has a short **code** for the eye, a description, a **remediation note**,
+and the dwell policy that decides how long the condition must hold before it counts.
 
 Where they surface:
 
@@ -49,14 +60,14 @@ acknowledged.
 
 Every unit has these regardless of site, raised from the firmware's own health:
 
-| Code | Condition | Notes |
-|---|---|---|
-| `SYS_RST` | the unit restarted in the last five minutes | expected after a deliberate reboot |
-| `CPU_LOAD` | loop CPU load over its threshold | check what is loading the loop |
-| `CPU_JITT` | loop timing jitter over its threshold | |
-| `CPU_XRUN` | the scheduler skipped a beat | a beat's work ran past its deadline |
-| `STACK` | stack usage over its threshold | |
-| `FLASH_FLT` | a write to persistent storage failed | **sticky until reboot** |
+| Code | Variable | Condition | Notes |
+|---|---|---|---|
+| `SYS_RST` | `alarm_system_reset` | the unit restarted in the last five minutes | expected after a deliberate reboot |
+| `CPU_LOAD` | `alarm_cpu_load` | loop CPU load over its threshold | check what is loading the loop - the TASKS page attributes it per task |
+| `CPU_JITT` | `alarm_cpu_jitter` | loop timing jitter over its threshold | |
+| `CPU_XRUN` | `alarm_cpu_xrun` | the scheduler skipped a beat | a beat's work ran past its deadline |
+| `STACK` | `alarm_stack` | stack usage over its threshold | |
+| `FLASH_FLT` | `alarm_flash_error` | a write to persistent storage failed | **sticky until reboot** |
 
 `FLASH_FLT` is the one to act on: settings will not survive a reboot until it is
 resolved. It is the same fault behind `set`'s `(NOT SAVED: storage refused it)` and

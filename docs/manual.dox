@@ -12,7 +12,7 @@ commands are the same on every site, only the variables differ.
 
 - @subpage user_console - the terminal, the screen layout, and the keys that work
   everywhere.
-- @subpage user_pages - the six pages: what each shows and how to drive it.
+- @subpage user_pages - the eight pages: what each shows and how to drive it.
 - @subpage user_shell - the command prompt and every built-in command.
 
 **Concepts worth knowing:**

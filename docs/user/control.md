@@ -1,8 +1,19 @@
 # Control authority and the safe state {#user_control}
 
-Whether the firmware may drive the field at all is one switch: **control authority**.
-It is either enabled or it is not, and everything that touches the outputs goes
-through it.
+Whether the firmware may drive the field at all is one latch: **control authority**.
+Everything that touches the outputs goes through it.
+
+It is held down by two **independent** inhibits, and control returns only when both
+let go:
+
+| Inhibit | Held by |
+|---|---|
+| operator | you, with `control disable` |
+| health | the firmware: bring-up not finished, a health fault, a pending reset |
+
+That is why it is not a single flag. An operator who typed `control disable` stays
+disabled across a health fault that comes and goes, and equally the console cannot
+talk over the firmware's own judgement that it must not drive.
 
 ## What withdrawing control does
 
@@ -33,6 +44,15 @@ control: enabled
 Use `control disable` before working on the plant. It is the one command that
 guarantees the firmware is not about to move something.
 
+`control enable` releases the **operator's** hold and nothing else, then reports what
+is left. So a `control enable` that changes nothing reads as a health fault rather
+than as a broken command:
+
+```
+botanik> control enable
+control: DISABLED by the system (bring-up, health, or a pending reset)
+```
+
 ## When the firmware withdraws it
 
 Control is withdrawn automatically on a health fault, logged as a critical on the
@@ -48,11 +68,10 @@ Recovery logs a warning and hands control back:
 [!] HEALTH: control enabled, scan resuming
 ```
 
-This is edge-triggered on the fault, not re-decided every beat - so a healthy
-firmware does not talk over an operator who disabled control by hand. A health
-*recovery*, however, does re-enable it. If you disabled control for maintenance and
-a fault has since come and gone, check `control` before assuming the field is still
-parked.
+This is edge-triggered on the fault, not re-decided every beat, and it moves only the
+**health** inhibit. A recovery therefore hands control back only if you had not also
+disabled it by hand: a fault that comes and goes while you are working on the plant
+leaves your hold exactly where you put it.
 
 `reset` and `exit` also drop the outputs to safe state before leaving, because the
 reboot itself gives no guarantee about what the outputs do on the way through.

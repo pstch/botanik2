@@ -27,7 +27,7 @@ stream and no UI. See @ref user_logging.
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│ 1 2:SHELL 3 4 5 6      12:04:31      cpu: 12% stk: 31% │  row 0   status bar
+│ 1 2:SHELL 3 4 5 6 7 8  12:04:31      cpu: 12% stk: 31% │  row 0   status bar
 ├────────────────────────────────────────────────────────┤
 │                                                        │
 │                    page content                        │  rows 1..N-2
