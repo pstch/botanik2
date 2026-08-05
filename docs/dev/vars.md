@@ -88,7 +88,7 @@ That is a deliberate trade, and it cuts the other way too: a maintainer who forc
 signal to work on the plant should not lose it to a power cut, but a forgotten one now
 survives the reboot someone reaches for when a machine misbehaves. Three things keep
 that honest - the boot CRITICAL, `override list` saying plainly that they survive, and
-`override off` clearing the lot in one command.
+`override clear` clearing the lot in one command.
 
 @note The three mutators live on `Bank`, not on the `Var` handle - the handle's
 are private to it. Each has a storage side, so a caller that reached past the bank
@@ -98,15 +98,16 @@ got RAM-only behaviour that looked right until the next boot.
 design: a power cycle clears every force, so power-cycling is a reliable way back to
 normal operation. Here it is not. The trade was made knowingly - a maintainer who forced
 a signal to work on the plant should not lose it to a power cut - and it is mitigated by
-the boot CRITICAL, by `override list` saying so in as many words, and by `override off`
-clearing the lot in one command. Anyone arriving with PLC habits should be told.
+the boot CRITICAL, by `override list` saying so in as many words, and by
+`override clear` clearing the lot in one command. Anyone arriving with PLC habits
+should be told.
 
-@warning `ROLE_OUTPUT` is excluded outright. Control starts disabled, so a restored
-actuator override would sit armed until bring-up enabled control and then fire, from a
-console session long since walked away from - the very hazard `disable_control()`
-releases overrides to avoid. `load_overrides()` drops any stored one rather than
-restoring it, and every release path (`override_clear()`, `clear_overrides()`, a
-control withdrawal) wipes the stored copy in the same breath.
+@warning `ROLE_OUTPUT` is excluded outright. An override on an output drives the
+actuator the moment it is in force, control authority or not, so one restored at boot
+would be commanding the plant out of a console session long since walked away from.
+`load_overrides()` drops any stored one rather than restoring it, and every release
+path (`override_clear()`, `clear_overrides()`, a health withdrawal) wipes the stored
+copy in the same breath.
 
 ## `Bank`: the one writer
 
@@ -119,7 +120,7 @@ from the context; nothing gets its own pointer.
 | `load_overrides()` | restore the overrides in force at the last shutdown; skips `ROLE_OUTPUT` |
 | `expire_stale(now_ms)` | invalidate `ROLE_INPUT` rows past their `timeout_ms` |
 | `var(ref)` | make a handle |
-| `find(name, len)` | resolve a name to a `VarRef` |
+| `find(name[, len])` | resolve a name to a `VarRef`, through the name index |
 | `set(...)` | edit a **parameter**: validate against its band, then persist |
 | `override_set(...)` | force **any** variable: range-checked against the type only |
 | `enable_control()` / `disable_control()` / `control_enabled()` | control authority |
@@ -136,15 +137,48 @@ An out-of-range index - including `VAR_NONE` - resolves to an inert **sink** row
 to a clamped real row. Clamping a typo onto the last row of the table would drive a
 real relay. The sink reads as its own zeroes and swallows writes.
 
+### The name index
+
+`find()` is the one way anything addresses a row, and it was a `strcmp` down the whole
+table: 259 of them per miss at the reference site, several times a beat once the
+simulated field and the config readers are counted. Worse, a variable table is mostly
+shared prefixes (`grid_`, `cli_`, `alarm_`), so each comparison matched several bytes
+before diverging.
+
+It is now open addressing with linear probing over an FNV-1a of the name, built once
+in the `Bank(VarTables)` constructor - the table is `const` and never grows, so there
+is nothing to maintain and no invalidation to get wrong. An empty slot ends a probe,
+so a miss costs one run of collisions rather than the whole table.
+
+`Config::VAR_HASH_SLOTS` sizes it (512 `uint16_t`, 1 KB of RAM, room for 384 rows). A
+table past three quarters full is not indexed at all: `name_index_built()` returns
+false and `find()` walks the table as before. Correct, just slow - which is why
+`tests/test_site_names.cpp` asserts the index built rather than leaving a site to
+discover it as a beat that got longer.
+
 ### Control authority
 
-One latch. `disable_control()` drops every `ROLE_OUTPUT` to its declared `def`,
-**releases** any override holding an output, and (through the loop) inhibits the
-scan. Releasing rather than ignoring is the important part: a staged override would
-fire the moment control came back. While control is off, `override_set()` refuses an
-output outright.
+One latch, two independent inhibits. `disable_control()` drops every `ROLE_OUTPUT` to
+its declared `def` and (through the loop) inhibits the scan, so nothing re-drives them
+on the next beat.
 
-Control authority outranks an override, never the other way round.
+What happens to an **override** depends on which inhibit:
+
+| Source | Overrides on outputs |
+|---|---|
+| `INHIBIT_OPERATOR` (`control disable`) | left alone |
+| `INHIBIT_HEALTH` (fault, bring-up, pending reset) | released, stored copy included |
+
+That asymmetry is the whole design. `control disable` is how an operator takes the
+plant by hand: the programs stop deciding, and an override is then the only thing that
+*can* move an actuator - wiping them would leave nothing able to. The health inhibit
+means something else entirely - the firmware can no longer reason about what it is
+driving, or is about to stop running, and nobody is necessarily watching - so a
+hand-held output is exactly what the safe state exists to release.
+
+`override_set()` therefore never refuses an output on control grounds. It is live
+immediately rather than staged, and it is never persisted, so there is no session it
+can outlive.
 
 ## Parameters
 
@@ -158,7 +192,7 @@ pretend either success or failure.
 
 `KvParamStore` is one `HAL::Storage` key per parameter, named after the parameter, plus
 one `ovr.<name>` key per persisted override. There is no layout to version, so adding,
-removing or reordering settings cannot invalidate the others. The `ovr.` prefix cannot
+removing or reordering parameters cannot invalidate the others. The `ovr.` prefix cannot
 collide with a parameter name, because no identifier carries a dot.
 
 Config-driven components read by name (`Vars::get_int` / `get_f32` / `get_str`) and
@@ -169,7 +203,7 @@ is just `get_int(io, "net")`, the group's own same-named parameter.
 there; the operator commits the group by writing its serial. That is deliberate - a
 group like the static IP block is incoherent until every field is in, so applying per
 edit would restart the interface through states that were never meant to exist. See
-@ref user_settings.
+@ref user_params.
 
 ## Access tables
 

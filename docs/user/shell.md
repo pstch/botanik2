@@ -33,12 +33,12 @@ you were part-way through typing is kept as you scroll away from it.
 | Command | Does |
 |---|---|
 | `list [<prefix>]` | browse the variable table, or just the rows whose name starts with `<prefix>` |
-| `get <name>` | print one variable. Marks parameters, overrides, and values nothing has written yet |
+| `get <name>` | print one variable. Marks parameters, overrides, and values nothing has written yet; a forced variable also gets its live value on a second line |
 | `set <name> <value>` | edit a **parameter** and persist it |
-| `override list\|<name> [off\|<value>] [valid\|invalid]` | force **any** variable by hand |
+| `override list\|clear\|<name> [off\|<value>] [valid\|invalid]` | force **any** variable by hand; `clear` releases the lot |
 | `control [enable\|disable]` | report or change whether the firmware may drive the field |
 
-These are covered in @ref user_variables, @ref user_settings and @ref user_control.
+These are covered in @ref user_variables, @ref user_params and @ref user_control.
 Booleans read and write as `0` / `1`; `on`, `off` and `true` are not accepted as
 values.
 

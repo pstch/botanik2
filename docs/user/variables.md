@@ -11,7 +11,7 @@ What differs is what a variable is *for*:
 | input | comes from the field; goes invalid if the driver stops refreshing it, or if the reading leaves its declared band |
 | output | drives the field; drops to its safe state when control is withdrawn |
 | computed | worked out by the control programs; never expires |
-| parameter | a setting: editable and persisted (see @ref user_settings) |
+| parameter | editable and persisted (see @ref user_params) |
 
 An input is invalidated two ways, and the second one matters more than it sounds: a
 reading can be perfectly fresh and still be nonsense. A dead 4-20 mA loop reads full
@@ -27,9 +27,21 @@ botanik> get pwr_L1_V
   pwr_L1_V             237.4        V
 ```
 
+A forced variable gets a second line, giving both halves of the picture - what it is
+being held at, and what it would read with the override released:
+
+```
+botanik> get temp_zone1
+  temp_zone1           35.0         C    OVERRIDDEN
+    forced 35.0 (valid)   live 21.3 (valid)
+```
+
+`list` deliberately stays one row per variable; it is `get` that answers "has the
+sensor come back yet?".
+
 Three annotations matter:
 
-- `(param)` - this is a setting, editable with `set`.
+- `(param)` - this is a parameter, editable with `set`.
 - `OVERRIDDEN` - someone has forced it by hand; the number is not the live one.
 - `(default: nothing has written it)` - no driver has ever published this variable,
   or it timed out. The number shown is the **declared default**, not a measurement.
@@ -46,12 +58,16 @@ actuator by hand.
 
 ```
 botanik> override temp_zone1 35.0       # force a value
-botanik> override temp_zone1            # freeze it at whatever it reads now
+botanik> override temp_zone1            # hold it at whatever it reads now
 botanik> override temp_zone1 35.0 invalid   # force the value AND make it read as dead
 botanik> override temp_zone1 off        # release it
 botanik> override list                  # list everything currently forced
-botanik> override off                   # release everything
+botanik> override clear                 # release everything (`off` also works)
 ```
+
+A forced value reads as **good** unless you say `invalid`, the bare form included: a
+variable nothing had ever written still comes out valid once you hold it, because
+holding a value is asserting it.
 
 Four things are worth understanding:
 
@@ -69,13 +85,14 @@ separate from any parameter setting underneath it, so clearing one leaves the ot
 alone. This is the opposite of what you might expect, and it is the safer of the two:
 an override explains behaviour nothing else accounts for, and after a reboot nobody
 remembers setting it. So the firmware announces restored overrides as a **critical**
-at boot, `override list` says they survive a reboot, and `override off` clears the
+at boot, `override list` says they survive a reboot, and `override clear` clears the
 lot - the stored copy included, so nothing comes back.
 
-@note **Outputs are the exception.** A restored override on an output is *not*
-reapplied. Control authority starts disabled at power-on, so a restored actuator
-override would sit armed until bring-up enabled control and then fire from a session
-long since walked away from.
+@note **Outputs are the exception, and they are not persisted at all.** An override
+on an output drives the actuator the moment it is in force, so one restored at boot
+would be commanding the plant out of a session nobody is standing at any more.
+Driving an actuator by hand is something you do while you are there; it ends with the
+session.
 
 **It can force the reading's quality too.** A trailing `valid` / `invalid` says what
 the forced value reads as, so "force this to 20 C" and "make this read as a dead
@@ -88,6 +105,9 @@ Unlike `set`, an override is checked only against the variable's *type*, not its
 declared plausibility band - so you can push a reading past what the site considers
 possible, which is usually the whole reason for forcing it.
 
-@note Control authority outranks an override. Disabling control releases any
-override holding an output, and while control is off an override on an output is
-refused outright. See @ref user_control.
+@note **Control authority and overrides are complementary, not ranked.**
+`control disable` stops the control *programs*; an override still reaches an output,
+and with the scan stopped it is the only thing that does - which is how you drive a
+valve by hand. The exception is the firmware withdrawing control *itself* (a health
+fault, a pending reset): that one does release an override on an output, because
+nobody is necessarily watching. See @ref user_control.

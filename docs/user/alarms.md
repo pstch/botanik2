@@ -69,7 +69,7 @@ Every unit has these regardless of site, raised from the firmware's own health:
 | `STACK` | `alarm_stack` | stack usage over its threshold | |
 | `FLASH_FLT` | `alarm_flash_error` | a write to persistent storage failed | **sticky until reboot** |
 
-`FLASH_FLT` is the one to act on: settings will not survive a reboot until it is
+`FLASH_FLT` is the one to act on: parameters will not survive a reboot until it is
 resolved. It is the same fault behind `set`'s `(NOT SAVED: storage refused it)` and
 the PARAMS page's `NOT SAVED` warning - one problem seen from three places.
 

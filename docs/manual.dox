@@ -4,7 +4,7 @@
 @brief Operating a running unit over its serial terminal.
 
 Everything an operator does with a deployed Botanik unit happens over the console
-serial port: reading the field, tuning settings, acknowledging alarms, and taking
+serial port: reading the field, tuning parameters, acknowledging alarms, and taking
 control by hand. This part assumes nothing about the greenhouse - the pages and
 commands are the same on every site, only the variables differ.
 
@@ -19,8 +19,8 @@ commands are the same on every site, only the variables differ.
 
 - @subpage user_variables - what a variable is, how to read one, and how to
   **override** it for maintenance.
-- @subpage user_settings - parameters: editing them, persistence, and the
-  network / NTP / MQTT settings.
+- @subpage user_params - parameters: editing them, persistence, and the four
+  groups the library's own components read.
 - @subpage user_alarms - the alarm lifecycle, acknowledgement, and the platform
   alarms every unit has.
 - @subpage user_logging - log levels and topics, and the out-of-band monitor port.

@@ -9,7 +9,7 @@ Switch between them with `TAB` or `Alt+<number>` (see @ref user_console).
 | 2 | SHELL | the command prompt |
 | 3 | LOGS | the full scrolling log |
 | 4 | ALARMS | the alarm table, and acknowledging alarms |
-| 5 | PARAMS | reading and editing settings |
+| 5 | PARAMS | reading and editing parameters |
 | 6 | MONITOR | every status variable, with detail |
 | 7 | TASKS | what runs each beat, how often, and what it costs |
 | 8 | NOTES | a free-text note kept on the panel |
@@ -100,7 +100,7 @@ See @ref user_alarms for what acknowledging does.
 
 ## PARAMS
 
-The editable settings table:
+The editable parameters table:
 
 ```
 PARAMETER          TYPE  VALUE            DEFAULT      UNIT
@@ -124,7 +124,7 @@ arrows to move, `BACKSPACE` and `Ctrl+D` to delete.
 A rejected value appends `[invalid]` and leaves you in the editor. A value that was
 accepted but could not be written to storage shows
 `NOT SAVED - value is live but storage refused it`: the setting is in effect now,
-but will not survive a reboot. See @ref user_settings.
+but will not survive a reboot. See @ref user_params.
 
 ## MONITOR
 

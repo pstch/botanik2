@@ -1,8 +1,9 @@
-# Settings {#user_settings}
+# Parameters {#user_params}
 
-A setting is just a variable with the parameter role: editable, range-checked, and
+A parameter is just a variable with the parameter role: editable, range-checked, and
 saved. Everything else about it - name, type, unit, description - works exactly as in
-@ref user_variables.
+@ref user_variables. The PARAMS page and the `set` command are the two ways to reach
+one, and both call them parameters; nothing in the firmware calls them "settings".
 
 ## Editing one
 
@@ -29,11 +30,11 @@ a hint to use `override` instead: writing those would simply be overwritten on t
 next scan.
 
 Storage is one key per parameter, named after it, so adding, removing or reordering
-settings never invalidates the others.
+parameters never invalidates the others.
 
-## Applying a group of settings
+## Applying a group of parameters
 
-Network, NTP, MQTT and geo settings are grouped, and each group has a **commit
+Network, NTP, MQTT and geo parameters are grouped, and each group has a **commit
 serial** - a parameter named `<group>_serial`, so it files under its own group like
 every other row in it. The component that consumes a group re-reads all of it, and
 restarts, when that serial changes.
@@ -58,12 +59,22 @@ the convention. Staging the whole group before committing is the point of the de
 a static IP block is only coherent once every field is set, and this way the interface
 restarts once rather than five times on its way through a half-configured state.
 
-The four groups below are the ones the library's own components consume. The names
-are fixed, but every **default** is the site's - the values shown are the reference
-site `gh_mlb41`'s. `list net_` and the PARAMS page always report what your unit
-actually ships with.
+## The groups the library itself reads
 
-## Network settings
+@note What follows is **not the parameter list of your unit.** These four groups are
+the ones the library's own components consume, so they exist on every build with the
+matching subsystem, and they are the only ones this manual can name. A greenhouse
+declares its own parameters in its site table - setpoints, dwell times, calibration
+trims - and those are documented with the site, not here.
+
+`list` with a prefix and the PARAMS page are the authoritative list of what your unit
+actually has: `list irr_` shows the irrigation parameters whether or not any page of
+this manual has heard of them.
+
+The names below are fixed, but every **default** is the site's - the values shown are
+the reference site `gh_mlb41`'s.
+
+## Network parameters
 
 | Parameter | Type | Default | Meaning |
 |---|---|---|---|
@@ -78,7 +89,7 @@ actually ships with.
 The static fields are ignored while `net_dhcp` is 1. `net` reports what the
 interface actually ended up with, which is how you confirm a lease.
 
-## Time settings (NTP)
+## Time parameters (NTP)
 
 | Parameter | Type | Default | Meaning |
 |---|---|---|---|
@@ -91,7 +102,7 @@ interface actually ended up with, which is how you confirm a lease.
 `ntpsync` forces a resync without waiting for the next poll. The status-bar clock
 and every log timestamp follow this.
 
-## Telemetry settings (MQTT)
+## Telemetry parameters (MQTT)
 
 | Parameter | Type | Default | Meaning |
 |---|---|---|---|
@@ -104,7 +115,7 @@ and every log timestamp follow this.
 When enabled the unit publishes status variables and log entries under a topic
 prefix fixed at build time. Broker credentials and TLS are not supported.
 
-## Location settings
+## Location parameters
 
 | Parameter | Type | Default | Meaning |
 |---|---|---|---|

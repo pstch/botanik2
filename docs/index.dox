@@ -17,7 +17,7 @@ The library never knows which greenhouse it is running.
 This documentation is in three parts, by who you are:
 
 - @subpage manual - **User manual.** Operating a running unit: the console and its
-  pages, the shell, settings, alarms, logs, and control authority.
+  pages, the shell, parameters, alarms, logs, and control authority.
 - @subpage integration - **Integration manual.** Building your own product on
   `libbotanik`: declaring a site, its tables, its control programs, and the config
   surface.
