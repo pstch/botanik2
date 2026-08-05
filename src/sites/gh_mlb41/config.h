@@ -5,7 +5,9 @@
 /** @file config.h
  *  @brief gh_mlb41 overrides for libbotanik_config.h. */
 
-#define BOTANIK_SITE_NAME "gh_mlb41"
+#ifndef BOTANIK_SITE_NAME
+#  define BOTANIK_SITE_NAME "gh_mlb41"
+#endif
 
 // Guarded, so the precedence is command line > site > library default: a -D is
 // already defined by the time this file is read, and an unguarded #define here
