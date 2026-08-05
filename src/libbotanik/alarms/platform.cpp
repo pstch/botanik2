@@ -20,7 +20,9 @@ namespace Botanik { namespace Alarms {
         // and the model leaves their resolved ref at VAR_NONE. The name is
         // still their identity - it is what `alarms ack` and the pages key on.
         // code         variable                description                          notes    on  off  rec latch
-        {"SYS_RST",   "alarm_system_reset", "Reset in the last five minutes",    nullptr, -1,  0},
+        // The window is HEALTH_RESET_WINDOW_MS; the text says "recently" rather
+        // than repeating the number, which drifted the moment one of them moved.
+        {"SYS_RST",   "alarm_system_reset", "Unit reset recently",               nullptr, -1,  0},
         {"CPU_XRUN",  "alarm_cpu_xrun",     "Scheduler overrun (skipped beat)",  nullptr,  0, -1,   0,   0},
         {"CPU_LOAD",  "alarm_cpu_load",     "CPU load over threshold",           nullptr,  5,  5,   0, 300},
         {"STACK",     "alarm_stack",        "Stack usage over threshold",        nullptr,  5,  5,   0, 300},

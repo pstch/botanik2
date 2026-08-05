@@ -196,11 +196,11 @@ namespace Botanik { namespace Health {
         }
 
         /** @brief Raise/clear the platform alarms from the scheduler metrics.
-         *  SYS_RST holds for the first five minutes; CPU_LOAD / CPU_JITT /
+         *  SYS_RST holds for HEALTH_RESET_WINDOW_MS; CPU_LOAD / CPU_JITT /
          *  STACK are level-driven; CPU_XRUN held for a window after an
          *  overrun. */
         void _assert_platform_alarms(uint64_t now) {
-            _set(_ix[PA_RESET], now < 300000);
+            _set(_ix[PA_RESET], now < Config::HEALTH_RESET_WINDOW_MS);
             // Sticky by construction: the counter only ever rises, so once a
             // write has been refused the alarm stays up until a reboot. That is
             // the honest shape - a store that will not take writes does not

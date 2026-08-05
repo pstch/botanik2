@@ -166,8 +166,9 @@ namespace Botanik { namespace Alarms {
         /** @brief Build an MQTT entry and publish it. */
         void _emit(const AlarmCondition& a, const char* state) {
             if (_pub == nullptr) return;
-            char topic[64];
-            snprintf(topic, sizeof(topic), "%s/alarms/%s", _prefix, a.name ? a.name : "?");
+            char topic[Config::MQTT_TOPIC_LEN];
+            snprintf(topic, sizeof(topic), "%s/%s/%s", _prefix,
+                     Config::MQTT_ALARM_TOPIC, a.name ? a.name : "?");
             _pub->publish(topic, state);
         }
     };
