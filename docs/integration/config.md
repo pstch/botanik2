@@ -26,18 +26,42 @@ anything narrower is an ABI mismatch, silently compiled against different values
 
 Same mechanism, plus `-DBOTANIK_FEATURE_<X>=ON/OFF` on the CMake command line.
 
+Precedence is **command line, then site `config.h`, then the header default**. A `-D`
+is already defined by the time the site config is read, so a site pins a flag with an
+`#ifndef` guard - which states what the installation needs without overruling someone
+deliberately building a cut-down image:
+
+```cpp
+#ifndef BOTANIK_FEATURE_NETWORK      // gh_mlb41/config.h
+#  define BOTANIK_FEATURE_NETWORK 1
+#endif
+```
+
+@warning An **unguarded** `#define` in a site config inverts that: it redefines the
+command line's value, wins, and says so only through a "redefined" warning buried in
+the build log. Guard every feature flag a site pins.
+
 | Flag | Default | Gates |
 |---|---|---|
 | `BOTANIK_FEATURE_CONSOLE` | **on** | the interactive ANSI UI: the terminal, the built-in pages, the console UART, and the `register_pages()` / `register_commands()` hooks. Off = headless |
 | `BOTANIK_FEATURE_MONITOR` | **on** | the secondary monitor UART and its log sink |
+| `BOTANIK_FEATURE_NOTES` | = `CONSOLE` | the NOTES page: a full-screen editor over the operator's note, persisted to flash. Requires `CONSOLE`, so it defaults to whatever `CONSOLE` is - on for a normal build, off for a headless one, which never asked for a page. Costs `NOTES_LEN` bytes plus 2 x `NOTES_MAX_ROWS` row slots of RAM |
 | `BOTANIK_FEATURE_NETWORK` | off | the network stack: device bring-up and the DNS resolver |
 | `BOTANIK_FEATURE_NTP` | off | the NTP client. Requires `NETWORK` |
 | `BOTANIK_FEATURE_MQTT` | off | the MQTT client, log sink and alarm notifier. Requires `NETWORK` |
-| `BOTANIK_FEATURE_SUN` | off | the solar-position tracker. Standalone - a site owns the instance |
+| `BOTANIK_FEATURE_SUN` | off | the solar-position tracker. Standalone - `BotanikFirmware` does not instantiate it, so a site that wants it turns it on and owns the instance |
 
 Dependency rules are enforced by `#error`. `CONSOLE` and `MONITOR` are independent:
 a headless build can keep the monitor for diagnostics, an interactive one can drop
 it. With both off, logs reach only site-registered sinks.
+
+A built unit reports its own set through the shell's `features` command
+(@ref user_shell), which is how you tell a compiled-out subsystem from a broken one
+without going back to the build that produced the binary.
+
+@note Keep the `foreach(_feat ...)` list in `CMakeLists.txt` in step with this table.
+A flag present in the header but missing from that list still has its default, but
+`-DBOTANIK_FEATURE_<X>=...` on the command line is **silently ignored** for it.
 
 Gate code with the preprocessor, not `constexpr` - the flag must be able to drop
 member declarations and constructor-init entries, and C++11 has no `if constexpr`:
@@ -64,16 +88,24 @@ The reference site turns `NETWORK`, `NTP` and `MQTT` on in its own `config.h`.
 
 | Macro | Default | |
 |---|---|---|
-| `CONSOLE_BAUD` | 4800 | also sizes the terminal's per-tick TX budget |
+| `CONSOLE_BAUD` | 4800 | also sizes the terminal's per-render TX budget |
 | `MONITOR_BAUD` | 115200 | |
+| `SERIAL_TX_PER_STEP` | 256 | bytes one `transmit()` may push, so a fast port (USB CDC) cannot eat a whole beat |
+| `STORE_MAX_BYTES` | 16384 | cap on the simulator's key-value store file |
 
 ### Scheduling and health thresholds
 
 | Macro | Default | |
 |---|---|---|
 | `TASK_PERIOD_MS` | 10 | the beat. Must be >= 2 |
+| `GROUP_FAST_MS` | = `TASK_PERIOD_MS` | the four task rate groups. A task's group is its rate; its phase is its place in the data flow (@ref dev_architecture) |
+| `GROUP_MAIN_MS` | 50 | |
+| `GROUP_SLOW_MS` | 100 | |
+| `GROUP_BACKGROUND_MS` | 500 | |
+| `MAX_TASKS` | 24 | registry capacity, base tasks plus the site's |
+| `SCAN_STAGGER_MS` | = `TASK_PERIOD_MS` | spreads the scan's control programs over beats by table index, so they do not pile onto one |
 | `HW_WATCHDOG_MS` | 10000 | hardware watchdog timeout |
-| `LOAD_METRIC_WINDOW_MS` | 5000 | metric window |
+| `LOAD_METRIC_WINDOW_MS` | 5000 | metric window (`LOAD_METRIC_WINDOW` derives the sample count from it and the beat) |
 | `LOAD_METRIC_BUCKETS` | 10 | windowed-max buckets |
 | `ALARM_CPU_LOAD_PCT` | 50 | `CPU_LOAD` alarm threshold |
 | `ALARM_CPU_JITTER_PCT` | 50 | `CPU_JITT` alarm threshold |
@@ -107,6 +139,7 @@ The reference site turns `NETWORK`, `NTP` and `MQTT` on in its own `config.h`.
 | `MQTT_RETRY_MS` | 30000 | |
 | `MQTT_TX_BUF` | 256 | bounds topic + payload of one publish |
 | `MQTT_TELEMETRY_PERIOD_MS` | 30000 | 0 disables telemetry |
+| `MQTT_TELEMETRY_PER_STEP` | 8 | fields published per step, so one cycle cannot eat a beat |
 | `MQTT_TELEMETRY_TOPIC` | `"status"` | |
 | `MQTT_TELEMETRY_RETAIN` | 1 | |
 | `MQTT_LOG_TOPIC` | `"logs"` | |
@@ -143,8 +176,9 @@ The reference site turns `NETWORK`, `NTP` and `MQTT` on in its own `config.h`.
 | `STATUS_REFRESH_MS` | 1000 | status-bar metrics |
 | `PAGE_REFRESH_MS` | 10000 | cold page refresh |
 | `HOME_REFRESH_MS` | 5000 | |
+| `PAGE_TASKS_MS` | 2000 | the TASKS page's cost columns |
 | `PAGE_HOT_MS` | 1000 | clock and uptime |
-| `TX_COLD_TARGET_MS` | 128 | the per-tick byte budget target |
+| `TX_COLD_TARGET_MS` | 128 | the per-render byte budget target |
 | `LOG_ROWS_PER_TICK` | 2 | |
 | `INPUT_EVENTS_PER_TICK` | 4 | |
 
@@ -167,6 +201,17 @@ The reference site turns `NETWORK`, `NTP` and `MQTT` on in its own `config.h`.
 
 `EDITOR_MAX_ROWS * (EDITOR_MIN_COLS - EDITOR_PROMPT_MAX)` must be at least
 `SHELL_INPUT_LEN`; a `static_assert` enforces it.
+
+### Notes page
+
+| Macro | Default | |
+|---|---|---|
+| `NOTES_LEN` | 2048 | the note's buffer, in bytes |
+| `NOTES_MAX_ROWS` | 128 | row slots the editor lays the note out across |
+| `NOTES_STORAGE_KEY` | `"notes"` | the `HAL::Storage` key it persists under |
+
+The editor's buffers are supplied by their owner, so these size the NOTES page alone
+and are independent of the `EDITOR_*` values the shell prompt uses.
 
 ### Simulator only
 

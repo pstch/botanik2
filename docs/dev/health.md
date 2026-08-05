@@ -35,8 +35,8 @@ It is wiring/sanity validation, not a hardware diagnostic.
 
 ### When it runs
 
-The HealthMonitor runs POST on the **first** `step()` it is given - the first `loop()`
-beat, right after `setup()` finishes, not from `setup()` itself:
+POST is the HealthMonitor's one-time task init, run from `tasks.setup()` near the end
+of `setup()` - after every sink is registered, and before the first beat:
 
 ```
 setup(): UARTs, core sinks, register_pages()
@@ -45,18 +45,19 @@ setup(): UARTs, core sinks, register_pages()
 setup(): terminal, boot banner, on_setup()
    │
    ▼
-setup(): arm HW watchdog
+setup(): tasks.setup()  ──▶  each task's one-time init:
+   │                         announce(), POST, the parameter load
+   ▼
+setup(): arm HW watchdog, enable control
    │
    ▼
-loop() beat 1: health.step()
-   │
-   ▼
-POST
+loop() beat 1
 ```
 
-By the first beat every log sink and the site's `on_setup()` sinks are registered, so
-the verdict reaches all of them. Deferring it out of `setup()` keeps the monitor in
-charge of its own boot check and runs it once the loop is actually turning.
+Two constraints pin it there. Every log sink - including the ones a site registers in
+`on_setup()` - must already exist, or the verdict goes nowhere. And it must be out of
+the first beat: the parameter load beside it is hundreds of storage reads, which read
+as a boot overrun against a 10 ms budget (@ref dev_tasks).
 
 ### What it checks
 

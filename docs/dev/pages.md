@@ -66,6 +66,7 @@ MetricPage <|-- "StatusPage<T>"
 ScrollTablePage <|-- AlarmsPage
 ScrollTablePage <|-- ParamsPage
 ScrollTablePage <|-- MonitorPage
+ScrollTablePage <|-- TasksPage
 LogWriter <|-- ShellPage
 LogWriter <|-- LogsPage
 LogWriter <|-- HomePage
@@ -104,6 +105,12 @@ ShellWriter <|-- ShellPage
   subclass.
   - @ref Botanik::Pages::AlarmsPage, @ref Botanik::Pages::ParamsPage,
     @ref Botanik::Pages::MonitorPage.
+  - @ref Botanik::Pages::TasksPage - the beat as a table, read straight off the
+    scheduler's per-task `Scheduler::TaskCost` samples: group, period, phase, mean and
+    peak microseconds. It exists because `stats` reports the whole beat's CPU with no
+    attribution, so "which task blew the budget" had nowhere to be answered. Rows sort
+    by name; the beat's own order is phase-major and the PHASE column still carries
+    it, but finding one task by eye beats reading the cycle here.
 
 Every page is library-owned and site-independent. Sites contribute **data** - the
 home fields, the status groups, the alarm table - not page classes. `HomePage` and

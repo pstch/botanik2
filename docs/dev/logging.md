@@ -20,9 +20,11 @@ already-written log records, so a gap stays a gap.
 
 @ref Botanik::Logs::Logger applies a **dual token-bucket** limiter before fan-out: one
 global bucket plus one per topic. An entry must take a token from *both* to pass,
-otherwise it is dropped and counted. @ref Botanik::Logs::Logger::step "step()" refills
-the buckets once per loop period; on a slower decoupled cadence the Logger emits a
-per-topic `CRITICAL` summary of how many entries each bucket suppressed - classed
+otherwise it is dropped and counted. @ref Botanik::Logs::Logger::refill "refill()" -
+the Logger's registered task, deliberately not called `step()`, which would have
+hidden `Component::step()` - tops the buckets up once per beat; on a slower decoupled
+cadence the Logger emits a per-topic `CRITICAL` summary of how many entries each
+bucket suppressed - classed
 `CRITICAL` so the report survives the storm it describes (see
 [Silent-loss reporting](#silent-loss-reporting)).
 
@@ -31,7 +33,7 @@ class Logger {
   debug() / info() / notice() / warning() / error()
   add_writer(LogWriter*) : bool
   watch_tx(BufferedSerial*)
-  step()
+  refill()
   --
   _global_bucket : LogBucket_t
   _perTopic_buckets[LOG_TOPIC_COUNT] : LogBucket_t
@@ -44,7 +46,7 @@ class Logger {
  log entry (topic T)
         │
         ▼
- ┌───────────────────────────┐   step() refills
+ ┌───────────────────────────┐   refill() tops
  │ global + topic[T] buckets │◀── both per period
  └───────────────────────────┘
         │ take 1 from BOTH?
@@ -101,10 +103,10 @@ edge-triggered (first event instant, then a per-category holdoff) and classed
 
 - **Sink drops** - entries dropped at a writer's full queue.
   @ref Botanik::Logs::LogWriter::loss_count "loss_count()" is summed across writers
-  in `step()` (holdoff `LOG_SINK_DROP_REPORT_PERIOD_MS`, 5 s).
+  in `refill()` (holdoff `LOG_SINK_DROP_REPORT_PERIOD_MS`, 5 s).
 - **TX-full truncation** - bytes a `BufferedSerial` couldn't fit
   (`tx_dropped()`); the **console** port is registered via
-  @ref Botanik::Logs::Logger::watch_tx "watch_tx()" and polled in `step()`
+  @ref Botanik::Logs::Logger::watch_tx "watch_tx()" and polled in `refill()`
   (holdoff `LOG_TX_DROP_REPORT_PERIOD_MS`, 10 s).
 - **Rate-limiter suppressions** - the per-topic bucket summary described above.
 

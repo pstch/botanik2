@@ -22,8 +22,8 @@ make -C build botanik_sim        # just the simulator
 
 Requires CMake 3.10+ and a C++11 compiler. `ccache` is used automatically when
 installed, so a clean rebuild replays cached objects in seconds. The repo ships an
-`.envrc` exporting `MAKEFLAGS=-j4`; without [direnv](https://direnv.net), pass `-j`
-yourself.
+`.envrc` exporting `MAKEFLAGS=-j4` and `CTEST_PARALLEL_LEVEL`; without
+[direnv](https://direnv.net), pass `-j` yourself.
 
 The OPTA build needs the Arduino Mbed OPTA core, installed once:
 
@@ -67,19 +67,34 @@ make -C build check
 
 1. **`botanik_strict`** - a `-Werror` mirror of the library. Plain `make` stays
    warning-tolerant; this fails on any warning.
-2. **clang-tidy** - the `bugprone-*` checks from `.clang-tidy`, promoted to errors.
-   Incremental: one stamp per translation unit, so only sources whose text or included
-   headers changed are re-analysed.
-3. **the doctest and pyte suites**, via CTest.
+2. **the doctest and pyte suites**, via CTest - one entry per `TEST_CASE`, plus one
+   per pyte test file.
 
 ```sh
 ctest --test-dir build --output-on-failure          # every entry
 ctest --test-dir build -R pyte --output-on-failure  # just the screen tests
-make -C build cppcheck                              # separate, when installed
-make -C build clang-tidy-all                        # ignore the stamps
 ```
 
 See @ref testing for the suites themselves.
+
+@note Because each doctest case gets its own process, a test that corrupts state for
+later ones **hides** under `ctest`. Run `./build/tests/botanik_tests` directly to put
+them all in one process.
+
+### clang-tidy is not in the gate
+
+It is a periodic sweep, run when a batch review is due - not a per-change check.
+
+```sh
+make -C build clang-tidy       # incremental: one stamp per TU under build/clang-tidy/,
+                               # so only sources whose text or included headers
+                               # changed are re-analysed (Makefile generator only)
+make -C build clang-tidy-all   # the whole tree, ignoring the stamps
+rm -rf build/clang-tidy        # force a full re-lint next time
+```
+
+It runs the `bugprone-*` checks from `.clang-tidy` with findings promoted to errors,
+and the targets exist only when `clang-tidy` was found at configure time.
 
 ## Docs
 

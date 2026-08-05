@@ -29,7 +29,7 @@ Under `src/libbotanik/`:
 |---|---|---|
 | `hal/` | the platform interface: clock, memory ordering, stack, watchdog, serial, storage, network transport. `simulator.h` and `opta.h` implement it | @ref dev_porting |
 | `core/` | `BotanikFirmware`, `Component`, `SystemContext`, the feature-gated stacks | this page |
-| `scheduler/` | `LoopScheduler`: the fixed-period driver and its self-instrumentation | @ref dev_scheduler |
+| `scheduler/` | `LoopScheduler`, the fixed-period driver and its self-instrumentation, plus the `Scheduler::Registry` the beat is dispatched from and its per-task cost sampling | @ref dev_scheduler |
 | `vars/` | the variable model: descriptors, value slots, `Bank`, parameters | @ref dev_vars |
 | `scan/` | `Scan::Driver`: which control program is due, and running it | @ref int_tasks |
 | `plc/` | the POU library the programs are written in: `functions/` (stateless) and `blocks/` (stateful) | @ref int_tasks |
@@ -63,6 +63,7 @@ switch_to(0)           ─┘
 boot banner
 MQTT sinks + register_telemetry()
 on_setup()             ← site post-wiring
+tasks.setup()          ← every task's one-time init: announce(), POST, param load
 Watchdog::start()
 io.enable_control()    ← the field is ours from here, and not before
 ```
@@ -71,45 +72,56 @@ The last two are the point of the ordering: control authority starts **disabled*
 so nothing part-way through bring-up - a half-wired component, a faulting site hook -
 can energise an actuator on the way past.
 
-POST does not run here. It runs on the health monitor's first `step()`, by which
-time every sink is registered and the verdict can actually reach the operator.
+`tasks.setup()` sits where it does for two reasons. It is what runs each component's
+`announce()` and the HealthMonitor's POST, and before the sinks above were registered
+every one of those lines would have gone nowhere - after `on_setup()` too, so a
+site's own sinks catch them. And it takes the parameter load (hundreds of storage
+reads, tens of milliseconds of flash) out of the first beat, where it used to read as
+a boot overrun against a 10 ms budget (@ref dev_tasks).
 
 ## The per-tick cycle
 
-`loop()` is non-virtual, so the order cannot drift between targets:
+`loop()` is non-virtual, so the order cannot drift between targets. It is not a list
+of calls any more but a **phase-major dispatch** over a task table
+(`scheduler/tasks.h`, registered once in `_register_tasks()`):
 
 ```
-tick()               gate the beat; republish the render clock
-serial.receive()     fresh input before anything processes
-params.step()        config image; loads storage on the first beat
-io.expire_stale()    age out readings past their timeout
-health.step()        platform alarms, POST, the watchdog verdict
-net.step()           network / NTP / MQTT
-[control latch]      withdraw or restore authority on a health edge
-scan.step()          the control programs - only while control is enabled
-on_step()            site per-beat work
-logger.step()        refill the buckets, emit the loss reports
-console.step()       render; monitor writer drains
-serial.transmit()    push this beat's bytes
-watchdog kick        only while healthy
+tick()                          gate the beat; republish the render clock
+now_ms = uptime_ms()            one 64-bit "now" for every task this beat
+run_phase(PHASE_INPUT)          console/monitor RX; expire_stale, reject_implausible
+run_phase(PHASE_CONFIG)         params: the config image everything below reads
+run_phase(PHASE_SERVICE)        health, the control latch, network / NTP / MQTT
+run_phase(PHASE_EXECUTE)        the scan - the control programs, and on_step()
+run_phase(PHASE_OUTPUT)         the field write
+run_phase(PHASE_PRESENT)        logger refill, console render, the two TX halves
+watchdog kick                   only while healthy
 ```
 
-Every stepped unit gets the same fresh 64-bit `now_ms`. The order is load-bearing:
+Two axes, deliberately separate. A task's **phase** is where it sits in the data
+flow, and the phase order above is written out as code because it must not become
+configurable. A task's **rate** is its `GROUP_FAST` / `_MAIN` / `_SLOW` /
+`_BACKGROUND` group - a property of the task, so retuning one never silently
+reorders the cycle. A phase runs the tasks registered to it whose group has come
+due; a not-due task costs two comparisons.
+
+Every task gets the same fresh 64-bit `now_ms`. The order is load-bearing:
 
 - **RX at the top, TX at the bottom.** `BufferedSerial` is a `Component`, but the
-  loop drives its two halves at the phases they belong to. Stepping the whole pump at
-  both ends would cost an extra read per beat and split the console's baud-paced TX
-  across the render.
+  loop registers its two halves as separate tasks at the phases they belong to.
+  Stepping the whole pump at both ends would cost an extra read per beat and split
+  the console's baud-paced TX across the render.
 - **Inputs age out before anything reads**, so one beat is coherent - every task sees
-  the same instant. Field drivers slot in here.
+  the same instant. `expire_stale()` catches a reading nothing refreshed;
+  `reject_implausible()` catches one that is fresh and still nonsense (a dead 4-20 mA
+  loop reads full scale, which no timeout notices). Field drivers slot in here.
 - **Health before the logger drains**, so an alarm transition is logged in the same
-  beat it happens.
+  beat it happens, and before EXECUTE, so a fault inhibits *this* beat's programs.
 - **The scan runs only while control is enabled.** Withdrawing control is a *latch*,
   not a per-beat sweep: sweeping outputs after the scan would flicker, because the
   next beat's tasks re-drive the same demands before the sweep runs again. The latch
-  is edge-triggered on the health fault, so a healthy firmware does not overrule an
-  operator who disabled control by hand - though a health *recovery* does hand it
-  back.
+  carries two independent inhibits (operator and health), and the health edge moves
+  only its own - so a recovery hands control back without overruling an operator who
+  disabled it by hand. See @ref user_control.
 - **The watchdog kick is withheld deliberately** when unhealthy, and the outputs are
   dropped to safe state first. The reset itself gives no such guarantee, and the gap
   between the last kick and the reboot is exactly when an actuator must not be left

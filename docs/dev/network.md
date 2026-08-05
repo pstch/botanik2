@@ -8,10 +8,11 @@ so the handlers run their real state machines with no host network I/O.
 
 Every handler is **config-driven**: each is a @ref Botanik::Component that reads its
 settings by name from the variable bank and watches its parameter group's commit
-serial (`group_serial(io, "net")` and friends), re-reading the group and restarting
-its state machine when that serial changes. The groups are `net`, `ntp`, `mqtt` and
-`geo`. See @ref user_settings for the operator-facing side and @ref dev_vars for how
-a group serial is resolved. They share one non-blocking
+serial (`group_serial(io, "net")` and friends, which resolves the `<group>_serial`
+row), re-reading the group and restarting its state machine when that serial changes.
+The groups are `net`, `ntp`, `mqtt` and `geo`. See @ref user_settings for the
+operator-facing side and @ref dev_vars for how a group serial is resolved. They share
+one non-blocking
 @ref Botanik::Network::NameResolver.
 
 The DNS resolver is one of only two asynchronous boundaries in the firmware; its

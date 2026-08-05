@@ -52,13 +52,15 @@ register, fail to compile:
 
 ```cpp
 const Variable g_vars[] = {
-    P ("ntp_poll_s", T_U16, 64, 0, 3600, 0, "s", 10, "NTP poll interval", ""),
+    P ("ntp_poll_sec", T_U32, 3600, 10, 86400, 0, "sec", 10,
+                     "NTP poll interval, in seconds", ""),
     PS("ntp_srv1",   DEF_NTP_SRV1, STR_CAP, STR_HOST, 11, "NTP server 1", ""),
     MI("grid_L1_V",  T_F32, 5, 3, 0, 2, SF(0.0f), SF(500.0f), SF(0.0f), 5000, 1,
                      "V", "L1 phase voltage", ""),
-    A ("alarm_too_hot", "Inside temperature too high", ""),
-    SV("sys_supply_hz", T_F32, SF(0.0f), 2, "Hz", "deadbanded supply frequency", ""),
-    RO("cli_window1_opn", 31, 0, false, "window 1 open", ""),
+    A ("alarm_too_hot", "TOO_HOT", 2, 2, 0, 0, 10,
+                     "Inside temperature too high", "check vents and shade"),
+    SV("sys_supply_hz", T_F32, 0, 2, "Hz", 501, "deadbanded supply frequency", ""),
+    RO("cli_window1_opn", 31, 0, false, false, "window 1 open", ""),
 };
 ```
 
@@ -95,6 +97,11 @@ in the tail hole rather than buying four bytes of padding.
 `Binding::wire` is the type **on the wire**, deliberately distinct from the variable's
 own `type`: for an `AI`/`AO` row the driver computes `value = wire * scale + offset`,
 so control logic never sees raw counts.
+
+@note `F_BOUNDED` on an input is what `Bank::reject_implausible()` acts on, and it is
+the second half of input validity. `timeout_ms` catches a reading nothing refreshed;
+`F_BOUNDED` catches one that is perfectly fresh and still nonsense - a dead 4-20 mA
+loop reads full scale forever, and no timeout will ever notice.
 
 ### Analog calibration
 
@@ -211,7 +218,7 @@ made on the fly and passed by value.
 | Write | `set(bool)`, `set(float)`, `set_i(int64_t)` |
 | Publish | `publish(Scalar, now_ms)` - value, stamp and validity in one step; what a driver calls |
 | Safe state | `safe()` |
-| Override | `overridden()`, `override_set()`, `override_freeze()`, `override_clear()` |
+| Override | `overridden()` to read it. The **mutators are private to `Bank`** |
 
 An invalid variable reads as its declared `def`.
 
@@ -222,14 +229,21 @@ pointer. Two distinct writes:
 - `set()` edits a **parameter**: validated against its declared band and persisted.
   Anything else returns `SET_INVALID` - writing a sensor or an output would just be
   overwritten by the next scan.
-- `override_set()` **forces any variable**: volatile, range-checked against the type
-  only, so a reading can be pushed past its plausibility band to exercise the alarm
-  watching for it.
+- `override_set(h, ...)` / `override_freeze(h)` / `override_clear(h)` **force any
+  variable**: range-checked against the type only, so a reading can be pushed past its
+  plausibility band to exercise the alarm watching for it.
+
+@warning Go through the **bank**, never `Var`. Every override mutator has a storage
+side - each override is persisted under its own `ovr.<name>` key - that only the bank
+can reach, and reaching past it produced exactly the two bugs you would expect: a
+forced quality that did not persist, and a released override that came back at the
+next boot. That is why `Var`'s copies are private with `Bank` as the only friend.
 
 Overrides are applied inside `Var::raw()` / `valid()` - the single point every reader
 goes through - so a forced value reaches control logic, console, telemetry and alarms
 alike. See @ref dev_vars for how that is implemented, and @ref user_variables for
-what it means operationally.
+what it means operationally (including why an override on an **output** is not
+restored at boot).
 
 ## Static asserts to carry
 

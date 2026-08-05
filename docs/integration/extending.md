@@ -7,10 +7,10 @@ five protected virtual hooks.
 | Hook | Gate | Called | Default |
 |---|---|---|---|
 | `register_commands()` | `FEATURE_CONSOLE` | in `setup()`, before `register_pages()` | registers the descriptor's command table with the live `Vars::Bank*` as `ctx` |
-| `register_pages()` | `FEATURE_CONSOLE` | in `setup()`, before the terminal handshake | registers home / shell / logs / alarms / params / monitor, in that order |
+| `register_pages()` | `FEATURE_CONSOLE` | in `setup()`, before the terminal handshake | registers home / shell / logs / alarms / params / monitor / tasks / notes, in that order (notes under `FEATURE_NOTES`) |
 | `register_telemetry()` | `FEATURE_MQTT` | in `setup()`, after the MQTT sinks are wired | publishes the descriptor's status groups |
-| `on_setup()` | always | once, near the end of `setup()` - **before** the watchdog is armed and control is enabled | nothing |
-| `on_step(now_ms)` | always | every beat, after the scan and before the logger drains | nothing |
+| `on_setup()` | always | once, near the end of `setup()` - **before** `tasks.setup()`, the watchdog and control being enabled | nothing |
+| `on_step(now_ms)` | always | registered as the `"site"` task: `GROUP_FAST`, `PHASE_EXECUTE`, right after the scan | nothing |
 
 Most sites override none of them. The reference site overrides none.
 
@@ -30,7 +30,8 @@ void register_commands() override {
 ## Adding a page
 
 `register_pages()` is the tab order: the `add_page()` call order **is** the order,
-and page 0 is the page shown at boot. Up to 8 pages.
+and page 0 is the page shown at boot. Up to 8 pages - which the default set now
+fills, so appending one means dropping one, or not calling the base at all.
 
 ```cpp
 class GreenhouseXXX final : public Botanik::BotanikFirmware {
@@ -48,7 +49,8 @@ protected:
 ```
 
 Call the base first to keep the built-ins, or don't to replace the set entirely.
-Reordering is just changing the call order.
+Reordering is just changing the call order. `add_page()` past the eighth is refused,
+so a site adding its own generally overrides the whole method rather than appending.
 
 `Pages::StatusPage<T>` is a ready-made two-column health grid, shipped but **not**
 registered by default. Re-add it by subclassing it and appending it here. To write a
