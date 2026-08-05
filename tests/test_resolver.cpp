@@ -9,9 +9,16 @@
 
 #include "doctest.h"
 
+// Pulls the site config, then the feature defaults: the guards below
+// need the flags DEFINED, and an undefined one reads as 0 in #if.
+#include "libbotanik_config.h"
 #include "libbotanik/network/resolver.h"
 // HAL::Clock::sleep_ms / uptime_ms (poll the async DNS)
 #include "libbotanik/hal/platform.h"
+
+// Compiles to an empty TU when the feature is off (the DNS resolver is part of the network stack),
+// contributing no CTest cases - the shape test_sun.cpp uses.
+#if BOTANIK_FEATURE_NETWORK
 
 using namespace Botanik;
 using namespace Botanik::Network;
@@ -112,3 +119,5 @@ TEST_CASE("NameResolver: empty / null inputs fail cleanly") {
     CHECK(r.resolve(nullptr, &a)        == RESOLVE_FAILED);
     CHECK(r.resolve("1.2.3.4", nullptr) == RESOLVE_FAILED);
 }
+
+#endif

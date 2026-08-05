@@ -9,9 +9,16 @@
 
 #include "doctest.h"
 
+// Pulls the site config, then the feature defaults: the guards below
+// need the flags DEFINED, and an undefined one reads as 0 in #if.
+#include "libbotanik_config.h"
 #include "libbotanik/hal/net.h"
 // HAL::Clock::sleep_ms / uptime_ms (poll the async DNS)
 #include "libbotanik/hal/platform.h"
+
+// Compiles to an empty TU when the feature is off (HAL::Network is the transport the network stack sits on),
+// contributing no CTest cases - the shape test_sun.cpp uses.
+#if BOTANIK_FEATURE_NETWORK
 
 using namespace Botanik::HAL;
 
@@ -89,3 +96,5 @@ TEST_CASE("HAL::Network sim: an off-host destination is diverted, never contacte
     CHECK(Network::tcp_connect(t, ext, 58443) >= 0);             // diverted to the mock broker
     Network::tcp_close(t);
 }
+
+#endif

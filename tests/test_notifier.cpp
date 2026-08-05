@@ -8,6 +8,9 @@
 
 #include "doctest.h"
 
+// Pulls the site config, then the feature defaults: the guards below
+// need the flags DEFINED, and an undefined one reads as 0 in #if.
+#include "libbotanik_config.h"
 #include "libbotanik/vars/declare.h"
 
 #include "libbotanik/alarms/alarms.h"
@@ -38,6 +41,9 @@ namespace {
     };
 }
 
+// Gated: the AlarmController fan-out case below is NOT - it uses a stub
+// notifier and tests the controller, which is always present.
+#if BOTANIK_FEATURE_ALARMS_PUBLISH
 TEST_CASE("MqttAlarmNotifier: notify_on/off build the topic + payload and forward to the publisher") {
     MockPublisher pub;
     MqttAlarmNotifier n("botanik/greenhouse");
@@ -60,7 +66,11 @@ TEST_CASE("MqttAlarmNotifier: notify_on/off build the topic + payload and forwar
     CHECK(std::string(pub.topic)   == "botanik/greenhouse/alarms/NET_FLT");
     CHECK(std::string(pub.payload) == "FLAP");
 }
+#endif
 
+// Gated: the AlarmController fan-out case below is NOT - it uses a stub
+// notifier and tests the controller, which is always present.
+#if BOTANIK_FEATURE_ALARMS_PUBLISH
 TEST_CASE("MqttAlarmNotifier: with no publisher set it is a safe no-op") {
     MqttAlarmNotifier n("botanik/greenhouse");
     AlarmCondition c = {};
@@ -69,6 +79,7 @@ TEST_CASE("MqttAlarmNotifier: with no publisher set it is a safe no-op") {
     n.notify_off(c);
     CHECK(true);
 }
+#endif
 
 namespace {
     // Counts the transitions the model fans out to it.

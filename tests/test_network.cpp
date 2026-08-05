@@ -17,6 +17,9 @@
 
 #include "params_fixture.h"
 #include "recording_writer.h"
+// Pulls the site config, then the feature defaults: the guards below
+// need the flags DEFINED, and an undefined one reads as 0 in #if.
+#include "libbotanik_config.h"
 #include "libbotanik/network/network.h"
 #include "libbotanik/network/ntp.h"
 #include "libbotanik/network/mqtt.h"
@@ -30,6 +33,8 @@ using namespace Botanik::Network;
 namespace {
 }
 
+// Gated: see above, for the network stack.
+#if BOTANIK_FEATURE_NETWORK
 TEST_CASE("NetworkHandler: sim path comes up on net config and idles when it is cleared") {
     botanik_test::ParamFixture fx;
     NameResolver resolver;
@@ -50,7 +55,10 @@ TEST_CASE("NetworkHandler: sim path comes up on net config and idles when it is 
     net.step(HAL::Clock::uptime_ms());
     CHECK_FALSE(net.is_up());
 }
+#endif
 
+// Gated: see above, for MQTT.
+#if BOTANIK_FEATURE_MQTT
 TEST_CASE("MqttClient: never reports connected to a dead broker, publish gated on connection") {
     botanik_test::ParamFixture fx;
     NameResolver resolver;
@@ -74,7 +82,10 @@ TEST_CASE("MqttClient: never reports connected to a dead broker, publish gated o
     CHECK_FALSE(mqtt.connected());              // off-host: refused, never connects
     CHECK_FALSE(mqtt.publish("botanik/alarms/X", "ON"));
 }
+#endif
 
+// Gated: an NTP-less build should not report NTP coverage it does not have.
+#if BOTANIK_FEATURE_NTP
 TEST_CASE("NtpClient: stepped as a Component (announces once), query is non-blocking") {
     botanik_test::ParamFixture fx;
     NameResolver resolver;
@@ -108,6 +119,7 @@ TEST_CASE("NtpClient: stepped as a Component (announces once), query is non-bloc
     CHECK(w.saw("NtpClient"));
 #endif
 }
+#endif
 
 // Note: the NTP-synced / MQTT-connected success paths need the loopback mock
 // responder (botanik_sim/network.h), which runs only in the full simulator, so they
