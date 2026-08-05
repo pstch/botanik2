@@ -229,7 +229,7 @@ namespace Botanik {
 #if BOTANIK_FEATURE_CONSOLE
               , _console(_console_cols, _console_rows,
                          &_scheduler.context()->timestamp_ms, _console_baud,
-                         &_health.model(), &_logger)
+                         &_health.alarm_model(), &_logger)
               // Base-owned pages, built from the descriptor + the live payload.
               , _home_page(_console.terminal(), _site.home_fields,
                            _site.home_field_count, &_io, _site.home_refs)
@@ -316,7 +316,7 @@ namespace Botanik {
 #if BOTANIK_FEATURE_CONSOLE
             // Let the shell's loglevel / alarm-ack commands reach the live
             // logger + model.
-            _console.shell().set_diagnostics(&_logger, &_health.model());
+            _console.shell().set_diagnostics(&_logger, &_health.alarm_model());
 #if BOTANIK_FEATURE_NTP
             // Let the `ntpsync` command force a resync on the live client.
             _console.shell().set_ntp(&_net.ntp());

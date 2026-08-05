@@ -105,9 +105,9 @@ namespace Botanik { namespace Health {
 
         /** @name Queries
          *  @{ */
-        /** @brief The alarm model (terminal / AlarmsPage / shell bind to
+        /** @brief The alarm controller (terminal / AlarmsPage / shell bind to
          *  this). */
-        Alarms::AlarmController& model()      { return _model; }
+        Alarms::AlarmController& alarm_model() { return _model; }
         /** @brief Wire the alarm notifier's transport (the firmware passes the
          *  MQTT client once it exists). Until then the notifier is a no-op. */
         void set_alarm_publisher(Alarms::Publisher* pub) {
