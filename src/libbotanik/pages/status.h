@@ -33,10 +33,12 @@
 #include "../utils/time.h"
 #if BOTANIK_FEATURE_NETWORK
 #include "../network/network.h"   // NetworkHandler status
-#include "../network/mqtt.h"      // MqttClient status
 #endif
 #if BOTANIK_FEATURE_NTP
 #include "../network/ntp.h"       // NtpClient status
+#endif
+#if BOTANIK_FEATURE_MQTT
+#include "../network/mqtt.h"      // MqttClient status
 #endif
 
 namespace Botanik { namespace Pages {
@@ -134,8 +136,11 @@ namespace Botanik { namespace Pages {
             }
 
 #if BOTANIK_FEATURE_NETWORK
-            // Network band (rows 7..8) from the live components (each pointer is
-            // null when its feature is off; NTP/MQTT need NETWORK).
+            // Network band (rows 7..8) from the live components. Each cell needs
+            // its OWN gate, not NETWORK's: SystemContext declares ntp / mqtt
+            // under their own flags, so with NETWORK on and MQTT off the member
+            // does not exist to be null-checked. The rows stay either way and
+            // read "off", so the grid does not reflow between builds.
             _cell(SLOT_NET, 7, L_VAL,
                   rjust(fld, sizeof(fld), L_W,
                         ctx.network ? ctx.network->status_str() : "off"), L_W);
@@ -146,6 +151,7 @@ namespace Botanik { namespace Pages {
                 snprintf(val, sizeof(val), "no link");
             _cell(SLOT_NETIP, 8, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W);
 
+#if BOTANIK_FEATURE_NTP
             if (ctx.ntp && ctx.ntp->synced()) {
                 // Worst case "-2147483.648" (12) -> "synced (.. s)" fills R_W.
                 char nf[16];
@@ -154,9 +160,13 @@ namespace Botanik { namespace Pages {
             } else {
                 snprintf(val, sizeof(val), "%s", ctx.ntp ? ctx.ntp->status_str() : "off");
             }
+#else
+            snprintf(val, sizeof(val), "off");
+#endif
             _cell(SLOT_NTP, 7, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);
             // State plus the age of the last broker contact (connect or
             // keepalive) - "ready (3s)" while live, growing once it drops.
+#if BOTANIK_FEATURE_MQTT
             if (ctx.mqtt) {
                 uint64_t last = ctx.mqtt->last_contact_ms();
                 if (last != 0) {
@@ -173,6 +183,9 @@ namespace Botanik { namespace Pages {
             } else {
                 snprintf(val, sizeof(val), "off");
             }
+#else
+            snprintf(val, sizeof(val), "off");
+#endif
             _cell(SLOT_MQTT, 8, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);
 #endif
 
