@@ -41,19 +41,58 @@ deliberately building a cut-down image:
 command line's value, wins, and says so only through a "redefined" warning buried in
 the build log. Guard every feature flag a site pins.
 
-| Flag | Default | Gates |
-|---|---|---|
-| `BOTANIK_FEATURE_CONSOLE` | **on** | the interactive ANSI UI: the terminal, the built-in pages, the console UART, and the `register_pages()` / `register_commands()` hooks. Off = headless |
-| `BOTANIK_FEATURE_LOGS_MONITOR` | **on** | the secondary monitor UART and its log sink |
-| `BOTANIK_FEATURE_NOTES_PAGE` | = `CONSOLE` | the NOTES page: a full-screen editor over the operator's note, persisted to flash. Requires `CONSOLE`, so it defaults to whatever `CONSOLE` is - on for a normal build, off for a headless one, which never asked for a page. Costs `NOTES_LEN` bytes plus 2 x `NOTES_MAX_ROWS` row slots of RAM |
-| `BOTANIK_FEATURE_NETWORK` | off | the network stack: device bring-up and the DNS resolver |
-| `BOTANIK_FEATURE_NTP` | off | the NTP client. Requires `NETWORK` |
-| `BOTANIK_FEATURE_MQTT` | off | the MQTT client, log sink and alarm notifier. Requires `NETWORK` |
-| `BOTANIK_FEATURE_SUN_TRACKER` | off | the solar-position tracker. Standalone - `BotanikFirmware` does not instantiate it, so a site that wants it turns it on and owns the instance |
+| Flag | Default | Requires | Gates |
+|---|---|---|---|
+| `CONSOLE` | **on** | - | the interactive ANSI UI: the terminal, the console UART, and the `register_pages()` / `register_commands()` hooks. Off = headless |
+| `LOGGING` | **on** | - | the log writers, the rate limiter and the queue. Off leaves `Logs::Logger` as an inert shell, so nothing that holds a `Logger*` changes and every log call becomes a no-op before it formats |
+| `NETWORK` | off | - | the network stack: device bring-up and the DNS resolver |
+| `NTP` | off | `NETWORK` | the NTP client |
+| `MQTT` | off | `NETWORK` | the MQTT client |
+| `SUN_TRACKER` | off | - | the solar-position tracker. Standalone - `BotanikFirmware` does not instantiate it, so a site that wants it owns the instance |
+| `HOME_PAGE` | = `CONSOLE` | `CONSOLE` | the HOME page and its log-tail sink |
+| `SHELL_PAGE` | = `CONSOLE` | `CONSOLE` | the SHELL page **and the whole command interpreter** - `ShellPage` owns `Shell::CommandShell`, so this also gates `register_commands()` |
+| `LOGS_PAGE` | off | `CONSOLE`, `LOGGING` | the LOGS page and its sink |
+| `ALARMS_PAGE` | off | `CONSOLE` | the ALARMS page. The alarm *controller* is unconditional - the bottom alarm bar reads it either way |
+| `PARAMS_PAGE` | off | `CONSOLE` | the PARAMS page |
+| `MONITOR_PAGE` | off | `CONSOLE` | the MONITOR page. **Not** `LOGS_MONITOR`, which is a serial log sink |
+| `TASKS_PAGE` | off | `CONSOLE` | the TASKS page |
+| `NOTES_PAGE` | off | `CONSOLE` | the NOTES page. Costs `NOTES_LEN` bytes plus 2 x `NOTES_MAX_ROWS` row slots of RAM |
+| `LOGS_PUBLISH` | off | `LOGGING`, `MQTT` | `MqttLogWriter` - log entries to the broker |
+| `ALARMS_PUBLISH` | off | `LOGGING`, `MQTT` | `MqttAlarmNotifier` - alarm transitions to the broker |
+| `LOGS_MONITOR` | off | `LOGGING` | the secondary MONITOR UART and its log sink |
+| `PLC_SCAN` | **on** | - | `Scan::Driver`. Off does *not* remove control authority: the Bank's enable/disable latch has consumers of its own |
+| `PLC_BLK_BASE` | off | - | the base blocks: timers, logic, analog, meter, pid, actuator |
+| `PLC_BLK_FILTERS` | off | - | the filter blocks: `Ewma`, `MedianOf3`, `MovingAverage`. Distinct from `utils/filters.h`, the scheduler's metric filter |
+| `MODBUS_TCP_SERVER` | off | `NETWORK`, `PLC_SCAN` | *reserved* - no implementation yet |
+| `MODBUS_RTU_CLIENT` | off | `PLC_SCAN` | *reserved* - no implementation yet |
 
-Dependency rules are enforced by `#error`. `CONSOLE` and `MONITOR` are independent:
-a headless build can keep the monitor for diagnostics, an interactive one can drop
-it. With both off, logs reach only site-registered sinks.
+(Each is spelled `BOTANIK_FEATURE_<NAME>`.)
+
+The defaults are a **minimal core**: a build that sets nothing gets a console
+with a home screen and a shell, logging, and the scan cycle. Everything else is
+opt-in. `src/sites/gh_mlb41/config.h` is the worked full profile.
+
+Dependency rules are enforced by `#error`, so a contradiction fails the build
+rather than quietly producing a binary missing what was asked for.
+
+A site's opt-in must yield to the command line. `#ifndef` alone does not achieve
+that: with `-DBOTANIK_FEATURE_CONSOLE=OFF` the page flags are still undefined
+when the site config is read, so a bare `#define ..._PAGE 1` there would turn the
+builder's choice into a dependency error the builder never wrote. Guard the block
+instead:
+
+```c
+#if !defined(BOTANIK_FEATURE_CONSOLE) || BOTANIK_FEATURE_CONSOLE
+#  ifndef BOTANIK_FEATURE_TASKS_PAGE
+#    define BOTANIK_FEATURE_TASKS_PAGE 1
+#  endif
+#endif
+```
+
+Adding a flag is **two** edits: an `X()` entry plus an `#ifndef` default in
+`src/libbotanik_features.h`, and a row above. CMake discovers `-D`s by prefix and
+the `features` command expands `BOTANIK_FEATURE_LIST`, so neither can fall out of
+step.
 
 A built unit reports its own set through the shell's `features` command
 (@ref user_shell), which is how you tell a compiled-out subsystem from a broken one
