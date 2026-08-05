@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <cstring>
 
+#include "../../libbotanik_config.h"
 #include "model.h"
 #include "declare.h"   // scope_label
 
@@ -54,7 +55,7 @@ namespace Botanik { namespace Vars {
 
     /** @brief Distinct group names a site may have. Both tables' view modes are
      *  built from this, so it bounds the mode line as well. */
-    static const uint8_t VAR_GROUPS_MAX = 16;
+    static const uint8_t VAR_GROUPS_MAX = Config::VAR_GROUPS_MAX;
 
     /** @brief Intern @p g so the pointer outlives the call.
      *
@@ -64,7 +65,7 @@ namespace Botanik { namespace Vars {
      *  buffer was overwritten mid-call and the legend always showed whatever
      *  came last. */
     inline const char* group_intern(const char* g) {
-        static char pool[VAR_GROUPS_MAX][16];
+        static char pool[VAR_GROUPS_MAX][Config::VAR_GROUP_NAME_LEN];
         static uint8_t used = 0;
         for (uint8_t i = 0; i < used; i++)
             if (strcmp(pool[i], g) == 0) return pool[i];
@@ -83,7 +84,7 @@ namespace Botanik { namespace Vars {
         if (d.name == nullptr) return "?";
         const char* u = strchr(d.name, '_');
         if (u == nullptr) return group_intern(d.name);
-        char g[16];
+        char g[Config::VAR_GROUP_NAME_LEN];
         size_t n = (size_t)(u - d.name);
         if (n >= sizeof(g)) n = sizeof(g) - 1;
         memcpy(g, d.name, n); g[n] = 0;

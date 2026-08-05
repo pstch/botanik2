@@ -9,6 +9,8 @@
 
 #include <cstring>
 
+#include "../../libbotanik_config.h"
+
 namespace Botanik { namespace HAL { namespace Storage {
 
     namespace {
@@ -57,8 +59,11 @@ namespace Botanik { namespace HAL { namespace Storage {
         // identifier (key_ok even rejects '/'). MBED_CONF_STORAGE_DEFAULT_KV is
         // the partition name; "kv" is the variant's value.
         const char PARTITION[] = "/kv/";
-        // KVStore caps a full key at 128 chars including the partition.
-        const size_t FULL_KEY_MAX = 129;
+        // KVStore caps a full key at 128 chars including the partition; the
+        // config entry is what every caller sizes its own scratch from.
+        const size_t FULL_KEY_MAX = Config::STORAGE_KEY_MAX;
+        static_assert(FULL_KEY_MAX > sizeof(PARTITION),
+                      "STORAGE_KEY_MAX leaves no room past the partition prefix");
 
         bool full_key(char* out, size_t cap, const char* key) {
             if (!key_ok(key)) return false;
@@ -107,8 +112,6 @@ namespace Botanik { namespace HAL { namespace Storage {
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-
-#include "../../libbotanik_config.h"
 
 namespace Botanik { namespace HAL { namespace Storage {
 
