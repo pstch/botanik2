@@ -43,6 +43,11 @@ def test_override(spawn):
     term.send(b"get grid_L1_V" + keys.ENTER)
     assert term.wait_for("OVERRIDDEN"), "get did not flag the override"
     assert term.wait_for("123.5"), "override value did not reach the reading"
+    # ...both halves of it: what it is held at, and what it reads underneath.
+    # "Has the sensor come back?" is the question someone deciding whether to
+    # release an override actually has.
+    assert term.wait_for("forced 123.5"), "get did not show the forced value"
+    assert term.wait_for("live "), "get did not show the value under the override"
 
     # A forgotten override must be one command away, and the listing has to say
     # that it outlives the session AND the reboot.
@@ -54,13 +59,34 @@ def test_override(spawn):
     term.send(b"override grid_L2_V 99 invalid" + keys.ENTER)
     assert term.wait_for("reading as invalid"), "validity was not honoured"
 
-    # Release it; the live value takes over again.
+    # Release one by name; the live value takes over again.
     term.send(b"override grid_L1_V off" + keys.ENTER)
     assert term.wait_for("override off"), "override was not released"
-    term.send(b"override grid_L2_V off" + keys.ENTER)
-    assert term.wait_for("override off"), "override was not released"
+
+    # ...and `override clear` releases the rest without walking the list, which
+    # is how a maintainer hands the machine back.
+    term.send(b"override clear" + keys.ENTER)
+    assert term.wait_for("cleared"), "override clear did not report"
     term.send(b"override list" + keys.ENTER)
-    assert term.wait_for("none active"), "override still listed after off"
+    assert term.wait_for("none active"), "override still listed after clear"
+
+
+def test_control_disable_leaves_an_actuator_commandable(spawn):
+    # `control disable` stops the control PROGRAMS, not you: with the scan
+    # inhibited an override is the only thing that can move an actuator, which
+    # is the whole reason to type it before working on the plant.
+    term = shell(spawn)
+    term.send(b"control disable" + keys.ENTER)
+    assert term.wait_for("by hand"), "control disable did not mention overrides"
+
+    term.send(b"override cli_screen 1" + keys.ENTER)
+    assert term.wait_for("forced to"), "an output could not be forced by hand"
+    term.send(b"get cli_screen" + keys.ENTER)
+    assert term.wait_for("OVERRIDDEN"), "the forced output did not stick"
+
+    term.send(b"override clear" + keys.ENTER)
+    term.send(b"control enable" + keys.ENTER)
+    assert term.wait_for("control: enabled"), "control could not be re-enabled"
 
 
 def test_set_refuses_a_non_parameter(spawn):

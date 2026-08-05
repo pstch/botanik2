@@ -91,7 +91,7 @@ namespace Botanik { namespace Shell {
             { "list",       "[<prefix>] list variables",      &CommandShell::_cmd_list       },
             { "get",        "<name>  read a variable",        &CommandShell::_cmd_get        },
             { "set",        "<name> <value>  edit a parameter", &CommandShell::_cmd_set       },
-            { "override",   "list|<name> [off|<value>] [valid|invalid]", &CommandShell::_cmd_override },
+            { "override",   "list|clear|<name> [off|<value>] [valid|invalid]", &CommandShell::_cmd_override },
             { "control",    "[enable|disable] drive the field", &CommandShell::_cmd_control   },
             { "loglevel",   "[debug|info|..|critical] filter",&CommandShell::_cmd_loglevel   },
             { "version",    "firmware version",               &CommandShell::_cmd_version    },
@@ -385,6 +385,24 @@ namespace Botanik { namespace Shell {
                h.valid() ? "" : " (default: nothing has written it)");
     }
 
+    // The second line `get` prints for a forced variable: what it is being held
+    // at, and what it would read without the override. `list` deliberately does
+    // not - one row per variable is the point of it - but a `get` on a forced
+    // row is almost always someone deciding whether to release it, and "has the
+    // sensor come back?" is the question they have no other way to ask.
+    void CommandShell::_emit_override(Vars::Var h) {
+        if (!h.overridden()) return;
+        const Vars::Variable* d = h.meta();
+        char out[128], fb[48], lb[48];
+        const char* forced = Vars::format_scalar(d->type, h.raw(),  d->digits,
+                                                 d->str, fb, sizeof(fb));
+        const char* live   = Vars::format_scalar(d->type, h.live(), d->digits,
+                                                 d->str, lb, sizeof(lb));
+        _emitf(out, sizeof(out), "    forced %s (%s)   live %s (%s)",
+               forced, h.valid()      ? "valid" : "invalid",
+               live,   h.live_valid() ? "valid" : "invalid");
+    }
+
     void CommandShell::_cmd_get(const char* args, uint16_t alen) {
         Vars::Bank* io = _bank();
         if (io == nullptr) { _println("get: no variables"); return; }
@@ -394,7 +412,9 @@ namespace Botanik { namespace Shell {
 
         const Vars::VarRef r = io->find(nm, wn);
         if (r.index == Vars::VAR_NONE) { _println("get: unknown variable"); return; }
-        _emit_var(*io, io->var(r));
+        const Vars::Var h = io->var(r);
+        _emit_var(*io, h);
+        _emit_override(h);
     }
 
     void CommandShell::_cmd_list(const char* args, uint16_t alen) {
@@ -490,13 +510,15 @@ namespace Botanik { namespace Shell {
             if (n == 0) _println("override: none active");
             else _emitf(out, sizeof(out),
                         "%u override(s) active - these SURVIVE a reboot; "
-                        "`override off` clears them", n);
+                        "`override clear` clears them", n);
             return;
         }
 
-        // "override off" clears the lot, so a maintainer can hand the machine
-        // back without walking the list.
-        if (arg_eq(nm, wn, "off")) {
+        // "override clear" releases the lot, so a maintainer can hand the
+        // machine back without walking the list. "off" is the older spelling and
+        // still works - it is what `override <name> off` says, and there is no
+        // sense in the two forms disagreeing.
+        if (arg_eq(nm, wn, "clear") || arg_eq(nm, wn, "off")) {
             _emitf(out, sizeof(out), "override: cleared %u",
                    io->clear_overrides());
             return;
@@ -527,23 +549,24 @@ namespace Botanik { namespace Shell {
         // touching what it reports, which is the only way to exercise the code
         // that watches for one. Accepted either side of the value, since
         // `override x invalid` and `override x 20 invalid` both read naturally.
-        bool valid = true, said_validity = false;
+        bool valid = true;
         auto take_validity = [&](const char* w, uint16_t wl) {
             if (w == nullptr) return false;
             if (!arg_eq(w, wl, "valid") && !arg_eq(w, wl, "invalid")) return false;
             valid = arg_eq(w, wl, "valid");
-            said_validity = true;
             return true;
         };
 
         if (take_validity(a, wa)) a = arg_next(args, alen, wa);   // may be null
 
         if (a == nullptr) {
-            // No value: freeze where it is. Through the bank in BOTH steps -
-            // the handle cannot reach the store, so forcing the quality that
-            // way persisted the old one and the reboot undid it.
-            io->override_freeze(h);
-            if (said_validity) io->override_set(h, h.raw(), valid);
+            // No value: hold it where it is. The quality is the SAME default as
+            // the value form - good unless `invalid` was asked for. Freezing
+            // used to carry the current quality through, so freezing a variable
+            // nothing had written yet handed back an override reading as dead,
+            // which is not what anyone typing a bare `override` means. Through
+            // the bank, not the handle: the handle cannot reach the store.
+            io->override_set(h, h.raw(), valid);
             const char* s = Vars::var_format(*io, h, val, sizeof(val));
             _emitf(out, sizeof(out), "%s: frozen at %s%s", h.meta()->name, s,
                    h.valid() ? "" : " (reading as invalid)");
@@ -585,11 +608,13 @@ namespace Botanik { namespace Shell {
             return;
         }
         if (arg_eq(a, w, "disable")) {
-            // Says what it actually did: the sweep releases output overrides
-            // too, and someone who set one deserves to be told it is gone.
+            // Says what it actually did, and what is still possible: the
+            // programs have stopped deciding, but `override` still reaches an
+            // actuator - which is the whole reason to type this before working
+            // on the plant.
             io->disable_control();
             _println("control: DISABLED - outputs at their safe state, "
-                     "output overrides released");
+                     "scan inhibited; `override` still drives them by hand");
             return;
         }
         _println("usage: control [enable|disable]");

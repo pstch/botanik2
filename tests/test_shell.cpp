@@ -12,14 +12,25 @@
 #include "doctest.h"
 
 #include "libbotanik/shell/shell.h"
+#include "libbotanik/vars/declare.h"
 
 using namespace Botanik;
+using namespace Botanik::Vars;
 
 namespace {
 
     // Sinks command output to nowhere; the tests only inspect the editor buffer.
     struct NullWriter : Shell::ShellWriter {
         size_t write(const char* /*buf*/, size_t len) override { return len; }
+    };
+
+    // ...and one that keeps it, for the tests that are about what a command SAYS.
+    struct CapturingWriter : Shell::ShellWriter {
+        std::string text;
+        size_t write(const char* buf, size_t len) override {
+            text.append(buf, len); text.push_back('\n'); return len;
+        }
+        bool has(const char* s) const { return text.find(s) != std::string::npos; }
     };
 
     // A CommandShell wired to a real editor + terminal whose serial is a pipe (TX is
@@ -98,4 +109,111 @@ TEST_CASE("shell kill ring: Ctrl-K cuts to EOL, Ctrl-Y yanks it back") {
     f.editor.move_to_line_end();
     f.shell.paste_kill();
     CHECK(f.line() == "hello world");
+}
+
+// ---------------------------------------------------------------------------
+// The variable commands, driven against a real bank so the output is the real
+// output.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+    const Vars::Variable CMD_VARS[] = {
+        MI("ext_temp", T_F32, 5, 3, 18, 2, SF(-40.0f), SF(85.0f), SF(20.5f), 0, 1,
+                       "C", "outside", ""),
+        G ("setpoint", T_F32, SF(18.0f), 1, "C", "target temp", ""),
+    };
+
+    /** @brief A shell with a bank behind it and its output kept. */
+    struct CmdFixture {
+        int                            pipe_fds[2];
+        HAL::Serial::Raw               raw;
+        Utils::BufferedSerial          serial;
+        uint64_t                       now = 0;
+        Terminal::Console              console;
+        Terminal::EditorBuffers<Config::SHELL_INPUT_LEN,
+                                Config::EDITOR_MAX_ROWS> bufs;
+        Terminal::TextEditor           editor;
+        CapturingWriter                writer;
+        Vars::Value                    values[2]{};
+        Vars::Bank                     bank;
+        Shell::CommandShell            shell;
+
+        CmdFixture()
+            : serial(&raw),
+              console(serial, 80, 24, &now, 115200),
+              editor(&console, bufs.storage()),
+              shell(console, editor, writer) {
+            REQUIRE(::pipe(pipe_fds) == 0);
+            raw.set_fds(pipe_fds[0], pipe_fds[1]);
+            editor.reset();
+            Vars::VarTables t = {};
+            t.var = CMD_VARS; t.val = values; t.count = 2;
+            bank = Vars::Bank(t);
+            bank.init();
+            SystemContext ctx = console.context();
+            ctx.vars = &bank;
+            console.set_context(ctx);
+        }
+        ~CmdFixture() { ::close(pipe_fds[0]); ::close(pipe_fds[1]); }
+
+        void run(const char* cmd) {
+            writer.text.clear();
+            shell.run(cmd, (uint16_t)std::strlen(cmd));
+        }
+    };
+
+}
+
+TEST_CASE("shell override: a bare name forces a GOOD reading, not a dead one") {
+    // Freezing used to carry the row's current quality through, so a bare
+    // `override` on a variable nothing had written yet handed back an override
+    // that read as a dead sensor - which is not what anyone typing it means.
+    // Only the word `invalid` says that.
+    CmdFixture f;
+    REQUIRE_FALSE(f.bank.var("ext_temp").valid());   // nothing has published it
+
+    f.run("override ext_temp");
+    CHECK(f.bank.var("ext_temp").overridden());
+    CHECK(f.bank.var("ext_temp").valid());
+    CHECK_FALSE(f.writer.has("reading as invalid"));
+
+    f.run("override ext_temp invalid");
+    CHECK_FALSE(f.bank.var("ext_temp").valid());
+    CHECK(f.writer.has("reading as invalid"));
+}
+
+TEST_CASE("shell override: `clear` releases the lot, and `off` still does too") {
+    CmdFixture f;
+    f.run("override ext_temp 30");
+    f.run("override setpoint 5");
+    REQUIRE(f.bank.override_count() == 2);
+
+    f.run("override clear");
+    CHECK(f.writer.has("cleared 2"));
+    CHECK(f.bank.override_count() == 0);
+
+    // The older spelling keeps working - it is what `override <name> off` says.
+    f.run("override ext_temp 30");
+    f.run("override off");
+    CHECK(f.bank.override_count() == 0);
+}
+
+TEST_CASE("shell get: a forced variable shows what it reads underneath") {
+    CmdFixture f;
+    f.bank.var("ext_temp").publish(Vars::Scalar::F(21.0f), 1000);
+    f.run("override ext_temp 35");
+
+    f.run("get ext_temp");
+    CHECK(f.writer.has("OVERRIDDEN"));
+    // Both numbers, because "has the sensor come back?" is the question someone
+    // deciding whether to release an override actually has.
+    CHECK(f.writer.has("forced 35"));
+    CHECK(f.writer.has("live 21"));
+
+    // Nothing extra when nothing is forced: `get` stays one line.
+    f.run("override ext_temp off");
+    f.run("get ext_temp");
+    CHECK_FALSE(f.writer.has("forced"));
+    CHECK_FALSE(f.writer.has("live"));
 }
