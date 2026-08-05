@@ -169,11 +169,13 @@ target_compile_definitions(botanik PUBLIC
     BOTANIK_SITE_HEADER=\"${_site_dir}/site.h\")
 message(STATUS "Site: ${_site_dir}")
 
-# Optional-subsystem feature flags (libbotanik_features.h). Each defaults ON in
-# the header; pass -DBOTANIK_FEATURE_<X>=ON/OFF to override. We forward only the
-# flags explicitly set on the command line, as a PUBLIC define on `botanik` so
-# the whole build agrees (same ABI discipline as BOTANIK_SITE_CONFIG above).
-foreach(_feat NETWORK NTP MQTT CONSOLE MONITOR SUN)
+# Optional-subsystem feature flags (libbotanik_features.h), which is where each
+# one's default lives; pass -DBOTANIK_FEATURE_<X>=ON/OFF to override. We forward
+# only the flags explicitly set on the command line, as a PUBLIC define on
+# `botanik` so the whole build agrees (same ABI discipline as
+# BOTANIK_SITE_CONFIG above). Keep this list in step with the header: a flag
+# missing here is one whose -D is silently ignored.
+foreach(_feat NETWORK NTP MQTT CONSOLE MONITOR NOTES SUN)
     if(DEFINED BOTANIK_FEATURE_${_feat})
         if(BOTANIK_FEATURE_${_feat})
             set(_feat_val 1)
