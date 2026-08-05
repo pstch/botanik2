@@ -49,7 +49,8 @@ namespace Botanik { namespace Terminal {
         InputParser         _parser;
         /** @brief Child pages multiplexed onto the display. Alt+<digit> selects
          *  one, so the tail digits only bind once this many pages exist. */
-        static constexpr uint8_t MAX_PAGES = 8;
+        static constexpr uint8_t MAX_PAGES = Config::CONSOLE_PAGES_MAX;
+        static_assert(MAX_PAGES <= 10, "Alt+<digit> binds ten pages at most");
         Pages::Page*        _pages[MAX_PAGES];
         uint8_t             _pages_len  = 0;
         uint8_t             _page_index = 0;

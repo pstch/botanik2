@@ -65,7 +65,7 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t MEAN_W     = 8;    // mean us
         static constexpr uint16_t PEAK_W     = 8;    // all-time peak us
         static constexpr uint16_t CELL_CAP   = 24;   // one formatted cell
-        static constexpr uint16_t LINE_CAP   = 200;  // row string buffer
+        static constexpr uint16_t LINE_CAP   = Config::TABLE_LINE_LEN;
         /** @brief Separator, spacer, three detail rows, trailing spacer. */
         static constexpr uint16_t PANEL_H    = 6;
         /** @brief How often the table repaints (Config::PAGE_TASKS_MS). Slower

@@ -12,6 +12,7 @@
 #include <cstring>
 #include <algorithm>
 
+#include "../../libbotanik_config.h"
 #include "../core/component.h"
 #include "../hal/platform.h"
 #include "byte_sink.h"
@@ -46,10 +47,9 @@ namespace Botanik { namespace Utils {
 
         HAL::Serial::Raw* _serial;   // wrapped raw port
 
-        // default buffered serial RX/TX buffer sizes
-        // FIXME: make those config variables in libbotanik_config.h
-        static const uint16_t RX_BUF_SIZE = 256;
-        static const uint16_t TX_BUF_SIZE = 4096;
+        // Buffered serial RX/TX ring sizes, per port.
+        static const uint16_t RX_BUF_SIZE = Config::SERIAL_RX_BUF;
+        static const uint16_t TX_BUF_SIZE = Config::SERIAL_TX_BUF;
 
         // assert buffer sizes are power-of-two
         static_assert(is_power_of_two(RX_BUF_SIZE),

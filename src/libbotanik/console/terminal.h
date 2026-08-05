@@ -87,8 +87,8 @@ namespace Botanik { namespace Terminal {
          *  what present() has put on the wire. Sized for the largest supported
          *  terminal; _cols/_rows are clamped to it at construction.
          *  @{ */
-        static constexpr uint16_t GRID_COLS  = 132;
-        static constexpr uint16_t GRID_ROWS  = 32;
+        static constexpr uint16_t GRID_COLS  = Config::TERMINAL_MAX_COLS;
+        static constexpr uint16_t GRID_ROWS  = Config::TERMINAL_MAX_ROWS;
         static constexpr uint16_t GRID_CELLS = GRID_COLS * GRID_ROWS;
         static constexpr uint8_t  CELL_INV   = 0x80;
         static constexpr uint8_t  CELL_CH    = 0x7F;
@@ -161,7 +161,7 @@ namespace Botanik { namespace Terminal {
         /** @brief Ring headroom the budget floor always leaves free, so a single
          *  oversized run (see present()'s escape) still has somewhere to land
          *  rather than being deferred forever. */
-        static constexpr uint16_t TX_HEADROOM_BYTES = 256;
+        static constexpr uint16_t TX_HEADROOM_BYTES = Config::TX_HEADROOM_BYTES;
 
         /** @brief Bytes that drain in @p target_ms at @p baud (8N1: baud/10 B/s),
          *  clamped to a small floor and to leave TX_HEADROOM_BYTES of ring free.

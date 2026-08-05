@@ -151,9 +151,13 @@ namespace Botanik {
 
 #if BOTANIK_FEATURE_CONSOLE
         /** @brief Terminal geometry, fixed at construction (the AnsiTerminal
-         *  takes it by value and has no resize). Both targets use 80x24. */
-        uint16_t                      _console_cols = 80;
-        uint16_t                      _console_rows = 24;
+         *  takes it by value and has no resize). A property of the
+         *  installation, so it comes from the config rather than the target. */
+        uint16_t                      _console_cols = Config::CONSOLE_COLS;
+        uint16_t                      _console_rows = Config::CONSOLE_ROWS;
+        static_assert(Config::CONSOLE_COLS <= Config::TERMINAL_MAX_COLS &&
+                      Config::CONSOLE_ROWS <= Config::TERMINAL_MAX_ROWS,
+                      "console geometry exceeds the screen back-buffer");
 #endif
 
         /** @} */

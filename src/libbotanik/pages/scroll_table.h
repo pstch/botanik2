@@ -261,7 +261,7 @@ namespace Botanik { namespace Pages {
         void _draw_mode_line(uint16_t row, const char* group, const char* detail) {
             const uint8_t n_modes = _mode_count();
             const bool    in_all  = (group != nullptr && group[0] != '\0');
-            char left[160], field[32];
+            char left[Config::TABLE_LINE_LEN], field[32];
             uint16_t w = 0;
             int n = 0;
 
@@ -472,7 +472,7 @@ namespace Botanik { namespace Pages {
             uint8_t n = _columns(cols);
             const char* heads[MAX_COLS];
             for (uint8_t i = 0; i < n; i++) heads[i] = cols[i].head;
-            char line[192];
+            char line[Config::TABLE_LINE_LEN];
             _draw_line(row, line, _build_row(line, sizeof(line), heads));
         }
 
@@ -483,7 +483,7 @@ namespace Botanik { namespace Pages {
         void _draw_rule(uint16_t row, char cap, char join = '+') {
             Col cols[MAX_COLS];
             uint8_t n = _columns(cols);
-            char line[192];
+            char line[Config::TABLE_LINE_LEN];
             uint16_t w = 0;
             for (uint16_t i = 0; i < MARGIN && w < sizeof(line) - 1; i++) line[w++] = ' ';
             if (w < sizeof(line) - 1) line[w++] = cap;
@@ -511,7 +511,7 @@ namespace Botanik { namespace Pages {
          *  panel under its table. Chrome, so it lives here beside _draw_rule()
          *  and _panel_field() rather than being re-derived per page. */
         void _draw_separator(uint16_t row) {
-            char buf[192];
+            char buf[Config::TABLE_LINE_LEN];
             uint16_t n = 0;
             for (uint16_t i = 0; i < MARGIN && n < sizeof(buf) - 1; i++) buf[n++] = ' ';
             uint16_t cols = _terminal.cols();
@@ -526,7 +526,7 @@ namespace Botanik { namespace Pages {
          *  ("Acknowledged"); a longer one would shove its own colon right and
          *  break the column the panels share. */
         void _panel_field(uint16_t row, const char* label, const char* value) {
-            char buf[192];
+            char buf[Config::TABLE_LINE_LEN];
             int n = snprintf(buf, sizeof(buf), " %-12s : %s", label,
                              (value && value[0]) ? value : "-");
             _draw_line(row, buf, (n < 0) ? 0 : (uint16_t)n);
@@ -537,7 +537,7 @@ namespace Botanik { namespace Pages {
          *  table loses, so a pair that is really one fact should cost one. */
         void _panel_field2(uint16_t row, const char* l1, const char* v1,
                            uint16_t col2, const char* l2, const char* v2) {
-            char buf[192];
+            char buf[Config::TABLE_LINE_LEN];
             int n = snprintf(buf, sizeof(buf), " %-12s : %s", l1,
                              (v1 && v1[0]) ? v1 : "-");
             if (n < 0) n = 0;

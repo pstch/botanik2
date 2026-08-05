@@ -63,7 +63,7 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t DEFAULT_W  = 12;   // default-value column
         static constexpr uint16_t UNIT_W     = 5;    // physical-unit column
         static constexpr uint16_t VAL_CAP    = 40;   // formatted value cap
-        static constexpr uint16_t LINE_CAP   = 200;  // row string buffer
+        static constexpr uint16_t LINE_CAP   = Config::TABLE_LINE_LEN;
         // Detail panel below the table: a separator rule, a blank spacer, then
         // Minimum / Maximum / Description / Notes for the selected parameter, and
         // a trailing blank spacer (default + unit are already table columns).
@@ -179,7 +179,7 @@ namespace Botanik { namespace Pages {
          *  every parameter; 1..N show one group each. SPACE / RIGHT step
          *  forward, LEFT back (scroll_table.h).
          *  @{ */
-        static constexpr uint8_t GROUPS_MAX = 12;
+        static constexpr uint8_t GROUPS_MAX = Vars::VAR_GROUPS_MAX;
 
         /** @brief Distinct group prefixes, in table order, discovered ONCE.
          *
@@ -211,7 +211,7 @@ namespace Botanik { namespace Pages {
          *  second call clobbers the first. Copy each distinct group once into a
          *  table-lifetime store the mode labels can keep pointing at. */
         static const char* _group_intern(const char* g) {
-            static char pool[GROUPS_MAX][16];
+            static char pool[GROUPS_MAX][Config::VAR_GROUP_NAME_LEN];
             static uint8_t used = 0;
             for (uint8_t i = 0; i < used; i++)
                 if (strcmp(pool[i], g) == 0) return pool[i];
@@ -360,7 +360,7 @@ namespace Botanik { namespace Pages {
         static const char* _group_of(const Vars::Variable& d) {
             const char* u = strchr(d.name, '_');
             if (u == nullptr) return d.name;          // the serial itself
-            char g[16];
+            char g[Config::VAR_GROUP_NAME_LEN];
             size_t n = (size_t)(u - d.name);
             if (n >= sizeof(g)) n = sizeof(g) - 1;
             memcpy(g, d.name, n); g[n] = 0;

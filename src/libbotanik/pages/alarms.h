@@ -324,7 +324,7 @@ namespace Botanik { namespace Pages {
             // column is where the short label lives.
             const char* cells[4] = { c.code ? c.code : "?",
                                      c.name ? c.name : "?", state, ev };
-            char     line[160];
+            char     line[Config::TABLE_LINE_LEN];
             uint16_t n = _build_row(line, sizeof(line), cells);
             const uint16_t code_r = _code_cell_r(), badge = _cell_col(C_STATE);
             _terminal.move_to({row, 0});

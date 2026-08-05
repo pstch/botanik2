@@ -63,7 +63,7 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t UNIT_W     = 6;    // physical-unit column
         static constexpr uint16_t OVR_W      = 9;    // forced value, or "-"
         static constexpr uint16_t VAL_CAP    = 48;   // formatted value buffer
-        static constexpr uint16_t LINE_CAP   = 192;  // row string buffer
+        static constexpr uint16_t LINE_CAP   = Config::TABLE_LINE_LEN;
         // Detail panel below the table: bottom rule + blank spacer +
         // Description + Source + Quality + blank spacer, then the legend and its
         // own trailing blank (see _footer_row()).
