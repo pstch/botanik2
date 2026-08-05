@@ -25,7 +25,7 @@ namespace Botanik { namespace Network {
         if (_mqtt == nullptr || !_mqtt->connected() || _busy) return;
 
         _busy = true;
-        char topic[96];
+        char topic[Config::MQTT_TOPIC_LEN];
         size_t tn = build_topic(topic, sizeof(topic), entry->level, entry->topic);
         if (tn > 0) {
             // Keep the whole PUBLISH packet within MQTT_TX_BUF: fixed header (1) +

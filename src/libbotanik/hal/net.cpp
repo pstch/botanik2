@@ -12,6 +12,8 @@
 #include "net.h"
 #include "platform.h"
 
+#include "../../libbotanik_config.h"
+
 #ifdef TARGET_OPTA
 // ---- OPTA backend (Mbed) ----
 
@@ -29,15 +31,18 @@ namespace Botanik { namespace HAL { namespace Network {
         NetworkInterface* eth() { static EthernetInterface e; return &e; }
 
         // Fixed socket tables: small integer ids map to Mbed socket objects.
-        const int MAX_UDP = 2;
-        const int MAX_TCP = 2;
-        UDPSocket g_udp[MAX_UDP]; bool g_udp_used[MAX_UDP] = {false, false};
-        TCPSocket g_tcp[MAX_TCP]; bool g_tcp_used[MAX_TCP] = {false, false};
+        const int MAX_UDP = Config::NET_MAX_UDP;
+        const int MAX_TCP = Config::NET_MAX_TCP;
+        UDPSocket g_udp[MAX_UDP]; bool g_udp_used[MAX_UDP] = {};
+        TCPSocket g_tcp[MAX_TCP]; bool g_tcp_used[MAX_TCP] = {};
 
         // DNS slot table: handle -> {state, addr}. Async callback publishes the
         // state.
         // st: 0 free, 1 pending, 2 ok, 3 failed
-        const int MAX_DNS = 4;
+        const int MAX_DNS = Config::NET_MAX_DNS;
+        static_assert(MAX_DNS >= (int)Config::DNS_CACHE_SIZE,
+                      "NET_MAX_DNS below DNS_CACHE_SIZE: NameResolver can leave "
+                      "every row PENDING, and the surplus lookups would fail here");
         struct DnsSlot { volatile uint8_t st; Ip4 addr; int mbed_handle; DnsHandle id; };
         DnsSlot g_dns[MAX_DNS];
         DnsHandle g_dns_next = 1;
@@ -285,7 +290,10 @@ namespace Botanik { namespace HAL { namespace Network {
     // unresolvable name. An all-numeric malformed literal is rejected up front
     // (Mbed DNS would fail it too).
     namespace {
-        const int      MAX_DNS     = 4;
+        const int      MAX_DNS     = Config::NET_MAX_DNS;
+        static_assert(MAX_DNS >= (int)Config::DNS_CACHE_SIZE,
+                      "NET_MAX_DNS below DNS_CACHE_SIZE: NameResolver can leave "
+                      "every row PENDING, and the surplus lookups would fail here");
         const uint32_t DNS_STEP_MS = 25;   // emulated lookup latency
         struct DnsSlot { DnsHandle id; uint64_t ready_ms; bool fail; };   // id 0 = free
         DnsSlot   g_dns[MAX_DNS] = {};

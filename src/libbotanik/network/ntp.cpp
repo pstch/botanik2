@@ -139,7 +139,7 @@ namespace Botanik { namespace Network {
         _udp = s;   // store the handle for the poll/close
         uint8_t pkt[48] = {0};
         pkt[0] = 0x23;   // LI=0, VN=4, Mode=3 (client)
-        if (!HAL::Network::udp_sendto(s, _server_addr, 123, pkt, sizeof(pkt))) {
+        if (!HAL::Network::udp_sendto(s, _server_addr, Config::NTP_PORT, pkt, sizeof(pkt))) {
             HAL::Network::udp_close(s); _udp = -1; return false;
         }
         return true;

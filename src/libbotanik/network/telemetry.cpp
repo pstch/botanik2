@@ -60,7 +60,7 @@ namespace Botanik { namespace Network {
     }  // namespace
 
     void MqttSender::_publish_base(const SystemContext* sys) {
-        char payload[64];
+        char payload[Config::MQTT_PAYLOAD_LEN];
         if (fmt_uptime(payload, sizeof(payload), (void*)sys))
             _emit("system", "uptime_s", payload);
         for (const SchedField& f : SCHED)
@@ -94,7 +94,7 @@ namespace Botanik { namespace Network {
 
     void MqttSender::_publish_scalars() {
         if (_io == nullptr) { _cursor = SWEEP_IDLE; return; }
-        char payload[64];
+        char payload[Config::MQTT_PAYLOAD_LEN];
         // Straight down the variable table: what gets published is a property of
         // the row (its scope), and its sub-topic is the prefix of its name. No
         // site table selects them, so a new variable is on the broker as soon as
@@ -122,7 +122,7 @@ namespace Botanik { namespace Network {
     }
 
     void MqttSender::_emit(const char* group, const char* name, const char* payload) {
-        char topic[96];
+        char topic[Config::MQTT_TOPIC_LEN];
         int n = group != nullptr
             ? snprintf(topic, sizeof(topic), "%s/%s/%s/%s",
                        _prefix, Config::MQTT_TELEMETRY_TOPIC, group, name)

@@ -199,11 +199,11 @@ namespace Botanik { namespace Network {
     }
 
     void MqttClient::_service(uint64_t now_ms) {
-        // Bounded: we only ever expect CONNACK (4 B) and PINGRESP (2 B), so 8 x 32 B
-        // is ample headroom, and a broker spewing bytes cannot stall the beat. Any
-        // remainder drains next beat.
+        // Bounded: we only ever expect CONNACK (4 B) and PINGRESP (2 B), so
+        // MQTT_RX_PER_STEP x 32 B is ample headroom, and a broker spewing bytes
+        // cannot stall the beat. Any remainder drains next beat.
         uint8_t scratch[32];
-        for (uint8_t i = 0; i < 8; ++i) {
+        for (uint8_t i = 0; i < Config::MQTT_RX_PER_STEP; ++i) {
             int r = HAL::Network::tcp_recv(_sock, scratch, sizeof(scratch));
             if (r == 0) break;           // would-block: drained
             if (r < 0) { _fail(now_ms); return; }   // closed/error
