@@ -9,6 +9,7 @@
 #include <cstring>
 
 #include "../../libbotanik_config.h"
+#include "../../libbotanik_features.h"
 #include "../alarms/alarms.h"
 #include "../hal/platform.h"
 #include "../hal/storage.h"
@@ -94,6 +95,7 @@ namespace Botanik { namespace Shell {
             { "control",    "[enable|disable] drive the field", &CommandShell::_cmd_control   },
             { "loglevel",   "[debug|info|..|critical] filter",&CommandShell::_cmd_loglevel   },
             { "version",    "firmware version",               &CommandShell::_cmd_version    },
+            { "features",   "which subsystems are built in",  &CommandShell::_cmd_features   },
             { "breakpoint", "trap into an attached debugger", &CommandShell::_cmd_breakpoint },
             { "reset",      "reboot the controller",          &CommandShell::_cmd_reset      },
             { "exit",       "quit (sim) / reboot (hw)",       &CommandShell::_cmd_exit       },
@@ -253,6 +255,44 @@ namespace Botanik { namespace Shell {
         _emitf(out, sizeof(out), "Botanik %s (%s) site %s on %s",
                Config::FIRMWARE_VERSION, BOTANIK_GIT_HASH,
                Config::SITE_NAME, HAL::hardware_description());
+    }
+    void CommandShell::_cmd_features(const char*, uint16_t) {
+        // What this binary IS, not anything it can be told to become: the flags
+        // are compile-time, so there is no argument form and nothing to set. It
+        // answers the question `version` cannot - two units on the same firmware
+        // version can differ here, and an absent subsystem is otherwise
+        // indistinguishable from a broken one (no `net` output because MQTT was
+        // compiled out reads exactly like a broker that will not connect).
+        static const struct { const char* name; bool on; } FEATURES[] = {
+            { "console", BOTANIK_FEATURE_CONSOLE != 0 },
+            { "monitor", BOTANIK_FEATURE_MONITOR != 0 },
+            { "notes",   BOTANIK_FEATURE_NOTES   != 0 },
+            { "network", BOTANIK_FEATURE_NETWORK != 0 },
+            { "ntp",     BOTANIK_FEATURE_NTP     != 0 },
+            { "mqtt",    BOTANIK_FEATURE_MQTT    != 0 },
+            { "sun",     BOTANIK_FEATURE_SUN     != 0 },
+        };
+
+        // Partitioned rather than one line per flag: seven booleans is a glance,
+        // and every line costs the same 4800-baud budget the rest of the UI is
+        // fighting over.
+        char out[Config::LOG_FORMATTED_LEN];
+        for (uint8_t pass = 0; pass < 2; pass++) {
+            const bool want = (pass == 0);
+            char list[96];
+            size_t n = 0;
+            list[0] = '\0';
+            for (const auto& f : FEATURES) {
+                if (f.on != want) continue;
+                const int w = snprintf(list + n, sizeof(list) - n, "%s%s",
+                                       n != 0 ? " " : "", f.name);
+                if (w < 0) break;
+                n += (size_t)w;
+                if (n >= sizeof(list)) { n = sizeof(list) - 1; break; }
+            }
+            _emitf(out, sizeof(out), "%-3s : %s", want ? "on" : "off",
+                   n != 0 ? list : "(none)");
+        }
     }
 
     void CommandShell::_cmd_alarms(const char* args, uint16_t alen) {

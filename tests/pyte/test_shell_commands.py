@@ -102,3 +102,19 @@ def test_list_filters_by_prefix(spawn):
     # `get` is now strictly one variable; it points at `list` to browse.
     term.send(b"get" + keys.ENTER)
     assert term.wait_for("usage: get"), "bare get did not show usage"
+
+
+def test_features(spawn):
+    term = shell(spawn)
+
+    # The flags are compile-time, so this reports what the binary IS. It answers
+    # what `version` cannot: an absent subsystem is otherwise indistinguishable
+    # from a broken one over the terminal.
+    term.send(b"features" + keys.ENTER)
+
+    # The reference site turns the network group on in its own config.h, and
+    # leaves the standalone sun tracker off - so this asserts both partitions
+    # carry rows, not just that something printed.
+    assert term.wait_for("console"), "features did not list the console"
+    assert term.wait_for("mqtt"), "features did not list the site's network group"
+    assert term.wait_for("off : sun"), "sun is off by default and must say so"

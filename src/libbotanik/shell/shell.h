@@ -223,6 +223,7 @@ namespace Botanik { namespace Shell {
         void _cmd_exit(const char* args, uint16_t alen);
         void _cmd_stats(const char* args, uint16_t alen);
         void _cmd_version(const char* args, uint16_t alen);
+        void _cmd_features(const char* args, uint16_t alen);
         void _cmd_alarms(const char* args, uint16_t alen);
         void _cmd_net(const char* args, uint16_t alen);
         void _cmd_ntpsync(const char* args, uint16_t alen);
