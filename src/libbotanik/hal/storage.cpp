@@ -9,7 +9,7 @@
 
 #include <cstring>                                  // memcpy / memcmp / strlen
 
-#include "libbotanik_config.h"                      // Config::STORE_MAX_BYTES
+#include "libbotanik/config/simulator.h"  // Config::STORE_MAX_BYTES
 
 namespace Botanik { namespace HAL { namespace Storage {
 

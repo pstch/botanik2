@@ -23,7 +23,8 @@
 #include <cstdio>                           // snprintf
 #include <cstring>                          // std::memset
 
-#include "libbotanik_config.h"              // Config::ALARM_*
+#include "libbotanik/config/alarms.h"     // Config::ALARM_* / HEALTH_*
+#include "libbotanik/config/net.h"        // Config::NET_* / DNS_* / NTP_* / MQTT_*
 
 #include "libbotanik/alarms/publisher.h"    // Alarms::Publisher
 #include "libbotanik/core/component.h"      // Component

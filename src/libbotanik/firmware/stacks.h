@@ -19,7 +19,7 @@
 
 #include <cstdint>                          // uint8_t/uint32_t
 
-#include "libbotanik_config.h"              // the BOTANIK_FEATURE_* gates below
+#include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
 
 #include "libbotanik/alarms/alarms.h"       // Alarms::AlarmController
 #include "libbotanik/logs/logger.h"         // Logs::Logger

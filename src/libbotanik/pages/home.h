@@ -22,7 +22,9 @@
 #include <cstdio>                           // snprintf
 #include <cstring>                          // memset / strcmp / strlen
 
-#include "libbotanik_config.h"              // Config::SITE_NAME / FIRMWARE_VERSION
+#include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
+#include "libbotanik/config/vars.h"       // Config::VAR_* / STR_*
 
 #include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
 #include "libbotanik/logs/format.h"         // Logs::format_log_entry

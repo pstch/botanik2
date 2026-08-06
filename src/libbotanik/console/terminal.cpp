@@ -13,7 +13,7 @@
 #include <cstdint>                          // uint8_t/uint16_t/uint32_t
 #include <cstring>                          // memcmp
 
-#include "libbotanik_config.h"              // Config::SCREEN_*
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
 #include "libbotanik/console/ansi.h"        // Terminal::Ansi
 #include "libbotanik/hal/platform.h"        // HAL::Env::u8

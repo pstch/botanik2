@@ -33,7 +33,8 @@
 #include <cstdio>                           // snprintf
 #include <cstring>                          // strcmp
 
-#include "libbotanik_config.h"              // BOTANIK_FEATURE_TASKS_PAGE
+#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
 #include "libbotanik/console/console.h"     // Console::rows / terminal
 #include "libbotanik/console/terminal.h"    // AnsiTerminal

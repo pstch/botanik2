@@ -8,7 +8,7 @@
 #include <algorithm>                // std::min
 #include <cstring>                  // memcpy / strlen
 
-#include "libbotanik_config.h"      // Config::SCREEN_COLS
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
 #include "libbotanik/logs/format.h" // Logs::format_log_entry
 #include "libbotanik/utils/text.h"  // Utils::scan_line_segment

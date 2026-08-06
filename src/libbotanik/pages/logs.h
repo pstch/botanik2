@@ -8,7 +8,7 @@
  *        scrollback.
  */
 
-#include "libbotanik_config.h"              // BOTANIK_FEATURE_LOGS_PAGE
+#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
 
 #include "libbotanik/console/console.h"     // Console::rows / terminal
 #include "libbotanik/console/terminal.h"    // AnsiTerminal

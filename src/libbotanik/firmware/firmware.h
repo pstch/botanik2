@@ -77,7 +77,10 @@
 
 #include <cstdint>                          // uint8_t/uint32_t/uint64_t
 
-#include "libbotanik_config.h"              // the BOTANIK_FEATURE_* gates below, and Config::*
+#include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
+#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
+#include "libbotanik/config/serial.h"     // Config::SERIAL_* / *_BAUD
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
 #include "libbotanik/alarms/alarms.h"       // AlarmCondition
 #include "libbotanik/alarms/publisher.h"    // Alarms::Publisher

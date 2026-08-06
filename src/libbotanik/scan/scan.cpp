@@ -5,7 +5,7 @@
 
 #include "libbotanik/scan/scan.h"       // Scan::Driver
 
-#include "libbotanik_config.h"          // Config::SCAN_STAGGER_MS
+#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
 
 #include "libbotanik/hal/platform.h"    // HAL::Clock
 

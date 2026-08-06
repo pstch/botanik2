@@ -5,7 +5,7 @@
 
 #include "libbotanik/plc/blocks/logic.h"    // RTrig / FTrig / Sr / Rs / Interlock
 
-#include "libbotanik_config.h"              // BOTANIK_FEATURE_PLC_BLK_*
+#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {

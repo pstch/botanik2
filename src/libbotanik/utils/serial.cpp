@@ -8,7 +8,7 @@
 
 #include <cstdint>                      // UINT32_MAX and the fixed-width ring counters
 
-#include "libbotanik_config.h"          // Config::SERIAL_*
+#include "libbotanik/config/serial.h"     // Config::SERIAL_* / *_BAUD
 
 namespace Botanik { namespace Utils {
 

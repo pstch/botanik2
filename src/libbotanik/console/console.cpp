@@ -7,7 +7,8 @@
 
 #include <cstdint>                      // int8_t/uint16_t/uint64_t
 
-#include "libbotanik_config.h"          // Config::SCREEN_* / PAGE_MAX
+#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
 #include "libbotanik/hal/platform.h"    // HAL::System::shutdown
 

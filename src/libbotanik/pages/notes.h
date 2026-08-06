@@ -11,7 +11,8 @@
 #include <cstdio>                           // snprintf
 #include <cstring>                          // strlen
 
-#include "libbotanik_config.h"              // Config::NOTES_*
+#include "libbotanik/config/simulator.h"  // Config::STORE_MAX_BYTES
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 #include "libbotanik_features.h"            // BOTANIK_FEATURE_NOTES_PAGE
 
 #if BOTANIK_FEATURE_NOTES_PAGE
@@ -24,6 +25,16 @@
 #include "libbotanik/pages/page.h"          // Pages::Page
 
 namespace Botanik { namespace Pages {
+
+#ifdef TARGET_SIMULATOR
+    // The note is the largest single value the store ever holds, and the sim
+    // backend keeps every key in one hex-encoded file - so the cap has to clear
+    // twice NOTES_LEN plus room for the parameters. Asserted here rather than in
+    // the config: it relates two different concerns (the store's size and this
+    // page's buffer), and this page is the reason the constraint exists.
+    static_assert(2 * (uint32_t)Config::NOTES_LEN + 1024 <= Config::STORE_MAX_BYTES,
+                  "STORE_MAX_BYTES too small for a hex-encoded NOTES_LEN plus the parameters");
+#endif
 
     /**
      * @brief Free-text notes the operator keeps on the panel.

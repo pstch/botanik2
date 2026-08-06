@@ -15,7 +15,7 @@
 #include <cstdarg>                      // va_list
 #include <cstdint>                      // uint8_t/uint16_t/uint32_t
 
-#include "libbotanik_config.h"          // Config::LOG_RATE_*
+#include "libbotanik/config/logging.h"    // Config::LOG_*
 
 #include "libbotanik/core/component.h"  // Component
 #include "libbotanik/logs/entry.h"      // Logs::LogEntry

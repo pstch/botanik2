@@ -10,7 +10,10 @@
 #include <cstdio>                           // snprintf / vsnprintf
 #include <cstring>                          // strlen / strncmp / memcpy / memcmp
 
-#include "libbotanik_config.h"              // Config::*
+#include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
+#include "libbotanik/config/logging.h"    // Config::LOG_*
+#include "libbotanik/config/net.h"        // Config::NET_* / DNS_* / NTP_* / MQTT_*
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 #include "libbotanik_features.h"            // BOTANIK_FEATURE_LIST
 
 #include "libbotanik/alarms/alarms.h"       // Alarms::AlarmController

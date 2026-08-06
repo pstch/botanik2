@@ -10,7 +10,7 @@
 #include <cstdint>                          // uint8_t/uint16_t/uint64_t
 #include <cstdio>                           // snprintf
 
-#include "libbotanik_config.h"              // Config::SCREEN_COLS
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
 #include "libbotanik/console/console.h"     // Console::active_page / page_name / context
 #include "libbotanik/console/terminal.h"    // AnsiTerminal

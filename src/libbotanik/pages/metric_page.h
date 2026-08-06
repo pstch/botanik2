@@ -24,7 +24,7 @@
 #include <cstdio>                           // snprintf
 #include <cstring>                          // memcpy / memset / strlen
 
-#include "libbotanik_config.h"              // Config::METRIC_*
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
 #include "libbotanik/console/console.h"     // Console::rows / terminal
 #include "libbotanik/console/field.h"       // Terminal::Field

@@ -33,7 +33,7 @@
 #include <cstdio>                           // snprintf
 #include <cstring>                          // strcmp / strncpy
 
-#include "libbotanik_config.h"              // BOTANIK_FEATURE_MONITOR_PAGE
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
 #include "libbotanik/console/console.h"     // Console::rows / terminal
 #include "libbotanik/console/terminal.h"    // AnsiTerminal

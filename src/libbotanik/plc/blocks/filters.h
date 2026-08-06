@@ -13,7 +13,7 @@
 
 #include <cstdint>              // uint8_t/uint32_t
 
-#include "libbotanik_config.h"  // BOTANIK_FEATURE_PLC_BLK_FILTERS
+#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
 #if BOTANIK_FEATURE_PLC_BLK_FILTERS
 
 namespace Botanik { namespace Plc {

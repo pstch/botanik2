@@ -33,7 +33,7 @@
 #include <sys/socket.h>                 // socket / bind / recvfrom / sendto
 #include <unistd.h>                     // close
 
-#include "libbotanik_config.h"          // Config::NET_*
+#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
 
 #include "libbotanik/hal/net.h"         // HAL::Network::NTP_MOCK_PORT / MQTT_MOCK_PORT
 #include "libbotanik/hal/platform.h"    // HAL::Clock::sleep_ms / HAL::Memory::dsb

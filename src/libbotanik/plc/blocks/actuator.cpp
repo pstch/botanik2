@@ -5,7 +5,7 @@
 
 #include "libbotanik/plc/blocks/actuator.h" // Actuator
 
-#include "libbotanik_config.h"              // BOTANIK_FEATURE_PLC_BLK_*
+#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
 
 #include "libbotanik/plc/functions/math.h"  // Plc::limit
 #include "libbotanik/plc/functions/time.h"  // Plc::countdown

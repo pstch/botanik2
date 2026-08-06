@@ -24,7 +24,7 @@
 
 #include <cstdint>                              // uint8_t/uint32_t/uint64_t
 
-#include "libbotanik_config.h"                  // Config::TASK_MAX / GROUP_*_MS
+#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
 
 #include "libbotanik/tasks/task_timer.h"    // Tasks::TaskTimer
 

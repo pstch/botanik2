@@ -19,7 +19,8 @@
 
 #include <cstdint>                      // uint16_t/uint64_t
 
-#include "libbotanik_config.h"          // Config::MQTT_TOPIC_PREFIX
+#include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
+#include "libbotanik/config/net.h"        // Config::NET_* / DNS_* / NTP_* / MQTT_*
 
 #include "libbotanik/core/context.h"    // SystemContext
 #include "libbotanik/network/mqtt.h"    // Network::MqttClient

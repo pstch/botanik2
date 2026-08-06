@@ -34,7 +34,8 @@
 #include <cstdint>                          // uint8_t/uint16_t/uint64_t
 #include <cstdio>                           // snprintf
 
-#include "libbotanik_config.h"              // BOTANIK_FEATURE_ALARMS_PAGE
+#include "libbotanik/config/alarms.h"     // Config::ALARM_* / HEALTH_*
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
 #include "libbotanik/alarms/alarms.h"       // Alarms::AlarmController / AlarmCondition
 #include "libbotanik/console/console.h"     // Console::rows / terminal

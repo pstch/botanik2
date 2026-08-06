@@ -8,7 +8,7 @@
 
 #include <cstdint>                      // uint8_t/uint64_t/uintptr_t
 
-#include "libbotanik_config.h"          // Config::LOOP_*
+#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
 
 #include "libbotanik/hal/platform.h"    // HAL::Clock::sleep_ms / uptime_us
 #include "libbotanik/utils/filters.h"   // Utils::ExpMovingAverage / WindowedMax

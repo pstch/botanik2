@@ -22,7 +22,8 @@
 #include <cstdint>                          // uint16_t/uint32_t/uint64_t
 #include <cstdio>                           // snprintf
 
-#include "libbotanik_config.h"              // Config::*
+#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 #include "libbotanik_features.h"            // BOTANIK_FEATURE_NETWORK / NTP / MQTT
 
 #include "libbotanik/core/context.h"        // SystemContext

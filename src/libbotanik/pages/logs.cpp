@@ -9,7 +9,7 @@
 #include <cstdio>                       // snprintf
 #include <cstring>                      // strlen
 
-#include "libbotanik_config.h"          // Config::SCREEN_COLS
+#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
 
 #include "libbotanik/hal/platform.h"    // HAL::Clock::uptime_ms
 #include "libbotanik/logs/format.h"     // Logs::format_log_entry

@@ -10,7 +10,7 @@
 
 #include <cstdint>                      // uint8_t/uint16_t
 
-#include "libbotanik_config.h"          // Config::TERMINAL_TYPE
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
 #include "libbotanik/utils/byte_sink.h" // Utils::ByteSink
 

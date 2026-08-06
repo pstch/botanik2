@@ -17,13 +17,22 @@
 
 #include <cstddef>                      // size_t
 
-#include "libbotanik_config.h"          // Config::MQTT_TOPIC_PREFIX / LOG_TOPIC
+#include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
+#include "libbotanik/config/net.h"        // Config::NET_* / DNS_* / NTP_* / MQTT_*
 
+#include "libbotanik/config/logging.h"    // Config::LOG_MESSAGE_LEN
 #include "libbotanik/logs/topics.h"     // Logs::LogLevel / LogTopic
 #include "libbotanik/logs/writer.h"     // Logs::LogWriter
 #include "libbotanik/network/mqtt.h"    // Network::MqttClient
 
 namespace Botanik { namespace Network {
+
+    // This writer is what puts a log line on an MQTT topic, so it is where the
+    // two bounds have to agree. Asserted here rather than in either config
+    // header: neither concern owns the constraint on its own.
+    static_assert(Config::MQTT_TX_BUF >=
+                      Config::MQTT_TOPIC_LEN + Config::LOG_MESSAGE_LEN + 32,
+                  "MQTT_TX_BUF cannot carry a full log line under the longest topic");
 
     /** @brief LogWriter that publishes entries to the MQTT broker (see file
      *  header). Bind the transport with set_publisher() once the client exists
