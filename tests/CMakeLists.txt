@@ -33,6 +33,7 @@ add_executable(botanik_tests
     test_editor_bytes.cpp
     test_filters.cpp
     test_line_buffer.cpp
+    test_scrollback.cpp
     test_parser.cpp
     test_shell.cpp
     test_serial.cpp

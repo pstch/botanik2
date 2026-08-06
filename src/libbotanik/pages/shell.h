@@ -130,6 +130,20 @@ namespace Botanik { namespace Pages {
         /** @brief Repaint the whole page (header, log area, editor). */
         void _full_redraw();
 
+        /** @brief Rows the transcript window spans: the content area less the
+         *  editor's, so the scroll band never reaches the prompt. It moves as
+         *  the prompt grows, hence a call and not a member. */
+        uint16_t _log_rows() const;
+
+        /** @brief Return the transcript to the live bottom; no-op unless
+         *  scrolled back. Every key but PAGE_UP/PAGE_DOWN does this, the way a
+         *  Linux terminal's scroll-on-keystroke does - and it is what keeps the
+         *  frozen view honest: the editor moves the log band without telling
+         *  the scrollback (line_feed() on submit, the band shift when the
+         *  prompt shrinks), so anything editing the line must land at the
+         *  bottom first. */
+        void _follow_tail();
+
         /** @brief Snapshot the current line into @p line, echo it to history and
          *  reset to a fresh prompt. @return the line length. Shared by submit and
          *  cancel. */
