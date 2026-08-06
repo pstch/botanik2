@@ -83,7 +83,7 @@
 #include "libbotanik/firmware/stacks.h"     // Monitor/Console/NetworkStack
 #include "libbotanik/health/health.h"   // Health::HealthMonitor
 #include "libbotanik/plc/program.h"     // Plc::Program
-#include "libbotanik/scheduler/tasks.h" // Scheduler::Registry / GroupId / Phase
+#include "libbotanik/tasks/tasks.h" // Tasks::Registry / GroupId / Phase
 #include "libbotanik/shell/shell.h"     // Shell::ShellCommand
 #include "libbotanik/utils/assert.h"    // set_assert_logger
 #include "libbotanik/vars/access.h"     // Vars::HomeVar
@@ -198,7 +198,7 @@ namespace Botanik {
         bool                           _health_fault = false;
         /** @brief The beat's task table: what runs, how often, and in which
          *  phase. Filled by _register_tasks() during setup(); frozen after. */
-        Scheduler::Registry            _tasks;
+        Tasks::Registry            _tasks;
         Health::HealthMonitor          _health;
         SystemContext                  _sys_ctx;     ///< Filled in the ctor body
 #if BOTANIK_FEATURE_LOGS_MONITOR
@@ -453,7 +453,7 @@ namespace Botanik {
          *  Every entry is named, because the TASKS page and the `stats` command
          *  report per-task cost and an unnamed row is not a diagnosis. */
         void _register_tasks() {
-            using namespace Scheduler;
+            using namespace Tasks;
 
             // --- INPUT: fresh bytes and fresh field, before anything reads ---
 #if BOTANIK_FEATURE_CONSOLE
@@ -621,7 +621,7 @@ namespace Botanik {
 
     public:
         /** @brief The task table, for the TASKS page and the `stats` command. */
-        const Scheduler::Registry& tasks() const { return _tasks; }
+        const Tasks::Registry& tasks() const { return _tasks; }
 
         /** @brief One main-loop iteration. tick() gates a beat and republishes
          *  the display "now" (`SchedulerContext::timestamp_ms`) the render path
@@ -644,12 +644,12 @@ namespace Botanik {
             // Phase-major dispatch: each phase runs the tasks registered to
             // it whose group has come due. The order of these calls IS the data
             // flow, and it is the part that must not become configurable.
-            _tasks.run_phase(Scheduler::PHASE_INPUT,   now_ms);
-            _tasks.run_phase(Scheduler::PHASE_CONFIG,  now_ms);
-            _tasks.run_phase(Scheduler::PHASE_SERVICE, now_ms);
-            _tasks.run_phase(Scheduler::PHASE_EXECUTE, now_ms);
-            _tasks.run_phase(Scheduler::PHASE_OUTPUT,  now_ms);
-            _tasks.run_phase(Scheduler::PHASE_PRESENT, now_ms);
+            _tasks.run_phase(Tasks::PHASE_INPUT,   now_ms);
+            _tasks.run_phase(Tasks::PHASE_CONFIG,  now_ms);
+            _tasks.run_phase(Tasks::PHASE_SERVICE, now_ms);
+            _tasks.run_phase(Tasks::PHASE_EXECUTE, now_ms);
+            _tasks.run_phase(Tasks::PHASE_OUTPUT,  now_ms);
+            _tasks.run_phase(Tasks::PHASE_PRESENT, now_ms);
 
             // Kick while healthy; HealthMonitor is what decides that (see
             // health/health.h). Withholding the kick means we have chosen to let

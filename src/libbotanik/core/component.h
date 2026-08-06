@@ -36,7 +36,7 @@
 
 #include <cstdint>                              // uint16_t/uint32_t/uint64_t
 
-#include "libbotanik/scheduler/task_timer.h"    // Scheduler::TaskTimer
+#include "libbotanik/tasks/task_timer.h"    // Tasks::TaskTimer
 
 // Forward-declared, NOT included: keeps Component free of the Logger include so
 // Logger itself can derive it (the body of announce() lives in component.cpp).
@@ -65,7 +65,7 @@ namespace Botanik {
         /** @brief Run interval in ms; 0 (the default) means every beat, so a
          *  component that never calls set_period() behaves exactly as before. */
         uint32_t             _period_ms = 0;
-        Scheduler::TaskTimer _timer;              ///< the due/late/dropped rule
+        Tasks::TaskTimer _timer;              ///< the due/late/dropped rule
         uint32_t             _dt_ms  = 0;         ///< real ms since the last run
         uint16_t             _missed = 0;         ///< activations dropped
 
@@ -88,7 +88,7 @@ namespace Botanik {
          *  the moment its period moves. */
         uint32_t dt_ms() const { return _dt_ms; }
         /** @brief Activations dropped since the last run; 0 normally. Late runs
-         *  happen ONCE - see Scheduler::TaskTimer. */
+         *  happen ONCE - see Tasks::TaskTimer. */
         uint16_t missed() const { return _missed; }
 
         /** @name Wiring (accessible to the derived component)
@@ -134,7 +134,7 @@ namespace Botanik {
          *  For a gap the caller deliberately did not step it across: the scan
          *  cycle does this to every control program when control authority
          *  returns, since handing one the whole outage as dt fires every timer
-         *  it holds. Does not count as a run - see Scheduler::TaskTimer. */
+         *  it holds. Does not count as a run - see Tasks::TaskTimer. */
         void reseed(uint64_t now_ms) { _timer.reseed(now_ms); }
 
         /** @brief Run this component's one-time init: on_setup() then

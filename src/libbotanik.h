@@ -34,7 +34,7 @@
 #include "libbotanik/plc/functions/functions.h" // the stateless POU vocabulary
 #include "libbotanik/scan/scan.h"               // Scan::Driver
 #include "libbotanik/scheduler/scheduler.h"     // LoopScheduler + SchedulerContext
-#include "libbotanik/scheduler/task_timer.h"    // TaskTimer
+#include "libbotanik/tasks/task_timer.h"    // TaskTimer
 #include "libbotanik/shell/shell.h"             // CommandShell + ShellCommand (the site's command table)
 #include "libbotanik/utils/serial.h"            // BufferedSerial
 #include "libbotanik/utils/time.h"              // CalendarTime + the uptime/wall conversions

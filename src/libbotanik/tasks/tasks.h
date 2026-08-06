@@ -1,5 +1,5 @@
-#ifndef SCHEDULER_TASKS_H
-#define SCHEDULER_TASKS_H
+#ifndef TASKS_TASKS_H
+#define TASKS_TASKS_H
 
 /**
  * @file tasks.h
@@ -26,9 +26,9 @@
 
 #include "libbotanik_config.h"                  // Config::TASK_MAX / GROUP_*_MS
 
-#include "libbotanik/scheduler/task_timer.h"    // Scheduler::TaskTimer
+#include "libbotanik/tasks/task_timer.h"    // Tasks::TaskTimer
 
-namespace Botanik { namespace Scheduler {
+namespace Botanik { namespace Tasks {
 
     /** @brief Rate classes. A task names one instead of carrying a raw period,
      *  so a rate is retuned in one place for everything that shares it. */
@@ -195,6 +195,6 @@ namespace Botanik { namespace Scheduler {
         /** @} */
     };
 
-}}  // namespace Botanik::Scheduler
+}}  // namespace Botanik::Tasks
 
-#endif // SCHEDULER_TASKS_H
+#endif // TASKS_TASKS_H

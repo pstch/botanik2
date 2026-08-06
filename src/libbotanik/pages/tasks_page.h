@@ -5,7 +5,7 @@
  * @file tasks_page.h
  * @brief TasksPage - the beat, as a table: what runs, how often, and what it costs.
  *
- * The scheduler self-instruments per task (Scheduler::TaskCost), and until this
+ * The scheduler self-instruments per task (Tasks::TaskCost), and until this
  * page there was nowhere to read it: `stats` reports the whole beat's CPU with no
  * attribution, so "which task blew the budget" had no answer. That is the
  * question this page exists for.
@@ -39,7 +39,7 @@
 #include "libbotanik/console/terminal.h"    // AnsiTerminal
 #include "libbotanik/pages/page.h"          // Pages::Page
 #include "libbotanik/pages/scroll_table.h"  // Pages::ScrollTablePage
-#include "libbotanik/scheduler/tasks.h"     // Scheduler::Registry / Task / TaskCost
+#include "libbotanik/tasks/tasks.h"     // Tasks::Registry / Task / TaskCost
 #include "libbotanik/utils/text.h"          // Utils::format_int / format_float
 
 namespace Botanik { namespace Pages {
@@ -82,7 +82,7 @@ namespace Botanik { namespace Pages {
          *  @{ */
         Console&                     _console;
         /** @brief Borrowed; the firmware owns it and it outlives the page. */
-        const Scheduler::Registry&   _reg;
+        const Tasks::Registry&   _reg;
         bool                         _dirty = true;
         uint64_t                     _last_refresh_ms = 0;
         /** @brief Row order: task indices sorted by name.
@@ -99,7 +99,7 @@ namespace Botanik { namespace Pages {
     public:
         /** @param console owns the content geometry; @p reg is the task table the
          *  page reads. Both outlive the page (the firmware owns them). */
-        TasksPage(Console& console, const Scheduler::Registry& reg)
+        TasksPage(Console& console, const Tasks::Registry& reg)
             : ScrollTablePage(console.terminal()), _console(console), _reg(reg) {}
 
         const char* name() const override { return "TASKS"; }
@@ -176,7 +176,7 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief The task shown on display row @p r. */
-        const Scheduler::Task& _row(uint16_t r) const {
+        const Tasks::Task& _row(uint16_t r) const {
             _ensure_order();
             return _reg.task(_order[r < _order_n ? r : 0]);
         }
@@ -229,26 +229,26 @@ namespace Botanik { namespace Pages {
         /** @brief The group's period as text. Four compile-time constants, so
          *  they are rendered once into a small cache rather than through an
          *  snprintf per row per refresh. */
-        static const char* _period_str(Scheduler::GroupId g) {
-            static char buf[Scheduler::GROUP_COUNT][8];
+        static const char* _period_str(Tasks::GroupId g) {
+            static char buf[Tasks::GROUP_COUNT][8];
             static bool built = false;
             if (!built) {
                 built = true;
-                for (uint8_t i = 0; i < Scheduler::GROUP_COUNT; i++)
+                for (uint8_t i = 0; i < Tasks::GROUP_COUNT; i++)
                     Utils::format_int(buf[i], sizeof(buf[i]),
-                                      (long long)Scheduler::group_period_ms((Scheduler::GroupId)i));
+                                      (long long)Tasks::group_period_ms((Tasks::GroupId)i));
             }
-            return (g < Scheduler::GROUP_COUNT) ? buf[g] : "";
+            return (g < Tasks::GROUP_COUNT) ? buf[g] : "";
         }
 
         void _draw_row(uint16_t idx, uint16_t row, bool selected) {
-            const Scheduler::Task& t = _row(idx);
+            const Tasks::Task& t = _row(idx);
             char mean[CELL_CAP], peak[CELL_CAP], line[LINE_CAP];
             const char* cells[6] = {
                 t.name != nullptr ? t.name : "",
-                Scheduler::group_name(t.group),
+                Tasks::group_name(t.group),
                 _period_str(t.group),
-                Scheduler::phase_name(t.phase),
+                Tasks::phase_name(t.phase),
                 _us(mean, sizeof(mean), t.cost.us_mean(), t.cost.runs),
                 _us(peak, sizeof(peak), t.cost.us_max,  t.cost.runs),
             };
@@ -275,12 +275,12 @@ namespace Botanik { namespace Pages {
                 for (uint16_t i = 2; i < PANEL_H; i++) _blank_line((uint16_t)(r + i));
                 return;
             }
-            const Scheduler::Task& t = _row(_selected);
+            const Tasks::Task& t = _row(_selected);
             char last[CELL_CAP], runs[CELL_CAP], duty[24];
             _us(last, sizeof(last), t.cost.us_last, t.cost.runs);
             Utils::format_int(runs, sizeof(runs), (long long)t.cost.runs);
 
-            const uint32_t period = Scheduler::group_period_ms(t.group);
+            const uint32_t period = Tasks::group_period_ms(t.group);
             const char* duty_s = "-";
             if (t.cost.runs != 0 && period != 0) {
                 // us_mean/period_ms IS per-mille of the period - the us/ms ratio

@@ -29,7 +29,7 @@ Under `src/libbotanik/`:
 |---|---|---|
 | `hal/` | the platform interface: clock, memory ordering, stack, watchdog, serial, storage, network transport. `simulator.h` and `opta.h` implement it | @ref dev_porting |
 | `core/` | `BotanikFirmware`, `Component`, `SystemContext`, the feature-gated stacks | this page |
-| `scheduler/` | `LoopScheduler`, the fixed-period driver and its self-instrumentation, plus the `Scheduler::Registry` the beat is dispatched from and its per-task cost sampling | @ref dev_scheduler |
+| `scheduler/` | `LoopScheduler`, the fixed-period driver and its self-instrumentation, plus the `Tasks::Registry` the beat is dispatched from and its per-task cost sampling | @ref dev_scheduler |
 | `vars/` | the variable model: descriptors, value slots, `Bank`, parameters | @ref dev_vars |
 | `scan/` | `Scan::Driver`: which control program is due, and running it | @ref int_tasks |
 | `plc/` | the POU library the programs are written in: `functions/` (stateless) and `blocks/` (stateful) | @ref int_tasks |
@@ -83,7 +83,7 @@ a boot overrun against a 10 ms budget.
 
 `loop()` is non-virtual, so the order cannot drift between targets. It is not a list
 of calls any more but a **phase-major dispatch** over a task table
-(`scheduler/tasks.h`, registered once in `_register_tasks()`):
+(`tasks/tasks.h`, registered once in `_register_tasks()`):
 
 ```
 tick()                          gate the beat; republish the render clock

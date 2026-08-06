@@ -19,7 +19,7 @@ namespace Botanik { namespace Scan {
             if (p == nullptr) continue;
 
             p->attach(*_io, _logger);
-            p->set_offset(Scheduler::stagger_offset(i, Config::SCAN_STAGGER_MS,
+            p->set_offset(Tasks::stagger_offset(i, Config::SCAN_STAGGER_MS,
                                                     p->period_ms()));
             // Resolve its names now rather than letting step() do it lazily on
             // the first beat: this runs inside BotanikFirmware::setup(), before
