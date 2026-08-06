@@ -23,6 +23,25 @@
  * moment control was withdrawn - which is the one outcome the safe state exists
  * to prevent.
  *
+ * @section cl_dead What a silent device costs, and what is done about it
+ *
+ * A device that is unplugged answers nothing, and the transaction it was asked
+ * for costs a full response timeout. Left alone, that is paid on EVERY sweep:
+ * three dead slaves at a 300 ms timeout burn 2.7 s against a 555 ms budget for
+ * the whole plant (docs/design/modbus-budget.md), so the live devices lose their
+ * rates to the dead ones. This is what actually takes a field bus down - well
+ * ahead of register counts.
+ *
+ * So each device carries its own health: consecutive failures, and the earliest
+ * time it may be spoken to again. One immediate retry (weather), then backoff
+ * doubling from MODBUS_BACKOFF_MS to MODBUS_BACKOFF_MAX_MS, and `_pick()` simply
+ * does not offer the bus to a device that is not due. The rest of the plan keeps
+ * running at its own rates throughout.
+ *
+ * A REFUSAL clears the count. An exception response means the device heard us,
+ * understood us and declined - it is alive, and its register map is the problem.
+ * Treating that as silence would back off a device that is answering perfectly.
+ *
  * @section cl_frame A frame goes out whole or not at all
  *
  * The driver enable is hardware-timed: the USART drops DE when its shift
@@ -45,6 +64,7 @@
 #include "libbotanik/modbus/rtu/framing.h"
 #include "libbotanik/modbus/rtu/image.h"
 #include "libbotanik/modbus/rtu/plan.h"
+#include "libbotanik/vars/model.h"       // Vars::VarRef - the alarm and status rows, bound by name
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
@@ -81,6 +101,22 @@ namespace Botanik { namespace Modbus {
 
         /** @brief Which block is in flight, or NO_BLOCK. */
         uint16_t            _active = NO_BLOCK;
+
+        /** @brief One device's health. Populated from the plan at bring-up, so
+         *  there is no entry for a unit the plan never talks to. */
+        struct Peer {
+            uint8_t  unit     = 0;
+            uint8_t  misses   = 0;   ///< consecutive failures; 0 = answering
+            uint64_t probe_ms = 0;   ///< do not speak to it before this
+        };
+        Peer     _peer[Config::MODBUS_MAX_DEVICES];
+        uint8_t  _peer_count = 0;
+        uint8_t  _dead       = 0;    ///< how many are in backoff right now
+        /** @brief The library's field-bus rows, resolved by name once at
+         *  bring-up - the same way HealthMonitor drives the platform alarms.
+         *  See modbus/rtu/alarms.h. */
+        Vars::VarRef _alarm_ref;
+        Vars::VarRef _dead_ref;
         uint64_t            _since_ms = 0;     ///< when the current state was entered
 
         /** @name Counters
@@ -133,6 +169,17 @@ namespace Botanik { namespace Modbus {
         uint32_t refusals() const  { return _refusals; }
         uint32_t tx_short() const  { return _tx_short; }
         const RtuFramer& framer() const { return _framer; }
+        /** @brief Devices in backoff right now, and how many are tracked. */
+        uint8_t dead_count() const  { return _dead; }
+        uint8_t peer_count() const  { return _peer_count; }
+        /** @brief Unit id of tracked device @p i, and whether it is answering.
+         *  For the shell: "which one" is the operator's next question. */
+        uint8_t peer_unit(uint8_t i) const {
+            return (i < _peer_count) ? _peer[i].unit : 0;
+        }
+        bool peer_dead(uint8_t i) const {
+            return (i < _peer_count) && _peer[i].misses > Config::MODBUS_RETRIES;
+        }
 
         /** @} */
 
@@ -161,6 +208,22 @@ namespace Botanik { namespace Modbus {
         bool _send();
         /** @brief A completed response: commit it, or count the refusal. */
         void _settle(uint64_t now_ms);
+
+        /** @name Device health
+         *  @{ */
+        /** @brief @p unit's entry, or null when the plan never talks to it. */
+        Peer* _peer_of(uint8_t unit);
+        const Peer* _peer_of(uint8_t unit) const;
+        /** @brief Whether @p unit may be spoken to now. An untracked unit may:
+         *  refusing would silently drop a block the planner asked for. */
+        bool _due(uint8_t unit, uint64_t now_ms) const;
+        /** @brief @p unit answered: clear its miss count. */
+        void _answered(uint8_t unit);
+        /** @brief @p unit did not: retry once, then back off, doubling. */
+        void _missed(uint8_t unit, uint64_t now_ms);
+        /** @brief Recount the dead and write the alarm and the status row. */
+        void _publish_health();
+        /** @} */
     };
 
 }}  // namespace Botanik::Modbus

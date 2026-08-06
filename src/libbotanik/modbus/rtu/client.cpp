@@ -23,6 +23,22 @@ void RtuClient::on_setup(uint64_t now_ms) {
     _plan.seed(now_ms);
     _enter(MB_IDLE, now_ms);
 
+    // One health entry per device the plan actually addresses - taken from the
+    // plan rather than from the table, so a row that was dropped cannot leave a
+    // device being watched that is never spoken to.
+    _peer_count = 0;
+    for (uint16_t i = 0; i < _plan.block_count(); ++i) {
+        const uint8_t unit = _plan.block(i).device;
+        if (_peer_of(unit) != nullptr) continue;
+        if (_peer_count >= Config::MODBUS_MAX_DEVICES) break;
+        _peer[_peer_count].unit = unit;
+        _peer_count++;
+    }
+    // Resolved once, by name, like every other consumer of the bank.
+    _alarm_ref = _io->find("alarm_fieldbus");
+    _dead_ref  = _io->find("sys_fieldbus_dead");
+    _publish_health();
+
     if (_logger == nullptr) return;
     _logger->info(Logs::SHARED_IO,
                   "modbus: %u rows -> %u blocks, %u%% of the bus at %u baud",
@@ -41,6 +57,73 @@ void RtuClient::on_setup(uint64_t now_ms) {
                           (unsigned)_plan.blocks_dropped());
 }
 
+RtuClient::Peer* RtuClient::_peer_of(uint8_t unit) {
+    for (uint8_t i = 0; i < _peer_count; ++i)
+        if (_peer[i].unit == unit) return &_peer[i];
+    return nullptr;
+}
+
+const RtuClient::Peer* RtuClient::_peer_of(uint8_t unit) const {
+    for (uint8_t i = 0; i < _peer_count; ++i)
+        if (_peer[i].unit == unit) return &_peer[i];
+    return nullptr;
+}
+
+bool RtuClient::_due(uint8_t unit, uint64_t now_ms) const {
+    const Peer* p = _peer_of(unit);
+    // An untracked unit is always due: the plan asked for it, and refusing here
+    // would drop a block silently rather than fail it visibly.
+    return (p == nullptr) || (now_ms >= p->probe_ms);
+}
+
+void RtuClient::_answered(uint8_t unit) {
+    Peer* p = _peer_of(unit);
+    if (p == nullptr || p->misses == 0) return;
+    if (p->misses > Config::MODBUS_RETRIES && _logger != nullptr)
+        _logger->notice(Logs::SHARED_IO, "modbus: dev %u answering again",
+                        (unsigned)unit);
+    p->misses   = 0;
+    p->probe_ms = 0;
+    _publish_health();
+}
+
+void RtuClient::_missed(uint8_t unit, uint64_t now_ms) {
+    Peer* p = _peer_of(unit);
+    if (p == nullptr) return;
+    if (p->misses < 255) p->misses++;
+    // The retries are free-running: until they are spent the device keeps its
+    // place in the rotation, because one lost frame is weather.
+    if (p->misses <= Config::MODBUS_RETRIES) return;
+
+    // Spent. Double from the base, capped - and shift by the number of backoffs
+    // already served, not by the miss count, so the first one is the base.
+    const uint8_t steps = (uint8_t)(p->misses - Config::MODBUS_RETRIES - 1);
+    uint32_t wait = Config::MODBUS_BACKOFF_MS;
+    for (uint8_t i = 0; i < steps && wait < Config::MODBUS_BACKOFF_MAX_MS; ++i)
+        wait *= 2;
+    if (wait > Config::MODBUS_BACKOFF_MAX_MS) wait = Config::MODBUS_BACKOFF_MAX_MS;
+    p->probe_ms = now_ms + wait;
+
+    // Once, on the way in. A device that is unplugged for a week must not be a
+    // log entry every 30 seconds.
+    if (p->misses == Config::MODBUS_RETRIES + 1 && _logger != nullptr)
+        _logger->error(Logs::SHARED_IO,
+                       "modbus: dev %u not answering, probing every %u ms",
+                       (unsigned)unit, (unsigned)wait);
+    _publish_health();
+}
+
+void RtuClient::_publish_health() {
+    _dead = 0;
+    for (uint8_t i = 0; i < _peer_count; ++i)
+        if (_peer[i].misses > Config::MODBUS_RETRIES) _dead++;
+    if (_io == nullptr) return;
+    // Written like any other driver writes a variable: the alarm model reads the
+    // boolean, and the status value is published to MQTT and the TCP slave.
+    _io->var(_alarm_ref).set(_dead != 0);
+    _io->var(_dead_ref).set_i((int64_t)_dead);
+}
+
 void RtuClient::_enter(State s, uint64_t now_ms) {
     _state    = s;
     _since_ms = now_ms;
@@ -53,6 +136,7 @@ uint16_t RtuClient::_pick(uint64_t now_ms) const {
     for (uint16_t i = 0; i < _plan.block_count(); ++i) {
         const Block& b = _plan.block(i);
         if (is_read(b.fc)) continue;
+        if (!_due(b.device, now_ms)) continue;
         const uint64_t since = now_ms - b.last_ms;
         if (since >= Config::MODBUS_REWRITE_MS) return i;
         if (since >= Config::MODBUS_WRITE_MIN_MS && block_dirty(*_io, _plan, b))
@@ -65,6 +149,7 @@ uint16_t RtuClient::_pick(uint64_t now_ms) const {
     for (uint16_t i = 0; i < _plan.block_count(); ++i) {
         const Block& b = _plan.block(i);
         if (!is_read(b.fc) || now_ms < b.due_ms) continue;
+        if (!_due(b.device, now_ms)) continue;
         const uint64_t late = now_ms - b.due_ms;
         if (best == NO_BLOCK || late > worst) { best = i; worst = late; }
     }
@@ -138,6 +223,8 @@ void RtuClient::on_step(uint64_t now_ms) {
             if (!_send()) {
                 _tx_short++;
                 _faults++;
+                _missed(_plan.block(pick).device, now_ms);
+                _active = NO_BLOCK;
                 _enter(MB_GAP, now_ms);
                 return;
             }
@@ -194,6 +281,10 @@ void RtuClient::receive_step(uint64_t now_ms) {
         _settle(now_ms);
     } else {
         _faults++;
+        // Silence, noise, or an answer from the wrong device: none of them is
+        // this device answering, and the backoff is what stops each of them
+        // costing a response timeout on every sweep from here on.
+        if (_active != NO_BLOCK) _missed(_plan.block(_active).device, now_ms);
     }
 
     // Whatever happened, this block has had its turn. A read comes round again
@@ -212,6 +303,11 @@ void RtuClient::receive_step(uint64_t now_ms) {
 void RtuClient::_settle(uint64_t now_ms) {
     if (_active == NO_BLOCK) return;
     const Block& b = _plan.block(_active);
+
+    // Whatever it said, it said something: the device is alive and its silence
+    // count starts again. A refusal is a register map that does not match the
+    // device, which is a different engineer's problem from a dead cable.
+    _answered(b.device);
 
     if (_framer.err() == ERR_EXCEPTION) {
         // A healthy slave saying no. Counted apart from silence, because the two
@@ -240,7 +336,10 @@ bool RtuClient::healthy() const {
     // Nothing planned is not a fault: a site with no field bus is a legitimate
     // build, and saying otherwise would raise an alarm nobody can clear.
     if (_plan.block_count() == 0) return true;
-    return _txns > 0 && _framer.timeouts() == 0;
+    // Not "has it ever timed out": one lost frame in a week is a healthy bus,
+    // and a latch on that would read unhealthy forever after. What matters is
+    // whether anything is dead RIGHT NOW - which is what the alarm says too.
+    return _txns > 0 && _dead == 0;
 }
 
 const char* RtuClient::status_str() const {

@@ -74,6 +74,25 @@ What it needs:
   device saying no. `RtuClient` already distinguishes them in `Error`; the policy
   is what has to act on the difference.
 
+**Done.** Per-device health lives on the client: consecutive misses and the
+earliest time that device may be spoken to again. One immediate retry
+(`MODBUS_RETRIES`), then backoff doubling from `MODBUS_BACKOFF_MS` to
+`MODBUS_BACKOFF_MAX_MS`, and `_pick()` simply does not offer the bus to a device
+that is not due - the rest of the plan keeps its rates throughout. A refusal
+CLEARS the count: an exception response means the device heard us and declined,
+so it is alive and its register map is the problem. The library declares the two
+rows the client drives by name (`modbus/rtu/alarms.h`): `alarm_fieldbus` at
+register 996, and `sys_fieldbus_dead` at 902 - the first tenant of the library's
+status group, because "is the bus healthy" and "how much of it is gone" are
+different questions and only the second one sends the right number of people.
+
+**Left open here:** the pyte screen suite is failing since this stage
+("network boot never completed"), deferred deliberately rather than chased. The
+sim itself boots and connects under the harness's own environment when run by
+hand, so the fault is in how the suite observes it rather than in the firmware -
+but that is a hypothesis, not a finding. The doctest suite (375 cases) and the
+warning-clean build are green.
+
 ## 4. A Modbus TCP master in the simulator
 
 `tcp/master.{h,cpp}`, ours and non-blocking like the rest, driving the slave over

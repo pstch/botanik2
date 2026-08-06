@@ -60,6 +60,12 @@
  */
 
 #include "libbotanik/alarms/platform.h" // BOTANIK_PLATFORM_ALARM_VARS
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+#include "libbotanik/modbus/rtu/alarms.h" // BOTANIK_MODBUS_RTU_ALARM_VARS / _STATUS_VARS
+#else
+#  define BOTANIK_MODBUS_RTU_ALARM_VARS
+#  define BOTANIK_MODBUS_RTU_STATUS_VARS
+#endif
 #include "libbotanik/vars/declare.h"    // the A/P/G/SV factories the groups are written with
 
 /** @name The four groups
@@ -75,14 +81,16 @@
 
 /** @brief Alarms the library raises. Its rows live beside the code that raises
  *  them, in `alarms/platform.h`; this is only where the group is assembled. */
-#define BOTANIK_LIBRARY_ALARM_VARS   BOTANIK_PLATFORM_ALARM_VARS
+#define BOTANIK_LIBRARY_ALARM_VARS   BOTANIK_PLATFORM_ALARM_VARS             \
+                                     BOTANIK_MODBUS_RTU_ALARM_VARS
 
 /** @brief Status values the library publishes - MQTT telemetry and the Modbus
  *  TCP slave - so a name here is an external contract.
  *
- *  Empty. The scheduler's per-beat metrics are the obvious first tenant: they
- *  are read off `SchedulerContext` by three separate consumers today, none of
- *  which can be reached by `get`, MQTT or a Modbus master.
+ *  The field bus's dead-device count is the first tenant (modbus/rtu/alarms.h).
+ *  The scheduler's per-beat metrics are the obvious next ones: they are read off
+ *  `SchedulerContext` by three separate consumers today, none of which can be
+ *  reached by `get`, MQTT or a Modbus master.
  *
  *  Rows must be fully qualified and end with their own comma, as the alarm ones
  *  are - a site's table may be in a namespace that has not pulled Vars in:
@@ -90,7 +98,7 @@
  *  //                    name            type   def  dgt unit reg  description      notes
  *  // ::Botanik::Vars::SV("sys_cpu_load", ::Botanik::Vars::T_F32, 0.0, 1, "%", 900,
  *  //                     "loop CPU load", ""), */
-#define BOTANIK_LIBRARY_STATUS_VARS
+#define BOTANIK_LIBRARY_STATUS_VARS  BOTANIK_MODBUS_RTU_STATUS_VARS
 
 /** @brief Computed values the library exposes to the HMI only. Not published,
  *  so unlike a status value one may be renamed freely.

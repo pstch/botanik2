@@ -876,6 +876,45 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, MODBUS_REWRITE_MS);
 
+    /** @brief Field devices the client tracks the health of - one entry each,
+     *  populated from the plan at bring-up. The reference site has 8. */
+#ifndef BOTANIK_MODBUS_MAX_DEVICES
+#  define BOTANIK_MODBUS_MAX_DEVICES 8
+#endif
+    BOTANIK_CFG(uint8_t, MODBUS_MAX_DEVICES);
+
+    /** @brief Immediate retries before a device is backed off.
+     *
+     *  One. A lost frame on a long RS-485 run is weather - retrying at once
+     *  costs a single transaction and usually works. Retrying a device that is
+     *  actually unplugged costs a full response timeout every sweep, which is
+     *  what takes a bus down, so the second failure is where patience ends. */
+#ifndef BOTANIK_MODBUS_RETRIES
+#  define BOTANIK_MODBUS_RETRIES 1
+#endif
+    BOTANIK_CFG(uint8_t, MODBUS_RETRIES);
+
+    /** @brief First backoff after a device has failed its retry; each further
+     *  failure doubles it, up to MODBUS_BACKOFF_MAX_MS.
+     *
+     *  This is the number that decides whether one dead device takes the whole
+     *  bus with it. Without it, three dead slaves at a 300 ms timeout burn 2.7 s
+     *  of every sweep against a 555 ms budget for the entire plant
+     *  (docs/design/modbus-budget.md); with it they cost one probe each per
+     *  backoff interval and the live devices keep their rates. */
+#ifndef BOTANIK_MODBUS_BACKOFF_MS
+#  define BOTANIK_MODBUS_BACKOFF_MS 1000
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_BACKOFF_MS);
+
+    /** @brief Longest a backed-off device waits between probes. 30 s: long
+     *  enough that a dead trunk costs nothing, short enough that plugging a
+     *  device back in is noticed while the engineer is still standing there. */
+#ifndef BOTANIK_MODBUS_BACKOFF_MAX_MS
+#  define BOTANIK_MODBUS_BACKOFF_MAX_MS 30000
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_BACKOFF_MAX_MS);
+
     /** @brief Silence held between one transaction and the next.
      *
      *  The protocol asks for 3.5 characters, which is 2 ms at 19200 and less
