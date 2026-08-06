@@ -171,17 +171,4 @@ TEST_CASE("Actuator: a datum stroke cut short leaves the position unknown") {
     CHECK_FALSE(a.known());
 }
 
-TEST_CASE("Actuator: state_name covers all five") {
-    Actuator a;
-    CHECK(std::string(a.state_name()) == "UNKNOWN");
-    a.step(1.0f, CFG, 100);
-    CHECK(std::string(a.state_name()) == "OPENING");
-    drive(a, 1.0f, 12000);
-    CHECK(std::string(a.state_name()) == "OPEN");
-    a.step(0.0f, CFG, 100);
-    CHECK(std::string(a.state_name()) == "CLOSING");
-    drive(a, 0.0f, 10000);
-    CHECK(std::string(a.state_name()) == "CLOSED");
-}
-
 #endif

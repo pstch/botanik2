@@ -96,6 +96,15 @@ namespace Botanik { namespace Vars {
     static_assert(sizeof(Scalar)  == 8, "Scalar must stay 8 bytes");
     static_assert(alignof(Scalar) == 8, "Scalar must stay 8-aligned");
 
+    // The flash-placement claim rests on these being usable in a constant
+    // expression: a site's table is a file-scope const aggregate of them, and
+    // the moment one factory stops being constexpr the table quietly acquires a
+    // runtime initialiser and moves to RAM. Asserted here rather than in a test
+    // so the guarantee sits with the code it constrains.
+    static_assert(Scalar::U(64).u  == 64, "Scalar::U must be constexpr");
+    static_assert(Scalar::I(-5).i  == -5, "Scalar::I must be constexpr");
+    static_assert(Scalar::B(true).u == 1, "Scalar::B must be constexpr");
+
     /** @} */
 
     /** @name Type queries
@@ -115,6 +124,13 @@ namespace Botanik { namespace Vars {
         return t == T_I8 || t == T_I16 || t == T_I32 || t == T_I64;
     }
     constexpr bool type_real(VarType t) { return t == T_F32; }
+
+    // Same claim as the Scalar asserts above: a site's table selects on the type
+    // in a constant expression, so this has to stay usable in one. The widths
+    // themselves are what keeps already-stored KV records readable.
+    static_assert(type_width(T_U16)  == 2, "type_width must be constexpr");
+    static_assert(type_width(T_BOOL) == 1, "narrow widths are the persisted ones");
+    static_assert(type_width(T_STR)  == 0, "T_STR's width is its declared capacity");
 
     /** @brief Short display name ("bool", "u16", "f32", "enum", "str"). */
     const char* type_name(VarType t);

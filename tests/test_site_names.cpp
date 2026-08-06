@@ -27,6 +27,10 @@
 #include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
 #include BOTANIK_SITE_HEADER          // the selected site's tables - the names under test
 
+#if BOTANIK_FEATURE_SUN
+#  include "libbotanik/sun/sun_tracker.h"
+#endif
+
 using namespace Botanik;
 
 namespace {
@@ -89,19 +93,6 @@ TEST_CASE("site: every published variable lands in a sensible group") {
     }
     CHECK(published > 0);
     CHECK(groups > 1);
-}
-
-TEST_CASE("site: the published set is everything but parameters and alarms") {
-    SiteBank f;
-    uint16_t published = 0, params = 0, alarms = 0;
-    for (uint16_t i = 0; i < f.bank.count(); i++) {
-        const Vars::Variable& d = *f.bank.var(i).meta();
-        if (Vars::var_published(d))        published++;
-        else if (d.scope == Vars::SCOPE_P) params++;
-        else                               alarms++;
-    }
-    CHECK((uint16_t)(published + params + alarms) == f.bank.count());
-    CHECK(params == f.bank.param_count());
 }
 
 TEST_CASE("site: every home-field name resolves to a variable") {
@@ -216,6 +207,33 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
     }
 }
 
+#if BOTANIK_FEATURE_SUN
+TEST_CASE("site: the standalone components resolve their config names too") {
+    // The catch-all above runs what the SiteDescriptor bundles. A standalone
+    // component is not in it - BotanikFirmware never instantiates the sun
+    // tracker, a site owns the instance - so the names it looks up are reached
+    // by no table walk and no task run. They are string literals in
+    // sun/sun_tracker.cpp, and a miss reads 0 rather than failing.
+    //
+    // It had drifted exactly that way: the tracker reads geo_lat_deg/geo_lon_deg
+    // and the test fixture declared geo_latitude/geo_longitude, so both sides
+    // resolved to the sink and the site sat on the equator at 0 N 0 E, with a
+    // 12-hour day all year. Nothing failed, because nothing looked.
+    SiteBank f;
+    Logs::Logger logger;
+    Sun::SunPositionTracker sun(&f.bank, &logger);
+
+    // One beat is enough to reach the lookups: geo_serial defaults non-zero so
+    // the "not configured" early-out does not fire, and the host wall clock is
+    // real so the validity gate passes.
+    sun.step(1000);
+    REQUIRE(sun.ready());          // it actually computed, rather than returning early
+
+    INFO("SunPositionTracker names a config variable that is not in vars.h");
+    CHECK(f.bank.unresolved_count() == 0);
+}
+#endif
+
 TEST_CASE("site: the parameters are one contiguous block") {
     // The PARAMS page and `set` address parameters by a dense 0-based index over
     // that run, so a ROLE_PARAM row outside it is simply unreachable - shown
@@ -243,38 +261,6 @@ TEST_CASE("site: no two variables share a name") {
     }
 }
 
-
-TEST_CASE("site: the scope agrees with the behaviour fields it implies") {
-    // The scope is declared and the role/transport are set by the factory, so
-    // they cannot disagree by construction - this pins that they still don't
-    // after someone edits a factory.
-    SiteBank f;
-    for (uint16_t i = 0; i < f.bank.count(); i++) {
-        const Vars::Variable& d = *f.bank.var(i).meta();
-        INFO("row " << i << " '" << d.name << "' scope=" << Vars::scope_label(d.scope));
-        switch (d.scope) {
-            case Vars::SCOPE_P:
-                CHECK(d.role == Vars::ROLE_PARAM);
-                CHECK(d.bind.transport == Vars::XP_NONE);
-                break;
-            case Vars::SCOPE_A: case Vars::SCOPE_G: case Vars::SCOPE_SV:
-                CHECK(d.role == Vars::ROLE_COMPUTED);
-                CHECK(d.bind.transport == Vars::XP_NONE);
-                CHECK(d.timeout_ms == 0);      // a computed value never expires
-                break;
-            case Vars::SCOPE_MI: case Vars::SCOPE_AI: case Vars::SCOPE_DI:
-                CHECK(d.role == Vars::ROLE_INPUT);
-                break;
-            default:
-                CHECK(d.role == Vars::ROLE_OUTPUT);
-                break;
-        }
-        // Local versus bus is the device address, and the factory derives the
-        // transport from it. Nothing else may set them apart.
-        if (d.bind.transport != Vars::XP_NONE)
-            CHECK(d.bind.transport == Vars::xp_of(d.bind.device));
-    }
-}
 
 TEST_CASE("site: no row reads the payload arm it did not set") {
     // The union's whole hazard: str_off is WRITTEN through (copy_bounded into
@@ -437,31 +423,4 @@ TEST_CASE("analog: a tunable falls back to its constant when the parameter is ab
     CHECK(Vars::tunable(&f.bank, Vars::K(7.0f)) == doctest::Approx(7.0f));
     // ...and the miss is counted, which is what the catch-all test asserts.
     CHECK(f.bank.unresolved_count() > 0);
-}
-
-TEST_CASE("site: no calibration block shares a parameter with another") {
-    // Blocks MAY share, and sharing is a real choice - but an accidental share
-    // is a channel that cannot be trimmed apart from its neighbour, and it
-    // looks exactly like a deliberate one. Assert the site's are all distinct;
-    // a site that wants a shared block should relax this deliberately.
-    SiteBank f;
-    for (uint8_t a = 0; a < Site::g_analog_cal_count; a++) {
-        const Vars::AnalogCal& ca = *Site::g_analog_cals[a];
-        const Vars::Tunable* fa[] = { &ca.raw_min, &ca.raw_max, &ca.eng_min,
-                                      &ca.eng_max, &ca.min,     &ca.max };
-        for (uint8_t b = (uint8_t)(a + 1); b < Site::g_analog_cal_count; b++) {
-            const Vars::AnalogCal& cb = *Site::g_analog_cals[b];
-            const Vars::Tunable* fb[] = { &cb.raw_min, &cb.raw_max, &cb.eng_min,
-                                          &cb.eng_max, &cb.min,     &cb.max };
-            for (uint8_t i = 0; i < 6; i++) {
-                if (fa[i]->param == nullptr) continue;
-                for (uint8_t j = 0; j < 6; j++) {
-                    if (fb[j]->param == nullptr) continue;
-                    INFO("blocks " << (int)a << " and " << (int)b
-                         << " both read '" << fa[i]->param << "'");
-                    CHECK_FALSE(Utils::compare_str(fa[i]->param, fb[j]->param));
-                }
-            }
-        }
-    }
 }

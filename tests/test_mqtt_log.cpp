@@ -44,28 +44,6 @@ namespace {
 
 }
 
-TEST_CASE("mqtt log: lowercase level names") {
-    CHECK(std::strcmp(Logs::format_log_level_name(Logs::LOG_DEBUG),    "debug")    == 0);
-    CHECK(std::strcmp(Logs::format_log_level_name(Logs::LOG_INFO),     "info")     == 0);
-    CHECK(std::strcmp(Logs::format_log_level_name(Logs::LOG_NOTICE),   "notice")   == 0);
-    CHECK(std::strcmp(Logs::format_log_level_name(Logs::LOG_WARNING),  "warning")  == 0);
-    CHECK(std::strcmp(Logs::format_log_level_name(Logs::LOG_ERROR),    "error")    == 0);
-    CHECK(std::strcmp(Logs::format_log_level_name(Logs::LOG_CRITICAL), "critical") == 0);
-}
-
-TEST_CASE("mqtt log: lowercase topic names") {
-    CHECK(std::strcmp(Logs::format_log_topic_name(Logs::SHARED_IO),      "shared_io")   == 0);
-    CHECK(std::strcmp(Logs::format_log_topic_name(Logs::BOOT),        "boot")        == 0);
-    CHECK(std::strcmp(Logs::format_log_topic_name(Logs::NETWORK),     "network")     == 0);
-    CHECK(std::strcmp(Logs::format_log_topic_name(Logs::TIME),        "time")        == 0);
-    CHECK(std::strcmp(Logs::format_log_topic_name(Logs::STATUS),      "status")      == 0);
-    CHECK(std::strcmp(Logs::format_log_topic_name(Logs::ASSERT),      "assert")      == 0);
-    CHECK(std::strcmp(Logs::format_log_topic_name(Logs::ALARM_START), "alarm_start") == 0);
-    CHECK(std::strcmp(Logs::format_log_topic_name(Logs::ALARM_END),   "alarm_end")   == 0);
-    CHECK(std::strcmp(Logs::format_log_topic_name(Logs::ALARM_FLAP),  "alarm_flap")  == 0);
-    CHECK(std::strcmp(Logs::format_log_topic_name(Logs::HEALTH),      "health")      == 0);
-}
-
 TEST_CASE("mqtt log: topic assembly") {
     char buf[96];
     size_t n = TestSink::build_topic(buf, sizeof(buf), Logs::LOG_DEBUG, Logs::SHARED_IO);

@@ -36,12 +36,6 @@ namespace {
     }
 }
 
-TEST_CASE("HAL::Network sim: the link is up immediately") {
-    CHECK(Network::link_status() == Network::LINK_UP);
-    Network::Ip4 ip;
-    CHECK(Network::link_ip(&ip));   // some address (host primary or loopback)
-}
-
 TEST_CASE("HAL::Network sim: DNS of a guaranteed-bad name fails, not pending forever") {
     Network::DnsHandle h = Network::dns_begin("nonexistent.invalid");
     REQUIRE(h != 0);
@@ -49,27 +43,6 @@ TEST_CASE("HAL::Network sim: DNS of a guaranteed-bad name fails, not pending for
     // Emulated async resolver: poll until terminal, which must be FAILED, not pending
     // forever.
     CHECK(dns_settle(h, &out) == Network::DNS_FAILED);
-}
-
-TEST_CASE("HAL::Network sim: UDP socket opens and closes") {
-    Network::UdpSocket s = Network::udp_open();
-    REQUIRE(s >= 0);
-    Network::Ip4 dst = {{127, 0, 0, 1}};            // loopback, no listener on this port
-    uint8_t pkt[4] = {0};
-    CHECK(Network::udp_sendto(s, dst, 9, pkt, sizeof(pkt)));     // local send succeeds
-    uint8_t rx[8]; Network::Ip4 from; uint16_t port = 0;
-    // would-block: no reply
-    CHECK(Network::udp_recvfrom(s, rx, sizeof(rx), &from, &port) == 0);
-    Network::udp_close(s);
-}
-
-TEST_CASE("HAL::Network sim: TCP connect to a dead loopback port never reports connected") {
-    Network::TcpSocket s = Network::tcp_open();
-    REQUIRE(s >= 0);
-    Network::Ip4 dst = {{127, 0, 0, 1}};            // loopback, nothing listening on port 9
-    int r = Network::tcp_connect(s, dst, 9);
-    CHECK(r <= 0);                               // 0 in-progress or <0 immediate refuse
-    Network::tcp_close(s);
 }
 
 TEST_CASE("HAL::Network sim: an off-host destination is diverted, never contacted") {

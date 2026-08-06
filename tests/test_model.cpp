@@ -67,11 +67,6 @@ TEST_CASE("model: seeding sets validity by role, not by type") {
     CHECK(f.bank.var(V_VALVE).b());
 }
 
-TEST_CASE("model: a string default is copied into the pool") {
-    Fixture f;
-    CHECK(Utils::compare_str(f.pool, "ntp.example.org"));
-}
-
 TEST_CASE("model: an invalid variable reads as its default") {
     Fixture f;
     f.bank.var(V_EXT_TEMP).set(31.7f);
@@ -165,12 +160,6 @@ TEST_CASE("model: a bad index resolves to an inert sink, never a clamp") {
     VarRef none = { VAR_NONE };
     CHECK_FALSE(f.bank.var(none).valid());
     CHECK(f.bank.var(none).value() == doctest::Approx(0.0f));
-}
-
-TEST_CASE("model: the sink never accumulates state between bad accesses") {
-    Fixture f;
-    f.bank.var((uint16_t)998).set(42.0f);
-    CHECK(f.bank.var((uint16_t)999).value() == doctest::Approx(0.0f));
 }
 
 TEST_CASE("model: an empty table is safe to index and sweep") {

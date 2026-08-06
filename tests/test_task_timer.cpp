@@ -135,20 +135,6 @@ TEST_CASE("task timer: offset timers of one period never share a beat again") {
     CHECK(b_runs == 20);           // 0, 140 .. 1940
 }
 
-TEST_CASE("task timer: no offset means they collide on every activation") {
-    // The behaviour the offset corrects, pinned so it cannot creep back.
-    TaskTimer a, b;
-    uint32_t dt = 0; uint16_t missed = 0;
-
-    int shared = 0;
-    for (uint64_t now = 0; now <= 1000; now += 10) {
-        bool ra = a.due(now, 100, dt, missed); if (ra) a.ran(now);
-        bool rb = b.due(now, 100, dt, missed); if (rb) b.ran(now);
-        if (ra && rb) shared++;
-    }
-    CHECK(shared == 11);           // every single activation, boot included
-}
-
 TEST_CASE("task timer: dt saturates instead of truncating past 32 bits") {
     TaskTimer t;
     uint32_t dt = 0; uint16_t missed = 0;

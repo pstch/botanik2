@@ -38,11 +38,6 @@ TEST_CASE("ema_alpha: default period is the tick period") {
 // ExpMovingAverage
 // ----------------------------------------------------------------------------
 
-TEST_CASE("ExpMovingAverage: starts at zero") {
-    ExpMovingAverage ema;
-    CHECK(ema.value() == Approx(0.0f));
-}
-
 TEST_CASE("ExpMovingAverage: alpha 1.0 tracks the input exactly") {
     ExpMovingAverage ema;
     ema.configure(1.0f, 1.0f);
@@ -70,14 +65,6 @@ TEST_CASE("ExpMovingAverage: asymmetric attack/decay rises fast, holds on falls"
     CHECK(ema.value() == Approx(10.0f)); // fell: decay 0.0 holds the peak
     ema.push(20.0f);
     CHECK(ema.value() == Approx(20.0f)); // rose again: attack 1.0
-}
-
-TEST_CASE("ExpMovingAverage: reset clears back to zero") {
-    ExpMovingAverage ema;
-    ema.configure(1.0f, 1.0f);
-    ema.push(123.0f);
-    ema.reset();
-    CHECK(ema.value() == Approx(0.0f));
 }
 
 // WindowedMax

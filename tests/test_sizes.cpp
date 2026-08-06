@@ -1,15 +1,16 @@
 /**
  * @file test_sizes.cpp
- * @brief Living documentation of the in-memory footprint of the "big" objects.
+ * @brief Growth tripwire on the in-memory footprint of the "big" objects.
  *
- * The OPTA core is RAM-constrained, so the size of the long-lived UI and site
- * objects is a number worth watching. This suite does not pin exact byte counts
- * (they differ between the x86-64 host build and the ARM target) — it prints a
- * size table on every run and fails only if a structure grows past a generous
- * budget, catching accidental bloat without churning on every layout tweak.
+ * The OPTA core is RAM-constrained, so the size of the long-lived UI objects is
+ * a number worth watching, and since libbotanik_sizes.h went away this is the
+ * only thing watching it (vars/scalar.h and vars/model.h still pin Scalar and
+ * Value exactly, being the per-variable RAM cost).
  *
- * Run `ctest --output-on-failure` or `./botanik_tests -s` to see the table; the
- * reported sizes are the host-build figures.
+ * It does not pin exact byte counts - they differ between the x86-64 host build
+ * and the ARM target - only that nothing has grown past a generous ceiling. A
+ * trip prints the type, its size and its budget, so bumping one deliberately is
+ * a one-line edit with the number in front of you.
  *
  * @see @ref cpptests
  */
@@ -31,15 +32,12 @@ using HomePage_t   = Botanik::Pages::HomePage;
 struct StatusPayloadStandIn { uint32_t whatever; };
 using StatusPage_t = Botanik::Pages::StatusPage<StatusPayloadStandIn>;
 
-// Report a type's size and guard it against runaway growth. The budget is a
-// loose ceiling — bump it deliberately if a structure legitimately needs it.
+// Guard a type against runaway growth. The budget is a loose ceiling - bump it
+// deliberately if a structure legitimately needs it. The failure message names
+// the type and both numbers, so a trip reads without a separate size table.
 #define REPORT_SIZE(T, budget)                                               \
-    do {                                                                     \
-        MESSAGE(#T " = " << sizeof(T) << " bytes (alignof "                  \
-                         << alignof(T) << ", budget " << (budget) << ")");   \
-        CHECK(sizeof(T) > 0);                                                \
-        CHECK(sizeof(T) <= (size_t)(budget));                                \
-    } while (0)
+    CHECK_MESSAGE(sizeof(T) <= (size_t)(budget),                             \
+                  #T " = " << sizeof(T) << " bytes, budget " << (budget))
 
 // Budgets are loose round ceilings above the current host-build size — a
 // regression tripwire for accidental bloat, not a tight spec. The page sizes are
@@ -89,8 +87,4 @@ TEST_CASE("sizeof: the site's variable table and value store") {
     // values are the only RAM cost.
     REPORT_SIZE(Botanik::Vars::Variable, 128);
     REPORT_SIZE(Botanik::Vars::Value, 32);
-    MESSAGE("site variables = " << (int)Site::VAR_TOTAL);
-    MESSAGE("descriptor table = " << sizeof(Site::g_vars) << " bytes (flash)");
-    MESSAGE("value store = " << sizeof(Site::Store::values) << " bytes (RAM)");
-    CHECK(sizeof(Site::g_vars) > 0);
 }

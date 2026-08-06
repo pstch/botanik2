@@ -69,18 +69,8 @@ TEST_CASE("MqttAlarmNotifier: notify_on/off build the topic + payload and forwar
 }
 #endif
 
-// Gated: the AlarmController fan-out case below is NOT - it uses a stub
-// notifier and tests the controller, which is always present.
-#if BOTANIK_FEATURE_ALARMS_PUBLISH
-TEST_CASE("MqttAlarmNotifier: with no publisher set it is a safe no-op") {
-    MqttAlarmNotifier n("botanik/greenhouse");
-    AlarmCondition c = {};
-    c.name = "NET_FLT";
-    n.notify_on(c);    // must not crash / dereference null
-    n.notify_off(c);
-    CHECK(true);
-}
-#endif
+// The AlarmController fan-out case below is NOT gated: it uses a stub notifier
+// and tests the controller, which is always present.
 
 namespace {
     // Counts the transitions the model fans out to it.

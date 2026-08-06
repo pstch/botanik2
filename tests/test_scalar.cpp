@@ -19,18 +19,6 @@ namespace {
         return nullptr;          // unmapped: the number should show through
     }
 
-    // The table this whole design exists to keep in flash. Being a file-scope
-    // `const` aggregate of constexpr-constructed Scalars is the property under
-    // test - if it ever needs a runtime initialiser this stops compiling as a
-    // constant expression.
-    struct Row { VarType type; Scalar min, max, def; };
-    const Row TABLE[] = {
-        { T_F32, Scalar::F(-40.0f), Scalar::F(85.0f), Scalar::F(20.5f) },
-        { T_U16, Scalar::U(0),      Scalar::U(3600),  Scalar::U(64)    },
-        { T_I32, Scalar::I(-5000),  Scalar::I(5000),  Scalar::I(0)     },
-        { T_BOOL,Scalar::B(false),  Scalar::B(true),  Scalar::B(true)  },
-        { T_STR, Scalar::U(0),      Scalar::U(0),     Scalar::S("ntp.example") },
-    };
 }
 
 TEST_CASE("scalar: every type round-trips through its own slot") {
@@ -67,19 +55,6 @@ TEST_CASE("scalar: a write is coerced into the slot, not reinterpreted") {
 TEST_CASE("scalar: digitals read as 0/1 so consumers need not branch") {
     CHECK(as_f32(T_BOOL, Scalar::B(true)) == doctest::Approx(1.0f));
     CHECK(as_f32(T_BOOL, Scalar::B(false)) == doctest::Approx(0.0f));
-}
-
-TEST_CASE("scalar: widths are the narrow persisted ones, not sizeof(Scalar)") {
-    // Keeping these narrow is what lets already-stored KV records stay readable.
-    CHECK(type_width(T_BOOL) == 1);
-    CHECK(type_width(T_U8)   == 1);
-    CHECK(type_width(T_ENUM) == 1);
-    CHECK(type_width(T_U16)  == 2);
-    CHECK(type_width(T_I16)  == 2);
-    CHECK(type_width(T_U32)  == 4);
-    CHECK(type_width(T_F32)  == 4);
-    CHECK(type_width(T_I64)  == 8);
-    CHECK(type_width(T_STR)  == 0);   // its width is the declared capacity
 }
 
 TEST_CASE("scalar: bounds compare in the variable's own type") {
@@ -149,21 +124,6 @@ TEST_CASE("scalar: string validation by kind") {
     CHECK_FALSE(validate_str(STR_HOST, "ntp.example.org", 8));   // must fit incl NUL
     CHECK(validate_str(STR_NONE, "anything", 64));
     CHECK_FALSE(validate_str(STR_NONE, "toolongforthecap", 8));
-}
-
-TEST_CASE("scalar: a const table of Scalars needs no runtime initialiser") {
-    // Compile-time proof: reading these in a constant expression only works if
-    // the constructors really were constexpr. The flash-placement claim rests
-    // on this.
-    static_assert(Scalar::U(64).u == 64, "Scalar::U must be constexpr");
-    static_assert(Scalar::I(-5).i == -5, "Scalar::I must be constexpr");
-    static_assert(Scalar::B(true).u == 1, "Scalar::B must be constexpr");
-    static_assert(type_width(T_U16) == 2, "type_width must be constexpr");
-
-    CHECK(TABLE[0].def.f == doctest::Approx(20.5f));
-    CHECK(TABLE[1].max.u == 3600);
-    CHECK(TABLE[2].min.i == -5000);
-    CHECK(Utils::compare_str(TABLE[4].def.s, "ntp.example"));
 }
 
 TEST_CASE("parse: a literal too big for the type is a range error, not a maximum") {

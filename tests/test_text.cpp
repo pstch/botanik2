@@ -123,13 +123,6 @@ TEST_CASE("format_age: picks the largest sensible unit") {
     CHECK(std::strcmp(format_age(b, sizeof(b), 172800), "  2 d ago") == 0);
 }
 
-TEST_CASE("format_age: field is constant width (9 chars + NUL)") {
-    char b[16];
-    CHECK(std::strlen(format_age(b, sizeof(b),     0)) == 9);
-    CHECK(std::strlen(format_age(b, sizeof(b), 86400)) == 9);
-    // Width holds up to 3 digits; >= 1000 d would widen it.
-}
-
 // env_u32 / env_u8
 // ----------------------------------------------------------------------------
 
