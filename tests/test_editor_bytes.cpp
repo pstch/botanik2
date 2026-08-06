@@ -66,12 +66,18 @@ namespace {
             flush();
         }
 
-        /** @brief Type `n` hard-broken rows "lineNN", flushing as we go. */
+        /** @brief Type `n` hard-broken rows "lineNN", flushing as we go.
+         *
+         *  Two digits by construction - every caller asks for a screenful, not a
+         *  hundred rows. Bounded here rather than trusted, so the name cannot
+         *  overrun row[] AND the compiler can see that it cannot: unbounded, the
+         *  format is an 11-digit int into 8 bytes (-Wformat-truncation). */
         void fill_rows(int n) {
+            REQUIRE(n <= 100);
             for (int i = 0; i < n; i++) {
                 if (i) editor.insert_characters("\n", 1);
                 char row[8];
-                snprintf(row, sizeof(row), "line%02d", i);
+                snprintf(row, sizeof(row), "line%02u", (unsigned)i % 100u);
                 type(row);
             }
             flush();
