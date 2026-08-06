@@ -56,7 +56,8 @@
     X(PLC_BLK_FILTERS)    \
     X(MODBUS_TCP_SERVER)  \
     X(MODBUS_TCP_CLIENT)  \
-    X(MODBUS_RTU_CLIENT)
+    X(MODBUS_RTU_CLIENT)  \
+    X(MODBUS_RTU_SERVER)
 
 // Defaults
 // ===========================================================================
@@ -211,6 +212,13 @@
 
 #ifndef BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 #  define BOTANIK_FEATURE_MODBUS_RTU_CLIENT 0
+#endif
+
+/** @brief Modbus RTU slave: this unit ANSWERING on a field bus, as a device
+ *  does. The simulator's field devices are these; on hardware it is how a unit
+ *  appears to somebody else's master. */
+#ifndef BOTANIK_FEATURE_MODBUS_RTU_SERVER
+#  define BOTANIK_FEATURE_MODBUS_RTU_SERVER 0
 #endif
 
 // Dependency rules

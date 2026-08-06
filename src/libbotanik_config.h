@@ -936,6 +936,20 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, MODBUS_BACKOFF_MAX_MS);
 
+    /** @brief Registers and coils a simulated field device holds.
+     *
+     *  Sized for the reference plant's meters (a Waveshare relay board is 8
+     *  coils, an Eastron meter a few hundred registers) and not for the
+     *  protocol's 65536: these are RAM, one image per device. */
+#ifndef BOTANIK_MODBUS_SIM_REGS
+#  define BOTANIK_MODBUS_SIM_REGS 256
+#endif
+    BOTANIK_CFG(uint16_t, MODBUS_SIM_REGS);
+#ifndef BOTANIK_MODBUS_SIM_COILS
+#  define BOTANIK_MODBUS_SIM_COILS 64
+#endif
+    BOTANIK_CFG(uint16_t, MODBUS_SIM_COILS);
+
     /** @brief Silence held between one transaction and the next.
      *
      *  The protocol asks for 3.5 characters, which is 2 ms at 19200 and less

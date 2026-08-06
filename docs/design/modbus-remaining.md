@@ -138,6 +138,35 @@ Modbus RTU instead** - the same path the hardware uses, so the master's framing,
 its planner, its backoff and its dead-slave handling are all exercised by
 unplugging a simulated device rather than by a test that mocks the answer.
 
-That also settles what the simulated serial port has to be: two `RtuFramer`s
-facing each other need a byte pipe, not a UART, and the sim's third port is where
-that lands.
+**Done, with one caveat below.** `modbus/rtu/slave.{h,cpp}` completes the four
+corners - RTU master, RTU slave, TCP master, TCP slave - over the one shared
+vocabulary. The sim's `FIELDBUS` port is now a **socketpair**: the firmware holds
+one end, `botanik_sim/fieldbus.h` holds the other with one `RtuSlave` per unit id
+the site's table names. Bytes really travel, so the master's framing, its CRCs,
+its timeouts and its backoff are exercised rather than mocked. Values flow from
+`Site::simulate()` into the device images by each row's own `{device, fc, reg}`
+binding and come back over the wire.
+
+Three findings, each of which cost real debugging and none of which is obvious:
+
+- **A slave has the harder framing problem.** A master knows what it asked, so it
+  knows how long the answer must be; a slave knows nothing until it has read the
+  function code, and for the multi-writes the length is a byte count inside the
+  frame itself.
+- **Every device hears every frame, so `poll()` must be drained, not called
+  once.** Draining one frame per pump let a backlog of other units' frames build
+  until a device's own answer came out past the master's deadline - which looked
+  exactly like a device flapping in and out of backoff.
+- **Only the LAST answer may go out, and not before the master is listening.**
+  The master flushes its receive path when the line clears (on a real wire its
+  own echo is what is sitting there), so a device that answers within one beat
+  has its answer thrown away by that flush. At a one-beat turnaround the two
+  race; at three beats they do not. Real devices take 2-30 ms anyway. Getting
+  both of these right took the bus from ~50 frames per 15 s with constant
+  flapping to 261 with no device ever going into backoff.
+
+**Caveat:** this is a LOOP, not yet a replacement. `Site::simulate()` still writes
+the bank and the bus carries those values back to it, so the path is proven but
+the bank is still written twice. Cutting `simulate()` off from the bank - so the
+only way a reading reaches a control program is over the wire - is what makes
+unplugging a simulated device a real experiment, and it is the next step.

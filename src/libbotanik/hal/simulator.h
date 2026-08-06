@@ -24,6 +24,7 @@
 
 // POSIX - the simulator backend is Linux-hosted, so these are the real thing.
 #include <fcntl.h>      // open / fcntl / O_NONBLOCK
+#include <sys/socket.h> // socketpair - the field bus's two ends
 #include <limits.h>     // PATH_MAX
 #include <pthread.h>    // pthread_t
 #include <stdio.h>      // perror
@@ -448,17 +449,34 @@ namespace Botanik { namespace HAL {
     /** @brief Resolve a logical Port to its backing Raw serial.
      *  CONSOLE is wired to stdin/stdout, MONITOR to stderr (output only).
      *
-     *  FIELDBUS is deliberately left UNBOUND: reads find nothing and writes go
-     *  nowhere, which is the honest model of a bus with no devices on it. The
-     *  simulated RTU slaves that will answer on it are a later step, and when
-     *  they land this is the one line that changes.
+     *  FIELDBUS is a SOCKETPAIR: the firmware holds one end and the simulated
+     *  devices hold the other (fieldbus_peer_fd()). Bytes really travel - the
+     *  same read()/write() path the other two ports use - so the master's
+     *  framing, its CRCs and its timeouts are exercised rather than emulated.
+     *
+     *  It is a stream, and RS-485 is a shared half-duplex wire, which differ in
+     *  one way that matters: a stream cannot lose a collision. Nothing here
+     *  models two devices answering at once, because nothing here can produce
+     *  one - the sim's devices answer strictly in turn.
+     *
+     *  A pair that cannot be created leaves the port unbound, which is the old
+     *  behaviour: a bus with no devices on it.
      *  @param port CONSOLE, MONITOR or FIELDBUS. */
+    inline int& fieldbus_peer_fd() { static int fd = -1; return fd; }
+
     inline Raw* get(Port port) {
         static Raw console, monitor, fieldbus_port;
         static bool initialized = false;
         if (!initialized) {
             console.set_fds(STDIN_FILENO, STDOUT_FILENO);
             monitor.set_fds(-1, STDERR_FILENO);
+            int sp[2] = { -1, -1 };
+            if (::socketpair(AF_UNIX, SOCK_STREAM, 0, sp) == 0) {
+                ::fcntl(sp[0], F_SETFL, ::fcntl(sp[0], F_GETFL, 0) | O_NONBLOCK);
+                ::fcntl(sp[1], F_SETFL, ::fcntl(sp[1], F_GETFL, 0) | O_NONBLOCK);
+                fieldbus_port.set_fds(sp[0], sp[0]);
+                fieldbus_peer_fd() = sp[1];
+            }
             initialized = true;
         }
         if (port == FIELDBUS) return &fieldbus_port;

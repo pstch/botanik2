@@ -20,6 +20,7 @@
 #include BOTANIK_SITE_HEADER            // BotanikSite + Site::simulate
 
 #if BOTANIK_FEATURE_NETWORK
+#include "botanik_sim/fieldbus.h"       // the simulated RTU devices on the other end of the wire
 #include "botanik_sim/mbcheck.h"        // the Modbus TCP self-check (sim-only scaffolding)
 #include "botanik_sim/network.h"        // the in-process mock NTP/MQTT responder (loopback)
 #endif
@@ -106,6 +107,12 @@ int main(int argc, char** argv) {
     Scheduler::make_thread_realtime((int)HAL::Env::u32("BOTANIK_SIM_CPU", 0),
                                     &greenhouse.logger());
 
+#if BOTANIK_FEATURE_MODBUS_RTU_SERVER
+    // The field devices. Learned from the site's own table: every unit id an
+    // XP_MODBUS row names is a box that has to answer.
+    Sim::FieldBus fieldbus;
+    fieldbus.bind(&greenhouse.io());
+#endif
 #if BOTANIK_FEATURE_MODBUS_TCP_CLIENT
     // A master pointed at our own slave: it reads a parameter, writes it
     // something else, reads it back and says so. Nothing is mocked - a real
@@ -123,6 +130,11 @@ int main(int argc, char** argv) {
         // animate a shared region from its own thread: fill the firmware's data
         // struct, then run the beat that reads it.
         Site::simulate(greenhouse.io(), (uint32_t)HAL::Clock::uptime_ms());
+#if BOTANIK_FEATURE_MODBUS_RTU_SERVER
+        // Before the beat: the values this instant produced are on the devices
+        // by the time the master's transmit half asks for them.
+        fieldbus.step(HAL::Clock::uptime_ms());
+#endif
         greenhouse.loop();
 #if BOTANIK_FEATURE_MODBUS_TCP_CLIENT
         // After the beat: the answers it reads are the ones the beat just

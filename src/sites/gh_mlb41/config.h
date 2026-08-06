@@ -72,6 +72,11 @@
 #    define BOTANIK_FEATURE_MODBUS_TCP_CLIENT 1
 #  endif
 #endif
+// The field devices the simulator answers as. Compiled on hardware too, where
+// nothing instantiates one - the flag is what puts rtu/slave.cpp in the build.
+#ifndef BOTANIK_FEATURE_MODBUS_RTU_SERVER
+#  define BOTANIK_FEATURE_MODBUS_RTU_SERVER 1
+#endif
 
 #ifndef BOTANIK_FEATURE_PLC_BLK_BASE
 #  define BOTANIK_FEATURE_PLC_BLK_BASE    1
