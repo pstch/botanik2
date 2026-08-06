@@ -1,0 +1,24 @@
+ 1 2 3 4 5 6 7:TASKS 8              <TIME>                  cpu:<C> stk:<S>
+
+  | TASK                  | GROUP | EVERY ms | PHASE   | MEAN us  | PEAK us  |
+  +-----------------------+-------+----------+---------+----------+----------+
+  | console               | slow  | 100      | present | <V>      | <V>      |
+  | console_rx            | fast  | 10       | input   | <V>      | <V>      |
+  | console_tx            | fast  | 10       | present | <V>      | <V>      |
+  | control_latch         | fast  | 10       | service | <V>      | <V>      |
+  | expire_stale          | bkgnd | 500      | input   | <V>      | <V>      |
+  | health                | slow  | 100      | service | <V>      | <V>      |
+  | logger                | fast  | 10       | present | <V>      | <V>      |
+  | monitor_log           | fast  | 10       | present | <V>      | <V>      |
+  | monitor_rx            | fast  | 10       | input   | <V>      | <V>      |
+  | monitor_tx            | fast  | 10       | present | <V>      | <V>      |
+  | net                   | fast  | 10       | service | <V>      | <V>      |
+  | params                | slow  | 100      | config  | <V>      | <V>      |
+  ----------------------------------------------------------------------------
+
+ Last us      : <T>
+ Runs         : <N>
+ Of period    : <D>
+
+
+ ALARMS :<BAR>

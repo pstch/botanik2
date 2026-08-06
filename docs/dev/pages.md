@@ -51,6 +51,26 @@ see @ref dev_architecture.
 an inactive page banks queued entries without drawing (see
 @ref dev_logging).
 
+## Testing: every page has a display test
+
+**A page registered in `BotanikFirmware::register_pages()` has a settled-screen
+golden.** They live in `tests/pyte/test_pages.py`, whose `PAGES` table is the
+list: adding a page means adding a row and running
+`make -C build pyte-sim && make -C build pytest-update`, then reviewing the
+generated golden before committing it.
+
+Nobody has to remember. `test_pages.py` reads the status bar's tab strip, which
+the terminal draws from the page list itself, and fails if it shows a tab the
+table does not cover - so a page registered without a display test is a failing
+test, not a gap someone notices later.
+
+A golden pins *layout* - rows, order, labels, columns, rules, chrome - and not
+*values*: `tests/pyte/normalize.py` masks every cell the greenhouse moves, so a
+renamed column fails and a changed reading does not. Page *behaviour* (a key
+that scrolls, an edit that commits) belongs in the per-page files beside it,
+asserted inline. See `tests/pyte/README.md` for the full rationale, including
+why LOGS and ALARMS are pinned the way they are.
+
 ## Hierarchy
 
 \startuml "the page class hierarchy: every page is library-owned and site-independent; three of them double as log writers"

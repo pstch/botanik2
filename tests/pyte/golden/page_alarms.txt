@@ -1,0 +1,24 @@
+ 1 2 3 4:ALARMS 5 6 7 8             <TIME>                  cpu:<C> stk:<S>
+
+  | CODE     | VARIABLE                                | ON | LAST EVENT     |
+  +----------+-----------------------------------------+----+----------------+
+  | SYS_RST  | alarm_system_reset                      | <V>| <V>        |
+  | CPU_XRUN | alarm_cpu_xrun                          | <V>| <V>            |
+  | CPU_LOAD | alarm_cpu_load                          | <V>| <V>            |
+  | STACK    | alarm_stack                             | <V>| <V>            |
+  | CPU_JITT | alarm_cpu_jitter                        | <V>| <V>            |
+  | FLASH_FLT| alarm_flash_error                       | <V>| <V>            |
+  | AC_GRID  | alarm_ac_grid                           | <V>| <V>        |
+  | DC_PS1   | alarm_dc_ps1                            | <V>| <V>        |
+  | GEN_FLT  | alarm_gen                               | <V>| <V>            |
+  | AC_LOCAL | alarm_ac_local                          | <V>| <V>            |
+  | DC_PS2   | alarm_dc_ps2                            | <V>| <V>            |
+  v----------v-----------------------------------------v----v----------------v
+
+ Description  : Unit reset recently
+ Remediation  : -
+ Acknowledged : -
+
+     recent <         [all]        > active     1-11 / 29     <NA> active   a:ack
+
+ ALARMS :<BAR>

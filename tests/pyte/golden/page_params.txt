@@ -1,0 +1,24 @@
+ 1 2 3 4 5:PARAMS 6 7 8             <TIME>                  cpu:<C> stk:<S>
+
+  | PARAMETER                | TYPE | VALUE             | DEFAULT      | UNIT  |
+  +--------------------------+------+-------------------+--------------+-------+
+  | serial_console_baud      | u32  | <V>               | 4800         | Bd    |
+  | serial_monitor_baud      | u32  | <V>               | 115200       | Bd    |
+  | net_serial               | u32  | <V>               | 1            |       |
+  | net_dhcp                 | bool | <V>               | 0            |       |
+  | ntp_serial               | u32  | <V>               | 1            |       |
+  | ntp_enable               | bool | <V>               | 1            |       |
+  | ntp_poll_sec             | u32  | <V>               | 3600         | sec   |
+  | ntp_port                 | u16  | <V>               | 123          |       |
+  | mqtt_serial              | u32  | <V>               | 1            |       |
+  | mqtt_enable              | bool | <V>               | 1            |       |
+  | mqtt_port                | u16  | <V>               | 58443        |       |
+  ----------------------------------------------------------------------------
+
+ Minimum      : 1200                  Maximum      : 921600
+ Description  : Console UART rate
+ Notes        : retunes the wire AND the render budget; reconnect at the new rat
+
+                      [all]        (serial)     1-11 / 167
+
+ ALARMS :<BAR>

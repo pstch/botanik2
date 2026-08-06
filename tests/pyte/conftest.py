@@ -192,10 +192,9 @@ class Term:
         os.close(self.master)
 
 
-@pytest.fixture
-def spawn(request, tmp_path):
-    """Factory that launches botanik_sim instances and tears them down."""
-    sim = request.config.getoption("--sim") or os.environ.get("BOTANIK_SIM")
+def _sim_binary(config):
+    """Where the sim is, or a skip/fail explaining why there is nothing to run."""
+    sim = config.getoption("--sim") or os.environ.get("BOTANIK_SIM")
     if not sim:
         # Nobody said where the sim is - a bare `pytest` run, so there is nothing
         # to test and skipping is honest.
@@ -207,19 +206,46 @@ def spawn(request, tmp_path):
         # fresh tree printed seven Passed lines in 0.3 s each.
         pytest.fail(f"simulator binary not built: {sim}\n"
                     f"build it with: make -C <build> pyte-sim")
+    return sim
 
+
+def _spawner(sim, store_dir):
+    """The spawn factory plus its teardown, shared by both fixture scopes."""
     instances = []
 
     def _spawn(**kwargs):
-        # One config store per sim (see Term): pytest's tmp_path is per-test, and
-        # the index keeps two sims in one test from sharing one.
-        kwargs.setdefault("store", tmp_path / f"config{len(instances)}")
+        # One config store per sim (see Term): the index keeps two sims spawned
+        # by the same fixture from sharing one.
+        kwargs.setdefault("store", store_dir / f"config{len(instances)}")
         term = Term(sim, **kwargs)
         instances.append(term)
         return term
 
-    yield _spawn
+    return _spawn, instances
 
+
+@pytest.fixture
+def spawn(request, tmp_path):
+    """Factory that launches botanik_sim instances and tears them down."""
+    _spawn, instances = _spawner(_sim_binary(request.config), tmp_path)
+    yield _spawn
+    for term in instances:
+        term.close()
+
+
+@pytest.fixture(scope="module")
+def spawn_module(request, tmp_path_factory):
+    """`spawn`, but one sim shared by every test in the module.
+
+    For a suite that only LOOKS at pages: booting the firmware and waiting out
+    its network handshake is the expensive part of a screen test, and paying it
+    once per page would make the per-page invariant the most expensive thing in
+    the gate. Anything that MUTATES state (an edit, a reset, an override) must
+    keep using `spawn` - a shared sim would carry that into the next test.
+    """
+    _spawn, instances = _spawner(_sim_binary(request.config),
+                                 tmp_path_factory.mktemp("pages"))
+    yield _spawn
     for term in instances:
         term.close()
 

@@ -59,6 +59,15 @@ _SUBS = [
     # active" mode hint has no leading digit and is left alone). "N listed" is the
     # fixed catalog size and stays.
     (re.compile(r"\d+ active"), "<NA> active"),
+    # MONITOR's detail panel reports the selected reading's live quality
+    # (live/stale/forced), which turns over with the input's timeout.
+    (re.compile(r"(Quality\s+: )\S+"), r"\g<1><Q>"),
+    # TASKS' detail panel: the last sample, the run count and the share of its
+    # own period are all host timing. The labels are the layout worth pinning;
+    # a gate host that runs the beat slower must not fail the page.
+    (re.compile(r"(Last us\s+: ).*$"), r"\g<1><T>"),
+    (re.compile(r"(Runs\s+: ).*$"), r"\g<1><N>"),
+    (re.compile(r"(Of period\s+: ).*$"), r"\g<1><D>"),
 ]
 
 # Home page site readings (the site's declarative home-field table: label + live
@@ -106,13 +115,60 @@ _SUBS += [(re.compile("(" + re.escape(label) + r"\s+)(-?[\d.]+" + unit + r"\s*)"
 _NOISE = re.compile(r"ALARM_(?:START|END|FLAP):")
 
 
+# Live cells inside a bordered table, masked by the table's own geometry rather
+# than by their text. Both pages that have one put the moving column in the same
+# place - the third cell - and neither could be matched by content:
+#
+#   MONITOR  | SCOPE | VARIABLE | VALUE | UNIT | OVERRIDE |          (5 cells)
+#   ALARMS   | CODE  | VARIABLE | ON    | LAST EVENT |               (4 cells)
+#   TASKS    | TASK  | GROUP | EVERY ms | PHASE | MEAN us | PEAK us | (6 cells)
+#
+# MONITOR's VALUE is a live reading on every visible row, and there are ~72 of
+# them, so a per-name regex (the trick _HOME_FIELDS uses) does not generalise.
+# ALARMS' third cell is the ON/OFF state, which the fast greenhouse flips.
+# TASKS' last two are measured microseconds, which are a property of the host
+# and not of the firmware - its first four columns ARE the registration list and
+# stay pinned. Masking the cell in place keeps its width, so the columns after
+# it stay put.
+_TABLE_ROW = re.compile(r"^\s*\|(?:[^|]*\|){4,6}\s*$")
+
+# The header row carries the same shape as a data row, and for ALARMS the same
+# text too - its third column is literally headed "ON". So the header is spotted
+# by its FIRST cell, which no data row can collide with.
+_TABLE_HEADERS = ("SCOPE", "CODE", "TASK", "PARAMETER")
+
+
+def _mask_table_cell(line):
+    """Mask the live cells of a MONITOR/ALARMS table row, preserving their width.
+
+    Cell 3 for the first two: MONITOR's VALUE, ALARMS' ON/OFF state. ALARMS
+    additionally has cell 4, LAST EVENT, which is blank until the condition first
+    trips and a stamp afterwards - so leaving it would pin whether the fast
+    greenhouse had got round to that alarm yet. MONITOR's cell 4 is UNIT, which
+    is fixed per row and worth pinning. TASKS instead moves in its last two,
+    MEAN us and PEAK us.
+
+    The three are told apart by the cell COUNT: an ALARMS row has four cells, a
+    MONITOR row five (SCOPE/VARIABLE/VALUE/UNIT/OVERRIDE), a TASKS row six.
+    """
+    if not _TABLE_ROW.match(line):
+        return line
+    cells = line.split("|")            # leading indent + n cells + trailing ""
+    if len(cells) < 6 or cells[1].strip() in _TABLE_HEADERS:
+        return line
+    live = {6: (3, 4), 7: (3,), 8: (5, 6)}.get(len(cells), ())
+    for i in live:
+        cells[i] = " <V>".ljust(len(cells[i]))[:len(cells[i])]
+    return "|".join(cells)
+
+
 def normalize_lines(lines):
     """Apply the volatile-field substitutions and strip trailing padding."""
     out = []
     for line in lines:
         for rx, repl in _SUBS:
             line = rx.sub(repl, line)
-        out.append(line.rstrip())
+        out.append(_mask_table_cell(line).rstrip())
     return out
 
 
@@ -128,8 +184,13 @@ def meaningful_lines(lines):
 
 
 # A normalized log line: normalize_lines() has already collapsed the stamp to
-# <TS>, so every log entry starts with it and nothing else does.
-_LOG_LINE = re.compile(r"^<TS> ")
+# <TS>, so every log entry starts with it and nothing else does. A long entry
+# wraps into indented "> " continuation rows, which carry no stamp of their own
+# but belong to the entry above and scroll away with it - so they are log lines
+# too, for this purpose. No page legend starts a row with ">" (the alarms and
+# monitor footers lead with their left-hand neighbour's name), so the second
+# pattern cannot bite a widget row.
+_LOG_LINE = re.compile(r"^(?:<TS> |\s+> )")
 
 
 def drop_log_lines(lines):

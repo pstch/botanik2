@@ -1,0 +1,24 @@
+ 1 2 3 4 5 6:MONITOR 7 8            <TIME>                  cpu:<C> stk:<S>
+
+  | SCOPE    | VARIABLE                 | VALUE         | UNIT   | OVERRIDE  |
+  +----------+--------------------------+---------------+--------+-----------+
+  | MI       | grid_L1_V                | <V>           | V      | -         |
+  | MI       | grid_L2_V                | <V>           | V      | -         |
+  | MI       | grid_L3_V                | <V>           | V      | -         |
+  | MI       | grid_L1_A                | <V>           | A      | -         |
+  | MI       | grid_L2_A                | <V>           | A      | -         |
+  | MI       | grid_L3_A                | <V>           | A      | -         |
+  | MI       | grid_L1_VA               | <V>           | VA     | -         |
+  | MI       | grid_L2_VA               | <V>           | VA     | -         |
+  | MI       | grid_L3_VA               | <V>           | VA     | -         |
+  | MI       | grid_L1_VAr              | <V>           | VAr    | -         |
+  v----------+--------------------------+---------------+--------+-----------v
+
+ Description  : L1 phase voltage
+ Notes        : -
+ Source       : Modbus dev 5 fc 3 reg 0
+ Quality      : <Q>
+
+                      [all]         (grid)      1-10 / 72
+
+ ALARMS :<BAR>

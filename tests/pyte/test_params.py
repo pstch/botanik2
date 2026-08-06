@@ -1,26 +1,25 @@
-"""CONFIG page: the parameter table, the selected-row detail panel, and an
-inline value edit.
+"""PARAMS page: the detail panel tracks the cursor, and an edit round-trips.
 
-Content checks (not a full-screen golden): the values come from the live
-parameter store and an edit round-trips through it, so a content check is the
-scale-invariant assertion here (cf. test_logs.py).
+The table's layout - columns, rules, the detail panel's rows - is pinned by
+test_pages.py (golden `page_params`), so the header checks that used to open
+these tests are gone. What stays is behaviour a golden cannot express: that the
+panel follows the selection, that an edit commits through the store, and that
+the legend's (group) tracks the cursor.
+
+These keep their own sims: an edit here commits to the parameter store, and the
+golden in test_pages.py is taken against the declared defaults.
 """
 
 import keys
 from helpers import boot, goto
 
-ALT_6 = keys.ESC + b"5"      # CONFIG is page index 4 (ALT_5)
 CTRL_U = b"\x15"             # clear the edit line
 
 
 def test_config_detail_and_edit(spawn):
-    """One boot covers the table, the detail panel and the edit round-trip: the
-    latter two can only be asserted on a rendered table anyway."""
+    """The detail panel follows the selection, and an edit round-trips."""
     term = boot(spawn)
-    goto(term, ALT_6)
-    assert term.wait_for("PARAMETER"), "config table header missing"
-    assert term.wait_for("DEFAULT"), "default column header missing"
-    assert term.wait_for("ntp_poll_sec"), "config parameter rows missing"
+    goto(term, keys.ALT_5, "PARAMETER")
     # Move the cursor down to ntp_poll_sec (table index 4: net_serial, net_dhcp,
     # ntp_serial, ntp_enable, ntp_poll_sec - the text parameters are their own
     # block at the end now, so they no longer sit between these); the detail
@@ -49,10 +48,9 @@ def test_config_detail_and_edit(spawn):
 
 
 def test_notes_row(spawn):
-    """The panel's Notes row, and that an authored note actually reaches it."""
+    """An authored note actually reaches the panel's Notes row."""
     term = boot(spawn)
-    goto(term, ALT_6, "PARAMETER")
-    assert term.wait_for("Notes"), "panel has no Notes row"
+    goto(term, keys.ALT_5, "PARAMETER")
     # net_dhcp carries one; the row below Description is where it lands.
     term.send(keys.DOWN)
     assert term.wait_for("ignores the static ip/mask/gw rows"), \
@@ -68,7 +66,7 @@ def test_group_follows_selection(spawn):
     table, for every row.
     """
     term = boot(spawn)
-    goto(term, ALT_6, "PARAMETER")
+    goto(term, keys.ALT_5, "PARAMETER")
     assert term.wait_for("(net)"), "first row is a net_* parameter"
     # Two net_* scalars lead the block; the third row is already ntp_*, since
     # the net_* text parameters sit in their own block further down.

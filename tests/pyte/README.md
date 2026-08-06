@@ -85,36 +85,87 @@ loads this `conftest.py` (and the `--sim`/`--update` options) regardless of CWD:
 pytest tests/pyte --sim build-debug/pyte-sim/botanik_sim   # or set BOTANIK_SIM
 ```
 
-## Expectations: goldens, and when not to use one
+## Every page has a display test
 
-A golden earns its keep only where the expected screen is genuinely a *picture*
-- a lot of stable text no one would want to hand-write. That is the Home widget,
-and it is the only golden left (`golden/home_boot.txt`). Regenerate it after an
-intentional UI change, **review the diff**, and commit:
+**Standing rule: each page registered in `BotanikFirmware::register_pages()` has
+one settled-screen golden, in `test_pages.py`.** Its `PAGES` table is the list;
+adding a page means adding a row and regenerating. `test_pages.py` also asserts
+this against the running firmware - it reads the status bar's tab strip, which
+terminal.cpp draws from the page list, and fails if a tab is there that `PAGES`
+does not cover. So a new page cannot quietly arrive without a display test.
+
+The suite walks all six pages in **one** sim: booting the firmware and waiting
+out its network handshake is the expensive part of a screen test, and paying it
+per page would make this the most costly thing in the gate. Nothing in
+`test_pages.py` mutates state, so the pages cannot contaminate each other;
+anything that edits, resets or overrides uses its own `spawn`.
+
+## What a golden is for, and what it is not
+
+A golden pins **layout**: which rows a page draws, in what order, with what
+labels, columns, rules and chrome. It does not pin **values** - `normalize.py`
+masks every cell the greenhouse moves (readings, clock, uptime, load, alarm
+state, quality) - because those are what a page exists to show live, and pinning
+them is what made an earlier generation of goldens flaky enough to delete.
+
+So: a renamed column, a dropped panel, a shifted table all fail here. A warmer
+afternoon does not.
+
+That division is why the earlier passes' reasoning does not apply to these. They
+deleted 24-line fixtures that spent 23 lines restating chrome to pin one to
+three rows of payload - a *behavioural* assertion wearing a screenshot's
+clothing. These pin the chrome deliberately, because the chrome is the thing
+under test, and nothing else in the suite covers it.
+
+Behaviour still belongs inline, next to the input that produced it:
+`helpers.assert_editor(term, *rows)` for the shell reconciliation scenarios, and
+`wait_for()` when the assertion is about content appearing (a log line, a
+committed value). The per-page files next door do exactly this and no longer
+restate the chrome `test_pages.py` covers.
+
+Two pages are honestly thin, and the reason is worth knowing:
+
+- **LOGS** is nothing *but* the live scrollback, and `drop_log_lines` removes
+  log entries (and their wrapped `>` continuation rows) from both sides of the
+  comparison - so its golden pins the frame alone. Freezing the log would need a
+  knob the firmware does not have; content is asserted in `test_logs.py`.
+- **ALARMS** is pinned in its **ALL** view, not the default RECENT one. RECENT
+  orders active-first via `_before()`, so both its row set and their order move
+  with the fast greenhouse; `alarms.h` returns before that sort for `MODE_ALL`,
+  which leaves the fixed catalog in table order.
+
+## Regenerating
 
 ```sh
-make -C build-debug pytest-update
+make -C build pyte-sim        # goldens run a STALE sim otherwise
+make -C build pytest-update
 ```
 
 This runs the suite with `--update`, which rewrites the goldens from live output
-instead of asserting. It is deliberately separate from `check`/`test`.
+instead of asserting. It is deliberately separate from `check`/`test` - the gate
+never rewrites its own expectations. **Review the diff before committing**:
+`--update` writes the full snapshot including the `ALARM_*` noise lines that are
+only dropped at compare time, so strip anything matching `normalize._NOISE` from
+the goldens to keep the artifacts clean.
 
-Everywhere else, assert inline. Once `normalize.py` has masked the volatile
-cells and `meaningful_lines` has dropped the blank and log rows, most screens
-reduce to two rows of chrome plus one to three rows of payload - so a 24-line
-fixture spent 23 lines restating the same constants to pin the row the test was
-actually about, and every unrelated UI tweak dragged all of them through a
-regen. The shell reconciliation tests use `helpers.assert_editor(term, *rows)`
-instead: the expected rows are spelled out in the test, next to the input that
-produced them. Prefer that. Reach for `wait_for()` when the assertion is about
-content that appears (a log line, a table header) rather than a whole screen.
+Regeneration deliberately runs at `PYTE_TIME_SCALE=6` while the assert suite
+defaults to 50, so captures are low-drift.
+
+One thing the comparison does not catch: `meaningful_lines` drops blank lines,
+so a golden compares a *sequence* of non-blank rows rather than their absolute
+positions. A regression that only changes vertical spacing passes.
 
 ## Layout
 
-- `conftest.py`  - the PTY/pyte `Term`, the `spawn` and `assert_screen` fixtures.
+- `conftest.py`  - the PTY/pyte `Term`, the `spawn` / `spawn_module` factories
+  and the `assert_screen` fixture.
 - `normalize.py` - field-level regex that masks volatile cells (clock, uptime,
-  cpu/stk, home readings, log timestamps) before comparison.
+  cpu/stk, home readings, log timestamps) plus the geometry-based mask for the
+  MONITOR/ALARMS live table columns, before comparison.
 - `keys.py`      - input byte sequences matching `console/parser.cpp`.
 - `helpers.py`   - boot / page-switch helpers, and `assert_editor`.
-- `test_*.py`    - home, logs, alarms, monitor, params, shell commands, and the
-  shell reconciliation scenarios.
+- `test_pages.py` - **the per-page display goldens**, and the invariant that
+  every registered page has one.
+- `test_*.py`    - the per-page *behaviour*: home reboot, log marks, alarm view
+  cycling, monitor scrolling, param editing, shell commands and the shell
+  reconciliation scenarios.
