@@ -25,6 +25,7 @@
 #include "libbotanik/vars/model.h"
 #include "libbotanik/vars/params.h"
 #include "libbotanik/vars/access.h"
+#include "libbotanik/vars/library.h"
 
 #include "libbotanik/plc/functions/functions.h"
 #include "libbotanik/plc/blocks/blocks.h"

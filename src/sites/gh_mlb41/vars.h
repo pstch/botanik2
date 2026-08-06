@@ -37,7 +37,6 @@
 #include <cstdint>
 
 #include "libbotanik.h"
-#include "libbotanik/alarms/platform.h"   // BOTANIK_PLATFORM_ALARM_VARS
 
 namespace Site {
 
@@ -154,6 +153,17 @@ const uint8_t g_analog_cal_count =
  *  today. */
 const Variable g_vars[] = {
 
+/** @name The library's own rows
+ *
+ *  Not the site's, but they live here: the bank holds one contiguous table, so
+ *  everything libbotanik declares is spliced in through this single define. It
+ *  goes FIRST and ends with its parameters, so they abut the site's below and
+ *  the ROLE_PARAM run stays contiguous. See vars/library.h.
+ *  @{ */
+
+    BOTANIK_LIBRARY_VARS
+
+/** @} */
 
 /** @name Parameters - persisted and editable; the PARAMS page and `set` write these
  *  @{ */
@@ -459,19 +469,6 @@ const Variable g_vars[] = {
     RO("cli_skirtValve",      34, 5,   false, false, "wet skirt valve",                ""),
     RO("irr_tray7",           34, 6,   true,  true,  "tray 7 valve",                   ""),
     RO("irr_tray8",           34, 7,   true,  true,  "tray 8 valve",                   ""),
-
-/** @} */
-
-/** @name Platform health - the library's own alarm rows
- *
- *  Spliced in rather than declared: these belong to libbotanik (the health
- *  monitor raises them from the scheduler metrics), but the bank holds ONE
- *  contiguous table, so they have to live in this array. At the END, so the
- *  site's own conditions still fill the alarm model from index 0 and the block
- *  cannot land inside the ROLE_PARAM run at the top.
- *  @{ */
-
-    BOTANIK_PLATFORM_ALARM_VARS,
 
 /** @} */
 

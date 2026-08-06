@@ -107,33 +107,50 @@ step by hand.
 The policy lives in the `Payload` union's alarm arm, which fits inside the 16 bytes
 a numeric band already costs - so carrying it on the row is free.
 
-### The library's own alarm rows
+### The library's own rows
 
-The platform-health alarms - `SYS_RST`, `CPU_LOAD`, `CPU_JITT`, `STACK`, `CPU_XRUN`,
-`FLASH_FLT` - are `SCOPE_A` rows like any other. They belong to libbotanik (the health
-monitor raises them from the scheduler metrics), but the bank holds **one** contiguous
-table, so a site splices them in:
+A site's `g_vars[]` is not only the site's. libbotanik has state that belongs in the
+variable model - alarms it raises, readings it publishes, parameters it reads - and
+the bank holds **one** contiguous descriptor array, so those rows live in the site's
+table. One `#define` splices the lot:
 
 ```cpp
-#include "libbotanik/alarms/platform.h"
-
 const Variable g_vars[] = {
-    ...the site's own rows...
-    BOTANIK_PLATFORM_ALARM_VARS,      // the library's, at the end
+    BOTANIK_LIBRARY_VARS          // the library's rows, first, no comma
+
+    ...the site's parameters...   // must come first among the site's own
+    ...everything else...
 };
 ```
 
-At the **end**, for two reasons: the site's own conditions then still fill the alarm
-model from index 0, and the block cannot land inside the contiguous `ROLE_PARAM` run.
+No comma after it: every row inside carries its own, so a group with nothing in it
+expands to nothing and the rows around it still read correctly.
 
-There is no second alarm table, no merge and no reserved index range - one scan in one
-order finds site and platform conditions together. The health monitor is an ordinary
-consumer of the bank: it resolves the six names once at bring-up and writes the
-boolean, exactly as a control program would.
+`vars/library.h` defines four groups - alarms, status values, computed globals,
+parameters - each a concatenation of whatever subsystem headers contribute rows to it.
+Three are empty today. Filling one is an edit to that file and nothing else; a site
+already splicing `BOTANIK_LIBRARY_VARS` picks the new rows up on the next build.
 
-@warning Leave the macro out and the unit still builds and boots - it just can never
-raise a platform alarm. POST fails naming each missing row, the bank logs and counts
-each unresolved name, and `tests/test_site_names.cpp` fails before either.
+Today the only tenant is the platform-health alarm group (`alarms/platform.h`):
+`SYS_RST`, `CPU_XRUN`, `CPU_LOAD`, `STACK`, `CPU_JITT`, `FLASH_FLT`. They are `SCOPE_A`
+rows like any other - no second alarm table, no merge, no reserved index range - and
+`HealthMonitor` is an ordinary consumer of the bank, resolving the six names once at
+bring-up and writing the boolean.
+
+**Two ordering rules**, both from the same place: `Bank` needs the `ROLE_PARAM` rows to
+be one contiguous run, because that is what lets the PARAMS page and the shell address
+them by a dense 0-based index. So the library's parameters must abut the site's. Sites
+put theirs at the top, which pins it: the library block goes **first**, and its
+parameters go **last within it**. Nothing else cares about position - alarm conditions
+are numbered by table order, so the library's alarms simply head the ALARMS page.
+
+The library reserves Modbus TCP slave registers **900-999** for its own parameters and
+status values, so a site never has to guess which numbers are safe.
+
+@warning A site that omits the splice still builds and boots, and loses whatever the
+library expected to find - today, every platform-health alarm. POST reports each
+missing row by name, the bank counts and logs every unresolved lookup, and
+`tests/test_site_names.cpp` fails before either.
 
 ## Shell commands
 
