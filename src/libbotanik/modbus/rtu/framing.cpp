@@ -1,9 +1,9 @@
 /**
- * @file framing.cpp
+ * @file modbus/rtu/framing.cpp
  * @brief @see framing.h
  */
 
-#include "framing.h"
+#include "libbotanik/modbus/rtu/framing.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 

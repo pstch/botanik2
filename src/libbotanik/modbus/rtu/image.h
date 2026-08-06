@@ -1,8 +1,8 @@
-#ifndef MODBUS_IMAGE_H
-#define MODBUS_IMAGE_H
+#ifndef MODBUS_RTU_IMAGE_H
+#define MODBUS_RTU_IMAGE_H
 
 /**
- * @file image.h
+ * @file modbus/rtu/image.h
  * @brief Where the bus meets the bank: a response becomes readings, and demands
  *        become a frame.
  *
@@ -26,7 +26,7 @@
 
 #include <cstdint>
 
-#include "plan.h"
+#include "libbotanik/modbus/rtu/plan.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
@@ -92,4 +92,4 @@ namespace Botanik { namespace Modbus {
 }}  // namespace Botanik::Modbus
 
 #endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-#endif // MODBUS_IMAGE_H
+#endif // MODBUS_RTU_IMAGE_H

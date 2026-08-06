@@ -1,14 +1,14 @@
 /**
- * @file plan.cpp
+ * @file modbus/rtu/plan.cpp
  * @brief @see plan.h
  */
 
-#include "plan.h"
+#include "libbotanik/modbus/rtu/plan.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
-#include "../scheduler/task_timer.h"   // Scheduler::stagger_offset - one rule for spreading a set
-#include "../vars/model.h"             // Vars::Bank / Variable - the table this reads
+#include "libbotanik/scheduler/task_timer.h"   // Scheduler::stagger_offset - one rule for spreading a set
+#include "libbotanik/vars/model.h"             // Vars::Bank / Variable - the table this reads
 
 namespace Botanik { namespace Modbus {
 

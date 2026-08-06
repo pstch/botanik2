@@ -1,15 +1,15 @@
 /**
- * @file image.cpp
+ * @file modbus/rtu/image.cpp
  * @brief @see image.h
  */
 
-#include "image.h"
+#include "libbotanik/modbus/rtu/image.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
-#include "codec.h"
-#include "../vars/model.h"
-#include "../vars/params.h"    // Vars::analog_values - an AI row's live calibration
+#include "libbotanik/modbus/rtu/codec.h"
+#include "libbotanik/vars/model.h"
+#include "libbotanik/vars/params.h"    // Vars::analog_values - an AI row's live calibration
 
 namespace Botanik { namespace Modbus {
 

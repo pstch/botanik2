@@ -1,8 +1,8 @@
-#ifndef MODBUS_PLAN_H
-#define MODBUS_PLAN_H
+#ifndef MODBUS_RTU_PLAN_H
+#define MODBUS_RTU_PLAN_H
 
 /**
- * @file plan.h
+ * @file modbus/rtu/plan.h
  * @brief What the bus costs, and the blocks the variable table turns into.
  *
  * @section plan_why Transactions are the scarce resource, registers are nearly free
@@ -47,8 +47,8 @@
 
 #include <cstdint>
 
-#include "../../libbotanik_config.h"
-#include "wire.h"
+#include "libbotanik_config.h"
+#include "libbotanik/modbus/wire.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
@@ -317,4 +317,4 @@ namespace Botanik { namespace Modbus {
 }}  // namespace Botanik::Modbus
 
 #endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-#endif // MODBUS_PLAN_H
+#endif // MODBUS_RTU_PLAN_H

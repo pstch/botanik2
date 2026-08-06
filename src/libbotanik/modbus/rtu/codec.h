@@ -1,8 +1,8 @@
-#ifndef MODBUS_CODEC_H
-#define MODBUS_CODEC_H
+#ifndef MODBUS_RTU_CODEC_H
+#define MODBUS_RTU_CODEC_H
 
 /**
- * @file codec.h
+ * @file modbus/rtu/codec.h
  * @brief Building a request and taking a response apart: the checksum, the five
  *        builders, the parser, and the 32-bit register pair.
  *
@@ -15,7 +15,7 @@
 
 #include <cstdint>
 
-#include "wire.h"
+#include "libbotanik/modbus/wire.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
@@ -123,4 +123,4 @@ namespace Botanik { namespace Modbus {
 }}  // namespace Botanik::Modbus
 
 #endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-#endif // MODBUS_CODEC_H
+#endif // MODBUS_RTU_CODEC_H

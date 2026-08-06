@@ -1,16 +1,16 @@
 /**
- * @file client.cpp
+ * @file modbus/rtu/client.cpp
  * @brief @see client.h
  */
 
-#include "client.h"
+#include "libbotanik/modbus/rtu/client.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
-#include "codec.h"
-#include "../hal/platform.h"
-#include "../logs/logger.h"
-#include "../vars/model.h"
+#include "libbotanik/modbus/rtu/codec.h"
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/vars/model.h"
 
 namespace Botanik { namespace Modbus {
 

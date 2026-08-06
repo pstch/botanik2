@@ -1,5 +1,5 @@
 /**
- * @file modbus/pdu.cpp
+ * @file modbus/tcp/pdu.cpp
  * @brief The codec declared in pdu.h: framing in, framing out.
  *
  * The MBAP length field is authoritative for where a frame ends - it is checked
@@ -8,7 +8,7 @@
  * its own function code is then a CONTENT error, answerable with an exception,
  * because framing was never in doubt.
  */
-#include "libbotanik/modbus/pdu.h"    // the vocabulary and the three encoders implemented here
+#include "libbotanik/modbus/tcp/pdu.h"    // the vocabulary and the three encoders implemented here
 
 #include <cstring>                    // memcpy - copying a read payload into the response
 

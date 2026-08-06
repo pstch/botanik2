@@ -1,9 +1,9 @@
-#ifndef MODBUS_SERVER_H
-#define MODBUS_SERVER_H
+#ifndef MODBUS_TCP_SLAVE_H
+#define MODBUS_TCP_SLAVE_H
 
 /**
- * @file modbus/server.h
- * @brief TcpServer: the Modbus TCP slave. Sockets, connections, and where in the
+ * @file modbus/tcp/slave.h
+ * @brief TcpSlave: the Modbus TCP slave. Sockets, connections, and where in the
  *        beat a request is answered.
  *
  * pdu.h owns the framing and map.h owns the meaning; this owns the timing. It is
@@ -61,8 +61,8 @@
 #include "libbotanik/alarms/alarms.h" // Alarms::AlarmController - the ack block's target
 #include "libbotanik/core/component.h" // Component - the config-driven lifecycle
 #include "libbotanik/hal/net.h"       // HAL::Network - listener and connection sockets
-#include "libbotanik/modbus/map.h"    // Modbus::Map - what an address means
-#include "libbotanik/modbus/pdu.h"    // Modbus::Request / TCP_ADU_MAX - framing
+#include "libbotanik/modbus/tcp/map.h"    // Modbus::Map - what an address means
+#include "libbotanik/modbus/tcp/pdu.h"    // Modbus::Request / TCP_ADU_MAX - framing
 #include "libbotanik/vars/model.h"    // Vars::Bank - the process image being served
 
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
@@ -72,8 +72,8 @@ namespace Botanik { namespace Modbus {
     /** @brief What the shell and the status UI read back. Borrowed by
      *  SystemContext, the SchedulerContext pattern: the server publishes, the
      *  consumers read, and nobody hands anybody a setter. */
-    struct ServerContext {
-        /** @name Derived, filled by TcpServer::context()
+    struct SlaveContext {
+        /** @name Derived, filled by TcpSlave::context()
          *  The server holds these as the socket and the map, so keeping a second
          *  copy in step is work with nothing to show for it.
          *  @{ */
@@ -98,7 +98,7 @@ namespace Botanik { namespace Modbus {
      * @brief The slave: a listening socket, a few connections, and the two
      *        per-beat entry points.
      */
-    class TcpServer : public Component {
+    class TcpSlave : public Component {
 
         /** @name Per-connection state
          *  @{ */
@@ -135,7 +135,7 @@ namespace Botanik { namespace Modbus {
          *  (HealthMonitor owns it); null leaves the whole block unmapped. */
         Alarms::AlarmController* _alarms;
         Map           _map;
-        ServerContext _ctx;
+        SlaveContext _ctx;
         HAL::Network::TcpSocket _listener = -1;
         Conn     _conn[Config::MODBUS_TCP_MAX_CONN];
         uint16_t _port     = 0;            ///< the port currently bound
@@ -144,7 +144,7 @@ namespace Botanik { namespace Modbus {
         /** @} */
 
     public:
-        TcpServer(Vars::Bank* io, Logs::Logger* logger = nullptr,
+        TcpSlave(Vars::Bank* io, Logs::Logger* logger = nullptr,
                   Alarms::AlarmController* alarms = nullptr);
 
         /** @name Per-beat entry points
@@ -165,7 +165,7 @@ namespace Botanik { namespace Modbus {
 
         /** @brief The live status, by value: the counters as they stand plus the
          *  four derived fields filled in on the way out. */
-        ServerContext        context() const;
+        SlaveContext        context() const;
         const Map&           map() const     { return _map; }
         bool listening() const { return _listener >= 0; }
         /** @brief Whether writes are accepted at all right now (`mb_write_enable`). */
@@ -213,4 +213,4 @@ namespace Botanik { namespace Modbus {
 
 #endif // BOTANIK_FEATURE_MODBUS_TCP_SERVER
 
-#endif // MODBUS_SERVER_H
+#endif // MODBUS_TCP_SLAVE_H

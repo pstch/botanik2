@@ -1,8 +1,8 @@
-#ifndef MODBUS_CLIENT_H
-#define MODBUS_CLIENT_H
+#ifndef MODBUS_RTU_CLIENT_H
+#define MODBUS_RTU_CLIENT_H
 
 /**
- * @file client.h
+ * @file modbus/rtu/client.h
  * @brief The RTU master: one transaction in flight, driven from the beat.
  *
  * @section cl_split Why it is stepped twice
@@ -36,15 +36,15 @@
 
 #include <cstdint>
 
-#include "../core/component.h"
+#include "libbotanik/core/component.h"
 // The real header, not a forward declaration: on OPTA the Arduino core
 // macro-expands `Serial`, so `namespace Serial { class Raw; }` written here
 // declares a DIFFERENT type from the one HAL::Serial::get() returns, and the two
 // only fail to meet at the link. Same reason utils/serial.h includes it.
-#include "../hal/platform.h"
-#include "framing.h"
-#include "image.h"
-#include "plan.h"
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/modbus/rtu/framing.h"
+#include "libbotanik/modbus/rtu/image.h"
+#include "libbotanik/modbus/rtu/plan.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
@@ -166,4 +166,4 @@ namespace Botanik { namespace Modbus {
 }}  // namespace Botanik::Modbus
 
 #endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-#endif // MODBUS_CLIENT_H
+#endif // MODBUS_RTU_CLIENT_H

@@ -1,9 +1,9 @@
 /**
- * @file codec.cpp
+ * @file modbus/rtu/codec.cpp
  * @brief @see codec.h
  */
 
-#include "codec.h"
+#include "libbotanik/modbus/rtu/codec.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 

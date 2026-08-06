@@ -1,12 +1,12 @@
 /**
- * @file modbus/server.cpp
- * @brief TcpServer: the socket handling and the two-phase beat.
+ * @file modbus/tcp/slave.cpp
+ * @brief TcpSlave: the socket handling and the two-phase beat.
  *
  * Every loop here is bounded and every call non-blocking, like the rest of the
  * firmware: `recv` returning 0 is would-block and not a close, a partial `send`
  * resumes on the next beat, and nothing waits for a peer.
  */
-#include "libbotanik/modbus/server.h" // TcpServer - implemented here
+#include "libbotanik/modbus/tcp/slave.h" // TcpSlave - implemented here
 
 #include <cstring>                    // memmove - shifting a consumed frame out of the RX buffer
 
@@ -21,12 +21,12 @@ namespace Botanik { namespace Modbus {
     using namespace Vars;
     namespace Net = HAL::Network;
 
-    TcpServer::TcpServer(Bank* io, Logs::Logger* logger,
+    TcpSlave::TcpSlave(Bank* io, Logs::Logger* logger,
                          Alarms::AlarmController* alarms)
         : Component(logger, "Modbus"), _io(io), _alarms(alarms), _map(io) {}
 
-    ServerContext TcpServer::context() const {
-        ServerContext c = _ctx;
+    SlaveContext TcpSlave::context() const {
+        SlaveContext c = _ctx;
         c.listening = (_listener >= 0);
         c.port      = _port;
         c.rows      = _map.count();
@@ -38,7 +38,7 @@ namespace Botanik { namespace Modbus {
     // Lifecycle
     // ------------------------------------------------------------------------
 
-    void TcpServer::on_setup(uint64_t now_ms) {
+    void TcpSlave::on_setup(uint64_t now_ms) {
         // The map is built once, here rather than on the first beat: it is a
         // scan of the whole variable table, and the first beat is not where a
         // couple of hundred rows of insertion sort belongs.
@@ -50,11 +50,11 @@ namespace Botanik { namespace Modbus {
         _apply_config(now_ms);
     }
 
-    uint32_t TcpServer::param_serial() const { return group_serial(_io, "mb"); }
+    uint32_t TcpSlave::param_serial() const { return group_serial(_io, "mb"); }
 
-    void TcpServer::on_param_changed(uint64_t now_ms) { _apply_config(now_ms); }
+    void TcpSlave::on_param_changed(uint64_t now_ms) { _apply_config(now_ms); }
 
-    void TcpServer::_apply_config(uint64_t now_ms) {
+    void TcpSlave::_apply_config(uint64_t now_ms) {
         const bool     want_on   = get_int(_io, "mb_enable", 1) != 0;
         const uint16_t want_port = (uint16_t)get_int(_io, "mb_port",
                                                     Config::MODBUS_TCP_PORT);
@@ -69,7 +69,7 @@ namespace Botanik { namespace Modbus {
         if (_listener < 0) _open_listener();
     }
 
-    void TcpServer::_open_listener() {
+    void TcpSlave::_open_listener() {
         _listener = Net::tcp_listen(_port);
         if (_logger == nullptr) return;
         if (_listener >= 0) _logger->info(Logs::NETWORK, "modbus slave on port %u",
@@ -81,7 +81,7 @@ namespace Botanik { namespace Modbus {
                             (unsigned)_port);
     }
 
-    void TcpServer::_close_listener() {
+    void TcpSlave::_close_listener() {
         for (Conn& c : _conn) if (c.sock >= 0) _drop(c, nullptr);
         if (_listener >= 0) Net::tcp_close(_listener);
         _listener = -1;
@@ -90,7 +90,7 @@ namespace Botanik { namespace Modbus {
     // The input half of the beat
     // ------------------------------------------------------------------------
 
-    void TcpServer::on_step(uint64_t now_ms) {
+    void TcpSlave::on_step(uint64_t now_ms) {
         // Disabled, or a bind that failed: either way there is no socket, and the
         // next config commit is what changes that.
         if (_listener < 0) return;
@@ -104,7 +104,7 @@ namespace Botanik { namespace Modbus {
         _reap(now_ms);
     }
 
-    void TcpServer::_accept(uint64_t now_ms) {
+    void TcpSlave::_accept(uint64_t now_ms) {
         for (uint8_t n = 0; n < Config::MODBUS_TCP_ACCEPT_PER_STEP; n++) {
             const Net::TcpSocket s = Net::tcp_accept(_listener);
             if (s < 0) return;                      // nothing pending
@@ -134,7 +134,7 @@ namespace Botanik { namespace Modbus {
         }
     }
 
-    void TcpServer::_receive(Conn& c) {
+    void TcpSlave::_receive(Conn& c) {
         if (c.rx_len >= TCP_ADU_MAX) return;            // full: decode first
         const int n = Net::tcp_recv(c.sock, c.rx + c.rx_len,
                                     (size_t)(TCP_ADU_MAX - c.rx_len));
@@ -142,7 +142,7 @@ namespace Botanik { namespace Modbus {
         if (n > 0) c.rx_len = (uint16_t)(c.rx_len + n);
     }
 
-    void TcpServer::_dispatch(Conn& c, uint64_t now_ms) {
+    void TcpSlave::_dispatch(Conn& c, uint64_t now_ms) {
         // One request in flight: while an answer is owed, further bytes stay in
         // the buffer. That is what keeps a pipelining master from needing a
         // queue here.
@@ -190,7 +190,7 @@ namespace Botanik { namespace Modbus {
         if (c.rx_len > 0) memmove(c.rx, c.rx + used, c.rx_len);
     }
 
-    void TcpServer::_answer_write(Conn& c, const Request& r) {
+    void TcpSlave::_answer_write(Conn& c, const Request& r) {
         if (!_writable) { _refuse(c, r, EX_ILLEGAL_ADDRESS); return; }
 
         uint16_t committed = 0;
@@ -238,7 +238,7 @@ namespace Botanik { namespace Modbus {
     // The acknowledgement block
     // ------------------------------------------------------------------------
 
-    int TcpServer::_ack_index(uint16_t addr) const {
+    int TcpSlave::_ack_index(uint16_t addr) const {
         if (_alarms == nullptr) return -1;
         const uint16_t reg = (uint16_t)(addr - Config::MODBUS_TCP_ACK_COIL_BASE);
         bool found = false;
@@ -250,7 +250,7 @@ namespace Botanik { namespace Modbus {
         return _alarms->index_of(v.name());
     }
 
-    Exception TcpServer::_read_ack(uint16_t addr, uint16_t count,
+    Exception TcpSlave::_read_ack(uint16_t addr, uint16_t count,
                                    uint8_t* out, size_t cap) const {
         if (_alarms == nullptr) return EX_ILLEGAL_ADDRESS;
         if (cap < bit_bytes(count)) return EX_SLAVE_FAILURE;
@@ -266,7 +266,7 @@ namespace Botanik { namespace Modbus {
         return EX_NONE;
     }
 
-    Exception TcpServer::_write_ack(uint16_t addr, bool on,
+    Exception TcpSlave::_write_ack(uint16_t addr, bool on,
                                     const Net::Ip4& peer) {
         if (_alarms == nullptr) return EX_ILLEGAL_ADDRESS;
         // Un-acknowledging is not in the model, and silently ignoring the write
@@ -296,7 +296,7 @@ namespace Botanik { namespace Modbus {
         return EX_NONE;
     }
 
-    void TcpServer::_refuse(Conn& c, const Request& r, Exception ex) {
+    void TcpSlave::_refuse(Conn& c, const Request& r, Exception ex) {
         _ctx.exceptions++;
         c.tx_len  = (uint16_t)encode_exception(c.tx, sizeof(c.tx), r.mbap, r.fc, ex);
         c.tx_sent = 0;
@@ -306,7 +306,7 @@ namespace Botanik { namespace Modbus {
     // The present half of the beat
     // ------------------------------------------------------------------------
 
-    void TcpServer::service_tx(uint64_t now_ms) {
+    void TcpSlave::service_tx(uint64_t now_ms) {
         (void)now_ms;
         for (Conn& c : _conn) {
             if (c.sock < 0) continue;
@@ -315,7 +315,7 @@ namespace Botanik { namespace Modbus {
         }
     }
 
-    void TcpServer::_answer_read(Conn& c) {
+    void TcpSlave::_answer_read(Conn& c) {
         const Request& r = c.req;
         // The payload is built HERE, in the present phase: this is the post-scan
         // image, and answering off it is the reason the two halves are split.
@@ -360,7 +360,7 @@ namespace Botanik { namespace Modbus {
         c.pending = PEND_BYTES;
     }
 
-    void TcpServer::_flush(Conn& c) {
+    void TcpSlave::_flush(Conn& c) {
         while (c.tx_sent < c.tx_len) {
             const int n = Net::tcp_send(c.sock, c.tx + c.tx_sent,
                                         (size_t)(c.tx_len - c.tx_sent));
@@ -376,7 +376,7 @@ namespace Botanik { namespace Modbus {
     // Housekeeping
     // ------------------------------------------------------------------------
 
-    void TcpServer::_drop(Conn& c, const char* why) {
+    void TcpSlave::_drop(Conn& c, const char* why) {
         if (c.sock < 0) return;
         Net::tcp_close(c.sock);
         c.sock    = -1;
@@ -391,7 +391,7 @@ namespace Botanik { namespace Modbus {
         }
     }
 
-    void TcpServer::_reap(uint64_t now_ms) {
+    void TcpSlave::_reap(uint64_t now_ms) {
         for (Conn& c : _conn) {
             if (c.sock < 0 || c.pending != PEND_NONE) continue;
             if (now_ms - c.last_ms < Config::MODBUS_TCP_IDLE_TIMEOUT_MS) continue;

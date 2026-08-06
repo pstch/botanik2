@@ -1,5 +1,5 @@
 /**
- * @file modbus/map.cpp
+ * @file modbus/tcp/map.cpp
  * @brief Map: the scan that builds it, the lookup, and the type conversion.
  *
  * The conversion is the part worth reading twice. Every row occupies exactly two
@@ -8,7 +8,7 @@
  * and the 64-bit types saturate. Uniform width is what makes an address derivable
  * from a row number, which is what keeps the map stable when a row is inserted.
  */
-#include "libbotanik/modbus/map.h"    // Map - implemented here
+#include "libbotanik/modbus/tcp/map.h"    // Map - implemented here
 
 #include <cstring>                    // memcpy - moving float bits without aliasing
 

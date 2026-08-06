@@ -236,14 +236,13 @@ without hardware.
 
 ```
 src/libbotanik/modbus/
-  pdu.h/.cpp      PDU + MBAP decode/encode, exception codes. Knows nothing about
-                  vars or sockets; shared with the future RTU client.
-  map.h/.cpp      Modbus::Map over Vars::Bank: reg -> VarRef, built once at
-                  bring-up (scan for SCOPE_P/SCOPE_SV, sort by reg, binary
-                  search - the same shape as the bank's name index), plus the
-                  type encode/decode above.
-  server.h/.cpp   Modbus::TcpServer: Component, listener + N connections, the two
-                  step entry points, the counters.
+  wire.h              the vocabulary both transports share (with the RTU master)
+  tcp/pdu.h/.cpp      what MBAP adds: a frame out of a stream, an answer back in
+  tcp/map.h/.cpp      Modbus::Map over Vars::Bank: reg -> VarRef, built once at
+                      bring-up (scan, sort by reg, binary search - the same shape
+                      as the bank's name index), plus the type encode/decode
+  tcp/slave.h/.cpp    Modbus::TcpSlave: Component, listener + N connections, the
+                      two step entry points, the counters
 ```
 
 Behind `BOTANIK_FEATURE_MODBUS_TCP_SERVER`, which is already declared with its
@@ -375,6 +374,10 @@ Each step builds and leaves the gate green:
 9. Wiring: the stack, the site config, the `modbus` command, the context,
    `docs/dev/` page. Fold whatever of this note turned out to be true into it and
    delete the rest.
+
+The RTU master merged in alongside this (`modbus/rtu/`), so 7-9 are now shared
+work across both halves - see `modbus-remaining.md` for the combined list and for
+the dead-slave policy the field bus still needs.
 
 ## Settled, and what is left
 

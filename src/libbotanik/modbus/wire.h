@@ -19,7 +19,7 @@
 
 #include <cstdint>
 
-#include "../../libbotanik_config.h"
+#include "libbotanik_config.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT || BOTANIK_FEATURE_MODBUS_TCP_SERVER
 

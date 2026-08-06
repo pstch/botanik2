@@ -13,6 +13,7 @@ turned out to be true into the manual page for it and delete the rest.
 
 | Note | About | Status |
 |---|---|---|
-| `modbus-budget.md` | What a Modbus RTU transaction costs, what the plant can afford, and the four rules the client should follow | no client yet |
-| `modbus-tcp-server.md` | The register map a SCADA master sees, derived from the rows' declared `reg`, and where the server sits in the beat | no server yet |
+| `modbus-budget.md` | What a Modbus RTU transaction costs, what the plant can afford, and the four rules the client should follow | client built, not driven yet |
+| `modbus-tcp-server.md` | The register map a SCADA master sees, derived from the rows' declared `reg`, and where the server sits in the beat | slave built, not instantiated yet |
+| `modbus-remaining.md` | What is left once both halves are merged: the two mappings, the simulator's opposite ends, and the RTU master's dead-slave policy | the plan |
 | `beat-cost.md` | Static per-task cycle estimates from M7 disassembly, and where the spikes are | estimates, not measurements; some already stale |

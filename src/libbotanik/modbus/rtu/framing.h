@@ -1,8 +1,8 @@
-#ifndef MODBUS_FRAMING_H
-#define MODBUS_FRAMING_H
+#ifndef MODBUS_RTU_FRAMING_H
+#define MODBUS_RTU_FRAMING_H
 
 /**
- * @file framing.h
+ * @file modbus/rtu/framing.h
  * @brief Finding where a response ends, without being able to hear the silence
  *        that officially delimits it.
  *
@@ -41,7 +41,7 @@
 
 #include <cstdint>
 
-#include "codec.h"
+#include "libbotanik/modbus/rtu/codec.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
@@ -185,4 +185,4 @@ namespace Botanik { namespace Modbus {
 }}  // namespace Botanik::Modbus
 
 #endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-#endif // MODBUS_FRAMING_H
+#endif // MODBUS_RTU_FRAMING_H

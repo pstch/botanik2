@@ -1,12 +1,12 @@
-#ifndef MODBUS_MAP_H
-#define MODBUS_MAP_H
+#ifndef MODBUS_TCP_MAP_H
+#define MODBUS_TCP_MAP_H
 
 /**
- * @file modbus/map.h
+ * @file modbus/tcp/map.h
  * @brief The register map: what a master's addresses mean in terms of the
  *        variable bank, and the type conversion in both directions.
  *
- * No transport here either - this is addresses and values. The server (server.h)
+ * No transport here either - this is addresses and values. The server (tcp/slave.h)
  * owns the sockets and the beat; pdu.h owns the framing; this owns the answer.
  *
  * @section map_address The address is derived, the row number is declared
@@ -52,7 +52,7 @@
 
 #include "libbotanik_config.h"        // Config::MODBUS_* - the map's fixed capacity
 
-#include "libbotanik/modbus/pdu.h"    // Modbus::Exception - what a refusal is spelled in
+#include "libbotanik/modbus/tcp/pdu.h"    // Modbus::Exception - what a refusal is spelled in
 #include "libbotanik/vars/access.h"   // Vars::var_mapped - which rows carry a register
 #include "libbotanik/vars/model.h"    // Vars::Bank / Var / VarRef - what is being published
 
@@ -209,4 +209,4 @@ namespace Botanik { namespace Modbus {
 
 #endif // BOTANIK_FEATURE_MODBUS_TCP_SERVER
 
-#endif // MODBUS_MAP_H
+#endif // MODBUS_TCP_MAP_H

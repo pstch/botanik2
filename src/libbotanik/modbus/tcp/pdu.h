@@ -1,13 +1,13 @@
-#ifndef MODBUS_PDU_H
-#define MODBUS_PDU_H
+#ifndef MODBUS_TCP_PDU_H
+#define MODBUS_TCP_PDU_H
 
 /**
- * @file modbus/pdu.h
+ * @file modbus/tcp/pdu.h
  * @brief What Modbus TCP adds to a PDU: the MBAP header, request decoding and
  *        response encoding.
  *
  * The vocabulary itself - function codes, exceptions, the quantity ceilings, the
- * byte order - is @ref wire.h, shared with the RTU client. The two transports
+ * byte order - is @ref modbus/wire.h, shared with the RTU client. The two transports
  * differ in their FRAMING and in nothing else, and this file is that difference.
  *
  * No sockets, no variables, no clock. What arrives is a byte buffer and what
@@ -134,4 +134,4 @@ namespace Botanik { namespace Modbus {
 
 #endif // BOTANIK_FEATURE_MODBUS_TCP_SERVER
 
-#endif // MODBUS_PDU_H
+#endif // MODBUS_TCP_PDU_H
