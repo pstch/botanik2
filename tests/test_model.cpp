@@ -67,6 +67,38 @@ TEST_CASE("model: seeding sets validity by role, not by type") {
     CHECK(f.bank.var(V_VALVE).b());
 }
 
+TEST_CASE("model: invalid records WHY, not just that") {
+    // The whole point of Quality: three different things invalidate a reading,
+    // they want three different next moves from whoever is looking, and the
+    // model used to answer all three with the same bare "invalid".
+    Fixture f;
+    Var h = f.bank.var(V_EXT_TEMP);
+    CHECK(h.live_quality() == Q_NO_DATA);          // seeded, nothing written
+
+    h.publish(Scalar::F(20.0f), 1000);
+    CHECK(h.live_quality() == Q_GOOD);
+
+    f.bank.expire_stale(1000000);                  // well past its timeout
+    CHECK(h.live_quality() == Q_STALE);
+
+    h.publish(Scalar::F(999.0f), 2000);            // band is -40..85
+    CHECK(f.bank.reject_implausible() == 1);
+    CHECK(h.live_quality() == Q_IMPLAUSIBLE);
+
+    // ...and an output taken to its safe state is a fourth, which is not a
+    // fault at all - it is the firmware declining to drive.
+    f.bank.enable_control(Bank::INHIBIT_HEALTH);
+    Var out = f.bank.var(V_VALVE);
+    out.set(true);
+    CHECK(out.live_quality() == Q_GOOD);
+    f.bank.disable_control(Bank::INHIBIT_HEALTH);
+    CHECK(out.live_quality() == Q_SAFE);
+
+    // Every one of them reads as invalid, which is what the old bool said.
+    CHECK_FALSE(out.valid());
+    CHECK_FALSE(h.valid());
+}
+
 TEST_CASE("model: an invalid variable reads as its default") {
     Fixture f;
     f.bank.var(V_EXT_TEMP).set(31.7f);

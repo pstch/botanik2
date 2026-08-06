@@ -68,6 +68,22 @@ That last one is the important one to recognise. A dead sensor does not read as
 zero-because-broken; it reads as whatever the site declared as its fallback, and the
 firmware tells you so.
 
+### Why a reading is invalid
+
+`get` and the MONITOR panel do not just say a value is bad, they say what made it
+bad - because the four causes want four different next moves:
+
+| Reads | What happened | Where to look |
+|---|---|---|
+| `valid` | a real value from whoever owns the row | - |
+| `invalid: nothing has written it` | no driver has ever published it | wiring, or a device that never answered |
+| `invalid: past its timeout` | it was live and stopped | the device went away mid-run |
+| `invalid: outside its band` | it is answering, with nonsense | the sensor - a dead 4-20 mA loop reads full scale, and no timeout catches that |
+| `invalid: dropped to its safe state` | an **output**, not a fault | control authority is withdrawn (see @ref user_control) |
+
+The last one is worth recognising: a relay reading invalid usually means the
+firmware is deliberately not driving it, not that anything is broken.
+
 ## Overrides
 
 An override forces a variable to a value you choose. It is a maintenance tool: fake

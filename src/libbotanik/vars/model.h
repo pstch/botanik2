@@ -119,6 +119,41 @@ namespace Botanik { namespace Vars {
         SCOPE_COUNT
     };
 
+    /** @brief WHY a value reads as it does.
+     *
+     *  The model used to record only THAT a reading was invalid, never why -
+     *  and three quite different things set it: nothing ever wrote the row, it
+     *  was live and stopped, or it is answering with nonsense. Those want three
+     *  different actions from whoever is looking (check the wiring, check the
+     *  device, check the sensor), and every one of them showed on the console as
+     *  the same bare "invalid".
+     *
+     *  Written by whichever path invalidated the row, so it is a diagnosis
+     *  rather than a guess made at display time.
+     *
+     *  @warning Q_NO_DATA is 0 deliberately: a zero-initialised Value - which is
+     *  how every site's value store starts, and what the sink is - must read as
+     *  "nothing has written this", never as good data. */
+    enum Quality : uint8_t {
+        Q_NO_DATA = 0,   ///< nothing has ever written it; reads its declared default
+        Q_GOOD,          ///< a real value from whoever owns the row
+        Q_STALE,         ///< it was live and stopped: no good read within its timeout
+        Q_IMPLAUSIBLE,   ///< answering with nonsense: outside its band, or non-finite
+        Q_SAFE           ///< an output dropped to its declared safe state
+    };
+
+    /** @brief @p q as a phrase for an operator: "valid", or invalid and why. */
+    inline const char* quality_str(Quality q) {
+        switch (q) {
+            case Q_GOOD:        return "valid";
+            case Q_NO_DATA:     return "invalid: nothing has written it";
+            case Q_STALE:       return "invalid: past its timeout";
+            case Q_IMPLAUSIBLE: return "invalid: outside its band";
+            case Q_SAFE:        return "invalid: dropped to its safe state";
+            default:            return "invalid";
+        }
+    }
+
     /** @brief Per-variable behaviour bits. */
     enum VarFlags : uint8_t {
         F_INVERT  = 1u << 0,   ///< active-low wiring, folded in so logic reads true = asserted
@@ -365,7 +400,10 @@ namespace Botanik { namespace Vars {
          *  alignment, and behind them it bought a pad byte that pushed the row
          *  past 32. */
         uint16_t str_off;
-        bool     valid;
+        /** @brief The live value's quality - valid, or invalid and why. Replaces
+         *  the bool it used to be, at the same cost, because "invalid" alone was
+         *  the same answer to three different questions (see Quality). */
+        Quality  qual;
         bool     ovr_on;     ///< an override is in force
         bool     ovr_valid;  ///< what valid() reports while overridden
         uint8_t  _rsv[3];
@@ -428,13 +466,13 @@ namespace Botanik { namespace Vars {
          *  around it.
          *  @{ */
         Scalar   raw()   const { return _v->ovr_on ? _v->ovr
-                                                   : (_v->valid ? _v->v : _d->def); }
+                                                   : (live_valid() ? _v->v : _d->def); }
         /** @brief As a float; a digital reads 0/1, so a consumer that only
          *  displays or publishes never branches on the type. */
         float    value() const { return as_f32(_d->type, raw()); }
         bool     b()     const { return as_bool(_d->type, raw()); }
         int64_t  i()     const { return as_i64(_d->type, raw()); }
-        bool     valid() const { return _v->ovr_on ? _v->ovr_valid : _v->valid; }
+        bool     valid() const { return _v->ovr_on ? _v->ovr_valid : live_valid(); }
         /** @name Under the override
          *
          *  What the row would read with nothing forced: the driver's last value
@@ -444,8 +482,12 @@ namespace Botanik { namespace Vars {
          *  "the sensor now reads sane again" is exactly what you want to know
          *  before releasing an override.
          *  @{ */
-        Scalar   live()       const { return _v->valid ? _v->v : _d->def; }
-        bool     live_valid() const { return _v->valid; }
+        Scalar   live()       const { return live_valid() ? _v->v : _d->def; }
+        bool     live_valid() const { return _v->qual == Q_GOOD; }
+        /** @brief ...and WHY, when it is not good. An override does not change
+         *  it: the row underneath still has whatever quality it had, which is
+         *  exactly what someone deciding whether to release one wants. */
+        Quality  live_quality() const { return _v->qual; }
         /** @} */
         /** @brief Where this row's text sits in the pool (T_STR only; 0
          *  otherwise, and text_slot().cap is 0 there so nothing writes). */
@@ -468,17 +510,17 @@ namespace Botanik { namespace Vars {
          *  resolve. An integer literal is deliberately not accepted - it would be
          *  ambiguous; use set_i().
          *  @{ */
-        void set(bool v)      { _v->v = from_bool(_d->type, v); _v->valid = true; }
-        void set(float v)     { _v->v = from_f32 (_d->type, v); _v->valid = true; }
-        void set_i(int64_t v) { _v->v = from_i64 (_d->type, v); _v->valid = true; }
+        void set(bool v)      { _v->v = from_bool(_d->type, v); _v->qual = Q_GOOD; }
+        void set(float v)     { _v->v = from_f32 (_d->type, v); _v->qual = Q_GOOD; }
+        void set_i(int64_t v) { _v->v = from_i64 (_d->type, v); _v->qual = Q_GOOD; }
 
         /** @brief What a DRIVER calls: value, timestamp and validity in one
          *  step, so the staleness clock cannot be forgotten. */
         void publish(Scalar v, uint64_t now_ms) {
-            _v->v = v; _v->stamp_ms = now_ms; _v->valid = true;
+            _v->v = v; _v->stamp_ms = now_ms; _v->qual = Q_GOOD;
         }
         /** @brief Drop to the declared safe state (what a fault does). */
-        void safe() { _v->valid = false; }
+        void safe() { _v->qual = Q_SAFE; }
         /** @} */
 
         const Variable* meta() const { return _d; }

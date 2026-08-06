@@ -61,6 +61,14 @@ Two decisions live in those two lines.
 
 **An invalid variable reads as its declared default.** Control logic that does not
 care about quality still gets a sane number; logic that does care asks `valid()`.
+
+The slot records **why**, not just whether: `Value::qual` is a `Vars::Quality` -
+`Q_GOOD`, `Q_NO_DATA`, `Q_STALE`, `Q_IMPLAUSIBLE`, `Q_SAFE` - written by whichever
+path invalidated the row, so it is a diagnosis rather than something reconstructed
+at display time. `valid()` is `qual == Q_GOOD`; there is no second bool to drift
+from it, and it costs the byte the old bool did. `Q_NO_DATA` is 0 on purpose: a
+zero-initialised `Value`, which is how every site's store starts, must read as
+"nothing has written this" and never as good data.
 Because a site picks defaults that are outside the plausibility band, a dead sensor
 usually reads as a fault without any code testing for it.
 

@@ -256,10 +256,10 @@ namespace Botanik { namespace Shell {
         /** @brief One "Label ....... : value (detail)" row. @p detail may be
          *  null or empty, which drops the parentheses. */
         void _field(const char* label, const char* value, const char* detail);
-        /** @brief A value row: @p v rendered with @p unit, and valid/invalid as
-         *  the detail. @p h supplies the type and, for a T_STR, the pool text. */
+        /** @brief A value row: @p v rendered with @p unit, and @p quality as the
+         *  detail. @p h supplies the type and, for a T_STR, the pool text. */
         void _value_field(const char* label, const Vars::Bank& io, Vars::Var h,
-                          Vars::Scalar v, bool valid, const char* unit);
+                          Vars::Scalar v, const char* quality, const char* unit);
         /** @brief What a VarScope abbreviation means, for the detail column. */
         static const char* _scope_phrase(uint8_t scope);
         /** @brief Whether `set` will take @p h. */

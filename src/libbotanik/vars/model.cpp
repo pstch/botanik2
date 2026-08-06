@@ -85,11 +85,10 @@ namespace Botanik { namespace Vars {
             // Overrides are a live-session tool; a fresh table has none.
             _t.val[i].ovr_on   = false;
             // A parameter always HAS a value - its factory default until the
-            // store loads one - so it starts valid. Everything else starts
-            // invalid, so it reads as its default until something real writes
-            // it, and the console can say "no data" rather than presenting a
-            // default as a measurement.
-            _t.val[i].valid    = (d.role == ROLE_PARAM);
+            // store loads one - so it starts good. Everything else starts with
+            // nothing written, so it reads as its default and the console says
+            // so rather than presenting a default as a measurement.
+            _t.val[i].qual     = (d.role == ROLE_PARAM) ? Q_GOOD : Q_NO_DATA;
 
             uint16_t cap = 0;
             char* text = text_at(Var(&d, &_t.val[i]), &cap);
@@ -235,7 +234,7 @@ namespace Botanik { namespace Vars {
                 if (_store != nullptr) (void)_store->clear_override(_t.var[i]);
                 _t.val[i].ovr_on = false;
             }
-            if (to_safe) _t.val[i].valid = false;
+            if (to_safe) _t.val[i].qual = Q_SAFE;
         }
     }
 
@@ -243,8 +242,9 @@ namespace Botanik { namespace Vars {
         for (uint16_t i = 0; i < _t.count; i++) {
             const Variable& d = _t.var[i];
             if (d.role != ROLE_INPUT || d.timeout_ms == 0) continue;
-            if (_t.val[i].valid && (now_ms - _t.val[i].stamp_ms) > d.timeout_ms)
-                _t.val[i].valid = false;
+            if (_t.val[i].qual == Q_GOOD &&
+                (now_ms - _t.val[i].stamp_ms) > d.timeout_ms)
+                _t.val[i].qual = Q_STALE;
         }
     }
 
@@ -252,7 +252,7 @@ namespace Botanik { namespace Vars {
         uint16_t n = 0;
         for (uint16_t i = 0; i < _t.count; i++) {
             const Variable& d = _t.var[i];
-            if (d.role != ROLE_INPUT || !_t.val[i].valid) continue;
+            if (d.role != ROLE_INPUT || _t.val[i].qual != Q_GOOD) continue;
             // An override is a maintainer deliberately pushing a reading past
             // its band to exercise what watches for it - the one case where an
             // implausible value is the point.
@@ -270,7 +270,7 @@ namespace Botanik { namespace Vars {
                 bad = !in_range(d.type, _t.val[i].v, b.min, b.max);
             }
             if (!bad) continue;
-            _t.val[i].valid = false;
+            _t.val[i].qual = Q_IMPLAUSIBLE;
             n++;
         }
         return n;
@@ -311,12 +311,12 @@ namespace Botanik { namespace Vars {
             if (dst == nullptr) return SET_INVALID;
             if (!validate_str(text_slot(*d).kind, text, cap)) return SET_INVALID;
             copy_bounded(dst, cap, text);
-            slot.valid = true;
+            slot.qual = Q_GOOD;
         } else {
             Scalar parsed;
             if (parse_for(*d, text, /*bounded=*/true, &parsed) != SET_OK) return SET_INVALID;
-            slot.v     = parsed;
-            slot.valid = true;
+            slot.v    = parsed;
+            slot.qual = Q_GOOD;
         }
 
         if (_store == nullptr) return SET_NOT_PERSISTED;

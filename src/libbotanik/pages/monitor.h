@@ -406,10 +406,12 @@ namespace Botanik { namespace Pages {
             // override outranks the rest here.
             const char* quality = nullptr;
             if (have) {
+                // An override shadows, so say so first - but the row underneath
+                // keeps its own quality, and WHY it is bad is what decides the
+                // next move (see Vars::Quality).
                 if (h.overridden())   quality = h.valid() ? "OVERRIDDEN (forced by hand)"
                                                           : "OVERRIDDEN (forced invalid)";
-                else if (h.valid())   quality = "live";
-                else                  quality = "no data (showing default)";
+                else                  quality = Vars::quality_str(h.live_quality());
             }
             _panel_field((uint16_t)(br + 5), "Quality", quality);
             _blank_line((uint16_t)(br + 6));

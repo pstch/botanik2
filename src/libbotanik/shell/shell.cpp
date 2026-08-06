@@ -439,9 +439,17 @@ namespace Botanik { namespace Shell {
         // publishing underneath - so "what is it held at" and "what would it
         // read if I let go" are different questions, and someone deciding
         // whether to release one is asking the second.
-        _value_field("Raw value", *io, h, h.live(), h.live_valid(), u);
-        if (h.overridden()) _value_field("Override value", *io, h, h.raw(), h.valid(), u);
-        else                _field("Override value", "-", nullptr);
+        // The raw row says WHY, not just whether: "nothing has written it",
+        // "past its timeout" and "outside its band" want three different next
+        // moves, and all three used to read as a bare "invalid".
+        _value_field("Raw value", *io, h, h.live(), Vars::quality_str(h.live_quality()), u);
+        // The override's is a person's choice, not a diagnosis, so it stays a
+        // yes or a no.
+        if (h.overridden())
+            _value_field("Override value", *io, h, h.raw(),
+                         h.valid() ? "valid" : "invalid", u);
+        else
+            _field("Override value", "-", nullptr);
 
         // The declared band, live: an analog row's comes from its calibration
         // parameters, so var_band() rather than the flash constants.
@@ -481,11 +489,11 @@ namespace Botanik { namespace Shell {
     }
 
     // A value row: the number, its unit, and whether it is worth believing.
-    // Validity rides here rather than on a Quality row of its own, because a
-    // value and whether it is good are one fact - and there are two values.
+    // Quality rides here rather than on a row of its own, because a value and
+    // whether it is good are one fact - and there are two values.
     void CommandShell::_value_field(const char* label, const Vars::Bank& io,
-                                    Vars::Var h, Vars::Scalar v, bool valid,
-                                    const char* unit) {
+                                    Vars::Var h, Vars::Scalar v,
+                                    const char* quality, const char* unit) {
         const Vars::Variable* d = h.meta();
         char num[48], cell[64];
         // A T_STR keeps its live text in the pool, not the slot, so the Scalar
@@ -494,7 +502,7 @@ namespace Botanik { namespace Shell {
             ? Vars::var_format(io, h, num, sizeof(num))
             : Vars::format_scalar(d->type, v, d->digits, d->str, num, sizeof(num));
         snprintf(cell, sizeof(cell), "%s%s%s", text, unit[0] ? " " : "", unit);
-        _field(label, cell, valid ? "valid" : "invalid");
+        _field(label, cell, quality);
     }
 
     // What a scope abbreviation MEANS, for the detail column. The table shows
