@@ -21,6 +21,8 @@
 // Arduino/Mbed core headers - resolved from the installed mbed_opta core, not this tree.
 #include "mbed.h"                     // mbed::LowPowerClock / BufferedSerial / CMSIS intrinsics (__DSB, WDT)
 #include "USBSerial.h"                // USBSerial - the MONITOR transport (USB CDC)
+#include "hal/pinmap.h"               // pin_function / pinmap_peripheral - the RS-485 DE pin's alternate function
+#include "hal/serial_api.h"           // serial_tx_pinmap - which USART Mbed bound the field bus to
 
 /// Linker symbol for the top of the MSP/ISR stack (the ~1KB exception stack,
 /// NOT the RTOS thread stack the firmware runs on).
@@ -307,17 +309,189 @@ namespace Botanik { namespace HAL {
         uint16_t availableForWrite() override { return 1; }
     };
 
-    /** @brief Logical serial endpoints: CONSOLE drives the interactive
-     *  terminal, MONITOR the secondary diagnostic/log output. */
-    enum Port { CONSOLE, MONITOR };
+    /** @brief Line format parity. The field bus needs it (Modbus RTU's default
+     *  is 8E1); CONSOLE and MONITOR are 8N1 and never ask. */
+    enum Parity : uint8_t { PARITY_NONE = 0, PARITY_EVEN, PARITY_ODD };
 
-    /** @brief Resolve a logical Port to its transport. Swapping the two is a
-     *  change to these two lines and nothing else. Function-local statics, so
-     *  each is constructed on first use (after the RTOS is up) rather than
-     *  before main(). */
+    /** @name RS-485 field bus
+     *
+     *  The third endpoint, and the only one that is a BUS rather than a
+     *  point-to-point link. Two things follow from that, and both are hidden
+     *  here so nothing above this file learns what RS-485 is:
+     *
+     *  - **Only one device may drive the pair at a time.** A transceiver's
+     *    driver is switched on by DE and its receiver by RE (active low), and
+     *    getting the handover wrong is not a soft failure: drop DE early and the
+     *    last byte is truncated on the wire, drop it late and we are still
+     *    driving when the slave answers.
+     *  - **We cannot see when our own frame has left.** A UART's software
+     *    buffer going empty is not the shift register going empty; up to two
+     *    characters are still in flight.
+     *
+     *  @section fb_de Why the silicon drives DE and not us
+     *
+     *  PB_14 is not an arbitrary GPIO the board happened to wire to DE: it is
+     *  USART3's own RTS/DE pin (Arduino picked it for exactly that reason, and
+     *  then drove it by hand anyway). Putting it in its alternate function and
+     *  setting CR3.DEM hands the whole handover to the peripheral, which asserts
+     *  DE a guard time before the start bit and drops it a guard time after the
+     *  last stop bit - timing we could not reproduce from a 10 ms beat, and
+     *  would not want to try.
+     *
+     *  RE is held asserted, so the receiver is always listening. That means we
+     *  hear our own transmission come back; see fieldbus_flush_input(), which is
+     *  how the caller is meant to deal with it and which works whether or not
+     *  the echo turns out to be real on this board.
+     *  @{ */
+
+    /** @brief The RS-485 transceiver on USART3.
+     *
+     *  Pins are Mbed's, not the Arduino variant's: TX PB_10, RX PB_11, DE PB_14,
+     *  RE PB_13. HAL is pure Mbed by rule, so pins_arduino.h is not in scope
+     *  here even though it names the same four. */
+    class Rs485Raw : public Raw {
+
+        /** @name State
+         *  @{ */
+
+        mbed::BufferedSerial _port;
+        /** @brief Receiver enable, active low: 0 listens. Held there for the
+         *  life of the port - see the note above. */
+        mbed::DigitalOut     _re;
+        /** @brief One character's time on the wire, derived from the baud and
+         *  the frame format. What lets tx_idle() answer without a TX-complete
+         *  interrupt we do not have. */
+        uint32_t             _char_us = 0;
+        /** @brief When the last byte handed to the UART will have finished
+         *  leaving. Accumulated per byte rather than measured, because there is
+         *  nothing to measure it with. */
+        uint64_t             _tx_done_us = 0;
+
+        /** @} */
+
+    public:
+        Rs485Raw() : _port(PB_10, PB_11), _re(PB_13, 0) {
+            _port.set_blocking(false);   // the main loop must never stall on IO
+            format(19200, 8, PARITY_NONE, 1);
+            _driver_enable();
+        }
+
+        /** @brief Baud only, keeping the current frame format. */
+        void begin(uint32_t baud) override { format(baud, 8, PARITY_NONE, 1); }
+
+        /** @brief Set the whole line format. Modbus RTU's default is 8E1, and
+         *  the wire spends the same eleven bits either way: a no-parity link
+         *  spends its eleventh on a second stop bit. */
+        void format(uint32_t baud, uint8_t data_bits, Parity parity, uint8_t stop_bits) {
+            _port.set_baud((int)baud);
+            _port.set_format((int)data_bits,
+                             (parity == PARITY_EVEN) ? mbed::SerialBase::Even
+                           : (parity == PARITY_ODD)  ? mbed::SerialBase::Odd
+                                                     : mbed::SerialBase::None,
+                             (int)stop_bits);
+            // Start bit + data + parity + stop(s). At 19200 with 11 bits that is
+            // 573 us, comfortably above the ~30 us the low-power clock resolves.
+            const uint32_t bits = 1u + data_bits +
+                                  ((parity == PARITY_NONE) ? 0u : 1u) + stop_bits;
+            _char_us = baud ? (uint32_t)((1000000ULL * bits) / baud) : 0;
+            _tx_done_us = Clock::uptime_us();
+        }
+
+        int read() override {
+            uint8_t c;
+            return _port.read(&c, 1) == 1 ? (int)c : -1;
+        }
+
+        size_t write(uint8_t c) override {
+            if (_port.write(&c, 1) != 1) return 0;
+            // Accumulate from wherever the wire had got to, so a burst of bytes
+            // lands end to end rather than each one a character after "now".
+            const uint64_t now = Clock::uptime_us();
+            if (_tx_done_us < now) _tx_done_us = now;
+            _tx_done_us += _char_us;
+            return 1;
+        }
+
+        uint16_t availableForWrite() override { return _port.writable() ? 1 : 0; }
+
+        /** @brief Whether everything written has finished leaving the wire.
+         *
+         *  Computed, not observed. The caller waits for this before listening,
+         *  which is what makes the echo question moot: by the time this is true
+         *  our frame is gone, and a slave cannot have answered yet (its
+         *  turnaround is milliseconds), so anything in the receive path is ours
+         *  or noise, and either way wants discarding. */
+        bool tx_idle() const { return Clock::uptime_us() >= _tx_done_us; }
+
+        /** @brief Throw away whatever is sitting in the receive path.
+         *
+         *  Bounded, because an unbounded drain inside the beat is exactly the
+         *  thing this codebase does not do. Two full frames is far more than a
+         *  turnaround can have delivered. */
+        void flush_input() {
+            uint8_t c;
+            for (uint16_t i = 0; i < 512; ++i) {
+                if (_port.read(&c, 1) != 1) return;
+            }
+        }
+
+    private:
+        /** @brief Put PB_14 into its USART3_DE alternate function and switch the
+         *  peripheral's Driver Enable mode on.
+         *
+         *  Mbed configures TX and RX and nothing else, so the alternate function
+         *  is ours to set. The guard-time fields live in CR1, which is
+         *  write-protected while the USART is enabled, hence the disable /
+         *  modify / restore dance. */
+        void _driver_enable() {
+            pin_function(PB_14, STM_PIN_DATA(STM_MODE_AF_PP, GPIO_NOPULL,
+                                             GPIO_AF7_USART3));
+            // UARTName values are the peripheral's base address on STM32, so the
+            // pinmap tells us which register block Mbed bound TX to. Derived
+            // rather than hardcoded to USART3: if the pin ever moves, this moves
+            // with it instead of quietly poking the wrong peripheral.
+            USART_TypeDef* u =
+                (USART_TypeDef*)pinmap_peripheral(PB_10, serial_tx_pinmap());
+            if (u == nullptr) return;
+
+            // Assertion and de-assertion guard times, in sample-time units
+            // (1/16 of a bit at the default oversampling). Half a bit each way
+            // is generous for a transceiver whose enable settles in nanoseconds.
+            const uint32_t guard = 8;
+            const uint32_t was_enabled = u->CR1 & USART_CR1_UE;
+            u->CR1 &= ~USART_CR1_UE;
+            u->CR3 |= USART_CR3_DEM;
+            u->CR1 = (u->CR1 & ~(USART_CR1_DEAT_Msk | USART_CR1_DEDT_Msk)) |
+                     (guard << USART_CR1_DEAT_Pos) |
+                     (guard << USART_CR1_DEDT_Pos);
+            u->CR1 |= was_enabled;
+        }
+    };
+
+    /** @} */
+
+    /** @brief Logical serial endpoints: CONSOLE drives the interactive
+     *  terminal, MONITOR the secondary diagnostic/log output, FIELDBUS the
+     *  RS-485 bus the Modbus RTU client talks on. */
+    enum Port { CONSOLE, MONITOR, FIELDBUS };
+
+    /** @brief The field bus transport, constructed on first use.
+     *
+     *  Its own accessor rather than a third static inside get(), and that is
+     *  load-bearing: the statics in one function are all initialised on the
+     *  first call, so putting it there would claim USART3 and four pins on every
+     *  build that so much as writes to the console. Here, a firmware that never
+     *  asks for the field bus never builds one. */
+    inline Rs485Raw* fieldbus() { static Rs485Raw fb; return &fb; }
+
+    /** @brief Resolve a logical Port to its transport. Swapping them is a change
+     *  to these lines and nothing else. Function-local statics, so each is
+     *  constructed on first use (after the RTOS is up) rather than before
+     *  main(). */
     inline Raw* get(Port port) {
         static UartRaw console(CONSOLE_TX, CONSOLE_RX);
         static UsbRaw  monitor;
+        if (port == FIELDBUS) return static_cast<Raw*>(fieldbus());
         return (port == MONITOR) ? static_cast<Raw*>(&monitor)
                                  : static_cast<Raw*>(&console);
     }
@@ -326,6 +500,35 @@ namespace Botanik { namespace HAL {
      *  output is never suppressed on OPTA. Mirrors the simulator query so sinks
      *  (e.g. the MONITOR SerialLogWriter) stay platform-independent. */
     inline bool is_output_tty(const Raw*) { return false; }
+
+    /** @name Field bus control
+     *
+     *  Free functions rather than virtuals on Raw, deliberately. Raw is the
+     *  surface BufferedSerial drives for every port, and widening it would make
+     *  CONSOLE and MONITOR implement a line format and a turnaround they do not
+     *  have. These three are the field bus's alone, and the simulator backend
+     *  declares the same three, so a caller never branches on the target.
+     *  @{ */
+
+    /** @brief Bring the bus up at @p baud with the given frame format. */
+    inline void fieldbus_begin(uint32_t baud, uint8_t data_bits, Parity parity,
+                               uint8_t stop_bits) {
+        fieldbus()->format(baud, data_bits, parity, stop_bits);
+    }
+
+    /** @brief Whether everything written has finished leaving the wire. */
+    inline bool fieldbus_tx_idle() { return fieldbus()->tx_idle(); }
+
+    /** @brief Discard whatever is sitting in the receive path.
+     *
+     *  Called once a request has drained and before its answer is expected. On a
+     *  bus where the receiver never stops listening, that is the moment our own
+     *  echo is sitting there and the slave has not yet spoken - so this is what
+     *  keeps a write echo from being mistaken for the response to it, which for
+     *  FC05 and FC06 would be byte-identical and silently wrong. */
+    inline void fieldbus_flush_input() { fieldbus()->flush_input(); }
+
+    /** @} */
 
     }  // namespace Serial
 

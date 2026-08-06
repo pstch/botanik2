@@ -291,8 +291,13 @@ namespace Botanik { namespace HAL {
         int _fd_in = -1;             ///< -1 if unbound
         int _fd_out = -1;            ///< -1 if unbound
         uint32_t _baud = 0;          ///< drives the write throttle
-        /** @brief 8N1 slot (us/byte) and its FIFO-deep bank, derived once in
-         *  begin(). */
+        /** @brief Bits on the wire per byte, including start, parity and stop.
+         *  10 is 8N1, which is what CONSOLE and MONITOR are; the field bus sets
+         *  its own, since Modbus RTU spends eleven either way (8E1, or 8N1 with
+         *  a second stop bit). */
+        uint32_t _bits_per_char = 10;
+        /** @brief Per-byte slot (us) and its FIFO-deep bank, derived in
+         *  begin() from the baud and the frame format. */
         uint64_t _slot_us = 0;
         uint64_t _max_bank_us = 0;
         /** @brief Earliest time (us) the next byte may leave the wire; advanced
@@ -320,10 +325,17 @@ namespace Botanik { namespace HAL {
          *  throttling). */
         inline void begin(uint32_t baud) {
             _baud = baud;
-            // 8N1: 10 bit-times per byte
-            _slot_us = baud ? 10000000ULL / baud : 0;
+            _slot_us = baud ? (1000000ULL * _bits_per_char) / baud : 0;
             _max_bank_us = _slot_us * FIFO_BYTES;
             _next_write_us = _now_as<std::chrono::microseconds>();
+        }
+
+        /** @brief Begin at @p baud with a frame of a stated shape, so the
+         *  throttle models the real byte time. Mirrors Rs485Raw::format(). */
+        inline void format(uint32_t baud, uint8_t data_bits, uint8_t parity_bits,
+                           uint8_t stop_bits) {
+            _bits_per_char = 1u + data_bits + parity_bits + stop_bits;
+            begin(baud);
         }
 
         /** @brief Read a single byte; -1 if none available. */
@@ -378,6 +390,26 @@ namespace Botanik { namespace HAL {
          *  that would garble a console. */
         inline bool is_output_tty() const { return _out_is_tty; }
 
+        /** @brief Whether everything written has finished leaving the wire.
+         *
+         *  The token bucket already knows: it holds the earliest time the next
+         *  byte may go out, which is the same instant the last one finished.
+         *  Mirrors the OPTA's Rs485Raw::tx_idle(), which has to compute it for
+         *  want of a TX-complete interrupt. */
+        inline bool tx_idle() const {
+            return _next_write_us <= _now_as<std::chrono::microseconds>();
+        }
+
+        /** @brief Discard whatever is sitting in the receive path. Bounded, like
+         *  its OPTA counterpart: nothing inside the beat drains without a limit. */
+        inline void flush_input() {
+            if (_fd_in == -1) return;
+            uint8_t c;
+            for (uint16_t i = 0; i < 512; ++i) {
+                if (::read(_fd_in, &c, 1) <= 0) return;
+            }
+        }
+
         /** @brief Number of bytes currently available to read. */
         inline int available() {
             if (_fd_in == -1) return 0;
@@ -404,21 +436,32 @@ namespace Botanik { namespace HAL {
         /** @} */
     };
 
+    /** @brief Line format parity. Mirrors the OPTA enum so a caller that sets
+     *  8E1 spells it the same way on both targets. */
+    enum Parity : uint8_t { PARITY_NONE = 0, PARITY_EVEN, PARITY_ODD };
+
     /** @brief Logical serial endpoints: CONSOLE drives the interactive
-     *  terminal, MONITOR the secondary diagnostic/log output. */
-    enum Port { CONSOLE, MONITOR };
+     *  terminal, MONITOR the secondary diagnostic/log output, FIELDBUS the
+     *  RS-485 bus the Modbus RTU client talks on. */
+    enum Port { CONSOLE, MONITOR, FIELDBUS };
 
     /** @brief Resolve a logical Port to its backing Raw serial.
      *  CONSOLE is wired to stdin/stdout, MONITOR to stderr (output only).
-     *  @param port CONSOLE or MONITOR. */
+     *
+     *  FIELDBUS is deliberately left UNBOUND: reads find nothing and writes go
+     *  nowhere, which is the honest model of a bus with no devices on it. The
+     *  simulated RTU slaves that will answer on it are a later step, and when
+     *  they land this is the one line that changes.
+     *  @param port CONSOLE, MONITOR or FIELDBUS. */
     inline Raw* get(Port port) {
-        static Raw console, monitor;
+        static Raw console, monitor, fieldbus_port;
         static bool initialized = false;
         if (!initialized) {
             console.set_fds(STDIN_FILENO, STDOUT_FILENO);
             monitor.set_fds(-1, STDERR_FILENO);
             initialized = true;
         }
+        if (port == FIELDBUS) return &fieldbus_port;
         return (port == MONITOR) ? &monitor : &console;
     }
 
@@ -428,6 +471,27 @@ namespace Botanik { namespace HAL {
     inline bool is_output_tty(const Raw* port) {
         return (port != nullptr) && port->is_output_tty();
     }
+
+    /** @name Field bus control
+     *
+     *  The same three the OPTA backend declares, so a caller never branches on
+     *  the target. There is no transceiver to enable here and nothing echoes,
+     *  but the turnaround still has to be MODELLED: a client that only ever ran
+     *  against a port claiming to be instantly idle would be tuned for a bus
+     *  that does not exist.
+     *  @{ */
+
+    inline void fieldbus_begin(uint32_t baud, uint8_t data_bits, Parity parity,
+                               uint8_t stop_bits) {
+        get(FIELDBUS)->format(baud, data_bits,
+                              (uint8_t)(parity == PARITY_NONE ? 0 : 1), stop_bits);
+    }
+
+    inline bool fieldbus_tx_idle() { return get(FIELDBUS)->tx_idle(); }
+
+    inline void fieldbus_flush_input() { get(FIELDBUS)->flush_input(); }
+
+    /** @} */
 
     /** @brief Put the controlling terminal into raw mode for interactive use:
      *  disable canonical mode and echo, make reads non-blocking, and register
