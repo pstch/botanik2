@@ -892,6 +892,16 @@ namespace Botanik { namespace Vars {
          *  be overwritten by the next scan, which is what override() is for. */
         SetResult set(Var h, const char* text);
 
+        /** @brief Whether @p v WOULD be accepted, without writing anything.
+         *
+         *  The admission half of set(), split out because a caller that commits
+         *  several rows as one unit has to know they all pass before it changes
+         *  any of them - the Modbus slave applies a multi-register write that
+         *  way. Restating the rules at that call site instead would mean a rule
+         *  added here later is enforced only on commit, which is exactly the
+         *  half-applied write the two passes exist to prevent. */
+        SetResult check(Var h, Scalar v) const;
+
         /** @brief The same, with the value already typed.
          *
          *  Both callers of the text form are a human at a keyboard; a Modbus

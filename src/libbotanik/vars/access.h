@@ -103,6 +103,23 @@ namespace Botanik { namespace Vars {
         return d.scope != SCOPE_P && d.scope != SCOPE_A;
     }
 
+    /** @brief Whether this row carries a Modbus TCP *slave* register: a
+     *  parameter, a status value or an alarm.
+     *
+     *  Deliberately not the same set as var_published() - that one answers "does
+     *  the HMI and MQTT show it", and it excludes exactly the two kinds this one
+     *  includes, because a parameter and an alarm each have a page of their own.
+     *  Beside it all the same, because both are the same kind of rule: what a row
+     *  IS decides where it appears, and the answer lives here rather than being
+     *  restated by every consumer.
+     *
+     *  The register itself is the site's to assign; a row of one of these scopes
+     *  with reg 0 is a table defect the site test fails on, not a row that
+     *  quietly does not publish. */
+    inline bool var_mapped(const Variable& d) {
+        return d.scope == SCOPE_P || d.scope == SCOPE_SV || d.scope == SCOPE_A;
+    }
+
     /** @} */
 
     /** @brief What kind of row this is, as a short column label.

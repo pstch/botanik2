@@ -429,8 +429,9 @@ namespace Botanik { namespace HAL { namespace Network {
         if (s < 0) return false;
         // Hermetic: whatever the site aims at, the packet goes to the in-process
         // responder (see to_mock_peer) - and no privileged ports in the sim, so
-        // the well-known NTP port is routed too.
-        if (port == 123) port = NTP_MOCK_PORT;
+        // a well-known port (NTP's 123) is shifted by the same rule a listener
+        // binds under.
+        port = sim_port(port);
         sockaddr_in sin = make_sin(to_mock_peer(a), port);
         ssize_t n = ::sendto(s, buf, len, 0, reinterpret_cast<sockaddr*>(&sin), sizeof(sin));
         return n == (ssize_t)len;

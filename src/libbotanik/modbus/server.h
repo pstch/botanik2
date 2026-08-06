@@ -31,7 +31,7 @@
  * An alarm is published as a READ-ONLY coil at its row number (map.h): forcing
  * one by hand is an override, which is the console's job. But acknowledging one
  * is the interaction an operator actually performs at a SCADA station, and it is
- * a write. It gets a block of its own at `MODBUS_ACK_COIL_BASE + reg` rather
+ * a write. It gets a block of its own at `MODBUS_TCP_ACK_COIL_BASE + reg` rather
  * than a second meaning on the alarm's own bit:
  *
  *  - FC01 there reads the condition's `user_ack`, which clears itself on the
@@ -48,7 +48,7 @@
  *
  * @section server_bounded Bounded per beat
  *
- * Like every task: at most `MODBUS_ACCEPT_PER_STEP` accepts, ONE request decoded
+ * Like every task: at most `MODBUS_TCP_ACCEPT_PER_STEP` accepts, ONE request decoded
  * per connection (a master may pipeline; the extra bytes wait), and the protocol
  * ceilings on the request itself. A partial send resumes next beat rather than
  * blocking.
@@ -73,10 +73,17 @@ namespace Botanik { namespace Modbus {
      *  SystemContext, the SchedulerContext pattern: the server publishes, the
      *  consumers read, and nobody hands anybody a setter. */
     struct ServerContext {
+        /** @name Derived, filled by TcpServer::context()
+         *  The server holds these as the socket and the map, so keeping a second
+         *  copy in step is work with nothing to show for it.
+         *  @{ */
         bool     listening   = false;   ///< the port is bound
         uint16_t port        = 0;       ///< what it is bound to
         uint8_t  clients     = 0;       ///< live connections
         uint16_t rows        = 0;       ///< rows in the map
+        /** @} */
+        /** @name Counted as it happens
+         *  @{ */
         uint32_t requests    = 0;       ///< served, exceptions included
         uint32_t exceptions  = 0;       ///< refused with an exception code
         uint32_t writes      = 0;       ///< rows actually committed
@@ -84,6 +91,7 @@ namespace Botanik { namespace Modbus {
         uint32_t unit_misses = 0;       ///< requests for another unit id
         uint64_t last_req_ms = 0;       ///< uptime of the last request served
         HAL::Network::Ip4 last_peer = {{0, 0, 0, 0}};
+        /** @} */
     };
 
     /**
@@ -115,7 +123,6 @@ namespace Botanik { namespace Modbus {
             Pending  pending = PEND_NONE;
             Request  req;              ///< the deferred read
             uint64_t last_ms = 0;      ///< last complete request (idle reap)
-            bool     closing = false;  ///< flush, then hang up
         };
 
         /** @} */
@@ -130,9 +137,8 @@ namespace Botanik { namespace Modbus {
         Map           _map;
         ServerContext _ctx;
         HAL::Network::TcpSocket _listener = -1;
-        Conn     _conn[Config::MODBUS_MAX_CONN];
-        uint16_t _port    = 0;             ///< the port currently bound
-        bool     _enabled = false;         ///< mb_enable
+        Conn     _conn[Config::MODBUS_TCP_MAX_CONN];
+        uint16_t _port     = 0;            ///< the port currently bound
         bool     _writable = false;        ///< mb_write_enable
 
         /** @} */
@@ -157,7 +163,9 @@ namespace Botanik { namespace Modbus {
         /** @name Readback
          *  @{ */
 
-        const ServerContext& context() const { return _ctx; }
+        /** @brief The live status, by value: the counters as they stand plus the
+         *  four derived fields filled in on the way out. */
+        ServerContext        context() const;
         const Map&           map() const     { return _map; }
         bool listening() const { return _listener >= 0; }
         /** @brief Whether writes are accepted at all right now (`mb_write_enable`). */
@@ -175,10 +183,10 @@ namespace Botanik { namespace Modbus {
         /** @name Internals
          *  @{ */
         void _apply_config(uint64_t now_ms);   ///< read the `mb` group, rebind if needed
-        void _open_listener(uint64_t now_ms);
+        void _open_listener();
         void _close_listener();
         void _accept(uint64_t now_ms);
-        void _receive(Conn& c, uint64_t now_ms);
+        void _receive(Conn& c);
         /** @brief Decode one frame from @p c's buffer and act on it. */
         void _dispatch(Conn& c, uint64_t now_ms);
         /** @brief Serve a decoded read into @p c's tx buffer (present phase). */
@@ -188,7 +196,7 @@ namespace Botanik { namespace Modbus {
         void _refuse(Conn& c, const Request& r, Exception ex);
         /** @brief Whether @p addr falls in the acknowledgement block. */
         static bool _is_ack(uint16_t addr) {
-            return addr >= Config::MODBUS_ACK_COIL_BASE;
+            return addr >= Config::MODBUS_TCP_ACK_COIL_BASE;
         }
         /** @brief The condition at ack-block address @p addr, or -1. */
         int  _ack_index(uint16_t addr) const;

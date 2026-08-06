@@ -314,12 +314,11 @@ TEST_CASE("site: no two text parameters share pool bytes") {
 }
 
 namespace {
-    /** @brief Does this row publish a Modbus TCP slave register? Parameters,
-     *  status values and alarms do, and they share one space. */
-    bool mapped(const Vars::Variable& d) {
-        return d.scope == Vars::SCOPE_P || d.scope == Vars::SCOPE_SV ||
-               d.scope == Vars::SCOPE_A;
-    }
+    /** @brief Does this row publish a Modbus TCP slave register? The rule lives
+     *  in vars/access.h beside the other "what a row is decides where it
+     *  appears" rules - restating it here would let the map serve a scope this
+     *  test does not police. */
+    bool mapped(const Vars::Variable& d) { return Vars::var_mapped(d); }
     /** @brief Whether @p d's register sits in the block its scope belongs to.
      *
      *  Site rows below 900, the library's above; alarms in 800..899 and, for the

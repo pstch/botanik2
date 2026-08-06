@@ -40,18 +40,22 @@ namespace Botanik { namespace HAL { namespace Network {
      *  HAL routes the well-known NTP port (123) here, and the sim's MQTT config
      *  points at MQTT_MOCK_PORT directly.
      *  @{ */
-    static const uint16_t NTP_MOCK_PORT  = 10123;
-    static const uint16_t MQTT_MOCK_PORT = 11883;
-
     /** @brief What a privileged port becomes in the sim. A process without
-     *  CAP_NET_BIND_SERVICE cannot bind below 1024, so tcp_listen() (and a
-     *  connect aimed at one of its ports) shifts anything under 1024 up by this
-     *  much: Modbus 502 is reachable at 10502, and NTP_MOCK_PORT above is the
-     *  same arithmetic on 123. */
+     *  CAP_NET_BIND_SERVICE cannot bind below 1024, so a listener (and a connect
+     *  aimed at one of its ports) shifts anything under 1024 up by this much:
+     *  Modbus 502 is reachable at 10502. */
     static const uint16_t PRIV_PORT_SHIFT = 10000;
-    inline uint16_t sim_port(uint16_t p) {
+    constexpr uint16_t sim_port(uint16_t p) {
         return (p != 0 && p < 1024) ? (uint16_t)(p + PRIV_PORT_SHIFT) : p;
     }
+
+    /** @brief Where the in-process responder answers. NTP's is DERIVED from the
+     *  rule above rather than written out: the two used to be the same
+     *  arithmetic in two places, so moving the shift would have left the mock
+     *  responder behind while the HAL went on ahead. MQTT's is its own number -
+     *  1883 is not privileged, so nothing shifts it. */
+    static const uint16_t NTP_MOCK_PORT  = sim_port(123);
+    static const uint16_t MQTT_MOCK_PORT = 11883;
 
     /** @brief Per-process loopback address. 127.0.0.0/8 is entirely loopback on
      *  Linux, so each sim instance resolves/binds to its own 127.x.y.z (derived

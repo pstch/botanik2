@@ -53,6 +53,7 @@
 #include "libbotanik_config.h"        // Config::MODBUS_* - the map's fixed capacity
 
 #include "libbotanik/modbus/pdu.h"    // Modbus::Exception - what a refusal is spelled in
+#include "libbotanik/vars/access.h"   // Vars::var_mapped - which rows carry a register
 #include "libbotanik/vars/model.h"    // Vars::Bank / Var / VarRef - what is being published
 
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
@@ -81,11 +82,11 @@ namespace Botanik { namespace Modbus {
         /** @name State
          *  @{ */
 
-        const Vars::Bank* _io;
+        Vars::Bank* _io;
         /** @brief Row indices into the bank, ascending by register. */
-        uint16_t _rows[Config::MODBUS_MAX_ROWS];
+        uint16_t _rows[Config::MODBUS_TCP_MAX_ROWS];
         uint16_t _count;
-        /** @brief Rows that did not fit MODBUS_MAX_ROWS. Non-zero means the map
+        /** @brief Rows that did not fit MODBUS_TCP_MAX_ROWS. Non-zero means the map
          *  is silently short of what the site declared, which is exactly the
          *  kind of thing that must be reported rather than discovered. */
         uint16_t _overflow;
@@ -96,7 +97,7 @@ namespace Botanik { namespace Modbus {
         /** @} */
 
     public:
-        explicit Map(const Vars::Bank* io = nullptr)
+        explicit Map(Vars::Bank* io = nullptr)
             : _io(io), _rows(), _count(0), _overflow(0), _reg_lo(0), _reg_hi(0) {}
 
         /** @name Building
@@ -104,7 +105,7 @@ namespace Botanik { namespace Modbus {
 
         /** @brief Scan @p io (or the bank given at construction) for published
          *  rows and sort them by register. Idempotent. */
-        void build(const Vars::Bank* io = nullptr);
+        void build(Vars::Bank* io = nullptr);
 
         uint16_t count() const    { return _count; }
         uint16_t overflow() const { return _overflow; }
@@ -156,10 +157,10 @@ namespace Botanik { namespace Modbus {
          *  @param committed if non-null, receives how many rows actually changed
          *         (a no-op write reports zero, which is the point of counting). */
         Exception write_registers(uint16_t addr, uint16_t count,
-                                  const uint8_t* data, Vars::Bank* io,
+                                  const uint8_t* data,
                                   uint16_t* committed = nullptr);
         /** @brief Apply one coil: a boolean parameter at row @p addr. */
-        Exception write_bit(uint16_t addr, bool on, Vars::Bank* io,
+        Exception write_bit(uint16_t addr, bool on,
                             uint16_t* committed = nullptr);
 
         /** @} */
@@ -190,6 +191,17 @@ namespace Botanik { namespace Modbus {
          *  @{ */
         /** @brief Index into _rows of the row holding register @p reg, or -1. */
         int _find(uint16_t reg) const;
+        /** @brief Index of the first row at or past register @p reg (count()
+         *  when there is none).
+         *
+         *  What every request walks from. The map is SPARSE by design, so a
+         *  block read is mostly gaps: searching per register would pay a
+         *  binary search for each of them, where one lower bound plus a
+         *  cursor pays nothing at all. */
+        uint16_t _lower_bound(uint16_t reg) const;
+        /** @brief Register of the @p i-th mapped row; 0xFFFF past the end, so
+         *  a walk can compare against it without a bounds test. */
+        uint16_t _reg_of(uint16_t i) const;
         /** @} */
     };
 

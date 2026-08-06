@@ -41,15 +41,31 @@ namespace Botanik { namespace Modbus {
             return (uint32_t)(int32_t)v;
         }
 
+        /** @brief The 32-bit value the register pair at offset @p i of a write
+         *  payload carries. High word first, in the ONE place that says so. */
+        uint32_t word_at(const uint8_t* data, uint16_t i) {
+            return ((uint32_t)rd16(data + i * 2) << 16) | rd16(data + i * 2 + 2);
+        }
+
+        /** @brief Whether a master may write this row at all. Not the same
+         *  question as whether a VALUE is acceptable - that one is the bank's,
+         *  and Bank::check() answers it. */
+        bool writable(const Variable& d) {
+            return d.role == ROLE_PARAM && (d.flags & F_RDONLY) == 0 &&
+                   d.type != T_STR;
+        }
+
     }  // namespace
 
     bool Map::published(const Variable& d) {
-        const bool kind = (d.scope == SCOPE_P || d.scope == SCOPE_SV ||
-                           d.scope == SCOPE_A);
-        return kind && d.bind.reg != 0;
+        // WHICH KINDS of row carry a register is a rule about the table, so it
+        // lives with the other such rules (vars/access.h) rather than here; a
+        // row of one of those kinds with no register is a table defect the
+        // site test fails on, and this simply does not serve it.
+        return var_mapped(d) && d.bind.reg != 0;
     }
 
-    void Map::build(const Vars::Bank* io) {
+    void Map::build(Vars::Bank* io) {
         if (io != nullptr) _io = io;
         _count = 0; _overflow = 0; _reg_lo = 0; _reg_hi = 0;
         if (_io == nullptr) return;
@@ -57,7 +73,7 @@ namespace Botanik { namespace Modbus {
         for (uint16_t i = 0; i < _io->count(); i++) {
             const Variable& d = *_io->var(i).meta();
             if (!published(d)) continue;
-            if (_count >= Config::MODBUS_MAX_ROWS) { _overflow++; continue; }
+            if (_count >= Config::MODBUS_TCP_MAX_ROWS) { _overflow++; continue; }
             // Insertion sort by register. The table is a couple of hundred rows
             // and this runs once at bring-up, so the simple thing is the right
             // thing; what matters is that the result is ordered, since every
@@ -85,6 +101,20 @@ namespace Botanik { namespace Modbus {
         const int k = (_io == nullptr) ? -1 : _find(reg);
         if (found != nullptr) *found = (k >= 0);
         return (k < 0) ? Var(&g_sink_d, &g_sink_v) : _io->var(_rows[k]);
+    }
+
+    uint16_t Map::_reg_of(uint16_t i) const {
+        return (i < _count) ? _io->var(_rows[i]).meta()->bind.reg : (uint16_t)0xFFFF;
+    }
+
+    uint16_t Map::_lower_bound(uint16_t reg) const {
+        uint16_t lo = 0, hi = _count;
+        while (lo < hi) {
+            const uint16_t mid = (uint16_t)(lo + (hi - lo) / 2);
+            if (_reg_of(mid) < reg) lo = (uint16_t)(mid + 1);
+            else                    hi = mid;
+        }
+        return lo;
     }
 
     int Map::_find(uint16_t reg) const {
@@ -149,15 +179,21 @@ namespace Botanik { namespace Modbus {
         if (last < reg_to_addr(_reg_lo) || first > reg_to_addr(_reg_hi) + 1)
             return EX_ILLEGAL_ADDRESS;
 
+        uint16_t k = _lower_bound((uint16_t)(first / 2));   // once, not per register
+        uint32_t wire = 0;
+        uint16_t wire_reg = 0xFFFF;
         for (uint16_t i = 0; i < count; i++) {
             const uint32_t a = first + i;
-            const int k = _find((uint16_t)(a / 2));
+            const uint16_t reg = (uint16_t)(a / 2);
+            while (k < _count && _reg_of(k) < reg) k++;
             uint16_t word = 0;
-            if (k >= 0) {
-                const uint32_t w = to_wire(_io->var(_rows[k]));
+            if (_reg_of(k) == reg) {
+                // Read the row once and use it for both its registers: the value
+                // is an override-aware read, not a field fetch.
+                if (wire_reg != reg) { wire = to_wire(_io->var(_rows[k])); wire_reg = reg; }
                 // High word first: Modbus is big-endian inside a value as well
                 // as inside a register.
-                word = (a % 2 == 0) ? (uint16_t)(w >> 16) : (uint16_t)(w & 0xFFFF);
+                word = (a % 2 == 0) ? (uint16_t)(wire >> 16) : (uint16_t)(wire & 0xFFFF);
             }
             wr16(out + i * 2, word);
         }
@@ -174,9 +210,11 @@ namespace Botanik { namespace Modbus {
         if (last < _reg_lo || first > _reg_hi) return EX_ILLEGAL_ADDRESS;
 
         for (uint16_t i = 0; i < bit_bytes(count); i++) out[i] = 0;
+        uint16_t k = _lower_bound((uint16_t)first);
         for (uint16_t i = 0; i < count; i++) {
-            const int k = _find((uint16_t)(first + i));
-            if (k < 0) continue;                       // a gap reads 0
+            const uint16_t reg = (uint16_t)(first + i);
+            while (k < _count && _reg_of(k) < reg) k++;
+            if (_reg_of(k) != reg) continue;           // a gap reads 0
             const Var v = _io->var(_rows[k]);
             if (table == BITS_QUALITY) {
                 put_bit(out, i, v.valid());
@@ -191,10 +229,9 @@ namespace Botanik { namespace Modbus {
     }
 
     Exception Map::write_registers(uint16_t addr, uint16_t count,
-                                   const uint8_t* data, Vars::Bank* io,
-                                   uint16_t* committed) {
+                                   const uint8_t* data, uint16_t* committed) {
         if (committed != nullptr) *committed = 0;
-        if (data == nullptr || io == nullptr) return EX_SERVER_FAILURE;
+        if (data == nullptr) return EX_SERVER_FAILURE;
         if (_io == nullptr || _count == 0) return EX_ILLEGAL_ADDRESS;
         // A row is two registers, so a write must start on an even address and
         // cover whole rows. Half a 32-bit value committed as a whole one is a
@@ -207,56 +244,45 @@ namespace Botanik { namespace Modbus {
         // only that something went wrong - and the band check is exactly the one
         // that fails on the last row of a block a master sent in good faith.
         for (uint16_t i = 0; i < count; i += 2) {
-            const int k = _find((uint16_t)((addr + i) / 2));
-            if (k < 0) return EX_ILLEGAL_ADDRESS;
-            const Variable& d = *_io->var(_rows[k]).meta();
-            if (d.role != ROLE_PARAM || (d.flags & F_RDONLY) != 0 || d.type == T_STR)
-                return EX_ILLEGAL_ADDRESS;
-            const uint32_t w = ((uint32_t)rd16(data + i * 2) << 16) |
-                                rd16(data + i * 2 + 2);
-            // The same band Bank::set() would apply. Asking here as well is a
-            // duplicated rule, but the alternative is committing a prefix of the
-            // request, and set() is still the only thing that WRITES.
-            if ((d.flags & F_BOUNDED) != 0) {
-                const NumBand b = num_band(d);
-                if (!in_range(d.type, from_wire(d.type, w), b.min, b.max))
-                    return EX_ILLEGAL_VALUE;
-            }
+            bool found = false;
+            const Var v = row_at((uint16_t)((addr + i) / 2), &found);
+            // Two different refusals, and the difference matters to a master: an
+            // address it may not write is a map question, a value out of band is
+            // a value question.
+            if (!found || !writable(*v.meta())) return EX_ILLEGAL_ADDRESS;
+            if (_io->check(v, from_wire(v.type(), word_at(data, i))) != SET_OK)
+                return EX_ILLEGAL_VALUE;
         }
 
         for (uint16_t i = 0; i < count; i += 2) {
-            const int k = _find((uint16_t)((addr + i) / 2));
-            Var v = _io->var(_rows[k]);
-            const uint32_t w = ((uint32_t)rd16(data + i * 2) << 16) |
-                                rd16(data + i * 2 + 2);
+            Var v = row_at((uint16_t)((addr + i) / 2));
+            const uint32_t w = word_at(data, i);
             // Against live(), not raw(): if the row is overridden, raw() is the
             // forced value, and a master writing that same number would skip the
             // commit while the parameter underneath stayed where it was.
             if (w == wire_of(v.type(), v.live())) continue;   // no commit, no wear
-            const SetResult r = io->set(v, from_wire(v.type(), w));
-            // A refused PERSIST is not a rejected EDIT: the value is live, and
-            // the store fault has already raised its own alarm.
-            if (r == SET_INVALID) return EX_ILLEGAL_VALUE;
+            // Cannot fail on validity - the pass above just checked every row -
+            // so a non-OK result here is the STORE refusing, which is not a
+            // rejected edit: the value is live, and the fault raised its own
+            // alarm on the way out.
+            (void)_io->set(v, from_wire(v.type(), w));
             if (committed != nullptr) (*committed)++;
         }
         return EX_NONE;
     }
 
-    Exception Map::write_bit(uint16_t addr, bool on, Vars::Bank* io,
-                             uint16_t* committed) {
+    Exception Map::write_bit(uint16_t addr, bool on, uint16_t* committed) {
         if (committed != nullptr) *committed = 0;
-        if (io == nullptr) return EX_SERVER_FAILURE;
         if (_io == nullptr || _count == 0) return EX_ILLEGAL_ADDRESS;
 
-        const int k = _find(addr);
-        if (k < 0) return EX_ILLEGAL_ADDRESS;
-        Var v = _io->var(_rows[k]);
+        bool found = false;
+        Var v = row_at(addr, &found);
         const Variable& d = *v.meta();
-        if (d.role != ROLE_PARAM || (d.flags & F_RDONLY) != 0 || d.type != T_BOOL)
-            return EX_ILLEGAL_ADDRESS;
+        // A coil is a BOOLEAN parameter. An alarm publishes as a coil too, and is
+        // read-only: acknowledging one is a different block entirely.
+        if (!found || !writable(d) || d.type != T_BOOL) return EX_ILLEGAL_ADDRESS;
         if (as_bool(d.type, v.live()) == on) return EX_NONE;   // no-op, as above
-        const SetResult r = io->set(v, Scalar::B(on));
-        if (r == SET_INVALID) return EX_ILLEGAL_VALUE;
+        if (_io->set(v, Scalar::B(on)) == SET_INVALID) return EX_ILLEGAL_VALUE;
         if (committed != nullptr) (*committed)++;
         return EX_NONE;
     }

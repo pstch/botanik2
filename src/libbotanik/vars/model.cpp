@@ -306,17 +306,22 @@ namespace Botanik { namespace Vars {
         }
     }  // namespace
 
-    SetResult Bank::set(Var h, Scalar v) {
+    SetResult Bank::check(Var h, Scalar v) const {
         const Variable* d = h.meta();
         // A T_STR's live text is in the pool, so there is no typed form of it to
-        // write here; the text overload is the only way in.
+        // write; the text overload is the only way in.
         if (d->type == T_STR) return SET_INVALID;
-        Value* slot = editable_slot(_terminal, d);
-        if (slot == nullptr) return SET_INVALID;
-
+        if (editable_slot(_terminal, d) == nullptr) return SET_INVALID;
         const NumBand band = num_band(*d);
         if ((d->flags & F_BOUNDED) != 0 && !in_range(d->type, v, band.min, band.max))
             return SET_INVALID;
+        return SET_OK;
+    }
+
+    SetResult Bank::set(Var h, Scalar v) {
+        if (check(h, v) != SET_OK) return SET_INVALID;
+        const Variable* d = h.meta();
+        Value* slot = editable_slot(_terminal, d);
         slot->v    = v;
         slot->qual = Q_GOOD;
         return _persist_param(h, *d, *slot);

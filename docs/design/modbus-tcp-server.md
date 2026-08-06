@@ -115,7 +115,7 @@ has to know where the rows begin.
 An ack is the one alarm interaction an operator actually performs, and it is a
 write - to rows the scope above calls read-only. It gets a block of its own
 rather than a meaning overloaded onto the alarm's own bit, at
-`MODBUS_ACK_COIL_BASE + reg` (base 0x1000, well clear of the row numbers):
+`MODBUS_TCP_ACK_COIL_BASE + reg` (base 0x1000, well clear of the row numbers):
 
 | Op | Coil `0x1000 + reg` | Meaning |
 |---|---|---|
@@ -170,7 +170,7 @@ poll measured in seconds. Gain: a read reflects the beat that just ran rather
 than the one before it, and no request is ever answered from a half-updated
 image, because nothing writes the bank between `PHASE_OUTPUT` and the encode.
 
-**Bounded per beat**, like every other task: at most `MODBUS_ACCEPT_PER_STEP`
+**Bounded per beat**, like every other task: at most `MODBUS_TCP_ACCEPT_PER_STEP`
 accepts, one request decoded per connection, `MODBUS_READ_REGS_MAX` (125,
 protocol) registers per read, and `MODBUS_WRITES_PER_STEP` **rows** committed per
 beat. That last one is the only real cost: a commit is a flash write.
@@ -250,8 +250,8 @@ Behind `BOTANIK_FEATURE_MODBUS_TCP_SERVER`, which is already declared with its
 dependency rules (`NETWORK`, `PLC_SCAN`).
 
 **Config** (`libbotanik_config.h`, its own group): `MODBUS_TCP_PORT` 502,
-`MODBUS_UNIT_ID` 1, `MODBUS_MAX_CONN` 2, `MODBUS_IDLE_TIMEOUT_MS` 60000,
-`MODBUS_ACCEPT_PER_STEP` 1, `MODBUS_MAX_ROWS` 256, `MODBUS_ACK_COIL_BASE` 0x1000.
+`MODBUS_TCP_UNIT_ID` 1, `MODBUS_TCP_MAX_CONN` 2, `MODBUS_TCP_IDLE_TIMEOUT_MS` 60000,
+`MODBUS_TCP_ACCEPT_PER_STEP` 1, `MODBUS_TCP_MAX_ROWS` 256, `MODBUS_TCP_ACK_COIL_BASE` 0x1000.
 The ADU ceiling is not config: it is the protocol's (7 + 253) and lives in
 `pdu.h` as `ADU_MAX`.
 
@@ -312,7 +312,7 @@ each:
 
 - **A master that opens connections and never closes them.** Fixed connection
   slots; when they are full, accept and immediately close the newest, counting
-  it. `MODBUS_IDLE_TIMEOUT_MS` reaps a socket with no complete request.
+  it. `MODBUS_TCP_IDLE_TIMEOUT_MS` reaps a socket with no complete request.
 - **A dribbling or truncated frame.** The MBAP length field is authoritative;
   buffer until it is satisfied, and drop the connection on a length outside
   1..253 rather than trying to resynchronise (TCP is a stream, not a bus - a
@@ -320,7 +320,7 @@ each:
 - **Pipelined requests.** One in flight per connection is enough for every SCADA
   in the field; extra bytes stay buffered and are decoded next beat.
 - **Unit id.** Accept any and echo it back, counting mismatches against
-  `MODBUS_UNIT_ID`. A TCP slave that refuses unit 0 or 255 fails against half the
+  `MODBUS_TCP_UNIT_ID`. A TCP slave that refuses unit 0 or 255 fails against half the
   diagnostic tools out there.
 
 ## Testing: a master in the simulator, not unit tests per layer

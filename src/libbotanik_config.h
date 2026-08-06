@@ -720,10 +720,10 @@ namespace Botanik { namespace Config {
     /** @brief How many published rows the map can hold. One `uint16_t` each, so
      *  the default costs 512 bytes; a site whose table outgrows it is told at
      *  bring-up (Map::overflow()) rather than quietly serving a short map. */
-#ifndef BOTANIK_MODBUS_MAX_ROWS
-#  define BOTANIK_MODBUS_MAX_ROWS 256
+#ifndef BOTANIK_MODBUS_TCP_MAX_ROWS
+#  define BOTANIK_MODBUS_TCP_MAX_ROWS 256
 #endif
-    BOTANIK_CFG(uint16_t, MODBUS_MAX_ROWS);
+    BOTANIK_CFG(uint16_t, MODBUS_TCP_MAX_ROWS);
 
     /** @brief Port the slave listens on when the `mb_port` parameter is absent.
      *  502 is the registered one; the simulator serves it at 10502, since a
@@ -737,43 +737,43 @@ namespace Botanik { namespace Config {
      *  it was sent - a TCP slave that refuses unit 0 or 255 fails against half
      *  the diagnostic tools out there - and counts the ones that do not match
      *  this, which is what makes a misaddressed master visible. */
-#ifndef BOTANIK_MODBUS_UNIT_ID
-#  define BOTANIK_MODBUS_UNIT_ID 1
+#ifndef BOTANIK_MODBUS_TCP_UNIT_ID
+#  define BOTANIK_MODBUS_TCP_UNIT_ID 1
 #endif
-    BOTANIK_CFG(uint8_t, MODBUS_UNIT_ID);
+    BOTANIK_CFG(uint8_t, MODBUS_TCP_UNIT_ID);
 
     /** @brief Concurrent masters. Each costs two ADU buffers (~520 bytes), and
      *  two is a SCADA plus somebody's laptop. */
-#ifndef BOTANIK_MODBUS_MAX_CONN
-#  define BOTANIK_MODBUS_MAX_CONN 2
+#ifndef BOTANIK_MODBUS_TCP_MAX_CONN
+#  define BOTANIK_MODBUS_TCP_MAX_CONN 2
 #endif
-    BOTANIK_CFG(uint8_t, MODBUS_MAX_CONN);
+    BOTANIK_CFG(uint8_t, MODBUS_TCP_MAX_CONN);
 
     /** @brief A connection with no complete request within this is reaped. What
      *  it defends against is a master that opens sockets and forgets them: the
      *  slots are few, so one leak is half the capacity. */
-#ifndef BOTANIK_MODBUS_IDLE_TIMEOUT_MS
-#  define BOTANIK_MODBUS_IDLE_TIMEOUT_MS 60000
+#ifndef BOTANIK_MODBUS_TCP_IDLE_TIMEOUT_MS
+#  define BOTANIK_MODBUS_TCP_IDLE_TIMEOUT_MS 60000
 #endif
-    BOTANIK_CFG(uint32_t, MODBUS_IDLE_TIMEOUT_MS);
+    BOTANIK_CFG(uint32_t, MODBUS_TCP_IDLE_TIMEOUT_MS);
 
     /** @brief First coil of the acknowledgement block: acking alarm `reg` is a
-     *  write to `MODBUS_ACK_COIL_BASE + reg`, and the base itself acks the lot.
+     *  write to `MODBUS_TCP_ACK_COIL_BASE + reg`, and the base itself acks the lot.
      *
      *  Its own block rather than a meaning overloaded onto the alarm's own coil:
      *  an alarm is published read-only, and an ack is a write. 0x1000 is well
      *  clear of the row numbers (the library reserves up to 999). */
-#ifndef BOTANIK_MODBUS_ACK_COIL_BASE
-#  define BOTANIK_MODBUS_ACK_COIL_BASE 0x1000
+#ifndef BOTANIK_MODBUS_TCP_ACK_COIL_BASE
+#  define BOTANIK_MODBUS_TCP_ACK_COIL_BASE 0x1000
 #endif
-    BOTANIK_CFG(uint16_t, MODBUS_ACK_COIL_BASE);
+    BOTANIK_CFG(uint16_t, MODBUS_TCP_ACK_COIL_BASE);
 
     /** @brief Connections accepted per beat. One: accepting is cheap, but the
      *  beat is the budget and a burst of them belongs spread over beats. */
-#ifndef BOTANIK_MODBUS_ACCEPT_PER_STEP
-#  define BOTANIK_MODBUS_ACCEPT_PER_STEP 1
+#ifndef BOTANIK_MODBUS_TCP_ACCEPT_PER_STEP
+#  define BOTANIK_MODBUS_TCP_ACCEPT_PER_STEP 1
 #endif
-    BOTANIK_CFG(uint8_t, MODBUS_ACCEPT_PER_STEP);
+    BOTANIK_CFG(uint8_t, MODBUS_TCP_ACCEPT_PER_STEP);
 
     /** @}
      *  @name Sun position tracking
