@@ -42,10 +42,13 @@
  *
  * @section lib_regs Register space
  *
- * A parameter or status value carries a hand-assigned Modbus TCP slave register
- * (`Binding::reg`), and an external master's map is a contract. The library
- * reserves **900-999** for its own rows so a site never has to guess which
- * numbers are safe; `tests/test_site_names.cpp` fails on any collision.
+ * A parameter, status value or alarm carries a hand-assigned Modbus TCP slave
+ * register (`Binding::reg`), and an external master's map is a contract. The
+ * library reserves **900-999** for its own rows so a site never has to guess
+ * which numbers are safe: its parameters and status values grow upward from 900,
+ * its alarms take the top (990-999), and a site's own alarms live in 800-899.
+ * `tests/test_site_names.cpp` fails on a collision and on a row outside the
+ * block its scope belongs to.
  *
  * @section lib_missing Leaving it out
  *

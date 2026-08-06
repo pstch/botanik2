@@ -313,28 +313,69 @@ TEST_CASE("site: no two text parameters share pool bytes") {
     CHECK(f.bank.pool_overflow() == 0);
 }
 
+namespace {
+    /** @brief Does this row publish a Modbus TCP slave register? Parameters,
+     *  status values and alarms do, and they share one space. */
+    bool mapped(const Vars::Variable& d) {
+        return d.scope == Vars::SCOPE_P || d.scope == Vars::SCOPE_SV ||
+               d.scope == Vars::SCOPE_A;
+    }
+    /** @brief Whether @p d's register sits in the block its scope belongs to.
+     *
+     *  Site rows below 900, the library's above; alarms in 800..899 and, for the
+     *  library's own, the top of its reserve. The number then says what kind of
+     *  row it is, which is the whole reason for blocking them - see
+     *  docs/design/modbus-tcp-server.md. */
+    bool in_block(const Vars::Variable& d) {
+        const uint16_t r = d.bind.reg;
+        return (d.scope == Vars::SCOPE_A) ? ((r >= 800 && r <= 899) ||
+                                             (r >= 990 && r <= 999))
+                                          : ((r >= 1 && r <= 799) ||
+                                             (r >= 900 && r <= 989));
+    }
+}
+
 TEST_CASE("site: no two rows claim the same Modbus register") {
-    // Parameters and status values share one register space on the TCP slave,
-    // and their numbers are hand-assigned precisely so inserting a row does not
-    // renumber the map an external master holds. Nothing derives them, so
-    // nothing catches a duplicate but this.
+    // Parameters, status values and alarms share one register space on the TCP
+    // slave, and their numbers are hand-assigned precisely so inserting a row
+    // does not renumber the map an external master holds. Nothing derives them,
+    // so nothing catches a duplicate but this.
     SiteBank f;
     uint16_t checked = 0;
     for (uint16_t i = 0; i < f.bank.count(); i++) {
         const Vars::Variable& a = *f.bank.var(i).meta();
-        if (a.scope != Vars::SCOPE_P && a.scope != Vars::SCOPE_SV) continue;
+        if (!mapped(a)) continue;
         INFO("'" << a.name << "' has no register");
         CHECK(a.bind.reg != 0);
         checked++;
         for (uint16_t j = (uint16_t)(i + 1); j < f.bank.count(); j++) {
             const Vars::Variable& b = *f.bank.var(j).meta();
-            if (b.scope != Vars::SCOPE_P && b.scope != Vars::SCOPE_SV) continue;
+            if (!mapped(b)) continue;
             INFO("'" << a.name << "' and '" << b.name << "' both claim register "
                      << a.bind.reg);
             CHECK(a.bind.reg != b.bind.reg);
         }
     }
     CHECK(checked > 0);
+}
+
+TEST_CASE("site: every register sits in its scope's block") {
+    // Uniqueness alone would let an alarm take 750 and read as a parameter to
+    // every master downstream. The block a row's number falls in is part of the
+    // published map, so it is asserted rather than merely intended.
+    SiteBank f;
+    uint16_t alarms = 0;
+    for (uint16_t i = 0; i < f.bank.count(); i++) {
+        const Vars::Variable& d = *f.bank.var(i).meta();
+        if (!mapped(d)) continue;
+        INFO("'" << d.name << "' holds register " << d.bind.reg
+                 << ", outside the block for its scope");
+        CHECK(in_block(d));
+        if (d.scope == Vars::SCOPE_A) alarms++;
+    }
+    // The platform alarms come in through BOTANIK_LIBRARY_VARS, so a table that
+    // dropped the splice would otherwise pass this silently.
+    CHECK(alarms >= 6);
 }
 
 TEST_CASE("site: every analog calibration resolves and is coherent") {

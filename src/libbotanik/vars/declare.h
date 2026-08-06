@@ -118,15 +118,23 @@ namespace Botanik { namespace Vars {
      *  alarm ON that long after the raw bit clears, and @p min_on_s is the
      *  minimum ON time from onset - both anti-flicker, in seconds.
      *
-     *  Carries no band, no binding and no unit: it is raised by a control
-     *  program and read by the alarm model, and that is all. */
+     *  @p reg is its register on the Modbus TCP slave, hand-assigned like a
+     *  parameter's and in the same space, but in a block of its own (a site's
+     *  alarms in 800-899, the library's at the top of its 900-999 reserve) so
+     *  the number itself says what kind of row it is. An alarm is published as a
+     *  read-only coil; acknowledging one is a write to a separate block, not to
+     *  the alarm's own bit.
+     *
+     *  Carries no band and no unit: it is raised by a control program and read
+     *  by the alarm model, and the binding says where it is published, not where
+     *  it comes from. */
     constexpr Variable A(const char* name, const char* code,
                          int16_t on_s, int16_t off_s, int16_t recent_s,
-                         int16_t hold_on_s, int16_t min_on_s,
+                         int16_t hold_on_s, int16_t min_on_s, uint16_t reg,
                          const char* desc, const char* notes) {
         return Variable{ Scalar::B(false), name, "", desc, notes,
                          Payload(code, on_s, off_s, recent_s, hold_on_s, min_on_s),
-                         { XP_NONE, T_BOOL, 0, 0, 0, 0, 1.0f, 0.0f }, 0, nullptr,
+                         { XP_NONE, T_BOOL, 0, 0, reg, 1, 1.0f, 0.0f }, 0, nullptr,
                          T_BOOL, ROLE_COMPUTED, SCOPE_A, 0, 0, {} };
     }
 

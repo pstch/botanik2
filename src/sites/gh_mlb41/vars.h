@@ -140,9 +140,9 @@ const uint8_t g_analog_cal_count =
  *
  *  Every row is a call to one of the scope factories in vars/declare.h - A, P,
  *  G, SV, MI, AI, DI, MO, AO, DO, RO. Each takes only the arguments its scope
- *  can use, so a relay with a plausibility band or an alarm with a register
- *  does not compile. The row's `scope` follows from which factory built it,
- *  which is what the tables filter on.
+ *  can use, so a relay with a plausibility band or an alarm with a timeout does
+ *  not compile. The row's `scope` follows from which factory built it, which is
+ *  what the tables filter on.
  *
  *  Alarms live here too, and only here: an A() row carries the boolean that
  *  raises the alarm AND the policy the AlarmController runs it on, and the model
@@ -179,9 +179,11 @@ const Variable g_vars[] = {
  *      geo   60.. 79      pwr  400..469
  *      (80..99 spare)     (470..499 spare)
  *
- *  Status values live at 500+, so the two never collide. A group that outgrows
- *  its block takes one of the spare ranges rather than spilling into its
- *  neighbour. tests/test_site_names.cpp fails on a duplicate or a zero.
+ *  Status values live at 500+, alarms at 800..899 and the library's own rows at
+ *  900..999, so the four kinds never collide and the number itself says which
+ *  one a row is. A group that outgrows its block takes one of the spare ranges
+ *  rather than spilling into its neighbour. tests/test_site_names.cpp fails on a
+ *  duplicate, a zero, or a row outside the block its scope belongs to.
  *  @{ */
 
     //name                    type    default  min     max      dgt unit    reg  description                            notes
@@ -409,30 +411,30 @@ const Variable g_vars[] = {
 /** @name Alarms - each row IS its condition: the boolean plus the announce policy
  *  @{ */
 
-    //name                       code        on off recent delay minOn description                        remediation
-    A("alarm_ac_grid",           "AC_GRID",  2, 2,  0,     0,    10,   "Grid AC out-of-spec/offline",     "check mains breaker / utility feed"),
-    A("alarm_dc_ps1",            "DC_PS1",   2, 2,  0,     0,    0,    "DC PS1 volts too low",            ""),
-    A("alarm_gen",               "GEN_FLT",  1, 2,  0,     0,    10,   "Generator failed to start",       "inspect generator + start battery"),
-    A("alarm_ac_local",          "AC_LOCAL", 2, 2,  0,     0,    0,    "Local AC out of spec or offline", ""),
-    A("alarm_dc_ps2",            "DC_PS2",   2, 2,  0,     0,    10,   "DC PS2 volts too low",            ""),
-    A("alarm_dc_ups",            "DC_UPS",   1, 2,  0,     0,    10,   "DC UPS on battery",               "restore mains; check UPS battery"),
-    A("alarm_dc_local",          "DC_LOCAL", 2, 2,  0,     0,    0,    "Local DC volts too low",          ""),
-    A("alarm_generator_battery", "GEN_BATT", 5, 5,  0,     0,    0,    "Gen. start battery low",          ""),
-    A("alarm_plc",               "PLC_FLT",  2, 2,  0,     0,    0,    "Failed to synchronize with PLC",  ""),
-    A("alarm_net_fault",         "NET_FLT",  5, 5,  0,     0,    10,   "Network error",                   ""),
-    A("alarm_ntp_timeout",       "NTP_TIM",  5, 5,  0,     0,    10,   "NTP sync timeout",                ""),
-    A("alarm_actuator_fault",    "ACT_FLT",  2, 2,  0,     0,    0,    "Actioner failure",                ""),
-    A("alarm_sensor_fault",      "SNS_FLT",  2, 2,  0,     0,    0,    "Sensor fault",                    ""),
-    A("alarm_too_hot",           "TOO_HOT",  3, 3,  0,     0,    15,   "Inside temperature too high",     "increase ventilation / open windows"),
-    A("alarm_too_cold",          "TOO_COLD", 3, 3,  0,     0,    15,   "Inside temperature too low",      ""),
-    A("alarm_too_humid",         "TOO_HUM",  3, 3,  0,     0,    15,   "Relative humidity too high",      ""),
-    A("alarm_tmp_str",           "TMP_STR",  5, 5,  0,     0,    0,    "Temp. stratification too high",   ""),
-    A("alarm_water_leak",        "WTR_LK",   1, 2,  0,     0,    0,    "Leak in irrigation circuit",      "shut irrigation valve, inspect circuit"),
-    A("alarm_water_pressure",    "WTR_BAR",  2, 2,  0,     0,    0,    "Water pressure too low",          ""),
-    A("alarm_water_clog",        "WTR_CLOG", 3, 3,  0,     0,    0,    "Failing to drain a tray",         ""),
-    A("alarm_io_drop",           "IO_DROP",  2, 2,  0,     0,    0,    "Logical I/O drops",               ""),
-    A("alarm_log_flood",         "LOG_FLD",  2, 2,  0,     0,    0,    "Logs flooding",                   ""),
-    A("alarm_weather_storm",     "WH_STORM", 2, 5,  0,     0,    15,   "Current storm conditions",        "close roof windows, secure screens"),
+    //name                       code        on off rec dly mn reg  description                        remediation
+    A("alarm_ac_grid",           "AC_GRID",  2, 2, 0, 0, 10, 800, "Grid AC out-of-spec/offline",     "check mains breaker / utility feed"),
+    A("alarm_dc_ps1",            "DC_PS1",   2, 2, 0, 0, 0,  801, "DC PS1 volts too low",            ""),
+    A("alarm_gen",               "GEN_FLT",  1, 2, 0, 0, 10, 802, "Generator failed to start",       "inspect generator + start battery"),
+    A("alarm_ac_local",          "AC_LOCAL", 2, 2, 0, 0, 0,  803, "Local AC out of spec or offline", ""),
+    A("alarm_dc_ps2",            "DC_PS2",   2, 2, 0, 0, 10, 804, "DC PS2 volts too low",            ""),
+    A("alarm_dc_ups",            "DC_UPS",   1, 2, 0, 0, 10, 805, "DC UPS on battery",               "restore mains; check UPS battery"),
+    A("alarm_dc_local",          "DC_LOCAL", 2, 2, 0, 0, 0,  806, "Local DC volts too low",          ""),
+    A("alarm_generator_battery", "GEN_BATT", 5, 5, 0, 0, 0,  807, "Gen. start battery low",          ""),
+    A("alarm_plc",               "PLC_FLT",  2, 2, 0, 0, 0,  808, "Failed to synchronize with PLC",  ""),
+    A("alarm_net_fault",         "NET_FLT",  5, 5, 0, 0, 10, 809, "Network error",                   ""),
+    A("alarm_ntp_timeout",       "NTP_TIM",  5, 5, 0, 0, 10, 810, "NTP sync timeout",                ""),
+    A("alarm_actuator_fault",    "ACT_FLT",  2, 2, 0, 0, 0,  811, "Actioner failure",                ""),
+    A("alarm_sensor_fault",      "SNS_FLT",  2, 2, 0, 0, 0,  812, "Sensor fault",                    ""),
+    A("alarm_too_hot",           "TOO_HOT",  3, 3, 0, 0, 15, 813, "Inside temperature too high",     "increase ventilation / open windows"),
+    A("alarm_too_cold",          "TOO_COLD", 3, 3, 0, 0, 15, 814, "Inside temperature too low",      ""),
+    A("alarm_too_humid",         "TOO_HUM",  3, 3, 0, 0, 15, 815, "Relative humidity too high",      ""),
+    A("alarm_tmp_str",           "TMP_STR",  5, 5, 0, 0, 0,  816, "Temp. stratification too high",   ""),
+    A("alarm_water_leak",        "WTR_LK",   1, 2, 0, 0, 0,  817, "Leak in irrigation circuit",      "shut irrigation valve, inspect circuit"),
+    A("alarm_water_pressure",    "WTR_BAR",  2, 2, 0, 0, 0,  818, "Water pressure too low",          ""),
+    A("alarm_water_clog",        "WTR_CLOG", 3, 3, 0, 0, 0,  819, "Failing to drain a tray",         ""),
+    A("alarm_io_drop",           "IO_DROP",  2, 2, 0, 0, 0,  820, "Logical I/O drops",               ""),
+    A("alarm_log_flood",         "LOG_FLD",  2, 2, 0, 0, 0,  821, "Logs flooding",                   ""),
+    A("alarm_weather_storm",     "WH_STORM", 2, 5, 0, 0, 15, 822, "Current storm conditions",        "close roof windows, secure screens"),
 /** @} */
 
 /** @name Status values - published over MQTT and the Modbus TCP slave

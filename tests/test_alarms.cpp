@@ -31,21 +31,21 @@ namespace {
 
     // Two unmasked, unlatched conditions (announce disabled) at bits 0 and 1.
     const Vars::Variable TABLE[] = {
-        Vars::A("aaa", "AAA", -1, -1, 0, 0, 0, "alarm A", ""),
-        Vars::A("bbb", "BBB", -1, -1, 0, 0, 0, "alarm B", ""),
+        Vars::A("aaa", "AAA", -1, -1, 0, 0, 0, 800, "alarm A", ""),
+        Vars::A("bbb", "BBB", -1, -1, 0, 0, 0, 801, "alarm B", ""),
     };
     // One condition with a 5 s minimum-ON hold (announce disabled).
     const Vars::Variable MIN_ON_TABLE[] = {
-        Vars::A("min", "MIN", -1, -1, 0, 0, 5, "min on", ""),
+        Vars::A("min", "MIN", -1, -1, 0, 0, 5, 802, "min on", ""),
     };
     // One condition that announces a START only after a 2 s dwell, and an END as
     // soon as it clears (off_s 0). A brief blip clears before the START dwell -> FLAP.
     const Vars::Variable FLAP_TABLE[] = {
-        Vars::A("flp", "FLP", 2, 0, 0, 0, 0, "flap", ""),
+        Vars::A("flp", "FLP", 2, 0, 0, 0, 0, 803, "flap", ""),
     };
     // on_s 0 so the START is announced at once.
     const Vars::Variable NORMAL_TABLE[] = {
-        Vars::A("nrm", "NRM", 0, 0, 0, 0, 0, "normal", ""),
+        Vars::A("nrm", "NRM", 0, 0, 0, 0, 0, 804, "normal", ""),
     };
 
     /** @brief A bank over one of the tables above - what the model scans. */
@@ -171,9 +171,9 @@ TEST_CASE("alarm reader: model reads each condition's variable") {
     // Three alarm rows. The row IS the condition, so there is no second table
     // and nothing to keep in step: condition i reads variable i.
     const Vars::Variable VARS[] = {
-        Vars::A("alarm_a", "AAA", -1, -1, 0, 0, 0, "a", ""),
-        Vars::A("alarm_b", "BBB", -1, -1, 0, 0, 0, "b", ""),
-        Vars::A("alarm_c", "CCC", -1, -1, 0, 0, 0, "c", ""),
+        Vars::A("alarm_a", "AAA", -1, -1, 0, 0, 0, 805, "a", ""),
+        Vars::A("alarm_b", "BBB", -1, -1, 0, 0, 0, 806, "b", ""),
+        Vars::A("alarm_c", "CCC", -1, -1, 0, 0, 0, 807, "c", ""),
     };
     AlarmBank f(VARS, 3);
     Vars::Bank& io = f.bank;

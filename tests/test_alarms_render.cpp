@@ -38,10 +38,10 @@ namespace {
     // off. Declared as SCOPE_A rows, the way a site declares one; the model
     // finds them by scanning the bank.
     const Vars::Variable TABLE[] = {
-        Vars::A("aaa", "AAA", -1, -1, -1, 0, 0, "alarm A", ""),
-        Vars::A("bbb", "BBB", -1, -1, -1, 0, 0, "alarm B", ""),
-        Vars::A("ccc", "CCC", -1, -1, -1, 0, 0, "alarm C", ""),
-        Vars::A("ddd", "DDD", -1, -1, -1, 0, 0, "alarm D", ""),
+        Vars::A("aaa", "AAA", -1, -1, -1, 0, 0, 800, "alarm A", ""),
+        Vars::A("bbb", "BBB", -1, -1, -1, 0, 0, 801, "alarm B", ""),
+        Vars::A("ccc", "CCC", -1, -1, -1, 0, 0, 802, "alarm C", ""),
+        Vars::A("ddd", "DDD", -1, -1, -1, 0, 0, 803, "alarm D", ""),
     };
 
     /** @brief Bind a row table to a value store, as a site's descriptor does. */

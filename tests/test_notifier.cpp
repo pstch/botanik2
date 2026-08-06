@@ -84,7 +84,7 @@ namespace {
 
 TEST_CASE("AlarmController: a transition fans out to every registered notifier") {
     // announce ON/OFF at once (on_s = off_s = 0).
-    const Vars::Variable TABLE[] = { Vars::A("x", "X", 0, 0, 0, 0, 0, "", "") };
+    const Vars::Variable TABLE[] = { Vars::A("x", "X", 0, 0, 0, 0, 0, 800, "", "") };
     Vars::Value vals[1]{};
     Vars::VarTables t = {};
     t.var = TABLE; t.val = vals; t.count = 1;

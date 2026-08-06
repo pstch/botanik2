@@ -78,15 +78,16 @@ per kind, and the number itself says what a row is:
 | Range | Rows | Today |
 |---|---|---|
 | 1..799 | site parameters and status values | 1..501 used |
-| 800..899 | site alarms | 23 to place |
+| 800..899 | site alarms | 800..822 used |
 | 900..989 | library parameters and status values | 900 used (`sys_console_baud`) |
-| 990..999 | library alarms | the 6 platform alarms |
+| 990..999 | library alarms | 990..995, the platform alarms |
 
 The library's reserve stays 900..999 as `vars/library.h` already declares it; the
 alarms take its top so a library status row added later still grows upward from
-900. The one number to watch is 799: at 501 there is room, but the site test
-should assert the block a row's scope puts it in, not just uniqueness, or the
-first alarm assigned 750 will read as a parameter to everyone downstream.
+900. The one number to watch is 799: at 501 there is room, but uniqueness alone
+would let an alarm take 750 and read as a parameter to everyone downstream, so
+the site test asserts the block a row's scope puts it in ("site: every register
+sits in its scope's block").
 
 Rejected alternatives, and why:
 
@@ -336,9 +337,10 @@ each:
 
 Each step builds and leaves the gate green:
 
-1. `A()` gains its register, the library and site alarm rows get numbers, and the
-   site test's uniqueness check widens to `SCOPE_A`. Pure table work, and it
-   lands before anything reads the map.
+1. **Done.** `A()` gained its register, the alarm rows got numbers (site
+   800..822, platform 990..995), and the site test now checks uniqueness across
+   `SCOPE_A` as well as the block each scope belongs to. Pure table work, landed
+   before anything reads the map.
 2. `tcp_listen` / `tcp_accept` in the HAL, both backends, with a test that binds
    and accepts on the simulator.
 3. `modbus/pdu` + its test. Nothing depends on the bank yet.

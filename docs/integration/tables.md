@@ -83,9 +83,9 @@ There is no alarm table. An alarm is a **row in the variable table**, declared w
 `A()`, carrying both the boolean that raises it and the policy the model runs it on:
 
 ```cpp
-//name              code        on off recent hold  minOn description                    remediation
-A("alarm_ac_grid",  "AC_GRID",  2, 2,  0,     0,    10,   "Grid AC out-of-spec/offline", "check mains breaker"),
-A("alarm_too_hot",  "TOO_HOT",  3, 3,  0,     0,    15,   "Inside temperature too high", "increase ventilation"),
+//name              code        on off recent hold  minOn reg  description                    remediation
+A("alarm_ac_grid",  "AC_GRID",  2, 2,  0,     0,    10,   800, "Grid AC out-of-spec/offline", "check mains breaker"),
+A("alarm_too_hot",  "TOO_HOT",  3, 3,  0,     0,    15,   813, "Inside temperature too high", "increase ventilation"),
 ```
 
 | Argument | Meaning |
@@ -96,6 +96,7 @@ A("alarm_too_hot",  "TOO_HOT",  3, 3,  0,     0,    15,   "Inside temperature to
 | `recent_s` | RECENT filter window (0 = the default week, `<0` = never expires) |
 | `hold_on_s` | hold ON this long after the raw bit clears |
 | `min_on_s` | minimum ON time from onset |
+| `reg` | its register on the Modbus TCP slave, where it is published as a read-only coil. Hand-assigned like a parameter's and in the same space, but in a block of its own: a site's alarms in 800..899, the library's at the top of its 900..999 reserve |
 | `desc` | shown in the ALARMS table |
 | `notes` | the remediation line, shown under the table when the alarm is selected. Write it - it is the one place to say something specific to the real installation |
 
@@ -144,8 +145,10 @@ put theirs at the top, which pins it: the library block goes **first**, and its
 parameters go **last within it**. Nothing else cares about position - alarm conditions
 are numbered by table order, so the library's alarms simply head the ALARMS page.
 
-The library reserves Modbus TCP slave registers **900-999** for its own parameters and
-status values, so a site never has to guess which numbers are safe.
+The library reserves Modbus TCP slave registers **900-999** for its own rows, so a site
+never has to guess which numbers are safe: parameters and status values grow upward
+from 900, its alarms take the top (990-999). A site's own alarms live in 800-899, below
+the reserve.
 
 @warning A site that omits the splice still builds and boots, and loses whatever the
 library expected to find - today, every platform-health alarm. POST reports each
