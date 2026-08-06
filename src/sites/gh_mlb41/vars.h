@@ -417,7 +417,6 @@ const Variable g_vars[] = {
     A("alarm_dc_ups",            "DC_UPS",   1, 2,  0,     0,    10,   "DC UPS on battery",               "restore mains; check UPS battery"),
     A("alarm_dc_local",          "DC_LOCAL", 2, 2,  0,     0,    0,    "Local DC volts too low",          ""),
     A("alarm_generator_battery", "GEN_BATT", 5, 5,  0,     0,    0,    "Gen. start battery low",          ""),
-    A("alarm_plc",               "PLC_FLT",  2, 2,  0,     0,    0,    "Failed to synchronize with PLC",  ""),
     A("alarm_net_fault",         "NET_FLT",  5, 5,  0,     0,    10,   "Network error",                   ""),
     A("alarm_ntp_timeout",       "NTP_TIM",  5, 5,  0,     0,    10,   "NTP sync timeout",                ""),
     A("alarm_actuator_fault",    "ACT_FLT",  2, 2,  0,     0,    0,    "Actuator failure" ,                ""),
