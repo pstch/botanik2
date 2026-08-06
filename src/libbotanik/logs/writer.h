@@ -13,7 +13,7 @@
 
 #include <cstdint>                      // uint8_t/uint32_t/uint64_t
 
-#include "libbotanik_config.h"          // Config::LOG_QUEUE_*
+#include "libbotanik/config/logging.h"    // Config::LOG_*
 
 #include "libbotanik/logs/entry.h"      // Logs::LogEntry
 #include "libbotanik/utils/serial.h"    // Utils::BufferedSerial

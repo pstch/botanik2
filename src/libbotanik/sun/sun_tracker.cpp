@@ -13,6 +13,8 @@
 #include <cmath>                        // sin/cos/asin/fabs/sqrt
 #include <cstdint>                      // uint32_t/uint64_t
 
+#include "libbotanik/config/sun.h"        // Config::SUN_RECOMPUTE_MS
+
 #include "libbotanik/hal/platform.h"    // HAL::Clock::wall_ms
 #include "libbotanik/utils/time.h"      // Utils::unix_ms_from_uptime_ms
 

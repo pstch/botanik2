@@ -10,7 +10,7 @@
 
 #include <cstdint>                      // uint8_t/uint16_t/uint64_t
 
-#include "libbotanik_config.h"          // Config::SERIAL_*
+#include "libbotanik/config/serial.h"     // Config::SERIAL_* / *_BAUD
 
 #include "libbotanik/core/component.h"  // Component
 #include "libbotanik/hal/platform.h"    // HAL::Serial

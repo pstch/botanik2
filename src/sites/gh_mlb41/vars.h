@@ -45,8 +45,11 @@ using namespace Botanik::Vars;
 
 /** @brief Text-parameter capacity, including the NUL. */
 static const uint16_t STR_CAP = 64;
-/** @brief 8 text parameters x STR_CAP. */
-static const uint16_t STR_POOL_BYTES = 8 * STR_CAP;
+/** @brief Room for every text parameter in the table. This site declares none
+ *  of its own today, so it is exactly what the library's rows need (the
+ *  net_/ntp_/mqtt_ hosts and addresses); a site adding one of its own adds
+ *  `+ n * STR_CAP` here. */
+static const uint16_t STR_POOL_BYTES = BOTANIK_LIBRARY_STR_BYTES;
 
 
 /** @name Analog calibration - the two-point span and the believable band
@@ -119,23 +122,6 @@ const uint8_t g_analog_cal_count =
 
 /** @} */
 
-/** @name Text-parameter defaults
- *
- *  Named rather than inlined: a hostname or an IP literal in the middle of a row
- *  is the widest cell in the block and says nothing a name would not.
- *  @{ */
-
-#define DEF_NET_IP       "192.168.1.42"
-#define DEF_NET_MASK     "255.255.255.0"
-#define DEF_NET_DNS1     "8.8.8.8"
-#define DEF_NET_DNS2     "4.4.4.4"
-#define DEF_NET_GW       "192.168.1.1"
-#define DEF_NTP_SRV1     "0.fr.pool.ntp.org"
-#define DEF_NTP_SRV2     "1.fr.pool.ntp.org"
-#define DEF_MQTT_HOST    "192.168.1.43"
-
-/** @} */
-
 /** @brief Every variable this site declares, in one table.
  *
  *  Every row is a call to one of the scope factories in vars/declare.h - A, P,
@@ -188,23 +174,6 @@ const Variable g_vars[] = {
  *  @{ */
 
     //name                    type    default  min     max      dgt unit    reg  description                               notes
-    P("net_serial",           T_U32,  1,       0,      9999,    0,  "",     1,   "bump to apply staged net_ edits",        ""),
-    P("net_dhcp",             T_BOOL, 0,       0,      1,       0,  "",     2,   "enable DHCP IP configuration",           "ignores the static ip/mask/gw rows"),
-    P("ntp_serial",           T_U32,  1,       0,      9999,    0,  "",     20,  "bump to apply staged ntp_ edits",        ""),
-    P("ntp_enable",           T_BOOL, 1,       0,      1,       0,  "",     21,  "enable NTP clock sync",                  ""),
-    P("ntp_poll_sec",         T_U32,  3600,    10,     86400,   0,  "sec",  22,  "NTP poll interval, in seconds",          ""),
-    P("ntp_port",             T_U16,  123,     1,      65535,   0,  "",     23,  "NTP server port",                        "standard is 123"),
-    P("mqtt_serial",          T_U32,  1,       0,      9999,    0,  "",     40,  "bump to apply staged mqtt_ edits",       ""),
-    P("mqtt_enable",          T_BOOL, 1,       0,      1,       0,  "",     41,  "enable MQTT",                            ""),
-    P("mqtt_port",            T_U16,  58443,   1,      65535,   0,  "",     43,  "MQTT broker port",                       "standard is 1883"),
-    P("mqtt_ka_sec",          T_U16,  20,      10,     1800,    0,  "sec",  44,  "MQTT keep-alive interval",               "also the dead-broker detection"),
-    P("geo_serial",           T_U32,  1,       0,      9999,    0,  "",     60,  "bump to apply staged geo_ edits",        ""),
-    P("geo_lat_deg",          T_F32,  48.07,   -90.0,  90.0,    2,  "deg",  61,  "geographical latitude, in degrees",      "per site location"),
-    P("geo_lon_deg",          T_F32,  1.32,    -180.0, 180.0,   2,  "deg",  62,  "geographical longitude, in degrees",     "per site location"),
-    P("mb_serial",            T_U32,  1,       0,      9999,    0,  "",     80,  "bump to apply staged mb_ edits",         ""),
-    P("mb_enable",            T_BOOL, 1,       0,      1,       0,  "",     81,  "serve the Modbus TCP slave",             ""),
-    P("mb_port",              T_U16,  502,     1,      65535,   0,  "",     82,  "Modbus TCP slave port",                  "standard is 502"),
-    P("mb_write_enable",      T_BOOL, 1,       0,      1,       0,  "",     83,  "let a master write parameters",          "off makes the slave read-only"),
     P("cli_coldBankOfs_degC", T_F32,  6.0,     0.0,    15.0,    1,  "degC", 100, "how much cooler before a hot day",       ""),
     P("cli_heatBankOfs_degC", T_F32,  7.0,     0.0,    15.0,    1,  "degC", 101, "how much warmer before a cold night",    ""),
     P("cli_heatBankTrg_degC", T_F32,  10.0,    6.0,    18.0,    1,  "degC", 102, "yesterday's low below this: bank heat",  ""),
@@ -348,17 +317,11 @@ const Variable g_vars[] = {
     P("pwr_genBat_min",       T_F32,  20.0,    10.0,   48.0,    1,  "V",    425, "lowest believable gen. battery volts",   "under this: a dead sensor"),
     P("pwr_genBat_max",       T_F32,  30.0,    10.0,   48.0,    1,  "V",    426, "highest believable gen. battery volts",  "over this: a dead sensor"),
     P("pwr_genBat_avg_ms",    T_U16,  1000,    10,     10000,   0,  "ms",   427, "rolling average for the Gen. battery",   "per divider setup"),
-    // text parameters: their slot in the pool is laid out by
-    // Bank::init(), so a row says how big it is, never where.
-    // name         default        cap      validation    reg description              notes
-    PS("net_ip",    DEF_NET_IP,    STR_CAP, STR_IPV4,     3,   "static IP address",     ""),
-    PS("net_mask",  DEF_NET_MASK,  STR_CAP, STR_IPV4,     4,   "static IP netmask",     ""),
-    PS("net_dns1",  DEF_NET_DNS1,  STR_CAP, STR_IPV4,     5,   "static DNS resolver 1", ""),
-    PS("net_dns2",  DEF_NET_DNS2,  STR_CAP, STR_IPV4_OPT, 6,   "static DNS resolver 2", "empty = use dns1 alone"),
-    PS("net_gw",    DEF_NET_GW,    STR_CAP, STR_IPV4,     7,   "static IP gateway",     ""),
-    PS("ntp_srv1",  DEF_NTP_SRV1,  STR_CAP, STR_HOST,     24,  "NTP server 1",          ""),
-    PS("ntp_srv2",  DEF_NTP_SRV2,  STR_CAP, STR_HOST_OPT, 25,  "NTP server 2",          "empty = no fallback"),
-    PS("mqtt_host", DEF_MQTT_HOST, STR_CAP, STR_HOST,     42,  "MQTT broker host",      ""),
+
+    // The net_ / ntp_ / mqtt_ / geo_ parameters this site used to declare are
+    // now the library's own rows, spliced in above by BOTANIK_LIBRARY_VARS -
+    // libbotanik reads them by name, so it declares them. This site pins its
+    // values in config.h.
 
 /** @} */
 

@@ -11,7 +11,7 @@
 
 #include "libbotanik/hal/net.h"             // HAL::Network
 
-#include "libbotanik_config.h"              // Config::NET_*
+#include "libbotanik/config/net.h"        // Config::NET_* / DNS_* / NTP_* / MQTT_*
 
 #include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
 

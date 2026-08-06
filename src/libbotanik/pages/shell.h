@@ -8,7 +8,7 @@
  *        live log output.
  */
 
-#include "libbotanik_config.h"              // BOTANIK_FEATURE_SHELL_PAGE
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
 #include "libbotanik/console/console.h"     // Console::rows / terminal
 #include "libbotanik/console/editor.h"      // Terminal::TextEditor
@@ -74,7 +74,7 @@ namespace Botanik { namespace Pages {
         /** @name Lifecycle
          *  @{ */
 
-        ShellPage(Terminal::Console& console);
+        ShellPage(Terminal::Console& console, const SystemContext* sys = nullptr);
 
         /** @brief Register a site command table (tried before the built-ins). */
         void set_commands(const Shell::ShellCommand* table, size_t count, void* ctx = nullptr) {

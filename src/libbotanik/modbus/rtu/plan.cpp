@@ -7,7 +7,7 @@
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
-#include "libbotanik/scheduler/task_timer.h"   // Scheduler::stagger_offset - one rule for spreading a set
+#include "libbotanik/tasks/task_timer.h"   // Tasks::stagger_offset - one rule for spreading a set
 #include "libbotanik/vars/model.h"             // Vars::Bank / Variable - the table this reads
 
 namespace Botanik { namespace Modbus {
@@ -187,7 +187,7 @@ void Planner::_cut(const Vars::Bank& io) {
 
 void Planner::seed(uint64_t now_ms) {
     for (uint16_t i = 0; i < _block_count; ++i) {
-        _blocks[i].due_ms = now_ms + Scheduler::stagger_offset(
+        _blocks[i].due_ms = now_ms + Tasks::stagger_offset(
                                          i, Config::MODBUS_BLOCK_STAGGER_MS,
                                          _blocks[i].period_ms);
         // Zero rather than now_ms, so every write block reads as overdue for its

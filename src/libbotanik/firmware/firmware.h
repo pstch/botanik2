@@ -1,6 +1,6 @@
 // REVIEW_35: TODO
-#ifndef LIBBOTANIK_CORE_FIRMWARE_H
-#define LIBBOTANIK_CORE_FIRMWARE_H
+#ifndef LIBBOTANIK_FIRMWARE_FIRMWARE_H
+#define LIBBOTANIK_FIRMWARE_FIRMWARE_H
 
 /**
  * @file firmware.h
@@ -75,29 +75,53 @@
  * @endcode
  */
 
-#include <cstdint>                      // uint8_t/uint32_t/uint64_t
+#include <cstdint>                          // uint8_t/uint32_t/uint64_t
 
-#include "libbotanik.h"
+#include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
+#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
+#include "libbotanik/config/serial.h"     // Config::SERIAL_* / *_BAUD
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
-#include "libbotanik/alarms/alarms.h"   // AlarmCondition
-#include "libbotanik/core/stacks.h"     // Monitor/Console/NetworkStack
-#include "libbotanik/health/health.h"   // Health::HealthMonitor
+#include "libbotanik/alarms/alarms.h"       // AlarmCondition
+#include "libbotanik/alarms/publisher.h"    // Alarms::Publisher
+#include "libbotanik/core/context.h"        // SystemContext
+#include "libbotanik/firmware/stacks.h"     // Monitor/Console/NetworkStack
+#include "libbotanik/health/health.h"       // Health::HealthMonitor
+#include "libbotanik/logs/logger.h"         // Logs::Logger
+#include "libbotanik/logs/topics.h"         // Logs::BOOT / HEALTH
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-#include "libbotanik/modbus/rtu/client.h" // Modbus::RtuClient - the field-bus master
+#include "libbotanik/modbus/rtu/client.h"   // Modbus::RtuClient - the field-bus master
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
-#include "libbotanik/modbus/tcp/slave.h" // Modbus::TcpSlave - the SCADA-facing server
+#include "libbotanik/modbus/tcp/slave.h"    // Modbus::TcpSlave - the SCADA-facing server
 #endif
-#include "libbotanik/plc/program.h"     // Plc::Program
-#include "libbotanik/scheduler/tasks.h" // Scheduler::Registry / GroupId / Phase
-#include "libbotanik/shell/shell.h"     // Shell::ShellCommand
-#include "libbotanik/utils/assert.h"    // set_assert_logger
-#include "libbotanik/vars/access.h"     // Vars::HomeVar
-#include "libbotanik/vars/model.h"      // Vars::Bank / VarTables
-#include "libbotanik/vars/params.h"     // Vars::Params / KvParamStore
+#include "libbotanik/plc/program.h"         // Plc::Program
+#include "libbotanik/scheduler/scheduler.h" // Scheduler::LoopScheduler
+#include "libbotanik/shell/shell.h"         // Shell::ShellCommand
+#include "libbotanik/tasks/tasks.h"         // Tasks::Registry / GroupId / Phase
+#include "libbotanik/utils/assert.h"        // set_assert_logger
+#include "libbotanik/utils/serial.h"        // Utils::BufferedSerial
+#include "libbotanik/vars/access.h"         // Vars::HomeVar
+#include "libbotanik/vars/model.h"          // Vars::Bank / VarTables
+#include "libbotanik/vars/params.h"         // Vars::Params / KvParamStore
 
 #if BOTANIK_FEATURE_PLC_SCAN
-#include "libbotanik/scan/scan.h"       // Scan::Driver
+#include "libbotanik/scan/scan.h"           // Scan::Driver
+#endif
+#if BOTANIK_FEATURE_CONSOLE
+#include "libbotanik/console/console.h"     // Terminal::Console
+#endif
+#if BOTANIK_FEATURE_HOME_PAGE
+#include "libbotanik/pages/home.h"          // Pages::HomePage
+#endif
+#if BOTANIK_FEATURE_PARAMS_PAGE
+#include "libbotanik/pages/params_page.h"   // Pages::ParamsPage
+#endif
+#if BOTANIK_FEATURE_MONITOR_PAGE
+#include "libbotanik/pages/monitor.h"       // Pages::MonitorPage
+#endif
+#if BOTANIK_FEATURE_TASKS_PAGE
+#include "libbotanik/pages/tasks_page.h"    // Pages::TasksPage
 #endif
 
 namespace Botanik {
@@ -118,7 +142,7 @@ namespace Botanik {
      *                        their own scheduling state.
      *
      * Any table may be null / count 0. Every pointer is borrowed and must outlive
-     * the firmware (site statics). See core/firmware.h "Extending the base".
+     * the firmware (site statics). See firmware/firmware.h "Extending the base".
      */
     struct SiteDescriptor {
         const char*                   name;                ///< == Config::SITE_NAME
@@ -186,7 +210,7 @@ namespace Botanik {
 
         /** @name Generic components (declared in construction order)
          *  The optional subsystem groups are bundled into the feature-gated
-         *  stacks (core/stacks.h); the firmware owns the shared singletons and
+         *  stacks (firmware/stacks.h); the firmware owns the shared singletons and
          *  injects them into the stacks by pointer. @{ */
 
         Logs::Logger                   _logger;
@@ -204,7 +228,7 @@ namespace Botanik {
         bool                           _health_fault = false;
         /** @brief The beat's task table: what runs, how often, and in which
          *  phase. Filled by _register_tasks() during setup(); frozen after. */
-        Scheduler::Registry            _tasks;
+        Tasks::Registry            _tasks;
         Health::HealthMonitor          _health;
         SystemContext                  _sys_ctx;     ///< Filled in the ctor body
 #if BOTANIK_FEATURE_LOGS_MONITOR
@@ -292,9 +316,13 @@ namespace Botanik {
               , _modbus_tcp(&_io, &_logger, &_health.alarm_model())
 #endif
 #if BOTANIK_FEATURE_CONSOLE
+              // _sys_ctx is declared above, so it exists (empty) by now; the
+              // console borrows it by pointer and reads it later, once the body
+              // below has filled in the subsystem addresses.
               , _console(_console_cols, _console_rows,
                          &_scheduler.context()->timestamp_ms, _console_baud,
-                         &_health.alarm_model(), &_logger)
+                         &_health.alarm_model(), &_logger,
+                         _scheduler.context(), &_sys_ctx)
               // Base-owned pages, built from the descriptor + the live payload.
 #if BOTANIK_FEATURE_HOME_PAGE
               , _home_page(_console.terminal(), _site.home_fields,
@@ -326,9 +354,6 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_MQTT
             _sys_ctx.mqtt = &_net.mqtt();
-#endif
-#if BOTANIK_FEATURE_CONSOLE
-            _console.terminal().set_context(_sys_ctx);
 #endif
         }
 
@@ -484,7 +509,7 @@ namespace Botanik {
          *  Every entry is named, because the TASKS page and the `stats` command
          *  report per-task cost and an unnamed row is not a diagnosis. */
         void _register_tasks() {
-            using namespace Scheduler;
+            using namespace Tasks;
 
             // --- INPUT: fresh bytes and fresh field, before anything reads ---
 #if BOTANIK_FEATURE_CONSOLE
@@ -687,7 +712,7 @@ namespace Botanik {
 
     public:
         /** @brief The task table, for the TASKS page and the `stats` command. */
-        const Scheduler::Registry& tasks() const { return _tasks; }
+        const Tasks::Registry& tasks() const { return _tasks; }
 
         /** @brief One main-loop iteration. tick() gates a beat and republishes
          *  the display "now" (`SchedulerContext::timestamp_ms`) the render path
@@ -710,12 +735,12 @@ namespace Botanik {
             // Phase-major dispatch: each phase runs the tasks registered to
             // it whose group has come due. The order of these calls IS the data
             // flow, and it is the part that must not become configurable.
-            _tasks.run_phase(Scheduler::PHASE_INPUT,   now_ms);
-            _tasks.run_phase(Scheduler::PHASE_CONFIG,  now_ms);
-            _tasks.run_phase(Scheduler::PHASE_SERVICE, now_ms);
-            _tasks.run_phase(Scheduler::PHASE_EXECUTE, now_ms);
-            _tasks.run_phase(Scheduler::PHASE_OUTPUT,  now_ms);
-            _tasks.run_phase(Scheduler::PHASE_PRESENT, now_ms);
+            _tasks.run_phase(Tasks::PHASE_INPUT,   now_ms);
+            _tasks.run_phase(Tasks::PHASE_CONFIG,  now_ms);
+            _tasks.run_phase(Tasks::PHASE_SERVICE, now_ms);
+            _tasks.run_phase(Tasks::PHASE_EXECUTE, now_ms);
+            _tasks.run_phase(Tasks::PHASE_OUTPUT,  now_ms);
+            _tasks.run_phase(Tasks::PHASE_PRESENT, now_ms);
 
             // Kick while healthy; HealthMonitor is what decides that (see
             // health/health.h). Withholding the kick means we have chosen to let
@@ -863,4 +888,4 @@ namespace Botanik {
 
 }  // namespace Botanik
 
-#endif // LIBBOTANIK_CORE_FIRMWARE_H
+#endif // LIBBOTANIK_FIRMWARE_FIRMWARE_H

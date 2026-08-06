@@ -5,7 +5,7 @@
  * @file tasks_page.h
  * @brief TasksPage - the beat, as a table: what runs, how often, and what it costs.
  *
- * The scheduler self-instruments per task (Scheduler::TaskCost), and until this
+ * The scheduler self-instruments per task (Tasks::TaskCost), and until this
  * page there was nowhere to read it: `stats` reports the whole beat's CPU with no
  * attribution, so "which task blew the budget" had no answer. That is the
  * question this page exists for.
@@ -30,16 +30,15 @@
  */
 
 #include <cstdint>                          // uint8_t/uint32_t/uint64_t
-#include <cstdio>                           // snprintf
-#include <cstring>                          // strcmp
 
-#include "libbotanik_config.h"              // BOTANIK_FEATURE_TASKS_PAGE
+#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
 #include "libbotanik/console/console.h"     // Console::rows / terminal
 #include "libbotanik/console/terminal.h"    // AnsiTerminal
 #include "libbotanik/pages/page.h"          // Pages::Page
 #include "libbotanik/pages/scroll_table.h"  // Pages::ScrollTablePage
-#include "libbotanik/scheduler/tasks.h"     // Scheduler::Registry / Task / TaskCost
+#include "libbotanik/tasks/tasks.h"     // Tasks::Registry / Task / TaskCost
 #include "libbotanik/utils/text.h"          // Utils::format_int / format_float
 
 namespace Botanik { namespace Pages {
@@ -82,7 +81,7 @@ namespace Botanik { namespace Pages {
          *  @{ */
         Console&                     _console;
         /** @brief Borrowed; the firmware owns it and it outlives the page. */
-        const Scheduler::Registry&   _reg;
+        const Tasks::Registry&   _reg;
         bool                         _dirty = true;
         uint64_t                     _last_refresh_ms = 0;
         /** @brief Row order: task indices sorted by name.
@@ -99,7 +98,7 @@ namespace Botanik { namespace Pages {
     public:
         /** @param console owns the content geometry; @p reg is the task table the
          *  page reads. Both outlive the page (the firmware owns them). */
-        TasksPage(Console& console, const Scheduler::Registry& reg)
+        TasksPage(Console& console, const Tasks::Registry& reg)
             : ScrollTablePage(console.terminal()), _console(console), _reg(reg) {}
 
         const char* name() const override { return "TASKS"; }
@@ -118,34 +117,9 @@ namespace Botanik { namespace Pages {
          *  @{ */
         void deactivate() override {}
 
-        void focus() override {
-            _dirty = true;
-            _clamp_selection();
-            _follow_selection();
-        }
+        void focus() override;
 
-        void tick(bool active) override {
-            if (!active) return;
-            uint64_t now = HAL::Clock::uptime_ms();
-            // The costs move every beat, so this is a live page - but repainting
-            // a whole table at the beat rate would spend the console's entire
-            // byte budget on digits nobody can read that fast.
-            if (!_dirty && now - _last_refresh_ms < REFRESH_MS) return;
-            _last_refresh_ms = now;
-            _dirty = false;
-            uint16_t n = _count();
-            _clamp_selection();
-            _follow_selection();
-            _draw_structure();
-            uint16_t win = _window();
-            for (uint16_t vi = 0; vi < win; vi++) {
-                uint16_t row = (uint16_t)(DATA_TOP + vi), idx = (uint16_t)(_top + vi);
-                if (idx < n) _draw_row(idx, row, idx == _selected);
-                else { _terminal.move_to({row, 0}); _terminal.set_inverted(false);
-                       _terminal.clear_to_eol(); }
-            }
-            _draw_panel();
-        }
+        void tick(bool active) override;
         /** @} */
 
     private:
@@ -153,22 +127,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief Build the name-sorted index, once. Insertion sort: the table is
          *  a couple of dozen entries and this runs at most once a boot. */
-        void _ensure_order() const {
-            const uint8_t n = (uint8_t)_count();
-            if (_order_n == n) return;               // already built for this table
-            for (uint8_t i = 0; i < n; i++) _order[i] = i;
-            for (uint8_t i = 1; i < n; i++) {
-                const uint8_t v = _order[i];
-                const char* vn = _reg.task(v).name;
-                uint8_t j = i;
-                while (j > 0 && std::strcmp(_name_of(_order[j - 1]), vn ? vn : "") > 0) {
-                    _order[j] = _order[j - 1];
-                    j--;
-                }
-                _order[j] = v;
-            }
-            _order_n = n;
-        }
+        void _ensure_order() const;
 
         const char* _name_of(uint8_t i) const {
             const char* n = _reg.task(i).name;
@@ -176,7 +135,7 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief The task shown on display row @p r. */
-        const Scheduler::Task& _row(uint16_t r) const {
+        const Tasks::Task& _row(uint16_t r) const {
             _ensure_order();
             return _reg.task(_order[r < _order_n ? r : 0]);
         }
@@ -189,11 +148,7 @@ namespace Botanik { namespace Pages {
         /** @} */
 
         /** @brief First row of the detail panel (separator). */
-        uint16_t _panel_top() const {
-            uint16_t last = (uint16_t)(_console.rows() - 1);
-            return (last > (uint16_t)(DATA_TOP + PANEL_H))
-                 ? (uint16_t)(last - PANEL_H) : DATA_TOP;
-        }
+        uint16_t _panel_top() const;
         uint16_t _visible_rows() const {
             uint16_t pt = _panel_top();
             return (pt > DATA_TOP) ? (uint16_t)(pt - DATA_TOP) : 0;
@@ -202,21 +157,9 @@ namespace Botanik { namespace Pages {
         /** @brief Flexible TASK width: the display minus the four fixed columns
          *  and every border. The name is what a reader scans, so it gets the
          *  slack rather than the numbers. */
-        uint16_t _name_w() const {
-            return _flex_width((uint16_t)(2 * MARGIN + 2 + 3 + GROUP_W + 3
-                                          + PERIOD_W + 3 + PHASE_W + 3
-                                          + MEAN_W + 3 + PEAK_W + 2), NAME_CAP);
-        }
+        uint16_t _name_w() const;
 
-        uint8_t _columns(Col* out) const override {
-            out[C_NAME]   = Col{ "TASK",      _name_w() };
-            out[C_GROUP]  = Col{ "GROUP",     GROUP_W   };
-            out[C_PERIOD] = Col{ "EVERY ms",  PERIOD_W  };
-            out[C_PHASE]  = Col{ "PHASE",     PHASE_W   };
-            out[C_MEAN]   = Col{ "MEAN us",   MEAN_W    };
-            out[C_PEAK]   = Col{ "PEAK us",   PEAK_W    };
-            return 6;
-        }
+        uint8_t _columns(Col* out) const override;
 
         /** @brief Microseconds, or "-" before the first run. Rendered as a plain
          *  integer: a task that has never run and one that ran in under a
@@ -229,74 +172,17 @@ namespace Botanik { namespace Pages {
         /** @brief The group's period as text. Four compile-time constants, so
          *  they are rendered once into a small cache rather than through an
          *  snprintf per row per refresh. */
-        static const char* _period_str(Scheduler::GroupId g) {
-            static char buf[Scheduler::GROUP_COUNT][8];
-            static bool built = false;
-            if (!built) {
-                built = true;
-                for (uint8_t i = 0; i < Scheduler::GROUP_COUNT; i++)
-                    Utils::format_int(buf[i], sizeof(buf[i]),
-                                      (long long)Scheduler::group_period_ms((Scheduler::GroupId)i));
-            }
-            return (g < Scheduler::GROUP_COUNT) ? buf[g] : "";
-        }
+        static const char* _period_str(Tasks::GroupId g);
 
-        void _draw_row(uint16_t idx, uint16_t row, bool selected) {
-            const Scheduler::Task& t = _row(idx);
-            char mean[CELL_CAP], peak[CELL_CAP], line[LINE_CAP];
-            const char* cells[6] = {
-                t.name != nullptr ? t.name : "",
-                Scheduler::group_name(t.group),
-                _period_str(t.group),
-                Scheduler::phase_name(t.phase),
-                _us(mean, sizeof(mean), t.cost.us_mean(), t.cost.runs),
-                _us(peak, sizeof(peak), t.cost.us_max,  t.cost.runs),
-            };
-            uint16_t n = _build_row(line, sizeof(line), cells);
-            _draw_selected_line(row, line, n, _cell_col(C_NAME), _cell_end(C_NAME),
-                                selected);
-        }
+        void _draw_row(uint16_t idx, uint16_t row, bool selected);
 
-        void _draw_structure() {
-            _blank_line(TOP_ROW);
-            _draw_header(HEADER_ROW);
-            _draw_rule(RULE_ROW, '+');
-        }
+        void _draw_structure();
 
 
         /** @brief Panel for the selected task: the peak, the run count, and what
          *  share of its own period the mean accounts for - which is the number
          *  that says whether a task is affordable at the rate it is running. */
-        void _draw_panel() {
-            uint16_t r = _panel_top();
-            _draw_separator(r);
-            _blank_line((uint16_t)(r + 1));
-            if (_count() == 0) {
-                for (uint16_t i = 2; i < PANEL_H; i++) _blank_line((uint16_t)(r + i));
-                return;
-            }
-            const Scheduler::Task& t = _row(_selected);
-            char last[CELL_CAP], runs[CELL_CAP], duty[24];
-            _us(last, sizeof(last), t.cost.us_last, t.cost.runs);
-            Utils::format_int(runs, sizeof(runs), (long long)t.cost.runs);
-
-            const uint32_t period = Scheduler::group_period_ms(t.group);
-            const char* duty_s = "-";
-            if (t.cost.runs != 0 && period != 0) {
-                // us_mean/period_ms IS per-mille of the period - the us/ms ratio
-                // does the scaling - so this is a 32-bit UDIV, not the 64-bit
-                // divide the explicit x1000 on both sides used to force.
-                char pct[16];
-                Utils::format_float(pct, sizeof(pct),
-                                    (double)t.cost.us_mean() / (double)(period * 10u), 1);
-                snprintf(duty, sizeof(duty), "%s %%", pct);
-                duty_s = duty;
-            }
-            _panel_field((uint16_t)(r + 2), "Last us", last);
-            _panel_field((uint16_t)(r + 3), "Runs", runs);
-            _panel_field((uint16_t)(r + 4), "Of period", duty_s);
-            _blank_line((uint16_t)(r + 5));
-        }
+        void _draw_panel();
     };
 
 }}  // namespace Botanik::Pages

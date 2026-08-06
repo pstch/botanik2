@@ -60,9 +60,20 @@
  */
 
 #include "libbotanik/alarms/platform.h" // BOTANIK_PLATFORM_ALARM_VARS
+#include "libbotanik/config/net.h"      // the net_/ntp_/mqtt_ row defaults
+#include "libbotanik/config/serial.h"   // BOTANIK_CONSOLE_BAUD / MONITOR_BAUD
+#include "libbotanik/config/sun.h"      // the geo_ row defaults
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+#include "libbotanik/modbus/tcp/params.h" // BOTANIK_MODBUS_TCP_PARAM_VARS
+#else
+#  define BOTANIK_MODBUS_TCP_PARAM_VARS
+#endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 #include "libbotanik/modbus/rtu/alarms.h" // BOTANIK_MODBUS_RTU_ALARM_VARS / _STATUS_VARS
 #else
+// The rows exist only where the field bus does, but the GROUPS below are
+// spliced unconditionally - so an absent subsystem contributes nothing rather
+// than failing to expand.
 #  define BOTANIK_MODBUS_RTU_ALARM_VARS
 #  define BOTANIK_MODBUS_RTU_STATUS_VARS
 #endif
@@ -137,7 +148,82 @@
     ::Botanik::Vars::P("serial_monitor_baud", ::Botanik::Vars::T_U32,          \
         BOTANIK_MONITOR_BAUD, 1200, 921600, 0, "Bd", 901,                      \
         "monitor UART rate",                                                   \
-        "log-only port; ignored on the OPTA, whose MONITOR is USB CDC"),
+        "log-only port; ignored on the OPTA, whose MONITOR is USB CDC"),       \
+    /* net_: NetworkHandler reads these by name, so the library declares them */\
+    ::Botanik::Vars::P("net_serial", ::Botanik::Vars::T_U32,                   \
+        1, 0, 9999, 0, "", 910,                                                \
+        "bump to apply staged net_ edits", ""),                                \
+    ::Botanik::Vars::P("net_dhcp", ::Botanik::Vars::T_BOOL,                    \
+        BOTANIK_NET_DHCP, 0, 1, 0, "", 911,                                    \
+        "enable DHCP IP configuration", "ignores the static ip/mask/gw rows"), \
+    ::Botanik::Vars::PS("net_ip", BOTANIK_NET_IP,                              \
+        BOTANIK_HOST_STR_LEN, ::Botanik::Vars::STR_IPV4, 912,                  \
+        "static IP address", ""),                                              \
+    ::Botanik::Vars::PS("net_mask", BOTANIK_NET_MASK,                          \
+        BOTANIK_HOST_STR_LEN, ::Botanik::Vars::STR_IPV4, 913,                  \
+        "static IP netmask", ""),                                              \
+    ::Botanik::Vars::PS("net_gw", BOTANIK_NET_GW,                              \
+        BOTANIK_HOST_STR_LEN, ::Botanik::Vars::STR_IPV4, 914,                  \
+        "static IP gateway", ""),                                              \
+    ::Botanik::Vars::PS("net_dns1", BOTANIK_NET_DNS1,                          \
+        BOTANIK_HOST_STR_LEN, ::Botanik::Vars::STR_IPV4, 915,                  \
+        "static DNS resolver 1", ""),                                          \
+    ::Botanik::Vars::PS("net_dns2", BOTANIK_NET_DNS2,                          \
+        BOTANIK_HOST_STR_LEN, ::Botanik::Vars::STR_IPV4_OPT, 916,              \
+        "static DNS resolver 2", "empty = use dns1 alone"),                    \
+    /* ntp_: NtpClient reads these by name */                                  \
+    ::Botanik::Vars::P("ntp_serial", ::Botanik::Vars::T_U32,                   \
+        1, 0, 9999, 0, "", 920,                                                \
+        "bump to apply staged ntp_ edits", ""),                                \
+    ::Botanik::Vars::P("ntp_enable", ::Botanik::Vars::T_BOOL,                  \
+        BOTANIK_NTP_ENABLE, 0, 1, 0, "", 921,                                  \
+        "enable NTP clock sync", ""),                                          \
+    ::Botanik::Vars::P("ntp_poll_sec", ::Botanik::Vars::T_U32,                 \
+        BOTANIK_NTP_POLL_SEC, 10, 86400, 0, "sec", 922,                        \
+        "NTP poll interval, in seconds", ""),                                  \
+    ::Botanik::Vars::P("ntp_port", ::Botanik::Vars::T_U16,                     \
+        BOTANIK_NTP_PORT, 1, 65535, 0, "", 923,                                \
+        "NTP server port", "standard is 123"),                                 \
+    ::Botanik::Vars::PS("ntp_srv1", BOTANIK_NTP_SRV1,                          \
+        BOTANIK_HOST_STR_LEN, ::Botanik::Vars::STR_HOST, 924,                  \
+        "NTP server 1", ""),                                                   \
+    ::Botanik::Vars::PS("ntp_srv2", BOTANIK_NTP_SRV2,                          \
+        BOTANIK_HOST_STR_LEN, ::Botanik::Vars::STR_HOST_OPT, 925,              \
+        "NTP server 2", "empty = no fallback"),                                \
+    /* mqtt_: MqttClient reads these by name */                                \
+    ::Botanik::Vars::P("mqtt_serial", ::Botanik::Vars::T_U32,                  \
+        1, 0, 9999, 0, "", 930,                                                \
+        "bump to apply staged mqtt_ edits", ""),                               \
+    ::Botanik::Vars::P("mqtt_enable", ::Botanik::Vars::T_BOOL,                 \
+        BOTANIK_MQTT_ENABLE, 0, 1, 0, "", 931,                                 \
+        "enable MQTT", ""),                                                    \
+    ::Botanik::Vars::PS("mqtt_host", BOTANIK_MQTT_HOST,                        \
+        BOTANIK_HOST_STR_LEN, ::Botanik::Vars::STR_HOST, 932,                  \
+        "MQTT broker host", ""),                                               \
+    ::Botanik::Vars::P("mqtt_port", ::Botanik::Vars::T_U16,                    \
+        BOTANIK_MQTT_PORT, 1, 65535, 0, "", 933,                               \
+        "MQTT broker port", "standard is 1883"),                               \
+    ::Botanik::Vars::P("mqtt_ka_sec", ::Botanik::Vars::T_U16,                  \
+        BOTANIK_MQTT_KA_SEC, 10, 1800, 0, "sec", 934,                          \
+        "MQTT keep-alive interval", "also the dead-broker detection"),         \
+    /* geo_: SunPositionTracker reads these by name */                         \
+    ::Botanik::Vars::P("geo_serial", ::Botanik::Vars::T_U32,                   \
+        1, 0, 9999, 0, "", 940,                                                \
+        "bump to apply staged geo_ edits", ""),                                \
+    ::Botanik::Vars::P("geo_lat_deg", ::Botanik::Vars::T_F32,                  \
+        BOTANIK_GEO_LAT_DEG, -90.0, 90.0, 2, "deg", 941,                       \
+        "geographical latitude, in degrees", "per site location"),             \
+    ::Botanik::Vars::P("geo_lon_deg", ::Botanik::Vars::T_F32,                  \
+        BOTANIK_GEO_LON_DEG, -180.0, 180.0, 2, "deg", 942,                     \
+        "geographical longitude, in degrees", "per site location"),  \
+    BOTANIK_MODBUS_TCP_PARAM_VARS
+
+/** @brief Pool bytes the library's own text parameters need: net_ip, net_mask,
+ *  net_gw, net_dns1, net_dns2, ntp_srv1, ntp_srv2 and mqtt_host - eight rows,
+ *  each BOTANIK_HOST_STR_LEN. A site sizes its string pool as this plus whatever
+ *  its own text rows take; `Bank::init()` lays the slots out, so a site says how
+ *  much room there is and never where anything goes. */
+#define BOTANIK_LIBRARY_STR_BYTES   (8u * BOTANIK_HOST_STR_LEN)
 
 /** @} */
 

@@ -93,7 +93,7 @@ const Botanik::SiteDescriptor g_site = {
  * so the site is data, not code. A site that needs custom per-beat logic or an
  * extra page (e.g. re-adding a STATUS page by subclassing Pages::StatusPage)
  * would override the base's on_step() / register_pages() here. See
- * libbotanik/core/firmware.h for the extension model.
+ * libbotanik/firmware/firmware.h for the extension model.
  */
 class GreenhouseMLB41 final : public Botanik::BotanikFirmware {
 public:

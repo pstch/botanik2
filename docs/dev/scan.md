@@ -15,7 +15,7 @@ input-phase; a control program is whatever rate and always execute-phase.
 
 Rate is a tuning knob. Phase is a correctness property - it encodes the data flow,
 and getting it wrong corrupts a cycle rather than just costing CPU. So the phase
-order stays written out as code in `core/firmware.h`, and only the rate is a
+order stays written out as code in `firmware/firmware.h`, and only the rate is a
 property of the task. A group must never imply an order, or retuning a rate would
 silently reorder the cycle.
 

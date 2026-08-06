@@ -24,7 +24,7 @@
 #include <cstdint>                      // uint8_t
 #include <cstring>                      // strchr / strcmp / strlen / memcpy
 
-#include "libbotanik_config.h"          // Config::VAR_GROUP_*
+#include "libbotanik/config/vars.h"       // Config::VAR_* / STR_*
 
 #include "libbotanik/vars/declare.h"    // Vars::scope_label
 #include "libbotanik/vars/model.h"      // Vars::Bank / Var / VarRef

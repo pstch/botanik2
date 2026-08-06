@@ -1,6 +1,6 @@
 /**
  * @file test_tasks.cpp
- * @brief The task registry (scheduler/tasks.h): phase-major dispatch, group
+ * @brief The task registry (tasks/tasks.h): phase-major dispatch, group
  *        rates, the derived offsets, and the per-task cost numbers.
  */
 #include <cstdint>                      // uint8_t/uint32_t/uint64_t
@@ -8,11 +8,11 @@
 #include <vector>                       // std::vector
 
 #include "libbotanik/core/component.h"  // Component
-#include "libbotanik/scheduler/tasks.h" // Scheduler::Registry
+#include "libbotanik/tasks/tasks.h" // Tasks::Registry
 
 #include "doctest.h"
 
-using namespace Botanik::Scheduler;
+using namespace Botanik::Tasks;
 
 namespace {
     std::vector<std::string> g_log;

@@ -15,7 +15,7 @@
 
 #include <cstdint>                  // uint8_t/uint32_t/uint64_t
 
-#include "libbotanik_config.h"      // Config::MAX_DNS / DNS_CACHE
+#include "libbotanik/config/net.h"        // Config::NET_* / DNS_* / NTP_* / MQTT_*
 
 #include "libbotanik/hal/net.h"     // HAL::Network::dns_begin / dns_poll / Ip4
 #include "libbotanik/logs/logger.h" // Logs::Logger

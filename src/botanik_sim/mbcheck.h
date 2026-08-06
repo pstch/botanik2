@@ -71,10 +71,15 @@ namespace Botanik { namespace Sim {
 
         /** @brief The row this exercises: a parameter with a register, whose
          *  value nothing else in the sim depends on. Writing a setpoint would
-         *  move the plant; writing the slave's own port would move the slave. */
-        static const uint16_t ROW_REG   = 22;      ///< ntp_poll_sec
-        static const uint16_t ROW_ADDR  = ROW_REG * 2;
-        static const uint32_t NEW_VALUE = 1234;
+         *  move the plant; writing the slave's own port would move the slave.
+         *
+         *  Its ADDRESS is asked of the bank rather than written down here. The
+         *  register is the row's own, and rows move between the site's table and
+         *  the library's - a number copied into this file goes stale silently and
+         *  the check then fails against a perfectly good slave. */
+        static constexpr const char* ROW_NAME  = "ntp_poll_sec";
+        static const uint32_t        NEW_VALUE = 1234;
+        uint16_t _row_addr = 0;
 
         /** @} */
 
@@ -93,6 +98,13 @@ namespace Botanik { namespace Sim {
             if (_step == MC_WAIT) {
                 if (_start == 0) _start = now_ms;
                 if ((now_ms - _start) < 6000) return;
+                const Vars::Var v = _io->var(ROW_NAME);
+                if (v.meta()->name == nullptr || v.meta()->bind.reg == 0) {
+                    _report("skipped", "'%s' has no register", ROW_NAME);
+                    _step = MC_DONE;
+                    return;
+                }
+                _row_addr = (uint16_t)(v.meta()->bind.reg * 2);
                 _master.connect_to(HAL::Network::mock_loopback_ip(),
                                    Config::MODBUS_TCP_PORT);
                 _step = MC_READ1;
@@ -116,7 +128,7 @@ namespace Botanik { namespace Sim {
             switch (_step) {
                 case MC_READ1:
                 case MC_READ2:
-                    _master.read_registers(Config::MODBUS_TCP_UNIT_ID, ROW_ADDR, 2);
+                    _master.read_registers(Config::MODBUS_TCP_UNIT_ID, _row_addr, 2);
                     return;
                 case MC_WRITE: {
                     // Big-endian register bytes, high word first - the map's own
@@ -125,7 +137,7 @@ namespace Botanik { namespace Sim {
                     Modbus::wr16(regs + 0, (uint16_t)(NEW_VALUE >> 16));
                     Modbus::wr16(regs + 2, (uint16_t)(NEW_VALUE & 0xFFFF));
                     _master.write_registers(Config::MODBUS_TCP_UNIT_ID,
-                                            ROW_ADDR, 2, regs);
+                                            _row_addr, 2, regs);
                     return;
                 }
                 default:
@@ -180,7 +192,7 @@ namespace Botanik { namespace Sim {
          *  the wire: the wire half is what was under test, and it has been. */
         void _restore() {
             if (_io == nullptr) return;
-            Vars::Var v = _io->var("ntp_poll_sec");
+            Vars::Var v = _io->var(ROW_NAME);
             if (v.meta()->name != nullptr)
                 (void)_io->set(v, Vars::Scalar::U((uint64_t)_was));
         }

@@ -20,7 +20,9 @@
 
 #include <cstdint>                          // uint8_t/int16_t/uint64_t
 
-#include "libbotanik_config.h"              // Config::HEALTH_*
+#include "libbotanik/config/alarms.h"     // Config::ALARM_* / HEALTH_*
+#include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
+#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
 
 #include "libbotanik/alarms/alarms.h"       // Alarms::AlarmController / MqttAlarmNotifier
 #include "libbotanik/alarms/platform.h"

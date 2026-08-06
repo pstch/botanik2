@@ -14,7 +14,7 @@
 
 #include <cstdint>              // uint8_t
 
-#include "libbotanik_config.h"  // Config::LOG_MIN_LEVEL
+#include "libbotanik/config/logging.h"    // Config::LOG_*
 
 namespace Botanik { namespace Logs {
 

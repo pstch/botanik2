@@ -1,15 +1,15 @@
 /**
  * @file test_task_timer.cpp
- * @brief TaskTimer (scheduler/task_timer.h): the due/late/dropped rule on its
+ * @brief TaskTimer (tasks/task_timer.h): the due/late/dropped rule on its
  *        own, including the edges the scan driver only reaches indirectly.
  */
 #include <cstdint>                              // uint16_t/uint32_t/uint64_t
 
-#include "libbotanik/scheduler/task_timer.h"    // Scheduler::TaskTimer
+#include "libbotanik/tasks/task_timer.h"    // Tasks::TaskTimer
 
 #include "doctest.h"
 
-using Botanik::Scheduler::TaskTimer;
+using Botanik::Tasks::TaskTimer;
 
 TEST_CASE("task timer: the first call is always due, at the nominal period") {
     TaskTimer t;

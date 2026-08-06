@@ -19,7 +19,7 @@ The base owns every page (home/shell/logs/alarms/config/monitor) and wires the
 descriptor's tables generically, so the site is data, not code. A site needing custom
 per-beat logic or an extra page (e.g. re-adding a STATUS page by subclassing
 `Pages::StatusPage`) would override the base's `on_step()` / `register_pages()`. See
-`src/libbotanik/core/firmware.h` for the full extension model and a worked example.
+`src/libbotanik/firmware/firmware.h` for the full extension model and a worked example.
 
 ## Data model
 

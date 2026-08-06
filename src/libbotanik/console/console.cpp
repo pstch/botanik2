@@ -7,7 +7,8 @@
 
 #include <cstdint>                      // int8_t/uint16_t/uint64_t
 
-#include "libbotanik_config.h"          // Config::SCREEN_* / PAGE_MAX
+#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
 #include "libbotanik/hal/platform.h"    // HAL::System::shutdown
 
@@ -18,7 +19,7 @@ namespace Botanik { namespace Terminal {
     // costs no throughput - right up until the ring drains empty between two of
     // them, at which point the wire idles and the pacing model breaks.
     //
-    // The render is registered in GROUP_SLOW (core/firmware.h). At 100 ms against
+    // The render is registered in GROUP_SLOW (firmware/firmware.h). At 100 ms against
     // a 128 ms depth the ring still holds ~28 ms of wire when the next render
     // arrives, so the link never idles - but that is the whole margin, and a
     // render delayed past 128 ms by jitter or an overrun WILL idle it. Raise
@@ -31,14 +32,14 @@ namespace Botanik { namespace Terminal {
 
     Console::Console(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
                      const uint64_t* timestamp_ms, uint32_t baud,
-                     const SystemContext& ctx, const Alarms::AlarmController* alarms,
+                     const Scheduler::SchedulerContext* sched,
+                     const Alarms::AlarmController* alarms,
                      Logs::Logger* logger, Ansi::TerminalType type) :
         Component(logger, "Console"),
         _term(serial, cols, rows, baud, type),
         _parser(serial, timestamp_ms),
-        _ctx(ctx),
         _alarms(alarms),
-        _status_bar(*this),
+        _status_bar(*this, sched),
         _alarm_bar(*this)
     {
         // bottom row reserved for the alarm bar only when alarms are wired

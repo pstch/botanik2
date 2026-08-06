@@ -9,9 +9,9 @@
 #include <cstddef>                          // size_t
 #include <cstdint>                          // uint8_t/uint16_t/int16_t
 
-#include "libbotanik/console/console.h"     // Console::alarms / context
 #include "libbotanik/console/editor.h"      // Terminal::TextEditor
 #include "libbotanik/console/terminal.h"    // AnsiTerminal
+#include "libbotanik/core/context.h"        // SystemContext
 #include "libbotanik/vars/access.h"         // Vars::Bank / var_group
 #include "libbotanik/vars/params.h"         // Vars::Params
 
@@ -73,9 +73,13 @@ namespace Botanik { namespace Shell {
         /** @name State
          *  @{ */
 
-        /** console the shell reads context/alarms from */
-        Terminal::Console&      _console;
-        /** VT device the shell renders through (cached _console.terminal()) */
+        /** @brief The subsystem handles the reporting commands read (scheduler
+         *  for `stats`, network/ntp/mqtt for `net`, the bank for the variable
+         *  commands). Injected by the firmware rather than reached for through
+         *  the console: the shell is a command interpreter over the variable
+         *  model, and should not need a terminal to find one. */
+        const SystemContext*    _sys;
+        /** VT device the shell renders through */
         Terminal::AnsiTerminal& _terminal;
         /** editor supplying the input line */
         Terminal::TextEditor&   _editor;
@@ -117,9 +121,10 @@ namespace Botanik { namespace Shell {
         /** @name Lifecycle
          *  @{ */
 
-        CommandShell(Terminal::Console&      console,
-                     Terminal::TextEditor&  editor,
-                     ShellWriter&            output);
+        CommandShell(Terminal::AnsiTerminal& terminal,
+                     Terminal::TextEditor&   editor,
+                     ShellWriter&            output,
+                     const SystemContext*    sys = nullptr);
 
         /** @} */
 
@@ -269,9 +274,9 @@ namespace Botanik { namespace Shell {
                                            char* buf, size_t cap);
         /** @} */
 
-        /** @brief The variables, from the shared SystemContext (null when the
+        /** @brief The variables, from the injected SystemContext (null when the
          *  firmware wired none). One lookup point for the variable commands. */
-        Vars::Bank* _bank() const { return _console.context().vars; }
+        Vars::Bank* _bank() const { return _sys != nullptr ? _sys->vars : nullptr; }
         /** @brief Handle an unrecognised command (echoes "Unknown command:
          *  ..."). */
         void _unknown(const char* cmd, uint16_t len);

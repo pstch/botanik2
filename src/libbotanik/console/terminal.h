@@ -31,7 +31,7 @@
 
 #include <cstdint>                      // uint8_t/uint16_t/uint64_t
 
-#include "libbotanik_config.h"          // Config::SCREEN_ROWS / COLS / BAUD
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
 #include "libbotanik/console/ansi.h"    // Terminal::Ansi
 #include "libbotanik/utils/serial.h"    // Utils::BufferedSerial

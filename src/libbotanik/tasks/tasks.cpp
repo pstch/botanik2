@@ -4,11 +4,11 @@
  *        dispatch (see tasks.h).
  */
 
-#include "libbotanik/scheduler/tasks.h" // Registry / Task
+#include "libbotanik/tasks/tasks.h" // Registry / Task
 
 #include "libbotanik/hal/platform.h"    // HAL::Clock::uptime_us
 
-namespace Botanik { namespace Scheduler {
+namespace Botanik { namespace Tasks {
 
     uint32_t group_period_ms(GroupId g) {
         switch (g) {
@@ -93,4 +93,4 @@ namespace Botanik { namespace Scheduler {
         }
     }
 
-}}  // namespace Botanik::Scheduler
+}}  // namespace Botanik::Tasks

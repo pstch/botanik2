@@ -1,5 +1,5 @@
-#ifndef SCHEDULER_TASK_TIMER_H
-#define SCHEDULER_TASK_TIMER_H
+#ifndef TASKS_TASK_TIMER_H
+#define TASKS_TASK_TIMER_H
 
 /**
  * @file task_timer.h
@@ -39,7 +39,7 @@
 
 #include <cstdint>  // uint16_t/uint32_t/uint64_t
 
-namespace Botanik { namespace Scheduler {
+namespace Botanik { namespace Tasks {
 
     /** @brief The offset that puts member @p index of a set out of step with
      *  the rest: one @p step_ms per index, wrapped into @p period_ms.
@@ -166,6 +166,6 @@ namespace Botanik { namespace Scheduler {
         /** @} */
     };
 
-}}  // namespace Botanik::Scheduler
+}}  // namespace Botanik::Tasks
 
-#endif // SCHEDULER_TASK_TIMER_H
+#endif // TASKS_TASK_TIMER_H

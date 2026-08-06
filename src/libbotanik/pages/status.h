@@ -22,9 +22,11 @@
 #include <cstdint>                          // uint16_t/uint32_t/uint64_t
 #include <cstdio>                           // snprintf
 
-#include "libbotanik_config.h"              // Config::*
+#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 #include "libbotanik_features.h"            // BOTANIK_FEATURE_NETWORK / NTP / MQTT
 
+#include "libbotanik/core/context.h"        // SystemContext
 #include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms / HAL::Stack
 #include "libbotanik/pages/metric_page.h"   // Pages::MetricPage
 #include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext
@@ -52,6 +54,10 @@ namespace Botanik { namespace Pages {
 
         /** @brief Typed site data struct (may be null). */
         const OutputData* _data;
+        /** @brief The subsystem handles the system band renders from. Injected,
+         *  like every other page's model, rather than read back off the
+         *  console. */
+        const SystemContext* _sys;
 
         /** @} */
 
@@ -114,7 +120,7 @@ namespace Botanik { namespace Pages {
         }
 
         void draw_dynamic() override {
-            const SystemContext& ctx = _console.context();
+            const SystemContext& ctx = *_sys;
             char val[40], fld[40];
             char fa[12];
 
@@ -197,7 +203,7 @@ namespace Botanik { namespace Pages {
          *  un-highlighted (the highlight would churn on never-settling values)
          *  except console TX, which settles between bursts. */
         void draw_hot() override {
-            const SystemContext& ctx = _console.context();
+            const SystemContext& ctx = *_sys;
             char val[40], fld[40];
             char fa[12], fb[12];
 
@@ -245,9 +251,10 @@ namespace Botanik { namespace Pages {
         /** @} */
 
     public:
-        /** @brief Bind to a terminal and site data struct. */
-        StatusPage(Console& console, const OutputData* data)
-            : MetricPage(console), _data(data) {
+        /** @brief Bind to a terminal, the subsystem handles the system band
+         *  reads, and the site data struct. */
+        StatusPage(Console& console, const SystemContext* sys, const OutputData* data)
+            : MetricPage(console), _data(data), _sys(sys) {
             // wall clock + uptime tick per second
             _hot_ms = Config::PAGE_HOT_MS;
         }

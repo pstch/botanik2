@@ -12,8 +12,9 @@
 #include <algorithm>                        // std::min
 #include <cstddef>                          // size_t
 #include <cstdint>                          // UINT16_MAX / uint16_t
+#include <cstdio>                           // snprintf
 
-#include "libbotanik_config.h"              // Config::SCROLLBACK_*
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
 #include "libbotanik/console/terminal.h"    // AnsiTerminal
 #include "libbotanik/pages/line_buffer.h"   // Pages::LineBuffer

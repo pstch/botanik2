@@ -13,7 +13,7 @@
 #include <cstddef>                          // size_t / ptrdiff_t
 #include <cstring>                          // memset
 
-#include "libbotanik_config.h"              // Config::LOOP_*
+#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
 
 #include "libbotanik/hal/platform.h"        // HAL::Clock / Stack
 #include "libbotanik/logs/logger.h"         // Logs::Logger

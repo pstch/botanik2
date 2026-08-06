@@ -107,7 +107,7 @@ One row per page, in the order they derive:
 | @ref Botanik::Pages::AlarmsPage | ScrollTablePage | the alarm conditions |
 | @ref Botanik::Pages::ParamsPage | ScrollTablePage | the parameter block, and the only page that writes it |
 | @ref Botanik::Pages::MonitorPage | ScrollTablePage | every published variable, resolved from `VarRef`s at render time |
-| @ref Botanik::Pages::TasksPage | ScrollTablePage | the beat as a table, off the scheduler's `Scheduler::TaskCost` samples |
+| @ref Botanik::Pages::TasksPage | ScrollTablePage | the beat as a table, off the scheduler's `Tasks::TaskCost` samples |
 
 Three of those entries carry a decision worth knowing:
 

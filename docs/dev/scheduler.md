@@ -108,8 +108,8 @@ class SchedulerContext {
 ## Multi-rate tasks
 
 The beat is a **task table**. Each entry names what runs, the rate **group** it
-belongs to, and the **phase** of the beat it sits in; `Scheduler::Registry`
-(`scheduler/tasks.h`) holds them and `BotanikFirmware::loop()` dispatches
+belongs to, and the **phase** of the beat it sits in; `Tasks::Registry`
+(`tasks/tasks.h`) holds them and `BotanikFirmware::loop()` dispatches
 phase-major. Which task goes where is `_register_tasks()`, and it reads top to
 bottom as the beat does.
 
@@ -274,7 +274,7 @@ physics asks for nothing below 100 ms.
 ### TaskTimer
 
 The due/late/dropped decision is one rule, shared rather than reimplemented per
-call site. `Scheduler::TaskTimer` (`scheduler/task_timer.h`) holds the two fields
+call site. `Tasks::TaskTimer` (`tasks/task_timer.h`) holds the two fields
 of per-task state and answers it:
 
 - **Due** when `period_ms` is 0 (every beat), on the first ever call, or once

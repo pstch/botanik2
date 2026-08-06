@@ -11,6 +11,43 @@
 
 // NOTE: precedence is command line > site > library default
 
+// Factory values for the library's own parameter rows (declared in
+// vars/library.h, since libbotanik reads them by name). These are what a wiped
+// store comes back as; an operator retunes them from the PARAMS page.
+#ifndef BOTANIK_NET_IP
+#  define BOTANIK_NET_IP        "192.168.1.42"
+#endif
+#ifndef BOTANIK_NET_MASK
+#  define BOTANIK_NET_MASK      "255.255.255.0"
+#endif
+#ifndef BOTANIK_NET_GW
+#  define BOTANIK_NET_GW        "192.168.1.1"
+#endif
+#ifndef BOTANIK_NET_DNS1
+#  define BOTANIK_NET_DNS1      "8.8.8.8"
+#endif
+#ifndef BOTANIK_NET_DNS2
+#  define BOTANIK_NET_DNS2      "4.4.4.4"
+#endif
+#ifndef BOTANIK_NTP_SRV1
+#  define BOTANIK_NTP_SRV1      "0.fr.pool.ntp.org"
+#endif
+#ifndef BOTANIK_NTP_SRV2
+#  define BOTANIK_NTP_SRV2      "1.fr.pool.ntp.org"
+#endif
+#ifndef BOTANIK_MQTT_HOST
+#  define BOTANIK_MQTT_HOST     "192.168.1.43"
+#endif
+#ifndef BOTANIK_MQTT_PORT
+#  define BOTANIK_MQTT_PORT     58443
+#endif
+#ifndef BOTANIK_GEO_LAT_DEG
+#  define BOTANIK_GEO_LAT_DEG   48.07
+#endif
+#ifndef BOTANIK_GEO_LON_DEG
+#  define BOTANIK_GEO_LON_DEG   1.32
+#endif
+
 #if !defined(BOTANIK_FEATURE_CONSOLE) || BOTANIK_FEATURE_CONSOLE
 #  if !defined(BOTANIK_FEATURE_LOGGING) || BOTANIK_FEATURE_LOGGING
 #    ifndef BOTANIK_FEATURE_LOGS_PAGE

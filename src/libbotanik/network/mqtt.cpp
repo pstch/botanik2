@@ -11,6 +11,8 @@
 
 #include <cstring>                      // strlen / memcpy
 
+#include "libbotanik/config/identity.h"   // Config::SITE_NAME (the client id)
+
 #include "libbotanik/hal/platform.h"    // HAL::Clock::uptime_ms
 
 namespace Botanik { namespace Network {

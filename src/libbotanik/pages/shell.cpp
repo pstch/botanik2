@@ -8,7 +8,7 @@
 #include <algorithm>                // std::min
 #include <cstring>                  // memcpy / strlen
 
-#include "libbotanik_config.h"      // Config::SCREEN_COLS
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
 #include "libbotanik/logs/format.h" // Logs::format_log_entry
 #include "libbotanik/utils/text.h"  // Utils::scan_line_segment
@@ -18,11 +18,11 @@ namespace Botanik { namespace Pages {
     // Lifecycle
     // ------------------------------------------------------------------------
 
-    ShellPage::ShellPage(Terminal::Console& console) :
+    ShellPage::ShellPage(Terminal::Console& console, const SystemContext* sys) :
         _console(console),
         _terminal(console.terminal()),
         _editor(&console, _editor_bufs.storage()),
-        _shell(console, _editor, *this)
+        _shell(console.terminal(), _editor, *this, sys)
     {
     }
 

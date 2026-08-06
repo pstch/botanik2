@@ -5,6 +5,7 @@
 
 #include "libbotanik/vars/params.h" // Params / KvParamStore
 
+#include <cstdio>                   // snprintf
 #include <cstring>                  // memcpy / strlen
 
 #include "libbotanik/hal/storage.h" // HAL::Storage::set/get/remove

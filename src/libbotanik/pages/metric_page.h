@@ -21,10 +21,9 @@
  */
 
 #include <cstdint>                          // uint16_t/uint32_t/uint64_t
-#include <cstdio>                           // snprintf
 #include <cstring>                          // memcpy / memset / strlen
 
-#include "libbotanik_config.h"              // Config::METRIC_*
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
 #include "libbotanik/console/console.h"     // Console::rows / terminal
 #include "libbotanik/console/field.h"       // Terminal::Field
@@ -109,30 +108,11 @@ namespace Botanik { namespace Pages {
 
         /** @brief Draw a dash-ruled group header "==== TITLE ====" padded to
          *  @p width. Not cached. */
-        void _header(uint16_t row, uint16_t col, const char* title, uint16_t width) {
-            if (row >= _console.rows()) return;
-            char buf[96];
-            if (width > (uint16_t)(sizeof(buf) - 1))
-                width = (uint16_t)(sizeof(buf) - 1);
-            uint16_t n = 0;
-            for (int i = 0; i < 4 && n < width; ++i) buf[n++] = '=';
-            if (n < width) buf[n++] = ' ';
-            for (const char* p = title; *p && n < width; ++p) buf[n++] = *p;
-            if (n < width) buf[n++] = ' ';
-            while (n < width) buf[n++] = '=';
-            _terminal.move_to({row, col});
-            _terminal.set_inverted(false);
-            _terminal.write_chars(buf, n);
-        }
+        void _header(uint16_t row, uint16_t col, const char* title, uint16_t width);
 
         /** @brief Draw a static label at (@p row, @p col) without clear-to-EOL,
          *  so it never disturbs a second column on the same row. Not cached. */
-        void _label_at(uint16_t row, uint16_t col, const char* s) {
-            if (row >= _console.rows()) return;
-            _terminal.move_to({row, col});
-            _terminal.set_inverted(false);
-            _terminal.write_chars(s, (uint16_t)strlen(s));
-        }
+        void _label_at(uint16_t row, uint16_t col, const char* s);
 
         /** @brief Render @p s as a fixed @p width-column value cell at (@p row,
          *  @p col), cached under @p slot, with watch(1) -d change highlighting.
@@ -191,14 +171,7 @@ namespace Botanik { namespace Pages {
          *  each subfield keeps a stable column for per-subfield highlighting).
          *  13 columns wide, i.e. one page-column value field; past 999 days the
          *  day count grows a digit and the field with it. */
-        static void fmt_uptime(char* buf, size_t cap, uint64_t ms) {
-            uint64_t s = ms / 1000;
-            unsigned d   = (unsigned)(s / 86400); s %= 86400;
-            unsigned h   = (unsigned)(s / 3600);  s %= 3600;
-            unsigned m   = (unsigned)(s / 60);
-            unsigned sec = (unsigned)(s % 60);
-            snprintf(buf, cap, "%03ud %02u:%02u:%02u", d, h, m, sec);
-        }
+        static void fmt_uptime(char* buf, size_t cap, uint64_t ms);
 
         /** @} */
 
@@ -241,37 +214,7 @@ namespace Botanik { namespace Pages {
             _repaint_all = true;    // tick() submits static + all values
         }
 
-        void tick(bool active) override {
-            if (!active) return;
-            uint64_t now = HAL::Clock::uptime_ms();
-
-            // Fresh screen: draw the static chrome, force every value fresh, then
-            // paint hot + cold once.
-            if (_repaint_all) {
-                draw_static();
-                _invalidate();
-                draw_hot();
-                draw_dynamic();
-                _hot_last_ms     = now;
-                _refresh_last_ms = now;
-                _cold_due        = false;
-                _repaint_all     = false;
-                return;
-            }
-
-            // Hot values (e.g. a clock) on their own cadence; cold values on the
-            // refresh period or a forced ENTER. Both diff-gated, so a steady value
-            // spends no TX.
-            if (_hot_ms && now - _hot_last_ms >= _hot_ms) {
-                _hot_last_ms = now;
-                draw_hot();
-            }
-            if (_cold_due || now - _refresh_last_ms >= _refresh_ms) {
-                _refresh_last_ms = now;
-                _cold_due = false;
-                draw_dynamic();
-            }
-        }
+        void tick(bool active) override;
 
         /** @} */
     };

@@ -13,7 +13,7 @@
 
 #include <cstdint>              // uint32_t
 
-#include "libbotanik_config.h"  // Config::*
+#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
 
 namespace Botanik { namespace Utils {
 

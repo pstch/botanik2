@@ -16,7 +16,7 @@
 #include <cstdint>                          // uint8_t/uint16_t/int32_t
 #include <cstring>                          // memcpy
 
-#include "libbotanik_config.h"              // Config::EDITOR_*
+#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
 #include "libbotanik/console/terminal.h"    // AnsiTerminal / CursorPos
 

@@ -10,7 +10,7 @@
 
 #include <cstdint>                  // uint16_t/uint64_t
 
-#include "libbotanik_config.h"      // Config::LOG_MSG_MAX
+#include "libbotanik/config/logging.h"    // Config::LOG_*
 
 #include "libbotanik/logs/topics.h" // Logs::LogLevel / LogTopic
 

@@ -129,7 +129,7 @@ The accounting unit is the **task**, not the group: "the slow group cost 3 ms"
 does not say which of its five members to look at. Roll up to the group for the
 summary.
 
-`Scheduler::TaskCost` already holds exactly this (`us_last`, `us_max`, `us_total`,
+`Tasks::TaskCost` already holds exactly this (`us_last`, `us_max`, `us_total`,
 `runs`, `us_mean()`); what is missing is a `Plc::Program` carrying one, measured
 with two `HAL::Clock::uptime_us()` reads around `step()`. The program already owns
 its timer, so the cost belongs beside it rather than in a parallel array. Report a

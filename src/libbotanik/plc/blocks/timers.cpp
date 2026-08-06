@@ -5,7 +5,7 @@
 
 #include "libbotanik/plc/blocks/timers.h"   // Ton / Tof / Tp
 
-#include "libbotanik_config.h"              // BOTANIK_FEATURE_PLC_BLK_*
+#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
 
 #include "libbotanik/plc/functions/time.h"  // Plc::accumulate
 #if BOTANIK_FEATURE_PLC_BLK_BASE
