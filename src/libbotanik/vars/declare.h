@@ -201,11 +201,12 @@ namespace Botanik { namespace Vars {
     constexpr Variable MI(const char* name, VarType type, uint8_t device, uint8_t fc,
                           uint16_t reg, uint16_t regs, Scalar lo, Scalar hi, Scalar def,
                           uint32_t timeout_ms, uint8_t digits, const char* unit,
-                          const char* desc, const char* notes) {
+                          const char* desc, const char* notes, bool word_swap = false) {
         return Variable{ def, name, unit, desc, notes, Payload(lo, hi),
                          { xp_of(device), type, device, fc, reg, regs, 1.0f, 0.0f },
                          timeout_ms, nullptr,
-                         type, ROLE_INPUT, SCOPE_MI, digits, F_BOUNDED, {} };
+                         type, ROLE_INPUT, SCOPE_MI, digits,
+                         (uint8_t)(F_BOUNDED | (word_swap ? F_WORD_SWAP : 0)), {} };
     }
 
     /** @brief An **analog input**: a raw count on the wire, converted to the
@@ -220,11 +221,13 @@ namespace Botanik { namespace Vars {
     constexpr Variable AI(const char* name, const AnalogCal* cal, uint8_t device,
                           uint8_t fc, uint16_t reg, uint16_t regs, VarType wire,
                           Scalar def, uint32_t timeout_ms, uint8_t digits,
-                          const char* unit, const char* desc, const char* notes) {
+                          const char* unit, const char* desc, const char* notes,
+                          bool word_swap = false) {
         return Variable{ def, name, unit, desc, notes, Payload(cal),
                          { xp_of(device), wire, device, fc, reg, regs, 1.0f, 0.0f },
                          timeout_ms, nullptr,
-                         T_F32, ROLE_INPUT, SCOPE_AI, digits, F_BOUNDED, {} };
+                         T_F32, ROLE_INPUT, SCOPE_AI, digits,
+                         (uint8_t)(F_BOUNDED | (word_swap ? F_WORD_SWAP : 0)), {} };
     }
 
     /** @brief A **digital input**: one bit. @p invert folds active-low wiring in
@@ -245,11 +248,13 @@ namespace Botanik { namespace Vars {
      *  output declares a default. */
     constexpr Variable MO(const char* name, VarType type, uint8_t device, uint8_t fc,
                           uint16_t reg, uint16_t regs, Scalar safe, uint8_t digits,
-                          const char* unit, const char* desc, const char* notes) {
+                          const char* unit, const char* desc, const char* notes,
+                          bool word_swap = false) {
         return Variable{ safe, name, unit, desc, notes,
                          Payload(Scalar::U(0), Scalar::U(0)),
                          { xp_of(device), type, device, fc, reg, regs, 1.0f, 0.0f }, 0, nullptr,
-                         type, ROLE_OUTPUT, SCOPE_MO, digits, 0, {} };
+                         type, ROLE_OUTPUT, SCOPE_MO, digits,
+                         (uint8_t)(word_swap ? F_WORD_SWAP : 0), {} };
     }
 
     /** @brief An **analog output**: an engineering value converted to a raw
@@ -259,11 +264,13 @@ namespace Botanik { namespace Vars {
     constexpr Variable AO(const char* name, const AnalogCal* cal, uint8_t device,
                           uint8_t fc, uint16_t reg, uint16_t regs, VarType wire,
                           float safe, uint8_t digits, const char* unit,
-                          const char* desc, const char* notes) {
+                          const char* desc, const char* notes,
+                          bool word_swap = false) {
         return Variable{ Scalar::F(safe), name, unit, desc, notes, Payload(cal),
                          { xp_of(device), wire, device, fc, reg, regs, 1.0f, 0.0f },
                          0, nullptr,
-                         T_F32, ROLE_OUTPUT, SCOPE_AO, digits, F_BOUNDED, {} };
+                         T_F32, ROLE_OUTPUT, SCOPE_AO, digits,
+                         (uint8_t)(F_BOUNDED | (word_swap ? F_WORD_SWAP : 0)), {} };
     }
 
     /** @brief A **digital output**: a logic-level bit on an expansion channel
