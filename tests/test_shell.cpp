@@ -9,6 +9,7 @@
 #include <string>                   // std::string
 #include <unistd.h>                 // pipe / read
 
+#include "libbotanik/console/console.h" // Terminal::Console (the fixture builds one)
 #include "libbotanik/shell/shell.h" // Shell::CommandShell
 #include "libbotanik/vars/declare.h"
 
@@ -51,7 +52,7 @@ namespace {
             : serial(&raw),
               console(serial, 80, 24, &now, 115200),
               editor(&console, bufs.storage()),
-              shell(console, editor, writer) {
+              shell(console.terminal(), editor, writer) {
             REQUIRE(::pipe(pipe_fds) == 0);
             raw.set_fds(pipe_fds[0], pipe_fds[1]);
             editor.reset();
@@ -138,13 +139,16 @@ namespace {
         Vars::Value                    values[2]{};
         uint16_t                       index[2]{};
         Vars::Bank                     bank;
+        // Declared before the shell so its address is valid in the init list;
+        // the fields are filled in the body, which is what the shell reads.
+        SystemContext                  ctx{};
         Shell::CommandShell            shell;
 
         CmdFixture()
             : serial(&raw),
               console(serial, 80, 24, &now, 115200),
               editor(&console, bufs.storage()),
-              shell(console, editor, writer) {
+              shell(console.terminal(), editor, writer, &ctx) {
             REQUIRE(::pipe(pipe_fds) == 0);
             raw.set_fds(pipe_fds[0], pipe_fds[1]);
             editor.reset();
@@ -152,9 +156,7 @@ namespace {
             t.var = CMD_VARS; t.val = values; t.count = 2; t.index = index;
             bank = Vars::Bank(t);
             bank.init();
-            SystemContext ctx = console.context();
             ctx.vars = &bank;
-            console.set_context(ctx);
         }
         ~CmdFixture() { ::close(pipe_fds[0]); ::close(pipe_fds[1]); }
 

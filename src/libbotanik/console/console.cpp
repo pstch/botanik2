@@ -31,14 +31,14 @@ namespace Botanik { namespace Terminal {
 
     Console::Console(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
                      const uint64_t* timestamp_ms, uint32_t baud,
-                     const SystemContext& ctx, const Alarms::AlarmController* alarms,
+                     const Scheduler::SchedulerContext* sched,
+                     const Alarms::AlarmController* alarms,
                      Logs::Logger* logger, Ansi::TerminalType type) :
         Component(logger, "Console"),
         _term(serial, cols, rows, baud, type),
         _parser(serial, timestamp_ms),
-        _ctx(ctx),
         _alarms(alarms),
-        _status_bar(*this),
+        _status_bar(*this, sched),
         _alarm_bar(*this)
     {
         // bottom row reserved for the alarm bar only when alarms are wired

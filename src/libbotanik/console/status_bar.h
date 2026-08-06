@@ -16,6 +16,8 @@
 #include <cstddef>  // size_t
 #include <cstdint>  // uint16_t/uint64_t
 
+namespace Botanik { namespace Scheduler { struct SchedulerContext; } }
+
 namespace Botanik { namespace Terminal {
 
     class AnsiTerminal;
@@ -27,10 +29,14 @@ namespace Botanik { namespace Terminal {
         /** @name State
          *  @{ */
 
-        /** @brief The console this bar belongs to (page state + context). */
+        /** @brief The console this bar belongs to (page state). */
         Console&            _console;
         /** @brief The VT device it paints through (cached _console.terminal()). */
         AnsiTerminal&       _terminal;
+        /** @brief The metrics the bar displays; null shows zeros. Injected
+         *  rather than read back off the console, so the bar states what it
+         *  needs and the console does not carry the whole SystemContext for it. */
+        const Scheduler::SchedulerContext* _sched;
         /** @brief Last refresh of the row (clock and metrics share the gate). */
         uint64_t            _last_ms = 0;
 
@@ -46,8 +52,9 @@ namespace Botanik { namespace Terminal {
         /** @} */
 
     public:
-        /** @brief Bind the bar to its owning console (caches its device). */
-        explicit StatusBar(Console& console);
+        /** @brief Bind the bar to its owning console (caches its device).
+         *  @p sched supplies the CPU/stack readings (null shows zeros). */
+        StatusBar(Console& console, const Scheduler::SchedulerContext* sched);
 
         /** @name Cooperative paint
          *  @{ */

@@ -63,10 +63,11 @@ namespace Botanik { namespace Shell {
     // Lifecycle
     // ------------------------------------------------------------------------
 
-    CommandShell::CommandShell(Terminal::Console&      console,
+    CommandShell::CommandShell(Terminal::AnsiTerminal& terminal,
                                Terminal::TextEditor&   editor,
-                               ShellWriter&            output)
-        : _console(console), _terminal(console.terminal()), _editor(editor), _output(output)
+                               ShellWriter&            output,
+                               const SystemContext*    sys)
+        : _sys(sys), _terminal(terminal), _editor(editor), _output(output)
     {}
 
     // Command execution
@@ -207,7 +208,7 @@ namespace Botanik { namespace Shell {
 
     void CommandShell::_cmd_stats(const char*, uint16_t) {
         // Emits several lines; scrollback drains them at LOG_ROWS_PER_TICK.
-        Scheduler::SchedulerContext* ctx = _console.context().scheduler;
+        Scheduler::SchedulerContext* ctx = _sys != nullptr ? _sys->scheduler : nullptr;
         if (ctx == nullptr) { _println("stats: no scheduler context"); return; }
 
         char out[Config::LOG_FORMATTED_LEN];
@@ -345,7 +346,7 @@ namespace Botanik { namespace Shell {
             return;
         }
 
-        const Alarms::AlarmController* m = _console.alarms();
+        const Alarms::AlarmController* m = _alarm_model;
         if (m == nullptr) { _println("alarms: model unavailable"); return; }
 
         // "alarms list" - one paced line per active condition: code, age,
@@ -813,7 +814,8 @@ namespace Botanik { namespace Shell {
     }
 #else
     void CommandShell::_cmd_net(const char*, uint16_t) {
-        const SystemContext&           ctx = _console.context();
+        if (_sys == nullptr) { _println("net: networking disabled"); return; }
+        const SystemContext&           ctx = *_sys;
         const Network::NetworkHandler* net = ctx.network;
         // Report and bail if the link never came up (config absent / offline).
         if (net == nullptr) { _println("net: networking disabled"); return; }

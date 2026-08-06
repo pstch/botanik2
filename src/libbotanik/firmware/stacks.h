@@ -84,9 +84,9 @@ namespace Botanik {
 #if BOTANIK_FEATURE_CONSOLE
     /** @brief The interactive console: the console UART, the AnsiTerminal, and
      *  the built-in pages that need nothing but it (shell / logs / alarms, and
-     *  the notes editor when that feature is on). The terminal's SystemContext
-     *  is wired after construction (set_context) once every subsystem address is
-     *  known. */
+     *  the notes editor when that feature is on). @p sched and @p sys are
+     *  borrowed by the status bar and the shell respectively - taken by pointer,
+     *  so the firmware may pass its members before their fields are filled. */
     class ConsoleStack {
 
         Utils::BufferedSerial   _serial;
@@ -111,14 +111,16 @@ namespace Botanik {
          *  @param logger the sink the pages announce through. */
         ConsoleStack(uint16_t cols, uint16_t rows, const uint64_t* timestamp_ms,
                      uint32_t baud, Alarms::AlarmController* alarms,
-                     Logs::Logger* logger)
+                     Logs::Logger* logger,
+                     const Scheduler::SchedulerContext* sched = nullptr,
+                     const SystemContext* sys = nullptr)
             : _serial(HAL::Serial::get(HAL::Serial::CONSOLE), logger, "ConsoleSerial"),
               // Leading commas from here down, so any of the optional pages can
               // drop out without stranding a separator.
               _terminal(_serial, cols, rows, timestamp_ms, baud,
-                        SystemContext(), alarms, logger)
+                        sched, alarms, logger)
 #if BOTANIK_FEATURE_SHELL_PAGE
-            , _shell(_terminal)
+            , _shell(_terminal, sys)
 #endif
 #if BOTANIK_FEATURE_LOGS_PAGE
             , _logs(_terminal)

@@ -74,7 +74,7 @@ namespace Botanik { namespace Pages {
         /** @name Lifecycle
          *  @{ */
 
-        ShellPage(Terminal::Console& console);
+        ShellPage(Terminal::Console& console, const SystemContext* sys = nullptr);
 
         /** @brief Register a site command table (tried before the built-ins). */
         void set_commands(const Shell::ShellCommand* table, size_t count, void* ctx = nullptr) {

@@ -21,12 +21,12 @@
 #include "libbotanik/console/status_bar.h"  // StatusBar
 #include "libbotanik/console/terminal.h"    // AnsiTerminal
 #include "libbotanik/core/component.h"      // Component
-#include "libbotanik/core/context.h"        // SystemContext
 #include "libbotanik/logs/logger.h"         // Logs::Logger
 #include "libbotanik/pages/page.h"          // Pages::Page
 #include "libbotanik/utils/serial.h"        // Utils::BufferedSerial
 
 namespace Botanik { namespace Alarms { class AlarmController; } }
+namespace Botanik { namespace Scheduler { struct SchedulerContext; } }
 
 namespace Botanik { namespace Terminal {
 
@@ -59,9 +59,6 @@ namespace Botanik { namespace Terminal {
          *  @name External references
          *  @{ */
 
-        /** @brief Subsystem status contexts for the status bar and `stats`
-         *  (scheduler, network, ...; members may be null). */
-        SystemContext                _ctx    = {};
         /** @brief Alarm source feeding the bar (may be null). When null there is
          *  no bar, _reserved_bottom stays 0, and the bottom row belongs to pages. */
         const Alarms::AlarmController*    _alarms = nullptr;
@@ -90,7 +87,7 @@ namespace Botanik { namespace Terminal {
          *  by one row); null leaves the full screen to pages. */
         Console(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
                 const uint64_t* timestamp_ms, uint32_t baud,
-                const SystemContext& ctx = {},
+                const Scheduler::SchedulerContext* sched = nullptr,
                 const Alarms::AlarmController* alarms = nullptr,
                 Logs::Logger* logger = nullptr,
                 Ansi::TerminalType type = Ansi::CONFIGURED_TERMINAL);
@@ -155,17 +152,8 @@ namespace Botanik { namespace Terminal {
          *  @name Context access
          *  @{ */
 
-        /** @brief Access the attached subsystem status contexts (members may be
-         *  null). */
-        const SystemContext& context() const { return _ctx; }
-
-        /** @brief Replace the attached status contexts (copied by value). Lets the
-         *  owner wire the aggregate after construction. */
-        void set_context(const SystemContext& ctx) { _ctx = ctx; }
-
         /** @brief The attached alarm model, or null when none was supplied
-         *  (drives the bottom alarm bar; also read by the shell's "alarms"
-         *  command). */
+         *  (drives the bottom alarm bar). */
         const Alarms::AlarmController* alarms() const { return _alarms; }
 
         /** @} */

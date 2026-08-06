@@ -18,11 +18,11 @@ namespace Botanik { namespace Pages {
     // Lifecycle
     // ------------------------------------------------------------------------
 
-    ShellPage::ShellPage(Terminal::Console& console) :
+    ShellPage::ShellPage(Terminal::Console& console, const SystemContext* sys) :
         _console(console),
         _terminal(console.terminal()),
         _editor(&console, _editor_bufs.storage()),
-        _shell(console, _editor, *this)
+        _shell(console.terminal(), _editor, *this, sys)
     {
     }
 

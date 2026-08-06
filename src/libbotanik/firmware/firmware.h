@@ -285,9 +285,13 @@ namespace Botanik {
               , _net(&_io, &_logger, &_sys_ctx)
 #endif
 #if BOTANIK_FEATURE_CONSOLE
+              // _sys_ctx is declared above, so it exists (empty) by now; the
+              // console borrows it by pointer and reads it later, once the body
+              // below has filled in the subsystem addresses.
               , _console(_console_cols, _console_rows,
                          &_scheduler.context()->timestamp_ms, _console_baud,
-                         &_health.alarm_model(), &_logger)
+                         &_health.alarm_model(), &_logger,
+                         _scheduler.context(), &_sys_ctx)
               // Base-owned pages, built from the descriptor + the live payload.
 #if BOTANIK_FEATURE_HOME_PAGE
               , _home_page(_console.terminal(), _site.home_fields,
@@ -316,9 +320,6 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_MQTT
             _sys_ctx.mqtt = &_net.mqtt();
-#endif
-#if BOTANIK_FEATURE_CONSOLE
-            _console.terminal().set_context(_sys_ctx);
 #endif
         }
 

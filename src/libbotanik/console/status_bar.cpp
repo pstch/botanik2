@@ -28,8 +28,8 @@ namespace Botanik { namespace Terminal {
             || (c >= 13 && c <= 16);   // stk value + '%'
     }
 
-    StatusBar::StatusBar(Console& console)
-        : _console(console), _terminal(console.terminal()) {
+    StatusBar::StatusBar(Console& console, const Scheduler::SchedulerContext* sched)
+        : _console(console), _terminal(console.terminal()), _sched(sched) {
         // Row 0 is the frame around the page: it should land before the page on
         // boot and on a page switch. Its routine churn costs almost nothing - the
         // clock and metrics rebuild once a second, some tens of bytes against a
@@ -162,13 +162,12 @@ namespace Botanik { namespace Terminal {
     }
 
     int StatusBar::build_metrics(char* buf, size_t cap) const {
-        const SystemContext& ctx = _console.context();
         // The scheduler context may be absent (a site can wire a terminal
         // without one); show 0% rather than dereferencing null.
         unsigned cpu = 0, stk = 0;
-        if (ctx.scheduler != nullptr) {
-            cpu = (unsigned)lroundf(ctx.scheduler->cpu_load_ema * 100.0f);
-            stk = (unsigned)lroundf(ctx.scheduler->stack_usage * 100.0f);
+        if (_sched != nullptr) {
+            cpu = (unsigned)lroundf(_sched->cpu_load_ema * 100.0f);
+            stk = (unsigned)lroundf(_sched->stack_usage * 100.0f);
         }
         if (cpu > 999) cpu = 999;
         if (stk > 999) stk = 999;
