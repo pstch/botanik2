@@ -32,12 +32,19 @@ being held at, and what it would read with the override released:
 
 ```
 botanik> get temp_zone1
-  temp_zone1           35.0         C    OVERRIDDEN
-    forced 35.0 (valid)   live 21.3 (valid)
+temp_zone1 = 35.0 C
+Scope                  : AI input, calibrated   group temp
+Access                 : read-only (`override` forces it by hand)
+Quality                : forced by hand, reading valid
+Override               : 35.0 C (valid)   live 21.3 C (valid)
+Plausible              : -20.0 .. 60.0 C
+Source                 : Modbus dev 11 fc 3 reg 4
+Description            : zone 1 air temperature
 ```
 
-`list` deliberately stays one row per variable; it is `get` that answers "has the
-sensor come back yet?".
+The `Override` line is the one `list` cannot give you: what the row is being held at,
+and what it reads *underneath*. "Has the sensor come back yet?" is the question
+someone deciding whether to release an override actually has.
 
 Three annotations matter:
 
@@ -88,11 +95,11 @@ remembers setting it. So the firmware announces restored overrides as a **critic
 at boot, `override list` says they survive a reboot, and `override clear` clears the
 lot - the stored copy included, so nothing comes back.
 
-@note **Outputs are the exception, and they are not persisted at all.** An override
-on an output drives the actuator the moment it is in force, so one restored at boot
-would be commanding the plant out of a session nobody is standing at any more.
-Driving an actuator by hand is something you do while you are there; it ends with the
-session.
+@warning **That includes overrides on outputs.** One restored at boot is *driving the
+actuator* from that moment. Every restored override is announced as a **critical** on
+the `BOOT` topic naming the row, and an output's says so in as many words - that
+announcement is the only thing standing between a forgotten override and a surprise.
+`override list` before you walk away.
 
 **It can force the reading's quality too.** A trailing `valid` / `invalid` says what
 the forced value reads as, so "force this to 20 C" and "make this read as a dead

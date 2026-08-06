@@ -102,12 +102,16 @@ the boot CRITICAL, by `override list` saying so in as many words, and by
 `override clear` clearing the lot in one command. Anyone arriving with PLC habits
 should be told.
 
-@warning `ROLE_OUTPUT` is excluded outright. An override on an output drives the
-actuator the moment it is in force, control authority or not, so one restored at boot
-would be commanding the plant out of a console session long since walked away from.
-`load_overrides()` drops any stored one rather than restoring it, and every release
-path (`override_clear()`, `clear_overrides()`, a health withdrawal) wipes the stored
-copy in the same breath.
+Every role, `ROLE_OUTPUT` included. An override means one thing whatever row it is on
+- a person has taken this by hand - and carving an exception out for actuators made it
+mean two, which is how an operator ends up wondering why the valve they forced came
+back and the reading they forced did not.
+
+@warning A restored output override is **driving the plant** from the moment
+`load_overrides()` runs. Each restore is announced as a CRITICAL naming the row, and
+an output's says so explicitly; that announcement is the safeguard. Every release path
+(`override_clear()`, `clear_overrides()`, a health withdrawal) wipes the stored copy in
+the same breath, so a released one cannot come back.
 
 ## `Bank`: the one writer
 
@@ -141,20 +145,26 @@ real relay. The sink reads as its own zeroes and swallows writes.
 
 `find()` is the one way anything addresses a row, and it was a `strcmp` down the whole
 table: 259 of them per miss at the reference site, several times a beat once the
-simulated field and the config readers are counted. Worse, a variable table is mostly
-shared prefixes (`grid_`, `cli_`, `alarm_`), so each comparison matched several bytes
-before diverging.
+simulated field and the config readers are counted.
 
-It is now open addressing with linear probing over an FNV-1a of the name, built once
-in the `Bank(VarTables)` constructor - the table is `const` and never grows, so there
-is nothing to maintain and no invalidation to get wrong. An empty slot ends a probe,
-so a miss costs one run of collisions rather than the whole table.
+It is now a **boot-time mapping**: `VarTables::index` is `count` row numbers, which the
+`Bank(VarTables)` constructor sorts by name, and `find()` binary-searches. ~8
+comparisons instead of 259, and nothing to maintain afterwards - the descriptor table
+is `const` and never grows, so the mapping built at construction is the mapping for the
+life of the bank.
 
-`Config::VAR_HASH_SLOTS` sizes it (512 `uint16_t`, 1 KB of RAM, room for 384 rows). A
-table past three quarters full is not indexed at all: `name_index_built()` returns
-false and `find()` walks the table as before. Correct, just slow - which is why
-`tests/test_site_names.cpp` asserts the index built rather than leaving a site to
-discover it as a beat that got longer.
+The array is **borrowed and exactly sized**, like the value store and the string pool:
+a fixed array inside `Bank` would need a maximum row count declared somewhere, and that
+number is already written down as `VarTables::count`. A site's is
+`SiteStore::name_index[VAR_TOTAL]`.
+
+A null one leaves `find()` walking the table - which is what a two-row test fixture
+wants and what a real site must not ship, so `name_index_built()` reports it and
+`tests/test_site_names.cpp` fails on it.
+
+Both `find()` overloads share the one mapping. The length-bounded form (a shell word
+has no NUL of its own) orders identically: with the first *len* characters equal, a
+longer row name sorts after the key, because the key ends there.
 
 ### Control authority
 

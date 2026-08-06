@@ -33,7 +33,7 @@ you were part-way through typing is kept as you scroll away from it.
 | Command | Does |
 |---|---|
 | `list [<prefix>]` | browse the variable table, or just the rows whose name starts with `<prefix>` |
-| `get <name>` | print one variable. Marks parameters, overrides, and values nothing has written yet; a forced variable also gets its live value on a second line |
+| `get <name>` | the detail view of one variable: value, scope, whether you may write it and with what, quality, override, band, and where it physically comes from |
 | `set <name> <value>` | edit a **parameter** and persist it |
 | `override list\|clear\|<name> [off\|<value>] [valid\|invalid]` | force **any** variable by hand; `clear` releases the lot |
 | `control [enable\|disable]` | report or change whether the firmware may drive the field |
@@ -53,7 +53,7 @@ Variables are named by domain, so `list` with a prefix is the subsystem view:
 | `features` | which optional subsystems this binary was built with |
 | `stats` | uptime and tick count, CPU load, jitter, stack usage, and console serial drops - each with its recent and peak figures. There is no separate `uptime`; `stats` already leads with it |
 | `net` | network / NTP / MQTT status: link state and mode, IP, netmask, gateway, DNS, NTP offset and server, MQTT state and last publish age. Addresses are read back from the interface, so a DHCP lease shows through |
-| `alarms [list \| ack <code\|all>]` | active alarm count; `list` details them; `ack` acknowledges one or all |
+| `alarms [list \| ack <code\|all>]` | active alarm count; `list` details them; `ack` acknowledges one (by code or by variable name) or all |
 
 ### Logging
 

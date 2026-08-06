@@ -174,11 +174,10 @@ not to a clamped row, which would drive a real relay. The bank counts every fail
 lookup (`unresolved_count()`) and logs the name, so a typo shows up in the test suite
 instead of reading as a dead variable forever.
 
-@note `find()` runs off a hash index built once from the table, sized by
-`BOTANIK_VAR_HASH_SLOTS` (512 slots, room for 384 rows). A table past three quarters
-full falls back to a full scan - still correct, and `tests/test_site_names.cpp` fails
-so nobody finds out the slow way. A site with more rows raises the knob to the next
-power of two.
+@note `find()` binary-searches a mapping the bank sorts once at construction, out of
+the `index` array a site hands it in its `VarTables` - `uint16_t name_index[VAR_TOTAL]`
+beside the value store. Forget it and every lookup walks the whole table;
+`tests/test_site_names.cpp` fails so nobody finds out the slow way.
 
 @warning A `VarRef` sitting in a `const` table is zero, and **zero is a real row**.
 Resolve names into a mutable array at bring-up and read them there; never read a
@@ -247,9 +246,9 @@ next boot. That is why `Var`'s copies are private with `Bank` as the only friend
 Overrides are applied inside `Var::raw()` / `valid()` - the single point every reader
 goes through - so a forced value reaches control logic, console, telemetry and alarms
 alike. See @ref dev_vars for how that is implemented, and @ref user_variables for
-what it means operationally (including why an override on an **output** is neither
-persisted nor restored at boot, and why `control disable` deliberately leaves the
-others alone).
+what it means operationally (including why a restored override on an **output** is
+announced as a critical, and why `control disable` deliberately leaves overrides
+alone).
 
 ## Static asserts to carry
 

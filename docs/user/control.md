@@ -65,10 +65,10 @@ someone standing at the machine with a wrench needs.
 programs, and those are exactly what you just stopped. Release the overrides before
 `control enable`, or the programs come back to find their outputs already held.
 
-An override on an output is deliberately **not** persisted: it dies with the session
-rather than commanding the plant again at the next boot. Overrides on everything else
-- readings, computed values, parameters - do survive a reboot. See
-@ref user_variables.
+Overrides survive a reboot, and an output's is no exception - a restored one is
+driving the actuator from the moment the firmware comes up. The firmware announces
+each restored override as a **critical** naming the row, but `override clear` before
+you leave is the habit worth having. See @ref user_variables.
 
 `control enable` releases the **operator's** hold and nothing else, then reports what
 is left. So a `control enable` that changes nothing reads as a health fault rather

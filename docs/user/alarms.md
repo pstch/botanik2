@@ -39,7 +39,9 @@ Acknowledged is driven by you.
 ## Acknowledging
 
 On the ALARMS page, select the row and press `a`. From the shell,
-`alarms ack <code>` or `alarms ack all`.
+`alarms ack <code>` or `alarms ack all`. Either spelling of the condition works -
+the short code the alarm bar shows (`SYS_RST`) or the variable name `alarms list`
+shows (`alarm_system_reset`).
 
 Acknowledging means "seen", not "fixed". It:
 

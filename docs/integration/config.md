@@ -166,7 +166,6 @@ The reference site turns `NETWORK`, `NTP` and `MQTT` on in its own `config.h`.
 |---|---|---|
 | `VAR_GROUPS_MAX` | 16 | distinct variable groups a site may have. A group is a name prefix, so this bounds how many domains one table spans; past it `var_group()` answers `?` |
 | `VAR_GROUP_NAME_LEN` | 16 | bytes one interned group name may take, NUL included |
-| `VAR_HASH_SLOTS` | 512 | slots in the bank's name index (power of two, 1 KB of RAM, room for 384 rows). A bigger table is not indexed at all and every `find()` walks it; `tests/test_site_names.cpp` fails so nobody finds out the slow way |
 
 ### Networking
 
