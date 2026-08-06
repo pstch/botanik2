@@ -15,12 +15,12 @@
  * id is Config::SITE_NAME.
  */
 
-#include <cstdint>                    // uint8_t/uint16_t/uint64_t - packet ids, state, deadlines
+#include <cstdint>                          // uint8_t/uint16_t/uint64_t
 
-#include "libbotanik/hal/net.h"       // HAL::Network::TcpSocket - the broker connection
-#include "libbotanik/network/network.h" // Network::NetworkHandler - the link gate; no connect until UP
-#include "libbotanik/network/resolver.h" // Network::NameResolver - resolves the broker hostname
-#include "libbotanik/vars/params.h"   // Vars::Bank / get_str - the mqtt_* configuration parameters
+#include "libbotanik/hal/net.h"             // HAL::Network::TcpSocket
+#include "libbotanik/network/network.h"     // Network::NetworkHandler
+#include "libbotanik/network/resolver.h"    // Network::NameResolver
+#include "libbotanik/vars/params.h"         // Vars::Bank / get_str
 // Alarms::Publisher (alarm transport)
 #include "libbotanik/alarms/publisher.h"
 

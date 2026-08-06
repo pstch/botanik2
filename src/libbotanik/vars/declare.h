@@ -40,9 +40,9 @@
  * filters on are spelled the same way.
  */
 
-#include <cstdint>                    // uint8_t/uint16_t/int64_t - the factories' literal arguments
+#include <cstdint>                  // uint8_t/uint16_t/int64_t
 
-#include "libbotanik/vars/model.h"    // Vars::Variable / Tunable / AnalogCal - what the factories build
+#include "libbotanik/vars/model.h"  // Vars::Variable / Tunable / AnalogCal
 
 namespace Botanik { namespace Vars {
 

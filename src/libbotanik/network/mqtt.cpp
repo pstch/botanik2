@@ -7,11 +7,11 @@
  * gated on NetworkHandler::is_up() before a connect.
  */
 
-#include "libbotanik/network/mqtt.h"  // MqttClient - what this file implements
+#include "libbotanik/network/mqtt.h"    // MqttClient
 
-#include <cstring>                    // strlen / memcpy - assembling the CONNECT and PUBLISH frames
+#include <cstring>                      // strlen / memcpy
 
-#include "libbotanik/hal/platform.h"  // HAL::Clock::uptime_ms - publish() stamps off the step path
+#include "libbotanik/hal/platform.h"    // HAL::Clock::uptime_ms
 
 namespace Botanik { namespace Network {
 

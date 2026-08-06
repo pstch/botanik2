@@ -8,23 +8,23 @@
  *        duty cycle, jitter filtering, stack painting + high-water scan). The
  *        hot tick() path and the stack paint live inline in the header.
  */
-#include "libbotanik/scheduler/scheduler.h" // LoopScheduler - what this file implements
+#include "libbotanik/scheduler/scheduler.h" // LoopScheduler
 
-#include <cstddef>                    // size_t / ptrdiff_t - the stack-paint word walk
-#include <cstring>                    // memset - paints the stack region
+#include <cstddef>                          // size_t / ptrdiff_t
+#include <cstring>                          // memset
 
-#include "libbotanik_config.h"        // Config::LOOP_* - period, jitter window, paint depth
+#include "libbotanik_config.h"              // Config::LOOP_*
 
-#include "libbotanik/hal/platform.h"  // HAL::Clock / Stack - the beat's timing and high-water mark
-#include "libbotanik/logs/logger.h"   // Logs::Logger - the overrun and announce lines
-#include "libbotanik/logs/topics.h"   // Logs::STATUS - the topic those lines carry
+#include "libbotanik/hal/platform.h"        // HAL::Clock / Stack
+#include "libbotanik/logs/logger.h"         // Logs::Logger
+#include "libbotanik/logs/topics.h"         // Logs::STATUS
 
 #ifdef TARGET_SIMULATOR
 // Host-only: pin the sim to a real-time policy so its beat is not at the mercy
 // of the desktop scheduler. No equivalent (or need) on the OPTA's RTOS.
-#include <cerrno>                     // errno - report why the pinning was refused
-#include <sched.h>                    // sched_setscheduler / SCHED_FIFO - the policy itself
-#include <sys/mman.h>                 // mlockall / MCL_CURRENT - keep the pages resident
+#include <cerrno>                           // errno
+#include <sched.h>                          // sched_setscheduler / SCHED_FIFO
+#include <sys/mman.h>                       // mlockall / MCL_CURRENT
 #endif
 
 

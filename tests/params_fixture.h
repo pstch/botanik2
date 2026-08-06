@@ -11,12 +11,12 @@
  * same names - not the same layout, and not the site's whole table.
  */
 
-#include <cstdint>                    // uint16_t - the fixture table's register numbers
-#include <cstring>                    // strncpy - seeding the text parameters
+#include <cstdint>                      // uint16_t
+#include <cstring>                      // strncpy
 
-#include "libbotanik/vars/declare.h"  // the P/PS factories the fixture table is written in
-#include "libbotanik/vars/model.h"    // Vars::VarTables / Value - the fixture's table and store
-#include "libbotanik/vars/params.h"   // Vars::Params / KvParamStore - what the fixture hands the test
+#include "libbotanik/vars/declare.h"    // the P/PS factories the fixture table is written in
+#include "libbotanik/vars/model.h"      // Vars::VarTables / Value
+#include "libbotanik/vars/params.h"     // Vars::Params / KvParamStore
 
 namespace botanik_test {
 

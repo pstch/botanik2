@@ -16,11 +16,11 @@
  * Addressing by index removes the failure mode rather than guarding it.
  */
 
-#include <cstddef>                    // size_t - the text-parameter buffer capacities
-#include <cstdint>                    // uint16_t/uint32_t - dense indices and commit serials
+#include <cstddef>                      // size_t
+#include <cstdint>                      // uint16_t/uint32_t
 
-#include "libbotanik/core/component.h" // Component - the boot load runs from the first step
-#include "libbotanik/vars/model.h"    // Vars::Bank / VarStore / SetResult - the block Params views
+#include "libbotanik/core/component.h"  // Component
+#include "libbotanik/vars/model.h"      // Vars::Bank / VarStore / SetResult
 
 namespace Botanik { namespace Vars {
 

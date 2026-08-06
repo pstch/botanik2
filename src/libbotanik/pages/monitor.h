@@ -29,18 +29,18 @@
  * cells that actually changed, so the page keeps no paint cache.
  */
 
-#include <cstdint>                    // uint8_t/uint16_t/uint64_t - view mode, cursor, quality ages
-#include <cstdio>                     // snprintf - the row cells and the detail panel
-#include <cstring>                    // strcmp / strncpy - grouping rows by name prefix
+#include <cstdint>                          // uint8_t/uint16_t/uint64_t
+#include <cstdio>                           // snprintf
+#include <cstring>                          // strcmp / strncpy
 
-#include "libbotanik_config.h"        // BOTANIK_FEATURE_MONITOR_PAGE - the gate this header sits behind
+#include "libbotanik_config.h"              // BOTANIK_FEATURE_MONITOR_PAGE
 
-#include "libbotanik/console/console.h" // Console::rows / terminal - the content area to paint
-#include "libbotanik/console/terminal.h" // AnsiTerminal - the drawing operations
-#include "libbotanik/hal/platform.h"  // HAL::Clock::uptime_ms - the age shown in the quality panel
-#include "libbotanik/pages/page.h"    // Pages::Page - the interface this page implements
-#include "libbotanik/pages/scroll_table.h" // Pages::ScrollTablePage - the scrolling table base
-#include "libbotanik/vars/access.h"   // Vars::var_published / var_group / var_format - what to show
+#include "libbotanik/console/console.h"     // Console::rows / terminal
+#include "libbotanik/console/terminal.h"    // AnsiTerminal
+#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
+#include "libbotanik/pages/page.h"          // Pages::Page
+#include "libbotanik/pages/scroll_table.h"  // Pages::ScrollTablePage
+#include "libbotanik/vars/access.h"         // Vars::var_published / var_group / var_format
 
 namespace Botanik { namespace Pages {
 
@@ -406,10 +406,12 @@ namespace Botanik { namespace Pages {
             // override outranks the rest here.
             const char* quality = nullptr;
             if (have) {
+                // An override shadows, so say so first - but the row underneath
+                // keeps its own quality, and WHY it is bad is what decides the
+                // next move (see Vars::Quality).
                 if (h.overridden())   quality = h.valid() ? "OVERRIDDEN (forced by hand)"
                                                           : "OVERRIDDEN (forced invalid)";
-                else if (h.valid())   quality = "live";
-                else                  quality = "no data (showing default)";
+                else                  quality = Vars::quality_str(h.live_quality());
             }
             _panel_field((uint16_t)(br + 5), "Quality", quality);
             _blank_line((uint16_t)(br + 6));

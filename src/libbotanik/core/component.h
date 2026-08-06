@@ -34,9 +34,9 @@
  * to nothing with DEBUG undefined.
  */
 
-#include <cstdint>                    // uint16_t/uint32_t/uint64_t - rate, offset, tick stamps
+#include <cstdint>                              // uint16_t/uint32_t/uint64_t
 
-#include "libbotanik/scheduler/task_timer.h" // Scheduler::TaskTimer - the per-component rate state
+#include "libbotanik/scheduler/task_timer.h"    // Scheduler::TaskTimer
 
 // Forward-declared, NOT included: keeps Component free of the Logger include so
 // Logger itself can derive it (the body of announce() lives in component.cpp).

@@ -22,11 +22,11 @@
  * program is not something that should happen automatically.
  */
 
-#include <cstdint>                    // uint8_t/uint32_t/uint64_t - task counts and cost samples
+#include <cstdint>                              // uint8_t/uint32_t/uint64_t
 
-#include "libbotanik_config.h"        // Config::TASK_MAX / GROUP_*_MS - table size and the rates
+#include "libbotanik_config.h"                  // Config::TASK_MAX / GROUP_*_MS
 
-#include "libbotanik/scheduler/task_timer.h" // Scheduler::TaskTimer - each task's own rate state
+#include "libbotanik/scheduler/task_timer.h"    // Scheduler::TaskTimer
 
 namespace Botanik { namespace Scheduler {
 

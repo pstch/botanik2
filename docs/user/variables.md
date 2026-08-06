@@ -19,36 +19,47 @@ scale forever, which no timeout catches - the plausibility band does.
 
 ## Reading one
 
-`get` prints any variable; MONITOR shows them grouped with detail
+Two commands, two depths. `list` browses - one row per variable, optionally
+filtered by name prefix; MONITOR shows the same set grouped, on screen
 (see @ref user_pages).
 
 ```
-botanik> get pwr_L1_V
-  pwr_L1_V             237.4        V
+botanik> list pwr_L1_
+  pwr_L1_V             237.4        V    (MI)
+  pwr_L1_A             7.6          A    (MI)
+  2 variable(s)
 ```
 
-A forced variable gets a second line, giving both halves of the picture - what it is
-being held at, and what it would read with the override released:
+`get` is the detail view of ONE row:
 
 ```
 botanik> get temp_zone1
 temp_zone1 = 35.0 C
-Scope                  : AI input, calibrated   group temp
-Access                 : read-only (`override` forces it by hand)
-Quality                : forced by hand, reading valid
-Override               : 35.0 C (valid)   live 21.3 C (valid)
-Plausible              : -20.0 .. 60.0 C
-Source                 : Modbus dev 11 fc 3 reg 4
-Description            : zone 1 air temperature
+Scope ....................... : AI       (input, calibrated)
+Group ....................... : temp
+Access ...................... : read-only
+Raw value ................... : 21.3 C   (valid)
+Override value .............. : 35.0 C   (valid)
+Plausible ................... : -20.0 .. 60.0 C
+Source ...................... : Modbus dev 11 fc 3 reg 4
+Description ................. : zone 1 air temperature
 ```
 
-The `Override` line is the one `list` cannot give you: what the row is being held at,
-and what it reads *underneath*. "Has the sensor come back yet?" is the question
-someone deciding whether to release an override actually has.
+Laid out like `stats` and `net`, so the three commands that answer "what is the
+state of X" read the same way.
 
-Three annotations matter:
+**Raw value** and **Override value** are the pair `list` cannot give you: what the
+row reads underneath, and what it is being held at. "Has the sensor come back
+yet?" is the question someone deciding whether to release an override actually
+has. Each says whether it is worth believing - a forced value can be good or made
+to read as a dead sensor, and so can the reading under it. `Override value : -`
+means nothing is forced.
 
-- `(param)` - this is a parameter, editable with `set`.
+Three annotations on a `list` row matter:
+
+- `(P)`, `(MI)`, `(RO)`, ... - what kind of row it is. Every row carries it:
+  which one you are looking at is what decides whether `set` or `override`
+  applies.
 - `OVERRIDDEN` - someone has forced it by hand; the number is not the live one.
 - `(default: nothing has written it)` - no driver has ever published this variable,
   or it timed out. The number shown is the **declared default**, not a measurement.
@@ -56,6 +67,22 @@ Three annotations matter:
 That last one is the important one to recognise. A dead sensor does not read as
 zero-because-broken; it reads as whatever the site declared as its fallback, and the
 firmware tells you so.
+
+### Why a reading is invalid
+
+`get` and the MONITOR panel do not just say a value is bad, they say what made it
+bad - because the four causes want four different next moves:
+
+| Reads | What happened | Where to look |
+|---|---|---|
+| `valid` | a real value from whoever owns the row | - |
+| `invalid: nothing has written it` | no driver has ever published it | wiring, or a device that never answered |
+| `invalid: past its timeout` | it was live and stopped | the device went away mid-run |
+| `invalid: outside its band` | it is answering, with nonsense | the sensor - a dead 4-20 mA loop reads full scale, and no timeout catches that |
+| `invalid: dropped to its safe state` | an **output**, not a fault | control authority is withdrawn (see @ref user_control) |
+
+The last one is worth recognising: a relay reading invalid usually means the
+firmware is deliberately not driving it, not that anything is broken.
 
 ## Overrides
 

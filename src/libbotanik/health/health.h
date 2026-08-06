@@ -18,16 +18,16 @@
  * escalation belongs to the scan cycle, not here.
  */
 
-#include <cstdint>                    // uint8_t/int16_t/uint64_t - POST results, metrics, stamps
+#include <cstdint>                          // uint8_t/int16_t/uint64_t
 
-#include "libbotanik_config.h"        // Config::HEALTH_* - the platform-alarm thresholds
+#include "libbotanik_config.h"              // Config::HEALTH_*
 
-#include "libbotanik/alarms/alarms.h" // Alarms::AlarmController / MqttAlarmNotifier - both owned here
-#include "libbotanik/alarms/platform.h" // the platform-health condition table this monitor asserts
-#include "libbotanik/alarms/publisher.h" // Alarms::Publisher - set_alarm_publisher's parameter
-#include "libbotanik/hal/storage.h"   // HAL::Storage::fault_count - drives the FLASH_FLT alarm
-#include "libbotanik/logs/logger.h"   // Logs::Logger::has_writers - a POST check
-#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext - CPU, jitter, stack, overruns
+#include "libbotanik/alarms/alarms.h"       // Alarms::AlarmController / MqttAlarmNotifier
+#include "libbotanik/alarms/platform.h"
+#include "libbotanik/alarms/publisher.h"    // Alarms::Publisher
+#include "libbotanik/hal/storage.h"         // HAL::Storage::fault_count
+#include "libbotanik/logs/logger.h"         // Logs::Logger::has_writers
+#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext
 
 namespace Botanik { namespace Health {
 

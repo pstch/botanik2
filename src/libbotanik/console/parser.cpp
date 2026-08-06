@@ -1,12 +1,13 @@
-// REVIEW_35: TODO
+// REVIEW_35: DONE
 /**
  * @file parser.cpp
  * @brief InputParser implementation - the byte-stream decode state machine that
  *        turns raw input into InputEvents.
  */
-#include "libbotanik/console/parser.h" // InputParser - the escape-sequence state machine
+#include <cstdint>                      // UINT16_MAX
 
-#include <cstdint>                    // UINT16_MAX and the fixed-width state/timeout fields
+#include "libbotanik/console/parser.h"  // InputParser
+
 
 namespace Botanik { namespace Terminal {
 
@@ -19,8 +20,6 @@ namespace Botanik { namespace Terminal {
     // ------------------------------------------------------------------------
 
     void InputParser::_reset_event() {
-        // Value-init restores every field to its in-class default (count=1, the
-        // rest zero/NONE) and zero-fills params[], which has no default.
         _event = InputEvent();
     }
 
@@ -68,10 +67,6 @@ namespace Botanik { namespace Terminal {
         _text_len = 0;
     }
 
-    // Store one text byte, flushing if it fills the batch. Returns IDLE on a
-    // flush, TEXT otherwise. Checking after the store keeps the batch from
-    // overflowing _text_buf, including the degenerate ANSI_INPUT_BATCH_SIZE ==
-    // 1 case.
     InputParser::State InputParser::_append_text(uint8_t b) {
         _store_text(b);
         if (_text_len == Config::ANSI_INPUT_BATCH_SIZE) {
@@ -83,6 +78,8 @@ namespace Botanik { namespace Terminal {
 
     // Flush policy
     // ------------------------------------------------------------------------
+
+    // TODO: investigate whether we could use the same latency for input batches and coalesced commands
 
     bool InputParser::_backpressure_holds(uint64_t start_ms) const {
         // Hold a pending batch while the TX ring drains, so per-byte flushes
@@ -133,35 +130,36 @@ namespace Botanik { namespace Terminal {
     InputParser::State InputParser::_handle_csi(uint8_t b) {
         constexpr uint8_t MAX_PARAMS =
             (uint8_t)(sizeof(_event.params) / sizeof(_event.params[0]));
+
+        // Read parameter and stay in CSI mode
         if (b >= '0' && b <= '9') {
             uint8_t idx = _event.param_count;
             if (idx < MAX_PARAMS) {
-                // Saturate rather than wrap: a long digit run on a noisy line
-                // must not roll over into a small value that spuriously matches
-                // a command.
                 uint32_t v = (uint32_t)_event.params[idx] * 10 + (uint32_t)(b - '0');
                 _event.params[idx] = (v > 0xFFFF) ? (uint16_t)0xFFFF : (uint16_t)v;
             }
             return State::IN_CSI;
         }
 
+        // Read separator and stay in CSI mode
         if (b == ';' || b == ':') {
             if (_event.param_count + 1 < MAX_PARAMS) _event.param_count++;
             return State::IN_CSI;
         }
 
-        // Private-mode prefix (? > < =): consumed to stay in CSI, not dispatched.
-        if (b == '?' || b == '>' || b == '<' || b == '=') return State::IN_CSI;
+        // Consume private-mode prefixes and stay in CSI mode
+        if (b == '?' || b == '>' || b == '<' || b == '=') {
+            return State::IN_CSI;
+        }
 
+        // Publish CSI command and leave CSI mode
         if (b >= 0x40 && b <= 0x7E) {
             _event.command = _map_csi_to_command(b, _event.params[0], _event.params[1]);
             _event.type = EventType::COMMAND;
             return State::IDLE;
         }
 
-        // Any other byte (e.g. a 0x20-0x2F intermediate) aborts to IDLE:
-        // intermediate bytes are unsupported - none of the sequences we map use
-        // them.
+        // Any other byte aborts to IDLE:
         return State::IDLE;
     }
 
@@ -185,8 +183,6 @@ namespace Botanik { namespace Terminal {
             case 0x0C: return Command::CTRL_L;
             case 0x0D: return Command::ENTER;
             case 0x0E: return Command::CTRL_N;
-            // 0x0F: nano's WriteOut. Not 0x13 (^S) for save - that is XOFF, and
-            // this runs over a serial link that may still use flow control.
             case 0x0F: return Command::CTRL_O;
             case 0x10: return Command::CTRL_P;
             case 0x12: return Command::CTRL_R;
@@ -199,35 +195,34 @@ namespace Botanik { namespace Terminal {
     }
 
     Command InputParser::_map_esc_extension(const uint8_t b) {
-        // ALT_1..ALT_9 are contiguous (static_assert in parser.h); map digits
-        // arithmetically, keep 0 and the letters explicit.
+        // ALT_1..ALT_9 are contiguous (static_assert in parser.h)
+        // so we can map digits arithmetically
         if (b >= '1' && b <= '9')
             return (Command)((int)Command::ALT_1 + (b - '1'));
+        // keep 0 and the letters explicit.
         switch (b) {
-            case 0x0D: case 0x0A: return Command::SHIFT_ENTER;  // Alt+Enter
+            case 0x0D: 
+            case 0x0A:  return Command::SHIFT_ENTER;    // Alt+Enter
             case '0':   return Command::ALT_0;
-            case 'b':   return Command::ALT_B;         // Alt+B (Back word)
-            case 'f':   return Command::ALT_F;         // Alt+F (Forward word)
+            case 'b':   return Command::ALT_B;          // Alt+B (Back word)
+            case 'f':   return Command::ALT_F;          // Alt+F (Forward word)
             default:    return Command::NONE;
         }
     }
 
     Command InputParser::_map_csi_to_command(const uint8_t b, const uint16_t param1,
                                              const uint16_t modifier) {
+        const uint16_t mods  = (modifier > 1) ? (uint16_t)(modifier - 1) : 0;
+        const bool     shift = (mods & 0x1) != 0;
+        const bool     ctrl  = (mods & 0x4) != 0;
         switch (b) {
-            case 'A': return Command::UP;
-            case 'B': return Command::DOWN;
+            case 'A': return shift ? Command::SHIFT_UP   : Command::UP;
+            case 'B': return shift ? Command::SHIFT_DOWN : Command::DOWN;
             case 'C': return Command::RIGHT;
             case 'D': return Command::LEFT;
             case 'H': return Command::HOME;
             case 'F': return Command::END;
-
             case '~': {
-                // xterm encodes modifiers as a 1-based bitmask second param
-                // (Shift=1, Alt=2, Ctrl=4): e.g. Ctrl+PageUp is CSI 5;5~. The
-                // Ctrl bit is set when (modifier - 1) & 4; modifier is 0 when
-                // no second param was sent (plain PageUp/PageDown).
-                const bool ctrl = modifier > 1 && (((modifier - 1) & 0x4) != 0);
                 switch (param1) {
                     case 1: return Command::HOME;
                     case 2: return Command::NONE;
@@ -241,15 +236,11 @@ namespace Botanik { namespace Terminal {
                 }
             }
             case 'Z': return Command::SHIFT_TAB;  // backtab (Shift+Tab)
-            // kitty: CSI 13;2u
             case 'u': return (param1 == 13) ? Command::SHIFT_ENTER : Command::NONE;
             default: return Command::NONE;
         }
     }
 
-    // Minitel SEP (function-key) codes. Some map to the same command on
-    // purpose: a/A (ENVOI) and b/B (RETOUR) both act as ENTER; d/D (SOMMAIRE)
-    // and g/G (GUIDE) both jump to page 1.
     Command InputParser::_map_sep_to_command(const uint8_t b) {
         switch (b) {
             case 'a': case 'A': return Command::ENTER;
@@ -280,25 +271,22 @@ namespace Botanik { namespace Terminal {
     InputEvent& InputParser::parse() {
         _reset_event();
         uint8_t b;
-        // Drain available bytes through the state machine until something worth
-        // returning happens. A stored TEXT byte produces no event on its own,
-        // so looping lets a burst accumulate into one batch before the caller
-        // sees it.
+        // TODO: make it more clear in the code that this loop will never run infinitely
+        // drain bytes through the state machine until we have something to return
         while (true) {
-            // No byte available: time out an in-flight sequence, or flush a
-            // pending command / text batch on idle.
             if (!_serial.peek(&b)) {
+                // no byte available
                 if (_should_flush_pending_command()) {
+                    // we have a comand to flush
                     _emit_pending_command();
                 } else if (_should_flush_text()) {
+                    // we have some text to flush
                     _flush_text();
                     _state = State::IDLE;
                 } else if ((_state == State::IN_ESC || _state == State::IN_CSI ||
                             _state == State::IN_SEP) &&
                            (*_timestamp_ms - _last_byte_ms) >= Config::ANSI_CMD_TIMEOUT_MS) {
-                    // An incomplete escape timed out: a lone ESC emits the ESC
-                    // command; a partial CSI or a stray SEP (0x13/XOFF) just
-                    // drops to IDLE so it can't swallow the next keystroke.
+                    // we are waiting for the end of an escape code and have reached the tieout
                     if (_state == State::IN_ESC) {
                         _event.command = Command::ESC;
                         _event.type    = EventType::COMMAND;
@@ -307,10 +295,8 @@ namespace Botanik { namespace Terminal {
                 }
                 return _event;
             }
-            // Pending chunkable command: consume the byte only if it's the same
-            // trigger (coalesce). Anything else emits the pending event now and
-            // leaves the byte for the next parse().
             if (_pending_cmd != Command::NONE) {
+                // consume only if we can coalesce
                 if (_state == State::IDLE && _is_chunkable_trigger(b) &&
                     _chunkable_command_for(b) == _pending_cmd) {
                     _serial.read((char*)&b, 1);
@@ -319,30 +305,24 @@ namespace Botanik { namespace Terminal {
                     if (_pending_cmd_count < UINT16_MAX) _pending_cmd_count++;
                     continue;
                 }
-                // Coalescing is IDLE-only: a chunkable byte arriving mid-escape
-                // (rare; escapes come atomically, ANSI_CMD_TIMEOUT_MS bounds a
-                // split one) is emitted-and-left, then runs through the FSM
-                // next parse(). Keeps the parser single-byte.
+                // otherwise we emit the pending command
                 _emit_pending_command();
                 return _event;
             }
-            // Non-printable interrupts a TEXT batch: flush what's there now
-            // and let the next parse() call dispatch the byte itself.
+            // if the byte is non-printable it interrupts the TEXT batch
             if (_state == State::TEXT && !Ansi::is_printable(b)) {
                 _flush_text();
                 _state = State::IDLE;
                 return _event;
             }
-            // Chunkable trigger in IDLE: consume + stage. The byte never
-            // reaches the state machine - chunking lives here so the parser
-            // stays single-byte.
+            // if the byte is chunkable and we are idle, start a new chunk
             if (_state == State::IDLE && _is_chunkable_trigger(b)) {
                 _serial.read((char*)&b, 1);
                 _last_byte_ms = *_timestamp_ms;
                 _stage_pending_command(_chunkable_command_for(b));
                 continue;
             }
-            // Read the peeked byte and run it through the state machine.
+            // otherwise read the peeked byte and run it through the state machine
             _serial.read((char*)&b, 1);
             _last_byte_ms = *_timestamp_ms;
             State new_state;
@@ -355,8 +335,7 @@ namespace Botanik { namespace Terminal {
                 default:            new_state = _state        ;  break;
             }
             _state = new_state;
-            // A handler produced an event (command, full-batch flush, ...) -
-            // return it. Otherwise keep draining.
+            // we've produced an event, so we can return it, otherwise we keep draining
             if (_event.type != EventType::NONE) return _event;
         }
     }

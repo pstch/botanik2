@@ -1,4 +1,4 @@
-// REVIEW_35: TODO
+// REVIEW_35: DONE
 #ifndef CONSOLE_ANSI_H
 #define CONSOLE_ANSI_H
 
@@ -8,11 +8,11 @@
  *        MoveDirection types shared across the terminal layer.
  */
 
-#include <cstdint>                    // uint8_t/uint16_t - row/col coordinates and attribute bits
+#include <cstdint>                      // uint8_t/uint16_t
 
-#include "libbotanik_config.h"        // Config::TERMINAL_TYPE - which VT dialect to emit
+#include "libbotanik_config.h"          // Config::TERMINAL_TYPE
 
-#include "libbotanik/utils/byte_sink.h" // Utils::ByteSink - where the escape bytes are written
+#include "libbotanik/utils/byte_sink.h" // Utils::ByteSink
 
 
 namespace Botanik { namespace Terminal { namespace Ansi {
@@ -113,33 +113,28 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         MINITEL_2  = 3,  ///< Minitel 2, same PRO2 handshake
     };
 
-    /** @brief The terminal this build is wired to (Config::TERMINAL_TYPE, which
-     *  a site sets in its own config.h). The values above are pinned to that
-     *  numbering, since the config header cannot name this enum. */
-    static constexpr TerminalType CONFIGURED_TERMINAL =
-        (TerminalType)Botanik::Config::TERMINAL_TYPE;
+    /** @brief The terminal this build is wired to (Config::TERMINAL_TYPE), which
+     *  @note Pinned to the numbering, since the config header cannot name this enum. */
+    static constexpr TerminalType CONFIGURED_TERMINAL = (TerminalType)Botanik::Config::TERMINAL_TYPE;
     static_assert(Botanik::Config::TERMINAL_TYPE <= (uint8_t)TerminalType::MINITEL_2,
                   "BOTANIK_TERMINAL_TYPE is not a TerminalType (0..3)");
 
-    /** @brief True for the Minitel family. The quirks that hang off this: the
-     *  PRO2 handshake below, and never using BS as a cursor-left shortcut (a
-     *  Minitel can treat it as destructive - see move_left()). */
+    /** @brief True for the Minitel family. 
+     *  @note Enables the PRO2 handshake below, and prevents using BS as a cursor-left shortcut */
     constexpr bool is_minitel(TerminalType t) {
         return t == TerminalType::MINITEL_1B || t == TerminalType::MINITEL_2;
     }
 
-    /** @brief Emit @p type's one-time setup handshake, once before the first
-     *  render. Minitel: the PRO2 sequences above (80-col teleinformatique +
-     *  lowercase keyboard + page mode). VT100/VT102: nothing, since DECAWM-off
-     *  is re-asserted on every screen establish. */
+    /** @brief Emit @p type's one-time setup handshake, once before the first render. 
+     * 
+     *  - Minitel: the PRO2 sequences above (80-col teleinformatique + lowercase keyboard + page mode). 
+     *  - VT100/VT102: nothing, since DECAWM-off is re-asserted on every screen establish. */
     bool terminal_setup(ByteSink& _serial, TerminalType type);
 
     /** @brief Enable or disable terminal auto-wrap (DECAWM, CSI ? 7 h/l). */
     bool set_auto_wrap(ByteSink& _serial, bool enable);
 
-    /** @brief Show or hide the cursor (DECTCEM, CSI ? 25 h/l). A shown cursor
-     *  blinks (no steady mode), so "stop blinking" means hiding it. Minitel
-     *  honoring of DECTCEM is unverified - VERIFY ON HARDWARE. */
+    /** @brief Show or hide the cursor (DECTCEM, CSI ? 25 h/l). */
     bool set_cursor_visible(ByteSink& _serial, bool show);
 
     /** @}
@@ -183,10 +178,6 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     /** @brief Delete @p count characters at the cursor (DCH), shifting the rest
      *  of the row left and blanking the freed cells at the right edge. */
     bool delete_chars(ByteSink& _serial, uint16_t count);
-
-    /** @}
-     *  @name Content clearing
-     *  @{ */
 
     /** @brief Erase entire display and move cursor to home position */
     bool clear_screen(ByteSink& _serial);

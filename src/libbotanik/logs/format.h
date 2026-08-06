@@ -8,12 +8,12 @@
  *        line.
  */
 
-#include <algorithm>                  // std::min - clamp the message to the output buffer
-#include <cstdint>                    // uint64_t - the entry timestamp
-#include <cstdio>                     // snprintf - assembles the rendered line
+#include <algorithm>                // std::min
+#include <cstdint>                  // uint64_t
+#include <cstdio>                   // snprintf
 
-#include "libbotanik/logs/entry.h"    // Logs::LogEntry - what gets formatted
-#include "libbotanik/utils/time.h"    // Utils::format_ms_timestamp - the line's time prefix
+#include "libbotanik/logs/entry.h"  // Logs::LogEntry
+#include "libbotanik/utils/time.h"  // Utils::format_ms_timestamp
 
 namespace Botanik { namespace Logs {
 

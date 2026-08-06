@@ -31,18 +31,18 @@
  * the bars.
  */
 
-#include <cstdint>                    // uint8_t/uint16_t/uint64_t - filter mode, cursor, ack times
-#include <cstdio>                     // snprintf - the row cells and the detail panel
+#include <cstdint>                          // uint8_t/uint16_t/uint64_t
+#include <cstdio>                           // snprintf
 
-#include "libbotanik_config.h"        // BOTANIK_FEATURE_ALARMS_PAGE - the gate this header sits behind
+#include "libbotanik_config.h"              // BOTANIK_FEATURE_ALARMS_PAGE
 
-#include "libbotanik/alarms/alarms.h" // Alarms::AlarmController / AlarmCondition - the table shown
-#include "libbotanik/console/console.h" // Console::rows / terminal - the content area to paint
-#include "libbotanik/console/terminal.h" // AnsiTerminal - move_to / write_chars / set_inverted
-#include "libbotanik/hal/platform.h"  // HAL::Clock::uptime_ms - ages the recent-filter window
-#include "libbotanik/pages/page.h"    // Pages::Page - the interface this page implements
-#include "libbotanik/pages/scroll_table.h" // Pages::ScrollTablePage - the scrolling table base
-#include "libbotanik/utils/time.h"    // Utils::cal_time_ms - renders the ack timestamp
+#include "libbotanik/alarms/alarms.h"       // Alarms::AlarmController / AlarmCondition
+#include "libbotanik/console/console.h"     // Console::rows / terminal
+#include "libbotanik/console/terminal.h"    // AnsiTerminal
+#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
+#include "libbotanik/pages/page.h"          // Pages::Page
+#include "libbotanik/pages/scroll_table.h"  // Pages::ScrollTablePage
+#include "libbotanik/utils/time.h"          // Utils::cal_time_ms
 
 namespace Botanik { namespace Pages {
 

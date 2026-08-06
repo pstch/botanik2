@@ -1,16 +1,10 @@
-// REVIEW_35: TODO
+// REVIEW_35: DONE
 #ifndef ALARMS_PUBLISHER_H
 #define ALARMS_PUBLISHER_H
 
-/**
- * @file publisher.h
- * @brief The file contains the transport interface for external alarm notifications, for
- * example through MQTT.
- *
- * Used to decouple alarm notification handling (in alarms/)
- * from the network stack (in network/).
- *
- */
+/** @file publisher.h
+ *  @brief The file contains the transport interface for external alarm notifications, for
+ *  example through MQTT.*/
 
 namespace Botanik { namespace Alarms {
 

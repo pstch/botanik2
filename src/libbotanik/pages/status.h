@@ -19,26 +19,26 @@
  * alarm set is shown on the terminal-owned bottom bar, not here.
  */
 
-#include <cstdint>                    // uint16_t/uint32_t/uint64_t - the metric values and stamps
-#include <cstdio>                     // snprintf - each cell's rendered value
+#include <cstdint>                          // uint16_t/uint32_t/uint64_t
+#include <cstdio>                           // snprintf
 
-#include "libbotanik_config.h"        // Config::* - the site identity cells
-#include "libbotanik_features.h"      // BOTANIK_FEATURE_NETWORK / NTP / MQTT - the gates below
+#include "libbotanik_config.h"              // Config::*
+#include "libbotanik_features.h"            // BOTANIK_FEATURE_NETWORK / NTP / MQTT
 
-#include "libbotanik/hal/platform.h"  // HAL::Clock::uptime_ms / HAL::Stack - the platform cells
-#include "libbotanik/pages/metric_page.h" // Pages::MetricPage - the two-column grid base
-#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext - the CPU/jitter/stack cells
-#include "libbotanik/utils/text.h"    // Utils::format_age / format_float / format_size
-#include "libbotanik/utils/time.h"    // Utils::cal_time_ms - the wall-clock cell
+#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms / HAL::Stack
+#include "libbotanik/pages/metric_page.h"   // Pages::MetricPage
+#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext
+#include "libbotanik/utils/text.h"          // Utils::format_age / format_float / format_size
+#include "libbotanik/utils/time.h"          // Utils::cal_time_ms
 
 #if BOTANIK_FEATURE_NETWORK
-#include "libbotanik/network/network.h" // Network::NetworkHandler::ip / status_str - the link cell
+#include "libbotanik/network/network.h"     // Network::NetworkHandler::ip / status_str
 #endif
 #if BOTANIK_FEATURE_NTP
-#include "libbotanik/network/ntp.h"   // Network::NtpClient::synced / offset_ms - the time cell
+#include "libbotanik/network/ntp.h"         // Network::NtpClient::synced / offset_ms
 #endif
 #if BOTANIK_FEATURE_MQTT
-#include "libbotanik/network/mqtt.h"  // Network::MqttClient::last_contact_ms - the broker cell
+#include "libbotanik/network/mqtt.h"        // Network::MqttClient::last_contact_ms
 #endif
 
 namespace Botanik { namespace Pages {

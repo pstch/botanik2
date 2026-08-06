@@ -3,16 +3,16 @@
  * @file logs.cpp
  * @brief LogsPage implementation.
  */
-#include "libbotanik/pages/logs.h"    // LogsPage - what this file implements
+#include "libbotanik/pages/logs.h"      // LogsPage
 
-#include <algorithm>                  // std::min - bound the lines ingested per beat
-#include <cstdio>                     // snprintf - the mark line this page can emit
-#include <cstring>                    // strlen - measuring that line
+#include <algorithm>                    // std::min
+#include <cstdio>                       // snprintf
+#include <cstring>                      // strlen
 
-#include "libbotanik_config.h"        // Config::SCREEN_COLS - the wrap width for ingested lines
+#include "libbotanik_config.h"          // Config::SCREEN_COLS
 
-#include "libbotanik/hal/platform.h"  // HAL::Clock::uptime_ms - stamps the mark
-#include "libbotanik/logs/format.h"   // Logs::format_log_entry - renders each queued entry
+#include "libbotanik/hal/platform.h"    // HAL::Clock::uptime_ms
+#include "libbotanik/logs/format.h"     // Logs::format_log_entry
 
 namespace Botanik { namespace Pages {
 
@@ -41,16 +41,27 @@ namespace Botanik { namespace Pages {
                 _console.clear_content();
                 focus();
                 break;
+            // Shift+arrow too: this page has no other use for a bare arrow, but
+            // the shell's are its command history, so the line-at-a-time key is
+            // the shifted one everywhere a scrollback is on screen.
             case Command::UP:
+            case Command::SHIFT_UP:
             case Command::CTRL_P:
                 _scrollback.scroll(_terminal, /*up=*/true, 1, first_row, log_rows);
                 break;
             case Command::DOWN:
+            case Command::SHIFT_DOWN:
             case Command::CTRL_N:
                 _scrollback.scroll(_terminal, /*up=*/false, 1, first_row, log_rows);
                 break;
-            case Command::PAGE_UP:   break;
-            case Command::PAGE_DOWN: break;
+            // A screenful less one row of overlap, the way a pager steps.
+            case Command::PAGE_UP:
+            case Command::PAGE_DOWN: {
+                uint16_t step = (log_rows > 1) ? (uint16_t)(log_rows - 1) : 1;
+                _scrollback.scroll(_terminal, cmd == Command::PAGE_UP, step,
+                                   first_row, log_rows);
+                break;
+            }
             default: break;
         }
     }

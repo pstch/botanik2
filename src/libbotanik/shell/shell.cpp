@@ -3,32 +3,32 @@
  * @file shell.cpp
  * @brief CommandShell implementation - command dispatch and built-in commands.
  */
-#include "libbotanik/shell/shell.h"   // CommandShell - what this file implements
+#include "libbotanik/shell/shell.h"         // CommandShell
 
-#include <algorithm>                  // std::min / std::find - output clamping, history search
-#include <cstdarg>                    // va_list / va_start / va_end - the printf-style reply helper
-#include <cstdio>                     // snprintf / vsnprintf - formatting every command's output
-#include <cstring>                    // strlen / strncmp / memcpy / memcmp - argument parsing
+#include <algorithm>                        // std::min / std::find
+#include <cstdarg>                          // va_list / va_start / va_end
+#include <cstdio>                           // snprintf / vsnprintf
+#include <cstring>                          // strlen / strncmp / memcpy / memcmp
 
-#include "libbotanik_config.h"        // Config::* - the values `version` and `stats` report
-#include "libbotanik_features.h"      // BOTANIK_FEATURE_LIST - the `features` command expands it
+#include "libbotanik_config.h"              // Config::*
+#include "libbotanik_features.h"            // BOTANIK_FEATURE_LIST
 
-#include "libbotanik/alarms/alarms.h" // Alarms::AlarmController - the `alarms` command
-#include "libbotanik/hal/platform.h"  // HAL::System / Debug / Stack - `reset`, `breakpoint`, `stats`
-#include "libbotanik/hal/storage.h"   // HAL::Storage::get / set - the persisted shell settings
-#include "libbotanik/logs/logger.h"   // Logs::Logger::set_min_level - the `loglevel` command
-#include "libbotanik/network/mqtt.h"  // Network::MqttClient - the `net` command's broker line
-#include "libbotanik/network/network.h" // Network::NetworkHandler - the `net` command's link line
-#include "libbotanik/network/ntp.h"   // Network::NtpClient - `net` and `ntpsync`
-#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext - the `stats` command
-#include "libbotanik/utils/text.h"    // Utils::format_age / format_float / format_size - `stats`
-#include "libbotanik/vars/params.h"   // Vars::Params - `list`, `get`, `set`, `override`
+#include "libbotanik/alarms/alarms.h"       // Alarms::AlarmController
+#include "libbotanik/hal/platform.h"        // HAL::System / Debug / Stack
+#include "libbotanik/hal/storage.h"         // HAL::Storage::get / set
+#include "libbotanik/logs/logger.h"         // Logs::Logger::set_min_level
+#include "libbotanik/network/mqtt.h"        // Network::MqttClient
+#include "libbotanik/network/network.h"     // Network::NetworkHandler
+#include "libbotanik/network/ntp.h"         // Network::NtpClient
+#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext
+#include "libbotanik/utils/text.h"          // Utils::format_age / format_float / format_size
+#include "libbotanik/vars/params.h"         // Vars::Params
 
 // Build-time git short hash: a generated header on the CMake builds (see
 // CMakeLists), "unknown" on the Arduino .ino deploy (no CMake, so the header
 // isn't generated).
 #if defined(__has_include) && __has_include("botanik_gitversion.h")
-#  include "botanik_gitversion.h"     // BOTANIK_GIT_HASH - what `version` prints; absent in the .ino build
+#  include "botanik_gitversion.h"           // BOTANIK_GIT_HASH
 #endif
 #ifndef BOTANIK_GIT_HASH
 #  define BOTANIK_GIT_HASH "unknown"
@@ -381,23 +381,31 @@ namespace Botanik { namespace Shell {
         char out[128], val[48];
         const char* s = Vars::var_format(io, h, val, sizeof(val));
         const char* u = h.meta()->unit;
-        // Flag the three things a bare number hides: that a row is a writable
-        // parameter, that it is being forced by hand, and that a reading is
-        // really its default because nothing has written it (the trap - it looks
-        // like a perfectly reasonable measurement).
-        _emitf(out, sizeof(out), "  %-20s %-12s %-4s %s%s%s", h.meta()->name, s,
+        // Flag the three things a bare number hides: WHAT KIND of row it is,
+        // that it is being forced by hand, and that a reading is really its
+        // default because nothing has written it (the trap - it looks like a
+        // perfectly reasonable measurement).
+        //
+        // The scope on every row, not just a "(param)" on the writable ones: a
+        // listing mixes readings, coils, computed values and parameters, and
+        // which one you are looking at decides whether `set` or `override`
+        // applies. Marking only parameters answered that for one row in ten and
+        // left the rest to be inferred from the name.
+        _emitf(out, sizeof(out), "  %-20s %-12s %-4s (%s)%s%s", h.meta()->name, s,
                (u && u[0]) ? u : "",
-               h.role() == Vars::ROLE_PARAM ? "(param)" : "",
+               Vars::var_scope(*h.meta()),
                h.overridden() ? " OVERRIDDEN" : "",
                h.valid() ? "" : " (default: nothing has written it)");
     }
 
     // `get` is the detail view, so it answers the questions the one-line form
-    // cannot: what KIND of row this is, whether you may write it and with which
-    // command, whether the number is a measurement or a stand-in, and - the one
-    // that explains behaviour nothing else accounts for - whether somebody has
-    // taken it by hand. Label/leader lines, the same shape `net` and `stats`
-    // already use.
+    // cannot: what KIND of row this is, whether you may write it, what it reads
+    // underneath any override, and - the one that explains behaviour nothing
+    // else accounts for - whether somebody has taken it by hand.
+    //
+    // Laid out like `stats` and `net`: a dotted leader to a fixed column, the
+    // value, then the detail in parentheses. Three commands that all answer
+    // "what is the state of X" should not each look different.
     void CommandShell::_cmd_get(const char* args, uint16_t alen) {
         Vars::Bank* io = _bank();
         if (io == nullptr) { _println("get: no variables"); return; }
@@ -410,60 +418,38 @@ namespace Botanik { namespace Shell {
         const Vars::Var h = io->var(r);
         const Vars::Variable* d = h.meta();
 
-        char out[128], val[64], det[80];
+        char out[Config::LOG_FORMATTED_LEN], val[64], det[80];
         const char* u = (d->unit && d->unit[0]) ? d->unit : "";
 
-        // Header: the name and what it reads right now, override applied - the
-        // number every other reader in the firmware sees.
+        // The name and what every other reader in the firmware sees for it -
+        // the override applied. The rows below take that apart.
         _emitf(out, sizeof(out), "%s = %s %s", d->name,
                Vars::var_format(*io, h, val, sizeof(val)), u);
 
         // What kind of row, and which group it files under. Both are derived -
         // the scope from the factory that declared it, the group from the name -
         // so neither can disagree with the table.
-        snprintf(det, sizeof(det), "%s   group %s", _scope_phrase(d->scope),
-                 Vars::var_group(*d));
-        _line("Scope", det);
+        _field("Scope", Vars::var_scope(*d), _scope_phrase(d->scope));
+        _field("Group", Vars::var_group(*d), nullptr);
+        // Whether `set` works. Everything is forceable, so that is the only
+        // question, and it is a yes or a no.
+        _field("Access", _writable(h) ? "read-write" : "read-only", nullptr);
 
-        // Access says which COMMAND applies, not just yes/no: "read-only" on its
-        // own sends people looking for a permission to change.
-        _line("Access", _access_phrase(h));
-
-        // Quality: is this a measurement, or the declared default standing in
-        // for one? The trap is that both render as a perfectly reasonable
-        // number.
-        if (h.overridden()) {
-            snprintf(det, sizeof(det), "forced by hand, reading %s",
-                     h.valid() ? "valid" : "INVALID");
-        } else if (h.valid()) {
-            char age[16];
-            const uint64_t now = HAL::Clock::uptime_ms();
-            // A stamp ahead of `now` is a test fixture, not a reading from the
-            // future - subtracting it would underflow into forty years.
-            if (d->role == Vars::ROLE_INPUT && h.stamp() != 0 && now >= h.stamp())
-                snprintf(det, sizeof(det), "live (updated %s)",
-                         Utils::format_age(age, sizeof(age),
-                             (uint32_t)((now - h.stamp()) / 1000), true));
-            else
-                snprintf(det, sizeof(det), "live");
-        } else {
-            snprintf(det, sizeof(det), "NO DATA - showing the declared default");
-        }
-        _line("Quality", det);
-
-        // The override, spelled out: what it is held at, what it reads as, and
-        // what the row would read underneath. That last one is the question
-        // somebody deciding whether to release it actually has.
-        if (h.overridden()) {
-            char lb[48];
-            snprintf(det, sizeof(det), "%s %s (%s)   live %s %s (%s)",
-                     Vars::var_format(*io, h, val, sizeof(val)), u,
-                     h.valid() ? "valid" : "invalid",
-                     Vars::format_scalar(d->type, h.live(), d->digits, d->str,
-                                         lb, sizeof(lb)), u,
-                     h.live_valid() ? "valid" : "invalid");
-            _line("Override", det);
-        }
+        // The two values, kept apart. An override SHADOWS - the driver keeps
+        // publishing underneath - so "what is it held at" and "what would it
+        // read if I let go" are different questions, and someone deciding
+        // whether to release one is asking the second.
+        // The raw row says WHY, not just whether: "nothing has written it",
+        // "past its timeout" and "outside its band" want three different next
+        // moves, and all three used to read as a bare "invalid".
+        _value_field("Raw value", *io, h, h.live(), Vars::quality_str(h.live_quality()), u);
+        // The override's is a person's choice, not a diagnosis, so it stays a
+        // yes or a no.
+        if (h.overridden())
+            _value_field("Override value", *io, h, h.raw(),
+                         h.valid() ? "valid" : "invalid", u);
+        else
+            _field("Override value", "-", nullptr);
 
         // The declared band, live: an analog row's comes from its calibration
         // parameters, so var_band() rather than the flash constants.
@@ -473,45 +459,78 @@ namespace Botanik { namespace Shell {
             snprintf(det, sizeof(det), "%s .. %s %s",
                      Vars::format_scalar(d->type, b.min, d->digits, nullptr, lo, sizeof(lo)),
                      Vars::format_scalar(d->type, b.max, d->digits, nullptr, hi, sizeof(hi)), u);
-            _line(d->role == Vars::ROLE_PARAM ? "Range" : "Plausible", det);
+            _field(d->role == Vars::ROLE_PARAM ? "Range" : "Plausible", det, nullptr);
         }
 
         // Where the value physically comes from, which is the first thing you
         // want when one looks wrong.
-        _line("Source", _binding_phrase(d->bind, det, sizeof(det)));
-        if (d->desc  && d->desc[0])  _line("Description", d->desc);
-        if (d->notes && d->notes[0]) _line("Notes", d->notes);
+        _field("Source", _binding_phrase(d->bind, det, sizeof(det)), nullptr);
+        if (d->desc  && d->desc[0])  _field("Description", d->desc,  nullptr);
+        if (d->notes && d->notes[0]) _field("Notes",       d->notes, nullptr);
     }
 
-    // The scope abbreviation the tables show, spelled out - `get` has the room
-    // and the abbreviation is only obvious once you already know it.
+    // One "Label ......... : value (detail)" row, the shape `stats` uses. The
+    // leader is built rather than written into each label so the column cannot
+    // drift one row at a time.
+    void CommandShell::_field(const char* label, const char* value,
+                              const char* detail) {
+        char lead[LEADER_W + 1];
+        size_t n = 0;
+        while (label[n] != 0 && n + 1 < sizeof(lead)) { lead[n] = label[n]; n++; }
+        if (n + 1 < sizeof(lead)) lead[n++] = ' ';
+        while (n + 1 < sizeof(lead)) lead[n++] = '.';
+        lead[n] = 0;
+
+        char out[Config::LOG_FORMATTED_LEN];
+        if (detail != nullptr && detail[0] != 0)
+            _emitf(out, sizeof(out), "%s : %-8s (%s)", lead, value, detail);
+        else
+            _emitf(out, sizeof(out), "%s : %s", lead, value);
+    }
+
+    // A value row: the number, its unit, and whether it is worth believing.
+    // Quality rides here rather than on a row of its own, because a value and
+    // whether it is good are one fact - and there are two values.
+    void CommandShell::_value_field(const char* label, const Vars::Bank& io,
+                                    Vars::Var h, Vars::Scalar v,
+                                    const char* quality, const char* unit) {
+        const Vars::Variable* d = h.meta();
+        char num[48], cell[64];
+        // A T_STR keeps its live text in the pool, not the slot, so the Scalar
+        // is not where its value is; var_format() is the only reader that knows.
+        const char* text = (d->type == Vars::T_STR)
+            ? Vars::var_format(io, h, num, sizeof(num))
+            : Vars::format_scalar(d->type, v, d->digits, d->str, num, sizeof(num));
+        snprintf(cell, sizeof(cell), "%s%s%s", text, unit[0] ? " " : "", unit);
+        _field(label, cell, quality);
+    }
+
+    // What a scope abbreviation MEANS, for the detail column. The table shows
+    // the code because a column cannot spare eight characters to say what two
+    // do; `get` has the room.
     const char* CommandShell::_scope_phrase(uint8_t scope) {
         switch ((Vars::VarScope)scope) {
-            case Vars::SCOPE_A:  return "A  alarm condition";
-            case Vars::SCOPE_P:  return "P  parameter";
-            case Vars::SCOPE_G:  return "G  computed";
-            case Vars::SCOPE_SV: return "SV status value (published)";
-            case Vars::SCOPE_MI: return "MI input, direct";
-            case Vars::SCOPE_AI: return "AI input, calibrated";
-            case Vars::SCOPE_DI: return "DI input, digital";
-            case Vars::SCOPE_MO: return "MO output, direct";
-            case Vars::SCOPE_AO: return "AO output, scaled";
-            case Vars::SCOPE_DO: return "DO output, digital";
-            case Vars::SCOPE_RO: return "RO relay coil";
+            case Vars::SCOPE_A:  return "alarm condition";
+            case Vars::SCOPE_P:  return "parameter";
+            case Vars::SCOPE_G:  return "computed";
+            case Vars::SCOPE_SV: return "status value, published";
+            case Vars::SCOPE_MI: return "input, direct";
+            case Vars::SCOPE_AI: return "input, calibrated";
+            case Vars::SCOPE_DI: return "input, digital";
+            case Vars::SCOPE_MO: return "output, direct";
+            case Vars::SCOPE_AO: return "output, scaled";
+            case Vars::SCOPE_DO: return "output, digital";
+            case Vars::SCOPE_RO: return "relay coil";
             default:             return "?";
         }
     }
 
-    // Which command applies. Everything is forceable, so the interesting half is
-    // whether `set` works - and for a read-only parameter, that it deliberately
-    // does not.
-    const char* CommandShell::_access_phrase(Vars::Var h) {
+    // Whether `set` will take it. A parameter, unless the site marked it
+    // read-only; everything else is driven by something and would be overwritten
+    // on the next scan.
+    bool CommandShell::_writable(Vars::Var h) {
         const Vars::Variable* d = h.meta();
-        if (d->role != Vars::ROLE_PARAM)
-            return "read-only (`override` forces it by hand)";
-        if ((d->flags & Vars::F_RDONLY) != 0)
-            return "read-only parameter (shown, not editable)";
-        return "read-write (`set` edits and persists it)";
+        return d->role == Vars::ROLE_PARAM && (d->flags & Vars::F_RDONLY) == 0;
     }
 
     // Mirrors the MONITOR page's Source field, so a row reads the same whichever
@@ -628,9 +647,7 @@ namespace Botanik { namespace Shell {
                 n++;
             }
             if (n == 0) _println("override: none active");
-            else _emitf(out, sizeof(out),
-                        "%u override(s) active - these SURVIVE a reboot; "
-                        "`override clear` clears them", n);
+            else _emitf(out, sizeof(out), "%u override(s) active (`override clear` to clear)" , n);
             return;
         }
 

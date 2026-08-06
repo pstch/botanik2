@@ -14,7 +14,7 @@
  * cells that moved. No change-highlighting - the set is visible as a whole.
  */
 
-#include <cstdint>                    // uint16_t/uint64_t - the bar's row and its rotation timer
+#include <cstdint>  // uint16_t/uint64_t
 
 namespace Botanik { namespace Alarms { class AlarmController; } }
 
@@ -30,9 +30,9 @@ namespace Botanik { namespace Terminal {
          *  @{ */
 
         /** @brief The console this bar belongs to (alarm source). */
-        Console&            _c;
+        Console&            _console;
         /** @brief The VT device it paints through (cached _c.terminal()). */
-        AnsiTerminal&       _t;
+        AnsiTerminal&       _terminal;
         /** @brief Unmasked alarm set last painted (bit i = table row i). */
         uint64_t            _sig = 0;
         /** @brief A repaint is due (set on change / screen wipe). */
@@ -47,14 +47,10 @@ namespace Botanik { namespace Terminal {
         /** @name Cooperative paint
          *  @{ */
 
-        /** @brief Per-step pass: repaint the bar when the unmasked set changed
-         *  or the row was wiped. present() paces the resulting diff and re-parks
-         *  a visible page cursor (the shell editor's) afterwards. No-op without
-         *  an alarm source. */
+        /** @brief Per-step pass: repaint the bar when the set changed or the row was wiped.*/
         void step();
 
-        /** @brief Flag a repaint (after a full-screen clear or page switch wiped
-         *  the reserved row). */
+        /** @brief Flag a repaint (after a full-screen clear or page switch) */
         void mark_dirty() { _dirty = true; }
 
         /** @} */

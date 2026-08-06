@@ -12,17 +12,17 @@
  * meant to catch a regression in kind (a full-screen repaint where a one-row
  * splice belongs), not to freeze the escape-code tuning.
  */
-#include <cstdint>                    // uint16_t/uint32_t/uint64_t - geometry and byte counts
-#include <cstdio>                     // snprintf - building the input sequences
-#include <cstring>                    // strlen - measuring what was emitted
-#include <fcntl.h>                    // fcntl / O_NONBLOCK - the pipe standing in for the serial link
-#include <string>                     // std::string - the emitted byte stream asserted on
-#include <unistd.h>                   // pipe / read / close - draining what the editor emitted
+#include <cstdint>                      // uint16_t/uint32_t/uint64_t
+#include <cstdio>                       // snprintf
+#include <cstring>                      // strlen
+#include <fcntl.h>                      // fcntl / O_NONBLOCK
+#include <string>                       // std::string
+#include <unistd.h>                     // pipe / read / close
 
-#include "libbotanik/console/console.h" // Console - supplies the editor's row band
-#include "libbotanik/console/editor.h" // Terminal::TextEditor - under test (its wire cost is the point)
+#include "libbotanik/console/console.h" // Console
+#include "libbotanik/console/editor.h"  // Terminal::TextEditor
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
+#include "doctest.h"
 
 using namespace Botanik;
 
@@ -66,12 +66,18 @@ namespace {
             flush();
         }
 
-        /** @brief Type `n` hard-broken rows "lineNN", flushing as we go. */
+        /** @brief Type `n` hard-broken rows "lineNN", flushing as we go.
+         *
+         *  Two digits by construction - every caller asks for a screenful, not a
+         *  hundred rows. Bounded here rather than trusted, so the name cannot
+         *  overrun row[] AND the compiler can see that it cannot: unbounded, the
+         *  format is an 11-digit int into 8 bytes (-Wformat-truncation). */
         void fill_rows(int n) {
+            REQUIRE(n <= 100);
             for (int i = 0; i < n; i++) {
                 if (i) editor.insert_characters("\n", 1);
                 char row[8];
-                snprintf(row, sizeof(row), "line%02d", i);
+                snprintf(row, sizeof(row), "line%02u", (unsigned)i % 100u);
                 type(row);
             }
             flush();

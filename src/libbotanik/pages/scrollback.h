@@ -9,14 +9,14 @@
  *        LogsScrollback / HomeScrollback typedefs below).
  */
 
-#include <algorithm>                  // std::min - bound the rows redrawn per beat
-#include <cstddef>                    // size_t - the ingested text lengths
-#include <cstdint>                    // UINT16_MAX / uint16_t - the line indices and sentinels
+#include <algorithm>                        // std::min
+#include <cstddef>                          // size_t
+#include <cstdint>                          // UINT16_MAX / uint16_t
 
-#include "libbotanik_config.h"        // Config::SCROLLBACK_* - the per-beat redraw budget
+#include "libbotanik_config.h"              // Config::SCROLLBACK_*
 
-#include "libbotanik/console/terminal.h" // AnsiTerminal - move_to / scroll_region / clear_to_eol
-#include "libbotanik/pages/line_buffer.h" // Pages::LineBuffer - the storage this view scrolls over
+#include "libbotanik/console/terminal.h"    // AnsiTerminal
+#include "libbotanik/pages/line_buffer.h"   // Pages::LineBuffer
 
 namespace Botanik { namespace Pages {
 
@@ -213,6 +213,16 @@ namespace Botanik { namespace Pages {
             _pending = (uint16_t)(_pending + n);
             uint16_t cnt = this->count();
             if (_pending > cnt) _pending = cnt;
+            // Scrolled back: the offset counts from the NEWEST line, so lines
+            // arriving under a frozen view would slide what it names out from
+            // under the rows already on screen (the next scroll then paints
+            // rows discontinuous with them). Advance it by as much, so the
+            // view keeps naming the same lines and the marker's count stays
+            // "newer lines below".
+            if (_view_offset != 0) {
+                _view_offset = (uint16_t)(_view_offset + n);
+                if (_view_offset > cnt) _view_offset = cnt;
+            }
         }
 
         /** @brief Bank a (possibly wrapping) line and, when @p active, mark the
@@ -250,17 +260,35 @@ namespace Botanik { namespace Pages {
          *  the live bottom), painting only the newly exposed rows (cheap, for a
          *  key-at-a-time scroll), clamped to history. No-op when everything
          *  fits, a replay is pending, or the view can't move. The live tail is
-         *  frozen while scrolled up. @return true if the view moved. */
+         *  frozen while scrolled up. @return true if the window changed. */
         bool scroll(AnsiTerminal& terminal, bool up, uint16_t n,
                     uint16_t first_row, uint16_t log_rows) {
             if (log_rows == 0 || n == 0 || redraw_pending()) return false;
             uint16_t cnt    = this->count();
             uint16_t maxoff = (cnt > log_rows) ? (uint16_t)(cnt - log_rows) : 0;
-            if (maxoff == 0) return false;             // the whole buffer fits
+            if (maxoff == 0) {         // the whole buffer fits
+                _view_offset = 0;      // ...so nothing may hold the tail frozen
+                return false;
+            }
+            // The lines the view named may have been evicted from under it (the
+            // ring wraps while note_pending() keeps walking the offset out).
+            // Re-anchor on the oldest still stored - the subtraction below would
+            // otherwise underflow - and repaint: what is on screen is gone, and
+            // the incremental move below only ever fixes the rows it uncovers.
+            bool anchored = false;
+            if (_view_offset > maxoff) {
+                _view_offset      = maxoff;
+                _pending          = 0;
+                _indicator_offset = 0;   // the repaint takes the tag with it
+                for (uint16_t i = 0; i < log_rows; i++)
+                    _draw_line(terminal, (uint16_t)(first_row + i),
+                               (uint16_t)(log_rows + _view_offset - i));
+                anchored = true;
+            }
             uint16_t want = up ? (uint16_t)(_view_offset + n)
                                : (uint16_t)(_view_offset > n ? _view_offset - n : 0);
             if (want > maxoff) want = maxoff;
-            if (want == _view_offset) return false;    // already at that end
+            if (want == _view_offset) return anchored;  // already at that end
             uint16_t moved = up ? (uint16_t)(want - _view_offset)
                                 : (uint16_t)(_view_offset - want);
             if (moved > log_rows) moved = log_rows;    // at most one screenful
@@ -287,6 +315,17 @@ namespace Botanik { namespace Pages {
             return true;
         }
 
+
+        /** @brief Release a frozen view back to the live bottom, repainting the
+         *  rows it uncovers, and let the live tail run again. No-op at the
+         *  bottom already (so it costs nothing on a hot path). A move longer
+         *  than the window repaints the window whole, which is what a jump
+         *  needs anyway. @return true if the view moved. */
+        bool scroll_to_bottom(AnsiTerminal& terminal, uint16_t first_row,
+                              uint16_t log_rows) {
+            return scroll(terminal, /*up=*/false, _view_offset, first_row,
+                          log_rows);
+        }
 
         /** @brief Keep the "scrolled up" marker in sync with the view, called
          *  each tick by the page. While scrolled back it overlays a compact

@@ -12,14 +12,14 @@
  * helpers (info(), warning(), ...) to emit messages.
  */
 
-#include <cstdarg>                    // va_list - the printf-style logf() surface
-#include <cstdint>                    // uint8_t/uint16_t/uint32_t - token buckets and counters
+#include <cstdarg>                      // va_list
+#include <cstdint>                      // uint8_t/uint16_t/uint32_t
 
-#include "libbotanik_config.h"        // Config::LOG_RATE_* - the token-bucket limits
+#include "libbotanik_config.h"          // Config::LOG_RATE_*
 
-#include "libbotanik/core/component.h" // Component - the first-step announce
-#include "libbotanik/logs/entry.h"    // Logs::LogEntry - what _build_entry fills in
-#include "libbotanik/logs/writer.h"   // Logs::LogWriter - the registered sinks
+#include "libbotanik/core/component.h"  // Component
+#include "libbotanik/logs/entry.h"      // Logs::LogEntry
+#include "libbotanik/logs/writer.h"     // Logs::LogWriter
 
 namespace Botanik { namespace Logs {
 

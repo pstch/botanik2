@@ -16,9 +16,9 @@
  * time-base argument on every call.
  */
 
-#include <cstdint>                    // uint32_t - the derivative window in milliseconds
+#include <cstdint>              // uint32_t
 
-#include "libbotanik_config.h"        // BOTANIK_FEATURE_PLC_BLK_BASE - the gate this whole header sits behind
+#include "libbotanik_config.h"  // BOTANIK_FEATURE_PLC_BLK_BASE
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {

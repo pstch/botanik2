@@ -18,23 +18,23 @@
  * render.
  */
 
-#include <cstdint>                    // uint8_t/uint16_t - the home-field grid coordinates
-#include <cstdio>                     // snprintf - the version and uptime readouts
-#include <cstring>                    // memset / strcmp / strlen - the field labels and values
+#include <cstdint>                          // uint8_t/uint16_t
+#include <cstdio>                           // snprintf
+#include <cstring>                          // memset / strcmp / strlen
 
-#include "libbotanik_config.h"        // Config::SITE_NAME / FIRMWARE_VERSION - the identity block
+#include "libbotanik_config.h"              // Config::SITE_NAME / FIRMWARE_VERSION
 
-#include "libbotanik/hal/platform.h"  // HAL::Clock::uptime_ms - the uptime cell
-#include "libbotanik/logs/format.h"   // Logs::format_log_entry - renders the log-tail band
-#include "libbotanik/logs/writer.h"   // Logs::BufferedLogWriter - the source of that tail
-#include "libbotanik/pages/metric_page.h" // Pages::MetricPage - the base this page's grid is built on
-#include "libbotanik/pages/scrollback.h" // Pages::HomeScrollback - the log-tail band's view
-#include "libbotanik/vars/access.h"   // Vars::HomeVar / var_format - the site's home fields
+#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
+#include "libbotanik/logs/format.h"         // Logs::format_log_entry
+#include "libbotanik/logs/writer.h"         // Logs::BufferedLogWriter
+#include "libbotanik/pages/metric_page.h"   // Pages::MetricPage
+#include "libbotanik/pages/scrollback.h"    // Pages::HomeScrollback
+#include "libbotanik/vars/access.h"         // Vars::HomeVar / var_format
 
 // Build-stamped git short hash (generated header); "unknown" when absent
 // (Arduino .ino deploy doesn't run CMake).
 #if defined(__has_include) && __has_include("botanik_gitversion.h")
-#  include "botanik_gitversion.h"     // BOTANIK_GIT_HASH - CMake-generated, absent in the .ino build
+#  include "botanik_gitversion.h"           // BOTANIK_GIT_HASH
 #endif
 #ifndef BOTANIK_GIT_HASH
 #  define BOTANIK_GIT_HASH "unknown"

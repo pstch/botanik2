@@ -1,96 +1,90 @@
-// REVIEW_35: TODO
+// REVIEW_35: DONE
 /**
  * @file alarm_bar.cpp
  * @brief AlarmBar implementation - bottom-row unmasked-alarm strip.
  */
-#include "libbotanik/console/alarm_bar.h" // AlarmBar - the bottom alarm bar implemented here
 
-#include <cstdint>                    // uint8_t/uint16_t/uint64_t - columns and the rotation timer
-#include <cstring>                    // strlen - measuring the condition name it shows
+#include <cstdint>                          // uint8_t/uint16_t/uint64_t
+#include <cstring>                          // strlen
 
-#include "libbotanik/alarms/alarms.h" // Alarms::AlarmController - which conditions are active
-#include "libbotanik/console/console.h" // Console::alarms / rows_total - where the bar sits
-#include "libbotanik/console/terminal.h" // AnsiTerminal - move_to / set_inverted / fill_spaces
+#include "libbotanik/alarms/alarms.h"       // Alarms::AlarmController
+#include "libbotanik/console/console.h"     // Console::alarms
+#include "libbotanik/console/terminal.h"    // AnsiTerminal
+#include "libbotanik/console/alarm_bar.h"   // AlarmBar
 
 namespace Botanik { namespace Terminal {
 
     AlarmBar::AlarmBar(Console& console)
-        : _c(console), _t(console.terminal()) {
-        // The strip frames the page from the bottom row, so page rows above it
-        // would all go first on a strict top-down walk. Chrome outranks the page
-        // to stop that; the set changes rarely enough that it costs the page
-        // nothing.
-        _t.set_row_priority(_row(), PRIO_CHROME);
+        : _console(console), _terminal(console.terminal()) {
+        _terminal.set_row_priority(_row(), PRIO_CHROME);
     }
 
     uint16_t AlarmBar::_row() const {
-        uint16_t rows = _t.rows_total();
+        uint16_t rows = _terminal.rows_total();
         return rows > 0 ? (uint16_t)(rows - 1) : 0;
     }
 
     uint64_t AlarmBar::unmasked_set() const {
         uint64_t m = 0;
-        const Alarms::AlarmController* alarms = _c.alarms();
-        if (alarms)
-            for (uint8_t i = 0; i < alarms->count(); i++) {
-                const Alarms::AlarmCondition& c = alarms->condition(i);
-                // An acknowledged alarm drops off the bar (still active, just no
-                // longer nagging); it re-appears if the condition clears and
-                // fires again, which resets the ack. The set is the bar's dirty
-                // signal, so an ack repaints it.
-                if (c.active && !c.user_ack) m |= Alarms::alarm_bit(i);
-            }
+        const Alarms::AlarmController* alarms = _console.alarms();
+        if (alarms) for (uint8_t i = 0; i < alarms->count(); i++) {
+            const Alarms::AlarmCondition& c = alarms->condition(i);
+            if (c.active && !c.user_ack) m |= Alarms::alarm_bit(i);
+        }
         return m;
     }
 
     void AlarmBar::draw() {
-        const Alarms::AlarmController* alarms = _c.alarms();
-        if (alarms == nullptr || _t.rows_total() == 0 || _t.cols() == 0) return;
+        // fetch alarm controller from the console
+        const Alarms::AlarmController* alarms = _console.alarms();
+
+        // bail-out if things look too weird
+        if (alarms == nullptr || _terminal.rows_total() == 0 || _terminal.cols() == 0) return;
+
         // physical last row (reserved for us)
         uint16_t row  = _row();
-        uint16_t cols = _t.cols();
+        uint16_t cols = _terminal.cols();
 
+        // write bar header
         static const char hdr[] = " ALARMS : ";
         uint16_t used = (uint16_t)(sizeof(hdr) - 1);
+        _terminal.move_to({row, 0});
+        _terminal.set_inverted(true);
+        _terminal.write_chars(hdr, used);
 
-        _t.move_to({row, 0});
-        _t.set_inverted(true);
-        _t.write_chars(hdr, used);
-
-        // Unmasked codes in normal video, each followed by an inverted space, so
-        // they read as a set against the reverse-video bar (like the active
-        // status tab).
+        // for each alarm condition...
         for (uint8_t i = 0; i < alarms->count(); i++) {
             const Alarms::AlarmCondition& c = alarms->condition(i);
-            // Skip ack'd alarms - same filter as unmasked_set() (the dirty
-            // signal), so the drawn codes match what triggered the repaint.
+            // skip ACK'd alarms
             if (!c.active || c.user_ack || c.code == nullptr) continue;
+            
+            // break if out of room on the row
             uint16_t clen = (uint16_t)strlen(c.code);
-            // out of room on the row
             if ((uint16_t)(used + clen + 1) > cols) break;
-            _t.set_inverted(false);
-            _t.write_chars(c.code, clen);
-            _t.set_inverted(true);
+
+            // write out the alarm's code
+            _terminal.set_inverted(false);
+            _terminal.write_chars(c.code, clen);
+            _terminal.set_inverted(true);
+            
             // inverted separator
-            _t.write_chars(" ", 1);
+            _terminal.write_chars(" ", 1);
             used = (uint16_t)(used + clen + 1);
         }
 
-        // Reverse-video fill to the end of the row (cursor tracks `used` here,
-        // since the gated bar always fits the floor and cannot short-write).
-        _t.fill_spaces(cols);
-        _t.set_inverted(false);
+        // Reverse-video fill to the end of the row
+        _terminal.fill_spaces(cols);
+        _terminal.set_inverted(false);
     }
 
     void AlarmBar::step() {
-        if (_c.alarms() == nullptr) return;
-        uint64_t sig = unmasked_set();
-        if (sig != _sig) _dirty = true;
-        if (!_dirty) return;
-        // Redraw the whole bar immediate-mode; the terminal diff pares the bytes.
-        draw();
-        _sig   = sig;
-        _dirty = false;
+        if (_console.alarms() == nullptr) return;   // bail-out if we have no alarms controller
+        uint64_t sig = unmasked_set();              // get the bitset of active alarms
+        if (sig != _sig) _dirty = true;             // determine if we need to redraw
+        if (!_dirty) return;                        // if not, we just bail out
+        draw();                                     // redraw the alarm bar
+        _sig   = sig;                               // update bitset of active alarms
+        _dirty = false;                             // reset dirty flag
     }
 
 }}

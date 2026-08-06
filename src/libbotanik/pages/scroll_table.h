@@ -22,12 +22,12 @@
  * and the diff pares it to the cells that actually moved.
  */
 
-#include <cstdint>                    // uint8_t/uint16_t/int32_t - column widths, cursor, scroll top
-#include <cstdio>                     // snprintf - assembling a row's cells
-#include <cstring>                    // strlen - measuring a cell against its column width
+#include <cstdint>                          // uint8_t/uint16_t/int32_t
+#include <cstdio>                           // snprintf
+#include <cstring>                          // strlen
 
-#include "libbotanik/console/terminal.h" // AnsiTerminal - move_to / scroll_region / set_inverted
-#include "libbotanik/pages/page.h"    // Pages::Page - the interface this base implements
+#include "libbotanik/console/terminal.h"    // AnsiTerminal
+#include "libbotanik/pages/page.h"          // Pages::Page
 
 namespace Botanik { namespace Pages {
 

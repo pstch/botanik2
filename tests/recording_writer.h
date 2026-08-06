@@ -1,11 +1,11 @@
 #ifndef BOTANIK_TESTS_RECORDING_WRITER_H
 #define BOTANIK_TESTS_RECORDING_WRITER_H
 
-#include <cstdint>                    // uint32_t - the recorded entry counters
-#include <cstring>                    // memcpy - copying each entry's message out
-#include <string>                     // std::string - the recorded messages the tests assert on
+#include <cstdint>                  // uint32_t
+#include <cstring>                  // memcpy
+#include <string>                   // std::string
 
-#include "libbotanik/logs/logger.h"   // Logs::LogWriter - the interface this fake implements
+#include "libbotanik/logs/logger.h" // Logs::LogWriter
 
 namespace Botanik {
 

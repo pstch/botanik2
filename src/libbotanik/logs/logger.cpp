@@ -10,12 +10,12 @@
  * one, so that messages suppressed by their topic-specific bucket don't
  * drain the global bucket.
  */
-#include "libbotanik/logs/logger.h"   // Logger - what this file implements
+#include "libbotanik/logs/logger.h"     // Logger
 
-#include <algorithm>                  // std::min - clamp the token buckets to their capacity
-#include <cstdio>                     // vsnprintf - formats the caller's message into the entry
+#include <algorithm>                    // std::min
+#include <cstdio>                       // vsnprintf
 
-#include "libbotanik/hal/platform.h"  // HAL::Clock::current_ms - stamps the entry, refills the buckets
+#include "libbotanik/hal/platform.h"    // HAL::Clock::current_ms
 
 namespace Botanik { namespace Logs {
 

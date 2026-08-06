@@ -8,14 +8,14 @@
  *        live log output.
  */
 
-#include "libbotanik_config.h"        // BOTANIK_FEATURE_SHELL_PAGE - the gate this header sits behind
+#include "libbotanik_config.h"              // BOTANIK_FEATURE_SHELL_PAGE
 
-#include "libbotanik/console/console.h" // Console::rows / terminal - the content area to paint
-#include "libbotanik/console/editor.h" // Terminal::TextEditor - the bottom-anchored prompt
-#include "libbotanik/logs/writer.h"   // Logs::BufferedLogWriter - the `logs` built-in's source
-#include "libbotanik/pages/page.h"    // Pages::Page - the interface this page implements
-#include "libbotanik/pages/scrollback.h" // Pages::ShellScrollback - the command/output transcript
-#include "libbotanik/shell/shell.h"   // Shell::CommandShell - the interpreter this page owns
+#include "libbotanik/console/console.h"     // Console::rows / terminal
+#include "libbotanik/console/editor.h"      // Terminal::TextEditor
+#include "libbotanik/logs/writer.h"         // Logs::BufferedLogWriter
+#include "libbotanik/pages/page.h"          // Pages::Page
+#include "libbotanik/pages/scrollback.h"    // Pages::ShellScrollback
+#include "libbotanik/shell/shell.h"         // Shell::CommandShell
 
 namespace Botanik { namespace Pages {
 
@@ -129,6 +129,20 @@ namespace Botanik { namespace Pages {
         void _setup_editor();
         /** @brief Repaint the whole page (header, log area, editor). */
         void _full_redraw();
+
+        /** @brief Rows the transcript window spans: the content area less the
+         *  editor's, so the scroll band never reaches the prompt. It moves as
+         *  the prompt grows, hence a call and not a member. */
+        uint16_t _log_rows() const;
+
+        /** @brief Return the transcript to the live bottom; no-op unless
+         *  scrolled back. Every key but PAGE_UP/PAGE_DOWN does this, the way a
+         *  Linux terminal's scroll-on-keystroke does - and it is what keeps the
+         *  frozen view honest: the editor moves the log band without telling
+         *  the scrollback (line_feed() on submit, the band shift when the
+         *  prompt shrinks), so anything editing the line must land at the
+         *  bottom first. */
+        void _follow_tail();
 
         /** @brief Snapshot the current line into @p line, echo it to history and
          *  reset to a fresh prompt. @return the line length. Shared by submit and

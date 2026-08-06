@@ -3,13 +3,13 @@
  * @brief Parameter persistence, editing and by-name reads.
  */
 
-#include "libbotanik/vars/params.h"   // Params / KvParamStore - what this file implements
+#include "libbotanik/vars/params.h" // Params / KvParamStore
 
-#include <cstring>                    // memcpy / strlen - the per-parameter key and value bytes
+#include <cstring>                  // memcpy / strlen
 
-#include "libbotanik/hal/storage.h"   // HAL::Storage::set/get/remove - one key per parameter
-#include "libbotanik/logs/logger.h"   // Logs::Logger - reports a load or persist that failed
-#include "libbotanik/vars/access.h"   // Vars::var_format / text_at - render and reach a row's text
+#include "libbotanik/hal/storage.h" // HAL::Storage::set/get/remove
+#include "libbotanik/logs/logger.h" // Logs::Logger
+#include "libbotanik/vars/access.h" // Vars::var_format / text_at
 
 namespace Botanik { namespace Vars {
 
@@ -26,7 +26,7 @@ namespace Botanik { namespace Vars {
             if (!HAL::Storage::get(d.name, text, cap, &n)) return false;
             // A stored value that filled the slot leaves no room for the NUL.
             text[n < cap ? n : (size_t)cap - 1] = 0;
-            v.valid = true;
+            v.qual = Q_GOOD;
             return true;
         }
         const uint8_t w = type_width(d.type);
@@ -44,7 +44,7 @@ namespace Botanik { namespace Vars {
         }
         else                          { s = Scalar::U(raw); }
         v.v = s;
-        v.valid = true;
+        v.qual = Q_GOOD;
         return true;
     }
 

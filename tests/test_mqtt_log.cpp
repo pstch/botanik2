@@ -5,17 +5,17 @@
  *        "<timestamp> <message>" payload. The publish path itself needs a live
  *        broker, so it is exercised by the sim, not here.
  */
-#include <cstring>                    // memset / strcmp / strncpy / strstr - inspecting the built topic
-#include <string>                     // std::string - the topics asserted on
+#include <cstring>                          // memset / strcmp / strncpy / strstr
+#include <string>                           // std::string
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
+#include "doctest.h"
 
 // Pulls the site config, then the feature defaults: the guards below
 // need the flags DEFINED, and an undefined one reads as 0 in #if.
-#include "libbotanik_config.h"        // Config::MQTT_TOPIC_PREFIX / LOG_TOPIC - the expected topic shape
+#include "libbotanik_config.h"              // Config::MQTT_TOPIC_PREFIX / LOG_TOPIC
 
-#include "libbotanik/logs/format.h"   // Logs::format_log_level_name / _topic_name - the path segments
-#include "libbotanik/network/mqtt_log.h" // Network::MqttLogWriter::build_topic - under test
+#include "libbotanik/logs/format.h"         // Logs::format_log_level_name / _topic_name
+#include "libbotanik/network/mqtt_log.h"    // Network::MqttLogWriter::build_topic
 
 // Compiles to an empty TU when the feature is off (MqttLogWriter is the LOGS_PUBLISH transport),
 // contributing no CTest cases - the shape test_sun.cpp uses.

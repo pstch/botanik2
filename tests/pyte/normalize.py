@@ -54,6 +54,12 @@ _SUBS = [
     # the bar, so it is unaffected. (The bar's ALARM_START/END log lines are dropped
     # as noise below.)
     (re.compile(r"^( ALARMS :).*$"), r"\g<1><BAR>"),
+    # Every table's window counter, "first-last / total" on the mode line. The
+    # total is the size of the site's variable table, so adding or removing one
+    # row rewrites a golden on three pages while saying nothing about the layout
+    # they exist to pin. Masked to a token padded back to the width it replaced,
+    # so the mode line's later columns (the alarms page has two) stay put.
+    (re.compile(r"\d+-\d+ / \d+"), lambda m: "<N>".ljust(len(m.group(0)))),
     # Alarms page footer "... N active": how many conditions are currently raised
     # is live state the fast greenhouse cycles, so mask the count (the "SPACE:
     # active" mode hint has no leading digit and is left alone). "N listed" is the

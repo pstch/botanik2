@@ -14,13 +14,13 @@
  *
  * @see @ref cpptests
  */
-#include <cstddef>                    // size_t / offsetof - the struct-size and layout assertions
+#include <cstddef>              // size_t / offsetof
 
-#include "libbotanik_site.h"          // resolves BOTANIK_SITE -> BOTANIK_SITE_HEADER
-#include "libbotanik.h"               // every library type whose footprint is pinned here
+#include "libbotanik_site.h"    // resolves BOTANIK_SITE -> BOTANIK_SITE_HEADER
+#include "libbotanik.h"
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
-#include BOTANIK_SITE_HEADER          // selected site: its tables + parameter image
+#include "doctest.h"
+#include BOTANIK_SITE_HEADER
 
 // Concrete instantiations of the templated pages, matching what the
 // simulator actually builds (see botanik_sim/main.cpp).

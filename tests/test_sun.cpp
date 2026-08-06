@@ -14,13 +14,13 @@
  * declination swings to +/-obliquity at the solstices and ~0 at the equinoxes.
  * Latitudes are north +, longitudes east +.
  */
-#include <cmath>                      // std::abs - the floating-point tolerance checks
-#include <cstdint>                    // uint64_t - the wall-clock timestamps positions are computed for
+#include <cmath>                        // std::abs
+#include <cstdint>                      // uint64_t
 
-#include "libbotanik/sun/sun_tracker.h" // Sun::solar_elevation + SolarPosition - under test
-#include "libbotanik/utils/time.h"    // Utils - building the test timestamps
+#include "libbotanik/sun/sun_tracker.h" // Sun::solar_elevation + SolarPosition
+#include "libbotanik/utils/time.h"      // Utils
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
+#include "doctest.h"
 
 #if BOTANIK_FEATURE_SUN_TRACKER
 

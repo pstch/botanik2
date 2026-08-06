@@ -3,11 +3,11 @@
  * @brief TaskTimer (scheduler/task_timer.h): the due/late/dropped rule on its
  *        own, including the edges the scan driver only reaches indirectly.
  */
-#include <cstdint>                    // uint16_t/uint32_t/uint64_t - period, offset, last-run stamp
+#include <cstdint>                              // uint16_t/uint32_t/uint64_t
 
-#include "libbotanik/scheduler/task_timer.h" // Scheduler::TaskTimer - under test
+#include "libbotanik/scheduler/task_timer.h"    // Scheduler::TaskTimer
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
+#include "doctest.h"
 
 using Botanik::Scheduler::TaskTimer;
 

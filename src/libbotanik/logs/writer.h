@@ -11,12 +11,12 @@
  * (formats entries and writes them to a BufferedSerial port).
  */
 
-#include <cstdint>                    // uint8_t/uint32_t/uint64_t - queue indices and stamps
+#include <cstdint>                      // uint8_t/uint32_t/uint64_t
 
-#include "libbotanik_config.h"        // Config::LOG_QUEUE_* - the buffered writer's FIFO depth
+#include "libbotanik_config.h"          // Config::LOG_QUEUE_*
 
-#include "libbotanik/logs/entry.h"    // Logs::LogEntry - what a writer accepts
-#include "libbotanik/utils/serial.h"  // Utils::BufferedSerial - SerialLogWriter's transport
+#include "libbotanik/logs/entry.h"      // Logs::LogEntry
+#include "libbotanik/utils/serial.h"    // Utils::BufferedSerial
 
 namespace Botanik { namespace Logs {
 

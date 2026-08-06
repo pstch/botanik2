@@ -4,17 +4,17 @@
  *        file). Points the store at a throwaway per-test file via
  *        $BOTANIK_CONFIG_STORE and starts each case from empty.
  */
-#include <cstdint>                    // uint8_t/uint32_t - the byte payloads and fault counter
-#include <cstdio>                     // snprintf - building the temporary store path
-#include <cstdlib>                    // setenv / unsetenv - $BOTANIK_CONFIG_STORE points at a temp file
-#include <cstring>                    // memcmp / strlen - comparing the stored bytes
-#include <unistd.h>                   // unlink - removing that temp file
+#include <cstdint>                  // uint8_t/uint32_t
+#include <cstdio>                   // snprintf
+#include <cstdlib>                  // setenv / unsetenv
+#include <cstring>                  // memcmp / strlen
+#include <unistd.h>                 // unlink
 
-#include "libbotanik_config.h"        // Config::STORE_MAX_BYTES - the cap the tests probe
+#include "libbotanik_config.h"      // Config::STORE_MAX_BYTES
 
-#include "libbotanik/hal/storage.h"   // HAL::Storage - under test
+#include "libbotanik/hal/storage.h" // HAL::Storage
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
+#include "doctest.h"
 
 using namespace Botanik::HAL;
 namespace Config = Botanik::Config;

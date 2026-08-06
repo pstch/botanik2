@@ -13,8 +13,8 @@
  * that actually changed, so the bar keeps no diff cache.
  */
 
-#include <cstddef>                    // size_t - the metric-string buffer capacities
-#include <cstdint>                    // uint16_t/uint64_t - the tab columns and the clock stamp
+#include <cstddef>  // size_t
+#include <cstdint>  // uint16_t/uint64_t
 
 namespace Botanik { namespace Terminal {
 
@@ -28,9 +28,9 @@ namespace Botanik { namespace Terminal {
          *  @{ */
 
         /** @brief The console this bar belongs to (page state + context). */
-        Console&            _c;
-        /** @brief The VT device it paints through (cached _c.terminal()). */
-        AnsiTerminal&       _t;
+        Console&            _console;
+        /** @brief The VT device it paints through (cached _console.terminal()). */
+        AnsiTerminal&       _terminal;
         /** @brief Last refresh of the row (clock and metrics share the gate). */
         uint64_t            _last_ms = 0;
 

@@ -59,8 +59,8 @@
  * `tests/test_site_names.cpp` fails before either of those is reached.
  */
 
-#include "libbotanik/alarms/platform.h" // BOTANIK_PLATFORM_ALARM_VARS - the alarm group
-#include "libbotanik/vars/declare.h"  // the A/P/G/SV factories the groups are written with
+#include "libbotanik/alarms/platform.h" // BOTANIK_PLATFORM_ALARM_VARS
+#include "libbotanik/vars/declare.h"    // the A/P/G/SV factories the groups are written with
 
 /** @name The four groups
  *
@@ -124,11 +124,11 @@
 #define BOTANIK_LIBRARY_PARAM_VARS                                             \
     ::Botanik::Vars::P("serial_console_baud", ::Botanik::Vars::T_U32,          \
         BOTANIK_CONSOLE_BAUD, 1200, 921600, 0, "Bd", 900,                      \
-        "Console UART rate",                                                   \
+        "console UART rate",                                                   \
         "retunes the wire AND the render budget; reconnect at the new rate"),  \
     ::Botanik::Vars::P("serial_monitor_baud", ::Botanik::Vars::T_U32,          \
         BOTANIK_MONITOR_BAUD, 1200, 921600, 0, "Bd", 901,                      \
-        "Monitor UART rate",                                                   \
+        "monitor UART rate",                                                   \
         "log-only port; ignored on the OPTA, whose MONITOR is USB CDC"),
 
 /** @} */

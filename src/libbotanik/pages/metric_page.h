@@ -20,18 +20,18 @@
  * draw_dynamic() (values, per refresh).
  */
 
-#include <cstdint>                    // uint16_t/uint32_t/uint64_t - slots, cached values, stamps
-#include <cstdio>                     // snprintf - rendering a metric into its cell
-#include <cstring>                    // memcpy / memset / strlen - the value cache
+#include <cstdint>                          // uint16_t/uint32_t/uint64_t
+#include <cstdio>                           // snprintf
+#include <cstring>                          // memcpy / memset / strlen
 
-#include "libbotanik_config.h"        // Config::METRIC_* - how many slots a page has
+#include "libbotanik_config.h"              // Config::METRIC_*
 
-#include "libbotanik/console/console.h" // Console::rows / terminal - the content area to paint
-#include "libbotanik/console/field.h" // Terminal::Field - the change-highlight bookkeeping
-#include "libbotanik/console/terminal.h" // AnsiTerminal - move_to / write_chars / paint_field_runs
-#include "libbotanik/hal/platform.h"  // HAL::Clock::uptime_ms - ages the change highlight
-#include "libbotanik/pages/page.h"    // Pages::Page - the interface this base implements
-#include "libbotanik/utils/assert.h"  // BOTANIK_ASSERT - the DEBUG slot-index guard
+#include "libbotanik/console/console.h"     // Console::rows / terminal
+#include "libbotanik/console/field.h"       // Terminal::Field
+#include "libbotanik/console/terminal.h"    // AnsiTerminal
+#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
+#include "libbotanik/pages/page.h"          // Pages::Page
+#include "libbotanik/utils/assert.h"        // BOTANIK_ASSERT
 
 namespace Botanik { namespace Pages {
 

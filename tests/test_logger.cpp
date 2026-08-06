@@ -4,15 +4,15 @@
  *        the writer's critical-eviction (REPORT-SLOT) and the Logger's
  *        edge-triggered sink-drop reporting (REPORT-EDGE).
  */
-#include <algorithm>                  // std::find - locating an entry in the recorded list
-#include <cstdint>                    // UINT16_MAX / uint32_t - the token buckets and sequence numbers
-#include <string>                     // std::string - the recorded messages asserted on
-#include <vector>                     // std::vector - the recorded entry list
+#include <algorithm>                // std::find
+#include <cstdint>                  // UINT16_MAX / uint32_t
+#include <string>                   // std::string
+#include <vector>                   // std::vector
 
-#include "libbotanik/logs/logger.h"   // Logs::Logger - under test (rate limiting, criticals)
+#include "libbotanik/logs/logger.h" // Logs::Logger
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
-#include "recording_writer.h"         // RecordingWriter - the fake sink the assertions read
+#include "doctest.h"
+#include "recording_writer.h"       // RecordingWriter
 
 using namespace Botanik;
 

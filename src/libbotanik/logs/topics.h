@@ -12,9 +12,9 @@
  * compacted, because it is what sits in already-written log records.
  */
 
-#include <cstdint>                    // uint8_t - the LogLevel / LogTopic underlying type
+#include <cstdint>              // uint8_t
 
-#include "libbotanik_config.h"        // Config::LOG_MIN_LEVEL - the compiled-in floor
+#include "libbotanik_config.h"  // Config::LOG_MIN_LEVEL
 
 namespace Botanik { namespace Logs {
 
