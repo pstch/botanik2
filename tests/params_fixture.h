@@ -38,7 +38,10 @@ namespace botanik_test {
                 FX_NUM("ntp_poll_s", T_U16, 64), FX_STR("ntp_server1", CAP),
                 FX_NUM("mqtt_serial", T_U32, 0), FX_NUM("mqtt_enabled", T_BOOL, 1),
                 FX_NUM("mqtt_port", T_U16, 1883), FX_STR("mqtt_broker", 2 * CAP),
-                FX_NUM("geo_serial", T_U32, 0), FX_F32("geo_latitude"), FX_F32("geo_longitude"),
+                // Names must match the site's (src/sites/*/vars.h) and therefore
+                // what SunPositionTracker looks up: a miss resolves to the inert
+                // sink and reads 0, which silently puts the site on the equator.
+                FX_NUM("geo_serial", T_U32, 0), FX_F32("geo_lat_deg"), FX_F32("geo_lon_deg"),
             };
             *n = (uint16_t)(sizeof(v) / sizeof(v[0]));
             return v;

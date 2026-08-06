@@ -31,8 +31,8 @@ TEST_CASE("SunPositionTracker: computes elevation from geo config") {
     const int32_t LAT = 488566000;   // Paris 48.8566 N
     const int32_t LON =  23522000;   //       2.3522 E
     fx.set_num("geo_serial", 1);
-    fx.set_num("geo_latitude", (float)deg(LAT));
-    fx.set_num("geo_longitude", (float)deg(LON));
+    fx.set_num("geo_lat_deg", (float)deg(LAT));
+    fx.set_num("geo_lon_deg", (float)deg(LON));
     fx.publish();
 
     SunPositionTracker sun(&fx.bank());
@@ -51,8 +51,8 @@ TEST_CASE("SunPositionTracker: exposes peak, ratio and rising from the same samp
     const int32_t LAT = 488566000;   // Paris 48.8566 N
     const int32_t LON =  23522000;   //       2.3522 E
     fx.set_num("geo_serial", 1);
-    fx.set_num("geo_latitude", (float)deg(LAT));
-    fx.set_num("geo_longitude", (float)deg(LON));
+    fx.set_num("geo_lat_deg", (float)deg(LAT));
+    fx.set_num("geo_lon_deg", (float)deg(LON));
     fx.publish();
 
     SunPositionTracker sun(&fx.bank());
@@ -75,8 +75,8 @@ TEST_CASE("SunPositionTracker: throttles recomputation between cadence ticks") {
     const int32_t LAT = 488566000;   // Paris
     const int32_t LON =  23522000;
     fx.set_num("geo_serial", 1);
-    fx.set_num("geo_latitude", (float)deg(LAT));
-    fx.set_num("geo_longitude", (float)deg(LON));
+    fx.set_num("geo_lat_deg", (float)deg(LAT));
+    fx.set_num("geo_lon_deg", (float)deg(LON));
     fx.publish();
 
     SunPositionTracker sun(&fx.bank());
@@ -99,8 +99,8 @@ TEST_CASE("SunPositionTracker: throttles recomputation between cadence ticks") {
 TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial changes") {
     botanik_test::ParamFixture fx;
     fx.set_num("geo_serial", 1);
-    fx.set_num("geo_latitude", 48.8566f);   // Paris
-    fx.set_num("geo_longitude", 2.3522f);
+    fx.set_num("geo_lat_deg", 48.8566f);   // Paris
+    fx.set_num("geo_lon_deg", 2.3522f);
     fx.publish();
 
     SunPositionTracker sun(&fx.bank());
@@ -112,8 +112,8 @@ TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial cha
     const int32_t LAT = -338700000;   // -33.87
     const int32_t LON = 1512100000;   // 151.21 E
     fx.set_num("geo_serial", 2);
-    fx.set_num("geo_latitude", (float)deg(LAT));
-    fx.set_num("geo_longitude", (float)deg(LON));
+    fx.set_num("geo_lat_deg", (float)deg(LAT));
+    fx.set_num("geo_lon_deg", (float)deg(LON));
     fx.publish();
 
     uint64_t now = HAL::Clock::uptime_ms();
