@@ -217,6 +217,12 @@ namespace Botanik { namespace HAL { namespace Network {
         g_tcp_ptr[i] = peer; g_tcp_used[i] = true;
         return i;
     }
+    bool tcp_peer(TcpSocket s, Ip4* out) {
+        if (!tcp_valid(s) || out == 0) return false;
+        SocketAddress a;
+        if (sock(s)->getpeername(&a) != NSAPI_ERROR_OK) return false;
+        return addr_to_ip4(a, out);
+    }
     int tcp_send(TcpSocket s, const void* buf, size_t len) {
         if (!tcp_valid(s)) return -1;
         nsapi_size_or_error_t r = sock(s)->send(buf, len);
@@ -485,6 +491,13 @@ namespace Botanik { namespace HAL { namespace Network {
         int fd = ::accept(listener, 0, 0);
         if (fd < 0) return -1;                   // nothing pending, or a dead listener
         return set_nonblock(fd);
+    }
+    bool tcp_peer(TcpSocket s, Ip4* out) {
+        if (s < 0 || out == 0) return false;
+        sockaddr_in sin; socklen_t sl = sizeof(sin);
+        if (::getpeername(s, reinterpret_cast<sockaddr*>(&sin), &sl) < 0) return false;
+        memcpy(out->b, &sin.sin_addr, 4);
+        return true;
     }
     int tcp_send(TcpSocket s, const void* buf, size_t len) {
         if (s < 0) return -1;

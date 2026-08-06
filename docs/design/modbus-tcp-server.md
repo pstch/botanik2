@@ -248,10 +248,15 @@ Behind `BOTANIK_FEATURE_MODBUS_TCP_SERVER`, which is already declared with its
 dependency rules (`NETWORK`, `PLC_SCAN`).
 
 **Config** (`libbotanik_config.h`, its own group): `MODBUS_TCP_PORT` 502,
-`MODBUS_UNIT_ID` 1, `MODBUS_MAX_CONN` 2, `MODBUS_ADU_MAX` 260 (the protocol
-ceiling: 7 MBAP + 253 PDU), `MODBUS_IDLE_TIMEOUT_MS` 60000,
-`MODBUS_ACCEPT_PER_STEP` 1, `MODBUS_WRITES_PER_STEP` 1,
-`MODBUS_ACK_COIL_BASE` 0x1000.
+`MODBUS_UNIT_ID` 1, `MODBUS_MAX_CONN` 2, `MODBUS_IDLE_TIMEOUT_MS` 60000,
+`MODBUS_ACCEPT_PER_STEP` 1, `MODBUS_MAX_ROWS` 256, `MODBUS_ACK_COIL_BASE` 0x1000.
+The ADU ceiling is not config: it is the protocol's (7 + 253) and lives in
+`pdu.h` as `ADU_MAX`.
+
+`MODBUS_WRITES_PER_STEP` turned out unnecessary. A write commits only rows whose
+value actually CHANGED, and a master re-asserting a block changes nothing, so the
+per-beat flash cost is bounded by how often an operator actually moves a setpoint
+rather than by how often the master polls.
 
 Two connections at 520 bytes of buffer each is about 1 KB of RAM, plus the map's
 one `uint16_t` per mapped row.
@@ -355,7 +360,11 @@ Each step builds and leaves the gate green:
    Nothing depends on the bank yet.
 4. **Done.** `modbus/map` over the bank, plus the `Scalar` overload of
    `Bank::set()` it needs. Still no sockets.
-5. `modbus/server`, the two tasks, the feature gate, the config group.
+5. **Done.** `modbus/server`: the listener, the connection slots, the two
+   per-beat entry points, the `mb` parameter group and its four site rows
+   (registers 80..83). `tcp_peer()` joined the HAL so a commit can be logged
+   against the master that made it. Not yet registered as tasks - that is the
+   wiring step, and nothing instantiates the server until then.
 6. The ack coil block, once the alarm rows and the map are both real.
 7. The simulator's Modbus TCP master, which is how all of the above is tested.
 8. `tools/varmap` + the CMake rule + `scripts/varmap_pdf.py`.

@@ -725,6 +725,45 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, MODBUS_MAX_ROWS);
 
+    /** @brief Port the slave listens on when the `mb_port` parameter is absent.
+     *  502 is the registered one; the simulator serves it at 10502, since a
+     *  process without CAP_NET_BIND_SERVICE cannot bind below 1024. */
+#ifndef BOTANIK_MODBUS_TCP_PORT
+#  define BOTANIK_MODBUS_TCP_PORT 502
+#endif
+    BOTANIK_CFG(uint16_t, MODBUS_TCP_PORT);
+
+    /** @brief The unit id this slave answers as. It ACCEPTS any and echoes what
+     *  it was sent - a TCP slave that refuses unit 0 or 255 fails against half
+     *  the diagnostic tools out there - and counts the ones that do not match
+     *  this, which is what makes a misaddressed master visible. */
+#ifndef BOTANIK_MODBUS_UNIT_ID
+#  define BOTANIK_MODBUS_UNIT_ID 1
+#endif
+    BOTANIK_CFG(uint8_t, MODBUS_UNIT_ID);
+
+    /** @brief Concurrent masters. Each costs two ADU buffers (~520 bytes), and
+     *  two is a SCADA plus somebody's laptop. */
+#ifndef BOTANIK_MODBUS_MAX_CONN
+#  define BOTANIK_MODBUS_MAX_CONN 2
+#endif
+    BOTANIK_CFG(uint8_t, MODBUS_MAX_CONN);
+
+    /** @brief A connection with no complete request within this is reaped. What
+     *  it defends against is a master that opens sockets and forgets them: the
+     *  slots are few, so one leak is half the capacity. */
+#ifndef BOTANIK_MODBUS_IDLE_TIMEOUT_MS
+#  define BOTANIK_MODBUS_IDLE_TIMEOUT_MS 60000
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_IDLE_TIMEOUT_MS);
+
+    /** @brief Connections accepted per beat. One: accepting is cheap, but the
+     *  beat is the budget and a burst of them belongs spread over beats. */
+#ifndef BOTANIK_MODBUS_ACCEPT_PER_STEP
+#  define BOTANIK_MODBUS_ACCEPT_PER_STEP 1
+#endif
+    BOTANIK_CFG(uint8_t, MODBUS_ACCEPT_PER_STEP);
+
     /** @}
      *  @name Sun position tracking
      *  @{ */

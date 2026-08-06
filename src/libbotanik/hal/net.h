@@ -132,6 +132,10 @@ namespace Botanik { namespace HAL { namespace Network {
      *  polls this every beat and does the same thing either way - nothing. The
      *  returned socket is an ordinary one, closed with tcp_close(). */
     TcpSocket tcp_accept(TcpSocket listener);
+    /** @brief The address at the far end of @p s into @p out; false if it has
+     *  none (not connected). What a server logs a write against - over Modbus
+     *  the peer address is all the identity there is. */
+    bool      tcp_peer(TcpSocket s, Ip4* out);
     /** @brief Send: bytes written, <0 error. */
     int       tcp_send(TcpSocket s, const void* buf, size_t len);
     /** @brief Recv: >0 bytes, 0 would-block, <0 closed. */

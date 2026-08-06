@@ -177,7 +177,8 @@ const Variable g_vars[] = {
  *      ntp   20.. 39      sol  200..249
  *      mqtt  40.. 59      irr  250..399
  *      geo   60.. 79      pwr  400..469
- *      (80..99 spare)     (470..499 spare)
+ *      mb    80.. 89      (470..499 spare)
+ *      (90..99 spare)
  *
  *  Status values live at 500+, alarms at 800..899 and the library's own rows at
  *  900..999, so the four kinds never collide and the number itself says which
@@ -200,6 +201,10 @@ const Variable g_vars[] = {
     P("geo_serial",           T_U32,  1,       0,      9999,    0,  "",     60,  "Geo config commit",                   ""),
     P("geo_lat_deg",          T_F32,  48.07,   -90.0,  90.0,    2,  "deg",  61,  "Geographical latitude, in degrees",   "per site location"),
     P("geo_lon_deg",          T_F32,  1.32,    -180.0, 180.0,   2,  "deg",  62,  "Geographical longitude, in degrees",  "per site location"),
+    P("mb_serial",            T_U32,  1,       0,      9999,    0,  "",     80,  "Modbus slave config commit",          "bump to rebind the listener"),
+    P("mb_enable",            T_BOOL, 1,       0,      1,       0,  "",     81,  "Serve the Modbus TCP slave",          ""),
+    P("mb_port",              T_U16,  502,     1,      65535,   0,  "",     82,  "Modbus TCP slave port",               "standard is 502"),
+    P("mb_write_enable",      T_BOOL, 1,       0,      1,       0,  "",     83,  "Let a master write parameters",       "off makes the slave read-only"),
     P("cli_coldBankOfs_degC", T_F32,  6.0,     0.0,    15.0,    1,  "degC", 100, "How much cooler to run before a hot", ""),
     P("cli_heatBankOfs_degC", T_F32,  7.0,     0.0,    15.0,    1,  "degC", 101, "How much warmer to run before cold",  ""),
     P("cli_heatBankTrg_degC", T_F32,  10.0,    6.0,    18.0,    1,  "degC", 102, "Yesterday's low below this: bank",    ""),
