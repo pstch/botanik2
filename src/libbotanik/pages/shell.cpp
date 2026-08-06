@@ -46,15 +46,19 @@ namespace Botanik { namespace Pages {
     }
 
     void ShellPage::handle_command(Command cmd, uint16_t count) {
-        // PAGE_UP/PAGE_DOWN are the transcript's, not the editor's: they touch
-        // no editor state, so they return before the suppress/occupied-rows
-        // bookkeeping below. A page step keeps one row of overlap, the way a
-        // pager does; scroll() clamps a longer move to a screenful.
-        if (cmd == Command::PAGE_UP || cmd == Command::PAGE_DOWN) {
+        // The transcript's keys, not the editor's: they touch no editor state,
+        // so they return before the suppress/occupied-rows bookkeeping below.
+        // Shift+arrow goes a line at a time (plain UP/DOWN are the command
+        // history here); a page keeps one row of overlap, the way a pager does,
+        // and scroll() clamps a longer move to a screenful.
+        if (cmd == Command::PAGE_UP   || cmd == Command::PAGE_DOWN ||
+            cmd == Command::SHIFT_UP  || cmd == Command::SHIFT_DOWN) {
+            const bool up   = (cmd == Command::PAGE_UP || cmd == Command::SHIFT_UP);
+            const bool line = (cmd == Command::SHIFT_UP || cmd == Command::SHIFT_DOWN);
             uint16_t log_rows = _log_rows();
-            uint16_t step     = (log_rows > 1) ? (uint16_t)(log_rows - 1) : 1;
-            _scrollback.scroll(_terminal, cmd == Command::PAGE_UP, step, 1,
-                               log_rows);
+            uint16_t step     = 1;
+            if (!line) step = (log_rows > 1) ? (uint16_t)(log_rows - 1) : 1;
+            _scrollback.scroll(_terminal, up, step, 1, log_rows);
             return;
         }
         // Every other key returns to the live bottom first.
