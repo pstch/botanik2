@@ -83,6 +83,17 @@
 #  endif
 #endif
 
+// --- Modbus TCP slave -----------------------------------------------------
+// The site is on a plant network with a SCADA master, so it serves its
+// parameters and status values. Also what puts modbus/ and its tests into the
+// build: the flag is off in the header, and those files are wholly
+// #if BOTANIK_FEATURE_MODBUS_TCP_SERVER.
+#if !defined(BOTANIK_FEATURE_NETWORK) || BOTANIK_FEATURE_NETWORK
+#  ifndef BOTANIK_FEATURE_MODBUS_TCP_SERVER
+#    define BOTANIK_FEATURE_MODBUS_TCP_SERVER 1
+#  endif
+#endif
+
 // --- PLC: the control programs use Ton / Sr / Deadband -------------------
 #ifndef BOTANIK_FEATURE_PLC_BLK_BASE
 #  define BOTANIK_FEATURE_PLC_BLK_BASE    1

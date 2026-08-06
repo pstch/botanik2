@@ -346,7 +346,11 @@ Each step builds and leaves the gate green:
    port this process serves, which is what makes the server reachable in-process
    (@ref dev_network); the OPTA slot table grew a pointer arm, since an accepted
    Mbed socket is a heap allocation rather than one of ours.
-3. `modbus/pdu` + its test. Nothing depends on the bank yet.
+3. **Done.** `modbus/pdu` + its test, and `gh_mlb41` turns the feature on so the
+   suites compile it. Framing errors (protocol id, declared length) are fatal to
+   the connection; content errors (unknown function, a count past a ceiling, a
+   byte count disagreeing with its quantity) answer with an exception and keep
+   it. Nothing depends on the bank yet.
 4. `modbus/map` over the bank + its test. Still no sockets.
 5. `modbus/server`, the two tasks, the feature gate, the config group.
 6. The ack coil block, once the alarm rows and the map are both real.

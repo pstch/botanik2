@@ -63,7 +63,7 @@ the build log. Guard every feature flag a site pins.
 | `PLC_SCAN` | **on** | - | `Scan::Driver`. Off does *not* remove control authority: the Bank's enable/disable latch has consumers of its own |
 | `PLC_BLK_BASE` | off | - | the base blocks: timers, logic, analog, meter, pid, actuator |
 | `PLC_BLK_FILTERS` | off | - | the filter blocks: `Ewma`, `MedianOf3`, `MovingAverage`. Distinct from `utils/filters.h`, the scheduler's metric filter |
-| `MODBUS_TCP_SERVER` | off | `NETWORK`, `PLC_SCAN` | *reserved* - no implementation yet |
+| `MODBUS_TCP_SERVER` | off | `NETWORK`, `PLC_SCAN` | the Modbus TCP slave. **Being built** - `modbus/pdu` (the wire codec) is in; the map and the server are not, so turning it on compiles the codec and its tests and serves nothing yet |
 | `MODBUS_RTU_CLIENT` | off | `PLC_SCAN` | *reserved* - no implementation yet |
 
 (Each is spelled `BOTANIK_FEATURE_<NAME>`.)
