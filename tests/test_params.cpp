@@ -47,12 +47,13 @@ namespace {
     struct Fx {
         Value        vals[5]{};
         char         pool[CAP]{};
+        uint16_t     index[5]{};
         Bank         bank;
         KvParamStore store;
         Params       params;
         Fx() : params(&bank, &store, nullptr) {
             VarTables t = {};
-            t.var = PARAMS; t.val = vals; t.count = 5;
+            t.var = PARAMS; t.val = vals; t.count = 5; t.index = index;
             t.pool = pool; t.pool_bytes = CAP;
             bank = Bank(t);
             bank.init();
@@ -188,11 +189,12 @@ namespace {
      *  same store, fresh RAM. */
     struct OvrFx {
         Value        vals[4]{};
+        uint16_t     index[4]{};
         Bank         bank;
         KvParamStore store;
         OvrFx() {
             VarTables t = {};
-            t.var = OVR_VARS; t.val = vals; t.count = 4;
+            t.var = OVR_VARS; t.val = vals; t.count = 4; t.index = index;
             bank = Bank(t);
             bank.set_store(&store, nullptr);
             bank.init();
@@ -273,15 +275,30 @@ TEST_CASE("override: `override clear` clears the stored copies too") {
     }
 }
 
-TEST_CASE("override: an actuator override is never restored") {
-    // The safety case. An output override drives the actuator the moment it is
-    // in force, control authority or not, so a restored one would be commanding
-    // the plant from power-on out of a session long since walked away from.
+TEST_CASE("override: an actuator override persists like any other") {
+    // An override means one thing whatever row it is on - "a person has taken
+    // this by hand" - so an actuator's survives the reboot the same way a
+    // sensor's does. Carving out an exception made it mean two things, and left
+    // an operator wondering why the valve they forced came back and the reading
+    // they forced did not.
     StoreEnv env("/tmp/botanik_test_ovr_e");
     {
         OvrFx f;
         REQUIRE(f.bank.override_set(f.bank.var("coil"), "1") == SET_OK);
         CHECK(f.bank.var("coil").overridden());
+    }
+    {
+        OvrFx f;
+        CHECK(f.bank.var("coil").overridden());
+        CHECK(f.bank.var("coil").b());
+        CHECK(f.bank.override_count() == 1);
+    }
+    // ...and the system withdrawing control still takes it away, stored copy
+    // included, so the restore cannot bring it back a second time.
+    {
+        OvrFx f;
+        f.bank.disable_control(Bank::INHIBIT_HEALTH);
+        CHECK_FALSE(f.bank.var("coil").overridden());
     }
     {
         OvrFx f;

@@ -547,6 +547,10 @@ struct SiteStore {
     /** @brief T_STR live text: one STR_CAP slot per text parameter, addressed by
      *  the row's TextSlot offset. The one place a byte offset survives. */
     static char   pool[STR_POOL_BYTES];
+    /** @brief Scratch for the bank's name index: one row number per row, sorted
+     *  by name at construction so find() is a binary search. Sized off the table
+     *  itself, so there is no capacity to keep in step with it. */
+    static uint16_t name_index[VAR_TOTAL];
     /** @brief Where the home fields' names resolve to, filled at bring-up
      *  (BotanikFirmware::setup). VAR_NONE until then, which reads as the inert
      *  sink rather than as row 0. */
@@ -555,6 +559,7 @@ struct SiteStore {
 
 template <typename Tag> Value  SiteStore<Tag>::values[VAR_TOTAL] = {};
 template <typename Tag> char   SiteStore<Tag>::pool[STR_POOL_BYTES] = {};
+template <typename Tag> uint16_t SiteStore<Tag>::name_index[VAR_TOTAL] = {};
 template <typename Tag> VarRef SiteStore<Tag>::home_refs[HOME_FIELDS] = {};
 
 /** @brief The one instantiation. Everything addresses the store through this. */
@@ -564,7 +569,7 @@ using Store = SiteStore<void>;
 
 #define SITE_VAR_TABLES { \
     g_vars, Site::Store::values, VAR_TOTAL, \
-    Site::Store::pool, STR_POOL_BYTES }
+    Site::Store::pool, STR_POOL_BYTES, Site::Store::name_index }
 
 // The pool must cover every text parameter's slot; a short pool would let one
 // silently overlap its neighbour.

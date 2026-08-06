@@ -43,22 +43,23 @@ namespace {
 
 }  // namespace
 
-TEST_CASE("site: the table fits the name index") {
-    // Every lookup goes through Bank::find(), several of them per beat once the
-    // field animator and the config readers are counted. A table that outgrew
-    // Config::VAR_HASH_SLOTS still resolves - by walking all of it - so nothing
-    // breaks visibly and the cost just sits there. Say so here instead.
+TEST_CASE("site: the name index is built, and resolves every row") {
+    // Every lookup goes through Bank::find(). A site that forgot the index
+    // scratch in its VarTables still resolves - by walking the whole table - so
+    // nothing breaks visibly and the cost just sits there. Say so here instead.
     SiteBank f;
-    INFO("raise BOTANIK_VAR_HASH_SLOTS to the next power of two: "
-         << f.bank.count() << " rows need it over "
-         << (int)Config::VAR_HASH_SLOTS * 3 / 4);
+    INFO("the site's VarTables needs an `index` array of VAR_TOTAL uint16_t");
     CHECK(f.bank.name_index_built());
 
-    // ...and it has to resolve the same rows the scan did.
+    // ...and the search has to land on the same rows the scan did.
     for (uint16_t i = 0; i < f.bank.count(); i++) {
         const char* n = f.bank.var(i).meta()->name;
         INFO("row " << i << " '" << n << "'");
         CHECK(f.bank.find(n).index == i);
+        // The bounded form shares the mapping, so it has to agree - including
+        // that a PREFIX of a real name is not that name.
+        CHECK(f.bank.find(n, (uint16_t)std::strlen(n)).index == i);
+        CHECK(f.bank.find(n, (uint16_t)(std::strlen(n) - 1)).index != i);
     }
     CHECK(f.bank.find("no_such_variable_at_all").index == Vars::VAR_NONE);
 }

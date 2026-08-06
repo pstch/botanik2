@@ -25,28 +25,24 @@ namespace Botanik { namespace Vars {
     Value Bank::_sink_v = {};
 
     namespace {
-        /** @brief FNV-1a over a NUL-terminated name. Small, no table, and it
-         *  spreads the shared prefixes a variable table is full of ("grid_",
-         *  "cli_", "alarm_") - which is exactly what the strcmp scan it replaces
-         *  was worst at. */
-        uint32_t name_hash(const char* s) {
-            uint32_t h = 2166136261u;
-            while (*s != 0) { h ^= (uint8_t)*s++; h *= 16777619u; }
-            return h;
-        }
-        /** @brief The same over @p len bytes, for a shell word with no NUL.
-         *  Must agree with the form above on the same characters. */
-        uint32_t name_hash(const char* s, uint16_t len) {
-            uint32_t h = 2166136261u;
-            for (uint16_t i = 0; i < len; i++) { h ^= (uint8_t)s[i]; h *= 16777619u; }
-            return h;
-        }
-        /** @brief Whether row name @p n is @p name (bounded to @p len when
-         *  @p len is non-zero). */
-        bool name_eq(const char* n, const char* name, uint16_t len) {
-            if (n == nullptr) return false;
-            if (len == 0) return strcmp(n, name) == 0;
-            return strncmp(n, name, len) == 0 && n[len] == 0;
+        /** @brief Three-way compare of row name @p n against the key @p key,
+         *  bounded to @p len characters when @p len is non-zero (a shell word
+         *  has no NUL of its own).
+         *
+         *  The bounded arm is the same order as the unbounded one: with the
+         *  first @p len characters equal, a longer row name sorts after the key,
+         *  because the key ends there. That is what lets one sorted mapping
+         *  serve both find() overloads.
+         *
+         *  A nameless row sorts after everything and matches nothing, so it
+         *  simply falls off the end of the search. */
+        int cmp_name(const char* n, const char* key, uint16_t len) {
+            if (n == nullptr)   return (key == nullptr) ? 0 : 1;
+            if (key == nullptr) return -1;
+            if (len == 0) return strcmp(n, key);
+            const int c = strncmp(n, key, len);
+            if (c != 0) return c;
+            return (n[len] == 0) ? 0 : 1;
         }
 
         /** @brief Copy @p src into @p dst, always NUL-terminating. */
@@ -125,48 +121,53 @@ namespace Botanik { namespace Vars {
         return _t.pool + off;
     }
 
-    void Bank::_build_index() {
-        _hashed = false;
-        // Open addressing degrades badly as it fills, so keep real headroom: a
-        // table past three quarters full is not worth indexing, and falling back
-        // to the scan is at least honest about it (name_index_built() says so).
-        if (_t.var == nullptr || _t.count == 0) return;
-        if ((uint32_t)_t.count * 4u > (uint32_t)HASH_SLOTS * 3u) return;
+    bool Bank::_order_before(uint16_t a, uint16_t b) const {
+        const int c = cmp_name(_t.var[a].name, _t.var[b].name, 0);
+        return (c != 0) ? (c < 0) : (a < b);
+    }
 
-        for (uint16_t s = 0; s < HASH_SLOTS; s++) _hash[s] = VAR_NONE;
-        const uint16_t mask = (uint16_t)(HASH_SLOTS - 1);
-        for (uint16_t i = 0; i < _t.count; i++) {
-            const char* n = _t.var[i].name;
-            if (n == nullptr) continue;
-            uint16_t slot = (uint16_t)(name_hash(n) & mask);
-            // The first row of a duplicated name wins, which is what the linear
-            // scan did - a site with two rows of one name is a defect either
-            // way, but it must not resolve differently depending on the index.
-            while (_hash[slot] != VAR_NONE &&
-                   !name_eq(_t.var[_hash[slot]].name, n, 0))
-                slot = (uint16_t)((slot + 1) & mask);
-            if (_hash[slot] == VAR_NONE) _hash[slot] = i;
+    void Bank::_build_index() {
+        _indexed = false;
+        if (_t.index == nullptr || _t.var == nullptr || _t.count == 0) return;
+
+        for (uint16_t i = 0; i < _t.count; i++) _t.index[i] = i;
+        // Binary insertion sort. The expensive operation here is the strcmp, and
+        // this does n log n of them (~2000 for a 260-row site); the shuffling is
+        // uint16_t moves, which are free by comparison. Once, at construction -
+        // there is no insertion, no removal and nothing to invalidate later.
+        for (uint16_t i = 1; i < _t.count; i++) {
+            const uint16_t row = _t.index[i];
+            uint16_t lo = 0, hi = i;
+            while (lo < hi) {
+                const uint16_t mid = (uint16_t)(lo + (hi - lo) / 2);
+                if (_order_before(row, _t.index[mid])) hi = mid;
+                else                                   lo = (uint16_t)(mid + 1);
+            }
+            for (uint16_t k = i; k > lo; k--) _t.index[k] = _t.index[k - 1];
+            _t.index[lo] = row;
         }
-        _hashed = true;
+        _indexed = true;
     }
 
     uint16_t Bank::_lookup(const char* name, uint16_t len) const {
-        if (!_hashed) {
+        if (!_indexed) {
             for (uint16_t i = 0; i < _t.count; i++)
-                if (name_eq(_t.var[i].name, name, len)) return i;
+                if (cmp_name(_t.var[i].name, name, len) == 0) return i;
             return VAR_NONE;
         }
-        const uint16_t mask = (uint16_t)(HASH_SLOTS - 1);
-        const uint32_t h = (len == 0) ? name_hash(name) : name_hash(name, len);
-        for (uint16_t k = 0; k < HASH_SLOTS; k++) {
-            const uint16_t i = _hash[(uint16_t)((h + k) & mask)];
-            // An empty slot ends the probe: the index is never full (the load
-            // factor above guarantees it), so a run of collisions is all a miss
-            // ever costs.
-            if (i == VAR_NONE) break;
-            if (name_eq(_t.var[i].name, name, len)) return i;
+        // Lower bound, then one equality check: with ties ordered by row number,
+        // the first match is the lowest row carrying that name.
+        uint16_t lo = 0, hi = _t.count;
+        while (lo < hi) {
+            const uint16_t mid = (uint16_t)(lo + (hi - lo) / 2);
+            if (cmp_name(_t.var[_t.index[mid]].name, name, len) < 0)
+                lo = (uint16_t)(mid + 1);
+            else
+                hi = mid;
         }
-        return VAR_NONE;
+        if (lo >= _t.count) return VAR_NONE;
+        const uint16_t row = _t.index[lo];
+        return (cmp_name(_t.var[row].name, name, len) == 0) ? row : VAR_NONE;
     }
 
     VarRef Bank::find(const char* name) const {
@@ -228,9 +229,9 @@ namespace Botanik { namespace Vars {
         for (uint16_t i = 0; i < _t.count; i++) {
             if (_t.var[i].role != ROLE_OUTPUT) continue;
             if (release && _t.val[i].ovr_on) {
-                // Wipe the stored copy too. An output override is not persisted
-                // today, so this is belt and braces against one written by an
-                // older build coming back at the next boot.
+                // Wipe the stored copy in the same breath: overrides persist, so
+                // a release that only cleared RAM would hand the actuator back
+                // to whoever forced it at the next boot.
                 if (_store != nullptr) (void)_store->clear_override(_t.var[i]);
                 _t.val[i].ovr_on = false;
             }
@@ -340,9 +341,7 @@ namespace Botanik { namespace Vars {
         // An output is deliberately NOT refused while control is disabled: that
         // is the state in which the control programs have stopped deciding, so
         // an override is the only way left to command an actuator - which is
-        // what `control disable` is for. It is live immediately, not staged, and
-        // it is never persisted (see _persist_override), so there is no session
-        // it can outlive.
+        // what `control disable` is for.
         Scalar parsed;
         // Band deliberately NOT applied - see the header note.
         if (parse_for(*d, text, /*bounded=*/false, &parsed) != SET_OK) return SET_INVALID;
@@ -379,10 +378,6 @@ namespace Botanik { namespace Vars {
         const uint16_t row = _row_of(h);
         if (_store == nullptr || row == VAR_NONE) return;
         const Variable* d = h.meta();
-        // An actuator override is deliberately never written: see
-        // load_overrides(). Nothing would restore it, so storing it would only
-        // leave a stale record to puzzle over.
-        if (d->role == ROLE_OUTPUT) return;
         if (!_store->save_override(*d, _t.val[row]) && _logger != nullptr)
             _logger->critical(Logs::STORAGE, "override on '%s' not persisted", d->name);
     }
@@ -393,20 +388,16 @@ namespace Botanik { namespace Vars {
         for (uint16_t i = 0; i < _t.count; i++) {
             const Variable& d = _t.var[i];
             if (!_store->load_override(d, _t.val[i])) continue;
-            if (d.role == ROLE_OUTPUT) {
-                // Found one on an actuator: drop it rather than restore it - it
-                // would be driving the plant from power-on, out of a session
-                // nobody is standing at any more. Only reached when a record
-                // actually exists - an unconditional remove per output row was a
-                // flash transaction each boot for nothing.
-                (void)_store->clear_override(d);
-                _t.val[i].ovr_on = false;
-                continue;
-            }
             _t.val[i].ovr_on = true;
             n++;
+            // CRITICAL, not a warning: an override is the one thing that
+            // explains behaviour nothing else accounts for, and after a reboot
+            // nobody remembers setting it. An actuator's is the loudest case -
+            // it is commanding the plant again from this moment - which is
+            // exactly why it must not be a line that scrolls past.
             if (_logger != nullptr)
-                _logger->warning(Logs::BOOT, "override restored on '%s'", d.name);
+                _logger->critical(Logs::BOOT, "override restored on '%s'%s", d.name,
+                                  d.role == ROLE_OUTPUT ? " (DRIVING AN OUTPUT)" : "");
         }
         return n;
     }

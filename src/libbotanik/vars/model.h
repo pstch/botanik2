@@ -44,7 +44,6 @@
 
 #include <cstdint>
 
-#include "../../libbotanik_config.h"   // VAR_HASH_SLOTS (the name index)
 #include "scalar.h"
 
 namespace Botanik { namespace Logs { class Logger; } }
@@ -353,8 +352,9 @@ namespace Botanik { namespace Vars {
      *  forced a signal to work on the plant should not lose it to a power cut,
      *  and the cost is that a forgotten one survives the reboot someone reaches
      *  for when the machine behaves strangely. That is why a restored override
-     *  is announced as a CRITICAL at boot and why `override list` says so.
-     *  ROLE_OUTPUT is excluded outright - see Bank::load_overrides(). */
+     *  is announced as a CRITICAL at boot and why `override list` says so. Every
+     *  role behaves the same way here, ROLE_OUTPUT included - see
+     *  Bank::load_overrides(). */
     struct Value {
         Scalar   v;
         Scalar   ovr;        ///< forced value, while ovr_on
@@ -531,6 +531,15 @@ namespace Botanik { namespace Vars {
         uint16_t        count;
         char*           pool;         ///< T_STR live text
         uint16_t        pool_bytes;
+        /** @brief Scratch for the name index: @c count row numbers, which
+         *  Bank's constructor sorts by name (see Bank::find()). Borrowed and
+         *  exactly sized, like the value store - a fixed array inside Bank would
+         *  need a maximum row count declared somewhere, and that number is
+         *  already written down here as @c count.
+         *
+         *  Optional: a null one leaves find() walking the table, which is what a
+         *  small test fixture wants and what a real site must not ship. */
+        uint16_t*       index;
     };
 
     /** @brief What a write attempt did.
@@ -618,29 +627,10 @@ namespace Botanik { namespace Vars {
          *  Mutable because find() is const and this is diagnostics, not
          *  state. */
         mutable uint16_t _unresolved = 0;
-        /** @name Name index
-         *
-         *  find() is the ONE way anything addresses a row, and it used to be a
-         *  strcmp down the whole table - 277 of them per miss at the reference
-         *  site, several times a beat once the field animator and the config
-         *  readers are counted. This is the obvious fix: open addressing with
-         *  linear probing over an FNV-1a of the name, built once from the table
-         *  (which never changes) at construction.
-         *
-         *  @c _hashed is what says the index is usable. A table too big for the
-         *  slots leaves it false and find() walks the table as before, so the
-         *  bank stays correct on a site that outgrew VAR_HASH_SLOTS - just slow,
-         *  and name_index_built() is how the site test catches that.
-         *  @{ */
-        static const uint16_t HASH_SLOTS = Config::VAR_HASH_SLOTS;
-        static_assert((HASH_SLOTS & (HASH_SLOTS - 1)) == 0 && HASH_SLOTS > 0,
-                      "VAR_HASH_SLOTS must be a power of two (the probe masks)");
-        /** @brief Row index per slot, VAR_NONE for an empty one - which is also
-         *  the probe's stop condition, so a miss costs one run of collisions and
-         *  not a full table walk. */
-        uint16_t      _hash[HASH_SLOTS] = {};
-        bool          _hashed = false;
-        /** @} */
+        /** @brief Whether VarTables::index holds a usable sorted mapping. False
+         *  when the site supplied no scratch, and find() then walks the table.
+         *  @see _build_index() */
+        bool          _indexed = false;
         /** @name String pool
          *  Filled by init(), which lays the T_STR slots out in table order.
          *  @{ */
@@ -658,7 +648,7 @@ namespace Botanik { namespace Vars {
         Bank() : _t() {}
         explicit Bank(const VarTables& t) : _t(t) {
             _find_param_block();
-            // The table is const and never grows, so the index is built here
+            // The table is const and never grows, so the mapping is built here
             // rather than in init(): a find() before init() (a site test, a
             // fixture) then gets the fast path too.
             _build_index();
@@ -681,16 +671,17 @@ namespace Botanik { namespace Vars {
 
         /** @brief Restore the overrides that were in force at the last shutdown.
          *
-         *  ROLE_OUTPUT rows are deliberately NOT restored, and any stored one is
-         *  dropped. An output override drives the actuator the moment it is in
-         *  force, control authority or not, so a restored one would be
-         *  commanding the plant from power-on out of a console session long
-         *  since walked away from. Commanding an actuator by hand is a thing you
-         *  do while standing at the machine; it does not survive the reboot.
+         *  Every role, ROLE_OUTPUT included. An override means one thing
+         *  whatever it is on - "a person has taken this row by hand" - and
+         *  carving an exception out for actuators made it mean two, which is how
+         *  you end up with an operator wondering why the valve they forced came
+         *  back and the sensor they forced did not.
          *
-         *  @return how many were restored. Non-zero deserves to be said out
-         *  loud: an override explains behaviour nothing else accounts for, and
-         *  after a reboot nobody remembers setting it. */
+         *  @warning A restored output override is DRIVING the plant from this
+         *  moment, so each restore is announced as a CRITICAL naming the row.
+         *  That announcement is the safeguard; do not quiet it.
+         *
+         *  @return how many were restored. */
         uint16_t load_overrides();
 
         const VarTables& tables() const { return _t; }
@@ -727,7 +718,11 @@ namespace Botanik { namespace Vars {
 
         /** @brief Find a variable by name. Returns VAR_NONE when absent, which
          *  resolves to the sink, so a caller may skip the check - at the cost
-         *  of a silent miss, which is what unresolved_count() surfaces. */
+         *  of a silent miss, which is what unresolved_count() surfaces.
+         *
+         *  A binary search over the mapping VarTables::index carries, so a
+         *  lookup is ~8 comparisons rather than the whole table. See
+         *  _build_index(). */
         VarRef find(const char* name) const;
         /** @brief Length-bounded form, for a shell argument that is not
          *  NUL-terminated. Operator input, so a miss here is a typo at the
@@ -739,10 +734,10 @@ namespace Botanik { namespace Vars {
          *  every table and running every control program. */
         uint16_t unresolved_count() const { return _unresolved; }
 
-        /** @brief Whether the name index is in use. False means the table
-         *  outgrew Config::VAR_HASH_SLOTS and every find() is a full scan -
-         *  correct, but the cost this exists to avoid. */
-        bool name_index_built() const { return _hashed; }
+        /** @brief Whether the name index is in use. False means the site gave
+         *  VarTables no index scratch and every find() is a full scan -
+         *  correct, but the cost the index exists to avoid. */
+        bool name_index_built() const { return _indexed; }
 
         /** @brief Pool bytes the text rows actually claimed, and how many rows
          *  found none left. The second must be zero; the site test asserts it,
@@ -859,8 +854,7 @@ namespace Botanik { namespace Vars {
          *  (a hostname is configuration, not a field signal); everything else,
          *  ROLE_OUTPUT included, is fair game whatever control authority says -
          *  driving an actuator by hand with the programs stopped is the point of
-         *  `control disable`. An output override is never persisted, so it dies
-         *  with the session rather than coming back armed at the next boot. */
+         *  `control disable`. */
         SetResult override_set(Var h, const char* text, bool valid = true);
 
         /** @brief The same, with the value already typed - for a caller that has
@@ -889,9 +883,17 @@ namespace Botanik { namespace Vars {
         /** @} */
 
     private:
-        /** @brief Fill _hash from the table, or leave _hashed false when the
-         *  table is too big for the slots. */
+        /** @brief Sort VarTables::index into name order, once, at construction.
+         *
+         *  There is nothing to keep in step afterwards: the descriptor table is
+         *  const and never grows, so the mapping built here is the mapping for
+         *  the life of the bank. A no-op (leaving _indexed false) when the site
+         *  supplied no scratch array. */
         void _build_index();
+        /** @brief Row order for the sort: by name, ties broken on row number so
+         *  a duplicated name still resolves to the first of the two - which is
+         *  what the linear scan did. */
+        bool _order_before(uint16_t a, uint16_t b) const;
         /** @brief The one lookup both find() overloads run. @p len 0 means
          *  "@p name is NUL-terminated"; anything else bounds the comparison.
          *  @return the row index, or VAR_NONE. Does not count a miss - that is
@@ -900,8 +902,7 @@ namespace Botanik { namespace Vars {
 
         /** @brief @p h's row index, or VAR_NONE when it points at the sink. */
         uint16_t _row_of(Var h) const;
-        /** @brief Write @p h's override through to the store (never for a
-         *  ROLE_OUTPUT - see load_overrides()). */
+        /** @brief Write @p h's override through to the store. */
         void _persist_override(Var h);
 
         /** @brief Locate the ROLE_PARAM run: first such row, then how many

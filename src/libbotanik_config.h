@@ -367,18 +367,6 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(size_t, VAR_GROUP_NAME_LEN);
 
-    /** @brief Slots in the Bank's name -> row index. Must be a power of two,
-     *  and must leave real headroom over the site's row count (the bank refuses
-     *  to build an index past 3/4 full and falls back to the linear scan, which
-     *  is correct but slow). 512 slots is 1 KB of RAM and holds 384 rows.
-     *
-     *  A site with more rows than that raises this to the next power of two;
-     *  tests/test_site_names.cpp fails if the index did not build. */
-#ifndef BOTANIK_VAR_HASH_SLOTS
-#  define BOTANIK_VAR_HASH_SLOTS 512
-#endif
-    BOTANIK_CFG(uint16_t, VAR_HASH_SLOTS);
-
     /** @}
      *  @name Log message sizing
      *  @{ */

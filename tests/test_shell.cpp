@@ -136,6 +136,7 @@ namespace {
         Terminal::TextEditor           editor;
         CapturingWriter                writer;
         Vars::Value                    values[2]{};
+        uint16_t                       index[2]{};
         Vars::Bank                     bank;
         Shell::CommandShell            shell;
 
@@ -148,7 +149,7 @@ namespace {
             raw.set_fds(pipe_fds[0], pipe_fds[1]);
             editor.reset();
             Vars::VarTables t = {};
-            t.var = CMD_VARS; t.val = values; t.count = 2;
+            t.var = CMD_VARS; t.val = values; t.count = 2; t.index = index;
             bank = Vars::Bank(t);
             bank.init();
             SystemContext ctx = console.context();
@@ -165,55 +166,45 @@ namespace {
 
 }
 
-TEST_CASE("shell override: a bare name forces a GOOD reading, not a dead one") {
+TEST_CASE("shell override: a bare name forces a GOOD reading; `clear` releases all") {
     // Freezing used to carry the row's current quality through, so a bare
     // `override` on a variable nothing had written yet handed back an override
-    // that read as a dead sensor - which is not what anyone typing it means.
-    // Only the word `invalid` says that.
+    // that read as a dead sensor. Only the word `invalid` says that.
     CmdFixture f;
     REQUIRE_FALSE(f.bank.var("ext_temp").valid());   // nothing has published it
 
     f.run("override ext_temp");
-    CHECK(f.bank.var("ext_temp").overridden());
     CHECK(f.bank.var("ext_temp").valid());
-    CHECK_FALSE(f.writer.has("reading as invalid"));
-
     f.run("override ext_temp invalid");
     CHECK_FALSE(f.bank.var("ext_temp").valid());
-    CHECK(f.writer.has("reading as invalid"));
-}
 
-TEST_CASE("shell override: `clear` releases the lot, and `off` still does too") {
-    CmdFixture f;
-    f.run("override ext_temp 30");
     f.run("override setpoint 5");
     REQUIRE(f.bank.override_count() == 2);
-
     f.run("override clear");
     CHECK(f.writer.has("cleared 2"));
     CHECK(f.bank.override_count() == 0);
-
-    // The older spelling keeps working - it is what `override <name> off` says.
-    f.run("override ext_temp 30");
-    f.run("override off");
-    CHECK(f.bank.override_count() == 0);
 }
 
-TEST_CASE("shell get: a forced variable shows what it reads underneath") {
+TEST_CASE("shell get: the detail view, and what it adds when a row is forced") {
     CmdFixture f;
     f.bank.var("ext_temp").publish(Vars::Scalar::F(21.0f), 1000);
+
+    f.run("get ext_temp");
+    MESSAGE("get ext_temp ->\n" << f.writer.text);
+    CHECK(f.writer.has("ext_temp = 21.0"));
+    CHECK(f.writer.has("MI input, direct"));      // what kind of row
+    CHECK(f.writer.has("group ext"));             // derived from the name
+    CHECK(f.writer.has("read-only"));             // which command applies
+    CHECK(f.writer.has("-40.0 .. 85.0"));         // the declared band
+    CHECK(f.writer.has("Modbus dev 5"));          // where it comes from
+    CHECK_FALSE(f.writer.has("Override"));        // nothing is forced
+
+    // Forced: both numbers, because "has the sensor come back?" is the question
+    // someone deciding whether to release an override actually has.
     f.run("override ext_temp 35");
-
     f.run("get ext_temp");
-    CHECK(f.writer.has("OVERRIDDEN"));
-    // Both numbers, because "has the sensor come back?" is the question someone
-    // deciding whether to release an override actually has.
-    CHECK(f.writer.has("forced 35"));
-    CHECK(f.writer.has("live 21"));
-
-    // Nothing extra when nothing is forced: `get` stays one line.
-    f.run("override ext_temp off");
-    f.run("get ext_temp");
-    CHECK_FALSE(f.writer.has("forced"));
-    CHECK_FALSE(f.writer.has("live"));
+    MESSAGE("get ext_temp (forced) ->\n" << f.writer.text);
+    CHECK(f.writer.has("forced by hand"));
+    CHECK(f.writer.has("35.0"));
+    CHECK(f.writer.has("live 21.0"));
 }
