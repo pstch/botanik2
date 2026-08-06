@@ -245,10 +245,17 @@ namespace Botanik { namespace Shell {
          *  reads identically whichever showed it. */
         void _emit_var(const Vars::Bank& io, Vars::Var h);
 
-        /** @brief Emit `get`'s override line: the forced value and quality, then
-         *  what the row reads underneath. Nothing at all when @p h is not
-         *  forced. */
-        void _emit_override(Vars::Var h);
+        /** @name `get`'s detail fields
+         *  Each answers one question the one-line `list` form cannot.
+         *  @{ */
+        /** @brief A VarScope as its abbreviation plus what it means. */
+        static const char* _scope_phrase(uint8_t scope);
+        /** @brief Which command may write @p h, spelled as the command. */
+        static const char* _access_phrase(Vars::Var h);
+        /** @brief Where a value physically comes from, into @p buf. */
+        static const char* _binding_phrase(const Vars::Binding& b,
+                                           char* buf, size_t cap);
+        /** @} */
 
         /** @brief The variables, from the shared SystemContext (null when the
          *  firmware wired none). One lookup point for the variable commands. */

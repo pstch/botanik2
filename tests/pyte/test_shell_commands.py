@@ -41,12 +41,11 @@ def test_override(spawn):
     term.send(b"override grid_L1_V 123.5" + keys.ENTER)
     assert term.wait_for("forced to"), "override did not take"
     term.send(b"get grid_L1_V" + keys.ENTER)
-    assert term.wait_for("OVERRIDDEN"), "get did not flag the override"
-    assert term.wait_for("123.5"), "override value did not reach the reading"
-    # ...both halves of it: what it is held at, and what it reads underneath.
+    # Both halves of it: what it is held at, and what it reads underneath.
     # "Has the sensor come back?" is the question someone deciding whether to
     # release an override actually has.
-    assert term.wait_for("forced 123.5"), "get did not show the forced value"
+    assert term.wait_for("forced by hand"), "get did not flag the override"
+    assert term.wait_for("123.5"), "override value did not reach the reading"
     assert term.wait_for("live "), "get did not show the value under the override"
 
     # A forgotten override must be one command away, and the listing has to say
@@ -82,7 +81,7 @@ def test_control_disable_leaves_an_actuator_commandable(spawn):
     term.send(b"override cli_screen 1" + keys.ENTER)
     assert term.wait_for("forced to"), "an output could not be forced by hand"
     term.send(b"get cli_screen" + keys.ENTER)
-    assert term.wait_for("OVERRIDDEN"), "the forced output did not stick"
+    assert term.wait_for("forced by hand"), "the forced output did not stick"
 
     term.send(b"override clear" + keys.ENTER)
     term.send(b"control enable" + keys.ENTER)

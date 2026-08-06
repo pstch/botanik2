@@ -328,7 +328,7 @@ namespace Botanik { namespace Shell {
             }
             uint16_t tlen; const char* tgt = arg_next(args, alen, tlen);
             if (tgt == nullptr) {
-                _println("usage: alarms ack <code|all>"); return;
+                _println("usage: alarms ack <code|name|all>"); return;
             }
             if (arg_eq(tgt, tlen, "all")) {
                 _emitf(out, sizeof(out), "acknowledged %u active alarm(s)",
@@ -356,7 +356,12 @@ namespace Botanik { namespace Shell {
                 const Alarms::AlarmCondition& c = m->condition(i);
                 if (!c.active) continue;
                 uint32_t secs = (uint32_t)((now - c.started_ms) / 1000);
-                _emitf(out, sizeof(out), "  %-10s %s%s",
+                // Code FIRST: it is what the alarm bar and the ALARMS page show,
+                // and it is what you type back at `alarms ack`. The variable name
+                // follows, because that is what `get` and the MONITOR page use -
+                // one line rather than making someone map between two screens.
+                _emitf(out, sizeof(out), "  %-9s %-22s %s%s",
+                    c.code ? c.code : "?",
                     c.name ? c.name : "?",
                     Utils::format_age(age, sizeof(age), secs, false),
                     c.user_ack ? " [ack]" : "");
@@ -385,24 +390,12 @@ namespace Botanik { namespace Shell {
                h.valid() ? "" : " (default: nothing has written it)");
     }
 
-    // The second line `get` prints for a forced variable: what it is being held
-    // at, and what it would read without the override. `list` deliberately does
-    // not - one row per variable is the point of it - but a `get` on a forced
-    // row is almost always someone deciding whether to release it, and "has the
-    // sensor come back?" is the question they have no other way to ask.
-    void CommandShell::_emit_override(Vars::Var h) {
-        if (!h.overridden()) return;
-        const Vars::Variable* d = h.meta();
-        char out[128], fb[48], lb[48];
-        const char* forced = Vars::format_scalar(d->type, h.raw(),  d->digits,
-                                                 d->str, fb, sizeof(fb));
-        const char* live   = Vars::format_scalar(d->type, h.live(), d->digits,
-                                                 d->str, lb, sizeof(lb));
-        _emitf(out, sizeof(out), "    forced %s (%s)   live %s (%s)",
-               forced, h.valid()      ? "valid" : "invalid",
-               live,   h.live_valid() ? "valid" : "invalid");
-    }
-
+    // `get` is the detail view, so it answers the questions the one-line form
+    // cannot: what KIND of row this is, whether you may write it and with which
+    // command, whether the number is a measurement or a stand-in, and - the one
+    // that explains behaviour nothing else accounts for - whether somebody has
+    // taken it by hand. Label/leader lines, the same shape `net` and `stats`
+    // already use.
     void CommandShell::_cmd_get(const char* args, uint16_t alen) {
         Vars::Bank* io = _bank();
         if (io == nullptr) { _println("get: no variables"); return; }
@@ -413,8 +406,133 @@ namespace Botanik { namespace Shell {
         const Vars::VarRef r = io->find(nm, wn);
         if (r.index == Vars::VAR_NONE) { _println("get: unknown variable"); return; }
         const Vars::Var h = io->var(r);
-        _emit_var(*io, h);
-        _emit_override(h);
+        const Vars::Variable* d = h.meta();
+
+        char out[128], val[64], det[80];
+        const char* u = (d->unit && d->unit[0]) ? d->unit : "";
+
+        // Header: the name and what it reads right now, override applied - the
+        // number every other reader in the firmware sees.
+        _emitf(out, sizeof(out), "%s = %s %s", d->name,
+               Vars::var_format(*io, h, val, sizeof(val)), u);
+
+        // What kind of row, and which group it files under. Both are derived -
+        // the scope from the factory that declared it, the group from the name -
+        // so neither can disagree with the table.
+        snprintf(det, sizeof(det), "%s   group %s", _scope_phrase(d->scope),
+                 Vars::var_group(*d));
+        _line("Scope", det);
+
+        // Access says which COMMAND applies, not just yes/no: "read-only" on its
+        // own sends people looking for a permission to change.
+        _line("Access", _access_phrase(h));
+
+        // Quality: is this a measurement, or the declared default standing in
+        // for one? The trap is that both render as a perfectly reasonable
+        // number.
+        if (h.overridden()) {
+            snprintf(det, sizeof(det), "forced by hand, reading %s",
+                     h.valid() ? "valid" : "INVALID");
+        } else if (h.valid()) {
+            char age[16];
+            const uint64_t now = HAL::Clock::uptime_ms();
+            // A stamp ahead of `now` is a test fixture, not a reading from the
+            // future - subtracting it would underflow into forty years.
+            if (d->role == Vars::ROLE_INPUT && h.stamp() != 0 && now >= h.stamp())
+                snprintf(det, sizeof(det), "live (updated %s)",
+                         Utils::format_age(age, sizeof(age),
+                             (uint32_t)((now - h.stamp()) / 1000), true));
+            else
+                snprintf(det, sizeof(det), "live");
+        } else {
+            snprintf(det, sizeof(det), "NO DATA - showing the declared default");
+        }
+        _line("Quality", det);
+
+        // The override, spelled out: what it is held at, what it reads as, and
+        // what the row would read underneath. That last one is the question
+        // somebody deciding whether to release it actually has.
+        if (h.overridden()) {
+            char lb[48];
+            snprintf(det, sizeof(det), "%s %s (%s)   live %s %s (%s)",
+                     Vars::var_format(*io, h, val, sizeof(val)), u,
+                     h.valid() ? "valid" : "invalid",
+                     Vars::format_scalar(d->type, h.live(), d->digits, d->str,
+                                         lb, sizeof(lb)), u,
+                     h.live_valid() ? "valid" : "invalid");
+            _line("Override", det);
+        }
+
+        // The declared band, live: an analog row's comes from its calibration
+        // parameters, so var_band() rather than the flash constants.
+        if ((d->flags & Vars::F_BOUNDED) != 0 && d->type != Vars::T_STR) {
+            char lo[24], hi[24];
+            const Vars::NumBand b = Vars::var_band(io, *d);
+            snprintf(det, sizeof(det), "%s .. %s %s",
+                     Vars::format_scalar(d->type, b.min, d->digits, nullptr, lo, sizeof(lo)),
+                     Vars::format_scalar(d->type, b.max, d->digits, nullptr, hi, sizeof(hi)), u);
+            _line(d->role == Vars::ROLE_PARAM ? "Range" : "Plausible", det);
+        }
+
+        // Where the value physically comes from, which is the first thing you
+        // want when one looks wrong.
+        _line("Source", _binding_phrase(d->bind, det, sizeof(det)));
+        if (d->desc  && d->desc[0])  _line("Description", d->desc);
+        if (d->notes && d->notes[0]) _line("Notes", d->notes);
+    }
+
+    // The scope abbreviation the tables show, spelled out - `get` has the room
+    // and the abbreviation is only obvious once you already know it.
+    const char* CommandShell::_scope_phrase(uint8_t scope) {
+        switch ((Vars::VarScope)scope) {
+            case Vars::SCOPE_A:  return "A  alarm condition";
+            case Vars::SCOPE_P:  return "P  parameter";
+            case Vars::SCOPE_G:  return "G  computed";
+            case Vars::SCOPE_SV: return "SV status value (published)";
+            case Vars::SCOPE_MI: return "MI input, direct";
+            case Vars::SCOPE_AI: return "AI input, calibrated";
+            case Vars::SCOPE_DI: return "DI input, digital";
+            case Vars::SCOPE_MO: return "MO output, direct";
+            case Vars::SCOPE_AO: return "AO output, scaled";
+            case Vars::SCOPE_DO: return "DO output, digital";
+            case Vars::SCOPE_RO: return "RO relay coil";
+            default:             return "?";
+        }
+    }
+
+    // Which command applies. Everything is forceable, so the interesting half is
+    // whether `set` works - and for a read-only parameter, that it deliberately
+    // does not.
+    const char* CommandShell::_access_phrase(Vars::Var h) {
+        const Vars::Variable* d = h.meta();
+        if (d->role != Vars::ROLE_PARAM)
+            return "read-only (`override` forces it by hand)";
+        if ((d->flags & Vars::F_RDONLY) != 0)
+            return "read-only parameter (shown, not editable)";
+        return "read-write (`set` edits and persists it)";
+    }
+
+    // Mirrors the MONITOR page's Source field, so a row reads the same whichever
+    // showed it.
+    const char* CommandShell::_binding_phrase(const Vars::Binding& b,
+                                              char* buf, size_t cap) {
+        switch (b.transport) {
+            case Vars::XP_MODBUS:
+                snprintf(buf, cap, "Modbus dev %u fc %u reg %u",
+                         (unsigned)b.device, (unsigned)b.fc, (unsigned)b.reg);
+                break;
+            case Vars::XP_LOCAL:
+                // The wire type is what makes a local channel analog or digital;
+                // the transport only says it is not Modbus.
+                snprintf(buf, cap, "%s channel %u",
+                         (b.wire == Vars::T_BOOL) ? "digital" : "analog",
+                         (unsigned)b.reg);
+                break;
+            default:
+                snprintf(buf, cap, "computed (nothing drives it)");
+                break;
+        }
+        return buf;
     }
 
     void CommandShell::_cmd_list(const char* args, uint16_t alen) {
