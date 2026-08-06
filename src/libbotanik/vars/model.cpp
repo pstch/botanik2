@@ -293,17 +293,41 @@ namespace Botanik { namespace Vars {
         }
     }  // namespace
 
+    namespace {
+        /** @brief Whether @p d may be edited at all, and where its slot is.
+         *
+         *  The handle already points INTO the table, so its row is the offset -
+         *  no name scan. (It may instead point at the sink, which is what the
+         *  range check rejects; a Var is only ever one or the other.) */
+        Value* editable_slot(const VarTables& t, const Variable* d) {
+            if (d->role != ROLE_PARAM || (d->flags & F_RDONLY) != 0) return nullptr;
+            if (t.var == nullptr || d < t.var || d >= t.var + t.count) return nullptr;
+            return &t.val[d - t.var];
+        }
+    }  // namespace
+
+    SetResult Bank::set(Var h, Scalar v) {
+        const Variable* d = h.meta();
+        // A T_STR's live text is in the pool, so there is no typed form of it to
+        // write here; the text overload is the only way in.
+        if (d->type == T_STR) return SET_INVALID;
+        Value* slot = editable_slot(_t, d);
+        if (slot == nullptr) return SET_INVALID;
+
+        const NumBand band = num_band(*d);
+        if ((d->flags & F_BOUNDED) != 0 && !in_range(d->type, v, band.min, band.max))
+            return SET_INVALID;
+        slot->v     = v;
+        slot->valid = true;
+        return _persist_param(h, *d, *slot);
+    }
+
     SetResult Bank::set(Var h, const char* text) {
         const Variable* d = h.meta();
-        if (text == nullptr || d->role != ROLE_PARAM) return SET_INVALID;
-        if ((d->flags & F_RDONLY) != 0) return SET_INVALID;
-
-        // The handle already points INTO the table, so its row is the offset -
-        // no name scan. (It may instead point at the sink, which is what the
-        // range check rejects; a Var is only ever one or the other.)
-        if (_t.var == nullptr || d < _t.var || d >= _t.var + _t.count)
-            return SET_INVALID;
-        Value& slot = _t.val[d - _t.var];
+        if (text == nullptr) return SET_INVALID;
+        Value* slotp = editable_slot(_t, d);
+        if (slotp == nullptr) return SET_INVALID;
+        Value& slot = *slotp;
 
         if (d->type == T_STR) {
             uint16_t cap = 0;
@@ -319,14 +343,18 @@ namespace Botanik { namespace Vars {
             slot.valid = true;
         }
 
+        return _persist_param(h, *d, slot);
+    }
+
+    SetResult Bank::_persist_param(Var h, const Variable& d, Value& slot) {
         if (_store == nullptr) return SET_NOT_PERSISTED;
         uint16_t save_cap = 0;
         char* save_text = text_at(h, &save_cap);
-        if (!_store->save(*d, slot, save_text, save_cap)) {
+        if (!_store->save(d, slot, save_text, save_cap)) {
             // Loud: the value is live, so nothing looks wrong until the reboot
             // that quietly reverts it.
             if (_logger != nullptr)
-                _logger->critical(Logs::STORAGE, "param '%s' not persisted", d->name);
+                _logger->critical(Logs::STORAGE, "param '%s' not persisted", d.name);
             return SET_NOT_PERSISTED;
         }
         return SET_OK;

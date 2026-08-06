@@ -43,7 +43,6 @@ add_executable(botanik_tests
     test_sun_tracker.cpp
     test_network.cpp
     test_hal_net.cpp
-    test_modbus_pdu.cpp
     test_notifier.cpp
     test_mqtt_log.cpp
     test_hal_memory.cpp

@@ -850,6 +850,16 @@ namespace Botanik { namespace Vars {
          *  be overwritten by the next scan, which is what override() is for. */
         SetResult set(Var h, const char* text);
 
+        /** @brief The same, with the value already typed.
+         *
+         *  Both callers of the text form are a human at a keyboard; a Modbus
+         *  write arrives as bytes that are already the row's type. Rendering
+         *  those to a string and parsing them back would put the value through
+         *  the row's DISPLAY rounding (`digits`) on the way in, so a master
+         *  writing 0.083 to a 2-decimal parameter would find it had written
+         *  0.08. T_STR is refused: its text lives in the pool, not the slot. */
+        SetResult set(Var h, Scalar v);
+
         /** @brief Force @p h to @p text until override_clear(). T_STR is refused
          *  (a hostname is configuration, not a field signal); everything else,
          *  ROLE_OUTPUT included, is fair game whatever control authority says -
@@ -904,6 +914,11 @@ namespace Botanik { namespace Vars {
         uint16_t _row_of(Var h) const;
         /** @brief Write @p h's override through to the store. */
         void _persist_override(Var h);
+        /** @brief Write an edited parameter through to the store, and say so
+         *  loudly when the store refuses. Shared by both set() overloads: the
+         *  value is already live either way, and a refused PERSIST is not a
+         *  rejected EDIT. */
+        SetResult _persist_param(Var h, const Variable& d, Value& slot);
 
         /** @brief Locate the ROLE_PARAM run: first such row, then how many
          *  follow it without a break. A parameter outside that run is a table

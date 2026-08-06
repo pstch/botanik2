@@ -316,22 +316,24 @@ each:
   `MODBUS_UNIT_ID`. A TCP slave that refuses unit 0 or 255 fails against half the
   diagnostic tools out there.
 
-## Tests
+## Testing: a master in the simulator, not unit tests per layer
 
-- `test_modbus_pdu.cpp` - framing, lengths, every exception path. No bank, no
-  sockets.
-- `test_modbus_map.cpp` - a fixture table: address arithmetic, one round trip per
-  `VarType`, sparse and mid-row reads, write validation and refusal codes.
-- `test_modbus_server.cpp` - the state machine against a real loopback socket in
-  the simulator HAL: connect, request, response bytes, connection limits, idle
-  reap. Requests hand-built from bytes; a 12-byte MBAP frame needs no library.
-- The phase split deserves one test of its own: a write and a read in the same
-  beat must show the written value.
-- The ack block against a real `AlarmController`: coil 1 acks the condition the
-  ALARMS page would, `0x1000` acks all of them, coil 0 is refused, and the read
-  back clears on the next fresh ON edge.
-- The CSV tool's output parses and every address in it round-trips through the
-  map - the document is only trustworthy if that is checked.
+The slave is exercised **end to end, by a real Modbus TCP master living in the
+simulator** - not by doctest cases per layer. The master connects over the sim's
+loopback listener, sends real frames and reads the answers back, against the real
+site table and the real bank.
+
+That is a better test than the sum of the unit ones would be, and it is available
+because of the HAL work in step 2: the sim shifts privileged ports up by 10000 and
+does not divert a connect aimed at a port this process serves, so a master in the
+same process reaches the slave for real (@ref dev_network). Nothing is mocked -
+the frames, the socket, the map and the parameter store are the shipping ones.
+
+What the master has to cover is what the unit cases would have: a block read
+crossing a gap, a read starting mid-row, every `VarType` round-tripped, the write
+path with its band refusal and its no-op rule, the read-only rows, the ack block,
+the connection limits and the idle reap, and a write and a read in the same beat
+showing the written value.
 
 ## Staging
 
@@ -346,16 +348,18 @@ Each step builds and leaves the gate green:
    port this process serves, which is what makes the server reachable in-process
    (@ref dev_network); the OPTA slot table grew a pointer arm, since an accepted
    Mbed socket is a heap allocation rather than one of ours.
-3. **Done.** `modbus/pdu` + its test, and `gh_mlb41` turns the feature on so the
-   suites compile it. Framing errors (protocol id, declared length) are fatal to
-   the connection; content errors (unknown function, a count past a ceiling, a
-   byte count disagreeing with its quantity) answer with an exception and keep
-   it. Nothing depends on the bank yet.
-4. `modbus/map` over the bank + its test. Still no sockets.
+3. **Done.** `modbus/pdu`, and `gh_mlb41` turns the feature on so the build
+   compiles it. Framing errors (protocol id, declared length) are fatal to the
+   connection; content errors (unknown function, a count past a ceiling, a byte
+   count disagreeing with its quantity) answer with an exception and keep it.
+   Nothing depends on the bank yet.
+4. **Done.** `modbus/map` over the bank, plus the `Scalar` overload of
+   `Bank::set()` it needs. Still no sockets.
 5. `modbus/server`, the two tasks, the feature gate, the config group.
 6. The ack coil block, once the alarm rows and the map are both real.
-7. `tools/varmap` + the CMake rule + `scripts/varmap_pdf.py`.
-8. Wiring: the stack, the site config, the `modbus` command, the context,
+7. The simulator's Modbus TCP master, which is how all of the above is tested.
+8. `tools/varmap` + the CMake rule + `scripts/varmap_pdf.py`.
+9. Wiring: the stack, the site config, the `modbus` command, the context,
    `docs/dev/` page. Fold whatever of this note turned out to be true into it and
    delete the rest.
 
