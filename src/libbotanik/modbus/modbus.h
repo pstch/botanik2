@@ -13,6 +13,8 @@
  *                   the caller's buffers, so it has a .cpp, but still no state.
  *  - @ref framing.h the one thing that has to remember where it is: accumulating
  *                   a response and deciding when it is complete.
+ *  - @ref plan.h    what the bus costs, and the blocks the variable table turns
+ *                   into. Reads the bank; still touches no wire.
  *
  * None of it knows the variable model, the scheduler, or a serial port exists.
  * The driver that joins them to the bank is a later stage; until then this is a
@@ -26,5 +28,6 @@
 #include "wire.h"
 #include "codec.h"
 #include "framing.h"
+#include "plan.h"
 
 #endif // MODBUS_MODBUS_H
