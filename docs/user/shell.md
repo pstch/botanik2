@@ -32,8 +32,8 @@ you were part-way through typing is kept as you scroll away from it.
 
 | Command | Does |
 |---|---|
-| `list [<prefix>]` | browse the variable table, or just the rows whose name starts with `<prefix>` |
-| `get <name>` | the detail view of one variable: value, scope, whether you may write it and with what, quality, override, band, and where it physically comes from |
+| `list [<prefix>]` | browse the variable table, or just the rows whose name starts with `<prefix>`. Each row carries its scope in parentheses |
+| `get <name>` | the detail view of one variable, laid out like `stats`: scope, group, access, the raw and override values with their validity, the band, and where it physically comes from |
 | `set <name> <value>` | edit a **parameter** and persist it |
 | `override list\|clear\|<name> [off\|<value>] [valid\|invalid]` | force **any** variable by hand; `clear` releases the lot |
 | `control [enable\|disable]` | report or change whether the firmware may drive the field |

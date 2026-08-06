@@ -245,13 +245,25 @@ namespace Botanik { namespace Shell {
          *  reads identically whichever showed it. */
         void _emit_var(const Vars::Bank& io, Vars::Var h);
 
-        /** @name `get`'s detail fields
-         *  Each answers one question the one-line `list` form cannot.
+        /** @name `get`'s detail rows
+         *
+         *  Laid out like `stats`: a dotted leader to a fixed column, the value,
+         *  then the detail in parentheses.
          *  @{ */
-        /** @brief A VarScope as its abbreviation plus what it means. */
+        /** @brief Where the leader ends and " : " begins. Matches the width
+         *  `stats` writes into its own labels, so the two line up on screen. */
+        static const size_t LEADER_W = 29;
+        /** @brief One "Label ....... : value (detail)" row. @p detail may be
+         *  null or empty, which drops the parentheses. */
+        void _field(const char* label, const char* value, const char* detail);
+        /** @brief A value row: @p v rendered with @p unit, and valid/invalid as
+         *  the detail. @p h supplies the type and, for a T_STR, the pool text. */
+        void _value_field(const char* label, const Vars::Bank& io, Vars::Var h,
+                          Vars::Scalar v, bool valid, const char* unit);
+        /** @brief What a VarScope abbreviation means, for the detail column. */
         static const char* _scope_phrase(uint8_t scope);
-        /** @brief Which command may write @p h, spelled as the command. */
-        static const char* _access_phrase(Vars::Var h);
+        /** @brief Whether `set` will take @p h. */
+        static bool _writable(Vars::Var h);
         /** @brief Where a value physically comes from, into @p buf. */
         static const char* _binding_phrase(const Vars::Binding& b,
                                            char* buf, size_t cap);

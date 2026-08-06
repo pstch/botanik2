@@ -192,19 +192,27 @@ TEST_CASE("shell get: the detail view, and what it adds when a row is forced") {
     f.run("get ext_temp");
     MESSAGE("get ext_temp ->\n" << f.writer.text);
     CHECK(f.writer.has("ext_temp = 21.0"));
-    CHECK(f.writer.has("MI input, direct"));      // what kind of row
-    CHECK(f.writer.has("group ext"));             // derived from the name
-    CHECK(f.writer.has("read-only"));             // which command applies
+    CHECK(f.writer.has(": MI"));                  // what kind of row...
+    CHECK(f.writer.has("(input, direct)"));       // ...spelled out
+    CHECK(f.writer.has("Group"));
+    CHECK(f.writer.has(": read-only"));           // and whether `set` takes it
+    CHECK(f.writer.has("Raw value"));
+    CHECK(f.writer.has("21.0 C   (valid)"));
     CHECK(f.writer.has("-40.0 .. 85.0"));         // the declared band
     CHECK(f.writer.has("Modbus dev 5"));          // where it comes from
-    CHECK_FALSE(f.writer.has("Override"));        // nothing is forced
+    CHECK(f.writer.has("Override value .............. : -"));   // nothing forced
 
-    // Forced: both numbers, because "has the sensor come back?" is the question
-    // someone deciding whether to release an override actually has.
+    // Forced: both values, kept apart, each saying whether it is worth
+    // believing. "Has the sensor come back?" is the question someone deciding
+    // whether to release an override actually has.
     f.run("override ext_temp 35");
     f.run("get ext_temp");
     MESSAGE("get ext_temp (forced) ->\n" << f.writer.text);
-    CHECK(f.writer.has("forced by hand"));
-    CHECK(f.writer.has("35.0"));
-    CHECK(f.writer.has("live 21.0"));
+    CHECK(f.writer.has("Raw value ................... : 21.0 C   (valid)"));
+    CHECK(f.writer.has("Override value .............. : 35.0 C   (valid)"));
+
+    // ...and forcing the QUALITY shows on the value it belongs to.
+    f.run("override ext_temp 35 invalid");
+    f.run("get ext_temp");
+    CHECK(f.writer.has("Override value .............. : 35.0 C   (invalid)"));
 }
