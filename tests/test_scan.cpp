@@ -4,13 +4,13 @@
  *        rule, that dt_ms reports the real elapsed time, and the two control
  *        authority edges.
  */
-#include <cstddef>
-#include <cstdint>
-#include <vector>
+#include <cstddef>                    // size_t - the program-array lengths
+#include <cstdint>                    // uint8_t/uint64_t - program counts and activation stamps
+#include <vector>                     // std::vector - the recorded activation order
 
-#include "doctest.h"
+#include "libbotanik/scan/scan.h"     // Scan::Driver - under test
 
-#include "libbotanik/scan/scan.h"
+#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
 
 using Botanik::Vars::Bank;
 using Botanik::Plc::Program;

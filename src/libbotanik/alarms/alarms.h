@@ -23,18 +23,18 @@
  * Config::ALARM_SLOTS.
  */
 
-#include <cstddef>
-#include <cstdint>
-#include <cstdio>                  // snprintf (MqttAlarmNotifier::_emit)
-#include <cstring>
+#include <cstdint>                    // uint8_t/uint32_t/uint64_t - codes, dwell, timestamps
+#include <cstdio>                     // snprintf - MqttAlarmNotifier::_emit formats topic + payload
+#include <cstring>                    // std::memset - zero the condition array in the ctor
 
-#include "../../libbotanik_config.h"
-#include "../core/component.h"     // Component (first-step announce)
-#include "../logs/logger.h"        // the ALARM-topic log lines
-#include "../utils/assert.h"       // BOTANIK_ASSERT
-#include "../utils/text.h"         // compare_str
-#include "../vars/model.h"         // VarRef / Bank
-#include "publisher.h"             // Publisher (notifier transport seam)
+#include "libbotanik_config.h"        // Config::ALARM_* caps and dwell defaults
+
+#include "libbotanik/alarms/publisher.h" // Alarms::Publisher - the notifier's transport seam
+#include "libbotanik/core/component.h" // Component - the first-step BOOT announce
+#include "libbotanik/logs/logger.h"   // Logs::Logger - raises the ALARM_START/END/FLAP lines
+#include "libbotanik/utils/assert.h"  // BOTANIK_ASSERT - guards the condition index
+#include "libbotanik/utils/text.h"    // Utils::compare_str - match a condition by name
+#include "libbotanik/vars/model.h"    // Vars::VarRef / Bank - the SCOPE_A row behind each condition
 
 namespace Botanik { namespace Alarms {
 

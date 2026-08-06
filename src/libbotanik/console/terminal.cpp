@@ -7,15 +7,17 @@
  * present() diffs FRONT against BACK (the wire) and emits the minimal, paced ANSI
  * to reconcile them. See terminal.h.
  */
-#include <cstdint>
-#include <cstring>
-#include <algorithm>
-#include "../../libbotanik_config.h"
-#include "../hal/platform.h"   // HAL::Env
+#include "libbotanik/console/terminal.h" // AnsiTerminal - the back-buffer diff implemented here
 
-#include "../utils/serial.h"
-#include "terminal.h"
-#include "ansi.h"
+#include <algorithm>                  // std::min - clamp a run to the remaining byte budget
+#include <cstdint>                    // uint8_t/uint16_t/uint32_t - cells, coordinates, budget
+#include <cstring>                    // memcmp - FRONT vs BACK row comparison
+
+#include "libbotanik_config.h"        // Config::SCREEN_* - geometry and the per-tick byte budget
+
+#include "libbotanik/console/ansi.h"  // Terminal::Ansi - the escape sequences the diff emits
+#include "libbotanik/hal/platform.h"  // HAL::Env::u8 - the dev-only screen-size overrides
+#include "libbotanik/utils/serial.h"  // Utils::BufferedSerial::tx_capacity - how much fits this tick
 
 
 namespace Botanik { namespace Terminal {

@@ -7,21 +7,21 @@
  *        persisted to flash under its own storage key.
  */
 
-#include <cstdint>
-#include <cstdio>
-#include <cstring>
+#include <cstdint>                    // uint16_t - the viewport offsets and buffer lengths
+#include <cstdio>                     // snprintf - the status row
+#include <cstring>                    // strlen - measuring the note against its capacity
 
-#include "../../libbotanik_config.h"
-#include "../../libbotanik_features.h"
+#include "libbotanik_config.h"        // Config::NOTES_* - the note's storage key and capacity
+#include "libbotanik_features.h"      // BOTANIK_FEATURE_NOTES_PAGE - the gate this header sits behind
 
 #if BOTANIK_FEATURE_NOTES_PAGE
 
-#include "page.h"
-#include "../console/console.h"
-#include "../console/editor.h"
-#include "../console/terminal.h"
-#include "../hal/storage.h"
-#include "../logs/logger.h"
+#include "libbotanik/console/console.h" // Console::rows / terminal - the content area to paint
+#include "libbotanik/console/editor.h" // Terminal::TextEditor / EditorBuffers - top-anchored, full screen
+#include "libbotanik/console/terminal.h" // AnsiTerminal - the drawing operations
+#include "libbotanik/hal/storage.h"   // HAL::Storage::get / set - the note persists under its own key
+#include "libbotanik/logs/logger.h"   // Logs::Logger - reports a failed write
+#include "libbotanik/pages/page.h"    // Pages::Page - the interface this page implements
 
 namespace Botanik { namespace Pages {
 

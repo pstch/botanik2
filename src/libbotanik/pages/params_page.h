@@ -28,17 +28,18 @@
  * screen spends no TX budget.
  */
 
-#include <cstdint>
-#include <cstdio>
-#include <cstring>
+#include <cstdint>                    // uint8_t/uint16_t/uint64_t - cursor, edit state, commit stamps
+#include <cstdio>                     // snprintf - the row cells and the detail panel
+#include <cstring>                    // memcpy / strchr / strcmp / strlen - the inline value editor
 
-#include "../../libbotanik_config.h"
-#include "libbotanik/vars/params.h"
-#include "page.h"
-#include "scroll_table.h"
-#include "../console/console.h"
-#include "../console/terminal.h"
-#include "../console/editor.h"
+#include "libbotanik_config.h"        // BOTANIK_FEATURE_PARAMS_PAGE - the gate this header sits behind
+
+#include "libbotanik/console/console.h" // Console::rows / terminal - the content area to paint
+#include "libbotanik/console/editor.h" // Terminal::TextEditor - the bottom-row value editor
+#include "libbotanik/console/terminal.h" // AnsiTerminal - the drawing operations
+#include "libbotanik/pages/page.h"    // Pages::Page - the interface this page implements
+#include "libbotanik/pages/scroll_table.h" // Pages::ScrollTablePage - the scrolling table base
+#include "libbotanik/vars/params.h"   // Vars::Params - the dense parameter view this page edits
 
 namespace Botanik { namespace Pages {
 

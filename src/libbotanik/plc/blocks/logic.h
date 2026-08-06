@@ -8,9 +8,9 @@
  * Untimed: none of these takes a dt, because none of them measures time.
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint8_t - the Interlock permissive index and first-out slot
 
-#include "../../../libbotanik_config.h"
+#include "libbotanik_config.h"        // BOTANIK_FEATURE_PLC_BLK_BASE - the gate this whole header sits behind
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {

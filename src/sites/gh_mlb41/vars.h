@@ -34,9 +34,9 @@
  * which belongs in the slave map, not here.
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint8_t/uint16_t - register numbers and table lengths
 
-#include "libbotanik.h"
+#include "libbotanik.h"               // the A/P/G/SV/MI/AI/DI/MO/AO/DO/RO factories, Vars::Bank
 
 namespace Site {
 

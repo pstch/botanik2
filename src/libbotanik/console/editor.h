@@ -13,11 +13,12 @@
 #ifndef CONSOLE_EDITOR_H
 #define CONSOLE_EDITOR_H
 
-#include <cstdint>
-#include <cstring>
+#include <cstdint>                    // uint8_t/uint16_t/int32_t - cursor, row offsets, splice spans
+#include <cstring>                    // memcpy - the inline buffer moves
 
-#include "../../libbotanik_config.h"
-#include "terminal.h"
+#include "libbotanik_config.h"        // Config::EDITOR_* - the default buffer and row bounds
+
+#include "libbotanik/console/terminal.h" // AnsiTerminal / CursorPos - the editor paints and places the caret
 
 
 namespace Botanik { namespace Terminal {

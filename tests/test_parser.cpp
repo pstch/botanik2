@@ -6,13 +6,13 @@
  *        decoded InputEvent (printable batches, C0 controls, CSI/Alt/SEP
  *        sequences, chunkable coalescing, and the ESC timeout).
  */
-#include <cstdint>
-#include <cstring>
-#include <unistd.h>
+#include <cstdint>                    // uint8_t/uint16_t - the raw byte sequences and decoded codes
+#include <cstring>                    // strlen - feeding a literal escape sequence
+#include <unistd.h>                   // pipe / write - the byte source the parser reads
 
-#include "doctest.h"
+#include "libbotanik/console/parser.h" // Terminal::InputParser - under test
 
-#include "libbotanik/console/parser.h"
+#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
 
 using namespace Botanik;
 using Botanik::Terminal::InputParser;

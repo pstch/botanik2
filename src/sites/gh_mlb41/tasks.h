@@ -21,11 +21,11 @@
  *    called on the way down so no program resumes on stale state
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint16_t/uint32_t - the programs' rates and setpoints
 
-#include "libbotanik.h"
+#include "libbotanik.h"               // Plc::Program + the block/function vocabulary
 
-#include "vars.h"
+#include "vars.h"                     // the variable names these programs bind - relative, see site.h
 
 namespace Site {
 

@@ -10,12 +10,13 @@
  * keeps an escape from ever being split mid-sequence. Callers retry on a later
  * redraw.
  */
-#include <cstddef>   // size_t
-#include <cstdint>
-#include <cstring>   // strlen
+#include "libbotanik/console/ansi.h"  // the Ansi escape-sequence emitters implemented here
 
-#include "ansi.h"
-#include "../utils/text.h"   // format_int
+#include <cstddef>                    // size_t - the escape-buffer lengths
+#include <cstdint>                    // uint8_t/uint16_t - coordinates and attribute bits
+#include <cstring>                    // strlen - measuring the literal sequences
+
+#include "libbotanik/utils/text.h"    // Utils::format_int - the numeric parameters in a CSI
 
 namespace Botanik { namespace Terminal { namespace Ansi {
 

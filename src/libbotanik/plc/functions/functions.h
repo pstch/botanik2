@@ -28,7 +28,9 @@
  * | @ref time.h | `seconds` `accumulate` `countdown` |
  */
 
-#include "math.h"
-#include "time.h"
+// This header is the convenience roll-up: it exists only to pull in both
+// function families, so every include here is re-exported rather than used.
+#include "libbotanik/plc/functions/math.h" // limit / in_range / deadzone / scale / lerp / sel
+#include "libbotanik/plc/functions/time.h" // seconds / accumulate / countdown
 
 #endif // PLC_FUNCTIONS_H

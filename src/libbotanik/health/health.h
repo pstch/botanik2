@@ -18,16 +18,16 @@
  * escalation belongs to the scan cycle, not here.
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint8_t/int16_t/uint64_t - POST results, metrics, stamps
 
-#include "../../libbotanik_config.h"
-#include "../alarms/alarms.h"
-#include "../alarms/platform.h"
-#include "../alarms/publisher.h"
-#include "../logs/logger.h"
-#include "../hal/storage.h"   // fault_count() -> FLASH_FLT
-#include "../scheduler/scheduler.h"
-#include "../utils/text.h"
+#include "libbotanik_config.h"        // Config::HEALTH_* - the platform-alarm thresholds
+
+#include "libbotanik/alarms/alarms.h" // Alarms::AlarmController / MqttAlarmNotifier - both owned here
+#include "libbotanik/alarms/platform.h" // the platform-health condition table this monitor asserts
+#include "libbotanik/alarms/publisher.h" // Alarms::Publisher - set_alarm_publisher's parameter
+#include "libbotanik/hal/storage.h"   // HAL::Storage::fault_count - drives the FLASH_FLT alarm
+#include "libbotanik/logs/logger.h"   // Logs::Logger::has_writers - a POST check
+#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext - CPU, jitter, stack, overruns
 
 namespace Botanik { namespace Health {
 

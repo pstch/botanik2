@@ -6,12 +6,12 @@
  * @file scheduler.h
  * @brief Non-blocking fixed-period loop driver with perf monitoring. */
 
-#include <cstdint>
+#include <cstdint>                    // uint8_t/uint64_t/uintptr_t - beat stamps, stack addresses
 
-#include "../../libbotanik_config.h"
+#include "libbotanik_config.h"        // Config::LOOP_* - the fixed period and metric windows
 
-#include "../utils/filters.h"
-#include "../hal/platform.h"
+#include "libbotanik/hal/platform.h"  // HAL::Clock::sleep_ms / uptime_us - the beat's pacing
+#include "libbotanik/utils/filters.h" // Utils::ExpMovingAverage / WindowedMax - the per-beat metrics
 
 // Because the address sanitizer uses a fake stack for locals, stack-usage
 // measurement is fundamentally incompatible with ASAN; the BOTANIK_NO_ASAN

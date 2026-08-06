@@ -8,8 +8,8 @@
  *        formatting.
  */
 
-#include <cstddef>
-#include <cstdint>
+#include <cstddef>                    // size_t - the timestamp buffer capacities
+#include <cstdint>                    // uint8_t/uint16_t/uint64_t - CalendarTime fields, ms stamps
 
 namespace Botanik { namespace Utils {
 

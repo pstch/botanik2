@@ -9,7 +9,7 @@
  * The notes column sits before them, as in AlarmCondition itself.
  */
 
-#include "platform.h"
+#include "libbotanik/alarms/platform.h" // the platform-health condition table this file defines
 
 namespace Botanik { namespace Alarms {
 

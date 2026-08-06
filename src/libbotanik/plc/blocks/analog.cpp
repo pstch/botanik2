@@ -3,11 +3,11 @@
  * @brief Hysteresis / Hysteresis3 / Ramp / Deadband.
  */
 
-#include "analog.h"
+#include "libbotanik/plc/blocks/analog.h" // Hysteresis / Hysteresis3 / Ramp / Deadband - implemented here
 
-#include "../functions/time.h"
+#include "libbotanik_config.h"        // BOTANIK_FEATURE_PLC_BLK_* - the gate the bodies below sit behind
 
-#include "../../../libbotanik_config.h"
+#include "libbotanik/plc/functions/time.h" // Plc::seconds - the per-edge hold times
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {

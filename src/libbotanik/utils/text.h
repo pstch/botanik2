@@ -8,9 +8,9 @@
  *        shell layers.
  */
 
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
+#include <cstddef>                    // size_t - the caller-supplied buffer capacities
+#include <cstdint>                    // uint8_t/uint16_t/uint32_t - the values formatted
+#include <cstring>                    // strcmp - compare_str's inline body
 
 namespace Botanik { namespace Utils {
 

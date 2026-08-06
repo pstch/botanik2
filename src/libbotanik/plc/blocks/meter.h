@@ -18,9 +18,9 @@
  * the units are visible, rather than a time-base argument on every call.
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint32_t - the derivative window in milliseconds
 
-#include "../../../libbotanik_config.h"
+#include "libbotanik_config.h"        // BOTANIK_FEATURE_PLC_BLK_BASE - the gate this whole header sits behind
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {

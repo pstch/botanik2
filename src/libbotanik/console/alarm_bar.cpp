@@ -3,13 +3,14 @@
  * @file alarm_bar.cpp
  * @brief AlarmBar implementation - bottom-row unmasked-alarm strip.
  */
-#include <cstdint>
-#include <cstring>
+#include "libbotanik/console/alarm_bar.h" // AlarmBar - the bottom alarm bar implemented here
 
-#include "alarm_bar.h"
-#include "console.h"
-#include "terminal.h"
-#include "../alarms/alarms.h"
+#include <cstdint>                    // uint8_t/uint16_t/uint64_t - columns and the rotation timer
+#include <cstring>                    // strlen - measuring the condition name it shows
+
+#include "libbotanik/alarms/alarms.h" // Alarms::AlarmController - which conditions are active
+#include "libbotanik/console/console.h" // Console::alarms / rows_total - where the bar sits
+#include "libbotanik/console/terminal.h" // AnsiTerminal - move_to / set_inverted / fill_spaces
 
 namespace Botanik { namespace Terminal {
 

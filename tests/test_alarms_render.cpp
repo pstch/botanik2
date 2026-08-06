@@ -8,19 +8,18 @@
  *        few ticks; each pump ticks the page, presents, and transmits until the
  *        pipe goes quiet.
  */
-#include <cstdint>
-#include <fcntl.h>
-#include <string>
-#include <unistd.h>
+#include <cstdint>                    // uint8_t/uint16_t/uint64_t - screen geometry and tick stamps
+#include <fcntl.h>                    // fcntl / O_NONBLOCK - the pipe standing in for the serial link
+#include <string>                     // std::string - the rendered screen text asserted on
+#include <unistd.h>                   // pipe / read / close - draining what the terminal emitted
 
-#include "doctest.h"
+#include "libbotanik/alarms/alarms.h" // Alarms::AlarmController - the conditions the page shows
+#include "libbotanik/console/console.h" // Console - the page host
+#include "libbotanik/console/terminal.h" // AnsiTerminal::present - flushes the diff to the pipe
+#include "libbotanik/pages/alarms.h"  // Pages::AlarmsPage - under test
+#include "libbotanik/vars/declare.h"  // the A() factory - the alarm rows behind the page
 
-#include "libbotanik/vars/declare.h"
-
-#include "libbotanik/alarms/alarms.h"
-#include "libbotanik/pages/alarms.h"
-#include "libbotanik/console/terminal.h"
-#include "libbotanik/console/console.h"
+#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
 
 using namespace Botanik;
 using Command = Terminal::InputEvent::Command;

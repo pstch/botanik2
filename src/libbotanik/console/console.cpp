@@ -3,11 +3,13 @@
  * @file console.cpp
  * @brief Console implementation - page multiplexing, bars, input routing, step().
  */
-#include <cstdint>
+#include "libbotanik/console/console.h" // Console - the page multiplexer implemented here
 
-#include "../../libbotanik_config.h"
-#include "../hal/platform.h"
-#include "console.h"
+#include <cstdint>                    // int8_t/uint16_t/uint64_t - page indices and geometry
+
+#include "libbotanik_config.h"        // Config::SCREEN_* / PAGE_MAX - reserved rows and tab count
+
+#include "libbotanik/hal/platform.h"  // HAL::System::shutdown - the console can end the session
 
 namespace Botanik { namespace Terminal {
 

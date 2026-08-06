@@ -7,11 +7,11 @@
  * two of them and the fail-safe sweep another two, and nothing said why.
  */
 
-#include "model.h"
+#include "libbotanik/vars/model.h"    // Bank / Var / Variable - what this file implements
 
-#include <cstring>
+#include <cstring>                    // strcmp / strncmp - name lookup and group matching
 
-#include "../logs/logger.h"   // a refused persist is a fault, not a shrug
+#include "libbotanik/logs/logger.h"   // Logs::Logger - a refused persist is a fault, not a shrug
 
 namespace Botanik { namespace Vars {
 

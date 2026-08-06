@@ -15,10 +15,10 @@
  *
  */
 
-#include <cstdlib>   // abort
+#include <cstdlib>                    // abort - the last resort when no debugger is attached
 
-#include "../hal/platform.h"
-#include "../logs/logger.h"
+#include "libbotanik/hal/platform.h"  // HAL::Debug::breakpoint / under_debugger - trap first
+#include "libbotanik/logs/logger.h"   // Logs::Logger - the failed assertion is logged CRITICAL
 
 // Assertion handling (and logging)
 // ===========================================================================

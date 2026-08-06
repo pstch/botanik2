@@ -8,13 +8,13 @@
  * (noon-anchored), so the Julian-date arithmetic and the noon-anchored transit
  * fall out directly.
  */
-#include <cmath>
-#include <cstdint>
+#include "libbotanik/sun/sun_tracker.h" // SunPositionTracker / solar_elevation - implemented here
 
-#include "../hal/platform.h"
-#include "../utils/time.h"
+#include <cmath>                      // sin/cos/asin/fabs/sqrt - the NOAA solar-position math
+#include <cstdint>                    // uint32_t/uint64_t - the ms timestamps
 
-#include "sun_tracker.h"
+#include "libbotanik/hal/platform.h"  // HAL::Clock::wall_ms - the UTC the position is computed for
+#include "libbotanik/utils/time.h"    // Utils::unix_ms_from_uptime_ms - uptime -> civil time
 
 #if BOTANIK_FEATURE_SUN_TRACKER
 

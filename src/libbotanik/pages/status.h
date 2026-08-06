@@ -19,26 +19,26 @@
  * alarm set is shown on the terminal-owned bottom bar, not here.
  */
 
-#include <cstdint>
-#include <cstdio>
+#include <cstdint>                    // uint16_t/uint32_t/uint64_t - the metric values and stamps
+#include <cstdio>                     // snprintf - each cell's rendered value
 
-#include <cstring>
+#include "libbotanik_config.h"        // Config::* - the site identity cells
+#include "libbotanik_features.h"      // BOTANIK_FEATURE_NETWORK / NTP / MQTT - the gates below
 
-#include "../../libbotanik_config.h"
-#include "../../libbotanik_features.h"
-#include "../hal/platform.h"
-#include "metric_page.h"
-#include "../scheduler/scheduler.h"
-#include "../utils/text.h"
-#include "../utils/time.h"
+#include "libbotanik/hal/platform.h"  // HAL::Clock::uptime_ms / HAL::Stack - the platform cells
+#include "libbotanik/pages/metric_page.h" // Pages::MetricPage - the two-column grid base
+#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext - the CPU/jitter/stack cells
+#include "libbotanik/utils/text.h"    // Utils::format_age / format_float / format_size
+#include "libbotanik/utils/time.h"    // Utils::cal_time_ms - the wall-clock cell
+
 #if BOTANIK_FEATURE_NETWORK
-#include "../network/network.h"   // NetworkHandler status
+#include "libbotanik/network/network.h" // Network::NetworkHandler::ip / status_str - the link cell
 #endif
 #if BOTANIK_FEATURE_NTP
-#include "../network/ntp.h"       // NtpClient status
+#include "libbotanik/network/ntp.h"   // Network::NtpClient::synced / offset_ms - the time cell
 #endif
 #if BOTANIK_FEATURE_MQTT
-#include "../network/mqtt.h"      // MqttClient status
+#include "libbotanik/network/mqtt.h"  // Network::MqttClient::last_contact_ms - the broker cell
 #endif
 
 namespace Botanik { namespace Pages {

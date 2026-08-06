@@ -29,11 +29,12 @@
  * dev/editor.md); see also docs/dev/screen.md.
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint8_t/uint16_t/uint64_t - cells, coordinates, byte budget
 
-#include "../../libbotanik_config.h"
-#include "../utils/serial.h"
-#include "ansi.h"
+#include "libbotanik_config.h"        // Config::SCREEN_ROWS / COLS / BAUD - the buffer and budget
+
+#include "libbotanik/console/ansi.h"  // Terminal::Ansi - the escape sequences present() emits
+#include "libbotanik/utils/serial.h"  // Utils::BufferedSerial - the wire the diff is paced against
 
 namespace Botanik { namespace Terminal {
 

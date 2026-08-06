@@ -7,9 +7,9 @@
  *        three-band), rate limit, deadband.
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint8_t/uint32_t - the band enum and the hold timers
 
-#include "../../../libbotanik_config.h"
+#include "libbotanik_config.h"        // BOTANIK_FEATURE_PLC_BLK_BASE - the gate this whole header sits behind
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {

@@ -12,8 +12,8 @@
 
 // Site selected at configure time (-DBOTANIK_SITE); libbotanik_site.h derives
 // BOTANIK_SITE_HEADER -> its site.h, exposing BotanikSite.
-#include "libbotanik_site.h"
-#include BOTANIK_SITE_HEADER
+#include "libbotanik_site.h"          // resolves BOTANIK_SITE -> BOTANIK_SITE_HEADER
+#include BOTANIK_SITE_HEADER          // BotanikSite - the selected greenhouse's firmware class
 
 namespace Botanik { namespace Firmware {
 

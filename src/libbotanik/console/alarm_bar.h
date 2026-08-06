@@ -14,7 +14,7 @@
  * cells that moved. No change-highlighting - the set is visible as a whole.
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint16_t/uint64_t - the bar's row and its rotation timer
 
 namespace Botanik { namespace Alarms { class AlarmController; } }
 

@@ -10,9 +10,9 @@
  * lose the time it was late by.
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint32_t - the elapsed / preset times in milliseconds
 
-#include "../../../libbotanik_config.h"
+#include "libbotanik_config.h"        // BOTANIK_FEATURE_PLC_BLK_BASE - the gate this whole header sits behind
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {

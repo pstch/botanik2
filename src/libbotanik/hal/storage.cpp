@@ -5,11 +5,11 @@
  *        "key=hex" record per line) emulating the KV store on the simulator. The
  *        TARGET_OPTA / TARGET_SIMULATOR split is legal here: this is the HAL.
  */
-#include "storage.h"
+#include "libbotanik/hal/storage.h"   // HAL::Storage::set/get/remove - what this file implements
 
-#include <cstring>
+#include <cstring>                    // memcpy / memcmp / strlen - key validation and value copies
 
-#include "../../libbotanik_config.h"
+#include "libbotanik_config.h"        // Config::STORE_MAX_BYTES - the value size cap
 
 namespace Botanik { namespace HAL { namespace Storage {
 
@@ -49,8 +49,8 @@ namespace Botanik { namespace HAL { namespace Storage {
 // variant's COMPONENT_QSPIF + STORAGE_TYPE=default picks TDB_EXTERNAL. The
 // region base and size are both 0, so Mbed places it over the whole device -
 // see the warning in storage.h. Confirm the placement on hardware.
-#include "platform/mbed_error.h"
-#include "kvstore_global_api/kvstore_global_api.h"
+#include "kvstore_global_api/kvstore_global_api.h" // kv_set / kv_get / kv_remove - the TDBStore API
+#include "platform/mbed_error.h"      // MBED_ERROR_ITEM_NOT_FOUND - "absent" vs a real fault
 
 namespace Botanik { namespace HAL { namespace Storage {
 
@@ -109,9 +109,9 @@ namespace Botanik { namespace HAL { namespace Storage {
 // so arbitrary bytes survive a line-based text file. The whole store is small
 // (a handful of config parameters plus the operator's note), so each op
 // rewrites it in full.
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
+#include <cstdint>                    // uint8_t/uint32_t - the hex byte encoding
+#include <cstdio>                     // FILE / fopen / fread / fwrite / remove - the backing file
+#include <cstdlib>                    // getenv - $BOTANIK_CONFIG_STORE picks the store path
 
 namespace Botanik { namespace HAL { namespace Storage {
 

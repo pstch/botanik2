@@ -14,7 +14,7 @@
  * collide.
  */
 
-#include "alarms.h"
+#include "libbotanik/alarms/alarms.h" // AlarmCondition - the row type this table is built from
 
 namespace Botanik { namespace Alarms {
 

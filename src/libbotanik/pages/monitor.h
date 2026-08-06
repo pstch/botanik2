@@ -29,17 +29,18 @@
  * cells that actually changed, so the page keeps no paint cache.
  */
 
-#include <cstdint>
-#include <cstdio>
-#include <cstring>
+#include <cstdint>                    // uint8_t/uint16_t/uint64_t - view mode, cursor, quality ages
+#include <cstdio>                     // snprintf - the row cells and the detail panel
+#include <cstring>                    // strcmp / strncpy - grouping rows by name prefix
 
-#include "../../libbotanik_config.h"
-#include "../hal/platform.h"
-#include "page.h"
-#include "scroll_table.h"
-#include "../console/console.h"
-#include "../console/terminal.h"
-#include "../vars/access.h"
+#include "libbotanik_config.h"        // BOTANIK_FEATURE_MONITOR_PAGE - the gate this header sits behind
+
+#include "libbotanik/console/console.h" // Console::rows / terminal - the content area to paint
+#include "libbotanik/console/terminal.h" // AnsiTerminal - the drawing operations
+#include "libbotanik/hal/platform.h"  // HAL::Clock::uptime_ms - the age shown in the quality panel
+#include "libbotanik/pages/page.h"    // Pages::Page - the interface this page implements
+#include "libbotanik/pages/scroll_table.h" // Pages::ScrollTablePage - the scrolling table base
+#include "libbotanik/vars/access.h"   // Vars::var_published / var_group / var_format - what to show
 
 namespace Botanik { namespace Pages {
 

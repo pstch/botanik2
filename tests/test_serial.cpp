@@ -5,14 +5,15 @@
  *        / transmit() / tx_discard(). Covers ordering, peek, wrap-around past
  *        the ring boundary, the full-ring capacity cap, and TX drop counting.
  */
-#include <cstdint>
-#include <cstring>
-#include <unistd.h>
+#include <cstdint>                    // uint8_t/uint16_t - the ring indices and byte counts
+#include <cstring>                    // memcpy / strlen - feeding and checking the ring
+#include <unistd.h>                   // pipe / read / write - the fds the ring is driven through
 
-#include "doctest.h"
+#include "libbotanik_config.h"        // Config::SERIAL_RX_BUF / TX_BUF - the depths asserted on
 
-#include "libbotanik_config.h"
-#include "libbotanik/utils/serial.h"
+#include "libbotanik/utils/serial.h"  // Utils::BufferedSerial - under test
+
+#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
 
 using Botanik::Utils::BufferedSerial;
 

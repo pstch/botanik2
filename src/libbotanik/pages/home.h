@@ -18,22 +18,23 @@
  * render.
  */
 
-#include <cstdint>
-#include <cstdio>
-#include <cstring>
+#include <cstdint>                    // uint8_t/uint16_t - the home-field grid coordinates
+#include <cstdio>                     // snprintf - the version and uptime readouts
+#include <cstring>                    // memset / strcmp / strlen - the field labels and values
 
-#include "../../libbotanik_config.h"
-#include "../hal/platform.h"
-#include "../logs/format.h"
-#include "../logs/writer.h"
-#include "metric_page.h"
-#include "scrollback.h"
-#include "../vars/access.h"   // HomeVar / var_format
+#include "libbotanik_config.h"        // Config::SITE_NAME / FIRMWARE_VERSION - the identity block
+
+#include "libbotanik/hal/platform.h"  // HAL::Clock::uptime_ms - the uptime cell
+#include "libbotanik/logs/format.h"   // Logs::format_log_entry - renders the log-tail band
+#include "libbotanik/logs/writer.h"   // Logs::BufferedLogWriter - the source of that tail
+#include "libbotanik/pages/metric_page.h" // Pages::MetricPage - the base this page's grid is built on
+#include "libbotanik/pages/scrollback.h" // Pages::HomeScrollback - the log-tail band's view
+#include "libbotanik/vars/access.h"   // Vars::HomeVar / var_format - the site's home fields
 
 // Build-stamped git short hash (generated header); "unknown" when absent
 // (Arduino .ino deploy doesn't run CMake).
 #if defined(__has_include) && __has_include("botanik_gitversion.h")
-#  include "botanik_gitversion.h"
+#  include "botanik_gitversion.h"     // BOTANIK_GIT_HASH - CMake-generated, absent in the .ino build
 #endif
 #ifndef BOTANIK_GIT_HASH
 #  define BOTANIK_GIT_HASH "unknown"

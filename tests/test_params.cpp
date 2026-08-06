@@ -4,18 +4,18 @@
  *        path with its tri-state result, and the by-name reads the
  *        config-driven components use.
  */
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <unistd.h>
+#include <cstdint>                    // uint16_t - the test table's register numbers
+#include <cstdio>                     // snprintf - building the temporary store path
+#include <cstdlib>                    // setenv / unsetenv - $BOTANIK_CONFIG_STORE points at a temp file
+#include <unistd.h>                   // unlink - removing that temp file
 
-#include "doctest.h"
+#include "libbotanik/hal/storage.h"   // HAL::Storage - the backing the parameter store persists to
+#include "libbotanik/utils/text.h"    // Utils::compare_str - name comparisons
+#include "libbotanik/vars/access.h"   // Vars::var_format - rendering a parameter's value
+#include "libbotanik/vars/declare.h"  // the P/PS factories the test table is written in
+#include "libbotanik/vars/params.h"   // Vars::Params / KvParamStore - under test
 
-#include "libbotanik/hal/storage.h"
-#include "libbotanik/utils/text.h"
-#include "libbotanik/vars/params.h"
-#include "libbotanik/vars/declare.h"
-#include "libbotanik/vars/access.h"
+#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
 
 using namespace Botanik;
 using namespace Botanik::Vars;

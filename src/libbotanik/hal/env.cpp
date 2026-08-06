@@ -7,12 +7,12 @@
  * than in utils/. The OPTA build has no environment and always yields the
  * fallback.
  */
-#include "platform.h"
+#include "libbotanik/hal/platform.h"  // HAL::Env::u32 / u8 - what this file implements
 
-#include "../utils/text.h"   // parse_uint
+#include "libbotanik/utils/text.h"    // Utils::parse_uint - turns the env string into a number
 
 #ifdef TARGET_SIMULATOR
-#  include <cstdlib>         // getenv
+#  include <cstdlib>                  // getenv - the sim reads the real environment; OPTA has none
 #endif
 
 namespace Botanik { namespace HAL { namespace Env {

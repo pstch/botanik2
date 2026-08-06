@@ -19,13 +19,14 @@
  * platform-specific calls directly.
  */
 
-#include <cstdint>
-#include <cstring>
+#include <cstdint>                    // uint8_t/uint32_t/uint64_t/uintptr_t - ms stamps, stack addresses
 
+// The one place TARGET_OPTA is allowed to pick a backend: both headers define
+// the same HAL::Clock/Memory/Stack/Debug/System/Watchdog surface declared below.
 #ifdef TARGET_OPTA
-    #include "opta.h"
+    #include "libbotanik/hal/opta.h"  // the Mbed OS implementation
 #else
-    #include "simulator.h"
+    #include "libbotanik/hal/simulator.h" // the std::chrono + Linux implementation
 #endif
 
 namespace Botanik { namespace HAL {

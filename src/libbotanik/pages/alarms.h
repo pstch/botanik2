@@ -31,19 +31,18 @@
  * the bars.
  */
 
-#include <algorithm>
-#include <cstdint>
-#include <cstdio>
-#include <cstring>
+#include <cstdint>                    // uint8_t/uint16_t/uint64_t - filter mode, cursor, ack times
+#include <cstdio>                     // snprintf - the row cells and the detail panel
 
-#include "../../libbotanik_config.h"
-#include "../alarms/alarms.h"
-#include "../hal/platform.h"
-#include "page.h"
-#include "scroll_table.h"
-#include "../console/console.h"
-#include "../console/terminal.h"
-#include "../utils/time.h"
+#include "libbotanik_config.h"        // BOTANIK_FEATURE_ALARMS_PAGE - the gate this header sits behind
+
+#include "libbotanik/alarms/alarms.h" // Alarms::AlarmController / AlarmCondition - the table shown
+#include "libbotanik/console/console.h" // Console::rows / terminal - the content area to paint
+#include "libbotanik/console/terminal.h" // AnsiTerminal - move_to / write_chars / set_inverted
+#include "libbotanik/hal/platform.h"  // HAL::Clock::uptime_ms - ages the recent-filter window
+#include "libbotanik/pages/page.h"    // Pages::Page - the interface this page implements
+#include "libbotanik/pages/scroll_table.h" // Pages::ScrollTablePage - the scrolling table base
+#include "libbotanik/utils/time.h"    // Utils::cal_time_ms - renders the ack timestamp
 
 namespace Botanik { namespace Pages {
 

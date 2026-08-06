@@ -20,13 +20,14 @@
  * convenience.
  */
 
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
+#include <cstddef>                    // size_t - the group-name buffer capacities
+#include <cstdint>                    // uint8_t - the interned group ids
+#include <cstring>                    // strchr / strcmp / strlen / memcpy - var_group's prefix split
 
-#include "../../libbotanik_config.h"
-#include "model.h"
-#include "declare.h"   // scope_label
+#include "libbotanik_config.h"        // Config::VAR_GROUP_* - how many groups and how long a name
+
+#include "libbotanik/vars/declare.h"  // Vars::scope_label - renders a VarScope for a table heading
+#include "libbotanik/vars/model.h"    // Vars::Bank / Var / VarRef - what these rules are applied to
 
 namespace Botanik { namespace Vars {
 
