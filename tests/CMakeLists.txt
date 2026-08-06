@@ -47,6 +47,8 @@ add_executable(botanik_tests
     test_notifier.cpp
     test_mqtt_log.cpp
     test_hal_memory.cpp
+    test_modbus_codec.cpp
+    test_modbus_framing.cpp
 )
 
 # vendor/ for doctest.h; src/ for the library and the simulator's site payloads.
