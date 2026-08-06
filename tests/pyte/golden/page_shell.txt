@@ -16,9 +16,9 @@
 
 
 
-<TS> [!] ALARM_START: DC PS1 volts too low
-<TS> [!] ALARM_START: Grid AC out-of-spec/offline
-<TS> [!] ALARM_START: Relative humidity too high
-<TS> [-] ALARM_END: Relative humidity too high
+
+
+
+
 botanik>
  ALARMS :<BAR>

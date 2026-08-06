@@ -193,13 +193,14 @@ namespace Botanik { namespace Sim {
 
         /** @brief Say what happened, where it cannot be lost.
          *
-         *  Through the logger AND straight to stderr, because those are two
-         *  different jobs. The log line is for an operator reading the LOGS page.
-         *  The stderr line is the verdict of a self-check, and the sim's log
-         *  sinks are baud-paced: during the boot burst they drop entries, and a
-         *  verdict that is dropped is a verdict that reads as "the check never
-         *  ran". Scaffolding is allowed to write to the console directly; the
-         *  firmware it is checking is not. */
+         *  To stderr, and deliberately NOT through the firmware's logger.
+         *
+         *  Two reasons, and the second is the one that decided it. The sim's log
+         *  sinks are baud-paced and drop entries under load, so a verdict sent
+         *  that way reads as "the check never ran" whenever it is busy. And this
+         *  is scaffolding: its verdict belongs to whoever ran the simulator, not
+         *  in the log an operator reads to understand the plant - where it would
+         *  also sit in the home page's log tail, moving whatever was there. */
         void _report(const char* verdict, const char* fmt, ...)
             __attribute__((format(printf, 3, 4))) {
             char detail[96];
@@ -209,11 +210,6 @@ namespace Botanik { namespace Sim {
             va_end(ap);
             fprintf(stderr, "\r\n[modbus self-check] %s: %s\r\n", verdict, detail);
             fflush(stderr);
-            if (_logger == nullptr) return;
-            if (_ok) _logger->notice(Logs::SHARED_IO, "modbus self-check: %s (%s)",
-                                     verdict, detail);
-            else     _logger->error(Logs::SHARED_IO, "modbus self-check: %s (%s)",
-                                    verdict, detail);
         }
     };
 

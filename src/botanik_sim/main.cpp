@@ -118,6 +118,12 @@ int main(int argc, char** argv) {
     // something else, reads it back and says so. Nothing is mocked - a real
     // socket, the real map, the real Bank::set() - so it is the answer to
     // "does the slave actually serve?", asked every time the sim runs.
+    //
+    // Off for the screen tests ($BOTANIK_NO_MBCHECK), which is why it is a knob:
+    // the check MUTATES a parameter and its traffic reaches the log tail the
+    // home page shows, so leaving it on would put a moving target inside a
+    // golden. Same reason, same mechanism as $BOTANIK_NO_LOAD_ALARMS.
+    const bool mbcheck_on = HAL::Env::u32("BOTANIK_NO_MBCHECK", 0) == 0;
     Sim::ModbusCheck modbus_check(&greenhouse.io(), &greenhouse.logger());
 #endif
 
@@ -139,7 +145,7 @@ int main(int argc, char** argv) {
 #if BOTANIK_FEATURE_MODBUS_TCP_CLIENT
         // After the beat: the answers it reads are the ones the beat just
         // published, which is the whole point of the slave's two-phase split.
-        modbus_check.step(HAL::Clock::uptime_ms());
+        if (mbcheck_on) modbus_check.step(HAL::Clock::uptime_ms());
 #endif
         if (botanik_reexec) HAL::System::reset();
     }

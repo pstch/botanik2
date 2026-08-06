@@ -8,11 +8,11 @@
   | STACK    | alarm_stack                             | <V>| <V>            |
   | CPU_JITT | alarm_cpu_jitter                        | <V>| <V>            |
   | FLASH_FLT| alarm_flash_error                       | <V>| <V>            |
+  | BUS_DEAD | alarm_fieldbus                          | <V>| <V>            |
   | AC_GRID  | alarm_ac_grid                           | <V>| <V>            |
   | DC_PS1   | alarm_dc_ps1                            | <V>| <V>            |
   | GEN_FLT  | alarm_gen                               | <V>| <V>            |
   | AC_LOCAL | alarm_ac_local                          | <V>| <V>            |
-  | DC_PS2   | alarm_dc_ps2                            | <V>| <V>            |
   v----------v-----------------------------------------v----v----------------v
 
  Description  : unit reset recently

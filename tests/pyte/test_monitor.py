@@ -7,6 +7,8 @@ stays is the navigation, which a golden cannot express: that the window scrolls
 to reach the end of the table, and that the view cycling changes the row set.
 """
 
+import re
+
 import keys
 from helpers import boot, goto
 
@@ -28,18 +30,31 @@ def test_monitor_group_modes(spawn):
     """SPACE / LEFT / RIGHT cycle the group view (scroll_table.h's mode machinery)."""
     term = boot(spawn)
     goto(term, keys.ALT_6, "SCOPE")
-    # The footer names the view SPACE would move to, so it is what shows the
-    # cycle actually moved. "all" is mode 0, so the first named group is next.
-    assert term.wait_for("grid"), "footer did not offer the first group"
+    # WHICH group comes first is not this test's business: the groups are the
+    # name prefixes of whatever the site publishes, and the library publishes
+    # rows of its own, so the first one moves whenever either does. What has to
+    # hold is that SPACE leaves "all" for a named group, LEFT comes back, and
+    # BACKSPACE resets - so read the group the view actually entered rather than
+    # predicting it.
+    assert term.wait_for("[all]"), "the monitor did not open on the all-groups view"
 
-    term.send(b" ")                       # -> the grid group
-    assert term.wait_for("grid_L1_V"), "group view lost its variables"
+    term.send(b" ")                       # -> the first named group
+    term.settle()
+    entered = _current_group(term)
+    assert entered not in (None, "all"), "SPACE did not enter a group"
 
     term.send(keys.LEFT)                  # back to "all"
     assert term.wait_for("[all]"), "LEFT did not return to the all-groups view"
 
     # BACKSPACE is the way back to the whole set without cycling every group.
     term.send(b" ")
-    assert term.wait_for("[grid]"), "SPACE did not enter a group"
+    term.settle()
+    assert _current_group(term) == entered, "SPACE did not enter a group again"
     term.send(keys.BACKSPACE)
     assert term.wait_for("[all]"), "BACKSPACE did not reset to the all-groups view"
+
+
+def _current_group(term):
+    """The group name in the footer's [brackets], or None."""
+    m = re.search(r"\[([a-z_]+)\]", term.snapshot())
+    return m.group(1) if m else None

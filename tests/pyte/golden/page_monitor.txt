@@ -2,6 +2,7 @@
 
   | SCOPE    | VARIABLE                 | VALUE         | UNIT   | OVERRIDE  |
   +----------+--------------------------+---------------+--------+-----------+
+  | SV       | sys_fieldbus_dead        | <V>           |        | -         |
   | MI       | grid_L1_V                | <V>           | V      | -         |
   | MI       | grid_L2_V                | <V>           | V      | -         |
   | MI       | grid_L3_V                | <V>           | V      | -         |
@@ -11,14 +12,13 @@
   | MI       | grid_L1_VA               | <V>           | VA     | -         |
   | MI       | grid_L2_VA               | <V>           | VA     | -         |
   | MI       | grid_L3_VA               | <V>           | VA     | -         |
-  | MI       | grid_L1_VAr              | <V>           | VAr    | -         |
   v----------+--------------------------+---------------+--------+-----------v
 
- Description  : L1 phase voltage
- Notes        : -
- Source       : Modbus dev 5 fc 3 reg 0
+ Description  : field devices not answering
+ Notes        : 0 when every planned device is talking
+ Source       : computed
  Quality      : <Q>
 
-                      [all]         (grid)      <N>
+                      [all]          (sys)      <N>
 
  ALARMS :<BAR>

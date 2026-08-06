@@ -77,9 +77,6 @@ namespace Botanik { namespace Modbus {
     }
 
     void TcpMaster::_finish(Error e, uint64_t now_ms) {
-        if (_logger != nullptr)
-            _logger->info(Logs::NETWORK, "DBG finish err=%u rx=%u state=%u",
-                          (unsigned)e, (unsigned)_rx_len, (unsigned)_state);
         _err = e;
         // A refusal is a completed transaction: the slave heard us and declined,
         // which is an answer. Only silence and malformed frames are faults.
@@ -134,8 +131,6 @@ namespace Botanik { namespace Modbus {
             if (n < 0) { disconnect(); _finish(ERR_TIMEOUT, now_ms); return; }
             _tx_sent = (uint16_t)(_tx_sent + n);
         }
-        if (_logger != nullptr)
-            _logger->info(Logs::NETWORK, "DBG sent %u bytes", (unsigned)_tx_len);
         _enter(MA_WAITING, now_ms);
     }
 

@@ -59,6 +59,10 @@ class Term:
         # moments, so without this the alarm set (and thus the alarms-page screen and
         # the persistent alarm bar) varies run to run. See health.h.
         env["BOTANIK_NO_LOAD_ALARMS"] = "1"
+        # The sim's Modbus self-check writes a parameter and its traffic lands in
+        # the log tail the home page renders. Useful when a developer runs the
+        # sim; a moving target inside a golden here.
+        env["BOTANIK_NO_MBCHECK"] = "1"
         # Private config store. HAL::Storage otherwise persists to ~/.botanik_config,
         # which the tests would share with each other (four sims run in parallel) and
         # with the developer's own sim: test_params commits an edit, so a suite run
