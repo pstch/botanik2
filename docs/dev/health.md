@@ -57,7 +57,7 @@ loop() beat 1
 Two constraints pin it there. Every log sink - including the ones a site registers in
 `on_setup()` - must already exist, or the verdict goes nowhere. And it must be out of
 the first beat: the parameter load beside it is hundreds of storage reads, which read
-as a boot overrun against a 10 ms budget (@ref dev_tasks).
+as a boot overrun against a 10 ms budget.
 
 ### What it checks
 

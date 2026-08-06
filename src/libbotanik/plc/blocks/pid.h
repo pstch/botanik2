@@ -16,19 +16,14 @@ namespace Botanik { namespace Plc {
     /**
      * @brief What a Pid is tuned with: gains, output span, action.
      *
-     * Separate from the block because it is DATA - typically built each scan
-     * from parameters, so a loop can be retuned from the PARAMS page without a
-     * build, while the block keeps the loop's state across the change.
+     * Data, not state - typically rebuilt each scan from parameters, so a loop
+     * is retunable from the PARAMS page while the block keeps its history.
+     * Gains are the parallel form, so each stands on its own: @c kp is output
+     * units per unit of error, @c ki per (error x second), @c kd per
+     * (error / second).
      *
-     * Gains are in the parallel (ideal-independent) form, so each is in
-     * engineering units and can be reasoned about on its own:
-     *
-     *   - @c kp : output units per unit of error
-     *   - @c ki : output units per (unit of error x second)
-     *   - @c kd : output units per (unit of error / second)
-     *
-     * @note constexpr with defaults, so a site can spell the common cases -
-     *  `PidTuning(2.0f)` for pure P, `PidTuning(2.0f, 0.05f)` for PI.
+     * @note constexpr with defaults: `PidTuning(2.0f)` is pure P,
+     *  `PidTuning(2.0f, 0.05f)` is PI.
      */
     struct PidTuning {
         float kp;         ///< proportional gain
@@ -51,32 +46,23 @@ namespace Botanik { namespace Plc {
      * @brief PID regulator: holds a reading at a setpoint by driving a
      * continuous output.
      *
-     * Three departures from the textbook sum, each of which is what makes the
-     * difference between a loop that works on a greenhouse and one that only
-     * works on paper:
+     * Three departures from the textbook sum, each the difference between a loop
+     * that works on a greenhouse and one that works on paper:
      *
-     *  - **Derivative on the measurement, not the error.** A setpoint typed at
-     *    the console is a step; differentiating it slams the output to a limit
-     *    for one scan. Differentiating the reading gives the same damping with
-     *    no kick, and is optionally lowpassed (@c d_tau_s) because
-     *    differentiating a noisy sensor amplifies exactly the noise.
-     *  - **Conditional integration.** While the output sits at a limit the
-     *    integral is frozen if it would push further into that limit, so a loop
-     *    that spends the night against its ceiling comes off it the moment the
-     *    error changes sign, instead of unwinding for an hour first. No
-     *    back-calculation gain to tune.
-     *  - **The integral is clamped to the output span.** A term larger than any
-     *    output the actuator can produce is a value the loop must spend real
-     *    time undoing.
+     *  - **Derivative on the measurement, not the error**, so a setpoint typed
+     *    at the console does not slam the output to a limit for one scan;
+     *    optionally lowpassed (@c d_tau_s), since differentiating a noisy sensor
+     *    amplifies exactly the noise.
+     *  - **Conditional integration**: frozen while it would push further into a
+     *    limit the output is already against, so a loop that spent the night on
+     *    its ceiling comes off it when the error changes sign rather than
+     *    unwinding for an hour. No back-calculation gain to tune.
+     *  - **The integral is clamped to the output span** - a term larger than any
+     *    output the actuator can produce is time the loop must spend undoing it.
      *
-     * Direct-acting by default: error is `setpoint - reading`, i.e. the output
-     * rises when the reading is too LOW (heating, filling, injecting). A
-     * cooling or venting loop sets @c reverse, which flips the error and the
-     * derivative together - swapping the two arguments instead would silently
-     * differentiate the setpoint.
-     *
-     * The block holds only state; everything tunable is in PidTuning, passed
-     * each call.
+     * Direct-acting by default (output rises as the reading falls: heating,
+     * filling). @c reverse flips the error and the derivative together; swapping
+     * the two arguments instead would silently differentiate the setpoint.
      */
     class Pid {
 

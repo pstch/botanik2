@@ -165,7 +165,7 @@ namespace Botanik { namespace Scheduler {
          *
          * Setup used to happen lazily, on a component's first step(), which put
          * it inside the first beat: the parameter load alone is 423 storage
-         * reads (@ref dev_tasks), i.e. tens of milliseconds of flash inside a
+         * reads, i.e. tens of milliseconds of flash inside a
          * 10 ms budget, reported as a boot overrun. It belongs before the beat
          * exists.
          *

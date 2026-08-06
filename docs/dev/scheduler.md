@@ -173,7 +173,7 @@ paid when the loop was a fixed call sequence.
 | `console` | present | main | 4800 baud = 4.4 bytes/beat; echo perception | 5x |
 | `monitor_log` | present | fast | log queue drain | - |
 | `console_tx` / `monitor_tx` | present | fast | keep the UART fed | - |
-| *Modbus commit / collect* (@ref dev_modbus) | input / output | fast | ring fills in 146 ms @19200, **24 ms** @115200 | - |
+| *Modbus commit / collect* | input / output | fast | ring fills in 146 ms @19200, **24 ms** @115200 | - |
 
 The two wins are `expire_stale` (50x) and the console render (5x, and the most
 expensive item per invocation). `scan`, `logger`, the serial pumps and the

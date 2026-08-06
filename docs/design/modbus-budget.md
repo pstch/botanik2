@@ -1,4 +1,4 @@
-# The field bus: Modbus RTU {#dev_modbus}
+# The field bus: Modbus RTU
 
 What it costs to read a register over RS-485, how many the plant can afford per
 second, and the rules the client is built to. This page is the **budget** the
@@ -194,3 +194,57 @@ turnaround** (a scope or a logic analyzer on one transaction; it moves these
 tables more than the baud rate does), and **whether its 150 registers are
 contiguous** - meters often scatter them, and 32-bit values spanning a register
 pair bring word-order quirks that want a per-device flag.
+
+## How the bus would meet the scan cycle
+
+Cut from the manual's scan page when that page was trimmed to what exists. This
+is the boundary the client has to implement.
+
+**The cycle cannot read the wire.** The textbook PLC cycle is read inputs,
+execute, write outputs, once per cycle, with I/O synchronous at the cycle
+boundary. That works when I/O is backplane-local and costs microseconds. A sweep
+of this plant is 555 ms at 19200, or 55 beats, so inputs cannot be refreshed at
+the top of a 10 ms beat and no tuning changes that. The bus runs on its own clock
+and maintains the process image; the cycle reads the image.
+
+**Split the client like the serial pump.** `BufferedSerial` is one Component
+whose halves the loop drives at the phases they belong to - RX at the top, TX
+after the render. `receive()` parses completed responses and commits them, so a
+program sees the freshest image; `transmit()` issues the next request, so a demand
+written this beat reaches the queue without waiting for the next. Stepping it once,
+at either end, costs a beat of latency in one direction or the other.
+
+**Collect must not be gated with execute.** `disable_control()` drops every
+`ROLE_OUTPUT` row to its safe state and inhibits the execute phase, but those safe
+values are only in the image until a transaction carries them. Gating the
+collector alongside the programs would leave the actuators energised at exactly
+the moment control was withdrawn. A safe-state write should be queued ahead of
+ordinary traffic.
+
+**The reset path needs the slave's help.** Control is withdrawn before the loop
+stops kicking the watchdog, precisely so the field is safe before a reset. With
+local I/O that is instantaneous; over Modbus it is a transaction (~58 ms for an
+FC16 of 32 registers at 19200) and a reset can beat it to the wire. Do not try to
+win that race - configure the **slave-side failsafe**, so an output module that has
+heard nothing within its own timeout drops its outputs itself. That covers a
+severed cable and a wedged master too, and it is the only mechanism that works
+when the master is the thing that failed.
+
+**Write on change, not on poll.** The collector walks the `ROLE_OUTPUT` rows,
+coalesces a slave's dirty registers into one FC16, and holds a minimum interval
+between writes (200 - 500 ms). A periodic unconditional rewrite (5 - 10 s)
+re-drives a slave that rebooted and doubles as the keepalive its failsafe timer
+watches for. Dirt is marked in the `Value` on write rather than diffed against a
+shadow: the struct is pinned at 32 bytes by a `static_assert`, but it already
+carries a `uint8_t _rsv[3]`, so the flag is free.
+
+**Collect at least as often as the fastest control program**, or a demand can be
+superseded before it is ever collected. Harmless for `ROLE_OUTPUT` level demands
+where last-value-wins is correct; it would quietly break anything edge- or
+pulse-shaped.
+
+**Poll groups are tasks.** A group is a name, a period and some work - the same
+shape as everything else on the beat. `modbus_grid_live` at 1 s,
+`modbus_sensors` at 10 s. An activation enqueues a transaction; the client's
+state machine drains the queue from the fast group. One scheduler, not a second
+one bolted alongside.

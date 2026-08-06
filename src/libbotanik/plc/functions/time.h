@@ -6,11 +6,10 @@
  * @brief Time arithmetic on a caller-held counter: the seconds conversion, and
  *        the two saturating steps every timed block runs on.
  *
- * No clock is read here, and none is held. A block passes its own counter in;
- * these say what one step of @c dt_ms does to it. That is what keeps the blocks
- * testable without a clock, and it is why these count as FUNCTIONs despite
- * taking a reference: the state belongs to the caller (IEC's VAR_IN_OUT), not
- * to anything here.
+ * No clock is read here and none is held: a block passes its own counter in and
+ * these say what one step of @c dt_ms does to it. That is why they count as
+ * FUNCTIONs despite writing through a reference - the state belongs to the
+ * caller (IEC's VAR_IN_OUT), not to anything here.
  */
 
 #include <cstdint>
@@ -30,14 +29,11 @@ namespace Botanik { namespace Plc {
      *  @name Stepping a counter
      *  @{ */
 
-    /** @brief Advance @p elapsed by @p dt_ms, saturating at @p limit.
+    /** @brief Advance @p elapsed by @p dt_ms, saturating at @p limit - a hold
+     *  far longer than the limit must stay elapsed, not wrap back to zero.
      *
-     *  Saturating rather than wrapping matters: a hold far longer than the
-     *  limit must stay elapsed, not roll back around to zero.
-     *
-     *  @note Not constexpr: it writes through a reference, which C++11 does not
-     *   allow in a constant expression. Inline for the same reason the rest of
-     *   this directory is - it is two instructions in a scan hot path. */
+     *  @note Inline rather than constexpr: C++11 forbids writing through a
+     *   reference in a constant expression. */
     inline void accumulate(uint32_t& elapsed, uint32_t limit, uint32_t dt_ms) {
         if (elapsed >= limit) return;
         const uint32_t room = limit - elapsed;

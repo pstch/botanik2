@@ -81,7 +81,7 @@ namespace Botanik { namespace Health {
          *  name form is a linear strcmp scan of the whole table, and every code
          *  in it starts with "alarm_", so each comparison matched six bytes
          *  before diverging: six calls cost 159 comparisons a beat to re-resolve
-         *  six names that cannot change (@ref dev_tasks).
+         *  six names that cannot change.
          *
          *  Indexed by PlatformAlarm off the one code list, rather than six named
          *  members beside a second hand-written list: POST used to carry its own

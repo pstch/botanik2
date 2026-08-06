@@ -77,7 +77,7 @@ can energise an actuator on the way past.
 every one of those lines would have gone nowhere - after `on_setup()` too, so a
 site's own sinks catch them. And it takes the parameter load (hundreds of storage
 reads, tens of milliseconds of flash) out of the first beat, where it used to read as
-a boot overrun against a 10 ms budget (@ref dev_tasks).
+a boot overrun against a 10 ms budget.
 
 ## The per-tick cycle
 
