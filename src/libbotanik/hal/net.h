@@ -43,6 +43,16 @@ namespace Botanik { namespace HAL { namespace Network {
     static const uint16_t NTP_MOCK_PORT  = 10123;
     static const uint16_t MQTT_MOCK_PORT = 11883;
 
+    /** @brief What a privileged port becomes in the sim. A process without
+     *  CAP_NET_BIND_SERVICE cannot bind below 1024, so tcp_listen() (and a
+     *  connect aimed at one of its ports) shifts anything under 1024 up by this
+     *  much: Modbus 502 is reachable at 10502, and NTP_MOCK_PORT above is the
+     *  same arithmetic on 123. */
+    static const uint16_t PRIV_PORT_SHIFT = 10000;
+    inline uint16_t sim_port(uint16_t p) {
+        return (p != 0 && p < 1024) ? (uint16_t)(p + PRIV_PORT_SHIFT) : p;
+    }
+
     /** @brief Per-process loopback address. 127.0.0.0/8 is entirely loopback on
      *  Linux, so each sim instance resolves/binds to its own 127.x.y.z (derived
      *  from the PID); concurrent simulators then never collide on the shared mock
@@ -111,6 +121,17 @@ namespace Botanik { namespace HAL { namespace Network {
     /** @brief Non-blocking connect: 1 connected, 0 in-progress (poll again),
      *  <0 error. */
     int       tcp_connect(TcpSocket s, const Ip4& addr, uint16_t port);
+    /** @brief Open a listening socket on @p port, on the active interface;
+     *  < 0 if the port could not be bound. Counts against the same socket budget
+     *  as tcp_open(). */
+    TcpSocket tcp_listen(uint16_t port);
+    /** @brief Take the next pending connection on @p listener, or < 0 when there
+     *  is none.
+     *
+     *  "Nothing pending" and "error" are the same answer on purpose: a server
+     *  polls this every beat and does the same thing either way - nothing. The
+     *  returned socket is an ordinary one, closed with tcp_close(). */
+    TcpSocket tcp_accept(TcpSocket listener);
     /** @brief Send: bytes written, <0 error. */
     int       tcp_send(TcpSocket s, const void* buf, size_t len);
     /** @brief Recv: >0 bytes, 0 would-block, <0 closed. */

@@ -70,4 +70,78 @@ TEST_CASE("HAL::Network sim: an off-host destination is diverted, never contacte
     Network::tcp_close(t);
 }
 
+TEST_CASE("HAL::Network sim: a listener accepts a connection and carries bytes") {
+    // What the Modbus TCP slave needs from the HAL, end to end: bind, accept,
+    // and a byte in each direction. The sim binds this instance's own 127/8
+    // address, so this runs unchanged beside every other test process.
+    const uint16_t PORT = 502;                  // privileged: the backend shifts it
+    Network::TcpSocket srv = Network::tcp_listen(PORT);
+    REQUIRE(srv >= 0);
+    CHECK(Network::tcp_accept(srv) < 0);        // nothing pending yet
+
+    Network::TcpSocket cli = Network::tcp_open();
+    REQUIRE(cli >= 0);
+    // Aimed at an address the firmware would use; it lands on the listener
+    // because THIS process serves that port, not on the mock broker.
+    Network::Ip4 any = {{192, 168, 1, 43}};
+    REQUIRE(Network::tcp_connect(cli, any, PORT) >= 0);
+
+    Network::TcpSocket peer = -1;
+    for (int i = 0; i < 100 && peer < 0; ++i) {  // loopback connect is near-instant
+        peer = Network::tcp_accept(srv);
+        if (peer < 0) Clock::sleep_ms(2);
+    }
+    REQUIRE(peer >= 0);
+
+    const uint8_t req[] = {0, 1, 2, 3};
+    CHECK(Network::tcp_send(cli, req, sizeof(req)) == (int)sizeof(req));
+    uint8_t got[8] = {0};
+    int n = 0;
+    for (int i = 0; i < 100 && n <= 0; ++i) {
+        n = Network::tcp_recv(peer, got, sizeof(got));
+        if (n == 0) Clock::sleep_ms(2);          // 0 is would-block, not a close
+    }
+    REQUIRE(n == (int)sizeof(req));
+    CHECK(got[3] == 3);
+
+    const uint8_t rsp[] = {9};
+    CHECK(Network::tcp_send(peer, rsp, sizeof(rsp)) == 1);
+    n = 0;
+    for (int i = 0; i < 100 && n <= 0; ++i) {
+        n = Network::tcp_recv(cli, got, sizeof(got));
+        if (n == 0) Clock::sleep_ms(2);
+    }
+    REQUIRE(n == 1);
+    CHECK(got[0] == 9);
+
+    // A closed peer reads as closed, not as would-block: that is what tells the
+    // server to free the connection slot.
+    Network::tcp_close(cli);
+    n = 0;
+    for (int i = 0; i < 100 && n == 0; ++i) {
+        n = Network::tcp_recv(peer, got, sizeof(got));
+        if (n == 0) Clock::sleep_ms(2);
+    }
+    CHECK(n < 0);
+
+    Network::tcp_close(peer);
+    Network::tcp_close(srv);
+}
+
+TEST_CASE("HAL::Network sim: a released port stops capturing connects") {
+    // The listening-port table is what keeps a connect from being diverted to the
+    // mock broker. A stale row would send a later connect to a port nothing
+    // answers on, so closing the listener has to retire it.
+    const uint16_t PORT = 15502;
+    Network::TcpSocket srv = Network::tcp_listen(PORT);
+    REQUIRE(srv >= 0);
+    Network::tcp_close(srv);
+
+    Network::Ip4 any = {{192, 168, 1, 43}};
+    Network::TcpSocket cli = Network::tcp_open();
+    REQUIRE(cli >= 0);
+    CHECK(Network::tcp_connect(cli, any, PORT) >= 0);   // diverted again, not refused
+    Network::tcp_close(cli);
+}
+
 #endif

@@ -38,6 +38,20 @@ namespace Botanik { namespace HAL { namespace Network {
         const int MAX_TCP = Config::NET_MAX_TCP;
         UDPSocket g_udp[MAX_UDP]; bool g_udp_used[MAX_UDP] = {};
         TCPSocket g_tcp[MAX_TCP]; bool g_tcp_used[MAX_TCP] = {};
+        // An ACCEPTED connection is not one of ours: Mbed's TCPSocket::accept()
+        // hands back a socket it allocated, and it has to be deleted rather than
+        // reused. So a slot is either the embedded object above or that pointer,
+        // and sock() is what every call goes through.
+        TCPSocket* g_tcp_ptr[MAX_TCP] = {};
+        TCPSocket* sock(TcpSocket s) {
+            return (g_tcp_ptr[s] != 0) ? g_tcp_ptr[s] : &g_tcp[s];
+        }
+        bool tcp_valid(TcpSocket s) { return s >= 0 && s < MAX_TCP && g_tcp_used[s]; }
+        // Claim a free slot; -1 when the budget is spent.
+        int tcp_slot() {
+            for (int i = 0; i < MAX_TCP; ++i) if (!g_tcp_used[i]) return i;
+            return -1;
+        }
 
         // DNS slot table: handle -> {state, addr}. Async callback publishes the
         // state.
@@ -164,34 +178,65 @@ namespace Botanik { namespace HAL { namespace Network {
     void udp_close(UdpSocket s) { if (s >= 0 && s < MAX_UDP && g_udp_used[s]) { g_udp[s].close(); g_udp_used[s] = false; } }
 
     TcpSocket tcp_open() {
-        for (int i = 0; i < MAX_TCP; ++i) if (!g_tcp_used[i]) {
-            g_tcp[i].close();
-            if (g_tcp[i].open(eth()) != NSAPI_ERROR_OK) return -1;
-            g_tcp[i].set_blocking(false); g_tcp_used[i] = true; return i;
-        }
-        return -1;
+        int i = tcp_slot();
+        if (i < 0) return -1;
+        g_tcp[i].close();
+        if (g_tcp[i].open(eth()) != NSAPI_ERROR_OK) return -1;
+        g_tcp[i].set_blocking(false);
+        g_tcp_ptr[i] = 0; g_tcp_used[i] = true;
+        return i;
     }
     int tcp_connect(TcpSocket s, const Ip4& a, uint16_t port) {
-        if (s < 0 || s >= MAX_TCP || !g_tcp_used[s]) return -1;
-        nsapi_error_t r = g_tcp[s].connect(make_addr(a, port));   // re-poll friendly
+        if (!tcp_valid(s)) return -1;
+        nsapi_error_t r = sock(s)->connect(make_addr(a, port));   // re-poll friendly
         if (r == NSAPI_ERROR_OK || r == NSAPI_ERROR_IS_CONNECTED) return 1;
         if (r == NSAPI_ERROR_IN_PROGRESS || r == NSAPI_ERROR_ALREADY) return 0;
         return -1;
     }
+    TcpSocket tcp_listen(uint16_t port) {
+        int i = tcp_slot();
+        if (i < 0) return -1;
+        g_tcp[i].close();
+        if (g_tcp[i].open(eth()) != NSAPI_ERROR_OK) return -1;
+        // Bound to the wildcard address: the link's own IP is what DHCP says it
+        // is, and it changes under a lease renewal without the listener caring.
+        if (g_tcp[i].bind(port) != NSAPI_ERROR_OK ||
+            g_tcp[i].listen(1)   != NSAPI_ERROR_OK) { g_tcp[i].close(); return -1; }
+        g_tcp[i].set_blocking(false);
+        g_tcp_ptr[i] = 0; g_tcp_used[i] = true;
+        return i;
+    }
+    TcpSocket tcp_accept(TcpSocket listener) {
+        if (!tcp_valid(listener)) return -1;
+        int i = tcp_slot();
+        if (i < 0) return -1;              // no room: leave it pending, retry next beat
+        nsapi_error_t e = NSAPI_ERROR_OK;
+        TCPSocket* peer = sock(listener)->accept(&e);
+        if (peer == 0 || e != NSAPI_ERROR_OK) return -1;
+        peer->set_blocking(false);
+        g_tcp_ptr[i] = peer; g_tcp_used[i] = true;
+        return i;
+    }
     int tcp_send(TcpSocket s, const void* buf, size_t len) {
-        if (s < 0 || s >= MAX_TCP || !g_tcp_used[s]) return -1;
-        nsapi_size_or_error_t r = g_tcp[s].send(buf, len);
+        if (!tcp_valid(s)) return -1;
+        nsapi_size_or_error_t r = sock(s)->send(buf, len);
         if (wouldblock(r)) return 0;
         return r < 0 ? -1 : (int)r;
     }
     int tcp_recv(TcpSocket s, void* buf, size_t len) {
-        if (s < 0 || s >= MAX_TCP || !g_tcp_used[s]) return -1;
-        nsapi_size_or_error_t r = g_tcp[s].recv(buf, len);
+        if (!tcp_valid(s)) return -1;
+        nsapi_size_or_error_t r = sock(s)->recv(buf, len);
         if (wouldblock(r)) return 0;
         if (r == 0) return -1;     // peer closed
         return r < 0 ? -1 : (int)r;
     }
-    void tcp_close(TcpSocket s) { if (s >= 0 && s < MAX_TCP && g_tcp_used[s]) { g_tcp[s].close(); g_tcp_used[s] = false; } }
+    void tcp_close(TcpSocket s) {
+        if (!tcp_valid(s)) return;
+        sock(s)->close();
+        // An accepted socket is Mbed's allocation; close() alone would leak it.
+        if (g_tcp_ptr[s] != 0) { delete g_tcp_ptr[s]; g_tcp_ptr[s] = 0; }
+        g_tcp_used[s] = false;
+    }
 
 }}}
 
@@ -237,6 +282,26 @@ namespace Botanik { namespace HAL { namespace Network {
             s.sin_port   = htons(port);
             memcpy(&s.sin_addr, a.b, 4);
             return s;
+        }
+        // The ports this process is listening on, in sim (shifted) form; port 0
+        // is a free row.
+        //
+        // What they are for is tcp_connect: a connect aimed at a port WE serve is
+        // the firmware talking to its own server, which is already hermetic and
+        // must reach that port rather than the mock broker. Everything else is
+        // still diverted. The fd is kept beside the port so tcp_close() can
+        // retire the row - a stale one would divert a later connect to a port
+        // nothing answers on any more.
+        struct Listener { int fd; uint16_t port; };
+        Listener g_listen[Config::NET_MAX_TCP] = {};
+        bool listening_on(uint16_t p) {
+            for (int i = 0; i < Config::NET_MAX_TCP; ++i)
+                if (g_listen[i].port == p) return true;
+            return false;
+        }
+        void listener_forget(int fd) {
+            for (int i = 0; i < Config::NET_MAX_TCP; ++i)
+                if (g_listen[i].port != 0 && g_listen[i].fd == fd) g_listen[i].port = 0;
         }
         bool set4(Ip4* out, uint8_t a, uint8_t b, uint8_t c, uint8_t d) {
             if (out == 0) return false;
@@ -385,13 +450,41 @@ namespace Botanik { namespace HAL { namespace Network {
         // in-process broker. Matching one well-known port tied the sim to
         // whatever the site happened to configure, which broke the moment the
         // site declared its real broker (192.168.1.43:58443).
-        port = MQTT_MOCK_PORT;
+        //
+        // The exception is a port this process is itself listening on: that is
+        // the firmware's own server, already in-process, and diverting it would
+        // make the one thing the sim can genuinely test - a client reaching our
+        // slave - unreachable.
+        port = listening_on(sim_port(port)) ? sim_port(port) : MQTT_MOCK_PORT;
         sockaddr_in sin = make_sin(to_mock_peer(a), port);
         int r = ::connect(s, reinterpret_cast<sockaddr*>(&sin), sizeof(sin));
         if (r == 0) return 1;                              // connected at once (loopback)
         if (errno == EINPROGRESS || errno == EALREADY) return 0;
         if (errno == EISCONN) return 1;
         return -1;
+    }
+    TcpSocket tcp_listen(uint16_t port) {
+        const uint16_t p = sim_port(port);       // no privileged ports in the sim
+        int slot = -1;
+        for (int i = 0; i < Config::NET_MAX_TCP; ++i) if (g_listen[i].port == 0) { slot = i; break; }
+        if (slot < 0) return -1;
+        int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+        if (fd < 0) return -1;
+        if (set_nonblock(fd) < 0) return -1;     // closed the fd already
+        // Bound to this instance's own 127/8 address, not the wildcard: several
+        // sims (and several test binaries under a parallel ctest) run at once and
+        // would otherwise fight over one port.
+        sockaddr_in sin = make_sin(mock_loopback_ip(), p);
+        if (::bind(fd, reinterpret_cast<sockaddr*>(&sin), sizeof(sin)) < 0 ||
+            ::listen(fd, 4) < 0) { ::close(fd); return -1; }
+        g_listen[slot].fd = fd; g_listen[slot].port = p;
+        return fd;
+    }
+    TcpSocket tcp_accept(TcpSocket listener) {
+        if (listener < 0) return -1;
+        int fd = ::accept(listener, 0, 0);
+        if (fd < 0) return -1;                   // nothing pending, or a dead listener
+        return set_nonblock(fd);
     }
     int tcp_send(TcpSocket s, const void* buf, size_t len) {
         if (s < 0) return -1;
@@ -406,7 +499,11 @@ namespace Botanik { namespace HAL { namespace Network {
         if (n < 0)  return (errno == EAGAIN || errno == EWOULDBLOCK) ? 0 : -1;
         return (int)n;
     }
-    void tcp_close(TcpSocket s) { if (s >= 0) ::close(s); }
+    void tcp_close(TcpSocket s) {
+        if (s < 0) return;
+        listener_forget(s);                      // no-op for an ordinary socket
+        ::close(s);
+    }
 
 }}}
 

@@ -223,7 +223,7 @@ TcpSocket tcp_listen(uint16_t port);          // bound + listening, or < 0
 TcpSocket tcp_accept(TcpSocket listener);     // < 0 when nothing is pending
 ```
 
-Mbed `TCPSocket::open/bind/listen/accept` on OPTA, BSD `listen`/`accept4` on the
+Mbed `TCPSocket::open/bind/listen/accept` on OPTA, BSD `listen`/`accept` on the
 simulator, both non-blocking. The simulator backend gets this for free and stays
 hermetic: the listener binds `mock_loopback_ip()`, the per-process 127.x.y.z the
 sim already uses, so two simulators never collide on port 502 and a test client
@@ -341,8 +341,11 @@ Each step builds and leaves the gate green:
    800..822, platform 990..995), and the site test now checks uniqueness across
    `SCOPE_A` as well as the block each scope belongs to. Pure table work, landed
    before anything reads the map.
-2. `tcp_listen` / `tcp_accept` in the HAL, both backends, with a test that binds
-   and accepts on the simulator.
+2. **Done.** `tcp_listen` / `tcp_accept` in the HAL, both backends. The sim
+   shifts privileged ports up by 10000 and stops diverting a connect aimed at a
+   port this process serves, which is what makes the server reachable in-process
+   (@ref dev_network); the OPTA slot table grew a pointer arm, since an accepted
+   Mbed socket is a heap allocation rather than one of ours.
 3. `modbus/pdu` + its test. Nothing depends on the bank yet.
 4. `modbus/map` over the bank + its test. Still no sockets.
 5. `modbus/server`, the two tasks, the feature gate, the config group.
