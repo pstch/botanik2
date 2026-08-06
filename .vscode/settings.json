@@ -9,6 +9,36 @@
         "compare": "cpp"
     },
     "search.useIgnoreFiles": false,
+
+    // Agent worktrees live under .claude/worktrees/ - each is a full checkout
+    // with its own build tree, so they sit inside the workspace as ~1 GB and
+    // ~12k files. Left alone, VS Code registers every one as its own repository
+    // and recursively watches it: one agent's build fans a file-event storm out
+    // into N concurrent `git status`, which is what kills the extension host.
+    // Keep them out of the watcher, the explorer, search and repo detection.
+    "files.watcherExclude": {
+        "**/.claude/**": true,
+        "**/build/**": true,
+        "**/build-*/**": true
+    },
+    "files.exclude": {
+        "**/.claude/worktrees": true
+    },
+    // search.useIgnoreFiles is off above, so nothing else keeps search out of
+    // the worktrees and the build trees.
+    "search.exclude": {
+        "**/.claude": true,
+        "build*/**": true,
+        "includes/**": true
+    },
+    // Only the workspace root is a repository. Use "Git: Open Repository" to
+    // pull a worktree into the SCM view deliberately, one at a time.
+    "git.autoRepositoryDetection": false,
+    "git.repositoryScanIgnoredFolders": [
+        "node_modules",
+        ".claude"
+    ],
+
     "C_Cpp.default.compileCommands": "${workspaceFolder}/build-debug/compile_commands.json",
     "C_Cpp.default.cppStandard": "c++11",
     "C_Cpp.default.cStandard": "c11",    
@@ -19,6 +49,7 @@
     // its own bundled build, whose version — and findings — can differ).
     "C_Cpp.codeAnalysis.clangTidy.path": "/usr/bin/clang-tidy-19",
     "C_Cpp.codeAnalysis.exclude": {
+        ".claude/**": true,
         "includes/**": true,
         "archive/**": true,
         "build-*/**": true,
