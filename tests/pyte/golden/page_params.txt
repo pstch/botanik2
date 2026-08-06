@@ -6,19 +6,19 @@
   | serial_monitor_baud      | u32  | <V>               | 115200       | Bd    |
   | net_serial               | u32  | <V>               | 1            |       |
   | net_dhcp                 | bool | <V>               | 0            |       |
+  | net_ip                   | str  | <V>               | 192.168.1.42 |       |
+  | net_mask                 | str  | <V>               | 255.255.255. |       |
+  | net_gw                   | str  | <V>               | 192.168.1.1  |       |
+  | net_dns1                 | str  | <V>               | 8.8.8.8      |       |
+  | net_dns2                 | str  | <V>               | 4.4.4.4      |       |
   | ntp_serial               | u32  | <V>               | 1            |       |
   | ntp_enable               | bool | <V>               | 1            |       |
-  | ntp_poll_sec             | u32  | <V>               | 3600         | sec   |
-  | ntp_port                 | u16  | <V>               | 123          |       |
-  | mqtt_serial              | u32  | <V>               | 1            |       |
-  | mqtt_enable              | bool | <V>               | 1            |       |
-  | mqtt_port                | u16  | <V>               | 58443        |       |
   ----------------------------------------------------------------------------
 
  Minimum      : 1200                  Maximum      : 921600 Register : 900
  Description  : console UART rate
  Notes        : retunes the wire AND the render budget; reconnect at the new rat
 
-                      [all]        (serial)     1-11 / 166
+                      [all]        (serial)     <N>
 
  ALARMS :<BAR>

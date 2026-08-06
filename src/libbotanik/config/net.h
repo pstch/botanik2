@@ -240,6 +240,66 @@ namespace Botanik { namespace Config {
 
 } }
 
+/** @name Parameter factory defaults
+ *
+ *  Unlike everything above, these are NOT `Config::` constants: they are the
+ *  factory values of the `net_` / `ntp_` / `mqtt_` rows the library declares in
+ *  vars/library.h, and the live value lives in the variable table where an
+ *  operator can edit and persist it. They sit here so a site pins what its
+ *  installation ships with (in `sites/<name>/config.h`) without touching the
+ *  table, exactly as BOTANIK_CONSOLE_BAUD does for the console rate.
+ *  @{ */
+
+#ifndef BOTANIK_NET_DHCP
+#  define BOTANIK_NET_DHCP      0
+#endif
+#ifndef BOTANIK_NET_IP
+#  define BOTANIK_NET_IP        "192.168.1.10"
+#endif
+#ifndef BOTANIK_NET_MASK
+#  define BOTANIK_NET_MASK      "255.255.255.0"
+#endif
+#ifndef BOTANIK_NET_GW
+#  define BOTANIK_NET_GW        "192.168.1.1"
+#endif
+#ifndef BOTANIK_NET_DNS1
+#  define BOTANIK_NET_DNS1      "8.8.8.8"
+#endif
+#ifndef BOTANIK_NET_DNS2
+#  define BOTANIK_NET_DNS2      "4.4.4.4"
+#endif
+
+#ifndef BOTANIK_NTP_ENABLE
+#  define BOTANIK_NTP_ENABLE    1
+#endif
+#ifndef BOTANIK_NTP_POLL_SEC
+#  define BOTANIK_NTP_POLL_SEC  3600
+#endif
+#ifndef BOTANIK_NTP_PORT
+#  define BOTANIK_NTP_PORT      123
+#endif
+#ifndef BOTANIK_NTP_SRV1
+#  define BOTANIK_NTP_SRV1      "pool.ntp.org"
+#endif
+#ifndef BOTANIK_NTP_SRV2
+#  define BOTANIK_NTP_SRV2      ""
+#endif
+
+#ifndef BOTANIK_MQTT_ENABLE
+#  define BOTANIK_MQTT_ENABLE   1
+#endif
+#ifndef BOTANIK_MQTT_HOST
+#  define BOTANIK_MQTT_HOST     "192.168.1.11"
+#endif
+#ifndef BOTANIK_MQTT_PORT
+#  define BOTANIK_MQTT_PORT     1883
+#endif
+#ifndef BOTANIK_MQTT_KA_SEC
+#  define BOTANIK_MQTT_KA_SEC   20
+#endif
+
+/** @} */
+
 #undef BOTANIK_CFG
 
 #endif // LIBBOTANIK_CONFIG_NET_H

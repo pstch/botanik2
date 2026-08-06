@@ -20,12 +20,15 @@ def test_config_detail_and_edit(spawn):
     """The detail panel follows the selection, and an edit round-trips."""
     term = boot(spawn)
     goto(term, keys.ALT_5, "PARAMETER")
-    # Move the cursor down to ntp_poll_sec, table index 6. The block reads
-    # serial_console_baud, serial_monitor_baud, net_serial, net_dhcp,
-    # ntp_serial, ntp_enable, ntp_poll_sec: the library declares its parameters
-    # LAST within its own block, which places them first in the ROLE_PARAM run,
-    # abutting the site's. The text parameters are their own block at the end.
-    for _ in range(6):
+    # Move the cursor down to ntp_poll_sec, table index 11. The library declares
+    # its parameters LAST within its own block, which places them first in the
+    # ROLE_PARAM run, abutting the site's; within that block each group is
+    # contiguous, text rows included:
+    #   0 serial_console_baud  1 serial_monitor_baud
+    #   2 net_serial  3 net_dhcp  4 net_ip  5 net_mask  6 net_gw
+    #   7 net_dns1    8 net_dns2
+    #   9 ntp_serial  10 ntp_enable  11 ntp_poll_sec
+    for _ in range(11):
         term.send(keys.DOWN)
     assert term.wait_for("NTP poll interval"), "detail panel did not follow selection"
     # ENTER opens the inline editor on the bottom row; clear, retype, stage.
@@ -35,7 +38,7 @@ def test_config_detail_and_edit(spawn):
     term.send(CTRL_U)
     term.send(b"120")
     term.send(keys.ENTER)
-    # Commit: move up to the "ntp_serial" group serial (index 4) and bump it. That
+    # Commit: move up to the "ntp_serial" group serial (index 9) and bump it. That
     # ships the staged group, and the group's owner picks it up.
     for _ in range(2):
         term.send(keys.UP)
@@ -70,12 +73,12 @@ def test_group_follows_selection(spawn):
     term = boot(spawn)
     goto(term, keys.ALT_5, "PARAMETER")
     assert term.wait_for("(serial)"), "first row is a library serial_* parameter"
-    # Two serial_* rows lead (the library's own), then two net_* scalars, then
-    # ntp_* - the net_* text parameters sit in their own block further down. So
-    # the walk crosses three groups in four rows, which is the point.
+    # Two serial_* rows lead (the library's own), then the seven net_* rows
+    # (scalars and text together, since each group is contiguous), then ntp_*.
+    # So the walk crosses three groups, which is the point.
     for _ in range(2):
         term.send(keys.DOWN)
     assert term.wait_for("(net)"), "group did not follow the cursor into net_*"
-    for _ in range(2):
+    for _ in range(7):
         term.send(keys.DOWN)
     assert term.wait_for("(ntp)"), "group did not follow the cursor into ntp_*"
