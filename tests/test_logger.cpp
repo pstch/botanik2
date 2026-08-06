@@ -223,7 +223,7 @@ TEST_CASE("rate limit: topics with no per-topic bucket are gated by the global b
     Logs::LogTopic topic = Logs::NONE;
     SUBCASE("NONE skips the per-topic bucket")           { topic = Logs::NONE; }
     // Out of range is the no-OOB-bucket-access regression: it must be clamped to NONE.
-    SUBCASE("an out-of-range topic is treated as NONE")  { topic = (Logs::LogTopic)Config::LOG_TOPIC_MAX; }
+    SUBCASE("an out-of-range topic is treated as NONE")  { topic = (Logs::LogTopic)255; }
     Logs::LogEntry e = info_on(topic);
     for (int i = 0; i < burst + 5; ++i) lg.push_entry(e);
     CHECK(w.pushes == burst);                            // limited by the global bucket alone

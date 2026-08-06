@@ -68,8 +68,23 @@ namespace Botanik { namespace Logs {
         return topic < Logs::LOG_TOPIC_COUNT ? TOPIC_NAMES[topic][1] : "unknown";
     }
 
+    /** @name Wrapped-row continuation prefixes
+     *
+     *  What a page puts at the start of a soft-wrapped row. The log one indents
+     *  past the prefix format_log_entry() below emits, so a wrapped log row
+     *  lines up under the start of the message. It lives HERE, beside the format
+     *  string that sets that width, because sized anywhere else it goes quietly
+     *  out of alignment the next time the prefix moves.
+     *  @{ */
+    static constexpr const char* CONT_PREFIX     = "> ";
+    static constexpr const char* LOG_CONT_PREFIX = "                        > ";
+    /** @} */
+
     /** @brief Format a complete log entry as `TIMESTAMP LEVEL TOPIC MESSAGE`.
-     *  @return Bytes written, clamped to @p len; 0 on encoding error. */
+     *  @return Bytes of TEXT written, never counting the NUL; 0 on encoding
+     *          error. Clamped to `len - 1` on truncation, so a caller that
+     *          writes the result to a sink cannot push the terminator onto the
+     *          wire. */
     inline size_t format_log_entry(const Logs::LogEntry* entry, char* buf, size_t len) {
         using namespace Botanik::Utils;
         // format the log level and log topic of the log entry
@@ -84,9 +99,11 @@ namespace Botanik { namespace Logs {
         // build the formatted log entry
         int written = snprintf(buf, len, "%s %s %s%s %s",
                                time_buf, level, topic, topic_sep, entry->message);
-        // return the written bytes, or 0 on encoding error
-        if (written < 0) return 0;
-        return std::min((size_t)written, len);
+        // Return the written bytes, or 0 on encoding error. snprintf answers
+        // what it WOULD have written, so on truncation clamp to the text that
+        // actually landed - len-1, the NUL is not ours to emit.
+        if (written < 0 || len == 0) return 0;
+        return std::min((size_t)written, len - 1);
     }
 
 }}

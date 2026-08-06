@@ -75,7 +75,7 @@ namespace Botanik { namespace Vars {
     }  // namespace
 
     bool KvParamStore::load_override(const Variable& d, Value& v) {
-        char key[Config::STORAGE_KEY_MAX];
+        char key[HAL::Storage::KEY_MAX];
         if (!override_key(d, key, sizeof(key))) return false;
         const uint8_t w = type_width(d.type);
         if (w == 0) return false;
@@ -100,7 +100,7 @@ namespace Botanik { namespace Vars {
     }
 
     bool KvParamStore::save_override(const Variable& d, const Value& v) {
-        char key[Config::STORAGE_KEY_MAX];
+        char key[HAL::Storage::KEY_MAX];
         if (!override_key(d, key, sizeof(key))) return false;
         const uint8_t w = type_width(d.type);
         if (w == 0) return false;
@@ -114,7 +114,7 @@ namespace Botanik { namespace Vars {
     }
 
     bool KvParamStore::clear_override(const Variable& d) {
-        char key[Config::STORAGE_KEY_MAX];
+        char key[HAL::Storage::KEY_MAX];
         if (!override_key(d, key, sizeof(key))) return false;
         return HAL::Storage::remove(key);
     }
@@ -212,7 +212,7 @@ namespace Botanik { namespace Vars {
         // bare after its group, so it was the one parameter whose name carried no
         // group prefix - it sorted apart from the group it belongs to and read
         // like a stray in any listing.
-        char key[Config::STORAGE_KEY_MAX];
+        char key[HAL::Storage::KEY_MAX];
         if (group == nullptr) return 0;
         size_t n = strlen(group);
         if (n + 8 >= sizeof(key)) return 0;      // "_serial" + NUL

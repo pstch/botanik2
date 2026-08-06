@@ -193,9 +193,6 @@
 #endif
 
 // --- Field bus -----------------------------------------------------------
-// RESERVED. Declared so a site can state intent and the dependency rules are
-// settled, but there is no Modbus implementation yet - docs/dev/modbus.md is the
-// design ahead of the code. Turning either on today gates nothing.
 
 /** @brief Modbus TCP slave, exposing parameters and status values. */
 #ifndef BOTANIK_FEATURE_MODBUS_TCP_SERVER

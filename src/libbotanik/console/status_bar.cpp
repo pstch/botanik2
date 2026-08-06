@@ -43,12 +43,9 @@ namespace Botanik { namespace Terminal {
     void StatusBar::step(uint64_t now) {
         // Rebuild the clock and metrics on their own cadence and repaint the whole
         // field; the terminal's back-buffer diff emits only the cells that moved.
-        if (now - _clock_last_ms >= Config::PAGE_HOT_MS) {
-            _clock_last_ms = now;
-            update_clock();
-        }
-        if (now - _last_ms >= Config::STATUS_REFRESH_MS) {
+        if (now - _last_ms >= Config::PAGE_HOT_MS) {
             _last_ms = now;
+            update_clock();
             update_metrics();
         }
     }

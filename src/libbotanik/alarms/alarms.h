@@ -234,6 +234,10 @@ namespace Botanik { namespace Alarms {
 
             uint8_t n = 0;
             if (io != nullptr) {
+                // One bound, because there is one table: the site's rows and the
+                // library's are scanned together, so there is no reservation for
+                // an over-long site table to eat into. It loses its own tail,
+                // and BOTANIK_ASSERT below says so on a debug build.
                 for (uint16_t i = 0; i < io->count() && n < Config::ALARM_SLOTS; i++) {
                     // fetch the generic variable metadata
                     const Vars::Variable& d = *io->var(i).meta();

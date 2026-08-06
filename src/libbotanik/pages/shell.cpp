@@ -141,8 +141,8 @@ namespace Botanik { namespace Pages {
         // command output (via write_lines(), plain "> " prefix). Bank, mark
         // pending when active. Never blocks/returns short, so write_lines()
         // can't drop command output.
-        const char* prefix = _draining_log ? Config::SHELL_LOG_CONT_PREFIX
-                                           : Config::SHELL_CONT_PREFIX;
+        const char* prefix = _draining_log ? Logs::LOG_CONT_PREFIX
+                                           : Logs::CONT_PREFIX;
         uint16_t    plen   = (uint16_t)strlen(prefix);
         _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(), prefix, plen,
                            _active);

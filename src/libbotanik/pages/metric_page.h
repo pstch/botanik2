@@ -53,7 +53,7 @@ namespace Botanik { namespace Pages {
         uint64_t      _refresh_last_ms = 0;
         /** @brief Interval between full dynamic refreshes (ms); a subclass may
          *  lower it. */
-        uint32_t      _refresh_ms      = Config::PAGE_REFRESH_MS;
+        uint32_t      _refresh_ms      = Config::PAGE_COLD_MS;
         /** @brief Last hot-field refresh (uptime ms). */
         uint64_t      _hot_last_ms     = 0;
         /** @brief Hot-field refresh interval (ms); 0 disables. Paired with

@@ -60,10 +60,10 @@ namespace Botanik { namespace HAL { namespace Storage {
         // the partition name; "kv" is the variant's value.
         const char PARTITION[] = "/kv/";
         // KVStore caps a full key at 128 chars including the partition; the
-        // config entry is what every caller sizes its own scratch from.
-        const size_t FULL_KEY_MAX = Config::STORAGE_KEY_MAX;
+        // header constant is what every caller sizes its own scratch from.
+        const size_t FULL_KEY_MAX = KEY_MAX;
         static_assert(FULL_KEY_MAX > sizeof(PARTITION),
-                      "STORAGE_KEY_MAX leaves no room past the partition prefix");
+                      "KEY_MAX leaves no room past the partition prefix");
 
         bool full_key(char* out, size_t cap, const char* key) {
             if (!key_ok(key)) return false;

@@ -87,8 +87,9 @@ void loop() {
 
 Notes:
 
-- **Console baud.** Defaults to `BOTANIK_CONSOLE_BAUD`; call `set_console_baud()`
-  before `setup()` to change it, as the simulator harness does.
+- **Console baud** is `BOTANIK_CONSOLE_BAUD` (4800), compile-time only: the
+  terminal sizes its per-render TX budget from it at construction, so there is no
+  runtime setter to fall out of step with it.
 - **No simulated field on hardware.** `sim.h` compiles to nothing without
   `TARGET_SIMULATOR`; the Modbus driver fills the same variables instead.
 - `src/botanik_fw/` is the canonical example of this wiring.

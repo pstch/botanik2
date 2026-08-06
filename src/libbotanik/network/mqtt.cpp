@@ -28,8 +28,11 @@ namespace Botanik { namespace Network {
     }
 
     uint16_t MqttClient::peer_port() const {
-        uint16_t port = (uint16_t)Vars::get_int(_cfg, "mqtt_port");
-        return port ? port : Config::MQTT_PORT_DEFAULT;
+        // The mqtt_port parameter IS the setting: its declared default is the
+        // default, and its band starts at 1, so there is no zero to substitute
+        // for. A firmware-side fallback here would be a second default, free to
+        // drift from the one the operator sees on the PARAMS page.
+        return (uint16_t)Vars::get_int(_cfg, "mqtt_port");
     }
 
     const char* MqttClient::status_str() const {
@@ -164,8 +167,8 @@ namespace Botanik { namespace Network {
     bool MqttClient::_send_connect() {
         const char* cid = Config::SITE_NAME;
         uint16_t cid_len = (uint16_t)strlen(cid);
+        // mqtt_ka_sec IS the setting (band starts at 10).
         uint16_t keepalive = (uint16_t)Vars::get_int(_cfg, "mqtt_ka_sec");
-        if (keepalive == 0) keepalive = Config::MQTT_KEEPALIVE_DEFAULT_S;
 
         uint8_t buf[Config::MQTT_TX_BUF];
         // variable header (10) + client-id (2-byte len prefix + cid_len)
@@ -209,7 +212,6 @@ namespace Botanik { namespace Network {
             if (r < 0) { _fail(now_ms); return; }   // closed/error
         }
         uint32_t ka_s = (uint32_t)Vars::get_int(_cfg, "mqtt_ka_sec");
-        if (ka_s == 0) ka_s = Config::MQTT_KEEPALIVE_DEFAULT_S;
         if (now_ms - _last_ping_ms > (uint64_t)ka_s * 1000ull / 2ull) {
             uint8_t ping[2] = { 0xC0, 0x00 };
             if (HAL::Network::tcp_send(_sock, ping, 2) != 2) { _fail(now_ms); return; }

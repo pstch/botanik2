@@ -17,7 +17,12 @@
  * Target-independent: the site's tables are injected by the caller (site
  * statics). Tunable scalars default
  * from Config and the harness overrides them through a set_*() modifier before
- * setup() (set_console_baud(), set_monitor_baud(), set_hw_watchdog_ms()).
+ * setup() (set_monitor_baud(), set_hw_watchdog_ms()).
+ *
+ * The console baud is NOT among them: AnsiTerminal derives its per-render TX
+ * budget from it once, at construction, so a setter could only retune the UART
+ * and would leave the renderer pacing for the compiled-in rate. It is
+ * Config::CONSOLE_BAUD throughout.
  *
  *
  * Console-optional (BOTANIK_FEATURE_CONSOLE, default on): the interactive ANSI
@@ -136,8 +141,6 @@ namespace Botanik {
         /** @name Configuration
          *  @{ */
 
-        /** @brief Console UART baud (sizes the terminal TX gates). */
-        uint32_t                      _console_baud  = Config::CONSOLE_BAUD;
         /** @brief Monitor UART baud (log-only, no TX gating) */
         uint32_t                      _monitor_baud  = Config::MONITOR_BAUD;
 
@@ -250,7 +253,7 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_CONSOLE
               , _console(_console_cols, _console_rows,
-                         &_scheduler.context()->timestamp_ms, _console_baud,
+                         &_scheduler.context()->timestamp_ms, Config::CONSOLE_BAUD,
                          &_health.alarm_model(), &_logger)
               // Base-owned pages, built from the descriptor + the live payload.
 #if BOTANIK_FEATURE_HOME_PAGE
@@ -322,7 +325,7 @@ namespace Botanik {
             _register_tasks();
 
 #if BOTANIK_FEATURE_CONSOLE
-            HAL::Serial::get(HAL::Serial::CONSOLE)->begin(_console_baud);
+            HAL::Serial::get(HAL::Serial::CONSOLE)->begin(Config::CONSOLE_BAUD);
 #endif
 #if BOTANIK_FEATURE_LOGS_MONITOR
             HAL::Serial::get(HAL::Serial::MONITOR)->begin(_monitor_baud);
@@ -413,7 +416,7 @@ namespace Botanik {
             _logger.debug(Logs::BOOT, "boot complete\nHW watchdog %lu ms",
                           (unsigned long)_hw_watchdog_ms);
 #if BOTANIK_FEATURE_CONSOLE
-            _logger.debug(Logs::BOOT, "console %lu baud", (unsigned long)_console_baud);
+            _logger.debug(Logs::BOOT, "console %lu baud", (unsigned long)Config::CONSOLE_BAUD);
 #endif
 #if BOTANIK_FEATURE_LOGS_MONITOR
             _logger.debug(Logs::BOOT, "monitor %lu baud", (unsigned long)_monitor_baud);
@@ -595,10 +598,6 @@ namespace Botanik {
 
         /** @name Per-target tuning (call before setup())
          *  @{ */
-
-        /** @brief Override the console baud read by setup() (sizes the terminal
-         *  TX gates). */
-        void set_console_baud(uint32_t baud) { _console_baud = baud; }
 
         /** @brief Override the monitor baud read by setup(). */
         void set_monitor_baud(uint32_t baud) { _monitor_baud = baud; }

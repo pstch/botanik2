@@ -91,8 +91,8 @@ namespace Botanik { namespace Pages {
         // drain_tail. Never blocks/drops, so always report the whole entry
         // consumed.
         _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(),
-            Config::SHELL_LOG_CONT_PREFIX,
-            (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX), _active);
+            Logs::LOG_CONT_PREFIX,
+            (uint16_t)strlen(Logs::LOG_CONT_PREFIX), _active);
         return len;
     }
 

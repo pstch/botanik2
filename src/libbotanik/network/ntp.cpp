@@ -26,6 +26,11 @@ namespace Botanik { namespace Network {
         return Vars::group_serial(_cfg, "ntp");
     }
 
+    uint16_t NtpClient::server_port() const {
+        // ntp_port IS the setting (band starts at 1); no second default here.
+        return (uint16_t)Vars::get_int(_cfg, "ntp_port");
+    }
+
     const char* NtpClient::status_str() const {
         switch (_state) {
             case TIME_RESOLVE: return "resolving";
@@ -115,8 +120,9 @@ namespace Botanik { namespace Network {
             }
 
             case TIME_SYNCED: {
+                // ntp_poll_sec IS the setting; its band starts at 10, so there
+                // is no zero to substitute a second default for.
                 uint32_t poll_s = (uint32_t)Vars::get_int(_cfg, "ntp_poll_sec");
-                if (poll_s == 0) poll_s = Config::NTP_POLL_DEFAULT_S;
                 if (now_ms - _since_ms > (uint64_t)poll_s * 1000ull) {
                     _server_idx = 0;
                     _state = TIME_RESOLVE; _since_ms = now_ms;
@@ -139,7 +145,7 @@ namespace Botanik { namespace Network {
         _udp = s;   // store the handle for the poll/close
         uint8_t pkt[48] = {0};
         pkt[0] = 0x23;   // LI=0, VN=4, Mode=3 (client)
-        if (!HAL::Network::udp_sendto(s, _server_addr, Config::NTP_PORT, pkt, sizeof(pkt))) {
+        if (!HAL::Network::udp_sendto(s, _server_addr, server_port(), pkt, sizeof(pkt))) {
             HAL::Network::udp_close(s); _udp = -1; return false;
         }
         return true;
