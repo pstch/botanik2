@@ -113,8 +113,13 @@ ntp_poll_s         u16   64               64           s
 ```
 
 **Shows** the parameter block, with the selected row's **Minimum**, **Maximum**,
-**Description** and **Group** in the panel below. Views step through `all`, then
-one per group.
+**Register**, **Description** and **Group** in the panel below. Views step
+through `all`, then one per group.
+
+**Register** is the parameter's address on the Modbus TCP slave - the one number
+about a parameter that is an external contract, since a master's register map is
+written against it. It is assigned per row and never renumbered by inserting a
+parameter, so it is safe to quote.
 
 `ENTER` opens a one-line editor on the bottom row, seeded with the current value:
 `ENTER` commits, `Ctrl+C` or `ESC` cancels, and the usual editing keys apply

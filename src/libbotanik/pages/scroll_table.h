@@ -532,22 +532,46 @@ namespace Botanik { namespace Pages {
             _draw_line(row, buf, (n < 0) ? 0 : (uint16_t)n);
         }
 
+        /** @brief Pad @p buf out to column @p col, then append
+         *  "label<pad to lw> : value". Returns the new width.
+         *
+         *  The one piece of column arithmetic the multi-field panel rows share,
+         *  so a row with two fields and a row with three lay their columns out
+         *  the same way rather than each getting it slightly wrong. */
+        static uint16_t _panel_cell(char* buf, size_t cap, uint16_t w,
+                                    uint16_t col, uint8_t lw,
+                                    const char* label, const char* value) {
+            while (w < col && w < cap - 1) buf[w++] = ' ';
+            int m = snprintf(buf + w, cap - w, "%-*s : %s", (int)lw, label,
+                             (value && value[0]) ? value : "-");
+            if (m > 0) w = (uint16_t)(w + m);
+            if (w > cap - 1) w = (uint16_t)(cap - 1);
+            return w;
+        }
+
         /** @brief Two panel fields on one row, for a pair that reads naturally
          *  side by side (a min/max band). Each row a panel spends is a row the
          *  table loses, so a pair that is really one fact should cost one. */
         void _panel_field2(uint16_t row, const char* l1, const char* v1,
                            uint16_t col2, const char* l2, const char* v2) {
             char buf[Config::TABLE_LINE_LEN];
-            int n = snprintf(buf, sizeof(buf), " %-12s : %s", l1,
-                             (v1 && v1[0]) ? v1 : "-");
-            if (n < 0) n = 0;
-            uint16_t w = (uint16_t)((size_t)n < sizeof(buf) - 1 ? (size_t)n
-                                                                : sizeof(buf) - 1);
-            while (w < col2 && w < sizeof(buf) - 1) buf[w++] = ' ';   // pad to col2
-            int m = snprintf(buf + w, sizeof(buf) - w, "%-12s : %s", l2,
-                             (v2 && v2[0]) ? v2 : "-");
-            if (m > 0) w = (uint16_t)(w + m);
-            if (w > sizeof(buf) - 1) w = (uint16_t)(sizeof(buf) - 1);
+            uint16_t w = _panel_cell(buf, sizeof(buf), 0, 1, 12, l1, v1);
+            w = _panel_cell(buf, sizeof(buf), w, col2, 12, l2, v2);
+            _draw_line(row, buf, w);
+        }
+
+        /** @brief Three panel fields on one row. The third gets a narrower label
+         *  field: two 12-wide labels and their values already reach column 60,
+         *  and the point of putting a third fact here rather than on its own row
+         *  is that the row is free - so it has to fit in what is left, not push
+         *  the first two out of the column the other panels share. */
+        void _panel_field3(uint16_t row, const char* l1, const char* v1,
+                           uint16_t col2, const char* l2, const char* v2,
+                           uint16_t col3, const char* l3, const char* v3) {
+            char buf[Config::TABLE_LINE_LEN];
+            uint16_t w = _panel_cell(buf, sizeof(buf), 0, 1, 12, l1, v1);
+            w = _panel_cell(buf, sizeof(buf), w, col2, 12, l2, v2);
+            w = _panel_cell(buf, sizeof(buf), w, col3,  8, l3, v3);
             _draw_line(row, buf, w);
         }
 

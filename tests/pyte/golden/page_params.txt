@@ -15,7 +15,7 @@
   | mqtt_port                | u16  | <V>               | 58443        |       |
   ----------------------------------------------------------------------------
 
- Minimum      : 1200                  Maximum      : 921600
+ Minimum      : 1200                  Maximum      : 921600 Register : 900
  Description  : Console UART rate
  Notes        : retunes the wire AND the render budget; reconnect at the new rat
 

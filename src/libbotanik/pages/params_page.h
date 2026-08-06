@@ -282,8 +282,11 @@ namespace Botanik { namespace Pages {
          *  above the prompt - so an open editor, which owns the prompt row,
          *  never covers it. */
         uint16_t _mode_row() const { return (uint16_t)(_panel_top() + PANEL_H - 1); }
-        /** @brief Column the panel's second field starts at (Minimum | Maximum). */
+        /** @brief Columns the panel's second and third fields start at
+         *  (Minimum | Maximum | Register). COL3 is where the Maximum field's
+         *  widest value ends, so the three fit an 80-column row. */
         static constexpr uint16_t PANEL_COL2 = 38;
+        static constexpr uint16_t PANEL_COL3 = 60;
 
 
 
@@ -413,10 +416,19 @@ namespace Botanik { namespace Pages {
             // operator edits the real ones is the worst of both.
             const Vars::NumBand band =
                 Vars::var_band(_params != nullptr ? _params->bank() : nullptr, d);
-            _panel_field2((uint16_t)(r + 2),
+            // ...and the register rides along on the same row. It is the one
+            // number about a parameter that is an EXTERNAL contract - a Modbus
+            // master's map is written against it - and it was reachable only by
+            // reading the site's table. Hand-assigned per row, so it is also the
+            // one an operator may need to read back and quote.
+            char b3[8];
+            snprintf(b3, sizeof(b3), "%u", (unsigned)d.bind.reg);
+            _panel_field3((uint16_t)(r + 2),
                           "Minimum", _fmt_bound(b,  sizeof(b),  d, band.min),
                           PANEL_COL2,
-                          "Maximum", _fmt_bound(b2, sizeof(b2), d, band.max));
+                          "Maximum", _fmt_bound(b2, sizeof(b2), d, band.max),
+                          PANEL_COL3,
+                          "Register", d.bind.reg != 0 ? b3 : nullptr);
             _panel_field((uint16_t)(r + 3), "Description", d.desc);
             _panel_field((uint16_t)(r + 4), "Notes",       d.notes);
             _blank_line((uint16_t)(r + 5));                     // blank above the legend
