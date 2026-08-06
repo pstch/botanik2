@@ -95,20 +95,21 @@ namespace Botanik { namespace Config {
      *  console wire is further down, under Terminal and console.
      *  @{ */
 
-    /** @brief Console UART baud. Drives two things that must agree: the UART
-     *  itself, and the per-render TX budget AnsiTerminal derives from it at
-     *  construction.
+    /** @brief The FACTORY DEFAULT for the `serial_console_baud` parameter.
      *
-     *  @note Compile-time only, deliberately. There is no runtime setter,
-     *        because one could retune the UART but not the budget already
-     *        derived, leaving the renderer pacing for a rate the wire no longer
-     *        runs at. On the simulator, use BOTANIK_TIME_SCALE to go faster. */
+     *  The live value is a parameter, not this - the rate an installation runs
+     *  its console at is the operator's, and a unit whose terminal was swapped
+     *  should not need a firmware build. `set serial_console_baud 9600` retunes
+     *  the UART and the per-render TX budget together, on the next beat.
+     *
+     *  Kept here as the default so a site can still pin what its hardware ships
+     *  with, and so a wiped store comes back at a known rate. */
 #ifndef BOTANIK_CONSOLE_BAUD
 #  define BOTANIK_CONSOLE_BAUD 4800
 #endif
     BOTANIK_CFG(uint32_t, CONSOLE_BAUD);
 
-    /** @brief Monitor UART baud.
+    /** @brief The factory default for the `serial_monitor_baud` parameter.
      *  @note Effective on the simulator, which throttles its write to it. The
      *        OPTA's MONITOR endpoint is USB CDC and has no line rate, so
      *        begin() there ignores it. */

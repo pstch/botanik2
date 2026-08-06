@@ -99,15 +99,34 @@
  *  //                    ::Botanik::Vars::SU(0), 0, "ms", "beat period", ""), */
 #define BOTANIK_LIBRARY_GLOBAL_VARS
 
-/** @brief Parameters the library reads. Empty - the network / NTP / MQTT groups
- *  are the site's today, which is why their defaults differ per unit.
+/** @brief Parameters the library reads.
+ *
+ *  The two UART rates: what an installation runs its console at is the
+ *  operator's business, and a unit whose terminal was swapped should not need a
+ *  firmware build. `Config::CONSOLE_BAUD` / `MONITOR_BAUD` are still where the
+ *  DEFAULT lives, so a site pins what its hardware ships with and a wiped store
+ *  comes back at a known rate.
+ *
+ *  The band is the standard rates either UART can actually be driven at. It is
+ *  a band and not an enum because a parameter's declared bounds are the whole
+ *  validation a `set` gets: a number inside it that no divisor can hit lands as
+ *  the nearest the driver manages, which is a wrong rate rather than a refused
+ *  one - so keep it to rates that are real.
  *
  *  LAST in the aggregate below, and that is load-bearing: see @ref lib_order.
  *
  *  //                   name                 type  def   min  max   dgt unit reg description
  *  // ::Botanik::Vars::P("sys_watchdog_ms", ::Botanik::Vars::T_U32,
  *  //                    10000, 100, 60000, 0, "ms", 950, "HW watchdog", ""), */
-#define BOTANIK_LIBRARY_PARAM_VARS
+#define BOTANIK_LIBRARY_PARAM_VARS                                             \
+    ::Botanik::Vars::P("serial_console_baud", ::Botanik::Vars::T_U32,          \
+        BOTANIK_CONSOLE_BAUD, 1200, 921600, 0, "Bd", 900,                      \
+        "Console UART rate",                                                   \
+        "retunes the wire AND the render budget; reconnect at the new rate"),  \
+    ::Botanik::Vars::P("serial_monitor_baud", ::Botanik::Vars::T_U32,          \
+        BOTANIK_MONITOR_BAUD, 1200, 921600, 0, "Bd", 901,                      \
+        "Monitor UART rate",                                                   \
+        "log-only port; ignored on the OPTA, whose MONITOR is USB CDC"),
 
 /** @} */
 

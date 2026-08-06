@@ -17,12 +17,15 @@
  * Target-independent: the site's tables are injected by the caller (site
  * statics). Tunable scalars default
  * from Config and the harness overrides them through a set_*() modifier before
- * setup() (set_monitor_baud(), set_hw_watchdog_ms()).
+ * setup() (set_hw_watchdog_ms()).
  *
- * The console baud is NOT among them: AnsiTerminal derives its per-render TX
- * budget from it once, at construction, so a setter could only retune the UART
- * and would leave the renderer pacing for the compiled-in rate. It is
- * Config::CONSOLE_BAUD throughout.
+ * Both UART rates are PARAMETERS, not compile-time constants: `serial_console_baud`
+ * and `serial_monitor_baud` (declared by the library - vars/library.h), defaulting
+ * from Config::CONSOLE_BAUD / MONITOR_BAUD. _apply_serial_config() runs on the
+ * CONFIG phase and re-applies either on change, retuning the UART and - for the
+ * console - AnsiTerminal's per-render TX budget in the same breath, since a
+ * renderer pacing for a rate the wire no longer runs at is the failure that kept
+ * this compile-time before.
  *
  *
  * Console-optional (BOTANIK_FEATURE_CONSOLE, default on): the interactive ANSI
@@ -141,8 +144,17 @@ namespace Botanik {
         /** @name Configuration
          *  @{ */
 
-        /** @brief Monitor UART baud (log-only, no TX gating) */
+        /** @name Applied UART rates
+         *
+         *  What the two ports are actually running at, so
+         *  _apply_serial_config() can tell a changed parameter from a steady
+         *  one and reconfigure only on the edge. Seeded from the same Config
+         *  defaults the parameters carry, so the first pass is a no-op unless
+         *  the store held something else.
+         *  @{ */
+        uint32_t                      _console_baud  = Config::CONSOLE_BAUD;
         uint32_t                      _monitor_baud  = Config::MONITOR_BAUD;
+        /** @} */
 
         /** @brief The site's declarative tables + name (borrowed; site statics
          *  outlive the firmware). Drives page/command/telemetry/config wiring. */
@@ -222,9 +234,9 @@ namespace Botanik {
          *  @{ */
 
         /** @brief Wire up the generic components. @p site: the site's
-         *  declarative tables + name (borrowed). Tunable scalars (baud,
-         *  watchdog) default from Config; override via the set_*() modifiers
-         *  before setup().
+         *  declarative tables + name (borrowed). The watchdog period defaults
+         *  from Config; override via set_hw_watchdog_ms() before setup(). The
+         *  baud rates are parameters - see the file header.
          *
          *  The initialiser list follows declaration order exactly (-Wreorder):
          *  _io must be alive before _params and _scan take its address. */
@@ -253,7 +265,7 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_CONSOLE
               , _console(_console_cols, _console_rows,
-                         &_scheduler.context()->timestamp_ms, Config::CONSOLE_BAUD,
+                         &_scheduler.context()->timestamp_ms, _console_baud,
                          &_health.alarm_model(), &_logger)
               // Base-owned pages, built from the descriptor + the live payload.
 #if BOTANIK_FEATURE_HOME_PAGE
@@ -325,7 +337,7 @@ namespace Botanik {
             _register_tasks();
 
 #if BOTANIK_FEATURE_CONSOLE
-            HAL::Serial::get(HAL::Serial::CONSOLE)->begin(Config::CONSOLE_BAUD);
+            HAL::Serial::get(HAL::Serial::CONSOLE)->begin(_console_baud);
 #endif
 #if BOTANIK_FEATURE_LOGS_MONITOR
             HAL::Serial::get(HAL::Serial::MONITOR)->begin(_monitor_baud);
@@ -403,6 +415,14 @@ namespace Botanik {
             // against a 10 ms budget.
             _tasks.setup(HAL::Clock::uptime_ms());
 
+            // The parameter load just happened, so this is the first moment the
+            // stored UART rates exist. Applied here rather than left to the
+            // first beat so the boot lines below go out at the rate the operator
+            // actually configured - everything above them was emitted at the
+            // compile-time default, which is unavoidable: something has to open
+            // the port before the store can be read.
+            _apply_serial_config();
+
             HAL::Watchdog::start(_hw_watchdog_ms);
 
             // Bring-up is done: the system's hold on control is released, so
@@ -416,7 +436,7 @@ namespace Botanik {
             _logger.debug(Logs::BOOT, "boot complete\nHW watchdog %lu ms",
                           (unsigned long)_hw_watchdog_ms);
 #if BOTANIK_FEATURE_CONSOLE
-            _logger.debug(Logs::BOOT, "console %lu baud", (unsigned long)Config::CONSOLE_BAUD);
+            _logger.debug(Logs::BOOT, "console %lu baud", (unsigned long)_console_baud);
 #endif
 #if BOTANIK_FEATURE_LOGS_MONITOR
             _logger.debug(Logs::BOOT, "monitor %lu baud", (unsigned long)_monitor_baud);
@@ -465,6 +485,13 @@ namespace Botanik {
 
             // --- CONFIG: the image every config-driven component reads below ---
             _tasks.add_component("params", GROUP_SLOW, PHASE_CONFIG, _params);
+            // ...and the two rates that are config for the firmware ITSELF.
+            // After the params component, so an edit committed this beat is
+            // applied this beat rather than the next.
+            _tasks.add("serial_cfg", GROUP_SLOW, PHASE_CONFIG,
+                [](void* s, uint64_t) {
+                    static_cast<BotanikFirmware*>(s)->_apply_serial_config();
+                }, this);
 
             // --- SERVICE: supervision and the background state machines ---
             // Health before the logger drains, so an alarm START/END lands this
@@ -518,6 +545,50 @@ namespace Botanik {
             if (_tasks.overflow() != 0)
                 _logger.critical(Logs::BOOT, "%u task(s) refused: MAX_TASKS is %u",
                                  (unsigned)_tasks.overflow(), (unsigned)Config::MAX_TASKS);
+        }
+
+        /** @brief Re-apply either UART rate when its parameter has moved.
+         *
+         *  Edge-triggered against what is actually running, so the steady case -
+         *  every beat but the one after an edit - is two integer compares and no
+         *  device call. `begin()` on an already-open port is a reconfigure, not
+         *  a reopen, so there is nothing to tear down.
+         *
+         *  Deliberately NOT gated on a commit serial the way the network group
+         *  is. That exists because a static-IP block is incoherent until every
+         *  field is in; a baud rate is one number, coherent on its own, and
+         *  making an operator commit it separately would only be a second step
+         *  to forget.
+         *
+         *  @warning Retuning the console drops the terminal on the other end
+         *  mid-sentence - it is still at the old rate. That is inherent, and the
+         *  parameter's own notes say so; the log line lands at the NEW rate, so
+         *  the operator's confirmation is the first thing they read after
+         *  reconnecting. */
+        void _apply_serial_config() {
+#if BOTANIK_FEATURE_CONSOLE
+            const uint32_t con = (uint32_t)Vars::get_int(&_io, "serial_console_baud",
+                                                         (int32_t)_console_baud);
+            if (con != _console_baud && con != 0) {
+                _console_baud = con;
+                // Both, together: the wire and the budget the renderer paces to.
+                // Either alone is the bug this used to be compile-time to avoid.
+                HAL::Serial::get(HAL::Serial::CONSOLE)->begin(con);
+                _console.terminal().terminal().set_baud(con);
+                _logger.notice(Logs::BOOT, "console now %lu baud",
+                               (unsigned long)con);
+            }
+#endif
+#if BOTANIK_FEATURE_LOGS_MONITOR
+            const uint32_t mon = (uint32_t)Vars::get_int(&_io, "serial_monitor_baud",
+                                                         (int32_t)_monitor_baud);
+            if (mon != _monitor_baud && mon != 0) {
+                _monitor_baud = mon;
+                HAL::Serial::get(HAL::Serial::MONITOR)->begin(mon);
+                _logger.notice(Logs::BOOT, "monitor now %lu baud",
+                               (unsigned long)mon);
+            }
+#endif
         }
 
         /** @brief Track the health verdict against control authority.
@@ -598,9 +669,6 @@ namespace Botanik {
 
         /** @name Per-target tuning (call before setup())
          *  @{ */
-
-        /** @brief Override the monitor baud read by setup(). */
-        void set_monitor_baud(uint32_t baud) { _monitor_baud = baud; }
 
         /** @brief Override the HW-watchdog period armed by setup(). */
         void set_hw_watchdog_ms(uint32_t ms) { _hw_watchdog_ms = ms; }

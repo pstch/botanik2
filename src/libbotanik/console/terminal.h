@@ -153,10 +153,11 @@ namespace Botanik { namespace Terminal {
          *  @name Pacing
          *  @{ */
 
-        /** @brief Per-tick emit budget floor in bytes, derived from the link baud
-         *  at construction; present() emits at most this many bytes above what is
-         *  already queued in the ring, so the felt latency target holds across
-         *  links and the ring never overflows into a dropped (torn) write. */
+        /** @brief Per-tick emit budget floor in bytes, derived from the link baud;
+         *  present() emits at most this many bytes above what is already queued
+         *  in the ring, so the felt latency target holds across links and the
+         *  ring never overflows into a dropped (torn) write. Moves only through
+         *  set_baud(), which is what keeps it agreeing with the wire. */
         uint16_t            _tx_cold_depth = 0;
 
         /** @brief Ring headroom the budget floor always leaves free, so a single
@@ -277,6 +278,19 @@ namespace Botanik { namespace Terminal {
         void set_inverted(bool enable);
         void set_auto_wrap(bool enable);
         void set_cursor_visible(bool show);
+
+        /** @brief Re-derive the per-render TX budget for a link now running at
+         *  @p baud.
+         *
+         *  The budget and the wire have to agree, which is the whole reason this
+         *  exists rather than the rate being set on the UART alone: retuning the
+         *  UART without this would leave the renderer pacing for a rate the wire
+         *  no longer runs at - too slow and the screen crawls, too fast and the
+         *  ring overflows into a torn write. So whoever changes one changes both,
+         *  and BotanikFirmware does exactly that from `serial_console_baud`. */
+        void set_baud(uint32_t baud) {
+            _tx_cold_depth = depth_for_baud(baud, Config::TX_COLD_TARGET_MS);
+        }
 
         /** @brief Classify rows [@p top, @p bottom] for present()'s emit order.
          *  A row's class says what kind of thing lives there, so it is declared
