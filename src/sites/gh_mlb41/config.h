@@ -9,28 +9,8 @@
 #  define BOTANIK_SITE_NAME "gh_mlb41"
 #endif
 
-// Guarded, so the precedence is command line > site > library default: a -D is
-// already defined by the time this file is read, and an unguarded #define here
-// would redefine it (warning and all) and quietly win. The site says what this
-// greenhouse needs; it does not get to overrule someone building a cut-down
-// image on purpose.
-// The library defaults are a minimal core (console + home + shell + logging +
-// the scan cycle); everything below is what THIS greenhouse additionally needs.
-// gh_mlb41 is the reference site, so it is also the worked example of a full
-// profile - and, because the test and pyte builds compile the selected site,
-// it is what keeps those suites exercising the whole feature surface.
+// NOTE: precedence is command line > site > library default
 
-// Each block is conditional on its substrate not having been switched OFF on
-// the command line. An `#ifndef` alone is not enough: with
-// -DBOTANIK_FEATURE_CONSOLE=OFF the page flags are still undefined here, so the
-// site would define them to 1 and the dependency rules would then reject a
-// contradiction the BUILDER never wrote. The site asks for pages if there is a
-// console to put them on - it does not overrule someone building headless.
-//
-// `!defined(X) || X` reads as "unless explicitly turned off", which is the whole
-// rule: only the command line can have defined it by now.
-
-// --- Console: the full page set ------------------------------------------
 #if !defined(BOTANIK_FEATURE_CONSOLE) || BOTANIK_FEATURE_CONSOLE
 #  if !defined(BOTANIK_FEATURE_LOGGING) || BOTANIK_FEATURE_LOGGING
 #    ifndef BOTANIK_FEATURE_LOGS_PAGE
@@ -54,7 +34,6 @@
 #  endif
 #endif
 
-// --- Diagnostics: raw logs on the second serial port ---------------------
 #if !defined(BOTANIK_FEATURE_LOGGING) || BOTANIK_FEATURE_LOGGING
 #  ifndef BOTANIK_FEATURE_LOGS_MONITOR
 #    define BOTANIK_FEATURE_LOGS_MONITOR 1
@@ -83,7 +62,6 @@
 #  endif
 #endif
 
-// --- PLC: the control programs use Ton / Sr / Deadband -------------------
 #ifndef BOTANIK_FEATURE_PLC_BLK_BASE
 #  define BOTANIK_FEATURE_PLC_BLK_BASE    1
 #endif
@@ -91,15 +69,7 @@
 #  define BOTANIK_FEATURE_PLC_BLK_FILTERS 1
 #endif
 
-// --- Sun position ---------------------------------------------------------
-// No substrate to guard against: the tracker is standalone, so this only
-// decides whether sun/ is compiled. We do not instantiate one - a site that
-// tracks the sun owns its instance - but the flag is what puts the NOAA math
-// and its two test files into the build, and those files are wholly
-// #if BOTANIK_FEATURE_SUN_TRACKER. Off in the header, so without this line no
-// build compiles them and they contribute zero cases while looking like
-// coverage. That is what "the reference site is the full profile" is for.
-#ifndef BOTANIK_FEATURE_SUN_TRACKER
+ifndef BOTANIK_FEATURE_SUN_TRACKER
 #  define BOTANIK_FEATURE_SUN_TRACKER     1
 #endif
 
