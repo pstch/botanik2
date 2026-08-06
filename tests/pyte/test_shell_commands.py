@@ -137,9 +137,11 @@ def test_features(spawn):
     # from a broken one over the terminal.
     term.send(b"features" + keys.ENTER)
 
-    # The reference site turns the network group on in its own config.h, and
-    # leaves the standalone sun tracker off - so this asserts both partitions
-    # carry rows, not just that something printed.
+    # The reference site turns the network group AND the standalone sun tracker
+    # on in its own config.h; the two reserved field-bus flags are what is left
+    # off. So this asserts both partitions carry rows, not just that something
+    # printed.
     assert term.wait_for("console"), "features did not list the console"
     assert term.wait_for("mqtt"), "features did not list the site's network group"
-    assert term.wait_for("off : sun"), "sun is off by default and must say so"
+    assert term.wait_for("sun_tracker"), "the site enables the sun tracker"
+    assert term.wait_for("off : modbus"), "the reserved field-bus flags are off"
