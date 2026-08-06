@@ -35,6 +35,11 @@ DELETE = ESC + b"[3~"
 PAGE_UP = ESC + b"[5~"
 PAGE_DOWN = ESC + b"[6~"
 
+# Shift+arrow: the xterm modifier form, param2 = 1 + Shift. Scrolls a page's
+# scrollback one line (the shell's bare UP/DOWN are its command history).
+SHIFT_UP = ESC + b"[1;2A"
+SHIFT_DOWN = ESC + b"[1;2B"
+
 # Control bytes.
 BACKSPACE = b"\x7f"
 CTRL_A = b"\x01"             # line start

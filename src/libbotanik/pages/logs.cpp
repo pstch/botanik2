@@ -41,11 +41,16 @@ namespace Botanik { namespace Pages {
                 _console.clear_content();
                 focus();
                 break;
+            // Shift+arrow too: this page has no other use for a bare arrow, but
+            // the shell's are its command history, so the line-at-a-time key is
+            // the shifted one everywhere a scrollback is on screen.
             case Command::UP:
+            case Command::SHIFT_UP:
             case Command::CTRL_P:
                 _scrollback.scroll(_terminal, /*up=*/true, 1, first_row, log_rows);
                 break;
             case Command::DOWN:
+            case Command::SHIFT_DOWN:
             case Command::CTRL_N:
                 _scrollback.scroll(_terminal, /*up=*/false, 1, first_row, log_rows);
                 break;

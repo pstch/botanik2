@@ -51,6 +51,7 @@ namespace Botanik { namespace Terminal {
 
             // Shift Combinations
             SHIFT_ENTER, SHIFT_TAB,
+            SHIFT_UP, SHIFT_DOWN,
 
             // Meta/Alt Combinations
             ALT_B, ALT_F,

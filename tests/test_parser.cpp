@@ -109,6 +109,24 @@ TEST_CASE("parser: CSI tilde keys, with and without a modifier param") {
     f.feed("\x1B[6;5~"); CHECK(f.parse().command == Command::CTRL_PAGE_DOWN);
 }
 
+// The same modifier bitmask on the arrows, where Shift (bit 1) is what picks
+// the line-at-a-time scrollback scroll out of a plain arrow.
+TEST_CASE("parser: a shifted arrow is its own command") {
+    ParserFixture f;
+    f.feed("\x1B[1;2A"); CHECK(f.parse().command == Command::SHIFT_UP);
+    f.feed("\x1B[1;2B"); CHECK(f.parse().command == Command::SHIFT_DOWN);
+    // Bare arrows carry no param at all, so they must stay unshifted...
+    f.feed("\x1B[A");    CHECK(f.parse().command == Command::UP);
+    f.feed("\x1B[B");    CHECK(f.parse().command == Command::DOWN);
+    // ...as must a modifier without the Shift bit (5 - 1 = Ctrl alone).
+    f.feed("\x1B[1;5A"); CHECK(f.parse().command == Command::UP);
+    // Shift+Ctrl keeps the Shift bit, so it still scrolls rather than falling
+    // back to a bare arrow.
+    f.feed("\x1B[1;6A"); CHECK(f.parse().command == Command::SHIFT_UP);
+    // Left/Right take no shifted meaning: nothing scrolls sideways.
+    f.feed("\x1B[1;2C"); CHECK(f.parse().command == Command::RIGHT);
+}
+
 TEST_CASE("parser: a long digit run saturates instead of wrapping") {
     ParserFixture f;
     // Param overflows uint16_t; it must clamp, not roll over into a small value

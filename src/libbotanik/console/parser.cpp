@@ -214,20 +214,24 @@ namespace Botanik { namespace Terminal {
 
     Command InputParser::_map_csi_to_command(const uint8_t b, const uint16_t param1,
                                              const uint16_t modifier) {
+        // xterm encodes modifiers as a 1-based bitmask second param (Shift=1,
+        // Alt=2, Ctrl=4): Shift+Up is CSI 1;2A, Ctrl+PageUp is CSI 5;5~. The
+        // param is 0 when none was sent (a plain arrow or page key), so the
+        // bitmask is (modifier - 1) only once there is one.
+        const uint16_t mods  = (modifier > 1) ? (uint16_t)(modifier - 1) : 0;
+        const bool     shift = (mods & 0x1) != 0;
+        const bool     ctrl  = (mods & 0x4) != 0;
         switch (b) {
-            case 'A': return Command::UP;
-            case 'B': return Command::DOWN;
+            // Shift+arrow scrolls a page's scrollback a line at a time, which is
+            // why the modifier is worth decoding on the arrows at all.
+            case 'A': return shift ? Command::SHIFT_UP   : Command::UP;
+            case 'B': return shift ? Command::SHIFT_DOWN : Command::DOWN;
             case 'C': return Command::RIGHT;
             case 'D': return Command::LEFT;
             case 'H': return Command::HOME;
             case 'F': return Command::END;
 
             case '~': {
-                // xterm encodes modifiers as a 1-based bitmask second param
-                // (Shift=1, Alt=2, Ctrl=4): e.g. Ctrl+PageUp is CSI 5;5~. The
-                // Ctrl bit is set when (modifier - 1) & 4; modifier is 0 when
-                // no second param was sent (plain PageUp/PageDown).
-                const bool ctrl = modifier > 1 && (((modifier - 1) & 0x4) != 0);
                 switch (param1) {
                     case 1: return Command::HOME;
                     case 2: return Command::NONE;

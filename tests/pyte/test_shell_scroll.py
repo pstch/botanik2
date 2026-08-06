@@ -1,10 +1,11 @@
-"""SHELL page scrollback: PAGE_UP/PAGE_DOWN walk the transcript.
+"""SHELL page scrollback: PAGE_UP/PAGE_DOWN and Shift+arrow walk the transcript.
 
-The shell's UP/DOWN are command history, so the page keys are the only ones
-free for the transcript - and every OTHER key returns the view to the live
-bottom, the way a Linux terminal's scroll-on-keystroke does. That last part is
-not a nicety: submitting a line scrolls the content band itself (line_feed),
-which would move a frozen window without the scrollback knowing.
+The shell's bare UP/DOWN are command history, so the transcript gets the page
+keys (a screenful) and the SHIFTED arrows (a line) - and every OTHER key returns
+the view to the live bottom, the way a Linux terminal's scroll-on-keystroke
+does. That last part is not a nicety: submitting a line scrolls the content band
+itself (line_feed), which would move a frozen window without the scrollback
+knowing.
 
 The assertions are relative - "the newest line left the screen and came back" -
 rather than naming a line at a row. What the transcript holds depends on how
@@ -64,6 +65,31 @@ def test_page_up_scrolls_back_and_page_down_returns(spawn):
     term.send(keys.PAGE_DOWN)
     assert _wait_screen(term, NEWEST), "PAGE_DOWN did not return to the live bottom"
     assert _wait_screen(term, MARKER, want=False), "the marker outlived the return"
+
+
+def test_shift_arrows_scroll_one_line(spawn):
+    term = shell(spawn)
+    _fill(term)
+
+    # The marker counts the lines between the view and the live bottom, so it
+    # reads back exactly how far a key moved - which is the whole claim here.
+    term.send(keys.SHIFT_UP)
+    assert _wait_screen(term, "v 1 more"), "Shift+Up did not scroll exactly one line"
+    term.send(keys.SHIFT_UP)
+    assert _wait_screen(term, "v 2 more"), "a second Shift+Up did not go one further"
+
+    term.send(keys.SHIFT_DOWN)
+    assert _wait_screen(term, "v 1 more"), "Shift+Down did not come back one line"
+    term.send(keys.SHIFT_DOWN)
+    assert _wait_screen(term, MARKER, want=False), "Shift+Down did not reach the bottom"
+    assert _wait_screen(term, NEWEST), "the live bottom did not come back"
+
+    # A bare UP is still the command history - which is why the scroll had to be
+    # the shifted arrow - so it snaps back like any other key.
+    term.send(keys.SHIFT_UP)
+    assert _wait_screen(term, "v 1 more"), "Shift+Up stopped working"
+    term.send(keys.UP)
+    assert _wait_screen(term, MARKER, want=False), "a bare UP did not return to the bottom"
 
 
 def test_a_keystroke_returns_to_the_live_bottom(spawn):
