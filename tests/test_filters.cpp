@@ -6,7 +6,7 @@
  */
 #include "libbotanik/utils/filters.h"   // Utils::ExpMovingAverage / WindowedMax
 
-#include "doctest.h"                    // the test framework (vendored single header)
+#include "doctest.h"
 
 using Botanik::Utils::ema_alpha;
 using Botanik::Utils::ExpMovingAverage;

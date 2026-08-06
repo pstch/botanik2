@@ -15,7 +15,7 @@
 #include "libbotanik/vars/declare.h"    // the P/PS factories the test table is written in
 #include "libbotanik/vars/params.h"     // Vars::Params / KvParamStore
 
-#include "doctest.h"                    // the test framework (vendored single header)
+#include "doctest.h"
 
 using namespace Botanik;
 using namespace Botanik::Vars;

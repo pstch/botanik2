@@ -13,7 +13,7 @@
 
 #include "libbotanik/logs/writer.h" // Logs::BufferedLogWriter
 
-#include "doctest.h"                // the test framework (vendored single header)
+#include "doctest.h"
 
 using namespace Botanik;
 

@@ -8,7 +8,7 @@
 
 #include "libbotanik/pages/line_buffer.h"   // Pages::LineBuffer
 
-#include "doctest.h"                        // the test framework (vendored single header)
+#include "doctest.h"
 
 using Botanik::Pages::LineBuffer;
 

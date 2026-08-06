@@ -19,7 +19,7 @@
 #include "libbotanik/pages/alarms.h"        // Pages::AlarmsPage
 #include "libbotanik/vars/declare.h"        // the A() factory
 
-#include "doctest.h"                        // the test framework (vendored single header)
+#include "doctest.h"
 
 using namespace Botanik;
 using Command = Terminal::InputEvent::Command;

@@ -11,7 +11,7 @@
 #include "libbotanik/logs/logger.h"     // Logs::Logger
 #include "libbotanik/vars/declare.h"    // the A() factory
 
-#include "doctest.h"                    // the test framework (vendored single header)
+#include "doctest.h"
 
 using namespace Botanik;
 

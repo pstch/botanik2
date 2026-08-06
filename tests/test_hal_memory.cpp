@@ -19,7 +19,7 @@
 
 #include "libbotanik/hal/platform.h"    // HAL::Memory::ordered_copy / cache_*
 
-#include "doctest.h"                    // the test framework (vendored single header)
+#include "doctest.h"
 
 using namespace Botanik;
 

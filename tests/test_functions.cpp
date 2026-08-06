@@ -5,7 +5,7 @@
  */
 #include "libbotanik/plc/functions/functions.h" // the stateless POU vocabulary
 
-#include "doctest.h"                            // the test framework (vendored single header)
+#include "doctest.h"
 
 using namespace Botanik::Plc;
 

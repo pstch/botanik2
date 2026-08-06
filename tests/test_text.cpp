@@ -11,7 +11,7 @@
 #include "libbotanik/hal/platform.h"    // HAL::Env::u32 / u8
 #include "libbotanik/utils/text.h"      // Utils::format_* / parse_uint / compare_str
 
-#include "doctest.h"                    // the test framework (vendored single header)
+#include "doctest.h"
 
 using Botanik::Utils::format_float;
 using Botanik::Utils::format_int;

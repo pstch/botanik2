@@ -6,7 +6,7 @@
  */
 #include <cstdint>                      // uint8_t/uint16_t/uint64_t
 
-#include "doctest.h"                    // the test framework (vendored single header)
+#include "doctest.h"
 
 // Pulls the site config, then the feature defaults: the guards below
 // need the flags DEFINED, and an undefined one reads as 0 in #if.

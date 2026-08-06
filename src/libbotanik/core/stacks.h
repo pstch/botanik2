@@ -19,7 +19,7 @@
 
 #include <cstdint>                          // uint8_t/uint32_t
 
-#include "libbotanik.h"                     // the umbrella: console, pages and log types
+#include "libbotanik.h"
 
 #if BOTANIK_FEATURE_NETWORK
 #include "libbotanik/network/network.h"     // Network::NetworkHandler

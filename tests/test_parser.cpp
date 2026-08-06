@@ -12,7 +12,7 @@
 
 #include "libbotanik/console/parser.h"  // Terminal::InputParser
 
-#include "doctest.h"                    // the test framework (vendored single header)
+#include "doctest.h"
 
 using namespace Botanik;
 using Botanik::Terminal::InputParser;

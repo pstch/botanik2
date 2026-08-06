@@ -13,7 +13,7 @@
 
 #include "libbotanik/utils/time.h"  // Utils::CalendarTime + the uptime/wall conversions
 
-#include "doctest.h"                // the test framework (vendored single header)
+#include "doctest.h"
 
 using namespace Botanik::Utils;
 

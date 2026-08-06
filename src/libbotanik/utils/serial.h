@@ -31,13 +31,7 @@ namespace Botanik { namespace Utils {
      *   - TX:  write() fills,   transmit() drains.
      *
      *  Every method runs on the main loop, the ring is NOT ISR-safe.
-     *  Producer and consumer being the same thread, no barrier is needed.
-     *
-     *  A Component: step(now_ms) runs one receive+transmit pump. The firmware
-     *  does not step the full pump, though - it drives the two halves at the loop
-     *  phases they belong: receive() at the top (fresh RX before processing) and
-     *  transmit() at the bottom (flush the render). step() is there for the
-     *  uniform Component interface / a future scheduler. */
+     *  Producer and consumer being the same thread, no barrier is needed. */
     class BufferedSerial : public Botanik::Component, public ByteSink {
     private:
 

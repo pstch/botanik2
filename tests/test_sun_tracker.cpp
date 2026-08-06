@@ -12,8 +12,8 @@
 #include "libbotanik/hal/platform.h"    // HAL::Clock::set_wall_ms
 #include "libbotanik/sun/sun_tracker.h" // Sun::SunPositionTracker
 
-#include "doctest.h"                    // the test framework (vendored single header)
-#include "params_fixture.h"             // the parameter bank the tracker reads latitude/longitude from
+#include "doctest.h"
+#include "params_fixture.h"
 
 #if BOTANIK_FEATURE_SUN_TRACKER
 

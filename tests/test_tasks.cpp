@@ -10,7 +10,7 @@
 #include "libbotanik/core/component.h"  // Component
 #include "libbotanik/scheduler/tasks.h" // Scheduler::Registry
 
-#include "doctest.h"                    // the test framework (vendored single header)
+#include "doctest.h"
 
 using namespace Botanik::Scheduler;
 

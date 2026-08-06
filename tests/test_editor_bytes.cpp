@@ -22,7 +22,7 @@
 #include "libbotanik/console/console.h" // Console
 #include "libbotanik/console/editor.h"  // Terminal::TextEditor
 
-#include "doctest.h"                    // the test framework (vendored single header)
+#include "doctest.h"
 
 using namespace Botanik;
 

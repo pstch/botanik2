@@ -11,7 +11,7 @@
 
 #include "libbotanik/logs/logger.h" // Logs::Logger
 
-#include "doctest.h"                // the test framework (vendored single header)
+#include "doctest.h"
 #include "recording_writer.h"       // RecordingWriter
 
 using namespace Botanik;

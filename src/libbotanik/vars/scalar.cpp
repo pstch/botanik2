@@ -8,7 +8,7 @@
  * and a value, not a descriptor and a byte offset.
  */
 
-#include "libbotanik/vars/scalar.h" // Scalar + the read/write/render/parse implemented here
+#include "libbotanik/vars/scalar.h" // Scalar + the read/write/render/parse
 
 #include <cerrno>                   // errno
 #include <cstdlib>                  // strtoll / strtoull / strtod

@@ -20,7 +20,7 @@
 #include "libbotanik/sun/sun_tracker.h" // Sun::solar_elevation + SolarPosition
 #include "libbotanik/utils/time.h"      // Utils
 
-#include "doctest.h"                    // the test framework (vendored single header)
+#include "doctest.h"
 
 #if BOTANIK_FEATURE_SUN_TRACKER
 

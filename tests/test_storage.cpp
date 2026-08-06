@@ -14,7 +14,7 @@
 
 #include "libbotanik/hal/storage.h" // HAL::Storage
 
-#include "doctest.h"                // the test framework (vendored single header)
+#include "doctest.h"
 
 using namespace Botanik::HAL;
 namespace Config = Botanik::Config;

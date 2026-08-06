@@ -13,7 +13,7 @@
 
 #include "libbotanik/utils/serial.h"    // Utils::BufferedSerial
 
-#include "doctest.h"                    // the test framework (vendored single header)
+#include "doctest.h"
 
 using Botanik::Utils::BufferedSerial;
 

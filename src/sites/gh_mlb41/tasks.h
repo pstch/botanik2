@@ -25,7 +25,7 @@
 
 #include "libbotanik.h" // Plc::Program + the block/function vocabulary
 
-#include "vars.h"       // the variable names these programs bind
+#include "vars.h"
 
 namespace Site {
 

@@ -8,7 +8,7 @@
 #include "libbotanik/utils/text.h"  // Utils::compare_str
 #include "libbotanik/vars/scalar.h" // Vars::Scalar + format/parse
 
-#include "doctest.h"                // the test framework (vendored single header)
+#include "doctest.h"
 
 using namespace Botanik;
 using namespace Botanik::Vars;

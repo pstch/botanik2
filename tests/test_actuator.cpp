@@ -7,7 +7,7 @@
 
 #include "libbotanik/plc/blocks/actuator.h" // Plc::Actuator / ActuatorConfig
 
-#include "doctest.h"                        // the test framework (vendored single header)
+#include "doctest.h"
 
 // Compiles to an empty TU when the blocks are off - the namespace
 // itself is gated, so this must sit ABOVE the using-directive.

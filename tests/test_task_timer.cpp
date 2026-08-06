@@ -7,7 +7,7 @@
 
 #include "libbotanik/scheduler/task_timer.h"    // Scheduler::TaskTimer
 
-#include "doctest.h"                            // the test framework (vendored single header)
+#include "doctest.h"
 
 using Botanik::Scheduler::TaskTimer;
 

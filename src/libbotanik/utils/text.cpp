@@ -5,12 +5,12 @@
  *        stands in for the missing `%f` in our snprintf, plus the duration
  *        formatter for "N u ago" readouts.
  */
-#include "libbotanik/utils/text.h"  // the formatting helpers this file implements
+#include "libbotanik/utils/text.h"
 
-#include <cmath>                    // llround
-#include <cstddef>                  // size_t
-#include <cstdint>                  // uint8_t/uint32_t/uint64_t
-#include <cstdio>                   // snprintf
+#include <cmath>    // llround
+#include <cstddef>  // size_t
+#include <cstdint>  // uint8_t/uint32_t/uint64_t
+#include <cstdio>   // snprintf
 
 namespace Botanik { namespace Utils {
 

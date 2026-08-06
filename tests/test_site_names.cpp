@@ -24,8 +24,8 @@
 #include "libbotanik_site.h"    // resolves BOTANIK_SITE -> BOTANIK_SITE_HEADER
 #include "libbotanik.h"         // Vars::Bank::find / unresolved_count
 
-#include "doctest.h"            // the test framework (vendored single header)
-#include BOTANIK_SITE_HEADER    // the selected site's tables
+#include "doctest.h"
+#include BOTANIK_SITE_HEADER
 
 #if BOTANIK_FEATURE_SUN
 #  include "libbotanik/sun/sun_tracker.h"

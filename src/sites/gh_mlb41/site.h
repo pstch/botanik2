@@ -50,8 +50,8 @@
 // instead of the one being built - silently, with the wrong variable table.
 // A quoted relative include resolves against this file's own directory, which
 // is always the right site.
-#include "tasks.h"      // the control programs (code, not schema)
-#include "vars.h"       // every variable, in one table
+#include "tasks.h"
+#include "vars.h"
 
 namespace Site {
 

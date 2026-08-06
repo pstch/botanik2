@@ -77,7 +77,7 @@
 
 #include <cstdint>                      // uint8_t/uint32_t/uint64_t
 
-#include "libbotanik.h"                 // the umbrella: pages and console types
+#include "libbotanik.h"
 
 #include "libbotanik/alarms/alarms.h"   // AlarmCondition
 #include "libbotanik/core/stacks.h"     // Monitor/Console/NetworkStack

@@ -23,7 +23,7 @@
 #include "libbotanik_config.h"              // Config::HEALTH_*
 
 #include "libbotanik/alarms/alarms.h"       // Alarms::AlarmController / MqttAlarmNotifier
-#include "libbotanik/alarms/platform.h"     // the platform-health condition table this monitor asserts
+#include "libbotanik/alarms/platform.h"
 #include "libbotanik/alarms/publisher.h"    // Alarms::Publisher
 #include "libbotanik/hal/storage.h"         // HAL::Storage::fault_count
 #include "libbotanik/logs/logger.h"         // Logs::Logger::has_writers

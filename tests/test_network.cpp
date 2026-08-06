@@ -10,8 +10,8 @@
  *        Config is injected through the params fixture.
  */
 
-#include "doctest.h"                        // the test framework (vendored single header)
-#include "params_fixture.h"                 // the parameter bank the network components read their config from
+#include "doctest.h"
+#include "params_fixture.h"
 #include "recording_writer.h"               // RecordingWriter
 // Pulls the site config, then the feature defaults: the guards below
 // need the flags DEFINED, and an undefined one reads as 0 in #if.
