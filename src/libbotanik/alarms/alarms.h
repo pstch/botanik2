@@ -249,7 +249,12 @@ namespace Botanik { namespace Alarms {
 
             // look in the IO table for alarm-scope variables
             if (io != nullptr) {
-                for (uint16_t i = 0; i < io->count() && n < Config::ALARM_SLOTS; i++) {
+                // Bound the SITE scan at SITE_ALARMS_MAX, not ALARM_SLOTS: an
+                // over-long site table must lose its own tail, never eat into
+                // the block reserved for the platform-health alarms spliced in
+                // below (the clamp there is a backstop, and BOTANIK_ASSERT is
+                // compiled out on hardware).
+                for (uint16_t i = 0; i < io->count() && n < Config::SITE_ALARMS_MAX; i++) {
                     // fetch the generic variable metadata
                     const Vars::Variable& d = *io->var(i).meta();
                     // continue through the loop unless it's an alarm-variable

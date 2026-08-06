@@ -14,7 +14,7 @@ HOME_WIDGET = (0, 16)
 def test_home_on_boot(spawn, assert_screen):
     """The home widget on the landing screen after boot (volatile fields normalized).
 
-    boot() already spans several HOME_REFRESH_MS cycles (5s sim = 0.1s wall at
+    boot() already spans several PAGE_COLD_MS cycles (5s sim = 0.1s wall at
     scale 50), so this covers the periodic repaint too - no separate delay test.
     """
     term = boot(spawn)

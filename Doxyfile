@@ -11,7 +11,7 @@
 # Project identity
 #---------------------------------------------------------------------------
 PROJECT_NAME           = "Botanik"
-PROJECT_NUMBER         = 0.1.0-dev
+PROJECT_NUMBER         = 0.13.12-dev
 PROJECT_BRIEF          = "Greenhouse control system for the Arduino OPTA PLC"
 PROJECT_LOGO           = images/logo-small.png
 OUTPUT_DIRECTORY       = docs/doxygen

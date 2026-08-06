@@ -26,6 +26,30 @@
 
 namespace Botanik { namespace Scheduler {
 
+    namespace {
+        /** Metric window expressed in per-tick samples, which is what the
+         *  rolling-max filters are configured with. */
+        constexpr uint32_t METRIC_WINDOW_SAMPLES =
+            Config::LOAD_METRIC_WINDOW_MS / Config::TASK_PERIOD_MS;
+
+#ifdef TARGET_SIMULATOR
+        /** Byte pattern for stack painting. Arbitrary by construction: the scan
+         *  broadcasts it to a word and hunts a run of them, so any non-degenerate
+         *  value works. */
+        constexpr uint8_t  STACK_PAINT_BYTE  = 0xCD;
+
+        /** Bytes painted/scanned below the loop frame, on top of the clamp
+         *  against the real stack bottom. A host-stack property, not a site's. */
+        constexpr uint32_t STACK_SCAN_LIMIT  = 65536;
+
+        /** High-water is measured (and the free stack re-painted) once per slice
+         *  rather than every tick, to amortise the paint/scan cost. */
+        constexpr uint32_t STACK_SLICE_TICKS =
+            METRIC_WINDOW_SAMPLES >= Config::LOAD_METRIC_BUCKETS
+                ? METRIC_WINDOW_SAMPLES / Config::LOAD_METRIC_BUCKETS : 1u;
+#endif
+    }
+
     // Lifecycle
     // ------------------------------------------------------------------------
 
@@ -38,8 +62,8 @@ namespace Botanik { namespace Scheduler {
                             Utils::ema_alpha(Config::CPU_LOAD_EMA_DECAY_MS));
         _jitter.configure(Utils::ema_alpha(Config::CPU_JITTER_EMA_ATTACK_MS),
                           Utils::ema_alpha(Config::CPU_JITTER_EMA_DECAY_MS));
-        _cpu_loop_us_window.configure(Config::LOAD_METRIC_WINDOW);
-        _jitter_window.configure(Config::LOAD_METRIC_WINDOW);
+        _cpu_loop_us_window.configure(METRIC_WINDOW_SAMPLES);
+        _jitter_window.configure(METRIC_WINDOW_SAMPLES);
 
         // Everything else starts at its in-class initializer; only the anchor
         // and the stack fields need the runtime values.
@@ -146,7 +170,7 @@ namespace Botanik { namespace Scheduler {
         // reads the monotonic RTOS watermark, so it needs neither the paint nor
         // the throttle - just sample it each beat.
 #ifdef TARGET_SIMULATOR
-        if (++_stack_slice_tick >= Config::STACK_SLICE_TICKS) {
+        if (++_stack_slice_tick >= STACK_SLICE_TICKS) {
             _stack_slice_tick = 0;
             _measure_stack_usage();
             _repaint_pending = true;
@@ -176,7 +200,7 @@ namespace Botanik { namespace Scheduler {
         // word) impossible, so this is the true high-water without the old
         // (non-monotone, unsound) bisection.
         if (_paint_top != nullptr) {
-            const uint32_t PAT = (uint32_t)0x01010101u * Config::STACK_PAINT_BYTE;
+            const uint32_t PAT = (uint32_t)0x01010101u * STACK_PAINT_BYTE;
             const int RUN = 4;   // 16 bytes of intact pattern == untouched
             // word-align down
             const uint32_t* top = reinterpret_cast<const uint32_t*>(
@@ -235,9 +259,9 @@ namespace Botanik { namespace Scheduler {
         uint8_t* abs_bottom =
             reinterpret_cast<uint8_t*>(_stack_base - _stack_depth);
         if (paint_top <= abs_bottom) return;
-        uint8_t* paint_bot = paint_top - Config::STACK_SCAN_LIMIT;
+        uint8_t* paint_bot = paint_top - STACK_SCAN_LIMIT;
         if (paint_bot < abs_bottom) paint_bot = abs_bottom;
-        memset(paint_bot, Config::STACK_PAINT_BYTE,
+        memset(paint_bot, STACK_PAINT_BYTE,
                (size_t)(paint_top - paint_bot));
         _paint_top = paint_top;
         _paint_bot = paint_bot;

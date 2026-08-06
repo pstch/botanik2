@@ -11,12 +11,14 @@ reconciliation) that a source diff can't.
 - **PTY, not a pipe:** `RawSerial::availableForWrite()` uses `ioctl(TIOCOUTQ)`,
   which only answers on a tty. A pipe would bypass the baud throttle and the TX
   back-pressure path we want to exercise.
-- **`BOTANIK_CONSOLE_BAUD`:** overrides the sim's console baud (default 4800)
-  for smoketesting - it drives both the simulated UART's write throttle and
-  `present()`'s per-tick byte budget. The suite deliberately does *not* use it
-  (see the next bullet): changing the baud changes the byte/event ratios the
-  expected screens were captured at, whereas time dilation does not. Reach for
-  it when hand-driving `botanik_sim`, not when writing a test. 0/junk keeps 4800.
+- **Console baud is compile-time only** (`Config::CONSOLE_BAUD`, 4800). The
+  terminal derives its per-render byte budget from it at construction, so there
+  is deliberately no runtime override: one could only speed the wire up while the
+  renderer kept pacing for 4800. To go faster, use time dilation below - it keeps
+  every byte/event ratio identical to a real 4800-baud run, which is exactly the
+  property the expected screens were captured under.
+- **`BOTANIK_SIM_CPU`:** which core the loop thread is pinned to (default 0). A
+  property of the dev box, so it is an env var rather than a build setting.
 - **Speed via `BOTANIK_TIME_SCALE` (not a higher baud):** the simulator's clock
   runs N times faster than wall-clock (default scale 50). Every byte/event ratio
   is identical to a real 4800-baud run; only wall time is compressed. See

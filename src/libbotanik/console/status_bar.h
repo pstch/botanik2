@@ -31,10 +31,8 @@ namespace Botanik { namespace Terminal {
         Console&            _c;
         /** @brief The VT device it paints through (cached _c.terminal()). */
         AnsiTerminal&       _t;
-        /** @brief Last metrics refresh (wall clock). */
+        /** @brief Last refresh of the row (clock and metrics share the gate). */
         uint64_t            _last_ms = 0;
-        /** @brief Last clock refresh (uptime ms). */
-        uint64_t            _clock_last_ms = 0;
 
         /** @brief Visible width (+NUL) of "cpu:nnn% stk:nnn% ". */
         static constexpr uint16_t METRICS_LEN = 19;

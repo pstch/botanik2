@@ -306,8 +306,7 @@ namespace Botanik { namespace Pages {
                  const Vars::VarRef* refs = nullptr)
             : MetricPage(console),
               _fields(fields), _refs(refs), _field_count(count), _io(io) {
-            // cold-field redraw cadence
-            _refresh_ms = Config::HOME_REFRESH_MS;
+            // cold-field redraw cadence is MetricPage's default (PAGE_COLD_MS)
             // uptime ticks every second
             _hot_ms     = Config::PAGE_HOT_MS;
         }
@@ -358,8 +357,8 @@ namespace Botanik { namespace Pages {
             // paced drain_tail. Never blocks/drops, so report the whole entry
             // consumed.
             _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(),
-                Config::SHELL_LOG_CONT_PREFIX,
-                (uint16_t)strlen(Config::SHELL_LOG_CONT_PREFIX), _log_active);
+                Logs::LOG_CONT_PREFIX,
+                (uint16_t)strlen(Logs::LOG_CONT_PREFIX), _log_active);
             return len;
         }
 

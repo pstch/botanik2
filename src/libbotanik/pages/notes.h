@@ -52,6 +52,12 @@ namespace Botanik { namespace Pages {
         static const uint16_t PROMPT_COLS = 2;
         /** @} */
 
+        /** @brief HAL::Storage key the note is persisted under. Its own key
+         *  rather than a parameter: prose has no band to validate, no Modbus
+         *  register and no business on the PARAMS page. Private to this page -
+         *  renaming it would orphan the note already on the unit. */
+        static constexpr const char* STORAGE_KEY = "notes";
+
         using AnsiTerminal = Terminal::AnsiTerminal;
         using Console      = Terminal::Console;
         using TextEditor   = Terminal::TextEditor;
@@ -213,7 +219,7 @@ namespace Botanik { namespace Pages {
          *  feature costs in RAM. */
         void _load() {
             size_t n = 0;
-            if (!HAL::Storage::get(Config::NOTES_STORAGE_KEY, _editor.load_buffer(),
+            if (!HAL::Storage::get(STORAGE_KEY, _editor.load_buffer(),
                                    _editor.load_capacity(), &n))
                 n = 0;                            // no note yet: start empty
             _truncated = !_editor.commit_loaded((uint16_t)n);
@@ -221,7 +227,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief Write the note, and remember if flash refused it. */
         void _save() {
-            bool ok = HAL::Storage::set(Config::NOTES_STORAGE_KEY,
+            bool ok = HAL::Storage::set(STORAGE_KEY,
                                         _editor.buffer(), _editor.buffer_len());
             _save_failed = !ok;
             if (ok) {

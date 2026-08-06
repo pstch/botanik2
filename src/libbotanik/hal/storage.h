@@ -38,6 +38,14 @@
 
 namespace Botanik { namespace HAL { namespace Storage {
 
+    /** @brief Longest key, NUL included, counting the partition prefix the
+     *  backend adds. The PLATFORM sets it - Mbed's KVStore takes 128 characters
+     *  - so it is fixed here rather than configured: every caller that formats a
+     *  key ("ovr.<name>", "<name>_serial", ...) sizes its scratch from this one
+     *  number, and a build that shrank it would truncate keys differently
+     *  depending on which path wrote them. */
+    static constexpr size_t KEY_MAX = 129;
+
     /** @brief Persist @p len bytes at @p buf under @p key (overwriting any prior
      *  value). @return false on a bad key or a backend error. */
     bool set(const char* key, const void* buf, size_t len);

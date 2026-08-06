@@ -97,9 +97,11 @@ namespace Botanik { namespace Network {
         /** @brief Resolved address of the server in use; meaningful once past
          *  the resolve step (all-zero until then). */
         ResolvedAddr server_addr() const { return _server_addr; }
-        /** @brief NTP server UDP port (Config::NTP_PORT, the well-known 123
-         *  unless the installation moved it). */
-        uint16_t server_port() const { return Config::NTP_PORT; }
+        /** @brief NTP server UDP port, from the ntp_port parameter (123 unless
+         *  the installation reaches its time source through a proxy). A
+         *  parameter like the rest of the time config, so it is one commit of
+         *  the ntp_ group rather than a rebuild. */
+        uint16_t server_port() const;
         /** @brief Force an immediate resync: restart from the first server now
          *  (resolve -> query), regardless of the poll cadence. No-op effect
          *  next step if NTP is disabled/unconfigured. */

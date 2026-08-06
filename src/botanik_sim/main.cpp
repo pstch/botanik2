@@ -21,7 +21,7 @@
 #include "botanik_sim/network.h"
 #endif
 
-#include "libbotanik/hal/platform.h"   // HAL::Env::u32 (BOTANIK_CONSOLE_BAUD)
+#include "libbotanik/hal/platform.h"   // HAL::Env::u32 (BOTANIK_SIM_CPU)
 
 #include <csignal>
 #include <cstring>   // std::strncpy - seeding the simulated config
@@ -65,20 +65,12 @@ extern "C" void botanik_sim_reexec(int) {   // NOLINT(bugprone-signal-handler)
 int main(int argc, char** argv) {
     using namespace Botanik;
 
-    // Deliberately low (not Config::CONSOLE_BAUD) so the sim exercises the TX
-    // pacing at a slow, Minitel-like rate; the OPTA firmware uses the config
-    // default. BOTANIK_CONSOLE_BAUD overrides it for smoketesting - it drives
-    // both the sim UART's write throttle and present()'s per-tick byte budget,
-    // so raising it makes the console feel fast and lowering it makes the pacing
-    // easy to watch. Note this trades away the property BOTANIK_TIME_SCALE
-    // preserves: dilation keeps every byte/event ratio identical to a 4800-baud
-    // run, a different baud does not.
-    // 0 is rejected rather than honoured: it switches the sim UART's throttle off
-    // while pinning present()'s budget at its 8-byte floor, which reads as "the
-    // console is broken" rather than "the console is fast".
-    uint32_t console_baud = HAL::Env::u32("BOTANIK_CONSOLE_BAUD", 4800);
-    if (console_baud == 0) console_baud = 4800;
-    const uint32_t CONSOLE_BAUD = console_baud;
+    // The console runs at Config::CONSOLE_BAUD (4800), slow and Minitel-like, so
+    // the sim exercises the TX pacing at the rate the hardware sees. There is no
+    // runtime override: the terminal derives its per-render byte budget from that
+    // constant at construction, so anything set later would speed the wire up
+    // without letting the renderer fill it. Use BOTANIK_TIME_SCALE to go faster -
+    // dilation keeps every byte/event ratio identical to a real 4800-baud run.
 
     // Stash argv so HAL::System::reset() can re-exec the process with the same args.
     HAL::System::set_reboot_args(argc, argv);
@@ -95,7 +87,6 @@ int main(int argc, char** argv) {
     std::signal(SIGPIPE, SIG_IGN);                // NOLINT(bugprone-signal-handler)
 
     BotanikSite greenhouse;
-    greenhouse.set_console_baud(CONSOLE_BAUD);
     greenhouse.set_hw_watchdog_ms(dilated_timeout(Config::HW_WATCHDOG_MS));
 
     greenhouse.setup();
@@ -111,7 +102,11 @@ int main(int argc, char** argv) {
     // measure the firmware rather than the host's scheduler. Both warn and carry
     // on without privileges (BOTANIK_NO_RT_WARNING silences that).
     Scheduler::lock_process_memory(&greenhouse.logger());
-    Scheduler::make_thread_realtime(Config::SIM_MAIN_CPU_CORE, &greenhouse.logger());
+    // Which core is free is a property of the dev box, not of the site, so it
+    // comes from the environment like the other host knobs above. Mirrors the
+    // main loop running on one core of the OPTA.
+    Scheduler::make_thread_realtime((int)HAL::Env::u32("BOTANIK_SIM_CPU", 0),
+                                    &greenhouse.logger());
 
 
     // Drive the firmware until a shutdown signal flips the run flag. SIGUSR1

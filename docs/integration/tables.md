@@ -150,7 +150,7 @@ source, so the two cannot drift.
 | `HOME_FIELDS_MAX` | 22 | home fields (3 columns x 8, minus the uptime cells) |
 | `ALARM_SLOTS` | 64 | total alarm conditions |
 | `PLATFORM_ALARMS_RESERVED` | 8 | reserved for the platform-health alarms |
-| `SITE_ALARMS_MAX` | 56 | site alarm conditions (`ALARM_SLOTS` minus the reserved block) |
+| `SITE_ALARMS_MAX` | 56 | site alarm conditions (`ALARM_SLOTS` minus the reserved block). Bounds the site scan itself, so an over-long site table loses its own tail rather than the platform alarms |
 
 Platform alarms are appended **after** the site's, so site conditions always fill
 from index 0.

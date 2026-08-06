@@ -8,7 +8,13 @@
  *  @note Every parameter in this file is overridable per site. The site selected
  *        by the build tools may ship `src/sites/<name>/config.h` and `#define`
  *        overrides. The path of the selected site is passed by CMake in
- *        BOTANIK_SITE_CONFIG. */
+ *        BOTANIK_SITE_CONFIG.
+ *
+ *  @note What belongs here is what an INSTALLATION varies: a baud rate, a
+ *        threshold, the size of a table a site fills. What does not is a number
+ *        the code, a data type or a protocol already fixes - that is a
+ *        `static constexpr` beside its one consumer, where the thing that
+ *        constrains it can be read in the same breath. */
 
 #include <cstdint>
 #include <cstring>
@@ -51,11 +57,15 @@
 
 namespace Botanik { namespace Config {
 
-    /** @name Project Identity
-      * @{ */
+    /** @name Project identity
+     *
+     *  Who this unit is, in the three places it says so: the boot banner, the
+     *  home screen, and the root of every MQTT topic it publishes.
+     *  @{ */
 
     /** @brief Firmware version string, surfaced in the boot banner (hardware
-     *  half comes from HAL::hardware_description()). */
+     *  half comes from HAL::hardware_description()).
+     *  @note Doxyfile's PROJECT_NUMBER quotes this; move the two together. */
 #ifndef BOTANIK_FIRMWARE_VERSION
 #  define BOTANIK_FIRMWARE_VERSION "0.13.12-dev"
 #endif
@@ -79,17 +89,29 @@ namespace Botanik { namespace Config {
     BOTANIK_CFG(const char*, MQTT_TOPIC_PREFIX);
 
     /** @}
-     *  @name Interface parameters
+     *  @name Serial interfaces
+     *
+     *  The two UARTs and the rings behind them. Geometry of what is on the
+     *  console wire is further down, under Terminal and console.
      *  @{ */
 
-    /** @brief Console UART baud.
-     *  @note Sizes the cooperative TX gates.  */
+    /** @brief Console UART baud. Drives two things that must agree: the UART
+     *  itself, and the per-render TX budget AnsiTerminal derives from it at
+     *  construction.
+     *
+     *  @note Compile-time only, deliberately. There is no runtime setter,
+     *        because one could retune the UART but not the budget already
+     *        derived, leaving the renderer pacing for a rate the wire no longer
+     *        runs at. On the simulator, use BOTANIK_TIME_SCALE to go faster. */
 #ifndef BOTANIK_CONSOLE_BAUD
 #  define BOTANIK_CONSOLE_BAUD 4800
 #endif
     BOTANIK_CFG(uint32_t, CONSOLE_BAUD);
 
-    /** @brief Monitor UART baud.  */
+    /** @brief Monitor UART baud.
+     *  @note Effective on the simulator, which throttles its write to it. The
+     *        OPTA's MONITOR endpoint is USB CDC and has no line rate, so
+     *        begin() there ignores it. */
 #ifndef BOTANIK_MONITOR_BAUD
 #  define BOTANIK_MONITOR_BAUD 115200
 #endif
@@ -108,37 +130,47 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, SERIAL_TX_BUF);
 
-    /** @brief Geometry of the terminal actually on the console wire. A property
-     *  of the installation, like TERMINAL_TYPE: there is no resize handshake, so
-     *  what is declared here is what the pages lay themselves out for. Bounded
-     *  by TERMINAL_MAX_COLS / _ROWS, which size the screen back-buffer. */
-#ifndef BOTANIK_CONSOLE_COLS
-#  define BOTANIK_CONSOLE_COLS 80
+    /** @brief Most bytes BufferedSerial::transmit() hands the driver in one
+     *  activation. 0 disables the cap (drain until the ring empties).
+     *
+     *  A bound, not a throttle. The drain used to run until the ring emptied or
+     *  the driver refused, which is fine for a UART - its availableForWrite()
+     *  reflects a real FIFO - but the OPTA's MONITOR port is USB CDC, where with
+     *  no host attached availableForWrite() always answers 1. One activation
+     *  would then push the whole 4095-byte ring, and with a host attached
+     *  USBCDC::send() blocks per byte, putting tens of milliseconds inside a
+     *  10 ms beat.
+     *
+     *  256 is far above steady demand on either port (the console's TX ring is
+     *  self-capped near 61 bytes by the terminal's depth floor, and a log line
+     *  is ~90), so nothing normal ever reaches it. What it buys is a bounded
+     *  worst case. */
+#ifndef BOTANIK_SERIAL_TX_PER_STEP
+#  define BOTANIK_SERIAL_TX_PER_STEP 256
 #endif
-    BOTANIK_CFG(uint16_t, CONSOLE_COLS);
-#ifndef BOTANIK_CONSOLE_ROWS
-#  define BOTANIK_CONSOLE_ROWS 24
-#endif
-    BOTANIK_CFG(uint16_t, CONSOLE_ROWS);
+    BOTANIK_CFG(uint16_t, SERIAL_TX_PER_STEP);
 
     /** @}
-     *  @name Scheduling & performance monitoring
+     *  @name Scheduling
+     *
+     *  The beat, the rate classes tasks are grouped into, and the watchdog that
+     *  outlives them. A task's RATE is one of the groups below; its PHASE is its
+     *  place in the data flow and is written out in code, not configured.
      *  @{ */
 
-    /** @brief Main task execution period (ms) */
+    /** @brief Main task execution period (ms), i.e. the loop rate everything
+     *  else divides down from. */
 #ifndef BOTANIK_TASK_PERIOD_MS
 #  define BOTANIK_TASK_PERIOD_MS 10
 #endif
     BOTANIK_CFG(uint32_t, TASK_PERIOD_MS);
 
-    /** @brief The scheduler's rate classes. The beat above is the loop rate;
-     *  a task names one of these instead of carrying a raw period, so a rate is
-     *  retuned in one place for everything that shares it. Each must be an
-     *  integer multiple of TASK_PERIOD_MS. See docs/dev/scheduler.md for what
-     *  sets each one.
-     *  @{ */
-
-    /** @brief Every beat: the field bus, the log drain, the serial pumps. */
+    /** @brief Every beat: the field bus, the log drain, the serial pumps.
+     *
+     *  This and the three below are the scheduler's rate classes. A task names
+     *  one instead of carrying a raw period, so a rate is retuned in one place
+     *  for everything that shares it. Each must be an integer multiple of
+     *  TASK_PERIOD_MS. See docs/dev/scheduler.md for what sets each one. */
 #ifndef BOTANIK_GROUP_FAST_MS
 #  define BOTANIK_GROUP_FAST_MS BOTANIK_TASK_PERIOD_MS
 #endif
@@ -157,7 +189,8 @@ namespace Botanik { namespace Config {
     BOTANIK_CFG(uint32_t, GROUP_MAIN_MS);
 
     /** @brief Dwell and config: alarm on_s/off_s are in SECONDS, and a parameter
-     *  edit is bounded by how fast a human types. */
+     *  edit is bounded by how fast a human types. Also the console render, which
+     *  is why TX_COLD_TARGET_MS must stay above this. */
 #ifndef BOTANIK_GROUP_SLOW_MS
 #  define BOTANIK_GROUP_SLOW_MS 100
 #endif
@@ -189,36 +222,24 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, SCAN_STAGGER_MS);
 
-    /** @brief Most bytes BufferedSerial::transmit() hands the driver in one
-     *  activation. 0 disables the cap (drain until the ring empties).
-     *
-     *  A bound, not a throttle. The drain used to run until the ring emptied or
-     *  the driver refused, which is fine for a UART - its availableForWrite()
-     *  reflects a real FIFO - but the OPTA's MONITOR port is USB CDC, where with
-     *  no host attached availableForWrite() always answers 1. One activation
-     *  would then push the whole 4095-byte ring, and with a host attached
-     *  USBCDC::send() blocks per byte, putting tens of milliseconds inside a
-     *  10 ms beat.
-     *
-     *  256 is far above steady demand on either port (the console's TX ring is
-     *  self-capped near 61 bytes by the terminal's depth floor, and a log line
-     *  is ~90), so nothing normal ever reaches it. What it buys is a bounded
-     *  worst case. */
-#ifndef BOTANIK_SERIAL_TX_PER_STEP
-#  define BOTANIK_SERIAL_TX_PER_STEP 256
-#endif
-    BOTANIK_CFG(uint16_t, SERIAL_TX_PER_STEP);
-
-    /** @} */
-
-    /** @brief Hardware watchdog timeout */
+    /** @brief Hardware watchdog timeout. Clamped to what the IWDG can express. */
 #ifndef BOTANIK_HW_WATCHDOG_MS
 #  define BOTANIK_HW_WATCHDOG_MS 10000
 #endif
     BOTANIK_CFG(uint32_t, HW_WATCHDOG_MS);
 
+    /** @}
+     *  @name Performance metrics
+     *
+     *  How the scheduler's self-instrumentation is smoothed before the health
+     *  thresholds below read it. Window and buckets give the "recent peak";
+     *  the EMA pairs give the displayed value.
+     *  @{ */
+
     /** @brief Sliding window for the "recent peak" CPU/stack metrics, and the
-     *  number of rotating buckets approximating it. */
+     *  number of rotating buckets approximating it. The scheduler divides the
+     *  window by TASK_PERIOD_MS to get the sample count the rolling-max filters
+     *  are configured with. */
 #ifndef BOTANIK_LOAD_METRIC_WINDOW_MS
 #  define BOTANIK_LOAD_METRIC_WINDOW_MS 5000
 #endif
@@ -228,17 +249,48 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, LOAD_METRIC_BUCKETS);
 
-    /** @brief LOAD_METRIC_WINDOW_MS expressed in per-tick samples (window
-     *  length the rolling-max filters are configured with). */
-#ifndef BOTANIK_LOAD_METRIC_WINDOW
-#  define BOTANIK_LOAD_METRIC_WINDOW (BOTANIK_LOAD_METRIC_WINDOW_MS / BOTANIK_TASK_PERIOD_MS)
+    /** @brief CPU-load EMA time constants (ms), attack then decay.
+     *
+     *  Asymmetric on purpose: a load metric feeding an alarm threshold must
+     *  rise at once and fall slowly, so a spike cannot be smoothed away before
+     *  ALARM_CPU_LOAD_PCT sees it. Utils::ema_alpha() collapses any constant at
+     *  or below TASK_PERIOD_MS to 1.0 (instant), which is what an attack of 0
+     *  asks for; a larger value is a real time constant. */
+#ifndef BOTANIK_CPU_LOAD_EMA_ATTACK_MS
+#  define BOTANIK_CPU_LOAD_EMA_ATTACK_MS 0
 #endif
-    BOTANIK_CFG(uint32_t, LOAD_METRIC_WINDOW);
+    BOTANIK_CFG(uint32_t, CPU_LOAD_EMA_ATTACK_MS);
+#ifndef BOTANIK_CPU_LOAD_EMA_DECAY_MS
+#  define BOTANIK_CPU_LOAD_EMA_DECAY_MS 2000
+#endif
+    BOTANIK_CFG(uint32_t, CPU_LOAD_EMA_DECAY_MS);
+
+    /** @brief CPU-jitter EMA time constants (ms), attack then decay. Same
+     *  asymmetry as the load pair, with a longer tail. */
+#ifndef BOTANIK_CPU_JITTER_EMA_ATTACK_MS
+#  define BOTANIK_CPU_JITTER_EMA_ATTACK_MS 0
+#endif
+    BOTANIK_CFG(uint32_t, CPU_JITTER_EMA_ATTACK_MS);
+#ifndef BOTANIK_CPU_JITTER_EMA_DECAY_MS
+#  define BOTANIK_CPU_JITTER_EMA_DECAY_MS 5000
+#endif
+    BOTANIK_CFG(uint32_t, CPU_JITTER_EMA_DECAY_MS);
+
+    /** @}
+     *  @name Health and alarms
+     *
+     *  The platform-health thresholds HealthMonitor asserts from the metrics
+     *  above, and the sizing of the model those alarms land in.
+     *  @{ */
 
     /** @brief Platform-health alarm thresholds: CPU_LOAD / CPU_JITT fire when
      *  the rolling-peak load / jitter exceeds this percent of the task period;
      *  STACK fires above this percent stack usage. Per-alarm latch is in the
-     *  site table (hold_on_s). */
+     *  site table (hold_on_s).
+     *
+     *  The load and jitter thresholds agree at 50% today but threshold
+     *  different quantities (duty cycle vs scheduling lateness), so they stay
+     *  two knobs. */
 #ifndef BOTANIK_ALARM_CPU_LOAD_PCT
 #  define BOTANIK_ALARM_CPU_LOAD_PCT 50
 #endif
@@ -251,6 +303,7 @@ namespace Botanik { namespace Config {
 #  define BOTANIK_ALARM_STACK_PCT 80
 #endif
     BOTANIK_CFG(uint8_t, ALARM_STACK_PCT);
+
     /** @brief How long a momentary-event alarm (CPU_XRUN) stays held
      *  active after its counter ticks. HealthMonitor latches this in source (a
      *  proper held state, not a one-beat pulse), independent of the table's
@@ -283,52 +336,8 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(int32_t, ALARM_RECENT_S);
 
-    /** @brief CPU-load EMA response time attack constant (ms). */
-#ifndef BOTANIK_CPU_LOAD_EMA_ATTACK_MS
-#  define BOTANIK_CPU_LOAD_EMA_ATTACK_MS 0
-#endif
-    BOTANIK_CFG(uint32_t, CPU_LOAD_EMA_ATTACK_MS);
-
-    /** @brief CPU-load EMA response time decay constant (ms). */
-#ifndef BOTANIK_CPU_LOAD_EMA_DECAY_MS
-#  define BOTANIK_CPU_LOAD_EMA_DECAY_MS 2000
-#endif
-    BOTANIK_CFG(uint32_t, CPU_LOAD_EMA_DECAY_MS);
-
-    /** @brief CPU-jitter EMA response time attack constant (ms). */
-#ifndef BOTANIK_CPU_JITTER_EMA_ATTACK_MS
-#  define BOTANIK_CPU_JITTER_EMA_ATTACK_MS 0
-#endif
-    BOTANIK_CFG(uint32_t, CPU_JITTER_EMA_ATTACK_MS);
-
-    /** @brief CPU-jitter EMA response time decay constant (ms). */
-#ifndef BOTANIK_CPU_JITTER_EMA_DECAY_MS
-#  define BOTANIK_CPU_JITTER_EMA_DECAY_MS 5000
-#endif
-    BOTANIK_CFG(uint32_t, CPU_JITTER_EMA_DECAY_MS);
-
-    /** @}
-     *  @name Site descriptor capacity limits
-     *
-     *  Bounds a site's generated tables must respect; each would otherwise be a
-     *  silent runtime truncation (home fields past the three columns ignored, an
-     *  over-long alarm table clamped with its tail dropped, a table count past
-     *  its uint8_t counter wrapped, a byte offset past ScalarField's int16_t
-     *  field truncated). Each limit's authoritative source (HomePage geometry,
-     *  ScalarField's offset type) static_asserts it still agrees, so the two
-     *  can never drift.
-     *  @{ */
-
-    /** @brief Home-screen readings the HomePage lays out (its three columns
-     *  summed); extras are ignored at render. Pinned in pages/home.h. */
-#ifndef BOTANIK_HOME_FIELDS_MAX
-#  define BOTANIK_HOME_FIELDS_MAX 22
-#endif
-    BOTANIK_CFG(uint8_t, HOME_FIELDS_MAX);
-
     /** @brief Total alarm slots in the model's working array (site conditions
-     *  plus the platform ones): what AlarmController sizes itself on, and what
-     *  a site table overrunning its share is clamped to. */
+     *  plus the platform ones): what AlarmController sizes itself on. */
 #ifndef BOTANIK_ALARM_SLOTS
 #  define BOTANIK_ALARM_SLOTS 64
 #endif
@@ -342,12 +351,32 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint8_t, PLATFORM_ALARMS_RESERVED);
 
-    /** @brief Alarm conditions a site may declare; beyond it the model clamps
-     *  and the tail never fires. */
+    /** @brief Alarm conditions a site may declare; beyond it AlarmController
+     *  stops scanning and the site's tail never fires. It bounds the SITE scan
+     *  specifically so that overrunning it cannot eat into the reserved block
+     *  and drop platform-health alarms instead. */
 #ifndef BOTANIK_SITE_ALARMS_MAX
 #  define BOTANIK_SITE_ALARMS_MAX (BOTANIK_ALARM_SLOTS - BOTANIK_PLATFORM_ALARMS_RESERVED)
 #endif
     BOTANIK_CFG(uint8_t, SITE_ALARMS_MAX);
+
+    /** @}
+     *  @name Site table capacity
+     *
+     *  Bounds a site's generated tables must respect; each would otherwise be a
+     *  silent runtime truncation (home fields past the three columns ignored, a
+     *  table count past its uint8_t counter wrapped, a byte offset past
+     *  ScalarField's int16_t field truncated). Each limit's authoritative source
+     *  (HomePage geometry, ScalarField's offset type) static_asserts it still
+     *  agrees, so the two can never drift.
+     *  @{ */
+
+    /** @brief Home-screen readings the HomePage lays out (its three columns
+     *  summed); extras are ignored at render. Pinned in pages/home.h. */
+#ifndef BOTANIK_HOME_FIELDS_MAX
+#  define BOTANIK_HOME_FIELDS_MAX 22
+#endif
+    BOTANIK_CFG(uint8_t, HOME_FIELDS_MAX);
 
     /** @brief Distinct variable groups a site may have. A group is the prefix of
      *  a variable's name up to the first '_' (vars/access.h), interned into a
@@ -380,249 +409,65 @@ namespace Botanik { namespace Config {
     BOTANIK_CFG(uint16_t, VAR_HASH_SLOTS);
 
     /** @}
-     *  @name Log message sizing
+     *  @name Logging
+     *
+     *  Message sizing, the per-writer queues, and the dual-bucket rate limiter
+     *  in front of them.
      *  @{ */
 
-    /** @brief Maximum length of a single log message. */
+    /** @brief Default minimum forwarded log level.
+     *  @note SIMULATOR builds force it to 1 (debug) from CMakeLists.txt. */
+#ifndef BOTANIK_LOG_MIN_LEVEL
+#  define BOTANIK_LOG_MIN_LEVEL 2   /* Logs::LOG_INFO */
+#endif
+    BOTANIK_CFG(uint8_t, LOG_MIN_LEVEL);
+
+    /** @brief Maximum length of a single log message, before formatting. */
 #ifndef BOTANIK_LOG_MESSAGE_LEN
 #  define BOTANIK_LOG_MESSAGE_LEN 256
 #endif
     BOTANIK_CFG(size_t, LOG_MESSAGE_LEN);
 
-    /** @}
-     *  @name Network addressing
-     *  @{
-     */
-
-    /** @brief Char-buffer length for a network address (hostname or IPv4). */
-#ifndef BOTANIK_HOST_STR_LEN
-#  define BOTANIK_HOST_STR_LEN 64
+    /** @brief Maximum length of a single formatted log line including metadata
+     *  (bytes). Must clear LOG_MESSAGE_LEN plus the prefix format_log_entry()
+     *  prepends (timestamp + level + topic + separators, ~40 bytes) plus the
+     *  newline a serial writer appends, or a full-length message loses its tail
+     *  on the way out. The static_assert below holds the two together. */
+#ifndef BOTANIK_LOG_FORMATTED_LEN
+#  define BOTANIK_LOG_FORMATTED_LEN 320
 #endif
-    BOTANIK_CFG(size_t, HOST_STR_LEN);
+    BOTANIK_CFG(size_t, LOG_FORMATTED_LEN);
 
-    /** @brief Sockets HAL::Network keeps, per kind. These are the hard ceiling
-     *  on how many network clients a site may run at once: NTP takes one UDP,
-     *  MQTT one TCP, so the defaults leave nothing spare - a second publisher or
-     *  a syslog client needs this raised, and gets a refused socket otherwise. */
-#ifndef BOTANIK_NET_MAX_UDP
-#  define BOTANIK_NET_MAX_UDP 2
+    static_assert(LOG_FORMATTED_LEN >= LOG_MESSAGE_LEN + 64,
+                  "LOG_FORMATTED_LEN cannot hold LOG_MESSAGE_LEN plus the line prefix");
+
+    /** @brief Maximum number of pointers to registered log writers */
+#ifndef BOTANIK_LOG_WRITERS_MAX
+#  define BOTANIK_LOG_WRITERS_MAX 8
 #endif
-    BOTANIK_CFG(int, NET_MAX_UDP);
-#ifndef BOTANIK_NET_MAX_TCP
-#  define BOTANIK_NET_MAX_TCP 2
-#endif
-    BOTANIK_CFG(int, NET_MAX_TCP);
+    BOTANIK_CFG(uint8_t, LOG_WRITERS_MAX);
 
-    /** @}
-     *  @name Name resolution
-     *  @{ */
-
-    /** @brief Size of the DNS resolver cache size.
-     *  @note Also determines the maximum concurrent requests supported. */
-#ifndef BOTANIK_DNS_CACHE_SIZE
-#  define BOTANIK_DNS_CACHE_SIZE 8
-#endif
-    BOTANIK_CFG(size_t, DNS_CACHE_SIZE);
-
-    /** @brief Async DNS lookups the HAL can have in flight. Defaults to
-     *  DNS_CACHE_SIZE because that is how many rows NameResolver can leave
-     *  PENDING at once (_alloc() handles every row being in flight), and a
-     *  shortfall shows up as lookups that fail only once enough are concurrent.
-     *  hal/net.cpp static_asserts the relation rather than trusting it. */
-#ifndef BOTANIK_NET_MAX_DNS
-#  define BOTANIK_NET_MAX_DNS BOTANIK_DNS_CACHE_SIZE
-#endif
-    BOTANIK_CFG(int, NET_MAX_DNS);
-
-    /** @brief Max age (ms) a resolved entry is served from the cache before it is
-     *  re-resolved. The HAL DNS API exposes no record TTL, so this bounds
-     *  staleness (e.g. a server whose address changes) without it. 0 disables
-     *  expiry (cache until evicted / cleared on reconfig). Default 1 h. */
-#ifndef BOTANIK_DNS_CACHE_TTL_MS
-#  define BOTANIK_DNS_CACHE_TTL_MS 3600000u
-#endif
-    BOTANIK_CFG(uint32_t, DNS_CACHE_TTL_MS);
-
-    /** @brief Max time (ms) a row stays in flight before _alloc() may cancel and
-     *  reclaim it. A caller that abandons a lookup (a group serial bumps mid
-     *  resolve) never frees its row, so without this the table leaks a slot per
-     *  abandonment until every row is PENDING and resolution fails for good. */
-#ifndef BOTANIK_DNS_PENDING_MAX_MS
-#  define BOTANIK_DNS_PENDING_MAX_MS 30000u
-#endif
-    BOTANIK_CFG(uint32_t, DNS_PENDING_MAX_MS);
-
-    /** @brief Max time spent waiting for the link to come up. */
-#ifndef BOTANIK_NET_SETUP_TIMEOUT_MS
-#  define BOTANIK_NET_SETUP_TIMEOUT_MS 30000
-#endif
-    BOTANIK_CFG(uint32_t, NET_SETUP_TIMEOUT_MS);
-
-    /** @brief Backoff after a failed (or lost) network bring-up before a retry. */
-#ifndef BOTANIK_NET_RETRY_MS
-#  define BOTANIK_NET_RETRY_MS 10000
-#endif
-    BOTANIK_CFG(uint32_t, NET_RETRY_MS);
-
-    /** @}
-     *  @name Time sync (NTP)
-     *  @{ */
-
-    /** @brief How long the SNTP client waits before giving up on a server. */
-#ifndef BOTANIK_NTP_QUERY_TIMEOUT_MS
-#  define BOTANIK_NTP_QUERY_TIMEOUT_MS 5000
-#endif
-    BOTANIK_CFG(uint32_t, NTP_QUERY_TIMEOUT_MS);
-
-    /** @brief Backoff after a failed NTP sync before retrying. */
-#ifndef BOTANIK_NTP_RETRY_MS
-#  define BOTANIK_NTP_RETRY_MS 60000
-#endif
-    BOTANIK_CFG(uint32_t, NTP_RETRY_MS);
-
-    /** @brief Default NTP poll interval. */
-#ifndef BOTANIK_NTP_POLL_DEFAULT_S
-#  define BOTANIK_NTP_POLL_DEFAULT_S 3600
-#endif
-    BOTANIK_CFG(uint32_t, NTP_POLL_DEFAULT_S);
-
-    /** @brief Server UDP port the SNTP query goes to. The well-known 123 unless
-     *  the installation reaches its time source through a proxy on another. */
-#ifndef BOTANIK_NTP_PORT
-#  define BOTANIK_NTP_PORT 123
-#endif
-    BOTANIK_CFG(uint16_t, NTP_PORT);
-
-    /** @}
-     *  @name MQTT client
-     *  @{ */
-
-    /** @brief Default broker TCP port. */
-#ifndef BOTANIK_MQTT_PORT_DEFAULT
-#  define BOTANIK_MQTT_PORT_DEFAULT 1883
-#endif
-    BOTANIK_CFG(uint16_t, MQTT_PORT_DEFAULT);
-
-    /** @brief Default MQTT keepalive. */
-#ifndef BOTANIK_MQTT_KEEPALIVE_DEFAULT_S
-#  define BOTANIK_MQTT_KEEPALIVE_DEFAULT_S 60
-#endif
-    BOTANIK_CFG(uint16_t, MQTT_KEEPALIVE_DEFAULT_S);
-
-    /** @brief Max time to establish the TCP/MQTT session. */
-#ifndef BOTANIK_MQTT_CONNECT_TIMEOUT_MS
-#  define BOTANIK_MQTT_CONNECT_TIMEOUT_MS 10000
-#endif
-    BOTANIK_CFG(uint32_t, MQTT_CONNECT_TIMEOUT_MS);
-
-    /** @brief Backoff after a failed connection before the MQTT client retries. */
-#ifndef BOTANIK_MQTT_RETRY_MS
-#  define BOTANIK_MQTT_RETRY_MS 30000
-#endif
-    BOTANIK_CFG(uint32_t, MQTT_RETRY_MS);
-
-    /** @brief Scratch buffer (bytes) MqttClient builds an outgoing packet in.
-     *  @note Bounds the topic + payload of a single publish. */
-#ifndef BOTANIK_MQTT_TX_BUF
-#  define BOTANIK_MQTT_TX_BUF 256
-#endif
-    BOTANIK_CFG(size_t, MQTT_TX_BUF);
-
-    /** @brief Buffer every publisher formats its topic in. One bound for the
-     *  three of them (telemetry, logs, alarms), because all three build
-     *  "<MQTT_TOPIC_PREFIX>/<segment>/<name>" from the same configurable prefix
-     *  - sized apart, whichever was smallest truncated first. */
-#ifndef BOTANIK_MQTT_TOPIC_LEN
-#  define BOTANIK_MQTT_TOPIC_LEN 96
-#endif
-    BOTANIK_CFG(size_t, MQTT_TOPIC_LEN);
-
-    /** @brief Buffer a single telemetry value is formatted into; caps the width
-     *  of any published reading. */
-#ifndef BOTANIK_MQTT_PAYLOAD_LEN
-#  define BOTANIK_MQTT_PAYLOAD_LEN 64
-#endif
-    BOTANIK_CFG(size_t, MQTT_PAYLOAD_LEN);
-
-    /** @brief Socket reads MqttClient drains per activation. The per-beat bound
-     *  on its RX work, like MQTT_TELEMETRY_PER_STEP on the TX side. */
-#ifndef BOTANIK_MQTT_RX_PER_STEP
-#  define BOTANIK_MQTT_RX_PER_STEP 8
-#endif
-    BOTANIK_CFG(uint8_t, MQTT_RX_PER_STEP);
-
-    /** @brief Period between MQTT telemetry publish cycles (ms).
-     *  @note 0 disables telemetry.
-     *  @note Each cycle publishes every registered field once. */
-#ifndef BOTANIK_MQTT_TELEMETRY_PERIOD_MS
-#  define BOTANIK_MQTT_TELEMETRY_PERIOD_MS 30000
-#endif
-    BOTANIK_CFG(uint32_t, MQTT_TELEMETRY_PERIOD_MS);
-
-    /** @brief Topics published per activation while a telemetry sweep is in
-     *  progress. 0 publishes the whole table in one go (the old behaviour).
+    /** @brief Per-writer in-flight message queue depth.
      *
-     *  Each topic is its own snprintf and its own tcp_send - MQTT 3.1.1 has no
-     *  multi-topic PUBLISH - so a full sweep in one beat was 38-80 of them,
-     *  0.8-1.9 ms against a 10 ms budget. Pacing spreads that over as many beats
-     *  as it takes; 8 clears a typical table in well under a second, against a
-     *  cadence measured in tens of seconds. */
-#ifndef BOTANIK_MQTT_TELEMETRY_PER_STEP
-#  define BOTANIK_MQTT_TELEMETRY_PER_STEP 8
+     *  The dominant RAM line in a logging build: one writer costs roughly
+     *  LOG_QUEUE_SIZE * (LOG_MESSAGE_LEN + 16) + LOG_FORMATTED_LEN, and the
+     *  full page set registers five of them, each holding its own copy of every
+     *  entry. Lowering it is the first thing to try on a tight build - but keep
+     *  it above the boot burst (~20 entries in the first beat) or the announces
+     *  are what gets dropped. */
+#ifndef BOTANIK_LOG_QUEUE_SIZE
+#  define BOTANIK_LOG_QUEUE_SIZE 32
 #endif
-    BOTANIK_CFG(uint16_t, MQTT_TELEMETRY_PER_STEP);
+    BOTANIK_CFG(size_t, LOG_QUEUE_SIZE);
 
-    /** @brief MQTT topic segment between the prefix and the field name. */
-#ifndef BOTANIK_MQTT_TELEMETRY_TOPIC
-#  define BOTANIK_MQTT_TELEMETRY_TOPIC "status"
+    // BufferedLogWriter indexes the ring with uint8_t.
+    static_assert(LOG_QUEUE_SIZE <= 255, "LOG_QUEUE_SIZE exceeds the writer's uint8_t ring index");
+
+    /** @brief Log writer queue slots reserved for CRITICAL entries. */
+#ifndef BOTANIK_LOG_QUEUE_CRITICAL_RESERVE
+#  define BOTANIK_LOG_QUEUE_CRITICAL_RESERVE 4
 #endif
-    BOTANIK_CFG(const char*, MQTT_TELEMETRY_TOPIC);
-
-    /** @brief Publish telemetry with the MQTT retain flag set, so a late
-     *  subscriber gets the last value of each field immediately. */
-#ifndef BOTANIK_MQTT_TELEMETRY_RETAIN
-#  define BOTANIK_MQTT_TELEMETRY_RETAIN 1
-#endif
-    BOTANIK_CFG(bool, MQTT_TELEMETRY_RETAIN);
-
-    /** @brief MQTT topic segment for the log sink: entries publish under
-     *  "<MQTT_TOPIC_PREFIX>/<MQTT_LOG_TOPIC>/<level>/<topic>". */
-#ifndef BOTANIK_MQTT_LOG_TOPIC
-#  define BOTANIK_MQTT_LOG_TOPIC "logs"
-#endif
-    BOTANIK_CFG(const char*, MQTT_LOG_TOPIC);
-
-    /** @brief Minimum level the MQTT log sink publishes (its own gate, on top of
-     *  the logger's). Keeps low-severity chatter off the broker; criticals always
-     *  pass. */
-#ifndef BOTANIK_MQTT_LOG_MIN_LEVEL
-#  define BOTANIK_MQTT_LOG_MIN_LEVEL 4   /* Logs::LOG_NOTICE */
-#endif
-    BOTANIK_CFG(uint8_t, MQTT_LOG_MIN_LEVEL);
-
-    /** @brief MQTT topic segment for alarm transitions: each publishes under
-     *  "<MQTT_TOPIC_PREFIX>/<MQTT_ALARM_TOPIC>/<CODE>". */
-#ifndef BOTANIK_MQTT_ALARM_TOPIC
-#  define BOTANIK_MQTT_ALARM_TOPIC "alarms"
-#endif
-    BOTANIK_CFG(const char*, MQTT_ALARM_TOPIC);
-
-    /** @}
-     *  @name Sun position tracking
-     *  @{ */
-
-    /** @brief Recompute cadence (ms) for the solar-elevation tracker.
-     *  @note The elevation drifts ~0.25 deg/min, so a minute between updates
-     *        keeps it well under a degree stale for a fraction of the per-beat
-     *        trig work. */
-#ifndef BOTANIK_SUN_RECOMPUTE_MS
-#  define BOTANIK_SUN_RECOMPUTE_MS 60000
-#endif
-    BOTANIK_CFG(uint32_t, SUN_RECOMPUTE_MS);
-
-    /** @}
-     *  @name Logging parameters
-     *  @{ */
+    BOTANIK_CFG(size_t, LOG_QUEUE_CRITICAL_RESERVE);
 
     /** @brief Maximum burst size (number of logs allowed in a quick succession).
      *  Sized to absorb the boot burst: every Component announces on its first
@@ -672,46 +517,300 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, LOG_TX_DROP_REPORT_PERIOD_MS);
 
-    /** @brief Max unique log topics; sizes the per-topic bucket array (fixed footprint).
-     *  @note Bounded by the uint8_t LogTopic type and bucket-loop counters, so
-     *        must stay <= 255 - see the static_assert in logs/topics.h. */
-#ifndef BOTANIK_LOG_TOPIC_MAX
-#  define BOTANIK_LOG_TOPIC_MAX 255
-#endif
-    BOTANIK_CFG(uint16_t, LOG_TOPIC_MAX);
+    /** @}
+     *  @name Network transport
+     *  @{ */
 
-    /** @brief Maximum number of pointers to registered log writers */
-#ifndef BOTANIK_LOG_WRITERS_MAX
-#  define BOTANIK_LOG_WRITERS_MAX 8
+    /** @brief Char-buffer length for a network address (hostname or IPv4).
+     *  @note Matches the site's STR_CAP for the mqtt_host / ntp_srv* rows. */
+#ifndef BOTANIK_HOST_STR_LEN
+#  define BOTANIK_HOST_STR_LEN 64
 #endif
-    BOTANIK_CFG(uint8_t, LOG_WRITERS_MAX);
+    BOTANIK_CFG(size_t, HOST_STR_LEN);
 
-    /** @brief Per-writer in-flight message queue depth. */
-#ifndef BOTANIK_LOG_QUEUE_SIZE
-#  define BOTANIK_LOG_QUEUE_SIZE 32
+    /** @brief Sockets HAL::Network keeps, per kind. These are the hard ceiling
+     *  on how many network clients a site may run at once: NTP takes one UDP,
+     *  MQTT one TCP, so the defaults leave nothing spare - a second publisher or
+     *  a syslog client needs this raised, and gets a refused socket otherwise. */
+#ifndef BOTANIK_NET_MAX_UDP
+#  define BOTANIK_NET_MAX_UDP 2
 #endif
-    BOTANIK_CFG(size_t, LOG_QUEUE_SIZE);
+    BOTANIK_CFG(int, NET_MAX_UDP);
+#ifndef BOTANIK_NET_MAX_TCP
+#  define BOTANIK_NET_MAX_TCP 2
+#endif
+    BOTANIK_CFG(int, NET_MAX_TCP);
 
-    /** @brief Log writer queue slots reserved for CRITICAL entries. */
-#ifndef BOTANIK_LOG_QUEUE_CRITICAL_RESERVE
-#  define BOTANIK_LOG_QUEUE_CRITICAL_RESERVE 4
+    /** @brief Max time spent waiting for the link to come up. */
+#ifndef BOTANIK_NET_SETUP_TIMEOUT_MS
+#  define BOTANIK_NET_SETUP_TIMEOUT_MS 30000
 #endif
-    BOTANIK_CFG(size_t, LOG_QUEUE_CRITICAL_RESERVE);
+    BOTANIK_CFG(uint32_t, NET_SETUP_TIMEOUT_MS);
 
-    /** @brief Maximum length of a single formatted log line including metadata (bytes). */
-#ifndef BOTANIK_LOG_FORMATTED_LEN
-#  define BOTANIK_LOG_FORMATTED_LEN 256
+    /** @brief Backoff after a failed (or lost) network bring-up before a retry. */
+#ifndef BOTANIK_NET_RETRY_MS
+#  define BOTANIK_NET_RETRY_MS 10000
 #endif
-    BOTANIK_CFG(size_t, LOG_FORMATTED_LEN);
-
-    /** @brief Default minimum forwarded log level */
-#ifndef BOTANIK_LOG_MIN_LEVEL
-#  define BOTANIK_LOG_MIN_LEVEL 2   /* Logs::LOG_INFO */
-#endif
-    BOTANIK_CFG(uint8_t, LOG_MIN_LEVEL);
+    BOTANIK_CFG(uint32_t, NET_RETRY_MS);
 
     /** @}
-     *  @name ANSI Terminal Parameters
+     *  @name Name resolution
+     *  @{ */
+
+    /** @brief Size of the DNS resolver cache size.
+     *  @note Also determines the maximum concurrent requests supported. */
+#ifndef BOTANIK_DNS_CACHE_SIZE
+#  define BOTANIK_DNS_CACHE_SIZE 8
+#endif
+    BOTANIK_CFG(size_t, DNS_CACHE_SIZE);
+
+    /** @brief Async DNS lookups the HAL can have in flight. Defaults to
+     *  DNS_CACHE_SIZE because that is how many rows NameResolver can leave
+     *  PENDING at once (_alloc() handles every row being in flight), and a
+     *  shortfall shows up as lookups that fail only once enough are concurrent.
+     *  hal/net.cpp static_asserts the relation rather than trusting it.
+     *
+     *  Separate from DNS_CACHE_SIZE because they sit on opposite sides of the
+     *  HAL boundary: a build with a second resolver needs more HAL slots than
+     *  the library keeps cache rows. */
+#ifndef BOTANIK_NET_MAX_DNS
+#  define BOTANIK_NET_MAX_DNS BOTANIK_DNS_CACHE_SIZE
+#endif
+    BOTANIK_CFG(int, NET_MAX_DNS);
+
+    /** @brief Max age (ms) a resolved entry is served from the cache before it is
+     *  re-resolved. The HAL DNS API exposes no record TTL, so this bounds
+     *  staleness (e.g. a server whose address changes) without it. 0 disables
+     *  expiry (cache until evicted / cleared on reconfig). Default 1 h. */
+#ifndef BOTANIK_DNS_CACHE_TTL_MS
+#  define BOTANIK_DNS_CACHE_TTL_MS 3600000u
+#endif
+    BOTANIK_CFG(uint32_t, DNS_CACHE_TTL_MS);
+
+    /** @brief Max time (ms) a row stays in flight before _alloc() may cancel and
+     *  reclaim it. A caller that abandons a lookup (a group serial bumps mid
+     *  resolve) never frees its row, so without this the table leaks a slot per
+     *  abandonment until every row is PENDING and resolution fails for good. */
+#ifndef BOTANIK_DNS_PENDING_MAX_MS
+#  define BOTANIK_DNS_PENDING_MAX_MS 30000u
+#endif
+    BOTANIK_CFG(uint32_t, DNS_PENDING_MAX_MS);
+
+    /** @}
+     *  @name Time sync (NTP)
+     *
+     *  @note Only the timings are compile-time. Which servers to ask, whether
+     *        to ask at all, and how often are runtime parameters in the site's
+     *        variable table (ntp_srv1 / ntp_enable / ntp_poll_sec). The server
+     *        port is fixed at the well-known 123 in network/ntp.h.
+     *  @{ */
+
+    /** @brief How long the SNTP client waits before giving up on a server. */
+#ifndef BOTANIK_NTP_QUERY_TIMEOUT_MS
+#  define BOTANIK_NTP_QUERY_TIMEOUT_MS 5000
+#endif
+    BOTANIK_CFG(uint32_t, NTP_QUERY_TIMEOUT_MS);
+
+    /** @brief Backoff after a failed NTP sync before retrying. */
+#ifndef BOTANIK_NTP_RETRY_MS
+#  define BOTANIK_NTP_RETRY_MS 60000
+#endif
+    BOTANIK_CFG(uint32_t, NTP_RETRY_MS);
+
+    /** @}
+     *  @name MQTT client
+     *
+     *  @note The broker host and port are runtime parameters (mqtt_host /
+     *        mqtt_port); what is here is the client's own sizing and cadence,
+     *        plus the topic schema hanging off MQTT_TOPIC_PREFIX.
+     *  @{ */
+
+    /** @brief Max time to establish the TCP/MQTT session. */
+#ifndef BOTANIK_MQTT_CONNECT_TIMEOUT_MS
+#  define BOTANIK_MQTT_CONNECT_TIMEOUT_MS 10000
+#endif
+    BOTANIK_CFG(uint32_t, MQTT_CONNECT_TIMEOUT_MS);
+
+    /** @brief Backoff after a failed connection before the MQTT client retries. */
+#ifndef BOTANIK_MQTT_RETRY_MS
+#  define BOTANIK_MQTT_RETRY_MS 30000
+#endif
+    BOTANIK_CFG(uint32_t, MQTT_RETRY_MS);
+
+    /** @brief Scratch buffer (bytes) MqttClient builds an outgoing packet in.
+     *  Bounds the whole PUBLISH: fixed header + topic + payload. A publish that
+     *  would exceed it is refused outright, so it must clear MQTT_TOPIC_LEN plus
+     *  the largest payload - which is a formatted log line, not a telemetry
+     *  reading. The static_assert below holds that. */
+#ifndef BOTANIK_MQTT_TX_BUF
+#  define BOTANIK_MQTT_TX_BUF 384
+#endif
+    BOTANIK_CFG(size_t, MQTT_TX_BUF);
+
+    /** @brief Buffer every publisher formats its topic in. One bound for the
+     *  three of them (telemetry, logs, alarms), because all three build
+     *  "<MQTT_TOPIC_PREFIX>/<segment>/<name>" from the same configurable prefix
+     *  - sized apart, whichever was smallest truncated first. */
+#ifndef BOTANIK_MQTT_TOPIC_LEN
+#  define BOTANIK_MQTT_TOPIC_LEN 96
+#endif
+    BOTANIK_CFG(size_t, MQTT_TOPIC_LEN);
+
+    static_assert(MQTT_TX_BUF >= MQTT_TOPIC_LEN + LOG_MESSAGE_LEN + 32,
+                  "MQTT_TX_BUF cannot carry a full log line under the longest topic");
+
+    /** @brief Buffer a single telemetry value is formatted into; caps the width
+     *  of any published reading. */
+#ifndef BOTANIK_MQTT_PAYLOAD_LEN
+#  define BOTANIK_MQTT_PAYLOAD_LEN 64
+#endif
+    BOTANIK_CFG(size_t, MQTT_PAYLOAD_LEN);
+
+    /** @brief Socket reads MqttClient drains per activation. The per-beat bound
+     *  on its RX work, like MQTT_TELEMETRY_PER_STEP on the TX side. */
+#ifndef BOTANIK_MQTT_RX_PER_STEP
+#  define BOTANIK_MQTT_RX_PER_STEP 8
+#endif
+    BOTANIK_CFG(uint8_t, MQTT_RX_PER_STEP);
+
+    /** @brief Period between MQTT telemetry publish cycles (ms).
+     *  @note 0 disables telemetry.
+     *  @note Each cycle publishes every registered field once. */
+#ifndef BOTANIK_MQTT_TELEMETRY_PERIOD_MS
+#  define BOTANIK_MQTT_TELEMETRY_PERIOD_MS 30000
+#endif
+    BOTANIK_CFG(uint32_t, MQTT_TELEMETRY_PERIOD_MS);
+
+    /** @brief Topics published per activation while a telemetry sweep is in
+     *  progress. 0 publishes the whole table in one go (the old behaviour).
+     *
+     *  Each topic is its own snprintf and its own tcp_send - MQTT 3.1.1 has no
+     *  multi-topic PUBLISH - so a full sweep in one beat was 38-80 of them,
+     *  0.8-1.9 ms against a 10 ms budget. Pacing spreads that over as many beats
+     *  as it takes; 8 clears a typical table in well under a second, against a
+     *  cadence measured in tens of seconds. */
+#ifndef BOTANIK_MQTT_TELEMETRY_PER_STEP
+#  define BOTANIK_MQTT_TELEMETRY_PER_STEP 8
+#endif
+    BOTANIK_CFG(uint16_t, MQTT_TELEMETRY_PER_STEP);
+
+    /** @brief Publish telemetry with the MQTT retain flag set, so a late
+     *  subscriber gets the last value of each field immediately.
+     *
+     *  @warning An invalid reading is skipped rather than published, and there
+     *  is no last will, so with retain on the broker keeps serving the last good
+     *  value of a sensor that has since died. Turn it off for an integration
+     *  that must be able to tell "current" from "last seen". */
+#ifndef BOTANIK_MQTT_TELEMETRY_RETAIN
+#  define BOTANIK_MQTT_TELEMETRY_RETAIN 1
+#endif
+    BOTANIK_CFG(bool, MQTT_TELEMETRY_RETAIN);
+
+    /** @brief Topic segment between the prefix and the field name, for each of
+     *  the three publishers. They are the path schema every subscriber and
+     *  dashboard agrees on; MQTT_TOPIC_PREFIX above is what separates one
+     *  installation from another.
+     *    telemetry: "<prefix>/<TELEMETRY>/<group>/<name>"
+     *    logs:      "<prefix>/<LOG>/<level>/<topic>"
+     *    alarms:    "<prefix>/<ALARM>/<CODE>" */
+#ifndef BOTANIK_MQTT_TELEMETRY_TOPIC
+#  define BOTANIK_MQTT_TELEMETRY_TOPIC "status"
+#endif
+    BOTANIK_CFG(const char*, MQTT_TELEMETRY_TOPIC);
+#ifndef BOTANIK_MQTT_LOG_TOPIC
+#  define BOTANIK_MQTT_LOG_TOPIC "logs"
+#endif
+    BOTANIK_CFG(const char*, MQTT_LOG_TOPIC);
+#ifndef BOTANIK_MQTT_ALARM_TOPIC
+#  define BOTANIK_MQTT_ALARM_TOPIC "alarms"
+#endif
+    BOTANIK_CFG(const char*, MQTT_ALARM_TOPIC);
+
+    /** @brief Minimum level the MQTT log sink publishes (its own gate, on top of
+     *  the logger's). Keeps low-severity chatter off the broker; criticals always
+     *  pass. */
+#ifndef BOTANIK_MQTT_LOG_MIN_LEVEL
+#  define BOTANIK_MQTT_LOG_MIN_LEVEL 4   /* Logs::LOG_NOTICE */
+#endif
+    BOTANIK_CFG(uint8_t, MQTT_LOG_MIN_LEVEL);
+
+    /** @}
+     *  @name Sun position tracking
+     *  @{ */
+
+    /** @brief Recompute cadence (ms) for the solar-elevation tracker.
+     *  @note The elevation drifts ~0.25 deg/min, so a minute between updates
+     *        keeps it well under a degree stale for a fraction of the per-beat
+     *        trig work. */
+#ifndef BOTANIK_SUN_RECOMPUTE_MS
+#  define BOTANIK_SUN_RECOMPUTE_MS 60000
+#endif
+    BOTANIK_CFG(uint32_t, SUN_RECOMPUTE_MS);
+
+    /** @}
+     *  @name Terminal and console
+     *
+     *  What is physically on the console wire, and how much of it the UI may
+     *  use. There is no resize handshake: what is declared here is what the
+     *  pages lay themselves out for.
+     *  @{ */
+
+    /** @brief Which terminal is wired to the console UART - a property of the
+     *  installation, so a site declares it rather than a harness passing it in.
+     *  It selects the one-time setup handshake and is what any
+     *  terminal-specific behaviour branches on.
+     *
+     *  A plain integer here because this header is included by everything and
+     *  must not depend on the console: it is the numeric form of
+     *  Terminal::Ansi::TerminalType, which static_asserts the two agree.
+     *    0 = VT100, 1 = VT102, 2 = Minitel 1B, 3 = Minitel 2 */
+#ifndef BOTANIK_TERMINAL_TYPE
+#  define BOTANIK_TERMINAL_TYPE 1
+#endif
+    BOTANIK_CFG(uint8_t, TERMINAL_TYPE);
+
+    /** @brief Geometry of the terminal actually on the console wire. Bounded
+     *  by TERMINAL_MAX_COLS / _ROWS, which size the screen back-buffer. */
+#ifndef BOTANIK_CONSOLE_COLS
+#  define BOTANIK_CONSOLE_COLS 80
+#endif
+    BOTANIK_CFG(uint16_t, CONSOLE_COLS);
+#ifndef BOTANIK_CONSOLE_ROWS
+#  define BOTANIK_CONSOLE_ROWS 24
+#endif
+    BOTANIK_CFG(uint16_t, CONSOLE_ROWS);
+
+    /** @brief Largest terminal the UI supports. These size the screen
+     *  back-buffer (AnsiTerminal keeps two cell grids of COLS x ROWS bytes, so
+     *  the pair costs 2 x their product in RAM) and clamp the console geometry
+     *  at construction; they are also the sanity bound on full-width fills like
+     *  the Home log-header bar, so a bogus column count cannot drive an
+     *  unbounded paint. 132x32 is a wide VT with room to spare over the 80x24
+     *  the pages actually lay out for. */
+#ifndef BOTANIK_TERMINAL_MAX_COLS
+#  define BOTANIK_TERMINAL_MAX_COLS 132
+#endif
+    BOTANIK_CFG(uint16_t, TERMINAL_MAX_COLS);
+#ifndef BOTANIK_TERMINAL_MAX_ROWS
+#  define BOTANIK_TERMINAL_MAX_ROWS 32
+#endif
+    BOTANIK_CFG(uint16_t, TERMINAL_MAX_ROWS);
+
+    /** @brief Pages the Console multiplexes over. Registration past it is
+     *  refused SILENTLY (add_page() returns -1 and register_pages() ignores it),
+     *  so the tab order simply stops gaining pages. Cannot exceed 10: a page is
+     *  also reachable by Alt+<digit>, and there are ten digits.
+     *
+     *  The full page set is already 8, so the default sits at the ceiling: at 8
+     *  a site splicing in its own page (the documented StatusPage extension) got
+     *  nothing, with no way to tell. */
+#ifndef BOTANIK_CONSOLE_PAGES_MAX
+#  define BOTANIK_CONSOLE_PAGES_MAX 10
+#endif
+    BOTANIK_CFG(uint8_t, CONSOLE_PAGES_MAX);
+
+    /** @}
+     *  @name Terminal input decoding
      *  @{ */
 
     /** @brief Number of input characters to process in a single batch. */
@@ -741,48 +840,41 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, ANSI_CMD_FLUSH_TIMEOUT_MS);
 
-    /** @brief Interval (ms) between status-bar refreshes.
-     *  @note Time-based (refresh rate independent of the tick interval). */
-#ifndef BOTANIK_STATUS_REFRESH_MS
-#  define BOTANIK_STATUS_REFRESH_MS 1000
+    /** @brief Max decoded input events handled per tick.
+     *  @note Too low: typing/paste feels sluggish and the RX ring backs up.
+     *  @note Too high: a big paste echoes a large burst in one tick. */
+#ifndef BOTANIK_INPUT_EVENTS_PER_TICK
+#  define BOTANIK_INPUT_EVENTS_PER_TICK 4
 #endif
-    BOTANIK_CFG(uint32_t, STATUS_REFRESH_MS);
+    BOTANIK_CFG(uint16_t, INPUT_EVENTS_PER_TICK);
 
-    /** @brief Interval (ms) between full-page metric refreshes (Home/Status).
-     *  @note Time-based (refresh rate independent of the tick interval) */
-#ifndef BOTANIK_PAGE_REFRESH_MS
-#  define BOTANIK_PAGE_REFRESH_MS 10000
-#endif
-    BOTANIK_CFG(uint32_t, PAGE_REFRESH_MS);
+    /** @}
+     *  @name Page refresh cadences
+     *
+     *  All time-based, so a refresh rate is independent of the tick interval.
+     *  Three classes: what changes every second, what changes slowly, and the
+     *  TASKS table's smoothed costs in between.
+     *  @{ */
 
-    /** @brief Cold-field refresh interval (ms) for the home page.
-     *  @note Time-based (refresh rate independent of the tick interval) */
-#ifndef BOTANIK_HOME_REFRESH_MS
-#  define BOTANIK_HOME_REFRESH_MS 5000
-#endif
-    BOTANIK_CFG(uint32_t, HOME_REFRESH_MS);
-
-    /** @brief Refresh interval (ms) for a metric page's hot fields.
-     *  @note Time-based (refresh rate independent of the tick interval) */
-/** @brief TASKS table repaint cadence. Slower than PAGE_HOT_MS: the costs it
- *  shows are smoothed aggregates, not a live trace. */
-#ifndef BOTANIK_PAGE_TASKS_MS
-#  define BOTANIK_PAGE_TASKS_MS 2000
-#endif
-    BOTANIK_CFG(uint32_t, PAGE_TASKS_MS);
-
+    /** @brief Refresh interval (ms) for a page's hot fields, and for the status
+     *  bar's clock and metrics. */
 #ifndef BOTANIK_PAGE_HOT_MS
 #  define BOTANIK_PAGE_HOT_MS 1000
 #endif
     BOTANIK_CFG(uint32_t, PAGE_HOT_MS);
 
-    /** @brief Pages the Console multiplexes over. Registration past it is
-     *  refused, so the tab order simply stops gaining pages. Cannot exceed 10:
-     *  a page is also reachable by Alt+<digit>, and there are ten digits. */
-#ifndef BOTANIK_CONSOLE_PAGES_MAX
-#  define BOTANIK_CONSOLE_PAGES_MAX 8
+    /** @brief Cold-field refresh interval (ms) for a metric page. */
+#ifndef BOTANIK_PAGE_COLD_MS
+#  define BOTANIK_PAGE_COLD_MS 5000
 #endif
-    BOTANIK_CFG(uint8_t, CONSOLE_PAGES_MAX);
+    BOTANIK_CFG(uint32_t, PAGE_COLD_MS);
+
+    /** @brief TASKS table repaint cadence. Slower than PAGE_HOT_MS: the costs it
+     *  shows are smoothed aggregates, not a live trace. */
+#ifndef BOTANIK_PAGE_TASKS_MS
+#  define BOTANIK_PAGE_TASKS_MS 2000
+#endif
+    BOTANIK_CFG(uint32_t, PAGE_TASKS_MS);
 
     /** @brief Buffer one rendered table row is assembled in, before the
      *  terminal clips it to the screen width. Shared by every scrolling table
@@ -794,16 +886,8 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, TABLE_LINE_LEN);
 
-    /** @brief Log lines the Home page keeps in its bottom log tail.
-     *  @note Small on purpose: a live "last few entries" widget,
-     *        not a full scrollback like the Logs page. */
-#ifndef BOTANIK_HOME_SCROLLBACK_LINES
-#  define BOTANIK_HOME_SCROLLBACK_LINES 6
-#endif
-    BOTANIK_CFG(uint16_t, HOME_SCROLLBACK_LINES);
-
     /** @}
-     *  @name TX pacing parameters
+     *  @name TX pacing
      *
      *  We only have one FIFO queue for serial TX and cannot jump ahead, so we need
      *  bulk producers to only progress while the TX buffer is shallow to keep the
@@ -814,7 +898,12 @@ namespace Botanik { namespace Config {
      *
      *  @{ */
 
-    /** @brief Single paint depth floor */
+    /** @brief Single paint depth floor, in ms of wire time at CONSOLE_BAUD.
+     *
+     *  Must stay above GROUP_SLOW_MS (console.cpp static_asserts it): the render
+     *  runs on that group, so a floor below it would let the wire drain empty
+     *  between paints. The margin is thin at the defaults - 128 against 100 -
+     *  and nothing measures an underrun, so raise this rather than lower it. */
 #ifndef BOTANIK_TX_COLD_TARGET_MS
 #  define BOTANIK_TX_COLD_TARGET_MS 128
 #endif
@@ -836,16 +925,8 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, LOG_ROWS_PER_TICK);
 
-    /** @brief Max decoded input events handled per tick.
-     *  @note Too low: typing/paste feels sluggish and the RX ring backs up.
-     *  @note Too high: a big paste echoes a large burst in one tick. */
-#ifndef BOTANIK_INPUT_EVENTS_PER_TICK
-#  define BOTANIK_INPUT_EVENTS_PER_TICK 4
-#endif
-    BOTANIK_CFG(uint16_t, INPUT_EVENTS_PER_TICK);
-
     /** @}
-     *  @name Shell parameters
+     *  @name Shell and scrollback
      *  @{ */
 
     /** @brief Maximum length of the shell input buffer (bytes) */
@@ -860,7 +941,10 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint8_t, SHELL_HISTORY_SIZE);
 
-    /** @brief Maximum length of a single history entry (bytes) */
+    /** @brief Maximum length of a single history entry (bytes).
+     *  @note Below SHELL_INPUT_LEN, so a longer command is stored truncated and
+     *        recalling it yields a different command. Raise to SHELL_INPUT_LEN
+     *        (at SHELL_HISTORY_SIZE x the RAM) if that matters. */
 #ifndef BOTANIK_SHELL_HISTORY_ENTRY
 #  define BOTANIK_SHELL_HISTORY_ENTRY 128
 #endif
@@ -891,31 +975,27 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, LOGS_SCROLLBACK_LINES);
 
+    /** @brief Log lines the Home page keeps in its bottom log tail.
+     *  @note Small on purpose: a live "last few entries" widget,
+     *        not a full scrollback like the Logs page. */
+#ifndef BOTANIK_HOME_SCROLLBACK_LINES
+#  define BOTANIK_HOME_SCROLLBACK_LINES 6
+#endif
+    BOTANIK_CFG(uint16_t, HOME_SCROLLBACK_LINES);
+
     /** @brief Maximum length of a single retained scrollback line (bytes).
-     *  @note Shared by every scrollback / log buffer (Shell, Logs, Home). */
+     *  @note Shared by every scrollback / log buffer (Shell, Logs, Home), so the
+     *        cost is this times the three line counts above. Distinct from the
+     *        log-message sizes: this is what a page STORES, not what the logger
+     *        formats. */
 #ifndef BOTANIK_SCROLLBACK_LINE_LEN
 #  define BOTANIK_SCROLLBACK_LINE_LEN 256
 #endif
     BOTANIK_CFG(uint16_t, SCROLLBACK_LINE_LEN);
 
-    /** @brief Continuation prefix for wrapped command-output rows. */
-#ifndef BOTANIK_SHELL_CONT_PREFIX
-#  define BOTANIK_SHELL_CONT_PREFIX "> "
-#endif
-    BOTANIK_CFG(const char*, SHELL_CONT_PREFIX);
-
-    /** @brief Continuation prefix for wrapped log rows.
-     *  @note The leading indent is tuned to the formatted log-line prefix from
-     *        logs/format.h, so wrapped log rows line up under the message's start. */
-#ifndef BOTANIK_SHELL_LOG_CONT_PREFIX
-#  define BOTANIK_SHELL_LOG_CONT_PREFIX "                        > "
-#endif
-    BOTANIK_CFG(const char*, SHELL_LOG_CONT_PREFIX);
-
     /** @}
-     *  @name Text editor parameters
+     *  @name Text editor
      *  @{ */
-
 
     /** @brief Maximum number of screen rows the TextEditor can lay out */
 #ifndef BOTANIK_EDITOR_MAX_ROWS
@@ -931,44 +1011,18 @@ namespace Botanik { namespace Config {
 
     /** @brief Narrowest terminal width the TextEditor can support.
      *  @note We need to keep some additional margin because the actual width
-     *        is reduced by the row prefixes (PS1/PS2/PS3). */
+     *        is reduced by the row prefixes (PS1/PS2/PS3).
+     *  @note Read only by the two layout static_asserts, which is why it lives
+     *        here beside the lengths they relate rather than in the editor. */
 #ifndef BOTANIK_EDITOR_MIN_COLS
 #  define BOTANIK_EDITOR_MIN_COLS 32
 #endif
     BOTANIK_CFG(uint16_t, EDITOR_MIN_COLS);
 
-    /** @brief Largest terminal the UI supports. These size the screen
-     *  back-buffer (AnsiTerminal keeps two cell grids of COLS x ROWS bytes, so
-     *  the pair costs 2 x their product in RAM) and clamp the console geometry
-     *  at construction; they are also the sanity bound on full-width fills like
-     *  the Home log-header bar, so a bogus column count cannot drive an
-     *  unbounded paint. 132x32 is a wide VT with room to spare over the 80x24
-     *  the pages actually lay out for. */
-#ifndef BOTANIK_TERMINAL_MAX_COLS
-#  define BOTANIK_TERMINAL_MAX_COLS 132
-#endif
-    BOTANIK_CFG(uint16_t, TERMINAL_MAX_COLS);
-#ifndef BOTANIK_TERMINAL_MAX_ROWS
-#  define BOTANIK_TERMINAL_MAX_ROWS 32
-#endif
-    BOTANIK_CFG(uint16_t, TERMINAL_MAX_ROWS);
-
-    /** @brief Which terminal is wired to the console UART - a property of the
-     *  installation, so a site declares it rather than a harness passing it in.
-     *  It selects the one-time setup handshake and is what any
-     *  terminal-specific behaviour branches on.
-     *
-     *  A plain integer here because this header is included by everything and
-     *  must not depend on the console: it is the numeric form of
-     *  Terminal::Ansi::TerminalType, which static_asserts the two agree.
-     *    0 = VT100, 1 = VT102, 2 = Minitel 1B, 3 = Minitel 2 */
-#ifndef BOTANIK_TERMINAL_TYPE
-#  define BOTANIK_TERMINAL_TYPE 1
-#endif
-    BOTANIK_CFG(uint8_t, TERMINAL_TYPE);
-
     // Ensure that the specified editor minimum size can hold the whole input
-    // buffer.
+    // buffer. Exact at the defaults; it passes only because the buffer reserves
+    // its NUL. Note it does not model TextEditor's _indent, which is safe today
+    // only because the one indented editor is also single-line.
     static_assert(EDITOR_MAX_ROWS * (EDITOR_MIN_COLS - EDITOR_PROMPT_MAX) >= SHELL_INPUT_LEN,
                   "EDITOR_MAX_ROWS too small to lay out SHELL_INPUT_LEN at EDITOR_MIN_COLS");
 
@@ -990,36 +1044,13 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, NOTES_MAX_ROWS);
 
-    /** @brief HAL::Storage key the note is persisted under. Its own key rather
-     *  than a parameter: prose has no band to validate, no Modbus register and
-     *  no business on the PARAMS page. */
-#ifndef BOTANIK_NOTES_STORAGE_KEY
-#  define BOTANIK_NOTES_STORAGE_KEY "notes"
-#endif
-    BOTANIK_CFG(const char*, NOTES_STORAGE_KEY);
-
     // Same bound as SHELL_INPUT_LEN above: a row carries a prompt, so its worst
     // case is the narrowest screen minus the widest gutter.
     static_assert(NOTES_MAX_ROWS * (EDITOR_MIN_COLS - EDITOR_PROMPT_MAX) >= NOTES_LEN,
                   "NOTES_MAX_ROWS too small to lay out NOTES_LEN at EDITOR_MIN_COLS");
 
     /** @}
-     *  @name Persistent storage
-     *  @{ */
-
-    /** @brief Longest HAL::Storage key, NUL included, counting the partition
-     *  prefix the backend adds. The platform sets it - Mbed's KVStore takes 128
-     *  characters - and every caller that formats a key ("ovr.<name>",
-     *  "<name>_serial", ...) sizes its scratch from this one number, so a long
-     *  variable name cannot truncate differently depending on which path wrote
-     *  it. */
-#ifndef BOTANIK_STORAGE_KEY_MAX
-#  define BOTANIK_STORAGE_KEY_MAX 129
-#endif
-    BOTANIK_CFG(size_t, STORAGE_KEY_MAX);
-
-    /** @}
-     *  @name Simulator settings
+     *  @name Simulator only
      *  @{ */
 
 #ifdef TARGET_SIMULATOR
@@ -1037,41 +1068,9 @@ namespace Botanik { namespace Config {
     static_assert(2 * (uint32_t)NOTES_LEN + 1024 <= STORE_MAX_BYTES,
                   "STORE_MAX_BYTES too small for a hex-encoded NOTES_LEN plus the parameters");
 
-    /** @brief CPU core the simulator pins the main thread to.
-     *  @note Mirrors the main loop running on one core of the OPTA. */
-#ifndef BOTANIK_SIM_MAIN_CPU_CORE
-#  define BOTANIK_SIM_MAIN_CPU_CORE 0
-#endif
-    BOTANIK_CFG(int, SIM_MAIN_CPU_CORE);
-
-    /** @brief Max bytes the simulator paints/scans the scan below the loop frame.
-     *  @note  The OPTA reads the RTOS watermark instead, so this is sim-only. */
-#ifndef BOTANIK_STACK_SCAN_LIMIT
-#  define BOTANIK_STACK_SCAN_LIMIT 65536
-#endif
-    BOTANIK_CFG(uint32_t, STACK_SCAN_LIMIT);
-
-    /** @brief Byte pattern for stack "painting" (high-water detection)
-     *  @note  The OPTA reads the RTOS watermark instead, so this is sim-only. */
-#ifndef BOTANIK_STACK_PAINT_BYTE
-#  define BOTANIK_STACK_PAINT_BYTE 0xCD
-#endif
-    BOTANIK_CFG(uint8_t, STACK_PAINT_BYTE);
-
-    /** @brief Stack high-water is measured (and, on the sim, the free stack
-     *  re-painted) once per slice rather than every tick, to amortise the
-     *  paint/scan cost. */
-#ifndef BOTANIK_STACK_SLICE_TICKS
-#  define BOTANIK_STACK_SLICE_TICKS \
-       ((BOTANIK_LOAD_METRIC_WINDOW >= BOTANIK_LOAD_METRIC_BUCKETS) \
-            ? (BOTANIK_LOAD_METRIC_WINDOW / BOTANIK_LOAD_METRIC_BUCKETS) : 1u)
-#endif
-    BOTANIK_CFG(uint32_t, STACK_SLICE_TICKS);
-
-
 #endif // TARGET_SIMULATOR
 
-    // @}
+    /** @} */
 
 } }
 
