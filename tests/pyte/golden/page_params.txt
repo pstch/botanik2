@@ -16,7 +16,7 @@
   ----------------------------------------------------------------------------
 
  Minimum      : 1200                  Maximum      : 921600 Register : 900
- Description  : Console UART rate
+ Description  : console UART rate
  Notes        : retunes the wire AND the render budget; reconnect at the new rat
 
                       [all]        (serial)     1-11 / 166

@@ -31,20 +31,20 @@
     /* The window is Config::HEALTH_RESET_WINDOW_MS; the text says "recently"  \
        rather than repeating the number, which drifted the moment one moved. */\
     ::Botanik::Vars::A("alarm_system_reset", "SYS_RST", -1, 0, 0, 0, 0,        \
-        "Unit reset recently", ""),                                            \
+        "unit reset recently", ""),                                            \
     ::Botanik::Vars::A("alarm_cpu_xrun", "CPU_XRUN", 0, -1, 0, 0, 0,           \
-        "Scheduler overrun (skipped beat)", ""),                               \
+        "scheduler overrun (skipped beat)", ""),                               \
     ::Botanik::Vars::A("alarm_cpu_load", "CPU_LOAD", 5, 5, 0, 300, 0,          \
         "CPU load over threshold", ""),                                        \
     ::Botanik::Vars::A("alarm_stack", "STACK", 5, 5, 0, 300, 0,                \
-        "Stack usage over threshold", ""),                                     \
+        "stack usage over threshold", ""),                                     \
     ::Botanik::Vars::A("alarm_cpu_jitter", "CPU_JITT", 5, 5, 0, 300, 0,        \
         "CPU jitter over threshold", ""),                                      \
     /* Sticky: a store that refused a write does not heal by itself, and the   \
        consequence (parameters silently reverting at the next reboot) is       \
        invisible until it is far too late to connect cause and effect. */      \
     ::Botanik::Vars::A("alarm_flash_error", "FLASH_FLT", 0, -1, 0, 0, 0,       \
-        "Persistent storage write failed",                                     \
+        "persistent storage write failed",                                     \
         "parameters will not survive a reboot; check the KV region"),
 
 #endif // ALARMS_PLATFORM_H

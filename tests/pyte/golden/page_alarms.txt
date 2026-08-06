@@ -15,7 +15,7 @@
   | DC_PS2   | alarm_dc_ps2                            | <V>| <V>            |
   v----------v-----------------------------------------v----v----------------v
 
- Description  : Unit reset recently
+ Description  : unit reset recently
  Remediation  : -
  Acknowledged : -
 
