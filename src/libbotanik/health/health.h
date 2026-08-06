@@ -35,24 +35,18 @@ namespace Botanik { namespace Health {
      *  runs the self-test, and gates the watchdog kick (see file header). */
     class HealthMonitor : public Component {
     private:
-        /** @brief The platform-health alarms this class drives, in the order the
-         *  one code list below declares them. Nothing outside here depends on
-         *  the order - the codes are resolved by name - so this is an index, not
-         *  a layout. */
+        /** @brief The platform-health alarms, named by their POSITION in
+         *  Alarms::PLATFORM_ALARMS. That table is the one list of them; this
+         *  enum only says which row of it each assertion below drives.
+         *
+         *  @warning The order is the table's, so reordering platform.cpp means
+         *  reordering this. That is the price of having one list instead of two,
+         *  and it is the cheaper side: the second list was a hand-copied set of
+         *  the same six names, and it had already drifted - POST checked five of
+         *  the six, silently never verifying FLASH_FLT. */
         enum PlatformAlarm {
-            PA_RESET = 0, PA_FLASH, PA_LOAD, PA_JITTER, PA_STACK, PA_XRUN, PA_COUNT
+            PA_RESET = 0, PA_XRUN, PA_LOAD, PA_STACK, PA_JITTER, PA_FLASH, PA_COUNT
         };
-
-        /** @brief The one list of platform codes: what on_setup() resolves and
-         *  what POST verifies resolved. A function-local static so the header
-         *  stays self-contained and every TU shares one copy. */
-        static const char* const* _codes() {
-            static const char* const c[PA_COUNT] = {
-                "alarm_system_reset", "alarm_flash_error", "alarm_cpu_load",
-                "alarm_cpu_jitter",   "alarm_stack",       "alarm_cpu_xrun",
-            };
-            return c;
-        }
 
         /** @name State
          *  @{ */
@@ -74,20 +68,20 @@ namespace Botanik { namespace Health {
         // deterministic screen goldens (sim/test only; reads 0 on OPTA).
         bool     _no_load_alarms   = HAL::Env::u8("BOTANIK_NO_LOAD_ALARMS", 0) != 0;
 
-        /** @brief Where each PA_* code sits in the merged condition table,
-         *  resolved once by on_setup(); -1 if the code is absent.
+        /** @brief Where each row of Alarms::PLATFORM_ALARMS sits in the merged
+         *  condition table, resolved once by on_setup(); -1 if it is absent.
          *
-         *  These used to be looked up by name on every activation. set_local()'s
-         *  name form is a linear strcmp scan of the whole table, and every code
-         *  in it starts with "alarm_", so each comparison matched six bytes
-         *  before diverging: six calls cost 159 comparisons a beat to re-resolve
-         *  six names that cannot change (@ref dev_tasks).
+         *  These used to be looked up by name on every activation. The name form
+         *  is a linear strcmp scan of the whole table, and every platform name
+         *  starts with "alarm_", so each comparison matched six bytes before
+         *  diverging: six calls cost 159 comparisons a beat to re-resolve six
+         *  names that cannot change (@ref dev_tasks).
          *
-         *  Indexed by PlatformAlarm off the one code list, rather than six named
-         *  members beside a second hand-written list: POST used to carry its own
-         *  copy of the names and had already drifted from this one (it checked
-         *  five of the six, silently not verifying FLASH_FLT). */
-        int16_t  _ix[PA_COUNT] = {};
+         *  Sized on the RESERVATION rather than on PA_COUNT, so a seventh
+         *  platform alarm added to the table is resolved and POST-checked
+         *  without touching this - only ASSERTING it needs a PA_* and a line in
+         *  _assert_platform_alarms(). */
+        int16_t  _ix[Config::PLATFORM_ALARMS_RESERVED] = {};
         /** @} */
 
     public:
@@ -153,12 +147,22 @@ namespace Botanik { namespace Health {
          *  watchdog. */
         void _post() {
             bool ok = true;
-            // Every platform code the firmware asserts must resolve in the
-            // merged table, or _set() would silently no-op (guards the
-            // alarm-namespace wiring). Reads the indices on_setup() just
-            // resolved, so there is nothing here to drift from them.
-            for (uint8_t i = 0; i < PA_COUNT; i++)
-                if (_ix[i] < 0) { ok = false; _post_fail("alarm missing", _codes()[i]); }
+            // Every platform alarm must resolve in the merged table, or _set()
+            // would silently no-op (guards the alarm-namespace wiring). Reads
+            // the indices on_setup() just resolved, over the same table it
+            // resolved them from - there is no second list to drift.
+            for (uint8_t i = 0; i < _platform_count(); i++)
+                if (_ix[i] < 0) {
+                    ok = false;
+                    _post_fail("alarm missing", Alarms::PLATFORM_ALARMS[i].code);
+                }
+            // ...and the enum below has to still index that table. A seventh
+            // alarm is fine (it resolves, it just is not asserted); a table
+            // SHORTER than the enum means PA_* are pointing at the wrong rows.
+            if (_platform_count() < PA_COUNT) {
+                ok = false;
+                _post_fail("platform alarm table", "shorter than PlatformAlarm");
+            }
 #if BOTANIK_FEATURE_LOGGING
             // A logger with no writers would silently swallow everything. Only
             // a defect when logging was asked for: a LOGGING=OFF build has no
@@ -180,12 +184,26 @@ namespace Botanik { namespace Health {
             if (_logger) _logger->critical(Logs::HEALTH, "POST: %s %s", what, detail);
         }
 
-        /** @brief Resolve the platform alarm codes to indices, once. The model's
+        /** @brief Resolve EVERY platform alarm to an index, once. The model's
          *  table is built at construction and never changes, so a name here is a
-         *  constant - it just was not being treated as one. */
+         *  constant - it just was not being treated as one.
+         *
+         *  Driven off Alarms::PLATFORM_ALARMS itself, so "every one" is
+         *  structural rather than a list someone has to remember to extend. */
         void _resolve_platform_alarms() {
-            for (uint8_t i = 0; i < PA_COUNT; i++)
-                _ix[i] = (int16_t)_model.index_of(_codes()[i]);
+            for (uint8_t i = 0; i < Config::PLATFORM_ALARMS_RESERVED; i++)
+                _ix[i] = -1;
+            for (uint8_t i = 0; i < _platform_count(); i++)
+                _ix[i] = (int16_t)_model.index_of(Alarms::PLATFORM_ALARMS[i].name);
+        }
+
+        /** @brief Platform alarms actually declared, clamped to what _ix holds.
+         *  The reservation is asserted in platform.cpp; the clamp is so a build
+         *  that got past it cannot walk off the array here. */
+        static uint8_t _platform_count() {
+            const uint8_t n = Alarms::PLATFORM_ALARM_COUNT;
+            return n < Config::PLATFORM_ALARMS_RESERVED
+                     ? n : (uint8_t)Config::PLATFORM_ALARMS_RESERVED;
         }
 
         /** @brief set_local() by resolved index, skipping an absent code the way

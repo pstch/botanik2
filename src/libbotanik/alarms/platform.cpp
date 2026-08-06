@@ -19,6 +19,11 @@ namespace Botanik { namespace Alarms {
         // These read no variable: each is driven locally via set_local(),
         // and the model leaves their resolved ref at VAR_NONE. The name is
         // still their identity - it is what `alarms ack` and the pages key on.
+        //
+        // ROW ORDER IS LOAD-BEARING: HealthMonitor::PlatformAlarm names these
+        // rows by position, and resolves the lot from this table at bring-up so
+        // there is no second copy of the names. Reorder here, reorder there;
+        // POST catches a table shorter than that enum, not a permuted one.
         // code         variable                description                          notes    on  off  rec latch
         // The window is HEALTH_RESET_WINDOW_MS; the text says "recently" rather
         // than repeating the number, which drifted the moment one of them moved.

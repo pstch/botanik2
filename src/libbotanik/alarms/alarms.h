@@ -8,14 +8,11 @@
  *
  * This file tries to implement alarms in a way that matches standard
  * alarm-handling procedures in industrial PLC systems. For each condition
- * we use a global boolean variable, and we also track :
- *  - the raw input: that variable OR'd with a local override (a platform
- *    alarm names no variable and rests on the override alone);
- *  - the active state: the raw input held on by the hold-on delay and the
- *    minimum-ON latch, so a flickering input reads as one episode;
- *  - the dwell since the last edge, which the announce thresholds run against;
- *  - what this episode already announced: ON once, and an OFF with no matching
- *    ON is a FLAP rather than a clean end;
+ * we use a global boolean variable, and we track :
+ *  - the raw input
+ *  - the active state
+ *  - the dwell since the last edge
+ *  - what this episode already announced to detect FLAPs
  *  - the operator's acknowledgement, cleared on each fresh ON edge.
  *
  * Site conditions fill [0..N) by scanning the variable table for SCOPE_A rows;
@@ -115,12 +112,27 @@ namespace Botanik { namespace Alarms {
         }
     };
 
-    /** @brief Bit index of the alarm named @p name, otherwise -1. */
+    /** @brief Index of the alarm @p key names, otherwise -1. @p key may be
+     *  either spelling of the same condition: the short display CODE (`SYS_RST`)
+     *  or the variable NAME (`alarm_system_reset`).
+     *
+     *  Both, because both are on screen. The alarm bar, the ALARMS page and
+     *  `alarms ack <code>`'s own help show the code; `alarms list` and the
+     *  variable table show the name. Matching only one of them meant the
+     *  spelling the operator was looking at was the one that did not work.
+     *
+     *  A linear scan, and deliberately so: this is only ever reached from
+     *  operator input (`alarms ack <code>`) and from bring-up
+     *  (HealthMonitor resolves its six platform codes ONCE into indices, see
+     *  health.h). Nothing per-beat resolves a name - a site condition carries
+     *  the VarRef its constructor resolved, and the platform ones are driven by
+     *  index. */
     inline int alarm_index(const AlarmCondition* table, uint8_t count,
-                           const char* name) {
-        if (table == nullptr || name == nullptr) return -1;
+                           const char* key) {
+        if (table == nullptr || key == nullptr) return -1;
         for (uint8_t i = 0; i < count; i++)
-            if (Utils::compare_str(table[i].name, name))
+            if (Utils::compare_str(table[i].code, key) ||
+                Utils::compare_str(table[i].name, key))
                 return (int)i;
         return -1;
     }
@@ -340,14 +352,9 @@ namespace Botanik { namespace Alarms {
             _conditions[id].local_raw = on;
         }
 
-        /** @brief Set/clear an alarm's local row override by variable name.
-         *  @note No-op if the alarm name is absent from the table */
-        void set_local(const char* name, bool on) {
-            int i = alarm_index(_conditions, _count, name);
-            if (i >= 0) set_local((uint8_t)i, on);
-        }
-
-        /** @brief Mark an active condition acknowledged, by variable name */
+        /** @brief Mark an active condition acknowledged, by code or by variable
+         *  name (see alarm_index). Operator input, so it resolves here rather
+         *  than being pre-resolved: there is nothing to pre-resolve it FROM. */
         bool ack(const char* name) {
             // find the alarm's index
             int i = alarm_index(_conditions, _count, name);
@@ -387,9 +394,11 @@ namespace Botanik { namespace Alarms {
         /** @brief Condition @p i (0 <= i < count()). */
         const AlarmCondition& condition(uint8_t i) const { return _conditions[i]; }
 
-        /** @brief Index of @p code, or -1 */
-        int index_of(const char* name) const {
-            return alarm_index(_conditions, _count, name);
+        /** @brief Index of the condition @p key names - its code or its variable
+         *  name - or -1. Called ONCE per code at bring-up (health.h); the beat
+         *  never resolves a name. */
+        int index_of(const char* key) const {
+            return alarm_index(_conditions, _count, key);
         }
 
         /** @} */

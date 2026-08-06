@@ -89,6 +89,12 @@ TEST_CASE("alarm: ack marks an active condition, ignores inactive / unknown") {
     CHECK(m.condition(0).user_ack == true);
     CHECK(m.ack("bbb") == false);                   // B is not active
     CHECK(m.ack("zzz") == false);                   // unknown code
+    // Both spellings are on screen - the alarm bar and this command's own help
+    // show the CODE, `alarms list` and the variable table show the NAME - so
+    // both have to resolve, or the one the operator is looking at is the one
+    // that does not work.
+    CHECK(m.ack("AAA") == true);
+    CHECK(m.index_of("BBB") == m.index_of("bbb"));
 }
 
 TEST_CASE("alarm: ack clears on the next ON edge (a fresh episode is unacknowledged)") {
