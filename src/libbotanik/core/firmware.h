@@ -396,7 +396,7 @@ namespace Botanik {
             //
             // It also takes the parameter load - 423 storage reads, tens of ms
             // of flash - out of the first beat, where it read as a boot overrun
-            // against a 10 ms budget (@ref dev_tasks).
+            // against a 10 ms budget.
             _tasks.setup(HAL::Clock::uptime_ms());
 
             HAL::Watchdog::start(_hw_watchdog_ms);

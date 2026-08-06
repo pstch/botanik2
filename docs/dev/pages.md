@@ -73,44 +73,39 @@ LogWriter <|-- HomePage
 ShellWriter <|-- ShellPage
 \enduml
 
-- @ref Botanik::Pages::ShellPage - interactive shell; owns a
-  @ref Botanik::Terminal::TextEditor (bottom row) and a
-  @ref Botanik::Shell::CommandShell, with a live log tail interleaved with command
-  output above. Also a `LogWriter` and `ShellWriter`.
-- @ref Botanik::Pages::LogsPage - the full scrolling log; a `LogWriter` that replays
-  its @ref Botanik::Pages::LogsScrollback on focus.
-- @ref Botanik::Pages::NotesPage - the operator's free-text note, behind
-  `BOTANIK_FEATURE_NOTES_PAGE`. The same @ref Botanik::Terminal::TextEditor as the shell,
-  but top-anchored over the content area with a viewport that scrolls once the note
-  is taller than the screen (see @ref dev_editor). It drives the same PS1/PS2/PS3
-  gutter the shell does: `"> "` on a row the operator started (PS1, and PS3 after
-  a hard `\n`), `"  "` on a soft-wrapped tail (PS2) - so a wrapped line reads as
-  a continuation rather than a new one. Persisted under its own
-  `HAL::Storage` key: `^O` writes, and leaving the page flushes anything unsaved.
-  Up/down are cursor motion here - history belongs to `CommandShell`, and there is
-  none under this page.
-- @ref Botanik::Pages::MetricPage - base for read-only metric displays. Repaints
-  its fields whole; the terminal's back-buffer diff drops whatever did not move, so
-  a refresh never saturates the low-baud link. It keeps one value cache of its own,
-  and only to spot *which* values changed for the `watch -d`-style highlight - a
-  question about the data, which the diff cannot answer (it knows which cells
-  differ, not why).
-  - @ref Botanik::Pages::HomePage - landing page (also a `LogWriter`).
-  - @ref Botanik::Pages::StatusPage "StatusPage<T>" - a two-column health grid,
-    templated on a site data struct. Shipped but **not** in the default tab order; a
-    site re-adds it by subclassing and overriding `register_pages()`.
-- @ref Botanik::Pages::ScrollTablePage - base for the scrollable tables: it owns the
-  scroll offset, the selection cursor, the shared navigation keys and the `^`/`v`
-  hidden-row marks, and leaves the column layout and the detail panel to the
-  subclass.
-  - @ref Botanik::Pages::AlarmsPage, @ref Botanik::Pages::ParamsPage,
-    @ref Botanik::Pages::MonitorPage.
-  - @ref Botanik::Pages::TasksPage - the beat as a table, read straight off the
-    scheduler's per-task `Scheduler::TaskCost` samples: group, period, phase, mean and
-    peak microseconds. It exists because `stats` reports the whole beat's CPU with no
-    attribution, so "which task blew the budget" had nowhere to be answered. Rows sort
-    by name; the beat's own order is phase-major and the PHASE column still carries
-    it, but finding one task by eye beats reading the cycle here.
+One row per page, in the order they derive:
+
+| Page | Base | Is |
+|---|---|---|
+| @ref Botanik::Pages::ShellPage | Page | the interactive shell: a @ref Botanik::Terminal::TextEditor on the bottom row over a @ref Botanik::Shell::CommandShell, with a log tail interleaved above. Also a `LogWriter` and `ShellWriter` |
+| @ref Botanik::Pages::LogsPage | Page | the full scrolling log; a `LogWriter` that replays its @ref Botanik::Pages::LogsScrollback on focus |
+| @ref Botanik::Pages::NotesPage | Page | the operator's note, behind `BOTANIK_FEATURE_NOTES_PAGE`. Same editor as the shell but top-anchored with a scrolling viewport (@ref dev_editor); persisted under its own `HAL::Storage` key |
+| @ref Botanik::Pages::MetricPage | Page | base for read-only metric displays |
+| @ref Botanik::Pages::HomePage | MetricPage | the landing page (also a `LogWriter`) |
+| @ref Botanik::Pages::StatusPage "StatusPage<T>" | MetricPage | a two-column health grid templated on a site struct. Shipped but **not** in the default tab order |
+| @ref Botanik::Pages::ScrollTablePage | Page | base for the scrollable tables |
+| @ref Botanik::Pages::AlarmsPage | ScrollTablePage | the alarm conditions |
+| @ref Botanik::Pages::ParamsPage | ScrollTablePage | the parameter block, and the only page that writes it |
+| @ref Botanik::Pages::MonitorPage | ScrollTablePage | every published variable, resolved from `VarRef`s at render time |
+| @ref Botanik::Pages::TasksPage | ScrollTablePage | the beat as a table, off the scheduler's `Scheduler::TaskCost` samples |
+
+Three of those entries carry a decision worth knowing:
+
+**`MetricPage` repaints its fields whole** and lets the back-buffer diff drop
+whatever did not move, so a refresh never saturates the low-baud link. Its one
+value cache exists only to spot *which* values changed for the `watch -d`-style
+highlight - a question about the data, which the diff cannot answer (it knows
+which cells differ, not why).
+
+**`ScrollTablePage` owns the scroll offset, the selection cursor, the shared
+navigation keys and the `^`/`v` hidden-row marks**, and leaves the column layout
+and the detail panel to the subclass. That split is why four tables cost four
+column layouts rather than four scrollers.
+
+**`NotesPage` drives the same PS1/PS2/PS3 gutter the shell does** - `"> "` on a
+row the operator started, `"  "` on a soft-wrapped tail - so a wrapped line reads
+as a continuation rather than a new one. Up/down are cursor motion here; history
+belongs to `CommandShell`.
 
 Every page is library-owned and site-independent. Sites contribute **data** - the
 home fields, the status groups, the alarm table - not page classes. `HomePage` and

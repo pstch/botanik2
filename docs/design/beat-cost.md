@@ -1,4 +1,4 @@
-# What the beat costs {#dev_tasks}
+# What the beat costs
 
 Every task on the beat, what it costs, and where the spikes are. The mechanism -
 groups, phases, the registry - is @ref dev_scheduler; this page is the budget.
@@ -122,3 +122,16 @@ if peak per beat ever became the constraint.
   sweep both pay line fills the warm-cache figures ignore.
 
 Measure the first three with a DWT cycle counter before trusting any of this.
+
+## Per-program CPU
+
+The accounting unit is the **task**, not the group: "the slow group cost 3 ms"
+does not say which of its five members to look at. Roll up to the group for the
+summary.
+
+`Scheduler::TaskCost` already holds exactly this (`us_last`, `us_max`, `us_total`,
+`runs`, `us_mean()`); what is missing is a `Plc::Program` carrying one, measured
+with two `HAL::Clock::uptime_us()` reads around `step()`. The program already owns
+its timer, so the cost belongs beside it rather than in a parallel array. Report a
+windowed peak and a mean - an all-time max never decays, so one outlier pins it
+for the life of the boot.

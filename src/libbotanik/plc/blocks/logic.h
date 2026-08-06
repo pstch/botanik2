@@ -65,35 +65,28 @@ namespace Botanik { namespace Plc {
      *  @{ */
 
     /**
-     * @brief Four-input interlock with first-out annunciation.
+     * @brief Four permissives in, one permit out, with first-out annunciation.
      *
-     * Every input is a PERMISSIVE: true means "this condition is satisfied".
-     * The permit is true only while all four are, and - by default - stays down
-     * once dropped until a reset is acknowledged, even if the cause cleared
-     * itself. That latch is the point of an interlock: a condition that trips
-     * and recovers on its own must still be seen and cleared by hand.
+     * Every input is a PERMISSIVE - true means satisfied - and the permit holds
+     * only while all four are. Three rules make it an interlock rather than an
+     * `and`:
      *
-     * FIRST-OUT is the other half. When four things can stop a machine, the one
-     * that matters is which went first; the rest usually fall over as a
-     * consequence. first_out() names it, and holds it until the reset, so a log
-     * line or an alarm note can say WHY rather than just "interlocked".
+     *  - **It latches.** A condition that trips and recovers on its own must
+     *    still be seen and cleared by hand. A latching interlock also starts
+     *    WITHOUT the permit, so nothing arms itself after a power cycle - the
+     *    same reasoning as control authority starting disabled. `Interlock(false)`
+     *    opts out and just follows the inputs.
+     *  - **The acknowledge is an edge**, so a reset wired true (a stuck button,
+     *    a forgotten override) cannot silently clear every future trip.
+     *  - **It remembers which input went first.** The rest usually fall over as
+     *    a consequence, so first_out() is what lets a log line say why rather
+     *    than just "interlocked". Held until the acknowledge.
      *
-     * The reset is edge-triggered, so a reset input wired true (a stuck button,
-     * a forgotten override) cannot silently auto-clear every future trip.
-     *
-     * A latching interlock starts WITHOUT the permit and needs one acknowledge
-     * even if it never tripped: after a power cycle nothing should arm itself,
-     * for the same reason control authority starts disabled. A non-latching one
-     * simply follows the four inputs.
-     *
-     * Four inputs, no more: a site with three passes @c true for the fourth,
-     * and one with six chains two interlocks. Fixed width keeps first_out()
-     * meaningful and the block free of any storage to size.
+     * Four inputs, no more: a site with three passes @c true for the fourth, one
+     * with six chains two interlocks. Fixed width keeps first_out() meaningful
+     * and the block free of storage to size.
      */
     class Interlock {
-
-        /** @name State
-         *  @{ */
 
         const char* _names[4];       ///< borrowed, flash-resident labels
         RTrig       _reset_edge;
@@ -102,14 +95,9 @@ namespace Botanik { namespace Plc {
         uint8_t     _first   = NONE; ///< index of the input that tripped first
         bool        _latching;
 
-        /** @} */
-
     public:
         /** @brief first_out() when nothing has tripped. */
         static const uint8_t NONE = 0xFF;
-
-        /** @name Lifecycle
-         *  @{ */
 
         /** @brief Unnamed inputs; first_out_name() then reports "1".."4". */
         explicit Interlock(bool latching = true);
@@ -117,10 +105,6 @@ namespace Botanik { namespace Plc {
          *  must outlive the block - string literals, in practice. */
         Interlock(const char* n0, const char* n1, const char* n2,
                   const char* n3, bool latching = true);
-
-        /** @} */
-        /** @name Operation
-         *  @{ */
 
         /** @brief Evaluate the four permissives.
          *  @param reset acknowledge (rising edge); ignored while any input is
@@ -141,7 +125,6 @@ namespace Botanik { namespace Plc {
         /** @brief Clear the latch and the first-out record by hand. */
         void reset();
 
-        /** @} */
     };
 
     /** @} */

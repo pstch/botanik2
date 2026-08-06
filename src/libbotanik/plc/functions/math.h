@@ -16,31 +16,26 @@ namespace Botanik { namespace Plc {
     /** @name Limiting
      *  @{ */
 
-    /** @brief @p v held inside [@p lo, @p hi].
-     *
-     *  IEC spells it LIMIT(MN, IN, MX); the arguments are in std::clamp order
-     *  here instead, because every call site in this codebase reads
-     *  "this value, between these bounds". */
+    /** @brief @p v held inside [@p lo, @p hi]. IEC's LIMIT, in std::clamp
+     *  argument order - every call site here reads "this value, between these
+     *  bounds". */
     constexpr float limit(float v, float lo, float hi) {
         return (v < lo) ? lo : ((v > hi) ? hi : v);
     }
 
-    /** @brief Whether @p v is within [@p lo, @p hi], inclusive.
-     *
-     *  The plausibility test a program writes about a reading, said once:
-     *  `!in_range(ln, 200.0f, 260.0f)` rather than a pair of comparisons whose
-     *  bounds have to be read twice to be trusted. */
+    /** @brief Whether @p v is within [@p lo, @p hi], inclusive. The
+     *  plausibility test said once - `!in_range(ln, 200.0f, 260.0f)` rather
+     *  than a pair of comparisons whose bounds must be read twice to trust. */
     constexpr bool in_range(float v, float lo, float hi) {
         return (v >= lo) && (v <= hi);
     }
 
-    /** @brief Zero inside +/- @p band, and continuous outside it: the excursion
-     *  beyond the band, not the raw value.
+    /** @brief Zero inside +/- @p band, and outside it the EXCURSION beyond the
+     *  band rather than the raw value - continuous, because a step from 0 to
+     *  `band` on leaving would kick whatever acts on it.
      *
-     *  Continuous because it usually feeds something that acts on it - a step
-     *  from 0 to `band` the moment the band is left would be a kick. The
-     *  stateless cousin of the Deadband block, which is about SUPPRESSING
-     *  reports of small moves rather than ignoring a small error. */
+     *  The stateless cousin of the Deadband block, which suppresses reports of
+     *  small moves rather than ignoring a small error. */
     constexpr float deadzone(float v, float band) {
         return (v > band) ? (v - band) : ((v < -band) ? (v + band) : 0.0f);
     }
@@ -50,15 +45,13 @@ namespace Botanik { namespace Plc {
      *  @{ */
 
     /** @brief Rescale @p v from [@p in_lo, @p in_hi] onto [@p out_lo,
-     *  @p out_hi], linearly and without clamping.
+     *  @p out_hi], linearly and without clamping. A degenerate input span reads
+     *  as @p out_lo rather than dividing by zero - a misconfigured span must
+     *  give a dull answer, not an infinity that reaches an output.
      *
-     *  A degenerate input span reads as @p out_lo rather than dividing by zero:
-     *  a misconfigured span must give a dull answer, not an infinity that then
-     *  propagates into an output.
-     *
-     *  @note Analog rows do NOT go through this - they carry an AnalogCal whose
-     *   six Tunables can each be a parameter. This is for the rescaling a
-     *   program does itself, e.g. a 0..1 valve demand onto a 20..80% stroke. */
+     *  @note Not for analog rows, which carry an AnalogCal whose six Tunables
+     *   can each be a parameter. This is for a program's own rescaling, e.g. a
+     *   0..1 demand onto a 20..80% stroke. */
     constexpr float scale(float v, float in_lo, float in_hi,
                           float out_lo, float out_hi) {
         return (in_hi == in_lo)
@@ -76,10 +69,8 @@ namespace Botanik { namespace Plc {
      *  @name Selection
      *  @{ */
 
-    /** @brief IEC's SEL: @p in1 when @p g, else @p in0.
-     *
-     *  Worth a name because it makes a line of control logic read as data flow
-     *  rather than as a branch - `sel(night, day_sp, night_sp)`. */
+    /** @brief IEC's SEL: @p in1 when @p g, else @p in0. Worth a name because it
+     *  reads as data flow rather than a branch - `sel(night, day_sp, night_sp)`. */
     constexpr float sel(bool g, float in0, float in1) {
         return g ? in1 : in0;
     }

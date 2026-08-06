@@ -14,15 +14,12 @@
 
 namespace Botanik { namespace Plc {
 
-    /**
-     * @brief The mechanics of one actuator: travel times and how finely it is
-     * worth chasing a target.
+    /** @brief One actuator's mechanics: travel times, and how finely it is
+     *  worth chasing a target.
      *
-     * @c close_ms defaults to @c open_ms, but they are separate because they
-     * usually are not equal - a window that opens against its own weight closes
-     * faster, and using one figure for both walks the position estimate off by
-     * a few percent per stroke.
-     */
+     *  @c close_ms defaults to @c open_ms but is separate because the two are
+     *  rarely equal - a window that opens against its own weight closes faster,
+     *  and one figure for both walks the estimate off a few percent per stroke. */
     struct ActuatorConfig {
         uint32_t open_ms;      ///< full travel, closed -> open
         uint32_t close_ms;     ///< full travel, open -> closed
@@ -43,45 +40,30 @@ namespace Botanik { namespace Plc {
     };
 
     /**
-     * @brief Drives a two-position actuator - one open coil, one close coil,
-     * no position feedback - to a fractional target, by timing the strokes.
+     * @brief Drives an open/close coil pair to a fractional target by timing the
+     * strokes. No position feedback: a window drive, a shade motor, a motorised
+     * valve.
      *
-     * A window drive, a shade motor, a motorised valve: the field gives you two
-     * contactors and nothing back. Position is therefore an ESTIMATE, integrated
-     * from how long each coil was energised against the configured travel times,
-     * and it drifts. Two things keep it honest:
+     * Position is an ESTIMATE, integrated from coil-on time against the
+     * configured travel, so it drifts. Two rules keep it honest: a stroke to
+     * either end runs the estimated travel PLUS @c seat_ms, re-datuming against
+     * the mechanical stop; and the estimate is not trusted before the first such
+     * stroke - which is what UNKNOWN is for, since after a power cycle the
+     * actuator is wherever it was left.
      *
-     *  - a stroke to either end runs the estimated travel PLUS @c seat_ms, so
-     *    every full stroke re-datums against the mechanical stop rather than
-     *    against the estimate;
-     *  - the estimate is never trusted before the first such stroke.
+     * CLOSED means ON THE SEAT, which only a stroke to the closed end produces;
+     * anything else at rest is OPEN, with position() for the detail. That is the
+     * valve convention: "closed" is a claim about the seal, not about a small
+     * number.
      *
-     * That is what UNKNOWN is for. After a power cycle the actuator is wherever
-     * it was left, so the first command drives fully to an end before doing
-     * anything else - to the closed end unless the target IS the open end, in
-     * which case that stroke datums just as well.
+     * Invariants: the two coils are never both energised, a reversal always
+     * passes through @c reverse_ms with both dropped (contactors that make
+     * before the other breaks short the motor), and a move under @c min_run_ms
+     * is not made at all (a twitch too short to beat stiction wears the gear
+     * without moving anything).
      *
-     * @section actuator_states The five states
-     *
-     * UNKNOWN -> CLOSING/OPENING while a coil is energised -> CLOSED or OPEN at
-     * rest. CLOSED means the block believes the actuator is ON ITS SEAT, which
-     * only a stroke to the closed end produces; anything else at rest is OPEN,
-     * with position() saying how far. That is the valve convention, and it is
-     * the useful one: "closed" is a claim about the seal, not about a number
-     * being small.
-     *
-     * @section actuator_safety What it will not do
-     *
-     * The two outputs are never both true, and a reversal always passes through
-     * @c reverse_ms of dead time with both dropped - contactors that make
-     * before the other breaks are a short across the motor. A move smaller than
-     * @c min_run_ms is not made at all: a twitch too short to overcome
-     * stiction wears the gear without moving anything.
-     *
-     * Control authority is NOT this block's business. A task that must stop
-     * driving calls stop(); the outputs it publishes go through the usual
-     * ROLE_OUTPUT rows, which drop to safe on their own when control is
-     * withdrawn.
+     * Control authority is not this block's business - a program that must stop
+     * driving calls stop(), and the coil rows drop to safe on their own.
      */
     class Actuator {
     public:
@@ -104,10 +86,8 @@ namespace Botanik { namespace Plc {
         float    _pos     = 0.0f;   ///< 0 closed .. 1 open; meaningless if UNKNOWN
         uint32_t _run_ms  = 0;      ///< time left in the committed stroke
         uint32_t _wait_ms = 0;      ///< reversal dead time left
-        /** @brief cfg.reverse_ms, kept from the last step() so a stroke can be
-         *  ended - by stop(), or by reaching its seat - with the dead time
-         *  still applied, without the caller having to hand the config to
-         *  every entry point. */
+        /** @brief cfg.reverse_ms kept from the last step(), so stop() and
+         *  arrive() can apply the dead time without being handed the config. */
         uint32_t _reverse_ms = 0;
         uint8_t  _state   = ST_UNKNOWN;
         uint8_t  _dir     = D_NONE;
@@ -140,9 +120,8 @@ namespace Botanik { namespace Plc {
 
         /** @brief Run one scan.
          *  @param target 0 (closed) to 1 (open); clamped.
-         *  @param dt_ms actual ms since the last call - this is what the
-         *         position estimate integrates, so a late scan must not be
-         *         handed the nominal period. */
+         *  @param dt_ms actual ms since the last call - the estimate integrates
+         *         it, so a late scan must not be handed the nominal period. */
         void step(float target, const ActuatorConfig& cfg, uint32_t dt_ms);
 
         /** @brief Drop both coils and abandon the stroke. The estimate stands. */
@@ -164,13 +143,12 @@ namespace Botanik { namespace Plc {
          *  open_cmd(). */
         bool close_cmd() const { return _close; }
 
-        /** @brief Forget the position: the next command datums again. What to
-         *  call when something says the actuator moved without us (a manual
-         *  crank, a hand/off/auto switch coming back to auto). */
+        /** @brief Forget the position, so the next command datums again: a
+         *  manual crank, hand/off/auto coming back to auto. */
         void home();
 
-        /** @brief Declare the position known and equal to @p pos, skipping the
-         *  datum stroke. Only when something else actually establishes it. */
+        /** @brief Declare the position known, skipping the datum stroke. Only
+         *  when something else actually establishes it. */
         void preset(float pos);
 
         /** @} */

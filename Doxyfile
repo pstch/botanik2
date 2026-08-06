@@ -29,6 +29,11 @@ FILE_PATTERNS          = *.h *.cpp *.c *.md *.dox
 RECURSIVE              = YES
 IMAGE_PATH             = images
 
+# Design notes: budgets, and designs for things not built yet. Kept in the repo
+# but deliberately out of the manual - a plan rendered beside the pages that
+# document real mechanisms reads as if it were one of them.
+EXCLUDE                = docs/design
+
 # Vendored toolchain/Mbed headers and build artifacts are not our code. The
 # doctest single header under tests/vendor is third-party too.
 EXCLUDE_PATTERNS       = */build/* \

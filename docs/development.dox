@@ -37,8 +37,6 @@ work has gone.
   self-instrumented metrics.
 - @subpage dev_scan - the scan cycle: rate against phase, what a program is
   guaranteed to see, and where the field bus commits and collects.
-- @subpage dev_tasks - what the beat costs: every task's estimated cycle budget,
-  and which spikes are worth bounding.
 - @subpage dev_vars - the variable model: descriptors, value slots, the sink, and
   where overrides are applied.
 
@@ -61,8 +59,6 @@ a 4800-baud link and every byte is budgeted.
 - @subpage dev_health - the power-on self-test, the platform alarms, and the
   watchdog verdict.
 - @subpage dev_network - the optional config-driven network stack.
-- @subpage dev_modbus - the field bus: what a transaction costs, the poll-group
-  budget, and why single-register reads are not an option.
 
 @section dev_platform Platform
 
