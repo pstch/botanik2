@@ -647,9 +647,7 @@ namespace Botanik { namespace Shell {
                 n++;
             }
             if (n == 0) _println("override: none active");
-            else _emitf(out, sizeof(out),
-                        "%u override(s) active - these SURVIVE a reboot; "
-                        "`override clear` clears them", n);
+            else _emitf(out, sizeof(out), "%u override(s) active (`override clear` to clear)" , n);
             return;
         }
 

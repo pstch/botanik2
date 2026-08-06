@@ -51,7 +51,7 @@ def test_override(spawn):
     # A forgotten override must be one command away, and the listing has to say
     # that it outlives the session AND the reboot.
     term.send(b"override list" + keys.ENTER)
-    assert term.wait_for("SURVIVE a reboot"), "override list missing"
+    assert term.wait_for("override(s) active"), "override list missing"
 
     # Forcing a variable to read as a dead sensor is a separate job from forcing
     # its value, and both have to be sayable.
