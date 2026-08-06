@@ -768,6 +768,27 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, MODBUS_TCP_ACK_COIL_BASE);
 
+    /** @brief How long the MASTER waits for a connect before starting over.
+     *  Short: the peer is a PLC on the same plant network, not a name to
+     *  resolve, and a connect that has not completed in a second is not going
+     *  to. */
+#ifndef BOTANIK_MODBUS_TCP_CONNECT_TIMEOUT_MS
+#  define BOTANIK_MODBUS_TCP_CONNECT_TIMEOUT_MS 1000
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_TCP_CONNECT_TIMEOUT_MS);
+
+    /** @brief How long the MASTER waits for an answer before giving up on the
+     *  connection.
+     *
+     *  The connection, not just the transaction: a late answer would arrive
+     *  while the next request is in flight, and the transaction id only tells us
+     *  it is stale after it has been read. Starting clean is cheaper than
+     *  reasoning about a stream that is out of step. */
+#ifndef BOTANIK_MODBUS_TCP_RESPONSE_TIMEOUT_MS
+#  define BOTANIK_MODBUS_TCP_RESPONSE_TIMEOUT_MS 1000
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_TCP_RESPONSE_TIMEOUT_MS);
+
     /** @brief Connections accepted per beat. One: accepting is cheap, but the
      *  beat is the budget and a burst of them belongs spread over beats. */
 #ifndef BOTANIK_MODBUS_TCP_ACCEPT_PER_STEP

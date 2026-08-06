@@ -55,6 +55,7 @@
     X(PLC_BLK_BASE)       \
     X(PLC_BLK_FILTERS)    \
     X(MODBUS_TCP_SERVER)  \
+    X(MODBUS_TCP_CLIENT)  \
     X(MODBUS_RTU_CLIENT)
 
 // Defaults
@@ -200,6 +201,14 @@
 #endif
 
 /** @brief Modbus RTU master, filling the process image from the field. */
+/** @brief Modbus TCP master: this unit polling ANOTHER device over Ethernet.
+ *  The simulator's counterpart to the slave, and equally a way for a site to
+ *  read a second PLC.
+ *  @note Requires BOTANIK_FEATURE_NETWORK */
+#ifndef BOTANIK_FEATURE_MODBUS_TCP_CLIENT
+#  define BOTANIK_FEATURE_MODBUS_TCP_CLIENT 0
+#endif
+
 #ifndef BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 #  define BOTANIK_FEATURE_MODBUS_RTU_CLIENT 0
 #endif
@@ -266,6 +275,9 @@
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER && !BOTANIK_FEATURE_PLC_SCAN
 #  error "BOTANIK_FEATURE_MODBUS_TCP_SERVER requires BOTANIK_FEATURE_PLC_SCAN"
+#endif
+#if BOTANIK_FEATURE_MODBUS_TCP_CLIENT && !BOTANIK_FEATURE_NETWORK
+#  error "BOTANIK_FEATURE_MODBUS_TCP_CLIENT requires BOTANIK_FEATURE_NETWORK"
 #endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT && !BOTANIK_FEATURE_PLC_SCAN
 #  error "BOTANIK_FEATURE_MODBUS_RTU_CLIENT requires BOTANIK_FEATURE_PLC_SCAN"

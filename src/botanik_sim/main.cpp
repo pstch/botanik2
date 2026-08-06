@@ -20,6 +20,7 @@
 #include BOTANIK_SITE_HEADER            // BotanikSite + Site::simulate
 
 #if BOTANIK_FEATURE_NETWORK
+#include "botanik_sim/mbcheck.h"        // the Modbus TCP self-check (sim-only scaffolding)
 #include "botanik_sim/network.h"        // the in-process mock NTP/MQTT responder (loopback)
 #endif
 
@@ -105,6 +106,14 @@ int main(int argc, char** argv) {
     Scheduler::make_thread_realtime((int)HAL::Env::u32("BOTANIK_SIM_CPU", 0),
                                     &greenhouse.logger());
 
+#if BOTANIK_FEATURE_MODBUS_TCP_CLIENT
+    // A master pointed at our own slave: it reads a parameter, writes it
+    // something else, reads it back and says so. Nothing is mocked - a real
+    // socket, the real map, the real Bank::set() - so it is the answer to
+    // "does the slave actually serve?", asked every time the sim runs.
+    Sim::ModbusCheck modbus_check(&greenhouse.io(), &greenhouse.logger());
+#endif
+
 
     // Drive the firmware until a shutdown signal flips the run flag. SIGUSR1
     // (sent by a build after relinking) re-execs at this safe point between
@@ -115,6 +124,11 @@ int main(int argc, char** argv) {
         // struct, then run the beat that reads it.
         Site::simulate(greenhouse.io(), (uint32_t)HAL::Clock::uptime_ms());
         greenhouse.loop();
+#if BOTANIK_FEATURE_MODBUS_TCP_CLIENT
+        // After the beat: the answers it reads are the ones the beat just
+        // published, which is the whole point of the slave's two-phase split.
+        modbus_check.step(HAL::Clock::uptime_ms());
+#endif
         if (botanik_reexec) HAL::System::reset();
     }
 

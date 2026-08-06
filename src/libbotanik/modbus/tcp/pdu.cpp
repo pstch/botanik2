@@ -12,7 +12,7 @@
 
 #include <cstring>                    // memcpy - copying a read payload into the response
 
-#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER || BOTANIK_FEATURE_MODBUS_TCP_CLIENT
 
 namespace Botanik { namespace Modbus {
 
@@ -158,6 +158,94 @@ namespace Botanik { namespace Modbus {
         return total;
     }
 
+    // The master's half
+    // ------------------------------------------------------------------------
+
+    size_t encode_read_request(uint8_t* buf, size_t cap, const Mbap& m,
+                               uint8_t fc, uint16_t addr, uint16_t qty) {
+        const size_t total = MBAP_LEN + 5;
+        if (buf == 0 || cap < total) return 0;
+        // Refused here rather than sent: a quantity past the protocol's ceiling
+        // has an undefined answer, and the failure would arrive looking like a
+        // bad connection.
+        if (qty < 1 || qty > max_quantity(fc)) return 0;
+        put_mbap(buf, m, 5);
+        buf[7] = fc;
+        wr16(buf + 8, addr);
+        wr16(buf + 10, qty);
+        return total;
+    }
+
+    size_t encode_write_request(uint8_t* buf, size_t cap, const Mbap& m,
+                                uint16_t addr, uint16_t qty,
+                                const uint8_t* data) {
+        const size_t bytes = (size_t)qty * 2;
+        const size_t total = MBAP_LEN + 6 + bytes;
+        if (buf == 0 || data == 0 || cap < total) return 0;
+        if (qty < 1 || qty > max_quantity(FC_WRITE_REGISTERS)) return 0;
+        put_mbap(buf, m, 6 + bytes);
+        buf[7] = FC_WRITE_REGISTERS;
+        wr16(buf + 8, addr);
+        wr16(buf + 10, qty);
+        buf[12] = (uint8_t)bytes;
+        memcpy(buf + 13, data, bytes);
+        return total;
+    }
+
+    Error decode_response(const uint8_t* buf, size_t len, const Expect& e,
+                          uint16_t txn, Response* out, size_t* consumed) {
+        if (buf == 0 || out == 0 || consumed == 0) return ERR_CAPACITY;
+        *out = Response();
+        *consumed = 0;
+        if (len < MBAP_LEN) return ERR_SHORT;
+
+        if (rd16(buf + 2) != 0) return ERR_FC;            // not Modbus TCP
+        const uint16_t mlen = rd16(buf + 4);
+        if (mlen < 2 || mlen > (uint16_t)(1 + PDU_MAX)) return ERR_FC;
+        const size_t total = (MBAP_LEN - 1) + mlen;       // the length counts the unit
+        if (len < total) return ERR_SHORT;
+        *consumed = total;
+
+        // Whose answer is this? The transaction id first: a reply to a request we
+        // have already given up on is not this request's answer, however well it
+        // matches otherwise.
+        if (rd16(buf + 0) != txn) return ERR_ECHO;
+        out->unit = buf[6];
+        if (out->unit != e.unit) return ERR_UNIT;
+
+        const uint8_t raw_fc = buf[7];
+        out->fc = (uint8_t)(raw_fc & (uint8_t)~EX_BIT);
+        if (out->fc != e.fc) return ERR_FC;
+
+        if ((raw_fc & EX_BIT) != 0) {
+            if (mlen != 3) return ERR_SHORT;
+            out->ex = (Exception)buf[8];
+            return ERR_EXCEPTION;
+        }
+
+        if (is_read(e.fc)) {
+            const uint16_t want = read_payload(e.fc, e.qty);
+            if (want == 0) return ERR_COUNT;
+            if (mlen < 3) return ERR_SHORT;
+            if (buf[8] != (uint8_t)want) return ERR_COUNT;
+            if (mlen != (uint16_t)(3 + want)) return ERR_SHORT;
+            out->data = buf + 9;
+            out->len  = want;
+            return ERR_OK;
+        }
+
+        // Every write echoes its own header back.
+        if (!is_supported(e.fc)) return ERR_FC;
+        if (mlen != 6) return ERR_SHORT;
+        if (rd16(buf + 8) != e.addr) return ERR_ECHO;
+        if (e.fc == FC_WRITE_COILS || e.fc == FC_WRITE_REGISTERS) {
+            if (rd16(buf + 10) != e.qty) return ERR_ECHO;
+        }
+        out->data = buf + 8;
+        out->len  = 4;
+        return ERR_OK;
+    }
+
 }}  // namespace Botanik::Modbus
 
-#endif // BOTANIK_FEATURE_MODBUS_TCP_SERVER
+#endif // BOTANIK_FEATURE_MODBUS_TCP_SERVER || BOTANIK_FEATURE_MODBUS_TCP_CLIENT

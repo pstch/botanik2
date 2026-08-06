@@ -66,6 +66,11 @@
 #  ifndef BOTANIK_FEATURE_MODBUS_TCP_SERVER
 #    define BOTANIK_FEATURE_MODBUS_TCP_SERVER 1
 #  endif
+// The master is the simulator's counterpart to the slave: on hardware it is
+// simply unused, and on the sim it is what proves the slave serves.
+#  ifndef BOTANIK_FEATURE_MODBUS_TCP_CLIENT
+#    define BOTANIK_FEATURE_MODBUS_TCP_CLIENT 1
+#  endif
 #endif
 
 #ifndef BOTANIK_FEATURE_PLC_BLK_BASE

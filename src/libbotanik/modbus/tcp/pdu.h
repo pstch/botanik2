@@ -33,7 +33,7 @@
 
 #include "libbotanik/modbus/wire.h"   // Fc / Exception / the frame arithmetic both transports share
 
-#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER || BOTANIK_FEATURE_MODBUS_TCP_CLIENT
 
 namespace Botanik { namespace Modbus {
 
@@ -112,6 +112,46 @@ namespace Botanik { namespace Modbus {
     size_t encode_echo(uint8_t* buf, size_t cap, const Mbap& m, uint8_t fc,
                        uint16_t a, uint16_t b);
 
+    /** @}
+     *  @name The master's half
+     *
+     *  A slave frames requests IN and answers OUT; a master does the mirror
+     *  image. Both live here because both are MBAP, and MBAP is the only thing
+     *  that differs from the RTU client - which is why what comes back is
+     *  wire.h's Response and wire.h's Error, the same types that half parses
+     *  into.
+     *  @{ */
+
+    /** @brief Frame a read request (FC01-04): @p qty items from @p addr. */
+    size_t encode_read_request(uint8_t* buf, size_t cap, const Mbap& m,
+                               uint8_t fc, uint16_t addr, uint16_t qty);
+
+    /** @brief Frame an FC16 write of @p qty registers from @p data (which is
+     *  already big-endian register bytes, as the map produces them). */
+    size_t encode_write_request(uint8_t* buf, size_t cap, const Mbap& m,
+                                uint16_t addr, uint16_t qty,
+                                const uint8_t* data);
+
+    /**
+     * @brief Check a response against the request that earned it.
+     *
+     * Checked in the order that yields the most useful diagnosis, the same order
+     * the RTU parser uses (codec.h): the frame's own shape, then who answered,
+     * then what they answered about, then whether it matches what was asked. The
+     * only step missing is the checksum, because TCP already carried one.
+     *
+     * @param txn       the transaction id that was sent; a reply carrying
+     *                  another one is an answer to a question we have stopped
+     *                  waiting for, not an answer to this one
+     * @param consumed  set on any terminal result, so the caller can shift a
+     *                  stale frame out of its buffer and keep reading
+     * @return ERR_OK, ERR_EXCEPTION when the slave refused (a RESULT: the frame
+     *         was well formed and the device is alive), ERR_SHORT when the frame
+     *         is not all there yet, or the specific mismatch.
+     */
+    Error decode_response(const uint8_t* buf, size_t len, const Expect& e,
+                          uint16_t txn, Response* out, size_t* consumed);
+
     /** @} */
 
     /** @name MBAP helpers
@@ -132,6 +172,6 @@ namespace Botanik { namespace Modbus {
 
 }}  // namespace Botanik::Modbus
 
-#endif // BOTANIK_FEATURE_MODBUS_TCP_SERVER
+#endif // BOTANIK_FEATURE_MODBUS_TCP_SERVER || BOTANIK_FEATURE_MODBUS_TCP_CLIENT
 
 #endif // MODBUS_TCP_PDU_H

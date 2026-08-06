@@ -101,6 +101,34 @@ back. The HAL work is already done - the sim shifts privileged ports up by 10000
 and does not divert a connect aimed at a port this process serves, so a master in
 the same process reaches the slave for real.
 
+**Done.** `modbus/tcp/master.{h,cpp}` is a `TcpMaster` in the same shape as
+everything else here - connect, send, poll, time out, one transaction in flight -
+behind its own `MODBUS_TCP_CLIENT` flag, because a site polling a second PLC
+wants the same object. It shares the RTU half's vocabulary rather than restating
+it: `decode_response()` fills wire.h's `Response`, reports wire.h's `Error`, and
+checks the answer against wire.h's `Expect` in the same order the RTU parser
+does. Only the framing differs, which is the whole claim the directory split
+makes.
+
+`botanik_sim/mbcheck.h` points one at our own slave at boot and runs a
+self-checking round trip - read a parameter, write it something else, read it
+back, compare, put it back - so it needs no golden and cannot pass by
+coincidence. It prints:
+
+    [modbus self-check] ok: read 3600, wrote 1234, read back 1234
+
+Two things that cost real time and are worth not rediscovering:
+
+- **Stamp a transaction when it STARTS.** The first version stamped it with the
+  time the connection went ready, so every request arrived already past its
+  deadline and timed out instantly.
+- **The sim's log sinks are baud-paced and drop entries during the boot burst.**
+  The check's verdict vanished three times running - including at CRITICAL - while
+  the code was correct all along. A self-check's verdict goes to stderr as well
+  as the log: a dropped verdict reads exactly like a check that never ran. This
+  also means the sim's log is lossy generally, which is worth knowing before
+  trusting it to prove anything else.
+
 ## 5. Modbus RTU slaves in the simulator
 
 `rtu/slave.{h,cpp}`, several instances, one per simulated field device. This is
