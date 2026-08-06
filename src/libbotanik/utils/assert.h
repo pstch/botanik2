@@ -10,53 +10,32 @@
  *  DEBUG is defined. It logs a CRITICAL entry under the ASSERT topic, then :
  *   - if there is a debugger, traps into the attached debugger
  *   - if we are on the simulator, abort()s on the simulator
- *   - otherwise, just keeps running. */
-
-#include <cstdlib>                      // abort
-
-#include "libbotanik/hal/platform.h"    // HAL::Debug::breakpoint / under_debugger
-#include "libbotanik/logs/logger.h"     // Logs::Logger
-
-// Assertion handling (and logging)
-// ===========================================================================
+ *   - otherwise, just keeps running.
+ *
+ *  @section assert_deps Why this header includes nothing
+ *
+ *  An assertion is the one thing any file may want, so this header must cost
+ *  its includers nothing. Logs::Logger is only forward-declared and
+ *  assert_fail()'s body lives in assert.cpp, the one TU that pulls the full
+ *  Logger and the HAL - the same arrangement core/component.h uses, and for the
+ *  same reason. Including logger.h here dragged the logging subsystem (and
+ *  through it core/ and tasks/) into every file that asserts, which is also why
+ *  hal/ still falls back to plain assert(): it sits below the logger and could
+ *  not afford the include. */
 
 namespace Botanik {
 
-    /** @brief Get the global assertion logger. */
-    inline Logs::Logger*& get_assert_logger() {
-        static Logs::Logger* logger = nullptr;
-        return logger;
-    }
+    namespace Logs { class Logger; }
 
-    /** @brief Set the global assertion logger.  */
-    inline void set_assert_logger(Logs::Logger* logger) {
-        get_assert_logger() = logger;
-    }
+    /** @brief Route assertion failures to @p logger (null disables logging).
+     *  Called once during firmware setup. */
+    void set_assert_logger(Logs::Logger* logger);
+
+    /** @brief The logger assertion failures are routed to, or null. */
+    Logs::Logger* get_assert_logger();
 
     /** @brief Assertion-failure handler (see BOTANIK_ASSERT). */
-    inline void assert_fail(const char* expr, const char* file, int line) {
-        // Get the assertion logger
-        Logs::Logger* logger = get_assert_logger();
-
-        // Log a message if we have a logger
-        if (logger != nullptr)
-            logger->critical(Logs::ASSERT, "assertion failed:\n%s (%s:%d)",
-                             expr, file, line);
-
-        // Break for the debugger.
-        if (HAL::Debug::under_debugger()) {
-            HAL::Debug::breakpoint();
-            return;
-        }
-
-        // If on the simulator, abort the program.
-#ifdef TARGET_SIMULATOR
-        abort();
-#endif
-
-        // If on hardware, keep running.
-        return;
-    }
+    void assert_fail(const char* expr, const char* file, int line);
 
 }
 
