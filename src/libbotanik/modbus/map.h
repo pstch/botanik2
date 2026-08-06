@@ -118,6 +118,12 @@ namespace Botanik { namespace Modbus {
         /** @brief Whether a row publishes at all: a parameter, a status value or
          *  an alarm, carrying a non-zero register. */
         static bool published(const Vars::Variable& d);
+        /** @brief The row holding register @p reg. @p found (optional) says
+         *  whether there is one; without it, an unmapped register reads as the
+         *  inert row, whose name is null. Used by the server for the windows the
+         *  map does not own itself - the ack block, which needs the alarm model
+         *  rather than the bank. */
+        Vars::Var row_at(uint16_t reg, bool* found = nullptr) const;
 
         /** @} */
 

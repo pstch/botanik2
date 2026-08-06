@@ -26,6 +26,26 @@
  * seconds. What it buys is that no request is ever answered from a half-updated
  * image: nothing writes the bank between the output phase and the encode.
  *
+ * @section server_ack The acknowledgement block
+ *
+ * An alarm is published as a READ-ONLY coil at its row number (map.h): forcing
+ * one by hand is an override, which is the console's job. But acknowledging one
+ * is the interaction an operator actually performs at a SCADA station, and it is
+ * a write. It gets a block of its own at `MODBUS_ACK_COIL_BASE + reg` rather
+ * than a second meaning on the alarm's own bit:
+ *
+ *  - FC01 there reads the condition's `user_ack`, which clears itself on the
+ *    next fresh ON edge, exactly as the ALARMS page shows it;
+ *  - FC05 with 0xFF00 acks that condition - the same `AlarmController::ack()`
+ *    the `a` key and `alarms ack` call;
+ *  - FC05 at the BASE address acks every active condition. `reg == 0` is never
+ *    assigned to a row, so the base is free and means "the lot";
+ *  - FC05 with 0x0000 is refused: un-acknowledging is not something the model
+ *    can express, and quietly ignoring it would look like it worked.
+ *
+ * The block exists only when the server was given an `AlarmController`, and it
+ * is gated on `mb_write_enable` like any other write, because it is one.
+ *
  * @section server_bounded Bounded per beat
  *
  * Like every task: at most `MODBUS_ACCEPT_PER_STEP` accepts, ONE request decoded
@@ -38,6 +58,7 @@
 
 #include "libbotanik_config.h"        // Config::MODBUS_* - port, slots, timeouts
 
+#include "libbotanik/alarms/alarms.h" // Alarms::AlarmController - the ack block's target
 #include "libbotanik/core/component.h" // Component - the config-driven lifecycle
 #include "libbotanik/hal/net.h"       // HAL::Network - listener and connection sockets
 #include "libbotanik/modbus/map.h"    // Modbus::Map - what an address means
@@ -103,6 +124,9 @@ namespace Botanik { namespace Modbus {
          *  @{ */
 
         Vars::Bank*   _io;                 ///< the process image, and the config source
+        /** @brief The alarm model, for the ack block. Borrowed and optional
+         *  (HealthMonitor owns it); null leaves the whole block unmapped. */
+        Alarms::AlarmController* _alarms;
         Map           _map;
         ServerContext _ctx;
         HAL::Network::TcpSocket _listener = -1;
@@ -114,7 +138,8 @@ namespace Botanik { namespace Modbus {
         /** @} */
 
     public:
-        TcpServer(Vars::Bank* io, Logs::Logger* logger = nullptr);
+        TcpServer(Vars::Bank* io, Logs::Logger* logger = nullptr,
+                  Alarms::AlarmController* alarms = nullptr);
 
         /** @name Per-beat entry points
          *  @{ */
@@ -161,6 +186,15 @@ namespace Botanik { namespace Modbus {
         /** @brief Apply a decoded write and frame its answer (input phase). */
         void _answer_write(Conn& c, const Request& r);
         void _refuse(Conn& c, const Request& r, Exception ex);
+        /** @brief Whether @p addr falls in the acknowledgement block. */
+        static bool _is_ack(uint16_t addr) {
+            return addr >= Config::MODBUS_ACK_COIL_BASE;
+        }
+        /** @brief The condition at ack-block address @p addr, or -1. */
+        int  _ack_index(uint16_t addr) const;
+        Exception _read_ack(uint16_t addr, uint16_t count, uint8_t* out, size_t cap) const;
+        Exception _write_ack(uint16_t addr, bool on,
+                             const HAL::Network::Ip4& peer);
         void _flush(Conn& c);
         void _drop(Conn& c, const char* why);
         void _reap(uint64_t now_ms);

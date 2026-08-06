@@ -30,8 +30,9 @@ namespace Botanik { namespace Modbus {
         }
     }  // namespace
 
-    TcpServer::TcpServer(Bank* io, Logs::Logger* logger)
-        : Component(logger, "Modbus"), _io(io), _map(io) {}
+    TcpServer::TcpServer(Bank* io, Logs::Logger* logger,
+                         Alarms::AlarmController* alarms)
+        : Component(logger, "Modbus"), _io(io), _alarms(alarms), _map(io) {}
 
     // Lifecycle
     // ------------------------------------------------------------------------
@@ -213,7 +214,8 @@ namespace Botanik { namespace Modbus {
                 ex = _map.write_registers(r.addr, r.count, r.data, _io, &committed);
                 break;
             case FC_WRITE_COIL:
-                ex = _map.write_bit(r.addr, r.value == 0xFF00, _io, &committed);
+                if (_is_ack(r.addr)) ex = _write_ack(r.addr, r.value == 0xFF00, c.peer);
+                else ex = _map.write_bit(r.addr, r.value == 0xFF00, _io, &committed);
                 break;
             case FC_WRITE_COILS:
                 // A run of coils would be a run of boolean parameters, which no
@@ -239,6 +241,67 @@ namespace Botanik { namespace Modbus {
                                           r.addr, echo);
         c.tx_sent = 0;
         c.pending = PEND_BYTES;
+    }
+
+    // The acknowledgement block
+    // ------------------------------------------------------------------------
+
+    int TcpServer::_ack_index(uint16_t addr) const {
+        if (_alarms == nullptr) return -1;
+        const uint16_t reg = (uint16_t)(addr - Config::MODBUS_ACK_COIL_BASE);
+        bool found = false;
+        const Var v = _map.row_at(reg, &found);
+        // An alarm and nothing else: the block is the alarm model's, so a
+        // parameter's register appearing in it would be a coincidence of
+        // arithmetic rather than an address anybody published.
+        if (!found || v.meta()->scope != SCOPE_A) return -1;
+        return _alarms->index_of(v.name());
+    }
+
+    Exception TcpServer::_read_ack(uint16_t addr, uint16_t count,
+                                   uint8_t* out, size_t cap) const {
+        if (_alarms == nullptr) return EX_ILLEGAL_ADDRESS;
+        if (cap < bit_bytes(count)) return EX_SERVER_FAILURE;
+        for (uint16_t i = 0; i < bit_bytes(count); i++) out[i] = 0;
+        for (uint16_t i = 0; i < count; i++) {
+            const int k = _ack_index((uint16_t)(addr + i));
+            // The base address, and any register with no alarm on it, read 0 -
+            // the same "a gap reads as zero" the register map gives, so a master
+            // can poll the block as one round run.
+            if (k < 0) continue;
+            put_bit(out, i, _alarms->condition((uint8_t)k).user_ack);
+        }
+        return EX_NONE;
+    }
+
+    Exception TcpServer::_write_ack(uint16_t addr, bool on,
+                                    const Net::Ip4& peer) {
+        if (_alarms == nullptr) return EX_ILLEGAL_ADDRESS;
+        // Un-acknowledging is not in the model, and silently ignoring the write
+        // would look to the master exactly like it had worked.
+        if (!on) return EX_ILLEGAL_VALUE;
+
+        if (addr == Config::MODBUS_ACK_COIL_BASE) {
+            const uint8_t n = _alarms->ack_all();
+            if (n > 0 && _logger != nullptr) {
+                char ip[16];
+                _logger->notice(Logs::STATUS, "modbus %s: acknowledged %u alarm(s)",
+                                peer_str(peer, ip, sizeof(ip)), (unsigned)n);
+            }
+            return EX_NONE;
+        }
+        const int k = _ack_index(addr);
+        if (k < 0) return EX_ILLEGAL_ADDRESS;
+        const char* name = _alarms->condition((uint8_t)k).name;
+        // ack() refuses a condition that is not active. That is not an error to
+        // report: a SCADA's "acknowledge all" button reaches every coil in the
+        // block, and most of them are quiet.
+        if (_alarms->ack(name) && _logger != nullptr) {
+            char ip[16];
+            _logger->notice(Logs::STATUS, "modbus %s: acknowledged %s",
+                            peer_str(peer, ip, sizeof(ip)), name);
+        }
+        return EX_NONE;
     }
 
     void TcpServer::_refuse(Conn& c, const Request& r, Exception ex) {
@@ -280,10 +343,16 @@ namespace Botanik { namespace Modbus {
                 const uint16_t bytes = bit_bytes(r.count);
                 if (bytes > sizeof(payload)) { ex = EX_ILLEGAL_VALUE; break; }
                 n  = (uint8_t)bytes;
-                ex = _map.read_bits(r.addr, r.count,
-                                    (r.fc == FC_READ_COILS) ? BITS_VALUE
-                                                            : BITS_QUALITY,
-                                    payload, sizeof(payload));
+                // Only the coil table has an ack block. FC02 there falls through
+                // to the map, which refuses it: a discrete input is quality, and
+                // an acknowledgement is not a quality.
+                if (r.fc == FC_READ_COILS && _is_ack(r.addr))
+                    ex = _read_ack(r.addr, r.count, payload, sizeof(payload));
+                else
+                    ex = _map.read_bits(r.addr, r.count,
+                                        (r.fc == FC_READ_COILS) ? BITS_VALUE
+                                                                : BITS_QUALITY,
+                                        payload, sizeof(payload));
                 break;
             }
             default:

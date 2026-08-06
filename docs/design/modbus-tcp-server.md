@@ -123,6 +123,8 @@ rather than a meaning overloaded onto the alarm's own bit, at
 | FC05 write 1 | `AlarmController::ack(name)` | same call the `a` key on the ALARMS page and `alarms ack` make |
 | FC05 write 0 | refused, `03 ILLEGAL DATA VALUE` | un-acknowledging is not a thing the model has |
 | FC05 write 1 at `0x1000` exactly | `ack_all()` | `reg == 0` is never assigned (the site test forbids it), so the base address is free and means "the lot" |
+| FC01 read of a gap in the block | 0 | a register with no alarm on it reads as zero, so the block polls as one round run |
+| FC02 anywhere in the block | `02` | a discrete input is quality, and an acknowledgement is not a quality |
 
 The block is mapped only for `SCOPE_A` rows, and only when the server was given
 an `AlarmController` (it lives in `HealthMonitor`; a borrowed pointer, null in a
@@ -365,7 +367,9 @@ Each step builds and leaves the gate green:
    (registers 80..83). `tcp_peer()` joined the HAL so a commit can be logged
    against the master that made it. Not yet registered as tasks - that is the
    wiring step, and nothing instantiates the server until then.
-6. The ack coil block, once the alarm rows and the map are both real.
+6. **Done.** The ack coil block, in the server rather than the map: it needs the
+   alarm model, and map.h is deliberately bank-only. `Map::row_at()` is the one
+   thing the map lends it.
 7. The simulator's Modbus TCP master, which is how all of the above is tested.
 8. `tools/varmap` + the CMake rule + `scripts/varmap_pdf.py`.
 9. Wiring: the stack, the site config, the `modbus` command, the context,

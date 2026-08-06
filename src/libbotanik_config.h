@@ -757,6 +757,17 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, MODBUS_IDLE_TIMEOUT_MS);
 
+    /** @brief First coil of the acknowledgement block: acking alarm `reg` is a
+     *  write to `MODBUS_ACK_COIL_BASE + reg`, and the base itself acks the lot.
+     *
+     *  Its own block rather than a meaning overloaded onto the alarm's own coil:
+     *  an alarm is published read-only, and an ack is a write. 0x1000 is well
+     *  clear of the row numbers (the library reserves up to 999). */
+#ifndef BOTANIK_MODBUS_ACK_COIL_BASE
+#  define BOTANIK_MODBUS_ACK_COIL_BASE 0x1000
+#endif
+    BOTANIK_CFG(uint16_t, MODBUS_ACK_COIL_BASE);
+
     /** @brief Connections accepted per beat. One: accepting is cheap, but the
      *  beat is the budget and a burst of them belongs spread over beats. */
 #ifndef BOTANIK_MODBUS_ACCEPT_PER_STEP
