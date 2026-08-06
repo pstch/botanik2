@@ -8,13 +8,14 @@
  *        live log output.
  */
 
-#include "../../libbotanik_config.h"
-#include "page.h"
-#include "scrollback.h"
-#include "../logs/writer.h"
-#include "../console/console.h"
-#include "../console/editor.h"
-#include "../shell/shell.h"
+#include "libbotanik_config.h"        // BOTANIK_FEATURE_SHELL_PAGE - the gate this header sits behind
+
+#include "libbotanik/console/console.h" // Console::rows / terminal - the content area to paint
+#include "libbotanik/console/editor.h" // Terminal::TextEditor - the bottom-anchored prompt
+#include "libbotanik/logs/writer.h"   // Logs::BufferedLogWriter - the `logs` built-in's source
+#include "libbotanik/pages/page.h"    // Pages::Page - the interface this page implements
+#include "libbotanik/pages/scrollback.h" // Pages::ShellScrollback - the command/output transcript
+#include "libbotanik/shell/shell.h"   // Shell::CommandShell - the interpreter this page owns
 
 namespace Botanik { namespace Pages {
 

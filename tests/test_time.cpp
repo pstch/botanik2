@@ -9,12 +9,11 @@
  * decode back to the same @c unixSeconds it reports, cross-checked against an
  * independent implementation of Howard Hinnant's date algorithm.
  */
-#include <cstddef>
-#include <cstdint>
+#include <cstdint>                    // int64_t/uint64_t - the ms arithmetic and CalendarTime fields
 
-#include "doctest.h"
+#include "libbotanik/utils/time.h"    // Utils::CalendarTime + the uptime/wall conversions - under test
 
-#include "libbotanik/utils/time.h"
+#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
 
 using namespace Botanik::Utils;
 

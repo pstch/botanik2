@@ -8,10 +8,11 @@
  *        MoveDirection types shared across the terminal layer.
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint8_t/uint16_t - row/col coordinates and attribute bits
 
-#include "../../libbotanik_config.h"   // Config::TERMINAL_TYPE
-#include "../utils/byte_sink.h"
+#include "libbotanik_config.h"        // Config::TERMINAL_TYPE - which VT dialect to emit
+
+#include "libbotanik/utils/byte_sink.h" // Utils::ByteSink - where the escape bytes are written
 
 
 namespace Botanik { namespace Terminal { namespace Ansi {

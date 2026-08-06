@@ -13,9 +13,9 @@
  * an interface handle.
  */
 
-#include <cstddef>
-#include <cstdint>
-#include <cstdio>
+#include <cstddef>                    // size_t - the packet buffer lengths
+#include <cstdint>                    // uint8_t/uint16_t/uint32_t - Ip4 octets, ports, handles
+#include <cstdio>                     // snprintf - Ip4::to_string renders the dotted quad
 
 namespace Botanik { namespace HAL { namespace Network {
 

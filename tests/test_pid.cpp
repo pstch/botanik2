@@ -3,9 +3,9 @@
  * @brief The PID regulator (scan/blocks/pid.h). Driven by an explicit dt, so
  *        the loop runs as fast as the test wants and needs no clock.
  */
-#include "doctest.h"
+#include "libbotanik/plc/blocks/pid.h" // Plc::Pid / PidTuning - under test
 
-#include "libbotanik/plc/blocks/pid.h"
+#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
 
 // Compiles to an empty TU when the blocks are off - the namespace
 // itself is gated, so this must sit ABOVE the using-directive.

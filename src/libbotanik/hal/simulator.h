@@ -13,21 +13,23 @@
  */
 
 // assert() - HAL sits below the logger, so it can't use BOTANIK_ASSERT
-#include <cassert>
-#include <cstdint>
-#include <chrono>
-#include <cstring>
-#include <cstdlib>
-#include <type_traits>
-#include <csignal>
-#include <atomic>
-#include <unistd.h>
-#include <fcntl.h>
-#include <limits.h>   // PATH_MAX - reset() re-execs the resolved exe path
-#include <stdio.h>
-#include <sys/ioctl.h>
-#include <termios.h>
-#include <pthread.h>
+#include <atomic>                     // std::atomic_thread_fence - backs HAL::Memory::dsb/dmb
+#include <cassert>                    // assert - the debug-build guards in the inline bodies
+#include <chrono>                     // std::chrono - steady_clock behind current_ms/uptime_ms
+#include <csignal>                    // signal / SIGINT / SIGTERM - restore the tty on exit
+#include <cstdint>                    // uint8_t/uint64_t/uintptr_t - ms stamps, stack addresses
+#include <cstdlib>                    // exit / getenv - shutdown() and the sim's env knobs
+#include <cstring>                    // memcpy / strstr - ordered_copy, cmdline scanning
+#include <type_traits>                // std::is_empty - the ordered_copy/move static_asserts
+
+// POSIX - the simulator backend is Linux-hosted, so these are the real thing.
+#include <fcntl.h>                    // open / fcntl / O_NONBLOCK - non-blocking console fds
+#include <limits.h>                   // PATH_MAX - reset() re-execs the resolved exe path
+#include <pthread.h>                  // pthread_t - the sim's serial helper thread handle
+#include <stdio.h>                    // perror - reports a failed re-exec in reset()
+#include <sys/ioctl.h>                // ioctl / FIONREAD - bytes pending on the console fd
+#include <termios.h>                  // termios / tcgetattr / tcsetattr - raw-mode console
+#include <unistd.h>                   // read/write/close/isatty/readlink/usleep - the console + re-exec
 
 /** @name Signal handlers
  *  @{ */

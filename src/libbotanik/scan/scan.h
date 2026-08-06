@@ -34,11 +34,11 @@
  * Plc::Context::missed carries the dropped count for logic that wants to know.
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint8_t/uint64_t - program counts and activation stamps
 
-#include "../core/component.h"
-#include "../plc/program.h"
-#include "../vars/model.h"
+#include "libbotanik/core/component.h" // Component - the driver steps once per beat
+#include "libbotanik/plc/program.h"   // Plc::Program - the borrowed array the driver runs
+#include "libbotanik/vars/model.h"    // Vars::Bank - control authority gates the scan
 
 namespace Botanik { namespace Scan {
 

@@ -3,12 +3,12 @@
  * @brief The one value slot: round-trip per type, the write coercion, bounds,
  *        rendering and parsing.
  */
-#include <cstdint>
+#include <cstdint>                    // int64_t/uint64_t - the scalar union's integer arms
 
-#include "doctest.h"
+#include "libbotanik/utils/text.h"    // Utils::compare_str - comparing rendered output
+#include "libbotanik/vars/scalar.h"   // Vars::Scalar + format/parse - under test
 
-#include "libbotanik/utils/text.h"
-#include "libbotanik/vars/scalar.h"
+#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
 
 using namespace Botanik;
 using namespace Botanik::Vars;

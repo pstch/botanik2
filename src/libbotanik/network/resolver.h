@@ -13,11 +13,12 @@
  * a completed row stays as a cache entry for later resolve() calls.
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint8_t/uint32_t/uint64_t - cache slots, TTLs, handles
 
-#include "../hal/net.h"
-#include "../logs/logger.h"
-#include "../../libbotanik_config.h"
+#include "libbotanik_config.h"        // Config::MAX_DNS / DNS_CACHE - the cache and in-flight caps
+
+#include "libbotanik/hal/net.h"       // HAL::Network::dns_begin / dns_poll / Ip4 - the async resolver
+#include "libbotanik/logs/logger.h"   // Logs::Logger - reports a lookup that failed or timed out
 
 namespace Botanik { namespace Network {
 

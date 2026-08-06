@@ -6,9 +6,9 @@
  * @brief The PID regulator and its tuning.
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint32_t - the integral's elapsed-time accumulation
 
-#include "../../../libbotanik_config.h"
+#include "libbotanik_config.h"        // BOTANIK_FEATURE_PLC_BLK_BASE - the gate this whole header sits behind
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {

@@ -8,8 +8,9 @@
  *        implements.
  */
 
-#include <cstdint>
-#include "../console/parser.h"
+#include <cstdint>                    // uint16_t - the page's row/col geometry
+
+#include "libbotanik/console/parser.h" // Terminal::InputEvent / Command - what handle_*() receives
 
 namespace Botanik { namespace Pages {
     /** @brief Abstract interface for a terminal page (occupies the full

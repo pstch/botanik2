@@ -10,9 +10,9 @@
  * The reference is the core's own arm_hal_random.c.
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint32_t - the hook signatures' fixed-width arguments
 
-#include "mbed.h"
+#include "mbed.h"                     // the Mbed OS hooks overridden here (resolved from the core)
 
 extern "C" {
 

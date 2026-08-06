@@ -3,11 +3,11 @@
  * @brief Ewma / MedianOf3.
  */
 
-#include "filters.h"
+#include "libbotanik/plc/blocks/filters.h" // Ewma / MedianOf3 - implemented here
 
-#include "../functions/time.h"
+#include "libbotanik_config.h"        // BOTANIK_FEATURE_PLC_BLK_* - the gate the bodies below sit behind
 
-#include "../../../libbotanik_config.h"
+#include "libbotanik/plc/functions/time.h" // Plc::seconds - the EWMA time constant
 #if BOTANIK_FEATURE_PLC_BLK_FILTERS
 
 namespace Botanik { namespace Plc {

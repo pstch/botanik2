@@ -7,13 +7,13 @@
  *        its own coverage in test_sun.cpp; here we check the wiring: e7->deg
  *        conversion, "compute once valid", and recompute on a geo change.
  */
-#include <cstdint>
+#include <cstdint>                    // uint64_t - the wall-clock timestamps
 
-#include "doctest.h"
+#include "libbotanik/hal/platform.h"  // HAL::Clock::set_wall_ms - pins the clock for a deterministic run
+#include "libbotanik/sun/sun_tracker.h" // Sun::SunPositionTracker - under test
 
-#include "params_fixture.h"
-#include "libbotanik/sun/sun_tracker.h"
-#include "libbotanik/hal/platform.h"
+#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
+#include "params_fixture.h"           // the parameter bank the tracker reads latitude/longitude from
 
 #if BOTANIK_FEATURE_SUN_TRACKER
 

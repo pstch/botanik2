@@ -8,13 +8,13 @@
  * and a value, not a descriptor and a byte offset.
  */
 
-#include "scalar.h"
+#include "libbotanik/vars/scalar.h"   // Scalar + the read/write/render/parse implemented here
 
-#include <cstdlib>   // strtoll / strtoull / strtod
-#include <cstring>
-#include <cerrno>
+#include <cerrno>                     // errno - tells a strtod range error from a plain 0
+#include <cstdlib>                    // strtoll / strtoull / strtod - parse_scalar's conversions
+#include <cstring>                    // strlen - validate_str's length check
 
-#include "../utils/text.h"   // format_float / format_int
+#include "libbotanik/utils/text.h"    // Utils::format_float / format_int - format_scalar's output
 
 namespace Botanik { namespace Vars {
 

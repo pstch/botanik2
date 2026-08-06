@@ -3,11 +3,11 @@
  * @brief Integral / Derivative.
  */
 
-#include "meter.h"
+#include "libbotanik/plc/blocks/meter.h" // Integral / Derivative - implemented here
 
-#include "../functions/time.h"
+#include "libbotanik_config.h"        // BOTANIK_FEATURE_PLC_BLK_* - the gate the bodies below sit behind
 
-#include "../../../libbotanik_config.h"
+#include "libbotanik/plc/functions/time.h" // Plc::seconds - the integration and derivative windows
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {

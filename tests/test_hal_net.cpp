@@ -4,17 +4,17 @@
  *        hermetic: DNS is emulated and sockets refuse any non-loopback destination,
  *        so the suite stays offline and deterministic by construction.
  */
-#include <cstdint>
-#include <cstring>
+#include <cstdint>                    // uint8_t/uint16_t/uint64_t - Ip4 octets, ports, deadlines
 
-#include "doctest.h"
+#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
 
 // Pulls the site config, then the feature defaults: the guards below
 // need the flags DEFINED, and an undefined one reads as 0 in #if.
-#include "libbotanik_config.h"
-#include "libbotanik/hal/net.h"
+#include "libbotanik_config.h"        // Config::NET_* - the mock peer's addresses and timeouts
+
+#include "libbotanik/hal/net.h"       // HAL::Network - under test (against the hermetic backend)
 // HAL::Clock::sleep_ms / uptime_ms (poll the async DNS)
-#include "libbotanik/hal/platform.h"
+#include "libbotanik/hal/platform.h"  // HAL::Clock::uptime_ms / sleep_ms - pumping the async calls
 
 // Compiles to an empty TU when the feature is off (HAL::Network is the transport the network stack sits on),
 // contributing no CTest cases - the shape test_sun.cpp uses.

@@ -12,12 +12,12 @@
  * is authoritative. (The NTP client lives in network/ntp.h.)
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint8_t/uint32_t/uint64_t - state, IP octets, timeouts
 
-#include "../core/component.h"
-#include "libbotanik/vars/params.h"     // Vars::Bank + cfg_* name getters
-#include "../hal/net.h"
-#include "resolver.h"
+#include "libbotanik/core/component.h" // Component - re-applies its parameter group on a commit
+#include "libbotanik/hal/net.h"       // HAL::Network::Ip4 / link_ip - the transport underneath
+#include "libbotanik/network/resolver.h" // Network::NameResolver - handed the device once it is up
+#include "libbotanik/vars/params.h"   // Vars::Bank / get_str - the net_* configuration parameters
 
 namespace Botanik { namespace Network {
 

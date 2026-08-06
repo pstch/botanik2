@@ -3,12 +3,12 @@
  * @brief Component (core/component.h): the step() contract, and the per-component
  *        period that lets one sit out beats without the loop knowing.
  */
-#include <cstdint>
-#include <vector>
+#include <cstdint>                    // uint16_t/uint32_t/uint64_t - rates and tick stamps
+#include <vector>                     // std::vector - the recorded step order
 
-#include "doctest.h"
+#include "libbotanik/core/component.h" // Component - under test
 
-#include "libbotanik/core/component.h"
+#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
 
 using Botanik::Component;
 

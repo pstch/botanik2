@@ -8,14 +8,13 @@
  *        over HAL::Serial::Raw.
  */
 
-#include <cstdint>
-#include <cstring>
-#include <algorithm>
+#include <cstdint>                    // uint8_t/uint16_t/uint64_t - ring indices and byte counts
 
-#include "../../libbotanik_config.h"
-#include "../core/component.h"
-#include "../hal/platform.h"
-#include "byte_sink.h"
+#include "libbotanik_config.h"        // Config::SERIAL_* - the RX/TX ring sizes
+
+#include "libbotanik/core/component.h" // Component - the first-step announce
+#include "libbotanik/hal/platform.h"  // HAL::Serial - the UART underneath the ring
+#include "libbotanik/utils/byte_sink.h" // Utils::ByteSink - the interface BufferedSerial implements
 
 namespace Botanik { namespace Utils {
 

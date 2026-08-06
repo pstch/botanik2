@@ -4,9 +4,9 @@
  * @brief InputParser implementation - the byte-stream decode state machine that
  *        turns raw input into InputEvents.
  */
-#include <cstdint>
+#include "libbotanik/console/parser.h" // InputParser - the escape-sequence state machine
 
-#include "parser.h"
+#include <cstdint>                    // UINT16_MAX and the fixed-width state/timeout fields
 
 namespace Botanik { namespace Terminal {
 

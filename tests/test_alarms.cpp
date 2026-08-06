@@ -4,16 +4,14 @@
  *        episode is unacknowledged), the minimum-ON hold (min_on_s anti-flicker),
  *        and the END-vs-FLAP distinction (an END with no matching START is a FLAP).
  */
-#include <vector>
+#include <cstddef>                    // size_t - the condition-array lengths
+#include <vector>                     // std::vector - the expected transition sequences
 
-#include "doctest.h"
+#include "libbotanik/alarms/alarms.h" // Alarms::AlarmController - under test
+#include "libbotanik/logs/logger.h"   // Logs::Logger - the ALARM lines the assertions read
+#include "libbotanik/vars/declare.h"  // the A() factory - the SCOPE_A rows the controller scans
 
-#include "libbotanik/vars/declare.h"
-
-#include "libbotanik/alarms/alarms.h"
-#include "libbotanik/logs/logger.h"
-
-#include <cstddef>   // offsetof
+#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
 
 using namespace Botanik;
 

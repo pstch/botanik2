@@ -12,7 +12,7 @@
  * caller (IEC's VAR_IN_OUT), not to anything here.
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint32_t - the dt_ms these helpers convert and accumulate
 
 namespace Botanik { namespace Plc {
 

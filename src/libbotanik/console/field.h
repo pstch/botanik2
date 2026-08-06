@@ -12,7 +12,7 @@
  * and does not use this.
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint16_t/uint32_t - the field's column span and cached value
 
 namespace Botanik { namespace Terminal { namespace Field {
 

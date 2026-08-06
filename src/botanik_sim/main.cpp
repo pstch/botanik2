@@ -7,24 +7,21 @@
  * animates the site's variable tables through its simulated field (sim.h).
  */
 
-#include "libbotanik.h"
+#include <csignal>                    // signal / SIGINT - stop the loop on Ctrl-C
+
+#include "libbotanik.h"               // the whole library: BotanikFirmware and everything it owns
+
+#include "libbotanik/hal/platform.h"  // HAL::Env::u32 - $BOTANIK_CONSOLE_BAUD and friends
 
 // Site selected at configure time (-DBOTANIK_SITE); libbotanik_site.h derives
 // BOTANIK_SITE_HEADER -> its site.h, exposing BotanikSite + the sim-only
 // field simulation entry.
-#include "libbotanik_site.h"
-#include BOTANIK_SITE_HEADER
-
+#include "libbotanik_site.h"          // resolves BOTANIK_SITE -> BOTANIK_SITE_HEADER
+#include BOTANIK_SITE_HEADER          // BotanikSite + Site::simulate - the selected greenhouse
 
 #if BOTANIK_FEATURE_NETWORK
-// in-process mock NTP/MQTT responder (loopback)
-#include "botanik_sim/network.h"
+#include "botanik_sim/network.h"      // the in-process mock NTP/MQTT responder (loopback)
 #endif
-
-#include "libbotanik/hal/platform.h"   // HAL::Env::u32 (BOTANIK_CONSOLE_BAUD)
-
-#include <csignal>
-#include <cstring>   // std::strncpy - seeding the simulated config
 
 // The scheduler's stack-usage scan paints the free stack and only works if
 // locals live on the real stack. ASAN's use-after-return check (default on)

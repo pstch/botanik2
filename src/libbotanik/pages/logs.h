@@ -8,12 +8,13 @@
  *        scrollback.
  */
 
-#include "../../libbotanik_config.h"
-#include "page.h"
-#include "scrollback.h"
-#include "../logs/writer.h"
-#include "../console/console.h"
-#include "../console/terminal.h"
+#include "libbotanik_config.h"        // BOTANIK_FEATURE_LOGS_PAGE - the gate this header sits behind
+
+#include "libbotanik/console/console.h" // Console::rows / terminal - the content area to paint
+#include "libbotanik/console/terminal.h" // AnsiTerminal - the drawing operations
+#include "libbotanik/logs/writer.h"   // Logs::BufferedLogWriter - the queue this page tails
+#include "libbotanik/pages/page.h"    // Pages::Page - the interface this page implements
+#include "libbotanik/pages/scrollback.h" // Pages::LogsScrollback - the scrolling view
 
 namespace Botanik { namespace Pages {
 

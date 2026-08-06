@@ -3,14 +3,16 @@
  * @file logs.cpp
  * @brief LogsPage implementation.
  */
-#include <algorithm>
-#include <cstring>
-#include <cstdio>
+#include "libbotanik/pages/logs.h"    // LogsPage - what this file implements
 
-#include "../../libbotanik_config.h"
-#include "../hal/platform.h"
-#include "../logs/format.h"
-#include "logs.h"
+#include <algorithm>                  // std::min - bound the lines ingested per beat
+#include <cstdio>                     // snprintf - the mark line this page can emit
+#include <cstring>                    // strlen - measuring that line
+
+#include "libbotanik_config.h"        // Config::SCREEN_COLS - the wrap width for ingested lines
+
+#include "libbotanik/hal/platform.h"  // HAL::Clock::uptime_ms - stamps the mark
+#include "libbotanik/logs/format.h"   // Logs::format_log_entry - renders each queued entry
 
 namespace Botanik { namespace Pages {
 

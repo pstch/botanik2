@@ -67,23 +67,24 @@
  * @endcode
  */
 
-#include "../../libbotanik.h"
-#include "../utils/assert.h"     // set_assert_logger
-#include "../alarms/alarms.h"    // AlarmCondition (site table type)
-#include "../health/health.h"    // HealthMonitor (owns the alarm model + notifier)
-#include "libbotanik/vars/params.h"   // Vars::Params (the editable variables)
-#include "../shell/shell.h"
-#include "../vars/model.h"      // Vars::Bank / VarTables
-#if BOTANIK_FEATURE_PLC_SCAN
-#include "../scan/scan.h"     // Scan::Driver
-#endif
-#include "../plc/program.h"   // Plc::Program (the site's control programs)
-#include "../scheduler/tasks.h"   // Scheduler::Registry / GroupId / Phase
-#include "../vars/access.h"  // VarGroup / HomeVar (status vars)
-#include "stacks.h"      // Monitor/Console/NetworkStack composition
+#include <cstdint>                    // uint8_t/uint32_t/uint64_t - tick counts, timestamps
 
-#include <cstddef>
-#include <cstdint>
+#include "libbotanik.h"               // the umbrella: pages and console types the members need
+
+#include "libbotanik/alarms/alarms.h" // AlarmCondition - the site's alarm table type
+#include "libbotanik/core/stacks.h"   // Monitor/Console/NetworkStack - the feature-gated bundles
+#include "libbotanik/health/health.h" // Health::HealthMonitor - owns the alarm model + notifier
+#include "libbotanik/plc/program.h"   // Plc::Program - the site's control programs
+#include "libbotanik/scheduler/tasks.h" // Scheduler::Registry / GroupId / Phase - the beat's task table
+#include "libbotanik/shell/shell.h"   // Shell::ShellCommand - the site's command table type
+#include "libbotanik/utils/assert.h"  // set_assert_logger - points the firmware assert at our logger
+#include "libbotanik/vars/access.h"   // Vars::HomeVar - the site's home-field table type
+#include "libbotanik/vars/model.h"    // Vars::Bank / VarTables - the variable table and its store
+#include "libbotanik/vars/params.h"   // Vars::Params / KvParamStore - the parameter surface
+
+#if BOTANIK_FEATURE_PLC_SCAN
+#include "libbotanik/scan/scan.h"     // Scan::Driver - runs the site's programs at their rates
+#endif
 
 namespace Botanik {
 

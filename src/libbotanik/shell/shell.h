@@ -6,14 +6,14 @@
 #ifndef SHELL_SHELL_H
 #define SHELL_SHELL_H
 
-#include <cstddef>
-#include <cstdint>
+#include <cstddef>                    // size_t - the command and history buffer capacities
+#include <cstdint>                    // uint8_t/uint16_t/int16_t - history cursor and kill-ring slots
 
-#include "../console/console.h"
-#include "../console/terminal.h"
-#include "../console/editor.h"
-#include "../vars/access.h"   // VarGroup (status-var table), Bank
-#include "../vars/params.h"   // Vars::Params (the `set` command)
+#include "libbotanik/console/console.h" // Console::alarms / context - what the built-ins read
+#include "libbotanik/console/editor.h" // Terminal::TextEditor - the prompt the shell drives
+#include "libbotanik/console/terminal.h" // AnsiTerminal - writing the command output
+#include "libbotanik/vars/access.h"   // Vars::Bank / var_group - `list` and `get`
+#include "libbotanik/vars/params.h"   // Vars::Params - the `set` command
 
 namespace Botanik {
     // loglevel command (set_diagnostics)

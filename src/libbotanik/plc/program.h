@@ -37,10 +37,10 @@
  * holding the litres delivered today is a record.
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint16_t/uint32_t/uint64_t - rate, dt_ms, last activation
 
-#include "../core/component.h"
-#include "../vars/model.h"
+#include "libbotanik/core/component.h" // Component - a program carries its own rate machinery
+#include "libbotanik/vars/model.h"    // Vars::Bank / VarRef - bind() resolves names once at bring-up
 
 namespace Botanik { namespace Plc {
 

@@ -4,15 +4,14 @@
  *        @c format_float() that stands in for the missing @c %f, and the
  *        "N u ago" duration formatter @c format_age().
  */
-#include <cstdlib>
-#include <cstring>
-#include <limits>
+#include <cstdlib>                    // setenv / unsetenv - driving the HAL::Env parse tests
+#include <cstring>                    // strcmp / strlen - checking the formatted output
+#include <limits>                     // std::numeric_limits - the range edges format_int is probed with
 
-#include "doctest.h"
+#include "libbotanik/hal/platform.h"  // HAL::Env::u32 / u8 - under test alongside the formatters
+#include "libbotanik/utils/text.h"    // Utils::format_* / parse_uint / compare_str - under test
 
-#include "libbotanik/hal/platform.h"   // HAL::Env
-
-#include "libbotanik/utils/text.h"
+#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
 
 using Botanik::Utils::format_float;
 using Botanik::Utils::format_int;

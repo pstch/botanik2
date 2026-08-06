@@ -3,11 +3,11 @@
  * @brief Function blocks (scan/blocks.h). Every timed block is driven by an
  *        explicit dt, so these need no clock and no sleeping.
  */
-#include <string>
+#include <string>                     // std::string - doctest's failure messages
 
-#include "doctest.h"
+#include "libbotanik/plc/blocks/blocks.h" // the whole block vocabulary - under test
 
-#include "libbotanik/plc/blocks/blocks.h"
+#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
 
 // Compiles to an empty TU when the blocks are off - the namespace
 // itself is gated, so this must sit ABOVE the using-directive.

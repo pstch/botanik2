@@ -8,11 +8,12 @@
  *
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint32_t/uint64_t - the uptime-ms domain the math runs in
 
-#include "../../libbotanik_config.h"
-#include "../core/component.h"
-#include "libbotanik/vars/params.h"     // Vars::Bank + cfg_* name getters
+#include "libbotanik_config.h"        // BOTANIK_FEATURE_SUN_TRACKER - the gate this header sits behind
+
+#include "libbotanik/core/component.h" // Component - re-reads its parameters on a commit
+#include "libbotanik/vars/params.h"   // Vars::Bank / get_f32 - latitude, longitude and timezone
 
 #if BOTANIK_FEATURE_SUN_TRACKER
 

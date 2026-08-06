@@ -11,7 +11,7 @@
  * implementation. BufferedSerial is the implementer.
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint16_t - the sink's byte counts
 
 namespace Botanik { namespace Utils {
 

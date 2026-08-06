@@ -17,13 +17,13 @@
  * one retries); nothing is queued.
  */
 
-#include <cstddef>
-#include <cstdint>
+#include <cstdint>                    // uint16_t/uint64_t - the sweep cursor and publish stamps
 
-#include "../../libbotanik_config.h"
-#include "../core/context.h"
-#include "mqtt.h"
-#include "../vars/access.h"   // VarGroup / VarRef + resolve/format
+#include "libbotanik_config.h"        // Config::MQTT_TOPIC_PREFIX - the telemetry topic root
+
+#include "libbotanik/core/context.h"  // SystemContext - the bank and the client are read from it
+#include "libbotanik/network/mqtt.h"  // Network::MqttClient - where the telemetry is published
+#include "libbotanik/vars/access.h"   // Vars::var_published / var_format - which rows, rendered how
 
 namespace Botanik { namespace Network {
 

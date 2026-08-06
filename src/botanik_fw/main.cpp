@@ -7,7 +7,7 @@
  * botanik_setup()/botanik_step() hooks instead of this main().
  */
 
-#include "botanik_fw/firmware.h"
+#include "botanik_fw/firmware.h"      // Firmware::setup / loop - all this entry point calls
 
 int main() {
     Botanik::Firmware::instance().setup();   // first access constructs + boots

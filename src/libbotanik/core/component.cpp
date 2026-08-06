@@ -8,9 +8,10 @@
  * topic are pulled in.
  */
 
-#include "component.h"
-#include "../logs/logger.h"    // Logs::Logger (full definition)
-#include "../logs/topics.h"   // Logs::BOOT
+#include "libbotanik/core/component.h" // Component - what this file implements
+
+#include "libbotanik/logs/logger.h"   // Logs::Logger - the full definition announce() calls into
+#include "libbotanik/logs/topics.h"   // Logs::BOOT / LOG_DEBUG - the announce line's topic and level
 
 namespace Botanik {
 

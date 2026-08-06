@@ -37,7 +37,7 @@
  * beat grid cannot express just rounds up to the next beat).
  */
 
-#include <cstdint>
+#include <cstdint>                    // uint16_t/uint32_t/uint64_t - period, offset, last-run stamp
 
 namespace Botanik { namespace Scheduler {
 

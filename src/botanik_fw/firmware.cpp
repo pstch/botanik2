@@ -5,7 +5,7 @@
  *
  */
 
-#include "botanik_fw/firmware.h"
+#include "botanik_fw/firmware.h"      // the setup()/loop() entry points implemented here
 
 namespace Botanik { namespace Firmware {
 

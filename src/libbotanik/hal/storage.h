@@ -33,8 +33,8 @@
  * (scalar width or string capacity).
  */
 
-#include <cstddef>
-#include <cstdint>
+#include <cstddef>                    // size_t - the value buffer lengths
+#include <cstdint>                    // uint32_t - the fault counter and byte caps
 
 namespace Botanik { namespace HAL { namespace Storage {
 

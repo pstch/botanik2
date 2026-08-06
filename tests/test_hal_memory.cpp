@@ -13,11 +13,11 @@
  * lands, and the word-multiple / no-alias preconditions are the ones the OPTA
  * backend's ARM_MPU_OrderedMemcpy actually requires.
  */
-#include <cstdint>
+#include <cstdint>                    // uint32_t - the word-sized payloads ordered_copy moves
 
-#include "doctest.h"
+#include "libbotanik/hal/platform.h"  // HAL::Memory::ordered_copy / cache_* - under test
 
-#include "libbotanik/hal/platform.h"
+#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
 
 using namespace Botanik;
 

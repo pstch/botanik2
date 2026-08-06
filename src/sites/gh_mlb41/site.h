@@ -39,13 +39,19 @@
  * for one in the library tree); CMake points BOTANIK_SITE_HEADER at this file.
  */
 
-#include <cstdint>
-#include <cstdio>    // snprintf, for the command handlers below
+#include <cstdint>                    // uint8_t/uint16_t - the table lengths and register numbers
 
-#include "libbotanik.h"
+#include "libbotanik.h"               // BotanikFirmware, SiteDescriptor, ShellCommand, Scan::Task
 
-#include "vars.h"         // every variable, in one table
-#include "tasks.h"        // control programs
+// Site-internal includes are RELATIVE on purpose, and must stay that way.
+// A site can live outside this tree (-DBOTANIK_SITE_DIR): CMake passes its
+// site.h as an absolute BOTANIK_SITE_HEADER and adds no include directory for
+// it, so "sites/gh_mlb41/vars.h" would resolve to the IN-TREE reference site
+// instead of the one being built - silently, with the wrong variable table.
+// A quoted relative include resolves against this file's own directory, which
+// is always the right site.
+#include "tasks.h"                    // the control programs (code, not schema)
+#include "vars.h"                     // every variable, in one table
 
 namespace Site {
 
@@ -101,7 +107,7 @@ public:
 // The simulated field (Site::simulate()). Body compiles only under
 // TARGET_SIMULATOR; near-empty on OPTA, where the real field plays that role.
 // Included after the variable tables it animates.
-#include "sim.h"
+#include "sim.h"                      // Site::simulate - relative, same reason as tasks.h/vars.h above
 
 /** @brief The firmware type the harness instantiates for this site. */
 using BotanikSite = GreenhouseMLB41;

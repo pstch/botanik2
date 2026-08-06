@@ -12,12 +12,12 @@
  * Instantiate behind a typedef.
  */
 
-#include <algorithm>
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
+#include <algorithm>                  // std::min - clamp a stored line to the buffer width
+#include <cstddef>                    // size_t - the caller's text lengths
+#include <cstdint>                    // uint16_t - the circular indices and line lengths
+#include <cstring>                    // memcpy - copying text into the ring
 
-#include "../utils/text.h"
+#include "libbotanik/utils/text.h"    // Utils::scan_line_segment - the soft-wrap split point
 
 namespace Botanik { namespace Pages {
 

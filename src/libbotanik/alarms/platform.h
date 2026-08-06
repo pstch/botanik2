@@ -20,7 +20,7 @@
  * down. This header only owns the rows.
  */
 
-#include "../vars/declare.h"
+#include "libbotanik/vars/declare.h" // the A() factory these rows are written with
 
 /** @brief The platform-health alarm rows. One group of BOTANIK_LIBRARY_VARS.
  *

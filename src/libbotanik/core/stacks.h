@@ -17,23 +17,24 @@
  *  - NetworkStack  - resolver + network handler + (NTP) + (MQTT + telemetry).
  */
 
-#include "../../libbotanik.h"
+#include <cstdint>                    // uint8_t/uint32_t - the stacks' counters and timestamps
+
+#include "libbotanik.h"               // the umbrella: console, pages and log types the stacks own
+
 #if BOTANIK_FEATURE_NETWORK
-#include "../network/resolver.h" // NameResolver
-#include "../network/network.h"  // NetworkHandler
+#include "libbotanik/network/network.h" // Network::NetworkHandler - brings the link up
+#include "libbotanik/network/resolver.h" // Network::NameResolver - non-blocking DNS
 #endif
 #if BOTANIK_FEATURE_NTP
-#include "../network/ntp.h"       // NtpClient
+#include "libbotanik/network/ntp.h"   // Network::NtpClient - wall clock over NTP
 #endif
 #if BOTANIK_FEATURE_LOGS_PUBLISH
-#include "../network/mqtt_log.h"  // MqttLogWriter
+#include "libbotanik/network/mqtt_log.h" // Network::MqttLogWriter - log sink onto the broker
 #endif
 #if BOTANIK_FEATURE_MQTT
-#include "../network/mqtt.h"      // MqttClient
-#include "../network/telemetry.h" // MqttSender
+#include "libbotanik/network/mqtt.h"  // Network::MqttClient - the publisher
+#include "libbotanik/network/telemetry.h" // Network::MqttSender - publishes the variable set
 #endif
-
-#include <cstdint>
 
 namespace Botanik {
 

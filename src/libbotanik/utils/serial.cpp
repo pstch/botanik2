@@ -4,10 +4,11 @@
  * @brief BufferedSerial implementation - pumps the RX/TX rings to and from
  *        HAL::Serial::Raw without blocking the main loop.
  */
-#include <cstdint>
+#include "libbotanik/utils/serial.h"  // BufferedSerial - what this file implements
 
-#include "../../libbotanik_config.h"
-#include "serial.h"
+#include <cstdint>                    // UINT32_MAX and the fixed-width ring counters
+
+#include "libbotanik_config.h"        // Config::SERIAL_* - ring sizes and the baud budget
 
 namespace Botanik { namespace Utils {
 
