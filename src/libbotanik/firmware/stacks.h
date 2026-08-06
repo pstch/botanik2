@@ -19,7 +19,29 @@
 
 #include <cstdint>                          // uint8_t/uint32_t
 
-#include "libbotanik.h"
+#include "libbotanik_config.h"              // the BOTANIK_FEATURE_* gates below
+
+#include "libbotanik/alarms/alarms.h"       // Alarms::AlarmController
+#include "libbotanik/logs/logger.h"         // Logs::Logger
+#include "libbotanik/logs/writer.h"         // Logs::SerialLogWriter
+#include "libbotanik/utils/serial.h"        // Utils::BufferedSerial
+#include "libbotanik/vars/model.h"          // Vars::Bank
+
+#if BOTANIK_FEATURE_CONSOLE
+#include "libbotanik/console/console.h"     // Terminal::Console
+#endif
+#if BOTANIK_FEATURE_SHELL_PAGE
+#include "libbotanik/pages/shell.h"         // Pages::ShellPage
+#endif
+#if BOTANIK_FEATURE_LOGS_PAGE
+#include "libbotanik/pages/logs.h"          // Pages::LogsPage
+#endif
+#if BOTANIK_FEATURE_ALARMS_PAGE
+#include "libbotanik/pages/alarms.h"        // Pages::AlarmsPage
+#endif
+#if BOTANIK_FEATURE_NOTES_PAGE
+#include "libbotanik/pages/notes.h"         // Pages::NotesPage
+#endif
 
 #if BOTANIK_FEATURE_NETWORK
 #include "libbotanik/network/network.h"     // Network::NetworkHandler

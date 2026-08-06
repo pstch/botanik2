@@ -75,23 +75,44 @@
  * @endcode
  */
 
-#include <cstdint>                      // uint8_t/uint32_t/uint64_t
+#include <cstdint>                          // uint8_t/uint32_t/uint64_t
 
-#include "libbotanik.h"
+#include "libbotanik_config.h"              // the BOTANIK_FEATURE_* gates below, and Config::*
 
-#include "libbotanik/alarms/alarms.h"   // AlarmCondition
+#include "libbotanik/alarms/alarms.h"       // AlarmCondition
+#include "libbotanik/alarms/publisher.h"    // Alarms::Publisher
+#include "libbotanik/core/context.h"        // SystemContext
 #include "libbotanik/firmware/stacks.h"     // Monitor/Console/NetworkStack
-#include "libbotanik/health/health.h"   // Health::HealthMonitor
-#include "libbotanik/plc/program.h"     // Plc::Program
-#include "libbotanik/tasks/tasks.h" // Tasks::Registry / GroupId / Phase
-#include "libbotanik/shell/shell.h"     // Shell::ShellCommand
-#include "libbotanik/utils/assert.h"    // set_assert_logger
-#include "libbotanik/vars/access.h"     // Vars::HomeVar
-#include "libbotanik/vars/model.h"      // Vars::Bank / VarTables
-#include "libbotanik/vars/params.h"     // Vars::Params / KvParamStore
+#include "libbotanik/health/health.h"       // Health::HealthMonitor
+#include "libbotanik/logs/logger.h"         // Logs::Logger
+#include "libbotanik/logs/topics.h"         // Logs::BOOT / HEALTH
+#include "libbotanik/plc/program.h"         // Plc::Program
+#include "libbotanik/scheduler/scheduler.h" // Scheduler::LoopScheduler
+#include "libbotanik/shell/shell.h"         // Shell::ShellCommand
+#include "libbotanik/tasks/tasks.h"         // Tasks::Registry / GroupId / Phase
+#include "libbotanik/utils/assert.h"        // set_assert_logger
+#include "libbotanik/utils/serial.h"        // Utils::BufferedSerial
+#include "libbotanik/vars/access.h"         // Vars::HomeVar
+#include "libbotanik/vars/model.h"          // Vars::Bank / VarTables
+#include "libbotanik/vars/params.h"         // Vars::Params / KvParamStore
 
 #if BOTANIK_FEATURE_PLC_SCAN
-#include "libbotanik/scan/scan.h"       // Scan::Driver
+#include "libbotanik/scan/scan.h"           // Scan::Driver
+#endif
+#if BOTANIK_FEATURE_CONSOLE
+#include "libbotanik/console/console.h"     // Terminal::Console
+#endif
+#if BOTANIK_FEATURE_HOME_PAGE
+#include "libbotanik/pages/home.h"          // Pages::HomePage
+#endif
+#if BOTANIK_FEATURE_PARAMS_PAGE
+#include "libbotanik/pages/params_page.h"   // Pages::ParamsPage
+#endif
+#if BOTANIK_FEATURE_MONITOR_PAGE
+#include "libbotanik/pages/monitor.h"       // Pages::MonitorPage
+#endif
+#if BOTANIK_FEATURE_TASKS_PAGE
+#include "libbotanik/pages/tasks_page.h"    // Pages::TasksPage
 #endif
 
 namespace Botanik {
