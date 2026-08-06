@@ -640,7 +640,7 @@ namespace Botanik { namespace Vars {
      * as a signal that never moves instead of the wrong actuator firing.
      */
     class Bank {
-        VarTables   _t;
+        VarTables   _terminal;
         /** @name Parameter block
          *
          *  The ROLE_PARAM rows are one contiguous run, which is what lets the
@@ -687,8 +687,8 @@ namespace Botanik { namespace Vars {
          *  descriptor stays in flash), so value-initialize it here: without the
          *  `()` an unbound bank starts on indeterminate pointers and init()
          *  walks them. */
-        Bank() : _t() {}
-        explicit Bank(const VarTables& t) : _t(t) {
+        Bank() : _terminal() {}
+        explicit Bank(const VarTables& t) : _terminal(t) {
             _find_param_block();
             // The table is const and never grows, so the mapping is built here
             // rather than in init(): a find() before init() (a site test, a
@@ -726,13 +726,13 @@ namespace Botanik { namespace Vars {
          *  @return how many were restored. */
         uint16_t load_overrides();
 
-        const VarTables& tables() const { return _t; }
-        char*            pool() const   { return _t.pool; }
-        uint16_t         count() const  { return _t.count; }
+        const VarTables& tables() const { return _terminal; }
+        char*            pool() const   { return _terminal.pool; }
+        uint16_t         count() const  { return _terminal.count; }
 
         /** @brief Resolve an index. Never fails; a bad one lands on the sink. */
         Var var(uint16_t i) const {
-            if (i < _t.count) return Var(&_t.var[i], &_t.val[i]);
+            if (i < _terminal.count) return Var(&_terminal.var[i], &_terminal.val[i]);
             _sink_v = Value();          // fresh: a sink never accumulates state
             return Var(&_sink_d, &_sink_v);
         }

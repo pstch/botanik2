@@ -28,9 +28,9 @@ namespace Botanik { namespace Terminal {
          *  @{ */
 
         /** @brief The console this bar belongs to (page state + context). */
-        Console&            _c;
-        /** @brief The VT device it paints through (cached _c.terminal()). */
-        AnsiTerminal&       _t;
+        Console&            _console;
+        /** @brief The VT device it paints through (cached _console.terminal()). */
+        AnsiTerminal&       _terminal;
         /** @brief Last refresh of the row (clock and metrics share the gate). */
         uint64_t            _last_ms = 0;
 

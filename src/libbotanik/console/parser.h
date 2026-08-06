@@ -1,4 +1,4 @@
-// REVIEW_35: TODO
+// REVIEW_35: DONE
 #ifndef CONSOLE_PARSER_H
 #define CONSOLE_PARSER_H
 
@@ -60,21 +60,22 @@ namespace Botanik { namespace Terminal {
             ALT_1, ALT_2, ALT_3, ALT_4, ALT_5,
             ALT_6, ALT_7, ALT_8, ALT_9, ALT_0,
         };
-        // The terminal's page-switch dispatch relies on ALT_1..ALT_9 being
-        // contiguous (and ALT_0 just after); a reorder of the enum would
-        // silently break it.
+
+        // check that ALT_1 and ALT_9 stay contiguous with ALT_0 last
         static_assert((int)Command::ALT_9 - (int)Command::ALT_1 == 8 &&
                       (int)Command::ALT_0 == (int)Command::ALT_9 + 1,
                       "ALT_1..ALT_9 must stay contiguous with ALT_0 last");
+
+        // main event fields
         EventType   type        = EventType::NONE;
         Command     command     = Command::NONE;
-        // Repeat count for chunked COMMAND events (held BACKSPACE / CTRL_D
-        // coalesced under backpressure). Default 1 = run once.
+
+        // repeat count for chunked COMMAND events
         uint16_t    count       = 1;
         const char* batch_data  = nullptr;  // CONTENT batch
-        uint16_t    batch_len   = 0;
+        uint16_t    batch_len   = 0;        // CONTENT batch length
         uint16_t    params[8];              // CSI params
-        uint8_t     param_count = 0;
+        uint8_t     param_count = 0;        // CSI param count
     };
 
     /** @} */
@@ -84,12 +85,13 @@ namespace Botanik { namespace Terminal {
      *         Alt, function-key, and Minitel SEP sequences). */
     class InputParser {
         using BufferedSerial = Utils::BufferedSerial;
+        using Command = InputEvent::Command;
 
         /** @name Types
          *  @{ */
 
         enum class State {
-            IDLE,
+            IDLE,               // Nothing to do
             TEXT,               // ASCII characters
             IN_ESC,             // Decision between CSI or Alt+X
             IN_CSI,             // Standard X3.64 CSI sequences
@@ -101,29 +103,20 @@ namespace Botanik { namespace Terminal {
         /** @name State
          *  @{ */
 
-        BufferedSerial& _serial;
-        /** @brief Shared loop timestamp (ms), published by the scheduler;
-         *  read-only. */
-        const uint64_t* _timestamp_ms;
+        BufferedSerial& _serial;                ///< borrowed serial device
+        const uint64_t* _timestamp_ms;          ///< shared loop timestamp, published by the scheduler
 
-        /** @brief Event currently being constructed. */
-        InputEvent      _event;
-        State           _state = State::IDLE;
+        InputEvent      _event;                 ///< event being constructed
+        State           _state = State::IDLE;   ///< parser state
+        uint64_t        _last_byte_ms = 0;      ///< timestamp of last read byte
+        uint64_t        _batch_start_ms = 0;    ///< timestamp of current batch start
 
-        /** @brief Text awaiting flush. */
-        char            _text_buf[Config::ANSI_INPUT_BATCH_SIZE];
-        uint16_t        _text_len = 0;
-        /** @brief Timestamp of the last byte read. */
-        uint64_t        _last_byte_ms = 0;
-        /** @brief When the current text batch started. */
-        uint64_t        _batch_start_ms = 0;
+        char            _text_buf[Config::ANSI_INPUT_BATCH_SIZE];   ///< text awaiting flush
+        uint16_t        _text_len = 0;                              ///< length of text above
 
-        /** @brief Pending chunkable command (held BACKSPACE / CTRL_D),
-         *  coalesced into one COMMAND event with `count` instead of N reconcile
-         *  passes. */
-        InputEvent::Command _pending_cmd = InputEvent::Command::NONE;
-        uint16_t            _pending_cmd_count = 0;
-        uint64_t            _pending_cmd_start_ms = 0;
+        Command         _pending_cmd = Command::NONE;               ///< pending chunkable command
+        uint16_t        _pending_cmd_count = 0;                     ///< pending chunk length
+        uint64_t        _pending_cmd_start_ms = 0;                  ///< pending chunk start timestamp
 
         /** @} */
 
@@ -131,8 +124,7 @@ namespace Botanik { namespace Terminal {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief Construct a parser bound to a serial wrapper and
-         *  timestamp. */
+        /** @brief Construct a parser bound to a serial wrapper and timestamp. */
         InputParser(BufferedSerial& serial, const uint64_t* timestamp_ms);
 
         /** @} */
@@ -231,8 +223,7 @@ namespace Botanik { namespace Terminal {
         /** @brief Map an ESC-prefixed (Alt+X) byte to a command. */
         static InputEvent::Command _map_esc_extension(const uint8_t b);
 
-        /** @brief Map a CSI final byte (with first param + modifier param) to a
-         *  command. */
+        /** @brief Map a CSI final byte (with first param + modifier param) to a command. */
         static InputEvent::Command _map_csi_to_command(const uint8_t b, const uint16_t param1,
                                                        const uint16_t modifier);
 

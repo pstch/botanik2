@@ -15,24 +15,22 @@
  *  - what this episode already announced to detect FLAPs
  *  - the operator's acknowledgement, cleared on each fresh ON edge.
  *
- * Conditions are built by scanning the variable table for SCOPE_A rows, in table
- * order, up to Config::ALARM_SLOTS. There is one origin and one order: the
- * library's own alarms are rows in that same table (alarms/platform.h), spliced
- * in by the site, so nothing is appended and no index range is reserved.
+ * Conditions are built by scanning the variable table for SCOPE_A rows.
+ * .
  */
 
-#include <cstdint>                    // uint8_t/uint32_t/uint64_t - codes, dwell, timestamps
-#include <cstdio>                     // snprintf - MqttAlarmNotifier::_emit formats topic + payload
-#include <cstring>                    // std::memset - zero the condition array in the ctor
+#include <cstdint>                          // uint8_t/uint32_t/uint64_t
+#include <cstdio>                           // snprintf
+#include <cstring>                          // std::memset
 
-#include "libbotanik_config.h"        // Config::ALARM_* caps and dwell defaults
+#include "libbotanik_config.h"              // Config::ALARM_*
 
-#include "libbotanik/alarms/publisher.h" // Alarms::Publisher - the notifier's transport seam
-#include "libbotanik/core/component.h" // Component - the first-step BOOT announce
-#include "libbotanik/logs/logger.h"   // Logs::Logger - raises the ALARM_START/END/FLAP lines
-#include "libbotanik/utils/assert.h"  // BOTANIK_ASSERT - guards the condition index
-#include "libbotanik/utils/text.h"    // Utils::compare_str - match a condition by name
-#include "libbotanik/vars/model.h"    // Vars::VarRef / Bank - the SCOPE_A row behind each condition
+#include "libbotanik/alarms/publisher.h"    // Alarms::Publisher
+#include "libbotanik/core/component.h"      // Component
+#include "libbotanik/logs/logger.h"         // Logger
+#include "libbotanik/utils/assert.h"        // BOTANIK_ASSERT
+#include "libbotanik/utils/text.h"          // Utils::compare_str
+#include "libbotanik/vars/model.h"          // Vars::VarRef / Bank
 
 namespace Botanik { namespace Alarms {
 
@@ -49,27 +47,21 @@ namespace Botanik { namespace Alarms {
     // forward declaration for the alarm's side effect sink
     struct AlarmSink;
 
-    /**
-     * @brief One alarm condition: static metadata + model-owned dynamic state.
-     *
-     * Static prefix site-defined (aggregate-init; row index = bit index).
-     * Dynamic suffix left zeroed, model-owned. A threshold of -1 disables that
-     * action; dwell in seconds.
-     */
+    /** @brief One alarm condition: static metadata + model-owned dynamic state. */
     struct AlarmCondition {
         /** @name Static metadata
          *  @{ */
 
-        const char* code;       ///< short display code (max 9: AlarmsPage::CODE_W)
-        const char* name;       ///< the variable this reads, by name
-        const char* desc;       ///< human-readable description
-        const char* notes;      ///< alarm remediation instructions
+        const char* code;           ///< short display code (max 9: AlarmsPage::CODE_W)
+        const char* name;           ///< the variable this reads, by name
+        const char* desc;           ///< human-readable description
+        const char* notes;          ///< alarm remediation instructions
 
-        int32_t     on_s;       ///< time ON  before announcing (-1: off)
-        int32_t     off_s;      ///< time OFF before announcing (-1: off)
-        int32_t     recent_s;   ///< duration the event is "recent" (-1: forever)
-        int32_t     hold_on_s;  ///< hold ON this long after raw clears (0: none)
-        int32_t     min_on_s;   ///< minimum ON time from onset (0: no latch)
+        int32_t     on_s;           ///< time ON  before announcing (-1: off)
+        int32_t     off_s;          ///< time OFF before announcing (-1: off)
+        int32_t     recent_s;       ///< duration the event is "recent" (-1: forever)
+        int32_t     hold_on_s;      ///< hold ON this long after raw clears (0: none)
+        int32_t     min_on_s;       ///< minimum ON time from onset (0: no latch)
 
         /** @} */
 
@@ -105,7 +97,8 @@ namespace Botanik { namespace Alarms {
                    dwell_ms >= (uint64_t)on_s * 1000u;
         }
 
-        /** @brief Same for the OFF event, on off_sent / off_s. */
+        /** @brief The OFF event is due: unannounced, enabled (off_s >= 0), and
+         *         @p dwell_ms has reached the threshold. */
         bool due_off(uint64_t dwell_ms) const {
             return !off_sent && off_s >= 0 &&
                    dwell_ms >= (uint64_t)off_s * 1000u;
@@ -123,10 +116,11 @@ namespace Botanik { namespace Alarms {
         virtual void notify_on(const AlarmCondition& a) = 0;
         /** @brief A condition ended cleanly (its ON event had been raised). */
         virtual void notify_off(const AlarmCondition& a) = 0;
-        /** @brief A condition ended without a matching ON event (a flap). */
+        /** @brief A condition ended without a matching ON event (a FLAP). */
         virtual void notify_flap(const AlarmCondition& a) = 0;
     };
 
+    // TODO: move to notifier.h
     /** @brief AlarmNotifier that formats a transition as an MQTT topic/payload.
      *
      *  Publishes "ON/OFF/FLAP" at topic "<prefix>/alarms/<CODE>" */

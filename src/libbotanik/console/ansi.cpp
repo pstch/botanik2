@@ -1,22 +1,21 @@
-// REVIEW_35: TODO
+// REVIEW_35: DONE
 /**
  * @file ansi.cpp
- * @brief ANSI helper implementations - decimal emission and the escape-sequence
- *        writers that back the Ansi namespace.
+ * @brief ANSI helper implementations
  *
  * Each writer reserves ANSI_MAX_SEQ bytes via availableForWrite() before
  * emitting; if the whole sequence won't fit it writes nothing and returns
- * false. That guard (the TX ring is single-producer, so free space only grows)
- * keeps an escape from ever being split mid-sequence. Callers retry on a later
- * redraw.
+ * false. That guard keeps an escape from ever being split mid-sequence. 
+ * 
+ * Callers may retry on a later redraw.
  */
-#include "libbotanik/console/ansi.h"  // the Ansi escape-sequence emitters implemented here
 
-#include <cstddef>                    // size_t - the escape-buffer lengths
-#include <cstdint>                    // uint8_t/uint16_t - coordinates and attribute bits
-#include <cstring>                    // strlen - measuring the literal sequences
+#include <cstddef>                    // size_t
+#include <cstdint>                    // uint8_t/uint16_t
+#include <cstring>                    // strlen
 
-#include "libbotanik/utils/text.h"    // Utils::format_int - the numeric parameters in a CSI
+#include "libbotanik/utils/text.h"    // Utils::format_int
+#include "libbotanik/console/ansi.h"
 
 namespace Botanik { namespace Terminal { namespace Ansi {
 
@@ -26,24 +25,19 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     // worst-case max X3.64 sequence length
     constexpr uint16_t ANSI_MAX_SEQ = 16;
 
-    // true when we know we can emit a full control sequence
     inline bool can_emit(ByteSink& _serial) {
         return _serial.availableForWrite() >= ANSI_MAX_SEQ;
     }
 
-    // determine if a character is in the ASCII printable set
     bool is_printable(uint8_t b) { return b >= 0x20 && b <= 0x7E; }
 
-    // write @p val to @p _serial in decimal format
     void write_uint16(ByteSink& _serial, uint16_t val) {
         char b[8];
         const char* s = Utils::format_int(b, sizeof(b), (long long)val);
         _serial.write(s, (uint16_t)std::strlen(s));
     }
 
-    // Emit a CSI quantified command (<CSI> <count> <tail>). The tail is taken
-    // as the literal it always is, so its length comes from the array rather
-    // than from a sizeof spelled out again at every call site.
+    // TODO: find a better name for _csi_count
     template <size_t N>
     bool _csi_count(ByteSink& _serial, const char (&tail)[N], uint16_t count = 1) {
         if (count == 0) return true;                    // return early if count is zero
@@ -101,9 +95,6 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     bool move_left(ByteSink& _serial, uint16_t count) {
-        // Always the explicit CUB form, never the BS (\b) shortcut: BS is
-        // harmless on a VT100/VT102 but a Minitel can treat it as a destructive
-        // backspace.
         return _csi_count(_serial, CUB, count);
     }
 
@@ -126,9 +117,6 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     bool down_to_row_start(ByteSink& _serial, uint16_t count) {
-        // CR + count line feeds. The length is caller-controlled, so guard on
-        // the exact run rather than ANSI_MAX_SEQ. The caller keeps the feeds
-        // clear of the last row, else a line feed scrolls the screen.
         if (_serial.availableForWrite() < (uint16_t)(1 + count)) return false;
         _serial.write("\r", 1);
         for (uint16_t i = 0; i < count; ++i) _serial.write("\n", 1);

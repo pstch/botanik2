@@ -1,24 +1,23 @@
+// REVIEW_35: WIP
 #ifndef ALARMS_PLATFORM_H
 #define ALARMS_PLATFORM_H
 
-/**
- * @file platform.h
- * @brief The library's own alarm rows, for a site's variable table.
+/** @file platform.h
+ *  @brief The library's own alarm rows, for a site's variable table.
  *
- * These are ordinary `SCOPE_A` rows - the same `A()` factory a site writes its
- * own alarms with - and they go in the same table. There is no second alarm
- * table, no merge and no reserved index range: `AlarmController` scans the bank
- * for `SCOPE_A` and finds site and platform conditions together, in table order.
- *
- * HealthMonitor drives them the way anything drives a variable: it resolves the
- * names once at bring-up and writes the boolean. It has no alarm-model API of
- * its own any more.
- *
- * These rows reach a site's table through BOTANIK_LIBRARY_VARS, the one splice
- * point for everything libbotanik declares - see vars/library.h, which is also
- * where the placement rules and the failure mode for leaving it out are written
- * down. This header only owns the rows.
- */
+*  These are ordinary `SCOPE_A` rows - the same `A()` factory a site writes its
+*  own alarms with - and they go in the same table. There is no second alarm
+*  table, no merge and no reserved index range: `AlarmController` scans the bank
+*  for `SCOPE_A` and finds site and platform conditions together, in table order.
+*
+*  HealthMonitor drives them the way anything drives a variable: it resolves the
+*  names once at bring-up and writes the boolean. It has no alarm-model API of
+*  its own any more.
+*
+*  These rows reach a site's table through BOTANIK_LIBRARY_VARS, the one splice
+*  point for everything libbotanik declares - see vars/library.h, which is also
+*  where the placement rules and the failure mode for leaving it out are written
+*  down. This header only owns the rows. */
 
 #include "libbotanik/vars/declare.h" // the A() factory these rows are written with
 

@@ -29,12 +29,12 @@ namespace Botanik { namespace Terminal {
     }
 
     StatusBar::StatusBar(Console& console)
-        : _c(console), _t(console.terminal()) {
+        : _console(console), _terminal(console.terminal()) {
         // Row 0 is the frame around the page: it should land before the page on
         // boot and on a page switch. Its routine churn costs almost nothing - the
         // clock and metrics rebuild once a second, some tens of bytes against a
         // budget of thousands, so ranking it above the page starves nothing.
-        _t.set_row_priority(0, PRIO_CHROME);
+        _terminal.set_row_priority(0, PRIO_CHROME);
     }
 
     // Cooperative paint
@@ -55,21 +55,21 @@ namespace Botanik { namespace Terminal {
 
         // Save the attribute only, not the cursor: every caller repositions
         // absolutely right after, so a cursor restore here would be wasted.
-        bool saved_inv = _t.inverted();
+        bool saved_inv = _terminal.inverted();
 
-        _t.move_to({0, 0});
+        _terminal.move_to({0, 0});
 
         // Assert the reverse-video background (the row-0 bar).
-        _t.set_inverted(true);
+        _terminal.set_inverted(true);
 
         // Compact tab strip: "1 2 3:LOGS 4 5" - only the active page shows its
         // name. Records the strip extent for draw_tabs()'s shrink handling.
         _tabs_end_col = draw_tab_strip();
-        _t.set_inverted(true);
+        _terminal.set_inverted(true);
 
         // Middle: spaces up to the metrics start column.
-        uint16_t metrics_col = (_t.cols() > mlen) ? (uint16_t)(_t.cols() - mlen) : 0;
-        _t.fill_spaces(metrics_col);
+        uint16_t metrics_col = (_terminal.cols() > mlen) ? (uint16_t)(_terminal.cols() - mlen) : 0;
+        _terminal.fill_spaces(metrics_col);
 
         // Right + centre: paint the two live fields over the background.
         update_metrics();
@@ -77,23 +77,23 @@ namespace Botanik { namespace Terminal {
 
         // Restore only the attribute; the cursor is left where fill_spaces
         // parked it (the caller repositions absolutely).
-        _t.set_inverted(saved_inv);
+        _terminal.set_inverted(saved_inv);
     }
 
     void StatusBar::draw_tabs() {
-        bool saved_inv = _t.inverted();
-        _t.move_to({0, 0});
-        _t.set_inverted(true);
+        bool saved_inv = _terminal.inverted();
+        _terminal.move_to({0, 0});
+        _terminal.set_inverted(true);
 
         uint16_t end = draw_tab_strip();
 
         // The active tab is wider (N:NAME), so switching to a shorter-named page
         // shrinks the strip; clear the freed columns (still reverse video).
-        _t.set_inverted(true);
-        if (end < _tabs_end_col) _t.fill_spaces(_tabs_end_col);
+        _terminal.set_inverted(true);
+        if (end < _tabs_end_col) _terminal.fill_spaces(_tabs_end_col);
         _tabs_end_col = end;
 
-        _t.set_inverted(saved_inv);
+        _terminal.set_inverted(saved_inv);
     }
 
     uint16_t StatusBar::draw_tab_strip() {
@@ -101,22 +101,22 @@ namespace Botanik { namespace Terminal {
         // expanded to "N:NAME" for the active page. Single-space separated. Only
         // the active tab's "N:NAME" is normal video; the bar (and separators)
         // stay reverse video.
-        _t.set_inverted(true);
-        _t.write_chars(" ", 1);
+        _terminal.set_inverted(true);
+        _terminal.write_chars(" ", 1);
         uint16_t col = 1;
-        for (uint8_t i = 0; i < _c.page_count(); i++) {
-            const char* nm = _c.page_name(i);
+        for (uint8_t i = 0; i < _console.page_count(); i++) {
+            const char* nm = _console.page_name(i);
             if (nm == nullptr) continue;
             char tab[24];
-            int n = (i == _c.active_page())
+            int n = (i == _console.active_page())
                 ? snprintf(tab, sizeof(tab), "%u:%s", (unsigned)(i + 1), nm)
                 : snprintf(tab, sizeof(tab), "%u", (unsigned)(i + 1));
             if (n < 0) continue;
             uint16_t len = (uint16_t)std::min(n, (int)sizeof(tab) - 1);
-            _t.set_inverted(i != _c.active_page());
-            _t.write_chars(tab, len);
-            _t.set_inverted(true);
-            _t.write_chars(" ", 1);   // separator, reverse video
+            _terminal.set_inverted(i != _console.active_page());
+            _terminal.write_chars(tab, len);
+            _terminal.set_inverted(true);
+            _terminal.write_chars(" ", 1);   // separator, reverse video
             col += (uint16_t)(len + 1);
         }
         return col;
@@ -128,9 +128,9 @@ namespace Botanik { namespace Terminal {
         char metrics[METRICS_LEN];
         int mlen = build_metrics(metrics, sizeof(metrics));
         // mlen is constant (fixed-width fields), so a byte index maps to a fixed col.
-        uint16_t visible = (uint16_t)std::min((int)_t.cols(), mlen);
+        uint16_t visible = (uint16_t)std::min((int)_terminal.cols(), mlen);
         if (visible == 0) return;
-        uint16_t metrics_col = (uint16_t)(_t.cols() - visible);
+        uint16_t metrics_col = (uint16_t)(_terminal.cols() - visible);
         // The bar is reverse video except the live readings (cpu/stk), drawn
         // normal: highlight mask inverts all but the value cols.
         uint32_t hi = 0;
@@ -138,7 +138,7 @@ namespace Botanik { namespace Terminal {
             if (!metric_value_col(i)) hi |= (1u << i);
         // Paint the whole field; the terminal's diff drops the cells that did
         // not move. hi segments the reverse-video runs.
-        _t.paint_field_runs(0, metrics_col, metrics, visible, hi);
+        _terminal.paint_field_runs(0, metrics_col, metrics, visible, hi);
     }
 
     void StatusBar::update_clock() {
@@ -150,7 +150,7 @@ namespace Botanik { namespace Terminal {
 
         // Centre the field; skip on a terminal too narrow to fit it clear of the
         // right-aligned metrics.
-        uint16_t cols = _t.cols();
+        uint16_t cols = _terminal.cols();
         if (cols < CLOCK_LEN) return;
         uint16_t clock_col   = (uint16_t)((cols - CLOCK_LEN) / 2);
         uint16_t metrics_col = (cols > (uint16_t)(METRICS_LEN - 1))
@@ -158,11 +158,11 @@ namespace Botanik { namespace Terminal {
         if ((uint16_t)(clock_col + CLOCK_LEN) > metrics_col) return;
 
         // hi = 0: normal video, so the digits stand out against the reverse bar.
-        _t.paint_field_runs(0, clock_col, clk, CLOCK_LEN, 0u);
+        _terminal.paint_field_runs(0, clock_col, clk, CLOCK_LEN, 0u);
     }
 
     int StatusBar::build_metrics(char* buf, size_t cap) const {
-        const SystemContext& ctx = _c.context();
+        const SystemContext& ctx = _console.context();
         // The scheduler context may be absent (a site can wire a terminal
         // without one); show 0% rather than dereferencing null.
         unsigned cpu = 0, stk = 0;
