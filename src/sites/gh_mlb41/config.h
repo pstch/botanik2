@@ -91,4 +91,16 @@
 #  define BOTANIK_FEATURE_PLC_BLK_FILTERS 1
 #endif
 
+// --- Sun position ---------------------------------------------------------
+// No substrate to guard against: the tracker is standalone, so this only
+// decides whether sun/ is compiled. We do not instantiate one - a site that
+// tracks the sun owns its instance - but the flag is what puts the NOAA math
+// and its two test files into the build, and those files are wholly
+// #if BOTANIK_FEATURE_SUN_TRACKER. Off in the header, so without this line no
+// build compiles them and they contribute zero cases while looking like
+// coverage. That is what "the reference site is the full profile" is for.
+#ifndef BOTANIK_FEATURE_SUN_TRACKER
+#  define BOTANIK_FEATURE_SUN_TRACKER     1
+#endif
+
 #endif // SITES_GH_MLB41_CONFIG_H
