@@ -23,7 +23,7 @@ namespace Botanik { namespace Modbus {
 
     TcpSlave::TcpSlave(Bank* io, Logs::Logger* logger,
                          Alarms::AlarmController* alarms)
-        : Component(logger, "Modbus"), _io(io), _alarms(alarms), _map(io) {}
+        : Component(logger, "ModbusTCP"), _io(io), _alarms(alarms), _map(io) {}
 
     SlaveContext TcpSlave::context() const {
         SlaveContext c = _ctx;

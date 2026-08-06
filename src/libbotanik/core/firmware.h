@@ -82,6 +82,9 @@
 #include "libbotanik/alarms/alarms.h"   // AlarmCondition
 #include "libbotanik/core/stacks.h"     // Monitor/Console/NetworkStack
 #include "libbotanik/health/health.h"   // Health::HealthMonitor
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+#include "libbotanik/modbus/rtu/client.h" // Modbus::RtuClient - the field-bus master
+#endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
 #include "libbotanik/modbus/tcp/slave.h" // Modbus::TcpSlave - the SCADA-facing server
 #endif
@@ -210,6 +213,12 @@ namespace Botanik {
 #if BOTANIK_FEATURE_NETWORK
         NetworkStack                   _net;         ///< resolver/network/ntp/mqtt
 #endif
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+        /** @brief The field-bus master. Stepped from two phases like the slave
+         *  below, and for the mirror-image reason: it takes the field in before
+         *  the programs run, and hands their demands out after. */
+        Modbus::RtuClient              _modbus_rtu;
+#endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
         /** @brief The Modbus TCP slave. NOT part of NetworkStack, which is
          *  stepped as one bundle in PHASE_SERVICE: this is stepped from two
@@ -273,6 +282,9 @@ namespace Botanik {
               // Network reads its config from the variable bank by name;
               // telemetry publishes the live _sys_ctx (read later).
               , _net(&_io, &_logger, &_sys_ctx)
+#endif
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+              , _modbus_rtu(&_io, &_logger)
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
               // The alarm model is the ack block's target; it is HealthMonitor's,
@@ -484,12 +496,22 @@ namespace Botanik {
                 [](void* s, uint64_t) { static_cast<Utils::BufferedSerial*>(s)->receive(); },
                 &_console.serial());
 #endif
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+            // The field bus commits its readings here, ahead of expire_stale:
+            // the sweep that decides a reading has gone stale has to judge the
+            // freshest image, not the one from before this beat's answers.
+            _tasks.add("modbus_rtu_rx", GROUP_FAST, PHASE_INPUT,
+                [](void* s, uint64_t now) {
+                    static_cast<Modbus::RtuClient*>(s)->receive_step(now);
+                },
+                &_modbus_rtu);
+#endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
             // A master's write lands HERE, before the programs run, so a setpoint
             // written this beat is what they run on this beat. add_component, so
             // the map is built and the `mb` group read in Registry::setup()
             // rather than inside the first beat.
-            _tasks.add_component("modbus_rx", GROUP_FAST, PHASE_INPUT, _modbus_tcp);
+            _tasks.add_component("modbus_tcp_rx", GROUP_FAST, PHASE_INPUT, _modbus_tcp);
 #endif
 #if BOTANIK_FEATURE_LOGS_MONITOR
             _tasks.add("monitor_rx", GROUP_FAST, PHASE_INPUT,
@@ -543,12 +565,20 @@ namespace Botanik {
                 [](void* s, uint64_t now) { static_cast<BotanikFirmware*>(s)->on_step(now); },
                 this);
 
+            // --- OUTPUT: hand what the programs drove to the field ---
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+            // add_component: on_step() IS the transmit half, and this is also
+            // what runs the port bring-up and the bus planning in
+            // Registry::setup() rather than inside the first beat.
+            _tasks.add_component("modbus_rtu_tx", GROUP_FAST, PHASE_OUTPUT, _modbus_rtu);
+#endif
+
             // --- PRESENT: report what just happened ---
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
             // ...and the answer goes out here, off the image the scan just
             // produced. One beat of latency on a read, against a poll measured
             // in seconds, and no request ever answered from a half-updated image.
-            _tasks.add("modbus_tx", GROUP_FAST, PHASE_PRESENT,
+            _tasks.add("modbus_tcp_tx", GROUP_FAST, PHASE_PRESENT,
                 [](void* s, uint64_t now) {
                     static_cast<Modbus::TcpSlave*>(s)->service_tx(now);
                 },

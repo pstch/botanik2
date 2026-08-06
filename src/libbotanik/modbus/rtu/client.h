@@ -109,7 +109,7 @@ namespace Botanik { namespace Modbus {
         static const uint16_t NO_BLOCK = 0xFFFFu;
 
         RtuClient(Vars::Bank* io, Logs::Logger* logger = nullptr)
-            : Component(logger, "Modbus"), _io(io) {}
+            : Component(logger, "ModbusRTU"), _io(io) {}
 
         /** @name Operation
          *  @{ */
