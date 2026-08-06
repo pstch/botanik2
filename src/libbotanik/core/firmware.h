@@ -82,6 +82,9 @@
 #include "libbotanik/alarms/alarms.h"   // AlarmCondition
 #include "libbotanik/core/stacks.h"     // Monitor/Console/NetworkStack
 #include "libbotanik/health/health.h"   // Health::HealthMonitor
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+#include "libbotanik/modbus/tcp/slave.h" // Modbus::TcpSlave - the SCADA-facing server
+#endif
 #include "libbotanik/plc/program.h"     // Plc::Program
 #include "libbotanik/scheduler/tasks.h" // Scheduler::Registry / GroupId / Phase
 #include "libbotanik/shell/shell.h"     // Shell::ShellCommand
@@ -207,6 +210,14 @@ namespace Botanik {
 #if BOTANIK_FEATURE_NETWORK
         NetworkStack                   _net;         ///< resolver/network/ntp/mqtt
 #endif
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+        /** @brief The Modbus TCP slave. NOT part of NetworkStack, which is
+         *  stepped as one bundle in PHASE_SERVICE: this is stepped from two
+         *  phases (requests in before the programs run, answers out after), so
+         *  it has to be a member the task table can name twice. It also WRITES
+         *  the bank, where the stack's members only read config from it. */
+        Modbus::TcpSlave               _modbus_tcp;
+#endif
 #if BOTANIK_FEATURE_CONSOLE
         ConsoleStack                   _console;     ///< console UART + terminal + pages
         // Site-independent pages the base owns (declared after _console so
@@ -263,6 +274,11 @@ namespace Botanik {
               // telemetry publishes the live _sys_ctx (read later).
               , _net(&_io, &_logger, &_sys_ctx)
 #endif
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+              // The alarm model is the ack block's target; it is HealthMonitor's,
+              // and this member is declared after it so the reference is live.
+              , _modbus_tcp(&_io, &_logger, &_health.alarm_model())
+#endif
 #if BOTANIK_FEATURE_CONSOLE
               , _console(_console_cols, _console_rows,
                          &_scheduler.context()->timestamp_ms, _console_baud,
@@ -292,6 +308,9 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_NTP
             _sys_ctx.ntp = &_net.ntp();
+#endif
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+            _sys_ctx.modbus_tcp = &_modbus_tcp;
 #endif
 #if BOTANIK_FEATURE_MQTT
             _sys_ctx.mqtt = &_net.mqtt();
@@ -465,6 +484,13 @@ namespace Botanik {
                 [](void* s, uint64_t) { static_cast<Utils::BufferedSerial*>(s)->receive(); },
                 &_console.serial());
 #endif
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+            // A master's write lands HERE, before the programs run, so a setpoint
+            // written this beat is what they run on this beat. add_component, so
+            // the map is built and the `mb` group read in Registry::setup()
+            // rather than inside the first beat.
+            _tasks.add_component("modbus_rx", GROUP_FAST, PHASE_INPUT, _modbus_tcp);
+#endif
 #if BOTANIK_FEATURE_LOGS_MONITOR
             _tasks.add("monitor_rx", GROUP_FAST, PHASE_INPUT,
                 [](void* s, uint64_t) { static_cast<Utils::BufferedSerial*>(s)->receive(); },
@@ -518,6 +544,16 @@ namespace Botanik {
                 this);
 
             // --- PRESENT: report what just happened ---
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+            // ...and the answer goes out here, off the image the scan just
+            // produced. One beat of latency on a read, against a poll measured
+            // in seconds, and no request ever answered from a half-updated image.
+            _tasks.add("modbus_tx", GROUP_FAST, PHASE_PRESENT,
+                [](void* s, uint64_t now) {
+                    static_cast<Modbus::TcpSlave*>(s)->service_tx(now);
+                },
+                &_modbus_tcp);
+#endif
 #if BOTANIK_FEATURE_LOGGING
             _tasks.add("logger", GROUP_FAST, PHASE_PRESENT,
                 [](void* s, uint64_t) { static_cast<Logs::Logger*>(s)->refill(); },

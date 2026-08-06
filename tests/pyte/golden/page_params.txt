@@ -19,6 +19,6 @@
  Description  : console UART rate
  Notes        : retunes the wire AND the render budget; reconnect at the new rat
 
-                      [all]        (serial)     1-11 / 170
+                      [all]        (serial)     <N>
 
  ALARMS :<BAR>

@@ -8,8 +8,8 @@
   | STACK    | alarm_stack                             | <V>| <V>            |
   | CPU_JITT | alarm_cpu_jitter                        | <V>| <V>            |
   | FLASH_FLT| alarm_flash_error                       | <V>| <V>            |
-  | AC_GRID  | alarm_ac_grid                           | <V>| <V>        |
-  | DC_PS1   | alarm_dc_ps1                            | <V>| <V>        |
+  | AC_GRID  | alarm_ac_grid                           | <V>| <V>            |
+  | DC_PS1   | alarm_dc_ps1                            | <V>| <V>            |
   | GEN_FLT  | alarm_gen                               | <V>| <V>            |
   | AC_LOCAL | alarm_ac_local                          | <V>| <V>            |
   | DC_PS2   | alarm_dc_ps2                            | <V>| <V>            |
@@ -19,6 +19,6 @@
  Remediation  : -
  Acknowledged : -
 
-     recent <         [all]        > active     1-11 / 28     <NA> active   a:ack
+     recent <         [all]        > active     <N>           <NA> active   a:ack
 
  ALARMS :<BAR>

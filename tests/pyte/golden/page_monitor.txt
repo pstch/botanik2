@@ -19,6 +19,6 @@
  Source       : Modbus dev 5 fc 3 reg 0
  Quality      : <Q>
 
-                      [all]         (grid)      1-10 / 72
+                      [all]         (grid)      <N>
 
  ALARMS :<BAR>

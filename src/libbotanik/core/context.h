@@ -26,6 +26,10 @@ namespace Botanik { namespace Network   {  class NtpClient;         } }
 namespace Botanik { namespace Network   {  class MqttClient;        } }
 #endif
 
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+namespace Botanik { namespace Modbus    {  class TcpSlave;          } }
+#endif
+
 namespace Botanik {
 
     /** @brief Aggregate of subsystem context structs and pointers to the
@@ -53,6 +57,14 @@ namespace Botanik {
 
 #if BOTANIK_FEATURE_MQTT
         const Network::MqttClient*     mqtt      = nullptr; ///< MQTT client
+#endif
+
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+        /** @brief The Modbus TCP slave. The component rather than its context
+         *  struct, like the network handlers above: SlaveContext is computed on
+         *  demand (half of it is derived from the socket and the map), so there
+         *  is no long-lived struct to point at. */
+        const Modbus::TcpSlave*        modbus_tcp = nullptr;
 #endif
 
     };
