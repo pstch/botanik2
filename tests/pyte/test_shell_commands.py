@@ -137,11 +137,16 @@ def test_features(spawn):
     # from a broken one over the terminal.
     term.send(b"features" + keys.ENTER)
 
-    # The reference site turns the network group AND the standalone sun tracker
-    # on in its own config.h; the two reserved field-bus flags are what is left
-    # off. So this asserts both partitions carry rows, not just that something
-    # printed.
+    # The reference site turns the network group, the standalone sun tracker and
+    # the RTU field-bus client on in its own config.h; the TCP slave is what is
+    # left off. So this asserts both partitions carry rows, not just that
+    # something printed.
+    #
+    # The off-side name is spelled in full deliberately. It used to read
+    # "off : modbus", which still matched once the RTU client moved to the on
+    # side - the assertion would have kept passing while testing nothing.
     assert term.wait_for("console"), "features did not list the console"
     assert term.wait_for("mqtt"), "features did not list the site's network group"
     assert term.wait_for("sun_tracker"), "the site enables the sun tracker"
-    assert term.wait_for("off : modbus"), "the reserved field-bus flags are off"
+    assert term.wait_for("modbus_rtu_client"), "the site enables the RTU client"
+    assert term.wait_for("off : modbus_tcp_server"), "the TCP slave is still off"

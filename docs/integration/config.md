@@ -64,7 +64,7 @@ the build log. Guard every feature flag a site pins.
 | `PLC_BLK_BASE` | off | - | the base blocks: timers, logic, analog, meter, pid, actuator |
 | `PLC_BLK_FILTERS` | off | - | the filter blocks: `Ewma`, `MedianOf3`, `MovingAverage`. Distinct from `utils/filters.h`, the scheduler's metric filter |
 | `MODBUS_TCP_SERVER` | off | `NETWORK`, `PLC_SCAN` | *reserved* - no implementation yet |
-| `MODBUS_RTU_CLIENT` | off | `PLC_SCAN` | *reserved* - no implementation yet |
+| `MODBUS_RTU_CLIENT` | off | `PLC_SCAN` | the RS-485 field bus. Today the protocol layer only (`modbus/`: the codec and the framer); nothing is instantiated and no task steps it yet. On for `gh_mlb41` |
 
 (Each is spelled `BOTANIK_FEATURE_<NAME>`.)
 
