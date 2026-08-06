@@ -157,6 +157,7 @@ void Planner::_cut(const Vars::Bank& io) {
         b.row_count  = 1;
         b.period_ms  = is_read(k.fc) ? ladder_ms(k.rung) : 0;
         b.due_ms     = 0;
+        b.last_ms    = 0;
 
         uint16_t end = row_end(first);
         uint16_t j   = i + 1;
@@ -189,6 +190,10 @@ void Planner::seed(uint64_t now_ms) {
         _blocks[i].due_ms = now_ms + Scheduler::stagger_offset(
                                          i, Config::MODBUS_BLOCK_STAGGER_MS,
                                          _blocks[i].period_ms);
+        // Zero rather than now_ms, so every write block reads as overdue for its
+        // unconditional rewrite: the outputs must be driven to their safe state
+        // once at bring-up, not first at the rewrite interval.
+        _blocks[i].last_ms = 0;
     }
 }
 

@@ -15,6 +15,9 @@
  *                   a response and deciding when it is complete.
  *  - @ref plan.h    what the bus costs, and the blocks the variable table turns
  *                   into. Reads the bank; still touches no wire.
+ *  - @ref image.h   a response becomes readings, and demands become a frame.
+ *  - @ref client.h  the master itself: one transaction in flight, driven from
+ *                   the beat. The only part that touches a serial port.
  *
  * None of it knows the variable model, the scheduler, or a serial port exists.
  * The driver that joins them to the bank is a later stage; until then this is a
@@ -29,5 +32,7 @@
 #include "codec.h"
 #include "framing.h"
 #include "plan.h"
+#include "image.h"
+#include "client.h"
 
 #endif // MODBUS_MODBUS_H

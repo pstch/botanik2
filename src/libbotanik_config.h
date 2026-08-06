@@ -780,6 +780,45 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, MODBUS_BLOCK_STAGGER_MS);
 
+    /** @brief How long a slave has to answer before the transaction is lost.
+     *
+     *  Sized tightly on purpose. Libraries default to a second; a dead-slave
+     *  backoff at that deadline is what actually takes field buses down, because
+     *  one unplugged sensor then spends a full second of every sweep. Worst
+     *  turnaround plus the response time is about 300 ms at 19200. */
+#ifndef BOTANIK_MODBUS_TIMEOUT_MS
+#  define BOTANIK_MODBUS_TIMEOUT_MS 300
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_TIMEOUT_MS);
+
+    /** @brief Shortest interval between two writes to the same block, so a
+     *  chattering demand cannot monopolise the bus. */
+#ifndef BOTANIK_MODBUS_WRITE_MIN_MS
+#  define BOTANIK_MODBUS_WRITE_MIN_MS 200
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_WRITE_MIN_MS);
+
+    /** @brief How often an output block is written even with nothing to say.
+     *
+     *  Two jobs: it re-drives a slave that rebooted and came back at its power-on
+     *  defaults, and it is the keepalive that slave's own failsafe timer watches
+     *  for. Configure the slave-side failsafe as well - it is the only mechanism
+     *  that still works when the master is the thing that failed. */
+#ifndef BOTANIK_MODBUS_REWRITE_MS
+#  define BOTANIK_MODBUS_REWRITE_MS 5000
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_REWRITE_MS);
+
+    /** @brief Silence held between one transaction and the next.
+     *
+     *  The protocol asks for 3.5 characters, which is 2 ms at 19200 and less
+     *  above it - under a single beat either way, so this is really only honest
+     *  bookkeeping. It stops being free if the beat ever shortens. */
+#ifndef BOTANIK_MODBUS_GAP_MS
+#  define BOTANIK_MODBUS_GAP_MS 3
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_GAP_MS);
+
     /** @}
      *  @name Sun position tracking
      *  @{ */

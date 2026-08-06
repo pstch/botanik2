@@ -162,8 +162,14 @@ namespace Botanik { namespace Modbus {
         /** @brief How often this block is read. 0 for a write block: those are
          *  driven by what the control programs demanded, not by a clock. */
         uint32_t period_ms;
-        /** @brief When it is next due. Seeded by Planner::seed(). */
+        /** @brief When it is next due. Seeded by Planner::seed(). Reads only:
+         *  a write block goes out when something demanded it. */
         uint64_t due_ms;
+        /** @brief When it last went out. Both halves of the write policy come
+         *  from this one stamp: a minimum interval between writes to a slave,
+         *  and an unconditional rewrite every few seconds that re-drives one
+         *  that rebooted and doubles as the keepalive its failsafe watches for. */
+        uint64_t last_ms;
         uint16_t reg;         ///< first register or coil
         uint16_t regs;        ///< how many it spans, gaps included
         uint16_t first_row;   ///< where its rows start in Planner::row()
