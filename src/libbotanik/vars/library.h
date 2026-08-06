@@ -70,21 +70,43 @@
  *  Every row must end with a comma, its own, so an empty group vanishes cleanly.
  *  @{ */
 
-/** @brief Alarms the library raises. */
+/** @brief Alarms the library raises. Its rows live beside the code that raises
+ *  them, in `alarms/platform.h`; this is only where the group is assembled. */
 #define BOTANIK_LIBRARY_ALARM_VARS   BOTANIK_PLATFORM_ALARM_VARS
 
-/** @brief Status values the library publishes (MQTT + the Modbus TCP slave).
- *  None yet. The scheduler's per-beat metrics are the obvious first tenant -
- *  they are read off `SchedulerContext` by three separate consumers today. */
+/** @brief Status values the library publishes - MQTT telemetry and the Modbus
+ *  TCP slave - so a name here is an external contract.
+ *
+ *  Empty. The scheduler's per-beat metrics are the obvious first tenant: they
+ *  are read off `SchedulerContext` by three separate consumers today, none of
+ *  which can be reached by `get`, MQTT or a Modbus master.
+ *
+ *  Rows must be fully qualified and end with their own comma, as the alarm ones
+ *  are - a site's table may be in a namespace that has not pulled Vars in:
+ *
+ *  //                    name            type   def  dgt unit reg  description      notes
+ *  // ::Botanik::Vars::SV("sys_cpu_load", ::Botanik::Vars::T_F32, 0.0, 1, "%", 900,
+ *  //                     "loop CPU load", ""), */
 #define BOTANIK_LIBRARY_STATUS_VARS
 
-/** @brief Computed values the library exposes to the HMI only. None yet. */
+/** @brief Computed values the library exposes to the HMI only. Not published,
+ *  so unlike a status value one may be renamed freely.
+ *
+ *  Empty.
+ *
+ *  //                   name            type   def         dgt unit description  notes
+ *  // ::Botanik::Vars::G("sys_beat_ms", ::Botanik::Vars::T_U16,
+ *  //                    ::Botanik::Vars::SU(0), 0, "ms", "beat period", ""), */
 #define BOTANIK_LIBRARY_GLOBAL_VARS
 
-/** @brief Parameters the library reads. None yet - the network / NTP / MQTT
- *  groups are the site's today, which is why their defaults differ per unit.
+/** @brief Parameters the library reads. Empty - the network / NTP / MQTT groups
+ *  are the site's today, which is why their defaults differ per unit.
  *
- *  Last in the aggregate below, and that is load-bearing: see @ref lib_order. */
+ *  LAST in the aggregate below, and that is load-bearing: see @ref lib_order.
+ *
+ *  //                   name                 type  def   min  max   dgt unit reg description
+ *  // ::Botanik::Vars::P("sys_watchdog_ms", ::Botanik::Vars::T_U32,
+ *  //                    10000, 100, 60000, 0, "ms", 950, "HW watchdog", ""), */
 #define BOTANIK_LIBRARY_PARAM_VARS
 
 /** @} */
