@@ -137,11 +137,14 @@ def test_features(spawn):
     # from a broken one over the terminal.
     term.send(b"features" + keys.ENTER)
 
-    # The reference site turns the network group AND the standalone sun tracker
-    # on in its own config.h; the two reserved field-bus flags are what is left
-    # off. So this asserts both partitions carry rows, not just that something
-    # printed.
+    # The reference site is the full profile, and with both Modbus transports on
+    # it now enables EVERY flag in the roster - so the off partition is empty by
+    # construction. Asserting it prints "(none)" is what still proves both
+    # partitions render: an off side that printed nothing at all would otherwise
+    # be indistinguishable from one that is simply empty.
     assert term.wait_for("console"), "features did not list the console"
     assert term.wait_for("mqtt"), "features did not list the site's network group"
     assert term.wait_for("sun_tracker"), "the site enables the sun tracker"
-    assert term.wait_for("off : modbus"), "the reserved field-bus flags are off"
+    assert term.wait_for("modbus_rtu_client"), "the site enables the RTU client"
+    assert term.wait_for("modbus_tcp_server"), "the site enables the TCP slave"
+    assert term.wait_for("off : (none)"), "the off partition did not render"

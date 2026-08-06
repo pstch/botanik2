@@ -169,7 +169,7 @@ namespace Botanik { namespace Modbus {
 
     Exception Map::read_registers(uint16_t addr, uint16_t count, uint8_t* out,
                                   size_t cap) const {
-        if (out == nullptr || cap < (size_t)count * 2) return EX_SERVER_FAILURE;
+        if (out == nullptr || cap < (size_t)count * 2) return EX_SLAVE_FAILURE;
         if (_io == nullptr || _count == 0) return EX_ILLEGAL_ADDRESS;
 
         const uint32_t first = addr;
@@ -202,7 +202,7 @@ namespace Botanik { namespace Modbus {
 
     Exception Map::read_bits(uint16_t addr, uint16_t count, BitTable table,
                              uint8_t* out, size_t cap) const {
-        if (out == nullptr || cap < bit_bytes(count)) return EX_SERVER_FAILURE;
+        if (out == nullptr || cap < bit_bytes(count)) return EX_SLAVE_FAILURE;
         if (_io == nullptr || _count == 0) return EX_ILLEGAL_ADDRESS;
 
         const uint32_t first = addr;
@@ -231,7 +231,7 @@ namespace Botanik { namespace Modbus {
     Exception Map::write_registers(uint16_t addr, uint16_t count,
                                    const uint8_t* data, uint16_t* committed) {
         if (committed != nullptr) *committed = 0;
-        if (data == nullptr) return EX_SERVER_FAILURE;
+        if (data == nullptr) return EX_SLAVE_FAILURE;
         if (_io == nullptr || _count == 0) return EX_ILLEGAL_ADDRESS;
         // A row is two registers, so a write must start on an even address and
         // cover whole rows. Half a 32-bit value committed as a whole one is a

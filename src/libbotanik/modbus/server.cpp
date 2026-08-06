@@ -135,9 +135,9 @@ namespace Botanik { namespace Modbus {
     }
 
     void TcpServer::_receive(Conn& c) {
-        if (c.rx_len >= ADU_MAX) return;            // full: decode first
+        if (c.rx_len >= TCP_ADU_MAX) return;            // full: decode first
         const int n = Net::tcp_recv(c.sock, c.rx + c.rx_len,
-                                    (size_t)(ADU_MAX - c.rx_len));
+                                    (size_t)(TCP_ADU_MAX - c.rx_len));
         if (n < 0) { _drop(c, nullptr); return; }   // peer closed
         if (n > 0) c.rx_len = (uint16_t)(c.rx_len + n);
     }
@@ -173,7 +173,7 @@ namespace Botanik { namespace Modbus {
         // whatever slid into its place.
         if (d == DEC_EXCEPTION) {
             _refuse(c, r, r.ex);
-        } else if (writes(r.fc)) {
+        } else if (!is_read(r.fc)) {
             _answer_write(c, r);
         } else {
             // Deferred to the present phase, so the answer reflects the beat that
@@ -253,7 +253,7 @@ namespace Botanik { namespace Modbus {
     Exception TcpServer::_read_ack(uint16_t addr, uint16_t count,
                                    uint8_t* out, size_t cap) const {
         if (_alarms == nullptr) return EX_ILLEGAL_ADDRESS;
-        if (cap < bit_bytes(count)) return EX_SERVER_FAILURE;
+        if (cap < bit_bytes(count)) return EX_SLAVE_FAILURE;
         for (uint16_t i = 0; i < bit_bytes(count); i++) out[i] = 0;
         for (uint16_t i = 0; i < count; i++) {
             const int k = _ack_index((uint16_t)(addr + i));
@@ -319,7 +319,9 @@ namespace Botanik { namespace Modbus {
         const Request& r = c.req;
         // The payload is built HERE, in the present phase: this is the post-scan
         // image, and answering off it is the reason the two halves are split.
-        uint8_t payload[2 * MAX_READ_REGS];
+        // 125 registers or 2000 bits: 250 bytes either way, which is why one
+        // buffer serves both (wire.h owns both ceilings).
+        uint8_t payload[2 * 125];
         uint8_t n = 0;
         Exception ex = EX_NONE;
 

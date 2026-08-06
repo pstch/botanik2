@@ -12,7 +12,7 @@
 
 #include <cstring>                    // memcpy - copying a read payload into the response
 
-#if BOTANIK_FEATURE_MODBUS_TCP_SERVER || BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
 
 namespace Botanik { namespace Modbus {
 
@@ -78,8 +78,8 @@ namespace Botanik { namespace Modbus {
                 if (pdu_len != 5) return refuse(out, EX_ILLEGAL_VALUE);
                 out->addr  = rd16(pdu + 1);
                 out->count = rd16(pdu + 3);
-                const uint16_t max = bit_access(out->fc) ? MAX_READ_BITS : MAX_READ_REGS;
-                if (out->count < 1 || out->count > max) return refuse(out, EX_ILLEGAL_VALUE);
+                if (out->count < 1 || out->count > max_quantity(out->fc))
+                    return refuse(out, EX_ILLEGAL_VALUE);
                 return DEC_OK;
             }
             case FC_WRITE_COIL: {
@@ -106,9 +106,9 @@ namespace Botanik { namespace Modbus {
                 out->addr  = rd16(pdu + 1);
                 out->count = rd16(pdu + 3);
                 const uint8_t bc = pdu[5];
-                const bool bits = (out->fc == FC_WRITE_COILS);
-                const uint16_t max = bits ? MAX_WRITE_BITS : MAX_WRITE_REGS;
-                if (out->count < 1 || out->count > max) return refuse(out, EX_ILLEGAL_VALUE);
+                const bool bits = is_bit(out->fc);
+                if (out->count < 1 || out->count > max_quantity(out->fc))
+                    return refuse(out, EX_ILLEGAL_VALUE);
                 // The byte count is redundant with the quantity, which is exactly
                 // why it is checked: the two disagreeing means the request was
                 // built wrong, and guessing which one to believe is how a master
@@ -160,4 +160,4 @@ namespace Botanik { namespace Modbus {
 
 }}  // namespace Botanik::Modbus
 
-#endif // BOTANIK_FEATURE_MODBUS_TCP_SERVER || BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+#endif // BOTANIK_FEATURE_MODBUS_TCP_SERVER

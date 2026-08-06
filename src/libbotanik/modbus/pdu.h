@@ -3,12 +3,15 @@
 
 /**
  * @file modbus/pdu.h
- * @brief The Modbus wire format, and nothing else: MBAP framing, request
- *        decoding, response encoding, the exception vocabulary.
+ * @brief What Modbus TCP adds to a PDU: the MBAP header, request decoding and
+ *        response encoding.
+ *
+ * The vocabulary itself - function codes, exceptions, the quantity ceilings, the
+ * byte order - is @ref wire.h, shared with the RTU client. The two transports
+ * differ in their FRAMING and in nothing else, and this file is that difference.
  *
  * No sockets, no variables, no clock. What arrives is a byte buffer and what
- * leaves is a byte buffer, so this is testable from a literal frame and shared
- * with the RTU client when it lands (its framing differs, its PDUs do not).
+ * leaves is a byte buffer, so this is testable from a literal frame.
  *
  * Two kinds of bad input, and they get different answers on purpose:
  *
@@ -28,7 +31,9 @@
 
 #include "libbotanik_config.h"        // BOTANIK_FEATURE_MODBUS_* - the gate this header sits behind
 
-#if BOTANIK_FEATURE_MODBUS_TCP_SERVER || BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+#include "libbotanik/modbus/wire.h"   // Fc / Exception / the frame arithmetic both transports share
+
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
 
 namespace Botanik { namespace Modbus {
 
@@ -40,44 +45,11 @@ namespace Botanik { namespace Modbus {
     /** @brief Largest PDU the protocol allows (function code + 252 data). */
     static const size_t PDU_MAX  = 253;
     /** @brief Largest complete TCP frame, header included. Every buffer in the
-     *  server is sized from this. */
-    static const size_t ADU_MAX  = MBAP_LEN + PDU_MAX;
+     *  server is sized from this. Distinct from wire.h's ADU_MAX, which is the
+     *  RTU frame's 256: same protocol, different envelope. */
+    static const size_t TCP_ADU_MAX = MBAP_LEN + PDU_MAX;
 
     /** @} */
-
-    /** @name Vocabulary
-     *  @{ */
-
-    /** @brief The function codes served. Values are the protocol's, not ours. */
-    enum Function {
-        FC_READ_COILS      = 0x01,   ///< bits, writable side
-        FC_READ_DISCRETE   = 0x02,   ///< bits, read-only side
-        FC_READ_HOLDING    = 0x03,   ///< registers, writable side
-        FC_READ_INPUT      = 0x04,   ///< registers, read-only side
-        FC_WRITE_COIL      = 0x05,   ///< one bit
-        FC_WRITE_REGISTER  = 0x06,   ///< one register
-        FC_WRITE_COILS     = 0x0F,   ///< a run of bits
-        FC_WRITE_REGISTERS = 0x10    ///< a run of registers
-    };
-
-    /** @brief Exception codes. A response carries at most one, and the server's
-     *  whole refusal vocabulary is these five. */
-    enum Exception {
-        EX_NONE             = 0x00,
-        EX_ILLEGAL_FUNCTION = 0x01,  ///< a function code we do not serve
-        EX_ILLEGAL_ADDRESS  = 0x02,  ///< nothing is mapped there, or not for writing
-        EX_ILLEGAL_VALUE    = 0x03,  ///< the request is well-formed but unserveable
-        EX_SERVER_FAILURE   = 0x04,  ///< we could not do it, and it is our fault
-        EX_BUSY             = 0x06   ///< try the same request again shortly
-    };
-
-    /** @brief Protocol ceilings on a single request. None of them binds in
-     *  practice (the beat does, see docs/design/modbus-tcp-server.md), but a
-     *  request past one is malformed and must be refused rather than clamped. */
-    static const uint16_t MAX_READ_BITS  = 2000;
-    static const uint16_t MAX_READ_REGS  = 125;
-    static const uint16_t MAX_WRITE_BITS = 1968;
-    static const uint16_t MAX_WRITE_REGS = 123;
 
     /** @brief The two fields of the MBAP header a response has to echo. The
      *  protocol id is always 0 and the length is derived when encoding, so
@@ -142,10 +114,10 @@ namespace Botanik { namespace Modbus {
 
     /** @} */
 
-    /** @name Wire helpers
+    /** @name MBAP helpers
      *
-     *  Modbus is big-endian, everywhere, including inside a 32-bit value split
-     *  over two registers. Single expressions, so they stay in the header.
+     *  The header's own two-byte fields. Everything else about byte order is
+     *  wire.h's, and is the same on both transports.
      *  @{ */
 
     inline uint16_t rd16(const uint8_t* p) {
@@ -154,35 +126,12 @@ namespace Botanik { namespace Modbus {
     inline void wr16(uint8_t* p, uint16_t v) {
         p[0] = (uint8_t)(v >> 8); p[1] = (uint8_t)(v & 0xFF);
     }
-    /** @brief Bytes a run of @p count bits occupies, padded to the byte. */
-    inline uint16_t bit_bytes(uint16_t count) { return (uint16_t)((count + 7) / 8); }
-    /** @brief Set bit @p i of a packed run. LSB first within each byte, which is
-     *  the protocol's order and not the obvious one. */
-    inline void put_bit(uint8_t* p, uint16_t i, bool v) {
-        if (v) p[i / 8] = (uint8_t)(p[i / 8] |  (1u << (i % 8)));
-        else   p[i / 8] = (uint8_t)(p[i / 8] & ~(1u << (i % 8)));
-    }
-    /** @brief Read bit @p i of a packed run. */
-    inline bool get_bit(const uint8_t* p, uint16_t i) {
-        return (p[i / 8] & (1u << (i % 8))) != 0;
-    }
 
-    /** @brief Whether @p fc writes. What the write gate and the read-only rows
-     *  are checked against, so the answer lives in one place. */
-    inline bool writes(uint8_t fc) {
-        return fc == FC_WRITE_COIL || fc == FC_WRITE_REGISTER ||
-               fc == FC_WRITE_COILS || fc == FC_WRITE_REGISTERS;
-    }
-    /** @brief Whether @p fc addresses bits rather than registers. */
-    inline bool bit_access(uint8_t fc) {
-        return fc == FC_READ_COILS || fc == FC_READ_DISCRETE ||
-               fc == FC_WRITE_COIL || fc == FC_WRITE_COILS;
-    }
 
     /** @} */
 
 }}  // namespace Botanik::Modbus
 
-#endif // BOTANIK_FEATURE_MODBUS_TCP_SERVER || BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+#endif // BOTANIK_FEATURE_MODBUS_TCP_SERVER
 
 #endif // MODBUS_PDU_H

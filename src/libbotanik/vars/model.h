@@ -158,7 +158,28 @@ namespace Botanik { namespace Vars {
     enum VarFlags : uint8_t {
         F_INVERT  = 1u << 0,   ///< active-low wiring, folded in so logic reads true = asserted
         F_BOUNDED = 1u << 1,   ///< min/max are a real band, not "unset"
-        F_RDONLY  = 1u << 2    ///< a parameter shown but not editable
+        F_RDONLY  = 1u << 2,   ///< a parameter shown but not editable
+        /** @brief A 32-bit value's registers arrive low word first.
+         *
+         *  Registers are big-endian on the wire with no vendor freedom; only
+         *  which half of a PAIR carries the high word varies, and it varies by
+         *  device model. A bit rather than a device-profile table because the
+         *  flags byte already exists, so this costs nothing and a bus of mixed
+         *  vendors needs no new machinery. Meaningless unless `bind.regs` is 2. */
+        F_WORD_SWAP = 1u << 3
+    };
+
+    /** @brief Per-slot state bits, as opposed to the row's declared behaviour.
+     *
+     *  One byte carved out of Value's spare three, so the slot stays 32 bytes. */
+    enum ValueFlags : uint8_t {
+        /** @brief This output's demand has changed and has not reached the field.
+         *
+         *  Set on every write that moves a ROLE_OUTPUT, cleared by the driver
+         *  once a transaction has carried it. Marked at the WRITE rather than
+         *  diffed against a shadow copy, which would cost another 8 bytes a row
+         *  to answer a question the writer already knew the answer to. */
+        VF_FIELD_DIRTY = 1u << 0
     };
 
     /** @brief How a driver reaches a variable.
@@ -406,7 +427,8 @@ namespace Botanik { namespace Vars {
         Quality  qual;
         bool     ovr_on;     ///< an override is in force
         bool     ovr_valid;  ///< what valid() reports while overridden
-        uint8_t  _rsv[3];
+        uint8_t  vflags;     ///< ValueFlags
+        uint8_t  _rsv[2];
     };
     // The override costs 8 bytes per variable, in RAM, on every site whether it
     // uses one or not - so it is pinned here rather than left to drift. Adding a
@@ -510,17 +532,38 @@ namespace Botanik { namespace Vars {
          *  resolve. An integer literal is deliberately not accepted - it would be
          *  ambiguous; use set_i().
          *  @{ */
-        void set(bool v)      { _v->v = from_bool(_d->type, v); _v->qual = Q_GOOD; }
-        void set(float v)     { _v->v = from_f32 (_d->type, v); _v->qual = Q_GOOD; }
-        void set_i(int64_t v) { _v->v = from_i64 (_d->type, v); _v->qual = Q_GOOD; }
+        void set(bool v)      { _v->v = from_bool(_d->type, v); _v->qual = Q_GOOD; _touch_field(); }
+        void set(float v)     { _v->v = from_f32 (_d->type, v); _v->qual = Q_GOOD; _touch_field(); }
+        void set_i(int64_t v) { _v->v = from_i64 (_d->type, v); _v->qual = Q_GOOD; _touch_field(); }
 
         /** @brief What a DRIVER calls: value, timestamp and validity in one
-         *  step, so the staleness clock cannot be forgotten. */
+         *  step, so the staleness clock cannot be forgotten.
+         *
+         *  Deliberately does NOT mark the field dirty. This is a reading coming
+         *  IN from the wire; marking it would ask the driver to write back what
+         *  it just read. */
         void publish(Scalar v, uint64_t now_ms) {
             _v->v = v; _v->stamp_ms = now_ms; _v->qual = Q_GOOD;
         }
+        /** @brief Mark the reading bad, and say why. For a driver that decided a
+         *  well-formed value is not a believable one - an analog reading outside
+         *  its band, which Bank::reject_implausible() cannot judge because the
+         *  band lives in the parameter table. */
+        void invalidate(Quality q) { _v->qual = q; }
         /** @brief Drop to the declared safe state (what a fault does). */
-        void safe() { _v->qual = Q_SAFE; }
+        void safe() { _v->qual = Q_SAFE; _touch_field(); }
+        /** @} */
+
+        /** @name Field synchronisation
+         *
+         *  Whether this output's demand still has to reach the wire. The driver
+         *  owns both: it collects what is dirty and clears the mark once a
+         *  transaction has carried it.
+         *  @{ */
+
+        bool field_dirty() const { return (_v->vflags & VF_FIELD_DIRTY) != 0; }
+        void clear_field_dirty() { _v->vflags = (uint8_t)(_v->vflags & ~VF_FIELD_DIRTY); }
+
         /** @} */
 
         const Variable* meta() const { return _d; }
@@ -542,15 +585,30 @@ namespace Botanik { namespace Vars {
          *  @{ */
         friend class Bank;
 
-        /** @brief Force the variable to @p v, reading as @p valid. */
+        /** @brief Force the variable to @p v, reading as @p valid.
+         *
+         *  Marks the field dirty, like any other write: an operator forcing an
+         *  actuator by hand expects it to move, and the collector reads raw()
+         *  rather than the underlying value precisely so that it does. */
         void override_set(Scalar v, bool valid = true) {
-            _v->ovr = v; _v->ovr_valid = valid; _v->ovr_on = true;
+            _v->ovr = v; _v->ovr_valid = valid; _v->ovr_on = true; _touch_field();
         }
         /** @brief Freeze at whatever it reads right now, keeping its quality. */
         void override_freeze() { override_set(raw(), valid()); }
-        /** @brief Release the override; the live value takes over again. */
-        void override_clear() { _v->ovr_on = false; }
+        /** @brief Release the override; the live value takes over again.
+         *
+         *  Also a change to what the field should be showing - back to whatever
+         *  the programs were demanding underneath - so it marks dirty too. An
+         *  override that was released but never written back would leave the
+         *  actuator wherever the maintainer left it. */
+        void override_clear() { _v->ovr_on = false; _touch_field(); }
         /** @} */
+
+        /** @brief Note that a ROLE_OUTPUT's demand has moved. One compare on a
+         *  path that is already writing; every other role ignores it. */
+        void _touch_field() {
+            if (_d->role == ROLE_OUTPUT) _v->vflags = (uint8_t)(_v->vflags | VF_FIELD_DIRTY);
+        }
     };
 
     /** @} */

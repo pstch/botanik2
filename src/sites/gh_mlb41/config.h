@@ -79,4 +79,21 @@
 #  define BOTANIK_FEATURE_SUN_TRACKER     1
 #endif
 
+// --- Field bus: the RS-485 Modbus RTU master ------------------------------
+// This greenhouse IS a Modbus plant - 8 devices, 71 mapped signals - so the
+// reference site is where the client belongs. Guarded on PLC_SCAN, which the
+// dependency rule requires and which is what a headless cut-down build would
+// have turned off.
+//
+// Only the protocol layer exists so far (modbus/: the codec and the framer).
+// Nothing instantiates it and no task steps it, so turning this on today adds
+// no work to the beat - what it adds is the two .cpp files and the two test
+// files to the build. Off, they compile to nothing while still looking like
+// coverage, which is the same argument the sun tracker's note above makes.
+#if !defined(BOTANIK_FEATURE_PLC_SCAN) || BOTANIK_FEATURE_PLC_SCAN
+#  ifndef BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+#    define BOTANIK_FEATURE_MODBUS_RTU_CLIENT 1
+#  endif
+#endif
+
 #endif // SITES_GH_MLB41_CONFIG_H

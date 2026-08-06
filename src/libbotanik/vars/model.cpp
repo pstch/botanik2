@@ -89,6 +89,10 @@ namespace Botanik { namespace Vars {
             // nothing written, so it reads as its default and the console says
             // so rather than presenting a default as a measurement.
             _terminal.val[i].qual     = (d.role == ROLE_PARAM) ? Q_GOOD : Q_NO_DATA;
+            // Nothing has been demanded yet, so nothing is owed to the field.
+            // An output starts at its safe state and the driver's first
+            // unconditional rewrite is what puts it there.
+            _terminal.val[i].vflags   = 0;
 
             uint16_t cap = 0;
             char* text = text_at(Var(&d, &_terminal.val[i]), &cap);
@@ -233,8 +237,16 @@ namespace Botanik { namespace Vars {
                 // to whoever forced it at the next boot.
                 if (_store != nullptr) (void)_store->clear_override(_terminal.var[i]);
                 _terminal.val[i].ovr_on = false;
+                _terminal.val[i].vflags |= VF_FIELD_DIRTY;
             }
-            if (to_safe) _terminal.val[i].qual = Q_SAFE;
+            if (to_safe) {
+                _terminal.val[i].qual = Q_SAFE;
+                // The safe state is only in the image until something carries it
+                // out. With local I/O that is instant; over a field bus it is a
+                // transaction, and an unmarked row would leave the actuator
+                // energised at exactly the moment control was withdrawn.
+                _terminal.val[i].vflags |= VF_FIELD_DIRTY;
+            }
         }
     }
 
@@ -422,6 +434,7 @@ namespace Botanik { namespace Vars {
             const Variable& d = _terminal.var[i];
             if (!_store->load_override(d, _terminal.val[i])) continue;
             _terminal.val[i].ovr_on = true;
+            if (d.role == ROLE_OUTPUT) _terminal.val[i].vflags |= VF_FIELD_DIRTY;
             n++;
             // CRITICAL, not a warning: an override is the one thing that
             // explains behaviour nothing else accounts for, and after a reboot
@@ -441,6 +454,11 @@ namespace Botanik { namespace Vars {
             if (!_terminal.val[i].ovr_on) continue;
             _terminal.val[i].ovr_on = false;
             if (_store != nullptr) (void)_store->clear_override(_terminal.var[i]);
+            // What the field should be showing has just changed back to whatever
+            // the programs demand underneath; a released override that was never
+            // written out would leave the actuator where the maintainer left it.
+            if (_terminal.var[i].role == ROLE_OUTPUT)
+                _terminal.val[i].vflags |= VF_FIELD_DIRTY;
             n++;
         }
         return n;

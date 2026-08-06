@@ -62,7 +62,7 @@
 #include "libbotanik/core/component.h" // Component - the config-driven lifecycle
 #include "libbotanik/hal/net.h"       // HAL::Network - listener and connection sockets
 #include "libbotanik/modbus/map.h"    // Modbus::Map - what an address means
-#include "libbotanik/modbus/pdu.h"    // Modbus::Request / ADU_MAX - framing
+#include "libbotanik/modbus/pdu.h"    // Modbus::Request / TCP_ADU_MAX - framing
 #include "libbotanik/vars/model.h"    // Vars::Bank - the process image being served
 
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
@@ -115,9 +115,9 @@ namespace Botanik { namespace Modbus {
         struct Conn {
             HAL::Network::TcpSocket sock = -1;
             HAL::Network::Ip4 peer = {{0, 0, 0, 0}};
-            uint8_t  rx[ADU_MAX];
+            uint8_t  rx[TCP_ADU_MAX];
             uint16_t rx_len  = 0;
-            uint8_t  tx[ADU_MAX];
+            uint8_t  tx[TCP_ADU_MAX];
             uint16_t tx_len  = 0;      ///< bytes staged
             uint16_t tx_sent = 0;      ///< of which already written
             Pending  pending = PEND_NONE;

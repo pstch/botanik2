@@ -775,6 +775,117 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint8_t, MODBUS_TCP_ACCEPT_PER_STEP);
 
+    /** @} */
+
+    /** @name Field bus (Modbus RTU)
+     *
+     *  What the RS-485 installation is, and how much of it the planner may hold.
+     *  The protocol's own fixed numbers are not here - they are beside the
+     *  arithmetic that depends on them, in modbus/wire.h.
+     *  @{ */
+
+    /** @brief Bus line rate.
+     *
+     *  19200 carries the reference plant at about a fifth of the bus and
+     *  survives long greenhouse cable runs; 115200 returns barely 2x on paper
+     *  and less than that once the beat quantises each transaction, in exchange
+     *  for real signal-integrity risk. See docs/design/modbus-budget.md, which
+     *  works the whole sum. 38400 is the step to take first if a site outgrows
+     *  it. */
+#ifndef BOTANIK_MODBUS_BAUD
+#  define BOTANIK_MODBUS_BAUD 19200
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_BAUD);
+
+    /** @brief How long a slave is assumed to think before it answers.
+     *
+     *  Not a timeout: this is the figure the planner COSTS a transaction with,
+     *  and it decides how wide a gap is worth reading across. It dominates
+     *  everything - the link speed has no effect on it at all - so it is worth
+     *  measuring on a real device rather than trusting. 10 ms is fair for a
+     *  modern RS-485 meter; cheap ones are 20-50. */
+#ifndef BOTANIK_MODBUS_TURNAROUND_MS
+#  define BOTANIK_MODBUS_TURNAROUND_MS 10
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_TURNAROUND_MS);
+
+    /** @brief Most XP_MODBUS rows the planner will hold. Sized above the
+     *  reference site's 70; rows past it are dropped and counted, never
+     *  silently ignored. */
+#ifndef BOTANIK_MODBUS_MAX_ROWS
+#  define BOTANIK_MODBUS_MAX_ROWS 128
+#endif
+    BOTANIK_CFG(uint16_t, MODBUS_MAX_ROWS);
+
+    /** @brief Most blocks one plan may contain.
+     *
+     *  A backstop, not the real bound: the poll ladder already limits the count
+     *  to devices x function codes x rungs. If this ever binds, the table has
+     *  scattered registers rather than the plan being too ambitious. */
+#ifndef BOTANIK_MODBUS_MAX_BLOCKS
+#  define BOTANIK_MODBUS_MAX_BLOCKS 32
+#endif
+    BOTANIK_CFG(uint16_t, MODBUS_MAX_BLOCKS);
+
+    /** @brief Most registers one block may span.
+     *
+     *  Under the protocol's own 125, so that an FC16 of a full block stays
+     *  inside the 255 bytes the UART can hold in one go: the driver enable is
+     *  hardware-timed and drops when the shift register empties, so a frame that
+     *  does not fit in the buffer would be cut in half on the wire. Coils are
+     *  not capped here - eight to a byte, their own ceiling binds first. */
+#ifndef BOTANIK_MODBUS_MAX_REGS_PER_BLOCK
+#  define BOTANIK_MODBUS_MAX_REGS_PER_BLOCK 120
+#endif
+    BOTANIK_CFG(uint16_t, MODBUS_MAX_REGS_PER_BLOCK);
+
+    /** @brief Step between the due times of blocks sharing a rung, so a ladder
+     *  full of one-second groups does not fire them all on the same beat. Same
+     *  rule the task registry and the scan cycle use. */
+#ifndef BOTANIK_MODBUS_BLOCK_STAGGER_MS
+#  define BOTANIK_MODBUS_BLOCK_STAGGER_MS 20
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_BLOCK_STAGGER_MS);
+
+    /** @brief How long a slave has to answer before the transaction is lost.
+     *
+     *  Sized tightly on purpose. Libraries default to a second; a dead-slave
+     *  backoff at that deadline is what actually takes field buses down, because
+     *  one unplugged sensor then spends a full second of every sweep. Worst
+     *  turnaround plus the response time is about 300 ms at 19200. */
+#ifndef BOTANIK_MODBUS_TIMEOUT_MS
+#  define BOTANIK_MODBUS_TIMEOUT_MS 300
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_TIMEOUT_MS);
+
+    /** @brief Shortest interval between two writes to the same block, so a
+     *  chattering demand cannot monopolise the bus. */
+#ifndef BOTANIK_MODBUS_WRITE_MIN_MS
+#  define BOTANIK_MODBUS_WRITE_MIN_MS 200
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_WRITE_MIN_MS);
+
+    /** @brief How often an output block is written even with nothing to say.
+     *
+     *  Two jobs: it re-drives a slave that rebooted and came back at its power-on
+     *  defaults, and it is the keepalive that slave's own failsafe timer watches
+     *  for. Configure the slave-side failsafe as well - it is the only mechanism
+     *  that still works when the master is the thing that failed. */
+#ifndef BOTANIK_MODBUS_REWRITE_MS
+#  define BOTANIK_MODBUS_REWRITE_MS 5000
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_REWRITE_MS);
+
+    /** @brief Silence held between one transaction and the next.
+     *
+     *  The protocol asks for 3.5 characters, which is 2 ms at 19200 and less
+     *  above it - under a single beat either way, so this is really only honest
+     *  bookkeeping. It stops being free if the beat ever shortens. */
+#ifndef BOTANIK_MODBUS_GAP_MS
+#  define BOTANIK_MODBUS_GAP_MS 3
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_GAP_MS);
+
     /** @}
      *  @name Sun position tracking
      *  @{ */
