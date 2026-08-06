@@ -7,6 +7,7 @@
 #include "libbotanik/utils/serial.h"    // BufferedSerial
 
 #include <cstdint>                      // UINT32_MAX and the fixed-width ring counters
+#include <cstring>                      // memset
 
 #include "libbotanik/config/serial.h"     // Config::SERIAL_* / *_BAUD
 

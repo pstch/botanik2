@@ -9,6 +9,8 @@
  */
 #include "libbotanik/logs/writer.h"     // BufferedLogWriter / SerialLogWriter
 
+#include <cstring>                      // memcpy
+
 #include "libbotanik/logs/format.h"     // Logs::format_log_entry
 #include "libbotanik/utils/serial.h"    // Utils::BufferedSerial::available / is_output_tty
 

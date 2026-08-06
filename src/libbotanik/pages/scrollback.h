@@ -12,6 +12,7 @@
 #include <algorithm>                        // std::min
 #include <cstddef>                          // size_t
 #include <cstdint>                          // UINT16_MAX / uint16_t
+#include <cstdio>                           // snprintf
 
 #include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 

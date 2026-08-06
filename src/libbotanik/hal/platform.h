@@ -33,23 +33,23 @@ namespace Botanik { namespace HAL {
 
     /** @brief Host hardware description (board / MCU) for the boot banner;
      *  static string. */
-    inline const char* hardware_description();
+    const char* hardware_description();
 
     /** @brief Stack region introspection (drives the scheduler high-water
      *  metric). */
     namespace Stack {
 
         /** @brief High address (base) of the current thread's stack region. */
-        inline uintptr_t base();
+        uintptr_t base();
 
         /** @brief Usable size (depth) of the current thread's stack region,
          *  bytes. */
-        inline uint32_t depth();
+        uint32_t depth();
 
         /** @brief High-water stack usage (bytes), or 0 if the platform can't
          *  provide it and the caller must measure it (sim paints/scans; OPTA
          *  reads the RTOS watermark). */
-        inline uint32_t high();
+        uint32_t high();
 
     }  // namespace Stack
 
@@ -71,17 +71,17 @@ namespace Botanik { namespace HAL {
         /** @brief Best-effort wall clock as UNIX ms. Sub-second where the
          *  platform provides it (sim host clock); whole seconds otherwise (OPTA,
          *  until the RTC sub-second reg). */
-        inline uint64_t wall_ms();
+        uint64_t wall_ms();
 
         /** @brief Set the wall clock from UNIX ms (future NTP -> RTC). No-op on
          *  the sim (host clock is the source of truth); on OPTA it sets the
          *  RTC. */
-        inline void set_wall_ms(uint64_t unix_ms);
+        void set_wall_ms(uint64_t unix_ms);
 
         /** @brief Yield the CPU for at least @p ms. Ms granularity: 0 is a
          *  no-op/yield, so sub-ms waits fall through to a busy loop at the call
          *  site. */
-        inline void sleep_ms(uint32_t ms);
+        void sleep_ms(uint32_t ms);
 
     }  // namespace Clock
 
@@ -150,12 +150,12 @@ namespace Botanik { namespace HAL {
     namespace Debug {
 
         /** @brief Trap into an attached debugger (host SIGTRAP, OPTA BKPT). */
-        inline void breakpoint();
+        void breakpoint();
 
         /** @brief True if a debugger is attached (host: ptrace tracer; OPTA:
          *  Cortex-M halting-debug-enable bit). Gate breakpoint() on this: a bare
          *  BKPT with no debugger HardFaults on OPTA. */
-        inline bool under_debugger();
+        bool under_debugger();
 
     }  // namespace Debug
 
@@ -165,13 +165,13 @@ namespace Botanik { namespace HAL {
         /** @brief Reboot the firmware; does not return. OPTA: hardware reset
          *  (NVIC_SystemReset). Sim: re-execs the process image with the original
          *  argv after running any on_reset teardown hook. */
-        inline void reset();
+        void reset();
 
         /** @brief Shut down; does not return. Sim: runs the on_reset hook, then
          *  exits with status @p code (default 0; atexit restores the console;
          *  pass 128+signo for a signal exit). OPTA: no clean halt, so falls back
          *  to reset() and @p code is ignored. */
-        inline void shutdown(int code = 0);
+        void shutdown(int code = 0);
 
     }  // namespace System
 
@@ -182,14 +182,14 @@ namespace Botanik { namespace HAL {
          *  -> the firmware resets. OPTA: the MCU's independent watchdog
          *  peripheral. Sim: serviced from its own thread (independent of the
          *  main loop, so a wedged loop still trips it). */
-        inline void start(uint32_t timeout_ms);
+        void start(uint32_t timeout_ms);
 
         /** @brief Reset the watchdog countdown; call once per healthy
          *  iteration. */
         inline void kick();
 
         /** @brief Stop the watchdog (no-op if not started). */
-        inline void stop();
+        void stop();
 
     }  // namespace Watchdog
 
