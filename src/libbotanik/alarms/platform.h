@@ -19,7 +19,7 @@
 *  where the placement rules and the failure mode for leaving it out are written
 *  down. This header only owns the rows. */
 
-#include "libbotanik/vars/declare.h" // the A() factory these rows are written with
+#include "libbotanik/vars/declare.h"    // the A() factory these rows are written with
 
 /** @brief The platform-health alarm rows. One group of BOTANIK_LIBRARY_VARS.
  *

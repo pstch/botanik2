@@ -3,32 +3,32 @@
  * @file shell.cpp
  * @brief CommandShell implementation - command dispatch and built-in commands.
  */
-#include "libbotanik/shell/shell.h"   // CommandShell - what this file implements
+#include "libbotanik/shell/shell.h"         // CommandShell
 
-#include <algorithm>                  // std::min / std::find - output clamping, history search
-#include <cstdarg>                    // va_list / va_start / va_end - the printf-style reply helper
-#include <cstdio>                     // snprintf / vsnprintf - formatting every command's output
-#include <cstring>                    // strlen / strncmp / memcpy / memcmp - argument parsing
+#include <algorithm>                        // std::min / std::find
+#include <cstdarg>                          // va_list / va_start / va_end
+#include <cstdio>                           // snprintf / vsnprintf
+#include <cstring>                          // strlen / strncmp / memcpy / memcmp
 
-#include "libbotanik_config.h"        // Config::* - the values `version` and `stats` report
-#include "libbotanik_features.h"      // BOTANIK_FEATURE_LIST - the `features` command expands it
+#include "libbotanik_config.h"              // Config::*
+#include "libbotanik_features.h"            // BOTANIK_FEATURE_LIST
 
-#include "libbotanik/alarms/alarms.h" // Alarms::AlarmController - the `alarms` command
-#include "libbotanik/hal/platform.h"  // HAL::System / Debug / Stack - `reset`, `breakpoint`, `stats`
-#include "libbotanik/hal/storage.h"   // HAL::Storage::get / set - the persisted shell settings
-#include "libbotanik/logs/logger.h"   // Logs::Logger::set_min_level - the `loglevel` command
-#include "libbotanik/network/mqtt.h"  // Network::MqttClient - the `net` command's broker line
-#include "libbotanik/network/network.h" // Network::NetworkHandler - the `net` command's link line
-#include "libbotanik/network/ntp.h"   // Network::NtpClient - `net` and `ntpsync`
-#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext - the `stats` command
-#include "libbotanik/utils/text.h"    // Utils::format_age / format_float / format_size - `stats`
-#include "libbotanik/vars/params.h"   // Vars::Params - `list`, `get`, `set`, `override`
+#include "libbotanik/alarms/alarms.h"       // Alarms::AlarmController
+#include "libbotanik/hal/platform.h"        // HAL::System / Debug / Stack
+#include "libbotanik/hal/storage.h"         // HAL::Storage::get / set
+#include "libbotanik/logs/logger.h"         // Logs::Logger::set_min_level
+#include "libbotanik/network/mqtt.h"        // Network::MqttClient
+#include "libbotanik/network/network.h"     // Network::NetworkHandler
+#include "libbotanik/network/ntp.h"         // Network::NtpClient
+#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext
+#include "libbotanik/utils/text.h"          // Utils::format_age / format_float / format_size
+#include "libbotanik/vars/params.h"         // Vars::Params
 
 // Build-time git short hash: a generated header on the CMake builds (see
 // CMakeLists), "unknown" on the Arduino .ino deploy (no CMake, so the header
 // isn't generated).
 #if defined(__has_include) && __has_include("botanik_gitversion.h")
-#  include "botanik_gitversion.h"     // BOTANIK_GIT_HASH - what `version` prints; absent in the .ino build
+#  include "botanik_gitversion.h"           // BOTANIK_GIT_HASH
 #endif
 #ifndef BOTANIK_GIT_HASH
 #  define BOTANIK_GIT_HASH "unknown"

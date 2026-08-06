@@ -3,15 +3,15 @@
  * @file telemetry.cpp
  * @brief MqttTelemetry implementation - the base field set + the publish cycle.
  */
-#include "libbotanik/network/telemetry.h" // MqttSender - what this file implements
+#include "libbotanik/network/telemetry.h"   // MqttSender
 
-#include <cstddef>                    // offsetof / size_t - the SchedulerContext field sweep
-#include <cstdio>                     // snprintf - builds each topic and payload
-#include <cstring>                    // memcpy - assembling the topic path
+#include <cstddef>                          // offsetof / size_t
+#include <cstdio>                           // snprintf
+#include <cstring>                          // memcpy
 
-#include "libbotanik/hal/platform.h"  // HAL::Clock::uptime_ms - paces the sweep
-#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext - the sys/* metrics published
-#include "libbotanik/utils/text.h"    // Utils::format_float / format_int - the payload values
+#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
+#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext
+#include "libbotanik/utils/text.h"          // Utils::format_float / format_int
 
 namespace Botanik { namespace Network {
 

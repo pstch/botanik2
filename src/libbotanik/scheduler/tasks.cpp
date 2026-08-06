@@ -4,9 +4,9 @@
  *        dispatch (see tasks.h).
  */
 
-#include "libbotanik/scheduler/tasks.h" // Registry / Task - the phase-major dispatch implemented here
+#include "libbotanik/scheduler/tasks.h" // Registry / Task
 
-#include "libbotanik/hal/platform.h"  // HAL::Clock::uptime_us - times each task for TaskCost
+#include "libbotanik/hal/platform.h"    // HAL::Clock::uptime_us
 
 namespace Botanik { namespace Scheduler {
 

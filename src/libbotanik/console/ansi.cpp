@@ -10,11 +10,11 @@
  * Callers may retry on a later redraw.
  */
 
-#include <cstddef>                    // size_t
-#include <cstdint>                    // uint8_t/uint16_t
-#include <cstring>                    // strlen
+#include <cstddef>                  // size_t
+#include <cstdint>                  // uint8_t/uint16_t
+#include <cstring>                  // strlen
 
-#include "libbotanik/utils/text.h"    // Utils::format_int
+#include "libbotanik/utils/text.h"  // Utils::format_int
 #include "libbotanik/console/ansi.h"
 
 namespace Botanik { namespace Terminal { namespace Ansi {

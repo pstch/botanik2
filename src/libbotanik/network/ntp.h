@@ -12,13 +12,13 @@
  * on NetworkHandler::is_up().
  */
 
-#include <cstdint>                    // uint8_t/int32_t/uint64_t - packet fields, offset, deadlines
+#include <cstdint>                          // uint8_t/int32_t/uint64_t
 
-#include "libbotanik/core/component.h" // Component - re-applies its parameter group on a commit
-#include "libbotanik/hal/net.h"       // HAL::Network::UdpSocket - the NTP exchange
-#include "libbotanik/network/network.h" // Network::NetworkHandler - the link gate; no query until UP
-#include "libbotanik/network/resolver.h" // Network::NameResolver - resolves the server names
-#include "libbotanik/vars/params.h"   // Vars::Bank / get_str - the ntp_* configuration parameters
+#include "libbotanik/core/component.h"      // Component
+#include "libbotanik/hal/net.h"             // HAL::Network::UdpSocket
+#include "libbotanik/network/network.h"     // Network::NetworkHandler
+#include "libbotanik/network/resolver.h"    // Network::NameResolver
+#include "libbotanik/vars/params.h"         // Vars::Bank / get_str
 
 namespace Botanik { namespace Network {
 

@@ -15,17 +15,17 @@
  * the wire out of the "v N more" tag rather than through an accessor written
  * for the tests.
  */
-#include <cstdint>                    // uint16_t - line counts and screen geometry
-#include <cstdio>                     // snprintf / sscanf - the line labels and the tag
-#include <fcntl.h>                    // fcntl / O_NONBLOCK - the pipe standing in for the link
-#include <string>                     // std::string - the emitted byte stream asserted on
-#include <unistd.h>                   // pipe / read / close - draining what present() emitted
+#include <cstdint>                          // uint16_t
+#include <cstdio>                           // snprintf / sscanf
+#include <fcntl.h>                          // fcntl / O_NONBLOCK
+#include <string>                           // std::string
+#include <unistd.h>                         // pipe / read / close
 
-#include "libbotanik/console/terminal.h" // AnsiTerminal - the device the view paints through
-#include "libbotanik/pages/scrollback.h" // Pages::Scrollback - under test
-#include "libbotanik/utils/serial.h"  // Utils::BufferedSerial - the wire present() is paced against
+#include "libbotanik/console/terminal.h"    // AnsiTerminal
+#include "libbotanik/pages/scrollback.h"    // Pages::Scrollback
+#include "libbotanik/utils/serial.h"        // Utils::BufferedSerial
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
+#include "doctest.h"                        // the test framework (vendored single header)
 
 using namespace Botanik;
 

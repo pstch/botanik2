@@ -21,23 +21,23 @@
 
 #ifdef TARGET_SIMULATOR
 
-#include <cstdint>                    // uint8_t/uint32_t/uint64_t - the NTP and MQTT wire fields
-#include <cstdio>                     // fprintf(stderr) - trace received packets
-#include <cstring>                    // memcpy / memset - assembling the canned replies
-#include <ctime>                      // time() - current UTC for the NTP reply
+#include <cstdint>                      // uint8_t/uint32_t/uint64_t
+#include <cstdio>                       // fprintf(stderr)
+#include <cstring>                      // memcpy / memset
+#include <ctime>                        // time()
 
 // POSIX - the mock responder is a real in-process socket peer, not a stub.
-#include <fcntl.h>                    // fcntl / O_NONBLOCK - the responder never blocks
-#include <netinet/in.h>               // sockaddr_in / htons - binding the mock ports
-#include <pthread.h>                  // pthread_t - the responder runs on its own thread
-#include <sys/socket.h>               // socket / bind / recvfrom / sendto - the responder itself
-#include <unistd.h>                   // close - tearing the sockets down
+#include <fcntl.h>                      // fcntl / O_NONBLOCK
+#include <netinet/in.h>                 // sockaddr_in / htons
+#include <pthread.h>                    // pthread_t
+#include <sys/socket.h>                 // socket / bind / recvfrom / sendto
+#include <unistd.h>                     // close
 
-#include "libbotanik_config.h"        // Config::NET_* - the addresses the mock answers on
+#include "libbotanik_config.h"          // Config::NET_*
 
-#include "libbotanik/hal/net.h"       // HAL::Network::NTP_MOCK_PORT / MQTT_MOCK_PORT
-#include "libbotanik/hal/platform.h"  // HAL::Clock::sleep_ms / HAL::Memory::dsb - the thread loop
-#include "libbotanik/logs/logger.h"   // Logs::Logger - the responder's own trace lines
+#include "libbotanik/hal/net.h"         // HAL::Network::NTP_MOCK_PORT / MQTT_MOCK_PORT
+#include "libbotanik/hal/platform.h"    // HAL::Clock::sleep_ms / HAL::Memory::dsb
+#include "libbotanik/logs/logger.h"     // Logs::Logger
 
 namespace Botanik { namespace Network {
 

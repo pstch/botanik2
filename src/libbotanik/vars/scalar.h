@@ -36,9 +36,9 @@
  * records stay readable.
  */
 
-#include <cmath>                      // roundf - coercing a float into an integer slot
-#include <cstddef>                    // size_t - the render/parse buffer capacities
-#include <cstdint>                    // uint8_t/int64_t/uint64_t - the 8-byte value union's arms
+#include <cmath>    // roundf
+#include <cstddef>  // size_t
+#include <cstdint>  // uint8_t/int64_t/uint64_t
 
 namespace Botanik { namespace Vars {
 

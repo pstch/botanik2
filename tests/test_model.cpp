@@ -4,13 +4,13 @@
  *        default rule, staleness expiry, the fail-safe sweep, lookup, and the
  *        inert sink.
  */
-#include <cstdint>                    // uint16_t - the test table's register numbers
+#include <cstdint>                      // uint16_t
 
-#include "libbotanik/utils/text.h"    // Utils::compare_str - name comparisons
-#include "libbotanik/vars/declare.h"  // the factories the test table is written in
-#include "libbotanik/vars/model.h"    // Vars::Bank / Var / VarRef - under test
+#include "libbotanik/utils/text.h"      // Utils::compare_str
+#include "libbotanik/vars/declare.h"    // the factories the test table is written in
+#include "libbotanik/vars/model.h"      // Vars::Bank / Var / VarRef
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
+#include "doctest.h"                    // the test framework (vendored single header)
 
 using namespace Botanik;
 using namespace Botanik::Vars;

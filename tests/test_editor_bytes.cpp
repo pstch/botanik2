@@ -12,17 +12,17 @@
  * meant to catch a regression in kind (a full-screen repaint where a one-row
  * splice belongs), not to freeze the escape-code tuning.
  */
-#include <cstdint>                    // uint16_t/uint32_t/uint64_t - geometry and byte counts
-#include <cstdio>                     // snprintf - building the input sequences
-#include <cstring>                    // strlen - measuring what was emitted
-#include <fcntl.h>                    // fcntl / O_NONBLOCK - the pipe standing in for the serial link
-#include <string>                     // std::string - the emitted byte stream asserted on
-#include <unistd.h>                   // pipe / read / close - draining what the editor emitted
+#include <cstdint>                      // uint16_t/uint32_t/uint64_t
+#include <cstdio>                       // snprintf
+#include <cstring>                      // strlen
+#include <fcntl.h>                      // fcntl / O_NONBLOCK
+#include <string>                       // std::string
+#include <unistd.h>                     // pipe / read / close
 
-#include "libbotanik/console/console.h" // Console - supplies the editor's row band
-#include "libbotanik/console/editor.h" // Terminal::TextEditor - under test (its wire cost is the point)
+#include "libbotanik/console/console.h" // Console
+#include "libbotanik/console/editor.h"  // Terminal::TextEditor
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
+#include "doctest.h"                    // the test framework (vendored single header)
 
 using namespace Botanik;
 

@@ -18,11 +18,11 @@
 
 #ifdef TARGET_SIMULATOR
 
-#include <cmath>                      // pow - the sensor response curves
-#include <cstdint>                    // uint32_t/uint64_t - the animation's tick counters
-#include <random>                     // std::mt19937 + distributions - the simulated sensor noise
+#include <cmath>        // pow
+#include <cstdint>      // uint32_t/uint64_t
+#include <random>       // std::mt19937 + distributions
 
-#include "libbotanik.h"               // Vars::Bank - the same rows a Modbus driver would write
+#include "libbotanik.h" // Vars::Bank
 
 
 /**

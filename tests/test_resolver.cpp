@@ -5,17 +5,17 @@
  *        (getaddrinfo on the simulator). Uses .invalid names so the suite is
  *        deterministic offline.
  */
-#include <cstdint>                    // uint32_t/uint64_t - the cache TTLs and handles
+#include <cstdint>                          // uint32_t/uint64_t
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
+#include "doctest.h"                        // the test framework (vendored single header)
 
 // Pulls the site config, then the feature defaults: the guards below
 // need the flags DEFINED, and an undefined one reads as 0 in #if.
-#include "libbotanik_config.h"        // Config::MAX_DNS / DNS_CACHE - the caps the tests probe
+#include "libbotanik_config.h"              // Config::MAX_DNS / DNS_CACHE
 
-#include "libbotanik/network/resolver.h" // Network::NameResolver - under test
+#include "libbotanik/network/resolver.h"    // Network::NameResolver
 // HAL::Clock::sleep_ms / uptime_ms (poll the async DNS)
-#include "libbotanik/hal/platform.h"  // HAL::Clock::uptime_ms - ageing the cache entries
+#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
 
 // Compiles to an empty TU when the feature is off (the DNS resolver is part of the network stack),
 // contributing no CTest cases - the shape test_sun.cpp uses.

@@ -6,14 +6,14 @@
  *        resumption cursor (no re-format across drains), and format-failure
  *        accounting.
  */
-#include <cstddef>                    // size_t - the queue and message lengths
-#include <cstdint>                    // uint8_t/uint32_t/uint64_t - queue indices and stamps
-#include <cstring>                    // memcpy / strlen - building and checking the entries
-#include <vector>                     // std::vector - the drained output collected per beat
+#include <cstddef>                  // size_t
+#include <cstdint>                  // uint8_t/uint32_t/uint64_t
+#include <cstring>                  // memcpy / strlen
+#include <vector>                   // std::vector
 
-#include "libbotanik/logs/writer.h"   // Logs::BufferedLogWriter - under test (incremental drain)
+#include "libbotanik/logs/writer.h" // Logs::BufferedLogWriter
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
+#include "doctest.h"                // the test framework (vendored single header)
 
 using namespace Botanik;
 

@@ -9,14 +9,14 @@
  *        LogsScrollback / HomeScrollback typedefs below).
  */
 
-#include <algorithm>                  // std::min - bound the rows redrawn per beat
-#include <cstddef>                    // size_t - the ingested text lengths
-#include <cstdint>                    // UINT16_MAX / uint16_t - the line indices and sentinels
+#include <algorithm>                        // std::min
+#include <cstddef>                          // size_t
+#include <cstdint>                          // UINT16_MAX / uint16_t
 
-#include "libbotanik_config.h"        // Config::SCROLLBACK_* - the per-beat redraw budget
+#include "libbotanik_config.h"              // Config::SCROLLBACK_*
 
-#include "libbotanik/console/terminal.h" // AnsiTerminal - move_to / scroll_region / clear_to_eol
-#include "libbotanik/pages/line_buffer.h" // Pages::LineBuffer - the storage this view scrolls over
+#include "libbotanik/console/terminal.h"    // AnsiTerminal
+#include "libbotanik/pages/line_buffer.h"   // Pages::LineBuffer
 
 namespace Botanik { namespace Pages {
 

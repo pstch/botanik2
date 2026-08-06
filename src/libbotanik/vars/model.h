@@ -42,9 +42,9 @@
  * parse that quietly yields zero.
  */
 
-#include <cstdint>                    // uint8_t/uint16_t/int64_t - descriptor fields and VarRef
+#include <cstdint>                  // uint8_t/uint16_t/int64_t
 
-#include "libbotanik/vars/scalar.h"   // Vars::Scalar / VarType - the value every row carries
+#include "libbotanik/vars/scalar.h" // Vars::Scalar / VarType
 
 namespace Botanik { namespace Logs { class Logger; } }
 

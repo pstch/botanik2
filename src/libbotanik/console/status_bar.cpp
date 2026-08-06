@@ -3,20 +3,20 @@
  * @file status_bar.cpp
  * @brief StatusBar implementation - row-0 tabs, clock, and metrics field.
  */
-#include "libbotanik/console/status_bar.h" // StatusBar - the row-0 bar implemented here
+#include "libbotanik/console/status_bar.h"  // StatusBar
 
-#include <algorithm>                  // std::min - clamp a tab label to its column span
-#include <cmath>                      // lroundf - CPU and stack percentages
-#include <cstdint>                    // uint8_t/uint16_t/uint64_t - columns, metrics, stamps
-#include <cstdio>                     // snprintf - assembles the metric strings
+#include <algorithm>                        // std::min
+#include <cmath>                            // lroundf
+#include <cstdint>                          // uint8_t/uint16_t/uint64_t
+#include <cstdio>                           // snprintf
 
-#include "libbotanik_config.h"        // Config::SCREEN_COLS - how much bar there is to fill
+#include "libbotanik_config.h"              // Config::SCREEN_COLS
 
-#include "libbotanik/console/console.h" // Console::active_page / page_name / context - the tab strip
-#include "libbotanik/console/terminal.h" // AnsiTerminal - move_to / set_inverted / paint_field_runs
-#include "libbotanik/hal/platform.h"  // HAL::Clock::uptime_ms - the uptime cell
-#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext - CPU and stack readings
-#include "libbotanik/utils/time.h"    // Utils::CalendarTime / cal_time_ms - the clock cell
+#include "libbotanik/console/console.h"     // Console::active_page / page_name / context
+#include "libbotanik/console/terminal.h"    // AnsiTerminal
+#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
+#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext
+#include "libbotanik/utils/time.h"          // Utils::CalendarTime / cal_time_ms
 
 namespace Botanik { namespace Terminal {
 

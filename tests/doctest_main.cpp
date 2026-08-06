@@ -10,4 +10,4 @@
  * @see @ref cpptests for the suite overview and how to run it.
  */
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "doctest.h"                  // DOCTEST_CONFIG_IMPLEMENT lives here - the framework's main()
+#include "doctest.h"    // DOCTEST_CONFIG_IMPLEMENT lives here

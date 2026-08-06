@@ -9,23 +9,23 @@
  *        TARGET_SIMULATOR split is legal here: this file is part of the HAL.
  */
 
-#include "libbotanik/hal/net.h"       // HAL::Network - the link/DNS/UDP/TCP surface implemented here
+#include "libbotanik/hal/net.h"             // HAL::Network
 
-#include "libbotanik_config.h"        // Config::NET_* - socket counts, timeouts, mock ports
+#include "libbotanik_config.h"              // Config::NET_*
 
-#include "libbotanik/hal/platform.h"  // HAL::Clock::uptime_ms - DNS/connect deadlines
+#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
 
 #ifdef TARGET_OPTA
 // ---- OPTA backend (Mbed) ----
 
-#include <cstring>                    // memcpy / memset / strlen - address and buffer handling
+#include <cstring>                          // memcpy / memset / strlen
 
 // Mbed netsocket - resolved from the installed mbed_opta core, not this tree.
-#include "netsocket/EthernetInterface.h" // EthernetInterface - the wired link device
-#include "netsocket/NetworkInterface.h" // NetworkInterface - gethostbyname_async, status callbacks
-#include "netsocket/SocketAddress.h"  // SocketAddress - what DNS resolves into
-#include "netsocket/TCPSocket.h"      // TCPSocket - the MQTT connection
-#include "netsocket/UDPSocket.h"      // UDPSocket - the NTP exchange
+#include "netsocket/EthernetInterface.h"    // EthernetInterface
+#include "netsocket/NetworkInterface.h"     // NetworkInterface
+#include "netsocket/SocketAddress.h"        // SocketAddress
+#include "netsocket/TCPSocket.h"            // TCPSocket
+#include "netsocket/UDPSocket.h"            // UDPSocket
 
 namespace Botanik { namespace HAL { namespace Network {
 
@@ -208,14 +208,14 @@ namespace Botanik { namespace HAL { namespace Network {
 // blocking in getaddrinfo. No NTP/MQTT wire knowledge lives here; that stays in the
 // responder and in network/.
 
-#include <cerrno>                     // errno / EAGAIN / EINPROGRESS - non-blocking send/recv results
-#include <cstring>                    // memcpy / memset / strcmp / strlen - address and buffer handling
+#include <cerrno>                           // errno / EAGAIN / EINPROGRESS
+#include <cstring>                          // memcpy / memset / strcmp / strlen
 
 // POSIX sockets - the simulator backend talks to a real in-process peer.
-#include <fcntl.h>                    // fcntl / O_NONBLOCK - every socket is non-blocking
-#include <netinet/in.h>               // sockaddr_in / htons / ntohs - the peer address
-#include <sys/socket.h>               // socket / connect / send / recvfrom - the transport itself
-#include <unistd.h>                   // close - releasing a socket slot
+#include <fcntl.h>                          // fcntl / O_NONBLOCK
+#include <netinet/in.h>                     // sockaddr_in / htons / ntohs
+#include <sys/socket.h>                     // socket / connect / send / recvfrom
+#include <unistd.h>                         // close
 
 namespace Botanik { namespace HAL { namespace Network {
 

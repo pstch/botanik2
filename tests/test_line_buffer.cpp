@@ -4,11 +4,11 @@
  *        circular line store: newest-first access, wrap-around eviction,
  *        per-line truncation, and the store_wrapped() newline/width splitter.
  */
-#include <cstring>                    // memcmp / strlen - comparing the stored lines
+#include <cstring>                          // memcmp / strlen
 
-#include "libbotanik/pages/line_buffer.h" // Pages::LineBuffer - under test
+#include "libbotanik/pages/line_buffer.h"   // Pages::LineBuffer
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
+#include "doctest.h"                        // the test framework (vendored single header)
 
 using Botanik::Pages::LineBuffer;
 

@@ -12,17 +12,17 @@
  * ticks, scroll-then-diff (a DL/IL beats a band repaint), the all-or-nothing ring
  * gate, the priority classes, and the top-down row order within a tick.
  */
-#include <cstdint>                    // uint8_t/uint16_t - cells, coordinates, byte budget
-#include <cstdio>                     // snprintf - building the expected escape sequences
-#include <cstring>                    // strlen / memcmp - comparing what was emitted
-#include <fcntl.h>                    // fcntl / O_NONBLOCK - the pipe standing in for the serial link
-#include <string>                     // std::string - the emitted byte stream asserted on
-#include <unistd.h>                   // pipe / read / close - draining what present() emitted
+#include <cstdint>                          // uint8_t/uint16_t
+#include <cstdio>                           // snprintf
+#include <cstring>                          // strlen / memcmp
+#include <fcntl.h>                          // fcntl / O_NONBLOCK
+#include <string>                           // std::string
+#include <unistd.h>                         // pipe / read / close
 
-#include "libbotanik/console/terminal.h" // AnsiTerminal::present - under test (the diff's byte cost)
-#include "libbotanik/utils/serial.h"  // Utils::BufferedSerial - the wire present() is paced against
+#include "libbotanik/console/terminal.h"    // AnsiTerminal::present
+#include "libbotanik/utils/serial.h"        // Utils::BufferedSerial
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
+#include "doctest.h"                        // the test framework (vendored single header)
 
 using namespace Botanik;
 

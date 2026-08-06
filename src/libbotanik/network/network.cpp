@@ -8,11 +8,11 @@
  * next step.
  */
 
-#include "libbotanik/network/network.h" // NetworkHandler - what this file implements
+#include "libbotanik/network/network.h" // NetworkHandler
 
-#include <cstring>                    // memset / strncpy - the LinkConfig host strings
+#include <cstring>                      // memset / strncpy
 
-#include "libbotanik/hal/net.h"       // HAL::Network::link_* - bring the device up and read its IP
+#include "libbotanik/hal/net.h"         // HAL::Network::link_*
 
 namespace Botanik { namespace Network {
 

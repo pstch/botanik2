@@ -3,11 +3,11 @@
  * @brief Scan driver: decide which programs are due and run them (see scan.h).
  */
 
-#include "libbotanik/scan/scan.h"     // Scan::Driver - what this file implements
+#include "libbotanik/scan/scan.h"       // Scan::Driver
 
-#include "libbotanik_config.h"        // Config::SCAN_STAGGER_MS - spreads the programs across beats
+#include "libbotanik_config.h"          // Config::SCAN_STAGGER_MS
 
-#include "libbotanik/hal/platform.h"  // HAL::Clock - how late a due program actually is
+#include "libbotanik/hal/platform.h"    // HAL::Clock
 
 namespace Botanik { namespace Scan {
 

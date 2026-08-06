@@ -3,12 +3,12 @@
  * @brief The PID regulator.
  */
 
-#include "libbotanik/plc/blocks/pid.h" // Pid - implemented here
+#include "libbotanik/plc/blocks/pid.h"      // Pid
 
-#include "libbotanik_config.h"        // BOTANIK_FEATURE_PLC_BLK_* - the gate the bodies below sit behind
+#include "libbotanik_config.h"              // BOTANIK_FEATURE_PLC_BLK_*
 
-#include "libbotanik/plc/functions/math.h" // Plc::limit - the output clamp and the anti-windup bound
-#include "libbotanik/plc/functions/time.h" // Plc::seconds - the integral and derivative terms
+#include "libbotanik/plc/functions/math.h"  // Plc::limit
+#include "libbotanik/plc/functions/time.h"  // Plc::seconds
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {

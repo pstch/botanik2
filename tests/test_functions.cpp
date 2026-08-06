@@ -3,9 +3,9 @@
  * @brief The PLC functions (plc/functions/). Stateless, so every case is one
  *        line - which is the point of the split from the blocks.
  */
-#include "libbotanik/plc/functions/functions.h" // the stateless POU vocabulary - under test
+#include "libbotanik/plc/functions/functions.h" // the stateless POU vocabulary
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
+#include "doctest.h"                            // the test framework (vendored single header)
 
 using namespace Botanik::Plc;
 

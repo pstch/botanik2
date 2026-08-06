@@ -4,13 +4,13 @@
  * @brief Time utility implementations - calendar/UNIX conversion and timestamp
  *        formatting.
  */
-#include "libbotanik/utils/time.h"    // CalendarTime + the uptime/wall conversions implemented here
+#include "libbotanik/utils/time.h"      // CalendarTime + the uptime/wall conversions implemented here
 
-#include <cstddef>                    // size_t - the timestamp buffer capacities
-#include <cstdint>                    // int64_t/uint64_t - the ms arithmetic
-#include <cstdio>                     // snprintf - format_ms_timestamp
+#include <cstddef>                      // size_t
+#include <cstdint>                      // int64_t/uint64_t
+#include <cstdio>                       // snprintf
 
-#include "libbotanik/hal/platform.h"  // HAL::Clock::uptime_ms / wall_ms - the only clock source
+#include "libbotanik/hal/platform.h"    // HAL::Clock::uptime_ms / wall_ms
 
 namespace Botanik { namespace Utils {
 

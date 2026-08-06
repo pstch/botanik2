@@ -3,13 +3,13 @@
  * @file mqtt_log.cpp
  * @brief MqttLogWriter - publish log entries to the MQTT broker.
  */
-#include "libbotanik/network/mqtt_log.h" // MqttLogWriter - what this file implements
+#include "libbotanik/network/mqtt_log.h"    // MqttLogWriter
 
-#include <algorithm>                  // std::min - clamp the payload to the publish buffer
-#include <cstdio>                     // snprintf - builds the topic path and the payload
+#include <algorithm>                        // std::min
+#include <cstdio>                           // snprintf
 
-#include "libbotanik/logs/format.h"   // Logs::format_log_level_name / _topic_name - path segments
-#include "libbotanik/utils/time.h"    // Utils::format_ms_timestamp - the payload's time field
+#include "libbotanik/logs/format.h"         // Logs::format_log_level_name / _topic_name
+#include "libbotanik/utils/time.h"          // Utils::format_ms_timestamp
 
 namespace Botanik { namespace Network {
 

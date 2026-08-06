@@ -11,9 +11,9 @@
  * whatever rate the program runs at, and stays right when a scan comes late.
  */
 
-#include <cstdint>                    // uint8_t/uint32_t - the window index and the sample ages
+#include <cstdint>              // uint8_t/uint32_t
 
-#include "libbotanik_config.h"        // BOTANIK_FEATURE_PLC_BLK_FILTERS - the gate this whole header sits behind
+#include "libbotanik_config.h"  // BOTANIK_FEATURE_PLC_BLK_FILTERS
 #if BOTANIK_FEATURE_PLC_BLK_FILTERS
 
 namespace Botanik { namespace Plc {

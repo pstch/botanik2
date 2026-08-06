@@ -13,8 +13,8 @@
  * that actually changed, so the bar keeps no diff cache.
  */
 
-#include <cstddef>                    // size_t - the metric-string buffer capacities
-#include <cstdint>                    // uint16_t/uint64_t - the tab columns and the clock stamp
+#include <cstddef>  // size_t
+#include <cstdint>  // uint16_t/uint64_t
 
 namespace Botanik { namespace Terminal {
 

@@ -8,11 +8,11 @@
  * Plain POD, sized by Config::LOG_MESSAGE_LEN; no wire contract to honour.
  */
 
-#include <cstdint>                    // uint16_t/uint64_t - sequence number and timestamp
+#include <cstdint>                  // uint16_t/uint64_t
 
-#include "libbotanik_config.h"        // Config::LOG_MSG_MAX - the entry's inline message size
+#include "libbotanik_config.h"      // Config::LOG_MSG_MAX
 
-#include "libbotanik/logs/topics.h"   // Logs::LogLevel / LogTopic - the entry's classification
+#include "libbotanik/logs/topics.h" // Logs::LogLevel / LogTopic
 
 namespace Botanik { namespace Logs {
 

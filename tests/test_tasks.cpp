@@ -3,14 +3,14 @@
  * @brief The task registry (scheduler/tasks.h): phase-major dispatch, group
  *        rates, the derived offsets, and the per-task cost numbers.
  */
-#include <cstdint>                    // uint8_t/uint32_t/uint64_t - task counts and cost samples
-#include <string>                     // std::string - the recorded task names
-#include <vector>                     // std::vector - the recorded dispatch order
+#include <cstdint>                      // uint8_t/uint32_t/uint64_t
+#include <string>                       // std::string
+#include <vector>                       // std::vector
 
-#include "libbotanik/core/component.h" // Component - what a registered task wraps
-#include "libbotanik/scheduler/tasks.h" // Scheduler::Registry - under test (phase-major dispatch)
+#include "libbotanik/core/component.h"  // Component
+#include "libbotanik/scheduler/tasks.h" // Scheduler::Registry
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
+#include "doctest.h"                    // the test framework (vendored single header)
 
 using namespace Botanik::Scheduler;
 

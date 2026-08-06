@@ -8,9 +8,9 @@
  * Gated on NetworkHandler::is_up().
  */
 
-#include "libbotanik/network/ntp.h"   // NtpClient - what this file implements
+#include "libbotanik/network/ntp.h"     // NtpClient
 
-#include "libbotanik/hal/platform.h"  // HAL::Clock::set_wall_ms - the reply lands on the RTC here
+#include "libbotanik/hal/platform.h"    // HAL::Clock::set_wall_ms
 
 namespace Botanik { namespace Network {
 

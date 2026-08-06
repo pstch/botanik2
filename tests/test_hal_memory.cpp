@@ -15,11 +15,11 @@
  * their own, asserting respectively that sizeof(Empty) >= 1 and that a pair of
  * host no-ops changed nothing.
  */
-#include <cstdint>                    // uint32_t - the word-sized payloads ordered_copy moves
+#include <cstdint>                      // uint32_t
 
-#include "libbotanik/hal/platform.h"  // HAL::Memory::ordered_copy / cache_* - under test
+#include "libbotanik/hal/platform.h"    // HAL::Memory::ordered_copy / cache_*
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
+#include "doctest.h"                    // the test framework (vendored single header)
 
 using namespace Botanik;
 

@@ -56,8 +56,8 @@
  * `tests/test_site_names.cpp` fails before either of those is reached.
  */
 
-#include "libbotanik/alarms/platform.h" // BOTANIK_PLATFORM_ALARM_VARS - the alarm group
-#include "libbotanik/vars/declare.h"  // the A/P/G/SV factories the groups are written with
+#include "libbotanik/alarms/platform.h" // BOTANIK_PLATFORM_ALARM_VARS
+#include "libbotanik/vars/declare.h"    // the A/P/G/SV factories the groups are written with
 
 /** @name The four groups
  *

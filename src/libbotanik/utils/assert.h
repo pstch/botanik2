@@ -2,23 +2,20 @@
 #ifndef UTILS_ASSERT_H
 #define UTILS_ASSERT_H
 
-/**
- * @file assert.h
- * @brief BOTANIK_ASSERT - debug-only assertions that log, then trap or
- *        continue.
+/** @file assert.h
+ *  @brief BOTANIK_ASSERT - debug-only assertions that log, then trap or
+ *         continue.
  *
- * This macro is compiled out entirely in release builds, it's only used when
- * DEBUG is defined. It logs a CRITICAL entry under the ASSERT topic, then :
+ *  This macro is compiled out entirely in release builds, it's only used when
+ *  DEBUG is defined. It logs a CRITICAL entry under the ASSERT topic, then :
  *   - if there is a debugger, traps into the attached debugger
  *   - if we are on the simulator, abort()s on the simulator
- *   - otherwise, just keeps running.
- *
- */
+ *   - otherwise, just keeps running. */
 
-#include <cstdlib>                    // abort - the last resort when no debugger is attached
+#include <cstdlib>                      // abort
 
-#include "libbotanik/hal/platform.h"  // HAL::Debug::breakpoint / under_debugger - trap first
-#include "libbotanik/logs/logger.h"   // Logs::Logger - the failed assertion is logged CRITICAL
+#include "libbotanik/hal/platform.h"    // HAL::Debug::breakpoint / under_debugger
+#include "libbotanik/logs/logger.h"     // Logs::Logger
 
 // Assertion handling (and logging)
 // ===========================================================================

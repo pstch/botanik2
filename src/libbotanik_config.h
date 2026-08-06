@@ -16,8 +16,8 @@
  *        `static constexpr` beside its one consumer, where the thing that
  *        constrains it can be read in the same breath. */
 
-#include <cstddef>                    // size_t - the buffer-capacity constants
-#include <cstdint>                    // uint8_t/uint16_t/uint32_t - the BOTANIK_CFG constant types
+#include <cstddef>                  // size_t
+#include <cstdint>                  // uint8_t/uint16_t/uint32_t
 
 #define BOTANIK_CFG(type, name) static constexpr type name = BOTANIK_##name
 
@@ -37,20 +37,20 @@
 #  endif
 #endif
 
-#include "libbotanik_site.h"          // resolves BOTANIK_SITE -> BOTANIK_SITE_CONFIG / _HEADER
+#include "libbotanik_site.h"        // resolves BOTANIK_SITE -> BOTANIK_SITE_CONFIG / _HEADER
 
 // The site's config.h, pulled in before the defaults below so a site can override
 // any of them build-wide. It is included here with NONE of the library in scope,
 // which is exactly why it is its own small file and not part of the site's
 // site.h: that one needs the library types, and this one cannot have them.
 #if defined(BOTANIK_SITE_CONFIG)
-#  include BOTANIK_SITE_CONFIG        // #define BOTANIK_* before the defaults
+#  include BOTANIK_SITE_CONFIG      // #define BOTANIK_* before the defaults
 #endif
 
 // Feature flags
 // ===========================================================================
 
-#include "libbotanik_features.h"      // the BOTANIK_FEATURE_* defaults and BOTANIK_FEATURE_LIST
+#include "libbotanik_features.h"    // the BOTANIK_FEATURE_* defaults and BOTANIK_FEATURE_LIST
 
 // Configuration variables
 // ===========================================================================

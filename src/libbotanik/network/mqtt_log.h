@@ -15,13 +15,13 @@
  * chatter off the broker.
  */
 
-#include <cstddef>                    // size_t - the topic-buffer capacities
+#include <cstddef>                      // size_t
 
-#include "libbotanik_config.h"        // Config::MQTT_TOPIC_PREFIX / LOG_TOPIC - the topic shape
+#include "libbotanik_config.h"          // Config::MQTT_TOPIC_PREFIX / LOG_TOPIC
 
-#include "libbotanik/logs/topics.h"   // Logs::LogLevel / LogTopic - the two topic path segments
-#include "libbotanik/logs/writer.h"   // Logs::LogWriter - the interface this writer implements
-#include "libbotanik/network/mqtt.h"  // Network::MqttClient - where each entry is published
+#include "libbotanik/logs/topics.h"     // Logs::LogLevel / LogTopic
+#include "libbotanik/logs/writer.h"     // Logs::LogWriter
+#include "libbotanik/network/mqtt.h"    // Network::MqttClient
 
 namespace Botanik { namespace Network {
 

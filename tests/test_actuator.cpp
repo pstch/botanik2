@@ -3,11 +3,11 @@
  * @brief The two-position actuator (scan/blocks/actuator.h). Time is handed in
  *        as dt, so a 60 s stroke runs in a loop of a few dozen iterations.
  */
-#include <string>                     // std::string - doctest's failure messages
+#include <string>                           // std::string
 
-#include "libbotanik/plc/blocks/actuator.h" // Plc::Actuator / ActuatorConfig - under test
+#include "libbotanik/plc/blocks/actuator.h" // Plc::Actuator / ActuatorConfig
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
+#include "doctest.h"                        // the test framework (vendored single header)
 
 // Compiles to an empty TU when the blocks are off - the namespace
 // itself is gated, so this must sit ABOVE the using-directive.

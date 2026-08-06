@@ -3,15 +3,15 @@
  * @file shell.cpp
  * @brief ShellPage implementation.
  */
-#include "libbotanik/pages/shell.h"   // ShellPage - what this file implements
+#include "libbotanik/pages/shell.h" // ShellPage
 
-#include <algorithm>                  // std::min - bound the transcript lines drawn per beat
-#include <cstring>                    // memcpy / strlen - echoing the submitted command
+#include <algorithm>                // std::min
+#include <cstring>                  // memcpy / strlen
 
-#include "libbotanik_config.h"        // Config::SCREEN_COLS - the wrap width for output lines
+#include "libbotanik_config.h"      // Config::SCREEN_COLS
 
-#include "libbotanik/logs/format.h"   // Logs::format_log_entry - the `logs` built-in's rendering
-#include "libbotanik/utils/text.h"    // Utils::scan_line_segment - soft-wrapping long output
+#include "libbotanik/logs/format.h" // Logs::format_log_entry
+#include "libbotanik/utils/text.h"  // Utils::scan_line_segment
 
 namespace Botanik { namespace Pages {
 

@@ -11,9 +11,9 @@
  * work duration, stack).
  */
 
-#include <cstdint>                    // uint32_t - sample values and window timestamps
+#include <cstdint>              // uint32_t
 
-#include "libbotanik_config.h"        // Config::* - the filters' default window sizes
+#include "libbotanik_config.h"  // Config::*
 
 namespace Botanik { namespace Utils {
 

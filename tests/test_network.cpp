@@ -10,19 +10,19 @@
  *        Config is injected through the params fixture.
  */
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
-#include "params_fixture.h"           // the parameter bank the network components read their config from
-#include "recording_writer.h"         // RecordingWriter - captures the components' log lines
+#include "doctest.h"                        // the test framework (vendored single header)
+#include "params_fixture.h"                 // the parameter bank the network components read their config from
+#include "recording_writer.h"               // RecordingWriter
 // Pulls the site config, then the feature defaults: the guards below
 // need the flags DEFINED, and an undefined one reads as 0 in #if.
-#include "libbotanik_config.h"        // Config::NET_* - the mock peer's addresses and timeouts
+#include "libbotanik_config.h"              // Config::NET_*
 
-#include "libbotanik/hal/platform.h"  // HAL::Clock - pumping the non-blocking state machines
-#include "libbotanik/logs/logger.h"   // Logs::Logger - wired to the recording writer
-#include "libbotanik/network/mqtt.h"  // Network::MqttClient - under test
-#include "libbotanik/network/network.h" // Network::NetworkHandler - under test
-#include "libbotanik/network/ntp.h"   // Network::NtpClient - under test
-#include "libbotanik/network/resolver.h" // Network::NameResolver - under test
+#include "libbotanik/hal/platform.h"        // HAL::Clock
+#include "libbotanik/logs/logger.h"         // Logs::Logger
+#include "libbotanik/network/mqtt.h"        // Network::MqttClient
+#include "libbotanik/network/network.h"     // Network::NetworkHandler
+#include "libbotanik/network/ntp.h"         // Network::NtpClient
+#include "libbotanik/network/resolver.h"    // Network::NameResolver
 
 using namespace Botanik;
 using namespace Botanik::Network;

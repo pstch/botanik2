@@ -18,14 +18,14 @@
  *
  * @see @ref cpptests
  */
-#include <cstdint>                    // uint16_t - the table indices walked
-#include <cstring>                    // strcmp - matching a resolved name back to its row
+#include <cstdint>              // uint16_t
+#include <cstring>              // strcmp
 
-#include "libbotanik_site.h"          // resolves BOTANIK_SITE -> BOTANIK_SITE_HEADER
-#include "libbotanik.h"               // Vars::Bank::find / unresolved_count - what this test asserts on
+#include "libbotanik_site.h"    // resolves BOTANIK_SITE -> BOTANIK_SITE_HEADER
+#include "libbotanik.h"         // Vars::Bank::find / unresolved_count
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
-#include BOTANIK_SITE_HEADER          // the selected site's tables - the names under test
+#include "doctest.h"            // the test framework (vendored single header)
+#include BOTANIK_SITE_HEADER    // the selected site's tables
 
 #if BOTANIK_FEATURE_SUN
 #  include "libbotanik/sun/sun_tracker.h"

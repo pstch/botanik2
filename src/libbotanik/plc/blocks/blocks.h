@@ -38,13 +38,13 @@
 // family, so each include is re-exported to the site rather than used here.
 // The families gate themselves on BOTANIK_FEATURE_PLC_BLK_*, so this list is
 // unconditional and an excluded family contributes nothing.
-#include "libbotanik/plc/blocks/actuator.h" // Actuator - open/close coil pair driven to a position
-#include "libbotanik/plc/blocks/analog.h" // Hysteresis / Hysteresis3 / Ramp / Deadband
-#include "libbotanik/plc/blocks/filters.h" // Ewma / MedianOf3 / MovingAverage
-#include "libbotanik/plc/blocks/logic.h" // RTrig / FTrig / Sr / Rs / Interlock
-#include "libbotanik/plc/blocks/meter.h" // Integral / Derivative - rate <-> quantity
-#include "libbotanik/plc/blocks/pid.h" // Pid / PidTuning
-#include "libbotanik/plc/blocks/timers.h" // Ton / Tof / Tp
+#include "libbotanik/plc/blocks/actuator.h"     // Actuator
+#include "libbotanik/plc/blocks/analog.h"       // Hysteresis / Hysteresis3 / Ramp / Deadband
+#include "libbotanik/plc/blocks/filters.h"      // Ewma / MedianOf3 / MovingAverage
+#include "libbotanik/plc/blocks/logic.h"        // RTrig / FTrig / Sr / Rs / Interlock
+#include "libbotanik/plc/blocks/meter.h"        // Integral / Derivative
+#include "libbotanik/plc/blocks/pid.h"          // Pid / PidTuning
+#include "libbotanik/plc/blocks/timers.h"       // Ton / Tof / Tp
 #include "libbotanik/plc/functions/functions.h" // the stateless vocabulary the blocks are built on
 
 #endif // PLC_BLOCKS_H

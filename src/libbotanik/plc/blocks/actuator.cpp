@@ -3,12 +3,12 @@
  * @brief The two-position actuator state machine.
  */
 
-#include "libbotanik/plc/blocks/actuator.h" // Actuator - the five-state stroke-timing machine implemented here
+#include "libbotanik/plc/blocks/actuator.h" // Actuator
 
-#include "libbotanik_config.h"        // BOTANIK_FEATURE_PLC_BLK_* - the gate the bodies below sit behind
+#include "libbotanik_config.h"              // BOTANIK_FEATURE_PLC_BLK_*
 
-#include "libbotanik/plc/functions/math.h" // Plc::limit - clamp the position estimate to [0,1]
-#include "libbotanik/plc/functions/time.h" // Plc::countdown - times the open/close strokes
+#include "libbotanik/plc/functions/math.h"  // Plc::limit
+#include "libbotanik/plc/functions/time.h"  // Plc::countdown
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {

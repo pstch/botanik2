@@ -3,13 +3,13 @@
  * @brief Parameter persistence, editing and by-name reads.
  */
 
-#include "libbotanik/vars/params.h"   // Params / KvParamStore - what this file implements
+#include "libbotanik/vars/params.h" // Params / KvParamStore
 
-#include <cstring>                    // memcpy / strlen - the per-parameter key and value bytes
+#include <cstring>                  // memcpy / strlen
 
-#include "libbotanik/hal/storage.h"   // HAL::Storage::set/get/remove - one key per parameter
-#include "libbotanik/logs/logger.h"   // Logs::Logger - reports a load or persist that failed
-#include "libbotanik/vars/access.h"   // Vars::var_format / text_at - render and reach a row's text
+#include "libbotanik/hal/storage.h" // HAL::Storage::set/get/remove
+#include "libbotanik/logs/logger.h" // Logs::Logger
+#include "libbotanik/vars/access.h" // Vars::var_format / text_at
 
 namespace Botanik { namespace Vars {
 

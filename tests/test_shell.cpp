@@ -4,15 +4,15 @@
  *        single-entry kill ring (Ctrl-K cut to EOL / Ctrl-Y yank), driven against a
  *        real TextEditor over a pipe-backed terminal.
  */
-#include <cstdint>                    // uint16_t - the screen geometry the shell writes into
-#include <cstring>                    // strstr / strlen - checking the command output
-#include <string>                     // std::string - the captured output asserted on
-#include <unistd.h>                   // pipe / read - draining what the shell emitted
+#include <cstdint>                      // uint16_t
+#include <cstring>                      // strstr / strlen
+#include <string>                       // std::string
+#include <unistd.h>                     // pipe / read
 
-#include "libbotanik/shell/shell.h"   // Shell::CommandShell - under test
-#include "libbotanik/vars/declare.h"  // the factories the test table is written in
+#include "libbotanik/shell/shell.h"     // Shell::CommandShell
+#include "libbotanik/vars/declare.h"    // the factories the test table is written in
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
+#include "doctest.h"                    // the test framework (vendored single header)
 
 using namespace Botanik;
 using namespace Botanik::Vars;

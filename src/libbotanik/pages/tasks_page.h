@@ -29,18 +29,18 @@
  * be read as the diagnostic it is rather than as the running cost.
  */
 
-#include <cstdint>                    // uint8_t/uint32_t/uint64_t - cursor, run counts, cost samples
-#include <cstdio>                     // snprintf - the row cells and the detail panel
-#include <cstring>                    // strcmp - the by-name sort
+#include <cstdint>                          // uint8_t/uint32_t/uint64_t
+#include <cstdio>                           // snprintf
+#include <cstring>                          // strcmp
 
-#include "libbotanik_config.h"        // BOTANIK_FEATURE_TASKS_PAGE - the gate this header sits behind
+#include "libbotanik_config.h"              // BOTANIK_FEATURE_TASKS_PAGE
 
-#include "libbotanik/console/console.h" // Console::rows / terminal - the content area to paint
-#include "libbotanik/console/terminal.h" // AnsiTerminal - the drawing operations
-#include "libbotanik/pages/page.h"    // Pages::Page - the interface this page implements
-#include "libbotanik/pages/scroll_table.h" // Pages::ScrollTablePage - the scrolling table base
-#include "libbotanik/scheduler/tasks.h" // Scheduler::Registry / Task / TaskCost - the rows shown
-#include "libbotanik/utils/text.h"    // Utils::format_int / format_float - the us and % cells
+#include "libbotanik/console/console.h"     // Console::rows / terminal
+#include "libbotanik/console/terminal.h"    // AnsiTerminal
+#include "libbotanik/pages/page.h"          // Pages::Page
+#include "libbotanik/pages/scroll_table.h"  // Pages::ScrollTablePage
+#include "libbotanik/scheduler/tasks.h"     // Scheduler::Registry / Task / TaskCost
+#include "libbotanik/utils/text.h"          // Utils::format_int / format_float
 
 namespace Botanik { namespace Pages {
 

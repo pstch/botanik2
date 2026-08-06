@@ -6,13 +6,13 @@
  *        against the pre-edit layout (`_pre`): one IL/DL for the row-count
  *        change, then a forward per-row splice walk from the edit row.
  */
-#include "libbotanik/console/editor.h" // TextEditor - the row-splice state machine implemented here
+#include "libbotanik/console/editor.h"  // TextEditor
 
-#include <cctype>                     // isalnum - word-wise cursor motion picks out word chars
-#include <cstdint>                    // uint16_t/int32_t - cursor arithmetic and splice spans
-#include <cstring>                    // memcpy / memmove - the buffer edits themselves
+#include <cctype>                       // isalnum
+#include <cstdint>                      // uint16_t/int32_t
+#include <cstring>                      // memcpy / memmove
 
-#include "libbotanik/console/console.h" // Console::rows / terminal - the band the editor draws into
+#include "libbotanik/console/console.h" // Console::rows / terminal
 
 
 namespace Botanik { namespace Terminal {

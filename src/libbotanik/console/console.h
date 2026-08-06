@@ -14,17 +14,17 @@
  * alarm model (alarms()) live here.
  */
 
-#include <cstdint>                    // int8_t/uint16_t/uint64_t - page indices, geometry, stamps
+#include <cstdint>                          // int8_t/uint16_t/uint64_t
 
-#include "libbotanik/console/alarm_bar.h" // AlarmBar - the bottom bar Console owns
-#include "libbotanik/console/parser.h" // InputParser - decodes the bytes Console routes to a page
-#include "libbotanik/console/status_bar.h" // StatusBar - the row-0 bar Console owns
-#include "libbotanik/console/terminal.h" // AnsiTerminal - the device Console composes and exposes
-#include "libbotanik/core/component.h" // Component - the first-step announce
-#include "libbotanik/core/context.h"  // SystemContext - what the bars and pages read
-#include "libbotanik/logs/logger.h"   // Logs::Logger - the console's own diagnostics
-#include "libbotanik/pages/page.h"    // Pages::Page - the interface the active page is behind
-#include "libbotanik/utils/serial.h"  // Utils::BufferedSerial - the link under the terminal
+#include "libbotanik/console/alarm_bar.h"   // AlarmBar
+#include "libbotanik/console/parser.h"      // InputParser
+#include "libbotanik/console/status_bar.h"  // StatusBar
+#include "libbotanik/console/terminal.h"    // AnsiTerminal
+#include "libbotanik/core/component.h"      // Component
+#include "libbotanik/core/context.h"        // SystemContext
+#include "libbotanik/logs/logger.h"         // Logs::Logger
+#include "libbotanik/pages/page.h"          // Pages::Page
+#include "libbotanik/utils/serial.h"        // Utils::BufferedSerial
 
 namespace Botanik { namespace Alarms { class AlarmController; } }
 

@@ -8,12 +8,12 @@
  *        (printable text plus X3.64 CSI, Alt, and function-key sequences).
  */
 
-#include <cstdint>                    // uint8_t/uint16_t/uint64_t - the byte states and timeouts
+#include <cstdint>                      // uint8_t/uint16_t/uint64_t
 
-#include "libbotanik_config.h"        // Config::TERMINAL_TYPE - which escape dialect to decode
+#include "libbotanik_config.h"          // Config::TERMINAL_TYPE
 
-#include "libbotanik/console/ansi.h"  // Terminal::Ansi::is_minitel - the dialect-specific keys
-#include "libbotanik/utils/serial.h"  // Utils::BufferedSerial - the raw byte stream decoded here
+#include "libbotanik/console/ansi.h"    // Terminal::Ansi::is_minitel
+#include "libbotanik/utils/serial.h"    // Utils::BufferedSerial
 
 namespace Botanik { namespace Terminal {
 

@@ -3,18 +3,18 @@
  * @brief MqttAlarmNotifier formats "<prefix>/alarms/<CODE>" + ON/OFF/FLAP and forwards
  *        to a Publisher; with no publisher it is a no-op.
  */
-#include <cstring>                    // strcmp / strstr - inspecting the published topic and payload
-#include <string>                     // std::string - the payloads asserted on
+#include <cstring>                          // strcmp / strstr
+#include <string>                           // std::string
 
-#include "doctest.h"                  // the test framework (vendored single header); last so it sees our types
+#include "doctest.h"                        // the test framework (vendored single header)
 
 // Pulls the site config, then the feature defaults: the guards below
 // need the flags DEFINED, and an undefined one reads as 0 in #if.
-#include "libbotanik_config.h"        // Config::MQTT_TOPIC_PREFIX - the expected topic root
+#include "libbotanik_config.h"              // Config::MQTT_TOPIC_PREFIX
 
-#include "libbotanik/alarms/alarms.h" // Alarms::MqttAlarmNotifier - under test
-#include "libbotanik/alarms/publisher.h" // Alarms::Publisher - the seam the fake transport plugs into
-#include "libbotanik/vars/declare.h"  // the A() factory - the alarm rows behind the transitions
+#include "libbotanik/alarms/alarms.h"       // Alarms::MqttAlarmNotifier
+#include "libbotanik/alarms/publisher.h"    // Alarms::Publisher
+#include "libbotanik/vars/declare.h"        // the A() factory
 
 using namespace Botanik;
 using namespace Botanik::Alarms;

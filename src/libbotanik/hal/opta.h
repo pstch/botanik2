@@ -12,15 +12,15 @@
  */
 
 // assert() - HAL sits below the logger, so it can't use BOTANIK_ASSERT
-#include <cassert>                    // assert - the debug-build guards in the inline bodies
-#include <chrono>                     // std::chrono - the steady/system clock conversions
-#include <cstdint>                    // uint8_t/uint64_t/uintptr_t - ms stamps, stack addresses
-#include <ctime>                      // time / time_t - the RTC seed for wall_ms()
-#include <type_traits>                // std::is_empty - the ordered_copy/move static_asserts
+#include <cassert>      // assert
+#include <chrono>       // std::chrono
+#include <cstdint>      // uint8_t/uint64_t/uintptr_t
+#include <ctime>        // time / time_t
+#include <type_traits>  // std::is_empty
 
 // Arduino/Mbed core headers - resolved from the installed mbed_opta core, not this tree.
-#include "mbed.h"                     // mbed::LowPowerClock / BufferedSerial / CMSIS intrinsics (__DSB, WDT)
-#include "USBSerial.h"                // USBSerial - the MONITOR transport (USB CDC)
+#include "mbed.h"       // mbed::LowPowerClock / BufferedSerial / CMSIS intrinsics (__DSB, WDT)
+#include "USBSerial.h"  // USBSerial
 
 /// Linker symbol for the top of the MSP/ISR stack (the ~1KB exception stack,
 /// NOT the RTOS thread stack the firmware runs on).
