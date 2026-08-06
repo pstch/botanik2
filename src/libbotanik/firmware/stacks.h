@@ -1,6 +1,6 @@
 // REVIEW_35: TODO
-#ifndef LIBBOTANIK_CORE_STACKS_H
-#define LIBBOTANIK_CORE_STACKS_H
+#ifndef LIBBOTANIK_FIRMWARE_STACKS_H
+#define LIBBOTANIK_FIRMWARE_STACKS_H
 
 /**
  * @file stacks.h
@@ -212,4 +212,4 @@ namespace Botanik {
 
 }  // namespace Botanik
 
-#endif // LIBBOTANIK_CORE_STACKS_H
+#endif // LIBBOTANIK_FIRMWARE_STACKS_H

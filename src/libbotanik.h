@@ -46,6 +46,6 @@
 
 // Last on purpose: BotanikFirmware names types from nearly every header above,
 // so it can only be declared once they exist.
-#include "libbotanik/core/firmware.h"           // BotanikFirmware
+#include "libbotanik/firmware/firmware.h"           // BotanikFirmware
 
 #endif // LIBBOTANIK_H

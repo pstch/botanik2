@@ -1,6 +1,6 @@
 // REVIEW_35: TODO
-#ifndef LIBBOTANIK_CORE_FIRMWARE_H
-#define LIBBOTANIK_CORE_FIRMWARE_H
+#ifndef LIBBOTANIK_FIRMWARE_FIRMWARE_H
+#define LIBBOTANIK_FIRMWARE_FIRMWARE_H
 
 /**
  * @file firmware.h
@@ -80,7 +80,7 @@
 #include "libbotanik.h"
 
 #include "libbotanik/alarms/alarms.h"   // AlarmCondition
-#include "libbotanik/core/stacks.h"     // Monitor/Console/NetworkStack
+#include "libbotanik/firmware/stacks.h"     // Monitor/Console/NetworkStack
 #include "libbotanik/health/health.h"   // Health::HealthMonitor
 #include "libbotanik/plc/program.h"     // Plc::Program
 #include "libbotanik/scheduler/tasks.h" // Scheduler::Registry / GroupId / Phase
@@ -112,7 +112,7 @@ namespace Botanik {
      *                        their own scheduling state.
      *
      * Any table may be null / count 0. Every pointer is borrowed and must outlive
-     * the firmware (site statics). See core/firmware.h "Extending the base".
+     * the firmware (site statics). See firmware/firmware.h "Extending the base".
      */
     struct SiteDescriptor {
         const char*                   name;                ///< == Config::SITE_NAME
@@ -180,7 +180,7 @@ namespace Botanik {
 
         /** @name Generic components (declared in construction order)
          *  The optional subsystem groups are bundled into the feature-gated
-         *  stacks (core/stacks.h); the firmware owns the shared singletons and
+         *  stacks (firmware/stacks.h); the firmware owns the shared singletons and
          *  injects them into the stacks by pointer. @{ */
 
         Logs::Logger                   _logger;
@@ -797,4 +797,4 @@ namespace Botanik {
 
 }  // namespace Botanik
 
-#endif // LIBBOTANIK_CORE_FIRMWARE_H
+#endif // LIBBOTANIK_FIRMWARE_FIRMWARE_H

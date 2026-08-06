@@ -18,7 +18,7 @@ namespace Botanik { namespace Terminal {
     // costs no throughput - right up until the ring drains empty between two of
     // them, at which point the wire idles and the pacing model breaks.
     //
-    // The render is registered in GROUP_SLOW (core/firmware.h). At 100 ms against
+    // The render is registered in GROUP_SLOW (firmware/firmware.h). At 100 ms against
     // a 128 ms depth the ring still holds ~28 ms of wire when the next render
     // arrives, so the link never idles - but that is the whole margin, and a
     // render delayed past 128 ms by jitter or an overrun WILL idle it. Raise

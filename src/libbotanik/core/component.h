@@ -18,7 +18,7 @@
  * A component may run slower than the beat: set_period(ms), and step() sits out
  * the beats in between. The default period of 0 means every beat, so a component
  * that never sets one is unaffected. The loop keeps calling step() every beat
- * either way - the fixed loop ORDER in core/firmware.h is load-bearing and stays
+ * either way - the fixed loop ORDER in firmware/firmware.h is load-bearing and stays
  * written out as code; only the RATE moves into the component.
  *
  * Anything a hook does that is per-unit-time must therefore read dt_ms() rather
@@ -57,7 +57,7 @@ namespace Botanik {
          *  @name Rate
          *  @brief What makes a component multi-rate. The loop still calls step()
          *  every beat; the component decides whether it is due, so the fixed
-         *  loop ORDER (which is load-bearing - see core/firmware.h) stays
+         *  loop ORDER (which is load-bearing - see firmware/firmware.h) stays
          *  written out as code and only the RATE becomes a property of the
          *  component.
          *  @{ */
