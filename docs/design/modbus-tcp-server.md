@@ -69,6 +69,25 @@ untouched, and 999 rows (the library reserves 900..999) reach address 1998 in a
 | `T_U64/I64` | saturated to 32 bits, and the row is listed by the `modbus` command as truncated |
 | `T_STR` | not mapped; reads as zeros, writes are refused |
 
+### The blocks
+
+One register space, still, with the alarms given a range of their own rather than
+being interleaved with the setpoints. A SCADA integrator reads a contiguous block
+per kind, and the number itself says what a row is:
+
+| Range | Rows | Today |
+|---|---|---|
+| 1..799 | site parameters and status values | 1..501 used |
+| 800..899 | site alarms | 23 to place |
+| 900..989 | library parameters and status values | 900 used (`sys_console_baud`) |
+| 990..999 | library alarms | the 6 platform alarms |
+
+The library's reserve stays 900..999 as `vars/library.h` already declares it; the
+alarms take its top so a library status row added later still grows upward from
+900. The one number to watch is 799: at 501 there is room, but the site test
+should assert the block a row's scope puts it in, not just uniqueness, or the
+first alarm assigned 750 will read as a parameter to everyone downstream.
+
 Rejected alternatives, and why:
 
 - **One register per row, scaled by `digits`.** Matches the declared numbering
@@ -89,6 +108,25 @@ returns zeros for the gap rather than an exception; only a request entirely
 outside the mapped span is `02 ILLEGAL DATA ADDRESS`. A read that starts or ends
 mid-row returns that row's corresponding half, so a master polling a block never
 has to know where the rows begin.
+
+### Acknowledgement is its own coil block
+
+An ack is the one alarm interaction an operator actually performs, and it is a
+write - to rows the scope above calls read-only. It gets a block of its own
+rather than a meaning overloaded onto the alarm's own bit, at
+`MODBUS_ACK_COIL_BASE + reg` (base 0x1000, well clear of the row numbers):
+
+| Op | Coil `0x1000 + reg` | Meaning |
+|---|---|---|
+| FC01 read | the condition's `user_ack` | acknowledged, and still acknowledged until the next fresh ON edge clears it |
+| FC05 write 1 | `AlarmController::ack(name)` | same call the `a` key on the ALARMS page and `alarms ack` make |
+| FC05 write 0 | refused, `03 ILLEGAL DATA VALUE` | un-acknowledging is not a thing the model has |
+| FC05 write 1 at `0x1000` exactly | `ack_all()` | `reg == 0` is never assigned (the site test forbids it), so the base address is free and means "the lot" |
+
+The block is mapped only for `SCOPE_A` rows, and only when the server was given
+an `AlarmController` (it lives in `HealthMonitor`; a borrowed pointer, null in a
+test, and then the whole block reads `02`). It is gated on `mb_write_enable` like
+any other write, because it is one.
 
 **Quality is a discrete input, not a magic value.** Modbus has no quality bit, so
 an invalid reading would otherwise be indistinguishable from a real zero. A row
@@ -211,7 +249,8 @@ dependency rules (`NETWORK`, `PLC_SCAN`).
 **Config** (`libbotanik_config.h`, its own group): `MODBUS_TCP_PORT` 502,
 `MODBUS_UNIT_ID` 1, `MODBUS_MAX_CONN` 2, `MODBUS_ADU_MAX` 260 (the protocol
 ceiling: 7 MBAP + 253 PDU), `MODBUS_IDLE_TIMEOUT_MS` 60000,
-`MODBUS_ACCEPT_PER_STEP` 1, `MODBUS_WRITES_PER_STEP` 1.
+`MODBUS_ACCEPT_PER_STEP` 1, `MODBUS_WRITES_PER_STEP` 1,
+`MODBUS_ACK_COIL_BASE` 0x1000.
 
 Two connections at 520 bytes of buffer each is about 1 KB of RAM, plus the map's
 one `uint16_t` per mapped row.
@@ -228,6 +267,35 @@ the map's size and any truncated rows. Optionally two library rows in
 `BOTANIK_LIBRARY_VARS` (`mb_clients`, `mb_exceptions`) so the count is
 publishable like anything else - which is also the first real use of the
 `_STATUS_VARS` group.
+
+## The integrator's document
+
+Commissioning needs a register table on paper, and a hand-kept one is wrong the
+first time a row is added. Two pieces:
+
+**A CSV, generated at build time by the same code that answers the requests.**
+A small host tool (`tools/varmap`, SIMULATOR builds only) links the site table
+and `modbus/map.h` and prints one row per variable; a CMake custom command writes
+`build/varmap.csv` as part of `all`. Generating it from `Modbus::Map` rather than
+from a second walk of the table is the whole point: the document cannot disagree
+with the server, because the addresses in it are the ones the server computes.
+
+```
+name,scope,type,unit,digits,reg,holding,coil,discrete,ack_coil,writable,default,min,max,group,description
+cli_coolOn_degC,P,f32,degC,1,104,208,,104,,yes,20.0,10.0,30.0,cli,Base cooling target temperature
+alarm_too_hot,A,bool,,0,801,1602,801,801,4897,no,0,,,alarm,Greenhouse dangerously hot
+```
+
+**A script that renders it, `scripts/varmap_pdf.py`.** Stdlib only and shelling
+out to a renderer, like `scripts/code_charts.py`: read the CSV, group by block
+and by name prefix, emit a self-contained HTML with print CSS, then convert with
+whichever of `weasyprint` / `wkhtmltopdf` / headless Chrome `shutil.which` finds,
+skipping the PDF step with a warning when none is there. The HTML is the real
+artifact and is useful on its own; the PDF is what gets emailed to the
+integrator.
+
+Never in the gate - it is a deliverable, not a check. The CSV being *generated*
+is what keeps it honest.
 
 ## Robustness
 
@@ -258,6 +326,11 @@ each:
   reap. Requests hand-built from bytes; a 12-byte MBAP frame needs no library.
 - The phase split deserves one test of its own: a write and a read in the same
   beat must show the written value.
+- The ack block against a real `AlarmController`: coil 1 acks the condition the
+  ALARMS page would, `0x1000` acks all of them, coil 0 is refused, and the read
+  back clears on the next fresh ON edge.
+- The CSV tool's output parses and every address in it round-trips through the
+  map - the document is only trustworthy if that is checked.
 
 ## Staging
 
@@ -271,26 +344,28 @@ Each step builds and leaves the gate green:
 3. `modbus/pdu` + its test. Nothing depends on the bank yet.
 4. `modbus/map` over the bank + its test. Still no sockets.
 5. `modbus/server`, the two tasks, the feature gate, the config group.
-6. Wiring: the stack, the site config, the `modbus` command, the context,
+6. The ack coil block, once the alarm rows and the map are both real.
+7. `tools/varmap` + the CMake rule + `scripts/varmap_pdf.py`.
+8. Wiring: the stack, the site config, the `modbus` command, the context,
    `docs/dev/` page. Fold whatever of this note turned out to be true into it and
    delete the rest.
 
 ## Settled, and what is left
 
-Decided: the `2 * reg` layout (the site's existing numbers stand, nothing is
-renumbered); writes enabled by default, gated by `mb_write_enable` and logged
-with the peer; alarms in the map as read-only coils, which costs `A()` a register
-argument.
+Decided: the `2 * reg` layout, with the site's existing numbers standing and
+nothing renumbered; blocks by kind (1..799 site rows, 800..899 site alarms,
+900..999 the library's, its alarms at the top); writes enabled by default, gated
+by `mb_write_enable` and logged with the peer; alarms as read-only coils, which
+costs `A()` a register argument; ack as its own coil block at `0x1000 + reg`; and
+a generated CSV plus a rendering script as the integrator's document.
 
-Left open:
+Left open, and none of it blocks a start:
 
-- Where the alarms' registers come from. A block of their own (say 800..899,
-  below the library's reserved 900..999) keeps them legible to an integrator, and
-  the library's six want the top of the library range.
-- Whether an ACK belongs on the wire later. It is the one alarm interaction a
-  SCADA operator actually performs, and it is a *write* to something the scope
-  above says is read-only - so it would want its own coil block rather than the
-  alarm's own bit.
-- What the register map document for the integrator is generated from. The bank
-  has everything; a `modbus map` shell command or a build-time CSV are both
-  cheap, and one of them will be asked for the first time this is commissioned.
+- Whether `mb_enable` defaulting on is right for `gh_mlb41`, or whether a site
+  should have to say so. The listener is idle until someone connects either way.
+- What the `modbus` command shows when the map is bigger than a screen. The CSV
+  is the full document; the command probably wants counts per block plus the
+  exceptions, and `modbus map <prefix>` for the rest.
+- Whether the RTU client, when it arrives, shares more than `pdu.h`. Its poll
+  groups are a different problem (`modbus-budget.md`), but the exception
+  vocabulary and the type encode/decode are the same code.
