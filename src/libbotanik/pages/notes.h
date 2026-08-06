@@ -8,8 +8,6 @@
  */
 
 #include <cstdint>                          // uint16_t
-#include <cstdio>                           // snprintf
-#include <cstring>                          // strlen
 
 #include "libbotanik/config/simulator.h"  // Config::STORE_MAX_BYTES
 #include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*

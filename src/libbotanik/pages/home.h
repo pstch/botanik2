@@ -19,8 +19,6 @@
  */
 
 #include <cstdint>                          // uint8_t/uint16_t
-#include <cstdio>                           // snprintf
-#include <cstring>                          // memset / strcmp / strlen
 
 #include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
 #include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*

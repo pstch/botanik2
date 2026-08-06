@@ -4,7 +4,6 @@
  */
 #include "libbotanik/pages/params_page.h"
 
-#include <algorithm>                        // std::min / std::max
 #include <cstdio>                           // snprintf
 #include <cstring>                          // strlen / strcmp / memcpy
 

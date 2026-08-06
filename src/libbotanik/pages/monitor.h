@@ -30,7 +30,6 @@
  */
 
 #include <cstdint>                          // uint8_t/uint16_t/uint64_t
-#include <cstdio>                           // snprintf
 #include <cstring>                          // strcmp / strncpy
 
 #include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*

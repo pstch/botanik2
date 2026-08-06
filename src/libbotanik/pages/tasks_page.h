@@ -30,8 +30,6 @@
  */
 
 #include <cstdint>                          // uint8_t/uint32_t/uint64_t
-#include <cstdio>                           // snprintf
-#include <cstring>                          // strcmp
 
 #include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
 #include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*

@@ -21,7 +21,6 @@
  */
 
 #include <cstdint>                          // uint16_t/uint32_t/uint64_t
-#include <cstdio>                           // snprintf
 #include <cstring>                          // memcpy / memset / strlen
 
 #include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*

@@ -4,7 +4,6 @@
  */
 #include "libbotanik/pages/notes.h"
 
-#include <algorithm>                        // std::min / std::max
 #include <cstdio>                           // snprintf
 #include <cstring>                          // strlen / strcmp / memcpy
 

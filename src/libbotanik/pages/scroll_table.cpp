@@ -4,9 +4,7 @@
  */
 #include "libbotanik/pages/scroll_table.h"
 
-#include <algorithm>                        // std::min / std::max
 #include <cstdio>                           // snprintf
-#include <cstring>                          // strlen / strcmp / memcpy
 
 #include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
 
