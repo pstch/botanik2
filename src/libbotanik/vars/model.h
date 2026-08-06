@@ -172,7 +172,7 @@ namespace Botanik { namespace Vars {
      *  plausible setting, and the sentinels (-1 = never announce, recent_s 0 =
      *  the default window) are unaffected. */
     struct AlarmSpec {
-        const char* code;         ///< short display code, max 8 chars
+        const char* code;         ///< short display code (max 9: AlarmsPage::CODE_W)
         int16_t     on_s;         ///< time ON before announcing (-1: off)
         int16_t     off_s;        ///< time OFF before announcing (-1: off)
         int16_t     recent_s;     ///< RECENT window (0: default, <0: forever)

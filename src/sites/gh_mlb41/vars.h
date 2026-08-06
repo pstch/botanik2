@@ -37,6 +37,7 @@
 #include <cstdint>
 
 #include "libbotanik.h"
+#include "libbotanik/alarms/platform.h"   // BOTANIK_PLATFORM_ALARM_VARS
 
 namespace Site {
 
@@ -458,6 +459,19 @@ const Variable g_vars[] = {
     RO("cli_skirtValve",      34, 5,   false, false, "wet skirt valve",                ""),
     RO("irr_tray7",           34, 6,   true,  true,  "tray 7 valve",                   ""),
     RO("irr_tray8",           34, 7,   true,  true,  "tray 8 valve",                   ""),
+
+/** @} */
+
+/** @name Platform health - the library's own alarm rows
+ *
+ *  Spliced in rather than declared: these belong to libbotanik (the health
+ *  monitor raises them from the scheduler metrics), but the bank holds ONE
+ *  contiguous table, so they have to live in this array. At the END, so the
+ *  site's own conditions still fill the alarm model from index 0 and the block
+ *  cannot land inside the ROLE_PARAM run at the top.
+ *  @{ */
+
+    BOTANIK_PLATFORM_ALARM_VARS,
 
 /** @} */
 

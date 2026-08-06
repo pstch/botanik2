@@ -159,8 +159,7 @@ The reference site turns `NETWORK`, `NTP` and `MQTT` on in its own `config.h`.
 
 ### Site capacity
 
-`HOME_FIELDS_MAX` 22, `ALARM_SLOTS` 64, `PLATFORM_ALARMS_RESERVED` 8,
-`SITE_ALARMS_MAX` 56. See @ref int_tables.
+`HOME_FIELDS_MAX` 22, `ALARM_SLOTS` 64. See @ref int_tables.
 
 | Macro | Default | |
 |---|---|---|

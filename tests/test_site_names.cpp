@@ -128,7 +128,7 @@ TEST_CASE("site: every alarm declares a code and a policy") {
         INFO("alarm '" << d.name << "'");
         REQUIRE(sp.code != nullptr);
         CHECK(sp.code[0] != 0);
-        CHECK(std::strlen(sp.code) <= 8);   // the table column is 8 wide
+        CHECK(std::strlen(sp.code) <= 9);   // AlarmsPage::CODE_W
         CHECK(d.type == Vars::T_BOOL);      // a condition is a boolean
     }
     CHECK(alarms > 0);
@@ -137,10 +137,9 @@ TEST_CASE("site: every alarm declares a code and a policy") {
 TEST_CASE("site: the alarm model finds every alarm row, in table order") {
     SiteBank f;
     Logs::Logger logger;
-    // Exactly how the firmware builds it: scan the bank, then splice the
-    // platform-health alarms in after.
-    Alarms::AlarmController m(&f.bank, &logger,
-                         Alarms::PLATFORM_ALARMS, Alarms::PLATFORM_ALARM_COUNT);
+    // One scan over one table: the site's alarms and the library's spliced-in
+    // platform-health rows are all just SCOPE_A rows now.
+    Alarms::AlarmController m(&f.bank, &logger);
     uint8_t slot = 0;
     for (uint16_t i = 0; i < f.bank.count(); i++) {
         const Vars::Variable& d = *f.bank.var(i).meta();
@@ -150,11 +149,20 @@ TEST_CASE("site: the alarm model finds every alarm row, in table order") {
         CHECK(Utils::compare_str(m.condition(slot).name, d.name));
         slot++;
     }
-    CHECK(m.count() == (uint8_t)(slot + Alarms::PLATFORM_ALARM_COUNT));
-    // The platform alarms read no variable: they are driven by set_local(), and
-    // a resolved ref there would make one track a real row.
-    for (uint8_t j = 0; j < Alarms::PLATFORM_ALARM_COUNT; j++)
-        CHECK(m.condition((uint8_t)(slot + j)).ref.index == Vars::VAR_NONE);
+    CHECK(m.count() == slot);
+
+    // A site that left BOTANIK_PLATFORM_ALARM_VARS out of its table would build
+    // and boot; the health monitor would just never be able to raise anything.
+    // These are the names it binds.
+    static const char* const PLATFORM[] = {
+        "alarm_system_reset", "alarm_cpu_xrun", "alarm_cpu_load",
+        "alarm_stack",        "alarm_cpu_jitter", "alarm_flash_error",
+    };
+    for (const char* n : PLATFORM) {
+        INFO("platform alarm '" << n << "' - is BOTANIK_PLATFORM_ALARM_VARS in "
+             "the site's g_vars[]?");
+        CHECK(m.index_of(n) >= 0);
+    }
 }
 
 TEST_CASE("site: nothing the site touches fails to resolve") {
@@ -169,8 +177,7 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
         (void)f.bank.find(site().home_fields[i].name);
 
     Logs::Logger logger;
-    Alarms::AlarmController m(&f.bank, &logger,
-                         Alarms::PLATFORM_ALARMS, Alarms::PLATFORM_ALARM_COUNT);
+    Alarms::AlarmController m(&f.bank, &logger);
     (void)m;
 
     // Control has to be on or every ROLE_OUTPUT write is refused before it ever

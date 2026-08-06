@@ -26,17 +26,18 @@ using namespace Botanik;
 using Command = Terminal::InputEvent::Command;
 
 namespace {
-    // Drive a model without a PLC payload: set each condition's local override
-    // from @p bits (bit i -> condition i), then step.
-    void step_bits(Alarms::AlarmController& m, uint64_t bits, uint64_t now) {
+    // Drive the model the way the firmware does: write each condition's own
+    // variable (bit i -> condition i), then step. There is no other way in now -
+    // an alarm IS its row.
+    void step_bits(Vars::Bank& io, Alarms::AlarmController& m, uint64_t bits, uint64_t now) {
         for (uint8_t i = 0; i < m.count(); i++)
-            m.set_local(i, ((bits >> i) & 1u) != 0);
+            io.var(m.condition(i).ref).set(((bits >> i) & 1u) != 0);
         m.step(now);
     }
 
     // Four always-recent alarms (recent_s < 0 never expires), logging/notify
     // off. Declared as SCOPE_A rows, the way a site declares one; the model
-    // finds them by scanning the bank. Driven here via set_local().
+    // finds them by scanning the bank.
     const Vars::Variable TABLE[] = {
         Vars::A("aaa", "AAA", -1, -1, -1, 0, 0, "alarm A", ""),
         Vars::A("bbb", "BBB", -1, -1, -1, 0, 0, "alarm B", ""),
@@ -122,7 +123,7 @@ TEST_CASE("alarms render: unchanged repaint skips the structural rows") {
 
 // Raise all four alarms so the table has data rows, then drive changes.
 static void raise_all(RenderFixture& f) {
-    step_bits(f.model, 0xF, 1000);     // bits 0..3 active
+    step_bits(f.bank, f.model, 0xF, 1000);     // bits 0..3 active
     f.page.focus();
     f.paint();                   // initial full paint; discard
 }
@@ -134,7 +135,7 @@ static void raise_all(RenderFixture& f) {
 // untouched AAA row, header and rules are all diffed away.
 TEST_CASE("alarms render: a same-alarm state change patches its cells, skips the rest") {
     RenderFixture f;
-    step_bits(f.model, 0x3, 1000);                     // AAA + BBB active; row0=AAA (sel), row1=BBB
+    step_bits(f.bank, f.model, 0x3, 1000);                     // AAA + BBB active; row0=AAA (sel), row1=BBB
     f.page.focus();
     f.paint();                                   // initial full paint; discard
 
@@ -164,11 +165,11 @@ TEST_CASE("alarms render: unchanged data repaint emits nothing") {
 // the diff has no choice but to send it - CODE and DESCRIPTION both.
 TEST_CASE("alarms render: identity change redraws the row in full") {
     RenderFixture f;
-    step_bits(f.model, 0x1, 1000);             // only AAA
+    step_bits(f.bank, f.model, 0x1, 1000);             // only AAA
     f.page.focus();
     f.paint();
 
-    step_bits(f.model, 0x3, 2000);             // BBB now active too -> sorts in, reorders
+    step_bits(f.bank, f.model, 0x3, 2000);             // BBB now active too -> sorts in, reorders
     f.page.handle_command(Command::ENTER, 1);
     std::string out = f.paint();
     CHECK(out.find("BBB") != std::string::npos);   // a full row carried the new CODE
@@ -180,7 +181,7 @@ TEST_CASE("alarms render: identity change redraws the row in full") {
 // the wire, proving the highlight costs cells, not full-row redraws.
 TEST_CASE("alarms render: a selection move repaints both CODE cells, nothing else") {
     RenderFixture f;                             // 24 rows: all four fit, so no scroll
-    step_bits(f.model, 0xF, 1000);                     // AAA..DDD active; row0=AAA selected
+    step_bits(f.bank, f.model, 0xF, 1000);                     // AAA..DDD active; row0=AAA selected
     f.page.focus();
     f.paint();                                   // initial paint; discard
 
@@ -204,7 +205,7 @@ TEST_CASE("alarms render: a selection move repaints both CODE cells, nothing els
 // auto-scrolls so CCC comes into view.
 TEST_CASE("alarms render: DOWN moves the selection and scrolls it into view") {
     RenderFixture f(13);
-    step_bits(f.model, 0xF, 1000);
+    step_bits(f.bank, f.model, 0xF, 1000);
     f.page.focus();
     std::string full = f.paint();
     REQUIRE(full.find("AAA") != std::string::npos);   // window top
@@ -225,7 +226,7 @@ TEST_CASE("alarms render: DOWN moves the selection and scrolls it into view") {
 // "reconciled?" check reads true and demotes it before it is ever drawn.
 TEST_CASE("alarms render: a mode change shows the new mode before the rows") {
     RenderFixture f(13);                          // short screen: rows overflow
-    step_bits(f.model, 0xF, 1000);
+    step_bits(f.bank, f.model, 0xF, 1000);
     f.page.focus();
     f.paint();                                    // settle the initial paint
 

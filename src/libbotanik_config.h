@@ -326,28 +326,15 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint8_t, HOME_FIELDS_MAX);
 
-    /** @brief Total alarm slots in the model's working array (site conditions
-     *  plus the platform ones): what AlarmController sizes itself on, and what
-     *  a site table overrunning its share is clamped to. */
+    /** @brief SCOPE_A rows the alarm model has room for - the site's own and the
+     *  library's (alarms/platform.h) together, since they share one table. What
+     *  AlarmController sizes itself on; a table with more loses its tail, which
+     *  BOTANIK_ASSERT catches. One number now, because there are no longer two
+     *  tables to divide it between. */
 #ifndef BOTANIK_ALARM_SLOTS
 #  define BOTANIK_ALARM_SLOTS 64
 #endif
     BOTANIK_CFG(uint8_t, ALARM_SLOTS);
-
-    /** @brief Slots reserved for the generic platform-health alarms spliced in
-     *  above the site's - a budget, not the live count, so adding one does not
-     *  silently shrink a site's share. Pinned in alarms/platform.cpp. */
-#ifndef BOTANIK_PLATFORM_ALARMS_RESERVED
-#  define BOTANIK_PLATFORM_ALARMS_RESERVED 8
-#endif
-    BOTANIK_CFG(uint8_t, PLATFORM_ALARMS_RESERVED);
-
-    /** @brief Alarm conditions a site may declare; beyond it the model clamps
-     *  and the tail never fires. */
-#ifndef BOTANIK_SITE_ALARMS_MAX
-#  define BOTANIK_SITE_ALARMS_MAX (BOTANIK_ALARM_SLOTS - BOTANIK_PLATFORM_ALARMS_RESERVED)
-#endif
-    BOTANIK_CFG(uint8_t, SITE_ALARMS_MAX);
 
     /** @brief Distinct variable groups a site may have. A group is the prefix of
      *  a variable's name up to the first '_' (vars/access.h), interned into a

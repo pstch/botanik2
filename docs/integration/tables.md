@@ -107,9 +107,33 @@ step by hand.
 The policy lives in the `Payload` union's alarm arm, which fits inside the 16 bytes
 a numeric band already costs - so carrying it on the row is free.
 
-@note The generic platform-health alarms (`alarms/platform.h`) stay a separate const
-table, appended after the site's. They name no variable at all - they are driven by
-`set_local()` from the scheduler metrics - so there is no site row to put them in.
+### The library's own alarm rows
+
+The platform-health alarms - `SYS_RST`, `CPU_LOAD`, `CPU_JITT`, `STACK`, `CPU_XRUN`,
+`FLASH_FLT` - are `SCOPE_A` rows like any other. They belong to libbotanik (the health
+monitor raises them from the scheduler metrics), but the bank holds **one** contiguous
+table, so a site splices them in:
+
+```cpp
+#include "libbotanik/alarms/platform.h"
+
+const Variable g_vars[] = {
+    ...the site's own rows...
+    BOTANIK_PLATFORM_ALARM_VARS,      // the library's, at the end
+};
+```
+
+At the **end**, for two reasons: the site's own conditions then still fill the alarm
+model from index 0, and the block cannot land inside the contiguous `ROLE_PARAM` run.
+
+There is no second alarm table, no merge and no reserved index range - one scan in one
+order finds site and platform conditions together. The health monitor is an ordinary
+consumer of the bank: it resolves the six names once at bring-up and writes the
+boolean, exactly as a control program would.
+
+@warning Leave the macro out and the unit still builds and boots - it just can never
+raise a platform alarm. POST fails naming each missing row, the bank logs and counts
+each unresolved name, and `tests/test_site_names.cpp` fails before either.
 
 ## Shell commands
 
@@ -148,9 +172,7 @@ source, so the two cannot drift.
 | Limit | Default | Bounds |
 |---|---|---|
 | `HOME_FIELDS_MAX` | 22 | home fields (3 columns x 8, minus the uptime cells) |
-| `ALARM_SLOTS` | 64 | total alarm conditions |
-| `PLATFORM_ALARMS_RESERVED` | 8 | reserved for the platform-health alarms |
-| `SITE_ALARMS_MAX` | 56 | site alarm conditions (`ALARM_SLOTS` minus the reserved block) |
+| `ALARM_SLOTS` | 64 | `SCOPE_A` rows the model has room for - the site's and the library's together, since they share one table |
 
 Platform alarms are appended **after** the site's, so site conditions always fill
 from index 0.

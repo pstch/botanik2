@@ -62,27 +62,12 @@ inline float drift(float v, float step, float lo, float hi, float p) {
 /// True with probability p - for rare discrete events (rain, bus dropouts).
 inline bool chance(float p) { return frand() < p; }
 
-/** @brief Simulated alarm bit for an alarm variable name (0 if undefined).
- *  Resolves through the variable table so the mock bitset uses the firmware's bit
- *  layout. */
-inline uint8_t alarm_slot(const char* name) {
-    uint8_t slot = 0;
-    for (uint16_t i = 0; i < VAR_TOTAL; i++) {
-        if (g_vars[i].scope != SCOPE_A) continue;
-        if (Botanik::Utils::compare_str(g_vars[i].name, name)) return slot;
-        slot++;
-    }
-    return 0xFF;
-}
-inline uint8_t alarm_slots() {
-    uint8_t n = 0;
-    for (uint16_t i = 0; i < VAR_TOTAL; i++) if (g_vars[i].scope == SCOPE_A) n++;
-    return n;
-}
-inline uint64_t abit(const char* name) {
-    const uint8_t slot = alarm_slot(name);
-    return slot == 0xFF ? 0 : Botanik::Alarms::alarm_bit(slot);
-}
+/** @brief One mock alarm cause: the row it drives, and whether it is on right
+ *  now. Named rather than positional - the animator drives the handful of
+ *  conditions it has a story for, and must leave every other alarm row alone.
+ *  Two of them are not the site's at all: the platform-health rows are in the
+ *  same table now, and the firmware raises those itself. */
+struct MockAlarm { const char* name; bool on; };
 
 /** @brief Publish one reading as a driver would: value, timestamp, valid in
  *  one step. Through the handle, not the value array - writing the array
@@ -191,57 +176,52 @@ inline void drive_coils(Vars::Bank& io, uint32_t now_ms) {
  * slow drift until it is.
  */
 inline void publish_alarms(Vars::Bank& io, uint32_t now_ms) {
-    uint64_t raw = 0;
-
     // Real causes, read back through the variable tables.
     const float ln  = io.var("grid_LN_V").value();
     const float pf  = io.var("grid_total_PF").value();
     const float hz  = io.var("grid_Hz").value();
-    if (ln < 226.0f || ln > 234.0f)  raw |= abit("AC_GRID");
-    if (hz < 49.9f  || hz > 50.1f)   raw |= abit("AC_LOCAL");
-    if (pf < 0.90f)                  raw |= abit("DC_PS1");
 
     // No sensor mapped for these yet: a slow random walk stands in, so the
     // alarms page and its dwell/ack machinery still have something to show.
     static float weather = 0.0f, plant = 0.0f;
     weather = drift(weather, 0.30f, -1.0f, 1.0f, 0.03f) * 0.99f;
     plant   = drift(plant,   0.30f, -1.0f, 1.0f, 0.03f) * 0.99f;
-    if (weather >  0.80f) raw |= abit("WH_STORM");
-    if (plant   >  0.85f) raw |= abit("TOO_HOT");
-    if (plant   < -0.85f) raw |= abit("TOO_COLD");
-    if (weather < -0.85f) raw |= abit("TOO_HUM");
+
+    MockAlarm mock[] = {
+        { "alarm_ac_grid",   ln < 226.0f || ln > 234.0f },
+        { "alarm_ac_local",  hz < 49.9f  || hz > 50.1f  },
+        { "alarm_dc_ps1",    pf < 0.90f                 },
+        { "alarm_weather_storm", weather >  0.80f },
+        { "alarm_too_hot",       plant   >  0.85f },
+        { "alarm_too_cold",      plant   < -0.85f },
+        { "alarm_too_humid",     weather < -0.85f },
+    };
+    const uint8_t N = (uint8_t)(sizeof(mock) / sizeof(mock[0]));
 
     // Settle window: keep alarms clear for the first stretch after boot (real
     // plant likewise masks process alarms until its sensors settle). Kept
     // generous so the first alarm lands well after boot, not seconds in.
     const uint32_t SETTLE_MS = 120000;   // 2 min
-    if (now_ms < SETTLE_MS) raw = 0;
 
-    // Debounce: hold each raw bit ON for a minimum dwell so a signal hovering
-    // at its threshold cannot strobe the ribbon. The firmware's per-alarm
-    // min_on_s is the further local net.
-    static uint32_t hold_ms[Botanik::Config::ALARM_SLOTS] = {0};
+    // Debounce: hold each cause ON for a minimum dwell so a signal hovering at
+    // its threshold cannot strobe the ribbon. The firmware's per-alarm min_on_s
+    // is the further local net.
+    static uint32_t hold_ms[16] = {0};
     static uint32_t prev_ms = 0;
-    uint32_t dt = (prev_ms == 0) ? 0 : (now_ms - prev_ms);
+    const uint32_t dt = (prev_ms == 0) ? 0 : (now_ms - prev_ms);
     prev_ms = now_ms;
     const uint32_t MIN_HOLD_MS = 10000;   // ~10 s minimum visible dwell
-    uint64_t debounced = 0;
-    for (uint8_t i = 0; i < Botanik::Config::ALARM_SLOTS; i++) {
-        bool on = ((raw >> i) & 1u) != 0;
+
+    for (uint8_t i = 0; i < N; i++) {
+        const bool on = mock[i].on && now_ms >= SETTLE_MS;
         if (on)                     hold_ms[i] = MIN_HOLD_MS;
         else if (hold_ms[i] > dt)   hold_ms[i] -= dt;
         else                        hold_ms[i] = 0;
-        if (on || hold_ms[i] > 0)   debounced |= Botanik::Alarms::alarm_bit(i);
-    }
-
-    // Scatter the debounced bitset into the alarm rows themselves, in table
-    // order - the same order the model numbered its conditions in. On hardware
-    // a control program drives the same variables.
-    uint8_t slot = 0;
-    for (uint16_t i = 0; i < VAR_TOTAL; i++) {
-        if (g_vars[i].scope != SCOPE_A) continue;
-        io.var(i).set(((debounced >> slot) & 1u) != 0);
-        slot++;
+        // By name, and only the rows above: an alarm this animator has no story
+        // for stays where it is, rather than being cleared every beat. That
+        // matters now that the platform-health rows share the table - writing a
+        // 0 over one would fight the health monitor that owns it.
+        io.var(mock[i].name).set(on || hold_ms[i] > 0);
     }
 }
 

@@ -18,12 +18,12 @@
 using namespace Botanik;
 
 namespace {
-    // Drive a model without a PLC payload: set each condition's local override
-    // from @p bits (bit i -> condition i), then step. Mirrors how the old bitset
-    // step() raised/cleared conditions, keeping the tests terse.
-    void step_bits(Alarms::AlarmController& m, uint64_t bits, uint64_t now) {
+    // Drive the model the way the firmware does: write each condition's own
+    // variable (bit i -> condition i), then step. There is no other way in now -
+    // an alarm IS its row.
+    void step_bits(Vars::Bank& io, Alarms::AlarmController& m, uint64_t bits, uint64_t now) {
         for (uint8_t i = 0; i < m.count(); i++)
-            m.set_local(i, ((bits >> i) & 1u) != 0);
+            io.var(m.condition(i).ref).set(((bits >> i) & 1u) != 0);
         m.step(now);
     }
 
@@ -82,7 +82,7 @@ namespace {
 TEST_CASE("alarm: ack marks an active condition, ignores inactive / unknown") {
     AlarmBank f(TABLE, 2);
     Alarms::AlarmController m(&f.bank, nullptr);
-    step_bits(m, 0x1, 1000);                              // raise A (bit 0)
+    step_bits(f.bank, m, 0x1, 1000);                              // raise A (bit 0)
     CHECK(m.active_count() == 1);
     CHECK(m.condition(0).user_ack == false);
     CHECK(m.ack("aaa") == true);
@@ -100,25 +100,25 @@ TEST_CASE("alarm: ack marks an active condition, ignores inactive / unknown") {
 TEST_CASE("alarm: ack clears on the next ON edge (a fresh episode is unacknowledged)") {
     AlarmBank f(TABLE, 2);
     Alarms::AlarmController m(&f.bank, nullptr);
-    step_bits(m, 0x1, 1000);
+    step_bits(f.bank, m, 0x1, 1000);
     m.ack("aaa");
     CHECK(m.condition(0).user_ack == true);
-    step_bits(m, 0x0, 2000);                              // A clears
-    step_bits(m, 0x1, 3000);                              // A re-fires
+    step_bits(f.bank, m, 0x0, 2000);                              // A clears
+    step_bits(f.bank, m, 0x1, 3000);                              // A re-fires
     CHECK(m.condition(0).user_ack == false);    // reset on the ON edge
 }
 
 TEST_CASE("alarm: ack_all acknowledges every active condition and counts them") {
     AlarmBank f(TABLE, 2);
     Alarms::AlarmController m(&f.bank, nullptr);
-    step_bits(m, 0x3, 1000);                              // both active
+    step_bits(f.bank, m, 0x3, 1000);                              // both active
     CHECK(m.ack_all() == 2);
     CHECK(m.condition(0).user_ack == true);
     CHECK(m.condition(1).user_ack == true);
 
     AlarmBank f2(TABLE, 2);
     Alarms::AlarmController m2(&f2.bank, nullptr);
-    step_bits(m2, 0x2, 1000);                             // only B active
+    step_bits(f2.bank, m2, 0x2, 1000);                             // only B active
     CHECK(m2.ack_all() == 1);
     CHECK(m2.condition(1).user_ack == true);
 }
@@ -126,13 +126,13 @@ TEST_CASE("alarm: ack_all acknowledges every active condition and counts them") 
 TEST_CASE("alarm: min_on_s holds a condition active after the raw bit clears") {
     AlarmBank f(MIN_ON_TABLE, 1);
     Alarms::AlarmController m(&f.bank, nullptr);
-    step_bits(m, 0x1, 1000);                              // raise (seeds the 5 s min-on hold)
+    step_bits(f.bank, m, 0x1, 1000);                              // raise (seeds the 5 s min-on hold)
     CHECK(m.condition(0).active == true);
-    step_bits(m, 0x0, 2000);                              // raw clears 1 s in: still held
+    step_bits(f.bank, m, 0x0, 2000);                              // raw clears 1 s in: still held
     CHECK(m.condition(0).active == true);
-    step_bits(m, 0x0, 5500);                              // 4.5 s in: still within the 5 s hold
+    step_bits(f.bank, m, 0x0, 5500);                              // 4.5 s in: still within the 5 s hold
     CHECK(m.condition(0).active == true);
-    step_bits(m, 0x0, 6500);                              // 5.5 s in: hold elapsed, now clears
+    step_bits(f.bank, m, 0x0, 6500);                              // 5.5 s in: hold elapsed, now clears
     CHECK(m.condition(0).active == false);
 }
 
@@ -144,10 +144,10 @@ TEST_CASE("alarm: an END with no matching START is logged as a FLAP") {
     Alarms::AlarmController m(&f.bank, &logger);
 
     // A blip shorter than the 2 s START dwell: clears before any START is logged.
-    step_bits(m, 0x1, 1000);                             // on (dwell 0 < on_s 2 s)
+    step_bits(f.bank, m, 0x1, 1000);                             // on (dwell 0 < on_s 2 s)
     logger.refill();
     CHECK(rec.has(Logs::ALARM_START) == false);   // too brief to announce a START
-    step_bits(m, 0x0, 1500);                             // off -> END with no START = FLAP
+    step_bits(f.bank, m, 0x0, 1500);                             // off -> END with no START = FLAP
     logger.refill();
     CHECK(rec.has(Logs::ALARM_FLAP) == true);
     CHECK(rec.has(Logs::ALARM_END) == false);
@@ -160,10 +160,10 @@ TEST_CASE("alarm: a normal episode logs START then END (not FLAP)") {
     AlarmBank f(NORMAL_TABLE, 1);
     Alarms::AlarmController m(&f.bank, &logger);
 
-    step_bits(m, 0x1, 1000);                             // on, START logged immediately
+    step_bits(f.bank, m, 0x1, 1000);                             // on, START logged immediately
     logger.refill();
     CHECK(rec.has(Logs::ALARM_START) == true);
-    step_bits(m, 0x0, 2000);                             // off -> END (START was logged)
+    step_bits(f.bank, m, 0x0, 2000);                             // off -> END (START was logged)
     logger.refill();
     CHECK(rec.has(Logs::ALARM_END) == true);
     CHECK(rec.has(Logs::ALARM_FLAP) == false);
@@ -199,27 +199,4 @@ TEST_CASE("alarm reader: model reads each condition's variable") {
     CHECK(m.condition(2).active == true);
 }
 
-TEST_CASE("alarm reader: a condition naming no variable rests on set_local") {
-    // The platform-health alarms are in exactly this shape: passed as the
-    // PLATFORM table, which the model never resolves, so the row keeps
-    // VAR_NONE. Not a zeroed ref - index 0 is a REAL variable, and a zeroed ref
-    // would quietly make a platform alarm track the first row.
-    Vars::Bank io;
-    io.init();
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-    const Alarms::AlarmCondition tbl[] = {
-        { "PLT", "plt", "platform", nullptr, -1, -1 }
-    };
-#pragma GCC diagnostic pop
-    Logs::Logger logger;
-    Alarms::AlarmController m(&io, &logger, tbl, 1);
-    CHECK(m.condition(0).ref.index == Vars::VAR_NONE);
-
-    m.step(1000);
-    CHECK(m.condition(0).active == false);
-    m.set_local((uint8_t)0, true);
-    m.step(2000);
-    CHECK(m.condition(0).active == true);
-}
 

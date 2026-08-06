@@ -20,11 +20,12 @@ using namespace Botanik;
 using namespace Botanik::Alarms;
 
 namespace {
-    // Drive a model without a PLC payload: set each condition's local override
-    // from @p bits (bit i -> condition i), then step.
-    void step_bits(AlarmController& m, uint64_t bits, uint64_t now) {
+    // Drive the model the way the firmware does: write each condition's own
+    // variable (bit i -> condition i), then step. There is no other way in now -
+    // an alarm IS its row.
+    void step_bits(Vars::Bank& io, AlarmController& m, uint64_t bits, uint64_t now) {
         for (uint8_t i = 0; i < m.count(); i++)
-            m.set_local(i, ((bits >> i) & 1u) != 0);
+            io.var(m.condition(i).ref).set(((bits >> i) & 1u) != 0);
         m.step(now);
     }
 
@@ -106,16 +107,16 @@ TEST_CASE("AlarmController: a transition fans out to every registered notifier")
     CHECK(m.has_notifiers());
     CHECK(m.add_notifier(&a) == false);   // no double-register
 
-    step_bits(m, 0x1, 1000);                    // ON -> both notified
+    step_bits(bank, m, 0x1, 1000);                    // ON -> both notified
     CHECK(a.on == 1);
     CHECK(b.on == 1);
-    step_bits(m, 0x0, 2000);                    // clean OFF -> both notified
+    step_bits(bank, m, 0x0, 2000);                    // clean OFF -> both notified
     CHECK(a.off == 1);
     CHECK(b.off == 1);
 
     // Drop one; the remaining notifier still fires, the removed one does not.
     CHECK(m.remove_notifier(&a));
-    step_bits(m, 0x1, 3000);
+    step_bits(bank, m, 0x1, 3000);
     CHECK(a.on == 1);                     // unchanged after removal
     CHECK(b.on == 2);
 }

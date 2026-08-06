@@ -15,9 +15,10 @@
  *  - what this episode already announced to detect FLAPs
  *  - the operator's acknowledgement, cleared on each fresh ON edge.
  *
- * Site conditions fill [0..N) by scanning the variable table for SCOPE_A rows;
- * the platform-health ones (platform.h) follow at [N..N+M). N + M must fit
- * Config::ALARM_SLOTS.
+ * Conditions are built by scanning the variable table for SCOPE_A rows, in table
+ * order, up to Config::ALARM_SLOTS. There is one origin and one order: the
+ * library's own alarms are rows in that same table (alarms/platform.h), spliced
+ * in by the site, so nothing is appended and no index range is reserved.
  */
 
 #include <cstddef>
@@ -59,7 +60,7 @@ namespace Botanik { namespace Alarms {
         /** @name Static metadata
          *  @{ */
 
-        const char* code;       ///< short display code (max 8 chars)
+        const char* code;       ///< short display code (max 9: AlarmsPage::CODE_W)
         const char* name;       ///< the variable this reads, by name
         const char* desc;       ///< human-readable description
         const char* notes;      ///< alarm remediation instructions
@@ -75,8 +76,7 @@ namespace Botanik { namespace Alarms {
         /** @name Dynamic state
          *  @{ */
 
-        Vars::VarRef ref;           ///< the PLC variable carrying this condition
-        bool        local_raw;      ///< actual raw value
+        Vars::VarRef ref;           ///< the variable carrying this condition
         bool        active;         ///< alarm active or latched
 
         bool        on_sent;        ///< ON  transition announced (log + notify)
@@ -111,31 +111,6 @@ namespace Botanik { namespace Alarms {
                    dwell_ms >= (uint64_t)off_s * 1000u;
         }
     };
-
-    /** @brief Index of the alarm @p key names, otherwise -1. @p key may be
-     *  either spelling of the same condition: the short display CODE (`SYS_RST`)
-     *  or the variable NAME (`alarm_system_reset`).
-     *
-     *  Both, because both are on screen. The alarm bar, the ALARMS page and
-     *  `alarms ack <code>`'s own help show the code; `alarms list` and the
-     *  variable table show the name. Matching only one of them meant the
-     *  spelling the operator was looking at was the one that did not work.
-     *
-     *  A linear scan, and deliberately so: this is only ever reached from
-     *  operator input (`alarms ack <code>`) and from bring-up
-     *  (HealthMonitor resolves its six platform codes ONCE into indices, see
-     *  health.h). Nothing per-beat resolves a name - a site condition carries
-     *  the VarRef its constructor resolved, and the platform ones are driven by
-     *  index. */
-    inline int alarm_index(const AlarmCondition* table, uint8_t count,
-                           const char* key) {
-        if (table == nullptr || key == nullptr) return -1;
-        for (uint8_t i = 0; i < count; i++)
-            if (Utils::compare_str(table[i].code, key) ||
-                Utils::compare_str(table[i].name, key))
-                return (int)i;
-        return -1;
-    }
 
     /** @brief Abstract alarm-transition sink the model fans out to.
      * 
@@ -214,20 +189,24 @@ namespace Botanik { namespace Alarms {
     /**
      * @brief Owns the dynamic alarm state over a site-supplied condition table.
      *
-     * step(now) runs once per loop: it reads each condition's raw input (its
-     * payload boolean OR its local override), advances dwell, and raises log
-     * lines / notifications. No aggregate bitset is built or stored.
+     * step(now) runs once per loop: it reads each condition's variable, advances
+     * dwell, and raises log lines / notifications. No aggregate bitset is built
+     * or stored.
      */
     class AlarmController : public Botanik::Component {
     private:
         /** @name State
          *  @{ */
-        /// model-owned working array (site conditions, then platform ones)
+        /// model-owned working array, in table order
         AlarmCondition  _conditions[Config::ALARM_SLOTS];
-        uint8_t         _site_count;      // N: site conditions at [0..N)
-        uint8_t         _count;          // N + M: total conditions scanned
-        /** the variable tables the site alarm refs resolve against (may be
-         *  null -> site alarms rest on their local override only) */
+        uint8_t         _count;          // conditions scanned out of the table
+        /** @brief Condition numbers sorted by CODE, built once by the
+         *  constructor. The other spelling needs no mapping of its own: a name
+         *  goes through the bank's index to a row, and the conditions were
+         *  scanned in table order, so their refs are already sorted. */
+        uint8_t         _by_code[Config::ALARM_SLOTS];
+        /** the variable table the condition refs resolve against (null -> every
+         *  condition reads false, which is what an unbound model is) */
         const Vars::Bank* _io;
         /** registered transition sinks (fan-out, mirrors Logger's writers) */
         AlarmNotifier*  _notifiers[Config::ALARM_NOTIFIERS_MAX];
@@ -240,26 +219,20 @@ namespace Botanik { namespace Alarms {
         /** @} */
 
     public:
-        /** @brief Builds the site's alarm table by scanning @p io for SCOPE_A rows.
-         * 
-         *  The platform alarms stay a separate const table because they name no
-         *  variable at all - they are driven by set_local() from the scheduler
-         *  metrics. */
-        AlarmController(const Vars::Bank*     io,
-                              Logs::Logger*   logger,
-                        const AlarmCondition* platform = nullptr,
-                              uint8_t         platform_count = 0)
+        /** @brief Build the condition table by scanning @p io for SCOPE_A rows.
+         *
+         *  Every alarm, whoever declared it: a site's own and the library's
+         *  platform-health ones alike are rows of that one table (see
+         *  alarms/platform.h), so this is one scan in one order. */
+        AlarmController(const Vars::Bank* io, Logs::Logger* logger)
             : Component(logger, "AlarmController"),
-              _site_count(0), _count(0), _io(io), _notifier_count(0),
+              _count(0), _io(io), _notifier_count(0),
               _last_now(0), _first_step(true), _active_count(0) {
 
             // zero the alarms table
             std::memset(_conditions, 0, sizeof(_conditions));
 
-            // store the id of the first alarm condition
             uint8_t n = 0;
-
-            // look in the IO table for alarm-scope variables
             if (io != nullptr) {
                 for (uint16_t i = 0; i < io->count() && n < Config::ALARM_SLOTS; i++) {
                     // fetch the generic variable metadata
@@ -280,28 +253,16 @@ namespace Botanik { namespace Alarms {
                     c.recent_s    = sp.recent_s;
                     c.hold_on_s   = sp.hold_on_s;
                     c.min_on_s    = sp.min_on_s;
-                    // increment the alarm condition count
                     n++;
                 }
+                // A table with more alarms than slots loses its tail silently,
+                // which is the one failure a count cannot show after the fact.
+                BOTANIK_ASSERT(n < Config::ALARM_SLOTS);
             }
-
-            // ensure we still have enough place to add the platform alarms
-            BOTANIK_ASSERT(n + platform_count <= Config::ALARM_SLOTS);
-            if (platform_count > (uint8_t)(Config::ALARM_SLOTS - n))
-                platform_count = (uint8_t)(Config::ALARM_SLOTS - n);
-
-            // add the platform-defined alarm conditions to the table
-            for (uint8_t j = 0; j < platform_count; j++) {
-                _conditions[n + j] = platform[j];
-                // Driven by set_local(); they read no variable.
-                _conditions[n + j].ref.index = Vars::VAR_NONE;
-            }
-            // count site-specific alarms and total alarm count
-            _site_count = n;
-            _count      = (uint8_t)(n + platform_count);
-            // initialize boot state of alarm conditions
+            _count = n;
             for (uint8_t i = 0; i < _count; i++)     // boot state: settled OFF
                 _conditions[i].off_sent = true;
+            _build_code_index();
         }
 
         /** @name Notifiers
@@ -342,22 +303,14 @@ namespace Botanik { namespace Alarms {
 
         /** @} */
 
-        /** @name Local alarms
+        /** @name Acknowledgement
          *  @{ */
 
-        /** @brief Set/clear an alarm's local raw override
-         *  @note A site alarm's override is OR'd with its payload boolean. */
-        void set_local(uint8_t id, bool on) {
-            if (id >= _count) return;
-            _conditions[id].local_raw = on;
-        }
-
         /** @brief Mark an active condition acknowledged, by code or by variable
-         *  name (see alarm_index). Operator input, so it resolves here rather
-         *  than being pre-resolved: there is nothing to pre-resolve it FROM. */
+         *  name (see index_of). */
         bool ack(const char* name) {
             // find the alarm's index
-            int i = alarm_index(_conditions, _count, name);
+            int i = index_of(name);
             // check that the condition is properly defined
             if (i < 0 || !_conditions[i].active) return false;
             // update the condition
@@ -394,11 +347,28 @@ namespace Botanik { namespace Alarms {
         /** @brief Condition @p i (0 <= i < count()). */
         const AlarmCondition& condition(uint8_t i) const { return _conditions[i]; }
 
-        /** @brief Index of the condition @p key names - its code or its variable
-         *  name - or -1. Called ONCE per code at bring-up (health.h); the beat
-         *  never resolves a name. */
+        /** @brief Index of the condition @p key names, or -1. @p key may be
+         *  either spelling: the short display CODE (`SYS_RST`) or the variable
+         *  NAME (`alarm_system_reset`).
+         *
+         *  Both, because both are on screen. The alarm bar, the ALARMS page and
+         *  `alarms ack <code>`'s own help show the code; `alarms list` and the
+         *  variable table show the name. Matching only one meant the spelling
+         *  the operator was looking at was the one that did not work.
+         *
+         *  Two binary searches, no scan: the codes through the mapping built at
+         *  construction, the names through the bank's own name index and then
+         *  through the refs, which are sorted because the conditions were
+         *  scanned in table order. */
         int index_of(const char* key) const {
-            return alarm_index(_conditions, _count, key);
+            if (key == nullptr) return -1;
+            const int by_code = _find_code(key);
+            if (by_code >= 0) return by_code;
+            if (_io == nullptr) return -1;
+            // The length-bounded find(), deliberately: this is operator input,
+            // so a miss is a typo at the keyboard, not a table defect, and it
+            // must not be counted as an unresolved name.
+            return _find_ref(_io->find(key, (uint16_t)strlen(key)));
         }
 
         /** @} */
@@ -418,10 +388,8 @@ namespace Botanik { namespace Alarms {
             for (uint8_t i = 0; i < _count; i++) {
                 // for each condition
                 AlarmCondition& c = _conditions[i];
-                // combine the raw value with the local override
-                bool raw_on = c.local_raw || _site_raw(i);
-                // step through the condition
-                c.step(raw_on, dt, now, sink);
+                // step it on whatever its variable currently reads
+                c.step(_raw(i), dt, now, sink);
                 // count active conditions
                 if (c.active) _active_count++;
             }
@@ -429,11 +397,69 @@ namespace Botanik { namespace Alarms {
 
     private:
 
-        /** @brief Get the site condition's variable, as a boolean. */
-        bool _site_raw(uint8_t i) const {
-            // false if platform-alarm or if the IO table is not found
-            if (i >= _site_count || _io == nullptr) return false;
-            // get the variable's actual value from the IO table
+        /** @brief Sort _by_code, once. Binary insertion, over at most
+         *  ALARM_SLOTS entries: the comparisons are strcmps and the shuffling is
+         *  uint8_t moves. Same shape as the bank's name index, same reason -
+         *  the table is built here and never changes again. */
+        void _build_code_index() {
+            for (uint8_t i = 0; i < _count; i++) _by_code[i] = i;
+            for (uint8_t i = 1; i < _count; i++) {
+                const uint8_t c = _by_code[i];
+                uint8_t lo = 0, hi = i;
+                while (lo < hi) {
+                    const uint8_t mid = (uint8_t)(lo + (hi - lo) / 2);
+                    if (_code_cmp(_conditions[c].code,
+                                  _conditions[_by_code[mid]].code) < 0) hi = mid;
+                    else                                                lo = (uint8_t)(mid + 1);
+                }
+                for (uint8_t k = i; k > lo; k--) _by_code[k] = _by_code[k - 1];
+                _by_code[lo] = c;
+            }
+        }
+
+        /** @brief strcmp, with a null code sorting after everything and matching
+         *  nothing. */
+        static int _code_cmp(const char* a, const char* b) {
+            if (a == nullptr) return (b == nullptr) ? 0 : 1;
+            if (b == nullptr) return -1;
+            return std::strcmp(a, b);
+        }
+
+        /** @brief Condition whose CODE is @p key, or -1. */
+        int _find_code(const char* key) const {
+            uint8_t lo = 0, hi = _count;
+            while (lo < hi) {
+                const uint8_t mid = (uint8_t)(lo + (hi - lo) / 2);
+                if (_code_cmp(_conditions[_by_code[mid]].code, key) < 0)
+                    lo = (uint8_t)(mid + 1);
+                else
+                    hi = mid;
+            }
+            if (lo >= _count) return -1;
+            const uint8_t i = _by_code[lo];
+            return (_code_cmp(_conditions[i].code, key) == 0) ? (int)i : -1;
+        }
+
+        /** @brief Condition reading row @p r, or -1. The conditions were built by
+         *  scanning the table in order, so their refs ascend: a binary search,
+         *  with nothing to build. */
+        int _find_ref(Vars::VarRef r) const {
+            if (r.index == Vars::VAR_NONE) return -1;
+            uint8_t lo = 0, hi = _count;
+            while (lo < hi) {
+                const uint8_t mid = (uint8_t)(lo + (hi - lo) / 2);
+                if (_conditions[mid].ref.index < r.index) lo = (uint8_t)(mid + 1);
+                else                                      hi = mid;
+            }
+            return (lo < _count && _conditions[lo].ref.index == r.index)
+                     ? (int)lo : -1;
+        }
+
+        /** @brief Condition @p i's variable, as a boolean. An override on that
+         *  variable is what "force this alarm" means now - it reaches here the
+         *  same way it reaches everything else, through Var::raw(). */
+        bool _raw(uint8_t i) const {
+            if (_io == nullptr) return false;
             return _io->var(_conditions[i].ref).b();
         }
     };
