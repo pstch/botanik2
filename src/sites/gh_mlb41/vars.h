@@ -11,7 +11,8 @@
  *
  * Bus: RS485, ModbusRTU master, 38400 baud, none/8/1, on COM2.
  * 8 field devices, 71 mapped signals, 20 free channels.
- * (70 in the published device map, plus MTR-2 object 2 - see below.)
+ * (70 in the published device map, plus MTR-2 object 2 - active power,
+ * which the published map omits and the device answers for all the same.)
  *
  *   SRR/TAC/MTR-1  Eastron SDM630    addr 5   37 readings
  *   SRR/TAC/MTR-2  Lettel MCT1-140   addr 6    6 readings
@@ -368,6 +369,7 @@ const Variable g_vars[] = {
     MI("grid_L3_W",       T_F32, 5,  3, 36, 2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "W",   "L3 active power",                 ""),
     MI("ats_V",           T_F32, 6,  3, 0,  2, SF(0.0f),        SF(500.0f),     SF(0.0f), 5000,   1,  "V",   "ATS voltage",                     ""),
     MI("ats_A",           T_F32, 6,  3, 1,  2, SF(0.0f),        SF(200.0f),     SF(0.0f), 5000,   1,  "A",   "ATS current",                     ""),
+    MI("ats_W",           T_F32, 6,  3, 2,  2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "W",   "ATS active power",                ""),
     MI("ats_VAr",         T_F32, 6,  3, 3,  2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "VAr", "ATS reactive power",              ""),
     MI("ats_VA",          T_F32, 6,  3, 4,  2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "VA",  "ATS apparent power",              ""),
     MI("ats_Hz",          T_F32, 6,  3, 5,  2, SF(0.0f),        SF(100.0f),     SF(0.0f), 5000,   2,  "Hz",  "ATS frequency",                   ""),

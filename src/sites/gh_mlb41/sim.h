@@ -114,6 +114,9 @@ inline void publish_meters(Vars::Bank& io, uint32_t now_ms) {
     // The transfer switch sees the same supply, lightly loaded.
     put(io, "ats_V",  ln - 0.5f, now_ms);
     put(io, "ats_A",  amps * 0.15f, now_ms);
+    // Active power from the same three numbers the meter derives it from, so
+    // the reading stays consistent with the volts and amps beside it.
+    put(io, "ats_W",  (ln - 0.5f) * amps * 0.15f * pf, now_ms);
     put(io, "ats_Hz", 50.0f + 0.03f * sinf(t / 37.0f), now_ms);
 }
 
