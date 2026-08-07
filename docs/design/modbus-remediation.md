@@ -150,10 +150,9 @@ MI("grid_L2_V",  T_F32, 5, 4,  2, 2, ..., "L2 phase voltage",  "SDM630 p2 30003"
 MI("grid_L1_VA", T_F32, 5, 4, 18, 2, ..., "L1 apparent power", "SDM630 p10 30019"),
 ```
 
-Note `fc` moves from 3 to 4 for both meters. I hold parameters 1-54 of the
-SDM630 map from the first read, but not the line-to-line voltages, the THD rows
-or the neutral current (they sit further down the table), and nothing at all for
-the MCT1-140. Both PDFs were lost when the machine rebooted and cleared `/tmp`.
+`fc` moves from 3 to 4 for both meters. All 43 rows were taken from the manuals
+(`~/botanik-docs/`), and `tests/test_site_bindings.cpp` is the durable half: it
+fails 43 times, by name, against the old table.
 
 Update `vars.h`'s `@warning` to describe what `reg` now holds, and its header
 line to `38400 baud` consistency (see 2.2).
