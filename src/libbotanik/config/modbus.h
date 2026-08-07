@@ -162,6 +162,19 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, MODBUS_MAX_REGS_PER_BLOCK);
 
+    /** @brief How many bytes the field-bus UART's transmit ring holds.
+     *
+     *  Not a tunable: it MIRRORS the platform's own buffer, and exists so the
+     *  client can prove at build time that a full frame fits in one go rather
+     *  than assuming it in a comment. On OPTA that buffer is Mbed's
+     *  MBED_CONF_DRIVERS_UART_SERIAL_TXBUF_SIZE, 256 by default; the simulator's
+     *  socketpair holds far more. Lower this and the static_assert in
+     *  modbus/rtu/client.cpp tells you which block size no longer fits. */
+#ifndef BOTANIK_MODBUS_TX_RING_BYTES
+#  define BOTANIK_MODBUS_TX_RING_BYTES 256
+#endif
+    BOTANIK_CFG(uint16_t, MODBUS_TX_RING_BYTES);
+
     /** @brief Step between the due times of blocks sharing a rung, so a ladder
      *  full of one-second groups does not fire them all on the same beat. Same
      *  rule the task registry and the scan cycle use. */

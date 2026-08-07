@@ -193,14 +193,33 @@ bool RtuClient::_build(uint16_t block, uint64_t now_ms) {
     return _frame_len != 0;
 }
 
+// The two conditions that together make a partial frame unreachable. The first
+// is checked here, once; the second is enforced per transaction by the tx_idle()
+// guard in on_step(), which will not start a frame until the ring has drained.
+static_assert(9u + 2u * Config::MODBUS_MAX_REGS_PER_BLOCK
+                  <= Config::MODBUS_TX_RING_BYTES,
+              "a full FC16 must fit the transmit ring in one go: raise "
+              "BOTANIK_MODBUS_TX_RING_BYTES or lower MODBUS_MAX_REGS_PER_BLOCK");
+
 bool RtuClient::_send() {
     if (_port == nullptr) return false;
     // In one pass, deliberately. The USART drops DE when its shift register
     // empties, so a frame handed over in pieces would be cut in half on the
-    // wire - see the header. The buffer is empty whenever a transaction starts
-    // and the maximum request is 255 bytes, so this fits.
+    // wire - see the header.
     for (uint16_t i = 0; i < _frame_len; ++i) {
-        if (_port->write(_frame[i]) != 1) return false;
+        if (_port->write(_frame[i]) != 1) {
+            // Unreachable: the ring was empty (tx_idle) and the frame is
+            // provably smaller than it. Reaching here means the declared ring
+            // size is a lie, and the consequence is a CRC runt on a shared bus
+            // that reads as a wiring fault - so it is said out loud rather than
+            // counted quietly.
+            if (_logger != nullptr)
+                _logger->critical(Logs::SHARED_IO,
+                                  "modbus: TX ring refused byte %u of %u; "
+                                  "MODBUS_TX_RING_BYTES is wrong",
+                                  (unsigned)i, (unsigned)_frame_len);
+            return false;
+        }
     }
     return true;
 }
@@ -210,6 +229,11 @@ void RtuClient::on_step(uint64_t now_ms) {
 
     switch (_state) {
         case MB_IDLE: {
+            // Whole frame or nothing, and this is what makes that true: the ring
+            // must have DRAINED, not merely have room for one more byte. A write
+            // that stops half way leaves a CRC runt on a shared bus, which every
+            // other device reads as line noise. Not a fault - just not yet.
+            if (!HAL::Serial::fieldbus_tx_idle()) return;
             const uint16_t pick = _pick(now_ms);
             if (pick == NO_BLOCK) return;
             _active = pick;

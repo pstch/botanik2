@@ -47,10 +47,14 @@
  * The driver enable is hardware-timed: the USART drops DE when its shift
  * register empties. So a frame handed to the UART in pieces would have DE fall
  * in the middle of it, and every slave on the bus would see a truncated frame -
- * which reads as a wiring fault, not a firmware one. The whole ADU is therefore
- * enqueued in a single pass, and a short write fails the transaction rather than
- * putting half of one on a shared bus. It fits: the maximum request is 255 bytes
- * against a 256-byte buffer that is empty whenever a transaction starts.
+ * which reads as a wiring fault, not a firmware one.
+ *
+ * Two things make that unreachable rather than merely unlikely, because the
+ * claim used to rest on a comment. A `static_assert` in client.cpp proves a full
+ * FC16 fits the transmit ring (MODBUS_TX_RING_BYTES), and on_step() will not
+ * begin a transaction until fieldbus_tx_idle() says the ring has DRAINED - not
+ * merely that it has room for one more byte. A refused byte is then impossible,
+ * and is logged as a critical if it ever happens anyway.
  */
 
 #include <cstdint>
