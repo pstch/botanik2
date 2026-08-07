@@ -649,7 +649,13 @@ if(DOXYGEN)
         set(DOCS_CHART_CMD COMMAND ${PYTHON3}
             ${CMAKE_SOURCE_DIR}/scripts/code_charts.py
             --out ${CMAKE_SOURCE_DIR}/docs/generated
-            --since "12 months ago")
+            --since "12 months ago"
+            # The module coupling matrix on the same page: which way the
+            # cross-module includes point. Reads the source tree directly, so it
+            # needs neither a build nor any tool beyond Python.
+            COMMAND ${PYTHON3}
+            ${CMAKE_SOURCE_DIR}/scripts/coupling_matrix.py
+            --out ${CMAKE_SOURCE_DIR}/docs/generated)
     else()
         message(STATUS "python3 not found — Library code charts will be skipped")
     endif()

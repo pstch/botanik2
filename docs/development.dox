@@ -27,6 +27,44 @@ work has gone.
 </div>
 @endhtmlonly
 
+@subsection dev_metrics_coupling Which way the dependencies point
+
+Every cross-module `#include`, with the modules on both axes ordered bottom-of-stack
+to top (`scripts/coupling_matrix.py`). A cell **left of the diagonal** is a module
+depending on something beneath it: the layering working. A cell **right of the
+diagonal** points back up the stack, and is a layering violation.
+
+Only header (`.h` -> `.h`) edges are shown, because only those are contagious - an
+include in a `.cpp` is private to one translation unit, while one in a header lands
+in every file that transitively includes it, and is what fuses modules into
+dependency cycles. The config headers are held out: every module includes them, so
+they would render as a solid column and say nothing.
+
+@htmlonly
+<div class="code-charts">
+  <figure>
+    <img src="coupling.svg" alt="Module dependency matrix"/>
+    <figcaption>Cross-module includes; red cells point up the stack</figcaption>
+  </figure>
+</div>
+@endhtmlonly
+
+The red cells are **deliberate**, and there should never be one that is not:
+
+- `vars -> alarms` and `vars -> modbus` are the `BOTANIK_LIBRARY_VARS` splice point
+  (@ref dev_vars). A subsystem declares its own rows next to the code that owns
+  them, and `vars/library.h` assembles the groups - so the variable model names its
+  contributors. Macro-only: no code, no types, no compile weight.
+- `console -> pages` is `Console` holding `Pages::Page*`. A page multiplexer has to
+  know the page interface; `pages/page.h` is kept deliberately thin (one include of
+  its own) so the edge stays cheap.
+- `pages -> shell` is `ShellPage` owning a `Shell::CommandShell`.
+
+Those three, plus the two above them, are the only cycles in the module graph. Run
+`python3 scripts/coupling_matrix.py --text` for the current list with the exact
+files behind each cell; a NEW red cell is a layering regression and wants either a
+fix or a line in this list saying why it earns its place.
+
 @section dev_core Core
 
 - @subpage dev_architecture - the layers, the subsystem map, and the per-tick loop
