@@ -82,10 +82,25 @@ namespace Botanik { namespace Modbus {
     uint16_t collect_write(const Vars::Bank& io, const Planner& p, const Block& b,
                            uint8_t* out, uint16_t cap);
 
-    /** @brief Clear the dirty marks on @p b's rows, once a transaction has
-     *  carried them. Only after the slave has confirmed: clearing on send would
-     *  lose a demand to a frame that never arrived. */
-    void clear_dirty(Vars::Bank& io, const Planner& p, const Block& b);
+    /**
+     * @brief Clear the dirty marks on the rows of @p b whose demand is still
+     * what @p sent carried.
+     *
+     * Only after the slave has confirmed: clearing on send would lose a demand
+     * to a frame that never arrived.
+     *
+     * And only PER ROW, because the two ends of a transaction are several beats
+     * apart. collect_write() runs when the frame is built and this runs when the
+     * echo comes back; a program that moves a demand in between has set the
+     * dirty mark on a value this frame never carried, and clearing the block
+     * wholesale would drop it until the rewrite interval - five seconds of a
+     * stale command on an actuator.
+     *
+     * @p sent is the payload collect_write() produced, which is still sitting in
+     * the caller's frame buffer, so nothing has to be copied to compare against.
+     */
+    void clear_dirty(Vars::Bank& io, const Planner& p, const Block& b,
+                     const uint8_t* sent, uint16_t sent_len);
 
     /** @} */
 

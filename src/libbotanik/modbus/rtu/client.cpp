@@ -361,7 +361,15 @@ void RtuClient::_settle(uint64_t now_ms) {
     } else {
         // Only now, with the slave's echo in hand. Clearing on send would lose a
         // demand to a frame that never arrived.
-        clear_dirty(*_io, _plan, b);
+        //
+        // The payload is still where the builder left it: byte 7 of the frame,
+        // for as long as that frame is the request in flight. Handing it back is
+        // what lets clear_dirty() tell a row this transaction carried from one a
+        // program moved while it was in flight.
+        const uint16_t head = 7u;                    // unit, fc, addr, qty, count
+        const uint16_t sent = (_frame_len > head + 2u)
+                                  ? (uint16_t)(_frame_len - head - 2u) : 0u;
+        clear_dirty(*_io, _plan, b, sent != 0 ? _frame + head : nullptr, sent);
     }
 }
 

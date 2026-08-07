@@ -5,6 +5,8 @@
 
 #include "libbotanik/modbus/rtu/image.h"
 
+#include <cstring>                    // memcmp - a row's bytes against those sent
+
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
 #include "libbotanik/modbus/rtu/codec.h"
@@ -44,6 +46,42 @@ namespace {
         }
         const uint16_t w = be16(at[0], at[1]);
         return Vars::type_signed(d.bind.wire) ? (float)(int16_t)w : (float)w;
+    }
+
+    /** @brief One digital row's demand, as it goes on the wire.
+     *
+     *  raw(), not the live value: an override on an actuator has to reach the
+     *  wire, or `control disable` leaves nothing able to move one. */
+    bool row_bit(const Vars::Variable& d, Vars::Var h) {
+        const bool on = h.b();
+        return (d.flags & Vars::F_INVERT) ? !on : on;
+    }
+
+    /** @brief One register row's demand, big-endian into @p at. */
+    void row_regs(const Vars::Bank& io, const Vars::Variable& d, Vars::Var h,
+                  uint8_t* at) {
+        float value = h.value();
+        if (d.scope == Vars::SCOPE_AO) {
+            const Vars::AnalogCal* cal = Vars::analog_cal(d);
+            if (cal != nullptr) value = Vars::analog_values(&io, cal).to_raw(value);
+            if (is_pair(d) && d.bind.wire == Vars::T_F32) {
+                f32_to_regs(value, order_of(d), at);
+            } else if (is_pair(d)) {
+                u32_to_regs((uint32_t)value, order_of(d), at);
+            } else {
+                const uint16_t w = (uint16_t)(int32_t)value;
+                at[0] = hi8(w); at[1] = lo8(w);
+            }
+            return;
+        }
+        if (is_pair(d) && d.bind.wire == Vars::T_F32) {
+            f32_to_regs(value, order_of(d), at);
+        } else if (is_pair(d)) {
+            u32_to_regs((uint32_t)h.i(), order_of(d), at);
+        } else {
+            const uint16_t w = (uint16_t)h.i();
+            at[0] = hi8(w); at[1] = lo8(w);
+        }
     }
 
     /** @brief Commit one digital row out of a packed-bit payload. */
@@ -157,46 +195,42 @@ uint16_t collect_write(const Vars::Bank& io, const Planner& p, const Block& b,
         const uint16_t off = offset_of(d, b);
 
         if (is_bit(b.fc)) {
-            // raw(), not the live value: an override on an actuator has to reach
-            // the wire, or `control disable` leaves nothing able to move one.
-            bool on = h.b();
-            if (d.flags & Vars::F_INVERT) on = !on;
-            if (on) out[off / 8u] = (uint8_t)(out[off / 8u] | (1u << (off % 8u)));
+            if (row_bit(d, h)) put_bit(out, off, true);
             continue;
         }
-
-        uint8_t* at = out + (size_t)off * 2u;
-        if (d.scope == Vars::SCOPE_AO) {
-            const Vars::AnalogCal* cal = Vars::analog_cal(d);
-            const float raw = (cal != nullptr)
-                                  ? Vars::analog_values(&io, cal).to_raw(h.value())
-                                  : h.value();
-            if (is_pair(d) && d.bind.wire == Vars::T_F32) {
-                f32_to_regs(raw, order_of(d), at);
-            } else if (is_pair(d)) {
-                u32_to_regs((uint32_t)raw, order_of(d), at);
-            } else {
-                const uint16_t w = (uint16_t)(int32_t)raw;
-                at[0] = hi8(w); at[1] = lo8(w);
-            }
-            continue;
-        }
-
-        if (is_pair(d) && d.bind.wire == Vars::T_F32) {
-            f32_to_regs(h.value(), order_of(d), at);
-        } else if (is_pair(d)) {
-            u32_to_regs((uint32_t)h.i(), order_of(d), at);
-        } else {
-            const uint16_t w = (uint16_t)h.i();
-            at[0] = hi8(w); at[1] = lo8(w);
-        }
+        row_regs(io, d, h, out + (size_t)off * 2u);
     }
     return need;
 }
 
-void clear_dirty(Vars::Bank& io, const Planner& p, const Block& b) {
+void clear_dirty(Vars::Bank& io, const Planner& p, const Block& b,
+                 const uint8_t* sent, uint16_t sent_len) {
     for (uint16_t k = 0; k < b.row_count; ++k) {
-        io.var(p.row((uint16_t)(b.first_row + k))).clear_field_dirty();
+        const uint16_t idx = p.row((uint16_t)(b.first_row + k));
+        Vars::Var h = io.var(idx);
+        const Vars::Variable& d = *h.meta();
+        const uint16_t off = offset_of(d, b);
+
+        // No payload to compare against: the caller could not say what went out,
+        // so fall back to the old wholesale behaviour rather than never clearing.
+        if (sent == nullptr) { h.clear_field_dirty(); continue; }
+
+        bool carried = false;
+        if (is_bit(b.fc)) {
+            if (off / 8u < sent_len)
+                carried = bit_at(sent, off) == row_bit(d, h);
+        } else {
+            const uint16_t at = (uint16_t)(off * 2u);
+            const uint16_t w  = is_pair(d) ? 4u : 2u;
+            if ((uint32_t)at + w <= sent_len) {
+                uint8_t now[4];
+                row_regs(io, d, h, now);
+                carried = memcmp(now, sent + at, w) == 0;
+            }
+        }
+        // Still dirty if the demand moved after the frame was built: that value
+        // has not been on the wire, and the next transaction owes it.
+        if (carried) h.clear_field_dirty();
     }
 }
 
