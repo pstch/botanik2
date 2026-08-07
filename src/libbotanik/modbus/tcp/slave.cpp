@@ -43,6 +43,7 @@ namespace Botanik { namespace Modbus {
         // scan of the whole variable table, and the first beat is not where a
         // couple of hundred rows of insertion sort belongs.
         _map.build();
+        _bind_acks();
         if (_map.overflow() != 0 && _logger != nullptr)
             _logger->critical(Logs::SHARED_IO,
                               "modbus map full: %u rows unpublished",
@@ -61,7 +62,8 @@ namespace Botanik { namespace Modbus {
         _writable = get_int(_io, "mb_write_enable", 1) != 0;
 
         (void)now_ms;
-        if (!want_on) { _close_listener(); return; }
+        _enabled = want_on;
+        if (!want_on) { _bind_failed = false; _close_listener(); return; }
         // A port change means the socket has to move, and the connections on the
         // old one are conversations about a service that is no longer there.
         if (_listener >= 0 && want_port != _port) _close_listener();
@@ -69,16 +71,31 @@ namespace Botanik { namespace Modbus {
         if (_listener < 0) _open_listener();
     }
 
+    void TcpSlave::_retry_listener(uint64_t now_ms) {
+        if (!_enabled || _listener >= 0 || !_bind_failed) return;
+        if (now_ms - _retry_ms < Config::MODBUS_TCP_BIND_RETRY_MS) return;
+        _retry_ms = now_ms;
+        _open_listener();
+    }
+
     void TcpSlave::_open_listener() {
         _listener = Net::tcp_listen(_port);
-        if (_logger == nullptr) return;
-        if (_listener >= 0) _logger->info(Logs::NETWORK, "modbus slave on port %u",
-                                          (unsigned)_port);
-        // Not fatal and not retried on a timer: the next config commit rebinds,
-        // and a port already taken is a configuration mistake with an operator
-        // behind it.
-        else _logger->error(Logs::NETWORK, "modbus slave cannot bind port %u",
-                            (unsigned)_port);
+        if (_listener >= 0) {
+            _bind_failed = false;
+            if (_logger != nullptr)
+                _logger->info(Logs::NETWORK, "modbus slave on port %u",
+                              (unsigned)_port);
+            return;
+        }
+        // Retried, and reported. A port already taken is usually a configuration
+        // mistake with an operator behind it - but "usually" is not "always",
+        // and the old behaviour was to give up for the life of the firmware
+        // while healthy() went on saying yes. Once per failure in the log, so a
+        // permanent misconfiguration does not become a log entry every minute.
+        if (!_bind_failed && _logger != nullptr)
+            _logger->error(Logs::NETWORK, "modbus slave cannot bind port %u",
+                           (unsigned)_port);
+        _bind_failed = true;
     }
 
     void TcpSlave::_close_listener() {
@@ -91,8 +108,10 @@ namespace Botanik { namespace Modbus {
     // ------------------------------------------------------------------------
 
     void TcpSlave::on_step(uint64_t now_ms) {
-        // Disabled, or a bind that failed: either way there is no socket, and the
-        // next config commit is what changes that.
+        _retry_listener(now_ms);
+
+        // Disabled, or a bind that has not come good yet: either way there is no
+        // socket to serve on. _retry_listener() above is what changes that.
         if (_listener < 0) return;
 
         _accept(now_ms);
@@ -235,16 +254,26 @@ namespace Botanik { namespace Modbus {
     // The acknowledgement block
     // ------------------------------------------------------------------------
 
+    void TcpSlave::_bind_acks() {
+        for (uint16_t i = 0; i < Config::MODBUS_TCP_MAX_ROWS; ++i) _ack_cond[i] = -1;
+        if (_alarms == nullptr || _io == nullptr) return;
+        for (uint16_t i = 0; i < _map.count(); ++i) {
+            const Var v = _map.row(i);
+            // An alarm and nothing else: the block is the alarm model's, so a
+            // parameter's register appearing in it would be a coincidence of
+            // arithmetic rather than an address anybody published.
+            if (v.meta()->scope != SCOPE_A) continue;
+            const int k = _alarms->index_of(v.name());
+            if (k >= 0) _ack_cond[i] = (int16_t)k;
+        }
+    }
+
     int TcpSlave::_ack_index(uint16_t addr) const {
         if (_alarms == nullptr) return -1;
         const uint16_t reg = (uint16_t)(addr - Config::MODBUS_TCP_ACK_COIL_BASE);
-        bool found = false;
-        const Var v = _map.row_at(reg, &found);
-        // An alarm and nothing else: the block is the alarm model's, so a
-        // parameter's register appearing in it would be a coincidence of
-        // arithmetic rather than an address anybody published.
-        if (!found || v.meta()->scope != SCOPE_A) return -1;
-        return _alarms->index_of(v.name());
+        const int i = _map.index_of(reg);
+        if (i < 0 || i >= (int)Config::MODBUS_TCP_MAX_ROWS) return -1;
+        return _ack_cond[i];
     }
 
     Exception TcpSlave::_read_ack(uint16_t addr, uint16_t count,
@@ -370,9 +399,11 @@ namespace Botanik { namespace Modbus {
             if (n < 0)  { _drop(c, nullptr); return; }
             c.tx_sent = (uint16_t)(c.tx_sent + n);
         }
-        c.tx_len  = 0;
-        c.tx_sent = 0;
-        c.pending = PEND_NONE;
+        c.tx_len   = 0;
+        c.tx_sent  = 0;
+        c.tx_mark  = 0;
+        c.tx_since = 0;
+        c.pending  = PEND_NONE;
     }
 
     // Housekeeping
@@ -382,10 +413,12 @@ namespace Botanik { namespace Modbus {
         if (c.sock < 0) return;
         Net::tcp_close(c.sock);
         c.sock    = -1;
-        c.rx_len  = 0;
-        c.tx_len  = 0;
-        c.tx_sent = 0;
-        c.pending = PEND_NONE;
+        c.rx_len   = 0;
+        c.tx_len   = 0;
+        c.tx_sent  = 0;
+        c.tx_mark  = 0;
+        c.tx_since = 0;
+        c.pending  = PEND_NONE;
         if (why != nullptr && _logger != nullptr) {
             char ip[16];
             _logger->warning(Logs::NETWORK, "modbus: dropped %s (%s)",
@@ -395,7 +428,26 @@ namespace Botanik { namespace Modbus {
 
     void TcpSlave::_reap(uint64_t now_ms) {
         for (Conn& c : _conn) {
-            if (c.sock < 0 || c.pending != PEND_NONE) continue;
+            if (c.sock < 0) continue;
+
+            // An answer that is not going anywhere. Measured on SEND PROGRESS,
+            // not on idleness: a peer that has stopped reading is busy by every
+            // other measure, and the slot is what it is holding.
+            if (c.pending != PEND_NONE) {
+                // Armed here rather than where the answer was staged: this is
+                // the one place with a clock, and threading now_ms through three
+                // framing paths to save a beat of resolution is not worth it.
+                if (c.tx_since == 0 || c.tx_sent != c.tx_mark) {
+                    c.tx_mark  = c.tx_sent;
+                    c.tx_since = now_ms;
+                    continue;
+                }
+                if (now_ms - c.tx_since < Config::MODBUS_TCP_IDLE_TIMEOUT_MS) continue;
+                _ctx.rejects++;
+                _drop(c, "not reading");
+                continue;
+            }
+
             if (now_ms - c.last_ms < Config::MODBUS_TCP_IDLE_TIMEOUT_MS) continue;
             _ctx.rejects++;
             _drop(c, "idle");

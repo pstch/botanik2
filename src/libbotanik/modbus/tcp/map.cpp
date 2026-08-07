@@ -93,6 +93,11 @@ namespace Botanik { namespace Modbus {
         }
     }
 
+    Var Map::row(uint16_t i) const {
+        if (_io == nullptr || i >= _count) return Var(&g_sink_d, &g_sink_v);
+        return _io->var(_rows[i]);
+    }
+
     Var Map::row_at(uint16_t reg, bool* found) const {
         const int k = (_io == nullptr) ? -1 : _find(reg);
         if (found != nullptr) *found = (k >= 0);

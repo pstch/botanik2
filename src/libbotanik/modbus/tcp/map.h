@@ -149,6 +149,19 @@ namespace Botanik { namespace Modbus {
         }
 
         /** @} */
+        /** @brief The @p i-th mapped row, ascending by register. An index past
+         *  the end, or a map with no bank, reads as an inert row rather than
+         *  faulting - the same answer the bank gives a bad index.
+         *
+         *  Pairs with index_of(): together they let a consumer resolve
+         *  something per row once at bring-up and then look it up by address. */
+        Vars::Var row(uint16_t i) const;
+
+        /** @brief Position of the row holding register @p reg in this map's own
+         *  order, or -1. Integer-only, so a caller resolving names once at
+         *  bring-up has something to key a parallel array on. */
+        int index_of(uint16_t reg) const { return _find(reg); }
+
         /** @brief Whether a row publishes at all: a parameter, a status value or
          *  an alarm, carrying a non-zero register. */
         static bool published(const Vars::Variable& d);

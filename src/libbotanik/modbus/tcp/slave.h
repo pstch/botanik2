@@ -126,7 +126,14 @@ namespace Botanik { namespace Modbus {
             uint16_t tx_sent = 0;      ///< of which already written
             Pending  pending = PEND_NONE;
             Request  req;              ///< the deferred read
-            uint64_t last_ms = 0;      ///< last complete request (idle reap)
+            uint64_t last_ms  = 0;     ///< last complete request (idle reap)
+            /** @brief When this answer started waiting to go out, and how far it
+             *  had got then. A peer that stops reading leaves `pending` set for
+             *  ever, and the idle reap skips a connection with work pending - so
+             *  without these two, two such peers hold both slots and lock the
+             *  SCADA out with nothing timing them out. */
+            uint64_t tx_since = 0;
+            uint16_t tx_mark  = 0;
         };
 
         /** @} */
@@ -139,6 +146,21 @@ namespace Botanik { namespace Modbus {
          *  (HealthMonitor owns it); null leaves the whole block unmapped. */
         Alarms::AlarmController* _alarms;
         Map           _map;
+        /** @brief Condition index per MAP ROW, or -1 for a row that is not an
+         *  alarm. Resolved once at bring-up.
+         *
+         *  The ack block used to be answered by name: two strcmp searches per
+         *  coil, and a legal FC01 may ask for 2000 of them - about 2 ms in
+         *  PHASE_PRESENT, per connection, per beat, at a remote peer's choosing.
+         *  Everything else in the tree resolves names once at bring-up; this is
+         *  the same rule applied here. */
+        int16_t       _ack_cond[Config::MODBUS_TCP_MAX_ROWS];
+        /** @brief Whether the `mb` config says the slave should be up at all. */
+        bool          _enabled = false;
+        /** @brief The port could not be bound. Kept so the failure is retried
+         *  and reported once rather than every attempt. */
+        bool          _bind_failed = false;
+        uint64_t      _retry_ms = 0;
         SlaveContext _ctx;
         HAL::Network::TcpSocket _listener = -1;
         Conn     _conn[Config::MODBUS_TCP_MAX_CONN];
@@ -181,6 +203,14 @@ namespace Botanik { namespace Modbus {
         SlaveContext        context() const;
         const Map&           map() const     { return _map; }
         bool listening() const { return _listener >= 0; }
+
+        /** @brief Healthy unless it was asked to serve and cannot.
+         *
+         *  Component's default is an unconditional yes, which meant a slave that
+         *  never bound its port reported well for the life of the firmware -
+         *  the one failure an operator most needs told about, since from outside
+         *  it is indistinguishable from a network problem. */
+        bool healthy() const override { return !_enabled || _listener >= 0; }
         /** @brief Whether writes are accepted at all right now (`mb_write_enable`). */
         bool writable() const  { return _writable; }
 
@@ -211,14 +241,19 @@ namespace Botanik { namespace Modbus {
         static bool _is_ack(uint16_t addr) {
             return addr >= Config::MODBUS_TCP_ACK_COIL_BASE;
         }
-        /** @brief The condition at ack-block address @p addr, or -1. */
+        /** @brief The condition at ack-block address @p addr, or -1. A lookup in
+         *  @c _ack_cond, not a search. */
         int  _ack_index(uint16_t addr) const;
+        /** @brief Resolve the ack block once, after the map is built. */
+        void _bind_acks();
         Exception _read_ack(uint16_t addr, uint16_t count, uint8_t* out, size_t cap) const;
         Exception _write_ack(uint16_t addr, bool on,
                              const HAL::Network::Ip4& peer);
         void _flush(Conn& c);
         void _drop(Conn& c, const char* why);
         void _reap(uint64_t now_ms);
+        /** @brief Try the port again, slowly, after a bind failure. */
+        void _retry_listener(uint64_t now_ms);
         /** @} */
     };
 

@@ -162,6 +162,17 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, MODBUS_MAX_REGS_PER_BLOCK);
 
+    /** @brief How often to try binding the slave's port again after a failure.
+     *
+     *  A port already taken is usually an operator's configuration mistake, and
+     *  it used to be given up on for good - which left the slave silently absent
+     *  while healthy() said yes. Retried instead, slowly: whatever is holding
+     *  the port may well let go. */
+#ifndef BOTANIK_MODBUS_TCP_BIND_RETRY_MS
+#  define BOTANIK_MODBUS_TCP_BIND_RETRY_MS 30000
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_TCP_BIND_RETRY_MS);
+
     /** @brief How many parameter commits may wait to reach flash.
      *
      *  A full FC16 covers 61 rows, so this holds one at least: a legitimate
