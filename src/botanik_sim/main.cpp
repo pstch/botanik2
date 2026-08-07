@@ -100,12 +100,23 @@ int main(int argc, char** argv) {
     // SCHED_FIFO, pinned to its own core, so the scheduler's jitter figures
     // measure the firmware rather than the host's scheduler. Both warn and carry
     // on without privileges (BOTANIK_NO_RT_WARNING silences that).
-    Scheduler::lock_process_memory(&greenhouse.logger());
-    // Which core is free is a property of the dev box, not of the site, so it
-    // comes from the environment like the other host knobs above. Mirrors the
-    // main loop running on one core of the OPTA.
-    Scheduler::make_thread_realtime((int)HAL::Env::u32("BOTANIK_SIM_CPU", 0),
-                                    &greenhouse.logger());
+    // Real-time posture, and why it is optional.
+    //
+    // Pinning is what makes the scheduler's jitter figures measure the firmware
+    // rather than the host - for ONE sim. sched_setaffinity needs no privileges
+    // (unlike SCHED_FIFO, which quietly fails without them), so it always takes
+    // effect, and several sims started at once ALL land on the same core while
+    // the others idle. That is how a screen-test suite running four of them in
+    // parallel became load-sensitive. A harness that wants throughput rather
+    // than jitter fidelity sets $BOTANIK_NO_RT and lets the OS place them.
+    if (HAL::Env::u32("BOTANIK_NO_RT", 0) == 0) {
+        Scheduler::lock_process_memory(&greenhouse.logger());
+        // Which core is free is a property of the dev box, not of the site, so it
+        // comes from the environment like the other host knobs above. Mirrors the
+        // main loop running on one core of the OPTA.
+        Scheduler::make_thread_realtime((int)HAL::Env::u32("BOTANIK_SIM_CPU", 0),
+                                        &greenhouse.logger());
+    }
 
 #if BOTANIK_FEATURE_MODBUS_RTU_SERVER
     // The field devices. Learned from the site's own table: every unit id an

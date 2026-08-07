@@ -19,6 +19,6 @@
 <TS> [~] BOOT: AlarmController initialized
 <TS> [-] NETWORK: network bring-up (static)
 <TS> [+] NETWORK: network up: 127.0.0.1
-<TS> [+] NETWORK: MQTT connected
 <TS> [+] TIME: NTP synced
+<TS> [+] NETWORK: MQTT connected
  ALARMS :<BAR>

@@ -130,6 +130,11 @@ class Term:
         # affinity): which a host denies varies, so they're host-dependent boot
         # noise. Suppressing at the source keeps the rendered screen deterministic.
         env["BOTANIK_NO_RT_WARNING"] = "1"
+        # ...and skip the posture itself, not just its warning. Pinning needs no
+        # privileges, so every sim really did land on the same core - and ctest
+        # runs these files in parallel. Letting the OS place them is what stops
+        # the suite failing a different test on every run.
+        env["BOTANIK_NO_RT"] = "1"
         # Hold the CPU_* load alarms cleared: they fire at host-timing-dependent
         # moments, so without this the alarm set (and thus the alarms-page screen and
         # the persistent alarm bar) varies run to run. See health.h.

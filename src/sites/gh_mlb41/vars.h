@@ -10,21 +10,21 @@
  * file.
  *
  * Bus: RS485, ModbusRTU master, 38400 baud, none/8/1, on COM2.
- * 8 field devices, 71 mapped signals, 20 free channels.
- * (70 in the published device map, plus MTR-2 object 2 - see below.)
+ * 8 field devices, 78 mapped signals, 13 free channels.
+ * (70 in the published device map, plus MTR-2 object 2 - active power,
+ * which the published map omits and the device answers for all the same.)
  *
  *   SRR/TAC/MTR-1  Eastron SDM630    addr 5   37 readings
  *   SRR/TAC/MTR-2  Lettel MCT1-140   addr 6    6 readings
- *   SRR/TDC/AI-1   Waveshare 25767   addr 11   8 free  (unmapped)
- *   SRR/TDC/AO-1   Waveshare 26211   addr 16   8 free  (unmapped)
+ *   SRR/TDC/AI-1   Waveshare 25767   addr 11   5 readings (+3 free)
+ *   SRR/TDC/AO-1   Waveshare 26211   addr 16   2 drives   (+6 free)
  *   SRR/TDC/RO-1   Waveshare 26517   addr 31   6 coils (+2 free)
  *   SRR/TDC/RO-2   Waveshare 26517   addr 32   6 coils (+2 free)
  *   SRR/TDC/RO-3   Waveshare 26517   addr 33   8 coils
  *   SRR/TDC/RO-4   Waveshare 26517   addr 34   8 coils
  *
- * Everything is XP_MODBUS today: the AI-1 / AO-1 modules are wired but their
- * channels are unmapped, so the site has no XP_LOCAL variables yet, and
- * a later mapping is purely additive - one more row, nothing else to touch.
+ * Everything is XP_MODBUS today: the site has no XP_LOCAL variables yet, and a
+ * later mapping is purely additive - one more row, nothing else to touch.
  *
  * @warning Binding::reg holds the FIELD-DEVICE address: the coil number on the
  * relay boards, and the device-profile OBJECT INDEX on the meters. The raw
@@ -368,9 +368,21 @@ const Variable g_vars[] = {
     MI("grid_L3_W",       T_F32, 5,  3, 36, 2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "W",   "L3 active power",                 ""),
     MI("ats_V",           T_F32, 6,  3, 0,  2, SF(0.0f),        SF(500.0f),     SF(0.0f), 5000,   1,  "V",   "ATS voltage",                     ""),
     MI("ats_A",           T_F32, 6,  3, 1,  2, SF(0.0f),        SF(200.0f),     SF(0.0f), 5000,   1,  "A",   "ATS current",                     ""),
+    MI("ats_W",           T_F32, 6,  3, 2,  2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "W",   "ATS active power",                ""),
     MI("ats_VAr",         T_F32, 6,  3, 3,  2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "VAr", "ATS reactive power",              ""),
     MI("ats_VA",          T_F32, 6,  3, 4,  2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "VA",  "ATS apparent power",              ""),
     MI("ats_Hz",          T_F32, 6,  3, 5,  2, SF(0.0f),        SF(100.0f),     SF(0.0f), 5000,   2,  "Hz",  "ATS frequency",                   ""),
+
+ // TDC/AI-1 - calibrated 0-10 V / 4-20 mA channels. The wire unit is the module's
+ // (mV, uA) and the calibration block turns it into the engineering one; every
+ // field of every block is a parameter, so a channel is re-trimmed from PARAMS.
+
+    // name              calibration        dev fc ch n  wire   fallback  timeout dgt unit   description                notes
+    AI("pwr_genBat_V",   &CAL_PWR_GEN_BAT,  11, 3, 0, 1, T_U16, SF(0.0f), 5000,   1,  "V",   "generator start battery", ""),
+    AI("pwr_upsBat_V",   &CAL_PWR_UPS_BAT,  11, 3, 1, 1, T_U16, SF(0.0f), 5000,   1,  "V",   "UPS battery voltage",     ""),
+    AI("pwr_dc1_V",      &CAL_PWR_DC1,      11, 3, 2, 1, T_U16, SF(0.0f), 5000,   1,  "V",   "DC PS1 bus voltage",      ""),
+    AI("pwr_dc2_V",      &CAL_PWR_DC2,      11, 3, 3, 1, T_U16, SF(0.0f), 5000,   1,  "V",   "DC PS2 bus voltage",      ""),
+    AI("irr_out_Lpm",    &CAL_IRR_OUTPUT,   11, 3, 4, 1, T_U16, SF(0.0f), 5000,   1,  "Lpm", "irrigation output flow",  ""),
 
 /** @} */
 
@@ -453,6 +465,13 @@ const Variable g_vars[] = {
     RO("cli_skirtValve",      34, 5,   false, false, "wet skirt valve",                "pulsed: humidify effort, or cooling"),
     RO("irr_tray7",           34, 6,   true,  true,  "tray 7 valve",                   ""),
     RO("irr_tray8",           34, 7,   true,  true,  "tray 8 valve",                   ""),
+
+ // TDC/AO-1 - 0-10 V drives. The conversion runs the other way (engineering value
+ // to raw count), and the safe state is a stopped drive.
+
+    // name             calibration      dev fc ch n  wire   safe digits unit description          notes
+    AO("cli_intr1",     &CAL_INTRACTOR,  16, 6, 0, 1, T_U16, 0.0f, 2,    "",  "intractor 1 speed", "0-1 of full speed"),
+    AO("cli_intr2",     &CAL_INTRACTOR,  16, 6, 1, 1, T_U16, 0.0f, 2,    "",  "intractor 2 speed", "shares intractor 1's calibration"),
 
 /** @} */
 

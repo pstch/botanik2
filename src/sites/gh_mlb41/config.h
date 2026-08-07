@@ -109,6 +109,16 @@
 #    define BOTANIK_FEATURE_MODBUS_TCP_CLIENT 1
 #  endif
 #endif
+// --- The field bus, as this installation actually runs it -----------------
+// The site's own device map says 38400 baud, none/8/1, on COM2 (see the header
+// of vars.h). The library defaults to 19200 - the rate docs/design/modbus-
+// budget.md recommends, and the right default for a site that has not measured
+// its bus - so the installation that runs faster has to say so, or the firmware
+// brings the port up at a rate no device on the wire is listening at.
+#ifndef BOTANIK_MODBUS_BAUD
+#  define BOTANIK_MODBUS_BAUD 38400
+#endif
+
 // The field devices the simulator answers as. Compiled on hardware too, where
 // nothing instantiates one - the flag is what puts rtu/slave.cpp in the build.
 #ifndef BOTANIK_FEATURE_MODBUS_RTU_SERVER

@@ -6,8 +6,8 @@
 <TS> [~] BOOT: supply_watch initialized
 <TS> [~] BOOT: supply_report initialized
 <TS> [~] BOOT: Scan initialized
-<TS> [-] SHARED_IO: modbus: 70 rows -> 6 blocks, 9% of the bus
-                        > at 19200 baud
+<TS> [-] SHARED_IO: modbus: 78 rows -> 8 blocks, 7% of the bus
+                        > at 38400 baud
 <TS> [~] BOOT: ModbusRTU initialized
 <TS> [~] BOOT: Console initialized
 <TS> [~] BOOT: MonitorWriter initialized
@@ -19,6 +19,6 @@
 <TS> [~] BOOT: AlarmController initialized
 <TS> [-] NETWORK: network bring-up (static)
 <TS> [+] NETWORK: network up: 127.0.0.1
-<TS> [+] NETWORK: MQTT connected
 <TS> [+] TIME: NTP synced
+<TS> [+] NETWORK: MQTT connected
  ALARMS :<BAR>
