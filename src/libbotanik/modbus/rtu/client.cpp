@@ -326,7 +326,14 @@ void RtuClient::receive_step(uint64_t now_ms) {
         // Silence, noise, or an answer from the wrong device: none of them is
         // this device answering, and the backoff is what stops each of them
         // costing a response timeout on every sweep from here on.
-        if (_active != NO_BLOCK) _missed(_plan.block(_active).device, now_ms);
+        if (_active != NO_BLOCK) {
+            const Block& b = _plan.block(_active);
+            _missed(b.device, now_ms);
+            // Nothing came back, so nothing about these rows is current. Their
+            // own timeouts would get here eventually; this is the driver saying
+            // it already knows.
+            if (is_read(b.fc)) invalidate_block(*_io, _plan, b, Vars::Q_STALE);
+        }
     }
 
     // Whatever happened, this block has had its turn. A read comes round again
@@ -356,6 +363,10 @@ void RtuClient::_settle(uint64_t now_ms) {
         // send an engineer to different places: this one is a register map that
         // does not match the device.
         _refusals++;
+        // And the rows say so too. Without this they keep their last value at
+        // Q_GOOD until expire_stale() catches up - and a row declared with no
+        // timeout is never caught up with at all.
+        if (is_read(b.fc)) invalidate_block(*_io, _plan, b, Vars::Q_REFUSED);
         if (_logger != nullptr)
             _logger->warning(Logs::SHARED_IO,
                           "modbus: dev %u fc %u reg %u refused (exception %u)",

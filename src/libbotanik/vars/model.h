@@ -139,7 +139,8 @@ namespace Botanik { namespace Vars {
         Q_GOOD,          ///< a real value from whoever owns the row
         Q_STALE,         ///< it was live and stopped: no good read within its timeout
         Q_IMPLAUSIBLE,   ///< answering with nonsense: outside its band, or non-finite
-        Q_SAFE           ///< an output dropped to its declared safe state
+        Q_SAFE,          ///< an output dropped to its declared safe state
+        Q_REFUSED        ///< the device answered, and declined: it has no such register
     };
 
     /** @brief @p q as a phrase for an operator: "valid", or invalid and why. */
@@ -150,6 +151,7 @@ namespace Botanik { namespace Vars {
             case Q_STALE:       return "invalid: past its timeout";
             case Q_IMPLAUSIBLE: return "invalid: outside its band";
             case Q_SAFE:        return "invalid: dropped to its safe state";
+            case Q_REFUSED:     return "invalid: the device refused the read";
             default:            return "invalid";
         }
     }

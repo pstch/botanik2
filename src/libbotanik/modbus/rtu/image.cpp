@@ -136,6 +136,12 @@ namespace {
 
 }  // namespace
 
+void invalidate_block(Vars::Bank& io, const Planner& p, const Block& b,
+                      Vars::Quality q) {
+    for (uint16_t k = 0; k < b.row_count; ++k)
+        io.var(p.row((uint16_t)(b.first_row + k))).invalidate(q);
+}
+
 uint16_t commit_read(Vars::Bank& io, const Planner& p, const Block& b,
                      const Response& r, uint64_t now_ms) {
     if (r.data == nullptr) return 0;
@@ -152,13 +158,16 @@ uint16_t commit_read(Vars::Bank& io, const Planner& p, const Block& b,
         // it is the one arithmetic that would read past the buffer, so it is
         // guarded rather than assumed.
         if (is_bit(b.fc)) {
-            if (off >= (uint16_t)(r.len * 8u)) continue;
+            if (off >= (uint16_t)(r.len * 8u)) { h.invalidate(Vars::Q_NO_DATA); continue; }
             commit_bit(h, d, b, r.data, now_ms);
             good++;
             continue;
         }
         const uint16_t span = is_pair(d) ? 2u : 1u;
-        if ((uint32_t)(off + span) * 2u > r.len) continue;
+        if ((uint32_t)(off + span) * 2u > r.len) {
+            h.invalidate(Vars::Q_NO_DATA);
+            continue;
+        }
 
         if (d.scope == Vars::SCOPE_AI) {
             if (commit_analog(io, h, d, b, r.data, now_ms)) good++;

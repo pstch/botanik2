@@ -30,7 +30,12 @@
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
-namespace Botanik { namespace Vars { class Bank; } }
+namespace Botanik { namespace Vars {
+    class Bank;
+    // Opaque enum declaration (C++11): the underlying type is fixed, so a
+    // diagnosis can cross this interface without model.h coming with it.
+    enum Quality : uint8_t;
+}}
 
 namespace Botanik { namespace Modbus {
 
@@ -54,6 +59,20 @@ namespace Botanik { namespace Modbus {
      *
      * @return how many rows were published as good.
      */
+    /**
+     * @brief Invalidate every row of @p b with @p q, because the read failed.
+     *
+     * A driver that knows a read failed should say so. Left alone, a row keeps
+     * Q_GOOD and its last value until expire_stale() catches up - and a row
+     * declared with timeout_ms == 0 is skipped by expire_stale entirely, so it
+     * would read good, with a value from before the device died, for ever.
+     *
+     * @p q is the diagnosis: Q_REFUSED when the device answered and declined
+     * (its register map is not the one we hold), Q_STALE when nothing came back.
+     */
+    void invalidate_block(Vars::Bank& io, const Planner& p, const Block& b,
+                          Vars::Quality q);
+
     uint16_t commit_read(Vars::Bank& io, const Planner& p, const Block& b,
                          const Response& r, uint64_t now_ms);
 

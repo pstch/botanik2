@@ -45,10 +45,10 @@ namespace {
      *  Writes have none: they go out when a control program demands something,
      *  so they all share rung 0 and their block's period stays 0.
      *
-     *  A read declaring no timeout at all gets the SLOWEST rung. It never goes
-     *  stale, so nothing is asking to be told promptly, and the alternative
-     *  reading - that timeout 0 means poll flat out - would put a row nobody
-     *  waits on at the top of the bus. */
+     *  A read declaring no timeout at all gets the SLOWEST rung - though an
+     *  INPUT declaring none is refused outright in _collect(), because a row
+     *  expire_stale() skips can never be invalidated by anything. This is the
+     *  fallback for the other roles. */
     uint8_t rung_of(const Vars::Variable& d) {
         if (!is_read(d.bind.fc)) return 0;
         if (d.timeout_ms == 0) return (uint8_t)L_60S;
@@ -120,6 +120,13 @@ void Planner::_collect(const Vars::Bank& io) {
         // with the overflow, because both mean the same thing to an operator:
         // something in the table is not going to be scanned.
         if (block_fc(d->bind.fc) == 0) { _rows_dropped++; continue; }
+        // An input that can never go stale is a trap, not a slow signal:
+        // expire_stale() skips timeout_ms == 0 outright, so once the device
+        // stopped answering the row would hold its last reading, at Q_GOOD, for
+        // the life of the firmware. Refused loudly here instead - _rows_dropped
+        // is logged as a critical at bring-up and named by the site test.
+        if (d->role == Vars::ROLE_INPUT && is_read(d->bind.fc) &&
+            d->timeout_ms == 0) { _rows_dropped++; continue; }
         if (_row_count >= Config::MODBUS_MAX_ROWS) { _rows_dropped++; continue; }
         _rows[_row_count++] = i;
     }

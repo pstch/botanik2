@@ -151,4 +151,81 @@ TEST_CASE("modbus image: an active-low coil is inverted on the way out") {
     CHECK_FALSE(bit_at(sent, inv_off));
 }
 
+
+// Saying so when a read fails
+// ===========================================================================
+
+TEST_CASE("modbus image: a refused read invalidates its rows, and says why") {
+    Bus bus;
+    const Block* b = nullptr;
+    for (uint16_t i = 0; i < bus.plan.block_count(); ++i)
+        if (is_read(bus.plan.block(i).fc)) { b = &bus.plan.block(i); break; }
+    REQUIRE(b != nullptr);
+
+    // Give the block a good reading first, so there is something to lose.
+    uint8_t payload[256];
+    memset(payload, 0, sizeof payload);
+    Response r;
+    r.data = payload;
+    r.len  = (uint16_t)(b->regs * 2u);
+    r.unit = b->device;
+    r.fc   = b->fc;
+    r.ex   = EX_NONE;
+    REQUIRE(commit_read(bus.bank, bus.plan, *b, r, 1000) > 0);
+    REQUIRE(bus.row(*b, 0).live_valid());
+
+    // The device answers, and declines.
+    invalidate_block(bus.bank, bus.plan, *b, Q_REFUSED);
+
+    CHECK_FALSE(bus.row(*b, 0).live_valid());
+    INFO("a refusal is a register map that does not match the device");
+    CHECK(bus.row(*b, 0).live_quality() == Q_REFUSED);
+    CHECK(std::string(quality_str(Q_REFUSED)) != std::string(quality_str(Q_STALE)));
+}
+
+TEST_CASE("modbus image: a row the payload never reached is not left reading good") {
+    Bus bus;
+    const Block* b = nullptr;
+    for (uint16_t i = 0; i < bus.plan.block_count(); ++i) {
+        const Block& c = bus.plan.block(i);
+        if (is_read(c.fc) && !is_bit(c.fc) && c.row_count >= 2) { b = &c; break; }
+    }
+    if (b == nullptr) return;
+
+    uint8_t payload[256];
+    memset(payload, 0, sizeof payload);
+    Response r;
+    r.data = payload;
+    r.len  = (uint16_t)(b->regs * 2u);
+    r.unit = b->device; r.fc = b->fc; r.ex = EX_NONE;
+    REQUIRE(commit_read(bus.bank, bus.plan, *b, r, 1000) > 0);
+    REQUIRE(bus.row(*b, b->row_count - 1).live_valid());
+
+    // Now a short answer: only the first two registers arrive.
+    r.len = 4;
+    commit_read(bus.bank, bus.plan, *b, r, 2000);
+
+    Var last = bus.row(*b, (uint16_t)(b->row_count - 1));
+    INFO("'" << std::string(last.meta()->name) << "' was past the end of the payload");
+    CHECK_FALSE(last.live_valid());
+    CHECK(last.live_quality() == Q_NO_DATA);
+}
+
+TEST_CASE("modbus plan: an input that could never go stale is refused a place") {
+    // expire_stale() skips timeout_ms == 0, and nothing else would ever
+    // invalidate such a row - so planning it would create a reading that stays
+    // good, with a value from before the device died, for ever.
+    const VarTables& t = Site::g_site.vars;
+    uint16_t offenders = 0;
+    for (uint16_t i = 0; i < t.count; ++i) {
+        const Variable& d = t.var[i];
+        if (d.bind.transport == XP_MODBUS && d.role == ROLE_INPUT &&
+            is_read(d.bind.fc) && d.timeout_ms == 0) offenders++;
+    }
+
+    Bus bus;
+    INFO("the site declares " << offenders << " such row(s)");
+    CHECK(bus.plan.rows_dropped() == offenders);
+}
+
 #endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT
