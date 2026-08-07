@@ -100,6 +100,19 @@ class Stall:
             return False                      # no clock painted yet
         # midnight wrap: the sim boots at the host wall time and can cross it
         idle = (now_sim - self._sim_at_progress) % 86400
+        # ...but the sim's clock also steps BACKWARDS, and a wrap cannot tell the
+        # two apart on its own. The displayed time is boot_epoch + uptime, and on
+        # the simulator the epoch is re-derived from the UNDILATED host clock
+        # (utils/time.cpp _boot_epoch_ms) - so under BOTANIK_TIME_SCALE it is
+        # re-latched a couple of seconds lower every ~40 ms of wall time. Read as
+        # elapsed, one of those steps is 86398 seconds of idleness and ends
+        # whatever wait is in flight on the spot, for a reason that has nothing to
+        # do with the screen. That is what was failing a different screen test on
+        # every run. No real wait idles for half a day, so read the far half of
+        # the wrap as the step it is and re-baseline on it.
+        if idle > 43200:
+            self._sim_at_progress = now_sim
+            return False
         return idle >= STALL_SIM_S
 
 
