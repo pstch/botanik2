@@ -144,7 +144,7 @@ const Variable g_vars[] = {
  *  Not the site's, but they live here: the bank holds one contiguous table, so
  *  everything libbotanik declares is spliced in through this single define. It
  *  goes FIRST and ends with its parameters, so they abut the site's below and
- *  the ROLE_PARAM run stays contiguous. See vars/library.h.
+ *  the ROLE_PARAM run stays contiguous. See library_vars.h.
  *  @{ */
 
     BOTANIK_LIBRARY_VARS

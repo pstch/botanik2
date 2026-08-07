@@ -5,7 +5,7 @@
  *  @brief The field bus's own rows, for a site's variable table.
  *
  *  Ordinary rows written with the same factories a site uses, spliced into every
- *  site's table through BOTANIK_LIBRARY_VARS (vars/library.h) - the same route
+ *  site's table through BOTANIK_LIBRARY_VARS (library_vars.h) - the same route
  *  the platform-health alarms take, and for the same reason: the code that
  *  raises a row and the declaration of that row belong in one place.
  *

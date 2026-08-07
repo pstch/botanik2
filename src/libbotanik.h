@@ -40,7 +40,7 @@
 #include "libbotanik/utils/time.h"              // CalendarTime + the uptime/wall conversions
 #include "libbotanik/vars/access.h"             // var_group / var_published / HomeVar
 #include "libbotanik/vars/declare.h"            // the A/P/G/SV/MI/AI/DI/MO/AO/DO/RO factories a table is written in
-#include "libbotanik/vars/library.h"            // BOTANIK_LIBRARY_VARS
+#include "libbotanik/library_vars.h"            // BOTANIK_LIBRARY_VARS
 #include "libbotanik/vars/model.h"              // Variable / Value / Var / Bank / VarTables
 #include "libbotanik/vars/params.h"             // Params / KvParamStore
 

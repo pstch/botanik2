@@ -82,7 +82,7 @@ per kind, and the number itself says what a row is:
 | 900..989 | library parameters and status values | 900 used (`sys_console_baud`) |
 | 990..999 | library alarms | 990..995, the platform alarms |
 
-The library's reserve stays 900..999 as `vars/library.h` already declares it; the
+The library's reserve stays 900..999 as `library_vars.h` already declares it; the
 alarms take its top so a library status row added later still grows upward from
 900. The one number to watch is 799: at 501 there is room, but uniqueness alone
 would let an alarm take 750 and read as a parameter to everyone downstream, so

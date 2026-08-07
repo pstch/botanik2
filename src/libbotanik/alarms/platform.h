@@ -15,7 +15,7 @@
 *  its own any more.
 *
 *  These rows reach a site's table through BOTANIK_LIBRARY_VARS, the one splice
-*  point for everything libbotanik declares - see vars/library.h, which is also
+*  point for everything libbotanik declares - see library_vars.h, which is also
 *  where the placement rules and the failure mode for leaving it out are written
 *  down. This header only owns the rows. */
 

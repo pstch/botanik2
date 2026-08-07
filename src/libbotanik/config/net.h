@@ -244,7 +244,7 @@ namespace Botanik { namespace Config {
  *
  *  Unlike everything above, these are NOT `Config::` constants: they are the
  *  factory values of the `net_` / `ntp_` / `mqtt_` rows the library declares in
- *  vars/library.h, and the live value lives in the variable table where an
+ *  library_vars.h, and the live value lives in the variable table where an
  *  operator can edit and persist it. They sit here so a site pins what its
  *  installation ships with (in `sites/<name>/config.h`) without touching the
  *  table, exactly as BOTANIK_CONSOLE_BAUD does for the console rate.

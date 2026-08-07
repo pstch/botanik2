@@ -20,7 +20,7 @@
  * setup() (set_hw_watchdog_ms()).
  *
  * Both UART rates are PARAMETERS, not compile-time constants: `serial_console_baud`
- * and `serial_monitor_baud` (declared by the library - vars/library.h), defaulting
+ * and `serial_monitor_baud` (declared by the library - library_vars.h), defaulting
  * from Config::CONSOLE_BAUD / MONITOR_BAUD. _apply_serial_config() runs on the
  * CONFIG phase and re-applies either on change, retuning the UART and - for the
  * console - AnsiTerminal's per-render TX budget in the same breath, since a

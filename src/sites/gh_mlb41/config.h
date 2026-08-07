@@ -12,7 +12,7 @@
 // NOTE: precedence is command line > site > library default
 
 // Factory values for the library's own parameter rows (declared in
-// vars/library.h, since libbotanik reads them by name). These are what a wiped
+// library_vars.h, since libbotanik reads them by name). These are what a wiped
 // store comes back as; an operator retunes them from the PARAMS page.
 #ifndef BOTANIK_NET_IP
 #  define BOTANIK_NET_IP        "192.168.1.42"

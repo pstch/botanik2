@@ -5,6 +5,8 @@
  */
 #include "libbotanik/console/console.h" // Console
 
+#include "libbotanik/pages/page.h"      // Pages::Page - complete type for the calls below
+
 #include <cstdint>                      // int8_t/uint16_t/uint64_t
 
 #include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
@@ -168,6 +170,10 @@ namespace Botanik { namespace Terminal {
     }
 
     // Pages
+
+    const char* Console::page_name(uint8_t i) const {
+        return (i < _pages_len && _pages[i] != nullptr) ? _pages[i]->name() : nullptr;
+    }
 
     int8_t Console::add_page(Pages::Page* page) {
         if (page == nullptr || _pages_len >= MAX_PAGES) return -1;

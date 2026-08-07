@@ -127,7 +127,7 @@ const Variable g_vars[] = {
 No comma after it: every row inside carries its own, so a group with nothing in it
 expands to nothing and the rows around it still read correctly.
 
-`vars/library.h` defines four groups - alarms, status values, computed globals,
+`library_vars.h` defines four groups - alarms, status values, computed globals,
 parameters - each a concatenation of whatever subsystem headers contribute rows to it.
 Three are empty today. Filling one is an edit to that file and nothing else; a site
 already splicing `BOTANIK_LIBRARY_VARS` picks the new rows up on the next build.

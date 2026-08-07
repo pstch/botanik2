@@ -49,21 +49,34 @@ they would render as a solid column and say nothing.
 </div>
 @endhtmlonly
 
-The red cells are **deliberate**, and there should never be one that is not:
+**There are no red cells, and the module graph is acyclic.** That is the point of
+keeping this chart where you can see it: the baseline is zero, so the first one to
+appear stands out. A baseline of "four known-good exceptions" does not work - the
+fifth blends in.
 
-- `vars -> alarms` and `vars -> modbus` are the `BOTANIK_LIBRARY_VARS` splice point
-  (@ref dev_vars). A subsystem declares its own rows next to the code that owns
-  them, and `vars/library.h` assembles the groups - so the variable model names its
-  contributors. Macro-only: no code, no types, no compile weight.
-- `console -> pages` is `Console` holding `Pages::Page*`. A page multiplexer has to
-  know the page interface; `pages/page.h` is kept deliberately thin (one include of
-  its own) so the edge stays cheap.
-- `pages -> shell` is `ShellPage` owning a `Shell::CommandShell`.
+Getting there took no new abstractions, because the last few upward edges were
+misplacements rather than couplings:
 
-Those three, plus the two above them, are the only cycles in the module graph. Run
-`python3 scripts/coupling_matrix.py --text` for the current list with the exact
-files behind each cell; a NEW red cell is a layering regression and wants either a
-fix or a line in this list saying why it earns its place.
+- `Console` holds `Pages::Page*` and calls it only from `console.cpp`, so the page
+  interface is **forward-declared** in `console.h`. A page multiplexer knowing the
+  page interface is fine; all of `pages/` landing in everything that draws is not.
+- `library_vars.h` - the manifest of rows the library splices into a site's table -
+  used to live in `vars/`, which put the variable model above the subsystems that
+  contribute to it. It is macro-only and site-facing, so it sits beside the umbrella
+  instead. Nothing in `vars/` ever compiled against it.
+- `ShellPage` owning a `Shell::CommandShell` was never a violation: `shell/` includes
+  nothing from `pages/` (that is what `Shell::ShellWriter` is for), so the consistent
+  order is console, then shell, then pages.
+
+What was NOT done is worth recording too. A `PageHost` interface for the console, or
+a pimpl'd `ShellPage`, would each buy a green cell at the price of a vtable or an
+allocation on a path that does not want one. An indirection added to fix a picture
+is not an improvement.
+
+Run `python3 scripts/coupling_matrix.py --text` for the current state; it prints the
+exact files behind any upward edge, and says so plainly when there are none. A NEW
+red cell is a layering regression, and wants either a fix or a line here saying why
+it earns its place.
 
 @section dev_core Core
 

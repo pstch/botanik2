@@ -54,8 +54,9 @@ LAYERS = [
     "sun",        # standalone solar tracker
     "health",     # the health monitor, over alarms + scheduler
     "console",    # the terminal device and the page multiplexer
-    "pages",      # the individual pages
-    "shell",      # the command interpreter
+    "shell",      # the command interpreter - renders on the terminal, and knows
+                  # nothing of pages (that is what Shell::ShellWriter is for)
+    "pages",      # the individual pages; ShellPage owns a CommandShell
     "firmware",   # the composition root
     "umbrella",   # libbotanik.h, the convenience header a site includes
     "site",       # sites/<name> and the target entry points
@@ -95,6 +96,10 @@ def module_of(rel):
         return None
     if "/".join(parts[:2]) == CONFIG_DIR:
         return None
+    # A loose file directly under libbotanik/ (library_vars.h) is part of the
+    # library's face to a SITE, like the umbrella - not a subsystem of its own.
+    if len(parts) == 2:
+        return "umbrella"
     return parts[1]
 
 

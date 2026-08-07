@@ -22,11 +22,15 @@
 #include "libbotanik/console/terminal.h"    // AnsiTerminal
 #include "libbotanik/core/component.h"      // Component
 #include "libbotanik/logs/logger.h"         // Logs::Logger
-#include "libbotanik/pages/page.h"          // Pages::Page
 #include "libbotanik/utils/serial.h"        // Utils::BufferedSerial
 
 namespace Botanik { namespace Alarms { class AlarmController; } }
 namespace Botanik { namespace Scheduler { struct SchedulerContext; } }
+// Held by pointer only, and every call on one lives in console.cpp - so the page
+// interface is forward-declared rather than included. A page multiplexer knowing
+// the page interface is fine; the whole of pages/ landing in everything that
+// draws is not.
+namespace Botanik { namespace Pages { class Page; } }
 
 namespace Botanik { namespace Terminal {
 
@@ -143,10 +147,11 @@ namespace Botanik { namespace Terminal {
         uint8_t active_page() const { return _page_index; }
 
         /** @brief Name of page @p i, or null when the slot is empty / out of
-         *  range (lets the status bar iterate tabs without touching _pages). */
-        const char* page_name(uint8_t i) const {
-            return (i < _pages_len && _pages[i] != nullptr) ? _pages[i]->name() : nullptr;
-        }
+         *  range (lets the status bar iterate tabs without touching _pages).
+         *  Out of line: it is the only thing here that needs Pages::Page to be
+         *  complete, and keeping it in the .cpp is what lets this header get by
+         *  with a forward declaration. */
+        const char* page_name(uint8_t i) const;
 
         /** @}
          *  @name Context access
