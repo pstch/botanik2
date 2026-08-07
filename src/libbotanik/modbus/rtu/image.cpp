@@ -37,10 +37,13 @@ namespace {
         const uint8_t* at = payload + (size_t)off * 2u;
         if (is_pair(d)) {
             if (d.bind.wire == Vars::T_F32) return f32_from_regs(at, order_of(d));
-            return (float)u32_from_regs(at, order_of(d));
+            const uint32_t u = u32_from_regs(at, order_of(d));
+            // Through int32_t when the wire type says signed, or a meter
+            // reporting -1 W of export reads as 4.29e9.
+            return Vars::type_signed(d.bind.wire) ? (float)(int32_t)u : (float)u;
         }
         const uint16_t w = be16(at[0], at[1]);
-        return (d.bind.wire == Vars::T_I16) ? (float)(int16_t)w : (float)w;
+        return Vars::type_signed(d.bind.wire) ? (float)(int16_t)w : (float)w;
     }
 
     /** @brief Commit one digital row out of a packed-bit payload. */
@@ -81,13 +84,15 @@ namespace {
             return;
         }
         if (is_pair(d)) {
-            h.publish(Vars::from_i64(d.type, (int64_t)u32_from_regs(at, order_of(d))),
-                      now_ms);
+            const uint32_t u = u32_from_regs(at, order_of(d));
+            const int64_t  p = Vars::type_signed(d.bind.wire) ? (int64_t)(int32_t)u
+                                                              : (int64_t)u;
+            h.publish(Vars::from_i64(d.type, p), now_ms);
             return;
         }
         const uint16_t w = be16(at[0], at[1]);
-        const int64_t  s = (d.bind.wire == Vars::T_I16) ? (int64_t)(int16_t)w
-                                                        : (int64_t)w;
+        const int64_t  s = Vars::type_signed(d.bind.wire) ? (int64_t)(int16_t)w
+                                                          : (int64_t)w;
         h.publish(Vars::from_i64(d.type, s), now_ms);
     }
 

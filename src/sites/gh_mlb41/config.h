@@ -153,4 +153,11 @@
 #  endif
 #endif
 
+// The segment runs at 38400, which is what vars.h's header records and what the
+// devices are configured for. The library default is 19200, so without this the
+// master talks at half rate and nothing on the bus answers at all.
+#ifndef BOTANIK_MODBUS_BAUD
+#  define BOTANIK_MODBUS_BAUD 38400
+#endif
+
 #endif // SITES_GH_MLB41_CONFIG_H

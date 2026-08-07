@@ -56,7 +56,13 @@ namespace Botanik { namespace Modbus {
                 // The byte count is inside the frame, so the length is knowable
                 // only once that byte has arrived.
                 if (_req_len < 7) return 0;
-                return (uint16_t)(9 + _req[6]);
+                // A byte count above 247 cannot be a legal request, and a want
+                // above ADU_MAX can never be satisfied: feed() resets at 256, so
+                // _req_len < want would hold forever and the device would go
+                // deaf. Report it as a frame to discard, not one to wait for.
+                return (uint16_t)(9 + _req[6]) > ADU_MAX
+                           ? ADU_MAX
+                           : (uint16_t)(9 + _req[6]);
             default:
                 // An unsupported function still has to be ANSWERED (with
                 // exception 1), and its request is the 8-byte shape.
@@ -69,18 +75,30 @@ namespace Botanik { namespace Modbus {
         const uint16_t want = _expected();
         if (want == 0 || _req_len < want) return 0;   // still arriving
 
-        // Take exactly this frame, leaving anything after it for the next poll.
+        // Copy before consuming, so a CRC failure can resync by one byte rather
+        // than by a whole frame.
         uint8_t frame[ADU_MAX];
         memcpy(frame, _req, want);
+
+        // A corrupt frame means we do not know where the frame boundary IS, so
+        // discarding `want` bytes fixes the misalignment in place: one byte lost
+        // on the wire would leave every following window failing its CRC, for
+        // good. Drop one byte and rescan instead.
+        if (crc16(frame, want) != 0) {
+            _dropped++;
+            if (_req_len > 1) memmove(_req, _req + 1, (size_t)(_req_len - 1));
+            _req_len--;
+            return 0;
+        }
+
+        // Sound frame: now it is safe to consume exactly this much, leaving
+        // anything after it for the next poll.
         const uint16_t rest = (uint16_t)(_req_len - want);
         if (rest > 0) memmove(_req, _req + want, rest);
         _req_len = rest;
 
-        // Silence, not an answer: a corrupt frame is what the master's retry is
-        // for, and answering one would defeat it. Another unit's frame is not
-        // ours to answer at all.
-        if (crc16(frame, want) != 0) { _dropped++; return 0; }
-        if (frame[0] != _unit)       { _dropped++; return 0; }
+        // Silence, not an answer: another unit's frame is not ours to answer.
+        if (frame[0] != _unit) { _dropped++; return 0; }
 
         const uint8_t  fc      = frame[1];
         const uint8_t* pdu     = frame + 1;
@@ -166,7 +184,15 @@ namespace Botanik { namespace Modbus {
                 break;
             case FC_WRITE_COILS: {
                 const uint8_t bc = pdu[5];
-                if (pdu_len < (uint16_t)(6 + bc) || bc != bit_bytes(val))
+                // The quantity ceiling first, and in 32-bit arithmetic: the
+                // expected byte count is 2*qty for registers, which wraps to 0
+                // at qty 128 if it is computed in a uint8_t and then matches a
+                // declared count of 0. That let a 9-byte frame commit 128
+                // registers from past the end of the buffer.
+                if (val < 1 || val > max_quantity(fc))
+                    return _except(fc, EX_ILLEGAL_VALUE, out, cap);
+                if (pdu_len < (uint16_t)(6 + bc) ||
+                    (uint32_t)bc != (uint32_t)bit_bytes(val))
                     return _except(fc, EX_ILLEGAL_VALUE, out, cap);
                 if ((uint32_t)addr + val > Config::MODBUS_SIM_COILS)
                     return _except(fc, EX_ILLEGAL_ADDRESS, out, cap);
@@ -176,7 +202,10 @@ namespace Botanik { namespace Modbus {
             }
             case FC_WRITE_REGISTERS: {
                 const uint8_t bc = pdu[5];
-                if (pdu_len < (uint16_t)(6 + bc) || bc != (uint8_t)(val * 2))
+                if (val < 1 || val > max_quantity(fc))
+                    return _except(fc, EX_ILLEGAL_VALUE, out, cap);
+                if (pdu_len < (uint16_t)(6 + bc) ||
+                    (uint32_t)bc != (uint32_t)val * 2u)
                     return _except(fc, EX_ILLEGAL_VALUE, out, cap);
                 if ((uint32_t)addr + val > Config::MODBUS_SIM_REGS)
                     return _except(fc, EX_ILLEGAL_ADDRESS, out, cap);
