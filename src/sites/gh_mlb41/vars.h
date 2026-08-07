@@ -10,6 +10,7 @@
  * file.
  *
  * Bus: RS485, ModbusRTU master, 38400 baud, none/8/1, on COM2.
+ * (BOTANIK_MODBUS_BAUD is pinned to match, in this site's config.h.)
  * 8 field devices, 78 mapped signals, 13 free channels.
  * (70 in the published device map, plus MTR-2 object 2 - active power,
  * which the published map omits and the device answers for all the same.)
@@ -26,12 +27,24 @@
  * Everything is XP_MODBUS today: the site has no XP_LOCAL variables yet, and a
  * later mapping is purely additive - one more row, nothing else to touch.
  *
- * @warning Binding::reg holds the FIELD-DEVICE address: the coil number on the
- * relay boards, and the device-profile OBJECT INDEX on the meters. The raw
- * holding register is fixed by the device template, so the RTU master must
- * translate object index -> register per device model. It is not the register
- * column of the device map - that one is the Opta's own Modbus *slave* address,
- * which belongs in the slave map, not here.
+ * @warning Binding::reg holds the FIELD-DEVICE address the master puts on the
+ * wire: the coil number on the relay boards, and the Modbus PROTOCOL START
+ * ADDRESS on the meters (30001 -> 0, 30003 -> 2, ...). It is not the device
+ * profile's object index, and it is not the register column of the device map -
+ * that one is the Opta's own Modbus *slave* address, which belongs in the slave
+ * map, not here.
+ *
+ * It used to hold the object index, with a note saying the master translated it
+ * per device model. The master never did, so every 32-bit reading decoded half
+ * of its predecessor. There is no translation to write either: the site's index
+ * order does not follow the SDM630's parameter order (index 6 is apparent power,
+ * parameter 7 is watts), so a profile table would be a second hand-copy of the
+ * same PDF. The address goes here, once, and the object index is recorded in
+ * each row's notes so a reading can still be traced back to the published map.
+ *
+ * @note The meters answer FC04 (input registers). The SDM630 manual requires it
+ * ("function code 04 is used to access all parameters"); the MCT1-140 accepts
+ * 03 or 04 and is given 04 to match.
  */
 
 #include <cstdint>      // uint8_t/uint16_t
@@ -328,50 +341,50 @@ const Variable g_vars[] = {
 /** @name Sensor inputs - read from the field, invalid past their timeout
  *  @{ */
 
-    // name               type   dev fc reg n  min              max             fallback  timeout dgt unit   description                        notes
-    MI("grid_L1_V",       T_F32, 5,  3, 0,  2, SF(0.0f),        SF(500.0f),     SF(0.0f), 5000,   1,  "V",   "L1 phase voltage",                ""),
-    MI("grid_L2_V",       T_F32, 5,  3, 1,  2, SF(0.0f),        SF(500.0f),     SF(0.0f), 5000,   1,  "V",   "L2 phase voltage",                ""),
-    MI("grid_L3_V",       T_F32, 5,  3, 2,  2, SF(0.0f),        SF(500.0f),     SF(0.0f), 5000,   1,  "V",   "L3 phase voltage",                ""),
-    MI("grid_L1_A",       T_F32, 5,  3, 3,  2, SF(0.0f),        SF(200.0f),     SF(0.0f), 5000,   1,  "A",   "L1 current",                      ""),
-    MI("grid_L2_A",       T_F32, 5,  3, 4,  2, SF(0.0f),        SF(200.0f),     SF(0.0f), 5000,   1,  "A",   "L2 current",                      ""),
-    MI("grid_L3_A",       T_F32, 5,  3, 5,  2, SF(0.0f),        SF(200.0f),     SF(0.0f), 5000,   1,  "A",   "L3 current",                      ""),
-    MI("grid_L1_VA",      T_F32, 5,  3, 6,  2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "VA",  "L1 apparent power",               ""),
-    MI("grid_L2_VA",      T_F32, 5,  3, 7,  2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "VA",  "L2 apparent power",               ""),
-    MI("grid_L3_VA",      T_F32, 5,  3, 8,  2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "VA",  "L3 apparent power",               ""),
-    MI("grid_L1_VAr",     T_F32, 5,  3, 9,  2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "VAr", "L1 reactive power",               ""),
-    MI("grid_L2_VAr",     T_F32, 5,  3, 10, 2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "VAr", "L2 reactive power",               ""),
-    MI("grid_L3_VAr",     T_F32, 5,  3, 11, 2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "VAr", "L3 reactive power",               ""),
-    MI("grid_P1_PF",      T_F32, 5,  3, 12, 2, SF(-1.0f),       SF(1.0f),       SF(0.0f), 5000,   3,  "",    "L1 power factor",                 ""),
-    MI("grid_P2_PF",      T_F32, 5,  3, 13, 2, SF(-1.0f),       SF(1.0f),       SF(0.0f), 5000,   3,  "",    "L2 power factor",                 ""),
-    MI("grid_P3_PF",      T_F32, 5,  3, 14, 2, SF(-1.0f),       SF(1.0f),       SF(0.0f), 5000,   3,  "",    "L3 power factor",                 ""),
-    MI("grid_P1_PA",      T_F32, 5,  3, 15, 2, SF(-180.0f),     SF(180.0f),     SF(0.0f), 5000,   1,  "deg", "L1 phase angle",                  ""),
-    MI("grid_P2_PA",      T_F32, 5,  3, 16, 2, SF(-180.0f),     SF(180.0f),     SF(0.0f), 5000,   1,  "deg", "L2 phase angle",                  ""),
-    MI("grid_P3_PA",      T_F32, 5,  3, 17, 2, SF(-180.0f),     SF(180.0f),     SF(0.0f), 5000,   1,  "deg", "L3 phase angle",                  ""),
-    MI("grid_LN_V",       T_F32, 5,  3, 18, 2, SF(0.0f),        SF(500.0f),     SF(0.0f), 5000,   1,  "V",   "average line-to-neutral voltage", ""),
-    MI("grid_LL_V",       T_F32, 5,  3, 19, 2, SF(0.0f),        SF(900.0f),     SF(0.0f), 5000,   1,  "V",   "average line-to-line voltage",    ""),
-    MI("grid_avg_A",      T_F32, 5,  3, 20, 2, SF(0.0f),        SF(200.0f),     SF(0.0f), 5000,   1,  "A",   "average current",                 ""),
-    MI("grid_total_A",    T_F32, 5,  3, 21, 2, SF(0.0f),        SF(600.0f),     SF(0.0f), 5000,   1,  "A",   "total current",                   ""),
-    MI("grid_total_W",    T_F32, 5,  3, 22, 2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "W",   "total active power",              ""),
-    MI("grid_total_VA",   T_F32, 5,  3, 23, 2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "VA",  "total apparent power",            ""),
-    MI("grid_total_VAR",  T_F32, 5,  3, 24, 2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "VAr", "total reactive power",            ""),
-    MI("grid_total_PF",   T_F32, 5,  3, 25, 2, SF(-1.0f),       SF(1.0f),       SF(0.0f), 5000,   3,  "",    "total power factor",              ""),
-    MI("grid_total_PA",   T_F32, 5,  3, 26, 2, SF(-180.0f),     SF(180.0f),     SF(0.0f), 5000,   1,  "deg", "total phase angle",               ""),
-    MI("grid_Hz",         T_F32, 5,  3, 27, 2, SF(0.0f),        SF(100.0f),     SF(0.0f), 5000,   2,  "Hz",  "line frequency",                  ""),
-    MI("grid_12_V",       T_F32, 5,  3, 28, 2, SF(0.0f),        SF(900.0f),     SF(0.0f), 5000,   1,  "V",   "L1-L2 voltage",                   ""),
-    MI("grid_L23_V",      T_F32, 5,  3, 29, 2, SF(0.0f),        SF(900.0f),     SF(0.0f), 5000,   1,  "V",   "L2-L3 voltage",                   ""),
-    MI("grid_L31_V",      T_F32, 5,  3, 30, 2, SF(0.0f),        SF(900.0f),     SF(0.0f), 5000,   1,  "V",   "L3-L1 voltage",                   ""),
-    MI("grid_LL_avg_THD", T_F32, 5,  3, 31, 2, SF(0.0f),        SF(100.0f),     SF(0.0f), 5000,   1,  "%",   "line-to-line average THD",        ""),
-    MI("grid_LN_avg_THD", T_F32, 5,  3, 32, 2, SF(0.0f),        SF(100.0f),     SF(0.0f), 5000,   1,  "%",   "line-to-neutral average THD",     ""),
-    MI("grid_N_A",        T_F32, 5,  3, 33, 2, SF(0.0f),        SF(200.0f),     SF(0.0f), 5000,   1,  "A",   "neutral current",                 ""),
-    MI("grid_L1_W",       T_F32, 5,  3, 34, 2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "W",   "L1 active power",                 ""),
-    MI("grid_L2_W",       T_F32, 5,  3, 35, 2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "W",   "L2 active power",                 ""),
-    MI("grid_L3_W",       T_F32, 5,  3, 36, 2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "W",   "L3 active power",                 ""),
-    MI("ats_V",           T_F32, 6,  3, 0,  2, SF(0.0f),        SF(500.0f),     SF(0.0f), 5000,   1,  "V",   "ATS voltage",                     ""),
-    MI("ats_A",           T_F32, 6,  3, 1,  2, SF(0.0f),        SF(200.0f),     SF(0.0f), 5000,   1,  "A",   "ATS current",                     ""),
-    MI("ats_W",           T_F32, 6,  3, 2,  2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "W",   "ATS active power",                ""),
-    MI("ats_VAr",         T_F32, 6,  3, 3,  2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "VAr", "ATS reactive power",              ""),
-    MI("ats_VA",          T_F32, 6,  3, 4,  2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 5000,   0,  "VA",  "ATS apparent power",              ""),
-    MI("ats_Hz",          T_F32, 6,  3, 5,  2, SF(0.0f),        SF(100.0f),     SF(0.0f), 5000,   2,  "Hz",  "ATS frequency",                   ""),
+    // name              type   dev fc reg  n  min                max               fallback  timeout dgt unit     description                           notes
+    MI("grid_L1_V",       T_F32, 5, 4,   0, 2, SF(0.0f),          SF(500.0f),       SF(0.0f), 5000,  1, "V",     "L1 phase voltage",                   "SDM630 p1 30001"),
+    MI("grid_L2_V",       T_F32, 5, 4,   2, 2, SF(0.0f),          SF(500.0f),       SF(0.0f), 5000,  1, "V",     "L2 phase voltage",                   "SDM630 p2 30003"),
+    MI("grid_L3_V",       T_F32, 5, 4,   4, 2, SF(0.0f),          SF(500.0f),       SF(0.0f), 5000,  1, "V",     "L3 phase voltage",                   "SDM630 p3 30005"),
+    MI("grid_L1_A",       T_F32, 5, 4,   6, 2, SF(0.0f),          SF(200.0f),       SF(0.0f), 5000,  1, "A",     "L1 current",                         "SDM630 p4 30007"),
+    MI("grid_L2_A",       T_F32, 5, 4,   8, 2, SF(0.0f),          SF(200.0f),       SF(0.0f), 5000,  1, "A",     "L2 current",                         "SDM630 p5 30009"),
+    MI("grid_L3_A",       T_F32, 5, 4,  10, 2, SF(0.0f),          SF(200.0f),       SF(0.0f), 5000,  1, "A",     "L3 current",                         "SDM630 p6 30011"),
+    MI("grid_L1_VA",      T_F32, 5, 4,  18, 2, SF(-1000000.0f),   SF(1000000.0f),   SF(0.0f), 5000,  0, "VA",    "L1 apparent power",                  "SDM630 p10 30019"),
+    MI("grid_L2_VA",      T_F32, 5, 4,  20, 2, SF(-1000000.0f),   SF(1000000.0f),   SF(0.0f), 5000,  0, "VA",    "L2 apparent power",                  "SDM630 p11 30021"),
+    MI("grid_L3_VA",      T_F32, 5, 4,  22, 2, SF(-1000000.0f),   SF(1000000.0f),   SF(0.0f), 5000,  0, "VA",    "L3 apparent power",                  "SDM630 p12 30023"),
+    MI("grid_L1_VAr",     T_F32, 5, 4,  24, 2, SF(-1000000.0f),   SF(1000000.0f),   SF(0.0f), 5000,  0, "VAr",   "L1 reactive power",                  "SDM630 p13 30025"),
+    MI("grid_L2_VAr",     T_F32, 5, 4,  26, 2, SF(-1000000.0f),   SF(1000000.0f),   SF(0.0f), 5000,  0, "VAr",   "L2 reactive power",                  "SDM630 p14 30027"),
+    MI("grid_L3_VAr",     T_F32, 5, 4,  28, 2, SF(-1000000.0f),   SF(1000000.0f),   SF(0.0f), 5000,  0, "VAr",   "L3 reactive power",                  "SDM630 p15 30029"),
+    MI("grid_P1_PF",      T_F32, 5, 4,  30, 2, SF(-1.0f),         SF(1.0f),         SF(0.0f), 5000,  3, "",      "L1 power factor",                    "SDM630 p16 30031"),
+    MI("grid_P2_PF",      T_F32, 5, 4,  32, 2, SF(-1.0f),         SF(1.0f),         SF(0.0f), 5000,  3, "",      "L2 power factor",                    "SDM630 p17 30033"),
+    MI("grid_P3_PF",      T_F32, 5, 4,  34, 2, SF(-1.0f),         SF(1.0f),         SF(0.0f), 5000,  3, "",      "L3 power factor",                    "SDM630 p18 30035"),
+    MI("grid_P1_PA",      T_F32, 5, 4,  36, 2, SF(-180.0f),       SF(180.0f),       SF(0.0f), 5000,  1, "deg",   "L1 phase angle",                     "SDM630 p19 30037"),
+    MI("grid_P2_PA",      T_F32, 5, 4,  38, 2, SF(-180.0f),       SF(180.0f),       SF(0.0f), 5000,  1, "deg",   "L2 phase angle",                     "SDM630 p20 30039"),
+    MI("grid_P3_PA",      T_F32, 5, 4,  40, 2, SF(-180.0f),       SF(180.0f),       SF(0.0f), 5000,  1, "deg",   "L3 phase angle",                     "SDM630 p21 30041"),
+    MI("grid_LN_V",       T_F32, 5, 4,  42, 2, SF(0.0f),          SF(500.0f),       SF(0.0f), 5000,  1, "V",     "average line-to-neutral voltage",    "SDM630 p22 30043"),
+    MI("grid_LL_V",       T_F32, 5, 4, 206, 2, SF(0.0f),          SF(900.0f),       SF(0.0f), 5000,  1, "V",     "average line-to-line voltage",       "SDM630 p104 30207"),
+    MI("grid_avg_A",      T_F32, 5, 4,  46, 2, SF(0.0f),          SF(200.0f),       SF(0.0f), 5000,  1, "A",     "average current",                    "SDM630 p24 30047"),
+    MI("grid_total_A",    T_F32, 5, 4,  48, 2, SF(0.0f),          SF(600.0f),       SF(0.0f), 5000,  1, "A",     "total current",                      "SDM630 p25 30049"),
+    MI("grid_total_W",    T_F32, 5, 4,  52, 2, SF(-1000000.0f),   SF(1000000.0f),   SF(0.0f), 5000,  0, "W",     "total active power",                 "SDM630 p27 30053"),
+    MI("grid_total_VA",   T_F32, 5, 4,  56, 2, SF(-1000000.0f),   SF(1000000.0f),   SF(0.0f), 5000,  0, "VA",    "total apparent power",               "SDM630 p29 30057"),
+    MI("grid_total_VAR",  T_F32, 5, 4,  60, 2, SF(-1000000.0f),   SF(1000000.0f),   SF(0.0f), 5000,  0, "VAr",   "total reactive power",               "SDM630 p31 30061"),
+    MI("grid_total_PF",   T_F32, 5, 4,  62, 2, SF(-1.0f),         SF(1.0f),         SF(0.0f), 5000,  3, "",      "total power factor",                 "SDM630 p32 30063"),
+    MI("grid_total_PA",   T_F32, 5, 4,  66, 2, SF(-180.0f),       SF(180.0f),       SF(0.0f), 5000,  1, "deg",   "total phase angle",                  "SDM630 p34 30067"),
+    MI("grid_Hz",         T_F32, 5, 4,  70, 2, SF(0.0f),          SF(100.0f),       SF(0.0f), 5000,  2, "Hz",    "line frequency",                     "SDM630 p36 30071"),
+    MI("grid_12_V",       T_F32, 5, 4, 200, 2, SF(0.0f),          SF(900.0f),       SF(0.0f), 5000,  1, "V",     "L1-L2 voltage",                      "SDM630 p101 30201"),
+    MI("grid_L23_V",      T_F32, 5, 4, 202, 2, SF(0.0f),          SF(900.0f),       SF(0.0f), 5000,  1, "V",     "L2-L3 voltage",                      "SDM630 p102 30203"),
+    MI("grid_L31_V",      T_F32, 5, 4, 204, 2, SF(0.0f),          SF(900.0f),       SF(0.0f), 5000,  1, "V",     "L3-L1 voltage",                      "SDM630 p103 30205"),
+    MI("grid_LL_avg_THD",  T_F32, 5, 4, 340, 2, SF(0.0f),          SF(100.0f),       SF(0.0f), 5000,  1, "%",     "line-to-line average THD",           "SDM630 p171 30341"),
+    MI("grid_LN_avg_THD",  T_F32, 5, 4, 248, 2, SF(0.0f),          SF(100.0f),       SF(0.0f), 5000,  1, "%",     "line-to-neutral average THD",        "SDM630 p125 30249"),
+    MI("grid_N_A",        T_F32, 5, 4, 224, 2, SF(0.0f),          SF(200.0f),       SF(0.0f), 5000,  1, "A",     "neutral current",                    "SDM630 p113 30225"),
+    MI("grid_L1_W",       T_F32, 5, 4,  12, 2, SF(-1000000.0f),   SF(1000000.0f),   SF(0.0f), 5000,  0, "W",     "L1 active power",                    "SDM630 p7 30013"),
+    MI("grid_L2_W",       T_F32, 5, 4,  14, 2, SF(-1000000.0f),   SF(1000000.0f),   SF(0.0f), 5000,  0, "W",     "L2 active power",                    "SDM630 p8 30015"),
+    MI("grid_L3_W",       T_F32, 5, 4,  16, 2, SF(-1000000.0f),   SF(1000000.0f),   SF(0.0f), 5000,  0, "W",     "L3 active power",                    "SDM630 p9 30017"),
+    MI("ats_V",           T_F32, 6, 4,   0, 2, SF(0.0f),          SF(500.0f),       SF(0.0f), 5000,  1, "V",     "ATS voltage",                        "MCT1-140 0x0000"),
+    MI("ats_A",           T_F32, 6, 4,   2, 2, SF(0.0f),          SF(200.0f),       SF(0.0f), 5000,  1, "A",     "ATS current",                        "MCT1-140 0x0002"),
+    MI("ats_W",           T_F32, 6, 4,   4, 2, SF(-1000000.0f),   SF(1000000.0f),   SF(0.0f), 5000,  0, "W",     "ATS active power",                   "MCT1-140 0x0004"),
+    MI("ats_VAr",         T_F32, 6, 4,   6, 2, SF(-1000000.0f),   SF(1000000.0f),   SF(0.0f), 5000,  0, "VAr",   "ATS reactive power",                 "MCT1-140 0x0006"),
+    MI("ats_VA",          T_F32, 6, 4,   8, 2, SF(-1000000.0f),   SF(1000000.0f),   SF(0.0f), 5000,  0, "VA",    "ATS apparent power",                 "MCT1-140 0x0008"),
+    MI("ats_Hz",          T_F32, 6, 4,  12, 2, SF(0.0f),          SF(100.0f),       SF(0.0f), 5000,  2, "Hz",    "ATS frequency",                      "MCT1-140 0x000C"),
 
  // TDC/AI-1 - calibrated 0-10 V / 4-20 mA channels. The wire unit is the module's
  // (mV, uA) and the calibration block turns it into the engineering one; every

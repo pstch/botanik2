@@ -50,6 +50,7 @@ add_executable(botanik_tests
     test_modbus_codec.cpp
     test_modbus_framing.cpp
     test_modbus_rtu_slave.cpp
+    test_site_bindings.cpp
 )
 
 # vendor/ for doctest.h; src/ for the library and the simulator's site payloads.
