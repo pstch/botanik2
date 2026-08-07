@@ -1,171 +1,163 @@
 # pyte screen-assertion tests
 
-These tests drive the real `botanik_sim` firmware over a **PTY** and replay its
-ANSI output through [pyte](https://github.com/selectel/pyte) to reconstruct the
-80x24 screen, then assert on that screen. They catch terminal-rendering
-regressions (cursor moves, insert/delete, IL/DL, the line editor's
-reconciliation) that a source diff can't.
+These drive the real `botanik_sim` firmware over a **PTY** and replay its ANSI
+output through [pyte](https://github.com/selectel/pyte) to reconstruct the 80x24
+screen, then assert on that screen. They catch rendering regressions (cursor
+moves, IL/DL, the line editor's reconciliation) that a source diff cannot.
 
-## Why a PTY, and why time dilation
+## The setup
 
 - **PTY, not a pipe:** `RawSerial::availableForWrite()` uses `ioctl(TIOCOUTQ)`,
   which only answers on a tty. A pipe would bypass the baud throttle and the TX
-  back-pressure path we want to exercise.
-- **Console baud is compile-time only** (`Config::CONSOLE_BAUD`, 4800). The
-  terminal derives its per-render byte budget from it at construction, so there
-  is deliberately no runtime override: one could only speed the wire up while the
-  renderer kept pacing for 4800. To go faster, use time dilation below - it keeps
-  every byte/event ratio identical to a real 4800-baud run, which is exactly the
-  property the expected screens were captured under.
-- **`BOTANIK_SIM_CPU`:** which core the loop thread is pinned to (default 0). A
-  property of the dev box, so it is an env var rather than a build setting.
-- **Speed via `BOTANIK_TIME_SCALE` (not a higher baud):** the simulator's clock
-  runs N times faster than wall-clock (default scale 50). Every byte/event ratio
-  is identical to a real 4800-baud run; only wall time is compressed. See
-  `hal/simulator.h`. Override per run with `PYTE_TIME_SCALE=N` (env, honored
-  through pytest, `ctest`, and `make` alike). The suite is written to tolerate a
-  fast-drifting sim, so it stays green far higher (verified 19/19 at scale 500).
-- **Resilience to a fast-living greenhouse:** at high scale the mock greenhouse
-  (correctly) lives N x faster, so during the harness's wall-clock settle/assert
-  windows its state drifts - alarms cycle, `SYS_RST` clears, the boot log scrolls
-  under the alarm flood, mock values move. The assertions treat that as volatile:
-  `normalize.py` masks the live alarm bar / active count / drifting fields and
-  drops `ALARM_*` log spam; a `rows=`/`clip=` band compares only the region a
-  test is about (home tests assert the widget, not the live log tail); the
-  log/alarm-catalog tests assert behaviour/structure rather than pinning churn.
-- **Determinism vs. async boot chatter:** the network handshake (DNS -> NTP ->
-  MQTT, which retries on a missed reply) logs at timing-dependent moments. If it
-  is still in flight when a test leaves the Home page, a late line lands in the
-  Shell page's live log tail. `boot()` waits for the handshake's final markers
-  before returning (`helpers.py`), which is
-  what makes high scales flake-free; a plain `settle()` quiet window is not
-  enough (it can return in a gap mid-handshake).
-- **Release sim only:** the tests run against a release, no-sanitizer
-  `botanik_sim` (the CMake target builds one in a sub-tree). A debug+ASAN build
-  is too slow per dilated tick.
-- **Comparison, not equality:** screens are compared on `meaningful_lines`
-  (volatile fields normalized, blank and alarm-transition rows dropped) and, for
-  a whole-screen assert, with the live log tail dropped on top of that. A stray
-  repaint or an unrelated log line then cannot fail a correct screen.
+  back-pressure the tests exist to exercise.
+- **Speed via `BOTANIK_TIME_SCALE`, never a higher baud.** Console baud is
+  compile-time (`Config::CONSOLE_BAUD`, 4800) and the terminal derives its
+  per-render byte budget from it, so raising the wire speed alone would just
+  leave the renderer pacing for 4800. Dilating the clock keeps every byte/event
+  ratio identical to a real run and compresses only wall time. Default 50;
+  override with `PYTE_TIME_SCALE=N` (honored through pytest, ctest and make).
+  Green far higher (verified at 500).
+- **Release sim only** (`build/pyte-sim/`, RELEASE, no sanitizers). A debug+ASAN
+  build is too slow per dilated tick. `make -C build` does **not** rebuild it -
+  run `make -C build pyte-sim`, or the suite silently tests a stale binary.
+- **A fast-living greenhouse is the point, and the hazard.** At scale 50 the mock
+  plant lives 50x faster, so alarms cycle and the log tail floods while a test
+  looks at the screen. `normalize.py` masks the cells that move, `drop_log_lines`
+  takes the live tails out of a golden compare, and a `rows=`/`clip=` band
+  narrows an assertion to the region it is about.
+
+## Waiting without a wall clock
+
+A host-seconds deadline is a statement about the **machine**, not the firmware.
+The sim gets roughly a millisecond of wall budget per tick, so on a loaded box it
+takes more wall time to do the same work, and any fixed timeout reclassifies
+"slower" as "broken" - which is how `make check` came to fail on a *different*
+screen test run to run, each passing on its own.
+
+So no wait is budgeted in host seconds. Two rules replace it:
+
+1. **Progress.** Give up only once the screen has stopped changing. A loaded
+   machine still advances, so the wait stretches to match it; a screen that has
+   settled on the *wrong* content stops changing and fails promptly.
+2. **Sim time.** "Stopped" is measured on the firmware's own clock, read off the
+   status bar. The budget is denominated in the thing being observed, so it
+   scales with load automatically.
+
+`Term.poll(done, idle_sim_s)` is that loop, and the only one: `settle()`,
+`wait_for()`, `wait_screen()` and the golden compare are each a predicate over
+it. Two budgets, because the waits ask different questions:
+
+| call | question | budget |
+|---|---|---|
+| `wait_for(needles)` | has this string **ever** been on screen (latched as it went by, so a scrolled-away log line still counts) | `STALL_SIM_S`, 90 sim-s |
+| `wait_screen(needle, present)` | is it on screen **now**, or has it left | `STALL_SIM_S` |
+| `settle(quiet)` | has the repaint I just triggered finished | `SETTLE_SIM_S`, 5 sim-s |
+
+`settle()` is a debounce, not an event wait, which is why its budget is short: an
+action that paints nothing pays it in full, every time.
+
+`HARD_CAP_S` (180 host-s) is the one host-time bound left. It is not a timing
+assertion - it is the backstop for a sim that has wedged, so its clock never
+advances and rule 2 alone would wait forever.
+
+Two traps worth knowing:
+
+- **`wait_for` is latched.** A marker seen earlier answers instantly, which can
+  make an assertion vacuous (`wait_for("saved")` after `^O` passed because the
+  untouched note had already read "saved"). Use `wait_screen()`, or read the row.
+- **The sim's clock steps backwards.** The displayed time is `boot_epoch +
+  uptime`, and the epoch is re-derived from the *undilated* host clock, so under
+  dilation it is re-latched a couple of seconds lower every ~40 ms. `Stall` reads
+  the far half of the midnight wrap as the step it is and re-baselines.
 
 ## Dependencies (manual - the build never installs anything)
 
 ```sh
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
+cmake -B build -DBOTANIK_TARGET=SIMULATOR -DPython3_EXECUTABLE="$(which python3)"
 ```
 
-Then point CMake at that interpreter when configuring (or just have it active):
-
-```sh
-cmake -B build-debug -DBOTANIK_TARGET=SIMULATOR -DPython3_EXECUTABLE="$(which python3)"
-```
-
-If pyte/pytest aren't importable at configure time, CMake skips the suite (it
-never fails configure and never installs).
+If pyte/pytest are not importable at configure time, CMake skips the suite; it
+never fails configure and never installs.
 
 ## Running
 
 ```sh
-ctest --test-dir build-debug -R pyte --output-on-failure   # via CTest
-make -C build-debug check                                  # part of the gate
+ctest --test-dir build -R pyte --output-on-failure
+make -C build check                                  # part of the gate
+pytest tests/pyte --sim build/pyte-sim/botanik_sim   # or set BOTANIK_SIM
 ```
 
-Each test function is its own CTest entry (`pyte:<file>::<func>`, discovered at
-configure time), so `ctest -j` runs them concurrently - this is where the wall-
-time win comes from. The `.envrc` exports `CTEST_PARALLEL_LEVEL=$(nproc)` so a
-bare `ctest` parallelizes; `make check` passes the same `-j` explicitly. The job
-count defaults to the core count: each dilated sim is happiest with a core to
-itself, so this avoids piling more sims onto the box than it can run at once.
+One CTest entry per test **file** (a glob at configure time). Per-function
+entries each paid ~1.5 s importing pytest to run ~0.4 s of test; per-file keeps
+failures attributable and the `-j` slots busy, measured 2.5x faster on 4 cores.
+`.envrc` exports `CTEST_PARALLEL_LEVEL=$(nproc)`.
 
-Or directly (needs a release sim binary). Pass the test dir explicitly so pytest
-loads this `conftest.py` (and the `--sim`/`--update` options) regardless of CWD:
-
-```sh
-pytest tests/pyte --sim build-debug/pyte-sim/botanik_sim   # or set BOTANIK_SIM
-```
+Because a CTest entry is a whole file, a file may share one booted sim across its
+tests (`spawn_module`) - the boot handshake is the expensive part of a screen
+test. `test_pages`, `test_shell_reconcile` and `test_shell_scroll` do; each
+resets state between tests (`^U`+`^L`, or a freshly submitted line). Anything
+that **mutates** - an edit, a reset, a persisted override or note - keeps its own
+`spawn`.
 
 ## Every page has a display test
 
 **Standing rule: each page registered in `BotanikFirmware::register_pages()` has
-one settled-screen golden, in `test_pages.py`.** Its `PAGES` table is the list;
-adding a page means adding a row and regenerating. `test_pages.py` also asserts
-this against the running firmware - it reads the status bar's tab strip, which
-terminal.cpp draws from the page list, and fails if a tab is there that `PAGES`
-does not cover. So a new page cannot quietly arrive without a display test.
-
-The suite walks all six pages in **one** sim: booting the firmware and waiting
-out its network handshake is the expensive part of a screen test, and paying it
-per page would make this the most costly thing in the gate. Nothing in
-`test_pages.py` mutates state, so the pages cannot contaminate each other;
-anything that edits, resets or overrides uses its own `spawn`.
-
-## What a golden is for, and what it is not
+one settled-screen golden in `test_pages.py`.** Its `PAGES` table is the list, and
+`test_every_registered_page_has_a_golden` checks it against the running firmware
+by reading the status bar's tab strip - so a new page cannot quietly arrive
+without a display test.
 
 A golden pins **layout**: which rows a page draws, in what order, with what
 labels, columns, rules and chrome. It does not pin **values** - `normalize.py`
-masks every cell the greenhouse moves (readings, clock, uptime, load, alarm
-state, quality) - because those are what a page exists to show live, and pinning
-them is what made an earlier generation of goldens flaky enough to delete.
+masks every cell the greenhouse moves - because those are what a page exists to
+show live, and pinning them is what made an earlier generation of goldens flaky
+enough to delete. A renamed column, a dropped panel, a shifted table fail here. A
+warmer afternoon does not.
 
-So: a renamed column, a dropped panel, a shifted table all fail here. A warmer
-afternoon does not.
-
-That division is why the earlier passes' reasoning does not apply to these. They
-deleted 24-line fixtures that spent 23 lines restating chrome to pin one to
-three rows of payload - a *behavioural* assertion wearing a screenshot's
-clothing. These pin the chrome deliberately, because the chrome is the thing
-under test, and nothing else in the suite covers it.
-
-Behaviour still belongs inline, next to the input that produced it:
-`helpers.assert_editor(term, *rows)` for the shell reconciliation scenarios, and
-`wait_for()` when the assertion is about content appearing (a log line, a
-committed value). The per-page files next door do exactly this and no longer
-restate the chrome `test_pages.py` covers.
+Behaviour belongs next to the input that produced it, in the per-page files:
+`helpers.assert_editor(term, *rows)` for the reconciliation scenarios, `wait_for`
+for content appearing.
 
 Two pages are honestly thin, and the reason is worth knowing:
 
-- **LOGS** is nothing *but* the live scrollback, and `drop_log_lines` removes
-  log entries (and their wrapped `>` continuation rows) from both sides of the
-  comparison - so its golden pins the frame alone. Freezing the log would need a
-  knob the firmware does not have; content is asserted in `test_logs.py`.
-- **ALARMS** is pinned in its **ALL** view, not the default RECENT one. RECENT
-  orders active-first via `_before()`, so both its row set and their order move
-  with the fast greenhouse; `alarms.h` returns before that sort for `MODE_ALL`,
-  which leaves the fixed catalog in table order.
+- **LOGS** is nothing *but* the live scrollback, which `drop_log_lines` removes
+  from both sides, so its golden pins the frame alone. Freezing the log would
+  need a knob the firmware does not have; content is asserted in `test_logs.py`.
+- **ALARMS** is pinned in its **ALL** view. RECENT sorts active-first, so both
+  its row set and their order move with the greenhouse; `alarms.h` returns before
+  that sort for `MODE_ALL`, leaving the catalog in table order.
+
+One thing the comparison does not catch: `meaningful_lines` drops blank lines, so
+a golden compares a *sequence* of non-blank rows rather than absolute positions.
+A regression that only changes vertical spacing passes.
+
+Anything masked inside a bordered table must be **width-preserving**, or the row
+changes width and stops matching: `_mask_table_cell` pads to the cell it
+replaces, and `<ALARM_TS>` pads to the stamp it replaces for the same reason.
 
 ## Regenerating
 
 ```sh
-make -C build pyte-sim        # goldens run a STALE sim otherwise
+make -C build pyte-sim        # goldens capture a STALE sim otherwise
 make -C build pytest-update
 ```
 
-This runs the suite with `--update`, which rewrites the goldens from live output
-instead of asserting. It is deliberately separate from `check`/`test` - the gate
-never rewrites its own expectations. **Review the diff before committing**:
-`--update` writes the full snapshot including the `ALARM_*` noise lines that are
-only dropped at compare time, so strip anything matching `normalize._NOISE` from
-the goldens to keep the artifacts clean.
-
-Regeneration deliberately runs at `PYTE_TIME_SCALE=6` while the assert suite
-defaults to 50, so captures are low-drift.
-
-One thing the comparison does not catch: `meaningful_lines` drops blank lines,
-so a golden compares a *sequence* of non-blank rows rather than their absolute
-positions. A regression that only changes vertical spacing passes.
+Deliberately separate from `check`/`test` - the gate never rewrites its own
+expectations. Regeneration runs at `PYTE_TIME_SCALE=6` so captures are low-drift.
+**Review the diff before committing**: `--update` writes the full snapshot
+including the `ALARM_*` noise lines that are only dropped at compare time, so
+strip anything matching `normalize._NOISE`.
 
 ## Layout
 
-- `conftest.py`  - the PTY/pyte `Term`, the `spawn` / `spawn_module` factories
-  and the `assert_screen` fixture.
-- `normalize.py` - field-level regex that masks volatile cells (clock, uptime,
-  cpu/stk, home readings, log timestamps) plus the geometry-based mask for the
-  MONITOR/ALARMS live table columns, before comparison.
-- `keys.py`      - input byte sequences matching `console/parser.cpp`.
-- `helpers.py`   - boot / page-switch helpers, and `assert_editor`.
-- `test_pages.py` - **the per-page display goldens**, and the invariant that
-  every registered page has one.
-- `test_*.py`    - the per-page *behaviour*: home reboot, log marks, alarm view
-  cycling, monitor scrolling, param editing, shell commands and the shell
-  reconciliation scenarios.
+- `conftest.py`   - the PTY/pyte `Term` (`poll` and its four predicates), the
+  `spawn` / `spawn_module` factories, the `assert_screen` fixture.
+- `normalize.py`  - the masks for volatile cells, by regex and by table geometry.
+- `keys.py`       - input byte sequences matching `console/parser.cpp`.
+- `helpers.py`    - `boot` / `goto` / `shell`, and `assert_editor`.
+- `test_pages.py` - the per-page goldens, and the invariant above.
+- `test_*.py`     - per-page behaviour: home reboot, log marks, monitor
+  navigation, param editing, notes, shell commands, shell reconciliation and
+  scrollback.

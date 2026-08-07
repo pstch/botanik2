@@ -1,9 +1,10 @@
 """NOTES page: a full-screen editor over the operator's note.
 
-Content checks rather than full-screen goldens. The note is whatever the test
-types, so the interesting assertions are behavioural - the text wraps and stays
-readable, the viewport scrolls once there is more of it than screen, and the
-note survives a reboot - none of which a frozen screen says any better.
+Content checks, not goldens: the note is whatever the test types, so the
+interesting claims are behavioural - it wraps, the viewport scrolls, and the note
+survives a reboot. Own sim per test, since a note is persisted.
+
+The status row is the last row before the alarm bar, hence display[-2].
 """
 
 import keys
@@ -13,17 +14,15 @@ from helpers import boot, goto
 def notes(spawn, **kwargs):
     """Boot and switch to the NOTES page."""
     term = boot(spawn, **kwargs)
-    goto(term, keys.ALT_8, marker="^O save")
-    return term
+    return goto(term, keys.ALT_8, marker="^O save")
 
 
 def _type_lines(term, lines):
     """Type `lines` as hard-broken rows.
 
-    Settle every few lines: the sim reads its console through a 256-byte RX ring
-    behind a throttled UART, and a long unbroken burst can overrun it. A drop
-    early in the burst is the failure mode to avoid - the tail still renders, so
-    only an assertion on the *first* line would ever catch it.
+    Settling every few lines keeps a long burst from overrunning the sim's
+    256-byte RX ring. A drop early in the burst is the failure mode to avoid: the
+    tail still renders, so only an assertion on the FIRST line would catch it.
     """
     for i, line in enumerate(lines):
         if i:
@@ -39,21 +38,19 @@ def test_notes_wraps_and_reports_state(spawn):
     whether what is on screen has reached flash."""
     term = notes(spawn)
     assert term.wait_for("0/2047 bytes"), "status row missing on an empty note"
-    # Read the status row, don't wait_for("saved"): the marker would be latched
-    # here and answer every later wait for it - which is how the ^O check below
-    # came to pass without ever looking at what ^O did.
+    # Read the row rather than wait_for("saved"): the marker would latch here and
+    # answer the ^O check below without ever looking at what ^O did.
     assert "saved" in term.screen.display[-2], "an untouched note should not read as modified"
 
-    # 89 chars over an 80-column screen with a 2-column gutter, so a row holds
-    # 78. The editor owns the wrapping (the terminal's autowrap is off), so
-    # assert where the break actually falls - and that the gutter marks the row
-    # the operator started but not its wrapped tail, which is the whole point of
-    # having one.
+    # 89 chars over 80 columns with a 2-column gutter, so a row holds 78. The
+    # editor owns the wrapping (autowrap is off), so assert where the break falls
+    # - and that the gutter marks the row the operator started but not its
+    # wrapped tail, which is the whole point of having one.
     line = "the tank three valve sticks when it is cold, tap it before blaming the level sensor again"
     term.send(keys.text(line))
     assert term.wait_for(line[58:78]), "typed text never reached the row end"
     term.settle()
-    assert term.screen.display[1].rstrip() == "> " + line[:78], "first row is not a full gutter + 78 columns"
+    assert term.screen.display[1].rstrip() == "> " + line[:78], "first row is not gutter + 78 columns"
     assert term.screen.display[2].rstrip() == "  " + line[78:], "wrapped tail is not gutter-blanked"
     assert term.wait_for("modified"), "edits did not mark the note dirty"
 
@@ -69,27 +66,24 @@ def test_notes_scrolls_when_taller_than_the_screen(spawn):
     last = 29
     _type_lines(term, ["line%02d" % i for i in range(last + 1)])
 
-    # The cursor is on the last line, so the window sits at the bottom of the
-    # note: the tail is visible and the head has scrolled off (the content area
-    # is 21 rows once the status bar, the alarm bar and our status row are out).
+    # The cursor is on the last line, so the window sits at the bottom: the tail
+    # is visible and the head has scrolled off (21 content rows once the status
+    # bar, the alarm bar and our status row are out).
     assert term.wait_for("line%02d" % last), "the line being typed is not in view"
     assert "line00" not in term.screen.display[1], "the head should have scrolled away"
     assert term.screen.display[1].startswith("> "), "each note line carries the gutter"
 
-    # Page back to the top: one press only moves a screenful, and the extra ones
-    # clamp on the first row rather than scrolling past it. Send them back to
-    # back and sync on content once - a press that moves only the CURSOR (the
-    # first one, which lands on the row already at the top of the viewport) or
-    # that is clamped changes no cell, and pyte's display holds no cursor, so a
-    # settle() after each would find nothing to observe and wait out its budget.
+    # Page back to the top: one press moves a screenful, the extra ones clamp on
+    # the first row. Sent back to back and synced once on content - a press that
+    # moves only the CURSOR, or that is clamped, changes no cell, and pyte's
+    # display holds no cursor, so a settle() after each would just wait it out.
     for _ in range(4):
         term.send(keys.PAGE_UP)
     assert term.wait_for("line00"), "paging up never reached the first line"
 
 
 def test_notes_survives_a_reboot(spawn, tmp_path):
-    """The note is persisted, so it is still there after a power cycle - the
-    whole point of it over a scratch buffer."""
+    """The note is persisted - the whole point of it over a scratch buffer."""
     store = tmp_path / "notes_store"
     note = "spring 2026: valve 3 is seized, do not cycle it"
 
@@ -99,24 +93,21 @@ def test_notes_survives_a_reboot(spawn, tmp_path):
     term.send(keys.CTRL_O)
     assert term.wait_for("saved"), "^O did not report the note saved"
 
-    # A second sim over the same store is the reboot.
-    again = notes(spawn, store=store)
+    again = notes(spawn, store=store)            # a second sim over the same store
     assert again.wait_for(note), "the note did not come back after a restart"
-    assert again.wait_for("saved"), "a restored note should not read as modified"
+    assert "saved" in again.screen.display[-2], "a restored note should not read as modified"
 
 
 def test_notes_flushes_on_leaving_the_page(spawn, tmp_path):
-    """Switching away is a save: nothing else is going to ask, and losing an
-    edit to a keystroke that only meant to look at the logs would be poor."""
+    """Switching away is a save: nothing else is going to ask, and losing an edit
+    to a keystroke that only meant to look at the logs would be poor."""
     store = tmp_path / "notes_flush_store"
     note = "pump B runs hot above 40C"
 
     term = notes(spawn, store=store)
     term.send(keys.text(note))
     term.settle()
-    # To SHELL without pressing ^O. The flush is deactivate()'s, so it is done by
-    # the time the SHELL page has painted and goto()'s settle is the whole wait -
-    # a second one here only ever watched an already-settled screen.
+    # The flush is deactivate()'s, so it is done by the time SHELL has painted.
     goto(term, keys.ALT_2)
 
     again = notes(spawn, store=store)
