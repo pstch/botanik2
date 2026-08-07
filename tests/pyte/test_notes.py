@@ -39,7 +39,10 @@ def test_notes_wraps_and_reports_state(spawn):
     whether what is on screen has reached flash."""
     term = notes(spawn)
     assert term.wait_for("0/2047 bytes"), "status row missing on an empty note"
-    assert term.wait_for("saved"), "an untouched note should not read as modified"
+    # Read the status row, don't wait_for("saved"): the marker would be latched
+    # here and answer every later wait for it - which is how the ^O check below
+    # came to pass without ever looking at what ^O did.
+    assert "saved" in term.screen.display[-2], "an untouched note should not read as modified"
 
     # 89 chars over an 80-column screen with a 2-column gutter, so a row holds
     # 78. The editor owns the wrapping (the terminal's autowrap is off), so
@@ -55,7 +58,8 @@ def test_notes_wraps_and_reports_state(spawn):
     assert term.wait_for("modified"), "edits did not mark the note dirty"
 
     term.send(keys.CTRL_O)
-    assert term.wait_for("saved"), "^O did not clear the dirty marker"
+    term.settle()
+    assert "saved" in term.screen.display[-2], "^O did not clear the dirty marker"
 
 
 def test_notes_scrolls_when_taller_than_the_screen(spawn):
@@ -72,11 +76,14 @@ def test_notes_scrolls_when_taller_than_the_screen(spawn):
     assert "line00" not in term.screen.display[1], "the head should have scrolled away"
     assert term.screen.display[1].startswith("> "), "each note line carries the gutter"
 
-    # Page back to the top. One press only moves a screenful, and the last lands
-    # on the first row rather than scrolling past it.
+    # Page back to the top: one press only moves a screenful, and the extra ones
+    # clamp on the first row rather than scrolling past it. Send them back to
+    # back and sync on content once - a press that moves only the CURSOR (the
+    # first one, which lands on the row already at the top of the viewport) or
+    # that is clamped changes no cell, and pyte's display holds no cursor, so a
+    # settle() after each would find nothing to observe and wait out its budget.
     for _ in range(4):
         term.send(keys.PAGE_UP)
-        term.settle()
     assert term.wait_for("line00"), "paging up never reached the first line"
 
 
@@ -107,8 +114,10 @@ def test_notes_flushes_on_leaving_the_page(spawn, tmp_path):
     term = notes(spawn, store=store)
     term.send(keys.text(note))
     term.settle()
-    goto(term, keys.ALT_2)               # to SHELL without pressing ^O
-    term.settle()
+    # To SHELL without pressing ^O. The flush is deactivate()'s, so it is done by
+    # the time the SHELL page has painted and goto()'s settle is the whole wait -
+    # a second one here only ever watched an already-settled screen.
+    goto(term, keys.ALT_2)
 
     again = notes(spawn, store=store)
     assert again.wait_for(note), "leaving the page did not flush the note"
