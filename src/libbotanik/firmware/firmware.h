@@ -165,6 +165,13 @@ namespace Botanik {
          *  keep the same length as this one. */
         Plc::Program* const*          programs;
         uint8_t                       program_count;
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+        /** @brief What each unit on the field bus will answer: its request
+         *  ceiling and address alignment. Null plans every unit as
+         *  generic_model(). Last, because every site brace-inits this
+         *  aggregate and a field added anywhere else moves the rest. */
+        const Modbus::DeviceTable*    devices;
+#endif
     };
 
     /** @brief Generic firmware base: owns the generic components + the loop
@@ -308,7 +315,7 @@ namespace Botanik {
               , _net(&_io, &_logger, &_sys_ctx)
 #endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-              , _modbus_rtu(&_io, &_logger)
+              , _modbus_rtu(&_io, &_logger, site.devices)
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
               // The alarm model is the ack block's target; it is HealthMonitor's,

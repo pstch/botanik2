@@ -70,12 +70,71 @@ const uint8_t g_command_count = 0;
  *  Alarms are not here - each is a SCOPE_A row in vars.h carrying its own code
  *  and dwell policy, and the AlarmController finds them by scanning. Neither are the
  *  status groups - a variable's group is the prefix of its name. */
+/** @name Field devices - what each unit on the RS-485 segment will answer
+ *
+ *  Constraints, not signal maps: where each reading lives is the row's business
+ *  (vars.h), and this is only what a request has to look like for the device to
+ *  answer it at all. See modbus/rtu/device.h.
+ *  @{ */
+
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+
+/** @brief Eastron SDM630-Modbus V2. Manual V1.6B:
+ *   - "a maximum of 40 values in a single transaction; therefore the maximum
+ *     number of registers requestable is 80";
+ *   - "the Starting Address and the Number of Points must be even numbers to
+ *     request a floating point variable" - odd either way returns an error;
+ *   - supports FC03/FC04/FC16, and holding registers are "write to only one
+ *     parameter per message", so multi-write is not usable for this model. */
+const Botanik::Modbus::DeviceModel MDL_SDM630 = {
+    "Eastron SDM630", 80, 2, 2, false, 0
+};
+
+/** @brief Lettel MCT1-140. Its table gives a max of 100 for the quantity field
+ *  and stores every measurement as a register-pair Float, so the same pair
+ *  alignment applies. Write-multiple is unused here - nothing writes to it. */
+const Botanik::Modbus::DeviceModel MDL_MCT1_140 = {
+    "Lettel MCT1-140", 100, 2, 2, false, 0
+};
+
+/** @brief The Waveshare IO boards (25767 AI, 26211 AO, 26517 relay).
+ *
+ *  Deliberately generic: nobody here has read their manuals, and a model entry
+ *  is only ever as good as the datasheet behind it. Inventing limits for them
+ *  would look like knowledge and behave like a guess, so they get the protocol's
+ *  own ceilings until somebody checks. */
+const Botanik::Modbus::DeviceModel MDL_WAVESHARE = {
+    "Waveshare IO", 0, 1, 1, true, 0
+};
+
+const Botanik::Modbus::Device g_devices[] = {
+    {  5, &MDL_SDM630 },      // SRR/TAC/MTR-1
+    {  6, &MDL_MCT1_140 },    // SRR/TAC/MTR-2
+    { 11, &MDL_WAVESHARE },   // SRR/TDC/AI-1
+    { 16, &MDL_WAVESHARE },   // SRR/TDC/AO-1
+    { 31, &MDL_WAVESHARE },   // SRR/TDC/RO-1
+    { 32, &MDL_WAVESHARE },   // SRR/TDC/RO-2
+    { 33, &MDL_WAVESHARE },   // SRR/TDC/RO-3
+    { 34, &MDL_WAVESHARE },   // SRR/TDC/RO-4
+};
+
+const Botanik::Modbus::DeviceTable g_device_table = {
+    g_devices, (uint8_t)(sizeof g_devices / sizeof g_devices[0])
+};
+
+#endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+
+/** @} */
+
 const Botanik::SiteDescriptor g_site = {
     Botanik::Config::SITE_NAME,
     g_commands,      g_command_count,                    // site shell commands
     g_home_fields,   g_home_field_count,  Store::home_refs,  // home-screen readings
     SITE_VAR_TABLES,                                     // variables + values + string pool
-    g_programs,      g_program_count,                     // control programs
+    g_programs,      g_program_count,                    // control programs
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+    &g_device_table,                                     // what each unit answers
+#endif
 };
 
 }  // namespace Site

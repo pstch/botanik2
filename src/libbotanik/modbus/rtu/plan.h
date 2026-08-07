@@ -48,6 +48,7 @@
 #include <cstdint>
 
 #include "libbotanik/config/modbus.h"
+#include "libbotanik/modbus/rtu/device.h"   // DeviceModel - what each unit will answer
 #include "libbotanik/modbus/wire.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
@@ -203,6 +204,8 @@ namespace Botanik { namespace Modbus {
         uint16_t _rows[Config::MODBUS_MAX_ROWS];
         uint16_t _row_count      = 0;
         uint16_t _block_count    = 0;
+        /** @brief Borrowed, flash-resident, may be null. @see device.h */
+        const DeviceTable* _devices = nullptr;
         uint16_t _rows_dropped   = 0;   ///< more XP_MODBUS rows than _rows holds
         uint16_t _blocks_dropped = 0;   ///< the plan wanted more blocks than fit
         uint16_t _merge_gap      = 0;
@@ -215,8 +218,14 @@ namespace Botanik { namespace Modbus {
         /** @name Planning
          *  @{ */
 
-        /** @brief Read @p io and build the plan. Discards any previous one. */
-        void plan(const Vars::Bank& io, uint32_t baud, uint32_t turnaround_ms);
+        /** @brief Read @p io and build the plan. Discards any previous one.
+         *
+         *  @p devices is what each unit on the segment will actually answer -
+         *  its request ceiling and its address alignment (see device.h). Null
+         *  plans every unit as generic_model(), which is the protocol's own
+         *  limits: correct, and no tighter than it has to be. */
+        void plan(const Vars::Bank& io, uint32_t baud, uint32_t turnaround_ms,
+                  const DeviceTable* devices = nullptr);
 
         /** @brief Spread the blocks' first activations, so a ladder full of
          *  one-second groups does not fire them all on the same beat. Same rule

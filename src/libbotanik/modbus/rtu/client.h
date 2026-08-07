@@ -119,6 +119,12 @@ namespace Botanik { namespace Modbus {
         /** @brief The library's field-bus rows, resolved by name once at
          *  bring-up - the same way HealthMonitor drives the platform alarms.
          *  See modbus/rtu/alarms.h. */
+        /** @brief What each unit answers. Borrowed; may be null. */
+        const DeviceTable* _devices = nullptr;
+        /** @brief Silence owed after the transaction just finished, from the
+         *  model that answered it. */
+        uint32_t _gap_ms = Config::MODBUS_GAP_MS;
+
         Vars::VarRef _alarm_ref;
         Vars::VarRef _dead_ref;
         uint64_t            _since_ms = 0;     ///< when the current state was entered
@@ -147,8 +153,11 @@ namespace Botanik { namespace Modbus {
         /** @brief What Block index means "none". */
         static const uint16_t NO_BLOCK = 0xFFFFu;
 
-        RtuClient(Vars::Bank* io, Logs::Logger* logger = nullptr)
-            : Component(logger, "ModbusRTU"), _io(io) {}
+        /** @param devices what each unit on the segment will answer; null plans
+         *  every unit as generic_model(). Borrowed and flash-resident. */
+        RtuClient(Vars::Bank* io, Logs::Logger* logger = nullptr,
+                  const DeviceTable* devices = nullptr)
+            : Component(logger, "ModbusRTU"), _io(io), _devices(devices) {}
 
         /** @name Operation
          *  @{ */

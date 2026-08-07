@@ -84,8 +84,12 @@ namespace {
      *  Registers are held under the protocol's own ceiling so a full block still
      *  fits the UART buffer in one go. Coils are not: eight to a byte, their
      *  protocol ceiling binds long before any buffer does. */
-    uint16_t span_cap(uint8_t fc) {
-        const uint16_t proto = max_quantity(fc);
+    uint16_t span_cap(uint8_t fc, const DeviceModel& m) {
+        uint16_t proto = max_quantity(fc);
+        // What the DEVICE will answer, when that is tighter than the protocol.
+        // The SDM630 refuses past 80 registers with an exception rather than a
+        // short read, which on a bus looks exactly like a broken cable.
+        if (!is_bit(fc) && m.max_regs != 0 && m.max_regs < proto) proto = m.max_regs;
         // Bits are eight to a byte, so their protocol ceiling is far above what
         // the collect buffer holds - 1968 coils against 240 bytes. Capping at
         // the buffer is what stops a wide coil block failing to build on every
@@ -98,7 +102,9 @@ namespace {
 
 }  // namespace
 
-void Planner::plan(const Vars::Bank& io, uint32_t baud, uint32_t turnaround_ms) {
+void Planner::plan(const Vars::Bank& io, uint32_t baud, uint32_t turnaround_ms,
+                   const DeviceTable* devices) {
+    _devices        = devices;
     _row_count      = 0;
     _block_count    = 0;
     _rows_dropped   = 0;
@@ -159,7 +165,8 @@ void Planner::_cut(const Vars::Bank& io) {
 
         const Vars::Variable& first = *io.var(_rows[i]).meta();
         const Key k = key_of(first);
-        const uint16_t cap = span_cap(k.fc);
+        const DeviceModel& m = model_of(_devices, k.device);
+        const uint16_t cap = span_cap(k.fc, m);
 
         Block b;
         b.device     = k.device;
@@ -196,6 +203,29 @@ void Planner::_cut(const Vars::Bank& io) {
         }
 
         b.regs = (uint16_t)(end - b.reg);
+
+        // Widen a READ out to what this model insists on being asked for. A
+        // device storing 32-bit values in register pairs answers exception 02 to
+        // a request landing in the middle of one, so the request is grown to the
+        // boundary rather than sent to be refused; the extra registers are read
+        // and ignored, which costs a few byte-times.
+        //
+        // Reads only. Padding a WRITE would command registers no row claims, for
+        // the same reason the merge gap is a read-side economy - so a write block
+        // that violates its device's alignment is left alone and shows up as a
+        // refusal, which is at least honest.
+        if (is_read(k.fc) && !is_bit(k.fc)) {
+            const uint16_t aa = m.addr_align > 1 ? m.addr_align : 1;
+            const uint16_t qa = m.qty_align  > 1 ? m.qty_align  : 1;
+            const uint16_t lead = (uint16_t)(b.reg % aa);
+            b.reg  = (uint16_t)(b.reg - lead);
+            b.regs = (uint16_t)(b.regs + lead);
+            const uint16_t tail = (uint16_t)(b.regs % qa);
+            if (tail != 0) b.regs = (uint16_t)(b.regs + (qa - tail));
+            // Only if the padding still fits what the device will answer.
+            if (b.regs > cap) { _blocks_dropped++; i = j; continue; }
+        }
+
         _blocks[_block_count++] = b;
         i = j;
     }

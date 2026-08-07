@@ -22,7 +22,7 @@ void RtuClient::on_setup(uint64_t now_ms) {
     HAL::Serial::fieldbus_flush_input();
 
     if (_io == nullptr) return;
-    _plan.plan(*_io, Config::MODBUS_BAUD, Config::MODBUS_TURNAROUND_MS);
+    _plan.plan(*_io, Config::MODBUS_BAUD, Config::MODBUS_TURNAROUND_MS, _devices);
     _plan.seed(now_ms);
     _enter(MB_IDLE, now_ms);
 
@@ -286,7 +286,7 @@ void RtuClient::on_step(uint64_t now_ms) {
         }
 
         case MB_GAP: {
-            if ((now_ms - _since_ms) < Config::MODBUS_GAP_MS) return;
+            if ((now_ms - _since_ms) < _gap_ms) return;
             _enter(MB_IDLE, now_ms);
             return;
         }
@@ -343,6 +343,13 @@ void RtuClient::receive_step(uint64_t now_ms) {
         Block& b = _plan.block(_active);
         if (is_read(b.fc)) b.due_ms = now_ms + b.period_ms;
         b.last_ms = now_ms;
+    }
+    // How much silence this device wants before the next frame, which some
+    // models specify well above the protocol's 3.5 character times.
+    if (_active != NO_BLOCK) {
+        const DeviceModel& m = model_of(_devices, _plan.block(_active).device);
+        _gap_ms = (m.min_gap_ms > Config::MODBUS_GAP_MS) ? m.min_gap_ms
+                                                         : Config::MODBUS_GAP_MS;
     }
     _framer.disarm();
     _active = NO_BLOCK;
