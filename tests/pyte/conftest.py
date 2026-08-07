@@ -55,7 +55,19 @@ GOLDEN_DIR = Path(__file__).parent / "golden"
 # it is the backstop for a sim that has wedged and will never emit again, so its
 # clock never advances and rule 2 alone would wait forever. Keep it far above any
 # real wait.
+#
+# Two budgets, because the two waits ask different questions. wait_for() waits
+# for an EVENT that may genuinely be slow to arrive (a retrying handshake), so
+# STALL_SIM_S is generous. settle() only DEBOUNCES a repaint that has already
+# been triggered a keystroke ago, and an action that paints nothing at all pays
+# the budget in full every time - so it gets its own, much shorter one. At 90
+# sim-seconds a no-op settle() cost 9000 beats of the 10 ms loop (~1.8 s wall at
+# scale 50, and proportionally more on a loaded box); test_notes hit four of them
+# and spent most of its runtime there. 5 sim-seconds is still 500 beats, which is
+# two orders of magnitude more than the few the firmware needs to start painting,
+# and it stays denominated in sim time so it scales with load like everything else.
 STALL_SIM_S = float(os.environ.get("BOTANIK_PYTE_STALL_SIM", "90.0"))
+SETTLE_SIM_S = float(os.environ.get("BOTANIK_PYTE_SETTLE_SIM", "5.0"))
 HARD_CAP_S = float(os.environ.get("BOTANIK_PYTE_CAP", "180.0"))
 
 _CLOCK_RE = re.compile(r"\b(\d{2}):(\d{2}):(\d{2})\b")
@@ -80,12 +92,13 @@ class Stall:
     """Has the firmware stopped making progress? (see the notes above)
 
     Fed a progress flag each poll. Reports stalled once the sim's OWN clock has
-    advanced STALL_SIM_S with nothing happening - or once HARD_CAP_S of host time
+    advanced `idle_sim_s` with nothing happening - or once HARD_CAP_S of host time
     has passed, which only bites when the sim is wedged and its clock is frozen.
     """
 
-    def __init__(self, screen):
+    def __init__(self, screen, idle_sim_s=STALL_SIM_S):
         self._screen = screen
+        self._idle_sim_s = idle_sim_s
         self._sim_at_progress = sim_clock(screen)
         self._host_cap = time.time() + HARD_CAP_S
 
@@ -113,7 +126,7 @@ class Stall:
         if idle > 43200:
             self._sim_at_progress = now_sim
             return False
-        return idle >= STALL_SIM_S
+        return idle >= self._idle_sim_s
 
 
 def pytest_addoption(parser):
@@ -230,15 +243,17 @@ class Term:
         We require observing at least one change before counting the quiet window,
         so a snapshot can never capture the pre-action screen when the firmware is
         slow to process the just-sent input (e.g. a page switch still in flight).
-        If the action genuinely painted nothing, STALL_S of no change ends the
-        wait.
+        If the action genuinely painted nothing, SETTLE_SIM_S of no change ends
+        the wait - the short budget, not wait_for()'s: this is a debounce on a
+        repaint already triggered, so "nothing has moved in 500 beats" means the
+        action drew nothing, not that the firmware is slow (see the notes above).
 
-        `timeout` is accepted and ignored; see the note on STALL_S. It stays in
-        the signature so an existing call site reads the same.
+        `timeout` is accepted and ignored; see the note on SETTLE_SIM_S. It stays
+        in the signature so an existing call site reads the same.
         """
         prev = tuple(normalize_lines(self.screen.display))
         last_change = time.time()
-        stall = Stall(self.screen)
+        stall = Stall(self.screen, SETTLE_SIM_S)
         changed = False
         while True:
             self._pump(0.02)
@@ -405,7 +420,7 @@ def assert_screen(request):
         # steady state - assert log content with wait_for(), as test_logs does.
         want = drop_log_lines(meaningful_lines(clip(path.read_text().split("\n"))))
         # Poll until the screen matches, giving up only once it has STOPPED
-        # MOVING (see STALL_S) rather than after a fixed budget. A screen that is
+        # MOVING (see STALL_SIM_S) rather than after a fixed budget. A screen that is
         # merely slow keeps changing and we keep waiting; one that has settled on
         # the wrong content stops changing and fails right away - sooner, in
         # fact, than the old fixed 8 s.
