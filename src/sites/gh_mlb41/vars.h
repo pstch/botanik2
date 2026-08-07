@@ -45,6 +45,14 @@
  * @note The meters answer FC04 (input registers). The SDM630 manual requires it
  * ("function code 04 is used to access all parameters"); the MCT1-140 accepts
  * 03 or 04 and is given 04 to match.
+ *
+ * @note Both meters publish IEEE-754 singles, high word at the lower address,
+ * in direct engineering units - so these rows are 1:1 and carry no calibration.
+ * The MCT1-140's "unite et precision" column (0.1V, 0.01A, 10W) is RESOLUTION,
+ * not a scale factor, which its own worked example proves: register 0 answers
+ * 43 68 99 9A and the manual reads it as 232.6 V, which is the float unscaled.
+ * The same column IS a multiplier for the Long energy counters lower down
+ * (10 Wh per count), which is what makes it worth writing down.
  */
 
 #include <cstdint>      // uint8_t/uint16_t
