@@ -7,6 +7,24 @@ from the code.
 Phases are ordered so that each one is safe to stop after. Every phase ends with
 a build and the doctest suite; `make check` is the maintainer's gate.
 
+**Status.** Phase 0 is done, along with the correctness fixes marked below and
+the whole of the site register map. The rest is tracked as tasks 1-17; each
+heading below carries its task number, so the plan explains *why* and the task
+list says *what is left*. Nothing here is stale by the time you read it: if a
+heading says DONE, it is committed on `modbus-review-fixes`.
+
+| Phase | State |
+|---|---|
+| 0 - structure | **done** - gates, includes, dead code, hygiene |
+| 1 - test scaffold | partly done - site bindings and the RTU slave; map/image/pdu are task 15 |
+| 2 - the field bus works | partly done - the register map, baud, merge gap, coil cap, signed pairs; tasks 1-7 |
+| 3 - the TCP slave | tasks 8-11 |
+| 4 - the simulated device model | partly done - FC16 and the CRC resync; task 12 |
+| 5 - transaction pacing | task 13 |
+| 6 - the readback surface | task 14 |
+| 7 - simplification | task 16 |
+| 8 - documentation | task 17 |
+
 ---
 
 ## Decisions taken
@@ -50,7 +68,7 @@ mismatches came out of the vendor documentation:
 
 ---
 
-## Phase 0 - stop the bleeding (no behaviour change)
+## Phase 0 - stop the bleeding (no behaviour change) [DONE]
 
 Cheap, mechanical, and it makes every later phase testable.
 
@@ -121,7 +139,7 @@ a stale transaction id.
 
 ## Phase 2 - the field bus works
 
-### 2.1 The site table [BLOCKED - needs the vendor PDFs re-supplied]
+### 2.1 The site table [DONE]
 
 Per D1, rewrite the meter rows with real protocol addresses and the object index
 moved to `notes`:
@@ -140,14 +158,14 @@ the MCT1-140. Both PDFs were lost when the machine rebooted and cleared `/tmp`.
 Update `vars.h`'s `@warning` to describe what `reg` now holds, and its header
 line to `38400 baud` consistency (see 2.2).
 
-### 2.2 Baud rate (review 1.2)
+### 2.2 Baud rate (review 1.2) [DONE]
 
 `#define BOTANIK_MODBUS_BAUD 38400` in `sites/gh_mlb41/config.h`, guarded
 `#ifndef` like every other site override so the command line still wins. Then
 re-derive the figures in `modbus-budget.md`, which are computed at 19200, and
 re-check `plan.h`'s `static_assert`s.
 
-### 2.3 Echo-matching discard (1.3)
+### 2.3 Echo-matching discard (1.3) [task 1]
 
 Per D2. `RtuFramer::arm()` gains an echo argument; `feed()` swallows bytes while
 they match the sent frame and starts framing at the first divergence or once the
@@ -162,7 +180,7 @@ detected at the address at the latest, and the framer's own length and CRC rules
 catch the rest. The test is a `RtuFramer` fed (a) request+response, (b) response
 alone, (c) request+partial-response.
 
-### 2.4 Per-device read ceiling (new)
+### 2.4 Per-device read ceiling (new) [task 6]
 
 The SDM630 manual: *"Each request for data must be restricted to 40 parameters
 or less. Exceeding the 40 parameter limit will cause a Modbus Protocol exception
@@ -175,7 +193,7 @@ not reintroduce a device-profile table: a config knob defaulting to 120, plus
 `span_cap()` already in the planner - and a site test asserting no planned block
 exceeds it.
 
-### 2.5 Writes and reads (3.3, 3.4, 2.6, 2.7)
+### 2.5 Writes and reads (3.3, 3.4, 2.6, 2.7) [merge gap and coil span DONE; priority is task 7]
 
 - **Safe-state priority** (3.4): the control-withdrawal edge marks blocks
   `urgent`; `_pick()` bypasses `MODBUS_WRITE_MIN_MS` for those. This is what
@@ -189,19 +207,19 @@ exceeds it.
   `span_cap()`, and log at plan time when a row is dropped or clamped - the
   silent `_faults++` is what made this invisible.
 
-### 2.6 Dirty lifecycle (2.2)
+### 2.6 Dirty lifecycle (2.2) [task 3]
 
 `collect_write()` records the `Scalar` it sent per row; `clear_dirty()` clears
 only rows whose `raw()` still equals it. Storage: the client already owns a
 per-block scratch buffer, so the sent values go beside it - no new allocation
 and no parallel array to keep in step.
 
-### 2.7 Echo value check (2.3)
+### 2.7 Echo value check (2.3) [task 4]
 
 `Expect` gains the written value; `parse_response` compares it for FC05/FC06.
 FC15/FC16 already echo address and quantity, which are checked.
 
-### 2.8 Signed pairs and invalidation (2.4, 2.8)
+### 2.8 Signed pairs and invalidation (2.4, 2.8) [signed pairs DONE; invalidation is task 5]
 
 - `image.cpp:40, 84`: branch on a signed wire type exactly as line 43 does for
   `T_I16`.
@@ -213,7 +231,7 @@ FC15/FC16 already echo address and quantity, which are checked.
   it in `_rows_dropped`, which is already logged as a critical. Pinned by the
   Phase 1 site test.
 
-### 2.9 Whole-frame send (3.5)
+### 2.9 Whole-frame send (3.5) [task 2]
 
 `Rs485Raw` already tracks `_tx_done_us`; expose free TX space from it and have
 `_send()` refuse the transaction before writing byte 0, honouring the contract
@@ -223,7 +241,7 @@ FC15/FC16 already echo address and quantity, which are checked.
 
 ## Phase 3 - the TCP slave
 
-### 3.1 Flash storm (review 3.1)
+### 3.1 Flash storm (review 3.1) [task 8]
 
 Per D3, both halves:
 
@@ -236,7 +254,7 @@ Per D3, both halves:
 The queue holds `VarRef`s, so it is bounded by the parameter count and needs no
 value copy: the bank already holds what to persist.
 
-### 3.2 FC06 (2.5)
+### 3.2 FC06 (2.5) [task 9]
 
 Support it. A SCADA writing one setpoint is the common case, and refusing it is
 a bigger surprise than the granularity. `_answer_write` merges an FC06 with the
@@ -245,21 +263,21 @@ row), so the two-register invariant holds internally while the wire sees a legal
 single-register write. If validation fails the row is untouched and the
 exception is `EX_ILLEGAL_VALUE`.
 
-### 3.3 Ack block (3.6)
+### 3.3 Ack block (3.6) [task 10]
 
 Resolve the ack block once at bring-up into a `reg -> condition` array, the same
 "resolve names once" rule the rest of the tree follows. This removes the
 `strcmp` searches from a remote-driven loop that can legally run 2000 times in
 `PHASE_PRESENT`.
 
-### 3.4 Connection lifetime (3.6)
+### 3.4 Connection lifetime (3.6) [task 10]
 
 - Stamp a deadline when `pending` is set and reap on lack of *send progress*,
   not only on idleness, so a peer that stops reading cannot hold a slot forever.
 - `TcpSlave::healthy()` returns false when `tcp_listen()` failed, and the listen
   is retried on a timer rather than abandoned at `slave.cpp:80`.
 
-### 3.5 TCP master (3.6)
+### 3.5 TCP master (3.6) [task 11]
 
 - A deadline on `MA_SENDING`.
 - `disconnect()` on any framing result other than `ERR_OK` / `ERR_SHORT` /
@@ -270,26 +288,26 @@ Resolve the ack block once at bring-up into a `reg -> condition` array, the same
 
 ## Phase 4 - the simulated device model
 
-**4.1 FC16 truncation (2.1).** Compare the byte count in 32-bit, and add the
+**4.1 FC16 truncation (2.1). [DONE]** Compare the byte count in 32-bit, and add the
 `qty < 1 || qty > max_quantity(fc)` ceiling test that `_do_read` has and
 `_do_write` lacks. Pinned by the Phase 1 test.
 
-**4.2 Resync (3.6).** On a CRC failure discard **one** byte and rescan, rather
+**4.2 Resync (3.6). [DONE]** On a CRC failure discard **one** byte and rescan, rather
 than `want` bytes; and have the owner call the existing `reset()` when the wire
 has been quiet for t3.5. One lost byte currently misaligns the slave forever.
 
-**4.3 Spec conformance.** Execute a broadcast (unit 0) without replying rather
+**4.3 Spec conformance. [task 12]** Execute a broadcast (unit 0) without replying rather
 than counting it as dropped; answer `EX_SLAVE_FAILURE` instead of silence when
 `cap` is too small.
 
-**4.4 Beat-rate stepping.** Gate `Site::simulate()` and `fieldbus.step()` in
+**4.4 Beat-rate stepping. [task 12]** Gate `Site::simulate()` and `fieldbus.step()` in
 `botanik_sim/main.cpp:135-142` on the beat, not the spin - the simulated bus is
 currently 50-200x more responsive than a real one, which is its own way of
 hiding timing bugs.
 
 ---
 
-## Phase 5 - transaction pacing
+## Phase 5 - transaction pacing [task 13]
 
 `client.cpp` currently spends ~3 beats per transaction: `MB_GAP` enters
 `MB_IDLE` and returns without picking, and `MB_RX` is armed at `PHASE_OUTPUT`
@@ -307,7 +325,7 @@ Phase 1 tests and a working bus (Phase 2) underneath it.
 
 ---
 
-## Phase 6 - the readback surface
+## Phase 6 - the readback surface [task 14]
 
 Per D4, finish step 9 of `modbus-remaining.md`:
 
@@ -321,7 +339,7 @@ Per D4, finish step 9 of `modbus-remaining.md`:
 
 ---
 
-## Phase 7 - simplification
+## Phase 7 - simplification [task 16]
 
 Only now, with behaviour pinned by Phase 1. The 13 items in review §5, roughly
 275 lines, in descending value: duplicated rationale (-60), the shared response
@@ -337,7 +355,7 @@ comment at `plan.cpp:32-34` claiming they are used gets corrected.
 
 ---
 
-## Phase 8 - documentation
+## Phase 8 - documentation [task 17]
 
 **8.1 Code comments.** `client.h:12,19` (`transmit_step()` does not exist),
 `client.cpp:173-174` (describes a buffer scheme that was replaced),
@@ -373,5 +391,13 @@ without mentioning the two highest-variance tasks on it.
 
 ## What is blocked
 
-**Phase 2.1 only**, on the SDM630 and MCT1-140 register maps. Everything else
-proceeds without them.
+**Nothing.** The SDM630 and MCT1-140 manuals were supplied and phase 2.1 is
+done; copies live in `~/botanik-docs/` so the next reboot does not lose them
+again.
+
+One thing the manuals settled that would otherwise have been a bench trip: the
+MCT1-140's "unite et precision" column (0.1V, 0.01A, 10W) reads like a scale
+factor and is not one. Its own worked example decodes `43 68 99 9A` as 232.6 V,
+which is the IEEE-754 single unscaled, high word first. Both meters are
+therefore plain 1:1 float rows with no calibration block. That column IS a
+multiplier for the `Long` energy counters lower down the same table.
