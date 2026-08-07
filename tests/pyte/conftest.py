@@ -1,14 +1,9 @@
-"""pytest fixtures driving botanik_sim over a PTY and reading its screen via pyte.
+"""pytest fixtures driving botanik_sim over a PTY, read back through pyte.
 
-The simulator is the real firmware build: it speaks ANSI over its console serial
-(stdin/stdout), throttled to a UART baud. We bind that console to a PTY (a pipe
-would not do - RawSerial::availableForWrite() uses ioctl(TIOCOUTQ), which only
-answers on a tty, so a pipe would bypass the baud throttle and back-pressure we
-want to exercise). pyte replays the byte stream into an 80x24 screen we assert on.
-
-Speed comes from BOTANIK_TIME_SCALE (see hal/simulator.h): simulated time runs N
-times faster than wall-clock, so every byte/event ratio matches a real run but
-the test finishes N times sooner. We do NOT raise the baud.
+The sim is the real firmware, speaking ANSI over its console serial at a
+throttled 4800 baud. It gets a PTY rather than a pipe (RawSerial's TIOCOUTQ only
+answers on a tty), and pyte replays the bytes into an 80x24 screen to assert on.
+Speed comes from BOTANIK_TIME_SCALE, never from a higher baud. See README.md.
 """
 
 import difflib
@@ -28,44 +23,13 @@ from normalize import normalize_lines, meaningful_lines, drop_log_lines
 COLS, ROWS = 80, 24                       # matches AnsiTerminal(..., 80, 24, ...) in main.cpp
 GOLDEN_DIR = Path(__file__).parent / "golden"
 
-# Waiting without a wall clock
-# ---------------------------------------------------------------------------
-# A wall-clock deadline is a statement about the MACHINE, not about the
-# firmware. The sim runs on dilated time with roughly a millisecond of wall
-# budget per tick, so on a loaded host it gets fewer cycles, its ticks slip, and
-# any fixed timeout silently reclassifies "slower" as "broken". That is exactly
-# how `make check` came to fail on a DIFFERENT screen test run to run - each one
-# passing on its own - while several sims and a parallel build shared four cores.
-#
-# So no wait here is budgeted in host seconds. Two rules replace it:
-#
-#   1. PROGRESS. Give up only once the screen has stopped changing, never after
-#      a fixed elapsed time. A loaded machine still advances, just slower, so the
-#      wait stretches to match it - while a screen that has settled on the wrong
-#      content stops changing and fails promptly, quicker than the fixed budgets
-#      this replaced.
-#
-#   2. SIM TIME. What counts as "stopped" is measured on the firmware's OWN
-#      clock, read off the status bar (see sim_clock). One sim-second is 1/50th
-#      of a wall second on an idle box and however long it takes on a busy one,
-#      which is the whole point: the budget scales with the load automatically,
-#      because it is denominated in the thing being observed.
-#
-# HARD_CAP_S is the only host-time bound left, and it is not a timing assertion:
-# it is the backstop for a sim that has wedged and will never emit again, so its
-# clock never advances and rule 2 alone would wait forever. Keep it far above any
-# real wait.
-#
-# Two budgets, because the two waits ask different questions. wait_for() waits
-# for an EVENT that may genuinely be slow to arrive (a retrying handshake), so
-# STALL_SIM_S is generous. settle() only DEBOUNCES a repaint that has already
-# been triggered a keystroke ago, and an action that paints nothing at all pays
-# the budget in full every time - so it gets its own, much shorter one. At 90
-# sim-seconds a no-op settle() cost 9000 beats of the 10 ms loop (~1.8 s wall at
-# scale 50, and proportionally more on a loaded box); test_notes hit four of them
-# and spent most of its runtime there. 5 sim-seconds is still 500 beats, which is
-# two orders of magnitude more than the few the firmware needs to start painting,
-# and it stays denominated in sim time so it scales with load like everything else.
+# No wait here is budgeted in host seconds: a deadline is a statement about the
+# machine, and a loaded box is slower, not broken. A wait ends when the screen
+# STOPS MOVING, measured on the firmware's own (dilated) clock off the status
+# bar. Two budgets, because the two waits ask different questions - wait_for()
+# waits on an event that may genuinely be slow (the retrying boot handshake),
+# settle() only debounces a repaint already triggered. HARD_CAP_S is the backstop
+# for a wedged sim whose clock has stopped, and nothing else. See README.md.
 STALL_SIM_S = float(os.environ.get("BOTANIK_PYTE_STALL_SIM", "90.0"))
 SETTLE_SIM_S = float(os.environ.get("BOTANIK_PYTE_SETTLE_SIM", "5.0"))
 HARD_CAP_S = float(os.environ.get("BOTANIK_PYTE_CAP", "180.0"))
@@ -74,13 +38,7 @@ _CLOCK_RE = re.compile(r"\b(\d{2}):(\d{2}):(\d{2})\b")
 
 
 def sim_clock(screen):
-    """The firmware's own clock (status bar, row 0) as seconds, or None.
-
-    This is the sim's dilated time, not the host's - which is what lets a wait
-    be bounded without caring how much CPU the box had to spare. Returns None
-    before the status bar has painted; callers treat that as "no reading yet"
-    and fall back to the hard cap.
-    """
+    """The firmware's own clock (status bar) in seconds, or None before it paints."""
     m = _CLOCK_RE.search(screen.display[0])
     if not m:
         return None
@@ -89,12 +47,7 @@ def sim_clock(screen):
 
 
 class Stall:
-    """Has the firmware stopped making progress? (see the notes above)
-
-    Fed a progress flag each poll. Reports stalled once the sim's OWN clock has
-    advanced `idle_sim_s` with nothing happening - or once HARD_CAP_S of host time
-    has passed, which only bites when the sim is wedged and its clock is frozen.
-    """
+    """Has the firmware stopped making progress? Fed a movement flag each poll."""
 
     def __init__(self, screen, idle_sim_s=STALL_SIM_S):
         self._screen = screen
@@ -113,16 +66,13 @@ class Stall:
             return False                      # no clock painted yet
         # midnight wrap: the sim boots at the host wall time and can cross it
         idle = (now_sim - self._sim_at_progress) % 86400
-        # ...but the sim's clock also steps BACKWARDS, and a wrap cannot tell the
-        # two apart on its own. The displayed time is boot_epoch + uptime, and on
-        # the simulator the epoch is re-derived from the UNDILATED host clock
-        # (utils/time.cpp _boot_epoch_ms) - so under BOTANIK_TIME_SCALE it is
-        # re-latched a couple of seconds lower every ~40 ms of wall time. Read as
-        # elapsed, one of those steps is 86398 seconds of idleness and ends
-        # whatever wait is in flight on the spot, for a reason that has nothing to
-        # do with the screen. That is what was failing a different screen test on
-        # every run. No real wait idles for half a day, so read the far half of
-        # the wrap as the step it is and re-baseline on it.
+        # ...but the clock also steps BACKWARDS: the displayed time is
+        # boot_epoch + uptime, and the sim re-derives that epoch from the
+        # UNDILATED host clock (utils/time.cpp _boot_epoch_ms), so under
+        # BOTANIK_TIME_SCALE it is re-latched a couple of seconds lower every
+        # ~40 ms. Wrapped, one such step reads as 86398 seconds of idleness and
+        # ends whatever wait is in flight - which is what used to fail a
+        # different screen test on every run. No real wait idles for half a day.
         if idle > 43200:
             self._sim_at_progress = now_sim
             return False
@@ -139,42 +89,19 @@ def pytest_addoption(parser):
 class Term:
     """A running botanik_sim plus a pyte screen fed from its PTY."""
 
-    # Default scale 50 - the greenhouse lives 50x faster, so time-bound waits
-    # (the network boot handshake, refresh cycles) finish in a fraction of the wall
-    # time. The assertions are written to tolerate a fast-drifting sim (volatile
-    # state masked in normalize.py, live log tails not pinned - see the resilience
-    # notes in helpers.py / test_*.py); the suite stays green at far higher scales
-    # too (verified 19/19 at scale 500). Override per-run with PYTE_TIME_SCALE=N
-    # (env, honored through pytest/ctest/make alike). Use a release/no-sanitizer
-    # sim; a debug+ASAN build is much slower per tick. Overruns are counted, not
-    # logged, so dilation adds no log noise to mask.
     def __init__(self, binary, time_scale=50, watch=(), store=None):
-        time_scale = int(os.environ.get("PYTE_TIME_SCALE", time_scale))  # tunable knob
         env = dict(os.environ)
-        env["BOTANIK_TIME_SCALE"] = str(time_scale)
-        # Silence the boot-time privilege warnings (mlockall / SCHED_FIFO / CPU
-        # affinity): which a host denies varies, so they're host-dependent boot
-        # noise. Suppressing at the source keeps the rendered screen deterministic.
-        env["BOTANIK_NO_RT_WARNING"] = "1"
-        # ...and skip the posture itself, not just its warning. Pinning needs no
-        # privileges, so every sim really did land on the same core - and ctest
-        # runs these files in parallel. Letting the OS place them is what stops
-        # the suite failing a different test on every run.
-        env["BOTANIK_NO_RT"] = "1"
-        # Hold the CPU_* load alarms cleared: they fire at host-timing-dependent
-        # moments, so without this the alarm set (and thus the alarms-page screen and
-        # the persistent alarm bar) varies run to run. See health.h.
-        env["BOTANIK_NO_LOAD_ALARMS"] = "1"
-        # The sim's Modbus self-check writes a parameter and its traffic lands in
-        # the log tail the home page renders. Useful when a developer runs the
-        # sim; a moving target inside a golden here.
-        env["BOTANIK_NO_MBCHECK"] = "1"
-        # Private config store. HAL::Storage otherwise persists to ~/.botanik_config,
-        # which the tests would share with each other (four sims run in parallel) and
-        # with the developer's own sim: test_params commits an edit, so a suite run
-        # left ntp_poll_s=120 behind for every later run and every desktop launch.
-        # storage.cpp documents $BOTANIK_CONFIG_STORE as exactly this override.
+        # Scale 50: the greenhouse lives 50x faster, so every byte/event ratio
+        # matches a real 4800-baud run and only wall time is compressed. Green
+        # far higher too (verified at 500). PYTE_TIME_SCALE overrides per run.
+        env["BOTANIK_TIME_SCALE"] = str(int(os.environ.get("PYTE_TIME_SCALE", time_scale)))
+        env["BOTANIK_NO_RT_WARNING"] = "1"    # host-dependent privilege warnings
+        env["BOTANIK_NO_RT"] = "1"            # ...and the pinning itself: ctest runs sims in parallel
+        env["BOTANIK_NO_LOAD_ALARMS"] = "1"   # CPU_* fire on host timing, moving the alarm bar
+        env["BOTANIK_NO_MBCHECK"] = "1"       # its traffic moves the log tail a golden pins
         if store is not None:
+            # Private config store, or the sims share ~/.botanik_config with each
+            # other and with the developer's own (test_params commits an edit).
             env["BOTANIK_CONFIG_STORE"] = str(store)
 
         self.master, slave = pty.openpty()
@@ -184,126 +111,100 @@ class Term:
         os.close(slave)
         os.set_blocking(self.master, False)
 
-        # Feed via a plain Stream with latin-1 decoding (every byte maps 1:1 and
-        # never errors). pyte.ByteStream's UTF-8 decoder can resync-drop a byte on
-        # a stray non-UTF-8 byte, which corrupts an escape sequence (e.g. a lost
-        # ESC leaves a literal "[2;1H" on the screen).
+        # latin-1, not pyte.ByteStream: its UTF-8 decoder can resync-drop a byte
+        # and a lost ESC leaves a literal "[2;1H" on the screen.
         self.screen = pyte.Screen(COLS, ROWS)
         self.stream = pyte.Stream(self.screen)
 
-        # Markers to latch as they go by. The screen is a window, not a log: a boot
-        # line lands in the 7-row log tail and scrolls out of it a moment later, so
-        # "has this happened?" cannot be answered by looking at the current screen.
-        # Every pump records which watched markers were visible, and wait_for()
-        # answers from that record. Register them at construction to cover the
-        # bytes that arrive before the first wait_for() call.
+        # Markers latched as they go by, so wait_for() can answer for a line that
+        # has already scrolled out of the 7-row log tail. Registered here to cover
+        # the bytes that land before the first wait_for().
         self._watch = set(watch)
         self._seen = set()
 
     # -- raw I/O -------------------------------------------------------------
 
     def _pump(self, timeout):
-        """Feed any bytes the firmware has emitted into the screen. Returns count."""
+        """Feed whatever the firmware has emitted into the screen."""
         r, _, _ = select.select([self.master], [], [], timeout)
         if not r:
-            return 0
+            return
         try:
             data = os.read(self.master, 65536)
         except OSError:
-            return 0
+            return
         if data:
             self.stream.feed(data.decode("latin-1"))
             self._latch()
-        return len(data)
 
     def _latch(self):
-        """Record any watched marker currently on screen (see __init__)."""
+        """Record any watched marker currently on screen."""
         pending = self._watch - self._seen
-        if not pending:
-            return
-        blob = "\n".join(self.screen.display)
-        self._seen |= set(n for n in pending if n in blob)
+        if pending:
+            blob = "\n".join(self.screen.display)
+            self._seen |= set(n for n in pending if n in blob)
 
     def send(self, data):
         """Write raw input bytes to the firmware (str is UTF-8 encoded)."""
-        if isinstance(data, str):
-            data = data.encode("utf-8")
-        os.write(self.master, data)
+        os.write(self.master, data.encode("utf-8") if isinstance(data, str) else data)
 
     # -- synchronization -----------------------------------------------------
 
-    def settle(self, quiet=0.05, timeout=None):
-        """Drain output until the *normalized* screen has been stable for `quiet`s.
+    def poll(self, done, idle_sim_s=STALL_SIM_S):
+        """Pump until `done()`, or until the screen stops moving. Returns done().
 
-        The screen never goes byte-quiet: periodic refreshes (uptime/clock/cpu)
-        keep trickling. But those only rewrite volatile cells, which normalize to
-        fixed tokens - so once the input-driven repaint is done, the normalized
-        screen is stable even as raw bytes keep arriving.
-
-        We require observing at least one change before counting the quiet window,
-        so a snapshot can never capture the pre-action screen when the firmware is
-        slow to process the just-sent input (e.g. a page switch still in flight).
-        If the action genuinely painted nothing, SETTLE_SIM_S of no change ends
-        the wait - the short budget, not wait_for()'s: this is a debounce on a
-        repaint already triggered, so "nothing has moved in 500 beats" means the
-        action drew nothing, not that the firmware is slow (see the notes above).
-
-        `timeout` is accepted and ignored; see the note on SETTLE_SIM_S. It stays
-        in the signature so an existing call site reads the same.
+        The one wait in the harness: settle(), wait_for(), wait_screen() and the
+        golden compare are this loop with a different predicate.
         """
         prev = tuple(normalize_lines(self.screen.display))
-        last_change = time.time()
-        stall = Stall(self.screen, SETTLE_SIM_S)
-        changed = False
-        while True:
+        stall = Stall(self.screen, idle_sim_s)
+        while not done():
             self._pump(0.02)
             cur = tuple(normalize_lines(self.screen.display))
             moved = cur != prev
-            if moved:
-                prev, last_change, changed = cur, time.time(), True
-            # `quiet` stays in host seconds on purpose: it is a debounce on the
-            # repaint we just triggered, not a budget for how long the firmware
-            # may take. The stall below is what bounds the wait.
-            if changed and time.time() - last_change >= quiet:
-                return
+            prev = cur
             if stall.note(moved):
-                return
+                return done()
+        return True
 
-    def wait_for(self, needles, timeout=None):
-        """Pump until every string in `needles` has been seen on screen.
+    def settle(self, quiet=0.05):
+        """Pump until the normalized screen has held still for `quiet` seconds.
 
-        Content-based sync for events settle() can miss: an async sequence (the
-        DNS->NTP->MQTT boot handshake, which retries) emits in bursts with gaps,
-        so the quiet window can return mid-sequence. Waiting for its final markers
-        is deterministic where a quiet-window guess is not. Returns True once all
-        are present, False on timeout (caller proceeds either way).
-
-        "Seen", not "on screen right now": the markers are latched as they arrive
-        (see _latch), so two log lines that never share the visible tail - or one
-        that scrolled past during the preceding settle() - still satisfy the wait.
-        Requiring them simultaneously made this call burn its full timeout on
-        every test, and the sim ages ~50x wall-clock while it waits.
+        The screen never goes byte-quiet - the clock and the metrics keep
+        trickling - but those cells normalize to fixed tokens, so a finished
+        repaint reads as a still screen. At least one change must be observed
+        first, or a slow repaint would let the caller assert on the pre-action
+        screen; an action that paints nothing therefore costs SETTLE_SIM_S.
         """
-        if isinstance(needles, str):
-            needles = (needles,)
-        self._watch |= set(needles)
+        last = tuple(normalize_lines(self.screen.display))
+        changed_at = None
+
+        def still():
+            nonlocal last, changed_at
+            now = tuple(normalize_lines(self.screen.display))
+            if now != last:
+                last, changed_at = now, time.time()
+            return changed_at is not None and time.time() - changed_at >= quiet
+
+        self.poll(still, SETTLE_SIM_S)
+
+    def wait_for(self, needles):
+        """Pump until every string in `needles` HAS BEEN on screen.
+
+        Latched, not current (see _latch): a boot line that scrolled out of the
+        log tail still counts, and two lines that never shared the tail both do.
+        The flip side is that a marker seen earlier answers instantly - for "is
+        it on screen NOW", or for asserting one has LEFT it, use wait_screen().
+        """
+        want = {needles} if isinstance(needles, str) else set(needles)
+        self._watch |= want
         self._latch()
-        prev = tuple(normalize_lines(self.screen.display))
-        seen_n = len(self._seen)
-        stall = Stall(self.screen)
-        while True:
-            if self._seen >= set(needles):
-                return True
-            self._pump(0.02)
-            cur = tuple(normalize_lines(self.screen.display))
-            # Progress is the screen moving or another marker landing - the
-            # markers come from log lines, so a handshake still in flight always
-            # shows as one or the other.
-            moved = cur != prev or len(self._seen) != seen_n
-            if moved:
-                prev, seen_n = cur, len(self._seen)
-            if stall.note(moved):
-                return False
+        return self.poll(lambda: self._seen >= want)
+
+    def wait_screen(self, needle, present=True):
+        """Pump until `needle` is (or with present=False, is no longer) on screen."""
+        return self.poll(
+            lambda: (needle in "\n".join(self.screen.display)) is present)
 
     # -- inspection ----------------------------------------------------------
 
@@ -325,14 +226,11 @@ def _sim_binary(config):
     """Where the sim is, or a skip/fail explaining why there is nothing to run."""
     sim = config.getoption("--sim") or os.environ.get("BOTANIK_SIM")
     if not sim:
-        # Nobody said where the sim is - a bare `pytest` run, so there is nothing
-        # to test and skipping is honest.
         pytest.skip("no simulator binary: pass --sim or set BOTANIK_SIM")
     if not Path(sim).exists():
-        # But a path that was NAMED and is not there means the sim was not built,
-        # which is a broken run, not an absent capability. Skipping here made the
-        # whole screen suite report green having asserted nothing - `ctest` on a
-        # fresh tree printed seven Passed lines in 0.3 s each.
+        # A path that was NAMED and is absent means the sim was not built, which
+        # is a broken run and not an absent capability. Skipping here once had
+        # the whole suite report green having asserted nothing.
         pytest.fail(f"simulator binary not built: {sim}\n"
                     f"build it with: make -C <build> pyte-sim")
     return sim
@@ -343,8 +241,6 @@ def _spawner(sim, store_dir):
     instances = []
 
     def _spawn(**kwargs):
-        # One config store per sim (see Term): the index keeps two sims spawned
-        # by the same fixture from sharing one.
         kwargs.setdefault("store", store_dir / f"config{len(instances)}")
         term = Term(sim, **kwargs)
         instances.append(term)
@@ -366,14 +262,12 @@ def spawn(request, tmp_path):
 def spawn_module(request, tmp_path_factory):
     """`spawn`, but one sim shared by every test in the module.
 
-    For a suite that only LOOKS at pages: booting the firmware and waiting out
-    its network handshake is the expensive part of a screen test, and paying it
-    once per page would make the per-page invariant the most expensive thing in
-    the gate. Anything that MUTATES state (an edit, a reset, an override) must
-    keep using `spawn` - a shared sim would carry that into the next test.
+    The boot handshake is the expensive part of a screen test. Only for a file
+    whose tests LOOK rather than mutate: an edit, a reset or a persisted
+    override would carry into the next test.
     """
     _spawn, instances = _spawner(_sim_binary(request.config),
-                                 tmp_path_factory.mktemp("pages"))
+                                 tmp_path_factory.mktemp("shared"))
     yield _spawn
     for term in instances:
         term.close()
@@ -381,26 +275,19 @@ def spawn_module(request, tmp_path_factory):
 
 @pytest.fixture
 def assert_screen(request):
-    """Compare a Term's screen against a committed golden fixture.
+    """Compare a Term's screen against a committed golden.
 
-    Assert mode *polls until the live screen matches the golden* (or a timeout),
-    rather than snapshotting once. Under time dilation a render can span several
-    ticks with gaps, so a single post-settle snapshot occasionally catches a
-    partial frame; polling makes a transient frame harmless - we simply keep
-    reading until the correct state appears. A genuine mismatch still fails (on
-    timeout) with a readable full-screen diff.
-
-    With --update the golden is (re)written from a settled snapshot, so authoring
-    a new test is: write it, run `make pytest-update`, eyeball the golden, commit.
+    Polls until the screen matches rather than snapshotting once: under dilation
+    a render can span ticks, so a transient partial frame must not fail a correct
+    screen. With --update the golden is rewritten from a settled snapshot, so
+    authoring is: write the test, `make pytest-update`, eyeball, commit.
     """
     update = request.config.getoption("--update")
 
-    def _check(term, name, timeout=8.0, rows=None):
-        # rows=(start, stop): compare only that half-open row band, both sides
-        # sliced before meaningful_lines. Use it when the rest of the screen holds
-        # legitimately-drifting content the test isn't about - e.g. a page's live
-        # log tail, which at high BOTANIK_TIME_SCALE churns and scrolls the pinned
-        # lines away. The golden still stores the full screen for review.
+    def _check(term, name, rows=None):
+        # rows=(start, stop) compares only that band, for a page whose other rows
+        # hold something the golden has no business pinning (a live log tail).
+        # The golden still stores the whole screen, for review.
         path = GOLDEN_DIR / f"{name}.txt"
         clip = (lambda lines: lines[rows[0]:rows[1]]) if rows else (lambda lines: lines)
         if update:
@@ -410,38 +297,18 @@ def assert_screen(request):
             return
         if not path.exists():
             pytest.fail(f"missing golden '{name}'; run `make pytest-update` to author it")
-        # Golden stores the full screen (readable for review); the compare is on
-        # meaningful_lines (volatile fields normalized, overrun/blank noise
-        # dropped) so an incidental scroll or stray overrun can't fail a correct
-        # screen. Log lines drop out too: every page with a live tail shows
-        # whatever the fast greenhouse logged at that instant, which is a
-        # function of how far the sim has aged, not of what the test exercises.
-        # Pinning them made the goldens depend on the sim being in a particular
-        # steady state - assert log content with wait_for(), as test_logs does.
+        # Compared on meaningful_lines with log lines dropped: volatile cells are
+        # masked, and a page's live tail shows whatever the greenhouse logged at
+        # that instant, which is a function of the sim's age. Assert log content
+        # with wait_for() instead, as test_logs does.
         want = drop_log_lines(meaningful_lines(clip(path.read_text().split("\n"))))
-        # Poll until the screen matches, giving up only once it has STOPPED
-        # MOVING (see STALL_SIM_S) rather than after a fixed budget. A screen that is
-        # merely slow keeps changing and we keep waiting; one that has settled on
-        # the wrong content stops changing and fails right away - sooner, in
-        # fact, than the old fixed 8 s.
-        prev = tuple(normalize_lines(term.screen.display))
-        stall = Stall(term.screen)
-        while True:
-            if drop_log_lines(meaningful_lines(clip(term.screen.display))) == want:
-                return
-            term._pump(0.02)
-            cur = tuple(normalize_lines(term.screen.display))
-            moved = cur != prev
-            if moved:
-                prev = cur
-            if stall.note(moved):
-                break
+        if term.poll(lambda: drop_log_lines(meaningful_lines(clip(term.screen.display))) == want):
+            return
         diff = "".join(difflib.unified_diff(
             path.read_text().splitlines(keepends=True),
             term.snapshot().splitlines(keepends=True),
             fromfile=f"{name} (expected)", tofile=f"{name} (actual)"))
-        pytest.fail(
-            f"screen never matched '{name}' (the sim ran on {STALL_SIM_S}s with "
-            f"the screen unchanged):\n{diff}")
+        pytest.fail(f"screen never matched '{name}' (the sim ran on {STALL_SIM_S}s "
+                    f"with the screen unchanged):\n{diff}")
 
     return _check
