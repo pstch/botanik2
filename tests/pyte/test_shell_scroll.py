@@ -15,8 +15,10 @@ which this test is about.
 
 import time
 
+import conftest
 import keys
 from helpers import shell
+from normalize import normalize_lines
 
 # Enough rejected commands to overflow the window and saturate the ring, so
 # there is history to scroll into whatever each one printed.
@@ -26,19 +28,29 @@ NEWEST = "zz_%02d" % (FILL - 1)
 MARKER = " more "
 
 
-def _wait_screen(term, needle, want=True, timeout=6.0):
+def _wait_screen(term, needle, want=True):
     """Pump until `needle` is (or is no longer) on the CURRENT screen.
 
     wait_for() latches a marker as it goes by, which is the wrong question here:
     a scroll is exactly about what is on screen NOW, and about a line having
     LEFT it.
+
+    Bounded by a stall rather than a deadline, for the reason conftest gives:
+    under load the sim is slower, not wrong.
     """
-    deadline = time.time() + timeout
+    prev = tuple(normalize_lines(term.screen.display))
+    stall = conftest.Stall(term.screen)
     while True:
         on = any(needle in row for row in term.screen.display)
-        if on == want or time.time() >= deadline:
-            return on == want
+        if on == want:
+            return True
         term._pump(0.02)
+        cur = tuple(normalize_lines(term.screen.display))
+        moved = cur != prev
+        if moved:
+            prev = cur
+        if stall.note(moved):
+            return False
 
 
 def _fill(term):
