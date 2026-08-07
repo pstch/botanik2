@@ -2,7 +2,7 @@
 
   | CODE     | VARIABLE                                | ON | LAST EVENT     |
   +----------+-----------------------------------------+----+----------------+
-  | SYS_RST  | alarm_system_reset                      | <V>| <V>        |
+  | SYS_RST  | alarm_system_reset                      | <V>| <V>            |
   | CPU_XRUN | alarm_cpu_xrun                          | <V>| <V>            |
   | CPU_LOAD | alarm_cpu_load                          | <V>| <V>            |
   | STACK    | alarm_stack                             | <V>| <V>            |
