@@ -94,6 +94,18 @@ namespace Botanik { namespace Modbus {
          *  the map" test. Both 0 when nothing is mapped. */
         uint16_t _reg_lo, _reg_hi;
 
+        /** @name The persist queue
+         *
+         *  Rows a master has written whose flash copy has not been made yet.
+         *  Storage is synchronous, so committing a full request's worth inside
+         *  the beat that decoded it is how a remote peer could stall the whole
+         *  firmware - see drain_persists().
+         *  @{ */
+        uint16_t     _pending[Config::MODBUS_PERSIST_QUEUE];
+        uint16_t     _pending_head  = 0;
+        uint16_t     _pending_count = 0;
+        /** @} */
+
         /** @} */
 
     public:
@@ -109,9 +121,39 @@ namespace Botanik { namespace Modbus {
 
         uint16_t count() const    { return _count; }
         uint16_t overflow() const { return _overflow; }
+
+        /** @name Persisting, paced
+         *  @{ */
+
+        /** @brief Write at most @p n queued rows to the store.
+         *  @return how many were written.
+         *
+         *  Called once per beat. A TDBStore write is a record append plus a page
+         *  program, and a garbage-collection pass adds a sector erase; doing all
+         *  61 rows of a full FC16 in one beat would run past the field bus's own
+         *  response deadline and take the plant's readings down with it. */
+        uint16_t drain_persists(uint16_t n);
+
+        /** @brief How many rows are still owed a flash write. */
+        uint16_t pending_persists() const { return _pending_count; }
+
+        /** @brief Room left in the queue. A request needing more than this is
+         *  refused whole with EX_SLAVE_BUSY rather than half applied. */
+        uint16_t persist_room() const {
+            return (uint16_t)(Config::MODBUS_PERSIST_QUEUE - _pending_count);
+        }
+
+        /** @} */
         /** @brief Whether a row publishes at all: a parameter, a status value or
          *  an alarm, carrying a non-zero register. */
         static bool published(const Vars::Variable& d);
+
+    private:
+        /** @brief Queue row @p r (an index into the bank, as _rows holds) for a
+         *  flash write. False when the queue is full, which the caller must have
+         *  ruled out already. */
+        bool _queue_persist(uint16_t r);
+    public:
         /** @brief The row holding register @p reg. @p found (optional) says
          *  whether there is one; without it, an unmapped register reads as the
          *  inert row, whose name is null. Used by the server for the windows the

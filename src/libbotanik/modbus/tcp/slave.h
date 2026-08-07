@@ -158,6 +158,15 @@ namespace Botanik { namespace Modbus {
          *  the Component's on_step(), so it is also where the config group is
          *  re-read. */
         void service_rx(uint64_t now_ms) { step(now_ms); }
+
+        /** @brief Make a couple of the parameter writes a master has asked for
+         *  durable. PHASE_SERVICE, once per beat.
+         *
+         *  Separate from the request that caused them because storage is
+         *  synchronous: one FC16 can cover 61 rows, and committing them where
+         *  they were decoded put hundreds of milliseconds of flash into
+         *  PHASE_INPUT, remotely triggerable, on a beat the field bus shares. */
+        void service_persist(uint64_t now_ms);
         /** @brief PHASE_PRESENT: answer the reads off the post-scan image and
          *  push bytes out. Not a Component step - a component has one. */
         void service_tx(uint64_t now_ms);

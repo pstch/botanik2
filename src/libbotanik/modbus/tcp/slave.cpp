@@ -306,6 +306,11 @@ namespace Botanik { namespace Modbus {
     // The present half of the beat
     // ------------------------------------------------------------------------
 
+    void TcpSlave::service_persist(uint64_t now_ms) {
+        (void)now_ms;
+        (void)_map.drain_persists(Config::MODBUS_PERSIST_PER_STEP);
+    }
+
     void TcpSlave::service_tx(uint64_t now_ms) {
         (void)now_ms;
         for (Conn& c : _conn) {

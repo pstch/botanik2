@@ -55,6 +55,7 @@ add_executable(botanik_tests
     test_modbus_image.cpp
     test_modbus_device.cpp
     test_modbus_client.cpp
+    test_modbus_map.cpp
 )
 
 # vendor/ for doctest.h; src/ for the library and the simulator's site payloads.

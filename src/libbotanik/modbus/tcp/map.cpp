@@ -67,6 +67,8 @@ namespace Botanik { namespace Modbus {
 
     void Map::build() {
         _count = 0; _overflow = 0; _reg_lo = 0; _reg_hi = 0;
+        // A rebuild invalidates every queued ref: they index the old table.
+        _pending_head = 0; _pending_count = 0;
         if (_io == nullptr) return;
 
         for (uint16_t i = 0; i < _io->count(); i++) {
@@ -237,6 +239,7 @@ namespace Botanik { namespace Modbus {
         // on a mixture of the old settings and the new, with an exception saying
         // only that something went wrong - and the band check is exactly the one
         // that fails on the last row of a block a master sent in good faith.
+        uint16_t changing = 0;
         for (uint16_t i = 0; i < count; i += 2) {
             bool found = false;
             const Var v = row_at((uint16_t)((addr + i) / 2), &found);
@@ -244,25 +247,62 @@ namespace Botanik { namespace Modbus {
             // address it may not write is a map question, a value out of band is
             // a value question.
             if (!found || !writable(*v.meta())) return EX_ILLEGAL_ADDRESS;
-            if (_io->check(v, from_wire(v.type(), word_at(data, i))) != SET_OK)
+            const uint32_t w = word_at(data, i);
+            if (_io->check(v, from_wire(v.type(), w)) != SET_OK)
                 return EX_ILLEGAL_VALUE;
+            if (w != wire_of(v.type(), v.live())) changing++;
         }
 
+        // Every changed row owes a flash write, and those are paced across
+        // beats. If they will not all fit, refuse the request WHOLE - a master
+        // that is told to come back is better served than a plant left on half
+        // the new settings, and EX_SLAVE_BUSY is exactly what a retry is for.
+        if (changing > persist_room()) return EX_SLAVE_BUSY;
+
         for (uint16_t i = 0; i < count; i += 2) {
-            Var v = row_at((uint16_t)((addr + i) / 2));
+            const int k = _find((uint16_t)((addr + i) / 2));
+            if (k < 0) continue;                    // ruled out by the pass above
+            Var v = _io->var(_rows[k]);
             const uint32_t w = word_at(data, i);
             // Against live(), not raw(): if the row is overridden, raw() is the
             // forced value, and a master writing that same number would skip the
             // commit while the parameter underneath stayed where it was.
             if (w == wire_of(v.type(), v.live())) continue;   // no commit, no wear
-            // Cannot fail on validity - the pass above just checked every row -
-            // so a non-OK result here is the STORE refusing, which is not a
-            // rejected edit: the value is live, and the fault raised its own
-            // alarm on the way out.
-            (void)_io->set(v, from_wire(v.type(), w));
+            // Live immediately - the master and the control programs both care
+            // about that - with the durable copy queued for drain_persists() to
+            // make a couple at a time. Cannot fail on validity: the pass above
+            // checked every row.
+            (void)_io->set_deferred(v, from_wire(v.type(), w));
+            (void)_queue_persist(_rows[k]);
             if (committed != nullptr) (*committed)++;
         }
         return EX_NONE;
+    }
+
+    bool Map::_queue_persist(uint16_t r) {
+        if (_pending_count >= Config::MODBUS_PERSIST_QUEUE) return false;
+        const uint16_t at = (uint16_t)((_pending_head + _pending_count) %
+                                       Config::MODBUS_PERSIST_QUEUE);
+        _pending[at] = r;
+        _pending_count++;
+        return true;
+    }
+
+    uint16_t Map::drain_persists(uint16_t n) {
+        if (_io == nullptr) return 0;
+        uint16_t done = 0;
+        while (done < n && _pending_count > 0) {
+            const uint16_t r = _pending[_pending_head];
+            _pending_head = (uint16_t)((_pending_head + 1) %
+                                       Config::MODBUS_PERSIST_QUEUE);
+            _pending_count--;
+            // A refusal here is the STORE saying no, which is not a rejected
+            // edit: the value is already live, and the fault raised its own
+            // alarm on the way out.
+            (void)_io->persist(_io->var(r));
+            done++;
+        }
+        return done;
     }
 
     Exception Map::write_bit(uint16_t addr, bool on, uint16_t* committed) {
@@ -276,7 +316,10 @@ namespace Botanik { namespace Modbus {
         // read-only: acknowledging one is a different block entirely.
         if (!found || !writable(d) || d.type != T_BOOL) return EX_ILLEGAL_ADDRESS;
         if (as_bool(d.type, v.live()) == on) return EX_NONE;   // no-op, as above
-        if (_io->set(v, Scalar::B(on)) == SET_INVALID) return EX_ILLEGAL_VALUE;
+        if (persist_room() == 0) return EX_SLAVE_BUSY;
+        if (_io->set_deferred(v, Scalar::B(on)) == SET_INVALID) return EX_ILLEGAL_VALUE;
+        const int k = _find(addr);
+        if (k >= 0) (void)_queue_persist(_rows[k]);
         if (committed != nullptr) (*committed)++;
         return EX_NONE;
     }

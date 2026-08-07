@@ -610,6 +610,14 @@ namespace Botanik {
             // ...and the answer goes out here, off the image the scan just
             // produced. One beat of latency on a read, against a poll measured
             // in seconds, and no request ever answered from a half-updated image.
+            // The flash half of a master's write, paced. Storage is synchronous
+            // and one request can cover 61 parameters, so the commits are queued
+            // where they are decoded and made durable a couple per beat here.
+            _tasks.add("modbus_tcp_wr", GROUP_FAST, PHASE_SERVICE,
+                [](void* s, uint64_t now) {
+                    static_cast<Modbus::TcpSlave*>(s)->service_persist(now);
+                },
+                &_modbus_tcp);
             _tasks.add("modbus_tcp_tx", GROUP_FAST, PHASE_PRESENT,
                 [](void* s, uint64_t now) {
                     static_cast<Modbus::TcpSlave*>(s)->service_tx(now);

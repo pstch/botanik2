@@ -331,11 +331,25 @@ namespace Botanik { namespace Vars {
     }
 
     SetResult Bank::set(Var h, Scalar v) {
+        const SetResult r = set_deferred(h, v);
+        if (r != SET_OK) return r;
+        return persist(h);
+    }
+
+    SetResult Bank::set_deferred(Var h, Scalar v) {
         if (check(h, v) != SET_OK) return SET_INVALID;
         const Variable* d = h.meta();
         Value* slot = editable_slot(_terminal, d);
+        if (slot == nullptr) return SET_INVALID;
         slot->v    = v;
         slot->qual = Q_GOOD;
+        return SET_OK;
+    }
+
+    SetResult Bank::persist(Var h) {
+        const Variable* d = h.meta();
+        Value* slot = editable_slot(_terminal, d);
+        if (slot == nullptr) return SET_INVALID;
         return _persist_param(h, *d, *slot);
     }
 

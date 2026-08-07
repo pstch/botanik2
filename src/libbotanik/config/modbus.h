@@ -162,6 +162,29 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, MODBUS_MAX_REGS_PER_BLOCK);
 
+    /** @brief How many parameter commits may wait to reach flash.
+     *
+     *  A full FC16 covers 61 rows, so this holds one at least: a legitimate
+     *  bulk download must not be refused for want of room. Past it the slave
+     *  answers EX_SLAVE_BUSY, which a master already knows how to retry. */
+#ifndef BOTANIK_MODBUS_PERSIST_QUEUE
+#  define BOTANIK_MODBUS_PERSIST_QUEUE 64
+#endif
+    BOTANIK_CFG(uint16_t, MODBUS_PERSIST_QUEUE);
+
+    /** @brief How many of those may actually be written per beat.
+     *
+     *  Storage is synchronous (docs/dev/concurrency.md). A TDBStore write is a
+     *  record append plus a page program, and a garbage-collection pass adds a
+     *  sector erase - milliseconds each, hundreds in the worst case. Doing 61 of
+     *  them in one beat is how a remote master could stall the field bus past
+     *  its own response deadline, so they are paced instead, the same way
+     *  SERIAL_TX_PER_STEP paces the console. */
+#ifndef BOTANIK_MODBUS_PERSIST_PER_STEP
+#  define BOTANIK_MODBUS_PERSIST_PER_STEP 2
+#endif
+    BOTANIK_CFG(uint16_t, MODBUS_PERSIST_PER_STEP);
+
     /** @brief How many bytes the field-bus UART's transmit ring holds.
      *
      *  Not a tunable: it MIRRORS the platform's own buffer, and exists so the

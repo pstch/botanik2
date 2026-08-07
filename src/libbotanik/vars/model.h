@@ -972,6 +972,22 @@ namespace Botanik { namespace Vars {
          *  0.08. T_STR is refused: its text lives in the pool, not the slot. */
         SetResult set(Var h, Scalar v);
 
+        /** @brief Apply @p v now and leave the flash write to the caller.
+         *
+         *  Storage is synchronous, so a caller committing many rows at once has
+         *  to pace the writes or stall the beat - see the Modbus TCP slave,
+         *  where a single request can cover 61 parameters. The value is live
+         *  immediately either way, which is what the master and the control
+         *  programs care about; only the durable copy is deferred.
+         *
+         *  Pair every SET_OK with a persist() or the setting is lost at the next
+         *  reboot, silently, which is the whole hazard of splitting these. */
+        SetResult set_deferred(Var h, Scalar v);
+
+        /** @brief Write @p h's current value to the store. The other half of
+         *  set_deferred(); harmless on a row that is already durable. */
+        SetResult persist(Var h);
+
         /** @brief Force @p h to @p text until override_clear(). T_STR is refused
          *  (a hostname is configuration, not a field signal); everything else,
          *  ROLE_OUTPUT included, is fair game whatever control authority says -
