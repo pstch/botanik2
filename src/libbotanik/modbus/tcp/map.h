@@ -50,7 +50,7 @@
 #include <cstddef>                    // size_t - payload buffer capacities
 #include <cstdint>                    // uint8_t/uint16_t/uint32_t - addresses and wire words
 
-#include "libbotanik_config.h"        // Config::MODBUS_* - the map's fixed capacity
+#include "libbotanik/config/modbus.h" // Config::MODBUS_* - the map's fixed capacity
 
 #include "libbotanik/modbus/tcp/pdu.h"    // Modbus::Exception - what a refusal is spelled in
 #include "libbotanik/vars/access.h"   // Vars::var_mapped - which rows carry a register
@@ -103,19 +103,12 @@ namespace Botanik { namespace Modbus {
         /** @name Building
          *  @{ */
 
-        /** @brief Scan @p io (or the bank given at construction) for published
-         *  rows and sort them by register. Idempotent. */
-        void build(Vars::Bank* io = nullptr);
+        /** @brief Scan the bank given at construction for published rows and
+         *  sort them by register. Idempotent. */
+        void build();
 
         uint16_t count() const    { return _count; }
         uint16_t overflow() const { return _overflow; }
-        /** @brief Lowest / highest register claimed by a row. */
-        uint16_t reg_lo() const   { return _reg_lo; }
-        uint16_t reg_hi() const   { return _reg_hi; }
-        /** @brief The @p i-th mapped row, ascending by register. An index past
-         *  the end, or a map with no bank, reads as an inert row rather than
-         *  faulting - the same answer the bank gives a bad index. */
-        Vars::Var row(uint16_t i) const;
         /** @brief Whether a row publishes at all: a parameter, a status value or
          *  an alarm, carrying a non-zero register. */
         static bool published(const Vars::Variable& d);

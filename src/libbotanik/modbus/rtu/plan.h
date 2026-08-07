@@ -47,7 +47,7 @@
 
 #include <cstdint>
 
-#include "libbotanik_config.h"
+#include "libbotanik/config/modbus.h"
 #include "libbotanik/modbus/wire.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
@@ -242,10 +242,6 @@ namespace Botanik { namespace Modbus {
         /** @name Cost, and what did not fit
          *  @{ */
 
-        /** @brief What one pass over every read block costs, in microseconds.
-         *  The sweep the budget doc tabulates. */
-        uint32_t sweep_us() const;
-
         /** @brief Share of the bus the read plan occupies, in parts per million,
          *  at the planned periods. The one number that answers "is there room
          *  for another sensor". */
@@ -253,7 +249,6 @@ namespace Botanik { namespace Modbus {
 
         uint16_t rows_dropped() const   { return _rows_dropped; }
         uint16_t blocks_dropped() const { return _blocks_dropped; }
-        uint16_t merge_gap_used() const { return _merge_gap; }
 
         /** @} */
 

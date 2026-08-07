@@ -3,13 +3,23 @@
 
 /**
  * @file wire.h
- * @brief The Modbus RTU vocabulary: function codes, exceptions, parse errors,
- *        and the frame arithmetic that follows from them.
+ * @brief The Modbus vocabulary shared by both transports and both ends:
+ *        function codes, exceptions, parse errors, and the frame arithmetic
+ *        that follows from them.
  *
  * FUNCTIONs in the sense plc/functions uses the word: no state, single-expression
  * `constexpr` bodies, header-only. What needs a loop or a buffer is in codec.h;
  * what needs to remember where it is in a frame is in framing.h. Same rule, same
  * reason.
+ *
+ * @section wire_gate Why this header carries no feature gate
+ *
+ * All four corners include it - the two clients, the two servers - so any gate
+ * here has to name all four flags, and one that names fewer compiles a corner
+ * against an empty vocabulary. That is not hypothetical: it named two, and
+ * MODBUS_RTU_SERVER and MODBUS_TCP_CLIENT could not build alone. Since the whole
+ * file is `constexpr` and costs an unused includer nothing, the gate buys no
+ * space and only offers a way to get the list wrong.
  *
  * Nothing in this directory knows the variable model exists. That is deliberate
  * and load-bearing: it is what lets the simulator's slave bank answer requests
@@ -19,16 +29,12 @@
 
 #include <cstdint>
 
-#include "libbotanik_config.h"
-
-#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT || BOTANIK_FEATURE_MODBUS_TCP_SERVER
-
 namespace Botanik { namespace Modbus {
 
     /** @name Vocabulary
      *  @{ */
 
-    /** @brief The function codes this client speaks.
+    /** @brief The function codes this firmware speaks.
      *
      *  Four reads and four writes, which is the whole of what a field bus of
      *  meters and relay boards needs. The diagnostic and file-transfer codes are
@@ -157,7 +163,7 @@ namespace Botanik { namespace Modbus {
                fc == FC_READ_HOLDING || fc == FC_READ_INPUT;
     }
 
-    /** @brief Whether this client speaks @p fc at all. Asked before anything
+    /** @brief Whether this firmware speaks @p fc at all. Asked before anything
      *  else derives a size from it, so an unknown code yields 0 lengths rather
      *  than a plausible-looking wrong one. */
     constexpr bool is_supported(uint8_t fc) {
@@ -254,5 +260,4 @@ namespace Botanik { namespace Modbus {
 
 }}  // namespace Botanik::Modbus
 
-#endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT || BOTANIK_FEATURE_MODBUS_TCP_SERVER
 #endif // MODBUS_WIRE_H

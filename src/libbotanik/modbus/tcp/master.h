@@ -38,7 +38,7 @@
 #include <cstddef>                    // size_t - frame lengths
 #include <cstdint>                    // uint8_t/uint16_t/uint64_t - the wire and the clock
 
-#include "libbotanik_config.h"        // Config::MODBUS_TCP_* - port, timeouts
+#include "libbotanik/config/modbus.h" // Config::MODBUS_TCP_* - port, timeouts
 
 #include "libbotanik/core/component.h" // Component - the per-beat lifecycle
 #include "libbotanik/hal/net.h"       // HAL::Network - the socket

@@ -201,7 +201,6 @@
 #  define BOTANIK_FEATURE_MODBUS_TCP_SERVER 0
 #endif
 
-/** @brief Modbus RTU master, filling the process image from the field. */
 /** @brief Modbus TCP master: this unit polling ANOTHER device over Ethernet.
  *  The simulator's counterpart to the slave, and equally a way for a site to
  *  read a second PLC.
@@ -210,6 +209,8 @@
 #  define BOTANIK_FEATURE_MODBUS_TCP_CLIENT 0
 #endif
 
+/** @brief Modbus RTU master, filling the process image from the field.
+ *  @note Requires BOTANIK_FEATURE_PLC_SCAN */
 #ifndef BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 #  define BOTANIK_FEATURE_MODBUS_RTU_CLIENT 0
 #endif
@@ -290,5 +291,9 @@
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT && !BOTANIK_FEATURE_PLC_SCAN
 #  error "BOTANIK_FEATURE_MODBUS_RTU_CLIENT requires BOTANIK_FEATURE_PLC_SCAN"
 #endif
+// MODBUS_RTU_SERVER depends on nothing, deliberately: it is a device model over
+// a serial port and a register image, with no variable table and no scan behind
+// it. Stated here because the absence of a rule is otherwise indistinguishable
+// from a rule nobody wrote.
 
 #endif // LIBBOTANIK_FEATURES_H

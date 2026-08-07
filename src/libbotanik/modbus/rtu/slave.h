@@ -33,7 +33,7 @@
 
 #include <cstdint>
 
-#include "libbotanik_config.h"        // Config::MODBUS_SIM_* - the image sizes
+#include "libbotanik/config/modbus.h" // Config::MODBUS_SIM_* - the image sizes
 
 #include "libbotanik/modbus/wire.h"   // the vocabulary, shared with every other corner
 

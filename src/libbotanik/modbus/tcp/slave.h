@@ -56,9 +56,8 @@
 
 #include <cstdint>                    // uint8_t/uint16_t/uint64_t - buffers, counters, timestamps
 
-#include "libbotanik_config.h"        // Config::MODBUS_* - port, slots, timeouts
+#include "libbotanik/config/modbus.h" // Config::MODBUS_* - port, slots, timeouts
 
-#include "libbotanik/alarms/alarms.h" // Alarms::AlarmController - the ack block's target
 #include "libbotanik/core/component.h" // Component - the config-driven lifecycle
 #include "libbotanik/hal/net.h"       // HAL::Network - listener and connection sockets
 #include "libbotanik/modbus/tcp/map.h"    // Modbus::Map - what an address means
@@ -66,6 +65,11 @@
 #include "libbotanik/vars/model.h"    // Vars::Bank - the process image being served
 
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+
+// Only ever held and dereferenced through a pointer here; alarms/alarms.h
+// costs an includer logger.h, publisher.h and two config headers, and every
+// consumer of this header would pay for them.
+namespace Botanik { namespace Alarms { class AlarmController; } }
 
 namespace Botanik { namespace Modbus {
 

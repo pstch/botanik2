@@ -5,7 +5,7 @@
 
 #include "libbotanik/modbus/rtu/codec.h"
 
-#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT || BOTANIK_FEATURE_MODBUS_RTU_SERVER
 
 #include <cstring>   // memcpy - the only sanctioned route between float and its bits
 
@@ -223,4 +223,4 @@ void f32_to_regs(float v, RegOrder order, uint8_t* out) {
 
 }}  // namespace Botanik::Modbus
 
-#endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+#endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT || BOTANIK_FEATURE_MODBUS_RTU_SERVER

@@ -29,7 +29,7 @@
 #include <cstddef>                    // size_t - buffer capacities and frame lengths
 #include <cstdint>                    // uint8_t/uint16_t - the wire is bytes and 16-bit words
 
-#include "libbotanik_config.h"        // BOTANIK_FEATURE_MODBUS_* - the gate this header sits behind
+#include "libbotanik/config/base.h"   // BOTANIK_FEATURE_MODBUS_* - the gate this header sits behind
 
 #include "libbotanik/modbus/wire.h"   // Fc / Exception / the frame arithmetic both transports share
 
@@ -68,7 +68,6 @@ namespace Botanik { namespace Modbus {
         uint16_t       count;     ///< quantity of bits / registers (reads and multi-writes)
         uint16_t       value;     ///< FC_WRITE_COIL / FC_WRITE_REGISTER payload
         const uint8_t* data;      ///< FC_WRITE_COILS / FC_WRITE_REGISTERS payload
-        uint8_t        data_len;  ///< its byte count
         Exception      ex;        ///< why it was refused, when decode() says so
     };
 

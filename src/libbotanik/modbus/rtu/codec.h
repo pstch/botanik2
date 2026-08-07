@@ -15,9 +15,13 @@
 
 #include <cstdint>
 
+#include "libbotanik/config/base.h"    // BOTANIK_FEATURE_MODBUS_* - the gate below,
+                                       // read AFTER the site config, which is the point
 #include "libbotanik/modbus/wire.h"
 
-#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+// Both RTU ends: the client builds and parses frames, and the server reaches in
+// here for crc16() and the frame arithmetic when it seals its answers.
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT || BOTANIK_FEATURE_MODBUS_RTU_SERVER
 
 namespace Botanik { namespace Modbus {
 
@@ -122,5 +126,5 @@ namespace Botanik { namespace Modbus {
 
 }}  // namespace Botanik::Modbus
 
-#endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+#endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT || BOTANIK_FEATURE_MODBUS_RTU_SERVER
 #endif // MODBUS_RTU_CODEC_H
