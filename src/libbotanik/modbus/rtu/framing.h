@@ -89,6 +89,22 @@ namespace Botanik { namespace Modbus {
         uint32_t _stray_bytes = 0;   ///< arrived when nothing was armed, or after a frame
         /** @} */
 
+        /** @name Our own transmission
+         *
+         *  On this board RE is held asserted, so the receiver hears the frame we
+         *  just sent (hal/platform.cpp). Those bytes are not the answer and must
+         *  not be framed as one.
+         *  @{ */
+
+        /** @brief The frame just transmitted, borrowed from the caller and valid
+         *  until the next arm(). Null when the caller does not care. */
+        const uint8_t* _echo     = nullptr;
+        uint16_t       _echo_len = 0;
+        /** @brief How many arriving bytes have matched @c _echo so far. */
+        uint16_t       _echo_pos = 0;
+
+        /** @} */
+
         /** @brief Bytes accumulated so far. */
         uint16_t _len  = 0;
         /** @brief The frame's total length once it is knowable; 0 until then.
@@ -117,8 +133,22 @@ namespace Botanik { namespace Modbus {
          *  Resets everything, dropping any bytes the previous transaction left
          *  unconsumed. That is the point: on a shared bus a late answer from the
          *  last slave can still be arriving, and treating those bytes as the head
-         *  of this frame would desynchronise every transaction after it. */
-        void arm(const Expect& e, uint64_t now_ms, uint32_t timeout_ms);
+         *  of this frame would desynchronise every transaction after it.
+         *
+         *  @p echo is the frame just transmitted, @p echo_len its length. Give
+         *  them and the framer swallows our own transmission coming back; leave
+         *  them null and it frames whatever arrives.
+         *
+         *  ALL OR NOTHING, not a running prefix match, and the difference
+         *  matters: a response begins with the same unit and function code the
+         *  request did, so a framer that discarded matching bytes one at a time
+         *  would eat the head of a real answer on a board that does not echo.
+         *  Bytes are held as a CANDIDATE echo while they match, and the moment
+         *  one diverges the whole candidate is replayed into the frame. So the
+         *  same code is right either way, which is what we want while the board's
+         *  behaviour is still in doubt. */
+        void arm(const Expect& e, uint64_t now_ms, uint32_t timeout_ms,
+                 const uint8_t* echo = nullptr, uint16_t echo_len = 0);
 
         /** @brief Offer @p n bytes. @return how many were taken.
          *
@@ -172,6 +202,13 @@ namespace Botanik { namespace Modbus {
         /** @} */
 
     private:
+        /** @brief Take one byte into the frame, resolving and completing as the
+         *  shape becomes knowable. The one path bytes reach @c _buf by. */
+        void _accept(uint8_t b);
+        /** @brief Push the candidate echo into the frame after all: it was our
+         *  answer, not our own transmission. The matched bytes ARE @c _echo's
+         *  first @c _echo_pos, so there is nothing else to keep. */
+        void _replay_echo();
         /** @brief Work out the frame's total length, if enough of the header has
          *  arrived to say. Sets @c _want, or fails the frame when the byte count
          *  contradicts the request. */

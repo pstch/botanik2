@@ -9,7 +9,8 @@
 
 namespace Botanik { namespace Modbus {
 
-void RtuFramer::arm(const Expect& e, uint64_t now_ms, uint32_t timeout_ms) {
+void RtuFramer::arm(const Expect& e, uint64_t now_ms, uint32_t timeout_ms,
+                    const uint8_t* echo, uint16_t echo_len) {
     _exp         = e;
     _len         = 0;
     _want        = 0;
@@ -17,6 +18,9 @@ void RtuFramer::arm(const Expect& e, uint64_t now_ms, uint32_t timeout_ms) {
     _state       = FR_RX;
     _deadline_ms = now_ms + (uint64_t)timeout_ms;
     _resp        = Response();
+    _echo        = (echo_len != 0) ? echo : nullptr;
+    _echo_len    = (echo != nullptr) ? echo_len : 0;
+    _echo_pos    = 0;
 }
 
 void RtuFramer::disarm() {
@@ -32,20 +36,47 @@ uint16_t RtuFramer::feed(const uint8_t* b, uint16_t n) {
 
     uint16_t used = 0;
     while (used < n && _state == FR_RX) {
-        if (_len >= (uint16_t)sizeof _buf) {
-            // Unreachable for a legal frame: _want is capped below the buffer
-            // before it is ever trusted. Here so that if it ever does happen it
-            // is a counted fault rather than a write past the array.
-            _fail(ERR_CAPACITY);
-            break;
+        const uint8_t c = b[used];
+
+        // Still holding a candidate echo? Keep holding while it matches.
+        if (_echo_pos < _echo_len) {
+            if (c == _echo[_echo_pos]) {
+                _echo_pos++;
+                used++;
+                continue;
+            }
+            // It diverged, so it was never our transmission: everything held so
+            // far belongs to the answer, and so does this byte.
+            _replay_echo();
+            if (_state != FR_RX) break;
         }
-        _buf[_len++] = b[used++];
-        _resolve();
-        if (_state == FR_RX && _want != 0 && _len == _want) _complete();
+
+        _accept(c);
+        used++;
     }
 
     if (used < n) _stray_bytes += (uint16_t)(n - used);
     return used;
+}
+
+void RtuFramer::_accept(uint8_t b) {
+    if (_len >= (uint16_t)sizeof _buf) {
+        // Unreachable for a legal frame: _want is capped below the buffer
+        // before it is ever trusted. Here so that if it ever does happen it
+        // is a counted fault rather than a write past the array.
+        _fail(ERR_CAPACITY);
+        return;
+    }
+    _buf[_len++] = b;
+    _resolve();
+    if (_state == FR_RX && _want != 0 && _len == _want) _complete();
+}
+
+void RtuFramer::_replay_echo() {
+    const uint16_t held = _echo_pos;
+    // Stop matching first: _accept() must not recurse back into the echo path.
+    _echo_pos = _echo_len;
+    for (uint16_t i = 0; i < held && _state == FR_RX; ++i) _accept(_echo[i]);
 }
 
 int RtuFramer::poll(uint64_t now_ms) {
@@ -59,6 +90,28 @@ int RtuFramer::poll(uint64_t now_ms) {
     // The one thing time is evidence of: a slave that has said nothing. Not
     // where a frame ends - see the file note.
     if (now_ms >= _deadline_ms) {
+        // One last possibility before calling it silence: a whole candidate echo
+        // and nothing behind it. A write response is byte-identical to the
+        // request it answers, so on a board that does not echo, that candidate
+        // IS the reply and discarding it would time out a healthy device.
+        //
+        // Speculative, so it is undone on failure: when the candidate really was
+        // our own transmission the replayed frame fails its own checks, and this
+        // is silence rather than a malformed answer. The counters are snapshotted
+        // because _fail() and _complete() move them, and a frame we sent must not
+        // show up as a bad one we received.
+        if (_len == 0 && _echo_len != 0 && _echo_pos == _echo_len) {
+            const uint32_t bad = _bad_frames;
+            const uint32_t crc = _crc_errors;
+            _replay_echo();
+            if (_state == FR_DONE) return 1;
+            _bad_frames = bad;
+            _crc_errors = crc;
+            _len        = 0;
+            _want       = 0;
+            _err        = ERR_OK;
+            _resp       = Response();
+        }
         _timeouts++;
         _err   = ERR_TIMEOUT;
         _state = FR_FAIL;

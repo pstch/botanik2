@@ -289,4 +289,113 @@ TEST_CASE("modbus framing: counters survive a transaction and reset on demand") 
     CHECK(f.timeouts() == 0);
 }
 
+
+// Our own transmission coming back
+// ===========================================================================
+//
+// RE is held asserted while we transmit, so the receiver hears the request
+// (hal/platform.cpp). The framer is armed the moment the frame is queued, and
+// has to be right whether or not the echo is real on a given board - which is
+// why it holds a CANDIDATE and replays it rather than discarding byte by byte.
+
+TEST_CASE("modbus framing: our own request is swallowed before the answer") {
+    // Request as it goes out: read 2 holding registers from unit 5.
+    uint8_t req[8] = { 0x05, 0x03, 0x00, 0x00, 0x00, 0x02 };
+    const uint16_t rn = seal(req, 6);
+
+    RtuFramer f;
+    f.arm(E_FC03, 1000, TIMEOUT_MS, req, rn);
+
+    // The echo arrives first, then the answer.
+    CHECK(f.feed(req, rn) == rn);
+    CHECK(f.poll(1000) == 0);            // nothing framed yet: that was us
+    CHECK(f.len() == 0);
+
+    CHECK(f.feed(RSP_FC03, sizeof RSP_FC03) == sizeof RSP_FC03);
+    REQUIRE(f.poll(1000) == 1);
+    CHECK(f.err() == ERR_OK);
+    CHECK(f.response().len == 4);
+    CHECK(reg_at(f.response().data, 0) == 10);
+    CHECK(reg_at(f.response().data, 1) == 20);
+}
+
+TEST_CASE("modbus framing: with no echo, the answer is not eaten") {
+    // The regression this design exists for. A response opens with the same unit
+    // and function code the request did, so a running prefix match would swallow
+    // those two bytes and frame from the byte count onwards.
+    uint8_t req[8] = { 0x05, 0x03, 0x00, 0x00, 0x00, 0x02 };
+    const uint16_t rn = seal(req, 6);
+
+    RtuFramer f;
+    f.arm(E_FC03, 1000, TIMEOUT_MS, req, rn);
+
+    CHECK(f.feed(RSP_FC03, sizeof RSP_FC03) == sizeof RSP_FC03);
+    REQUIRE(f.poll(1000) == 1);
+    CHECK(f.err() == ERR_OK);
+    CHECK(f.response().len == 4);
+    CHECK(reg_at(f.response().data, 0) == 10);
+    CHECK(reg_at(f.response().data, 1) == 20);
+}
+
+TEST_CASE("modbus framing: an echo split across beats is still swallowed") {
+    uint8_t req[8] = { 0x05, 0x03, 0x00, 0x00, 0x00, 0x02 };
+    const uint16_t rn = seal(req, 6);
+
+    RtuFramer f;
+    f.arm(E_FC03, 1000, TIMEOUT_MS, req, rn);
+
+    for (uint16_t i = 0; i < rn; ++i) CHECK(f.feed(req + i, 1) == 1);
+    CHECK(f.len() == 0);
+    for (uint16_t i = 0; i < sizeof RSP_FC03; ++i) f.feed(RSP_FC03 + i, 1);
+
+    REQUIRE(f.poll(1000) == 1);
+    CHECK(f.err() == ERR_OK);
+}
+
+TEST_CASE("modbus framing: a write echo is recovered when the board does not echo") {
+    // A write response is byte-identical to the request it answers, so a whole
+    // candidate with nothing behind it is ambiguous. At the deadline the framer
+    // replays it rather than calling it silence.
+    uint8_t req[8] = { 0x22, 0x10, 0x00, 0x00, 0x00, 0x02 };
+    const uint16_t rn = seal(req, 6);
+    REQUIRE(rn == sizeof RSP_FC16);
+
+    RtuFramer f;
+    f.arm(E_FC16, 1000, TIMEOUT_MS, req, rn);
+    CHECK(f.feed(RSP_FC16, sizeof RSP_FC16) == sizeof RSP_FC16);
+
+    CHECK(f.poll(1000) == 0);                    // held as a candidate
+    REQUIRE(f.poll(1000 + TIMEOUT_MS) == 1);     // deadline: it was the answer
+    CHECK(f.err() == ERR_OK);
+    CHECK(f.timeouts() == 0);
+}
+
+TEST_CASE("modbus framing: a genuine silence still times out with an echo armed") {
+    uint8_t req[8] = { 0x05, 0x03, 0x00, 0x00, 0x00, 0x02 };
+    const uint16_t rn = seal(req, 6);
+
+    RtuFramer f;
+    f.arm(E_FC03, 1000, TIMEOUT_MS, req, rn);
+    f.feed(req, rn);                             // only our own transmission
+
+    CHECK(f.poll(1000) == 0);
+    REQUIRE(f.poll(1000 + TIMEOUT_MS) == -1);
+    CHECK(f.err() == ERR_TIMEOUT);
+    CHECK(f.timeouts() == 1);
+}
+
+TEST_CASE("modbus framing: an echo followed by a refusal reads as the refusal") {
+    uint8_t req[8] = { 0x05, 0x03, 0x00, 0x00, 0x00, 0x02 };
+    const uint16_t rn = seal(req, 6);
+
+    RtuFramer f;
+    f.arm(E_FC03, 1000, TIMEOUT_MS, req, rn);
+    f.feed(req, rn);
+    f.feed(RSP_FC03_EXC, sizeof RSP_FC03_EXC);
+
+    REQUIRE(f.poll(1000) == 1);
+    CHECK(f.err() == ERR_EXCEPTION);
+    CHECK(f.response().ex == EX_ILLEGAL_ADDRESS);
+}
+
 #endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT

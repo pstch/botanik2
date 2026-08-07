@@ -17,6 +17,9 @@ namespace Botanik { namespace Modbus {
 void RtuClient::on_setup(uint64_t now_ms) {
     HAL::Serial::fieldbus_begin(Config::MODBUS_BAUD, 8, HAL::Serial::PARITY_NONE, 1);
     _port = HAL::Serial::get(HAL::Serial::FIELDBUS);
+    // Once, before the first transaction: whatever a half-configured line or
+    // another master left in the receive path is not an answer to anything.
+    HAL::Serial::fieldbus_flush_input();
 
     if (_io == nullptr) return;
     _plan.plan(*_io, Config::MODBUS_BAUD, Config::MODBUS_TURNAROUND_MS);
@@ -228,18 +231,23 @@ void RtuClient::on_step(uint64_t now_ms) {
                 _enter(MB_GAP, now_ms);
                 return;
             }
+            // Armed HERE, not a beat later. The answer can be on the wire before
+            // this beat ends - at 38400 an 8-byte request clears in 2.3 ms - and
+            // anything not being listened for is lost. The frame doubles as the
+            // echo to swallow, since RE stays asserted while we transmit.
+            _framer.arm(_expect, now_ms, Config::MODBUS_TIMEOUT_MS,
+                        _frame, _frame_len);
             _enter(MB_DRAIN, now_ms);
             return;
         }
 
         case MB_DRAIN: {
             if (!HAL::Serial::fieldbus_tx_idle()) return;
-            // The frame has gone. Whatever is in the receive path now is our own
-            // echo or noise - the slave cannot have answered yet - and an echo
-            // taken for a response would be indistinguishable from one for a
-            // write, whose reply is byte-identical to its request.
-            HAL::Serial::fieldbus_flush_input();
-            _framer.arm(_expect, now_ms, Config::MODBUS_TIMEOUT_MS);
+            // The frame has gone. Nothing is flushed: the framer is already
+            // armed and holding our echo as a candidate, so the receive path is
+            // being read rather than thrown away. Flushing here is what used to
+            // discard the answers of every device quick enough to reply inside
+            // the beat.
             _enter(MB_RX, now_ms);
             return;
         }
@@ -257,7 +265,9 @@ void RtuClient::on_step(uint64_t now_ms) {
 }
 
 void RtuClient::receive_step(uint64_t now_ms) {
-    if (_port == nullptr || _state != MB_RX) return;
+    // MB_DRAIN too: the frame is still leaving the UART, but a fast slave may
+    // already be answering and the framer has been armed since it was queued.
+    if (_port == nullptr || (_state != MB_RX && _state != MB_DRAIN)) return;
 
     // Drain what the UART has, bounded: a wedged port must not turn into an
     // unbounded loop inside the beat.
