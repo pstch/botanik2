@@ -14,6 +14,11 @@
 
 namespace Botanik { namespace Modbus {
 
+// C++11 needs an out-of-class definition for a static const member that is
+// ODR-used - bound to a reference, which any comparison in a test macro does.
+// Without it the header's initialiser is a compile-time value and nothing else.
+const uint16_t RtuClient::NO_BLOCK;
+
 void RtuClient::on_setup(uint64_t now_ms) {
     HAL::Serial::fieldbus_begin(Config::MODBUS_BAUD, 8, HAL::Serial::PARITY_NONE, 1);
     _port = HAL::Serial::get(HAL::Serial::FIELDBUS);
@@ -132,10 +137,49 @@ void RtuClient::_enter(State s, uint64_t now_ms) {
     _since_ms = now_ms;
 }
 
-uint16_t RtuClient::_pick(uint64_t now_ms) const {
-    // Writes before reads. A demand that has changed is worth more than a
-    // reading about to be taken again anyway, and a safe state is worth more
-    // than either - which is why this runs whatever control authority says.
+uint16_t RtuClient::_overdue_read(uint64_t now_ms, bool starved_only) const {
+    // The most overdue read, so a starved block cannot stay starved. With
+    // @p starved_only, a block counts only once it is a whole period of its OWN
+    // late - which is per block, since a 1 s rung and a 60 s rung do not agree
+    // about what "late" means.
+    uint16_t best = NO_BLOCK;
+    uint64_t worst = 0;
+    for (uint16_t i = 0; i < _plan.block_count(); ++i) {
+        const Block& b = _plan.block(i);
+        if (!is_read(b.fc) || now_ms < b.due_ms) continue;
+        if (!_due(b.device, now_ms)) continue;
+        const uint64_t late = now_ms - b.due_ms;
+        if (starved_only && (b.period_ms == 0 || late < b.period_ms)) continue;
+        if (best == NO_BLOCK || late > worst) { best = i; worst = late; }
+    }
+    return best;
+}
+
+uint16_t RtuClient::_pick(uint64_t now_ms) {
+    _track_control(now_ms);
+
+    // 1. The safe state, if control has just been withdrawn. disable_control()
+    //    marks every ROLE_OUTPUT dirty precisely so a transaction carries the
+    //    safe state out; making that wait for the ordinary write interval would
+    //    leave an actuator energised for it. Nothing pre-empts this.
+    if (_urgent) {
+        for (uint16_t i = 0; i < _plan.block_count(); ++i) {
+            const Block& b = _plan.block(i);
+            if (is_read(b.fc) || !_due(b.device, now_ms)) continue;
+            if (block_dirty(*_io, _plan, b)) return i;
+        }
+    }
+
+    // 2. A read that has missed a whole period of its own. Writes otherwise
+    //    pre-empt reads unconditionally, and an Actuator timing a stroke keeps
+    //    three or four blocks continuously dirty - enough to hold the bus and
+    //    starve the image until expire_stale() starts invalidating it. A read
+    //    only jumps the queue once it is later than the period it asks for.
+    const uint16_t starved = _overdue_read(now_ms, true);
+    if (starved != NO_BLOCK) return starved;
+
+    // 3. Writes before reads. A demand that has changed is worth more than a
+    //    reading about to be taken again anyway.
     for (uint16_t i = 0; i < _plan.block_count(); ++i) {
         const Block& b = _plan.block(i);
         if (is_read(b.fc)) continue;
@@ -146,17 +190,28 @@ uint16_t RtuClient::_pick(uint64_t now_ms) const {
             return i;
     }
 
-    // Then the most overdue read, so a starved block cannot stay starved.
-    uint16_t best = NO_BLOCK;
-    uint64_t worst = 0;
+    // 4. And whatever read is due.
+    return _overdue_read(now_ms, false);
+}
+
+void RtuClient::_track_control(uint64_t now_ms) {
+    (void)now_ms;
+    if (_io == nullptr) return;
+    const bool on = _io->control_enabled();
+    // The falling edge, and only that: an operator who leaves control disabled
+    // must not keep the bus at emergency priority for the rest of the day.
+    if (_control_was && !on) _urgent = true;
+    _control_was = on;
+
+    // Spent once the safe state is out. Cheaper than it looks - it stops at the
+    // first dirty block, and after the sweep there are none.
+    if (!_urgent) return;
     for (uint16_t i = 0; i < _plan.block_count(); ++i) {
         const Block& b = _plan.block(i);
-        if (!is_read(b.fc) || now_ms < b.due_ms) continue;
-        if (!_due(b.device, now_ms)) continue;
-        const uint64_t late = now_ms - b.due_ms;
-        if (best == NO_BLOCK || late > worst) { best = i; worst = late; }
+        if (is_read(b.fc)) continue;
+        if (block_dirty(*_io, _plan, b)) return;
     }
-    return best;
+    _urgent = false;
 }
 
 bool RtuClient::_build(uint16_t block, uint64_t now_ms) {

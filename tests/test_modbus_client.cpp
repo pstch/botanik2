@@ -1,0 +1,164 @@
+/**
+ * @file test_modbus_client.cpp
+ * @brief The RTU master's scheduling policy: which block goes out next, and why.
+ *
+ * next_block() is the whole decision, so these drive it directly rather than
+ * through a wire. What is being pinned is an ORDER of precedence - a safe state
+ * beats a starved read beats an ordinary write beats an ordinary read - and each
+ * case here is one pair of that order.
+ */
+#include <cstdint>
+#include <cstring>
+#include <string>
+
+#include "doctest.h"
+
+#include "libbotanik_site.h"
+#include "libbotanik.h"
+
+#include BOTANIK_SITE_HEADER
+
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+
+using namespace Botanik;
+using namespace Botanik::Vars;
+using namespace Botanik::Modbus;
+
+namespace {
+
+/** @brief A client over the site's real tables, brought up at t = 0. */
+struct Master {
+    Bank      bank;
+    RtuClient client;
+
+    Master() : bank(Site::g_site.vars), client(&bank, nullptr, Site::g_site.devices) {
+        bank.init();
+        bank.enable_control(Bank::INHIBIT_HEALTH);
+        bank.enable_control(Bank::INHIBIT_OPERATOR);
+        client.setup(0);
+    }
+
+    bool is_write(uint16_t i) const {
+        return i != RtuClient::NO_BLOCK && !is_read(client.plan().block(i).fc);
+    }
+    bool is_a_read(uint16_t i) const {
+        return i != RtuClient::NO_BLOCK && is_read(client.plan().block(i).fc);
+    }
+    /** @brief Demand something on every output row, so the write blocks are
+     *  dirty and competing for the bus. */
+    void dirty_all_writes() {
+        const VarTables& t = Site::g_site.vars;
+        for (uint16_t i = 0; i < t.count; ++i) {
+            const Variable& d = t.var[i];
+            if (d.bind.transport != XP_MODBUS || d.role != ROLE_OUTPUT) continue;
+            Var h = bank.var(i);
+            bank.override_set(h, (d.type == T_BOOL) ? from_bool(T_BOOL, true)
+                                                    : from_f32(d.type, 1.0f));
+        }
+    }
+};
+
+/** @brief The shortest read period the plan uses, which is how long "one whole
+ *  period late" is for the block that starves first. */
+uint32_t shortest_read_period(const Planner& p) {
+    uint32_t best = 0;
+    for (uint16_t i = 0; i < p.block_count(); ++i) {
+        const Block& b = p.block(i);
+        if (!is_read(b.fc) || b.period_ms == 0) continue;
+        if (best == 0 || b.period_ms < best) best = b.period_ms;
+    }
+    return best;
+}
+
+}  // namespace
+
+TEST_CASE("modbus client: an ordinary dirty write goes before a read that is merely due") {
+    // The base case the other two are measured against.
+    Master m;
+    m.dirty_all_writes();
+
+    // Past the ordinary write interval, and far enough that reads are due but
+    // not yet a whole period late.
+    const uint16_t pick = m.client.next_block(Config::MODBUS_WRITE_MIN_MS + 1);
+    INFO("writes are worth more than a reading about to be taken again anyway");
+    CHECK(m.is_write(pick));
+}
+
+TEST_CASE("modbus client: a read starved by a whole period jumps the write queue") {
+    // An Actuator timing a stroke keeps three or four write blocks continuously
+    // dirty. Without a floor they hold the bus and the process image goes stale
+    // underneath the programs reading it.
+    Master m;
+    m.dirty_all_writes();
+
+    const uint32_t period = shortest_read_period(m.client.plan());
+    REQUIRE(period > 0);
+
+    // Long enough that the fastest read has missed a whole period of its own.
+    const uint64_t late = (uint64_t)period * 4u;
+    const uint16_t pick = m.client.next_block(late);
+
+    INFO("at t=" << late << " ms, with every write dirty");
+    REQUIRE(pick != RtuClient::NO_BLOCK);
+    CHECK(m.is_a_read(pick));
+    CHECK((late - m.client.plan().block(pick).due_ms)
+              >= m.client.plan().block(pick).period_ms);
+}
+
+TEST_CASE("modbus client: withdrawing control puts the safe state ahead of everything") {
+    // disable_control() marks every ROLE_OUTPUT dirty precisely so a transaction
+    // carries the safe state out. Making that wait for MODBUS_WRITE_MIN_MS left
+    // an actuator energised for it.
+    Master m;
+
+    // A beat with control up, so the withdrawal is an edge rather than a state.
+    (void)m.client.next_block(10);
+    REQUIRE_FALSE(m.client.safe_state_pending());
+
+    m.bank.disable_control(Bank::INHIBIT_HEALTH);
+
+    // The very next beat, and well inside the ordinary write interval.
+    const uint16_t pick = m.client.next_block(20);
+    CHECK(m.client.safe_state_pending());
+    INFO("20 ms in, against a " << Config::MODBUS_WRITE_MIN_MS << " ms write interval");
+    CHECK(m.is_write(pick));
+}
+
+TEST_CASE("modbus client: a safe state outranks even a starved read") {
+    Master m;
+    m.dirty_all_writes();
+    (void)m.client.next_block(10);
+
+    const uint32_t period = shortest_read_period(m.client.plan());
+    REQUIRE(period > 0);
+    const uint64_t late = (uint64_t)period * 4u;
+
+    // Same instant that picked a read above - but now the field is owed a safe
+    // state, and nothing outranks that.
+    m.bank.disable_control(Bank::INHIBIT_HEALTH);
+    const uint16_t pick = m.client.next_block(late);
+
+    REQUIRE(m.client.safe_state_pending());
+    CHECK(m.is_write(pick));
+}
+
+TEST_CASE("modbus client: the urgency is spent once the safe state is out") {
+    // An operator who leaves control disabled must not keep the bus at emergency
+    // priority for the rest of the day.
+    Master m;
+    (void)m.client.next_block(10);
+    m.bank.disable_control(Bank::INHIBIT_HEALTH);
+    REQUIRE(m.client.next_block(20) != RtuClient::NO_BLOCK);
+    REQUIRE(m.client.safe_state_pending());
+
+    // Pretend the sweep happened: nothing is owed to the field any more.
+    const VarTables& t = Site::g_site.vars;
+    for (uint16_t i = 0; i < t.count; ++i)
+        if (t.var[i].bind.transport == XP_MODBUS && t.var[i].role == ROLE_OUTPUT)
+            m.bank.var(i).clear_field_dirty();
+
+    (void)m.client.next_block(30);
+    CHECK_FALSE(m.client.safe_state_pending());
+}
+
+#endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT

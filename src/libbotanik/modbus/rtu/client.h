@@ -119,6 +119,14 @@ namespace Botanik { namespace Modbus {
         /** @brief The library's field-bus rows, resolved by name once at
          *  bring-up - the same way HealthMonitor drives the platform alarms.
          *  See modbus/rtu/alarms.h. */
+        /** @brief Whether control authority was up on the previous beat, so the
+         *  withdrawal EDGE can be seen. */
+        bool     _control_was = false;
+        /** @brief A safe state is owed to the field and has not gone out yet.
+         *  While set, a dirty write pre-empts everything and ignores the
+         *  ordinary write interval. */
+        bool     _urgent = false;
+
         /** @brief What each unit answers. Borrowed; may be null. */
         const DeviceTable* _devices = nullptr;
         /** @brief Silence owed after the transaction just finished, from the
@@ -175,6 +183,20 @@ namespace Botanik { namespace Modbus {
         /** @brief A short phrase for the status bar and the shell. */
         const char* status_str() const;
 
+        /** @brief Which block would go out if a transaction started now, or
+         *  NO_BLOCK.
+         *
+         *  The scheduling decision itself, and public because two other things
+         *  want it: a diagnostic showing what the bus is about to do, and a test
+         *  that can pin the priority rules without a wire. Not const - it also
+         *  samples control authority, which is where the safe-state urgency is
+         *  raised, and that has to happen on the beat control is withdrawn. */
+        uint16_t next_block(uint64_t now_ms) { return _pick(now_ms); }
+
+        /** @brief Whether a safe state is owed to the field and has not gone out
+         *  yet. While true a dirty write pre-empts everything. */
+        bool safe_state_pending() const { return _urgent; }
+
         const Planner& plan() const { return _plan; }
         uint32_t txns() const      { return _txns; }
         uint32_t faults() const    { return _faults; }
@@ -210,7 +232,13 @@ namespace Botanik { namespace Modbus {
          *  Writes first: a demand that has changed is worth more than a reading
          *  that is about to be taken again anyway, and a safe state is worth more
          *  than either. */
-        uint16_t _pick(uint64_t now_ms) const;
+        uint16_t _pick(uint64_t now_ms);
+        /** @brief The most overdue read, or NO_BLOCK. With @p starved_only,
+         *  only blocks a whole period of their own late are considered. */
+        uint16_t _overdue_read(uint64_t now_ms, bool starved_only) const;
+        /** @brief Watch control authority, and raise the safe-state urgency on
+         *  the beat it is withdrawn. */
+        void     _track_control(uint64_t now_ms);
         /** @brief Build the request for @p block into _frame. @return false if it
          *  could not be built, which is a planning defect rather than a wire
          *  event. */
