@@ -178,12 +178,16 @@ Error parse_response(const uint8_t* adu, uint16_t len, const Expect& e,
     if (!is_supported(e.fc)) return ERR_FC;
     if (len != 8) return ERR_SHORT;
     if (be16(adu[2], adu[3]) != e.addr) return ERR_ECHO;
+    // The multi-writes echo a count; the single writes echo the VALUE. Both are
+    // checked here rather than left to the caller: a relay board that clamps,
+    // inverts or ignores what it was told answers with a well-formed frame, and
+    // the only thing separating that from success is this comparison.
+    const uint16_t echoed = be16(adu[4], adu[5]);
     if (e.fc == FC_WRITE_COILS || e.fc == FC_WRITE_REGISTERS) {
-        if (be16(adu[4], adu[5]) != e.qty) return ERR_ECHO;
+        if (echoed != e.qty) return ERR_ECHO;
+    } else if (echoed != e.value) {
+        return ERR_ECHO;
     }
-    // The echoed body, so a caller may check FC05's coil state or FC06's value
-    // for itself. Those two echo a VALUE where the multi-writes echo a count,
-    // which is why this layer does not compare it.
     out->data = adu + 2;
     out->len  = 4;
     return ERR_OK;

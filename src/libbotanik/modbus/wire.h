@@ -114,6 +114,15 @@ namespace Botanik { namespace Modbus {
         uint8_t  fc;
         uint16_t addr;
         uint16_t qty;
+        /** @brief What a single write put on the wire: 0xFF00 / 0x0000 for
+         *  FC05, the register contents for FC06. Ignored by every other code.
+         *
+         *  Here because a single write's echo is the ONLY confirmation of the
+         *  value - the multi-writes echo an address and a count, so their
+         *  payload is confirmed by the count alone. A device that does not
+         *  implement FC15/FC16 has to be driven a point at a time, and then this
+         *  is the difference between knowing an actuator moved and assuming it. */
+        uint16_t value;
     };
 
     /** @brief A response that parsed.

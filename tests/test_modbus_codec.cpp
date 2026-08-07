@@ -315,16 +315,37 @@ TEST_CASE("modbus codec: an echo response is checked against the request address
     const Expect fc15 = { 33, FC_WRITE_COILS, 0, 10 };
     CHECK(parse_response(RSP_FC15, sizeof RSP_FC15, fc15, &r) == ERR_OK);
 
-    // FC05 and FC06 echo a VALUE where the multi-writes echo a count, so only
-    // the address is compared and the body is handed back for the caller to
-    // check if it cares.
-    const Expect fc05 = { 31, FC_WRITE_COIL, 3, 1 };
+    // FC05 and FC06 echo a VALUE where the multi-writes echo a count, so the
+    // value is what gets compared - and it is the only confirmation there is
+    // that the point moved, which matters on a device that cannot be driven
+    // with FC15/FC16 at all.
+    const Expect fc05 = { 31, FC_WRITE_COIL, 3, 1, 0xFF00 };
     REQUIRE(parse_response(REQ_FC05, sizeof REQ_FC05, fc05, &r) == ERR_OK);
     CHECK(be16(r.data[2], r.data[3]) == 0xFF00);
 
-    const Expect fc06 = { 6, FC_WRITE_REGISTER, 12, 1 };
+    const Expect fc06 = { 6, FC_WRITE_REGISTER, 12, 1, 0x1234 };
     REQUIRE(parse_response(REQ_FC06, sizeof REQ_FC06, fc06, &r) == ERR_OK);
     CHECK(be16(r.data[2], r.data[3]) == 0x1234);
+}
+
+TEST_CASE("modbus codec: a single write that echoes another value is refused") {
+    // A relay board that clamps, inverts or ignores what it was told answers
+    // with a perfectly well-formed frame. Before this, the driver cleared the
+    // demand and recorded the actuator as moved.
+    Response r;
+
+    // We asked for the coil OFF; the board says it set it ON.
+    const Expect off = { 31, FC_WRITE_COIL, 3, 1, 0x0000 };
+    CHECK(parse_response(REQ_FC05, sizeof REQ_FC05, off, &r) == ERR_ECHO);
+
+    // We asked for 0x1234; the board answers with something else.
+    const Expect other = { 6, FC_WRITE_REGISTER, 12, 1, 0x9999 };
+    CHECK(parse_response(REQ_FC06, sizeof REQ_FC06, other, &r) == ERR_ECHO);
+
+    // And the matching value still passes, so this is a comparison and not a
+    // blanket refusal.
+    const Expect ok = { 6, FC_WRITE_REGISTER, 12, 1, 0x1234 };
+    CHECK(parse_response(REQ_FC06, sizeof REQ_FC06, ok, &r) == ERR_OK);
 }
 
 TEST_CASE("modbus codec: every request round-trips through the parser") {
@@ -334,11 +355,11 @@ TEST_CASE("modbus codec: every request round-trips through the parser") {
     Response r;
 
     const uint16_t a = build_write_coil(out, sizeof out, 31, 3, true);
-    const Expect e5 = { 31, FC_WRITE_COIL, 3, 1 };
+    const Expect e5 = { 31, FC_WRITE_COIL, 3, 1, 0xFF00 };
     CHECK(parse_response(out, a, e5, &r) == ERR_OK);
 
     const uint16_t b = build_write_register(out, sizeof out, 6, 12, 0x1234);
-    const Expect e6 = { 6, FC_WRITE_REGISTER, 12, 1 };
+    const Expect e6 = { 6, FC_WRITE_REGISTER, 12, 1, 0x1234 };
     CHECK(parse_response(out, b, e6, &r) == ERR_OK);
 }
 

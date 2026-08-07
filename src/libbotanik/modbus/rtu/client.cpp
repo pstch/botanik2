@@ -164,8 +164,9 @@ bool RtuClient::_build(uint16_t block, uint64_t now_ms) {
     const Block& b = _plan.block(block);
     _expect.unit = b.device;
     _expect.fc   = b.fc;
-    _expect.addr = b.reg;
-    _expect.qty  = b.regs;
+    _expect.addr  = b.reg;
+    _expect.qty   = b.regs;
+    _expect.value = 0;
 
     if (is_read(b.fc)) {
         _frame_len = build_read(_frame, (uint16_t)sizeof _frame, b.device, b.fc,
@@ -178,6 +179,14 @@ bool RtuClient::_build(uint16_t block, uint64_t now_ms) {
     uint8_t payload[Config::MODBUS_MAX_REGS_PER_BLOCK * 2];
     const uint16_t n = collect_write(*_io, _plan, b, payload, (uint16_t)sizeof payload);
     if (n == 0) return false;
+
+    // A single write echoes its value, so the expectation has to carry it. Only
+    // reachable for a device that cannot be driven with FC15/FC16.
+    if (b.fc == FC_WRITE_COIL) {
+        _expect.value = bit_at(payload, 0) ? 0xFF00u : 0x0000u;
+    } else if (b.fc == FC_WRITE_REGISTER) {
+        _expect.value = be16(payload[0], payload[1]);
+    }
 
     if (b.fc == FC_WRITE_COILS) {
         _frame_len = build_write_coils(_frame, (uint16_t)sizeof _frame, b.device,
