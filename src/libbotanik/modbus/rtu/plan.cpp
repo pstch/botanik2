@@ -86,9 +86,14 @@ namespace {
      *  protocol ceiling binds long before any buffer does. */
     uint16_t span_cap(uint8_t fc) {
         const uint16_t proto = max_quantity(fc);
-        if (is_bit(fc)) return proto;
-        return (proto < Config::MODBUS_MAX_REGS_PER_BLOCK)
-                   ? proto : Config::MODBUS_MAX_REGS_PER_BLOCK;
+        // Bits are eight to a byte, so their protocol ceiling is far above what
+        // the collect buffer holds - 1968 coils against 240 bytes. Capping at
+        // the buffer is what stops a wide coil block failing to build on every
+        // turn, silently, for the life of the firmware.
+        const uint16_t buf = is_bit(fc)
+                                 ? (uint16_t)(Config::MODBUS_MAX_REGS_PER_BLOCK * 16)
+                                 : Config::MODBUS_MAX_REGS_PER_BLOCK;
+        return (proto < buf) ? proto : buf;
     }
 
 }  // namespace
@@ -168,8 +173,12 @@ void Planner::_cut(const Vars::Bank& io) {
 
             // Sorted by register, so anything at or below the current end merely
             // overlaps and costs nothing to absorb.
+            // Reading a register nobody wants is free; WRITING one is not - a
+            // merged write zero-fills the gap and would command registers no
+            // row claims. So the gap is a read-side economy only.
+            const uint16_t allow = is_read(k.fc) ? _merge_gap : 0;
             const uint16_t gap = (kj.reg > end) ? (uint16_t)(kj.reg - end) : 0;
-            if (gap > _merge_gap) break;
+            if (gap > allow) break;
 
             const uint16_t next_end = (row_end(d) > end) ? row_end(d) : end;
             if ((uint16_t)(next_end - b.reg) > cap) break;
@@ -195,16 +204,6 @@ void Planner::seed(uint64_t now_ms) {
         // once at bring-up, not first at the rewrite interval.
         _blocks[i].last_ms = 0;
     }
-}
-
-uint32_t Planner::sweep_us() const {
-    uint32_t total = 0;
-    for (uint16_t i = 0; i < _block_count; ++i) {
-        const Block& b = _blocks[i];
-        if (!is_read(b.fc)) continue;
-        total += txn_us(_baud, _turnaround_us, b.fc, b.regs);
-    }
-    return total;
 }
 
 uint32_t Planner::duty_ppm() const {

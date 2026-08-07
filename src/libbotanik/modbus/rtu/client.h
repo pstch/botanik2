@@ -131,7 +131,6 @@ namespace Botanik { namespace Modbus {
 
         enum State : uint8_t {
             MB_IDLE,    ///< nothing in flight; looking for work
-            MB_TX,      ///< the request has been handed to the UART
             MB_DRAIN,   ///< waiting for it to finish leaving the wire
             MB_RX,      ///< listening for the answer
             MB_GAP      ///< the silence a frame is entitled to before the next

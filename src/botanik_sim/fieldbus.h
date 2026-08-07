@@ -41,6 +41,7 @@
 #include <unistd.h>                       // read / write - the peer end of the pair
 
 #include "libbotanik/hal/simulator.h"     // fieldbus_peer_fd
+#include <cstring>                        // memcpy - staging a device answer
 #include "libbotanik/modbus/rtu/slave.h"  // Modbus::RtuSlave
 #include "libbotanik/vars/model.h"        // Vars::Bank - where the simulated values are
 

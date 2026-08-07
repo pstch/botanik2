@@ -65,8 +65,7 @@ namespace Botanik { namespace Modbus {
         return var_mapped(d) && d.bind.reg != 0;
     }
 
-    void Map::build(Vars::Bank* io) {
-        if (io != nullptr) _io = io;
+    void Map::build() {
         _count = 0; _overflow = 0; _reg_lo = 0; _reg_hi = 0;
         if (_io == nullptr) return;
 
@@ -90,11 +89,6 @@ namespace Botanik { namespace Modbus {
             _reg_lo = _io->var(_rows[0]).meta()->bind.reg;
             _reg_hi = _io->var(_rows[_count - 1]).meta()->bind.reg;
         }
-    }
-
-    Var Map::row(uint16_t i) const {
-        if (_io == nullptr || i >= _count) return Var(&g_sink_d, &g_sink_v);
-        return _io->var(_rows[i]);
     }
 
     Var Map::row_at(uint16_t reg, bool* found) const {

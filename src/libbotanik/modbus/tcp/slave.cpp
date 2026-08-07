@@ -10,7 +10,7 @@
 
 #include <cstring>                    // memmove - shifting a consumed frame out of the RX buffer
 
-#include "libbotanik/hal/platform.h"  // HAL::Clock - the idle reap's clock is the beat's
+#include "libbotanik/alarms/alarms.h" // Alarms::AlarmController - the ack block's target
 #include "libbotanik/logs/logger.h"   // Logs::Logger - the bind, the drops and every commit
 #include "libbotanik/vars/params.h"   // Vars::get_int / group_serial - the `mb` config group
 
@@ -42,7 +42,7 @@ namespace Botanik { namespace Modbus {
         // The map is built once, here rather than on the first beat: it is a
         // scan of the whole variable table, and the first beat is not where a
         // couple of hundred rows of insertion sort belongs.
-        _map.build(_io);
+        _map.build();
         if (_map.overflow() != 0 && _logger != nullptr)
             _logger->critical(Logs::SHARED_IO,
                               "modbus map full: %u rows unpublished",

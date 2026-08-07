@@ -64,7 +64,6 @@ namespace Botanik { namespace Modbus {
         out->count     = 0;
         out->value     = 0;
         out->data      = 0;
-        out->data_len  = 0;
         out->ex        = EX_NONE;
 
         const uint8_t* pdu = buf + MBAP_LEN;
@@ -118,7 +117,6 @@ namespace Botanik { namespace Modbus {
                 if (bc != want) return refuse(out, EX_ILLEGAL_VALUE);
                 if (pdu_len != (uint16_t)(6 + bc)) return refuse(out, EX_ILLEGAL_VALUE);
                 out->data     = pdu + 6;
-                out->data_len = bc;
                 return DEC_OK;
             }
             default:

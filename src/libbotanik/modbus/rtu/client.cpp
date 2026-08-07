@@ -250,7 +250,6 @@ void RtuClient::on_step(uint64_t now_ms) {
             return;
         }
 
-        case MB_TX:
         case MB_RX:
             // receive_step() owns the listening half.
             return;
@@ -346,7 +345,6 @@ const char* RtuClient::status_str() const {
     if (_plan.block_count() == 0) return "idle";
     if (_txns == 0)               return "silent";
     switch (_state) {
-        case MB_TX:
         case MB_DRAIN: return "sending";
         case MB_RX:    return "waiting";
         default:       return "online";
