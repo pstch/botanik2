@@ -28,6 +28,11 @@
  * `2 * reg` is injective, so the site test's guarantee that no two rows share a
  * register carries over to the addresses without further checking.
  *
+ * FC06 addresses one register, which is half a row. Rather than refuse it - the
+ * commonest thing a SCADA does is write one setpoint - the addressed half is
+ * spliced into what the row already holds and the whole row is then validated
+ * and committed as a pair. See write_register().
+ *
  * @section map_gaps Gaps read, they do not fault
  *
  * A master reads blocks, and the map is sparse (every number nobody assigned,
@@ -187,6 +192,24 @@ namespace Botanik { namespace Modbus {
          *  block every poll is normal, and a flash write per register per poll
          *  would wear the store out and blow the beat besides.
          *  @{ */
+
+        /**
+         * @brief Apply the single register @p addr, keeping the other half of
+         * its row.
+         *
+         * FC06 writes one register and a row is two, so the addressed half is
+         * spliced into what the row already holds and the whole row is then
+         * validated and committed exactly as a pair write would be. Anything
+         * else would let a master set half a 32-bit value - the case
+         * write_registers() refuses an odd count for.
+         *
+         * Worth supporting rather than refusing: writing one setpoint is the
+         * commonest thing a SCADA does, and it used to come back
+         * EX_ILLEGAL_ADDRESS, which is not even the right objection - the
+         * address was fine, the granularity was not.
+         */
+        Exception write_register(uint16_t addr, uint16_t value,
+                                 uint16_t* committed = nullptr);
 
         /** @brief Apply @p count registers of @p data starting at @p addr.
          *  @param committed if non-null, receives how many rows actually changed

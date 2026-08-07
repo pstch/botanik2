@@ -196,14 +196,11 @@ namespace Botanik { namespace Modbus {
         uint16_t committed = 0;
         Exception ex = EX_NONE;
         switch (r.fc) {
-            case FC_WRITE_REGISTER: {
-                // One register is half a row, and the map says so itself - the
-                // geometry is its business, not this layer's.
-                uint8_t one[2];
-                wr16(one, r.value);
-                ex = _map.write_registers(r.addr, 1, one, &committed);
+            case FC_WRITE_REGISTER:
+                // One register is half a row, and splicing it into the other
+                // half is the map's business, not this layer's.
+                ex = _map.write_register(r.addr, r.value, &committed);
                 break;
-            }
             case FC_WRITE_REGISTERS:
                 ex = _map.write_registers(r.addr, r.count, r.data, &committed);
                 break;

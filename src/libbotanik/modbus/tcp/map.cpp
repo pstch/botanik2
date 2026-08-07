@@ -305,6 +305,32 @@ namespace Botanik { namespace Modbus {
         return done;
     }
 
+    Exception Map::write_register(uint16_t addr, uint16_t value,
+                                  uint16_t* committed) {
+        if (committed != nullptr) *committed = 0;
+        if (_io == nullptr || _count == 0) return EX_ILLEGAL_ADDRESS;
+
+        bool found = false;
+        const Var v = row_at((uint16_t)(addr / 2), &found);
+        if (!found || !writable(*v.meta())) return EX_ILLEGAL_ADDRESS;
+
+        // Splice into what the row already holds, so the half the master did not
+        // address survives. Against live() for the same reason the pair write
+        // uses it: raw() would be an override's forced value, and the parameter
+        // underneath is what is being edited.
+        const uint32_t cur = wire_of(v.type(), v.live());
+        const uint32_t w = ((addr % 2) == 0)
+                               ? (uint32_t)(((uint32_t)value << 16) | (cur & 0xFFFFu))
+                               : (uint32_t)((cur & 0xFFFF0000u) | (uint32_t)value);
+
+        uint8_t data[4];
+        wr16(data,     (uint16_t)(w >> 16));
+        wr16(data + 2, (uint16_t)(w & 0xFFFFu));
+        // Back through the pair path, so the band check, the no-op skip, the
+        // persist queue and its ceiling are all the same ones.
+        return write_registers((uint16_t)(addr & (uint16_t)~1u), 2, data, committed);
+    }
+
     Exception Map::write_bit(uint16_t addr, bool on, uint16_t* committed) {
         if (committed != nullptr) *committed = 0;
         if (_io == nullptr || _count == 0) return EX_ILLEGAL_ADDRESS;

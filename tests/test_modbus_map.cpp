@@ -218,4 +218,54 @@ TEST_CASE("modbus map: rebuilding drops whatever was queued against the old tabl
     CHECK(s.map.pending_persists() == 0);
 }
 
+
+// FC06: one register of a two-register row
+// ===========================================================================
+
+TEST_CASE("modbus map: a single-register write keeps the half it did not address") {
+    // Writing one setpoint is the commonest thing a SCADA does, and it used to
+    // come back EX_ILLEGAL_ADDRESS - not even the right objection, since the
+    // address was fine and only the granularity was not.
+    Served s;
+    uint16_t addr = 0, row = 0;
+    REQUIRE(s.first_writable(&addr, &row));
+
+    uint32_t want = 0;
+    REQUIRE(other_value(s.bank, row, &want));
+
+    const uint16_t hi = (uint16_t)(want >> 16);
+    const uint16_t lo = (uint16_t)(want & 0xFFFFu);
+
+    // Two FC06s, one per half, in either order: after both the row must hold
+    // exactly the value a single pair write would have put there.
+    uint16_t committed = 0;
+    REQUIRE(s.map.write_register(addr, hi, &committed) == EX_NONE);
+    REQUIRE(s.map.write_register((uint16_t)(addr + 1), lo, &committed) == EX_NONE);
+
+    CHECK(Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live()) == want);
+}
+
+TEST_CASE("modbus map: a single-register write goes through the same band check") {
+    Served s;
+    uint16_t addr = 0, row = 0;
+    REQUIRE(s.first_writable(&addr, &row));
+
+    // A value the band will not have. Both halves at 0x7FFF gives a large
+    // positive float and a large integer alike; if the row happens to accept it
+    // there is nothing to test here.
+    const Scalar wild = Map::from_wire(s.bank.var(row).type(), 0x7F7FFFFFu);
+    if (s.bank.check(s.bank.var(row), wild) == SET_OK) return;
+
+    const uint32_t before =
+        Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live());
+    CHECK(s.map.write_register(addr, 0x7F7Fu) == EX_ILLEGAL_VALUE);
+    INFO("a refused half must leave the row where it was");
+    CHECK(Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live()) == before);
+}
+
+TEST_CASE("modbus map: a single-register write to an unmapped address is refused") {
+    Served s;
+    CHECK(s.map.write_register(0xFFFEu, 1) == EX_ILLEGAL_ADDRESS);
+}
+
 #endif // BOTANIK_FEATURE_MODBUS_TCP_SERVER
