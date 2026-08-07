@@ -88,8 +88,10 @@ namespace {
         uint16_t proto = max_quantity(fc);
         // What the DEVICE will answer, when that is tighter than the protocol.
         // The SDM630 refuses past 80 registers with an exception rather than a
-        // short read, which on a bus looks exactly like a broken cable.
-        if (!is_bit(fc) && m.max_regs != 0 && m.max_regs < proto) proto = m.max_regs;
+        // short read, which on a bus looks exactly like a broken cable; a relay
+        // board simply has eight relays and nothing at the ninth address.
+        const uint16_t dev = is_bit(fc) ? m.max_bits : m.max_regs;
+        if (dev != 0 && dev < proto) proto = dev;
         // Bits are eight to a byte, so their protocol ceiling is far above what
         // the collect buffer holds - 1968 coils against 240 bytes. Capping at
         // the buffer is what stops a wide coil block failing to build on every

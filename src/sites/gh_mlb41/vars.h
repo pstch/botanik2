@@ -399,11 +399,11 @@ const Variable g_vars[] = {
  // field of every block is a parameter, so a channel is re-trimmed from PARAMS.
 
     // name              calibration        dev fc ch n  wire   fallback  timeout dgt unit   description                notes
-    AI("pwr_genBat_V",   &CAL_PWR_GEN_BAT,  11, 3, 0, 1, T_U16, SF(0.0f), 5000,   1,  "V",   "generator start battery", ""),
-    AI("pwr_upsBat_V",   &CAL_PWR_UPS_BAT,  11, 3, 1, 1, T_U16, SF(0.0f), 5000,   1,  "V",   "UPS battery voltage",     ""),
-    AI("pwr_dc1_V",      &CAL_PWR_DC1,      11, 3, 2, 1, T_U16, SF(0.0f), 5000,   1,  "V",   "DC PS1 bus voltage",      ""),
-    AI("pwr_dc2_V",      &CAL_PWR_DC2,      11, 3, 3, 1, T_U16, SF(0.0f), 5000,   1,  "V",   "DC PS2 bus voltage",      ""),
-    AI("irr_out_Lpm",    &CAL_IRR_OUTPUT,   11, 3, 4, 1, T_U16, SF(0.0f), 5000,   1,  "Lpm", "irrigation output flow",  ""),
+    AI("pwr_genBat_V",   &CAL_PWR_GEN_BAT,  11, 4, 0, 1, T_U16, SF(0.0f), 5000,   1,  "V",   "generator start battery", ""),
+    AI("pwr_upsBat_V",   &CAL_PWR_UPS_BAT,  11, 4, 1, 1, T_U16, SF(0.0f), 5000,   1,  "V",   "UPS battery voltage",     ""),
+    AI("pwr_dc1_V",      &CAL_PWR_DC1,      11, 4, 2, 1, T_U16, SF(0.0f), 5000,   1,  "V",   "DC PS1 bus voltage",      ""),
+    AI("pwr_dc2_V",      &CAL_PWR_DC2,      11, 4, 3, 1, T_U16, SF(0.0f), 5000,   1,  "V",   "DC PS2 bus voltage",      ""),
+    AI("irr_out_Lpm",    &CAL_IRR_OUTPUT,   11, 4, 4, 1, T_U16, SF(0.0f), 5000,   1,  "Lpm", "irrigation output flow",  ""),
 
 /** @} */
 

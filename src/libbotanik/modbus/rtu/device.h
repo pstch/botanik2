@@ -55,12 +55,23 @@ namespace Botanik { namespace Modbus {
      * initialised straight into flash like every other table here.
      */
     struct DeviceModel {
+        // @warning Positional initialisation, C++11 having no designated
+        // initialisers: a field inserted anywhere but the END silently
+        // reinterprets every existing literal rather than failing to compile.
+        // Adding max_bits here turned four test models into nonsense that still
+        // built. Append, or expect to fix every site by hand.
+
         /** @brief For logs and the `modbus` command. Never matched on. */
         const char* name;
         /** @brief Most registers one read may ask for; 0 means the protocol's
          *  own ceiling. The SDM630 refuses past 40 values, i.e. 80 registers,
          *  "prompting the SDM630Modbus to generate an exception response". */
         uint16_t    max_regs;
+        /** @brief Most coils one read or write may cover; 0 means the
+         *  protocol's own. A relay board with eight relays says 8, and it is a
+         *  separate number from max_regs because a device can have plenty of
+         *  one and none of the other. */
+        uint16_t    max_bits;
         /** @brief What a start address must be a multiple of. 2 on a device
          *  that stores 32-bit values in register pairs and refuses a request
          *  landing in the middle of one - exception 02 on both meters here. */

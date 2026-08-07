@@ -31,13 +31,14 @@ TEST_CASE("modbus device: an undescribed unit gets the protocol's own limits") {
     // named must not acquire invented constraints.
     const DeviceModel& g = model_of(nullptr, 5);
     CHECK(g.max_regs == 0);          // 0 defers to max_quantity(fc)
+    CHECK(g.max_bits == 0);
     CHECK(g.addr_align == 1);
     CHECK(g.qty_align == 1);
     CHECK(g.write_multiple);
     CHECK(g.min_gap_ms == 0);
 
     // ...and so does a unit a table exists for but does not mention.
-    const DeviceModel m = { "described", 80, 2, 2, false, 0 };
+    const DeviceModel m = { "described", 80, 0, 2, 2, false, 0 };
     const Device rows[] = { { 5, &m } };
     const DeviceTable t = { rows, 1 };
     CHECK(std::string(model_of(&t, 5).name) == "described");
@@ -55,6 +56,56 @@ TEST_CASE("modbus device: the site describes every unit its table addresses") {
                      << std::string(d.name) << "' but has no model");
         CHECK(std::string(model_of(Site::g_site.devices, d.bind.device).name)
               != std::string(generic_model().name));
+    }
+}
+
+TEST_CASE("modbus device: the Waveshare boards are what their manuals say") {
+    // Waveshare "Development Protocol V2" for the relay, "Development Protocol"
+    // for the two analog boards.
+    const DeviceModel& relay = model_of(Site::g_site.devices, 31);
+    INFO("Relay (D): eight relays as coils 0x0000-0x0007, written with 05 or 0F");
+    CHECK(relay.max_bits == 8);
+    CHECK(relay.write_multiple);
+
+    const DeviceModel& ai = model_of(Site::g_site.devices, 11);
+    INFO("AI 8CH: quantity must not exceed the number of channels");
+    CHECK(ai.max_regs == 8);
+
+    const DeviceModel& ao = model_of(Site::g_site.devices, 16);
+    CHECK(ao.max_regs == 8);
+}
+
+TEST_CASE("modbus device: the AI board's channels are read where they live") {
+    // The channel readings are INPUT registers at 3x0000-3x0007, read with 0x04.
+    // The board's holding registers start at 4x1000, so reading the channels
+    // with 0x03 lands on nothing and draws exception 02 - which is what the
+    // table used to ask for.
+    const VarTables& t = Site::g_site.vars;
+    uint16_t seen = 0;
+    for (uint16_t i = 0; i < t.count; ++i) {
+        const Variable& d = t.var[i];
+        if (d.bind.transport != XP_MODBUS || d.bind.device != 11) continue;
+        seen++;
+        INFO("'" << std::string(d.name) << "' reads unit 11 with fc " << (int)d.bind.fc);
+        CHECK(d.bind.fc == FC_READ_INPUT);
+    }
+    CHECK(seen > 0);
+}
+
+TEST_CASE("modbus device: no coil block covers more relays than the board has") {
+    Bank bank(Site::g_site.vars);
+    bank.init();
+    Planner p;
+    p.plan(bank, 38400, 10, Site::g_site.devices);
+
+    for (uint16_t i = 0; i < p.block_count(); ++i) {
+        const Block& b = p.block(i);
+        if (!is_bit(b.fc)) continue;
+        const DeviceModel& m = model_of(Site::g_site.devices, b.device);
+        if (m.max_bits == 0) continue;
+        INFO("unit " << (int)b.device << " block at " << b.reg
+                     << " covers " << b.regs << " coils, board has " << m.max_bits);
+        CHECK(b.regs <= m.max_bits);
     }
 }
 
@@ -128,8 +179,8 @@ TEST_CASE("modbus device: a tight ceiling cuts a run into more blocks") {
     Bank bank(Site::g_site.vars);
     bank.init();
 
-    const DeviceModel loose  = { "loose",  0, 2, 2, false, 0 };
-    const DeviceModel strict = { "strict", 4, 2, 2, false, 0 };
+    const DeviceModel loose  = { "loose",  0, 0, 2, 2, false, 0 };
+    const DeviceModel strict = { "strict", 4, 0, 2, 2, false, 0 };
 
     const Device lrows[] = { { 5, &loose } };
     const Device srows[] = { { 5, &strict } };
@@ -160,7 +211,7 @@ TEST_CASE("modbus device: an odd row is widened, not sent to be refused") {
     Bank bank(Site::g_site.vars);
     bank.init();
 
-    const DeviceModel pairs = { "pairs", 80, 2, 2, false, 0 };
+    const DeviceModel pairs = { "pairs", 80, 0, 2, 2, false, 0 };
     const Device rows[] = { { 11, &pairs } };   // the AI board, 1-register rows
     const DeviceTable t = { rows, 1 };
 

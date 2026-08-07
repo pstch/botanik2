@@ -87,35 +87,56 @@ const uint8_t g_command_count = 0;
  *   - supports FC03/FC04/FC16, and holding registers are "write to only one
  *     parameter per message", so multi-write is not usable for this model. */
 const Botanik::Modbus::DeviceModel MDL_SDM630 = {
-    "Eastron SDM630", 80, 2, 2, false, 0
+    "Eastron SDM630", 80, 0, 2, 2, false, 0
 };
 
 /** @brief Lettel MCT1-140. Its table gives a max of 100 for the quantity field
  *  and stores every measurement as a register-pair Float, so the same pair
  *  alignment applies. Write-multiple is unused here - nothing writes to it. */
 const Botanik::Modbus::DeviceModel MDL_MCT1_140 = {
-    "Lettel MCT1-140", 100, 2, 2, false, 0
+    "Lettel MCT1-140", 100, 0, 2, 2, false, 0
 };
 
-/** @brief The Waveshare IO boards (25767 AI, 26211 AO, 26517 relay).
+/** @brief Waveshare Modbus RTU Analog Input 8CH (25767), "Development Protocol".
  *
- *  Deliberately generic: nobody here has read their manuals, and a model entry
- *  is only ever as good as the datasheet behind it. Inventing limits for them
- *  would look like knowledge and behave like a guess, so they get the protocol's
- *  own ceilings until somebody checks. */
-const Botanik::Modbus::DeviceModel MDL_WAVESHARE = {
-    "Waveshare IO", 0, 1, 1, true, 0
+ *  Speaks 03/04/06/10. The eight channel readings are INPUT registers at
+ *  3x0000..3x0007 and are read with 0x04; its holding registers start at 4x1000
+ *  (per-channel range) and there is nothing at 4x0000, so a read of the channels
+ *  with 0x03 draws exception 02. Quantity "must not exceed the maximum number of
+ *  the channels" - eight. One register per channel, so no alignment rule. */
+const Botanik::Modbus::DeviceModel MDL_WS_AI8 = {
+    "Waveshare AI 8CH", 8, 0, 1, 1, true, 0
+};
+
+/** @brief Waveshare Modbus RTU Analog Output 8CH (26211).
+ *
+ *  Speaks 03/06/10 - no 0x04 and no coils. The eight outputs are HOLDING
+ *  registers at 4x0000..4x0007, read and written, so 0x03/0x06/0x10 all apply
+ *  and the multi-write is available. */
+const Botanik::Modbus::DeviceModel MDL_WS_AO8 = {
+    "Waveshare AO 8CH", 8, 0, 1, 1, true, 0
+};
+
+/** @brief Waveshare Modbus RTU Relay (D) (26517), "Development Protocol V2".
+ *
+ *  Speaks 01/02/03/05/06/0F/10. The eight relays are coils at 0x0000..0x0007,
+ *  read with 0x01 and written with 0x05 or 0x0F - so the multi-write is there,
+ *  and a block may cover at most the eight relays the board has. (0x00FF is the
+ *  all-relays broadcast and 0x0200/0x0400 are the flash-on/off timers; none of
+ *  them is a coil a row should name.) */
+const Botanik::Modbus::DeviceModel MDL_WS_RELAY = {
+    "Waveshare Relay (D)", 0, 8, 1, 1, true, 0
 };
 
 const Botanik::Modbus::Device g_devices[] = {
     {  5, &MDL_SDM630 },      // SRR/TAC/MTR-1
     {  6, &MDL_MCT1_140 },    // SRR/TAC/MTR-2
-    { 11, &MDL_WAVESHARE },   // SRR/TDC/AI-1
-    { 16, &MDL_WAVESHARE },   // SRR/TDC/AO-1
-    { 31, &MDL_WAVESHARE },   // SRR/TDC/RO-1
-    { 32, &MDL_WAVESHARE },   // SRR/TDC/RO-2
-    { 33, &MDL_WAVESHARE },   // SRR/TDC/RO-3
-    { 34, &MDL_WAVESHARE },   // SRR/TDC/RO-4
+    { 11, &MDL_WS_AI8 },      // SRR/TDC/AI-1
+    { 16, &MDL_WS_AO8 },      // SRR/TDC/AO-1
+    { 31, &MDL_WS_RELAY },    // SRR/TDC/RO-1
+    { 32, &MDL_WS_RELAY },    // SRR/TDC/RO-2
+    { 33, &MDL_WS_RELAY },    // SRR/TDC/RO-3
+    { 34, &MDL_WS_RELAY },    // SRR/TDC/RO-4
 };
 
 const Botanik::Modbus::DeviceTable g_device_table = {
