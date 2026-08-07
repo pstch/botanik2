@@ -291,6 +291,17 @@ namespace Botanik { namespace HAL {
 
     /** @} */
 
+    namespace {
+    /** @brief The one RS-485 port. A function-local static, like the other two
+     *  transports: constructed on first use (after the RTOS is up) rather than
+     *  before main(), which matters here because the constructor touches the
+     *  USART registers. */
+    Rs485Raw* fieldbus() {
+        static Rs485Raw bus;
+        return &bus;
+    }
+    }  // namespace
+
     Raw* get(Port port) {
         static UartRaw console(CONSOLE_TX, CONSOLE_RX);
         static UsbRaw  monitor;
@@ -300,6 +311,18 @@ namespace Botanik { namespace HAL {
     }
 
     bool is_output_tty(const Raw*) { return false; }
+
+    // Field bus control (declared in opta.h). Here rather than inline in the
+    // header because Rs485Raw is only complete in this file.
+
+    void fieldbus_begin(uint32_t baud, uint8_t data_bits, Parity parity,
+                        uint8_t stop_bits) {
+        fieldbus()->format(baud, data_bits, parity, stop_bits);
+    }
+
+    bool fieldbus_tx_idle() { return fieldbus()->tx_idle(); }
+
+    void fieldbus_flush_input() { fieldbus()->flush_input(); }
 
     }  // namespace Serial
 

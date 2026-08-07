@@ -239,14 +239,19 @@ namespace Botanik { namespace HAL {
      *  declares the same three, so a caller never branches on the target.
      *  @{ */
 
+    /*  Defined in platform.cpp, not here. The RS-485 port is a concrete
+     *  Rs485Raw - it carries a frame format, a driver-enable pin and a
+     *  character-time estimate that the abstract Raw has no business knowing -
+     *  and that class lives in platform.cpp with the rest of the Mbed-facing
+     *  code. A header cannot call into it inline without dragging it back out,
+     *  so these three are ordinary declarations. */
+
     /** @brief Bring the bus up at @p baud with the given frame format. */
-    inline void fieldbus_begin(uint32_t baud, uint8_t data_bits, Parity parity,
-                               uint8_t stop_bits) {
-        fieldbus()->format(baud, data_bits, parity, stop_bits);
-    }
+    void fieldbus_begin(uint32_t baud, uint8_t data_bits, Parity parity,
+                        uint8_t stop_bits);
 
     /** @brief Whether everything written has finished leaving the wire. */
-    inline bool fieldbus_tx_idle() { return fieldbus()->tx_idle(); }
+    bool fieldbus_tx_idle();
 
     /** @brief Discard whatever is sitting in the receive path.
      *
@@ -255,7 +260,7 @@ namespace Botanik { namespace HAL {
      *  echo is sitting there and the slave has not yet spoken - so this is what
      *  keeps a write echo from being mistaken for the response to it, which for
      *  FC05 and FC06 would be byte-identical and silently wrong. */
-    inline void fieldbus_flush_input() { fieldbus()->flush_input(); }
+    void fieldbus_flush_input();
 
     /** @} */
 
