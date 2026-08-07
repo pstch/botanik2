@@ -53,20 +53,26 @@ namespace Botanik { namespace HAL {
 
     }  // namespace Stack
 
-    /** @brief Timing and clocks. */
+    /** @brief Timing and clocks.
+     *
+     *  Declared without `inline` even for the readings taken every beat: the
+     *  OPTA backend defines them in platform.cpp so mbed.h stays out of every
+     *  includer, and the simulator's are still inline in its own backend
+     *  header. An `inline` here would apply to both and leave the OPTA link
+     *  looking for a definition no translation unit has. */
     namespace Clock {
 
         /** @brief Sawtooth ms uptime (rolls over ~49 days), low-power clock
          *  (Arduino millis()). */
-        inline uint32_t current_ms();
+        uint32_t current_ms();
 
         /** @brief Monotonic ms uptime (no rollover), low-power clock. */
-        inline uint64_t uptime_ms();
+        uint64_t uptime_ms();
 
         /** @brief Monotonic us uptime (no rollover), low-power clock.
          *  @warning The low-power clock lacks true-us precision: on OPTA it runs
          *  at 32.768 kHz, so the smallest measurable interval is ~30 us. */
-        inline uint64_t uptime_us();
+        uint64_t uptime_us();
 
         /** @brief Best-effort wall clock as UNIX ms. Sub-second where the
          *  platform provides it (sim host clock); whole seconds otherwise (OPTA,
@@ -186,7 +192,11 @@ namespace Botanik { namespace HAL {
 
         /** @brief Reset the watchdog countdown; call once per healthy
          *  iteration. */
-        inline void kick();
+        /*  Not declared inline: the OPTA backend defines it in platform.cpp (it
+         *  is the Mbed Watchdog singleton, which would drag mbed.h into every
+         *  includer), while the simulator's is a two-line store and stays inline
+         *  in its own backend header. */
+        void kick();
 
         /** @brief Stop the watchdog (no-op if not started). */
         void stop();

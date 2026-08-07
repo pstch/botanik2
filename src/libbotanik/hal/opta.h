@@ -17,8 +17,16 @@
 #include <cstdint>      // uint8_t/uint64_t/uintptr_t
 #include <type_traits>  // std::is_empty
 
-// Arduino/Mbed core headers - resolved from the installed mbed_opta core, not this tree.
-#include "mbed.h"       // mbed::LowPowerClock + the CMSIS intrinsics the inline clocks/barriers need
+// CMSIS only - resolved from the installed mbed_opta core, not this tree.
+//
+// NOT mbed.h. What has to be inline here is the memory-ordering and cache
+// surface, and every one of those (__DSB, __DMB, ARM_MPU_OrderedMemcpy,
+// SCB_*DCache_by_Addr, __BKPT, CoreDebug) is a CMSIS intrinsic, not part of
+// Mbed's C++ API. Measured with this build's own flags: mbed.h preprocesses to
+// 97,696 lines against stm32h7xx.h's 20,940, and 40 files reach this header -
+// so pulling the whole of Mbed OS through them bought nothing but the two C++
+// pieces below, which moved to platform.cpp instead.
+#include "stm32h7xx.h"  // __DSB / __DMB / ARM_MPU_OrderedMemcpy / SCB_*DCache_by_Addr
 
 
 namespace Botanik { namespace HAL {
@@ -48,25 +56,20 @@ namespace Botanik { namespace HAL {
     /** @brief Timing and clocks. */
     namespace Clock {
 
-    inline uint32_t current_ms() {
-        // Mbed's clock, not Arduino's millis(): we link Mbed without the
-        // Arduino core, so millis() would not resolve.
-        return static_cast<uint32_t>(
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                mbed::LowPowerClock::now().time_since_epoch()).count());
-    }
+    /*  The three below read mbed::LowPowerClock, which is Mbed C++ and the only
+     *  reason this header would need mbed.h - so they are defined in
+     *  platform.cpp instead. Inlining them was never buying anything: at -O2
+     *  uptime_ms() is 8 instructions and already THREE out-of-line calls deep
+     *  (get_lp_ticker_data, ticker_read_us, and a software __aeabi_ldivmod for
+     *  the 64-bit divide), all to read a 32.768 kHz peripheral. A fourth call to
+     *  get here is noise against that, and it is what keeps the whole of Mbed OS
+     *  out of the 40 files that include this header. */
 
-    inline uint64_t uptime_ms() {
-        return std::chrono::duration_cast<std::chrono::milliseconds>(
-            mbed::LowPowerClock::now().time_since_epoch()
-        ).count();
-    }
+    uint32_t current_ms();
 
-    inline uint64_t uptime_us() {
-        return std::chrono::duration_cast<std::chrono::microseconds>(
-            mbed::LowPowerClock::now().time_since_epoch()
-        ).count();
-    }
+    uint64_t uptime_ms();
+
+    uint64_t uptime_us();
 
     uint64_t wall_ms();
 
@@ -172,9 +175,10 @@ namespace Botanik { namespace HAL {
 
     void start(uint32_t timeout_ms);
 
-    inline void kick() {
-        mbed::Watchdog::get_instance().kick();
-    }
+    /** @brief Reset the countdown; called once per beat. Out of line for the
+     *  same reason as the clocks: it is the Mbed Watchdog singleton, and one
+     *  call a beat is not worth a header full of Mbed OS. */
+    void kick();
 
     void stop();
 

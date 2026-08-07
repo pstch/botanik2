@@ -22,7 +22,22 @@
 #include <cstdint>                      // uint32_t/uint64_t/uintptr_t
 #include <ctime>                        // time / time_t / set_time
 
+// mbed.h lives HERE and not in opta.h. The backend header carries the CMSIS
+// intrinsics it must inline; the two pieces of Mbed C++ the HAL needs
+// (LowPowerClock and the Watchdog singleton) are defined below, so 40 files stop
+// paying 97,696 preprocessed lines for them.
+#include "mbed.h"                       // mbed::LowPowerClock / mbed::Watchdog
 #include "USBSerial.h"                  // USBSerial (the MONITOR transport)
+
+// Arduino.h defines `Serial` as a macro (#define Serial _UART_USB_), and the HAL
+// has a namespace by that name - so everything below would be parsed as
+// `namespace _UART_USB_`. Dropped here, after the vendor headers and before any
+// of our own code. It did not bite while mbed.h was reached through opta.h, only
+// once this file pulled it directly, which is exactly the kind of order
+// dependence keeping it to one TU is meant to contain.
+#ifdef Serial
+#undef Serial
+#endif
 
 /// Linker symbol for the top of the MSP/ISR stack (the ~1KB exception stack,
 /// NOT the RTOS thread stack the firmware runs on).
@@ -58,6 +73,26 @@ namespace Botanik { namespace HAL {
     }  // namespace Stack
 
     namespace Clock {
+
+    // Mbed's clock, not Arduino's millis(): we link Mbed without the Arduino
+    // core, so millis() would not resolve.
+    uint32_t current_ms() {
+        return static_cast<uint32_t>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                mbed::LowPowerClock::now().time_since_epoch()).count());
+    }
+
+    uint64_t uptime_ms() {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+            mbed::LowPowerClock::now().time_since_epoch()
+        ).count();
+    }
+
+    uint64_t uptime_us() {
+        return std::chrono::duration_cast<std::chrono::microseconds>(
+            mbed::LowPowerClock::now().time_since_epoch()
+        ).count();
+    }
 
     uint64_t wall_ms() {
         // TODO [WALLCLOCK-WRAP-2038]: time() returns time_t, which is 32-bit on
@@ -352,6 +387,10 @@ namespace Botanik { namespace HAL {
         // above it.
         uint32_t max = mbed::Watchdog::get_instance().get_max_timeout();
         mbed::Watchdog::get_instance().start(timeout_ms > max ? max : timeout_ms);
+    }
+
+    void kick() {
+        mbed::Watchdog::get_instance().kick();
     }
 
     void stop() {
