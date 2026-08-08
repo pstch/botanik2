@@ -38,7 +38,7 @@ def sim(spawn_module):
     assert term.wait_for("output disabled"), "`logs off` did not report"
     for i in range(FILL):
         term.send(b"get zz_%02d" % i + keys.ENTER)
-    term.settle()
+    assert term.wait_screen("zz_%02d" % (FILL - 1)), "the fill never reached the screen"
     return term
 
 

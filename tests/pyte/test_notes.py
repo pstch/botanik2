@@ -20,17 +20,18 @@ def notes(spawn, **kwargs):
 def _type_lines(term, lines):
     """Type `lines` as hard-broken rows.
 
-    Settling every few lines keeps a long burst from overrunning the sim's
-    256-byte RX ring. A drop early in the burst is the failure mode to avoid: the
-    tail still renders, so only an assertion on the FIRST line would catch it.
+    Waiting for the last line to land every few rows keeps a long burst from
+    overrunning the sim's 256-byte RX ring. A drop early in the burst is the
+    failure mode to avoid: the tail still renders, so only an assertion on the
+    FIRST line would catch it.
     """
     for i, line in enumerate(lines):
         if i:
             term.send(keys.ENTER)
         term.send(keys.text(line))
         if i % 4 == 3:
-            term.settle()
-    term.settle()
+            assert term.wait_screen(line), f"the editor never echoed {line!r}"
+    assert term.wait_screen(lines[-1]), "the editor never echoed the last line"
 
 
 def test_notes_wraps_and_reports_state(spawn):
@@ -48,15 +49,13 @@ def test_notes_wraps_and_reports_state(spawn):
     # wrapped tail, which is the whole point of having one.
     line = "the tank three valve sticks when it is cold, tap it before blaming the level sensor again"
     term.send(keys.text(line))
-    assert term.wait_for(line[58:78]), "typed text never reached the row end"
-    term.settle()
+    assert term.wait_screen(line[78:]), "the wrapped tail never reached the second row"
     assert term.screen.display[1].rstrip() == "> " + line[:78], "first row is not gutter + 78 columns"
     assert term.screen.display[2].rstrip() == "  " + line[78:], "wrapped tail is not gutter-blanked"
     assert term.wait_for("modified"), "edits did not mark the note dirty"
 
     term.send(keys.CTRL_O)
-    term.settle()
-    assert "saved" in term.screen.display[-2], "^O did not clear the dirty marker"
+    assert term.wait_screen("saved"), "^O did not clear the dirty marker"
 
 
 def test_notes_scrolls_when_taller_than_the_screen(spawn):
@@ -89,12 +88,12 @@ def test_notes_survives_a_reboot(spawn, tmp_path):
 
     term = notes(spawn, store=store)
     term.send(keys.text(note))
-    term.settle()
+    assert term.wait_screen(note), "the note was not echoed before ^O"
     term.send(keys.CTRL_O)
-    assert term.wait_for("saved"), "^O did not report the note saved"
+    assert term.wait_screen("saved"), "^O did not report the note saved"
 
     again = notes(spawn, store=store)            # a second sim over the same store
-    assert again.wait_for(note), "the note did not come back after a restart"
+    assert again.wait_screen(note), "the note did not come back after a restart"
     assert "saved" in again.screen.display[-2], "a restored note should not read as modified"
 
 
@@ -106,9 +105,9 @@ def test_notes_flushes_on_leaving_the_page(spawn, tmp_path):
 
     term = notes(spawn, store=store)
     term.send(keys.text(note))
-    term.settle()
+    assert term.wait_screen(note), "the note was not echoed before leaving"
     # The flush is deactivate()'s, so it is done by the time SHELL has painted.
     goto(term, keys.ALT_2)
 
     again = notes(spawn, store=store)
-    assert again.wait_for(note), "leaving the page did not flush the note"
+    assert again.wait_screen(note), "leaving the page did not flush the note"

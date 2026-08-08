@@ -117,8 +117,8 @@ def test_taller_than_screen(term):
     for i in range(1, 30):               # 30 hard-broken rows > 23 visible
         term.send(keys.SHIFT_ENTER)
         term.send(b"line%02d" % i)
-        if i % 10 == 0:
-            term.settle()                # keep the RX ring from overrunning
+        if i % 10 == 0:                  # keep the RX ring from overrunning
+            assert term.wait_screen("line%02d" % i), "the editor fell behind the burst"
     # Rows 1..22 only: row 23 is where the scrolled-off overflow overprints the
     # alarm bar, a garbled artifact this test is not about. line00 has gone.
     assert_editor(term, *["...> line%02d" % i for i in range(1, 23)],
