@@ -203,21 +203,25 @@ namespace Botanik { namespace Pages {
         char bind[48];
         if (have) _describe_binding(h.meta()->bind, bind, sizeof(bind));
         _panel_field((uint16_t)(br + 4), "Source", have ? bind : nullptr);
-        // Quality is likewise new: a variable nothing has written reads as
-        // its default, which looks exactly like a real reading otherwise -
-        // and so does one a maintainer forced hours ago, which is why an
-        // override outranks the rest here.
-        const char* quality = nullptr;
-        if (have) {
-            // An override shadows, so say so first - but the row underneath
-            // keeps its own quality, and WHY it is bad is what decides the
-            // next move (see Vars::Quality).
-            if (h.overridden())   quality = h.valid() ? "OVERRIDDEN (forced by hand)"
-                                                      : "OVERRIDDEN (forced invalid)";
-            else                  quality = Vars::quality_str(h.live_quality());
-        }
-        _panel_field((uint16_t)(br + 5), "Quality", quality);
-        _blank_line((uint16_t)(br + 6));
+        // Quality is likewise new: a variable nothing has written reads as its
+        // default, which looks exactly like a real reading otherwise.
+        //
+        // Two lines, not one. An override SHADOWS the row rather than replacing
+        // it - the driver keeps publishing underneath - so the two facts are
+        // independent and an operator needs both: whether the reading is being
+        // forced, and whether the thing underneath is healthy. Folding them into
+        // one field meant a forced row never showed its own quality, which is
+        // exactly what decides whether the override can come off.
+        _panel_field((uint16_t)(br + 5), "Quality",
+                     have ? Vars::quality_str(h.live_quality()) : nullptr);
+        const char* forced = nullptr;
+        if (have && h.overridden())
+            // valid() IS the forced quality while overridden - that is what
+            // ovr_valid means - so this reads the override's own verdict, not
+            // the row's underneath.
+            forced = h.valid() ? "forced by hand"
+                               : "forced, and forced to read invalid";
+        _panel_field((uint16_t)(br + 6), "Override", forced);
     }
 
     void MonitorPage::_draw_footer() {
