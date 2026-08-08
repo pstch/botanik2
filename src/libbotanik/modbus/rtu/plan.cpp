@@ -260,7 +260,7 @@ void Planner::seed(uint64_t now_ms) {
     }
 }
 
-uint32_t Planner::duty_ppm() const {
+uint32_t Planner::wire_duty_ppm() const {
     uint32_t ppm = 0;
     for (uint16_t i = 0; i < _block_count; ++i) {
         const Block& b = _blocks[i];
@@ -269,6 +269,23 @@ uint32_t Planner::duty_ppm() const {
         // one more factor of a thousand makes it ppm. Integer throughout, and
         // the numerator cannot overflow: a transaction is under a second.
         ppm += (txn_us(_baud, _turnaround_us, b.fc, b.regs) * 1000u) / b.period_ms;
+    }
+    return ppm;
+}
+
+uint32_t Planner::duty_ppm() const {
+    const uint32_t beat_us = (uint32_t)Config::GROUP_FAST_MS * 1000u;
+    uint32_t ppm = 0;
+    for (uint16_t i = 0; i < _block_count; ++i) {
+        const Block& b = _blocks[i];
+        if (!is_read(b.fc) || b.period_ms == 0) continue;
+        // Whichever is larger: the frame's own byte time, or the beat it is
+        // quantised to. One transaction is in flight at a time and it is
+        // advanced from the beat, so a frame shorter than a beat still costs
+        // one - the bus is not free during it, it is simply idle and unusable.
+        uint32_t cost = txn_us(_baud, _turnaround_us, b.fc, b.regs);
+        if (cost < beat_us) cost = beat_us;
+        ppm += (cost * 1000u) / b.period_ms;
     }
     return ppm;
 }

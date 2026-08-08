@@ -236,7 +236,7 @@ TEST_CASE("modbus codec: a builder refuses rather than truncating or overrunning
 // ===========================================================================
 
 TEST_CASE("modbus codec: a read response yields its registers big-endian") {
-    const Expect e = { 5, FC_READ_HOLDING, 0, 2 };
+    const Expect e = { 5, FC_READ_HOLDING, 0, 2, 0 };
     Response r;
     REQUIRE(parse_response(RSP_FC03, sizeof RSP_FC03, e, &r) == ERR_OK);
     CHECK(r.unit == 5);
@@ -248,7 +248,7 @@ TEST_CASE("modbus codec: a read response yields its registers big-endian") {
 }
 
 TEST_CASE("modbus codec: a coil response yields its bits LSB-first") {
-    const Expect e = { 31, FC_READ_COILS, 0, 8 };
+    const Expect e = { 31, FC_READ_COILS, 0, 8, 0 };
     Response r;
     REQUIRE(parse_response(RSP_FC01, sizeof RSP_FC01, e, &r) == ERR_OK);
     REQUIRE(r.len == 1);
@@ -264,7 +264,7 @@ TEST_CASE("modbus codec: a coil response yields its bits LSB-first") {
 }
 
 TEST_CASE("modbus codec: an exception response is flagged with its code, not parsed as data") {
-    const Expect e = { 5, FC_READ_HOLDING, 0, 10 };
+    const Expect e = { 5, FC_READ_HOLDING, 0, 10, 0 };
     Response r;
     // A RESULT, not a parse failure: the frame was well formed and the slave is
     // alive. That distinction is what lets the driver tell a refusing device
@@ -282,17 +282,17 @@ TEST_CASE("modbus codec: a bad CRC, a wrong unit and a wrong function code are d
     std::memcpy(bent, RSP_FC03, sizeof bent);
     bent[4] = (uint8_t)(bent[4] ^ 0x01u);
 
-    const Expect good = { 5, FC_READ_HOLDING, 0, 2 };
+    const Expect good = { 5, FC_READ_HOLDING, 0, 2, 0 };
     CHECK(parse_response(bent, sizeof bent, good, &r) == ERR_CRC);
 
-    const Expect other_unit = { 6, FC_READ_HOLDING, 0, 2 };
+    const Expect other_unit = { 6, FC_READ_HOLDING, 0, 2, 0 };
     CHECK(parse_response(RSP_FC03, sizeof RSP_FC03, other_unit, &r) == ERR_UNIT);
 
-    const Expect other_fc = { 5, FC_READ_INPUT, 0, 2 };
+    const Expect other_fc = { 5, FC_READ_INPUT, 0, 2, 0 };
     CHECK(parse_response(RSP_FC03, sizeof RSP_FC03, other_fc, &r) == ERR_FC);
 
     // The byte count is right for two registers but we asked for ten.
-    const Expect too_many = { 5, FC_READ_HOLDING, 0, 10 };
+    const Expect too_many = { 5, FC_READ_HOLDING, 0, 10, 0 };
     CHECK(parse_response(RSP_FC03, sizeof RSP_FC03, too_many, &r) == ERR_COUNT);
 
     CHECK(parse_response(RSP_FC03, 3, good, &r) == ERR_SHORT);
@@ -302,17 +302,17 @@ TEST_CASE("modbus codec: a bad CRC, a wrong unit and a wrong function code are d
 TEST_CASE("modbus codec: an echo response is checked against the request address and quantity") {
     Response r;
 
-    const Expect fc16 = { 34, FC_WRITE_REGISTERS, 0, 2 };
+    const Expect fc16 = { 34, FC_WRITE_REGISTERS, 0, 2, 0 };
     CHECK(parse_response(RSP_FC16, sizeof RSP_FC16, fc16, &r) == ERR_OK);
     CHECK(r.len == 4);
 
-    const Expect wrong_addr = { 34, FC_WRITE_REGISTERS, 4, 2 };
+    const Expect wrong_addr = { 34, FC_WRITE_REGISTERS, 4, 2, 0 };
     CHECK(parse_response(RSP_FC16, sizeof RSP_FC16, wrong_addr, &r) == ERR_ECHO);
 
-    const Expect wrong_qty = { 34, FC_WRITE_REGISTERS, 0, 3 };
+    const Expect wrong_qty = { 34, FC_WRITE_REGISTERS, 0, 3, 0 };
     CHECK(parse_response(RSP_FC16, sizeof RSP_FC16, wrong_qty, &r) == ERR_ECHO);
 
-    const Expect fc15 = { 33, FC_WRITE_COILS, 0, 10 };
+    const Expect fc15 = { 33, FC_WRITE_COILS, 0, 10, 0 };
     CHECK(parse_response(RSP_FC15, sizeof RSP_FC15, fc15, &r) == ERR_OK);
 
     // FC05 and FC06 echo a VALUE where the multi-writes echo a count, so the

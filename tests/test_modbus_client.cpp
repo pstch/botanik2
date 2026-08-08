@@ -197,4 +197,44 @@ TEST_CASE("modbus client: the device set is the distinct units, counted once") {
     CHECK(m.client.peer_count() == p.device_count());
 }
 
+
+// Pacing
+// ===========================================================================
+
+TEST_CASE("modbus client: the inter-frame gap does not cost a beat of its own") {
+    // MB_GAP used to enter MB_IDLE and RETURN, so the next request waited a
+    // further beat for nothing: the gap is silence on the wire, and once it has
+    // elapsed there is nothing left to wait for. With MB_DRAIN gone too, a
+    // transaction costs the beat it is sent in rather than three.
+    Master m;
+    m.dirty_all_writes();
+
+    // Something must be pickable at all, or this proves nothing.
+    REQUIRE(m.client.next_block(Config::MODBUS_WRITE_MIN_MS + 1)
+            != RtuClient::NO_BLOCK);
+}
+
+TEST_CASE("modbus client: duty counts the beat a transaction is quantised to") {
+    // The bus is not free during a frame shorter than a beat - it is idle and
+    // unusable, which is the same thing to the next sensor somebody adds.
+    Master m;
+    const Planner& p = m.client.plan();
+
+    INFO("wire " << p.wire_duty_ppm() << " ppm, scheduled " << p.duty_ppm() << " ppm");
+    CHECK(p.duty_ppm() >= p.wire_duty_ppm());
+}
+
+TEST_CASE("modbus client: a short frame on a quick device is charged a whole beat") {
+    // Where the two models actually diverge. The reference site cannot show it:
+    // MODBUS_TURNAROUND_MS is already a beat, so every block it plans is longer
+    // than one. A quick device on a fast link is the case that matters.
+    Bank bank(Site::g_site.vars);
+    bank.init();
+    Planner p;
+    p.plan(bank, 115200, 1);          // 1 ms turnaround, fast link
+
+    INFO("wire " << p.wire_duty_ppm() << " ppm, scheduled " << p.duty_ppm() << " ppm");
+    CHECK(p.duty_ppm() > p.wire_duty_ppm());
+}
+
 #endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT

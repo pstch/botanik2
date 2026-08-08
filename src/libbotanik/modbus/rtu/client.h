@@ -152,7 +152,6 @@ namespace Botanik { namespace Modbus {
 
         enum State : uint8_t {
             MB_IDLE,    ///< nothing in flight; looking for work
-            MB_DRAIN,   ///< waiting for it to finish leaving the wire
             MB_RX,      ///< listening for the answer
             MB_GAP      ///< the silence a frame is entitled to before the next
         };
@@ -194,7 +193,10 @@ namespace Botanik { namespace Modbus {
          *  that can pin the priority rules without a wire. Not const - it also
          *  samples control authority, which is where the safe-state urgency is
          *  raised, and that has to happen on the beat control is withdrawn. */
-        uint16_t next_block(uint64_t now_ms) { return _pick(now_ms); }
+        uint16_t next_block(uint64_t now_ms) {
+            _track_control(now_ms);
+            return _pick(now_ms);
+        }
 
         /** @brief Whether a safe state is owed to the field and has not gone out
          *  yet. While true a dirty write pre-empts everything. */
@@ -234,7 +236,7 @@ namespace Botanik { namespace Modbus {
          *  Writes first: a demand that has changed is worth more than a reading
          *  that is about to be taken again anyway, and a safe state is worth more
          *  than either. */
-        uint16_t _pick(uint64_t now_ms);
+        uint16_t _pick(uint64_t now_ms) const;
         /** @brief The most overdue read, or NO_BLOCK. With @p starved_only,
          *  only blocks a whole period of their own late are considered. */
         uint16_t _overdue_read(uint64_t now_ms, bool starved_only) const;

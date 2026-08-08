@@ -31,8 +31,8 @@ const uint8_t RSP_FC03_EXC[] = { 0x05, 0x83, 0x02, 0x81, 0x30 };
 // FC16 echo, unit 34, address 0, quantity 2.
 const uint8_t RSP_FC16[] = { 0x22, 0x10, 0x00, 0x00, 0x00, 0x02, 0x46, 0x9B };
 
-const Expect E_FC03 = { 5, FC_READ_HOLDING, 0, 2 };
-const Expect E_FC16 = { 34, FC_WRITE_REGISTERS, 0, 2 };
+const Expect E_FC03 = { 5, FC_READ_HOLDING, 0, 2, 0 };
+const Expect E_FC16 = { 34, FC_WRITE_REGISTERS, 0, 2, 0 };
 
 const uint32_t TIMEOUT_MS = 300;
 
@@ -130,7 +130,7 @@ TEST_CASE("modbus framing: a byte count disagreeing with the request is a frame 
     RtuFramer f;
     // The frame is well formed, and its CRC is good - but we asked for ten
     // registers and it is answering with two.
-    const Expect asked_ten = { 5, FC_READ_HOLDING, 0, 10 };
+    const Expect asked_ten = { 5, FC_READ_HOLDING, 0, 10, 0 };
     f.arm(asked_ten, 1000, TIMEOUT_MS);
 
     const uint16_t used = f.feed(RSP_FC03, sizeof RSP_FC03);
@@ -241,7 +241,7 @@ TEST_CASE("modbus framing: a 125-register response fills the ADU buffer exactly"
     REQUIRE(n == 255);              // one under ADU_MAX, which is the whole margin
 
     RtuFramer f;
-    const Expect e = { 5, FC_READ_HOLDING, 0, 125 };
+    const Expect e = { 5, FC_READ_HOLDING, 0, 125, 0 };
     f.arm(e, 1000, TIMEOUT_MS);
     CHECK(f.feed(big, n) == n);
     REQUIRE(f.poll(1000) == 1);

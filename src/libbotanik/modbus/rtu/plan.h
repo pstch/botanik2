@@ -48,6 +48,7 @@
 #include <cstdint>
 
 #include "libbotanik/config/modbus.h"
+#include "libbotanik/config/scheduler.h"  // Config::GROUP_FAST_MS - the beat a transaction is quantised to
 #include "libbotanik/modbus/rtu/device.h"   // DeviceModel - what each unit will answer
 #include "libbotanik/modbus/wire.h"
 
@@ -280,8 +281,23 @@ namespace Botanik { namespace Modbus {
 
         /** @brief Share of the bus the read plan occupies, in parts per million,
          *  at the planned periods. The one number that answers "is there room
-         *  for another sensor". */
+         *  for another sensor", which is why it counts the SCHEDULING as well as
+         *  the wire.
+         *
+         *  A transaction is not just its byte time: the client runs one at a
+         *  time and advances it from the beat, so it occupies the bus for at
+         *  least one beat however short the frame is.
+         *
+         *  On the reference site the two are equal, because MODBUS_TURNAROUND_MS
+         *  is already a whole beat and every planned block is longer than one.
+         *  The distinction bites a fast device on a short frame: turnaround 2 ms
+         *  and a two-register read is 3.6 ms of wire in a 10 ms beat, and
+         *  reporting 3.6 would promise room that is not there. */
         uint32_t duty_ppm() const;
+
+        /** @brief The same, counting only time on the wire. What the budget
+         *  document's tables are computed in. */
+        uint32_t wire_duty_ppm() const;
 
         uint16_t rows_dropped() const   { return _rows_dropped; }
         uint16_t rows_unscanned() const { return _rows_unscanned; }

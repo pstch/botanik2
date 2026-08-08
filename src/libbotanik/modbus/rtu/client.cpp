@@ -133,8 +133,7 @@ uint16_t RtuClient::_overdue_read(uint64_t now_ms, bool starved_only) const {
     return best;
 }
 
-uint16_t RtuClient::_pick(uint64_t now_ms) {
-    _track_control(now_ms);
+uint16_t RtuClient::_pick(uint64_t now_ms) const {
 
     // 1. The safe state, if control has just been withdrawn. disable_control()
     //    marks every ROLE_OUTPUT dirty precisely so a transaction carries the
@@ -269,71 +268,67 @@ bool RtuClient::_send() {
 void RtuClient::on_step(uint64_t now_ms) {
     if (_io == nullptr || _port == nullptr) return;
 
-    switch (_state) {
-        case MB_IDLE: {
-            // Whole frame or nothing, and this is what makes that true: the ring
-            // must have DRAINED, not merely have room for one more byte. A write
-            // that stops half way leaves a CRC runt on a shared bus, which every
-            // other device reads as line noise. Not a fault - just not yet.
-            if (!HAL::Serial::fieldbus_tx_idle()) return;
-            const uint16_t pick = _pick(now_ms);
-            if (pick == NO_BLOCK) return;
-            _active = pick;
-            if (!_build(pick, now_ms)) {
-                // Nothing on the wire went wrong; the plan asked for a frame
-                // that cannot be built. Retire the block's turn so it does not
-                // spin on it every beat.
-                _plan.block(pick).due_ms  = now_ms + _plan.block(pick).period_ms;
-                _plan.block(pick).last_ms = now_ms;
-                _faults++;
-                _active = NO_BLOCK;
-                return;
-            }
-            if (!_send()) {
-                _tx_short++;
-                _faults++;
-                _missed(_plan.block(pick), now_ms);
-                _active = NO_BLOCK;
-                _enter(MB_GAP, now_ms);
-                return;
-            }
-            // Armed HERE, not a beat later. The answer can be on the wire before
-            // this beat ends - at 38400 an 8-byte request clears in 2.3 ms - and
-            // anything not being listened for is lost. The frame doubles as the
-            // echo to swallow, since RE stays asserted while we transmit.
-            _framer.arm(_expect, now_ms, Config::MODBUS_TIMEOUT_MS,
-                        _frame, _frame_len);
-            _enter(MB_DRAIN, now_ms);
-            return;
-        }
+    // Every beat, not only when idle. The control-authority edge is what raises
+    // the safe-state urgency, and a withdrawal during a transaction would
+    // otherwise be seen only once the transaction ended.
+    _track_control(now_ms);
 
-        case MB_DRAIN: {
-            if (!HAL::Serial::fieldbus_tx_idle()) return;
-            // The frame has gone. Nothing is flushed: the framer is already
-            // armed and holding our echo as a candidate, so the receive path is
-            // being read rather than thrown away. Flushing here is what used to
-            // discard the answers of every device quick enough to reply inside
-            // the beat.
-            _enter(MB_RX, now_ms);
-            return;
-        }
-
-        case MB_GAP: {
-            if ((now_ms - _since_ms) < _gap_ms) return;
-            _enter(MB_IDLE, now_ms);
-            return;
-        }
-
-        case MB_RX:
-            // receive_step() owns the listening half.
-            return;
+    // The gap expires INTO this beat rather than costing one of its own: it is
+    // inter-frame silence, and once it has elapsed there is nothing left to wait
+    // for. Falling through is worth a whole beat per transaction.
+    if (_state == MB_GAP) {
+        if ((now_ms - _since_ms) < _gap_ms) return;
+        _enter(MB_IDLE, now_ms);
     }
+
+    // MB_RX belongs to receive_step(): it owns the listening half, and it runs
+    // in PHASE_INPUT, ahead of this.
+    if (_state != MB_IDLE) return;
+
+    // Whole frame or nothing, and this is what makes that true: the ring must
+    // have DRAINED, not merely have room for one more byte. A write that stops
+    // half way leaves a CRC runt on a shared bus, which every other device reads
+    // as line noise. Not a fault - just not yet.
+    if (!HAL::Serial::fieldbus_tx_idle()) return;
+
+    const uint16_t pick = _pick(now_ms);
+    if (pick == NO_BLOCK) return;
+    _active = pick;
+
+    if (!_build(pick, now_ms)) {
+        // Nothing on the wire went wrong; the plan asked for a frame that cannot
+        // be built. Retire the block's turn so it does not spin on it every beat.
+        _plan.block(pick).due_ms  = now_ms + _plan.block(pick).period_ms;
+        _plan.block(pick).last_ms = now_ms;
+        _faults++;
+        _active = NO_BLOCK;
+        return;
+    }
+
+    if (!_send()) {
+        _tx_short++;
+        _faults++;
+        _missed(_plan.block(pick), now_ms);
+        _active = NO_BLOCK;
+        _enter(MB_GAP, now_ms);
+        return;
+    }
+
+    // Armed HERE, not a beat later. The answer can be on the wire before this
+    // beat ends - at 38400 an 8-byte request clears in 2.3 ms - and anything not
+    // being listened for is lost. The frame doubles as the echo to swallow,
+    // since RE stays asserted while we transmit.
+    //
+    // Straight to MB_RX: there is no separate state for "the frame is still
+    // leaving". Nothing waits on that any more - the framer is listening from
+    // this instant, and the tx_idle() check above is what stops the NEXT frame
+    // starting before this one has gone.
+    _framer.arm(_expect, now_ms, Config::MODBUS_TIMEOUT_MS, _frame, _frame_len);
+    _enter(MB_RX, now_ms);
 }
 
 void RtuClient::receive_step(uint64_t now_ms) {
-    // MB_DRAIN too: the frame is still leaving the UART, but a fast slave may
-    // already be answering and the framer has been armed since it was queued.
-    if (_port == nullptr || (_state != MB_RX && _state != MB_DRAIN)) return;
+    if (_port == nullptr || _state != MB_RX) return;
 
     // Drain what the UART has, bounded: a wedged port must not turn into an
     // unbounded loop inside the beat.
@@ -447,9 +442,9 @@ const char* RtuClient::status_str() const {
     if (_plan.block_count() == 0) return "idle";
     if (_txns == 0)               return "silent";
     switch (_state) {
-        case MB_DRAIN: return "sending";
-        case MB_RX:    return "waiting";
-        default:       return "online";
+        case MB_RX:  return "waiting";
+        case MB_GAP: return "gap";
+        default:     return "online";
     }
 }
 
