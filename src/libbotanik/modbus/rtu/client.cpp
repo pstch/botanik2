@@ -41,10 +41,16 @@ void RtuClient::on_setup(uint64_t now_ms) {
     _publish_health();
 
     if (_logger == nullptr) return;
+    // Broken deliberately: at 80 columns the duty figure wraps mid-word, and a
+    // number an engineer reads off the boot log should not be split across a
+    // fold. The continuation lines up under the message.
     _logger->info(Logs::SHARED_IO,
-                  "modbus: %u rows -> %u blocks, %u%% of the bus at %u baud",
+                  "modbus: %u rows -> %u blocks on %u device(s)\n"
+                  "          %u.%u%% of the bus at %u baud",
                   (unsigned)_plan.row_count(), (unsigned)_plan.block_count(),
+                  (unsigned)_plan.device_count(),
                   (unsigned)(_plan.duty_ppm() / 10000u),
+                  (unsigned)((_plan.duty_ppm() / 1000u) % 10u),
                   (unsigned)Config::MODBUS_BAUD);
     // Neither of these is allowed to be silent: a dropped row is a signal that
     // will never be scanned, and it would otherwise look exactly like a sensor

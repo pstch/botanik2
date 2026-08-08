@@ -452,12 +452,10 @@ namespace Botanik { namespace Vars {
             n++;
             // CRITICAL, not a warning: an override is the one thing that
             // explains behaviour nothing else accounts for, and after a reboot
-            // nobody remembers setting it. An actuator's is the loudest case -
-            // it is commanding the plant again from this moment - which is
-            // exactly why it must not be a line that scrolls past.
+            // nobody remembers setting it. The row's own scope says whether it
+            // is an actuator, so the entry does not shout about it.
             if (_logger != nullptr)
-                _logger->critical(Logs::BOOT, "override restored on '%s'%s", d.name,
-                                  d.role == ROLE_OUTPUT ? " (DRIVING AN OUTPUT)" : "");
+                _logger->critical(Logs::BOOT, "override restored on '%s'", d.name);
         }
         return n;
     }

@@ -85,7 +85,7 @@ namespace Botanik { namespace Sim {
 
     public:
         ModbusCheck(Vars::Bank* io, Logs::Logger* logger)
-            : _master(logger), _io(io), _logger(logger) {}
+            : _master(logger, "modbus master (sim)"), _io(io), _logger(logger) {}
 
         /** @brief Advance one beat. Safe to call forever. */
         void step(uint64_t now_ms) {

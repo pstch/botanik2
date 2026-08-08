@@ -110,7 +110,7 @@ namespace Botanik { namespace Modbus {
         if (r > 0) {
             if (_logger != nullptr) {
                 char ip[16];
-                _logger->info(Logs::NETWORK, "modbus master connected to %s:%u",
+                _logger->info(Logs::NETWORK, "%s connected to %s:%u", _name,
                               Net::ip4_to_str(_peer, ip, sizeof(ip)),
                               (unsigned)_port);
             }

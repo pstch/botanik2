@@ -77,6 +77,8 @@ namespace Botanik { namespace Modbus {
         uint16_t                _port = 0;
         HAL::Network::TcpSocket _sock = -1;
         State                   _state = MA_IDLE;
+        /** @brief Borrowed, flash-resident: what its log lines call it. */
+        const char*             _name  = "ModbusTCPMaster";
         uint64_t                _since_ms = 0;   ///< when this state was entered
         /** @brief The beat's timestamp, kept because a request may be started
          *  from outside a step() and every deadline here is measured from when
@@ -101,8 +103,13 @@ namespace Botanik { namespace Modbus {
         /** @} */
 
     public:
-        TcpMaster(Logs::Logger* logger = nullptr)
-            : Component(logger, "ModbusTCPMaster") {}
+        /** @param name what it calls itself in the log. The simulator's own
+         *  master passes a name saying so: its lines are otherwise
+         *  indistinguishable from firmware talking to a real peer, and a reader
+         *  cannot tell a field fault from the harness testing itself. */
+        TcpMaster(Logs::Logger* logger = nullptr,
+                  const char* name = "ModbusTCPMaster")
+            : Component(logger, name), _name(name) {}
 
         /** @name Connection
          *  @{ */
