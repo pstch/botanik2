@@ -948,28 +948,30 @@ namespace Botanik { namespace Shell {
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         const Modbus::RtuClient* rtu = _sys->modbus_rtu;
         if (rtu == nullptr) {
-            _println("RTU master ........... not wired");
+            _println("RTU master (the field bus) .. not wired");
         } else {
             const Modbus::Planner& plan = rtu->plan();
 
             // The plan: what it costs, and whether any of it was dropped. Duty
             // is the scheduled figure, not the wire one - it is what answers
             // "is there room for another sensor".
-            snprintf(val, sizeof(val), "%u rows -> %u blocks, %u dev, %u.%u%% of the bus",
+            _println("RTU master (the field bus)");
+
+            snprintf(val, sizeof(val), "%u rows -> %u blocks on %u device(s)",
                      (unsigned)plan.row_count(), (unsigned)plan.block_count(),
-                     (unsigned)plan.device_count(),
+                     (unsigned)plan.device_count());
+            _line("  Plan ...............", val);
+
+            snprintf(val, sizeof(val), "%s, %u baud, %u.%u%% of the bus",
+                     rtu->status_str(), (unsigned)Config::MODBUS_BAUD,
                      (unsigned)(plan.duty_ppm() / 10000u),
                      (unsigned)((plan.duty_ppm() / 1000u) % 10u));
-            _line("Field bus ............", val);
+            _line("  State ..............", val);
 
-            snprintf(val, sizeof(val), "%s, %u baud", rtu->status_str(),
-                     (unsigned)Config::MODBUS_BAUD);
-            _line("State ................", val);
-
-            snprintf(val, sizeof(val), "%lu txns, %lu faults, %lu refused, %lu short tx",
+            snprintf(val, sizeof(val), "%lu sent, %lu faults, %lu refused, %lu short tx",
                      (unsigned long)rtu->txns(), (unsigned long)rtu->faults(),
                      (unsigned long)rtu->refusals(), (unsigned long)rtu->tx_short());
-            _line("Traffic ..............", val);
+            _line("  Transactions .......", val);
 
             // Anything unplanned is signals that will never be scanned, and it
             // is a critical at bring-up - so it is worth repeating here rather
@@ -978,16 +980,16 @@ namespace Botanik { namespace Shell {
                 snprintf(val, sizeof(val), "%u unplanned, %u never scanned",
                          (unsigned)plan.rows_dropped(),
                          (unsigned)plan.rows_unscanned());
-                _line("Rows dropped .........", val);
+                _line("  Rows dropped .......", val);
             }
 
             if (rtu->safe_state_pending())
-                _println("  safe state owed to the field");
+                _println("  (safe state owed to the field)");
 
             // One line per device: the whole point of the command, since a bus
             // is usually only interesting when one of them has stopped talking.
             for (uint8_t i = 0; i < rtu->peer_count(); ++i) {
-                snprintf(val, sizeof(val), "  dev %-3u %s",
+                snprintf(val, sizeof(val), "    dev %-3u %s",
                          (unsigned)rtu->peer_unit(i),
                          rtu->peer_dead(i) ? "DEAD" : "ok");
                 _println(val);
@@ -998,20 +1000,22 @@ namespace Botanik { namespace Shell {
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
         const Modbus::TcpSlave* tcp = _sys->modbus_tcp;
         if (tcp == nullptr) {
-            _println("TCP slave ............ not wired");
+            _println("TCP slave (the SCADA side) . not wired");
         } else {
             const Modbus::SlaveContext c = tcp->context();
+            _println("TCP slave (the SCADA side)");
+
             if (c.listening)
                 snprintf(val, sizeof(val), "listening on %u, %u row(s), %u client(s)",
                          (unsigned)c.port, (unsigned)c.rows, (unsigned)c.clients);
             else
-                snprintf(val, sizeof(val), "not listening (port %u)", (unsigned)c.port);
-            _line("TCP slave ............", val);
+                snprintf(val, sizeof(val), "NOT LISTENING (port %u)", (unsigned)c.port);
+            _line("  State ..............", val);
 
-            snprintf(val, sizeof(val), "%lu req, %lu exc, %lu writes, %lu rejects",
+            snprintf(val, sizeof(val), "%lu served, %lu refused, %lu writes, %lu rejects",
                      (unsigned long)c.requests, (unsigned long)c.exceptions,
                      (unsigned long)c.writes, (unsigned long)c.rejects);
-            _line("Served ...............", val);
+            _line("  Requests ...........", val);
         }
 #endif
     }
