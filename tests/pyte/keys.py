@@ -43,6 +43,7 @@ SHIFT_DOWN = ESC + b"[1;2B"
 # Control bytes.
 BACKSPACE = b"\x7f"
 CTRL_A = b"\x01"             # line start
+CTRL_L = b"\x0c"             # console-level full repaint, chrome included (console.cpp)
 CTRL_O = b"\x0f"             # NOTES: write the note out (nano's key, not ^S/XOFF)
 CTRL_U = b"\x15"             # clear input
 
