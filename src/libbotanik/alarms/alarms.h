@@ -164,7 +164,7 @@ namespace Botanik { namespace Alarms {
         uint8_t               notifier_count;  ///< entries in @c notifiers
 
         void log_start(const char* label) const {
-            if (logger) logger->warning(Logs::ALARM_START, "%s", label);
+            if (logger) logger->warning(Logs::ALARM_BEG, "%s", label);
         }
         void log_end(const char* label) const {
             if (logger) logger->info(Logs::ALARM_END, "%s", label);

@@ -39,7 +39,10 @@ namespace Botanik { namespace Logs {
         TIME = 4,
         STATUS = 5,
         ASSERT = 6,        // firmware assertions
-        ALARM_START = 7,   // alarm went active
+        // Spelled to the same width as ALARM_END, so the topic column in the
+        // log view lines up: a transition pair that does not align is harder
+        // to scan than either name is to read.
+        ALARM_BEG = 7,     // alarm went active
         ALARM_END = 8,     // alarm cleared
         // alarm cleared without ever logging a START (toggled too fast to
         // dwell)

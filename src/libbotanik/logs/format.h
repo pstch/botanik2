@@ -39,7 +39,7 @@ namespace Botanik { namespace Logs {
         { "TIME",        "time"        },
         { "STATUS",      "status"      },
         { "ASSERT",      "assert"      },
-        { "ALARM_START", "alarm_start" },
+        { "ALARM_BEG",   "alarm_beg"   },
         { "ALARM_END",   "alarm_end"   },
         { "ALARM_FLAP",  "alarm_flap"  },
         { "HEALTH",      "health"      },

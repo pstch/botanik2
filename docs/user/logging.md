@@ -7,7 +7,7 @@ out-of-band monitor port, and MQTT where telemetry is enabled.
 ## Reading a line
 
 ```
-14:02:31 [!] ALARM_START: TOO_HOT active
+14:02:31 [!] ALARM_BEG: TOO_HOT active
 │        │   │            └ message
 │        │   └ topic
 │        └ level
@@ -27,7 +27,7 @@ out-of-band monitor port, and MQTT where telemetry is enabled.
 
 **Topics** say which part of the firmware spoke: `BOOT`, `NETWORK`, `TIME`,
 `STATUS`, `HEALTH`, `STORAGE`, `SHARED_IO`, `ASSERT`, and the alarm transitions
-`ALARM_START`, `ALARM_END`, `ALARM_FLAP`.
+`ALARM_BEG`, `ALARM_END`, `ALARM_FLAP`.
 
 `STORAGE` is its own topic on purpose - a persistence failure must not be buried
 under boot chatter.

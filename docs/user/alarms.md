@@ -19,7 +19,7 @@ Where they surface:
 
 - the **alarm bar** on the bottom row - active and unacknowledged only;
 - the **ALARMS page** - the full table, with history and remediation;
-- the **log** - one line on the `ALARM_START` / `ALARM_END` topic per transition;
+- the **log** - one line on the `ALARM_BEG` / `ALARM_END` topic per transition;
 - **MQTT**, where telemetry is enabled.
 
 ## Lifecycle
