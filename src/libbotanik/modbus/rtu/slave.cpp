@@ -97,17 +97,33 @@ namespace Botanik { namespace Modbus {
         if (rest > 0) memmove(_req, _req + want, rest);
         _req_len = rest;
 
-        // Silence, not an answer: another unit's frame is not ours to answer.
-        if (frame[0] != _unit) { _dropped++; return 0; }
+        // Unit 0 addresses every device on the segment: it is EXECUTED and not
+        // answered, because several devices replying at once is a collision.
+        // Reads are excluded - there is nowhere to put the answer.
+        const bool broadcast = (frame[0] == 0);
+        if (!broadcast && frame[0] != _unit) { _dropped++; return 0; }
 
         const uint8_t  fc      = frame[1];
         const uint8_t* pdu     = frame + 1;
         const uint16_t pdu_len = (uint16_t)(want - 3);   // minus unit and CRC
 
-        if (!is_supported(fc)) return _except(fc, EX_ILLEGAL_FUNCTION, out, cap);
+        if (!is_supported(fc)) {
+            if (broadcast) return 0;
+            return _except(fc, EX_ILLEGAL_FUNCTION, out, cap);
+        }
 
         const uint16_t addr = be16(frame[2], frame[3]);
         const uint16_t qty  = be16(frame[4], frame[5]);
+
+        if (broadcast) {
+            // A broadcast read is not a thing; a broadcast write is applied
+            // silently. Either way nothing goes back on the wire.
+            if (is_read(fc)) { _dropped++; return 0; }
+            uint8_t sink[ADU_MAX];
+            (void)_do_write(fc, pdu, pdu_len, sink, (uint16_t)sizeof sink);
+            _served++;
+            return 0;
+        }
 
         const uint16_t n = is_read(fc) ? _do_read(fc, addr, qty, out, cap)
                                        : _do_write(fc, pdu, pdu_len, out, cap);
@@ -137,7 +153,10 @@ namespace Botanik { namespace Modbus {
             return _except(fc, EX_ILLEGAL_VALUE, out, cap);
         const uint16_t bytes = read_payload(fc, qty);
         const uint16_t total = (uint16_t)(5 + bytes);
-        if (cap < total) return 0;
+        // No room to answer in. Silence would leave the master waiting out its
+        // response timeout for a fault that is entirely ours, so say so - a
+        // device failure is exactly what this is.
+        if (cap < total) return _except(fc, EX_SLAVE_FAILURE, out, cap);
 
         const bool bits = is_bit(fc);
         const uint32_t last = (uint32_t)addr + qty - 1;
@@ -219,7 +238,7 @@ namespace Botanik { namespace Modbus {
 
         // Every write echoes its own header back: unit, fc, address, and the
         // value or the quantity, whichever it was given.
-        if (cap < 8) return 0;
+        if (cap < 8) return _except(fc, EX_SLAVE_FAILURE, out, cap);
         out[0] = _unit;
         out[1] = fc;
         out[2] = hi8(addr); out[3] = lo8(addr);

@@ -741,8 +741,12 @@ namespace Botanik {
          *
          *  Non-virtual, so the order can't be overridden; a site adds per-beat
          *  work via on_step(), which is registered as the "site" task. */
-        void loop() {
-            if (!_scheduler.tick()) return;   // driver: gates the beat, produces the clock
+        /** @return whether a beat actually ran. The scheduler gates it, and a
+         *  harness with work of its own to interleave needs to know: doing that
+         *  work per ITERATION rather than per beat runs it tens of times a beat,
+         *  since tick() busy-waits the tail of every period. */
+        bool loop() {
+            if (!_scheduler.tick()) return false;   // driver: gates the beat, produces the clock
 
             // One 64-bit "now" for every Component stepped this beat.
             uint64_t now_ms = HAL::Clock::uptime_ms();
@@ -765,6 +769,7 @@ namespace Botanik {
             // must not be left energised.
             if (_health.watchdog_ok()) HAL::Watchdog::kick();
             else                       _io.disable_control(Vars::Bank::INHIBIT_HEALTH);
+            return true;
         }
 
         /** @brief Run loop() forever (the OPTA entry point; the simulator

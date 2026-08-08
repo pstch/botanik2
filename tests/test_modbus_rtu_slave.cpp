@@ -254,4 +254,68 @@ TEST_CASE("modbus rtu slave: a full-width register write round-trips") {
         CHECK(d.reg((uint16_t)(16 + i)) == (uint16_t)(0xBEE0 + i));
 }
 
+
+// The spec's odder corners
+// ===========================================================================
+
+TEST_CASE("modbus rtu slave: a broadcast write is executed and not answered") {
+    // Unit 0 addresses every device on the segment. Answering it would put
+    // several devices on the wire at once; ignoring it means a broadcast does
+    // nothing at all, which is what used to happen.
+    RtuSlave d(1);
+    seed(d);
+
+    uint8_t req[16];
+    req[0] = 0;                  // broadcast
+    req[1] = FC_WRITE_REGISTERS;
+    req[2] = 0; req[3] = 0x20;   // address 32
+    req[4] = 0; req[5] = 2;
+    req[6] = 4;
+    req[7] = 0xAB; req[8] = 0xCD;
+    req[9] = 0x12; req[10] = 0x34;
+    const uint16_t n = seal(req, 11);
+
+    d.feed(req, n);
+    uint8_t out[256];
+    CHECK(d.poll(out, sizeof out) == 0);       // silence on the wire
+    CHECK(d.reg(32) == 0xABCD);                // and the write happened
+    CHECK(d.reg(33) == 0x1234);
+}
+
+TEST_CASE("modbus rtu slave: a broadcast read is ignored rather than answered") {
+    RtuSlave d(1);
+    seed(d);
+
+    uint8_t req[8];
+    req[0] = 0; req[1] = FC_READ_HOLDING;
+    req[2] = 0; req[3] = 0;
+    req[4] = 0; req[5] = 2;
+    const uint16_t n = seal(req, 6);
+
+    d.feed(req, n);
+    uint8_t out[256];
+    CHECK(d.poll(out, sizeof out) == 0);
+}
+
+TEST_CASE("modbus rtu slave: no room to answer is reported, not left silent") {
+    // Silence makes the master wait out its whole response timeout for a fault
+    // that is entirely ours, and then charge it to the device as a miss.
+    RtuSlave d(1);
+    seed(d);
+
+    uint8_t req[8];
+    req[0] = 1; req[1] = FC_READ_HOLDING;
+    req[2] = 0; req[3] = 0;
+    req[4] = 0; req[5] = 8;      // 21 bytes of answer
+    const uint16_t n = seal(req, 6);
+
+    d.feed(req, n);
+    uint8_t out[8];              // ...into a buffer that cannot hold it
+    const uint16_t r = d.poll(out, sizeof out);
+
+    REQUIRE(r == 5);
+    CHECK(out[1] == (FC_READ_HOLDING | EX_BIT));
+    CHECK(out[2] == EX_SLAVE_FAILURE);
+}
+
 #endif // BOTANIK_FEATURE_MODBUS_RTU_SERVER

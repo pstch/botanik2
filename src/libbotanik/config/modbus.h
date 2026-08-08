@@ -287,11 +287,17 @@ namespace Botanik { namespace Config {
 
     /** @brief Registers and coils a simulated field device holds.
      *
-     *  Sized for the reference plant's meters (a Waveshare relay board is 8
-     *  coils, an Eastron meter a few hundred registers) and not for the
-     *  protocol's 65536: these are RAM, one image per device. */
+     *  Sized for the reference plant's meters and not for the protocol's 65536:
+     *  these are RAM, one image per device, and only ever instantiated by the
+     *  simulator.
+     *
+     *  512 covers the SDM630's published map, which runs to 0x018E - its THD and
+     *  line-to-line blocks live in the 200s and 300s. 256 was enough only while
+     *  the site addressed that meter by object index; the moment the real
+     *  protocol addresses went in, the simulated device started answering
+     *  exception 02 to a read the real one would have served. */
 #ifndef BOTANIK_MODBUS_SIM_REGS
-#  define BOTANIK_MODBUS_SIM_REGS 256
+#  define BOTANIK_MODBUS_SIM_REGS 512
 #endif
     BOTANIK_CFG(uint16_t, MODBUS_SIM_REGS);
 

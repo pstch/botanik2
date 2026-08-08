@@ -146,18 +146,28 @@ int main(int argc, char** argv) {
         // The simulated field, in place of the mock coprocessor that used to
         // animate a shared region from its own thread: fill the firmware's data
         // struct, then run the beat that reads it.
-        Site::simulate(greenhouse.io(), (uint32_t)HAL::Clock::uptime_ms());
+        // The field is serviced ONCE PER BEAT, and loop() says when one ran.
+        // It returns immediately if the beat is not due and tick() busy-waits
+        // the tail of every period, so calling any of this unguarded ran it tens
+        // of times per beat: a simulated bus far quicker than any real one,
+        // which is a good way to hide a timing bug, and the spinning charged to
+        // the duty metric besides.
+        //
+        // Serviced AFTER the beat, which is what "before the next one" means in
+        // a loop: the master's request went out in this beat's output phase, so
+        // the device sees it now and its answer is waiting at the next beat's
+        // input phase - one turnaround, like a real device.
+        if (greenhouse.loop()) {
+            Site::simulate(greenhouse.io(), (uint32_t)HAL::Clock::uptime_ms());
 #if BOTANIK_FEATURE_MODBUS_RTU_SERVER
-        // Before the beat: the values this instant produced are on the devices
-        // by the time the master's transmit half asks for them.
-        fieldbus.step(HAL::Clock::uptime_ms());
+            fieldbus.step(HAL::Clock::uptime_ms());
 #endif
-        greenhouse.loop();
 #if BOTANIK_FEATURE_MODBUS_TCP_CLIENT
-        // After the beat: the answers it reads are the ones the beat just
-        // published, which is the whole point of the slave's two-phase split.
-        if (mbcheck_on) modbus_check.step(HAL::Clock::uptime_ms());
+            // The answers it reads are the ones the beat just published, which
+            // is the whole point of the slave's two-phase split.
+            if (mbcheck_on) modbus_check.step(HAL::Clock::uptime_ms());
 #endif
+        }
         if (botanik_reexec) HAL::System::reset();
     }
 
