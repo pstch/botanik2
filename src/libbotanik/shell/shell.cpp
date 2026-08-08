@@ -23,6 +23,9 @@
 #include "libbotanik/network/mqtt.h"        // Network::MqttClient
 #include "libbotanik/network/network.h"     // Network::NetworkHandler
 #include "libbotanik/network/ntp.h"         // Network::NtpClient
+#include "libbotanik/config/modbus.h"      // Config::MODBUS_* - the `modbus` command
+#include "libbotanik/modbus/rtu/client.h"  // Modbus::RtuClient / Planner
+#include "libbotanik/modbus/tcp/slave.h"   // Modbus::TcpSlave / SlaveContext
 #include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext
 #include "libbotanik/utils/text.h"          // Utils::format_age / format_float / format_size
 #include "libbotanik/vars/params.h"         // Vars::Params
@@ -94,6 +97,7 @@ namespace Botanik { namespace Shell {
             { "net",        "network / NTP / MQTT status",     &CommandShell::_cmd_net        },
             { "ntpsync",    "force an NTP resync now",         &CommandShell::_cmd_ntpsync    },
             { "alarms",     "[list|ack <code|all>] alarms",   &CommandShell::_cmd_alarms     },
+            { "modbus",     "field bus plan, state and devices", &CommandShell::_cmd_modbus   },
             { "list",       "[<prefix>] list variables",      &CommandShell::_cmd_list       },
             { "get",        "<name>  read a variable",        &CommandShell::_cmd_get        },
             { "set",        "<name> <value>  edit a parameter", &CommandShell::_cmd_set       },
@@ -812,6 +816,7 @@ namespace Botanik { namespace Shell {
 
 
 #if !BOTANIK_FEATURE_NETWORK
+
     void CommandShell::_cmd_net(const char*, uint16_t) {
         _println("net: networking disabled");
     }
@@ -927,6 +932,92 @@ namespace Botanik { namespace Shell {
         }
     }
 #endif  // BOTANIK_FEATURE_NETWORK
+
+// modbus - the field bus and the SCADA-facing server
+// ---------------------------------------------------------------------------
+
+#if !BOTANIK_FEATURE_MODBUS_RTU_CLIENT && !BOTANIK_FEATURE_MODBUS_TCP_SERVER
+    void CommandShell::_cmd_modbus(const char*, uint16_t) {
+        _println("modbus: not built in");
+    }
+#else
+    void CommandShell::_cmd_modbus(const char*, uint16_t) {
+        if (_sys == nullptr) { _println("modbus: no context"); return; }
+        char val[96];
+
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+        const Modbus::RtuClient* rtu = _sys->modbus_rtu;
+        if (rtu == nullptr) {
+            _println("RTU master ........... not wired");
+        } else {
+            const Modbus::Planner& plan = rtu->plan();
+
+            // The plan: what it costs, and whether any of it was dropped. Duty
+            // is the scheduled figure, not the wire one - it is what answers
+            // "is there room for another sensor".
+            snprintf(val, sizeof(val), "%u rows -> %u blocks, %u dev, %u.%u%% of the bus",
+                     (unsigned)plan.row_count(), (unsigned)plan.block_count(),
+                     (unsigned)plan.device_count(),
+                     (unsigned)(plan.duty_ppm() / 10000u),
+                     (unsigned)((plan.duty_ppm() / 1000u) % 10u));
+            _line("Field bus ............", val);
+
+            snprintf(val, sizeof(val), "%s, %u baud", rtu->status_str(),
+                     (unsigned)Config::MODBUS_BAUD);
+            _line("State ................", val);
+
+            snprintf(val, sizeof(val), "%lu txns, %lu faults, %lu refused, %lu short tx",
+                     (unsigned long)rtu->txns(), (unsigned long)rtu->faults(),
+                     (unsigned long)rtu->refusals(), (unsigned long)rtu->tx_short());
+            _line("Traffic ..............", val);
+
+            // Anything unplanned is signals that will never be scanned, and it
+            // is a critical at bring-up - so it is worth repeating here rather
+            // than leaving in a log somebody has to go back and find.
+            if (plan.rows_dropped() != 0 || plan.rows_unscanned() != 0) {
+                snprintf(val, sizeof(val), "%u unplanned, %u never scanned",
+                         (unsigned)plan.rows_dropped(),
+                         (unsigned)plan.rows_unscanned());
+                _line("Rows dropped .........", val);
+            }
+
+            if (rtu->safe_state_pending())
+                _println("  safe state owed to the field");
+
+            // One line per device: the whole point of the command, since a bus
+            // is usually only interesting when one of them has stopped talking.
+            for (uint8_t i = 0; i < rtu->peer_count(); ++i) {
+                snprintf(val, sizeof(val), "  dev %-3u %s",
+                         (unsigned)rtu->peer_unit(i),
+                         rtu->peer_dead(i) ? "DEAD" : "ok");
+                _println(val);
+            }
+        }
+#endif
+
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+        const Modbus::TcpSlave* tcp = _sys->modbus_tcp;
+        if (tcp == nullptr) {
+            _println("TCP slave ............ not wired");
+        } else {
+            const Modbus::SlaveContext c = tcp->context();
+            if (c.listening)
+                snprintf(val, sizeof(val), "listening on %u, %u row(s), %u client(s)",
+                         (unsigned)c.port, (unsigned)c.rows, (unsigned)c.clients);
+            else
+                snprintf(val, sizeof(val), "not listening (port %u)", (unsigned)c.port);
+            _line("TCP slave ............", val);
+
+            snprintf(val, sizeof(val), "%lu req, %lu exc, %lu writes, %lu rejects",
+                     (unsigned long)c.requests, (unsigned long)c.exceptions,
+                     (unsigned long)c.writes, (unsigned long)c.rejects);
+            _line("Served ...............", val);
+        }
+#endif
+    }
+#endif
+
+
 
     void CommandShell::_cmd_ntpsync(const char*, uint16_t) {
         if (_ntp_client == nullptr) { _println("ntpsync: NTP unavailable"); return; }

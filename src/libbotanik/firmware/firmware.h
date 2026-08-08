@@ -359,6 +359,9 @@ namespace Botanik {
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
             _sys_ctx.modbus_tcp = &_modbus_tcp;
 #endif
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+            _sys_ctx.modbus_rtu = &_modbus_rtu;
+#endif
 #if BOTANIK_FEATURE_MQTT
             _sys_ctx.mqtt = &_net.mqtt();
 #endif
@@ -807,6 +810,12 @@ namespace Botanik {
 #if BOTANIK_FEATURE_MQTT
         Network::MqttClient&            mqtt()            { return _net.mqtt(); }
         Network::MqttSender&            telemetry()       { return _net.telemetry(); }
+#endif
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+        Modbus::RtuClient&              modbus_rtu()      { return _modbus_rtu; }
+#endif
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+        Modbus::TcpSlave&               modbus_tcp()      { return _modbus_tcp; }
 #endif
         Health::HealthMonitor&          health()          { return _health; }
         Vars::Params&                     params()          { return _params; }

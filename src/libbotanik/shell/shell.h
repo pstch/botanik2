@@ -230,6 +230,9 @@ namespace Botanik { namespace Shell {
         void _cmd_version(const char* args, uint16_t alen);
         void _cmd_features(const char* args, uint16_t alen);
         void _cmd_alarms(const char* args, uint16_t alen);
+        /** @brief The field bus: what the plan costs, what state the master is
+         *  in, and which devices are answering. */
+        void _cmd_modbus(const char* args, uint16_t alen);
         void _cmd_net(const char* args, uint16_t alen);
         void _cmd_ntpsync(const char* args, uint16_t alen);
         void _cmd_loglevel(const char* args, uint16_t alen);

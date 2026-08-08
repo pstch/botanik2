@@ -29,6 +29,9 @@ namespace Botanik { namespace Network   {  class MqttClient;        } }
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
 namespace Botanik { namespace Modbus    {  class TcpSlave;          } }
 #endif
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+namespace Botanik { namespace Modbus    {  class RtuClient;         } }
+#endif
 
 namespace Botanik {
 
@@ -65,6 +68,12 @@ namespace Botanik {
          *  demand (half of it is derived from the socket and the map), so there
          *  is no long-lived struct to point at. */
         const Modbus::TcpSlave*        modbus_tcp = nullptr;
+#endif
+
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+        /** @brief The field-bus master. Its plan, its peers and its counters are
+         *  the only view anyone has of what the RS-485 segment is doing. */
+        const Modbus::RtuClient*       modbus_rtu = nullptr;
 #endif
 
     };

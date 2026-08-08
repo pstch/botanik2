@@ -16,7 +16,9 @@
  * The server is stepped TWICE per beat, from two different phases, and that is
  * the whole design:
  *
- *  - `service_rx()` in `PHASE_INPUT` accepts, reads, decodes, and applies WRITES.
+ *  - `step()` in `PHASE_INPUT` accepts, reads, decodes, and applies WRITES. It
+ *    is registered with `add_component()`, the same as every other component -
+ *    there used to be a `service_rx()` alias for it that nothing called.
  *    A setpoint written this beat is therefore what the control programs run on
  *    this beat, and `PHASE_CONFIG` picks up the group serial in the same cycle.
  *  - `service_tx()` in `PHASE_PRESENT` answers READS, off the image the scan just
@@ -179,7 +181,6 @@ namespace Botanik { namespace Modbus {
         /** @brief PHASE_INPUT: accept, receive, decode, apply writes. This is
          *  the Component's on_step(), so it is also where the config group is
          *  re-read. */
-        void service_rx(uint64_t now_ms) { step(now_ms); }
 
         /** @brief Make a couple of the parameter writes a master has asked for
          *  durable. PHASE_SERVICE, once per beat.
