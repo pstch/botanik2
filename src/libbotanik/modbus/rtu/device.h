@@ -55,11 +55,13 @@ namespace Botanik { namespace Modbus {
      * initialised straight into flash like every other table here.
      */
     struct DeviceModel {
-        // @warning Positional initialisation, C++11 having no designated
-        // initialisers: a field inserted anywhere but the END silently
-        // reinterprets every existing literal rather than failing to compile.
-        // Adding max_bits here turned four test models into nonsense that still
-        // built. Append, or expect to fix every site by hand.
+        // Built through the factories below, not brace-initialised: C++11 has no
+        // designated initialisers, so a field inserted anywhere but the end
+        // silently reinterprets every existing literal rather than failing to
+        // compile. Adding max_bits did exactly that to four test models, which
+        // still built and one of which then asserted nothing. The factories take
+        // only the arguments a shape can use, so there is no positional literal
+        // left to get wrong - the same reason vars/declare.h exists.
 
         /** @brief For logs and the `modbus` command. Never matched on. */
         const char* name;
@@ -87,6 +89,43 @@ namespace Botanik { namespace Modbus {
          *  is more than the bus default. 0 to use MODBUS_GAP_MS. */
         uint16_t    min_gap_ms;
     };
+
+    /** @}
+     *  @name Declaring one
+     *
+     *  One factory per SHAPE of device, taking only what that shape can say
+     *  about itself. A meter has registers and no coils; a relay board has coils
+     *  and nothing worth reading; a device nobody has described has neither.
+     *  @{ */
+
+    /** @brief A meter: registers only, usually in pairs.
+     *
+     *  @param regs  most registers one read may ask for, 0 for the protocol's.
+     *  @param align what a start address and a quantity must be a multiple of;
+     *               2 on anything storing 32-bit values in register pairs.
+     *  @param multi whether FC15/FC16 exist. A model without them is driven a
+     *               point at a time, and then a single write's echoed VALUE is
+     *               the only confirmation the point moved. */
+    constexpr DeviceModel meter(const char* name, uint16_t regs, uint8_t align,
+                                bool multi = false, uint16_t gap_ms = 0) {
+        return DeviceModel{ name, regs, 0, align, align, multi, gap_ms };
+    }
+
+    /** @brief A relay or discrete board: coils only, no alignment rule. */
+    constexpr DeviceModel relay_board(const char* name, uint16_t coils,
+                                      bool multi = true, uint16_t gap_ms = 0) {
+        return DeviceModel{ name, 0, coils, 1, 1, multi, gap_ms };
+    }
+
+    /** @brief An analog IO board: registers, one per channel, no pairing. */
+    constexpr DeviceModel io_board(const char* name, uint16_t regs,
+                                   bool multi = true, uint16_t gap_ms = 0) {
+        return DeviceModel{ name, regs, 0, 1, 1, multi, gap_ms };
+    }
+
+    /** @}
+     *  @name The table
+     *  @{ */
 
     /** @brief One unit address on the segment, and the model answering there. */
     struct Device {

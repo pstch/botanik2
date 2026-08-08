@@ -38,7 +38,7 @@ TEST_CASE("modbus device: an undescribed unit gets the protocol's own limits") {
     CHECK(g.min_gap_ms == 0);
 
     // ...and so does a unit a table exists for but does not mention.
-    const DeviceModel m = { "described", 80, 0, 2, 2, false, 0 };
+    const DeviceModel m = meter("described", 80, 2);
     const Device rows[] = { { 5, &m } };
     const DeviceTable t = { rows, 1 };
     CHECK(std::string(model_of(&t, 5).name) == "described");
@@ -179,8 +179,8 @@ TEST_CASE("modbus device: a tight ceiling cuts a run into more blocks") {
     Bank bank(Site::g_site.vars);
     bank.init();
 
-    const DeviceModel loose  = { "loose",  0, 0, 2, 2, false, 0 };
-    const DeviceModel strict = { "strict", 4, 0, 2, 2, false, 0 };
+    const DeviceModel loose  = meter("loose",  0, 2);
+    const DeviceModel strict = meter("strict", 4, 2);
 
     const Device lrows[] = { { 5, &loose } };
     const Device srows[] = { { 5, &strict } };
@@ -211,7 +211,7 @@ TEST_CASE("modbus device: an odd row is widened, not sent to be refused") {
     Bank bank(Site::g_site.vars);
     bank.init();
 
-    const DeviceModel pairs = { "pairs", 80, 0, 2, 2, false, 0 };
+    const DeviceModel pairs = meter("pairs", 80, 2);
     const Device rows[] = { { 11, &pairs } };   // the AI board, 1-register rows
     const DeviceTable t = { rows, 1 };
 

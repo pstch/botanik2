@@ -14,7 +14,9 @@ const DeviceModel& generic_model() {
     // described is not a device with no constraints - it is one whose
     // constraints we have not read, and guessing at them would be worse than
     // saying so. max_regs 0 defers to max_quantity(fc).
-    static const DeviceModel k = { "generic", 0, 0, 1, 1, true, 0 };
+    // Every field at what the protocol itself allows, which is what the shape
+    // factories cannot express: a device nobody described has no shape.
+    static const DeviceModel k = DeviceModel{ "generic", 0, 0, 1, 1, true, 0 };
     return k;
 }
 
