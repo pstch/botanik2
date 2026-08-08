@@ -4,6 +4,7 @@
  */
 
 #include "libbotanik/modbus/rtu/codec.h"
+#include "libbotanik/modbus/response.h"   // match_response - shared with the other transport
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT || BOTANIK_FEATURE_MODBUS_RTU_SERVER
 
@@ -128,64 +129,18 @@ uint16_t build_write_registers(uint8_t* out, uint16_t cap, uint8_t unit,
 
 Error parse_response(const uint8_t* adu, uint16_t len, const Expect& e,
                      Response* out) {
-    if (out != nullptr) {
-        out->data = nullptr;
-        out->len  = 0;
-        out->unit = 0;
-        out->fc   = 0;
-        out->ex   = EX_NONE;
-    }
+    if (out != nullptr) *out = Response();
     if (adu == nullptr || out == nullptr) return ERR_CAPACITY;
     if (len < ADU_MIN) return ERR_SHORT;
 
-    // Residue: the CRC bytes are inside the span, so a good frame gives 0. Done
-    // before anything else is read, because nothing in the frame means anything
-    // until it passes.
+    // The one thing that is RTU's: the checksum. Residue - the CRC bytes are
+    // inside the span, so a good frame gives 0 - and done before anything else
+    // is read, because nothing in the frame means anything until it passes.
     if (crc16(adu, len) != 0) return ERR_CRC;
 
-    out->unit = adu[0];
-    if (adu[0] != e.unit) return ERR_UNIT;
-
-    const uint8_t raw_fc = adu[1];
-    out->fc = (uint8_t)(raw_fc & (uint8_t)~EX_BIT);
-    if (out->fc != e.fc) return ERR_FC;
-
-    if ((raw_fc & EX_BIT) != 0) {
-        if (len != exception_len()) return ERR_SHORT;
-        out->ex = (Exception)adu[2];
-        return ERR_EXCEPTION;
-    }
-
-    if (is_read(e.fc)) {
-        const uint16_t want = read_payload(e.fc, e.qty);
-        // A request we could not have sent: refuse before the byte count is
-        // compared against it, so a caller's bad Expect cannot size anything.
-        if (want == 0 || want > PAYLOAD_MAX) return ERR_COUNT;
-        if (len < 5) return ERR_SHORT;
-        if (adu[2] != (uint8_t)want) return ERR_COUNT;
-        if (len != (uint16_t)(5u + want)) return ERR_SHORT;
-        out->data = adu + 3;
-        out->len  = want;
-        return ERR_OK;
-    }
-
-    // Every write echoes its own header back.
-    if (!is_supported(e.fc)) return ERR_FC;
-    if (len != 8) return ERR_SHORT;
-    if (be16(adu[2], adu[3]) != e.addr) return ERR_ECHO;
-    // The multi-writes echo a count; the single writes echo the VALUE. Both are
-    // checked here rather than left to the caller: a relay board that clamps,
-    // inverts or ignores what it was told answers with a well-formed frame, and
-    // the only thing separating that from success is this comparison.
-    const uint16_t echoed = be16(adu[4], adu[5]);
-    if (e.fc == FC_WRITE_COILS || e.fc == FC_WRITE_REGISTERS) {
-        if (echoed != e.qty) return ERR_ECHO;
-    } else if (echoed != e.value) {
-        return ERR_ECHO;
-    }
-    out->data = adu + 2;
-    out->len  = 4;
-    return ERR_OK;
+    // Everything after the unit byte, minus the two CRC bytes. What is inside a
+    // frame is the protocol's business, not this transport's.
+    return match_response(adu[0], adu + 1, (uint16_t)(len - 3), e, out);
 }
 
 uint32_t u32_from_regs(const uint8_t* payload, RegOrder order) {

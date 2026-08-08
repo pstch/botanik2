@@ -363,6 +363,31 @@ TEST_CASE("modbus codec: every request round-trips through the parser") {
     CHECK(parse_response(out, b, e6, &r) == ERR_OK);
 }
 
+TEST_CASE("modbus codec: an Expect we could not have sent sizes nothing") {
+    // A quantity past the protocol's own ceiling describes a payload no frame
+    // could carry. Unreachable through the builders, which refuse it outright;
+    // this is the caller who hand-builds an Expect, which the framer and both
+    // transports all do.
+    //
+    // What is pinned is the ANSWER - ERR_COUNT, and nothing handed back - not
+    // which of the three checks produces it. Traced: with the explicit ceiling
+    // removed the byte-count comparison refuses it anyway, and the length
+    // equality after that is what actually stops a size reaching out->len. The
+    // ceiling is there to fail earlier and name the right fault.
+    Response r;
+    const uint8_t rsp[9] = { 0x05, 0x03, 0x04, 0x00, 0x0A, 0x00, 0x14, 0x9F, 0xFE };
+
+    const Expect wild = { 5, FC_READ_HOLDING, 0, 200, 0 };   // 400 payload bytes
+    CHECK(parse_response(rsp, sizeof rsp, wild, &r) == ERR_COUNT);
+    CHECK(r.data == nullptr);
+    CHECK(r.len == 0);
+
+    // And the largest quantity that IS legal still parses, so this is a ceiling
+    // and not a blanket refusal.
+    const Expect ok = { 5, FC_READ_HOLDING, 0, 2, 0 };
+    CHECK(parse_response(rsp, sizeof rsp, ok, &r) == ERR_OK);
+}
+
 // Register pairs
 // ===========================================================================
 

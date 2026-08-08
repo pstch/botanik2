@@ -8,7 +8,8 @@
  * its own function code is then a CONTENT error, answerable with an exception,
  * because framing was never in doubt.
  */
-#include "libbotanik/modbus/tcp/pdu.h"    // the vocabulary and the three encoders implemented here
+#include "libbotanik/modbus/tcp/pdu.h"
+#include "libbotanik/modbus/response.h"   // match_response - shared with the other transport    // the vocabulary and the three encoders implemented here
 
 #include <cstring>                    // memcpy - copying a read payload into the response
 
@@ -206,42 +207,12 @@ namespace Botanik { namespace Modbus {
 
         // Whose answer is this? The transaction id first: a reply to a request we
         // have already given up on is not this request's answer, however well it
-        // matches otherwise.
+        // matches otherwise. That id is MBAP's, and so is this check.
         if (rd16(buf + 0) != txn) return ERR_ECHO;
-        out->unit = buf[6];
-        if (out->unit != e.unit) return ERR_UNIT;
 
-        const uint8_t raw_fc = buf[7];
-        out->fc = (uint8_t)(raw_fc & (uint8_t)~EX_BIT);
-        if (out->fc != e.fc) return ERR_FC;
-
-        if ((raw_fc & EX_BIT) != 0) {
-            if (mlen != 3) return ERR_SHORT;
-            out->ex = (Exception)buf[8];
-            return ERR_EXCEPTION;
-        }
-
-        if (is_read(e.fc)) {
-            const uint16_t want = read_payload(e.fc, e.qty);
-            if (want == 0) return ERR_COUNT;
-            if (mlen < 3) return ERR_SHORT;
-            if (buf[8] != (uint8_t)want) return ERR_COUNT;
-            if (mlen != (uint16_t)(3 + want)) return ERR_SHORT;
-            out->data = buf + 9;
-            out->len  = want;
-            return ERR_OK;
-        }
-
-        // Every write echoes its own header back.
-        if (!is_supported(e.fc)) return ERR_FC;
-        if (mlen != 6) return ERR_SHORT;
-        if (rd16(buf + 8) != e.addr) return ERR_ECHO;
-        if (e.fc == FC_WRITE_COILS || e.fc == FC_WRITE_REGISTERS) {
-            if (rd16(buf + 10) != e.qty) return ERR_ECHO;
-        }
-        out->data = buf + 8;
-        out->len  = 4;
-        return ERR_OK;
+        // The rest is the protocol's, not this transport's. mlen counts the unit
+        // byte, so the body is one shorter than it.
+        return match_response(buf[6], buf + 7, (uint16_t)(mlen - 1), e, out);
     }
 
 }}  // namespace Botanik::Modbus
