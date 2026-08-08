@@ -16,7 +16,13 @@ moves, IL/DL, the line editor's reconciliation) that a source diff cannot.
   leave the renderer pacing for 4800. Dilating the clock keeps every byte/event
   ratio identical to a real run and compresses only wall time. Default 50;
   override with `PYTE_TIME_SCALE=N` (honored through pytest, ctest and make).
-  Green far higher (verified at 500).
+- **Do not raise the scale to go faster - it is slower.** Measured, three runs
+  each: 50 → 6.3 s, 100 → 7.3-9.5 s, 200 → 9.5-10.9 s, 400 → 10.5-14.1 s. At 50
+  the suite is already off the sim-time critical path; past it the sim only burns
+  CPU competing with the harness, while the costs that remain are host-time and
+  do not shrink. The suite is CPU-bound (wall ~= user+sys), so what helps is
+  doing less: fewer boots, content sync instead of quiet windows, and not
+  normalizing the same screen twice.
 - **Release sim only** (`build/pyte-sim/`, RELEASE, no sanitizers). A debug+ASAN
   build is too slow per dilated tick. `make -C build` does **not** rebuild it -
   run `make -C build pyte-sim`, or the suite silently tests a stale binary.
@@ -26,49 +32,49 @@ moves, IL/DL, the line editor's reconciliation) that a source diff cannot.
   takes the live tails out of a golden compare, and a `rows=`/`clip=` band
   narrows an assertion to the region it is about.
 
-## Waiting without a wall clock
+## Waiting
 
-A host-seconds deadline is a statement about the **machine**, not the firmware.
-The sim gets roughly a millisecond of wall budget per tick, so on a loaded box it
-takes more wall time to do the same work, and any fixed timeout reclassifies
-"slower" as "broken" - which is how `make check` came to fail on a *different*
-screen test run to run, each passing on its own.
-
-So no wait is budgeted in host seconds. Two rules replace it:
-
-1. **Progress.** Give up only once the screen has stopped changing. A loaded
-   machine still advances, so the wait stretches to match it; a screen that has
-   settled on the *wrong* content stops changing and fails promptly.
-2. **Sim time.** "Stopped" is measured on the firmware's own clock, read off the
-   status bar. The budget is denominated in the thing being observed, so it
-   scales with load automatically.
-
-`Term.poll(done, idle_sim_s)` is that loop, and the only one: `settle()`,
-`wait_for()`, `wait_screen()` and the golden compare are each a predicate over
-it. Two budgets, because the waits ask different questions:
+Every wait is the same loop, `Term.poll(done, idle_s)`: pump the PTY until the
+predicate says yes, or until the normalized screen has been **still** for
+`idle_s`. `settle()`, `wait_for()`, `wait_screen()` and the golden compare are
+each one predicate over it.
 
 | call | question | budget |
 |---|---|---|
-| `wait_for(needles)` | has this string **ever** been on screen (latched as it went by, so a scrolled-away log line still counts) | `STALL_SIM_S`, 90 sim-s |
-| `wait_screen(needle, present)` | is it on screen **now**, or has it left | `STALL_SIM_S` |
-| `settle(quiet)` | has the repaint I just triggered finished | `SETTLE_SIM_S`, 5 sim-s |
+| `wait_for(needles)` | has this string **ever** been on screen (latched as it went by, so a scrolled-away log line still counts) | `WAIT_IDLE_S`, 15 s |
+| `wait_screen(needle, present)` | is it on screen **now**, or has it left | `WAIT_IDLE_S` |
+| `assert_screen(term, golden)` | does the screen match the golden | `MATCH_IDLE_S`, 4 s |
+| `settle(quiet)` | has the repaint I just triggered finished | `SETTLE_IDLE_S`, 0.2 s |
 
-`settle()` is a debounce, not an event wait, which is why its budget is short: an
-action that paints nothing pays it in full, every time.
+The budgets are in **host seconds, on `time.monotonic()`**, and they are
+deliberately generous. No passing test ever reaches one; they only bound how long
+a genuinely stuck wait takes to report.
 
-`HARD_CAP_S` (180 host-s) is the one host-time bound left. It is not a timing
-assertion - it is the backstop for a sim that has wedged, so its clock never
-advances and rule 2 alone would wait forever.
+That is a correction of an earlier design, and the reasoning is worth keeping
+because it reads so plausibly. The budget used to be denominated in the sim's own
+clock, read off the status bar, on the theory that a budget measured in the
+observed thing scales with load by itself. It does not. The displayed clock is
+`steady_clock * BOTANIK_TIME_SCALE`, so it races ahead at 50x whether or not the
+starved firmware executed a single beat: 90 sim-seconds was 1.8 s of wall time,
+always. The whole apparatus was a wall clock in fancy dress, and a tight one -
+which is what kept failing a *different* screen test on every loaded run. It also
+dragged in a clock that steps backwards when the sim re-latches its epoch, and
+that resets under a test's feet on a reboot.
 
-Two traps worth knowing:
+**Prefer content sync to `settle()`.** Measured, `settle()` costs ~200 ms against
+~20 ms for a `wait_screen()`: it can only wait out the 4800-baud dribble, where a
+content wait stops at the first frame that says yes. Reach for `settle()` only
+when the test cannot name what it is waiting to see.
 
-- **`wait_for` is latched.** A marker seen earlier answers instantly, which can
-  make an assertion vacuous (`wait_for("saved")` after `^O` passed because the
-  untouched note had already read "saved"). Use `wait_screen()`, or read the row.
-- **The sim's clock steps backwards.** The displayed time is `boot_epoch +
-  uptime`, and the epoch is re-derived from the *undilated* host clock, so under
-  dilation it is re-latched a couple of seconds lower every ~40 ms. `Stall` reads
-  the far half of the midnight wrap as the step it is and re-baselines.
+**`wait_for` is latched**, and that is a trap as well as a feature: a marker seen
+earlier answers instantly, which silently makes an assertion vacuous
+(`wait_for("saved")` after `^O` passed because the untouched note already read
+"saved"; three `wait_for("[all]")` calls in the monitor test could not fail).
+When the question is about the screen *now*, use `wait_screen()`.
+
+`Term.view()` is the normalized screen, cached until the next byte arrives.
+Normalizing costs ~1 ms, and every wait wants the same answer two or three times
+per iteration, so go through it rather than re-normalizing `screen.display`.
 
 ## Dependencies (manual - the build never installs anything)
 
@@ -95,11 +101,18 @@ failures attributable and the `-j` slots busy, measured 2.5x faster on 4 cores.
 `.envrc` exports `CTEST_PARALLEL_LEVEL=$(nproc)`.
 
 Because a CTest entry is a whole file, a file may share one booted sim across its
-tests (`spawn_module`) - the boot handshake is the expensive part of a screen
-test. `test_pages`, `test_shell_reconcile` and `test_shell_scroll` do; each
-resets state between tests (`^U`+`^L`, or a freshly submitted line). Anything
-that **mutates** - an edit, a reset, a persisted override or note - keeps its own
-`spawn`.
+tests (`spawn_module`). `test_pages`, `test_shell_reconcile` and
+`test_shell_scroll` do; each resets state between tests (`^U`+`^L`, or a freshly
+submitted line). Anything that **mutates** - an edit, a reset, a persisted
+override or note - keeps its own `spawn`. It also pays to keep a one-assertion
+test out of a file of its own: each entry costs an interpreter startup, which is
+why the odds and ends live together in `test_page_behaviour.py`.
+
+A boot costs ~0.10 s: ~0.02 s to the console, the rest the emulated wire painting
+the boot log. The network handshake behind it is **not** slow - measured, it
+spans 0.14-0.35 sim-seconds and did not miss once in 80 boots, including under 8x
+CPU load. The mock responder binds its sockets before its thread starts
+(`botanik_sim/network.h`), which is what makes that reliable.
 
 ## Every page has a display test
 
