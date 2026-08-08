@@ -31,11 +31,9 @@ MARKER = " more "               # the scrolled-up badge, Scrollback::refresh_scr
 
 @pytest.fixture(scope="module")
 def sim(spawn_module):
-    term = shell(spawn_module)
-    # The live log tail would keep pushing the transcript along under a frozen
-    # view; these tests are about the keys, so take it out of the picture.
-    term.send(b"logs off" + keys.ENTER)
-    assert term.wait_for("output disabled"), "`logs off` did not report"
+    # quiet_logs twice over: the tail would drown the replies these tests look
+    # for, and it would keep pushing the transcript along under a frozen view.
+    term = shell(spawn_module, quiet_logs=True)
     for i in range(FILL):
         term.send(b"get zz_%02d" % i + keys.ENTER)
     assert term.wait_screen("zz_%02d" % (FILL - 1)), "the fill never reached the screen"
