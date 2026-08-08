@@ -236,10 +236,9 @@ namespace Botanik { namespace Modbus {
          *  Writes first: a demand that has changed is worth more than a reading
          *  that is about to be taken again anyway, and a safe state is worth more
          *  than either. */
+        /** @brief Which block goes out next, or NO_BLOCK. Scores every block in
+         *  one pass and takes the highest; see the tier table in the .cpp. */
         uint16_t _pick(uint64_t now_ms) const;
-        /** @brief The most overdue read, or NO_BLOCK. With @p starved_only,
-         *  only blocks a whole period of their own late are considered. */
-        uint16_t _overdue_read(uint64_t now_ms, bool starved_only) const;
         /** @brief Watch control authority, and raise the safe-state urgency on
          *  the beat it is withdrawn. */
         void     _track_control(uint64_t now_ms);

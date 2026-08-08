@@ -115,60 +115,55 @@ void RtuClient::_enter(State s, uint64_t now_ms) {
     _since_ms = now_ms;
 }
 
-uint16_t RtuClient::_overdue_read(uint64_t now_ms, bool starved_only) const {
-    // The most overdue read, so a starved block cannot stay starved. With
-    // @p starved_only, a block counts only once it is a whole period of its OWN
-    // late - which is per block, since a 1 s rung and a 60 s rung do not agree
-    // about what "late" means.
-    uint16_t best = NO_BLOCK;
-    uint64_t worst = 0;
+uint16_t RtuClient::_pick(uint64_t now_ms) const {
+    // One pass, scoring each block, highest score wins. The precedence used to
+    // be four sequential loops you had to read in order to know what beat what;
+    // as a table it can be read at a glance, and the bus is walked once.
+    //
+    // The tiers are decades apart so nothing inside one can ever outrank the
+    // one above: lateness is measured in whole periods and could otherwise
+    // climb into a neighbour's range on a starved block.
+    static const uint32_t T_SAFE    = 4000000u;  // the field is owed a safe state
+    static const uint32_t T_STARVED = 3000000u;  // a read a whole period late
+    static const uint32_t T_WRITE   = 2000000u;  // a demand that has changed
+    static const uint32_t T_READ    = 1000000u;  // a reading that is due
+
+    uint16_t best  = NO_BLOCK;
+    uint32_t score = 0;
+
     for (uint16_t i = 0; i < _plan.block_count(); ++i) {
         const Block& b = _plan.block(i);
-        if (!is_read(b.fc) || now_ms < b.due_ms) continue;
-        if (!_due(b, now_ms)) continue;
-        const uint64_t late = now_ms - b.due_ms;
-        if (starved_only && (b.period_ms == 0 || late < b.period_ms)) continue;
-        if (best == NO_BLOCK || late > worst) { best = i; worst = late; }
+        if (!_due(b, now_ms)) continue;          // its device is in backoff
+
+        uint32_t s = 0;
+        if (!is_read(b.fc)) {
+            const uint64_t since = now_ms - b.last_ms;
+            const bool dirty = block_dirty(*_io, _plan, b);
+            if (_urgent && dirty) {
+                // disable_control() marked every output dirty precisely so a
+                // transaction carries the safe state out. Nothing pre-empts it,
+                // and it does not wait for the ordinary write interval.
+                s = T_SAFE;
+            } else if (since >= Config::MODBUS_REWRITE_MS) {
+                s = T_WRITE + 1u;                // the unconditional re-drive
+            } else if (dirty && since >= Config::MODBUS_WRITE_MIN_MS) {
+                s = T_WRITE;
+            }
+        } else if (now_ms >= b.due_ms) {
+            const uint64_t late = now_ms - b.due_ms;
+            // A read jumps the write queue once it is later than the period it
+            // asks for - per block, since a 1 s rung and a 60 s rung do not
+            // agree about what late means. Without that floor an Actuator
+            // timing a stroke keeps enough blocks dirty to hold the bus and
+            // starve the image underneath the programs reading it.
+            const bool starved = b.period_ms != 0 && late >= b.period_ms;
+            const uint32_t lateness = (late > 999999u) ? 999999u : (uint32_t)late;
+            s = (starved ? T_STARVED : T_READ) + lateness;
+        }
+
+        if (s > score) { score = s; best = i; }
     }
     return best;
-}
-
-uint16_t RtuClient::_pick(uint64_t now_ms) const {
-
-    // 1. The safe state, if control has just been withdrawn. disable_control()
-    //    marks every ROLE_OUTPUT dirty precisely so a transaction carries the
-    //    safe state out; making that wait for the ordinary write interval would
-    //    leave an actuator energised for it. Nothing pre-empts this.
-    if (_urgent) {
-        for (uint16_t i = 0; i < _plan.block_count(); ++i) {
-            const Block& b = _plan.block(i);
-            if (is_read(b.fc) || !_due(b, now_ms)) continue;
-            if (block_dirty(*_io, _plan, b)) return i;
-        }
-    }
-
-    // 2. A read that has missed a whole period of its own. Writes otherwise
-    //    pre-empt reads unconditionally, and an Actuator timing a stroke keeps
-    //    three or four blocks continuously dirty - enough to hold the bus and
-    //    starve the image until expire_stale() starts invalidating it. A read
-    //    only jumps the queue once it is later than the period it asks for.
-    const uint16_t starved = _overdue_read(now_ms, true);
-    if (starved != NO_BLOCK) return starved;
-
-    // 3. Writes before reads. A demand that has changed is worth more than a
-    //    reading about to be taken again anyway.
-    for (uint16_t i = 0; i < _plan.block_count(); ++i) {
-        const Block& b = _plan.block(i);
-        if (is_read(b.fc)) continue;
-        if (!_due(b, now_ms)) continue;
-        const uint64_t since = now_ms - b.last_ms;
-        if (since >= Config::MODBUS_REWRITE_MS) return i;
-        if (since >= Config::MODBUS_WRITE_MIN_MS && block_dirty(*_io, _plan, b))
-            return i;
-    }
-
-    // 4. And whatever read is due.
-    return _overdue_read(now_ms, false);
 }
 
 void RtuClient::_track_control(uint64_t now_ms) {
