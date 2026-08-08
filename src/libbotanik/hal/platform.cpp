@@ -357,6 +357,8 @@ namespace Botanik { namespace HAL {
 
     bool fieldbus_tx_idle() { return fieldbus()->tx_idle(); }
 
+    bool fieldbus_echoes() { return true; }   // RE is tied low; see opta.h
+
     void fieldbus_flush_input() { fieldbus()->flush_input(); }
 
     }  // namespace Serial

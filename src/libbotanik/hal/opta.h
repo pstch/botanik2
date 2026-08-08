@@ -257,6 +257,19 @@ namespace Botanik { namespace HAL {
     /** @brief Whether everything written has finished leaving the wire. */
     bool fieldbus_tx_idle();
 
+    /** @brief Whether the receiver hears our own transmission on this port.
+     *
+     *  TRUE here. RE (PB_13) is held asserted for the life of the port, so the
+     *  transceiver's receiver is enabled while its driver is on and our own
+     *  frame arrives back at the UART ahead of any answer. It is exactly as long
+     *  as what was written, which is what lets the master count it off rather
+     *  than try to recognise it.
+     *
+     *  Deassert RE around transmission instead and this becomes false: DE and RE
+     *  are independent pins here, so that is a real option, and it is the one
+     *  thing that would have to change with it. */
+    bool fieldbus_echoes();
+
     /** @brief Discard whatever is sitting in the receive path.
      *
      *  Called once a request has drained and before its answer is expected. On a

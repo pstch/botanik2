@@ -292,6 +292,14 @@ namespace Botanik { namespace HAL {
 
     inline bool fieldbus_tx_idle() { return get(FIELDBUS)->tx_idle(); }
 
+    /** @brief Whether the receiver hears our own transmission on this port.
+     *
+     *  FALSE here. The simulated bus is a socketpair: what we write goes to the
+     *  devices' end, not back to ours. A real RS-485 transceiver with RE tied
+     *  low does hear it, so this is the one place the two genuinely differ, and
+     *  the master reads it rather than assuming either way. */
+    inline bool fieldbus_echoes() { return false; }
+
     inline void fieldbus_flush_input() { get(FIELDBUS)->flush_input(); }
 
     /** @} */

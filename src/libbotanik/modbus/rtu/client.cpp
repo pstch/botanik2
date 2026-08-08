@@ -316,14 +316,18 @@ void RtuClient::on_step(uint64_t now_ms) {
 
     // Armed HERE, not a beat later. The answer can be on the wire before this
     // beat ends - at 38400 an 8-byte request clears in 2.3 ms - and anything not
-    // being listened for is lost. The frame doubles as the echo to swallow,
-    // since RE stays asserted while we transmit.
+    // being listened for is lost.
+    //
+    // Whether our own frame comes back first is a property of the PORT, not
+    // something to infer from the bytes: a transceiver with RE tied low echoes,
+    // and the simulator's socketpair does not. HAL knows which it is.
     //
     // Straight to MB_RX: there is no separate state for "the frame is still
     // leaving". Nothing waits on that any more - the framer is listening from
     // this instant, and the tx_idle() check above is what stops the NEXT frame
     // starting before this one has gone.
-    _framer.arm(_expect, now_ms, Config::MODBUS_TIMEOUT_MS, _frame, _frame_len);
+    _framer.arm(_expect, now_ms, Config::MODBUS_TIMEOUT_MS,
+                HAL::Serial::fieldbus_echoes() ? _frame_len : 0);
     _enter(MB_RX, now_ms);
 }
 

@@ -293,18 +293,17 @@ TEST_CASE("modbus framing: counters survive a transaction and reset on demand") 
 // Our own transmission coming back
 // ===========================================================================
 //
-// RE is held asserted while we transmit, so the receiver hears the request
-// (hal/platform.cpp). The framer is armed the moment the frame is queued, and
-// has to be right whether or not the echo is real on a given board - which is
-// why it holds a CANDIDATE and replays it rather than discarding byte by byte.
+// RE is held asserted for the life of the port (hal/platform.cpp), so the
+// receiver hears the frame we drive onto the wire. It arrives first and is
+// exactly as long as what we wrote, so the framer counts it off rather than
+// recognising it.
 
-TEST_CASE("modbus framing: our own request is swallowed before the answer") {
-    // Request as it goes out: read 2 holding registers from unit 5.
+TEST_CASE("modbus framing: our own request is counted off before the answer") {
     uint8_t req[8] = { 0x05, 0x03, 0x00, 0x00, 0x00, 0x02 };
     const uint16_t rn = seal(req, 6);
 
     RtuFramer f;
-    f.arm(E_FC03, 1000, TIMEOUT_MS, req, rn);
+    f.arm(E_FC03, 1000, TIMEOUT_MS, rn);
 
     // The echo arrives first, then the answer.
     CHECK(f.feed(req, rn) == rn);
@@ -319,30 +318,12 @@ TEST_CASE("modbus framing: our own request is swallowed before the answer") {
     CHECK(reg_at(f.response().data, 1) == 20);
 }
 
-TEST_CASE("modbus framing: with no echo, the answer is not eaten") {
-    // The regression this design exists for. A response opens with the same unit
-    // and function code the request did, so a running prefix match would swallow
-    // those two bytes and frame from the byte count onwards.
+TEST_CASE("modbus framing: an echo split across beats is still counted off") {
     uint8_t req[8] = { 0x05, 0x03, 0x00, 0x00, 0x00, 0x02 };
     const uint16_t rn = seal(req, 6);
 
     RtuFramer f;
-    f.arm(E_FC03, 1000, TIMEOUT_MS, req, rn);
-
-    CHECK(f.feed(RSP_FC03, sizeof RSP_FC03) == sizeof RSP_FC03);
-    REQUIRE(f.poll(1000) == 1);
-    CHECK(f.err() == ERR_OK);
-    CHECK(f.response().len == 4);
-    CHECK(reg_at(f.response().data, 0) == 10);
-    CHECK(reg_at(f.response().data, 1) == 20);
-}
-
-TEST_CASE("modbus framing: an echo split across beats is still swallowed") {
-    uint8_t req[8] = { 0x05, 0x03, 0x00, 0x00, 0x00, 0x02 };
-    const uint16_t rn = seal(req, 6);
-
-    RtuFramer f;
-    f.arm(E_FC03, 1000, TIMEOUT_MS, req, rn);
+    f.arm(E_FC03, 1000, TIMEOUT_MS, rn);
 
     for (uint16_t i = 0; i < rn; ++i) CHECK(f.feed(req + i, 1) == 1);
     CHECK(f.len() == 0);
@@ -352,31 +333,35 @@ TEST_CASE("modbus framing: an echo split across beats is still swallowed") {
     CHECK(f.err() == ERR_OK);
 }
 
-TEST_CASE("modbus framing: a write echo is recovered when the board does not echo") {
-    // A write response is byte-identical to the request it answers, so a whole
-    // candidate with nothing behind it is ambiguous. At the deadline the framer
-    // replays it rather than calling it silence.
+TEST_CASE("modbus framing: a write echo is read as the answer, not as our own") {
+    // The case that used to be ambiguous. A write response is byte-identical to
+    // its request, so a framer comparing bytes could not tell the two apart and
+    // had to guess at the deadline. Counting removes the question: the first
+    // eight bytes are ours, the next eight are the slave's.
     uint8_t req[8] = { 0x22, 0x10, 0x00, 0x00, 0x00, 0x02 };
     const uint16_t rn = seal(req, 6);
     REQUIRE(rn == sizeof RSP_FC16);
 
     RtuFramer f;
-    f.arm(E_FC16, 1000, TIMEOUT_MS, req, rn);
+    f.arm(E_FC16, 1000, TIMEOUT_MS, rn);
+    CHECK(f.feed(req, rn) == rn);                   // ours
+    CHECK(f.poll(1000) == 0);
     CHECK(f.feed(RSP_FC16, sizeof RSP_FC16) == sizeof RSP_FC16);
 
-    CHECK(f.poll(1000) == 0);                    // held as a candidate
-    REQUIRE(f.poll(1000 + TIMEOUT_MS) == 1);     // deadline: it was the answer
+    // Immediately, not at the deadline: a single write to a quiet device used to
+    // cost the whole response timeout while the framer waited to find out.
+    REQUIRE(f.poll(1000) == 1);
     CHECK(f.err() == ERR_OK);
     CHECK(f.timeouts() == 0);
 }
 
-TEST_CASE("modbus framing: a genuine silence still times out with an echo armed") {
+TEST_CASE("modbus framing: silence after the echo is still a timeout") {
     uint8_t req[8] = { 0x05, 0x03, 0x00, 0x00, 0x00, 0x02 };
     const uint16_t rn = seal(req, 6);
 
     RtuFramer f;
-    f.arm(E_FC03, 1000, TIMEOUT_MS, req, rn);
-    f.feed(req, rn);                             // only our own transmission
+    f.arm(E_FC03, 1000, TIMEOUT_MS, rn);
+    f.feed(req, rn);                                // only our own transmission
 
     CHECK(f.poll(1000) == 0);
     REQUIRE(f.poll(1000 + TIMEOUT_MS) == -1);
@@ -389,13 +374,23 @@ TEST_CASE("modbus framing: an echo followed by a refusal reads as the refusal") 
     const uint16_t rn = seal(req, 6);
 
     RtuFramer f;
-    f.arm(E_FC03, 1000, TIMEOUT_MS, req, rn);
+    f.arm(E_FC03, 1000, TIMEOUT_MS, rn);
     f.feed(req, rn);
     f.feed(RSP_FC03_EXC, sizeof RSP_FC03_EXC);
 
     REQUIRE(f.poll(1000) == 1);
     CHECK(f.err() == ERR_EXCEPTION);
     CHECK(f.response().ex == EX_ILLEGAL_ADDRESS);
+}
+
+TEST_CASE("modbus framing: armed with no echo, the answer is framed as it stands") {
+    // The caller that did not transmit - a test, or a listener - passes 0 and
+    // gets the old behaviour.
+    RtuFramer f;
+    f.arm(E_FC03, 1000, TIMEOUT_MS);
+    CHECK(f.feed(RSP_FC03, sizeof RSP_FC03) == sizeof RSP_FC03);
+    REQUIRE(f.poll(1000) == 1);
+    CHECK(f.err() == ERR_OK);
 }
 
 #endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT

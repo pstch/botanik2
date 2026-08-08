@@ -91,17 +91,14 @@ namespace Botanik { namespace Modbus {
 
         /** @name Our own transmission
          *
-         *  On this board RE is held asserted, so the receiver hears the frame we
-         *  just sent (hal/platform.cpp). Those bytes are not the answer and must
-         *  not be framed as one.
+         *  RE is held asserted for the life of the port (hal/platform.cpp), so
+         *  the receiver hears the frame we just sent. Those bytes arrive first,
+         *  they are exactly as many as we wrote, and they are not the answer.
          *  @{ */
 
-        /** @brief The frame just transmitted, borrowed from the caller and valid
-         *  until the next arm(). Null when the caller does not care. */
-        const uint8_t* _echo     = nullptr;
-        uint16_t       _echo_len = 0;
-        /** @brief How many arriving bytes have matched @c _echo so far. */
-        uint16_t       _echo_pos = 0;
+        /** @brief Bytes still to be discarded as our own transmission. */
+        uint16_t _skip     = 0;
+        uint16_t _skipped  = 0;
 
         /** @} */
 
@@ -135,20 +132,21 @@ namespace Botanik { namespace Modbus {
          *  last slave can still be arriving, and treating those bytes as the head
          *  of this frame would desynchronise every transaction after it.
          *
-         *  @p echo is the frame just transmitted, @p echo_len its length. Give
-         *  them and the framer swallows our own transmission coming back; leave
-         *  them null and it frames whatever arrives.
+         *  @p echo_len is how many bytes of our own transmission to discard
+         *  first: the length of the frame just sent, or 0 when nothing was.
          *
-         *  ALL OR NOTHING, not a running prefix match, and the difference
-         *  matters: a response begins with the same unit and function code the
-         *  request did, so a framer that discarded matching bytes one at a time
-         *  would eat the head of a real answer on a board that does not echo.
-         *  Bytes are held as a CANDIDATE echo while they match, and the moment
-         *  one diverges the whole candidate is replayed into the frame. So the
-         *  same code is right either way, which is what we want while the board's
-         *  behaviour is still in doubt. */
+         *  A COUNT, not a comparison. The receiver hears the wire while we drive
+         *  it, so the echo is our frame, whole, before anything else - there is
+         *  nothing to recognise. Matching bytes against the sent frame instead
+         *  was written while it was unclear whether this board echoes at all;
+         *  it does, by construction (RE is tied low), and the machinery that
+         *  hedged both ways cost more than the certainty is worth.
+         *
+         *  Noise on an idle line is the case this cannot tell apart, and neither
+         *  could the comparison: a corrupted echo byte simply shifts the frame,
+         *  which the CRC then rejects. That is the same answer either way. */
         void arm(const Expect& e, uint64_t now_ms, uint32_t timeout_ms,
-                 const uint8_t* echo = nullptr, uint16_t echo_len = 0);
+                 uint16_t echo_len = 0);
 
         /** @brief Offer @p n bytes. @return how many were taken.
          *
@@ -205,10 +203,6 @@ namespace Botanik { namespace Modbus {
         /** @brief Take one byte into the frame, resolving and completing as the
          *  shape becomes knowable. The one path bytes reach @c _buf by. */
         void _accept(uint8_t b);
-        /** @brief Push the candidate echo into the frame after all: it was our
-         *  answer, not our own transmission. The matched bytes ARE @c _echo's
-         *  first @c _echo_pos, so there is nothing else to keep. */
-        void _replay_echo();
         /** @brief Work out the frame's total length, if enough of the header has
          *  arrived to say. Sets @c _want, or fails the frame when the byte count
          *  contradicts the request. */
