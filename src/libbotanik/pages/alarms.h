@@ -99,9 +99,14 @@ namespace Botanik { namespace Pages {
          *  stopping short of it. */
         uint16_t _name_w() const {
             return _flex_width((uint16_t)(2 * MARGIN + (CODE_W + 2) + 2
-                                          + (STATE_W + 2) + (EVENT_W + 2) + 1), 60);
+                                          + (STATE_W + 2) + (FORCED_W + 2)
+                                          + (EVENT_W + 2) + 1), 60);
         }
         static constexpr uint16_t STATE_W    = 3;   // "ON" badge / "ON" header
+        /** @brief The forced marker. An alarm is a row like any other, so it
+         *  can be overridden - and a forced one is indistinguishable from a real
+         *  one on the page an operator reads during a fault. */
+        static constexpr uint16_t FORCED_W   = 3;   // "SET" / "CLR" 
         static constexpr uint16_t EVENT_W    = 15;  // "YY/MM/DD HH:MM"
         static constexpr uint16_t HEADER_ROW = 2;
         static constexpr uint16_t RULE_ROW   = 3;
@@ -113,7 +118,7 @@ namespace Botanik { namespace Pages {
          *  safe because the highlight stops one short of the cell. The STATE cell carries
          *  its own reverse-video "ON" badge, split out of the row write so there
          *  is no flicker-prone overdraw. */
-        enum { C_CODE = 0, C_NAME, C_STATE, C_EVENT };
+        enum { C_CODE = 0, C_NAME, C_STATE, C_FORCED, C_EVENT };
         /** @} */
 
         /** @brief The alarms grid packs its cells (no trailing pad): the width
@@ -205,7 +210,8 @@ namespace Botanik { namespace Pages {
          *  Only the CODE cell inverts for the selection cursor; the state cell shows
          *  its own reverse-video "ON" badge while active and unacked. The terminal's
          *  back-buffer diff pares this to the cells that actually moved. */
-        void _draw_full_row(uint16_t row, const Alarms::AlarmCondition& c, bool selected);
+        void _draw_full_row(uint16_t row, uint8_t idx,
+                            const Alarms::AlarmCondition& c, bool selected);
 
         /** @brief Paint data row at screen @p row for visible entry @p vi: the full
          *  row when it holds an alarm, else a blanked row (past the set). Drawn every

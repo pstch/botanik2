@@ -23,8 +23,9 @@ namespace Botanik { namespace Pages {
         out[C_CODE]  = Col{ "CODE",       CODE_W  };
         out[C_NAME]  = Col{ "VARIABLE",   _name_w() };
         out[C_STATE] = Col{ "ON",         STATE_W };
+        out[C_FORCED]= Col{ "FRC",        FORCED_W };
         out[C_EVENT] = Col{ "LAST EVENT", EVENT_W };
-        return 4;
+        return 5;
     }
 
     void AlarmsPage::_fmt_event(char* buf, size_t cap, const Alarms::AlarmCondition& c) {
@@ -133,7 +134,8 @@ namespace Botanik { namespace Pages {
         if (selected) _terminal.set_inverted(false);
     }
 
-    void AlarmsPage::_draw_full_row(uint16_t row, const Alarms::AlarmCondition& c, bool selected) {
+    void AlarmsPage::_draw_full_row(uint16_t row, uint8_t idx,
+                                    const Alarms::AlarmCondition& c, bool selected) {
         // 15 for "YY/MM/DD HH:MM" + NUL, rounded up to what a field that
         // decoded oddly would need: the cell clips to EVENT_W either way,
         // and a truncating snprintf is not something to leave to chance.
@@ -144,8 +146,17 @@ namespace Botanik { namespace Pages {
         // `override` want typed at them, so showing a trimmed form here
         // would be handing out a name that does not resolve. The CODE
         // column is where the short label lives.
-        const char* cells[4] = { c.code ? c.code : "?",
-                                 c.name ? c.name : "?", state, ev };
+        // An alarm is a SCOPE_A row, so it can be forced like any other - and
+        // AlarmController reads its conditions through raw(), which an override
+        // shadows. So the ON badge beside this IS the forced value, and without
+        // this column a hand-set alarm looks exactly like a real one.
+        const char* forced = "";
+        if (_model != nullptr) {
+            bool held = false;
+            if (_model->forced(idx, &held)) forced = held ? "SET" : "CLR";
+        }
+        const char* cells[5] = { c.code ? c.code : "?",
+                                 c.name ? c.name : "?", state, forced, ev };
         char     line[Config::TABLE_LINE_LEN];
         uint16_t n = _build_row(line, sizeof(line), cells);
         const uint16_t code_r = _code_cell_r(), badge = _cell_col(C_STATE);
@@ -168,7 +179,7 @@ namespace Botanik { namespace Pages {
     void AlarmsPage::_draw_data_row(uint16_t row, uint16_t vi) {
         if (vi >= _nvis) { _blank_line(row); return; }    // past the set: blank it
         const Alarms::AlarmCondition& c = _model->condition(_vis[vi]);
-        _draw_full_row(row, c, vi == _selected);
+        _draw_full_row(row, _vis[vi], c, vi == _selected);
     }
 
     void AlarmsPage::_ack_selected() {

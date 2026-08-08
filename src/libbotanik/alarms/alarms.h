@@ -346,6 +346,26 @@ namespace Botanik { namespace Alarms {
         /** @brief Condition @p i (0 <= i < count()). */
         const AlarmCondition& condition(uint8_t i) const { return _conditions[i]; }
 
+        /** @brief Whether condition @p i's variable is being FORCED, and to
+         *  what.
+         *
+         *  An alarm is a row like any other, so an override on it is how you
+         *  exercise the logic watching it - and it reaches the model through
+         *  Var::raw(), so a forced condition behaves exactly like a real one.
+         *  That is correct and is precisely why a display has to be able to say
+         *  so: on the page an operator reads during a fault, the two are
+         *  otherwise indistinguishable.
+         *
+         *  @return false when the row is live; on true, @p on says what it is
+         *  held at. */
+        bool forced(uint8_t i, bool* on = nullptr) const {
+            if (_io == nullptr || i >= _count) return false;
+            const Vars::Var v = _io->var(_conditions[i].ref);
+            if (!v.overridden()) return false;
+            if (on != nullptr) *on = v.b();
+            return true;
+        }
+
         /** @brief Index of the condition @p key names, or -1. @p key may be
          *  either spelling: the short display CODE (`SYS_RST`) or the variable
          *  NAME (`alarm_system_reset`).
