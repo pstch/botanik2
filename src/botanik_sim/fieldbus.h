@@ -62,13 +62,13 @@ namespace Botanik { namespace Sim {
 
         /** @brief How long a simulated device thinks before answering.
          *
-         *  Deliberately several beats, not the planner's assumed turnaround. The
-         *  master flushes its receive path when the line clears (its own echo is
-         *  what would be sitting there on a real wire), and an answer that
-         *  arrives before that flush is thrown away. At one beat the two race;
-         *  at three the answer is always on the right side of it. Real devices
-         *  are 2-30 ms anyway - the cheap ones 20-50 - so this is the honest end
-         *  of the range rather than a convenient one. */
+         *  Real devices are 2-30 ms, the cheap ones 20-50, so this is the honest
+         *  end of that range. It used to be load-bearing for another reason -
+         *  the master flushed its receive path a beat after sending, and an
+         *  answer arriving before the flush was thrown away, so the turnaround
+         *  had to outlast the race. That flush is gone; the master now listens
+         *  from the moment the frame is queued. The number stays because it is
+         *  what a device does, not because the harness needs it to. */
         static const uint32_t TURNAROUND_MS = 30;
 
         Modbus::RtuSlave _dev[MAX_DEVICES];
@@ -76,15 +76,8 @@ namespace Botanik { namespace Sim {
         Vars::Bank*      _io    = nullptr;
         uint32_t         _frames = 0;   ///< requests answered, all devices
 
-        /** @brief The answer a device has ready, and when it may go out.
-         *
-         *  A real slave takes milliseconds to think, and the master is built for
-         *  that: after handing a frame to the UART it waits for the line to
-         *  clear and then FLUSHES its receive path, because on a shared wire
-         *  whatever is sitting there is its own echo. A device that answered
-         *  within the same beat would have its answer thrown away by that flush
-         *  every single time. So the turnaround is not decoration - modelling it
-         *  is what makes the exchange work at all. */
+        /** @brief The answer a device has ready, and when it may go out
+         *  (see TURNAROUND_MS). */
         uint8_t  _pending[Modbus::ADU_MAX] = {};
         uint16_t _pending_len = 0;
         uint64_t _pending_at  = 0;

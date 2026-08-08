@@ -245,6 +245,13 @@ namespace Botanik { namespace Modbus {
         return (uint16_t)(((uint16_t)hi << 8) | (uint16_t)lo);
     }
 
+    /** @brief The register at @p p, and the inverse. The same fact as be16 and
+     *  hi8/lo8, said for a POINTER rather than for two bytes - which is what
+     *  every caller writing a frame actually has. Written out by hand at eleven
+     *  sites before these existed, and forked into tcp/pdu.h besides. */
+    constexpr uint16_t rd16(const uint8_t* p) { return be16(p[0], p[1]); }
+    inline void wr16(uint8_t* p, uint16_t v) { p[0] = hi8(v); p[1] = lo8(v); }
+
     /** @brief Register @p i of a read response's payload. */
     constexpr uint16_t reg_at(const uint8_t* payload, uint16_t i) {
         return be16(payload[i * 2u], payload[i * 2u + 1u]);

@@ -10,14 +10,8 @@
  * over Ethernet uses the same object, which is why it is here behind its own
  * feature flag rather than under `botanik_sim/`.
  *
- * @section ma_why_not_a_library Why this is ours
- *
- * Every published Modbus client for this platform is synchronous - Arduino's
- * wraps libmodbus, whose `modbus_read_registers()` sends, waits and receives
- * inside a single call, bounded only by a response timeout. One transaction is
- * milliseconds of blocking on a good day and the whole timeout on a bad one,
- * inside a 10 ms beat in which nothing else would run. So this is a `step()`
- * state machine like everything else here: connect, send, poll, time out.
+ * A `step()` state machine like everything else here - connect, send, poll,
+ * time out - for the reason @ref modbus/modbus.h gives once for the subsystem.
  *
  * @section ma_one One transaction in flight
  *

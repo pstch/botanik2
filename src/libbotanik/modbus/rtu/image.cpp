@@ -70,7 +70,7 @@ namespace {
                 u32_to_regs((uint32_t)value, order_of(d), at);
             } else {
                 const uint16_t w = (uint16_t)(int32_t)value;
-                at[0] = hi8(w); at[1] = lo8(w);
+                wr16(at, w);
             }
             return;
         }
@@ -80,7 +80,7 @@ namespace {
             u32_to_regs((uint32_t)h.i(), order_of(d), at);
         } else {
             const uint16_t w = (uint16_t)h.i();
-            at[0] = hi8(w); at[1] = lo8(w);
+            wr16(at, w);
         }
     }
 

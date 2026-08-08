@@ -43,46 +43,55 @@ uint16_t crc16(const uint8_t* buf, uint16_t n) {
     return crc;
 }
 
+namespace {
+
+    /** @brief The shape three of the five requests share: unit, code, and two
+     *  big-endian words, sealed. What each word MEANS differs - address and
+     *  quantity, address and coil state, address and value - which is exactly
+     *  why the callers keep their own names and their own validation. */
+    uint16_t build_pair(uint8_t* out, uint8_t unit, uint8_t fc,
+                        uint16_t a, uint16_t b) {
+        out[0] = unit;
+        out[1] = fc;
+        wr16(out + 2, a);
+        wr16(out + 4, b);
+        return seal(out, 6);
+    }
+
+    /** @brief The header the two multi-writes share, up to and including the
+     *  byte count. @return where the payload starts. */
+    uint16_t build_multi(uint8_t* out, uint8_t unit, uint8_t fc,
+                         uint16_t addr, uint16_t qty, uint16_t nbytes) {
+        out[0] = unit;
+        out[1] = fc;
+        wr16(out + 2, addr);
+        wr16(out + 4, qty);
+        out[6] = (uint8_t)nbytes;
+        return 7;
+    }
+
+}  // namespace
+
 uint16_t build_read(uint8_t* out, uint16_t cap, uint8_t unit, uint8_t fc,
                     uint16_t addr, uint16_t qty) {
     if (out == nullptr || !is_read(fc)) return 0;
     if (qty == 0 || qty > max_quantity(fc)) return 0;
     if (cap < request_len(fc, qty)) return 0;
-
-    out[0] = unit;
-    out[1] = fc;
-    out[2] = hi8(addr);
-    out[3] = lo8(addr);
-    out[4] = hi8(qty);
-    out[5] = lo8(qty);
-    return seal(out, 6);
+    return build_pair(out, unit, fc, addr, qty);
 }
 
 uint16_t build_write_coil(uint8_t* out, uint16_t cap, uint8_t unit,
                           uint16_t addr, bool on) {
     if (out == nullptr || cap < request_len(FC_WRITE_COIL, 1)) return 0;
-
-    out[0] = unit;
-    out[1] = (uint8_t)FC_WRITE_COIL;
-    out[2] = hi8(addr);
-    out[3] = lo8(addr);
     // 0xFF00 and 0x0000, not 1 and 0: the coil value is a two-byte constant.
-    out[4] = on ? 0xFFu : 0x00u;
-    out[5] = 0x00u;
-    return seal(out, 6);
+    return build_pair(out, unit, (uint8_t)FC_WRITE_COIL, addr,
+                      on ? (uint16_t)0xFF00u : (uint16_t)0x0000u);
 }
 
 uint16_t build_write_register(uint8_t* out, uint16_t cap, uint8_t unit,
                               uint16_t addr, uint16_t value) {
     if (out == nullptr || cap < request_len(FC_WRITE_REGISTER, 1)) return 0;
-
-    out[0] = unit;
-    out[1] = (uint8_t)FC_WRITE_REGISTER;
-    out[2] = hi8(addr);
-    out[3] = lo8(addr);
-    out[4] = hi8(value);
-    out[5] = lo8(value);
-    return seal(out, 6);
+    return build_pair(out, unit, (uint8_t)FC_WRITE_REGISTER, addr, value);
 }
 
 uint16_t build_write_coils(uint8_t* out, uint16_t cap, uint8_t unit,
@@ -92,21 +101,15 @@ uint16_t build_write_coils(uint8_t* out, uint16_t cap, uint8_t unit,
     if (cap < request_len(FC_WRITE_COILS, qty)) return 0;
 
     const uint16_t nb = bit_bytes(qty);
-    out[0] = unit;
-    out[1] = (uint8_t)FC_WRITE_COILS;
-    out[2] = hi8(addr);
-    out[3] = lo8(addr);
-    out[4] = hi8(qty);
-    out[5] = lo8(qty);
-    out[6] = (uint8_t)nb;
-    for (uint16_t i = 0; i < nb; ++i) out[7 + i] = bits[i];
+    const uint16_t at = build_multi(out, unit, (uint8_t)FC_WRITE_COILS, addr, qty, nb);
+    for (uint16_t i = 0; i < nb; ++i) out[at + i] = bits[i];
 
     // Pad the tail of the last byte, rather than trusting the caller zeroed it.
     const uint8_t tail = (uint8_t)(qty % 8u);
     if (tail != 0) {
         out[7 + nb - 1] = (uint8_t)(out[7 + nb - 1] & ((1u << tail) - 1u));
     }
-    return seal(out, (uint16_t)(7u + nb));
+    return seal(out, (uint16_t)(at + nb));
 }
 
 uint16_t build_write_registers(uint8_t* out, uint16_t cap, uint8_t unit,
@@ -117,18 +120,10 @@ uint16_t build_write_registers(uint8_t* out, uint16_t cap, uint8_t unit,
     if (cap < request_len(FC_WRITE_REGISTERS, qty)) return 0;
 
     const uint16_t nb = (uint16_t)(qty * 2u);
-    out[0] = unit;
-    out[1] = (uint8_t)FC_WRITE_REGISTERS;
-    out[2] = hi8(addr);
-    out[3] = lo8(addr);
-    out[4] = hi8(qty);
-    out[5] = lo8(qty);
-    out[6] = (uint8_t)nb;
-    for (uint16_t i = 0; i < qty; ++i) {
-        out[7 + i * 2]     = hi8(regs[i]);
-        out[7 + i * 2 + 1] = lo8(regs[i]);
-    }
-    return seal(out, (uint16_t)(7u + nb));
+    const uint16_t at = build_multi(out, unit, (uint8_t)FC_WRITE_REGISTERS,
+                                    addr, qty, nb);
+    for (uint16_t i = 0; i < qty; ++i) wr16(out + at + i * 2, regs[i]);
+    return seal(out, (uint16_t)(at + nb));
 }
 
 Error parse_response(const uint8_t* adu, uint16_t len, const Expect& e,
@@ -213,10 +208,8 @@ void u32_to_regs(uint32_t v, RegOrder order, uint8_t* out) {
     const uint16_t lo = (uint16_t)(v & 0xFFFFu);
     const uint16_t first  = (order == REG_HI_FIRST) ? hi : lo;
     const uint16_t second = (order == REG_HI_FIRST) ? lo : hi;
-    out[0] = hi8(first);
-    out[1] = lo8(first);
-    out[2] = hi8(second);
-    out[3] = lo8(second);
+    wr16(out, first);
+    wr16(out + 2, second);
 }
 
 void f32_to_regs(float v, RegOrder order, uint8_t* out) {

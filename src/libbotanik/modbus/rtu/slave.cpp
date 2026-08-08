@@ -173,8 +173,7 @@ namespace Botanik { namespace Modbus {
         } else {
             for (uint16_t i = 0; i < qty; ++i) {
                 const uint16_t v = reg((uint16_t)(addr + i));
-                out[3 + i * 2]     = hi8(v);
-                out[3 + i * 2 + 1] = lo8(v);
+                wr16(out + 3 + i * 2, v);
             }
         }
         const uint16_t crc = crc16(out, (uint16_t)(3 + bytes));
@@ -241,8 +240,8 @@ namespace Botanik { namespace Modbus {
         if (cap < 8) return _except(fc, EX_SLAVE_FAILURE, out, cap);
         out[0] = _unit;
         out[1] = fc;
-        out[2] = hi8(addr); out[3] = lo8(addr);
-        out[4] = hi8(val);  out[5] = lo8(val);
+        wr16(out + 2, addr);
+        wr16(out + 4, val);
         const uint16_t crc = crc16(out, 6);
         out[6] = lo8(crc);
         out[7] = hi8(crc);

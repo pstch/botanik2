@@ -159,13 +159,8 @@ namespace Botanik { namespace Modbus {
      *  wire.h's, and is the same on both transports.
      *  @{ */
 
-    inline uint16_t rd16(const uint8_t* p) {
-        return (uint16_t)(((uint16_t)p[0] << 8) | p[1]);
-    }
-    inline void wr16(uint8_t* p, uint16_t v) {
-        p[0] = (uint8_t)(v >> 8); p[1] = (uint8_t)(v & 0xFF);
-    }
-
+    // rd16 / wr16 are wire.h's - the byte order is the protocol's, not this
+    // transport's, and it was forked here before that was said out loud.
 
     /** @} */
 
