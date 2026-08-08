@@ -9,7 +9,6 @@ Speed comes from BOTANIK_TIME_SCALE, never from a higher baud. See README.md.
 import difflib
 import os
 import pty
-import re
 import select
 import subprocess
 import time
@@ -18,65 +17,36 @@ from pathlib import Path
 import pyte
 import pytest
 
-from normalize import normalize_lines, meaningful_lines, drop_log_lines
+from normalize import (normalize_lines, meaningful_lines, strip_noise,
+                       drop_log_lines)
 
 COLS, ROWS = 80, 24                       # matches AnsiTerminal(..., 80, 24, ...) in main.cpp
 GOLDEN_DIR = Path(__file__).parent / "golden"
 
-# No wait here is budgeted in host seconds: a deadline is a statement about the
-# machine, and a loaded box is slower, not broken. A wait ends when the screen
-# STOPS MOVING, measured on the firmware's own (dilated) clock off the status
-# bar. Two budgets, because the two waits ask different questions - wait_for()
-# waits on an event that may genuinely be slow (the retrying boot handshake),
-# settle() only debounces a repaint already triggered. HARD_CAP_S is the backstop
-# for a wedged sim whose clock has stopped, and nothing else. See README.md.
-STALL_SIM_S = float(os.environ.get("BOTANIK_PYTE_STALL_SIM", "90.0"))
-SETTLE_SIM_S = float(os.environ.get("BOTANIK_PYTE_SETTLE_SIM", "5.0"))
-HARD_CAP_S = float(os.environ.get("BOTANIK_PYTE_CAP", "180.0"))
-
-_CLOCK_RE = re.compile(r"\b(\d{2}):(\d{2}):(\d{2})\b")
-
-
-def sim_clock(screen):
-    """The firmware's own clock (status bar) in seconds, or None before it paints."""
-    m = _CLOCK_RE.search(screen.display[0])
-    if not m:
-        return None
-    h, mi, s = (int(g) for g in m.groups())
-    return h * 3600 + mi * 60 + s
-
-
-class Stall:
-    """Has the firmware stopped making progress? Fed a movement flag each poll."""
-
-    def __init__(self, screen, idle_sim_s=STALL_SIM_S):
-        self._screen = screen
-        self._idle_sim_s = idle_sim_s
-        self._sim_at_progress = sim_clock(screen)
-        self._host_cap = time.time() + HARD_CAP_S
-
-    def note(self, progressed):
-        """Record this poll; returns True once the wait should give up."""
-        now_sim = sim_clock(self._screen)
-        if progressed or self._sim_at_progress is None:
-            self._sim_at_progress = now_sim
-        if time.time() >= self._host_cap:
-            return True
-        if now_sim is None or self._sim_at_progress is None:
-            return False                      # no clock painted yet
-        # midnight wrap: the sim boots at the host wall time and can cross it
-        idle = (now_sim - self._sim_at_progress) % 86400
-        # ...but the clock also steps BACKWARDS: the displayed time is
-        # boot_epoch + uptime, and the sim re-derives that epoch from the
-        # UNDILATED host clock (utils/time.cpp _boot_epoch_ms), so under
-        # BOTANIK_TIME_SCALE it is re-latched a couple of seconds lower every
-        # ~40 ms. Wrapped, one such step reads as 86398 seconds of idleness and
-        # ends whatever wait is in flight - which is what used to fail a
-        # different screen test on every run. No real wait idles for half a day.
-        if idle > 43200:
-            self._sim_at_progress = now_sim
-            return False
-        return idle >= self._idle_sim_s
+# A wait ends once the screen has STOPPED MOVING for one of these, in host
+# seconds. They are deliberately generous: the suite is CPU-bound, and a box
+# running a build alongside it has been measured taking 7x longer per test, so a
+# budget tight enough to be a timing assertion is a budget that fails correct
+# runs. None of these is ever reached by a passing test - they only bound how
+# long a genuinely stuck wait takes to report.
+#
+# This USED to be denominated in the sim's own clock, read off the status bar, on
+# the theory that a budget measured in the observed thing scales with load by
+# itself. It does not, and the whole apparatus was wall time in disguise: the
+# displayed clock is steady_clock * BOTANIK_TIME_SCALE (hal/simulator.h), so it
+# races ahead at 50x whether or not the starved firmware executed a single beat.
+# 90 sim-seconds was 1.8 s of wall time, always, and that is what kept failing a
+# different screen test on every loaded run. Host seconds, honestly labelled, are
+# the same rule without the ceremony - and without a clock that steps backwards
+# on an epoch re-latch, or resets under a test's feet on a reboot.
+#
+# Measured on time.monotonic(), never time.time(). Suspend the box mid-suite and
+# the wall clock leaps forward on resume, ending every wait in flight on the spot
+# (one soak run here reported 19.9 hours). CLOCK_MONOTONIC does not count time
+# spent suspended, so the waits simply carry on where they left off.
+WAIT_IDLE_S = float(os.environ.get("BOTANIK_PYTE_WAIT_IDLE", "15.0"))
+MATCH_IDLE_S = float(os.environ.get("BOTANIK_PYTE_MATCH_IDLE", "4.0"))
+SETTLE_IDLE_S = float(os.environ.get("BOTANIK_PYTE_SETTLE_IDLE", "0.2"))
 
 
 def pytest_addoption(parser):
@@ -121,6 +91,7 @@ class Term:
         # the bytes that land before the first wait_for().
         self._watch = set(watch)
         self._seen = set()
+        self._view = None                     # normalized screen, see view()
 
     # -- raw I/O -------------------------------------------------------------
 
@@ -135,6 +106,7 @@ class Term:
             return
         if data:
             self.stream.feed(data.decode("latin-1"))
+            self._view = None                 # the screen moved: drop the cache
             self._latch()
 
     def _latch(self):
@@ -144,49 +116,68 @@ class Term:
             blob = "\n".join(self.screen.display)
             self._seen |= set(n for n in pending if n in blob)
 
+    def view(self):
+        """The normalized screen, as a tuple of rows.
+
+        Cached until the next byte arrives. Normalizing a full screen runs ~45
+        regexes over 24 rows and measured 1 ms, and every wait wants the same
+        answer two or three times per poll - the loop's own movement check plus
+        whatever its predicate looks at.
+        """
+        if self._view is None:
+            self._view = tuple(normalize_lines(self.screen.display))
+        return self._view
+
     def send(self, data):
         """Write raw input bytes to the firmware (str is UTF-8 encoded)."""
         os.write(self.master, data.encode("utf-8") if isinstance(data, str) else data)
 
     # -- synchronization -----------------------------------------------------
 
-    def poll(self, done, idle_sim_s=STALL_SIM_S):
-        """Pump until `done()`, or until the screen stops moving. Returns done().
+    def poll(self, done, idle_s=WAIT_IDLE_S):
+        """Pump until `done()`, or until the screen has been still for `idle_s`.
 
         The one wait in the harness: settle(), wait_for(), wait_screen() and the
         golden compare are this loop with a different predicate.
         """
-        prev = tuple(normalize_lines(self.screen.display))
-        stall = Stall(self.screen, idle_sim_s)
+        prev = self.view()
+        idle_since = time.monotonic()
         while not done():
             self._pump(0.02)
-            cur = tuple(normalize_lines(self.screen.display))
-            moved = cur != prev
-            prev = cur
-            if stall.note(moved):
+            cur = self.view()
+            if cur != prev:
+                prev, idle_since = cur, time.monotonic()
+            elif time.monotonic() - idle_since >= idle_s:
                 return done()
         return True
 
-    def settle(self, quiet=0.05):
+    def settle(self, quiet=0.02):
         """Pump until the normalized screen has held still for `quiet` seconds.
 
         The screen never goes byte-quiet - the clock and the metrics keep
         trickling - but those cells normalize to fixed tokens, so a finished
         repaint reads as a still screen. At least one change must be observed
         first, or a slow repaint would let the caller assert on the pre-action
-        screen; an action that paints nothing therefore costs SETTLE_SIM_S.
+        screen; an action that paints nothing therefore costs SETTLE_IDLE_S.
+
+        The blunt instrument, and now used only to capture a golden: a quiet
+        window has to wait out the whole 4800-baud dribble, where a content wait
+        stops at the first frame that says yes. Measured at ~200 ms against
+        ~20 ms, and trading the suite's 29 settles for wait_for/wait_screen took
+        it from ~10 s to ~4 s. Name what you are waiting for, and this stays out
+        of the assert path.
         """
-        last = tuple(normalize_lines(self.screen.display))
         changed_at = None
+        last = self.view()
 
         def still():
             nonlocal last, changed_at
-            now = tuple(normalize_lines(self.screen.display))
+            now = self.view()
             if now != last:
-                last, changed_at = now, time.time()
-            return changed_at is not None and time.time() - changed_at >= quiet
+                last, changed_at = now, time.monotonic()
+            return changed_at is not None and time.monotonic() - changed_at >= quiet
 
-        self.poll(still, SETTLE_SIM_S)
+        self.poll(still, SETTLE_IDLE_S)
 
     def wait_for(self, needles):
         """Pump until every string in `needles` HAS BEEN on screen.
@@ -210,7 +201,7 @@ class Term:
 
     def snapshot(self):
         """Normalized screen as a single string (one row per line, trailing \\n)."""
-        return "\n".join(normalize_lines(self.screen.display)) + "\n"
+        return "\n".join(self.view()) + "\n"
 
     def close(self):
         self.proc.terminate()
@@ -302,13 +293,14 @@ def assert_screen(request):
         # that instant, which is a function of the sim's age. Assert log content
         # with wait_for() instead, as test_logs does.
         want = drop_log_lines(meaningful_lines(clip(path.read_text().split("\n"))))
-        if term.poll(lambda: drop_log_lines(meaningful_lines(clip(term.screen.display))) == want):
+        got = lambda: drop_log_lines(strip_noise(clip(term.view())))
+        if term.poll(lambda: got() == want, MATCH_IDLE_S):
             return
         diff = "".join(difflib.unified_diff(
             path.read_text().splitlines(keepends=True),
             term.snapshot().splitlines(keepends=True),
             fromfile=f"{name} (expected)", tofile=f"{name} (actual)"))
-        pytest.fail(f"screen never matched '{name}' (the sim ran on {STALL_SIM_S}s "
-                    f"with the screen unchanged):\n{diff}")
+        pytest.fail(f"screen never matched '{name}' (unchanged for {MATCH_IDLE_S}s):"
+                    f"\n{diff}")
 
     return _check

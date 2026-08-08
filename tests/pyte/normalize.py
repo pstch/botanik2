@@ -127,14 +127,23 @@ def normalize_lines(lines):
     return out
 
 
-def meaningful_lines(lines):
-    """Normalized, with noise and blank rows dropped.
+def strip_noise(view):
+    """Drop blank and timing-noise rows from ALREADY-normalized lines.
 
     Comparing the SEQUENCE of meaningful rows rather than their absolute
     positions means a stray scheduler-overrun line, and the scroll it causes,
     cannot fail a correct screen.
+
+    Separate from meaningful_lines so a caller holding Term.view() does not pay
+    to normalize a screen twice; normalization is a per-line map, so clipping a
+    band before or after it gives the same rows.
     """
-    return [ln for ln in normalize_lines(lines) if ln and not _NOISE.search(ln)]
+    return [ln for ln in view if ln and not _NOISE.search(ln)]
+
+
+def meaningful_lines(lines):
+    """strip_noise() over raw screen rows (or golden text read off disk)."""
+    return strip_noise(normalize_lines(lines))
 
 
 # normalize_lines has already collapsed the stamp, so every log entry starts with

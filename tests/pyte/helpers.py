@@ -1,7 +1,7 @@
 """Boot / page-switch helpers, and the shell-editor screen assertion."""
 
 import keys
-from normalize import drop_log_lines, meaningful_lines
+from normalize import drop_log_lines, strip_noise
 
 # Final markers of the async boot handshake (DNS -> NTP -> MQTT). Reaching both
 # is what "booted" means here, so a test acts on a firmware that has finished it
@@ -16,23 +16,31 @@ def boot(spawn, **kwargs):
     # Asserted, not merely waited on: a marker the sim can no longer produce
     # would otherwise burn the whole budget in every test and still pass, which
     # is exactly what an unreachable mock broker once did.
-    assert term.wait_for(NET_BOOT_DONE), \
-        f"network boot never completed; saw {sorted(term._seen)}"
+    assert term.wait_for(NET_BOOT_DONE), (
+        f"network boot never completed; saw {sorted(term._seen)}\n"
+        f"screen was:\n{term.snapshot()}")
     return term
 
 
-def goto(term, page_key, marker=None):
-    """Switch page and wait for the redraw.
+# The status bar renders the ACTIVE tab as "N:NAME" and the rest as bare digits,
+# so the label is both the cheapest thing to sync a page switch on and the one
+# marker every page is guaranteed to have.
+TABS = {keys.ALT_1: "1:HOME", keys.ALT_2: "2:SHELL", keys.ALT_3: "3:LOGS",
+        keys.ALT_4: "4:ALARMS", keys.ALT_5: "5:PARAMS", keys.ALT_6: "6:MONITOR",
+        keys.ALT_7: "7:TASKS", keys.ALT_8: "8:NOTES"}
 
-    `marker` syncs on content instead of settle()'s quiet window. Prefer it for a
-    page that never goes quiet (MONITOR animates every reading), where settle()
-    finds no quiet window and pays its full budget.
+
+def goto(term, page_key, marker=None):
+    """Switch page and wait for the redraw, syncing on `marker` (default: the tab).
+
+    wait_screen, not wait_for: a tab label is only true while that page is
+    active, and a latched marker would answer for a visit two tests ago. Content
+    sync rather than settle() throughout - it stops at the first frame that says
+    yes, where a quiet window has to wait out the 4800-baud dribble.
     """
     term.send(page_key)
-    if marker is not None:
-        assert term.wait_for(marker), f"page did not render marker {marker!r}"
-    else:
-        term.settle()
+    marker = marker if marker is not None else TABS[page_key]
+    assert term.wait_screen(marker), f"page did not render marker {marker!r}"
     return term
 
 
@@ -66,8 +74,8 @@ def assert_editor(term, *rows, **kw):
     assert not kw, f"unexpected kwargs {sorted(kw)}"
 
     def got():
-        lines = term.screen.display
-        return drop_log_lines(meaningful_lines(lines[clip[0]:clip[1]] if clip else lines))
+        view = term.view()
+        return drop_log_lines(strip_noise(view[clip[0]:clip[1]] if clip else view))
 
     term.poll(lambda: got() == want)
     assert got() == want, "editor screen mismatch\n  want: %s\n  got:  %s" % (
