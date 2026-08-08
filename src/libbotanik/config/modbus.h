@@ -246,13 +246,6 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, MODBUS_REWRITE_MS);
 
-    /** @brief Field devices the client tracks the health of - one entry each,
-     *  populated from the plan at bring-up. The reference site has 8. */
-#ifndef BOTANIK_MODBUS_MAX_DEVICES
-#  define BOTANIK_MODBUS_MAX_DEVICES 8
-#endif
-    BOTANIK_CFG(uint8_t, MODBUS_MAX_DEVICES);
-
     /** @brief Immediate retries before a device is backed off.
      *
      *  One. A lost frame on a long RS-485 run is weather - retrying at once

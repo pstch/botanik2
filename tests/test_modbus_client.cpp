@@ -161,4 +161,40 @@ TEST_CASE("modbus client: the urgency is spent once the safe state is out") {
     CHECK_FALSE(m.client.safe_state_pending());
 }
 
+
+// Device health
+// ===========================================================================
+
+TEST_CASE("modbus client: every block's device is one the client watches") {
+    // The peer table used to be built separately and capped at
+    // MODBUS_MAX_DEVICES, with a bare break at the ceiling. An untracked unit is
+    // always due - deliberately - so a device past the cap skipped the backoff
+    // entirely: if it was dead it cost a full response timeout every sweep, with
+    // no alarm, which is the exact failure the backoff exists to prevent. The
+    // site had 8 devices against a cap of 8.
+    Master m;
+    const Planner& p = m.client.plan();
+    REQUIRE(p.block_count() > 0);
+
+    for (uint16_t i = 0; i < p.block_count(); ++i) {
+        const Block& b = p.block(i);
+        INFO("block " << i << " on unit " << (int)b.device
+                      << " has peer " << (int)b.peer);
+        CHECK(b.peer < p.device_count());
+        // And the peer really is that block's device.
+        CHECK(p.device_at(b.peer) == b.device);
+    }
+}
+
+TEST_CASE("modbus client: the device set is the distinct units, counted once") {
+    Master m;
+    const Planner& p = m.client.plan();
+
+    for (uint8_t i = 0; i < p.device_count(); ++i)
+        for (uint8_t j = (uint8_t)(i + 1); j < p.device_count(); ++j)
+            CHECK(p.device_at(i) != p.device_at(j));
+
+    CHECK(m.client.peer_count() == p.device_count());
+}
+
 #endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT

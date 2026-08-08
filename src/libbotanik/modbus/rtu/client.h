@@ -106,15 +106,18 @@ namespace Botanik { namespace Modbus {
         /** @brief Which block is in flight, or NO_BLOCK. */
         uint16_t            _active = NO_BLOCK;
 
-        /** @brief One device's health. Populated from the plan at bring-up, so
-         *  there is no entry for a unit the plan never talks to. */
+        /** @brief One device's health, indexed by Block::peer.
+         *
+         *  Parallel to the planner's device set rather than a table of its own:
+         *  the planner assigns every block a peer index, so a block that exists
+         *  always has an entry. The unit address is not repeated here - the
+         *  planner holds it, and two copies of the same fact is how the old
+         *  table came to silently drop the ninth device. */
         struct Peer {
-            uint8_t  unit     = 0;
             uint8_t  misses   = 0;   ///< consecutive failures; 0 = answering
             uint64_t probe_ms = 0;   ///< do not speak to it before this
         };
-        Peer     _peer[Config::MODBUS_MAX_DEVICES];
-        uint8_t  _peer_count = 0;
+        Peer     _peer[Config::MODBUS_MAX_BLOCKS];
         uint8_t  _dead       = 0;    ///< how many are in backoff right now
         /** @brief The library's field-bus rows, resolved by name once at
          *  bring-up - the same way HealthMonitor drives the platform alarms.
@@ -205,14 +208,13 @@ namespace Botanik { namespace Modbus {
         const RtuFramer& framer() const { return _framer; }
         /** @brief Devices in backoff right now, and how many are tracked. */
         uint8_t dead_count() const  { return _dead; }
-        uint8_t peer_count() const  { return _peer_count; }
+        uint8_t peer_count() const  { return _plan.device_count(); }
         /** @brief Unit id of tracked device @p i, and whether it is answering.
          *  For the shell: "which one" is the operator's next question. */
-        uint8_t peer_unit(uint8_t i) const {
-            return (i < _peer_count) ? _peer[i].unit : 0;
-        }
+        uint8_t peer_unit(uint8_t i) const { return _plan.device_at(i); }
         bool peer_dead(uint8_t i) const {
-            return (i < _peer_count) && _peer[i].misses > Config::MODBUS_RETRIES;
+            return (i < _plan.device_count()) &&
+                   _peer[i].misses > Config::MODBUS_RETRIES;
         }
 
         /** @} */
@@ -252,15 +254,13 @@ namespace Botanik { namespace Modbus {
         /** @name Device health
          *  @{ */
         /** @brief @p unit's entry, or null when the plan never talks to it. */
-        Peer* _peer_of(uint8_t unit);
-        const Peer* _peer_of(uint8_t unit) const;
         /** @brief Whether @p unit may be spoken to now. An untracked unit may:
          *  refusing would silently drop a block the planner asked for. */
-        bool _due(uint8_t unit, uint64_t now_ms) const;
+        bool _due(const Block& b, uint64_t now_ms) const;
         /** @brief @p unit answered: clear its miss count. */
-        void _answered(uint8_t unit);
+        void _answered(const Block& b);
         /** @brief @p unit did not: retry once, then back off, doubling. */
-        void _missed(uint8_t unit, uint64_t now_ms);
+        void _missed(const Block& b, uint64_t now_ms);
         /** @brief Recount the dead and write the alarm and the status row. */
         void _publish_health();
         /** @} */

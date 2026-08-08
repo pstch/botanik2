@@ -177,6 +177,16 @@ namespace Botanik { namespace Modbus {
         uint16_t row_count;
         uint8_t  device;      ///< slave address
         uint8_t  fc;          ///< the code it is issued with
+        /** @brief Which entry in the DEVICE set this block's slave is, assigned
+         *  at plan time.
+         *
+         *  Health is per device and the client asks about it per block, so
+         *  without this every block costs a linear scan of the peers on every
+         *  beat. The planner already groups rows by device, so it is free here
+         *  and there is one fewer array to keep in step - and one fewer array to
+         *  silently overflow, which is what the client's own peer table did at
+         *  the ninth device on an eight-device cap. */
+        uint8_t  peer;
     };
 
     /**
@@ -212,6 +222,11 @@ namespace Botanik { namespace Modbus {
          *  because that is what an operator can go and look for, and because
          *  two causes in one number must at least share a unit. */
         uint16_t _rows_unscanned = 0;
+        /** @brief The distinct unit addresses the plan talks to, in the order
+         *  they were first seen. Bounded by the block table, not by a separate
+         *  cap: a device with no block is a device nobody speaks to. */
+        uint8_t  _devices_seen[Config::MODBUS_MAX_BLOCKS];
+        uint8_t  _device_count = 0;
         uint16_t _merge_gap      = 0;
         uint32_t _baud           = 0;
         uint32_t _turnaround_us  = 0;
@@ -240,6 +255,14 @@ namespace Botanik { namespace Modbus {
 
         /** @name The result
          *  @{ */
+
+        /** @brief How many distinct devices the plan addresses; peer indices run
+         *  below this. */
+        uint8_t      device_count() const { return _device_count; }
+        /** @brief The unit address of peer @p i. */
+        uint8_t      device_at(uint8_t i) const {
+            return (i < _device_count) ? _devices_seen[i] : (uint8_t)0;
+        }
 
         uint16_t     block_count() const { return _block_count; }
         const Block& block(uint16_t i) const { return _blocks[i]; }

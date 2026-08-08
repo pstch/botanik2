@@ -111,6 +111,7 @@ void Planner::plan(const Vars::Bank& io, uint32_t baud, uint32_t turnaround_ms,
     _block_count    = 0;
     _rows_dropped   = 0;
     _rows_unscanned = 0;
+    _device_count   = 0;
     _baud           = baud;
     _turnaround_us  = turnaround_ms * 1000u;
     _merge_gap      = merge_gap(baud, _turnaround_us);
@@ -206,6 +207,14 @@ void Planner::_cut(const Vars::Bank& io) {
         }
 
         b.regs = (uint16_t)(end - b.reg);
+
+        // The device set, in first-seen order. Bounded by the block table, so a
+        // block that exists always has a peer: there is no separate cap to run
+        // past and no untracked unit to skip the backoff.
+        b.peer = _device_count;
+        for (uint8_t p = 0; p < _device_count; ++p)
+            if (_devices_seen[p] == b.device) { b.peer = p; break; }
+        if (b.peer == _device_count) _devices_seen[_device_count++] = b.device;
 
         // Widen a READ out to what this model insists on being asked for. A
         // device storing 32-bit values in register pairs answers exception 02 to
