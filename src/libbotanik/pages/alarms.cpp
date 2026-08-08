@@ -23,7 +23,7 @@ namespace Botanik { namespace Pages {
         out[C_CODE]  = Col{ "CODE",       CODE_W  };
         out[C_NAME]  = Col{ "VARIABLE",   _name_w() };
         out[C_STATE] = Col{ "ON",         STATE_W };
-        out[C_FORCED]= Col{ "FRC",        FORCED_W };
+        out[C_OVR]   = Col{ "OVR",        OVR_W };
         out[C_EVENT] = Col{ "LAST EVENT", EVENT_W };
         return 5;
     }
@@ -153,7 +153,7 @@ namespace Botanik { namespace Pages {
         const char* forced = "";
         if (_model != nullptr) {
             bool held = false;
-            if (_model->forced(idx, &held)) forced = held ? "SET" : "CLR";
+            if (_model->forced(idx, &held)) forced = held ? "ON" : "OFF";
         }
         const char* cells[5] = { c.code ? c.code : "?",
                                  c.name ? c.name : "?", state, forced, ev };

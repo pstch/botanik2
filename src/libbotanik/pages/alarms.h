@@ -99,14 +99,18 @@ namespace Botanik { namespace Pages {
          *  stopping short of it. */
         uint16_t _name_w() const {
             return _flex_width((uint16_t)(2 * MARGIN + (CODE_W + 2) + 2
-                                          + (STATE_W + 2) + (FORCED_W + 2)
+                                          + (STATE_W + 2) + (OVR_W + 2)
                                           + (EVENT_W + 2) + 1), 60);
         }
         static constexpr uint16_t STATE_W    = 3;   // "ON" badge / "ON" header
-        /** @brief The forced marker. An alarm is a row like any other, so it
-         *  can be overridden - and a forced one is indistinguishable from a real
-         *  one on the page an operator reads during a fault. */
-        static constexpr uint16_t FORCED_W   = 3;   // "SET" / "CLR" 
+        /** @brief The override marker: what the row is being HELD at, in the
+         *  same ON/OFF vocabulary the state column uses, because that is what
+         *  the state column is showing while it is forced. Blank when live.
+         *
+         *  An alarm is a row like any other, so it can be overridden - and a
+         *  forced one is otherwise indistinguishable from a real one on the page
+         *  an operator reads during a fault. */
+        static constexpr uint16_t OVR_W      = 4;   // "ON" / "OFF", padded
         static constexpr uint16_t EVENT_W    = 15;  // "YY/MM/DD HH:MM"
         static constexpr uint16_t HEADER_ROW = 2;
         static constexpr uint16_t RULE_ROW   = 3;
@@ -118,7 +122,7 @@ namespace Botanik { namespace Pages {
          *  safe because the highlight stops one short of the cell. The STATE cell carries
          *  its own reverse-video "ON" badge, split out of the row write so there
          *  is no flicker-prone overdraw. */
-        enum { C_CODE = 0, C_NAME, C_STATE, C_FORCED, C_EVENT };
+        enum { C_CODE = 0, C_NAME, C_STATE, C_OVR, C_EVENT };
         /** @} */
 
         /** @brief The alarms grid packs its cells (no trailing pad): the width
