@@ -53,17 +53,14 @@ namespace Botanik { namespace Modbus {
         return true;
     }
 
-    bool TcpMaster::read_registers(uint8_t unit, uint16_t addr, uint16_t qty) {
-        return read_bits(unit, FC_READ_HOLDING, addr, qty);
-    }
-
-    bool TcpMaster::read_bits(uint8_t unit, uint8_t fc, uint16_t addr, uint16_t qty) {
+    bool TcpMaster::read(uint8_t unit, uint8_t fc, uint16_t addr, uint16_t qty) {
         if (_state != MA_READY) return false;
+        if (!is_read(fc)) return false;
         // The id is what tells this answer from the one before it, so it moves
         // on every request and is checked on every response.
         const Mbap m = { ++_txn, unit };
         const size_t n = encode_read_request(_tx, sizeof(_tx), m, fc, addr, qty);
-        const Expect e = { unit, fc, addr, qty };
+        const Expect e = { unit, fc, addr, qty, 0 };
         return _start(n, e);
     }
 
@@ -72,7 +69,9 @@ namespace Botanik { namespace Modbus {
         if (_state != MA_READY) return false;
         const Mbap m = { ++_txn, unit };
         const size_t n = encode_write_request(_tx, sizeof(_tx), m, addr, qty, data);
-        const Expect e = { unit, FC_WRITE_REGISTERS, addr, qty };
+        // value is unused for a multi-write: FC16 echoes its address and
+        // quantity, and those are what parse checks.
+        const Expect e = { unit, FC_WRITE_REGISTERS, addr, qty, 0 };
         return _start(n, e);
     }
 
@@ -127,7 +126,17 @@ namespace Botanik { namespace Modbus {
         while (_tx_sent < _tx_len) {
             const int n = Net::tcp_send(_sock, _tx + _tx_sent,
                                         (size_t)(_tx_len - _tx_sent));
-            if (n == 0) return;                      // would block: resume next beat
+            if (n == 0) {
+                // Would block. A peer that accepts the connection and then never
+                // reads is the case with no natural end: every other state had a
+                // deadline and this one did not, so the master sat here for ever
+                // with no fault counted and no reconnect.
+                if ((now_ms - _since_ms) > Config::MODBUS_TCP_RESPONSE_TIMEOUT_MS) {
+                    disconnect();
+                    _finish(ERR_TIMEOUT, now_ms);
+                }
+                return;
+            }
             if (n < 0) { disconnect(); _finish(ERR_TIMEOUT, now_ms); return; }
             _tx_sent = (uint16_t)(_tx_sent + n);
         }
@@ -165,6 +174,13 @@ namespace Botanik { namespace Modbus {
         } else {
             _rx_len = 0;
         }
+
+        // A frame we could not place is not a transaction that merely failed:
+        // the stream is out of step by an unknown amount, and the next request
+        // would read whatever is left as its answer. Only OK and a REFUSAL are
+        // well-formed enough to leave the socket up - the slave takes the same
+        // view of a request it cannot parse.
+        if (e != ERR_OK && e != ERR_EXCEPTION) disconnect();
         _finish(e, now_ms);
     }
 

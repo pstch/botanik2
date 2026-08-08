@@ -128,8 +128,13 @@ namespace Botanik { namespace Modbus {
          *  not be framed - never a silent enqueue, because there is no queue.
          *  @{ */
 
-        bool read_registers(uint8_t unit, uint16_t addr, uint16_t qty);
-        bool read_bits(uint8_t unit, uint8_t fc, uint16_t addr, uint16_t qty);
+        /** @brief FC01/02/03/04 - the function code says which table.
+         *
+         *  One entry point, because there was never more than one: the old
+         *  read_registers() forwarded to a read_bits() that took an fc and read
+         *  whatever it was given, so the pair named a distinction that did not
+         *  exist. A code that is not a read is refused rather than framed. */
+        bool read(uint8_t unit, uint8_t fc, uint16_t addr, uint16_t qty);
         /** @brief FC16 from @p data, already big-endian register bytes. */
         bool write_registers(uint8_t unit, uint16_t addr, uint16_t qty,
                              const uint8_t* data);

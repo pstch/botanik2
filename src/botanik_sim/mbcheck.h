@@ -128,7 +128,8 @@ namespace Botanik { namespace Sim {
             switch (_step) {
                 case MC_READ1:
                 case MC_READ2:
-                    _master.read_registers(Config::MODBUS_TCP_UNIT_ID, _row_addr, 2);
+                    _master.read(Config::MODBUS_TCP_UNIT_ID, Modbus::FC_READ_HOLDING,
+                                 _row_addr, 2);
                     return;
                 case MC_WRITE: {
                     // Big-endian register bytes, high word first - the map's own
