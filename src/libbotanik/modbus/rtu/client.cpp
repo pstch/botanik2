@@ -59,10 +59,10 @@ void RtuClient::on_setup(uint64_t now_ms) {
     if (_plan.rows_dropped() != 0)
         _logger->critical(Logs::SHARED_IO, "modbus: %u row(s) unplanned",
                           (unsigned)_plan.rows_dropped());
-    if (_plan.blocks_dropped() != 0)
+    if (_plan.rows_unscanned() != 0)
         _logger->critical(Logs::SHARED_IO,
-                          "modbus: %u row(s) past MODBUS_MAX_BLOCKS",
-                          (unsigned)_plan.blocks_dropped());
+                          "modbus: %u row(s) will never be scanned",
+                          (unsigned)_plan.rows_unscanned());
 }
 
 RtuClient::Peer* RtuClient::_peer_of(uint8_t unit) {

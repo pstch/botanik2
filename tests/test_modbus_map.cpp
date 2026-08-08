@@ -199,9 +199,11 @@ TEST_CASE("modbus map: an odd address or count is refused, not rounded") {
     CHECK(s.map.write_registers(addr, 1, data, nullptr) == EX_ILLEGAL_ADDRESS);
 }
 
-TEST_CASE("modbus map: rebuilding drops whatever was queued against the old table") {
-    // The queue holds row indices. Rebuilding the map can renumber them, so a
-    // stale entry would persist a value from one row into another.
+TEST_CASE("modbus map: rebuilding makes the queue durable rather than dropping it") {
+    // Everything queued was acknowledged to a master with EX_NONE. Discarding it
+    // on a rebuild would break that promise silently - and the refs are BANK row
+    // indices, which a rebuild does not renumber, so there was never anything
+    // stale about them to justify it.
     Served s;
     uint16_t addr = 0;
     uint16_t row = 0;
@@ -215,7 +217,12 @@ TEST_CASE("modbus map: rebuilding drops whatever was queued against the old tabl
     REQUIRE(s.map.pending_persists() > 0);
 
     s.map.build();
+    // Drained, so nothing is owed...
     CHECK(s.map.pending_persists() == 0);
+    // ...and the value the master was promised is still the one in the bank.
+    CHECK(Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live()) == w);
+    // The map itself is intact after the rebuild.
+    CHECK(s.map.count() > 0);
 }
 
 

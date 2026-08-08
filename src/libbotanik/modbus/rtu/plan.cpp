@@ -110,7 +110,7 @@ void Planner::plan(const Vars::Bank& io, uint32_t baud, uint32_t turnaround_ms,
     _row_count      = 0;
     _block_count    = 0;
     _rows_dropped   = 0;
-    _blocks_dropped = 0;
+    _rows_unscanned = 0;
     _baud           = baud;
     _turnaround_us  = turnaround_ms * 1000u;
     _merge_gap      = merge_gap(baud, _turnaround_us);
@@ -159,9 +159,10 @@ void Planner::_cut(const Vars::Bank& io) {
     uint16_t i = 0;
     while (i < _row_count) {
         if (_block_count >= Config::MODBUS_MAX_BLOCKS) {
-            // Everything left is unreachable. Count the rows rather than the
-            // blocks we did not make: rows are what an operator can look for.
-            _blocks_dropped = (uint16_t)(_row_count - i);
+            // Everything left is unreachable. Counted in ROWS rather than in
+            // blocks we did not make: a row is what an operator can go and look
+            // for, and it is the same unit the other drop path below uses.
+            _rows_unscanned = (uint16_t)(_rows_unscanned + (_row_count - i));
             return;
         }
 
@@ -224,8 +225,13 @@ void Planner::_cut(const Vars::Bank& io) {
             b.regs = (uint16_t)(b.regs + lead);
             const uint16_t tail = (uint16_t)(b.regs % qa);
             if (tail != 0) b.regs = (uint16_t)(b.regs + (qa - tail));
-            // Only if the padding still fits what the device will answer.
-            if (b.regs > cap) { _blocks_dropped++; i = j; continue; }
+            // Only if the padding still fits what the device will answer. The
+            // whole block goes, so it is that block's ROWS that are unscanned.
+            if (b.regs > cap) {
+                _rows_unscanned = (uint16_t)(_rows_unscanned + (j - i));
+                i = j;
+                continue;
+            }
         }
 
         _blocks[_block_count++] = b;

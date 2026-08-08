@@ -189,7 +189,7 @@ namespace Botanik { namespace Modbus {
      * renumbering anything.
      *
      * Overflow is counted, not logged, because this layer has no logger and
-     * should not grow one. The owner reports rows_dropped() and blocks_dropped()
+     * should not grow one. The owner reports rows_dropped() and rows_unscanned()
      * at bring-up; both are zero on a sane table, and neither is allowed to be
      * silent.
      */
@@ -207,7 +207,11 @@ namespace Botanik { namespace Modbus {
         /** @brief Borrowed, flash-resident, may be null. @see device.h */
         const DeviceTable* _devices = nullptr;
         uint16_t _rows_dropped   = 0;   ///< more XP_MODBUS rows than _rows holds
-        uint16_t _blocks_dropped = 0;   ///< the plan wanted more blocks than fit
+        /** @brief Rows that will never be scanned: the plan ran out of blocks,
+         *  or a block could not be made legal for its device. Counted in ROWS
+         *  because that is what an operator can go and look for, and because
+         *  two causes in one number must at least share a unit. */
+        uint16_t _rows_unscanned = 0;
         uint16_t _merge_gap      = 0;
         uint32_t _baud           = 0;
         uint32_t _turnaround_us  = 0;
@@ -257,7 +261,7 @@ namespace Botanik { namespace Modbus {
         uint32_t duty_ppm() const;
 
         uint16_t rows_dropped() const   { return _rows_dropped; }
-        uint16_t blocks_dropped() const { return _blocks_dropped; }
+        uint16_t rows_unscanned() const { return _rows_unscanned; }
 
         /** @} */
 

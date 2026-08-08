@@ -66,9 +66,14 @@ namespace Botanik { namespace Modbus {
     }
 
     void Map::build() {
+        // Whatever is queued was ACKNOWLEDGED to a master with EX_NONE, and a
+        // rebuild is no reason to break that promise: the queue holds bank row
+        // indices, which a rebuild does not renumber - only this map's own order
+        // changes. So it is drained, not discarded. Unbounded, uniquely: this
+        // runs at bring-up and on a config commit, never in an ordinary beat.
+        (void)drain_persists(Config::MODBUS_PERSIST_QUEUE);
+
         _count = 0; _overflow = 0; _reg_lo = 0; _reg_hi = 0;
-        // A rebuild invalidates every queued ref: they index the old table.
-        _pending_head = 0; _pending_count = 0;
         if (_io == nullptr) return;
 
         for (uint16_t i = 0; i < _io->count(); i++) {

@@ -150,10 +150,10 @@ TEST_CASE("modbus device: the site's own plan loses nothing to its constraints")
     Planner p;
     p.plan(bank, 38400, 10, Site::g_site.devices);
 
-    INFO(p.rows_dropped() << " row(s) and " << p.blocks_dropped()
-                          << " block(s) dropped");
+    INFO(p.rows_dropped() << " row(s) unplanned and " << p.rows_unscanned()
+                          << " never scanned");
     CHECK(p.rows_dropped() == 0);
-    CHECK(p.blocks_dropped() == 0);
+    CHECK(p.rows_unscanned() == 0);
     CHECK(p.block_count() > 0);
 }
 
