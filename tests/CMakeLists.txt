@@ -72,19 +72,23 @@ target_link_libraries(botanik_tests botanik)
 # test_sizes.cpp pins the selected site's payload via BOTANIK_SITE_HEADER, derived
 # from the PUBLIC BOTANIK_SITE define (libbotanik_site.h) inherited from botanik.
 
-# One CTest entry per TEST_CASE: doctest_discover_tests runs the binary at build
-# time with --list-test-cases and emits an add_test() per case, so `ctest` and
-# VS Code's Testing panel can show, run and debug a single case rather than the
-# whole binary as one pass/fail. The module and its helper are vendored next to
-# doctest.h; no fetch, no install.
+# ONE CTest entry for the whole binary. doctest_discover_tests emitted an
+# add_test() per TEST_CASE, and a fresh process per case is nearly all of what
+# that cost: the cases run in ~0.6 s together and took ~15 s apart, the
+# difference being ASAN startup and static-table init paid ~500 times.
 #
-# Note this gives every case a fresh process, so a test that corrupts state for
-# the ones after it stays invisible here (that is how an unbound Bank walking
-# garbage pointers hid - see its value-init). Run the binary directly to catch
-# that class: `./build/tests/botanik_tests` puts all the cases in one process.
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/vendor)
-include(doctest)
-doctest_discover_tests(botanik_tests)
+# It also cost correctness twice over. A per-case process hides a case that
+# corrupts state for the ones after it (that is how an unbound Bank walking
+# garbage pointers hid - see its value-init); running them together is the
+# configuration that catches it. And ~500 ASAN processes on -j4 starved the
+# pyte sims sharing the run, which is what made the screen tests flaky under
+# load - a page whose masked screen holds still reads as settled when it is
+# merely not being scheduled.
+#
+# Debugging one case needs no CTest entry: `./tests/botanik_tests -tc=<name>`
+# selects it, and --output-on-failure prints doctest's own report naming the
+# failing case and line.
+add_test(NAME doctest COMMAND botanik_tests)
 
 # `make check` is the one-shot pre-push gate. Its dependencies build everything
 # the suite needs (`make test`/`ctest` do not) plus the two static gates, then the
