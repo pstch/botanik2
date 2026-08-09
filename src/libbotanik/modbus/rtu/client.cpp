@@ -72,14 +72,36 @@ bool RtuClient::_due(const Block& b, uint64_t now_ms) const {
 void RtuClient::_answered(const Block& b) {
     Peer* p = &_peer[b.peer];
     if (p->misses == 0) return;
-    if (p->misses > Config::MODBUS_RETRIES && _logger != nullptr) {
-        char who[40];
-        _logger->notice(Logs::SHARED_IO, "modbus: dev %s answering again",
-                        device_label(_devices, b.device, who, sizeof who));
+
+    // Only when the device was actually DECLARED down. A frame or two lost to
+    // noise is weather, and the box never stopped running - re-writing its
+    // outputs there would put a write on the bus every time the line glitched.
+    // Past the retries we have to assume it rebooted, and a device that
+    // rebooted is back at its own power-on defaults.
+    if (p->misses > Config::MODBUS_RETRIES) {
+        if (_logger != nullptr) {
+            char who[40];
+            _logger->notice(Logs::SHARED_IO, "modbus: dev %s answering again",
+                            device_label(_devices, b.device, who, sizeof who));
+        }
+        // Every write block of THIS device, not just the block that happened to
+        // get the answer: the whole box came back, and its coils and registers
+        // came back together.
+        reassert_outputs(b.peer);
     }
+
     p->misses   = 0;
     p->probe_ms = 0;
     _publish_health();
+}
+
+void RtuClient::reassert_outputs(uint8_t peer) {
+    if (_io == nullptr) return;
+    for (uint16_t i = 0; i < _plan.block_count(); ++i) {
+        const Block& w = _plan.block(i);
+        if (w.peer != peer || is_read(w.fc)) continue;
+        reassert_block(*_io, _plan, w);
+    }
 }
 
 void RtuClient::_missed(const Block& b, uint64_t now_ms) {

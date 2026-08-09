@@ -586,6 +586,16 @@ namespace Botanik { namespace Vars {
 
         bool field_dirty() const { return (_v->vflags & VF_FIELD_DIRTY) != 0; }
         void clear_field_dirty() { _v->vflags = (uint8_t)(_v->vflags & ~VF_FIELD_DIRTY); }
+        /** @brief Owe this demand to the field again, without touching the
+         *  demand itself.
+         *
+         *  For a driver that has learned the device no longer necessarily has
+         *  what it was last sent - a slave that dropped off the bus and came
+         *  back has been through its own power-on defaults, and the firmware's
+         *  belief that the coil is still set is a belief about a device that
+         *  rebooted underneath it. Re-marking is not a re-decision: the value
+         *  stands, only its delivery is owed again. */
+        void mark_field_dirty() { _touch_field(); }
 
         /** @} */
 

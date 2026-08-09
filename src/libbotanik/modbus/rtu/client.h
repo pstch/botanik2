@@ -219,6 +219,19 @@ namespace Botanik { namespace Modbus {
                    _peer[i].misses > Config::MODBUS_RETRIES;
         }
 
+        /**
+         * @brief Owe every output on tracked device @p peer to the field again.
+         *
+         * What a device that was declared down and came back gets, because it
+         * has been through its own power-on defaults in the meantime: a relay
+         * board reboots with its coils open while the firmware still believes it
+         * commanded them shut, and a level-driven scan never disagrees, because
+         * the demand has not moved.
+         *
+         * Values are untouched - only their delivery is owed again.
+         */
+        void reassert_outputs(uint8_t peer);
+
         /** @} */
 
     protected:

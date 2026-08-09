@@ -77,6 +77,23 @@ namespace Botanik { namespace Modbus {
      * @p q is the diagnosis: Q_REFUSED when the device answered and declined
      * (its register map is not the one we hold), Q_STALE when nothing came back.
      */
+    /**
+     * @brief Owe every row of @p b to the field again, without changing what
+     *        any of them demands.
+     *
+     * For a device that went away and came back. The dirty mark means "the wire
+     * has not carried this yet", and it was cleared when the write landed - on a
+     * device that has since been through its own power-on defaults. A relay
+     * board that reboots comes back with its coils open while the firmware still
+     * believes it commanded them shut, and nothing in a level-driven scan ever
+     * disagrees: the demand has not moved, so no write is queued, so the plant
+     * sits wrong until something else happens to change it.
+     *
+     * Re-marking is not a re-decision. The value stands; only its delivery is
+     * owed again.
+     */
+    void reassert_block(Vars::Bank& io, const Planner& p, const Block& b);
+
     void invalidate_block(Vars::Bank& io, const Planner& p, const Block& b,
                           Vars::Quality q);
 

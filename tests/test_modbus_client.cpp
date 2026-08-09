@@ -165,6 +165,76 @@ TEST_CASE("modbus client: the urgency is spent once the safe state is out") {
 // Device health
 // ===========================================================================
 
+TEST_CASE("modbus client: a device that came back is owed its outputs again") {
+    // The dirty mark means "the wire has not carried this yet", and it is
+    // cleared when the write lands. A device that then reboots comes back at
+    // its own power-on defaults, and nothing in a level-driven scan disagrees:
+    // the demand has not moved, so no write is queued, so the plant sits wrong.
+    Master m;
+    m.dirty_all_writes();
+
+    // Pretend every write has landed, which is where the trouble starts.
+    for (uint16_t i = 0; i < m.client.plan().block_count(); ++i) {
+        const Block& b = m.client.plan().block(i);
+        if (is_read(b.fc)) continue;
+        for (uint16_t k = 0; k < b.row_count; ++k)
+            m.bank.var(m.client.plan().row((uint16_t)(b.first_row + k)))
+                .clear_field_dirty();
+    }
+    REQUIRE_FALSE(m.is_write(m.client.next_block(1000)));
+
+    // One device comes back.
+    uint8_t peer = 0xFF, unit = 0;
+    for (uint16_t i = 0; i < m.client.plan().block_count(); ++i) {
+        const Block& b = m.client.plan().block(i);
+        if (is_read(b.fc)) continue;
+        peer = b.peer;
+        unit = b.device;
+        break;
+    }
+    REQUIRE(peer != 0xFF);
+    m.client.reassert_outputs(peer);
+
+    // Its rows are owed again; every other device's are still settled.
+    uint16_t mine = 0, others = 0;
+    for (uint16_t i = 0; i < m.client.plan().block_count(); ++i) {
+        const Block& b = m.client.plan().block(i);
+        if (is_read(b.fc)) continue;
+        for (uint16_t k = 0; k < b.row_count; ++k) {
+            const bool d = m.bank.var(m.client.plan().row((uint16_t)(b.first_row + k)))
+                               .field_dirty();
+            if (b.peer == peer) { if (d) mine++; }
+            else if (d) others++;
+        }
+    }
+    INFO("device " << (int)unit << " came back; " << mine << " rows re-owed");
+    CHECK(mine > 0);
+    INFO("no other device was disturbed");
+    CHECK(others == 0);
+}
+
+TEST_CASE("modbus client: re-asserting an output does not re-decide it") {
+    // The value stands - only its delivery is owed again. A re-assert that
+    // reset the demand would drop an actuator on every bus glitch.
+    Master m;
+    const Block* w = nullptr;
+    for (uint16_t i = 0; i < m.client.plan().block_count(); ++i)
+        if (!is_read(m.client.plan().block(i).fc)) { w = &m.client.plan().block(i); break; }
+    REQUIRE(w != nullptr);
+
+    Var h = m.bank.var(m.client.plan().row(w->first_row));
+    m.bank.override_set(h, (h.meta()->type == T_BOOL) ? from_bool(T_BOOL, true)
+                                                      : from_f32(h.meta()->type, 42.0f));
+    const Scalar before = h.raw();
+    h.clear_field_dirty();
+
+    m.client.reassert_outputs(w->peer);
+
+    CHECK(h.field_dirty());
+    INFO("'" << std::string(h.name()) << "' kept what it was demanding");
+    CHECK(h.raw().u == before.u);
+}
+
 TEST_CASE("modbus client: every block's device is one the client watches") {
     // The peer table used to be built separately and capped at
     // MODBUS_MAX_DEVICES, with a bare break at the ceiling. An untracked unit is

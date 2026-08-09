@@ -160,6 +160,11 @@ namespace {
 
 }  // namespace
 
+void reassert_block(Vars::Bank& io, const Planner& p, const Block& b) {
+    for (uint16_t k = 0; k < b.row_count; ++k)
+        io.var(p.row((uint16_t)(b.first_row + k))).mark_field_dirty();
+}
+
 void invalidate_block(Vars::Bank& io, const Planner& p, const Block& b,
                       Vars::Quality q) {
     for (uint16_t k = 0; k < b.row_count; ++k)
