@@ -19,16 +19,6 @@ uint16_t seal(uint8_t* out, uint16_t body) {
     return (uint16_t)(body + 2u);
 }
 
-namespace {
-
-    /** @brief The largest byte count a read response can legitimately carry
-     *  (125 registers, or 2000 coils packed). Anything above it means the
-     *  request itself was malformed, and it is checked before the number is
-     *  used to size a buffer. */
-    const uint16_t PAYLOAD_MAX = 250;
-
-}  // namespace
-
 uint16_t crc16(const uint8_t* buf, uint16_t n) {
     uint16_t crc = 0xFFFFu;
     if (buf == nullptr) return crc;
