@@ -171,7 +171,7 @@ namespace Botanik { namespace Modbus {
         } else {
             for (uint16_t i = 0; i < qty; ++i) {
                 const uint16_t v = reg((uint16_t)(addr + i));
-                wr16(out + 3 + i * 2, v);
+                wr16(out + 3 + (size_t)i * 2, v);
             }
         }
         (void)seal(out, (uint16_t)(3 + bytes));

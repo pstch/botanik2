@@ -44,7 +44,8 @@ namespace Botanik { namespace Modbus {
         /** @brief The 32-bit value the register pair at offset @p i of a write
          *  payload carries. High word first, in the ONE place that says so. */
         uint32_t word_at(const uint8_t* data, uint16_t i) {
-            return ((uint32_t)rd16(data + i * 2) << 16) | rd16(data + i * 2 + 2);
+            return ((uint32_t)rd16(data + (size_t)i * 2) << 16)
+                   | rd16(data + (size_t)i * 2 + 2);
         }
 
         /** @brief Whether a master may write this row at all. Not the same
@@ -197,7 +198,7 @@ namespace Botanik { namespace Modbus {
                 // as inside a register.
                 word = (a % 2 == 0) ? (uint16_t)(wire >> 16) : (uint16_t)(wire & 0xFFFF);
             }
-            wr16(out + i * 2, word);
+            wr16(out + (size_t)i * 2, word);
         }
         return EX_NONE;
     }
