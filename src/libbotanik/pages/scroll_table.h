@@ -202,13 +202,21 @@ namespace Botanik { namespace Pages {
          *  lopsided and moved the badge - the one thing the eye returns to -
          *  whenever a neighbour's name changed length. Centring in a fixed slot
          *  keeps each field in its own region and lets it grow both ways.
+         *
+         *  The slot is sized to the widest field any table actually produces,
+         *  not to the widest a group name could be: "> unmasked" and
+         *  "[unmasked]" are 10, and every group prefix in a real table is
+         *  shorter. A field that overruns its slot is not clipped - it simply
+         *  pushes the ones after it right, so an unusually long group name
+         *  degrades to the ragged spacing the slots exist to avoid rather than
+         *  to lost text.
          *  @{ */
-        static constexpr uint16_t ML_SLOT_W = 15;   // each view field's slot
+        static constexpr uint16_t ML_SLOT_W = 11;   // each view field's slot
         static constexpr uint16_t ML_PREV   = 2;    // previous view
-        static constexpr uint16_t ML_BADGE  = 17;   // "[cur]"
-        static constexpr uint16_t ML_NEXT   = 32;   // "> next", or "(group)"
-        static constexpr uint16_t ML_POS    = 48;   // "first-last / total"
-        static constexpr uint16_t ML_DETAIL = 62;   // page-specific extra
+        static constexpr uint16_t ML_BADGE  = 13;   // "[cur]"
+        static constexpr uint16_t ML_NEXT   = 24;   // "> next", or "(group)"
+        static constexpr uint16_t ML_POS    = 36;   // "first-last / total"
+        static constexpr uint16_t ML_DETAIL = 50;   // page-specific extra
         /** @} */
 
         /** @brief Pad @p buf out to column @p col. */
