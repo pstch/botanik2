@@ -124,15 +124,11 @@ namespace Botanik { namespace Modbus {
     }
 
     int Map::_find(uint16_t reg) const {
-        int lo = 0, hi = (int)_count - 1;
-        while (lo <= hi) {
-            const int mid = lo + (hi - lo) / 2;
-            const uint16_t r = _io->var(_rows[mid]).meta()->bind.reg;
-            if (r == reg) return mid;
-            if (r <  reg) lo = mid + 1;
-            else          hi = mid - 1;
-        }
-        return -1;
+        // The same search as _lower_bound, asked a stricter question. _reg_of()
+        // reads 0xFFFF past the end, so the bound test costs nothing extra and
+        // there is no separate end check to get wrong.
+        const uint16_t k = _lower_bound(reg);
+        return (_reg_of(k) == reg) ? (int)k : -1;
     }
 
     uint32_t Map::to_wire(const Var& v) {

@@ -44,6 +44,19 @@ namespace Botanik { namespace Modbus {
      *  verified on every single frame rather than once in a test. */
     uint16_t crc16(const uint8_t* buf, uint16_t n);
 
+    /** @brief Append the CRC over @p body bytes and return the total frame
+     *  length.
+     *
+     *  THE one place the byte order is decided - low byte first, which is the
+     *  detail every implementation gets wrong at least once and the one thing in
+     *  the protocol that runs opposite to everything else on the wire. It used
+     *  to say that of itself while three more sites in the device model spelled
+     *  it out by hand.
+     *
+     *  Both RTU ends: a master sealing a request and a slave sealing its answer
+     *  are the same two bytes in the same order. */
+    uint16_t seal(uint8_t* out, uint16_t body);
+
     /** @}
      *  @name Requests
      *
@@ -78,10 +91,16 @@ namespace Botanik { namespace Modbus {
     uint16_t build_write_coils(uint8_t* out, uint16_t cap, uint8_t unit,
                                uint16_t addr, uint16_t qty, const uint8_t* bits);
 
-    /** @brief FC16: write @p qty holding registers from @p regs. */
+    /** @brief FC16: write @p qty holding registers from @p regs, which is
+     *  @p qty big-endian words - the layout they go out in.
+     *
+     *  Bytes rather than uint16_t, matching build_write_coils(): every caller
+     *  has already laid the payload out that way (collect_write does), so words
+     *  here meant unpacking and repacking the same bytes across a stack array
+     *  the size of a whole block. */
     uint16_t build_write_registers(uint8_t* out, uint16_t cap, uint8_t unit,
                                    uint16_t addr, uint16_t qty,
-                                   const uint16_t* regs);
+                                   const uint8_t* regs);
 
     /** @}
      *  @name Responses

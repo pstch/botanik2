@@ -206,7 +206,9 @@ TEST_CASE("modbus codec: FC15 packs bits LSB-first and zeroes the tail of the la
 
 TEST_CASE("modbus codec: FC16 carries a byte count of 2N") {
     uint8_t out[32];
-    const uint16_t regs[] = { 1, 2 };
+    // Big-endian bytes: the layout they go out in, and what collect_write()
+    // hands the builder.
+    const uint8_t regs[] = { 0x00, 0x01, 0x00, 0x02 };
     const uint16_t n = build_write_registers(out, sizeof out, 34, 0, 2, regs);
     check_frame(out, n, REQ_FC16, sizeof REQ_FC16);
     CHECK(out[6] == 4);
@@ -214,7 +216,7 @@ TEST_CASE("modbus codec: FC16 carries a byte count of 2N") {
 
 TEST_CASE("modbus codec: a builder refuses rather than truncating or overrunning") {
     uint8_t out[8];
-    const uint16_t regs[] = { 1, 2 };
+    const uint8_t regs[] = { 0x00, 0x01, 0x00, 0x02 };
 
     // Too small a buffer: nothing is written and 0 comes back. Half a frame on
     // a shared bus would corrupt the next transaction, not merely fail.

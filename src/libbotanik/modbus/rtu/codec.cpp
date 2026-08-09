@@ -12,16 +12,14 @@
 
 namespace Botanik { namespace Modbus {
 
-namespace {
+uint16_t seal(uint8_t* out, uint16_t body) {
+    const uint16_t crc = crc16(out, body);
+    out[body]     = lo8(crc);
+    out[body + 1] = hi8(crc);
+    return (uint16_t)(body + 2u);
+}
 
-    /** @brief Append the CRC over @p body bytes, low byte first, and return the
-     *  total frame length. The one place the byte order is decided. */
-    uint16_t seal(uint8_t* out, uint16_t body) {
-        const uint16_t crc = crc16(out, body);
-        out[body]     = lo8(crc);
-        out[body + 1] = hi8(crc);
-        return (uint16_t)(body + 2u);
-    }
+namespace {
 
     /** @brief The largest byte count a read response can legitimately carry
      *  (125 registers, or 2000 coils packed). Anything above it means the
@@ -115,7 +113,7 @@ uint16_t build_write_coils(uint8_t* out, uint16_t cap, uint8_t unit,
 
 uint16_t build_write_registers(uint8_t* out, uint16_t cap, uint8_t unit,
                                uint16_t addr, uint16_t qty,
-                               const uint16_t* regs) {
+                               const uint8_t* regs) {
     if (out == nullptr || regs == nullptr) return 0;
     if (qty == 0 || qty > max_quantity(FC_WRITE_REGISTERS)) return 0;
     if (cap < request_len(FC_WRITE_REGISTERS, qty)) return 0;
@@ -123,7 +121,7 @@ uint16_t build_write_registers(uint8_t* out, uint16_t cap, uint8_t unit,
     const uint16_t nb = (uint16_t)(qty * 2u);
     const uint16_t at = build_multi(out, unit, (uint8_t)FC_WRITE_REGISTERS,
                                     addr, qty, nb);
-    for (uint16_t i = 0; i < qty; ++i) wr16(out + at + i * 2, regs[i]);
+    for (uint16_t i = 0; i < nb; ++i) out[at + i] = regs[i];
     return seal(out, (uint16_t)(at + nb));
 }
 

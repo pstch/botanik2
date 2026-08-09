@@ -225,12 +225,12 @@ bool RtuClient::_build(uint16_t block, uint64_t now_ms) {
         _frame_len = build_write_coils(_frame, (uint16_t)sizeof _frame, b.device,
                                        b.reg, b.regs, payload);
     } else {
-        // collect_write laid the registers out big-endian already; hand them
-        // over as words so the builder does not have to know either way.
-        uint16_t regs[Config::MODBUS_MAX_REGS_PER_BLOCK];
-        for (uint16_t i = 0; i < b.regs; ++i) regs[i] = be16(payload[i * 2], payload[i * 2 + 1]);
+        // collect_write laid the registers out big-endian already, which is the
+        // layout they go out in - so they go straight across. Unpacking them
+        // into words for the builder to repack cost a second stack array the
+        // size of a whole block.
         _frame_len = build_write_registers(_frame, (uint16_t)sizeof _frame,
-                                           b.device, b.reg, b.regs, regs);
+                                           b.device, b.reg, b.regs, payload);
     }
     return _frame_len != 0;
 }

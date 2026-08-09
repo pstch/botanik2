@@ -25,14 +25,6 @@ using namespace Botanik::Modbus;
 
 namespace {
 
-/** @brief Append the CRC, low byte first, and return the total length. */
-uint16_t seal(uint8_t* f, uint16_t n) {
-    const uint16_t c = crc16(f, n);
-    f[n]     = lo8(c);
-    f[n + 1] = hi8(c);
-    return (uint16_t)(n + 2);
-}
-
 /** @brief A device at unit 1 with a recognisable image: register i holds
  *  0x1000 + i, coil i is on when i is even. */
 void seed(Botanik::Modbus::RtuSlave& d) {

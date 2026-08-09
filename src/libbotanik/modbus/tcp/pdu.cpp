@@ -162,17 +162,14 @@ namespace Botanik { namespace Modbus {
 
     size_t encode_read_request(uint8_t* buf, size_t cap, const Mbap& m,
                                uint8_t fc, uint16_t addr, uint16_t qty) {
-        const size_t total = MBAP_LEN + 5;
-        if (buf == 0 || cap < total) return 0;
         // Refused here rather than sent: a quantity past the protocol's ceiling
         // has an undefined answer, and the failure would arrive looking like a
         // bad connection.
         if (qty < 1 || qty > max_quantity(fc)) return 0;
-        put_mbap(buf, m, 5);
-        buf[7] = fc;
-        wr16(buf + 8, addr);
-        wr16(buf + 10, qty);
-        return total;
+        // A read REQUEST and a write ECHO are the same five-byte PDU - code,
+        // address, count - which is why a write's answer can be checked against
+        // the request that caused it at all.
+        return encode_echo(buf, cap, m, fc, addr, qty);
     }
 
     size_t encode_write_request(uint8_t* buf, size_t cap, const Mbap& m,

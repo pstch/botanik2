@@ -36,19 +36,6 @@ const Expect E_FC16 = { 34, FC_WRITE_REGISTERS, 0, 2, 0 };
 
 const uint32_t TIMEOUT_MS = 300;
 
-/** @brief Seal a body with its CRC, low byte first, into @p out.
- *  @return the total frame length.
- *
- *  Uses the codec's own crc16, which is fine here: this file tests FRAMING.
- *  Whether that checksum is the right one is pinned in test_modbus_codec.cpp,
- *  against the spec's published example and the residue property. */
-uint16_t seal(uint8_t* out, uint16_t body) {
-    const uint16_t crc = crc16(out, body);
-    out[body]     = lo8(crc);
-    out[body + 1] = hi8(crc);
-    return (uint16_t)(body + 2);
-}
-
 }  // namespace
 
 // The happy path

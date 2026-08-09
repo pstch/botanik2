@@ -139,9 +139,7 @@ namespace Botanik { namespace Modbus {
         out[0] = _unit;
         out[1] = (uint8_t)(fc | EX_BIT);
         out[2] = (uint8_t)ex;
-        const uint16_t crc = crc16(out, 3);
-        out[3] = lo8(crc);                            // low byte first, always
-        out[4] = hi8(crc);
+        (void)seal(out, 3);
         _refused++;
         _served++;
         return exception_len();
@@ -176,9 +174,7 @@ namespace Botanik { namespace Modbus {
                 wr16(out + 3 + i * 2, v);
             }
         }
-        const uint16_t crc = crc16(out, (uint16_t)(3 + bytes));
-        out[3 + bytes]     = lo8(crc);
-        out[3 + bytes + 1] = hi8(crc);
+        (void)seal(out, (uint16_t)(3 + bytes));
         return total;
     }
 
@@ -242,10 +238,7 @@ namespace Botanik { namespace Modbus {
         out[1] = fc;
         wr16(out + 2, addr);
         wr16(out + 4, val);
-        const uint16_t crc = crc16(out, 6);
-        out[6] = lo8(crc);
-        out[7] = hi8(crc);
-        return 8;
+        return seal(out, 6);
     }
 
 }}  // namespace Botanik::Modbus
