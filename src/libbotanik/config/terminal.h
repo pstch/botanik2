@@ -223,12 +223,6 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, SHELL_HISTORY_ENTRY);
 
-    /** @brief Size of the kill ring buffer (bytes) */
-#ifndef BOTANIK_SHELL_KILL_SIZE
-#  define BOTANIK_SHELL_KILL_SIZE 128
-#endif
-    BOTANIK_CFG(uint16_t, SHELL_KILL_SIZE);
-
     /** @brief Max size of the site commands table */
 #ifndef BOTANIK_SHELL_COMMANDS_MAX
 #  define BOTANIK_SHELL_COMMANDS_MAX 64
@@ -276,6 +270,16 @@ namespace Botanik { namespace Config {
 #  define BOTANIK_EDITOR_MAX_ROWS 32
 #endif
     BOTANIK_CFG(uint16_t, EDITOR_MAX_ROWS);
+
+    /** @brief Size of the kill ring (bytes).
+     *  @note One buffer for the whole console, not one per editor: a cut on the
+     *        shell prompt yanks into NOTES, and Alt+W on a table copies into
+     *        both. A kill longer than this is truncated to what fits and the
+     *        rest is LEFT IN PLACE, so a yank always restores what went. */
+#ifndef BOTANIK_KILL_RING_SIZE
+#  define BOTANIK_KILL_RING_SIZE 256
+#endif
+    BOTANIK_CFG(uint16_t, KILL_RING_SIZE);
 
     /** @brief Maximum length (bytes) of a prompt prefix (PS1/PS2/PS3) */
 #ifndef BOTANIK_EDITOR_PROMPT_MAX

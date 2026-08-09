@@ -12,7 +12,8 @@
 #include <cstdint>                      // uint16_t/int32_t
 #include <cstring>                      // memcpy / memmove
 
-#include "libbotanik/console/console.h" // Console::rows / terminal
+#include "libbotanik/console/console.h"   // Console::rows / terminal
+#include "libbotanik/console/kill_ring.h" // KillRing
 
 
 namespace Botanik { namespace Terminal {
@@ -164,6 +165,9 @@ namespace Botanik { namespace Terminal {
             _origin = (uint16_t)(_console->rows() - 1);
         _view_top   = 0;
         _goal_valid = false;
+        _mark_set   = false;
+        _painted_from = _painted_to = 0;
+        _painted_active = false;
         _layout.rows[0]   = {0, 0, false};
         _layout.count = 1;
     }
@@ -204,9 +208,12 @@ namespace Botanik { namespace Terminal {
         for (uint16_t i = _view_top; i < last; i++) {
             _terminal->move_to({_hw_row(i), _indent});
             _write_prompt(i);
-            if (_layout.rows[i].buf_len > 0)
-                _terminal->write_chars(&_buf[_layout.rows[i].buf_start], _layout.rows[i].buf_len);
+            _write_row_content(i);
         }
+        // Every visible row has just been painted with the current region on it,
+        // so say so: without this a _sync_region() behind us (the long-jump
+        // branch of _follow_cursor() calls both) would paint the lot again.
+        _record_painted();
         _place_cursor(_map_cursor_pos(_pos));
     }
 
@@ -257,6 +264,7 @@ namespace Botanik { namespace Terminal {
 
         _dirty = true;
         _goal_valid = false;
+        _mark_set   = false;    // transient mark: an edit drops the region
         _reconcile(pos, len, /*is_insert=*/true);
         _place_cursor(_map_cursor_pos(_pos));
     }
@@ -276,6 +284,7 @@ namespace Botanik { namespace Terminal {
         _rebuild_layout();
         _dirty = true;
         _goal_valid = false;
+        _mark_set   = false;    // transient mark: an edit drops the region
         _reconcile(pos, len, false);
         _place_cursor(_map_cursor_pos(_pos));
     }
@@ -294,6 +303,11 @@ namespace Botanik { namespace Terminal {
         _buf[_len] = '\0';
         _pos = _view_top = 0;
         _goal_valid = false;
+        // Not through _reset_state(), so the mark has to be dropped by hand:
+        // the offsets it anchors are about text that is being replaced.
+        _mark_set     = false;
+        _painted_from = _painted_to = 0;
+        _painted_active = false;
         bool overflow = _rebuild_layout();
 
         // Drop what the row cap could not lay out rather than carry text the
@@ -405,6 +419,13 @@ namespace Botanik { namespace Terminal {
         uint16_t prompt = _prompt_len(_row_prompt(post_idx));
         uint16_t cap    = _row_cap(post_idx);
 
+        // Say the pen rather than inherit whatever the last renderer left. A
+        // splice never paints a region - an edit has just dropped the mark, and
+        // _sync_region() repaints the rows behind us - but its delete_chars and
+        // clear_to_eol stamp blanks with the CURRENT pen, so an inherited
+        // inverted one would smear to the margin.
+        _terminal->set_inverted(false);
+
         // Prompt-class flip (PS2<->PS3): rewrite the gutter. A longer prompt's
         // push drops trailing content off the right edge, so shrink shown_len
         // accordingly before the length-align below.
@@ -450,13 +471,75 @@ namespace Botanik { namespace Terminal {
         }
     }
 
+    void TextEditor::_write_row_content(uint16_t i) {
+        const RowView& r     = _layout.rows[i];
+        const uint16_t start = r.buf_start;
+        const uint16_t end   = (uint16_t)(r.buf_start + r.buf_len);
+
+        // The editor draws with whatever pen the last renderer left, so say so
+        // rather than inherit it - and leave it plain, since the caller's
+        // clear_to_eol() would otherwise stamp an inverted bar to the margin.
+        _terminal->set_inverted(false);
+
+        // The inverted run, clipped to this row. l >= rr means the row has no
+        // highlight on it, which covers all three ways that happens: no mark,
+        // the region lying entirely off this row, and the anchor belonging to
+        // another row.
+        uint16_t from = 0, to = 0, l = 1, rr = 0;
+        if (region(from, to)) {
+            if (from != to) {
+                l  = from > start ? from : start;
+                rr = to   < end   ? to   : end;
+            } else if (_owner_row(from, _layout) == i) {
+                // Nothing selected yet: mark the anchor with one inverted cell,
+                // or Ctrl-Space would have nothing to show for itself.
+                // _owner_row settles an offset sitting on a wrap boundary,
+                // which the row ending there and the row starting there would
+                // otherwise both paint.
+                l  = from;
+                rr = (uint16_t)(from + 1);
+            }
+        }
+
+        if (l >= rr) {                              // no highlight on this row
+            if (r.buf_len > 0) _terminal->write_chars(&_buf[start], r.buf_len);
+            return;
+        }
+
+        if (l > start) _terminal->write_chars(&_buf[start], (uint16_t)(l - start));
+        _terminal->set_inverted(true);
+        // Past the last character there is no glyph to invert, so make one. Only
+        // the anchor cell can land there - a non-empty region ends at a byte it
+        // actually contains.
+        if (l < end) _terminal->write_chars(&_buf[l], (uint16_t)((rr < end ? rr : end) - l));
+        else         _terminal->write_chars(" ", 1);
+        _terminal->set_inverted(false);
+        if (rr < end) _terminal->write_chars(&_buf[rr], (uint16_t)(end - rr));
+    }
+
+    void TextEditor::_record_painted() {
+        _painted_active = _mark_set;
+        _painted_from = _painted_to = 0;
+        region(_painted_from, _painted_to);
+    }
+
+    void TextEditor::_sync_region() {
+        uint16_t f = 0, t = 0;
+        region(f, t);                   // leaves 0,0 when there is no mark
+        // Nothing to do when the screen already shows this region - which is
+        // every call with no mark, so editing without one costs exactly what it
+        // did before there was a region at all.
+        if (_mark_set == _painted_active && f == _painted_from && t == _painted_to)
+            return;
+        _record_painted();
+        for (uint16_t i = _view_top, e = _visible_end(); i < e; i++) _new_row(i);
+    }
+
     void TextEditor::_new_row(uint16_t post_idx) {
         if (!_visible(post_idx)) return;
-        const RowView& want = _layout.rows[post_idx];
         _terminal->move_to({_hw_row(post_idx), _indent});
         _write_prompt(post_idx);
-        if (want.buf_len > 0)
-            _terminal->write_chars(&_buf[want.buf_start], want.buf_len);
+        _write_row_content(post_idx);
         _terminal->clear_to_eol();
     }
 
@@ -608,6 +691,13 @@ namespace Botanik { namespace Terminal {
         // The edit may have pushed the cursor out of the window (a wrap onto a
         // row below it, or a delete that pulled the text up past the top).
         _follow_cursor();
+
+        // Last, so the screen matches _layout when we return - which is the
+        // invariant the next _snapshot_pre() asserts by copying it into _pre.
+        // Earlier and _grow_editor()/_shrink_editor()'s scroll_region() would
+        // carry whatever we stamped off to another row. Normally a no-op: the
+        // edit dropped the mark, so this is the pass that erases the highlight.
+        _sync_region();
     }
 
     // cursor motion
@@ -700,16 +790,111 @@ namespace Botanik { namespace Terminal {
         return isalnum(uc) || c == '_';
     }
 
+    uint16_t TextEditor::_word_start() const {
+        uint16_t p = _pos;
+        while (p > 0 && !_is_word_char(_buf[p - 1])) p--;
+        while (p > 0 &&  _is_word_char(_buf[p - 1])) p--;
+        return p;
+    }
+
+    uint16_t TextEditor::_word_end() const {
+        uint16_t p = _pos;
+        while (p < _len &&  _is_word_char(_buf[p])) p++;
+        while (p < _len && !_is_word_char(_buf[p])) p++;
+        return p;
+    }
+
     void TextEditor::move_word_left() {
-        while (_pos > 0 && !_is_word_char(_buf[_pos - 1])) _pos--;
-        while (_pos > 0 &&  _is_word_char(_buf[_pos - 1])) _pos--;
+        _pos = _word_start();
         _settle_cursor();
     }
 
     void TextEditor::move_word_right() {
-        while (_pos < _len &&  _is_word_char(_buf[_pos])) _pos++;
-        while (_pos < _len && !_is_word_char(_buf[_pos])) _pos++;
+        _pos = _word_end();
         _settle_cursor();
+    }
+
+    // kill / yank
+
+    bool TextEditor::_kill_span(uint16_t from, uint16_t to) {
+        if (to <= from) return false;
+        // Take only what the ring can hold, and remove only what it took: the
+        // rest stays in the buffer, so a yank puts back exactly what went.
+        uint16_t taken = _console->kill_ring().set(_buf + from, (uint16_t)(to - from));
+        if (taken == 0) return false;
+        _pos = from;
+        remove_characters(taken);
+        return true;
+    }
+
+    bool TextEditor::kill_to_line_end() {
+        if (_pos >= _len) return false;
+        // On the newline, the newline IS the kill: that is what closes this
+        // line up onto the next.
+        if (_buf[_pos] == '\n') return _kill_span(_pos, (uint16_t)(_pos + 1));
+
+        uint16_t end = _pos;
+        while (end < _len && _buf[end] != '\n') end++;
+        return _kill_span(_pos, end);
+    }
+
+    bool TextEditor::kill_word_back() {
+        return _kill_span(_word_start(), _pos);
+    }
+
+    bool TextEditor::yank() {
+        KillRing& ring = _console->kill_ring();
+        if (ring.len() == 0) return false;
+        insert_characters(ring.text(), ring.len());
+        return true;
+    }
+
+    // mark / region
+
+    void TextEditor::set_mark() {
+        _mark     = _pos;
+        _mark_set = true;
+        _sync_region();
+    }
+
+    void TextEditor::clear_mark() {
+        if (!_mark_set) return;
+        _mark_set = false;
+        _sync_region();
+    }
+
+    void TextEditor::toggle_mark() {
+        if (_mark_set) clear_mark();
+        else           set_mark();
+    }
+
+    bool TextEditor::kill_region_or_word() {
+        return _mark_set ? kill_region() : kill_word_back();
+    }
+
+    bool TextEditor::region(uint16_t& from, uint16_t& to) const {
+        if (!_mark_set) return false;
+        from = _mark < _pos ? _mark : _pos;
+        to   = _mark < _pos ? _pos : _mark;
+        return true;
+    }
+
+    bool TextEditor::kill_region() {
+        uint16_t from = 0, to = 0;
+        if (!region(from, to)) return false;
+        // _kill_span removes, which drops the mark on its way through
+        // remove_characters(); an empty region has nothing to drop it.
+        bool cut = _kill_span(from, to);
+        clear_mark();
+        return cut;
+    }
+
+    bool TextEditor::copy_region() {
+        uint16_t from = 0, to = 0;
+        if (!region(from, to) || to == from) { clear_mark(); return false; }
+        _console->kill_ring().set(_buf + from, (uint16_t)(to - from));
+        clear_mark();
+        return true;
     }
 
 }}

@@ -826,6 +826,47 @@ TEST_CASE("editor bytes: a long jump repaints the window, not the note") {
     CHECK(cost <= 220);         // eight rows; the note is sixty
 }
 
+// The region re-stamps every visible row on every motion, which is only
+// affordable because present() diffs CELLS: dragging the selection one character
+// flips one cell's attribute and the other 600-odd are identical. If this budget
+// goes, the editor has quietly become a full-screen renderer on a 4800-baud link.
+TEST_CASE("editor bytes: extending a region costs a cell, not a window") {
+    EditorBytes f;
+    f.as_viewport(8);
+    f.fill_rows(20);
+    f.console.terminal().set_cursor_visible(true);
+
+    f.editor.set_mark();
+    f.flush();                                          // the anchor cell
+
+    for (int i = 0; i < 4; i++) {
+        f.editor.move_left();
+        size_t cost = f.flush().size();
+        CHECK(cost > 0);
+        CHECK(cost <= 30);      // an SGR pair, a glyph, a cursor park
+    }
+    // Releasing it un-inverts the run: one row's worth, not eight.
+    f.editor.clear_mark();
+    size_t release = f.flush().size();
+    CHECK(release > 0);
+    CHECK(release <= 40);
+    CHECK(f.flush().empty());   // and it converged
+}
+
+// The other half of that claim: with no mark, _sync_region() must return without
+// touching a cell, so an ordinary edit costs exactly what it did before there was
+// such a thing as a region. Same shape as the appending case at the top.
+TEST_CASE("editor bytes: no mark means the region pass is not there") {
+    EditorBytes f;
+    f.type("hello");
+    f.flush();
+
+    size_t cost = f.cost_of_type("!");
+    CHECK(cost > 0);
+    CHECK(cost <= 20);
+    CHECK(f.flush().empty());
+}
+
 }  // namespace editor_bytes
 
 // --------------------------------------------------------------------------
@@ -904,6 +945,13 @@ TEST_CASE("parser: control bytes decode to commands") {
     CHECK(f.parse().command == Command::TAB);
     f.feed("\x03");                         // Ctrl+C
     CHECK(f.parse().command == Command::CTRL_C);
+    // The three cut/paste keys.
+    f.feed("\x0B");                         // Ctrl+K
+    CHECK(f.parse().command == Command::CTRL_K);
+    f.feed("\x17");                         // Ctrl+W
+    CHECK(f.parse().command == Command::CTRL_W);
+    f.feed("\x19");                         // Ctrl+Y
+    CHECK(f.parse().command == Command::CTRL_Y);
 }
 
 // CSI sequences
@@ -962,6 +1010,7 @@ TEST_CASE("parser: Alt+letter and Alt+digit") {
     ParserFixture f;
     f.feed("\x1B" "b"); CHECK(f.parse().command == Command::ALT_B);
     f.feed("\x1B" "f"); CHECK(f.parse().command == Command::ALT_F);
+    f.feed("\x1B" "w"); CHECK(f.parse().command == Command::ALT_W);
     f.feed("\x1B" "3"); CHECK(f.parse().command == Command::ALT_3);
 }
 
@@ -1413,15 +1462,185 @@ TEST_CASE("shell history: consecutive duplicates are not stored twice") {
     CHECK(f.line() == "help");
 }
 
-TEST_CASE("shell kill ring: Ctrl-K cuts to EOL, Ctrl-Y yanks it back") {
+TEST_CASE("kill ring: Ctrl-K cuts to EOL, Ctrl-Y yanks it back") {
     ShellFixture f;
     f.editor.insert_characters("hello world", 11);
     for (int i = 0; i < 5; ++i) f.editor.move_left();   // cursor before "world"
-    f.shell.kill_to_line_end();
+    CHECK(f.editor.kill_to_line_end());
     CHECK(f.line() == "hello ");
     f.editor.move_to_line_end();
-    f.shell.paste_kill();
+    CHECK(f.editor.yank());
     CHECK(f.line() == "hello world");
+}
+
+TEST_CASE("kill ring: Ctrl-K stops at the newline, and then eats it") {
+    ShellFixture f;
+    f.editor.insert_characters("one\ntwo", 7);
+    f.editor.move_to_start();
+    f.editor.move_to_line_end();            // end of "one", on the \n
+    CHECK(f.editor.kill_to_line_end());     // sitting on it, so it IS the kill
+    CHECK(f.line() == "onetwo");            // ...and the next line closes up
+    CHECK(f.editor.kill_to_line_end());     // now the rest of the joined line
+    CHECK(f.line() == "one");
+}
+
+TEST_CASE("kill ring: Ctrl-K mid-line leaves the following lines alone") {
+    ShellFixture f;
+    f.editor.insert_characters("one\ntwo", 7);
+    f.editor.move_to_start();
+    f.editor.move_right();                  // after "o"
+    CHECK(f.editor.kill_to_line_end());
+    CHECK(f.line() == "o\ntwo");            // "ne" went, the newline did not
+}
+
+TEST_CASE("kill ring: Ctrl-W cuts the word before the cursor") {
+    ShellFixture f;
+    f.editor.insert_characters("set cli_setpoint 21", 19);
+    f.editor.move_word_left();              // before "21"
+    CHECK(f.editor.kill_word_back());       // takes "cli_setpoint "
+    CHECK(f.line() == "set 21");
+    CHECK(f.editor.yank());
+    CHECK(f.line() == "set cli_setpoint 21");
+}
+
+TEST_CASE("kill ring: Ctrl-W at the start of the buffer does nothing") {
+    ShellFixture f;
+    f.editor.insert_characters("word", 4);
+    f.editor.move_to_line_start();
+    CHECK_FALSE(f.editor.kill_word_back());
+    CHECK(f.line() == "word");
+}
+
+TEST_CASE("kill ring: Ctrl-W over trailing space takes the space and the word") {
+    ShellFixture f;
+    f.editor.insert_characters("alpha beta   ", 13);
+    CHECK(f.editor.kill_word_back());
+    CHECK(f.line() == "alpha ");
+}
+
+TEST_CASE("kill ring: a kill longer than the ring leaves the overflow in place") {
+    ShellFixture f;
+    const uint16_t n = (uint16_t)(Config::KILL_RING_SIZE + 10);
+    std::string big(n, 'x');
+    f.editor.insert_characters(big.data(), n);
+    f.editor.move_to_line_start();
+    CHECK(f.editor.kill_to_line_end());
+    // Only what the ring could hold went, so the yank restores exactly that.
+    CHECK(f.line() == std::string(10, 'x'));
+    CHECK(f.editor.yank());
+    CHECK(f.line() == big);
+}
+
+TEST_CASE("kill ring: yank with an empty ring is a no-op") {
+    ShellFixture f;
+    f.editor.insert_characters("abc", 3);
+    CHECK_FALSE(f.editor.yank());
+    CHECK(f.line() == "abc");
+}
+
+// ---------------------------------------------------------------------------
+// Mark and region (Ctrl-Space anchors, Ctrl-W / Alt-W act on the span).
+// ---------------------------------------------------------------------------
+
+TEST_CASE("region: Ctrl-W kills the span between the mark and the cursor") {
+    ShellFixture f;
+    f.editor.insert_characters("set cli_setpoint 21", 19);
+    f.editor.move_to_line_start();
+    for (int i = 0; i < 4; ++i) f.editor.move_right();   // before "cli_"
+    f.editor.set_mark();
+    f.editor.move_word_right();                          // over "cli_setpoint "
+    CHECK(f.editor.mark_active());
+    CHECK(f.editor.kill_region());
+    CHECK(f.line() == "set 21");
+    CHECK_FALSE(f.editor.mark_active());                 // the region is gone with it
+    f.editor.move_to_line_start();
+    CHECK(f.editor.yank());
+    CHECK(f.line() == "cli_setpoint set 21");
+}
+
+TEST_CASE("region: the mark may sit on either side of the cursor") {
+    ShellFixture f;
+    f.editor.insert_characters("alpha beta gamma", 16);
+    f.editor.set_mark();                                 // anchor at the END
+    for (int i = 0; i < 6; ++i) f.editor.move_left();    // cursor before "gamma"
+    uint16_t from = 0, to = 0;
+    REQUIRE(f.editor.region(from, to));
+    CHECK(from == 10);                                   // ordered, whichever way
+    CHECK(to == 16);
+    CHECK(f.editor.kill_region());
+    CHECK(f.line() == "alpha beta");
+}
+
+TEST_CASE("region: an edit drops the mark, so Ctrl-W is a word kill again") {
+    ShellFixture f;
+    f.editor.insert_characters("alpha beta", 10);
+    f.editor.move_to_line_start();
+    f.editor.set_mark();
+    f.editor.move_to_line_end();
+    f.editor.insert_characters("!", 1);                  // ...and there it goes
+    CHECK_FALSE(f.editor.mark_active());
+    CHECK(f.editor.kill_word_back());                    // what the page falls back to
+    CHECK(f.line() == "alpha ");
+}
+
+TEST_CASE("region: Alt-W copies without removing, and releases the mark") {
+    ShellFixture f;
+    f.editor.insert_characters("pump B runs hot", 15);
+    for (int i = 0; i < 3; ++i) f.editor.move_left();
+    f.editor.set_mark();
+    f.editor.move_to_line_end();
+    CHECK(f.editor.copy_region());
+    CHECK(f.line() == "pump B runs hot");                // untouched
+    CHECK_FALSE(f.editor.mark_active());
+    f.editor.move_to_line_start();
+    CHECK(f.editor.yank());
+    CHECK(f.line() == "hotpump B runs hot");
+}
+
+TEST_CASE("region: with no mark there is no region, and Alt-W does nothing") {
+    ShellFixture f;
+    f.editor.insert_characters("abc", 3);
+    uint16_t from = 99, to = 99;
+    CHECK_FALSE(f.editor.region(from, to));
+    CHECK(from == 99);                                   // left untouched
+    CHECK_FALSE(f.editor.copy_region());
+    CHECK(f.line() == "abc");
+}
+
+TEST_CASE("region: an empty one copies nothing but still releases the mark") {
+    ShellFixture f;
+    f.editor.insert_characters("abc", 3);
+    f.editor.set_mark();                                 // mark == cursor
+    CHECK_FALSE(f.editor.copy_region());
+    CHECK_FALSE(f.editor.mark_active());
+    f.editor.set_mark();
+    CHECK_FALSE(f.editor.kill_region());
+    CHECK(f.line() == "abc");
+    CHECK_FALSE(f.editor.mark_active());
+}
+
+TEST_CASE("region: a span across a newline takes the newline with it") {
+    ShellFixture f;
+    f.editor.insert_characters("one\ntwo", 7);
+    f.editor.move_to_start();
+    for (int i = 0; i < 2; ++i) f.editor.move_right();   // after "on"
+    f.editor.set_mark();
+    f.editor.move_to_end();
+    CHECK(f.editor.kill_region());
+    CHECK(f.line() == "on");
+    CHECK(f.editor.yank());
+    CHECK(f.line() == "one\ntwo");
+}
+
+TEST_CASE("region: clearing the mark leaves the text alone") {
+    ShellFixture f;
+    f.editor.insert_characters("alpha beta", 10);
+    f.editor.set_mark();
+    f.editor.move_to_line_start();
+    f.editor.clear_mark();                               // Ctrl-G
+    CHECK_FALSE(f.editor.mark_active());
+    CHECK_FALSE(f.editor.kill_region());
+    CHECK(f.line() == "alpha beta");
 }
 
 // ---------------------------------------------------------------------------

@@ -79,7 +79,6 @@ namespace Botanik { namespace Pages {
 
         /** @name State
          *  @{ */
-        Console&            _console;
         Vars::Params* _params;
         bool                _dirty    = true;    ///< table needs a redraw
         uint64_t            _last_refresh_ms = 0; ///< last cadence rebuild
@@ -102,7 +101,7 @@ namespace Botanik { namespace Pages {
         /** @brief @p console owns the content geometry; @p config is the backend
          *  the table reads/writes (may be null -> empty table). */
         ParamsPage(Console& console, Vars::Params* config)
-            : ScrollTablePage(console.terminal()), _console(console), _params(config),
+            : ScrollTablePage(console), _params(config),
               _editor(&console, _editor_bufs.storage()) {}
 
         const char* name() const override { return "PARAMS"; }
@@ -221,6 +220,7 @@ namespace Botanik { namespace Pages {
         uint16_t _data_top()  const override { return DATA_TOP; }
         uint16_t _window()    const override { return _visible_rows(); }
         uint16_t _row_count() const override { return _visible_count(); }
+        const char* _selected_cell() const override;
         /** @} */
 
         // Table rendering (5 columns: name | type | value | default | unit)

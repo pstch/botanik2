@@ -17,6 +17,7 @@
 #include <cstdint>                          // int8_t/uint16_t/uint64_t
 
 #include "libbotanik/console/alarm_bar.h"   // AlarmBar
+#include "libbotanik/console/kill_ring.h"   // KillRing
 #include "libbotanik/console/parser.h"      // InputParser
 #include "libbotanik/console/status_bar.h"  // StatusBar
 #include "libbotanik/console/terminal.h"    // AnsiTerminal
@@ -45,6 +46,11 @@ namespace Botanik { namespace Terminal {
 
         /** @brief The VT device this console paints through. */
         AnsiTerminal        _term;
+        /** @brief The cut buffer every editor and table on this console shares.
+         *  Owned here rather than reached for globally: there is one console per
+         *  firmware, so this is the same single clipboard without being
+         *  reachable from anywhere that includes a header. */
+        KillRing            _kill_ring;
 
         /** @}
          *  @name Input & pages
@@ -100,6 +106,12 @@ namespace Botanik { namespace Terminal {
          *  this reference. */
         AnsiTerminal&       terminal()       { return _term; }
         const AnsiTerminal& terminal() const { return _term; }
+
+        /** @brief The console's cut buffer, shared by every editor and table on
+         *  it: a line cut at the shell prompt yanks into NOTES, and Alt+W on a
+         *  table copies into the same place. */
+        KillRing&           kill_ring()       { return _kill_ring; }
+        const KillRing&     kill_ring() const { return _kill_ring; }
 
         /** @brief Emit the terminal's setup handshake (forwarded to the
          *  device); call once before the first render. */

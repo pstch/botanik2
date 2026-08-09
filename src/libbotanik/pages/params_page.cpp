@@ -172,6 +172,11 @@ namespace Botanik { namespace Pages {
         return _group_intern(g);
     }
 
+    const char* ParamsPage::_selected_cell() const {
+        if (_params == nullptr || _selected >= _visible_count()) return nullptr;
+        return _params->param(_param_at(_selected)).meta()->name;
+    }
+
     void ParamsPage::_draw_panel() {
         uint16_t r = _panel_top();
         _draw_separator(r);
@@ -338,6 +343,20 @@ namespace Botanik { namespace Pages {
                 if (_edit_error) _clear_error();
                 _editor.move_to_line_start();
                 _editor.delete_forward(_editor.buffer_len());       break;
+            // Same cut/paste as the shell prompt, same ring: Alt+W on the table
+            // puts a name in it, and this is the field it gets pasted into.
+            case Command::CTRL_K:
+                if (_edit_error) _clear_error();
+                _editor.kill_to_line_end();                         break;
+            case Command::CTRL_W:
+                if (_edit_error) _clear_error();
+                _editor.kill_region_or_word();                      break;
+            case Command::CTRL_SPACE: _editor.toggle_mark();         break;
+            case Command::CTRL_G:  _editor.clear_mark();             break;
+            case Command::ALT_W:   _editor.copy_region();            break;
+            case Command::CTRL_Y:
+                if (_edit_error) _clear_error();
+                _editor.yank();                                     break;
             default: break;
         }
     }

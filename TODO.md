@@ -2,11 +2,6 @@
 
 - do a wide simplification+loc-removal+readability pass on the WHOLE codebase (in code, tests, harnesses, build scripts, etc)
 
-- **Shell kill ring** (`shell/shell.h/cpp`, `console/editor.h/cpp`, `pages/shell.cpp`):
-  Implement Ctrl+K (`kill_to_end()`), Ctrl+W (`kill_word_backward()`), and Ctrl+Y
-  (`paste_kill()`) in `InputEditor` and `CommandShell`. A single-slot kill buffer of
-  `Config::SHELL_KILL_SIZE` bytes is sufficient for now.
-
 - **Reduce libc dependency** (review `[TODO-LIBC]`): audit our use of libc
   (`snprintf`/`vsnprintf`, `strncmp`, `strlen`, `memcpy`, `strstr`, `strtol`) and
   shrink the surface where practical - prefer the in-house `utils/text` helpers and

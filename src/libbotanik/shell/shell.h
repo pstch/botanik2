@@ -64,10 +64,11 @@ namespace Botanik { namespace Shell {
      *  Site commands are added data-driven via set_commands() (a table of
      *  ShellCommand), tried before the built-ins so the table can override one.
      *
-     *  Command history (up/down recall with a saved draft) and a single-entry
-     *  kill ring (Ctrl-K cut to EOL / Ctrl-Y yank) are backed by the
-     *  SHELL_HISTORY_* /
-     *  SHELL_KILL_SIZE buffers in libbotanik_config.h. */
+     *  Command history (up/down recall with a saved draft) is backed by the
+     *  SHELL_HISTORY_* buffers in config/terminal.h. Cut and paste are NOT
+     *  here: they belong to the editor, over the console-wide kill ring
+     *  (console/kill_ring.h), so what is cut at the prompt can be yanked on
+     *  another page. */
     class CommandShell {
     private:
         /** @name State
@@ -111,9 +112,6 @@ namespace Botanik { namespace Shell {
          *  bottom. */
         char     _draft[Config::SHELL_INPUT_LEN];
         uint16_t _draft_len   = 0;
-        /** @brief Single-entry kill buffer (Ctrl-K cut / Ctrl-Y yank). */
-        char     _kill[Config::SHELL_KILL_SIZE];
-        uint16_t _kill_len    = 0;
 
         /** @} */
 
@@ -174,21 +172,6 @@ namespace Botanik { namespace Shell {
         /** @brief Recall the next (newer) entry; at the newest, restore the
          *  draft. */
         void history_next();
-
-        /** @} */
-
-        /** @name Kill-ring (clipboard) management
-         *  @{ */
-
-        /** @brief Cut from the cursor to EOL into the kill buffer (Ctrl-K). */
-        void kill_to_line_end();
-
-        /** @brief Store @p len bytes as the kill buffer (clamped to
-         *  SHELL_KILL_SIZE). */
-        void push_kill(const char* buf, uint16_t len);
-
-        /** @brief Insert the kill buffer at the cursor (Ctrl-Y). */
-        void paste_kill();
 
         /** @} */
 

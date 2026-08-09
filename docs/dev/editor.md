@@ -139,6 +139,61 @@ never had corrupts it.
 the layout) is the guard. A row that fails it drops to `_new_row()` - a repaint, which is
 what it needed anyway.
 
+### The kill ring
+
+Cut and paste (`Ctrl+K` / `Ctrl+W` / `Ctrl+Y`) are the editor's, over ONE buffer for the
+whole console rather than one per instance. That is deliberate: the point of a clipboard
+on a terminal with no mouse is to move text between the places that hold it, and a
+per-editor buffer makes each of them a dead end. It used to live on `CommandShell`, which
+is why the NOTES page had no cut and paste at all.
+
+The **`Console` owns it** (`Console::kill_ring()`, `console/kill_ring.h`) and everything
+reaches it through the console it already holds - `TextEditor` through its `_console`,
+a table page through `ScrollTablePage::_console`. Not a global: there is one console per
+firmware, so ownership gives the same single clipboard without a free function anything
+could write to, and a test fixture's own console brings its own ring, so cases cannot
+leak a cut into each other.
+
+The editor is not its only writer - `Alt+W` on a table page puts the selected cell in it
+(`ScrollTablePage::_copy_selected_cell()`) - so the ring is plain storage with no editor
+in it, and everything that fills it goes through `set()`.
+
+A kill takes only what the ring can hold and leaves the remainder in the buffer, so a yank
+always restores exactly what the kill removed. Removing more than was stored was the old
+`kill_to_line_end()`'s bug: past 128 bytes it deleted a tail that `Ctrl+Y` could not put
+back.
+
+### The mark and the region
+
+`Ctrl+Space` anchors a mark; the span between it and the cursor is drawn reverse-video and
+`Ctrl+W` / `Alt+W` act on it. Two things make that cheap enough for a 4800-baud link.
+
+**The highlight rides the cell diff, not the splice.** A back-buffer cell is a 7-bit glyph
+plus `CELL_INV` (`console/terminal.h`), so reverse-video is content as far as `present()`
+is concerned: re-stamp the visible rows through `_new_row()` and the diff emits only the
+cells whose attribute flipped - one cell for one character of selection. `_write_row_content()`
+splits a row into up to three pen runs, the same shape as
+`ScrollTablePage::_draw_selected_line()`.
+
+The region is deliberately NOT taught to `_splice_row()`. That path writes partial runs with
+`insert=true`, which slides `CELL_INV` bits sideways along with the glyphs, and its
+`delete_chars` / `clear_to_eol` stamp blanks with whatever pen is current. A highlight
+cannot survive it, and making it try would mean reopening the reconciliation.
+
+**`_sync_region()` is a no-op unless the region moved.** It compares the region against
+`_painted_from`/`_painted_to`/`_painted_active` and returns without touching a cell when
+they agree - which is every call with no mark, so editing without one costs exactly what it
+did before the region existed. It hangs off two places: the end of `_settle_cursor()` (a
+motion is the only thing that moves the region's far end, and nothing else on that path
+repaints anything) and the end of `_reconcile()` (after `_grow_editor()`/`_shrink_editor()`
+have done their `scroll_region()`, so the screen matches `_layout` on return - the invariant
+the next `_snapshot_pre()` assumes).
+
+**The mark is transient**: `insert_characters()` and `remove_characters()` drop it, as do
+`_reset_state()` and `commit_loaded()`. A mark that survived edits would need shifting by
+every insert and clamping by every delete, and a region that has drifted off its text cuts
+the wrong bytes silently. `tests/test_editor_bytes.cpp` pins both halves of the cost claim.
+
 ### Capacity
 
 Buffer and row array are supplied by the owner (`EditorStorage` / `EditorBuffers<BUF,ROWS>`),

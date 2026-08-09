@@ -155,6 +155,18 @@ namespace Botanik { namespace Terminal {
         uint16_t _goal_col   = 0;
         bool     _goal_valid = false;
 
+        /** @brief Region anchor, and whether it is live. Like the goal column,
+         *  a latched position that unrelated actions drop - here, ANY edit (see
+         *  the Mark and region group). */
+        uint16_t _mark     = 0;
+        bool     _mark_set = false;
+        /** @brief What the screen currently shows highlighted, so _sync_region()
+         *  can tell that it is already right and return without touching a cell
+         *  - which is every call with no mark, so ordinary editing stays exactly
+         *  as cheap as it was. */
+        uint16_t _painted_from = 0, _painted_to = 0;
+        bool     _painted_active = false;
+
         /** @brief Set by every edit, cleared by the owner once it has saved. */
         bool     _dirty = false;
 
@@ -302,6 +314,82 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Move the cursor one word to the right */
         void move_word_right();
+
+        /** @} */
+
+        /**
+         * @name Kill and yank
+         *
+         * The three cut/paste keys, over the console-wide kill ring (see
+         * console/kill_ring.h) rather than a buffer of this editor's own - so
+         * what is cut here can be yanked wherever the operator goes next.
+         *
+         * A kill takes only what the ring can hold and leaves the rest in the
+         * buffer, so a yank always restores exactly what went. Each returns
+         * false when there was nothing to do.
+         * @{
+         */
+
+        /** @brief Cut from the cursor to the end of the logical line (Ctrl-K).
+         *  On the newline itself, cuts the newline - which is how a line is
+         *  closed up onto the one before it. */
+        bool kill_to_line_end();
+
+        /** @brief Cut the word before the cursor (Ctrl-W), whitespace between
+         *  it and the cursor included. */
+        bool kill_word_back();
+
+        /** @brief Insert the ring's contents at the cursor (Ctrl-Y). */
+        bool yank();
+
+        /** @} */
+
+        /**
+         * @name Mark and region
+         *
+         * Ctrl-Space drops a mark; the region is the span between it and the
+         * cursor, drawn reverse-video, and Ctrl-W / Alt-W act on it instead of
+         * on a word.
+         *
+         * The mark is TRANSIENT: any edit drops it, so a kill after typing is
+         * a word kill again. That is what a region does not have to be - a mark
+         * that survived edits would have to be shifted by every insert and
+         * clamped by every delete, and getting that wrong deletes the wrong
+         * bytes without saying so.
+         * @{
+         */
+
+        /** @brief Anchor the region at the cursor. */
+        void set_mark();
+
+        /** @brief Drop the anchor (Ctrl-G, and every edit). */
+        void clear_mark();
+
+        /** @brief What Ctrl-Space does: the mark is a toggle, not a latch, so
+         *  pressing it again on a region you did not want releases it. */
+        void toggle_mark();
+
+        /** @brief What Ctrl-W does: the region when there is one, the word
+         *  before the cursor when there is not - which is what makes the mark
+         *  optional rather than a mode.
+         *
+         *  Here rather than in each page's key switch: it is a statement about
+         *  how the mark behaves, and three pages holding their own copy of it
+         *  is three places for it to drift. */
+        bool kill_region_or_word();
+
+        /** @brief Whether an anchor is live. */
+        bool mark_active() const { return _mark_set; }
+
+        /** @brief The region as an ordered half-open span.
+         *  @return false (leaving @p from / @p to untouched) with no mark. */
+        bool region(uint16_t& from, uint16_t& to) const;
+
+        /** @brief Cut the region into the kill ring (Ctrl-W with a mark). */
+        bool kill_region();
+
+        /** @brief Copy the region without removing it (Alt-W). */
+        bool copy_region();
 
         /** @brief Move the cursor one display row up / down, holding the goal
          *  column. On the first/last row it falls to the start/end of the
@@ -496,6 +584,9 @@ namespace Botanik { namespace Terminal {
         void _settle_cursor(bool keep_goal = false) {
             if (!keep_goal) _goal_valid = false;
             _follow_cursor();
+            // A motion with a mark live has moved the region's far end, and
+            // nothing else on this path repaints a thing.
+            _sync_region();
             _place_cursor(_map_cursor_pos(_pos));
         }
 
@@ -503,6 +594,38 @@ namespace Botanik { namespace Terminal {
          *  column. Clamped to the layout; a move that cannot go further falls
          *  to the buffer start/end instead. */
         void _move_row(int32_t delta);
+
+        /** @brief Offset one word left / right of the cursor. Where
+         *  move_word_left() / move_word_right() land, and what kill_word_back()
+         *  cuts back to. */
+        uint16_t _word_start() const;
+        uint16_t _word_end() const;
+
+        /** @brief Cut `[from, to)` into the kill ring and remove exactly the
+         *  bytes it took. Leaves the cursor at @p from.
+         *  @return false if the span was empty or nothing fit. */
+        bool _kill_span(uint16_t from, uint16_t to);
+
+        /** @brief Write layout row @p i's content at the cursor, as up to three
+         *  pen runs so the part inside the region comes out reverse-video.
+         *  Always leaves the pen plain, so the caller's clear_to_eol() does not
+         *  stamp an inverted bar out to the margin.
+         *
+         *  An EMPTY region (mark just dropped, cursor not moved) paints one
+         *  inverted cell at the mark, since a zero-width highlight would leave
+         *  Ctrl-Space with nothing to show for itself. */
+        void _write_row_content(uint16_t i);
+
+        /** @brief Bring the highlight on screen into line with the region.
+         *  Re-stamps the visible rows, and returns without touching a cell when
+         *  what is painted is already right - which is every call with no mark,
+         *  so the no-region byte cost is unchanged by construction. */
+        void _sync_region();
+
+        /** @brief Declare the visible rows as painted with the region as it
+         *  stands. For whoever has just drawn them all: _sync_region() itself,
+         *  and redraw(). */
+        void _record_painted();
 
         /** @} */
 

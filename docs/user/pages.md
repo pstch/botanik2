@@ -123,7 +123,8 @@ parameter, so it is safe to quote.
 
 `ENTER` opens a one-line editor on the bottom row, seeded with the current value:
 `ENTER` commits, `Ctrl+C` or `ESC` cancels, and the usual editing keys apply
-(`Ctrl+A`/`Ctrl+E`, `Ctrl+U`, `Ctrl+B`/`Ctrl+F`, `BACKSPACE`, `Ctrl+D`). A
+(`Ctrl+A`/`Ctrl+E`, `Ctrl+U`, `Ctrl+B`/`Ctrl+F`, `BACKSPACE`, `Ctrl+D`, and the
+`Ctrl+K`/`Ctrl+W`/`Ctrl+Y` cut and paste). A
 rejected value appends `[invalid]` and leaves you in the editor. One that was
 accepted but could not be stored shows `NOT SAVED - value is live but storage
 refused it`: in effect now, gone after a reboot.
@@ -217,6 +218,18 @@ unsaved.
 |---|---|
 | `Ctrl+O` | write the note to flash |
 | `UP` / `DOWN` | move the cursor (there is no history here) |
+| `Ctrl+K` | cut to end of line; on the line end, joins the next line up |
+| `Ctrl+Space` | drop a mark, starting a selection; `Ctrl+G` releases it |
+| `Ctrl+W` | cut the selection, or the word before the cursor when there is none |
+| `Alt+W` | copy the selection |
+| `Ctrl+Y` | paste back what was cut or copied |
+
+`Ctrl+U` is **not** bound here: on a page whose whole content is the buffer,
+clearing it is one keystroke from losing the lot, and nothing puts it back. The
+cuts above are bound precisely because `Ctrl+Y` does.
+
+The clipboard is the console's, so a line cut here pastes at the shell prompt,
+and `Alt+W` on a table pastes here (see @ref user_shell).
 
 ## Table navigation {#user_pages_nav}
 
@@ -230,6 +243,12 @@ Shared by ALARMS, PARAMS, MONITOR and TASKS.
 | `END` | last row |
 | `SPACE`, `LEFT` / `RIGHT` | next / previous view, where the page has views |
 | `ENTER` | back to the top (ALARMS, MONITOR) |
+| `Alt+W` | copy the selected row's highlighted cell into the console clipboard |
+
+`Alt+W` copies what is highlighted - the name on PARAMS, MONITOR and TASKS, the
+code on ALARMS - and the mode line says `copied <cell>` for a few seconds so you
+can tell the key landed. `Ctrl+Y` at the shell prompt pastes it, which is the
+short way to turn a row you are looking at into a `get` / `set` / `override`.
 
 `^` and `v` marks on the table's top and bottom rules show when rows are hidden
 above or below.

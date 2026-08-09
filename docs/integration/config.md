@@ -304,7 +304,6 @@ Broker host, port and keepalive are runtime parameters (`mqtt_host`, `mqtt_port`
 |---|---|---|
 | `SHELL_INPUT_LEN` | 512 | |
 | `SHELL_HISTORY_SIZE` / `_ENTRY` | 8 / 128 | the entry cap is below `SHELL_INPUT_LEN`, so a longer command is stored truncated and recalling it yields a different command |
-| `SHELL_KILL_SIZE` | 128 | |
 | `SHELL_COMMANDS_MAX` | 64 | |
 | `SHELL_SCROLLBACK_LINES` | 32 | |
 | `LOGS_SCROLLBACK_LINES` | 64 | |
@@ -317,6 +316,7 @@ Broker host, port and keepalive are runtime parameters (`mqtt_host`, `mqtt_port`
 |---|---|---|
 | `EDITOR_MAX_ROWS` | 32 | |
 | `EDITOR_PROMPT_MAX` | 16 | |
+| `KILL_RING_SIZE` | 256 | one clipboard for the whole console, not one per editor. A cut past it takes what fits and leaves the rest, so a paste restores exactly what went |
 | `EDITOR_MIN_COLS` | 32 | read only by the two layout `static_assert`s, which is why it sits beside the lengths it relates |
 
 `EDITOR_MAX_ROWS * (EDITOR_MIN_COLS - EDITOR_PROMPT_MAX)` must be at least
