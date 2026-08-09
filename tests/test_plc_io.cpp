@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstdio>                   // snprintf - the test log sink
 #include <string>
+#include <vector>
 
 #include "doctest.h"
 
@@ -67,6 +68,22 @@ public:
 protected:
     void bind(Bank& io) override { _r = io.find(_row); }
     void run(Plc::Context& c) override { c.io.set(_r, 1.0f); }
+};
+
+/** @brief Records the lifecycle edges and what the first-scan flag said. */
+class Lifecycle : public Plc::Program {
+public:
+    int  resumes = 0;
+    int  resets  = 0;
+    std::vector<bool> firsts;
+
+    Lifecycle(const char* name, uint32_t period_ms) : Program(name, period_ms) {}
+
+    void reset() override  { resets++; }
+    void resume() override { resumes++; Program::resume(); }
+
+protected:
+    void run(Plc::Context& c) override { firsts.push_back(c.first_scan); }
 };
 
 }  // namespace
@@ -313,6 +330,71 @@ TEST_CASE("scan: an every-beat program is never reported late") {
     CHECK(every.late_ms() == 0);
     CHECK(d.late_ms() == 0);
     CHECK_FALSE(f.bank.var(f.ref("alarm_scan_late")).b());
+}
+
+TEST_CASE("scan: the first activation says so, and only the first") {
+    Live f;
+    Lifecycle p("p", 0);
+    Plc::Program* const progs[] = { &p };
+    Scan::Driver d(progs, 1, &f.bank);
+
+    for (uint64_t t = 0; t < 50; t += 10) d.step(t);
+
+    REQUIRE(p.firsts.size() == 5);
+    CHECK(p.firsts[0]);
+    for (size_t i = 1; i < p.firsts.size(); ++i) {
+        INFO("activation " << i);
+        CHECK_FALSE(p.firsts[i]);
+    }
+}
+
+TEST_CASE("scan: control coming back is a first scan again") {
+    // The process moved without us, so the previous activation describes a
+    // plant that no longer exists - which is the same situation bring-up is in.
+    Live f;
+    Lifecycle p("p", 0);
+    Plc::Program* const progs[] = { &p };
+    Scan::Driver d(progs, 1, &f.bank);
+
+    d.step(0);
+    d.step(10);
+    REQUIRE(p.firsts.size() == 2);
+    REQUIRE(p.firsts[0]);
+    REQUIRE_FALSE(p.firsts[1]);
+
+    f.bank.disable_control(Bank::INHIBIT_OPERATOR);
+    for (uint64_t t = 20; t <= 5000; t += 10) d.step(t);
+    CHECK(p.resets == 1);                    // the withdrawal edge, once
+    CHECK(p.firsts.size() == 2);             // nothing ran while stopped
+
+    f.bank.enable_control(Bank::INHIBIT_OPERATOR);
+    d.step(5010);
+
+    CHECK(p.resumes == 2);                   // bring-up, then this return
+    REQUIRE(p.firsts.size() == 3);
+    INFO("the run after control returns starts from nothing");
+    CHECK(p.firsts[2]);
+
+    d.step(5020);
+    REQUIRE(p.firsts.size() == 4);
+    CHECK_FALSE(p.firsts[3]);
+}
+
+TEST_CASE("scan: bring-up is itself a resume, and reset is not called for it") {
+    // Control starts withheld and is granted before the first beat, so the
+    // return edge fires at bring-up too. That is correct rather than incidental:
+    // at bring-up a program knows no more about the plant than it does after an
+    // outage, and a program that re-datums an actuator wants to do it in both.
+    Live f;
+    Lifecycle p("p", 0);
+    Plc::Program* const progs[] = { &p };
+    Scan::Driver d(progs, 1, &f.bank);
+
+    d.step(0);
+
+    CHECK(p.resumes == 1);
+    INFO("nothing was ever driving, so nothing has gone stale");
+    CHECK(p.resets == 0);
 }
 
 TEST_CASE("plc io: a bad reference moves nothing") {

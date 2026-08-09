@@ -72,10 +72,22 @@ Both edges reach the programs (`Scan::Driver::on_step`):
 | Edge | What the driver does | Why |
 |---|---|---|
 | withdrawn | `reset()` on every program, once | from here the process moves without us, so what a program remembered about the field is stale |
-| returned | reseeds every program's timer | a `Ton` holding 5 s handed an hour of `dt` fires the instant control returns - the one thing a withdrawal exists to prevent |
+| returned | reseeds every program's timer, then calls `resume()` | a `Ton` holding 5 s handed an hour of `dt` fires the instant control returns - the one thing a withdrawal exists to prevent. `resume()` is the other half: the clock is fixed, and now a program may LOOK at the plant before commanding it |
 
 `reset()` is opt-in per program and deliberately not "clear everything": a dwell
 timer is stale, but a totalizer holding the litres delivered today is a record.
+
+`resume()` also raises `Context::first_scan` - IEC 61131-3's first-scan flag. A
+law that ramps, latches or compares against "last time" has no last time on the
+first scan, and reading one gives it whatever a member was initialised with. It
+is true at bring-up and true again after a withdrawal, because those are the same
+situation: the process moved without us, so the previous activation describes a
+plant that no longer exists.
+
+Bring-up fires the return edge too (control starts withheld and is granted before
+the first beat), so `resume()` runs there - correctly, since a program knows no
+more about the plant at bring-up than after an outage. `reset()` does not, because
+nothing was ever driving.
 
 ## Where the gate lives
 

@@ -70,9 +70,18 @@ namespace Botanik { namespace Scan {
             // activation is due immediately by design and must not be spent
             // here. That also covers bring-up, where control goes from withheld
             // to held with nothing having run yet.
+            //
+            // resume() is the other half, and a different question: reseed()
+            // fixes the CLOCK, resume() lets a program look at the plant before
+            // it commands it again. It also raises the first-scan flag, so a
+            // program with nothing to re-datum still learns that its next run
+            // has no previous activation worth comparing against.
             _enabled = true;
-            for (uint8_t i = 0; i < _count; i++)
-                if (_programs[i] != nullptr) _programs[i]->reseed(now_ms);
+            for (uint8_t i = 0; i < _count; i++) {
+                if (_programs[i] == nullptr) continue;
+                _programs[i]->reseed(now_ms);
+                _programs[i]->resume();
+            }
         }
 
         // Due, how late, and how many activations were dropped is Component's

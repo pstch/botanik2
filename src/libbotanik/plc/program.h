@@ -15,13 +15,14 @@
  * on_param_changed() (re-read tuning when its parameter group commits) and
  * healthy() with it.
  *
- * Three hooks, in lifecycle order:
+ * Four hooks, in lifecycle order:
  *
  * | Hook | When | For |
  * |---|---|---|
  * | `bind(io)` | once, at bring-up | names into VarRefs, so `run()` never searches the table |
  * | `run(c)` | each activation | read, apply blocks, drive |
  * | `reset()` | control authority withdrawn | drop what has gone stale |
+ * | `resume()` | control authority returned | look at the plant before driving it |
  *
  * @section plc_program_bind bind, and reset
  *
@@ -35,6 +36,19 @@
  * is stale, and reseeding dt on the way back cannot express that. Opt-in, and
  * deliberately not "clear everything": a dwell timer is stale, but a totalizer
  * holding the litres delivered today is a record.
+ *
+ * resume() is its counterpart on the way back up, and asks a different question.
+ * reset() throws away what went stale; resume() is the chance to LOOK at the
+ * plant before commanding it - an actuator whose position was being estimated by
+ * timing its strokes has been moving without us, and a program that re-datums
+ * here drives from where the valve IS. It also raises `Context::first_scan`, so
+ * a program with nothing to re-establish still learns that its next activation
+ * has no previous one worth comparing against.
+ *
+ * Bring-up runs resume() too, and that is deliberate: control starts withheld
+ * and is granted before the first beat, so the return edge fires there as well -
+ * and at bring-up a program knows no more about the plant than it does after an
+ * outage. reset() is NOT called there, because nothing was ever driving.
  */
 
 #include <cstdint>                      // uint16_t/uint32_t/uint64_t
@@ -54,6 +68,18 @@ namespace Botanik { namespace Plc {
         uint64_t now_ms;   ///< beat timestamp; the same for every program this beat
         uint32_t dt_ms;    ///< REAL ms since this program last ran; drives every timed block
         uint16_t missed;   ///< activations dropped since the last run; 0 normally
+        /** @brief This is the program's FIRST activation since it last had
+         *  nothing to go on - at bring-up, or on the beat control came back.
+         *
+         *  IEC 61131-3's first-scan flag, and it is here for the same reason:
+         *  a law that ramps, latches or compares against "last time" has no
+         *  last time on the first scan, and reading one gives it the value a
+         *  member happened to be initialised with. Ask instead of assuming.
+         *
+         *  True again after a control withdrawal because that IS the same
+         *  situation: the process moved without us, so the previous activation
+         *  describes a plant that no longer exists. */
+        bool     first_scan;
         /** @brief The variables it reads and drives - the narrowed view, not the
          *  Bank. A program has no business editing a parameter, forcing an
          *  override or withdrawing control authority, and this is what stops it
@@ -113,6 +139,9 @@ namespace Botanik { namespace Plc {
          *  has no nominal to be late against. */
         uint32_t    _late_ms     = 0;
         uint32_t    _late_max_ms = 0;
+        /** @brief Whether the next activation is a first scan. Starts true, so
+         *  bring-up is a first scan without the driver having to say so. */
+        bool        _first_scan  = true;
 
         /** @} */
 
@@ -162,6 +191,21 @@ namespace Botanik { namespace Plc {
          *  DRIVER's to call, on an edge the program cannot see. */
         virtual void reset() {}
 
+        /** @brief Control authority has come back; the next activation will
+         *  drive the field again. Default: nothing to do.
+         *
+         *  The counterpart to reset(), and not the same as it: reset() throws
+         *  away what went stale while we were stopped, this is the chance to
+         *  LOOK at the plant before commanding it. An actuator whose position
+         *  the firmware was estimating by timing its strokes has been moving
+         *  without us; a program that re-datums here drives from where the valve
+         *  is rather than from where it was an hour ago.
+         *
+         *  Also raises the first-scan flag, so a program with nothing to
+         *  re-establish still learns that its next run starts from nothing.
+         *  Public for the same reason reset() is: the edge is the driver's. */
+        virtual void resume() { _first_scan = true; }
+
         /** @} */
 
     protected:
@@ -197,10 +241,15 @@ namespace Botanik { namespace Plc {
             _late_ms = (p != 0 && dt_ms() > p) ? (dt_ms() - p) : 0;
             if (_late_ms > _late_max_ms) _late_max_ms = _late_ms;
 
-            Context c = { now_ms, dt_ms(), missed(), Io(*_io, _slot) };
+            Context c = { now_ms, dt_ms(), missed(), _first_scan, Io(*_io, _slot) };
             const uint64_t t0 = HAL::Clock::uptime_us();
             run(c);
             _cost.record((uint32_t)(HAL::Clock::uptime_us() - t0));
+            // Cleared after the run, not before: a program that throws its way
+            // out would otherwise lose the flag without having seen it. (There
+            // are no exceptions here, but the ordering is free and says what it
+            // means - the flag describes the activation that just happened.)
+            _first_scan = false;
         }
 
         /** @} */
