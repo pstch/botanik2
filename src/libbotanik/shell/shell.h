@@ -227,6 +227,10 @@ namespace Botanik { namespace Shell {
         void _cmd_reset(const char* args, uint16_t alen);
         void _cmd_exit(const char* args, uint16_t alen);
         void _cmd_stats(const char* args, uint16_t alen);
+        /** @brief The beat, task by task: what runs in which phase, at which
+         *  rate, and what each one costs. `stats` gives the beat's CPU with no
+         *  attribution; this is where that number comes from. */
+        void _cmd_tasks(const char* args, uint16_t alen);
         void _cmd_version(const char* args, uint16_t alen);
         void _cmd_features(const char* args, uint16_t alen);
         void _cmd_alarms(const char* args, uint16_t alen);
@@ -243,6 +247,11 @@ namespace Botanik { namespace Shell {
         void _cmd_control(const char* args, uint16_t alen);
         /** @brief Report control state, naming every hold still in force. */
         void _report_control(Vars::Bank* io);
+
+        /** @brief `tasks <name>`: one task's schedule and its cost samples.
+         *  @p name is the word slice from the command line, not NUL-terminated. */
+        void _task_detail(const Tasks::Registry& reg, const char* name,
+                          uint16_t nlen);
 
         /** @brief Shared tail of reset / exit: drop the field to its safe state
          *  and wipe the screen, since the loop will not run again. */

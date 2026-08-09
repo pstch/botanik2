@@ -349,6 +349,7 @@ namespace Botanik {
             // Wire the status aggregate now every subsystem address is fixed,
             // then hand a copy to the terminal (it holds SystemContext by value).
             _sys_ctx.scheduler = _scheduler.context();
+            _sys_ctx.tasks     = &_tasks;
             _sys_ctx.vars      = &_io;
 #if BOTANIK_FEATURE_NETWORK
             _sys_ctx.network = &_net.network();

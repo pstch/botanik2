@@ -13,6 +13,7 @@
 #include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
 #include "libbotanik/config/logging.h"    // Config::LOG_*
 #include "libbotanik/config/net.h"        // Config::NET_* / DNS_* / NTP_* / MQTT_*
+#include "libbotanik/config/scheduler.h"  // Config::TASK_PERIOD_MS - the `tasks` command
 #include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 #include "libbotanik_features.h"            // BOTANIK_FEATURE_LIST
 
@@ -27,6 +28,7 @@
 #include "libbotanik/modbus/rtu/client.h"  // Modbus::RtuClient / Planner
 #include "libbotanik/modbus/tcp/slave.h"   // Modbus::TcpSlave / SlaveContext
 #include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext
+#include "libbotanik/tasks/tasks.h"         // Tasks::Registry - the `tasks` command
 #include "libbotanik/utils/text.h"          // Utils::format_age / format_float / format_size
 #include "libbotanik/vars/params.h"         // Vars::Params
 
@@ -94,6 +96,7 @@ namespace Botanik { namespace Shell {
             { "clear",      "clear the screen",               &CommandShell::_cmd_clear      },
             { "logs",       "[on|off]  live log output",      &CommandShell::_cmd_logs       },
             { "stats",      "scheduler / system metrics",     &CommandShell::_cmd_stats      },
+            { "tasks",      "[<name>] the beat, task by task",&CommandShell::_cmd_tasks      },
             { "net",        "network / NTP / MQTT status",     &CommandShell::_cmd_net        },
             { "ntpsync",    "force an NTP resync now",         &CommandShell::_cmd_ntpsync    },
             { "alarms",     "[list|ack <code|all>] alarms",   &CommandShell::_cmd_alarms     },
@@ -264,6 +267,94 @@ namespace Botanik { namespace Shell {
             (unsigned long)_terminal.serial().rx_overrun());
         _emitf(out, sizeof(out), "%-29s : %s",
             "Console serial ..............", detail);
+    }
+
+    void CommandShell::_cmd_tasks(const char* args, uint16_t alen) {
+        const Tasks::Registry* reg = (_sys != nullptr) ? _sys->tasks : nullptr;
+        if (reg == nullptr) { _println("tasks: no task registry"); return; }
+
+        char out[Config::LOG_FORMATTED_LEN];
+        uint16_t wlen = 0;
+        const char* want = arg_next(args, alen, wlen);
+
+        if (want != nullptr) { _task_detail(*reg, want, wlen); return; }
+
+        // Phase-major, registration order within a phase - the order
+        // Registry::run_phase() walks, so the listing IS the beat rather than an
+        // index of it. The TASKS page sorts by name instead, which is the right
+        // answer for "find this task" and the wrong one for "what runs when".
+        _emitf(out, sizeof(out), "%-7s %-17s %-6s %7s %8s %9s %9s",
+               "PHASE", "TASK", "GROUP", "EVERY", "RUNS", "MEAN us", "PEAK us");
+
+        uint64_t peak_sum = 0;
+        for (uint8_t p = 0; p < Tasks::PHASE_COUNT; p++)
+            for (uint8_t i = 0; i < reg->count(); i++) {
+                const Tasks::Task& t = reg->task(i);
+                if (t.phase != (Tasks::Phase)p) continue;
+                peak_sum += t.cost.us_max;
+                char every[16];   // 10 digits + "ms" + NUL, rounded up
+                snprintf(every, sizeof(every), "%lums",
+                         (unsigned long)Tasks::group_period_ms(t.group));
+                _emitf(out, sizeof(out), "%-7s %-17s %-6s %7s %8lu %9lu %9lu",
+                       Tasks::phase_name(t.phase),
+                       (t.name != nullptr) ? t.name : "?",
+                       Tasks::group_name(t.group), every,
+                       (unsigned long)t.cost.runs,
+                       (unsigned long)t.cost.us_mean(),
+                       (unsigned long)t.cost.us_max);
+            }
+
+        // The peaks added up is the beat that never happened: every task at its
+        // own worst, all due together. It is the figure the beat period has to
+        // survive, so it belongs under the table rather than in a head.
+        _emitf(out, sizeof(out),
+               "%u task(s), %u refused; peaks add to %lu us of a %lu ms beat",
+               (unsigned)reg->count(), (unsigned)reg->overflow(),
+               (unsigned long)peak_sum, (unsigned long)Config::TASK_PERIOD_MS);
+    }
+
+    void CommandShell::_task_detail(const Tasks::Registry& reg,
+                                    const char* name, uint16_t nlen) {
+        for (uint8_t i = 0; i < reg.count(); i++) {
+            const Tasks::Task& t = reg.task(i);
+            if (t.name == nullptr || !arg_eq(name, nlen, t.name)) continue;
+
+            char val[64], fa[12];
+            const uint32_t period = Tasks::group_period_ms(t.group);
+
+            snprintf(val, sizeof(val), "%s (%s, every %lu ms)",
+                     Tasks::phase_name(t.phase), Tasks::group_name(t.group),
+                     (unsigned long)period);
+            _line("Runs in ..............", val);
+
+            // last_run_ms() is meaningless until the first activation, so a task
+            // that has never run says so rather than reporting the uptime.
+            if (t.timer.runs() == 0) snprintf(val, sizeof(val), "none yet");
+            else snprintf(val, sizeof(val), "%lu, last %lu ms ago",
+                          (unsigned long)t.timer.runs(),
+                          (unsigned long)(HAL::Clock::uptime_ms() - t.timer.last_run_ms()));
+            _line("Activations ..........", val);
+
+            snprintf(val, sizeof(val), "last %lu us, mean %lu us, peak %lu us",
+                     (unsigned long)t.cost.us_last,
+                     (unsigned long)t.cost.us_mean(),
+                     (unsigned long)t.cost.us_max);
+            _line("Cost .................", val);
+
+            // Against its OWN period, not the beat: a 500 ms task costing 200 us
+            // is idle, and measuring it against 10 ms would say otherwise.
+            if (t.cost.runs != 0 && period != 0) {
+                // us_mean/period_ms is already per-mille - the us/ms ratio does
+                // the scaling - so this stays a 32-bit divide.
+                snprintf(val, sizeof(val), "%s %% of its own period",
+                         Utils::format_float(fa, sizeof(fa),
+                             (double)t.cost.us_mean() / (double)(period * 10u), 2));
+                _line("Duty .................", val);
+            }
+            return;
+        }
+        char out[Config::LOG_FORMATTED_LEN];
+        _emitf(out, sizeof(out), "tasks: no task named %.*s", (int)nlen, name);
     }
 
     void CommandShell::_cmd_version(const char*, uint16_t) {
