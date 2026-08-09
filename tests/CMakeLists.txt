@@ -87,14 +87,14 @@ if(_nproc EQUAL 0)
 endif()
 set(BOTANIK_CTEST_JOBS ${_nproc} CACHE STRING
     "Parallel job count for the ctest gate (make check)")
-# -LE unit EXCLUDES the per-case entries: the aggregate `doctest` entry above
-# covers the same cases in one process, and running both would pay for the same
-# 491 tests twice over. Excluding by label rather than naming what to run means a
-# newly added test joins the gate by default - it has to be labelled `unit` to be
-# left out of it.
+# The run itself is gate.cmake: `-LE unit` first, and the per-case entries only
+# when doctest failed and there is something to attribute. Excluding by LABEL
+# rather than naming what to run means a newly added test joins the gate by
+# default - it has to be labelled `unit` to be left out.
 add_custom_target(check
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -LE unit
-            -j ${BOTANIK_CTEST_JOBS}
+    COMMAND ${CMAKE_COMMAND} -DCTEST=${CMAKE_CTEST_COMMAND}
+            -DJOBS=${BOTANIK_CTEST_JOBS}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/gate.cmake
     DEPENDS botanik_tests botanik_strict
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Pre-push gate: warning-clean build + unit tests"
