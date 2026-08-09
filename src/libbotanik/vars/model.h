@@ -382,6 +382,27 @@ namespace Botanik { namespace Vars {
                                              : AlarmSpec{nullptr, 0, 0, 0, 0, 0};
     }
 
+    /**
+     * @brief Is @p v a believable reading for @p d? Well-formedness, then the
+     *        declared band.
+     *
+     * Non-finite first (a NaN is not in any range, and saying so as "out of
+     * band" would send an operator to look at a limit that is fine), then
+     * `F_BOUNDED` against the descriptor's own band.
+     *
+     * Rows carrying their band in the PARAMETER table (`SCOPE_AI`/`AO`) are NOT
+     * judged here - `num_band()` reads unset for them, which would reject
+     * everything. Those are checked by their driver, which can resolve the
+     * calibration; see `AnalogValues::plausible()`.
+     *
+     * One predicate because there are two callers and they must agree:
+     * `Bank::reject_implausible()` sweeping the table, and the field-bus driver
+     * judging a row the moment it commits it. When they were separate the sweep
+     * was the only judge, so an out-of-band reading was `Q_GOOD` to every
+     * control program that ran before the next background beat.
+     */
+    bool value_implausible(const Variable& d, const Scalar& v);
+
     /** @} */
 
     /** @brief One value slot, parallel to the descriptor table.

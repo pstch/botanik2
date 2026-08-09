@@ -50,12 +50,19 @@ namespace Botanik { namespace Modbus {
      * place active-low wiring is dealt with, so everything above reads
      * true = asserted.
      *
-     * Analog rows are converted through their calibration and then CHECKED
-     * against their band, because Bank::reject_implausible() deliberately skips
-     * them - their band lives in the parameter table, which the bank has no route
-     * to. A shorted 4-20 mA loop reads full scale, which is a perfectly
-     * well-formed number, and this is what stops it reaching a control program as
-     * a measurement.
+     * Every row is CHECKED before it is published, not after. A shorted 4-20 mA
+     * loop reads full scale, which is a perfectly well-formed number, and this
+     * is what stops it reaching a control program as a measurement.
+     *
+     * Two bands, one rule. A calibrated row (`SCOPE_AI`) is converted through
+     * its calibration and judged against the band in the PARAMETER table, which
+     * only a driver holding the bank can resolve. A direct row is judged by
+     * `Vars::value_implausible()` against the band on the descriptor. Both
+     * happen here, at commit. Leaving the direct rows to
+     * `Bank::reject_implausible()` meant they were judged at background rate, so
+     * a reading outside its band was Q_GOOD to every control program that ran in
+     * between - the sweep remains, as the backstop for rows that do not arrive
+     * over this bus at all.
      *
      * @return how many rows were published as good.
      */

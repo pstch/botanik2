@@ -260,6 +260,19 @@ namespace Botanik { namespace Vars {
         }
     }
 
+    bool value_implausible(const Variable& d, const Scalar& v) {
+        if (type_real(d.type)) {
+            const float f = v.f;
+            if (!(f == f) || f > 3.402823466e+38f || f < -3.402823466e+38f)
+                return true;
+        }
+        // SCOPE_AI/AO carry their band in parameters, not here; num_band()
+        // returns unset for them, which would reject everything.
+        if ((d.flags & F_BOUNDED) == 0 || payload_arm(d) != PAY_NUM) return false;
+        const NumBand b = num_band(d);
+        return !in_range(d.type, v, b.min, b.max);
+    }
+
     uint16_t Bank::reject_implausible() {
         uint16_t n = 0;
         for (uint16_t i = 0; i < _terminal.count; i++) {
@@ -270,18 +283,7 @@ namespace Botanik { namespace Vars {
             // implausible value is the point.
             if (_terminal.val[i].ovr_on) continue;
 
-            bool bad = false;
-            if (type_real(d.type)) {
-                const float f = _terminal.val[i].v.f;
-                bad = !(f == f) || f > 3.402823466e+38f || f < -3.402823466e+38f;
-            }
-            // SCOPE_AI/AO carry their band in parameters, not here; num_band()
-            // returns unset for them, which would reject everything.
-            if (!bad && (d.flags & F_BOUNDED) != 0 && payload_arm(d) == PAY_NUM) {
-                const NumBand b = num_band(d);
-                bad = !in_range(d.type, _terminal.val[i].v, b.min, b.max);
-            }
-            if (!bad) continue;
+            if (!value_implausible(d, _terminal.val[i].v)) continue;
             _terminal.val[i].qual = Q_IMPLAUSIBLE;
             n++;
         }

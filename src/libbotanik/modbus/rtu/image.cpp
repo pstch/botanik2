@@ -121,26 +121,41 @@ namespace {
         return true;
     }
 
-    /** @brief Commit one direct row: the register, mapped 1:1 onto its type. */
-    void commit_direct(Vars::Var h, const Vars::Variable& d, const Block& b,
-                       const uint8_t* payload, uint64_t now_ms) {
+    /** @brief The register, mapped 1:1 onto the row's type. */
+    Vars::Scalar decode_direct(const Vars::Variable& d, const Block& b,
+                               const uint8_t* payload) {
         const uint16_t off = offset_of(d, b);
         const uint8_t* at  = payload + (size_t)off * 2u;
-        if (d.type == Vars::T_F32) {
-            h.publish(Vars::from_f32(d.type, wire_f32(d, payload, off)), now_ms);
-            return;
-        }
+        if (d.type == Vars::T_F32)
+            return Vars::from_f32(d.type, wire_f32(d, payload, off));
         if (is_pair(d)) {
             const uint32_t u = u32_from_regs(at, order_of(d));
             const int64_t  p = Vars::type_signed(d.bind.wire) ? (int64_t)(int32_t)u
                                                               : (int64_t)u;
-            h.publish(Vars::from_i64(d.type, p), now_ms);
-            return;
+            return Vars::from_i64(d.type, p);
         }
         const uint16_t w = be16(at[0], at[1]);
         const int64_t  s = Vars::type_signed(d.bind.wire) ? (int64_t)(int16_t)w
                                                           : (int64_t)w;
-        h.publish(Vars::from_i64(d.type, s), now_ms);
+        return Vars::from_i64(d.type, s);
+    }
+
+    /** @brief Commit one direct row: decode, then judge - the same order a
+     *  calibrated row goes through.
+     *
+     *  The judging used to be left entirely to `Bank::reject_implausible()`,
+     *  which runs at background rate. So a bounded row that came back at -3000
+     *  was `Q_GOOD` to every control program that ran in the meantime, for up to
+     *  a background period. A reading is judged where it enters. */
+    bool commit_direct(Vars::Var h, const Vars::Variable& d, const Block& b,
+                       const uint8_t* payload, uint64_t now_ms) {
+        const Vars::Scalar v = decode_direct(d, b, payload);
+        if (Vars::value_implausible(d, v)) {
+            h.invalidate(Vars::Q_IMPLAUSIBLE);
+            return false;
+        }
+        h.publish(v, now_ms);
+        return true;
     }
 
 }  // namespace
@@ -181,8 +196,7 @@ uint16_t commit_read(Vars::Bank& io, const Planner& p, const Block& b,
         if (d.scope == Vars::SCOPE_AI) {
             if (commit_analog(io, h, d, b, r.data, now_ms)) good++;
         } else {
-            commit_direct(h, d, b, r.data, now_ms);
-            good++;
+            if (commit_direct(h, d, b, r.data, now_ms)) good++;
         }
     }
     return good;

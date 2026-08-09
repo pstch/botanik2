@@ -255,6 +255,63 @@ TEST_CASE("modbus image: a row the payload never reached is not left reading goo
     CHECK(last.live_quality() == Q_NO_DATA);
 }
 
+TEST_CASE("modbus image: a bounded direct row is judged at commit, not at a sweep") {
+    // A Temp/RH sensor: T_F32 read 1:1 off the wire, with its band declared on
+    // the descriptor. That band used to be enforced only by
+    // Bank::reject_implausible(), which runs at background rate - so a reading
+    // of -3000 was Q_GOOD to every control program that ran before the next
+    // sweep. Note there is no sweep anywhere in this test.
+    Bus bus;
+    const Block* b = nullptr;
+    for (uint16_t i = 0; i < bus.plan.block_count(); ++i) {
+        const Block& c = bus.plan.block(i);
+        if (is_read(c.fc) && c.device == 41) { b = &c; break; }
+    }
+    REQUIRE(b != nullptr);
+
+    uint8_t payload[256];
+    Response r;
+    r.data = payload;
+    r.len  = (uint16_t)(b->regs * 2u);
+    r.unit = b->device;
+    r.fc   = b->fc;
+    r.ex   = EX_NONE;
+
+    // High word first: these rows carry no F_WORD_SWAP.
+    struct Put {
+        static void f32(uint8_t* p, uint16_t n, float v) {
+            uint32_t u;
+            memcpy(&u, &v, sizeof u);
+            memset(p, 0, n);
+            p[0] = (uint8_t)(u >> 24); p[1] = (uint8_t)(u >> 16);
+            p[2] = (uint8_t)(u >> 8);  p[3] = (uint8_t)u;
+        }
+    };
+
+    Var temp = bus.row(*b, 0);
+    REQUIRE(std::string(temp.meta()->name) == "cli_temp_ext1");
+
+    // In band, so it lands - which also pins the encoding for what follows.
+    Put::f32(payload, (uint16_t)sizeof payload, 20.0f);
+    REQUIRE(commit_read(bus.bank, bus.plan, *b, r, 1000) > 0);
+    REQUIRE(temp.live_valid());
+    REQUIRE(temp.live().f == doctest::Approx(20.0f));
+
+    // A reading no thermometer produced. The band is -40..80.
+    Put::f32(payload, (uint16_t)sizeof payload, -3000.0f);
+    commit_read(bus.bank, bus.plan, *b, r, 2000);
+
+    INFO("out of band at commit, with no reject_implausible() in between");
+    CHECK_FALSE(temp.live_valid());
+    CHECK(temp.live_quality() == Q_IMPLAUSIBLE);
+
+    // And a NaN is refused as well, without being reported as a band failure.
+    const float nan_v = 0.0f / (float)(1.0 - 1.0);
+    Put::f32(payload, (uint16_t)sizeof payload, nan_v);
+    commit_read(bus.bank, bus.plan, *b, r, 3000);
+    CHECK(temp.live_quality() == Q_IMPLAUSIBLE);
+}
+
 TEST_CASE("modbus plan: an input that could never go stale is refused a place") {
     // expire_stale() skips timeout_ms == 0, and nothing else would ever
     // invalidate such a row - so planning it would create a reading that stays
