@@ -73,7 +73,9 @@ on the M4).
 Host-only, SIMULATOR build. There are two suites, both wired into CTest:
 
 - **doctest** C++ unit tests in `tests/` (vendored single header `tests/vendor/doctest.h`),
-  one CTest entry for the whole binary (`-tc=<name>` selects a case when debugging).
+  registered TWICE: one unlabelled entry running the whole binary, which is what the
+  gate uses, and one `unit`-labelled entry per `TEST_CASE` so an IDE or `ctest -R`
+  can address a single case (`-tc=<name>` does the same from the CLI).
 - **pyte** Python screen-assertion tests in `tests/pyte/` that drive `botanik_sim` over a
   PTY and assert its rendered ANSI screen against golden captures. Registered only when
   `pytest`+`pyte` are importable; they run against a dedicated RELEASE no-sanitizer sim
@@ -91,6 +93,14 @@ ctest --test-dir build --output-on-failure          # all CTest entries
 ctest --test-dir build -R pyte --output-on-failure  # just the pyte suite
 ```
 
+`make check-full` is the periodic SWEEP, and runs in this order: clang-tidy over
+`src/` first (so a finding stops it before it pays for an instrumented rebuild),
+then the whole `check` gate again in `build/asan/` under ASan+UBSan. It drives
+that tree's own `check` target rather than a second list of commands, so the two
+cannot drift. One asymmetry: the pyte half is NOT instrumented and cannot be -
+its sim comes from a nested sub-build that pins RELEASE and `BOTANIK_SANITIZE=OFF`
+unconditionally, because those tests need a sim that is not sanitizer-slow.
+
 `make check` is the pre-push gate; it fails on the first problem:
 - the **warning gate**, which is no longer a separate target: the library compiles
   `-Werror` (see above), so building the suite at all fails on any warning in a
@@ -100,7 +110,7 @@ ctest --test-dir build -R pyte --output-on-failure  # just the pyte suite
   per-`TEST_CASE` under the `unit` label, so `ctest -R <case>` and an IDE's test
   panel can still address one case - the gate just excludes them, since the
   aggregate entry covers the same cases in one process (~0.6 s against ~14 s,
-  all of it process startup paid 491 times). One process is also what catches a
+  all of it process startup paid once per case). One process is also what catches a
   case corrupting state for the ones after it. A bare `ctest` runs both.
   On a doctest failure the gate (`tests/gate.cmake`) re-runs the per-case
   entries by itself, so each failing case is named as its own CTest result -
@@ -108,19 +118,30 @@ ctest --test-dir build -R pyte --output-on-failure  # just the pyte suite
   fault is INTERFERENCE between cases, not a flake: reproduce it with
   `./build/tests/botanik_tests`, which is the one-process configuration.
 
-**clang-tidy is NOT in the gate** - it is a periodic sweep, not a per-change
-check. Run it when a batch review is due:
+**clang-tidy is not in `check`, but it IS the first half of `check-full`** -
+attached as a dependency, so a finding stops the sweep before it pays for an
+instrumented rebuild. It stays out of the everyday gate because it re-lints on
+any touched header, which is too slow to pay per edit.
 
 ```bash
 make -C build clang-tidy       # incremental: one stamp per TU under build/clang-tidy/,
                                # so only sources whose text or included headers changed
                                # are re-analyzed (Makefile generator only)
-make -C build clang-tidy-all   # the whole tree, ignoring the stamps
-rm -rf build/clang-tidy        # force a full re-lint next time
+rm -rf build/clang-tidy && make -C build clang-tidy   # the whole tree, ignoring stamps
 ```
 
+There is no `clang-tidy-all` target: dropping the stamp directory IS the full
+re-lint, and a second target would have been a second way to say it. Worth
+knowing because a `make` invocation naming a target that does not exist fails
+with `No rule to make target`, and a grep for `warning:` over that output comes
+back empty - which reads exactly like a clean sweep.
+
 It runs the `bugprone-*` checks from `.clang-tidy` with findings promoted to
-errors, and exists only when `clang-tidy` was found at configure time.
+errors, and exists only when `clang-tidy` was found at configure time AND the
+generator is Make (the stamps' header tracking is the Makefile generator's own
+dependency scanner). Re-configuring, or editing `.clang-tidy`, invalidates every
+stamp: the lint depends on the exact compile flags and check set, not only on the
+source text.
 
 The pyte suite needs its own release sim (RELEASE, no sanitizers, built in a
 sub-tree under `build/pyte-sim/`). It is part of `all`, so a plain `make` builds
@@ -162,7 +183,7 @@ The library subsystems under `src/libbotanik/`:
 
 - `scalar.h/.cpp` - `Scalar`, the 8-byte union every value, bound and default lives in, plus the type-driven read/write/render/parse (`as_f32`/`from_i64`/`format_scalar`/`parse_scalar`/`validate_str`). `constexpr` constructors keep the site's tables constant-initialised straight into flash.
 - `declare.h` - `Tunable` (`K(v)` a constant, `R("param", fallback)` an operator-editable parameter) and one `constexpr` factory per `VarScope`, and what a site's table is written in: `A` (alarm), `P`/`PS` (parameter, numeric/text - `P` takes plain numbers and builds the `Scalar` from the row's own type), `G` (computed, HMI-only), `SV` (status value, published), `MI`/`AI`/`DI` (inputs: direct 1:1, calibrated, digital), `MO`/`AO`/`DO`/`RO` (outputs: direct, scaled, digital, relay). Each takes ONLY the arguments its scope can use, so a relay with a plausibility band or an alarm with a register does not compile. Local I/O is not a separate scope - a local row is one whose Modbus device address is 0, and the factory derives `transport` from it so the two cannot disagree. Single-return bodies, so the table stays constant-initialised into flash.
-- `model.h/.cpp` - `Variable` (the const descriptor, flash-resident, 72 bytes on the M7; its band and its string-pool slot share a `Payload` union discriminated by `type == T_STR`, reached only through `num_band()`/`text_slot()` so a numeric row can never be read as a pool offset) and `Value` (the parallel RAM slot, pinned at 32 bytes); `Var`, the one non-owning (descriptor, slot) handle, made on the fly and passed by value; `VarRef`, a bare index; `VarTables` + `Bank`, the table plus its value store and string pool. Everything outside the bank addresses a row by NAME - `Bank::find()` resolves it, once at bring-up for the declarative tables - so there is no enum of indices to keep in step with the table. A bad index, and a name matching no row, resolve to an inert **sink** rather than clamping onto a real row; a failed lookup is counted (`unresolved_count()`) and logged, and the site test asserts the count is zero. `find()` binary-searches a boot-time mapping: `VarTables::index` is `count` row numbers, borrowed and exactly sized like the value store (a site declares `SiteStore::name_index[VAR_TOTAL]`), which the `Bank(VarTables)` constructor sorts by name - the table is const and never grows, so there is nothing to invalidate. A null index array leaves find() walking the table, which `name_index_built()` reports and the site test fails on. The ROLE_PARAM block is located by scanning the roles rather than written into the descriptor. `Bank::init()` seeds defaults (including laying out the string-pool slots; a row that finds no room gets `STR_NO_SLOT`, and `text_at()` is the only route to a row's text so nothing can write through a slot it never got), `expire_stale()` invalidates timed-out inputs, `reject_implausible()` invalidates a reading that has left its declared band or gone non-finite - which is what `F_BOUNDED` on an input was declared FOR, since a dead 4-20 mA loop reads full scale and no timeout catches that - and `disable_control()` / `enable_control()` gate driving the field. The `def` field does three jobs: an input's substitute when invalid, an output's safe state, and a parameter's factory value.
+- `model.h/.cpp` - `Variable` (the const descriptor, flash-resident, 80 bytes on the M7 - 104 on a 64-bit host, where the pointers are wider; its band and its string-pool slot share a `Payload` union discriminated by `type == T_STR`, reached only through `num_band()`/`text_slot()` so a numeric row can never be read as a pool offset) and `Value` (the parallel RAM slot, pinned at 32 bytes); `Var`, the one non-owning (descriptor, slot) handle, made on the fly and passed by value; `VarRef`, a bare index; `VarTables` + `Bank`, the table plus its value store and string pool. Everything outside the bank addresses a row by NAME - `Bank::find()` resolves it, once at bring-up for the declarative tables - so there is no enum of indices to keep in step with the table. A bad index, and a name matching no row, resolve to an inert **sink** rather than clamping onto a real row; a failed lookup is counted (`unresolved_count()`) and logged, and the site test asserts the count is zero. `find()` binary-searches a boot-time mapping: `VarTables::index` is `count` row numbers, borrowed and exactly sized like the value store (a site declares `SiteStore::name_index[VAR_TOTAL]`), which the `Bank(VarTables)` constructor sorts by name - the table is const and never grows, so there is nothing to invalidate. A null index array leaves find() walking the table, which `name_index_built()` reports and the site test fails on. The ROLE_PARAM block is located by scanning the roles rather than written into the descriptor. `Bank::init()` seeds defaults (including laying out the string-pool slots; a row that finds no room gets `STR_NO_SLOT`, and `text_at()` is the only route to a row's text so nothing can write through a slot it never got), `expire_stale()` invalidates timed-out inputs - which KEEP their last reading rather than falling back to `def`, because a sensor that answered a moment ago still knows what the plant was doing, while `Q_NO_DATA`, `Q_SAFE` and `Q_IMPLAUSIBLE` do fall back (nothing to keep, a deliberate safe state, and a number that was rejected for being wrong) - `reject_implausible()` invalidates a reading that has left its declared band or gone non-finite - which is what `F_BOUNDED` on an input was declared FOR, since a dead 4-20 mA loop reads full scale and no timeout catches that - and `disable_control()` / `enable_control()` gate driving the field. The `def` field does three jobs: an input's substitute when invalid, an output's safe state, and a parameter's factory value. Two timing fields, not one: `timeout_ms` is how long a reading may be BELIEVED and `poll_ms` how often to ASK for it (0 derives the poll from the timeout, as it always did). They were one number, which meant a slower poll could only be bought by accepting a longer staleness window. **`set()` marks a `ROLE_OUTPUT` dirty only when the demand actually MOVED** - a control law re-states its whole demand every activation, and dirtying on each one left every output permanently owed to the field, which starved the READS on the bus behind them.
 
   **Bank is the one object that gets, sets and overrides variables**, and it is what `SystemContext::vars` exposes - consumers reach it there rather than each being handed its own pointer. Two distinct writes: `set()` edits a **parameter** (validated against its declared band, persisted through the `VarStore`, `SET_INVALID` for anything else - writing a sensor or an output would just be overwritten by the next scan); `override_set()` **forces any variable** (volatile, range-checked against the type only, so you can push a reading past its plausibility band to exercise the alarm watching for it).
 
@@ -184,7 +205,7 @@ The master is a planner plus a scheduler, and neither invents anything. `plan.h`
 
 **Shell (`shell/`)** - `CommandShell` handles command submission, built-in dispatch and command history (up/down recall). Cut and paste are NOT its business: they belong to `TextEditor` over the console-wide kill ring, which is what gave the NOTES page a Ctrl-K it could not otherwise have had. Built-ins: `help`, `clear`, `logs`, `stats` (uptime included), `tasks [<name>]` (the beat's totals in `stats`' shape - registered/refused, the rate groups, total activations and total MISSED ones, what the peaks add to, and the costliest task; with a name, one task in detail. Not a listing: the TASKS page is the per-task table, and printing it over a 4800-baud console was an index of a page), `version`, `features` (which `BOTANIK_FEATURE_*` subsystems this binary was built with, partitioned on/off - an absent subsystem is otherwise indistinguishable from a broken one over the terminal), `net`, `ntpsync`, `alarms`, `loglevel`, `breakpoint`, `reset`, `exit`, plus those that work the variable table - `list [<prefix>]` (browse; variables are named by domain, so `list pwr_` is the subsystem view), `get <name>` (read one), `set <param> <value>` (edit + persist a parameter), `override list|clear|<name> [off|<value>] [valid|invalid]` (force any variable for maintenance; a bare name holds it at its current value and, unless `invalid` is asked for, reads as VALID; `override list` shows what is forced, `override clear` - or the older `override off` - clears the lot), and `control [enable|disable]` (whether the firmware may drive the field at all). The `SystemContext` it reads them from is **constructor-injected**, and its output goes through the `ShellWriter` interface - so `shell/` depends on the terminal device it renders on (`AnsiTerminal`, `TextEditor`) but not on `Console` or on `pages/`, and it builds and tests without either. Sites extend it with a registered `ShellCommand[]` table.
 
-**Logging (`logs/`)** - `Logger` uses a dual-bucket token-bucket rate limiter (one global bucket, one per topic) before forwarding to registered `LogWriter`s. `LOG_CRITICAL` entries are undroppable (they evict the oldest queued entry instead of being dropped), and silent-loss categories (sink drops, TX-full truncation, rate-limiter suppressions) are reported edge-triggered as criticals. Writers include `BufferedLogWriter`, `SerialLogWriter`, and (behind `BOTANIK_FEATURE_LOGS_PUBLISH`) `MqttLogWriter`, which publishes each entry to the broker under `<MQTT_TOPIC_PREFIX>/<MQTT_LOG_TOPIC>/<level>/<topic>`. Log levels and topics are the `LogLevel` / `LogTopic` enums in `logs/topics.h`. Topics: `SHARED_IO`, `BOOT`, `NETWORK`, `TIME`, `STATUS`, `ASSERT`, the alarm transitions `ALARM_BEG`/`ALARM_END`/`ALARM_FLAP`, `HEALTH`, and `STORAGE`. The numbering is deliberately not compacted - it is what sits in already-written log records.
+**Logging (`logs/`)** - `Logger` uses a dual-bucket token-bucket rate limiter (one global bucket, one per topic) before forwarding to registered `LogWriter`s. `LOG_CRITICAL` entries are undroppable (they evict the oldest queued entry instead of being dropped), and silent-loss categories (sink drops, TX-full truncation, rate-limiter suppressions) are reported edge-triggered as criticals. Writers include `BufferedLogWriter`, `SerialLogWriter`, and (behind `BOTANIK_FEATURE_LOGS_PUBLISH`) `MqttLogWriter`, which publishes each entry to the broker under `<MQTT_TOPIC_PREFIX>/<MQTT_LOG_TOPIC>/<level>/<topic>`. Log levels and topics are the `LogLevel` / `LogTopic` enums in `logs/topics.h`. Topics: `NONE`, `MODBUS` (the field bus - was `SHARED_IO`, which nothing outside `modbus/` ever raised; the shorter label buys three columns of message width and the VALUE stayed 1), `BOOT`, `NETWORK`, `TIME`, `STATUS`, `ASSERT`, the alarm transitions `ALARM_BEG`/`ALARM_END`/`ALARM_FLAP`, `HEALTH`, and `STORAGE`. The enum must stay dense from 0 (`LOG_TOPIC_COUNT` bounds the per-topic bucket array), and the numbering is deliberately not compacted - it is what sits in already-written log records, so a rename moves the label and never the value.
 
 **Alarms (`alarms/`)** - there is no site alarm table: an alarm is a `SCOPE_A` row in the variable table, declared with `A(name, code, on_s, off_s, recent_s, hold_on_s, min_on_s, reg, desc, notes)` (`reg` its Modbus TCP slave register, a site's alarms in 800-899 and the library's at 990-999), carrying both the boolean that raises it and the policy it runs on (in the `Payload` union's alarm arm, which fits the 16 bytes a band already costs). `AlarmController` builds its working `AlarmCondition[]` by scanning the bank for those rows in table order, so condition *i* reads row *i* and there is no second order to keep in step. A condition reads its variable, full stop - there is no local override and no `set_local()`; forcing an alarm by hand means overriding its row. There is **no aggregate bitset**: `step()` reads each condition's variable, advances dwell, and raises ALARM-topic log lines and notifier callbacks on thresholds. `index_of(code|name)` answers to either spelling without a scan: codes through a mapping the constructor sorts, names through the bank's index and then the conditions' refs (which ascend, since they were scanned in table order). `MqttAlarmNotifier` formats alarm transitions as MQTT topics/payloads (`alarms/publisher.h` is the transport interface). The generic platform-health alarms (SYS_RST, CPU load, jitter, stack, overrun, flash fault) are **rows of that same table**, reaching it through `BOTANIK_LIBRARY_VARS` (see below). No second table, no merge, no reserved index range - and `HealthMonitor` is an ordinary consumer of the bank, binding the six names once at bring-up and writing the boolean.
 
