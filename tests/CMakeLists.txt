@@ -62,11 +62,16 @@ include(doctest)
 doctest_discover_tests(botanik_tests PROPERTIES LABELS unit)
 
 # `make check` is the one-shot pre-push gate. Its dependencies build everything
-# the suite needs (`make test`/`ctest` do not) plus the two static gates, then the
-# command runs the suite with failures echoed inline:
+# the suite needs (`make test`/`ctest` do not), then the command runs the suite
+# with failures echoed inline:
 #   - botanik_tests : the doctest binary (links the normal library)
-#   - botanik_strict : warning-clean compile gate — the -Werror mirror fails the
-#                      build on any compiler warning
+#
+# The warning gate is no longer a dependency here: the library compiles -Werror
+# directly (BOTANIK_WERROR, top-level CMakeLists), so building botanik_tests at
+# all already fails on any warning in a library source. That retired the
+# botanik_strict mirror and the 63 duplicate TU compiles it cost every run.
+#
+# Sanitizers are no longer in this gate either - see `check-full` below.
 #
 # clang-tidy is deliberately NOT here. It is a sweep, not a per-change check: it
 # re-lints on any touched header, so it dominated a gate meant to run after every
@@ -95,9 +100,39 @@ add_custom_target(check
     COMMAND ${CMAKE_COMMAND} -DCTEST=${CMAKE_CTEST_COMMAND}
             -DJOBS=${BOTANIK_CTEST_JOBS}
             -P ${CMAKE_CURRENT_SOURCE_DIR}/gate.cmake
-    DEPENDS botanik_tests botanik_strict
+    DEPENDS botanik_tests
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Pre-push gate: warning-clean build + unit tests"
+    VERBATIM
+)
+
+# `make check-full` is the whole gate again, this time instrumented: it is where
+# ASan+UBSan went when they came off the everyday `check` (the measured reason is
+# on BOTANIK_SANITIZE in the top-level CMakeLists - instrumentation more than
+# doubles compile CPU, and the test TUs are where most of that lands). Same
+# treatment clang-tidy already gets here: a sweep you run periodically, not a tax
+# on every edit. Run it before a push that touches memory handling.
+#
+# It drives the sub-tree's OWN `check`, so it is the same gate by construction -
+# doctest and pyte, gate.cmake's failure attribution, all of it - rather than a
+# second list of test commands that could drift from this one.
+#
+# It builds in a tree of ITS OWN under build/asan/, so the default tree keeps its
+# uninstrumented objects and the two never invalidate each other.
+#
+# One asymmetry worth knowing: the pyte HALF is not instrumented, and cannot be.
+# Its sim is built by a nested sub-build that pins RELEASE and BOTANIK_SANITIZE=OFF
+# unconditionally, because those tests need a sim that is not sanitizer-slow. So
+# this target instruments everything that can be: the unit suite runs under ASan +
+# UBSan, and the screen tests run as they always do.
+add_custom_target(check-full
+    COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${CMAKE_SOURCE_DIR}
+            -B ${CMAKE_BINARY_DIR}/asan -DBOTANIK_TARGET=SIMULATOR
+            -DCMAKE_BUILD_TYPE=DEBUG -DBOTANIK_SANITIZE=address+undefined
+    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/asan
+            --target check --parallel ${_nproc}
+    USES_TERMINAL
+    COMMENT "Full gate under ASan+UBSan (build/asan/)"
     VERBATIM
 )
 

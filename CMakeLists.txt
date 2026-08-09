@@ -59,17 +59,20 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Runtime sanitizers for the SIMULATOR build (ignored on OPTA, which we can't run).
-# OFF | address | undefined | address+undefined. Default to address+undefined on
-# DEBUG builds — the interactive sim runs fine instrumented and it catches UB and
-# memory bugs early — and OFF otherwise. Override explicitly, e.g. with
-# -DBOTANIK_SANITIZE=OFF on a debug tree, or to opt in on a non-debug one.
+# OFF | address | undefined | address+undefined.
+#
+# Default OFF, DEBUG included. Instrumentation is the largest single cost in this
+# build: measured over the 7 costliest TUs, ASan+UBSan is +116% compile CPU (12.0s
+# -> 25.9s), and UBSan alone accounts for 72% of that. It lands hardest exactly
+# where the tree is heaviest - the 16 test TUs are 72% of all compile CPU - so the
+# gate that runs most often was paying most of the bill.
+#
+# The sanitizers are not gone, they are a SWEEP: `make check-full` configures an
+# instrumented tree of its own and runs the suite in it, the same way clang-tidy
+# is a periodic batch rather than a per-change check. To instrument a whole tree,
+# configure it with -DBOTANIK_SANITIZE=address+undefined.
 string(TOUPPER "${CMAKE_BUILD_TYPE}" _build_type_upper)
-if(_build_type_upper STREQUAL "DEBUG")
-    set(_san_default "address+undefined")
-else()
-    set(_san_default "OFF")
-endif()
-set(BOTANIK_SANITIZE "${_san_default}" CACHE STRING "Sanitizers for the SIMULATOR build")
+set(BOTANIK_SANITIZE "OFF" CACHE STRING "Sanitizers for the SIMULATOR build")
 
 # Override CMake's default Debug flags ("-g") with profiler-friendly ones:
 # optimizations disabled, full DWARF-4 debug info, frame pointer preserved.
@@ -213,6 +216,21 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     # column-aligned for readability, which trips this heuristic.
     target_compile_options(botanik PUBLIC -Wall -Wextra -Wno-misleading-indentation)
 
+    # Warnings are errors on the library's own sources. This used to be a second
+    # EXCLUDE_FROM_ALL copy of the whole library (botanik_strict), compiled purely
+    # for its diagnostics - 63 extra TUs on every `make check`, for a guarantee the
+    # real objects can carry themselves. The tree is warning-clean in this exact
+    # configuration (verified across all 63 library TUs at -O0 -g3), so the gate
+    # gets the same result for free.
+    #
+    # PRIVATE, which is the mirror's old scope: it compiled LIB_SOURCES only, so
+    # the sketch and the test suite keep -Wall -Wextra without -Werror. -DBOTANIK_
+    # WERROR=OFF for a WIP tree with a deliberate unused parameter in it.
+    option(BOTANIK_WERROR "Treat warnings as errors when compiling the library" ON)
+    if(BOTANIK_WERROR)
+        target_compile_options(botanik PRIVATE -Werror)
+    endif()
+
     # Sanitizers (PUBLIC so the library and the sketch are both instrumented, and
     # propagated as link flags so the runtimes are linked in). Findings stay
     # recoverable (UBSAN logs each and continues) so the interactive simulator
@@ -221,14 +239,10 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     if(NOT BOTANIK_SANITIZE STREQUAL "OFF")
         string(REPLACE "+" "," _san "${BOTANIK_SANITIZE}")
         set(_san_flags -fsanitize=${_san} -fno-omit-frame-pointer)
-        # Everything that links botanik gets instrumented - except the strict
-        # warning mirror below, which is compiled for its diagnostics and never
-        # run. $<TARGET_PROPERTY:NAME> in an INTERFACE genex names the *consuming*
-        # target, and this is the only way to opt out: CMake emits a target's own
-        # options before the ones inherited from its link libraries, so a
-        # -fno-sanitize=all on the mirror would be overridden by this line.
-        target_compile_options(botanik PUBLIC
-            "$<$<NOT:$<STREQUAL:$<TARGET_PROPERTY:NAME>,botanik_strict>>:${_san_flags}>")
+        # Everything that links botanik gets instrumented. This used to carry a
+        # genex opting the botanik_strict mirror out; the mirror is gone (the
+        # library compiles -Werror directly now), so the plain form is enough.
+        target_compile_options(botanik PUBLIC ${_san_flags})
         # Propagate as link flags too (via target_link_libraries for CMake 3.10
         # compatibility — target_link_options is 3.13+) so the runtimes get linked.
         target_link_libraries(botanik PUBLIC ${_san_flags})
@@ -274,27 +288,13 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         message(STATUS "IPO/LTO not supported, Release will use -O3 only: ${_ipo_msg}")
     endif()
 
-    # Strict warning gate. A mirror of the library compiled with -Werror, built
-    # only on demand (EXCLUDE_FROM_ALL) so day-to-day `make` stays warning-tolerant
-    # — visibility, not a hard gate — while `make check` fails hard on any warning.
-    # Linking `botanik` re-uses its PUBLIC include dirs, defines and warning flags,
-    # so the two stay in lockstep with no duplicated settings.
-    add_library(botanik_strict STATIC EXCLUDE_FROM_ALL ${LIB_SOURCES})
-    target_link_libraries(botanik_strict PRIVATE botanik)
-    # -g0, and no sanitizer instrumentation (opted out where the flags are set):
-    # the mirror is never run or debugged, only compiled for its diagnostics, and
-    # neither DWARF nor ASan changes which warnings GCC emits. The optimization
-    # level does (-Wmaybe-uninitialized and friends need the optimizer's flow
-    # analysis), so -O0 is inherited untouched and the diagnostic set stays
-    # exactly the one this gate has always applied.
-    target_compile_options(botanik_strict PRIVATE -Werror -g0)
-    # Keep this mirror out of compile_commands.json. Otherwise every library TU
-    # gets a second, -Werror entry, and run-clang-tidy lints each file twice —
-    # the -Werror pass promoting ordinary -Wall warnings (e.g. unused-private-field
-    # on WIP stubs) into hard errors. clang-tidy is meant to gate on bugprone-*
-    # only (see .clang-tidy); the warning gate is botanik_strict's own GCC build.
-    # (Target property is honored on CMake >= 3.20; older versions ignore it.)
-    set_target_properties(botanik_strict PROPERTIES EXPORT_COMPILE_COMMANDS OFF)
+    # NOTE: botanik_strict is gone. It was a second EXCLUDE_FROM_ALL copy of the
+    # library compiled -Werror -g0 purely for its diagnostics, which made `make
+    # check` compile all 63 library sources twice. The library now compiles with
+    # -Werror itself (see BOTANIK_WERROR above), so the gate keeps the guarantee
+    # and drops the duplicate objects. A welcome side effect: compile_commands.json
+    # no longer needs the EXPORT_COMPILE_COMMANDS OFF dance that kept the mirror's
+    # second, -Werror entry per TU out of clang-tidy's way.
 
     # clang-tidy static analysis over our own src/ tree. The check set and header
     # filter live in .clang-tidy, with bugprone-* promoted to errors there so a
