@@ -145,7 +145,7 @@ namespace Botanik { namespace Pages {
         uint16_t _data_top()  const override { return DATA_TOP; }
         uint16_t _window()    const override { return _visible_rows(); }
         uint16_t _row_count() const override { return _count(); }
-        uint16_t _selected_cell(char* out, uint16_t cap) const override;
+        const char* _selected_cell() const override;
         /** @} */
 
         /** @brief First row of the detail panel (separator). */

@@ -39,18 +39,15 @@ namespace Botanik { namespace Pages {
         }
     }
 
-    bool ScrollTablePage::_copy_selected_cell() {
-        char cell[COPY_CELL_MAX];
-        uint16_t n = _selected_cell(cell, (uint16_t)sizeof(cell));
-        if (n == 0) return false;
-        n = Terminal::kill_ring().set(cell, n);
-        if (n == 0) return false;
+    void ScrollTablePage::_copy_selected_cell() {
+        const char* cell = _selected_cell();
+        if (cell == nullptr || cell[0] == '\0') return;
+        if (Terminal::kill_ring().set(cell, (uint16_t)strlen(cell)) == 0) return;
 
         // Say so: the table looks identical after a copy, so without the badge
         // the only way to know the key landed is to go and paste it.
-        snprintf(_copied, sizeof(_copied), "copied %.*s", (int)n, cell);
+        snprintf(_copied, sizeof(_copied), "copied %s", cell);
         _copied_until_ms = HAL::Clock::uptime_ms() + COPIED_BADGE_MS;
-        return true;
     }
 
     const char* ScrollTablePage::_copied_badge() const {

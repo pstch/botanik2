@@ -182,9 +182,9 @@ namespace Botanik { namespace Pages {
         _draw_full_row(row, _vis[vi], c, vi == _selected);
     }
 
-    uint16_t AlarmsPage::_selected_cell(char* out, uint16_t cap) const {
-        if (_model == nullptr || _selected >= _nvis) return 0;
-        return _copy_cell(out, cap, _model->condition(_vis[_selected]).code);
+    const char* AlarmsPage::_selected_cell() const {
+        if (_model == nullptr || _selected >= _nvis) return nullptr;
+        return _model->condition(_vis[_selected]).code;
     }
 
     void AlarmsPage::_ack_selected() {

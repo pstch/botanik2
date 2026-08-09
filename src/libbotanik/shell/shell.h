@@ -175,7 +175,6 @@ namespace Botanik { namespace Shell {
 
         /** @} */
 
-
     private:
         /** @name Internals
          *  @{ */

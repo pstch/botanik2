@@ -194,7 +194,7 @@ namespace Botanik { namespace Pages {
          *  @{ */
         uint16_t _data_top()  const override { return DATA_TOP; }
         uint16_t _row_count() const override { return _nvis; }
-        uint16_t _selected_cell(char* out, uint16_t cap) const override;
+        const char* _selected_cell() const override;
         /** @} */
         /** @brief Entries scrolled off the bottom of the visible window. */
         uint16_t _hidden_below(uint16_t window) const {

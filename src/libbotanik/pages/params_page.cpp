@@ -172,10 +172,9 @@ namespace Botanik { namespace Pages {
         return _group_intern(g);
     }
 
-    uint16_t ParamsPage::_selected_cell(char* out, uint16_t cap) const {
-        if (_params == nullptr || _selected >= _visible_count()) return 0;
-        return _copy_cell(out, cap,
-                          _params->param(_param_at(_selected)).meta()->name);
+    const char* ParamsPage::_selected_cell() const {
+        if (_params == nullptr || _selected >= _visible_count()) return nullptr;
+        return _params->param(_param_at(_selected)).meta()->name;
     }
 
     void ParamsPage::_draw_panel() {
@@ -351,11 +350,8 @@ namespace Botanik { namespace Pages {
                 _editor.kill_to_line_end();                         break;
             case Command::CTRL_W:
                 if (_edit_error) _clear_error();
-                if (_editor.mark_active()) _editor.kill_region();
-                else                       _editor.kill_word_back(); break;
-            case Command::CTRL_SPACE:
-                if (_editor.mark_active()) _editor.clear_mark();
-                else                       _editor.set_mark();      break;
+                _editor.kill_region_or_word();                      break;
+            case Command::CTRL_SPACE: _editor.toggle_mark();         break;
             case Command::CTRL_G:  _editor.clear_mark();             break;
             case Command::ALT_W:   _editor.copy_region();            break;
             case Command::CTRL_Y:

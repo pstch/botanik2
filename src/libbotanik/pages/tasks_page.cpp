@@ -113,9 +113,9 @@ namespace Botanik { namespace Pages {
         _draw_rule(RULE_ROW, '+');
     }
 
-    uint16_t TasksPage::_selected_cell(char* out, uint16_t cap) const {
-        if (_selected >= _count()) return 0;
-        return _copy_cell(out, cap, _row(_selected).name);
+    const char* TasksPage::_selected_cell() const {
+        if (_selected >= _count()) return nullptr;
+        return _row(_selected).name;
     }
 
     void TasksPage::_draw_panel() {

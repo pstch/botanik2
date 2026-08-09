@@ -160,12 +160,10 @@ namespace Botanik { namespace Terminal {
          *  the Mark and region group). */
         uint16_t _mark     = 0;
         bool     _mark_set = false;
-        /** @brief The region as last PAINTED, so _sync_region() can tell that
-         *  the screen already shows what it should and return without touching a
-         *  cell - which is every call with no mark, so ordinary editing stays
-         *  exactly as cheap as it was. The flag is not redundant with the
-         *  offsets: a mark dropped at offset 0 and no mark at all are both
-         *  (0, 0). */
+        /** @brief What the screen currently shows highlighted, so _sync_region()
+         *  can tell that it is already right and return without touching a cell
+         *  - which is every call with no mark, so ordinary editing stays exactly
+         *  as cheap as it was. */
         uint16_t _painted_from = 0, _painted_to = 0;
         bool     _painted_active = false;
 
@@ -366,6 +364,19 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Drop the anchor (Ctrl-G, and every edit). */
         void clear_mark();
+
+        /** @brief What Ctrl-Space does: the mark is a toggle, not a latch, so
+         *  pressing it again on a region you did not want releases it. */
+        void toggle_mark();
+
+        /** @brief What Ctrl-W does: the region when there is one, the word
+         *  before the cursor when there is not - which is what makes the mark
+         *  optional rather than a mode.
+         *
+         *  Here rather than in each page's key switch: it is a statement about
+         *  how the mark behaves, and three pages holding their own copy of it
+         *  is three places for it to drift. */
+        bool kill_region_or_word();
 
         /** @brief Whether an anchor is live. */
         bool mark_active() const { return _mark_set; }
@@ -610,6 +621,11 @@ namespace Botanik { namespace Terminal {
          *  what is painted is already right - which is every call with no mark,
          *  so the no-region byte cost is unchanged by construction. */
         void _sync_region();
+
+        /** @brief Declare the visible rows as painted with the region as it
+         *  stands. For whoever has just drawn them all: _sync_region() itself,
+         *  and redraw(). */
+        void _record_painted();
 
         /** @} */
 

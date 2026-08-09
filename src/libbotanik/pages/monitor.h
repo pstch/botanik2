@@ -211,7 +211,7 @@ namespace Botanik { namespace Pages {
          *  @{ */
         uint16_t _data_top()  const override { return DATA_TOP; }
         uint16_t _row_count() const override { return _total(); }
-        uint16_t _selected_cell(char* out, uint16_t cap) const override;
+        const char* _selected_cell() const override;
         /** @} */
 
         /** @brief Flexible VALUE width for the 4-column row (group | name | value

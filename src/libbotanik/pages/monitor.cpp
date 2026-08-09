@@ -188,11 +188,11 @@ namespace Botanik { namespace Pages {
         _draw_rule(_brule_row(), (uint16_t)(_top + win) < total ? 'v' : '+');
     }
 
-    uint16_t MonitorPage::_selected_cell(char* out, uint16_t cap) const {
+    const char* MonitorPage::_selected_cell() const {
         bool ok = false;
         Vars::VarRef ref = _ref_at(_selected, ok);
-        if (!ok || _io == nullptr) return 0;
-        return _copy_cell(out, cap, _io->var(ref).meta()->name);
+        if (!ok || _io == nullptr) return nullptr;
+        return _io->var(ref).meta()->name;
     }
 
     void MonitorPage::_draw_panel() {

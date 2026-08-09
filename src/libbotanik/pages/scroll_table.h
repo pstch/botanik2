@@ -52,8 +52,9 @@ namespace Botanik { namespace Pages {
          *  otherwise entirely invisible, the table looking exactly as it did
          *  before the keypress. */
         uint64_t      _copied_until_ms = 0;
-        /** @brief The badge text, naming what was copied. */
-        char          _copied[40] = {0};
+        /** @brief The badge text, naming what was copied. Sized for "copied "
+         *  plus the longest key cell worth reading back. */
+        char          _copied[56] = {0};
 
         /** @} */
 
@@ -69,26 +70,16 @@ namespace Botanik { namespace Pages {
         /** @brief Rows in the set the cursor moves over. */
         virtual uint16_t _row_count() const = 0;
 
-        /** @brief Copy the selected row's KEY CELL - the one the cursor inverts
-         *  - into @p out, at most @p cap bytes, for the Alt+W copy.
+        /** @brief The selected row's KEY CELL - the one the cursor inverts -
+         *  for the Alt+W copy, or null when this table has nothing worth
+         *  copying (the default, and Alt+W then does nothing).
          *
          *  What is highlighted is what you get: the name on MONITOR / PARAMS /
-         *  TASKS, the code on ALARMS. A table with nothing worth copying leaves
-         *  the default, and Alt+W does nothing there.
-         *  @return bytes written (no NUL needed; 0 = nothing to copy). */
-        virtual uint16_t _selected_cell(char* /*out*/, uint16_t /*cap*/) const {
-            return 0;
-        }
-
-        /** @brief What every _selected_cell() override does with the string it
-         *  found: copy it into @p out, truncated to @p cap. Null-safe. */
-        static uint16_t _copy_cell(char* out, uint16_t cap, const char* s) {
-            if (s == nullptr || cap == 0) return 0;
-            uint16_t n = (uint16_t)strlen(s);
-            if (n > cap) n = cap;
-            memcpy(out, s, n);
-            return n;
-        }
+         *  TASKS, the code on ALARMS. Taken from the MODEL rather than scraped
+         *  off the rendered line, which is padded and column-truncated - and a
+         *  name clipped to its column is no use in the `get` it gets pasted
+         *  into. */
+        virtual const char* _selected_cell() const { return nullptr; }
 
         /** @} */
 
@@ -124,14 +115,10 @@ namespace Botanik { namespace Pages {
 
         /** @brief How long the Alt+W badge stays on the mode line (ms). */
         static constexpr uint32_t COPIED_BADGE_MS = 3000;
-        /** @brief Longest cell Alt+W copies. A key cell is a name or a code, not
-         *  a sentence; anything longer is truncated to this. */
-        static constexpr uint16_t COPY_CELL_MAX = 48;
 
         /** @brief Put the selected cell in the kill ring (Alt+W), so it can be
-         *  yanked into the shell prompt or the PARAMS value field.
-         *  @return true if anything was copied. */
-        bool _copy_selected_cell();
+         *  yanked into the shell prompt or the PARAMS value field. */
+        void _copy_selected_cell();
 
         /** @brief The Alt+W badge, or "" once it has expired. What
          *  _draw_mode_line() shows in place of the page's own detail. */

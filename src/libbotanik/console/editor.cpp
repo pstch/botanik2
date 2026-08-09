@@ -210,6 +210,10 @@ namespace Botanik { namespace Terminal {
             _write_prompt(i);
             _write_row_content(i);
         }
+        // Every visible row has just been painted with the current region on it,
+        // so say so: without this a _sync_region() behind us (the long-jump
+        // branch of _follow_cursor() calls both) would paint the lot again.
+        _record_painted();
         _place_cursor(_map_cursor_pos(_pos));
     }
 
@@ -477,46 +481,46 @@ namespace Botanik { namespace Terminal {
         // clear_to_eol() would otherwise stamp an inverted bar to the margin.
         _terminal->set_inverted(false);
 
-        uint16_t from = 0, to = 0;
-        if (!region(from, to)) {                    // no mark: the plain path
-            if (r.buf_len > 0) _terminal->write_chars(&_buf[start], r.buf_len);
-            return;
-        }
-
-        if (from == to) {
-            // Nothing selected yet: mark the anchor with one inverted cell, or
-            // Ctrl-Space would have nothing to show for itself. _owner_row
-            // settles which row owns an offset sitting on a wrap boundary,
-            // where both the row that ends there and the one that starts there
-            // would otherwise paint it.
-            if (_owner_row(from, _layout) != i) {
-                if (r.buf_len > 0) _terminal->write_chars(&_buf[start], r.buf_len);
-                return;
+        // The inverted run, clipped to this row. l >= rr means the row has no
+        // highlight on it, which covers all three ways that happens: no mark,
+        // the region lying entirely off this row, and the anchor belonging to
+        // another row.
+        uint16_t from = 0, to = 0, l = 1, rr = 0;
+        if (region(from, to)) {
+            if (from != to) {
+                l  = from > start ? from : start;
+                rr = to   < end   ? to   : end;
+            } else if (_owner_row(from, _layout) == i) {
+                // Nothing selected yet: mark the anchor with one inverted cell,
+                // or Ctrl-Space would have nothing to show for itself.
+                // _owner_row settles an offset sitting on a wrap boundary,
+                // which the row ending there and the row starting there would
+                // otherwise both paint.
+                l  = from;
+                rr = (uint16_t)(from + 1);
             }
-            uint16_t head = (uint16_t)(from - start);
-            if (head > 0) _terminal->write_chars(&_buf[start], head);
-            _terminal->set_inverted(true);
-            // Past the last character there is no glyph to invert, so make one.
-            if (from < end) _terminal->write_chars(&_buf[from], 1);
-            else            _terminal->write_chars(" ", 1);
-            _terminal->set_inverted(false);
-            if ((uint16_t)(from + 1) < end)
-                _terminal->write_chars(&_buf[from + 1], (uint16_t)(end - from - 1));
-            return;
         }
 
-        // Clip the region to this row: three runs, the middle one inverted.
-        const uint16_t l = from > start ? from : start;
-        const uint16_t rr = to < end ? to : end;
-        if (l >= rr) {                              // row lies outside the region
+        if (l >= rr) {                              // no highlight on this row
             if (r.buf_len > 0) _terminal->write_chars(&_buf[start], r.buf_len);
             return;
         }
+
         if (l > start) _terminal->write_chars(&_buf[start], (uint16_t)(l - start));
         _terminal->set_inverted(true);
-        _terminal->write_chars(&_buf[l], (uint16_t)(rr - l));
+        // Past the last character there is no glyph to invert, so make one. Only
+        // the anchor cell can land there - a non-empty region ends at a byte it
+        // actually contains.
+        if (l < end) _terminal->write_chars(&_buf[l], (uint16_t)((rr < end ? rr : end) - l));
+        else         _terminal->write_chars(" ", 1);
         _terminal->set_inverted(false);
         if (rr < end) _terminal->write_chars(&_buf[rr], (uint16_t)(end - rr));
+    }
+
+    void TextEditor::_record_painted() {
+        _painted_active = _mark_set;
+        _painted_from = _painted_to = 0;
+        region(_painted_from, _painted_to);
     }
 
     void TextEditor::_sync_region() {
@@ -524,14 +528,10 @@ namespace Botanik { namespace Terminal {
         region(f, t);                   // leaves 0,0 when there is no mark
         // Nothing to do when the screen already shows this region - which is
         // every call with no mark, so editing without one costs exactly what it
-        // did before there was a region at all. The active flag is not
-        // redundant with the offsets: a mark dropped at offset 0 and no mark at
-        // all are both (0, 0).
+        // did before there was a region at all.
         if (_mark_set == _painted_active && f == _painted_from && t == _painted_to)
             return;
-        _painted_active = _mark_set;
-        _painted_from   = f;
-        _painted_to     = t;
+        _record_painted();
         for (uint16_t i = _view_top, e = _visible_end(); i < e; i++) _new_row(i);
     }
 
@@ -861,6 +861,15 @@ namespace Botanik { namespace Terminal {
         if (!_mark_set) return;
         _mark_set = false;
         _sync_region();
+    }
+
+    void TextEditor::toggle_mark() {
+        if (_mark_set) clear_mark();
+        else           set_mark();
+    }
+
+    bool TextEditor::kill_region_or_word() {
+        return _mark_set ? kill_region() : kill_word_back();
     }
 
     bool TextEditor::region(uint16_t& from, uint16_t& to) const {
