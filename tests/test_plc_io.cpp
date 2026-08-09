@@ -252,6 +252,69 @@ TEST_CASE("scan: one program driving its own rows says nothing") {
     CHECK(sink.seen == 0);
 }
 
+TEST_CASE("scan: a program that keeps its period raises nothing") {
+    Live f;
+    Drives a("prog_a", "cli_temp_ext1");
+    Plc::Program* const progs[] = { &a };
+    Scan::Driver d(progs, 1, &f.bank);
+    const VarRef late = f.ref("alarm_scan_late");
+
+    for (uint64_t t = 0; t <= 1000; t += 10) d.step(t);
+
+    CHECK(d.late_ms() == 0);
+    CHECK(d.worst() == nullptr);
+    CHECK_FALSE(f.bank.var(late).b());
+    INFO("and it costs something measurable, per program rather than per scan");
+    CHECK(a.cost().runs > 0);
+}
+
+TEST_CASE("scan: a program starved of beats is late, and named") {
+    // Lateness is against the PROGRAM's own period, so one threshold serves
+    // every rate. Here the driver is simply not stepped for a while, which is
+    // what an overrunning beat looks like from a program's point of view.
+    Live f;
+    Drives slow("prog_slow", "cli_temp_ext1");
+    slow.set_period(100);
+    Plc::Program* const progs[] = { &slow };
+    Scan::Driver d(progs, 1, &f.bank);
+    const VarRef late = f.ref("alarm_scan_late");
+
+    d.step(0);                       // seeds the timer
+    CHECK(d.late_ms() == 0);
+
+    d.step(1000);                    // 900 ms past its 100 ms period
+
+    CHECK(d.late_ms() == 900);
+    REQUIRE(d.worst() != nullptr);
+    CHECK(std::string(d.worst()->name()) == "prog_slow");
+    CHECK(slow.late_max_ms() == 900);
+    INFO("the row is driven; the alarm's own dwell decides if it annunciates");
+    CHECK(f.bank.var(late).b());
+
+    // Back on schedule, and the row clears - the peak is kept, because that is
+    // the number worth keeping.
+    d.step(1100);
+    CHECK(d.late_ms() == 0);
+    CHECK_FALSE(f.bank.var(late).b());
+    CHECK(slow.late_max_ms() == 900);
+}
+
+TEST_CASE("scan: an every-beat program is never reported late") {
+    // Period 0 is due every beat and has no nominal to be late against, so it
+    // must not raise the alarm just because the beat itself slipped.
+    Live f;
+    Drives every("prog_every", "cli_temp_ext1");
+    Plc::Program* const progs[] = { &every };
+    Scan::Driver d(progs, 1, &f.bank);
+
+    d.step(0);
+    d.step(5000);                    // an enormous gap
+
+    CHECK(every.late_ms() == 0);
+    CHECK(d.late_ms() == 0);
+    CHECK_FALSE(f.bank.var(f.ref("alarm_scan_late")).b());
+}
+
 TEST_CASE("plc io: a bad reference moves nothing") {
     // A program driving a row that does not exist has to be inert, not land on
     // row zero - which with the parameters leading the table is a real setting.

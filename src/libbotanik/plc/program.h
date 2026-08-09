@@ -40,6 +40,8 @@
 #include <cstdint>                      // uint16_t/uint32_t/uint64_t
 
 #include "libbotanik/core/component.h"  // Component
+#include "libbotanik/hal/platform.h"    // HAL::Clock::uptime_us - per-program cost
+#include "libbotanik/tasks/tasks.h"     // Tasks::TaskCost - the same accounting a task gets
 #include "libbotanik/plc/io.h"           // Plc::Io - the narrowed view a program gets
 #include "libbotanik/vars/model.h"      // Vars::Bank / VarRef
 
@@ -101,6 +103,16 @@ namespace Botanik { namespace Plc {
          *  row it writes. The driver assigns it; WRITER_NONE until then, which
          *  is what a program stepped by hand in a test writes as. */
         uint8_t     _slot = Vars::WRITER_NONE;
+        /** @brief What this program costs, sampled the way a task's is - the
+         *  scan is ONE task, so without this every program in a site collapses
+         *  into a single row on the TASKS page and the expensive one cannot be
+         *  told from the cheap ones. */
+        Tasks::TaskCost _cost;
+        /** @brief How far past its nominal period this activation was, and the
+         *  worst yet. Zero for a period-0 program, which is due every beat and
+         *  has no nominal to be late against. */
+        uint32_t    _late_ms     = 0;
+        uint32_t    _late_max_ms = 0;
 
         /** @} */
 
@@ -129,6 +141,21 @@ namespace Botanik { namespace Plc {
          */
         void set_slot(uint8_t slot) { _slot = slot; }
         uint8_t slot() const        { return _slot; }
+
+        /** @} */
+        /** @name Accounting
+         *
+         *  What this program costs and how late it has been. Per PROGRAM,
+         *  because the scan is one task: the TASKS page can say the whole scan
+         *  took 800 us without being able to say which of six programs spent it.
+         *  @{ */
+
+        /** @brief Duration of the last run, the peak, the mean and the count. */
+        const Tasks::TaskCost& cost() const { return _cost; }
+        /** @brief Milliseconds past its nominal period on the last activation,
+         *  and the worst so far. Always 0 for a period-0 program. */
+        uint32_t late_ms() const     { return _late_ms; }
+        uint32_t late_max_ms() const { return _late_max_ms; }
 
         /** @brief Drop state a control withdrawal has made stale; default,
          *  nothing is (@ref plc_program_bind). Public because it is the
@@ -162,8 +189,18 @@ namespace Botanik { namespace Plc {
          *  timer's own reading of how late this activation is, then run. */
         void on_step(uint64_t now_ms) override {
             if (_io == nullptr) return;
+
+            // Lateness is measured against the program's OWN period, not the
+            // beat: a 1 s program running 40 ms late is fine, a 100 ms one
+            // running 40 ms late is not, and one number cannot say both.
+            const uint32_t p = period_ms();
+            _late_ms = (p != 0 && dt_ms() > p) ? (dt_ms() - p) : 0;
+            if (_late_ms > _late_max_ms) _late_max_ms = _late_ms;
+
             Context c = { now_ms, dt_ms(), missed(), Io(*_io, _slot) };
+            const uint64_t t0 = HAL::Clock::uptime_us();
             run(c);
+            _cost.record((uint32_t)(HAL::Clock::uptime_us() - t0));
         }
 
         /** @} */

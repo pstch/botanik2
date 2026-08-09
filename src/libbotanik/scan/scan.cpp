@@ -15,6 +15,10 @@ namespace Botanik { namespace Scan {
     void Driver::on_setup(uint64_t now_ms) {
         if (_programs == nullptr || _io == nullptr) return;
 
+        // By name, once, like every other library consumer. A site that omitted
+        // the library splice resolves to the sink and the POST names the row.
+        _late_alarm = _io->find("alarm_scan_late");
+
         for (uint8_t i = 0; i < _count; i++) {
             Plc::Program* p = _programs[i];
             if (p == nullptr) continue;
@@ -78,6 +82,26 @@ namespace Botanik { namespace Scan {
             if (_programs[i] != nullptr) _programs[i]->step(now_ms);
 
         _report_conflicts();
+        _publish_lateness();
+    }
+
+    void Driver::_publish_lateness() {
+        // The worst offender this beat, not a count: an operator's next question
+        // after "is the scan keeping up" is always "which one", and a boolean
+        // that six programs can raise answers neither.
+        uint32_t worst = 0;
+        _worst = nullptr;
+        for (uint8_t i = 0; i < _count; i++) {
+            const Plc::Program* p = _programs[i];
+            if (p == nullptr || p->late_ms() <= worst) continue;
+            worst  = p->late_ms();
+            _worst = p;
+        }
+        _late_ms = worst;
+
+        // Written every beat, like any other alarm input: the dwell in the row's
+        // own policy is what turns a burst into an alarm, not this.
+        _io->var(_late_alarm).set(worst > Config::SCAN_LATE_MS);
     }
 
     void Driver::_report_conflicts() {

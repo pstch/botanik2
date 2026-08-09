@@ -77,6 +77,11 @@
 #  define BOTANIK_MODBUS_RTU_ALARM_VARS
 #  define BOTANIK_MODBUS_RTU_STATUS_VARS
 #endif
+#if BOTANIK_FEATURE_PLC_SCAN
+#include "libbotanik/plc/alarms.h"       // BOTANIK_PLC_SCAN_ALARM_VARS
+#else
+#  define BOTANIK_PLC_SCAN_ALARM_VARS
+#endif
 #include "libbotanik/vars/declare.h"    // the A/P/G/SV factories the groups are written with
 
 /** @name The four groups
@@ -93,7 +98,8 @@
 /** @brief Alarms the library raises. Its rows live beside the code that raises
  *  them, in `alarms/platform.h`; this is only where the group is assembled. */
 #define BOTANIK_LIBRARY_ALARM_VARS   BOTANIK_PLATFORM_ALARM_VARS             \
-                                     BOTANIK_MODBUS_RTU_ALARM_VARS
+                                     BOTANIK_MODBUS_RTU_ALARM_VARS           \
+                                     BOTANIK_PLC_SCAN_ALARM_VARS
 
 /** @brief Status values the library publishes - MQTT telemetry and the Modbus
  *  TCP slave - so a name here is an external contract.

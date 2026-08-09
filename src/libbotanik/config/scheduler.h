@@ -87,6 +87,20 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, SCAN_STAGGER_MS);
 
+    /** @brief How far past its own period a control program may run before
+     *  SCAN_LATE is raised, in ms.
+     *
+     *  Measured against the PROGRAM's period, not the beat, so one number
+     *  serves every rate: a 1 s program and a 100 ms one are both allowed the
+     *  same absolute slip. Two beats' worth by default - one late activation is
+     *  the stagger or a flash write, two in a row is the cycle running out of
+     *  room. The alarm's own dwell (5 s on, 30 s off) is what stops a burst
+     *  becoming an annunciation; this is only the threshold. */
+#ifndef BOTANIK_SCAN_LATE_MS
+#  define BOTANIK_SCAN_LATE_MS (BOTANIK_TASK_PERIOD_MS * 2)
+#endif
+    BOTANIK_CFG(uint32_t, SCAN_LATE_MS);
+
     /** @brief Hardware watchdog timeout. Clamped to what the IWDG can express. */
 #ifndef BOTANIK_HW_WATCHDOG_MS
 #  define BOTANIK_HW_WATCHDOG_MS 10000

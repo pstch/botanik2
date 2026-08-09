@@ -72,6 +72,13 @@ namespace Botanik { namespace Scan {
          *  is true on every beat is named once and not every 10 ms.
          *  @see Vars::Bank::claim_writer() */
         uint16_t             _conflicts_said = 0;
+        /** @brief The row carrying "a program is missing its period", resolved
+         *  once at bring-up like every other name the library reads. */
+        Vars::VarRef         _late_alarm = { Vars::VAR_NONE };
+        /** @brief The worst lateness this beat, and who owned it. Borrowed from
+         *  the program table, so it lives as long as the driver does. */
+        uint32_t             _late_ms = 0;
+        const Plc::Program*  _worst   = nullptr;
 
         /** @} */
 
@@ -86,6 +93,20 @@ namespace Botanik { namespace Scan {
                Vars::Bank* io, Logs::Logger* logger = nullptr)
             : Component(logger, "Scan"), _programs(programs), _count(count),
               _io(io) {}
+
+        /** @} */
+        /** @name Accounting
+         *  @{ */
+
+        /** @brief How late the worst program was on the last beat, and which one
+         *  - null when nothing was late. The alarm says something is missing its
+         *  period; these say how badly and by whom. */
+        uint32_t            late_ms() const   { return _late_ms; }
+        const Plc::Program* worst() const     { return _worst; }
+        uint8_t             count() const     { return _count; }
+        const Plc::Program* program(uint8_t i) const {
+            return (i < _count) ? _programs[i] : nullptr;
+        }
 
         /** @} */
 
@@ -110,6 +131,8 @@ namespace Botanik { namespace Scan {
          *  conflict. The bank counts them; only the driver can turn a program
          *  index back into a program name. */
         void _report_conflicts();
+        /** @brief Find this beat's worst-late program and drive the alarm row. */
+        void _publish_lateness();
     };
 
 }}  // namespace Botanik::Scan
