@@ -28,15 +28,23 @@ namespace {
      *
      *  Reads use theirs as-is: FC03 and FC04 address different register spaces
      *  and must never share a block. Writes are declared one at a time (a relay
-     *  row is an FC05 coil) but are always issued coalesced, so they group under
-     *  the multi-write code and the client degrades to the single-write form
-     *  when only one row turned out to be dirty.
+     *  row is an FC05 coil) and are normally issued coalesced, so they group
+     *  under the multi-write code.
+     *
+     *  Unless the device has no multi-write. `DeviceModel::write_multiple` says
+     *  whether FC15/FC16 exist there, and a model that says no has to be driven
+     *  a point at a time - so its blocks are cut at one point (span_cap) and
+     *  issued as FC05/FC06. Deciding it HERE rather than at build time is what
+     *  keeps `Expect::fc` right: the client sets it straight from the block, so
+     *  a wire code chosen later would be checked against the wrong one.
      *
      *  @return 0 for a code we cannot plan, which drops the row. */
-    uint8_t block_fc(uint8_t fc) {
+    uint8_t block_fc(uint8_t fc, const DeviceModel& m) {
         if (is_read(fc)) return fc;
-        if (fc == FC_WRITE_COIL || fc == FC_WRITE_COILS) return FC_WRITE_COILS;
-        if (fc == FC_WRITE_REGISTER || fc == FC_WRITE_REGISTERS) return FC_WRITE_REGISTERS;
+        if (fc == FC_WRITE_COIL || fc == FC_WRITE_COILS)
+            return m.write_multiple ? FC_WRITE_COILS : FC_WRITE_COIL;
+        if (fc == FC_WRITE_REGISTER || fc == FC_WRITE_REGISTERS)
+            return m.write_multiple ? FC_WRITE_REGISTERS : FC_WRITE_REGISTER;
         return 0;
     }
 
@@ -55,10 +63,10 @@ namespace {
         return (uint8_t)ladder_of(period_of(d.timeout_ms));
     }
 
-    Key key_of(const Vars::Variable& d) {
+    Key key_of(const Vars::Variable& d, const DeviceTable* t) {
         Key k;
         k.device = d.bind.device;
-        k.fc     = block_fc(d.bind.fc);
+        k.fc     = block_fc(d.bind.fc, model_of(t, d.bind.device));
         k.rung   = rung_of(d);
         k.reg    = d.bind.reg;
         return k;
@@ -85,6 +93,12 @@ namespace {
      *  fits the UART buffer in one go. Coils are not: eight to a byte, their
      *  protocol ceiling binds long before any buffer does. */
     uint16_t span_cap(uint8_t fc, const DeviceModel& m) {
+        // FC05 and FC06 carry exactly one point, so a device without FC15/FC16
+        // gets one-point write blocks. block_fc() has already chosen the single
+        // code; this is what stops two adjacent dirty rows being coalesced into
+        // a block the wire form cannot express.
+        if (fc == FC_WRITE_COIL || fc == FC_WRITE_REGISTER) return 1;
+
         uint16_t proto = max_quantity(fc);
         // What the DEVICE will answer, when that is tighter than the protocol.
         // The SDM630 refuses past 80 registers with an exception rather than a
@@ -128,7 +142,10 @@ void Planner::_collect(const Vars::Bank& io) {
         // A row whose code we cannot issue is not a row we can plan. Counted
         // with the overflow, because both mean the same thing to an operator:
         // something in the table is not going to be scanned.
-        if (block_fc(d->bind.fc) == 0) { _rows_dropped++; continue; }
+        if (block_fc(d->bind.fc, model_of(_devices, d->bind.device)) == 0) {
+            _rows_dropped++;
+            continue;
+        }
         // An input that can never go stale is a trap, not a slow signal:
         // expire_stale() skips timeout_ms == 0 outright, so once the device
         // stopped answering the row would hold its last reading, at Q_GOOD, for
@@ -146,9 +163,9 @@ void Planner::_sort(const Vars::Bank& io) {
     // it needs no scratch. The bank's own name index is built the same way.
     for (uint16_t i = 1; i < _row_count; ++i) {
         const uint16_t v = _rows[i];
-        const Key kv = key_of(*io.var(v).meta());
+        const Key kv = key_of(*io.var(v).meta(), _devices);
         uint16_t j = i;
-        while (j > 0 && before(kv, key_of(*io.var(_rows[j - 1]).meta()))) {
+        while (j > 0 && before(kv, key_of(*io.var(_rows[j - 1]).meta(), _devices))) {
             _rows[j] = _rows[j - 1];
             --j;
         }
@@ -168,7 +185,7 @@ void Planner::_cut(const Vars::Bank& io) {
         }
 
         const Vars::Variable& first = *io.var(_rows[i]).meta();
-        const Key k = key_of(first);
+        const Key k = key_of(first, _devices);
         const DeviceModel& m = model_of(_devices, k.device);
         const uint16_t cap = span_cap(k.fc, m);
 
@@ -186,7 +203,7 @@ void Planner::_cut(const Vars::Bank& io) {
         uint16_t j   = i + 1;
         while (j < _row_count) {
             const Vars::Variable& d = *io.var(_rows[j]).meta();
-            const Key kj = key_of(d);
+            const Key kj = key_of(d, _devices);
             if (kj.device != k.device || kj.fc != k.fc || kj.rung != k.rung) break;
 
             // Sorted by register, so anything at or below the current end merely

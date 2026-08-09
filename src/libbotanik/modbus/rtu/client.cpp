@@ -218,24 +218,36 @@ bool RtuClient::_build(uint16_t block, uint64_t now_ms) {
     const uint16_t n = collect_write(*_io, _plan, b, payload, (uint16_t)sizeof payload);
     if (n == 0) return false;
 
-    // A single write echoes its value, so the expectation has to carry it. Only
-    // reachable for a device that cannot be driven with FC15/FC16.
-    if (b.fc == FC_WRITE_COIL) {
+    // Four write codes, and the block already says which one: the planner picks
+    // the single form for a device whose model has no FC15/FC16, and caps those
+    // blocks at one point so the form can always carry them.
+    //
+    // A single write echoes its VALUE rather than a count, so the expectation
+    // has to carry it - that echo is the only confirmation the point actually
+    // moved, on exactly the devices that cannot be driven any other way.
+    switch (b.fc) {
+    case FC_WRITE_COIL:
         _expect.value = bit_at(payload, 0) ? 0xFF00u : 0x0000u;
-    } else if (b.fc == FC_WRITE_REGISTER) {
+        _frame_len = build_write_coil(_frame, (uint16_t)sizeof _frame, b.device,
+                                      b.reg, bit_at(payload, 0));
+        break;
+    case FC_WRITE_REGISTER:
         _expect.value = be16(payload[0], payload[1]);
-    }
-
-    if (b.fc == FC_WRITE_COILS) {
+        _frame_len = build_write_register(_frame, (uint16_t)sizeof _frame,
+                                          b.device, b.reg, _expect.value);
+        break;
+    case FC_WRITE_COILS:
         _frame_len = build_write_coils(_frame, (uint16_t)sizeof _frame, b.device,
                                        b.reg, b.regs, payload);
-    } else {
+        break;
+    default:
         // collect_write laid the registers out big-endian already, which is the
         // layout they go out in - so they go straight across. Unpacking them
         // into words for the builder to repack cost a second stack array the
         // size of a whole block.
         _frame_len = build_write_registers(_frame, (uint16_t)sizeof _frame,
                                            b.device, b.reg, b.regs, payload);
+        break;
     }
     return _frame_len != 0;
 }

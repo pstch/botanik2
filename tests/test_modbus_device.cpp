@@ -88,6 +88,45 @@ TEST_CASE("modbus device: a device reads as its tag, and without one as itself")
     CHECK(std::strlen(device_label(&t, 34, tiny, sizeof tiny)) == 5);
 }
 
+TEST_CASE("modbus device: a board without FC15/FC16 is driven a point at a time") {
+    // write_multiple was carried, documented as decisive, and never read - so a
+    // device that only understands FC05/FC06 was still sent FC15/FC16, which it
+    // answers with exception 01. The planner has to choose the wire form, not
+    // the client: Expect::fc is set straight from the block.
+    Bank bank(Site::g_site.vars);
+    bank.init();
+
+    // The relay board at 31, once as it really is and once as a model that has
+    // no multi-write. Same table, same rows, so only the models differ.
+    DeviceModel single = relay_board("single", 8);
+    single.write_multiple = false;
+    const Device srows[] = { { 31, &single, "no-multi" } };
+    const DeviceTable st = { srows, 1 };
+
+    Planner multi, one;
+    multi.plan(bank, 38400, 10, Site::g_site.devices);
+    one.plan(bank, 38400, 10, &st);
+
+    bool saw_multi = false, saw_single = false;
+    for (uint16_t i = 0; i < multi.block_count(); ++i) {
+        const Block& b = multi.block(i);
+        if (b.device != 31 || is_read(b.fc)) continue;
+        saw_multi = true;
+        CHECK(b.fc == FC_WRITE_COILS);
+    }
+    for (uint16_t i = 0; i < one.block_count(); ++i) {
+        const Block& b = one.block(i);
+        if (b.device != 31 || is_read(b.fc)) continue;
+        saw_single = true;
+        INFO("block at " << b.reg << " x " << b.regs);
+        CHECK(b.fc == FC_WRITE_COIL);
+        // FC05 carries exactly one coil, so the block must not have coalesced.
+        CHECK(b.regs == 1);
+    }
+    REQUIRE(saw_multi);
+    REQUIRE(saw_single);
+}
+
 TEST_CASE("modbus device: the Waveshare boards are what their manuals say") {
     // Waveshare "Development Protocol V2" for the relay, "Development Protocol"
     // for the two analog boards.
