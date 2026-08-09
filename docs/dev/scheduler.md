@@ -285,7 +285,10 @@ of per-task state and answers it:
   since boot" would fire it immediately.
 - **`missed` counts dropped activations.** A task due late runs ONCE; missed
   activations are dropped, never caught up, because a burst of catch-up runs
-  lands exactly when the system is already behind.
+  lands exactly when the system is already behind. `Registry::run_phase()`
+  accumulates them into `TaskCost::missed`, which the TASKS page and `tasks`
+  report - the drop leaves no other trace, so a task quietly running at half its
+  declared rate would otherwise look exactly like one keeping up.
 
 `due()` is a pure query and `ran()` commits, so a caller that decides not to run
 (the scan while control is withheld) does not silently consume the activation.

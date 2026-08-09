@@ -244,7 +244,7 @@ namespace Botanik { namespace Plc {
             Context c = { now_ms, dt_ms(), missed(), _first_scan, Io(*_io, _slot) };
             const uint64_t t0 = HAL::Clock::uptime_us();
             run(c);
-            _cost.record((uint32_t)(HAL::Clock::uptime_us() - t0));
+            _cost.record((uint32_t)(HAL::Clock::uptime_us() - t0), missed());
             // Cleared after the run, not before: a program that throws its way
             // out would otherwise lose the flag without having seen it. (There
             // are no exceptions here, but the ordering is free and says what it

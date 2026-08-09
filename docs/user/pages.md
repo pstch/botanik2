@@ -176,20 +176,24 @@ This page never writes - use `set` or `override` from the shell.
 What the beat actually costs, one row per registered task. Read-only.
 
 ```
-TASK             GROUP  EVERY ms  PHASE    MEAN us  PEAK us
-console          slow   100       present      412     2180
-expire_stale     bkgnd  500       input         88      143
-scan             fast   10        execute       21       96
+TASK             GROUP  EVERY ms  PHASE    MEAN us  MISSED
+console          slow   100       present      412        0
+expire_stale     bkgnd  500       input         88        0
+scan             fast   10        execute       21        3
 ```
 
 **Shows** where the beat's time goes. `stats` reports the whole beat's CPU with no
 attribution; this is where "which task blew the budget" has an answer. `MEAN` says
-whether a task is affordable; `PEAK` is an all-time maximum that never decays, so
-one outlier pins it for the rest of the boot - a diagnostic, not a running cost.
-Rows sort by name: the beat's own order is phase-major and the `PHASE` column
-still carries it, but finding one task by eye beats reading the cycle here. The
-panel carries the last sample, the run count, and the share of its own period the
-mean takes.
+whether a task is affordable. `MISSED` is the count of activations the task never
+got: a task that comes due late runs **once** and the ones it slept through are
+dropped, never caught up, so this is the only trace they leave - a non-zero figure
+means the task is not running at the rate it declared. Rows sort by name: the
+beat's own order is phase-major and the `PHASE` column still carries it, but
+finding one task by eye beats reading the cycle here. The panel carries the last
+and peak samples, the run and missed counts, and the share of its own period the
+mean takes - the peak is an all-time maximum that never decays, so one outlier
+pins it for the rest of the boot and it belongs there as a diagnostic rather than
+in the table as a running cost.
 
 **Keys**: table navigation only.
 

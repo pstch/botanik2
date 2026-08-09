@@ -65,18 +65,29 @@ namespace Botanik { namespace Tasks {
      *
      *  Per TASK, not per group: "the slow group cost 3 ms" does not say which of
      *  its members to look at. Report the windowed peak and the mean; an
-     *  all-time max never decays, so one outlier pins it for the whole boot. */
+     *  all-time max never decays, so one outlier pins it for the whole boot.
+     *
+     *  It also carries what the task did NOT run: TaskTimer drops a late task's
+     *  missed activations rather than catching them up, and until they were
+     *  accumulated here the drop left no trace at all - a task quietly running at
+     *  half its declared rate looked exactly like one keeping up. */
     struct TaskCost {
         uint32_t us_last  = 0;   ///< duration of the most recent run
         uint32_t us_max   = 0;   ///< all-time peak (diagnostic only)
         uint64_t us_total = 0;   ///< accumulated, for the mean
         uint32_t runs     = 0;   ///< completed runs
+        /** @brief Activations dropped since boot, never caught up. A count and
+         *  not a rate: what an operator asks is "has this task ever been
+         *  skipped", and a decaying figure cannot answer it. */
+        uint32_t missed   = 0;
 
-        /** @brief Fold one run's duration in. */
-        void record(uint32_t us) {
+        /** @brief Fold one run's duration in, plus the activations that were
+         *  dropped on the way to it (Tasks::TaskTimer::due()). */
+        void record(uint32_t us, uint16_t dropped = 0) {
             us_last   = us;
             us_total += us;
             runs++;
+            missed   += dropped;
             if (us > us_max) us_max = us;
         }
         /** @brief Mean run duration in us; 0 before the first run. */

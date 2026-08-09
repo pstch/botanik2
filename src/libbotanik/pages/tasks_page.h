@@ -13,20 +13,23 @@
  * Layout (row 0 is the terminal status bar, the bottom row the alarm bar), the
  * same bordered shape as PARAMS and MONITOR:
  *   row 1            blank top margin
- *   row 2            header (| TASK | GROUP | EVERY ms | PHASE | MEAN us | PEAK us |)
+ *   row 2            header (| TASK | GROUP | EVERY ms | PHASE | MEAN us | MISSED |)
  *   row 3            top rule
  *   rows 4..K        one row per registered task (windowed / scrollable)
- *   rows K..         detail panel for the selected task: its last sample, its
- *                    run count, and the share of its own period the mean takes
+ *   rows K..         detail panel for the selected task: its last and peak
+ *                    sample, its run and missed counts, and the share of its own
+ *                    period the mean takes
  *
  * Read-only: UP/DOWN move a selection cursor and the panel tracks it. Rows are
  * sorted by name - the beat's own order is phase-major, and the PHASE column
  * still carries it, but finding one task by eye beats reading the cycle here.
  *
- * The times are microseconds measured by the registry around each dispatch.
- * MEAN is what says whether a task is affordable; PEAK is beside it because an
- * all-time max never decays, so one outlier pins it for the boot and it has to
- * be read as the diagnostic it is rather than as the running cost.
+ * MEAN is microseconds measured by the registry around each dispatch, and says
+ * whether a task is affordable. MISSED is beside it rather than the peak because
+ * the two answer different questions and only one of them is a fault: the peak
+ * is a diagnostic that never decays (one outlier pins it for the boot), while a
+ * missed activation means the task did NOT run at the rate it declared - dropped
+ * and never caught up (Tasks::TaskTimer). The peak keeps its place in the panel.
  */
 
 #include <cstdint>                          // uint8_t/uint32_t/uint64_t
@@ -63,18 +66,23 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t PERIOD_W   = 8;    // the group's period, ms
         static constexpr uint16_t PHASE_W    = 7;    // "service"
         static constexpr uint16_t MEAN_W     = 8;    // mean us
-        static constexpr uint16_t PEAK_W     = 8;    // all-time peak us
+        static constexpr uint16_t MISSED_W   = 8;    // dropped activations
         static constexpr uint16_t CELL_CAP   = 24;   // one formatted cell
         static constexpr uint16_t LINE_CAP   = Config::TABLE_LINE_LEN;
-        /** @brief Separator, spacer, three detail rows, trailing spacer. */
+        /** @brief Separator, spacer, three detail rows, trailing spacer. The
+         *  panel carries five facts in those three rows (_panel_field2), rather
+         *  than growing and taking two task rows off the table. */
         static constexpr uint16_t PANEL_H    = 6;
+        /** @brief Where the second field on a panel row starts. Matches PARAMS,
+         *  so the panels of the two tables line up. */
+        static constexpr uint16_t PANEL_COL2 = 38;
         /** @brief How often the table repaints (Config::PAGE_TASKS_MS). Slower
          *  than PAGE_HOT_MS: these are smoothed aggregates, not a live trace, and
          *  a whole table of digits churning once a second is both unreadable and
          *  a standing charge on the console's byte budget. */
         static constexpr uint32_t REFRESH_MS = Config::PAGE_TASKS_MS;
         /** @brief Column order; the selection cursor inverts C_NAME's cell. */
-        enum { C_NAME = 0, C_GROUP, C_PERIOD, C_PHASE, C_MEAN, C_PEAK };
+        enum { C_NAME = 0, C_GROUP, C_PERIOD, C_PHASE, C_MEAN, C_MISSED };
         /** @} */
 
         /** @name State
@@ -161,12 +169,13 @@ namespace Botanik { namespace Pages {
 
         uint8_t _columns(Col* out) const override;
 
-        /** @brief Microseconds, or "-" before the first run. Rendered as a plain
-         *  integer: a task that has never run and one that ran in under a
-         *  microsecond are different facts, and 0 would conflate them. */
-        static const char* _us(char* buf, size_t cap, uint32_t us, uint32_t runs) {
-            if (runs == 0) return "-";      // never run: not the same fact as 0 us
-            return Utils::format_int(buf, cap, (long long)us);
+        /** @brief One of the task's counters, or "-" before the first run.
+         *  Rendered as a plain integer: a task that has never run and one that
+         *  ran in under a microsecond are different facts, and 0 would conflate
+         *  them - as it would "never ran" with "has never missed one". */
+        static const char* _num(char* buf, size_t cap, uint32_t v, uint32_t runs) {
+            if (runs == 0) return "-";      // never run: not the same fact as 0
+            return Utils::format_int(buf, cap, (long long)v);
         }
 
         /** @brief The group's period as text. Four compile-time constants, so
@@ -179,9 +188,10 @@ namespace Botanik { namespace Pages {
         void _draw_structure();
 
 
-        /** @brief Panel for the selected task: the peak, the run count, and what
-         *  share of its own period the mean accounts for - which is the number
-         *  that says whether a task is affordable at the rate it is running. */
+        /** @brief Panel for the selected task: its last and peak sample, its run
+         *  and missed counts, and what share of its own period the mean accounts
+         *  for - which is the number that says whether a task is affordable at
+         *  the rate it is running. */
         void _draw_panel();
     };
 

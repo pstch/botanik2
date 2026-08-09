@@ -48,9 +48,16 @@ _SUBS = [
     (re.compile(r"\d+-\d+ / \d+"), lambda m: "<N>".ljust(len(m.group(0)))),
     (re.compile(r"\d+ active"), "<NA> active"),          # alarms footer count
     (re.compile(r"(Quality\s+: )\S+"), r"\g<1><Q>"),     # MONITOR detail panel
-    # TASKS detail panel: all three are host timing, not firmware layout.
-    (re.compile(r"(Last us\s+: ).*$"), r"\g<1><T>"),
-    (re.compile(r"(Runs\s+: ).*$"), r"\g<1><N>"),
+    # TASKS detail panel: every one of the five is host timing, not firmware
+    # layout. Two per row now, so the first field's mask must be padded to the
+    # width it replaced and must stop at the value - a mask running to end of
+    # line would swallow the second field's LABEL, which IS layout under test.
+    (re.compile(r"(Last us\s+: )(\S+ *)"),
+     lambda m: m.group(1) + "<T>".ljust(len(m.group(2)))),
+    (re.compile(r"(Peak us\s+: )\S+"), r"\g<1><T>"),
+    (re.compile(r"(Runs\s+: )(\S+ *)"),
+     lambda m: m.group(1) + "<N>".ljust(len(m.group(2)))),
+    (re.compile(r"(Missed\s+: )\S+"), r"\g<1><M>"),
     (re.compile(r"(Of period\s+: ).*$"), r"\g<1><D>"),
 ]
 
@@ -89,12 +96,14 @@ _NOISE = re.compile(r"ALARM_(?:START|END|FLAP):")
 #
 #   MONITOR  | SCOPE | VARIABLE | VALUE | UNIT | OVERRIDE |            (5 cells)
 #   ALARMS   | CODE  | VARIABLE | ON | LAST EVENT |                    (4 cells)
-#   TASKS    | TASK  | GROUP | EVERY ms | PHASE | MEAN us | PEAK us |  (6 cells)
+#   TASKS    | TASK  | GROUP | EVERY ms | PHASE | MEAN us | MISSED  |  (6 cells)
 #
 # MONITOR's VALUE is live on all ~72 rows, so a per-name regex does not
 # generalise; ALARMS' ON/OFF flips and its LAST EVENT is blank until the alarm
-# first trips; TASKS' last two are microseconds measured on the host. The rest of
-# each table IS the layout under test.
+# first trips; TASKS' last two are host-dependent - the mean is microseconds
+# measured here, and the sim under time dilation drops activations by the
+# thousand where the OPTA drops none. The rest of each table IS the layout under
+# test.
 _TABLE_ROW = re.compile(r"^\s*\|(?:[^|]*\|){4,6}\s*$")
 # A header row has a data row's shape, and for ALARMS the same text too (its
 # third column is headed "ON"), so it is spotted by its first cell.

@@ -132,23 +132,28 @@ def test_features(spawn):
 
 
 def test_tasks(spawn):
-    """The beat, task by task - `stats` gives its CPU with no attribution.
+    """The beat's totals - `stats` gives its CPU with no attribution.
 
-    One row per registered task plus a header and a footer makes this the longest
-    reply any built-in prints, which is why it wants `quiet_logs`: the greenhouse's
-    alarm churn and the reply compete for the same throttled 4800-baud console, and
-    under host load the churn wins long before the footer is painted.
+    A summary in `stats`' shape, not a listing: the TASKS page is the table, and
+    22 rows over a throttled 4800-baud console was an index of a page. It still
+    wants `quiet_logs`, since the greenhouse's alarm churn competes with the
+    reply for that console and under host load the churn wins.
 
-    Presence, not order - `wait_for` is a latched set, so it cannot see that the
-    phases came out phase-major. `test_tasks.cpp` pins the dispatch order.
+    Presence, not order - `wait_for` is a latched set. `test_tasks.cpp` pins the
+    dispatch order, and the missed count it reports.
     """
     term = shell(spawn, quiet_logs=True)
     _run(term, b"tasks")
-    assert term.wait_for(("PHASE", "expire_stale", "execute", "peaks add to")), \
-        "tasks did not render the table"
+    # The four markers are the summary's own, and none of them can come from the
+    # old per-task table - which is the whole assertion that this is no longer a
+    # listing. Nothing asserts the table's ABSENCE directly: it would have
+    # scrolled out of a 24-row screen by the time the last line lands, so the
+    # check would pass either way.
+    assert term.wait_for(("Registered", "Missed", "Peaks add to", "TASKS page")), \
+        "tasks did not render the beat summary"
 
     _run(term, b"tasks expire_stale")
-    assert term.wait_for(("input (bkgnd", "Activations", "Cost")), \
+    assert term.wait_for(("input (bkgnd", "Activations", "missed", "Cost")), \
         "tasks <name> did not detail the task"
 
     _run(term, b"tasks nosuchtask")

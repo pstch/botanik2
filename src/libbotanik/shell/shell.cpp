@@ -96,7 +96,7 @@ namespace Botanik { namespace Shell {
             { "clear",      "clear the screen",               &CommandShell::_cmd_clear      },
             { "logs",       "[on|off]  live log output",      &CommandShell::_cmd_logs       },
             { "stats",      "scheduler / system metrics",     &CommandShell::_cmd_stats      },
-            { "tasks",      "[<name>] the beat, task by task",&CommandShell::_cmd_tasks      },
+            { "tasks",      "[<name>] the beat's totals, or one task",&CommandShell::_cmd_tasks },
             { "net",        "network / NTP / MQTT status",     &CommandShell::_cmd_net        },
             { "ntpsync",    "force an NTP resync now",         &CommandShell::_cmd_ntpsync    },
             { "alarms",     "[list|ack <code|all>] alarms",   &CommandShell::_cmd_alarms     },
@@ -279,38 +279,100 @@ namespace Botanik { namespace Shell {
 
         if (want != nullptr) { _task_detail(*reg, want, wlen); return; }
 
-        // Phase-major, registration order within a phase - the order
-        // Registry::run_phase() walks, so the listing IS the beat rather than an
-        // index of it. The TASKS page sorts by name instead, which is the right
-        // answer for "find this task" and the wrong one for "what runs when".
-        _emitf(out, sizeof(out), "%-7s %-17s %-6s %7s %8s %9s %9s",
-               "PHASE", "TASK", "GROUP", "EVERY", "RUNS", "MEAN us", "PEAK us");
-
-        uint64_t peak_sum = 0;
-        for (uint8_t p = 0; p < Tasks::PHASE_COUNT; p++)
-            for (uint8_t i = 0; i < reg->count(); i++) {
-                const Tasks::Task& t = reg->task(i);
-                if (t.phase != (Tasks::Phase)p) continue;
-                peak_sum += t.cost.us_max;
-                char every[16];   // 10 digits + "ms" + NUL, rounded up
-                snprintf(every, sizeof(every), "%lums",
-                         (unsigned long)Tasks::group_period_ms(t.group));
-                _emitf(out, sizeof(out), "%-7s %-17s %-6s %7s %8lu %9lu %9lu",
-                       Tasks::phase_name(t.phase),
-                       (t.name != nullptr) ? t.name : "?",
-                       Tasks::group_name(t.group), every,
-                       (unsigned long)t.cost.runs,
-                       (unsigned long)t.cost.us_mean(),
-                       (unsigned long)t.cost.us_max);
+        // The beat as a whole, in `stats`' shape - NOT a listing. The TASKS page
+        // is the table, and printing 22 rows over a 4800-baud console to say
+        // what a page already draws spent the console's byte budget on an index
+        // of itself. What is left here is what no per-task row can say: the
+        // totals, and which task to go and look at.
+        uint64_t runs = 0, peaks_us = 0, missed = 0;
+        uint8_t  missed_tasks = 0;
+        const Tasks::Task* worst   = nullptr;   // most missed activations
+        const Tasks::Task* busiest = nullptr;   // dearest mean run
+        for (uint8_t i = 0; i < reg->count(); i++) {
+            const Tasks::Task& t = reg->task(i);
+            runs     += t.cost.runs;
+            peaks_us += t.cost.us_max;
+            missed   += t.cost.missed;
+            if (t.cost.missed != 0) {
+                missed_tasks++;
+                if (worst == nullptr || t.cost.missed > worst->cost.missed) worst = &t;
             }
+            if (busiest == nullptr || t.cost.us_mean() > busiest->cost.us_mean())
+                busiest = &t;
+        }
+
+        char val[24], detail[80], n1[24], n2[24];
+
+        snprintf(val, sizeof(val), "%u", (unsigned)reg->count());
+        snprintf(detail, sizeof(detail), "%u refused, %u slots",
+                 (unsigned)reg->overflow(), (unsigned)Config::MAX_TASKS);
+        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
+               "Registered ..................", val, detail);
+
+        // The rate classes, since a task's period is its group's and nothing
+        // else here says what those are. Names then periods, both slash-joined:
+        // the pairwise form ("fast 10, main 50, ...") is three characters too
+        // wide for an 80-column line and wrapped every time.
+        snprintf(val, sizeof(val), "%lums", (unsigned long)Config::TASK_PERIOD_MS);
+        int w = 0;
+        for (uint8_t g = 0; g < Tasks::GROUP_COUNT && w >= 0 && w < (int)sizeof(detail); g++)
+            w += snprintf(detail + w, sizeof(detail) - (size_t)w, "%s%s",
+                          (g == 0) ? "" : "/", Tasks::group_name((Tasks::GroupId)g));
+        for (uint8_t g = 0; g < Tasks::GROUP_COUNT && w >= 0 && w < (int)sizeof(detail); g++)
+            w += snprintf(detail + w, sizeof(detail) - (size_t)w, "%s%lu",
+                          (g == 0) ? " " : "/",
+                          (unsigned long)Tasks::group_period_ms((Tasks::GroupId)g));
+        _emitf(out, sizeof(out), "%-29s : %-8s (%s ms)",
+               "Beat ........................", val, detail);
+
+        // Total runs, and total drops. Missed is the headline of this command:
+        // a dropped activation is never caught up (Tasks::TaskTimer), so this
+        // count is the only record that the beat ever failed to deliver a rate.
+        _emitf(out, sizeof(out), "%-29s : %-8s (across %u task(s))",
+               "Activations .................",
+               Utils::format_int(n1, sizeof(n1), (long long)runs),
+               (unsigned)reg->count());
+
+        if (missed == 0)
+            snprintf(detail, sizeof(detail), "every task kept its rate");
+        else
+            snprintf(detail, sizeof(detail), "%u task(s), worst %s with %s",
+                     (unsigned)missed_tasks,
+                     (worst != nullptr && worst->name != nullptr) ? worst->name : "?",
+                     Utils::format_int(n2, sizeof(n2),
+                         (long long)(worst != nullptr ? worst->cost.missed : 0)));
+        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
+               "Missed ......................",
+               Utils::format_int(n1, sizeof(n1), (long long)missed), detail);
 
         // The peaks added up is the beat that never happened: every task at its
         // own worst, all due together. It is the figure the beat period has to
-        // survive, so it belongs under the table rather than in a head.
-        _emitf(out, sizeof(out),
-               "%u task(s), %u refused; peaks add to %lu us of a %lu ms beat",
-               (unsigned)reg->count(), (unsigned)reg->overflow(),
-               (unsigned long)peak_sum, (unsigned long)Config::TASK_PERIOD_MS);
+        // survive - so it exceeding the beat is normal, and is not an overrun.
+        snprintf(val, sizeof(val), "%sus",
+                 Utils::format_int(n1, sizeof(n1), (long long)peaks_us));
+        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
+               "Peaks add to ................", val,
+               "every task at its worst, one beat");
+
+        // One name to go and look at, since the table is no longer printed here.
+        if (busiest != nullptr && busiest->cost.runs != 0) {
+            const uint32_t period = Tasks::group_period_ms(busiest->group);
+            char fa[12];
+            snprintf(val, sizeof(val), "%luus",
+                     (unsigned long)busiest->cost.us_mean());
+            if (period != 0)
+                snprintf(detail, sizeof(detail), "%s mean, %s %% of its own period",
+                         (busiest->name != nullptr) ? busiest->name : "?",
+                         Utils::format_float(fa, sizeof(fa),
+                             (double)busiest->cost.us_mean() / (double)(period * 10u), 1));
+            else
+                snprintf(detail, sizeof(detail), "%s mean, every beat",
+                         (busiest->name != nullptr) ? busiest->name : "?");
+            _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
+                   "Costliest task ..............", val, detail);
+        }
+
+        _println("per-task figures: the TASKS page, or `tasks <name>`");
     }
 
     void CommandShell::_task_detail(const Tasks::Registry& reg,
@@ -329,9 +391,13 @@ namespace Botanik { namespace Shell {
 
             // last_run_ms() is meaningless until the first activation, so a task
             // that has never run says so rather than reporting the uptime.
+            // Missed rides on the same line because it only means anything
+            // against the run count: dropped activations are never caught up
+            // (Tasks::TaskTimer), so this is the whole record of them.
             if (t.timer.runs() == 0) snprintf(val, sizeof(val), "none yet");
-            else snprintf(val, sizeof(val), "%lu, last %lu ms ago",
+            else snprintf(val, sizeof(val), "%lu run, %lu missed, last %lu ms ago",
                           (unsigned long)t.timer.runs(),
+                          (unsigned long)t.cost.missed,
                           (unsigned long)(HAL::Clock::uptime_ms() - t.timer.last_run_ms()));
             _line("Activations ..........", val);
 

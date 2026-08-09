@@ -52,28 +52,48 @@ Variables are named by domain, so `list` with a prefix is the subsystem view:
 | `version` | firmware version, build commit, site name, hardware description |
 | `features` | which optional subsystems this binary was built with |
 | `stats` | uptime and tick count, CPU load, jitter, stack usage, and console serial drops - each with its recent and peak figures. There is no separate `uptime`; `stats` already leads with it |
-| `tasks [<name>]` | the beat, task by task: phase, rate group, period, activations, mean and peak cost. With a name, that one task's schedule and cost in detail. `stats` gives the beat's CPU with no attribution; this is where the number comes from |
+| `tasks [<name>]` | the beat's totals: how many tasks are registered, the rate groups, total activations and total MISSED ones, what the peaks add up to, and which task costs the most. With a name, that one task's schedule and cost in detail. The per-task table is the TASKS page |
 | `net` | network / NTP / MQTT status: link state and mode, IP, netmask, gateway, DNS, NTP offset and server, MQTT state and last publish age. Addresses are read back from the interface, so a DHCP lease shows through |
 | `alarms [list \| ack <code\|all>]` | active alarm count; `list` details them; `ack` acknowledges one (by code or by variable name) or all |
 
-`tasks` lists phase-major, in registration order within a phase - the order the beat
-actually runs them, so the table reads top to bottom as one cycle. The TASKS page
-sorts by name instead, which is the right answer for finding a task and the wrong
-one for seeing the cycle.
+`tasks` reads like `stats`: the beat as a whole, not a listing. The per-task table
+is the TASKS page, and printing it here as well put twenty-odd rows through a
+throttled console to say what a page already draws.
 
 ```
 botanik> tasks
-PHASE   TASK              GROUP    EVERY     RUNS   MEAN us   PEAK us
-input   console_rx        fast      10ms    15442         9      1905
-...
-21 task(s), 0 refused; peaks add to 11501 us of a 10 ms beat
+Registered .................. : 22       (0 refused, 24 slots)
+Beat ........................ : 10ms     (fast/main/slow/bkgnd 10/50/100/500 ms)
+Activations ................. : 918442   (across 22 task(s))
+Missed ...................... : 0        (every task kept its rate)
+Peaks add to ................ : 11501us  (every task at its worst, one beat)
+Costliest task .............. : 1242us   (console mean, 1.2 % of its own period)
+per-task figures: the TASKS page, or `tasks <name>`
 ```
 
-Two cautions on the numbers. The peak is an all-time maximum that never decays, so
-one outlier pins it for the whole boot - the mean is what to trust for "what does
-this cost". And the footer adds those peaks up: it is the beat that never happened,
-every task at its own worst all due together, so it exceeding the beat period is
-normal and is not by itself an overrun. Real overruns are counted by `stats`.
+**Missed** is the headline. A task that comes due late runs **once**; the
+activations it slept through are dropped and never caught up, because a burst of
+catch-up runs would land exactly when the system is already behind. Nothing else
+records that, so a non-zero total is the only sign that some task is not running
+at the rate it declared - the detail names the worst offender, and the TASKS page
+has the count per task.
+
+**Peaks add to** is the beat that never happened: every task at its own worst, all
+due together. It exceeding the beat period is normal and is not by itself an
+overrun (real overruns are counted by `stats`). The peak is a per-task all-time
+maximum that never decays, so one outlier pins it for the whole boot - which is
+why the mean is what `tasks <name>` leads with for "what does this cost".
+
+```
+botanik> tasks console
+Runs in .............. : present (slow, every 100 ms)
+Activations .......... : 15442 run, 0 missed, last 2 ms ago
+Cost ................. : last 432 us, mean 611 us, peak 2180 us
+Duty ................. : 0.61 % of its own period
+```
+
+A task's period is its group's, so `every 100 ms` is what `slow` means on this
+build - `tasks` prints the four rates.
 
 ### Logging
 

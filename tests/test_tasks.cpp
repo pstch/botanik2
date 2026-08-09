@@ -103,6 +103,29 @@ TEST_CASE("tasks: each run is costed, and the mean is not the peak") {
     CHECK(std::string(phase_name(t.phase)) == "service");
 }
 
+TEST_CASE("tasks: dropped activations are counted, not caught up") {
+    g_log.clear();
+    Registry r;
+    r.add("x", GROUP_FAST, PHASE_SERVICE, &note, A);
+
+    const uint64_t p = group_period_ms(GROUP_FAST);
+    r.run_phase(PHASE_SERVICE, 0);              // first activation
+    REQUIRE(r.count() == 1);
+    CHECK(r.task(0).cost.missed == 0);
+
+    // Five periods later. It runs ONCE and the four activations in between are
+    // gone - the count is the only trace they leave, which is what the TASKS
+    // page and `tasks` read.
+    r.run_phase(PHASE_SERVICE, 5 * p);
+    CHECK(r.task(0).cost.runs   == 2);
+    CHECK(r.task(0).cost.missed == 4);
+
+    // On time again: the count holds rather than decaying.
+    r.run_phase(PHASE_SERVICE, 6 * p);
+    CHECK(r.task(0).cost.runs   == 3);
+    CHECK(r.task(0).cost.missed == 4);
+}
+
 TEST_CASE("tasks: a full table refuses and counts, it does not drop silently") {
     Registry r;
     for (uint16_t i = 0; i < Botanik::Config::MAX_TASKS; i++)

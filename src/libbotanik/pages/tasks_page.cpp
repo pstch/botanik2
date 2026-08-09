@@ -66,7 +66,7 @@ namespace Botanik { namespace Pages {
     uint16_t TasksPage::_name_w() const {
         return _flex_width((uint16_t)(2 * MARGIN + 2 + 3 + GROUP_W + 3
                                       + PERIOD_W + 3 + PHASE_W + 3
-                                      + MEAN_W + 3 + PEAK_W + 2), NAME_CAP);
+                                      + MEAN_W + 3 + MISSED_W + 2), NAME_CAP);
     }
 
     uint8_t TasksPage::_columns(Col* out) const {
@@ -75,7 +75,7 @@ namespace Botanik { namespace Pages {
         out[C_PERIOD] = Col{ "EVERY ms",  PERIOD_W  };
         out[C_PHASE]  = Col{ "PHASE",     PHASE_W   };
         out[C_MEAN]   = Col{ "MEAN us",   MEAN_W    };
-        out[C_PEAK]   = Col{ "PEAK us",   PEAK_W    };
+        out[C_MISSED] = Col{ "MISSED",    MISSED_W  };
         return 6;
     }
 
@@ -93,14 +93,14 @@ namespace Botanik { namespace Pages {
 
     void TasksPage::_draw_row(uint16_t idx, uint16_t row, bool selected) {
         const Tasks::Task& t = _row(idx);
-        char mean[CELL_CAP], peak[CELL_CAP], line[LINE_CAP];
+        char mean[CELL_CAP], missed[CELL_CAP], line[LINE_CAP];
         const char* cells[6] = {
             t.name != nullptr ? t.name : "",
             Tasks::group_name(t.group),
             _period_str(t.group),
             Tasks::phase_name(t.phase),
-            _us(mean, sizeof(mean), t.cost.us_mean(), t.cost.runs),
-            _us(peak, sizeof(peak), t.cost.us_max,  t.cost.runs),
+            _num(mean,   sizeof(mean),   t.cost.us_mean(), t.cost.runs),
+            _num(missed, sizeof(missed), t.cost.missed,    t.cost.runs),
         };
         uint16_t n = _build_row(line, sizeof(line), cells);
         _draw_selected_line(row, line, n, _cell_col(C_NAME), _cell_end(C_NAME),
@@ -122,8 +122,13 @@ namespace Botanik { namespace Pages {
             return;
         }
         const Tasks::Task& t = _row(_selected);
-        char last[CELL_CAP], runs[CELL_CAP], duty[24];
-        _us(last, sizeof(last), t.cost.us_last, t.cost.runs);
+        char last[CELL_CAP], peak[CELL_CAP], runs[CELL_CAP], missed[CELL_CAP];
+        char duty[24];
+        // _num() returns "-" for a task that has never run, so its buffer is
+        // untouched then - the return value is what to draw, never the buffer.
+        const char* last_s   = _num(last,   sizeof(last),   t.cost.us_last, t.cost.runs);
+        const char* peak_s   = _num(peak,   sizeof(peak),   t.cost.us_max,  t.cost.runs);
+        const char* missed_s = _num(missed, sizeof(missed), t.cost.missed,  t.cost.runs);
         Utils::format_int(runs, sizeof(runs), (long long)t.cost.runs);
 
         const uint32_t period = Tasks::group_period_ms(t.group);
@@ -138,8 +143,14 @@ namespace Botanik { namespace Pages {
             snprintf(duty, sizeof(duty), "%s %%", pct);
             duty_s = duty;
         }
-        _panel_field((uint16_t)(r + 2), "Last us", last);
-        _panel_field((uint16_t)(r + 3), "Runs", runs);
+        // Two facts per row: the peak lost its column to MISSED and lands here,
+        // and MISSED itself repeats beside the run count, which is the number it
+        // has to be read against (12 dropped out of 12 is a dead task, out of a
+        // million is a bad afternoon).
+        _panel_field2((uint16_t)(r + 2), "Last us", last_s,
+                      PANEL_COL2, "Peak us", peak_s);
+        _panel_field2((uint16_t)(r + 3), "Runs", runs,
+                      PANEL_COL2, "Missed", missed_s);
         _panel_field((uint16_t)(r + 4), "Of period", duty_s);
         _blank_line((uint16_t)(r + 5));
     }

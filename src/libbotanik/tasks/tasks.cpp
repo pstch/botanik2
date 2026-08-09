@@ -89,7 +89,7 @@ namespace Botanik { namespace Tasks {
 
             const uint64_t t0 = HAL::Clock::uptime_us();
             t.run(t.self, now_ms);
-            t.cost.record((uint32_t)(HAL::Clock::uptime_us() - t0));
+            t.cost.record((uint32_t)(HAL::Clock::uptime_us() - t0), missed);
         }
     }
 
