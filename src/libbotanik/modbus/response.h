@@ -21,7 +21,7 @@
  *
  * and the payload and echo pointers land at body+2 and body+1 either way. So
  * the transports keep what is genuinely theirs - a CRC and a length field - and
- * hand the rest here. A rule added to one used to reach only one of them.
+ * hand the rest here, so a rule added to the answer check reaches both.
  *
  * @see wire.h for the vocabulary; the transports for the framing.
  */

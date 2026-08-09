@@ -160,9 +160,8 @@ int main(int argc, char** argv) {
     // (sent by a build after relinking) re-execs at this safe point between
     // iterations.
     while (botanik_running) {
-        // The simulated field, in place of the mock coprocessor that used to
-        // animate a shared region from its own thread: fill the firmware's data
-        // struct, then run the beat that reads it.
+        // The simulated field: fill the firmware's data struct, then run the
+        // beat that reads it.
         // The field is serviced ONCE PER BEAT, and loop() says when one ran.
         // It returns immediately if the beat is not due and tick() busy-waits
         // the tail of every period, so calling any of this unguarded ran it tens

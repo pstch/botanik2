@@ -140,8 +140,8 @@ namespace Botanik { namespace Pages {
         const char* duty_s = "-";
         if (t.cost.runs != 0 && period != 0) {
             // us_mean/period_ms IS per-mille of the period - the us/ms ratio
-            // does the scaling - so this is a 32-bit UDIV, not the 64-bit
-            // divide the explicit x1000 on both sides used to force.
+            // does the scaling - so this stays a 32-bit UDIV. Scaling both sides
+            // by 1000 explicitly would force a 64-bit divide.
             char pct[16];
             Utils::format_float(pct, sizeof(pct),
                                 (double)t.cost.us_mean() / (double)(period * 10u), 1);

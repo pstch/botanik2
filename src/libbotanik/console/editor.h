@@ -527,8 +527,8 @@ namespace Botanik { namespace Terminal {
          *
          * The window of layout rows currently on screen. A bottom-anchored
          * editor is the degenerate case - `_view_top` 0 and a height that runs
-         * to the content bottom - so these subsume what used to be a bare
-         * `_origin + i` and a clip against `_console->rows()`.
+         * to the content bottom - so these subsume a bare `_origin + i` and a
+         * clip against `_console->rows()`.
          * @{
          */
 

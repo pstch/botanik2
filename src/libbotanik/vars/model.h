@@ -15,11 +15,9 @@
  *  - @ref VarRole   what it is FOR, which is what drives behaviour: who expires,
  *                   who drops to safe on a fault, who persists, who is editable
  *
- * The predecessor encoded the first two in the type system, as four descriptor
- * structs, two value structs, four handle classes and six accessors. That put
- * "analog versus digital" in nineteen separate places and made three quarters of
- * the handle code copies of each other. Here there is one of each, and adding a
- * transport or a role touches a switch rather than a hierarchy.
+ * There is ONE descriptor, one value struct and one handle, so adding a
+ * transport or a role touches a switch rather than a hierarchy - and "analog
+ * versus digital" is a field to read rather than a type to dispatch on.
  *
  * @section model_split Descriptor and value
  *
@@ -76,10 +74,10 @@ namespace Botanik { namespace Vars {
      *
      * `Transport` and `VarRole` stay the axes BEHAVIOUR turns on - who expires,
      * who drops to safe, who persists. This is the third thing a reader wants
-     * and neither of them answers: which of the dozen concrete kinds of row
-     * this is. It used to be reconstructed from (transport, role, type) at every
-     * display site, which meant three fields had to agree and a new kind was a
-     * new case in each of them.
+     * and neither of them answers: which of the dozen concrete kinds of row this
+     * is. Declared rather than reconstructed from (transport, role, type) at
+     * each display site, which would mean three fields had to agree and a new
+     * kind was a new case in every one of them.
      *
      * Declared, so it is also what a table ITERATES on: "every alarm", "every
      * relay", "every Modbus reading" is one comparison rather than a predicate
@@ -121,12 +119,11 @@ namespace Botanik { namespace Vars {
 
     /** @brief WHY a value reads as it does.
      *
-     *  The model used to record only THAT a reading was invalid, never why -
-     *  and three quite different things set it: nothing ever wrote the row, it
-     *  was live and stopped, or it is answering with nonsense. Those want three
-     *  different actions from whoever is looking (check the wiring, check the
-     *  device, check the sensor), and every one of them showed on the console as
-     *  the same bare "invalid".
+     *  Three quite different things invalidate a reading: nothing ever wrote the
+     *  row, it was live and stopped, or it is answering with nonsense. Those
+     *  want three different actions from whoever is looking - check the wiring,
+     *  check the device, check the sensor - so a bare "invalid" is not an
+     *  answer.
      *
      *  Written by whichever path invalidated the row, so it is a diagnosis
      *  rather than a guess made at display time.
@@ -213,8 +210,7 @@ namespace Botanik { namespace Vars {
      *
      *  @c wire is the type ON THE WIRE, deliberately distinct from the
      *  variable's own VarType: a Modbus REAL feeding an f32, or a raw u32 count
-     *  feeding an f32 engineering value via `value = wire * scale + offset`. The
-     *  predecessor conflated the two in a single `raw` field. */
+     *  feeding an f32 engineering value via `value = wire * scale + offset`. */
     struct Binding {
         Transport transport;
         VarType   wire;
@@ -235,12 +231,11 @@ namespace Botanik { namespace Vars {
     /** @brief What a T_STR row DECLARES about its pool slot: how big it is and
      *  what a new value is checked against.
      *
-     *  Not where it sits. The offset used to be written per row in the site's
-     *  table, which meant hand-adding STR_CAP each time and re-typing every
-     *  offset after it when a text parameter was inserted. Bank::init() lays the
-     *  slots out instead, in table order, and puts the result in the Value - so
-     *  there is one fewer number a site can get wrong, and it is the one that
-     *  silently overlapped two settings when it was wrong. */
+     *  Not where it sits. Bank::init() lays the slots out in table order and
+     *  puts the result in the Value, so the offset is derived rather than
+     *  declared - a number a site would otherwise re-type for every row after an
+     *  inserted text parameter, and one whose only failure mode is silently
+     *  overlapping two settings. */
     struct TextSlot {
         uint16_t cap;    ///< capacity including the NUL; 0 = no slot
         StrKind  kind;   ///< edit validation
@@ -362,12 +357,12 @@ namespace Botanik { namespace Vars {
         /** @brief How often to ASK for this row, in ms; 0 derives it from
          *  @c timeout_ms.
          *
-         *  Two different questions that used to have one answer. The timeout is
-         *  a CONTRACT with whatever reads the row - "believe this for 15 s and
-         *  no longer" - and the poll interval is a COST on the bus. Deriving one
-         *  from the other (period = timeout/3) tied them together: asking for a
-         *  slower poll meant accepting a longer staleness window, and tightening
-         *  the staleness window silently tripled the traffic.
+         *  Two different questions, kept apart. The timeout is a CONTRACT with
+         *  whatever reads the row - "believe this for 15 s and no longer" - and
+         *  the poll interval is a COST on the bus. Deriving one from the other
+         *  ties them together: a slower poll would mean accepting a longer
+         *  staleness window, and tightening the staleness window would silently
+         *  multiply the traffic.
          *
          *  A meter can now say "poll me every 10 s, and call me stale at 15" -
          *  which is the honest shape of it, since the 5 s of slack is exactly
@@ -487,9 +482,9 @@ namespace Botanik { namespace Vars {
          *  alignment, and behind them it bought a pad byte that pushed the row
          *  past 32. */
         uint16_t str_off;
-        /** @brief The live value's quality - valid, or invalid and why. Replaces
-         *  the bool it used to be, at the same cost, because "invalid" alone was
-         *  the same answer to three different questions (see Quality). */
+        /** @brief The live value's quality - valid, or invalid and why. A byte
+         *  rather than a bool, at the same cost, because "invalid" alone is the
+         *  same answer to three different questions (see Quality). */
         Quality  qual;
         bool     ovr_on;     ///< an override is in force
         bool     ovr_valid;  ///< what valid() reports while overridden
@@ -498,11 +493,11 @@ namespace Botanik { namespace Vars {
          *  the site's program table; WRITER_NONE until one does.
          *
          *  Spent out of the reserved bytes, so the 32 below is unchanged. It
-         *  answers two questions that used to have no answer: which program
-         *  computes a row (the MONITOR page's, so a reader can go and look at
-         *  the logic), and whether TWO of them are driving one output - which is
-         *  a wiring mistake in the site's design that otherwise shows up as an
-         *  actuator that chatters at the beat rate. */
+         *  answers two questions: which program computes a row (the MONITOR
+         *  page's, so a reader can go and look at the logic), and whether TWO of
+         *  them are driving one output - a wiring mistake in the site's design
+         *  that otherwise shows up only as an actuator chattering at the beat
+         *  rate. */
         uint8_t  writer;
         uint8_t  _rsv[1];
     };
@@ -528,11 +523,11 @@ namespace Botanik { namespace Vars {
 
     /** @brief A text row that found no room in the pool.
      *
-     *  Not 0, which is a REAL slot - the first text row's. An overflow used to
-     *  leave the row at offset 0 while its declared capacity stayed non-zero,
-     *  so every writer wrote a full slot's worth on top of that row, and a pool
-     *  smaller than a single slot ran off the end of the array entirely. "No
-     *  slot" has to be sayable for a writer to be able to refuse. */
+     *  Not 0, which is a REAL slot - the first text row's. An overflowed row
+     *  parked at offset 0 keeps a non-zero declared capacity, so every writer
+     *  would write a full slot's worth on top of that first row, and a pool
+     *  smaller than a single slot would run off the end of the array entirely.
+     *  "No slot" has to be sayable for a writer to be able to refuse. */
     static const uint16_t STR_NO_SLOT = 0xFFFFu;
 
     /** @} */
@@ -702,12 +697,11 @@ namespace Botanik { namespace Vars {
         /** @name Override mutation - Bank's, not yours
          *
          *  Private, and it is load-bearing. An override is PERSISTED, so every
-         *  one of these has a storage side to it that only the Bank can reach:
-         *  a set that skipped the store would vanish at the next boot, and a
-         *  clear that skipped it would come BACK at the next boot. Both of those
-         *  were real bugs here, caused by exactly one caller reaching past the
-         *  bank because it could. The rule was written in a comment; now it is
-         *  written in the access specifier.
+         *  one of these has a storage side to it that only the Bank can reach: a
+         *  set that skipped the store would vanish at the next boot, and a clear
+         *  that skipped it would come BACK at the next boot. One caller reaching
+         *  past the bank is enough to produce both, so the rule is written in
+         *  the access specifier rather than in a comment.
          *  @{ */
         friend class Bank;
 
@@ -859,7 +853,7 @@ namespace Botanik { namespace Vars {
      * as a signal that never moves instead of the wrong actuator firing.
      */
     class Bank {
-        VarTables   _terminal;
+        VarTables   _tables;
         /** @name Parameter block
          *
          *  The ROLE_PARAM rows are one contiguous run, which is what lets the
@@ -881,10 +875,10 @@ namespace Botanik { namespace Vars {
          *  store refused (see set()). May be null. */
         Logs::Logger* _logger = nullptr;
         /** @brief How many name lookups have found nothing since construction.
-         *  Variables are addressed by name now, so a typo no longer fails to
-         *  compile - it resolves to the sink and reads zero forever. Counting
-         *  the misses is what makes that visible: non-zero after bring-up means
-         *  a table or a control program names a row that is not in vars.h.
+         *  Variables are addressed by NAME, so a typo does not fail to compile -
+         *  it resolves to the sink and reads zero forever. Counting the misses
+         *  is what makes that visible: non-zero after bring-up means a table or
+         *  a control program names a row that is not in vars.h.
          *  Mutable because find() is const and this is diagnostics, not
          *  state. */
         mutable uint16_t _unresolved = 0;
@@ -910,8 +904,8 @@ namespace Botanik { namespace Vars {
          *  descriptor stays in flash), so value-initialize it here: without the
          *  `()` an unbound bank starts on indeterminate pointers and init()
          *  walks them. */
-        Bank() : _terminal() {}
-        explicit Bank(const VarTables& t) : _terminal(t) {
+        Bank() : _tables() {}
+        explicit Bank(const VarTables& t) : _tables(t) {
             _find_param_block();
             // The table is const and never grows, so the mapping is built here
             // rather than in init(): a find() before init() (a site test, a
@@ -977,13 +971,13 @@ namespace Botanik { namespace Vars {
 
         /** @} */
 
-        const VarTables& tables() const { return _terminal; }
-        char*            pool() const   { return _terminal.pool; }
-        uint16_t         count() const  { return _terminal.count; }
+        const VarTables& tables() const { return _tables; }
+        char*            pool() const   { return _tables.pool; }
+        uint16_t         count() const  { return _tables.count; }
 
         /** @brief Resolve an index. Never fails; a bad one lands on the sink. */
         Var var(uint16_t i) const {
-            if (i < _terminal.count) return Var(&_terminal.var[i], &_terminal.val[i]);
+            if (i < _tables.count) return Var(&_tables.var[i], &_tables.val[i]);
             _sink_v = Value();          // fresh: a sink never accumulates state
             return Var(&_sink_d, &_sink_v);
         }
@@ -1003,9 +997,9 @@ namespace Botanik { namespace Vars {
         /** @brief Where @p h's text lives in the pool, or null when it has none
          *  - not a T_STR, no pool bound, or the row found no room at init().
          *
-         *  The ONLY way to reach a row's text. Four writers used to compute
-         *  `pool + off` themselves and gate on the declared capacity, which is
-         *  in flash and says nothing about whether the row actually got a slot.
+         *  The ONLY way to reach a row's text. A caller computing `pool + off`
+         *  itself would have to gate on the declared capacity, which is in flash
+         *  and says nothing about whether the row actually got a slot.
          *  @p cap_out receives the usable capacity (0 when there is no slot). */
         char* text_at(Var h, uint16_t* cap_out = nullptr) const;
 

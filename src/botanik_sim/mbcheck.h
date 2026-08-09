@@ -94,12 +94,10 @@ namespace Botanik { namespace Sim {
             // Registry::setup(), which has already run by the time the main loop
             // calls us, so there is nothing left to wait for.
             //
-            // This used to sit out six seconds to clear the bring-up log burst,
-            // on the theory that a verdict emitted into it is a verdict nobody
-            // reads. But _report() writes to stderr and always has - it never
-            // went through the logger at all, so it was never in that burst. Six
-            // seconds of every sim run, and of every screen test that waited for
-            // the answer, spent guarding against something that could not happen.
+            // No delay to clear the bring-up log burst: _report() writes to
+            // stderr and never goes through the logger, so the verdict was never
+            // in that burst. Waiting would cost every sim run - and every screen
+            // test that waits for the answer - several seconds for nothing.
             if (_step == MC_WAIT) {
                 const Vars::Var v = _io->var(ROW_NAME);
                 if (v.meta()->name == nullptr || v.meta()->bind.reg == 0) {

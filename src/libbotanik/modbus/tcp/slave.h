@@ -17,8 +17,7 @@
  * the whole design:
  *
  *  - `step()` in `PHASE_INPUT` accepts, reads, decodes, and applies WRITES. It
- *    is registered with `add_component()`, the same as every other component -
- *    there used to be a `service_rx()` alias for it that nothing called.
+ *    is registered with `add_component()`, the same as every other component.
  *    A setpoint written this beat is therefore what the control programs run on
  *    this beat, and `PHASE_CONFIG` picks up the group serial in the same cycle.
  *  - `service_tx()` in `PHASE_PRESENT` answers READS, off the image the scan just
@@ -151,7 +150,7 @@ namespace Botanik { namespace Modbus {
         /** @brief Condition index per MAP ROW, or -1 for a row that is not an
          *  alarm. Resolved once at bring-up.
          *
-         *  The ack block used to be answered by name: two strcmp searches per
+         *  Answering the ack block by NAME would be two strcmp searches per
          *  coil, and a legal FC01 may ask for 2000 of them - about 2 ms in
          *  PHASE_PRESENT, per connection, per beat, at a remote peer's choosing.
          *  Everything else in the tree resolves names once at bring-up; this is

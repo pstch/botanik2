@@ -193,8 +193,8 @@ namespace Botanik { namespace Pages {
         // The band is one fact, so it costs one row - and the row that buys
         // back is a row of the table.
         char b2[24];
-        // The blank that used to sit under the separator paid for the Notes
-        // row: the separator already separates, so the table keeps its row.
+        // No blank under the separator - it already separates, and the row it
+        // would cost is a row of the table.
         // Through var_band(), not num_band(): an analog row's band can live
         // in parameters, and showing the firmware defaults while the
         // operator edits the real ones is the worst of both.

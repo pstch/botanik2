@@ -135,10 +135,14 @@ TEST_CASE("site: the alarm model finds every alarm row, in table order") {
         if (d.scope != Vars::SCOPE_A) continue;
         INFO("alarm '" << d.name << "' should be condition " << (int)slot);
         CHECK(m.condition(slot).ref.index == i);          // the row IS the condition
-        CHECK(Utils::compare_str(m.condition(slot).name, d.name));
+        CHECK(Utils::compare_str(m.condition(slot).name(), d.name));
         slot++;
     }
     CHECK(m.count() == slot);
+    // count() saturates at ALARM_SLOTS; declared_count() does not, so the pair
+    // is what tells "the table filled the slots exactly" from "it overran and
+    // the tail is not being driven".
+    CHECK(m.declared_count() == slot);
 
     // A site that left BOTANIK_PLATFORM_ALARM_VARS out of its table would build
     // and boot; the health monitor would just never be able to raise anything.
@@ -587,7 +591,7 @@ using StatusPage_t = Botanik::Pages::StatusPage<StatusPayloadStandIn>;
     CHECK_MESSAGE(sizeof(T) <= (size_t)(budget),                             \
                   #T " = " << sizeof(T) << " bytes, budget " << (budget))
 
-// Budgets are loose round ceilings above the current host-build size — a
+// Budgets are loose round ceilings above the current host-build size - a
 // regression tripwire for accidental bloat, not a tight spec. The page sizes are
 // dominated by config-driven line/log buffers (scrollback + BufferedLogWriter),
 // so they move with the Config::*_LINES / LOG_* knobs, not with code churn.

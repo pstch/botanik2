@@ -57,13 +57,13 @@ namespace Botanik { namespace Network {
          *  companion bool, because "sweeping" is exactly "the cursor is inside
          *  the table" and two fields encoding one fact can disagree.
          *
-         *  A sweep used to publish every eligible row in ONE activation: 38-80
+         *  Publishing every eligible row in ONE activation would be 38-80
          *  topics, each its own snprintf and its own tcp_send, for 0.8-1.9 ms
          *  inside a 10 ms beat - a 100-300x spike over steady state, once per
-         *  cadence. MQTT 3.1.1 has no multi-topic PUBLISH, so the fix is not to
-         *  batch but to PACE: hand out MQTT_TELEMETRY_PER_STEP topics per beat
-         *  and carry the cursor, the way the log rows and the terminal's byte
-         *  budget already bound their own work per tick.
+         *  cadence. MQTT 3.1.1 has no multi-topic PUBLISH, so the answer is not
+         *  to batch but to PACE: hand out MQTT_TELEMETRY_PER_STEP topics per
+         *  beat and carry the cursor, the way the log rows and the terminal's
+         *  byte budget already bound their own work per tick.
          *
          *  The cadence still starts on time; it just no longer lands all at
          *  once. A value published a few beats into a 30 s sweep is not less

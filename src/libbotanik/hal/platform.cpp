@@ -279,16 +279,16 @@ namespace Botanik { namespace HAL {
          *
          *  The caller uses it to know the transmit ring has DRAINED before it
          *  starts the next frame, which is what makes "a frame goes out whole or
-         *  not at all" true. It is no longer a gate on listening - the master
-         *  listens from the moment the frame is queued, because a quick slave
-         *  can answer inside the same beat. */
+         *  not at all" true. NOT a gate on listening - the master listens from
+         *  the moment the frame is queued, because a quick slave can answer
+         *  inside the same beat. */
         bool tx_idle() const { return Clock::uptime_us() >= _tx_done_us; }
 
         /** @brief Throw away whatever is sitting in the receive path.
          *
-         *  Bring-up only now. It used to run between the frame leaving and the
-         *  answer arriving, which threw away the reply of every device quick
-         *  enough to answer inside the beat.
+         *  Bring-up ONLY. Running this between the frame leaving and the answer
+         *  arriving would throw away the reply of every device quick enough to
+         *  answer inside the beat.
          *
          *  Bounded, because an unbounded drain inside the beat is exactly the
          *  thing this codebase does not do. Two full frames is far more than a

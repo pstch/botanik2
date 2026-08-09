@@ -12,12 +12,10 @@
  * alarm reader all want "whatever this reference points at, read it and render
  * it".
  *
- * There is very little left here, and less each time. Resolving used to be a
- * seven-case switch over six tables; grouping used to be a declared table per
- * site. Both are now rules over the one variable table - a group is a name
- * prefix, and what gets published is a scope - so what remains is those rules,
- * the home-screen row (the one thing no rule derives) and a rendering
- * convenience.
+ * Deliberately thin. Resolving and grouping are RULES over the one variable
+ * table - a group is a name prefix, and what gets published is a scope - so what
+ * lives here is those rules, the home-screen row (the one thing no rule derives)
+ * and a rendering convenience.
  */
 
 #include <cstddef>                      // size_t
@@ -44,13 +42,13 @@ namespace Botanik { namespace Vars {
     /** @name Grouping
      *
      *  A variable's group is the prefix of its name, up to the first underscore.
-     *  It used to be a declared table per site - one VarRef[] per domain, plus a
-     *  VarGroup[] listing them - which was 72 rows of pure restatement: every
-     *  grid_* variable in the grid group, every cli_* in climate. Adding a
-     *  variable meant remembering to add it to its group, and forgetting meant
-     *  it silently never appeared on the monitor page or in telemetry.
+     *  A declared table per site - one VarRef[] per domain plus a VarGroup[]
+     *  listing them - would be pure restatement: every grid_* variable in the
+     *  grid group, every cli_* in climate. It would also be a second place to
+     *  remember, and forgetting means the variable silently never appears on the
+     *  monitor page or in telemetry.
      *
-     *  Naming a variable now IS filing it. The PARAMS page already worked this
+     *  Naming a variable IS filing it. The PARAMS page already worked this
      *  way for the config groups; this is the same rule applied to the rest.
      *  @{ */
 
@@ -124,10 +122,9 @@ namespace Botanik { namespace Vars {
 
     /** @brief What kind of row this is, as a short column label.
      *
-     *  One field lookup now that the scope is declared. It used to be
-     *  reconstructed here from (transport, role, type), which meant this
-     *  function had to agree with three others about what a row was, and a new
-     *  kind of row was a new case in each of them. */
+     *  One field lookup, because the scope is declared. Reconstructing it here
+     *  from (transport, role, type) would make this function agree with three
+     *  others about what a row is, and a new kind of row a new case in each. */
     inline const char* var_scope(const Variable& d) { return scope_label(d.scope); }
 
     /** @brief Render @p h's current value into @p buf. Returns the text - an

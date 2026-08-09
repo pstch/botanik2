@@ -192,7 +192,7 @@ namespace uptime {
 using namespace Botanik::Utils;
 
 // Independent reference: days since 1970-01-01 for a civil (y, m, d) date.
-// Howard Hinnant's algorithm — the inverse of the decomposition in time.cpp,
+// Howard Hinnant's algorithm - the inverse of the decomposition in time.cpp,
 // so agreement cross-checks the implementation rather than mirroring it.
 static int64_t days_from_civil(int64_t y, unsigned m, unsigned d) {
     y -= m <= 2;

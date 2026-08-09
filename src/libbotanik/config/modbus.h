@@ -164,10 +164,10 @@ namespace Botanik { namespace Config {
 
     /** @brief How often to try binding the slave's port again after a failure.
      *
-     *  A port already taken is usually an operator's configuration mistake, and
-     *  it used to be given up on for good - which left the slave silently absent
-     *  while healthy() said yes. Retried instead, slowly: whatever is holding
-     *  the port may well let go. */
+     *  A port already taken is usually an operator's configuration mistake.
+     *  Giving up on it for good would leave the slave silently absent while
+     *  healthy() said yes, so it is retried, slowly: whatever is holding the
+     *  port may well let go. */
 #ifndef BOTANIK_MODBUS_TCP_BIND_RETRY_MS
 #  define BOTANIK_MODBUS_TCP_BIND_RETRY_MS 30000
 #endif

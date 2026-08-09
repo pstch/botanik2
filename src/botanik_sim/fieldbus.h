@@ -73,12 +73,9 @@ namespace Botanik { namespace Sim {
         /** @brief How long a simulated device thinks before answering.
          *
          *  Real devices are 2-30 ms, the cheap ones 20-50, so this is the honest
-         *  end of that range. It used to be load-bearing for another reason -
-         *  the master flushed its receive path a beat after sending, and an
-         *  answer arriving before the flush was thrown away, so the turnaround
-         *  had to outlast the race. That flush is gone; the master now listens
-         *  from the moment the frame is queued. The number stays because it is
-         *  what a device does, not because the harness needs it to. */
+         *  end of that range. It is what a DEVICE does, not something the
+         *  harness needs: the master listens from the moment the frame is
+         *  queued, so no answer can arrive too early to be heard. */
         static const uint32_t TURNAROUND_MS = 30;
 
         Modbus::RtuSlave _dev[MAX_DEVICES];
@@ -143,13 +140,12 @@ namespace Botanik { namespace Sim {
          * @brief Put one simulated reading into the device that carries it.
          *
          * This is where the plant's values enter the bus, and the ONLY place
-         * they should. The animator used to write them into the bank row and
-         * this class copied them out again - so the row held the animator's
-         * signal, updated every beat, and the master's poll only ever refreshed
-         * its timestamp. A meter on a 10 s rung therefore appeared to change
-         * every beat, and no display could show what the bus was actually
-         * delivering. Now the row is written by the MASTER and by nothing else,
-         * which is what makes the poll interval visible at last.
+         * they should. The bank row is written by the MASTER and by nothing
+         * else, which is what makes the poll interval visible: an animator
+         * writing the row directly would leave it holding a signal that moves
+         * every beat, with the master's poll refreshing only its timestamp, so a
+         * meter on a 10 s rung would appear to change every beat and no display
+         * could show what the bus was actually delivering.
          *
          * @param d the row's descriptor, for its device / fc / reg binding
          * @param v the physical quantity, in the row's own engineering units

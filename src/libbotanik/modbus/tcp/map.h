@@ -217,9 +217,8 @@ namespace Botanik { namespace Modbus {
          * write_registers() refuses an odd count for.
          *
          * Worth supporting rather than refusing: writing one setpoint is the
-         * commonest thing a SCADA does, and it used to come back
-         * EX_ILLEGAL_ADDRESS, which is not even the right objection - the
-         * address was fine, the granularity was not.
+         * commonest thing a SCADA does, and EX_ILLEGAL_ADDRESS would not even be
+         * the right objection - the address is fine, the granularity is not.
          */
         Exception write_register(uint16_t addr, uint16_t value,
                                  uint16_t* committed = nullptr);

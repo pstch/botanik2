@@ -1,4 +1,4 @@
-# Unit tests (doctest) — host-only, SIMULATOR build.
+# Unit tests (doctest) - host-only, SIMULATOR build.
 # ============================================================================
 # These tests link against the SIMULATOR-target `botanik` library and run on the
 # host, so they are only wired up from the SIMULATOR branch of the top-level
@@ -153,10 +153,10 @@ if(TARGET clang-tidy)
     add_dependencies(check-full clang-tidy)
 endif()
 
-# pyte screen-assertion tests (Python) — host-only, joined to the same CTest
+# pyte screen-assertion tests (Python) - host-only, joined to the same CTest
 # ============================================================================
 # These drive botanik_sim over a PTY and assert its rendered screen (see
-# pyte/README.md). Their deps (pytest + pyte) are a MANUAL developer step — the
+# pyte/README.md). Their deps (pytest + pyte) are a MANUAL developer step - the
 # build never installs anything. We register the suite only when the interpreter
 # can already import them, so a tree without the venv still gets a green
 # `make check`. Point CMake at the venv with -DPython3_EXECUTABLE=... .
@@ -269,12 +269,12 @@ if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
             WORKING_DIRECTORY ${_pyte_dir}
             DEPENDS pyte-sim
             USES_TERMINAL
-            COMMENT "Regenerating pyte golden screens — review the diff before committing")
+            COMMENT "Regenerating pyte golden screens - review the diff before committing")
     else()
-        message(STATUS "pyte/pytest not importable — skipping Python screen tests")
+        message(STATUS "pyte/pytest not importable - skipping Python screen tests")
     endif()
 elseif(NOT BOTANIK_PYTE_TESTS)
     # quietly disabled (e.g. the release sub-build above)
 elseif(NOT Python3_Interpreter_FOUND)
-    message(STATUS "Python3 interpreter not found — skipping Python screen tests")
+    message(STATUS "Python3 interpreter not found - skipping Python screen tests")
 endif()

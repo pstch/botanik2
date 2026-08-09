@@ -261,20 +261,19 @@ namespace Botanik { namespace Pages {
         // this reading physically comes from is the first thing you want
         // when one looks wrong.
         //
-        // "Mapping", not "Source": for a relay coil the old label read as "where
+        // "Mapping", not "Source": for a relay coil "source" reads as "where
         // this value came from", which for an OUTPUT is backwards - nothing
-        // comes from it, it goes there. What the field actually says is which
-        // point on which device this row is mapped to, in both directions.
+        // comes from it, it goes there. What the field says is which point on
+        // which device this row is mapped to, in both directions.
         char bind[72];
         if (have) _describe_binding(h.meta()->bind, bind, sizeof(bind));
         _panel_field((uint16_t)(br + 4), "Mapping", have ? bind : nullptr);
 
         // Quality, and the two things that qualify it.
         //
-        // The row used to say only Q_GOOD / Q_STALE, with a separate "Override"
-        // line below repeating what the OVERRIDE column already showed. What an
-        // operator actually asks next is one of two questions, and which one
-        // depends on the kind of row: for a READING, "how old is it" - Q_GOOD
+        // Q_GOOD / Q_STALE alone is not what an operator asks next. That is
+        // one of two questions, and which one depends on the kind of row:
+        // for a READING, "how old is it" - Q_GOOD
         // from four minutes ago is not the same fact as Q_GOOD from this beat;
         // for something DRIVEN or COMPUTED, "who decided that", which is the
         // program, and is the thing that tells you where to go and look.
@@ -310,7 +309,7 @@ namespace Botanik { namespace Pages {
             }
         }
         _panel_field((uint16_t)(br + 5), "Quality", have ? qual : nullptr);
-        _blank_line((uint16_t)(br + 6));   // where the Override line used to be
+        _blank_line((uint16_t)(br + 6));   // the OVERRIDE column already says so
     }
 
     void MonitorPage::_draw_footer() {

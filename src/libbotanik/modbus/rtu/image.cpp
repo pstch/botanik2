@@ -68,9 +68,9 @@ namespace {
 
     /** @brief One register row's demand, big-endian into @p at.
      *
-     *  Two questions, asked in order, where there used to be two near-identical
-     *  arms differing in BOTH answers at once: is the value calibrated, and is
-     *  the integer form taken from the float or from the row?
+     *  Two questions, asked in order rather than as one branch answering both
+     *  at once: is the value calibrated, and is the integer form taken from the
+     *  float or from the row?
      *
      *  The second is the one worth keeping apart. An AO's integer comes from its
      *  calibrated float, because that is the only place the calibration exists;
@@ -143,10 +143,11 @@ namespace {
     /** @brief Commit one direct row: decode, then judge - the same order a
      *  calibrated row goes through.
      *
-     *  The judging used to be left entirely to `Bank::reject_implausible()`,
-     *  which runs at background rate. So a bounded row that came back at -3000
-     *  was `Q_GOOD` to every control program that ran in the meantime, for up to
-     *  a background period. A reading is judged where it enters. */
+     *  A reading is judged where it ENTERS, not only by
+     *  `Bank::reject_implausible()`, which runs at background rate: a bounded
+     *  row that came back at -3000 would otherwise read `Q_GOOD` to every
+     *  control program running in the meantime, for up to a background
+     *  period. */
     bool commit_direct(Vars::Var h, const Vars::Variable& d, const Block& b,
                        const uint8_t* payload, uint64_t now_ms) {
         const Vars::Scalar v = decode_direct(d, b, payload);
@@ -249,7 +250,7 @@ void clear_dirty(Vars::Bank& io, const Planner& p, const Block& b,
         const uint16_t off = offset_of(d, b);
 
         // No payload to compare against: the caller could not say what went out,
-        // so fall back to the old wholesale behaviour rather than never clearing.
+        // so clear wholesale rather than never clearing at all.
         if (sent == nullptr) { h.clear_field_dirty(); continue; }
 
         bool carried = false;

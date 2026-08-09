@@ -21,9 +21,9 @@
  *  BOTANIK_FEATURE_LIST is the single source of truth for which flags EXIST. The
  *  `features` shell command expands it, so a new flag is reported without
  *  touching the shell; CMake discovers `-D`s by prefix rather than from a list,
- *  so a new flag cannot be half-wired. Both of those used to be hand-maintained
- *  copies, and the CMake one silently ignored the `-D` of any flag missing from
- *  it - which is exactly what happened when NOTES was added.
+ *  so a new flag cannot be half-wired. Neither is a hand-maintained copy of the
+ *  roster: a CMake-side list would silently ignore the `-D` of any flag missing
+ *  from it.
  *
  *  Adding a flag: one `X()` entry, one `#ifndef` default, any dependency rule,
  *  and a row in docs/integration/config.md.

@@ -47,8 +47,8 @@ namespace Botanik { namespace Scan {
      * Stepped once per beat from the firmware loop, between the input refresh
      * and the output write. Holds a borrowed array of borrowed program
      * pointers; every scrap of per-program state lives in the program itself,
-     * so the driver owns nothing - which is what removed the parallel stats
-     * array a site used to declare alongside its task table.
+     * so the driver owns nothing - and there is no parallel stats array to keep
+     * the same length as the site's task table.
      *
      * The dispatch arithmetic is not here either: a Plc::Program is a Component,
      * so "is it due, how late, how many were dropped" is the one implementation

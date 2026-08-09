@@ -50,10 +50,10 @@ namespace Botanik { namespace HAL { namespace Network {
     }
 
     /** @brief Where the in-process responder answers. NTP's is DERIVED from the
-     *  rule above rather than written out: the two used to be the same
-     *  arithmetic in two places, so moving the shift would have left the mock
-     *  responder behind while the HAL went on ahead. MQTT's is its own number -
-     *  1883 is not privileged, so nothing shifts it. */
+     *  rule above rather than written out: as the same arithmetic in two places,
+     *  moving the shift would leave the mock responder behind while the HAL went
+     *  on ahead. MQTT's is its own number - 1883 is not privileged, so nothing
+     *  shifts it. */
     static const uint16_t NTP_MOCK_PORT  = sim_port(123);
     static const uint16_t MQTT_MOCK_PORT = 11883;
 

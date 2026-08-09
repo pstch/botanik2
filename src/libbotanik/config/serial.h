@@ -61,13 +61,12 @@ namespace Botanik { namespace Config {
     /** @brief Most bytes BufferedSerial::transmit() hands the driver in one
      *  activation. 0 disables the cap (drain until the ring empties).
      *
-     *  A bound, not a throttle. The drain used to run until the ring emptied or
-     *  the driver refused, which is fine for a UART - its availableForWrite()
-     *  reflects a real FIFO - but the OPTA's MONITOR port is USB CDC, where with
-     *  no host attached availableForWrite() always answers 1. One activation
-     *  would then push the whole 4095-byte ring, and with a host attached
-     *  USBCDC::send() blocks per byte, putting tens of milliseconds inside a
-     *  10 ms beat.
+     *  A bound, not a throttle. Draining until the ring empties or the driver
+     *  refuses is fine for a UART - its availableForWrite() reflects a real FIFO
+     *  - but the OPTA's MONITOR port is USB CDC, where with no host attached
+     *  availableForWrite() always answers 1. One activation would then push the
+     *  whole 4095-byte ring, and with a host attached USBCDC::send() blocks per
+     *  byte, putting tens of milliseconds inside a 10 ms beat.
      *
      *  256 is far above steady demand on either port (the console's TX ring is
      *  self-capped near 61 bytes by the terminal's depth floor, and a log line

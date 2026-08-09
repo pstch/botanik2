@@ -254,10 +254,9 @@ inline void drive_coils(Vars::Bank& io, uint32_t now_ms) {
  * @brief Raise and clear alarm conditions.
  *
  * Triggers read the same variables the console shows, so an alarm on screen
- * always has a visible cause in the monitor table. What used to drive this -
- * a mock payload of climate fields no sensor produced - is gone; the site has
- * no climate instrumentation mapped yet, so those conditions rest on their own
- * slow drift until it is.
+ * always has a visible cause in the monitor table. The site has no climate
+ * instrumentation mapped yet, so those conditions rest on their own slow drift
+ * until it has.
  */
 inline void publish_alarms(Vars::Bank& io, uint32_t now_ms) {
     // Real causes, read back through the variable tables.

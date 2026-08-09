@@ -38,13 +38,13 @@
  * that one is the Opta's own Modbus *slave* address, which belongs in the slave
  * map, not here.
  *
- * It used to hold the object index, with a note saying the master translated it
- * per device model. The master never did, so every 32-bit reading decoded half
- * of its predecessor. There is no translation to write either: the site's index
- * order does not follow the SDM630's parameter order (index 6 is apparent power,
- * parameter 7 is watts), so a profile table would be a second hand-copy of the
- * same PDF. The address goes here, once, and the object index is recorded in
- * each row's notes so a reading can still be traced back to the published map.
+ * The REGISTER ADDRESS, never the object index: nothing translates one into the
+ * other, and a row carrying the index decodes half of the row before it. Nor is
+ * there a translation worth writing - the site's index order does not follow the
+ * SDM630's parameter order (index 6 is apparent power, parameter 7 is watts), so
+ * a profile table would be a second hand-copy of the same PDF. The address goes
+ * here, once, and each row's notes record the object index so a reading can
+ * still be traced back to the published map.
  *
  * @note The meters answer FC04 (input registers). The SDM630 manual requires it
  * ("function code 04 is used to access all parameters"); the MCT1-140 accepts
@@ -343,10 +343,9 @@ const Variable g_vars[] = {
     P("pwr_genBat_max",       T_F32,  30.0,    10.0,   48.0,    1,  "V",    426, "highest believable gen. battery volts",  "over this: a dead sensor"),
     P("pwr_genBat_avg_ms",    T_U16,  1000,    10,     10000,   0,  "ms",   427, "rolling average for the Gen. battery",   "per divider setup"),
 
-    // The net_ / ntp_ / mqtt_ / geo_ parameters this site used to declare are
-    // now the library's own rows, spliced in above by BOTANIK_LIBRARY_VARS -
-    // libbotanik reads them by name, so it declares them. This site pins its
-    // values in config.h.
+    // The net_ / ntp_ / mqtt_ / geo_ parameters are the LIBRARY's rows, spliced
+    // in above by BOTANIK_LIBRARY_VARS: libbotanik reads them by name, so it
+    // declares them. This site pins its values in config.h.
 
 /** @} */
 

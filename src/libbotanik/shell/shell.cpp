@@ -355,7 +355,7 @@ namespace Botanik { namespace Shell {
                "Peaks add to ................", val,
                "every task at its worst, one beat");
 
-        // One name to go and look at, since the table is no longer printed here.
+        // One name to go and look at, since the table is the TASKS page's.
         if (busiest != nullptr && busiest->cost.runs != 0) {
             const uint32_t period = Tasks::group_period_ms(busiest->group);
             char fa[12];
@@ -471,7 +471,7 @@ namespace Botanik { namespace Shell {
                 // Flush before overflowing, so a name is never split.
                 if (n != 0 && n + 1 + len > WRAP_W) {
                     _emitf(out, sizeof(out), "%-3s %s %s",
-                           first_line ? (want ? "on" : "off") : "", 
+                           first_line ? (want ? "on" : "off") : "",
                            first_line ? ":" : " ", list);
                     first_line = false;
                     n = 0; list[0] = '\0';
@@ -535,8 +535,8 @@ namespace Botanik { namespace Shell {
                 // follows, because that is what `get` and the MONITOR page use -
                 // one line rather than making someone map between two screens.
                 _emitf(out, sizeof(out), "  %-9s %-22s %s%s",
-                    c.code ? c.code : "?",
-                    c.name ? c.name : "?",
+                    c.code() ? c.code() : "?",
+                    c.name() ? c.name() : "?",
                     Utils::format_age(age, sizeof(age), secs, false),
                     c.user_ack ? " [ack]" : "");
             }
@@ -613,7 +613,7 @@ namespace Botanik { namespace Shell {
         // whether to release one is asking the second.
         // The raw row says WHY, not just whether: "nothing has written it",
         // "past its timeout" and "outside its band" want three different next
-        // moves, and all three used to read as a bare "invalid".
+        // moves, and a bare "invalid" answers none of them.
         _value_field("Raw value", *io, h, h.live(), Vars::quality_str(h.live_quality()), u);
         // The override's is a person's choice, not a diagnosis, so it stays a
         // yes or a no.
@@ -870,8 +870,8 @@ namespace Botanik { namespace Shell {
 
         if (a == nullptr) {
             // No value: hold it where it is. The quality is the SAME default as
-            // the value form - good unless `invalid` was asked for. Freezing
-            // used to carry the current quality through, so freezing a variable
+            // the value form - good unless `invalid` was asked for. Carrying the
+            // CURRENT quality through instead would mean freezing a variable
             // nothing had written yet handed back an override reading as dead,
             // which is not what anyone typing a bare `override` means. Through
             // the bank, not the handle: the handle cannot reach the store.

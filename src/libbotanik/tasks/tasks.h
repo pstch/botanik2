@@ -175,11 +175,10 @@ namespace Botanik { namespace Tasks {
          * @brief Run every registered task's one-time init, phase-major, before
          *        the loop starts.
          *
-         * Setup used to happen lazily, on a component's first step(), which put
-         * it inside the first beat: the parameter load alone is 423 storage
-         * reads, i.e. tens of milliseconds of flash inside a
-         * 10 ms budget, reported as a boot overrun. It belongs before the beat
-         * exists.
+         * Explicit, not lazy on a component's first step(): that would put it
+         * inside the first beat, and the parameter load alone is hundreds of
+         * storage reads - tens of milliseconds of flash inside a 10 ms budget,
+         * which reads as a boot overrun. It belongs before the beat exists.
          *
          * Phase-major, like run_phase(), so init obeys the same data-flow order
          * the beat does - parameters are loaded before anything reads config.

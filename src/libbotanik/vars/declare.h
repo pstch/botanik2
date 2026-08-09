@@ -6,15 +6,14 @@
  * @brief One constexpr factory per VarScope: how a site spells a row.
  *
  * A site's variable table is a list of these calls. Each factory takes ONLY the
- * arguments its scope can use, so the things that used to be expressible and
- * meaningless are now unspellable: a relay with a plausibility band, an alarm
- * with a Modbus register, a parameter with a timeout. The fields those rows do
- * not carry are not written as zeros in the table - they are absent from the
- * call, and the factory supplies them.
+ * arguments its scope can use, so a meaningless row is unspellable rather than
+ * merely wrong: a relay with a plausibility band, an alarm with a Modbus
+ * register, a parameter with a timeout. The fields those rows do not carry are
+ * not written as zeros in the table - they are absent from the call, and the
+ * factory supplies them.
  *
- * That replaces the site-local row macros (MTR / COIL / IBOOL / IREAL / PARAM),
- * which had the same intent but lived in one site, could not be type-checked,
- * and had to be `#undef`ed after the table.
+ * Functions rather than site-local macros: these are type-checked, shared by
+ * every site, and need no `#undef` after the table.
  *
  * @section declare_flash Why constexpr, and why one return
  *

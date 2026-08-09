@@ -119,15 +119,15 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     static_assert(Botanik::Config::TERMINAL_TYPE <= (uint8_t)TerminalType::MINITEL_2,
                   "BOTANIK_TERMINAL_TYPE is not a TerminalType (0..3)");
 
-    /** @brief True for the Minitel family. 
+    /** @brief True for the Minitel family.
      *  @note Enables the PRO2 handshake below, and prevents using BS as a cursor-left shortcut */
     constexpr bool is_minitel(TerminalType t) {
         return t == TerminalType::MINITEL_1B || t == TerminalType::MINITEL_2;
     }
 
-    /** @brief Emit @p type's one-time setup handshake, once before the first render. 
-     * 
-     *  - Minitel: the PRO2 sequences above (80-col teleinformatique + lowercase keyboard + page mode). 
+    /** @brief Emit @p type's one-time setup handshake, once before the first render.
+     *
+     *  - Minitel: the PRO2 sequences above (80-col teleinformatique + lowercase keyboard + page mode).
      *  - VT100/VT102: nothing, since DECAWM-off is re-asserted on every screen establish. */
     bool terminal_setup(ByteSink& _serial, TerminalType type);
 

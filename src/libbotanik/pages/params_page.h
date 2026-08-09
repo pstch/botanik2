@@ -146,11 +146,11 @@ namespace Botanik { namespace Pages {
         /** @brief Distinct group prefixes, in table order, discovered ONCE.
          *
          *  The parameter table is fixed at build time, so the group set cannot
-         *  move - but this used to be rebuilt inside _mode_label(), which
-         *  _in_mode() calls per parameter, which _visible_count() calls per
-         *  parameter. That is a walk of the whole table squared, on every
-         *  repaint, and the table is now 148 rows. Mutable because the query
-         *  side is const and this is a cache, not state. */
+         *  move. Rebuilding it inside _mode_label() - which _in_mode() calls per
+         *  parameter, which _visible_count() calls per parameter - would be a
+         *  walk of the whole table squared on every repaint, over ~150 rows.
+         *  Mutable because the query side is const and this is a cache, not
+         *  state. */
         mutable const char* _group_name[GROUPS_MAX];
         mutable uint8_t     _group_n      = 0;
         mutable bool        _groups_ready = false;

@@ -5,8 +5,8 @@
  *
  * Each writer reserves ANSI_MAX_SEQ bytes via availableForWrite() before
  * emitting; if the whole sequence won't fit it writes nothing and returns
- * false. That guard keeps an escape from ever being split mid-sequence. 
- * 
+ * false. That guard keeps an escape from ever being split mid-sequence.
+ *
  * Callers may retry on a later redraw.
  */
 

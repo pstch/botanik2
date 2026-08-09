@@ -49,8 +49,8 @@
  * in the middle of it, and every slave on the bus would see a truncated frame -
  * which reads as a wiring fault, not a firmware one.
  *
- * Two things make that unreachable rather than merely unlikely, because the
- * claim used to rest on a comment. A `static_assert` in client.cpp proves a full
+ * Two things make that unreachable rather than merely unlikely, neither of them
+ * a comment. A `static_assert` in client.cpp proves a full
  * FC16 fits the transmit ring (MODBUS_TX_RING_BYTES), and on_step() will not
  * begin a transaction until fieldbus_tx_idle() says the ring has DRAINED - not
  * merely that it has room for one more byte. A refused byte is then impossible,

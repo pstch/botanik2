@@ -10,10 +10,10 @@
  * key. What is left here is the two behaviours a parameter has and other
  * variables do not: it persists, and a user can edit it.
  *
- * The predecessor was a parallel model - its own descriptor, its own registry,
- * and a flat byte image addressed by out_offset. That image is what let a
- * parameter overrun the buffer it lived in and be silently dropped at boot.
- * Addressing by index removes the failure mode rather than guarding it.
+ * Addressed by INDEX into the bank, never by an offset into a flat byte image:
+ * an image is what lets a parameter overrun the buffer it lives in and be
+ * silently dropped at boot, and indexing removes that failure mode rather than
+ * guarding against it.
  */
 
 #include <cstddef>                      // size_t

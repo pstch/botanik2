@@ -19,11 +19,10 @@
  *   tasks.h   hand-written  the control programs
  *   sim.h     hand-written  the simulated field
  *
- * What used to be separate files and is not any more: `descriptor.h` (one struct
- * literal, below), `commands.h` (one table, below), `alarms.h` (an alarm is a
- * SCOPE_A row in vars.h), `status.h` (a group is a name prefix; the home fields
- * moved into vars.h), `vars.cpp` (the value store is header-only) and
- * `botanik.h` (the library is reached as `libbotanik.h`).
+ * Five files, and no more: the descriptor is one struct literal below, the
+ * commands one table below, an alarm is a SCOPE_A row in vars.h, a group is a
+ * name prefix, the home fields live in vars.h, the value store is header-only,
+ * and the library is reached as `libbotanik.h`.
  *
  * `config.h` stays its own file. It CAN be folded in here - libbotanik_config.h
  * would include this header in a first pass, guarded by a macro, and read only

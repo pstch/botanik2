@@ -3,9 +3,9 @@
  * @brief Platform hooks libmbed.a expects the surrounding project to provide.
  *
  * The prebuilt libmbed.a is compiled against a small set of symbols the Arduino
- * core used to define. We link Mbed without that core, so we supply them here
- * instead. They are the *only* thing we owe it: everything else in the image is
- * ours or Mbed's.
+ * core defines. We link Mbed without that core, so we supply them here instead.
+ * They are the *only* thing we owe it: everything else in the image is ours or
+ * Mbed's.
  *
  * The reference is the core's own arm_hal_random.c.
  */

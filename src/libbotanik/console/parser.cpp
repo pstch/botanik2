@@ -201,7 +201,7 @@ namespace Botanik { namespace Terminal {
             return (Command)((int)Command::ALT_1 + (b - '1'));
         // keep 0 and the letters explicit.
         switch (b) {
-            case 0x0D: 
+            case 0x0D:
             case 0x0A:  return Command::SHIFT_ENTER;    // Alt+Enter
             case '0':   return Command::ALT_0;
             case 'b':   return Command::ALT_B;          // Alt+B (Back word)

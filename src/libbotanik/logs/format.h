@@ -107,8 +107,8 @@ namespace Botanik { namespace Logs {
      *
      *  ## Why LOG_CONT_PREFIX is 26 and not 34
      *
-     *  It does NOT line up under the start of the message (it used to claim it
-     *  did): at 26 it sits under the TOPIC, short by 6 to 12 for every non-empty
+     *  It does NOT line up under the start of the message: at 26 it sits under
+     *  the TOPIC, short by 6 to 12 for every non-empty
      *  topic. Deliberately left there. store_wrapped() takes one prefix per
      *  entry while the message column is topic-dependent, so aligning it means
      *  threading the topic through LineBuffer and its three call sites; and

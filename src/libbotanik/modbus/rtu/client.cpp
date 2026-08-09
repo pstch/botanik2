@@ -155,9 +155,9 @@ void RtuClient::_enter(State s, uint64_t now_ms) {
 }
 
 uint16_t RtuClient::_pick(uint64_t now_ms) const {
-    // One pass, scoring each block, highest score wins. The precedence used to
-    // be four sequential loops you had to read in order to know what beat what;
-    // as a table it can be read at a glance, and the bus is walked once.
+    // One pass, scoring each block, highest score wins. As a table the
+    // precedence reads at a glance and the bus is walked once; as sequential
+    // loops it would have to be read in order to know what beat what.
     //
     // The tiers are decades apart so nothing inside one can ever outrank the
     // one above: lateness is measured in whole periods and could otherwise
