@@ -265,7 +265,7 @@ namespace Botanik { namespace HAL { namespace Network {
 // POSIX sockets - the simulator backend talks to a real in-process peer.
 #include <fcntl.h>                          // fcntl / O_NONBLOCK
 #include <netinet/in.h>                     // sockaddr_in / htons / ntohs
-#include <sys/socket.h>                     // socket / connect / send / recvfrom
+#include <sys/socket.h>                     // socket / connect / send / recvfrom / setsockopt
 #include <unistd.h>                         // close
 
 namespace Botanik { namespace HAL { namespace Network {
@@ -478,6 +478,17 @@ namespace Botanik { namespace HAL { namespace Network {
         int fd = ::socket(AF_INET, SOCK_STREAM, 0);
         if (fd < 0) return -1;
         if (set_nonblock(fd) < 0) return -1;     // closed the fd already
+        // Rebind over our own TIME_WAIT. The listener itself is FD_CLOEXEC and
+        // really is gone after System::reset()'s execve - but any connection it
+        // ACCEPTED leaves a TIME_WAIT entry on the same local port, and a bind
+        // without this is refused for as long as one lingers. Which is why the
+        // slave came up on a fresh boot and not after a reset: the self-check
+        // connects, so a reset always had one to trip over.
+        //
+        // Not SO_REUSEPORT: two live listeners on one port is exactly the
+        // collision the per-instance 127/8 address below exists to prevent.
+        const int one = 1;
+        (void)::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
         // Bound to this instance's own 127/8 address, not the wildcard: several
         // sims (and several test binaries under a parallel ctest) run at once and
         // would otherwise fight over one port.
