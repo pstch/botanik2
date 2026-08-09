@@ -35,6 +35,11 @@ namespace {
         Vars::A("bbb", "BBB", -1, -1, 0, 0, 0, 801, "alarm B", ""),
     };
     // One condition with a 5 s minimum-ON hold (announce disabled).
+    // hold_on_s = 300, exactly like the platform's STACK / CPU_LOAD / CPU_JITT.
+    const Vars::Variable HOLD_ON_TABLE[] = {
+        Vars::A("hld", "HLD", 5, 5, 0, 300, 0, 805, "hold on", ""),
+    };
+
     const Vars::Variable MIN_ON_TABLE[] = {
         Vars::A("min", "MIN", -1, -1, 0, 0, 5, 802, "min on", ""),
     };
@@ -131,6 +136,91 @@ TEST_CASE("alarm: min_on_s holds a condition active after the raw bit clears") {
     step_bits(f.bank, m, 0x0, 5500);                              // 4.5 s in: still within the 5 s hold
     CHECK(m.condition(0).active == true);
     step_bits(f.bank, m, 0x0, 6500);                              // 5.5 s in: hold elapsed, now clears
+    CHECK(m.condition(0).active == false);
+}
+
+TEST_CASE("alarm: forcing a condition on and then off clears it") {
+    // How an operator actually exercises an alarm: override the row true, watch
+    // it raise, override it back to false. It has to clear - a forced alarm that
+    // will not come down is worse than one that never went up, because the next
+    // real one is now invisible under it.
+    AlarmBank f(MIN_ON_TABLE, 1);           // min_on_s = 5, the sticky case
+    Alarms::AlarmController m(&f.bank, nullptr);
+    Vars::Var v = f.bank.var(m.condition(0).ref);
+
+    m.step(0);
+    f.bank.override_set(v, Vars::from_bool(Vars::T_BOOL, true), true);
+    m.step(1000);
+    REQUIRE(m.condition(0).active == true);
+
+    // Forced back to false, still overridden - which is what `override x 0` does.
+    f.bank.override_set(v, Vars::from_bool(Vars::T_BOOL, false), true);
+    m.step(2000);
+    INFO("the minimum-on hold does not outlive a force either");
+    CHECK(m.condition(0).active == false);
+    CHECK(m.active_count() == 0);
+}
+
+TEST_CASE("alarm: releasing an override clears a condition it was holding on") {
+    // `override x off` rather than `override x 0`: the row snaps back to the
+    // live value underneath, which nothing has written, so it reads false.
+    AlarmBank f(NORMAL_TABLE, 1);
+    Alarms::AlarmController m(&f.bank, nullptr);
+    Vars::Var v = f.bank.var(m.condition(0).ref);
+
+    m.step(0);
+    f.bank.override_set(v, Vars::from_bool(Vars::T_BOOL, true), true);
+    m.step(1000);
+    REQUIRE(m.condition(0).active == true);
+
+    f.bank.override_clear(v);
+    m.step(2000);
+    CHECK(m.condition(0).active == false);
+    CHECK(m.active_count() == 0);
+}
+
+TEST_CASE("alarm: a forced alarm comes down when the force does") {
+    // The platform alarms (STACK, CPU_LOAD, CPU_JITT) carry hold_on_s = 300, so
+    // a load spike stays annunciated long enough for somebody to see it. That
+    // same latch applies when an OPERATOR forces the row: override it on, take
+    // it back off, and it holds for five more minutes with nothing asserting it.
+    //
+    // That was exactly "I forced alarm_stack and it will not come down". A
+    // forced row follows the force now: the latches smooth a real signal that
+    // flaps, and a hand-held row does not flap.
+    AlarmBank f(HOLD_ON_TABLE, 1);
+    Alarms::AlarmController m(&f.bank, nullptr);
+    Vars::Var v = f.bank.var(m.condition(0).ref);
+
+    m.step(0);
+    f.bank.override_set(v, Vars::from_bool(Vars::T_BOOL, true), true);
+    m.step(1000);
+    REQUIRE(m.condition(0).active == true);
+
+    f.bank.override_set(v, Vars::from_bool(Vars::T_BOOL, false), true);
+    m.step(2000);
+    INFO("the force is authoritative: the hold does not outlive it");
+    CHECK(m.condition(0).active == false);
+    CHECK(m.active_count() == 0);
+}
+
+TEST_CASE("alarm: hold_on_s still latches a condition nobody is forcing") {
+    // The fix above must not cost the latch its actual job - a real signal that
+    // clears immediately still stays annunciated, which is what hold_on_s is for.
+    AlarmBank f(HOLD_ON_TABLE, 1);
+    Alarms::AlarmController m(&f.bank, nullptr);
+
+    step_bits(f.bank, m, 0x1, 1000);      // a real assertion, not an override
+    REQUIRE(m.condition(0).active == true);
+
+    step_bits(f.bank, m, 0x0, 2000);      // and it clears at once
+    INFO("held for the declared 300 s, so somebody gets to see it");
+    CHECK(m.condition(0).active == true);
+
+    step_bits(f.bank, m, 0x0, 200000);
+    CHECK(m.condition(0).active == true);
+
+    step_bits(f.bank, m, 0x0, 310000);
     CHECK(m.condition(0).active == false);
 }
 

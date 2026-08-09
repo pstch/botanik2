@@ -41,12 +41,16 @@ void RtuClient::on_setup(uint64_t now_ms) {
     _publish_health();
 
     if (_logger == nullptr) return;
-    // Broken deliberately: at 80 columns the duty figure wraps mid-word, and a
-    // number an engineer reads off the boot log should not be split across a
-    // fold. The continuation lines up under the message.
+    // Two lines, and the first one has to FIT. At 80 columns the timestamp,
+    // level and topic take 37, so the message gets 43 - which "102 rows -> 22
+    // blocks on 20 device(s)" overran, wrapping mid-word into "device(" / "s)"
+    // and pushing the duty figure onto a third line. Commas instead of arrows
+    // and "devices" instead of "device(s)" is 39 characters and reads better
+    // besides. The duty is the second line because it is the number an engineer
+    // actually goes looking for, and it must not be split across a fold.
     _logger->info(Logs::SHARED_IO,
-                  "modbus: %u rows -> %u blocks on %u device(s)\n"
-                  "          %u.%u%% of the bus at %u baud",
+                  "modbus: %u rows, %u blocks, %u devices\n"
+                  "%u.%u%% of the bus at %u baud",
                   (unsigned)_plan.row_count(), (unsigned)_plan.block_count(),
                   (unsigned)_plan.device_count(),
                   (unsigned)(_plan.duty_ppm() / 10000u),

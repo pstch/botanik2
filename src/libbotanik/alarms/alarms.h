@@ -88,7 +88,15 @@ namespace Botanik { namespace Alarms {
         /** @brief Advance this condition one tick. 
          *  @note Drains the countdowns, do some edge bookkeeping, 
          *        recompute local state and announce transitions. */
-        void step(bool raw_on, uint32_t dt, uint64_t now, const AlarmSink& sink);
+        /** @brief Advance one activation.
+         *
+         *  @p forced says the row is being held by an operator override. A
+         *  forced condition follows the force immediately: the hold-on and
+         *  minimum-on latches are for smoothing a real signal that flaps, and a
+         *  hand-held row does not flap. Without it, forcing a platform alarm on
+         *  and back off left it up for its whole 300 s hold. */
+        void step(bool raw_on, bool forced, uint32_t dt, uint64_t now,
+                  const AlarmSink& sink);
 
     private:
         /** @brief The ON event is due: unannounced, enabled (on_s >= 0), and
@@ -408,7 +416,8 @@ namespace Botanik { namespace Alarms {
                 // for each condition
                 AlarmCondition& c = _conditions[i];
                 // step it on whatever its variable currently reads
-                c.step(_raw(i), dt, now, sink);
+                c.step(_raw(i), _io != nullptr && _io->var(c.ref).overridden(),
+                       dt, now, sink);
                 // count active conditions
                 if (c.active) _active_count++;
             }

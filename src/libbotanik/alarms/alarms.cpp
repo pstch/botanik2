@@ -11,13 +11,26 @@
 
 namespace Botanik { namespace Alarms {
 
-    void AlarmCondition::step(bool raw_on, uint32_t dt, uint64_t now,
+    void AlarmCondition::step(bool raw_on, bool forced, uint32_t dt, uint64_t now,
                               const AlarmSink& sink) {
         // 1. Drain the latch countdowns & refresh the hold-on delay
         hold_on_rem_ms = drain_ms(hold_on_rem_ms, dt);
         min_on_rem_ms  = drain_ms(min_on_rem_ms, dt);
-        if (raw_on && hold_on_s > 0)
+        if (raw_on && hold_on_s > 0 && !forced)
             hold_on_rem_ms = (uint32_t)hold_on_s * 1000u;
+
+        // A FORCED condition follows the force, now. The latches exist to smooth
+        // a real signal that flaps - a load spike worth annunciating for five
+        // minutes, a contact that chatters - and while an operator is holding the
+        // row by hand THEY are the signal, and it does not flap.
+        //
+        // Without this, forcing alarm_stack on and straight back off left it up
+        // for the whole 300 s hold with nothing asserting it, which is what
+        // "I forced it and it will not come down" was. Worse on the platform
+        // alarms than anywhere else, since those are the ones an operator
+        // exercises to check the annunciation path works.
+        if (forced) { hold_on_rem_ms = 0; min_on_rem_ms = 0; }
+
         bool on = raw_on || hold_on_rem_ms > 0 || min_on_rem_ms > 0;
 
         // 2. On a transition, stamp the edge and reset the per-episode bookkeeping. 
@@ -28,7 +41,8 @@ namespace Botanik { namespace Alarms {
                 on_sent  = false;
                 user_ack   = false;         // a fresh episode is unacknowledged
                 started_ms = now;           // onset, for start-time ordering
-                if (min_on_s > 0) min_on_rem_ms = (uint32_t)min_on_s * 1000u;
+                if (min_on_s > 0 && !forced)
+                    min_on_rem_ms = (uint32_t)min_on_s * 1000u;
             }
         }
         active   = on;
