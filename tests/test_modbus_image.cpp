@@ -152,6 +152,50 @@ TEST_CASE("modbus image: an active-low coil is inverted on the way out") {
 }
 
 
+TEST_CASE("modbus image: an AO row goes out through its calibration") {
+    // The arm that could vanish in a merge. An AO's wire value is its
+    // engineering value put back through the two-point span; everything else
+    // goes out as it stands. Both used to be spelled out in near-identical
+    // branches that differed in the calibration AND in whether the integer came
+    // from the float or from the row, which is why merging them needed a test
+    // rather than a reading.
+    Bus bus;
+    const Block* b = bus.first_write(false);
+    REQUIRE(b != nullptr);
+
+    // Find an AO row on the block; the reference site's are the intractors.
+    uint16_t k = 0xFFFF;
+    for (uint16_t i = 0; i < b->row_count; ++i)
+        if (bus.row(*b, i).meta()->scope == SCOPE_AO) { k = i; break; }
+    if (k == 0xFFFF) return;                    // no calibrated output here
+
+    Var h = bus.row(*b, k);
+    const Variable& d = *h.meta();
+    const AnalogCal* cal = analog_cal(d);
+    REQUIRE(cal != nullptr);
+
+    // Somewhere inside the engineering span, and not at an endpoint, so a
+    // calibration that was skipped would give a visibly different number.
+    const AnalogValues av = analog_values(&bus.bank, cal);
+    const float eng = av.eng_min + (av.eng_max - av.eng_min) * 0.25f;
+    bus.bank.override_set(h, from_f32(d.type, eng));
+
+    uint8_t sent[256];
+    const uint16_t n = collect_write(bus.bank, bus.plan, *b, sent, sizeof sent);
+    REQUIRE(n > 0);
+
+    const uint16_t off  = (uint16_t)(d.bind.reg - b->reg);
+    const uint16_t got  = rd16(sent + off * 2);
+    const uint16_t want = (uint16_t)(int64_t)av.to_raw(eng);
+
+    INFO("'" << std::string(d.name) << "' eng " << eng
+             << " -> raw " << av.to_raw(eng));
+    CHECK(got == want);
+    // And it is NOT the engineering value gone out uncalibrated, or the
+    // calibration is doing nothing and this test proves nothing.
+    if ((uint16_t)(int64_t)eng != want) CHECK(got != (uint16_t)(int64_t)eng);
+}
+
 // Saying so when a read fails
 // ===========================================================================
 

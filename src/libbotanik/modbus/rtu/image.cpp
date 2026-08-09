@@ -57,31 +57,40 @@ namespace {
         return (d.flags & Vars::F_INVERT) ? !on : on;
     }
 
-    /** @brief One register row's demand, big-endian into @p at. */
+    /** @brief A row's demand as the wire wants it: an AO's through its
+     *  calibration, everything else's as it stands. */
+    float wire_value(const Vars::Bank& io, const Vars::Variable& d, Vars::Var h) {
+        if (d.scope != Vars::SCOPE_AO) return h.value();
+        const Vars::AnalogCal* cal = Vars::analog_cal(d);
+        return (cal == nullptr) ? h.value()
+                                : Vars::analog_values(&io, cal).to_raw(h.value());
+    }
+
+    /** @brief One register row's demand, big-endian into @p at.
+     *
+     *  Two questions, asked in order, where there used to be two near-identical
+     *  arms differing in BOTH answers at once: is the value calibrated, and is
+     *  the integer form taken from the float or from the row?
+     *
+     *  The second is the one worth keeping apart. An AO's integer comes from its
+     *  calibrated float, because that is the only place the calibration exists;
+     *  every other row's comes from the row itself, because routing a large u32
+     *  or i32 through a float would round it. */
     void row_regs(const Vars::Bank& io, const Vars::Variable& d, Vars::Var h,
                   uint8_t* at) {
-        float value = h.value();
-        if (d.scope == Vars::SCOPE_AO) {
-            const Vars::AnalogCal* cal = Vars::analog_cal(d);
-            if (cal != nullptr) value = Vars::analog_values(&io, cal).to_raw(value);
-            if (is_pair(d) && d.bind.wire == Vars::T_F32) {
-                f32_to_regs(value, order_of(d), at);
-            } else if (is_pair(d)) {
-                u32_to_regs((uint32_t)value, order_of(d), at);
-            } else {
-                const uint16_t w = (uint16_t)(int32_t)value;
-                wr16(at, w);
-            }
+        // A float on the wire goes out as one, calibrated or not.
+        if (is_pair(d) && d.bind.wire == Vars::T_F32) {
+            f32_to_regs(wire_value(io, d, h), order_of(d), at);
             return;
         }
-        if (is_pair(d) && d.bind.wire == Vars::T_F32) {
-            f32_to_regs(value, order_of(d), at);
-        } else if (is_pair(d)) {
-            u32_to_regs((uint32_t)h.i(), order_of(d), at);
-        } else {
-            const uint16_t w = (uint16_t)h.i();
-            wr16(at, w);
-        }
+        // Through int64 rather than straight to unsigned: a negative float
+        // converted to uint32_t is undefined, and a calibration that has been
+        // mis-trimmed can produce one.
+        const int64_t v = (d.scope == Vars::SCOPE_AO)
+                              ? (int64_t)wire_value(io, d, h)
+                              : h.i();
+        if (is_pair(d)) u32_to_regs((uint32_t)v, order_of(d), at);
+        else            wr16(at, (uint16_t)v);
     }
 
     /** @brief Commit one digital row out of a packed-bit payload. */
