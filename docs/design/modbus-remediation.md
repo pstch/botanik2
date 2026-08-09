@@ -7,23 +7,27 @@ from the code.
 Phases are ordered so that each one is safe to stop after. Every phase ends with
 a build and the doctest suite; `make check` is the maintainer's gate.
 
-**Status.** Phase 0 is done, along with the correctness fixes marked below and
-the whole of the site register map. The rest is tracked as tasks 1-17; each
-heading below carries its task number, so the plan explains *why* and the task
-list says *what is left*. Nothing here is stale by the time you read it: if a
-heading says DONE, it is committed on `modbus-review-fixes`.
+**Status.** All nine phases are done and committed on `mb-rework`. Each heading
+below carries the task number it was tracked under, so the plan still explains
+*why* each change is shaped the way it is - read it as the record of a finished
+piece of work, not as a worklist. What remains open is tracked in the task list
+and is no longer about the findings in `modbus-review.md`.
 
 | Phase | State |
 |---|---|
 | 0 - structure | **done** - gates, includes, dead code, hygiene |
-| 1 - test scaffold | partly done - site bindings and the RTU slave; map/image/pdu are task 15 |
-| 2 - the field bus works | partly done - the register map, baud, merge gap, coil cap, signed pairs; tasks 1-7 |
-| 3 - the TCP slave | tasks 8-11 |
-| 4 - the simulated device model | partly done - FC16 and the CRC resync; task 12 |
-| 5 - transaction pacing | task 13 |
-| 6 - the readback surface | task 14 |
-| 7 - simplification | task 16 |
-| 8 - documentation | task 17 |
+| 1 - test scaffold | **done** - site bindings, the RTU slave, map/image/pdu |
+| 2 - the field bus works | **done** - register map, baud, merge gap, coil cap, signed pairs, device ceilings and alignment |
+| 3 - the TCP slave | **done** - persist queue, FC06, connection reaping |
+| 4 - the simulated device model | **done** - FC16, the CRC resync, the echo decision |
+| 5 - transaction pacing | **done** |
+| 6 - the readback surface | **done** - `modbus` command and the `SystemContext` wiring |
+| 7 - simplification | **done** - shared `response.h`, the scoring `_pick()`, ~120 lines of duplication gone |
+| 8 - documentation | **done** - this sweep |
+
+Two things landed after the plan was written and are not findings from the
+review: the twelve Temp/RH sensors (units 41-52), and the device **tags** that
+turn `dev 34 not answering` into `dev 34 (SRR/TDC/RO-4) not answering`.
 
 ---
 

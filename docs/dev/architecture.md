@@ -28,11 +28,13 @@ Under `src/libbotanik/`:
 | Path | Holds | More |
 |---|---|---|
 | `hal/` | the platform interface: clock, memory ordering, stack, watchdog, serial, storage, network transport. `simulator.h` and `opta.h` implement it | @ref dev_porting |
-| `core/` | `BotanikFirmware`, `Component`, `SystemContext`, the feature-gated stacks | this page |
+| `core/` | the BOTTOM of the stack, and only that: `Component` and `SystemContext` | this page |
+| `firmware/` | the composition root: `BotanikFirmware`, and the feature-gated stacks in `stacks.h` | this page |
 | `scheduler/` | `LoopScheduler`, the fixed-period driver and its self-instrumentation, plus the `Tasks::Registry` the beat is dispatched from and its per-task cost sampling | @ref dev_scheduler |
 | `vars/` | the variable model: descriptors, value slots, `Bank`, parameters | @ref dev_vars |
 | `scan/` | `Scan::Driver`: which control program is due, and running it | @ref int_tasks |
 | `plc/` | the POU library the programs are written in: `functions/` (stateless) and `blocks/` (stateful) | @ref int_tasks |
+| `modbus/` | the field bus and the plant network: shared vocabulary in `wire.h`/`response.h`, `rtu/` and `tcp/` for the framing and all four corners | @ref dev_modbus |
 | `alarms/` | `AlarmController`, one condition per site-declared alarm, plus the platform set | @ref dev_health |
 | `health/` | `HealthMonitor`: POST, the platform alarms, the watchdog verdict | @ref dev_health |
 | `logs/` | `Logger`, its rate limiter, and the `LogWriter` sinks | @ref dev_logging |
