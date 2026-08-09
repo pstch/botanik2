@@ -48,8 +48,20 @@ namespace Botanik { namespace Pages {
             // be yanked at the shell prompt and the other way about. Bound
             // although they delete, because CTRL_Y brings the text back.
             case Command::CTRL_K:      _editor.kill_to_line_end();         break;
-            case Command::CTRL_W:      _editor.kill_word_back();           break;
             case Command::CTRL_Y:      _editor.yank();                     break;
+
+            // Mark and region: ^Space anchors, ^W cuts what is highlighted (and
+            // the word before the cursor when nothing is), Alt+W copies it.
+            case Command::CTRL_SPACE:
+                if (_editor.mark_active()) _editor.clear_mark();
+                else                       _editor.set_mark();
+                break;
+            case Command::CTRL_G:      _editor.clear_mark();               break;
+            case Command::CTRL_W:
+                if (_editor.mark_active()) _editor.kill_region();
+                else                       _editor.kill_word_back();
+                break;
+            case Command::ALT_W:       _editor.copy_region();              break;
 
             case Command::CTRL_O:      _save();                            break;
 

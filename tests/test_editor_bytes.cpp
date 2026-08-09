@@ -413,3 +413,44 @@ TEST_CASE("editor bytes: a long jump repaints the window, not the note") {
     CHECK(cost > 0);
     CHECK(cost <= 220);         // eight rows; the note is sixty
 }
+
+// The region re-stamps every visible row on every motion, which is only
+// affordable because present() diffs CELLS: dragging the selection one character
+// flips one cell's attribute and the other 600-odd are identical. If this budget
+// goes, the editor has quietly become a full-screen renderer on a 4800-baud link.
+TEST_CASE("editor bytes: extending a region costs a cell, not a window") {
+    EditorBytes f;
+    f.as_viewport(8);
+    f.fill_rows(20);
+    f.console.terminal().set_cursor_visible(true);
+
+    f.editor.set_mark();
+    f.flush();                                          // the anchor cell
+
+    for (int i = 0; i < 4; i++) {
+        f.editor.move_left();
+        size_t cost = f.flush().size();
+        CHECK(cost > 0);
+        CHECK(cost <= 30);      // an SGR pair, a glyph, a cursor park
+    }
+    // Releasing it un-inverts the run: one row's worth, not eight.
+    f.editor.clear_mark();
+    size_t release = f.flush().size();
+    CHECK(release > 0);
+    CHECK(release <= 40);
+    CHECK(f.flush().empty());   // and it converged
+}
+
+// The other half of that claim: with no mark, _sync_region() must return without
+// touching a cell, so an ordinary edit costs exactly what it did before there was
+// such a thing as a region. Same shape as the appending case at the top.
+TEST_CASE("editor bytes: no mark means the region pass is not there") {
+    EditorBytes f;
+    f.type("hello");
+    f.flush();
+
+    size_t cost = f.cost_of_type("!");
+    CHECK(cost > 0);
+    CHECK(cost <= 20);
+    CHECK(f.flush().empty());
+}

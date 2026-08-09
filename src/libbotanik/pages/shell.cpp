@@ -86,8 +86,21 @@ namespace Botanik { namespace Pages {
 
             // Kill / yank
             case Command::CTRL_K:     _editor.kill_to_line_end();   break;
-            case Command::CTRL_W:     _editor.kill_word_back();     break;
             case Command::CTRL_Y:     _editor.yank();               break;
+
+            // Mark and region. Ctrl-W kills the region when there is one and
+            // falls back to the word before the cursor when there is not, which
+            // is what makes the mark optional rather than a mode.
+            case Command::CTRL_SPACE:
+                if (_editor.mark_active()) _editor.clear_mark();
+                else                       _editor.set_mark();
+                break;
+            case Command::CTRL_G:     _editor.clear_mark();         break;
+            case Command::CTRL_W:
+                if (_editor.mark_active()) _editor.kill_region();
+                else                       _editor.kill_word_back();
+                break;
+            case Command::ALT_W:      _editor.copy_region();        break;
 
             // Cursor movement
             case Command::LEFT:

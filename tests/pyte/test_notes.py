@@ -105,6 +105,35 @@ def test_notes_kill_and_yank(spawn):
         "^K ate the line above it"
 
 
+def test_notes_region_kill_and_yank(spawn):
+    """^Space anchors a region, ^W takes it, ^Y puts it back - and an edit in
+    between drops the mark rather than leaving it pointing at moved text."""
+    term = notes(spawn)
+    _type_lines(term, ["valve three sticks", "pump B runs hot"])
+
+    # Anchor at the end of the second line, walk to its start: the region is
+    # that whole line.
+    term.send(keys.CTRL_SPACE + keys.CTRL_A)
+    term.send(keys.CTRL_W)
+    assert term.wait_screen("pump B runs hot", present=False), "^W did not cut the region"
+    assert term.screen.display[1].rstrip() == "> valve three sticks", \
+        "the region reached past the line it was anchored on"
+
+    term.send(keys.CTRL_Y)
+    assert term.wait_screen("pump B runs hot"), "^Y did not yank the region back"
+
+    # A mark that an edit has invalidated must not survive it: ^W here is a word
+    # kill, not a second cut of the old region.
+    term.send(keys.CTRL_SPACE + keys.CTRL_A)
+    term.send(keys.text("x"))
+    assert term.wait_screen("xpump B runs hot"), "the edit never landed"
+    term.send(keys.CTRL_W)
+    # Word kill: the "x" goes and the line survives. Had the stale region been
+    # cut instead, the whole line would have gone with it.
+    assert term.wait_screen("> pump B runs hot"), \
+        "^W after an edit cut the stale region instead of a word"
+
+
 def test_notes_survives_a_reboot(spawn, tmp_path):
     """The note is persisted - the whole point of it over a scratch buffer."""
     store = tmp_path / "notes_store"

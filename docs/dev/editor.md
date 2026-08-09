@@ -156,6 +156,37 @@ always restores exactly what the kill removed. Removing more than was stored was
 `kill_to_line_end()`'s bug: past 128 bytes it deleted a tail that `Ctrl+Y` could not put
 back.
 
+### The mark and the region
+
+`Ctrl+Space` anchors a mark; the span between it and the cursor is drawn reverse-video and
+`Ctrl+W` / `Alt+W` act on it. Two things make that cheap enough for a 4800-baud link.
+
+**The highlight rides the cell diff, not the splice.** A back-buffer cell is a 7-bit glyph
+plus `CELL_INV` (`console/terminal.h`), so reverse-video is content as far as `present()`
+is concerned: re-stamp the visible rows through `_new_row()` and the diff emits only the
+cells whose attribute flipped - one cell for one character of selection. `_write_row_content()`
+splits a row into up to three pen runs, the same shape as
+`ScrollTablePage::_draw_selected_line()`.
+
+The region is deliberately NOT taught to `_splice_row()`. That path writes partial runs with
+`insert=true`, which slides `CELL_INV` bits sideways along with the glyphs, and its
+`delete_chars` / `clear_to_eol` stamp blanks with whatever pen is current. A highlight
+cannot survive it, and making it try would mean reopening the reconciliation.
+
+**`_sync_region()` is a no-op unless the region moved.** It compares the region against
+`_painted_from`/`_painted_to`/`_painted_active` and returns without touching a cell when
+they agree - which is every call with no mark, so editing without one costs exactly what it
+did before the region existed. It hangs off two places: the end of `_settle_cursor()` (a
+motion is the only thing that moves the region's far end, and nothing else on that path
+repaints anything) and the end of `_reconcile()` (after `_grow_editor()`/`_shrink_editor()`
+have done their `scroll_region()`, so the screen matches `_layout` on return - the invariant
+the next `_snapshot_pre()` assumes).
+
+**The mark is transient**: `insert_characters()` and `remove_characters()` drop it, as do
+`_reset_state()` and `commit_loaded()`. A mark that survived edits would need shifting by
+every insert and clamping by every delete, and a region that has drifted off its text cuts
+the wrong bytes silently. `tests/test_editor_bytes.cpp` pins both halves of the cost claim.
+
 ### Capacity
 
 Buffer and row array are supplied by the owner (`EditorStorage` / `EditorBuffers<BUF,ROWS>`),

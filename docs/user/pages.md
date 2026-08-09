@@ -215,8 +215,10 @@ unsaved.
 | `Ctrl+O` | write the note to flash |
 | `UP` / `DOWN` | move the cursor (there is no history here) |
 | `Ctrl+K` | cut to end of line; on the line end, joins the next line up |
-| `Ctrl+W` | cut the word before the cursor |
-| `Ctrl+Y` | paste back what was cut |
+| `Ctrl+Space` | drop a mark, starting a selection; `Ctrl+G` releases it |
+| `Ctrl+W` | cut the selection, or the word before the cursor when there is none |
+| `Alt+W` | copy the selection |
+| `Ctrl+Y` | paste back what was cut or copied |
 
 `Ctrl+U` is **not** bound here: on a page whose whole content is the buffer,
 clearing it is one keystroke from losing the lot, and nothing puts it back. The

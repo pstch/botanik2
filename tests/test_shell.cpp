@@ -182,6 +182,111 @@ TEST_CASE("kill ring: yank with an empty ring is a no-op") {
 }
 
 // ---------------------------------------------------------------------------
+// Mark and region (Ctrl-Space anchors, Ctrl-W / Alt-W act on the span).
+// ---------------------------------------------------------------------------
+
+TEST_CASE("region: Ctrl-W kills the span between the mark and the cursor") {
+    ShellFixture f;
+    f.editor.insert_characters("set cli_setpoint 21", 19);
+    f.editor.move_to_line_start();
+    for (int i = 0; i < 4; ++i) f.editor.move_right();   // before "cli_"
+    f.editor.set_mark();
+    f.editor.move_word_right();                          // over "cli_setpoint "
+    CHECK(f.editor.mark_active());
+    CHECK(f.editor.kill_region());
+    CHECK(f.line() == "set 21");
+    CHECK_FALSE(f.editor.mark_active());                 // the region is gone with it
+    f.editor.move_to_line_start();
+    CHECK(f.editor.yank());
+    CHECK(f.line() == "cli_setpoint set 21");
+}
+
+TEST_CASE("region: the mark may sit on either side of the cursor") {
+    ShellFixture f;
+    f.editor.insert_characters("alpha beta gamma", 16);
+    f.editor.set_mark();                                 // anchor at the END
+    for (int i = 0; i < 6; ++i) f.editor.move_left();    // cursor before "gamma"
+    uint16_t from = 0, to = 0;
+    REQUIRE(f.editor.region(from, to));
+    CHECK(from == 10);                                   // ordered, whichever way
+    CHECK(to == 16);
+    CHECK(f.editor.kill_region());
+    CHECK(f.line() == "alpha beta");
+}
+
+TEST_CASE("region: an edit drops the mark, so Ctrl-W is a word kill again") {
+    ShellFixture f;
+    f.editor.insert_characters("alpha beta", 10);
+    f.editor.move_to_line_start();
+    f.editor.set_mark();
+    f.editor.move_to_line_end();
+    f.editor.insert_characters("!", 1);                  // ...and there it goes
+    CHECK_FALSE(f.editor.mark_active());
+    CHECK(f.editor.kill_word_back());                    // what the page falls back to
+    CHECK(f.line() == "alpha ");
+}
+
+TEST_CASE("region: Alt-W copies without removing, and releases the mark") {
+    ShellFixture f;
+    f.editor.insert_characters("pump B runs hot", 15);
+    for (int i = 0; i < 3; ++i) f.editor.move_left();
+    f.editor.set_mark();
+    f.editor.move_to_line_end();
+    CHECK(f.editor.copy_region());
+    CHECK(f.line() == "pump B runs hot");                // untouched
+    CHECK_FALSE(f.editor.mark_active());
+    f.editor.move_to_line_start();
+    CHECK(f.editor.yank());
+    CHECK(f.line() == "hotpump B runs hot");
+}
+
+TEST_CASE("region: with no mark there is no region, and Alt-W does nothing") {
+    ShellFixture f;
+    f.editor.insert_characters("abc", 3);
+    uint16_t from = 99, to = 99;
+    CHECK_FALSE(f.editor.region(from, to));
+    CHECK(from == 99);                                   // left untouched
+    CHECK_FALSE(f.editor.copy_region());
+    CHECK(f.line() == "abc");
+}
+
+TEST_CASE("region: an empty one copies nothing but still releases the mark") {
+    ShellFixture f;
+    f.editor.insert_characters("abc", 3);
+    f.editor.set_mark();                                 // mark == cursor
+    CHECK_FALSE(f.editor.copy_region());
+    CHECK_FALSE(f.editor.mark_active());
+    f.editor.set_mark();
+    CHECK_FALSE(f.editor.kill_region());
+    CHECK(f.line() == "abc");
+    CHECK_FALSE(f.editor.mark_active());
+}
+
+TEST_CASE("region: a span across a newline takes the newline with it") {
+    ShellFixture f;
+    f.editor.insert_characters("one\ntwo", 7);
+    f.editor.move_to_start();
+    for (int i = 0; i < 2; ++i) f.editor.move_right();   // after "on"
+    f.editor.set_mark();
+    f.editor.move_to_end();
+    CHECK(f.editor.kill_region());
+    CHECK(f.line() == "on");
+    CHECK(f.editor.yank());
+    CHECK(f.line() == "one\ntwo");
+}
+
+TEST_CASE("region: clearing the mark leaves the text alone") {
+    ShellFixture f;
+    f.editor.insert_characters("alpha beta", 10);
+    f.editor.set_mark();
+    f.editor.move_to_line_start();
+    f.editor.clear_mark();                               // Ctrl-G
+    CHECK_FALSE(f.editor.mark_active());
+    CHECK_FALSE(f.editor.kill_region());
+    CHECK(f.line() == "alpha beta");
+}
+
+// ---------------------------------------------------------------------------
 // The variable commands, driven against a real bank so the output is the real
 // output.
 // ---------------------------------------------------------------------------

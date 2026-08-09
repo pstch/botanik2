@@ -18,9 +18,20 @@ commands the site adds.
 | `BACKSPACE` / `Ctrl+H`, `DELETE` / `Ctrl+D` | delete backwards / forwards |
 | `Ctrl+U` | clear the line |
 | `Ctrl+K` | cut from the cursor to end of line (on the line end, joins the next line up) |
-| `Ctrl+W` | cut the word before the cursor |
-| `Ctrl+Y` | paste back what was cut |
+| `Ctrl+Space` | drop a mark here, starting a selection (press again to release) |
+| `Ctrl+G` | release the mark |
+| `Ctrl+W` | cut the selection, or the word before the cursor when there is none |
+| `Alt+W` | copy the selection without cutting it |
+| `Ctrl+Y` | paste back what was cut or copied |
 | `Ctrl+C` | abandon the line (it stays echoed above) |
+
+**Selecting.** `Ctrl+Space` anchors a **mark**; everything between it and the
+cursor is the selection, shown in reverse video as you move. `Ctrl+W` cuts it,
+`Alt+W` copies it, `Ctrl+G` calls it off. The mark is dropped by any edit - type
+a character and the selection is gone - so `Ctrl+W` is a word-kill again unless
+you have just marked something. That is deliberate: a selection that survived
+edits would drift off the text it was pointing at, and the next `Ctrl+W` would
+take the wrong bytes without saying so.
 
 History holds the last 8 commands; consecutive duplicates are not stored, and a line
 you were part-way through typing is kept as you scroll away from it.

@@ -106,6 +106,12 @@ CASES = {
          keys.CTRL_A, keys.CTRL_Y],
         ["botanik> hello worldecho"]),
 
+    # A region kill: ^Space anchors, the motion drags the span, ^W takes it.
+    "kill_region": (
+        [b"echo hello world", keys.CTRL_A, keys.RIGHT * 5,
+         keys.CTRL_SPACE, keys.RIGHT * 6, keys.CTRL_W],
+        ["botanik> echo world"]),
+
     # Empty the buffer back to a single PS1 row (row count shrinks to 1).
     "clear_to_empty": (
         [RULER.encode(), keys.CTRL_U],
@@ -118,6 +124,47 @@ def test_reconcile(term, sends, rows):
     for chunk in sends:
         term.send(chunk)
     assert_editor(term, *rows)
+
+
+def _prompt_row(term):
+    """Screen row the PS1 prompt is on (the editor is bottom-anchored)."""
+    for y, line in enumerate(term.screen.display):
+        if line.startswith("botanik>"):
+            return y
+    raise AssertionError("no prompt row\n" + term.snapshot())
+
+
+def _reversed_span(term, row):
+    """[first, last) columns drawn reverse-video on `row`, or None."""
+    cells = term.screen.buffer[row]
+    cols = [x for x in range(term.screen.columns) if cells[x].reverse]
+    return (cols[0], cols[-1] + 1) if cols else None
+
+
+def test_region_is_highlighted(term):
+    """The region is reverse-video on the wire, not just a pair of offsets.
+
+    Asserted on pyte's per-cell attributes rather than on the text, because that
+    is the whole mechanism: the editor re-stamps its rows and the terminal's cell
+    diff turns that into the few SGR runs that actually changed.
+    """
+    term.send(b"echo hello world")
+    assert_editor(term, "botanik> echo hello world")
+    row = _prompt_row(term)
+    assert _reversed_span(term, row) is None, "nothing should be highlighted yet"
+
+    # Anchor after "echo ", then drag over "hello ". PS1 is 9 columns.
+    term.send(keys.CTRL_A + keys.RIGHT * 5 + keys.CTRL_SPACE)
+    term.send(keys.RIGHT * 6)
+    term.poll(lambda: _reversed_span(term, row) == (14, 20))
+    assert _reversed_span(term, row) == (14, 20), \
+        "the region did not land on the columns holding 'hello '"
+
+    # ^G releases it and the row goes plain again, text untouched.
+    term.send(keys.CTRL_G)
+    term.poll(lambda: _reversed_span(term, row) is None)
+    assert _reversed_span(term, row) is None, "^G left the highlight behind"
+    assert_editor(term, "botanik> echo hello world")
 
 
 def test_taller_than_screen(term):

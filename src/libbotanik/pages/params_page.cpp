@@ -351,7 +351,13 @@ namespace Botanik { namespace Pages {
                 _editor.kill_to_line_end();                         break;
             case Command::CTRL_W:
                 if (_edit_error) _clear_error();
-                _editor.kill_word_back();                           break;
+                if (_editor.mark_active()) _editor.kill_region();
+                else                       _editor.kill_word_back(); break;
+            case Command::CTRL_SPACE:
+                if (_editor.mark_active()) _editor.clear_mark();
+                else                       _editor.set_mark();      break;
+            case Command::CTRL_G:  _editor.clear_mark();             break;
+            case Command::ALT_W:   _editor.copy_region();            break;
             case Command::CTRL_Y:
                 if (_edit_error) _clear_error();
                 _editor.yank();                                     break;

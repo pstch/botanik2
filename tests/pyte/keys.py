@@ -49,6 +49,8 @@ SHIFT_DOWN = ESC + b"[1;2B"
 # Control bytes.
 BACKSPACE = b"\x7f"
 CTRL_A = b"\x01"             # line start
+CTRL_G = b"\x07"             # release the mark
+CTRL_SPACE = b"\x00"         # set the mark (the region's anchor)
 CTRL_K = b"\x0b"             # cut to end of line, into the kill ring
 CTRL_L = b"\x0c"             # console-level full repaint, chrome included (console.cpp)
 CTRL_O = b"\x0f"             # NOTES: write the note out (nano's key, not ^S/XOFF)
