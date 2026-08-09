@@ -3,31 +3,43 @@
 import keys
 from normalize import drop_log_lines, strip_noise
 
-# Final markers of the async boot handshake (DNS -> NTP -> MQTT). Reaching both
-# is what "booted" means here, so a test acts on a firmware that has finished it
-# rather than one still mid-flight.
-NET_BOOT_DONE = ("MQTT connected", "NTP synced")
-
-
-def boot(spawn, **kwargs):
-    """Launch a sim and wait for boot, network handshake included."""
-    kwargs.setdefault("watch", NET_BOOT_DONE)  # latch the markers from the first byte
-    term = spawn(**kwargs)
-    # Asserted, not merely waited on: a marker the sim can no longer produce
-    # would otherwise burn the whole budget in every test and still pass, which
-    # is exactly what an unreachable mock broker once did.
-    assert term.wait_for(NET_BOOT_DONE), (
-        f"network boot never completed; saw {sorted(term._seen)}\n"
-        f"screen was:\n{term.snapshot()}")
-    return term
-
-
 # The status bar renders the ACTIVE tab as "N:NAME" and the rest as bare digits,
 # so the label is both the cheapest thing to sync a page switch on and the one
 # marker every page is guaranteed to have.
 TABS = {keys.ALT_1: "1:HOME", keys.ALT_2: "2:SHELL", keys.ALT_3: "3:LOGS",
         keys.ALT_4: "4:ALARMS", keys.ALT_5: "5:PARAMS", keys.ALT_6: "6:MONITOR",
         keys.ALT_7: "7:TASKS", keys.ALT_8: "8:NOTES"}
+
+_boot_failed = None            # first boot failure in this file, if any
+
+
+def boot(spawn, **kwargs):
+    """Launch a sim and wait for the console to come up.
+
+    Synced on the status bar's tab strip, which is chrome: always on screen, on
+    every page, for as long as the firmware lives.
+
+    It used to wait for the handshake's log lines ("NTP synced" / "MQTT
+    connected") instead, so that a late one could not land in a later page's log
+    tail. Goldens drop log rows now, so nothing needs that - and it made every
+    boot in the suite depend on catching two TRANSIENT lines in a 7-row tail. On
+    a busy console the greenhouse's alarm churn scrolls them past unpainted, and
+    the whole file then failed against a firmware whose network was verifiably
+    fine. test_page_behaviour asks `net` for that state instead.
+    """
+    global _boot_failed
+    # A firmware that cannot start cannot start for the next test either, and
+    # paying the full wait once per test is how a broken build turns a 4-second
+    # suite into a quarter of an hour. Report the first one and short-circuit the
+    # rest: every test still fails, and says the same thing.
+    if _boot_failed is not None:
+        raise AssertionError(f"not retrying: {_boot_failed}")
+
+    term = spawn(**kwargs)
+    if not term.wait_screen(TABS[keys.ALT_1]):
+        _boot_failed = "console never came up (no status bar)"
+        raise AssertionError(f"{_boot_failed}\nscreen was:\n{term.snapshot()}")
+    return term
 
 
 def goto(term, page_key, marker=None):
@@ -44,9 +56,25 @@ def goto(term, page_key, marker=None):
     return term
 
 
-def shell(spawn, **kwargs):
-    """Boot and switch to the SHELL page, ready for editor input."""
-    return goto(boot(spawn, **kwargs), keys.ALT_2)
+def shell(spawn, quiet_logs=False, **kwargs):
+    """Boot and switch to the SHELL page, ready for editor input.
+
+    `quiet_logs` runs `logs off` first, and a test that asserts on a command's
+    REPLY wants it: the reply and the greenhouse's alarm churn compete for the
+    same throttled 4800-baud console, and under host load the churn wins - the
+    reply is never painted and the assertion fails against a firmware that
+    answered correctly.
+
+    Off by default because it is not free: it puts two lines in the transcript,
+    which a test asserting the whole editor screen (test_shell_reconcile) counts
+    as content. Those tests drop log rows from the comparison anyway, so the
+    flood costs them nothing but bytes.
+    """
+    term = goto(boot(spawn, **kwargs), keys.ALT_2)
+    if quiet_logs:
+        term.send(b"logs off" + keys.ENTER)
+        assert term.wait_screen("output disabled"), "`logs off` did not report"
+    return term
 
 
 # The SHELL page's chrome once normalize.py has masked the volatile cells. Both

@@ -23,30 +23,51 @@ from normalize import (normalize_lines, meaningful_lines, strip_noise,
 COLS, ROWS = 80, 24                       # matches AnsiTerminal(..., 80, 24, ...) in main.cpp
 GOLDEN_DIR = Path(__file__).parent / "golden"
 
-# A wait ends once the screen has STOPPED MOVING for one of these, in host
-# seconds. They are deliberately generous: the suite is CPU-bound, and a box
-# running a build alongside it has been measured taking 7x longer per test, so a
-# budget tight enough to be a timing assertion is a budget that fails correct
-# runs. None of these is ever reached by a passing test - they only bound how
-# long a genuinely stuck wait takes to report.
+# Every wait is bounded twice, and a test must never depend on either being hit:
 #
-# This USED to be denominated in the sim's own clock, read off the status bar, on
-# the theory that a budget measured in the observed thing scales with load by
-# itself. It does not, and the whole apparatus was wall time in disguise: the
-# displayed clock is steady_clock * BOTANIK_TIME_SCALE (hal/simulator.h), so it
-# races ahead at 50x whether or not the starved firmware executed a single beat.
-# 90 sim-seconds was 1.8 s of wall time, always, and that is what kept failing a
-# different screen test on every loaded run. Host seconds, honestly labelled, are
-# the same rule without the ceremony - and without a clock that steps backwards
-# on an epoch re-latch, or resets under a test's feet on a reboot.
+#   IDLE  - give up once the screen has stopped moving for this long. The fast
+#           path out of a wait for something that is never coming.
+#   CAP   - give up regardless. The screen moving is NOT evidence that the thing
+#           being waited for is on its way: a page with a live log tail repaints
+#           forever, so on a firmware whose boot handshake never completes the
+#           idle rule alone never fires and the wait runs to the end of time.
+#           That is exactly what happened, and a suite that hangs is worse than
+#           one that fails - it cannot even tell you what broke.
 #
-# Measured on time.monotonic(), never time.time(). Suspend the box mid-suite and
-# the wall clock leaps forward on resume, ending every wait in flight on the spot
-# (one soak run here reported 19.9 hours). CLOCK_MONOTONIC does not count time
-# spent suspended, so the waits simply carry on where they left off.
+# Both in host seconds on time.monotonic(). Suspend the box mid-suite and
+# time.time() leaps forward on resume, ending every wait in flight (one soak run
+# here reported 19.9 hours); CLOCK_MONOTONIC does not count suspended time.
+#
+# Host seconds, and not the sim's own clock, because that clock is not a measure
+# of the firmware's progress. It reads boot_epoch + uptime, and the sim
+# re-derives boot_epoch from the host clock (utils/time.cpp), which cancels the
+# dilation exactly: measured, the status bar advances 21 s in 20 s of wall time
+# while the uptime beside it advances 200 s in 4. The budget denominated in it
+# was therefore a wall-clock budget with a 2-second sawtooth on top, firing at
+# unpredictable moments - which is what used to fail a different screen test on
+# every loaded run.
+#
+# The two do different jobs and must be sized differently. IDLE is a HEURISTIC -
+# "nothing has happened for a while, so probably nothing will" - and it cannot
+# tell a stuck firmware from a starved one: a sim getting a fraction of a core
+# legitimately paints nothing for seconds at a time. Tightening it from 15 s to
+# 3 s to make failures quicker false-failed four runs in six against a sim known
+# to be good. So IDLE stays generous, and CAP is what actually bounds a wait.
+#
+# Measured, for sizing: a healthy boot waits 0.10 s (0.36 s under 8x CPU load),
+# and a whole suite run against a healthy sim has stretched to 457 s on a box
+# also running another build and test suite. The cap is 30 s - two orders of
+# magnitude over the nominal wait, over any contention seen, and still a bound.
+#
+# What keeps a broken build from paying the cap 22 times is helpers.boot(): it
+# reports the first failure and short-circuits the rest, so broken firmware costs
+# one cap per file rather than one per test.
 WAIT_IDLE_S = float(os.environ.get("BOTANIK_PYTE_WAIT_IDLE", "15.0"))
+WAIT_CAP_S = float(os.environ.get("BOTANIK_PYTE_WAIT_CAP", "30.0"))
 MATCH_IDLE_S = float(os.environ.get("BOTANIK_PYTE_MATCH_IDLE", "4.0"))
+MATCH_CAP_S = float(os.environ.get("BOTANIK_PYTE_MATCH_CAP", "20.0"))
 SETTLE_IDLE_S = float(os.environ.get("BOTANIK_PYTE_SETTLE_IDLE", "0.2"))
+SETTLE_CAP_S = float(os.environ.get("BOTANIK_PYTE_SETTLE_CAP", "5.0"))
 
 
 def pytest_addoption(parser):
@@ -134,20 +155,23 @@ class Term:
 
     # -- synchronization -----------------------------------------------------
 
-    def poll(self, done, idle_s=WAIT_IDLE_S):
-        """Pump until `done()`, or until the screen has been still for `idle_s`.
+    def poll(self, done, idle_s=WAIT_IDLE_S, cap_s=WAIT_CAP_S):
+        """Pump until `done()`, the screen is still for `idle_s`, or `cap_s` passes.
 
         The one wait in the harness: settle(), wait_for(), wait_screen() and the
-        golden compare are this loop with a different predicate.
+        golden compare are this loop with a different predicate. Both bounds are
+        real - see the note on the budgets. Returns done().
         """
         prev = self.view()
-        idle_since = time.monotonic()
+        now = time.monotonic()
+        idle_since, deadline = now, now + cap_s
         while not done():
             self._pump(0.02)
             cur = self.view()
+            now = time.monotonic()
             if cur != prev:
-                prev, idle_since = cur, time.monotonic()
-            elif time.monotonic() - idle_since >= idle_s:
+                prev, idle_since = cur, now
+            if now - idle_since >= idle_s or now >= deadline:
                 return done()
         return True
 
@@ -177,7 +201,7 @@ class Term:
                 last, changed_at = now, time.monotonic()
             return changed_at is not None and time.monotonic() - changed_at >= quiet
 
-        self.poll(still, SETTLE_IDLE_S)
+        self.poll(still, SETTLE_IDLE_S, SETTLE_CAP_S)
 
     def wait_for(self, needles):
         """Pump until every string in `needles` HAS BEEN on screen.
@@ -294,7 +318,7 @@ def assert_screen(request):
         # with wait_for() instead, as test_logs does.
         want = drop_log_lines(meaningful_lines(clip(path.read_text().split("\n"))))
         got = lambda: drop_log_lines(strip_noise(clip(term.view())))
-        if term.poll(lambda: got() == want, MATCH_IDLE_S):
+        if term.poll(lambda: got() == want, MATCH_IDLE_S, MATCH_CAP_S):
             return
         diff = "".join(difflib.unified_diff(
             path.read_text().splitlines(keepends=True),

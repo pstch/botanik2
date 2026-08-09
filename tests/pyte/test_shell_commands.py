@@ -17,7 +17,7 @@ def _run(term, line):
 
 
 def test_get_and_set(spawn):
-    term = shell(spawn)
+    term = shell(spawn, quiet_logs=True)
     _run(term, b"help")
     assert term.wait_for(("read a variable", "list variables", "edit a parameter")), \
         "help did not list get/list/set"
@@ -35,14 +35,14 @@ def test_get_and_set(spawn):
 
 
 def test_set_refuses_a_non_parameter(spawn):
-    term = shell(spawn)
+    term = shell(spawn, quiet_logs=True)
     _run(term, b"set grid_L1_V 10")
     assert term.wait_for("not a parameter"), "set accepted a sensor"
     assert term.wait_for("override"), "set did not point at override"
 
 
 def test_override(spawn):
-    term = shell(spawn)
+    term = shell(spawn, quiet_logs=True)
     _run(term, b"override list")
     assert term.wait_for("none active"), "fresh boot reported an override"
 
@@ -75,7 +75,7 @@ def test_override(spawn):
 
 
 def test_control(spawn):
-    term = shell(spawn)
+    term = shell(spawn, quiet_logs=True)
     _run(term, b"control")                       # bring-up hands control over
     assert term.wait_for("control: enabled"), "control not enabled after boot"
 
@@ -92,7 +92,7 @@ def test_control_disable_leaves_an_actuator_commandable(spawn):
     """`control disable` stops the control PROGRAMS, not you: with the scan
     inhibited an override is the only thing that can move an actuator, which is
     the whole reason to type it before working on the plant."""
-    term = shell(spawn)
+    term = shell(spawn, quiet_logs=True)
     _run(term, b"control disable")
     assert term.wait_for("by hand"), "control disable did not mention overrides"
 
@@ -104,7 +104,7 @@ def test_control_disable_leaves_an_actuator_commandable(spawn):
 
 def test_list_filters_by_prefix(spawn):
     """Variables are named by domain, so a prefix is the subsystem view."""
-    term = shell(spawn)
+    term = shell(spawn, quiet_logs=True)
     _run(term, b"list grid_L1_")
     assert term.wait_for("grid_L1_V"), "prefix list missed a matching variable"
 
@@ -123,7 +123,7 @@ def test_features(spawn):
     empty by construction; asserting it prints "(none)" is what still proves both
     partitions render.
     """
-    term = shell(spawn)
+    term = shell(spawn, quiet_logs=True)
     _run(term, b"features")
     assert term.wait_for(("console", "mqtt", "sun_tracker",
                           "modbus_rtu_client", "modbus_tcp_server")), \

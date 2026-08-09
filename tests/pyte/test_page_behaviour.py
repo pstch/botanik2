@@ -12,7 +12,7 @@ group is page state the next test would inherit.
 import re
 
 import keys
-from helpers import boot, goto
+from helpers import boot, goto, shell
 
 # HOME's rows 16+ are a live log tail the greenhouse floods; the widget rows are
 # the comparable part. The same clip test_pages.py uses, against the same golden.
@@ -31,6 +31,27 @@ def test_home_after_reset(spawn, assert_screen):
     goto(term, keys.ALT_2)                       # SHELL
     term.send(b"reset" + keys.ENTER)
     assert_screen(term, "page_home", rows=HOME_WIDGET)
+
+
+def test_network_comes_up(spawn):
+    """The DNS -> NTP -> MQTT handshake finishes, per the firmware's own report.
+
+    Asked with `net` rather than watched for in the boot log. The log lines are
+    transient - two rows in a 7-row tail that the greenhouse's alarm churn
+    scrolls past, and on a busy console they can go unpainted on a firmware whose
+    network is perfectly healthy, which is exactly what they were doing here.
+    `net` prints current state on demand, so this asks a question that has an
+    answer instead of hoping to catch a line going by.
+    """
+    term = shell(spawn, quiet_logs=True)
+    term.send(b"net" + keys.ENTER)
+    # The report's LAST row, so the wait covers the whole of it: at 4800 baud a
+    # dozen rows take several frames, and syncing on the first one reads a
+    # half-painted answer.
+    assert term.wait_screen("MQTT broker"), "`net` did not finish printing"
+    report = "\n".join(term.screen.display)
+    for want in ("online", "synced", "ready"):
+        assert want in report, f"network not up: no '{want}' in\n{report}"
 
 
 def test_logs_marks(spawn):
@@ -70,18 +91,20 @@ def test_monitor_group_modes(spawn):
     # moves whenever either does. Read the group entered rather than predict it.
     assert term.wait_screen("[all]"), "the monitor did not open on the all-groups view"
 
+    # Poll for a settled group name rather than reading one the instant "[all]"
+    # goes: the footer repaints a cell at a time, so the first frame without
+    # "[all]" can still hold half of the new label.
     term.send(keys.SPACE)
-    assert term.wait_screen("[all]", False), "SPACE did not leave the all-groups view"
+    assert term.poll(lambda: _group(term) not in (None, "all")), \
+        "SPACE did not enter a group"
     entered = _group(term)
-    assert entered not in (None, "all"), "SPACE did not enter a group"
 
     term.send(keys.LEFT)
     assert term.wait_screen("[all]"), "LEFT did not return to the all-groups view"
 
     # BACKSPACE is the way back to the whole set without cycling every group.
     term.send(keys.SPACE)
-    assert term.wait_screen("[all]", False), "SPACE did not leave the all-groups view"
-    assert _group(term) == entered, "SPACE did not enter a group again"
+    assert term.wait_screen("[%s]" % entered), "SPACE did not enter the same group again"
     term.send(keys.BACKSPACE)
     assert term.wait_screen("[all]"), "BACKSPACE did not reset to the all-groups view"
 
