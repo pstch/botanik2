@@ -11,55 +11,21 @@
 add_executable(botanik_tests
     ${BOTANIK_SITE_SOURCES}
     doctest_main.cpp
-    test_text.cpp
-    test_time.cpp
-    test_sun.cpp
-    test_sizes.cpp
-    test_site_names.cpp
-    test_logger.cpp
     test_alarms.cpp
-    test_functions.cpp
-    test_blocks.cpp
-    test_pid.cpp
-    test_actuator.cpp
-    test_scalar.cpp
-    test_model.cpp
-    test_scan.cpp
-    test_plc_io.cpp
-    test_retain.cpp
-    test_task_timer.cpp
-    test_component.cpp
-    test_tasks.cpp
-    test_alarms_render.cpp
-    test_terminal_present.cpp
-    test_editor_bytes.cpp
-    test_filters.cpp
-    test_line_buffer.cpp
-    test_scrollback.cpp
-    test_parser.cpp
-    test_shell.cpp
-    test_serial.cpp
-    test_writer.cpp
-    test_params.cpp
-    test_storage.cpp
-    test_resolver.cpp
-    test_sun_tracker.cpp
+    test_console.cpp
+    test_logging.cpp
+    test_modbus_master.cpp
+    test_modbus_rtu.cpp
+    test_modbus_tcp.cpp
     test_network.cpp
-    test_hal_net.cpp
-    test_notifier.cpp
-    test_mqtt_log.cpp
-    test_hal_memory.cpp
-    test_modbus_codec.cpp
-    test_modbus_framing.cpp
-    test_modbus_rtu_slave.cpp
-    test_site_bindings.cpp
-    test_modbus_vendor.cpp
-    test_modbus_image.cpp
-    test_modbus_device.cpp
-    test_modbus_client.cpp
-    test_modbus_map.cpp
-    test_modbus_tcp_master.cpp
-    test_modbus_tcp_pdu.cpp
+    test_plc.cpp
+    test_scan.cpp
+    test_site.cpp
+    test_storage.cpp
+    test_sun.cpp
+    test_tasks.cpp
+    test_utils.cpp
+    test_vars.cpp
 )
 
 # vendor/ for doctest.h; src/ for the library and the simulator's site payloads.
