@@ -51,7 +51,8 @@ prunes.
 | `BOTANIK_TARGET` | `SIMULATOR` | `SIMULATOR` or `OPTA` |
 | `BOTANIK_SITE` / `BOTANIK_SITE_DIR` | `gh_mlb41` | which site to build (see @ref int_site) |
 | `CMAKE_BUILD_TYPE` | `DEBUG` | `DEBUG` is `-O0 -g3`; `RELEASE` is `-O3` + LTO, `NDEBUG`, stripped |
-| `BOTANIK_SANITIZE` | `address+undefined` on DEBUG SIMULATOR | recoverable, so the interactive sim stays usable. `OFF` to disable |
+| `BOTANIK_SANITIZE` | `OFF` | `address` / `undefined` / `address+undefined` to instrument a whole tree. Off by default because it more than doubles compile CPU; `make check-full` is where it runs |
+| `BOTANIK_WERROR` | `ON` | warnings are errors on the library's own sources (PRIVATE, so the sketch and the suite keep `-Wall -Wextra` without it). `OFF` for a WIP tree |
 | `BOTANIK_FEATURE_<X>` | see @ref int_config | `ON`/`OFF` per subsystem |
 
 `scheduler.cpp` is compiled with `-Wdouble-promotion` to keep the per-beat metric
@@ -65,10 +66,24 @@ math single-precision.
 make -C build check
 ```
 
-1. **`botanik_strict`** - a `-Werror` mirror of the library. Plain `make` stays
-   warning-tolerant; this fails on any warning.
+1. **a warning-clean build** - the library compiles `-Werror` (`BOTANIK_WERROR`),
+   so building the suite at all fails on any warning in a library source. This
+   replaced `botanik_strict`, a second copy of the whole library compiled purely
+   for its diagnostics, which cost 63 duplicate TU compiles every run.
 2. **the doctest and pyte suites**, via CTest - one entry per `TEST_CASE`, plus one
    per pyte test file.
+
+The gate runs uninstrumented. `make check-full` is the same gate again under
+ASan+UBSan, in a tree of its own under `build/asan/`:
+
+```sh
+make -C build check-full
+```
+
+Run it before a push that touches memory handling, and periodically otherwise -
+the same periodic-sweep treatment clang-tidy gets. Its pyte half is not
+instrumented and cannot be: that sim is pinned to `RELEASE` with sanitizers off,
+because the screen tests need one that is not sanitizer-slow.
 
 ```sh
 ctest --test-dir build --output-on-failure          # every entry

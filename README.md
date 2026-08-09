@@ -70,9 +70,11 @@ make -C build-debug
 ./build-debug/botanik_sim        # run the simulator
 ```
 
-DEBUG builds enable the AddressSanitizer + UndefinedBehaviorSanitizer by default
-(`BOTANIK_SANITIZE=address+undefined`); the interactive sim runs fine instrumented
-and it catches UB/memory bugs early. Turn them off with `-DBOTANIK_SANITIZE=OFF`.
+Sanitizers are **off by default** on every build type. Instrumentation more than
+doubles compile CPU and lands hardest on the test suite, so it moved off the gate
+that runs most often and into `make check-full`, which re-runs the whole gate under
+ASan+UBSan in a tree of its own. To instrument a tree directly, configure it with
+`-DBOTANIK_SANITIZE=address+undefined`; the interactive sim runs fine instrumented.
 
 For an optimized build, add `-DCMAKE_BUILD_TYPE=RELEASE` (enables `-O3`/LTO,
 compiles assertions out, and defaults sanitizers off).
@@ -105,14 +107,18 @@ linked against the host library. From a configured SIMULATOR tree:
 make -C build-debug check          # the full pre-push gate (see below)
 ```
 
-`check` is the one-shot pre-push gate. It runs three things and fails on the
+`check` is the one-shot pre-push gate. It runs two things and fails on the
 first problem:
 
-- a **warning-clean compile** - the `botanik_strict` target mirrors the library
-  with `-Werror`, so any compiler warning fails the build (plain `make` stays
-  warning-tolerant - visibility, not a hard gate);
-- **clang-tidy** - the `bugprone-*` checks from `.clang-tidy`, promoted to errors;
-- the **doctest unit suite** via `ctest`.
+- a **warning-clean compile** - the library compiles `-Werror`
+  (`BOTANIK_WERROR=ON`), so any compiler warning in a library source fails the
+  build. `-DBOTANIK_WERROR=OFF` for a warning-tolerant WIP tree;
+- the **doctest and pyte suites** via `ctest`.
+
+Two things are deliberately NOT in it, both periodic sweeps rather than
+per-change checks: **clang-tidy** (`make clang-tidy`, the `bugprone-*` checks from
+`.clang-tidy`) and the **sanitizers** (`make check-full`, the same gate again under
+ASan+UBSan).
 
 The pieces, if you need them individually:
 

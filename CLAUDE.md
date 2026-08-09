@@ -50,10 +50,21 @@ the `ARDUINO_DATA_DIR` env var. (The build no longer uses the vendored `includes
 tree.)
 
 **Build type & sanitizers.** Builds default to `DEBUG` (`-O0 -g3`, profiler-friendly).
-DEBUG SIMULATOR builds also default `BOTANIK_SANITIZE=address+undefined` (ASan+UBSan,
-recoverable so the interactive sim stays usable); turn off with `-DBOTANIK_SANITIZE=OFF`.
+Sanitizers default **OFF** on every build type: instrumentation was the single
+largest cost in this tree (ASan+UBSan more than doubles compile CPU, and UBSan is
+72% of that), and it landed hardest on the test TUs, which are ~70% of all compile
+time. They moved to `make check-full`, which builds an instrumented tree of its own
+under `build/asan/` and runs the suite there - the same periodic-sweep treatment
+clang-tidy already gets. Instrument a whole tree with
+`-DBOTANIK_SANITIZE=address+undefined` (OFF | address | undefined | address+undefined).
 For an optimized build pass `-DCMAKE_BUILD_TYPE=RELEASE` (`-O3` + LTO, `NDEBUG`,
-stripped, sanitizers off). The `scheduler.cpp` hot path is compiled with
+stripped).
+
+**Warnings are errors** on the library's own sources (`BOTANIK_WERROR`, default ON;
+`-DBOTANIK_WERROR=OFF` for a WIP tree). It is PRIVATE to `botanik`, so the sketch
+and the test suite keep `-Wall -Wextra` without `-Werror`. This replaced
+`botanik_strict`, a second EXCLUDE_FROM_ALL copy of the whole library compiled
+purely for its diagnostics, which cost 63 duplicate TU compiles on every gate run. The `scheduler.cpp` hot path is compiled with
 `-Wdouble-promotion` to keep the per-beat metric math single-precision (no double FPU
 on the M4).
 
@@ -71,6 +82,7 @@ Host-only, SIMULATOR build. There are two suites, both wired into CTest:
 
 ```bash
 make -C build check                  # the one-shot pre-push gate (see below)
+make -C build check-full             # the whole gate under ASan+UBSan (build/asan/)
 make -C build botanik_tests          # just build the doctest binary
 ./build/tests/botanik_tests          # run it directly (doctest CLI)
 ./build/tests/botanik_tests -s       # ...show every passing check + the struct-size table
@@ -80,8 +92,9 @@ ctest --test-dir build -R pyte --output-on-failure  # just the pyte suite
 ```
 
 `make check` is the pre-push gate; it fails on the first problem:
-- **`botanik_strict`** - a `-Werror` mirror of the library (plain `make` stays
-  warning-tolerant; this gate fails on any warning).
+- the **warning gate**, which is no longer a separate target: the library compiles
+  `-Werror` (see above), so building the suite at all fails on any warning in a
+  library source.
 - the **doctest + pyte** suites via `ctest -LE unit`: one entry running the whole
   doctest binary, plus one per pyte test file. The binary is ALSO registered
   per-`TEST_CASE` under the `unit` label, so `ctest -R <case>` and an IDE's test

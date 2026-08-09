@@ -141,8 +141,12 @@ clang-tidy, so `.vscode/settings.json` pins it to the system binary
 ### Sanitizers (ASAN/UBSAN)
 
 SIMULATOR-only runtime sanitizers, via the `BOTANIK_SANITIZE` option
-(`address` | `undefined` | `address+undefined`). Use a separate build dir so the
-flags never mix with the normal build:
+(`address` | `undefined` | `address+undefined`). **Off by default** - they more
+than double compile CPU, so they are a sweep rather than a per-edit tax.
+
+The usual way to run them is `make -C build check-full`, which re-runs the whole
+gate instrumented in a `build/asan/` tree of its own. To drive one by hand, use a
+separate build dir so the flags never mix with the normal build:
 
 ```bash
 cmake -B build-asan -DBOTANIK_SANITIZE=address+undefined
