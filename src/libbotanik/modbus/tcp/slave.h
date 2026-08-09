@@ -175,6 +175,15 @@ namespace Botanik { namespace Modbus {
         TcpSlave(Vars::Bank* io, Logs::Logger* logger = nullptr,
                   Alarms::AlarmController* alarms = nullptr);
 
+        /** @brief Give the port back.
+         *
+         *  On the OPTA this never runs - the slave outlives the firmware - but
+         *  in a HOST process one that does not is a real leak: the listener and
+         *  every open connection stay bound for the life of the process, so a
+         *  later test cannot use the port and the sim cannot restart cleanly.
+         *  test_network.cpp had to avoid 502 entirely because of it. */
+        ~TcpSlave() override { _close_listener(); }
+
         /** @name Per-beat entry points
          *  @{ */
 

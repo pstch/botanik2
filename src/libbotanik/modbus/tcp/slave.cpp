@@ -421,9 +421,15 @@ namespace Botanik { namespace Modbus {
         c.tx_mark  = 0;
         c.tx_since = 0;
         c.pending  = PEND_NONE;
+        // Only a FAULT is worth a line. A client closing, or going quiet until
+        // the idle timer reaps it, is what clients do all day - a SCADA poller
+        // reconnecting on its own schedule would fill the log with its own good
+        // behaviour, and the sim's self-check did exactly that on every run.
+        // Both are already counted in `rejects`, which is where a rate belongs;
+        // what a log line is for is the one that should not have happened.
         if (why != nullptr && _logger != nullptr) {
             char ip[16];
-            _logger->warning(Logs::NETWORK, "modbus: dropped %s\n%s",
+            _logger->warning(Logs::MODBUS, "dropped %s\n%s",
                           Net::ip4_to_str(c.peer, ip, sizeof(ip)), why);
         }
     }
@@ -446,13 +452,13 @@ namespace Botanik { namespace Modbus {
                 }
                 if (now_ms - c.tx_since < Config::MODBUS_TCP_IDLE_TIMEOUT_MS) continue;
                 _ctx.rejects++;
-                _drop(c, "not reading");
+                _drop(c, nullptr);      // routine, not an event: see _drop()
                 continue;
             }
 
             if (now_ms - c.last_ms < Config::MODBUS_TCP_IDLE_TIMEOUT_MS) continue;
             _ctx.rejects++;
-            _drop(c, "idle");
+            _drop(c, nullptr);          // routine, not an event: see _drop()
         }
     }
 

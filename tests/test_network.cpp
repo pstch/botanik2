@@ -317,9 +317,11 @@ TEST_CASE("HAL::Network sim: a listener accepts a connection and carries bytes")
     // and a byte in each direction. The sim binds this instance's own 127/8
     // address, so this runs unchanged beside every other test process.
     //
-    // NOT 502 (Config::MODBUS_TCP_PORT): TcpSlave has no destructor closing its
-    // listener, so the modbus tcp cases leak one and hold that port for the rest
-    // of the process. 503 is privileged too, so the port shift still applies.
+    // NOT 502 (Config::MODBUS_TCP_PORT): a TcpSlave still ALIVE in another case
+    // holds it. It has a destructor now, so the port comes back when one goes
+    // out of scope - but doctest cases share a process and nothing orders them,
+    // so borrowing the slave's own port is still a race worth not running.
+    // 503 is privileged too, so the port shift still applies.
     const uint16_t PORT = 503;                  // privileged: the backend shifts it
     Network::TcpSocket srv = Network::tcp_listen(PORT);
     REQUIRE(srv >= 0);
